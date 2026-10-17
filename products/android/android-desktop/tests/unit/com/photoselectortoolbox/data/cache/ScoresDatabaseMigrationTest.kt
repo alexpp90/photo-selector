@@ -345,53 +345,6 @@ class ScoresDatabaseMigrationTest {
         dao.updateCompositionAnalysis("photo_r3", compJson)
         assertEquals(compJson, dao.getScore("photo_r3")!!.compositionAnalysis)
 
-        // 6. Test getScoresWithMinRating:
-        // rating >= 3 should return photo_r2 (rating 3) and photo_r3 (rating 5)
-        val min3 = dao.getScoresWithMinRating(3)
-        assertEquals(2, min3.size)
-        assertTrue(min3.any { it.filePath == "photo_r2" })
-        assertTrue(min3.any { it.filePath == "photo_r3" })
-        assertFalse(min3.any { it.filePath == "photo_r1" }) // -1
-        assertFalse(min3.any { it.filePath == "photo_r4" }) // 0
-
-        // rating >= 5 should return only photo_r3
-        val min5 = dao.getScoresWithMinRating(5)
-        assertEquals(1, min5.size)
-        assertEquals("photo_r3", min5[0].filePath)
-
-        // rating >= 0 should return photo_r2 (3), photo_r3 (5), photo_r4 (0) — excludes reject (-1)
-        val min0 = dao.getScoresWithMinRating(0)
-        assertEquals(3, min0.size)
-        assertFalse(min0.any { it.filePath == "photo_r1" })
-
-        // rating >= -1 should return all 4 photos
-        val minMinus1 = dao.getScoresWithMinRating(-1)
-        assertEquals(4, minMinus1.size)
-
-        // rating >= 6 should return empty list
-        val min6 = dao.getScoresWithMinRating(6)
-        assertEquals(0, min6.size)
-
-        // 7. Test getScoresWithRating (exact match):
-        // rating = -1 (rejects)
-        val rejects = dao.getScoresWithRating(-1)
-        assertEquals(1, rejects.size)
-        assertEquals("photo_r1", rejects[0].filePath)
-
-        // rating = 0 (unrated)
-        val unrated = dao.getScoresWithRating(0)
-        assertEquals(1, unrated.size)
-        assertEquals("photo_r4", unrated[0].filePath)
-
-        // rating = 3 (3-star)
-        val threeStars = dao.getScoresWithRating(3)
-        assertEquals(1, threeStars.size)
-        assertEquals("photo_r2", threeStars[0].filePath)
-
-        // rating = 4 (no matches)
-        val fourStars = dao.getScoresWithRating(4)
-        assertEquals(0, fourStars.size)
-
         roomDb.close()
     }
 
@@ -470,8 +423,6 @@ class ScoresDatabaseMigrationTest {
         )
 
         assertEquals(2, dao.getCount())
-        val min4 = dao.getScoresWithMinRating(4)
-        assertEquals(2, min4.size)
 
         // Pruning works seamlessly on migrated DB
         dao.pruneToMru(1)

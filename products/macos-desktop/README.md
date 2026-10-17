@@ -55,6 +55,12 @@ To build an optimized release binary:
 swift build -c release
 ```
 
+The UI test modes (`--ui-scenario`, `--ui-self-test`, `--screenshot`) drive the app and can trash
+files, so a release build does not contain them and refuses those flags (exit code 64). Debug
+builds have them; for a release-optimized build with them (the device lab and the smoke test use
+it) run `scripts/build_app.sh release --test-hooks`, which writes to `.build/hooks/` and never to
+the distributable `.build/app/`. `scripts/check_no_test_hooks.sh` verifies a binary carries none.
+
 ## Run
 
 Recommended — assemble and open a proper app bundle (Dock icon, normal keyboard focus):

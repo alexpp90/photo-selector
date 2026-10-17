@@ -49,9 +49,9 @@ if [[ "$EXTERNAL_KEY" -eq 1 ]]; then
 fi
 FIXTURES="$WORK/fixtures"
 
-echo "• building app bundle (release)…"
-APP="$("$PRODUCT_DIR/scripts/build_app.sh" release | tail -n 1)"
-RAW_BIN="$(swift build -c release --package-path "$PRODUCT_DIR" --show-bin-path)/PhotoSelectorApp"
+echo "• building app bundle (release, with UI test hooks)…"
+APP="$("$PRODUCT_DIR/scripts/build_app.sh" release --test-hooks | tail -n 1)"
+RAW_BIN="$(PST_TEST_HOOKS=1 swift build -c release --package-path "$PRODUCT_DIR" --scratch-path "$PRODUCT_DIR/.build/hooks" --show-bin-path)/PhotoSelectorApp"
 
 echo "• generating $COUNT fixtures…"
 EXPECTED="$(swift "$PRODUCT_DIR/scripts/make_fixtures.swift" "$FIXTURES" "$COUNT" | tail -n 1)"

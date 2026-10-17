@@ -79,11 +79,29 @@ public struct CullingExecutionRecord: Sendable, Identifiable {
 /// supporting in-flight job cancellation, undo reversals, and rollback support.
 public actor AsyncCullingActor {
 
+    /// Label of the serial queue all blocking file I/O runs on.
+    public static let ioQueueLabel = "com.photoselector.culling-io"
+
+    /// File operations are blocking system calls that can take seconds on an SD card or network
+    /// volume. The actor therefore runs on its own serial dispatch queue instead of a thread of the
+    /// cooperative pool, so a slow volume cannot starve other Swift tasks (finding Q-4).
+    private nonisolated let ioQueue = DispatchSerialQueue(label: AsyncCullingActor.ioQueueLabel, qos: .utility)
+
+    public nonisolated var unownedExecutor: UnownedSerialExecutor {
+        ioQueue.asUnownedSerialExecutor()
+    }
+
     private let cullingManager: FileCullingManager
     private let fileManager: FileManager
     private var cancelledJobIDs: Set<UUID> = []
     private var executedJobIDs: Set<UUID> = []
     private var completedRecords: [UUID: CullingExecutionRecord] = [:]
+    /// Job IDs in the order they were first seen; the oldest are forgotten beyond `retainedJobLimit`.
+    private var trackedOrder: [UUID] = []
+    private let retainedJobLimit: Int
+
+    /// Number of job IDs the actor still remembers (cancelled, executed or with a record).
+    var trackedJobCount: Int { trackedOrder.count }
 
     public nonisolated var trashService: any TrashService {
         cullingManager.trashService
@@ -91,10 +109,12 @@ public actor AsyncCullingActor {
 
     public init(
         cullingManager: FileCullingManager = FileCullingManager(),
-        fileManager: FileManager = .default
+        fileManager: FileManager = .default,
+        retainedJobLimit: Int = 256
     ) {
         self.cullingManager = cullingManager
         self.fileManager = fileManager
+        self.retainedJobLimit = max(1, retainedJobLimit)
     }
 
     public init(
@@ -103,6 +123,26 @@ public actor AsyncCullingActor {
     ) {
         self.cullingManager = FileCullingManager(fileManager: fileManager, trashService: trashService)
         self.fileManager = fileManager
+        self.retainedJobLimit = 256
+    }
+
+    /// Remembers `id` and forgets the oldest jobs beyond the retention limit. The undo stack is
+    /// 20 deep, so a job that old can no longer be reversed through this actor anyway (Q-4).
+    private func track(_ id: UUID) {
+        if !trackedOrder.contains(id) { trackedOrder.append(id) }
+        while trackedOrder.count > retainedJobLimit {
+            let oldest = trackedOrder.removeFirst()
+            cancelledJobIDs.remove(oldest)
+            executedJobIDs.remove(oldest)
+            completedRecords.removeValue(forKey: oldest)
+        }
+    }
+
+    private func forget(_ id: UUID) {
+        executedJobIDs.remove(id)
+        cancelledJobIDs.remove(id)
+        completedRecords.removeValue(forKey: id)
+        trackedOrder.removeAll { $0 == id }
     }
 
     /// Enqueues and serially executes a culling job.
@@ -114,17 +154,20 @@ public actor AsyncCullingActor {
 
         if Task.isCancelled {
             cancelledJobIDs.insert(job.id)
+            track(job.id)
             throw CancellationError()
         }
 
         let record = try executeJob(job)
         completedRecords[job.id] = record
+        track(job.id)
         return record
     }
 
     /// Marks a job ID as cancelled. If the job hasn't started execution, it will be skipped.
     public func cancelJob(id: UUID) {
         cancelledJobIDs.insert(id)
+        track(id)
     }
 
     /// Cancels a pending job or reverses a completed/in-flight culling operation.
@@ -271,9 +314,7 @@ public actor AsyncCullingActor {
             }
         }
 
-        executedJobIDs.remove(record.jobID)
-        cancelledJobIDs.remove(record.jobID)
-        completedRecords.removeValue(forKey: record.jobID)
+        forget(record.jobID)
         return restoredURLs
     }
 
@@ -308,7 +349,7 @@ public actor AsyncCullingActor {
                     rootURL: root,
                     destinationFolderName: job.destinationFolderName
                 )
-            } catch let FileCullingError.partialMove(destinations, unremovedSources, reason) {
+            } catch let FileCullingError.partialMove(destinations, unremovedSources, reason, rollbackFailed) {
                 // Keep the record so the verified copies can be undone later (and never lost).
                 executedJobIDs.insert(job.id)
                 completedRecords[job.id] = CullingExecutionRecord(
@@ -324,7 +365,8 @@ public actor AsyncCullingActor {
                 throw FileCullingError.partialMove(
                     destinations: destinations,
                     unremovedSources: unremovedSources,
-                    reason: reason
+                    reason: reason,
+                    rollbackFailed: rollbackFailed
                 )
             }
 

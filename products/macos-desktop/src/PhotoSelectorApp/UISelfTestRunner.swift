@@ -1,3 +1,4 @@
+#if PST_TEST_HOOKS
 import SwiftUI
 import AppKit
 import PhotoSelectorKit
@@ -455,3 +456,4 @@ private extension JSONEncoder {
         return encoder
     }
 }
+#endif

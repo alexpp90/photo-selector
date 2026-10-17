@@ -2,6 +2,13 @@
 import Foundation
 import PackageDescription
 
+// UI test hooks (`--ui-scenario`, `--ui-self-test`, `--screenshot`) drive the app and can trash
+// files, so they are compiled only into debug builds and into builds made for the lab and the
+// smoke test (`PST_TEST_HOOKS=1`, see scripts/build_app.sh --test-hooks) — never into a release.
+let testHookSettings: [SwiftSetting] = ProcessInfo.processInfo.environment["PST_TEST_HOOKS"] == "1"
+    ? [.define("PST_TEST_HOOKS")]
+    : [.define("PST_TEST_HOOKS", .when(configuration: .debug))]
+
 let package = Package(
     name: "PhotoSelector",
     platforms: [
@@ -35,6 +42,7 @@ let package = Package(
                 "PhotoSelectorKit"
             ],
             path: "src/PhotoSelectorApp",
+            swiftSettings: testHookSettings,
             linkerSettings: [
                 .unsafeFlags(["-Xlinker", "-w"])
             ]

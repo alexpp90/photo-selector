@@ -76,4 +76,12 @@ struct CullingFeedbackTests {
         )
         #expect(title == nil)
     }
+
+    @Test("A partial move names the problem: an original that stayed, or members left in the folder")
+    func partialMoveTitles() {
+        #expect(CullingFeedback.partialMoveTitle(destinationFolder: "Selection", rollbackFailed: false)
+            == "Copied to Selection — original could not be removed")
+        #expect(CullingFeedback.partialMoveTitle(destinationFolder: "Selection", rollbackFailed: true)
+            == "Move interrupted — some files stayed in Selection and could not be put back")
+    }
 }

@@ -169,18 +169,3 @@ data class UndoPushResult(
     val evictedPendingDeletions: List<PendingDeletion>
         get() = evicted.filterIsInstance<UndoableOperation.RevertPendingDelete>().map { it.pending }
 }
-
-/** Alias object for callers referencing [UndoHistory] directly. */
-object UndoHistory {
-    const val MAX_UNDO_HISTORY = UndoPolicy.MAX_UNDO_HISTORY
-
-    fun push(
-        history: List<UndoableOperation>,
-        operation: UndoableOperation,
-        maxDepth: Int = MAX_UNDO_HISTORY,
-    ): UndoPushResult = UndoPolicy.push(history, operation, maxDepth)
-
-    fun pop(
-        history: List<UndoableOperation>,
-    ): Pair<UndoableOperation?, List<UndoableOperation>> = UndoPolicy.pop(history)
-}

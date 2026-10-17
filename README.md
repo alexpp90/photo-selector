@@ -9,8 +9,10 @@
   [![Kotlin](https://img.shields.io/badge/Kotlin-2.0%2B-7F52FF?logo=kotlin&logoColor=white)](https://kotlinlang.org/)
   [![Swift 6.0](https://img.shields.io/badge/Swift-6.0-F05138?logo=swift&logoColor=white)](https://swift.org/)
   [![Python 3.12+](https://img.shields.io/badge/Python-3.12%2B-3776AB?logo=python&logoColor=white)](https://www.python.org/)
-  [![Build Status](https://img.shields.io/github/actions/workflow/status/alexpp90/photo-selector/build.yml?branch=main&label=Build&logo=github)](https://github.com/alexpp90/photo-selector/actions)
-  [![Latest Release](https://img.shields.io/github/v/release/alexpp90/photo-selector?label=Stable&logo=github)](https://github.com/alexpp90/photo-selector/releases/latest)
+  [![Android CI](https://img.shields.io/github/actions/workflow/status/alexpp90/photo-selector/android.yml?branch=main&label=Android&logo=github)](https://github.com/alexpp90/photo-selector/actions/workflows/android.yml)
+  [![macOS CI](https://img.shields.io/github/actions/workflow/status/alexpp90/photo-selector/macos.yml?branch=main&label=macOS&logo=github)](https://github.com/alexpp90/photo-selector/actions/workflows/macos.yml)
+  [![Linux CI](https://img.shields.io/github/actions/workflow/status/alexpp90/photo-selector/linux.yml?branch=main&label=Linux&logo=github)](https://github.com/alexpp90/photo-selector/actions/workflows/linux.yml)
+  [![Releases](https://img.shields.io/badge/Releases-per%20product-181717?logo=github)](docs/build/RELEASING.md)
   [![Android](https://img.shields.io/badge/Android-3DDC84?logo=android&logoColor=white)](#-android-installation)
   [![macOS](https://img.shields.io/badge/macOS-000000?logo=apple&logoColor=white)](#-macos-desktop-installation)
   [![Linux](https://img.shields.io/badge/Linux-FCC624?logo=linux&logoColor=black)](#-linux-desktop-installation)
@@ -187,10 +189,10 @@ The original multi-platform desktop culling application built with Python and Tk
 #### Option A: Obtainium (Direct Auto-Updates)
 1. Install [Obtainium](https://github.com/ImranOmarRashid/Obtainium) on your Android device.
 2. In Obtainium, click **Add App** and paste this repository's URL: `https://github.com/alexpp90/photo-selector`.
-3. Select your target release track (`stable` or `nightly`). Obtainium will download and install APK updates directly from GitHub Releases.
+3. Each product has its own releases, named `PhotoTok X.Y.Z` and `Android Desktop X.Y.Z`: set Obtainium's **Filter release titles by regular expression** to `^PhotoTok ` or `^Android Desktop ` (or allow pre-releases for the `nightly` build). Obtainium will download and install APK updates directly from GitHub Releases.
 
 #### Option B: GitHub Releases (Direct APK)
-Download `:phototok` or `:android-desktop` APKs directly from the latest [GitHub Releases](https://github.com/alexpp90/photo-selector/releases) page.
+Download the APK from the latest [PhotoTok](https://github.com/alexpp90/photo-selector/releases?q=phototok-v&expanded=true) or [Android Desktop](https://github.com/alexpp90/photo-selector/releases?q=android-desktop-v&expanded=true) release.
 
 ---
 
@@ -209,7 +211,7 @@ brew install --cask photo-selector-toolbox
 ```
 
 #### Standalone ZIP
-Download the pre-compiled `photo-selector-macos-apple-silicon.zip` from [GitHub Releases](https://github.com/alexpp90/photo-selector/releases/latest), unpack it, and drag `PhotoSelector.app` into `/Applications`.
+Download the pre-compiled `photo-selector-macos-apple-silicon.zip` from the latest [macOS Desktop release](https://github.com/alexpp90/photo-selector/releases?q=macos-desktop-v&expanded=true), unpack it, and drag `PhotoSelector.app` into `/Applications`.
 
 ---
 

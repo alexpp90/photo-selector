@@ -1,3 +1,4 @@
+#if PST_TEST_HOOKS
 import AppKit
 import Foundation
 import PhotoSelectorKit
@@ -357,3 +358,4 @@ final class UIScenarioRunner {
         }
     }
 }
+#endif

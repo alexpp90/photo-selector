@@ -45,7 +45,7 @@ The codebase enforces strict separation of concerns:
 | `Space` | Toggle 100% 1:1 actual-pixel zoom in 1-Up mode |
 | `Escape` | Reset zoom to fit / dismiss |
 | `I` | Toggle floating optical metadata & quality score HUD |
-| `Ctrl+Z` | Undo last culling operation (atomic reversal) |
+| `Ctrl+Z` | Undo last culling operation (atomic reversal); every folder keeps its own undo history, including an operation that finished while you switched folders |
 | `Ctrl+O` | Open folder / SD card directory |
 | `Ctrl+D` | Open Duplicate Finder |
 | `Ctrl+L` | Open Library Statistics |
