@@ -18,10 +18,17 @@ import androidx.compose.ui.input.pointer.pointerHoverIcon
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import com.photoselectortoolbox.ui.theme.FocusCyan
 import com.photoselectortoolbox.ui.theme.StudioCanvas
 import com.photoselectortoolbox.ui.theme.Zinc50
+
+/** Edge of the maximise badge. */
+val MaximiseBadgeSize: Dp = 44.dp
+
+/** Distance from a frame's corner to the badge, so the pill can clear the badge band. */
+val MaximiseBadgeInset: Dp = 6.dp
 
 /**
  * The one control drawn on a photograph.
@@ -47,7 +54,7 @@ fun MaximiseBadge(
 ) {
     Box(
         modifier = modifier
-            .size(44.dp)
+            .size(MaximiseBadgeSize)
             .clip(RoundedCornerShape(8.dp))
             .background(StudioCanvas.copy(alpha = 0.72f))
             .pointerHoverIcon(PointerIcon.Hand)

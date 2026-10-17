@@ -723,15 +723,18 @@ class ImageRepositoryImpl @Inject constructor(
         parentDocumentId: String?,
     ): List<FileOperationResult> {
         val targetFoldersByKey = LinkedHashMap<String, DocumentFile>()
-        val resolvedSources = sourceUris.map { uri ->
-            val doc = DocumentFile.fromSingleUri(context, uri)
+        val docs = sourceUris.map { DocumentFile.fromSingleUri(context, it) }
+        val bundleNames = docs.mapNotNull { it?.name }
+        val resolvedSources = sourceUris.mapIndexed { index, uri ->
+            val doc = docs[index]
             val name = doc?.name
             if (name == null) {
                 ResolvedSource(uri, doc, null, SINGLE_FOLDER_KEY, null)
             } else if (sorting) {
-                val key = ImageFormats.selectionSubfolder(name).name
+                val subfolder = ImageFormats.selectionSubfolderInBundle(name, bundleNames)
+                val key = subfolder.name
                 val target = targetFoldersByKey.getOrPut(key) {
-                    determineTargetFolder(name, baseTargetFolder)
+                    determineTargetFolder(subfolder, baseTargetFolder)
                 }
                 ResolvedSource(uri, doc, name, key, target)
             } else {
@@ -1120,12 +1123,12 @@ class ImageRepositoryImpl @Inject constructor(
      * lives in [ImageFormats.selectionSubfolder].
      */
     private fun determineTargetFolder(
-        fileName: String,
+        subfolder: ImageFormats.SelectionSubfolder,
         selectionDir: DocumentFile
     ): DocumentFile {
         fun sub(name: String): DocumentFile? =
             selectionDir.findFile(name) ?: selectionDir.createDirectory(name)
-        return when (ImageFormats.selectionSubfolder(fileName)) {
+        return when (subfolder) {
             ImageFormats.SelectionSubfolder.RAW -> sub(RAW_SUBFOLDER) ?: selectionDir
             ImageFormats.SelectionSubfolder.JPEG -> sub(JPEG_SUBFOLDER) ?: selectionDir
             ImageFormats.SelectionSubfolder.ROOT -> selectionDir

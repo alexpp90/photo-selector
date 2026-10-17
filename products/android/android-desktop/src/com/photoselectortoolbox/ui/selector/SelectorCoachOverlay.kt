@@ -23,6 +23,15 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Icon
+import com.photoselectortoolbox.domain.guidance.CoachPaging
+import androidx.compose.ui.unit.Constraints
+import androidx.compose.ui.layout.SubcomposeLayout
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.draw.clipToBounds
+import androidx.compose.runtime.setValue
+import androidx.compose.runtime.mutableIntStateOf
+import androidx.compose.runtime.getValue
+import androidx.compose.foundation.layout.widthIn
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.remember
@@ -79,8 +88,19 @@ import com.photoselectortoolbox.ui.theme.Zinc50
  *   every callout lands in the horizontal slack and no callout can cover a
  *   frame. An instrumented test asserts the bounds do not intersect, because
  *   that is a regression otherwise only caught by eye.
- * - **It fits on one screen and does not scroll.** A guide that scrolls is
- *   documenting rather than teaching.
+ * - **It is paged, and a page never scrolls.** All the cards used to be stacked
+ *   in the control flank and overflowed it — truncated cards, the title over
+ *   Copy and Move, "Got it" over controls (AD-3). The cards now live in the
+ *   *left* flank only, over the readout block (non-interactive text), and are
+ *   packed greedily by *measured* height into as many pages as that space needs
+ *   ([CoachPaging]). Skip, a page indicator and Next / **Got it** form a footer
+ *   at the foot of the same column. The invariant is that nothing the guide
+ *   draws — card, title, footer — may touch `control_block`, `selector_sidebar`
+ *   or a frame (badges included); keeping to the left flank guarantees it by
+ *   construction rather than by measurement. Because a card is no longer beside
+ *   what it explains, each names where it is ([TourRegion.location]). A guide
+ *   that scrolls is documenting rather than teaching, so there is no scrolling:
+ *   a card taller than the space gets a page to itself.
  * - **Nothing is written out.** Every row comes from [SelectorTour], which
  *   generates them from the same declarations the bindings read, and the title
  *   comes from [SelectorHintText]. The sheet this replaces claimed the maximise
@@ -116,8 +136,9 @@ fun SelectorCoachOverlay(
                 screenLegend = Screen.all.map { screen ->
                     LegendRow(label = screen.label, meaning = screen.meaning)
                 },
-            ).associateBy { it.region }
+            )
         }
+        val items = callouts
 
         Box(
             modifier = Modifier
@@ -150,7 +171,7 @@ fun SelectorCoachOverlay(
                 // wrong chrome.
                 Box(modifier = Modifier.weight(1f).fillMaxSize()) {
                     ImageRegionCallouts(
-                        callouts = callouts,
+                        items = items,
                         aspect = aspect,
                         detailsVisible = detailsVisible,
                         filmstripVisible = filmstripVisible,
@@ -172,7 +193,7 @@ fun SelectorCoachOverlay(
  */
 @Composable
 private fun ImageRegionCallouts(
-    callouts: Map<TourRegion, TourCallout>,
+    items: List<TourCallout>,
     aspect: Float,
     detailsVisible: Boolean,
     filmstripVisible: Boolean,
@@ -201,78 +222,21 @@ private fun ImageRegionCallouts(
                 horizontalArrangement = Arrangement.Center,
                 verticalAlignment = Alignment.CenterVertically,
             ) {
-                // The left flank carries three blocks, spaced apart rather than
-                // centred as one. The sidebar's session actions are at the top of
-                // the screen and its destinations at the bottom, while the
-                // readout sits in the middle — so spacing them to the same three
-                // positions lands every explanation level with the thing it
-                // explains, which is the whole claim the word "legend" makes.
-                Column(
+                // The pager owns the whole left flank (see the class comment).
+                CoachPager(
+                    items = items,
+                    onDismiss = onDismiss,
                     modifier = Modifier.width(layout.flankWidth).fillMaxHeight(),
-                    verticalArrangement = Arrangement.SpaceBetween,
-                    horizontalAlignment = Alignment.End,
-                ) {
-                    callouts[TourRegion.SIDEBAR_SESSION]?.let { Callout(it) }
-                    Column(horizontalAlignment = Alignment.End) {
-                        callouts[TourRegion.READOUT]?.let { Callout(it) }
-                        callouts[TourRegion.FRAMES]?.let {
-                            Spacer(modifier = Modifier.height(10.dp))
-                            Callout(it)
-                        }
-                    }
-                    callouts[TourRegion.SIDEBAR_SCREENS]?.let { Callout(it) }
-                }
+                )
 
                 Spacer(modifier = Modifier.width(FrameGeometry.Gap))
                 Spacer(modifier = Modifier.size(layout.frame))
                 Spacer(modifier = Modifier.width(FrameGeometry.Gap))
 
-                // The control flank, split exactly as the layout splits it:
-                // callouts where the controls are, and the filmstrip's column
-                // reserved and left empty at the outer edge so its callout sits
-                // beside the strip rather than on top of it.
-                Row(
-                    modifier = Modifier.width(layout.flankWidth).fillMaxHeight(),
-                    verticalAlignment = Alignment.CenterVertically,
-                ) {
-                    Column(
-                        modifier = Modifier.weight(1f),
-                        verticalArrangement = Arrangement.Center,
-                    ) {
-                        Title()
-                        Spacer(modifier = Modifier.height(14.dp))
-                        // Weighted, so it is measured *after* the title and the
-                        // button and absorbs whatever height is left over.
-                        // A Column hands its children the remaining height in
-                        // source order, so when this stack is taller than the
-                        // flank — which it is at the reference geometry, where
-                        // row 1 is only as tall as the current frame — every
-                        // child after it was measured at zero height. That made
-                        // "Got it" a 0 dp box: present in the tree, named by the
-                        // requirement as the way to close the guide, and
-                        // impossible to hit. `fill = false` keeps the stack at
-                        // its natural height when there is room to spare, so
-                        // nothing moves on a window that already fitted.
-                        Column(modifier = Modifier.weight(1f, fill = false)) {
-                            callouts[TourRegion.CONTROLS]?.let { Callout(it) }
-                            callouts[TourRegion.KEYS]?.let {
-                                Spacer(modifier = Modifier.height(14.dp))
-                                Callout(it)
-                            }
-                            callouts[TourRegion.FILMSTRIP]?.let {
-                                Spacer(modifier = Modifier.height(14.dp))
-                                Callout(it, compact = true)
-                            }
-                        }
-                        Spacer(modifier = Modifier.height(16.dp))
-                        DismissButton(onDismiss)
-                    }
-
-                    if (layout.filmstripWidth > 0.dp) {
-                        Spacer(modifier = Modifier.width(FrameGeometry.Gap))
-                        Spacer(modifier = Modifier.width(layout.filmstripWidth).fillMaxHeight())
-                    }
-                }
+                // The control flank, reserved and left EMPTY: the real control
+                // block (and the filmstrip beside it) is what the guide is
+                // explaining, and drawing over it is the defect AD-3 recorded.
+                Spacer(modifier = Modifier.width(layout.flankWidth).fillMaxHeight())
             }
 
             // ── Row 2: the two neighbour footprints, reserved and empty ──
@@ -288,6 +252,137 @@ private fun ImageRegionCallouts(
                 Spacer(modifier = Modifier.size(layout.frame))
             }
         }
+    }
+}
+
+/** Height of the footer row; also its touch target. */
+private val CoachFooterHeight = 48.dp
+
+/** Space between cards on a page. */
+private val CoachCardGap = 10.dp
+
+/**
+ * The paged left flank: cards packed by measured height, footer at the foot.
+ *
+ * A `SubcomposeLayout` because the packing depends on how tall each card turns
+ * out at this width and font scale. Cards are measured in throw-away slots with
+ * no test tag and no semantics, so the only `coach_callout` nodes that exist are
+ * the ones on the visible page.
+ */
+@Composable
+private fun CoachPager(
+    items: List<TourCallout>,
+    onDismiss: () -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    var requested by remember { mutableIntStateOf(0) }
+    SubcomposeLayout(modifier = modifier.clipToBounds()) { constraints ->
+        val width = constraints.maxWidth
+        val height = constraints.maxHeight
+        val gap = CoachCardGap.roundToPx()
+        val footer = CoachFooterHeight.roundToPx()
+
+        // The heading leads every page rather than being packed like a card: packed,
+        // it took page 1 alone whenever the first card (the sidebar legend) did not
+        // fit beside it, and a page that explains nothing is a page to skip.
+        val header = subcompose("measureTitle") { Title() }
+            .first()
+            .measure(Constraints(maxWidth = width))
+            .height
+        val heights = items.mapIndexed { index, item ->
+            subcompose("measure$index") { Callout(item, tagged = false) }
+                .first()
+                .measure(Constraints(maxWidth = width))
+                .height
+        }
+        val pages = CoachPaging.pack(heights, available = height - header - footer - 2 * gap, gap = gap)
+        val page = requested.coerceIn(0, pages.lastIndex)
+
+        val placeable = subcompose("page$page") {
+            Column(modifier = Modifier.fillMaxSize()) {
+                Column(
+                    modifier = Modifier.weight(1f).fillMaxWidth(),
+                    verticalArrangement = Arrangement.spacedBy(CoachCardGap),
+                    horizontalAlignment = Alignment.End,
+                ) {
+                    Title()
+                    pages[page].forEach { Callout(items[it]) }
+                }
+                CoachFooter(
+                    page = page,
+                    pageCount = pages.size,
+                    onNext = { requested = page + 1 },
+                    onClose = onDismiss,
+                )
+            }
+        }.first().measure(Constraints.fixed(width, height))
+
+        layout(width, height) { placeable.place(0, 0) }
+    }
+}
+
+/**
+ * Skip · `2 / 3` · Next, or just **Got it** when there is one page.
+ *
+ * On the last page the closing control keeps the `coach_overlay_dismiss` tag it
+ * always had; Next has its own. Every target is 48 dp tall.
+ */
+@Composable
+private fun CoachFooter(
+    page: Int,
+    pageCount: Int,
+    onNext: () -> Unit,
+    onClose: () -> Unit,
+) {
+    val last = page >= pageCount - 1
+    Row(
+        modifier = Modifier.fillMaxWidth().height(CoachFooterHeight).testTag("coach_footer"),
+        horizontalArrangement = Arrangement.SpaceBetween,
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        if (pageCount > 1) {
+            FooterButton("Skip", onClose, "coach_overlay_skip", primary = false)
+            Text(
+                text = "${page + 1} / $pageCount",
+                fontSize = 12.sp,
+                fontFamily = FontFamily.Monospace,
+                color = Zinc400,
+                modifier = Modifier.testTag("coach_page_indicator"),
+            )
+        } else {
+            Spacer(modifier = Modifier.width(1.dp))
+        }
+        if (last) {
+            FooterButton("Got it", onClose, "coach_overlay_dismiss", primary = true)
+        } else {
+            FooterButton("Next", onNext, "coach_overlay_next", primary = true)
+        }
+    }
+}
+
+@Composable
+private fun FooterButton(label: String, onClick: () -> Unit, tag: String, primary: Boolean) {
+    Box(
+        modifier = Modifier
+            .height(CoachFooterHeight)
+            .widthIn(min = 48.dp)
+            .clip(RoundedCornerShape(8.dp))
+            .background(if (primary) StudioCard else Color.Transparent)
+            .then(
+                if (primary) Modifier.border(1.dp, StudioBorder, RoundedCornerShape(8.dp)) else Modifier
+            )
+            .pointerHoverIcon(PointerIcon.Hand)
+            .clickable(onClick = onClick)
+            .padding(horizontal = 16.dp)
+            .testTag(tag),
+        contentAlignment = Alignment.Center,
+    ) {
+        Text(
+            text = label,
+            fontSize = 13.sp,
+            fontWeight = FontWeight.Medium,
+            color = if (primary) FocusCyanText else Zinc400,
+        )
     }
 }
 
@@ -324,7 +419,7 @@ private fun Title() {
  * control flank, so both drop to the title and a short body.
  */
 @Composable
-private fun Callout(callout: TourCallout, compact: Boolean = false) {
+private fun Callout(callout: TourCallout, compact: Boolean = false, tagged: Boolean = true) {
     Column(
         modifier = Modifier
             .then(if (compact) Modifier.fillMaxWidth() else Modifier)
@@ -332,10 +427,26 @@ private fun Callout(callout: TourCallout, compact: Boolean = false) {
             .background(StudioPanel)
             .border(1.dp, StudioBorder, RoundedCornerShape(10.dp))
             .padding(horizontal = 10.dp, vertical = 8.dp)
-            .semantics { contentDescription = "${callout.title}. ${callout.body}" }
-            .testTag("coach_callout"),
+            .then(
+                if (tagged) {
+                    Modifier
+                        .semantics {
+                            contentDescription = "${callout.region.location}. ${callout.title}. ${callout.body}"
+                        }
+                        .testTag("coach_callout")
+                } else {
+                    Modifier
+                }
+            ),
         verticalArrangement = Arrangement.spacedBy(3.dp),
     ) {
+        // Where it is: the card no longer sits beside what it explains.
+        Text(
+            text = callout.region.location.uppercase(),
+            fontSize = 9.sp,
+            fontFamily = FontFamily.Monospace,
+            color = FocusCyanText,
+        )
         Row(
             horizontalArrangement = Arrangement.spacedBy(6.dp),
             verticalAlignment = Alignment.CenterVertically,
@@ -431,28 +542,3 @@ private fun KeyRow(row: GestureRow, compact: Boolean) {
         )
     }
 }
-
-/** Closes the guide. `Esc` and a tap anywhere on the scrim do the same. */
-@Composable
-private fun DismissButton(onDismiss: () -> Unit) {
-    Box(
-        modifier = Modifier
-            .height(48.dp)
-            .clip(RoundedCornerShape(8.dp))
-            .background(StudioCard)
-            .border(1.dp, StudioBorder, RoundedCornerShape(8.dp))
-            .pointerHoverIcon(PointerIcon.Hand)
-            .clickable(onClick = onDismiss)
-            .padding(horizontal = 20.dp)
-            .testTag("coach_overlay_dismiss"),
-        contentAlignment = Alignment.Center,
-    ) {
-        Text(
-            text = "Got it",
-            fontSize = 13.sp,
-            fontWeight = FontWeight.Medium,
-            color = FocusCyanText,
-        )
-    }
-}
-

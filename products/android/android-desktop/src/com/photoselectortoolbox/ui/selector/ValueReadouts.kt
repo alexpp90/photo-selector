@@ -22,6 +22,10 @@ import androidx.compose.material.icons.outlined.ErrorOutline
 import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableIntStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -330,13 +334,13 @@ fun NeighbourValueOverlay(
         // *where* this frame is, and it costs no extra line.
         val exposureLines = ExifFormatter.overlayLines(image.exifData)
         exposureLines.forEachIndexed { index, line ->
-            Text(
-                text = if (index == 0 && position != null) "$position · $line" else line,
-                fontSize = 9.5.sp,
-                fontFamily = FontFamily.Monospace,
-                color = Zinc400,
-                maxLines = 1,
-                overflow = TextOverflow.Ellipsis,
+            val tokens = line.split(EXPOSURE_SEPARATOR)
+            TokenLine(
+                tokens = if (index == 0 && position != null) {
+                    listOf(position.toString()) + tokens
+                } else {
+                    tokens
+                },
             )
         }
         if (exposureLines.isEmpty() && position != null) {
@@ -374,6 +378,36 @@ fun NeighbourValueOverlay(
             )
         }
     }
+}
+
+private const val EXPOSURE_SEPARATOR = " · "
+
+/**
+ * One line of exposure tokens (`1/250s`, `f/2.8`, `50mm`, `ISO 400`) that is
+ * never wrapped and never cut mid-token (AD-16).
+ *
+ * A token is the unit of meaning: `f/2` and `1/2` are both valid readings of a
+ * clipped `f/2.8` and `1/250s`, which is worse than a missing value. When the
+ * line does not fit its column — a large font scale, a long position — the
+ * *last* token is dropped and the line re-laid out, until it fits. Position
+ * leads and exposure follows in the order shutter, aperture, focal length, ISO,
+ * so what goes first is what a cull cares about least.
+ */
+@Composable
+private fun TokenLine(tokens: List<String>) {
+    var shown by remember(tokens) { mutableIntStateOf(tokens.size) }
+    Text(
+        text = tokens.take(shown).joinToString(EXPOSURE_SEPARATOR),
+        fontSize = 9.5.sp,
+        fontFamily = FontFamily.Monospace,
+        color = Zinc400,
+        maxLines = 1,
+        softWrap = false,
+        overflow = TextOverflow.Clip,
+        onTextLayout = { layout ->
+            if (layout.didOverflowWidth && shown > 1) shown -= 1
+        },
+    )
 }
 
 /** One `icon · value` line with its goodness bar, for a neighbour overlay. */

@@ -185,6 +185,12 @@ data class SelectorUiState(
      * `SelectorGuidance` decides; this field only carries the answer.
      */
     val pendingHint: SelectorHint? = null,
+    /**
+     * The verb of the filing the [pendingHint] explains, which is not always the
+     * configured one: press `M` with Copy configured and the card must say
+     * "Moved", not "Copied" (AD-5). Null until something is filed.
+     */
+    val performedFilingAction: FilingAction? = null,
     /** The destination folder name, so the filing hint can name it (persisted). */
     val selectionFolderName: String = FilingAction.DEFAULT_SELECTION_FOLDER,
     /** Whether RAW and JPEG are filed into subfolders (persisted). */
@@ -296,12 +302,19 @@ data class SelectorUiState(
      */
     val pendingHintText: SelectorHintUi?
         get() = pendingHint?.let { hint ->
+            // The filing card explains what *just happened*, so it takes the verb
+            // that was performed; every other card is not about a verb.
+            val verb = if (hint == SelectorHint.FILING) {
+                performedFilingAction ?: filingAction
+            } else {
+                filingAction
+            }
             SelectorHintUi(
                 hint = hint,
-                title = SelectorHintText.title(hint, filingAction, selectionFolderName),
+                title = SelectorHintText.title(hint, verb, selectionFolderName),
                 message = SelectorHintText.message(
                     hint = hint,
-                    filingAction = filingAction,
+                    filingAction = verb,
                     selectionFolderName = selectionFolderName,
                     sortingEnabled = sortingEnabled,
                 ),
@@ -1307,6 +1320,11 @@ class SelectorViewModel @Inject constructor(
                 // Populated once the transfer reports where the file went; a
                 // move with no destination URI is not reversible.
                 snackbarUndoAvailable = false,
+                performedFilingAction = if (action == CurationAction.MOVE) {
+                    FilingAction.MOVE
+                } else {
+                    FilingAction.COPY
+                },
             )
         }
         onFrameChanged()

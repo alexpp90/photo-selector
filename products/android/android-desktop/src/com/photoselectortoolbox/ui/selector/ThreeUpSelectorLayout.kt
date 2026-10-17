@@ -334,7 +334,9 @@ fun ThreeUpSelectorLayout(
             FirstRunNavigationHint(
                 visible = showFirstRunHint,
                 onDismiss = onDismissFirstRunHint,
-                modifier = Modifier.align(Alignment.BottomCenter).padding(bottom = 16.dp),
+                modifier = Modifier.align(Alignment.BottomCenter).padding(
+                    bottom = FrameGeometry.firstRunPillBottomInset(maxHeight, frameSize.height),
+                ),
             )
         }
     }
@@ -397,6 +399,9 @@ private fun NeighbourFrame(
     onMaximise: () -> Unit,
     testTag: String,
 ) {
+    // A frame too small to carry the overlay without being covered by it shows
+    // the photograph and nothing else (AD-16).
+    val overlayHidden = FrameGeometry.overlayHiddenInFrame(size, overlayOutside)
     val outerTag = if (frame == SelectorFrame.PREVIOUS) {
         "selector.frame.previous"
     } else {
@@ -420,7 +425,7 @@ private fun NeighbourFrame(
                 outerTestTag = outerTag,
             )
 
-            if (showValues && !overlayOutside) {
+            if (showValues && !overlayOutside && !overlayHidden) {
                 NeighbourValueOverlay(
                     image = image,
                     position = position,
@@ -522,7 +527,7 @@ private fun FrameTile(
         if (image != null) {
             MaximiseBadge(
                 onClick = onMaximise,
-                modifier = Modifier.align(badgeAlignment).padding(6.dp),
+                modifier = Modifier.align(badgeAlignment).padding(MaximiseBadgeInset),
             )
         }
     }

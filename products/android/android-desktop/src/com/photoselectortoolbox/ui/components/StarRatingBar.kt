@@ -78,7 +78,6 @@ fun StarRatingBar(
                     }
                     .padding(2.dp)
                     .testTag("star_-1")
-                    .testTag("reject_button")
                     .semantics {
                         role = Role.Button
                         contentDescription = if (isRejected) "Rejected, click to clear" else "Reject photo"

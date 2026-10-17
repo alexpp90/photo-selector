@@ -405,6 +405,40 @@ class SelectorViewModelTest {
         assertNull(viewModel.uiState.value.undoOperation)
     }
 
+    // ── Filing hint wording (AD-5) ───────────────────────────────────────
+
+    @Test
+    fun `the filing hint names the action performed, not the configured one`() = runTest {
+        // Copy is configured (the fixture default) and the user presses M.
+        coEvery { imageRepository.moveImage(any(), any(), any(), any()) } returns
+            FileOperationResult.success("content://test/folder/a", "content://test/sel/a")
+
+        val viewModel = loadFolder(image("a"), image("b"))
+        viewModel.moveToSelection()
+
+        val hint = viewModel.uiState.value.pendingHintText
+        assertNotNull(hint)
+        assertTrue(hint!!.title, hint.title.startsWith("Moved to"))
+        assertTrue(hint.message, hint.message.contains("C copies instead"))
+        // And the snackbar beside it says the same verb.
+        assertTrue(viewModel.uiState.value.snackbarMessage!!.startsWith("Moved to"))
+    }
+
+    @Test
+    fun `the filing hint names Copied when C is pressed with Move configured`() = runTest {
+        filingActionFlow.value = FilingAction.MOVE
+        coEvery { imageRepository.copyImage(any(), any(), any(), any()) } returns
+            FileOperationResult.success("content://test/folder/a", "content://test/sel/a")
+
+        val viewModel = loadFolder(image("a"), image("b"))
+        viewModel.copyToSelection()
+
+        val hint = viewModel.uiState.value.pendingHintText
+        assertNotNull(hint)
+        assertTrue(hint!!.title, hint.title.startsWith("Copied to"))
+        assertTrue(hint.message, hint.message.contains("M moves instead"))
+    }
+
     // ── Deferred deletion ────────────────────────────────────────────────
 
     @Test

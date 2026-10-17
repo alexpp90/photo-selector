@@ -16,27 +16,33 @@ import com.photoselectortoolbox.domain.interaction.SelectorShortcut
  * callout that covers one has explained a control by hiding the thing the
  * control acts on.
  */
-enum class TourRegion {
+enum class TourRegion(
+    /**
+     * Where this part of the screen is, in words. The guide is paged in the left
+     * flank, so a card is no longer beside what it explains and has to say so.
+     */
+    val location: String,
+) {
     /** Upper half of the 88 dp sidebar: Folder, Drive, Scan, Bursts, Legend. */
-    SIDEBAR_SESSION,
+    SIDEBAR_SESSION("Left sidebar, top"),
 
     /** Lower half of the sidebar, under the rule: Cull, Stats, Dupes, Setup. */
-    SIDEBAR_SCREENS,
+    SIDEBAR_SCREENS("Left sidebar, bottom"),
 
     /** The readout block, left of the current frame. */
-    READOUT,
+    READOUT("Left of the centre frame"),
 
     /** The three frames themselves — labelled from the flank, never covered. */
-    FRAMES,
+    FRAMES("The three frames"),
 
     /** The control block, right of the current frame. */
-    CONTROLS,
+    CONTROLS("Right of the centre frame"),
 
     /** Keys that drive no on-screen control, so nothing can be pointed at. */
-    KEYS,
+    KEYS("On the keyboard"),
 
     /** The vertical filmstrip, down the outer edge of the control flank. */
-    FILMSTRIP,
+    FILMSTRIP("Far right edge, when shown"),
 }
 
 /**

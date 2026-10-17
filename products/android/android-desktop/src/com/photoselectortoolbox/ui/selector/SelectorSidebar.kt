@@ -9,6 +9,11 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxHeight
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
+import androidx.compose.runtime.derivedStateOf
+import androidx.compose.ui.graphics.Brush
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
@@ -108,12 +113,28 @@ fun SelectorSidebar(
     onCancelQueued: () -> Unit = {},
     overflowContent: @Composable () -> Unit = {},
 ) {
-    Column(
+    val scrollState = rememberScrollState()
+    val canScrollUp by remember { derivedStateOf { scrollState.value > 0 } }
+    val canScrollDown by remember { derivedStateOf { scrollState.value < scrollState.maxValue } }
+
+    // The sidebar is 11 items × 72 dp plus a rule ≈ 826 dp, so it is taller than
+    // the window below ~850 dp. Unscrollable it clipped Stats, Dupes and Setup at
+    // 960 × 600 and made them unreachable at 600 × 480 (AD-2). The items keep their
+    // 72 dp — shrinking them would trade a reachability bug for a touch-target one —
+    // and the column scrolls instead. The 16 dp fades appear only on an edge that
+    // has more beyond it, so a window tall enough to show everything looks exactly
+    // as before.
+    Box(
         modifier = modifier
             .width(SidebarWidth)
             .fillMaxHeight()
             .background(StudioPanel)
-            .testTag("selector_sidebar")
+            .testTag("selector_sidebar"),
+    ) {
+    Column(
+        modifier = Modifier
+            .fillMaxSize()
+            .verticalScroll(scrollState)
             .padding(vertical = 6.dp),
         horizontalAlignment = Alignment.CenterHorizontally,
     ) {
@@ -224,6 +245,25 @@ fun SelectorSidebar(
             )
         }
     }
+        if (canScrollUp) {
+            SidebarEdgeFade(top = true, modifier = Modifier.align(Alignment.TopCenter))
+        }
+        if (canScrollDown) {
+            SidebarEdgeFade(top = false, modifier = Modifier.align(Alignment.BottomCenter))
+        }
+    }
+}
+
+/** A 16 dp fade into the panel colour: "there is more in this direction". */
+@Composable
+private fun SidebarEdgeFade(top: Boolean, modifier: Modifier = Modifier) {
+    val colors = listOf(StudioPanel, StudioPanel.copy(alpha = 0f))
+    Box(
+        modifier = modifier
+            .fillMaxWidth()
+            .height(16.dp)
+            .background(Brush.verticalGradient(if (top) colors else colors.reversed())),
+    )
 }
 
 /**
