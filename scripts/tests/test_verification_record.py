@@ -268,5 +268,30 @@ class EndToEndTest(unittest.TestCase):
         self.assertNotIn("not verified", out)
 
 
+class AndroidDevicesTest(unittest.TestCase):
+    LISTING = "List of devices attached\nTESTDEV\tdevice\nPERSONAL\tdevice\nGONE\toffline\n"
+
+    def fake_run(self, cmd, timeout=None):
+        if cmd == ["adb", "devices"]:
+            return self.LISTING
+        return {"ro.product.model": f"model-{cmd[2]}", "ro.build.version.release": "17",
+                "ro.build.version.sdk": "37"}.get(cmd[-1])
+
+    def devices(self, env):
+        with mock.patch.object(vr, "run", self.fake_run), \
+                mock.patch.object(vr.shutil, "which", return_value="/usr/bin/adb"), \
+                mock.patch.dict(os.environ, env, clear=False):
+            return vr.android_devices()
+
+    def test_only_the_device_under_test_is_reported(self):
+        self.assertEqual([d["model"] for d in self.devices({"ANDROID_SERIAL": "TESTDEV"})], ["model-TESTDEV"])
+
+    def test_every_attached_device_without_android_serial(self):
+        with mock.patch.dict(os.environ, {}, clear=False):
+            os.environ.pop("ANDROID_SERIAL", None)
+            models = [d["model"] for d in self.devices({})]
+        self.assertEqual(models, ["model-TESTDEV", "model-PERSONAL"])
+
+
 if __name__ == "__main__":
     unittest.main()

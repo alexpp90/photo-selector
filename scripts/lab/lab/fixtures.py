@@ -225,7 +225,10 @@ def _resolve_corpus_samples(formats_needed: list[str], root: Path | None = None)
     for sample in manifest.get("samples", []):
         fmt = str(sample.get("format", "")).lower()
         if fmt in formats_needed and fmt not in by_format:
-            candidate = corpus_dir / str(sample["file"])
+            # "repo" samples are the small bitmaps committed next to the manifest; only the
+            # downloaded RAW samples live in the corpus cache.
+            base = manifest_path.parent if sample.get("source") == "repo" else corpus_dir
+            candidate = base / str(sample["file"])
             if candidate.is_file():
                 by_format[fmt] = candidate
     for fmt in formats_needed:
