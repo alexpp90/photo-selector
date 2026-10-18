@@ -37,6 +37,11 @@ data class FileOperationResult(
     val copiesOfSurvivingOriginals: Map<String, String> = emptyMap(),
     /** Something the user should be told although the operation succeeded (e.g. an undo that fell back to the opened folder). */
     val notice: String? = null,
+    /**
+     * For an undo of a partial move: the copies that were deleted (their originals still exist)
+     * rather than restored. Their rating rows must go with them; the originals' stay untouched.
+     */
+    val deletedCopies: List<String> = emptyList(),
 ) {
     companion object {
         fun success(

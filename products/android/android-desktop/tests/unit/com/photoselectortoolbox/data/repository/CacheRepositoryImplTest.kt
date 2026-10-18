@@ -63,6 +63,14 @@ class CacheRepositoryImplTest {
     }
 
     @Test
+    fun `deleteRating drops only the named row`() = runTest {
+        repo.deleteRating("copy")
+
+        coVerify(exactly = 1) { dao.deleteUserRating("copy") }
+        coVerify(exactly = 0) { dao.upsertUserRating(any()) }
+    }
+
+    @Test
     fun `getCachedScore returns entity and updates access time`() = runTest {
         val entity = ScoreEntity("path", 100, 200, sharpnessScore = 42.0)
         coEvery { dao.getScore("path") } returns entity
