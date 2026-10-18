@@ -26,6 +26,14 @@ appId: com.phototok.lab
             visible:
               id: "landing_custom_folder_card"
           commands:
+            # The card can sit below the fold, its centre under the navigation bar (Pixel 4a,
+            # 2026-10-18): a tap there opened no picker. Scroll it fully into view first.
+            - scrollUntilVisible:
+                element:
+                  id: "landing_custom_folder_card"
+                centerElement: true
+                visibilityPercentage: 100
+                timeout: 10000
             - tapOn:
                 id: "landing_custom_folder_card"
             - runFlow: _pick_work_folder.yaml
@@ -39,15 +47,17 @@ appId: com.phototok.lab
     optional: true
 # Re-opening a folder with photos newer than the last visit asks "N new photos" (Show new /
 # Stay); show the new ones so every journey starts from the same frame regardless of the last run.
+# Builds from before the concise-copy pass (#782) still say "Start with Newest" / "Link actions
+# across both"; the selectors accept both until every branch has it.
 # The dialog is its own window, so its test tags are not exported as resource ids
 # (testTagsAsResourceId is set on the activity content only); match the app's own text.
 - extendedWaitUntil:
     visible:
-      text: "Show new"
+      text: "Show new|Start with Newest"
     timeout: 4000
     optional: true
 - tapOn:
-    text: "Show new"
+    text: "Show new|Start with Newest"
     optional: true
 # First feed visit after an install shows the controls guide over the photo.
 - extendedWaitUntil:
@@ -70,10 +80,10 @@ appId: com.phototok.lab
 - runFlow:
     when:
       visible:
-        text: "Show both, linked"
+        text: "Show both, linked|Link actions across both"
     commands:
       - tapOn:
-          text: "Show both, linked"
+          text: "Show both, linked|Link actions across both"
 - extendedWaitUntil:
     visible:
       id: "viewer.photo"

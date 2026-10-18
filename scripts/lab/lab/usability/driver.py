@@ -42,9 +42,9 @@ SYSTEM_PACKAGES = ("com.android.documentsui", "com.google.android.documentsui", 
 def device_lock(serial: str, holder: str, lock_dir: Path | None = None) -> Iterator[Path]:
     """Hold `<lock_dir>/device-<serial>.lock` (fcntl.flock) for the walkthrough.
 
-    The file and flock semantics agreed for the instrumented-test device wrapper (which does
-    not take it yet), so a test run and a walkthrough never drive the phone at once; the
-    kernel drops the lock if we die.
+    `scripts/android_test_device.py with-lock` takes the same lock around instrumented runs
+    (polling it until a timeout), so a test run and a walkthrough never drive the phone at
+    once; the kernel drops the lock if we die.
     """
     from ..paths import lab_tmp_root
 

@@ -21,16 +21,24 @@ from lab.paths import repo_root  # noqa: E402
 ROOT = repo_root()
 PRODUCTS = ("android-desktop", "phototok")
 SELECTOR_RE = re.compile(r'^\s*-?\s*(id|text):\s*"([^"]+)"', re.M)
-# Strings the lab owns (fixture folder names), and system UI selected by its resource id.
-LAB_OWNED_TEXT = {"PSTLab", "work"}
+# Strings the lab owns: fixture folder names, and the ISO every fixture writes into its EXIF
+# (`lab/fixtures.py`). System UI is selected by its resource id and skipped.
+LAB_OWNED_TEXT = {"PSTLab", "work", "ISO 400"}
+# Tags a flow already uses, guarded by `when: visible`, that an open product PR adds. Each entry
+# fails the test as soon as the tag is in the source, so the exception ends with its reason.
+AWAITED_TAGS = {"settings_button": "alexpp90/photo-selector#802"}
 
 
 def alternatives(selector: str) -> list[str]:
-    """`delete_button_(expanded|compact)` -> both names; Maestro selectors are regexes."""
+    """Names a selector accepts; Maestro selectors are regexes.
+
+    `delete_button_(expanded|compact)` -> both names; `Show new|Start with Newest` -> both texts
+    (a flow that accepts an old and a new label while branches catch up).
+    """
     m = re.fullmatch(r"(.*)\(([^()]+)\)(.*)", selector)
-    if not m:
-        return [selector]
-    return [m.group(1) + alt + m.group(3) for alt in m.group(2).split("|")]
+    if m:
+        return [m.group(1) + alt + m.group(3) for alt in m.group(2).split("|")]
+    return selector.split("|")
 
 
 def product_strings(product: str) -> str:
@@ -47,13 +55,21 @@ class TestFlowSelectors(unittest.TestCase):
                 for kind, value in SELECTOR_RE.findall(flow.read_text(encoding="utf-8")):
                     if ":id/" in value or (kind == "text" and value in LAB_OWNED_TEXT):
                         continue
+                    if kind == "id" and value in AWAITED_TAGS:
+                        continue
                     if not any(f'"{alt}"' in source for alt in alternatives(value)):
                         missing.append(f"{flow.relative_to(ROOT)}: {kind} {value!r}")
         self.assertEqual(missing, [], "flow selectors the product no longer defines")
 
+    def test_awaited_tags_are_still_missing(self) -> None:
+        source = "\n".join(product_strings(p) for p in PRODUCTS)
+        landed = [f"{tag} ({pr})" for tag, pr in AWAITED_TAGS.items() if f'"{tag}"' in source]
+        self.assertEqual(landed, [], "these tags landed: drop them from AWAITED_TAGS")
+
     def test_alternatives_expand_one_group(self) -> None:
         self.assertEqual(alternatives("delete_button_(expanded|compact)"), ["delete_button_expanded", "delete_button_compact"])
         self.assertEqual(alternatives("viewer.photo"), ["viewer.photo"])
+        self.assertEqual(alternatives("Show new|Start with Newest"), ["Show new", "Start with Newest"])
 
 
 if __name__ == "__main__":

@@ -5,6 +5,8 @@ fixture: burst-raw-jpeg
 configs: [phone-portrait]
 fresh_install: false
 steps:
+  # Swipe right must copy (the phone-folder default is ★ Favourite, which touches no file).
+  - {maestro: products/android/phototok/tests/e2e/_swipe_right_copies.yaml}
   - {maestro: products/android/phototok/tests/e2e/J-TOK-05/01_swipe_to_frame3.yaml}
   - {checkpoint: frame3}
   - {maestro: products/android/phototok/tests/e2e/J-TOK-05/02_keep.yaml}

@@ -25,5 +25,7 @@ rootProject.name = "PhotoSelectorToolbox"
 // ":app" told you nothing; ":android-desktop" tells you which of the two Android
 // products you are looking at.
 include(":core")
+// :saf — the SAF file operations (transfer engine, persisted grants) both products share.
+include(":saf")
 include(":android-desktop")
 include(":phototok")
