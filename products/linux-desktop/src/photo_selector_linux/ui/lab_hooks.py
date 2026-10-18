@@ -22,11 +22,17 @@ from typing import Any, Dict, List, Optional
 try:
     import gi
     gi.require_version("Gtk", "4.0")
-    from gi.repository import Gtk
+    from gi.repository import GLib, Gtk
     HAS_GI = True
 except (ImportError, ValueError):
     HAS_GI = False
-    Gtk = None
+    GLib = Gtk = None
+
+# After the next painted frame, wait out Adwaita's ~200 ms CSS transitions (a mode button's
+# highlight) before recording; the runner pauses 500 ms after each checkpoint.
+CHECKPOINT_SETTLE_MS = 250
+# Upper bound for waiting on that frame before recording anyway (hidden window).
+AFTER_FRAME_FALLBACK_MS = 400
 
 
 def format_checkpoint_stem(index: int, name: str) -> str:
@@ -169,6 +175,43 @@ class LabCheckpointRecorder:
             return self._artifacts_dir
         env_dir = os.environ.get("PST_LAB_ARTIFACTS", "/tmp/pstlab-artifacts")
         return Path(env_dir)
+
+    def record_checkpoint_after_frame(self, window: Any, name: str) -> None:
+        """Record once the window has painted, and settled on, the state it was requested for.
+
+        Recording inside the action handler snapshots render nodes cached from the previous
+        frame for widgets that only changed a label or CSS class (the header's mode highlight
+        and "Photo N of M" lagged one step behind state.json), while rebuilt widgets were fresh.
+        """
+        clock = window.get_frame_clock() if window is not None and hasattr(window, "get_frame_clock") else None
+        if clock is None or GLib is None:
+            self.record_checkpoint(window, name)
+            return
+        fired = [False]
+        handler = [None]
+
+        def record() -> bool:
+            self.record_checkpoint(window, name)
+            return False
+
+        def painted(*_args) -> bool:
+            if fired[0]:
+                return False
+            fired[0] = True
+            clock.disconnect(handler[0])
+            GLib.timeout_add(CHECKPOINT_SETTLE_MS, record)
+            return False
+
+        def fallback() -> bool:
+            if not fired[0]:
+                fired[0] = True
+                clock.disconnect(handler[0])
+                record()
+            return False
+
+        handler[0] = clock.connect("after-paint", painted)
+        window.queue_draw()
+        GLib.timeout_add(AFTER_FRAME_FALLBACK_MS, fallback)
 
     def record_checkpoint(self, window: Any, name: str) -> Dict[str, Path]:
         """Write NN_<name>.{png,tree.json,state.json,timing.json} to artifacts_dir."""
