@@ -40,10 +40,10 @@ class ControlBlockFitTest {
     @Requirement("REQ-AND-LAYOUT.07")
     fun `mode picks the first variant that fits`() {
         assertEquals(Mode.FULL, ControlBlockFit.mode(376.dp, 1f))
-        assertEquals(Mode.FULL, ControlBlockFit.mode(332.dp, 1f))
-        assertEquals(Mode.COMPACT, ControlBlockFit.mode(331.dp, 1f))
-        assertEquals(Mode.COMPACT, ControlBlockFit.mode(196.dp, 1f))
-        assertEquals(Mode.SCROLLING, ControlBlockFit.mode(195.dp, 1f))
+        assertEquals(Mode.FULL, ControlBlockFit.mode(333.dp, 1f))
+        assertEquals(Mode.COMPACT, ControlBlockFit.mode(332.dp, 1f))
+        assertEquals(Mode.COMPACT, ControlBlockFit.mode(197.dp, 1f))
+        assertEquals(Mode.SCROLLING, ControlBlockFit.mode(196.dp, 1f))
     }
 
     @Test

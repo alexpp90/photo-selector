@@ -68,6 +68,14 @@ object ControlBlockFit {
 
     private val TopPadding: Dp = 2.dp
 
+    /**
+     * Layout rounds every child to whole pixels, so the drawn block can exceed the
+     * dp price: at 2.625× each 4 dp gap is 10.5 px drawn as 11, and the compact
+     * block measured 196.57 dp against its 196 dp price (CI's phone emulator). A
+     * variant is chosen only when it fits with this allowance to spare.
+     */
+    val PixelRoundingAllowance: Dp = 1.dp
+
     /** Counter line height at [fontScale]. Linear scaling over-prices large scales, which is the safe side. */
     fun counterHeight(fontScale: Float): Dp = (CounterLineHeightSp * fontScale).dp
 
@@ -102,8 +110,8 @@ object ControlBlockFit {
 
     /** The first variant whose natural height fits [available]. */
     fun mode(available: Dp, fontScale: Float, innerWidth: Dp = Dp.Infinity): Mode = when {
-        fullHeight(fontScale) <= available -> Mode.FULL
-        compactHeight(fontScale, innerWidth) <= available -> Mode.COMPACT
+        fullHeight(fontScale) + PixelRoundingAllowance <= available -> Mode.FULL
+        compactHeight(fontScale, innerWidth) + PixelRoundingAllowance <= available -> Mode.COMPACT
         else -> Mode.SCROLLING
     }
 }
