@@ -26,7 +26,27 @@ object RelatedFiles {
     }
 
     /**
-     * Collapse `RAW + JPEG` pairs into a single feed entry per shot `(parentUri, stem)`:
+     * Everything that travels with [target] on a linked move, copy or delete, per the shared
+     * contract `testdata/formats/companions.json`: the other photos of the shot (RAW/JPEG twin,
+     * `-Edit` / `_Edit` / `-Enhanced-NR` derivatives) from [all], then the `.xmp` sidecars that
+     * discovery attached to the shot. Only files in the **same parent folder** qualify: a
+     * same-named file in a sibling folder is another photo. Moving a derivative therefore moves
+     * its whole shot, as on Android Desktop.
+     */
+    fun bundleOf(all: List<ImageItem>, target: ImageItem): List<ImageItem> {
+        val stem = CompanionFiles.shotStemOf(target.fileName)
+        val photos = all.filter { candidate ->
+            candidate.uri != target.uri &&
+                candidate.parentUri == target.parentUri &&
+                CompanionFiles.shotStemOf(candidate.fileName) == stem
+        }
+        val sidecars = (target.sidecars + photos.flatMap { it.sidecars })
+            .distinctBy { it.uri }
+            .filter { it.parentUri == target.parentUri }
+        return photos + sidecars
+    }
+
+    /** Collapse `RAW + JPEG` pairs into a single feed entry per shot `(parentUri, stem)`:
      * - When both a processed image (JPEG / HEIC / non-RAW) and a RAW exist for the same shot,
      *   show the processed image for instant decode.
      * - When only a RAW or only a processed file exists, show it as-is.
