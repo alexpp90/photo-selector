@@ -15,6 +15,7 @@ import io.mockk.coVerify
 import io.mockk.every
 import io.mockk.just
 import io.mockk.mockk
+import io.mockk.slot
 import io.mockk.Runs
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.CoroutineScope
@@ -87,6 +88,15 @@ class PhoneModeViewModelTest {
                 FileOperationResult.success(src.toString(), null)
             } else {
                 FileOperationResult.failure(src.toString(), null)
+            }
+        }
+        // The bundle seam answers member by member from the per-file stubs, unless a test overrides it.
+        coEvery { transferBundleDetailed(any(), any(), any(), any(), any()) } coAnswers {
+            val sources = firstArg<List<Uri>>()
+            val isMove = arg<Boolean>(4)
+            sources.map { src ->
+                if (isMove) moveImageDetailed(src, secondArg(), thirdArg(), arg(3))
+                else copyImageDetailed(src, secondArg(), thirdArg(), arg(3))
             }
         }
     }
@@ -1192,6 +1202,164 @@ class PhoneModeViewModelTest {
         assertEquals(listOf("IMG_001.jpg", "IMG_001.arw", "IMG_002.jpg"), viewModel.uiState.value.images.map { it.fileName })
         assertEquals(listOf("IMG_001.jpg", "IMG_001.arw", "IMG_002.jpg"), viewModel.uiState.value.allImages.map { it.fileName })
         assertEquals(0, viewModel.uiState.value.currentIndex)
+    }
+
+    private fun shot(name: String, parent: String, vararg sidecarNames: String) = image(name, 10).copy(
+        uri = "$parent/$name",
+        parentUri = parent,
+        sidecars = sidecarNames.map { image(it, 0).copy(uri = "$parent/$it", parentUri = parent, mimeType = null) },
+    )
+
+    @Test
+    fun `a linked delete takes derivatives and sidecars, journals them and revert brings back only photos`() = runTest {
+        phoneSettingsFlow.value = PhoneSettings(
+            moveRelatedFiles = true,
+            fileTypeFilter = com.phototok.domain.FileTypeFilter.ALL,
+        )
+        val p = "content://tree/photos"
+        val xmps = arrayOf("IMG_1.xmp", "IMG_1.CR3.xmp")
+        val raw = shot("IMG_1.CR3", p, *xmps).copy(lastModified = 30)
+        val edit = shot("IMG_1-Edit.tif", p, *xmps).copy(lastModified = 20)
+        val other = shot("IMG_2.CR3", p).copy(lastModified = 10)
+        coEvery { imageRepository.deleteImage(any()) } returns true
+        val viewModel = loadFolder(raw, edit, other)
+
+        viewModel.requestDelete()
+
+        assertEquals(listOf("IMG_2.CR3"), viewModel.uiState.value.images.map { it.fileName })
+        val journaled = slot<Set<String>>()
+        coVerify { settingsRepository.setPersistedPendingDeleteUris(capture(journaled)) }
+        assertEquals(
+            setOf("IMG_1.CR3", "IMG_1-Edit.tif", "IMG_1.xmp", "IMG_1.CR3.xmp").map { "$p/$it" }.toSet(),
+            journaled.captured,
+        )
+
+        viewModel.revertDelete()
+
+        val state = viewModel.uiState.value
+        assertEquals(listOf("IMG_1.CR3", "IMG_1-Edit.tif", "IMG_2.CR3"), state.images.map { it.fileName })
+        assertEquals(listOf("IMG_1.CR3", "IMG_1-Edit.tif", "IMG_2.CR3"), state.allImages.map { it.fileName })
+        coVerify(exactly = 0) { imageRepository.deleteImage(any()) }
+
+        viewModel.requestDelete()
+        viewModel.finalizePendingDelete()
+        advanceUntilIdle()
+
+        for (name in listOf("IMG_1.CR3", "IMG_1-Edit.tif", "IMG_1.xmp", "IMG_1.CR3.xmp")) {
+            coVerify(exactly = 1) { imageRepository.deleteImage(Uri.parse("$p/$name")) }
+        }
+        coVerify(exactly = 0) { imageRepository.deleteImage(Uri.parse("$p/IMG_2.CR3")) }
+    }
+
+    @Test
+    fun `a linked move takes the sidecars too and sidecars never enter the feed`() = runTest {
+        phoneSettingsFlow.value = PhoneSettings(
+            collectionAction = CollectionAction.MOVE,
+            moveRelatedFiles = true,
+            fileTypeFilter = com.phototok.domain.FileTypeFilter.ALL,
+        )
+        val p = "content://tree/photos"
+        val raw = shot("IMG_1.CR3", p, "IMG_1.xmp")
+        val jpg = shot("IMG_1.JPG", p, "IMG_1.xmp")
+        val other = shot("IMG_2.CR3", p)
+        coEvery { imageRepository.moveImageDetailed(any(), any(), any(), any()) } coAnswers {
+            FileOperationResult.success(firstArg<Uri>().toString(), "content://tree/photos/Selection/x")
+        }
+        val viewModel = loadFolder(raw, jpg, other)
+
+        viewModel.addToCollection()
+        advanceUntilIdle()
+
+        assertEquals(listOf("IMG_2.CR3"), viewModel.uiState.value.images.map { it.fileName })
+        assertTrue(viewModel.uiState.value.allImages.none { it.fileName.endsWith(".xmp") })
+        for (name in listOf("IMG_1.CR3", "IMG_1.JPG", "IMG_1.xmp")) {
+            coVerify(exactly = 1) { imageRepository.moveImageDetailed(Uri.parse("$p/$name"), any(), any(), any()) }
+        }
+        coVerify(exactly = 0) { imageRepository.moveImageDetailed(Uri.parse("$p/IMG_2.CR3"), any(), any(), any()) }
+    }
+
+    @Test
+    fun `a multi-file shot moves through the bundle seam and a single file per file`() = runTest {
+        phoneSettingsFlow.value = PhoneSettings(
+            collectionAction = CollectionAction.MOVE,
+            moveRelatedFiles = true,
+            fileTypeFilter = com.phototok.domain.FileTypeFilter.ALL,
+        )
+        val p = "content://tree/photos"
+        val raw = shot("IMG_1.CR3", p, "IMG_1.xmp").copy(lastModified = 30)
+        val lone = shot("IMG_2.CR3", p).copy(lastModified = 10)
+        coEvery { imageRepository.moveImageDetailed(any(), any(), any(), any()) } coAnswers {
+            FileOperationResult.success(firstArg<Uri>().toString(), "content://tree/photos/Selection/x")
+        }
+        coEvery { imageRepository.transferBundleDetailed(any(), any(), any(), any(), any()) } coAnswers {
+            firstArg<List<Uri>>().map { FileOperationResult.success(it.toString(), "content://tree/photos/Selection/x") }
+        }
+        val viewModel = loadFolder(raw, lone)
+
+        viewModel.addToCollection()
+        advanceUntilIdle()
+
+        coVerify(exactly = 1) {
+            imageRepository.transferBundleDetailed(
+                listOf(Uri.parse("$p/IMG_1.CR3"), Uri.parse("$p/IMG_1.xmp")), any(), any(), any(), true,
+            )
+        }
+        coVerify(exactly = 0) { imageRepository.moveImageDetailed(Uri.parse("$p/IMG_1.CR3"), any(), any(), any()) }
+
+        viewModel.addToCollection()
+        advanceUntilIdle()
+
+        coVerify(exactly = 1) { imageRepository.moveImageDetailed(Uri.parse("$p/IMG_2.CR3"), any(), any(), any()) }
+        coVerify(exactly = 1) { imageRepository.transferBundleDetailed(any(), any(), any(), any(), any()) }
+    }
+
+    @Test
+    fun `a partial bundle result puts back only the member still in the source`() = runTest {
+        phoneSettingsFlow.value = PhoneSettings(
+            collectionAction = CollectionAction.MOVE,
+            moveRelatedFiles = true,
+            fileTypeFilter = com.phototok.domain.FileTypeFilter.ALL,
+        )
+        val p = "content://tree/photos"
+        val raw = shot("IMG_1.CR3", p, "IMG_1.xmp").copy(lastModified = 30)
+        val jpg = shot("IMG_1.JPG", p, "IMG_1.xmp").copy(lastModified = 20)
+        val other = shot("IMG_2.CR3", p).copy(lastModified = 10)
+        coEvery { imageRepository.transferBundleDetailed(any(), any(), any(), any(), any()) } returns listOf(
+            FileOperationResult.success(raw.uri, "d1"),
+            FileOperationResult.partial(jpg.uri, "d2"),
+            FileOperationResult.success("$p/IMG_1.xmp", "d3"),
+        )
+        val viewModel = loadFolder(raw, jpg, other)
+
+        viewModel.addToCollection()
+        advanceUntilIdle()
+
+        val state = viewModel.uiState.value
+        assertEquals(listOf("IMG_1.JPG", "IMG_2.CR3"), state.images.map { it.fileName })
+        assertTrue(state.allImages.none { it.fileName.endsWith(".xmp") })
+        assertTrue(state.lastActionFeedback?.isError == true)
+    }
+
+    @Test
+    fun `a linked delete never reaches into a sibling folder with the same stem`() = runTest {
+        phoneSettingsFlow.value = PhoneSettings(
+            moveRelatedFiles = true,
+            fileTypeFilter = com.phototok.domain.FileTypeFilter.ALL,
+        )
+        val a = shot("IMG_1.CR3", "content://tree/photos/a", "IMG_1.xmp").copy(lastModified = 20)
+        val b = shot("IMG_1.CR3", "content://tree/photos/b", "IMG_1.xmp").copy(lastModified = 10)
+        coEvery { imageRepository.deleteImage(any()) } returns true
+        val viewModel = loadFolder(a, b)
+
+        viewModel.requestDelete()
+        viewModel.finalizePendingDelete()
+        advanceUntilIdle()
+
+        assertEquals(listOf(b.uri), viewModel.uiState.value.images.map { it.uri })
+        coVerify(exactly = 1) { imageRepository.deleteImage(Uri.parse(a.uri)) }
+        coVerify(exactly = 1) { imageRepository.deleteImage(Uri.parse("content://tree/photos/a/IMG_1.xmp")) }
+        coVerify(exactly = 0) { imageRepository.deleteImage(Uri.parse(b.uri)) }
+        coVerify(exactly = 0) { imageRepository.deleteImage(Uri.parse("content://tree/photos/b/IMG_1.xmp")) }
     }
 
     @Test

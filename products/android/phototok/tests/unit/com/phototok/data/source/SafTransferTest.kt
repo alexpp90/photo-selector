@@ -469,6 +469,34 @@ class SafTransferTest {
         assertFalse(File(card2, "IMG_0001.CR3").exists())
     }
 
+    // REQ-TOK-ARCH.15 / B-6: derivatives and both sidecar styles keep their photo's name.
+    @Test
+    fun `a collision on the RAW gives the JPEG, the edit and both sidecars the same suffix`() = runTest {
+        val dest = File(rootDir, "Selection/RAW").apply { mkdirs() }
+        File(dest, "IMG_0001.CR3").writeText("already-there")
+        val src = File(rootDir, "card").apply { mkdirs() }
+        val names = listOf(
+            "IMG_0001.CR3", "IMG_0001.JPG", "IMG_0001-Edit.tif", "IMG_0001.xmp", "IMG_0001.CR3.xmp",
+        )
+        names.forEach { File(src, it).writeText("payload-$it") }
+
+        val results = source.transferBundle(
+            sourceUris = names.map { documentUriFor("card/$it") },
+            destFolderUri = treeUri,
+            sorting = true,
+            subfolderName = PhotoFolders.SELECTION,
+            isMove = true,
+        )
+
+        assertTrue(results.all { it.success })
+        assertEquals("already-there", File(dest, "IMG_0001.CR3").readText())
+        assertEquals("payload-IMG_0001.CR3", File(dest, "IMG_0001-2.CR3").readText())
+        assertEquals("payload-IMG_0001.JPG", File(rootDir, "Selection/JPEG/IMG_0001-2.JPG").readText())
+        assertEquals("payload-IMG_0001-Edit.tif", File(dest, "IMG_0001-2-Edit.tif").readText())
+        assertEquals("payload-IMG_0001.CR3.xmp", File(dest, "IMG_0001-2.CR3.xmp").readText())
+        assertEquals("payload-IMG_0001.xmp", File(rootDir, "Selection/IMG_0001-2.xmp").readText())
+    }
+
     // ── 2. Size mismatch keeps source and cleans up destination ──────────
 
     // REQ-TOK-ARCH.15
