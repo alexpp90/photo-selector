@@ -435,15 +435,36 @@ if $run_android_device; then
         skip "instrumented tests" "" "$TEST_SERIAL — see docs/build/CI_PARITY.md (Instrumented tests)"
     else
         echo -e "${DIM}  test device: $TEST_SERIAL ($(adb -s "$TEST_SERIAL" shell getprop ro.product.model 2>/dev/null | tr -d '\r'))${NC}"
-        # Before the export: prepare must see whether the device was designated or merely the
-        # only one attached (it refuses to change settings on an undesignated device).
-        if ! python3 "$ROOT_DIR/scripts/android_test_device.py" prepare; then
-            warn "test device not prepared (see above)" "local-only"
-        fi
-        export ANDROID_SERIAL="$TEST_SERIAL"
+        # One device lock — the file the device lab's walkthroughs take too — covers prepare and
+        # the whole Gradle run, so no other session drives the phone meanwhile. A lock still held
+        # after PST_DEVICE_LOCK_TIMEOUT seconds is a skip naming the holder, never a failure.
+        # Inside the lock, prepare runs before the export: it must see whether the device was
+        # designated or merely the only one attached (it refuses to reconfigure the latter).
+        PREPARE_FAILED="$(mktemp)" && rm -f "$PREPARE_FAILED"
         chmod +x ./gradlew 2>/dev/null || true
-        gate "gradlew connectedDebugAndroidTest" "android.yml:instrumented-tests" \
-            ./gradlew :android-desktop:connectedDebugAndroidTest :phototok:connectedDebugAndroidTest --stacktrace
+        # The single-quoted script is expanded by the inner bash, from its positional arguments.
+        python3 "$ROOT_DIR/scripts/android_test_device.py" with-lock --serial "$TEST_SERIAL" \
+            --timeout "${PST_DEVICE_LOCK_TIMEOUT:-300}" --label "$(basename "$ROOT_DIR")" -- \
+            bash -c 'python3 "$1" prepare || : > "$2"
+                     ANDROID_SERIAL="$3" exec ./gradlew :android-desktop:connectedDebugAndroidTest \
+                         :phototok:connectedDebugAndroidTest --stacktrace' \
+            instrumented-tests "$ROOT_DIR/scripts/android_test_device.py" "$PREPARE_FAILED" "$TEST_SERIAL"
+        DEVICE_RUN_STATUS=$?
+        if [ -e "$PREPARE_FAILED" ]; then
+            warn "test device not prepared (see above)" "local-only"
+            rm -f "$PREPARE_FAILED"
+        fi
+        # verification_record.py reports only the device under test.
+        export ANDROID_SERIAL="$TEST_SERIAL"
+        if [ "$DEVICE_RUN_STATUS" -eq 75 ]; then
+            DEVICE_HOLDER=$(python3 "$ROOT_DIR/scripts/android_test_device.py" lock-holder --serial "$TEST_SERIAL" 2>/dev/null) \
+                || DEVICE_HOLDER="released by its holder just after the wait ended"
+            skip "instrumented tests" "" "test device $TEST_SERIAL busy — $DEVICE_HOLDER" false
+        elif [ "$DEVICE_RUN_STATUS" -eq 0 ]; then
+            pass "gradlew connectedDebugAndroidTest" "android.yml:instrumented-tests"
+        else
+            fail "gradlew connectedDebugAndroidTest" "android.yml:instrumented-tests"
+        fi
     fi
 fi
 
