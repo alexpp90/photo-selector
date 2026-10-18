@@ -9,6 +9,7 @@ import com.photoselector.core.model.ExifData
 import com.photoselector.core.storage.ExternalVolume
 import com.photoselector.core.storage.SourceKind
 import com.photoselector.core.storage.SourceKindClassifier
+import com.phototok.data.source.FileOperationResult
 import com.phototok.data.model.ImageItem
 import com.phototok.data.model.PhoneSettings
 import com.phototok.data.model.RecentPath
@@ -23,6 +24,7 @@ import com.phototok.data.source.VolumeMonitor
 import com.phototok.di.ApplicationScope
 import com.phototok.domain.CardTransferJournal
 import com.phototok.domain.CollectionAction
+import com.phototok.domain.CompanionFiles
 import com.phototok.domain.CopyMoveFeedback
 import com.phototok.domain.FeedOrderMode
 import com.phototok.domain.FileTypeFilter
@@ -205,6 +207,14 @@ class PhoneModeViewModel @Inject constructor(
 
     internal val cardTransferJournal = CardTransferJournal()
 
+    /**
+     * Bumped whenever the visible feed is discarded or rebuilt (folder switch, reload, landing,
+     * card unmount). Late results of work launched on [appScope] compare it with the value captured
+     * at launch before touching the feed: a stale result may only affect durable outcomes (journal,
+     * stats), never the presentation of a feed that belongs to something else now.
+     */
+    private var feedEpoch = 0
+
     private val loadedExifCache = object : LinkedHashMap<String, ExifData>(64, 0.75f, true) {
         override fun removeEldestEntry(eldest: MutableMap.MutableEntry<String, ExifData>?): Boolean =
             size > MAX_EXIF_CACHE_SIZE
@@ -312,6 +322,7 @@ class PhoneModeViewModel @Inject constructor(
         if (unmountedUuid != null && currentUuid != null && !currentUuid.equals(unmountedUuid, ignoreCase = true)) {
             return
         }
+        feedEpoch++
         // Surprise unmount while viewing a removable card: abort discovery and return to landing safely.
         discoveryJob?.cancel()
         dimensionsJob?.cancel()
@@ -563,6 +574,7 @@ class PhoneModeViewModel @Inject constructor(
 
     fun selectSourceFolder(uri: Uri) {
         finalizePendingDelete()
+        feedEpoch++
         discoveryJob?.cancel()
         dimensionsJob?.cancel()
         publishedUris.clear()
@@ -985,7 +997,7 @@ class PhoneModeViewModel @Inject constructor(
         val sourceUri = state.sourceFolderUri ?: return
         val wasNewlySeen = seenRepository.markSeen(image, sourceUri)
         if (state.fileTypeFilter == FileTypeFilter.ONE_PER_SHOT) {
-            relatedImages(image).forEach { sibling ->
+            relatedFeedImages(image).forEach { sibling ->
                 seenRepository.markSeen(sibling, sourceUri)
             }
         }
@@ -1038,7 +1050,11 @@ class PhoneModeViewModel @Inject constructor(
      * independent of the user's file-type filter selection.
      */
     private fun relatedImages(target: ImageItem): List<ImageItem> =
-        RelatedFiles.siblings(_uiState.value.allImages, target)
+        RelatedFiles.bundleOf(_uiState.value.allImages, target)
+
+    /** The feed-visible part of [relatedImages] (no `.xmp` sidecars): favourites, seen and counts. */
+    private fun relatedFeedImages(target: ImageItem): List<ImageItem> =
+        relatedImages(target).filterNot { CompanionFiles.isSidecar(it.fileName) }
 
     /**
      * Returns true if [image] has a RAW+JPEG companion pair in [PhoneModeUiState.allImages] (`U-12`).
@@ -1057,7 +1073,7 @@ class PhoneModeViewModel @Inject constructor(
         maybeShowFirstRunHint(FirstRunHint.SWIPE_RIGHT)
 
         if (state.swipeRightVerb == SwipeRightVerb.FAVOURITE) {
-            val related = if (state.moveRelatedFiles) relatedImages(currentImage) else emptyList()
+            val related = if (state.moveRelatedFiles) relatedFeedImages(currentImage) else emptyList()
             favouritesRepository.setFavourite(
                 uri = currentImage.uri,
                 favourite = true,
@@ -1087,7 +1103,7 @@ class PhoneModeViewModel @Inject constructor(
     fun toggleCurrentFavourite() {
         val state = _uiState.value
         val currentImage = state.images.getOrNull(state.currentIndex) ?: return
-        val related = if (state.moveRelatedFiles) relatedImages(currentImage) else emptyList()
+        val related = if (state.moveRelatedFiles) relatedFeedImages(currentImage) else emptyList()
         val nowFav = favouritesRepository.toggleFavourite(
             uri = currentImage.uri,
             companionUris = related.map { it.uri },
@@ -1194,6 +1210,7 @@ class PhoneModeViewModel @Inject constructor(
         val related = if (state.moveRelatedFiles) relatedImages(currentImage) else emptyList()
         val targets = listOf(currentImage) + related
         val slots = OptimisticFeed.slotsOf(state.images, state.allImages, targets)
+        val epochAtLaunch = feedEpoch
 
         // ── Optimistic UI: show the next photo, then do the work ──────────
         if (isCopy) {
@@ -1211,22 +1228,38 @@ class PhoneModeViewModel @Inject constructor(
                 var failed = 0
                 var partial = 0
                 var renamedTo: String? = null
-                targets.forEach { img ->
-                    val result = if (isCopy) {
-                        imageRepository.copyImageDetailed(
-                            sourceUri = Uri.parse(img.uri),
-                            destFolderUri = folderUri,
-                            sorting = sortingEnabled,
-                            subfolderName = subfolderName,
-                        )
-                    } else {
-                        imageRepository.moveImageDetailed(
-                            sourceUri = Uri.parse(img.uri),
-                            destFolderUri = folderUri,
-                            sorting = sortingEnabled,
-                            subfolderName = subfolderName,
-                        )
+                // A shot with companions travels as one bundle (shared collision suffix); a
+                // single file keeps the per-file path.
+                val results: List<FileOperationResult> = if (targets.size > 1) {
+                    imageRepository.transferBundleDetailed(
+                        sourceUris = targets.map { Uri.parse(it.uri) },
+                        destFolderUri = folderUri,
+                        sorting = sortingEnabled,
+                        subfolderName = subfolderName,
+                        isMove = !isCopy,
+                    )
+                } else {
+                    targets.map { img ->
+                        if (isCopy) {
+                            imageRepository.copyImageDetailed(
+                                sourceUri = Uri.parse(img.uri),
+                                destFolderUri = folderUri,
+                                sorting = sortingEnabled,
+                                subfolderName = subfolderName,
+                            )
+                        } else {
+                            imageRepository.moveImageDetailed(
+                                sourceUri = Uri.parse(img.uri),
+                                destFolderUri = folderUri,
+                                sorting = sortingEnabled,
+                                subfolderName = subfolderName,
+                            )
+                        }
                     }
+                }
+                targets.forEachIndexed { i, img ->
+                    val result = results.getOrNull(i)
+                        ?: FileOperationResult.failure(img.uri, "No result")
                     when {
                         result.success -> {
                             succeededUris.add(img.uri)
@@ -1251,7 +1284,10 @@ class PhoneModeViewModel @Inject constructor(
                     }
                 }
 
-                if (!isCopy && (failed > 0 || partial > 0)) {
+                // The feed may belong to another folder (or none) by now: files that stayed behind
+                // are rediscovered by that folder's own scan, never inserted into a foreign feed.
+                val feedStillCurrent = feedEpoch == epochAtLaunch
+                if (!isCopy && (failed > 0 || partial > 0) && feedStillCurrent) {
                     // The optimistic removal was wrong for files that are still in the source.
                     restoreToFeed(OptimisticFeed.slotsLeftBehind(slots, goneUris = succeededUris))
                 }
@@ -1266,9 +1302,11 @@ class PhoneModeViewModel @Inject constructor(
                     renamedTo = renamedTo,
                 )
                 val copiedOnCard = cardTransferJournal.copiedCountForFolder(state.sourceFolderUri ?: "")
+                // The user did perform this action, so its outcome is still reported; the per-card
+                // counter only follows the card that is on screen.
                 _uiState.update {
                     it.copy(
-                        cardCopiedCount = copiedOnCard,
+                        cardCopiedCount = if (feedStillCurrent) copiedOnCard else it.cardCopiedCount,
                         lastActionFeedback = ActionFeedback(
                             message = message,
                             isError = CopyMoveFeedback.isError(failed, partial),
@@ -1278,7 +1316,7 @@ class PhoneModeViewModel @Inject constructor(
             } catch (e: CancellationException) {
                 throw e
             } catch (e: Exception) {
-                if (!isCopy) restoreToFeed(slots)
+                if (!isCopy && feedEpoch == epochAtLaunch) restoreToFeed(slots)
                 _uiState.update {
                     it.copy(lastActionFeedback = ActionFeedback("Failed: ${e.message}", isError = true))
                 }
@@ -1594,6 +1632,7 @@ class PhoneModeViewModel @Inject constructor(
             return
         }
         _uiState.update { it.copy(cardClearStep = 3) }
+        val epochAtLaunch = feedEpoch
         appScope.launch {
             var deletedCount = 0
             var freedBytes = 0L
@@ -1615,6 +1654,12 @@ class PhoneModeViewModel @Inject constructor(
                     fileCount = deletedCount,
                     celebrationsEnabled = state.celebrationsEnabled,
                 )
+            }
+            if (feedEpoch != epochAtLaunch) {
+                // Left the card meanwhile: the deletions stand, but the screen shows something else.
+                _uiState.update { it.copy(cardClearStep = 0) }
+                showFeedback(if (deletedCount == 1) "1 photo deleted" else "$deletedCount photos deleted")
+                return@launch
             }
             _uiState.update {
                 it.copy(
@@ -1826,6 +1871,7 @@ class PhoneModeViewModel @Inject constructor(
         val wasActive = _uiState.value.images.isNotEmpty()
         val urisBefore = _uiState.value.images.map { it.uri }.toSet()
         finalizePendingDelete()
+        feedEpoch++
         discoveryJob?.cancel()
         dimensionsJob?.cancel()
         publishedUris.clear()
@@ -1950,6 +1996,7 @@ class PhoneModeViewModel @Inject constructor(
     fun goBackToLanding() {
         persistCurrentFolderPosition()
         finalizePendingDelete()
+        feedEpoch++
         discoveryJob?.cancel()
         dimensionsJob?.cancel()
         publishedUris.clear()

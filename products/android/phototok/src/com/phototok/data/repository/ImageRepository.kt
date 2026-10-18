@@ -58,6 +58,18 @@ interface ImageRepository {
         subfolderName: String = PhotoFolders.SELECTION,
     ): FileOperationResult
 
+    /**
+     * Copy or move a shot's files together: one shared collision suffix across the bundle so
+     * sidecars and derivatives stay paired with their photo. One result per source, in order.
+     */
+    suspend fun transferBundleDetailed(
+        sourceUris: List<Uri>,
+        destFolderUri: Uri,
+        sorting: Boolean,
+        subfolderName: String = PhotoFolders.SELECTION,
+        isMove: Boolean,
+    ): List<FileOperationResult>
+
     suspend fun getImageDimensions(uri: Uri): Pair<Int, Int>
 
     /** List the images collected in the selection subfolder of [folderUri]. */

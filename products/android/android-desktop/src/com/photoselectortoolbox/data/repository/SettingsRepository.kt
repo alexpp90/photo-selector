@@ -420,9 +420,9 @@ class SettingsRepository @Inject constructor(
         folderAccessManager.releaseIfUnreferenced(folderUri, referenced.values.flatten().toSet())
     }
 
-    /** Keep (or drop) the grant of the folder the in-memory undo history still operates on. */
-    fun pinUndoHistoryFolder(folderUri: String?) {
-        folderAccessManager.pin(FolderAccessPurpose.UNDO_HISTORY, setOfNotNull(folderUri))
+    /** Keep (or drop) the grants of the folders the in-memory undo records still operate on. */
+    fun pinUndoHistoryFolders(folderUris: Set<String>) {
+        folderAccessManager.pin(FolderAccessPurpose.UNDO_HISTORY, folderUris)
     }
 
     suspend fun reconcilePersistedGrants(): Set<String> {

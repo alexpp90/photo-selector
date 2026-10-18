@@ -17,6 +17,7 @@ import com.photoselector.core.storage.SourceKindClassifier
 import com.phototok.data.model.ImageItem
 import com.phototok.data.repository.FolderAccessManager
 import com.phototok.data.repository.FolderAccessPurpose
+import com.phototok.domain.CompanionFiles
 import com.phototok.domain.PhotoExtensions
 import dagger.hilt.android.qualifiers.ApplicationContext
 import java.io.FileInputStream
@@ -610,6 +611,21 @@ class LocalImageSourceImpl @Inject constructor(
         }
     }
 
+    override suspend fun transferBundleDetailed(
+        sourceUris: List<Uri>,
+        destFolderUri: Uri,
+        sorting: Boolean,
+        subfolderName: String,
+        isMove: Boolean,
+    ): List<FileOperationResult> = try {
+        transferBundle(sourceUris, destFolderUri, sorting, subfolderName, isMove)
+    } catch (e: CancellationException) {
+        throw e
+    } catch (e: Exception) {
+        Log.e(TAG, "Failed to transfer bundle into $destFolderUri", e)
+        sourceUris.map { FileOperationResult.failure(it.toString(), e.message) }
+    }
+
     override suspend fun listSelectionImages(
         folderUri: Uri,
         subfolderName: String,
@@ -736,6 +752,8 @@ class LocalImageSourceImpl @Inject constructor(
 
             val dirsInParent = mutableListOf<String>()
             val imagesInParent = mutableListOf<ImageItem>()
+            // `.xmp` sidecars seen in this very listing: kept per directory, never fed.
+            val sidecarsInParent = mutableListOf<ImageItem>()
             var hasSelectionMarker = false
 
             cursor.use { c ->
@@ -770,13 +788,14 @@ class LocalImageSourceImpl @Inject constructor(
                     }
 
                     if (name.startsWith(".")) continue
-                    if (!PhotoExtensions.isSupported(name)) continue
+                    val isSidecar = CompanionFiles.isSidecar(name)
+                    if (!isSidecar && !PhotoExtensions.isSupported(name)) continue
 
                     val parentUriString = DocumentsContract
                         .buildDocumentUriUsingTree(treeUri, parentId)
                         .toString()
 
-                    imagesInParent.add(
+                    (if (isSidecar) sidecarsInParent else imagesInParent).add(
                         ImageItem(
                             uri = DocumentsContract
                                 .buildDocumentUriUsingTree(treeUri, documentId)
@@ -804,7 +823,7 @@ class LocalImageSourceImpl @Inject constructor(
                     queue.addLast(dirId)
                 }
             }
-            for (img in imagesInParent) {
+            for (img in CompanionFiles.attachSidecars(imagesInParent, sidecarsInParent)) {
                 onImage(img)
             }
             if (!firstDirectoryDone) {
