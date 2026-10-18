@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import shutil
 import sys
+import tempfile
 import unittest
 from pathlib import Path
 
@@ -15,11 +16,12 @@ from PIL import Image, ImageFilter, ImageStat  # noqa: E402
 
 class TestFixtures(unittest.TestCase):
     def setUp(self) -> None:
-        self.dir_a = Path("/tmp/pstlab/test_fixtures_a")
-        self.dir_b = Path("/tmp/pstlab/test_fixtures_b")
-        for d in (self.dir_a, self.dir_b):
-            if d.exists():
-                shutil.rmtree(d)
+        # A directory of this process's own: fixed /tmp/pstlab/<name> paths raced with the lab
+        # tests of other sessions' worktrees, whose setUp removed this run's files (2026-10-18).
+        tmp = Path(tempfile.mkdtemp(prefix="pstlab-test-fixtures-"))
+        self.addCleanup(shutil.rmtree, tmp, True)
+        self.dir_a = tmp / "a"
+        self.dir_b = tmp / "b"
 
     def tearDown(self) -> None:
         for d in (self.dir_a, self.dir_b):
