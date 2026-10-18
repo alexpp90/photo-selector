@@ -533,16 +533,10 @@ class LocalImageSourceImpl @Inject constructor(
                     FileOperationResult.failure(uri.toString(), "Could not write to the $folderName folder")
                 }
 
-            val selectionDir = if (sorting) {
-                destFolder.findFile(folderName)
-                    ?: destFolder.createDirectory(folderName)
-                    ?: return@withContext sourceUris.map { uri ->
-                        FileOperationResult.failure(uri.toString(), "Could not write to the $folderName folder")
-                    }
-            } else {
-                destFolder
-            }
-            ensureSelectionMarker(selectionDir)
+            val selectionDir = selectionDirIn(destFolder, folderName)
+                ?: return@withContext sourceUris.map { uri ->
+                    FileOperationResult.failure(uri.toString(), "Could not write to the $folderName folder")
+                }
 
             data class ResolvedSource(
                 val uri: Uri,
@@ -565,8 +559,8 @@ class LocalImageSourceImpl @Inject constructor(
                     }
                     ResolvedSource(uri, doc, name, key, target)
                 } else {
-                    targetFoldersByKey.getOrPut(SINGLE_FOLDER_KEY) { destFolder }
-                    ResolvedSource(uri, doc, name, SINGLE_FOLDER_KEY, destFolder)
+                    targetFoldersByKey.getOrPut(SINGLE_FOLDER_KEY) { selectionDir }
+                    ResolvedSource(uri, doc, name, SINGLE_FOLDER_KEY, selectionDir)
                 }
             }
 
@@ -833,6 +827,20 @@ class LocalImageSourceImpl @Inject constructor(
         }
     }
 
+    /**
+     * The output subfolder [folderName] (`Selection`, `PhotoTok_LeftSwipe`) inside [destFolder],
+     * created with its marker on first use, or null when it cannot be created. Every copy and
+     * move writes here — never into [destFolder] itself, which is usually the source folder;
+     * File Sorting only adds `RAW/` and `JPEG/` inside it (REQ-TOK-FEATURE.05).
+     */
+    private fun selectionDirIn(destFolder: DocumentFile, folderName: String): DocumentFile? {
+        val selectionDir = destFolder.findFile(folderName)
+            ?: destFolder.createDirectory(folderName)
+            ?: return null
+        ensureSelectionMarker(selectionDir)
+        return selectionDir
+    }
+
     /** Drop the Selection marker into [selectionDir] (best effort; never fails a transfer). */
     internal fun ensureSelectionMarker(selectionDir: DocumentFile) {
         try {
@@ -885,15 +893,9 @@ class LocalImageSourceImpl @Inject constructor(
         val destFolder = DocumentFile.fromTreeUri(context, destFolderUri)
             ?: return FileOperationResult.failure(source, if (isMove) "Copy step failed" else "Could not write to the $folderName folder")
 
-        val targetFolder = if (sorting) {
-            val selectionDir = destFolder.findFile(folderName)
-                ?: destFolder.createDirectory(folderName)
-                ?: return FileOperationResult.failure(source, if (isMove) "Copy step failed" else "Could not write to the $folderName folder")
-            ensureSelectionMarker(selectionDir)
-            determineTargetFolder(fileName, selectionDir)
-        } else {
-            destFolder
-        }
+        val selectionDir = selectionDirIn(destFolder, folderName)
+            ?: return FileOperationResult.failure(source, if (isMove) "Copy step failed" else "Could not write to the $folderName folder")
+        val targetFolder = if (sorting) determineTargetFolder(fileName, selectionDir) else selectionDir
 
         // Single cursor query to find existing display names in targetFolder.
         val existingNames = queryExistingDisplayNames(targetFolder)

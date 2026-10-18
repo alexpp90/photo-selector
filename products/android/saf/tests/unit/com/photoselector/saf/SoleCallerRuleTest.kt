@@ -46,7 +46,6 @@ class SoleCallerRuleTest {
      * adopting change removes its line here.
      */
     private val notYetAdopted = listOf(
-        "android-desktop/src/com/photoselectortoolbox/data/repository/FolderAccessManager.kt",
         "phototok/src/com/phototok/data/repository/FolderAccessManager.kt",
     )
 
