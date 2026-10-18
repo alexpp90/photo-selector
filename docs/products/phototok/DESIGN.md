@@ -157,7 +157,7 @@ The viewer bottom bar (`ViewerBottomBar`) shows 3 persistent action items paired
 
 ### Top app bar
 
-The top app bar shows the "PhotoTok" logo + wordmark in `primary` color (bold) on the left, and four 48 dp action buttons on the right (`PhoneModeTopBar`): `Sync` (Reload folder), `HelpOutline` (Controls guide), `Info` (EXIF metadata toggle), and `Settings`; an SD/USB source adds `SdCard` (Done with this card) before them. TalkBack names: logo "PhotoTok logo: show or hide camera info", Info "Toggle EXIF stats", Help "Show controls guide" / "Hide controls guide". In landscape orientation, the left and right side panels render these actions as `SidePanelButton` items with visible `9.sp` micro-labels (`Sources`, `Selection`, `Revert`, `Help`, `Reload`, `Info`, `Settings`).
+The top app bar shows the "PhotoTok" logo + wordmark in `primary` color (bold) on the left, and four 48 dp action buttons on the right (`PhoneModeTopBar`): `Sync` (Reload folder), `HelpOutline` (Controls guide), `Info` (EXIF metadata toggle), and `Settings`; an SD/USB source adds `SdCard` (Done with this card) before them. The status and navigation bars always draw light icons over the dark UI (also after a rotation; system light mode must not flip them). TalkBack names: logo "PhotoTok logo: show or hide camera info", Info "Toggle EXIF stats", Help "Show controls guide" / "Hide controls guide". In landscape orientation, the left and right side panels render these actions as `SidePanelButton` items with visible `9.sp` micro-labels (`Sources`, `Selection`, `Revert`, `Help`, `Reload`, `Info`, `Settings`).
 
 **Add to:** `PhoneModeScreen.kt` — fixed `Row` at `Alignment.TopStart` with statusBarsPadding.
 
