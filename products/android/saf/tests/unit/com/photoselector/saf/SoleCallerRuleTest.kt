@@ -35,19 +35,9 @@ class SoleCallerRuleTest {
             .map { it.relativeTo(root).invariantSeparatorsPath }
             .sorted()
 
-        assertEquals(
-            (listOf("saf/src/com/photoselector/saf/FolderAccessManager.kt") + notYetAdopted).sorted(),
-            offenders,
-        )
+        assertEquals(listOf("saf/src/com/photoselector/saf/FolderAccessManager.kt"), offenders)
     }
 
-    /**
-     * The products' own copies, until each product adopts :saf and deletes its copy; the
-     * adopting change removes its line here.
-     */
-    private val notYetAdopted = listOf(
-        "phototok/src/com/phototok/data/repository/FolderAccessManager.kt",
-    )
 
     @Test
     fun `the scan sees both products`() {

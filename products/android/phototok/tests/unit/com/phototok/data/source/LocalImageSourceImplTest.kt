@@ -1,97 +1,63 @@
 package com.phototok.data.source
 
-import androidx.documentfile.provider.DocumentFile
-import io.mockk.every
-import io.mockk.mockk
-import org.junit.Assert.assertSame
+import com.photoselector.saf.SelectionSubfolder as SafSubfolder
+import org.junit.Assert.assertEquals
 import org.junit.Test
-import org.junit.runner.RunWith
-import org.robolectric.RobolectricTestRunner
-import org.robolectric.annotation.Config
 
 /**
- * Tests for the RAW/JPEG sorting rules in [LocalImageSourceImpl.determineTargetFolder]
- * (moved here from the repository together with the copy/move implementation).
+ * PhotoTok's RAW/JPEG sorting rule ([LocalImageSourceImpl.selectionSubfolder]) and its mapping
+ * onto the shared engine ([LocalImageSourceImpl.SUBFOLDER_RULE]). Where a subfolder is found or
+ * created, and the fallback when it cannot be, is the engine's (`:saf` `SafEngineInternalsTest`).
  */
-@RunWith(RobolectricTestRunner::class)
-@Config(sdk = [34])
 class LocalImageSourceImplTest {
 
-    private val source = LocalImageSourceImpl(
-        context = mockk(relaxed = true),
-        androidExifReader = mockk(relaxed = true),
-        mediaStoreReader = mockk(relaxed = true),
-    )
-
-    private val rawDir = mockk<DocumentFile>()
-    private val jpegDir = mockk<DocumentFile>()
-    private val selectionDir = mockk<DocumentFile> {
-        every { findFile("RAW") } returns rawDir
-        every { findFile("JPEG") } returns jpegDir
-    }
+    private fun rule(name: String) = LocalImageSourceImpl.SUBFOLDER_RULE.subfolderFor(name, listOf(name))
 
     @Test
     fun `raw files go to RAW subfolder`() {
-        assertSame(rawDir, source.determineTargetFolder("IMG_001.ARW", selectionDir))
-        assertSame(rawDir, source.determineTargetFolder("img_002.dng", selectionDir))
+        assertEquals(SafSubfolder.RAW, rule("IMG_001.ARW"))
+        assertEquals(SafSubfolder.RAW, rule("img_002.dng"))
     }
 
     @Test
     fun `jpeg files go to JPEG subfolder`() {
-        assertSame(jpegDir, source.determineTargetFolder("IMG_001.JPG", selectionDir))
-        assertSame(jpegDir, source.determineTargetFolder("img_002.jpeg", selectionDir))
+        assertEquals(SafSubfolder.JPEG, rule("IMG_001.JPG"))
+        assertEquals(SafSubfolder.JPEG, rule("img_002.jpeg"))
     }
 
     @Test
-    fun `lightroom edits go to RAW subfolder`() {
-        assertSame(rawDir, source.determineTargetFolder("IMG_001-Edit.tif", selectionDir))
+    fun `lightroom edits and Enhanced-NR derivatives go to RAW subfolder`() {
+        assertEquals(SafSubfolder.RAW, rule("IMG_001-Edit.tif"))
+        assertEquals(SafSubfolder.RAW, rule("IMG_001_Edit.psd"))
+        assertEquals(SafSubfolder.RAW, rule("IMG_001-Enhanced-NR.tif"))
+    }
+
+    @Test
+    fun `an edit saved as JPEG is sorted by its extension`() {
+        assertEquals(SafSubfolder.JPEG, rule("IMG_001_Edit.jpg"))
     }
 
     @Test
     fun `xmp sidecar follows raw parent`() {
-        assertSame(rawDir, source.determineTargetFolder("IMG_001.arw.xmp", selectionDir))
+        assertEquals(SafSubfolder.RAW, rule("IMG_001.arw.xmp"))
     }
 
     @Test
     fun `xmp sidecar without raw parent stays in selection folder`() {
-        assertSame(selectionDir, source.determineTargetFolder("IMG_001.xmp", selectionDir))
+        assertEquals(SafSubfolder.ROOT, rule("IMG_001.xmp"))
     }
 
     @Test
     fun `unknown extensions stay in selection folder`() {
-        assertSame(selectionDir, source.determineTargetFolder("video.mp4", selectionDir))
-        assertSame(selectionDir, source.determineTargetFolder("notes.txt", selectionDir))
+        assertEquals(SafSubfolder.ROOT, rule("video.mp4"))
+        assertEquals(SafSubfolder.ROOT, rule("notes.txt"))
     }
 
     @Test
-    fun `falls back to selection folder when subfolder cannot be created`() {
-        val brokenDir = mockk<DocumentFile> {
-            every { findFile("RAW") } returns null
-            every { createDirectory("RAW") } returns null
-        }
-        assertSame(brokenDir, source.determineTargetFolder("IMG_001.ARW", brokenDir))
-    }
-
-    @Test
-    fun `cleanUpFailedCopy calls delete on destination file`() {
-        val destFile = mockk<DocumentFile>(relaxed = true) {
-            every { delete() } returns true
-        }
-
-        source.cleanUpFailedCopy(destFile)
-
-        io.mockk.verify(exactly = 1) { destFile.delete() }
-    }
-
-    @Test
-    fun `cleanUpFailedCopy swallows exception on delete without crashing`() {
-        val destFile = mockk<DocumentFile>(relaxed = true) {
-            every { delete() } throws RuntimeException("Disk I/O error")
-        }
-
-        // Should not throw
-        source.cleanUpFailedCopy(destFile)
-
-        io.mockk.verify(exactly = 1) { destFile.delete() }
+    fun `the rule maps every PhotoTok subfolder onto the engine's`() {
+        assertEquals(
+            LocalImageSourceImpl.SelectionSubfolder.entries.map { it.name },
+            SafSubfolder.entries.map { it.name },
+        )
     }
 }
