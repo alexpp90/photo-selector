@@ -5,6 +5,7 @@ from __future__ import annotations
 import json
 import shutil
 import sys
+import tempfile
 import unittest
 from pathlib import Path
 from typing import Any
@@ -23,6 +24,12 @@ from lab.usability.panel import (  # noqa: E402
     validate_persona,
 )
 from lab.usability.report import coverage_problems, screen_matrix, write_report  # noqa: E402
+
+
+def _scratch(name: str) -> Path:
+    """A private folder per run under the lab root; concurrent worktree runs must not collide."""
+    Path("/tmp/pstlab").mkdir(parents=True, exist_ok=True)
+    return Path(tempfile.mkdtemp(prefix=f"{name}_", dir="/tmp/pstlab"))
 
 
 def _xml(*nodes: str, size: str = "[0,0][1080,1920]") -> str:
@@ -124,9 +131,7 @@ class TestMetrics(unittest.TestCase):
 
 class TestDriver(unittest.TestCase):
     def setUp(self) -> None:
-        self.base = Path("/tmp/pstlab/test_usability_driver")
-        shutil.rmtree(self.base, ignore_errors=True)
-        self.base.mkdir(parents=True)
+        self.base = _scratch("test_usability_driver")
 
     def tearDown(self) -> None:
         shutil.rmtree(self.base, ignore_errors=True)
@@ -245,8 +250,7 @@ def _answer(persona: str, verdicts: list[str]) -> dict[str, Any]:
 
 class TestPanelAndReport(unittest.TestCase):
     def setUp(self) -> None:
-        self.base = Path("/tmp/pstlab/test_usability_panel")
-        shutil.rmtree(self.base, ignore_errors=True)
+        self.base = _scratch("test_usability_panel")
         self.run_dir = self.base / "run"
         scen = self.run_dir / "U-1"
         scen.mkdir(parents=True)
@@ -358,8 +362,7 @@ class TestScenes(unittest.TestCase):
             self.skipTest("scene rendering needs the real Pillow")
         from lab.usability.scenes import ROLL, generate_roll
 
-        out = Path("/tmp/pstlab/test_usability_scenes")
-        shutil.rmtree(out, ignore_errors=True)
+        out = _scratch("test_usability_scenes")
         try:
             files = generate_roll(out)
             self.assertEqual(len(files), len(ROLL))
