@@ -26,7 +26,7 @@ SELECTOR_RE = re.compile(r'^\s*-?\s*(id|text):\s*"([^"]+)"', re.M)
 LAB_OWNED_TEXT = {"PSTLab", "work", "ISO 400"}
 # Tags a flow already uses, guarded by `when: visible`, that an open product PR adds. Each entry
 # fails the test as soon as the tag is in the source, so the exception ends with its reason.
-AWAITED_TAGS = {"settings_button": "alexpp90/photo-selector#802"}
+AWAITED_TAGS: dict[str, str] = {}
 
 
 def alternatives(selector: str) -> list[str]:
