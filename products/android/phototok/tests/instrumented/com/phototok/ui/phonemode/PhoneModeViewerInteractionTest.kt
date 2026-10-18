@@ -1,8 +1,9 @@
 package com.phototok.ui.phonemode
 
-import androidx.compose.ui.test.junit4.createComposeRule
+import androidx.compose.ui.test.junit4.v2.createComposeRule
+import androidx.compose.ui.test.onAllNodesWithText
+import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onNodeWithText
-import androidx.compose.ui.test.onRoot
 import androidx.compose.ui.test.performClick
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import com.phototok.data.model.ImageItem
@@ -62,10 +63,16 @@ class PhoneModeViewerInteractionTest {
         composeTestRule.onNodeWithText("1 / 2").assertExists()
 
         // Single tap on viewer
-        composeTestRule.onRoot().performClick()
-        composeTestRule.waitForIdle()
-
+        // The tap is only delivered after the double-tap timeout (detectTapGestures with
+        // onDoubleTap), which runs on real time, so poll instead of assuming waitForIdle() waited.
+        composeTestRule.onNodeWithTag("viewer.photo").performClick()
+        composeTestRule.waitUntil(timeoutMillis = 5_000) { hinted == FirstRunHint.TAP_HUD }
         assertEquals(FirstRunHint.TAP_HUD, hinted)
+
+        // The HUD fades out and the page counter leaves the composition.
+        composeTestRule.waitUntil(timeoutMillis = 5_000) {
+            composeTestRule.onAllNodesWithText("1 / 2").fetchSemanticsNodes().isEmpty()
+        }
     }
 
     @Test
@@ -87,8 +94,11 @@ class PhoneModeViewerInteractionTest {
         }
 
         composeTestRule.waitForIdle()
-        composeTestRule.onRoot().performClick()
-        composeTestRule.waitForIdle()
+        composeTestRule.onNodeWithTag("viewer.photo").performClick()
+        // Let the double-tap timeout elapse (real time) so a delayed onTap would have fired.
+        composeTestRule.waitUntil(timeoutMillis = 5_000) {
+            composeTestRule.onAllNodesWithText("1 / 1").fetchSemanticsNodes().isEmpty()
+        }
 
         assertFalse("In read-only mode, TAP_HUD hint must not trigger", hintTriggered)
     }

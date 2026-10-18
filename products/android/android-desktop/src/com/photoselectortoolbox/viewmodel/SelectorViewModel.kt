@@ -30,8 +30,10 @@ import com.photoselectortoolbox.domain.curation.CurationAction
 import com.photoselectortoolbox.domain.curation.DeferredDeletion
 import com.photoselectortoolbox.domain.curation.ImageSlot
 import com.photoselectortoolbox.domain.curation.OptimisticEdits
+import com.photoselectortoolbox.domain.curation.ParkedUndo
 import com.photoselectortoolbox.domain.curation.PendingDeletion
 import com.photoselectortoolbox.domain.curation.SelectorListState
+import com.photoselectortoolbox.domain.curation.UndoParking
 import com.photoselectortoolbox.domain.curation.UndoPolicy
 import com.photoselectortoolbox.domain.curation.UndoableOperation
 import com.photoselectortoolbox.domain.format.SelectorLabels
@@ -141,6 +143,11 @@ data class SelectorUiState(
      * completed moves ([UndoableOperation.ReverseMove]) in LIFO order.
      */
     val undoHistory: List<UndoableOperation> = emptyList(),
+    /**
+     * Durable undo records of folders left behind (finished moves, trashed deletes),
+     * restored into [undoHistory] when their folder is selected again.
+     */
+    val parkedUndo: ParkedUndo = ParkedUndo(),
     /**
      * Whether the currently visible snackbar represents the top of [undoHistory]
      * and should offer an inline UNDO button.
@@ -394,9 +401,9 @@ class SelectorViewModel @Inject constructor(
         // if the user opens another folder (finding D-10).
         viewModelScope.launch {
             _uiState
-                .map { state -> state.folderUri.takeIf { state.undoHistory.isNotEmpty() } }
+                .map { state -> UndoParking.foldersToPin(state.folderUri, state.undoHistory, state.parkedUndo) }
                 .distinctUntilChanged()
-                .collect { folder -> settingsRepository.pinUndoHistoryFolder(folder) }
+                .collect { folders -> settingsRepository.pinUndoHistoryFolders(folders) }
         }
 
         viewModelScope.launch {
@@ -544,7 +551,7 @@ class SelectorViewModel @Inject constructor(
         workQueue = SelectorWorkQueue.reset()
         _ratingFilter.value = RatingFilter.All
         _uiState.update {
-            it.copy(
+            parkUndoHistory(it).copy(
                 images = emptyList(),
                 currentIndex = 0,
                 groups = emptyList(),
@@ -554,7 +561,6 @@ class SelectorViewModel @Inject constructor(
                 scanProgress = 0f,
                 scanStatusText = "",
                 snackbarMessage = null,
-                undoHistory = emptyList(),
                 snackbarUndoAvailable = false,
                 ratingFilter = RatingFilter.All,
                 missingGrantPrompt = false,
@@ -569,8 +575,24 @@ class SelectorViewModel @Inject constructor(
         }
     }
 
+    /**
+     * Leaving [state]'s folder: its durable undo records move to [SelectorUiState.parkedUndo]
+     * (pending deletions were committed by [commitAllPendingDeletions] and are dropped).
+     */
+    private fun parkUndoHistory(state: SelectorUiState): SelectorUiState {
+        val folder = state.folderUri
+        val parked = if (folder != null) state.parkedUndo.park(folder, state.undoHistory) else state.parkedUndo
+        return state.copy(undoHistory = emptyList(), parkedUndo = parked)
+    }
+
     fun selectFolder(uri: Uri) {
         resetSession()
+        // Synchronous, in one update: from here on a late transfer result compares against the
+        // folder that is really open, and the returning folder's records are live again.
+        _uiState.update {
+            val (restored, remaining) = it.parkedUndo.take(uri.toString())
+            it.copy(folderUri = uri.toString(), undoHistory = restored, parkedUndo = remaining)
+        }
         val classifiedKind = runCatching {
             val auth = uri.authority
             if (auth.isNullOrBlank() || auth == "test") SourceKind.PHONE_LIBRARY
@@ -583,7 +605,6 @@ class SelectorViewModel @Inject constructor(
                     isEnumerating = true,
                     error = null,
                     missingGrantPrompt = false,
-                    folderUri = uri.toString(),
                     sourceKind = classifiedKind,
                 )
             }
@@ -594,7 +615,7 @@ class SelectorViewModel @Inject constructor(
             val folderName = imageRepository.openFolder(context, uri)
             if (folderName == null) {
                 _uiState.update {
-                    it.copy(
+                    parkUndoHistory(it).copy(
                         isLoading = false,
                         isEnumerating = false,
                         folderUri = null,
@@ -614,7 +635,7 @@ class SelectorViewModel @Inject constructor(
             collectDiscovery(uri, "images") { e ->
                 if (e is SecurityException) {
                     _uiState.update {
-                        it.copy(
+                        parkUndoHistory(it).copy(
                             folderUri = null,
                             folderName = "",
                             missingGrantPrompt = true,
@@ -1330,8 +1351,13 @@ class SelectorViewModel @Inject constructor(
                 null
             }
 
+            // The folder may have been switched while the transfer ran. The outcome on disk is
+            // durable (undo record, rating); everything on screen belongs to the folder it was
+            // started in and is skipped when that folder is no longer open.
+            fun stillOpen() = _uiState.value.folderUri == folderUri
             if (result != null && result.success) {
                 _uiState.update { current ->
+                    if (current.folderUri != folderUri) return@update current
                     current.copy(
                         sessionMovedCount = if (action == CurationAction.MOVE) {
                             current.sessionMovedCount + 1
@@ -1375,6 +1401,7 @@ class SelectorViewModel @Inject constructor(
                     ?.let(SelectionActionLabels::displayNameOf)
                 if (resultName != null && resultName != currentItem.fileName) {
                     _uiState.update {
+                        if (it.folderUri != folderUri) return@update it
                         it.copy(
                             snackbarMessage = SelectionActionLabels.suffixedConfirmation(
                                 action = if (action == CurationAction.MOVE) FilingAction.MOVE else FilingAction.COPY,
@@ -1386,9 +1413,28 @@ class SelectorViewModel @Inject constructor(
                     }
                 }
             } else if (result?.partial == true) {
-                rollbackFiling(edit.action, edit.slots)
-                val folder = FilingAction.selectionFolderOrDefault(_uiState.value.selectionFolderName)
-                reportError(result.error ?: "Copied to $folder — original could not be removed")
+                if (stillOpen()) {
+                    rollbackFiling(edit.action, edit.slots)
+                    val folder = FilingAction.selectionFolderOrDefault(_uiState.value.selectionFolderName)
+                    reportError(result.error ?: "Copied to $folder — original could not be removed")
+                }
+                // The rating belongs to the photograph: a verified copy starts with it exactly as a
+                // Copy does, and the original (still there) keeps its own. A primary that did move
+                // (a bundle member failed instead) is re-keyed like in the success path. Runs even
+                // after a folder switch: it is durable data, not presentation.
+                result.destinationUri?.takeIf { it.isNotBlank() }?.let { primary ->
+                    try {
+                        if (primary in result.copiesOfSurvivingOriginals) {
+                            cacheRepository.copyRating(sourceUri, primary)
+                        } else {
+                            cacheRepository.moveRating(sourceUri, primary)
+                        }
+                    } catch (e: CancellationException) {
+                        throw e
+                    } catch (e: Exception) {
+                        Log.e("SelectorViewModel", "Could not carry the rating of $sourceUri to $primary", e)
+                    }
+                }
                 // The verified copies in the destination are the photographer's data now, so the
                 // partial move stays undoable (Ctrl+Z): undo deletes exactly those copies while
                 // their originals still exist. The list item was restored above, hence no slots.
@@ -1401,7 +1447,7 @@ class SelectorViewModel @Inject constructor(
                     parentDocumentId = result.parentDocumentId ?: currentItem.parentDocumentId,
                     copiesOfSurvivingOriginals = result.copiesOfSurvivingOriginals,
                 )?.let { pushFilingUndo(it, folderUri, snackbarOffersUndo = false) }
-            } else {
+            } else if (stillOpen()) {
                 rollbackFiling(edit.action, edit.slots)
                 val verb = if (action == CurationAction.COPY) "Copy" else "Move"
                 reportError("$verb failed: ${result?.error ?: "the file could not be transferred"}")
@@ -1412,6 +1458,11 @@ class SelectorViewModel @Inject constructor(
     private fun pushFilingUndo(undo: UndoableOperation, folderUri: String?, snackbarOffersUndo: Boolean) {
         var evictedPendings: List<PendingDeletion> = emptyList()
         _uiState.update { current ->
+            // The record belongs to the folder the transfer started in. If the photographer has
+            // moved on, it is parked there — never pushed into the folder now open.
+            if (folderUri != null && current.folderUri != folderUri) {
+                return@update current.copy(parkedUndo = current.parkedUndo.park(folderUri, listOf(undo)))
+            }
             val pushResult = UndoPolicy.push(current.undoHistory, undo)
             evictedPendings = pushResult.evictedPendingDeletions
             current.copy(
@@ -1518,7 +1569,20 @@ class SelectorViewModel @Inject constructor(
                         null
                     }
                     if (result?.success == true) {
-                        result.destinationUri?.let { back ->
+                        // A copy deleted by a partial-move undo takes its own rating row with it; the
+                        // surviving original keeps the rating it has (it was never re-keyed).
+                        result.deletedCopies.forEach { gone ->
+                            try {
+                                cacheRepository.deleteRating(gone)
+                            } catch (e: CancellationException) {
+                                throw e
+                            } catch (e: Exception) {
+                                Log.e("SelectorViewModel", "Could not drop the rating of deleted copy $gone", e)
+                            }
+                        }
+                        // The rating follows the primary file back — unless the primary was one of the
+                        // deleted copies, in which case `back` is some other restored file.
+                        result.destinationUri?.takeIf { operation.destinationUri !in result.deletedCopies }?.let { back ->
                             try {
                                 cacheRepository.moveRating(operation.destinationUri, back)
                             } catch (e: CancellationException) {

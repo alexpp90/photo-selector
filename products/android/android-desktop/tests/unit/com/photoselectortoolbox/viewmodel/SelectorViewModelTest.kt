@@ -377,6 +377,129 @@ class SelectorViewModelTest {
         assertEquals(listOf("a", "b"), viewModel.uiState.value.images.map { it.fileName })
     }
 
+    // ── Folder switch while a transfer is in flight (Q-7) ────────────────
+
+    private fun otherImage(name: String) = ImageItem(
+        uri = "content://test/other/$name",
+        fileName = name,
+        fileSize = 1,
+        lastModified = 1,
+        mimeType = "image/jpeg",
+    )
+
+    private fun names(viewModel: SelectorViewModel) = viewModel.uiState.value.images.map { it.fileName }
+
+    @Test
+    fun `a move that finishes after a folder switch is undoable in its own folder only`() = runTest {
+        val transfer = CompletableDeferred<FileOperationResult>()
+        coEvery { imageRepository.moveImage(any(), any(), any(), any()) } coAnswers { transfer.await() }
+        coEvery { imageRepository.undoMoveBundle(any(), any(), any(), any(), any()) } returns
+            FileOperationResult.success("content://test/sel/a", "content://test/folder/a")
+        val viewModel = loadFolder(image("a"), image("b"))
+        viewModel.moveToSelection()
+
+        // The shared test flow replays its last batch to a new collector; start B clean.
+        discovery.resetReplayCache()
+        viewModel.selectFolder(Uri.parse(OTHER_FOLDER_URI))
+        discovery.emit(listOf(otherImage("x"), otherImage("y")))
+        transfer.complete(FileOperationResult.success("content://test/folder/a", "content://test/sel/a"))
+
+        assertTrue(viewModel.uiState.value.undoHistory.isEmpty())
+        assertEquals(listOf("x", "y"), names(viewModel))
+        assertEquals(FOLDER_URI, viewModel.uiState.value.parkedUndo.folders.single())
+
+        // Ctrl+Z in B has nothing to reverse.
+        viewModel.undoLastOperation()
+        assertEquals(listOf("x", "y"), names(viewModel))
+        coVerify(exactly = 0) { imageRepository.undoMoveBundle(any(), any(), any(), any(), any()) }
+
+        discovery.resetReplayCache()
+        viewModel.selectFolder(Uri.parse(FOLDER_URI))
+        discovery.emit(listOf(image("b")))
+        assertTrue(viewModel.uiState.value.undoHistory.single() is UndoableOperation.ReverseMove)
+        viewModel.undoLastOperation()
+
+        assertEquals(listOf("a", "b"), names(viewModel))
+        coVerify(exactly = 1) {
+            imageRepository.undoMoveBundle(any(), listOf("content://test/sel/a"), Uri.parse(FOLDER_URI), any(), any())
+        }
+    }
+
+    @Test
+    fun `a failed or partial result after a folder switch leaves the new folder's list and messages alone`() = runTest {
+        val transfer = CompletableDeferred<FileOperationResult>()
+        coEvery { imageRepository.moveImage(any(), any(), any(), any()) } coAnswers { transfer.await() }
+        val viewModel = loadFolder(image("a"), image("b"))
+        viewModel.moveToSelection()
+        // The shared test flow replays its last batch to a new collector; start B clean.
+        discovery.resetReplayCache()
+        viewModel.selectFolder(Uri.parse(OTHER_FOLDER_URI))
+        discovery.emit(listOf(otherImage("x"), otherImage("y")))
+
+        transfer.complete(
+            FileOperationResult.partial(
+                sourceUri = "content://test/folder/a",
+                destinationUri = "content://test/sel/a",
+                error = "partial",
+            ),
+        )
+
+        assertEquals(listOf("x", "y"), names(viewModel))
+        assertNull(viewModel.uiState.value.error)
+        assertTrue(viewModel.uiState.value.undoHistory.isEmpty())
+        // The verified copies are still the photographer's data: undoable back in folder A.
+        assertEquals(1, viewModel.uiState.value.parkedUndo.historyOf(FOLDER_URI).size)
+    }
+
+    @Test
+    fun `a failed move after a folder switch changes nothing in the new folder`() = runTest {
+        val transfer = CompletableDeferred<FileOperationResult>()
+        coEvery { imageRepository.moveImage(any(), any(), any(), any()) } coAnswers { transfer.await() }
+        val viewModel = loadFolder(image("a"), image("b"))
+        viewModel.moveToSelection()
+        // The shared test flow replays its last batch to a new collector; start B clean.
+        discovery.resetReplayCache()
+        viewModel.selectFolder(Uri.parse(OTHER_FOLDER_URI))
+        discovery.emit(listOf(otherImage("x")))
+
+        transfer.complete(FileOperationResult.failure("content://test/folder/a", "disk full"))
+
+        assertEquals(listOf("x"), names(viewModel))
+        assertNull(viewModel.uiState.value.error)
+        assertTrue(viewModel.uiState.value.parkedUndo.folders.isEmpty())
+    }
+
+    @Test
+    fun `the rating still follows a file whose move finished after a folder switch`() = runTest {
+        val transfer = CompletableDeferred<FileOperationResult>()
+        coEvery { imageRepository.moveImage(any(), any(), any(), any()) } coAnswers { transfer.await() }
+        val viewModel = loadFolder(image("a"), image("b"))
+        viewModel.moveToSelection()
+        viewModel.selectFolder(Uri.parse(OTHER_FOLDER_URI))
+
+        transfer.complete(FileOperationResult.success("content://test/folder/a", "content://test/sel/a"))
+
+        coVerify(exactly = 1) { cacheRepository.moveRating("content://test/folder/a", "content://test/sel/a") }
+    }
+
+    @Test
+    fun `leaving a folder keeps its finished moves, commits its pending deletes, and pins its grant`() = runTest {
+        coEvery { imageRepository.moveImage(any(), any(), any(), any()) } returns
+            FileOperationResult.success("content://test/folder/a", "content://test/sel/a")
+        val viewModel = loadFolder(image("a"), image("b"), image("c"))
+        viewModel.moveToSelection()
+        viewModel.deleteCurrentImage()
+        assertEquals(2, viewModel.uiState.value.undoHistory.size)
+
+        viewModel.selectFolder(Uri.parse(OTHER_FOLDER_URI))
+
+        coVerify(exactly = 1) { imageRepository.deleteImage(any(), Uri.parse("content://test/folder/b")) }
+        val parked = viewModel.uiState.value.parkedUndo.historyOf(FOLDER_URI)
+        assertTrue(parked.single() is UndoableOperation.ReverseMove)
+        assertTrue(viewModel.uiState.value.undoHistory.isEmpty())
+        io.mockk.verify { settingsRepository.pinUndoHistoryFolders(setOf(FOLDER_URI)) }
+    }
+
     // ── Undo availability ────────────────────────────────────────────────
 
     @Test
@@ -692,6 +815,101 @@ class SelectorViewModelTest {
         }
         assertTrue(viewModel.uiState.value.undoHistory.isEmpty())
         assertTrue(viewModel.uiState.value.images.any { it.uri == item.uri })
+    }
+
+    // ── D-13: a verified copy of a partial move carries the rating ────────
+
+    @Test
+    fun `a partial move gives the verified copy the rating and leaves the original's alone`() = runTest {
+        val item = image("IMG_0020.jpg")
+        val copy = "content://test/folder/Selection/JPEG/IMG_0020.jpg"
+        coEvery { imageRepository.moveBundle(any(), item, any(), any()) } returns
+            FileOperationResult.partial(item.uri, copy, copiesOfSurvivingOriginals = mapOf(copy to item.uri))
+
+        val viewModel = loadFolder(item, image("b"))
+        viewModel.moveToSelection()
+
+        coVerify(exactly = 1) { cacheRepository.copyRating(item.uri, copy) }
+        coVerify(exactly = 0) { cacheRepository.moveRating(any(), any()) }
+        coVerify(exactly = 0) { cacheRepository.deleteRating(any()) }
+    }
+
+    @Test
+    fun `a partial bundle move whose primary did move re-keys the rating instead of copying it`() = runTest {
+        val item = image("IMG_0021.jpg")
+        val primary = "content://test/folder/Selection/JPEG/IMG_0021.jpg"
+        val member = "content://test/folder/Selection/RAW/IMG_0021.cr3"
+        coEvery { imageRepository.moveBundle(any(), item, any(), any()) } returns
+            FileOperationResult.partial(
+                sourceUri = item.uri,
+                destinationUri = primary,
+                destinationUris = listOf(primary, member),
+                copiesOfSurvivingOriginals = mapOf(member to "content://test/folder/IMG_0021.cr3"),
+            )
+
+        loadFolder(item, image("b")).moveToSelection()
+
+        coVerify(exactly = 1) { cacheRepository.moveRating(item.uri, primary) }
+        coVerify(exactly = 0) { cacheRepository.copyRating(any(), any()) }
+    }
+
+    @Test
+    fun `a partial move that finishes after a folder switch still carries the rating`() = runTest {
+        val item = image("a")
+        val copy = "content://test/sel/a"
+        val transfer = CompletableDeferred<FileOperationResult>()
+        coEvery { imageRepository.moveImage(any(), any(), any(), any()) } coAnswers { transfer.await() }
+        val viewModel = loadFolder(item, image("b"))
+        viewModel.moveToSelection()
+        discovery.resetReplayCache()
+        viewModel.selectFolder(Uri.parse(OTHER_FOLDER_URI))
+        discovery.emit(listOf(otherImage("x")))
+
+        transfer.complete(FileOperationResult.partial(item.uri, copy))
+
+        coVerify(exactly = 1) { cacheRepository.copyRating(item.uri, copy) }
+        assertEquals(listOf("x"), names(viewModel))
+    }
+
+    @Test
+    fun `undoing a partial move drops the deleted copy's rating row and never re-keys onto the original`() = runTest {
+        val item = image("IMG_0022.jpg")
+        val copy = "content://test/folder/Selection/JPEG/IMG_0022.jpg"
+        val copies = mapOf(copy to item.uri)
+        coEvery { imageRepository.moveBundle(any(), item, any(), any()) } returns
+            FileOperationResult.partial(item.uri, copy, copiesOfSurvivingOriginals = copies)
+        coEvery {
+            imageRepository.undoMoveBundle(any(), listOf(copy), Uri.parse(FOLDER_URI), any(), copies)
+        } returns FileOperationResult.success(copy, null, emptyList()).copy(deletedCopies = listOf(copy))
+
+        val viewModel = loadFolder(item, image("b"))
+        viewModel.moveToSelection()
+        viewModel.undoLastOperation()
+
+        coVerify(exactly = 1) { cacheRepository.deleteRating(copy) }
+        coVerify(exactly = 0) { cacheRepository.moveRating(copy, any()) }
+        coVerify(exactly = 0) { cacheRepository.deleteRating(item.uri) }
+    }
+
+    @Test
+    fun `undoing a mixed partial move deletes the copy's row and still re-keys the restored primary`() = runTest {
+        val item = image("IMG_0023.jpg")
+        val primary = "content://test/folder/Selection/JPEG/IMG_0023.jpg"
+        val member = "content://test/folder/Selection/RAW/IMG_0023.cr3"
+        val restored = "content://test/folder/IMG_0023-2.jpg"
+        val copies = mapOf(member to "content://test/folder/IMG_0023.cr3")
+        coEvery { imageRepository.moveBundle(any(), item, any(), any()) } returns
+            FileOperationResult.partial(item.uri, primary, destinationUris = listOf(primary, member), copiesOfSurvivingOriginals = copies)
+        coEvery {
+            imageRepository.undoMoveBundle(any(), listOf(primary, member), Uri.parse(FOLDER_URI), any(), copies)
+        } returns FileOperationResult.success(primary, restored, listOf(restored)).copy(deletedCopies = listOf(member))
+
+        val viewModel = loadFolder(item, image("b"))
+        viewModel.moveToSelection()
+        viewModel.undoLastOperation()
+
+        coVerify(exactly = 1) { cacheRepository.deleteRating(member) }
+        coVerify(exactly = 1) { cacheRepository.moveRating(primary, restored) }
     }
 
     @Test

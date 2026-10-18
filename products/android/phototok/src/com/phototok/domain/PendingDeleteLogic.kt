@@ -108,8 +108,9 @@ object PendingDeleteLogic {
                     updatedAll.add(slot.allImagesIndex.coerceIn(0, updatedAll.size), slot.image)
                 }
             }
+        // Sidecars were never feed items, so they have no place to come back to.
         pending.slots
-            .filter { it.allImagesIndex < 0 }
+            .filter { it.allImagesIndex < 0 && !CompanionFiles.isSidecar(it.image.fileName) }
             .forEach { slot ->
                 if (updatedAll.none { it.uri == slot.image.uri }) {
                     updatedAll.add(slot.image)

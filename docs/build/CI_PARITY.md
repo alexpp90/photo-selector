@@ -269,7 +269,7 @@ satisfy five adversarial verification gates prior to delivery:
 Of the nine consecutive `fix(test)` / `fix(android)` commits on
 `feat/score-chips-and-first-run-hints`, **one** was a compile error and
 **eight** were the same small family of semantics-tree mistakes. Following
-these five rules removes almost all of that class:
+these rules removes almost all of that class:
 
 1. **Use `onAllNodes(...).onFirst()`, not `onNode(...)`, for anything that can
    legitimately match more than once.** `onNode` throws when a matcher hits
@@ -293,6 +293,14 @@ these five rules removes almost all of that class:
    `assertIsDisplayed` fails with "is not displayed" although the app is correct
    (`PhoneModeScreenDialogTest`, PR #737, API 30 job). `assertExists()` passes
    off-screen and hides the problem; `assertIsDisplayed()` does not.
+6. **Wait on the effect, not on idle, after a gesture.** `waitForIdle()` does not
+   prove a gesture's effect has happened. A tap on a node whose
+   `detectTapGestures` also handles `onDoubleTap` reaches `onTap` only after the
+   double-tap timeout, which runs in real time, so assert with
+   `composeTestRule.waitUntil(timeoutMillis = 5_000) { … }` and click the node by
+   its own `testTag`, not `onRoot()`. A test asserting that something did *not*
+   happen must first prove the gesture was handled, or a late or lost event passes
+   it (`PhoneModeViewerInteractionTest`).
 
 These rules are also part of the Android UI agent definitions in the maintainer's agent
 framework.
