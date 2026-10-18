@@ -146,6 +146,18 @@ if "gi" not in sys.modules and not _real_gtk_usable():
             children = getattr(self, "_children", None)
             return children[0] if children else None
 
+        def set_xalign(self, *args, **kwargs):
+            pass
+
+        def set_can_target(self, can_target: bool = True, *args, **kwargs):
+            self._can_target = bool(can_target)
+
+        def get_can_target(self):
+            return getattr(self, "_can_target", True)
+
+        def get_parent(self):
+            return getattr(self, "_parent", None)
+
         def set_size_request(self, *args, **kwargs):
             pass
 

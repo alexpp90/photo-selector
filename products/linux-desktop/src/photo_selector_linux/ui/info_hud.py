@@ -48,9 +48,12 @@ class InfoHUD(Gtk.Box if HAS_GI else object):
             super().__init__(orientation=Gtk.Orientation.VERTICAL, spacing=6)
             self.add_css_class("floating-hud")
             self.set_halign(Gtk.Align.START)
-            self.set_valign(Gtk.Align.START)
-            self.set_margin_top(16)
-            self.set_margin_start(16)
+            # Lives in the active slot's image overlay, bottom-left, clicks pass through (LIN-8).
+            self.set_valign(Gtk.Align.END)
+            self.set_margin_bottom(8)
+            self.set_margin_start(8)
+            self.set_can_target(False)
+            self.set_name("info_hud")
             self._build_ui()
 
         if self.viewmodel:

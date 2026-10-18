@@ -4,7 +4,7 @@ Adheres to:
 - R-LINUX-UI-03: Viewport Canvas Area Allocation (>85% of total window area)
 - R-LINUX-UI-04: 1-Up Single View Mode
 - R-LINUX-UI-05: 2-Up Side-by-Side Comparison Mode
-- R-LINUX-UI-06: 3-Up Focus Mode (Sliding Triplet)
+- R-LINUX-UI-06: 3-Up Focus Mode (One-over-Two)
 - R-LINUX-UI-07: BoundarySlotPane Indicators
 - R-LINUX-UI-08: 1:1 Actual-Pixel Zoom Toggle
 """
@@ -57,6 +57,7 @@ class CanvasView(Gtk.Box if HAS_GI else object):
         self._last_mode: int = getattr(viewmodel, "comparison_mode", 1)
         self.last_prefetch_indices: List[int] = []
         self.hud = InfoHUD(viewmodel=self.viewmodel)
+        self._active_image_area = None
         initial_max_mb = getattr(viewmodel, "cache_limit_mb", 512.0)
         initial_blurry = getattr(viewmodel, "blurry_threshold", 35.0)
         initial_sharp = getattr(viewmodel, "sharp_threshold", 70.0)
@@ -92,8 +93,7 @@ class CanvasView(Gtk.Box if HAS_GI else object):
             self.slots_box.set_vexpand(True)
             self.overlay.set_child(self.slots_box)
 
-            # Floating Info HUD overlay
-            self.overlay.add_overlay(self.hud)
+            # The Info HUD is re-parented into the active slot's image overlay on every render.
 
         self.viewmodel.connect("state-changed", self._on_state_changed)
         self._render_view()
@@ -268,6 +268,18 @@ class CanvasView(Gtk.Box if HAS_GI else object):
             desc["rect"] = rect
         return desc
 
+    def _detach_hud(self) -> None:
+        """Unparent the single HUD from the slot that held it before slots are rebuilt."""
+        parent = self.hud.get_parent()
+        if parent is not None:
+            parent.remove_overlay(self.hud)
+        self._active_image_area = None
+
+    def _attach_hud(self) -> None:
+        """Anchor the HUD inside the active slot's image area (R-LINUX-UI-09)."""
+        if self._active_image_area is not None:
+            self._active_image_area.add_overlay(self.hud)
+
     def _render_view(self) -> None:
         mode = self.viewmodel.comparison_mode
         candidates = self.viewmodel.candidates
@@ -278,6 +290,7 @@ class CanvasView(Gtk.Box if HAS_GI else object):
         if count == 0:
             self.hud.update_photo(None)
             if HAS_GI:
+                self._detach_hud()
                 while child := self.slots_box.get_first_child():
                     self.slots_box.remove(child)
                 self.slots_box.append(self._create_empty_state())
@@ -370,6 +383,7 @@ class CanvasView(Gtk.Box if HAS_GI else object):
             return
 
         # Clear existing GTK slot children
+        self._detach_hud()
         while child := self.slots_box.get_first_child():
             self.slots_box.remove(child)
 
@@ -400,13 +414,21 @@ class CanvasView(Gtk.Box if HAS_GI else object):
                 )
                 self.slots_box.append(challenger_slot)
             else:
-                self.slots_box.append(BoundarySlotPane(slot_type="last"))
+                end_slot = BoundarySlotPane(slot_type="last")
+                end_slot.set_name("slot_next")
+                self.slots_box.append(end_slot)
 
         elif mode == 3:
-            # One-over-two layout (UD-4): active photo on top, previous & next on bottom row
-            three_up_box = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=12)
-            three_up_box.set_hexpand(True)
-            three_up_box.set_vexpand(True)
+            # One-over-two layout (UD-4): a 60/40 split of the real canvas height. The grid has
+            # five homogeneous rows; the active photo spans 2 columns x 3 rows, each neighbour
+            # 1 column x 2 rows. No fixed size request, so the split follows the window.
+            three_up_grid = Gtk.Grid()
+            three_up_grid.set_row_spacing(12)
+            three_up_grid.set_column_spacing(12)
+            three_up_grid.set_row_homogeneous(True)
+            three_up_grid.set_column_homogeneous(True)
+            three_up_grid.set_hexpand(True)
+            three_up_grid.set_vexpand(True)
 
             top_slot = self._create_photo_slot(
                 candidates[idx],
@@ -414,16 +436,7 @@ class CanvasView(Gtk.Box if HAS_GI else object):
                 slot_offset=0,
                 allow_1to1=self.is_1to1_zoom,
             )
-            top_slot.set_size_request(
-                self.three_up_layout_rects["top"].width,
-                self.three_up_layout_rects["top"].height,
-            )
-            three_up_box.append(top_slot)
-
-            bottom_row = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=12)
-            bottom_row.set_homogeneous(True)
-            bottom_row.set_hexpand(True)
-            bottom_row.set_vexpand(True)
+            three_up_grid.attach(top_slot, 0, 0, 2, 3)
 
             if idx > 0:
                 left_slot = self._create_photo_slot(
@@ -434,7 +447,8 @@ class CanvasView(Gtk.Box if HAS_GI else object):
                 )
             else:
                 left_slot = BoundarySlotPane(slot_type="first")
-            bottom_row.append(left_slot)
+                left_slot.set_name("slot_previous")
+            three_up_grid.attach(left_slot, 0, 3, 1, 2)
 
             if idx < count - 1:
                 right_slot = self._create_photo_slot(
@@ -445,10 +459,12 @@ class CanvasView(Gtk.Box if HAS_GI else object):
                 )
             else:
                 right_slot = BoundarySlotPane(slot_type="last")
-            bottom_row.append(right_slot)
+                right_slot.set_name("slot_next")
+            three_up_grid.attach(right_slot, 1, 3, 1, 2)
 
-            three_up_box.append(bottom_row)
-            self.slots_box.append(three_up_box)
+            self.slots_box.append(three_up_grid)
+
+        self._attach_hud()
 
     def _create_empty_state(self):
         hero = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=12)
@@ -501,6 +517,10 @@ class CanvasView(Gtk.Box if HAS_GI else object):
             allow_1to1=allow_1to1,
         )
         frame = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=4)
+        slot_name = (
+            "slot_previous" if slot_offset < 0 else "slot_current" if slot_offset == 0 else "slot_next"
+        )
+        frame.set_name(slot_name)
         for cls_name in desc["css_classes"]:
             frame.add_css_class(cls_name)
 
@@ -530,10 +550,13 @@ class CanvasView(Gtk.Box if HAS_GI else object):
         picture.set_vexpand(True)
         picture.set_can_shrink(True)
         picture.set_keep_aspect_ratio(True)
+        picture.set_name(f"{slot_name}_image")
 
         image_area = Gtk.Overlay()
         image_area.set_hexpand(True)
         image_area.set_vexpand(True)
+        if is_active:
+            self._active_image_area = image_area
         status = Gtk.Spinner()
         status.set_halign(Gtk.Align.CENTER)
         status.set_valign(Gtk.Align.CENTER)
