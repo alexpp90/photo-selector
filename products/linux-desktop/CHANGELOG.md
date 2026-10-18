@@ -7,6 +7,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 ## [Unreleased]
 
 ### Fixed
+- When a failed Move or Copy cannot undo its own steps, the files left in the Selection folder are reported and can be undone, instead of the app saying everything was rolled back.
 - The package installs one launcher entry and one icon instead of two of each.
 - The APT setup script stops with an error instead of hiding a failed download.
 - The launcher opens every supported photo format, including more RAW formats, WebP and HEIF.

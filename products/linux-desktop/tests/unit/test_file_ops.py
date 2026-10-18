@@ -1289,3 +1289,192 @@ def test_undo_of_a_partial_move_never_deletes_a_copy_whose_original_is_gone(tmp_
 
     assert (card / "IMG_3.JPG").read_bytes() == b"IMG_3.JPG" * 20
     assert _selection_files(card) == []
+
+
+# ── D-12: a failed rollback is reported, never swallowed ────────────────────────
+
+
+def _bundle(tmp_path: Path, stem: str):
+    raw = tmp_path / f"{stem}.ARW"
+    jpg = tmp_path / f"{stem}.JPG"
+    raw.write_bytes(b"raw-" + stem.encode())
+    jpg.write_bytes(b"jpg-" + stem.encode())
+    return raw, jpg, CandidatePhoto(primary_path=raw, companion_paths=[jpg])
+
+
+def test_same_filesystem_move_whose_rollback_fails_returns_a_partial_record(tmp_path: Path):
+    """The companion move fails, then putting the primary back fails too: the primary stays in
+    Selection/, and the error must say so and carry a record that undo can restore it from."""
+    raw, jpg, candidate = _bundle(tmp_path, "DSC_D12A")
+    mgr = FileCullingManager()
+    calls = [0]
+
+    def move(src, dst):
+        calls[0] += 1
+        if calls[0] == 2:
+            raise PermissionError("companion refused")
+        if calls[0] == 3:
+            raise OSError("rollback refused")
+        return _move_no_overwrite(src, dst)
+
+    with patch("photo_selector_linux.core.file_ops._move_no_overwrite", side_effect=move):
+        with pytest.raises(FileCullingError) as exc_info:
+            mgr.move_candidate(candidate, tmp_path)
+
+    err = exc_info.value
+    assert "rolled back" not in str(err)
+    assert "DSC_D12A.ARW" in str(err) and "could not be put back" in str(err)
+    record = err.partial_record
+    assert record is not None
+    assert record.action_type == CullingActionType.MOVE
+    assert record.affected_paths == [(raw, tmp_path / "Selection" / "DSC_D12A.ARW")]
+    assert record.stranded == [tmp_path / "Selection" / "DSC_D12A.ARW"]
+    assert record.unremoved_sources == []
+    assert not raw.exists() and jpg.exists()
+
+    # The transient error has cleared: undo restores the stranded member.
+    assert mgr.undo_culling(record, candidate) is True
+    assert raw.read_bytes() == b"raw-DSC_D12A"
+    assert not (tmp_path / "Selection" / "DSC_D12A.ARW").exists()
+
+
+def test_same_filesystem_move_with_successful_rollback_still_says_rolled_back(tmp_path: Path):
+    raw, jpg, candidate = _bundle(tmp_path, "DSC_D12B")
+    calls = [0]
+
+    def move(src, dst):
+        calls[0] += 1
+        if calls[0] == 2:
+            raise PermissionError("companion refused")
+        return _move_no_overwrite(src, dst)
+
+    with patch("photo_selector_linux.core.file_ops._move_no_overwrite", side_effect=move):
+        with pytest.raises(FileCullingError) as exc_info:
+            FileCullingManager().move_candidate(candidate, tmp_path)
+
+    assert exc_info.value.partial_record is None
+    assert "rolled back" in str(exc_info.value)
+    assert raw.exists() and jpg.exists()
+
+
+def _cross_mount_manager(tmp_path: Path) -> FileCullingManager:
+    return FileCullingManager(
+        name_resolver=_NoNames(),
+        trash_dir=tmp_path / "Trash",
+        dev_of=lambda p: 2 if "Selection" in str(p) else 1,
+        mount_root_for=lambda p: None,
+    )
+
+
+def _fail_second_copy_and_every_selection_unlink(tmp_path: Path):
+    """Patches: the second `_copy_file` raises, and nothing in Selection/ can be unlinked."""
+    real_copy = _copy_file
+    real_unlink = Path.unlink
+    calls = [0]
+
+    def copy(src, dst, fsync=False):
+        calls[0] += 1
+        if calls[0] == 2:
+            raise OSError("No space left on device")
+        return real_copy(src, dst, fsync=fsync)
+
+    def unlink(self, *args, **kwargs):
+        if self.parent.name == "Selection":
+            raise PermissionError("cleanup refused")
+        return real_unlink(self, *args, **kwargs)
+
+    return (
+        patch("photo_selector_linux.core.file_ops._copy_file", side_effect=copy),
+        patch.object(Path, "unlink", unlink),
+    )
+
+
+def test_cross_mount_staging_whose_cleanup_fails_returns_a_partial_record(tmp_path: Path):
+    """The replica staged before the failure cannot be removed: it stays in Selection/ next to an
+    untouched original. The error must not claim 'aborted safely'; undo deletes the stray copy."""
+    raw, jpg, candidate = _bundle(tmp_path, "DSC_D12C")
+    mgr = _cross_mount_manager(tmp_path)
+    patch_copy, patch_unlink = _fail_second_copy_and_every_selection_unlink(tmp_path)
+
+    with patch_copy, patch_unlink:
+        with pytest.raises(FileCullingError) as exc_info:
+            mgr.move_candidate(candidate, tmp_path)
+
+    err = exc_info.value
+    assert "aborted safely" not in str(err)
+    assert "DSC_D12C.ARW" in str(err) and "could not be removed" in str(err)
+    record = err.partial_record
+    assert record is not None
+    assert record.action_type == CullingActionType.MOVE
+    assert record.affected_paths == [(raw, tmp_path / "Selection" / "DSC_D12C.ARW")]
+    assert record.stranded == [tmp_path / "Selection" / "DSC_D12C.ARW"]
+    assert record.unremoved_sources == [raw]
+    assert raw.exists() and jpg.exists()
+
+    assert mgr.undo_culling(record, candidate) is True
+    assert raw.read_bytes() == b"raw-DSC_D12C" and jpg.exists()
+    assert not (tmp_path / "Selection" / "DSC_D12C.ARW").exists()
+    assert "-2" not in " ".join(p.name for p in tmp_path.iterdir())
+
+
+def test_cross_mount_staging_with_successful_cleanup_still_says_aborted_safely(tmp_path: Path):
+    raw, jpg, candidate = _bundle(tmp_path, "DSC_D12D")
+    real_copy = _copy_file
+    calls = [0]
+
+    def copy(src, dst, fsync=False):
+        calls[0] += 1
+        if calls[0] == 2:
+            raise OSError("No space left on device")
+        return real_copy(src, dst, fsync=fsync)
+
+    with patch("photo_selector_linux.core.file_ops._copy_file", side_effect=copy):
+        with pytest.raises(FileCullingError) as exc_info:
+            _cross_mount_manager(tmp_path).move_candidate(candidate, tmp_path)
+
+    assert exc_info.value.partial_record is None
+    assert "aborted safely" in str(exc_info.value)
+    assert not (tmp_path / "Selection" / "DSC_D12D.ARW").exists()
+
+
+def test_copy_whose_cleanup_fails_returns_a_partial_record(tmp_path: Path):
+    raw, jpg, candidate = _bundle(tmp_path, "DSC_D12E")
+    mgr = FileCullingManager()
+    patch_copy, patch_unlink = _fail_second_copy_and_every_selection_unlink(tmp_path)
+
+    with patch_copy, patch_unlink:
+        with pytest.raises(FileCullingError) as exc_info:
+            mgr.copy_candidate(candidate, tmp_path)
+
+    err = exc_info.value
+    assert "rolled back" not in str(err)
+    assert "DSC_D12E.ARW" in str(err) and "could not be removed" in str(err)
+    record = err.partial_record
+    assert record is not None
+    assert record.action_type == CullingActionType.COPY
+    assert record.affected_paths == [(raw, tmp_path / "Selection" / "DSC_D12E.ARW")]
+    assert record.stranded == [tmp_path / "Selection" / "DSC_D12E.ARW"]
+    assert raw.exists() and jpg.exists()
+
+    assert mgr.undo_culling(record, candidate) is True
+    assert not (tmp_path / "Selection" / "DSC_D12E.ARW").exists()
+    assert raw.exists()
+
+
+def test_copy_with_successful_cleanup_still_says_rolled_back(tmp_path: Path):
+    raw, jpg, candidate = _bundle(tmp_path, "DSC_D12F")
+    real_copy = _copy_file
+    calls = [0]
+
+    def copy(src, dst, fsync=False):
+        calls[0] += 1
+        if calls[0] == 2:
+            raise OSError("No space left on device")
+        return real_copy(src, dst, fsync=fsync)
+
+    with patch("photo_selector_linux.core.file_ops._copy_file", side_effect=copy):
+        with pytest.raises(FileCullingError) as exc_info:
+            FileCullingManager().copy_candidate(candidate, tmp_path)
+
+    assert exc_info.value.partial_record is None
+    assert "rolled back" in str(exc_info.value)

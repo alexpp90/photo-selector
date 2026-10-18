@@ -579,6 +579,20 @@ class FileCullingManager:
                 raise
             # If statvfs is unsupported on host, proceed
 
+    @staticmethod
+    def _remove_replicas(pairs: List[Tuple[Path, Path]]) -> List[Tuple[Path, Path]]:
+        """Unlink the destination replica of each ``(source, replica)`` pair; return the pairs whose
+        replica could not be removed (they are still on disk and must be reported)."""
+        leftovers: List[Tuple[Path, Path]] = []
+        for src, dst in pairs:
+            if src.resolve() != dst.resolve() and dst.exists():
+                try:
+                    dst.unlink()
+                except Exception as err:
+                    logger.error("Could not remove the replica %s: %s", dst, err)
+                    leftovers.append((src, dst))
+        return leftovers
+
     def move_candidate(
         self,
         candidate: CandidatePhoto,
@@ -617,13 +631,31 @@ class FileCullingManager:
                     _move_no_overwrite(src, dst)
                     completed_moves.append((src, dst))
             except Exception as e:
-                # Atomic Rollback: restore previously moved files to original paths
+                # Atomic Rollback: restore previously moved files to original paths. A member that
+                # cannot be put back stays in Selection/; it is reported, never dropped (D-12).
+                stranded_moves: List[Tuple[Path, Path]] = []
                 for moved_src, moved_dst in reversed(completed_moves):
                     if moved_src.resolve() != moved_dst.resolve() and moved_dst.exists():
                         try:
                             _move_no_overwrite(moved_dst, moved_src)
-                        except Exception:
-                            pass
+                        except Exception as rollback_err:
+                            logger.error("Rollback could not put %s back: %s", moved_src.name, rollback_err)
+                            stranded_moves.append((moved_src, moved_dst))
+                if stranded_moves:
+                    stranded_moves.reverse()
+                    names = ", ".join(s.name for s, _ in stranded_moves)
+                    raise FileCullingError(
+                        f"Intra-filesystem move failed ({e}); could not be put back: {names} "
+                        f"(still in {sel_dir.name}/)",
+                        partial_record=CullingRecord(
+                            photo_id=candidate.id,
+                            action_type=CullingActionType.MOVE,
+                            original_primary_path=candidate.primary_path,
+                            affected_paths=stranded_moves,
+                            previous_status=PhotoStatus.CANDIDATE,
+                            stranded=[d for _, d in stranded_moves],
+                        ),
+                    ) from e
                 raise FileCullingError(f"Intra-filesystem move failed, rolled back: {e}") from e
 
             affected = completed_moves
@@ -650,21 +682,27 @@ class FileCullingManager:
                     staged_dsts.append((src, dst))
                     current_in_flight = None
             except Exception as e:
-                # Rollback Phase 1: Clean up in-flight partial/corrupt destination replica
-                if current_in_flight is not None:
-                    c_src, c_dst = current_in_flight
-                    if c_src.resolve() != c_dst.resolve() and c_dst.exists():
-                        try:
-                            c_dst.unlink()
-                        except Exception:
-                            pass
-                # Clean up all previously staged destination replicas, leaving sources untouched
-                for src, dst in staged_dsts:
-                    if src.resolve() != dst.resolve() and dst.exists():
-                        try:
-                            dst.unlink()
-                        except Exception:
-                            pass
+                # Rollback Phase 1: remove the in-flight partial/corrupt replica and every staged
+                # replica, leaving sources untouched. A replica that cannot be removed stays in
+                # Selection/ and is reported (D-12).
+                leftovers = self._remove_replicas(
+                    ([current_in_flight] if current_in_flight is not None else []) + staged_dsts
+                )
+                if leftovers:
+                    names = ", ".join(s.name for s, _ in leftovers)
+                    raise FileCullingError(
+                        f"Cross-filesystem move failed during staging ({e}); copies could not be "
+                        f"removed from {sel_dir.name}/: {names}; the originals are untouched",
+                        partial_record=CullingRecord(
+                            photo_id=candidate.id,
+                            action_type=CullingActionType.MOVE,
+                            original_primary_path=candidate.primary_path,
+                            affected_paths=leftovers,
+                            previous_status=PhotoStatus.CANDIDATE,
+                            unremoved_sources=[s for s, _ in leftovers],
+                            stranded=[d for _, d in leftovers],
+                        ),
+                    ) from e
                 raise FileCullingError(f"Cross-filesystem move failed during staging, aborted safely: {e}") from e
 
             # --- Phase 2: Commit (unlink sources only after ALL destination replicas are verified) ---
@@ -746,21 +784,25 @@ class FileCullingManager:
                 staged_copies.append((src, dst))
                 current_in_flight = None
         except Exception as e:
-            # Clean up in-flight partial/corrupt destination replica
-            if current_in_flight is not None:
-                c_src, c_dst = current_in_flight
-                if c_src.resolve() != c_dst.resolve() and c_dst.exists():
-                    try:
-                        c_dst.unlink()
-                    except Exception:
-                        pass
-            # Clean up all previously staged destination copies on failure, never touching originals
-            for src, dst in staged_copies:
-                if src.resolve() != dst.resolve() and dst.exists():
-                    try:
-                        dst.unlink()
-                    except Exception:
-                        pass
+            # Clean up the in-flight partial/corrupt replica and every staged copy, never touching
+            # originals. A copy that cannot be removed stays in Selection/ and is reported (D-12).
+            leftovers = self._remove_replicas(
+                ([current_in_flight] if current_in_flight is not None else []) + staged_copies
+            )
+            if leftovers:
+                names = ", ".join(s.name for s, _ in leftovers)
+                raise FileCullingError(
+                    f"Copy failed mid-flight ({e}); copies could not be removed from "
+                    f"{sel_dir.name}/: {names}",
+                    partial_record=CullingRecord(
+                        photo_id=candidate.id,
+                        action_type=CullingActionType.COPY,
+                        original_primary_path=candidate.primary_path,
+                        affected_paths=leftovers,
+                        previous_status=PhotoStatus.CANDIDATE,
+                        stranded=[d for _, d in leftovers],
+                    ),
+                ) from e
             raise FileCullingError(f"Atomic copy failed mid-flight, rolled back: {e}") from e
 
         candidate.status = PhotoStatus.COPIED
