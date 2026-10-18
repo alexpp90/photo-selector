@@ -13,6 +13,8 @@ import androidx.datastore.preferences.core.stringPreferencesKey
 import androidx.datastore.preferences.core.stringSetPreferencesKey
 import androidx.datastore.preferences.preferencesDataStore
 import com.photoselector.core.storage.SourceKind
+import com.photoselector.saf.FolderAccessManager
+import com.photoselector.saf.FolderAccessPurpose
 import com.phototok.data.model.AppSettings
 import com.phototok.data.model.PhoneSettings
 import com.phototok.data.model.RecentPath
