@@ -46,8 +46,11 @@ import org.robolectric.RuntimeEnvironment
 import org.robolectric.annotation.Config
 
 /**
- * Unit tests for non-destructive SAF file transfers in [LocalImageSourceImpl]
- * (REQ-TOK-ARCH.15, REQ-TOK-ARCH.16, `docs/shared/FILE_OPERATIONS.md`).
+ * PhotoTok's adapter over the shared SAF engine (`:saf`, REQ-TOK-ARCH.15): the folder it files
+ * into (`Selection`, `PhotoTok_LeftSwipe`), single-file copy and move feedback, the marker the
+ * feed walk skips, and the per-file bundle policy. The engine's data-safety contract
+ * (collision-free naming, size verification, partial moves, D-5 locking, the two-permit
+ * semaphore) is tested once in `:saf` (`PerFileSafTransferTest`, `SafTransferContractTest`).
  */
 @OptIn(ExperimentalCoroutinesApi::class)
 @RunWith(RobolectricTestRunner::class)
@@ -363,395 +366,68 @@ class SafTransferTest {
             "${FakeSafDocumentsProvider.ROOT_ID}/$relativePath",
         )
 
-    // ── 1. Collision-free bundle naming ──────────────────────────────────
-
-    // REQ-TOK-ARCH.15
+    // REQ-TOK-ARCH.15: feedback names (B-7) for a single move whose source cannot be read.
     @Test
-    fun `collision in Selection JPEG suffixes entire CR3 + JPG + CR3 xmp + -Edit tif bundle with -2`() {
-        val bundle = listOf(
-            "IMG_0001.CR3",
-            "IMG_0001.JPG",
-            "IMG_0001.CR3.xmp",
-            "IMG_0001-Edit.tif",
-        )
-        val existingByFolder = mapOf(
-            LocalImageSourceImpl.SelectionSubfolder.RAW.name to emptySet(),
-            LocalImageSourceImpl.SelectionSubfolder.JPEG.name to setOf("img_0001.jpg"),
-        )
+    fun `a single move of a missing source reports Copy step failed and touches nothing`() = runTest {
+        val moved = source.moveImageWithResult(documentUriFor("NOPE.JPG"), treeUri, true, PhotoFolders.SELECTION)
+        val copied = source.copyImageWithResult(documentUriFor("NOPE.JPG"), treeUri, true, PhotoFolders.SELECTION)
 
-        val resolved = LocalImageSourceImpl.resolveCollisionFreeBundleNames(
-            fileNames = bundle,
-            primaryStem = "IMG_0001",
-            existingNamesByFolder = existingByFolder,
-            folderForFile = { LocalImageSourceImpl.selectionSubfolder(it).name },
-        )
-
-        assertEquals("IMG_0001-2.CR3", resolved["IMG_0001.CR3"])
-        assertEquals("IMG_0001-2.JPG", resolved["IMG_0001.JPG"])
-        assertEquals("IMG_0001-2.CR3.xmp", resolved["IMG_0001.CR3.xmp"])
-        assertEquals("IMG_0001-2-Edit.tif", resolved["IMG_0001-Edit.tif"])
+        assertFalse(moved.success)
+        assertEquals("Copy step failed", moved.error)
+        assertEquals("Could not write to the Selection folder", copied.error)
+        assertFalse(File(rootDir, "Selection").exists())
     }
 
-    // REQ-TOK-ARCH.15
     @Test
-    fun `collision resolution skips -2 when -2 already exists in any target subfolder`() {
-        val bundle = listOf("IMG_0001.CR3", "IMG_0001.JPG", "IMG_0001.xmp")
-        val existingByFolder = mapOf(
-            LocalImageSourceImpl.SelectionSubfolder.RAW.name to setOf("IMG_0001-2.CR3"),
-            LocalImageSourceImpl.SelectionSubfolder.JPEG.name to setOf("IMG_0001.JPG"),
-            LocalImageSourceImpl.SelectionSubfolder.ROOT.name to emptySet(),
-        )
+    fun `a blank subfolder name files into Selection`() = runTest {
+        File(rootDir, "IMG_0001.JPG").writeText("payload")
 
-        val resolved = LocalImageSourceImpl.resolveCollisionFreeBundleNames(
-            fileNames = bundle,
-            primaryStem = "IMG_0001",
-            existingNamesByFolder = existingByFolder,
-            folderForFile = { LocalImageSourceImpl.selectionSubfolder(it).name },
-        )
+        assertTrue(source.copyImage(documentUriFor("IMG_0001.JPG"), treeUri, sorting = false, subfolderName = "  "))
 
-        assertEquals("IMG_0001-3.CR3", resolved["IMG_0001.CR3"])
-        assertEquals("IMG_0001-3.JPG", resolved["IMG_0001.JPG"])
-        assertEquals("IMG_0001-3.xmp", resolved["IMG_0001.xmp"])
+        assertTrue(File(rootDir, "Selection/IMG_0001.JPG").exists())
     }
-
-    // REQ-TOK-ARCH.15
-    @Test
-    fun `transferBundle moves two identically named CR3+JPG+XMP bundles in sequence and keeps both paired`() = runTest {
-        val card1 = File(rootDir, "card1").apply { mkdirs() }
-        File(card1, "IMG_0001.CR3").writeText("raw-card-1")
-        File(card1, "IMG_0001.JPG").writeText("jpg-card-1")
-        File(card1, "IMG_0001.CR3.xmp").writeText("xmp-card-1")
-
-        val card2 = File(rootDir, "card2").apply { mkdirs() }
-        File(card2, "IMG_0001.CR3").writeText("raw-card-2-longer")
-        File(card2, "IMG_0001.JPG").writeText("jpg-card-2-longer")
-        File(card2, "IMG_0001.CR3.xmp").writeText("xmp-card-2-longer")
-
-        val firstBundle = listOf(
-            documentUriFor("card1/IMG_0001.CR3"),
-            documentUriFor("card1/IMG_0001.JPG"),
-            documentUriFor("card1/IMG_0001.CR3.xmp"),
-        )
-        val firstResults = source.transferBundle(
-            sourceUris = firstBundle,
-            destFolderUri = treeUri,
-            sorting = true,
-            subfolderName = PhotoFolders.SELECTION,
-            isMove = true,
-        )
-        assertTrue(firstResults.all { it.success })
-
-        val secondBundle = listOf(
-            documentUriFor("card2/IMG_0001.CR3"),
-            documentUriFor("card2/IMG_0001.JPG"),
-            documentUriFor("card2/IMG_0001.CR3.xmp"),
-        )
-        val secondResults = source.transferBundle(
-            sourceUris = secondBundle,
-            destFolderUri = treeUri,
-            sorting = true,
-            subfolderName = PhotoFolders.SELECTION,
-            isMove = true,
-        )
-        assertTrue(secondResults.all { it.success })
-
-        // First bundle untouched:
-        assertEquals("raw-card-1", File(rootDir, "Selection/RAW/IMG_0001.CR3").readText())
-        assertEquals("jpg-card-1", File(rootDir, "Selection/JPEG/IMG_0001.JPG").readText())
-        assertEquals("xmp-card-1", File(rootDir, "Selection/RAW/IMG_0001.CR3.xmp").readText())
-
-        // Second bundle suffixed with -2 across all three files:
-        assertEquals("raw-card-2-longer", File(rootDir, "Selection/RAW/IMG_0001-2.CR3").readText())
-        assertEquals("jpg-card-2-longer", File(rootDir, "Selection/JPEG/IMG_0001-2.JPG").readText())
-        assertEquals("xmp-card-2-longer", File(rootDir, "Selection/RAW/IMG_0001-2.CR3.xmp").readText())
-
-        // All 6 source files were deleted after verified copies:
-        assertFalse(File(card1, "IMG_0001.CR3").exists())
-        assertFalse(File(card2, "IMG_0001.CR3").exists())
-    }
-
-    // REQ-TOK-ARCH.15 / B-6: derivatives and both sidecar styles keep their photo's name.
-    @Test
-    fun `a collision on the RAW gives the JPEG, the edit and both sidecars the same suffix`() = runTest {
-        val dest = File(rootDir, "Selection/RAW").apply { mkdirs() }
-        File(dest, "IMG_0001.CR3").writeText("already-there")
-        val src = File(rootDir, "card").apply { mkdirs() }
-        val names = listOf(
-            "IMG_0001.CR3", "IMG_0001.JPG", "IMG_0001-Edit.tif", "IMG_0001.xmp", "IMG_0001.CR3.xmp",
-        )
-        names.forEach { File(src, it).writeText("payload-$it") }
-
-        val results = source.transferBundle(
-            sourceUris = names.map { documentUriFor("card/$it") },
-            destFolderUri = treeUri,
-            sorting = true,
-            subfolderName = PhotoFolders.SELECTION,
-            isMove = true,
-        )
-
-        assertTrue(results.all { it.success })
-        assertEquals("already-there", File(dest, "IMG_0001.CR3").readText())
-        assertEquals("payload-IMG_0001.CR3", File(dest, "IMG_0001-2.CR3").readText())
-        assertEquals("payload-IMG_0001.JPG", File(rootDir, "Selection/JPEG/IMG_0001-2.JPG").readText())
-        assertEquals("payload-IMG_0001-Edit.tif", File(dest, "IMG_0001-2-Edit.tif").readText())
-        assertEquals("payload-IMG_0001.CR3.xmp", File(dest, "IMG_0001-2.CR3.xmp").readText())
-        assertEquals("payload-IMG_0001.xmp", File(rootDir, "Selection/IMG_0001-2.xmp").readText())
-    }
-
-    // ── 2. Size mismatch keeps source and cleans up destination ──────────
-
-    // REQ-TOK-ARCH.15
-    @Test
-    fun `size mismatch after copy deletes partial destination and never deletes source on move`() = runTest {
-        val srcFile = File(rootDir, "IMG_0002.JPG").apply { writeText("complete-jpeg-payload-12345") }
-        FakeSafDocumentsProvider.reportedSizeOverride = { file ->
-            if (file.path.contains("Selection")) 5L else null
-        }
-
-        val result = source.moveImageWithResult(
-            sourceUri = documentUriFor(srcFile.name),
-            destFolderUri = treeUri,
-            sorting = true,
-            subfolderName = PhotoFolders.SELECTION,
-        )
-
-        assertFalse(result.success)
-        assertFalse(result.partial)
-        assertNull(result.destinationUri)
-        assertEquals("Copied file size mismatch", result.error)
-        assertTrue("Original source file must remain intact", srcFile.exists())
-        assertEquals("complete-jpeg-payload-12345", srcFile.readText())
-        assertFalse(
-            "Truncated destination file must be cleaned up",
-            File(rootDir, "Selection/JPEG/IMG_0002.JPG").exists(),
-        )
-    }
-
-    // ── 3. Source delete failure after verified copy → partial ───────────
 
     // REQ-TOK-ARCH.15, REQ-TOK-ARCH.16
     @Test
-    fun `source delete failure after verified copy returns partial result and keeps destination copy`() = runTest {
-        val payload = "verified-photo-bytes"
-        val srcFile = File(rootDir, "IMG_0003.JPG").apply { writeText(payload) }
+    fun `a move whose original cannot be removed is partial and keeps both files`() = runTest {
+        File(rootDir, "IMG_0003.JPG").writeText("payload")
         FakeSafDocumentsProvider.failDeletes = true
 
-        val result = source.moveImageWithResult(
-            sourceUri = documentUriFor(srcFile.name),
-            destFolderUri = treeUri,
-            sorting = true,
-            subfolderName = PhotoFolders.SELECTION,
-        )
+        val result = source.moveImageDetailed(documentUriFor("IMG_0003.JPG"), treeUri, true, PhotoFolders.SELECTION)
 
-        assertFalse(result.success)
         assertTrue(result.partial)
-        assertNotNull(result.destinationUri)
         assertEquals("Copied to Selection — original could not be removed", result.error)
-
-        // Verified copy is preserved on disk and source is still present:
-        val destFile = File(rootDir, "Selection/JPEG/IMG_0003.JPG")
-        assertTrue(destFile.exists())
-        assertEquals(payload, destFile.readText())
-        assertTrue(srcFile.exists())
+        assertTrue(File(rootDir, "IMG_0003.JPG").exists())
+        assertTrue(File(rootDir, "Selection/JPEG/IMG_0003.JPG").exists())
     }
 
-    // ── 4. Atomic DocumentsContract.moveDocument when supported ──────────
-
-    // REQ-TOK-ARCH.15
+    // PhotoTok moves a bundle file by file: a member that fails does not roll back the others.
     @Test
-    fun `moveImage uses DocumentsContract moveDocument when same authority and FLAG_SUPPORTS_MOVE and no rename needed`() = runTest {
-        val payload = "atomic-move-payload"
-        val srcFile = File(rootDir, "IMG_0004.ARW").apply { writeText(payload) }
-        FakeSafDocumentsProvider.advertiseSupportsMove = true
+    fun `transferBundleDetailed moves each member on its own under one shared suffix`() = runTest {
+        File(rootDir, "Selection/RAW").mkdirs()
+        File(rootDir, "Selection/RAW/IMG_0004.CR3").writeText("already-there")
+        File(rootDir, "IMG_0004.CR3").writeText("raw")
+        File(rootDir, "IMG_0004.JPG").writeText("jpg")
 
-        val ok = source.moveImage(
-            sourceUri = documentUriFor(srcFile.name),
-            destFolderUri = treeUri,
-            sorting = true,
-            subfolderName = PhotoFolders.SELECTION,
+        val results = source.transferBundleDetailed(
+            listOf(documentUriFor("IMG_0004.CR3"), documentUriFor("IMG_0004.JPG"), documentUriFor("IMG_0004.CR3.xmp")),
+            treeUri, sorting = true, subfolderName = PhotoFolders.SELECTION, isMove = true,
         )
 
-        assertTrue(ok)
-        assertEquals(1, FakeSafDocumentsProvider.moveDocumentCalls.get())
-        assertFalse(srcFile.exists())
-        val destFile = File(rootDir, "Selection/RAW/IMG_0004.ARW")
-        assertTrue(destFile.exists())
-        assertEquals(payload, destFile.readText())
+        assertTrue(results[0].success)
+        assertTrue(results[1].success)
+        assertFalse("the missing sidecar fails alone", results[2].success)
+        assertEquals("raw", File(rootDir, "Selection/RAW/IMG_0004-2.CR3").readText())
+        assertEquals("jpg", File(rootDir, "Selection/JPEG/IMG_0004-2.JPG").readText())
+        assertEquals("already-there", File(rootDir, "Selection/RAW/IMG_0004.CR3").readText())
     }
 
-    // REQ-TOK-ARCH.15
     @Test
-    fun `moveImage falls back to verified copy with -2 suffix when collision exists even if FLAG_SUPPORTS_MOVE is set`() = runTest {
-        File(rootDir, "Selection/RAW/IMG_0004.ARW").apply {
-            parentFile?.mkdirs()
-            writeText("existing-raw")
-        }
-        val srcFile = File(rootDir, "IMG_0004.ARW").apply { writeText("second-raw") }
-        FakeSafDocumentsProvider.advertiseSupportsMove = true
+    fun `deleteImage unlinks the document`() = runTest {
+        File(rootDir, "IMG_0005.JPG").writeText("payload")
 
-        val ok = source.moveImage(
-            sourceUri = documentUriFor(srcFile.name),
-            destFolderUri = treeUri,
-            sorting = true,
-            subfolderName = PhotoFolders.SELECTION,
-        )
-
-        assertTrue(ok)
-        assertEquals(0, FakeSafDocumentsProvider.moveDocumentCalls.get())
-        assertEquals("existing-raw", File(rootDir, "Selection/RAW/IMG_0004.ARW").readText())
-        assertEquals("second-raw", File(rootDir, "Selection/RAW/IMG_0004-2.ARW").readText())
-        assertFalse(srcFile.exists())
-    }
-
-    // ── 5. Provider silent auto-rename mismatch ──────────────────────────
-
-    // REQ-TOK-ARCH.15
-    @Test
-    fun `provider auto-rename on createDocument cleans up renamed file and fails without deleting source`() = runTest {
-        val srcFile = File(rootDir, "IMG_0005.CR3").apply { writeText("raw-content") }
-        FakeSafDocumentsProvider.autoRenameOnCreate = { requested ->
-            if (requested == "IMG_0005.CR3") "IMG_0005 (1).CR3" else requested
-        }
-
-        val result = source.moveImageWithResult(
-            sourceUri = documentUriFor(srcFile.name),
-            destFolderUri = treeUri,
-            sorting = true,
-            subfolderName = PhotoFolders.SELECTION,
-        )
-
-        assertFalse(result.success)
-        assertNull(result.destinationUri)
-        assertTrue(result.error.orEmpty().contains("IMG_0005 (1).CR3"))
-        assertFalse(File(rootDir, "Selection/RAW/IMG_0005 (1).CR3").exists())
-        assertFalse(File(rootDir, "Selection/RAW/IMG_0005.CR3").exists())
-        assertTrue(srcFile.exists())
-    }
-
-    // ── 6. 2-permit Semaphore & CancellationException hygiene ────────────
-
-    // REQ-TOK-ARCH.15
-    @Test
-    fun `transferSemaphore bounds concurrent transfers to at most 2 in flight`() = runTest {
-        val standardDispatcher = StandardTestDispatcher(testScheduler)
-        val inFlight = AtomicInteger(0)
-        val maxObservedInFlight = AtomicInteger(0)
-        val gate = CompletableDeferred<Unit>()
-
-        val gatedSource = LocalImageSourceImpl(
-            context = context,
-            androidExifReader = AndroidExifReader(),
-            mediaStoreReader = MediaStoreReader(),
-        )
-        // Enter the semaphore on `standardDispatcher`, then suspend inside a custom
-        // CoroutineDispatcher interceptor before running the transfer body.
-        val gatingDispatcher = object : kotlinx.coroutines.CoroutineDispatcher() {
-            override fun dispatch(context: kotlin.coroutines.CoroutineContext, block: Runnable) {
-                standardDispatcher.dispatch(
-                    context,
-                    Runnable {
-                        val current = inFlight.incrementAndGet()
-                        maxObservedInFlight.updateAndGet { prev -> maxOf(prev, current) }
-                        if (!gate.isCompleted) {
-                            gate.invokeOnCompletion {
-                                inFlight.decrementAndGet()
-                                block.run()
-                            }
-                        } else {
-                            inFlight.decrementAndGet()
-                            block.run()
-                        }
-                    },
-                )
-            }
-        }
-        gatedSource.ioDispatcher = gatingDispatcher
-
-        // Transfers into the same destination are serialised per destination (D-5), so each file
-        // goes to its own destination folder: only the semaphore then bounds the parallelism.
-        val files = (1..5).map { idx ->
-            File(rootDir, "CONC_$idx.JPG").apply { writeText("photo-$idx") }
-        }
-        val destinations = (1..5).map { idx ->
-            File(rootDir, "dest$idx").mkdirs()
-            DocumentsContract.buildTreeDocumentUri(
-                FakeSafDocumentsProvider.AUTHORITY,
-                "${FakeSafDocumentsProvider.ROOT_ID}/dest$idx",
-            )
-        }
-
-        val deferreds = files.mapIndexed { idx, f ->
-            async(standardDispatcher) {
-                gatedSource.copyImage(documentUriFor(f.name), destinations[idx], sorting = true, subfolderName = PhotoFolders.SELECTION)
-            }
-        }
-
-        testScheduler.runCurrent()
-        assertEquals(2, inFlight.get())
-        assertEquals(2, maxObservedInFlight.get())
-
-        gate.complete(Unit)
-        advanceUntilIdle()
-
-        val results = deferreds.map { it.await() }
-        assertTrue(results.all { it })
-        assertEquals(2, maxObservedInFlight.get())
-    }
-
-    // REQ-TOK-ARCH.15
-    @Test
-    fun `CancellationException is rethrown and never swallowed into false or failure`() = runTest {
-        val cancellingDispatcher = object : kotlinx.coroutines.CoroutineDispatcher() {
-            override fun dispatch(context: kotlin.coroutines.CoroutineContext, block: Runnable) {
-                throw CancellationException("Transfer cancelled by scope")
-            }
-        }
-        source.ioDispatcher = cancellingDispatcher
-        val srcFile = File(rootDir, "CANCEL_ME.JPG").apply { writeText("bytes") }
-
-        try {
-            source.moveImage(documentUriFor(srcFile.name), treeUri, sorting = true, subfolderName = PhotoFolders.SELECTION)
-            fail("Expected CancellationException to be rethrown from moveImage")
-        } catch (expected: CancellationException) {
-            assertEquals("Transfer cancelled by scope", expected.message)
-        }
-
-        try {
-            source.copyImage(documentUriFor(srcFile.name), treeUri, sorting = true, subfolderName = PhotoFolders.SELECTION)
-            fail("Expected CancellationException to be rethrown from copyImage")
-        } catch (expected: CancellationException) {
-            assertEquals("Transfer cancelled by scope", expected.message)
-        }
-    }
-
-    // ── B-5 / D-5: concurrent transfers into the same destination ────────
-
-    // REQ-TOK-ARCH.15
-    @Test
-    fun `two concurrent copies of same-named files into one Selection both succeed with a suffix and one Selection folder`() {
-        source.ioDispatcher = Dispatchers.IO
-        FakeSafDocumentsProvider.createDelayMs = 150L
-        val fileA = File(rootDir, "dayA/IMG_0100.JPG").apply { parentFile!!.mkdirs(); writeText("payload-A") }
-        val fileB = File(rootDir, "dayB/IMG_0100.JPG").apply { parentFile!!.mkdirs(); writeText("payload-B") }
-
-        val results = kotlinx.coroutines.runBlocking {
-            val a = async(Dispatchers.IO) {
-                source.copyImageWithResult(documentUriFor("dayA/${fileA.name}"), treeUri, true, PhotoFolders.SELECTION)
-            }
-            val b = async(Dispatchers.IO) {
-                source.copyImageWithResult(documentUriFor("dayB/${fileB.name}"), treeUri, true, PhotoFolders.SELECTION)
-            }
-            listOf(a.await(), b.await())
-        }
-
-        assertTrue(results.all { it.success })
-        val jpeg = File(rootDir, "Selection/JPEG").list()!!.sorted()
-        assertEquals(listOf("IMG_0100-2.JPG", "IMG_0100.JPG"), jpeg)
-        assertEquals(
-            setOf("payload-A", "payload-B"),
-            jpeg.map { File(rootDir, "Selection/JPEG/$it").readText() }.toSet(),
-        )
-        assertEquals(listOf("Selection"), rootDir.list()!!.filter { it.startsWith("Selection") }.sorted())
+        assertTrue(source.deleteImage(documentUriFor("IMG_0005.JPG")))
+        assertFalse(File(rootDir, "IMG_0005.JPG").exists())
     }
 
     // ── Default destination: always the Selection subfolder (lab 2026-10-18) ──

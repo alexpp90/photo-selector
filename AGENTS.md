@@ -22,14 +22,17 @@ Identifying which product a task targets is the first action of every task.
 | **Desktop (legacy, archived)** | `products/desktop/src/photo_selector_toolbox/` | Python + Tkinter | macOS, Linux, Windows |
 
 They share photographic *concepts* — the EXIF contract, score semantics, what "Selection"
-means — and nothing else. The only shared implementation is `products/android/core/`
-(`:core`), the EXIF model and readers used by both Android products. Canonical names:
+means — and nothing else. The only shared implementations are the two shared Android
+modules: `products/android/core/` (`:core`, the EXIF model and readers) and
+`products/android/saf/` (`:saf`, the SAF copy/move engine and `FolderAccessManager`), used by
+both Android products. Canonical names:
 [`docs/GLOSSARY.md`](docs/GLOSSARY.md).
 
 ## Rules
 
 1. **Identify the product first, and stay inside it.** Leaking code between products is a
-   defect, not reuse. `products/android/core/` affects both Android products.
+   defect, not reuse. `products/android/core/` and `products/android/saf/` affect both Android
+   products.
 2. **Write and run tests for every feature, fix or logic change**, and run them before you
    call the task done.
 3. **Verify against the CI mirror, not a subset.** `./scripts/run_tests.sh` (`--all` for every product)
@@ -60,7 +63,8 @@ products/
   android/            The Android platform group — one Gradle build for both Android products
     phototok/         PhotoTok product              — src/ tests/ res/ AndroidManifest.xml
     android-desktop/  Android Desktop product       — src/ tests/ res/ AndroidManifest.xml
-    core/             The only code the two Android products share — src/
+    core/             Shared by the two Android products: EXIF model and readers — src/
+    saf/              Shared by the two Android products: SAF file operations — src/
   macos-desktop/      Native macOS Desktop (Swift)  — src/ tests/ Package.swift
   linux-desktop/      Native Linux Desktop (GNOME)  — src/ tests/ debian/ scripts/ pyproject.toml
   desktop/            Legacy Desktop (Python)       — src/ tests/ benchmarks/ scripts/ pyproject.toml
