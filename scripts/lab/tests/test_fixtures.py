@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import shutil
 import sys
+import tempfile
 import unittest
 from pathlib import Path
 
@@ -15,11 +16,11 @@ from PIL import Image, ImageFilter, ImageStat  # noqa: E402
 
 class TestFixtures(unittest.TestCase):
     def setUp(self) -> None:
-        self.dir_a = Path("/tmp/pstlab/test_fixtures_a")
-        self.dir_b = Path("/tmp/pstlab/test_fixtures_b")
-        for d in (self.dir_a, self.dir_b):
-            if d.exists():
-                shutil.rmtree(d)
+        # A private folder per run: every worktree's run_tests.sh runs these tests, and a fixed
+        # /tmp/pstlab path let two concurrent runs delete each other's half-written fixtures.
+        Path("/tmp/pstlab").mkdir(parents=True, exist_ok=True)
+        self.dir_a = Path(tempfile.mkdtemp(prefix="test_fixtures_a_", dir="/tmp/pstlab"))
+        self.dir_b = Path(tempfile.mkdtemp(prefix="test_fixtures_b_", dir="/tmp/pstlab"))
 
     def tearDown(self) -> None:
         for d in (self.dir_a, self.dir_b):
