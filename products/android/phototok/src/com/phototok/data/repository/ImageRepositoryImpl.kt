@@ -104,6 +104,24 @@ class ImageRepositoryImpl @Inject constructor(
             .copyImageDetailed(sourceUri, destFolderUri, sorting, subfolderName)
     }
 
+    override suspend fun transferBundleDetailed(
+        sourceUris: List<Uri>,
+        destFolderUri: Uri,
+        sorting: Boolean,
+        subfolderName: String,
+        isMove: Boolean,
+    ): List<FileOperationResult> {
+        if (sourceUris.isEmpty()) return emptyList()
+        if (sourceUris.any { !resolver.sameSource(it, destFolderUri) }) {
+            Log.w(TAG, "Cross-source bundle transfer is not supported: $destFolderUri")
+            return sourceUris.map {
+                FileOperationResult.failure(it.toString(), "Cross-source transfer is not supported")
+            }
+        }
+        return resolver.sourceFor(sourceUris.first())
+            .transferBundleDetailed(sourceUris, destFolderUri, sorting, subfolderName, isMove)
+    }
+
     override suspend fun getImageDimensions(uri: Uri): Pair<Int, Int> =
         resolver.sourceFor(uri).getImageDimensions(uri)
 

@@ -145,6 +145,8 @@ tasks.withType<Test>().configureEach {
     )
     inputs.file(rootProject.file("../../testdata/formats/manifest.json"))
         .withPropertyName("formatManifest").withPathSensitivity(PathSensitivity.RELATIVE)
+    inputs.file(rootProject.file("../../testdata/formats/companions.json"))
+        .withPropertyName("companionTable").withPathSensitivity(PathSensitivity.RELATIVE)
 }
 
 dependencies {
