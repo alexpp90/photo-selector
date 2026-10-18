@@ -9,6 +9,7 @@ import com.photoselector.core.model.ExifData
 import com.photoselector.core.storage.ExternalVolume
 import com.photoselector.core.storage.SourceKind
 import com.photoselector.core.storage.SourceKindClassifier
+import com.phototok.data.source.FileOperationResult
 import com.phototok.data.model.ImageItem
 import com.phototok.data.model.PhoneSettings
 import com.phototok.data.model.RecentPath
@@ -23,6 +24,7 @@ import com.phototok.data.source.VolumeMonitor
 import com.phototok.di.ApplicationScope
 import com.phototok.domain.CardTransferJournal
 import com.phototok.domain.CollectionAction
+import com.phototok.domain.CompanionFiles
 import com.phototok.domain.CopyMoveFeedback
 import com.phototok.domain.FeedOrderMode
 import com.phototok.domain.FileTypeFilter
@@ -995,7 +997,7 @@ class PhoneModeViewModel @Inject constructor(
         val sourceUri = state.sourceFolderUri ?: return
         val wasNewlySeen = seenRepository.markSeen(image, sourceUri)
         if (state.fileTypeFilter == FileTypeFilter.ONE_PER_SHOT) {
-            relatedImages(image).forEach { sibling ->
+            relatedFeedImages(image).forEach { sibling ->
                 seenRepository.markSeen(sibling, sourceUri)
             }
         }
@@ -1048,7 +1050,11 @@ class PhoneModeViewModel @Inject constructor(
      * independent of the user's file-type filter selection.
      */
     private fun relatedImages(target: ImageItem): List<ImageItem> =
-        RelatedFiles.siblings(_uiState.value.allImages, target)
+        RelatedFiles.bundleOf(_uiState.value.allImages, target)
+
+    /** The feed-visible part of [relatedImages] (no `.xmp` sidecars): favourites, seen and counts. */
+    private fun relatedFeedImages(target: ImageItem): List<ImageItem> =
+        relatedImages(target).filterNot { CompanionFiles.isSidecar(it.fileName) }
 
     /**
      * Returns true if [image] has a RAW+JPEG companion pair in [PhoneModeUiState.allImages] (`U-12`).
@@ -1067,7 +1073,7 @@ class PhoneModeViewModel @Inject constructor(
         maybeShowFirstRunHint(FirstRunHint.SWIPE_RIGHT)
 
         if (state.swipeRightVerb == SwipeRightVerb.FAVOURITE) {
-            val related = if (state.moveRelatedFiles) relatedImages(currentImage) else emptyList()
+            val related = if (state.moveRelatedFiles) relatedFeedImages(currentImage) else emptyList()
             favouritesRepository.setFavourite(
                 uri = currentImage.uri,
                 favourite = true,
@@ -1097,7 +1103,7 @@ class PhoneModeViewModel @Inject constructor(
     fun toggleCurrentFavourite() {
         val state = _uiState.value
         val currentImage = state.images.getOrNull(state.currentIndex) ?: return
-        val related = if (state.moveRelatedFiles) relatedImages(currentImage) else emptyList()
+        val related = if (state.moveRelatedFiles) relatedFeedImages(currentImage) else emptyList()
         val nowFav = favouritesRepository.toggleFavourite(
             uri = currentImage.uri,
             companionUris = related.map { it.uri },
@@ -1222,22 +1228,38 @@ class PhoneModeViewModel @Inject constructor(
                 var failed = 0
                 var partial = 0
                 var renamedTo: String? = null
-                targets.forEach { img ->
-                    val result = if (isCopy) {
-                        imageRepository.copyImageDetailed(
-                            sourceUri = Uri.parse(img.uri),
-                            destFolderUri = folderUri,
-                            sorting = sortingEnabled,
-                            subfolderName = subfolderName,
-                        )
-                    } else {
-                        imageRepository.moveImageDetailed(
-                            sourceUri = Uri.parse(img.uri),
-                            destFolderUri = folderUri,
-                            sorting = sortingEnabled,
-                            subfolderName = subfolderName,
-                        )
+                // A shot with companions travels as one bundle (shared collision suffix); a
+                // single file keeps the per-file path.
+                val results: List<FileOperationResult> = if (targets.size > 1) {
+                    imageRepository.transferBundleDetailed(
+                        sourceUris = targets.map { Uri.parse(it.uri) },
+                        destFolderUri = folderUri,
+                        sorting = sortingEnabled,
+                        subfolderName = subfolderName,
+                        isMove = !isCopy,
+                    )
+                } else {
+                    targets.map { img ->
+                        if (isCopy) {
+                            imageRepository.copyImageDetailed(
+                                sourceUri = Uri.parse(img.uri),
+                                destFolderUri = folderUri,
+                                sorting = sortingEnabled,
+                                subfolderName = subfolderName,
+                            )
+                        } else {
+                            imageRepository.moveImageDetailed(
+                                sourceUri = Uri.parse(img.uri),
+                                destFolderUri = folderUri,
+                                sorting = sortingEnabled,
+                                subfolderName = subfolderName,
+                            )
+                        }
                     }
+                }
+                targets.forEachIndexed { i, img ->
+                    val result = results.getOrNull(i)
+                        ?: FileOperationResult.failure(img.uri, "No result")
                     when {
                         result.success -> {
                             succeededUris.add(img.uri)

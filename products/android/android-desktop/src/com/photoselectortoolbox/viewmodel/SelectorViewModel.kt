@@ -1436,6 +1436,23 @@ class SelectorViewModel @Inject constructor(
                     val folder = FilingAction.selectionFolderOrDefault(_uiState.value.selectionFolderName)
                     reportError(result.error ?: "Copied to $folder — original could not be removed")
                 }
+                // The rating belongs to the photograph: a verified copy starts with it exactly as a
+                // Copy does, and the original (still there) keeps its own. A primary that did move
+                // (a bundle member failed instead) is re-keyed like in the success path. Runs even
+                // after a folder switch: it is durable data, not presentation.
+                result.destinationUri?.takeIf { it.isNotBlank() }?.let { primary ->
+                    try {
+                        if (primary in result.copiesOfSurvivingOriginals) {
+                            cacheRepository.copyRating(sourceUri, primary)
+                        } else {
+                            cacheRepository.moveRating(sourceUri, primary)
+                        }
+                    } catch (e: CancellationException) {
+                        throw e
+                    } catch (e: Exception) {
+                        Log.e("SelectorViewModel", "Could not carry the rating of $sourceUri to $primary", e)
+                    }
+                }
                 // The verified copies in the destination are the photographer's data now, so the
                 // partial move stays undoable (Ctrl+Z): undo deletes exactly those copies while
                 // their originals still exist. The list item was restored above, hence no slots.
@@ -1570,7 +1587,20 @@ class SelectorViewModel @Inject constructor(
                         null
                     }
                     if (result?.success == true) {
-                        result.destinationUri?.let { back ->
+                        // A copy deleted by a partial-move undo takes its own rating row with it; the
+                        // surviving original keeps the rating it has (it was never re-keyed).
+                        result.deletedCopies.forEach { gone ->
+                            try {
+                                cacheRepository.deleteRating(gone)
+                            } catch (e: CancellationException) {
+                                throw e
+                            } catch (e: Exception) {
+                                Log.e("SelectorViewModel", "Could not drop the rating of deleted copy $gone", e)
+                            }
+                        }
+                        // The rating follows the primary file back — unless the primary was one of the
+                        // deleted copies, in which case `back` is some other restored file.
+                        result.destinationUri?.takeIf { operation.destinationUri !in result.deletedCopies }?.let { back ->
                             try {
                                 cacheRepository.moveRating(operation.destinationUri, back)
                             } catch (e: CancellationException) {

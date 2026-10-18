@@ -851,6 +851,101 @@ class SelectorViewModelTest {
         assertTrue(viewModel.uiState.value.images.any { it.uri == item.uri })
     }
 
+    // ── D-13: a verified copy of a partial move carries the rating ────────
+
+    @Test
+    fun `a partial move gives the verified copy the rating and leaves the original's alone`() = runTest {
+        val item = image("IMG_0020.jpg")
+        val copy = "content://test/folder/Selection/JPEG/IMG_0020.jpg"
+        coEvery { imageRepository.moveBundle(any(), item, any(), any()) } returns
+            FileOperationResult.partial(item.uri, copy, copiesOfSurvivingOriginals = mapOf(copy to item.uri))
+
+        val viewModel = loadFolder(item, image("b"))
+        viewModel.moveToSelection()
+
+        coVerify(exactly = 1) { cacheRepository.copyRating(item.uri, copy) }
+        coVerify(exactly = 0) { cacheRepository.moveRating(any(), any()) }
+        coVerify(exactly = 0) { cacheRepository.deleteRating(any()) }
+    }
+
+    @Test
+    fun `a partial bundle move whose primary did move re-keys the rating instead of copying it`() = runTest {
+        val item = image("IMG_0021.jpg")
+        val primary = "content://test/folder/Selection/JPEG/IMG_0021.jpg"
+        val member = "content://test/folder/Selection/RAW/IMG_0021.cr3"
+        coEvery { imageRepository.moveBundle(any(), item, any(), any()) } returns
+            FileOperationResult.partial(
+                sourceUri = item.uri,
+                destinationUri = primary,
+                destinationUris = listOf(primary, member),
+                copiesOfSurvivingOriginals = mapOf(member to "content://test/folder/IMG_0021.cr3"),
+            )
+
+        loadFolder(item, image("b")).moveToSelection()
+
+        coVerify(exactly = 1) { cacheRepository.moveRating(item.uri, primary) }
+        coVerify(exactly = 0) { cacheRepository.copyRating(any(), any()) }
+    }
+
+    @Test
+    fun `a partial move that finishes after a folder switch still carries the rating`() = runTest {
+        val item = image("a")
+        val copy = "content://test/sel/a"
+        val transfer = CompletableDeferred<FileOperationResult>()
+        coEvery { imageRepository.moveImage(any(), any(), any(), any()) } coAnswers { transfer.await() }
+        val viewModel = loadFolder(item, image("b"))
+        viewModel.moveToSelection()
+        discovery.resetReplayCache()
+        viewModel.selectFolder(Uri.parse(OTHER_FOLDER_URI))
+        discovery.emit(listOf(otherImage("x")))
+
+        transfer.complete(FileOperationResult.partial(item.uri, copy))
+
+        coVerify(exactly = 1) { cacheRepository.copyRating(item.uri, copy) }
+        assertEquals(listOf("x"), names(viewModel))
+    }
+
+    @Test
+    fun `undoing a partial move drops the deleted copy's rating row and never re-keys onto the original`() = runTest {
+        val item = image("IMG_0022.jpg")
+        val copy = "content://test/folder/Selection/JPEG/IMG_0022.jpg"
+        val copies = mapOf(copy to item.uri)
+        coEvery { imageRepository.moveBundle(any(), item, any(), any()) } returns
+            FileOperationResult.partial(item.uri, copy, copiesOfSurvivingOriginals = copies)
+        coEvery {
+            imageRepository.undoMoveBundle(any(), listOf(copy), Uri.parse(FOLDER_URI), any(), copies)
+        } returns FileOperationResult.success(copy, null, emptyList()).copy(deletedCopies = listOf(copy))
+
+        val viewModel = loadFolder(item, image("b"))
+        viewModel.moveToSelection()
+        viewModel.undoLastOperation()
+
+        coVerify(exactly = 1) { cacheRepository.deleteRating(copy) }
+        coVerify(exactly = 0) { cacheRepository.moveRating(copy, any()) }
+        coVerify(exactly = 0) { cacheRepository.deleteRating(item.uri) }
+    }
+
+    @Test
+    fun `undoing a mixed partial move deletes the copy's row and still re-keys the restored primary`() = runTest {
+        val item = image("IMG_0023.jpg")
+        val primary = "content://test/folder/Selection/JPEG/IMG_0023.jpg"
+        val member = "content://test/folder/Selection/RAW/IMG_0023.cr3"
+        val restored = "content://test/folder/IMG_0023-2.jpg"
+        val copies = mapOf(member to "content://test/folder/IMG_0023.cr3")
+        coEvery { imageRepository.moveBundle(any(), item, any(), any()) } returns
+            FileOperationResult.partial(item.uri, primary, destinationUris = listOf(primary, member), copiesOfSurvivingOriginals = copies)
+        coEvery {
+            imageRepository.undoMoveBundle(any(), listOf(primary, member), Uri.parse(FOLDER_URI), any(), copies)
+        } returns FileOperationResult.success(primary, restored, listOf(restored)).copy(deletedCopies = listOf(member))
+
+        val viewModel = loadFolder(item, image("b"))
+        viewModel.moveToSelection()
+        viewModel.undoLastOperation()
+
+        coVerify(exactly = 1) { cacheRepository.deleteRating(member) }
+        coVerify(exactly = 1) { cacheRepository.moveRating(primary, restored) }
+    }
+
     @Test
     fun `moving a bundle records all destinationUris and parentDocumentId and undoLastOperation passes them to undoMoveBundle`() = runTest {
         val bundleItem = ImageItem(

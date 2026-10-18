@@ -30,14 +30,14 @@ The rule that prevents it:
 | Gate | CI job | Local | Notes |
 |---|---|---|---|
 | flake8 `src/ tests/` | `desktop.yml:lint` | ✅ everywhere | **Gates the entire desktop pipeline.** A lint error fails the run before one test executes. |
-| pytest `-m "not visual"` | `desktop.yml:test` | ✅ everywhere | Same marker filter locally and in CI. On Linux the runner renders it on its own Xvfb, as CI does — see [GUI gates run on Xvfb](#gui-gates-run-on-xvfb-not-your-screen). |
+| pytest `-m "not visual"` | `desktop.yml:test` | ✅ everywhere | Same marker filter locally and in CI. CI and the mirror both pass `-o faulthandler_timeout=120` (also to the visual job), so a test that blocks in Tk or native code fails with every thread's stack instead of hanging. On Linux the runner renders it on its own Xvfb, as CI does — see [GUI gates run on Xvfb](#gui-gates-run-on-xvfb-not-your-screen). |
 | Coverage `--cov-fail-under=60` | `desktop.yml:test` (**Linux only**) | ✅ advisory everywhere | See [Coverage is Linux-authoritative](#coverage-is-linux-authoritative). |
 | Visual regression | `desktop.yml:visual` | ⚠️ Linux + Xvfb; baselines are runner-rendered | See [Visual regression](#visual-regression-linux-only). |
 | `testDebugUnitTest` | `android.yml:unit-tests` | ✅ needs JDK 17 + Android SDK | |
 | `assembleDebugAndroidTest` | `android.yml:unit-tests` | ✅ needs JDK 17 + Android SDK | Compiles `tests/instrumented/`. Nothing else does. |
 | `check_native_alignment.py` | `android.yml:unit-tests`, `android.yml:build` | ✅ needs JDK 17 + Android SDK (unit tests run everywhere via `scripts/tests`) | Inspects every `lib/{arm64-v8a,x86_64}/*.so` in `merged_native_libs/debug` and built APK/AAB archives and fails if any ELF `PT_LOAD` segment has `p_align < 16384` (Google Play 16 KB page-size mandate). For `.apk` files it also fails if a stored (uncompressed) `.so` does not start at a 16 KB-aligned zip offset (`zipalign -P 16`); bundles are exempt. The mirror builds and checks the debug APKs like the `build` job. |
 | `lintDebug` | `android.yml:lint` | ✅ advisory | Non-blocking in both places, on purpose. |
-| `connectedDebugAndroidTest` | `android.yml:instrumented-tests` | ❌ **needs emulator/device** | Pinned to one test device (`scripts/android_test_device.py`), never every attached device. See [Instrumented tests](#instrumented-tests-genuinely-need-a-device). |
+| `connectedDebugAndroidTest` | `android.yml:instrumented-tests` | ❌ **needs emulator/device** | Local: on demand only (`--android-device`, before a release), pinned to one test device (`scripts/android_test_device.py`), never every attached device, and run under that device's lock; no device, or a device still busy after the wait, is a non-blocking `⊘ SKIPPED`, also under `--strict`. See [Instrumented tests](#instrumented-tests-genuinely-need-a-device). |
 | `swift test (macos-desktop)` | `macos.yml:swift-test` | ⚠️ Darwin only | Native Swift 6 suite covering PhotoSelectorKit & App (release SLA benchmark included). Runs on `macos-latest` in CI. |
 | `check_no_test_hooks.sh` (release binary) | `macos.yml:swift-test`, `macos.yml:build` | ⚠️ Darwin only | `swift build -c release`, then fails if the binary contains the UI test hooks (`UIScenarioRunner`, `UITestDriver`, `UISelfTestRunner`), which are compiled in only for debug and `build_app.sh --test-hooks` builds. |
 | macOS UI smoke test (running app) | — (local-only) | ⚠️ Darwin + logged-in GUI session | `products/macos-desktop/scripts/ui_smoke_test.sh`: drives the running app (raw binary **and** `.app` bundle) — activation policy, real key events, rendered Focus 3-Up geometry, clicks while zoomed, time-to-first-photo. Window-server key probe needs Accessibility permission, else `⊘ SKIPPED`. See [macOS UI smoke test](#macos-ui-smoke-test-local-only). |
@@ -163,6 +163,13 @@ branch diffs against `main` (changes to `.github/`, `run_tests.sh` or the format
 `testdata/formats/` count for every product). If only one product has modifications, gates for untouched
 products are reported as skipped due to path filtering rather than executing redundant suites.
 
+`android.yml:detect-changes` decides which Android products a change touches: a change under
+one product's directory builds that product, and a change under a shared module
+(`products/android/core/**`, `products/android/saf/**`) or the shared Gradle files builds both.
+`testDebugUnitTest` runs every module's unit tests, `:core` and `:saf` included. Locally
+every path under `products/android/` selects the Android gates, so the mirror needs no
+per-module list.
+
 ### Headless & background GUI execution on macOS (All Products)
 
 Local automated test runs MUST NEVER force GUI windows into the foreground or steal window focus from the developer. By default, all test suites execute in a completely backgrounded state:
@@ -214,12 +221,29 @@ machine-locally (local.properties is ignored by git):
 echo "pst.testDevice.serial=<serial from adb devices>" >> products/android/local.properties
 ```
 
-Before every run the script prepares a designated device (or an emulator) —
+The device suite never runs as part of the default run or `--all`: it is triggered on demand
+with `./scripts/run_tests.sh --android-device`, typically before an Android release. Without a
+test device it reports `⊘ SKIPPED` and does not block — not even under `--strict` — and CI's
+`instrumented-tests` job still covers every PR. Before every run the script prepares a designated
+device (or an emulator) —
 animations off (CI's `disable-animations: true`), screen kept on while powered, keyguard off,
 portrait rotation, default size/density/font scale, light theme, no verifier prompt on adb
 installs — using `adb root` where the build allows it. It refuses a device that is merely the only one
 attached, since that may be a personal phone. Run it on its own with
 `python3 scripts/android_test_device.py prepare`; `status` shows which device is selected.
+
+**One session at a time.** Several agent sessions share the workstation, and the device lab's
+usability walkthroughs tap on the same phone; one walkthrough tapping during an instrumented
+run caused a spurious failure (2026-10-18). `run_tests.sh` therefore holds the per-device lock
+while it prepares the device and runs Gradle:
+`python3 scripts/android_test_device.py with-lock [--timeout S] -- <command…>`. The lock is
+an `flock` on `/tmp/pstlab/device-<serial>.lock` (`PST_LAB_TMP` moves it), the file the
+lab takes too; its holder writes who it is into it (`instrumented-tests <worktree> pid=… since=…`,
+or `lab usability-capture <product> …`). A held lock is waited for —
+`PST_DEVICE_LOCK_TIMEOUT` seconds, default 300 — and still held after that, the gate is
+`⊘ SKIPPED` naming the holder, not failed. `android_test_device.py lock-holder` (and
+`status`) shows who holds the device now. The kernel drops the lock when its holder dies, so a
+crashed run never leaves the device locked.
 
 **Test photos on the device.** `python3 scripts/android_test_device.py load-images [--sets smoke,formats]`
 generates the device lab's fixture sets ([`scripts/lab/fixtures/spec.yaml`](../../scripts/lab/fixtures/spec.yaml))
@@ -269,7 +293,7 @@ satisfy five adversarial verification gates prior to delivery:
 Of the nine consecutive `fix(test)` / `fix(android)` commits on
 `feat/score-chips-and-first-run-hints`, **one** was a compile error and
 **eight** were the same small family of semantics-tree mistakes. Following
-these five rules removes almost all of that class:
+these rules removes almost all of that class:
 
 1. **Use `onAllNodes(...).onFirst()`, not `onNode(...)`, for anything that can
    legitimately match more than once.** `onNode` throws when a matcher hits
@@ -293,6 +317,14 @@ these five rules removes almost all of that class:
    `assertIsDisplayed` fails with "is not displayed" although the app is correct
    (`PhoneModeScreenDialogTest`, PR #737, API 30 job). `assertExists()` passes
    off-screen and hides the problem; `assertIsDisplayed()` does not.
+6. **Wait on the effect, not on idle, after a gesture.** `waitForIdle()` does not
+   prove a gesture's effect has happened. A tap on a node whose
+   `detectTapGestures` also handles `onDoubleTap` reaches `onTap` only after the
+   double-tap timeout, which runs in real time, so assert with
+   `composeTestRule.waitUntil(timeoutMillis = 5_000) { … }` and click the node by
+   its own `testTag`, not `onRoot()`. A test asserting that something did *not*
+   happen must first prove the gesture was handled, or a late or lost event passes
+   it (`PhoneModeViewerInteractionTest`).
 
 These rules are also part of the Android UI agent definitions in the maintainer's agent
 framework.
@@ -318,6 +350,14 @@ framework.
 - **`publish-play` fails on a missing/empty artifact** → the upstream build
   step did not produce it. All release uploads now use
   `if-no-files-found: error`, so this should fail at the producing step first.
+- **A job that sits "in progress" far past its usual time** is hung, not slow. Every job
+  declares `timeout-minutes` (about three times its slowest green run, at least 10), so it
+  fails instead of running into GitHub's 360-minute default. The pytest jobs
+  (`desktop.yml:test`, `desktop.yml:visual`, `linux.yml:test`) pass
+  `-o faulthandler_timeout=120`, so a single blocked test dumps every thread's stack into the
+  log. `scripts/tests/test_workflow_bounds.py` (run by `repo-hygiene.yml` and the mirror)
+  fails when a job or a CI pytest command lacks either. A timeout is a CI-only bound with no local mirror: `run_tests.sh` runs in the
+  foreground, where you see a hang yourself.
 - **An "Unexpected input(s) …" annotation** is a *warning*, not an error: the
   input was silently ignored and whatever it was supposed to configure never
   took effect. Treat it as a broken fix, not cosmetic noise.

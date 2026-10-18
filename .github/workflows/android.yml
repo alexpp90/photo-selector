@@ -46,6 +46,7 @@ jobs:
   detect-changes:
     name: Detect changed modules
     runs-on: ubuntu-latest
+    timeout-minutes: 10
     # `toolbox` / `phototok` say which module the release steps build and publish:
     # the path filter on branch pushes, exactly the tagged product on a tag push.
     outputs:
@@ -61,6 +62,7 @@ jobs:
             toolbox:
               - 'products/android/android-desktop/**'
               - 'products/android/core/**'
+              - 'products/android/saf/**'
               - 'products/android/build.gradle.kts'
               - 'products/android/settings.gradle.kts'
               - 'products/android/gradle.properties'
@@ -69,6 +71,7 @@ jobs:
             phototok:
               - 'products/android/phototok/**'
               - 'products/android/core/**'
+              - 'products/android/saf/**'
               - 'products/android/build.gradle.kts'
               - 'products/android/settings.gradle.kts'
               - 'products/android/gradle.properties'
@@ -95,6 +98,7 @@ jobs:
   unit-tests:
     name: Unit tests (JVM)
     runs-on: ubuntu-latest
+    timeout-minutes: 20
     steps:
       - uses: actions/checkout@v7
 
@@ -149,6 +153,7 @@ jobs:
   lint:
     name: Android Lint
     runs-on: ubuntu-latest
+    timeout-minutes: 20
     continue-on-error: true
     steps:
       - uses: actions/checkout@v7
@@ -180,6 +185,7 @@ jobs:
   instrumented-tests:
     name: Instrumented tests (API ${{ matrix.api-level }})
     runs-on: ubuntu-latest
+    timeout-minutes: 45
     # The emulator job is the slowest and least readable in the pipeline (~15
     # min vs ~2 min). `unit-tests` already compiles :app and :phototok
     # androidTest sources, so gating on it means a Kotlin/KSP break in a test
@@ -257,6 +263,7 @@ jobs:
     needs: [unit-tests, instrumented-tests, detect-changes]
     if: github.event_name == 'workflow_dispatch' || (github.event_name == 'push' && (github.ref == 'refs/heads/main' || startsWith(github.ref, 'refs/tags/phototok-v') || startsWith(github.ref, 'refs/tags/android-desktop-v')))
     runs-on: ubuntu-latest
+    timeout-minutes: 30
     permissions:
       contents: write
     env:
@@ -527,6 +534,7 @@ jobs:
     needs: [build, detect-changes]
     if: github.event_name == 'push' && (github.ref == 'refs/heads/main' || startsWith(github.ref, 'refs/tags/phototok-v') || startsWith(github.ref, 'refs/tags/android-desktop-v')) && (needs.detect-changes.outputs.toolbox == 'true' || needs.detect-changes.outputs.phototok == 'true')
     runs-on: ubuntu-latest
+    timeout-minutes: 15
 
     steps:
       - name: Download Photo Selector Toolbox AAB

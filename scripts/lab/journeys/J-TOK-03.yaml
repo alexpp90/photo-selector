@@ -5,6 +5,8 @@ fixture: smoke
 configs: [phone-portrait]
 fresh_install: false
 steps:
+  # Swipe right must copy (the phone-folder default is ★ Favourite, which touches no file).
+  - {maestro: products/android/phototok/tests/e2e/_swipe_right_copies.yaml}
   - {maestro: products/android/phototok/tests/e2e/J-TOK-03/01_swipe_right_keep.yaml}
   - {wait_ms: 1000}
   - {checkpoint: kept}

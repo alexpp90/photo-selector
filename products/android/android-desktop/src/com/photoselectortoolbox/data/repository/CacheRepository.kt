@@ -18,6 +18,8 @@ interface CacheRepository {
     suspend fun moveRating(fromUri: String, toUri: String)
     /** A copy starts with the rating of its original. */
     suspend fun copyRating(fromUri: String, toUri: String)
+    /** Drops the rating row of a file that no longer exists (a deleted copy), leaving every other row alone. */
+    suspend fun deleteRating(uri: String)
     suspend fun getRating(uri: String): Int?
     suspend fun getRatings(uris: List<String>): Map<String, Int>
     suspend fun updateCompositionAnalysis(filePath: String, analysis: String?)
@@ -92,6 +94,10 @@ class CacheRepositoryImpl @Inject constructor(
         if (fromUri == toUri) return
         val rating = scoreDao.getUserRating(fromUri) ?: return
         scoreDao.upsertUserRating(rating.copy(uri = toUri))
+    }
+
+    override suspend fun deleteRating(uri: String) {
+        scoreDao.deleteUserRating(uri)
     }
 
     override suspend fun getRating(uri: String): Int? {

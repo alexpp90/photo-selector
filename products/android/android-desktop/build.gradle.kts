@@ -160,6 +160,8 @@ tasks.withType<Test>().configureEach {
 dependencies {
     // Shared Android baseline (EXIF model + readers, storage detection)
     implementation(project(":core"))
+    // Shared SAF file operations (transfer engine, persisted grants)
+    implementation(project(":saf"))
 
     // AndroidX Core
     implementation(libs.androidx.core.ktx)

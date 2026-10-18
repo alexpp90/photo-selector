@@ -4,9 +4,13 @@ from __future__ import annotations
 
 from contextlib import redirect_stderr, redirect_stdout
 import io
+import os
 from pathlib import Path
+import re
+import subprocess
 import sys
 import tempfile
+import time
 import unittest
 from unittest import mock
 
@@ -160,6 +164,173 @@ class SerialCommandTest(unittest.TestCase):
         with mock.patch.object(atd, "select", return_value=("TEST1", True, "designated")), redirect_stdout(out):
             self.assertEqual(atd.main(["serial", "--designated"]), 0)
         self.assertEqual(out.getvalue().strip(), "TEST1")
+
+
+SCRIPT = SCRIPTS_DIR / "android_test_device.py"
+HOLDER_RE = re.compile(r"^instrumented-tests (\S+) pid=(\d+) since=\d{4}-\d\d-\d\dT\d\d:\d\d:\d\d$")
+
+
+def wait_for(predicate, budget=15.0):
+    deadline = time.monotonic() + budget
+    while time.monotonic() < deadline:
+        if predicate():
+            return True
+        time.sleep(0.05)
+    return False
+
+
+class DeviceLockPathTest(unittest.TestCase):
+    def test_lock_lives_where_the_device_lab_puts_it(self):
+        with mock.patch.dict(os.environ, {"PST_LAB_TMP": "/tmp/pstlab-unit"}):
+            self.assertEqual(atd.device_lock_path("CQ30012CMV"), Path("/tmp/pstlab-unit/device-CQ30012CMV.lock"))
+        self.assertEqual(atd.device_lock_path("192.168.0.117:46567", Path("/x")),
+                         Path("/x/device-192.168.0.117:46567.lock"))
+        for bad in ("", ".", "..", "a/b"):
+            with self.assertRaises(ValueError):
+                atd.device_lock_path(bad, Path("/x"))
+
+    def test_with_lock_takes_the_labs_lock_file(self):
+        # One implementation: with-lock goes through the lab's device_lock(), so both sides
+        # lock the same file and write the same holder format.
+        with tempfile.TemporaryDirectory() as tmp:
+            out = Path(tmp) / "holder"
+            copy_lock = f"import shutil; shutil.copy({str(Path(tmp) / 'device-S.lock')!r}, {str(out)!r})"
+            code = atd.with_lock([sys.executable, "-c", copy_lock], "S", "my-worktree", 0, lock_dir=Path(tmp))
+            self.assertEqual(code, 0)
+            m = HOLDER_RE.match(out.read_text().strip())
+        self.assertIsNotNone(m)
+        self.assertEqual((m.group(1), int(m.group(2))), ("my-worktree", os.getpid()))
+
+
+class DeviceLockTest(unittest.TestCase):
+    def setUp(self):
+        tmp = tempfile.TemporaryDirectory()
+        self.addCleanup(tmp.cleanup)
+        self.dir = Path(tmp.name)
+        self.path = self.dir / "device-S.lock"
+
+    def run_locked(self, code_or_cmd, timeout=0, **kw):
+        cmd = [sys.executable, "-c", code_or_cmd] if isinstance(code_or_cmd, str) else code_or_cmd
+        return atd.with_lock(cmd, "S", "unit", timeout, lock_dir=self.dir, **kw)
+
+    def test_a_lab_walkthrough_holding_the_device_blocks_and_is_named(self):
+        atd._use_lab_package()
+        from lab.usability.driver import device_lock
+
+        clock = iter([0.0, 0.0, 1.0, 2.0, 3.0])
+        sleeps = []
+        marker = self.dir / "ran"
+        with device_lock("S", "lab usability-capture phototok", lock_dir=self.dir), \
+                redirect_stderr(io.StringIO()) as err:
+            code = self.run_locked(f"open({str(marker)!r}, 'w')", timeout=2.5, poll=1.0,
+                                   clock=lambda: next(clock), sleep=sleeps.append)
+            self.assertTrue(atd.lock_holder(self.path).startswith("lab usability-capture phototok pid="))
+        self.assertEqual(code, atd.LOCK_BUSY_EXIT)
+        self.assertFalse(marker.exists())
+        self.assertEqual(sleeps, [1.0, 1.0, 0.5])  # never sleeps past the deadline
+        self.assertEqual(err.getvalue().count("waiting up to"), 1)  # announced once per holder
+        self.assertIn("is held by: lab usability-capture phototok pid=", err.getvalue())
+
+    def test_stale_holder_text_is_not_a_holder(self):
+        self.path.write_text("lab usability-capture phototok pid=1 since=2026-10-17T09:00:00\n")
+        self.assertIsNone(atd.lock_holder(self.path))
+        self.assertEqual(self.run_locked("pass"), 0)
+        self.assertIsNone(atd.lock_holder(self.path))  # released after the command
+
+    def test_lock_holder_of_a_missing_file_is_none_and_creates_nothing(self):
+        self.assertIsNone(atd.lock_holder(self.path))
+        self.assertFalse(self.path.exists())
+
+    def test_with_lock_returns_the_command_status_and_releases(self):
+        self.assertEqual(self.run_locked("raise SystemExit(3)"), 3)
+        self.assertIsNone(atd.lock_holder(self.path))
+
+    def test_a_command_exiting_75_is_not_mistaken_for_a_busy_device(self):
+        self.assertEqual(self.run_locked("raise SystemExit(75)"), 1)
+
+    def test_a_missing_command_is_reported_and_releases(self):
+        with redirect_stderr(io.StringIO()):
+            self.assertEqual(self.run_locked([str(self.dir / "no-such-command")]), 127)
+        self.assertIsNone(atd.lock_holder(self.path))
+
+    def test_a_process_the_command_leaves_behind_does_not_keep_the_lock(self):
+        # A Gradle daemon outlives connectedDebugAndroidTest; it must not inherit the lock.
+        pidfile = self.dir / "bg.pid"
+        code = self.run_locked("import subprocess; p = subprocess.Popen(['sleep', '30'], start_new_session=True);"
+                               f"open({str(pidfile)!r}, 'w').write(str(p.pid))")
+        self.assertEqual(code, 0)
+        self.addCleanup(lambda: os.kill(int(pidfile.read_text()), 15))
+        self.assertIsNone(atd.lock_holder(self.path))
+
+
+class WithLockContentionTest(unittest.TestCase):
+    """Two `with-lock` processes contend for one device, as two agent sessions would."""
+
+    def setUp(self):
+        tmp = tempfile.TemporaryDirectory()
+        self.addCleanup(tmp.cleanup)
+        self.tmp = Path(tmp.name)
+        self.env = dict(os.environ, PST_LAB_TMP=str(self.tmp / "lab"))
+        self.lock = self.tmp / "lab" / "device-FAKE1.lock"
+
+    def start(self, label, timeout, *cmd):
+        return subprocess.Popen(
+            [sys.executable, str(SCRIPT), "with-lock", "--serial", "FAKE1", "--timeout", str(timeout),
+             "--label", label, "--", *cmd],
+            env=self.env, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True,
+        )
+
+    def hold_until_released(self):
+        """First session: holds the lock until the test creates the `release` file."""
+        ready, release = self.tmp / "ready", self.tmp / "release"
+        script = (f"import os, time; open({str(ready)!r}, 'w').close()\n"
+                  f"while not os.path.exists({str(release)!r}): time.sleep(0.05)")
+        first = self.start("session-a", 5, sys.executable, "-c", script)
+        self.addCleanup(lambda: first.poll() is None and first.kill())
+        self.assertTrue(wait_for(ready.exists), "first session never started its command")
+        return first, release
+
+    def test_second_session_times_out_and_names_the_holder(self):
+        first, release = self.hold_until_released()
+        holder = self.lock.read_text().strip()
+        m = HOLDER_RE.match(holder)
+        self.assertIsNotNone(m, holder)
+        self.assertEqual((m.group(1), int(m.group(2))), ("session-a", first.pid))
+
+        ran = self.tmp / "second-ran"
+        second = self.start("session-b", 0.5, sys.executable, "-c", f"open({str(ran)!r}, 'w').close()")
+        _, err = second.communicate(timeout=20)
+        self.assertEqual(second.returncode, atd.LOCK_BUSY_EXIT)
+        self.assertIn(f"is held by: instrumented-tests session-a pid={first.pid}", err)
+        self.assertFalse(ran.exists())
+
+        holder_cmd = subprocess.run([sys.executable, str(SCRIPT), "lock-holder", "--serial", "FAKE1"],
+                                    env=self.env, capture_output=True, text=True, timeout=20)
+        self.assertEqual((holder_cmd.returncode, holder_cmd.stdout.strip()), (0, holder))
+
+        release.touch()
+        self.assertEqual(first.wait(timeout=20), 0)
+
+    def test_second_session_waits_for_the_first_then_runs(self):
+        first, release = self.hold_until_released()
+        err_path = self.tmp / "second.err"
+        with open(err_path, "w") as err_file:
+            second = subprocess.Popen(
+                [sys.executable, str(SCRIPT), "with-lock", "--serial", "FAKE1", "--timeout", "30",
+                 "--label", "session-b", "--", sys.executable, "-c", "print('second ran')"],
+                env=self.env, stdout=subprocess.PIPE, stderr=err_file, text=True,
+            )
+        self.addCleanup(lambda: second.poll() is None and second.kill())
+        self.assertTrue(wait_for(lambda: "waiting up to" in err_path.read_text()),
+                        "second session never reported waiting for the first")
+        self.assertIsNone(second.poll(), "second session ran while the first held the device")
+        self.assertIn("held by: instrumented-tests session-a", err_path.read_text())
+        release.touch()
+        out, _ = second.communicate(timeout=30)
+        self.assertEqual(first.wait(timeout=20), 0)
+        self.assertEqual(second.returncode, 0, err_path.read_text())
+        self.assertIn("second ran", out)
+        self.assertTrue(self.lock.read_text().startswith("instrumented-tests session-b"))
 
 
 class SpecFormatsTest(unittest.TestCase):

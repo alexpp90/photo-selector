@@ -62,7 +62,8 @@ GROUPS: List[Tuple[str, str]] = [
 GROUP_LABEL = dict(GROUPS)
 PRODUCT_GROUPS = ("android", "macos", "linux", "desktop")
 
-# Which gate group a changed path obliges. products/android/core/ affects both Android products.
+# Which gate group a changed path obliges. products/android/core/ and products/android/saf/ affect both
+# Android products.
 PATH_GROUPS = [
     ("products/android/", "android"),
     ("products/macos-desktop/", "macos"),
@@ -285,7 +286,8 @@ def merge_gates(records: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
     gates = list(merged.values())
     ran = {g["group"] for g in gates if g["status"] != "SKIP"}
     return [g for g in gates
-            if not (g["status"] == "SKIP" and not g["unrunnable"] and g["group"] in ran)]
+            if not (g["status"] == "SKIP" and not g["unrunnable"] and g["group"] in ran
+                    and g["detail"].startswith(OUT_OF_SCOPE))]
 
 
 def group_status(gates: List[Dict[str, Any]]) -> str:
@@ -565,7 +567,7 @@ def render_block(records: List[Dict[str, Any]]) -> str:
             details = "<br>".join(_gate_cell(g) for g in group)
             if key == "android" and not any("instrumented" in g["name"] for g in group) \
                     and groups[key] != "not in scope":
-                details += "<br>⊘ instrumented tests (not requested: needs `--android-device` or `--all`)"
+                details += "<br>⊘ instrumented tests (not requested: run on demand with `--android-device`)"
         lines.append(f"| {label} | {GROUP_ICON[groups[key]]} | {details} |")
 
     tools = latest.get("toolchains") or {}

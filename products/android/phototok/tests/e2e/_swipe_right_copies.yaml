@@ -1,0 +1,37 @@
+# Lab: make swipe right copy to Selection, whatever an earlier journey or a cleared app left.
+# The default for phone folders is "★ Favourite (in-place)" (PhoneSettings.defaultFor), which
+# touches no file; J-TOK-03 and J-TOK-05 expect a copy in Selection (2026-10-18: after a
+# `pm clear` J-TOK-03 found no copy). The sheet's "Source Preset" edits the "Phone" kind, the
+# kind of /sdcard/PSTLab/work. The Settings button is selected by its tag `settings_button`
+# (added by alexpp90/photo-selector#802); builds without it skip this flow and keep whatever
+# verb they have.
+appId: com.phototok.lab
+---
+- runFlow:
+    when:
+      visible:
+        id: "settings_button"
+    commands:
+      - tapOn:
+          id: "settings_button"
+      - scrollUntilVisible:
+          element:
+            text: "Phone"
+          centerElement: true
+          visibilityPercentage: 100
+          timeout: 10000
+      - tapOn:
+          text: "Phone"
+      - scrollUntilVisible:
+          element:
+            text: "Copy to Selection"
+          centerElement: true
+          visibilityPercentage: 100
+          timeout: 10000
+      - tapOn:
+          text: "Copy to Selection"
+      - back
+      - extendedWaitUntil:
+          visible:
+            id: "viewer.photo"
+          timeout: 10000

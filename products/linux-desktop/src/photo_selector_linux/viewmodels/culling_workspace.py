@@ -484,6 +484,27 @@ class CullingWorkspaceViewModel:
                 if partial_record is not None:
                     self._stack_for(action).append((partial_record, action.photo, action.orig_idx))
 
+                if partial_record is not None and partial_record.stranded:
+                    # A failed rollback or cleanup left files in Selection/ (D-12). Never claim the
+                    # operation was undone; Undo (Ctrl+Z) puts them back or removes the stray copies.
+                    if action.kind == "move" and partial_record.unremoved_sources:
+                        # Cross-mount staging: the originals never moved, only copies are stranded.
+                        self._notify(
+                            f"Move interrupted — copies of {action.photo.filename} stayed in "
+                            f"{action.selection_folder}/ and could not be removed; the original is untouched"
+                        )
+                    elif action.kind == "move":
+                        self._notify(
+                            f"Move interrupted — some files of {action.photo.filename} stayed in "
+                            f"{action.selection_folder}/ and could not be put back"
+                        )
+                    else:
+                        self._notify(
+                            f"Copy interrupted — some copies of {action.photo.filename} stayed in "
+                            f"{action.selection_folder}/ and could not be removed"
+                        )
+                    return
+
                 if (
                     action.kind == "move"
                     and partial_record is not None
@@ -550,7 +571,8 @@ class CullingWorkspaceViewModel:
                             self.selected_count = max(0, self.selected_count - 1)
                         else:
                             self.trashed_count = max(0, self.trashed_count - 1)
-                elif rec.action_type == CullingActionType.COPY:
+                elif rec.action_type == CullingActionType.COPY and not rec.stranded:
+                    # A partial copy (stray replicas) already gave its optimistic counts back.
                     self.selected_count = max(0, self.selected_count - 1)
                     self.copied_count = max(0, self.copied_count - 1)
                 restored_as = self._restored_suffixed_name(action.photo, rec)

@@ -26,6 +26,14 @@ appId: com.phototok.lab
             visible:
               id: "landing_custom_folder_card"
           commands:
+            # The card can sit below the fold, its centre under the navigation bar (Pixel 4a,
+            # 2026-10-18): a tap there opened no picker. Scroll it fully into view first.
+            - scrollUntilVisible:
+                element:
+                  id: "landing_custom_folder_card"
+                centerElement: true
+                visibilityPercentage: 100
+                timeout: 10000
             - tapOn:
                 id: "landing_custom_folder_card"
             - runFlow: _pick_work_folder.yaml
@@ -37,17 +45,19 @@ appId: com.phototok.lab
 - tapOn:
     id: "landing_start_browsing_button"
     optional: true
-# Re-opening a known folder asks "Resume Folder?" / "New Photos Found"; start with the
-# newest photo so every journey starts from the same frame regardless of the last run.
+# Re-opening a folder with photos newer than the last visit asks "N new photos" (Show new /
+# Stay); show the new ones so every journey starts from the same frame regardless of the last run.
+# Builds from before the concise-copy pass (#782) still say "Start with Newest" / "Link actions
+# across both"; the selectors accept both until every branch has it.
 # The dialog is its own window, so its test tags are not exported as resource ids
 # (testTagsAsResourceId is set on the activity content only); match the app's own text.
 - extendedWaitUntil:
     visible:
-      text: "Start with Newest"
+      text: "Show new|Start with Newest"
     timeout: 4000
     optional: true
 - tapOn:
-    text: "Start with Newest"
+    text: "Show new|Start with Newest"
     optional: true
 # First feed visit after an install shows the controls guide over the photo.
 - extendedWaitUntil:
@@ -58,6 +68,22 @@ appId: com.phototok.lab
 - tapOn:
     id: "gesture_tutorial_got_it"
     optional: true
+# A folder with RAW + JPEG pairs asks how to treat them (REQ-TOK-FEATURE.11) in a dialog window
+# over the feed, so viewer.photo is not in the hierarchy until it is answered (2026-10-17: J-TOK-05
+# never got past this flow). Link the pairs: J-TOK-05 keeps a pair. Matched by its text for the
+# same reason as above ("Show both, linked"; the title's "+" is a regex operator).
+- extendedWaitUntil:
+    visible:
+      id: "viewer.photo"
+    timeout: 8000
+    optional: true
+- runFlow:
+    when:
+      visible:
+        text: "Show both, linked|Link actions across both"
+    commands:
+      - tapOn:
+          text: "Show both, linked|Link actions across both"
 - extendedWaitUntil:
     visible:
       id: "viewer.photo"

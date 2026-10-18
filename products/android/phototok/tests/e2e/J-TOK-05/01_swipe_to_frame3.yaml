@@ -1,0 +1,16 @@
+appId: com.phototok.lab
+---
+# The pairs dialog can still arrive after the feed (see _ensure_folder.yaml).
+- runFlow:
+    when:
+      visible:
+        text: "Show both, linked|Link actions across both"
+    commands:
+      - tapOn:
+          text: "Show both, linked|Link actions across both"
+- swipe:
+    start: "50%,70%"
+    end: "50%,20%"
+- swipe:
+    start: "50%,70%"
+    end: "50%,20%"

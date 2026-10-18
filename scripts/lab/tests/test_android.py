@@ -6,6 +6,7 @@ import io
 import shutil
 import subprocess
 import sys
+import tempfile
 import unittest
 from pathlib import Path
 
@@ -39,7 +40,7 @@ class FakeAdbExec:
             if self.cur_rotation == self.landscape_on_rot:
                 return subprocess.CompletedProcess(cmd, 0, stdout=b"sw924dp w1480dp h924dp\n", stderr=b"")
             return subprocess.CompletedProcess(cmd, 0, stdout=b"sw924dp w924dp h1480dp\n", stderr=b"")
-        if "pull /sdcard/pst_dump.xml" in joined:
+        if "pull /sdcard/PSTLab/pst_dump.xml" in joined:
             dest = Path(cmd[-1])
             shutil.copyfile(DATA_DIR / "android_dump.xml", dest)
             return subprocess.CompletedProcess(cmd, 0, stdout=b"", stderr=b"")
@@ -108,9 +109,7 @@ class TestAndroidLayer(unittest.TestCase):
             apply_config(adb, "tab-landscape-kbd", is_avd_kbd=False)
 
     def test_android_runner_executes_segments_and_captures_checkpoints(self) -> None:
-        run_dir = Path("/tmp/pstlab/test_android_runner")
-        if run_dir.exists():
-            shutil.rmtree(run_dir)
+        run_dir = Path(tempfile.mkdtemp(prefix="pstlab-test-android-runner-"))  # per process
         try:
             recorder = FakeAdbExec(landscape_on_rot=1)
             adb = AdbClient(serial="TEST1234", exec_fn=recorder)

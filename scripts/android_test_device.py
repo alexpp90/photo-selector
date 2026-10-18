@@ -20,6 +20,8 @@ Subcommands::
     python3 scripts/android_test_device.py prepare      # make the device test-ready (idempotent)
     python3 scripts/android_test_device.py load-images  # push fixture photos to /sdcard/PSTLab/
     python3 scripts/android_test_device.py status       # what is attached, designated, configured
+    python3 scripts/android_test_device.py with-lock [--timeout S] -- <cmd...>  # run cmd holding the device lock
+    python3 scripts/android_test_device.py lock-holder  # who holds the device lock (exit 1 if free)
 
 ``prepare`` mirrors what CI's emulator gets (animations off) and keeps a device that is
 plugged in permanently usable: screen on while powered, keyguard off, fixed portrait
@@ -29,16 +31,25 @@ installs. It uses ``adb root`` when the build allows it and works without it oth
 ``load-images`` generates the device lab's deterministic fixture sets
 (``scripts/lab/fixtures/spec.yaml``; needs Pillow and PyYAML) plus the supported-format
 corpus, and pushes them to ``/sdcard/PSTLab/<set>/`` — the only device path the lab writes.
+
+``with-lock`` holds the per-device lock the device lab's usability walkthroughs take
+(the lab's ``device_lock()``: an ``fcntl.flock`` on ``<lab tmp root>/device-<serial>.lock``,
+``/tmp/pstlab`` unless ``PST_LAB_TMP`` moves it) while it runs a command, so two sessions never drive the test
+device at once. It waits for a held lock up to ``--timeout`` seconds, then names the holder
+and exits with ``LOCK_BUSY_EXIT``.
 """
 
 from __future__ import annotations
 
 import argparse
+import fcntl
 import os
 import shutil
+import signal
 import subprocess
 import sys
 import tempfile
+import time
 from pathlib import Path
 from typing import Callable, Dict, List, Optional, Sequence, Tuple
 
@@ -47,6 +58,10 @@ LOCAL_PROPERTIES = REPO_ROOT / "products" / "android" / "local.properties"
 SERIAL_PROPERTY = "pst.testDevice.serial"
 DEVICE_ROOT = "/sdcard/PSTLab"
 HOST_STAGING = Path("/tmp/pstlab")
+LAB_DIR = REPO_ROOT / "scripts" / "lab"
+# EX_TEMPFAIL: the device is held by another session; distinct from any failure of the command.
+LOCK_BUSY_EXIT = 75
+DEFAULT_LOCK_TIMEOUT = 300.0
 
 Runner = Callable[[Sequence[str]], Tuple[int, str]]
 
@@ -197,7 +212,7 @@ def stage_images(sets: List[str], staging: Path) -> Dict[str, Path]:
     and left out rather than failing the whole load.
     """
     staged: Dict[str, Path] = {}
-    sys.path.insert(0, str(REPO_ROOT / "scripts" / "lab"))
+    _use_lab_package()
     try:
         from lab.fixtures import CorpusMissingError, generate_fixtures, load_spec
     except ImportError as exc:
@@ -252,6 +267,107 @@ def push_images(serial: str, staged: Dict[str, Path], runner: Runner = run) -> i
     return failures
 
 
+# ── Device lock ───────────────────────────────────────────────────────────────
+#
+# The lock itself is the device lab's `device_lock()` (scripts/lab/lab/usability/driver.py),
+# so a walkthrough and an instrumented run agree on file, flock semantics and holder text by
+# construction. The lab refuses a held lock at once; with-lock polls it until a timeout.
+
+
+def _use_lab_package() -> None:
+    if str(LAB_DIR) not in sys.path:
+        sys.path.insert(0, str(LAB_DIR))
+
+
+def device_lock_path(serial: str, base: Optional[Path] = None) -> Path:
+    """``<base>/device-<serial>.lock``; ``base`` defaults to the lab's ``lab_tmp_root()``."""
+    if not serial or "/" in serial or serial in (".", ".."):
+        raise ValueError(f"invalid device serial {serial!r}")
+    if base is None:
+        _use_lab_package()
+        from lab.paths import lab_tmp_root
+
+        base = lab_tmp_root()
+    return base / f"device-{serial}.lock"
+
+
+def lock_holder(path: Path) -> Optional[str]:
+    """The holder text if someone holds the lock at ``path``, else None (a free lock is left free)."""
+    try:
+        fd = os.open(path, os.O_RDONLY)
+    except FileNotFoundError:
+        return None
+    try:
+        try:
+            fcntl.flock(fd, fcntl.LOCK_SH | fcntl.LOCK_NB)
+        except BlockingIOError:
+            return os.pread(fd, 400, 0).decode("utf-8", errors="replace").strip() or "unknown holder"
+        return None  # the text left behind by an earlier holder is stale
+    finally:
+        os.close(fd)
+
+
+def _run_to_completion(cmd: Sequence[str]) -> int:
+    forwarded = (signal.SIGTERM, signal.SIGHUP, signal.SIGINT)
+    previous = {sig: signal.getsignal(sig) for sig in forwarded}
+    try:
+        try:
+            proc = subprocess.Popen(list(cmd))
+        except OSError as exc:
+            print(f"cannot run {cmd[0]}: {exc}", file=sys.stderr)
+            return 127
+        # Keep the lock until the command has really ended: pass SIGTERM/SIGHUP on instead of
+        # dying, and sit out Ctrl-C, which the terminal already delivers to the command's group.
+        for sig in forwarded:
+            signal.signal(sig, (lambda signum, _frame: None) if sig == signal.SIGINT
+                          else (lambda signum, _frame: proc.send_signal(signum)))
+        code = proc.wait()
+    finally:
+        for sig, handler in previous.items():
+            signal.signal(sig, handler)
+    if code < 0:
+        return 128 - code
+    # A command that itself exits 75 must not be mistaken for a busy device.
+    return 1 if code == LOCK_BUSY_EXIT else code
+
+
+def with_lock(
+    cmd: Sequence[str],
+    serial: str,
+    label: str,
+    timeout: float,
+    lock_dir: Optional[Path] = None,
+    poll: float = 2.0,
+    clock: Callable[[], float] = time.monotonic,
+    sleep: Callable[[float], None] = time.sleep,
+) -> int:
+    """Run ``cmd`` holding the device lock; return its exit status, or ``LOCK_BUSY_EXIT`` when
+    the lock is still held after ``timeout`` seconds (the command then never runs).
+
+    The lab opens the lock with ``os.open``, which is not inherited (PEP 446), so a Gradle
+    daemon started by the command never keeps the lock alive after the run.
+    """
+    device_lock_path(serial, lock_dir)  # validates the serial before it becomes a file name
+    _use_lab_package()
+    from lab.usability.driver import DeviceBusy, device_lock
+
+    deadline = clock() + timeout
+    announced = None
+    while True:
+        try:
+            with device_lock(serial, f"instrumented-tests {label}", lock_dir):
+                return _run_to_completion(cmd)
+        except DeviceBusy as exc:
+            remaining = deadline - clock()
+            if remaining <= 0:
+                print(f"test device busy after waiting {timeout:.0f}s — {exc}", file=sys.stderr)
+                return LOCK_BUSY_EXIT
+            if str(exc) != announced:
+                print(f"  waiting up to {remaining:.0f}s for the test device — {exc}", file=sys.stderr, flush=True)
+                announced = str(exc)
+            sleep(min(poll, remaining))
+
+
 # ── CLI ───────────────────────────────────────────────────────────────────────
 
 
@@ -268,6 +384,15 @@ def main(argv: Optional[List[str]] = None) -> int:
     p_img.add_argument("--serial")
     p_img.add_argument("--sets", default="",
                        help="comma-separated set names (default: every set in spec.yaml + format-corpus)")
+    p_lock = sub.add_parser("with-lock", help="run a command while holding the test device lock")
+    p_lock.add_argument("--serial")
+    p_lock.add_argument("--timeout", type=float, default=DEFAULT_LOCK_TIMEOUT,
+                        help=f"seconds to wait for a held lock (default {DEFAULT_LOCK_TIMEOUT:.0f})")
+    p_lock.add_argument("--label", default=Path.cwd().name,
+                        help="who is running, written into the lock (default: the current directory's name)")
+    p_lock.add_argument("cmd", nargs=argparse.REMAINDER, help="-- command [args...]")
+    p_holder = sub.add_parser("lock-holder", help="print who holds the test device lock (exit 1 if free)")
+    p_holder.add_argument("--serial")
     args = parser.parse_args(argv)
 
     if args.command == "status":
@@ -275,6 +400,8 @@ def main(argv: Optional[List[str]] = None) -> int:
         print(listing)
         serial, designated, reason = select()
         print(f"\ntest device: {serial or 'none'} ({reason})")
+        if serial:
+            print(f"device lock: {lock_holder(device_lock_path(serial)) or 'free'}")
         return 0 if serial else 1
 
     if getattr(args, "serial", None):
@@ -293,6 +420,17 @@ def main(argv: Optional[List[str]] = None) -> int:
     if not serial:
         print(f"no test device: {reason}", file=sys.stderr)
         return 1
+
+    if args.command == "with-lock":
+        cmd = args.cmd[1:] if args.cmd[:1] == ["--"] else args.cmd
+        if not cmd:
+            parser.error("with-lock needs a command after --")
+        return with_lock(cmd, serial, args.label, args.timeout)
+
+    if args.command == "lock-holder":
+        held_by = lock_holder(device_lock_path(serial))
+        print(held_by or f"device lock for {serial} is free", file=sys.stdout if held_by else sys.stderr)
+        return 0 if held_by else 1
 
     if args.command == "prepare":
         if not may_reconfigure(serial, designated):

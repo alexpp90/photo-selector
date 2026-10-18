@@ -5,6 +5,7 @@ from __future__ import annotations
 import json
 import shutil
 import sys
+import tempfile
 import unittest
 from pathlib import Path
 
@@ -16,10 +17,7 @@ from PIL import Image  # noqa: E402
 
 class TestReport(unittest.TestCase):
     def setUp(self) -> None:
-        self.run_dir = Path("/tmp/pstlab/test_report_run")
-        if self.run_dir.exists():
-            shutil.rmtree(self.run_dir)
-        self.run_dir.mkdir(parents=True, exist_ok=True)
+        self.run_dir = Path(tempfile.mkdtemp(prefix="pstlab-test-report-"))  # per process, see test_fixtures
 
     def tearDown(self) -> None:
         if self.run_dir.exists():
