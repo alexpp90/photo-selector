@@ -36,7 +36,7 @@ The codebase enforces strict separation of concerns:
 
 - The interface is English only; there is no translation.
 - The app makes no network connections and sends no telemetry. The optional local decision log stays on disk.
-- Move and Trash change files: Move relocates a photograph and its companions into `Selection/`, Trash sends them to the FreeDesktop Trash. Both can be undone with `Ctrl+Z`; Copy leaves the originals untouched.
+- Move and Trash change files: Move relocates a photograph and its companions into `Selection/`, Trash sends them to the FreeDesktop Trash. Both can be undone with `Ctrl+Z`; Copy leaves the originals untouched. If a failed Move or Copy cannot undo its own steps, the app names the files that stayed in `Selection/` and `Ctrl+Z` puts them back.
 
 ## Keyboard Shortcuts
 
