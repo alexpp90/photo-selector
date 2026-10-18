@@ -21,6 +21,7 @@ import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.async
+import kotlinx.coroutines.flow.toList
 import kotlinx.coroutines.test.StandardTestDispatcher
 import kotlinx.coroutines.test.UnconfinedTestDispatcher
 import kotlinx.coroutines.test.advanceUntilIdle
@@ -751,5 +752,131 @@ class SafTransferTest {
             jpeg.map { File(rootDir, "Selection/JPEG/$it").readText() }.toSet(),
         )
         assertEquals(listOf("Selection"), rootDir.list()!!.filter { it.startsWith("Selection") }.sorted())
+    }
+
+    // ── Default destination: always the Selection subfolder (lab 2026-10-18) ──
+    //
+    // With File Sorting off (the PHONE_LIBRARY / CLOUD_OTHER default) a copy landed in the
+    // source folder itself as `DSC_0007-2.JPG` next to the original, and the marker file went
+    // into the source folder. Sorting only adds RAW/ and JPEG/ inside Selection.
+
+    private fun seedShot(vararg names: String) = names.forEach { File(rootDir, it).writeText("payload-$it") }
+
+    private fun assertSourceFolderUntouched(vararg originals: String) {
+        val expected = (originals.toList() + PhotoFolders.SELECTION).sorted()
+        assertEquals(expected, rootDir.list()!!.sorted())
+    }
+
+    // REQ-TOK-FEATURE.05
+    @Test
+    fun `default copy of a single file lands flat in Selection, never next to the original`() = runTest {
+        seedShot("DSC_0007.JPG")
+
+        val result = source.copyImageWithResult(documentUriFor("DSC_0007.JPG"), treeUri, false, PhotoFolders.SELECTION)
+
+        assertTrue(result.success)
+        assertEquals("payload-DSC_0007.JPG", File(rootDir, "Selection/DSC_0007.JPG").readText())
+        assertTrue(File(rootDir, "Selection/${LocalImageSourceImpl.SELECTION_MARKER_FILE}").exists())
+        assertSourceFolderUntouched("DSC_0007.JPG")
+    }
+
+    // REQ-TOK-FEATURE.05
+    @Test
+    fun `default move of a single file lands flat in Selection`() = runTest {
+        seedShot("DSC_0007.JPG")
+
+        val result = source.moveImageWithResult(documentUriFor("DSC_0007.JPG"), treeUri, false, PhotoFolders.SELECTION)
+
+        assertTrue(result.success)
+        assertEquals("payload-DSC_0007.JPG", File(rootDir, "Selection/DSC_0007.JPG").readText())
+        assertEquals(listOf(PhotoFolders.SELECTION), rootDir.list()!!.toList())
+    }
+
+    // REQ-TOK-FEATURE.05
+    @Test
+    fun `default copy of a RAW+JPEG bundle lands flat in Selection with original names`() = runTest {
+        seedShot("DSC_0004.ARW", "DSC_0004.JPG")
+
+        val results = source.transferBundle(
+            sourceUris = listOf(documentUriFor("DSC_0004.ARW"), documentUriFor("DSC_0004.JPG")),
+            destFolderUri = treeUri,
+            sorting = false,
+            subfolderName = PhotoFolders.SELECTION,
+            isMove = false,
+        )
+
+        assertTrue(results.all { it.success })
+        assertEquals("payload-DSC_0004.ARW", File(rootDir, "Selection/DSC_0004.ARW").readText())
+        assertEquals("payload-DSC_0004.JPG", File(rootDir, "Selection/DSC_0004.JPG").readText())
+        assertSourceFolderUntouched("DSC_0004.ARW", "DSC_0004.JPG")
+    }
+
+    // REQ-TOK-FEATURE.05
+    @Test
+    fun `default move of a RAW+JPEG bundle lands flat in Selection`() = runTest {
+        seedShot("DSC_0004.ARW", "DSC_0004.JPG")
+
+        val results = source.transferBundle(
+            sourceUris = listOf(documentUriFor("DSC_0004.ARW"), documentUriFor("DSC_0004.JPG")),
+            destFolderUri = treeUri,
+            sorting = false,
+            subfolderName = PhotoFolders.SELECTION,
+            isMove = true,
+        )
+
+        assertTrue(results.all { it.success })
+        assertEquals(
+            listOf("DSC_0004.ARW", "DSC_0004.JPG", LocalImageSourceImpl.SELECTION_MARKER_FILE).sorted(),
+            File(rootDir, "Selection").list()!!.sorted(),
+        )
+        assertEquals(listOf(PhotoFolders.SELECTION), rootDir.list()!!.toList())
+    }
+
+    // REQ-TOK-FEATURE.05
+    @Test
+    fun `sorting on puts a single copy and a bundle into the type subfolders of Selection`() = runTest {
+        seedShot("DSC_0007.JPG", "DSC_0004.ARW", "DSC_0004.JPG")
+
+        assertTrue(source.copyImageWithResult(documentUriFor("DSC_0007.JPG"), treeUri, true, PhotoFolders.SELECTION).success)
+        val bundle = source.transferBundle(
+            sourceUris = listOf(documentUriFor("DSC_0004.ARW"), documentUriFor("DSC_0004.JPG")),
+            destFolderUri = treeUri,
+            sorting = true,
+            subfolderName = PhotoFolders.SELECTION,
+            isMove = false,
+        )
+
+        assertTrue(bundle.all { it.success })
+        assertTrue(File(rootDir, "Selection/JPEG/DSC_0007.JPG").exists())
+        assertTrue(File(rootDir, "Selection/RAW/DSC_0004.ARW").exists())
+        assertTrue(File(rootDir, "Selection/JPEG/DSC_0004.JPG").exists())
+        assertSourceFolderUntouched("DSC_0007.JPG", "DSC_0004.ARW", "DSC_0004.JPG")
+    }
+
+    // REQ-TOK-FEATURE.05, REQ-TOK-GESTURE.03 (left swipe copy/move to PhotoTok_LeftSwipe)
+    @Test
+    fun `default left-swipe copy lands flat in PhotoTok_LeftSwipe`() = runTest {
+        seedShot("DSC_0007.JPG")
+
+        val result = source.copyImageWithResult(documentUriFor("DSC_0007.JPG"), treeUri, false, PhotoFolders.LEFT_SWIPE)
+
+        assertTrue(result.success)
+        assertTrue(File(rootDir, "${PhotoFolders.LEFT_SWIPE}/DSC_0007.JPG").exists())
+        assertEquals(listOf("DSC_0007.JPG", PhotoFolders.LEFT_SWIPE).sorted(), rootDir.list()!!.sorted())
+    }
+
+    // REQ-TOK-FEATURE.05, REQ-TOK-FEATURE.06
+    @Test
+    fun `after a default copy the feed shows only the original and the Selection viewer shows the copy`() = runTest {
+        seedShot("DSC_0007.JPG")
+        assertTrue(source.copyImageWithResult(documentUriFor("DSC_0007.JPG"), treeUri, false, PhotoFolders.SELECTION).success)
+
+        val feed = source.discoverImages(treeUri).toList().last()
+        assertEquals(listOf("DSC_0007.JPG"), feed.map { it.fileName })
+        assertEquals(documentUriFor("DSC_0007.JPG").toString(), feed.single().uri)
+
+        val listing = source.listSelectionImages(treeUri, PhotoFolders.SELECTION)
+        assertTrue(listing is SelectionListing.Available)
+        assertEquals(listOf("DSC_0007.JPG"), (listing as SelectionListing.Available).images.map { it.fileName })
     }
 }
