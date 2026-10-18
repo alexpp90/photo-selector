@@ -149,7 +149,7 @@ fun CurrentFrameReadout(
 
         ExifFormatter.summaryLine(image.exifData)?.let { line ->
             Text(
-                text = line,
+                text = keepExposureTokensWhole(line),
                 fontSize = 11.5.sp,
                 fontFamily = FontFamily.Monospace,
                 color = Zinc400,
@@ -492,3 +492,19 @@ private fun LimitedMetadataMarker() {
         Text(text = "limited metadata", fontSize = 11.sp, color = WarningAmber)
     }
 }
+
+/**
+ * The exposure line with its only break opportunities after a separator (AD-16).
+ *
+ * Spaces inside a token (`ISO 400`) and before a separator become no-break
+ * spaces, so a narrow flank wraps `1/250s · f/2.8 · 50mm ·` / `ISO 400` — never
+ * `ISO` / `400`, and never a line that starts with the dot.
+ */
+internal fun keepExposureTokensWhole(line: String): String =
+    line.split(SEPARATOR_PATTERN).joinToString(NO_BREAK_SEPARATOR) { it.trim().replace(' ', NO_BREAK_SPACE) }
+
+private val SEPARATOR_PATTERN = Regex("\\s+·\\s+")
+private const val NO_BREAK_SPACE = '\u00A0'
+
+/** `  ·  ` as drawn, breakable only at its final (ordinary) space. */
+private const val NO_BREAK_SEPARATOR = "\u00A0\u00A0·\u00A0 "

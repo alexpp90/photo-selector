@@ -54,6 +54,9 @@ import androidx.compose.ui.input.pointer.pointerHoverIcon
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
+import androidx.compose.foundation.text.BasicText
+import androidx.compose.foundation.text.TextAutoSize
+import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
@@ -504,12 +507,14 @@ private fun WordedButton(
                 modifier = Modifier.size(20.dp),
                 tint = resolvedContent,
             )
-            Text(
+            // Shrinks to 10 sp before it ever ellipsizes: at 960 × 600 the 13 sp
+            // word read "Dele…", and a destructive control must say what it does.
+            BasicText(
                 text = word,
-                fontSize = 13.sp,
-                color = resolvedContent,
+                style = TextStyle(fontSize = 13.sp, color = resolvedContent),
                 maxLines = 1,
                 overflow = TextOverflow.Ellipsis,
+                autoSize = TextAutoSize.StepBased(minFontSize = 10.sp, maxFontSize = 13.sp),
                 modifier = Modifier.weight(1f, fill = false),
             )
             Text(
