@@ -1,6 +1,19 @@
 appId: com.phototok.lab
 ---
-- tapOn:
-    id: "info_exif_button"
+# Hide the EXIF stats again before zooming (see 02_open_info.yaml for the two orientations).
+- runFlow:
+    when:
+      visible:
+        id: "viewer.info"
+    commands:
+      - tapOn:
+          id: "info_exif_button"
+- runFlow:
+    when:
+      visible:
+        text: "ISO 400"
+    commands:
+      - tapOn:
+          id: "landscape_info_exif_button"
 - doubleTapOn:
     id: "viewer.photo"
