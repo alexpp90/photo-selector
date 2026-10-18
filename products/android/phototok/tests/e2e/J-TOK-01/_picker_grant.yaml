@@ -1,5 +1,12 @@
 appId: com.phototok.lab
 ---
+# Below the fold on small phones, its centre under the navigation bar (see _ensure_folder.yaml).
+- scrollUntilVisible:
+    element:
+      id: "landing_custom_folder_card"
+    centerElement: true
+    visibilityPercentage: 100
+    timeout: 10000
 - tapOn:
     id: "landing_custom_folder_card"
 - runFlow: ../_pick_work_folder.yaml
