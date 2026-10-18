@@ -101,6 +101,7 @@ jobs:
     needs: swift-test
     if: github.event_name == 'workflow_dispatch' || (github.event_name == 'push' && (github.ref == 'refs/heads/main' || startsWith(github.ref, 'refs/tags/macos-desktop-v')))
     runs-on: macos-latest
+    timeout-minutes: 30
     defaults:
       run:
         shell: bash
@@ -155,6 +156,7 @@ jobs:
     needs: build
     if: github.event_name == 'push' && (github.ref == 'refs/heads/main' || startsWith(github.ref, 'refs/tags/macos-desktop-v'))
     runs-on: ubuntu-latest
+    timeout-minutes: 10
     permissions:
       contents: write
     steps:
@@ -203,6 +205,7 @@ jobs:
     needs: release
     if: github.event_name == 'push' && (github.ref == 'refs/heads/main' || startsWith(github.ref, 'refs/tags/macos-desktop-v'))
     runs-on: ubuntu-latest
+    timeout-minutes: 10
     permissions:
       contents: read
     env:

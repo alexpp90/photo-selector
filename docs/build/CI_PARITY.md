@@ -30,7 +30,7 @@ The rule that prevents it:
 | Gate | CI job | Local | Notes |
 |---|---|---|---|
 | flake8 `src/ tests/` | `desktop.yml:lint` | ✅ everywhere | **Gates the entire desktop pipeline.** A lint error fails the run before one test executes. |
-| pytest `-m "not visual"` | `desktop.yml:test` | ✅ everywhere | Same marker filter locally and in CI. On Linux the runner renders it on its own Xvfb, as CI does — see [GUI gates run on Xvfb](#gui-gates-run-on-xvfb-not-your-screen). |
+| pytest `-m "not visual"` | `desktop.yml:test` | ✅ everywhere | Same marker filter locally and in CI. CI and the mirror both pass `-o faulthandler_timeout=120` (also to the visual job), so a test that blocks in Tk or native code fails with every thread's stack instead of hanging. On Linux the runner renders it on its own Xvfb, as CI does — see [GUI gates run on Xvfb](#gui-gates-run-on-xvfb-not-your-screen). |
 | Coverage `--cov-fail-under=60` | `desktop.yml:test` (**Linux only**) | ✅ advisory everywhere | See [Coverage is Linux-authoritative](#coverage-is-linux-authoritative). |
 | Visual regression | `desktop.yml:visual` | ⚠️ Linux + Xvfb; baselines are runner-rendered | See [Visual regression](#visual-regression-linux-only). |
 | `testDebugUnitTest` | `android.yml:unit-tests` | ✅ needs JDK 17 + Android SDK | |
@@ -318,6 +318,14 @@ framework.
 - **`publish-play` fails on a missing/empty artifact** → the upstream build
   step did not produce it. All release uploads now use
   `if-no-files-found: error`, so this should fail at the producing step first.
+- **A job that sits "in progress" far past its usual time** is hung, not slow. Every job
+  declares `timeout-minutes` (about three times its slowest green run, at least 10), so it
+  fails instead of running into GitHub's 360-minute default. The pytest jobs
+  (`desktop.yml:test`, `desktop.yml:visual`, `linux.yml:test`) pass
+  `-o faulthandler_timeout=120`, so a single blocked test dumps every thread's stack into the
+  log. `scripts/tests/test_workflow_bounds.py` (run by `repo-hygiene.yml` and the mirror)
+  fails when a job or a CI pytest command lacks either. A timeout is a CI-only bound with no local mirror: `run_tests.sh` runs in the
+  foreground, where you see a hang yourself.
 - **An "Unexpected input(s) …" annotation** is a *warning*, not an error: the
   input was silently ignored and whatever it was supposed to configure never
   took effect. Treat it as a broken fix, not cosmetic noise.
