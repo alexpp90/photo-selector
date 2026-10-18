@@ -14,7 +14,9 @@ steps:
   - {keys: [FORWARD_DEL]}
   - {maestro: products/android/android-desktop/tests/e2e/J-AD-02/02_confirm_delete.yaml}
   - {checkpoint: after-delete}
-  - {maestro: products/android/android-desktop/tests/e2e/J-AD-02/03_tap_undo.yaml}
+  # Ctrl+Z, not the snackbar's Undo: starting a Maestro flow takes longer than the snackbar's
+  # 30 s, so the button was gone by the time a flow could tap it (Pixel Tablet, 2026-10-18).
+  - {keys: [[CTRL_LEFT, Z]]}
   - {checkpoint: after-undo}
   - {keys: ["2"]}
   - {checkpoint: maximised}

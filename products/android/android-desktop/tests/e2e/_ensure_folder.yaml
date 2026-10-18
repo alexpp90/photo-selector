@@ -11,6 +11,15 @@ appId: com.photoselectortoolbox.lab
       id: "image_region"
     timeout: 6000
     optional: true
+# Deletions an earlier journey left pending are offered on the next launch ("Uncompleted
+# Deletions", REQ-AND-LAYOUT.23) in a dialog window; "Keep" changes nothing on disk.
+- runFlow:
+    when:
+      visible:
+        text: "Uncompleted Deletions"
+    commands:
+      - tapOn:
+          text: "Keep"
 - tapOn:
     id: "coach_overlay_(skip|dismiss)"
     optional: true

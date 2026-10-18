@@ -10,6 +10,7 @@ overlay_ids:
   # The first-run pill may sit inside a frame (REQ-AND-LAYOUT.17); what it must not cover is
   # listed under guidance_must_not_cover.
   - first_run_hint
+  - first_run_hint_dismiss
 frame_ids:
   - image_region
   - maximised_frame
