@@ -5,6 +5,7 @@ from __future__ import annotations
 import json
 import shutil
 import sys
+import tempfile
 import unittest
 from pathlib import Path
 
@@ -17,10 +18,7 @@ from PIL import Image, ImageDraw  # noqa: E402
 
 class TestReviewAndIngest(unittest.TestCase):
     def setUp(self) -> None:
-        self.base = Path("/tmp/pstlab/test_review_ingest")
-        if self.base.exists():
-            shutil.rmtree(self.base)
-        self.base.mkdir(parents=True, exist_ok=True)
+        self.base = Path(tempfile.mkdtemp(prefix="pstlab-test-review-"))  # per process, see test_fixtures
 
     def tearDown(self) -> None:
         if self.base.exists():
