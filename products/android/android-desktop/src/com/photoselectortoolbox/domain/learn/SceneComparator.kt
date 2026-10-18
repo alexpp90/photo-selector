@@ -72,9 +72,8 @@ object SceneComparator {
         rawClusters.forEachIndexed { idx, cluster ->
             val sortedByQuality = cluster.sortedByDescending { item ->
                 val s = item.scanResult?.sharpnessScore ?: 0.0
-                val a = (item.scanResult?.aestheticScore ?: 0.0) * 5.0
                 val clipPenalty = (item.scanResult?.highlightClipping ?: 0.0) * 3.0
-                s + a - clipPenalty
+                s - clipPenalty
             }
             val best = sortedByQuality.first()
             val other = sortedByQuality.last()

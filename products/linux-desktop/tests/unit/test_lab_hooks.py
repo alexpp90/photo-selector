@@ -198,3 +198,53 @@ def test_lab_checkpoint_recorder_writes_all_four_files(tmp_path: Path) -> None:
     out2 = recorder.record_checkpoint(window, "after-move")
     timing2 = json.loads(out2["timing"].read_text(encoding="utf-8"))
     assert timing2 == {"checkpoint": "after-move", "t_ms": 650, "step_ms": 400}
+
+
+# ── Q-2: the hooks must not leak outside the app window or into a shared /tmp ────────────────
+
+def test_default_artifacts_dir_is_private_to_the_user(tmp_path: Path, monkeypatch) -> None:
+    runtime = tmp_path / "run" / "user" / "1000"
+    runtime.mkdir(parents=True)
+    monkeypatch.delenv("PST_LAB_ARTIFACTS", raising=False)
+    monkeypatch.setenv("XDG_RUNTIME_DIR", str(runtime))
+
+    assert LabCheckpointRecorder().artifacts_dir == runtime / "pstlab-artifacts"
+
+
+def test_default_artifacts_dir_without_runtime_dir_is_a_per_user_private_directory(monkeypatch, tmp_path) -> None:
+    import os
+    import stat
+    import tempfile
+
+    monkeypatch.delenv("PST_LAB_ARTIFACTS", raising=False)
+    monkeypatch.delenv("XDG_RUNTIME_DIR", raising=False)
+    monkeypatch.setattr(tempfile, "gettempdir", lambda: str(tmp_path))
+
+    recorder = LabCheckpointRecorder()
+    window = None
+    recorder.record_checkpoint(window, "opened")
+
+    directory = recorder.artifacts_dir
+    assert directory != Path("/tmp/pstlab-artifacts")
+    assert str(os.getuid()) in directory.name
+    assert stat.S_IMODE(directory.stat().st_mode) == 0o700
+
+
+def test_explicit_artifacts_dir_from_the_lab_is_honoured(tmp_path: Path, monkeypatch) -> None:
+    monkeypatch.setenv("PST_LAB_ARTIFACTS", str(tmp_path / "chosen"))
+
+    assert LabCheckpointRecorder().artifacts_dir == tmp_path / "chosen"
+
+
+def test_failed_window_snapshot_never_falls_back_to_a_root_window_screenshot(tmp_path: Path, monkeypatch) -> None:
+    import subprocess
+
+    def forbidden(*args, **kwargs):  # pragma: no cover - failing is the point
+        raise AssertionError(f"must not run an external screenshot tool: {args}")
+
+    monkeypatch.setattr(subprocess, "run", forbidden)
+    recorder = LabCheckpointRecorder(artifacts_dir=tmp_path)
+
+    recorder.record_checkpoint(None, "opened")  # no window: nothing may capture the desktop
+
+    assert not (tmp_path / "01_opened.png").exists()

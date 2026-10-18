@@ -867,9 +867,14 @@ public final class CullingWorkspaceViewModel: ObservableObject {
                         }
                         if let self, self.photos.indices.contains(targetIndex) {
                             self.photos[targetIndex].status = previousStatus
+                            var rollbackFailed = false
+                            if case .partialMove(_, _, _, let stranded) = error { rollbackFailed = !stranded.isEmpty }
                             self.showToast(
                                 icon: "exclamationmark.triangle.fill",
-                                title: "Copied to \(destinationFolder) — original could not be removed",
+                                title: CullingFeedback.partialMoveTitle(
+                                    destinationFolder: destinationFolder,
+                                    rollbackFailed: rollbackFailed
+                                ),
                                 subtitle: photo.filename
                             )
                             NSSound.beep()

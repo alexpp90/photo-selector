@@ -207,6 +207,24 @@ class LearnModulesTest {
         assertTrue(scene.diffExplanation.contains("1/30"))
     }
 
+    @Test
+    fun `SceneComparator ranking ignores a legacy cached aesthetic score`() {
+        fun item(name: String, sharp: Double, legacy: Double?) = ImageItem(
+            uri = "content://test/$name.jpg",
+            fileName = "$name.JPG",
+            fileSize = 1000L,
+            lastModified = 1_000_000L,
+            mimeType = "image/jpeg",
+            exifData = ExifData(shutterSpeed = 1.0 / 500.0, aperture = 2.8, iso = 200, focalLength35mm = 85.0),
+            scanResult = ScanResult(filePath = "content://test/$name.jpg", sharpnessScore = sharp, aestheticScore = legacy),
+            groupId = 1,
+        )
+        val sharp = item("a", 64.0, null)
+        val blurryWithLegacy = item("b", 18.0, 9.5)
+        val scene = SceneComparator.findComparableScenes(listOf(blurryWithLegacy, sharp)).single()
+        assertEquals(sharp.uri, scene.primaryPhoto.uri)
+    }
+
     // --- U-28: PracticeAndInsightsEngine ---
 
     @Test

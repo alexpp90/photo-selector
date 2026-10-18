@@ -32,7 +32,7 @@
 
 ## 🚀 Product Overview
 
-**PhotoTok** (`products/android/phototok/`, package `com.phototok`) is the phone-first photo culling application within the Photo Selector Toolbox ecosystem. It translates TikTok's familiar, effortless vertical swipe mechanic into a professional photography triage workflow.
+**PhotoTok** (`products/android/phototok/`, package `com.phototok`) is the phone-first photo culling application within the Photo Selector Toolbox ecosystem. It turns a familiar, effortless full-screen vertical swipe feed into a photography triage workflow.
 
 While the desktop and tablet products emphasize multi-up comparative culling and computational quality scores (OpenCV / Accelerate), **PhotoTok deliberately omits heavy analysis libraries to optimize for a single metric: time-to-first-swipe.** Even folders containing thousands of high-resolution photos become navigable within a fraction of a second.
 

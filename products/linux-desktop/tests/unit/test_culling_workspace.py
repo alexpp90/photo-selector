@@ -68,7 +68,8 @@ def test_libadwaita_components():
 def test_studio_dark_palette():
     """Verify Obsidian Darkroom & Optical Cobalt palette tokens and CSS classes (R-LINUX-UI-02)."""
     assert APP_THEME_NAME == "Obsidian Darkroom & Optical Cobalt"
-    assert "Obsidian Darkroom" in APP_BRAND_TAGLINE
+    assert "Obsidian" not in APP_BRAND_TAGLINE and "Darkroom" not in APP_BRAND_TAGLINE
+    assert "RAW" in APP_BRAND_TAGLINE
     assert STUDIO_PALETTE["surface_bg"] == "#141417"
     assert STUDIO_PALETTE["header_chrome"] == "#181920"
     assert STUDIO_PALETTE["card_bg"] == "#1C1C20"
@@ -701,6 +702,103 @@ def test_folder_change_completes_queued_jobs_without_dropping(tmp_path):
     assert vm.queued_count == 0 and not vm.is_busy
     # New folder's workspace remains clean
     assert vm.candidates == [] and vm.trashed_count == 0
+
+
+def _two_folders(tmp_path):
+    a_dir, b_dir = tmp_path / "a", tmp_path / "b"
+    a_dir.mkdir()
+    b_dir.mkdir()
+    return a_dir, b_dir
+
+
+def test_operation_finishing_after_a_folder_switch_keeps_its_undo_record(tmp_path):
+    """Q-7: a Move/Trash that completes on the worker after the folder changed must stay undoable."""
+    a_dir, b_dir = _two_folders(tmp_path)
+    manager = MagicMock()
+    dispatcher = DeferredDispatcher()
+    vm = CullingWorkspaceViewModel(file_manager=manager, dispatcher=dispatcher)
+    vm.load_directory(a_dir)
+    photo = CandidatePhoto(primary_path=a_dir / "x.jpg", companion_paths=[])
+    vm.candidates = [photo]
+    manager.trash_candidate.side_effect = lambda p: _record(p, CullingActionType.TRASH)
+
+    vm.cull_trash()
+    vm.load_directory(b_dir)  # the trash job has not run yet
+    dispatcher.finish()
+
+    # The new folder's workspace stays clean: no entry and no photo that belongs to folder A.
+    assert vm.undo_stack == [] and vm.candidates == []
+    vm.load_directory(a_dir)
+
+    assert len(vm.undo_stack) == 1
+    record = vm.undo_stack[0][0]
+    assert record.action_type == CullingActionType.TRASH and record is not None
+    vm.undo()
+    dispatcher.finish()
+    assert manager.undo_culling.call_args.args[0] is record
+
+
+def test_completed_operations_survive_leaving_and_reopening_a_folder(tmp_path):
+    a_dir, b_dir = _two_folders(tmp_path)
+    manager = MagicMock()
+    dispatcher = DeferredDispatcher()
+    vm = CullingWorkspaceViewModel(file_manager=manager, dispatcher=dispatcher)
+    vm.load_directory(a_dir)
+    photo = CandidatePhoto(primary_path=a_dir / "y.jpg", companion_paths=[])
+    vm.candidates = [photo]
+    manager.move_candidate.side_effect = lambda p, folder, **kw: _record(p, CullingActionType.MOVE)
+    vm.cull_move()
+    dispatcher.finish()
+    assert len(vm.undo_stack) == 1
+
+    vm.load_directory(b_dir)
+    assert vm.undo_stack == []  # Ctrl+Z in folder B must never touch folder A's files
+    vm.load_directory(a_dir)
+
+    assert len(vm.undo_stack) == 1
+
+
+def test_partial_move_finishing_after_a_folder_switch_keeps_its_record(tmp_path):
+    from photo_selector_linux.core.file_ops import FileCullingError
+
+    a_dir, b_dir = _two_folders(tmp_path)
+    manager = MagicMock()
+    dispatcher = DeferredDispatcher()
+    vm = CullingWorkspaceViewModel(file_manager=manager, dispatcher=dispatcher)
+    vm.load_directory(a_dir)
+    photo = CandidatePhoto(primary_path=a_dir / "z.jpg", companion_paths=[])
+    vm.candidates = [photo]
+    partial = _record(photo, CullingActionType.MOVE)
+    manager.move_candidate.side_effect = FileCullingError("original could not be removed", partial_record=partial)
+
+    vm.cull_move()
+    vm.load_directory(b_dir)
+    dispatcher.finish()
+    assert vm.undo_stack == []
+    vm.load_directory(a_dir)
+
+    assert [entry[0] for entry in vm.undo_stack] == [partial]
+
+
+def test_folder_history_is_bounded(tmp_path):
+    manager = MagicMock()
+    dispatcher = DeferredDispatcher()
+    vm = CullingWorkspaceViewModel(file_manager=manager, dispatcher=dispatcher)
+    manager.trash_candidate.side_effect = lambda p: _record(p, CullingActionType.TRASH)
+    folders = []
+    for i in range(vm.MAX_REMEMBERED_FOLDERS + 3):
+        d = tmp_path / f"f{i}"
+        d.mkdir()
+        folders.append(d)
+        vm.load_directory(d)
+        vm.candidates = [CandidatePhoto(primary_path=d / "p.jpg", companion_paths=[])]
+        vm.cull_trash()
+        dispatcher.finish()
+
+    vm.load_directory(folders[0])  # long forgotten
+    assert vm.undo_stack == []
+    vm.load_directory(folders[-2])  # still remembered
+    assert len(vm.undo_stack) == 1
 
 
 def test_failed_queued_action_rolls_back_and_cancels_dependent_actions_on_same_photo():

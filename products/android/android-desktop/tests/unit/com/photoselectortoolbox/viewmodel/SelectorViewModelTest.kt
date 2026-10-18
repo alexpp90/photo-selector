@@ -160,6 +160,8 @@ class SelectorViewModelTest {
 
     private val scanImagesUseCase: ScanImagesUseCase = mockk(relaxed = true)
 
+    private val cacheRepository: CacheRepository = mockk(relaxed = true)
+
     private val scoreDao: ScoreDao = mockk(relaxed = true) {
         coEvery { getScore(any()) } returns null
     }
@@ -178,7 +180,7 @@ class SelectorViewModelTest {
         val viewModel = SelectorViewModel(
             imageRepository = imageRepository,
             scanImagesUseCase = scanImagesUseCase,
-            cacheRepository = mockk<CacheRepository>(relaxed = true),
+            cacheRepository = cacheRepository,
             settingsRepository = settingsRepository,
             scoreDao = scoreDao,
             appScope = appScope,
@@ -567,6 +569,40 @@ class SelectorViewModelTest {
         viewModel.moveToSelection()
 
         assertEquals("Moved to Selection as IMG_0001-2.jpg", viewModel.uiState.value.snackbarMessage)
+    }
+
+    // ── B-9 / D-13: a rating follows its file ─────────────────────────────
+
+    @Test
+    fun `a rated photo keeps its rating when it is moved into the Selection and when the move is undone`() = runTest {
+        val item = image("IMG_0010.jpg")
+        val moved = "content://test/folder/Selection/JPEG/IMG_0010.jpg"
+        val restored = "content://test/folder/IMG_0010-2.jpg"
+        coEvery { imageRepository.moveBundle(any(), item, any(), any()) } returns
+            FileOperationResult.success(item.uri, moved, listOf(moved), null)
+        coEvery { imageRepository.undoMoveBundle(any(), listOf(moved), Uri.parse(FOLDER_URI), any(), any()) } returns
+            FileOperationResult.success(moved, restored, listOf(restored), null)
+
+        val viewModel = loadFolder(item, image("b.jpg"))
+        viewModel.moveToSelection()
+        coVerify { cacheRepository.moveRating(item.uri, moved) }
+
+        viewModel.undoLastOperation()
+        coVerify { cacheRepository.moveRating(moved, restored) }
+    }
+
+    @Test
+    fun `a copy gets the rating of its original`() = runTest {
+        val item = image("IMG_0011.jpg")
+        val copy = "content://test/folder/Selection/JPEG/IMG_0011.jpg"
+        coEvery { imageRepository.copyBundle(any(), item, any(), any()) } returns
+            FileOperationResult.success(item.uri, copy, listOf(copy), null)
+
+        val viewModel = loadFolder(item, image("b.jpg"))
+        viewModel.copyToSelection()
+
+        coVerify { cacheRepository.copyRating(item.uri, copy) }
+        coVerify(exactly = 0) { cacheRepository.moveRating(any(), any()) }
     }
 
     @Test

@@ -393,6 +393,15 @@ if $run_android; then
                 "$ROOT_DIR/products/android/android-desktop/build/intermediates/merged_native_libs/debug" \
                 "$ROOT_DIR/products/android/phototok/build/intermediates/merged_native_libs/debug"
 
+        # android.yml:build packages the debug APKs and checks them too: ELF alignment plus the
+        # zip-entry alignment of the stored .so files (finding Q-6) — only an APK has the latter.
+        gate "gradlew assembleDebug" "android.yml:build" \
+            ./gradlew assembleDebug --stacktrace
+        gate "check_native_alignment.py (debug APKs: ELF + zip-entry alignment)" "android.yml:build" \
+            python3 "$ROOT_DIR/scripts/check_native_alignment.py" \
+                "$ROOT_DIR"/products/android/android-desktop/build/outputs/apk/debug/*.apk \
+                "$ROOT_DIR"/products/android/phototok/build/outputs/apk/debug/*.apk
+
         # ── Android lint (advisory) ───────────────────────────────
         # Deliberately non-blocking: the CI job is `continue-on-error: true`
         # and both modules set `abortOnError = false`. Mirrored as advisory so
@@ -448,6 +457,13 @@ if $run_macos; then
         fi
         gate "swift test (products/macos-desktop)" "macos.yml:swift-test" \
             swift test "${SWIFT_TEST_ARGS[@]}"
+
+        # macos.yml builds the release binary and refuses one that carries the UI test hooks.
+        gate "swift build -c release (products/macos-desktop)" "macos.yml:swift-test" \
+            swift build -c release --package-path "$ROOT_DIR/products/macos-desktop"
+        gate "release binary carries no UI test hooks" "macos.yml:swift-test" \
+            "$ROOT_DIR/products/macos-desktop/scripts/check_no_test_hooks.sh" \
+            "$ROOT_DIR/products/macos-desktop/.build/release/PhotoSelectorApp"
 
         # Local-only gate: drives the RUNNING app (activation policy, real key events,
         # rendered Focus 3-Up geometry, clicks while zoomed, time-to-first-photo). Unit
@@ -555,6 +571,8 @@ if have python3; then
         python3 scripts/check_readme_parity.py --check
     gate "no private-overlay material tracked" "repo-hygiene.yml:hygiene" \
         python3 scripts/check_private_paths.py
+    gate "release metadata consistent" "repo-hygiene.yml:hygiene" \
+        python3 scripts/release.py check
     gate "format contract manifest" "repo-hygiene.yml:hygiene" \
         python3 scripts/fetch_format_corpus.py --validate
     gate "format corpus tooling tests" "repo-hygiene.yml:hygiene" \
@@ -564,6 +582,7 @@ if have python3; then
 else
     skip "readme parity" "" "python3 not found"
     skip "no private-overlay material tracked" "" "python3 not found"
+    skip "release metadata consistent" "" "python3 not found"
     skip "format contract manifest" "" "python3 not found"
     skip "format corpus tooling tests" "" "python3 not found"
     skip "lab tooling tests" "" "python3 not found"

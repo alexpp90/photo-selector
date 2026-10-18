@@ -21,6 +21,12 @@ enum class FolderAccessPurpose {
     SELECTION_TARGET,
     LEFT_SWIPE_TARGET,
     RECENT_FOLDER,
+
+    /** The folder an in-memory undo history (moves, pending deletes) still operates on. */
+    UNDO_HISTORY,
+
+    /** Document URIs in the persisted pending-delete queue: their tree's grant is needed to commit or recover them. */
+    PENDING_DELETE_JOURNAL,
 }
 
 /**
@@ -72,6 +78,25 @@ class FolderAccessManager internal constructor(
     internal constructor() : this(backend = null)
 
     companion object {
+        /**
+         * Normalised form for comparing URIs: scheme and authority lower-cased, the rest
+         * percent-decoded (so `%3A` and `%3a` agree), no trailing slash. Pure string work.
+         */
+        internal fun canonicalUri(uri: String): String {
+            val schemeEnd = uri.indexOf("://")
+            if (schemeEnd < 0) return uri.trimEnd('/')
+            val rest = uri.substring(schemeEnd + 3)
+            val authorityEnd = rest.indexOf('/').let { if (it < 0) rest.length else it }
+            val head = uri.substring(0, schemeEnd).lowercase() + "://" + rest.substring(0, authorityEnd).lowercase()
+            val path = rest.substring(authorityEnd)
+            val decoded = try {
+                java.net.URLDecoder.decode(path.replace("+", "%2B"), "UTF-8")
+            } catch (_: Exception) {
+                path
+            }
+            return head + decoded.trimEnd('/')
+        }
+
         private const val TAG = "FolderAccessManager"
         internal const val READ_WRITE_FLAGS: Int =
             Intent.FLAG_GRANT_READ_URI_PERMISSION or Intent.FLAG_GRANT_WRITE_URI_PERMISSION
@@ -80,6 +105,13 @@ class FolderAccessManager internal constructor(
     private val lock = Any()
     private val grantsByPurpose =
         EnumMap<FolderAccessPurpose, MutableSet<String>>(FolderAccessPurpose::class.java)
+
+    /**
+     * References held by live in-memory state (the pending-delete undo stack). Unlike [grantsByPurpose]
+     * they are not derived from DataStore, so [syncReferences] must not wipe them.
+     */
+    private val pinnedByPurpose =
+        EnumMap<FolderAccessPurpose, Set<String>>(FolderAccessPurpose::class.java)
 
     /**
      * Persist read/write access for [uri] and record it under [purpose].
@@ -130,6 +162,16 @@ class FolderAccessManager internal constructor(
     }
 
     /**
+     * Replace the set of URIs that live in-memory state keeps open for [purpose]; an empty set
+     * unpins. Survives [syncReferences].
+     */
+    fun pin(purpose: FolderAccessPurpose, uris: Set<String>) {
+        synchronized(lock) {
+            if (uris.isEmpty()) pinnedByPurpose.remove(purpose) else pinnedByPurpose[purpose] = LinkedHashSet(uris)
+        }
+    }
+
+    /**
      * Release the OS persisted grant for [uriString] if no purpose in the
      * current reference table (or [additionalReferencedUris]) still references it.
      *
@@ -140,8 +182,9 @@ class FolderAccessManager internal constructor(
         additionalReferencedUris: Set<String> = emptySet(),
     ): Boolean {
         val stillReferenced = synchronized(lock) {
-            uriString in additionalReferencedUris ||
-                grantsByPurpose.values.any { uriString in it }
+            isReferenced(uriString, additionalReferencedUris) ||
+                grantsByPurpose.values.any { isReferenced(uriString, it) } ||
+                pinnedByPurpose.values.any { isReferenced(uriString, it) }
         }
         if (stillReferenced) return false
         releaseGrantInternal(Uri.parse(uriString))
@@ -159,7 +202,7 @@ class FolderAccessManager internal constructor(
     ): Set<String> {
         syncReferences(referencedByPurpose)
         val allReferenced = synchronized(lock) {
-            grantsByPurpose.values.flatten().toSet()
+            (grantsByPurpose.values.flatten() + pinnedByPurpose.values.flatten()).toSet()
         }
         val persisted = try {
             backend?.persistedGrantUris().orEmpty()
@@ -169,7 +212,7 @@ class FolderAccessManager internal constructor(
         }
         val released = LinkedHashSet<String>()
         for (persistedUri in persisted) {
-            if (persistedUri !in allReferenced) {
+            if (!isReferenced(persistedUri, allReferenced)) {
                 releaseGrantInternal(Uri.parse(persistedUri))
                 released.add(persistedUri)
             }
@@ -186,6 +229,19 @@ class FolderAccessManager internal constructor(
         synchronized(lock) {
             grantsByPurpose.values.flatten().toSet()
         }
+
+    /**
+     * True when [tree] is referenced by [references], comparing normalized URIs: the same folder in
+     * another spelling (percent-escape case, trailing slash) counts, and so does a *document* inside
+     * the tree (a pending-delete entry needs the grant of the tree it lives in).
+     */
+    private fun isReferenced(tree: String, references: Collection<String>): Boolean {
+        val wanted = canonicalUri(tree)
+        return references.any { reference ->
+            val candidate = canonicalUri(reference)
+            candidate == wanted || candidate.startsWith("$wanted/document/")
+        }
+    }
 
     private fun releaseGrantInternal(uri: Uri) {
         try {

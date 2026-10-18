@@ -48,7 +48,6 @@ class ScoreMetricTest {
         assertEquals("3.2", ScoreMetric.NOISE.format(3.24))
         assertEquals("1.4%", ScoreMetric.HIGHLIGHT_CLIPPING.format(1.44))
         assertEquals("0.0%", ScoreMetric.SHADOW_CLIPPING.format(0.0))
-        assertEquals("7.8", ScoreMetric.AESTHETIC.format(7.81))
     }
 
     @Test
@@ -66,7 +65,6 @@ class ScoreMetricTest {
     @Test
     fun `direction is correct per metric`() {
         assertEquals(ScoreDirection.HIGHER_IS_BETTER, ScoreMetric.SHARPNESS.direction)
-        assertEquals(ScoreDirection.HIGHER_IS_BETTER, ScoreMetric.AESTHETIC.direction)
         assertEquals(ScoreDirection.LOWER_IS_BETTER, ScoreMetric.NOISE.direction)
         assertEquals(ScoreDirection.LOWER_IS_BETTER, ScoreMetric.HIGHLIGHT_CLIPPING.direction)
         assertEquals(ScoreDirection.LOWER_IS_BETTER, ScoreMetric.SHADOW_CLIPPING.direction)
@@ -78,7 +76,6 @@ class ScoreMetricTest {
         assertEquals(3.24, ScoreMetric.NOISE.valueOf(fullResult))
         assertEquals(1.44, ScoreMetric.HIGHLIGHT_CLIPPING.valueOf(fullResult))
         assertEquals(0.0, ScoreMetric.SHADOW_CLIPPING.valueOf(fullResult))
-        assertEquals(7.81, ScoreMetric.AESTHETIC.valueOf(fullResult))
     }
 
     @Test
@@ -90,10 +87,10 @@ class ScoreMetricTest {
         )
 
         assertEquals(
-            listOf(ScoreMetric.SHARPNESS, ScoreMetric.AESTHETIC),
+            listOf(ScoreMetric.SHARPNESS),
             ScoreMetric.present(partial).map { it.first },
         )
-        assertEquals(5, ScoreMetric.present(fullResult).size)
+        assertEquals(4, ScoreMetric.present(fullResult).size)
         assertEquals(emptyList<Any>(), ScoreMetric.present(null))
         assertEquals(
             emptyList<Any>(),
@@ -113,5 +110,21 @@ class ScoreMetricTest {
     @Test
     fun `an uncomputed metric yields null rather than a zero`() {
         assertNull(ScoreMetric.NOISE.valueOf(ScanResult(filePath = "/photos/d.jpg")))
+    }
+
+    @Test
+    fun `every metric the legend can show is computed by a scan`() {
+        // The scan produces exactly these four fields. A metric that cannot read a
+        // value from them would be advertised in the guide yet always blank.
+        val scanned = ScanResult(
+            filePath = "/photos/d.jpg",
+            sharpnessScore = 1.0,
+            noiseLevel = 1.0,
+            highlightClipping = 1.0,
+            shadowClipping = 1.0,
+        )
+        ScoreMetric.entries.forEach { metric ->
+            assertTrue("${metric.name} is always null", metric.valueOf(scanned) != null)
+        }
     }
 }

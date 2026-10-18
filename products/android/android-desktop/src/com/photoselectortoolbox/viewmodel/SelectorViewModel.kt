@@ -1355,6 +1355,20 @@ class SelectorViewModel @Inject constructor(
                     parentDocumentId = result.parentDocumentId ?: currentItem.parentDocumentId,
                 )
                 if (undo != null) pushFilingUndo(undo, folderUri, snackbarOffersUndo = true)
+                // The rating belongs to the photograph: it follows the file (a copy starts with it).
+                result.destinationUri?.let { moved ->
+                    try {
+                        if (action == CurationAction.COPY) {
+                            cacheRepository.copyRating(sourceUri, moved)
+                        } else {
+                            cacheRepository.moveRating(sourceUri, moved)
+                        }
+                    } catch (e: CancellationException) {
+                        throw e
+                    } catch (e: Exception) {
+                        Log.e("SelectorViewModel", "Could not carry the rating of $sourceUri to $moved", e)
+                    }
+                }
                 // A bundle that had to take a "-2" says which name it got; a plain transfer keeps
                 // the optimistic "Moved to Selection" already on screen.
                 val resultName = (result.destinationUri ?: result.destinationUris.firstOrNull())
@@ -1502,6 +1516,17 @@ class SelectorViewModel @Inject constructor(
                     } catch (e: Exception) {
                         Log.e("SelectorViewModel", "Undo move failed", e)
                         null
+                    }
+                    if (result?.success == true) {
+                        result.destinationUri?.let { back ->
+                            try {
+                                cacheRepository.moveRating(operation.destinationUri, back)
+                            } catch (e: CancellationException) {
+                                throw e
+                            } catch (e: Exception) {
+                                Log.e("SelectorViewModel", "Could not carry the rating back to $back", e)
+                            }
+                        }
                     }
                     if (result?.success == true && result.notice != null) {
                         _uiState.update { it.copy(snackbarMessage = result.notice, snackbarUndoAvailable = false) }

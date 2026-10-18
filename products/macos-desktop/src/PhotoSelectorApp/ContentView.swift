@@ -143,7 +143,9 @@ public struct ContentView: View {
         .onAppear {
             isWorkspaceFocused = true
             keyboardRouter.attach(viewModel: viewModel)
+            #if PST_TEST_HOOKS
             UISelfTestHooks.keyboardRouter = keyboardRouter
+            #endif
         }
         .onDisappear {
             keyboardRouter.detach()

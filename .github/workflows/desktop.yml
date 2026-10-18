@@ -2,14 +2,16 @@ name: Desktop CI
 
 # Single pipeline for the Python/Tkinter desktop solution: lint + tests always
 # run; the 3-OS PyInstaller builds, GitHub release, and Homebrew tap update
-# only happen on pushes to main or v* tags (and manual dispatch). Homebrew formulae live
-# only in alexpp90/homebrew-tap, which the last job updates. Builds
-# depend on tests via `needs:` — no cross-workflow polling gate needed.
+# only happen on pushes to main or `desktop-vX.Y.Z` tags (and manual dispatch). The legacy
+# Desktop is released on its own: a tag for another product does not start this workflow, and
+# `scripts/release.py verify-tag` fails the release job unless the tag matches the in-tree
+# version and CHANGELOG. Homebrew formulae live only in alexpp90/homebrew-tap, which the last
+# job updates. Builds depend on tests via `needs:` — no cross-workflow polling gate needed.
 
 on:
   push:
     branches: [main]
-    tags: ["v*"]
+    tags: ["desktop-v*"]
     paths:
       - 'products/desktop/**'
       - '*.spec'
@@ -229,7 +231,7 @@ jobs:
   build:
     name: Build on ${{ matrix.os }}
     needs: [test, visual]
-    if: github.event_name == 'workflow_dispatch' || (github.event_name == 'push' && (github.ref == 'refs/heads/main' || startsWith(github.ref, 'refs/tags/v')))
+    if: github.event_name == 'workflow_dispatch' || (github.event_name == 'push' && (github.ref == 'refs/heads/main' || startsWith(github.ref, 'refs/tags/desktop-v')))
     runs-on: ${{ matrix.os }}
     defaults:
       run:
@@ -305,11 +307,26 @@ jobs:
   release:
     name: Update Release
     needs: build
-    if: github.event_name == 'push' && (github.ref == 'refs/heads/main' || startsWith(github.ref, 'refs/tags/v'))
+    if: github.event_name == 'push' && (github.ref == 'refs/heads/main' || startsWith(github.ref, 'refs/tags/desktop-v'))
     runs-on: ubuntu-latest
     permissions:
       contents: write
     steps:
+      - name: Checkout repository
+        if: startsWith(github.ref, 'refs/tags/')
+        uses: actions/checkout@v7
+
+      # Fail before anything is published unless the tag, the in-tree version and the
+      # CHANGELOG agree. Also yields the release name and the bare X.Y.Z version.
+      - name: Verify tag matches version and changelog
+        id: release
+        if: startsWith(github.ref, 'refs/tags/')
+        run: python3 scripts/release.py verify-tag "$GITHUB_REF_NAME"
+
+      - name: Render release notes
+        if: startsWith(github.ref, 'refs/tags/')
+        run: python3 scripts/release.py notes "$GITHUB_REF_NAME" > release-notes.md
+
       - name: Download Artifacts
         uses: actions/download-artifact@v8
         with:
@@ -332,8 +349,9 @@ jobs:
       - name: Update GitHub Release
         uses: softprops/action-gh-release@v3
         with:
-          name: ${{ startsWith(github.ref, 'refs/tags/') && format('Release {0}', github.ref_name) || 'Nightly Build' }}
+          name: ${{ startsWith(github.ref, 'refs/tags/') && format('{0} {1}', steps.release.outputs.name, steps.release.outputs.version) || 'Nightly Build' }}
           tag_name: ${{ startsWith(github.ref, 'refs/tags/') && github.ref_name || 'nightly' }}
+          body_path: ${{ startsWith(github.ref, 'refs/tags/') && 'release-notes.md' || '' }}
           prerelease: ${{ !startsWith(github.ref, 'refs/tags/') }}
           files: artifacts/*.zip
           make_latest: ${{ startsWith(github.ref, 'refs/tags/') && 'true' || 'false' }}
@@ -341,7 +359,7 @@ jobs:
   update-homebrew-taps:
     name: Update Homebrew Taps
     needs: release
-    if: github.event_name == 'push' && (github.ref == 'refs/heads/main' || startsWith(github.ref, 'refs/tags/v'))
+    if: github.event_name == 'push' && (github.ref == 'refs/heads/main' || startsWith(github.ref, 'refs/tags/desktop-v'))
     runs-on: ubuntu-latest
     permissions:
       contents: read
@@ -405,8 +423,8 @@ jobs:
                 --linux-sha256 "${LINUX_SHA256}"
               COMMIT_MSG="Update nightly legacy Desktop hashes"
             else
-              TAG_NAME="${GH_REF_NAME}"
-              VERSION="${TAG_NAME#v}"
+              # desktop-v0.5.0 -> 0.5.0 (the release job already ran verify-tag on this tag)
+              VERSION="${GH_REF_NAME##*-v}"
               python3 "$UPDATER" --file Casks/photo-selector-toolbox-legacy.rb \
                 --version-val "${VERSION}" \
                 --macos-sha256 "${MACOS_SHA256}"

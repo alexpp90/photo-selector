@@ -14,11 +14,13 @@ interface CacheRepository {
     suspend fun clearAll()
     suspend fun pruneToLimit(limit: Int = DEFAULT_CACHE_LIMIT)
     suspend fun updateRating(filePath: String, rating: Int)
+    /** A rating belongs to the photograph, not to its address: re-key it when the file moves (D-13). */
+    suspend fun moveRating(fromUri: String, toUri: String)
+    /** A copy starts with the rating of its original. */
+    suspend fun copyRating(fromUri: String, toUri: String)
     suspend fun getRating(uri: String): Int?
     suspend fun getRatings(uris: List<String>): Map<String, Int>
     suspend fun updateCompositionAnalysis(filePath: String, analysis: String?)
-    suspend fun getScoresWithMinRating(minRating: Int): List<ScoreEntity>
-    suspend fun getScoresWithRating(rating: Int): List<ScoreEntity>
 }
 
 private const val DEFAULT_CACHE_LIMIT = 10_000
@@ -78,6 +80,20 @@ class CacheRepositoryImpl @Inject constructor(
         scoreDao.updateRating(filePath, rating)
     }
 
+    override suspend fun moveRating(fromUri: String, toUri: String) {
+        if (fromUri == toUri) return
+        val rating = scoreDao.getUserRating(fromUri) ?: return
+        // New row first: a crash in between leaves two rows, never none.
+        scoreDao.upsertUserRating(rating.copy(uri = toUri))
+        scoreDao.deleteUserRating(fromUri)
+    }
+
+    override suspend fun copyRating(fromUri: String, toUri: String) {
+        if (fromUri == toUri) return
+        val rating = scoreDao.getUserRating(fromUri) ?: return
+        scoreDao.upsertUserRating(rating.copy(uri = toUri))
+    }
+
     override suspend fun getRating(uri: String): Int? {
         return scoreDao.getUserRating(uri)?.rating
             ?: scoreDao.getScore(uri)?.rating?.takeIf { it != 0 }
@@ -98,11 +114,5 @@ class CacheRepositoryImpl @Inject constructor(
         scoreDao.updateCompositionAnalysis(filePath, analysis)
     }
 
-    override suspend fun getScoresWithMinRating(minRating: Int): List<ScoreEntity> {
-        return scoreDao.getScoresWithMinRating(minRating)
-    }
 
-    override suspend fun getScoresWithRating(rating: Int): List<ScoreEntity> {
-        return scoreDao.getScoresWithRating(rating)
-    }
 }

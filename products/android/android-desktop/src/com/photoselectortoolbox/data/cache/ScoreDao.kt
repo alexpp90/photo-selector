@@ -39,17 +39,14 @@ interface ScoreDao {
     @Query("UPDATE scores_cache SET compositionAnalysis = :analysis WHERE filePath = :filePath")
     suspend fun updateCompositionAnalysis(filePath: String, analysis: String?)
 
-    @Query("SELECT * FROM scores_cache WHERE rating >= :minRating")
-    suspend fun getScoresWithMinRating(minRating: Int): List<ScoreEntity>
-
-    @Query("SELECT * FROM scores_cache WHERE rating = :rating")
-    suspend fun getScoresWithRating(rating: Int): List<ScoreEntity>
-
     @Query("SELECT COUNT(*) FROM scores_cache")
     suspend fun getCount(): Int
 
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun upsertUserRating(entity: UserRatingEntity)
+
+    @Query("DELETE FROM user_ratings WHERE uri = :uri")
+    suspend fun deleteUserRating(uri: String)
 
     @Query("SELECT * FROM user_ratings WHERE uri = :uri LIMIT 1")
     suspend fun getUserRating(uri: String): UserRatingEntity?

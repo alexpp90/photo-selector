@@ -50,5 +50,5 @@ launchctl bootstrap "gui/$(id -u)" "$AGENT_PLIST"
 
 echo "ok: $AGENT_LABEL installed; repo at $REPO_DIR"
 echo "Building once to warm the SwiftPM cache (a few minutes)..."
-(cd "$REPO_DIR/products/macos-desktop" && ./scripts/build_app.sh release)
+(cd "$REPO_DIR/products/macos-desktop" && ./scripts/build_app.sh release --test-hooks)
 echo "ok: the hub can now run: python3 scripts/lab/lab.py run --product macos --with-personal"

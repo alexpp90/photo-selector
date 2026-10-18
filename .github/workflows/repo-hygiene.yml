@@ -39,6 +39,11 @@ jobs:
       - name: Verify README parity
         run: python3 scripts/check_readme_parity.py --check
 
+      # Per-product releases (docs/build/RELEASING.md): every product's version sources agree,
+      # it has a changelog, and its workflow triggers on its own release-tag prefix.
+      - name: Release metadata consistent
+        run: python3 scripts/release.py check
+
       # Supported-format contract (docs/shared/SUPPORTED_FORMATS.md): the manifest every
       # product's format tests read is well-formed, every required format has a sample, the
       # committed bitmap fixtures match their pinned hashes, and the corpus fetcher works.

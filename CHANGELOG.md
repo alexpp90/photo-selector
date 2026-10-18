@@ -1,6 +1,13 @@
 # Changelog
 
-All notable changes to the Photo Selector Toolbox project will be documented in this file.
+**Since 2026-10-17 every product is released on its own and keeps its own changelog:**
+[PhotoTok](products/android/phototok/CHANGELOG.md) ·
+[Android Desktop](products/android/android-desktop/CHANGELOG.md) ·
+[macOS Desktop](products/macos-desktop/CHANGELOG.md) ·
+[Linux Desktop](products/linux-desktop/CHANGELOG.md) ·
+[Desktop (legacy)](products/desktop/CHANGELOG.md) — see [`docs/build/RELEASING.md`](docs/build/RELEASING.md).
+This file is the history of the shared `vX.Y.Z` releases. Version 0.5.0 below was prepared but
+never tagged; its changes ship with each product's first per-product release.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).

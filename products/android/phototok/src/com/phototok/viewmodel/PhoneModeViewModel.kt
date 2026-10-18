@@ -49,7 +49,9 @@ import kotlinx.coroutines.Job
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 
@@ -263,6 +265,14 @@ class PhoneModeViewModel @Inject constructor(
     }
 
     private fun observeRepositories() {
+        // Deletions still on the undo stack reference their folder, so its grant outlives a switch
+        // to another folder until they are committed (D-10).
+        viewModelScope.launch {
+            _uiState
+                .map { if (it.undoStack.isNotEmpty() || it.pendingDelete != null) it.sourceFolderUri else null }
+                .distinctUntilChanged()
+                .collect { settingsRepository.pinUndoHistoryFolder(it) }
+        }
         viewModelScope.launch {
             favouritesRepository.favouritedUris.collect { favs ->
                 _uiState.update { it.copy(favouritedUris = favs) }
@@ -1373,7 +1383,10 @@ class PhoneModeViewModel @Inject constructor(
         kindAtDelete: SourceKind,
     ) {
         appScope.launch {
-            settingsRepository.setPersistedPendingDeleteUris(emptySet())
+            // Only these entries leave the journal: others may have been queued meanwhile.
+            settingsRepository.removePersistedPendingDeleteUris(
+                entries.flatMap { p -> (listOf(p.image) + p.related).map { it.uri } },
+            )
             // Process from oldest to newest
             val orderedEntries = entries
             val allSucceededUris = mutableSetOf<String>()
@@ -1447,6 +1460,9 @@ class PhoneModeViewModel @Inject constructor(
                     )
                 }
             }
+
+            // The deletions are committed: a folder that was left meanwhile no longer needs its grant.
+            if (folderAtDelete != null) settingsRepository.releaseFolderGrantIfUnreferenced(folderAtDelete)
         }
     }
 

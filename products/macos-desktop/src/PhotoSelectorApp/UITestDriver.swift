@@ -1,3 +1,4 @@
+#if PST_TEST_HOOKS
 import AppKit
 import Foundation
 
@@ -234,3 +235,4 @@ private extension NSView {
         return nil
     }
 }
+#endif

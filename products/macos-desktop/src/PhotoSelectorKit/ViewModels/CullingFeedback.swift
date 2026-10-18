@@ -22,6 +22,14 @@ public enum CullingFeedback {
         return "\(verb) to \(destinationFolder) as \(primary.lastPathComponent)\(suffix)"
     }
 
+    /// Toast title of a partial move: the original stayed behind (a verified copy was kept), or a failed
+    /// rollback left members in the destination folder (D-12).
+    public static func partialMoveTitle(destinationFolder: String, rollbackFailed: Bool) -> String {
+        rollbackFailed
+            ? "Move interrupted — some files stayed in \(destinationFolder) and could not be put back"
+            : "Copied to \(destinationFolder) — original could not be removed"
+    }
+
     /// "Restored as «name» (original name was in use)" when an undo had to add a suffix; else `nil`.
     public static func restoredTitle(originalPrimaryURL: URL, restoredURLs: [URL]) -> String? {
         guard let primary = primaryURL(matching: originalPrimaryURL, in: restoredURLs),
