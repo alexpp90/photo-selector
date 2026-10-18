@@ -324,14 +324,14 @@ if $run_python; then
         section "Python tests"
         if $quick; then
             gate "pytest (quick, no coverage gate)" "desktop.yml:test (partial)" \
-                pyx pytest --tb=short -q -m "not visual"
+                pyx pytest --tb=short -q -o faulthandler_timeout=120 -m "not visual"
         else
             # The coverage gate is authoritative on Linux (CI enforces it there
             # only, because linux_only/mac_only/windows_only markers skip
             # different tests per platform). Running it here still catches
             # genuine coverage regressions early.
             gate "pytest -m 'not visual' --cov-fail-under=$COV_FAIL_UNDER" "desktop.yml:test" \
-                pyx pytest --tb=short -q \
+                pyx pytest --tb=short -q -o faulthandler_timeout=120 \
                     --cov=photo_selector_toolbox \
                     --cov-report=term-missing:skip-covered \
                     --cov-fail-under="$COV_FAIL_UNDER" \
@@ -352,7 +352,7 @@ if $run_python; then
             skip "visual tests" "" "no Xvfb and no DISPLAY (apt install xvfb)"
         else
             gate "pytest tests/visual/ -m visual" "desktop.yml:visual" \
-                pyx pytest tests/visual/ --tb=short -q -m visual
+                pyx pytest tests/visual/ --tb=short -q -o faulthandler_timeout=120 -m visual
         fi
     fi
 elif ! $explicit_product; then
