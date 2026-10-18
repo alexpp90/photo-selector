@@ -4,11 +4,12 @@ title: Linux Desktop GVFS mount move, trash, and undo
 fixture: smoke
 configs: [fhd]
 fresh_install: false
+# Checkpoints with an fs_expect wait until it holds (up to fs_timeout_ms, default 10 s) before
+# they are captured, so file operations need no fixed waits here.
 steps:
   - wait_ms: 1000
   - checkpoint: gvfs-opened
   - keys: [m, Delete, ctrl+z]
-  - wait_ms: 800
   - checkpoint: gvfs-after-cull
 fs_expect:
   gvfs-after-cull:

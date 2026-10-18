@@ -145,8 +145,9 @@ macOS Desktop gates only run on a Mac, the Linux Desktop gates only with GTK 4 +
 the Android instrumented tests only with a device or emulator. Changes by agents in sandboxes
 or the cloud, with limited tooling, say so just as plainly.
 
-1. Run `./scripts/run_tests.sh` (with `--all`, or `--android-device`, when a device is
-   attached). Every run, including a failed or partial one, saves a record in
+1. Run `./scripts/run_tests.sh` (`--all` for every product). The Android instrumented tests
+   run only on demand with `--android-device` (typically before a release); without a device
+   they are skipped, never a blocker. Every run, including a failed or partial one, saves a record in
    `.git/pst-verification/`: hardware model, OS, toolchain versions, attached Android device
    models, the detected agent environment, each gate's result and the exact tested tree.
    Set `PST_EXECUTOR="<agent or person>"` when the environment is not detected correctly.

@@ -16,10 +16,12 @@
 #   ./scripts/run_tests.sh                  # auto-detects changed products (mirrors CI paths: filters)
 #   ./scripts/run_tests.sh --python         # Python gates only (flake8 + pytest + coverage)
 #   ./scripts/run_tests.sh --android        # Android gates that need no device
-#   ./scripts/run_tests.sh --android-device # Android instrumented tests, pinned to one test device
+#   ./scripts/run_tests.sh --android-device # Android instrumented tests on the test device only — run on
+#                                           # demand (before a release); never part of any other mode.
+#                                           # No device attached is a skip, not a failure (also with --strict)
 #   ./scripts/run_tests.sh --macos          # macOS Desktop native Swift gates (Darwin only)
 #   ./scripts/run_tests.sh --linux          # Linux Desktop native gates (Python/GTK4 + Debian packaging)
-#   ./scripts/run_tests.sh --all            # all products unconditionally
+#   ./scripts/run_tests.sh --all            # all products unconditionally (without the device suite)
 #   ./scripts/run_tests.sh --strict         # treat unrunnable SKIPPED gates as failures
 #   ./scripts/run_tests.sh --quick          # tests only, no lint/coverage (inner-loop use)
 #
@@ -100,13 +102,12 @@ for arg in "$@"; do
         --all)
             run_python=true
             run_android=true
-            run_android_device=true
             run_macos=true
             run_linux=true
             explicit_product=true
             ;;
         -h|--help)
-            sed -n '2,30p' "$0" | sed 's/^# \{0,1\}//'
+            sed -n '2,32p' "$0" | sed 's/^# \{0,1\}//'
             exit 0
             ;;
         *)
@@ -323,14 +324,14 @@ if $run_python; then
         section "Python tests"
         if $quick; then
             gate "pytest (quick, no coverage gate)" "desktop.yml:test (partial)" \
-                pyx pytest --tb=short -q -m "not visual"
+                pyx pytest --tb=short -q -o faulthandler_timeout=120 -m "not visual"
         else
             # The coverage gate is authoritative on Linux (CI enforces it there
             # only, because linux_only/mac_only/windows_only markers skip
             # different tests per platform). Running it here still catches
             # genuine coverage regressions early.
             gate "pytest -m 'not visual' --cov-fail-under=$COV_FAIL_UNDER" "desktop.yml:test" \
-                pyx pytest --tb=short -q \
+                pyx pytest --tb=short -q -o faulthandler_timeout=120 \
                     --cov=photo_selector_toolbox \
                     --cov-report=term-missing:skip-covered \
                     --cov-fail-under="$COV_FAIL_UNDER" \
@@ -351,7 +352,7 @@ if $run_python; then
             skip "visual tests" "" "no Xvfb and no DISPLAY (apt install xvfb)"
         else
             gate "pytest tests/visual/ -m visual" "desktop.yml:visual" \
-                pyx pytest tests/visual/ --tb=short -q -m visual
+                pyx pytest tests/visual/ --tb=short -q -o faulthandler_timeout=120 -m visual
         fi
     fi
 elif ! $explicit_product; then
@@ -430,9 +431,10 @@ if $run_android_device; then
 
     # Gradle installs on every attached device, so the run is pinned to one test device
     # (ANDROID_SERIAL, honoured by the Android Gradle plugin). Selection and preparation
-    # live in scripts/android_test_device.py; see docs/build/CI_PARITY.md.
+    # live in scripts/android_test_device.py; see docs/build/CI_PARITY.md. The device suite is
+    # run on demand, so a missing device is a stated gap, never a blocker (not even --strict).
     if ! TEST_SERIAL=$(python3 "$ROOT_DIR/scripts/android_test_device.py" serial 2>&1); then
-        skip "instrumented tests" "" "$TEST_SERIAL — see docs/build/CI_PARITY.md (Instrumented tests)"
+        skip "instrumented tests" "" "$TEST_SERIAL — see docs/build/CI_PARITY.md (Instrumented tests)" false
     else
         echo -e "${DIM}  test device: $TEST_SERIAL ($(adb -s "$TEST_SERIAL" shell getprop ro.product.model 2>/dev/null | tr -d '\r'))${NC}"
         # One device lock — the file the device lab's walkthroughs take too — covers prepare and

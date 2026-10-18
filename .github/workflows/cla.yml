@@ -20,6 +20,7 @@ permissions:
 jobs:
   cla:
     runs-on: ubuntu-latest
+    timeout-minutes: 10
     steps:
       - name: CLA Assistant
         if: (github.event.comment.body == 'recheck' || github.event.comment.body == 'I have read the CLA Document and I hereby sign the CLA') || github.event_name == 'pull_request_target'

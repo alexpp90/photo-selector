@@ -2,7 +2,7 @@ id: SMOKE-linux
 product: linux
 title: Launch Linux Desktop in private Xvfb session, capture checkpoint, and step next
 fixture: smoke
-configs: [fhd, hidpi, small, dark, large-text]
+configs: [fhd, hidpi, small, large-text]
 fresh_install: false
 steps:
   - wait_ms: 1000

@@ -2,7 +2,8 @@
 # If the app has no usable folder (fresh .lab install, or an earlier fresh_install journey
 # cleared the grant), grant /sdcard/PSTLab/work; then wait until a photo is on screen.
 # The first workspace visit after an install shows the screen guide over everything (sidebar
-# included), so it is dismissed before and after the folder check.
+# included), so it is dismissed before and after the folder check. The guide may be paged:
+# "Skip" closes it from any page, "Got it" (coach_overlay_dismiss) is on the last page only.
 appId: com.photoselectortoolbox.lab
 ---
 - extendedWaitUntil:
@@ -10,8 +11,17 @@ appId: com.photoselectortoolbox.lab
       id: "image_region"
     timeout: 6000
     optional: true
+# Deletions an earlier journey left pending are offered on the next launch ("Uncompleted
+# Deletions", REQ-AND-LAYOUT.23) in a dialog window; "Keep" changes nothing on disk.
+- runFlow:
+    when:
+      visible:
+        text: "Uncompleted Deletions"
+    commands:
+      - tapOn:
+          text: "Keep"
 - tapOn:
-    id: "coach_overlay_dismiss"
+    id: "coach_overlay_(skip|dismiss)"
     optional: true
 - runFlow:
     when:
@@ -23,11 +33,11 @@ appId: com.photoselectortoolbox.lab
       - runFlow: _pick_work_folder.yaml
 - extendedWaitUntil:
     visible:
-      id: "coach_overlay_dismiss"
+      id: "coach_overlay_(skip|dismiss)"
     timeout: 4000
     optional: true
 - tapOn:
-    id: "coach_overlay_dismiss"
+    id: "coach_overlay_(skip|dismiss)"
     optional: true
 - extendedWaitUntil:
     visible:

@@ -23,6 +23,11 @@
       "minItems": 1
     },
     "fs_expect": {"type": "object"},
+    "fs_timeout_ms": {"type": "integer", "minimum": 0},
+    "bind": {
+      "type": "object",
+      "additionalProperties": {"type": "object", "additionalProperties": {"type": "string"}}
+    },
     "layout_expect": {"type": "object"},
     "timing_expect": {"type": "object"}
   }

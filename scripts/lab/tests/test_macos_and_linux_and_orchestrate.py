@@ -6,6 +6,7 @@ import json
 import shutil
 import subprocess
 import sys
+import tempfile
 import unittest
 from pathlib import Path
 
@@ -21,13 +22,10 @@ from PIL import Image  # noqa: E402
 
 class TestMacosLinuxAndOrchestrate(unittest.TestCase):
     def setUp(self) -> None:
-        self.run_dir = Path("/tmp/pstlab/test_orchestrate_run")
-        if self.run_dir.exists():
-            shutil.rmtree(self.run_dir)
+        self.run_dir = Path(tempfile.mkdtemp(prefix="pstlab-test-orchestrate-")) / "run"  # per process
 
     def tearDown(self) -> None:
-        if self.run_dir.exists():
-            shutil.rmtree(self.run_dir)
+        shutil.rmtree(self.run_dir.parent, ignore_errors=True)
 
     def test_linux_xdotool_keys_and_command_builder(self) -> None:
         self.assertEqual(normalize_xdotool_key("Right"), "Right")

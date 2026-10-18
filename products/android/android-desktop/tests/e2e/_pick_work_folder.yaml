@@ -6,6 +6,9 @@ appId: com.photoselectortoolbox.lab
 ---
 - waitForAnimationToEnd
 # Re-opened pickers start inside the last folder; the first breadcrumb is the storage root.
+# Folder names are scrolled to the middle and fully into view before the tap: in a small
+# window (960x600 dp) the grid stopped with "PSTLab" under the "Use this folder" bar, the tap
+# missed, and the search for "work" scrolled the storage root to its end (2026-10-17).
 - tapOn:
     id: "com.google.android.documentsui:id/breadcrumb_text"
     index: 0
@@ -14,12 +17,16 @@ appId: com.photoselectortoolbox.lab
     element:
       text: "PSTLab"
     timeout: 10000
+    centerElement: true
+    visibilityPercentage: 100
 - tapOn:
     text: "PSTLab"
 - scrollUntilVisible:
     element:
       text: "work"
     timeout: 10000
+    centerElement: true
+    visibilityPercentage: 100
 - tapOn:
     text: "work"
 - tapOn:

@@ -50,6 +50,14 @@ def _infer_role(cls_name: str, clickable: bool, text: str) -> str:
     return "container"
 
 
+def foreground_packages(xml_source: Path | str) -> set[str]:
+    """Packages of the window uiautomator dumped (the one in front), from a file or XML text."""
+    text = xml_source.read_text(encoding="utf-8") if isinstance(xml_source, Path) else xml_source
+    if not text.lstrip().startswith("<"):
+        text = Path(text).read_text(encoding="utf-8")
+    return set(re.findall(r'package="([^"]+)"', text))
+
+
 def parse_uiautomator_xml(
     xml_source: Path | str,
     density_dpi: int = 320,
@@ -73,7 +81,10 @@ def parse_uiautomator_xml(
     origin: list[float] | None = None
     counter = 0
 
-    def walk(elem: ET.Element, nearest_named_parent: str | None) -> None:
+    # `parent` is the structural parent, `#n` nodes included: Compose puts a control's label on
+    # a child node, and a control without a test tag must still own its children (the lint
+    # reads labels and clipping from them).
+    def walk(elem: ET.Element, parent_id: str | None) -> None:
         nonlocal counter, win_w, win_h, origin
         if elem.tag == "node":
             raw_res_id = elem.attrib.get("resource-id", "").strip()
@@ -104,7 +115,7 @@ def parse_uiautomator_xml(
             nodes.append(
                 Node(
                     id=node_id,
-                    parent=nearest_named_parent,
+                    parent=parent_id,
                     role=role,
                     name=content_desc,
                     bounds=bounds,
@@ -115,9 +126,9 @@ def parse_uiautomator_xml(
                     clipped=None,
                 )
             )
-            next_parent = node_id if has_named_id else nearest_named_parent
+            next_parent: str | None = node_id
         else:
-            next_parent = nearest_named_parent
+            next_parent = parent_id
 
         for child in elem:
             walk(child, next_parent)

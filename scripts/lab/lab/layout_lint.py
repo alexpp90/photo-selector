@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import fnmatch
 from pathlib import Path
 from typing import Any
 
@@ -66,6 +67,73 @@ def is_overlay_or_descendant(node: Node, overlay_ids: set[str], by_id: dict[str,
     return False
 
 
+def visible_bounds(node: Node, by_id: dict[str, Node]) -> list[float] | None:
+    """`node`'s bounds clipped to every ancestor's, or None when nothing of it is visible.
+
+    Android reports a control's touch area: Compose grows a 22 dp star to 48 dp, past the
+    22 dp star bar that holds it, so raw bounds "overlapped" the filter chips 8 dp below
+    (2026-10-17, ~50 false majors per tablet run). What a person sees ends at the parent.
+    """
+    rect: list[float] | None = list(node.bounds)
+    visited: set[str] = set()
+    cur = node.parent
+    while rect is not None and cur is not None and cur not in visited:
+        visited.add(cur)
+        parent = by_id.get(cur)
+        if parent is None:
+            break
+        if parent.w > 0 and parent.h > 0:
+            rect = intersection_rect(rect, parent.bounds)
+        cur = parent.parent
+    return rect
+
+
+def named_ids(nodes: list[Node]) -> set[str]:
+    """Ids of nodes that carry a name or text themselves or in a descendant.
+
+    Compose exposes a clickable's label on a child node (`sidebar_open_folder` has a child
+    "Open a folder"); TalkBack merges it, so the control is named (2026-10-17: ~1400 false
+    `unnamed-control` findings across the Android runs).
+    """
+    by_id = {n.id: n for n in nodes}
+    named: set[str] = set()
+    for n in nodes:
+        if not (n.name.strip() or n.text.strip()):
+            continue
+        cur: str | None = n.id
+        while cur is not None and cur not in named:
+            named.add(cur)
+            parent = by_id.get(cur)
+            cur = parent.parent if parent else None
+    return named
+
+
+def _under(node: Node, pattern: str, by_id: dict[str, Node]) -> bool:
+    """True if `node` or one of its ancestors has an id matching the glob `pattern`."""
+    visited: set[str] = set()
+    cur: Node | None = node
+    while cur is not None and cur.id not in visited:
+        if fnmatch.fnmatchcase(cur.id, pattern):
+            return True
+        visited.add(cur.id)
+        cur = by_id.get(cur.parent) if cur.parent else None
+    return False
+
+
+def overlap_allowed(a: Node, b: Node, pairs: list[list[str]], by_id: dict[str, Node]) -> bool:
+    """True for a by-design overlap listed in the rules' `allowed_overlaps` ([a, b] globs)."""
+    for pair in pairs:
+        x, y = str(pair[0]), str(pair[1])
+        if (_under(a, x, by_id) and _under(b, y, by_id)) or (_under(a, y, by_id) and _under(b, x, by_id)):
+            return True
+    return False
+
+
+# Touch-target sizes are compared with this tolerance: dp values are px / density and a
+# 1.15x density factor reports a 48 dp button as 47.86 dp.
+TOUCH_TOLERANCE = 0.5
+
+
 def lint(
     tree: Tree,
     rules: dict[str, Any],
@@ -87,8 +155,11 @@ def lint(
     for extra_frame in expect.get("frames", []):
         frame_ids.add(str(extra_frame))
     ignore_ids = {str(x) for x in rules.get("ignore_ids", [])}
+    allowed_pairs = [list(p) for p in rules.get("allowed_overlaps", [])]
 
     by_id: dict[str, Node] = {n.id: n for n in tree.nodes}
+    labelled = named_ids(tree.nodes)
+    seen_bounds = {n.id: visible_bounds(n, by_id) for n in tree.nodes}
     active_nodes = [
         n
         for n in tree.nodes
@@ -123,18 +194,23 @@ def lint(
             )
         )
 
-    # R3: missing-or-zero-size (blocker)
+    # R3: missing-or-zero-size (blocker); an entry may be a list: any one of them
+    def present(node_id: str) -> bool:
+        node = by_id.get(node_id)
+        return node is not None and node.visible and node.w >= 1 and node.h >= 1
+
     for req_id in expect.get("required", []):
-        req_str = str(req_id)
-        node = by_id.get(req_str)
-        if node is None or not node.visible or node.w < 1 or node.h < 1:
+        alternatives = [str(x) for x in req_id] if isinstance(req_id, list) else [str(req_id)]
+        if not any(present(a) for a in alternatives):
+            node = by_id.get(alternatives[0])
             reg = node.bounds if node is not None else [0.0, 0.0, 0.0, 0.0]
+            req_str = " | ".join(alternatives)
             add_finding(
                 "missing-or-zero-size",
                 "blocker",
                 reg,
                 f"required node {req_str!r} is missing, hidden, or smaller than 1x1 {unit}",
-                [req_str],
+                alternatives,
             )
 
     # R1: overlap-interactive (major)
@@ -147,11 +223,14 @@ def lint(
         for b in interactive_nodes[i + 1:]:
             if is_ancestor(a.id, b, by_id) or is_ancestor(b.id, a, by_id):
                 continue
-            inter = intersection_rect(a.bounds, b.bounds)
-            if inter is None:
+            va, vb = seen_bounds.get(a.id), seen_bounds.get(b.id)
+            if va is None or vb is None:
+                continue
+            inter = intersection_rect(va, vb)
+            if inter is None or overlap_allowed(a, b, allowed_pairs, by_id):
                 continue
             inter_area = rect_area(inter)
-            smaller_area = min(rect_area(a.bounds), rect_area(b.bounds))
+            smaller_area = min(rect_area(va), rect_area(vb))
             if inter_area >= 4.0 and smaller_area > 0 and (inter_area / smaller_area) >= 0.10:
                 add_finding(
                     "overlap-interactive",
@@ -176,7 +255,10 @@ def lint(
                 continue
             if is_ancestor(frame.id, node, by_id) or is_ancestor(node.id, frame, by_id):
                 continue
-            inter = intersection_rect(node.bounds, frame.bounds)
+            if overlap_allowed(node, frame, allowed_pairs, by_id):
+                continue
+            seen = seen_bounds.get(node.id)
+            inter = intersection_rect(seen, frame.bounds) if seen is not None else None
             if inter is None:
                 continue
             inter_area = rect_area(inter)
@@ -208,13 +290,13 @@ def lint(
                 )
 
             # R5: touch-target (minor)
-            if node.w < min_target or node.h < min_target:
+            if node.w < min_target - TOUCH_TOLERANCE or node.h < min_target - TOUCH_TOLERANCE:
                 parent_node = by_id.get(node.parent) if node.parent else None
                 parent_covers = (
                     parent_node is not None
                     and parent_node.interactive
-                    and parent_node.w >= min_target
-                    and parent_node.h >= min_target
+                    and parent_node.w >= min_target - TOUCH_TOLERANCE
+                    and parent_node.h >= min_target - TOUCH_TOLERANCE
                 )
                 if not parent_covers:
                     add_finding(
@@ -226,7 +308,7 @@ def lint(
                     )
 
             # R6: unnamed-control (minor)
-            if node.name.strip() == "" and node.text.strip() == "":
+            if node.id not in labelled:
                 add_finding(
                     "unnamed-control",
                     "minor",
@@ -244,6 +326,29 @@ def lint(
                 f"text in {node.id} is clipped/ellipsized",
                 [node.id],
             )
+
+    # R9: guidance-covers-control (major). Guidance is exempt from the overlap rules, so the
+    # rules name the controls it must leave free (AD-4: the first-run pill sat on the Next
+    # frame's maximise badge, invisible to R1 while both were exempt).
+    for guide_id, control_ids in (rules.get("guidance_must_not_cover") or {}).items():
+        guides = [n for n in active_nodes if n.id == str(guide_id)]
+        controls = [n for n in active_nodes if n.id in {str(c) for c in control_ids}]
+        reported: set[str] = set()
+        for g in guides:
+            for c in controls:
+                # Repeated ids (one badge per frame) share an id; bounds tell them apart.
+                vg, vc = visible_bounds(g, by_id) or g.bounds, visible_bounds(c, by_id) or c.bounds
+                inter = intersection_rect(vg, vc)
+                key = f"{g.id}|{c.id}|{inter}"
+                if inter is not None and rect_area(inter) >= 4.0 and key not in reported:
+                    reported.add(key)
+                    add_finding(
+                        "guidance-covers-control",
+                        "major",
+                        inter,
+                        f"{g.id} covers {c.id} by {rect_area(inter):.0f} {unit}²",
+                        [g.id, c.id],
+                    )
 
     # R8: frame-size (major)
     frame_size_cfg = rules.get("frame_size", {}).get(config)
