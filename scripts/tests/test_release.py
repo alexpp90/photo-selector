@@ -123,6 +123,9 @@ class VersionTest(unittest.TestCase):
         tok = rel.BY_SLUG["phototok"]
         self.assertTrue(rel.ships(tok, "products/android/phototok/src/A.kt"))
         self.assertTrue(rel.ships(tok, "products/android/core/src/Exif.kt"))
+        self.assertTrue(rel.ships(tok, "products/android/saf/src/SafTransferEngine.kt"))
+        self.assertTrue(rel.ships(rel.BY_SLUG["android-desktop"], "products/android/saf/src/SafTransferEngine.kt"))
+        self.assertFalse(rel.ships(tok, "products/android/saf/tests/unit/SafTest.kt"))
         self.assertFalse(rel.ships(tok, "products/android/phototok/tests/unit/ATest.kt"))
         self.assertFalse(rel.ships(tok, "products/android/phototok/README.md"))
         self.assertFalse(rel.ships(tok, "products/android/android-desktop/src/A.kt"))
