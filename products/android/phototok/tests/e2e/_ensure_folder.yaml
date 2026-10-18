@@ -58,6 +58,22 @@ appId: com.phototok.lab
 - tapOn:
     id: "gesture_tutorial_got_it"
     optional: true
+# A folder with RAW + JPEG pairs asks how to treat them (REQ-TOK-FEATURE.11) in a dialog window
+# over the feed, so viewer.photo is not in the hierarchy until it is answered (2026-10-17: J-TOK-05
+# never got past this flow). Link the pairs: J-TOK-05 keeps a pair. Matched by its text for the
+# same reason as above ("Link actions across both"; the title's "+" is a regex operator).
+- extendedWaitUntil:
+    visible:
+      id: "viewer.photo"
+    timeout: 8000
+    optional: true
+- runFlow:
+    when:
+      visible:
+        text: "Link actions across both"
+    commands:
+      - tapOn:
+          text: "Link actions across both"
 - extendedWaitUntil:
     visible:
       id: "viewer.photo"

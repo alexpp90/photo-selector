@@ -43,8 +43,10 @@ A device that pairs but never advertises its connect port over mDNS (seen: Pixel
 `host: <ip>` entry; the lab then finds the port with `nmap`. Reserve that IP in the router.
 
 What a run changes on a device, and restores afterwards: display size and density, font scale,
-dark mode, rotation, stay-awake, and Samsung DeX. Lab data lives only in `/sdcard/PSTLab/`; the
-`.lab` build (`com.phototok.lab`, `com.photoselectortoolbox.lab`) is separate from any store
+dark mode, rotation, stay-awake and Do Not Disturb (on while a journey runs, so no heads-up
+notification lands in a screenshot). The lab never switches Samsung DeX. Lab data lives only in
+`/sdcard/PSTLab/` (fixtures in `work/`, the UI dump `pst_dump.xml`, removed after each pull);
+the `.lab` build (`com.phototok.lab`, `com.photoselectortoolbox.lab`) is separate from any store
 install.
 
 - **One working folder.** Every journey's fixture is pushed into `/sdcard/PSTLab/work`, so one
@@ -54,7 +56,16 @@ install.
 - **Locale.** Picker flows use `android:id/button1`, not button text, so devices in any
   language work.
 - **Rotation.** A docked Pixel Tablet ignores rotation requests; its portrait configs are
-  reported *not run*.
+  reported *not run*. Android resets the rotation whenever a portrait-only launcher comes to the
+  front (the app's force-stop before each journey, a `background` step), so the runner sets it
+  again after every launch and checks it at every checkpoint: an app that still shows the wrong
+  orientation ends the journey as *error* ("config … not applied"), never as a pass.
+- **Checkpoints.** Before each one the notification shade is collapsed and the UI tree is dumped
+  first; if another app's window is in front (the shade, with other apps' notifications), the
+  journey ends as *error* and no screenshot is taken.
+- **Bindings.** A journey can name the photo the app actually showed instead of assuming a key
+  count: `bind: {moved: {kept: column_current}}` reads the first file name in that node (or its
+  children) at checkpoint `moved`, and `fs_expect` patterns use it as `{kept}` (J-AD-02, J-TOK-05).
 - **DeX.** The lab never switches Samsung DeX: on One UI 8 the DeX tile is a toggle and DeX
   is only visible in how apps open (freeform desktop windows), so a wrong reading would flip
   it the wrong way. `dex-on-device` (devices with `supports: [dex]`) runs when the app opens in
@@ -88,6 +99,27 @@ python3 scripts/lab/lab.py install-timer --dry-run  # print the units instead
 
 The units are written for the checkout you run this from, with the current `PATH` (adb,
 Maestro), and pull `main` before each run.
+
+## Linux Desktop journeys
+
+`products/linux-desktop/tests/e2e/session.sh` runs each journey in a private Xvfb (on a free
+display, picked with `-displayfd`) and D-Bus session; the runner writes the step script.
+Every checkpoint is bracketed by two hub steps (`lab/linux/hub_step.py`): `await` polls the
+fixture folder and the lab Trash until the checkpoint's `fs_expect` holds on a folder that has
+stayed unchanged for 1 s (budget 10 s, `fs_timeout_ms` per journey), and `fs` saves that
+checkpoint's own snapshot. A file operation that lands after more than 2 s is reported as
+`fs-settle-slow`. The window fills the screen of the config; text scaling reaches GTK through
+`gtk-font-name` in the session's `settings.ini` (GTK on X11 ignores `gtk-xft-dpi` without an
+XSETTINGS manager). There is no `dark` config: the app is always dark.
+
+## Layout rules
+
+`rules/<product>.yaml`: `overlay_ids` (guidance and overlays exempt from the overlap rules),
+`frame_ids`, `allowed_overlaps` (by-design `[a, b]` id globs, matched through ancestors),
+`guidance_must_not_cover` (controls an exempt overlay must leave free), `frame_size`. Overlaps
+use what is visible — a node clipped to its parents — because Android reports Compose's
+touch-expanded bounds; a control counts as named when it or a child carries a label. A
+`layout_expect.required` entry may be a list: any one of those ids.
 
 ## Host prerequisites
 

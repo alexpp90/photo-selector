@@ -19,12 +19,18 @@ steps:
   - {keys: ["2"]}
   - {checkpoint: maximised}
   - {keys: [ESCAPE]}
+# The expectations name the photo the frame showed, not the one two key presses should reach:
+# a swallowed first key (AD-11, cause unsettled) made a correct Move read as a blocker.
+bind:
+  moved: {kept: column_current}
+  after-keep: {deleted: column_current}
 fs_expect:
   after-keep:
-    present: ["Selection/*DSC_0003*"]
-    absent: ["DSC_0003.JPG"]
+    present: ["Selection/*{kept}"]
+    absent: ["{kept}"]
   after-delete:
-    present: ["DSC_0004.JPG"]
+    # Delete is pending until the snackbar times out or the app finalises it: still on disk.
+    present: ["{deleted}"]
 layout_expect:
   moved:
     required: [image_region]

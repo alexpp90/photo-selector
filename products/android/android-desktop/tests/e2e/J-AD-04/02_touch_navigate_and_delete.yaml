@@ -3,8 +3,10 @@ appId: com.photoselectortoolbox.lab
 - swipe:
     start: "50%,35%"
     end: "20%,35%"
+# The Delete button: expanded in wide layouts, compact in portrait and small windows.
+# (`reject_button` was the star bar's Reject, and never exported: Compose keeps the first tag.)
 - tapOn:
-    id: "reject_button"
+    id: "delete_button_(expanded|compact)"
 # The confirm dialog is its own window, so its test tag is not exported as a resource id;
 # while it is open the hierarchy holds only the dialog, so its "Delete" button is unambiguous.
 - extendedWaitUntil:

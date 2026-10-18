@@ -39,7 +39,7 @@ class FakeAdbExec:
             if self.cur_rotation == self.landscape_on_rot:
                 return subprocess.CompletedProcess(cmd, 0, stdout=b"sw924dp w1480dp h924dp\n", stderr=b"")
             return subprocess.CompletedProcess(cmd, 0, stdout=b"sw924dp w924dp h1480dp\n", stderr=b"")
-        if "pull /sdcard/pst_dump.xml" in joined:
+        if "pull /sdcard/PSTLab/pst_dump.xml" in joined:
             dest = Path(cmd[-1])
             shutil.copyfile(DATA_DIR / "android_dump.xml", dest)
             return subprocess.CompletedProcess(cmd, 0, stdout=b"", stderr=b"")
