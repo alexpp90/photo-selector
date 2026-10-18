@@ -2,6 +2,7 @@ package com.photoselectortoolbox.ui.selector
 
 import android.app.Activity
 import android.net.Uri
+import android.util.Log
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.activity.result.contract.ActivityResultContracts.StartActivityForResult
@@ -204,8 +205,11 @@ fun SelectorScreen(
         if (uiState.images.isNotEmpty() && windowFocused && !overlayOpen) {
             try {
                 focusRequester.requestFocus()
-            } catch (_: Exception) {
+            } catch (e: IllegalStateException) {
                 // The node may not be attached yet; the next state change retries.
+                // Logged, never silent: a swallowed failure here is how the first
+                // arrow key went missing for months (AD-11).
+                Log.w("SelectorScreen", "Selector could not take key focus", e)
             }
         }
     }
