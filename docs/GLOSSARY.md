@@ -15,11 +15,12 @@ output and issue titles. "The Android app" is ambiguous and therefore wrong — 
 | **Android Desktop** | `android-desktop` | `products/android/android-desktop/` | `:android-desktop` | `com.photoselectortoolbox` | Samsung DeX, tablets ≥ 840 dp, Chromebooks |
 | **PhotoTok** | `phototok` | `products/android/phototok/` | `:phototok` | `com.phototok` | Phones of every tier (compact to high-end), portrait, gesture-first |
 
-Plus one shared library, which is not a product:
+Plus two shared libraries, which are not products:
 
 | Canonical name | Code | Gradle module | Package |
 |---|---|---|---|
 | **Android Core** | `products/android/core/` | `:core` | `com.photoselector.core` |
+| **Android SAF** | `products/android/saf/` | `:saf` | `com.photoselector.saf` |
 
 ## Deprecated names — do not use
 
