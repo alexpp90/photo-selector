@@ -941,6 +941,21 @@ def test_copy_whose_cleanup_failed_keeps_the_record_and_undo_leaves_the_counters
     assert (vm.copied_count, vm.selected_count) == (5, 5)
 
 
+def test_move_whose_stray_copies_could_not_be_removed_says_the_originals_are_untouched():
+    """Cross-mount staging failed and its cleanup too: the originals never moved, so the user must
+    not be told to put anything back."""
+    vm, photo, record, messages = _stranded_vm("move")
+    record.unremoved_sources = [photo.primary_path]
+
+    vm.cull_move()
+
+    assert [entry[0] for entry in vm.undo_stack] == [record]
+    assert messages == [
+        "Move interrupted — copies of a.jpg stayed in Selection/ and could not be removed; "
+        "the original is untouched"
+    ]
+
+
 # ── B-7: feedback templates of docs/shared/FILE_OPERATIONS.md (finding D-8) ─────────────────────
 
 

@@ -487,7 +487,13 @@ class CullingWorkspaceViewModel:
                 if partial_record is not None and partial_record.stranded:
                     # A failed rollback or cleanup left files in Selection/ (D-12). Never claim the
                     # operation was undone; Undo (Ctrl+Z) puts them back or removes the stray copies.
-                    if action.kind == "move":
+                    if action.kind == "move" and partial_record.unremoved_sources:
+                        # Cross-mount staging: the originals never moved, only copies are stranded.
+                        self._notify(
+                            f"Move interrupted — copies of {action.photo.filename} stayed in "
+                            f"{action.selection_folder}/ and could not be removed; the original is untouched"
+                        )
+                    elif action.kind == "move":
                         self._notify(
                             f"Move interrupted — some files of {action.photo.filename} stayed in "
                             f"{action.selection_folder}/ and could not be put back"

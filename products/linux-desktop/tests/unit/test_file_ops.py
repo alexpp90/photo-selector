@@ -1478,3 +1478,34 @@ def test_copy_with_successful_cleanup_still_says_rolled_back(tmp_path: Path):
 
     assert exc_info.value.partial_record is None
     assert "rolled back" in str(exc_info.value)
+
+
+def test_copy_never_deletes_a_file_that_appeared_at_the_destination_name(tmp_path: Path):
+    """The exclusive create fails because someone else owns the name: that file is not ours to clean up."""
+    raw, _jpg, candidate = _bundle(tmp_path, "DSC_D12G")
+    (tmp_path / "Selection").mkdir()
+    occupant = tmp_path / "Selection" / "DSC_D12G.ARW"
+    occupant.write_bytes(b"someone else's photo")
+    mgr = FileCullingManager()
+
+    with patch.object(mgr, "_resolve_bundle_destinations", return_value=[(raw, occupant)]):
+        with pytest.raises(FileCullingError):
+            mgr.copy_candidate(candidate, tmp_path)
+
+    assert occupant.read_bytes() == b"someone else's photo"
+    assert raw.exists()
+
+
+def test_cross_mount_staging_never_deletes_a_file_that_appeared_at_the_destination_name(tmp_path: Path):
+    raw, _jpg, candidate = _bundle(tmp_path, "DSC_D12H")
+    (tmp_path / "Selection").mkdir()
+    occupant = tmp_path / "Selection" / "DSC_D12H.ARW"
+    occupant.write_bytes(b"someone else's photo")
+    mgr = _cross_mount_manager(tmp_path)
+
+    with patch.object(mgr, "_resolve_bundle_destinations", return_value=[(raw, occupant)]):
+        with pytest.raises(FileCullingError):
+            mgr.move_candidate(candidate, tmp_path)
+
+    assert occupant.read_bytes() == b"someone else's photo"
+    assert raw.exists()

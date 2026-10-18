@@ -580,6 +580,16 @@ class FileCullingManager:
             # If statvfs is unsupported on host, proceed
 
     @staticmethod
+    def _in_flight_to_clean(
+        in_flight: Optional[Tuple[Path, Path]], error: BaseException
+    ) -> List[Tuple[Path, Path]]:
+        """The in-flight pair to clean up after ``error``. When the exclusive create itself failed
+        because the name exists, the file there belongs to someone else and is never removed."""
+        if in_flight is None or isinstance(error, FileExistsError):
+            return []
+        return [in_flight]
+
+    @staticmethod
     def _remove_replicas(pairs: List[Tuple[Path, Path]]) -> List[Tuple[Path, Path]]:
         """Unlink the destination replica of each ``(source, replica)`` pair; return the pairs whose
         replica could not be removed (they are still on disk and must be reported)."""
@@ -686,7 +696,7 @@ class FileCullingManager:
                 # replica, leaving sources untouched. A replica that cannot be removed stays in
                 # Selection/ and is reported (D-12).
                 leftovers = self._remove_replicas(
-                    ([current_in_flight] if current_in_flight is not None else []) + staged_dsts
+                    self._in_flight_to_clean(current_in_flight, e) + staged_dsts
                 )
                 if leftovers:
                     names = ", ".join(s.name for s, _ in leftovers)
@@ -787,7 +797,7 @@ class FileCullingManager:
             # Clean up the in-flight partial/corrupt replica and every staged copy, never touching
             # originals. A copy that cannot be removed stays in Selection/ and is reported (D-12).
             leftovers = self._remove_replicas(
-                ([current_in_flight] if current_in_flight is not None else []) + staged_copies
+                self._in_flight_to_clean(current_in_flight, e) + staged_copies
             )
             if leftovers:
                 names = ", ".join(s.name for s, _ in leftovers)

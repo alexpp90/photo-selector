@@ -95,7 +95,9 @@ outcome rather than claiming full success or destroying verified data to force a
   a member back, removing a staged copy) fails as well, the file that is still in the destination
   folder is never forgotten: the operation ends as a partial result whose undo record covers exactly
   those files, and the user is told they stayed in the destination folder. A message that says the
-  operation was rolled back is shown only when every compensating step succeeded. Undo then moves
+  operation was rolled back is shown only when every compensating step succeeded. A cleanup removes
+  only what the operation itself wrote: a destination whose exclusive create failed because the name
+  exists belongs to someone else and is never deleted. Undo then moves
   such a member back (Move) or deletes the stray copy (Copy).
 - **Companion bundle partial failure.** On platforms where each file in a companion bundle transfers
   through separate provider calls (Android SAF), any companion that fails leaves its source intact
@@ -117,5 +119,6 @@ for `«folder»`):
 | Undo Move / Trash (original name occupied) | `Restored as «stem»-«N».«ext» (original name was in use)` |
 | Move where source could not be removed | `Copied to «folder» — original could not be removed` |
 | Move whose rollback failed (members stayed in the folder) | `Move interrupted — some files of «name» stayed in «folder»/ and could not be put back` |
+| Move whose staged copies could not be removed (originals untouched) | `Move interrupted — copies of «name» stayed in «folder»/ and could not be removed; the original is untouched` |
 | Copy whose cleanup failed (stray copies in the folder) | `Copy interrupted — some copies of «name» stayed in «folder»/ and could not be removed` |
 | Partial companion bundle transfer | `Moved «succeeded» of «total» to «folder» («failed» failed)` / `Copied «succeeded» of «total» to «folder» («failed» failed)` |
