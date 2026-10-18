@@ -377,6 +377,129 @@ class SelectorViewModelTest {
         assertEquals(listOf("a", "b"), viewModel.uiState.value.images.map { it.fileName })
     }
 
+    // ── Folder switch while a transfer is in flight (Q-7) ────────────────
+
+    private fun otherImage(name: String) = ImageItem(
+        uri = "content://test/other/$name",
+        fileName = name,
+        fileSize = 1,
+        lastModified = 1,
+        mimeType = "image/jpeg",
+    )
+
+    private fun names(viewModel: SelectorViewModel) = viewModel.uiState.value.images.map { it.fileName }
+
+    @Test
+    fun `a move that finishes after a folder switch is undoable in its own folder only`() = runTest {
+        val transfer = CompletableDeferred<FileOperationResult>()
+        coEvery { imageRepository.moveImage(any(), any(), any(), any()) } coAnswers { transfer.await() }
+        coEvery { imageRepository.undoMoveBundle(any(), any(), any(), any(), any()) } returns
+            FileOperationResult.success("content://test/sel/a", "content://test/folder/a")
+        val viewModel = loadFolder(image("a"), image("b"))
+        viewModel.moveToSelection()
+
+        // The shared test flow replays its last batch to a new collector; start B clean.
+        discovery.resetReplayCache()
+        viewModel.selectFolder(Uri.parse(OTHER_FOLDER_URI))
+        discovery.emit(listOf(otherImage("x"), otherImage("y")))
+        transfer.complete(FileOperationResult.success("content://test/folder/a", "content://test/sel/a"))
+
+        assertTrue(viewModel.uiState.value.undoHistory.isEmpty())
+        assertEquals(listOf("x", "y"), names(viewModel))
+        assertEquals(FOLDER_URI, viewModel.uiState.value.parkedUndo.folders.single())
+
+        // Ctrl+Z in B has nothing to reverse.
+        viewModel.undoLastOperation()
+        assertEquals(listOf("x", "y"), names(viewModel))
+        coVerify(exactly = 0) { imageRepository.undoMoveBundle(any(), any(), any(), any(), any()) }
+
+        discovery.resetReplayCache()
+        viewModel.selectFolder(Uri.parse(FOLDER_URI))
+        discovery.emit(listOf(image("b")))
+        assertTrue(viewModel.uiState.value.undoHistory.single() is UndoableOperation.ReverseMove)
+        viewModel.undoLastOperation()
+
+        assertEquals(listOf("a", "b"), names(viewModel))
+        coVerify(exactly = 1) {
+            imageRepository.undoMoveBundle(any(), listOf("content://test/sel/a"), Uri.parse(FOLDER_URI), any(), any())
+        }
+    }
+
+    @Test
+    fun `a failed or partial result after a folder switch leaves the new folder's list and messages alone`() = runTest {
+        val transfer = CompletableDeferred<FileOperationResult>()
+        coEvery { imageRepository.moveImage(any(), any(), any(), any()) } coAnswers { transfer.await() }
+        val viewModel = loadFolder(image("a"), image("b"))
+        viewModel.moveToSelection()
+        // The shared test flow replays its last batch to a new collector; start B clean.
+        discovery.resetReplayCache()
+        viewModel.selectFolder(Uri.parse(OTHER_FOLDER_URI))
+        discovery.emit(listOf(otherImage("x"), otherImage("y")))
+
+        transfer.complete(
+            FileOperationResult.partial(
+                sourceUri = "content://test/folder/a",
+                destinationUri = "content://test/sel/a",
+                error = "partial",
+            ),
+        )
+
+        assertEquals(listOf("x", "y"), names(viewModel))
+        assertNull(viewModel.uiState.value.error)
+        assertTrue(viewModel.uiState.value.undoHistory.isEmpty())
+        // The verified copies are still the photographer's data: undoable back in folder A.
+        assertEquals(1, viewModel.uiState.value.parkedUndo.historyOf(FOLDER_URI).size)
+    }
+
+    @Test
+    fun `a failed move after a folder switch changes nothing in the new folder`() = runTest {
+        val transfer = CompletableDeferred<FileOperationResult>()
+        coEvery { imageRepository.moveImage(any(), any(), any(), any()) } coAnswers { transfer.await() }
+        val viewModel = loadFolder(image("a"), image("b"))
+        viewModel.moveToSelection()
+        // The shared test flow replays its last batch to a new collector; start B clean.
+        discovery.resetReplayCache()
+        viewModel.selectFolder(Uri.parse(OTHER_FOLDER_URI))
+        discovery.emit(listOf(otherImage("x")))
+
+        transfer.complete(FileOperationResult.failure("content://test/folder/a", "disk full"))
+
+        assertEquals(listOf("x"), names(viewModel))
+        assertNull(viewModel.uiState.value.error)
+        assertTrue(viewModel.uiState.value.parkedUndo.folders.isEmpty())
+    }
+
+    @Test
+    fun `the rating still follows a file whose move finished after a folder switch`() = runTest {
+        val transfer = CompletableDeferred<FileOperationResult>()
+        coEvery { imageRepository.moveImage(any(), any(), any(), any()) } coAnswers { transfer.await() }
+        val viewModel = loadFolder(image("a"), image("b"))
+        viewModel.moveToSelection()
+        viewModel.selectFolder(Uri.parse(OTHER_FOLDER_URI))
+
+        transfer.complete(FileOperationResult.success("content://test/folder/a", "content://test/sel/a"))
+
+        coVerify(exactly = 1) { cacheRepository.moveRating("content://test/folder/a", "content://test/sel/a") }
+    }
+
+    @Test
+    fun `leaving a folder keeps its finished moves, commits its pending deletes, and pins its grant`() = runTest {
+        coEvery { imageRepository.moveImage(any(), any(), any(), any()) } returns
+            FileOperationResult.success("content://test/folder/a", "content://test/sel/a")
+        val viewModel = loadFolder(image("a"), image("b"), image("c"))
+        viewModel.moveToSelection()
+        viewModel.deleteCurrentImage()
+        assertEquals(2, viewModel.uiState.value.undoHistory.size)
+
+        viewModel.selectFolder(Uri.parse(OTHER_FOLDER_URI))
+
+        coVerify(exactly = 1) { imageRepository.deleteImage(any(), Uri.parse("content://test/folder/b")) }
+        val parked = viewModel.uiState.value.parkedUndo.historyOf(FOLDER_URI)
+        assertTrue(parked.single() is UndoableOperation.ReverseMove)
+        assertTrue(viewModel.uiState.value.undoHistory.isEmpty())
+        io.mockk.verify { settingsRepository.pinUndoHistoryFolders(setOf(FOLDER_URI)) }
+    }
+
     // ── Undo availability ────────────────────────────────────────────────
 
     @Test

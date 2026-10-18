@@ -1,7 +1,7 @@
 Format: https://www.debian.org/doc/packaging-manuals/copyright-format/1.0/
 Upstream-Name: photo-selector-linux
 Upstream-Contact: Alexander Patz <alexpp90@users.noreply.github.com>
-Source: https://github.com/alexpp90/homebrew-photo-selector-toolbox
+Source: https://github.com/alexpp90/photo-selector
 
 Files: *
 Copyright: 2026 Alexander Patz

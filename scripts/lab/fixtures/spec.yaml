@@ -3,6 +3,6 @@ sets:
   burst-jpeg:       {bursts: [{start: 1, count: 10, sharpest: 6}, {start: 20, count: 5, sharpest: 2}], size: [3000, 2000]}
   burst-raw-jpeg:   {bursts: [{start: 1, count: 6, sharpest: 3}], raw_companion: arw, xmp: [3], edits: [3]}
   orientation:      {photos: 4, exif_orientation: [1, 6, 3, 8]}
-  formats:          {from_corpus: [heic, webp, dng], plus_jpeg: 4}
+  formats:          {from_corpus: [heif, webp, dng], plus_jpeg: 4}
   large:            {photos: 1200, size: [1600, 1067]}
   decoys:           {photos: 6, selection_decoys: 3, corrupt: 1}

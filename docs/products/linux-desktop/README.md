@@ -1,6 +1,6 @@
 # Linux Desktop
 
-High-performance native GNOME photo selection and comparison culling application built in Python 3.12+,
+Native GNOME photo selection and comparison culling application built in Python 3.12+,
 PyGObject, GTK4, and Libadwaita for Debian 13 (Trixie) and GNOME 46+. Designed specifically for
 lightning-fast SD-card photo ingestion, large-scale RAW/JPEG triage, native Libadwaita look-and-feel,
 and seamless Debian APT package distribution.
@@ -54,7 +54,7 @@ The product is partitioned into a clean modular architecture following the repos
 
 3. **GNOME HIG / Libadwaita Presentation Layer**:
    - Modern Libadwaita window with `AdwHeaderBar`, dark styling conforming to GNOME HIG.
-   - Zero-latency keyboard shortcuts (`←`/`→`, `h`/`l`, `M`, `C`, `Delete`).
+   - Keyboard shortcuts (`←`/`→`, `h`/`l`, `M`, `C`, `Delete`).
 
 4. **Debian APT Packaging**:
    - In-repo `debian/` packaging definitions producing `.deb` binaries.

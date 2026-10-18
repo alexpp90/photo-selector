@@ -16,7 +16,7 @@
 #   ./scripts/run_tests.sh                  # auto-detects changed products (mirrors CI paths: filters)
 #   ./scripts/run_tests.sh --python         # Python gates only (flake8 + pytest + coverage)
 #   ./scripts/run_tests.sh --android        # Android gates that need no device
-#   ./scripts/run_tests.sh --android-device # Android instrumented tests (needs emulator/device)
+#   ./scripts/run_tests.sh --android-device # Android instrumented tests, pinned to one test device
 #   ./scripts/run_tests.sh --macos          # macOS Desktop native Swift gates (Darwin only)
 #   ./scripts/run_tests.sh --linux          # Linux Desktop native gates (Python/GTK4 + Debian packaging)
 #   ./scripts/run_tests.sh --all            # all products unconditionally
@@ -428,17 +428,22 @@ if $run_android_device; then
     section "Android instrumented tests (device/emulator)"
     cd "$ROOT_DIR/products/android" || exit 1
 
-    if ! have adb; then
-        skip "instrumented tests" "" "adb not found — install Android SDK platform-tools"
+    # Gradle installs on every attached device, so the run is pinned to one test device
+    # (ANDROID_SERIAL, honoured by the Android Gradle plugin). Selection and preparation
+    # live in scripts/android_test_device.py; see docs/build/CI_PARITY.md.
+    if ! TEST_SERIAL=$(python3 "$ROOT_DIR/scripts/android_test_device.py" serial 2>&1); then
+        skip "instrumented tests" "" "$TEST_SERIAL — see docs/build/CI_PARITY.md (Instrumented tests)"
     else
-        DEVICE_COUNT=$(adb devices | awk 'NR>1 && $2=="device"' | wc -l | tr -d ' ')
-        if [ "${DEVICE_COUNT:-0}" -lt 1 ]; then
-            skip "instrumented tests" "" "no device/emulator attached — see docs/build/CI_PARITY.md for the emulator start command"
-        else
-            chmod +x ./gradlew 2>/dev/null || true
-            gate "gradlew connectedDebugAndroidTest" "android.yml:instrumented-tests" \
-                ./gradlew :android-desktop:connectedDebugAndroidTest :phototok:connectedDebugAndroidTest --stacktrace
+        echo -e "${DIM}  test device: $TEST_SERIAL ($(adb -s "$TEST_SERIAL" shell getprop ro.product.model 2>/dev/null | tr -d '\r'))${NC}"
+        # Before the export: prepare must see whether the device was designated or merely the
+        # only one attached (it refuses to change settings on an undesignated device).
+        if ! python3 "$ROOT_DIR/scripts/android_test_device.py" prepare; then
+            warn "test device not prepared (see above)" "local-only"
         fi
+        export ANDROID_SERIAL="$TEST_SERIAL"
+        chmod +x ./gradlew 2>/dev/null || true
+        gate "gradlew connectedDebugAndroidTest" "android.yml:instrumented-tests" \
+            ./gradlew :android-desktop:connectedDebugAndroidTest :phototok:connectedDebugAndroidTest --stacktrace
     fi
 fi
 

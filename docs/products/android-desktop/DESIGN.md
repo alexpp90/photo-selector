@@ -42,8 +42,7 @@ to them.
 ## 1. Product context
 
 **One sentence.** A photographer dumps a shoot folder onto the device, the app analyses
-every image for technical quality — sharpness, noise, highlight/shadow clipping, and an
-optional on-device AI aesthetic score — and the photographer rapidly compares neighbouring
+every image for technical quality — sharpness, noise, highlight/shadow clipping — and the photographer rapidly compares neighbouring
 frames side by side to decide which to keep, copy, move, or delete.
 
 **Who uses it.** Enthusiast and professional photographers reviewing 200–2000 frames from a
@@ -184,12 +183,11 @@ Material Symbols, Rounded, weight 400.
 | Noise | `grain` |
 | Highlight clipping | `brightness_high` |
 | Shadow clipping | `brightness_low` |
-| Aesthetic score | `auto_awesome` |
 | Maximise a frame | `open_in_full` |
 | Value overlays on / off | `visibility` / `visibility_off` |
 | Shortcut sheet | `keyboard` |
 
-**The five metric glyphs are load-bearing, not decorative.** On Previous and Next the glyph
+**The four metric glyphs are load-bearing, not decorative.** On Previous and Next the glyph
 is the *only* thing identifying a metric (§7.4b), so each one is declared once on
 `ScoreMetric` next to its label, format, direction and normalisation range — never picked at
 a call site — and the named readout beside the current frame (§7.4a) is what teaches it. A
@@ -270,7 +268,6 @@ Produced by a scan. Any subset may be absent — an image may have no scores at 
 | `Noise` | Noise | `%.1f` | lower is better | Estimated sensor noise in flat areas of the image. Rises with high ISO. |
 | `Highl` | Highlight clipping | `%.1f%%` | lower is better | Share of pixels blown out to pure white — detail that cannot be recovered. |
 | `Shad` | Shadow clipping | `%.1f%%` | lower is better | Share of pixels crushed to pure black — detail that cannot be recovered. |
-| `Aesth` | Aesthetic score | `%.1f` | higher is better | On-device AI rating of overall appeal, on a 1–10 scale. |
 
 **Rendering rule.** A score chip is **icon + short label + value**. The label may be dropped
 only on thumbnail overlays where space genuinely does not exist — and there the accessibility
@@ -519,19 +516,17 @@ DSC_0127.JPG
    ▇▇▇▇▁▁▁▁▁▁▁▁
 ☾  Shadows                  0.2%
    ▇▇▇▇▇▇▇▇▁▁▁▁
-★  Aesthetic                7.1 ●
-   ▇▇▇▇▇▇▇▇▁▁▁▁
 ```
 
 - **Icon + full metric name + value**, one metric per line, the goodness bar beneath, indented
   to the name so the icon column stays clean. Right-aligned values in tabular mono so the
-  five numbers form a column.
+  four numbers form a column.
 - The icon here is the *same glyph* the overlays use — this block is what teaches it. Each
   metric therefore has exactly one icon, defined once on `ScoreMetric` alongside its label,
   format and direction, never chosen at a call site.
 - Filename and the one-line EXIF summary head the block; `127 / 842` sits under the controls
   on the opposite side, balancing the composition.
-- Unscanned: a single dashed "Not scanned" row, not five blanks.
+- Unscanned: a single dashed "Not scanned" row, not four blanks.
 
 #### 7.4b Previous and Next — identity, exposure and values, on the frame's own right edge
 
@@ -552,7 +547,7 @@ identity, then exposure, then a rule, then icon + value + bar per metric.
 └────────────────┘
 ```
 
-- **Same order as the current frame's block, always.** Filename, exposure, rule, then the five
+- **Same order as the current frame's block, always.** Filename, exposure, rule, then the four
   metrics in the `ScoreMetric` declaration order. The eye learns one vertical order and reuses
   it across all three frames; a neighbour that ordered its metrics differently would make the
   overlays unreadable at a glance, so the order comes from the enum and never from a
@@ -986,10 +981,6 @@ plain-language explanation:
 | Noise Level | Estimate sensor noise via median absolute deviation |
 | Highlight Clipping | Detect overexposed (blown-out) areas |
 | Shadow Clipping | Detect underexposed (crushed black) areas |
-| AI Aesthetic Score (beta) | On-device aesthetic rating; runs only on sharp images |
-
-The aesthetic score carries a `BETA` pill and a small battery-impact note. It is opt-in and
-gated behind the cheap sharpness metric.
 
 **Estimated duration line**, updating live with the selected options:
 *"842 images · about 3 min · 612 already cached and will be skipped."*
@@ -1199,10 +1190,10 @@ Reference frame: 400 × 880 dp portrait.
 
 Produce these as a design-system page, dark theme, Zinc/Indigo.
 
-1. **ScoreChip** — five variants (Sharp, Noise, Highl, Shad, Aesth) × three states (good,
+1. **ScoreChip** — four variants (Sharp, Noise, Highl, Shad) × three states (good,
    neutral, poor) × two sizes (full = icon + label + value; compact = icon + value for
    thumbnail overlays). Show the direction-bar treatment in every variant.
-2. **ScoreChipRow** — wrapping row of up to five chips at column width ~450 dp.
+2. **ScoreChipRow** — wrapping row of up to four chips at column width ~450 dp.
 3. **ImageTile** — 4:3 tile with letterbox and pillarbox behaviour. States: resting,
    current/active (2 dp Indigo border), hovered (Zinc-600 border), loading (Zinc-800 with a
    subtle shimmer — no spinner).
@@ -1213,9 +1204,9 @@ Produce these as a design-system page, dark theme, Zinc/Indigo.
    + word + key cap: Keep (`ScoreGood` tonal), Move (`TonalIndigo`), Delete (outlined,
    `ScoreBad` glyph and word), Fullscreen, Previous, Next; disabled states (`No previous` /
    `No next`); the 48 dp view-toggle row and the position counter beneath.
-6. **Readout block** — 388 × 450 dp: filename, EXIF line, five icon + name + value rows with
+6. **Readout block** — 388 × 450 dp: filename, EXIF line, four icon + name + value rows with
    goodness bars and the best-of-three dot, the "Not scanned" row, the embedded filmstrip.
-7. **Value overlay** — 148 dp neighbour column: filename, two-line exposure, rule, five icon
+7. **Value overlay** — 148 dp neighbour column: filename, two-line exposure, rule, four icon
    + value + bar rows. Both the outside-the-frame and overlaid-on-the-frame placements, the
    fallback-EXIF amber marker, the unscanned variant, and the suppressed state.
 8. **Maximise badge** — 44 dp `⛶` on a tile's outline: bottom-right on the current frame,

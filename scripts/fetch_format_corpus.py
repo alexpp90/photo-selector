@@ -43,7 +43,7 @@ TIERS = {"required", "recognized"}
 KINDS = {"raw", "bitmap"}
 EXPECT_KEYS = {"long_edge_px", "make", "model", "iso", "exposure_time_s", "f_number", "focal_length_mm", "lens"}
 REQUIRED_EXPECT_KEYS = {"long_edge_px", "make", "model", "iso", "exposure_time_s", "f_number", "focal_length_mm"}
-USER_AGENT = "photo-selector-toolbox-format-corpus/1 (+https://github.com/alexpp90/homebrew-photo-selector-toolbox)"
+USER_AGENT = "photo-selector-toolbox-format-corpus/1 (+https://github.com/alexpp90/photo-selector)"
 
 
 def load_manifest(path: Path = MANIFEST) -> dict:

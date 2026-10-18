@@ -4,22 +4,23 @@ from __future__ import annotations
 
 import shutil
 import sys
+import tempfile
 import unittest
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
-from lab.fixtures import generate_fixtures  # noqa: E402
+from lab.fixtures import _resolve_corpus_samples, generate_fixtures  # noqa: E402
 from PIL import Image, ImageFilter, ImageStat  # noqa: E402
 
 
 class TestFixtures(unittest.TestCase):
     def setUp(self) -> None:
-        self.dir_a = Path("/tmp/pstlab/test_fixtures_a")
-        self.dir_b = Path("/tmp/pstlab/test_fixtures_b")
-        for d in (self.dir_a, self.dir_b):
-            if d.exists():
-                shutil.rmtree(d)
+        # A private folder per run: every worktree's run_tests.sh runs these tests, and a fixed
+        # /tmp/pstlab path let two concurrent runs delete each other's half-written fixtures.
+        Path("/tmp/pstlab").mkdir(parents=True, exist_ok=True)
+        self.dir_a = Path(tempfile.mkdtemp(prefix="test_fixtures_a_", dir="/tmp/pstlab"))
+        self.dir_b = Path(tempfile.mkdtemp(prefix="test_fixtures_b_", dir="/tmp/pstlab"))
 
     def tearDown(self) -> None:
         for d in (self.dir_a, self.dir_b):
@@ -56,6 +57,30 @@ class TestFixtures(unittest.TestCase):
         corrupt = self.dir_a / "decoys" / "DSC_0999.JPG"
         self.assertTrue(corrupt.is_file())
         self.assertEqual(corrupt.read_bytes()[:2], b"\xff\xd8")
+
+    def test_corpus_resolves_committed_bitmaps_next_to_manifest(self) -> None:
+        # Committed ("repo") samples sit beside the manifest, downloaded ones in the cache.
+        root = self.dir_a / "root"
+        cache = self.dir_a / "cache"
+        (root / "scripts").mkdir(parents=True)
+        (root / "testdata" / "formats" / "bitmaps").mkdir(parents=True)
+        cache.mkdir()
+        (root / "scripts" / "fetch_format_corpus.py").write_text(
+            f"import sys\nif '--print-dir' in sys.argv: print({str(cache)!r})\n", encoding="utf-8"
+        )
+        (root / "testdata" / "formats" / "manifest.json").write_text(
+            '{"samples": ['
+            '{"format": "heic", "file": "bitmaps/sample.heic", "source": "repo"},'
+            '{"format": "dng", "file": "x.dng", "source": "corpus"}]}',
+            encoding="utf-8",
+        )
+        (root / "testdata" / "formats" / "bitmaps" / "sample.heic").write_bytes(b"heic")
+        (cache / "x.dng").write_bytes(b"dng")
+
+        found = _resolve_corpus_samples(["heic", "dng"], root=root)
+
+        self.assertEqual(found["heic"], root / "testdata" / "formats" / "bitmaps" / "sample.heic")
+        self.assertEqual(found["dng"], cache / "x.dng")
 
 
 if __name__ == "__main__":

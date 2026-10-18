@@ -32,6 +32,8 @@ products/android/.idea/
 *.aab
 *.jks
 *.keystore
+# JVM heap dumps (gradle.properties sets -XX:+HeapDumpOnOutOfMemoryError)
+*.hprof
 
 # OS files
 .DS_Store

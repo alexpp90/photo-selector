@@ -1,0 +1,157 @@
+# PhotoTok usability scenarios — the walkthrough the persona panel reviews.
+#
+# Scenarios run in order on one device and share state: the first one installs fresh, the
+# others continue where the previous one stopped, as a real first day with the app would.
+# Every `screen` step is reviewed. `intent` is what the user wants at that moment, in their
+# words; `expected` is the action the design relies on them finding. A persona who would do
+# something else has found a discoverability problem. `system: true` marks Android's own
+# screens (folder picker): reviewed, but filed as platform context, not as our defect.
+product: phototok
+app_id: com.phototok.lab
+fixture:
+  kind: scenes
+  remote: /sdcard/PSTLab/usability-trip
+scenarios:
+  - id: U-TOK-01
+    title: First launch — get the trip photos on screen
+    goal: You just installed PhotoTok. The photos of last week's trip are in the folder PSTLab/usability-trip on this phone. Get them on screen.
+    steps:
+      - launch: {clear: true}
+      - screen: landing
+        intent: Understand what this app is and start with my trip photos
+        expected: Scroll down to the source cards and tap 'Folder or Cloud'
+      - scroll_to: {id: landing_custom_folder_card, label: Folder or Cloud}
+      - screen: landing-sources
+        intent: Pick where my trip photos are
+        expected: Tap 'Folder or Cloud'
+      - tap: {id: landing_custom_folder_card, label: Folder or Cloud}
+      - screen: picker
+        system: true
+        intent: Find the folder with my trip photos
+        expected: Open PSTLab, then usability-trip
+      - tap: {text: PSTLab, scroll: true}
+      - tap: {text: usability-trip, scroll: true}
+      - screen: picker-folder
+        system: true
+        intent: Confirm this is the right folder
+        expected: Tap 'Use this folder'
+      - tap: {text: Use this folder}
+      - screen: picker-allow
+        system: true
+        intent: Let the app see this folder
+        expected: Tap 'Allow'
+      - tap: {text: Allow}
+      - wait_for: {id: gesture_tutorial_got_it, timeout_ms: 15000}
+      - screen: guide
+        intent: Learn just enough to start
+        expected: Read the guide, then tap 'GOT IT'
+      - tap: {id: gesture_tutorial_got_it, label: GOT IT}
+      - screen: feed-first
+        intent: Look at my first trip photo and move on to the next
+        expected: Swipe up
+
+  - id: U-TOK-02
+    title: Tidy up — delete a miss, regret it, keep a gem
+    goal: Go through the trip photos. Get rid of the bad ones, keep the good ones. You are on the train, one hand free.
+    steps:
+      - swipe: up
+      - screen: blurred-photo
+        intent: This one is blurry — get rid of it
+        expected: Swipe left
+      - swipe: left
+      - screen: delete-confirm
+        intent: Make sure the blurry photo goes away
+        expected: Tap 'Delete'
+      - tap: {text: Delete}
+      - screen: after-delete
+        intent: "Hmm — that was the only shot of that moment. Undo it"
+        expected: Tap 'Revert' in the bottom bar
+      - tap: {id: viewer_revert_button, label: Revert}
+      - screen: after-revert
+        intent: Check the photo is back, then delete it after all
+        expected: Swipe left, then confirm
+      - swipe: left
+      - tap: {text: Delete, timeout_ms: 4000}
+      - optional_tap: {id: first_run_hint_dismiss, label: GOT IT}
+      - screen: good-photo
+        intent: This one is lovely — keep it
+        expected: Swipe right
+      - swipe: right
+      - screen: after-keep
+        intent: Make sure it was kept, then carry on
+        expected: Swipe up
+
+  - id: U-TOK-03
+    title: Look closer — when was it taken, is it sharp?
+    goal: Find out when this photo was taken and with what settings, then check whether it is sharp.
+    steps:
+      - optional_tap: {id: first_run_hint_dismiss, label: GOT IT}
+      - screen: photo-before-info
+        intent: See when and how this photo was taken
+        expected: Tap the (i) button at the top
+      - tap: {id: info_exif_button, label: "(i)"}
+      - screen: info-overlay
+        intent: Now check whether it is sharp
+        expected: Double-tap the photo to zoom
+      - double_tap: {}
+      - screen: zoomed
+        intent: Go back to the whole photo
+        expected: Double-tap again
+      - double_tap: {}
+
+  - id: U-TOK-04
+    title: Review the keepers, look at the settings
+    goal: See the photos you kept so far. Then check whether the app can do anything you would want to change.
+    steps:
+      - screen: feed-before-selection
+        intent: See the photos I kept
+        expected: Tap 'Selection' in the bottom bar
+      - tap: {id: viewer_selection_button, label: Selection}
+      - screen: selection
+        intent: Go back to culling
+        expected: Press Back or the close control
+      - back: {}
+      - screen: after-back
+        intent: Continue culling where I was
+        expected: (whatever this screen offers)
+      - launch: {}
+      - screen: resume-dialog
+        when: {text: Continue Where I Left Off, timeout_ms: 6000}
+        intent: Continue culling where I was
+        expected: Tap 'Continue Where I Left Off'
+      - optional_tap: {text: Continue Where I Left Off}
+      - wait_for: {id: viewer_bottom_bar, timeout_ms: 10000}
+      - optional_tap: {id: gesture_tutorial_got_it, label: GOT IT}
+      - tap: {desc: Settings, label: the gear icon}
+      - screen: settings
+        intent: Find out what I can change
+        expected: Read and scroll
+      - swipe: up
+      - screen: settings-more
+        intent: Find out what I can change
+        expected: Read, then go back
+      - back: {}
+      - tap: {id: viewer_sources_button, label: Sources}
+      - screen: sources
+        intent: Switch to another folder of photos
+        expected: Choose a source or a recent folder
+      - swipe: up
+      - screen: sources-more
+        intent: Or go back to the trip photos I was culling
+        expected: Tap the recent folder or the resume button
+
+  - id: U-TOK-05
+    title: Interrupted — a message arrives, come back
+    goal: Leave the app to answer a message, then come back and continue where you were.
+    steps:
+      - tap: {id: landing_start_browsing_button, label: the resume button, scroll: true}
+      - optional_tap: {text: Continue Where I Left Off}
+      - wait_for: {id: viewer_bottom_bar, timeout_ms: 10000}
+      - optional_tap: {id: first_run_hint_dismiss, label: GOT IT}
+      - screen: before-interruption
+        intent: Note where I am before leaving
+        expected: (nothing — just leave)
+      - background: 5000
+      - screen: resumed
+        intent: Continue exactly where I was
+        expected: Swipe up to continue
