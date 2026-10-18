@@ -3,6 +3,7 @@ package com.photoselectortoolbox.data.repository
 import android.content.Context
 import android.net.Uri
 import com.photoselector.core.model.ExifData
+import com.photoselector.saf.FolderAccessManager
 import com.photoselectortoolbox.data.model.ImageDimensions
 import com.photoselectortoolbox.data.model.ImageItem
 import kotlinx.coroutines.flow.Flow
