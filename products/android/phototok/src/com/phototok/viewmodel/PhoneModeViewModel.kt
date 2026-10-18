@@ -109,7 +109,7 @@ data class PhoneModeUiState(
     val recentPathsCount: Int = 3,
     /** Whether to show suggestion for folders containing both RAW and JPEG pairs. */
     val showRawJpegSuggestion: Boolean = false,
-    /** Prompt shown when reloading PhotoTok or reopening a previously opened folder. */
+    /** Prompt shown when a reload or a reopened folder found photos newer than the last visit. */
     val reloadPrompt: ReloadPrompt? = null,
     /** Friendly explanation when a selected folder contains 0 supported photos. */
     val emptyFolderMessage: String? = null,
@@ -453,7 +453,7 @@ class PhoneModeViewModel @Inject constructor(
                     (src.swipeRightVerb == SwipeRightVerb.MOVE || src.leftSwipeAction == SwipeAction.MOVE)
                 ) {
                     cloudMoveCoercedNoticeShown = true
-                    showFeedback("Cloud source — copying instead of moving to keep originals safe")
+                    showFeedback("Cloud folder: copying, not moving")
                 }
 
                 val prev = previous
@@ -617,7 +617,7 @@ class PhoneModeViewModel @Inject constructor(
                         sourceFolderUri = null,
                         sourceFolderName = "",
                         missingGrantPrompt = true,
-                        error = "Cannot access folder. Permission may have been revoked.",
+                        error = "Can't access this folder",
                     )
                 }
                 return@launch
@@ -707,6 +707,7 @@ class PhoneModeViewModel @Inject constructor(
             }
 
             var promptToSet: ReloadPrompt? = null
+            var confirmNoNewPhotos = false
             val newIndex: Int
 
             val shouldPromptResume = sorted.images.isNotEmpty() &&
@@ -731,19 +732,27 @@ class PhoneModeViewModel @Inject constructor(
                     previousMaxLastModified = previousScanInfo.maxLastModified,
                     urisBeforeReload = urisBeforeReload,
                 )
-                val firstNewIdx = if (newPhotos.isNotEmpty()) {
-                    sorted.images.indexOfFirst { img ->
+                if (newPhotos.isNotEmpty()) {
+                    val firstNewIdx = sorted.images.indexOfFirst { img ->
                         newPhotos.any { it.uri == img.uri }
                     }.coerceAtLeast(0)
+                    promptToSet = ReloadPrompt(
+                        newCount = newPhotos.size,
+                        firstNewIndex = firstNewIdx,
+                        resumeIndex = newIndex,
+                        totalCount = sorted.images.size,
+                    )
                 } else {
-                    0
+                    // Nothing new means nothing to decide: resume silently at the saved
+                    // photo. Only an explicit Reload confirms the rescan, in a snackbar.
+                    val updatedScan = FolderScanLogic.computeUpdatedScanInfo(
+                        images = sorted.images,
+                        lastViewedUri = sorted.images.getOrNull(newIndex)?.uri,
+                        lastViewedIndex = newIndex,
+                    )
+                    settingsRepository.setFolderScanInfo(folderUri.toString(), updatedScan)
+                    confirmNoNewPhotos = wasActiveSession
                 }
-                promptToSet = ReloadPrompt(
-                    newCount = newPhotos.size,
-                    firstNewIndex = firstNewIdx,
-                    resumeIndex = newIndex,
-                    totalCount = sorted.images.size,
-                )
             } else {
                 newIndex = FolderScanLogic.resolveLandingIndex(
                     images = sorted.images,
@@ -764,8 +773,8 @@ class PhoneModeViewModel @Inject constructor(
             }
 
             val emptyMsg = if (sorted.images.isEmpty()) {
-                val fName = current.sourceFolderName.ifEmpty { "folder" }
-                "No supported photos found in $fName"
+                val fName = current.sourceFolderName.ifEmpty { "This folder" }
+                "$fName has no supported photos"
             } else null
 
             val seenCount = seenRepository.countSeen(sorted.images, folderUri.toString())
@@ -790,6 +799,7 @@ class PhoneModeViewModel @Inject constructor(
                 )
             }
             loadExifForCurrent()
+            if (confirmNoNewPhotos) showFeedback("No new photos")
             maybeShowRawJpegSuggestion()
             maybeShowFilterMismatchHint()
             loadDimensionsAsynchronously(force = true)
@@ -807,7 +817,7 @@ class PhoneModeViewModel @Inject constructor(
                     sourceFolderUri = null,
                     sourceFolderName = "",
                     missingGrantPrompt = true,
-                    error = "Cannot access folder. Permission may have been revoked.",
+                    error = "Can't access this folder",
                 )
             }
         } catch (e: Exception) {
@@ -1542,7 +1552,7 @@ class PhoneModeViewModel @Inject constructor(
                 cardClearStep = 0,
             )
         }
-        showFeedback("All files kept on card — safe to unplug card")
+        showFeedback("Safe to unplug")
     }
 
     /** Option 2: Delete only the photos swiped left during this session. */
@@ -1554,7 +1564,7 @@ class PhoneModeViewModel @Inject constructor(
                 cardClearStep = 0,
             )
         }
-        showFeedback("Deleted rejected photos from card")
+        showFeedback("Rejects deleted")
     }
 
     /** Step 1 -> Step 2 for Option 3 ("Clear entire card"). */
@@ -1615,10 +1625,10 @@ class PhoneModeViewModel @Inject constructor(
                     cardClearStep = 0,
                     cardClearComplete = true,
                     cardDeletedCount = it.cardDeletedCount + deletedCount,
-                    emptyFolderMessage = "Safe to unplug card — $deletedCount photo(s) cleared",
+                    emptyFolderMessage = "Card cleared · safe to unplug",
                 )
             }
-            showFeedback("Cleared $deletedCount photo(s) — safe to unplug card")
+            showFeedback(if (deletedCount == 1) "1 photo deleted" else "$deletedCount photos deleted")
         }
     }
 
@@ -1691,8 +1701,7 @@ class PhoneModeViewModel @Inject constructor(
                 seenFirstRunHints = it.seenFirstRunHints + hint.key,
                 firstRunHint = FirstRunHintUi(
                     hint = hint,
-                    title = FirstRunHintText.title(hint),
-                    message = FirstRunHintText.message(
+                    title = FirstRunHintText.title(
                         hint = hint,
                         swipeRightVerb = state.swipeRightVerb,
                         collectionAction = state.collectionAction,
@@ -1700,6 +1709,7 @@ class PhoneModeViewModel @Inject constructor(
                         collectionFolderName = state.collectionFolderName,
                         leftSwipeFolderName = state.leftSwipeFolderName,
                     ),
+                    message = FirstRunHintText.message(hint),
                 ),
             )
         }
@@ -1750,12 +1760,12 @@ class PhoneModeViewModel @Inject constructor(
             }
         }
         val label = when (filter) {
-            FileTypeFilter.ONE_PER_SHOT -> "1 per shot (JPEG shown, RAW+JPEG linked)"
-            FileTypeFilter.RAW -> "RAW files"
-            FileTypeFilter.JPG -> "JPEG files"
-            FileTypeFilter.ALL -> "all files"
+            FileTypeFilter.ONE_PER_SHOT -> "1 card per shot"
+            FileTypeFilter.RAW -> "RAW only"
+            FileTypeFilter.JPG -> "JPEG only"
+            FileTypeFilter.ALL -> "all photos"
         }
-        showFeedback("Filtered to $label")
+        showFeedback("Showing $label")
     }
 
     fun enableMoveRelatedFiles() {
@@ -1764,7 +1774,7 @@ class PhoneModeViewModel @Inject constructor(
             settingsRepository.markFirstRunHintSeen(FirstRunHint.RAW_JPEG_PAIRS)
             settingsRepository.setPhoneMoveRelatedFiles(true)
         }
-        showFeedback("Actions now apply to both RAW and JPEG")
+        showFeedback("RAW + JPEG linked")
     }
 
     // ── Filter mismatch hint ─────────────────────────────────────────────
@@ -1779,14 +1789,12 @@ class PhoneModeViewModel @Inject constructor(
         if (state.allImages.isEmpty()) return
 
         if (RelatedFiles.hasFilterMismatch(state.allImages, state.fileTypeFilter)) {
-            val title = FirstRunHintText.title(FirstRunHint.FILTER_MISMATCH)
+            val title = FirstRunHintText.title(
+                hint = FirstRunHint.FILTER_MISMATCH,
+                fileTypeFilter = state.fileTypeFilter,
+            )
             val message = FirstRunHintText.message(
                 hint = FirstRunHint.FILTER_MISMATCH,
-                swipeRightVerb = state.swipeRightVerb,
-                collectionAction = state.collectionAction,
-                leftSwipeAction = state.leftSwipeAction,
-                collectionFolderName = state.collectionFolderName,
-                leftSwipeFolderName = state.leftSwipeFolderName,
                 fileTypeFilter = state.fileTypeFilter,
             )
             _uiState.update {
@@ -1852,7 +1860,7 @@ class PhoneModeViewModel @Inject constructor(
                         sourceFolderUri = null,
                         sourceFolderName = "",
                         missingGrantPrompt = true,
-                        error = "Cannot access folder. Permission may have been revoked.",
+                        error = "Can't access this folder",
                     )
                 }
                 return@launch
@@ -1871,7 +1879,7 @@ class PhoneModeViewModel @Inject constructor(
         }
     }
 
-    /** User chose to start with the newest image (or jump to new photos) from the resume/reload prompt. */
+    /** User chose to jump to the new photos from the reload/reopen prompt. */
     fun confirmReloadJumpToLatest() {
         val prompt = _uiState.value.reloadPrompt ?: return
         val images = _uiState.value.images
@@ -1882,8 +1890,6 @@ class PhoneModeViewModel @Inject constructor(
         }
         _uiState.update { it.copy(reloadPrompt = null) }
         navigateToImage(target)
-        val msg = if (prompt.newCount > 0) "Jumped to newest photos" else "Started with newest photo"
-        showFeedback(msg)
         _uiState.value.sourceFolderUri?.let { uri ->
             viewModelScope.launch {
                 val currentImages = _uiState.value.images

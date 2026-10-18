@@ -37,7 +37,7 @@ The rule that prevents it:
 | `assembleDebugAndroidTest` | `android.yml:unit-tests` | ✅ needs JDK 17 + Android SDK | Compiles `tests/instrumented/`. Nothing else does. |
 | `check_native_alignment.py` | `android.yml:unit-tests`, `android.yml:build` | ✅ needs JDK 17 + Android SDK (unit tests run everywhere via `scripts/tests`) | Inspects every `lib/{arm64-v8a,x86_64}/*.so` in `merged_native_libs/debug` and built APK/AAB archives and fails if any ELF `PT_LOAD` segment has `p_align < 16384` (Google Play 16 KB page-size mandate). For `.apk` files it also fails if a stored (uncompressed) `.so` does not start at a 16 KB-aligned zip offset (`zipalign -P 16`); bundles are exempt. The mirror builds and checks the debug APKs like the `build` job. |
 | `lintDebug` | `android.yml:lint` | ✅ advisory | Non-blocking in both places, on purpose. |
-| `connectedDebugAndroidTest` | `android.yml:instrumented-tests` | ❌ **needs emulator/device** | See [Instrumented tests](#instrumented-tests-genuinely-need-a-device). |
+| `connectedDebugAndroidTest` | `android.yml:instrumented-tests` | ❌ **needs emulator/device** | Pinned to one test device (`scripts/android_test_device.py`), never every attached device. See [Instrumented tests](#instrumented-tests-genuinely-need-a-device). |
 | `swift test (macos-desktop)` | `macos.yml:swift-test` | ⚠️ Darwin only | Native Swift 6 suite covering PhotoSelectorKit & App (release SLA benchmark included). Runs on `macos-latest` in CI. |
 | `check_no_test_hooks.sh` (release binary) | `macos.yml:swift-test`, `macos.yml:build` | ⚠️ Darwin only | `swift build -c release`, then fails if the binary contains the UI test hooks (`UIScenarioRunner`, `UITestDriver`, `UISelfTestRunner`), which are compiled in only for debug and `build_app.sh --test-hooks` builds. |
 | macOS UI smoke test (running app) | — (local-only) | ⚠️ Darwin + logged-in GUI session | `products/macos-desktop/scripts/ui_smoke_test.sh`: drives the running app (raw binary **and** `.app` bundle) — activation policy, real key events, rendered Focus 3-Up geometry, clicks while zoomed, time-to-first-photo. Window-server key probe needs Accessibility permission, else `⊘ SKIPPED`. See [macOS UI smoke test](#macos-ui-smoke-test-local-only). |
@@ -52,7 +52,7 @@ The rule that prevents it:
 | `release.py check` | `repo-hygiene.yml:hygiene` | ✅ everywhere | Every product's version sources agree, it has a `CHANGELOG.md`, and its workflow triggers on its own tag prefix. `release.py`'s unit tests run in `scripts/tests` below. |
 | `check_private_paths.py` | `repo-hygiene.yml:hygiene` | ✅ everywhere | Fails if maintainer-private material (`private/`, `ai/`, `.claude/`, `.agents/`, `.gemini/`, requirement specs, prompts, the prompt ledger) is tracked in this public repository. Also runs as the local pre-commit hook installed by the overlay. |
 | Format corpus (`fetch_format_corpus.py`) | `.github/actions/format-corpus`, used by `desktop.yml:test`, `android.yml:unit-tests`, `macos.yml:swift-test`, `linux.yml:test` | ⚠️ once downloaded (~280 MB, network) | Restores the real-camera RAW corpus pinned in `testdata/formats/manifest.json` (cache key = manifest hash) and sets `PST_REQUIRE_FORMAT_CORPUS=1`, so every product's format conformance tests **fail** rather than skip without it. Locally `run_tests.sh` exports the same variables when the corpus is present and reports `⊘ SKIPPED` otherwise. See [`docs/shared/SUPPORTED_FORMATS.md`](../shared/SUPPORTED_FORMATS.md). |
-| `fetch_format_corpus.py --validate` + `scripts/tests` | `repo-hygiene.yml:hygiene` | ✅ everywhere | The format contract is well-formed: every required format has a sample with ground-truth EXIF, extensions are unique, committed bitmap fixtures match their pinned SHA-256; unit tests for the fetcher (mirror fallback, hash verification), for `verification_record.py` and for `release.py`. |
+| `fetch_format_corpus.py --validate` + `scripts/tests` | `repo-hygiene.yml:hygiene` | ✅ everywhere | The format contract is well-formed: every required format has a sample with ground-truth EXIF, extensions are unique, committed bitmap fixtures match their pinned SHA-256; unit tests for the fetcher (mirror fallback, hash verification), for `verification_record.py`, `release.py` and `android_test_device.py`. |
 | PR verification record (`verification_record.py check`) | `pr-verification.yml:record` | ⚠️ PR description only — advisory | Compares the verification blocks in the PR description (written by `scripts/verification_record.py pr` from the record every `run_tests.sh` run saves) with the PR head tree and the products the PR touches; annotates missing, stale or partial verification and never fails. Not a `run_tests.sh` gate: it judges the PR description, which exists only on GitHub. Local equivalent: `python3 scripts/verification_record.py check --body-file <description.md> --base origin/main`. Its unit tests run in `scripts/tests` above. See [CONTRIBUTING.md § Verification record](../../CONTRIBUTING.md#verification-record). |
 | `lab tooling tests` (`scripts/lab/tests`) | — (local-only) | ✅ everywhere (needs Pillow + PyYAML) | Local-only unit tests (`python3 -m unittest discover -s scripts/lab/tests -q`) covering the device lab's schemas, fixture generator, layout lint, file-system/timing/log oracles, runners, and report builder without touching devices or a GUI. |
 | Device lab (`scripts/lab/lab.py`) | — (not a CI gate) | ⚠️ local, on demand, opt-in | Local, on demand, not a CI gate; opt-in; see [`scripts/lab/README.md`](../../scripts/lab/README.md). |
@@ -198,6 +198,35 @@ emulator -avd <avd_name> -no-audio -no-boot-anim &
 adb wait-for-device
 ./scripts/run_tests.sh --android-device
 ```
+
+**One test device, never all of them.** Gradle's `connectedDebugAndroidTest` installs on —
+and afterwards uninstalls from — *every* attached device. `run_tests.sh` therefore pins the
+run to one device via `ANDROID_SERIAL`, chosen by
+[`scripts/android_test_device.py`](../../scripts/android_test_device.py): `$ANDROID_SERIAL`,
+else `pst.testDevice.serial` in `products/android/local.properties`, else the only attached
+device. With several devices attached and none designated, the gate is skipped rather than
+run on personal devices.
+
+**A dedicated test device.** A device that stays connected for testing is designated once,
+machine-locally (local.properties is ignored by git):
+
+```bash
+echo "pst.testDevice.serial=<serial from adb devices>" >> products/android/local.properties
+```
+
+Before every run the script prepares a designated device (or an emulator) —
+animations off (CI's `disable-animations: true`), screen kept on while powered, keyguard off,
+portrait rotation, default size/density/font scale, light theme, no verifier prompt on adb
+installs — using `adb root` where the build allows it. It refuses a device that is merely the only one
+attached, since that may be a personal phone. Run it on its own with
+`python3 scripts/android_test_device.py prepare`; `status` shows which device is selected.
+
+**Test photos on the device.** `python3 scripts/android_test_device.py load-images [--sets smoke,formats]`
+generates the device lab's fixture sets ([`scripts/lab/fixtures/spec.yaml`](../../scripts/lab/fixtures/spec.yaml))
+plus the format corpus and pushes each to `/sdcard/PSTLab/<set>/`, replacing what was there.
+It needs Pillow and PyYAML (e.g. `/usr/bin/python3` on Debian); RAW samples need
+`python3 scripts/fetch_format_corpus.py` first. The instrumented tests do not read these —
+they are for manual testing on the device and for lab journeys.
 
 If you have no emulator, that is a legitimate SKIP — but then treat the first
 CI run as a real test run, read the uploaded

@@ -47,32 +47,30 @@ enum class FirstRunHint(val key: String) {
  * Kept as a pure function of the user's current settings so the copy always
  * describes what *actually* happened (copy vs. move, which folder) rather than
  * a generic default — and so it is unit-testable without Android.
+ *
+ * Copy rules (docs/products/phototok/DESIGN.md, "Copy & messaging"): the title
+ * states what happened in a few words, the message is one short sentence, and
+ * a pointer to Settings is an action button ([offersSettings]), never text.
  */
 object FirstRunHintText {
 
-    private const val SETTINGS_SUFFIX = "You can change this in Settings."
-
     /** Fallback wording when no custom folder name is known yet. */
-    private const val DEFAULT_COLLECTION = "your collection folder"
-    private const val DEFAULT_LEFT_SWIPE = "your chosen folder"
+    private const val DEFAULT_COLLECTION = "collection"
+    private const val DEFAULT_LEFT_SWIPE = "folder"
 
+    /** Hints whose behaviour is configurable; the card offers a Settings action. */
+    fun offersSettings(hint: FirstRunHint): Boolean = hint in setOf(
+        FirstRunHint.SWIPE_RIGHT,
+        FirstRunHint.SWIPE_LEFT_FOLDER,
+        FirstRunHint.SWIPE_LEFT_DELETE,
+    )
+
+    /**
+     * The hint's headline. For the swipe hints it names the *rule* ("Swipe right
+     * copies to Keepers"), not the event — the copy/move snackbar already says
+     * what happened to this photo.
+     */
     fun title(
-        hint: FirstRunHint,
-        swipeRightVerb: SwipeRightVerb = SwipeRightVerb.DEFAULT,
-    ): String = when (hint) {
-        FirstRunHint.SWIPE_RIGHT ->
-            if (swipeRightVerb == SwipeRightVerb.FAVOURITE) "Marked as favourite" else "Added to collection"
-        FirstRunHint.SWIPE_LEFT_FOLDER -> "Sent to folder"
-        FirstRunHint.SWIPE_LEFT_DELETE -> "Moved to trash"
-        FirstRunHint.SWIPE_VERTICAL -> "Browsing photos"
-        FirstRunHint.TAP_HUD -> "Distraction-free view"
-        FirstRunHint.DOUBLE_TAP_ZOOM -> "Zoom"
-        FirstRunHint.REVERT -> "Undo"
-        FirstRunHint.RAW_JPEG_PAIRS -> "RAW + JPEG Pairs Detected"
-        FirstRunHint.FILTER_MISMATCH -> "Filter Active"
-    }
-
-    fun message(
         hint: FirstRunHint,
         collectionAction: CollectionAction = CollectionAction.DEFAULT,
         leftSwipeAction: SwipeAction = SwipeAction.DEFAULT,
@@ -81,50 +79,50 @@ object FirstRunHintText {
         fileTypeFilter: FileTypeFilter = FileTypeFilter.DEFAULT,
         swipeRightVerb: SwipeRightVerb = collectionAction.toSwipeRightVerb(),
     ): String = when (hint) {
-        FirstRunHint.SWIPE_RIGHT -> {
-            if (swipeRightVerb == SwipeRightVerb.FAVOURITE) {
-                "You favourited this photo. Every swipe right does the same. $SETTINGS_SUFFIX"
-            } else {
-                val verb = if (swipeRightVerb == SwipeRightVerb.COPY) "copied" else "moved"
-                val where = collectionFolderName.ifBlank { DEFAULT_COLLECTION }
-                "You $verb this photo to $where. Every swipe right does the same. $SETTINGS_SUFFIX"
-            }
+        FirstRunHint.SWIPE_RIGHT -> when (swipeRightVerb) {
+            SwipeRightVerb.FAVOURITE -> "Swipe right marks a favourite"
+            SwipeRightVerb.COPY -> "Swipe right copies to ${collectionFolderName.ifBlank { DEFAULT_COLLECTION }}"
+            SwipeRightVerb.MOVE -> "Swipe right moves to ${collectionFolderName.ifBlank { DEFAULT_COLLECTION }}"
         }
-
         FirstRunHint.SWIPE_LEFT_FOLDER -> {
-            val verb = if (leftSwipeAction == SwipeAction.COPY) "copied" else "moved"
-            val where = leftSwipeFolderName.ifBlank { DEFAULT_LEFT_SWIPE }
-            "You $verb this photo to $where. Every swipe left does the same. $SETTINGS_SUFFIX"
+            val verb = if (leftSwipeAction == SwipeAction.COPY) "copies" else "moves"
+            "Swipe left $verb to ${leftSwipeFolderName.ifBlank { DEFAULT_LEFT_SWIPE }}"
         }
-
-        FirstRunHint.SWIPE_LEFT_DELETE ->
-            "This photo is on its way to the trash. Tap Revert at the bottom to bring it " +
-                "back. Swipe left can copy or move instead — $SETTINGS_SUFFIX"
-
-        FirstRunHint.SWIPE_VERTICAL ->
-            "Swipe up and down to move through your photos. Your place is remembered per folder."
-
-        FirstRunHint.TAP_HUD ->
-            "A single tap hides the overlays so you see the photo alone. Tap again to bring them back."
-
-        FirstRunHint.DOUBLE_TAP_ZOOM ->
-            "Double-tap to zoom in and check the detail, then drag to pan. Double-tap again to reset."
-
-        FirstRunHint.REVERT ->
-            "The photo is back in your feed. Revert only undoes the most recent deletion."
-
-        FirstRunHint.RAW_JPEG_PAIRS ->
-            "This folder contains matching RAW and JPEG versions of your photos. You can link actions across both, filter to one format, or leave settings unchanged."
-
+        FirstRunHint.SWIPE_LEFT_DELETE -> "Swipe left deletes"
+        FirstRunHint.SWIPE_VERTICAL -> "Your place is saved per folder"
+        FirstRunHint.TAP_HUD -> "Tap again to show the overlays"
+        FirstRunHint.DOUBLE_TAP_ZOOM -> "Drag to pan, double-tap to reset"
+        FirstRunHint.REVERT -> "Revert undoes the last delete only"
+        FirstRunHint.RAW_JPEG_PAIRS -> "RAW + JPEG pairs"
         FirstRunHint.FILTER_MISMATCH -> when (fileTypeFilter) {
-            FileTypeFilter.RAW ->
-                "Showing RAW photos only. Most photos in this folder are JPEG and are hidden. You can switch to All or change this in Settings."
-            FileTypeFilter.JPG ->
-                "Showing JPEG photos only. Most photos in this folder are RAW and are hidden. You can switch to All or change this in Settings."
+            FileTypeFilter.RAW -> "RAW only"
+            FileTypeFilter.JPG -> "JPEG only"
             FileTypeFilter.ALL,
-            FileTypeFilter.ONE_PER_SHOT ->
-                "A file filter is active and hiding photos in this folder. You can change this in Settings."
+            FileTypeFilter.ONE_PER_SHOT,
+            -> "Filter active"
         }
     }
-}
 
+    /** Optional second line; empty when the title says everything. */
+    fun message(
+        hint: FirstRunHint,
+        fileTypeFilter: FileTypeFilter = FileTypeFilter.DEFAULT,
+    ): String = when (hint) {
+        FirstRunHint.SWIPE_LEFT_DELETE -> "Tap Revert to undo."
+        FirstRunHint.RAW_JPEG_PAIRS -> "Link them or show one format."
+        FirstRunHint.FILTER_MISMATCH -> when (fileTypeFilter) {
+            FileTypeFilter.RAW -> "Most photos here are JPEG."
+            FileTypeFilter.JPG -> "Most photos here are RAW."
+            FileTypeFilter.ALL,
+            FileTypeFilter.ONE_PER_SHOT,
+            -> "Some photos are hidden."
+        }
+        FirstRunHint.SWIPE_RIGHT,
+        FirstRunHint.SWIPE_LEFT_FOLDER,
+        FirstRunHint.SWIPE_VERTICAL,
+        FirstRunHint.TAP_HUD,
+        FirstRunHint.DOUBLE_TAP_ZOOM,
+        FirstRunHint.REVERT,
+        -> ""
+    }
+}

@@ -113,6 +113,19 @@ def build_parser() -> argparse.ArgumentParser:
     p_tim = sub.add_parser("install-timer", help="Install the weekly systemd user timer for this checkout")
     p_tim.add_argument("--dry-run", action="store_true", help="Print the unit files instead of installing")
 
+    # usability panel — the human-perspective release gate (on demand, never in CI)
+    p_ucap = sub.add_parser("usability-capture", help="Walk a product's usability scenarios on a device and capture every screen")
+    p_ucap.add_argument("--product", default="phototok", choices=["phototok"])
+    p_ucap.add_argument("--serial", required=True, help="ADB serial of the test device")
+    p_ucap.add_argument("--out", default=None, help="Run directory (default: a new private/lab-runs/<id>-usability)")
+    p_ucap.add_argument("--scenario", action="append", default=None, help="Only this scenario ID (repeatable)")
+    p_upan = sub.add_parser("usability-panel", help="Build the persona and moderator packets for a captured run")
+    p_upan.add_argument("run_dir")
+    p_uchk = sub.add_parser("usability-check", help="Validate persona answers (and extract JSON from raw replies)")
+    p_uchk.add_argument("run_dir")
+    p_urep = sub.add_parser("usability-report", help="Render the decision report from persona answers and the moderator brief")
+    p_urep.add_argument("run_dir")
+
     return parser
 
 
@@ -123,6 +136,9 @@ def main(argv: list[str] | None = None) -> int:
     if not args.subcommand:
         parser.print_help()
         return 0
+
+    if args.subcommand.startswith("usability-"):
+        return _usability(args)
 
     if args.subcommand == "preflight":
         import shutil
@@ -321,4 +337,67 @@ def main(argv: list[str] | None = None) -> int:
         )
         return 0
 
+    return 2
+
+
+def _usability(args: argparse.Namespace) -> int:
+    if args.subcommand == "usability-capture":
+        import subprocess
+
+        from .paths import new_run_dir, repo_root
+        from .usability.capture import run_capture
+
+        if args.out:
+            out = Path(args.out)
+        else:
+            sha = subprocess.run(["git", "-C", str(repo_root()), "rev-parse", "HEAD"], capture_output=True, text=True).stdout
+            out = new_run_dir(f"{sha.strip()[:12]}-usability")
+        from .usability.driver import DeviceBusy
+
+        try:
+            w = run_capture(args.product, args.serial, out, only=args.scenario)
+        except DeviceBusy as exc:
+            print(f"device {args.serial} is busy: {exc}", file=sys.stderr)
+            if out.is_dir() and not any(out.iterdir()):
+                out.rmdir()
+            return 3
+        for sc in w["scenarios"]:
+            print(f"{sc['scenario']}: {sc['status']} — {len(sc['screens'])} screens" + (f" ({sc['error']})" if sc["error"] else ""))
+        print(out)
+        return 0 if all(sc["status"] == "pass" for sc in w["scenarios"]) else 1
+
+    run_dir = Path(args.run_dir)
+    if args.subcommand == "usability-panel":
+        from .usability.panel import build_panel
+
+        print(build_panel(run_dir))
+        return 0
+    if args.subcommand == "usability-check":
+        from .usability.panel import expected_screen_keys, extract_json, validate_persona
+
+        walkthrough = json.loads((run_dir / "walkthrough.json").read_text(encoding="utf-8"))
+        answers = run_dir / "panel" / "answers"
+        for raw in sorted(answers.glob("*.raw.txt")):
+            target = answers / raw.name.replace(".raw.txt", ".json")
+            if not target.exists():
+                target.write_text(json.dumps(extract_json(raw.read_text(encoding="utf-8")), indent=2), encoding="utf-8")
+        dec_raw = run_dir / "panel" / "decisions.raw.txt"
+        if dec_raw.is_file() and not (run_dir / "panel" / "decisions.json").exists():
+            decisions = extract_json(dec_raw.read_text(encoding="utf-8"))
+            (run_dir / "panel" / "decisions.json").write_text(json.dumps(decisions, indent=2), encoding="utf-8")
+        failed = 0
+        for path in sorted(answers.glob("*.json")):
+            problems = validate_persona(json.loads(path.read_text(encoding="utf-8")), expected_screen_keys(walkthrough))
+            print(f"{path.stem}: {'ok' if not problems else '; '.join(problems)}")
+            failed += bool(problems)
+        return 1 if failed else 0
+    if args.subcommand == "usability-report":
+        from .usability.report import coverage_problems, write_report
+
+        for problem in coverage_problems(run_dir):
+            print(f"warning: {problem}")
+        html_path, md_path = write_report(run_dir)
+        print(html_path)
+        print(md_path)
+        return 0
     return 2

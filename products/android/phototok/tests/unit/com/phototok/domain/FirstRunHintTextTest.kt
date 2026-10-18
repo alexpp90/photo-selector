@@ -1,6 +1,8 @@
 package com.phototok.domain
 
+import com.photoselector.core.Requirement
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
@@ -23,92 +25,107 @@ class FirstRunHintTextTest {
     }
 
     @Test
-    fun `swipe right uses copy wording and the collection folder name`() {
-        val message = FirstRunHintText.message(
+    fun `swipe right names the rule with copy wording and the collection folder`() {
+        val title = FirstRunHintText.title(
             hint = FirstRunHint.SWIPE_RIGHT,
             collectionAction = CollectionAction.COPY,
             collectionFolderName = "Keepers",
         )
 
-        assertTrue(message, message.contains("copied"))
-        assertTrue(message, message.contains("Keepers"))
-        assertTrue(message, message.contains("Settings"))
+        assertEquals("Swipe right copies to Keepers", title)
     }
 
     @Test
     fun `swipe right uses move wording when configured to move`() {
-        val message = FirstRunHintText.message(
+        val title = FirstRunHintText.title(
             hint = FirstRunHint.SWIPE_RIGHT,
             collectionAction = CollectionAction.MOVE,
             collectionFolderName = "Keepers",
         )
 
-        assertTrue(message, message.contains("moved"))
-        assertTrue(message, !message.contains("copied"))
+        assertEquals("Swipe right moves to Keepers", title)
     }
 
     @Test
     fun `swipe right falls back to generic wording without a folder name`() {
-        val message = FirstRunHintText.message(
+        val title = FirstRunHintText.title(
             hint = FirstRunHint.SWIPE_RIGHT,
             collectionAction = CollectionAction.COPY,
             collectionFolderName = "",
         )
 
-        assertTrue(message, message.contains("your collection folder"))
+        assertEquals("Swipe right copies to collection", title)
     }
 
     @Test
     fun `left swipe folder hint reflects copy versus move`() {
-        val copy = FirstRunHintText.message(
+        val copy = FirstRunHintText.title(
             hint = FirstRunHint.SWIPE_LEFT_FOLDER,
             leftSwipeAction = SwipeAction.COPY,
             leftSwipeFolderName = "Rejects",
         )
-        val move = FirstRunHintText.message(
+        val move = FirstRunHintText.title(
             hint = FirstRunHint.SWIPE_LEFT_FOLDER,
             leftSwipeAction = SwipeAction.MOVE,
             leftSwipeFolderName = "Rejects",
         )
 
-        assertTrue(copy, copy.contains("copied") && copy.contains("Rejects"))
-        assertTrue(move, move.contains("moved") && move.contains("Rejects"))
+        assertEquals("Swipe left copies to Rejects", copy)
+        assertEquals("Swipe left moves to Rejects", move)
     }
 
     @Test
-    fun `delete hint points at revert`() {
+    fun `delete hint points at revert and never claims a trash`() {
+        val title = FirstRunHintText.title(FirstRunHint.SWIPE_LEFT_DELETE)
         val message = FirstRunHintText.message(FirstRunHint.SWIPE_LEFT_DELETE)
 
+        assertEquals("Swipe left deletes", title)
         assertTrue(message, message.contains("Revert"))
-        assertTrue(message, message.contains("trash"))
+        assertFalse(title + message, (title + message).contains("trash", ignoreCase = true))
     }
 
     @Test
-    fun `every hint has a non-empty title and message`() {
+    fun `every hint has a non-empty title`() {
         FirstRunHint.entries.forEach { hint ->
             assertTrue(hint.name, FirstRunHintText.title(hint).isNotBlank())
-            assertTrue(hint.name, FirstRunHintText.message(hint).isNotBlank())
         }
     }
 
     @Test
+    @Requirement("REQ-TOK-UX.01")
+    fun `hint copy stays short and never spells out a Settings pointer`() {
+        FirstRunHint.entries.forEach { hint ->
+            FileTypeFilter.entries.forEach { filter ->
+                val title = FirstRunHintText.title(hint, fileTypeFilter = filter, collectionFolderName = "Selection")
+                val message = FirstRunHintText.message(hint, fileTypeFilter = filter)
+                assertTrue("${hint.name} title: $title", title.split(" ").size <= 6)
+                assertTrue("${hint.name} message: $message", message.split(" ").size <= 6)
+                assertFalse(hint.name, (title + message).contains("Settings"))
+            }
+        }
+    }
+
+    @Test
+    @Requirement("REQ-TOK-GESTURE.05")
+    fun `configurable swipe hints offer a Settings action instead`() {
+        assertTrue(FirstRunHintText.offersSettings(FirstRunHint.SWIPE_RIGHT))
+        assertTrue(FirstRunHintText.offersSettings(FirstRunHint.SWIPE_LEFT_FOLDER))
+        assertTrue(FirstRunHintText.offersSettings(FirstRunHint.SWIPE_LEFT_DELETE))
+        assertFalse(FirstRunHintText.offersSettings(FirstRunHint.FILTER_MISMATCH))
+        assertFalse(FirstRunHintText.offersSettings(FirstRunHint.TAP_HUD))
+    }
+
+    @Test
     fun `filter mismatch hint reflects active filter`() {
-        assertEquals("Filter Active", FirstRunHintText.title(FirstRunHint.FILTER_MISMATCH))
-
-        val rawMsg = FirstRunHintText.message(
-            hint = FirstRunHint.FILTER_MISMATCH,
-            fileTypeFilter = FileTypeFilter.RAW,
+        assertEquals("RAW only", FirstRunHintText.title(FirstRunHint.FILTER_MISMATCH, fileTypeFilter = FileTypeFilter.RAW))
+        assertEquals("JPEG only", FirstRunHintText.title(FirstRunHint.FILTER_MISMATCH, fileTypeFilter = FileTypeFilter.JPG))
+        assertEquals(
+            "Most photos here are JPEG.",
+            FirstRunHintText.message(FirstRunHint.FILTER_MISMATCH, fileTypeFilter = FileTypeFilter.RAW),
         )
-        assertTrue(rawMsg, rawMsg.contains("RAW photos only"))
-        assertTrue(rawMsg, rawMsg.contains("JPEG"))
-        assertTrue(rawMsg, rawMsg.contains("Settings"))
-
-        val jpgMsg = FirstRunHintText.message(
-            hint = FirstRunHint.FILTER_MISMATCH,
-            fileTypeFilter = FileTypeFilter.JPG,
+        assertEquals(
+            "Most photos here are RAW.",
+            FirstRunHintText.message(FirstRunHint.FILTER_MISMATCH, fileTypeFilter = FileTypeFilter.JPG),
         )
-        assertTrue(jpgMsg, jpgMsg.contains("JPEG photos only"))
-        assertTrue(jpgMsg, jpgMsg.contains("RAW"))
-        assertTrue(jpgMsg, jpgMsg.contains("Settings"))
     }
 }

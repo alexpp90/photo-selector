@@ -3,11 +3,6 @@ package com.phototok.ui.phonemode
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.size
-import androidx.compose.material3.AlertDialog
-import androidx.compose.material3.Button
-import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.Text
-import androidx.compose.material3.TextButton
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -50,39 +45,23 @@ class PhoneModeScreenDialogTest {
     }
 
     @Test
-    fun directDeleteDialog_showsWarningAndSettingsHint() {
+    fun directDeleteDialog_showsConsequenceReasonAndSettingsHint() {
         var confirmed = false
         var dismissed = false
 
         composeTestRule.setContent {
-            val colors = MaterialTheme.colorScheme
-            AlertDialog(
-                onDismissRequest = { dismissed = true },
-                title = { Text("Delete Permanently", color = colors.error) },
-                text = {
-                    Text("This picture will be directly deleted (permanently) because trash is not supported for this location.\n\nHint: You can disable this confirmation in Settings.")
-                },
-                confirmButton = {
-                    TextButton(onClick = { confirmed = true }) {
-                        Text("Delete", color = colors.error)
-                    }
-                },
-                dismissButton = {
-                    TextButton(onClick = { dismissed = true }) {
-                        Text("Cancel")
-                    }
-                },
+            DirectDeleteDialog(
+                onConfirm = { confirmed = true },
+                onDismiss = { dismissed = true },
             )
         }
 
-        composeTestRule.onNodeWithText("Delete Permanently").assertIsDisplayed()
-        composeTestRule.onNodeWithText(
-            "This picture will be directly deleted (permanently) because trash is not supported for this location.\n\nHint: You can disable this confirmation in Settings."
-        ).assertIsDisplayed()
+        composeTestRule.onNodeWithText("Delete permanently?").assertIsDisplayed()
+        composeTestRule.onNodeWithText("This location has no trash.").assertIsDisplayed()
+        composeTestRule.onNodeWithText("Turn off this prompt in Settings.").assertIsDisplayed()
         composeTestRule.onNodeWithText("Cancel").assertIsDisplayed()
-        composeTestRule.onNodeWithText("Delete").assertIsDisplayed()
 
-        composeTestRule.onNodeWithText("Delete").performClick()
+        composeTestRule.onNodeWithTag("direct_delete_confirm_button").performClick()
         assertTrue("Confirm button must trigger deletion", confirmed)
         assertFalse("Cancel must not have been triggered", dismissed)
     }
@@ -93,24 +72,13 @@ class PhoneModeScreenDialogTest {
         var dismissed = false
 
         composeTestRule.setContent {
-            AlertDialog(
-                onDismissRequest = { dismissed = true },
-                title = { Text("Delete Permanently") },
-                text = { Text("Warning text") },
-                confirmButton = {
-                    TextButton(onClick = { confirmed = true }) {
-                        Text("Delete")
-                    }
-                },
-                dismissButton = {
-                    TextButton(onClick = { dismissed = true }) {
-                        Text("Cancel")
-                    }
-                },
+            DirectDeleteDialog(
+                onConfirm = { confirmed = true },
+                onDismiss = { dismissed = true },
             )
         }
 
-        composeTestRule.onNodeWithText("Cancel").performClick()
+        composeTestRule.onNodeWithTag("direct_delete_cancel_button").performClick()
         assertTrue("Dismiss button must trigger dismiss callback", dismissed)
         assertFalse("Confirm must not be triggered on cancel", confirmed)
     }
@@ -119,9 +87,9 @@ class PhoneModeScreenDialogTest {
     fun firstRunHintCard_displaysTitleAndMessageAndDismissesOnClick() {
         var dismissed = false
         val hintUi = FirstRunHintUi(
-            hint = FirstRunHint.SWIPE_RIGHT,
-            title = "Copied to Collection",
-            message = "Every swipe right copies photos to the collection folder. You can change this in Settings.",
+            hint = FirstRunHint.SWIPE_LEFT_DELETE,
+            title = "Swipe left deletes",
+            message = "Tap Revert to undo.",
             id = 1,
         )
 
@@ -133,12 +101,40 @@ class PhoneModeScreenDialogTest {
         }
 
         composeTestRule.onNodeWithTag("first_run_hint").assertIsDisplayed()
-        composeTestRule.onNodeWithText("Copied to Collection").assertIsDisplayed()
-        composeTestRule.onNodeWithText("Every swipe right copies photos to the collection folder. You can change this in Settings.").assertIsDisplayed()
+        composeTestRule.onNodeWithText("Swipe left deletes").assertIsDisplayed()
+        composeTestRule.onNodeWithText("Tap Revert to undo.").assertIsDisplayed()
         composeTestRule.onNodeWithTag("first_run_hint_dismiss").assertIsDisplayed()
 
         composeTestRule.onNodeWithTag("first_run_hint_dismiss").performClick()
         assertTrue("Dismiss button must invoke onDismiss callback", dismissed)
+    }
+
+    @Test
+    fun firstRunHintCard_configurableHint_offersSettingsActionInsteadOfText() {
+        var settingsOpened = false
+        var dismissed = false
+        val hintUi = FirstRunHintUi(
+            hint = FirstRunHint.SWIPE_RIGHT,
+            title = "Swipe right copies to Selection",
+            message = "",
+            id = 3,
+        )
+
+        composeTestRule.setContent {
+            FirstRunHintCard(
+                hint = hintUi,
+                onDismiss = { dismissed = true },
+                onOpenSettings = { settingsOpened = true },
+            )
+        }
+
+        composeTestRule.onNodeWithText("Swipe right copies to Selection").assertIsDisplayed()
+        composeTestRule.onNodeWithTag("first_run_hint_action").assertIsDisplayed()
+        composeTestRule.onNodeWithText("SETTINGS").assertIsDisplayed()
+
+        composeTestRule.onNodeWithTag("first_run_hint_action").performClick()
+        assertTrue("Settings action must open Settings", settingsOpened)
+        assertTrue("Settings action must also dismiss the hint", dismissed)
     }
 
     @Test
@@ -147,8 +143,8 @@ class PhoneModeScreenDialogTest {
         var dismissed = false
         val hintUi = FirstRunHintUi(
             hint = FirstRunHint.FILTER_MISMATCH,
-            title = "Filter Active",
-            message = "Showing RAW photos only. Most photos in this folder are JPEG and are hidden.",
+            title = "RAW only",
+            message = "Most photos here are JPEG.",
             actionLabel = "SHOW ALL",
             onAction = { actionInvoked = true },
             id = 2,
@@ -162,7 +158,7 @@ class PhoneModeScreenDialogTest {
         }
 
         composeTestRule.onNodeWithTag("first_run_hint").assertIsDisplayed()
-        composeTestRule.onNodeWithText("Filter Active").assertIsDisplayed()
+        composeTestRule.onNodeWithText("RAW only").assertIsDisplayed()
         composeTestRule.onNodeWithTag("first_run_hint_action").assertIsDisplayed()
         composeTestRule.onNodeWithText("SHOW ALL").assertIsDisplayed()
         composeTestRule.onNodeWithTag("first_run_hint_dismiss").assertIsDisplayed()
@@ -185,8 +181,11 @@ class PhoneModeScreenDialogTest {
         }
 
         composeTestRule.onAllNodesWithTag("raw_jpeg_suggestion_dialog").onFirst().assertIsDisplayed()
-        composeTestRule.onAllNodesWithText("RAW + JPEG Pairs Detected").onFirst().assertIsDisplayed()
-        composeTestRule.onAllNodesWithTag("raw_jpeg_dismiss").onFirst().assertIsDisplayed()
+        composeTestRule.onAllNodesWithText("RAW + JPEG pairs").onFirst().assertIsDisplayed()
+        composeTestRule.onAllNodesWithText("1 card per shot").onFirst().assertIsDisplayed()
+        composeTestRule.onAllNodesWithTag("one_per_shot_button").onFirst().assertIsDisplayed()
+        composeTestRule.onAllNodesWithText("Show both, linked").onFirst().assertIsDisplayed()
+        composeTestRule.onAllNodesWithText("Leave as is").onFirst().assertIsDisplayed()
         composeTestRule.onAllNodesWithTag("apply_both_button").onFirst().assertIsDisplayed()
         composeTestRule.onAllNodesWithTag("filter_raw_button").onFirst().assertIsDisplayed()
         composeTestRule.onAllNodesWithTag("filter_jpg_button").onFirst().assertIsDisplayed()
@@ -258,24 +257,6 @@ class PhoneModeScreenDialogTest {
     }
 
     @Test
-    fun rawJpegSuggestionDialog_dismissButton_invokesDismissCallback() {
-        var dismissed = false
-
-        composeTestRule.setContent {
-            RawJpegSuggestionDialog(
-                visible = true,
-                onFilterRaw = {},
-                onFilterJpg = {},
-                onEnableMoveRelatedFiles = {},
-                onDismiss = { dismissed = true },
-            )
-        }
-
-        composeTestRule.onAllNodesWithTag("raw_jpeg_dismiss").onFirst().performClick()
-        assertTrue("Dismiss 'X' button must invoke onDismiss callback", dismissed)
-    }
-
-    @Test
     fun rawJpegSuggestionDialog_inLandscape_displaysOptionsAndIsClickable() {
         var clickedOption = false
 
@@ -336,7 +317,7 @@ class PhoneModeScreenDialogTest {
     }
 
     @Test
-    fun folderResumeDialog_withNewPhotos_displaysFoundCountAndTriggersCallbacks() {
+    fun folderResumeDialog_withNewPhotos_showsCountOnlyAndTriggersCallbacks() {
         var startedWithNewest = false
         var continuedWhereLeftOff = false
 
@@ -349,40 +330,33 @@ class PhoneModeScreenDialogTest {
         }
 
         composeTestRule.onAllNodesWithTag("reload_jump_dialog").onFirst().assertIsDisplayed()
-        composeTestRule.onNodeWithText("New Photos Found").assertIsDisplayed()
-        composeTestRule.onNodeWithText(
-            "5 newer photos were added since you last left (at photo #4 of 20). Would you like to continue where you left off or start with the newest image?",
-        ).assertIsDisplayed()
-        composeTestRule.onAllNodesWithTag("reload_jump_confirm_button").onFirst().assertIsDisplayed()
-        composeTestRule.onAllNodesWithTag("reload_jump_stay_button").onFirst().assertIsDisplayed()
+        composeTestRule.onNodeWithText("5 new photos").assertIsDisplayed()
+        composeTestRule.onNodeWithText("Show new").assertIsDisplayed()
+        composeTestRule.onNodeWithText("Stay").assertIsDisplayed()
 
         composeTestRule.onAllNodesWithTag("reload_jump_confirm_button").onFirst().performClick()
-        assertTrue("Start with Newest button must trigger callback", startedWithNewest)
-        assertFalse("Continue button must not be triggered", continuedWhereLeftOff)
+        assertTrue("Show new button must trigger callback", startedWithNewest)
+        assertFalse("Stay button must not be triggered", continuedWhereLeftOff)
     }
 
     @Test
-    fun folderResumeDialog_withNoNewPhotos_informsUserAndContinuesWhereLeftOff() {
+    fun folderResumeDialog_singleNewPhoto_usesSingularAndStays() {
         var startedWithNewest = false
         var continuedWhereLeftOff = false
 
         composeTestRule.setContent {
             FolderResumeDialog(
-                prompt = ReloadPrompt(newCount = 0, firstNewIndex = 0, resumeIndex = 7, totalCount = 15),
+                prompt = ReloadPrompt(newCount = 1, firstNewIndex = 0, resumeIndex = 7, totalCount = 15),
                 onStartWithNewest = { startedWithNewest = true },
                 onContinueWhereLeftOff = { continuedWhereLeftOff = true },
             )
         }
 
-        composeTestRule.onAllNodesWithTag("reload_jump_dialog").onFirst().assertIsDisplayed()
-        composeTestRule.onNodeWithText("Resume Folder?").assertIsDisplayed()
-        composeTestRule.onNodeWithText(
-            "No newer photos were added since you last left (at photo #8 of 15). Would you like to continue where you left off or start with the newest image?",
-        ).assertIsDisplayed()
+        composeTestRule.onNodeWithText("1 new photo").assertIsDisplayed()
 
         composeTestRule.onAllNodesWithTag("reload_jump_stay_button").onFirst().performClick()
-        assertTrue("Continue Where I Left Off button must trigger callback", continuedWhereLeftOff)
-        assertFalse("Start with Newest button must not be triggered", startedWithNewest)
+        assertTrue("Stay button must trigger callback", continuedWhereLeftOff)
+        assertFalse("Show new button must not be triggered", startedWithNewest)
     }
 
     @Test
