@@ -124,7 +124,7 @@ A high-performance native macOS photo selection and comparison culling suite bui
 * **Maximized Viewport Canvas:** Borderless comparison layouts (1-Up with 1:1 pixel zoom on `Space`, 2-Up side-by-side, and Focus 3-Up sliding triplet) allocating >85% of window area to photo previews.
 * **Zero-Latency Keyboard Navigation:** Window-level `NSEvent` interceptor routing arrow keys, `M` (Move to `Selection/`), `C` (Copy), `Delete` (System Trash), and `⌘Z` (Instant Undo) with zero AppKit focus lag.
 * **Actor-Isolated Transactional Culling:** Serial FIFO disk mutations on `AsyncCullingActor` guaranteeing zero data loss and automated companion file pairing (RAW+JPEG, XMP sidecars).
-* **macOS Design Standards:** Studio dark theme, configuration housed in standard macOS Settings (`⌘,`), and secondary utilities housed under the Menu Bar `Tools` menu.
+* **macOS Design Standards:** Studio dark theme, configuration housed in standard macOS Settings (`⌘,`), secondary utilities housed under the Menu Bar `Tools` menu, and a toolbar and action bar that collapse to short labels and icons (with tooltips) in narrow windows instead of wrapping.
 
 ---
 
