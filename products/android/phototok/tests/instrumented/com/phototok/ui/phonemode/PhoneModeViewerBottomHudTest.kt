@@ -47,6 +47,7 @@ class PhoneModeViewerBottomHudTest {
     }
 
     private var suppressed by mutableStateOf(false)
+    private var badgesSuppressed by mutableStateOf(false)
 
     private fun host(fontScale: Float) {
         composeTestRule.setContent {
@@ -62,6 +63,8 @@ class PhoneModeViewerBottomHudTest {
                         onRequestDelete = {},
                         showExifOverlay = true,
                         bottomHudSuppressed = suppressed,
+                        topBadgesSuppressed = badgesSuppressed,
+                        rawCompanionUris = setOf(images[0].uri),
                     )
                 }
             }
@@ -94,6 +97,18 @@ class PhoneModeViewerBottomHudTest {
         assertEquals(0, count("viewer.info"))
         composeTestRule.runOnIdle { suppressed = false }
         composeTestRule.waitUntil(3000) { count("viewer.counter") > 0 }
+    }
+
+    @Test
+    fun suppressedTopBadges_hideRawJpgBadgeUnderTheGuide() {
+        // The controls guide's top callouts sit where these badges are; behind its scrim the
+        // badge showed through the "Tap the logo" callout on a real Pixel 4a.
+        host(fontScale = 1.0f)
+        assertTrue(count("viewer.badges") > 0)
+        composeTestRule.runOnIdle { badgesSuppressed = true }
+        composeTestRule.waitUntil(3000) { count("viewer.badges") == 0 }
+        composeTestRule.runOnIdle { badgesSuppressed = false }
+        composeTestRule.waitUntil(3000) { count("viewer.badges") > 0 }
     }
 
     private fun androidx.compose.ui.geometry.Rect.overlaps(o: androidx.compose.ui.geometry.Rect) =

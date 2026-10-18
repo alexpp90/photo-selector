@@ -167,6 +167,11 @@ fun PhoneModeViewer(
      * guide covers the bottom of the screen.
      */
     bottomHudSuppressed: Boolean = false,
+    /**
+     * Hides the favourite / RAW+JPG badges under the top bar, where the controls guide puts
+     * its callouts, so they do not show through the guide's scrim behind the callout text.
+     */
+    topBadgesSuppressed: Boolean = false,
     /** True while the folder is still being enumerated (page count still grows). */
     isDiscovering: Boolean = false,
     readOnly: Boolean = false,
@@ -350,6 +355,7 @@ fun PhoneModeViewer(
                 readOnly = readOnly,
                 showFloatingPeeks = showFloatingPeeks,
                 hasRawCompanion = pageItem.uri in rawCompanionUris,
+                topBadgesSuppressed = topBadgesSuppressed,
                 isFavourite = pageItem.uri in favouriteUris,
                 onFirstRunHint = onFirstRunHint,
                 onSingleTap = {
@@ -516,6 +522,7 @@ private fun ImagePage(
     readOnly: Boolean,
     showFloatingPeeks: Boolean,
     hasRawCompanion: Boolean,
+    topBadgesSuppressed: Boolean,
     isFavourite: Boolean,
     leftSwipeAction: SwipeAction,
     leftSwipeFolderName: String,
@@ -1012,10 +1019,11 @@ private fun ImagePage(
         }
 
         // ── Persistent Favourite badge + RAW+JPG badge (top-start below app bar) ──
-        if ((isFavourite || hasRawCompanion) && hudAlpha > 0f) {
+        if ((isFavourite || hasRawCompanion) && hudAlpha > 0f && !topBadgesSuppressed) {
             Row(
                 modifier = Modifier
                     .align(Alignment.TopStart)
+                    .testTag("viewer.badges")
                     .statusBarsPadding()
                     .padding(start = 16.dp, top = 56.dp)
                     .graphicsLayer { alpha = hudAlpha },
