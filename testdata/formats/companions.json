@@ -1,5 +1,5 @@
 {
-  "_doc": "Companion-file grouping contract shared by the products (docs/shared/FILE_OPERATIONS.md, finding D-6). Each case lists the files of ONE directory and the bundles that must travel together (Move, Trash, Undo). The first file of a bundle is the shot itself (the RAW or camera JPEG); the rest are its companions in any order. Files in no bundle (orphan sidecars) are ignored. Names match case-insensitively. Read by macOS FileCullingManagerTests, Android Desktop CompanionGroupingTest and Linux test_scanner.py.",
+  "_doc": "Companion-file grouping contract shared by the products (docs/shared/FILE_OPERATIONS.md, finding D-6). Each case lists the files of ONE directory and the bundles that must travel together (Move, Trash, Undo). The first file of a bundle is the shot itself (the RAW or camera JPEG); the rest are its companions in any order. Files in no bundle (orphan sidecars) are ignored. Names match case-insensitively. Read by macOS FileCullingManagerTests, Android Desktop CompanionGroupingTest, PhotoTok CompanionGroupingTest and Linux test_scanner.py.",
   "cases": [
     {
       "name": "raw, jpeg and both sidecar styles are one shot",

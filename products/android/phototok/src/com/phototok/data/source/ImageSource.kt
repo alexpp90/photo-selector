@@ -103,6 +103,22 @@ interface ImageSource {
             FileOperationResult.failure(sourceUri.toString(), null)
         }
 
+    /**
+     * Transfer a companion bundle (a shot's photos and sidecars) so that every member gets the same
+     * collision suffix and stays paired. One result per entry of [sourceUris], in order. The default
+     * falls back to one transfer per file; sources that can name a whole bundle override it.
+     */
+    suspend fun transferBundleDetailed(
+        sourceUris: List<Uri>,
+        destFolderUri: Uri,
+        sorting: Boolean,
+        subfolderName: String,
+        isMove: Boolean,
+    ): List<FileOperationResult> = sourceUris.map { uri ->
+        if (isMove) moveImageDetailed(uri, destFolderUri, sorting, subfolderName)
+        else copyImageDetailed(uri, destFolderUri, sorting, subfolderName)
+    }
+
     /** List images inside the [subfolderName] child of [folderUri]. */
     suspend fun listSelectionImages(folderUri: Uri, subfolderName: String): SelectionListing
 }

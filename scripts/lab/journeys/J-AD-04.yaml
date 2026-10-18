@@ -14,9 +14,10 @@ steps:
   - {checkpoint: touch-deleted}
 layout_expect:
   coach-before-dismiss:
-    required: [coach_overlay_dismiss]
+    required: [[coach_overlay_dismiss, coach_overlay_skip]]
   coach-dismissed:
-    required: [image_region, reject_button]
+    # Wide layouts show delete_button_expanded, compact ones (portrait, small windows) the other.
+    required: [image_region, [delete_button_expanded, delete_button_compact]]
   touch-deleted:
     required: [image_region]
 timing_expect:

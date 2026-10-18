@@ -104,6 +104,19 @@ class RenderAndUpsertTest(unittest.TestCase):
         self.assertEqual(data["tree"], "t" * 40)
         self.assertEqual(data["groups"]["macos"], "not run")
 
+    def test_device_suite_skipped_without_device_does_not_make_android_partial(self):
+        # The device suite is on demand: a missing device is a stated gap, not a partial run.
+        gates = vr.parse_results("\n".join([
+            "PASS|gradlew testDebugUnitTest|android.yml:unit-tests|android.yml:unit-tests|",
+            "SKIP|instrumented tests|no device/emulator attached||false",
+        ]))
+        self.assertEqual(vr.group_status([g for g in gates if g["group"] == "android"]), "passed")
+        self.assertIn("no device/emulator attached", vr.render_block([record(gates)]))
+
+    def test_unrequested_device_suite_points_to_android_device(self):
+        gates = vr.parse_results("PASS|gradlew testDebugUnitTest|android.yml:unit-tests|android.yml:unit-tests|")
+        self.assertIn("run on demand with `--android-device`", vr.render_block([record(gates)]))
+
     def test_upsert_replaces_inserts_and_appends(self):
         template = (f"## Verification\n\n{vr.BEGIN}\n_No record yet_ <!-- pst-verification:placeholder -->\n"
                     f"{vr.END}\n\n### Manual testing\n")

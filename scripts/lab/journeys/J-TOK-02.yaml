@@ -26,7 +26,8 @@ layout_expect:
   fifth:
     required: [viewer.photo]
   info:
-    required: [viewer.info]
+    # Portrait: the EXIF card. Landscape: the side panel's Info button (its stats have no tag).
+    required: [[viewer.info, landscape_info_exif_button]]
   zoomed:
     required: [viewer.photo]
   fit:

@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import shutil
 import sys
 import tempfile
 import unittest
@@ -31,8 +32,9 @@ class TestPaths(unittest.TestCase):
             ensure_under("/tmp/pstlab/../../etc/passwd", "/tmp/pstlab")
 
     def test_ensure_under_rejects_symlink_escape(self) -> None:
-        base = Path("/tmp/pstlab/test_symlink_guard")
-        base.mkdir(parents=True, exist_ok=True)
+        Path("/tmp/pstlab").mkdir(parents=True, exist_ok=True)
+        base = Path(tempfile.mkdtemp(prefix="test_symlink_guard-", dir="/tmp/pstlab"))  # per process
+        self.addCleanup(shutil.rmtree, base, True)
         link = base / "escape_link"
         try:
             if link.exists() or link.is_symlink():

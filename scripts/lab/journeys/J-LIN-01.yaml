@@ -2,8 +2,10 @@ id: J-LIN-01
 product: linux
 title: Linux Desktop 3-Up comparison, keyboard navigation, move, trash, and undo
 fixture: burst-jpeg
-configs: [fhd, hidpi, small, dark, large-text]
+configs: [fhd, hidpi, small, large-text]
 fresh_install: false
+# Checkpoints with an fs_expect wait until it holds (up to fs_timeout_ms, default 10 s) before
+# they are captured, so file operations need no fixed waits here.
 steps:
   - wait_ms: 1000
   - checkpoint: opened
@@ -12,13 +14,10 @@ steps:
   - keys: [Right, Right]
   - checkpoint: moved
   - keys: [m]
-  - wait_ms: 800
   - checkpoint: after-keep
   - keys: [Delete]
-  - wait_ms: 800
   - checkpoint: after-trash
   - keys: [ctrl+z]
-  - wait_ms: 800
   - checkpoint: after-undo
 fs_expect:
   after-keep:

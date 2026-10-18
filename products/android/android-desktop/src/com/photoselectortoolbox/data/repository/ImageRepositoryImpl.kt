@@ -511,6 +511,7 @@ class ImageRepositoryImpl @Inject constructor(
                         parentDocumentId = parentDocumentId,
                     )
                 }
+                val deletedCopyUris = deletableCopies.toList()
                 val toRestore = destinationUris.filterNot { it in deletableCopies }
                 if (toRestore.isEmpty()) {
                     return@withContext FileOperationResult.success(
@@ -518,7 +519,7 @@ class ImageRepositoryImpl @Inject constructor(
                         destinationUri = null,
                         destinationUris = emptyList(),
                         parentDocumentId = parentDocumentId,
-                    )
+                    ).copy(deletedCopies = deletedCopyUris)
                 }
                 val restore = resolveRestoreFolder(context, rootFolderUri, parentDocumentId)
                     ?: return@withContext FileOperationResult.failure(
@@ -546,9 +547,10 @@ class ImageRepositoryImpl @Inject constructor(
                 if (restore.fellBackToRoot && aggregated.success) {
                     aggregated.copy(
                         notice = "Restored to the opened folder — the original folder no longer exists",
+                        deletedCopies = deletedCopyUris,
                     )
                 } else {
-                    aggregated
+                    aggregated.copy(deletedCopies = deletedCopyUris)
                 }
             } catch (e: CancellationException) {
                 throw e

@@ -1,5 +1,6 @@
 appId: com.photoselectortoolbox.lab
 ---
+# A paged guide closes from any page with "Skip"; "Got it" is on the last page (or the only one).
 - tapOn:
-    id: "coach_overlay_dismiss"
+    id: "coach_overlay_(skip|dismiss)"
     optional: true

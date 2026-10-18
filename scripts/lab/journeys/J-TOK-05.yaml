@@ -5,13 +5,22 @@ fixture: burst-raw-jpeg
 configs: [phone-portrait]
 fresh_install: false
 steps:
-  - {maestro: products/android/phototok/tests/e2e/J-TOK-05/01_keep_frame3.yaml}
+  # Swipe right must copy (the phone-folder default is ★ Favourite, which touches no file).
+  - {maestro: products/android/phototok/tests/e2e/_swipe_right_copies.yaml}
+  - {maestro: products/android/phototok/tests/e2e/J-TOK-05/01_swipe_to_frame3.yaml}
+  - {checkpoint: frame3}
+  - {maestro: products/android/phototok/tests/e2e/J-TOK-05/02_keep.yaml}
   - {wait_ms: 1500}
   - {checkpoint: kept-pair}
+# The feed's order (newest first) decides which photo is third; keep whichever the app showed.
+bind:
+  frame3: {kept: viewer.photo}
 fs_expect:
   kept-pair:
-    present: ["*Selection*DSC_0003.JPG"]
+    present: ["*Selection*{kept}"]
 layout_expect:
+  frame3:
+    required: [viewer.photo]
   kept-pair:
     required: [viewer.photo]
 timing_expect:

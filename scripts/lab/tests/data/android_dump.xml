@@ -11,6 +11,6 @@
       <node index="2" text="" resource-id="selector.frame.next" class="android.view.View" package="com.photoselectortoolbox.lab" content-desc="Next photo" checkable="false" checked="false" clickable="false" enabled="true" focusable="false" focused="false" scrollable="false" long-clickable="false" password="false" selected="false" bounds="[1480,932][2520,1832]" />
     </node>
     <node index="2" text="1 / 6" resource-id="position_counter" class="android.widget.TextView" package="com.photoselectortoolbox.lab" content-desc="Photo 1 of 6" checkable="false" checked="false" clickable="false" enabled="true" focusable="false" focused="false" scrollable="false" long-clickable="false" password="false" selected="false" bounds="[2600,48][2880,112]" />
-    <node index="3" text="Delete" resource-id="reject_button" class="android.view.View" package="com.photoselectortoolbox.lab" content-desc="Delete" checkable="false" checked="false" clickable="true" enabled="true" focusable="true" focused="false" scrollable="false" long-clickable="false" password="false" selected="false" bounds="[2600,1400][2880,1560]" />
+    <node index="3" text="Delete" resource-id="delete_button_expanded" class="android.view.View" package="com.photoselectortoolbox.lab" content-desc="Delete" checkable="false" checked="false" clickable="true" enabled="true" focusable="true" focused="false" scrollable="false" long-clickable="false" password="false" selected="false" bounds="[2600,1400][2880,1560]" />
   </node>
 </hierarchy>

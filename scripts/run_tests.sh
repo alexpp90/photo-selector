@@ -16,10 +16,12 @@
 #   ./scripts/run_tests.sh                  # auto-detects changed products (mirrors CI paths: filters)
 #   ./scripts/run_tests.sh --python         # Python gates only (flake8 + pytest + coverage)
 #   ./scripts/run_tests.sh --android        # Android gates that need no device
-#   ./scripts/run_tests.sh --android-device # Android instrumented tests, pinned to one test device
+#   ./scripts/run_tests.sh --android-device # Android instrumented tests on the test device only — run on
+#                                           # demand (before a release); never part of any other mode.
+#                                           # No device attached is a skip, not a failure (also with --strict)
 #   ./scripts/run_tests.sh --macos          # macOS Desktop native Swift gates (Darwin only)
 #   ./scripts/run_tests.sh --linux          # Linux Desktop native gates (Python/GTK4 + Debian packaging)
-#   ./scripts/run_tests.sh --all            # all products unconditionally
+#   ./scripts/run_tests.sh --all            # all products unconditionally (without the device suite)
 #   ./scripts/run_tests.sh --strict         # treat unrunnable SKIPPED gates as failures
 #   ./scripts/run_tests.sh --quick          # tests only, no lint/coverage (inner-loop use)
 #
@@ -100,13 +102,12 @@ for arg in "$@"; do
         --all)
             run_python=true
             run_android=true
-            run_android_device=true
             run_macos=true
             run_linux=true
             explicit_product=true
             ;;
         -h|--help)
-            sed -n '2,30p' "$0" | sed 's/^# \{0,1\}//'
+            sed -n '2,32p' "$0" | sed 's/^# \{0,1\}//'
             exit 0
             ;;
         *)
@@ -323,14 +324,14 @@ if $run_python; then
         section "Python tests"
         if $quick; then
             gate "pytest (quick, no coverage gate)" "desktop.yml:test (partial)" \
-                pyx pytest --tb=short -q -m "not visual"
+                pyx pytest --tb=short -q -o faulthandler_timeout=120 -m "not visual"
         else
             # The coverage gate is authoritative on Linux (CI enforces it there
             # only, because linux_only/mac_only/windows_only markers skip
             # different tests per platform). Running it here still catches
             # genuine coverage regressions early.
             gate "pytest -m 'not visual' --cov-fail-under=$COV_FAIL_UNDER" "desktop.yml:test" \
-                pyx pytest --tb=short -q \
+                pyx pytest --tb=short -q -o faulthandler_timeout=120 \
                     --cov=photo_selector_toolbox \
                     --cov-report=term-missing:skip-covered \
                     --cov-fail-under="$COV_FAIL_UNDER" \
@@ -351,7 +352,7 @@ if $run_python; then
             skip "visual tests" "" "no Xvfb and no DISPLAY (apt install xvfb)"
         else
             gate "pytest tests/visual/ -m visual" "desktop.yml:visual" \
-                pyx pytest tests/visual/ --tb=short -q -m visual
+                pyx pytest tests/visual/ --tb=short -q -o faulthandler_timeout=120 -m visual
         fi
     fi
 elif ! $explicit_product; then
@@ -430,20 +431,42 @@ if $run_android_device; then
 
     # Gradle installs on every attached device, so the run is pinned to one test device
     # (ANDROID_SERIAL, honoured by the Android Gradle plugin). Selection and preparation
-    # live in scripts/android_test_device.py; see docs/build/CI_PARITY.md.
+    # live in scripts/android_test_device.py; see docs/build/CI_PARITY.md. The device suite is
+    # run on demand, so a missing device is a stated gap, never a blocker (not even --strict).
     if ! TEST_SERIAL=$(python3 "$ROOT_DIR/scripts/android_test_device.py" serial 2>&1); then
-        skip "instrumented tests" "" "$TEST_SERIAL — see docs/build/CI_PARITY.md (Instrumented tests)"
+        skip "instrumented tests" "" "$TEST_SERIAL — see docs/build/CI_PARITY.md (Instrumented tests)" false
     else
         echo -e "${DIM}  test device: $TEST_SERIAL ($(adb -s "$TEST_SERIAL" shell getprop ro.product.model 2>/dev/null | tr -d '\r'))${NC}"
-        # Before the export: prepare must see whether the device was designated or merely the
-        # only one attached (it refuses to change settings on an undesignated device).
-        if ! python3 "$ROOT_DIR/scripts/android_test_device.py" prepare; then
-            warn "test device not prepared (see above)" "local-only"
-        fi
-        export ANDROID_SERIAL="$TEST_SERIAL"
+        # One device lock — the file the device lab's walkthroughs take too — covers prepare and
+        # the whole Gradle run, so no other session drives the phone meanwhile. A lock still held
+        # after PST_DEVICE_LOCK_TIMEOUT seconds is a skip naming the holder, never a failure.
+        # Inside the lock, prepare runs before the export: it must see whether the device was
+        # designated or merely the only one attached (it refuses to reconfigure the latter).
+        PREPARE_FAILED="$(mktemp)" && rm -f "$PREPARE_FAILED"
         chmod +x ./gradlew 2>/dev/null || true
-        gate "gradlew connectedDebugAndroidTest" "android.yml:instrumented-tests" \
-            ./gradlew :android-desktop:connectedDebugAndroidTest :phototok:connectedDebugAndroidTest --stacktrace
+        # The single-quoted script is expanded by the inner bash, from its positional arguments.
+        python3 "$ROOT_DIR/scripts/android_test_device.py" with-lock --serial "$TEST_SERIAL" \
+            --timeout "${PST_DEVICE_LOCK_TIMEOUT:-300}" --label "$(basename "$ROOT_DIR")" -- \
+            bash -c 'python3 "$1" prepare || : > "$2"
+                     ANDROID_SERIAL="$3" exec ./gradlew :android-desktop:connectedDebugAndroidTest \
+                         :phototok:connectedDebugAndroidTest --stacktrace' \
+            instrumented-tests "$ROOT_DIR/scripts/android_test_device.py" "$PREPARE_FAILED" "$TEST_SERIAL"
+        DEVICE_RUN_STATUS=$?
+        if [ -e "$PREPARE_FAILED" ]; then
+            warn "test device not prepared (see above)" "local-only"
+            rm -f "$PREPARE_FAILED"
+        fi
+        # verification_record.py reports only the device under test.
+        export ANDROID_SERIAL="$TEST_SERIAL"
+        if [ "$DEVICE_RUN_STATUS" -eq 75 ]; then
+            DEVICE_HOLDER=$(python3 "$ROOT_DIR/scripts/android_test_device.py" lock-holder --serial "$TEST_SERIAL" 2>/dev/null) \
+                || DEVICE_HOLDER="released by its holder just after the wait ended"
+            skip "instrumented tests" "" "test device $TEST_SERIAL busy — $DEVICE_HOLDER" false
+        elif [ "$DEVICE_RUN_STATUS" -eq 0 ]; then
+            pass "gradlew connectedDebugAndroidTest" "android.yml:instrumented-tests"
+        else
+            fail "gradlew connectedDebugAndroidTest" "android.yml:instrumented-tests"
+        fi
     fi
 fi
 

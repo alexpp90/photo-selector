@@ -11,6 +11,13 @@ from typing import Callable
 from ..paths import ensure_android_lab_path
 
 
+# uiautomator writes its dump to a device file; it lives in the lab root (never the user's
+# storage root) and outside the work folder, so file-system snapshots never see it.
+REMOTE_DUMP = "/sdcard/PSTLab/pst_dump.xml"
+DUMP_ATTEMPTS = 3
+DUMP_RETRY_S = 0.5
+
+
 ExecFn = Callable[[list[str], int], subprocess.CompletedProcess[bytes]]
 
 
@@ -161,11 +168,38 @@ class AdbClient:
         return target
 
     def dump_tree(self, dest_xml: Path | str) -> Path:
+        """Pull a uiautomator dump of the foreground window into `dest_xml`.
+
+        The device file is `REMOTE_DUMP` and is removed after the pull (2026-10-17: the dump
+        was left in the storage root of personal devices). `uiautomator dump` exits 0 and
+        prints "ERROR: could not get idle state." while the screen animates; that is retried.
+        """
         target = Path(dest_xml)
         target.parent.mkdir(parents=True, exist_ok=True)
-        self.run("shell", "uiautomator", "dump", "/sdcard/pst_dump.xml", timeout=30)
-        self.run("pull", "/sdcard/pst_dump.xml", str(target), timeout=30)
+        remote = ensure_android_lab_path(REMOTE_DUMP)
+        try:
+            out = ""
+            for attempt in range(DUMP_ATTEMPTS):
+                out = self.run("shell", "uiautomator", "dump", remote, timeout=30)
+                if "ERROR" not in out:
+                    break
+                if attempt + 1 < DUMP_ATTEMPTS and DUMP_RETRY_S > 0:
+                    time.sleep(DUMP_RETRY_S)
+            else:
+                raise RuntimeError(f"uiautomator dump failed on {self.serial}: {out.strip()}")
+            self.run("pull", remote, str(target), timeout=30)
+        finally:
+            self.run("shell", "rm", "-f", remote)
         return target
+
+    def collapse_shade(self) -> str:
+        """Close the notification shade and quick settings (`cmd statusbar collapse`).
+
+        An open shade covers the app with other apps' notifications: on 2026-10-17 it turned a
+        phone-landscape journey into SystemUI findings and put personal notifications into the
+        screenshots.
+        """
+        return self.run("shell", "cmd", "statusbar", "collapse")
 
     def rm_rf(self, remote_dir: str) -> str:
         guarded = ensure_android_lab_path(remote_dir)
