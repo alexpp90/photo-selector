@@ -37,7 +37,7 @@ The rule that prevents it:
 | `assembleDebugAndroidTest` | `android.yml:unit-tests` | ✅ needs JDK 17 + Android SDK | Compiles `tests/instrumented/`. Nothing else does. |
 | `check_native_alignment.py` | `android.yml:unit-tests`, `android.yml:build` | ✅ needs JDK 17 + Android SDK (unit tests run everywhere via `scripts/tests`) | Inspects every `lib/{arm64-v8a,x86_64}/*.so` in `merged_native_libs/debug` and built APK/AAB archives and fails if any ELF `PT_LOAD` segment has `p_align < 16384` (Google Play 16 KB page-size mandate). For `.apk` files it also fails if a stored (uncompressed) `.so` does not start at a 16 KB-aligned zip offset (`zipalign -P 16`); bundles are exempt. The mirror builds and checks the debug APKs like the `build` job. |
 | `lintDebug` | `android.yml:lint` | ✅ advisory | Non-blocking in both places, on purpose. |
-| `connectedDebugAndroidTest` | `android.yml:instrumented-tests` | ❌ **needs emulator/device** | Pinned to one test device (`scripts/android_test_device.py`), never every attached device. See [Instrumented tests](#instrumented-tests-genuinely-need-a-device). |
+| `connectedDebugAndroidTest` | `android.yml:instrumented-tests` | ❌ **needs emulator/device** | Local: on demand only (`--android-device`, before a release), pinned to one test device (`scripts/android_test_device.py`), never every attached device; no device is a non-blocking `⊘ SKIPPED`, also under `--strict`. See [Instrumented tests](#instrumented-tests-genuinely-need-a-device). |
 | `swift test (macos-desktop)` | `macos.yml:swift-test` | ⚠️ Darwin only | Native Swift 6 suite covering PhotoSelectorKit & App (release SLA benchmark included). Runs on `macos-latest` in CI. |
 | `check_no_test_hooks.sh` (release binary) | `macos.yml:swift-test`, `macos.yml:build` | ⚠️ Darwin only | `swift build -c release`, then fails if the binary contains the UI test hooks (`UIScenarioRunner`, `UITestDriver`, `UISelfTestRunner`), which are compiled in only for debug and `build_app.sh --test-hooks` builds. |
 | macOS UI smoke test (running app) | — (local-only) | ⚠️ Darwin + logged-in GUI session | `products/macos-desktop/scripts/ui_smoke_test.sh`: drives the running app (raw binary **and** `.app` bundle) — activation policy, real key events, rendered Focus 3-Up geometry, clicks while zoomed, time-to-first-photo. Window-server key probe needs Accessibility permission, else `⊘ SKIPPED`. See [macOS UI smoke test](#macos-ui-smoke-test-local-only). |
@@ -214,7 +214,11 @@ machine-locally (local.properties is ignored by git):
 echo "pst.testDevice.serial=<serial from adb devices>" >> products/android/local.properties
 ```
 
-Before every run the script prepares a designated device (or an emulator) —
+The device suite never runs as part of the default run or `--all`: it is triggered on demand
+with `./scripts/run_tests.sh --android-device`, typically before an Android release. Without a
+test device it reports `⊘ SKIPPED` and does not block — not even under `--strict` — and CI's
+`instrumented-tests` job still covers every PR. Before every run the script prepares a designated
+device (or an emulator) —
 animations off (CI's `disable-animations: true`), screen kept on while powered, keyguard off,
 portrait rotation, default size/density/font scale, light theme, no verifier prompt on adb
 installs — using `adb root` where the build allows it. It refuses a device that is merely the only one
