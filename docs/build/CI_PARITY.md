@@ -163,6 +163,13 @@ branch diffs against `main` (changes to `.github/`, `run_tests.sh` or the format
 `testdata/formats/` count for every product). If only one product has modifications, gates for untouched
 products are reported as skipped due to path filtering rather than executing redundant suites.
 
+`android.yml:detect-changes` decides which Android products a change touches: a change under
+one product's directory builds that product, and a change under a shared module
+(`products/android/core/**`, `products/android/saf/**`) or the shared Gradle files builds both.
+`testDebugUnitTest` runs every module's unit tests, `:core` and `:saf` included. Locally
+every path under `products/android/` selects the Android gates, so the mirror needs no
+per-module list.
+
 ### Headless & background GUI execution on macOS (All Products)
 
 Local automated test runs MUST NEVER force GUI windows into the foreground or steal window focus from the developer. By default, all test suites execute in a completely backgrounded state:

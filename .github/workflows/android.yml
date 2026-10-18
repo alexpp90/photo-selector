@@ -62,6 +62,7 @@ jobs:
             toolbox:
               - 'products/android/android-desktop/**'
               - 'products/android/core/**'
+              - 'products/android/saf/**'
               - 'products/android/build.gradle.kts'
               - 'products/android/settings.gradle.kts'
               - 'products/android/gradle.properties'
@@ -70,6 +71,7 @@ jobs:
             phototok:
               - 'products/android/phototok/**'
               - 'products/android/core/**'
+              - 'products/android/saf/**'
               - 'products/android/build.gradle.kts'
               - 'products/android/settings.gradle.kts'
               - 'products/android/gradle.properties'
