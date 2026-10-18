@@ -142,6 +142,14 @@ Photo-Tok ist ein unabhängiges, zu 100 % offline arbeitendes Foto-Werkzeug und 
 
 ---
 
+## 6a. Usability Panel (before each release, on demand)
+
+- [ ] Run the persona usability panel on the release build on a USB phone and read the
+  report's trade-offs before tagging (`scripts/lab/README.md`, "Usability panel"). Not a CI
+  gate: it records opinions for the maintainer to decide on, not a pass/fail result.
+
+---
+
 ## 7. Ongoing Obligations (after launch)
 
 - Keep the privacy policy, the Data Safety answers (§2) and the store listing (§5) in sync with app behaviour — any new permission, endpoint or SDK changes all three in the same change.

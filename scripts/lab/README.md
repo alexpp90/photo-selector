@@ -106,6 +106,38 @@ python3 scripts/lab/lab.py review-ingest private/lab-runs/<run-id>
 python3 scripts/lab/lab.py report private/lab-runs/<run-id>
 ```
 
+## Usability panel (release gate, on demand)
+
+The journeys above check that screens are *correct*. The usability panel asks whether they
+are *usable*: several personas walk through the product's key use cases screen by screen and
+say what they understand, what they would do next, what they would read and what bothers
+them. A moderator then compares that with the action the design expects and the measured text
+load, and writes the trade-offs for the maintainer to decide. It is opinion by design, so it
+runs before a release, not in CI. PhotoTok only for now.
+
+```bash
+# 1. Walk the scenarios on a phone (USB, portrait); writes a new private/lab-runs/<id>-usability/
+/usr/bin/python3 scripts/lab/lab.py usability-capture --serial <adb-serial>
+# 2. Build the persona and moderator packets
+python3 scripts/lab/lab.py usability-panel private/lab-runs/<run-id>
+# 3. Run personas + moderator (claude -p), validate, render the report
+private/lab/usability/run_panel.sh private/lab-runs/<run-id>
+# or step by step: usability-check <run> (validates panel/answers/*.json), usability-report <run>
+```
+
+- **Scenarios:** `scripts/lab/usability/<product>.yaml` — plain user actions (`tap`, `swipe`,
+  `back`, `background`, …) and a `screen` step for each screen to review, with the user's
+  `intent` and the `expected` action.
+- **Photos:** a generated trip roll of photo-like landscapes with real flaws (blurred,
+  underexposed, tilted, a burst, a pocket shot), pushed to `/sdcard/PSTLab/usability-trip`.
+  Rendering needs the real Pillow (`/usr/bin/python3` on Debian).
+- **What a persona sees:** the screenshots, the task and what the user just did — never the
+  code, the requirements, extracted text or the expected action. Personas and prompts live in
+  `private/lab/usability/`.
+- **Output:** `usability-report.html` (self-contained) and `usability-report.md` in the run.
+- The capture refuses a device on which instrumented tests run or another app is in front,
+  and stops when another app takes over mid-walk.
+
 ## Safety Guarantees
 
 1. **Path Guard (`lab/paths.py`):** Every host filesystem write or deletion is restricted by `ensure_under()` to `/tmp/pstlab`, `~/PSTLab`, or `private/lab-runs`. Every Android `adb` deletion/push is restricted by `ensure_android_lab_path()` to `/sdcard/PSTLab/`.
