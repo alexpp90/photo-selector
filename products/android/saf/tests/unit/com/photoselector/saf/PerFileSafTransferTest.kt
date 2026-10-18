@@ -90,4 +90,26 @@ class PerFileSafTransferTest : SafTransferContractTest(PER_FILE_POLICY) {
         assertFalse(result.success)
         assertTrue(File(rootDir, "Selection/${SafTransferEngine.SELECTION_MARKER_FILE_NAME}").exists())
     }
+
+    // TOK single copy/move: an unresolvable source fails before the destination is touched.
+    @Test
+    fun `transferSingle with an unresolvable source creates no Selection folder and no marker`() = runTest {
+        val moved = engine.transferSingle(storage, documentUriFor("NOPE.JPG"), selection(), true, true, unresolvedSourceError = "Copy step failed")
+        val copied = engine.transferSingle(storage, documentUriFor("NOPE.JPG"), selection(), true, false)
+
+        assertEquals("Copy step failed", moved.error)
+        assertEquals("Could not write to the Selection folder", copied.error)
+        assertFalse(File(rootDir, "Selection").exists())
+    }
+
+    @Test
+    fun `transferSingle transfers a resolvable source like a bundle of one`() = runTest {
+        File(rootDir, "IMG_0018.JPG").writeText("payload")
+
+        val result = engine.transferSingle(storage, documentUriFor("IMG_0018.JPG"), selection(), false, true)
+
+        assertTrue(result.success)
+        assertEquals("payload", File(rootDir, "Selection/IMG_0018.JPG").readText())
+        assertTrue(File(rootDir, "Selection/${SafTransferEngine.SELECTION_MARKER_FILE_NAME}").exists())
+    }
 }

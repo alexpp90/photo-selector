@@ -88,6 +88,7 @@ dependencies {
     testImplementation(libs.junit)
     testImplementation(libs.kotlinx.coroutines.test)
     testImplementation(libs.robolectric)
+    testImplementation(libs.mockk)
 }
 
 // The shared companion table (testdata/formats/companions.json) and the product source

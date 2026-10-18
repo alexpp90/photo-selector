@@ -154,6 +154,41 @@ class SafTransferEngine(
         }
     }
 
+    /**
+     * One file, [transferBundle] semantics, except that a source which cannot be resolved fails
+     * before the destination is touched: no Selection folder and no marker are created for it
+     * (PhotoTok's single copy/move; its move reports [unresolvedSourceError] "Copy step failed").
+     */
+    suspend fun transferSingle(
+        storage: SafStorage,
+        sourceUri: Uri,
+        destination: SelectionDestination,
+        sorting: Boolean,
+        isMove: Boolean,
+        parentDocumentId: String? = null,
+        unresolvedSourceError: String? = null,
+    ): FileOperationResult {
+        val resolvable = withContext(ioDispatcher) {
+            try {
+                storage.singleDocument(sourceUri)?.name != null
+            } catch (e: CancellationException) {
+                throw e
+            } catch (_: Exception) {
+                false
+            }
+        }
+        if (!resolvable) {
+            return FileOperationResult.failure(
+                sourceUri.toString(),
+                unresolvedSourceError ?: "Could not write to the ${destination.folderName} folder",
+                parentDocumentId,
+            )
+        }
+        return transferBundle(
+            storage, listOf(sourceUri), destination, sorting, isMove, parentDocumentId, unresolvedSourceError,
+        ).single()
+    }
+
     /** Unlink [uri]. SAF deletes have no trash behind them. */
     suspend fun delete(storage: SafStorage, uri: Uri): Boolean = withContext(ioDispatcher) {
         try {
@@ -644,8 +679,9 @@ class SafTransferEngine(
     ): String? {
         val resolver = storage.contentResolver
         val sourceParentUri = resolveSourceParentUri(sourceUri, treeRootUri)
-        if (sourceParentUri == null ||
-            !documentMover.canMoveDocument(resolver, sourceUri, sourceParentUri, targetFolder.uri)
+        // The mover is consulted even without a parent (it answers false), as both products did.
+        if (!documentMover.canMoveDocument(resolver, sourceUri, sourceParentUri, targetFolder.uri) ||
+            sourceParentUri == null
         ) {
             return null
         }
@@ -840,7 +876,7 @@ class SafTransferEngine(
         }
     }
 
-    private fun cleanUpFailedCopy(destFile: DocumentFile) {
+    internal fun cleanUpFailedCopy(destFile: DocumentFile) {
         try {
             destFile.delete()
         } catch (e: Exception) {
@@ -849,7 +885,7 @@ class SafTransferEngine(
     }
 
     /** The `RAW/` or `JPEG/` folder inside [selectionDir] (found or created), or [selectionDir] itself. */
-    private fun subfolderIn(subfolder: SelectionSubfolder, selectionDir: DocumentFile): DocumentFile {
+    internal fun subfolderIn(subfolder: SelectionSubfolder, selectionDir: DocumentFile): DocumentFile {
         fun sub(name: String): DocumentFile? =
             selectionDir.findFile(name) ?: selectionDir.createDirectory(name)
         return when (subfolder) {

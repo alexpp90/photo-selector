@@ -280,7 +280,7 @@ abstract class SafTransferContractTest(policy: SafTransferPolicy) : SafTestHarne
 
     // ── 7. Destination: always the Selection subfolder ───────────────────
 
-    // AD: sorting false files bundle flat into Selection without RAW or JPEG subfolders (U-04c)
+    // AD: sorting false files bundle flat into Selection without RAW or JPEG subfolders and undo restores to original folder (U-04c; the filing half — the undo half is in AllOrNothingSafTransferTest)
     // TOK (lab 2026-10-18): default copy/move lands flat in Selection, never next to the original
     @Test
     fun `sorting off files flat into Selection, never into the source folder`() = runTest {

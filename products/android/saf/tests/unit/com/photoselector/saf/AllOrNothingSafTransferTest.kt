@@ -127,7 +127,7 @@ class AllOrNothingSafTransferTest : SafTransferContractTest(ALL_OR_NOTHING_POLIC
         assertFalse(File(rootDir, "Selection/RAW/IMG_0010.CR3").exists())
     }
 
-    // AD: sorting false files bundle flat into Selection ... and undo restores to original folder
+    // AD: sorting false files bundle flat into Selection without RAW or JPEG subfolders and undo restores to original folder (the undo half)
     @Test
     fun `a flat bundle is restored to its original folder without creating a Selection there`() = runTest {
         val names = listOf("IMG_0020.JPG", "IMG_0020.CR3", "IMG_0020.CR3.xmp")
