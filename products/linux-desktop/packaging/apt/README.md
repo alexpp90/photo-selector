@@ -22,6 +22,18 @@ sudo curl -fsSL https://alexpp90.github.io/apt/photo-selector.sources \
 sudo apt update && sudo apt install photo-selector-linux
 ```
 
+Verify the signing key before trusting it. The archive key is RSA 4096, "Photo Selector APT signing", with fingerprint:
+
+```
+F882 8BAA 9F9A BDC1 AE6E 53CC 4103 98EB 08C8 9ADC
+```
+
+Check what you downloaded (read-only, imports nothing):
+
+```bash
+curl -fsSL https://alexpp90.github.io/apt/photo-selector-archive-keyring.gpg | gpg --show-keys --with-fingerprint
+```
+
 ## Maintenance
 
 This repository is **generated**. Do not edit it by hand: the `publish-apt` job of

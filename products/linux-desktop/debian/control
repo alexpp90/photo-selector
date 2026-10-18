@@ -9,9 +9,9 @@ Build-Depends:
  python3-poetry-core,
  pybuild-plugin-pyproject
 Standards-Version: 4.7.0
-Homepage: https://github.com/alexpp90/homebrew-photo-selector-toolbox
-Vcs-Git: https://github.com/alexpp90/homebrew-photo-selector-toolbox.git
-Vcs-Browser: https://github.com/alexpp90/homebrew-photo-selector-toolbox
+Homepage: https://github.com/alexpp90/photo-selector
+Vcs-Git: https://github.com/alexpp90/photo-selector.git
+Vcs-Browser: https://github.com/alexpp90/photo-selector
 Rules-Requires-Root: no
 
 Package: photo-selector-linux
@@ -32,13 +32,12 @@ Recommends:
  heif-gdk-pixbuf,
  libheif-plugin-libde265
 Description: native GNOME photograph culling and selection suite
- Photo Selector Linux is a high-performance native GNOME photograph
- culling and comparison selection suite built for Debian 13 (Trixie)
- and modern Linux desktops.
+ Photo Selector Linux is a native GNOME photograph culling and comparison
+ application for Debian 13 (Trixie) and other current Linux desktops.
  .
  Key features:
   * 1-Up, 2-Up, and 3-Up Focus Mode with tactile Sliding Triplet navigation
-  * Real-time noise-corrected 2D Laplacian focus sharpness scoring (< 2.0ms)
-  * Non-destructive transactional file operations with copy-undo safety
-  * Native Libadwaita Studio Dark theme and zero-latency keyboard routing
+  * Noise-corrected 2D Laplacian focus sharpness scoring
+  * Move, Copy and Trash operations with undo; originals stay in place on Copy
+  * Native Libadwaita dark theme and keyboard-driven culling
   * Support for camera RAW formats, JPEG companions, and XMP sidecars

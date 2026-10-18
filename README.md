@@ -78,7 +78,7 @@ A lightweight, touch-optimized portrait client designed for lightning-fast, sing
 </div>
 
 ### Key Features
-* **TikTok-Style Vertical Feed:** Browse local collections seamlessly via Jetpack Compose native `VerticalPager` with background prefetching and progressive SAF loading (sub-second time-to-first-swipe).
+* **Full-Screen Vertical Swipe Feed:** Browse local collections seamlessly via Jetpack Compose native `VerticalPager` with background prefetching and progressive SAF loading (sub-second time-to-first-swipe).
 * **Tactile Culling Swipes:**
   * **Swipe-Right to File:** Instantly copy or move photos to your designated `Selection/` folder with an animated green confirmation glow.
   * **Swipe-Left to Discard or Route:** Configurable action (Trash/Delete, Copy, or Move to secondary folder) with progressive card tilt ($2^\circ$) and non-blocking **Revert** (`RestoreFromTrash`) across scrolls.
@@ -101,7 +101,7 @@ Built specifically for large-screen tablets (≥ 840 dp) and desktop environment
 ### Key Features
 * **1-over-2 Three-Frame Layout:** Height-optimized comparison architecture allocating maximum display area to the Current frame, flanked by named metric readouts to the left and primary action buttons to the right, with Previous and Next frames centered as a pair beneath.
 * **Zero-Area-Cost Columnar Chrome:** 88dp labeled left sidebar and 72dp vertical filmstrip running top-to-bottom in horizontal display slack, preserving 100% of vertical photo height without adding top or bottom bars.
-* **On-Device Optical Scoring:** Real-time Center Sharpness (OpenCV Laplacian variance on center 50% ROI), MAD noise floor estimation, highlight/shadow clipping histograms, and optional on-device TFLite aesthetic scoring.
+* **On-Device Optical Scoring:** Real-time Center Sharpness (OpenCV Laplacian variance on center 50% ROI), MAD noise floor estimation, highlight/shadow clipping histograms.
 * **Star Ratings & Composition Feedback:** 1–5 star rating controls, reject tags, and composition heuristics persisted in a local Room SQLite database with a 10,000-image MRU cache.
 * **Desktop Ergonomics:** Mouse pointer hover states (`PointerIcon.Hand`), physical keyboard shortcuts (`←`/`→`, `M`, `C`, `Del`, `1`/`2`/`3`, `Esc`), and drag-and-drop folder import from Android file managers.
 * **Every Camera Format:** Discovers, displays, reads EXIF from and scores Sony, Canon (incl. CR3), Nikon, Fujifilm, Panasonic, OM System, Pentax, Samsung and DNG RAW files plus JPEG, HEIC, PNG, TIFF and WebP. RAWs are shown from their embedded camera JPEG; phone DNGs fall back to the platform decoder. Proven against real camera files ([supported formats](docs/shared/SUPPORTED_FORMATS.md)).
@@ -173,7 +173,7 @@ The original multi-platform desktop culling application built with Python and Tk
 | **Center Sharpness Score** | ❌ Omitted | ✅ (OpenCV) | ✅ (vImage + vDSP) | ✅ (NumPy Laplacian) | ✅ (OpenCV/NumPy) | 50% ROI Laplacian variance; omitted on PhotoTok for sub-second launch. |
 | **Laplacian Noise (MAD)** | ❌ Omitted | ✅ (MAD) | ✅ (vImage MAD) | ✅ (NumPy MAD) | ✅ (MAD) | Median Absolute Deviation sensor noise floor subtraction. |
 | **Highlights/Shadows Clipping** | ❌ Omitted | ✅ (Histograms) | ✅ (vImage Hist) | ✅ (NumPy Hist) | ✅ (Histograms) | Hardware histogram thresholds $\ge 254$ and $\le 2$. |
-| **Aesthetic Scoring** | ❌ Excluded | ✅ (TFLite NIMA) | ✅ (Apple Vision ANE) | ❌ Excluded | ✅ (Local Ollama) | macOS uses Apple Neural Engine; Android Desktop uses optional TFLite. |
+| **Aesthetic Scoring** | ❌ Excluded | ❌ Excluded | ✅ (Apple Vision ANE) | ❌ Excluded | ✅ (Local Ollama) | macOS uses Apple Neural Engine; Android Desktop scores technical quality only. |
 | **Star Ratings (1–5)** | ❌ Omitted | ✅ (Room DB v3) | ❌ Omitted | ❌ Omitted | ❌ Omitted | Rating, reject, and composition tracking in Room DB. |
 | **Score Caching** | ❌ Lightweight | ✅ (Room DB) | ❌ (Memory LRU) | ❌ (Memory LRU) | ✅ (SQLite) | Desktops rely on sub-2ms compute & memory LRU; Android uses Room. |
 | **Duplicate Detection** | ❌ Omitted | ✅ (Room DB) | ✅ (CryptoKit SHA) | ✅ (Streaming SHA) | ✅ (SHA-256) | Two-stage size pre-filtering and SHA-256 duplicate finder. |

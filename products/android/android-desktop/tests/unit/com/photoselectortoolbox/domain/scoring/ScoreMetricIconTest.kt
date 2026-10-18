@@ -45,7 +45,6 @@ class ScoreMetricIconTest {
                 ScoreMetric.NOISE,
                 ScoreMetric.HIGHLIGHT_CLIPPING,
                 ScoreMetric.SHADOW_CLIPPING,
-                ScoreMetric.AESTHETIC,
             ),
             ScoreMetric.entries.toList(),
         )

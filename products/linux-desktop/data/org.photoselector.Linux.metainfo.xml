@@ -4,19 +4,26 @@
   <metadata_license>CC0-1.0</metadata_license>
   <project_license>MIT</project_license>
   <name>Photo Selector</name>
-  <summary>Obsidian Darkroom photograph culling and optical RAW/JPEG triage suite</summary>
+  <summary>Cull, compare and select photographs, with RAW and JPEG pairing</summary>
   <description>
     <p>
-      Photo Selector is a native GNOME 46 / Libadwaita desktop application designed for
-      rapid photograph culling, side-by-side comparison, and noise-corrected
-      optical quality assessment on Debian 13 (Trixie).
+      Photo Selector is a GNOME / Libadwaita application for going through a folder
+      or memory card of photographs quickly: step through them one at a time or
+      compare two or three side by side, and decide which to keep.
     </p>
     <p>
-      Features the Obsidian Darkroom &amp; Optical Cobalt studio palette, normalized
-      sharpness goodness meters, companion RAW+JPEG and XMP badges, 1-Up / 2-Up / 3-Up
-      comparison modes, and non-destructive transactional file operations with copy-undo safety.
+      It pairs RAW and JPEG files and their XMP sidecars so they move together,
+      shows camera metadata and a focus sharpness score for each photograph, and
+      offers Move and Copy to a Selection folder and Trash, each with Undo.
+      It works offline and sends no data over the network.
     </p>
   </description>
+  <url type="homepage">https://github.com/alexpp90/photo-selector</url>
+  <url type="bugtracker">https://github.com/alexpp90/photo-selector/issues</url>
+  <url type="vcs-browser">https://github.com/alexpp90/photo-selector</url>
+  <releases>
+    <release version="0.1.0" date="2026-10-10"/>
+  </releases>
   <branding>
     <color type="primary" scheme_preference="light">#3584e4</color>
     <color type="primary" scheme_preference="dark">#181920</color>
@@ -29,8 +36,10 @@
     <category>Graphics</category>
     <category>Photography</category>
   </categories>
-  <content_rating type="oars-1.1" />
-  <developer id="com.photoselector">
+  <content_rating type="oars-1.1">
+    <content_attribute id="social-info">none</content_attribute>
+  </content_rating>
+  <developer id="io.github.alexpp90">
     <name>Alexander Patz</name>
   </developer>
 </component>
