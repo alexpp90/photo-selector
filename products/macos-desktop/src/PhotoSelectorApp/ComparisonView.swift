@@ -44,6 +44,8 @@ public struct ComparisonView: View {
     public let zoomState: ZoomState
     public let onSelectSlot: (Int) -> Void
     public let onToggleZoom: () -> Void
+    public var toast: ToastMessage?
+    public var onExitZoom: (() -> Void)?
     public var onPinchEnded: ((Double) -> Void)?
     public var onUpdateExif: ((UUID, ExifData) -> Void)?
     public var onUpdateScores: ((UUID, QualityScores) -> Void)?
@@ -65,6 +67,8 @@ public struct ComparisonView: View {
         zoomState: ZoomState = .fit,
         onSelectSlot: @escaping (Int) -> Void,
         onToggleZoom: @escaping () -> Void,
+        toast: ToastMessage? = nil,
+        onExitZoom: (() -> Void)? = nil,
         onPinchEnded: ((Double) -> Void)? = nil,
         onUpdateExif: ((UUID, ExifData) -> Void)? = nil,
         onUpdateScores: ((UUID, QualityScores) -> Void)? = nil
@@ -80,6 +84,8 @@ public struct ComparisonView: View {
         self.zoomState = zoomState
         self.onSelectSlot = onSelectSlot
         self.onToggleZoom = onToggleZoom
+        self.toast = toast
+        self.onExitZoom = onExitZoom
         self.onPinchEnded = onPinchEnded
         self.onUpdateExif = onUpdateExif
         self.onUpdateScores = onUpdateScores
@@ -123,7 +129,7 @@ public struct ComparisonView: View {
             // Top: CURRENT photo (prominent focus ring, culling target)
             Group {
                 if let current = currentPhoto {
-                    pane(photo: current, role: .current, isActive: true) { onSelectSlot(currentSlot) }
+                    pane(photo: current, role: .current, isActive: true, hostsOverlay: true) { onSelectSlot(currentSlot) }
                 } else {
                     ProgressView().tint(.secondary)
                 }
@@ -171,19 +177,23 @@ public struct ComparisonView: View {
 
     private func sideBySideView() -> some View {
         let displayList = photos.isEmpty ? [currentPhoto].compactMap { $0 } : photos
+        let hostIndex = min(max(0, activeSlotIndex), max(0, displayList.count - 1))
         return HStack(spacing: Self.spacing) {
             ForEach(Array(displayList.enumerated()), id: \.offset) { index, photo in
                 pane(
                     photo: photo,
                     role: index == 0 ? .current : .candidate(index),
-                    isActive: index == activeSlotIndex
+                    isActive: index == activeSlotIndex,
+                    hostsOverlay: index == hostIndex
                 ) { onSelectSlot(index) }
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
             }
         }
     }
 
-    private func pane(photo: PhotoItem, role: SlotRole, isActive: Bool, onSelect: @escaping () -> Void) -> some View {
+    /// `hostsOverlay` marks the one slot (CURRENT in 3-Up, the active slot in 2-Up) whose image
+    /// rectangle carries the action toast and the zoom-exit pill.
+    private func pane(photo: PhotoItem, role: SlotRole, isActive: Bool, hostsOverlay: Bool = false, onSelect: @escaping () -> Void) -> some View {
         ComparisonSlotPane(
             photo: photo,
             role: role,
@@ -194,6 +204,8 @@ public struct ComparisonView: View {
             zoomState: zoomState,
             onSelect: onSelect,
             onDoubleTap: onToggleZoom,
+            toast: hostsOverlay ? toast : nil,
+            onExitZoom: hostsOverlay ? onExitZoom : nil,
             onPinchEnded: onPinchEnded,
             onUpdateExif: onUpdateExif,
             onUpdateScores: onUpdateScores
@@ -250,6 +262,8 @@ public struct ComparisonSlotPane: View {
     public let zoomState: ZoomState
     public let onSelect: () -> Void
     public let onDoubleTap: () -> Void
+    public var toast: ToastMessage?
+    public var onExitZoom: (() -> Void)?
     public var onPinchEnded: ((Double) -> Void)?
     public var onUpdateExif: ((UUID, ExifData) -> Void)?
     public var onUpdateScores: ((UUID, QualityScores) -> Void)?
@@ -268,6 +282,8 @@ public struct ComparisonSlotPane: View {
         zoomState: ZoomState = .fit,
         onSelect: @escaping () -> Void,
         onDoubleTap: @escaping () -> Void,
+        toast: ToastMessage? = nil,
+        onExitZoom: (() -> Void)? = nil,
         onPinchEnded: ((Double) -> Void)? = nil,
         onUpdateExif: ((UUID, ExifData) -> Void)? = nil,
         onUpdateScores: ((UUID, QualityScores) -> Void)? = nil
@@ -281,6 +297,8 @@ public struct ComparisonSlotPane: View {
         self.zoomState = zoomState
         self.onSelect = onSelect
         self.onDoubleTap = onDoubleTap
+        self.toast = toast
+        self.onExitZoom = onExitZoom
         self.onPinchEnded = onPinchEnded
         self.onUpdateExif = onUpdateExif
         self.onUpdateScores = onUpdateScores
@@ -340,6 +358,7 @@ public struct ComparisonSlotPane: View {
                 )
                 .padding(4) // gutter for the frame border / focus reticle: nothing touches the photo
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
+                .slotOverlay(toast: toast, zoomState: zoomState, onExitZoom: onExitZoom)
                 .clipped()
                 .uiTestFrame(role.accessibilityIdentifier + "_image")
 

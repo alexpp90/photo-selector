@@ -429,3 +429,62 @@ For now, keep the 2-state approach but add the bottom nav bar visually. The `his
 5. **GestureTutorialOverlay.kt** — glassmorphic cards
 6. **SettingsScreen.kt + SettingsItem.kt** — section headers, toggle styling
 7. Polish: HUD toggle, trash peek animation, gesture hint pill
+
+---
+
+## 8. Copy & messaging
+
+PhotoTok is a gesture app: people look at photos, not at text. Every dialog, hint card and
+snackbar follows these rules. They are binding for new UI as well (REQ-TOK-UX.01).
+
+### Rules
+
+1. **Don't ask when there is nothing to decide.** If one choice is clearly right, take it. For
+   example, reopening a folder with no new photos resumes at the saved photo without a dialog.
+2. **The title carries the message.** A dialog title states the fact or the question in ≤ 5 words; a hint headline states one rule in ≤ 6. Use a
+   number instead of a sentence: "3 new photos", not "3 newer photos were added since you
+   last left".
+3. **Body text is optional.** Use at most one short sentence, and only when the title and
+   buttons cannot stand alone (for example, "This location has no trash." explains
+   *permanently*). Drop "Choose how you would like to…" paragraphs.
+4. **Buttons name the outcome.** Write "Show new", "Stay", "Show both, linked", "RAW",
+   "JPEG", "Leave as is", never "Yes"/"OK". No subline under a button, except under the
+   single recommended or non-obvious option ("1 card per shot": "Swipes act on both files").
+5. **Point at Settings with an action, not a sentence.** Hint cards for configurable behaviour
+   carry a `SETTINGS` action. "You can change this in Settings." is not written anywhere. The
+   one exception is the direct-delete dialog: its confirm/cancel slots are taken, so a single
+   small `bodySmall` line reads "Turn off this prompt in Settings." (REQ-TOK-GESTURE.03).
+6. **Say only what the user cannot see.** No snackbar confirms a jump the user just watched
+   happen. A hint names the *rule* ("Swipe right copies to Selection"), because the copy/move
+   snackbar already reports the event ("Copied to Selection").
+7. **Snackbars use ≤ 4 words**, for example "No new photos", "RAW + JPEG linked" or
+   "Showing RAW only". Error feedback may name the folder and the count.
+8. **One neutral exit.** Multi-choice dialogs have exactly one neutral button ("Leave as is",
+   "Stay"). Back and tap-outside do the same thing, so there is no extra close ✕ next to it.
+9. **Be truthful.** Never say "trash" for a delete that does not go to a trash. Keep the
+   configured verb (copy/move) and the folder name, and never write "Keep".
+10. **No marketing copy** inside the app ("high-velocity curation", "Master the curation flow").
+11. **Sentence case** for titles and buttons. The ALL-CAPS action labels on hint cards
+    (`GOT IT`, `SETTINGS`, `SHOW ALL`) are the only exception.
+
+### Reference wording
+
+| Surface | Title | Body | Actions |
+|---|---|---|---|
+| New photos on reload/reopen (`FolderResumeDialog`) | "1 new photo" / "N new photos" (+ photo icon) | — | **Show new** · Stay |
+| No new photos | *no dialog* | — | explicit Reload only: snackbar "No new photos" |
+| RAW + JPEG pairs (`RawJpegSuggestionDialog`) | "RAW + JPEG pairs" | — | **1 card per shot** (subline "Swipes act on both files") · Show both, linked · *Show only*: RAW · JPEG · Leave as is |
+| Direct delete (`DirectDeleteDialog`) | "Delete permanently?" | "This location has no trash." + small "Turn off this prompt in Settings." | Cancel · **Delete** |
+| Hint: swipe right / left to folder | "Swipe right copies to «folder»" | — | SETTINGS · GOT IT |
+| Hint: swipe left delete | "Swipe left deletes" | "Tap Revert to undo." | SETTINGS · GOT IT |
+| Hint: filter mismatch | "RAW only" / "JPEG only" | "Most photos here are JPEG." | SHOW ALL · GOT IT |
+| Hints: vertical, tap, zoom, revert | "Your place is saved per folder" · "Tap again to show the overlays" · "Drag to pan, double-tap to reset" · "Revert undoes the last delete only" | — | GOT IT |
+| SD / USB card done (`showCardDoneSheet`) | "Done with this card" | — | **Keep all photos** · Delete rejects · Delete all (N) · Cancel |
+| Clear whole card confirm | "Delete all N photos?" | "Photos not copied off the card are lost." | Cancel · **Delete all** |
+| Snackbars | — | "No new photos" · "RAW + JPEG linked" · "Showing RAW only" · "Safe to unplug" · "Rejects deleted" · "Cloud folder: copying, not moving" | — |
+| Landing: folder access lost | "Folder Access Needed" | "Access to this folder was lost." | Re-select Folder |
+| Landing: empty folder | "No Photos Found" | "«Folder» has no supported photos" | — |
+
+Hint cards auto-dismiss after 7 s. A card with an action stays for 12 s, so there is time to
+reach the button. The pure `com.phototok.domain.FirstRunHintText` owns the hint wording, and
+`FirstRunHintTextTest` enforces the length and no-Settings-sentence rules.

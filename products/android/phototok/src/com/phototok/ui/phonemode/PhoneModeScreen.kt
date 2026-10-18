@@ -38,6 +38,7 @@ import androidx.compose.material.icons.filled.FolderOpen
 import androidx.compose.material.icons.filled.Info
 import androidx.compose.material.icons.filled.Lens
 import androidx.compose.material.icons.filled.PhotoCamera
+import androidx.compose.material.icons.filled.PhotoLibrary
 import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material.icons.filled.RestoreFromTrash
 import androidx.compose.material.icons.filled.SdCard
@@ -190,33 +191,12 @@ fun PhoneModeScreen(
 
     // Direct Delete Confirmation Dialog
     if (showDirectDeleteConfirmDialog) {
-        AlertDialog(
-            onDismissRequest = { showDirectDeleteConfirmDialog = false },
-            modifier = Modifier.testTag("direct_delete_dialog"),
-            title = { Text("Delete Permanently", color = colors.error) },
-            text = {
-                Text("This picture will be directly deleted (permanently) because trash is not supported for this location.\n\nHint: You can disable this confirmation in Settings.")
+        DirectDeleteDialog(
+            onConfirm = {
+                showDirectDeleteConfirmDialog = false
+                viewModel.requestDelete()
             },
-            confirmButton = {
-                TextButton(
-                    onClick = {
-                        showDirectDeleteConfirmDialog = false
-                        viewModel.requestDelete()
-                    },
-                    modifier = Modifier.testTag("direct_delete_confirm_button"),
-                ) {
-                    Text("Delete", color = colors.error)
-                }
-            },
-            dismissButton = {
-                TextButton(
-                    onClick = { showDirectDeleteConfirmDialog = false },
-                    modifier = Modifier.testTag("direct_delete_cancel_button"),
-                ) {
-                    Text("Cancel")
-                }
-            },
-            containerColor = colors.surfaceContainerHigh,
+            onDismiss = { showDirectDeleteConfirmDialog = false },
         )
     }
 
@@ -227,19 +207,18 @@ fun PhoneModeScreen(
             title = { Text("Done with this card") },
             text = {
                 Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                    Text("Choose how to wrap up this SD / USB card session:")
                     Button(
                         onClick = { viewModel.keepAllFilesOnCard() },
                         modifier = Modifier.fillMaxWidth(),
                     ) {
-                        Text("Leave card as-is (Recommended)")
+                        Text("Keep all photos")
                     }
                     if (uiState.undoStack.isNotEmpty() || uiState.pendingDelete != null) {
                         TextButton(
                             onClick = { viewModel.deleteQueuedRejectsOnCard() },
                             modifier = Modifier.fillMaxWidth(),
                         ) {
-                            Text("Delete rejected photos from card")
+                            Text("Delete rejects")
                         }
                     }
                     TextButton(
@@ -249,7 +228,7 @@ fun PhoneModeScreen(
                         },
                         modifier = Modifier.fillMaxWidth(),
                     ) {
-                        Text("Clear all photos from card (${uiState.images.size})", color = colors.error)
+                        Text("Delete all (${uiState.images.size})", color = colors.error)
                     }
                 }
             },
@@ -265,16 +244,16 @@ fun PhoneModeScreen(
     if (showClearAllCardConfirm) {
         AlertDialog(
             onDismissRequest = { showClearAllCardConfirm = false },
-            title = { Text("Clear All Photos from Card?", color = colors.error) },
+            title = { Text("Delete all ${uiState.images.size} photos?", color = colors.error) },
             text = {
-                Text("This permanently deletes ${uiState.images.size} photos from ${uiState.sourceFolderName}. Uncopied photos cannot be recovered.")
+                Text("Photos not copied off the card are lost.")
             },
             confirmButton = {
                 TextButton(onClick = {
                     showClearAllCardConfirm = false
                     viewModel.confirmClearEntireCard()
                 }) {
-                    Text("Delete All", color = colors.error)
+                    Text("Delete all", color = colors.error)
                 }
             },
             dismissButton = {
@@ -640,7 +619,6 @@ fun PhoneModeScreen(
             leftSwipeFolderName = uiState.leftSwipeFolderName,
             collectionFolderName = uiState.collectionFolderName,
             title = "Controls",
-            subtitle = "Everything you can do while reviewing photos",
             dismissLabel = "CLOSE",
             anchors = guideAnchors,
         )
@@ -660,6 +638,7 @@ fun PhoneModeScreen(
                 FirstRunHintCard(
                     hint = uiState.firstRunHint,
                     onDismiss = viewModel::dismissFirstRunHint,
+                    onOpenSettings = { showSettingsSheet = true },
                     modifier = Modifier
                         .align(Alignment.BottomCenter)
                         .windowInsetsPadding(WindowInsets.safeDrawing.only(WindowInsetsSides.Bottom))
@@ -725,9 +704,56 @@ fun PhoneModeScreen(
 }
 
 /**
- * Modal dialog shown when reloading PhotoTok or reopening a previously opened folder,
- * informing the user whether newer photos were added since they left and letting them
- * choose between continuing where they left off or starting with the newest image.
+ * Confirmation before a left-swipe delete in a location without a trash.
+ *
+ * The title carries the consequence and the body the one reason; the Settings
+ * pointer is a single small line (REQ-TOK-GESTURE.03). Revert still works after
+ * confirming, so the dialog does not claim the delete is immediate.
+ */
+@Composable
+fun DirectDeleteDialog(
+    onConfirm: () -> Unit,
+    onDismiss: () -> Unit,
+) {
+    val colors = MaterialTheme.colorScheme
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        modifier = Modifier.testTag("direct_delete_dialog"),
+        title = { Text("Delete permanently?", color = colors.error) },
+        text = {
+            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                Text("This location has no trash.")
+                Text(
+                    text = "Turn off this prompt in Settings.",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = colors.onSurfaceVariant,
+                )
+            }
+        },
+        confirmButton = {
+            TextButton(
+                onClick = onConfirm,
+                modifier = Modifier.testTag("direct_delete_confirm_button"),
+            ) {
+                Text("Delete", color = colors.error)
+            }
+        },
+        dismissButton = {
+            TextButton(
+                onClick = onDismiss,
+                modifier = Modifier.testTag("direct_delete_cancel_button"),
+            ) {
+                Text("Cancel")
+            }
+        },
+        containerColor = colors.surfaceContainerHigh,
+    )
+}
+
+/**
+ * Shown only when a reload or a reopened folder found photos newer than the last
+ * visit (REQ-TOK-FEATURE.09). The count is the whole message; the buttons name
+ * the two outcomes. With nothing new there is nothing to decide, so no dialog.
  */
 @Composable
 fun FolderResumeDialog(
@@ -735,32 +761,14 @@ fun FolderResumeDialog(
     onStartWithNewest: () -> Unit,
     onContinueWhereLeftOff: () -> Unit,
 ) {
-    val photoNumber = (prompt.resumeIndex + 1).coerceAtLeast(1)
-    val positionContext = if (prompt.totalCount > 0) {
-        " (at photo #$photoNumber of ${prompt.totalCount})"
-    } else {
-        ""
-    }
-    val newerInfo = when {
-        prompt.newCount == 1 -> "1 newer photo was added since you last left$positionContext."
-        prompt.newCount > 1 -> "${prompt.newCount} newer photos were added since you last left$positionContext."
-        else -> "No newer photos were added since you last left$positionContext."
-    }
-    val dialogTitle = if (prompt.newCount > 0) "New Photos Found" else "Resume Folder?"
-
     AlertDialog(
         onDismissRequest = onContinueWhereLeftOff,
+        icon = { Icon(Icons.Default.PhotoLibrary, contentDescription = null) },
         title = {
             Text(
-                text = dialogTitle,
+                text = newPhotosTitle(prompt.newCount),
                 style = MaterialTheme.typography.titleMedium,
                 fontWeight = FontWeight.Bold,
-            )
-        },
-        text = {
-            Text(
-                text = "$newerInfo Would you like to continue where you left off or start with the newest image?",
-                style = MaterialTheme.typography.bodyMedium,
             )
         },
         confirmButton = {
@@ -768,7 +776,7 @@ fun FolderResumeDialog(
                 onClick = onStartWithNewest,
                 modifier = Modifier.testTag("reload_jump_confirm_button"),
             ) {
-                Text("Start with Newest")
+                Text("Show new")
             }
         },
         dismissButton = {
@@ -776,7 +784,7 @@ fun FolderResumeDialog(
                 onClick = onContinueWhereLeftOff,
                 modifier = Modifier.testTag("reload_jump_stay_button"),
             ) {
-                Text("Continue Where I Left Off")
+                Text("Stay")
             }
         },
         modifier = Modifier
@@ -784,6 +792,10 @@ fun FolderResumeDialog(
             .testTag("reload_jump_dialog"),
     )
 }
+
+/** "1 new photo" / "5 new photos" — the whole message of [FolderResumeDialog]. */
+internal fun newPhotosTitle(count: Int): String =
+    if (count == 1) "1 new photo" else "$count new photos"
 
 /** Side-panel labelled button used in the landscape viewer. */
 @Composable
@@ -869,7 +881,7 @@ private fun SelectionFolderViewer(
             ) {
                 Text(
                     text = if (activeTab == SelectionViewerTab.FAVOURITES) {
-                        "No favourites yet — swipe right in ★ mode to mark favourites"
+                        "No favourites yet"
                     } else {
                         "No photos in the selection folder yet"
                     },

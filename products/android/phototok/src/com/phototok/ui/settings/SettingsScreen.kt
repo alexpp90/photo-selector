@@ -317,7 +317,7 @@ fun SettingsScreen(
                         )
                         Spacer(modifier = Modifier.height(2.dp))
                         Text(
-                            text = "Ask before permanently deleting files (trash unsupported)",
+                            text = "Ask before deleting permanently",
                             style = MaterialTheme.typography.labelMedium,
                             color = colors.onSurfaceVariant,
                         )
@@ -351,7 +351,7 @@ fun SettingsScreen(
                         )
                         Spacer(modifier = Modifier.width(6.dp))
                         Text(
-                            text = "Warning: Disabling this deletes files permanently without confirmation!",
+                            text = "Deletes permanently without asking",
                             style = MaterialTheme.typography.labelSmall,
                             color = colors.error,
                         )
@@ -488,9 +488,9 @@ fun SettingsScreen(
             SettingsClickItem(
                 title = "Reset Tutorials",
                 description = if (tutorialsReset) {
-                    "Done — the guides will appear again"
+                    "Tips will show again"
                 } else {
-                    "Show the gesture tutorial and the one-time action tips again"
+                    "Show all tips again"
                 },
                 onClick = { viewModel.resetTutorials { tutorialsReset = true } },
                 icon = Icons.Default.RestartAlt,

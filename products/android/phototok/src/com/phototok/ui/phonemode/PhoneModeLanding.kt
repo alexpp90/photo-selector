@@ -280,7 +280,7 @@ fun PhoneModeLanding(
                                 )
                                 Spacer(modifier = Modifier.height(2.dp))
                                 Text(
-                                    text = "Permission for this folder was revoked or the folder was moved. Re-select the folder to continue.",
+                                    text = "Access to this folder was lost.",
                                     style = MaterialTheme.typography.bodySmall,
                                     color = colors.onErrorContainer.copy(alpha = 0.9f),
                                 )
@@ -424,15 +424,6 @@ fun PhoneModeLanding(
                     }
                 }
             }
-
-            Spacer(modifier = Modifier.height(16.dp))
-
-            Text(
-                text = "Connect a source to begin your high-velocity curation.",
-                style = MaterialTheme.typography.bodyMedium,
-                color = colors.onSurfaceVariant.copy(alpha = 0.5f),
-                textAlign = TextAlign.Center,
-            )
 
             Spacer(modifier = Modifier.height(24.dp))
         }

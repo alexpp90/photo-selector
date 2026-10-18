@@ -68,7 +68,8 @@ def test_libadwaita_components():
 def test_studio_dark_palette():
     """Verify Obsidian Darkroom & Optical Cobalt palette tokens and CSS classes (R-LINUX-UI-02)."""
     assert APP_THEME_NAME == "Obsidian Darkroom & Optical Cobalt"
-    assert "Obsidian Darkroom" in APP_BRAND_TAGLINE
+    assert "Obsidian" not in APP_BRAND_TAGLINE and "Darkroom" not in APP_BRAND_TAGLINE
+    assert "RAW" in APP_BRAND_TAGLINE
     assert STUDIO_PALETTE["surface_bg"] == "#141417"
     assert STUDIO_PALETTE["header_chrome"] == "#181920"
     assert STUDIO_PALETTE["card_bg"] == "#1C1C20"

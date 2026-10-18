@@ -14,7 +14,7 @@ from pathlib import Path
 from typing import Dict, List, Tuple
 
 APP_BRAND_NAME: str = "Photo Selector"
-APP_BRAND_TAGLINE: str = "Obsidian Darkroom · Optical RAW & JPEG Triage"
+APP_BRAND_TAGLINE: str = "Optical RAW & JPEG Triage"
 APP_THEME_NAME: str = "Obsidian Darkroom & Optical Cobalt"
 APP_ICON_NAME: str = "org.photoselector.Linux"
 

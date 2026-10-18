@@ -82,16 +82,6 @@ enum class ScoreMetric(
         format = "%.1f%%",
         worstValue = 14.0,
         bestValue = 0.0,
-    ),
-    AESTHETIC(
-        shortLabel = "Aesth",
-        displayName = "Aesthetic score",
-        description = "On-device AI rating of overall appeal, on a 1–10 scale.",
-        icon = ScoreMetricIcon.AESTHETIC,
-        direction = ScoreDirection.HIGHER_IS_BETTER,
-        format = "%.1f",
-        worstValue = 1.0,
-        bestValue = 10.0,
     );
 
     /** Format a raw value for display, e.g. `512.3` or `1.4%`. */
@@ -131,7 +121,6 @@ enum class ScoreMetric(
         NOISE -> result.noiseLevel
         HIGHLIGHT_CLIPPING -> result.highlightClipping
         SHADOW_CLIPPING -> result.shadowClipping
-        AESTHETIC -> result.aestheticScore
     }
 
     /**
@@ -186,7 +175,4 @@ enum class ScoreMetricIcon {
 
     /** Moon — shadow clipping. */
     SHADOW,
-
-    /** Star — the aesthetic score. */
-    AESTHETIC,
 }
