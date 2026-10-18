@@ -2,7 +2,7 @@ min_target: 48
 overlay_ids:
   - controls_guide
   - gesture_tutorial_overlay
-  - first_run_hint_card
+  - first_run_hint
   - direct_delete_dialog
   - viewer.info
 frame_ids:

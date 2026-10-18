@@ -32,13 +32,17 @@ struct PhotoSelectorApp: App {
 final class AppDelegate: NSObject, NSApplicationDelegate, ObservableObject {
     let viewModel = CullingWorkspaceViewModel()
     let launchOptions = LaunchOptions(arguments: ProcessInfo.processInfo.arguments)
+    #if PST_TEST_HOOKS
     private var selfTest: UISelfTestRunner?
+    #endif
 
     func applicationWillFinishLaunching(_ notification: Notification) {
         ForegroundActivation.ensureKeyboardCapable(NSApp)
+        #if PST_TEST_HOOKS
         if launchOptions.selfTestFolder != nil || launchOptions.scenarioURL != nil {
             UITestFrameRegistry.shared.isEnabled = true
         }
+        #endif
     }
 
     private static var isGUIRequested: Bool {
@@ -47,10 +51,15 @@ final class AppDelegate: NSObject, NSApplicationDelegate, ObservableObject {
     }
 
     func applicationDidFinishLaunching(_ notification: Notification) {
-        let isBackgroundTest = (launchOptions.selfTestFolder != nil
-            || launchOptions.screenshotURL != nil
-            || launchOptions.scenarioURL != nil)
-            && !Self.isGUIRequested
+        #if !PST_TEST_HOOKS
+        if launchOptions.requestsTestHooks {
+            // A release build must never drive itself: fail fast instead of opening a normal window
+            // that a script would wait on forever (or, worse, act on).
+            FileHandle.standardError.write(Data("This build has no UI test hooks (build with PST_TEST_HOOKS=1 or in debug).\n".utf8))
+            exit(64)
+        }
+        #endif
+        let isBackgroundTest = launchOptions.requestsTestHooks && !Self.isGUIRequested
         if !isBackgroundTest {
             NSApp.activate(ignoringOtherApps: true)
         }
@@ -58,6 +67,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, ObservableObject {
             Self.makeWorkspaceWindowKey()
         }
 
+        #if PST_TEST_HOOKS
         if let folder = launchOptions.selfTestFolder {
             let runner = UISelfTestRunner(
                 viewModel: viewModel,
@@ -114,6 +124,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate, ObservableObject {
         } else if let folder = launchOptions.openFolder {
             viewModel.loadFolder(at: folder)
         }
+        #else
+        if let folder = launchOptions.openFolder {
+            viewModel.loadFolder(at: folder)
+        }
+        #endif
     }
 
     func applicationShouldTerminateAfterLastWindowClosed(_ sender: NSApplication) -> Bool {
@@ -155,6 +170,11 @@ struct LaunchOptions {
     var expectedCount: Int?
     var externalKeyWait: TimeInterval = 0
     var screenshotURL: URL?
+
+    /// True when the command line asks for one of the UI test modes.
+    var requestsTestHooks: Bool {
+        selfTestFolder != nil || screenshotURL != nil || scenarioURL != nil
+    }
 
     init(arguments: [String]) {
         var iterator = arguments.dropFirst().makeIterator()

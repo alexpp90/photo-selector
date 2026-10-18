@@ -30,26 +30,29 @@ The rule that prevents it:
 | Gate | CI job | Local | Notes |
 |---|---|---|---|
 | flake8 `src/ tests/` | `desktop.yml:lint` | ✅ everywhere | **Gates the entire desktop pipeline.** A lint error fails the run before one test executes. |
-| pytest `-m "not visual"` | `desktop.yml:test` | ✅ everywhere | Same marker filter locally and in CI. On Linux the runner renders it on its own Xvfb, as CI does — see [GUI gates run on Xvfb](#gui-gates-run-on-xvfb-not-your-screen). |
+| pytest `-m "not visual"` | `desktop.yml:test` | ✅ everywhere | Same marker filter locally and in CI. CI and the mirror both pass `-o faulthandler_timeout=120` (also to the visual job), so a test that blocks in Tk or native code fails with every thread's stack instead of hanging. On Linux the runner renders it on its own Xvfb, as CI does — see [GUI gates run on Xvfb](#gui-gates-run-on-xvfb-not-your-screen). |
 | Coverage `--cov-fail-under=60` | `desktop.yml:test` (**Linux only**) | ✅ advisory everywhere | See [Coverage is Linux-authoritative](#coverage-is-linux-authoritative). |
 | Visual regression | `desktop.yml:visual` | ⚠️ Linux + Xvfb; baselines are runner-rendered | See [Visual regression](#visual-regression-linux-only). |
 | `testDebugUnitTest` | `android.yml:unit-tests` | ✅ needs JDK 17 + Android SDK | |
 | `assembleDebugAndroidTest` | `android.yml:unit-tests` | ✅ needs JDK 17 + Android SDK | Compiles `tests/instrumented/`. Nothing else does. |
-| `check_native_alignment.py` | `android.yml:unit-tests`, `android.yml:build` | ✅ needs JDK 17 + Android SDK (unit tests run everywhere via `scripts/tests`) | Inspects every `lib/{arm64-v8a,x86_64}/*.so` in `merged_native_libs/debug` and built APK/AAB archives and fails if any ELF `PT_LOAD` segment has `p_align < 16384` (Google Play 16 KB page-size mandate). |
+| `check_native_alignment.py` | `android.yml:unit-tests`, `android.yml:build` | ✅ needs JDK 17 + Android SDK (unit tests run everywhere via `scripts/tests`) | Inspects every `lib/{arm64-v8a,x86_64}/*.so` in `merged_native_libs/debug` and built APK/AAB archives and fails if any ELF `PT_LOAD` segment has `p_align < 16384` (Google Play 16 KB page-size mandate). For `.apk` files it also fails if a stored (uncompressed) `.so` does not start at a 16 KB-aligned zip offset (`zipalign -P 16`); bundles are exempt. The mirror builds and checks the debug APKs like the `build` job. |
 | `lintDebug` | `android.yml:lint` | ✅ advisory | Non-blocking in both places, on purpose. |
-| `connectedDebugAndroidTest` | `android.yml:instrumented-tests` | ❌ **needs emulator/device** | See [Instrumented tests](#instrumented-tests-genuinely-need-a-device). |
+| `connectedDebugAndroidTest` | `android.yml:instrumented-tests` | ❌ **needs emulator/device** | Local: on demand only (`--android-device`, before a release), pinned to one test device (`scripts/android_test_device.py`), never every attached device; no device is a non-blocking `⊘ SKIPPED`, also under `--strict`. See [Instrumented tests](#instrumented-tests-genuinely-need-a-device). |
 | `swift test (macos-desktop)` | `macos.yml:swift-test` | ⚠️ Darwin only | Native Swift 6 suite covering PhotoSelectorKit & App (release SLA benchmark included). Runs on `macos-latest` in CI. |
+| `check_no_test_hooks.sh` (release binary) | `macos.yml:swift-test`, `macos.yml:build` | ⚠️ Darwin only | `swift build -c release`, then fails if the binary contains the UI test hooks (`UIScenarioRunner`, `UITestDriver`, `UISelfTestRunner`), which are compiled in only for debug and `build_app.sh --test-hooks` builds. |
 | macOS UI smoke test (running app) | — (local-only) | ⚠️ Darwin + logged-in GUI session | `products/macos-desktop/scripts/ui_smoke_test.sh`: drives the running app (raw binary **and** `.app` bundle) — activation policy, real key events, rendered Focus 3-Up geometry, clicks while zoomed, time-to-first-photo. Window-server key probe needs Accessibility permission, else `⊘ SKIPPED`. See [macOS UI smoke test](#macos-ui-smoke-test-local-only). |
 | `linux-desktop lint` | `linux.yml:lint` | ✅ everywhere | Flake8 static analysis on `products/linux-desktop/` |
 | `linux-desktop test` (`--cov-fail-under=70`) | `linux.yml:test` | ⚠️ full only with GTK 4 + GExiv2 typelibs (partial elsewhere) | Headless unit tests covering metadata, scoring, file transactions, window/dialog controllers, and format conformance with `--cov=photo_selector_linux --cov-fail-under=70`. CI installs the Debian decoding backends (`gir1.2-gexiv2-0.10`, `libraw-bin`, `heif-gdk-pixbuf` + `libheif-plugin-libde265`; deliberately no `webp-pixbuf-loader`, so the Pillow display fallback stays tested) and, with the corpus, fails if any is missing; off Linux the backend-dependent format checks skip with the package to install. Without the real GTK 4 / GExiv2 typelibs (macOS, or a Linux box without them) `conftest.py` stubs `gi`, so the GTK display decode path never runs; the mirror then labels the gate `linux.yml:test (partial — …)` instead of claiming CI parity. Runs under Xvfb on Linux, mirroring `xvfb-run -a` in CI. The CI job has `timeout-minutes: 15` and both CI and the mirror pass `-o faulthandler_timeout=120`, so a test that blocks forever on a real GTK main loop fails with every thread's stack instead of hanging (a preferences-dialog signal feedback loop did exactly that on 2026-10-17 while the Mac gate, which stubs GTK, was green). |
 | `debian packaging & apt repo` | `linux.yml:package` | ✅ everywhere (pure-Python builder) | `package_debian.sh`: builds the `.deb`, generates an unsigned APT repository in `products/linux-desktop/dist/apt` and verifies it. |
 | APT publish | `linux.yml:publish-apt` | ❌ credentials-bound | On `v*` tags: builds, signs (`APT_GPG_PRIVATE_KEY`) and pushes the repository to `alexpp90/apt` (GitHub Pages). |
 | Homebrew tap update | `desktop.yml:homebrew`, `macos.yml` release steps | ❌ credentials-bound | Writes formula/cask hashes and versions directly to `alexpp90/homebrew-tap` (`HOMEBREW_TAP_TOKEN`); the main repository holds no Formula/Casks. |
-| PyInstaller build, release, Play/Firebase publish | `desktop.yml:build`+, `android.yml:build`+, `macos.yml:build` | ❌ credentials-bound | Only runs on pushes to `main` / `v*` tags. Not reproducible locally by design — except the macOS universal bundle, which `products/macos-desktop/scripts/build_app.sh release --universal` builds locally (arm64 + x86_64, verified with `lipo -archs`). Main pushes also move the `nightly` tag to the released commit before updating the Nightly Build release. |
+| PyInstaller build, release, Play/Firebase publish | `desktop.yml:build`+, `android.yml:build`+, `macos.yml:build`, `linux.yml:github-release`, `linux.yml:publish-apt` | ❌ credentials-bound | Only runs on pushes to `main` / the product's own release tag (`phototok-v*`, `android-desktop-v*`, `macos-desktop-v*`, `linux-desktop-v*`, `desktop-v*` — see [RELEASING.md](RELEASING.md)). Not reproducible locally by design — except the macOS universal bundle, which `products/macos-desktop/scripts/build_app.sh release --universal` builds locally (arm64 + x86_64, verified with `lipo -archs`). Main pushes also move the `nightly` tag to the released commit before updating the Nightly Build release. |
 | `check_readme_parity.py --check` | `repo-hygiene.yml:hygiene` | ✅ everywhere | Enforces root `README.md` ecosystem completeness, canonical product ordering (PhotoTok -> Android Desktop -> macOS Desktop -> Linux Desktop -> Desktop), asset integrity, and removal of deprecated terms. |
+| `release.py verify-tag` | first step of every tag release job (`android.yml:build`, `desktop.yml:release`, `macos.yml:build`+`release`, `linux.yml:publish-apt`+`github-release`) | ✅ `python3 scripts/release.py verify-tag <tag>` | Fails the release before anything is built or published unless the tag's version equals every in-tree version source and the product's changelog has that section. Locally, `release.py tag` checks the same and additionally refuses a tree without a passing `run_tests.sh` record for the product's gates. |
+| `release.py check` | `repo-hygiene.yml:hygiene` | ✅ everywhere | Every product's version sources agree, it has a `CHANGELOG.md`, and its workflow triggers on its own tag prefix. `release.py`'s unit tests run in `scripts/tests` below. |
 | `check_private_paths.py` | `repo-hygiene.yml:hygiene` | ✅ everywhere | Fails if maintainer-private material (`private/`, `ai/`, `.claude/`, `.agents/`, `.gemini/`, requirement specs, prompts, the prompt ledger) is tracked in this public repository. Also runs as the local pre-commit hook installed by the overlay. |
 | Format corpus (`fetch_format_corpus.py`) | `.github/actions/format-corpus`, used by `desktop.yml:test`, `android.yml:unit-tests`, `macos.yml:swift-test`, `linux.yml:test` | ⚠️ once downloaded (~280 MB, network) | Restores the real-camera RAW corpus pinned in `testdata/formats/manifest.json` (cache key = manifest hash) and sets `PST_REQUIRE_FORMAT_CORPUS=1`, so every product's format conformance tests **fail** rather than skip without it. Locally `run_tests.sh` exports the same variables when the corpus is present and reports `⊘ SKIPPED` otherwise. See [`docs/shared/SUPPORTED_FORMATS.md`](../shared/SUPPORTED_FORMATS.md). |
-| `fetch_format_corpus.py --validate` + `scripts/tests` | `repo-hygiene.yml:hygiene` | ✅ everywhere | The format contract is well-formed: every required format has a sample with ground-truth EXIF, extensions are unique, committed bitmap fixtures match their pinned SHA-256; unit tests for the fetcher (mirror fallback, hash verification) and for `verification_record.py`. |
+| `fetch_format_corpus.py --validate` + `scripts/tests` | `repo-hygiene.yml:hygiene` | ✅ everywhere | The format contract is well-formed: every required format has a sample with ground-truth EXIF, extensions are unique, committed bitmap fixtures match their pinned SHA-256; unit tests for the fetcher (mirror fallback, hash verification), for `verification_record.py`, `release.py` and `android_test_device.py`. |
 | PR verification record (`verification_record.py check`) | `pr-verification.yml:record` | ⚠️ PR description only — advisory | Compares the verification blocks in the PR description (written by `scripts/verification_record.py pr` from the record every `run_tests.sh` run saves) with the PR head tree and the products the PR touches; annotates missing, stale or partial verification and never fails. Not a `run_tests.sh` gate: it judges the PR description, which exists only on GitHub. Local equivalent: `python3 scripts/verification_record.py check --body-file <description.md> --base origin/main`. Its unit tests run in `scripts/tests` above. See [CONTRIBUTING.md § Verification record](../../CONTRIBUTING.md#verification-record). |
 | `lab tooling tests` (`scripts/lab/tests`) | — (local-only) | ✅ everywhere (needs Pillow + PyYAML) | Local-only unit tests (`python3 -m unittest discover -s scripts/lab/tests -q`) covering the device lab's schemas, fixture generator, layout lint, file-system/timing/log oracles, runners, and report builder without touching devices or a GUI. |
 | Device lab (`scripts/lab/lab.py`) | — (not a CI gate) | ⚠️ local, on demand, opt-in | Local, on demand, not a CI gate; opt-in; see [`scripts/lab/README.md`](../../scripts/lab/README.md). |
@@ -131,7 +134,8 @@ These proprietary frameworks require Apple Darwin operating system kernels:
 unit tests passed for months while arrow keys did nothing in the real app: an unbundled
 SwiftPM binary starts with activation policy `.prohibited`, so the window server never makes
 it the active app and delivers no key events to it. `run_tests.sh --macos` therefore also
-runs `products/macos-desktop/scripts/ui_smoke_test.sh`, which builds the app, generates 120
+runs `products/macos-desktop/scripts/ui_smoke_test.sh`, which builds the app (with the UI test
+hooks: `build_app.sh release --test-hooks`, into `.build/hooks/`), generates 120
 camera-sized landscape JPEGs (plus decoys in an excluded `Selection/` folder) and launches
 the app with `--ui-self-test`. The in-app runner (`UISelfTestRunner`) asserts:
 
@@ -195,6 +199,39 @@ adb wait-for-device
 ./scripts/run_tests.sh --android-device
 ```
 
+**One test device, never all of them.** Gradle's `connectedDebugAndroidTest` installs on —
+and afterwards uninstalls from — *every* attached device. `run_tests.sh` therefore pins the
+run to one device via `ANDROID_SERIAL`, chosen by
+[`scripts/android_test_device.py`](../../scripts/android_test_device.py): `$ANDROID_SERIAL`,
+else `pst.testDevice.serial` in `products/android/local.properties`, else the only attached
+device. With several devices attached and none designated, the gate is skipped rather than
+run on personal devices.
+
+**A dedicated test device.** A device that stays connected for testing is designated once,
+machine-locally (local.properties is ignored by git):
+
+```bash
+echo "pst.testDevice.serial=<serial from adb devices>" >> products/android/local.properties
+```
+
+The device suite never runs as part of the default run or `--all`: it is triggered on demand
+with `./scripts/run_tests.sh --android-device`, typically before an Android release. Without a
+test device it reports `⊘ SKIPPED` and does not block — not even under `--strict` — and CI's
+`instrumented-tests` job still covers every PR. Before every run the script prepares a designated
+device (or an emulator) —
+animations off (CI's `disable-animations: true`), screen kept on while powered, keyguard off,
+portrait rotation, default size/density/font scale, light theme, no verifier prompt on adb
+installs — using `adb root` where the build allows it. It refuses a device that is merely the only one
+attached, since that may be a personal phone. Run it on its own with
+`python3 scripts/android_test_device.py prepare`; `status` shows which device is selected.
+
+**Test photos on the device.** `python3 scripts/android_test_device.py load-images [--sets smoke,formats]`
+generates the device lab's fixture sets ([`scripts/lab/fixtures/spec.yaml`](../../scripts/lab/fixtures/spec.yaml))
+plus the format corpus and pushes each to `/sdcard/PSTLab/<set>/`, replacing what was there.
+It needs Pillow and PyYAML (e.g. `/usr/bin/python3` on Debian); RAW samples need
+`python3 scripts/fetch_format_corpus.py` first. The instrumented tests do not read these —
+they are for manual testing on the device and for lab journeys.
+
 If you have no emulator, that is a legitimate SKIP — but then treat the first
 CI run as a real test run, read the uploaded
 `instrumented-test-report-api30` artifact, and fix from the report rather than
@@ -236,7 +273,7 @@ satisfy five adversarial verification gates prior to delivery:
 Of the nine consecutive `fix(test)` / `fix(android)` commits on
 `feat/score-chips-and-first-run-hints`, **one** was a compile error and
 **eight** were the same small family of semantics-tree mistakes. Following
-these five rules removes almost all of that class:
+these rules removes almost all of that class:
 
 1. **Use `onAllNodes(...).onFirst()`, not `onNode(...)`, for anything that can
    legitimately match more than once.** `onNode` throws when a matcher hits
@@ -260,6 +297,14 @@ these five rules removes almost all of that class:
    `assertIsDisplayed` fails with "is not displayed" although the app is correct
    (`PhoneModeScreenDialogTest`, PR #737, API 30 job). `assertExists()` passes
    off-screen and hides the problem; `assertIsDisplayed()` does not.
+6. **Wait on the effect, not on idle, after a gesture.** `waitForIdle()` does not
+   prove a gesture's effect has happened. A tap on a node whose
+   `detectTapGestures` also handles `onDoubleTap` reaches `onTap` only after the
+   double-tap timeout, which runs in real time, so assert with
+   `composeTestRule.waitUntil(timeoutMillis = 5_000) { … }` and click the node by
+   its own `testTag`, not `onRoot()`. A test asserting that something did *not*
+   happen must first prove the gesture was handled, or a late or lost event passes
+   it (`PhoneModeViewerInteractionTest`).
 
 These rules are also part of the Android UI agent definitions in the maintainer's agent
 framework.
@@ -285,6 +330,14 @@ framework.
 - **`publish-play` fails on a missing/empty artifact** → the upstream build
   step did not produce it. All release uploads now use
   `if-no-files-found: error`, so this should fail at the producing step first.
+- **A job that sits "in progress" far past its usual time** is hung, not slow. Every job
+  declares `timeout-minutes` (about three times its slowest green run, at least 10), so it
+  fails instead of running into GitHub's 360-minute default. The pytest jobs
+  (`desktop.yml:test`, `desktop.yml:visual`, `linux.yml:test`) pass
+  `-o faulthandler_timeout=120`, so a single blocked test dumps every thread's stack into the
+  log. `scripts/tests/test_workflow_bounds.py` (run by `repo-hygiene.yml` and the mirror)
+  fails when a job or a CI pytest command lacks either. A timeout is a CI-only bound with no local mirror: `run_tests.sh` runs in the
+  foreground, where you see a hang yourself.
 - **An "Unexpected input(s) …" annotation** is a *warning*, not an error: the
   input was silently ignored and whatever it was supposed to configure never
   took effect. Treat it as a broken fix, not cosmetic noise.

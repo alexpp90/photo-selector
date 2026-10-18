@@ -21,7 +21,9 @@ public enum FileCullingError: Error, LocalizedError, Sendable {
     case partialTrashRollbackFailed(url: URL, reason: String, remainingTrashedPairs: [TrashedFilePair])
     /// A move copied (and size-verified) a member to the destination but could not remove the original.
     /// The destination copies are kept; `unremovedSources` still exist at their original paths.
-    case partialMove(destinations: [URL], unremovedSources: [URL], reason: String)
+    /// `rollbackFailed` lists members that were moved and could not be put back after a later member
+    /// failed (D-12): they stay in the destination folder and are part of `destinations`.
+    case partialMove(destinations: [URL], unremovedSources: [URL], reason: String, rollbackFailed: [URL])
 
     public var errorDescription: String? {
         switch self {
@@ -37,7 +39,11 @@ public enum FileCullingError: Error, LocalizedError, Sendable {
             return "Failed to move file to trash \(url.lastPathComponent): \(reason)"
         case .partialTrashRollbackFailed(let url, let reason, let remaining):
             return "Failed to move file to trash \(url.lastPathComponent): \(reason) (\(remaining.count) companion file(s) remain in Trash)"
-        case .partialMove(_, let unremoved, let reason):
+        case .partialMove(_, let unremoved, let reason, let stranded):
+            if !stranded.isEmpty {
+                let names = stranded.map(\.lastPathComponent).joined(separator: ", ")
+                return "Move interrupted — could not put back: \(names) (\(reason))"
+            }
             let names = unremoved.map(\.lastPathComponent).joined(separator: ", ")
             return "Copied to the destination folder — original could not be removed: \(names) (\(reason))"
         }
@@ -330,17 +336,25 @@ public final class FileCullingManager: @unchecked Sendable {
                     firstUnremovedReason = firstUnremovedReason ?? error.localizedDescription
                     continue
                 }
-                // Roll back all previously moved companion files in this transaction
+                // Roll back all previously moved companion files in this transaction. A member that
+                // cannot be put back stays in the destination folder; it is reported, never dropped.
+                var stranded: [URL] = []
                 for pair in movedPairs.reversed() {
                     if fileManager.fileExists(atPath: pair.destination.path) {
-                        try? fileManager.moveItem(at: pair.destination, to: pair.source)
+                        do {
+                            try fileManager.moveItem(at: pair.destination, to: pair.source)
+                        } catch {
+                            stranded.append(pair.destination)
+                        }
                     }
                 }
-                if !unremovedPairs.isEmpty {
+                if !stranded.isEmpty || !unremovedPairs.isEmpty {
+                    let keep = Set((stranded + unremovedPairs.map(\.destination)).map(\.path))
                     throw FileCullingError.partialMove(
-                        destinations: unremovedPairs.map(\.destination),
+                        destinations: movedURLs.filter { keep.contains($0.path) },
                         unremovedSources: unremovedPairs.map(\.source),
-                        reason: error.localizedDescription
+                        reason: error.localizedDescription,
+                        rollbackFailed: stranded.reversed()
                     )
                 }
                 throw FileCullingError.moveFailed(
@@ -355,7 +369,8 @@ public final class FileCullingManager: @unchecked Sendable {
             throw FileCullingError.partialMove(
                 destinations: movedURLs,
                 unremovedSources: unremovedPairs.map(\.source),
-                reason: firstUnremovedReason ?? "the original could not be removed"
+                reason: firstUnremovedReason ?? "the original could not be removed",
+                rollbackFailed: []
             )
         }
         return movedURLs

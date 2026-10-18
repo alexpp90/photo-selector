@@ -1,3 +1,4 @@
+#if PST_TEST_HOOKS
 import SwiftUI
 import AppKit
 import PhotoSelectorKit
@@ -20,6 +21,8 @@ enum UISelfTestHooks {
 /// 3. Real `NSEvent` key-downs posted into the app's event queue (→ ← 3 Space Esc), which
 ///    travel the same path as hardware keys from `NSApplication` onward.
 /// 4. Focus 3-Up geometry as rendered: CURRENT above PREVIOUS and NEXT, PREVIOUS left of NEXT.
+/// 4b. Toolbar/dock labels stay single-line and disjoint, and the toast / zoom pill stay clear of
+///    all metadata, in 1-Up/2-Up/3-Up at the current size, 1024 pt and the 960 x 640 minimum.
 /// 5. Real mouse clicks on toolbar buttons and the Fit pill while zoomed.
 /// 6. Optionally (`--external-key-wait S`): waits for a key delivered by the window server
 ///    from outside the process (`osascript … key code 124`), proving end-to-end delivery.
@@ -71,6 +74,7 @@ final class UISelfTestRunner {
         await singleLayoutChecks()
         await keyboardChecks()
         await tripletLayoutChecks()
+        await chromeAndOverlayChecks()
         await zoomChecks()
         if externalKeyWait > 0 {
             await externalKeyCheck()
@@ -333,6 +337,139 @@ final class UISelfTestRunner {
         await settle()
     }
 
+    // MARK: - 4b. Chrome density and overlay placement (MAC-1, MAC-2, MAC-3)
+
+    /// Upper bound for a single-line control's height: its single-line height (never below the
+    /// 24 pt target floor) plus 60 % of one more text line. A label that wrapped gains a whole
+    /// extra line and therefore exceeds the bound; padding differences do not.
+    private static func singleLineLimit(fontSize: CGFloat, verticalPadding: CGFloat) -> CGFloat {
+        let line = (fontSize * 1.25).rounded(.up)
+        return max(24, line + 2 * verticalPadding) + line * 0.6
+    }
+
+    /// Overlap with a real area (touching edges and sub-point rounding do not count).
+    private static func overlaps(_ a: CGRect, _ b: CGRect) -> Bool {
+        let i = a.intersection(b)
+        return !i.isNull && i.width > 0.5 && i.height > 0.5
+    }
+
+    /// Runs the toolbar/dock single-line checks and the toast / zoom-pill placement checks in
+    /// every mode at the current size, 1024 pt and the real minimum window size (960 x 640).
+    private func chromeAndOverlayChecks() async {
+        guard let window = workspaceWindow, let content = window.contentView else { return }
+        let original = content.frame.size
+        let sizes: [(String, CGSize)] = [
+            ("current", original),
+            ("w1024", CGSize(width: 1024, height: 700)),
+            ("w960", CGSize(width: 960, height: 640))
+        ]
+        let modes: [(String, ComparisonMode)] = [("1up", .single), ("2up", .sideBySide), ("3up", .triplet)]
+        let registry = UITestFrameRegistry.shared
+        viewModel.isInfoHUDVisible = true
+        _ = viewModel.resetZoomToFit()
+        viewModel.selectPhoto(at: 1)
+
+        for (sizeLabel, size) in sizes {
+            window.setContentSize(NSSize(width: size.width, height: size.height))
+            await UITestDriver.settle(0.5)
+            let bounds = window.contentView?.bounds ?? CGRect(origin: .zero, size: size)
+            for (modeLabel, mode) in modes {
+                let tag = "\(sizeLabel).\(modeLabel)"
+                if viewModel.comparisonMode == mode { viewModel.setComparisonMode(mode == .single ? .sideBySide : .single) }
+                viewModel.setComparisonMode(mode)
+
+                // (b) the toast that the mode switch raises
+                await waitUntil(timeout: 1) { registry.frame("action_toast") != nil }
+                await UITestDriver.settle(0.1)
+                checkOverlayPlacement(tag: tag + ".toast", expect: ["action_toast"], bounds: bounds)
+
+                // (a) chrome: single-line labels, disjoint, inside the window
+                checkChrome(tag: tag, bounds: bounds)
+
+                // (c) zoom pill (also raises the "100 % Zoom" toast)
+                viewModel.toggleZoom()
+                await waitUntil(timeout: 1) { registry.frame("zoom_exit_pill") != nil && registry.frame("action_toast") != nil }
+                await UITestDriver.settle(0.1)
+                checkOverlayPlacement(tag: tag + ".zoomed", expect: ["zoom_exit_pill", "action_toast"], bounds: bounds)
+                let clicked = await click("zoom_exit_button")
+                await waitUntil(timeout: 1) { self.viewModel.zoomState == .fit }
+                record("overlay.\(tag).zoom_pill_clickable", clicked && viewModel.zoomState == .fit, "zoom=\(viewModel.zoomState)")
+                _ = viewModel.resetZoomToFit()
+                await UITestDriver.settle(0.1)
+            }
+        }
+        window.setContentSize(NSSize(width: original.width, height: original.height))
+        viewModel.setComparisonMode(.triplet)
+        await settle()
+    }
+
+    private func checkChrome(tag: String, bounds: CGRect) {
+        let registry = UITestFrameRegistry.shared
+        // (id, fontSize, verticalPadding) of the tallest text in each control.
+        let specs: [(String, CGFloat, CGFloat)] = [
+            ("toolbar_mode_1", 11, 4), ("toolbar_mode_2", 11, 4), ("toolbar_mode_3", 11, 4),
+            ("toolbar_position", 11, 4), ("toolbar_zoom", 11, 4),
+            ("dock_move", 13, 7), ("dock_copy", 13, 7), ("dock_trash", 13, 7), ("dock_undo", 13, 7),
+            ("dock_tally", 11, 6)
+        ]
+        var tall: [String] = []
+        var missing: [String] = []
+        var frames: [(String, CGRect)] = []
+        for (id, font, pad) in specs {
+            guard let rect = registry.frame(id) else { missing.append(id); continue }
+            frames.append((id, rect))
+            let limit = Self.singleLineLimit(fontSize: font, verticalPadding: pad)
+            if rect.height > limit { tall.append("\(id)=\(Int(rect.height.rounded()))>\(Int(limit.rounded()))") }
+        }
+        record("chrome.\(tag).labels_single_line", tall.isEmpty && missing.isEmpty,
+               tall.isEmpty && missing.isEmpty ? "\(frames.count) controls single-line" : "tall: \(tall) missing: \(missing)")
+
+        if let panLink = registry.frame("toolbar_pan_link") { frames.append(("toolbar_pan_link", panLink)) }
+        for id in ["toolbar_previous", "toolbar_next"] {
+            if let rect = registry.frame(id) { frames.append((id, rect)) }
+        }
+        var clashes: [String] = []
+        for i in frames.indices {
+            if !bounds.insetBy(dx: -1, dy: -1).contains(frames[i].1) { clashes.append("\(frames[i].0) outside window \(frames[i].1)") }
+            for j in frames.indices where j > i && Self.overlaps(frames[i].1, frames[j].1) {
+                clashes.append("\(frames[i].0) x \(frames[j].0)")
+            }
+        }
+        record("chrome.\(tag).disjoint_inside_window", clashes.isEmpty, clashes.isEmpty ? "\(frames.count) frames pairwise disjoint, inside \(bounds.size)" : clashes.joined(separator: "; "))
+    }
+
+    /// Every id in `expect` must be on screen, inside some image rectangle (the active slot's
+    /// viewport) and clear of every header, EXIF strip, metadata panel, toolbar item and dock
+    /// item. The ids in `expect` must also be pairwise disjoint.
+    private func checkOverlayPlacement(tag: String, expect: [String], bounds: CGRect) {
+        let registry = UITestFrameRegistry.shared
+        let overlays = expect.compactMap { id in registry.frame(id).map { (id, $0) } }
+        guard overlays.count == expect.count else {
+            record("overlay.\(tag).clear_of_metadata", false, "not on screen: \(expect.filter { registry.frame($0) == nil })")
+            return
+        }
+        let protected = registry.frames.filter { key, _ in
+            key.hasSuffix("_header") || key.hasSuffix("_exif") || key == "single_info_panel"
+                || key.hasPrefix("toolbar_") || key.hasPrefix("dock")
+        }
+        let images = registry.frames.filter { key, _ in key.hasSuffix("_image") || key == "single_image_viewport" }
+        var problems: [String] = []
+        for (id, rect) in overlays {
+            for (key, other) in protected where Self.overlaps(rect, other) { problems.append("\(id) over \(key)") }
+            if !images.contains(where: { $0.value.insetBy(dx: -1, dy: -1).contains(rect) }) {
+                problems.append("\(id) not inside any image rectangle \(rect)")
+            }
+            if !bounds.insetBy(dx: -1, dy: -1).contains(rect) { problems.append("\(id) outside window") }
+        }
+        for i in overlays.indices {
+            for j in overlays.indices where j > i && Self.overlaps(overlays[i].1, overlays[j].1) {
+                problems.append("\(overlays[i].0) x \(overlays[j].0)")
+            }
+        }
+        record("overlay.\(tag).clear_of_metadata", problems.isEmpty,
+               problems.isEmpty ? overlays.map { "\($0.0)=\($0.1)" }.joined(separator: " ") : problems.joined(separator: "; "))
+    }
+
     // MARK: - 5. Zoom: exits and buttons while zoomed
 
     private func zoomChecks() async {
@@ -455,3 +592,4 @@ private extension JSONEncoder {
         return encoder
     }
 }
+#endif

@@ -249,9 +249,13 @@ class CullingRecord:
     original_primary_path: Path
     affected_paths: List[Tuple[Path, Path]]  # [(original_source, target_destination), ...]
     previous_status: PhotoStatus = PhotoStatus.CANDIDATE
-    trash_info_paths: Dict[Path, Path] = field(default_factory=dict)  # {trashed_files_path: trashinfo_path}
+    trash_info_paths: Dict[Path, Path] = field(default_factory=dict)  # {original_path: trashinfo_path}
     # Sources of a MOVE whose verified copy exists in `affected_paths` but which could not be
     # removed (read-only card). Empty for a complete operation; non-empty marks it partial.
     unremoved_sources: List[Path] = field(default_factory=list)
+    # Destination members a failed rollback or cleanup left behind in `Selection/` (D-12): they are
+    # in `affected_paths`, so undo moves them back (MOVE) or deletes them (COPY). Non-empty marks
+    # the record partial; the operation itself did not complete.
+    stranded: List[Path] = field(default_factory=list)
     timestamp: float = field(default_factory=time.time)
     id: str = field(default_factory=lambda: str(uuid.uuid4()))

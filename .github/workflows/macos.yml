@@ -2,12 +2,15 @@ name: macOS Desktop CI
 
 # Single pipeline for the native Swift 6 macOS Desktop product (PhotoSelectorKit & PhotoSelectorApp).
 # Unit, adversarial, and performance tests run on every push and PR touching products/macos-desktop/.
-# Release builds and artifact packaging execute on pushes to main or v* tags (and manual dispatch).
+# Release builds and artifact packaging execute on pushes to main or `macos-desktop-v*` tags (and
+# manual dispatch). macOS Desktop is released on its own: only a `macos-desktop-vX.Y.Z` tag runs
+# this workflow's release path, and `scripts/release.py verify-tag` refuses a tag whose version
+# differs from products/macos-desktop/VERSION or that has no CHANGELOG.md section.
 
 on:
   push:
     branches: [main]
-    tags: ["v*"]
+    tags: ["macos-desktop-v*"]
     paths:
       - 'products/macos-desktop/**'
       - '.github/workflows/macos.yml'
@@ -71,6 +74,11 @@ jobs:
       - name: Build PhotoSelectorKit & PhotoSelectorApp (Release)
         run: swift build -c release
 
+      # The UI test hooks can trash files when launched with --ui-scenario: a release build
+      # must not contain them (they are compiled in only for debug and --test-hooks builds).
+      - name: Release binary carries no UI test hooks
+        run: scripts/check_no_test_hooks.sh .build/release/PhotoSelectorApp
+
       # Real-camera format corpus (docs/shared/SUPPORTED_FORMATS.md): fails the job if it
       # cannot be fetched, and makes the format tests mandatory instead of skippable.
       - name: Format conformance corpus
@@ -91,8 +99,9 @@ jobs:
   build:
     name: Build & Package macOS Binary
     needs: swift-test
-    if: github.event_name == 'workflow_dispatch' || (github.event_name == 'push' && (github.ref == 'refs/heads/main' || startsWith(github.ref, 'refs/tags/v')))
+    if: github.event_name == 'workflow_dispatch' || (github.event_name == 'push' && (github.ref == 'refs/heads/main' || startsWith(github.ref, 'refs/tags/macos-desktop-v')))
     runs-on: macos-latest
+    timeout-minutes: 30
     defaults:
       run:
         shell: bash
@@ -100,6 +109,12 @@ jobs:
     steps:
       - name: Checkout repository
         uses: actions/checkout@v7
+
+      - name: Verify release tag matches products/macos-desktop/VERSION
+        # Fail before spending a universal build on a tag that cannot be published.
+        if: startsWith(github.ref, 'refs/tags/macos-desktop-v')
+        working-directory: .
+        run: python3 scripts/release.py verify-tag "$GITHUB_REF_NAME"
 
       - name: Select Xcode 16 / Swift 6 Toolchain
         run: |
@@ -115,11 +130,16 @@ jobs:
           xcodebuild -version
 
       - name: Build Application Bundle & Archive
+        env:
+          # CFBundleShortVersionString comes from products/macos-desktop/VERSION (the tag was
+          # verified against it above); CFBundleVersion is the monotonically increasing run number.
+          MACOS_BUILD_NUMBER: ${{ github.run_number }}
         run: |
           # Universal (arm64 + x86_64): the cask has no arch restriction and the README
           # promises Intel support. The asset keeps its historical name because the
           # alexpp90/homebrew-tap casks download it by that name.
           scripts/build_app.sh release --universal
+          scripts/check_no_test_hooks.sh .build/app/PhotoSelector.app
           cd .build/app
           zip -r -y ../../../../photo-selector-macos-apple-silicon.zip PhotoSelector.app
 
@@ -134,11 +154,25 @@ jobs:
   release:
     name: Publish macOS Release
     needs: build
-    if: github.event_name == 'push' && (github.ref == 'refs/heads/main' || startsWith(github.ref, 'refs/tags/v'))
+    if: github.event_name == 'push' && (github.ref == 'refs/heads/main' || startsWith(github.ref, 'refs/tags/macos-desktop-v'))
     runs-on: ubuntu-latest
+    timeout-minutes: 10
     permissions:
       contents: write
     steps:
+      - name: Checkout repository
+        if: startsWith(github.ref, 'refs/tags/macos-desktop-v')
+        uses: actions/checkout@v7
+
+      - name: Verify release tag and read release notes
+        id: release_meta
+        # Runs before anything is published: a tag that disagrees with VERSION or has no
+        # changelog section fails the run here.
+        if: startsWith(github.ref, 'refs/tags/macos-desktop-v')
+        run: |
+          python3 scripts/release.py verify-tag "$GITHUB_REF_NAME"
+          python3 scripts/release.py notes "$GITHUB_REF_NAME" > "$RUNNER_TEMP/release-notes.md"
+
       - name: Download Artifacts
         uses: actions/download-artifact@v8
         with:
@@ -158,18 +192,20 @@ jobs:
       - name: Update GitHub Release
         uses: softprops/action-gh-release@v3
         with:
-          name: ${{ startsWith(github.ref, 'refs/tags/') && format('Release {0}', github.ref_name) || 'Nightly Build' }}
-          tag_name: ${{ startsWith(github.ref, 'refs/tags/') && github.ref_name || 'nightly' }}
-          prerelease: ${{ !startsWith(github.ref, 'refs/tags/') }}
+          name: ${{ startsWith(github.ref, 'refs/tags/macos-desktop-v') && steps.release_meta.outputs.name || 'Nightly Build' }}
+          tag_name: ${{ startsWith(github.ref, 'refs/tags/macos-desktop-v') && github.ref_name || 'nightly' }}
+          body_path: ${{ startsWith(github.ref, 'refs/tags/macos-desktop-v') && format('{0}/release-notes.md', runner.temp) || '' }}
+          prerelease: ${{ !startsWith(github.ref, 'refs/tags/macos-desktop-v') }}
           files: artifacts/*.zip
-          make_latest: ${{ startsWith(github.ref, 'refs/tags/') && 'true' || 'false' }}
+          make_latest: ${{ startsWith(github.ref, 'refs/tags/macos-desktop-v') && 'true' || 'false' }}
 
   # ── Homebrew Tap Synchronization ──
   update-homebrew-taps:
     name: Update Homebrew Taps (Native macOS)
     needs: release
-    if: github.event_name == 'push' && (github.ref == 'refs/heads/main' || startsWith(github.ref, 'refs/tags/v'))
+    if: github.event_name == 'push' && (github.ref == 'refs/heads/main' || startsWith(github.ref, 'refs/tags/macos-desktop-v'))
     runs-on: ubuntu-latest
+    timeout-minutes: 10
     permissions:
       contents: read
     env:
@@ -226,8 +262,9 @@ jobs:
                 --macos-sha256 "${MACOS_SHA256}"
               COMMIT_MSG="Update nightly native macOS cask hash"
             else
-              TAG_NAME="${GH_REF_NAME}"
-              VERSION="${TAG_NAME#v}"
+              # macos-desktop-v1.2.3 -> 1.2.3 (the release job's verify-tag already proved
+              # it equals products/macos-desktop/VERSION)
+              VERSION="${GH_REF_NAME##*-v}"
               python3 "$UPDATER" --file Casks/photo-selector-toolbox.rb \
                 --version-val "${VERSION}" \
                 --macos-sha256 "${MACOS_SHA256}"

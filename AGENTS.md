@@ -32,8 +32,9 @@ means — and nothing else. The only shared implementation is `products/android/
    defect, not reuse. `products/android/core/` affects both Android products.
 2. **Write and run tests for every feature, fix or logic change**, and run them before you
    call the task done.
-3. **Verify against the CI mirror, not a subset.** `./scripts/run_tests.sh` (add `--all` with
-   a device attached) reproduces every gate CI enforces. Gates reported `⊘ SKIPPED` are
+3. **Verify against the CI mirror, not a subset.** `./scripts/run_tests.sh` (`--all` for every product)
+   reproduces every gate CI enforces except the instrumented device suite, which is run on
+   demand with `--android-device` before a release; a missing device never blocks. Gates reported `⊘ SKIPPED` are
    accepted risks — name them in your summary. Changing a gate in `.github/workflows/`
    obliges you to mirror it in `scripts/run_tests.sh` and `docs/build/CI_PARITY.md` in the
    same commit. Never push a speculative fix and let CI adjudicate it.

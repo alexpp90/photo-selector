@@ -1,14 +1,21 @@
 name: Android CI
 
 # Single pipeline for the Android solutions: tests always run; packaging,
-# signing, and publishing only happen on pushes to main or v* tags (and
-# manual dispatch). Builds depend on tests via `needs:` — no cross-workflow
-# polling gate needed.
+# signing, and publishing only happen on pushes to main or on a product
+# release tag (and manual dispatch). Builds depend on tests via `needs:` — no
+# cross-workflow polling gate needed.
+#
+# Each Android product is released on its own (docs/build/RELEASING.md):
+#   phototok-vX.Y.Z         builds, signs and publishes only PhotoTok
+#   android-desktop-vX.Y.Z  builds, signs and publishes only Android Desktop
+# A tag push builds exactly the module its prefix names, whatever the path
+# filter says; `scripts/release.py verify-tag` fails the run before anything
+# is built if the tag, the in-tree version and the changelog disagree.
 
 on:
   push:
     branches: [main]
-    tags: ["v*"]
+    tags: ["phototok-v*", "android-desktop-v*"]
     paths:
       - 'products/android/**'
       - '.github/workflows/android.yml'
@@ -39,9 +46,12 @@ jobs:
   detect-changes:
     name: Detect changed modules
     runs-on: ubuntu-latest
+    timeout-minutes: 10
+    # `toolbox` / `phototok` say which module the release steps build and publish:
+    # the path filter on branch pushes, exactly the tagged product on a tag push.
     outputs:
-      toolbox: ${{ steps.filter.outputs.toolbox }}
-      phototok: ${{ steps.filter.outputs.phototok }}
+      toolbox: ${{ steps.modules.outputs.toolbox }}
+      phototok: ${{ steps.modules.outputs.phototok }}
     steps:
       - uses: actions/checkout@v7
 
@@ -66,10 +76,27 @@ jobs:
               - 'products/android/gradle/**'
               - '.github/workflows/android.yml'
 
+      # A tag release is per product: the path filter must not pull the other
+      # module into it (and has no meaningful diff on a tag push anyway).
+      - name: Resolve modules to build
+        id: modules
+        env:
+          TOOLBOX_CHANGED: ${{ steps.filter.outputs.toolbox }}
+          PHOTOTOK_CHANGED: ${{ steps.filter.outputs.phototok }}
+        run: |
+          case "$GITHUB_REF" in
+            refs/tags/android-desktop-v*) toolbox=true;  phototok=false ;;
+            refs/tags/phototok-v*)        toolbox=false; phototok=true ;;
+            *)                            toolbox="$TOOLBOX_CHANGED"; phototok="$PHOTOTOK_CHANGED" ;;
+          esac
+          echo "toolbox=$toolbox" >> "$GITHUB_OUTPUT"
+          echo "phototok=$phototok" >> "$GITHUB_OUTPUT"
+
   # ── JVM unit tests (no emulator needed) ─────────────────────────
   unit-tests:
     name: Unit tests (JVM)
     runs-on: ubuntu-latest
+    timeout-minutes: 20
     steps:
       - uses: actions/checkout@v7
 
@@ -124,6 +151,7 @@ jobs:
   lint:
     name: Android Lint
     runs-on: ubuntu-latest
+    timeout-minutes: 20
     continue-on-error: true
     steps:
       - uses: actions/checkout@v7
@@ -155,6 +183,7 @@ jobs:
   instrumented-tests:
     name: Instrumented tests (API ${{ matrix.api-level }})
     runs-on: ubuntu-latest
+    timeout-minutes: 45
     # The emulator job is the slowest and least readable in the pipeline (~15
     # min vs ~2 min). `unit-tests` already compiles :app and :phototok
     # androidTest sources, so gating on it means a Kotlin/KSP break in a test
@@ -230,8 +259,9 @@ jobs:
   build:
     name: Build Android
     needs: [unit-tests, instrumented-tests, detect-changes]
-    if: github.event_name == 'workflow_dispatch' || (github.event_name == 'push' && (github.ref == 'refs/heads/main' || startsWith(github.ref, 'refs/tags/v')))
+    if: github.event_name == 'workflow_dispatch' || (github.event_name == 'push' && (github.ref == 'refs/heads/main' || startsWith(github.ref, 'refs/tags/phototok-v') || startsWith(github.ref, 'refs/tags/android-desktop-v')))
     runs-on: ubuntu-latest
+    timeout-minutes: 30
     permissions:
       contents: write
     env:
@@ -252,6 +282,29 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v7
 
+      # Release tags only: fail before anything is built or published unless the
+      # tag, the in-tree version and the changelog agree. Writes the product,
+      # version (bare X.Y.Z) and display name outputs used below.
+      - name: Verify release tag
+        if: startsWith(github.ref, 'refs/tags/')
+        id: verify
+        run: python3 scripts/release.py verify-tag "$GITHUB_REF_NAME"
+
+      # The Gradle default versionName already equals the tag (verify-tag checked
+      # it); pinning it from the tag as well makes the shipped version impossible
+      # to drift from the tag the release is published under.
+      - name: Pin version name to the tag
+        if: startsWith(github.ref, 'refs/tags/')
+        env:
+          RELEASE_PRODUCT: ${{ steps.verify.outputs.product }}
+          RELEASE_VERSION: ${{ steps.verify.outputs.version }}
+        run: |
+          case "$RELEASE_PRODUCT" in
+            phototok)        echo "PHOTOTOK_VERSION_NAME=$RELEASE_VERSION" >> "$GITHUB_ENV" ;;
+            android-desktop) echo "TOOLBOX_VERSION_NAME=$RELEASE_VERSION" >> "$GITHUB_ENV" ;;
+            *) echo "Unexpected product '$RELEASE_PRODUCT' for tag $GITHUB_REF_NAME" >&2; exit 1 ;;
+          esac
+
       - name: Set up JDK 17
         uses: actions/setup-java@v5
         with:
@@ -265,7 +318,7 @@ jobs:
         working-directory: products/android
         run: ./gradlew assembleDebug
 
-      - name: Verify 16 KB ELF page alignment (debug APK)
+      - name: Verify 16 KB ELF and zip-entry alignment (debug APK)
         run: |
           python3 scripts/check_native_alignment.py \
             products/android/android-desktop/build/outputs/apk/debug/*.apk \
@@ -296,10 +349,10 @@ jobs:
         working-directory: products/android
         run: |
           TASKS=""
-          if [ "${{ needs.detect-changes.outputs.toolbox }}" = "true" ] || [[ "${{ github.ref }}" == refs/tags/v* ]]; then
+          if [ "${{ needs.detect-changes.outputs.toolbox }}" = "true" ]; then
             TASKS="$TASKS :android-desktop:assembleRelease"
           fi
-          if [ "${{ needs.detect-changes.outputs.phototok }}" = "true" ] || [[ "${{ github.ref }}" == refs/tags/v* ]]; then
+          if [ "${{ needs.detect-changes.outputs.phototok }}" = "true" ]; then
             TASKS="$TASKS :phototok:assembleRelease"
           fi
           if [ -n "$TASKS" ]; then
@@ -320,10 +373,10 @@ jobs:
         working-directory: products/android
         run: |
           TASKS=""
-          if [ "${{ needs.detect-changes.outputs.toolbox }}" = "true" ] || [[ "${{ github.ref }}" == refs/tags/v* ]]; then
+          if [ "${{ needs.detect-changes.outputs.toolbox }}" = "true" ]; then
             TASKS="$TASKS :android-desktop:bundleRelease"
           fi
-          if [ "${{ needs.detect-changes.outputs.phototok }}" = "true" ] || [[ "${{ github.ref }}" == refs/tags/v* ]]; then
+          if [ "${{ needs.detect-changes.outputs.phototok }}" = "true" ]; then
             TASKS="$TASKS :phototok:bundleRelease"
           fi
           if [ -n "$TASKS" ]; then
@@ -356,7 +409,7 @@ jobs:
             cp products/android/phototok/build/outputs/bundle/release/*.aab products/android/release-assets/phototok-android-release.aab
           fi
 
-      - name: Verify 16 KB ELF page alignment (release APK & AAB)
+      - name: Verify 16 KB ELF and zip-entry alignment (release APK & AAB)
         if: github.event_name == 'push'
         run: |
           shopt -s nullglob
@@ -378,7 +431,7 @@ jobs:
           if-no-files-found: error
 
       - name: Upload release APK
-        if: github.event_name == 'push' && (needs.detect-changes.outputs.toolbox == 'true' || startsWith(github.ref, 'refs/tags/v'))
+        if: github.event_name == 'push' && needs.detect-changes.outputs.toolbox == 'true'
         uses: actions/upload-artifact@v7
         with:
           name: photo-selector-toolbox-android-release
@@ -386,7 +439,7 @@ jobs:
           if-no-files-found: error
 
       - name: Upload Phototok release APK
-        if: github.event_name == 'push' && (needs.detect-changes.outputs.phototok == 'true' || startsWith(github.ref, 'refs/tags/v'))
+        if: github.event_name == 'push' && needs.detect-changes.outputs.phototok == 'true'
         uses: actions/upload-artifact@v7
         with:
           name: phototok-android-release
@@ -395,7 +448,7 @@ jobs:
 
       # Each app lives in its own Firebase project with its own service-account credential.
       - name: Upload Photo Selector Toolbox to Firebase App Distribution
-        if: github.event_name == 'push' && github.ref == 'refs/heads/main' && (needs.detect-changes.outputs.toolbox == 'true' || startsWith(github.ref, 'refs/tags/v'))
+        if: github.event_name == 'push' && github.ref == 'refs/heads/main' && needs.detect-changes.outputs.toolbox == 'true'
         # Tester distribution is a convenience and must not block the Play Store
         # release that runs later in this job. The "groups" alias below must exist
         # in the Firebase project, otherwise distribution 404s.
@@ -411,7 +464,7 @@ jobs:
           file: products/android/release-assets/photo-selector-toolbox-android-release.apk
 
       - name: Upload Photo Tok to Firebase App Distribution
-        if: github.event_name == 'push' && github.ref == 'refs/heads/main' && (needs.detect-changes.outputs.phototok == 'true' || startsWith(github.ref, 'refs/tags/v'))
+        if: github.event_name == 'push' && github.ref == 'refs/heads/main' && needs.detect-changes.outputs.phototok == 'true'
         continue-on-error: true
         uses: wzieba/Firebase-Distribution-Github-Action@v1
         with:
@@ -422,7 +475,7 @@ jobs:
           file: products/android/release-assets/phototok-android-release.apk
 
       - name: Upload release AAB
-        if: github.event_name == 'push' && (needs.detect-changes.outputs.toolbox == 'true' || startsWith(github.ref, 'refs/tags/v'))
+        if: github.event_name == 'push' && needs.detect-changes.outputs.toolbox == 'true'
         uses: actions/upload-artifact@v7
         with:
           name: photo-selector-toolbox-android-release-aab
@@ -430,7 +483,7 @@ jobs:
           if-no-files-found: error
 
       - name: Upload Phototok release AAB
-        if: github.event_name == 'push' && (needs.detect-changes.outputs.phototok == 'true' || startsWith(github.ref, 'refs/tags/v'))
+        if: github.event_name == 'push' && needs.detect-changes.outputs.phototok == 'true'
         uses: actions/upload-artifact@v7
         with:
           name: phototok-android-release-aab
@@ -448,37 +501,56 @@ jobs:
             || gh api -X POST "repos/${{ github.repository }}/git/refs" -f ref=refs/tags/nightly -f sha="$GITHUB_SHA"
 
       - name: Publish Release Assets
-        if: github.event_name == 'push' && (needs.detect-changes.outputs.toolbox == 'true' || needs.detect-changes.outputs.phototok == 'true' || startsWith(github.ref, 'refs/tags/v'))
+        if: github.event_name == 'push' && !startsWith(github.ref, 'refs/tags/') && (needs.detect-changes.outputs.toolbox == 'true' || needs.detect-changes.outputs.phototok == 'true')
         uses: softprops/action-gh-release@v3
         with:
-          tag_name: ${{ startsWith(github.ref, 'refs/tags/') && github.ref_name || 'nightly' }}
-          name: ${{ startsWith(github.ref, 'refs/tags/') && format('Release {0}', github.ref_name) || 'Nightly Build' }}
-          prerelease: ${{ !startsWith(github.ref, 'refs/tags/') }}
+          tag_name: nightly
+          name: Nightly Build
+          prerelease: true
+          files: products/android/release-assets/*
+
+      # A product release: only the tagged module was built, so release-assets
+      # holds only that product's APK and AAB. The body is the changelog section
+      # for the tagged version.
+      - name: Render release notes
+        if: github.event_name == 'push' && (startsWith(github.ref, 'refs/tags/phototok-v') || startsWith(github.ref, 'refs/tags/android-desktop-v'))
+        run: python3 scripts/release.py notes "$GITHUB_REF_NAME" > release-notes.md
+
+      - name: Publish product release
+        if: github.event_name == 'push' && (startsWith(github.ref, 'refs/tags/phototok-v') || startsWith(github.ref, 'refs/tags/android-desktop-v'))
+        uses: softprops/action-gh-release@v3
+        with:
+          tag_name: ${{ github.ref_name }}
+          name: ${{ steps.verify.outputs.name }} ${{ steps.verify.outputs.version }}
+          body_path: release-notes.md
+          prerelease: false
+          make_latest: true
           files: products/android/release-assets/*
 
   publish-play:
     name: Publish to Google Play
     needs: [build, detect-changes]
-    if: github.event_name == 'push' && (github.ref == 'refs/heads/main' || startsWith(github.ref, 'refs/tags/v')) && (needs.detect-changes.outputs.toolbox == 'true' || needs.detect-changes.outputs.phototok == 'true' || startsWith(github.ref, 'refs/tags/v'))
+    if: github.event_name == 'push' && (github.ref == 'refs/heads/main' || startsWith(github.ref, 'refs/tags/phototok-v') || startsWith(github.ref, 'refs/tags/android-desktop-v')) && (needs.detect-changes.outputs.toolbox == 'true' || needs.detect-changes.outputs.phototok == 'true')
     runs-on: ubuntu-latest
+    timeout-minutes: 15
 
     steps:
       - name: Download Photo Selector Toolbox AAB
-        if: needs.detect-changes.outputs.toolbox == 'true' || startsWith(github.ref, 'refs/tags/v')
+        if: needs.detect-changes.outputs.toolbox == 'true'
         uses: actions/download-artifact@v8
         with:
           name: photo-selector-toolbox-android-release-aab
           path: release-assets
 
       - name: Download Photo Tok AAB
-        if: needs.detect-changes.outputs.phototok == 'true' || startsWith(github.ref, 'refs/tags/v')
+        if: needs.detect-changes.outputs.phototok == 'true'
         uses: actions/download-artifact@v8
         with:
           name: phototok-android-release-aab
           path: release-assets
 
       - name: Upload Photo Selector Toolbox AAB to Google Play
-        if: needs.detect-changes.outputs.toolbox == 'true' || startsWith(github.ref, 'refs/tags/v')
+        if: needs.detect-changes.outputs.toolbox == 'true'
         uses: r0adkll/upload-google-play@v1
         with:
           serviceAccountJsonPlainText: ${{ secrets.TOOLBOX_GP_SERVICE_ACCOUNT_JSON }}
@@ -488,7 +560,7 @@ jobs:
           status: completed
 
       - name: Upload Photo Tok AAB to Google Play
-        if: needs.detect-changes.outputs.phototok == 'true' || startsWith(github.ref, 'refs/tags/v')
+        if: needs.detect-changes.outputs.phototok == 'true'
         uses: r0adkll/upload-google-play@v1
         with:
           serviceAccountJsonPlainText: ${{ secrets.PHOTOTOK_GP_SERVICE_ACCOUNT_JSON }}

@@ -23,7 +23,8 @@ products/macos-desktop/
 - **Multi-Tier RAW & Image Preloading**: Sub-sampling and orientation correction via ImageIO (`CGImageSourceCreateThumbnailAtIndex`) for stutter-free scrolling and instant navigation.
 - **Supported Formats**: camera RAW — Sony ARW, Canon CR2/CR3, Nikon NEF/NRW, Fujifilm RAF, Panasonic RW2, OM System/Olympus ORF, Pentax PEF, DNG (cameras and phones), Samsung SRW — plus JPEG, HEIC/HEIF, PNG, TIFF and WebP, matched case-insensitively. Older RAW formats (Hasselblad 3FR/FFF, Phase One IIQ, Leica RWL/RAW, Sony SR2/SRF, Minolta MRW, Sigma X3F, Epson ERF, Mamiya MEF/MOS) are scanned and paired; whether they display depends on macOS's RAW support. RAW files show their embedded preview first. If that preview is smaller than the display size, the app decodes the RAW itself; if macOS cannot decode a RAW (for example Samsung SRW), the embedded preview is used instead. The list lives in `PhotoSelectorKit/Scanning/SupportedFormats.swift` and must match the shared contract `testdata/formats/manifest.json` (see [`docs/shared/SUPPORTED_FORMATS.md`](../../docs/shared/SUPPORTED_FORMATS.md)). `FormatConformanceTests` checks this against real camera files: run `python3 scripts/fetch_format_corpus.py` to download them, or set `PST_REQUIRE_FORMAT_CORPUS=1` to make missing files fail the run instead of skipping.
 - **Maximized Viewport Culling**: Borderless comparison layouts (single, side-by-side, triplet) allocating >85% of window area to photo previews without clutter or chrome.
-- **Zero-Latency Keyboard Navigation**: Arrow keys for navigation, `M` (Move to `Selection/`), `C` (Copy to `Selection/`), and `Delete` (System Trash) with automatic companion file pairing (RAW+JPEG, XMP sidecars).
+- **Fits the smallest window**: down to the 960 pt minimum width no toolbar or action-bar label wraps or truncates; the controls step down to short labels (`3-Up`, `3 / 120`, `Move`) and then to icons, keeping a tooltip with the full name and shortcut. Action toasts and the zoom-exit pill appear inside the active photo, never over a slot header or EXIF strip.
+- **Zero-Latency Keyboard Navigation**: Arrow keys for navigation, `M` (Move to `Selection/`), `C` (Copy to `Selection/`), and `Delete` (System Trash) with automatic companion file pairing (RAW+JPEG, XMP sidecars). `⌘Z` undoes the last operation; every folder keeps its own undo history, including an operation that finished while you switched folders.
 - **Native macOS Interface**: Clean workspace; configuration moved to standard macOS Settings scene (`⌘,`), secondary utilities (Duplicate Finder, Library Stats) housed in the Menu Bar `Tools` menu.
 
 ## Architecture & Layering
@@ -54,6 +55,12 @@ To build an optimized release binary:
 ```bash
 swift build -c release
 ```
+
+The UI test modes (`--ui-scenario`, `--ui-self-test`, `--screenshot`) drive the app and can trash
+files, so a release build does not contain them and refuses those flags (exit code 64). Debug
+builds have them; for a release-optimized build with them (the device lab and the smoke test use
+it) run `scripts/build_app.sh release --test-hooks`, which writes to `.build/hooks/` and never to
+the distributable `.build/app/`. `scripts/check_no_test_hooks.sh` verifies a binary carries none.
 
 ## Run
 
@@ -86,7 +93,8 @@ swift test
 ```
 
 UI smoke test of the **running** app (keyboard delivery, real key events, Focus 3-Up
-geometry, clicks while zoomed, time-to-first-photo) — needs a logged-in desktop session:
+geometry, clicks while zoomed, time-to-first-photo, single-line toolbar/action-bar labels and
+toast/zoom-pill placement at 1024 pt and the 960 pt minimum width) — needs a logged-in desktop session:
 
 ```bash
 products/macos-desktop/scripts/ui_smoke_test.sh

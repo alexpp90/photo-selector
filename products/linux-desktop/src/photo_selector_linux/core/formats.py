@@ -45,3 +45,21 @@ def is_raw(path: Union[str, Path]) -> bool:
 
 def is_supported(path: Union[str, Path]) -> bool:
     return extension_of(path) in SUPPORTED_EXTENSIONS
+
+
+# Single source for the .desktop ``MimeType=`` line (tests/unit/test_packaging.py keeps them equal).
+# Types follow shared-mime-info; extensions it does not register use the conventional x- name.
+MIME_TYPE_BY_EXTENSION = {
+    "arw": "image/x-sony-arw", "cr2": "image/x-canon-cr2", "cr3": "image/x-canon-cr3",
+    "nef": "image/x-nikon-nef", "nrw": "image/x-nikon-nrw", "raf": "image/x-fuji-raf",
+    "rw2": "image/x-panasonic-rw2", "orf": "image/x-olympus-orf", "pef": "image/x-pentax-pef",
+    "dng": "image/x-adobe-dng", "srw": "image/x-samsung-srw",
+    "3fr": "image/x-hasselblad-3fr", "fff": "image/x-kde-raw", "iiq": "image/x-phaseone-iiq",
+    "rwl": "image/x-leica-rwl", "raw": "image/x-panasonic-rw", "sr2": "image/x-sony-sr2",
+    "srf": "image/x-sony-srf", "mrw": "image/x-minolta-mrw", "x3f": "image/x-sigma-x3f",
+    "erf": "image/x-kde-raw", "mef": "image/x-mamiya-mef", "mos": "image/x-kde-raw",
+    "jpg": "image/jpeg", "jpeg": "image/jpeg", "heic": "image/heif", "heif": "image/heif",
+    "png": "image/png", "tif": "image/tiff", "tiff": "image/tiff", "webp": "image/webp",
+}
+
+MIME_TYPES: FrozenSet[str] = frozenset(MIME_TYPE_BY_EXTENSION.values())

@@ -745,6 +745,32 @@ class SettingsRepository @Inject constructor(
      * Reconcile OS persisted URI grants against the URIs currently referenced in
      * DataStore, releasing any orphaned grants from earlier sessions.
      */
+    /** Remove [uris] from the persisted pending-delete queue, leaving entries queued meanwhile alone. */
+    suspend fun removePersistedPendingDeleteUris(uris: Collection<String>) {
+        if (uris.isEmpty()) return
+        context.dataStore.edit { prefs ->
+            val updated = (prefs[KEY_PERSISTED_PENDING_DELETE_URIS] ?: emptySet()) - uris.toSet()
+            if (updated.isEmpty()) prefs.remove(KEY_PERSISTED_PENDING_DELETE_URIS)
+            else prefs[KEY_PERSISTED_PENDING_DELETE_URIS] = updated
+        }
+    }
+
+    /**
+     * Release the persisted grant of [folderUri] now if nothing references it any more — called after
+     * the deletions queued in a folder that was left have been committed.
+     */
+    suspend fun releaseFolderGrantIfUnreferenced(folderUri: String) {
+        val prefs = context.dataStore.data.first()
+        val referenced = referencedUrisByPurpose(prefs)
+        folderAccessManager.syncReferences(referenced)
+        folderAccessManager.releaseIfUnreferenced(folderUri, referenced.values.flatten().toSet())
+    }
+
+    /** Keep (or drop) the grant of the folder whose deletions are still on the undo stack. */
+    fun pinUndoHistoryFolder(folderUri: String?) {
+        folderAccessManager.pin(FolderAccessPurpose.UNDO_HISTORY, setOfNotNull(folderUri))
+    }
+
     suspend fun reconcilePersistedGrants(): Set<String> {
         val prefs = context.dataStore.data.first()
         return folderAccessManager.reconcilePersistedGrants(referencedUrisByPurpose(prefs))
@@ -756,11 +782,14 @@ class SettingsRepository @Inject constructor(
         val leftSwipe = prefs[KEY_LEFT_SWIPE_URI]?.let(::setOf).orEmpty()
         val recents = RecentPathCodec.decode(prefs[KEY_RECENT_PATHS])
             .mapTo(LinkedHashSet()) { it.uri }
+        // Queued deletions still need the grant of the folder they live in (finding D-10).
+        val pendingDeletes = prefs[KEY_PERSISTED_PENDING_DELETE_URIS].orEmpty()
         return mapOf(
             FolderAccessPurpose.SOURCE to source,
             FolderAccessPurpose.SELECTION_TARGET to selection,
             FolderAccessPurpose.LEFT_SWIPE_TARGET to leftSwipe,
             FolderAccessPurpose.RECENT_FOLDER to recents,
+            FolderAccessPurpose.PENDING_DELETE_JOURNAL to pendingDeletes,
         )
     }
 

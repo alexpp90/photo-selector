@@ -16,6 +16,8 @@ analysis_results/
 
 # Build artifacts
 build/
+# …but docs/build/ is documentation (CI parity, releasing), not an artifact
+!/docs/build/
 dist/
 *.spec
 products/desktop/src/photo_selector_toolbox/bin/
@@ -30,6 +32,8 @@ products/android/.idea/
 *.aab
 *.jks
 *.keystore
+# JVM heap dumps (gradle.properties sets -XX:+HeapDumpOnOutOfMemoryError)
+*.hprof
 
 # OS files
 .DS_Store

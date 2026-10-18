@@ -1068,6 +1068,8 @@ class SafTransferTest {
         )
 
         assertTrue(undo.success)
+        // D-13: the result names the deleted copy so its rating row can go with it.
+        assertEquals(moveResult.copiesOfSurvivingOriginals.keys.toList(), undo.deletedCopies)
         assertEquals(listOf("IMG_0030.CR3", "IMG_0030.JPG"), subDir.list()!!.sorted())
         assertEquals("raw-30", File(subDir, "IMG_0030.CR3").readText())
         assertEquals("jpeg-30", File(subDir, "IMG_0030.JPG").readText())
@@ -1097,6 +1099,9 @@ class SafTransferTest {
         )
 
         assertTrue(undo.success)
+        // Only the CR3 copy (original still there) was deleted; the restored JPG copy is not listed.
+        assertEquals(1, undo.deletedCopies.size)
+        assertTrue(undo.deletedCopies.single().contains("IMG_0040.CR3"))
         // The JPG copy was the only one left: it is restored, the CR3 copy (original still there) is deleted.
         assertEquals("jpeg-40", File(subDir, "IMG_0040.JPG").readText())
         assertEquals("raw-40", File(subDir, "IMG_0040.CR3").readText())

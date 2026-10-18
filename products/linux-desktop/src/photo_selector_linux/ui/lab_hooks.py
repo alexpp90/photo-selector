@@ -2,7 +2,9 @@
 
 When PST_LAB=1 is set in the environment, the application registers a
 `lab-checkpoint` Gio.SimpleAction taking a string parameter. Activating the
-action writes a four-file checkpoint quartet into PST_LAB_ARTIFACTS:
+action writes a four-file checkpoint quartet into PST_LAB_ARTIFACTS (default:
+a private per-user directory under $XDG_RUNTIME_DIR). The screenshot shows
+only the application window, never the rest of the desktop:
 - NN_<name>.png
 - NN_<name>.tree.json
 - NN_<name>.state.json
@@ -14,7 +16,7 @@ from __future__ import annotations
 import json
 import os
 import re
-import subprocess
+import tempfile
 import time
 from pathlib import Path
 from typing import Any, Dict, List, Optional
@@ -173,8 +175,15 @@ class LabCheckpointRecorder:
     def artifacts_dir(self) -> Path:
         if self._artifacts_dir is not None:
             return self._artifacts_dir
-        env_dir = os.environ.get("PST_LAB_ARTIFACTS", "/tmp/pstlab-artifacts")
-        return Path(env_dir)
+        env_dir = os.environ.get("PST_LAB_ARTIFACTS")
+        if env_dir:
+            return Path(env_dir)
+        runtime = os.environ.get("XDG_RUNTIME_DIR")
+        if runtime:
+            return Path(runtime) / "pstlab-artifacts"
+        # No per-user runtime directory: a directory of our own, owner-only, instead of a
+        # predictable name in a world-writable /tmp.
+        return Path(tempfile.gettempdir()) / f"pstlab-artifacts-{os.getuid()}"
 
     def record_checkpoint_after_frame(self, window: Any, name: str) -> None:
         """Record once the window has painted, and settled on, the state it was requested for.
@@ -222,7 +231,7 @@ class LabCheckpointRecorder:
         self._last_t = now
 
         out_dir = self.artifacts_dir
-        out_dir.mkdir(parents=True, exist_ok=True)
+        out_dir.mkdir(mode=0o700, parents=True, exist_ok=True)
         stem = format_checkpoint_stem(self._counter, name)
 
         png_path = out_dir / f"{stem}.png"
@@ -253,7 +262,12 @@ class LabCheckpointRecorder:
         }
 
     def _write_screenshot(self, window: Any, png_path: Path) -> None:
-        """Capture window PNG via Gtk.WidgetPaintable or fall back to ImageMagick import."""
+        """Capture the application window as a PNG via Gtk.WidgetPaintable.
+
+        There is deliberately no fallback to a root-window screenshot: that would capture every
+        other window on the desktop. When the snapshot fails the PNG is simply missing and the
+        lab reports a missing screenshot.
+        """
         if HAS_GI and window is not None:
             try:
                 width = max(1, int(window.get_width() or 1920))
@@ -272,18 +286,6 @@ class LabCheckpointRecorder:
                             return
             except Exception:
                 pass
-
-        # Fallback: Xvfb root window screenshot via ImageMagick `import`
-        try:
-            subprocess.run(
-                ["import", "-window", "root", str(png_path)],
-                check=False,
-                stdout=subprocess.DEVNULL,
-                stderr=subprocess.DEVNULL,
-                timeout=5,
-            )
-        except Exception:
-            pass
 
     def _extract_window_tree(self, window: Any) -> Dict[str, Any]:
         """Walk the GTK4 widget hierarchy and return a normalised tree.schema.json dict."""

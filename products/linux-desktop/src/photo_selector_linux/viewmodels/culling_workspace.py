@@ -59,6 +59,8 @@ class _QueuedAction:
     status: str = "pending"  # "pending", "running", "done", "cancelled", "failed"
     record: Optional[CullingRecord] = None
     target_action: Optional[_QueuedAction] = None
+    #: The folder whose workspace (and undo stack) this action belongs to (Q-7).
+    workspace: Optional[Path] = None
 
 
 class CullingWorkspaceViewModel:
@@ -67,6 +69,8 @@ class CullingWorkspaceViewModel:
     File operations go through a FIFO queue dispatched to ``dispatcher`` one at a time so rapid
     culling keys (``M``, ``C``, ``Delete``, ``Ctrl+Z``) never drop while preserving undo order.
     """
+
+    MAX_REMEMBERED_FOLDERS = 8
 
     def __init__(
         self,
@@ -118,7 +122,9 @@ class CullingWorkspaceViewModel:
         self.trashed_count: int = 0
         self.undo_stack: List[Tuple[CullingRecord, CandidatePhoto, int]] = []
         self._undo_actions: Dict[str, _QueuedAction] = {}
-        self.completed_previous_folder_records: List[CullingRecord] = []
+        #: Undo stacks of folders that were left, so an operation that finishes after a folder switch
+        #: — or a folder reopened later — keeps its undo entries (Q-7). Bounded to the newest folders.
+        self._folder_undo_history: Dict[Path, List[Tuple[CullingRecord, CandidatePhoto, int]]] = {}
 
         self.file_manager = file_manager or FileCullingManager()
         self.dispatcher: Dispatcher = dispatcher or run_inline
@@ -355,14 +361,22 @@ class CullingWorkspaceViewModel:
                 self.candidates.insert(insert_pos, photo)
                 self.current_index = insert_pos
 
+    def _stack_for(self, action: _QueuedAction) -> List[Tuple[CullingRecord, CandidatePhoto, int]]:
+        """The undo stack of the workspace ``action`` belongs to: the live one, or — when the folder
+        was left meanwhile — the one remembered for it (Q-7)."""
+        if action.workspace is None or action.workspace == self.current_folder:
+            return self.undo_stack
+        return self._folder_undo_history.setdefault(action.workspace, [])
+
     def _remove_from_undo_stack(self, action: _QueuedAction) -> None:
         if action.record is None:
             return
         rec_id = action.record.id
         self._undo_actions.pop(rec_id, None)
-        for i in range(len(self.undo_stack) - 1, -1, -1):
-            if self.undo_stack[i][0].id == rec_id:
-                self.undo_stack.pop(i)
+        stack = self._stack_for(action)
+        for i in range(len(stack) - 1, -1, -1):
+            if stack[i][0].id == rec_id:
+                stack.pop(i)
                 break
 
     def _replace_undo_record(self, action: _QueuedAction, real_record: CullingRecord) -> None:
@@ -371,10 +385,11 @@ class CullingWorkspaceViewModel:
         if old_id is not None:
             self._undo_actions.pop(old_id, None)
         self._undo_actions[real_record.id] = action
-        for i in range(len(self.undo_stack) - 1, -1, -1):
-            rec, p, idx = self.undo_stack[i]
+        stack = self._stack_for(action)
+        for i in range(len(stack) - 1, -1, -1):
+            rec, p, idx = stack[i]
             if (old_id is not None and rec.id == old_id) or p is action.photo:
-                self.undo_stack[i] = (real_record, p, idx)
+                stack[i] = (real_record, p, idx)
                 break
 
     def _enqueue_action(self, action: _QueuedAction) -> None:
@@ -386,6 +401,7 @@ class CullingWorkspaceViewModel:
                 affected_paths=[],
             )
             action.record = placeholder
+            action.workspace = self.current_folder
             self._undo_actions[placeholder.id] = action
             self.undo_stack.append((placeholder, action.photo, action.orig_idx))
 
@@ -473,8 +489,29 @@ class CullingWorkspaceViewModel:
                 self._rollback_optimistic(action)
 
                 partial_record = getattr(error, "partial_record", None)
-                if partial_record is not None and action.generation == self._folder_generation:
-                    self.undo_stack.append((partial_record, action.photo, action.orig_idx))
+                if partial_record is not None:
+                    self._stack_for(action).append((partial_record, action.photo, action.orig_idx))
+
+                if partial_record is not None and partial_record.stranded:
+                    # A failed rollback or cleanup left files in Selection/ (D-12). Never claim the
+                    # operation was undone; Undo (Ctrl+Z) puts them back or removes the stray copies.
+                    if action.kind == "move" and partial_record.unremoved_sources:
+                        # Cross-mount staging: the originals never moved, only copies are stranded.
+                        self._notify(
+                            f"Move interrupted — copies of {action.photo.filename} stayed in "
+                            f"{action.selection_folder}/ and could not be removed; the original is untouched"
+                        )
+                    elif action.kind == "move":
+                        self._notify(
+                            f"Move interrupted — some files of {action.photo.filename} stayed in "
+                            f"{action.selection_folder}/ and could not be put back"
+                        )
+                    else:
+                        self._notify(
+                            f"Copy interrupted — some copies of {action.photo.filename} stayed in "
+                            f"{action.selection_folder}/ and could not be removed"
+                        )
+                    return
 
                 if (
                     action.kind == "move"
@@ -500,11 +537,7 @@ class CullingWorkspaceViewModel:
 
             action.status = "done"
             if isinstance(result, CullingRecord):
-                if action.generation == self._folder_generation:
-                    self._replace_undo_record(action, result)
-                else:
-                    action.record = result
-                    self.completed_previous_folder_records.append(result)
+                self._replace_undo_record(action, result)
 
             if self.decision_log_path is not None:
                 record_decision_log(action.kind, action.photo, self.decision_log_path)
@@ -526,8 +559,8 @@ class CullingWorkspaceViewModel:
             )
             if error is not None or not result:
                 action.status = "failed"
-                if rec is not None and action.generation == self._folder_generation:
-                    self.undo_stack.append((rec, action.photo, action.orig_idx))
+                if rec is not None:
+                    self._stack_for(action).append((rec, action.photo, action.orig_idx))
                     if target is not None:
                         self._undo_actions[rec.id] = target
                 if error is not None and rec is not None:
@@ -548,7 +581,8 @@ class CullingWorkspaceViewModel:
                             self.selected_count = max(0, self.selected_count - 1)
                         else:
                             self.trashed_count = max(0, self.trashed_count - 1)
-                elif rec.action_type == CullingActionType.COPY:
+                elif rec.action_type == CullingActionType.COPY and not rec.stranded:
+                    # A partial copy (stray replicas) already gave its optimistic counts back.
                     self.selected_count = max(0, self.selected_count - 1)
                     self.copied_count = max(0, self.copied_count - 1)
                 restored_as = self._restored_suffixed_name(action.photo, rec)
@@ -692,6 +726,7 @@ class CullingWorkspaceViewModel:
             busy_message=f"Undoing {record.action_type.value} of {photo.filename}…",
             record=record,
             target_action=source_action,
+            workspace=self.current_folder,
         )
         self._queue.append(undo_action)
         completed_sync = self._pump_queue()
@@ -707,12 +742,23 @@ class CullingWorkspaceViewModel:
             self.scanner = DirectoryScanner(custom_selection_folder=self.selection_folder_name)
         return self.scanner
 
+    def _remember_undo_stack(self, folder: Optional[Path]) -> None:
+        """Park the live undo stack under ``folder`` before another one is opened (Q-7)."""
+        if folder is None or not self.undo_stack:
+            return
+        self._folder_undo_history[folder] = self.undo_stack
+        while len(self._folder_undo_history) > self.MAX_REMEMBERED_FOLDERS:
+            oldest = next(iter(self._folder_undo_history))
+            for record, _photo, _idx in self._folder_undo_history.pop(oldest):
+                self._undo_actions.pop(record.id, None)
+
     def load_directory(self, folder: Path) -> None:
         """Stream photographs from ``folder`` in depth-first per-folder natural order (U-06b, UD-9).
 
         Cancels any in-flight scan from a previous folder via ``_folder_generation``, while allowing
         queued file operations from the previous folder to finish draining on the worker.
         """
+        previous_folder = self.current_folder
         self.current_folder = folder.resolve()
         self._folder_generation += 1
         generation = self._folder_generation
@@ -727,8 +773,8 @@ class CullingWorkspaceViewModel:
 
         self.candidates = []
         self.current_index = 0
-        self.undo_stack.clear()
-        self._undo_actions.clear()
+        self._remember_undo_stack(previous_folder)
+        self.undo_stack = self._folder_undo_history.pop(self.current_folder, [])
         self.selected_count = 0
         self.copied_count = 0
         self.trashed_count = 0

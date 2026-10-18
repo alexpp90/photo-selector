@@ -48,32 +48,54 @@ import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import com.phototok.domain.FirstRunHint
+import com.phototok.domain.FirstRunHintText
 import com.phototok.viewmodel.FirstRunHintUi
 import kotlinx.coroutines.delay
 
 /** How long an explanation stays up before it fades on its own. */
 private const val AUTO_DISMISS_MS = 7000L
 
+/** Longer when the card offers an action, so there is time to reach it. */
+private const val AUTO_DISMISS_WITH_ACTION_MS = 12000L
+
 /**
  * The one-time explanation shown after a first-time action.
  *
- * Deliberately a card rather than a snackbar: the text is two lines and points
- * at a setting, so it needs room and an explicit "Got it" rather than a
- * three-second flash the user can miss mid-swipe.
+ * Deliberately a card rather than a snackbar: it carries an action (Settings,
+ * Show all) and an explicit "Got it" rather than a three-second flash the user
+ * can miss mid-swipe. The copy is one line, with an optional short second line
+ * (see [com.phototok.domain.FirstRunHintText]).
+ *
+ * @param onOpenSettings shown as a SETTINGS action on hints whose behaviour is
+ *   configurable ([FirstRunHintText.offersSettings]), instead of telling the
+ *   user in words where to change it.
  */
 @Composable
 fun FirstRunHintCard(
     hint: FirstRunHintUi?,
     onDismiss: () -> Unit,
     modifier: Modifier = Modifier,
+    onOpenSettings: (() -> Unit)? = null,
 ) {
+    // The hint's own action wins; otherwise configurable hints point at Settings.
+    val action: Pair<String, () -> Unit>? = hint?.let { h ->
+        when {
+            h.actionLabel != null && h.onAction != null -> h.actionLabel to h.onAction
+            onOpenSettings != null && FirstRunHintText.offersSettings(h.hint) -> "SETTINGS" to onOpenSettings
+            else -> null
+        }
+    }
+
     // Restart the timer whenever a *different* hint arrives.
     LaunchedEffect(hint?.id) {
         if (hint != null) {
-            delay(AUTO_DISMISS_MS)
+            delay(if (action != null) AUTO_DISMISS_WITH_ACTION_MS else AUTO_DISMISS_MS)
             onDismiss()
         }
     }
+
+    var lastAction by remember { mutableStateOf(action) }
+    if (hint != null) lastAction = action
 
     // Hold on to the last hint so the card still has content to draw while it
     // animates out (by then [hint] is already null).
@@ -130,27 +152,30 @@ fun FirstRunHintCard(
                         color = colors.onSurface,
                         fontWeight = FontWeight.SemiBold,
                     )
-                    Spacer(modifier = Modifier.height(4.dp))
-                    Text(
-                        text = current.message,
-                        style = MaterialTheme.typography.bodySmall,
-                        color = colors.onSurfaceVariant,
-                    )
+                    if (current.message.isNotBlank()) {
+                        Spacer(modifier = Modifier.height(4.dp))
+                        Text(
+                            text = current.message,
+                            style = MaterialTheme.typography.bodySmall,
+                            color = colors.onSurfaceVariant,
+                        )
+                    }
                     Spacer(modifier = Modifier.height(10.dp))
                     Row(
                         horizontalArrangement = Arrangement.spacedBy(8.dp),
                         verticalAlignment = Alignment.CenterVertically,
                     ) {
-                        if (current.actionLabel != null && current.onAction != null) {
+                        val currentAction = lastAction
+                        if (currentAction != null) {
                             Text(
-                                text = current.actionLabel,
+                                text = currentAction.first,
                                 style = MaterialTheme.typography.labelMedium,
                                 color = colors.primary,
                                 fontWeight = FontWeight.Bold,
                                 modifier = Modifier
                                     .clip(RoundedCornerShape(6.dp))
                                     .clickable {
-                                        current.onAction.invoke()
+                                        currentAction.second.invoke()
                                         onDismiss()
                                     }
                                     .padding(horizontal = 8.dp, vertical = 6.dp)
@@ -160,7 +185,7 @@ fun FirstRunHintCard(
                         Text(
                             text = "GOT IT",
                             style = MaterialTheme.typography.labelMedium,
-                            color = if (current.actionLabel != null) colors.onSurfaceVariant else colors.primary,
+                            color = if (currentAction != null) colors.onSurfaceVariant else colors.primary,
                             fontWeight = FontWeight.Bold,
                             modifier = Modifier
                                 .clip(RoundedCornerShape(6.dp))

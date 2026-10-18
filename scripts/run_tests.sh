@@ -16,10 +16,12 @@
 #   ./scripts/run_tests.sh                  # auto-detects changed products (mirrors CI paths: filters)
 #   ./scripts/run_tests.sh --python         # Python gates only (flake8 + pytest + coverage)
 #   ./scripts/run_tests.sh --android        # Android gates that need no device
-#   ./scripts/run_tests.sh --android-device # Android instrumented tests (needs emulator/device)
+#   ./scripts/run_tests.sh --android-device # Android instrumented tests on the test device only — run on
+#                                           # demand (before a release); never part of any other mode.
+#                                           # No device attached is a skip, not a failure (also with --strict)
 #   ./scripts/run_tests.sh --macos          # macOS Desktop native Swift gates (Darwin only)
 #   ./scripts/run_tests.sh --linux          # Linux Desktop native gates (Python/GTK4 + Debian packaging)
-#   ./scripts/run_tests.sh --all            # all products unconditionally
+#   ./scripts/run_tests.sh --all            # all products unconditionally (without the device suite)
 #   ./scripts/run_tests.sh --strict         # treat unrunnable SKIPPED gates as failures
 #   ./scripts/run_tests.sh --quick          # tests only, no lint/coverage (inner-loop use)
 #
@@ -100,13 +102,12 @@ for arg in "$@"; do
         --all)
             run_python=true
             run_android=true
-            run_android_device=true
             run_macos=true
             run_linux=true
             explicit_product=true
             ;;
         -h|--help)
-            sed -n '2,30p' "$0" | sed 's/^# \{0,1\}//'
+            sed -n '2,32p' "$0" | sed 's/^# \{0,1\}//'
             exit 0
             ;;
         *)
@@ -323,14 +324,14 @@ if $run_python; then
         section "Python tests"
         if $quick; then
             gate "pytest (quick, no coverage gate)" "desktop.yml:test (partial)" \
-                pyx pytest --tb=short -q -m "not visual"
+                pyx pytest --tb=short -q -o faulthandler_timeout=120 -m "not visual"
         else
             # The coverage gate is authoritative on Linux (CI enforces it there
             # only, because linux_only/mac_only/windows_only markers skip
             # different tests per platform). Running it here still catches
             # genuine coverage regressions early.
             gate "pytest -m 'not visual' --cov-fail-under=$COV_FAIL_UNDER" "desktop.yml:test" \
-                pyx pytest --tb=short -q \
+                pyx pytest --tb=short -q -o faulthandler_timeout=120 \
                     --cov=photo_selector_toolbox \
                     --cov-report=term-missing:skip-covered \
                     --cov-fail-under="$COV_FAIL_UNDER" \
@@ -351,7 +352,7 @@ if $run_python; then
             skip "visual tests" "" "no Xvfb and no DISPLAY (apt install xvfb)"
         else
             gate "pytest tests/visual/ -m visual" "desktop.yml:visual" \
-                pyx pytest tests/visual/ --tb=short -q -m visual
+                pyx pytest tests/visual/ --tb=short -q -o faulthandler_timeout=120 -m visual
         fi
     fi
 elif ! $explicit_product; then
@@ -393,6 +394,15 @@ if $run_android; then
                 "$ROOT_DIR/products/android/android-desktop/build/intermediates/merged_native_libs/debug" \
                 "$ROOT_DIR/products/android/phototok/build/intermediates/merged_native_libs/debug"
 
+        # android.yml:build packages the debug APKs and checks them too: ELF alignment plus the
+        # zip-entry alignment of the stored .so files (finding Q-6) — only an APK has the latter.
+        gate "gradlew assembleDebug" "android.yml:build" \
+            ./gradlew assembleDebug --stacktrace
+        gate "check_native_alignment.py (debug APKs: ELF + zip-entry alignment)" "android.yml:build" \
+            python3 "$ROOT_DIR/scripts/check_native_alignment.py" \
+                "$ROOT_DIR"/products/android/android-desktop/build/outputs/apk/debug/*.apk \
+                "$ROOT_DIR"/products/android/phototok/build/outputs/apk/debug/*.apk
+
         # ── Android lint (advisory) ───────────────────────────────
         # Deliberately non-blocking: the CI job is `continue-on-error: true`
         # and both modules set `abortOnError = false`. Mirrored as advisory so
@@ -419,17 +429,23 @@ if $run_android_device; then
     section "Android instrumented tests (device/emulator)"
     cd "$ROOT_DIR/products/android" || exit 1
 
-    if ! have adb; then
-        skip "instrumented tests" "" "adb not found — install Android SDK platform-tools"
+    # Gradle installs on every attached device, so the run is pinned to one test device
+    # (ANDROID_SERIAL, honoured by the Android Gradle plugin). Selection and preparation
+    # live in scripts/android_test_device.py; see docs/build/CI_PARITY.md. The device suite is
+    # run on demand, so a missing device is a stated gap, never a blocker (not even --strict).
+    if ! TEST_SERIAL=$(python3 "$ROOT_DIR/scripts/android_test_device.py" serial 2>&1); then
+        skip "instrumented tests" "" "$TEST_SERIAL — see docs/build/CI_PARITY.md (Instrumented tests)" false
     else
-        DEVICE_COUNT=$(adb devices | awk 'NR>1 && $2=="device"' | wc -l | tr -d ' ')
-        if [ "${DEVICE_COUNT:-0}" -lt 1 ]; then
-            skip "instrumented tests" "" "no device/emulator attached — see docs/build/CI_PARITY.md for the emulator start command"
-        else
-            chmod +x ./gradlew 2>/dev/null || true
-            gate "gradlew connectedDebugAndroidTest" "android.yml:instrumented-tests" \
-                ./gradlew :android-desktop:connectedDebugAndroidTest :phototok:connectedDebugAndroidTest --stacktrace
+        echo -e "${DIM}  test device: $TEST_SERIAL ($(adb -s "$TEST_SERIAL" shell getprop ro.product.model 2>/dev/null | tr -d '\r'))${NC}"
+        # Before the export: prepare must see whether the device was designated or merely the
+        # only one attached (it refuses to change settings on an undesignated device).
+        if ! python3 "$ROOT_DIR/scripts/android_test_device.py" prepare; then
+            warn "test device not prepared (see above)" "local-only"
         fi
+        export ANDROID_SERIAL="$TEST_SERIAL"
+        chmod +x ./gradlew 2>/dev/null || true
+        gate "gradlew connectedDebugAndroidTest" "android.yml:instrumented-tests" \
+            ./gradlew :android-desktop:connectedDebugAndroidTest :phototok:connectedDebugAndroidTest --stacktrace
     fi
 fi
 
@@ -448,6 +464,13 @@ if $run_macos; then
         fi
         gate "swift test (products/macos-desktop)" "macos.yml:swift-test" \
             swift test "${SWIFT_TEST_ARGS[@]}"
+
+        # macos.yml builds the release binary and refuses one that carries the UI test hooks.
+        gate "swift build -c release (products/macos-desktop)" "macos.yml:swift-test" \
+            swift build -c release --package-path "$ROOT_DIR/products/macos-desktop"
+        gate "release binary carries no UI test hooks" "macos.yml:swift-test" \
+            "$ROOT_DIR/products/macos-desktop/scripts/check_no_test_hooks.sh" \
+            "$ROOT_DIR/products/macos-desktop/.build/release/PhotoSelectorApp"
 
         # Local-only gate: drives the RUNNING app (activation policy, real key events,
         # rendered Focus 3-Up geometry, clicks while zoomed, time-to-first-photo). Unit
@@ -555,6 +578,8 @@ if have python3; then
         python3 scripts/check_readme_parity.py --check
     gate "no private-overlay material tracked" "repo-hygiene.yml:hygiene" \
         python3 scripts/check_private_paths.py
+    gate "release metadata consistent" "repo-hygiene.yml:hygiene" \
+        python3 scripts/release.py check
     gate "format contract manifest" "repo-hygiene.yml:hygiene" \
         python3 scripts/fetch_format_corpus.py --validate
     gate "format corpus tooling tests" "repo-hygiene.yml:hygiene" \
@@ -564,6 +589,7 @@ if have python3; then
 else
     skip "readme parity" "" "python3 not found"
     skip "no private-overlay material tracked" "" "python3 not found"
+    skip "release metadata consistent" "" "python3 not found"
     skip "format contract manifest" "" "python3 not found"
     skip "format corpus tooling tests" "" "python3 not found"
     skip "lab tooling tests" "" "python3 not found"

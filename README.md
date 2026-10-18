@@ -9,8 +9,10 @@
   [![Kotlin](https://img.shields.io/badge/Kotlin-2.0%2B-7F52FF?logo=kotlin&logoColor=white)](https://kotlinlang.org/)
   [![Swift 6.0](https://img.shields.io/badge/Swift-6.0-F05138?logo=swift&logoColor=white)](https://swift.org/)
   [![Python 3.12+](https://img.shields.io/badge/Python-3.12%2B-3776AB?logo=python&logoColor=white)](https://www.python.org/)
-  [![Build Status](https://img.shields.io/github/actions/workflow/status/alexpp90/photo-selector/build.yml?branch=main&label=Build&logo=github)](https://github.com/alexpp90/photo-selector/actions)
-  [![Latest Release](https://img.shields.io/github/v/release/alexpp90/photo-selector?label=Stable&logo=github)](https://github.com/alexpp90/photo-selector/releases/latest)
+  [![Android CI](https://img.shields.io/github/actions/workflow/status/alexpp90/photo-selector/android.yml?branch=main&label=Android&logo=github)](https://github.com/alexpp90/photo-selector/actions/workflows/android.yml)
+  [![macOS CI](https://img.shields.io/github/actions/workflow/status/alexpp90/photo-selector/macos.yml?branch=main&label=macOS&logo=github)](https://github.com/alexpp90/photo-selector/actions/workflows/macos.yml)
+  [![Linux CI](https://img.shields.io/github/actions/workflow/status/alexpp90/photo-selector/linux.yml?branch=main&label=Linux&logo=github)](https://github.com/alexpp90/photo-selector/actions/workflows/linux.yml)
+  [![Releases](https://img.shields.io/badge/Releases-per%20product-181717?logo=github)](docs/build/RELEASING.md)
   [![Android](https://img.shields.io/badge/Android-3DDC84?logo=android&logoColor=white)](#-android-installation)
   [![macOS](https://img.shields.io/badge/macOS-000000?logo=apple&logoColor=white)](#-macos-desktop-installation)
   [![Linux](https://img.shields.io/badge/Linux-FCC624?logo=linux&logoColor=black)](#-linux-desktop-installation)
@@ -76,14 +78,14 @@ A lightweight, touch-optimized portrait client designed for lightning-fast, sing
 </div>
 
 ### Key Features
-* **TikTok-Style Vertical Feed:** Browse local collections seamlessly via Jetpack Compose native `VerticalPager` with background prefetching and progressive SAF loading (sub-second time-to-first-swipe).
+* **Full-Screen Vertical Swipe Feed:** Browse local collections seamlessly via Jetpack Compose native `VerticalPager` with background prefetching and progressive SAF loading (sub-second time-to-first-swipe).
 * **Tactile Culling Swipes:**
   * **Swipe-Right to File:** Instantly copy or move photos to your designated `Selection/` folder with an animated green confirmation glow.
   * **Swipe-Left to Discard or Route:** Configurable action (Trash/Delete, Copy, or Move to secondary folder) with progressive card tilt ($2^\circ$) and non-blocking **Revert** (`RestoreFromTrash`) across scrolls.
-* **Session Resume & Newest Prompt:** Reopening a folder or reloading (`Sync`) reports whether newer photos were added since you last left and lets you choose between continuing where you left off or starting with the newest photo.
+* **Session Resume & New Photos Prompt:** Reopening a folder resumes where you left off. Only when newer photos exist does a short "N new photos" dialog offer **Show new** or **Stay**.
 * **Fluid Zoom & Pan:** Pinch-to-zoom (up to $6\times$) and double-tap to 2.5x zoom with single-finger panning; gestures automatically disable paging conflicts while zoomed.
 * **One-Tap Glassmorphic HUD:** Single tap toggles the translucent camera metadata panel (shutter, aperture, ISO, focal length, lens) and micro-labelled navigation controls for unobstructed viewing.
-* **In-Place Guidance & Pairing:** Interactive coach-mark overlay anchored directly to UI controls, automatic RAW+JPEG companion pairing, and orientation-aware feed ordering.
+* **In-Place Guidance & Pairing:** Interactive coach-mark overlay anchored directly to UI controls, automatic companion pairing (a linked move or delete takes the RAW+JPEG twin, `-Edit` / `-Enhanced-NR` derivatives and `.xmp` sidecars along), and orientation-aware feed ordering.
 
 ---
 
@@ -99,7 +101,7 @@ Built specifically for large-screen tablets (≥ 840 dp) and desktop environment
 ### Key Features
 * **1-over-2 Three-Frame Layout:** Height-optimized comparison architecture allocating maximum display area to the Current frame, flanked by named metric readouts to the left and primary action buttons to the right, with Previous and Next frames centered as a pair beneath.
 * **Zero-Area-Cost Columnar Chrome:** 88dp labeled left sidebar and 72dp vertical filmstrip running top-to-bottom in horizontal display slack, preserving 100% of vertical photo height without adding top or bottom bars.
-* **On-Device Optical Scoring:** Real-time Center Sharpness (OpenCV Laplacian variance on center 50% ROI), MAD noise floor estimation, highlight/shadow clipping histograms, and optional on-device TFLite aesthetic scoring.
+* **On-Device Optical Scoring:** Real-time Center Sharpness (OpenCV Laplacian variance on center 50% ROI), MAD noise floor estimation, highlight/shadow clipping histograms.
 * **Star Ratings & Composition Feedback:** 1–5 star rating controls, reject tags, and composition heuristics persisted in a local Room SQLite database with a 10,000-image MRU cache.
 * **Desktop Ergonomics:** Mouse pointer hover states (`PointerIcon.Hand`), physical keyboard shortcuts (`←`/`→`, `M`, `C`, `Del`, `1`/`2`/`3`, `Esc`), and drag-and-drop folder import from Android file managers.
 * **Every Camera Format:** Discovers, displays, reads EXIF from and scores Sony, Canon (incl. CR3), Nikon, Fujifilm, Panasonic, OM System, Pentax, Samsung and DNG RAW files plus JPEG, HEIC, PNG, TIFF and WebP. RAWs are shown from their embedded camera JPEG; phone DNGs fall back to the platform decoder. Proven against real camera files ([supported formats](docs/shared/SUPPORTED_FORMATS.md)).
@@ -122,7 +124,7 @@ A high-performance native macOS photo selection and comparison culling suite bui
 * **Maximized Viewport Canvas:** Borderless comparison layouts (1-Up with 1:1 pixel zoom on `Space`, 2-Up side-by-side, and Focus 3-Up sliding triplet) allocating >85% of window area to photo previews.
 * **Zero-Latency Keyboard Navigation:** Window-level `NSEvent` interceptor routing arrow keys, `M` (Move to `Selection/`), `C` (Copy), `Delete` (System Trash), and `⌘Z` (Instant Undo) with zero AppKit focus lag.
 * **Actor-Isolated Transactional Culling:** Serial FIFO disk mutations on `AsyncCullingActor` guaranteeing zero data loss and automated companion file pairing (RAW+JPEG, XMP sidecars).
-* **macOS Design Standards:** Studio dark theme, configuration housed in standard macOS Settings (`⌘,`), and secondary utilities housed under the Menu Bar `Tools` menu.
+* **macOS Design Standards:** Studio dark theme, configuration housed in standard macOS Settings (`⌘,`), secondary utilities housed under the Menu Bar `Tools` menu, and a toolbar and action bar that collapse to short labels and icons (with tooltips) in narrow windows instead of wrapping.
 
 ---
 
@@ -171,7 +173,7 @@ The original multi-platform desktop culling application built with Python and Tk
 | **Center Sharpness Score** | ❌ Omitted | ✅ (OpenCV) | ✅ (vImage + vDSP) | ✅ (NumPy Laplacian) | ✅ (OpenCV/NumPy) | 50% ROI Laplacian variance; omitted on PhotoTok for sub-second launch. |
 | **Laplacian Noise (MAD)** | ❌ Omitted | ✅ (MAD) | ✅ (vImage MAD) | ✅ (NumPy MAD) | ✅ (MAD) | Median Absolute Deviation sensor noise floor subtraction. |
 | **Highlights/Shadows Clipping** | ❌ Omitted | ✅ (Histograms) | ✅ (vImage Hist) | ✅ (NumPy Hist) | ✅ (Histograms) | Hardware histogram thresholds $\ge 254$ and $\le 2$. |
-| **Aesthetic Scoring** | ❌ Excluded | ✅ (TFLite NIMA) | ✅ (Apple Vision ANE) | ❌ Excluded | ✅ (Local Ollama) | macOS uses Apple Neural Engine; Android Desktop uses optional TFLite. |
+| **Aesthetic Scoring** | ❌ Excluded | ❌ Excluded | ✅ (Apple Vision ANE) | ❌ Excluded | ✅ (Local Ollama) | macOS uses Apple Neural Engine; Android Desktop scores technical quality only. |
 | **Star Ratings (1–5)** | ❌ Omitted | ✅ (Room DB v3) | ❌ Omitted | ❌ Omitted | ❌ Omitted | Rating, reject, and composition tracking in Room DB. |
 | **Score Caching** | ❌ Lightweight | ✅ (Room DB) | ❌ (Memory LRU) | ❌ (Memory LRU) | ✅ (SQLite) | Desktops rely on sub-2ms compute & memory LRU; Android uses Room. |
 | **Duplicate Detection** | ❌ Omitted | ✅ (Room DB) | ✅ (CryptoKit SHA) | ✅ (Streaming SHA) | ✅ (SHA-256) | Two-stage size pre-filtering and SHA-256 duplicate finder. |
@@ -187,10 +189,10 @@ The original multi-platform desktop culling application built with Python and Tk
 #### Option A: Obtainium (Direct Auto-Updates)
 1. Install [Obtainium](https://github.com/ImranOmarRashid/Obtainium) on your Android device.
 2. In Obtainium, click **Add App** and paste this repository's URL: `https://github.com/alexpp90/photo-selector`.
-3. Select your target release track (`stable` or `nightly`). Obtainium will download and install APK updates directly from GitHub Releases.
+3. Each product has its own releases, named `PhotoTok X.Y.Z` and `Android Desktop X.Y.Z`: set Obtainium's **Filter release titles by regular expression** to `^PhotoTok ` or `^Android Desktop ` (or allow pre-releases for the `nightly` build). Obtainium will download and install APK updates directly from GitHub Releases.
 
 #### Option B: GitHub Releases (Direct APK)
-Download `:phototok` or `:android-desktop` APKs directly from the latest [GitHub Releases](https://github.com/alexpp90/photo-selector/releases) page.
+Download the APK from the latest [PhotoTok](https://github.com/alexpp90/photo-selector/releases?q=phototok-v&expanded=true) or [Android Desktop](https://github.com/alexpp90/photo-selector/releases?q=android-desktop-v&expanded=true) release.
 
 ---
 
@@ -209,7 +211,7 @@ brew install --cask photo-selector-toolbox
 ```
 
 #### Standalone ZIP
-Download the pre-compiled `photo-selector-macos-apple-silicon.zip` from [GitHub Releases](https://github.com/alexpp90/photo-selector/releases/latest), unpack it, and drag `PhotoSelector.app` into `/Applications`.
+Download the pre-compiled `photo-selector-macos-apple-silicon.zip` from the latest [macOS Desktop release](https://github.com/alexpp90/photo-selector/releases?q=macos-desktop-v&expanded=true), unpack it, and drag `PhotoSelector.app` into `/Applications`.
 
 ---
 

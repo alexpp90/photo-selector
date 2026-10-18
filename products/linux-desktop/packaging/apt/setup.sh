@@ -10,8 +10,8 @@ fi
 echo "━━━ Setting up Photo Selector APT Repository for Debian 13 (Trixie) ━━━"
 
 # 1. Install prerequisites
-apt-get update -qq || true
-apt-get install -y -qq curl ca-certificates gpg >/dev/null 2>&1 || true
+apt-get update
+apt-get install -y curl ca-certificates gpg
 
 # 2. Configure dedicated keyring directory
 install -m 0755 -d /etc/apt/keyrings
@@ -19,7 +19,7 @@ install -m 0755 -d /etc/apt/keyrings
 # 3. Import repository public key
 KEYRING_URL="https://alexpp90.github.io/apt/photo-selector-archive-keyring.gpg"
 KEYRING_DST="/etc/apt/keyrings/photo-selector-archive-keyring.gpg"
-if curl -fsSL --proto '=https' --tlsv1.2 "$KEYRING_URL" -o "$KEYRING_DST" 2>/dev/null && [ -s "$KEYRING_DST" ]; then
+if curl -fsSL --proto '=https' --tlsv1.2 "$KEYRING_URL" -o "$KEYRING_DST" && [ -s "$KEYRING_DST" ]; then
     chmod 0644 "$KEYRING_DST"
     echo "✔ GPG archive keyring imported into /etc/apt/keyrings/"
 else
@@ -37,7 +37,7 @@ fi
 
 # 4. Install deb822 sources file
 SOURCES_URL="https://alexpp90.github.io/apt/photo-selector.sources"
-if curl -fsSL --proto '=https' --tlsv1.2 "$SOURCES_URL" -o /etc/apt/sources.list.d/photo-selector.sources 2>/dev/null; then
+if curl -fsSL --proto '=https' --tlsv1.2 "$SOURCES_URL" -o /etc/apt/sources.list.d/photo-selector.sources; then
     chmod 0644 /etc/apt/sources.list.d/photo-selector.sources
 else
     cat <<'EOF' > /etc/apt/sources.list.d/photo-selector.sources
@@ -54,7 +54,7 @@ echo "✔ Repository source installed: /etc/apt/sources.list.d/photo-selector.so
 
 # 5. Refresh repository indices
 echo "Updating APT package index..."
-apt-get update -qq
+apt-get update
 
 echo "━━━ Setup Complete ━━━"
 echo "Install Photo Selector with:"

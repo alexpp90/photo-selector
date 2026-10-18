@@ -15,6 +15,7 @@ import io.mockk.coVerify
 import io.mockk.every
 import io.mockk.just
 import io.mockk.mockk
+import io.mockk.slot
 import io.mockk.Runs
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.CoroutineScope
@@ -87,6 +88,15 @@ class PhoneModeViewModelTest {
                 FileOperationResult.success(src.toString(), null)
             } else {
                 FileOperationResult.failure(src.toString(), null)
+            }
+        }
+        // The bundle seam answers member by member from the per-file stubs, unless a test overrides it.
+        coEvery { transferBundleDetailed(any(), any(), any(), any(), any()) } coAnswers {
+            val sources = firstArg<List<Uri>>()
+            val isMove = arg<Boolean>(4)
+            sources.map { src ->
+                if (isMove) moveImageDetailed(src, secondArg(), thirdArg(), arg(3))
+                else copyImageDetailed(src, secondArg(), thirdArg(), arg(3))
             }
         }
     }
@@ -284,7 +294,7 @@ class PhoneModeViewModelTest {
         val hint = viewModel.uiState.value.firstRunHint
         assertNotNull(hint)
         assertEquals(FirstRunHint.SWIPE_RIGHT, hint!!.hint)
-        assertTrue(hint.message.contains("copied"))
+        assertTrue(hint.title, hint.title.startsWith("Swipe right copies"))
         coVerify { settingsRepository.markFirstRunHintSeen(FirstRunHint.SWIPE_RIGHT) }
     }
 
@@ -708,8 +718,8 @@ class PhoneModeViewModelTest {
         val hint = viewModel.uiState.value.firstRunHint
         assertNotNull(hint)
         assertEquals(FirstRunHint.FILTER_MISMATCH, hint!!.hint)
-        assertEquals("Filter Active", hint.title)
-        assertTrue(hint.message.contains("RAW photos only"))
+        assertEquals("RAW only", hint.title)
+        assertEquals("Most photos here are JPEG.", hint.message)
         assertEquals("SHOW ALL", hint.actionLabel)
         coVerify { settingsRepository.markFirstRunHintSeen(FirstRunHint.FILTER_MISMATCH) }
     }
@@ -846,7 +856,7 @@ class PhoneModeViewModelTest {
     }
 
     @Test
-    fun `reloadSourceFolder with no new photos shows resume prompt with zero newCount`() = runTest {
+    fun `reloadSourceFolder with no new photos shows no prompt and confirms in a snackbar`() = runTest {
         val img1 = image("photo1.jpg", 10)
         val img2 = image("photo2.jpg", 20)
         val viewModel = loadFolder(img1, img2)
@@ -857,19 +867,11 @@ class PhoneModeViewModelTest {
         viewModel.reloadSourceFolder()
         advanceUntilIdle()
 
-        val prompt = viewModel.uiState.value.reloadPrompt
-        assertNotNull(prompt)
-        assertEquals(0, prompt?.newCount)
-        assertEquals(1, prompt?.resumeIndex)
-        assertEquals(2, prompt?.totalCount)
-        // img1 (older) stays on screen; newest-first puts it at index 1
-        assertEquals(1, viewModel.uiState.value.currentIndex)
-
-        // User chooses to start with newest image
-        viewModel.confirmReloadJumpToLatest()
-        advanceUntilIdle()
-        assertEquals(0, viewModel.uiState.value.currentIndex)
+        // Nothing new means nothing to decide: no dialog, the viewed photo stays.
         assertNull(viewModel.uiState.value.reloadPrompt)
+        assertEquals(1, viewModel.uiState.value.currentIndex)
+        assertEquals(img1.uri, viewModel.uiState.value.images[1].uri)
+        assertEquals("No new photos", viewModel.uiState.value.lastActionFeedback?.message)
     }
 
     @Test
@@ -921,7 +923,7 @@ class PhoneModeViewModelTest {
     }
 
     @Test
-    fun `selectSourceFolder on previously opened folder with no new photos prompts and continues where left off`() = runTest {
+    fun `selectSourceFolder on previously opened folder with no new photos resumes silently`() = runTest {
         val img1 = image("photo1.jpg", 10)
         val img2 = image("photo2.jpg", 20)
         val img3 = image("photo3.jpg", 30)
@@ -938,19 +940,17 @@ class PhoneModeViewModelTest {
         viewModel.selectSourceFolder(Uri.parse("content://tree/photos"))
         advanceUntilIdle()
 
-        val prompt = viewModel.uiState.value.reloadPrompt
-        assertNotNull(prompt)
-        assertEquals(0, prompt?.newCount)
-        assertEquals(1, prompt?.resumeIndex)
-        assertEquals(3, prompt?.totalCount)
+        // No dialog and no snackbar: the user is simply back at img2 (index 1).
+        assertNull(viewModel.uiState.value.reloadPrompt)
+        assertNull(viewModel.uiState.value.lastActionFeedback)
         assertEquals(1, viewModel.uiState.value.currentIndex)
         assertEquals(img2.uri, viewModel.uiState.value.images[1].uri)
-
-        // Dismissing / continuing keeps the user at img2 (index 1)
-        viewModel.dismissReloadPrompt()
-        advanceUntilIdle()
-        assertEquals(1, viewModel.uiState.value.currentIndex)
-        assertNull(viewModel.uiState.value.reloadPrompt)
+        coVerify {
+            settingsRepository.setFolderScanInfo(
+                "content://tree/photos",
+                match { it.lastViewedUri == img2.uri && it.lastViewedIndex == 1 },
+            )
+        }
     }
 
     @Test
@@ -1062,7 +1062,7 @@ class PhoneModeViewModelTest {
         val state = viewModel.uiState.value
         assertTrue(state.images.isEmpty())
         assertNotNull(state.emptyFolderMessage)
-        assertTrue(state.emptyFolderMessage!!.contains("No supported photos found"))
+        assertTrue(state.emptyFolderMessage!!.contains("has no supported photos"))
 
         // Selecting a folder with photos clears the emptyFolderMessage
         every { imageRepository.discoverImages(any()) } returns flowOf(listOf(image("photo.jpg", 1)))
@@ -1204,6 +1204,164 @@ class PhoneModeViewModelTest {
         assertEquals(0, viewModel.uiState.value.currentIndex)
     }
 
+    private fun shot(name: String, parent: String, vararg sidecarNames: String) = image(name, 10).copy(
+        uri = "$parent/$name",
+        parentUri = parent,
+        sidecars = sidecarNames.map { image(it, 0).copy(uri = "$parent/$it", parentUri = parent, mimeType = null) },
+    )
+
+    @Test
+    fun `a linked delete takes derivatives and sidecars, journals them and revert brings back only photos`() = runTest {
+        phoneSettingsFlow.value = PhoneSettings(
+            moveRelatedFiles = true,
+            fileTypeFilter = com.phototok.domain.FileTypeFilter.ALL,
+        )
+        val p = "content://tree/photos"
+        val xmps = arrayOf("IMG_1.xmp", "IMG_1.CR3.xmp")
+        val raw = shot("IMG_1.CR3", p, *xmps).copy(lastModified = 30)
+        val edit = shot("IMG_1-Edit.tif", p, *xmps).copy(lastModified = 20)
+        val other = shot("IMG_2.CR3", p).copy(lastModified = 10)
+        coEvery { imageRepository.deleteImage(any()) } returns true
+        val viewModel = loadFolder(raw, edit, other)
+
+        viewModel.requestDelete()
+
+        assertEquals(listOf("IMG_2.CR3"), viewModel.uiState.value.images.map { it.fileName })
+        val journaled = slot<Set<String>>()
+        coVerify { settingsRepository.setPersistedPendingDeleteUris(capture(journaled)) }
+        assertEquals(
+            setOf("IMG_1.CR3", "IMG_1-Edit.tif", "IMG_1.xmp", "IMG_1.CR3.xmp").map { "$p/$it" }.toSet(),
+            journaled.captured,
+        )
+
+        viewModel.revertDelete()
+
+        val state = viewModel.uiState.value
+        assertEquals(listOf("IMG_1.CR3", "IMG_1-Edit.tif", "IMG_2.CR3"), state.images.map { it.fileName })
+        assertEquals(listOf("IMG_1.CR3", "IMG_1-Edit.tif", "IMG_2.CR3"), state.allImages.map { it.fileName })
+        coVerify(exactly = 0) { imageRepository.deleteImage(any()) }
+
+        viewModel.requestDelete()
+        viewModel.finalizePendingDelete()
+        advanceUntilIdle()
+
+        for (name in listOf("IMG_1.CR3", "IMG_1-Edit.tif", "IMG_1.xmp", "IMG_1.CR3.xmp")) {
+            coVerify(exactly = 1) { imageRepository.deleteImage(Uri.parse("$p/$name")) }
+        }
+        coVerify(exactly = 0) { imageRepository.deleteImage(Uri.parse("$p/IMG_2.CR3")) }
+    }
+
+    @Test
+    fun `a linked move takes the sidecars too and sidecars never enter the feed`() = runTest {
+        phoneSettingsFlow.value = PhoneSettings(
+            collectionAction = CollectionAction.MOVE,
+            moveRelatedFiles = true,
+            fileTypeFilter = com.phototok.domain.FileTypeFilter.ALL,
+        )
+        val p = "content://tree/photos"
+        val raw = shot("IMG_1.CR3", p, "IMG_1.xmp")
+        val jpg = shot("IMG_1.JPG", p, "IMG_1.xmp")
+        val other = shot("IMG_2.CR3", p)
+        coEvery { imageRepository.moveImageDetailed(any(), any(), any(), any()) } coAnswers {
+            FileOperationResult.success(firstArg<Uri>().toString(), "content://tree/photos/Selection/x")
+        }
+        val viewModel = loadFolder(raw, jpg, other)
+
+        viewModel.addToCollection()
+        advanceUntilIdle()
+
+        assertEquals(listOf("IMG_2.CR3"), viewModel.uiState.value.images.map { it.fileName })
+        assertTrue(viewModel.uiState.value.allImages.none { it.fileName.endsWith(".xmp") })
+        for (name in listOf("IMG_1.CR3", "IMG_1.JPG", "IMG_1.xmp")) {
+            coVerify(exactly = 1) { imageRepository.moveImageDetailed(Uri.parse("$p/$name"), any(), any(), any()) }
+        }
+        coVerify(exactly = 0) { imageRepository.moveImageDetailed(Uri.parse("$p/IMG_2.CR3"), any(), any(), any()) }
+    }
+
+    @Test
+    fun `a multi-file shot moves through the bundle seam and a single file per file`() = runTest {
+        phoneSettingsFlow.value = PhoneSettings(
+            collectionAction = CollectionAction.MOVE,
+            moveRelatedFiles = true,
+            fileTypeFilter = com.phototok.domain.FileTypeFilter.ALL,
+        )
+        val p = "content://tree/photos"
+        val raw = shot("IMG_1.CR3", p, "IMG_1.xmp").copy(lastModified = 30)
+        val lone = shot("IMG_2.CR3", p).copy(lastModified = 10)
+        coEvery { imageRepository.moveImageDetailed(any(), any(), any(), any()) } coAnswers {
+            FileOperationResult.success(firstArg<Uri>().toString(), "content://tree/photos/Selection/x")
+        }
+        coEvery { imageRepository.transferBundleDetailed(any(), any(), any(), any(), any()) } coAnswers {
+            firstArg<List<Uri>>().map { FileOperationResult.success(it.toString(), "content://tree/photos/Selection/x") }
+        }
+        val viewModel = loadFolder(raw, lone)
+
+        viewModel.addToCollection()
+        advanceUntilIdle()
+
+        coVerify(exactly = 1) {
+            imageRepository.transferBundleDetailed(
+                listOf(Uri.parse("$p/IMG_1.CR3"), Uri.parse("$p/IMG_1.xmp")), any(), any(), any(), true,
+            )
+        }
+        coVerify(exactly = 0) { imageRepository.moveImageDetailed(Uri.parse("$p/IMG_1.CR3"), any(), any(), any()) }
+
+        viewModel.addToCollection()
+        advanceUntilIdle()
+
+        coVerify(exactly = 1) { imageRepository.moveImageDetailed(Uri.parse("$p/IMG_2.CR3"), any(), any(), any()) }
+        coVerify(exactly = 1) { imageRepository.transferBundleDetailed(any(), any(), any(), any(), any()) }
+    }
+
+    @Test
+    fun `a partial bundle result puts back only the member still in the source`() = runTest {
+        phoneSettingsFlow.value = PhoneSettings(
+            collectionAction = CollectionAction.MOVE,
+            moveRelatedFiles = true,
+            fileTypeFilter = com.phototok.domain.FileTypeFilter.ALL,
+        )
+        val p = "content://tree/photos"
+        val raw = shot("IMG_1.CR3", p, "IMG_1.xmp").copy(lastModified = 30)
+        val jpg = shot("IMG_1.JPG", p, "IMG_1.xmp").copy(lastModified = 20)
+        val other = shot("IMG_2.CR3", p).copy(lastModified = 10)
+        coEvery { imageRepository.transferBundleDetailed(any(), any(), any(), any(), any()) } returns listOf(
+            FileOperationResult.success(raw.uri, "d1"),
+            FileOperationResult.partial(jpg.uri, "d2"),
+            FileOperationResult.success("$p/IMG_1.xmp", "d3"),
+        )
+        val viewModel = loadFolder(raw, jpg, other)
+
+        viewModel.addToCollection()
+        advanceUntilIdle()
+
+        val state = viewModel.uiState.value
+        assertEquals(listOf("IMG_1.JPG", "IMG_2.CR3"), state.images.map { it.fileName })
+        assertTrue(state.allImages.none { it.fileName.endsWith(".xmp") })
+        assertTrue(state.lastActionFeedback?.isError == true)
+    }
+
+    @Test
+    fun `a linked delete never reaches into a sibling folder with the same stem`() = runTest {
+        phoneSettingsFlow.value = PhoneSettings(
+            moveRelatedFiles = true,
+            fileTypeFilter = com.phototok.domain.FileTypeFilter.ALL,
+        )
+        val a = shot("IMG_1.CR3", "content://tree/photos/a", "IMG_1.xmp").copy(lastModified = 20)
+        val b = shot("IMG_1.CR3", "content://tree/photos/b", "IMG_1.xmp").copy(lastModified = 10)
+        coEvery { imageRepository.deleteImage(any()) } returns true
+        val viewModel = loadFolder(a, b)
+
+        viewModel.requestDelete()
+        viewModel.finalizePendingDelete()
+        advanceUntilIdle()
+
+        assertEquals(listOf(b.uri), viewModel.uiState.value.images.map { it.uri })
+        coVerify(exactly = 1) { imageRepository.deleteImage(Uri.parse(a.uri)) }
+        coVerify(exactly = 1) { imageRepository.deleteImage(Uri.parse("content://tree/photos/a/IMG_1.xmp")) }
+        coVerify(exactly = 0) { imageRepository.deleteImage(Uri.parse(b.uri)) }
+        coVerify(exactly = 0) { imageRepository.deleteImage(Uri.parse("content://tree/photos/b/IMG_1.xmp")) }
+    }
+
     @Test
     fun `finalizePendingDelete restores photo and reports error when deleteImage returns false`() = runTest {
         coEvery { imageRepository.deleteImage(any()) } returns false
@@ -1282,6 +1440,151 @@ class PhoneModeViewModelTest {
         assertEquals(listOf("x.jpg"), state.allImages.map { it.fileName })
         assertTrue(state.lastActionFeedback?.isError == true)
         assertTrue(state.lastActionFeedback?.message?.contains("a.jpg") == true)
+    }
+
+    @Test
+    fun `a move that fails after the folder switched does not put the photo into the new feed`() = runTest {
+        phoneSettingsFlow.value = PhoneSettings(collectionAction = CollectionAction.MOVE)
+        val gate = CompletableDeferred<FileOperationResult>()
+        coEvery { imageRepository.moveImageDetailed(any(), any(), any(), any()) } coAnswers { gate.await() }
+        val viewModel = loadFolder(image("a.jpg", 20), image("b.jpg", 10))
+
+        viewModel.addToCollection()
+        every { imageRepository.discoverImages(any()) } returns flowOf(listOf(image("x.jpg", 5)))
+        viewModel.selectSourceFolder(Uri.parse("content://tree/other"))
+        advanceUntilIdle()
+
+        gate.complete(FileOperationResult.failure("content://photos/a.jpg", null))
+        advanceUntilIdle()
+
+        val state = viewModel.uiState.value
+        assertEquals(listOf("x.jpg"), state.images.map { it.fileName })
+        assertEquals(listOf("x.jpg"), state.allImages.map { it.fileName })
+        assertTrue("the outcome of the user's action is still reported", state.lastActionFeedback?.isError == true)
+    }
+
+    @Test
+    fun `a move that throws after the folder switched does not put the photo into the new feed`() = runTest {
+        phoneSettingsFlow.value = PhoneSettings(collectionAction = CollectionAction.MOVE)
+        val gate = CompletableDeferred<FileOperationResult>()
+        coEvery { imageRepository.moveImageDetailed(any(), any(), any(), any()) } coAnswers {
+            gate.await()
+            throw IllegalStateException("boom")
+        }
+        val viewModel = loadFolder(image("a.jpg", 20), image("b.jpg", 10))
+
+        viewModel.addToCollection()
+        every { imageRepository.discoverImages(any()) } returns flowOf(listOf(image("x.jpg", 5)))
+        viewModel.selectSourceFolder(Uri.parse("content://tree/other"))
+        advanceUntilIdle()
+
+        gate.complete(FileOperationResult.failure("content://photos/a.jpg", null))
+        advanceUntilIdle()
+
+        assertEquals(listOf("x.jpg"), viewModel.uiState.value.images.map { it.fileName })
+        assertTrue(viewModel.uiState.value.lastActionFeedback?.isError == true)
+    }
+
+    @Test
+    fun `a move that fails after the card was unmounted does not repopulate the feed`() = runTest {
+        phoneSettingsFlow.value = PhoneSettings(collectionAction = CollectionAction.MOVE)
+        val gate = CompletableDeferred<FileOperationResult>()
+        coEvery { imageRepository.moveImageDetailed(any(), any(), any(), any()) } coAnswers { gate.await() }
+        val monitor = com.phototok.data.source.VolumeMonitor()
+        val viewModel = PhoneModeViewModel(
+            imageRepository = imageRepository,
+            settingsRepository = settingsRepository,
+            appScope = CoroutineScope(testDispatcher),
+            seenRepository = com.phototok.data.repository.SeenRepository(),
+            favouritesRepository = com.phototok.data.repository.FavouritesRepository(),
+            statsRepository = com.phototok.data.repository.StatsRepository(),
+            volumeMonitor = monitor,
+        )
+        every { imageRepository.discoverImages(any()) } returns
+            flowOf(listOf(image("a.jpg", 20), image("b.jpg", 10)))
+        viewModel.selectSourceFolder(Uri.parse("content://com.android.externalstorage.documents/tree/1A2B-3C4D%3ADCIM"))
+        assertEquals(2, viewModel.uiState.value.images.size)
+
+        viewModel.addToCollection()
+        monitor.notifyVolumeUnmounted("1A2B-3C4D")
+        advanceUntilIdle()
+        assertTrue(viewModel.uiState.value.images.isEmpty())
+
+        gate.complete(FileOperationResult.failure("content://photos/a.jpg", null))
+        advanceUntilIdle()
+
+        assertTrue(viewModel.uiState.value.images.isEmpty())
+        assertTrue(viewModel.uiState.value.allImages.isEmpty())
+    }
+
+    @Test
+    fun `a move that fails in the same folder still puts the photo back after a late result`() = runTest {
+        phoneSettingsFlow.value = PhoneSettings(collectionAction = CollectionAction.MOVE)
+        val gate = CompletableDeferred<FileOperationResult>()
+        coEvery { imageRepository.moveImageDetailed(any(), any(), any(), any()) } coAnswers { gate.await() }
+        val viewModel = loadFolder(image("a.jpg", 20), image("b.jpg", 10))
+
+        viewModel.addToCollection()
+        assertEquals(listOf("b.jpg"), viewModel.uiState.value.images.map { it.fileName })
+
+        gate.complete(FileOperationResult.failure("content://photos/a.jpg", null))
+        advanceUntilIdle()
+
+        assertEquals(listOf("a.jpg", "b.jpg"), viewModel.uiState.value.images.map { it.fileName })
+    }
+
+    @Test
+    fun `a card clear finishing after the folder switched leaves the new feed alone but the deletions stand`() = runTest {
+        val gate = CompletableDeferred<Boolean>()
+        coEvery { imageRepository.deleteImage(any()) } coAnswers { gate.await() }
+        val viewModel = loadFolder(image("a.jpg", 20), image("b.jpg", 10))
+
+        viewModel.confirmClearEntireCard()
+        every { imageRepository.discoverImages(any()) } returns flowOf(listOf(image("x.jpg", 5)))
+        viewModel.selectSourceFolder(Uri.parse("content://tree/other"))
+        advanceUntilIdle()
+
+        gate.complete(true)
+        advanceUntilIdle()
+
+        val state = viewModel.uiState.value
+        assertEquals(listOf("x.jpg"), state.images.map { it.fileName })
+        assertEquals(listOf("x.jpg"), state.allImages.map { it.fileName })
+        assertFalse(state.cardClearComplete)
+        assertNull(state.emptyFolderMessage)
+        assertEquals(0, state.cardClearStep)
+        coVerify(exactly = 1) { imageRepository.deleteImage(match { it.toString() == "content://photos/a.jpg" }) }
+        coVerify(exactly = 1) { imageRepository.deleteImage(match { it.toString() == "content://photos/b.jpg" }) }
+    }
+
+    @Test
+    fun `a card clear finishing after an unmount does not mark the card as cleared`() = runTest {
+        val gate = CompletableDeferred<Boolean>()
+        coEvery { imageRepository.deleteImage(any()) } coAnswers { gate.await() }
+        val monitor = com.phototok.data.source.VolumeMonitor()
+        val viewModel = PhoneModeViewModel(
+            imageRepository = imageRepository,
+            settingsRepository = settingsRepository,
+            appScope = CoroutineScope(testDispatcher),
+            seenRepository = com.phototok.data.repository.SeenRepository(),
+            favouritesRepository = com.phototok.data.repository.FavouritesRepository(),
+            statsRepository = com.phototok.data.repository.StatsRepository(),
+            volumeMonitor = monitor,
+        )
+        every { imageRepository.discoverImages(any()) } returns flowOf(listOf(image("a.jpg", 20)))
+        viewModel.selectSourceFolder(Uri.parse("content://com.android.externalstorage.documents/tree/1A2B-3C4D%3ADCIM"))
+
+        viewModel.confirmClearEntireCard()
+        monitor.notifyVolumeUnmounted("1A2B-3C4D")
+        advanceUntilIdle()
+        gate.complete(true)
+        advanceUntilIdle()
+
+        val state = viewModel.uiState.value
+        assertFalse(state.cardClearComplete)
+        assertNull(state.emptyFolderMessage)
+        assertEquals(0, state.cardClearStep)
+        coVerify(exactly = 1) { imageRepository.deleteImage(any()) }
     }
 
     @Test

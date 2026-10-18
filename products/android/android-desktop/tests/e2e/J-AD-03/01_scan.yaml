@@ -2,7 +2,22 @@ appId: com.photoselectortoolbox.lab
 ---
 - tapOn:
     id: "scan_button"
+# Scan opens its configuration first: an AlertDialog on tablets and DeX, a bottom sheet on
+# compact windows. A dialog is its own window, so its test tags are not exported; the app is
+# English-only, so its button text is a stable selector.
 - extendedWaitUntil:
     visible:
-      id: "score_legend_button"
-    timeout: 15000
+      text: "Start Scan"
+    timeout: 5000
+- tapOn:
+    text: "Start Scan"
+# The Scan item turns into its progress counter while scanning and comes back when done.
+- extendedWaitUntil:
+    visible:
+      id: "scan_progress"
+    timeout: 5000
+    optional: true
+- extendedWaitUntil:
+    visible:
+      id: "scan_button"
+    timeout: 120000

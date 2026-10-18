@@ -12,20 +12,21 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.Close
+import androidx.compose.material.icons.filled.Link
 import androidx.compose.material.icons.filled.Style
 import androidx.compose.material3.Icon
-import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -39,11 +40,15 @@ import androidx.compose.ui.window.DialogProperties
 /**
  * Modal dialog presented when a folder contains matching RAW and JPEG pairs of the same photos.
  *
- * Provides clear choices:
- * 1. Link actions across both formats (move/copy/delete applies to both files at once).
- * 2. Filter feed to RAW only.
- * 3. Filter feed to JPEG only.
- * 4. Don't change settings (keep all files visible and separate).
+ * No explanatory paragraph: the title names the situation and each button names
+ * its outcome (DESIGN.md, "Copy & messaging"). Only the recommended option carries
+ * a one-line subline.
+ * 0. 1 card per shot (recommended; JPEG card with RAW+JPG badge, actions hit both files).
+ * 1. Show both, linked (move/copy/delete applies to both files at once).
+ * 2. Show only RAW.
+ * 3. Show only JPEG.
+ * 4. Leave as is (neutral; keeps all files visible and separate).
+ * Back and tap-outside dismiss like "Leave as is", so there is no second close button.
  *
  * Rendered in a dialog window so it is centered and can never be covered or occluded
  * by bottom action bars, navigation buttons, or side panels in either portrait or landscape.
@@ -91,7 +96,6 @@ fun RawJpegSuggestionDialog(
                     .padding(20.dp)
                     .verticalScroll(rememberScrollState()),
             ) {
-                // Header with icon, title, and close button
                 Row(
                     verticalAlignment = Alignment.CenterVertically,
                     horizontalArrangement = Arrangement.spacedBy(12.dp),
@@ -113,39 +117,16 @@ fun RawJpegSuggestionDialog(
                     }
 
                     Text(
-                        text = "RAW + JPEG Pairs Detected",
+                        text = "RAW + JPEG pairs",
                         style = MaterialTheme.typography.titleSmall,
                         color = colors.onSurface,
                         fontWeight = FontWeight.SemiBold,
-                        modifier = Modifier.weight(1f),
                     )
-
-                    IconButton(
-                        onClick = onDismiss,
-                        modifier = Modifier
-                            .size(32.dp)
-                            .testTag("raw_jpeg_dismiss"),
-                    ) {
-                        Icon(
-                            imageVector = Icons.Default.Close,
-                            contentDescription = "Dismiss",
-                            tint = colors.onSurfaceVariant,
-                            modifier = Modifier.size(18.dp),
-                        )
-                    }
                 }
-
-                Spacer(modifier = Modifier.height(10.dp))
-
-                Text(
-                    text = "This folder contains matching RAW and JPEG versions of your photos. Choose how you would like to handle them:",
-                    style = MaterialTheme.typography.bodySmall,
-                    color = colors.onSurfaceVariant,
-                )
 
                 Spacer(modifier = Modifier.height(16.dp))
 
-                // Option 0 (Recommended): Show 1 per shot
+                // Option 0 (recommended, primary): one card per shot
                 Surface(
                     onClick = onShowOnePerShot,
                     shape = RoundedCornerShape(12.dp),
@@ -157,14 +138,14 @@ fun RawJpegSuggestionDialog(
                 ) {
                     Column(modifier = Modifier.padding(14.dp)) {
                         Text(
-                            text = "Show 1 per shot (Recommended)",
+                            text = "1 card per shot",
                             style = MaterialTheme.typography.labelLarge,
                             fontWeight = FontWeight.Bold,
                             color = colors.onPrimaryContainer,
                         )
                         Spacer(modifier = Modifier.height(2.dp))
                         Text(
-                            text = "Shows the JPEG in the feed with a RAW+JPG badge and applies actions to both files.",
+                            text = "Swipes act on both files",
                             style = MaterialTheme.typography.bodySmall,
                             color = colors.onPrimaryContainer.copy(alpha = 0.9f),
                         )
@@ -173,36 +154,27 @@ fun RawJpegSuggestionDialog(
 
                 Spacer(modifier = Modifier.height(10.dp))
 
-                // Option 1: Link actions across both
-                Surface(
+                // Option 1: keep both visible, linked
+                OutlinedButton(
                     onClick = onEnableMoveRelatedFiles,
-                    shape = RoundedCornerShape(12.dp),
-                    color = colors.primaryContainer.copy(alpha = 0.4f),
-                    border = BorderStroke(1.dp, colors.primary.copy(alpha = 0.35f)),
                     modifier = Modifier
                         .fillMaxWidth()
                         .testTag("apply_both_button"),
+                    shape = RoundedCornerShape(10.dp),
                 ) {
-                    Column(modifier = Modifier.padding(14.dp)) {
-                        Text(
-                            text = "Link actions across both",
-                            style = MaterialTheme.typography.labelLarge,
-                            fontWeight = FontWeight.Bold,
-                            color = colors.onPrimaryContainer,
-                        )
-                        Spacer(modifier = Modifier.height(2.dp))
-                        Text(
-                            text = "Moving, copying, or deleting a photo applies to both files at once.",
-                            style = MaterialTheme.typography.bodySmall,
-                            color = colors.onPrimaryContainer.copy(alpha = 0.85f),
-                        )
-                    }
+                    Icon(
+                        imageVector = Icons.Default.Link,
+                        contentDescription = null,
+                        modifier = Modifier.size(18.dp),
+                    )
+                    Spacer(modifier = Modifier.width(8.dp))
+                    Text("Show both, linked", style = MaterialTheme.typography.labelLarge)
                 }
 
                 Spacer(modifier = Modifier.height(12.dp))
 
                 Text(
-                    text = "Or filter the feed to one file type:",
+                    text = "Show only",
                     style = MaterialTheme.typography.labelSmall,
                     color = colors.onSurfaceVariant,
                     fontWeight = FontWeight.Medium,
@@ -210,7 +182,7 @@ fun RawJpegSuggestionDialog(
 
                 Spacer(modifier = Modifier.height(6.dp))
 
-                // Option 2 & 3: Filter RAW or JPEG
+                // Option 2 & 3: Show only RAW or JPEG
                 Row(
                     modifier = Modifier.fillMaxWidth(),
                     horizontalArrangement = Arrangement.spacedBy(8.dp),
@@ -222,13 +194,7 @@ fun RawJpegSuggestionDialog(
                             .testTag("filter_raw_button"),
                         shape = RoundedCornerShape(10.dp),
                     ) {
-                        Column(
-                            horizontalAlignment = Alignment.CenterHorizontally,
-                            modifier = Modifier.padding(vertical = 2.dp),
-                        ) {
-                            Text("RAW only", style = MaterialTheme.typography.labelMedium, fontWeight = FontWeight.SemiBold)
-                            Text("Hide JPEGs", style = MaterialTheme.typography.bodySmall, color = colors.onSurfaceVariant)
-                        }
+                        Text("RAW", style = MaterialTheme.typography.labelLarge, fontWeight = FontWeight.SemiBold)
                     }
 
                     OutlinedButton(
@@ -238,42 +204,24 @@ fun RawJpegSuggestionDialog(
                             .testTag("filter_jpg_button"),
                         shape = RoundedCornerShape(10.dp),
                     ) {
-                        Column(
-                            horizontalAlignment = Alignment.CenterHorizontally,
-                            modifier = Modifier.padding(vertical = 2.dp),
-                        ) {
-                            Text("JPEG only", style = MaterialTheme.typography.labelMedium, fontWeight = FontWeight.SemiBold)
-                            Text("Hide RAWs", style = MaterialTheme.typography.bodySmall, color = colors.onSurfaceVariant)
-                        }
+                        Text("JPEG", style = MaterialTheme.typography.labelLarge, fontWeight = FontWeight.SemiBold)
                     }
                 }
 
-                Spacer(modifier = Modifier.height(12.dp))
+                Spacer(modifier = Modifier.height(8.dp))
 
-                // Option 4: Don't change settings
-                OutlinedButton(
+                // Option 4: neutral choice
+                TextButton(
                     onClick = onDismiss,
                     modifier = Modifier
                         .fillMaxWidth()
                         .testTag("dont_change_settings_button")
                         .testTag("keep_settings_button"),
-                    shape = RoundedCornerShape(10.dp),
                 ) {
-                    Column(
-                        horizontalAlignment = Alignment.CenterHorizontally,
-                        modifier = Modifier.padding(vertical = 2.dp),
-                    ) {
-                        Text(
-                            text = "Don't change settings",
-                            style = MaterialTheme.typography.labelMedium,
-                            fontWeight = FontWeight.SemiBold,
-                        )
-                        Text(
-                            text = "Keep all files separate without linking or filtering",
-                            style = MaterialTheme.typography.bodySmall,
-                            color = colors.onSurfaceVariant,
-                        )
-                    }
+                    Text(
+                        text = "Leave as is",
+                        style = MaterialTheme.typography.labelLarge,
+                    )
                 }
             }
         }

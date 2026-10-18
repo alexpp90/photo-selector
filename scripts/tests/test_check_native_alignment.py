@@ -4,6 +4,8 @@ from __future__ import annotations
 
 from pathlib import Path
 import struct
+import contextlib
+import io
 import sys
 import tempfile
 import unittest
@@ -58,7 +60,59 @@ def _make_elf64_le(load_alignments: list[int], non_load_count: int = 1) -> bytes
     return bytes(ident) + header_rest + bytes(phdrs)
 
 
+def _write_apk(path: Path, entries: list[tuple[str, bytes]], *, align: int | None, compress: bool = False) -> None:
+    """Write an APK-like zip; with ``align`` every stored entry's data starts at a multiple of it
+    (the padding goes into the local header's extra field, as zipalign does)."""
+    with zipfile.ZipFile(path, "w") as zf:
+        for name, data in entries:
+            info = zipfile.ZipInfo(name)
+            info.compress_type = zipfile.ZIP_DEFLATED if compress else zipfile.ZIP_STORED
+            if align is not None and not compress:
+                offset = zf.fp.tell() + 30 + len(name.encode())
+                pad = (-offset) % align
+                # An extra field needs a 4-byte header; grow the padding until it fits.
+                while 0 < pad < 4:
+                    pad += align
+                if pad:
+                    info.extra = struct.pack("<HH", 0xD935, pad - 4) + bytes(pad - 4)
+            zf.writestr(info, data)
+
+
 class CheckNativeAlignmentTests(unittest.TestCase):
+    def test_apk_with_16kb_aligned_stored_libraries_passes(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            apk = Path(tmp) / "good.apk"
+            _write_apk(apk, [("lib/arm64-v8a/liba.so", _make_elf64_le([16384])),
+                             ("lib/x86_64/libb.so", _make_elf64_le([16384]))], align=16384)
+            ok, reports = cna.check_targets([apk])
+            self.assertTrue(ok, [r.zip_problem for r in reports])
+
+    def test_apk_with_stored_library_not_16kb_aligned_in_the_zip_fails(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            apk = Path(tmp) / "bad.apk"
+            # 4 KB zipalign: the ELF is fine, but the page cannot be mapped straight from the file.
+            _write_apk(apk, [("lib/arm64-v8a/liba.so", _make_elf64_le([16384]))], align=4096)
+            ok, reports = cna.check_targets([apk])
+            self.assertFalse(ok)
+            self.assertIn("zipalign", reports[0].zip_problem or "")
+            with contextlib.redirect_stderr(io.StringIO()) as err:
+                self.assertEqual(cna.main([str(apk)]), 1)
+            self.assertIn("not a multiple of 16384", err.getvalue())
+
+    def test_compressed_library_entries_are_not_a_zip_alignment_problem(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            apk = Path(tmp) / "compressed.apk"
+            _write_apk(apk, [("lib/arm64-v8a/liba.so", _make_elf64_le([16384]))], align=None, compress=True)
+            ok, _ = cna.check_targets([apk])
+            self.assertTrue(ok)
+
+    def test_bundles_are_not_checked_for_zip_alignment(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            aab = Path(tmp) / "app.aab"
+            _write_apk(aab, [("base/lib/arm64-v8a/liba.so", _make_elf64_le([16384]))], align=4096)
+            ok, _ = cna.check_targets([aab])
+            self.assertTrue(ok)  # bundletool aligns the APKs it generates from a bundle
+
     def test_elf64_with_16kb_load_segments_passes(self) -> None:
         elf = _make_elf64_le([16384, 65536])
         report = cna.inspect_elf_bytes("sample.apk", "arm64-v8a", "arm64-v8a/libgood.so", elf)
@@ -80,11 +134,16 @@ class CheckNativeAlignmentTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as tmp:
             tmp_path = Path(tmp)
             apk_path = tmp_path / "app-release.apk"
-            with zipfile.ZipFile(apk_path, "w") as zf:
-                zf.writestr("lib/arm64-v8a/libopencv_java5.so", _make_elf64_le([16384, 16384]))
-                zf.writestr("lib/x86_64/libopencv_java5.so", _make_elf64_le([16384]))
-                # 32-bit armeabi-v7a has 4 KB pages and must be ignored by the 64-bit gate
-                zf.writestr("lib/armeabi-v7a/libopencv_java5.so", _make_elf64_le([4096]))
+            _write_apk(
+                apk_path,
+                [
+                    ("lib/arm64-v8a/libopencv_java5.so", _make_elf64_le([16384, 16384])),
+                    ("lib/x86_64/libopencv_java5.so", _make_elf64_le([16384])),
+                    # 32-bit armeabi-v7a has 4 KB pages and must be ignored by the 64-bit gate
+                    ("lib/armeabi-v7a/libopencv_java5.so", _make_elf64_le([4096])),
+                ],
+                align=16384,
+            )
 
             ok, reports = cna.check_targets([apk_path])
             self.assertTrue(ok)
@@ -99,7 +158,8 @@ class CheckNativeAlignmentTests(unittest.TestCase):
             ok_aab, reports_aab = cna.check_targets([aab_path])
             self.assertFalse(ok_aab)
             self.assertEqual(len(reports_aab), 2)
-            self.assertEqual(cna.main([str(aab_path)]), 1)
+            with contextlib.redirect_stderr(io.StringIO()):
+                self.assertEqual(cna.main([str(aab_path)]), 1)
             self.assertEqual(cna.main([str(apk_path)]), 0)
 
     def test_directory_target_inspects_merged_native_libs(self) -> None:

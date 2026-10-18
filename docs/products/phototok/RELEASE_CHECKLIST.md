@@ -33,7 +33,7 @@ Because PhotoTok requests zero permissions, has no network access, and processes
 ## 3. EU Digital Services Act (DSA) & German Legal Status
 
 - [x] **Non-Trader Declaration:** PhotoTok is free, open-source (MIT), ad-free, and has no in-app purchases or monetization. Declared as **Non-Trader** in Google Play Console (private physical address is not publicly displayed on the store listing).
-- [ ] **Human Review Before Public Store Launch:** If personal contact details in `docs/products/phototok/impressum.html` need to be customized beyond the GitHub contact address prior to public production release in Germany (§ 5 DDG), update `impressum.html` and verify GitHub Pages serving at the URLs in `LegalLinks.kt` (`https://alexpp90.github.io/phototok-legal/privacy-policy.html` and `…/impressum.html`).
+- [ ] **Human Review Before Public Store Launch:** If personal contact details in `docs/products/phototok/impressum.html` need to be customized beyond the GitHub contact address prior to public production release in Germany (§ 5 DDG), update `impressum.html` and verify GitHub Pages serving at the URLs in `LegalLinks.kt` (`https://alexpp90.github.io/photo-selector/products/phototok/privacy-policy.html` and `…/impressum.html`; GitHub Pages must serve `main:/docs`).
 
 ---
 
@@ -139,6 +139,14 @@ Photo-Tok ist ein unabhängiges, zu 100 % offline arbeitendes Foto-Werkzeug und 
 
 > Asset specs are Google policy and change — re-check
 > [Add preview assets to showcase your app](https://support.google.com/googleplay/android-developer/answer/9866151) before producing them.
+
+---
+
+## 6a. Usability Panel (before each release, on demand)
+
+- [ ] Run the persona usability panel on the release build on a USB phone and read the
+  report's trade-offs before tagging (`scripts/lab/README.md`, "Usability panel"). Not a CI
+  gate: it records opinions for the maintainer to decide on, not a pass/fail result.
 
 ---
 

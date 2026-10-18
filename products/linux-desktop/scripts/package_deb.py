@@ -93,9 +93,6 @@ def stage_package_payload(product_dir: Path, staging_root: Path) -> int:
     if desktop_src.exists():
         shutil.copy2(desktop_src, usr_apps / "org.photoselector.Linux.desktop")
         (usr_apps / "org.photoselector.Linux.desktop").chmod(0o644)
-        # Also copy as photo-selector-linux.desktop for broad launcher compatibility
-        shutil.copy2(desktop_src, usr_apps / "photo-selector-linux.desktop")
-        (usr_apps / "photo-selector-linux.desktop").chmod(0o644)
 
     # 4. AppStream Metainfo
     meta_src = product_dir / "data" / "org.photoselector.Linux.metainfo.xml"
@@ -108,15 +105,11 @@ def stage_package_payload(product_dir: Path, staging_root: Path) -> int:
     if svg_src.exists():
         shutil.copy2(svg_src, usr_icons_svg / "org.photoselector.Linux.svg")
         (usr_icons_svg / "org.photoselector.Linux.svg").chmod(0o644)
-        shutil.copy2(svg_src, usr_icons_svg / "photo-selector-linux.svg")
-        (usr_icons_svg / "photo-selector-linux.svg").chmod(0o644)
 
     png_src = product_dir / "data" / "icons" / "hicolor" / "128x128" / "apps" / "org.photoselector.Linux.png"
     if png_src.exists():
         shutil.copy2(png_src, usr_icons_png / "org.photoselector.Linux.png")
         (usr_icons_png / "org.photoselector.Linux.png").chmod(0o644)
-        shutil.copy2(png_src, usr_icons_png / "photo-selector-linux.png")
-        (usr_icons_png / "photo-selector-linux.png").chmod(0o644)
 
     # 6. Documentation (copyright, changelog.Debian.gz)
     copyright_src = product_dir / "debian" / "copyright"
@@ -193,24 +186,10 @@ def build_control_file(
     installed_kib: int,
 ) -> str:
     """Format standard binary DEBIAN/control file."""
-    if control_template_path.exists():
-        fields, full_desc = parse_control_template(control_template_path)
-    else:
-        fields = {
-            "Package": "photo-selector-linux",
-            "Architecture": "all",
-            "Section": "graphics",
-            "Priority": "optional",
-            "Maintainer": "Alexander Patz <alexpp90@users.noreply.github.com>",
-            "Depends": "python3 (>= 3.12), python3-gi, gir1.2-gtk-4.0, gir1.2-adw-1, "
-                       "gir1.2-gexiv2-0.10, gir1.2-gdkpixbuf-2.0, libraw-bin, python3-numpy, "
-                       "python3-pil",
-        }
-        full_desc = (
-            "native GNOME photograph culling and selection suite\n"
-            " Photo Selector Linux is a high-performance native GNOME photograph\n"
-            " culling and comparison selection suite built for Debian 13 (Trixie)."
-        )
+    # debian/control is the single source of Depends/Recommends/Description; no inline copy.
+    if not control_template_path.is_file():
+        raise FileNotFoundError(f"debian/control not found at {control_template_path}")
+    fields, full_desc = parse_control_template(control_template_path)
 
     # Standard order of fields
     lines = [

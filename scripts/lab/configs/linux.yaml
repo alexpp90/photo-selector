@@ -1,5 +1,6 @@
 fhd:        {size: 1920x1080, scale: 1}
 hidpi:      {size: 2560x1600, scale: 2}
 small:      {size: 1366x768,  scale: 1}
-dark:       {size: 1920x1080, scale: 1, color_scheme: prefer-dark}
 large-text: {size: 1920x1080, scale: 1, text_scaling: 1.25}
+# No `dark` config: the app forces Adwaita's dark scheme (ui/application.py, FORCE_DARK), so a
+# dark config rendered exactly like fhd (2026-10-17) and tested nothing.

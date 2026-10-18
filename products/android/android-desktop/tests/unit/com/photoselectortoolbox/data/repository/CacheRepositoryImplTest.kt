@@ -24,6 +24,53 @@ class CacheRepositoryImplTest {
     }
 
     @Test
+    fun `moveRating re-keys the rating row to the new uri and removes the old one`() = runTest {
+        coEvery { dao.getUserRating("old") } returns UserRatingEntity("old", 4, 1L)
+
+        repo.moveRating("old", "new")
+
+        coVerifyOrder {
+            dao.upsertUserRating(match { it.uri == "new" && it.rating == 4 })
+            dao.deleteUserRating("old")
+        }
+    }
+
+    @Test
+    fun `moveRating without a rating does nothing`() = runTest {
+        coEvery { dao.getUserRating("old") } returns null
+
+        repo.moveRating("old", "new")
+
+        coVerify(exactly = 0) { dao.upsertUserRating(any()) }
+        coVerify(exactly = 0) { dao.deleteUserRating(any()) }
+    }
+
+    @Test
+    fun `moveRating to the same uri keeps the row`() = runTest {
+        repo.moveRating("same", "same")
+
+        coVerify(exactly = 0) { dao.deleteUserRating(any()) }
+    }
+
+    @Test
+    fun `copyRating gives the copy the rating and keeps the original's`() = runTest {
+        coEvery { dao.getUserRating("src") } returns UserRatingEntity("src", -1, 1L)
+
+        repo.copyRating("src", "copy")
+
+        coVerify { dao.upsertUserRating(match { it.uri == "copy" && it.rating == -1 }) }
+        coVerify(exactly = 0) { dao.deleteUserRating(any()) }
+    }
+
+    @Test
+    fun `deleteRating drops only the named row`() = runTest {
+        repo.deleteRating("copy")
+
+        coVerify(exactly = 1) { dao.deleteUserRating("copy") }
+        coVerify(exactly = 0) { dao.upsertUserRating(any()) }
+    }
+
+    @Test
     fun `getCachedScore returns entity and updates access time`() = runTest {
         val entity = ScoreEntity("path", 100, 200, sharpnessScore = 42.0)
         coEvery { dao.getScore("path") } returns entity
@@ -132,28 +179,6 @@ class CacheRepositoryImplTest {
         repo.updateCompositionAnalysis("path", "analysis_json")
 
         coVerify { dao.updateCompositionAnalysis("path", "analysis_json") }
-    }
-
-    @Test
-    fun `getScoresWithMinRating delegates to DAO`() = runTest {
-        val list = listOf(ScoreEntity("path", 100, 200, rating = 4))
-        coEvery { dao.getScoresWithMinRating(3) } returns list
-
-        val result = repo.getScoresWithMinRating(3)
-
-        assertEquals(list, result)
-        coVerify { dao.getScoresWithMinRating(3) }
-    }
-
-    @Test
-    fun `getScoresWithRating delegates to DAO`() = runTest {
-        val list = listOf(ScoreEntity("path", 100, 200, rating = 5))
-        coEvery { dao.getScoresWithRating(5) } returns list
-
-        val result = repo.getScoresWithRating(5)
-
-        assertEquals(list, result)
-        coVerify { dao.getScoresWithRating(5) }
     }
 
     // REQ-AND-CACHE.03, REQ-AND-CACHE.06

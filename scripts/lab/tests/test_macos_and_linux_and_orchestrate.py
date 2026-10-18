@@ -6,6 +6,7 @@ import json
 import shutil
 import subprocess
 import sys
+import tempfile
 import unittest
 from pathlib import Path
 
@@ -14,20 +15,17 @@ sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 from lab.linux.keys import normalize_xdotool_key, send_keys_xdotool  # noqa: E402
 from lab.linux.runner import build_journey_commands  # noqa: E402
 from lab.macos.remote import preflight_remote_mac  # noqa: E402
-from lab.macos.runner import run_macos_journey  # noqa: E402
+from lab.macos.runner import default_app_binary, run_macos_journey  # noqa: E402
 from lab.orchestrate import run_lab  # noqa: E402
 from PIL import Image  # noqa: E402
 
 
 class TestMacosLinuxAndOrchestrate(unittest.TestCase):
     def setUp(self) -> None:
-        self.run_dir = Path("/tmp/pstlab/test_orchestrate_run")
-        if self.run_dir.exists():
-            shutil.rmtree(self.run_dir)
+        self.run_dir = Path(tempfile.mkdtemp(prefix="pstlab-test-orchestrate-")) / "run"  # per process
 
     def tearDown(self) -> None:
-        if self.run_dir.exists():
-            shutil.rmtree(self.run_dir)
+        shutil.rmtree(self.run_dir.parent, ignore_errors=True)
 
     def test_linux_xdotool_keys_and_command_builder(self) -> None:
         self.assertEqual(normalize_xdotool_key("Right"), "Right")
@@ -49,6 +47,26 @@ class TestMacosLinuxAndOrchestrate(unittest.TestCase):
         )
         self.assertEqual(cmds[0], "key Right")
         self.assertIn("checkpoint opened", cmds)
+
+    def test_default_app_binary_only_picks_builds_that_contain_the_ui_test_hooks(self) -> None:
+        """Q-2: a distributable `.build/app` bundle or `.build/release` binary rejects `--ui-scenario`."""
+        import tempfile
+
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            build = root / "products" / "macos-desktop" / ".build"
+            distributable = build / "app" / "PhotoSelector.app" / "Contents" / "MacOS" / "PhotoSelectorApp"
+            plain_release = build / "release" / "PhotoSelectorApp"
+            for path in (distributable, plain_release):
+                path.parent.mkdir(parents=True)
+                path.write_text("#!/bin/sh\n")
+
+            self.assertNotIn(default_app_binary(root), (distributable, plain_release))
+
+            hooks = build / "hooks" / "app" / "PhotoSelector.app" / "Contents" / "MacOS" / "PhotoSelectorApp"
+            hooks.parent.mkdir(parents=True)
+            hooks.write_text("#!/bin/sh\n")
+            self.assertEqual(default_app_binary(root), hooks)
 
     def test_remote_mac_preflight(self) -> None:
         ok, reason = preflight_remote_mac(

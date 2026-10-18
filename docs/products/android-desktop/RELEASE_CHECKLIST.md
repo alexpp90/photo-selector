@@ -33,4 +33,4 @@ Because Photo Selector Toolbox requests zero permissions, has no network access,
 ## 3. EU Digital Services Act (DSA) & German Legal Status
 
 - [x] **Non-Trader Declaration:** Photo Selector Toolbox is free, open-source (MIT), ad-free, and has no in-app purchases or monetization. Declared as **Non-Trader** in Google Play Console.
-- [ ] **Human Review Before Public Store Launch:** Verify GitHub Pages serving (`https://alexpp90.github.io/homebrew-photo-selector-toolbox/products/android-desktop/privacy-policy.html` and `impressum.html`) and customize contact details in `impressum.html` if required before public store launch.
+- [ ] **Human Review Before Public Store Launch:** Verify GitHub Pages serving (`https://alexpp90.github.io/photo-selector/products/android-desktop/privacy-policy.html` and `impressum.html`) and customize contact details in `impressum.html` if required before public store launch.

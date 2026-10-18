@@ -8,6 +8,11 @@ declare `p_align >= 16384` (0x4000).
 
 Accepts `.apk` archives, `.aab` bundles, directories (e.g. Gradle's
 `merged_native_libs` output), or individual `.so` files.
+
+For `.apk` files it also checks the *zip* alignment (finding Q-6): a `.so` stored uncompressed
+must start at a 16 KB-aligned offset in the file, as `zipalign -P 16` produces, so the page can be
+mapped straight from the APK. Compressed entries are extracted at install and are not affected.
+Bundles (`.aab`) are exempt: bundletool aligns the APKs it generates.
 """
 
 from __future__ import annotations
@@ -28,6 +33,8 @@ ELFDATA2LSB = 1
 ELFDATA2MSB = 2
 PT_LOAD = 1
 DEFAULT_MIN_ALIGN = 16384  # 16 KB (0x4000)
+ZIP_ENTRY_ALIGN = 16384  # stored .so entries in an APK start at a multiple of this
+ZIP_LOCAL_HEADER_SIZE = 30
 TARGET_ABIS = ("arm64-v8a", "x86_64")
 
 ARCHIVE_SO_PATTERN = re.compile(
@@ -48,6 +55,7 @@ class LibraryAlignmentReport:
     library: str
     load_segments: List[LoadSegmentAlignment]
     error: str | None = None
+    zip_problem: str | None = None
 
     @property
     def min_alignment(self) -> int | None:
@@ -56,7 +64,7 @@ class LibraryAlignmentReport:
         return min(seg.p_align for seg in self.load_segments)
 
     def passes(self, required_alignment: int = DEFAULT_MIN_ALIGN) -> bool:
-        if self.error is not None or not self.load_segments:
+        if self.error is not None or self.zip_problem is not None or not self.load_segments:
             return False
         return all(seg.p_align >= required_alignment for seg in self.load_segments)
 
@@ -132,8 +140,28 @@ def inspect_elf_bytes(source: str, abi: str, library: str, data: bytes) -> Libra
         )
 
 
+def zip_entry_alignment_problem(archive_path: Path, info: zipfile.ZipInfo) -> str | None:
+    """Why a stored entry cannot be mapped from the APK at a 16 KB boundary, or None."""
+    if info.compress_type != zipfile.ZIP_STORED:
+        return None
+    with archive_path.open("rb") as handle:
+        handle.seek(info.header_offset)
+        header = handle.read(ZIP_LOCAL_HEADER_SIZE)
+    if len(header) < ZIP_LOCAL_HEADER_SIZE or header[:4] != b"PK\x03\x04":
+        return "unreadable zip local header"
+    name_length, extra_length = struct.unpack_from("<HH", header, 26)
+    data_offset = info.header_offset + ZIP_LOCAL_HEADER_SIZE + name_length + extra_length
+    if data_offset % ZIP_ENTRY_ALIGN:
+        return (
+            f"stored at zip offset {data_offset}, not a multiple of {ZIP_ENTRY_ALIGN} "
+            f"(align with `zipalign -P 16 -f 4`)"
+        )
+    return None
+
+
 def inspect_archive(archive_path: Path) -> List[LibraryAlignmentReport]:
     reports: List[LibraryAlignmentReport] = []
+    check_zip = archive_path.suffix.lower() == ".apk"
     with zipfile.ZipFile(archive_path, "r") as zf:
         for entry in sorted(zf.namelist()):
             match = ARCHIVE_SO_PATTERN.search(entry)
@@ -142,14 +170,24 @@ def inspect_archive(archive_path: Path) -> List[LibraryAlignmentReport]:
             abi = match.group("abi")
             name = match.group("name")
             data = zf.read(entry)
-            reports.append(
-                inspect_elf_bytes(
-                    source=str(archive_path),
-                    abi=abi,
-                    library=f"{abi}/{name}",
-                    data=data,
-                )
+            report = inspect_elf_bytes(
+                source=str(archive_path),
+                abi=abi,
+                library=f"{abi}/{name}",
+                data=data,
             )
+            if check_zip:
+                problem = zip_entry_alignment_problem(archive_path, zf.getinfo(entry))
+                if problem is not None:
+                    report = LibraryAlignmentReport(
+                        source=report.source,
+                        abi=report.abi,
+                        library=report.library,
+                        load_segments=report.load_segments,
+                        error=report.error,
+                        zip_problem=problem,
+                    )
+            reports.append(report)
     return reports
 
 
@@ -239,12 +277,17 @@ def main(argv: Sequence[str] | None = None) -> int:
     failures = [r for r in reports if not r.passes(args.min_align)]
     if failures:
         for failure in failures:
+            if failure.zip_problem:
+                print(
+                    f"✘ {failure.source} [{failure.library}]: {failure.zip_problem}",
+                    file=sys.stderr,
+                )
             if failure.error:
                 print(
                     f"✘ {failure.source} [{failure.library}]: {failure.error}",
                     file=sys.stderr,
                 )
-            else:
+            elif any(seg.p_align < args.min_align for seg in failure.load_segments):
                 bad_segs = ", ".join(
                     f"seg#{s.segment_index}=0x{s.p_align:x} ({s.p_align} B)"
                     for s in failure.load_segments

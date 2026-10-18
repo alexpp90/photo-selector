@@ -21,9 +21,11 @@ from ..paths import ensure_under, lab_tmp_root, repo_root
 def default_app_binary(root: Path | None = None) -> Path:
     r = root or repo_root()
     base = r / "products" / "macos-desktop" / ".build"
+    # Only builds that contain the UI test hooks can run a journey: the `--test-hooks` build
+    # (`.build/hooks`) and debug builds. A distributable `.build/app` bundle rejects the flags.
     candidates = [
-        base / "app" / "PhotoSelector.app" / "Contents" / "MacOS" / "PhotoSelector",
-        base / "release" / "PhotoSelectorApp",
+        base / "hooks" / "app" / "PhotoSelector.app" / "Contents" / "MacOS" / "PhotoSelectorApp",
+        base / "hooks" / "release" / "PhotoSelectorApp",
         base / "debug" / "PhotoSelectorApp",
         base / "out" / "Products" / "Release" / "PhotoSelectorApp",
         base / "out" / "Products" / "Debug" / "PhotoSelectorApp",

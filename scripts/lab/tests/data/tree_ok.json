@@ -51,7 +51,7 @@
       "clipped": false
     },
     {
-      "id": "reject_button",
+      "id": "delete_button_expanded",
       "parent": null,
       "role": "button",
       "name": "Delete",

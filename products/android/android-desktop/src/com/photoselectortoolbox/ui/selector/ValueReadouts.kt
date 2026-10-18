@@ -17,7 +17,6 @@ import androidx.compose.material.icons.filled.CenterFocusStrong
 import androidx.compose.material.icons.filled.Grain
 import androidx.compose.material.icons.filled.NightlightRound
 import androidx.compose.material.icons.filled.WbSunny
-import androidx.compose.material.icons.outlined.AutoAwesome
 import androidx.compose.material.icons.outlined.ErrorOutline
 import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
@@ -68,7 +67,6 @@ fun ScoreMetricIcon.vector(): ImageVector = when (this) {
     ScoreMetricIcon.GRAIN -> Icons.Default.Grain
     ScoreMetricIcon.HIGHLIGHT -> Icons.Default.WbSunny
     ScoreMetricIcon.SHADOW -> Icons.Default.NightlightRound
-    ScoreMetricIcon.AESTHETIC -> Icons.Outlined.AutoAwesome
 }
 
 /** Tint for a goodness value, matching the thresholds used everywhere else. */

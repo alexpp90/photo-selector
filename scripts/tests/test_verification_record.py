@@ -104,6 +104,19 @@ class RenderAndUpsertTest(unittest.TestCase):
         self.assertEqual(data["tree"], "t" * 40)
         self.assertEqual(data["groups"]["macos"], "not run")
 
+    def test_device_suite_skipped_without_device_does_not_make_android_partial(self):
+        # The device suite is on demand: a missing device is a stated gap, not a partial run.
+        gates = vr.parse_results("\n".join([
+            "PASS|gradlew testDebugUnitTest|android.yml:unit-tests|android.yml:unit-tests|",
+            "SKIP|instrumented tests|no device/emulator attached||false",
+        ]))
+        self.assertEqual(vr.group_status([g for g in gates if g["group"] == "android"]), "passed")
+        self.assertIn("no device/emulator attached", vr.render_block([record(gates)]))
+
+    def test_unrequested_device_suite_points_to_android_device(self):
+        gates = vr.parse_results("PASS|gradlew testDebugUnitTest|android.yml:unit-tests|android.yml:unit-tests|")
+        self.assertIn("run on demand with `--android-device`", vr.render_block([record(gates)]))
+
     def test_upsert_replaces_inserts_and_appends(self):
         template = (f"## Verification\n\n{vr.BEGIN}\n_No record yet_ <!-- pst-verification:placeholder -->\n"
                     f"{vr.END}\n\n### Manual testing\n")
@@ -214,6 +227,86 @@ class EvaluateTest(unittest.TestCase):
         self.assertIn("Sandbox only", self.titles(vr.evaluate(self.body(vm), "t" * 40, ["README.md"], False)))
 
 
+GH_STUB = """#!{python}
+import json, os, sys
+args = sys.argv[1:]
+with open(os.environ["GH_STUB_LOG"], "a", encoding="utf-8") as log:
+    log.write(json.dumps(args) + "\\n")
+if args[:2] == ["pr", "view"]:
+    print(json.dumps({{"number": 7, "body": "Plain description", "headRefOid": "h" * 40,
+                      "url": "https://github.com/octo/repo/pull/7"}}))
+elif args[:2] == ["pr", "edit"]:
+    if os.environ.get("GH_STUB_EDIT_FAILS"):
+        sys.exit("GraphQL: Projects (classic) is being deprecated in favor of the new Projects "
+                 "experience. (repository.pullRequest.projectCards)")
+elif args[:1] == ["api"]:
+    if os.environ.get("GH_STUB_API_FAILS"):
+        sys.exit("HTTP 403: Resource not accessible by integration")
+    body = next(a for a in args if a.startswith("body=@"))[len("body=@"):]
+    with open(os.environ["GH_STUB_LOG"] + ".body", "w", encoding="utf-8") as out:
+        out.write(open(body, encoding="utf-8").read())
+"""
+
+
+class PrSubcommandTest(unittest.TestCase):
+    """`pr` against a stubbed gh: gh pr edit first, the REST PATCH when it fails."""
+
+    def setUp(self):
+        self.tmp = tempfile.TemporaryDirectory()
+        tmp = Path(self.tmp.name)
+        (tmp / "bin").mkdir()
+        gh = tmp / "bin" / "gh"
+        gh.write_text(GH_STUB.format(python=sys.executable))
+        gh.chmod(0o755)
+        self.log = tmp / "gh.log"
+        self.env = {"PATH": f"{tmp / 'bin'}{os.pathsep}{os.environ.get('PATH', '')}",
+                    "GH_STUB_LOG": str(self.log)}
+        self.root = tmp / "repo"
+        self.root.mkdir()
+        records = [record([gate("PASS", "pytest (products/linux-desktop)", "linux")])]
+        for target, value in (("records_for_here", mock.Mock(return_value=("thinkpad", records, True))),
+                              ("git", mock.Mock(return_value=None))):
+            patcher = mock.patch.object(vr, target, value)
+            patcher.start()
+            self.addCleanup(patcher.stop)
+
+    def tearDown(self):
+        self.tmp.cleanup()
+
+    def pr(self, **flags):
+        env = dict(self.env, **{k: "1" for k in flags})
+        out = io.StringIO()
+        with mock.patch.dict(os.environ, env), redirect_stdout(out):
+            try:
+                code = vr.main(["--root", str(self.root), "pr"])
+            except SystemExit as exc:
+                code = exc.code
+        calls = [json.loads(line) for line in self.log.read_text().splitlines()]
+        return code, out.getvalue(), calls
+
+    def test_pr_edit_success_needs_no_fallback(self):
+        code, out, calls = self.pr()
+        self.assertEqual(code, 0)
+        self.assertEqual([c[:2] for c in calls], [["pr", "view"], ["pr", "edit"]])
+        self.assertIn("https://github.com/octo/repo/pull/7", out)
+
+    def test_pr_edit_failure_falls_back_to_rest_patch(self):
+        code, out, calls = self.pr(GH_STUB_EDIT_FAILS=True)
+        self.assertEqual(code, 0)
+        self.assertEqual(calls[-1][:5], ["api", "--silent", "-X", "PATCH", "repos/octo/repo/pulls/7"])
+        self.assertIn("projectCards", out)  # gh's reason is shown, not swallowed
+        body = Path(f"{self.log}.body").read_text()
+        self.assertTrue(body.startswith("Plain description"))
+        self.assertIn(vr.BEGIN, body)
+
+    def test_both_failing_exits_with_both_reasons(self):
+        code, _, calls = self.pr(GH_STUB_EDIT_FAILS=True, GH_STUB_API_FAILS=True)
+        self.assertIsInstance(code, str)  # sys.exit(message): exit status 1
+        self.assertIn("projectCards", code)
+        self.assertIn("HTTP 403", code)
+        self.assertEqual(calls[-1][0], "api")
+
+
 class EndToEndTest(unittest.TestCase):
     """write → render → commit → check: the tested tree equals the commit's tree."""
 
@@ -266,6 +359,31 @@ class EndToEndTest(unittest.TestCase):
         self.assertEqual(code, 0)
         self.assertNotIn("Stale record", out)
         self.assertNotIn("not verified", out)
+
+
+class AndroidDevicesTest(unittest.TestCase):
+    LISTING = "List of devices attached\nTESTDEV\tdevice\nPERSONAL\tdevice\nGONE\toffline\n"
+
+    def fake_run(self, cmd, timeout=None):
+        if cmd == ["adb", "devices"]:
+            return self.LISTING
+        return {"ro.product.model": f"model-{cmd[2]}", "ro.build.version.release": "17",
+                "ro.build.version.sdk": "37"}.get(cmd[-1])
+
+    def devices(self, env):
+        with mock.patch.object(vr, "run", self.fake_run), \
+                mock.patch.object(vr.shutil, "which", return_value="/usr/bin/adb"), \
+                mock.patch.dict(os.environ, env, clear=False):
+            return vr.android_devices()
+
+    def test_only_the_device_under_test_is_reported(self):
+        self.assertEqual([d["model"] for d in self.devices({"ANDROID_SERIAL": "TESTDEV"})], ["model-TESTDEV"])
+
+    def test_every_attached_device_without_android_serial(self):
+        with mock.patch.dict(os.environ, {}, clear=False):
+            os.environ.pop("ANDROID_SERIAL", None)
+            models = [d["model"] for d in self.devices({})]
+        self.assertEqual(models, ["model-TESTDEV", "model-PERSONAL"])
 
 
 if __name__ == "__main__":

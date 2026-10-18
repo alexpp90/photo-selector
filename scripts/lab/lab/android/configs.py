@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import re
+import subprocess
 import time
 from dataclasses import dataclass
 from pathlib import Path
@@ -39,6 +40,19 @@ class SavedDeviceState:
     font_scale: str = "1.0"
     night_mode: str = "no"
     stay_on: str = "0"
+    zen_mode: str = "0"
+
+
+# `settings get global zen_mode` -> the `cmd notification set_dnd` value that restores it.
+ZEN_TO_DND = {"0": "off", "1": "priority", "2": "none", "3": "alarms"}
+
+
+def set_dnd(adb: AdbClient, value: str) -> None:
+    """`cmd notification set_dnd <value>`, best effort: not every build has the command."""
+    try:
+        adb.run("shell", "cmd", "notification", "set_dnd", value)
+    except subprocess.SubprocessError:
+        pass
 
 
 def load_android_configs(path: Path | None = None) -> dict[str, dict[str, Any]]:
@@ -67,6 +81,7 @@ def record_device_state(adb: AdbClient) -> SavedDeviceState:
     night_out = adb.run("shell", "cmd", "uimode", "night").strip().lower()
     night = "yes" if "night mode: yes" in night_out else ("auto" if "night mode: auto" in night_out else "no")
     stay_on = adb.run("shell", "settings", "get", "global", "stay_on_while_plugged_in").strip()
+    zen = adb.run("shell", "settings", "get", "global", "zen_mode").strip()
     return SavedDeviceState(
         user_rotation=user_rot,
         accelerometer_rotation=acc_rot,
@@ -75,6 +90,7 @@ def record_device_state(adb: AdbClient) -> SavedDeviceState:
         font_scale=font if re.fullmatch(r"\d+(\.\d+)?", font) else "1.0",
         night_mode=night,
         stay_on=stay_on if stay_on.isdigit() else "0",
+        zen_mode=zen if zen in ZEN_TO_DND else "0",
     )
 
 
@@ -156,6 +172,10 @@ def apply_config(
     if cfg.get("keyboard") and not is_avd_kbd:
         raise ConfigNotRunError("needs AVD with hw.keyboard=yes")
 
+    # Do Not Disturb while the lab drives the device: a heads-up notification is drawn over
+    # the app in its own window, which no tree dump shows, but every screenshot would.
+    set_dnd(adb, "on")
+
     if cfg.get("native_display"):
         # ChromeOS ARC: the app runs in a ChromeOS window on a virtual display; size, density
         # and rotation belong to ChromeOS (and resetting ARC's own density override would
@@ -202,6 +222,7 @@ def reset_config(adb: AdbClient, saved: SavedDeviceState | None = None) -> None:
     adb.run("shell", "wm", "density", str(saved_dens) if saved_dens else "reset")
     adb.run("shell", "settings", "put", "system", "font_scale", saved.font_scale if saved else "1.0")
     adb.run("shell", "cmd", "uimode", "night", saved.night_mode if saved else "no")
+    set_dnd(adb, ZEN_TO_DND[saved.zen_mode] if saved else "off")
     if saved is not None:
         adb.run("shell", "settings", "put", "global", "stay_on_while_plugged_in", saved.stay_on)
         adb.run(

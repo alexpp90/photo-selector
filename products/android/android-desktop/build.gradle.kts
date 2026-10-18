@@ -78,6 +78,8 @@ android {
         release {
             isMinifyEnabled = true
             isShrinkResources = true
+            // Ship native symbol tables so OpenCV crashes are symbolicated in Play vitals.
+            ndk { debugSymbolLevel = "SYMBOL_TABLE" }
             val keystorePath = System.getenv("TOOLBOX_KEYSTORE_FILE")
             if (!keystorePath.isNullOrEmpty()) {
                 signingConfig = signingConfigs.getByName("release")

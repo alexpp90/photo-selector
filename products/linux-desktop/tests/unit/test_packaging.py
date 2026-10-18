@@ -318,3 +318,122 @@ def test_no_signing_keys_in_templates():
     product = get_product_root()
     leaked = [p for p in product.rglob("*") if p.name in (".gnupg_repo",) or p.suffix in (".key",)]
     assert not leaked, f"Signing material in product tree: {leaked}"
+
+
+# --- Release-readiness packaging checks (B-03, B-04, B-06, B-07, metainfo) ---
+
+
+def _build_deb_members(tmp_path):
+    out = tmp_path / "out"
+    out.mkdir()
+    res = subprocess.run(
+        [sys.executable, str(get_product_root() / "scripts" / "package_deb.py"),
+         "--product-dir", str(get_product_root()), "--output-dir", str(out),
+         "--output-filename", "t.deb"],
+        capture_output=True, text=True,
+    )
+    assert res.returncode == 0, res.stderr
+    members = {}
+    with open(out / "t.deb", "rb") as f:
+        f.read(8)
+        while len(hdr := f.read(60)) == 60:
+            name = hdr[:16].decode().strip().rstrip("/")
+            size = int(hdr[48:58].decode().strip())
+            members[name] = f.read(size)
+            if size % 2:
+                f.read(1)
+    return members
+
+
+def test_deb_installs_one_desktop_entry_and_one_icon_set(tmp_path):
+    members = _build_deb_members(tmp_path)
+    data = next(v for k, v in members.items() if k.startswith("data.tar"))
+    with tarfile.open(fileobj=io.BytesIO(data), mode="r:*") as t:
+        names = t.getnames()
+    assert [n for n in names if n.endswith(".desktop")] == ["./usr/share/applications/org.photoselector.Linux.desktop"]
+    icons = [n for n in names if "/icons/" in n and n.endswith((".svg", ".png"))]
+    assert len(icons) == 2 and all("org.photoselector.Linux" in n for n in icons), icons
+
+
+def test_deb_depends_and_recommends_come_from_debian_control(tmp_path):
+    members = _build_deb_members(tmp_path)
+    ctrl = next(v for k, v in members.items() if k.startswith("control.tar"))
+    with tarfile.open(fileobj=io.BytesIO(ctrl), mode="r:*") as t:
+        built = t.extractfile("./control").read().decode()
+    field = lambda text, key: re.search(rf"^{key}: (.*)$", text, re.M).group(1)  # noqa: E731
+    src = (get_product_root() / "debian" / "control").read_text()
+    bin_stanza = src.strip().split("\n\n")[-1]
+    for key in ("Depends", "Recommends"):
+        block = re.search(rf"^{key}:\n((?: .*\n?)+)", bin_stanza, re.M).group(1)
+        expected = [
+            d.strip() for d in block.replace("\n", " ").split(",")
+            if d.strip() and not d.strip().startswith("${")
+        ]
+        assert field(built, key).split(", ") == expected
+    assert "python3 (>= 3.12)" in field(built, "Depends")
+
+
+def test_desktop_mimetype_covers_every_supported_format():
+    sys.path.insert(0, str(get_product_root() / "src"))
+    from photo_selector_linux.core import formats
+
+    assert set(formats.MIME_TYPE_BY_EXTENSION) == set(formats.SUPPORTED_EXTENSIONS)
+    desktop = (get_product_root() / "data" / "org.photoselector.Linux.desktop").read_text()
+    line = next(row for row in desktop.splitlines() if row.startswith("MimeType="))
+    assert set(filter(None, line.split("=", 1)[1].split(";"))) == set(formats.MIME_TYPES)
+
+
+def test_metainfo_release_readiness():
+    import xml.etree.ElementTree as ET
+
+    root = ET.parse(get_product_root() / "data" / "org.photoselector.Linux.metainfo.xml").getroot()
+    urls = {u.get("type"): u.text for u in root.findall("url")}
+    base = "https://github.com/alexpp90/photo-selector"
+    assert urls == {"homepage": base, "bugtracker": base + "/issues", "vcs-browser": base}
+    release = root.find("releases/release")
+    changelog = (get_product_root() / "debian" / "changelog").read_text()
+    assert release.get("version") == re.match(r"photo-selector-linux \(([\d.]+)-", changelog).group(1)
+    assert re.fullmatch(r"\d{4}-\d{2}-\d{2}", release.get("date"))
+    assert root.find("developer").get("id") == "io.github.alexpp90"
+    assert root.find("content_rating").get("type") == "oars-1.1"
+    assert root.find("content_rating").findall("content_attribute")
+
+
+def test_user_facing_text_has_no_internal_design_names():
+    data = get_product_root() / "data"
+    for f in (data / "org.photoselector.Linux.metainfo.xml", data / "org.photoselector.Linux.desktop"):
+        text = f.read_text(encoding="utf-8")
+        for word in ("Obsidian", "Darkroom", "Optical Cobalt"):
+            assert word not in text, f"{word} in {f.name}"
+
+
+def test_setup_sh_does_not_hide_failures():
+    text = (get_product_root() / "packaging" / "apt" / "setup.sh").read_text()
+    assert "set -euo pipefail" in text
+    assert "|| true" not in text
+    assert "2>/dev/null" not in text
+    assert ">/dev/null 2>&1" not in text
+
+
+def test_archive_key_fingerprint_documented():
+    fpr = "F882 8BAA 9F9A BDC1 AE6E 53CC 4103 98EB 08C8 9ADC"
+    for doc in (get_repo_root() / "docs/products/linux-desktop/INSTALL.md",
+                get_product_root() / "packaging/apt/README.md"):
+        assert fpr in doc.read_text(encoding="utf-8"), doc
+
+
+@pytest.mark.skipif(not __import__("shutil").which("appstreamcli"), reason="appstreamcli not installed")
+def test_appstream_validates():
+    res = subprocess.run(["appstreamcli", "validate", "--no-net",
+                          str(get_product_root() / "data" / "org.photoselector.Linux.metainfo.xml")],
+                         capture_output=True, text=True)
+    assert res.returncode == 0, res.stdout + res.stderr
+
+
+@pytest.mark.skipif(
+    not __import__("shutil").which("desktop-file-validate"), reason="desktop-file-validate not installed"
+)
+def test_desktop_file_validates():
+    desktop = get_product_root() / "data" / "org.photoselector.Linux.desktop"
+    res = subprocess.run(["desktop-file-validate", str(desktop)], capture_output=True, text=True)
+    assert res.returncode == 0, res.stdout + res.stderr

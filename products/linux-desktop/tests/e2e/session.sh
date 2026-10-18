@@ -3,7 +3,7 @@
 # Never touches DISPLAY=:0 or the user's real session.
 set -euo pipefail
 
-DISPLAY_NUM=99
+DISPLAY_NUM=""
 SIZE="1920x1080"
 SCALE=1
 COLOR_SCHEME="default"
@@ -37,14 +37,41 @@ esac
 
 mkdir -p "$LAB_DIR/xdg-data" "$LAB_DIR/xdg-config" "$ARTIFACTS_DIR"
 
-Xvfb ":${DISPLAY_NUM}" -screen 0 "${SIZE}x24" -nolisten tcp >/dev/null 2>&1 &
+# Text scaling: GTK4 on X11 takes it from XSETTINGS (gsd-xsettings, absent here), so a
+# `gsettings set` in the private bus never reaches the app (2026-10-17: large-text rendered
+# exactly like fhd). GTK reads settings.ini from XDG_CONFIG_HOME, but the X11 backend pins
+# gtk-xft-dpi to 96 without an XSETTINGS manager; the base font size is what does apply, so the
+# factor scales the 10 pt default font (measured with Gtk.Settings under Xvfb, GTK 4.18).
+mkdir -p "$LAB_DIR/xdg-config/gtk-4.0"
+FONT_PT=$(LC_ALL=C awk -v f="$TEXT_SCALING" 'BEGIN { printf "%.2f", 10 * f }')
+printf '[Settings]\ngtk-font-name=Sans %s\n' "$FONT_PT" >"$LAB_DIR/xdg-config/gtk-4.0/settings.ini"
+
+# A free display unless one is named: a fixed :99 collided with other sessions' xvfb-run
+# (2026-10-17), and the app then failed with "Can't open display". -displayfd makes Xvfb
+# pick the number and report it once it accepts connections.
+DISPLAY_FILE="$LAB_DIR/xvfb.display"
+rm -f "$DISPLAY_FILE"
+if [[ -n "$DISPLAY_NUM" ]]; then
+  Xvfb ":${DISPLAY_NUM}" -screen 0 "${SIZE}x24" -nolisten tcp >/dev/null 2>&1 &
+else
+  Xvfb -displayfd 5 -screen 0 "${SIZE}x24" -nolisten tcp 5>"$DISPLAY_FILE" >/dev/null 2>&1 &
+fi
 XVFB_PID=$!
 cleanup() {
   kill "$XVFB_PID" >/dev/null 2>&1 || true
 }
 trap cleanup EXIT
 
-sleep 0.3
+if [[ -z "$DISPLAY_NUM" ]]; then
+  for _ in $(seq 1 100); do
+    [[ -s "$DISPLAY_FILE" ]] && break
+    sleep 0.05
+  done
+  DISPLAY_NUM=$(tr -dc '0-9' <"$DISPLAY_FILE")
+  [[ -n "$DISPLAY_NUM" ]] || { echo "Xvfb did not report a display" >&2; exit 1; }
+else
+  sleep 0.3
+fi
 
 export DISPLAY=":${DISPLAY_NUM}"
 export GDK_BACKEND=x11
@@ -58,6 +85,9 @@ export PST_LAB=1
 export GSK_RENDERER="${GSK_RENDERER:-cairo}"
 export GDK_DEBUG="${GDK_DEBUG:+$GDK_DEBUG,}no-portals"
 export GTK_USE_PORTAL=0
+# Libadwaita reads the colour scheme through the Settings portal on its own (GDK_DEBUG does not
+# cover it); that activation is what still cost ~25 s per journey on 2026-10-17.
+export ADW_DISABLE_PORTAL=1
 export PST_LAB_ARTIFACTS="${ARTIFACTS_DIR}"
 
 if [[ "$USE_INSTALLED" -eq 1 ]]; then
@@ -78,7 +108,11 @@ dbus-run-session -- bash -c '
 
   for _ in $(seq 1 300); do
     if xdotool search --onlyvisible --name "Photo Selector" >/dev/null 2>&1; then
-      xdotool search --onlyvisible --name "Photo Selector" windowactivate --sync >/dev/null 2>&1 || true
+      # No window manager under Xvfb: the window keeps its default size unless it is sized
+      # here, so every config would test the same 1440x900 window (or one larger than a
+      # hidpi screen). Fill the screen, as a maximised window would.
+      xdotool search --onlyvisible --name "Photo Selector" \
+        windowmove --sync 0 0 windowsize --sync 100% 100% windowactivate --sync >/dev/null 2>&1 || true
       break
     fi
     sleep 0.1
@@ -105,6 +139,12 @@ dbus-run-session -- bash -c '
           ;;
         sleep)
           sleep "$arg"
+          ;;
+        await|fs)
+          # Hub-side file-system steps (scripts/lab/lab/linux/hub_step.py), set up by the runner.
+          if [[ -n "${PST_LAB_HUB_STEP:-}" ]]; then
+            "${PST_LAB_HUB_PYTHON:-python3}" "$PST_LAB_HUB_STEP" "$cmd" "$arg" || true
+          fi
           ;;
       esac
     done < "'"${SCRIPT_FILE}"'"

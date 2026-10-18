@@ -76,7 +76,7 @@ docs/
 
   build/               How the products are built, signed and shipped
     CI_PARITY.md                 What runs where and why; local mirror vs GitHub Actions
-    ANDROID_BUILD_AND_RELEASE.md Gradle, CI, artifacts, distribution
+    RELEASING.md                 Per-product versions, changelogs, tags and the release procedure
     ANDROID_SIGNING_PLAN.md      Rationale for per-app cloud/signing isolation  [private]
     ANDROID_SIGNING_SETUP.md     Step-by-step setup instructions  [private]
     ANDROID_SIGNING_RUNBOOK.md   Operational runbook for the isolation migration  [private]
@@ -105,7 +105,8 @@ enough to build, test and contribute.
 | Something both Android products must obey | `shared/ANDROID_PLATFORM.md` |
 | Whether a feature crosses products | `shared/FEATURE_PARITY.md` |
 | A CI gate | `build/CI_PARITY.md` **and** `scripts/run_tests.sh` **and** the workflow, in one commit |
-| Signing, secrets, store publishing | `build/ANDROID_BUILD_AND_RELEASE.md` |
+| A release, a version number, a changelog | `build/RELEASING.md` and the product's `CHANGELOG.md` |
+| Signing, secrets, store publishing | `build/ANDROID_SIGNING_SETUP.md` [private], the product's `RELEASE_CHECKLIST.md` |
 | The directory layout itself | `../products/README.md` (the rules) and this file (the map) |
 
 ## Known gaps
@@ -114,6 +115,3 @@ enough to build, test and contribute.
   `products/desktop/REQUIREMENTS.md` § 3 (layout constraints, display modes, dark theme), which
   is a requirements file doing a design file's job. The two Android products each have a proper
   `DESIGN.md`; Desktop should get one.
-- **`products/phototok/RELEASE_CHECKLIST.md` does not exist yet.** The publish agent treats it
-  as the single source of truth for open release tasks, alongside the privacy policy and
-  Impressum sources. It must be written before the next store submission.

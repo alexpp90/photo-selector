@@ -3,6 +3,7 @@ package com.phototok.data.repository
 import android.content.Context
 import android.content.Intent
 import android.net.Uri
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.test.runTest
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
@@ -142,5 +143,119 @@ class FolderAccessManagerTest {
             "recent_2 must be released once SELECTION_TARGET no longer references it",
             backend.releasedCalls.any { it.first == "content://tree/recent_2" },
         )
+    }
+
+    // ── B-8 / D-10: undo history and the pending-delete journal keep a grant alive ──
+
+    private val tree = "content://com.android.externalstorage.documents/tree/primary%3ADCIM"
+    private val document = "$tree/document/primary%3ADCIM%2FIMG_0001.JPG"
+
+    @Test
+    fun `a pending-delete journal entry inside the tree keeps the tree grant`() {
+        val backend = FakeSafGrantBackend(initialPersisted = setOf(tree))
+        val manager = FolderAccessManager(backend)
+        manager.syncReferences(
+            mapOf(
+                FolderAccessPurpose.SOURCE to setOf("content://other/tree/new"),
+                FolderAccessPurpose.PENDING_DELETE_JOURNAL to setOf(document),
+            )
+        )
+
+        assertFalse(manager.releaseIfUnreferenced(tree))
+
+        assertTrue(backend.releasedCalls.isEmpty())
+    }
+
+    @Test
+    fun `the grant is released once the journal no longer references the tree`() {
+        val backend = FakeSafGrantBackend(initialPersisted = setOf(tree))
+        val manager = FolderAccessManager(backend)
+        manager.syncReferences(mapOf(FolderAccessPurpose.PENDING_DELETE_JOURNAL to setOf(document)))
+        assertFalse(manager.releaseIfUnreferenced(tree))
+
+        manager.syncReferences(emptyMap())
+
+        assertTrue(manager.releaseIfUnreferenced(tree))
+        assertEquals(listOf(tree), backend.releasedCalls.map { it.first })
+    }
+
+    @Test
+    fun `a folder pinned by the undo history keeps its grant across reference syncs`() {
+        val backend = FakeSafGrantBackend(initialPersisted = setOf(tree))
+        val manager = FolderAccessManager(backend)
+        manager.pin(FolderAccessPurpose.UNDO_HISTORY, setOf(tree))
+
+        manager.syncReferences(mapOf(FolderAccessPurpose.SOURCE to setOf("content://other/tree/new")))
+
+        assertFalse(manager.releaseIfUnreferenced(tree))
+        manager.pin(FolderAccessPurpose.UNDO_HISTORY, emptySet())
+        assertTrue(manager.releaseIfUnreferenced(tree))
+    }
+
+    @Test
+    fun `uris are compared normalized, not as raw strings`() {
+        val backend = FakeSafGrantBackend(initialPersisted = setOf(tree))
+        val manager = FolderAccessManager(backend)
+        // Same folder, different spelling: lower-case percent escape and a trailing slash.
+        manager.syncReferences(
+            mapOf(
+                FolderAccessPurpose.SELECTION_TARGET to
+                    setOf("content://com.android.externalstorage.documents/tree/primary%3aDCIM/"),
+            )
+        )
+
+        assertFalse(manager.releaseIfUnreferenced(tree))
+    }
+
+    @Test
+    fun `reconcile keeps a grant that only the journal references`() {
+        val backend = FakeSafGrantBackend(initialPersisted = setOf(tree, "content://orphan/tree/x"))
+        val manager = FolderAccessManager(backend)
+
+        val released = manager.reconcilePersistedGrants(
+            mapOf(FolderAccessPurpose.PENDING_DELETE_JOURNAL to setOf(document))
+        )
+
+        assertEquals(setOf("content://orphan/tree/x"), released)
+    }
+
+    @Test
+    fun `switching folders with a pending delete keeps the old grant until it is committed`() = runTest {
+        val folderA = tree
+        val folderB = "content://com.android.externalstorage.documents/tree/primary%3APictures"
+        val backend = FakeSafGrantBackend()
+        val manager = FolderAccessManager(backend)
+        val settings = SettingsRepository(context, manager)
+        settings.setLastFolderUri(null)
+        settings.setPersistedPendingDeleteUris(emptySet())
+        backend.releasedCalls.clear()
+        backend.persistedUris.clear()
+
+        settings.setLastFolderUri(folderA)
+        settings.setPersistedPendingDeleteUris(setOf(document))
+        settings.setLastFolderUri(folderB)
+
+        assertTrue("the journal still needs folder A", folderA in backend.persistedUris)
+        assertFalse(backend.releasedCalls.any { it.first == folderA })
+
+        settings.removePersistedPendingDeleteUris(listOf(document))
+        settings.releaseFolderGrantIfUnreferenced(folderA)
+
+        assertTrue(backend.releasedCalls.any { it.first == folderA })
+        settings.setLastFolderUri(null)
+        settings.setPersistedPendingDeleteUris(emptySet())
+    }
+
+    @Test
+    fun `removing journal entries leaves entries queued meanwhile alone`() = runTest {
+        val backend = FakeSafGrantBackend()
+        val settings = SettingsRepository(context, FolderAccessManager(backend))
+        val other = "$tree/document/primary%3ADCIM%2FIMG_0002.JPG"
+        settings.setPersistedPendingDeleteUris(setOf(document, other))
+
+        settings.removePersistedPendingDeleteUris(listOf(document))
+
+        assertEquals(setOf(other), settings.persistedPendingDeleteUris.first())
+        settings.setPersistedPendingDeleteUris(emptySet())
     }
 }

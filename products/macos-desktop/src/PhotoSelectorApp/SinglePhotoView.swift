@@ -11,6 +11,8 @@ public struct SinglePhotoView: View {
     public let isHUDVisible: Bool
     public let zoomState: ZoomState
     public let onToggleZoom: () -> Void
+    public var toast: ToastMessage?
+    public var onExitZoom: (() -> Void)?
     public var onPinchEnded: ((Double) -> Void)?
     public var onUpdateExif: ((UUID, ExifData) -> Void)?
     public var onUpdateScores: ((UUID, QualityScores) -> Void)?
@@ -24,6 +26,8 @@ public struct SinglePhotoView: View {
         isHUDVisible: Bool,
         zoomState: ZoomState,
         onToggleZoom: @escaping () -> Void,
+        toast: ToastMessage? = nil,
+        onExitZoom: (() -> Void)? = nil,
         onPinchEnded: ((Double) -> Void)? = nil,
         onUpdateExif: ((UUID, ExifData) -> Void)? = nil,
         onUpdateScores: ((UUID, QualityScores) -> Void)? = nil
@@ -32,6 +36,8 @@ public struct SinglePhotoView: View {
         self.isHUDVisible = isHUDVisible
         self.zoomState = zoomState
         self.onToggleZoom = onToggleZoom
+        self.toast = toast
+        self.onExitZoom = onExitZoom
         self.onPinchEnded = onPinchEnded
         self.onUpdateExif = onUpdateExif
         self.onUpdateScores = onUpdateScores
@@ -59,6 +65,7 @@ public struct SinglePhotoView: View {
                     onPinchEnded: { onPinchEnded?($0) }
                 )
                 .frame(width: layout.image.width, height: layout.image.height)
+                .slotOverlay(toast: toast, zoomState: zoomState, onExitZoom: onExitZoom)
                 .clipped()
                 .uiTestFrame("single_image_viewport")
                 .offset(x: layout.image.minX, y: layout.image.minY)

@@ -354,6 +354,68 @@ public final class CullingWorkspaceViewModel: ObservableObject {
     private let userDefaults: UserDefaults
     private let cloudInspector: CloudResourceInspecting
     private var undoStack: [CullingExecutionRecord] = []
+    /// Undo stacks of folders that are no longer open, keyed by standardized root URL. A finished
+    /// operation's undo record is a durable outcome and must survive a folder switch.
+    private var parkedUndoStacks: [URL: [CullingExecutionRecord]] = [:]
+    /// Parked folders, oldest first, for eviction.
+    private var parkedUndoOrder: [URL] = []
+    public static let maxParkedUndoFolders = 8
+
+    private static func folderKey(_ url: URL?) -> URL? {
+        url?.standardizedFileURL
+    }
+
+    private func isCurrentFolder(_ key: URL?) -> Bool {
+        Self.folderKey(rootDirectoryURL) == key
+    }
+
+    private func parkUndoStack(for key: URL?) {
+        guard let key, !undoStack.isEmpty else { return }
+        parkedUndoOrder.removeAll { $0 == key }
+        parkedUndoStacks[key] = undoStack
+        parkedUndoOrder.append(key)
+        while parkedUndoOrder.count > Self.maxParkedUndoFolders {
+            let oldest = parkedUndoOrder.removeFirst()
+            parkedUndoStacks[oldest] = nil
+        }
+    }
+
+    private func restoreUndoStack(for key: URL?) {
+        guard let key, let stack = parkedUndoStacks.removeValue(forKey: key) else {
+            undoStack = []
+            return
+        }
+        parkedUndoOrder.removeAll { $0 == key }
+        undoStack = stack
+    }
+
+    /// Mutates the undo stack of `key`'s folder: the live stack when it is still open, else the parked one.
+    private func mutateUndoStack(for key: URL?, _ body: (inout [CullingExecutionRecord]) -> Void) {
+        if isCurrentFolder(key) {
+            body(&undoStack)
+        } else if let key, var stack = parkedUndoStacks[key] {
+            body(&stack)
+            if stack.isEmpty {
+                parkedUndoStacks[key] = nil
+                parkedUndoOrder.removeAll { $0 == key }
+            } else {
+                parkedUndoStacks[key] = stack
+            }
+        } else if let key {
+            var stack: [CullingExecutionRecord] = []
+            body(&stack)
+            if !stack.isEmpty {
+                parkedUndoStacks[key] = stack
+                parkedUndoOrder.append(key)
+                while parkedUndoOrder.count > Self.maxParkedUndoFolders {
+                    parkedUndoStacks[parkedUndoOrder.removeFirst()] = nil
+                }
+            }
+        }
+    }
+
+    /// Test hook: number of folders with a parked undo stack.
+    var parkedUndoFolderCount: Int { parkedUndoStacks.count }
     private var inFlightJobIDs: Set<UUID> = []
     private var toastDismissTask: Task<Void, Never>?
     private var scanTask: Task<Void, Never>?
@@ -449,6 +511,12 @@ public final class CullingWorkspaceViewModel: ObservableObject {
         metadataTask?.cancel()
         metadataTask = nil
 
+        let previousKey = Self.folderKey(self.rootDirectoryURL)
+        let newKey = Self.folderKey(url)
+        if previousKey != newKey {
+            parkUndoStack(for: previousKey)
+            restoreUndoStack(for: newKey)
+        }
         self.rootDirectoryURL = url
         let remote = cloudInspector.isRemoteOrCloudFolder(url)
         self.isRemoteFolder = remote
@@ -461,7 +529,6 @@ public final class CullingWorkspaceViewModel: ObservableObject {
         self.currentIndex = 0
         self.activeSlotIndex = 0
         self.zoomState = .fit
-        self.undoStack.removeAll()
         self.isLoading = true
 
         scanTask = Task { [weak self, directoryScanner] in
@@ -796,6 +863,7 @@ public final class CullingWorkspaceViewModel: ObservableObject {
             affectedURLs: [],
             previousStatus: previousStatus
         )
+        let jobFolderKey = Self.folderKey(sourceRootURL)
         undoStack.append(optimisticRecord)
         inFlightJobIDs.insert(job.id)
 
@@ -809,7 +877,8 @@ public final class CullingWorkspaceViewModel: ObservableObject {
                 }
                 await MainActor.run {
                     self?.inFlightJobIDs.remove(job.id)
-                    if let title = CullingFeedback.transferTitle(
+                    let stillHere = self?.isCurrentFolder(jobFolderKey) ?? false
+                    if stillHere, let title = CullingFeedback.transferTitle(
                         action: action,
                         destinationFolder: destinationFolder,
                         originalPrimaryURL: record.originalPrimaryURL,
@@ -822,18 +891,19 @@ public final class CullingWorkspaceViewModel: ObservableObject {
                             actionType: action
                         )
                     }
-                    if let idx = self?.undoStack.firstIndex(where: { $0.jobID == record.jobID }) {
-                        let preservedPreviousStatus = self?.undoStack[idx].previousStatus ?? previousStatus
-                        self?.undoStack[idx] = CullingExecutionRecord(
-                            jobID: record.jobID,
-                            photoID: record.photoID,
-                            actionType: record.actionType,
-                            originalPrimaryURL: record.originalPrimaryURL,
-                            affectedURLs: record.affectedURLs,
-                            trashedPairs: record.trashedPairs,
-                            previousStatus: preservedPreviousStatus,
-                            timestamp: record.timestamp
-                        )
+                    self?.mutateUndoStack(for: jobFolderKey) { stack in
+                        if let idx = stack.firstIndex(where: { $0.jobID == record.jobID }) {
+                            stack[idx] = CullingExecutionRecord(
+                                jobID: record.jobID,
+                                photoID: record.photoID,
+                                actionType: record.actionType,
+                                originalPrimaryURL: record.originalPrimaryURL,
+                                affectedURLs: record.affectedURLs,
+                                trashedPairs: record.trashedPairs,
+                                previousStatus: stack[idx].previousStatus,
+                                timestamp: record.timestamp
+                            )
+                        }
                     }
                 }
             } catch is CancellationError {
@@ -852,64 +922,80 @@ public final class CullingWorkspaceViewModel: ObservableObject {
                     if case .partialMove = error, let partialMoveRecord {
                         // Verified copy in the destination, original still where it was: keep the
                         // record so Undo can delete the copy, put the photo back in the queue and say so.
-                        if let idx = self?.undoStack.firstIndex(where: { $0.jobID == job.id }) {
-                            let preservedPreviousStatus = self?.undoStack[idx].previousStatus ?? previousStatus
-                            self?.undoStack[idx] = CullingExecutionRecord(
-                                jobID: partialMoveRecord.jobID,
-                                photoID: partialMoveRecord.photoID,
-                                actionType: partialMoveRecord.actionType,
-                                originalPrimaryURL: partialMoveRecord.originalPrimaryURL,
-                                affectedURLs: partialMoveRecord.affectedURLs,
-                                unremovedSourceURLs: partialMoveRecord.unremovedSourceURLs,
-                                previousStatus: preservedPreviousStatus,
-                                timestamp: partialMoveRecord.timestamp
-                            )
+                        self?.mutateUndoStack(for: jobFolderKey) { stack in
+                            if let idx = stack.firstIndex(where: { $0.jobID == job.id }) {
+                                stack[idx] = CullingExecutionRecord(
+                                    jobID: partialMoveRecord.jobID,
+                                    photoID: partialMoveRecord.photoID,
+                                    actionType: partialMoveRecord.actionType,
+                                    originalPrimaryURL: partialMoveRecord.originalPrimaryURL,
+                                    affectedURLs: partialMoveRecord.affectedURLs,
+                                    unremovedSourceURLs: partialMoveRecord.unremovedSourceURLs,
+                                    previousStatus: stack[idx].previousStatus,
+                                    timestamp: partialMoveRecord.timestamp
+                                )
+                            }
                         }
-                        if let self, self.photos.indices.contains(targetIndex) {
-                            self.photos[targetIndex].status = previousStatus
+                        // Presentation only when the job's folder is still open; photo resolved by id.
+                        if let self, self.isCurrentFolder(jobFolderKey),
+                           let pIdx = self.photos.firstIndex(where: { $0.id == photo.id }) {
+                            self.photos[pIdx].status = previousStatus
+                            var rollbackFailed = false
+                            if case .partialMove(_, _, _, let stranded) = error { rollbackFailed = !stranded.isEmpty }
                             self.showToast(
                                 icon: "exclamationmark.triangle.fill",
-                                title: "Copied to \(destinationFolder) — original could not be removed",
+                                title: CullingFeedback.partialMoveTitle(
+                                    destinationFolder: destinationFolder,
+                                    rollbackFailed: rollbackFailed
+                                ),
                                 subtitle: photo.filename
                             )
                             NSSound.beep()
                         }
                     } else if case .partialTrashRollbackFailed(_, _, let remainingPairs) = error, !remainingPairs.isEmpty {
-                        if let idx = self?.undoStack.firstIndex(where: { $0.jobID == job.id }) {
-                            let preservedPreviousStatus = self?.undoStack[idx].previousStatus ?? previousStatus
-                            self?.undoStack[idx] = CullingExecutionRecord(
-                                jobID: job.id,
-                                photoID: photo.id,
-                                actionType: action,
-                                originalPrimaryURL: photo.url,
-                                affectedURLs: remainingPairs.map(\.trashedURL),
-                                trashedPairs: remainingPairs,
-                                previousStatus: preservedPreviousStatus
+                        self?.mutateUndoStack(for: jobFolderKey) { stack in
+                            if let idx = stack.firstIndex(where: { $0.jobID == job.id }) {
+                                stack[idx] = CullingExecutionRecord(
+                                    jobID: job.id,
+                                    photoID: photo.id,
+                                    actionType: action,
+                                    originalPrimaryURL: photo.url,
+                                    affectedURLs: remainingPairs.map(\.trashedURL),
+                                    trashedPairs: remainingPairs,
+                                    previousStatus: stack[idx].previousStatus
+                                )
+                            }
+                        }
+                        if let self, self.isCurrentFolder(jobFolderKey),
+                           let pIdx = self.photos.firstIndex(where: { $0.id == photo.id }) {
+                            self.rollback(photoIndex: pIdx, previousStatus: previousStatus, error: error)
+                        }
+                    } else {
+                        self?.mutateUndoStack(for: jobFolderKey) { $0.removeAll(where: { $0.jobID == job.id }) }
+                        if let self, self.isCurrentFolder(jobFolderKey) {
+                            self.handleCullingFailure(
+                                action: action,
+                                photo: photo,
+                                photoIndex: self.photos.firstIndex(where: { $0.id == photo.id }) ?? targetIndex,
+                                previousStatus: previousStatus,
+                                error: error
                             )
                         }
-                        self?.rollback(photoIndex: targetIndex, previousStatus: previousStatus, error: error)
-                    } else {
-                        self?.undoStack.removeAll(where: { $0.jobID == job.id })
-                        self?.handleCullingFailure(
-                            action: action,
-                            photo: photo,
-                            photoIndex: targetIndex,
-                            previousStatus: previousStatus,
-                            error: error
-                        )
                     }
                 }
             } catch {
                 await MainActor.run {
                     self?.inFlightJobIDs.remove(job.id)
-                    self?.undoStack.removeAll(where: { $0.jobID == job.id })
-                    self?.handleCullingFailure(
-                        action: action,
-                        photo: photo,
-                        photoIndex: targetIndex,
-                        previousStatus: previousStatus,
-                        error: error
-                    )
+                    self?.mutateUndoStack(for: jobFolderKey) { $0.removeAll(where: { $0.jobID == job.id }) }
+                    if let self, self.isCurrentFolder(jobFolderKey) {
+                        self.handleCullingFailure(
+                            action: action,
+                            photo: photo,
+                            photoIndex: self.photos.firstIndex(where: { $0.id == photo.id }) ?? targetIndex,
+                            previousStatus: previousStatus,
+                            error: error
+                        )
+                    }
                 }
             }
         }
@@ -934,6 +1020,7 @@ public final class CullingWorkspaceViewModel: ObservableObject {
 
     public func undoLastAction() {
         guard let record = undoStack.popLast() else { return }
+        let undoFolderKey = Self.folderKey(rootDirectoryURL)
 
         // Find photo in list
         if let index = photos.firstIndex(where: { $0.id == record.photoID }) {
@@ -968,7 +1055,7 @@ public final class CullingWorkspaceViewModel: ObservableObject {
                 let remainingRecord = await cullingActor.completedRecord(for: record.jobID)
                 await MainActor.run {
                     if let remainingRecord {
-                        self?.undoStack.append(remainingRecord)
+                        self?.mutateUndoStack(for: undoFolderKey) { $0.append(remainingRecord) }
                     }
                     self?.showToast(
                         icon: "exclamationmark.triangle.fill",

@@ -40,7 +40,10 @@ public struct ContentView: View {
                         topNavigationBar
 
                         // MARK: - 2. Main Preview Canvas
-                        ZStack(alignment: .topTrailing) {
+                        ZStack {
+                            // The action toast and the zoom-exit pill are drawn by the active slot itself,
+                            // inside its image rectangle (REQ-MAC-LAYOUT.05): never over a header, EXIF
+                            // strip, metadata panel, the toolbar or the action dock.
                             Group {
                                 switch viewModel.comparisonMode {
                                 case .single:
@@ -50,6 +53,8 @@ public struct ContentView: View {
                                             isHUDVisible: viewModel.isInfoHUDVisible,
                                             zoomState: viewModel.zoomState,
                                             onToggleZoom: { viewModel.toggleZoom() },
+                                            toast: viewModel.currentToast,
+                                            onExitZoom: { viewModel.resetZoomToFit() },
                                             onPinchEnded: { viewModel.setPinchMagnification($0) },
                                             onUpdateExif: { id, exif in
                                                 viewModel.updatePhotoExif(photoID: id, exif: exif)
@@ -72,6 +77,8 @@ public struct ContentView: View {
                                         zoomState: viewModel.zoomState,
                                         onSelectSlot: { idx in viewModel.setActiveSlot(idx) },
                                         onToggleZoom: { viewModel.toggleZoom() },
+                                        toast: viewModel.currentToast,
+                                        onExitZoom: { viewModel.resetZoomToFit() },
                                         onPinchEnded: { viewModel.setPinchMagnification($0) },
                                         onUpdateExif: { id, exif in
                                             viewModel.updatePhotoExif(photoID: id, exif: exif)
@@ -83,31 +90,6 @@ public struct ContentView: View {
                                 }
                             }
                             .frame(maxWidth: .infinity, maxHeight: .infinity)
-
-                            // Zoom exit pill: a visible way back to Fit whenever any zoom is active.
-                            if viewModel.zoomState.isZoomed {
-                                ZoomExitPill(zoomState: viewModel.zoomState) {
-                                    viewModel.resetZoomToFit()
-                                }
-                                .uiTestFrame("zoom_exit_pill")
-                                .padding(.top, 12)
-                                .frame(maxWidth: .infinity, alignment: .center)
-                                .transition(.opacity)
-                            }
-
-                            // Transient Action Toast Overlay (Center-Bottom of preview)
-                            if let toast = viewModel.currentToast {
-                                VStack {
-                                    Spacer()
-                                    CullingHUDView(toast: toast)
-                                        .padding(.bottom, 20)
-                                        .transition(.asymmetric(
-                                            insertion: .scale(scale: 0.9).combined(with: .opacity),
-                                            removal: .opacity
-                                        ))
-                                }
-                                .frame(maxWidth: .infinity)
-                            }
                         }
                         .frame(maxWidth: .infinity, maxHeight: .infinity)
 
@@ -143,7 +125,9 @@ public struct ContentView: View {
         .onAppear {
             isWorkspaceFocused = true
             keyboardRouter.attach(viewModel: viewModel)
+            #if PST_TEST_HOOKS
             UISelfTestHooks.keyboardRouter = keyboardRouter
+            #endif
         }
         .onDisappear {
             keyboardRouter.detach()
@@ -256,25 +240,48 @@ public struct ContentView: View {
     }
 
     // MARK: - Top Navigation Bar
+
+    /// The toolbar is rendered in up to three densities (`ChromeDensity`). `ViewThatFits`
+    /// measures each row's ideal width and shows the first that fits, so no label ever wraps
+    /// or truncates: at narrow widths items collapse to icon-only (tooltip + accessibility
+    /// label keep the full name and shortcut), per the macOS HIG.
     private var topNavigationBar: some View {
-        HStack(spacing: 12) {
+        ViewThatFits(in: .horizontal) {
+            toolbarRow(.full)
+            toolbarRow(.compact)
+            toolbarRow(.minimal)
+        }
+        .padding(.horizontal, 14)
+        .padding(.vertical, 7)
+        .background(Color(NSColor.windowBackgroundColor).opacity(0.96))
+        .overlay(Divider(), alignment: .bottom)
+    }
+
+    private func toolbarRow(_ density: ChromeDensity) -> some View {
+        HStack(spacing: density == .full ? 12 : 8) {
             // Folder Picker Button
             Button(action: { viewModel.presentFolderPicker() }) {
                 HStack(spacing: 6) {
                     Image(systemName: "folder.badge.plus")
                         .font(.system(size: 13, weight: .semibold))
-                    Text("Open Folder…")
-                        .font(.system(size: 12, weight: .semibold))
+                    if density.showsOpenFolderTitle {
+                        Text("Open Folder…")
+                            .font(.system(size: 12, weight: .semibold))
+                            .lineLimit(1)
+                            .fixedSize()
+                    }
                 }
-                .padding(.horizontal, 10)
+                .padding(.horizontal, density.showsOpenFolderTitle ? 10 : 6)
                 .padding(.vertical, 5)
+                .frame(minWidth: Self.minTarget, minHeight: Self.minTarget)
             }
             .buttonStyle(.bordered)
             .focusable(false)
+            .accessibilityLabel("Open Folder")
             .help("Open photo folder or SD card (⌘O)")
 
             // Current Directory / Volume Name
-            if let rootURL = viewModel.rootDirectoryURL {
+            if let rootURL = viewModel.rootDirectoryURL, density.showsFolderName {
                 HStack(spacing: 5) {
                     Image(systemName: "sdcard.fill")
                         .font(.system(size: 12))
@@ -283,12 +290,13 @@ public struct ContentView: View {
                         .font(.system(size: 12, weight: .bold))
                         .foregroundStyle(Color.white)
                         .lineLimit(1)
-                        .truncationMode(.middle)
+                        .fixedSize()
                 }
                 .padding(.horizontal, 8)
                 .padding(.vertical, 4)
                 .background(Color.white.opacity(0.12))
                 .clipShape(RoundedRectangle(cornerRadius: 5))
+                .help(rootURL.path)
             }
 
             // Active Ingestion Scanning Pill
@@ -296,17 +304,22 @@ public struct ContentView: View {
                 HStack(spacing: 6) {
                     ProgressView()
                         .controlSize(.small)
-                    Text("Scanning… (\(viewModel.photos.count) photos)")
-                        .font(.system(size: 11, weight: .semibold))
-                        .foregroundStyle(Color.accentColor)
+                    if let scanning = density.scanningText(photoCount: viewModel.photos.count) {
+                        Text(scanning)
+                            .font(.system(size: 11, weight: .semibold))
+                            .foregroundStyle(Color.accentColor)
+                            .lineLimit(1)
+                            .fixedSize()
+                    }
                 }
                 .padding(.horizontal, 8)
                 .padding(.vertical, 4)
                 .background(Color.accentColor.opacity(0.15))
                 .clipShape(Capsule())
+                .help("Scanning… (\(viewModel.photos.count) photos)")
             }
 
-            Spacer()
+            Spacer(minLength: 8)
 
             // Integrated Navigation Cluster (Prev / Next & Position)
             HStack(spacing: 6) {
@@ -322,16 +335,21 @@ public struct ContentView: View {
                 .focusable(false)
                 .disabled(viewModel.photos.isEmpty || viewModel.currentIndex == 0)
                 .uiTestFrame("toolbar_previous")
+                .accessibilityLabel("Previous photo")
                 .help("Navigate to previous photo (Left Arrow)")
 
                 if !viewModel.photos.isEmpty {
-                    Text("Photo \(viewModel.currentIndex + 1) of \(viewModel.photos.count)")
+                    Text(density.positionText(index: viewModel.currentIndex + 1, total: viewModel.photos.count))
                         .font(.system(size: 11, weight: .bold, design: .monospaced))
                         .foregroundStyle(Color.white.opacity(0.9))
+                        .lineLimit(1)
+                        .fixedSize()
                         .padding(.horizontal, 8)
                         .padding(.vertical, 4)
                         .background(Color.black.opacity(0.45))
                         .clipShape(Capsule())
+                        .accessibilityLabel("Photo \(viewModel.currentIndex + 1) of \(viewModel.photos.count)")
+                        .uiTestFrame("toolbar_position")
                 }
 
                 Button(action: { viewModel.navigateToNext() }) {
@@ -346,6 +364,7 @@ public struct ContentView: View {
                 .focusable(false)
                 .disabled(viewModel.photos.isEmpty || viewModel.currentIndex >= viewModel.photos.count - 1)
                 .uiTestFrame("toolbar_next")
+                .accessibilityLabel("Next photo")
                 .help("Navigate to next photo (Right Arrow)")
             }
 
@@ -354,9 +373,9 @@ public struct ContentView: View {
 
             // Comparison View Mode Switcher
             HStack(spacing: 2) {
-                modeSegmentButton(mode: .single, label: "1-Up", icon: "rectangle.fill", shortcut: "1")
-                modeSegmentButton(mode: .sideBySide, label: "2-Up", icon: "rectangle.split.2x1.fill", shortcut: "2")
-                modeSegmentButton(mode: .triplet, label: "Focus 3-Up", icon: "rectangle.split.1x2.fill", shortcut: "3")
+                modeSegmentButton(mode: .single, shortcut: 1, icon: "rectangle.fill", density: density)
+                modeSegmentButton(mode: .sideBySide, shortcut: 2, icon: "rectangle.split.2x1.fill", density: density)
+                modeSegmentButton(mode: .triplet, shortcut: 3, icon: "rectangle.split.1x2.fill", density: density)
             }
             .padding(2)
             .background(Color.black.opacity(0.3))
@@ -391,6 +410,8 @@ public struct ContentView: View {
                             .font(.system(size: 11, weight: .medium))
                         Text(viewModel.zoomState.isZoomed ? "Fit" : "1:1")
                             .font(.system(size: 11, weight: .bold, design: .monospaced))
+                            .lineLimit(1)
+                            .fixedSize()
                     }
                     .padding(.horizontal, 6)
                     .padding(.vertical, 4)
@@ -399,6 +420,7 @@ public struct ContentView: View {
                 .buttonStyle(.bordered)
                 .focusable(false)
                 .uiTestFrame("toolbar_zoom")
+                .accessibilityLabel(viewModel.zoomState.isZoomed ? "Return to Fit" : "Zoom to 1:1")
                 .help(viewModel.zoomState.isZoomed ? "Return to Fit (Space or Esc)" : "Zoom to 1:1 (100% pixel-to-pixel, Space)")
 
                 Button(action: {
@@ -414,6 +436,7 @@ public struct ContentView: View {
                 }
                 .buttonStyle(.bordered)
                 .focusable(false)
+                .accessibilityLabel("Toggle Filmstrip")
                 .help("Toggle Filmstrip (F)")
 
                 Button(action: {
@@ -429,6 +452,7 @@ public struct ContentView: View {
                 }
                 .buttonStyle(.bordered)
                 .focusable(false)
+                .accessibilityLabel("Toggle EXIF and Scores")
                 .help("Toggle EXIF & Scores HUD (I)")
 
                 Button(action: { viewModel.presentShortcutsHelp() }) {
@@ -441,37 +465,44 @@ public struct ContentView: View {
                 .buttonStyle(.borderedProminent)
                 .tint(Color.accentColor.opacity(0.85))
                 .focusable(false)
+                .accessibilityLabel("Keyboard Shortcuts")
                 .help("Keyboard Shortcuts & Culling Guide (?)")
             }
         }
-        .padding(.horizontal, 14)
-        .padding(.vertical, 7)
-        .background(Color(NSColor.windowBackgroundColor).opacity(0.96))
-        .overlay(Divider(), alignment: .bottom)
     }
 
-    private func modeSegmentButton(mode: ComparisonMode, label: String, icon: String, shortcut: String) -> some View {
-        Button(action: { viewModel.setComparisonMode(mode) }) {
+    private func modeSegmentButton(mode: ComparisonMode, shortcut: Int, icon: String, density: ChromeDensity) -> some View {
+        let isSelected = viewModel.comparisonMode == mode
+        return Button(action: { viewModel.setComparisonMode(mode) }) {
             HStack(spacing: 5) {
                 Image(systemName: icon)
                     .font(.system(size: 11))
-                Text(label)
-                    .font(.system(size: 11, weight: viewModel.comparisonMode == mode ? .bold : .medium))
-                Text("(\(shortcut))")
-                    .font(.system(size: 9, design: .monospaced))
-                    .opacity(0.7)
+                if let label = density.modeLabel(shortcut: shortcut) {
+                    Text(label)
+                        .font(.system(size: 11, weight: isSelected ? .bold : .medium))
+                        .lineLimit(1)
+                        .fixedSize()
+                }
+                if density.showsModeShortcut {
+                    Text("(\(shortcut))")
+                        .font(.system(size: 9, design: .monospaced))
+                        .opacity(0.7)
+                        .lineLimit(1)
+                        .fixedSize()
+                }
             }
-            .padding(.horizontal, 8)
+            .padding(.horizontal, density == .minimal ? 6 : 8)
             .padding(.vertical, 4)
-            .frame(minHeight: Self.minTarget)
-            .background(viewModel.comparisonMode == mode ? Color.accentColor : Color.clear)
-            .foregroundStyle(viewModel.comparisonMode == mode ? Color.white : Color.primary)
+            .frame(minWidth: Self.minTarget, minHeight: Self.minTarget)
+            .background(isSelected ? Color.accentColor : Color.clear)
+            .foregroundStyle(isSelected ? Color.white : Color.primary)
             .clipShape(RoundedRectangle(cornerRadius: 5))
         }
         .buttonStyle(.plain)
         .focusable(false)
         .uiTestFrame("toolbar_mode_\(shortcut)")
-        .help("\(label) View Mode (Shortcut: \(shortcut))")
+        .accessibilityLabel(ChromeDensity.modeAccessibilityName(shortcut: shortcut))
+        .help(ChromeDensity.modeAccessibilityName(shortcut: shortcut))
     }
 
     private func handleDrop(providers: [NSItemProvider]) -> Bool {
