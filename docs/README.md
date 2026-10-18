@@ -76,6 +76,7 @@ docs/
 
   build/               How the products are built, signed and shipped
     CI_PARITY.md                 What runs where and why; local mirror vs GitHub Actions
+    BRANCH_PROTECTION.md         Recommended protection for main, as gh api commands (not applied)
     RELEASING.md                 Per-product versions, changelogs, tags and the release procedure
     ANDROID_SIGNING_PLAN.md      Rationale for per-app cloud/signing isolation  [private]
     ANDROID_SIGNING_SETUP.md     Step-by-step setup instructions  [private]
