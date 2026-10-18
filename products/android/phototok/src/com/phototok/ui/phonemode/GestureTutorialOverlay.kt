@@ -111,7 +111,7 @@ fun GestureTutorialOverlay(
     leftSwipeFolderName: String = "",
     collectionFolderName: String = "",
     title: String = "How to Photo-Tok",
-    subtitle: String = "Master the curation flow with these simple gestures",
+    subtitle: String? = null,
     dismissLabel: String = "GOT IT",
 ) {
     AnimatedVisibility(
@@ -164,13 +164,15 @@ fun GestureTutorialOverlay(
                     color = Color.White,
                     fontWeight = FontWeight.Bold,
                 )
-                Text(
-                    text = subtitle,
-                    style = MaterialTheme.typography.bodySmall,
-                    color = colors.onSurfaceVariant,
-                    maxLines = if (compact) 1 else 2,
-                    overflow = TextOverflow.Ellipsis,
-                )
+                if (subtitle != null) {
+                    Text(
+                        text = subtitle,
+                        style = MaterialTheme.typography.bodySmall,
+                        color = colors.onSurfaceVariant,
+                        maxLines = if (compact) 1 else 2,
+                        overflow = TextOverflow.Ellipsis,
+                    )
+                }
 
                 // ── Gesture stage: the three swipes over the photo area ───
                 Box(

@@ -284,7 +284,7 @@ class PhoneModeViewModelTest {
         val hint = viewModel.uiState.value.firstRunHint
         assertNotNull(hint)
         assertEquals(FirstRunHint.SWIPE_RIGHT, hint!!.hint)
-        assertTrue(hint.message.contains("copied"))
+        assertTrue(hint.title, hint.title.startsWith("Swipe right copies"))
         coVerify { settingsRepository.markFirstRunHintSeen(FirstRunHint.SWIPE_RIGHT) }
     }
 
@@ -708,8 +708,8 @@ class PhoneModeViewModelTest {
         val hint = viewModel.uiState.value.firstRunHint
         assertNotNull(hint)
         assertEquals(FirstRunHint.FILTER_MISMATCH, hint!!.hint)
-        assertEquals("Filter Active", hint.title)
-        assertTrue(hint.message.contains("RAW photos only"))
+        assertEquals("RAW only", hint.title)
+        assertEquals("Most photos here are JPEG.", hint.message)
         assertEquals("SHOW ALL", hint.actionLabel)
         coVerify { settingsRepository.markFirstRunHintSeen(FirstRunHint.FILTER_MISMATCH) }
     }
@@ -846,7 +846,7 @@ class PhoneModeViewModelTest {
     }
 
     @Test
-    fun `reloadSourceFolder with no new photos shows resume prompt with zero newCount`() = runTest {
+    fun `reloadSourceFolder with no new photos shows no prompt and confirms in a snackbar`() = runTest {
         val img1 = image("photo1.jpg", 10)
         val img2 = image("photo2.jpg", 20)
         val viewModel = loadFolder(img1, img2)
@@ -857,19 +857,11 @@ class PhoneModeViewModelTest {
         viewModel.reloadSourceFolder()
         advanceUntilIdle()
 
-        val prompt = viewModel.uiState.value.reloadPrompt
-        assertNotNull(prompt)
-        assertEquals(0, prompt?.newCount)
-        assertEquals(1, prompt?.resumeIndex)
-        assertEquals(2, prompt?.totalCount)
-        // img1 (older) stays on screen; newest-first puts it at index 1
-        assertEquals(1, viewModel.uiState.value.currentIndex)
-
-        // User chooses to start with newest image
-        viewModel.confirmReloadJumpToLatest()
-        advanceUntilIdle()
-        assertEquals(0, viewModel.uiState.value.currentIndex)
+        // Nothing new means nothing to decide: no dialog, the viewed photo stays.
         assertNull(viewModel.uiState.value.reloadPrompt)
+        assertEquals(1, viewModel.uiState.value.currentIndex)
+        assertEquals(img1.uri, viewModel.uiState.value.images[1].uri)
+        assertEquals("No new photos", viewModel.uiState.value.lastActionFeedback?.message)
     }
 
     @Test
@@ -921,7 +913,7 @@ class PhoneModeViewModelTest {
     }
 
     @Test
-    fun `selectSourceFolder on previously opened folder with no new photos prompts and continues where left off`() = runTest {
+    fun `selectSourceFolder on previously opened folder with no new photos resumes silently`() = runTest {
         val img1 = image("photo1.jpg", 10)
         val img2 = image("photo2.jpg", 20)
         val img3 = image("photo3.jpg", 30)
@@ -938,19 +930,17 @@ class PhoneModeViewModelTest {
         viewModel.selectSourceFolder(Uri.parse("content://tree/photos"))
         advanceUntilIdle()
 
-        val prompt = viewModel.uiState.value.reloadPrompt
-        assertNotNull(prompt)
-        assertEquals(0, prompt?.newCount)
-        assertEquals(1, prompt?.resumeIndex)
-        assertEquals(3, prompt?.totalCount)
+        // No dialog and no snackbar: the user is simply back at img2 (index 1).
+        assertNull(viewModel.uiState.value.reloadPrompt)
+        assertNull(viewModel.uiState.value.lastActionFeedback)
         assertEquals(1, viewModel.uiState.value.currentIndex)
         assertEquals(img2.uri, viewModel.uiState.value.images[1].uri)
-
-        // Dismissing / continuing keeps the user at img2 (index 1)
-        viewModel.dismissReloadPrompt()
-        advanceUntilIdle()
-        assertEquals(1, viewModel.uiState.value.currentIndex)
-        assertNull(viewModel.uiState.value.reloadPrompt)
+        coVerify {
+            settingsRepository.setFolderScanInfo(
+                "content://tree/photos",
+                match { it.lastViewedUri == img2.uri && it.lastViewedIndex == 1 },
+            )
+        }
     }
 
     @Test
@@ -1062,7 +1052,7 @@ class PhoneModeViewModelTest {
         val state = viewModel.uiState.value
         assertTrue(state.images.isEmpty())
         assertNotNull(state.emptyFolderMessage)
-        assertTrue(state.emptyFolderMessage!!.contains("No supported photos found"))
+        assertTrue(state.emptyFolderMessage!!.contains("has no supported photos"))
 
         // Selecting a folder with photos clears the emptyFolderMessage
         every { imageRepository.discoverImages(any()) } returns flowOf(listOf(image("photo.jpg", 1)))

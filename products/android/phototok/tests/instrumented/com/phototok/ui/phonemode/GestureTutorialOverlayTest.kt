@@ -63,12 +63,6 @@ class GestureTutorialOverlayTest {
 
         composeTestRule.onNode(inGuide("How to Photo-Tok"), useUnmergedTree = true)
             .assertIsDisplayed()
-        composeTestRule
-            .onNode(
-                inGuide("Master the curation flow with these simple gestures"),
-                useUnmergedTree = true,
-            )
-            .assertIsDisplayed()
 
         composeTestRule.onNode(inGuide("GOT IT"), useUnmergedTree = true).assertIsDisplayed()
         composeTestRule.onNode(inGuide("GOT IT"), useUnmergedTree = true).performClick()
