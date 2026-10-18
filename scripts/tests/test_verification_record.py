@@ -214,6 +214,86 @@ class EvaluateTest(unittest.TestCase):
         self.assertIn("Sandbox only", self.titles(vr.evaluate(self.body(vm), "t" * 40, ["README.md"], False)))
 
 
+GH_STUB = """#!{python}
+import json, os, sys
+args = sys.argv[1:]
+with open(os.environ["GH_STUB_LOG"], "a", encoding="utf-8") as log:
+    log.write(json.dumps(args) + "\\n")
+if args[:2] == ["pr", "view"]:
+    print(json.dumps({{"number": 7, "body": "Plain description", "headRefOid": "h" * 40,
+                      "url": "https://github.com/octo/repo/pull/7"}}))
+elif args[:2] == ["pr", "edit"]:
+    if os.environ.get("GH_STUB_EDIT_FAILS"):
+        sys.exit("GraphQL: Projects (classic) is being deprecated in favor of the new Projects "
+                 "experience. (repository.pullRequest.projectCards)")
+elif args[:1] == ["api"]:
+    if os.environ.get("GH_STUB_API_FAILS"):
+        sys.exit("HTTP 403: Resource not accessible by integration")
+    body = next(a for a in args if a.startswith("body=@"))[len("body=@"):]
+    with open(os.environ["GH_STUB_LOG"] + ".body", "w", encoding="utf-8") as out:
+        out.write(open(body, encoding="utf-8").read())
+"""
+
+
+class PrSubcommandTest(unittest.TestCase):
+    """`pr` against a stubbed gh: gh pr edit first, the REST PATCH when it fails."""
+
+    def setUp(self):
+        self.tmp = tempfile.TemporaryDirectory()
+        tmp = Path(self.tmp.name)
+        (tmp / "bin").mkdir()
+        gh = tmp / "bin" / "gh"
+        gh.write_text(GH_STUB.format(python=sys.executable))
+        gh.chmod(0o755)
+        self.log = tmp / "gh.log"
+        self.env = {"PATH": f"{tmp / 'bin'}{os.pathsep}{os.environ.get('PATH', '')}",
+                    "GH_STUB_LOG": str(self.log)}
+        self.root = tmp / "repo"
+        self.root.mkdir()
+        records = [record([gate("PASS", "pytest (products/linux-desktop)", "linux")])]
+        for target, value in (("records_for_here", mock.Mock(return_value=("thinkpad", records, True))),
+                              ("git", mock.Mock(return_value=None))):
+            patcher = mock.patch.object(vr, target, value)
+            patcher.start()
+            self.addCleanup(patcher.stop)
+
+    def tearDown(self):
+        self.tmp.cleanup()
+
+    def pr(self, **flags):
+        env = dict(self.env, **{k: "1" for k in flags})
+        out = io.StringIO()
+        with mock.patch.dict(os.environ, env), redirect_stdout(out):
+            try:
+                code = vr.main(["--root", str(self.root), "pr"])
+            except SystemExit as exc:
+                code = exc.code
+        calls = [json.loads(line) for line in self.log.read_text().splitlines()]
+        return code, out.getvalue(), calls
+
+    def test_pr_edit_success_needs_no_fallback(self):
+        code, out, calls = self.pr()
+        self.assertEqual(code, 0)
+        self.assertEqual([c[:2] for c in calls], [["pr", "view"], ["pr", "edit"]])
+        self.assertIn("https://github.com/octo/repo/pull/7", out)
+
+    def test_pr_edit_failure_falls_back_to_rest_patch(self):
+        code, out, calls = self.pr(GH_STUB_EDIT_FAILS=True)
+        self.assertEqual(code, 0)
+        self.assertEqual(calls[-1][:5], ["api", "--silent", "-X", "PATCH", "repos/octo/repo/pulls/7"])
+        self.assertIn("projectCards", out)  # gh's reason is shown, not swallowed
+        body = Path(f"{self.log}.body").read_text()
+        self.assertTrue(body.startswith("Plain description"))
+        self.assertIn(vr.BEGIN, body)
+
+    def test_both_failing_exits_with_both_reasons(self):
+        code, _, calls = self.pr(GH_STUB_EDIT_FAILS=True, GH_STUB_API_FAILS=True)
+        self.assertIsInstance(code, str)  # sys.exit(message): exit status 1
+        self.assertIn("projectCards", code)
+        self.assertIn("HTTP 403", code)
+        self.assertEqual(calls[-1][0], "api")
+
+
 class EndToEndTest(unittest.TestCase):
     """write → render → commit → check: the tested tree equals the commit's tree."""
 

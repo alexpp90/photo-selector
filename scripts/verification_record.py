@@ -105,6 +105,45 @@ def run(cmd: List[str], cwd: Optional[Path] = None, env: Optional[Dict[str, str]
     return (proc.stdout.strip() or proc.stderr.strip())
 
 
+def run_reporting(cmd: List[str], cwd: Optional[Path] = None,
+                  timeout: int = 60) -> Tuple[bool, str]:
+    """Run a command; return (True, stdout) or (False, the reason it failed).
+
+    For the calls whose failure is reported to the user (gh), where run()'s bare None would
+    hide what went wrong.
+    """
+    try:
+        proc = subprocess.run(cmd, cwd=cwd, capture_output=True, text=True, timeout=timeout)
+    except (OSError, subprocess.SubprocessError) as exc:
+        return False, str(exc)
+    if proc.returncode != 0:
+        return False, (proc.stderr.strip() or proc.stdout.strip()
+                       or f"exit status {proc.returncode}")
+    return True, proc.stdout.strip()
+
+
+def update_pr_body(root: Path, pr: Dict[str, Any], body_file: str) -> Optional[str]:
+    """Write body_file into the PR description; return None on success, else why it failed.
+
+    `gh pr edit` fails on older gh releases (2.46 in Debian 13) with "GraphQL: Projects
+    (classic) is being deprecated" because it queries projectCards; the REST endpoint does not.
+    """
+    ok, edit_err = run_reporting(["gh", "pr", "edit", str(pr["number"]), "--body-file", body_file],
+                                 cwd=root)
+    if ok:
+        return None
+    m = re.match(r"https://[^/]+/([^/]+/[^/]+)/pull/\d+", pr.get("url") or "")
+    repo = m.group(1) if m else "{owner}/{repo}"
+    ok, api_err = run_reporting(["gh", "api", "--silent", "-X", "PATCH",
+                                 f"repos/{repo}/pulls/{pr['number']}", "-F", f"body=@{body_file}"],
+                                cwd=root)
+    if ok:
+        print("Note: gh pr edit failed, so the description was updated through the REST API.\n"
+              f"  gh pr edit: {first_line(edit_err)}")
+        return None
+    return f"gh pr edit: {edit_err}\ngh api PATCH fallback: {api_err}"
+
+
 def git(root: Path, *args: str, env: Optional[Dict[str, str]] = None,
         timeout: int = 60) -> Optional[str]:
     return run(["git", *args], cwd=root, env=env, timeout=timeout)
@@ -765,9 +804,10 @@ def cmd_pr(args: argparse.Namespace) -> int:
     slug, records, current = records_for_here(root, args.allow_stale)
     view = ["gh", "pr", "view"] + ([str(args.number)] if args.number else []) + \
         ["--json", "number,body,url,headRefOid"]
-    raw = run(view, cwd=root, timeout=60)
-    if not raw:
-        sys.exit("No PR found for this branch (gh pr view failed). Open the PR first, or pass --number.")
+    ok, raw = run_reporting(view, cwd=root)
+    if not ok or not raw:
+        sys.exit(f"No PR found for this branch (gh pr view failed: {raw or 'no output'}). "
+                 "Open the PR first, or pass --number.")
     pr = json.loads(raw)
     body = upsert_block(pr.get("body") or "", slug, render_block(records), root)
     if args.dry_run:
@@ -777,9 +817,9 @@ def cmd_pr(args: argparse.Namespace) -> int:
         fh.write(body)
         body_file = fh.name
     try:
-        if run(["gh", "pr", "edit", str(pr["number"]), "--body-file", body_file], cwd=root,
-               timeout=60) is None:
-            sys.exit("gh pr edit failed.")
+        error = update_pr_body(root, pr, body_file)
+        if error:
+            sys.exit(f"Could not update the PR description.\n{error}")
     finally:
         os.unlink(body_file)
     tested = records[-1].get("git", {}).get("tree")
