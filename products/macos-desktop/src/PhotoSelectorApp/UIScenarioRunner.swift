@@ -310,6 +310,11 @@ final class UIScenarioRunner {
     }
 
     private static func role(for id: String) -> String {
+        // The position counter ("Photo 3 of 120") is a static label in the toolbar, not a
+        // control: exported as text so the lab's touch-target rule does not apply to it.
+        if id == "toolbar_position" {
+            return "text"
+        }
         if id.hasPrefix("toolbar_")
             || id == "dock_move"
             || id == "dock_copy"
@@ -352,6 +357,7 @@ final class UIScenarioRunner {
         case "toolbar_mode_2": return "2-Up"
         case "toolbar_mode_3": return "3-Up"
         case "toolbar_pan_link": return "Toggle Linked Panning"
+        case "toolbar_position": return "Photo position"
         case "zoom_exit_button": return "Fit"
         default: return id
         }
