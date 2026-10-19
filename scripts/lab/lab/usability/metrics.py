@@ -10,6 +10,8 @@ import re
 import xml.etree.ElementTree as ET
 from typing import Any
 
+from .textload import analyse
+
 # On-screen reading of UI copy, not prose: ~210 words per minute.
 WORDS_PER_SECOND = 3.5
 MIN_TARGET_DP = 48.0
@@ -37,8 +39,8 @@ def count_words(text: str) -> int:
     return len(_WORD.findall(text))
 
 
-def screen_metrics(xml_text: str, density_dpi: int = 420) -> dict[str, Any]:
-    """Visible text, words, reading time and touch-target facts of one uiautomator dump."""
+def screen_metrics(xml_text: str, density_dpi: int = 420, locale: str = "en") -> dict[str, Any]:
+    """Visible text, words, reading time, touch-target facts and per-control text load of one dump."""
     start = xml_text.find("<")
     root = ET.fromstring(xml_text[start:] if start > 0 else xml_text)
     px_per_dp = density_dpi / 160.0 if density_dpi > 0 else 1.0
@@ -75,4 +77,5 @@ def screen_metrics(xml_text: str, density_dpi: int = 420) -> dict[str, Any]:
         "small_targets": small,
         "unlabeled_controls": unlabeled,
         "text_heavy": words > TEXT_HEAVY_WORDS or longest > LONG_BLOCK_WORDS,
+        "text_load": analyse(xml_text, density_dpi=density_dpi, locale=locale),
     }

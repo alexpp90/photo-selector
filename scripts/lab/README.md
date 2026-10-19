@@ -150,8 +150,12 @@ runs before a release, not in CI. PhotoTok only for now.
 ```bash
 # 1. Walk the scenarios on a phone (USB, portrait); writes a new private/lab-runs/<id>-usability/
 /usr/bin/python3 scripts/lab/lab.py usability-capture --serial <adb-serial>
+#    Repeat per phone setup the personas use (EN/DE × font scale 1.0/2.0); both are restored after:
+/usr/bin/python3 scripts/lab/lab.py usability-capture --serial <adb-serial> --locale de-DE --font-scale 2.0
+# Measured text load only (words per screen and per control, no personas); exit 1 when over budget:
+python3 scripts/lab/lab.py usability-textload private/lab-runs/<run-id> --variant private/lab-runs/<de-run-id>
 # 2. Build the persona and moderator packets
-python3 scripts/lab/lab.py usability-panel private/lab-runs/<run-id>
+python3 scripts/lab/lab.py usability-panel private/lab-runs/<run-id> --variant private/lab-runs/<other-run-id>
 # 3. Run personas + moderator (claude -p), validate, render the report
 private/lab/usability/run_panel.sh private/lab-runs/<run-id>
 # or step by step: usability-check <run> (validates panel/answers/*.json), usability-report <run>
@@ -166,6 +170,15 @@ private/lab/usability/run_panel.sh private/lab-runs/<run-id>
 - **What a persona sees:** the screenshots, the task and what the user just did — never the
   code, the requirements, extracted text or the expected action. Personas and prompts live in
   `private/lab/usability/`.
+- **Text load (criterion `text-load`):** per screen the visible words, and per control (button,
+  bar item, settings row) its visible words and whether it shows text next to an icon, against
+  the budgets in `docs/shared/UI_TEXT.md` (`lab/usability/textload.py`). Spoken labels
+  (`content-desc`) are not counted. A five-word screen with a label under every icon is
+  flagged; the per-screen word count alone never saw it.
+- **Variants:** each persona file names its phone (`<!-- setup: de-DE@2.0 -->`) and reviews the
+  capture made with that per-app language and font scale. The moderator sees all of them.
+- **Binding requirements:** the moderator, not the personas, gets the maintainer's own
+  requirements for the product as a checklist (`panel/requirements.json`) and rules on each one.
 - **Output:** `usability-report.html` (self-contained) and `usability-report.md` in the run.
 - The capture refuses a device on which instrumented tests run or another app is in front,
   and stops when another app takes over mid-walk.

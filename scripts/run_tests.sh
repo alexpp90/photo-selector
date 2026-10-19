@@ -219,6 +219,20 @@ gate() {
     fi
 }
 
+# Like gate, but exit code 3 means "findings in report-only mode": shown as an advisory "!"
+# line, not a failure (scripts/check_ui_text_budget.py --warn-exit-code 3).
+advisory_gate() {
+    local name="$1"; shift
+    local ci_ref="$1"; shift
+    local rc=0
+    "$@" || rc=$?
+    case "$rc" in
+        0) pass "$name" "$ci_ref" ;;
+        3) warn "$name (report-only findings)" "$ci_ref" ;;
+        *) fail "$name" "$ci_ref" ;;
+    esac
+}
+
 # Prefer poetry when a lockfile-managed venv exists, else fall back to bare tools.
 PY_RUNNER=()
 VENV_BIN=""
@@ -640,6 +654,10 @@ if have python3; then
         python3 scripts/release.py check
     gate "format contract manifest" "repo-hygiene.yml:hygiene" \
         python3 scripts/fetch_format_corpus.py --validate
+    # docs/shared/UI_TEXT.md: fails for products in `fail` mode (scripts/ui_text_budget.json),
+    # reports for the rest.
+    advisory_gate "UI text budget" "repo-hygiene.yml:hygiene" \
+        python3 scripts/check_ui_text_budget.py --warn-exit-code 3
     gate "format corpus tooling tests" "repo-hygiene.yml:hygiene" \
         python3 -m unittest discover -s scripts/tests -q
     gate "lab tooling tests" "local-only" \
@@ -649,6 +667,7 @@ else
     skip "no private-overlay material tracked" "" "python3 not found"
     skip "release metadata consistent" "" "python3 not found"
     skip "format contract manifest" "" "python3 not found"
+    skip "UI text budget" "" "python3 not found"
     skip "format corpus tooling tests" "" "python3 not found"
     skip "lab tooling tests" "" "python3 not found"
 fi
@@ -670,6 +689,10 @@ if [ -d "$ROOT_DIR/private/.git" ] || [ -f "$ROOT_DIR/private/.git" ]; then
             python3 ai/skills/sync-framework/scripts/gen_gemini_settings.py --check
         gate "requirements traceability" "framework.yml:framework" \
             python3 private/scripts/verify_requirements_traceability.py --check --strict
+        # Every requirement names its enforcement; a [USER …] requirement without one fails,
+        # any other unenforced requirement is reported (check_requirement_enforcement.py).
+        advisory_gate "requirement enforcement named" "framework.yml:framework" \
+            python3 private/scripts/check_requirement_enforcement.py --warn-exit-code 3
         if python3 -c "import pytest" &>/dev/null; then
             gate "framework & hook tests" "framework.yml:framework" \
                 python3 -m pytest -q -p no:cacheprovider private/tests/framework

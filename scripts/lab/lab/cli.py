@@ -119,8 +119,14 @@ def build_parser() -> argparse.ArgumentParser:
     p_ucap.add_argument("--serial", required=True, help="ADB serial of the test device")
     p_ucap.add_argument("--out", default=None, help="Run directory (default: a new private/lab-runs/<id>-usability)")
     p_ucap.add_argument("--scenario", action="append", default=None, help="Only this scenario ID (repeatable)")
+    p_ucap.add_argument("--locale", default=None, help="App language for this walk, e.g. de-DE (per-app locale, restored after)")
+    p_ucap.add_argument("--font-scale", type=float, default=None, help="System font scale for this walk, e.g. 2.0 (restored after)")
     p_upan = sub.add_parser("usability-panel", help="Build the persona and moderator packets for a captured run")
     p_upan.add_argument("run_dir")
+    p_upan.add_argument("--variant", action="append", default=[], help="Another capture of the same walk (other locale / font scale); repeatable")
+    p_utl = sub.add_parser("usability-textload", help="Text load per screen and control, from captured runs only (no personas)")
+    p_utl.add_argument("run_dir")
+    p_utl.add_argument("--variant", action="append", default=[], help="Another capture of the same walk; repeatable")
     p_uchk = sub.add_parser("usability-check", help="Validate persona answers (and extract JSON from raw replies)")
     p_uchk.add_argument("run_dir")
     p_urep = sub.add_parser("usability-report", help="Render the decision report from persona answers and the moderator brief")
@@ -351,11 +357,13 @@ def _usability(args: argparse.Namespace) -> int:
             out = Path(args.out)
         else:
             sha = subprocess.run(["git", "-C", str(repo_root()), "rev-parse", "HEAD"], capture_output=True, text=True).stdout
-            out = new_run_dir(f"{sha.strip()[:12]}-usability")
+            from .usability.capture import variant_label
+
+            out = new_run_dir(f"{sha.strip()[:12]}-usability-{variant_label(args.locale, args.font_scale).replace('@', '-fs')}")
         from .usability.driver import DeviceBusy
 
         try:
-            w = run_capture(args.product, args.serial, out, only=args.scenario)
+            w = run_capture(args.product, args.serial, out, only=args.scenario, locale=args.locale, font_scale=args.font_scale)
         except DeviceBusy as exc:
             print(f"device {args.serial} is busy: {exc}", file=sys.stderr)
             if out.is_dir() and not any(out.iterdir()):
@@ -370,8 +378,14 @@ def _usability(args: argparse.Namespace) -> int:
     if args.subcommand == "usability-panel":
         from .usability.panel import build_panel
 
-        print(build_panel(run_dir))
+        print(build_panel(run_dir, variants=[Path(v) for v in args.variant]))
         return 0
+    if args.subcommand == "usability-textload":
+        from .usability.panel import load_variants, text_load_table
+
+        table, over = text_load_table(load_variants(run_dir, [Path(v) for v in args.variant]))
+        print(table)
+        return 1 if over else 0
     if args.subcommand == "usability-check":
         from .usability.panel import expected_screen_keys, extract_json, validate_persona
 
@@ -386,8 +400,12 @@ def _usability(args: argparse.Namespace) -> int:
             decisions = extract_json(dec_raw.read_text(encoding="utf-8"))
             (run_dir / "panel" / "decisions.json").write_text(json.dumps(decisions, indent=2), encoding="utf-8")
         failed = 0
+        assignments_path = run_dir / "panel" / "assignments.json"
+        assignments = json.loads(assignments_path.read_text(encoding="utf-8")) if assignments_path.is_file() else {}
         for path in sorted(answers.glob("*.json")):
-            problems = validate_persona(json.loads(path.read_text(encoding="utf-8")), expected_screen_keys(walkthrough))
+            variant_file = run_dir / "panel" / "variants" / f"{assignments.get(path.stem, '')}.json"
+            seen = json.loads(variant_file.read_text(encoding="utf-8")) if variant_file.is_file() else walkthrough
+            problems = validate_persona(json.loads(path.read_text(encoding="utf-8")), expected_screen_keys(seen))
             print(f"{path.stem}: {'ok' if not problems else '; '.join(problems)}")
             failed += bool(problems)
         return 1 if failed else 0
