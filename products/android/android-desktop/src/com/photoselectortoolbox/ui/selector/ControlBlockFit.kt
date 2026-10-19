@@ -2,6 +2,8 @@ package com.photoselectortoolbox.ui.selector
 
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
+import kotlin.math.ceil
+import kotlin.math.roundToInt
 
 /**
  * Which of the control block's three heights a row can afford (AD-1).
@@ -33,6 +35,18 @@ import androidx.compose.ui.unit.dp
  * natural height of each variant at font scales 1.0 and 1.3: it must be at least
  * the measured height and within 8 dp of it, so a change to the block that is not
  * priced here fails a test instead of clipping on a device.
+ *
+ * ## The choice is made in pixels
+ *
+ * The dp sums above are what the block costs on a 2× screen only. Layout rounds
+ * every child to whole pixels on its own — each 6 dp gap is 16.5 px at 2.75× and
+ * is drawn as 17, each 2 dp padding 5.5 px drawn as 6 — and the text line is
+ * rounded up. The full block therefore measured exactly 3 px over its dp price on
+ * the Pixel 4a (2.75×), the Galaxy Tab S11 Ultra (1.75×) and a 1.25× Chromebook
+ * (device matrix, 2026-10-19), which is 2.4 dp at 1.25×: more than any fixed dp
+ * allowance small enough not to waste the row. [fullHeightPx] and
+ * [compactHeightPx] round each child the way layout does, so the price is the
+ * drawn height at every density rather than an estimate of it.
  */
 object ControlBlockFit {
 
@@ -69,22 +83,29 @@ object ControlBlockFit {
     private val TopPadding: Dp = 2.dp
 
     /**
-     * Layout rounds every child to whole pixels, so the drawn block can exceed the
-     * dp price: at 2.625× each 4 dp gap is 10.5 px drawn as 11, and the compact
-     * block measured 196.57 dp against its 196 dp price (CI's phone emulator). A
-     * variant is chosen only when it fits with this allowance to spare.
+     * Slack a variant must leave, in pixels, on top of its pixel price. The price
+     * already rounds every child as layout does; this pixel is for the text line,
+     * whose drawn height is the font's, so a variant is never chosen at exactly
+     * zero slack.
      */
-    val PixelRoundingAllowance: Dp = 1.dp
+    const val PixelSlack: Int = 1
 
     /** Counter line height at [fontScale]. Linear scaling over-prices large scales, which is the safe side. */
     fun counterHeight(fontScale: Float): Dp = (CounterLineHeightSp * fontScale).dp
 
-    /** Natural height of the FULL variant: 3 button rows + toggle row + counter, 4 gaps. */
+    /** Nominal height of the FULL variant: 3 button rows + toggle row + counter, 4 gaps. */
     fun fullHeight(fontScale: Float): Dp =
         FullButtonHeight * 3 +
             (TopPadding + FullToggleSize) +
             (TopPadding + counterHeight(fontScale)) +
             FullGap * 4
+
+    /** Drawn height of the FULL variant at [density], each child rounded as layout rounds it. */
+    fun fullHeightPx(fontScale: Float, density: Float): Int =
+        FullButtonHeight.px(density) * 3 +
+            (TopPadding.px(density) + FullToggleSize.px(density)) +
+            (TopPadding.px(density) + counterHeight(fontScale).textPx(density)) +
+            FullGap.px(density) * 4
 
     /**
      * Width the compact toggle row needs to hold four 32 dp toggles and the
@@ -108,10 +129,32 @@ object ControlBlockFit {
         return if (counterInline(innerWidth)) base else base + CompactGap + counterHeight(fontScale)
     }
 
-    /** The first variant whose natural height fits [available]. */
-    fun mode(available: Dp, fontScale: Float, innerWidth: Dp = Dp.Infinity): Mode = when {
-        fullHeight(fontScale) + PixelRoundingAllowance <= available -> Mode.FULL
-        compactHeight(fontScale, innerWidth) + PixelRoundingAllowance <= available -> Mode.COMPACT
-        else -> Mode.SCROLLING
+    /** Drawn height of the COMPACT variant at [density]; see [compactHeight]. */
+    fun compactHeightPx(fontScale: Float, density: Float, innerWidth: Dp = Dp.Infinity): Int {
+        val counter = counterHeight(fontScale).textPx(density)
+        val base = CompactButtonHeight.px(density) * 3 +
+            CompactGap.px(density) * 3 +
+            maxOf(CompactToggleRowHeight.px(density), counter)
+        return if (counterInline(innerWidth)) base else base + CompactGap.px(density) + counter
     }
+
+    /** The first variant whose drawn height at [density] fits [available]. */
+    fun mode(available: Dp, fontScale: Float, density: Float, innerWidth: Dp = Dp.Infinity): Mode {
+        if (available == Dp.Infinity) return Mode.FULL
+        val availablePx = (available.value * density).roundToInt()
+        return when {
+            fullHeightPx(fontScale, density) + PixelSlack <= availablePx -> Mode.FULL
+            compactHeightPx(fontScale, density, innerWidth) + PixelSlack <= availablePx -> Mode.COMPACT
+            else -> Mode.SCROLLING
+        }
+    }
+
+    /** A fixed size as layout draws it: `Dp.roundToPx`, i.e. rounded to the nearest pixel. */
+    private fun Dp.px(density: Float): Int = (value * density).roundToInt()
+
+    /** A text line as layout draws it: rounded up to the next whole pixel. */
+    private fun Dp.textPx(density: Float): Int = ceil(value * density - TextEpsilon).toInt()
+
+    /** Float noise below which a line height is already a whole pixel (20.8 × 1.25 = 26.000002). */
+    private const val TextEpsilon = 0.001f
 }

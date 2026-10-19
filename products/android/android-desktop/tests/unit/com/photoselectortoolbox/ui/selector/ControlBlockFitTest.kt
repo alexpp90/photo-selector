@@ -15,6 +15,9 @@ import org.junit.Test
  */
 class ControlBlockFitTest {
 
+    /** The reference device's density (320 dpi), where every dp is two whole pixels. */
+    private val Reference = 2f
+
     /** Height of row 1, which the control flank is handed, at a window size. */
     private fun rowHeight(windowHeight: Int, statusBar: Int = 24): Float {
         // Row 1 is half the region less the gap, whichever axis binds the frame.
@@ -39,24 +42,65 @@ class ControlBlockFitTest {
     @Test
     @Requirement("REQ-AND-LAYOUT.07")
     fun `mode picks the first variant that fits`() {
-        assertEquals(Mode.FULL, ControlBlockFit.mode(376.dp, 1f))
-        assertEquals(Mode.FULL, ControlBlockFit.mode(333.dp, 1f))
-        assertEquals(Mode.COMPACT, ControlBlockFit.mode(332.dp, 1f))
-        assertEquals(Mode.COMPACT, ControlBlockFit.mode(197.dp, 1f))
-        assertEquals(Mode.SCROLLING, ControlBlockFit.mode(196.dp, 1f))
+        assertEquals(Mode.FULL, ControlBlockFit.mode(376.dp, 1f, Reference))
+        assertEquals(Mode.FULL, ControlBlockFit.mode(333.dp, 1f, Reference))
+        assertEquals(Mode.COMPACT, ControlBlockFit.mode(332.dp, 1f, Reference))
+        assertEquals(Mode.COMPACT, ControlBlockFit.mode(197.dp, 1f, Reference))
+        assertEquals(Mode.SCROLLING, ControlBlockFit.mode(196.dp, 1f, Reference))
+    }
+
+    @Test
+    @Requirement("REQ-AND-LAYOUT.07")
+    fun `the pixel price is the height the device matrix measured`() {
+        // control_block_full as drawn on real devices, 2026-10-19: 3 px over the dp
+        // sum at every non-integer density, from the half-pixel 6 dp gaps and 2 dp
+        // paddings, and the text line rounded up.
+        assertEquals(664, ControlBlockFit.fullHeightPx(1f, 2f)) // Pixel Tablet, 320 dpi
+        assertEquals(418, ControlBlockFit.fullHeightPx(1f, 1.25f)) // Chromebook 714, 200 dpi
+        assertEquals(584, ControlBlockFit.fullHeightPx(1f, 1.75f)) // Tab S11 Ultra, 280 dpi
+        assertEquals(916, ControlBlockFit.fullHeightPx(1f, 2.75f)) // Pixel 4a, 440 dpi
+        assertEquals(424, ControlBlockFit.fullHeightPx(1.3f, 1.25f))
+        assertEquals(593, ControlBlockFit.fullHeightPx(1.3f, 1.75f))
+        assertEquals(930, ControlBlockFit.fullHeightPx(1.3f, 2.75f))
+        // The compact block's 196.57 dp at 2.625x (CI's phone emulator): 516 px.
+        assertEquals(516, ControlBlockFit.compactHeightPx(1f, 2.625f))
+    }
+
+    @Test
+    @Requirement("REQ-AND-LAYOUT.07")
+    fun `the chosen variant fits its row at every density`() {
+        // Every whole dpi a device can report, at the font scales users pick. The row
+        // arrives as layout hands it over: a whole number of pixels, as dp.
+        for (dpi in 120..640) {
+            val density = dpi / 160f
+            for (fontScale in listOf(0.85f, 1f, 1.15f, 1.3f, 1.5f, 2f)) {
+                for (availablePx in (150 * density).toInt()..(420 * density).toInt()) {
+                    val available = (availablePx / density).dp
+                    val drawn = when (ControlBlockFit.mode(available, fontScale, density)) {
+                        Mode.FULL -> ControlBlockFit.fullHeightPx(fontScale, density)
+                        Mode.COMPACT -> ControlBlockFit.compactHeightPx(fontScale, density)
+                        Mode.SCROLLING -> continue
+                    }
+                    assertTrue(
+                        "a $drawn px block was chosen for a $availablePx px row at $dpi dpi, scale $fontScale",
+                        drawn + ControlBlockFit.PixelSlack <= availablePx,
+                    )
+                }
+            }
+        }
     }
 
     @Test
     @Requirement("REQ-AND-LAYOUT.07")
     fun `an unbounded height is always the full block`() {
-        assertEquals(Mode.FULL, ControlBlockFit.mode(androidx.compose.ui.unit.Dp.Infinity, 1.3f))
+        assertEquals(Mode.FULL, ControlBlockFit.mode(androidx.compose.ui.unit.Dp.Infinity, 1.3f, Reference))
     }
 
     @Test
     @Requirement("REQ-AND-LAYOUT.07")
     fun `font scale 1_3 at 1280 by 800 still resolves to a mode that fits`() {
         val row = rowHeight(800).dp
-        val mode = ControlBlockFit.mode(row, 1.3f)
+        val mode = ControlBlockFit.mode(row, 1.3f, Reference)
         val needed = when (mode) {
             Mode.FULL -> ControlBlockFit.fullHeight(1.3f)
             Mode.COMPACT -> ControlBlockFit.compactHeight(1.3f)
@@ -69,15 +113,15 @@ class ControlBlockFitTest {
     @Requirement("REQ-AND-LAYOUT.07")
     fun `windows resolve as the lab measured them`() {
         // 1280x800 fits the full block at scale 1 (row 1 is ~376 dp tall).
-        assertEquals(Mode.FULL, ControlBlockFit.mode(rowHeight(800).dp, 1f))
+        assertEquals(Mode.FULL, ControlBlockFit.mode(rowHeight(800).dp, 1f, Reference))
         // 1024x720 is the knife edge: 336 dp of row with a 24 dp status bar (full
         // fits by 4 dp), 330 dp with the 36 dp one (compact). Both are legal.
-        assertEquals(Mode.FULL, ControlBlockFit.mode(rowHeight(720).dp, 1f))
-        assertEquals(Mode.COMPACT, ControlBlockFit.mode(rowHeight(720, statusBar = 36).dp, 1f))
+        assertEquals(Mode.FULL, ControlBlockFit.mode(rowHeight(720).dp, 1f, Reference))
+        assertEquals(Mode.COMPACT, ControlBlockFit.mode(rowHeight(720, statusBar = 36).dp, 1f, Reference))
         // 960x600 and below do not fit the full block; compact does.
-        assertEquals(Mode.COMPACT, ControlBlockFit.mode(rowHeight(600).dp, 1f))
+        assertEquals(Mode.COMPACT, ControlBlockFit.mode(rowHeight(600).dp, 1f, Reference))
         // 600x480: ~210 dp, compact at 196 dp still fits.
-        assertEquals(Mode.COMPACT, ControlBlockFit.mode(rowHeight(480).dp, 1f))
+        assertEquals(Mode.COMPACT, ControlBlockFit.mode(rowHeight(480).dp, 1f, Reference))
     }
 
     @Test

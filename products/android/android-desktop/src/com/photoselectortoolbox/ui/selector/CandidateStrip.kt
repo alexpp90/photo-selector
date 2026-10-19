@@ -1,8 +1,11 @@
 package com.photoselectortoolbox.ui.selector
 
+import androidx.compose.foundation.LocalIndication
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.indication
+import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -69,6 +72,22 @@ private val PortraitThumbnailHeight = 80.dp
 
 /** Extra space that separates one burst from the next. */
 private val BurstGap = 10.dp
+
+/**
+ * Space between two thumbnails as drawn. It lies inside the touch targets, half
+ * above and half below each thumbnail, so the targets abut instead of leaving a
+ * dead strip between them.
+ */
+private val ThumbnailGap = 4.dp
+
+/**
+ * Smallest touch target a thumbnail gets (AD-8). A 40 dp landscape thumbnail is
+ * centred in a 48 dp slot: the thumbnail stays 3:2 and the strip still scans as
+ * a column, while the hit area meets the floor. At 40 dp tall on a 44 dp pitch
+ * it failed the accessibility check on the Pixel Tablet and the Tab S11 Ultra,
+ * the only devices wide enough to show the strip (device matrix, 2026-10-19).
+ */
+internal val ThumbnailTouchTarget = 48.dp
 
 /**
  * The filmstrip down the outer edge of the control flank: where the current
@@ -161,7 +180,9 @@ fun CandidateStrip(
             LazyColumn(
                 modifier = Modifier.weight(1f).fillMaxWidth(),
                 state = listState,
-                verticalArrangement = Arrangement.spacedBy(4.dp),
+                // No spacing: each thumbnail carries its share of the gap inside
+                // its own touch target (see [ThumbnailGap]).
+                verticalArrangement = Arrangement.Top,
                 horizontalAlignment = Alignment.CenterHorizontally,
                 contentPadding = PaddingValues(vertical = 8.dp),
             ) {
@@ -225,12 +246,21 @@ private fun CandidateThumbnail(
 ) {
     val shape = RoundedCornerShape(3.dp)
     val height = if (image.isLandscape) LandscapeThumbnailHeight else PortraitThumbnailHeight
+    // The whole slot is the control; the ripple stays on the thumbnail it belongs to.
+    val interactionSource = remember { MutableInteractionSource() }
 
     Box(
         modifier = modifier
             .width(ThumbnailWidth + if (inCurrentBurst) 4.dp else 0.dp)
-            .height(height),
-        contentAlignment = Alignment.TopEnd,
+            .height(maxOf(height + ThumbnailGap, ThumbnailTouchTarget))
+            .pointerHoverIcon(PointerIcon.Hand)
+            .clickable(interactionSource = interactionSource, indication = null, onClick = onClick)
+            .semantics {
+                contentDescription = "${image.fileName}, $position of $total" +
+                    if (image.rating != 0) ", rated ${image.rating}" else ""
+            }
+            .testTag("filmstrip_thumbnail"),
+        contentAlignment = Alignment.CenterEnd,
     ) {
         Box(
             modifier = Modifier
@@ -246,12 +276,8 @@ private fun CandidateThumbnail(
                     color = if (isCurrent) FocusCyan else StudioBorder,
                     shape = shape,
                 )
-                .pointerHoverIcon(PointerIcon.Hand)
-                .clickable(onClick = onClick)
-                .semantics {
-                    contentDescription = "${image.fileName}, $position of $total" +
-                        if (image.rating != 0) ", rated ${image.rating}" else ""
-                },
+                .indication(interactionSource, LocalIndication.current)
+                .testTag("filmstrip_thumbnail_image"),
         ) {
             AsyncImage(
                 model = image.uri,
@@ -313,7 +339,7 @@ private fun CandidateThumbnail(
         if (inCurrentBurst) {
             Box(
                 modifier = Modifier
-                    .align(Alignment.TopStart)
+                    .align(Alignment.CenterStart)
                     .width(2.dp)
                     .height(height)
                     .background(FocusCyan),

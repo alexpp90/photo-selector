@@ -655,18 +655,17 @@ class SelectorScreenTest {
         }
         composeRule.onNodeWithText("Copied to Selection", ignoreCase = true).assertIsDisplayed()
 
-        // Wait for the copy snackbar to disappear so it doesn't block the move button on phone layouts
-        composeRule.waitUntil(timeoutMillis = 35000) {
-            composeRule.onAllNodesWithText("Copied to Selection", ignoreCase = true)
-                .fetchSemanticsNodes().isEmpty()
+        // Move straight away, as a photographer would. The copy snackbar stays up
+        // for the whole 30 s undo window, and waiting it out made this the slowest
+        // test on every device (31–40 s, device matrix 2026-10-19). It cannot block
+        // the button: the card has no pointer input, and the next confirmation
+        // replaces it. What can be late after the copy is the compact action bar
+        // recomposing, so wait for the button itself (code_health 2026-10-10).
+        val moveTag = if (isCompact) "move_button_compact" else "move_button_expanded"
+        composeRule.waitUntil(timeoutMillis = 15000) {
+            composeRule.onAllNodesWithTag(moveTag).fetchSemanticsNodes().isNotEmpty()
         }
-
-        // Click Move Button
-        if (isCompact) {
-            composeRule.onNodeWithTag("move_button_compact").performClick()
-        } else {
-            composeRule.onNodeWithTag("move_button_expanded").performClick()
-        }
+        composeRule.onNodeWithTag(moveTag).performClick()
         composeRule.waitForIdle()
 
         try {
@@ -679,6 +678,15 @@ class SelectorScreenTest {
             throw e
         }
         composeRule.onNodeWithText("Moved to Selection", ignoreCase = true).assertIsDisplayed()
+        // One confirmation at a time: the move's replaced the copy's. Scoped to the
+        // snackbar, because the one-time filing hint card repeats the sentence.
+        assertTrue(
+            "the copy snackbar is still showing beside the move's",
+            composeRule.onAllNodes(
+                hasText("Copied to Selection", ignoreCase = true) and
+                    hasAnyAncestor(hasTestTag("selector_snackbar")),
+            ).fetchSemanticsNodes().isEmpty(),
+        )
     }
 
     @Test
