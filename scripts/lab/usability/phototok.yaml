@@ -6,6 +6,8 @@
 # words; `expected` is the action the design relies on them finding. A persona who would do
 # something else has found a discoverability problem. Select the app's own controls by `id`
 # (testTag), never by text: the same walk runs with the app in German (`--locale de-DE`).
+# Dialogs are separate windows whose test tags are not exported as resource ids: select their
+# buttons by text and list the English and German label (`text: [Delete, Löschen]`).
 # `system: true` marks Android's own screens (folder picker): reviewed, but filed as platform
 # context, not as our defect.
 product: phototok
@@ -64,7 +66,7 @@ scenarios:
       - screen: delete-confirm
         intent: Make sure the blurry photo goes away
         expected: Tap 'Delete'
-      - tap: {id: direct_delete_confirm_button, label: Delete}
+      - tap: {text: [Delete, Löschen], label: Delete}
       - screen: after-delete
         intent: "Hmm — that was the only shot of that moment. Undo it"
         expected: Tap 'Revert' in the bottom bar
@@ -73,7 +75,7 @@ scenarios:
         intent: Check the photo is back, then delete it after all
         expected: Swipe left, then confirm
       - swipe: left
-      - tap: {id: direct_delete_confirm_button, label: Delete, timeout_ms: 4000}
+      - tap: {text: [Delete, Löschen], label: Delete, timeout_ms: 4000}
       - optional_tap: {id: first_run_hint_dismiss, label: GOT IT}
       - screen: good-photo
         intent: This one is lovely — keep it
@@ -118,10 +120,10 @@ scenarios:
         expected: (whatever this screen offers)
       - launch: {}
       - screen: resume-dialog
-        when: {id: reload_jump_dialog, timeout_ms: 6000}
+        when: {text: [Stay, Bleiben], timeout_ms: 6000}
         intent: Continue culling where I was
         expected: Tap 'Stay'
-      - optional_tap: {id: reload_jump_stay_button, label: Stay}
+      - optional_tap: {text: [Stay, Bleiben], label: Stay}
       - wait_for: {id: viewer_bottom_bar, timeout_ms: 10000}
       - optional_tap: {id: gesture_tutorial_got_it, label: GOT IT}
       - tap: {id: settings_button, label: the gear icon}
@@ -147,7 +149,7 @@ scenarios:
     goal: Leave the app to answer a message, then come back and continue where you were.
     steps:
       - tap: {id: landing_start_browsing_button, label: the resume button, scroll: true}
-      - optional_tap: {id: reload_jump_stay_button, label: Stay}
+      - optional_tap: {text: [Stay, Bleiben], label: Stay}
       - wait_for: {id: viewer_bottom_bar, timeout_ms: 10000}
       - optional_tap: {id: first_run_hint_dismiss, label: GOT IT}
       - screen: before-interruption
