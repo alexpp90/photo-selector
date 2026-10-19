@@ -147,7 +147,9 @@ or the cloud, with limited tooling, say so just as plainly.
 
 1. Run `./scripts/run_tests.sh` (`--all` for every product). The Android instrumented tests
    run only on demand with `--android-device` (typically before a release); without a device
-   they are skipped, never a blocker. Every run, including a failed or partial one, saves a record in
+   they are skipped, never a blocker. `python3 scripts/android_device_matrix.py run` runs them
+   on every attached device at once and writes a timed report plus an issue ledger the next run
+   validates (`docs/build/CI_PARITY.md`, Instrumented tests). Every run, including a failed or partial one, saves a record in
    `.git/pst-verification/`: hardware model, OS, toolchain versions, attached Android device
    models, the detected agent environment, each gate's result and the exact tested tree.
    Set `PST_EXECUTOR="<agent or person>"` when the environment is not detected correctly.

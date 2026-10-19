@@ -37,7 +37,7 @@ The rule that prevents it:
 | `assembleDebugAndroidTest` | `android.yml:unit-tests` | ✅ needs JDK 17 + Android SDK | Compiles `tests/instrumented/`. Nothing else does. |
 | `check_native_alignment.py` | `android.yml:unit-tests`, `android.yml:build` | ✅ needs JDK 17 + Android SDK (unit tests run everywhere via `scripts/tests`) | Inspects every `lib/{arm64-v8a,x86_64}/*.so` in `merged_native_libs/debug` and built APK/AAB archives and fails if any ELF `PT_LOAD` segment has `p_align < 16384` (Google Play 16 KB page-size mandate). For `.apk` files it also fails if a stored (uncompressed) `.so` does not start at a 16 KB-aligned zip offset (`zipalign -P 16`); bundles are exempt. The mirror builds and checks the debug APKs like the `build` job. |
 | `lintDebug` | `android.yml:lint` | ✅ advisory | Non-blocking in both places, on purpose. |
-| `connectedDebugAndroidTest` | `android.yml:instrumented-tests` | ❌ **needs emulator/device** | Local: on demand only (`--android-device`, before a release), pinned to one test device (`scripts/android_test_device.py`), plus each named extra device attached over USB, never every attached device, and run under that device's lock; no device, or a device still busy after the wait, is a non-blocking `⊘ SKIPPED`, also under `--strict`. See [Instrumented tests](#instrumented-tests-genuinely-need-a-device). |
+| `connectedDebugAndroidTest` | `android.yml:instrumented-tests` | ❌ **needs emulator/device** | Local: on demand only (`--android-device`, before a release), on every configured test device at once (`scripts/android_device_matrix.py run --configured`: `pst.testDevice.serial` + `.extraSerials`, or the only attached device), each under its device lock, one gate per device; no device, or a device busy or locked after the wait, is a non-blocking `⊘ SKIPPED`, also under `--strict`. See [Instrumented tests](#instrumented-tests-genuinely-need-a-device). |
 | `swift test (macos-desktop)` | `macos.yml:swift-test` | ⚠️ Darwin only | Native Swift 6 suite covering PhotoSelectorKit & App (release SLA benchmark included). Runs on `macos-latest` in CI. |
 | `check_no_test_hooks.sh` (release binary) | `macos.yml:swift-test`, `macos.yml:build` | ⚠️ Darwin only | `swift build -c release`, then fails if the binary contains the UI test hooks (`UIScenarioRunner`, `UITestDriver`, `UISelfTestRunner`), which are compiled in only for debug and `build_app.sh --test-hooks` builds. |
 | macOS UI smoke test (running app) | — (local-only) | ⚠️ Darwin + logged-in GUI session | `products/macos-desktop/scripts/ui_smoke_test.sh`: drives the running app (raw binary **and** `.app` bundle) — activation policy, real key events, rendered Focus 3-Up geometry, clicks while zoomed, time-to-first-photo. Window-server key probe needs Accessibility permission, else `⊘ SKIPPED`. See [macOS UI smoke test](#macos-ui-smoke-test-local-only). |
@@ -52,7 +52,7 @@ The rule that prevents it:
 | `release.py check` | `repo-hygiene.yml:hygiene` | ✅ everywhere | Every product's version sources agree, it has a `CHANGELOG.md`, and its workflow triggers on its own tag prefix. `release.py`'s unit tests run in `scripts/tests` below. |
 | `check_private_paths.py` | `repo-hygiene.yml:hygiene` | ✅ everywhere | Fails if maintainer-private material (`private/`, `ai/`, `.claude/`, `.agents/`, `.gemini/`, requirement specs, prompts, the prompt ledger) is tracked in this public repository. Also runs as the local pre-commit hook installed by the overlay. |
 | Format corpus (`fetch_format_corpus.py`) | `.github/actions/format-corpus`, used by `desktop.yml:test`, `android.yml:unit-tests`, `macos.yml:swift-test`, `linux.yml:test` | ⚠️ once downloaded (~280 MB, network) | Restores the real-camera RAW corpus pinned in `testdata/formats/manifest.json` (cache key = manifest hash) and sets `PST_REQUIRE_FORMAT_CORPUS=1`, so every product's format conformance tests **fail** rather than skip without it. Locally `run_tests.sh` exports the same variables when the corpus is present and reports `⊘ SKIPPED` otherwise. See [`docs/shared/SUPPORTED_FORMATS.md`](../shared/SUPPORTED_FORMATS.md). |
-| `fetch_format_corpus.py --validate` + `scripts/tests` | `repo-hygiene.yml:hygiene` | ✅ everywhere | The format contract is well-formed: every required format has a sample with ground-truth EXIF, extensions are unique, committed bitmap fixtures match their pinned SHA-256; unit tests for the fetcher (mirror fallback, hash verification), for `verification_record.py`, `release.py` and `android_test_device.py`. |
+| `fetch_format_corpus.py --validate` + `scripts/tests` | `repo-hygiene.yml:hygiene` | ✅ everywhere | The format contract is well-formed: every required format has a sample with ground-truth EXIF, extensions are unique, committed bitmap fixtures match their pinned SHA-256; unit tests for the fetcher (mirror fallback, hash verification), for `verification_record.py`, `release.py`, `android_test_device.py` and `android_device_matrix.py`. |
 | PR verification record (`verification_record.py check`) | `pr-verification.yml:record` | ⚠️ PR description only — advisory | Compares the verification blocks in the PR description (written by `scripts/verification_record.py pr` from the record every `run_tests.sh` run saves) with the PR head tree and the products the PR touches; annotates missing, stale or partial verification and never fails. Not a `run_tests.sh` gate: it judges the PR description, which exists only on GitHub. Local equivalent: `python3 scripts/verification_record.py check --body-file <description.md> --base origin/main`. Its unit tests run in `scripts/tests` above. See [CONTRIBUTING.md § Verification record](../../CONTRIBUTING.md#verification-record). |
 | `lab tooling tests` (`scripts/lab/tests`) | — (local-only) | ✅ everywhere (needs Pillow + PyYAML) | Local-only unit tests (`python3 -m unittest discover -s scripts/lab/tests -q`) covering the device lab's schemas, fixture generator, layout lint, file-system/timing/log oracles, runners, and report builder without touching devices or a GUI. |
 | Device lab (`scripts/lab/lab.py`) | — (not a CI gate) | ⚠️ local, on demand, opt-in | Local, on demand, not a CI gate; opt-in; see [`scripts/lab/README.md`](../../scripts/lab/README.md). |
@@ -206,37 +206,71 @@ adb wait-for-device
 ./scripts/run_tests.sh --android-device
 ```
 
-**One test device, never all of them.** Gradle's `connectedDebugAndroidTest` installs on —
-and afterwards uninstalls from — *every* attached device. `run_tests.sh` therefore pins the
-run to one device via `ANDROID_SERIAL`, chosen by
-[`scripts/android_test_device.py`](../../scripts/android_test_device.py): `$ANDROID_SERIAL`,
-else `pst.testDevice.serial` in `products/android/local.properties`, else the only attached
-device. With several devices attached and none designated, the gate is skipped rather than
-run on personal devices.
+**All devices at once: `scripts/android_device_matrix.py`.** Gradle's `connectedDebugAndroidTest`
+installs on — and afterwards uninstalls from — *every* attached device, prints little while it
+runs, and one device after another takes long enough for the next phone to auto-lock. The device
+suite therefore runs through
+[`scripts/android_device_matrix.py`](../../scripts/android_device_matrix.py), which builds the
+debug and androidTest APKs once, then drives each device in its own thread — device lock, keep
+awake, install, `am instrument -r` for both products, one retry per failure (to tell flaky from
+broken), restore, uninstall — so the whole fleet takes as long as its slowest device:
 
-**A dedicated test device.** A device that stays connected for testing is designated once,
-machine-locally (local.properties is ignored by git):
+```bash
+python3 scripts/android_device_matrix.py devices                # what a run covers; locked? busy?
+python3 scripts/android_device_matrix.py run                    # every attached device
+python3 scripts/android_device_matrix.py run --only-open-issues # just what failed last time
+python3 scripts/android_device_matrix.py issues                 # the open-issue ledger
+```
+
+Unlock every device, start the run, and walk away: each device is kept awake from the start
+(through the APK build), a device that is still locked is waited for (`--unlock-wait`, 120 s)
+and then skipped, not failed. While it runs it prints each device's phase, every failure as it
+happens, and a progress board; `progress.log` in the run directory has every test event
+(`tail -f` it). A test with no output for `--test-timeout` (600 s) counts as hung; a crash or
+hang fails the test it hit and the suite resumes after it.
+
+**Report and issue hand-over.** Each run writes `.git/pst-device-runs/<run-id>/` (the common git
+directory, shared by every worktree): `report.md` — wall time, build time, per device setup,
+install and per-module time, passed/failed/flaky/skipped, failures grouped by test across
+devices with their first stack line and logs, the slowest tests — plus `results.json`,
+`instrument-<module>.txt` and logcat per device. `issues.json` beside the runs is the open-issue
+ledger: every run first validates the previous run's open issues and reports each as ✅ fixed,
+❌ still failing or ⚠ not verified (no affected device ran it), then adds what is new. A later
+session reads it with `issues`, validates a fix quickly with `run --only-open-issues`, and
+confirms with a full run. `report` prints the latest report again.
+
+**Which devices.** `run` covers every attached device, one per physical device (`ro.serialno`:
+a phone on USB and on wireless debugging counts once, USB preferred), including personal phones
+and tablets. An app the device already has under the same package id (`com.photoselectortoolbox`,
+`com.phototok`) is never removed: a compatible install is updated in place and left installed; a
+differently signed one (a release build) is left alone and that product is not tested on that
+device, unless `--replace-installed` replaces it, wiping its data. Packages the run installed
+are uninstalled afterwards. `--no-personal` leaves out the devices marked `personal: true` in the
+maintainer's lab inventory. `--serial` limits the run; `--configured` limits it
+to the named test devices, which is what `./scripts/run_tests.sh --android-device` uses, with
+one gate per device. A test device is designated once, machine-locally (local.properties is
+ignored by git):
 
 ```bash
 echo "pst.testDevice.serial=<serial from adb devices>" >> products/android/local.properties
+echo "pst.testDevice.extraSerials=<serial>,<serial>" >> products/android/local.properties
 ```
 
-**Extra test devices, over USB only.** Further phones can be named for the device suite with
-`pst.testDevice.extraSerials=<serial>,<serial>` in the same file. `--android-device` runs the
-suite on the test device first, then once more on each extra device that is attached over USB
-(`adb devices -l` shows a `usb:` field), each run under that device's own lock and reported as
-its own gate (`gradlew connectedDebugAndroidTest (extra device <model>)`). An extra device that
-is not on USB is a non-blocking `⊘ SKIPPED` naming it; the same phone on wireless debugging has
-a different serial and is never used. Extra devices are prepared like the test device, since
-naming them designates them. `python3 scripts/android_test_device.py extra-serials` (and
-`status`) shows which extra devices are on USB now.
+With several devices attached and none named, `--configured` refuses rather than run on
+personal devices. A named test device (and an emulator) gets `android_test_device.py prepare`'s
+persistent setup; any other device gets only animations off, stay-awake and a maximal
+screen-off timeout for the run, saved to `.git/pst-device-runs/restore-pending.json` first and
+put back afterwards — by the next run if this one was killed.
 
 **A secure lock screen cannot be prepared away.** `locksettings set-disabled` succeeds silently
 on a phone with a PIN, pattern or password, and the lock screen then covers every activity, so
 each Compose test fails with "No compose hierarchies found". `prepare` therefore checks
 `isKeyguardShowing` last and reports a lock screen that is still up; `run_tests.sh` then skips
 that device (`⊘ SKIPPED … lock screen showing`) instead of running the suite against the lock
-screen. Remove the screen lock on a test phone, or unlock it before the run.
+screen. Remove the screen lock on a test phone, or unlock it before the run. The matrix
+runner checks the lock screen before installing and before each product's suite and waits for an
+unlock; a failure that says "No compose hierarchies found" is flagged in the report as a likely
+locked or dark screen.
 
 The device suite never runs as part of the default run or `--all`: it is triggered on demand
 with `./scripts/run_tests.sh --android-device`, typically before an Android release. Without a
@@ -245,20 +279,19 @@ test device it reports `⊘ SKIPPED` and does not block — not even under `--st
 device (or an emulator) —
 animations off (CI's `disable-animations: true`), screen kept on while powered, keyguard off,
 portrait rotation, default size/density/font scale, light theme, no verifier prompt on adb
-installs — using `adb root` where the build allows it. It refuses a device that is merely the only one
-attached, since that may be a personal phone. Run it on its own with
+installs — using `adb root` where the build allows it. Run it on its own with
 `python3 scripts/android_test_device.py prepare`; `status` shows which device is selected.
 
 **One session at a time.** Several agent sessions share the workstation, and the device lab's
 usability walkthroughs tap on the same phone; one walkthrough tapping during an instrumented
-run caused a spurious failure (2026-10-18). `run_tests.sh` therefore holds the per-device lock
-while it prepares the device and runs Gradle:
+run caused a spurious failure (2026-10-18). The matrix runner therefore holds each device's
+lock while it prepares, installs and tests it, and any other command can take it with
 `python3 scripts/android_test_device.py with-lock [--timeout S] -- <command…>`. The lock is
 an `flock` on `/tmp/pstlab/device-<serial>.lock` (`PST_LAB_TMP` moves it), the file the
-lab takes too; its holder writes who it is into it (`instrumented-tests <worktree> pid=… since=…`,
+lab takes too; its holder writes who it is into it (`device-matrix <worktree> pid=… since=…`,
 or `lab usability-capture <product> …`). A held lock is waited for —
-`PST_DEVICE_LOCK_TIMEOUT` seconds, default 300 — and still held after that, the gate is
-`⊘ SKIPPED` naming the holder, not failed. `android_test_device.py lock-holder` (and
+`--lock-timeout`, or `PST_DEVICE_LOCK_TIMEOUT` seconds, default 300 — and still held after that,
+the device is `⊘ SKIPPED` naming the holder, not failed. `android_test_device.py lock-holder` (and
 `status`) shows who holds the device now. The kernel drops the lock when its holder dies, so a
 crashed run never leaves the device locked.
 
