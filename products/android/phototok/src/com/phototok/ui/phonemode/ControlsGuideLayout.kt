@@ -58,14 +58,18 @@ internal data class GuideGeometry(
     val anchors: Map<GuideAnchor, GBox>,
 )
 
-/** Converts measured (or, lacking those, nominal) chrome positions into [GuideGeometry]. */
+/**
+ * Converts measured (or, lacking those, nominal) chrome positions into [GuideGeometry].
+ * Orientation is a function of the space given, never of the device: measured chrome decides
+ * (a left panel means landscape); without it the box's own [width] x [height] does
+ * (`width > height` is landscape), so a 320x480 dp box is portrait on a landscape-native tablet.
+ */
 internal fun guideGeometry(
     anchors: ControlsGuideAnchors?,
     origin: Offset,
     density: Float,
     width: Float,
     height: Float,
-    landscape: Boolean,
     topInset: Float,
     bottomInset: Float,
 ): GuideGeometry {
@@ -82,6 +86,7 @@ internal fun guideGeometry(
         }
         return GuideGeometry(landscape = GuideAnchor.LEFT_PANEL in local, anchors = local)
     }
+    val landscape = width > height
     val nominal = if (landscape) {
         ControlsGuideSolver.nominalLandscape(width, height, nominalMetrics())
     } else {
@@ -120,7 +125,6 @@ private fun nominalMetrics() = with(PhoneModeChromeMetrics) {
 @Composable
 internal fun GuideBox(
     anchors: ControlsGuideAnchors?,
-    isLandscape: Boolean,
     content: @Composable (geometry: GuideGeometry, compact: Boolean) -> Unit,
 ) {
     var origin by remember { mutableStateOf(Offset.Zero) }
@@ -137,7 +141,7 @@ internal fun GuideBox(
             .onGloballyPositioned { origin = it.positionInRoot() }
             .testTag("controls_guide"),
     ) {
-        val compact = isLandscape || maxHeight < 600.dp || maxWidth < 360.dp
+        val compact = maxWidth > maxHeight || maxHeight < 600.dp || maxWidth < 360.dp
         val density = LocalDensity.current
         // Window insets only apply to the part of the overlay that actually reaches the window
         // edge (it may be hosted in a smaller box).
@@ -155,7 +159,6 @@ internal fun GuideBox(
             density = density.density,
             width = maxWidth.value,
             height = maxHeight.value,
-            landscape = isLandscape,
             topInset = topInset.value,
             bottomInset = bottomInset.value,
         )
