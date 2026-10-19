@@ -492,18 +492,19 @@ fails the build on any finding. This section applies them to PhotoTok.
 |---|---|---|---|
 | Bottom bar | *icons only* | — | spoken/tooltip: "Change folder" · "Selection" · "Undo last delete" (DE "Ordner wechseln" · "Auswahl" · "Letztes Löschen rückgängig machen") |
 | Top bar | *icons only* | — | spoken/tooltip: "Done with this card" · "Reload folder" · "Show/Hide controls guide" · "Show or hide camera info" · "Settings" |
-| Controls guide | callouts: "Camera info" · "Card done" · "Reload" · "Help" · "Info" · "Settings" · "Change folder" · "Selection" · "Undo delete" · "Next" · "Previous" · "Hide overlays" · "Zoom" (DE "Kamera-Info" · "Karte fertig" · "Neu laden" · "Hilfe" · "Info" · "Einstellungen" · "Ordner wechseln" · "Auswahl" · "Löschen rückgängig" · "Weiter" · "Zurück" · "Anzeigen aus" · "Zoom") | swipe captions: COPY / MOVE / DELETE with the configured folder name beneath | dismiss: ✓ icon ("Got it" spoken) |
+| Controls guide | callouts: "Camera info" · "Card done" · "Reload" · "Help" · "Info" · "Settings" · "Change folder" · "Selection" · "Undo delete" · "Next" · "Previous" · "Hide overlays" · "Zoom" (DE "Kamera-Info" · "Karte fertig" · "Neu laden" · "Hilfe" · "Info" · "Einstellungen" · "Ordner" · "Auswahl" · "Rückgängig" · "Weiter" · "Zurück" · "Anzeigen aus" · "Zoom") | swipe captions: Copy / Move / Delete with the configured folder name beneath (★ Favourites when the source kind favourites) | dismiss: ✓ icon ("Got it" spoken) |
 | New photos on reload/reopen (`FolderResumeDialog`) | "1 new photo" / "N new photos" (DE "N neue Fotos") | — | **Show new** · Stay (DE **Neue zeigen** · Bleiben) |
 | No new photos | *no dialog* | — | explicit Reload only: snackbar "No new photos" |
 | RAW + JPEG pairs (`RawJpegSuggestionDialog`) | "RAW + JPEG pairs" | — | **Merge pairs** (subline "Swipes act on both files") · Link both · *Show only*: RAW · JPEG · Don't change (DE **Paare bündeln** · Beide verknüpfen · Nur zeigen: RAW · JPEG · Nicht ändern) |
-| Direct delete (`DirectDeleteDialog`) | "Delete permanently?" (DE "Endgültig löschen?") | "This location has no trash." + small "Turn off this prompt in Settings." | Cancel · **Delete** |
+| Direct delete (`DirectDeleteDialog`) | "Delete permanently?" (DE "Endgültig löschen?") | "This location has no trash." + small "Turn off this prompt in Settings." (DE "In den Einstellungen abschaltbar.") | Cancel · **Delete** |
 | Hint: swipe right / left to folder | "Swipe right copies to «folder»" (DE "Rechts wischen kopiert nach «Ordner»") | — | Settings ✕ |
-| Hint: swipe left delete | "Swipe left deletes" | "Undo with the bin icon." | Settings ✕ |
+| Hint: swipe left delete | "Swipe left deletes" | — (the guide names Undo) | Settings ✕ |
 | Hint: filter mismatch | "RAW only" / "JPEG only" | "Most photos here are JPEG." | Show all ✕ |
-| Hints: vertical, tap, zoom, revert | "Place saved per folder" · "Tap again to show overlays" · "Drag to pan, double-tap to reset" · "Undo restores the last delete" | — | ✕ |
+| Hints: tap, zoom | "Tap again to show overlays" · "Drag to pan, double-tap to reset" | — | ✕ |
+| *No hint* | first page change, first revert: the user just watched the result | — | — |
 | SD / USB card done (`showCardDoneSheet`) | "Card done" | — | **Keep all** · Delete rejects · Delete all (N) · Cancel |
 | Clear whole card confirm | "Delete all N photos?" | "Photos not copied off the card are lost." | Cancel · **Delete all** |
-| Snackbars | — | "Copied to «folder»" · "Moved to «folder» +K" · "Moved as «name»" · "★ Favourite" · "No new photos" · "Pairs merged" · "RAW + JPEG linked" · "Safe to unplug" · "Rejects deleted" · "N deleted" · "Cloud: copy only" · "Card disconnected" · "50 MB freed" · "100 reviewed" | — |
+| Snackbars | — | "Copied to «folder»" · "Moved to «folder» +K" · "Moved as «name»" · "Marked as favourite" · "No new photos" · "Pairs merged" · "RAW + JPEG linked" · "Safe to unplug" · "Rejects deleted" · "N deleted" · "Cloud: copy only" · "Card disconnected" · "50 MB freed" · "100 reviewed" | — |
 | Errors | — | "Copy to «folder» failed" · "Moved 2 of 3 to «folder»" · "Copied to «folder», original not removed" · "Couldn't delete «file»" · "Can't open this folder" | — |
 | Landing | *no tagline, no section labels* | — | folder name as a value · **Resume** / Start |
 | Landing: folder access lost | "Folder access lost" | — | Re-select |

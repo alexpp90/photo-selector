@@ -1532,7 +1532,7 @@ class PhoneModeViewModel @Inject constructor(
         }
         if (stack.isEmpty()) return
 
-        maybeShowFirstRunHint(FirstRunHint.REVERT)
+        // No first-run hint here: the restored photo is already on screen (REQ-TOK-UX.01).
 
         val popResult = PendingDeleteLogic.popRestore(
             images = state.images,

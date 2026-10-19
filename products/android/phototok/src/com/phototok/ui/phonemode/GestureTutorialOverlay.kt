@@ -1,5 +1,7 @@
 package com.phototok.ui.phonemode
 
+import androidx.compose.material.icons.filled.Star
+import com.phototok.domain.SwipeRightVerb
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.core.Animatable
 import androidx.compose.animation.core.LinearEasing
@@ -117,6 +119,8 @@ fun GestureTutorialOverlay(
     collectionAction: CollectionAction = CollectionAction.DEFAULT,
     leftSwipeFolderName: String = "",
     collectionFolderName: String = "",
+    /** What a right swipe does for this source kind; FAVOURITE on the phone camera (`U-17`). */
+    swipeRightVerb: SwipeRightVerb = collectionAction.toSwipeRightVerb(),
     /** Measured positions of the real controls; `null` falls back to nominal geometry. */
     anchors: ControlsGuideAnchors? = null,
 ) {
@@ -165,6 +169,7 @@ fun GestureTutorialOverlay(
                         collectionAction = collectionAction,
                         leftSwipeFolderName = leftSwipeFolderName,
                         collectionFolderName = collectionFolderName,
+                        swipeRightVerb = swipeRightVerb,
                         compact = compact,
                     )
                 }
@@ -214,6 +219,7 @@ private fun GestureStage(
     collectionAction: CollectionAction,
     leftSwipeFolderName: String,
     collectionFolderName: String,
+    swipeRightVerb: SwipeRightVerb,
     compact: Boolean,
 ) {
     val colors = MaterialTheme.colorScheme
@@ -308,9 +314,13 @@ private fun GestureStage(
                 // ── Right ─────────────────────────────────────────────
                 SwipeCallout(
                     icon = Icons.AutoMirrored.Filled.ArrowForward,
-                    actionIcon = collectionActionIcon(collectionAction),
-                    label = SwipeLabels.rightLabel(collectionAction).asString(),
-                    caption = SwipeLabels.rightFolder(collectionFolderName),
+                    actionIcon = if (swipeRightVerb == SwipeRightVerb.FAVOURITE) Icons.Default.Star else collectionActionIcon(collectionAction),
+                    label = SwipeLabels.rightLabel(swipeRightVerb).asString(),
+                    caption = if (swipeRightVerb == SwipeRightVerb.FAVOURITE) {
+                        stringResource(R.string.chip_favourites)
+                    } else {
+                        SwipeLabels.rightFolder(collectionFolderName)
+                    },
                     tint = colors.primary,
                     axis = DriftAxis.RIGHT,
                     delayMs = 300,

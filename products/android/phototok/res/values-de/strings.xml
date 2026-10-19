@@ -36,9 +36,9 @@
     <string name="guide_help">Hilfe</string>
     <string name="guide_info">Info</string>
     <string name="guide_settings">Optionen</string>
-    <string name="guide_sources">Ordner wechseln</string>
+    <string name="guide_sources">Ordner</string>
     <string name="guide_selection">Auswahl</string>
-    <string name="guide_revert">Löschen rückgängig</string>
+    <string name="guide_revert">Rückgängig</string>
     <string name="guide_tap">Anzeigen aus</string>
     <string name="guide_zoom">Zoom</string>
     <string name="guide_next">Weiter</string>
@@ -94,8 +94,8 @@
     <string name="label_resolution">%1$d × %2$d</string>
     <string name="label_file_size">%1$d KB</string>
     <string name="label_raw_jpeg_pair">RAW + JPEG</string>
-    <string name="chip_favourite">★ Favorit</string>
-    <string name="chip_favourites">★ Favoriten</string>
+    <string name="chip_favourite">Favorit</string>
+    <string name="chip_favourites">Favoriten</string>
     <string name="chip_raw_jpg">RAW+JPG</string>
 
     <!-- Titel -->
@@ -109,7 +109,7 @@
     <!-- Dialoge -->
     <string name="dialog_title_direct_delete">Endgültig löschen?</string>
     <string name="dialog_body_no_trash">Dieser Ort hat keinen Papierkorb.</string>
-    <string name="dialog_body_turn_off_prompt">Abfrage in den Einstellungen abschalten.</string>
+    <string name="dialog_body_turn_off_prompt">In den Einstellungen abschaltbar.</string>
     <string name="dialog_title_card_done">Karte fertig</string>
     <string name="dialog_body_card_loss">Nicht kopierte Fotos gehen verloren.</string>
     <plurals name="dialog_title_delete_all">
@@ -130,7 +130,6 @@
     <string name="hint_title_swipe_left_copy">Links wischen kopiert nach %1$s</string>
     <string name="hint_title_swipe_left_move">Links wischen verschiebt nach %1$s</string>
     <string name="hint_title_swipe_left_delete">Links wischen löscht</string>
-    <string name="hint_body_swipe_left_delete">Rückgängig mit dem Papierkorb-Symbol.</string>
     <string name="hint_title_swipe_vertical">Position pro Ordner gemerkt</string>
     <string name="hint_title_tap_hud">Erneut tippen zeigt die Anzeigen</string>
     <string name="hint_title_double_tap_zoom">Ziehen verschiebt, Doppeltippen setzt zurück</string>
@@ -153,7 +152,7 @@
     <string name="snackbar_moved_related">Verschoben nach %1$s +%2$d</string>
     <string name="snackbar_moved_renamed">Verschoben als %1$s</string>
     <string name="snackbar_moved_renamed_related">Verschoben als %1$s +%2$d</string>
-    <string name="snackbar_favourite_added">★ Favorit</string>
+    <string name="snackbar_favourite_added">Als Favorit markiert</string>
     <string name="snackbar_favourite_removed">Favorit entfernt</string>
     <string name="snackbar_cloud_copy_only">Cloud: nur Kopieren</string>
     <string name="snackbar_card_disconnected">Karte getrennt</string>

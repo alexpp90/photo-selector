@@ -230,7 +230,7 @@ class TextLoadScreenshotTest {
                     hint = FirstRunHintUi(
                         hint = FirstRun.hint,
                         title = UiText.of(R.string.hint_title_swipe_right_copy, "Selection"),
-                        message = UiText.of(R.string.hint_body_swipe_left_delete),
+                        message = UiText.of(R.string.hint_body_raw_jpeg_pairs),
                     ),
                     onDismiss = {},
                     onOpenSettings = {},

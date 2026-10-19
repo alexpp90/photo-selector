@@ -20,7 +20,8 @@ enum class FirstRunHint(val key: String) {
     /** First swipe-left when it deletes. */
     SWIPE_LEFT_DELETE("swipe_left_delete"),
 
-    /** First vertical swipe (browsing the feed). */
+    /** First vertical swipe. No longer shown (2026-10-19, REQ-TOK-UX.04): the guide shows paging and
+     *  the user sees the page change. Kept so persisted seen-keys stay readable. */
     SWIPE_VERTICAL("swipe_vertical"),
 
     /** First single tap (HUD toggle). */
@@ -29,7 +30,8 @@ enum class FirstRunHint(val key: String) {
     /** First double tap (zoom). */
     DOUBLE_TAP_ZOOM("double_tap_zoom"),
 
-    /** First use of Revert. */
+    /** First use of Revert. No longer shown (2026-10-19, REQ-TOK-UX.01): the restored photo is on
+     *  screen. Kept so persisted seen-keys stay readable. */
     REVERT("revert"),
 
     /** Folder contains RAW+JPEG pairs of the same pictures. */
@@ -114,7 +116,6 @@ object FirstRunHintText {
         hint: FirstRunHint,
         fileTypeFilter: FileTypeFilter = FileTypeFilter.DEFAULT,
     ): UiText? = when (hint) {
-        FirstRunHint.SWIPE_LEFT_DELETE -> UiText.of(R.string.hint_body_swipe_left_delete)
         FirstRunHint.RAW_JPEG_PAIRS -> UiText.of(R.string.hint_body_raw_jpeg_pairs)
         FirstRunHint.FILTER_MISMATCH -> when (fileTypeFilter) {
             FileTypeFilter.RAW -> UiText.of(R.string.hint_body_filter_mostly_jpeg)
@@ -125,6 +126,7 @@ object FirstRunHintText {
         }
         FirstRunHint.SWIPE_RIGHT,
         FirstRunHint.SWIPE_LEFT_FOLDER,
+        FirstRunHint.SWIPE_LEFT_DELETE, // the controls guide names Undo; no second line
         FirstRunHint.SWIPE_VERTICAL,
         FirstRunHint.TAP_HUD,
         FirstRunHint.DOUBLE_TAP_ZOOM,

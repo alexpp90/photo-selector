@@ -288,10 +288,8 @@ fun PhoneModeViewer(
         if (pagerState.currentPage > maxPageSeen.value) {
             maxPageSeen.value = pagerState.currentPage
         }
-        // The first actual page change is the user discovering vertical paging.
-        if (!readOnly && pagerState.currentPage != startPage) {
-            onFirstRunHint(FirstRunHint.SWIPE_VERTICAL)
-        }
+        // No hint on the first page change: the user just watched it happen, and the
+        // controls guide already shows up/down (explain once, REQ-TOK-UX.04).
         isZoomed = false
     }
     val showFloatingPeeks = maxPageSeen.value < 3
@@ -1161,7 +1159,8 @@ private fun ExifOverlay(
                 text = fileName.uppercase(),
                 style = MaterialTheme.typography.labelLarge.copy(letterSpacing = 1.sp),
                 color = colors.onSurface.copy(alpha = 0.7f),
-                maxLines = 1,
+                // Values wrap rather than truncate at large font scales (REQ-TOK-UX.05).
+                maxLines = 2,
                 overflow = TextOverflow.Ellipsis,
             )
 
@@ -1180,7 +1179,7 @@ private fun ExifOverlay(
                         text = items.joinToString(" · "),
                         style = MaterialTheme.typography.bodyMedium,
                         color = colors.onSurfaceVariant,
-                        maxLines = 1,
+                        maxLines = 2,
                         overflow = TextOverflow.Ellipsis,
                     )
                 }

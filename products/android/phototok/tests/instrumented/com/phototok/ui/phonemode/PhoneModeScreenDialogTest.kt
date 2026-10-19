@@ -93,7 +93,7 @@ class PhoneModeScreenDialogTest {
         val hintUi = FirstRunHintUi(
             hint = FirstRunHint.SWIPE_LEFT_DELETE,
             title = UiText.of(R.string.hint_title_swipe_left_delete),
-            message = UiText.of(R.string.hint_body_swipe_left_delete),
+            message = UiText.of(R.string.hint_body_raw_jpeg_pairs),
             id = 1,
         )
 
@@ -106,7 +106,7 @@ class PhoneModeScreenDialogTest {
 
         composeTestRule.onNodeWithTag("first_run_hint").assertIsDisplayed()
         composeTestRule.onNodeWithText(str(R.string.hint_title_swipe_left_delete)).assertIsDisplayed()
-        composeTestRule.onNodeWithText(str(R.string.hint_body_swipe_left_delete)).assertIsDisplayed()
+        composeTestRule.onNodeWithText(str(R.string.hint_body_raw_jpeg_pairs)).assertIsDisplayed()
         composeTestRule.onNodeWithTag("first_run_hint_dismiss").assertIsDisplayed()
 
         composeTestRule.onNodeWithTag("first_run_hint_dismiss").performClick()

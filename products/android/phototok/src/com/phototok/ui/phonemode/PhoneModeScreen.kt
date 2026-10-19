@@ -526,6 +526,7 @@ fun PhoneModeScreen(
                 collectionAction = uiState.collectionAction,
                 leftSwipeFolderName = uiState.leftSwipeFolderName,
                 collectionFolderName = uiState.collectionFolderName,
+                swipeRightVerb = uiState.swipeRightVerb,
                 anchors = guideAnchors,
             )
         }
@@ -538,6 +539,7 @@ fun PhoneModeScreen(
             collectionAction = uiState.collectionAction,
             leftSwipeFolderName = uiState.leftSwipeFolderName,
             collectionFolderName = uiState.collectionFolderName,
+            swipeRightVerb = uiState.swipeRightVerb,
             anchors = guideAnchors,
         )
 

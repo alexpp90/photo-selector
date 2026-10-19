@@ -100,8 +100,9 @@ class FirstRunHintTextTest {
         val message = FirstRunHintText.message(FirstRunHint.SWIPE_LEFT_DELETE)
 
         assertEquals(UiText.of(R.string.hint_title_swipe_left_delete), title)
-        assertEquals(UiText.of(R.string.hint_body_swipe_left_delete), message)
-        val words = title.en() + " " + message!!.en() + " " + title.de() + " " + message.de()
+        // No second line: the controls guide names Undo once (REQ-TOK-UX.04).
+        assertNull(message)
+        val words = title.en() + " " + title.de()
         assertFalse(words, words.contains("trash", ignoreCase = true))
         assertFalse(words, words.contains("Papierkorb-Ordner", ignoreCase = true))
     }

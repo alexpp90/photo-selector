@@ -98,8 +98,8 @@
     <string name="label_resolution">%1$d × %2$d</string>
     <string name="label_file_size">%1$d KB</string>
     <string name="label_raw_jpeg_pair">RAW + JPEG</string>
-    <string name="chip_favourite">★ Favourite</string>
-    <string name="chip_favourites">★ Favourites</string>
+    <string name="chip_favourite">Favourite</string>
+    <string name="chip_favourites">Favourites</string>
     <string name="chip_raw_jpg">RAW+JPG</string>
 
     <!-- Screen and section titles -->
@@ -134,7 +134,6 @@
     <string name="hint_title_swipe_left_copy">Swipe left copies to %1$s</string>
     <string name="hint_title_swipe_left_move">Swipe left moves to %1$s</string>
     <string name="hint_title_swipe_left_delete">Swipe left deletes</string>
-    <string name="hint_body_swipe_left_delete">Undo with the bin icon.</string>
     <string name="hint_title_swipe_vertical">Place saved per folder</string>
     <string name="hint_title_tap_hud">Tap again to show overlays</string>
     <string name="hint_title_double_tap_zoom">Drag to pan, double-tap to reset</string>
@@ -157,7 +156,7 @@
     <string name="snackbar_moved_related">Moved to %1$s +%2$d</string>
     <string name="snackbar_moved_renamed">Moved as %1$s</string>
     <string name="snackbar_moved_renamed_related">Moved as %1$s +%2$d</string>
-    <string name="snackbar_favourite_added">★ Favourite</string>
+    <string name="snackbar_favourite_added">Marked as favourite</string>
     <string name="snackbar_favourite_removed">Favourite removed</string>
     <string name="snackbar_cloud_copy_only">Cloud: copy only</string>
     <string name="snackbar_card_disconnected">Card disconnected</string>
@@ -234,7 +233,7 @@
     <string name="setting_title_privacy">Privacy Policy</string>
     <string name="setting_title_legal">Legal Notice (Impressum)</string>
     <string name="chip_phone">Phone</string>
-    <string name="chip_sd_card">SD / Card</string>
+    <string name="chip_sd_card">SD card</string>
     <string name="chip_camera">Camera</string>
     <string name="chip_newest">Newest first</string>
     <string name="chip_by_filename">By filename</string>
