@@ -86,7 +86,7 @@ A lightweight, touch-optimized portrait client designed for lightning-fast, sing
   * **Swipe-Left to Discard or Route:** Configurable action (Trash/Delete, Copy, or Move to secondary folder) with progressive card tilt ($2^\circ$) and non-blocking **Revert** (`RestoreFromTrash`) across scrolls.
 * **Session Resume & New Photos Prompt:** Reopening a folder resumes where you left off. Only when newer photos exist does a short "N new photos" dialog offer **Show new** or **Stay**.
 * **Fluid Zoom & Pan:** Pinch-to-zoom (up to $6\times$) and double-tap to 2.5x zoom with single-finger panning; gestures automatically disable paging conflicts while zoomed.
-* **One-Tap Glassmorphic HUD:** Single tap toggles the translucent camera metadata panel (shutter, aperture, ISO, focal length, lens) and micro-labelled navigation controls for unobstructed viewing.
+* **One-Tap Glassmorphic HUD:** Single tap toggles the translucent camera metadata panel (shutter, aperture, ISO, focal length, lens) and icon-only navigation controls (long-press for the name) for unobstructed viewing.
 * **In-Place Guidance & Pairing:** Interactive coach-mark overlay anchored directly to UI controls, automatic companion pairing (a linked move or delete takes the RAW+JPEG twin, `-Edit` / `-Enhanced-NR` derivatives and `.xmp` sidecars along), and orientation-aware feed ordering.
 
 ---

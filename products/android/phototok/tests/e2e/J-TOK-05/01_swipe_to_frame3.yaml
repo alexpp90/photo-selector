@@ -4,10 +4,10 @@ appId: com.phototok.lab
 - runFlow:
     when:
       visible:
-        text: "Show both, linked|Link actions across both"
+        text: "Link both|Beide verknüpfen|Show both, linked|Link actions across both"
     commands:
       - tapOn:
-          text: "Show both, linked|Link actions across both"
+          text: "Link both|Beide verknüpfen|Show both, linked|Link actions across both"
 - swipe:
     start: "50%,70%"
     end: "50%,20%"

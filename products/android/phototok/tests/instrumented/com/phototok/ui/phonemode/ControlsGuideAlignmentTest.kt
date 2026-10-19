@@ -15,6 +15,7 @@ import androidx.compose.ui.test.junit4.createComposeRule
 import androidx.compose.ui.test.onFirst
 import androidx.compose.ui.unit.dp
 import androidx.test.ext.junit.runners.AndroidJUnit4
+import com.phototok.str
 import com.phototok.ui.components.ViewerBottomBar
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
@@ -171,17 +172,17 @@ class ControlsGuideAlignmentTest {
             )
         }
         composeTestRule.onAllNodes(
-            hasTestTag("top_bar_logo") and hasContentDescription(PhoneModeTopBarDescriptions.LOGO),
+            hasTestTag("top_bar_logo") and hasContentDescription(str(PhoneModeTopBarDescriptions.LOGO)),
             useUnmergedTree = true,
         ).fetchSemanticsNodes().also { assertEquals(1, it.size) }
-        composeTestRule.onAllNodes(hasContentDescription("Toggle EXIF stats"), useUnmergedTree = true)
+        composeTestRule.onAllNodes(hasContentDescription(str(PhoneModeTopBarDescriptions.INFO)), useUnmergedTree = true)
             .fetchSemanticsNodes().also { assertEquals("only the Info button", 1, it.size) }
-        composeTestRule.onAllNodes(hasContentDescription("Show controls guide"), useUnmergedTree = true)
+        composeTestRule.onAllNodes(hasContentDescription(str(PhoneModeTopBarDescriptions.HELP_SHOW)), useUnmergedTree = true)
             .fetchSemanticsNodes().also { assertEquals(1, it.size) }
         composeTestRule.runOnIdle { open = true }
-        composeTestRule.onAllNodes(hasContentDescription("Hide controls guide"), useUnmergedTree = true)
+        composeTestRule.onAllNodes(hasContentDescription(str(PhoneModeTopBarDescriptions.HELP_HIDE)), useUnmergedTree = true)
             .fetchSemanticsNodes().also { assertEquals(1, it.size) }
-        composeTestRule.onAllNodes(hasContentDescription("Show controls guide"), useUnmergedTree = true)
+        composeTestRule.onAllNodes(hasContentDescription(str(PhoneModeTopBarDescriptions.HELP_SHOW)), useUnmergedTree = true)
             .fetchSemanticsNodes().also { assertEquals(0, it.size) }
     }
 

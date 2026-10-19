@@ -21,7 +21,11 @@ import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.performScrollTo
 import androidx.compose.ui.unit.dp
 import androidx.test.ext.junit.runners.AndroidJUnit4
+import com.phototok.R
 import com.phototok.domain.FirstRunHint
+import com.phototok.domain.UiText
+import com.phototok.plural
+import com.phototok.str
 import com.phototok.ui.components.ViewerBottomBar
 import com.phototok.viewmodel.FirstRunHintUi
 import com.phototok.viewmodel.ReloadPrompt
@@ -56,10 +60,10 @@ class PhoneModeScreenDialogTest {
             )
         }
 
-        composeTestRule.onNodeWithText("Delete permanently?").assertIsDisplayed()
-        composeTestRule.onNodeWithText("This location has no trash.").assertIsDisplayed()
-        composeTestRule.onNodeWithText("Turn off this prompt in Settings.").assertIsDisplayed()
-        composeTestRule.onNodeWithText("Cancel").assertIsDisplayed()
+        composeTestRule.onNodeWithText(str(R.string.dialog_title_direct_delete)).assertIsDisplayed()
+        composeTestRule.onNodeWithText(str(R.string.dialog_body_no_trash)).assertIsDisplayed()
+        composeTestRule.onNodeWithText(str(R.string.dialog_body_turn_off_prompt)).assertIsDisplayed()
+        composeTestRule.onNodeWithText(str(R.string.action_cancel)).assertIsDisplayed()
 
         composeTestRule.onNodeWithTag("direct_delete_confirm_button").performClick()
         assertTrue("Confirm button must trigger deletion", confirmed)
@@ -88,8 +92,8 @@ class PhoneModeScreenDialogTest {
         var dismissed = false
         val hintUi = FirstRunHintUi(
             hint = FirstRunHint.SWIPE_LEFT_DELETE,
-            title = "Swipe left deletes",
-            message = "Tap Revert to undo.",
+            title = UiText.of(R.string.hint_title_swipe_left_delete),
+            message = UiText.of(R.string.hint_body_swipe_left_delete),
             id = 1,
         )
 
@@ -101,8 +105,8 @@ class PhoneModeScreenDialogTest {
         }
 
         composeTestRule.onNodeWithTag("first_run_hint").assertIsDisplayed()
-        composeTestRule.onNodeWithText("Swipe left deletes").assertIsDisplayed()
-        composeTestRule.onNodeWithText("Tap Revert to undo.").assertIsDisplayed()
+        composeTestRule.onNodeWithText(str(R.string.hint_title_swipe_left_delete)).assertIsDisplayed()
+        composeTestRule.onNodeWithText(str(R.string.hint_body_swipe_left_delete)).assertIsDisplayed()
         composeTestRule.onNodeWithTag("first_run_hint_dismiss").assertIsDisplayed()
 
         composeTestRule.onNodeWithTag("first_run_hint_dismiss").performClick()
@@ -115,8 +119,7 @@ class PhoneModeScreenDialogTest {
         var dismissed = false
         val hintUi = FirstRunHintUi(
             hint = FirstRunHint.SWIPE_RIGHT,
-            title = "Swipe right copies to Selection",
-            message = "",
+            title = UiText.of(R.string.hint_title_swipe_right_copy, "Selection"),
             id = 3,
         )
 
@@ -128,9 +131,9 @@ class PhoneModeScreenDialogTest {
             )
         }
 
-        composeTestRule.onNodeWithText("Swipe right copies to Selection").assertIsDisplayed()
+        composeTestRule.onNodeWithText(str(R.string.hint_title_swipe_right_copy, "Selection")).assertIsDisplayed()
         composeTestRule.onNodeWithTag("first_run_hint_action").assertIsDisplayed()
-        composeTestRule.onNodeWithText("SETTINGS").assertIsDisplayed()
+        composeTestRule.onNodeWithText(str(R.string.action_settings)).assertIsDisplayed()
 
         composeTestRule.onNodeWithTag("first_run_hint_action").performClick()
         assertTrue("Settings action must open Settings", settingsOpened)
@@ -143,9 +146,9 @@ class PhoneModeScreenDialogTest {
         var dismissed = false
         val hintUi = FirstRunHintUi(
             hint = FirstRunHint.FILTER_MISMATCH,
-            title = "RAW only",
-            message = "Most photos here are JPEG.",
-            actionLabel = "SHOW ALL",
+            title = UiText.of(R.string.hint_title_filter_raw),
+            message = UiText.of(R.string.hint_body_filter_mostly_jpeg),
+            actionLabel = UiText.of(R.string.action_show_all),
             onAction = { actionInvoked = true },
             id = 2,
         )
@@ -158,9 +161,9 @@ class PhoneModeScreenDialogTest {
         }
 
         composeTestRule.onNodeWithTag("first_run_hint").assertIsDisplayed()
-        composeTestRule.onNodeWithText("RAW only").assertIsDisplayed()
+        composeTestRule.onNodeWithText(str(R.string.hint_title_filter_raw)).assertIsDisplayed()
         composeTestRule.onNodeWithTag("first_run_hint_action").assertIsDisplayed()
-        composeTestRule.onNodeWithText("SHOW ALL").assertIsDisplayed()
+        composeTestRule.onNodeWithText(str(R.string.action_show_all)).assertIsDisplayed()
         composeTestRule.onNodeWithTag("first_run_hint_dismiss").assertIsDisplayed()
 
         composeTestRule.onNodeWithTag("first_run_hint_action").performClick()
@@ -181,11 +184,11 @@ class PhoneModeScreenDialogTest {
         }
 
         composeTestRule.onAllNodesWithTag("raw_jpeg_suggestion_dialog").onFirst().assertIsDisplayed()
-        composeTestRule.onAllNodesWithText("RAW + JPEG pairs").onFirst().assertIsDisplayed()
-        composeTestRule.onAllNodesWithText("1 card per shot").onFirst().assertIsDisplayed()
+        composeTestRule.onAllNodesWithText(str(R.string.dialog_title_raw_jpeg)).onFirst().assertIsDisplayed()
+        composeTestRule.onAllNodesWithText(str(R.string.action_merge_pairs)).onFirst().assertIsDisplayed()
         composeTestRule.onAllNodesWithTag("one_per_shot_button").onFirst().assertIsDisplayed()
-        composeTestRule.onAllNodesWithText("Show both, linked").onFirst().assertIsDisplayed()
-        composeTestRule.onAllNodesWithText("Leave as is").onFirst().assertIsDisplayed()
+        composeTestRule.onAllNodesWithText(str(R.string.action_link_both)).onFirst().assertIsDisplayed()
+        composeTestRule.onAllNodesWithText(str(R.string.action_dont_change)).onFirst().assertIsDisplayed()
         composeTestRule.onAllNodesWithTag("apply_both_button").onFirst().assertIsDisplayed()
         composeTestRule.onAllNodesWithTag("filter_raw_button").onFirst().assertIsDisplayed()
         composeTestRule.onAllNodesWithTag("filter_jpg_button").onFirst().assertIsDisplayed()
@@ -330,9 +333,9 @@ class PhoneModeScreenDialogTest {
         }
 
         composeTestRule.onAllNodesWithTag("reload_jump_dialog").onFirst().assertIsDisplayed()
-        composeTestRule.onNodeWithText("5 new photos").assertIsDisplayed()
-        composeTestRule.onNodeWithText("Show new").assertIsDisplayed()
-        composeTestRule.onNodeWithText("Stay").assertIsDisplayed()
+        composeTestRule.onNodeWithText(plural(R.plurals.dialog_title_new_photos, 5)).assertIsDisplayed()
+        composeTestRule.onNodeWithText(str(R.string.action_show_new)).assertIsDisplayed()
+        composeTestRule.onNodeWithText(str(R.string.action_stay)).assertIsDisplayed()
 
         composeTestRule.onAllNodesWithTag("reload_jump_confirm_button").onFirst().performClick()
         assertTrue("Show new button must trigger callback", startedWithNewest)
@@ -352,7 +355,7 @@ class PhoneModeScreenDialogTest {
             )
         }
 
-        composeTestRule.onNodeWithText("1 new photo").assertIsDisplayed()
+        composeTestRule.onNodeWithText(plural(R.plurals.dialog_title_new_photos, 1)).assertIsDisplayed()
 
         composeTestRule.onAllNodesWithTag("reload_jump_stay_button").onFirst().performClick()
         assertTrue("Stay button must trigger callback", continuedWhereLeftOff)
@@ -380,7 +383,7 @@ class PhoneModeScreenDialogTest {
         // The landing content is a vertically scrolling column; the card sits below the hero
         // and mock cards, so on small emulators it is composed but off-screen until scrolled to.
         composeTestRule.onNodeWithTag("missing_grant_prompt_card").performScrollTo().assertIsDisplayed()
-        composeTestRule.onNodeWithText("Folder Access Needed").assertIsDisplayed()
+        composeTestRule.onNodeWithText(str(R.string.title_folder_access_lost)).assertIsDisplayed()
         composeTestRule.onNodeWithTag("reselect_folder_button").performScrollTo().assertIsDisplayed()
 
         composeTestRule.onNodeWithTag("reselect_folder_button").performClick()

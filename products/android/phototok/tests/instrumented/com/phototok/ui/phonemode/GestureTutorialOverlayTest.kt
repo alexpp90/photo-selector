@@ -9,11 +9,14 @@ import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.hasAnyAncestor
 import androidx.compose.ui.test.hasTestTag
 import androidx.compose.ui.test.hasText
+import androidx.compose.ui.test.onNodeWithContentDescription
 import androidx.compose.ui.test.junit4.createComposeRule
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
 import androidx.compose.ui.unit.dp
 import androidx.test.ext.junit.runners.AndroidJUnit4
+import com.phototok.R
+import com.phototok.str
 import com.phototok.domain.CollectionAction
 import com.phototok.domain.SwipeAction
 import org.junit.Assert.assertTrue
@@ -38,6 +41,22 @@ class GestureTutorialOverlayTest {
     private fun inGuide(text: String) =
         hasText(text) and hasAnyAncestor(hasTestTag("controls_guide"))
 
+    private val everyControlLabel
+        get() = listOf(
+            str(R.string.guide_camera_info),
+            str(R.string.guide_reload),
+            str(R.string.guide_help),
+            str(R.string.guide_info),
+            str(R.string.guide_settings),
+            str(R.string.guide_sources),
+            str(R.string.guide_selection),
+            str(R.string.guide_revert),
+            str(R.string.guide_next),
+            str(R.string.guide_previous),
+            str(R.string.guide_tap),
+            str(R.string.guide_zoom),
+        )
+
     private fun awaitGuide() {
         composeTestRule.waitUntil(timeoutMillis = 5000) {
             composeTestRule
@@ -49,7 +68,7 @@ class GestureTutorialOverlayTest {
     }
 
     @Test
-    fun gestureTutorialOverlay_whenVisible_showsTitleAndGotItButton() {
+    fun gestureTutorialOverlay_whenVisible_showsAnIconOnlyGotItButtonWithoutATitle() {
         var dismissClicked = false
 
         composeTestRule.setContent {
@@ -61,11 +80,9 @@ class GestureTutorialOverlayTest {
 
         awaitGuide()
 
-        composeTestRule.onNode(inGuide("How to Photo-Tok"), useUnmergedTree = true)
-            .assertIsDisplayed()
-
-        composeTestRule.onNode(inGuide("GOT IT"), useUnmergedTree = true).assertIsDisplayed()
-        composeTestRule.onNode(inGuide("GOT IT"), useUnmergedTree = true).performClick()
+        // Icon-only dismiss: named for TalkBack, no visible word and no title line (REQ-TOK-UX.02/.04).
+        composeTestRule.onNodeWithContentDescription(str(R.string.cd_got_it)).assertIsDisplayed()
+        composeTestRule.onNode(hasTestTag("gesture_tutorial_got_it"), useUnmergedTree = true).performClick()
 
         assertTrue(dismissClicked)
     }
@@ -80,20 +97,7 @@ class GestureTutorialOverlayTest {
 
         awaitGuide()
 
-        listOf(
-            "Tap the logo",
-            "Reload",
-            "Help",
-            "Info",
-            "Settings",
-            "Sources",
-            "Selection",
-            "Revert",
-            "Next photo",
-            "Previous photo",
-            "Single tap",
-            "Double tap or pinch",
-        ).forEach { label ->
+        everyControlLabel.forEach { label ->
             composeTestRule.onNode(inGuide(label), useUnmergedTree = true).assertIsDisplayed()
         }
     }
@@ -117,43 +121,33 @@ class GestureTutorialOverlayTest {
 
         awaitGuide()
 
-        listOf(
-            "Tap the logo",
-            "Reload",
-            "Help",
-            "Info",
-            "Settings",
-            "Sources",
-            "Selection",
-            "Revert",
-            "Next photo",
-            "Previous photo",
-            "Single tap",
-            "Double tap or pinch",
-            "MOVE",
-            "Move to Keepers",
-            "Copy to Maybes",
-            "GOT IT",
-        ).forEach { label ->
+        (
+            everyControlLabel + listOf(
+                str(R.string.label_swipe_move).uppercase(),
+                "Keepers",
+                "Maybes",
+            )
+            ).forEach { label ->
             composeTestRule.onNode(inGuide(label), useUnmergedTree = true).assertIsDisplayed()
         }
+        composeTestRule.onNode(hasTestTag("gesture_tutorial_got_it"), useUnmergedTree = true).assertIsDisplayed()
     }
 
     @Test
-    fun overlay_doesNotClaimThereIsACameraSymbol() {
-        // The old guide promised a "camera settings" symbol that does not exist;
-        // the EXIF overlay is toggled by tapping the app logo.
+    fun overlay_hasNoDescriptionLines() {
+        // Explain once (REQ-TOK-UX.04): a callout is a one- or two-word name, never a
+        // name plus a description line.
         composeTestRule.setContent {
             GestureTutorialOverlay(visible = true, onDismiss = {})
         }
 
         awaitGuide()
 
-        composeTestRule
-            .onNode(inGuide("Show or hide the camera settings overlay"), useUnmergedTree = true)
-            .assertDoesNotExist()
-        composeTestRule.onNode(inGuide("Tap the logo"), useUnmergedTree = true)
+        composeTestRule.onNode(inGuide(str(R.string.guide_camera_info)), useUnmergedTree = true)
             .assertIsDisplayed()
+        listOf("Rescan folder", "This guide", "EXIF overlay", "Pick another folder").forEach { old ->
+            composeTestRule.onNode(inGuide(old), useUnmergedTree = true).assertDoesNotExist()
+        }
     }
 
     @Test
@@ -171,12 +165,13 @@ class GestureTutorialOverlayTest {
         awaitGuide()
 
         // Swipe right is a MOVE here — it must never be presented as "KEEP".
-        composeTestRule.onNode(inGuide("MOVE"), useUnmergedTree = true).assertIsDisplayed()
-        composeTestRule.onNode(inGuide("Move to Keepers"), useUnmergedTree = true)
+        composeTestRule.onNode(inGuide(str(R.string.label_swipe_move).uppercase()), useUnmergedTree = true)
             .assertIsDisplayed()
+        composeTestRule.onNode(inGuide("Keepers"), useUnmergedTree = true).assertIsDisplayed()
         composeTestRule.onNode(inGuide("KEEP"), useUnmergedTree = true).assertDoesNotExist()
 
-        composeTestRule.onNode(inGuide("DELETE"), useUnmergedTree = true).assertIsDisplayed()
+        composeTestRule.onNode(inGuide(str(R.string.label_swipe_delete).uppercase()), useUnmergedTree = true)
+            .assertIsDisplayed()
     }
 
     @Test
@@ -194,9 +189,11 @@ class GestureTutorialOverlayTest {
 
         awaitGuide()
 
-        composeTestRule.onNode(inGuide("Copy to Maybes"), useUnmergedTree = true)
+        composeTestRule.onNode(inGuide(str(R.string.label_swipe_copy).uppercase()), useUnmergedTree = true)
             .assertIsDisplayed()
-        composeTestRule.onNode(inGuide("DELETE"), useUnmergedTree = true).assertDoesNotExist()
+        composeTestRule.onNode(inGuide("Maybes"), useUnmergedTree = true).assertIsDisplayed()
+        composeTestRule.onNode(inGuide(str(R.string.label_swipe_delete).uppercase()), useUnmergedTree = true)
+            .assertDoesNotExist()
     }
 
     @Test
@@ -224,8 +221,6 @@ class GestureTutorialOverlayTest {
 
         awaitGuide()
 
-        composeTestRule.onNode(inGuide("How to Photo-Tok"), useUnmergedTree = true)
-            .assertIsDisplayed()
         composeTestRule.onNodeWithText("Top App Bar Logo").assertIsDisplayed()
         composeTestRule.onNodeWithText("Bottom Nav Bar").assertIsDisplayed()
     }
@@ -236,6 +231,6 @@ class GestureTutorialOverlayTest {
             GestureTutorialOverlay(visible = false, onDismiss = {})
         }
 
-        composeTestRule.onNodeWithText("How to Photo-Tok").assertDoesNotExist()
+        composeTestRule.onNode(hasTestTag("controls_guide"), useUnmergedTree = true).assertDoesNotExist()
     }
 }
