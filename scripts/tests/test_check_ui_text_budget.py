@@ -156,6 +156,8 @@ class KotlinSources(unittest.TestCase):
                 val pulse = rememberInfiniteTransition(label = "left swipe pulse")
                 val a by animateFloatAsState(1f, label = "Bottom HUD alpha")
                 val path = "$root/Selection"
+                Text(text = "· $item")
+                Text("${index + 1} / $total")
             }
         ''')
         self.assertEqual(kinds(self.ws.run()), [("hardcoded", "${name} is not connected")])

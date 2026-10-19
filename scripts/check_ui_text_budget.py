@@ -370,8 +370,8 @@ def classify_literal(src: str, lit: Literal) -> str | None:
     line = src[line_start:src.find("\n", lit.start) if src.find("\n", lit.start) >= 0 else None]
     if re.match(r"\s*(import|package)\b", line) or line.lstrip().startswith("@"):
         return None
-    if not WORD.search(lit.text):
-        return None
+    if not WORD.search(fill_placeholders(lit.text, {"number": "1", "text": ""}, words_only=True)):
+        return None  # only values and symbols ("$count", "· $item", "%d / %d"): nothing to read
     call, arg = _call_before(src, lit.start)
     short = call.split(".")[-1]
     if arg in SPOKEN_ARGS:
