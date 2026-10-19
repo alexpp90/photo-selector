@@ -307,7 +307,7 @@ class LocalImageSourceImpl @Inject constructor(
         destination = destination(destFolderUri, subfolderName),
         sorting = sorting,
         isMove = true,
-        unresolvedSourceError = "Copy step failed",
+        unresolvedSourceError = "Copy step failed", // ui-text: ignore diagnostic code, never shown
     )
 
     /**

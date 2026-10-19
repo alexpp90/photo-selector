@@ -1,5 +1,6 @@
 package com.phototok.domain
 
+import com.phototok.R
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
@@ -20,7 +21,7 @@ class MilestonesTest {
         )
 
         assertTrue(event is Milestones.MilestoneEvent.BytesFreed)
-        assertEquals("50 MB freed!", event?.message)
+        assertEquals(UiText.of(R.string.snackbar_milestone_freed, "50 MB"), event?.message)
     }
 
     @Test
@@ -36,7 +37,7 @@ class MilestonesTest {
         )
 
         assertTrue(event is Milestones.MilestoneEvent.PhotosReviewed)
-        assertEquals("100 photos reviewed!", event?.message)
+        assertEquals(UiText.of(R.string.snackbar_milestone_reviewed, 100), event?.message)
     }
 
     @Test

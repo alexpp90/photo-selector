@@ -78,7 +78,7 @@ object ShareIntentBuilder {
     /** Build an `ACTION_SEND` chooser intent for a single [ShareTarget]. */
     fun buildSingleShareChooser(
         target: ShareTarget,
-        title: String = "Share photo",
+        title: CharSequence? = null,
     ): Intent {
         val contentUri = Uri.parse(target.uri)
         val sendIntent = Intent(Intent.ACTION_SEND).apply {
@@ -98,7 +98,7 @@ object ShareIntentBuilder {
      */
     fun buildBatchShareChooser(
         targets: List<ShareTarget>,
-        title: String = "Share photos",
+        title: CharSequence? = null,
     ): Intent? {
         if (targets.isEmpty()) return null
         if (targets.size == 1) return buildSingleShareChooser(targets.first(), title)
@@ -129,7 +129,7 @@ object ShareIntentBuilder {
     /** Build an `ACTION_VIEW` chooser intent (`Open with…`) for [target]. */
     fun buildOpenWithChooser(
         target: ShareTarget,
-        title: String = "Open with…",
+        title: CharSequence? = null,
     ): Intent {
         val contentUri = Uri.parse(target.uri)
         val viewIntent = Intent(Intent.ACTION_VIEW).apply {

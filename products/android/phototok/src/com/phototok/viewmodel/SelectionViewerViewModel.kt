@@ -4,11 +4,14 @@ import android.content.Intent
 import android.net.Uri
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.phototok.R
 import com.phototok.data.model.ImageItem
 import com.phototok.data.repository.FavouritesRepository
 import com.phototok.data.repository.ImageRepository
 import com.phototok.data.source.SelectionListing
+import com.phototok.domain.PhotoFolders
 import com.phototok.domain.ShareIntentBuilder
+import com.phototok.domain.UiText
 import dagger.hilt.android.lifecycle.HiltViewModel
 import javax.inject.Inject
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -16,6 +19,9 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
+
+/** Name of the folder favourites are copied into (a folder name on disk, not wording). */
+private const val FAVOURITES_FOLDER = "Favourites"
 
 enum class SelectionViewerTab {
     FAVOURITES,
@@ -30,6 +36,8 @@ data class SelectionViewerUiState(
     val selectionImages: List<ImageItem> = emptyList(),
     val favouriteImages: List<ImageItem> = emptyList(),
     val folderName: String = "",
+    /** Name of the Selection tab's folder (the chip label); `folderName` follows the active tab. */
+    val selectionFolderName: String = "",
     val currentIndex: Int = 0,
     val feedback: ActionFeedback? = null,
 )
@@ -57,7 +65,7 @@ class SelectionViewerViewModel @Inject constructor(
     fun open(targetFolderUri: String?) {
         if (targetFolderUri == null) {
             _uiState.update {
-                it.copy(feedback = ActionFeedback("No selection folder yet", isError = false))
+                it.copy(feedback = ActionFeedback(UiText.of(R.string.snackbar_selection_none), isError = false))
             }
             return
         }
@@ -77,18 +85,19 @@ class SelectionViewerViewModel @Inject constructor(
                             images = listing.images,
                             selectionImages = listing.images,
                             folderName = listing.folderName,
+                            selectionFolderName = listing.folderName,
                         )
                     }
                     SelectionListing.NotSupported -> _uiState.update {
                         it.copy(
                             isOpen = false,
-                            feedback = ActionFeedback("Selection view is local-only", isError = true),
+                            feedback = ActionFeedback(UiText.of(R.string.error_selection_local), isError = true),
                         )
                     }
                     SelectionListing.Missing -> _uiState.update {
                         it.copy(
                             isOpen = false,
-                            feedback = ActionFeedback("Selection folder is empty", isError = false),
+                            feedback = ActionFeedback(UiText.of(R.string.snackbar_selection_empty), isError = false),
                         )
                     }
                 }
@@ -96,10 +105,7 @@ class SelectionViewerViewModel @Inject constructor(
                 _uiState.update {
                     it.copy(
                         isOpen = false,
-                        feedback = ActionFeedback(
-                            "Failed to open selection: ${e.message}",
-                            isError = true,
-                        ),
+                        feedback = ActionFeedback(UiText.of(R.string.error_selection_open), isError = true),
                     )
                 }
             }
@@ -119,14 +125,14 @@ class SelectionViewerViewModel @Inject constructor(
         val favImages = sourceImages.filter { it.uri in favouritedUris }
         if (targetFolderUri == null && favImages.isEmpty()) {
             _uiState.update {
-                it.copy(feedback = ActionFeedback("No favourites or selection folder yet", isError = false))
+                it.copy(feedback = ActionFeedback(UiText.of(R.string.snackbar_nothing_yet), isError = false))
             }
             return
         }
 
         viewModelScope.launch {
             var selImages: List<ImageItem> = emptyList()
-            var selFolderName = "Selection"
+            var selFolderName = PhotoFolders.SELECTION
             if (targetFolderUri != null) {
                 try {
                     when (val listing = imageRepository.listSelectionImages(Uri.parse(targetFolderUri))) {
@@ -144,7 +150,7 @@ class SelectionViewerViewModel @Inject constructor(
                 _uiState.update {
                     it.copy(
                         isOpen = false,
-                        feedback = ActionFeedback("No favourites or selection photos yet", isError = false),
+                        feedback = ActionFeedback(UiText.of(R.string.snackbar_nothing_yet), isError = false),
                     )
                 }
                 return@launch
@@ -167,7 +173,8 @@ class SelectionViewerViewModel @Inject constructor(
                     images = activeList,
                     selectionImages = selImages,
                     favouriteImages = favImages,
-                    folderName = if (initialTab == SelectionViewerTab.FAVOURITES) "Favourites" else selFolderName,
+                    folderName = if (initialTab == SelectionViewerTab.FAVOURITES) FAVOURITES_FOLDER else selFolderName,
+                    selectionFolderName = selFolderName,
                     currentIndex = 0,
                 )
             }
@@ -184,7 +191,11 @@ class SelectionViewerViewModel @Inject constructor(
             state.copy(
                 activeTab = tab,
                 images = list,
-                folderName = if (tab == SelectionViewerTab.FAVOURITES) "Favourites" else state.folderName.ifEmpty { "Selection" },
+                folderName = if (tab == SelectionViewerTab.FAVOURITES) {
+                    FAVOURITES_FOLDER
+                } else {
+                    state.selectionFolderName.ifEmpty { PhotoFolders.SELECTION }
+                },
                 currentIndex = 0,
             )
         }
@@ -193,7 +204,7 @@ class SelectionViewerViewModel @Inject constructor(
     /**
      * Copy all favourited photos to a user-chosen destination folder (`U-17`).
      */
-    fun copyFavouritesToFolder(destFolderUri: Uri, subfolderName: String = "Favourites") {
+    fun copyFavouritesToFolder(destFolderUri: Uri, subfolderName: String = FAVOURITES_FOLDER) {
         val favs = _uiState.value.favouriteImages.ifEmpty { _uiState.value.images }
         if (favs.isEmpty()) return
         viewModelScope.launch {
@@ -212,9 +223,9 @@ class SelectionViewerViewModel @Inject constructor(
                 if (ok) copied++
             }
             val msg = if (copied == favs.size) {
-                "Copied $copied favourite(s) to $subfolderName"
+                UiText.of(R.string.snackbar_favourites_copied, copied, subfolderName)
             } else {
-                "Copied $copied of ${favs.size} favourite(s)"
+                UiText.of(R.string.error_favourites_partial, copied, favs.size)
             }
             _uiState.update {
                 it.copy(feedback = ActionFeedback(msg, isError = copied < favs.size))
@@ -240,7 +251,7 @@ class SelectionViewerViewModel @Inject constructor(
             _uiState.update {
                 it.copy(
                     feedback = ActionFeedback(
-                        "Sharing first ${ShareIntentBuilder.MAX_SHARE_ITEMS} of $totalRequested photos",
+                        UiText.of(R.string.snackbar_share_capped, ShareIntentBuilder.MAX_SHARE_ITEMS, totalRequested),
                         isError = false,
                     )
                 )

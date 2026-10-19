@@ -3,6 +3,7 @@ package com.phototok.viewmodel
 import android.content.Intent
 import android.net.Uri
 import android.util.Log
+import com.phototok.R
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.photoselector.core.model.ExifData
@@ -42,6 +43,7 @@ import com.phototok.domain.ShareIntentBuilder
 import com.phototok.domain.SwipeAction
 import com.phototok.domain.SwipeRightVerb
 import com.phototok.domain.SystemFavouriteSync
+import com.phototok.domain.UiText
 import dagger.hilt.android.lifecycle.HiltViewModel
 import javax.inject.Inject
 import kotlin.math.abs
@@ -79,7 +81,7 @@ data class PhoneModeUiState(
     val leftSwipeAction: SwipeAction = SwipeAction.DEFAULT,
     val leftSwipeFolderUri: String? = null,
     val leftSwipeFolderName: String = "",
-    val error: String? = null,
+    val error: UiText? = null,
     val showGestureTutorial: Boolean = false,
     /** Set when the user opens the controls guide from the info button. */
     val showControlsGuide: Boolean = false,
@@ -114,7 +116,7 @@ data class PhoneModeUiState(
     /** Prompt shown when a reload or a reopened folder found photos newer than the last visit. */
     val reloadPrompt: ReloadPrompt? = null,
     /** Friendly explanation when a selected folder contains 0 supported photos. */
-    val emptyFolderMessage: String? = null,
+    val emptyFolderMessage: UiText? = null,
     /** True when the folder's persisted SAF grant was revoked or the folder was moved/deleted. */
     val missingGrantPrompt: Boolean = false,
     /** When true, Selection folder is stored inside each scanned folder. */
@@ -130,7 +132,7 @@ data class PhoneModeUiState(
     /** Session and lifetime culling statistics (`U-19`). */
     val cullingStats: CullingStats = CullingStats(),
     /** Milestone celebration banner text (`U-19`). */
-    val celebrationBanner: String? = null,
+    val celebrationBanner: UiText? = null,
     val celebrationsEnabled: Boolean = true,
     /** "Done with this card" sheet state (`U-14c`). */
     val showCardDoneSheet: Boolean = false,
@@ -162,7 +164,7 @@ val PhoneModeUiState.unmountedRecentUris: Set<String>
     get() = recentPaths.filter { !VolumeMonitor.isRecentPathMounted(it, mountedVolumes) }.map { it.uri }.toSet()
 
 data class ActionFeedback(
-    val message: String,
+    val message: UiText,
     val isError: Boolean = false,
     val id: Long = System.nanoTime(),
 )
@@ -170,9 +172,9 @@ data class ActionFeedback(
 /** A one-time explanation, resolved against the user's current settings. */
 data class FirstRunHintUi(
     val hint: FirstRunHint,
-    val title: String,
-    val message: String,
-    val actionLabel: String? = null,
+    val title: UiText,
+    val message: UiText? = null,
+    val actionLabel: UiText? = null,
     val onAction: (() -> Unit)? = null,
     val id: Long = System.nanoTime(),
 )
@@ -340,7 +342,7 @@ class PhoneModeViewModel @Inject constructor(
                 undoStack = emptyList(),
                 showCardDoneSheet = false,
                 lastActionFeedback = ActionFeedback(
-                    message = "Card disconnected — progress saved",
+                    message = UiText.of(R.string.snackbar_card_disconnected),
                     isError = false,
                 ),
             )
@@ -464,7 +466,7 @@ class PhoneModeViewModel @Inject constructor(
                     (src.swipeRightVerb == SwipeRightVerb.MOVE || src.leftSwipeAction == SwipeAction.MOVE)
                 ) {
                     cloudMoveCoercedNoticeShown = true
-                    showFeedback("Cloud folder: copying, not moving")
+                    showFeedback(UiText.of(R.string.snackbar_cloud_copy_only))
                 }
 
                 val prev = previous
@@ -499,7 +501,7 @@ class PhoneModeViewModel @Inject constructor(
     /** Re-open a previously used source folder from the recents list. */
     fun selectRecentPath(path: RecentPath) {
         if (!VolumeMonitor.isRecentPathMounted(path, _uiState.value.mountedVolumes)) {
-            showFeedback("${path.displayName} is not connected", isError = true)
+            showFeedback(UiText.of(R.string.error_not_connected, path.displayName), isError = true)
             return
         }
         selectSourceFolder(Uri.parse(path.uri))
@@ -629,7 +631,7 @@ class PhoneModeViewModel @Inject constructor(
                         sourceFolderUri = null,
                         sourceFolderName = "",
                         missingGrantPrompt = true,
-                        error = "Can't access this folder",
+                        error = UiText.of(R.string.error_folder_access),
                     )
                 }
                 return@launch
@@ -642,7 +644,6 @@ class PhoneModeViewModel @Inject constructor(
             val scanInfo = settingsRepository.getFolderScanInfo(uri.toString())
             collectDiscoveredImages(
                 folderUri = uri,
-                errorLabel = "images",
                 previousScanInfo = scanInfo,
                 wasActiveSession = false,
             )
@@ -684,7 +685,6 @@ class PhoneModeViewModel @Inject constructor(
      */
     private suspend fun collectDiscoveredImages(
         folderUri: Uri,
-        errorLabel: String,
         targetUriToKeep: String? = null,
         previousScanInfo: FolderScanInfo = FolderScanInfo(),
         wasActiveSession: Boolean = false,
@@ -785,8 +785,8 @@ class PhoneModeViewModel @Inject constructor(
             }
 
             val emptyMsg = if (sorted.images.isEmpty()) {
-                val fName = current.sourceFolderName.ifEmpty { "This folder" }
-                "$fName has no supported photos"
+                val fName = current.sourceFolderName.ifEmpty { PhotoFolders.SELECTION }
+                UiText.of(R.string.empty_folder, fName)
             } else null
 
             val seenCount = seenRepository.countSeen(sorted.images, folderUri.toString())
@@ -811,7 +811,7 @@ class PhoneModeViewModel @Inject constructor(
                 )
             }
             loadExifForCurrent()
-            if (confirmNoNewPhotos) showFeedback("No new photos")
+            if (confirmNoNewPhotos) showFeedback(UiText.of(R.string.snackbar_no_new_photos))
             maybeShowRawJpegSuggestion()
             maybeShowFilterMismatchHint()
             loadDimensionsAsynchronously(force = true)
@@ -829,7 +829,7 @@ class PhoneModeViewModel @Inject constructor(
                     sourceFolderUri = null,
                     sourceFolderName = "",
                     missingGrantPrompt = true,
-                    error = "Can't access this folder",
+                    error = UiText.of(R.string.error_folder_access),
                 )
             }
         } catch (e: Exception) {
@@ -837,7 +837,7 @@ class PhoneModeViewModel @Inject constructor(
                 it.copy(
                     isLoading = false,
                     isDiscovering = false,
-                    error = "Failed to load $errorLabel: ${e.message}",
+                    error = UiText.of(R.string.error_load_failed),
                 )
             }
         }
@@ -1082,7 +1082,7 @@ class PhoneModeViewModel @Inject constructor(
             )
             statsRepository.recordKeeper(state.sourceKind, 1 + related.size)
             advanceToNextImage()
-            showFeedback("★ Added to Favourites")
+            showFeedback(UiText.of(R.string.snackbar_favourite_added))
             return
         }
 
@@ -1095,7 +1095,7 @@ class PhoneModeViewModel @Inject constructor(
             targetUri = target,
             isCopy = isCopy,
             subfolderName = PhotoFolders.SELECTION,
-            destinationNoun = "collection",
+            destination = collectionDestination(state),
         )
     }
 
@@ -1111,9 +1111,9 @@ class PhoneModeViewModel @Inject constructor(
         )
         if (nowFav) {
             statsRepository.recordKeeper(state.sourceKind, 1 + related.size)
-            showFeedback("★ Added to Favourites")
+            showFeedback(UiText.of(R.string.snackbar_favourite_added))
         } else {
-            showFeedback("Removed from Favourites")
+            showFeedback(UiText.of(R.string.snackbar_favourite_removed))
         }
     }
 
@@ -1126,7 +1126,7 @@ class PhoneModeViewModel @Inject constructor(
             targetUri = target,
             isCopy = true,
             subfolderName = PhotoFolders.SELECTION,
-            destinationNoun = "collection",
+            destination = collectionDestination(state),
         )
     }
 
@@ -1143,7 +1143,7 @@ class PhoneModeViewModel @Inject constructor(
             targetUri = target,
             isCopy = isCopy,
             subfolderName = PhotoFolders.SELECTION,
-            destinationNoun = "collection",
+            destination = collectionDestination(state),
         )
     }
 
@@ -1178,6 +1178,10 @@ class PhoneModeViewModel @Inject constructor(
         return state.sourceFolderUri
     }
 
+    /** Name of the Selection destination for feedback: the configured folder, else the default. */
+    private fun collectionDestination(state: PhoneModeUiState): UiText =
+        UiText.raw(state.collectionFolderName.ifBlank { PhotoFolders.SELECTION })
+
     /** Swipe left (copy/move mode): copy or move the current photo to the custom folder. */
     fun performLeftSwipeCopyOrMove() {
         val state = _uiState.value
@@ -1189,7 +1193,7 @@ class PhoneModeViewModel @Inject constructor(
             targetUri = state.leftSwipeFolderUri ?: state.sourceFolderUri,
             isCopy = state.leftSwipeAction == SwipeAction.COPY || state.isCloudSource,
             subfolderName = PhotoFolders.LEFT_SWIPE,
-            destinationNoun = "folder",
+            destination = UiText.raw(state.leftSwipeFolderName.ifBlank { PhotoFolders.LEFT_SWIPE }),
         )
     }
 
@@ -1200,7 +1204,7 @@ class PhoneModeViewModel @Inject constructor(
         targetUri: String?,
         isCopy: Boolean,
         subfolderName: String,
-        destinationNoun: String,
+        destination: UiText,
     ) {
         val state = _uiState.value
         if (state.images.isEmpty()) return
@@ -1259,7 +1263,7 @@ class PhoneModeViewModel @Inject constructor(
                 }
                 targets.forEachIndexed { i, img ->
                     val result = results.getOrNull(i)
-                        ?: FileOperationResult.failure(img.uri, "No result")
+                        ?: FileOperationResult.failure(img.uri, "No result") // ui-text: ignore internal result code, never shown
                     when {
                         result.success -> {
                             succeededUris.add(img.uri)
@@ -1294,7 +1298,7 @@ class PhoneModeViewModel @Inject constructor(
 
                 val message = CopyMoveFeedback.message(
                     isCopy = isCopy,
-                    destinationNoun = destinationNoun,
+                    destination = destination,
                     succeeded = succeededUris.size,
                     failed = failed,
                     relatedCount = related.size,
@@ -1318,7 +1322,9 @@ class PhoneModeViewModel @Inject constructor(
             } catch (e: Exception) {
                 if (!isCopy && feedEpoch == epochAtLaunch) restoreToFeed(slots)
                 _uiState.update {
-                    it.copy(lastActionFeedback = ActionFeedback("Failed: ${e.message}", isError = true))
+                    it.copy(
+                        lastActionFeedback = ActionFeedback(UiText.of(R.string.error_transfer_failed), isError = true),
+                    )
                 }
             }
         }
@@ -1438,13 +1444,13 @@ class PhoneModeViewModel @Inject constructor(
             // Process from oldest to newest
             val orderedEntries = entries
             val allSucceededUris = mutableSetOf<String>()
-            val allFailedItems = mutableListOf<Pair<ImageItem, String?>>()
+            val allFailedItems = mutableListOf<ImageItem>()
             var totalBytesFreed = 0L
 
             for (pending in orderedEntries) {
                 val targets = listOf(pending.image) + pending.related
                 val succeededUris = mutableSetOf<String>()
-                val failedForEntry = mutableListOf<Pair<ImageItem, String?>>()
+                val failedForEntry = mutableListOf<ImageItem>()
 
                 for (img in targets) {
                     try {
@@ -1455,16 +1461,15 @@ class PhoneModeViewModel @Inject constructor(
                             totalBytesFreed += img.fileSize
                         } else {
                             Log.e(TAG, "Failed to delete file on disk: ${img.uri}")
-                            failedForEntry.add(img to "could not be deleted")
-                            allFailedItems.add(img to "could not be deleted")
+                            failedForEntry.add(img)
+                            allFailedItems.add(img)
                         }
                     } catch (e: CancellationException) {
                         throw e
                     } catch (e: Exception) {
                         Log.e(TAG, "Error deleting file: ${img.uri}", e)
-                        val reason = e.message ?: "delete failed"
-                        failedForEntry.add(img to reason)
-                        allFailedItems.add(img to reason)
+                        failedForEntry.add(img)
+                        allFailedItems.add(img)
                     }
                 }
 
@@ -1492,12 +1497,13 @@ class PhoneModeViewModel @Inject constructor(
 
             if (allFailedItems.isNotEmpty()) {
                 val errorMsg = if (allSucceededUris.isEmpty()) {
-                    val (firstImg, reason) = allFailedItems.first()
-                    "Could not delete ${firstImg.fileName}: ${reason ?: "delete failed"}"
+                    UiText.of(R.string.error_delete_one, allFailedItems.first().fileName)
                 } else {
-                    val failedNames = allFailedItems.joinToString { it.first.fileName }
-                    val reason = allFailedItems.first().second ?: "delete failed"
-                    "Deleted ${allSucceededUris.size} of ${allSucceededUris.size + allFailedItems.size} — could not delete $failedNames ($reason)"
+                    UiText.of(
+                        R.string.error_delete_some,
+                        allSucceededUris.size,
+                        allSucceededUris.size + allFailedItems.size,
+                    )
                 }
                 _uiState.update {
                     it.copy(
@@ -1590,7 +1596,7 @@ class PhoneModeViewModel @Inject constructor(
                 cardClearStep = 0,
             )
         }
-        showFeedback("Safe to unplug")
+        showFeedback(UiText.of(R.string.snackbar_safe_to_unplug))
     }
 
     /** Option 2: Delete only the photos swiped left during this session. */
@@ -1602,7 +1608,7 @@ class PhoneModeViewModel @Inject constructor(
                 cardClearStep = 0,
             )
         }
-        showFeedback("Rejects deleted")
+        showFeedback(UiText.of(R.string.snackbar_rejects_deleted))
     }
 
     /** Step 1 -> Step 2 for Option 3 ("Clear entire card"). */
@@ -1628,7 +1634,7 @@ class PhoneModeViewModel @Inject constructor(
                     cardClearComplete = true,
                 )
             }
-            showFeedback("Safe to unplug card")
+            showFeedback(UiText.of(R.string.snackbar_safe_to_unplug))
             return
         }
         _uiState.update { it.copy(cardClearStep = 3) }
@@ -1658,7 +1664,7 @@ class PhoneModeViewModel @Inject constructor(
             if (feedEpoch != epochAtLaunch) {
                 // Left the card meanwhile: the deletions stand, but the screen shows something else.
                 _uiState.update { it.copy(cardClearStep = 0) }
-                showFeedback(if (deletedCount == 1) "1 photo deleted" else "$deletedCount photos deleted")
+                showFeedback(UiText.of(R.string.snackbar_deleted_count, deletedCount))
                 return@launch
             }
             _uiState.update {
@@ -1670,10 +1676,10 @@ class PhoneModeViewModel @Inject constructor(
                     cardClearStep = 0,
                     cardClearComplete = true,
                     cardDeletedCount = it.cardDeletedCount + deletedCount,
-                    emptyFolderMessage = "Card cleared · safe to unplug",
+                    emptyFolderMessage = UiText.of(R.string.empty_card_cleared),
                 )
             }
-            showFeedback(if (deletedCount == 1) "1 photo deleted" else "$deletedCount photos deleted")
+            showFeedback(UiText.of(R.string.snackbar_deleted_count, deletedCount))
         }
     }
 
@@ -1695,7 +1701,7 @@ class PhoneModeViewModel @Inject constructor(
         _uiState.update { it.copy(error = null) }
     }
 
-    fun setError(message: String) {
+    fun setError(message: UiText) {
         _uiState.update { it.copy(error = message) }
     }
 
@@ -1804,13 +1810,16 @@ class PhoneModeViewModel @Inject constructor(
                 settingsRepository.setPhoneMoveRelatedFiles(true)
             }
         }
-        val label = when (filter) {
-            FileTypeFilter.ONE_PER_SHOT -> "1 card per shot"
-            FileTypeFilter.RAW -> "RAW only"
-            FileTypeFilter.JPG -> "JPEG only"
-            FileTypeFilter.ALL -> "all photos"
-        }
-        showFeedback("Showing $label")
+        showFeedback(
+            UiText.of(
+                when (filter) {
+                    FileTypeFilter.ONE_PER_SHOT -> R.string.snackbar_pairs_merged
+                    FileTypeFilter.RAW -> R.string.snackbar_filter_raw
+                    FileTypeFilter.JPG -> R.string.snackbar_filter_jpeg
+                    FileTypeFilter.ALL -> R.string.snackbar_filter_all
+                },
+            ),
+        )
     }
 
     fun enableMoveRelatedFiles() {
@@ -1819,7 +1828,7 @@ class PhoneModeViewModel @Inject constructor(
             settingsRepository.markFirstRunHintSeen(FirstRunHint.RAW_JPEG_PAIRS)
             settingsRepository.setPhoneMoveRelatedFiles(true)
         }
-        showFeedback("RAW + JPEG linked")
+        showFeedback(UiText.of(R.string.snackbar_linked))
     }
 
     // ── Filter mismatch hint ─────────────────────────────────────────────
@@ -1849,7 +1858,7 @@ class PhoneModeViewModel @Inject constructor(
                         hint = FirstRunHint.FILTER_MISMATCH,
                         title = title,
                         message = message,
-                        actionLabel = "SHOW ALL",
+                        actionLabel = UiText.of(R.string.action_show_all),
                         onAction = { applyRawJpegFilter(FileTypeFilter.ALL) },
                     ),
                 )
@@ -1906,14 +1915,13 @@ class PhoneModeViewModel @Inject constructor(
                         sourceFolderUri = null,
                         sourceFolderName = "",
                         missingGrantPrompt = true,
-                        error = "Can't access this folder",
+                        error = UiText.of(R.string.error_folder_access),
                     )
                 }
                 return@launch
             }
             collectDiscoveredImages(
                 folderUri = folderUri,
-                errorLabel = "images",
                 targetUriToKeep = currentUri,
                 previousScanInfo = scanInfo.copy(
                     lastViewedUri = currentUri ?: scanInfo.lastViewedUri,
@@ -1984,7 +1992,7 @@ class PhoneModeViewModel @Inject constructor(
         }
     }
 
-    private fun showFeedback(message: String, isError: Boolean = false) {
+    private fun showFeedback(message: UiText, isError: Boolean = false) {
         _uiState.update {
             it.copy(lastActionFeedback = ActionFeedback(message = message, isError = isError))
         }

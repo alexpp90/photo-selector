@@ -1,5 +1,7 @@
 package com.phototok.domain
 
+import com.phototok.R
+
 /**
  * Wording for the on-screen swipe indicators and coach marks.
  *
@@ -8,76 +10,63 @@ package com.phototok.domain
  * the action the user has actually configured: a swipe right that *moves* a
  * file must never be labelled "KEEP".
  *
- * Pure (Android-free) so the wording is unit-testable and every call site —
- * viewer indicators, idle peeks, controls overlay — agrees on one vocabulary.
+ * Pure (Android-free apart from resource ids) so the wording is unit-testable and every call
+ * site — viewer indicators, idle peeks, controls overlay — agrees on one vocabulary. Labels are
+ * [UiText]; the UI upper-cases them for the indicators.
  */
 object SwipeLabels {
 
-    /** Fallback folder names used before the user has picked a target folder. */
-    internal const val DEFAULT_COLLECTION = "your collection"
-    internal const val DEFAULT_LEFT_SWIPE = "your chosen folder"
-
     // ── Swipe right (collection / favourite action) ──────────────────────
 
-    /** Short, all-caps indicator label for a swipe right. */
-    fun rightLabel(action: CollectionAction): String = when (action) {
-        CollectionAction.COPY -> "COPY"
-        CollectionAction.MOVE -> "MOVE"
+    /** Short indicator label for a swipe right (shown in capitals). */
+    fun rightLabel(action: CollectionAction): UiText = when (action) {
+        CollectionAction.COPY -> UiText.of(R.string.label_swipe_copy)
+        CollectionAction.MOVE -> UiText.of(R.string.label_swipe_move)
     }
 
     /** Short indicator label for a [SwipeRightVerb] (`U-17`). */
-    fun rightLabel(verb: SwipeRightVerb): String = when (verb) {
-        SwipeRightVerb.COPY -> "COPY"
-        SwipeRightVerb.MOVE -> "MOVE"
-        SwipeRightVerb.FAVOURITE -> "★"
+    fun rightLabel(verb: SwipeRightVerb): UiText = when (verb) {
+        SwipeRightVerb.COPY -> UiText.of(R.string.label_swipe_copy)
+        SwipeRightVerb.MOVE -> UiText.of(R.string.label_swipe_move)
+        SwipeRightVerb.FAVOURITE -> UiText.of(R.string.label_swipe_favourite)
     }
 
-    /** Sentence-case verb for a swipe right, e.g. for coach-mark captions. */
-    fun rightVerb(action: CollectionAction): String = when (action) {
-        CollectionAction.COPY -> "Copy"
-        CollectionAction.MOVE -> "Move"
+    /** The folder a swipe right files into, shown under its label; a blank name falls back to Selection. */
+    fun rightFolder(folderName: String): String = folderName.ifBlank { PhotoFolders.SELECTION }
+
+    /** Spoken text naming the swipe-right target. */
+    fun rightDescription(action: CollectionAction, folderName: String): UiText = when (action) {
+        CollectionAction.COPY -> UiText.of(R.string.cd_swipe_copy, rightFolder(folderName))
+        CollectionAction.MOVE -> UiText.of(R.string.cd_swipe_move, rightFolder(folderName))
     }
 
-    /** Sentence-case verb for a [SwipeRightVerb]. */
-    fun rightVerb(verb: SwipeRightVerb): String = when (verb) {
-        SwipeRightVerb.COPY -> "Copy"
-        SwipeRightVerb.MOVE -> "Move"
-        SwipeRightVerb.FAVOURITE -> "Favourite"
+    /** Spoken text naming the [SwipeRightVerb] effect. */
+    fun rightDescription(verb: SwipeRightVerb, folderName: String): UiText = when (verb) {
+        SwipeRightVerb.FAVOURITE -> UiText.of(R.string.cd_swipe_favourite)
+        SwipeRightVerb.COPY -> UiText.of(R.string.cd_swipe_copy, rightFolder(folderName))
+        SwipeRightVerb.MOVE -> UiText.of(R.string.cd_swipe_move, rightFolder(folderName))
     }
-
-    /** Accessibility / caption text naming the swipe-right target. */
-    fun rightDescription(action: CollectionAction, folderName: String): String =
-        "${rightVerb(action)} to ${folderName.ifBlank { DEFAULT_COLLECTION }}"
-
-    /** Accessibility / caption text naming the [SwipeRightVerb] effect. */
-    fun rightDescription(verb: SwipeRightVerb, folderName: String): String = when (verb) {
-        SwipeRightVerb.FAVOURITE -> "Favourite photo"
-        SwipeRightVerb.COPY,
-        SwipeRightVerb.MOVE -> "${rightVerb(verb)} to ${folderName.ifBlank { DEFAULT_COLLECTION }}"
-    }
-
 
     // ── Swipe left (configured left-swipe action) ────────────────────────
 
-    /** Short, all-caps indicator label for a swipe left. */
-    fun leftLabel(action: SwipeAction): String = when (action) {
-        SwipeAction.COPY -> "COPY"
-        SwipeAction.MOVE -> "MOVE"
-        SwipeAction.DELETE -> "DELETE"
+    /** Short indicator label for a swipe left (shown in capitals). */
+    fun leftLabel(action: SwipeAction): UiText = when (action) {
+        SwipeAction.COPY -> UiText.of(R.string.label_swipe_copy)
+        SwipeAction.MOVE -> UiText.of(R.string.label_swipe_move)
+        SwipeAction.DELETE -> UiText.of(R.string.label_swipe_delete)
     }
 
-    /** Sentence-case verb for a swipe left. */
-    fun leftVerb(action: SwipeAction): String = when (action) {
-        SwipeAction.COPY -> "Copy"
-        SwipeAction.MOVE -> "Move"
-        SwipeAction.DELETE -> "Delete"
+    /** The folder a swipe left files into, or `null` when it deletes; a blank name falls back to the default. */
+    fun leftFolder(action: SwipeAction, folderName: String): String? = when (action) {
+        SwipeAction.DELETE -> null
+        SwipeAction.COPY, SwipeAction.MOVE -> folderName.ifBlank { PhotoFolders.LEFT_SWIPE }
     }
 
-    /** Accessibility / caption text naming the swipe-left effect. */
-    fun leftDescription(action: SwipeAction, folderName: String): String = when (action) {
-        SwipeAction.DELETE -> "Delete — undo it with Revert"
-        SwipeAction.COPY -> "Copy to ${folderName.ifBlank { DEFAULT_LEFT_SWIPE }}"
-        SwipeAction.MOVE -> "Move to ${folderName.ifBlank { DEFAULT_LEFT_SWIPE }}"
+    /** Spoken text naming the swipe-left effect. */
+    fun leftDescription(action: SwipeAction, folderName: String): UiText = when (action) {
+        SwipeAction.DELETE -> UiText.of(R.string.cd_swipe_delete)
+        SwipeAction.COPY -> UiText.of(R.string.cd_swipe_copy, leftFolder(action, folderName)!!)
+        SwipeAction.MOVE -> UiText.of(R.string.cd_swipe_move, leftFolder(action, folderName)!!)
     }
 
     /** True when the left swipe destroys data and should be tinted as an error. */

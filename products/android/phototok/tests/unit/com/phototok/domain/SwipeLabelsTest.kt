@@ -1,10 +1,17 @@
 package com.phototok.domain
 
 import com.photoselector.core.Requirement
+import com.phototok.R
+import com.phototok.de
+import com.phototok.en
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
+import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
+import org.junit.runner.RunWith
+import org.robolectric.RobolectricTestRunner
+import org.robolectric.annotation.Config
 
 /**
  * The swipe indicators are the only thing telling a gesture-first user what is
@@ -12,13 +19,17 @@ import org.junit.Test
  * describes a *default* rather than the user's configured action — the "KEEP"
  * label that appeared on a swipe right even when the photo was being moved.
  */
+@RunWith(RobolectricTestRunner::class)
+@Config(sdk = [34])
 class SwipeLabelsTest {
 
     @Test
     @Requirement("REQ-TOK-GESTURE.01")
     fun `swipe right is labelled with the configured collection action`() {
-        assertEquals("COPY", SwipeLabels.rightLabel(CollectionAction.COPY))
-        assertEquals("MOVE", SwipeLabels.rightLabel(CollectionAction.MOVE))
+        assertEquals(UiText.of(R.string.label_swipe_copy), SwipeLabels.rightLabel(CollectionAction.COPY))
+        assertEquals(UiText.of(R.string.label_swipe_move), SwipeLabels.rightLabel(CollectionAction.MOVE))
+        assertEquals("Copy", SwipeLabels.rightLabel(CollectionAction.COPY).en())
+        assertEquals("Verschieben", SwipeLabels.rightLabel(CollectionAction.MOVE).de())
     }
 
     @Test
@@ -26,16 +37,16 @@ class SwipeLabelsTest {
         CollectionAction.entries.forEach { action ->
             assertFalse(
                 "swipe right must name the action, not imply keeping",
-                SwipeLabels.rightLabel(action).equals("KEEP", ignoreCase = true),
+                SwipeLabels.rightLabel(action).en().equals("KEEP", ignoreCase = true),
             )
         }
     }
 
     @Test
     fun `swipe left is labelled with the configured left-swipe action`() {
-        assertEquals("DELETE", SwipeLabels.leftLabel(SwipeAction.DELETE))
-        assertEquals("COPY", SwipeLabels.leftLabel(SwipeAction.COPY))
-        assertEquals("MOVE", SwipeLabels.leftLabel(SwipeAction.MOVE))
+        assertEquals(UiText.of(R.string.label_swipe_delete), SwipeLabels.leftLabel(SwipeAction.DELETE))
+        assertEquals(UiText.of(R.string.label_swipe_copy), SwipeLabels.leftLabel(SwipeAction.COPY))
+        assertEquals(UiText.of(R.string.label_swipe_move), SwipeLabels.leftLabel(SwipeAction.MOVE))
     }
 
     @Test
@@ -47,45 +58,49 @@ class SwipeLabelsTest {
     @Test
     fun `right description names the target folder`() {
         assertEquals(
-            "Copy to Keepers",
+            UiText.of(R.string.cd_swipe_copy, "Keepers"),
             SwipeLabels.rightDescription(CollectionAction.COPY, "Keepers"),
         )
         assertEquals(
-            "Move to Keepers",
+            UiText.of(R.string.cd_swipe_move, "Keepers"),
             SwipeLabels.rightDescription(CollectionAction.MOVE, "Keepers"),
         )
+        assertEquals("Copy to Keepers", SwipeLabels.rightDescription(CollectionAction.COPY, "Keepers").en())
+        assertEquals("Nach Keepers verschieben", SwipeLabels.rightDescription(CollectionAction.MOVE, "Keepers").de())
     }
 
     @Test
-    fun `right description falls back to a generic target when no folder is set`() {
+    fun `right folder falls back to the folder the app creates when no name is set`() {
+        assertEquals(PhotoFolders.SELECTION, SwipeLabels.rightFolder(""))
+        assertEquals(PhotoFolders.SELECTION, SwipeLabels.rightFolder("   "))
+        assertEquals("Keepers", SwipeLabels.rightFolder("Keepers"))
         assertEquals(
-            "Copy to ${SwipeLabels.DEFAULT_COLLECTION}",
+            UiText.of(R.string.cd_swipe_copy, PhotoFolders.SELECTION),
             SwipeLabels.rightDescription(CollectionAction.COPY, ""),
-        )
-        assertEquals(
-            "Copy to ${SwipeLabels.DEFAULT_COLLECTION}",
-            SwipeLabels.rightDescription(CollectionAction.COPY, "   "),
         )
     }
 
     @Test
     fun `left description names the folder for copy and move but not for delete`() {
         assertEquals(
-            "Copy to Rejects",
+            UiText.of(R.string.cd_swipe_copy, "Rejects"),
             SwipeLabels.leftDescription(SwipeAction.COPY, "Rejects"),
         )
         assertEquals(
-            "Move to Rejects",
+            UiText.of(R.string.cd_swipe_move, "Rejects"),
             SwipeLabels.leftDescription(SwipeAction.MOVE, "Rejects"),
         )
-        // A delete has no destination folder to name; it points at Revert instead.
-        assertTrue(SwipeLabels.leftDescription(SwipeAction.DELETE, "Rejects").contains("Revert"))
+        // A delete has no destination folder to name.
+        assertEquals(UiText.of(R.string.cd_swipe_delete), SwipeLabels.leftDescription(SwipeAction.DELETE, "Rejects"))
+        assertNull(SwipeLabels.leftFolder(SwipeAction.DELETE, "Rejects"))
+        assertEquals("Rejects", SwipeLabels.leftFolder(SwipeAction.COPY, "Rejects"))
     }
 
     @Test
-    fun `left description falls back to a generic folder when none is set`() {
+    fun `left description falls back to the left-swipe folder the app creates`() {
+        assertEquals(PhotoFolders.LEFT_SWIPE, SwipeLabels.leftFolder(SwipeAction.MOVE, ""))
         assertEquals(
-            "Move to ${SwipeLabels.DEFAULT_LEFT_SWIPE}",
+            UiText.of(R.string.cd_swipe_move, PhotoFolders.LEFT_SWIPE),
             SwipeLabels.leftDescription(SwipeAction.MOVE, ""),
         )
     }
@@ -95,12 +110,5 @@ class SwipeLabelsTest {
         assertTrue(SwipeLabels.leftIsDestructive(SwipeAction.DELETE))
         assertFalse(SwipeLabels.leftIsDestructive(SwipeAction.COPY))
         assertFalse(SwipeLabels.leftIsDestructive(SwipeAction.MOVE))
-    }
-
-    @Test
-    fun `verbs are sentence case for use in captions`() {
-        assertEquals("Copy", SwipeLabels.rightVerb(CollectionAction.COPY))
-        assertEquals("Move", SwipeLabels.rightVerb(CollectionAction.MOVE))
-        assertEquals("Delete", SwipeLabels.leftVerb(SwipeAction.DELETE))
     }
 }

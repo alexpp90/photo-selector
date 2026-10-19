@@ -107,6 +107,12 @@ android {
         buildConfig = true
     }
 
+    // Per-app language (Android 13+ system settings): the languages are the res/values-* folders
+    // (English is the default, German is values-de); res/resources.properties names the default.
+    androidResources {
+        generateLocaleConfig = true
+    }
+
     testOptions {
         unitTests {
             isIncludeAndroidResources = true
@@ -202,6 +208,9 @@ dependencies {
     testImplementation(libs.turbine)
     testImplementation(libs.mockk)
     testImplementation(libs.robolectric)
+    // Compose in JVM tests: the text-load screenshot tests (tests/unit/.../ui/screenshots)
+    testImplementation(platform(libs.androidx.compose.bom))
+    testImplementation(libs.androidx.compose.ui.test.junit4)
 
     // Testing — instrumented (androidTest)
     androidTestImplementation(libs.androidx.junit)
