@@ -16,8 +16,20 @@ python3 scripts/lab/lab.py run --all --with-personal
 
 # One product / journey / config / device
 python3 scripts/lab/lab.py run --product android-desktop --journey J-AD-02 --config tab-landscape --device pixel-tablet
-python3 scripts/lab/lab.py run --product phototok --no-build        # reuse installed .lab APKs
+python3 scripts/lab/lab.py run --product phototok --no-build        # reuse this tree's last .lab build
 ```
+
+`--no-build` skips Gradle, not the check: the last build writes `lab-build.json` next to each
+APK (a fingerprint of `products/android` as committed plus uncommitted changes, and the APK's
+hash). The run refuses when the tree changed since that build, and installs that build on a
+device whose installed `base.apk` hashes differently.
+
+**One run at a time per hub.** A run holds `<lab tmp root>/android-hub.lock` while it drives
+Android devices; a second `lab.py run` waits for it (up to 3 h, then its Android journeys are
+*not run*, naming the holder). Separate devices are not separate runs: every Maestro and adb call
+goes through the one adb server. Each device is also driven under
+`<lab tmp root>/device-<serial>.lock`, the lock instrumented test runs and usability walks take;
+a device still held after 15 min is *not run*.
 
 The run directory (`private/lab-runs/<date>-<time>-<sha>/`, or `/tmp/lab-runs/` without the
 private overlay) holds `report.html`, `report.md`, `run.json`, `findings.det.json` and one
@@ -65,7 +77,13 @@ install.
   journey ends as *error* and no screenshot is taken.
 - **Bindings.** A journey can name the photo the app actually showed instead of assuming a key
   count: `bind: {moved: {kept: column_current}}` reads the first file name in that node (or its
-  children) at checkpoint `moved`, and `fs_expect` patterns use it as `{kept}` (J-AD-02, J-TOK-05).
+  children) at checkpoint `moved`, and `fs_expect` patterns use it as `{kept}` (J-AD-02,
+  J-TOK-03, J-TOK-04, J-TOK-05). PhotoTok resumes the shared folder where the last journey left
+  it, so its journeys bind every photo they name.
+- **"Device … not connected".** Maestro opens every transport of the adb server to list devices,
+  and one that is not `device` (a Chromebook gone to sleep, a USB phone re-enumerating) makes it
+  report every device as not connected. Before retrying, the runner disconnects such network
+  transports and waits up to 2 min for USB ones; the Maestro log says what it did.
 - **DeX.** The lab never switches Samsung DeX: on One UI 8 the DeX tile is a toggle and DeX
   is only visible in how apps open (freeform desktop windows), so a wrong reading would flip
   it the wrong way. `dex-on-device` (devices with `supports: [dex]`) runs when the app opens in
@@ -86,7 +104,9 @@ install.
 The hub triggers the Mac over SSH; a LaunchAgent in the `pst-lab` user's GUI session builds the
 app and runs the macOS journeys, and the hub syncs the results back. `pst-lab` only has to be
 logged in (fast user switching, in the background); the maintainer keeps working in their own
-account. One-time setup on the Mac, as `pst-lab`: `scripts/lab/macos/setup_pst_lab.sh` (its
+account. The Mac's run id is the hub run's name plus the trigger time, so a re-used `--out` name
+never reads an earlier run's results; `agent_run.sh` re-runs itself from the checked-out commit,
+so a change to it takes effect on the first run. One-time setup on the Mac, as `pst-lab`: `scripts/lab/macos/setup_pst_lab.sh` (its
 header lists the prerequisites: Remote Login allowed for `pst-lab`, the hub's public key in its
 `~/.ssh/authorized_keys`, the Command Line Tools, at least 4 GB free).
 
@@ -118,7 +138,9 @@ XSETTINGS manager). There is no `dark` config: the app is always dark.
 `frame_ids`, `allowed_overlaps` (by-design `[a, b]` id globs, matched through ancestors),
 `guidance_must_not_cover` (controls an exempt overlay must leave free), `frame_size`. Overlaps
 use what is visible — a node clipped to its parents — because Android reports Compose's
-touch-expanded bounds; a control counts as named when it or a child carries a label. A
+touch-expanded bounds; a control counts as named when it or a child carries a label. A control
+cut at the top or bottom edge of a scroll container (`scrollable` in the dump) is not checked for
+height or name: uiautomator reports only its visible part and drops its off-screen children. A
 `layout_expect.required` entry may be a list: any one of those ids.
 
 ## Host prerequisites

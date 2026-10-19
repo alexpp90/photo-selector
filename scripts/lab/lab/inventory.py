@@ -189,11 +189,16 @@ def parse_mdns_services(text: str) -> dict[str, str]:
 
 
 def parse_adb_devices(text: str) -> list[tuple[str, str]]:
+    """`(transport, state)` rows of `adb devices`.
+
+    adb separates the fields with a tab; a second mDNS registration of one phone is named
+    `adb-<serial>-<suffix> (2)._adb-tls-connect._tcp`, with a space (seen 2026-10-19).
+    """
     rows: list[tuple[str, str]] = []
     for line in text.splitlines()[1:]:
-        parts = line.strip().split()
+        parts = line.strip().split("\t") if "\t" in line else line.strip().split()
         if len(parts) >= 2:
-            rows.append((parts[0], parts[1]))
+            rows.append((parts[0].strip(), parts[1].split()[0] if parts[1].split() else ""))
     return rows
 
 
@@ -225,10 +230,12 @@ def resolve_android_device(dev: AndroidDevice, run: RunFn | None = None) -> tupl
     runner = run or _default_run
 
     def attached() -> str | None:
-        """The device's transport; the wireless-debugging mDNS name wins over an `ip:port` one.
+        """The device's transport: USB first, then the wireless-debugging mDNS name, then `ip:port`.
 
         A device connected both ways shows up twice in `adb devices`; Maestro keeps only one
-        transport per device (the mDNS one) and rejects the other id as "not connected".
+        transport per device (the mDNS one) and rejects the other id as "not connected". USB is
+        the steadier link: the Moto G77 was also listed as `adb-ZY22MQCBL6-M2Jjof
+        (2)._adb-tls-connect._tcp` (2026-10-19), a row this parser used to misread and skip.
         """
         res = runner(["adb", "devices"], 15)
         matches: list[str] = []
@@ -243,7 +250,7 @@ def resolve_android_device(dev: AndroidDevice, run: RunFn | None = None) -> tupl
                 matches.append(transport)
         if not matches:
             return None
-        return sorted(matches, key=lambda t: (not t.startswith("adb-"), t))[0]
+        return sorted(matches, key=lambda t: (t != dev.serial, not t.startswith("adb-"), t))[0]
 
     transport = attached()
     if transport is None:

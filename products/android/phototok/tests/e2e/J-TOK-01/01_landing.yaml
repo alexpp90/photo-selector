@@ -1,6 +1,20 @@
 appId: com.phototok.lab
 ---
+# The source cards sit in the landing's scroll column; on the 5.2" Xperia XA2 "Folder or Cloud"
+# is entirely below the fold on first launch (LAB-23, 2026-10-19). Scroll each one into view
+# before asserting it; whether all three fit without scrolling is the layout oracle's question
+# (TOK-11a), not this flow's.
+- scrollUntilVisible:
+    element:
+      id: "landing_phone_camera_card"
+    timeout: 10000
 - assertVisible:
     id: "landing_phone_camera_card"
+- scrollUntilVisible:
+    element:
+      id: "landing_custom_folder_card"
+    centerElement: true
+    visibilityPercentage: 100
+    timeout: 10000
 - assertVisible:
     id: "landing_custom_folder_card"
