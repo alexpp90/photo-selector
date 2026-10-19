@@ -67,7 +67,7 @@ def test_decode_worker_fills_in_scores_and_exif(tmp_path: Path, monkeypatch):
     photo.write_bytes(buf.getvalue())
     candidate = CandidatePhoto(primary_path=photo)
     delivered = []
-    monkeypatch.setattr(photo_loader.GLib, "idle_add", lambda fn, *args: delivered.append(args))
+    monkeypatch.setattr(photo_loader.GLib, "idle_add", lambda fn, *args, **kw: delivered.append(args))
     loader = photo_loader.PhotoTextureLoader(workers=1)
 
     loader._work((photo, photo_loader.FIT_MAX_EDGE), candidate)

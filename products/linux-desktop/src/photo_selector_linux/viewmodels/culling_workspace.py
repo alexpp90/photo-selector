@@ -142,6 +142,7 @@ class CullingWorkspaceViewModel:
         self._folder_generation: int = 0
 
         self._state_callbacks: List[Callable[[CullingWorkspaceViewModel], None]] = []
+        self.last_notification_severity: str = "info"
         self._notification_callbacks: List[Callable[[CullingWorkspaceViewModel, str], None]] = []
 
         if self.settings is not None:
@@ -247,7 +248,14 @@ class CullingWorkspaceViewModel:
             except Exception:
                 pass
 
-    def _notify(self, message: str) -> None:
+    def _notify(self, message: str, severity: str = "info") -> None:
+        """Deliver a message to notification callbacks (signature ``(vm, message)``).
+
+        ``severity`` is stored in ``last_notification_severity`` before the callbacks run:
+        ``"status"`` = cull/undo outcome (shown in the action bar, no toast), ``"error"`` =
+        failure (toast and action bar), ``"info"`` = everything else (toast only).
+        """
+        self.last_notification_severity = severity
         for cb in self._notification_callbacks:
             try:
                 cb(self, message)
@@ -513,7 +521,8 @@ class CullingWorkspaceViewModel:
                     # Verified copy in Selection/, original not removable (FILE_OPERATIONS.md §4).
                     self._notify(
                         f"Copied {action.photo.filename} to {action.selection_folder}/ "
-                        f"— original could not be removed"
+                        f"— original could not be removed",
+                        "error",
                     )
                     return
 
@@ -523,7 +532,7 @@ class CullingWorkspaceViewModel:
                     prefix = f"Could not copy {action.photo.filename}"
                 else:
                     prefix = f"Could not move {action.photo.filename} to Trash"
-                self._notify(f"{prefix}: {error}")
+                self._notify(f"{prefix}: {error}", "error")
                 return
 
             action.status = "done"
@@ -535,11 +544,11 @@ class CullingWorkspaceViewModel:
 
             if action.generation == self._folder_generation:
                 if action.kind == "move":
-                    self._notify(self._transfer_message("Moved", action, result))
+                    self._notify(self._transfer_message("Moved", action, result), "status")
                 elif action.kind == "copy":
-                    self._notify(self._transfer_message("Copied", action, result))
+                    self._notify(self._transfer_message("Copied", action, result), "status")
                 elif action.kind == "trash":
-                    self._notify(f"Moved {action.photo.filename} to Trash")
+                    self._notify(f"Moved {action.photo.filename} to Trash", "status")
 
         elif action.kind == "undo":
             target = action.target_action
@@ -556,7 +565,8 @@ class CullingWorkspaceViewModel:
                         self._undo_actions[rec.id] = target
                 if error is not None and rec is not None:
                     self._notify(
-                        f"Could not undo {rec.action_type.value} for {action.photo.filename}: {error}"
+                        f"Could not undo {rec.action_type.value} for {action.photo.filename}: {error}",
+                        "error",
                     )
                 return
 
@@ -577,9 +587,9 @@ class CullingWorkspaceViewModel:
                     self.copied_count = max(0, self.copied_count - 1)
                 restored_as = self._restored_suffixed_name(action.photo, rec)
                 if restored_as is not None:
-                    self._notify(f"Restored as {restored_as} (original name was in use)")
+                    self._notify(f"Restored as {restored_as} (original name was in use)", "status")
                 else:
-                    self._notify(f"Undid {rec.action_type.value} for {action.photo.filename}")
+                    self._notify(f"Undid {rec.action_type.value} for {action.photo.filename}", "status")
 
     @staticmethod
     def _transfer_message(verb: str, action: "_QueuedAction", result: Any) -> str:
@@ -699,7 +709,7 @@ class CullingWorkspaceViewModel:
             source_action.status = "cancelled"
             self._queue.remove(source_action)
             self._rollback_optimistic(source_action)
-            self._notify(f"Undid {record.action_type.value} for {photo.filename}")
+            self._notify(f"Undid {record.action_type.value} for {photo.filename}", "status")
             self._pump_queue()
             self._notify_state_changed()
             return True

@@ -101,7 +101,7 @@ class PhotoSelectorApplication(Adw.Application if HAS_GI else object):
     def _on_action_lab_checkpoint(self, action, param) -> None:
         if self._lab_recorder is not None:
             name = param.get_string() if param is not None else "checkpoint"
-            self._lab_recorder.record_checkpoint(self.window, name)
+            self._lab_recorder.record_checkpoint_after_frame(self.window, name)
 
     def _on_action_open_folder(self, action, param) -> None:
         if self.window:

@@ -26,12 +26,22 @@ from photo_selector_linux.viewmodels.culling_workspace import (  # noqa: F401
 )
 
 
+# Worker results are delivered at GLib.PRIORITY_DEFAULT (0), not ``GLib.idle_add``'s DEFAULT_IDLE (200).
+# While an operation runs, spinners animate and GDK redraws at priority 120 (HIGH_IDLE + 20); under
+# a slow software renderer a redraw is always pending, so a priority-200 delivery starves and the
+# cull is never applied (device lab LIN-4).
+
+def schedule_on_main_loop(fn: Callable[..., object], *args) -> int:
+    """``GLib.idle_add`` at PRIORITY_DEFAULT: above the frame clock's redraw."""
+    return GLib.idle_add(fn, *args, priority=GLib.PRIORITY_DEFAULT)
+
+
 class FileOperationWorker:
     """A ``CullingWorkspaceViewModel`` dispatcher: job on a worker thread, ``done`` on the main loop."""
 
     def __init__(self, idle_add: Callable[..., object] = None) -> None:
         self._pool = ThreadPoolExecutor(max_workers=1, thread_name_prefix="culling-file-ops")
-        self._idle_add = idle_add or GLib.idle_add
+        self._idle_add = idle_add or schedule_on_main_loop
 
     def __call__(self, job: Job, done: JobDone) -> None:
         self._pool.submit(self._work, job, done)
