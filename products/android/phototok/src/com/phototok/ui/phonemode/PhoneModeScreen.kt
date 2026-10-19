@@ -1,7 +1,6 @@
 package com.phototok.ui.phonemode
 
-import androidx.compose.foundation.rememberScrollState
-import androidx.compose.foundation.horizontalScroll
+import androidx.compose.foundation.layout.FlowRow
 import android.content.res.Configuration
 import android.net.Uri
 import androidx.activity.compose.rememberLauncherForActivityResult
@@ -962,10 +961,11 @@ private fun SelectionFolderViewer(
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.SpaceBetween,
         ) {
-            // The tabs take what the action icons leave and scroll; at font scale 2.0 they pushed
-            // Share off screen (usability panel 2026-10-19).
+            // Back + the two tabs take what the action icons leave; at font scale 2.0 the tabs
+            // wrap onto a second line instead of pushing Share off screen or clipping a tab
+            // (usability panel 2026-10-19, REQ-TOK-UX.05).
             Row(
-                modifier = Modifier.weight(1f).horizontalScroll(rememberScrollState()),
+                modifier = Modifier.weight(1f),
                 verticalAlignment = Alignment.CenterVertically,
             ) {
                 TopBarIconButton(
@@ -975,17 +975,21 @@ private fun SelectionFolderViewer(
                     onClick = onClose,
                 )
                 Spacer(modifier = Modifier.width(4.dp))
-                FilterChip(
-                    selected = activeTab == SelectionViewerTab.FAVOURITES,
-                    onClick = { onSelectTab(SelectionViewerTab.FAVOURITES) },
-                    label = { Text(stringResource(R.string.chip_favourites)) },
-                )
-                Spacer(modifier = Modifier.width(6.dp))
-                FilterChip(
-                    selected = activeTab == SelectionViewerTab.SELECTION,
-                    onClick = { onSelectTab(SelectionViewerTab.SELECTION) },
-                    label = { Text(folderName.ifEmpty { PhotoFolders.SELECTION }) },
-                )
+                FlowRow(
+                    modifier = Modifier.weight(1f),
+                    horizontalArrangement = Arrangement.spacedBy(6.dp),
+                ) {
+                    FilterChip(
+                        selected = activeTab == SelectionViewerTab.FAVOURITES,
+                        onClick = { onSelectTab(SelectionViewerTab.FAVOURITES) },
+                        label = { Text(stringResource(R.string.chip_favourites)) },
+                    )
+                    FilterChip(
+                        selected = activeTab == SelectionViewerTab.SELECTION,
+                        onClick = { onSelectTab(SelectionViewerTab.SELECTION) },
+                        label = { Text(folderName.ifEmpty { PhotoFolders.SELECTION }) },
+                    )
+                }
             }
             Row(verticalAlignment = Alignment.CenterVertically) {
                 if (activeTab == SelectionViewerTab.FAVOURITES && images.isNotEmpty()) {

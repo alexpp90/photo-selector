@@ -1,5 +1,8 @@
 package com.phototok.ui.components
 
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.unit.dp
+import androidx.compose.foundation.layout.sizeIn
 import androidx.compose.foundation.layout.Box
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.PlainTooltip
@@ -29,6 +32,11 @@ fun NameTooltip(
         state = rememberTooltipState(),
         modifier = modifier,
     ) {
-        Box { content() }
+        // The long-press area is never smaller than the 48 dp touch target (a 36 dp logo
+        // measured 36 dp on the device, usability panel 2026-10-19).
+        Box(
+            modifier = Modifier.sizeIn(minWidth = 48.dp, minHeight = 48.dp),
+            contentAlignment = Alignment.Center,
+        ) { content() }
     }
 }
