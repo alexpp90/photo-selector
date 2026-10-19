@@ -436,18 +436,20 @@ def toolchains(root: Path) -> Dict[str, str]:
 def android_devices() -> List[Dict[str, Any]]:
     """Attached Android devices: model and OS version only - never the serial.
 
-    When ANDROID_SERIAL names the device the tests ran on (run_tests.sh sets it), only that
-    device is reported; other attached devices took no part in the run.
+    When PST_TESTED_SERIALS (comma-separated) or ANDROID_SERIAL names the devices the tests
+    ran on (run_tests.sh sets both), only those devices are reported; other attached devices
+    took no part in the run.
     """
     listing = run(["adb", "devices"], timeout=20) if shutil.which("adb") else None
-    under_test = os.environ.get("ANDROID_SERIAL", "").strip()
+    under_test = {s.strip() for s in (os.environ.get("PST_TESTED_SERIALS", "").strip()
+                                      or os.environ.get("ANDROID_SERIAL", "")).split(",") if s.strip()}
     devices = []
     for line in (listing or "").splitlines()[1:]:
         fields = line.split()
         if len(fields) < 2 or fields[1] != "device":
             continue
         serial = fields[0]
-        if under_test and serial != under_test:
+        if under_test and serial not in under_test:
             continue
 
         def prop(key: str) -> Optional[str]:

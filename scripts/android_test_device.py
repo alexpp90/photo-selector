@@ -14,14 +14,20 @@ The designated device is, in order:
    by git — the place for a device that stays connected to this machine);
 3. the only attached device, when exactly one is attached.
 
+``pst.testDevice.extraSerials`` in local.properties (comma-separated) names further test
+devices. The device suite runs on each of them too, but only while it is attached over USB:
+the same phone on wireless debugging has a different serial, and is never used.
+
 Subcommands::
 
     python3 scripts/android_test_device.py serial       # print the test device serial (exit 1 if none)
     python3 scripts/android_test_device.py prepare      # make the device test-ready (idempotent)
     python3 scripts/android_test_device.py load-images  # push fixture photos to /sdcard/PSTLab/
     python3 scripts/android_test_device.py status       # what is attached, designated, configured
+    python3 scripts/android_test_device.py extra-serials  # extra test devices on USB (stdout); "absent <serial>" (stderr)
     python3 scripts/android_test_device.py with-lock [--timeout S] -- <cmd...>  # run cmd holding the device lock
     python3 scripts/android_test_device.py lock-holder  # who holds the device lock (exit 1 if free)
+    python3 scripts/android_test_device.py locked       # exit 0 if the lock screen is showing
 
 ``prepare`` mirrors what CI's emulator gets (animations off) and keeps a device that is
 plugged in permanently usable: screen on while powered, keyguard off, fixed portrait
@@ -56,6 +62,7 @@ from typing import Callable, Dict, List, Optional, Sequence, Tuple
 REPO_ROOT = Path(__file__).resolve().parent.parent
 LOCAL_PROPERTIES = REPO_ROOT / "products" / "android" / "local.properties"
 SERIAL_PROPERTY = "pst.testDevice.serial"
+EXTRA_SERIALS_PROPERTY = "pst.testDevice.extraSerials"
 DEVICE_ROOT = "/sdcard/PSTLab"
 HOST_STAGING = Path("/tmp/pstlab")
 LAB_DIR = REPO_ROOT / "scripts" / "lab"
@@ -101,6 +108,33 @@ def attached_serials(listing: str) -> List[str]:
     return serials
 
 
+def usb_serials(long_listing: str) -> List[str]:
+    """Serials in state ``device`` attached over USB, from ``adb devices -l`` output.
+
+    adb prints a ``usb:<bus path>`` field only for a USB transport; a wireless connection
+    (``host:port`` or an ``adb-…._adb-tls-connect._tcp`` mDNS name) has none.
+    """
+    return [fields[0] for fields in (line.split() for line in long_listing.splitlines()[1:])
+            if len(fields) >= 2 and fields[1] == "device" and any(f.startswith("usb:") for f in fields[2:])]
+
+
+def resolve_extra_serials(
+    props: Dict[str, str], on_usb: List[str], primary: Optional[str]
+) -> Tuple[List[str], List[str]]:
+    """Return ``(usable, absent)`` for the extra test devices named in local.properties.
+
+    ``usable`` keeps the configured order, without duplicates and without the primary test
+    device (it is run already); ``absent`` lists the named devices not attached over USB.
+    """
+    usable: List[str] = []
+    absent: List[str] = []
+    for serial in (s.strip() for s in props.get(EXTRA_SERIALS_PROPERTY, "").split(",")):
+        if not serial or serial == primary or serial in usable or serial in absent:
+            continue
+        (usable if serial in on_usb else absent).append(serial)
+    return usable, absent
+
+
 def resolve_serial(
     env: Dict[str, str], props: Dict[str, str], attached: List[str]
 ) -> Tuple[Optional[str], bool, str]:
@@ -134,6 +168,14 @@ def select(runner: Runner = run) -> Tuple[Optional[str], bool, str]:
     if code != 0:
         return None, False, f"adb devices failed: {listing}"
     return resolve_serial(dict(os.environ), read_properties(LOCAL_PROPERTIES), attached_serials(listing))
+
+
+def extra_serials(primary: Optional[str], runner: Runner = run) -> Tuple[List[str], List[str]]:
+    props = read_properties(LOCAL_PROPERTIES)
+    if not props.get(EXTRA_SERIALS_PROPERTY, "").strip():
+        return [], []
+    code, listing = runner(["adb", "devices", "-l"]) if shutil.which("adb") else (1, "")
+    return resolve_extra_serials(props, usb_serials(listing) if code == 0 else [], primary)
 
 
 # ── Preparation ───────────────────────────────────────────────────────────────
@@ -182,6 +224,21 @@ def may_reconfigure(serial: str, designated: bool) -> bool:
     return designated or serial.startswith("emulator-")
 
 
+def keyguard_showing(serial: str, runner: Runner = run) -> Optional[bool]:
+    """Whether the lock screen is up (``isKeyguardShowing`` in ``dumpsys window``); None if unknown.
+
+    ``locksettings set-disabled`` succeeds silently on a device with a secure lock (PIN,
+    pattern, password), which adb cannot remove; the keyguard then stays over every activity
+    and Compose tests find no hierarchy. This is the check that tells the two apart.
+    """
+    code, out = runner(["adb", "-s", serial, "shell", "dumpsys", "window"])
+    if code != 0:
+        return None
+    if "isKeyguardShowing=true" in out:
+        return True
+    return False if "isKeyguardShowing=false" in out else None
+
+
 def prepare(serial: str, runner: Runner = run) -> int:
     """Apply PREPARE_STEPS; return the number of steps that failed."""
     root = ensure_root(serial, runner)
@@ -192,6 +249,10 @@ def prepare(serial: str, runner: Runner = run) -> int:
         ok = code == 0 and "Exception" not in out and "Error" not in out
         failures += 0 if ok else 1
         print(f"  {'✓' if ok else '✗'} {name}" + ("" if ok else f" — {out.splitlines()[-1] if out else code}"))
+    if keyguard_showing(serial, runner):
+        failures += 1
+        print("  ✗ lock screen still showing — a secure screen lock (PIN, pattern, password) "
+              "cannot be removed over adb; remove it on the device or unlock it")
     return failures
 
 
@@ -378,6 +439,7 @@ def main(argv: Optional[List[str]] = None) -> int:
     p_serial.add_argument("--designated", action="store_true",
                           help="fail unless the device was named explicitly (not just the only one attached)")
     sub.add_parser("status", help="show attached devices and which one is the test device")
+    sub.add_parser("extra-serials", help=f"print the {EXTRA_SERIALS_PROPERTY} devices attached over USB")
     p_prep = sub.add_parser("prepare", help="configure the test device for instrumented tests")
     p_prep.add_argument("--serial")
     p_img = sub.add_parser("load-images", help="push fixture photos to /sdcard/PSTLab/")
@@ -391,6 +453,8 @@ def main(argv: Optional[List[str]] = None) -> int:
     p_lock.add_argument("--label", default=Path.cwd().name,
                         help="who is running, written into the lock (default: the current directory's name)")
     p_lock.add_argument("cmd", nargs=argparse.REMAINDER, help="-- command [args...]")
+    p_locked = sub.add_parser("locked", help="exit 0 if the device's lock screen is showing")
+    p_locked.add_argument("--serial")
     p_holder = sub.add_parser("lock-holder", help="print who holds the test device lock (exit 1 if free)")
     p_holder.add_argument("--serial")
     args = parser.parse_args(argv)
@@ -402,7 +466,19 @@ def main(argv: Optional[List[str]] = None) -> int:
         print(f"\ntest device: {serial or 'none'} ({reason})")
         if serial:
             print(f"device lock: {lock_holder(device_lock_path(serial)) or 'free'}")
+        usable, absent = extra_serials(serial)
+        if usable or absent:
+            print(f"extra test devices on USB: {', '.join(usable) or 'none'}"
+                  + (f"; not on USB: {', '.join(absent)}" if absent else ""))
         return 0 if serial else 1
+
+    if args.command == "extra-serials":
+        usable, absent = extra_serials(select()[0])
+        for serial in usable:
+            print(serial)
+        for serial in absent:
+            print(f"absent {serial}", file=sys.stderr)
+        return 0
 
     if getattr(args, "serial", None):
         serial, designated, reason = args.serial, True, "--serial"
@@ -426,6 +502,9 @@ def main(argv: Optional[List[str]] = None) -> int:
         if not cmd:
             parser.error("with-lock needs a command after --")
         return with_lock(cmd, serial, args.label, args.timeout)
+
+    if args.command == "locked":
+        return 0 if keyguard_showing(serial) else 1
 
     if args.command == "lock-holder":
         held_by = lock_holder(device_lock_path(serial))
