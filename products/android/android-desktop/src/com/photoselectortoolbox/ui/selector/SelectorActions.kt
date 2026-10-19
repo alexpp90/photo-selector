@@ -15,7 +15,9 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.material3.minimumInteractiveComponentSize
 import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
@@ -54,6 +56,7 @@ import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.photoselectortoolbox.domain.curation.DeferredDeletion
@@ -224,7 +227,7 @@ fun FirstRunNavigationHint(
                 .clip(RoundedCornerShape(999.dp))
                 .background(StudioCard)
                 .border(1.dp, StudioBorder, RoundedCornerShape(999.dp))
-                .padding(horizontal = 14.dp, vertical = 8.dp)
+                .padding(horizontal = 14.dp)
                 .testTag("first_run_hint"),
             horizontalArrangement = Arrangement.spacedBy(8.dp),
             verticalAlignment = Alignment.CenterVertically,
@@ -247,10 +250,15 @@ fun FirstRunNavigationHint(
                 fontSize = 12.sp,
                 fontWeight = FontWeight.Medium,
                 color = FocusCyanText,
+                // A 48 dp target without a 48 dp pill: the minimum is applied
+                // outside the clickable so the whole square is the control, while
+                // the text stays 12 sp on a 36 dp pill (AD-8).
                 modifier = Modifier
+                    .minimumInteractiveComponentSize()
                     .pointerHoverIcon(PointerIcon.Hand)
                     .clickable(onClick = onDismiss)
-                    .padding(start = 4.dp),
+                    .padding(start = 4.dp)
+                    .testTag("first_run_hint_dismiss"),
             )
         }
     }
@@ -300,7 +308,7 @@ fun SelectorSnackbar(
 
     Column(
         modifier = modifier
-            .widthIn(min = 340.dp)
+            .widthIn(min = SnackbarMinWidth, max = SnackbarMaxWidth)
             .clip(RoundedCornerShape(10.dp))
             .background(StudioCard)
             .border(1.dp, StudioBorder, RoundedCornerShape(10.dp))
@@ -315,7 +323,11 @@ fun SelectorSnackbar(
                 text = message,
                 fontSize = 13.sp,
                 color = Zinc50,
-                modifier = Modifier.weight(1f),
+                // `weight` takes the width the *parent* offers, and the parent was
+                // the whole window — so the card spanned it edge to edge (AD-7).
+                // `fill = false` plus the card's `widthIn(max)` lets a short
+                // message keep a card and a long one wrap inside it.
+                modifier = Modifier.weight(1f, fill = false),
             )
             if (onUndo != null) {
                 Text(
@@ -346,6 +358,37 @@ fun SelectorSnackbar(
                 .background(FocusCyan)
                 .testTag("snackbar_countdown"),
         )
+    }
+}
+
+/** Narrowest and widest the snackbar card is drawn (AD-7). */
+private val SnackbarMinWidth = 340.dp
+private val SnackbarMaxWidth = 480.dp
+
+/**
+ * Places [SelectorSnackbar] 96 dp above the bottom edge, centred over the image
+ * region rather than the window.
+ *
+ * [sidebarInset] is the sidebar's width (0 where there is none): centring over
+ * the window put a 340 dp card's left edge at 570 dp of a 1480 dp window, which
+ * is fine, but at 600 × 480 it ran under the 88 dp sidebar (AD-7). The wrapper
+ * ignores pointer input, so it never blocks the frames beneath it.
+ */
+@Composable
+fun SelectorSnackbarHost(
+    message: String?,
+    onUndo: (() -> Unit)?,
+    onDismiss: () -> Unit,
+    sidebarInset: Dp,
+    modifier: Modifier = Modifier,
+) {
+    Box(
+        modifier = modifier
+            .fillMaxSize()
+            .padding(start = sidebarInset, end = FrameGeometry.OuterPadding, bottom = 96.dp),
+        contentAlignment = Alignment.BottomCenter,
+    ) {
+        SelectorSnackbar(message = message, onUndo = onUndo, onDismiss = onDismiss)
     }
 }
 

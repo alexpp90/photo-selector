@@ -2,6 +2,7 @@ package com.photoselectortoolbox.ui.selector
 
 import android.app.Activity
 import android.net.Uri
+import android.util.Log
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.activity.result.contract.ActivityResultContracts.StartActivityForResult
@@ -49,6 +50,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draganddrop.DragAndDropEvent
 import androidx.compose.ui.draganddrop.DragAndDropTarget
 import androidx.compose.ui.draganddrop.toAndroidDragEvent
+import androidx.compose.foundation.focusable
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.geometry.Offset
@@ -57,9 +59,10 @@ import androidx.compose.ui.input.key.KeyEventType
 import androidx.compose.ui.input.key.isCtrlPressed
 import androidx.compose.ui.input.key.isMetaPressed
 import androidx.compose.ui.input.key.key
-import androidx.compose.ui.input.key.onKeyEvent
+import androidx.compose.ui.input.key.onPreviewKeyEvent
 import androidx.compose.ui.input.key.type
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalWindowInfo
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.dp
@@ -190,12 +193,23 @@ fun SelectorScreen(
         if (uiState.error != null) viewModel.clearError()
     }
 
-    LaunchedEffect(uiState.images.isNotEmpty()) {
-        if (uiState.images.isNotEmpty()) {
+    // The selector's key handler owns focus whenever the selector is on screen
+    // and nothing above it is. Re-claimed on every event that can take it away:
+    // the first frame of images, the window regaining focus (resize, DeX window
+    // switch), and any overlay closing (AD-11). Tab/arrow traversal in other
+    // screens is untouched — this node exists only on the selector.
+    val windowFocused = LocalWindowInfo.current.isWindowFocused
+    val overlayOpen = showScanConfig || showFullscreen || guideOpen || contextMenuAt != null ||
+        uiState.showDeleteConfirmation || uiState.uncompletedDeletionsPrompt != null
+    LaunchedEffect(uiState.images.isNotEmpty(), windowFocused, overlayOpen) {
+        if (uiState.images.isNotEmpty() && windowFocused && !overlayOpen) {
             try {
                 focusRequester.requestFocus()
-            } catch (_: Exception) {
+            } catch (e: IllegalStateException) {
                 // The node may not be attached yet; the next state change retries.
+                // Logged, never silent: a swallowed failure here is how the first
+                // arrow key went missing for months (AD-11).
+                Log.w("SelectorScreen", "Selector could not take key focus", e)
             }
         }
     }
@@ -340,9 +354,17 @@ fun SelectorScreen(
             .then(
                 if (uiState.images.isNotEmpty()) {
                     Modifier
+                        // A focus *target*, not just a requester: without
+                        // `focusable()` the requester had nothing to focus, the call
+                        // threw and was swallowed, and the first DPAD key at launch
+                        // went to Android's initial-focus pass instead (AD-11).
                         .focusRequester(focusRequester)
-                        .onKeyEvent { event ->
-                            if (event.type != KeyEventType.KeyDown) return@onKeyEvent false
+                        .focusable()
+                        // Preview, so the selector's keys are decided before whatever
+                        // descendant holds focus sees them: a sidebar item that took
+                        // initial focus must not swallow the first arrow (AD-11).
+                        .onPreviewKeyEvent { event ->
+                            if (event.type != KeyEventType.KeyDown) return@onPreviewKeyEvent false
                             handleSelectorKey(
                                 key = event.key,
                                 sheetOpen = sheetOpen,
@@ -552,13 +574,11 @@ fun SelectorScreen(
         // reversible: a deferred delete, a trashable committed delete, or a move
         // that reported where the file went. A copy gets none — undoing it could
         // only mean deleting the file the photographer just asked for.
-        SelectorSnackbar(
+        SelectorSnackbarHost(
             message = uiState.snackbarMessage,
             onUndo = if (uiState.undoOperation != null) viewModel::undoLastOperation else null,
             onDismiss = viewModel::dismissSnackbar,
-            modifier = Modifier
-                .align(Alignment.BottomCenter)
-                .padding(bottom = 96.dp),
+            sidebarInset = if (useExpandedLayout) SidebarWidth else 0.dp,
         )
 
         // Last in the Box, so it is above every piece of chrome it labels —

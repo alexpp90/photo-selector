@@ -324,7 +324,10 @@ Zinc-700 rule:
 ```
 
 - Each item is a 72 dp-tall, 80 dp-wide target: 24 dp glyph over an 11 sp label, centred.
-  **The label is not optional** — an icon plus nothing is the defect this revision exists to
+  The column scrolls vertically: its natural height is ~785 dp, so in any shorter window
+  (DeX and ChromeOS open at 1024 × 768; the manifest allows 480 dp) Stats, Dupes and Setup
+  were simply cut off. A 16 dp fade marks an edge only while there is more beyond it; the
+  items keep their 72 dp rather than shrinking to fit. **The label is not optional** — an icon plus nothing is the defect this revision exists to
   fix.
 - Active state: `TonalIndigoNav` fill plus an Indigo-500 glyph and label. Toggle items
   (Bursts) use the same treatment for their on state, so "selected screen" and "toggle on"
@@ -628,6 +631,29 @@ of ~158 dp (~118 dp with the strip on) carries its word comfortably:
 - Nothing here may spill into a horizontal row across the bottom of the screen. That costs
   72 dp of height, which is 48 dp off the height of all three frames.
 
+**Height is the block's binding axis too.** Row 1 is one frame tall: ~436 dp on the reference
+device, ~376 dp at 1280 × 800 (Pixel Tablet native), ~336 dp at 1024 × 720 (the DeX/ChromeOS
+default window less its bars) and ~210 dp at 600 × 480. The block above needs 332 dp, and a
+`Column` pays a shortfall with its last children — the 2026-10-17 device lab found the
+counter gone and the view toggles squashed to slivers below ~410 dp. So the block has two
+variants, chosen by `ControlBlockFit` from the row height it is handed and the font scale:
+
+```
+FULL (≥ 332 dp)              COMPACT (~196 dp)
+┌──────────┬──────────┐     ┌───────────┬───────────┐
+│ ⧉ Copy C │ ➜ Move M │     │⧉ Copy  [C]│➜ Move  [M]│  48 dp, one line
+│  …80 dp…  │          │     │🗑 Delete[Del]│⛶ Full [F]│
+│          │          │     │‹ Prev  [←]│Next [→] › │
+└──────────┴──────────┘     └───────────┴───────────┘
+      ▤  ▭  👁  ⌨             ▤ ▭ 👁 ⌨      127 / 842
+        127 / 842
+```
+
+COMPACT keeps every word and every key cap — the word may ellipsize, the key cap never — and
+moves the counter into the toggle row (its own line when the block is too narrow for both).
+Below COMPACT the block scrolls with the counter first, so nothing is ever clipped silently.
+The frames never pay for the block: the variant changes, the frame does not.
+
 ### 7.6 Interaction — one gesture vocabulary, defined once
 
 Every gesture below is defined in a single pure object (`SelectorGestures`) shared by the
@@ -651,8 +677,11 @@ is a trap, and it is the direct cause of the wrong fullscreen hint text.
 
 ### 7.7 First-run navigation hint
 
-Unchanged in behaviour: one centred pill ("Tap either side to browse" · "Got it"), 16 dp
-above the bottom of the image region, shown once, `hasSeenNavHint` persisted. It remains the
+One centred pill ("Tap either side to browse" · "Got it"), shown once, `hasSeenNavHint`
+persisted. It sits over the Previous/Next pair it teaches about, lifted clear of the
+neighbours' maximise-badge band (`FrameGeometry.firstRunPillBottomInset`: badge inset + badge
++ 8 dp) — at the original 16 dp it sat squarely on the Next frame's badge, so the first tap a
+new user aimed at maximise dismissed the hint instead. "Got it" is a 48 dp target. It remains the
 only image-adjacent overlay besides the maximise badge.
 
 **What "only" restricts, precisely.** It restricts *placement*, not the existence of
@@ -746,20 +775,18 @@ beside the picture. Those are spatial questions, so the answer is spatial.
 
 ```
 ┌────────┬──────────────┬──────────────┬────────────┬──┐
-│ ┃The   │  ┃This       │              │ ┃Acts on   │  │
-│ ┃shoot │  ┃frame's    │   CURRENT    │ ┃the centre│  │
-│        │  ┃values     │  (reserved,  │ ┃frame     │st│
-│        │               │    empty)    │ ┃Keys with │ri│
-│        │  ┃The        │              │ ┃no button │p │
-│ ┃The   │  ┃comparison │              │ ┃The whole │  │
-│ ┃screens│              ├──────┬───────┤ ┃folder    │  │
-│        │               │ PREV │ NEXT  │ [ Got it ] │  │
+│        │ The selector │              │            │  │
+│ (real  │ ┃Left edge:  │   CURRENT    │  (control  │st│
+│ side-  │ ┃the shoot   │  (reserved,  │   flank:   │ri│
+│ bar,   │ ┃Left of the │    empty)    │ reserved,  │p │
+│ unla-  │ ┃centre: its │              │   empty)   │  │
+│ belled)│ ┃values      ├──────┬───────┤            │  │
+│        │ Skip 1/3 Next│ PREV │ NEXT  │            │  │
 └────────┴──────────────┴──────┴───────┴────────────┴──┘
 ```
 
-The filmstrip's callout is the last in the control flank and its column is reserved and left
-empty beside it — the strip is 72 dp wide, which is a place to point at, not a place to
-write. Nothing is reserved along the bottom any more: an overlay that still kept a 76 dp
+The filmstrip's callout is the last card, and its column is reserved and left empty — the
+strip is 72 dp wide, which is a place to point at, not a place to write. Nothing is reserved along the bottom any more: an overlay that still kept a 76 dp
 bottom strip would push every callout up by 76 dp and start labelling the wrong chrome.
 
 - **Dim, do not replace.** Zinc-950 at 72 % over the whole window. The real chrome stays
@@ -769,8 +796,18 @@ bottom strip would push every callout up by 76 dp and start labelling the wrong 
   `FrameGeometry.threeUpLayout` solver the layout itself calls. Two copies of that arithmetic
   is an overlay that drifts a dp at a time until it covers the photographs it was drawn to
   point at. The footprints are reserved and left **empty**; every callout lands in the slack.
-- **One screen, no scrolling.** Seven callouts is the ceiling the slack carries. If it needs
-  to scroll it is documenting, not teaching.
+- **Paged, never scrolled, never on a control.** The callouts live in the **left** flank
+  only — over the readout block, which is text, not a control — and the control flank is
+  reserved and left empty. The first version wrote its heading, three cards and Got it into
+  the control flank, i.e. on top of the controls it was explaining, and still overflowed at
+  every tested size (the 2026-10-17 lab: heading over Copy/Move, Got it over the controls,
+  cards cut off). Cards are packed in `SelectorTour` order by *measured* height
+  (`CoachPaging.pack`); when they do not all fit — already the case at 1480 × 924 — the
+  guide pages. A footer at the foot of the same column carries Skip, a `2 / 3` indicator and
+  Next, which becomes **Got it** on the last page; each 48 dp tall. Because a card no longer
+  stands beside the thing it explains, each opens with a location line generated from
+  `TourRegion.location`. A scrolled-out callout is invisible, which is why paging and not a
+  scrolling column: if it scrolls it is documenting, not teaching.
 - **Nothing is written out.** Rows come from `SelectorGestures` — `SelectorShortcut` for the
   keys, `FrameGesture` for the taps — and unit tests assert the advertised set equals the
   bound set exactly, that no advertised gesture is destructive, and that no callout names a
@@ -781,7 +818,7 @@ bottom strip would push every callout up by 76 dp and start labelling the wrong 
   drive nothing visible, so they get a callout of their own.
 - Callouts for chrome the user has switched off are omitted — labelling a hidden panel is the
   same defect as inventing a control that does not exist.
-- 200 ms fade in, 150 ms out. No slide. `Esc`, a tap on the scrim, or **Got it** closes it;
+- 200 ms fade in, 150 ms out. No slide. `Esc`, a tap on the scrim, Skip or **Got it** closes it;
   the dismissal persists as `selector_tour` in the hint set, so the first-launch showing and
   the on-demand one are the same fact.
 

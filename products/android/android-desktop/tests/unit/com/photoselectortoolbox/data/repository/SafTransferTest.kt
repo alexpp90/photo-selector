@@ -610,4 +610,110 @@ class SafTransferTest {
         assertFalse(srcCr3.exists())
         assertFalse(srcXmp.exists())
     }
+
+    // ── 1b. AD-6: lab fixture `burst-raw-jpeg` (RAW + JPEG + stem .xmp + -Edit.JPG) ─
+
+    /** Writes the lab fixture into the folder root and groups it with the scanner's own grouping code. */
+    private fun labFixtureItems(): List<ImageItem> {
+        val names = (1..6).flatMap { listOf("DSC_000$it.JPG", "DSC_000$it.ARW") } +
+            listOf("DSC_0003.xmp", "DSC_0003-Edit.JPG")
+        val entries = names.map { name ->
+            File(rootDir, name).writeText("bytes-of-$name")
+            com.photoselectortoolbox.data.source.RawDirectoryEntry(
+                uri = documentUriFor(name).toString(),
+                fileName = name,
+                fileSize = File(rootDir, name).length(),
+                lastModified = 1L,
+                mimeType = if (name.endsWith(".JPG")) "image/jpeg" else "application/octet-stream",
+            )
+        }
+        return com.photoselectortoolbox.data.source.groupCompanionsInDirectory(entries, "root")
+    }
+
+    private fun labItem(stem: String): ImageItem =
+        labFixtureItems().single { it.fileName == "$stem.JPG" }
+
+    // REQ-AND-PLATFORM.06, REQ-AND-PLATFORM.12 (AD-6)
+    @Test
+    fun `AD-6 grouping attaches ARW, stem xmp and Edit JPG to DSC_0003 and moveBundle files all four`() = runTest {
+        val item = labItem("DSC_0003")
+        assertEquals(
+            setOf("DSC_0003.ARW", "DSC_0003.xmp", "DSC_0003-Edit.JPG"),
+            item.companions.map { it.fileName }.toSet(),
+        )
+
+        val result = repository.moveBundle(context, item, treeUri, sorting = true)
+
+        assertTrue(result.success)
+        assertEquals(4, result.destinationUris.size)
+        for (n in listOf("DSC_0003.JPG", "DSC_0003.ARW", "DSC_0003.xmp", "DSC_0003-Edit.JPG")) {
+            assertFalse("$n must leave the root", File(rootDir, n).exists())
+        }
+        assertEquals("bytes-of-DSC_0003.ARW", File(rootDir, "Selection/RAW/DSC_0003.ARW").readText())
+        assertEquals("bytes-of-DSC_0003.JPG", File(rootDir, "Selection/JPEG/DSC_0003.JPG").readText())
+        // Sidecar follows the bundle's RAW; -Edit.* goes to RAW per ImageFormats.selectionSubfolder.
+        val landed = File(rootDir, "Selection").walkTopDown().filter { it.isFile }
+            .map { it.relativeTo(File(rootDir, "Selection")).invariantSeparatorsPath }.toSet()
+        assertEquals(
+            setOf("RAW/DSC_0003.ARW", "JPEG/DSC_0003.JPG", "RAW/DSC_0003.xmp", "RAW/DSC_0003-Edit.JPG"),
+            landed - ".photoselector-selection",
+        )
+        // Other frames untouched.
+        assertTrue(File(rootDir, "DSC_0002.JPG").exists())
+        assertTrue(File(rootDir, "DSC_0002.ARW").exists())
+    }
+
+    // REQ-AND-PLATFORM.06 (AD-6)
+    @Test
+    fun `AD-6 copyBundle of DSC_0003 leaves sources in place and creates all four copies`() = runTest {
+        val item = labItem("DSC_0003")
+
+        val result = repository.copyBundle(context, item, treeUri, sorting = true)
+
+        assertTrue(result.success)
+        assertEquals(4, result.destinationUris.size)
+        for (n in listOf("DSC_0003.JPG", "DSC_0003.ARW", "DSC_0003.xmp", "DSC_0003-Edit.JPG")) {
+            assertTrue("$n source must stay", File(rootDir, n).exists())
+        }
+        assertTrue(File(rootDir, "Selection/RAW/DSC_0003.ARW").exists())
+        assertTrue(File(rootDir, "Selection/JPEG/DSC_0003.JPG").exists())
+        assertTrue(File(rootDir, "Selection/RAW/DSC_0003.xmp").exists())
+        assertTrue(File(rootDir, "Selection/RAW/DSC_0003-Edit.JPG").exists())
+    }
+
+    // REQ-AND-PLATFORM.06 (AD-6)
+    @Test
+    fun `AD-6 DSC_0002 JPG plus ARW move to Selection JPEG and RAW`() = runTest {
+        val item = labItem("DSC_0002")
+        assertEquals(listOf("DSC_0002.ARW"), item.companions.map { it.fileName })
+
+        val result = repository.moveBundle(context, item, treeUri, sorting = true)
+
+        assertTrue(result.success)
+        assertFalse(File(rootDir, "DSC_0002.JPG").exists())
+        assertFalse(File(rootDir, "DSC_0002.ARW").exists())
+        assertTrue(File(rootDir, "Selection/JPEG/DSC_0002.JPG").exists())
+        assertTrue(File(rootDir, "Selection/RAW/DSC_0002.ARW").exists())
+    }
+
+    // REQ-AND-PLATFORM.06 (AD-6)
+    @Test
+    fun `AD-6 stem xmp is suffixed beside its RAW on collision and undo restores all four to the root`() = runTest {
+        File(rootDir, "Selection/RAW").mkdirs()
+        File(rootDir, "Selection/RAW/DSC_0003.ARW").writeText("existing")
+        val item = labItem("DSC_0003")
+
+        val result = repository.moveBundle(context, item, treeUri, sorting = true)
+
+        assertTrue(result.success)
+        assertTrue(File(rootDir, "Selection/RAW/DSC_0003-2.ARW").exists())
+        assertTrue(File(rootDir, "Selection/RAW/DSC_0003-2.xmp").exists())
+        assertEquals("existing", File(rootDir, "Selection/RAW/DSC_0003.ARW").readText())
+
+        val undo = repository.undoMoveBundle(context, result.destinationUris, treeUri, result.parentDocumentId)
+        assertTrue(undo.success)
+        assertEquals(4, undo.destinationUris.size)
+        assertTrue(File(rootDir, "DSC_0003-2.xmp").exists())
+        assertFalse(File(rootDir, "Selection/RAW/DSC_0003-2.xmp").exists())
+    }
 }

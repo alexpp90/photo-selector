@@ -114,6 +114,55 @@ object FrameGeometry {
      */
     val OverlayOutsideThreshold: Dp = OverlayWidth + 8.dp
 
+    /**
+     * Rough height of a neighbour's value overlay (filename, two exposure lines,
+     * rule, five metric rows with bars, padding). A measurement from the 148 dp
+     * column, used only to price how much of a frame the overlay would cover.
+     */
+    val OverlayEstimatedHeight: Dp = 200.dp
+
+    /**
+     * The largest share of a frame's area the in-frame value overlay may cover.
+     *
+     * 25 %: at the reference 600 × 450 the overlay covers ~11 %, at 1024 × 720
+     * ~17 % — a corner note. At 600 × 480 (frame ~342 × 228) it was 38 % of the
+     * Next photograph, which is the photograph being judged (AD-16). Above a
+     * quarter it stops being an annotation and starts being the subject.
+     */
+    const val OverlayMaxCoverage: Float = 0.25f
+
+    /**
+     * Whether the in-frame overlay must be hidden because it would cover too much
+     * of a [frame] this small. An outside overlay covers nothing and is never hidden.
+     * The values stay reachable through the current frame's readout and Inspect.
+     */
+    fun overlayHiddenInFrame(frame: DpSize, overlayOutside: Boolean): Boolean {
+        if (overlayOutside) return false
+        val frameArea = frame.width.value * frame.height.value
+        val overlayArea = OverlayWidth.value * OverlayEstimatedHeight.value
+        return overlayArea > frameArea * OverlayMaxCoverage
+    }
+
+    /** Clear space kept between the first-run pill and the maximise badge band. */
+    val PillBadgeClearance: Dp = 8.dp
+
+    /**
+     * Bottom inset of the first-run pill within the image region (AD-4).
+     *
+     * The pill is centred over the Previous/Next pair, which is exactly where the
+     * Next frame's bottom-left maximise badge is — at 16 dp it sat on top of it.
+     * It is lifted to clear the badge band: the distance from the region's bottom
+     * to the frame's bottom (zero when height binds; half the row's spare height
+     * when width binds and the frames are centred in row 2), plus the badge
+     * inset, the badge, and [PillBadgeClearance]. Derived from the badge's own
+     * constants, not a magic number.
+     */
+    fun firstRunPillBottomInset(regionHeight: Dp, frameHeight: Dp): Dp {
+        val rowHeight = ((regionHeight - Gap) / 2).coerceAtLeast(0.dp)
+        val spare = ((rowHeight - frameHeight) / 2).coerceAtLeast(0.dp)
+        return spare + MaximiseBadgeInset + MaximiseBadgeSize + PillBadgeClearance
+    }
+
     /** Standard camera aspect ratio is 3:2; legacy default 4:3; portrait frames are the reciprocal. */
     const val DefaultLandscapeAspect: Float = 1.5f
     const val LandscapeAspect: Float = 4f / 3f
@@ -300,9 +349,11 @@ object FrameGeometry {
     /**
      * The window height at or above which the reference floor is meaningful.
      *
-     * A 1280 × 800 dp CI emulator is simply a smaller window than this product
-     * targets; asserting the reference floor there would report a defect that is
-     * really "this display is smaller than a Tab S11 Ultra".
+     * Below it the reference *frame* floor is not meaningful (a 1280 × 800 dp window
+     * is a smaller display than a Tab S11 Ultra), but chrome assertions still are:
+     * the control block must fit its row, every sidebar destination must be
+     * reachable and the pill must clear the badges at 1280 × 800, 1024 × 720 and
+     * 1024 × 480 (`SelectorForcedSizeTest`).
      */
     val ReferenceWindowHeight: Dp = 900.dp
 

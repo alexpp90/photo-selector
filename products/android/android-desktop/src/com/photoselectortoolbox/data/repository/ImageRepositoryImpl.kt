@@ -62,11 +62,12 @@ class ImageRepositoryImpl @Inject constructor(
         const val SELECTION_MARKER_FILE_NAME = SafTransferEngine.SELECTION_MARKER_FILE_NAME
 
         /**
-         * Android Desktop's sorting rule ([ImageFormats.selectionSubfolder]) for the shared
-         * engine.
+         * Android Desktop's sorting rule for the shared engine: bundle-aware
+         * ([ImageFormats.selectionSubfolderInBundle]), so a stem sidecar (`DSC_0003.xmp`)
+         * follows its RAW instead of landing in the Selection root (device lab AD-6).
          */
-        internal val SUBFOLDER_RULE = SelectionSubfolderRule { name, _ ->
-            when (ImageFormats.selectionSubfolder(name)) {
+        internal val SUBFOLDER_RULE = SelectionSubfolderRule { name, bundle ->
+            when (ImageFormats.selectionSubfolderInBundle(name, bundle)) {
                 ImageFormats.SelectionSubfolder.RAW -> SelectionSubfolder.RAW
                 ImageFormats.SelectionSubfolder.JPEG -> SelectionSubfolder.JPEG
                 ImageFormats.SelectionSubfolder.ROOT -> SelectionSubfolder.ROOT

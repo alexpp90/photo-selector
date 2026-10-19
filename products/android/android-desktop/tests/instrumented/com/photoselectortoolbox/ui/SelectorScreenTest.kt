@@ -521,6 +521,61 @@ class SelectorScreenTest {
         }
     }
 
+    // ── AD-11: the first physical arrow key must act ─────────────────────
+
+    private fun loadTwoImages() {
+        fakeRepo.imagesFlow.value = mockImages
+        runBlocking { settingsRepository.setLastFolderUri("content://test/test_folder") }
+        composeRule.waitUntil(timeoutMillis = 15000) {
+            composeRule.onAllNodesWithText("image1.jpg", ignoreCase = true)
+                .fetchSemanticsNodes().isNotEmpty()
+        }
+        dismissGestureTutorialIfShown()
+        composeRule.waitForIdle()
+    }
+
+    private fun positionCounterShows(text: String): Boolean =
+        composeRule.onAllNodes(
+            hasTestTag("position_counter") and hasText(text),
+            useUnmergedTree = true,
+        ).fetchSemanticsNodes().isNotEmpty()
+
+    @Test
+    fun firstRightArrowAfterLaunch_movesToTheSecondFrame() {
+        loadTwoImages()
+        // CI's phone-class emulator runs the compact layout, which has its own keys.
+        if (isCompactLayout()) return
+
+        // One key, through the window, like a keyboard: `sendKeyDownUpSync`
+        // leaves touch mode. On a real Tab S11 Ultra the first press was spent on
+        // Android's initial-focus pass and only the second one navigated.
+        androidx.test.platform.app.InstrumentationRegistry.getInstrumentation()
+            .sendKeyDownUpSync(android.view.KeyEvent.KEYCODE_DPAD_RIGHT)
+
+        composeRule.waitUntil(timeoutMillis = 5000) { positionCounterShows("2 / 2") }
+    }
+
+    @Test
+    fun firstRightArrowAfterClosingTheGuide_movesToTheSecondFrame() {
+        loadTwoImages()
+        // CI's phone-class emulator runs the compact layout, which has its own keys.
+        if (isCompactLayout()) return
+
+        composeRule.onAllNodesWithTag("shortcuts_button", useUnmergedTree = true)
+            .onFirst().performClick()
+        composeRule.waitUntil(timeoutMillis = 15000) {
+            composeRule.onAllNodesWithTag("selector_coach_overlay", useUnmergedTree = true)
+                .fetchSemanticsNodes().isNotEmpty()
+        }
+        dismissGestureTutorialIfShown()
+        composeRule.waitForIdle()
+
+        androidx.test.platform.app.InstrumentationRegistry.getInstrumentation()
+            .sendKeyDownUpSync(android.view.KeyEvent.KEYCODE_DPAD_RIGHT)
+
+        composeRule.waitUntil(timeoutMillis = 5000) { positionCounterShows("2 / 2") }
+    }
+
     /** True when the window is narrow enough to be running the phone layout. */
     private fun isCompactLayout(): Boolean =
         composeRule.onAllNodesWithTag("copy_button_compact").fetchSemanticsNodes().isNotEmpty()
@@ -934,10 +989,11 @@ class SelectorScreenTest {
         dismissGestureTutorialIfShown()
 
         if (isCompactLayout()) return
-        if (composeRule.onAllNodesWithTag("position_counter", useUnmergedTree = true)
-                .fetchSemanticsNodes().isEmpty()
-        ) {
-            return
+        // An assertion, not an early return: a missing counter is the AD-1 defect
+        // itself, and returning here is how it passed CI for as long as it did.
+        composeRule.waitUntil(timeoutMillis = 15000) {
+            composeRule.onAllNodesWithTag("position_counter", useUnmergedTree = true)
+                .fetchSemanticsNodes().isNotEmpty()
         }
 
         // Scoped to the counter node rather than matched as bare text: "1 / 2+"
@@ -960,10 +1016,11 @@ class SelectorScreenTest {
         dismissGestureTutorialIfShown()
 
         if (isCompactLayout()) return
-        if (composeRule.onAllNodesWithTag("position_counter", useUnmergedTree = true)
-                .fetchSemanticsNodes().isEmpty()
-        ) {
-            return
+        // An assertion, not an early return: a missing counter is the AD-1 defect
+        // itself, and returning here is how it passed CI for as long as it did.
+        composeRule.waitUntil(timeoutMillis = 15000) {
+            composeRule.onAllNodesWithTag("position_counter", useUnmergedTree = true)
+                .fetchSemanticsNodes().isNotEmpty()
         }
 
         composeRule.waitUntil(timeoutMillis = 15000) {
@@ -1079,17 +1136,22 @@ class SelectorScreenTest {
                 .fetchSemanticsNodes().isNotEmpty()
         }
 
-        val callouts = composeRule.onAllNodesWithTag("coach_callout", useUnmergedTree = true)
-            .fetchSemanticsNodes()
-            .map { it.boundsInRoot }
+        // Paged (AD-3): every page is checked, and every page must explain
+        // something — a page holding only the heading is a page to skip.
+        forEachCoachPage {
+            val callouts = composeRule.onAllNodesWithTag("coach_callout", useUnmergedTree = true)
+                .fetchSemanticsNodes()
+                .map { it.boundsInRoot }
+            assertTrue("a guide page carries no callout", callouts.isNotEmpty())
 
-        for (i in callouts.indices) {
-            for (j in i + 1 until callouts.size) {
-                val a = callouts[i]
-                val b = callouts[j]
-                val intersects = a.left < b.right && b.left < a.right &&
-                    a.top < b.bottom && b.top < a.bottom
-                assert(!intersects) { "coach marks overlap: $a and $b" }
+            for (i in callouts.indices) {
+                for (j in i + 1 until callouts.size) {
+                    val a = callouts[i]
+                    val b = callouts[j]
+                    val intersects = a.left < b.right && b.left < a.right &&
+                        a.top < b.bottom && b.top < a.bottom
+                    assert(!intersects) { "coach marks overlap: $a and $b" }
+                }
             }
         }
     }
@@ -1127,15 +1189,18 @@ class SelectorScreenTest {
                 .fetchSemanticsNodes().isNotEmpty()
         }
 
-        val callouts = composeRule.onAllNodesWithTag("coach_callout", useUnmergedTree = true)
-            .fetchSemanticsNodes()
-            .map { it.boundsInRoot }
+        forEachCoachPage {
+            val callouts = composeRule.onAllNodesWithTag("coach_callout", useUnmergedTree = true)
+                .fetchSemanticsNodes()
+                .map { it.boundsInRoot }
+            assertTrue("a guide page carries no callout", callouts.isNotEmpty())
 
-        callouts.forEach { callout ->
-            frames.forEach { (name, frame) ->
-                val intersects = callout.left < frame.right && frame.left < callout.right &&
-                    callout.top < frame.bottom && frame.top < callout.bottom
-                assert(!intersects) { "a coach mark at $callout covers $name at $frame" }
+            callouts.forEach { callout ->
+                frames.forEach { (name, frame) ->
+                    val intersects = callout.left < frame.right && frame.left < callout.right &&
+                        callout.top < frame.bottom && frame.top < callout.bottom
+                    assert(!intersects) { "a coach mark at $callout covers $name at $frame" }
+                }
             }
         }
     }
@@ -1169,8 +1234,14 @@ class SelectorScreenTest {
         // Scoped to the overlay: "Prev" and "Next" are on the control block
         // behind it as well, and a bare text match would find either.
         val inOverlay = hasAnyAncestor(hasTestTag("selector_coach_overlay"))
-        composeRule.onAllNodes(hasText("The comparison") and inOverlay, useUnmergedTree = true)
-            .onFirst().assertExists()
+        // The guide is paged, so "The comparison" is on whichever page it packs into.
+        var sawComparison = false
+        forEachCoachPage {
+            if (composeRule.onAllNodes(hasText("The comparison") and inOverlay, useUnmergedTree = true)
+                    .fetchSemanticsNodes().isNotEmpty()
+            ) sawComparison = true
+        }
+        assertTrue("no page of the guide shows \"The comparison\"", sawComparison)
 
         composeRule.onAllNodesWithTag("coach_overlay_dismiss", useUnmergedTree = true)
             .onFirst().performClick()
@@ -1289,6 +1360,7 @@ class SelectorScreenTest {
                 .fetchSemanticsNodes().isNotEmpty()
         }
 
+        forEachCoachPage { }
         val dismiss = composeRule.onAllNodesWithTag("coach_overlay_dismiss", useUnmergedTree = true)
         dismiss.fetchSemanticsNodes().forEach { node ->
             assertTrue(
@@ -1301,6 +1373,22 @@ class SelectorScreenTest {
         composeRule.waitUntil(timeoutMillis = 15000) {
             composeRule.onAllNodesWithTag("selector_coach_overlay", useUnmergedTree = true)
                 .fetchSemanticsNodes().isEmpty()
+        }
+    }
+
+    /**
+     * Runs [action] on every page of the (paged) guide, ending on the last page,
+     * where the closing control `coach_overlay_dismiss` lives.
+     */
+    private fun forEachCoachPage(action: () -> Unit) {
+        var guard = 0
+        while (true) {
+            composeRule.waitForIdle()
+            action()
+            val next = composeRule.onAllNodesWithTag("coach_overlay_next", useUnmergedTree = true)
+            if (next.fetchSemanticsNodes().isEmpty()) return
+            next.onFirst().performClick()
+            assertTrue("the guide never reaches its last page", ++guard < 20)
         }
     }
 
@@ -1319,6 +1407,7 @@ class SelectorScreenTest {
         if (composeRule.onAllNodesWithTag("selector_coach_overlay", useUnmergedTree = true)
                 .fetchSemanticsNodes().isNotEmpty()
         ) {
+            forEachCoachPage { }
             composeRule.onAllNodesWithTag("coach_overlay_dismiss", useUnmergedTree = true)
                 .fetchSemanticsNodes().forEach { node ->
                     assertTrue(

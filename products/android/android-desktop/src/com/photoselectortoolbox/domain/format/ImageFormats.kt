@@ -121,4 +121,24 @@ object ImageFormats {
             else -> SelectionSubfolder.ROOT
         }
     }
+
+    /**
+     * Bundle-aware sorting rule: [selectionSubfolder] for everything except a stem sidecar
+     * (`DSC_0003.xmp`, no RAW extension in its name). A stem sidecar cannot know its image from
+     * its own name, so it follows the bundle: into the subfolder of the bundle's RAW when the
+     * bundle has one, else of the primary image (first non-sidecar, non-edit member), and only
+     * when the bundle has no image at all it stays at the Selection root.
+     */
+    fun selectionSubfolderInBundle(fileName: String, bundleFileNames: Collection<String>): SelectionSubfolder {
+        val own = selectionSubfolder(fileName)
+        val name = fileName.substringAfterLast('/')
+        if (own != SelectionSubfolder.ROOT || extensionOf(name) != XMP_EXTENSION) return own
+        val others = bundleFileNames.map { it.substringAfterLast('/') }.filter { it != name }
+        if (others.any { extensionOf(it) in RAW_EXTENSIONS }) return SelectionSubfolder.RAW
+        val image = others.firstOrNull {
+            val sub = selectionSubfolder(it)
+            sub != SelectionSubfolder.ROOT && extensionOf(it) != XMP_EXTENSION
+        }
+        return image?.let { selectionSubfolder(it) } ?: SelectionSubfolder.ROOT
+    }
 }
