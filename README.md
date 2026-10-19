@@ -43,6 +43,7 @@ The repository ships **five products** (four active native solutions alongside t
 | 🐧 **Linux Desktop** | `products/linux-desktop/` | Python 3.12+, GTK4, Libadwaita | Debian 13 (Trixie), GNOME 46+ | Libadwaita dark studio, 1/2/3-Up canvas, NumPy (<2ms) | [docs](docs/products/linux-desktop/README.md) |
 | 📦 **Desktop (Legacy)** | `products/desktop/src/` | Python 3.10+, Tkinter | macOS, Windows, Linux | Split view, menu/hotkeys (archived reference) | [docs](docs/products/desktop/README.md) |
 | *(shared library)* | `products/android/core/` | Kotlin | — | EXIF model + readers used by both Android products | [docs](docs/shared/README.md) |
+| *(shared library)* | `products/android/saf/` | Kotlin | — | SAF copy/move engine + folder grants used by both Android products | [docs](docs/shared/README.md) |
 
 Naming matters here — "the Android app" is ambiguous. Canonical names, slugs, and package mappings are defined in [`docs/GLOSSARY.md`](docs/GLOSSARY.md).
 
@@ -57,7 +58,8 @@ products/
   android/                   Gradle build root for both Android products
     phototok/                  PhotoTok (Phone)       — src/ tests/ res/ AndroidManifest.xml
     android-desktop/           Android Desktop (DeX)  — src/ tests/ res/ AndroidManifest.xml
-    core/                      :core — the only code shared between Android products
+    core/                      :core — EXIF model + readers, shared by both Android products
+    saf/                       :saf — SAF file operations, shared by both Android products
   macos-desktop/             Native macOS Desktop   — src/ tests/ Package.swift
   linux-desktop/             Native Linux Desktop   — src/ tests/ debian/ scripts/ pyproject.toml
   desktop/                   Archived Legacy Desktop— src/ tests/ benchmarks/ scripts/ pyproject.toml

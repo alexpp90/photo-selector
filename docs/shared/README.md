@@ -18,16 +18,29 @@ would notice.
 
 ## What is shared in code
 
-Exactly one module: `products/android/core/` (`:core`, `com.photoselector.core`), holding the EXIF data
-class, the EXIF reader strategies and external-storage detection — five files that are
-byte-for-byte identical between the two Android products.
+Exactly two modules, both used by both Android products:
 
-**Admission rule.** A file belongs in `:core` when it is identical for both Android products
+- `products/android/core/` (`:core`, `com.photoselector.core`): the EXIF data class, the EXIF
+  reader strategies, embedded-preview extraction and storage/source-kind detection.
+- `products/android/saf/` (`:saf`, `com.photoselector.saf`): the SAF file operations that
+  [`FILE_OPERATIONS.md`](FILE_OPERATIONS.md) specifies. That covers the copy/move engine
+  (`SafTransferEngine`): collision-free bundle naming, size verification before a source is
+  deleted, partial outcomes, at most two transfers at once and one at a time per destination,
+  and undo into the original folder. It also covers the persisted-grant bookkeeping
+  (`FolderAccessManager`, the only caller of `take`/`releasePersistableUriPermission`).
+  Where the two products differ, the product passes the difference in as configuration —
+  `SafTransferPolicy` (all-or-nothing or per-file bundles, when the Selection marker is
+  written, fsync for removable media), `SelectionSubfolderRule` (its own RAW/JPEG sorting),
+  `SelectionDestination` (folder name, Android Desktop's second pass into `Final`) — and
+  never forks the module.
+
+**Admission rule.** A file belongs in `:core` or `:saf` when it is identical for both Android products
 *and would stay identical* if either product evolved independently. Files that merely look
 similar today stay duplicated on purpose. `ImageItem`, for instance, is **not** shared:
 Android Desktop's carries a `scanResult` field that PhotoTok has no concept of.
 
-`:core` must not depend on Compose, Room, OpenCV, Vico or on either app module.
+`:core` and `:saf` must not depend on Compose, Room, OpenCV, Vico or on either app module;
+`:saf` also has no Hilt and no product types (each product provides it in its own graph).
 
 The Desktop and macOS Desktop products share no code with the Android products — only the data *contract*.
 `core/models.py`'s `ExifData` and `com.photoselector.core.model.ExifData` must describe the
