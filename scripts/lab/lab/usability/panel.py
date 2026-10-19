@@ -74,8 +74,24 @@ def load_variants(run_dir: Path, others: list[Path] | None = None) -> dict[str, 
     for d in [run_dir, *(others or [])]:
         d = d.resolve()
         w = json.loads((d / "walkthrough.json").read_text(encoding="utf-8"))
+        _rescore(d, w)
         out.setdefault(variant_of(w), (d, w))
     return out
+
+
+def _rescore(run_dir: Path, walkthrough: dict[str, Any]) -> None:
+    """Recompute the text load from each screen's saved UI tree, so runs captured with an older
+    `textload.py` are judged by the current criterion."""
+    from .textload import analyse
+
+    label = variant_of(walkthrough)
+    locale = label.split("@")[0]
+    density = int(walkthrough.get("device", {}).get("density") or 420)
+    for sc in walkthrough["scenarios"]:
+        for s in sc["screens"]:
+            xml = run_dir / sc["scenario"] / (Path(s["image"]).stem + ".xml")
+            if xml.is_file():
+                s["metrics"]["text_load"] = analyse(xml.read_text(encoding="utf-8"), density_dpi=density, locale=locale)
 
 
 def binding_requirements(product: str, root: Path | None = None) -> list[dict[str, Any]]:

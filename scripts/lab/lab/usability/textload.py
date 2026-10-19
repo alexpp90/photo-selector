@@ -1,7 +1,8 @@
 """Text load per screen and per control: the "text-load" criterion of the usability panel.
 
 `metrics.screen_metrics` counts the words a screen asks the user to read. A screen of 5 words
-can still put a label on every icon. This module looks at each control: a button, a bar item or
+can still put a label on every icon. The verdict is "over" when a control breaks its budget or the
+screen asks for more than 40 words (or one block over 20); letter words count, numbers do not. This module looks at each control: a button, a bar item or
 a settings row. For each one it records how many visible words it shows and whether it shows
 text next to an icon, measured against the budgets in `docs/shared/UI_TEXT.md`
 (`scripts/ui_text_budget.json`). Spoken labels (`content-desc`) are never counted.
@@ -18,8 +19,14 @@ from typing import Any
 
 _BOUNDS = re.compile(r"\[(-?\d+),(-?\d+)\]\[(-?\d+),(-?\d+)\]")
 _WORD = re.compile(r"[^\W\d_]+(?:['’-][^\W\d_]+)*", re.UNICODE)
-# A full-width control with several lines is a list row (settings), not a button.
-ROW_WIDTH_FRACTION = 0.7
+# A full-width control is a list row (a settings row, a source card), not a button.
+ROW_WIDTH_FRACTION = 0.9  # settings rows and source cards span 92–100 %, dialog buttons less
+# A clickable that covers this much of the screen is a container (a tap-to-dismiss overlay),
+# not one control: its children are measured instead.
+CONTAINER_AREA_FRACTION = 0.4
+# Per screen (same thresholds as metrics.py): more than this many words to read is over.
+SCREEN_WORDS = 40
+BLOCK_WORDS = 20
 ICON_MAX_DP = 64.0
 
 
@@ -64,18 +71,21 @@ def analyse(xml_text: str, density_dpi: int = 420, locale: str = "en") -> dict[s
     px_per_dp = density_dpi / 160.0 if density_dpi > 0 else 1.0
     lang = _language(locale)
     b = budgets()
-    screen_w = 0
+    screen_w = screen_h = 0
     for el in root.iter("node"):
         bb = _bounds(el)
         if bb:
-            screen_w = max(screen_w, bb[2])
+            screen_w, screen_h = max(screen_w, bb[2]), max(screen_h, bb[3])
+    screen_area = max(screen_w * screen_h, 1)
 
     controls: list[dict[str, Any]] = []
     claimed: set[int] = set()
 
     def visit(el: ET.Element) -> None:
-        if el.tag == "node" and _is_control(el) and id(el) not in claimed:
-            bb = _bounds(el)
+        bb0 = _bounds(el) if el.tag == "node" else None
+        is_container = bb0 is not None and (bb0[2] - bb0[0]) * (bb0[3] - bb0[1]) >= CONTAINER_AREA_FRACTION * screen_area
+        if el.tag == "node" and _is_control(el) and id(el) not in claimed and not is_container:
+            bb = bb0
             if bb:
                 texts, icon = [], False
                 for n in el.iter("node"):
@@ -90,7 +100,7 @@ def analyse(xml_text: str, density_dpi: int = 420, locale: str = "en") -> dict[s
                             icon = True
                 if not texts and el.get("content-desc"):
                     icon = icon or not (el.get("text") or "")
-                is_row = screen_w > 0 and (bb[2] - bb[0]) >= ROW_WIDTH_FRACTION * screen_w and len(texts) >= 2
+                is_row = screen_w > 0 and (bb[2] - bb[0]) >= ROW_WIDTH_FRACTION * screen_w
                 kind = "row" if is_row else "button"
                 n_words = sum(words(t) for t in texts)
                 n_chars = sum(len(t) for t in texts)
@@ -123,6 +133,14 @@ def analyse(xml_text: str, density_dpi: int = 420, locale: str = "en") -> dict[s
 
     visit(root)
     flagged = [c for c in controls if c["flags"]]
+    blocks, seen = [], set()
+    for el in root.iter("node"):
+        t, bb = (el.get("text") or "").strip(), _bounds(el)
+        if t and bb and (t, bb) not in seen:
+            seen.add((t, bb))
+            blocks.append(words(t))
+    screen_words = sum(blocks)
+    heavy = screen_words > SCREEN_WORDS or max(blocks, default=0) > BLOCK_WORDS
     return {
         "locale": locale,
         "controls": controls,
@@ -131,6 +149,9 @@ def analyse(xml_text: str, density_dpi: int = 420, locale: str = "en") -> dict[s
         "max_control_words": max((c["words"] for c in controls), default=0),
         "labelled_icons": sum(1 for c in controls if "labelled-icon" in c["flags"]),
         "wordy_controls": sum(1 for c in controls if "wordy" in c["flags"]),
-        "flagged": [{"id": c["id"] or c["desc"], "texts": c["texts"], "flags": c["flags"]} for c in flagged],
-        "verdict": "over" if flagged else "ok",
+        "screen_words": screen_words,
+        "text_heavy": heavy,
+        "flagged": [{"id": c["id"] or c["desc"], "texts": c["texts"], "flags": c["flags"]} for c in flagged]
+        + ([{"id": "(screen)", "texts": [f"{screen_words} words to read"], "flags": ["text-heavy"]}] if heavy else []),
+        "verdict": "over" if flagged or heavy else "ok",
     }

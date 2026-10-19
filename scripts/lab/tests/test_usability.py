@@ -429,6 +429,28 @@ class TestTextLoad(unittest.TestCase):
         self.assertEqual(analyse(_xml(b), locale="de-DE")["wordy_controls"], 0)
 
 
+class TestTextLoadShapes(unittest.TestCase):
+    def test_full_screen_overlay_is_a_container_and_a_one_line_row_is_a_row(self) -> None:
+        from lab.usability.textload import analyse
+
+        callouts = "".join(_node(text=t, bounds=f"[100,{300 + 60 * i}][400,{340 + 60 * i}]")
+                           for i, t in enumerate(["Next", "Delete", "Copy", "Zoom", "Selection", "Undo delete"]))
+        overlay = _node(rid="controls_guide", clickable=True, bounds="[0,0][1080,1920]", children=callouts)
+        row = _node(clickable=True, bounds="[0,1500][1080,1640]", children=_node(text="Link RAW + JPEG", bounds="[40,1520][700,1600]"))
+        tl = analyse(_xml(overlay, row))
+        self.assertEqual(tl["wordy_controls"], 0)
+        self.assertEqual(tl["verdict"], "ok")
+        self.assertEqual([c["kind"] for c in tl["controls"]], ["row"])
+
+    def test_a_screen_of_more_than_40_words_is_over_even_without_controls(self) -> None:
+        from lab.usability.textload import analyse
+
+        body = _node(text=" ".join(["word"] * 41), bounds="[0,300][1080,900]")
+        tl = analyse(_xml(body))
+        self.assertTrue(tl["text_heavy"])
+        self.assertEqual(tl["verdict"], "over")
+
+
 class TestLocaleAndFontScale(unittest.TestCase):
     def test_find_node_accepts_alternatives(self) -> None:
         nodes = drv.parse_nodes(_xml(_node(text="Löschen", clickable=True, bounds="[0,0][10,10]")))
@@ -485,6 +507,24 @@ class TestLocaleAndFontScale(unittest.TestCase):
         puts = [c for c in adb.cmds if c[:4] == ("shell", "settings", "put", "system") and c[4] == "font_scale"]
         self.assertEqual([c[5] for c in puts], ["2", "1.0"])
         self.assertEqual(adb.cmds[-1], ("shell", "cmd", "locale", "set-app-locales", "com.phototok.lab", "--locales", ""))
+
+
+class TestTapsAvoidTheNavigationBar(unittest.TestCase):
+    def test_a_target_half_under_the_navigation_bar_is_scrolled_into_view_first(self) -> None:
+        nav = _node(rid="navigationBarBackground", bounds="[0,1794][1080,1920]")
+        low = _xml(_node(rid="card", clickable=True, bounds="[42,1793][1038,1919]"), nav)
+        high = _xml(_node(rid="card", clickable=True, bounds="[42,1400][1038,1600]"), nav)
+        adb = FakeAdb([low, high])
+        out = _scratch("test_usability_navbar")
+        try:
+            d = drv.ScenarioDriver(adb, "com.phototok.lab", out, settle_ms=0)
+            d.run({"id": "U", "steps": [{"tap": {"id": "card", "scroll": True}}]})
+        finally:
+            shutil.rmtree(out, ignore_errors=True)
+        swipes = [i for i in adb.inputs if i[0] == "swipe"]
+        taps = [i for i in adb.inputs if i[0] == "tap"]
+        self.assertEqual(len(swipes), 1)
+        self.assertEqual(taps, [("tap", "540", "1500")])
 
 
 class TestRestoreAfterACrashedWalk(unittest.TestCase):

@@ -221,6 +221,13 @@ class ScenarioDriver:
             self.size = (nodes[0].bounds[2], nodes[0].bounds[3])
         return nodes
 
+    def _safe_bottom(self, nodes: list[UiNode]) -> int:
+        """Lowest y a tap may target: the top of the navigation bar, else 92 % of the screen."""
+        for n in nodes:
+            if n.res_id == "navigationBarBackground":
+                return n.bounds[1]
+        return int(self.size[1] * 0.92)
+
     def _input(self, *args: str) -> None:
         self.adb.run("shell", "input", *args)
 
@@ -235,7 +242,10 @@ class ScenarioDriver:
         deadline = time.monotonic() + timeout_ms / 1000.0
         scrolls = 0
         while True:
-            node = find_node(self.nodes(), target)
+            nodes = self.nodes()
+            node = find_node(nodes, target)
+            if node is not None and scroll and scrolls < 8 and node.bounds[3] > self._safe_bottom(nodes):
+                node = None  # half under the navigation bar: its centre may be the Home button
             if node is not None:
                 return node
             if scroll and scrolls < 8:
