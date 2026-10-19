@@ -443,7 +443,9 @@ fails the build on any finding. This section applies them to PhotoTok.
 1. **Icon first.** A control is an icon with no visible text. Bars (bottom bar, top bar, landscape
    side panels) are icon-only: a spoken `contentDescription` (`cd_` string), a long-press tooltip
    with the same name (`NameTooltip`) and a touch target of at least 48 dp. The only visible words
-   next to a control are the exceptions listed below.
+   next to an icon are these exceptions: the three landing source cards (icon above "Camera" /
+   "SD card / USB" / "Folder or cloud": a first-run choice the icons alone cannot tell apart) and
+   the controls guide's callouts, whose job is to name the icons once.
 2. **Don't ask when there is nothing to decide.** If one choice is clearly right, take it. For
    example, reopening a folder with no new photos resumes at the saved photo without a dialog.
 3. **The title carries the message.** A dialog title states the fact or the question in ≤ 5 words;
@@ -458,9 +460,10 @@ fails the build on any finding. This section applies them to PhotoTok.
 6. **Point at Settings with an action, not a sentence.** Hint cards for configurable behaviour carry
    a "Settings" action. The one exception is the direct-delete dialog: its confirm/cancel slots are
    taken, so a single small line reads "Turn off this prompt in Settings." (REQ-TOK-GESTURE.03).
-7. **Say only what the user cannot see.** No snackbar confirms what the user just watched. A hint
-   names the *rule* ("Swipe right copies to Selection"); the snackbar reports the event ("Copied to
-   Selection").
+7. **Say only what the user cannot see, once.** No snackbar or hint confirms what the user just
+   watched. Swipes, page changes and Undo get no hint: the controls guide shows them once and the
+   result is on screen; the copy/move snackbar reports where a file went ("Copied to Selection").
+   Hints remain only for effects that are not visible (a tap hid the overlays; how to leave zoom).
 8. **Snackbars use ≤ 4 words**; errors ≤ 8 words and never a raw exception message. Milestones
    carry no "!".
 9. **One neutral exit.** Multi-choice dialogs have exactly one neutral button ("Don't change",
@@ -497,11 +500,9 @@ fails the build on any finding. This section applies them to PhotoTok.
 | No new photos | *no dialog* | — | explicit Reload only: snackbar "No new photos" |
 | RAW + JPEG pairs (`RawJpegSuggestionDialog`) | "RAW + JPEG pairs" | — | **Merge pairs** (subline "Swipes act on both files") · Link both · *Show only*: RAW · JPEG · Don't change (DE **Paare bündeln** · Beide verknüpfen · Nur zeigen: RAW · JPEG · Nicht ändern) |
 | Direct delete (`DirectDeleteDialog`) | "Delete permanently?" (DE "Endgültig löschen?") | "This location has no trash." + small "Turn off this prompt in Settings." (DE "In den Einstellungen abschaltbar.") | Cancel · **Delete** |
-| Hint: swipe right / left to folder | "Swipe right copies to «folder»" (DE "Rechts wischen kopiert nach «Ordner»") | — | Settings ✕ |
-| Hint: swipe left delete | "Swipe left deletes" | — (the guide names Undo) | Settings ✕ |
 | Hint: filter mismatch | "RAW only" / "JPEG only" | "Most photos here are JPEG." | Show all ✕ |
-| Hints: tap, zoom | "Tap again to show overlays" · "Drag to pan, double-tap to reset" | — | ✕ |
-| *No hint* | first page change, first revert: the user just watched the result | — | — |
+| Hints: tap, zoom | "Tap again to show overlays" · "Double-tap to reset" (DE "Doppeltippen setzt zurück") | — | ✕ |
+| *No hint* | swipes (the guide shows them once), first page change, first revert: the user just watched the result | — | — |
 | SD / USB card done (`showCardDoneSheet`) | "Card done" | — | **Keep all** · Delete rejects · Delete all (N) · Cancel |
 | Clear whole card confirm | "Delete all N photos?" | "Photos not copied off the card are lost." | Cancel · **Delete all** |
 | Snackbars | — | "Copied to «folder»" · "Moved to «folder» +K" · "Moved as «name»" · "Marked as favourite" · "No new photos" · "Pairs merged" · "RAW + JPEG linked" · "Safe to unplug" · "Rejects deleted" · "N deleted" · "Cloud: copy only" · "Card disconnected" · "50 MB freed" · "100 reviewed" | — |

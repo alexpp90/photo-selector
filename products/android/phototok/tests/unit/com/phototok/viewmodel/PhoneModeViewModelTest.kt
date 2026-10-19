@@ -288,28 +288,44 @@ class PhoneModeViewModelTest {
     // ── One-time action explanations ─────────────────────────────────────
 
     @Test
-    fun `first swipe right explains the action and marks it seen`() = runTest {
-        phoneSettingsFlow.value = PhoneSettings(collectionAction = CollectionAction.COPY)
-        val viewModel = loadFolder(image("a.jpg", 1), image("b.jpg", 2))
+    fun `swipes show no first-run hint - the guide explains them once`() = runTest {
+        phoneSettingsFlow.value = PhoneSettings(collectionAction = CollectionAction.COPY, leftSwipeAction = SwipeAction.DELETE)
+        val viewModel = loadFolder(image("a.jpg", 1), image("b.jpg", 2), image("c.jpg", 3))
 
         viewModel.addToCollection()
+        assertNull(viewModel.uiState.value.firstRunHint)
+        viewModel.requestDelete()
+        assertNull(viewModel.uiState.value.firstRunHint)
+
+        phoneSettingsFlow.value = PhoneSettings(leftSwipeAction = SwipeAction.MOVE)
+        val moving = loadFolder(image("d.jpg", 1), image("e.jpg", 2))
+        moving.performLeftSwipeCopyOrMove()
+        assertNull(moving.uiState.value.firstRunHint)
+        coVerify(exactly = 0) { settingsRepository.markFirstRunHintSeen(FirstRunHint.SWIPE_RIGHT) }
+    }
+
+    @Test
+    fun `a hint explains the action once and marks it seen`() = runTest {
+        val viewModel = loadFolder(image("a.jpg", 1), image("b.jpg", 2))
+
+        viewModel.maybeShowFirstRunHint(FirstRunHint.TAP_HUD)
 
         val hint = viewModel.uiState.value.firstRunHint
         assertNotNull(hint)
-        assertEquals(FirstRunHint.SWIPE_RIGHT, hint!!.hint)
-        assertEquals(UiText.of(R.string.hint_title_swipe_right_copy, UiText.raw(PhotoFolders.SELECTION)), hint.title)
-        coVerify { settingsRepository.markFirstRunHintSeen(FirstRunHint.SWIPE_RIGHT) }
+        assertEquals(FirstRunHint.TAP_HUD, hint!!.hint)
+        assertEquals(UiText.of(R.string.hint_title_tap_hud), hint.title)
+        coVerify { settingsRepository.markFirstRunHintSeen(FirstRunHint.TAP_HUD) }
     }
 
     @Test
     fun `a hint fires only once per action`() = runTest {
         val viewModel = loadFolder(image("a.jpg", 1), image("b.jpg", 2))
 
-        viewModel.addToCollection()
+        viewModel.maybeShowFirstRunHint(FirstRunHint.TAP_HUD)
         assertNotNull(viewModel.uiState.value.firstRunHint)
 
         viewModel.dismissFirstRunHint()
-        viewModel.addToCollection()
+        viewModel.maybeShowFirstRunHint(FirstRunHint.TAP_HUD)
 
         assertNull(viewModel.uiState.value.firstRunHint)
     }
@@ -317,33 +333,14 @@ class PhoneModeViewModelTest {
     @Test
     fun `hints already persisted as seen never fire`() = runTest {
         phoneSettingsFlow.value = PhoneSettings(
-            seenFirstRunHints = setOf(FirstRunHint.SWIPE_RIGHT.key),
+            seenFirstRunHints = setOf(FirstRunHint.TAP_HUD.key),
         )
         val viewModel = loadFolder(image("a.jpg", 1), image("b.jpg", 2))
 
-        viewModel.addToCollection()
+        viewModel.maybeShowFirstRunHint(FirstRunHint.TAP_HUD)
 
         assertNull(viewModel.uiState.value.firstRunHint)
         coVerify(exactly = 0) { settingsRepository.markFirstRunHintSeen(any()) }
-    }
-
-    @Test
-    fun `delete uses the delete hint and copy-move uses the folder hint`() = runTest {
-        phoneSettingsFlow.value = PhoneSettings(leftSwipeAction = SwipeAction.DELETE)
-        val deleting = loadFolder(image("a.jpg", 1), image("b.jpg", 2))
-        deleting.requestDelete()
-        assertEquals(
-            FirstRunHint.SWIPE_LEFT_DELETE,
-            deleting.uiState.value.firstRunHint?.hint,
-        )
-
-        phoneSettingsFlow.value = PhoneSettings(leftSwipeAction = SwipeAction.MOVE)
-        val moving = loadFolder(image("c.jpg", 1), image("d.jpg", 2))
-        moving.performLeftSwipeCopyOrMove()
-        assertEquals(
-            FirstRunHint.SWIPE_LEFT_FOLDER,
-            moving.uiState.value.firstRunHint?.hint,
-        )
     }
 
     @Test
@@ -352,7 +349,7 @@ class PhoneModeViewModelTest {
         val viewModel = loadFolder(image("a.jpg", 1), image("b.jpg", 2))
         assertTrue(viewModel.uiState.value.showGestureTutorial)
 
-        viewModel.addToCollection()
+        viewModel.maybeShowFirstRunHint(FirstRunHint.TAP_HUD)
 
         assertNull(viewModel.uiState.value.firstRunHint)
     }

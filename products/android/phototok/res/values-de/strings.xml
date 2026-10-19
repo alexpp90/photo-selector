@@ -132,7 +132,7 @@
     <string name="hint_title_swipe_left_delete">Links wischen löscht</string>
     <string name="hint_title_swipe_vertical">Position pro Ordner gemerkt</string>
     <string name="hint_title_tap_hud">Erneut tippen zeigt die Anzeigen</string>
-    <string name="hint_title_double_tap_zoom">Ziehen verschiebt, Doppeltippen setzt zurück</string>
+    <string name="hint_title_double_tap_zoom">Doppeltippen setzt zurück</string>
     <string name="hint_title_revert">Rückgängig stellt zuletzt Gelöschtes her</string>
     <string name="hint_title_raw_jpeg_pairs">RAW + JPEG-Paare</string>
     <string name="hint_body_raw_jpeg_pairs">Verknüpfen oder ein Format zeigen.</string>

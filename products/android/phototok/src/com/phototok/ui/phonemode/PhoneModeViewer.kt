@@ -1,5 +1,6 @@
 package com.phototok.ui.phonemode
 
+import androidx.compose.foundation.layout.FlowRow
 import android.content.res.Configuration
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.core.LinearEasing
@@ -1159,9 +1160,9 @@ private fun ExifOverlay(
                 text = fileName.uppercase(),
                 style = MaterialTheme.typography.labelLarge.copy(letterSpacing = 1.sp),
                 color = colors.onSurface.copy(alpha = 0.7f),
-                // Values wrap rather than truncate at large font scales (REQ-TOK-UX.05).
-                maxLines = 2,
-                overflow = TextOverflow.Ellipsis,
+                // One line; a long name loses its middle, never its extension (font scale 2.0).
+                maxLines = 1,
+                overflow = TextOverflow.MiddleEllipsis,
             )
 
             if (items.isNotEmpty()) {
@@ -1175,13 +1176,19 @@ private fun ExifOverlay(
                         modifier = Modifier.size(14.dp),
                         tint = colors.primary,
                     )
-                    Text(
-                        text = items.joinToString(" · "),
-                        style = MaterialTheme.typography.bodyMedium,
-                        color = colors.onSurfaceVariant,
-                        maxLines = 2,
-                        overflow = TextOverflow.Ellipsis,
-                    )
+                    // Each value is one unbreakable token; at font scale 2.0 they flow onto a
+                    // second line instead of breaking inside "f/2.8" (REQ-TOK-UX.05).
+                    FlowRow(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                        items.forEachIndexed { i, item ->
+                            Text(
+                                text = if (i == 0) item else "· $item",
+                                style = MaterialTheme.typography.bodyMedium,
+                                color = colors.onSurfaceVariant,
+                                maxLines = 1,
+                                softWrap = false,
+                            )
+                        }
+                    }
                 }
             }
 

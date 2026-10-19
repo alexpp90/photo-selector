@@ -1070,7 +1070,8 @@ class PhoneModeViewModel @Inject constructor(
         if (state.images.isEmpty()) return
         val currentImage = state.images[state.currentIndex]
         onCardDwelled(currentImage)
-        maybeShowFirstRunHint(FirstRunHint.SWIPE_RIGHT)
+        // No first-run hint: the controls guide shows the swipe once and the result snackbar
+        // (or the favourite flash) confirms it (REQ-TOK-UX.04, explain once).
 
         if (state.swipeRightVerb == SwipeRightVerb.FAVOURITE) {
             val related = if (state.moveRelatedFiles) relatedFeedImages(currentImage) else emptyList()
@@ -1188,7 +1189,6 @@ class PhoneModeViewModel @Inject constructor(
         if (state.images.isNotEmpty()) {
             onCardDwelled(state.images[state.currentIndex])
         }
-        maybeShowFirstRunHint(FirstRunHint.SWIPE_LEFT_FOLDER)
         copyOrMoveCurrent(
             targetUri = state.leftSwipeFolderUri ?: state.sourceFolderUri,
             isCopy = state.leftSwipeAction == SwipeAction.COPY || state.isCloudSource,
@@ -1366,7 +1366,6 @@ class PhoneModeViewModel @Inject constructor(
         if (initialState.images.isEmpty()) return
 
         onCardDwelled(initialState.images[initialState.currentIndex])
-        maybeShowFirstRunHint(leftSwipeHint())
 
         val state = _uiState.value
         if (state.images.isEmpty()) return
@@ -1773,13 +1772,6 @@ class PhoneModeViewModel @Inject constructor(
     }
 
     /** The hint that matches the configured left-swipe action. */
-    private fun leftSwipeHint(): FirstRunHint =
-        if (_uiState.value.leftSwipeAction == SwipeAction.DELETE) {
-            FirstRunHint.SWIPE_LEFT_DELETE
-        } else {
-            FirstRunHint.SWIPE_LEFT_FOLDER
-        }
-
     // ── RAW + JPEG pair suggestions (`U-12`) ─────────────────────────────
 
     fun maybeShowRawJpegSuggestion() {

@@ -11,13 +11,13 @@ import com.phototok.R
  * "Reset tutorials" in Settings.
  */
 enum class FirstRunHint(val key: String) {
-    /** First swipe-right (add to collection). */
+    /** First swipe-right (add to collection). No longer shown (2026-10-19, REQ-TOK-UX.04): the guide explains it once. */
     SWIPE_RIGHT("swipe_right"),
 
-    /** First swipe-left when it copies or moves to the custom folder. */
+    /** First swipe-left when it copies or moves to the custom folder. No longer shown (2026-10-19, REQ-TOK-UX.04): the guide explains it once. */
     SWIPE_LEFT_FOLDER("swipe_left_folder"),
 
-    /** First swipe-left when it deletes. */
+    /** First swipe-left when it deletes. No longer shown (2026-10-19, REQ-TOK-UX.04): the guide explains it once. */
     SWIPE_LEFT_DELETE("swipe_left_delete"),
 
     /** First vertical swipe. No longer shown (2026-10-19, REQ-TOK-UX.04): the guide shows paging and

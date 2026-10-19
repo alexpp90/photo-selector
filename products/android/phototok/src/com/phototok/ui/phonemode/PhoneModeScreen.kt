@@ -1,5 +1,7 @@
 package com.phototok.ui.phonemode
 
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.horizontalScroll
 import android.content.res.Configuration
 import android.net.Uri
 import androidx.activity.compose.rememberLauncherForActivityResult
@@ -960,7 +962,12 @@ private fun SelectionFolderViewer(
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.SpaceBetween,
         ) {
-            Row(verticalAlignment = Alignment.CenterVertically) {
+            // The tabs take what the action icons leave and scroll; at font scale 2.0 they pushed
+            // Share off screen (usability panel 2026-10-19).
+            Row(
+                modifier = Modifier.weight(1f).horizontalScroll(rememberScrollState()),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
                 TopBarIconButton(
                     icon = Icons.AutoMirrored.Filled.ArrowBack,
                     name = stringResource(R.string.cd_back),

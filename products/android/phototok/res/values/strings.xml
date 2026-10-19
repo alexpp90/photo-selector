@@ -136,7 +136,7 @@
     <string name="hint_title_swipe_left_delete">Swipe left deletes</string>
     <string name="hint_title_swipe_vertical">Place saved per folder</string>
     <string name="hint_title_tap_hud">Tap again to show overlays</string>
-    <string name="hint_title_double_tap_zoom">Drag to pan, double-tap to reset</string>
+    <string name="hint_title_double_tap_zoom">Double-tap to reset</string>
     <string name="hint_title_revert">Undo restores the last delete</string>
     <string name="hint_title_raw_jpeg_pairs">RAW + JPEG pairs</string>
     <string name="hint_body_raw_jpeg_pairs">Link them or show one format.</string>
