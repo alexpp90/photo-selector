@@ -18,7 +18,8 @@ products/                   ALL product code. One directory per product, same sh
   android/                    Gradle build root for both Android products
     android-desktop/          src/ tests/ res/ AndroidManifest.xml build.gradle.kts
     phototok/                 src/ tests/ res/ AndroidManifest.xml build.gradle.kts
-    core/                     src/ build.gradle.kts   (the only shared Android code)
+    core/                     src/ build.gradle.kts   (shared Android code: EXIF)
+    saf/                      src/ build.gradle.kts   (shared Android code: SAF file operations)
 docs/                       This tree — product documentation
 ai/                         Agent framework: routing, agents, skills, memory
 scripts/                    Cross-product tooling (run_tests.sh — the local CI mirror)
@@ -35,7 +36,7 @@ Code slug ↔ docs slug:
 | Linux Desktop | `products/linux-desktop/` | [`products/linux-desktop/`](products/linux-desktop/) |
 | Android Desktop | `products/android/android-desktop/` | [`products/android-desktop/`](products/android-desktop/) |
 | PhotoTok | `products/android/phototok/` | [`products/phototok/`](products/phototok/) |
-| *(shared Android code)* | `products/android/core/` | [`shared/`](shared/) |
+| *(shared Android code)* | `products/android/core/`, `products/android/saf/` | [`shared/`](shared/) |
 
 ## Map of this tree
 
@@ -76,6 +77,7 @@ docs/
 
   build/               How the products are built, signed and shipped
     CI_PARITY.md                 What runs where and why; local mirror vs GitHub Actions
+    BRANCH_PROTECTION.md         Recommended protection for main, as gh api commands (not applied)
     RELEASING.md                 Per-product versions, changelogs, tags and the release procedure
     ANDROID_SIGNING_PLAN.md      Rationale for per-app cloud/signing isolation  [private]
     ANDROID_SIGNING_SETUP.md     Step-by-step setup instructions  [private]

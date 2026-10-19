@@ -46,8 +46,8 @@ While the desktop and tablet products emphasize multi-up comparative culling and
 *   **Progressive SAF Enumeration:** Emits a first batch after 24 photos, subsequent batches every 250 photos, rendering a live `${index + 1} / ${total}+` indicator while folder discovery streams in the background.
 
 ### 2. Tactile Culling Gestures
-*   **Swipe-Right to File (`COPY` / `MOVE`):** Files the photo into the user's `Selection/` folder. Accompanied by a glowing green action badge and an animated confirmation checkmark flash.
-*   **Swipe-Left to Discard or Route (`DELETE` / `COPY` / `MOVE`):** Configurable in Settings. Deletions show a progressive pulsing red trash icon, card tilt ($2^\circ$), and optional direct-delete confirmation dialog.
+*   **Swipe-Right to File (`COPY` / `MOVE`):** Files the photo into the user's `Selection/` folder — by default a `Selection/` subfolder of the source folder, never the source folder itself ("Organize Selection by RAW / JPEG" adds `RAW/` and `JPEG/` inside it). Accompanied by a glowing green action badge and an animated confirmation checkmark flash.
+*   **Swipe-Left to Discard or Route (`DELETE` / `COPY` / `MOVE`):** Configurable in Settings; a copy or move goes into a `PhotoTok_LeftSwipe/` subfolder of the source folder or of the chosen custom folder. Deletions show a progressive pulsing red trash icon, card tilt ($2^\circ$), and optional direct-delete confirmation dialog.
 *   **Persistent Revert:** Deletions remain undoable across vertical scrolls via the viewer bottom bar **Revert** button (`RestoreFromTrash`, paired with visible micro-labels alongside **Sources** and **Selection**) until navigation away, folder switch, or subsequent file mutation. After Revert the viewer shows the restored photo.
 *   **Non-Blocking Optimistic Execution:** Feed updates immediately upon gesture completion; file transfers run on the injected `@ApplicationScope`. Any failed mutation is cleanly re-inserted into the feed at its original slot.
 

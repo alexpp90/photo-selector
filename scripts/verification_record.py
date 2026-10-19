@@ -62,7 +62,8 @@ GROUPS: List[Tuple[str, str]] = [
 GROUP_LABEL = dict(GROUPS)
 PRODUCT_GROUPS = ("android", "macos", "linux", "desktop")
 
-# Which gate group a changed path obliges. products/android/core/ affects both Android products.
+# Which gate group a changed path obliges. products/android/core/ and products/android/saf/ affect both
+# Android products.
 PATH_GROUPS = [
     ("products/android/", "android"),
     ("products/macos-desktop/", "macos"),

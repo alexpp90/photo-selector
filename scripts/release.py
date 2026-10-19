@@ -61,6 +61,7 @@ IGNORED_TYPES = {"release"}
 
 ANDROID_SHARED = [
     "products/android/core/",
+    "products/android/saf/",
     "products/android/build.gradle.kts",
     "products/android/settings.gradle.kts",
     "products/android/gradle.properties",

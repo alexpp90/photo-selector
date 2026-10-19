@@ -1,21 +1,19 @@
-package com.photoselectortoolbox.data.repository
+package com.photoselector.saf
 
+import android.content.ContentResolver
 import android.content.Context
 import android.content.Intent
 import android.net.Uri
 import android.util.Log
-import dagger.hilt.android.qualifiers.ApplicationContext
 import java.util.EnumMap
-import javax.inject.Inject
-import javax.inject.Singleton
 
 /**
  * Why the app holds a persisted SAF grant for a folder URI.
  *
  * Tracking the purpose lets [FolderAccessManager] keep a grant while any active
  * role still needs it (for example when the same folder is both the current
- * source and the custom Selection destination) and release it as soon as the
- * last role drops it.
+ * source and the custom Selection destination, or is in the recents list and also
+ * the Selection target) and release it as soon as the last role drops it.
  */
 enum class FolderAccessPurpose {
     SOURCE,
@@ -34,25 +32,30 @@ enum class FolderAccessPurpose {
  * Seam over `ContentResolver` persisted URI permission calls so unit tests can
  * verify grant acquisition, release, and startup reconciliation deterministically.
  */
-internal interface SafGrantBackend {
+interface SafGrantBackend {
     fun takePersistableGrant(uri: Uri, modeFlags: Int)
     fun releasePersistableGrant(uri: Uri, modeFlags: Int)
     fun persistedGrantUris(): Set<String>
 }
 
-internal class ContentResolverSafGrantBackend(
-    private val context: Context,
+/**
+ * The real backend. This file is the only place in either Android product that calls
+ * `takePersistableUriPermission` / `releasePersistableUriPermission` (the sole-caller rule,
+ * enforced by `SoleCallerRuleTest`).
+ */
+class ContentResolverSafGrantBackend(
+    private val contentResolver: ContentResolver,
 ) : SafGrantBackend {
     override fun takePersistableGrant(uri: Uri, modeFlags: Int) {
-        context.contentResolver.takePersistableUriPermission(uri, modeFlags)
+        contentResolver.takePersistableUriPermission(uri, modeFlags)
     }
 
     override fun releasePersistableGrant(uri: Uri, modeFlags: Int) {
-        context.contentResolver.releasePersistableUriPermission(uri, modeFlags)
+        contentResolver.releasePersistableUriPermission(uri, modeFlags)
     }
 
     override fun persistedGrantUris(): Set<String> =
-        context.contentResolver.persistedUriPermissions
+        contentResolver.persistedUriPermissions
             .mapTo(LinkedHashSet()) { it.uri.toString() }
 }
 
@@ -66,24 +69,24 @@ internal class ContentResolverSafGrantBackend(
  *    per-app persisted URI grant limit (128 prior to API 30, 512 on API 30+).
  * 3. Startup reconciliation releases any orphaned OS grants left behind by
  *    earlier sessions.
+ *
+ * The product holds exactly one instance (its dependency graph provides it as a singleton).
+ * Without a [backend] — the no-argument constructor, used by tests — references are tracked
+ * but no OS grant is taken or released, except through [takeGrant]'s `fallbackContext`.
  */
-@Singleton
-class FolderAccessManager internal constructor(
+class FolderAccessManager(
     private val backend: SafGrantBackend?,
 ) {
-    @Inject
-    constructor(
-        @ApplicationContext context: Context,
-    ) : this(ContentResolverSafGrantBackend(context))
+    constructor(context: Context) : this(ContentResolverSafGrantBackend(context.contentResolver))
 
-    internal constructor() : this(backend = null)
+    constructor() : this(backend = null)
 
     companion object {
         /**
          * Normalised form for comparing URIs: scheme and authority lower-cased, the rest
          * percent-decoded (so `%3A` and `%3a` agree), no trailing slash. Pure string work.
          */
-        internal fun canonicalUri(uri: String): String {
+        fun canonicalUri(uri: String): String {
             val schemeEnd = uri.indexOf("://")
             if (schemeEnd < 0) return uri.trimEnd('/')
             val rest = uri.substring(schemeEnd + 3)
@@ -99,7 +102,7 @@ class FolderAccessManager internal constructor(
         }
 
         private const val TAG = "FolderAccessManager"
-        internal const val READ_WRITE_FLAGS: Int =
+        const val READ_WRITE_FLAGS: Int =
             Intent.FLAG_GRANT_READ_URI_PERMISSION or Intent.FLAG_GRANT_WRITE_URI_PERMISSION
     }
 
@@ -108,8 +111,9 @@ class FolderAccessManager internal constructor(
         EnumMap<FolderAccessPurpose, MutableSet<String>>(FolderAccessPurpose::class.java)
 
     /**
-     * References held by live in-memory state (the undo history). Unlike [grantsByPurpose] they are not
-     * derived from DataStore, so [syncReferences] must not wipe them.
+     * References held by live in-memory state (the undo history, the pending-delete undo stack).
+     * Unlike [grantsByPurpose] they are not derived from persisted settings, so [syncReferences]
+     * must not wipe them.
      */
     private val pinnedByPurpose =
         EnumMap<FolderAccessPurpose, Set<String>>(FolderAccessPurpose::class.java)
@@ -131,7 +135,8 @@ class FolderAccessManager internal constructor(
         synchronized(lock) {
             grantsByPurpose.getOrPut(purpose) { LinkedHashSet() }.add(uriString)
         }
-        val activeBackend = backend ?: fallbackContext?.let(::ContentResolverSafGrantBackend)
+        val activeBackend = backend
+            ?: fallbackContext?.let { ContentResolverSafGrantBackend(it.contentResolver) }
         return try {
             activeBackend?.takePersistableGrant(uri, READ_WRITE_FLAGS)
             true
@@ -163,8 +168,8 @@ class FolderAccessManager internal constructor(
     }
 
     /**
-     * Replace the set of URIs that live in-memory state (the undo history) keeps open for [purpose];
-     * an empty set unpins. Survives [syncReferences].
+     * Replace the set of URIs that live in-memory state keeps open for [purpose]; an empty set
+     * unpins. Survives [syncReferences].
      */
     fun pin(purpose: FolderAccessPurpose, uris: Set<String>) {
         synchronized(lock) {

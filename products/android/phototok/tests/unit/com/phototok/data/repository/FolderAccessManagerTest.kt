@@ -1,8 +1,10 @@
 package com.phototok.data.repository
 
 import android.content.Context
-import android.content.Intent
 import android.net.Uri
+import com.photoselector.saf.FolderAccessManager
+import com.photoselector.saf.FolderAccessPurpose
+import com.photoselector.saf.SafGrantBackend
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.test.runTest
 import org.junit.Assert.assertEquals
@@ -16,8 +18,9 @@ import org.robolectric.RuntimeEnvironment
 import org.robolectric.annotation.Config
 
 /**
- * Unit tests for PhotoTok [FolderAccessManager] and its integration with
- * [SettingsRepository] (`WP-07` / `F-09`).
+ * [SettingsRepository]'s use of the shared [FolderAccessManager] (`WP-07` / `F-09`, B-8): recents,
+ * folder switches and the pending-delete journal. The manager itself is tested in `:saf`
+ * (`com.photoselector.saf.FolderAccessManagerTest`).
  */
 @RunWith(RobolectricTestRunner::class)
 @Config(sdk = [34])
@@ -52,49 +55,8 @@ class FolderAccessManagerTest {
         context = RuntimeEnvironment.getApplication()
     }
 
-    @Test
-    fun `takeGrant records purpose and requests read-write persistable grant`() {
-        val backend = FakeSafGrantBackend()
-        val manager = FolderAccessManager(backend)
-        val uri = Uri.parse("content://com.android.externalstorage.documents/tree/primary%3ADCIM")
-
-        val granted = manager.takeGrant(uri, FolderAccessPurpose.SOURCE)
-
-        assertTrue(granted)
-        assertEquals(setOf(uri.toString()), manager.referencedUrisFor(FolderAccessPurpose.SOURCE))
-        val expectedFlags =
-            Intent.FLAG_GRANT_READ_URI_PERMISSION or Intent.FLAG_GRANT_WRITE_URI_PERMISSION
-        assertEquals(uri.toString() to expectedFlags, backend.takenCalls.single())
-    }
-
-    @Test
-    fun `reconcilePersistedGrants releases orphaned OS grants across all four purposes`() {
-        val sourceUri = "content://tree/source"
-        val selectionUri = "content://tree/selection"
-        val leftSwipeUri = "content://tree/left_swipe"
-        val recentUri = "content://tree/recent_1"
-        val orphanUri = "content://tree/orphan_stale"
-
-        val backend = FakeSafGrantBackend(
-            initialPersisted = setOf(sourceUri, selectionUri, leftSwipeUri, recentUri, orphanUri),
-        )
-        val manager = FolderAccessManager(backend)
-
-        val released = manager.reconcilePersistedGrants(
-            mapOf(
-                FolderAccessPurpose.SOURCE to setOf(sourceUri),
-                FolderAccessPurpose.SELECTION_TARGET to setOf(selectionUri),
-                FolderAccessPurpose.LEFT_SWIPE_TARGET to setOf(leftSwipeUri),
-                FolderAccessPurpose.RECENT_FOLDER to setOf(recentUri),
-            )
-        )
-
-        assertEquals(setOf(orphanUri), released)
-        assertEquals(
-            setOf(sourceUri, selectionUri, leftSwipeUri, recentUri),
-            backend.persistedUris,
-        )
-    }
+    private val tree = "content://com.android.externalstorage.documents/tree/primary%3ADCIM"
+    private val document = "$tree/document/primary%3ADCIM%2FIMG_0001.JPG"
 
     @Test
     fun `evicting a recent folder releases its grant unless another purpose still references it`() = runTest {
@@ -143,80 +105,6 @@ class FolderAccessManagerTest {
             "recent_2 must be released once SELECTION_TARGET no longer references it",
             backend.releasedCalls.any { it.first == "content://tree/recent_2" },
         )
-    }
-
-    // ── B-8 / D-10: undo history and the pending-delete journal keep a grant alive ──
-
-    private val tree = "content://com.android.externalstorage.documents/tree/primary%3ADCIM"
-    private val document = "$tree/document/primary%3ADCIM%2FIMG_0001.JPG"
-
-    @Test
-    fun `a pending-delete journal entry inside the tree keeps the tree grant`() {
-        val backend = FakeSafGrantBackend(initialPersisted = setOf(tree))
-        val manager = FolderAccessManager(backend)
-        manager.syncReferences(
-            mapOf(
-                FolderAccessPurpose.SOURCE to setOf("content://other/tree/new"),
-                FolderAccessPurpose.PENDING_DELETE_JOURNAL to setOf(document),
-            )
-        )
-
-        assertFalse(manager.releaseIfUnreferenced(tree))
-
-        assertTrue(backend.releasedCalls.isEmpty())
-    }
-
-    @Test
-    fun `the grant is released once the journal no longer references the tree`() {
-        val backend = FakeSafGrantBackend(initialPersisted = setOf(tree))
-        val manager = FolderAccessManager(backend)
-        manager.syncReferences(mapOf(FolderAccessPurpose.PENDING_DELETE_JOURNAL to setOf(document)))
-        assertFalse(manager.releaseIfUnreferenced(tree))
-
-        manager.syncReferences(emptyMap())
-
-        assertTrue(manager.releaseIfUnreferenced(tree))
-        assertEquals(listOf(tree), backend.releasedCalls.map { it.first })
-    }
-
-    @Test
-    fun `a folder pinned by the undo history keeps its grant across reference syncs`() {
-        val backend = FakeSafGrantBackend(initialPersisted = setOf(tree))
-        val manager = FolderAccessManager(backend)
-        manager.pin(FolderAccessPurpose.UNDO_HISTORY, setOf(tree))
-
-        manager.syncReferences(mapOf(FolderAccessPurpose.SOURCE to setOf("content://other/tree/new")))
-
-        assertFalse(manager.releaseIfUnreferenced(tree))
-        manager.pin(FolderAccessPurpose.UNDO_HISTORY, emptySet())
-        assertTrue(manager.releaseIfUnreferenced(tree))
-    }
-
-    @Test
-    fun `uris are compared normalized, not as raw strings`() {
-        val backend = FakeSafGrantBackend(initialPersisted = setOf(tree))
-        val manager = FolderAccessManager(backend)
-        // Same folder, different spelling: lower-case percent escape and a trailing slash.
-        manager.syncReferences(
-            mapOf(
-                FolderAccessPurpose.SELECTION_TARGET to
-                    setOf("content://com.android.externalstorage.documents/tree/primary%3aDCIM/"),
-            )
-        )
-
-        assertFalse(manager.releaseIfUnreferenced(tree))
-    }
-
-    @Test
-    fun `reconcile keeps a grant that only the journal references`() {
-        val backend = FakeSafGrantBackend(initialPersisted = setOf(tree, "content://orphan/tree/x"))
-        val manager = FolderAccessManager(backend)
-
-        val released = manager.reconcilePersistedGrants(
-            mapOf(FolderAccessPurpose.PENDING_DELETE_JOURNAL to setOf(document))
-        )
-
-        assertEquals(setOf("content://orphan/tree/x"), released)
     }
 
     @Test
