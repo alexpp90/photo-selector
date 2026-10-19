@@ -28,10 +28,14 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.unit.dp
 
+/**
+ * A settings row is a title and, at most, a [summary] that is a value (a folder name, a count) or a
+ * data-loss warning — never an explanation (`REQ-TOK-UX.04`).
+ */
 @Composable
 fun SettingsToggleItem(
     title: String,
-    description: String? = null,
+    summary: String? = null,
     checked: Boolean,
     onCheckedChange: (Boolean) -> Unit,
     icon: ImageVector? = null,
@@ -51,10 +55,10 @@ fun SettingsToggleItem(
                 style = MaterialTheme.typography.labelLarge,
                 color = colors.onSurface,
             )
-            if (description != null) {
+            if (summary != null) {
                 Spacer(modifier = Modifier.height(2.dp))
                 Text(
-                    text = description,
+                    text = summary,
                     style = MaterialTheme.typography.labelMedium,
                     color = colors.onSurfaceVariant,
                 )
@@ -80,7 +84,7 @@ fun SettingsToggleItem(
 @Composable
 fun SettingsClickItem(
     title: String,
-    description: String? = null,
+    summary: String? = null,
     onClick: () -> Unit,
     icon: ImageVector? = null,
     trailing: @Composable (() -> Unit)? = null,
@@ -100,10 +104,10 @@ fun SettingsClickItem(
                 style = MaterialTheme.typography.labelLarge,
                 color = colors.onSurface,
             )
-            if (description != null) {
+            if (summary != null) {
                 Spacer(modifier = Modifier.height(2.dp))
                 Text(
-                    text = description,
+                    text = summary,
                     style = MaterialTheme.typography.labelMedium,
                     color = colors.onSurfaceVariant,
                 )

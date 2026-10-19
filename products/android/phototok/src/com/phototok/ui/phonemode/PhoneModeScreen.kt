@@ -74,6 +74,8 @@ import androidx.compose.ui.draw.clipToBounds
 import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.testTag
+import androidx.compose.ui.res.pluralStringResource
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.contentDescription
@@ -86,10 +88,14 @@ import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.photoselector.core.model.ExifData
 import com.photoselector.core.storage.SourceKind
+import com.phototok.R
 import com.phototok.data.model.ImageItem
 import com.phototok.domain.FileTypeFilter
+import com.phototok.domain.PhotoFolders
 import com.phototok.domain.SwipeAction
+import com.phototok.ui.components.NameTooltip
 import com.phototok.ui.components.ViewerBottomBar
+import com.phototok.ui.resolve
 import com.phototok.ui.settings.SettingsScreen
 import com.phototok.viewmodel.PhoneModeViewModel
 import com.phototok.viewmodel.ReloadPrompt
@@ -157,7 +163,7 @@ fun PhoneModeScreen(
     // Error snackbar
     LaunchedEffect(uiState.error) {
         uiState.error?.let { error ->
-            snackbarHostState.showSnackbar(message = error, duration = SnackbarDuration.Short)
+            snackbarHostState.showSnackbar(message = error.resolve(context), duration = SnackbarDuration.Short)
             viewModel.clearError()
         }
     }
@@ -165,7 +171,7 @@ fun PhoneModeScreen(
     // Action feedback snackbar
     LaunchedEffect(uiState.lastActionFeedback) {
         uiState.lastActionFeedback?.let { fb ->
-            snackbarHostState.showSnackbar(message = fb.message, duration = SnackbarDuration.Short)
+            snackbarHostState.showSnackbar(message = fb.message.resolve(context), duration = SnackbarDuration.Short)
             viewModel.clearFeedback()
         }
     }
@@ -173,7 +179,7 @@ fun PhoneModeScreen(
     // Selection-viewer feedback snackbar
     LaunchedEffect(selectionState.feedback) {
         selectionState.feedback?.let { fb ->
-            snackbarHostState.showSnackbar(message = fb.message, duration = SnackbarDuration.Short)
+            snackbarHostState.showSnackbar(message = fb.message.resolve(context), duration = SnackbarDuration.Short)
             selectionViewModel.clearFeedback()
         }
     }
@@ -182,7 +188,7 @@ fun PhoneModeScreen(
     LaunchedEffect(uiState.celebrationBanner) {
         uiState.celebrationBanner?.let { banner ->
             snackbarHostState.showSnackbar(
-                message = banner,
+                message = banner.resolve(context),
                 duration = SnackbarDuration.Short,
             )
             viewModel.dismissCelebrationBanner()
@@ -204,21 +210,21 @@ fun PhoneModeScreen(
     if (uiState.showCardDoneSheet) {
         AlertDialog(
             onDismissRequest = { viewModel.dismissCardDoneSheet() },
-            title = { Text("Done with this card") },
+            title = { Text(stringResource(R.string.dialog_title_card_done)) },
             text = {
                 Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
                     Button(
                         onClick = { viewModel.keepAllFilesOnCard() },
                         modifier = Modifier.fillMaxWidth(),
                     ) {
-                        Text("Keep all photos")
+                        Text(stringResource(R.string.action_keep_all))
                     }
                     if (uiState.undoStack.isNotEmpty() || uiState.pendingDelete != null) {
                         TextButton(
                             onClick = { viewModel.deleteQueuedRejectsOnCard() },
                             modifier = Modifier.fillMaxWidth(),
                         ) {
-                            Text("Delete rejects")
+                            Text(stringResource(R.string.action_delete_rejects))
                         }
                     }
                     TextButton(
@@ -228,14 +234,17 @@ fun PhoneModeScreen(
                         },
                         modifier = Modifier.fillMaxWidth(),
                     ) {
-                        Text("Delete all (${uiState.images.size})", color = colors.error)
+                        Text(
+                            stringResource(R.string.action_delete_all_count, uiState.images.size),
+                            color = colors.error,
+                        )
                     }
                 }
             },
             confirmButton = {},
             dismissButton = {
                 TextButton(onClick = { viewModel.dismissCardDoneSheet() }) {
-                    Text("Cancel")
+                    Text(stringResource(R.string.action_cancel))
                 }
             },
         )
@@ -244,21 +253,26 @@ fun PhoneModeScreen(
     if (showClearAllCardConfirm) {
         AlertDialog(
             onDismissRequest = { showClearAllCardConfirm = false },
-            title = { Text("Delete all ${uiState.images.size} photos?", color = colors.error) },
+            title = {
+                Text(
+                    pluralStringResource(R.plurals.dialog_title_delete_all, uiState.images.size, uiState.images.size),
+                    color = colors.error,
+                )
+            },
             text = {
-                Text("Photos not copied off the card are lost.")
+                Text(stringResource(R.string.dialog_body_card_loss))
             },
             confirmButton = {
                 TextButton(onClick = {
                     showClearAllCardConfirm = false
                     viewModel.confirmClearEntireCard()
                 }) {
-                    Text("Delete all", color = colors.error)
+                    Text(stringResource(R.string.action_delete_all), color = colors.error)
                 }
             },
             dismissButton = {
                 TextButton(onClick = { showClearAllCardConfirm = false }) {
-                    Text("Cancel")
+                    Text(stringResource(R.string.action_cancel))
                 }
             },
         )
@@ -306,7 +320,7 @@ fun PhoneModeScreen(
             SelectionFolderViewer(
                 images = selectionState.images,
                 currentIndex = selectionState.currentIndex,
-                folderName = selectionState.folderName,
+                folderName = selectionState.selectionFolderName,
                 activeTab = selectionState.activeTab,
                 showExifOverlay = uiState.showExifOverlay,
                 onSelectTab = selectionViewModel::selectTab,
@@ -329,80 +343,16 @@ fun PhoneModeScreen(
                     .background(androidx.compose.ui.graphics.Color.Black)
             ) {
                 // Left Side Panel: Navigation
-                Column(
-                    modifier = Modifier
-                        .fillMaxHeight()
-                        .background(MaterialTheme.colorScheme.surfaceContainerLowest.copy(alpha = 0.8f))
-                        .guideAnchor(guideAnchors, GuideAnchor.LEFT_PANEL)
-                        .windowInsetsPadding(
-                            WindowInsets.safeDrawing.only(
-                                WindowInsetsSides.Left + WindowInsetsSides.Top + WindowInsetsSides.Bottom
-                            )
-                        )
-                        .width(72.dp)
-                        .padding(vertical = 16.dp),
-                    horizontalAlignment = Alignment.CenterHorizontally,
-                    verticalArrangement = Arrangement.SpaceBetween
-                ) {
-                    // Logo toggles the EXIF overlay
-                    Image(
-                        painter = painterResource(id = com.phototok.R.mipmap.ic_launcher_foreground),
-                        contentDescription = null,
-                        modifier = Modifier
-                            .size(PhoneModeChromeMetrics.LEFT_PANEL_LOGO_SIZE)
-                            .guideAnchor(guideAnchors, GuideAnchor.LOGO)
-                            .semantics { contentDescription = PhoneModeTopBarDescriptions.LOGO }
-                            .testTag("landscape_logo")
-                            .clickable(
-                                indication = null,
-                                interactionSource = remember { MutableInteractionSource() },
-                                onClickLabel = "Show or hide camera info",
-                                role = Role.Button,
-                            ) { viewModel.toggleExifOverlay() }
-                    )
-
-                    Column(
-                        horizontalAlignment = Alignment.CenterHorizontally,
-                        verticalArrangement = Arrangement.spacedBy(16.dp)
-                    ) {
-                        SidePanelButton(
-                            icon = Icons.Default.FolderOpen,
-                            description = "Sources",
-                            isActive = false,
-                            enabled = true,
-                            onClick = { viewModel.goBackToLanding() },
-                            modifier = Modifier.guideAnchor(guideAnchors, GuideAnchor.SOURCES),
-                        )
-                        SidePanelButton(
-                            icon = Icons.Default.CollectionsBookmark,
-                            description = "Selection",
-                            isActive = false,
-                            enabled = true,
-                            onClick = openSelectionViewer,
-                            modifier = Modifier.guideAnchor(guideAnchors, GuideAnchor.SELECTION),
-                        )
-                        // Revert (restore pending deleted photo from trash)
-                        SidePanelButton(
-                            icon = Icons.Default.RestoreFromTrash,
-                            description = "Revert",
-                            isActive = uiState.canRevert,
-                            enabled = uiState.canRevert,
-                            onClick = { viewModel.revertDelete() },
-                            modifier = Modifier.guideAnchor(guideAnchors, GuideAnchor.REVERT),
-                        )
-                        SidePanelButton(
-                            icon = Icons.AutoMirrored.Filled.HelpOutline,
-                            description = "Help",
-                            iconDescription = PhoneModeTopBarDescriptions.help(guideUp),
-                            isActive = false,
-                            enabled = true,
-                            onClick = { viewModel.showControlsGuide() },
-                            modifier = Modifier.guideAnchor(guideAnchors, GuideAnchor.HELP),
-                        )
-                    }
-
-                    Spacer(modifier = Modifier.height(24.dp))
-                }
+                LandscapeLeftPanel(
+                    canRevert = uiState.canRevert,
+                    helpOpen = guideUp,
+                    anchors = guideAnchors,
+                    onToggleExif = { viewModel.toggleExifOverlay() },
+                    onSources = { viewModel.goBackToLanding() },
+                    onSelection = openSelectionViewer,
+                    onRevert = { viewModel.revertDelete() },
+                    onHelp = { viewModel.showControlsGuide() },
+                )
 
                 // Center Panel: Image Viewer
                 Box(
@@ -463,46 +413,14 @@ fun PhoneModeScreen(
                     } else {
                         colors.onSurfaceVariant
                     }
-                    Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                        IconButton(
-                            onClick = { viewModel.reloadSourceFolder() },
-                            modifier = Modifier
-                                .size(PhoneModeChromeMetrics.TOP_BAR_BUTTON_SIZE)
-                                .guideAnchor(guideAnchors, GuideAnchor.RELOAD)
-                                .testTag("landscape_reload_folder_button"),
-                        ) {
-                            Icon(
-                                imageVector = Icons.Default.Sync,
-                                contentDescription = "Reload folder",
-                                tint = sideIconTint,
-                            )
-                        }
-                        IconButton(
-                            onClick = { viewModel.toggleExifOverlay() },
-                            modifier = Modifier
-                                .size(PhoneModeChromeMetrics.TOP_BAR_BUTTON_SIZE)
-                                .guideAnchor(guideAnchors, GuideAnchor.INFO)
-                                .testTag("landscape_info_exif_button"),
-                        ) {
-                            Icon(
-                                imageVector = Icons.Default.Info,
-                                contentDescription = "Toggle EXIF stats",
-                                tint = if (uiState.showExifOverlay) colors.primary else sideIconTint,
-                            )
-                        }
-                        IconButton(
-                            onClick = { showSettingsSheet = true },
-                            modifier = Modifier
-                                .size(PhoneModeChromeMetrics.TOP_BAR_BUTTON_SIZE)
-                                .guideAnchor(guideAnchors, GuideAnchor.SETTINGS),
-                        ) {
-                            Icon(
-                                imageVector = Icons.Default.Settings,
-                                contentDescription = "Settings",
-                                tint = sideIconTint,
-                            )
-                        }
-                    }
+                    LandscapeRightButtons(
+                        exifOn = uiState.showExifOverlay,
+                        tint = sideIconTint,
+                        anchors = guideAnchors,
+                        onReload = { viewModel.reloadSourceFolder() },
+                        onInfo = { viewModel.toggleExifOverlay() },
+                        onSettings = { showSettingsSheet = true },
+                    )
 
                     val currentImage = uiState.images.getOrNull(uiState.currentIndex)
                     if (uiState.showExifOverlay && currentImage?.exifData != null) {
@@ -524,7 +442,7 @@ fun PhoneModeScreen(
                         )
                     ) {
                         Text(
-                            text = "${uiState.currentIndex + 1} / ${uiState.images.size}",
+                            text = stringResource(R.string.label_page_counter, uiState.currentIndex + 1, uiState.images.size),
                             style = MaterialTheme.typography.labelMedium,
                             color = colors.primary,
                             fontWeight = FontWeight.Bold,
@@ -620,8 +538,6 @@ fun PhoneModeScreen(
             collectionAction = uiState.collectionAction,
             leftSwipeFolderName = uiState.leftSwipeFolderName,
             collectionFolderName = uiState.collectionFolderName,
-            title = "Controls",
-            dismissLabel = "CLOSE",
             anchors = guideAnchors,
         )
 
@@ -706,6 +622,144 @@ fun PhoneModeScreen(
 }
 
 /**
+ * The landscape left panel: the logo (camera info) and the icon-only navigation buttons
+ * (`REQ-TOK-UX.02`). Extracted so the screenshot tests can render it on its own.
+ */
+@Composable
+internal fun LandscapeLeftPanel(
+    canRevert: Boolean,
+    helpOpen: Boolean,
+    anchors: ControlsGuideAnchors?,
+    onToggleExif: () -> Unit,
+    onSources: () -> Unit,
+    onSelection: () -> Unit,
+    onRevert: () -> Unit,
+    onHelp: () -> Unit,
+) {
+    Column(
+        modifier = Modifier
+            .fillMaxHeight()
+            .background(MaterialTheme.colorScheme.surfaceContainerLowest.copy(alpha = 0.8f))
+            .guideAnchor(anchors, GuideAnchor.LEFT_PANEL)
+            .windowInsetsPadding(
+                WindowInsets.safeDrawing.only(
+                    WindowInsetsSides.Left + WindowInsetsSides.Top + WindowInsetsSides.Bottom
+                )
+            )
+            .width(72.dp)
+            .padding(vertical = 16.dp),
+        horizontalAlignment = Alignment.CenterHorizontally,
+        verticalArrangement = Arrangement.SpaceBetween
+    ) {
+        // Logo toggles the EXIF overlay
+        val logoName = stringResource(PhoneModeTopBarDescriptions.LOGO)
+        val infoName = stringResource(PhoneModeTopBarDescriptions.INFO)
+        NameTooltip(name = infoName) {
+            Image(
+                painter = painterResource(id = R.mipmap.ic_launcher_foreground),
+                contentDescription = null,
+                modifier = Modifier
+                    .size(PhoneModeChromeMetrics.LEFT_PANEL_LOGO_SIZE)
+                    .guideAnchor(anchors, GuideAnchor.LOGO)
+                    .semantics { contentDescription = logoName }
+                    .testTag("landscape_logo")
+                    .clickable(
+                        indication = null,
+                        interactionSource = remember { MutableInteractionSource() },
+                        onClickLabel = infoName,
+                        role = Role.Button,
+                    ) { onToggleExif() }
+            )
+        }
+
+        Column(
+            horizontalAlignment = Alignment.CenterHorizontally,
+            verticalArrangement = Arrangement.spacedBy(16.dp)
+        ) {
+            SidePanelButton(
+                icon = Icons.Default.FolderOpen,
+                name = stringResource(R.string.cd_sources),
+                isActive = false,
+                enabled = true,
+                onClick = onSources,
+                modifier = Modifier.guideAnchor(anchors, GuideAnchor.SOURCES).testTag("landscape_sources_button"),
+            )
+            SidePanelButton(
+                icon = Icons.Default.CollectionsBookmark,
+                name = stringResource(R.string.cd_selection),
+                isActive = false,
+                enabled = true,
+                onClick = onSelection,
+                modifier = Modifier.guideAnchor(anchors, GuideAnchor.SELECTION).testTag("landscape_selection_button"),
+            )
+            // Revert (restore pending deleted photo from trash)
+            SidePanelButton(
+                icon = Icons.Default.RestoreFromTrash,
+                name = stringResource(R.string.cd_revert),
+                isActive = canRevert,
+                enabled = canRevert,
+                onClick = onRevert,
+                modifier = Modifier.guideAnchor(anchors, GuideAnchor.REVERT).testTag("landscape_revert_button"),
+            )
+            SidePanelButton(
+                icon = Icons.AutoMirrored.Filled.HelpOutline,
+                name = stringResource(PhoneModeTopBarDescriptions.help(helpOpen)),
+                isActive = false,
+                enabled = true,
+                onClick = onHelp,
+                modifier = Modifier.guideAnchor(anchors, GuideAnchor.HELP).testTag("landscape_help_button"),
+            )
+        }
+
+        Spacer(modifier = Modifier.height(24.dp))
+    }
+}
+
+/** The landscape right panel's icon-only buttons: Reload, camera info and Settings. */
+@Composable
+internal fun LandscapeRightButtons(
+    exifOn: Boolean,
+    tint: androidx.compose.ui.graphics.Color,
+    anchors: ControlsGuideAnchors?,
+    onReload: () -> Unit,
+    onInfo: () -> Unit,
+    onSettings: () -> Unit,
+) {
+    Column(horizontalAlignment = Alignment.CenterHorizontally) {
+        TopBarIconButton(
+            icon = Icons.Default.Sync,
+            name = stringResource(R.string.cd_reload),
+            tint = tint,
+            onClick = onReload,
+            modifier = Modifier
+                .size(PhoneModeChromeMetrics.TOP_BAR_BUTTON_SIZE)
+                .guideAnchor(anchors, GuideAnchor.RELOAD)
+                .testTag("landscape_reload_folder_button"),
+        )
+        TopBarIconButton(
+            icon = Icons.Default.Info,
+            name = stringResource(PhoneModeTopBarDescriptions.INFO),
+            tint = if (exifOn) MaterialTheme.colorScheme.primary else tint,
+            onClick = onInfo,
+            modifier = Modifier
+                .size(PhoneModeChromeMetrics.TOP_BAR_BUTTON_SIZE)
+                .guideAnchor(anchors, GuideAnchor.INFO)
+                .testTag("landscape_info_exif_button"),
+        )
+        TopBarIconButton(
+            icon = Icons.Default.Settings,
+            name = stringResource(R.string.cd_settings),
+            tint = tint,
+            onClick = onSettings,
+            modifier = Modifier
+                .size(PhoneModeChromeMetrics.TOP_BAR_BUTTON_SIZE)
+                .guideAnchor(anchors, GuideAnchor.SETTINGS)
+                .testTag("landscape_settings_button"),
+        )
+    }
+}
+
+/**
  * Confirmation before a left-swipe delete in a location without a trash.
  *
  * The title carries the consequence and the body the one reason; the Settings
@@ -721,12 +775,12 @@ fun DirectDeleteDialog(
     AlertDialog(
         onDismissRequest = onDismiss,
         modifier = Modifier.testTag("direct_delete_dialog"),
-        title = { Text("Delete permanently?", color = colors.error) },
+        title = { Text(stringResource(R.string.dialog_title_direct_delete), color = colors.error) },
         text = {
             Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                Text("This location has no trash.")
+                Text(stringResource(R.string.dialog_body_no_trash))
                 Text(
-                    text = "Turn off this prompt in Settings.",
+                    text = stringResource(R.string.dialog_body_turn_off_prompt),
                     style = MaterialTheme.typography.bodySmall,
                     color = colors.onSurfaceVariant,
                 )
@@ -737,7 +791,7 @@ fun DirectDeleteDialog(
                 onClick = onConfirm,
                 modifier = Modifier.testTag("direct_delete_confirm_button"),
             ) {
-                Text("Delete", color = colors.error)
+                Text(stringResource(R.string.action_delete), color = colors.error)
             }
         },
         dismissButton = {
@@ -745,7 +799,7 @@ fun DirectDeleteDialog(
                 onClick = onDismiss,
                 modifier = Modifier.testTag("direct_delete_cancel_button"),
             ) {
-                Text("Cancel")
+                Text(stringResource(R.string.action_cancel))
             }
         },
         containerColor = colors.surfaceContainerHigh,
@@ -768,7 +822,7 @@ fun FolderResumeDialog(
         icon = { Icon(Icons.Default.PhotoLibrary, contentDescription = null) },
         title = {
             Text(
-                text = newPhotosTitle(prompt.newCount),
+                text = pluralStringResource(R.plurals.dialog_title_new_photos, prompt.newCount, prompt.newCount),
                 style = MaterialTheme.typography.titleMedium,
                 fontWeight = FontWeight.Bold,
             )
@@ -778,7 +832,7 @@ fun FolderResumeDialog(
                 onClick = onStartWithNewest,
                 modifier = Modifier.testTag("reload_jump_confirm_button"),
             ) {
-                Text("Show new")
+                Text(stringResource(R.string.action_show_new))
             }
         },
         dismissButton = {
@@ -786,7 +840,7 @@ fun FolderResumeDialog(
                 onClick = onContinueWhereLeftOff,
                 modifier = Modifier.testTag("reload_jump_stay_button"),
             ) {
-                Text("Stay")
+                Text(stringResource(R.string.action_stay))
             }
         },
         modifier = Modifier
@@ -795,20 +849,18 @@ fun FolderResumeDialog(
     )
 }
 
-/** "1 new photo" / "5 new photos" — the whole message of [FolderResumeDialog]. */
-internal fun newPhotosTitle(count: Int): String =
-    if (count == 1) "1 new photo" else "$count new photos"
-
-/** Side-panel labelled button used in the landscape viewer. */
+/**
+ * Icon-only side-panel button used in the landscape viewer (`REQ-TOK-UX.02`): named by [name] for
+ * TalkBack and the long-press tooltip, 64 × 48 dp, no visible text.
+ */
 @Composable
 private fun SidePanelButton(
     icon: androidx.compose.ui.graphics.vector.ImageVector,
-    description: String,
+    name: String,
     isActive: Boolean,
     enabled: Boolean,
     onClick: () -> Unit,
     modifier: Modifier = Modifier,
-    iconDescription: String = description,
 ) {
     val colors = MaterialTheme.colorScheme
     val tint = when {
@@ -816,42 +868,32 @@ private fun SidePanelButton(
         enabled -> colors.secondary
         else -> colors.onSurface.copy(alpha = 0.25f)
     }
-    Box(
-        modifier = modifier
-            .size(
-                width = PhoneModeChromeMetrics.SIDE_PANEL_BUTTON_WIDTH,
-                height = PhoneModeChromeMetrics.SIDE_PANEL_BUTTON_HEIGHT,
-            )
-            .then(
-                if (isActive) Modifier.clip(RoundedCornerShape(14.dp)).background(colors.primaryContainer)
-                else Modifier
-            )
-            .then(
-                if (enabled) Modifier.clickable(
-                    indication = null,
-                    interactionSource = remember { MutableInteractionSource() },
-                    onClick = onClick,
-                ) else Modifier
-            ),
-        contentAlignment = Alignment.Center,
-    ) {
-        Column(
-            horizontalAlignment = Alignment.CenterHorizontally,
-            verticalArrangement = Arrangement.Center,
+    NameTooltip(name = name) {
+        Box(
+            modifier = modifier
+                .size(
+                    width = PhoneModeChromeMetrics.SIDE_PANEL_BUTTON_WIDTH,
+                    height = PhoneModeChromeMetrics.SIDE_PANEL_BUTTON_HEIGHT,
+                )
+                .then(
+                    if (isActive) Modifier.clip(RoundedCornerShape(14.dp)).background(colors.primaryContainer)
+                    else Modifier
+                )
+                .then(
+                    if (enabled) Modifier.clickable(
+                        indication = null,
+                        interactionSource = remember { MutableInteractionSource() },
+                        role = Role.Button,
+                        onClick = onClick,
+                    ) else Modifier
+                ),
+            contentAlignment = Alignment.Center,
         ) {
             Icon(
                 imageVector = icon,
-                contentDescription = iconDescription,
+                contentDescription = name,
                 tint = tint,
-                modifier = Modifier.size(20.dp),
-            )
-            Text(
-                text = description,
-                color = tint,
-                fontSize = 10.sp,
-                lineHeight = 11.sp,
-                fontWeight = FontWeight.Medium,
-                maxLines = 1,
+                modifier = Modifier.size(24.dp),
             )
         }
     }
@@ -882,11 +924,13 @@ private fun SelectionFolderViewer(
                 contentAlignment = Alignment.Center,
             ) {
                 Text(
-                    text = if (activeTab == SelectionViewerTab.FAVOURITES) {
-                        "No favourites yet"
-                    } else {
-                        "No photos in the selection folder yet"
-                    },
+                    text = stringResource(
+                        if (activeTab == SelectionViewerTab.FAVOURITES) {
+                            R.string.empty_no_favourites
+                        } else {
+                            R.string.empty_selection
+                        },
+                    ),
                     style = MaterialTheme.typography.bodyMedium,
                     color = colors.onSurfaceVariant,
                 )
@@ -915,44 +959,41 @@ private fun SelectionFolderViewer(
             horizontalArrangement = Arrangement.SpaceBetween,
         ) {
             Row(verticalAlignment = Alignment.CenterVertically) {
-                IconButton(onClick = onClose) {
-                    Icon(
-                        imageVector = Icons.AutoMirrored.Filled.ArrowBack,
-                        contentDescription = "Back",
-                        tint = colors.onSurface,
-                    )
-                }
+                TopBarIconButton(
+                    icon = Icons.AutoMirrored.Filled.ArrowBack,
+                    name = stringResource(R.string.cd_back),
+                    tint = colors.onSurface,
+                    onClick = onClose,
+                )
                 Spacer(modifier = Modifier.width(4.dp))
                 FilterChip(
                     selected = activeTab == SelectionViewerTab.FAVOURITES,
                     onClick = { onSelectTab(SelectionViewerTab.FAVOURITES) },
-                    label = { Text("★ Favourites") },
+                    label = { Text(stringResource(R.string.chip_favourites)) },
                 )
                 Spacer(modifier = Modifier.width(6.dp))
                 FilterChip(
                     selected = activeTab == SelectionViewerTab.SELECTION,
                     onClick = { onSelectTab(SelectionViewerTab.SELECTION) },
-                    label = { Text(folderName.ifEmpty { "Selection" }) },
+                    label = { Text(folderName.ifEmpty { PhotoFolders.SELECTION }) },
                 )
             }
             Row(verticalAlignment = Alignment.CenterVertically) {
                 if (activeTab == SelectionViewerTab.FAVOURITES && images.isNotEmpty()) {
-                    IconButton(onClick = onCopyFavouritesToFolder) {
-                        Icon(
-                            imageVector = Icons.Default.ContentCopy,
-                            contentDescription = "Copy favourites to folder",
-                            tint = colors.onSurface,
-                        )
-                    }
+                    TopBarIconButton(
+                        icon = Icons.Default.ContentCopy,
+                        name = stringResource(R.string.cd_copy_favourites),
+                        tint = colors.onSurface,
+                        onClick = onCopyFavouritesToFolder,
+                    )
                 }
                 if (images.isNotEmpty()) {
-                    IconButton(onClick = onShareBatch) {
-                        Icon(
-                            imageVector = Icons.Default.Share,
-                            contentDescription = "Share all",
-                            tint = colors.onSurface,
-                        )
-                    }
+                    TopBarIconButton(
+                        icon = Icons.Default.Share,
+                        name = stringResource(R.string.cd_share_all),
+                        tint = colors.onSurface,
+                        onClick = onShareBatch,
+                    )
                 }
             }
         }

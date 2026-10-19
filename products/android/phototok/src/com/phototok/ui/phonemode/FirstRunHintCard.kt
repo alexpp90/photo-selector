@@ -16,6 +16,7 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.shape.CircleShape
@@ -24,6 +25,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.automirrored.filled.ArrowForward
 import androidx.compose.material.icons.automirrored.filled.Undo
+import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.FilterList
 import androidx.compose.material.icons.filled.Style
@@ -31,6 +33,7 @@ import androidx.compose.material.icons.filled.SwapVert
 import androidx.compose.material.icons.filled.TouchApp
 import androidx.compose.material.icons.filled.ZoomIn
 import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
@@ -45,10 +48,15 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.testTag
+import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import com.phototok.domain.FirstRunHint
+import com.phototok.R
 import com.phototok.domain.FirstRunHintText
+import com.phototok.domain.UiText
+import com.phototok.ui.asString
 import com.phototok.viewmodel.FirstRunHintUi
 import kotlinx.coroutines.delay
 
@@ -78,10 +86,11 @@ fun FirstRunHintCard(
     onOpenSettings: (() -> Unit)? = null,
 ) {
     // The hint's own action wins; otherwise configurable hints point at Settings.
-    val action: Pair<String, () -> Unit>? = hint?.let { h ->
+    val action: Pair<UiText, () -> Unit>? = hint?.let { h ->
         when {
             h.actionLabel != null && h.onAction != null -> h.actionLabel to h.onAction
-            onOpenSettings != null && FirstRunHintText.offersSettings(h.hint) -> "SETTINGS" to onOpenSettings
+            onOpenSettings != null && FirstRunHintText.offersSettings(h.hint) ->
+                UiText.of(R.string.action_settings) to onOpenSettings
             else -> null
         }
     }
@@ -147,15 +156,16 @@ fun FirstRunHintCard(
 
                 Column(modifier = Modifier.weight(1f)) {
                     Text(
-                        text = current.title,
+                        text = current.title.asString(),
                         style = MaterialTheme.typography.titleSmall,
                         color = colors.onSurface,
                         fontWeight = FontWeight.SemiBold,
                     )
-                    if (current.message.isNotBlank()) {
+                    val message = current.message
+                    if (message != null) {
                         Spacer(modifier = Modifier.height(4.dp))
                         Text(
-                            text = current.message,
+                            text = message.asString(),
                             style = MaterialTheme.typography.bodySmall,
                             color = colors.onSurfaceVariant,
                         )
@@ -167,32 +177,39 @@ fun FirstRunHintCard(
                     ) {
                         val currentAction = lastAction
                         if (currentAction != null) {
-                            Text(
-                                text = currentAction.first,
-                                style = MaterialTheme.typography.labelMedium,
-                                color = colors.primary,
-                                fontWeight = FontWeight.Bold,
+                            Box(
+                                contentAlignment = Alignment.Center,
                                 modifier = Modifier
+                                    .heightIn(min = 48.dp)
                                     .clip(RoundedCornerShape(6.dp))
-                                    .clickable {
+                                    .clickable(role = Role.Button) {
                                         currentAction.second.invoke()
                                         onDismiss()
                                     }
-                                    .padding(horizontal = 8.dp, vertical = 6.dp)
+                                    .padding(horizontal = 12.dp)
                                     .testTag("first_run_hint_action"),
+                            ) {
+                                Text(
+                                    text = currentAction.first.asString(),
+                                    style = MaterialTheme.typography.labelMedium,
+                                    color = colors.primary,
+                                    fontWeight = FontWeight.Bold,
+                                )
+                            }
+                        }
+                        val dismissName = stringResource(R.string.cd_dismiss)
+                        IconButton(
+                            onClick = onDismiss,
+                            modifier = Modifier
+                                .size(48.dp)
+                                .testTag("first_run_hint_dismiss"),
+                        ) {
+                            Icon(
+                                imageVector = Icons.Default.Close,
+                                contentDescription = dismissName,
+                                tint = if (currentAction != null) colors.onSurfaceVariant else colors.primary,
                             )
                         }
-                        Text(
-                            text = "GOT IT",
-                            style = MaterialTheme.typography.labelMedium,
-                            color = if (currentAction != null) colors.onSurfaceVariant else colors.primary,
-                            fontWeight = FontWeight.Bold,
-                            modifier = Modifier
-                                .clip(RoundedCornerShape(6.dp))
-                                .clickable { onDismiss() }
-                                .padding(horizontal = 8.dp, vertical = 6.dp)
-                                .testTag("first_run_hint_dismiss"),
-                        )
                     }
                 }
             }

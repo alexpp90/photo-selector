@@ -49,13 +49,17 @@ import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.painterResource
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.photoselector.core.storage.SourceKind
+import com.phototok.R
 import com.phototok.data.model.RecentPath
+import com.phototok.domain.UiText
+import com.phototok.ui.asString
 
 /**
  * Landing screen: hero branding, source pickers (Phone Camera / SD Card / Folder or Cloud),
@@ -67,7 +71,7 @@ fun PhoneModeLanding(
     sourceFolderName: String,
     collectionFolderName: String,
     isLoading: Boolean,
-    emptyFolderMessage: String? = null,
+    emptyFolderMessage: UiText? = null,
     missingGrantPrompt: Boolean = false,
     onReselectFolder: (() -> Unit)? = null,
     onSelectCamera: () -> Unit = {},
@@ -126,23 +130,15 @@ fun PhoneModeLanding(
 
             // ── Hero branding ────────────────────────────────────────
             Image(
-                painter = painterResource(id = com.phototok.R.mipmap.ic_launcher_foreground),
-                contentDescription = "Logo",
+                painter = painterResource(id = R.mipmap.ic_launcher_foreground),
+                contentDescription = null,
                 modifier = Modifier.size(120.dp),
             )
             Spacer(modifier = Modifier.height(16.dp))
             Text(
-                text = "Photo-Tok",
+                text = stringResource(R.string.app_name),
                 style = MaterialTheme.typography.headlineMedium,
                 color = colors.onSurface,
-            )
-            Text(
-                text = "SWIPE. SELECT. SNAP.",
-                style = MaterialTheme.typography.labelSmall.copy(
-                    letterSpacing = 3.sp,
-                    fontWeight = FontWeight.SemiBold,
-                ),
-                color = colors.onSurfaceVariant,
             )
 
             Spacer(modifier = Modifier.height(24.dp))
@@ -162,7 +158,7 @@ fun PhoneModeLanding(
                 ) {
                     Image(
                         painter = painterResource(id = com.phototok.R.drawable.placeholder_landscape),
-                        contentDescription = "Sample Landscape",
+                        contentDescription = null,
                         contentScale = ContentScale.Crop,
                         modifier = Modifier.fillMaxSize()
                     )
@@ -178,7 +174,7 @@ fun PhoneModeLanding(
                 ) {
                     Image(
                         painter = painterResource(id = com.phototok.R.drawable.placeholder_portrait),
-                        contentDescription = "Sample Lens",
+                        contentDescription = null,
                         contentScale = ContentScale.Crop,
                         modifier = Modifier.fillMaxSize()
                     )
@@ -193,7 +189,7 @@ fun PhoneModeLanding(
                 ) {
                     Image(
                         painter = painterResource(id = com.phototok.R.drawable.placeholder_architecture),
-                        contentDescription = "Sample Architecture",
+                        contentDescription = null,
                         contentScale = ContentScale.Crop,
                         modifier = Modifier.fillMaxSize()
                     )
@@ -203,19 +199,10 @@ fun PhoneModeLanding(
             Spacer(modifier = Modifier.height(24.dp))
 
             // ── Source selection ──────────────────────────────────────
-            Text(
-                text = "SELECT SOURCE",
-                style = MaterialTheme.typography.labelLarge,
-                color = colors.onSurfaceVariant,
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(start = 4.dp, bottom = 12.dp),
-            )
 
             SourceCard(
                 icon = Icons.Default.PhotoCamera,
-                label = "Phone Camera",
-                supportingText = "Default camera roll (DCIM/Camera)",
+                label = stringResource(R.string.title_source_camera),
                 isActive = false,
                 onClick = onSelectCamera,
                 modifier = Modifier
@@ -227,8 +214,7 @@ fun PhoneModeLanding(
 
             SourceCard(
                 icon = Icons.Default.SdCard,
-                label = "SD Card / USB Reader",
-                supportingText = "Removable camera card or USB drive",
+                label = stringResource(R.string.title_source_sd),
                 isActive = false,
                 onClick = { onSelectSdCard { seedUri -> sourcePickerLauncher.launch(seedUri) } },
                 modifier = Modifier
@@ -240,8 +226,7 @@ fun PhoneModeLanding(
 
             SourceCard(
                 icon = Icons.Default.FolderOpen,
-                label = "Folder or Cloud",
-                supportingText = "Phone storage, SD card or cloud",
+                label = stringResource(R.string.title_source_folder),
                 isActive = hasSourceFolder,
                 onClick = { sourcePickerLauncher.launch(null) },
                 modifier = Modifier
@@ -273,16 +258,10 @@ fun PhoneModeLanding(
                             Spacer(modifier = Modifier.width(12.dp))
                             Column {
                                 Text(
-                                    text = "Folder Access Needed",
+                                    text = stringResource(R.string.title_folder_access_lost),
                                     style = MaterialTheme.typography.titleSmall,
                                     fontWeight = FontWeight.Bold,
                                     color = colors.onErrorContainer,
-                                )
-                                Spacer(modifier = Modifier.height(2.dp))
-                                Text(
-                                    text = "Access to this folder was lost.",
-                                    style = MaterialTheme.typography.bodySmall,
-                                    color = colors.onErrorContainer.copy(alpha = 0.9f),
                                 )
                             }
                         }
@@ -303,7 +282,7 @@ fun PhoneModeLanding(
                                 contentAlignment = Alignment.Center,
                             ) {
                                 Text(
-                                    text = "Re-select Folder",
+                                    text = stringResource(R.string.action_reselect),
                                     style = MaterialTheme.typography.labelLarge,
                                     color = colors.errorContainer,
                                 )
@@ -333,16 +312,10 @@ fun PhoneModeLanding(
                         Spacer(modifier = Modifier.width(12.dp))
                         Column {
                             Text(
-                                text = "No Photos Found",
+                                text = emptyFolderMessage.asString(),
                                 style = MaterialTheme.typography.titleSmall,
                                 fontWeight = FontWeight.Bold,
                                 color = colors.onErrorContainer,
-                            )
-                            Spacer(modifier = Modifier.height(2.dp))
-                            Text(
-                                text = emptyFolderMessage,
-                                style = MaterialTheme.typography.bodySmall,
-                                color = colors.onErrorContainer.copy(alpha = 0.9f),
                             )
                         }
                     }
@@ -350,7 +323,7 @@ fun PhoneModeLanding(
             } else if (hasSourceFolder && sourceFolderName.isNotEmpty()) {
                 Spacer(modifier = Modifier.height(8.dp))
                 Text(
-                    text = "Current: $sourceFolderName",
+                    text = sourceFolderName,
                     style = MaterialTheme.typography.bodySmall,
                     color = colors.primary.copy(alpha = 0.8f),
                     textAlign = TextAlign.Center,
@@ -362,14 +335,6 @@ fun PhoneModeLanding(
             val recentToShow = recentPaths.take(recentPathsCount.coerceAtLeast(1))
             if (recentPathsEnabled && recentToShow.isNotEmpty()) {
                 Spacer(modifier = Modifier.height(32.dp))
-                Text(
-                    text = "RECENT FOLDERS",
-                    style = MaterialTheme.typography.labelLarge,
-                    color = colors.onSurfaceVariant,
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(start = 4.dp, bottom = 12.dp),
-                )
                 Column(
                     modifier = Modifier.fillMaxWidth(),
                     verticalArrangement = Arrangement.spacedBy(8.dp),
@@ -378,7 +343,7 @@ fun PhoneModeLanding(
                         val isUnmounted = recent.uri in unmountedRecentUris
                         val progressPair = folderSeenProgress[recent.uri]
                         val progressText = progressPair?.let { (seen, total) ->
-                            "$seen / $total seen"
+                            stringResource(R.string.label_seen_progress, seen, total)
                         }
                         RecentPathRow(
                             recent = recent,
@@ -410,16 +375,11 @@ fun PhoneModeLanding(
                         verticalAlignment = Alignment.CenterVertically,
                     ) {
                         Text(
-                            text = if (sourceFolderName.isNotEmpty()) "Resume $sourceFolderName" else "Start Browsing",
+                            text = stringResource(
+                                if (sourceFolderName.isNotEmpty()) R.string.action_resume else R.string.action_start,
+                            ),
                             style = MaterialTheme.typography.labelLarge,
                             color = colors.onPrimaryContainer,
-                        )
-                        Spacer(modifier = Modifier.width(8.dp))
-                        Icon(
-                            imageVector = Icons.AutoMirrored.Filled.ArrowForward,
-                            contentDescription = null,
-                            tint = colors.onPrimaryContainer,
-                            modifier = Modifier.size(20.dp),
                         )
                     }
                 }
@@ -437,7 +397,6 @@ private fun SourceCard(
     isActive: Boolean,
     onClick: () -> Unit,
     modifier: Modifier = Modifier,
-    supportingText: String? = null,
 ) {
     val colors = MaterialTheme.colorScheme
     val borderColor = if (isActive) colors.primaryContainer else colors.outlineVariant
@@ -454,12 +413,7 @@ private fun SourceCard(
             modifier = Modifier.padding(vertical = 20.dp, horizontal = 12.dp),
             horizontalAlignment = Alignment.CenterHorizontally,
         ) {
-            Icon(
-                imageVector = icon,
-                contentDescription = label,
-                tint = if (isActive) colors.primary else colors.secondary,
-                modifier = Modifier.size(28.dp),
-            )
+            SourceGlyph(icon = icon, tint = if (isActive) colors.primary else colors.secondary)
             Spacer(modifier = Modifier.height(8.dp))
             Text(
                 text = label,
@@ -467,25 +421,30 @@ private fun SourceCard(
                 color = colors.onSurface,
                 textAlign = TextAlign.Center,
             )
-            if (supportingText != null) {
-                Spacer(modifier = Modifier.height(4.dp))
-                Text(
-                    text = supportingText,
-                    style = MaterialTheme.typography.bodySmall,
-                    color = colors.onSurfaceVariant,
-                    textAlign = TextAlign.Center,
-                )
-            }
         }
     }
 }
 
-private fun sourceKindBadgeLabel(kind: SourceKind): String = when (kind) {
-    SourceKind.PHONE_LIBRARY -> "Phone"
-    SourceKind.REMOVABLE -> "SD / USB"
-    SourceKind.CAMERA_MTP -> "Camera"
-    SourceKind.CLOUD_OTHER -> "Cloud"
+/** The icon of a source card; the card's title (the text under it) names it, so it is not spoken twice. */
+@Composable
+private fun SourceGlyph(icon: ImageVector, tint: Color) {
+    Icon(
+        imageVector = icon,
+        contentDescription = null,
+        tint = tint,
+        modifier = Modifier.size(28.dp),
+    )
 }
+
+@Composable
+private fun sourceKindBadgeLabel(kind: SourceKind): String = stringResource(
+    when (kind) {
+        SourceKind.PHONE_LIBRARY -> R.string.label_kind_phone
+        SourceKind.REMOVABLE -> R.string.label_kind_sd
+        SourceKind.CAMERA_MTP -> R.string.label_kind_camera
+        SourceKind.CLOUD_OTHER -> R.string.label_kind_cloud
+    },
+)
 
 @Composable
 private fun RecentPathRow(
@@ -519,14 +478,14 @@ private fun RecentPathRow(
             )
             Column(modifier = Modifier.weight(1f)) {
                 Text(
-                    text = recent.name.ifEmpty { "Folder" },
+                    text = recent.name.ifEmpty { stringResource(R.string.label_folder) },
                     style = MaterialTheme.typography.bodyMedium,
                     color = colors.onSurface,
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis,
                 )
                 val subtitle = when {
-                    isUnmounted -> "Not connected"
+                    isUnmounted -> stringResource(R.string.label_not_connected)
                     progressText != null -> progressText
                     else -> null
                 }

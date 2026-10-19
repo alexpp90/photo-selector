@@ -19,7 +19,6 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.Link
 import androidx.compose.material.icons.filled.Style
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
@@ -32,10 +31,12 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.platform.testTag
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
+import com.phototok.R
 
 /**
  * Modal dialog presented when a folder contains matching RAW and JPEG pairs of the same photos.
@@ -117,7 +118,7 @@ fun RawJpegSuggestionDialog(
                     }
 
                     Text(
-                        text = "RAW + JPEG pairs",
+                        text = stringResource(R.string.dialog_title_raw_jpeg),
                         style = MaterialTheme.typography.titleSmall,
                         color = colors.onSurface,
                         fontWeight = FontWeight.SemiBold,
@@ -138,14 +139,14 @@ fun RawJpegSuggestionDialog(
                 ) {
                     Column(modifier = Modifier.padding(14.dp)) {
                         Text(
-                            text = "1 card per shot",
+                            text = stringResource(R.string.action_merge_pairs),
                             style = MaterialTheme.typography.labelLarge,
                             fontWeight = FontWeight.Bold,
                             color = colors.onPrimaryContainer,
                         )
                         Spacer(modifier = Modifier.height(2.dp))
                         Text(
-                            text = "Swipes act on both files",
+                            text = stringResource(R.string.dialog_body_merge_pairs),
                             style = MaterialTheme.typography.bodySmall,
                             color = colors.onPrimaryContainer.copy(alpha = 0.9f),
                         )
@@ -162,19 +163,13 @@ fun RawJpegSuggestionDialog(
                         .testTag("apply_both_button"),
                     shape = RoundedCornerShape(10.dp),
                 ) {
-                    Icon(
-                        imageVector = Icons.Default.Link,
-                        contentDescription = null,
-                        modifier = Modifier.size(18.dp),
-                    )
-                    Spacer(modifier = Modifier.width(8.dp))
-                    Text("Show both, linked", style = MaterialTheme.typography.labelLarge)
+                    Text(stringResource(R.string.action_link_both), style = MaterialTheme.typography.labelLarge)
                 }
 
                 Spacer(modifier = Modifier.height(12.dp))
 
                 Text(
-                    text = "Show only",
+                    text = stringResource(R.string.label_show_only),
                     style = MaterialTheme.typography.labelSmall,
                     color = colors.onSurfaceVariant,
                     fontWeight = FontWeight.Medium,
@@ -194,7 +189,7 @@ fun RawJpegSuggestionDialog(
                             .testTag("filter_raw_button"),
                         shape = RoundedCornerShape(10.dp),
                     ) {
-                        Text("RAW", style = MaterialTheme.typography.labelLarge, fontWeight = FontWeight.SemiBold)
+                        Text(stringResource(R.string.action_raw), style = MaterialTheme.typography.labelLarge, fontWeight = FontWeight.SemiBold)
                     }
 
                     OutlinedButton(
@@ -204,7 +199,7 @@ fun RawJpegSuggestionDialog(
                             .testTag("filter_jpg_button"),
                         shape = RoundedCornerShape(10.dp),
                     ) {
-                        Text("JPEG", style = MaterialTheme.typography.labelLarge, fontWeight = FontWeight.SemiBold)
+                        Text(stringResource(R.string.action_jpeg), style = MaterialTheme.typography.labelLarge, fontWeight = FontWeight.SemiBold)
                     }
                 }
 
@@ -219,7 +214,7 @@ fun RawJpegSuggestionDialog(
                         .testTag("keep_settings_button"),
                 ) {
                     Text(
-                        text = "Leave as is",
+                        text = stringResource(R.string.action_dont_change),
                         style = MaterialTheme.typography.labelLarge,
                     )
                 }
