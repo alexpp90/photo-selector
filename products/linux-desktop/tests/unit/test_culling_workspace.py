@@ -637,6 +637,63 @@ def test_undo_during_running_job_cancels_queued_or_enqueues_disk_undo():
     assert manager.undo_culling.call_count == 1
 
 
+def _router_with_deferred_worker():
+    from photo_selector_linux.ui.keyboard_router import KeyboardRouter
+
+    manager = MagicMock()
+    dispatcher = DeferredDispatcher()
+    vm = CullingWorkspaceViewModel(file_manager=manager, dispatcher=dispatcher)
+    a, b, c = make_candidate("a.jpg"), make_candidate("b.jpg"), make_candidate("c.jpg")
+    vm.candidates, vm.current_folder = [a, b, c], Path("/tmp/test_dir")
+    manager.move_candidate.side_effect = lambda photo, folder, **kw: _record(photo, CullingActionType.MOVE)
+    manager.trash_candidate.side_effect = lambda photo: _record(photo, CullingActionType.TRASH)
+    manager.undo_culling.return_value = True
+    return KeyboardRouter(window=MagicMock(), viewmodel=vm), vm, manager, dispatcher, (a, b, c)
+
+
+def test_lab_move_then_delete_while_move_runs_both_land_in_order():
+    """LIN-3 (i): M then Delete in quick succession must not drop the Delete."""
+    router, vm, manager, dispatcher, (a, b, c) = _router_with_deferred_worker()
+
+    router.engine.dispatch(0x6D, 0)  # M: a.jpg starts running
+    assert vm.is_busy
+    router.engine.dispatch(0xFFFF, 0)  # Delete: b.jpg queues behind it
+    assert vm.queued_count == 2
+    assert vm.selected_count == 1 and vm.trashed_count == 1
+    assert [p.filename for p in vm.candidates] == ["c.jpg"]
+
+    dispatcher.finish()
+    dispatcher.finish()
+
+    assert vm.queued_count == 0
+    assert manager.move_candidate.call_args.args[0] is a
+    assert manager.trash_candidate.call_args.args[0] is b
+    assert [p.filename for p in vm.candidates] == ["c.jpg"]
+    assert vm.selected_count == 1 and vm.trashed_count == 1
+    assert [(r.action_type, p) for r, p, _ in vm.undo_stack] == [
+        (CullingActionType.MOVE, a), (CullingActionType.TRASH, b),
+    ]
+
+
+def test_lab_delete_then_ctrl_z_while_trash_runs_queues_disk_undo():
+    """LIN-3 (ii): Delete then Ctrl+Z in quick succession restores the photo from the Trash."""
+    router, vm, manager, dispatcher, (a, b, c) = _router_with_deferred_worker()
+
+    router.engine.dispatch(0xFFFF, 0)  # Delete a.jpg: running on the worker
+    router.engine.dispatch(0x7A, 0x4)  # Ctrl+Z while the trash is still running
+    assert vm.queued_count == 2  # the trash and the queued disk undo
+
+    dispatcher.finish()
+    dispatcher.finish()
+
+    assert vm.queued_count == 0
+    manager.trash_candidate.assert_called_once()
+    manager.undo_culling.assert_called_once()
+    assert [p.filename for p in vm.candidates] == ["a.jpg", "b.jpg", "c.jpg"]
+    assert vm.trashed_count == 0
+    assert vm.undo_stack == []
+
+
 def test_outcome_applies_to_the_culled_photo_when_the_user_browsed_meanwhile():
     manager = MagicMock()
     dispatcher = DeferredDispatcher()

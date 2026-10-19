@@ -200,6 +200,77 @@ def test_lab_checkpoint_recorder_writes_all_four_files(tmp_path: Path) -> None:
     assert timing2 == {"checkpoint": "after-move", "t_ms": 650, "step_ms": 400}
 
 
+class _FakeFrameClock:
+    def __init__(self):
+        self.handlers = {}
+        self.disconnected = []
+
+    def connect(self, signal, callback):
+        self.handlers[signal] = callback
+        return 7
+
+    def disconnect(self, handler_id):
+        self.disconnected.append(handler_id)
+
+
+class _FakeGLib:
+    def __init__(self):
+        self.timeouts = []
+
+    def timeout_add(self, ms, callback):
+        self.timeouts.append((ms, callback))
+        return 1
+
+
+def _deferred_setup(monkeypatch):
+    from photo_selector_linux.ui import lab_hooks
+
+    glib = _FakeGLib()
+    monkeypatch.setattr(lab_hooks, "GLib", glib)
+    recorder = LabCheckpointRecorder()
+    recorded = []
+    monkeypatch.setattr(recorder, "record_checkpoint", lambda window, name: recorded.append(name))
+    clock = _FakeFrameClock()
+    draws = []
+    window = SimpleNamespace(get_frame_clock=lambda: clock, queue_draw=lambda: draws.append(True))
+    return recorder, recorded, clock, glib, window, draws
+
+
+def test_checkpoint_is_recorded_after_the_next_painted_frame(monkeypatch) -> None:
+    """The header lagged one step behind state.json when captured inside the action (lab)."""
+    recorder, recorded, clock, glib, window, draws = _deferred_setup(monkeypatch)
+
+    recorder.record_checkpoint_after_frame(window, "three-up")
+    assert recorded == [] and draws == [True]
+
+    clock.handlers["after-paint"](clock)
+    assert recorded == [] and clock.disconnected == [7]
+    settle_ms, record = glib.timeouts[-1]
+    assert settle_ms >= 200  # outlasts Adwaita's CSS transitions (mode button highlight)
+    record()
+    assert recorded == ["three-up"]
+
+    _ms, fallback = glib.timeouts[0]
+    fallback()
+    assert recorded == ["three-up"]  # the fallback never records a second time
+
+
+def test_checkpoint_falls_back_when_no_frame_is_painted(monkeypatch) -> None:
+    recorder, recorded, clock, glib, window, _draws = _deferred_setup(monkeypatch)
+
+    recorder.record_checkpoint_after_frame(window, "hidden")
+    ms, fallback = glib.timeouts[0]
+    assert ms < 500  # inside the runner's 0.5 s pause after a checkpoint
+    fallback()
+    assert recorded == ["hidden"]
+
+
+def test_checkpoint_without_frame_clock_records_immediately(monkeypatch) -> None:
+    recorder, recorded, _clock, _glib, _window, _draws = _deferred_setup(monkeypatch)
+    recorder.record_checkpoint_after_frame(None, "no-window")
+    assert recorded == ["no-window"]
+
+
 # ── Q-2: the hooks must not leak outside the app window or into a shared /tmp ────────────────
 
 def test_default_artifacts_dir_is_private_to_the_user(tmp_path: Path, monkeypatch) -> None:

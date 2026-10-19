@@ -231,7 +231,8 @@ class PhotoTextureLoader:
         except Exception:
             pixbuf = None
         if GLib is not None:
-            GLib.idle_add(self._deliver, key, pixbuf)
+            # Above the redraw priority (120) so animating spinners cannot starve it (LIN-4).
+            GLib.idle_add(self._deliver, key, pixbuf, priority=GLib.PRIORITY_DEFAULT)
 
     def _deliver(self, key, pixbuf) -> bool:
         texture = None

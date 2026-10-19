@@ -66,9 +66,8 @@ class MainWindow(Adw.ApplicationWindow if HAS_GI else object):
 
     def _build_ui(self) -> None:
         self.toolbar_view = Adw.ToolbarView()
-        self.toast_overlay = Adw.ToastOverlay()
-        self.toast_overlay.set_child(self.toolbar_view)
-        self.set_content(self.toast_overlay)
+        self.set_content(self.toolbar_view)
+        self._toast = None
 
         # HeaderBar
         self.header_bar = Adw.HeaderBar()
@@ -78,7 +77,10 @@ class MainWindow(Adw.ApplicationWindow if HAS_GI else object):
 
         # Main Canvas View
         self.canvas_view = CanvasView(viewmodel=self.viewmodel)
-        self.toolbar_view.set_content(self.canvas_view)
+        # The toast overlay wraps only the canvas so a toast can never cover the action bar (LIN-7).
+        self.toast_overlay = Adw.ToastOverlay()
+        self.toast_overlay.set_child(self.canvas_view)
+        self.toolbar_view.set_content(self.toast_overlay)
 
         # Bottom Action Bar
         self.action_bar = ActionBarView(viewmodel=self.viewmodel)
@@ -196,10 +198,21 @@ class MainWindow(Adw.ApplicationWindow if HAS_GI else object):
         self.btn_mode_3.set_css_classes(["suggested-action"] if mode == 3 else [])
 
     def _on_viewmodel_notification(self, vm, message: str) -> None:
-        if HAS_GI:
-            toast = Adw.Toast.new(message)
-            toast.set_timeout(3)
-            self.toast_overlay.add_toast(toast)
+        """Cull/undo outcomes live in the action bar; load info and errors also get a toast."""
+        if not HAS_GI:
+            return
+        if getattr(vm, "last_notification_severity", "info") == "status":
+            return
+        self.show_toast(message)
+
+    def show_toast(self, message: str) -> None:
+        """Show one toast at a time: the previous one is dismissed, never queued."""
+        if self._toast is not None:
+            self._toast.dismiss()
+        toast = Adw.Toast.new(message)
+        toast.set_timeout(3)
+        self._toast = toast
+        self.toast_overlay.add_toast(toast)
 
     def show_open_folder_dialog(self) -> None:
         if not HAS_GI:
@@ -216,7 +229,7 @@ class MainWindow(Adw.ApplicationWindow if HAS_GI else object):
                 self.open_directory(path)
         except Exception as e:
             if HAS_GI and GLib:
-                GLib.idle_add(self._on_viewmodel_notification, self.viewmodel, f"Open folder cancelled: {e}")
+                GLib.idle_add(self.show_toast, f"Open folder cancelled: {e}")
 
     def open_directory(self, path: Path) -> None:
         self.viewmodel.load_directory(path)

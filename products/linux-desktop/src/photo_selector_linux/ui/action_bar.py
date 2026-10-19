@@ -10,10 +10,14 @@ try:
     import gi
     gi.require_version("Gtk", "4.0")
     from gi.repository import Gtk
+    from gi.repository import GLib
     HAS_GI = True
 except (ImportError, ValueError):
     HAS_GI = False
     Gtk = None
+    GLib = None
+
+OUTCOME_SECONDS = 4
 
 
 class ActionBarView(Gtk.ActionBar if HAS_GI else object):
@@ -33,6 +37,10 @@ class ActionBarView(Gtk.ActionBar if HAS_GI else object):
         self.busy_text: str = ""
         self.queue_label_text: str = ""
         self.cull_sensitive: bool = True
+        # Latest cull/undo outcome (LIN-7); shown while idle, cleared after OUTCOME_SECONDS.
+        self.status_text: str = ""
+        self._status_timer = None
+        self._status_generation: int = 0
 
         if HAS_GI:
             super().__init__()
@@ -41,7 +49,34 @@ class ActionBarView(Gtk.ActionBar if HAS_GI else object):
             self._build_ui()
 
         self.viewmodel.connect("state-changed", self._on_state_changed)
+        self.viewmodel.connect("notification", self._on_notification)
         self._update_state()
+
+    def _on_notification(self, vm, message: str) -> None:
+        """Show cull/undo outcomes and errors here; info messages (load) stay toasts."""
+        if getattr(vm, "last_notification_severity", "info") in ("status", "error"):
+            self.show_outcome(message)
+
+    def show_outcome(self, message: str) -> None:
+        """Last write wins; the text clears itself after OUTCOME_SECONDS."""
+        self._status_generation += 1
+        self.status_text = message
+        if HAS_GI:
+            if self._status_timer is not None:
+                GLib.source_remove(self._status_timer)
+            generation = self._status_generation
+            self._status_timer = GLib.timeout_add_seconds(
+                OUTCOME_SECONDS, self._expire_outcome, generation
+            )
+        self._update_state()
+
+    def _expire_outcome(self, generation: int | None = None) -> bool:
+        if generation is not None and generation != self._status_generation:
+            return False
+        self._status_timer = None
+        self.status_text = ""
+        self._update_state()
+        return False
 
     def _build_ui(self) -> None:
         if not HAS_GI:
@@ -65,15 +100,15 @@ class ActionBarView(Gtk.ActionBar if HAS_GI else object):
         self.busy_box = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=6)
         self.busy_spinner = Gtk.Spinner()
         self.lbl_busy = Gtk.Label(label="")
-        self.lbl_busy.set_ellipsize(3)  # Pango.EllipsizeMode.END
-        self.lbl_busy.set_max_width_chars(40)
+        self.lbl_busy.set_ellipsize(3)  # Pango.EllipsizeMode.END: keep the file name visible
+        # Bounded so the bar's centred Move/Copy/Trash buttons never shift under the pointer.
+        self.lbl_busy.set_max_width_chars(24)
+        self.lbl_busy.set_xalign(1.0)
         self.lbl_queue = Gtk.Label(label="")
         self.lbl_queue.add_css_class("status-counter-badge")
         self.busy_box.append(self.busy_spinner)
         self.busy_box.append(self.lbl_busy)
         self.busy_box.append(self.lbl_queue)
-        self.busy_box.set_visible(False)
-        self.pack_start(self.busy_box)
 
         # Center: Tactile Action Buttons
         center_box = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=12)
@@ -110,6 +145,10 @@ class ActionBarView(Gtk.ActionBar if HAS_GI else object):
         self.btn_undo.set_tooltip_text("Undo last culling action (Ctrl+Z)")
         self.btn_undo.connect("clicked", lambda b: self.viewmodel.undo())
         self.pack_end(self.btn_undo)
+        # Status (busy text, last outcome) sits left of Undo: the end side has more free room
+        # than the start side with its three counters.
+        self.busy_box.set_visible(False)
+        self.pack_end(self.busy_box)
 
     def _on_state_changed(self, vm) -> None:
         self._update_state()
@@ -146,10 +185,13 @@ class ActionBarView(Gtk.ActionBar if HAS_GI else object):
         self.btn_undo.set_sensitive(self.undo_sensitive)
         for button in (self.btn_move, self.btn_copy, self.btn_trash):
             button.set_sensitive(self.cull_sensitive)
-        self.lbl_busy.set_label(self.busy_text)
+        shown = self.busy_text if busy else self.status_text
+        self.lbl_busy.set_label(shown)
+        self.lbl_busy.set_tooltip_text(shown or None)
         self.lbl_queue.set_label(self.queue_label_text)
         self.lbl_queue.set_visible(bool(self.queue_label_text))
-        self.busy_box.set_visible(busy)
+        self.busy_box.set_visible(busy or bool(self.status_text))
+        self.busy_spinner.set_visible(busy)
         if busy:
             self.busy_spinner.start()
         else:
