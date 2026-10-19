@@ -1,5 +1,6 @@
 package com.phototok.ui.phonemode
 
+import androidx.annotation.StringRes
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.interaction.MutableInteractionSource
@@ -38,11 +39,12 @@ import androidx.compose.ui.layout.positionInRoot
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalView
 import androidx.compose.ui.platform.testTag
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
-import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.Constraints
 import androidx.compose.ui.unit.dp
+import com.phototok.R
 import com.phototok.ui.phonemode.ControlsGuideSolver.Box as GBox
 import com.phototok.ui.phonemode.ControlsGuideSolver.Size as GSize
 import kotlin.math.max
@@ -223,12 +225,6 @@ private fun GuideLayout(
                         landscape || id == GuideAnchor.LOGO -> Align.START
                         else -> Align.CENTER
                     },
-                    descriptionLines = when {
-                        id == GuideAnchor.LOGO -> if (compact) 1 else 3
-                        landscape -> if (id in rightSet) 1 else 2
-                        compact && (id in topIcons || id in bottoms) -> 0
-                        else -> if (compact) 2 else 3
-                    },
                     modifier = Modifier.layoutId(CalloutKey(id)),
                 )
                 Box(
@@ -342,22 +338,16 @@ private fun GuideLayout(
     }
 }
 
-/** One callout: optional glyph, a title and a short description under it. */
+/** One callout: optional glyph and a one- or two-word name (`REQ-TOK-UX.04`) — no description line. */
 @Composable
 private fun CoachMark(
     id: GuideAnchor,
     compact: Boolean,
     align: Align,
-    descriptionLines: Int,
     modifier: Modifier = Modifier,
 ) {
     val colors = MaterialTheme.colorScheme
-    val spec = coachMarkSpec(id, compact)
-    val textAlign = when (align) {
-        Align.CENTER -> TextAlign.Center
-        Align.START -> TextAlign.Start
-        Align.END -> TextAlign.End
-    }
+    val spec = coachMarkSpec(id)
     Column(
         modifier = modifier.testTag("guide_callout_${id.name}"),
         horizontalAlignment = when (align) {
@@ -379,44 +369,31 @@ private fun CoachMark(
                 )
             }
             Text(
-                text = spec.label,
+                text = stringResource(spec.label),
                 style = MaterialTheme.typography.labelMedium,
                 color = Color.White,
                 fontWeight = FontWeight.SemiBold,
-                maxLines = 1,
-                overflow = TextOverflow.Ellipsis,
-            )
-        }
-        if (descriptionLines > 0) {
-            Text(
-                text = spec.description,
-                style = MaterialTheme.typography.labelSmall,
-                color = colors.onSurfaceVariant,
-                textAlign = textAlign,
-                maxLines = descriptionLines,
-                overflow = TextOverflow.Ellipsis,
+                textAlign = when (align) {
+                    Align.CENTER -> TextAlign.Center
+                    Align.START -> TextAlign.Start
+                    Align.END -> TextAlign.End
+                },
             )
         }
     }
 }
 
-private data class CoachMarkSpec(val label: String, val description: String, val icon: ImageVector? = null)
+private data class CoachMarkSpec(@StringRes val label: Int, val icon: ImageVector? = null)
 
-private fun coachMarkSpec(id: GuideAnchor, compact: Boolean = false): CoachMarkSpec = when (id) {
-    GuideAnchor.LOGO -> CoachMarkSpec(
-        "Tap the logo",
-        // Short enough for one line, so the row stays slim on small screens.
-        if (compact) "Show or hide camera info" else "Show or hide the camera info on each photo",
-    )
-    GuideAnchor.DONE_WITH_CARD -> CoachMarkSpec("Card done", "Finish this card")
-    GuideAnchor.RELOAD -> CoachMarkSpec("Reload", "Rescan folder")
-    GuideAnchor.HELP -> CoachMarkSpec("Help", "This guide")
-    GuideAnchor.INFO -> CoachMarkSpec("Info", "EXIF overlay")
-    GuideAnchor.SETTINGS -> CoachMarkSpec("Settings", "Actions & filters")
-    GuideAnchor.SOURCES -> CoachMarkSpec("Sources", "Pick another folder", Icons.Default.FolderOpen)
-    GuideAnchor.SELECTION ->
-        CoachMarkSpec("Selection", "Everything you filed away", Icons.Default.CollectionsBookmark)
-    GuideAnchor.REVERT ->
-        CoachMarkSpec("Revert", "Restore last deleted photo", Icons.Default.RestoreFromTrash)
-    else -> CoachMarkSpec("", "")
+private fun coachMarkSpec(id: GuideAnchor): CoachMarkSpec = when (id) {
+    GuideAnchor.LOGO -> CoachMarkSpec(R.string.guide_camera_info)
+    GuideAnchor.DONE_WITH_CARD -> CoachMarkSpec(R.string.guide_card_done)
+    GuideAnchor.RELOAD -> CoachMarkSpec(R.string.guide_reload)
+    GuideAnchor.HELP -> CoachMarkSpec(R.string.guide_help)
+    GuideAnchor.INFO -> CoachMarkSpec(R.string.guide_info)
+    GuideAnchor.SETTINGS -> CoachMarkSpec(R.string.guide_settings)
+    GuideAnchor.SOURCES -> CoachMarkSpec(R.string.guide_sources, Icons.Default.FolderOpen)
+    GuideAnchor.SELECTION -> CoachMarkSpec(R.string.guide_selection, Icons.Default.CollectionsBookmark)
+    GuideAnchor.REVERT -> CoachMarkSpec(R.string.guide_revert, Icons.Default.RestoreFromTrash)
+    else -> CoachMarkSpec(R.string.guide_help)
 }
