@@ -13,6 +13,7 @@ import hashlib
 import io
 import os
 import re
+import shutil
 import subprocess
 import sys
 import tarfile
@@ -155,6 +156,39 @@ def test_desktop_integration_files():
     width = int.from_bytes(png_bytes[16:20], "big")
     height = int.from_bytes(png_bytes[20:24], "big")
     assert (width, height) == (128, 128), f"Expected 128x128 PNG icon, got {width}x{height}"
+
+
+@pytest.mark.skipif(not shutil.which("dpkg-deb"), reason="dpkg-deb not available")
+def test_package_deb_native_builder(tmp_path):
+    """Verify native dpkg-deb builder produces valid .deb archive."""
+    product_dir = get_product_root()
+    packager_script = product_dir / "scripts" / "package_deb.py"
+    assert packager_script.is_file(), "Missing package_deb.py script"
+
+    out_dir = tmp_path / "deb_out"
+    out_dir.mkdir()
+
+    cmd = [
+        sys.executable,
+        str(packager_script),
+        "--product-dir", str(product_dir),
+        "--output-dir", str(out_dir),
+        "--version", "0.1.0",
+        "--output-filename", "test-package-native_0.1.0_all.deb",
+        "--mode", "native"
+    ]
+    res = subprocess.run(cmd, capture_output=True, text=True)
+    assert res.returncode == 0, f"package_deb.py failed:\n{res.stderr}"
+
+    deb_path = out_dir / "test-package-native_0.1.0_all.deb"
+    assert deb_path.is_file(), f"Output package not created at {deb_path}"
+
+    verify_script_dir = product_dir / "scripts"
+    sys.path.insert(0, str(verify_script_dir))
+    import verify_package
+    sys.path.pop(0)
+
+    verify_package.verify_deb_archive(deb_path)
 
 
 def test_package_deb_builder(tmp_path):
