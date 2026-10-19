@@ -11,6 +11,7 @@ import androidx.compose.ui.test.hasTestTag
 import androidx.compose.ui.test.hasText
 import androidx.compose.ui.test.onNodeWithContentDescription
 import androidx.compose.ui.test.junit4.createComposeRule
+import androidx.compose.ui.test.onFirst
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
 import androidx.compose.ui.unit.dp
@@ -98,7 +99,8 @@ class GestureTutorialOverlayTest {
         awaitGuide()
 
         everyControlLabel.forEach { label ->
-            composeTestRule.onNode(inGuide(label), useUnmergedTree = true).assertIsDisplayed()
+            // A name can appear twice (the Selection callout and the default folder "Selection").
+            composeTestRule.onAllNodes(inGuide(label), useUnmergedTree = true).onFirst().assertIsDisplayed()
         }
     }
 
@@ -123,12 +125,13 @@ class GestureTutorialOverlayTest {
 
         (
             everyControlLabel + listOf(
-                str(R.string.label_swipe_move).uppercase(),
+                str(R.string.label_swipe_move),
                 "Keepers",
                 "Maybes",
             )
             ).forEach { label ->
-            composeTestRule.onNode(inGuide(label), useUnmergedTree = true).assertIsDisplayed()
+            // A name can appear twice (the Selection callout and the default folder "Selection").
+            composeTestRule.onAllNodes(inGuide(label), useUnmergedTree = true).onFirst().assertIsDisplayed()
         }
         composeTestRule.onNode(hasTestTag("gesture_tutorial_got_it"), useUnmergedTree = true).assertIsDisplayed()
     }
@@ -164,13 +167,13 @@ class GestureTutorialOverlayTest {
 
         awaitGuide()
 
-        // Swipe right is a MOVE here — it must never be presented as "KEEP".
-        composeTestRule.onNode(inGuide(str(R.string.label_swipe_move).uppercase()), useUnmergedTree = true)
+        // Swipe right is a move here — it must never be presented as "KEEP". Labels are sentence case.
+        composeTestRule.onNode(inGuide(str(R.string.label_swipe_move)), useUnmergedTree = true)
             .assertIsDisplayed()
         composeTestRule.onNode(inGuide("Keepers"), useUnmergedTree = true).assertIsDisplayed()
         composeTestRule.onNode(inGuide("KEEP"), useUnmergedTree = true).assertDoesNotExist()
 
-        composeTestRule.onNode(inGuide(str(R.string.label_swipe_delete).uppercase()), useUnmergedTree = true)
+        composeTestRule.onNode(inGuide(str(R.string.label_swipe_delete)), useUnmergedTree = true)
             .assertIsDisplayed()
     }
 
@@ -189,10 +192,10 @@ class GestureTutorialOverlayTest {
 
         awaitGuide()
 
-        composeTestRule.onNode(inGuide(str(R.string.label_swipe_copy).uppercase()), useUnmergedTree = true)
+        composeTestRule.onNode(inGuide(str(R.string.label_swipe_copy)), useUnmergedTree = true)
             .assertIsDisplayed()
         composeTestRule.onNode(inGuide("Maybes"), useUnmergedTree = true).assertIsDisplayed()
-        composeTestRule.onNode(inGuide(str(R.string.label_swipe_delete).uppercase()), useUnmergedTree = true)
+        composeTestRule.onNode(inGuide(str(R.string.label_swipe_delete)), useUnmergedTree = true)
             .assertDoesNotExist()
     }
 
