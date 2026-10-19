@@ -5,23 +5,18 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
-import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.CollectionsBookmark
 import androidx.compose.material.icons.filled.FolderOpen
-import androidx.compose.material.icons.filled.History
 import androidx.compose.material.icons.filled.RestoreFromTrash
-import androidx.compose.material.icons.filled.Style
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
@@ -29,18 +24,19 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.testTag
-import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.unit.sp
+import com.phototok.R
 import com.phototok.ui.phonemode.ControlsGuideAnchors
 import com.phototok.ui.phonemode.GuideAnchor
 import com.phototok.ui.phonemode.PhoneModeChromeMetrics
 import com.phototok.ui.phonemode.guideAnchor
 
-enum class NavTab { Sources, Cards, History }
-
 /**
- * Bottom action bar shown while viewing photos (portrait).
+ * Bottom action bar shown while viewing photos (portrait). Icon-only (`REQ-TOK-UX.02`): every
+ * control has a spoken `contentDescription`, a long-press tooltip with the same name and a
+ * 72 × 48 dp target.
  *
  * Left   = Folder → go back to landing page.
  * Middle = Selection → jump to the read-only Selection-folder view.
@@ -77,7 +73,7 @@ fun ViewerBottomBar(
         // Left: Go back to landing (Sources)
         ActionButton(
             icon = Icons.Default.FolderOpen,
-            label = "Sources",
+            name = stringResource(R.string.cd_sources),
             isActive = false,
             enabled = true,
             onClick = onGoToLanding,
@@ -86,7 +82,7 @@ fun ViewerBottomBar(
         // Middle: Jump to selection folder
         ActionButton(
             icon = Icons.Default.CollectionsBookmark,
-            label = "Selection",
+            name = stringResource(R.string.cd_selection),
             isActive = false,
             enabled = true,
             onClick = onJumpToSelection,
@@ -95,7 +91,7 @@ fun ViewerBottomBar(
         // Right: Revert (restore pending deleted photo from trash)
         ActionButton(
             icon = Icons.Default.RestoreFromTrash,
-            label = "Revert",
+            name = stringResource(R.string.cd_revert),
             isActive = canRevert,
             enabled = canRevert,
             onClick = onRevert,
@@ -104,10 +100,15 @@ fun ViewerBottomBar(
     }
 }
 
+/**
+ * One icon-only bar control: [PhoneModeChromeMetrics.BOTTOM_BAR_BUTTON_WIDTH] ×
+ * [PhoneModeChromeMetrics.BOTTOM_BAR_BUTTON_HEIGHT] (≥ 48 dp), named by [name] for TalkBack and the
+ * long-press tooltip. No visible text.
+ */
 @Composable
 private fun ActionButton(
     icon: ImageVector,
-    label: String,
+    name: String,
     isActive: Boolean,
     enabled: Boolean,
     onClick: () -> Unit,
@@ -120,110 +121,33 @@ private fun ActionButton(
         else -> colors.onSurface.copy(alpha = 0.25f)
     }
 
-    Box(
-        modifier = modifier
-            .size(
-                width = PhoneModeChromeMetrics.BOTTOM_BAR_BUTTON_WIDTH,
-                height = PhoneModeChromeMetrics.BOTTOM_BAR_BUTTON_HEIGHT,
-            )
-            .then(
-                if (isActive) Modifier.clip(RoundedCornerShape(14.dp)).background(colors.primaryContainer)
-                else Modifier,
-            )
-            .then(
-                if (enabled) Modifier.clickable(
-                    indication = null,
-                    interactionSource = remember { MutableInteractionSource() },
-                    onClick = onClick,
-                ) else Modifier,
-            ),
-        contentAlignment = Alignment.Center,
-    ) {
-        Column(
-            horizontalAlignment = Alignment.CenterHorizontally,
-            verticalArrangement = Arrangement.Center,
+    NameTooltip(name = name) {
+        Box(
+            modifier = modifier
+                .size(
+                    width = PhoneModeChromeMetrics.BOTTOM_BAR_BUTTON_WIDTH,
+                    height = PhoneModeChromeMetrics.BOTTOM_BAR_BUTTON_HEIGHT,
+                )
+                .then(
+                    if (isActive) Modifier.clip(RoundedCornerShape(14.dp)).background(colors.primaryContainer)
+                    else Modifier,
+                )
+                .then(
+                    if (enabled) Modifier.clickable(
+                        indication = null,
+                        interactionSource = remember { MutableInteractionSource() },
+                        role = Role.Button,
+                        onClick = onClick,
+                    ) else Modifier,
+                ),
+            contentAlignment = Alignment.Center,
         ) {
             Icon(
                 imageVector = icon,
-                contentDescription = label,
+                contentDescription = name,
                 tint = tint,
-                modifier = Modifier.size(20.dp),
-            )
-            Text(
-                text = label,
-                color = tint,
-                fontSize = 10.sp,
-                lineHeight = 11.sp,
-                fontWeight = FontWeight.Medium,
-                maxLines = 1,
+                modifier = Modifier.size(24.dp),
             )
         }
-    }
-}
-
-@Composable
-fun BottomNavBar(
-    activeTab: NavTab,
-    onTabSelected: (NavTab) -> Unit,
-    modifier: Modifier = Modifier,
-) {
-    val colors = MaterialTheme.colorScheme
-
-    Row(
-        modifier = modifier
-            .fillMaxWidth()
-            .clip(RoundedCornerShape(topStart = 12.dp, topEnd = 12.dp))
-            .background(colors.surfaceContainerLowest.copy(alpha = 0.8f))
-            .navigationBarsPadding()
-            .padding(horizontal = 32.dp, vertical = 12.dp),
-        horizontalArrangement = Arrangement.SpaceAround,
-        verticalAlignment = Alignment.CenterVertically,
-    ) {
-        NavItem(Icons.Default.FolderOpen, "Sources", activeTab == NavTab.Sources) {
-            onTabSelected(NavTab.Sources)
-        }
-        NavItem(Icons.Default.Style, "Cards", activeTab == NavTab.Cards) {
-            onTabSelected(NavTab.Cards)
-        }
-        NavItem(Icons.Default.History, "History", activeTab == NavTab.History) {
-            onTabSelected(NavTab.History)
-        }
-    }
-}
-
-@Composable
-private fun NavItem(
-    icon: ImageVector,
-    label: String,
-    isActive: Boolean,
-    onClick: () -> Unit,
-) {
-    val colors = MaterialTheme.colorScheme
-
-    Box(
-        modifier = Modifier
-            .size(48.dp)
-            .then(
-                if (isActive) {
-                    Modifier
-                        .clip(CircleShape)
-                        .background(colors.primaryContainer)
-                } else {
-                    Modifier
-                },
-            )
-            .clickable(
-                indication = null,
-                interactionSource = remember { MutableInteractionSource() },
-                onClick = onClick,
-            ),
-        contentAlignment = Alignment.Center,
-    ) {
-        Icon(
-            imageVector = icon,
-            contentDescription = label,
-            tint = if (isActive) colors.onPrimaryContainer else colors.secondary,
-            modifier = Modifier.size(24.dp),
-        )
     }
 }
