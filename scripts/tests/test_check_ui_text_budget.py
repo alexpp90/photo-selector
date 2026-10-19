@@ -149,6 +149,17 @@ class KotlinSources(unittest.TestCase):
         ''')
         self.assertEqual(kinds(self.ws.run()), [])
 
+    def test_template_first_sentence_is_found_and_animation_labels_are_not(self) -> None:
+        self.ws.kotlin("T.kt", '''
+            fun t(name: String) {
+                showFeedback("${name} is not connected")
+                val pulse = rememberInfiniteTransition(label = "left swipe pulse")
+                val a by animateFloatAsState(1f, label = "Bottom HUD alpha")
+                val path = "$root/Selection"
+            }
+        ''')
+        self.assertEqual(kinds(self.ws.run()), [("hardcoded", "${name} is not connected")])
+
     def test_icon_over_label_bar_item_is_flagged(self) -> None:
         self.ws.kotlin("Bar.kt", '''
             @Composable fun Item(label: String) {

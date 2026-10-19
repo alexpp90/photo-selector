@@ -67,6 +67,11 @@ NON_UI_CALLS = (
     "SecurityException", "UnsupportedOperationException", "Suppress", "OptIn", "Requirement",
     "Intent", "setType", "createChooser", "DateTimeFormatter.ofPattern", "SimpleDateFormat",
     "format", "trace", "key", "File", "DocumentsContract", "query", "Pattern.compile",
+    # Compose animation APIs: their `label` names the animation in tooling, it is never shown.
+    "rememberInfiniteTransition", "updateTransition", "animateFloat", "animateColor", "animateDp",
+    "animateValue", "animateFloatAsState", "animateColorAsState", "animateDpAsState",
+    "animateIntAsState", "animateOffsetAsState", "animateSizeAsState", "animateContentSize",
+    "AnimatedContent", "Crossfade", "rememberTransition",
 )
 # Containers in which an Icon next to a Text is a labelled icon control.
 BUTTON_CALLS = (
@@ -351,6 +356,8 @@ def looks_like_prose(text: str) -> bool:
         return False
     if " " not in plain or not any(len(w) >= 3 for w in words):
         return False  # one token (a folder name, a separator) is not prose
+    if text.lstrip().startswith("$") and len(words) >= 2:
+        return True  # "${name} is not connected": a sentence that starts with its value
     return plain[:1].isupper() or plain[:1].isdigit() or any(w[:1].isupper() for w in words)
 
 
