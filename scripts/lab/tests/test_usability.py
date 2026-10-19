@@ -481,9 +481,29 @@ class TestLocaleAndFontScale(unittest.TestCase):
             cap.load_scenarios = orig  # type: ignore[assignment]
             shutil.rmtree(out, ignore_errors=True)
         self.assertEqual(w["variant"], "de-DE@2.0")
+        self.assertFalse(cap._restore_file("FAKE").exists())
         puts = [c for c in adb.cmds if c[:4] == ("shell", "settings", "put", "system") and c[4] == "font_scale"]
         self.assertEqual([c[5] for c in puts], ["2", "1.0"])
         self.assertEqual(adb.cmds[-1], ("shell", "cmd", "locale", "set-app-locales", "com.phototok.lab", "--locales", ""))
+
+
+class TestRestoreAfterACrashedWalk(unittest.TestCase):
+    def test_a_walk_that_died_leaves_the_original_for_the_next_one(self) -> None:
+        from lab.usability import capture as cap
+
+        path = cap._restore_file("FAKE-CRASH")
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_text(json.dumps({"font_scale": "1.0"}))
+        try:
+            class Dev(FakeAdb):
+                def run(self, *args: str, timeout: int = 30) -> str:
+                    if args[:4] == ("shell", "settings", "get", "system"):
+                        return "2.0\n"  # what the dead walk left behind
+                    return super().run(*args, timeout=timeout)
+
+            self.assertEqual(cap._original_font_scale(Dev([_xml()]), "FAKE-CRASH"), "1.0")
+        finally:
+            path.unlink(missing_ok=True)
 
 
 class TestPanelVariantsAndChecklist(unittest.TestCase):

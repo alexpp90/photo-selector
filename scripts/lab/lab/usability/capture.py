@@ -60,7 +60,26 @@ def _app_locale(adb: AdbClient, app_id: str) -> str:
     return m.strip()
 
 
-def _restore(client: AdbClient, app_id: str, old_scale: str | None, reset_locale: bool) -> None:
+def _restore_file(serial: str) -> Path:
+    return lab_tmp_root() / f"device-{serial}.restore.json"
+
+
+def _original_font_scale(client: AdbClient, serial: str) -> str:
+    """The font scale to put back. A walk that died before restoring (USB dropped) left its
+    original in a file; reading the device then would return the walk's own 2.0."""
+    path = _restore_file(serial)
+    if path.is_file():
+        try:
+            return str(json.loads(path.read_text(encoding="utf-8"))["font_scale"])
+        except (ValueError, KeyError):
+            pass
+    current = client.run("shell", "settings", "get", "system", "font_scale").strip()
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(json.dumps({"font_scale": current}), encoding="utf-8")
+    return current
+
+
+def _restore(client: AdbClient, app_id: str, old_scale: str | None, reset_locale: bool) -> bool:
     """Put the font scale and app language back; a device that dropped off USB must not hide
     the walk's own error, so a failed restore is reported, not raised."""
     import sys
@@ -71,11 +90,14 @@ def _restore(client: AdbClient, app_id: str, old_scale: str | None, reset_locale
             "shell", "settings", "put", "system", "font_scale", old_scale if old_scale not in ("", "null") else "1.0")))
     if reset_locale:
         steps.append(("app language", lambda: set_app_locale(client, app_id, None)))
+    ok = True
     for what, step in steps:
         try:
             step()
         except Exception as exc:  # noqa: BLE001
-            print(f"warning: could not restore the {what} on {client.serial}: {exc}; restore it by hand", file=sys.stderr)
+            ok = False
+            print(f"warning: could not restore the {what} on {client.serial}: {exc}; the next walk restores it", file=sys.stderr)
+    return ok
 
 
 def variant_label(locale: str | None, font_scale: float | None) -> str:
@@ -103,7 +125,7 @@ def run_capture(
     app_id = str(spec["app_id"])
     with device_lock(serial, f"lab usability-capture {product}"):
         check_device_free(client, app_id)
-        old_scale = client.run("shell", "settings", "get", "system", "font_scale").strip()
+        old_scale = _original_font_scale(client, serial)
         try:
             if font_scale is not None:
                 client.run("shell", "settings", "put", "system", "font_scale", f"{font_scale:g}")
@@ -114,7 +136,8 @@ def run_capture(
             (out_dir / "walkthrough.json").write_text(json.dumps(walkthrough, indent=2), encoding="utf-8")
             return walkthrough
         finally:
-            _restore(client, app_id, old_scale if font_scale is not None else None, bool(locale))
+            if _restore(client, app_id, old_scale if font_scale is not None else None, bool(locale)):
+                _restore_file(serial).unlink(missing_ok=True)
 
 
 def _capture_locked(
