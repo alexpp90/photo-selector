@@ -75,6 +75,9 @@ import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.painterResource
+import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
@@ -293,6 +296,10 @@ fun PhoneModeScreen(
     val configuration = LocalConfiguration.current
     val isLandscape = configuration.orientation == Configuration.ORIENTATION_LANDSCAPE
 
+    // Measured positions of the real controls, shared by the bars and the controls guide.
+    val guideAnchors = remember { ControlsGuideAnchors() }
+    val guideUp = uiState.showGestureTutorial || uiState.showControlsGuide
+
     Box(modifier = Modifier.fillMaxSize()) {
         // ── Read-only Selection / Favourites viewer ─────────────────────────
         if (isViewingSelection) {
@@ -326,6 +333,7 @@ fun PhoneModeScreen(
                     modifier = Modifier
                         .fillMaxHeight()
                         .background(MaterialTheme.colorScheme.surfaceContainerLowest.copy(alpha = 0.8f))
+                        .guideAnchor(guideAnchors, GuideAnchor.LEFT_PANEL)
                         .windowInsetsPadding(
                             WindowInsets.safeDrawing.only(
                                 WindowInsetsSides.Left + WindowInsetsSides.Top + WindowInsetsSides.Bottom
@@ -339,12 +347,17 @@ fun PhoneModeScreen(
                     // Logo toggles the EXIF overlay
                     Image(
                         painter = painterResource(id = com.phototok.R.mipmap.ic_launcher_foreground),
-                        contentDescription = "Toggle EXIF stats",
+                        contentDescription = null,
                         modifier = Modifier
-                            .size(32.dp)
+                            .size(PhoneModeChromeMetrics.LEFT_PANEL_LOGO_SIZE)
+                            .guideAnchor(guideAnchors, GuideAnchor.LOGO)
+                            .semantics { contentDescription = PhoneModeTopBarDescriptions.LOGO }
+                            .testTag("landscape_logo")
                             .clickable(
                                 indication = null,
                                 interactionSource = remember { MutableInteractionSource() },
+                                onClickLabel = "Show or hide camera info",
+                                role = Role.Button,
                             ) { viewModel.toggleExifOverlay() }
                     )
 
@@ -358,6 +371,7 @@ fun PhoneModeScreen(
                             isActive = false,
                             enabled = true,
                             onClick = { viewModel.goBackToLanding() },
+                            modifier = Modifier.guideAnchor(guideAnchors, GuideAnchor.SOURCES),
                         )
                         SidePanelButton(
                             icon = Icons.Default.CollectionsBookmark,
@@ -365,6 +379,7 @@ fun PhoneModeScreen(
                             isActive = false,
                             enabled = true,
                             onClick = openSelectionViewer,
+                            modifier = Modifier.guideAnchor(guideAnchors, GuideAnchor.SELECTION),
                         )
                         // Revert (restore pending deleted photo from trash)
                         SidePanelButton(
@@ -373,13 +388,16 @@ fun PhoneModeScreen(
                             isActive = uiState.canRevert,
                             enabled = uiState.canRevert,
                             onClick = { viewModel.revertDelete() },
+                            modifier = Modifier.guideAnchor(guideAnchors, GuideAnchor.REVERT),
                         )
                         SidePanelButton(
                             icon = Icons.AutoMirrored.Filled.HelpOutline,
                             description = "Help",
+                            iconDescription = PhoneModeTopBarDescriptions.help(guideUp),
                             isActive = false,
                             enabled = true,
                             onClick = { viewModel.showControlsGuide() },
+                            modifier = Modifier.guideAnchor(guideAnchors, GuideAnchor.HELP),
                         )
                     }
 
@@ -407,6 +425,7 @@ fun PhoneModeScreen(
                         collectionFolderName = uiState.collectionFolderName,
                         showExifOverlay = false,
                         showPageCounter = false,
+                        topBadgesSuppressed = guideUp,
                         isDiscovering = uiState.isDiscovering,
                         isCloudSource = uiState.sourceKind == SourceKind.CLOUD_OTHER,
                         rawCompanionUris = uiState.rawCompanionUris,
@@ -427,6 +446,7 @@ fun PhoneModeScreen(
                     modifier = Modifier
                         .fillMaxHeight()
                         .background(MaterialTheme.colorScheme.surfaceContainerLowest.copy(alpha = 0.8f))
+                        .guideAnchor(guideAnchors, GuideAnchor.RIGHT_PANEL)
                         .windowInsetsPadding(
                             WindowInsets.safeDrawing.only(
                                 WindowInsetsSides.Right + WindowInsetsSides.Top + WindowInsetsSides.Bottom
@@ -447,7 +467,8 @@ fun PhoneModeScreen(
                         IconButton(
                             onClick = { viewModel.reloadSourceFolder() },
                             modifier = Modifier
-                                .size(48.dp)
+                                .size(PhoneModeChromeMetrics.TOP_BAR_BUTTON_SIZE)
+                                .guideAnchor(guideAnchors, GuideAnchor.RELOAD)
                                 .testTag("landscape_reload_folder_button"),
                         ) {
                             Icon(
@@ -459,7 +480,8 @@ fun PhoneModeScreen(
                         IconButton(
                             onClick = { viewModel.toggleExifOverlay() },
                             modifier = Modifier
-                                .size(48.dp)
+                                .size(PhoneModeChromeMetrics.TOP_BAR_BUTTON_SIZE)
+                                .guideAnchor(guideAnchors, GuideAnchor.INFO)
                                 .testTag("landscape_info_exif_button"),
                         ) {
                             Icon(
@@ -470,7 +492,9 @@ fun PhoneModeScreen(
                         }
                         IconButton(
                             onClick = { showSettingsSheet = true },
-                            modifier = Modifier.size(48.dp),
+                            modifier = Modifier
+                                .size(PhoneModeChromeMetrics.TOP_BAR_BUTTON_SIZE)
+                                .guideAnchor(guideAnchors, GuideAnchor.SETTINGS),
                         ) {
                             Icon(
                                 imageVector = Icons.Default.Settings,
@@ -525,6 +549,8 @@ fun PhoneModeScreen(
                     swipeRightVerb = uiState.swipeRightVerb,
                     collectionFolderName = uiState.collectionFolderName,
                     showExifOverlay = uiState.showExifOverlay,
+                    bottomHudSuppressed = uiState.firstRunHint != null || guideUp,
+                    topBadgesSuppressed = guideUp,
                     isDiscovering = uiState.isDiscovering,
                     isCloudSource = uiState.sourceKind == SourceKind.CLOUD_OTHER,
                     rawCompanionUris = uiState.rawCompanionUris,
@@ -582,6 +608,7 @@ fun PhoneModeScreen(
                 collectionAction = uiState.collectionAction,
                 leftSwipeFolderName = uiState.leftSwipeFolderName,
                 collectionFolderName = uiState.collectionFolderName,
+                anchors = guideAnchors,
             )
         }
 
@@ -595,6 +622,7 @@ fun PhoneModeScreen(
             collectionFolderName = uiState.collectionFolderName,
             title = "Controls",
             dismissLabel = "CLOSE",
+            anchors = guideAnchors,
         )
 
         // ── RAW + JPEG pair suggestions dialog ──────────────────────────────
@@ -633,103 +661,26 @@ fun PhoneModeScreen(
 
         // ── Overlay App Bars (Only when not in Landscape Viewer / selection) ──
         if (!isViewingSelection && !(isLandscape && isViewing)) {
-            val isHelpOrTutorialActive = uiState.showGestureTutorial || uiState.showControlsGuide
-            val topIconTint = if (isHelpOrTutorialActive) {
-                colors.onSurfaceVariant.copy(alpha = 0.4f)
-            } else {
-                colors.onSurfaceVariant
-            }
-
             // ── Top app bar ──────────────────────────────────────────
-            Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .align(Alignment.TopCenter)
-                    .statusBarsPadding()
-                    .padding(horizontal = 16.dp, vertical = 8.dp),
-                horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = Alignment.CenterVertically,
-            ) {
-                Image(
-                    painter = painterResource(id = com.phototok.R.mipmap.ic_launcher_foreground),
-                    contentDescription = "Toggle EXIF stats",
-                    alpha = if (isHelpOrTutorialActive) 0.4f else 1.0f,
-                    modifier = Modifier
-                        .size(36.dp)
-                        .clickable(
-                            indication = null,
-                            interactionSource = remember { MutableInteractionSource() },
-                        ) { viewModel.toggleExifOverlay() }
-                )
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    if (isViewing) {
-                        if (uiState.sourceKind == SourceKind.REMOVABLE) {
-                            IconButton(
-                                onClick = { viewModel.openCardDoneSheet() },
-                                modifier = Modifier
-                                    .size(40.dp)
-                                    .testTag("done_with_card_button"),
-                            ) {
-                                Icon(
-                                    imageVector = Icons.Default.SdCard,
-                                    contentDescription = "Done with this card",
-                                    tint = topIconTint,
-                                )
-                            }
-                        }
-                        IconButton(
-                            onClick = { viewModel.reloadSourceFolder() },
-                            modifier = Modifier
-                                .size(40.dp)
-                                .testTag("reload_folder_button"),
-                        ) {
-                            Icon(
-                                imageVector = Icons.Default.Sync,
-                                contentDescription = "Reload folder",
-                                tint = topIconTint,
-                            )
-                        }
-                        IconButton(
-                            onClick = {
-                                when {
-                                    uiState.showGestureTutorial -> viewModel.dismissGestureTutorial()
-                                    uiState.showControlsGuide -> viewModel.hideControlsGuide()
-                                    else -> viewModel.showControlsGuide()
-                                }
-                            },
-                            modifier = Modifier.size(40.dp),
-                        ) {
-                            Icon(
-                                imageVector = Icons.AutoMirrored.Filled.HelpOutline,
-                                contentDescription = "Show controls",
-                                tint = topIconTint,
-                            )
-                        }
-                        IconButton(
-                            onClick = { viewModel.toggleExifOverlay() },
-                            modifier = Modifier
-                                .size(40.dp)
-                                .testTag("info_exif_button"),
-                        ) {
-                            Icon(
-                                imageVector = Icons.Default.Info,
-                                contentDescription = "Toggle EXIF stats",
-                                tint = if (uiState.showExifOverlay) colors.primary else topIconTint,
-                            )
-                        }
+            PhoneModeTopBar(
+                showControls = isViewing,
+                showDoneWithCard = isViewing && uiState.sourceKind == SourceKind.REMOVABLE,
+                guideOpen = guideUp,
+                exifOverlayOn = uiState.showExifOverlay,
+                onToggleExif = { viewModel.toggleExifOverlay() },
+                onDoneWithCard = { viewModel.openCardDoneSheet() },
+                onReload = { viewModel.reloadSourceFolder() },
+                onHelp = {
+                    when {
+                        uiState.showGestureTutorial -> viewModel.dismissGestureTutorial()
+                        uiState.showControlsGuide -> viewModel.hideControlsGuide()
+                        else -> viewModel.showControlsGuide()
                     }
-                    IconButton(
-                        onClick = { showSettingsSheet = true },
-                        modifier = Modifier.size(40.dp),
-                    ) {
-                        Icon(
-                            imageVector = Icons.Default.Settings,
-                            contentDescription = "Settings",
-                            tint = topIconTint,
-                        )
-                    }
-                }
-            }
+                },
+                onSettings = { showSettingsSheet = true },
+                modifier = Modifier.align(Alignment.TopCenter),
+                anchors = guideAnchors,
+            )
 
             // ── Bottom action bar ────────────────────────────────────
             if (isViewing) {
@@ -739,6 +690,7 @@ fun PhoneModeScreen(
                     onJumpToSelection = openSelectionViewer,
                     onGoToLanding = { viewModel.goBackToLanding() },
                     modifier = Modifier.align(Alignment.BottomCenter),
+                    anchors = guideAnchors,
                 )
             }
         }
@@ -855,6 +807,8 @@ private fun SidePanelButton(
     isActive: Boolean,
     enabled: Boolean,
     onClick: () -> Unit,
+    modifier: Modifier = Modifier,
+    iconDescription: String = description,
 ) {
     val colors = MaterialTheme.colorScheme
     val tint = when {
@@ -863,8 +817,11 @@ private fun SidePanelButton(
         else -> colors.onSurface.copy(alpha = 0.25f)
     }
     Box(
-        modifier = Modifier
-            .size(width = 64.dp, height = 48.dp)
+        modifier = modifier
+            .size(
+                width = PhoneModeChromeMetrics.SIDE_PANEL_BUTTON_WIDTH,
+                height = PhoneModeChromeMetrics.SIDE_PANEL_BUTTON_HEIGHT,
+            )
             .then(
                 if (isActive) Modifier.clip(RoundedCornerShape(14.dp)).background(colors.primaryContainer)
                 else Modifier
@@ -884,7 +841,7 @@ private fun SidePanelButton(
         ) {
             Icon(
                 imageVector = icon,
-                contentDescription = description,
+                contentDescription = iconDescription,
                 tint = tint,
                 modifier = Modifier.size(20.dp),
             )

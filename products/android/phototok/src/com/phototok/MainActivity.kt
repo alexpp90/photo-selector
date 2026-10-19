@@ -1,7 +1,9 @@
 package com.phototok
 
+import android.graphics.Color
 import android.os.Bundle
 import androidx.activity.ComponentActivity
+import androidx.activity.SystemBarStyle
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
 import androidx.compose.foundation.layout.Box
@@ -20,7 +22,13 @@ class MainActivity : ComponentActivity() {
     @OptIn(ExperimentalComposeUiApi::class)
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        enableEdgeToEdge()
+        // PhotoTok is always dark: pin light system-bar icons. The default (auto) style follows
+        // the *system* theme and, in light mode, re-applied dark icons on a configuration change
+        // such as a rotation — dark on dark over the top bar (SystemBarAppearanceTest).
+        enableEdgeToEdge(
+            statusBarStyle = SystemBarStyle.dark(Color.TRANSPARENT),
+            navigationBarStyle = SystemBarStyle.dark(Color.TRANSPARENT),
+        )
         setContent {
             PhotoTokTheme {
                 Box(

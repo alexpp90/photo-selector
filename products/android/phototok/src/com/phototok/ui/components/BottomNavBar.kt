@@ -32,6 +32,10 @@ import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.phototok.ui.phonemode.ControlsGuideAnchors
+import com.phototok.ui.phonemode.GuideAnchor
+import com.phototok.ui.phonemode.PhoneModeChromeMetrics
+import com.phototok.ui.phonemode.guideAnchor
 
 enum class NavTab { Sources, Cards, History }
 
@@ -49,16 +53,23 @@ fun ViewerBottomBar(
     onJumpToSelection: () -> Unit,
     onGoToLanding: () -> Unit,
     modifier: Modifier = Modifier,
+    /** Registers the bar and its buttons for the controls guide's callouts. */
+    anchors: ControlsGuideAnchors? = null,
 ) {
     val colors = MaterialTheme.colorScheme
+    val metrics = PhoneModeChromeMetrics
 
     Row(
         modifier = modifier
             .fillMaxWidth()
+            .guideAnchor(anchors, GuideAnchor.BOTTOM_BAR)
             .clip(RoundedCornerShape(topStart = 12.dp, topEnd = 12.dp))
             .background(colors.surfaceContainerLowest.copy(alpha = 0.8f))
             .navigationBarsPadding()
-            .padding(horizontal = 24.dp, vertical = 6.dp)
+            .padding(
+                horizontal = metrics.BOTTOM_BAR_HORIZONTAL_PADDING,
+                vertical = metrics.BOTTOM_BAR_VERTICAL_PADDING,
+            )
             .testTag("viewer_bottom_bar"),
         horizontalArrangement = Arrangement.SpaceAround,
         verticalAlignment = Alignment.CenterVertically,
@@ -70,7 +81,7 @@ fun ViewerBottomBar(
             isActive = false,
             enabled = true,
             onClick = onGoToLanding,
-            modifier = Modifier.testTag("viewer_sources_button"),
+            modifier = Modifier.guideAnchor(anchors, GuideAnchor.SOURCES).testTag("viewer_sources_button"),
         )
         // Middle: Jump to selection folder
         ActionButton(
@@ -79,7 +90,7 @@ fun ViewerBottomBar(
             isActive = false,
             enabled = true,
             onClick = onJumpToSelection,
-            modifier = Modifier.testTag("viewer_selection_button"),
+            modifier = Modifier.guideAnchor(anchors, GuideAnchor.SELECTION).testTag("viewer_selection_button"),
         )
         // Right: Revert (restore pending deleted photo from trash)
         ActionButton(
@@ -88,7 +99,7 @@ fun ViewerBottomBar(
             isActive = canRevert,
             enabled = canRevert,
             onClick = onRevert,
-            modifier = Modifier.testTag("viewer_revert_button"),
+            modifier = Modifier.guideAnchor(anchors, GuideAnchor.REVERT).testTag("viewer_revert_button"),
         )
     }
 }
@@ -111,7 +122,10 @@ private fun ActionButton(
 
     Box(
         modifier = modifier
-            .size(width = 72.dp, height = 48.dp)
+            .size(
+                width = PhoneModeChromeMetrics.BOTTOM_BAR_BUTTON_WIDTH,
+                height = PhoneModeChromeMetrics.BOTTOM_BAR_BUTTON_HEIGHT,
+            )
             .then(
                 if (isActive) Modifier.clip(RoundedCornerShape(14.dp)).background(colors.primaryContainer)
                 else Modifier,

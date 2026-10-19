@@ -68,12 +68,14 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableFloatStateOf
+import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.setValue
 import androidx.compose.runtime.snapshotFlow
+import androidx.compose.runtime.withFrameNanos
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -160,6 +162,16 @@ fun PhoneModeViewer(
     collectionFolderName: String = "",
     showExifOverlay: Boolean = true,
     showPageCounter: Boolean = true,
+    /**
+     * Fades out the EXIF card and page counter, e.g. while a first-run hint or the controls
+     * guide covers the bottom of the screen.
+     */
+    bottomHudSuppressed: Boolean = false,
+    /**
+     * Hides the favourite / RAW+JPG badges under the top bar, where the controls guide puts
+     * its callouts, so they do not show through the guide's scrim behind the callout text.
+     */
+    topBadgesSuppressed: Boolean = false,
     /** True while the folder is still being enumerated (page count still grows). */
     isDiscovering: Boolean = false,
     readOnly: Boolean = false,
@@ -199,11 +211,20 @@ fun PhoneModeViewer(
         }
     }
 
-    // Sync pager → ViewModel
+    // Sync pager → ViewModel. Only a settle that ends a scroll is reported. The pager is keyed
+    // by URI, so when the list changes (delete, Revert, discovery) it re-indexes itself to
+    // follow the visible photo and `settledPage` changes *without* any scroll; the ViewModel has
+    // already chosen the index in that case and must not be overwritten (TOK-2).
+    val currentOnNavigate by rememberUpdatedState(onNavigate)
     LaunchedEffect(pagerState) {
-        snapshotFlow { pagerState.settledPage }.collect { page ->
-            onNavigate(page)
-        }
+        snapshotFlow { pagerState.isScrollInProgress }
+            .collect { scrolling ->
+                if (!scrolling) {
+                    // `settledPage` is updated as the scroll stops; read it a frame later.
+                    withFrameNanos { }
+                    if (!pagerState.isScrollInProgress) currentOnNavigate(pagerState.settledPage)
+                }
+            }
     }
 
     // U-15: 500ms dwell timer on settledPage marks photo as seen
@@ -223,11 +244,17 @@ fun PhoneModeViewer(
 
     // Sync ViewModel → pager. A copy advances the index from the ViewModel, so an
     // adjacent step is animated and reads as the swipe the user just made; larger
-    // jumps (position restore, index shifts after a delete) snap.
-    LaunchedEffect(currentIndex, images.size) {
+    // jumps (position restore, index shifts after a delete) and list-only changes (Revert
+    // re-inserting the photo under the pager) snap. It waits one frame so the URI-keyed pager
+    // has applied its key-follow before currentPage is compared with the ViewModel's index.
+    var lastSyncedIndex by remember { mutableIntStateOf(currentIndex) }
+    LaunchedEffect(currentIndex, images) {
+        val indexChanged = currentIndex != lastSyncedIndex
+        lastSyncedIndex = currentIndex
+        withFrameNanos { }
         val page = pagerState.currentPage
         if (page != currentIndex && currentIndex in images.indices) {
-            if (abs(currentIndex - page) == 1) {
+            if (indexChanged && abs(currentIndex - page) == 1) {
                 pagerState.animateScrollToPage(currentIndex)
             } else {
                 pagerState.scrollToPage(currentIndex)
@@ -274,6 +301,13 @@ fun PhoneModeViewer(
         label = "hud",
     )
 
+    val bottomHudFade by animateFloatAsState(
+        targetValue = if (bottomHudSuppressed) 0f else 1f,
+        animationSpec = tween(200),
+        label = "bottom-hud",
+    )
+    val bottomHudAlpha = hudAlpha * bottomHudFade
+
     val colors = MaterialTheme.colorScheme
     val currentImage = images.getOrNull(pagerState.currentPage)
 
@@ -317,9 +351,11 @@ fun PhoneModeViewer(
                 showPageCounter = showPageCounter,
                 isDiscovering = isDiscovering,
                 hudAlpha = hudAlpha,
+                bottomHudAlpha = bottomHudAlpha,
                 readOnly = readOnly,
                 showFloatingPeeks = showFloatingPeeks,
                 hasRawCompanion = pageItem.uri in rawCompanionUris,
+                topBadgesSuppressed = topBadgesSuppressed,
                 isFavourite = pageItem.uri in favouriteUris,
                 onFirstRunHint = onFirstRunHint,
                 onSingleTap = {
@@ -482,9 +518,11 @@ private fun ImagePage(
     showPageCounter: Boolean,
     isDiscovering: Boolean,
     hudAlpha: Float,
+    bottomHudAlpha: Float,
     readOnly: Boolean,
     showFloatingPeeks: Boolean,
     hasRawCompanion: Boolean,
+    topBadgesSuppressed: Boolean,
     isFavourite: Boolean,
     leftSwipeAction: SwipeAction,
     leftSwipeFolderName: String,
@@ -981,10 +1019,11 @@ private fun ImagePage(
         }
 
         // ── Persistent Favourite badge + RAW+JPG badge (top-start below app bar) ──
-        if ((isFavourite || hasRawCompanion) && hudAlpha > 0f) {
+        if ((isFavourite || hasRawCompanion) && hudAlpha > 0f && !topBadgesSuppressed) {
             Row(
                 modifier = Modifier
                     .align(Alignment.TopStart)
+                    .testTag("viewer.badges")
                     .statusBarsPadding()
                     .padding(start = 16.dp, top = 56.dp)
                     .graphicsLayer { alpha = hudAlpha },
@@ -1022,43 +1061,50 @@ private fun ImagePage(
             }
         }
 
-        // ── EXIF overlay (glassmorphic card, bottom-start) ───────────
-        if (showExifOverlay && hudAlpha > 0f) {
-            image.exifData?.let { exif ->
-                ExifOverlay(
-                    exif = exif,
-                    fileName = image.fileName,
-                    modifier = Modifier
-                        .align(Alignment.BottomStart)
-                        .navigationBarsPadding()
-                        .padding(start = 16.dp, bottom = 100.dp)
-                        .graphicsLayer { alpha = hudAlpha },
-                )
-            }
-        }
-
-        // ── Page counter (pill badge, bottom-end) ────────────────────
-        if (showPageCounter && hudAlpha > 0f) {
-            Surface(
+        // ── Bottom HUD: EXIF card (start) and page counter (end) in ONE row, so a wide
+        // card (large font scale) shrinks instead of running under the counter ─────────
+        val exifForRow = if (showExifOverlay) image.exifData else null
+        if (bottomHudAlpha > 0f && (exifForRow != null || showPageCounter)) {
+            Row(
                 modifier = Modifier
-                    .align(Alignment.BottomEnd)
+                    .align(Alignment.BottomCenter)
+                    .fillMaxWidth()
                     .navigationBarsPadding()
-                    .padding(end = 16.dp, bottom = 100.dp)
-                    .graphicsLayer { alpha = hudAlpha },
-                shape = RoundedCornerShape(50),
-                color = colors.surfaceContainerHigh.copy(alpha = 0.8f),
-                border = androidx.compose.foundation.BorderStroke(
-                    1.dp,
-                    colors.outline.copy(alpha = 0.2f),
-                ),
+                    .padding(start = 16.dp, end = 16.dp, bottom = 100.dp)
+                    .graphicsLayer { alpha = bottomHudAlpha },
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.Bottom,
             ) {
-                Text(
-                    text = "${pageIndex + 1} / $totalCount" + if (isDiscovering) "+" else "",
-                    style = MaterialTheme.typography.labelMedium,
-                    color = colors.primary,
-                    fontWeight = FontWeight.Bold,
-                    modifier = Modifier.padding(horizontal = 14.dp, vertical = 6.dp),
-                )
+                if (exifForRow != null) {
+                    ExifOverlay(
+                        exif = exifForRow,
+                        fileName = image.fileName,
+                        modifier = Modifier
+                            .weight(1f, fill = false)
+                            .padding(end = 8.dp),
+                    )
+                } else {
+                    Spacer(modifier = Modifier.width(0.dp))
+                }
+                if (showPageCounter) {
+                    Surface(
+                        modifier = Modifier.testTag("viewer.counter"),
+                        shape = RoundedCornerShape(50),
+                        color = colors.surfaceContainerHigh.copy(alpha = 0.8f),
+                        border = androidx.compose.foundation.BorderStroke(
+                            1.dp,
+                            colors.outline.copy(alpha = 0.2f),
+                        ),
+                    ) {
+                        Text(
+                            text = "${pageIndex + 1} / $totalCount" + if (isDiscovering) "+" else "",
+                            style = MaterialTheme.typography.labelMedium,
+                            color = colors.primary,
+                            fontWeight = FontWeight.Bold,
+                            modifier = Modifier.padding(horizontal = 14.dp, vertical = 6.dp),
+                        )
+                    }
+                }
             }
         }
     }
