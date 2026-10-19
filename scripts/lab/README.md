@@ -20,8 +20,8 @@ python3 scripts/lab/lab.py run --product phototok --no-build        # reuse this
 ```
 
 `--no-build` skips Gradle, not the check: the last build writes `lab-build.json` next to each
-APK (a fingerprint of `products/android` as committed plus uncommitted changes, and the APK's
-hash). The run refuses when the tree changed since that build, and installs that build on a
+APK (a fingerprint of `products/android` as it is on disk, without the modules' `tests/` that
+hold these flows, and the APK's hash). The run refuses when the tree changed since that build, and installs that build on a
 device whose installed `base.apk` hashes differently.
 
 **One run at a time per hub.** A run holds `<lab tmp root>/android-hub.lock` while it drives

@@ -23,6 +23,8 @@ RunFn = Callable[[list[str], Path], subprocess.CompletedProcess[str]]
 
 # Written next to each APK by `build_lab_apks`: which tree it was built from and its hash.
 STAMP_NAME = "lab-build.json"
+# What the `.lab` APKs are built from: the Android tree without the modules' test sources.
+APK_PATHSPEC = ("products/android", ":(exclude)products/android/*/tests/*")
 
 
 def android_sdk_env() -> dict[str, str]:
@@ -57,16 +59,17 @@ def apk_path(product: str, root: Path | None = None) -> Path:
 
 
 def tree_fingerprint(root: Path | None = None, run: RunFn | None = None) -> str:
-    """products/android as committed at HEAD plus every uncommitted change in it, as one hash.
+    """products/android as it is on disk (index, unstaged changes, untracked files), as one hash.
 
     Two trees with the same fingerprint build the same `.lab` APKs; the build stamp records it.
-    A commit outside products/android (docs, the lab itself) keeps the fingerprint.
+    A change outside what goes into the APK (docs, the lab, the modules' `tests/`, which hold the
+    e2e flows) keeps the fingerprint.
     """
     r = root or repo_root()
     git = run or (lambda cmd, cwd: subprocess.run(cmd, cwd=cwd, capture_output=True, text=True, check=False))
-    head = git(["git", "rev-parse", "HEAD:products/android"], r).stdout.strip()
-    diff = git(["git", "diff", "HEAD", "--binary", "--", "products/android"], r).stdout
-    untracked = git(["git", "ls-files", "--others", "--exclude-standard", "--", "products/android"], r).stdout
+    head = git(["git", "ls-files", "-s", "--", *APK_PATHSPEC], r).stdout  # the index: committed + staged
+    diff = git(["git", "diff", "--binary", "--", *APK_PATHSPEC], r).stdout  # unstaged changes
+    untracked = git(["git", "ls-files", "--others", "--exclude-standard", "--", *APK_PATHSPEC], r).stdout
     h = hashlib.sha256()
     for part in (head, diff, untracked):
         h.update(part.encode("utf-8", errors="replace") + b"\0")
@@ -74,7 +77,7 @@ def tree_fingerprint(root: Path | None = None, run: RunFn | None = None) -> str:
         p = r / rel
         if p.is_file():
             h.update(p.read_bytes())
-    return f"{head[:12]}-{h.hexdigest()[:16]}"
+    return h.hexdigest()[:24]
 
 
 def _file_sha256(path: Path) -> str:

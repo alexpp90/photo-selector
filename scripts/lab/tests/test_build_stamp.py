@@ -133,6 +133,16 @@ class TestNoBuild(unittest.TestCase):
         self.commit("docs")
         self.assertEqual(self.check(FakePhone(sha)), (True, None))
 
+    def test_a_flow_change_keeps_the_build(self) -> None:
+        # The e2e flows live in products/android/<module>/tests/e2e/ but are not in the APK.
+        sha = self.build()
+        flow = self.root / "products" / "android" / "phototok" / "tests" / "e2e" / "_ensure_folder.yaml"
+        flow.parent.mkdir(parents=True)
+        flow.write_text("appId: com.phototok.lab\n")
+        self.assertEqual(self.check(FakePhone(sha)), (True, None))
+        self.commit("flow")
+        self.assertEqual(self.check(FakePhone(sha)), (True, None))
+
     def test_the_stamp_names_the_tree_the_apk_was_built_from(self) -> None:
         before = tree_fingerprint(self.root)
         sha = self.build()

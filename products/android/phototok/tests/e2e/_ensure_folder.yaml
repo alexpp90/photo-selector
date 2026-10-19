@@ -11,46 +11,57 @@ appId: com.phototok.lab
 # The landing is one scroll column: logo, sources, recent folders, then "Start browsing". On the
 # 5.2" Xperia XA2 both the start button and the "Folder or Cloud" card are below the fold, so
 # neither is visible until the column is scrolled (LAB-23, 2026-10-19: every Xperia journey
-# flow-broken). A cold start always shows the landing (the feed appears only once photos load),
-# so scrolling here never moves the feed.
+# flow-broken). With a folder set the app usually resumes straight into the feed, often under a
+# dialog window, and a scroll there swipes through photos (2026-10-19, Pixel 4a). So the scrolls
+# run only when the landing's hero logo (content description "Logo", the landing's first item,
+# visible in every orientation) was on screen first. Never guard them with `when: visible` of
+# their own target: they exist for the screen where it is off screen.
 - runFlow:
     when:
-      notVisible:
-        id: "landing_start_browsing_button"
+      visible:
+        text: "Logo"
     commands:
-      - scrollUntilVisible:
-          element:
-            id: "landing_start_browsing_button"
-          centerElement: true
-          visibilityPercentage: 100
-          timeout: 6000
-          optional: true
-# No start button and no "access lost" prompt: no folder yet. The column is now scrolled to its
-# end, so the card is on screen or above it. Never guard this scroll with `when: visible` of the
-# card: the scroll exists for the screen where the card is off screen. It runs before the
-# reselect branch, so it never runs after a picker has already opened the feed.
+      - evalScript: ${output.onLanding = true}
 - runFlow:
     when:
-      notVisible:
-        id: "landing_start_browsing_button"
+      true: ${output.onLanding}
     commands:
       - runFlow:
           when:
             notVisible:
-              id: "reselect_folder_button"
+              id: "landing_start_browsing_button"
           commands:
-            # The card's centre can sit under the navigation bar (Pixel 4a, 2026-10-18): a tap
-            # there opened no picker. Scroll it fully into view first.
             - scrollUntilVisible:
                 element:
-                  id: "landing_custom_folder_card"
-                direction: UP
+                  id: "landing_start_browsing_button"
                 centerElement: true
                 visibilityPercentage: 100
-                timeout: 10000
-            - tapOn:
-                id: "landing_custom_folder_card"
-            - runFlow: _pick_work_folder.yaml
+                timeout: 6000
+                optional: true
+      # No start button and no "access lost" prompt: no folder yet. The column is now scrolled
+      # to its end, so the card is on screen or above it.
+      - runFlow:
+          when:
+            notVisible:
+              id: "landing_start_browsing_button"
+          commands:
+            - runFlow:
+                when:
+                  notVisible:
+                    id: "reselect_folder_button"
+                commands:
+                  # The card's centre can sit under the navigation bar (Pixel 4a, 2026-10-18): a
+                  # tap there opened no picker. Scroll it fully into view first.
+                  - scrollUntilVisible:
+                      element:
+                        id: "landing_custom_folder_card"
+                      direction: UP
+                      centerElement: true
+                      visibilityPercentage: 100
+                      timeout: 10000
+                  - tapOn:
+                      id: "landing_custom_folder_card"
+                  - runFlow: _pick_work_folder.yaml
 - runFlow:
     when:
       visible:
