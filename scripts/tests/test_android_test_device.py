@@ -36,6 +36,71 @@ class AttachedSerialsTest(unittest.TestCase):
         self.assertEqual(atd.attached_serials("List of devices attached\n"), [])
 
 
+LONG_LISTING = """List of devices attached
+13171JEC200817         device usb:1-2.4 product:sunfish model:Pixel_4a device:sunfish transport_id:159
+CQ30012CMV             device usb:1-4 product:H3113 model:H3113 device:H3113 transport_id:41
+ZY22MQCBL6             unauthorized usb:1-2.1 transport_id:160
+192.168.0.221:41765    device product:sunfish model:Pixel_4a device:sunfish transport_id:72
+adb-ZY22MQCBL6-M2Jjof._adb-tls-connect._tcp device product:naples_g_syseh model:moto_g77 transport_id:67
+emulator-5554          device product:sdk_gphone_x86_64 model:sdk_gphone_x86_64 transport_id:94
+"""
+
+
+class UsbSerialsTest(unittest.TestCase):
+    def test_only_usable_usb_transports_are_listed(self):
+        # Wireless (host:port, mDNS) and the emulator carry no usb: field; unauthorized is unusable.
+        self.assertEqual(atd.usb_serials(LONG_LISTING), ["13171JEC200817", "CQ30012CMV"])
+
+    def test_empty_listing(self):
+        self.assertEqual(atd.usb_serials("List of devices attached\n"), [])
+
+
+class ResolveExtraSerialsTest(unittest.TestCase):
+    on_usb = ["13171JEC200817", "CQ30012CMV"]
+
+    def resolve(self, value, primary="CQ30012CMV"):
+        return atd.resolve_extra_serials({atd.EXTRA_SERIALS_PROPERTY: value}, self.on_usb, primary)
+
+    def test_usb_devices_are_used_and_absent_ones_reported(self):
+        self.assertEqual(self.resolve("13171JEC200817, ZY22MQCBL6"), (["13171JEC200817"], ["ZY22MQCBL6"]))
+
+    def test_the_primary_device_and_duplicates_are_dropped(self):
+        self.assertEqual(self.resolve("CQ30012CMV,13171JEC200817,,13171JEC200817"), (["13171JEC200817"], []))
+
+    def test_a_wireless_serial_never_counts_as_usb(self):
+        self.assertEqual(self.resolve("192.168.0.221:41765"), ([], ["192.168.0.221:41765"]))
+
+    def test_no_property_means_no_extra_devices(self):
+        self.assertEqual(atd.resolve_extra_serials({}, self.on_usb, None), ([], []))
+
+
+class ExtraSerialsCommandTest(unittest.TestCase):
+    def test_usable_on_stdout_and_absent_tagged_on_stderr(self):
+        out, err = io.StringIO(), io.StringIO()
+        with mock.patch.object(atd, "select", return_value=("CQ30012CMV", True, "designated")), \
+                mock.patch.object(atd, "extra_serials", return_value=(["13171JEC200817"], ["ZY22MQCBL6"])) as extra, \
+                redirect_stdout(out), redirect_stderr(err):
+            self.assertEqual(atd.main(["extra-serials"]), 0)
+        extra.assert_called_once_with("CQ30012CMV")
+        self.assertEqual(out.getvalue(), "13171JEC200817\n")
+        self.assertEqual(err.getvalue(), "absent ZY22MQCBL6\n")
+
+    def test_reads_the_property_and_lists_usb_devices(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            props = Path(tmp) / "local.properties"
+            props.write_text(f"{atd.EXTRA_SERIALS_PROPERTY}=13171JEC200817,ZY22MQCBL6\n", encoding="utf-8")
+            calls = []
+
+            def runner(cmd):
+                calls.append(cmd)
+                return 0, LONG_LISTING
+
+            with mock.patch.object(atd, "LOCAL_PROPERTIES", props), \
+                    mock.patch.object(atd.shutil, "which", return_value="/usr/bin/adb"):
+                self.assertEqual(atd.extra_serials("CQ30012CMV", runner), (["13171JEC200817"], ["ZY22MQCBL6"]))
+        self.assertEqual(calls, [["adb", "devices", "-l"]])
+
+
 class ResolveSerialTest(unittest.TestCase):
     attached = ["CQ30012CMV", "192.168.0.117:46567"]
 
@@ -126,6 +191,32 @@ class PrepareTest(unittest.TestCase):
         self.assertFalse(atd.ensure_root("S", runner))
         with redirect_stdout(io.StringIO()):
             self.assertEqual(atd.prepare("S", runner), 0)
+
+
+class KeyguardTest(unittest.TestCase):
+    @staticmethod
+    def runner(window):
+        def run(cmd):
+            return (0, window) if cmd[-2:] == ["dumpsys", "window"] else (0, "")
+        return run
+
+    def test_keyguard_state_is_read_from_dumpsys_window(self):
+        self.assertTrue(atd.keyguard_showing("S", self.runner("  isKeyguardShowing=true\n")))
+        self.assertFalse(atd.keyguard_showing("S", self.runner("  isKeyguardShowing=false\n")))
+        self.assertIsNone(atd.keyguard_showing("S", self.runner("no such field")))
+
+    def test_a_secure_lock_that_survives_prepare_is_a_failure(self):
+        # locksettings set-disabled "succeeds" on a PIN-locked phone; the keyguard check catches it.
+        out = io.StringIO()
+        with redirect_stdout(out):
+            failures = atd.prepare("S", self.runner("isKeyguardShowing=true"))
+        self.assertEqual(failures, 1)
+        self.assertIn("lock screen still showing", out.getvalue())
+
+    def test_locked_command_exit_status(self):
+        for showing, code in ((True, 0), (False, 1), (None, 1)):
+            with mock.patch.object(atd, "keyguard_showing", return_value=showing):
+                self.assertEqual(atd.main(["locked", "--serial", "S"]), code)
 
 
 class MayReconfigureTest(unittest.TestCase):

@@ -373,15 +373,24 @@ class AndroidDevicesTest(unittest.TestCase):
     def devices(self, env):
         with mock.patch.object(vr, "run", self.fake_run), \
                 mock.patch.object(vr.shutil, "which", return_value="/usr/bin/adb"), \
-                mock.patch.dict(os.environ, env, clear=False):
+                mock.patch.dict(os.environ, {}, clear=False):
+            # run_tests.sh exports both while it runs this suite; keep the real ones out.
+            for key in ("ANDROID_SERIAL", "PST_TESTED_SERIALS"):
+                os.environ.pop(key, None)
+            os.environ.update(env)
             return vr.android_devices()
 
     def test_only_the_device_under_test_is_reported(self):
         self.assertEqual([d["model"] for d in self.devices({"ANDROID_SERIAL": "TESTDEV"})], ["model-TESTDEV"])
 
+    def test_every_device_the_suite_ran_on_is_reported(self):
+        env = {"ANDROID_SERIAL": "TESTDEV", "PST_TESTED_SERIALS": "TESTDEV,PERSONAL"}
+        self.assertEqual([d["model"] for d in self.devices(env)], ["model-TESTDEV", "model-PERSONAL"])
+
     def test_every_attached_device_without_android_serial(self):
         with mock.patch.dict(os.environ, {}, clear=False):
             os.environ.pop("ANDROID_SERIAL", None)
+            os.environ.pop("PST_TESTED_SERIALS", None)
             models = [d["model"] for d in self.devices({})]
         self.assertEqual(models, ["model-TESTDEV", "model-PERSONAL"])
 
