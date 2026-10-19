@@ -75,19 +75,19 @@ Thomas A Caswell <matplotlib-users@python.org>
 https://matplotlib.org/cycler/
 
 fonttools
-4.62.1
+4.65.0
 MIT
 Just van Rossum
 http://github.com/fonttools/fonttools
 
 kiwisolver
-1.5.0
+1.5.1
 BSD License
 The Nucleic Development Team <sccolbert@gmail.com>
 https://github.com/nucleic/kiwi
 
 matplotlib
-3.10.8
+3.10.9
 Python Software Foundation License
 John D. Hunter, Michael Droettboom
 https://matplotlib.org
@@ -99,55 +99,55 @@ Travis E. Oliphant et al.
 https://numpy.org
 
 opencv-python
-4.13.0.92
+4.14.0.94
 Apache Software License
 UNKNOWN
 https://github.com/opencv/opencv-python
 
 packaging
-26.0
+26.3
 Apache-2.0 OR BSD-2-Clause
 Donald Stufft <donald@stufft.io>
 https://github.com/pypa/packaging
 
 pillow
-12.1.1
+12.3.0
 MIT-CMU
 "Jeffrey A. Clark" <aclark@aclark.net>
 https://python-pillow.github.io
 
 pyobjc-core
-12.2.1
+12.2.2
 MIT
 Ronald Oussoren, bbum, SteveM, LeleG, many others stretching back through the reaches of time...
 https://github.com/ronaldoussoren/pyobjc
 
 pyobjc-framework-Cocoa
-12.2.1
+12.2.2
 MIT
 Ronald Oussoren
 https://github.com/ronaldoussoren/pyobjc
 
 pyobjc-framework-CoreML
-12.2.1
+12.2.2
 MIT
 Ronald Oussoren
 https://github.com/ronaldoussoren/pyobjc
 
 pyobjc-framework-Quartz
-12.2.1
+12.2.2
 MIT
 Ronald Oussoren
 https://github.com/ronaldoussoren/pyobjc
 
 pyobjc-framework-Vision
-12.2.1
+12.2.2
 MIT
 Ronald Oussoren
 https://github.com/ronaldoussoren/pyobjc
 
 pyparsing
-3.3.2
+3.3.3
 MIT
 Paul McGuire <ptmcg.gm+pyparsing@gmail.com>
 https://github.com/pyparsing/pyparsing/
@@ -159,7 +159,7 @@ Gustavo Niemeyer
 https://github.com/dateutil/dateutil
 
 rawpy
-0.26.1
+0.27.1
 MIT License
 Maik Riechert
 https://github.com/letmaik/rawpy
@@ -171,7 +171,7 @@ Benjamin Peterson
 https://github.com/benjaminp/six
 
 tqdm
-4.67.3
+4.70.1
 MPL-2.0 AND MIT
 UNKNOWN
 https://tqdm.github.io
