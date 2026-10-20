@@ -1,9 +1,7 @@
 <div align="center">
-  <img src="assets/logo.png" alt="Photo Selector Toolbox Logo" width="160" />
+  # Jackpix · Frameduel · Lensjet · Blitzlens
 
-  # Photo Selector Toolbox
-
-  **The ultimate multi-platform ecosystem to cull, analyze, and organize your photo libraries with blazing speed — built natively for Mobile, Tablet, Mac, and Linux.**
+  **Four native apps to cull, compare and organize your photos at speed — one each for Android phones, Android tablets & DeX, the Mac and GNOME. Private and offline.**
 
   [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
   [![Kotlin](https://img.shields.io/badge/Kotlin-2.0%2B-7F52FF?logo=kotlin&logoColor=white)](https://kotlinlang.org/)
@@ -18,14 +16,14 @@
   [![Linux](https://img.shields.io/badge/Linux-FCC624?logo=linux&logoColor=black)](#-linux-desktop-installation)
 
   <br />
-  <img src="assets/banner.png" alt="Photo Selector Toolbox Banner" width="800" style="border-radius: 12px; box-shadow: 0 4px 20px rgba(0,0,0,0.3);" />
+  <img src="assets/banner.png" alt="The Jackpix, Frameduel, Lensjet and Blitzlens app icons" width="800" style="border-radius: 12px; box-shadow: 0 4px 20px rgba(0,0,0,0.3);" />
 </div>
 
 ---
 
-## 🌟 The Ecosystem at a Glance
+## 🌟 The Apps at a Glance
 
-**Photo Selector Toolbox** is a privacy-first, high-velocity photo culling and metadata analysis suite designed for professional photographers, enthusiasts, and creators. Whether sorting on the go on your phone, reviewing burst sequences on a tablet, or performing intensive multi-thousand RAW triage at your desktop workstation, every product is built natively for its platform.
+**Jackpix**, **Frameduel**, **Lensjet** and **Blitzlens** are privacy-first, high-velocity photo culling and metadata analysis apps for professional photographers, enthusiasts, and creators. Whether sorting on the go on your phone, reviewing burst sequences on a tablet, or performing intensive multi-thousand RAW triage at your desktop workstation, each app is built natively for its platform. The original multi-platform Python app, **Photo Selector Toolbox (Legacy)**, stays here as an archived reference.
 
 > 🔒 **100% Private & Strictly Offline:** Your photos never leave your device. All EXIF parsing, duplicate detection, and optical/aesthetic quality scoring (including Apple Neural Engine and local TFLite models) execute strictly on-device. Zero cloud uploads, zero telemetry, and no account required.
 
@@ -37,15 +35,15 @@ The repository ships **five products** (four active native solutions alongside t
 
 | Product | Directory | Tech Stack | Target Environment | Primary UX Paradigm | Docs |
 | :--- | :--- | :--- | :--- | :--- | :--- |
-| 📱 **PhotoTok** | `products/android/phototok/` | Kotlin, Compose, DataStore | Portrait phones ($< 600$dp) | Gesture-first vertical swipe feed | [docs](docs/products/phototok/README.md) |
-| 🖥️ **Android Desktop** | `products/android/android-desktop/` | Kotlin, Compose, Room, OpenCV | Samsung DeX, tablets ($\ge 840$dp) | 1-over-2 three-frame layout, sidebar & controls | [docs](docs/products/android-desktop/README.md) |
-| 🍎 **macOS Desktop** | `products/macos-desktop/` | Swift 6, SwiftUI, Vision, Accelerate | macOS 14+ / 15+ Apple Silicon & Intel | Maximized preview (>85%), Apple Vision aesthetics | [docs](docs/products/macos-desktop/README.md) |
-| 🐧 **Linux Desktop** | `products/linux-desktop/` | Python 3.12+, GTK4, Libadwaita | Debian 13 (Trixie), GNOME 46+ | Libadwaita dark studio, 1/2/3-Up canvas, NumPy (<2ms) | [docs](docs/products/linux-desktop/README.md) |
-| 📦 **Desktop (Legacy)** | `products/desktop/src/` | Python 3.10+, Tkinter | macOS, Windows, Linux | Split view, menu/hotkeys (archived reference) | [docs](docs/products/desktop/README.md) |
+| 📱 **Jackpix** | `products/android/phototok/` | Kotlin, Compose, DataStore | Portrait phones ($< 600$dp) | Gesture-first vertical swipe feed | [docs](docs/products/phototok/README.md) |
+| 🖥️ **Frameduel** (Android Desktop) | `products/android/android-desktop/` | Kotlin, Compose, Room, OpenCV | Samsung DeX, tablets ($\ge 840$dp) | 1-over-2 three-frame layout, sidebar & controls | [docs](docs/products/android-desktop/README.md) |
+| 🍎 **Lensjet** (macOS Desktop) | `products/macos-desktop/` | Swift 6, SwiftUI, Vision, Accelerate | macOS 14+ / 15+ Apple Silicon & Intel | Maximized preview (>85%), Apple Vision aesthetics | [docs](docs/products/macos-desktop/README.md) |
+| 🐧 **Blitzlens** (Linux Desktop) | `products/linux-desktop/` | Python 3.12+, GTK4, Libadwaita | Debian 13 (Trixie), GNOME 46+ | Libadwaita dark studio, 1/2/3-Up canvas, NumPy (<2ms) | [docs](docs/products/linux-desktop/README.md) |
+| 📦 **Photo Selector Toolbox (Legacy)** | `products/desktop/src/` | Python 3.10+, Tkinter | macOS, Windows, Linux | Split view, menu/hotkeys (archived reference) | [docs](docs/products/desktop/README.md) |
 | *(shared library)* | `products/android/core/` | Kotlin | — | EXIF model + readers used by both Android products | [docs](docs/shared/README.md) |
 | *(shared library)* | `products/android/saf/` | Kotlin | — | SAF copy/move engine + folder grants used by both Android products | [docs](docs/shared/README.md) |
 
-Naming matters here — "the Android app" is ambiguous. Canonical names, slugs, and package mappings are defined in [`docs/GLOSSARY.md`](docs/GLOSSARY.md).
+Naming matters here — "the Android app" is ambiguous. Canonical names, slugs, and package mappings are defined in [`docs/GLOSSARY.md`](docs/GLOSSARY.md); names, icons and colours in [`docs/shared/BRANDING.md`](docs/shared/BRANDING.md).
 
 ### Repository Map
 
@@ -56,26 +54,26 @@ Everything else at the repository root is genuinely cross-product.
 ```
 products/
   android/                   Gradle build root for both Android products
-    phototok/                  PhotoTok (Phone)       — src/ tests/ res/ AndroidManifest.xml
-    android-desktop/           Android Desktop (DeX)  — src/ tests/ res/ AndroidManifest.xml
+    phototok/                  Jackpix (Phone)        — src/ tests/ res/ AndroidManifest.xml
+    android-desktop/           Frameduel (DeX)        — src/ tests/ res/ AndroidManifest.xml
     core/                      :core — EXIF model + readers, shared by both Android products
     saf/                       :saf — SAF file operations, shared by both Android products
-  macos-desktop/             Native macOS Desktop   — src/ tests/ Package.swift
-  linux-desktop/             Native Linux Desktop   — src/ tests/ debian/ scripts/ pyproject.toml
+  macos-desktop/             Lensjet (macOS)        — src/ tests/ Package.swift
+  linux-desktop/             Blitzlens (GNOME)      — src/ tests/ debian/ scripts/ pyproject.toml
   desktop/                   Archived Legacy Desktop— src/ tests/ benchmarks/ scripts/ pyproject.toml
 docs/                        Product documentation, per product -> docs/README.md
 scripts/                     Cross-product tooling — run_tests.sh (local CI mirror)
-assets/                      Shared visual branding and screenshots
+assets/                      Screenshots, banner; brand/ holds icon masters, palette and generator
 ```
 
 ---
 
-## 📱 1. PhotoTok (Phone)
+## 📱 1. Jackpix (Phone)
 
 A lightweight, touch-optimized portrait client designed for lightning-fast, single-handed photo curation on your phone.
 
 <div align="center">
-  <img src="assets/phototok_02_viewer.png" alt="PhotoTok Mobile Culling Interface" width="360" style="border-radius: 12px; box-shadow: 0 4px 20px rgba(0,0,0,0.3); margin-bottom: 12px;" />
+  <img src="assets/phototok_02_viewer.png" alt="Jackpix Mobile Culling Interface" width="360" style="border-radius: 12px; box-shadow: 0 4px 20px rgba(0,0,0,0.3); margin-bottom: 12px;" />
   <p><em>Vertical gesture culling with a glassmorphic EXIF HUD, responsive swipe feedback, and coach marks</em></p>
 </div>
 
@@ -91,12 +89,12 @@ A lightweight, touch-optimized portrait client designed for lightning-fast, sing
 
 ---
 
-## 🖥️ 2. Android Desktop (Tablet & Samsung DeX)
+## 🖥️ 2. Frameduel — Android Desktop (Tablet & Samsung DeX)
 
 Built specifically for large-screen tablets (≥ 840 dp) and desktop environments like Samsung DeX, providing a complete studio workstation on Android.
 
 <div align="center">
-  <img src="assets/android_desktop_screenshot.png" alt="Android Desktop Layout" width="750" style="border-radius: 10px; box-shadow: 0 4px 20px rgba(0,0,0,0.3); margin-bottom: 12px;" />
+  <img src="assets/android_desktop_screenshot.png" alt="Frameduel Layout" width="750" style="border-radius: 10px; box-shadow: 0 4px 20px rgba(0,0,0,0.3); margin-bottom: 12px;" />
   <p><em>Galaxy Tab S11 Ultra 1-over-2 layout: Current frame centered with optical readouts and controls; Previous/Next below</em></p>
 </div>
 
@@ -111,12 +109,12 @@ Built specifically for large-screen tablets (≥ 840 dp) and desktop environment
 
 ---
 
-## 🍎 3. Native macOS Desktop (Swift & SwiftUI)
+## 🍎 3. Lensjet — Native macOS Desktop (Swift & SwiftUI)
 
 A high-performance native macOS photo selection and comparison culling suite built with Swift 6 and SwiftUI, engineered for high-throughput SD-card ingestion and instant triage.
 
 <div align="center">
-  <img src="assets/macos_desktop_screenshot.png" alt="macOS Desktop Culling Workspace" width="750" style="border-radius: 10px; box-shadow: 0 4px 20px rgba(0,0,0,0.3); margin-bottom: 12px;" />
+  <img src="assets/macos_desktop_screenshot.png" alt="Lensjet Culling Workspace" width="750" style="border-radius: 10px; box-shadow: 0 4px 20px rgba(0,0,0,0.3); margin-bottom: 12px;" />
   <p><em>Native macOS studio workspace with floating Apple Vision HUD pill, 1-Up maximized canvas, and tactile action bar</em></p>
 </div>
 
@@ -130,14 +128,14 @@ A high-performance native macOS photo selection and comparison culling suite bui
 
 ---
 
-## 🐧 4. Linux Desktop (GNOME 46+ & Libadwaita)
+## 🐧 4. Blitzlens — Linux Desktop (GNOME 46+ & Libadwaita)
 
 A native GNOME photograph culling and selection suite targeting Debian 13 (Trixie) and modern Linux desktop environments adhering strictly to GNOME Human Interface Guidelines (HIG).
 
 <div align="center">
-  <img src="assets/linux_desktop_logo.svg" alt="Photo Selector Linux — Optical Cobalt Lens Logo" width="96" style="margin-bottom: 10px;" />
+  <img src="assets/brand/blitzlens/blitzlens.svg" alt="Blitzlens icon" width="96" style="margin-bottom: 10px;" />
   <br />
-  <img src="assets/linux_desktop_screenshot.png" alt="Linux Desktop Culling Workspace" width="750" style="border-radius: 10px; box-shadow: 0 4px 20px rgba(0,0,0,0.3); margin-bottom: 12px;" />
+  <img src="assets/linux_desktop_screenshot.png" alt="Blitzlens Culling Workspace" width="750" style="border-radius: 10px; box-shadow: 0 4px 20px rgba(0,0,0,0.3); margin-bottom: 12px;" />
   <p><em>Native GNOME 46 / Libadwaita Obsidian Darkroom &amp; Optical Cobalt workspace with segmented comparison controls, glassmorphic optical HUD with sharpness goodness bar, and semantic bottom action bar</em></p>
 </div>
 
@@ -151,7 +149,7 @@ A native GNOME photograph culling and selection suite targeting Debian 13 (Trixi
 
 ---
 
-## 📦 5. Archived Legacy Desktop (Python & Tkinter)
+## 📦 5. Photo Selector Toolbox — Archived Legacy Desktop (Python & Tkinter)
 
 The original multi-platform desktop culling application built with Python and Tkinter, preserved as an archived reference implementation.
 
@@ -169,13 +167,13 @@ The original multi-platform desktop culling application built with Python and Tk
 
 ## 📊 Platform Feature Sync Matrix
 
-| Feature | PhotoTok (Phone) | Android Desktop (Tablet/DeX) | macOS Desktop (Swift) | Linux Desktop (GTK4/Adw) | Legacy Desktop (Py/Tk) | Notes |
+| Feature | Jackpix (Phone) | Frameduel (Tablet/DeX) | Lensjet (macOS) | Blitzlens (GTK4/Adw) | Legacy Desktop (Py/Tk) | Notes |
 | :--- | :---: | :---: | :---: | :---: | :---: | :--- |
-| **Review Layouts** | Vertical Pager | 1-over-2 Three-Frame | 1-Up / 2-Up / 3-Up | 1-Up / 2-Up / 3-Up | Standard / Focus | PhotoTok is gesture-first; Desktops provide multi-frame comparison. |
-| **Center Sharpness Score** | ❌ Omitted | ✅ (OpenCV) | ✅ (vImage + vDSP) | ✅ (NumPy Laplacian) | ✅ (OpenCV/NumPy) | 50% ROI Laplacian variance; omitted on PhotoTok for sub-second launch. |
+| **Review Layouts** | Vertical Pager | 1-over-2 Three-Frame | 1-Up / 2-Up / 3-Up | 1-Up / 2-Up / 3-Up | Standard / Focus | Jackpix is gesture-first; the desktop apps provide multi-frame comparison. |
+| **Center Sharpness Score** | ❌ Omitted | ✅ (OpenCV) | ✅ (vImage + vDSP) | ✅ (NumPy Laplacian) | ✅ (OpenCV/NumPy) | 50% ROI Laplacian variance; omitted on Jackpix for sub-second launch. |
 | **Laplacian Noise (MAD)** | ❌ Omitted | ✅ (MAD) | ✅ (vImage MAD) | ✅ (NumPy MAD) | ✅ (MAD) | Median Absolute Deviation sensor noise floor subtraction. |
 | **Highlights/Shadows Clipping** | ❌ Omitted | ✅ (Histograms) | ✅ (vImage Hist) | ✅ (NumPy Hist) | ✅ (Histograms) | Hardware histogram thresholds $\ge 254$ and $\le 2$. |
-| **Aesthetic Scoring** | ❌ Excluded | ❌ Excluded | ✅ (Apple Vision ANE) | ❌ Excluded | ✅ (Local Ollama) | macOS uses Apple Neural Engine; Android Desktop scores technical quality only. |
+| **Aesthetic Scoring** | ❌ Excluded | ❌ Excluded | ✅ (Apple Vision ANE) | ❌ Excluded | ✅ (Local Ollama) | Lensjet uses the Apple Neural Engine; Frameduel scores technical quality only. |
 | **Star Ratings (1–5)** | ❌ Omitted | ✅ (Room DB v3) | ❌ Omitted | ❌ Omitted | ❌ Omitted | Rating, reject, and composition tracking in Room DB. |
 | **Score Caching** | ❌ Lightweight | ✅ (Room DB) | ❌ (Memory LRU) | ❌ (Memory LRU) | ✅ (SQLite) | Desktops rely on sub-2ms compute & memory LRU; Android uses Room. |
 | **Duplicate Detection** | ❌ Omitted | ✅ (Room DB) | ✅ (CryptoKit SHA) | ✅ (Streaming SHA) | ✅ (SHA-256) | Two-stage size pre-filtering and SHA-256 duplicate finder. |
@@ -186,22 +184,22 @@ The original multi-platform desktop culling application built with Python and Tk
 
 ## 🚀 Installation
 
-### 📱 Android Installation (PhotoTok & Android Desktop)
+### 📱 Android Installation (Jackpix & Frameduel)
 
 #### Option A: Obtainium (Direct Auto-Updates)
 1. Install [Obtainium](https://github.com/ImranOmarRashid/Obtainium) on your Android device.
 2. In Obtainium, click **Add App** and paste this repository's URL: `https://github.com/alexpp90/photo-selector`.
-3. Each product has its own releases, named `PhotoTok X.Y.Z` and `Android Desktop X.Y.Z`: set Obtainium's **Filter release titles by regular expression** to `^PhotoTok ` or `^Android Desktop ` (or allow pre-releases for the `nightly` build). Obtainium will download and install APK updates directly from GitHub Releases.
+3. Each app has its own releases, named `Jackpix X.Y.Z` and `Frameduel X.Y.Z`: set Obtainium's **Filter release titles by regular expression** to `^Jackpix ` or `^Frameduel ` (or allow pre-releases for the `nightly` build). Obtainium will download and install APK updates directly from GitHub Releases.
 
 #### Option B: GitHub Releases (Direct APK)
-Download the APK from the latest [PhotoTok](https://github.com/alexpp90/photo-selector/releases?q=phototok-v&expanded=true) or [Android Desktop](https://github.com/alexpp90/photo-selector/releases?q=android-desktop-v&expanded=true) release.
+Download the APK from the latest [Jackpix](https://github.com/alexpp90/photo-selector/releases?q=phototok-v&expanded=true) or [Frameduel](https://github.com/alexpp90/photo-selector/releases?q=android-desktop-v&expanded=true) release.
 
 ---
 
-### 🍎 macOS Desktop Installation
+### 🍎 Lensjet (macOS) Installation
 
 #### Homebrew Cask
-Install the native macOS desktop application via our Homebrew tap:
+Install Lensjet via the Homebrew tap:
 
 ```bash
 # Install directly in a single command
@@ -213,13 +211,13 @@ brew install --cask photo-selector-toolbox
 ```
 
 #### Standalone ZIP
-Download the pre-compiled `photo-selector-macos-apple-silicon.zip` from the latest [macOS Desktop release](https://github.com/alexpp90/photo-selector/releases?q=macos-desktop-v&expanded=true), unpack it, and drag `PhotoSelector.app` into `/Applications`.
+Download the pre-compiled `photo-selector-macos-apple-silicon.zip` from the latest [Lensjet release](https://github.com/alexpp90/photo-selector/releases?q=macos-desktop-v&expanded=true), unpack it, and drag `Lensjet.app` into `/Applications`.
 
 ---
 
-### 🐧 Linux Desktop Installation (Debian 13 Trixie)
+### 🐧 Blitzlens (Linux) Installation (Debian 13 Trixie)
 
-One line (adds the signed APT repository, then installs):
+One line (adds the signed APT repository, then installs; the Debian package keeps its name `photo-selector-linux`):
 
 ```bash
 curl -fsSL https://alexpp90.github.io/apt/setup.sh | sudo bash
@@ -273,7 +271,7 @@ Standalone archives are available on [GitHub Releases](https://github.com/alexpp
 
 ## 🛠️ Run from Source
 
-### 📱 Android Setup (PhotoTok & Android Desktop)
+### 📱 Android Setup (Jackpix & Frameduel)
 1. Open the repository root in **Android Studio Ladybug** (or newer).
 2. Ensure JDK 17 and Android SDK 36 are configured.
 3. Build the debug binaries:
@@ -282,10 +280,10 @@ Standalone archives are available on [GitHub Releases](https://github.com/alexpp
    ./gradlew assembleDebug
    ```
    Debug APKs are output to:
-   - PhotoTok: `products/android/phototok/build/outputs/apk/debug/`
-   - Android Desktop: `products/android/android-desktop/build/outputs/apk/debug/`
+   - Jackpix: `products/android/phototok/build/outputs/apk/debug/`
+   - Frameduel: `products/android/android-desktop/build/outputs/apk/debug/`
 
-### 🍎 macOS Desktop Setup (Swift 6)
+### 🍎 Lensjet Setup (Swift 6)
 1. Ensure Xcode 16+ or Command Line Tools with Swift 6 are installed.
 2. Build and run from `products/macos-desktop`:
    ```bash
@@ -294,7 +292,7 @@ Standalone archives are available on [GitHub Releases](https://github.com/alexpp
    swift run PhotoSelectorApp
    ```
 
-### 🐧 Linux Desktop Setup (Python & GTK4)
+### 🐧 Blitzlens Setup (Python & GTK4)
 1. Ensure Python 3.12+ and system GTK4 / Libadwaita libraries are installed:
    ```bash
    sudo apt install python3-gi python3-gi-cairo gir1.2-gtk-4.0 gir1.2-adw-1 libgexiv2-2
@@ -331,12 +329,12 @@ To verify all products against the exact gates CI enforces:
   ./gradlew testDebugUnitTest
   ./gradlew connectedDebugAndroidTest
   ```
-* **macOS Desktop (Swift 6):**
+* **Lensjet (Swift 6):**
   ```bash
   cd products/macos-desktop
   swift test
   ```
-* **Linux Desktop (Pytest):**
+* **Blitzlens (Pytest):**
   ```bash
   cd products/linux-desktop
   pytest tests/unit/
@@ -351,6 +349,6 @@ To verify all products against the exact gates CI enforces:
 
 ## 📄 License
 The source code is open source under the [MIT License](LICENSE).
-The names **Photo Selector Toolbox** and **PhotoTok** and the logos are not covered by that license — see [TRADEMARKS.md](TRADEMARKS.md) before distributing a modified build.
+The app names **Jackpix**, **Frameduel**, **Lensjet**, **Blitzlens** and **Photo Selector Toolbox** and the logos are not covered by that license — see [TRADEMARKS.md](TRADEMARKS.md) before distributing a modified build.
 Contributions are accepted under the [Contributor License Agreement](CLA.md), signed once with a PR comment.
 Third-party notices and licenses are detailed in [THIRDPARTY_NOTICES.txt](THIRDPARTY_NOTICES.txt).

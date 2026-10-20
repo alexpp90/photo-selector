@@ -1,0 +1,7 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 48 48" width="48" height="48">
+  <!-- Lensjet L-01 "Two-Dash Frame": a photo frame with two speed dashes. -->
+  <rect data-role="M" x="18" y="10" width="22" height="28" rx="3" fill="#FFF6EC"/>
+  <path data-role="K" d="M21 35L28.5 25.5L36 35Z" fill="#D7652D"/>
+  <rect data-role="M" x="5" y="15" width="10" height="5" rx="2.5" fill="#FFF6EC"/>
+  <rect data-role="A" x="9" y="27" width="6" height="5" rx="2.5" fill="#241A14"/>
+</svg>

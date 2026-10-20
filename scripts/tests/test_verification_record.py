@@ -218,7 +218,7 @@ class EvaluateTest(unittest.TestCase):
         linux = record([gate("PASS", "pytest (products/linux-desktop)", "linux", ci="linux.yml:test")])
         findings = vr.evaluate(self.body(linux), "n" * 40, ["products/linux-desktop/a.py"], False)
         self.assertIn("Stale record", self.titles(findings, "warning"))
-        self.assertIn("Linux Desktop: not verified", self.titles(findings, "warning"))
+        self.assertIn("Blitzlens (Linux Desktop): not verified", self.titles(findings, "warning"))
 
     def test_sandbox_only_is_reported(self):
         vm = record([gate("PASS", "readme parity", "repo", ci="repo-hygiene.yml:hygiene")],
