@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import datetime as dt
 import json
 import subprocess
 import time
@@ -31,6 +32,17 @@ def preflight_remote_mac(
     return False, "Mac asleep or pst-lab not logged in"
 
 
+def remote_run_id(run_id: str, now: dt.datetime | None = None) -> str:
+    """The Mac's run id: the hub run's name plus the trigger time, unique per trigger.
+
+    The Mac skips a trigger whose `~/pst/out/<id>/done` exists, and the hub polls for that
+    file. With the bare `--out` name a re-used name returned the old run's results at once,
+    which looked like a fresh pass (LAB-21, 2026-10-19).
+    """
+    stamp = (now or dt.datetime.now(dt.timezone.utc)).strftime("%Y%m%dT%H%M%S")
+    return f"{run_id}-{stamp}"
+
+
 def trigger_remote_mac_run(
     host: str,
     run_id: str,
@@ -42,12 +54,21 @@ def trigger_remote_mac_run(
     timeout_s: float = 1800.0,
     poll_interval_s: float = 5.0,
     run_cmd: Callable[[list[str]], subprocess.CompletedProcess[str]] | None = None,
+    now: dt.datetime | None = None,
 ) -> tuple[bool, str | None]:
-    """Write ~/pst/trigger/run.json on remote Mac, poll for ~/pst/out/<run_id>/done, and rsync back."""
+    """Write ~/pst/trigger/run.json on remote Mac, poll for ~/pst/out/<id>/done, and rsync back.
+
+    `<id>` is `remote_run_id(run_id)`, never an earlier run's: a remote out dir that already
+    exists is refused rather than read.
+    """
     runner = run_cmd or (lambda c: subprocess.run(c, capture_output=True, text=True, check=False))
     ok, reason = preflight_remote_mac(host, user=user, run_cmd=runner)
     if not ok:
         return False, reason
+    run_id = remote_run_id(run_id, now)
+    exists = runner(["ssh", "-o", "ConnectTimeout=5", f"{user}@{host}", f"test -e ~/pst/out/{run_id} && echo exists"])
+    if "exists" in (exists.stdout or ""):
+        return False, f"~/pst/out/{run_id} already exists on {host}; refusing to read an earlier run's results"
 
     payload: dict[str, Any] = {
         "run_id": run_id,

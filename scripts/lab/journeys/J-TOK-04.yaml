@@ -5,6 +5,7 @@ fixture: smoke
 configs: [phone-portrait]
 fresh_install: false
 steps:
+  - {checkpoint: start}
   - {maestro: products/android/phototok/tests/e2e/J-TOK-04/01_swipe_left_and_confirm.yaml}
   - {background: 5000}
   - {maestro: products/android/phototok/tests/e2e/J-TOK-04/02_assert_revert_visible.yaml}
@@ -12,9 +13,15 @@ steps:
   - {rotate: landscape}
   - {checkpoint: landscape}
   - {rotate: portrait}
+# The pending delete is of the photo the resumed feed showed, not of DSC_0012: with a fixed
+# name a journey that started elsewhere checked a photo it never deleted (LAB-22).
+bind:
+  start: {deleted: viewer.photo}
 fs_expect:
+  start:
+    unchanged: true
   returned:
-    present: ["DSC_0012.JPG"]
+    present: ["{deleted}"]
 layout_expect:
   returned:
     required: [viewer_revert_button]

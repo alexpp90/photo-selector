@@ -22,7 +22,8 @@ import lab.android.adb as adb_mod  # noqa: E402
 import lab.android.configs as android_configs  # noqa: E402
 import lab.android.runner as runner_mod  # noqa: E402
 from lab.android.adb import AdbClient  # noqa: E402
-from lab.android.runner import default_maestro_runner, run_android_journey  # noqa: E402
+from lab.android.runner import clear_blocking_transports, default_maestro_runner, run_android_journey  # noqa: E402
+from lab.inventory import parse_adb_devices  # noqa: E402
 from PIL import Image  # noqa: E402
 
 APP = "com.phototok.lab"
@@ -222,7 +223,8 @@ class TestMaestroRetry(unittest.TestCase):
             return 0
 
         rc = default_maestro_runner(serial, Path("flow.yaml"), junit, run_once=once,
-                                    wait_for_device=waited.append, sleep=lambda s: None)
+                                    wait_for_device=waited.append, clear_blockers=lambda s: "",
+                                    sleep=lambda s: None)
         self.assertEqual((rc, len(attempts), waited), (0, 3, [serial, serial]))
 
     def test_a_broken_flow_is_not_retried(self) -> None:
@@ -236,8 +238,85 @@ class TestMaestroRetry(unittest.TestCase):
             return 1
 
         rc = default_maestro_runner("s", Path("f.yaml"), tmp / "m.xml", run_once=once,
-                                    wait_for_device=lambda s: None, sleep=lambda s: None)
+                                    wait_for_device=lambda s: None, clear_blockers=lambda s: "",
+                                    sleep=lambda s: None)
         self.assertEqual((rc, len(attempts)), (1, 1))
+
+
+# `adb devices` on the hub, 2026-10-19 21:47 (tab-separated, as adb prints it), with the row the
+# adb server log showed from 19:48 to 19:50 local time: the Chromebook's ARC transport dropped
+# when it went to sleep ("connection terminated: read failed", then "reconnect
+# 192.168.0.224:5555 failed: No route to host" every ~6 s).
+HUB_DEVICES = (
+    "List of devices attached\n"
+    "13171JEC200817\tdevice\n"
+    "CQ30012CMV\tdevice\n"
+    "ZY22MQCBL6\tdevice\n"
+    "adb-R52Y90AF4LE-fAYuME._adb-tls-connect._tcp\tdevice\n"
+    "adb-ZY22MQCBL6-M2Jjof (2)._adb-tls-connect._tcp\tdevice\n"
+)
+CHROMEBOOK_DROPPED = HUB_DEVICES + "192.168.0.224:5555\toffline\n"
+TAB_S11 = "adb-R52Y90AF4LE-fAYuME._adb-tls-connect._tcp"
+
+
+class TestBlockingTransports(unittest.TestCase):
+    """LAB-25: one dropped transport made Maestro report every device "not connected"."""
+
+    def test_adb_devices_rows_keep_names_with_spaces(self) -> None:
+        rows = dict(parse_adb_devices(CHROMEBOOK_DROPPED))
+        self.assertEqual(rows["adb-ZY22MQCBL6-M2Jjof (2)._adb-tls-connect._tcp"], "device")
+        self.assertEqual(rows["192.168.0.224:5555"], "offline")
+
+    def test_a_dropped_network_transport_is_disconnected(self) -> None:
+        outputs = iter([CHROMEBOOK_DROPPED, HUB_DEVICES])
+        gone: list[str] = []
+        note = clear_blocking_transports(TAB_S11, devices_text=lambda: next(outputs), disconnect=gone.append,
+                                         sleep=lambda s: None)
+        self.assertEqual(gone, ["192.168.0.224:5555"])
+        self.assertIn("disconnected 192.168.0.224:5555 (offline)", note)
+
+    def test_a_usb_transport_is_waited_for_not_disconnected(self) -> None:
+        # 2026-10-17 22:15: "CQ30012CMV: connection terminated: read failed" (USB), and the Tab
+        # S11's SMOKE got "not connected".
+        outputs = iter([HUB_DEVICES.replace("CQ30012CMV\tdevice", "CQ30012CMV\toffline")] * 2 + [HUB_DEVICES])
+        gone: list[str] = []
+        slept: list[float] = []
+        clear_blocking_transports(TAB_S11, devices_text=lambda: next(outputs), disconnect=gone.append,
+                                  sleep=slept.append, poll_s=5.0)
+        self.assertEqual((gone, slept), ([], [5.0, 5.0]))
+
+    def test_a_transport_that_stays_down_is_waited_for_only_so_long(self) -> None:
+        slept: list[float] = []
+        note = clear_blocking_transports(TAB_S11, devices_text=lambda: CHROMEBOOK_DROPPED, disconnect=lambda t: None,
+                                         sleep=slept.append, wait_s=10.0, poll_s=5.0)
+        self.assertEqual(sum(slept), 10.0)
+        self.assertIn("still not ready", note)
+
+    def test_not_connected_clears_the_blocker_before_the_retry(self) -> None:
+        tmp = Path(tempfile.mkdtemp(prefix="pstlab-test-maestro-"))
+        self.addCleanup(shutil.rmtree, tmp, True)
+        junit = tmp / "maestro_00_ensure_folder.xml"
+        hub = {"devices": CHROMEBOOK_DROPPED}
+
+        def once(s: str | None, flow: Path, out: Path) -> int:
+            # Maestro's listing fails while any transport is not `device` (LAB-25).
+            if "offline" in hub["devices"]:
+                out.with_suffix(".log").write_text(f"Device {s} was requested, but it is not connected.\n", encoding="utf-8")
+                return 1
+            out.with_suffix(".log").write_text("[Passed] _ensure_folder (31s)\n", encoding="utf-8")
+            return 0
+
+        def disconnect(t: str) -> None:
+            hub["devices"] = HUB_DEVICES
+
+        rc = default_maestro_runner(
+            TAB_S11, Path("_ensure_folder.yaml"), junit, run_once=once, wait_for_device=lambda s: None,
+            clear_blockers=lambda s: clear_blocking_transports(
+                s, devices_text=lambda: hub["devices"], disconnect=disconnect, sleep=lambda x: None),
+            sleep=lambda s: None,
+        )
+        self.assertEqual(rc, 0)
+        self.assertIn("adb transports: disconnected 192.168.0.224:5555 (offline)", junit.with_suffix(".log").read_text())
 
 
 class InUseDevice:

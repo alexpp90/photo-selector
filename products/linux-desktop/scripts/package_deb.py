@@ -234,6 +234,8 @@ def build_deb_pure_python(
     for root, _, files in os.walk(staging_root):
         for f in sorted(files):
             fp = Path(root) / f
+            if not fp.is_file() or fp.is_symlink():
+                continue
             rel = fp.relative_to(staging_root).as_posix()
             digest = hashlib.md5(fp.read_bytes()).hexdigest()
             md5_lines.append(f"{digest}  {rel}")
@@ -346,6 +348,24 @@ def build_deb_native(
         installed_kib,
     )
     (debian_dir / "control").write_text(control_content, encoding="utf-8")
+
+    # Build md5sums
+    md5_lines = []
+    for root, _, files in os.walk(staging_root):
+        # Exclude DEBIAN directory from md5sums
+        if "DEBIAN" in Path(root).parts:
+            continue
+        for f in sorted(files):
+            fp = Path(root) / f
+            if not fp.is_file() or fp.is_symlink():
+                continue
+            rel = fp.relative_to(staging_root).as_posix()
+            digest = hashlib.md5(fp.read_bytes()).hexdigest()
+            md5_lines.append(f"{digest}  {rel}")
+
+    if md5_lines:
+        md5_content = "\n".join(md5_lines) + "\n"
+        (debian_dir / "md5sums").write_text(md5_content, encoding="utf-8")
 
     # -Zxz: recent dpkg defaults to zstd, which Python's tarfile (generate_apt_repo.py,
     # verify_package.py) cannot read; xz is universally supported by apt.

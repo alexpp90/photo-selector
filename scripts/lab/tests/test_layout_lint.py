@@ -175,5 +175,45 @@ class TestLintOnRealDumps(unittest.TestCase):
         self.assertEqual([f.rule for f in lint(tree, rules, neither, config="tab-portrait")], ["missing-or-zero-size"])
 
 
+
+class TestScrollClippedNodes(unittest.TestCase):
+    """LAB-26: a control scrolled partly out of its container is not too small or unnamed."""
+
+    def findings(self, xml: str, product: str, density: int) -> list[tuple[str, str]]:
+        tree = parse_uiautomator_xml(xml if xml.lstrip().startswith("<") else DATA_DIR / xml, density_dpi=density)
+        return sorted((f.rule, f.message.split(" ")[0] if f.rule != "unnamed-control" else f.message.split(" ")[2])
+                      for f in lint(tree, load_rules(product), config="dex-960x600"))
+
+    def test_a_sidebar_item_scrolled_half_out_is_not_a_small_target(self) -> None:
+        # 2026-10-19: "nav_statistics is 80x35 dp (min 48 dp)"; it is 80x68 dp like nav_inspect.
+        found = self.findings("android_sidebar_scrolled.xml", "android-desktop", 320)
+        self.assertNotIn(("touch-target", "nav_statistics"), found)
+        # AD-17, a real 36 dp control outside any scroll container, is still reported.
+        self.assertIn(("touch-target", "details_toggle"), found)
+
+    def test_the_scroll_container_is_read_from_the_dump(self) -> None:
+        tree = parse_uiautomator_xml(DATA_DIR / "android_sidebar_scrolled.xml", density_dpi=320)
+        self.assertEqual([n.bounds for n in tree.nodes if n.scrollable], [[0.0, 36.0, 88.0, 564.0]])
+
+    def test_a_card_below_the_fold_whose_label_is_off_screen_is_not_unnamed(self) -> None:
+        text = (DATA_DIR / "phototok_landing_below_fold.xml").read_text(encoding="utf-8")
+        self.assertEqual(self.findings(text, "phototok", 420), [])
+        # The Galaxy S25 Ultra shape (personal device, dump not copied): the card crossed the
+        # ScrollView's bottom edge with none of its label nodes in the dump.
+        without_label = text.replace(
+            text[text.index('<node index="0" text="" resource-id="" class="android.view.View" package="com.phototok.lab" content-desc="SD Card'):]
+            .split("/>", 1)[0] + "/>", "")
+        self.assertNotIn("SD Card", without_label)
+        self.assertEqual(self.findings(without_label, "phototok", 420), [])
+
+    def test_an_unnamed_control_inside_its_container_is_still_reported(self) -> None:
+        text = (DATA_DIR / "phototok_landing_below_fold.xml").read_text(encoding="utf-8")
+        unnamed = text
+        for label in ('content-desc="Phone Camera"', 'text="Phone Camera"', 'text="Default camera roll (DCIM/Camera)"'):
+            self.assertIn(label, unnamed)
+            unnamed = unnamed.replace(label, label.split("=")[0] + '=""')
+        self.assertEqual(self.findings(unnamed, "phototok", 420), [("unnamed-control", "landing_phone_camera_card")])
+
+
 if __name__ == "__main__":
     unittest.main()
