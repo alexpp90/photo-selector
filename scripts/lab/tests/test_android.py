@@ -144,6 +144,38 @@ class TestAndroidLayer(unittest.TestCase):
             if run_dir.exists():
                 shutil.rmtree(run_dir)
 
+    def test_journey_is_not_run_on_a_device_without_a_required_dir(self) -> None:
+        run_dir = Path(tempfile.mkdtemp(prefix="pstlab-test-android-requires-"))  # per process
+        try:
+            recorder = FakeAdbExec()
+            adb = AdbClient(serial="TEST1234", exec_fn=recorder)
+            manifest = {
+                "id": "J-TOK-06",
+                "product": "phototok",
+                "title": "Phone Camera opens the picker inside the camera roll",
+                "fixture": "smoke",
+                "configs": ["phone-portrait"],
+                "fresh_install": True,
+                "requires_dirs": ["/sdcard/DCIM/Camera"],
+                "steps": [{"checkpoint": "landing"}],
+            }
+            self.assertEqual(validate(manifest, "journey"), [])
+            status, findings = run_android_journey(
+                manifest=manifest,
+                config_name="phone-portrait",
+                run_dir=run_dir,
+                adb=adb,
+                maestro_fn=lambda serial, flow, junit: 0,
+            )
+            self.assertEqual((status, findings), ("not-run", []))
+            result = (run_dir / "phototok" / "phone-portrait" / "J-TOK-06" / "result.json").read_text()
+            self.assertIn("/sdcard/DCIM/Camera", result)
+            # Nothing was installed, cleared or launched.
+            self.assertFalse(any("pm" in c and "clear" in c for c in recorder.commands))
+        finally:
+            if run_dir.exists():
+                shutil.rmtree(run_dir)
+
 
 if __name__ == "__main__":
     unittest.main()

@@ -1,0 +1,35 @@
+# REQ-TOK-FEATURE.03: without a grant yet, "Phone Camera" opens the system folder picker already
+# inside DCIM/Camera. A bare tree URI as the picker's initial location is ignored by DocumentsUI,
+# which then reopens wherever it was last used (Google Drive on an S25 Ultra, 2026-10-20); only a
+# document URI lands in the folder. The journey never confirms the picker: it grants nothing and
+# reads no camera photo, it only checks where the picker opened and backs out.
+# Needs /sdcard/DCIM/Camera on the device (it exists once the camera app has taken a photo).
+appId: com.phototok.lab
+---
+# Below the fold on small phones, its centre under the navigation bar (see _ensure_folder.yaml).
+- scrollUntilVisible:
+    element:
+      id: "landing_phone_camera_card"
+    centerElement: true
+    visibilityPercentage: 100
+    timeout: 10000
+- tapOn:
+    id: "landing_phone_camera_card"
+# Google's and AOSP's DocumentsUI name the breadcrumb alike (see _pick_work_folder.yaml); its last
+# item is the folder the picker shows.
+- extendedWaitUntil:
+    visible:
+      id: "com\\.(google\\.)?android\\.documentsui:id/breadcrumb_text"
+      text: "Camera"
+    timeout: 10000
+# Back walks up the picker's folder stack before it closes the picker.
+- repeat:
+    while:
+      notVisible:
+        id: "landing_phone_camera_card"
+    times: 6
+    commands:
+      - back
+      - waitForAnimationToEnd
+- assertVisible:
+    id: "landing_phone_camera_card"

@@ -17,6 +17,7 @@
       "minItems": 1
     },
     "fresh_install": {"type": "boolean"},
+    "requires_dirs": {"type": "array", "items": {"type": "string"}},
     "steps": {
       "type": "array",
       "items": {"type": "object"},

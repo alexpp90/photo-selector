@@ -65,6 +65,9 @@ install.
   persisted folder grant serves all journeys. Before each journey that is not a fresh install,
   `products/android/<product>/tests/e2e/_ensure_folder.yaml` grants that folder if the app has
   none and brings the app to a photo.
+- **Device preconditions.** A journey that needs device state the lab must not create lists it
+  as `requires_dirs` (J-TOK-06 needs `/sdcard/DCIM/Camera`). A device without one of those
+  directories reports the journey *not run*, never broken; the check only reads.
 - **Locale.** Picker flows use `android:id/button1`, not button text, so devices in any
   language work.
 - **Rotation.** A docked Pixel Tablet ignores rotation requests; its portrait configs are

@@ -255,6 +255,10 @@ class AdbClient:
         files.sort(key=lambda e: str(e["path"]))
         return files
 
+    def dir_exists(self, remote_dir: str) -> bool:
+        """Whether `remote_dir` is a directory on the device. Read-only, so any path is allowed."""
+        return self.run("shell", f"test -d '{remote_dir}' && echo yes || echo no").strip() == "yes"
+
     def logcat_clear(self) -> str:
         return self.run("logcat", "-c")
 
