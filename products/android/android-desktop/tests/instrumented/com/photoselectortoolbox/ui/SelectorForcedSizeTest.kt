@@ -408,10 +408,16 @@ class SelectorForcedSizeTest {
         val n = count("filmstrip_thumbnail")
         assertTrue("only $n thumbnails laid out", n == images.size)
         val targets = (0 until n).map { bounds("filmstrip_thumbnail", it) }
+        // In whole pixels, as layout draws it: at 2.4375x a 48 dp slot is 117 px,
+        // which reads back as 47.999985 dp once the bounds have been offset.
+        val density = displayDensity
+        val floorPx = (ThumbnailTouchTarget.value * density).roundToInt()
+        fun px(d: androidx.compose.ui.unit.Dp) = (d.value * density).roundToInt()
         targets.forEachIndexed { i, t ->
             assertTrue(
-                "thumbnail $i is a ${t.width} x ${t.height} target, below $ThumbnailTouchTarget",
-                t.height >= ThumbnailTouchTarget && t.width >= ThumbnailTouchTarget,
+                "thumbnail $i is a ${px(t.width)} x ${px(t.height)} px target, below $floorPx px " +
+                    "($ThumbnailTouchTarget at density $density)",
+                px(t.height) >= floorPx && px(t.width) >= floorPx,
             )
         }
         targets.zipWithNext().forEachIndexed { i, (a, b) ->
