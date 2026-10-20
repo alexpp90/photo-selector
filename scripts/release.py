@@ -106,28 +106,28 @@ def _gradle_version_name(module: str) -> VersionSource:
 
 PRODUCTS: Tuple[Product, ...] = (
     Product(
-        slug="phototok", name="PhotoTok",
+        slug="phototok", name="Jackpix",
         paths=("products/android/phototok/", *ANDROID_SHARED),
         sources=(_gradle_version_name("phototok"),),
         changelog="products/android/phototok/CHANGELOG.md",
         workflow=".github/workflows/android.yml",
         run_tests="--android --android-device", record_group="android", legacy_tags=True),
     Product(
-        slug="android-desktop", name="Android Desktop",
+        slug="android-desktop", name="Frameduel",
         paths=("products/android/android-desktop/", *ANDROID_SHARED),
         sources=(_gradle_version_name("android-desktop"),),
         changelog="products/android/android-desktop/CHANGELOG.md",
         workflow=".github/workflows/android.yml",
         run_tests="--android --android-device", record_group="android", legacy_tags=True),
     Product(
-        slug="macos-desktop", name="macOS Desktop",
+        slug="macos-desktop", name="Lensjet",
         paths=("products/macos-desktop/",),
         sources=(VersionSource("products/macos-desktop/VERSION", r"\A(?P<v>[^\s]+)\s*\Z"),),
         changelog="products/macos-desktop/CHANGELOG.md",
         workflow=".github/workflows/macos.yml",
         run_tests="--macos", record_group="macos", legacy_tags=False),
     Product(
-        slug="linux-desktop", name="Linux Desktop",
+        slug="linux-desktop", name="Blitzlens",
         paths=("products/linux-desktop/",),
         sources=(
             VersionSource("products/linux-desktop/pyproject.toml", r'^version = "(?P<v>[^"]+)"'),
@@ -594,7 +594,7 @@ def changelog_section(text: str, version: str) -> Optional[str]:
 def debian_entry(changelog: str, version: Version, notes: str, when: dt.datetime) -> str:
     """A new top entry for debian/changelog, signed like the previous one."""
     m = re.search(r"^ -- (?P<who>.+?>)  ", changelog, re.M)
-    who = m.group("who") if m else "Photo Selector maintainers <noreply@github.com>"
+    who = m.group("who") if m else "AlxPPa <noreply@github.com>"
     items = []
     for line in notes.splitlines():
         line = line.strip()

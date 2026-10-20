@@ -400,6 +400,9 @@ def write_icns(svg: str, out: Path) -> None:
 
 # ── Targets ───────────────────────────────────────────────────────────────────
 
+DOCS_PAGES = {"jackpix": "phototok", "frameduel": "android-desktop"}
+
+
 def text_outputs() -> dict[Path, str]:
     """Every generated text file and its content; --check compares those present on disk."""
     files: dict[Path, str] = {}
@@ -414,6 +417,8 @@ def text_outputs() -> dict[Path, str]:
         files[res / "drawable" / "ic_brand_mark.xml"] = android_mark(app)
         files[res / "mipmap-anydpi-v26" / "ic_launcher.xml"] = ADAPTIVE
         files[res / "mipmap-anydpi-v26" / "ic_launcher_round.xml"] = ADAPTIVE
+    for app, slug in DOCS_PAGES.items():
+        files[ROOT / "docs/products" / slug / "favicon.svg"] = tile_icon(app)
     files[LINUX_ICONS / "scalable/apps" / f"{LINUX_ID}.svg"] = gnome_icon("blitzlens")
     files[LINUX_ICONS / "symbolic/apps" / f"{LINUX_ID}-symbolic.svg"] = symbolic_icon("blitzlens")
     return files
@@ -443,6 +448,12 @@ def build(target: str) -> list[Path]:
         text(BRAND / "blitzlens/blitzlens-small.svg", texts[BRAND / "blitzlens/blitzlens-small.svg"])
         for app in ANDROID_RES:
             png(play_icon(app), BRAND / app / f"{app}-play-512.png", 512)
+        # GitHub Pages serves only docs/: the legal pages' favicons live next to them.
+        for app, slug in DOCS_PAGES.items():
+            svg = tile_icon(app)
+            text(ROOT / "docs/products" / slug / "favicon.svg", svg)
+            png(svg, ROOT / "docs/products" / slug / "favicon-32.png", 32)
+            png(svg, ROOT / "docs/products" / slug / "apple-touch-icon.png", 180)
     elif target in ANDROID_RES:
         res = ANDROID_RES[target]
         for path, content in texts.items():

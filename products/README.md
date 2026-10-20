@@ -5,11 +5,11 @@ One directory per product. Same shape in each, whatever the language.
 ```
 products/
   desktop/              Desktop — Python + Tkinter
-  macos-desktop/        Native macOS Desktop — Swift 6 + SwiftUI
-  linux-desktop/        Native Linux Desktop — GNOME HIG / Libadwaita (planned)
+  macos-desktop/        Lensjet — Swift 6 + SwiftUI
+  linux-desktop/        Blitzlens — GNOME HIG / Libadwaita
   android/              The Android platform group (one Gradle build)
-    android-desktop/    Android Desktop — :android-desktop, tablets and Samsung DeX
-    phototok/           PhotoTok — :phototok, phones
+    android-desktop/    Frameduel — :android-desktop, tablets and Samsung DeX
+    phototok/           Jackpix — :phototok, phones
     core/               :core — the only code the two Android products share
 ```
 
@@ -34,7 +34,7 @@ for the same reason.
 
 ## Why `android/` groups two products
 
-Android Desktop and PhotoTok are independent products, but they are built by **one** Gradle
+Frameduel and Jackpix are independent products, but they are built by **one** Gradle
 build — one `settings.gradle.kts`, one wrapper, one version catalog, one CI workflow — and
 they share one library module. Splitting them into two sibling directories would mean either
 two Gradle builds or a settings file pointing sideways into unrelated directories. Grouping

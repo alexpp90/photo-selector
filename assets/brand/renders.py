@@ -264,7 +264,27 @@ def palette_sheet(g, r: Raster) -> Path:
     return out
 
 
+def banner(g, r: Raster) -> Path:
+    """README banner (assets/banner.png): the four apps, their platforms, no family name."""
+    W, H = 1600, 560
+    img = Image.new("RGB", (W, H), "#121212")
+    d = ImageDraw.Draw(img)
+    platforms = {"jackpix": "Android phones", "frameduel": "Android tablets & DeX",
+                 "lensjet": "macOS", "blitzlens": "GNOME on Debian"}
+    for i, (app, p) in enumerate(g.PALETTE.items()):
+        cx = 200 + i * 400
+        icon = r.img(g.tile_icon(app), 220)
+        img.paste(icon, (cx - 110, 90), icon)
+        label(d, (cx, 370), p["name"], 46, "#F2F2F2")
+        label(d, (cx, 420), platforms[app], 24, "#A8A8A8")
+        d.rounded_rectangle([cx - 36, 462, cx + 36, 468], 3, fill=p["tile"])
+    out = OUT.parent.parent / "banner.png"
+    img.save(out)
+    return out
+
+
 def build(g) -> list[Path]:
     OUT.mkdir(exist_ok=True)
     r = Raster(g)
-    return [f(g, r) for f in (android_home, macos_dock, gnome_grid, sizes, cvd, palette_sheet)]
+    return [f(g, r) for f in (android_home, macos_dock, gnome_grid, sizes, cvd, palette_sheet,
+                              banner)]

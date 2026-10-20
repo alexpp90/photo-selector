@@ -6,10 +6,10 @@ the tag, runs the product's CI gates, builds, and publishes only that product.
 
 | Product | Tag | Version lives in | Changelog | Workflow publishes to |
 |---|---|---|---|---|
-| PhotoTok | `phototok-vX.Y.Z` | `products/android/phototok/build.gradle.kts` (`versionName` default) | [`products/android/phototok/CHANGELOG.md`](../../products/android/phototok/CHANGELOG.md) | GitHub release, Google Play internal track |
-| Android Desktop | `android-desktop-vX.Y.Z` | `products/android/android-desktop/build.gradle.kts` (`versionName` default) | [`products/android/android-desktop/CHANGELOG.md`](../../products/android/android-desktop/CHANGELOG.md) | GitHub release, Google Play internal track |
-| macOS Desktop | `macos-desktop-vX.Y.Z` | `products/macos-desktop/VERSION` | [`products/macos-desktop/CHANGELOG.md`](../../products/macos-desktop/CHANGELOG.md) | GitHub release, Homebrew cask |
-| Linux Desktop | `linux-desktop-vX.Y.Z` | `pyproject.toml`, `photo_selector_linux/__init__.py`, `debian/changelog` | [`products/linux-desktop/CHANGELOG.md`](../../products/linux-desktop/CHANGELOG.md) | GitHub release (`.deb`), APT repository |
+| Jackpix | `phototok-vX.Y.Z` | `products/android/phototok/build.gradle.kts` (`versionName` default) | [`products/android/phototok/CHANGELOG.md`](../../products/android/phototok/CHANGELOG.md) | GitHub release, Google Play internal track |
+| Frameduel (Android Desktop) | `android-desktop-vX.Y.Z` | `products/android/android-desktop/build.gradle.kts` (`versionName` default) | [`products/android/android-desktop/CHANGELOG.md`](../../products/android/android-desktop/CHANGELOG.md) | GitHub release, Google Play internal track |
+| Lensjet (macOS Desktop) | `macos-desktop-vX.Y.Z` | `products/macos-desktop/VERSION` | [`products/macos-desktop/CHANGELOG.md`](../../products/macos-desktop/CHANGELOG.md) | GitHub release, Homebrew cask |
+| Blitzlens (Linux Desktop) | `linux-desktop-vX.Y.Z` | `pyproject.toml`, `photo_selector_linux/__init__.py`, `debian/changelog` | [`products/linux-desktop/CHANGELOG.md`](../../products/linux-desktop/CHANGELOG.md) | GitHub release (`.deb`), APT repository |
 | Desktop (legacy) | `desktop-vX.Y.Z` | `pyproject.toml`, `photo_selector_toolbox/__init__.py` | [`products/desktop/CHANGELOG.md`](../../products/desktop/CHANGELOG.md) | GitHub release, Homebrew formula + cask |
 
 The shared `vX.Y.Z` tags (last: `v0.4.0`) released all products at once; they are history.
@@ -59,9 +59,9 @@ waited 21 days. The thresholds are constants at the top of `release.py`.
 
    | Product | Command |
    |---|---|
-   | PhotoTok, Android Desktop | `./scripts/run_tests.sh --android --android-device` (device attached) |
-   | macOS Desktop | `./scripts/run_tests.sh --macos` (on a Mac) |
-   | Linux Desktop | `./scripts/run_tests.sh --linux` |
+   | Jackpix, Frameduel | `./scripts/run_tests.sh --android --android-device` (device attached) |
+   | Lensjet | `./scripts/run_tests.sh --macos` (on a Mac) |
+   | Blitzlens | `./scripts/run_tests.sh --linux` |
    | Desktop (legacy) | `./scripts/run_tests.sh --python` |
 
    Android releases also go through the product's `RELEASE_CHECKLIST.md`.
