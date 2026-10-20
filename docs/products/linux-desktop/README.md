@@ -63,7 +63,7 @@ The product is partitioned into a clean modular architecture following the repos
 
 ## Relationship to the Other Products
 
-Linux Desktop is an independent Python / GTK4 / Libadwaita implementation. It shares photographic concepts (the EXIF contract, quality score semantics, what "Selection" means) with Desktop, macOS Desktop, Android Desktop, and PhotoTok, but shares no implementation code:
+Linux Desktop is an independent Python / GTK4 / Libadwaita implementation. It shares photographic concepts (the EXIF contract, quality score semantics, what "Selection" means) with the legacy Desktop, Lensjet, Frameduel and Jackpix, but shares no implementation code:
 
 - **Distinct from legacy Python Desktop (`products/desktop/`)**: Modern Libadwaita / GTK4 architecture replacing Tkinter, custom dark theme, and PyInstaller with native GNOME HIG and Debian APT packaging.
 - **Distinct from macOS Desktop (`products/macos-desktop/`)**: Pure GNOME desktop experience tailored to Debian 13 and FreeDesktop standards rather than macOS AppKit/SwiftUI.

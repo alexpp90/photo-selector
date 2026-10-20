@@ -141,7 +141,7 @@ def test_desktop_integration_files():
     assert '<launchable type="desktop-id">app.alpatix.Blitzlens.desktop</launchable>' in meta_text
     assert "Name=Blitzlens\n" in desktop_text
     # Studio rule: the word appears only inside the technical id.
-    assert "alpatix" not in meta_text.replace("app.alpatix.Blitzlens", "").lower()
+    assert "alpatix" not in meta_text.replace("app.alpatix.Blitzlens", "").lower()  # brand-guard: allow
     assert "<developer id=\"io.github.alexpp90\">" in meta_text
 
     icons = data_dir / "icons" / "hicolor"
