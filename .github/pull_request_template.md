@@ -6,10 +6,10 @@ Summarize the changes proposed in this Pull Request and provide any relevant con
 
 Please select which independent solution(s) this PR modifies:
 
-- [ ] **PhotoTok** (Kotlin/Compose, files under `products/android/phototok/`)
-- [ ] **Android Desktop** (Kotlin/Compose, files under `products/android/android-desktop/`)
-- [ ] **macOS Desktop** (Swift/SwiftUI, files under `products/macos-desktop/`)
-- [ ] **Linux Desktop** (Python/GTK4, files under `products/linux-desktop/`)
+- [ ] **Jackpix** (Kotlin/Compose, files under `products/android/phototok/`)
+- [ ] **Frameduel** — Android Desktop (Kotlin/Compose, files under `products/android/android-desktop/`)
+- [ ] **Lensjet** — macOS Desktop (Swift/SwiftUI, files under `products/macos-desktop/`)
+- [ ] **Blitzlens** — Linux Desktop (Python/GTK4, files under `products/linux-desktop/`)
 - [ ] **Desktop (legacy)** (Python/Tkinter, files under `products/desktop/`)
 
 ## Verification

@@ -1,6 +1,6 @@
 # UI text: icon first, short text
 
-Applies to **every product**. It is binding for PhotoTok and checked by
+Applies to **every product**. It is binding for Jackpix (PhotoTok) and checked by
 `scripts/check_ui_text_budget.py`, which reports findings for the other products but does not fail
 them yet.
 Each product applies the rule in its own stack. The products share the budgets, not the code.
@@ -116,6 +116,6 @@ In addition to the table:
 
 | Product | Where the rule is applied | Check |
 |---|---|---|
-| PhotoTok | `docs/products/phototok/DESIGN.md` § 8 *Copy & messaging* | `scripts/check_ui_text_budget.py --product phototok`: reports until PhotoTok's strings are resources, then fails (`mode` in `scripts/ui_text_budget.json`) |
-| Android Desktop | its `DESIGN.md` (labels on the 2×3 action block are allowed: large screens, keyboard hints) | reports only |
-| macOS Desktop, Linux Desktop, Desktop (legacy) | their design docs | not yet covered by the script |
+| Jackpix (PhotoTok) | `docs/products/phototok/DESIGN.md` § 8 *Copy & messaging* | `scripts/check_ui_text_budget.py --product phototok`: reports until Jackpix's strings are resources, then fails (`mode` in `scripts/ui_text_budget.json`) |
+| Frameduel (Android Desktop) | its `DESIGN.md` (labels on the 2×3 action block are allowed: large screens, keyboard hints) | reports only |
+| Lensjet (macOS Desktop), Blitzlens (Linux Desktop), Desktop (legacy) | their design docs | not yet covered by the script |

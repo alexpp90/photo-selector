@@ -1,6 +1,6 @@
-# Photo Selector Toolbox — E2E Device Lab (`scripts/lab`)
+# E2E Device Lab (`scripts/lab`)
 
-Local device lab for automated multi-step UI journeys, deterministic layout & filesystem oracles, and AI visual review across Android Desktop, PhotoTok, macOS Desktop, and Linux Desktop. It runs on demand on the Linux hub; it is **not** a CI gate.
+Local device lab for automated multi-step UI journeys, deterministic layout & filesystem oracles, and AI visual review across Jackpix, Frameduel, Lensjet and Blitzlens. It runs on demand on the Linux hub; it is **not** a CI gate.
 
 ## Run it
 
@@ -81,7 +81,7 @@ install.
 - **Bindings.** A journey can name the photo the app actually showed instead of assuming a key
   count: `bind: {moved: {kept: column_current}}` reads the first file name in that node (or its
   children) at checkpoint `moved`, and `fs_expect` patterns use it as `{kept}` (J-AD-02,
-  J-TOK-03, J-TOK-04, J-TOK-05). PhotoTok resumes the shared folder where the last journey left
+  J-TOK-03, J-TOK-04, J-TOK-05). Jackpix resumes the shared folder where the last journey left
   it, so its journeys bind every photo they name.
 - **"Device … not connected".** Maestro opens every transport of the adb server to list devices,
   and one that is not `device` (a Chromebook gone to sleep, a USB phone re-enumerating) makes it
@@ -170,7 +170,7 @@ are *usable*: several personas walk through the product's key use cases screen b
 say what they understand, what they would do next, what they would read and what bothers
 them. A moderator then compares that with the action the design expects and the measured text
 load, and writes the trade-offs for the maintainer to decide. It is opinion by design, so it
-runs before a release, not in CI. PhotoTok only for now.
+runs before a release, not in CI. Jackpix only for now.
 
 ```bash
 # 1. Walk the scenarios on a phone (USB, portrait); writes a new private/lab-runs/<id>-usability/

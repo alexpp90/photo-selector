@@ -1,30 +1,31 @@
-# Contributing to Photo Selector Toolbox
+# Contributing
 
-Thank you for your interest in contributing to Photo Selector Toolbox! This document outlines the guidelines and steps to help you get started with contributing to this open-source project.
+Thank you for your interest in contributing to Jackpix, Frameduel, Lensjet, Blitzlens or the legacy Desktop! This document outlines the guidelines and steps to help you get started with contributing to this open-source project.
 
 ## Code of Conduct
 
 By participating in this project, you agree to abide by our [Code of Conduct](CODE_OF_CONDUCT.md). Please report any unacceptable behavior to the project maintainers.
 
-## Project Structure (Four Independent Solutions)
+## Project Structure (Five Independent Products)
 
-This repository contains **four independent solutions** targeting different platforms, sharing the same repository:
+This repository contains **five independent products** targeting different platforms, sharing the same repository (canonical names: [`docs/GLOSSARY.md`](docs/GLOSSARY.md)):
 
-| Solution | Code Directory | Tech Stack | Primary Target |
+| Product | Code Directory | Tech Stack | Primary Target |
 |----------|-----------------|------------|----------------|
-| **Desktop** | `products/desktop/src/` | Python + Tkinter | Desktop (macOS, Linux, Windows) |
-| **macOS Desktop** | `products/macos-desktop/` | Swift 6 + SwiftUI + Vision + Accelerate | macOS 14+ / 15+ (Apple Silicon & Intel) |
-| **Android Desktop** | `products/android/android-desktop/` | Jetpack Compose + Room + OpenCV + Vico | Samsung DeX, Tablets (>= 840dp) |
-| **PhotoTok** | `products/android/phototok/` | Jetpack Compose (Lightweight) | Mobile phones of every tier, portrait |
+| **Jackpix** | `products/android/phototok/` | Jetpack Compose (Lightweight) | Mobile phones of every tier, portrait |
+| **Frameduel** (Android Desktop) | `products/android/android-desktop/` | Jetpack Compose + Room + OpenCV + Vico | Samsung DeX, Tablets (>= 840dp) |
+| **Lensjet** (macOS Desktop) | `products/macos-desktop/` | Swift 6 + SwiftUI + Vision + Accelerate | macOS 14+ / 15+ (Apple Silicon & Intel) |
+| **Blitzlens** (Linux Desktop) | `products/linux-desktop/` | Python + PyGObject + GTK4 + Libadwaita | Debian 13 (Trixie), GNOME 46+ |
+| **Desktop (legacy)** | `products/desktop/src/` | Python + Tkinter | Desktop (macOS, Linux, Windows), archived |
 
 ### Feature Sync & Coordination Policy
 
 Features should be tailored specifically to the targeted form factors:
 - **Single Target**: Do not inject or modify code in other solutions.
-- **Multiple/All Targets**: Split the work into distinct tasks tailored to each platform's UX patterns. (e.g. PhotoTok uses gesture-first navigation, whereas Desktop uses menu/keyboard controls).
+- **Multiple/All Targets**: Split the work into distinct tasks tailored to each platform's UX patterns. (e.g. Jackpix uses gesture-first navigation, whereas Desktop uses menu/keyboard controls).
 - **Platform Limitations**: 
   - Ollama VLM (Aesthetic scoring) is Desktop-only.
-  - Room DB, OpenCV analysis, and Vico charts are omitted from PhotoTok (`phototok`) to keep it lightweight.
+  - Room DB, OpenCV analysis, and Vico charts are omitted from Jackpix (`:phototok`) to keep it lightweight.
 
 ---
 

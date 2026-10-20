@@ -1,6 +1,6 @@
 ---
 name: Bug Report
-about: Create a report to help us improve the Photo Selector Toolbox
+about: Report a bug in Jackpix, Frameduel, Lensjet, Blitzlens or the legacy Desktop
 title: '[BUG] '
 labels: bug
 assignees: ''
