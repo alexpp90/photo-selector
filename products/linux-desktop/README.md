@@ -1,10 +1,10 @@
-# Photo Selector Linux
+# Blitzlens
 
-Native GNOME photograph culling and selection suite targeting Debian 13 (Trixie) and modern Linux desktop environments.
+Blitzlens – Photo Culling: a native GNOME photograph culling and selection app for Debian 13 (Trixie) and modern Linux desktop environments. Formerly Photo Selector Linux.
 
 ## Overview
 
-Photo Selector Linux is the 4th active product in the Photo Selector Toolbox repository. Built with Python 3.12+, PyGObject, GTK4, Libadwaita, GExiv2, and vectorized NumPy, it provides SD-card ingestion, companion RAW+JPEG pairing, noise-corrected focus scoring, and tactile culling keyboard shortcuts adhering strictly to the GNOME Human Interface Guidelines (HIG).
+Blitzlens is built with Python 3.12+, PyGObject, GTK4, Libadwaita, GExiv2, and vectorized NumPy, it provides SD-card ingestion, companion RAW+JPEG pairing, noise-corrected focus scoring, and tactile culling keyboard shortcuts adhering strictly to the GNOME Human Interface Guidelines (HIG).
 
 ## Architecture
 
@@ -22,7 +22,7 @@ The codebase enforces strict separation of concerns:
   - `duplicate_finder`: Two-stage duplicate detection using byte size pre-filtering and chunked 64 KB streaming SHA-256 hashing.
   - `statistics`: Linear single-pass $O(N)$ library metadata aggregator.
 - `photo_selector_linux.ui`:
-  - `application`: `Adw.Application` lifecycle controller with `org.photoselector.Linux` application icon registration and CSS provider injection.
+  - `application`: `Adw.Application` lifecycle controller with the `app.alpatix.Blitzlens` application id, icon registration, About dialog and CSS provider injection.
   - `window`: `Adw.ApplicationWindow` with `.studio-headerbar` (`Adw.HeaderBar`), segmented view switcher, and toast notifications for errors and "Loaded N photographs" (one at a time; the toast overlay wraps only the canvas so it never covers the action bar).
   - `canvas`: Maximized viewport (>85% area) supporting 1-Up (1:1 actual-pixel zoom toggle on `Space`), 2-Up side-by-side comparison, and 3-Up Focus Mode (one-over-two: the active photo on a 60 % top band, previous and next below at 40 %), with contextual slot role pills (`ACTIVE`, `CHAMPION`/`CHALLENGER`, `PREVIOUS`/`ACTIVE`/`NEXT`), companion badges (`RAW+JPG`, `XMP`), and an empty-state hero card.
   - `info_hud`: Glassmorphic optical metadata HUD (`InfoHUD`), anchored bottom-left inside the active preview pane (clicks pass through), with companion badges, camera/lens model line, normalized sharpness goodness meter bar, semantic quality badges (`Sharp` / `Acceptable` / `Blurry`), and strict Metric Omission Rule compliance.
@@ -30,7 +30,7 @@ The codebase enforces strict separation of concerns:
   - `action_bar`: Persistent bottom `Gtk.ActionBar` (`.studio-actionbar`) with semantic status counter pills (`Selected`, `Trashed`, `Remaining`) and tactile Move, Copy, Trash, and Undo buttons. File operations run on a background worker (`file_worker`) with a spinner in the bar, so a slow Google Drive upload never freezes the window. The bar's status area also shows the latest Move/Copy/Trash/Undo outcome for about 4 seconds.
   - `preferences`: Modal `Adw.PreferencesWindow` (`Ctrl+,`).
   - `keyboard_router`: Root window `Gtk.EventControllerKey` in `CAPTURE` phase with modifier lock masking (`state & ~(LOCK_MASK | MOD2_MASK)`) and text entry bypass.
-  - `styling`: Dark CSS palette (internal name "Obsidian Darkroom & Optical Cobalt") (`#141417` surface, `#181920` elevated chrome, `#1C1C20` cards, `#3584E4` / `#06B6D4` Optical Cobalt & Cyan accents, `#6366F1` Iris Indigo, `#2EC27E` Emerald Keeper, `#E5A50A` Amber Optical, `#E01B24` Crimson Cull).
+  - `styling`: Dark-only CSS palette (internal name "Obsidian Darkroom & System Accent"): neutral grey surfaces (`#141414` surface, `#181818` elevated chrome, `#1C1C1C` cards), selection, focus and active state in the system accent colour (`@accent_bg_color`, follows the GNOME accent setting), and fixed semantic colours `#2EC27E` keeper, `#E5A50A` acceptable, `#E01B24` cull. The brand yellow `#FFC93C` appears only in the icon.
 
 ## Scope and privacy
 

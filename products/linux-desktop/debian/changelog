@@ -1,3 +1,14 @@
+photo-selector-linux (0.2.0-1) trixie; urgency=medium
+
+  * The app is now called Blitzlens.
+  * New application id app.alpatix.Blitzlens: the app appears as a new
+    launcher entry, the old launcher entry is removed on upgrade.
+  * New icon, including a symbolic variant and dedicated 16 and 24 pixel sizes.
+  * Selection and focus colours follow the system accent colour.
+  * Settings in ~/.config/photo-selector-linux/ are kept.
+
+ -- Alexander Patz <alexpp90@users.noreply.github.com>  Tue, 20 Oct 2026 12:00:00 +0000
+
 photo-selector-linux (0.1.0-1) trixie; urgency=medium
 
   * Initial release for Debian 13 (Trixie).

@@ -54,8 +54,8 @@ def make_candidate(name: str, companions: list[str] | None = None) -> CandidateP
 def test_libadwaita_components():
     """Verify MainWindow initializes brand identity and core workspace views (R-LINUX-UI-01)."""
     win = MainWindow()
-    assert win.window_title == APP_BRAND_NAME == "Photo Selector"
-    assert win.icon_name == APP_ICON_NAME == "org.photoselector.Linux"
+    assert win.window_title == APP_BRAND_NAME == "Blitzlens"
+    assert win.icon_name == APP_ICON_NAME == "app.alpatix.Blitzlens"
     assert win.canvas_view is not None
     assert win.action_bar is not None
     assert "studio-dark-surface" in win.get_css_classes()
@@ -66,19 +66,22 @@ def test_libadwaita_components():
 
 
 def test_studio_dark_palette():
-    """Verify Obsidian Darkroom & Optical Cobalt palette tokens and CSS classes (R-LINUX-UI-02)."""
-    assert APP_THEME_NAME == "Obsidian Darkroom & Optical Cobalt"
+    """Verify Obsidian Darkroom & System Accent palette tokens and CSS classes (R-LINUX-UI-02)."""
+    assert APP_THEME_NAME == "Obsidian Darkroom & System Accent"
     assert "Obsidian" not in APP_BRAND_TAGLINE and "Darkroom" not in APP_BRAND_TAGLINE
     assert "RAW" in APP_BRAND_TAGLINE
-    assert STUDIO_PALETTE["surface_bg"] == "#141417"
-    assert STUDIO_PALETTE["header_chrome"] == "#181920"
-    assert STUDIO_PALETTE["card_bg"] == "#1C1C20"
-    assert STUDIO_PALETTE["border_stroke"] == "#3A3A42"
+    assert STUDIO_PALETTE["surface_bg"] == "#141414"
+    assert STUDIO_PALETTE["header_chrome"] == "#181818"
+    assert STUDIO_PALETTE["card_bg"] == "#1C1C1C"
+    assert STUDIO_PALETTE["border_stroke"] == "#3A3A3A"
     assert STUDIO_PALETTE["text_primary"] == "#FFFFFF"
     assert STUDIO_PALETTE["text_secondary"] == "#D9D9D9"
-    assert STUDIO_PALETTE["optical_cobalt"] == "#3584E4"
-    assert STUDIO_PALETTE["optical_cyan"] == "#06B6D4"
-    assert STUDIO_PALETTE["iris_indigo"] == "#6366F1"
+    for name, value in STUDIO_PALETTE.items():
+        if name in ("emerald_keeper", "amber_optical", "crimson_cull"):
+            continue
+        digits = value.lstrip("#")
+        if len(digits) == 6 and value.startswith("#"):
+            assert digits[0:2] == digits[2:4] == digits[4:6] or name.startswith("text_"), name
     assert STUDIO_PALETTE["emerald_keeper"] == "#2EC27E"
     assert STUDIO_PALETTE["amber_optical"] == "#E5A50A"
     assert STUDIO_PALETTE["crimson_cull"] == "#E01B24"
@@ -107,6 +110,32 @@ def test_studio_dark_palette():
         ".empty-state-hero",
     ):
         assert selector in STUDIO_DARK_CSS, f"Missing CSS selector {selector} in STUDIO_DARK_CSS"
+
+
+def test_css_follows_system_accent_and_is_neutral():
+    import re
+
+    assert "#3584e4" not in STUDIO_DARK_CSS.lower()
+    assert "rgba(53, 132, 228" not in STUDIO_DARK_CSS
+    for token in ("@accent_bg_color", "@accent_fg_color"):
+        assert token in STUDIO_DARK_CSS
+    assert "Photo Selector" not in STUDIO_DARK_CSS
+    semantic = {"#2EC27E", "#E5A50A", "#E01B24"}
+    for hex_value in set(re.findall(r"#[0-9A-Fa-f]{6}", STUDIO_DARK_CSS)) - semantic:
+        r, g, b = hex_value[1:3], hex_value[3:5], hex_value[5:7]
+        assert r == g == b, f"{hex_value} is not neutral grey"
+
+
+def test_app_is_dark_only_and_has_about_dialog():
+    from pathlib import Path
+
+    ui = Path(__file__).resolve().parents[2] / "src" / "photo_selector_linux" / "ui"
+    assert "Adw.ColorScheme.FORCE_DARK" in (ui / "application.py").read_text()
+    assert "app.alpatix.Blitzlens" in (ui / "application.py").read_text()
+    window = (ui / "window.py").read_text()
+    assert "Adw.AboutDialog" in window and "set_application_icon(APP_ICON_NAME)" in window
+    win = MainWindow()
+    win.show_about()
 
 
 def test_canvas_area_allocation():

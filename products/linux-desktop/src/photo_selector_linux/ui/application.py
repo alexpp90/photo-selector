@@ -24,7 +24,7 @@ except (ImportError, ValueError):
 class PhotoSelectorApplication(Adw.Application if HAS_GI else object):
     """Main Libadwaita Application controller managing window lifecycle and global actions."""
 
-    def __init__(self, application_id: str = "org.photoselector.Linux"):
+    def __init__(self, application_id: str = "app.alpatix.Blitzlens"):
         if HAS_GI:
             super().__init__(
                 application_id=application_id,
@@ -80,6 +80,7 @@ class PhotoSelectorApplication(Adw.Application if HAS_GI else object):
         actions = [
             ("open_folder", self._on_action_open_folder, ["<Control>o"]),
             ("preferences", self._on_action_preferences, ["<Control>comma"]),
+            ("about", self._on_action_about, []),
             ("shortcuts", self._on_action_shortcuts, ["<Control>question", "question"]),
             ("duplicate_finder", self._on_action_duplicate_finder, ["<Control>d"]),
             ("statistics", self._on_action_statistics, ["<Control>l"]),
@@ -110,6 +111,10 @@ class PhotoSelectorApplication(Adw.Application if HAS_GI else object):
     def _on_action_preferences(self, action, param) -> None:
         if self.window:
             self.window.show_preferences()
+
+    def _on_action_about(self, action, param) -> None:
+        if self.window:
+            self.window.show_about()
 
     def _on_action_shortcuts(self, action, param) -> None:
         if self.window:

@@ -32,7 +32,7 @@ Recommends:
  heif-gdk-pixbuf,
  libheif-plugin-libde265
 Description: native GNOME photograph culling and selection suite
- Photo Selector Linux is a native GNOME photograph culling and comparison
+ Blitzlens is a native GNOME photograph culling and comparison
  application for Debian 13 (Trixie) and other current Linux desktops.
  .
  Key features:

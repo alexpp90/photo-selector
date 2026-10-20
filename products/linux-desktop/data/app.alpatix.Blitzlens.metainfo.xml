@@ -1,13 +1,13 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <component type="desktop-application">
-  <id>org.photoselector.Linux</id>
+  <id>app.alpatix.Blitzlens</id>
   <metadata_license>CC0-1.0</metadata_license>
   <project_license>MIT</project_license>
-  <name>Photo Selector</name>
+  <name>Blitzlens</name>
   <summary>Cull, compare and select photographs, with RAW and JPEG pairing</summary>
   <description>
     <p>
-      Photo Selector is a GNOME / Libadwaita application for going through a folder
+      Blitzlens is a GNOME / Libadwaita application for going through a folder
       or memory card of photographs quickly: step through them one at a time or
       compare two or three side by side, and decide which to keep.
     </p>
@@ -22,14 +22,19 @@
   <url type="bugtracker">https://github.com/alexpp90/photo-selector/issues</url>
   <url type="vcs-browser">https://github.com/alexpp90/photo-selector</url>
   <releases>
+    <release version="0.2.0" date="2026-10-20"/>
     <release version="0.1.0" date="2026-10-10"/>
   </releases>
   <branding>
-    <color type="primary" scheme_preference="light">#3584e4</color>
-    <color type="primary" scheme_preference="dark">#181920</color>
+    <color type="primary" scheme_preference="light">#FFC93C</color>
+    <color type="primary" scheme_preference="dark">#FFC93C</color>
   </branding>
-  <launchable type="desktop-id">org.photoselector.Linux.desktop</launchable>
+  <replaces>
+    <id>org.photoselector.Linux</id>
+  </replaces>
+  <launchable type="desktop-id">app.alpatix.Blitzlens.desktop</launchable>
   <provides>
+    <id>org.photoselector.Linux.desktop</id>
     <binary>photo-selector-linux</binary>
   </provides>
   <categories>

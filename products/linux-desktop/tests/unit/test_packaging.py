@@ -117,45 +117,62 @@ def test_debian_changelog_format():
 def test_desktop_integration_files():
     """Verify desktop entry, AppStream metainfo branding, and icon assets (R-LINUX-PKG-01)."""
     product_dir = get_product_root()
-    repo_root = get_repo_root()
     data_dir = product_dir / "data"
 
-    desktop_file = data_dir / "org.photoselector.Linux.desktop"
-    assert desktop_file.is_file(), "Missing org.photoselector.Linux.desktop"
+    desktop_file = data_dir / "app.alpatix.Blitzlens.desktop"
+    assert desktop_file.is_file(), "Missing app.alpatix.Blitzlens.desktop"
     desktop_text = desktop_file.read_text(encoding="utf-8")
     assert "Type=Application" in desktop_text
     assert "Exec=photo-selector-linux %F" in desktop_text
-    assert "Icon=org.photoselector.Linux" in desktop_text
-    assert "StartupWMClass=org.photoselector.Linux" in desktop_text
+    assert "Icon=app.alpatix.Blitzlens" in desktop_text
+    assert "StartupWMClass=app.alpatix.Blitzlens" in desktop_text
     assert "StartupNotify=true" in desktop_text
 
-    meta_file = data_dir / "org.photoselector.Linux.metainfo.xml"
-    assert meta_file.is_file(), "Missing org.photoselector.Linux.metainfo.xml"
+    meta_file = data_dir / "app.alpatix.Blitzlens.metainfo.xml"
+    assert meta_file.is_file(), "Missing app.alpatix.Blitzlens.metainfo.xml"
     meta_text = meta_file.read_text(encoding="utf-8")
-    assert "<id>org.photoselector.Linux</id>" in meta_text
+    assert "<id>app.alpatix.Blitzlens</id>" in meta_text
     assert "<binary>photo-selector-linux</binary>" in meta_text
     assert "<branding>" in meta_text
-    assert "#3584e4" in meta_text.lower()
-    assert "#181920" in meta_text.lower()
+    assert "#ffc93c" in meta_text.lower()
+    assert "<name>Blitzlens</name>" in meta_text
+    assert "<replaces>\n    <id>org.photoselector.Linux</id>" in meta_text
+    assert "<id>org.photoselector.Linux.desktop</id>" in meta_text  # provides: the old desktop id
+    assert '<launchable type="desktop-id">app.alpatix.Blitzlens.desktop</launchable>' in meta_text
+    assert "Name=Blitzlens\n" in desktop_text
+    # Studio rule: the word appears only inside the technical id.
+    assert "alpatix" not in meta_text.replace("app.alpatix.Blitzlens", "").lower()  # brand-guard: allow
+    assert "<developer id=\"io.github.alexpp90\">" in meta_text
 
-    svg_icon = data_dir / "icons" / "hicolor" / "scalable" / "apps" / "org.photoselector.Linux.svg"
-    png_icon = data_dir / "icons" / "hicolor" / "128x128" / "apps" / "org.photoselector.Linux.png"
-    shared_logo = repo_root / "assets" / "linux_desktop_logo.svg"
+    icons = data_dir / "icons" / "hicolor"
+    svg_icon = icons / "scalable" / "apps" / "app.alpatix.Blitzlens.svg"
+    symbolic = icons / "symbolic" / "apps" / "app.alpatix.Blitzlens-symbolic.svg"
     assert svg_icon.is_file(), "Missing scalable SVG icon"
-    assert png_icon.is_file(), "Missing 128x128 PNG icon"
-    assert shared_logo.is_file(), "Missing assets/linux_desktop_logo.svg"
+    assert symbolic.is_file(), "Missing symbolic icon"
+    assert "#FFC93C" in svg_icon.read_text(encoding="utf-8").upper()
+    assert not (icons / "scalable" / "apps" / "org.photoselector.Linux.svg").exists()
+    for size in (16, 24, 128):
+        png_icon = icons / f"{size}x{size}" / "apps" / "app.alpatix.Blitzlens.png"
+        assert png_icon.is_file(), f"Missing {size}px PNG icon"
+        png_bytes = png_icon.read_bytes()
+        assert png_bytes[:8] == b"\x89PNG\r\n\x1a\n", "Invalid PNG signature"
+        assert (int.from_bytes(png_bytes[16:20], "big"), int.from_bytes(png_bytes[20:24], "big")) == (size, size)
+    install = (product_dir / "debian" / "install").read_text(encoding="utf-8")
+    for rel in ("scalable/apps/app.alpatix.Blitzlens.svg", "symbolic/apps/app.alpatix.Blitzlens-symbolic.svg",
+                "16x16/apps/app.alpatix.Blitzlens.png", "24x24/apps/app.alpatix.Blitzlens.png",
+                "128x128/apps/app.alpatix.Blitzlens.png"):
+        assert f"data/icons/hicolor/{rel} usr/share/icons/hicolor/{rel.rsplit('/', 1)[0]}/" in install
 
-    svg_text = svg_icon.read_text(encoding="utf-8")
-    assert svg_text == shared_logo.read_text(encoding="utf-8"), "App SVG icon and shared logo must match"
-    for brand_hex in ("#3584E4", "#06B6D4", "#2EC27E", "#1C1C20", "#3A3A42"):
-        assert brand_hex in svg_text, f"Missing brand hex {brand_hex} in SVG icon"
 
-    # Verify PNG header dimensions (128x128)
-    png_bytes = png_icon.read_bytes()
-    assert png_bytes[:8] == b"\x89PNG\r\n\x1a\n", "Invalid PNG signature"
-    width = int.from_bytes(png_bytes[16:20], "big")
-    height = int.from_bytes(png_bytes[20:24], "big")
-    assert (width, height) == (128, 128), f"Expected 128x128 PNG icon, got {width}x{height}"
+def test_version_consistent_across_sources():
+    product_dir = get_product_root()
+    pyproject = re.search(r'^version = "([^"]+)"', (product_dir / "pyproject.toml").read_text(), re.M).group(1)
+    deb = re.match(r"photo-selector-linux \(([\d.]+)-", (product_dir / "debian" / "changelog").read_text()).group(1)
+    init = re.search(r'__version__ = "([^"]+)"',
+                     (product_dir / "src" / "photo_selector_linux" / "__init__.py").read_text()).group(1)
+    import xml.etree.ElementTree as ET
+    meta = ET.parse(product_dir / "data" / "app.alpatix.Blitzlens.metainfo.xml").getroot().find("releases/release")
+    assert pyproject == deb == init == meta.get("version") == "0.2.0"
 
 
 @pytest.mark.skipif(not shutil.which("dpkg-deb"), reason="dpkg-deb not available")
@@ -173,14 +190,14 @@ def test_package_deb_native_builder(tmp_path):
         str(packager_script),
         "--product-dir", str(product_dir),
         "--output-dir", str(out_dir),
-        "--version", "0.1.0",
-        "--output-filename", "test-package-native_0.1.0_all.deb",
+        "--version", "0.2.0",
+        "--output-filename", "test-package-native_0.2.0_all.deb",
         "--mode", "native"
     ]
     res = subprocess.run(cmd, capture_output=True, text=True)
     assert res.returncode == 0, f"package_deb.py failed:\n{res.stderr}"
 
-    deb_path = out_dir / "test-package-native_0.1.0_all.deb"
+    deb_path = out_dir / "test-package-native_0.2.0_all.deb"
     assert deb_path.is_file(), f"Output package not created at {deb_path}"
 
     verify_script_dir = product_dir / "scripts"
@@ -208,14 +225,14 @@ def test_package_deb_builder(tmp_path):
         "--output-dir",
         str(out_dir),
         "--version",
-        "0.1.0",
+        "0.2.0",
         "--output-filename",
-        "test-package_0.1.0_all.deb",
+        "test-package_0.2.0_all.deb",
     ]
     res = subprocess.run(cmd, capture_output=True, text=True)
     assert res.returncode == 0, f"package_deb.py failed:\n{res.stderr}"
 
-    deb_path = out_dir / "test-package_0.1.0_all.deb"
+    deb_path = out_dir / "test-package_0.2.0_all.deb"
     assert deb_path.is_file(), f"Output package not created at {deb_path}"
     assert deb_path.stat().st_size > 1024, "Package size suspiciously small"
 
@@ -247,7 +264,7 @@ def test_package_deb_builder(tmp_path):
                 with tarfile.open(fileobj=io.BytesIO(data), mode="r:*") as t:
                     data_names = t.getnames()
                     assert any("usr/bin/photo-selector-linux" in n for n in data_names)
-                    assert any("org.photoselector.Linux.desktop" in n for n in data_names)
+                    assert any("app.alpatix.Blitzlens.desktop" in n for n in data_names)
 
         assert "debian-binary" in member_names
         assert any(n.startswith("control.tar") for n in member_names)
@@ -384,9 +401,10 @@ def test_deb_installs_one_desktop_entry_and_one_icon_set(tmp_path):
     data = next(v for k, v in members.items() if k.startswith("data.tar"))
     with tarfile.open(fileobj=io.BytesIO(data), mode="r:*") as t:
         names = t.getnames()
-    assert [n for n in names if n.endswith(".desktop")] == ["./usr/share/applications/org.photoselector.Linux.desktop"]
+    assert [n for n in names if n.endswith(".desktop")] == ["./usr/share/applications/app.alpatix.Blitzlens.desktop"]
     icons = [n for n in names if "/icons/" in n and n.endswith((".svg", ".png"))]
-    assert len(icons) == 2 and all("org.photoselector.Linux" in n for n in icons), icons
+    assert len(icons) == 5 and all("app.alpatix.Blitzlens" in n for n in icons), icons
+    assert any(n.endswith("symbolic/apps/app.alpatix.Blitzlens-symbolic.svg") for n in icons)
 
 
 def test_deb_depends_and_recommends_come_from_debian_control(tmp_path):
@@ -412,7 +430,7 @@ def test_desktop_mimetype_covers_every_supported_format():
     from photo_selector_linux.core import formats
 
     assert set(formats.MIME_TYPE_BY_EXTENSION) == set(formats.SUPPORTED_EXTENSIONS)
-    desktop = (get_product_root() / "data" / "org.photoselector.Linux.desktop").read_text()
+    desktop = (get_product_root() / "data" / "app.alpatix.Blitzlens.desktop").read_text()
     line = next(row for row in desktop.splitlines() if row.startswith("MimeType="))
     assert set(filter(None, line.split("=", 1)[1].split(";"))) == set(formats.MIME_TYPES)
 
@@ -420,7 +438,7 @@ def test_desktop_mimetype_covers_every_supported_format():
 def test_metainfo_release_readiness():
     import xml.etree.ElementTree as ET
 
-    root = ET.parse(get_product_root() / "data" / "org.photoselector.Linux.metainfo.xml").getroot()
+    root = ET.parse(get_product_root() / "data" / "app.alpatix.Blitzlens.metainfo.xml").getroot()
     urls = {u.get("type"): u.text for u in root.findall("url")}
     base = "https://github.com/alexpp90/photo-selector"
     assert urls == {"homepage": base, "bugtracker": base + "/issues", "vcs-browser": base}
@@ -435,9 +453,9 @@ def test_metainfo_release_readiness():
 
 def test_user_facing_text_has_no_internal_design_names():
     data = get_product_root() / "data"
-    for f in (data / "org.photoselector.Linux.metainfo.xml", data / "org.photoselector.Linux.desktop"):
+    for f in (data / "app.alpatix.Blitzlens.metainfo.xml", data / "app.alpatix.Blitzlens.desktop"):
         text = f.read_text(encoding="utf-8")
-        for word in ("Obsidian", "Darkroom", "Optical Cobalt"):
+        for word in ("Obsidian", "Darkroom", "Optical Cobalt", "Photo Selector"):
             assert word not in text, f"{word} in {f.name}"
 
 
@@ -459,7 +477,7 @@ def test_archive_key_fingerprint_documented():
 @pytest.mark.skipif(not __import__("shutil").which("appstreamcli"), reason="appstreamcli not installed")
 def test_appstream_validates():
     res = subprocess.run(["appstreamcli", "validate", "--no-net",
-                          str(get_product_root() / "data" / "org.photoselector.Linux.metainfo.xml")],
+                          str(get_product_root() / "data" / "app.alpatix.Blitzlens.metainfo.xml")],
                          capture_output=True, text=True)
     assert res.returncode == 0, res.stdout + res.stderr
 
@@ -468,6 +486,6 @@ def test_appstream_validates():
     not __import__("shutil").which("desktop-file-validate"), reason="desktop-file-validate not installed"
 )
 def test_desktop_file_validates():
-    desktop = get_product_root() / "data" / "org.photoselector.Linux.desktop"
+    desktop = get_product_root() / "data" / "app.alpatix.Blitzlens.desktop"
     res = subprocess.run(["desktop-file-validate", str(desktop)], capture_output=True, text=True)
     assert res.returncode == 0, res.stdout + res.stderr
