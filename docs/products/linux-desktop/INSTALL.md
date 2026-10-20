@@ -1,6 +1,6 @@
-# Photo Selector Linux — Installation Guide for Debian 13 (Trixie)
+# Blitzlens — Installation Guide for Debian 13 (Trixie)
 
-This guide provides step-by-step instructions for installing and updating **Photo Selector Linux** on Debian 13 (Trixie) and compatible GNOME environments using our official APT repository or standalone packages.
+This guide provides step-by-step instructions for installing and updating **Blitzlens** (package `photo-selector-linux`) on Debian 13 (Trixie) and compatible GNOME environments using our official APT repository or standalone packages.
 
 ---
 
@@ -48,17 +48,19 @@ EOF
 ```
 
 ### Step 4: Update and Install
-Refresh your package index and install Photo Selector:
+Refresh your package index and install Blitzlens:
 ```bash
 sudo apt update
 sudo apt install -y photo-selector-linux
 ```
 
-### Step 5: Launch Photo Selector
+### Step 5: Launch Blitzlens
 You can launch the application directly from the GNOME application grid or via terminal:
 ```bash
 photo-selector-linux
 ```
+
+Upgrading from 0.1.x: the application id changed to `app.alpatix.Blitzlens`, so Blitzlens appears as a new launcher entry and the old one is removed. Your settings in `~/.config/photo-selector-linux/` are kept.
 
 ---
 
@@ -119,7 +121,7 @@ You can install the `.deb` package directly. `apt` will automatically resolve an
 
 ```bash
 # build it first: products/linux-desktop/scripts/package_debian.sh
-sudo apt install ./products/linux-desktop/dist/photo-selector-linux_0.1.0_all.deb
+sudo apt install ./products/linux-desktop/dist/photo-selector-linux_0.2.0_all.deb
 ```
 *(Note: The `./` prefix is mandatory so `apt` recognizes it as a local filesystem path).*
 
@@ -135,7 +137,7 @@ apt show photo-selector-linux
 Expected output:
 ```
 Package: photo-selector-linux
-Version: 0.1.0
+Version: 0.2.0
 Section: graphics
 Priority: optional
 Architecture: all
@@ -186,5 +188,5 @@ sudo apt update
 - **Fix**: Run `sudo apt update` and check if the repository was successfully queried in the terminal output.
 
 ### Issue 4: Display Server Warnings (Wayland / X11)
-- Photo Selector Linux runs natively on both Wayland and X11. In pure headless SSH sessions without X11 forwarding, launching GUI apps fails with `cannot open display`.
+- Blitzlens runs natively on both Wayland and X11. In pure headless SSH sessions without X11 forwarding, launching GUI apps fails with `cannot open display`.
 - To test headless commands: `photo-selector-linux --help` or run under a virtual frame buffer: `xvfb-run photo-selector-linux`.

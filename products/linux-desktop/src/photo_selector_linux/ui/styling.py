@@ -1,8 +1,8 @@
-"""Obsidian Darkroom & Optical Cobalt CSS styling and visual design tokens for Linux Desktop.
+"""Obsidian Darkroom & System Accent CSS styling and visual design tokens for Linux Desktop.
 
 Adheres to:
 - R-LINUX-UI-02: Studio Dark Scheme & High-Contrast Typography
-- R-LINUX-UI-06: 2.5px solid Optical Cobalt active focus border (#3584E4)
+- R-LINUX-UI-06: 2.5px solid active focus border in the system accent colour (@accent_bg_color)
 - R-LINUX-UI-09: Translucent glassmorphic HUD with normalized optical goodness visualization
 - R-LINUX-UI-10: Semantic tactile action bar and status counter pills
 """
@@ -13,10 +13,10 @@ import math
 from pathlib import Path
 from typing import Dict, List, Tuple
 
-APP_BRAND_NAME: str = "Photo Selector"
+APP_BRAND_NAME: str = "Blitzlens"
 APP_BRAND_TAGLINE: str = "Optical RAW & JPEG Triage"
-APP_THEME_NAME: str = "Obsidian Darkroom & Optical Cobalt"
-APP_ICON_NAME: str = "org.photoselector.Linux"
+APP_THEME_NAME: str = "Obsidian Darkroom & System Accent"
+APP_ICON_NAME: str = "app.alpatix.Blitzlens"
 
 # Normalized goodness bar floor (~6% minimum fill so worst-case blurry scores
 # still read as a metric bar rather than missing data; see ai/memory/palette.md).
@@ -24,22 +24,21 @@ GOODNESS_BAR_FLOOR: float = 0.06
 
 STUDIO_PALETTE: Dict[str, str] = {
     # Surface Hierarchy (Obsidian Darkroom)
-    "canvas_abyss": "#0E0F13",
-    "surface_bg": "#141417",
-    "header_chrome": "#181920",
-    "card_bg": "#1C1C20",
-    "card_hover_bg": "#23242A",
-    "hud_glass_bg": "rgba(20, 20, 23, 0.88)",
-    "border_stroke": "#3A3A42",
-    "border_subtle": "#2A2B32",
+    "canvas_abyss": "#0E0E0E",
+    "surface_bg": "#141414",
+    "header_chrome": "#181818",
+    "card_bg": "#1C1C1C",
+    "card_hover_bg": "#232323",
+    "hud_glass_bg": "rgba(20, 20, 20, 0.88)",
+    "border_stroke": "#3A3A3A",
+    "border_subtle": "#2A2A2A",
     # High-Contrast Typography (Zero dark-on-dark text)
     "text_primary": "#FFFFFF",
     "text_secondary": "#D9D9D9",
-    "text_muted": "#A6A8B4",
-    # Semantic Optical Accents
-    "optical_cobalt": "#3584E4",
-    "optical_cyan": "#06B6D4",
-    "iris_indigo": "#6366F1",
+    "text_muted": "#A6A6A6",
+    # Selection / focus / active state is NOT a fixed colour: the CSS uses libadwaita's named
+    # accent colours, which follow the GNOME accent setting. Nothing here overrides it.
+    # Semantic colours (fixed meaning)
     "emerald_keeper": "#2EC27E",
     "amber_optical": "#E5A50A",
     "crimson_cull": "#E01B24",
@@ -106,51 +105,55 @@ def get_candidate_companion_badges(candidate: object) -> List[Tuple[str, str]]:
 
 
 STUDIO_DARK_CSS: str = """
-/* Photo Selector Linux — Obsidian Darkroom & Optical Cobalt Scheme */
+/* Blitzlens — Obsidian Darkroom & System Accent scheme.
+ * Large surfaces are neutral grey (equal R, G, B). Selection, focus and active state use the
+ * libadwaita named accent colours (@accent_bg_color, @accent_fg_color), which follow the
+ * system accent setting. Keeper / acceptable / cull colours are fixed semantic colours.
+ * The app is dark-only: Adw.ColorScheme.FORCE_DARK in ui/application.py. */
 
 window, .studio-dark-surface {
-    background-color: #141417;
+    background-color: #141414;
     color: #FFFFFF;
 }
 
 .studio-headerbar {
-    background-color: #181920;
-    border-bottom: 1px solid #2A2B32;
+    background-color: #181818;
+    border-bottom: 1px solid #2A2A2A;
     color: #FFFFFF;
 }
 
 .studio-actionbar {
-    background-color: #181920;
-    border-top: 1px solid #2A2B32;
+    background-color: #181818;
+    border-top: 1px solid #2A2A2A;
     padding: 4px 8px;
 }
 
 /* Card & Comparison Panes */
 .card-pane {
-    background-color: #1C1C20;
-    border: 1px solid #3A3A42;
+    background-color: #1C1C1C;
+    border: 1px solid #3A3A3A;
     border-radius: 10px;
     padding: 6px;
 }
 
 .card-pane-inactive {
-    background-color: #18181C;
-    border: 1px solid #2E2E36;
+    background-color: #181818;
+    border: 1px solid #2E2E2E;
     border-radius: 10px;
     padding: 6px;
 }
 
-/* Center Active Focus Slot Border (2.5px solid #3584E4 with Optical Cobalt glow) */
+/* Center Active Focus Slot Border (2.5px solid system accent with a soft glow) */
 .accent-border {
-    border: 2.5px solid #3584E4;
+    border: 2.5px solid @accent_bg_color;
     border-radius: 10px;
-    box-shadow: 0 0 14px rgba(53, 132, 228, 0.28);
+    box-shadow: 0 0 14px alpha(@accent_bg_color, 0.28);
 }
 
 /* Boundary Slot Pane (First / Last Photograph) */
 .boundary-slot-pane {
-    background-color: #1C1C20;
-    border: 1px solid #3A3A42;
+    background-color: #1C1C1C;
+    border: 1px solid #3A3A3A;
     border-radius: 10px;
     color: #D9D9D9;
     padding: 16px;
@@ -169,8 +172,8 @@ window, .studio-dark-surface {
 
 /* Slot Role & Active Pill Badges */
 .active-pill {
-    background-color: #3584E4;
-    color: #FFFFFF;
+    background-color: @accent_bg_color;
+    color: @accent_fg_color;
     font-weight: bold;
     font-size: 11px;
     border-radius: 10px;
@@ -178,8 +181,8 @@ window, .studio-dark-surface {
 }
 
 .slot-role-pill {
-    background-color: #25262E;
-    border: 1px solid #3A3A42;
+    background-color: #252525;
+    border: 1px solid #3A3A3A;
     color: #D9D9D9;
     font-weight: 600;
     font-size: 11px;
@@ -188,8 +191,8 @@ window, .studio-dark-surface {
 }
 
 .zoom-indicator-pill {
-    background-color: rgba(6, 182, 212, 0.20);
-    border: 1px solid #06B6D4;
+    background-color: rgba(255, 255, 255, 0.10);
+    border: 1px solid #6E6E6E;
     color: #FFFFFF;
     font-weight: bold;
     font-size: 11px;
@@ -199,8 +202,8 @@ window, .studio-dark-surface {
 
 /* Companion Format Badges (RAW+JPG, XMP) */
 .companion-badge-raw {
-    background-color: rgba(99, 102, 241, 0.24);
-    border: 1px solid #6366F1;
+    background-color: rgba(255, 255, 255, 0.12);
+    border: 1px solid #7A7A7A;
     color: #FFFFFF;
     font-weight: bold;
     font-size: 10px;
@@ -209,8 +212,8 @@ window, .studio-dark-surface {
 }
 
 .companion-badge-xmp {
-    background-color: rgba(6, 182, 212, 0.22);
-    border: 1px solid #06B6D4;
+    background-color: rgba(255, 255, 255, 0.06);
+    border: 1px solid #6E6E6E;
     color: #FFFFFF;
     font-weight: bold;
     font-size: 10px;
@@ -220,8 +223,8 @@ window, .studio-dark-surface {
 
 /* Photo Counter Pill */
 .photo-counter-pill {
-    background-color: #1C1C20;
-    border: 1px solid #3A3A42;
+    background-color: #1C1C1C;
+    border: 1px solid #3A3A3A;
     color: #D9D9D9;
     border-radius: 12px;
     padding: 4px 12px;
@@ -231,8 +234,8 @@ window, .studio-dark-surface {
 
 /* Floating Info HUD Overlay (Glassmorphic Darkroom Card) */
 .floating-hud {
-    background-color: rgba(20, 20, 23, 0.88);
-    border: 1px solid #3A3A42;
+    background-color: rgba(20, 20, 20, 0.88);
+    border: 1px solid #3A3A3A;
     border-radius: 8px;
     padding: 10px 14px;
     color: #D9D9D9;
@@ -262,7 +265,7 @@ window, .studio-dark-surface {
 
 .score-badge-acceptable {
     background-color: #E5A50A;
-    color: #141417;
+    color: #141414;
     border-radius: 6px;
     padding: 2px 8px;
     font-weight: bold;
@@ -281,14 +284,14 @@ window, .studio-dark-surface {
 /* Optical Sharpness Goodness Meter */
 .sharpness-meter-track,
 .sharpness-meter-track trough {
-    background-color: #262730;
-    border: 1px solid #3A3A42;
+    background-color: #262626;
+    border: 1px solid #3A3A3A;
     border-radius: 4px;
     min-height: 6px;
 }
 
 .sharpness-meter-track progress {
-    background-color: #3584E4;
+    background-color: @accent_bg_color;
     border-radius: 3px;
     min-height: 6px;
 }
@@ -315,8 +318,8 @@ window, .studio-dark-surface {
 }
 
 .action-btn-copy {
-    background-color: #3584E4;
-    color: #FFFFFF;
+    background-color: @accent_bg_color;
+    color: @accent_fg_color;
     font-weight: bold;
     border-radius: 8px;
     padding: 6px 16px;
@@ -332,8 +335,8 @@ window, .studio-dark-surface {
 
 /* Semantic Status Counter Badges */
 .status-counter-badge {
-    background-color: #1C1C20;
-    border: 1px solid #3A3A42;
+    background-color: #1C1C1C;
+    border: 1px solid #3A3A3A;
     color: #D9D9D9;
     border-radius: 6px;
     padding: 4px 10px;
@@ -362,8 +365,8 @@ window, .studio-dark-surface {
 }
 
 .status-counter-remaining {
-    background-color: #1C1C20;
-    border: 1px solid #3A3A42;
+    background-color: #1C1C1C;
+    border: 1px solid #3A3A3A;
     color: #D9D9D9;
     border-radius: 6px;
     padding: 4px 10px;
@@ -373,8 +376,8 @@ window, .studio-dark-surface {
 
 /* Branded Empty-State Darkroom Hero */
 .empty-state-hero {
-    background-color: #1C1C20;
-    border: 1px solid #3A3A42;
+    background-color: #1C1C1C;
+    border: 1px solid #3A3A3A;
     border-radius: 14px;
     padding: 32px 40px;
 }
@@ -391,8 +394,8 @@ window, .studio-dark-surface {
 }
 
 .hotkey-hint-pill {
-    background-color: #141417;
-    border: 1px solid #3A3A42;
+    background-color: #141414;
+    border: 1px solid #3A3A3A;
     color: #D9D9D9;
     border-radius: 6px;
     padding: 3px 8px;

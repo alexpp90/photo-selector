@@ -1,6 +1,6 @@
-# Linux Desktop
+# Linux Desktop (Blitzlens)
 
-Native GNOME photo selection and comparison culling application built in Python 3.12+,
+Blitzlens – Photo Culling: native GNOME photo selection and comparison culling application built in Python 3.12+,
 PyGObject, GTK4, and Libadwaita for Debian 13 (Trixie) and GNOME 46+. Designed specifically for
 lightning-fast SD-card photo ingestion, large-scale RAW/JPEG triage, native Libadwaita look-and-feel,
 and seamless Debian APT package distribution.
@@ -13,6 +13,7 @@ and seamless Debian APT package distribution.
 | Target | Debian 13 (Trixie), GNOME 46+ workstations |
 | Packaging | Debian `.deb` package, signed APT repository published to [`alexpp90/apt`](https://github.com/alexpp90/apt) by `linux.yml` |
 | Entry point | `python3 -m photo_selector_linux` |
+| Application id | `app.alpatix.Blitzlens` (formerly Photo Selector Linux; the package name `photo-selector-linux` is unchanged) |
 
 ## Documents
 

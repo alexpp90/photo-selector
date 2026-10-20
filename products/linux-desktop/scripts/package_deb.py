@@ -20,6 +20,15 @@ import tempfile
 from pathlib import Path
 from typing import Dict, List, Tuple
 
+# Icon files installed under usr/share/icons/hicolor (relative to data/icons/hicolor).
+ICON_FILES = (
+    "scalable/apps/app.alpatix.Blitzlens.svg",
+    "symbolic/apps/app.alpatix.Blitzlens-symbolic.svg",
+    "16x16/apps/app.alpatix.Blitzlens.png",
+    "24x24/apps/app.alpatix.Blitzlens.png",
+    "128x128/apps/app.alpatix.Blitzlens.png",
+)
+
 FIXED_MTIME = 1760097600  # Sat, 10 Oct 2026 12:00:00 UTC
 
 
@@ -52,18 +61,16 @@ def stage_package_payload(product_dir: Path, staging_root: Path) -> int:
     usr_lib = staging_root / "usr" / "lib" / "python3" / "dist-packages" / "photo_selector_linux"
     usr_apps = staging_root / "usr" / "share" / "applications"
     usr_meta = staging_root / "usr" / "share" / "metainfo"
-    usr_icons_svg = staging_root / "usr" / "share" / "icons" / "hicolor" / "scalable" / "apps"
-    usr_icons_png = staging_root / "usr" / "share" / "icons" / "hicolor" / "128x128" / "apps"
     usr_doc = staging_root / "usr" / "share" / "doc" / "photo-selector-linux"
 
-    for d in (usr_bin, usr_lib, usr_apps, usr_meta, usr_icons_svg, usr_icons_png, usr_doc):
+    for d in (usr_bin, usr_lib, usr_apps, usr_meta, usr_doc):
         d.mkdir(parents=True, exist_ok=True)
 
     # 1. Launcher in /usr/bin/photo-selector-linux
     launcher = usr_bin / "photo-selector-linux"
     launcher_content = (
         "#!/usr/bin/env python3\n"
-        "# Photo Selector Linux executable launcher\n"
+        "# Blitzlens executable launcher\n"
         "import sys\n"
         "from photo_selector_linux.__main__ import main\n"
         "if __name__ == '__main__':\n"
@@ -89,27 +96,27 @@ def stage_package_payload(product_dir: Path, staging_root: Path) -> int:
                 dst_f.chmod(0o644)
 
     # 3. Desktop Entry files
-    desktop_src = product_dir / "data" / "org.photoselector.Linux.desktop"
+    desktop_src = product_dir / "data" / "app.alpatix.Blitzlens.desktop"
     if desktop_src.exists():
-        shutil.copy2(desktop_src, usr_apps / "org.photoselector.Linux.desktop")
-        (usr_apps / "org.photoselector.Linux.desktop").chmod(0o644)
+        shutil.copy2(desktop_src, usr_apps / "app.alpatix.Blitzlens.desktop")
+        (usr_apps / "app.alpatix.Blitzlens.desktop").chmod(0o644)
 
     # 4. AppStream Metainfo
-    meta_src = product_dir / "data" / "org.photoselector.Linux.metainfo.xml"
+    meta_src = product_dir / "data" / "app.alpatix.Blitzlens.metainfo.xml"
     if meta_src.exists():
-        shutil.copy2(meta_src, usr_meta / "org.photoselector.Linux.metainfo.xml")
-        (usr_meta / "org.photoselector.Linux.metainfo.xml").chmod(0o644)
+        shutil.copy2(meta_src, usr_meta / "app.alpatix.Blitzlens.metainfo.xml")
+        (usr_meta / "app.alpatix.Blitzlens.metainfo.xml").chmod(0o644)
 
-    # 5. Icons
-    svg_src = product_dir / "data" / "icons" / "hicolor" / "scalable" / "apps" / "org.photoselector.Linux.svg"
-    if svg_src.exists():
-        shutil.copy2(svg_src, usr_icons_svg / "org.photoselector.Linux.svg")
-        (usr_icons_svg / "org.photoselector.Linux.svg").chmod(0o644)
-
-    png_src = product_dir / "data" / "icons" / "hicolor" / "128x128" / "apps" / "org.photoselector.Linux.png"
-    if png_src.exists():
-        shutil.copy2(png_src, usr_icons_png / "org.photoselector.Linux.png")
-        (usr_icons_png / "org.photoselector.Linux.png").chmod(0o644)
+    # 5. Icons: every hicolor size plus the symbolic variant
+    icon_root = product_dir / "data" / "icons" / "hicolor"
+    share_icons = staging_root / "usr" / "share" / "icons" / "hicolor"
+    for rel in ICON_FILES:
+        src = icon_root / rel
+        if src.exists():
+            dst = share_icons / rel
+            dst.parent.mkdir(parents=True, exist_ok=True)
+            shutil.copy2(src, dst)
+            dst.chmod(0o644)
 
     # 6. Documentation (copyright, changelog.Debian.gz)
     copyright_src = product_dir / "debian" / "copyright"
@@ -377,7 +384,7 @@ def main() -> int:
     parser = argparse.ArgumentParser(description="Pure Python Debian Package Builder")
     parser.add_argument("--product-dir", type=Path, required=True, help="Path to products/linux-desktop")
     parser.add_argument("--output-dir", type=Path, required=True, help="Output destination folder")
-    parser.add_argument("--version", type=str, default="0.1.0", help="Package version")
+    parser.add_argument("--version", type=str, default="0.2.0", help="Package version")
     parser.add_argument("--output-filename", type=str, default="", help="Optional explicit output filename")
     parser.add_argument("--mode", choices=["python", "native"], default="python", help="Packaging engine")
     args = parser.parse_args()

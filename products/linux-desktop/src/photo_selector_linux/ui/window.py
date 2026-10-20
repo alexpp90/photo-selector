@@ -157,6 +157,7 @@ class MainWindow(Adw.ApplicationWindow if HAS_GI else object):
         section_app = Gio.Menu()
         section_app.append("Preferences (Ctrl+,)", "app.preferences")
         section_app.append("Keyboard Shortcuts (Ctrl+?)", "app.shortcuts")
+        section_app.append("About Blitzlens", "app.about")
         menu.append_section(None, section_app)
 
         menu_button.set_menu_model(menu)
@@ -252,6 +253,20 @@ class MainWindow(Adw.ApplicationWindow if HAS_GI else object):
             transient_for=self,
         )
         prefs.present()
+
+    def show_about(self) -> None:
+        from photo_selector_linux import __version__
+
+        about = Adw.AboutDialog()
+        about.set_application_name(APP_BRAND_NAME)
+        about.set_application_icon(APP_ICON_NAME)
+        about.set_version(__version__)
+        about.set_developer_name("AlxPPa")
+        about.set_comments("Photo culling for GNOME")
+        about.set_website("https://github.com/alexpp90/photo-selector")
+        about.set_license_type(Gtk.License.MIT_X11)
+        about.set_copyright("\u00a9 AlxPPa")
+        about.present(self)
 
     def show_shortcuts_guide(self) -> None:
         from photo_selector_linux.ui.shortcuts_dialog import ShortcutsDialog

@@ -107,11 +107,11 @@ dbus-run-session -- bash -c '
   trap "kill \$APP_PID >/dev/null 2>&1 || true" EXIT
 
   for _ in $(seq 1 300); do
-    if xdotool search --onlyvisible --name "Photo Selector" >/dev/null 2>&1; then
+    if xdotool search --onlyvisible --name "Blitzlens" >/dev/null 2>&1; then
       # No window manager under Xvfb: the window keeps its default size unless it is sized
       # here, so every config would test the same 1440x900 window (or one larger than a
       # hidpi screen). Fill the screen, as a maximised window would.
-      xdotool search --onlyvisible --name "Photo Selector" \
+      xdotool search --onlyvisible --name "Blitzlens" \
         windowmove --sync 0 0 windowsize --sync 100% 100% windowactivate --sync >/dev/null 2>&1 || true
       break
     fi
@@ -126,10 +126,10 @@ dbus-run-session -- bash -c '
       arg="${line#* }"
       case "$cmd" in
         checkpoint)
-          if ! gapplication action org.photoselector.Linux lab-checkpoint "'"'"'${arg}'"'"'" >/dev/null 2>&1; then
+          if ! gapplication action app.alpatix.Blitzlens lab-checkpoint "'"'"'${arg}'"'"'" >/dev/null 2>&1; then
             gdbus call --session \
-              --dest org.photoselector.Linux \
-              --object-path /org/photoselector/Linux \
+              --dest app.alpatix.Blitzlens \
+              --object-path /app/alpatix/Blitzlens \
               --method org.gtk.Actions.Activate \
               "lab-checkpoint" "[<'"'"'${arg}'"'"'>]" "{}" >/dev/null 2>&1 || true
           fi
