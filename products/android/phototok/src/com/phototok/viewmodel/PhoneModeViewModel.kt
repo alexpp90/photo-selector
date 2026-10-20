@@ -2,6 +2,7 @@ package com.phototok.viewmodel
 
 import android.content.Intent
 import android.net.Uri
+import android.provider.DocumentsContract
 import android.util.Log
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
@@ -258,6 +259,16 @@ class PhoneModeViewModel @Inject constructor(
         /** Dimension results are applied to the UI state in batches of this size. */
         internal const val DIMENSION_BATCH_SIZE = 24
 
+        private const val EXTERNAL_STORAGE_AUTHORITY = "com.android.externalstorage.documents"
+        private const val CAMERA_DOCUMENT_ID = "primary:DCIM/Camera"
+
+        /**
+         * The picker's `EXTRA_INITIAL_URI` for [documentId]. It must be a document URI: the system
+         * picker ignores a bare tree URI and reopens wherever it was last used (Drive, say).
+         */
+        internal fun pickerInitialUri(documentId: String): Uri =
+            DocumentsContract.buildDocumentUri(EXTERNAL_STORAGE_AUTHORITY, documentId)
+
         internal fun classifyUri(uri: Uri, volumes: List<ExternalVolume> = emptyList()): SourceKind {
             val auth = uri.authority
             // Shorthand URIs in unit tests (e.g. content://tree/photos) lack a dotted package authority.
@@ -508,19 +519,20 @@ class PhoneModeViewModel @Inject constructor(
     /**
      * Quick-start for default phone camera roll.
      * If permission is already granted, opens immediately;
-     * otherwise calls [onLaunchPicker] with the camera tree URI to prompt the user.
+     * otherwise calls [onLaunchPicker] with the camera folder's document URI, so the picker
+     * opens on DCIM/Camera instead of wherever it was last used.
      */
     fun selectCameraFolder(onLaunchPicker: (Uri) -> Unit) {
-        val cameraUri = android.provider.DocumentsContract.buildTreeDocumentUri(
-            "com.android.externalstorage.documents",
-            "primary:DCIM/Camera",
+        val cameraTreeUri = DocumentsContract.buildTreeDocumentUri(
+            EXTERNAL_STORAGE_AUTHORITY,
+            CAMERA_DOCUMENT_ID,
         )
         viewModelScope.launch {
-            val name = imageRepository.prepareSourceFolder(cameraUri)
+            val name = imageRepository.prepareSourceFolder(cameraTreeUri)
             if (name != null) {
-                selectSourceFolder(cameraUri)
+                selectSourceFolder(cameraTreeUri)
             } else {
-                onLaunchPicker(cameraUri)
+                onLaunchPicker(pickerInitialUri(CAMERA_DOCUMENT_ID))
             }
         }
     }
@@ -530,24 +542,18 @@ class PhoneModeViewModel @Inject constructor(
      */
     fun selectRemovableVolume(volume: ExternalVolume?, onLaunchPicker: (Uri?) -> Unit) {
         val uuid = volume?.uuid
-        val initialUri = if (!uuid.isNullOrBlank()) {
-            android.provider.DocumentsContract.buildTreeDocumentUri(
-                "com.android.externalstorage.documents",
-                "$uuid:DCIM",
-            )
-        } else {
-            null
-        }
-        if (initialUri == null) {
+        if (uuid.isNullOrBlank()) {
             onLaunchPicker(null)
             return
         }
+        val dcimDocumentId = "$uuid:DCIM"
+        val dcimTreeUri = DocumentsContract.buildTreeDocumentUri(EXTERNAL_STORAGE_AUTHORITY, dcimDocumentId)
         viewModelScope.launch {
-            val name = imageRepository.prepareSourceFolder(initialUri)
+            val name = imageRepository.prepareSourceFolder(dcimTreeUri)
             if (name != null) {
-                selectSourceFolder(initialUri)
+                selectSourceFolder(dcimTreeUri)
             } else {
-                onLaunchPicker(initialUri)
+                onLaunchPicker(pickerInitialUri(dcimDocumentId))
             }
         }
     }

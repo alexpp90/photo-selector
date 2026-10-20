@@ -97,7 +97,12 @@ def build_parser() -> argparse.ArgumentParser:
         help="Run Android products only on this inventory device (name or serial; repeatable; "
         "naming a personal device opts it in; 'mac' opts the Mac in)",
     )
-    p_run.add_argument("--no-build", action="store_true", help="Skip assembleLab + install (reuse installed .lab APKs)")
+    p_run.add_argument(
+        "--no-build",
+        action="store_true",
+        help="Skip assembleLab: reuse the last lab build of this tree (installed where a device has "
+        "another); refuses when products/android changed since that build",
+    )
 
     # devices
     p_dev = sub.add_parser("devices", help="Show the device inventory and which devices are reachable now")

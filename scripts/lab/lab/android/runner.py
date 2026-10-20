@@ -91,6 +91,70 @@ def is_infra_failure(log_text: str) -> bool:
 # S11 Ultra was still "not connected" on an immediate retry (2026-10-17, SMOKE tab-portrait).
 MAESTRO_RETRY_DELAYS_S = (5.0, 15.0)
 
+NOT_CONNECTED = "was requested, but it is not connected"
+# How long a USB transport that is not `device` (re-enumerating) may take to come back.
+BLOCKER_WAIT_S = 120.0
+
+
+def _adb_devices_text() -> str:
+    try:
+        return subprocess.run(["adb", "devices"], capture_output=True, text=True, timeout=15, check=False).stdout
+    except (OSError, subprocess.TimeoutExpired):
+        return ""
+
+
+def _adb_disconnect(transport: str) -> None:
+    try:
+        subprocess.run(["adb", "disconnect", transport], capture_output=True, timeout=15, check=False)
+    except (OSError, subprocess.TimeoutExpired):
+        pass
+
+
+def _is_network_transport(transport: str) -> bool:
+    return ":" in transport or "._adb" in transport
+
+
+def clear_blocking_transports(
+    serial: str | None,
+    *,
+    devices_text: Callable[[], str] = _adb_devices_text,
+    disconnect: Callable[[str], None] = _adb_disconnect,
+    sleep: Callable[[float], None] = time.sleep,
+    wait_s: float = BLOCKER_WAIT_S,
+    poll_s: float = 5.0,
+) -> str:
+    """Remove what makes Maestro report a connected device as "not connected"; say what it did.
+
+    Maestro lists devices by opening every transport of the adb server, and one transport that
+    is not in state `device` fails the whole listing, so every device on the hub reads "not
+    connected" (LAB-25: reproduced with Maestro 2.11.0 against an adb server answering
+    `192.168.0.224:5555 offline`). On 2026-10-17 and 2026-10-19 each burst began when another
+    transport dropped (the Chromebook going to sleep, the Xperia's USB link) and lasted while adb
+    retried it. A dropped network transport is disconnected (the lab reconnects a device when its
+    turn comes); a USB one is waited for, up to `wait_s`.
+    """
+    from ..inventory import parse_adb_devices
+
+    done: list[str] = []
+    tried: set[str] = set()
+    waited = 0.0
+    while True:
+        blockers = [(t, st) for t, st in parse_adb_devices(devices_text()) if st != "device" and t != serial]
+        if not blockers:
+            return "; ".join(done) or "no transport blocked the device listing"
+        fresh = [(t, st) for t, st in blockers if _is_network_transport(t) and t not in tried]
+        for transport, state in fresh:
+            disconnect(transport)
+            tried.add(transport)
+            done.append(f"disconnected {transport} ({state})")
+        if fresh:
+            continue
+        if waited >= wait_s:
+            done.append(f"still not ready after {wait_s:.0f} s: {', '.join(f'{t} ({st})' for t, st in blockers)}")
+            return "; ".join(done)
+        sleep(poll_s)
+        waited += poll_s
+
 
 def _wait_for_device(serial: str | None, timeout_s: int = 30) -> None:
     """Reconnect a network serial and wait until adb reports the device again (best effort)."""
@@ -111,11 +175,13 @@ def default_maestro_runner(
     *,
     run_once: Callable[[Optional[str], Path, Path], int] | None = None,
     wait_for_device: Callable[[Optional[str]], None] = _wait_for_device,
+    clear_blockers: Callable[[Optional[str]], str] = clear_blocking_transports,
     sleep: Callable[[float], None] = time.sleep,
 ) -> int:
     """Run one Maestro flow; on an infrastructure failure reconnect, wait and retry.
 
-    A failure that names the flow (an element not found) is never retried.
+    A failure that names the flow (an element not found) is never retried. "Not connected"
+    first clears the transports that hide every device from Maestro (`clear_blocking_transports`).
     """
     once = run_once or _run_maestro_once
     log = junit_out.with_suffix(".log")
@@ -126,11 +192,15 @@ def default_maestro_runner(
         if rc == 0 or not is_infra_failure(log_text + xml_text):
             break
         earlier = log_text + "\n" + xml_text
+        cleared = clear_blockers(serial) if NOT_CONNECTED in earlier else None
         wait_for_device(serial)
         sleep(delay)
         rc = once(serial, flow_file, junit_out)
         with log.open("a", encoding="utf-8") as fh:
-            fh.write(f"\n--- earlier attempt failed on infrastructure; retried after {delay:.0f} s ---\n" + earlier[-2000:])
+            fh.write(f"\n--- earlier attempt failed on infrastructure; retried after {delay:.0f} s ---\n")
+            if cleared:
+                fh.write(f"adb transports: {cleared}\n")
+            fh.write(earlier[-2000:])
     return rc
 
 
@@ -216,6 +286,14 @@ def run_android_journey(
     findings: list[Finding] = []
     result_status = "pass"
     broken_reason: str | None = None
+
+    # A journey that needs device state the lab must not create (the camera roll, outside
+    # /sdcard/PSTLab) is not run on a device without it, rather than reported as broken.
+    missing = [d for d in manifest.get("requires_dirs", []) if not adb.dir_exists(str(d))]
+    if missing:
+        res_obj = {"status": "not-run", "reason": f"device has no {', '.join(missing)}", "findings": 0}
+        (out_dir / "result.json").write_text(json.dumps(res_obj, indent=2), encoding="utf-8")
+        return "not-run", []
 
     try:
         try:

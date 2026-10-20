@@ -7,19 +7,16 @@ Cloud'", "swipe left") whose wording doubles as the action log the personas read
 
 from __future__ import annotations
 
-import fcntl
 import json
-import os
 import re
 import time
-from contextlib import contextmanager
-from typing import Iterator
 import xml.etree.ElementTree as ET
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 
 from ..android.adb import AdbClient
+from ..locks import DeviceBusy, device_lock  # noqa: F401 - re-exported for android_test_device.py
 from ..paths import ensure_android_lab_path
 from .metrics import screen_metrics
 
@@ -28,41 +25,10 @@ class StepFailed(RuntimeError):
     """A scenario step could not be carried out (element missing, timeout, device taken over)."""
 
 
-class DeviceBusy(RuntimeError):
-    """Another session or person is using the device; the walkthrough must not start."""
-
-
 _TOP = re.compile(r"(?:topResumedActivity|mResumedActivity)[=:]\s*\S+\s+\S+\s+([\w.]+)/")
 # Packages a walkthrough may legitimately show besides the app: the system folder picker and
 # its permission dialog, and the launcher after Back or Home.
 SYSTEM_PACKAGES = ("com.android.documentsui", "com.google.android.documentsui", "android", "com.android.systemui")
-
-
-@contextmanager
-def device_lock(serial: str, holder: str, lock_dir: Path | None = None) -> Iterator[Path]:
-    """Hold `<lock_dir>/device-<serial>.lock` (fcntl.flock) for the walkthrough.
-
-    `scripts/android_test_device.py with-lock` takes the same lock around instrumented runs
-    (polling it until a timeout), so a test run and a walkthrough never drive the phone at
-    once; the kernel drops the lock if we die.
-    """
-    from ..paths import lab_tmp_root
-
-    base = lock_dir or lab_tmp_root()
-    base.mkdir(parents=True, exist_ok=True)
-    path = base / f"device-{serial}.lock"
-    fd = os.open(path, os.O_RDWR | os.O_CREAT, 0o644)
-    try:
-        try:
-            fcntl.flock(fd, fcntl.LOCK_EX | fcntl.LOCK_NB)
-        except BlockingIOError:
-            held_by = os.pread(fd, 400, 0).decode("utf-8", errors="replace").strip() or "unknown holder"
-            raise DeviceBusy(f"{path} is held by: {held_by}") from None
-        os.ftruncate(fd, 0)
-        os.pwrite(fd, f"{holder} pid={os.getpid()} since={time.strftime('%Y-%m-%dT%H:%M:%S')}\n".encode(), 0)
-        yield path
-    finally:
-        os.close(fd)  # closing releases the flock
 
 
 def foreground_package(adb: AdbClient) -> str | None:

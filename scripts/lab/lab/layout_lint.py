@@ -88,6 +88,30 @@ def visible_bounds(node: Node, by_id: dict[str, Node]) -> list[float] | None:
     return rect
 
 
+def cut_by_scroll(node: Node, by_id: dict[str, Node], tol: float = 0.5) -> bool:
+    """True when a scrolling ancestor cuts `node` at its top or bottom edge.
+
+    uiautomator reports only what is on screen of a node that is scrolled partly out: its
+    bounds end at (or run past) the scroll container's edge and its off-screen children (often
+    the label) are missing. Its height and its name are then unknown, not too small or empty
+    (LAB-26, 2026-10-19: `nav_statistics 80x35 dp` with the sidebar scrolled half past it,
+    `unnamed-control` on the landing card below the fold). Its width is still real: the view
+    toggles cut at the bottom of the narrow control block are 28 dp wide (AD-17). Only vertical
+    cuts are recognised; a node reaching both edges fills the container rather than being cut.
+    """
+    visited: set[str] = set()
+    cur = node.parent
+    while cur is not None and cur not in visited:
+        visited.add(cur)
+        anc = by_id.get(cur)
+        if anc is None:
+            return False
+        if anc.scrollable and anc.h > 0 and (node.y <= anc.y + tol) != (node.y + node.h >= anc.y + anc.h - tol):
+            return True
+        cur = anc.parent
+    return False
+
+
 def named_ids(nodes: list[Node]) -> set[str]:
     """Ids of nodes that carry a name or text themselves or in a descendant.
 
@@ -273,6 +297,7 @@ def lint(
 
     # R4-R7: per active node checks
     for node in active_nodes:
+        cut = node.interactive and cut_by_scroll(node, by_id)
         if node.interactive:
             # R4: off-screen (major)
             if (
@@ -289,8 +314,8 @@ def lint(
                     [node.id],
                 )
 
-            # R5: touch-target (minor)
-            if node.w < min_target - TOUCH_TOLERANCE or node.h < min_target - TOUCH_TOLERANCE:
+            # R5: touch-target (minor); a control cut by its scroll container has no known height
+            if node.w < min_target - TOUCH_TOLERANCE or (not cut and node.h < min_target - TOUCH_TOLERANCE):
                 parent_node = by_id.get(node.parent) if node.parent else None
                 parent_covers = (
                     parent_node is not None
@@ -307,8 +332,8 @@ def lint(
                         [node.id],
                     )
 
-            # R6: unnamed-control (minor)
-            if node.id not in labelled:
+            # R6: unnamed-control (minor); a cut control's label may be the part off screen
+            if node.id not in labelled and not cut:
                 add_finding(
                     "unnamed-control",
                     "minor",

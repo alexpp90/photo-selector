@@ -21,6 +21,8 @@ class Node:
     overlay: bool = False
     text: str = ""
     clipped: bool | None = None
+    # The node scrolls its content (Android `scrollable`); its children may be cut at its edges.
+    scrollable: bool = False
 
     @property
     def x(self) -> float:
@@ -51,6 +53,7 @@ class Node:
             overlay=bool(data.get("overlay", False)),
             text=str(data.get("text", "")),
             clipped=data.get("clipped"),
+            scrollable=bool(data.get("scrollable", False)),
         )
 
     def to_dict(self) -> dict[str, Any]:
@@ -68,6 +71,7 @@ class Node:
             "overlay": self.overlay,
             "text": self.text,
             "clipped": self.clipped,
+            "scrollable": self.scrollable,
         }
 
 

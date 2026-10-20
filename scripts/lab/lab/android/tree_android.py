@@ -124,6 +124,7 @@ def parse_uiautomator_xml(
                     overlay=node_id in overlays,
                     text=text,
                     clipped=None,
+                    scrollable=elem.attrib.get("scrollable", "false") == "true",
                 )
             )
             next_parent: str | None = node_id
