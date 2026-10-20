@@ -15,10 +15,10 @@ Identifying which product a task targets is the first action of every task.
 
 | Product | Code | Tech | Target |
 |---|---|---|---|
-| **PhotoTok** | `products/android/phototok/` (`:phototok`) | Kotlin, Compose, DataStore | Phones, gesture-first |
-| **Android Desktop** | `products/android/android-desktop/` (`:android-desktop`) | Kotlin, Compose, Room, OpenCV, Vico | Tablets ≥ 10", Samsung DeX, Chromebooks |
-| **macOS Desktop** | `products/macos-desktop/` (`PhotoSelectorKit`, `PhotoSelectorApp`) | Swift 6, SwiftUI, Vision, Accelerate | macOS 14+ / 15+ Apple Silicon & Intel |
-| **Linux Desktop** | `products/linux-desktop/` (`photo_selector_linux`) | Python, PyGObject, GTK4, Libadwaita | Debian 13 (Trixie), GNOME 46+ |
+| **Jackpix** | `products/android/phototok/` (`:phototok`) | Kotlin, Compose, DataStore | Phones, gesture-first |
+| **Frameduel** (Android Desktop) | `products/android/android-desktop/` (`:android-desktop`) | Kotlin, Compose, Room, OpenCV, Vico | Tablets ≥ 10", Samsung DeX, Chromebooks |
+| **Lensjet** (macOS Desktop) | `products/macos-desktop/` (`PhotoSelectorKit`, `PhotoSelectorApp`) | Swift 6, SwiftUI, Vision, Accelerate | macOS 14+ / 15+ Apple Silicon & Intel |
+| **Blitzlens** (Linux Desktop) | `products/linux-desktop/` (`photo_selector_linux`) | Python, PyGObject, GTK4, Libadwaita | Debian 13 (Trixie), GNOME 46+ |
 | **Desktop (legacy, archived)** | `products/desktop/src/photo_selector_toolbox/` | Python + Tkinter | macOS, Linux, Windows |
 
 They share photographic *concepts* — the EXIF contract, score semantics, what "Selection"
@@ -44,8 +44,8 @@ both Android products. Canonical names:
 4. **No scratch files.** Never commit temporary artifacts (`scratch*.py`, `pr_desc.txt`,
    lint/analysis dumps, debug scripts) or code at the repository root.
 5. **Keep user-facing docs true.** When observable behaviour changes, update the product's
-   `README.md` (and the root `README.md` product sections, canonical order: PhotoTok, Android
-   Desktop, macOS Desktop, Linux Desktop, legacy Desktop) in the same commit.
+   `README.md` (and the root `README.md` product sections, canonical order: Jackpix, Frameduel,
+   Lensjet, Blitzlens, legacy Desktop) in the same commit.
 6. **Every PR states where and how far it was tested.** After `./scripts/run_tests.sh`, run
    `python3 scripts/verification_record.py pr` (or paste `… render`) so the PR description
    shows the machine, toolchains and gate results, and fill in the template's *Who did the
@@ -61,12 +61,12 @@ both Android products. Canonical names:
 ```
 products/
   android/            The Android platform group — one Gradle build for both Android products
-    phototok/         PhotoTok product              — src/ tests/ res/ AndroidManifest.xml
-    android-desktop/  Android Desktop product       — src/ tests/ res/ AndroidManifest.xml
+    phototok/         Jackpix product               — src/ tests/ res/ AndroidManifest.xml
+    android-desktop/  Frameduel product             — src/ tests/ res/ AndroidManifest.xml
     core/             Shared by the two Android products: EXIF model and readers — src/
     saf/              Shared by the two Android products: SAF file operations — src/
-  macos-desktop/      Native macOS Desktop (Swift)  — src/ tests/ Package.swift
-  linux-desktop/      Native Linux Desktop (GNOME)  — src/ tests/ debian/ scripts/ pyproject.toml
+  macos-desktop/      Lensjet, macOS (Swift)        — src/ tests/ Package.swift
+  linux-desktop/      Blitzlens, GNOME (Python)     — src/ tests/ debian/ scripts/ pyproject.toml
   desktop/            Legacy Desktop (Python)       — src/ tests/ benchmarks/ scripts/ pyproject.toml
 docs/                 Product documentation, organised per product  -> docs/README.md
 scripts/              Cross-product tooling — run_tests.sh (the local CI mirror)

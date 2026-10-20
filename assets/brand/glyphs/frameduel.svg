@@ -1,0 +1,8 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 48 48" width="48" height="48">
+  <!-- Frameduel F-02 "Sharp Final": two contenders, one chevron, one winning frame. -->
+  <rect data-role="M" x="8" y="8" width="10" height="10" fill="#2D2570"/>
+  <rect data-role="M" x="8" y="30" width="10" height="10" fill="#2D2570"/>
+  <path data-role="M" d="M16 13L26 24L16 35" fill="none" stroke="#2D2570" stroke-width="4.5" stroke-linejoin="miter" stroke-miterlimit="10"/>
+  <path data-role="A" d="M27.5 13H40V35H27.5Z" fill="#E2643A"/>
+  <path data-role="K" d="M30 31.5L34 25.5L38 31.5Z" fill="#DED8FF"/>
+</svg>

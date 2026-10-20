@@ -1,19 +1,23 @@
 # Glossary — Canonical Product Names
 
-The repository ships five products (four active native solutions alongside the archived
-legacy Desktop) that have historically been called by multiple different names. This file fixes
-the vocabulary. Use the **canonical name** in commits, pull requests, documentation, agent
-output and issue titles. "The Android app" is ambiguous and therefore wrong — there are two of them.
+The repository ships five products (four active native apps alongside the archived legacy
+Desktop) that have historically been called by several names. This file fixes the
+vocabulary. Use the **canonical name** in commits, pull requests, documentation, agent
+output and issue titles. "The Android app" is ambiguous and therefore wrong — there are two
+of them. Names, icons and colours: [`shared/BRANDING.md`](shared/BRANDING.md).
 
 ## The five products
 
-| Canonical name | Slug | Code | Build target / module | Package / distribution | Target |
-|---|---|---|---|---|---|
-| **Desktop** | `desktop` | `products/desktop/src/photo_selector_toolbox/` | — | `photo-selector-toolbox` (PyPI-style dist name), Homebrew Formula + Cask | macOS, Linux, Windows workstations |
-| **macOS Desktop** | `macos-desktop` | `products/macos-desktop/` | `PhotoSelectorKit`, `PhotoSelectorApp` (SPM) | `PhotoSelectorApp.app`, Homebrew Cask | macOS 14+ / 15+ Apple Silicon & Intel workstations |
-| **Linux Desktop** | `linux-desktop` | `products/linux-desktop/` | `photo-selector-linux` | `.deb` package via the APT repository `alexpp90/apt` | Debian 13 (Trixie), GNOME 46+, Linux workstations |
-| **Android Desktop** | `android-desktop` | `products/android/android-desktop/` | `:android-desktop` | `com.photoselectortoolbox` | Samsung DeX, tablets ≥ 840 dp, Chromebooks |
-| **PhotoTok** | `phototok` | `products/android/phototok/` | `:phototok` | `com.phototok` | Phones of every tier (compact to high-end), portrait, gesture-first |
+| Canonical name | Platform descriptor | Slug | Code | Build target / module | Package / distribution | Target |
+|---|---|---|---|---|---|---|
+| **Jackpix** | Android phone | `phototok` | `products/android/phototok/` | `:phototok` | `com.phototok` | Phones of every tier (compact to high-end), portrait, gesture-first |
+| **Frameduel** | Android Desktop | `android-desktop` | `products/android/android-desktop/` | `:android-desktop` | `com.photoselectortoolbox` | Samsung DeX, tablets ≥ 840 dp, Chromebooks |
+| **Lensjet** | macOS Desktop | `macos-desktop` | `products/macos-desktop/` | `PhotoSelectorKit`, `PhotoSelectorApp` (SPM) | `Lensjet.app` (`app.alpatix.lensjet`), Homebrew Cask | macOS 14+ / 15+ Apple Silicon & Intel workstations |
+| **Blitzlens** | Linux Desktop | `linux-desktop` | `products/linux-desktop/` | `photo_selector_linux` | `photo-selector-linux` `.deb` (`app.alpatix.Blitzlens`) via the APT repository `alexpp90/apt` | Debian 13 (Trixie), GNOME 46+ |
+| **Desktop (legacy)** — "Photo Selector Toolbox (Legacy)" | legacy Desktop | `desktop` | `products/desktop/src/photo_selector_toolbox/` | — | `photo-selector-toolbox`, Homebrew Formula + Cask | macOS, Linux, Windows workstations |
+
+The platform descriptor may follow the name ("Frameduel, the Android Desktop app") but never
+replaces it in user-facing text. The slug names tags (`<slug>-vX.Y.Z`), folders and agents.
 
 Plus two shared libraries, which are not products:
 
@@ -22,30 +26,44 @@ Plus two shared libraries, which are not products:
 | **Android Core** | `products/android/core/` | `:core` | `com.photoselector.core` |
 | **Android SAF** | `products/android/saf/` | `:saf` | `com.photoselector.saf` |
 
-## Deprecated names — do not use
+## Former names — aliases, do not use in new text
 
 | Do not write | Write instead | Why |
 |---|---|---|
-| "the Android app" | Android Desktop, or PhotoTok | There are two Android products |
-| "Toolbox" (on its own) | Android Desktop, or Desktop | `:android-desktop`'s artifacts are named `photo-selector-toolbox-android-*`, but so is the Python product |
-| "the Mac app", "the Linux app" or "the desktop app" (without product qualifier) | Desktop (for Python), macOS Desktop (for Swift), or Linux Desktop (for GNOME/GTK4) | The repository ships multiple desktop apps across distinct platforms |
-| `Android Phone`, `Phone mode`, `Phone Tok` | PhotoTok | One product, one name |
-| `Photo Tok`, `Photo-Tok` | PhotoTok | One spelling, no space, capital T |
-| "the desktop app" for `:android-desktop` | Android Desktop | `:android-desktop` runs on Android in a desktop-shaped window; the Python product is Desktop |
-| "tablet mode" / "phone mode" as product names | Android Desktop / PhotoTok | These are window size classes, not products |
+| PhotoTok, Photo-Tok, Photo Tok, `Phone Tok`, `Phone mode` | Jackpix | Renamed 2026-10; "PhotoTok" survives as the code name (`:phototok`, `PhotoTokTheme`) |
+| PhotoSelector, PhotoSelector Studio (on Android) | Frameduel | Renamed 2026-10 |
+| PhotoSelector Studio (on the Mac), `PhotoSelector.app` | Lensjet, `Lensjet.app` | Renamed 2026-10 |
+| Photo Selector, Photo Selector Linux | Blitzlens | Renamed 2026-10 |
+| Photo Selector Toolbox (for anything but the legacy app or the repository) | the app's name, or the list of the four apps | There is no umbrella name |
+| "the Android app" | Frameduel, or Jackpix | There are two Android products |
+| "Toolbox" (on its own) | Frameduel, or Desktop (legacy) | `:android-desktop`'s artifacts are named `photo-selector-toolbox-android-*`, but so is the Python product |
+| "the Mac app", "the Linux app", "the desktop app" | Lensjet, Blitzlens, Desktop (legacy) | The repository ships several desktop apps |
+| "tablet mode" / "phone mode" as product names | Frameduel / Jackpix | These are window size classes, not products |
 
-The names baked into build identifiers (`:android-desktop`, `com.photoselectortoolbox`,
-`photo-selector-toolbox-android-release.apk`, the `TOOLBOX_*` CI secrets) are **not** being
-renamed: they are load-bearing for Google Play, Firebase and the signing pipeline, where a
-rename means a new app listing. The table above is the mapping between the readable name and
-those identifiers. Prose uses the canonical name; build configuration keeps the identifier.
+## Identifiers that keep the old names
+
+Identifiers bound to stores, package managers, signing or user data are **not** renamed;
+a rename there means a new store listing, a broken update path or lost settings. Prose uses
+the app name, build configuration keeps the identifier.
+
+| Identifier | Where | Kept because |
+|---|---|---|
+| `com.phototok`, `com.photoselectortoolbox` (incl. `.lab`), Kotlin namespaces and packages | Android `build.gradle.kts`, sources | Play listing, Firebase, signing |
+| Firebase projects `phototok-app`, `photo-selector-tb-dist`; CI variables and secrets `PHOTOTOK_*`, `TOOLBOX_*`; keystore aliases | `.github/workflows/android.yml`, signing | distribution pipeline (separate migration) |
+| Release asset names `phototok-android-release.*`, `photo-selector-toolbox-android-release.*`, `photo-selector-macos-*.zip` | release workflows | download links and update tools |
+| Tags `phototok-v*`, `android-desktop-v*`, `macos-desktop-v*`, `linux-desktop-v*` | releases | release history and `scripts/release.py` |
+| Folder `PhotoTok_LeftSwipe`, legacy `PhotoTok_Selection` exclusion | Jackpix, every product's scanner | user files already on disk |
+| Marker file `.photoselector-selection` | every product | Selection folders users already have |
+| Debian package `photo-selector-linux`, settings `~/.config/photo-selector-linux/`, APT Origin/Label | Blitzlens | installed systems keep updating; settings kept |
+| Homebrew cask token | `alexpp90/homebrew-tap` | installed casks keep updating |
+| Gradle modules, Swift targets, Python packages, folder names | code | internal |
 
 ## Terms of art
 
 | Term | Meaning |
 |---|---|
 | **Selection** | The destination subfolder (default name `Selection`) that kept photos are moved or copied into. Same concept across all products. |
-| **Selector** | The comparison workspace: previous / current / next, with quality scores. Desktop, Android Desktop, macOS Desktop, and Linux Desktop. |
-| **Feed** | PhotoTok's vertically paged stream of photos. PhotoTok only. |
-| **Score** | One of sharpness, noise, highlight clipping, shadow clipping, aesthetics — computed identically in Desktop and Android Desktop (see [`shared/FEATURE_PARITY.md`](shared/FEATURE_PARITY.md)), natively via Apple Accelerate and Vision in macOS Desktop, and natively via OpenCV Laplacian focus variance in Linux Desktop. PhotoTok computes none of them. |
+| **Selector** | The comparison workspace: previous / current / next, with quality scores. Desktop (legacy), Frameduel, Lensjet and Blitzlens. |
+| **Feed** | Jackpix's vertically paged stream of photos. Jackpix only. |
+| **Score** | One of sharpness, noise, highlight clipping, shadow clipping, aesthetics — computed identically in Desktop (legacy) and Frameduel (see [`shared/FEATURE_PARITY.md`](shared/FEATURE_PARITY.md)), natively via Apple Accelerate and Vision in Lensjet, and natively via a NumPy Laplacian focus variance in Blitzlens. Jackpix computes none of them. |
 | **Window size class** | Compact (< 600 dp), Medium (600–840 dp), Expanded (≥ 840 dp). A layout dimension, never a product name. |

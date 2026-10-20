@@ -5,10 +5,10 @@ Enforces mechanically:
 1. Product Representation: Every product defined in ai/ROUTING.md and AGENTS.md
    has a dedicated section and entry in the product table.
 2. Canonical Presentation Order:
-   1. PhotoTok (Mobile)
-   2. Android Desktop (Tablet/DeX)
-   3. Native macOS Desktop
-   4. Linux Desktop
+   1. Jackpix (Mobile)
+   2. Frameduel — Android Desktop (Tablet/DeX)
+   3. Lensjet — Native macOS Desktop
+   4. Blitzlens — Linux Desktop
    5. Archived Legacy Desktop
 3. Asset Integrity: Every screenshot or image referenced in README.md exists on disk.
 4. Deprecated Term Detection: No deprecated, obsolete, or prohibited design terms
@@ -30,23 +30,23 @@ REPO_ROOT = Path(__file__).resolve().parents[1]
 README_PATH = REPO_ROOT / "README.md"
 
 CANONICAL_PRODUCT_ORDER = [
-    ("PhotoTok", re.compile(r"##\s+.*\bPhotoTok\b", re.I)),
-    ("Android Desktop", re.compile(r"##\s+.*\bAndroid Desktop\b", re.I)),
-    ("macOS Desktop", re.compile(r"##\s+.*\b(?:macOS Desktop|Native macOS)\b", re.I)),
-    ("Linux Desktop", re.compile(r"##\s+.*\bLinux Desktop\b", re.I)),
+    ("Jackpix", re.compile(r"##\s+.*\bJackpix\b", re.I)),
+    ("Frameduel", re.compile(r"##\s+.*\bFrameduel\b", re.I)),
+    ("Lensjet", re.compile(r"##\s+.*\bLensjet\b", re.I)),
+    ("Blitzlens", re.compile(r"##\s+.*\bBlitzlens\b", re.I)),
     ("Desktop (Legacy)", re.compile(r"##\s+.*\b(?:Desktop \(Legacy\)|Legacy Desktop|Archived Legacy Desktop)\b", re.I)),
 ]
 
 FORBIDDEN_SECTION_TERMS = {
-    "Android Desktop": [
+    "Frameduel": [
         ("Google Drive", "Google Drive was deprecated and removed in REQ-AND-PLATFORM.08"),
         ("Three-Column View", "Three-column view was replaced by 1-over-2 layout in REQ-AND-LAYOUT.04"),
     ],
-    "macOS Desktop": [
+    "Lensjet": [
         ("Ollama", "macOS Desktop uses Apple Vision native ANE scoring, not Ollama"),
     ],
-    "PhotoTok": [
-        ("Three-Column", "PhotoTok is a vertical swipe-first mobile app"),
+    "Jackpix": [
+        ("Three-Column", "Jackpix is a vertical swipe-first mobile app"),
     ],
 }
 

@@ -6,8 +6,8 @@ name: Android CI
 # cross-workflow polling gate needed.
 #
 # Each Android product is released on its own (docs/build/RELEASING.md):
-#   phototok-vX.Y.Z         builds, signs and publishes only PhotoTok
-#   android-desktop-vX.Y.Z  builds, signs and publishes only Android Desktop
+#   phototok-vX.Y.Z         builds, signs and publishes only Jackpix
+#   android-desktop-vX.Y.Z  builds, signs and publishes only Frameduel
 # A tag push builds exactly the module its prefix names, whatever the path
 # filter says; `scripts/release.py verify-tag` fails the run before anything
 # is built if the tag, the in-tree version and the changelog disagree.
@@ -337,13 +337,13 @@ jobs:
             printf "%s" "$TOOLBOX_KEYSTORE_BASE64" | base64 --decode > ${{ github.workspace }}/products/android/toolbox-upload.jks
             echo "TOOLBOX_KEYSTORE_FILE=${{ github.workspace }}/products/android/toolbox-upload.jks" >> "$GITHUB_ENV"
           else
-            echo "Toolbox keystore secret is empty; :android-desktop release will be unsigned."
+            echo "Frameduel keystore secret is empty; :android-desktop release will be unsigned."
           fi
           if [ -n "$PHOTOTOK_KEYSTORE_BASE64" ]; then
             printf "%s" "$PHOTOTOK_KEYSTORE_BASE64" | base64 --decode > ${{ github.workspace }}/products/android/phototok-upload.jks
             echo "PHOTOTOK_KEYSTORE_FILE=${{ github.workspace }}/products/android/phototok-upload.jks" >> "$GITHUB_ENV"
           else
-            echo "Photo Tok keystore secret is empty; :phototok release will be unsigned."
+            echo "Jackpix keystore secret is empty; :phototok release will be unsigned."
           fi
 
       - name: Build release APK
@@ -440,7 +440,7 @@ jobs:
           path: products/android/release-assets/photo-selector-toolbox-android-release.apk
           if-no-files-found: error
 
-      - name: Upload Phototok release APK
+      - name: Upload Jackpix release APK
         if: github.event_name == 'push' && needs.detect-changes.outputs.phototok == 'true'
         uses: actions/upload-artifact@v7
         with:
@@ -449,7 +449,7 @@ jobs:
           if-no-files-found: error
 
       # Each app lives in its own Firebase project with its own service-account credential.
-      - name: Upload Photo Selector Toolbox to Firebase App Distribution
+      - name: Upload Frameduel to Firebase App Distribution
         if: github.event_name == 'push' && github.ref == 'refs/heads/main' && needs.detect-changes.outputs.toolbox == 'true'
         # Tester distribution is a convenience and must not block the Play Store
         # release that runs later in this job. The "groups" alias below must exist
@@ -465,7 +465,7 @@ jobs:
           groups: ${{ vars.TOOLBOX_FIREBASE_TESTER_GROUP || 'testers' }}
           file: products/android/release-assets/photo-selector-toolbox-android-release.apk
 
-      - name: Upload Photo Tok to Firebase App Distribution
+      - name: Upload Jackpix to Firebase App Distribution
         if: github.event_name == 'push' && github.ref == 'refs/heads/main' && needs.detect-changes.outputs.phototok == 'true'
         continue-on-error: true
         uses: wzieba/Firebase-Distribution-Github-Action@v1
@@ -484,7 +484,7 @@ jobs:
           path: products/android/release-assets/photo-selector-toolbox-android-release.aab
           if-no-files-found: error
 
-      - name: Upload Phototok release AAB
+      - name: Upload Jackpix release AAB
         if: github.event_name == 'push' && needs.detect-changes.outputs.phototok == 'true'
         uses: actions/upload-artifact@v7
         with:
@@ -537,21 +537,21 @@ jobs:
     timeout-minutes: 15
 
     steps:
-      - name: Download Photo Selector Toolbox AAB
+      - name: Download Frameduel AAB
         if: needs.detect-changes.outputs.toolbox == 'true'
         uses: actions/download-artifact@v8
         with:
           name: photo-selector-toolbox-android-release-aab
           path: release-assets
 
-      - name: Download Photo Tok AAB
+      - name: Download Jackpix AAB
         if: needs.detect-changes.outputs.phototok == 'true'
         uses: actions/download-artifact@v8
         with:
           name: phototok-android-release-aab
           path: release-assets
 
-      - name: Upload Photo Selector Toolbox AAB to Google Play
+      - name: Upload Frameduel AAB to Google Play
         if: needs.detect-changes.outputs.toolbox == 'true'
         uses: r0adkll/upload-google-play@v1
         with:
@@ -561,7 +561,7 @@ jobs:
           tracks: internal
           status: completed
 
-      - name: Upload Photo Tok AAB to Google Play
+      - name: Upload Jackpix AAB to Google Play
         if: needs.detect-changes.outputs.phototok == 'true'
         uses: r0adkll/upload-google-play@v1
         with:

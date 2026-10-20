@@ -1,6 +1,6 @@
 # Shared — Android Platform Baseline
 
-> Applies to **both** Android products: Android Desktop (`:android-desktop`) and PhotoTok (`:phototok`).
+> Applies to **both** Android products: Frameduel (`:android-desktop`) and Jackpix (`:phototok`).
 > Anything in this file must hold for both apps. Product-specific rules belong in
 > [`../products/android-desktop/`](../products/android-desktop/) or
 > [`../products/phototok/`](../products/phototok/) instead — do not add single-product

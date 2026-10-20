@@ -6,17 +6,21 @@ use, copy, modify and distribute it under those terms.
 The MIT License covers copyright in the code. It does **not** grant rights to the project's
 names, logos or other brand features:
 
-- the names **Photo Selector Toolbox** and **PhotoTok**,
-- the logos, app icons and banner artwork in [`assets/`](assets/) and in the products'
-  resource folders (launcher icons, `logo.icns`, store graphics),
+- the app names **Jackpix**, **Frameduel**, **Lensjet** and **Blitzlens**, and
+  **Photo Selector Toolbox** (the legacy Desktop),
+- the former names **PhotoTok** (also written Photo-Tok), **PhotoSelector Studio** and
+  **Photo Selector**, as far as they still identify these apps,
+- the logos, app icons and banner artwork in [`assets/`](assets/) (the icon masters in
+  [`assets/brand/`](assets/brand/) included) and in the products' resource folders
+  (launcher icons, `AppIcon.icns`, `logo.icns`, hicolor icons, store graphics),
 
 together the "Marks". They identify the builds published by the project maintainer
 (AlxPPa).
 
 ## What you may do
 
-- Refer to the project by name to describe it truthfully ("based on Photo Selector Toolbox",
-  "a fork of PhotoTok", "compatible with Photo Selector Toolbox").
+- Refer to an app by name to describe it truthfully ("based on Blitzlens", "a fork of
+  Jackpix", "compatible with Lensjet").
 - Build and run unmodified or modified versions for yourself.
 - Keep the Marks in an unmodified copy of the repository, its README and documentation.
 
