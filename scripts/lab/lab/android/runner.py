@@ -287,6 +287,14 @@ def run_android_journey(
     result_status = "pass"
     broken_reason: str | None = None
 
+    # A journey that needs device state the lab must not create (the camera roll, outside
+    # /sdcard/PSTLab) is not run on a device without it, rather than reported as broken.
+    missing = [d for d in manifest.get("requires_dirs", []) if not adb.dir_exists(str(d))]
+    if missing:
+        res_obj = {"status": "not-run", "reason": f"device has no {', '.join(missing)}", "findings": 0}
+        (out_dir / "result.json").write_text(json.dumps(res_obj, indent=2), encoding="utf-8")
+        return "not-run", []
+
     try:
         try:
             apply_config(adb, config_name, is_avd_kbd=is_avd_kbd)
