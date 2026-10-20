@@ -30,6 +30,7 @@ import kotlinx.coroutines.test.resetMain
 import kotlinx.coroutines.test.runTest
 import kotlinx.coroutines.test.setMain
 import org.junit.After
+import com.photoselector.core.storage.ExternalVolume
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNotNull
@@ -1124,6 +1125,52 @@ class PhoneModeViewModelTest {
         assertTrue(pickerLaunched)
         assertNotNull(launchedUri)
         assertTrue(launchedUri.toString().contains("DCIM"))
+    }
+
+    @Test
+    fun `selectCameraFolder opens the picker on the camera folder as a document URI`() = runTest {
+        coEvery { imageRepository.prepareSourceFolder(any()) } returns null
+        var launchedUri: Uri? = null
+        val viewModel = buildViewModel()
+
+        viewModel.selectCameraFolder { launchedUri = it }
+        advanceUntilIdle()
+
+        // A bare tree URI is ignored as EXTRA_INITIAL_URI and the picker reopens its last location.
+        val uri = requireNotNull(launchedUri)
+        assertEquals("com.android.externalstorage.documents", uri.authority)
+        assertEquals(listOf("document", "primary:DCIM/Camera"), uri.pathSegments)
+    }
+
+    @Test
+    fun `selectCameraFolder checks the grant on the camera tree URI`() = runTest {
+        val checked = mutableListOf<Uri>()
+        coEvery { imageRepository.prepareSourceFolder(capture(checked)) } returns null
+        val viewModel = buildViewModel()
+
+        viewModel.selectCameraFolder { }
+        advanceUntilIdle()
+
+        assertEquals(listOf("tree", "primary:DCIM/Camera"), checked.single().pathSegments)
+    }
+
+    @Test
+    fun `selectRemovableVolume opens the picker on the card's DCIM as a document URI`() = runTest {
+        coEvery { imageRepository.prepareSourceFolder(any()) } returns null
+        var launchedUri: Uri? = null
+        val viewModel = buildViewModel()
+        val card = ExternalVolume(
+            description = "SD card",
+            path = "/storage/1234-ABCD",
+            isRemovable = true,
+            isPrimary = false,
+            uuid = "1234-ABCD",
+        )
+
+        viewModel.selectRemovableVolume(card) { launchedUri = it }
+        advanceUntilIdle()
+
+        assertEquals(listOf("document", "1234-ABCD:DCIM"), requireNotNull(launchedUri).pathSegments)
     }
 
     @Test

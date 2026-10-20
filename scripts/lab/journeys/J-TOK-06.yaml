@@ -1,0 +1,22 @@
+id: J-TOK-06
+product: phototok
+title: Phone Camera opens the picker inside the camera roll
+fixture: smoke
+configs: [phone-portrait]
+fresh_install: true
+# The camera roll exists once the camera app has saved a photo; the lab never creates it.
+requires_dirs: [/sdcard/DCIM/Camera]
+steps:
+  - {checkpoint: landing}
+  - {maestro: products/android/phototok/tests/e2e/J-TOK-06/01_camera_card_opens_camera_roll.yaml}
+  - {checkpoint: returned}
+fs_expect:
+  landing:
+    unchanged: true
+  returned:
+    unchanged: true
+layout_expect:
+  landing:
+    required: [landing_phone_camera_card]
+  returned:
+    required: [landing_phone_camera_card]
