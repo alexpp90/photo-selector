@@ -258,18 +258,23 @@ jobs:
             git clone --depth 1 "https://x-access-token:${HOMEBREW_TAP_TOKEN}@github.com/alexpp90/homebrew-tap.git" "${TAP_DIR}"
             cd "${TAP_DIR}"
             if [ "${GH_REF}" = "refs/heads/main" ]; then
-              python3 "$UPDATER" --file Casks/photo-selector-toolbox@nightly.rb \
+              CASK=Casks/photo-selector-toolbox@nightly.rb
+              python3 "$UPDATER" --file "$CASK" \
                 --macos-sha256 "${MACOS_SHA256}"
               COMMIT_MSG="Update nightly native macOS cask hash"
             else
               # macos-desktop-v1.2.3 -> 1.2.3 (the release job's verify-tag already proved
               # it equals products/macos-desktop/VERSION)
               VERSION="${GH_REF_NAME##*-v}"
-              python3 "$UPDATER" --file Casks/photo-selector-toolbox.rb \
+              CASK=Casks/photo-selector-toolbox.rb
+              python3 "$UPDATER" --file "$CASK" \
                 --version-val "${VERSION}" \
                 --macos-sha256 "${MACOS_SHA256}"
               COMMIT_MSG="Update native macOS cask to ${VERSION}"
             fi
+            # Since 0.2.0 the zip holds Lensjet.app (was PhotoSelector.app). Only the cask this
+            # run points at the new zip gets the new app name, so the other keeps installing.
+            perl -pi -e 's/^(\s*app )"PhotoSelector\.app"/$1"Lensjet.app"/' "$CASK"
             git add Casks/
             git diff --cached --quiet || git commit -m "${COMMIT_MSG}"
             git push origin HEAD
