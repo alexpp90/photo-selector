@@ -4,7 +4,8 @@
 # `pm clear` J-TOK-03 found no copy). The sheet's "Source Preset" edits the "Phone" kind, the
 # kind of /sdcard/PSTLab/work. The Settings button is selected by its tag `settings_button`
 # (added by alexpp90/photo-selector#802); builds without it skip this flow and keep whatever
-# verb they have.
+# verb they have. Steps get 30 s: on the Xperia XA2 one tap takes 5-8 s and the scroll to
+# "Copy to Selection" ran out of 10 s one step short (2026-10-19).
 appId: com.phototok.lab
 ---
 - runFlow:
@@ -19,7 +20,7 @@ appId: com.phototok.lab
             text: "Phone"
           centerElement: true
           visibilityPercentage: 100
-          timeout: 10000
+          timeout: 30000
       - tapOn:
           text: "Phone"
       - scrollUntilVisible:
@@ -27,11 +28,11 @@ appId: com.phototok.lab
             text: "Copy to Selection"
           centerElement: true
           visibilityPercentage: 100
-          timeout: 10000
+          timeout: 30000
       - tapOn:
           text: "Copy to Selection"
       - back
       - extendedWaitUntil:
           visible:
             id: "viewer.photo"
-          timeout: 10000
+          timeout: 30000

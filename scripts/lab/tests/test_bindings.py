@@ -9,9 +9,15 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
+import yaml  # noqa: E402
+
+from lab.android.tree_android import parse_uiautomator_xml  # noqa: E402
 from lab.bindings import bind_from_tree, resolve_expect  # noqa: E402
 from lab.fs_oracle import evaluate_fs_oracle  # noqa: E402
 from lab.model import Tree  # noqa: E402
+
+DATA = Path(__file__).resolve().parent / "data"
+JOURNEYS = Path(__file__).resolve().parent.parent / "journeys"
 
 
 def moved_tree(name: str) -> Tree:
@@ -55,6 +61,54 @@ class TestBindings(unittest.TestCase):
         expect, _ = resolve_expect({"absent": ["{kept}"]}, {"kept": "IMG[1].JPG"})
         self.assertTrue(fnmatch.fnmatchcase("IMG[1].JPG", expect["absent"][0]))
         self.assertFalse(fnmatch.fnmatchcase("IMG1.JPG", expect["absent"][0]))
+
+
+
+def fs(*paths: str) -> dict:
+    return {"files": [{"path": p, "size": 1} for p in paths], "trash": []}
+
+
+# J-TOK-03 on the Moto G77, 2026-10-19 (`real-2026-10-19-tok`): the feed resumed at DSC_0011, so
+# swipe right copied DSC_0011, swipe left deleted DSC_0010, Revert restored it and the second
+# delete removed it again. The journey said DSC_0011 and reported a blocker at `selection`.
+SMOKE = [f"DSC_{i:04d}.JPG" for i in range(1, 13)]
+TOK_KEPT = fs(*SMOKE, "Selection/.photoselector-selection", "Selection/DSC_0011.JPG")
+TOK_SELECTION = fs(*[p for p in SMOKE if p != "DSC_0010.JPG"], "Selection/.photoselector-selection", "Selection/DSC_0011.JPG")
+
+
+class TestJTok03Bindings(unittest.TestCase):
+    """LAB-22: J-TOK-03 names the photos the feed showed, not the ones a fresh start would show."""
+
+    def setUp(self) -> None:
+        self.journey = yaml.safe_load((JOURNEYS / "J-TOK-03.yaml").read_text(encoding="utf-8"))
+
+    def resolved(self, checkpoint: str, values: dict) -> dict:
+        expect, missing = resolve_expect(self.journey["fs_expect"][checkpoint], values)
+        self.assertEqual(missing, [])
+        return expect
+
+    def test_the_photo_after_the_kept_one_is_bound_from_the_feed(self) -> None:
+        tree = parse_uiautomator_xml(DATA / "phototok_feed_kept.xml", density_dpi=390)
+        self.assertEqual(bind_from_tree(tree, self.journey["bind"]["kept"]), {"deleted": "DSC_0010.JPG"})
+
+    def test_the_resumed_run_passes_every_checkpoint(self) -> None:
+        values = {"kept": "DSC_0011.JPG", "deleted": "DSC_0010.JPG"}
+        self.assertEqual(evaluate_fs_oracle(TOK_KEPT, self.resolved("kept", values)), [])
+        self.assertEqual(evaluate_fs_oracle(fs(*SMOKE, "Selection/.photoselector-selection",
+                                               "Selection/DSC_0011.JPG"), self.resolved("reverted", values)), [])
+        self.assertEqual(evaluate_fs_oracle(TOK_SELECTION, self.resolved("selection", values)), [])
+
+    def test_a_delete_that_did_not_happen_is_still_a_finding(self) -> None:
+        values = {"kept": "DSC_0011.JPG", "deleted": "DSC_0010.JPG"}
+        findings = evaluate_fs_oracle(TOK_KEPT, self.resolved("selection", values))
+        self.assertEqual([f.rule for f in findings], ["fs-absent"])
+
+    def test_no_phototok_journey_names_a_fixture_photo(self) -> None:
+        # A fixed name assumes where the shared, resumed folder starts (LAB-22).
+        for path in sorted(JOURNEYS.glob("J-TOK-*.yaml")):
+            text = yaml.safe_dump(yaml.safe_load(path.read_text(encoding="utf-8")).get("fs_expect") or {})
+            with self.subTest(journey=path.name):
+                self.assertNotRegex(text, r"DSC_\d{4}")
 
 
 if __name__ == "__main__":
