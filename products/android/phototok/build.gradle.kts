@@ -202,6 +202,9 @@ dependencies {
     testImplementation(libs.turbine)
     testImplementation(libs.mockk)
     testImplementation(libs.robolectric)
+    // Compose layout tests under Robolectric (tests/unit/com/phototok/ui)
+    testImplementation(platform(libs.androidx.compose.bom))
+    testImplementation(libs.androidx.compose.ui.test.junit4)
 
     // Testing — instrumented (androidTest)
     androidTestImplementation(libs.androidx.junit)
