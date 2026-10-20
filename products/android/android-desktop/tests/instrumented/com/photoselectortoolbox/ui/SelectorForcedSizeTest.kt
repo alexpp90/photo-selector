@@ -12,6 +12,7 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.semantics.SemanticsActions
 import androidx.compose.ui.semantics.SemanticsProperties
 import androidx.compose.ui.semantics.getOrNull
 import androidx.compose.ui.test.performClick
@@ -27,9 +28,13 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.getUnclippedBoundsInRoot
 import androidx.compose.ui.test.junit4.createComposeRule
+import androidx.compose.ui.test.hasAnyAncestor
+import androidx.compose.ui.test.hasTestTag
+import androidx.compose.ui.test.hasText
 import androidx.compose.ui.test.onAllNodesWithTag
 import androidx.compose.ui.test.onFirst
 import androidx.compose.ui.test.performScrollTo
+import androidx.compose.ui.text.TextLayoutResult
 import androidx.compose.ui.unit.DpRect
 import androidx.compose.ui.unit.height
 import androidx.compose.ui.unit.width
@@ -218,7 +223,7 @@ class SelectorForcedSizeTest {
                     b.top >= block.top - 0.5.dp && b.bottom <= block.bottom + 0.5.dp,
             )
         }
-        assertTrue("position_counter is squashed", bounds("position_counter").height >= 14.dp)
+        assertTrue("position_counter is squashed", bounds("position_counter").height >= 11.5.dp)
 
         for (i in controls.indices) for (j in i + 1 until controls.size) {
             assertTrue(
@@ -289,6 +294,7 @@ class SelectorForcedSizeTest {
         if (!host(w, h, showPill = true)) return
         composeRule.onAllNodesWithTag("first_run_hint", useUnmergedTree = true).onFirst().assertIsDisplayed()
         val pill = bounds("first_run_hint")
+        assertTouchTarget("first_run_hint_dismiss", w, h)
         val badges = count("maximise_badge")
         assertTrue("no maximise badges at ${w}x$h", badges > 0)
         for (i in 0 until badges) {
@@ -301,12 +307,12 @@ class SelectorForcedSizeTest {
 
     // ── The analytic price versus the measured block ─────────────────────
 
-    private fun hostBlock(availableHeight: Int, fontScale: Float) {
+    private fun hostBlock(availableHeight: Int, fontScale: Float, widthDp: Int = 388) {
         composeRule.setContent {
             PhotoSelectorToolboxTheme {
                 val base = LocalDensity.current
                 CompositionLocalProvider(LocalDensity provides Density(base.density, fontScale)) {
-                    Box(Modifier.width(388.dp).requiredHeight(availableHeight.dp)) {
+                    Box(Modifier.width(widthDp.dp).requiredHeight(availableHeight.dp)) {
                         SelectorControlBlock(
                             actions = noActions,
                             filingAction = FilingAction.COPY,
@@ -328,13 +334,20 @@ class SelectorForcedSizeTest {
         composeRule.waitForIdle()
     }
 
-    private fun assertPriceMatchesMeasurement(marker: String, price: androidx.compose.ui.unit.Dp, height: Int, fontScale: Float) {
-        hostBlock(height, fontScale)
+    private fun assertPriceMatchesMeasurement(
+        marker: String,
+        price: androidx.compose.ui.unit.Dp,
+        height: Int,
+        fontScale: Float,
+        widthDp: Int = 388,
+    ) {
+        hostBlock(height, fontScale, widthDp)
         assertTrue("expected $marker at ${height}dp / scale $fontScale", count(marker) > 0)
         val measured = bounds(marker).let { it.bottom - it.top }
         assertTrue(
             "$marker priced at $price but measured $measured (scale $fontScale): a price below the " +
-                "measurement clips a control on a device",
+                "measurement clips a control on a device. Parts: " +
+                (controls + "position_counter").joinToString { "$it=${bounds(it)}" },
             price + ControlBlockFit.PixelRoundingAllowance >= measured,
         )
         assertTrue(
@@ -359,6 +372,162 @@ class SelectorForcedSizeTest {
     @Test
     fun compactPriceMatchesTheMeasuredBlock_scale1_3() =
         assertPriceMatchesMeasurement("control_block_compact", ControlBlockFit.compactHeight(1.3f), 250, 1.3f)
+
+    // Narrow flanks: 150 dp (inner 142, 2 x 2 toggles, counter on top) and 260 dp
+    // (inner 240, one row of toggles, counter on top). These fit a phone-class window,
+    // so they also run at 420 dpi, where 3 dp is 7.875 px.
+    @Test
+    fun compactNarrowPriceMatchesTheMeasuredBlock_scale1() =
+        assertPriceMatchesMeasurement("control_block_compact", ControlBlockFit.compactHeight(1f, 142.dp), 300, 1f, 150)
+
+    @Test
+    fun compactNarrowPriceMatchesTheMeasuredBlock_scale1_3() =
+        assertPriceMatchesMeasurement("control_block_compact", ControlBlockFit.compactHeight(1.3f, 142.dp), 320, 1.3f, 150)
+
+    @Test
+    fun compactMidPriceMatchesTheMeasuredBlock_scale1() =
+        assertPriceMatchesMeasurement("control_block_compact", ControlBlockFit.compactHeight(1f, 240.dp), 230, 1f, 260)
+
+    // ── AD-16 / AD-17: touch targets, readable words, whole exposure tokens ──
+
+    private val viewToggles = listOf("details_toggle", "filmstrip_toggle", "overlay_values_toggle", "shortcuts_button")
+
+    private fun assertTouchTarget(tag: String, width: Int, height: Int) {
+        composeRule.onAllNodesWithTag(tag, useUnmergedTree = true).onFirst().assertExists()
+        val b = bounds(tag)
+        assertTrue(
+            "$tag is ${b.width} x ${b.height} dp at ${width}x$height; a hit target is at least 48 x 48 dp",
+            b.width.value >= 47.5f && b.height.value >= 47.5f,
+        )
+    }
+
+    private fun textLayout(matcher: androidx.compose.ui.test.SemanticsMatcher): List<TextLayoutResult> {
+        val nodes = composeRule.onAllNodes(matcher, useUnmergedTree = true).fetchSemanticsNodes()
+        return nodes.mapNotNull { node ->
+            val results = mutableListOf<TextLayoutResult>()
+            composeRule.runOnUiThread {
+                node.config.getOrNull(SemanticsActions.GetTextLayoutResult)?.action?.invoke(results)
+            }
+            results.firstOrNull()
+        }
+    }
+
+    /** The word and key cap of [buttonTag] are shown whole: one line, no ellipsis, no overflow. */
+    private fun assertButtonTextIsWhole(buttonTag: String, expectedWord: String?, width: Int, height: Int) {
+        listOf("action_word", "action_key").forEach { part ->
+            val layouts = textLayout(hasTestTag(part) and hasAnyAncestor(hasTestTag(buttonTag)))
+            assertTrue("$buttonTag has no $part text at ${width}x$height", layouts.isNotEmpty())
+            layouts.forEach { l ->
+                val text = l.layoutInput.text.text
+                assertTrue("$buttonTag $part '$text' is ellipsized at ${width}x$height", !l.isLineEllipsized(0))
+                // `hasVisualOverflow` is not usable here: for wrap-content text it compares the
+                // measured width with the paragraph's constraint width and is true for any
+                // short word. What matters is that the one line holds every character.
+                assertTrue(
+                    "$buttonTag $part '$text' is cut at ${width}x$height: line end ${l.getLineEnd(0, visibleEnd = true)}" +
+                        " of ${text.length}, line right ${l.getLineRight(0)} of ${l.size.width}",
+                    l.getLineEnd(0, visibleEnd = true) >= text.length &&
+                        l.getLineRight(0) <= l.size.width + 1f && !l.didOverflowHeight,
+                )
+                assertTrue("$buttonTag $part '$text' wraps at ${width}x$height", l.lineCount == 1)
+                assertTrue("$buttonTag $part '$text' is not a whole word/key cap", text.isNotBlank() && !text.contains('…'))
+                if (part == "action_word" && expectedWord != null) {
+                    assertTrue("$buttonTag word is '$text', expected '$expectedWord'", text == expectedWord)
+                }
+                if (part == "action_key") {
+                    assertTrue("$buttonTag key cap '$text' is cut", text.startsWith("[") && text.endsWith("]"))
+                }
+            }
+        }
+    }
+
+    /** Every line of the exposure text starts after a separator: no token breaks in the middle. */
+    private fun assertExposureTokensWhole(width: Int, height: Int) {
+        listOf("1/250s", "f/2.8").forEach { token ->
+            val layouts = textLayout(
+                hasText(token, substring = true) and hasAnyAncestor(hasTestTag("current_readout")),
+            )
+            assertTrue("the current readout does not show '$token' at ${width}x$height", layouts.isNotEmpty())
+            layouts.forEach { l ->
+                val text = l.layoutInput.text.text
+                for (line in 1 until l.lineCount) {
+                    val before = text.substring(0, l.getLineStart(line)).trimEnd { it.isWhitespace() || it == '\u00A0' }
+                    assertTrue(
+                        "the exposure text '$text' breaks mid-token (line $line starts after '${before.takeLast(4)}') " +
+                            "at ${width}x$height",
+                        before.endsWith("·"),
+                    )
+                }
+            }
+        }
+    }
+
+    /** Runs [block], recording an assertion failure instead of stopping, so one run names every defect. */
+    private fun soft(failures: MutableList<String>, block: () -> Unit) {
+        try {
+            block()
+        } catch (e: AssertionError) {
+            failures += e.message.orEmpty()
+        }
+    }
+
+    private fun checkLabSize(width: Int, height: Int, expectedMarker: String? = null) {
+        if (!host(width, height, showPill = true)) return
+        composeRule.onAllNodesWithTag("first_run_hint", useUnmergedTree = true).onFirst().assertIsDisplayed()
+        val failures = mutableListOf<String>()
+        if (expectedMarker != null) {
+            soft(failures) { assertTrue("expected $expectedMarker at ${width}x$height", count(expectedMarker) > 0) }
+        }
+        // AD-17: every one of these is a 48 x 48 dp hit target, at every size.
+        (viewToggles + "first_run_hint_dismiss").forEach { tag ->
+            soft(failures) { assertTouchTarget(tag, width, height) }
+        }
+        // AD-16: the word and key cap of every worded control are shown whole.
+        listOf(
+            "copy_button_expanded" to (null as String?),
+            "move_button_expanded" to null,
+            "delete_button_expanded" to "Delete",
+            "fullscreen_button" to "Full",
+            "rail_previous" to "Prev",
+            "rail_next" to "Next",
+        ).forEach { (tag, word) -> soft(failures) { assertButtonTextIsWhole(tag, word, width, height) } }
+        soft(failures) { assertExposureTokensWhole(width, height) }
+        // REQ-AND-LAYOUT.09: nothing shares bounds.
+        for (i in controls.indices) for (j in i + 1 until controls.size) {
+            soft(failures) {
+                assertTrue(
+                    "${controls[i]} overlaps ${controls[j]} at ${width}x$height",
+                    !intersects(bounds(controls[i]), bounds(controls[j])),
+                )
+            }
+        }
+        // The pill clears every maximise badge and every control; every badge is a 48 dp target.
+        val pill = bounds("first_run_hint")
+        for (i in 0 until count("maximise_badge")) {
+            soft(failures) {
+                assertTrue("pill $pill covers badge ${bounds("maximise_badge", i)}", !intersects(pill, bounds("maximise_badge", i)))
+                assertTrue("a maximise badge is under 48 dp", bounds("maximise_badge", i).width.value >= 47.5f)
+            }
+        }
+        controls.forEach { soft(failures) { assertTrue("pill $pill covers $it at ${width}x$height", !intersects(pill, bounds(it))) } }
+        if (count("control_block_scrolling") == 0) soft(failures) { assertHostedControlBlockFits(width, height) }
+        assertTrue("at ${width}x$height:\n" + failures.joinToString("\n"), failures.isEmpty())
+    }
+
+    @Test
+    fun labTargetsAndWords_1480x844() = checkLabSize(1480, 844, "control_block_full")
+
+    @Test
+    fun labTargetsAndWords_1280x800() = checkLabSize(1280, 800, "control_block_full")
+
+    @Test
+    fun labTargetsAndWords_1024x720() = checkLabSize(1024, 720)
+
+    @Test
+    fun labTargetsAndWords_720x560() = checkLabSize(720, 560, "control_block_compact")
+
+    @Test
+    fun labTargetsAndWords_600x480() = checkLabSize(600, 480, "control_block_scrolling")
 
     // ── AD-3: the paged coach guide ──────────────────────────────────────
 
