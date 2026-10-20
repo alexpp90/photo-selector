@@ -20,8 +20,8 @@ public struct ContentView: View {
     public var body: some View {
         GeometryReader { geometry in
             ZStack {
-                // Neutral Dark Studio Canvas (#0B0B0D)
-                Color(red: 0.043, green: 0.043, blue: 0.051)
+                // Neutral canvas (LensjetPalette.canvas)
+                Color.lensjetCanvas
                     .ignoresSafeArea()
 
                 if viewModel.isLoading && viewModel.photos.isEmpty {
@@ -117,7 +117,7 @@ public struct ContentView: View {
         }
         .frame(minWidth: 960, minHeight: 640)
         .preferredColorScheme(.dark)
-        .navigationTitle(viewModel.rootDirectoryURL != nil ? "PhotoSelector Studio — \(viewModel.rootDirectoryURL!.lastPathComponent)" : "PhotoSelector Studio")
+        .navigationTitle(viewModel.rootDirectoryURL != nil ? "Lensjet — \(viewModel.rootDirectoryURL!.lastPathComponent)" : "Lensjet")
         .focusable()
         .focusEffectDisabled()
         .focused($isWorkspaceFocused)

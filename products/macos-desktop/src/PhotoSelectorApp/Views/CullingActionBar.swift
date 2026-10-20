@@ -24,7 +24,7 @@ public struct CullingActionBar: View {
         .background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: 14))
         .overlay(
             RoundedRectangle(cornerRadius: 14)
-                .stroke(Color(red: 58/255.0, green: 58/255.0, blue: 66/255.0).opacity(0.85), lineWidth: 1) // #3A3A42
+                .stroke(Color.lensjetSeparator.opacity(0.85), lineWidth: 1)
         )
         .padding(.horizontal, 14)
         .padding(.vertical, 4)
@@ -40,8 +40,8 @@ public struct CullingActionBar: View {
                 density: density,
                 icon: "arrow.right.doc.fill",
                 shortcut: "M",
-                fillColor: Color(red: 8/255.0, green: 47/255.0, blue: 30/255.0),    // #082F1E
-                accentColor: Color(red: 16/255.0, green: 185/255.0, blue: 129/255.0), // #10B981
+                fillColor: Color.lensjetMoveFill,
+                accentColor: Color.lensjetMove,
                 isEnabled: !viewModel.photos.isEmpty,
                 perform: { viewModel.cullCurrentPhoto(action: .move) }
             )
@@ -54,8 +54,8 @@ public struct CullingActionBar: View {
                 density: density,
                 icon: "doc.on.doc.fill",
                 shortcut: "C",
-                fillColor: Color(red: 17/255.0, green: 34/255.0, blue: 64/255.0),   // #112240
-                accentColor: Color(red: 59/255.0, green: 130/255.0, blue: 246/255.0), // #3B82F6
+                fillColor: Color.lensjetCopyFill,
+                accentColor: Color.lensjetCopy,
                 isEnabled: !viewModel.photos.isEmpty,
                 perform: { viewModel.cullCurrentPhoto(action: .copy) }
             )
@@ -68,8 +68,8 @@ public struct CullingActionBar: View {
                 density: density,
                 icon: "trash.fill",
                 shortcut: "⌫",
-                fillColor: Color(red: 59/255.0, green: 13/255.0, blue: 17/255.0),   // #3B0D11
-                accentColor: Color(red: 239/255.0, green: 68/255.0, blue: 68/255.0),  // #EF4444
+                fillColor: Color.lensjetTrashFill,
+                accentColor: Color.lensjetTrash,
                 isDestructive: true,
                 isEnabled: !viewModel.photos.isEmpty,
                 perform: { viewModel.cullCurrentPhoto(action: .trash) }
@@ -87,8 +87,8 @@ public struct CullingActionBar: View {
                 density: density,
                 icon: "arrow.uturn.backward",
                 shortcut: "⌘Z",
-                fillColor: Color(red: 34/255.0, green: 34/255.0, blue: 40/255.0),    // #222228
-                accentColor: Color(red: 228/255.0, green: 228/255.0, blue: 231/255.0), // #E4E4E7
+                fillColor: Color.lensjetNeutralActionFill,
+                accentColor: Color.lensjetNeutralActionAccent,
                 isEnabled: viewModel.canUndo,
                 perform: { viewModel.undoLastAction() }
             )
@@ -121,8 +121,8 @@ public struct CullingActionBar: View {
         let selected = viewModel.selectedCount
         let trashed = viewModel.trashedCount
         let remaining = max(0, viewModel.photos.count - selected - trashed)
-        let green = Color(red: 16/255.0, green: 185/255.0, blue: 129/255.0)
-        let red = Color(red: 239/255.0, green: 68/255.0, blue: 68/255.0)
+        let green = Color.lensjetMove
+        let red = Color.lensjetTrash
         return HStack(spacing: 8) {
             HStack(spacing: 5) {
                 Image(systemName: "checkmark.circle.fill")

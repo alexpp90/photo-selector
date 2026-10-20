@@ -1,6 +1,6 @@
 name: macOS Desktop CI
 
-# Single pipeline for the native Swift 6 macOS Desktop product (PhotoSelectorKit & PhotoSelectorApp).
+# Single pipeline for the native Swift 6 macOS Desktop product (Lensjet).
 # Unit, adversarial, and performance tests run on every push and PR touching products/macos-desktop/.
 # Release builds and artifact packaging execute on pushes to main or `macos-desktop-v*` tags (and
 # manual dispatch). macOS Desktop is released on its own: only a `macos-desktop-vX.Y.Z` tag runs
@@ -71,7 +71,7 @@ jobs:
           xcodebuild -version
           swift --version
 
-      - name: Build PhotoSelectorKit & PhotoSelectorApp (Release)
+      - name: Build Lensjet (Release)
         run: swift build -c release
 
       # The UI test hooks can trash files when launched with --ui-scenario: a release build
@@ -139,9 +139,9 @@ jobs:
           # promises Intel support. The asset keeps its historical name because the
           # alexpp90/homebrew-tap casks download it by that name.
           scripts/build_app.sh release --universal
-          scripts/check_no_test_hooks.sh .build/app/PhotoSelector.app
+          scripts/check_no_test_hooks.sh .build/app/Lensjet.app
           cd .build/app
-          zip -r -y ../../../../photo-selector-macos-apple-silicon.zip PhotoSelector.app
+          zip -r -y ../../../../photo-selector-macos-apple-silicon.zip Lensjet.app
 
       - name: Upload Release Archive
         uses: actions/upload-artifact@v7

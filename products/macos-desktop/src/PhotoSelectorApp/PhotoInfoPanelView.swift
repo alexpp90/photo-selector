@@ -14,9 +14,9 @@ struct PhotoInfoPanelView: View {
     let aestheticsEnabled: Bool
 
     private static let primary = Color.white
-    private static let secondary = Color(white: 0.85)
-    private static let surface = Color(red: 0.078, green: 0.078, blue: 0.09)   // #141417
-    private static let border = Color(red: 0.227, green: 0.227, blue: 0.259)   // #3A3A42
+    private static let secondary = Color.lensjetTextSecondary
+    private static let surface = Color.lensjetPanel
+    private static let border = Color.lensjetSeparator
 
     var body: some View {
         Group {
@@ -140,12 +140,12 @@ struct PhotoInfoPanelView: View {
                 if scores.highlightClipping > 5.0 {
                     Text("Blown \(Int(scores.highlightClipping))%")
                         .font(.system(size: 10, weight: .bold))
-                        .foregroundStyle(Color.orange)
+                        .foregroundStyle(Color.lensjetClippingHighlight)
                 }
                 if scores.shadowClipping > 15.0 {
                     Text("Crushed \(Int(scores.shadowClipping))%")
                         .font(.system(size: 10, weight: .bold))
-                        .foregroundStyle(Color(red: 0.75, green: 0.6, blue: 1.0))
+                        .foregroundStyle(Color.lensjetClippingShadow)
                 }
             } else {
                 HStack(spacing: 4) {
@@ -165,7 +165,7 @@ struct PhotoInfoPanelView: View {
             HStack(spacing: 4) {
                 Image(systemName: "star.fill")
                     .font(.system(size: 10))
-                    .foregroundStyle(Color(red: 251/255.0, green: 191/255.0, blue: 36/255.0)) // #FBBF24
+                    .foregroundStyle(Color.lensjetRating)
                 Text(String(format: "%.1f", aesthetic))
                     .font(.system(size: 11, weight: .semibold).monospacedDigit())
                     .foregroundStyle(Self.primary)
@@ -189,9 +189,9 @@ struct PhotoInfoPanelView: View {
 
     private func focusColor(for category: SharpnessCategory) -> Color {
         switch category {
-        case .sharp: return Color(red: 52/255.0, green: 211/255.0, blue: 153/255.0)      // #34D399
-        case .acceptable: return Color(red: 245/255.0, green: 158/255.0, blue: 11/255.0) // #F59E0B
-        case .blurry: return Color(red: 244/255.0, green: 63/255.0, blue: 94/255.0)      // #F43F5E
+        case .sharp: return Color.lensjetSharp
+        case .acceptable: return Color.lensjetAcceptable
+        case .blurry: return Color.lensjetBlurry
         }
     }
 

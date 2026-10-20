@@ -42,7 +42,7 @@ public struct DuplicateFinderView: View {
             .frame(maxWidth: .infinity, maxHeight: .infinity)
         }
         .frame(minWidth: 880, idealWidth: 1080, maxWidth: 1400, minHeight: 620, idealHeight: 760, maxHeight: 1000)
-        .background(Color(red: 0.055, green: 0.055, blue: 0.063))
+        .background(Color.lensjetSurface)
         .preferredColorScheme(.dark)
         .onAppear {
             if viewModel.targetDirectoryURL != nil && viewModel.duplicateGroups.isEmpty {
@@ -141,7 +141,7 @@ public struct DuplicateFinderView: View {
         }
         .padding(.horizontal, 20)
         .padding(.vertical, 14)
-        .background(Color(red: 0.08, green: 0.08, blue: 0.09))
+        .background(Color.lensjetPanel)
     }
 
     // MARK: - Completed Two-Column View
@@ -358,7 +358,7 @@ private struct GroupDetailView: View {
             }
             .frame(maxWidth: .infinity, maxHeight: .infinity)
         }
-        .background(Color(red: 0.04, green: 0.04, blue: 0.048))
+        .background(Color.lensjetCanvas)
     }
 }
 
@@ -489,7 +489,7 @@ private struct DuplicateCardView: View {
         .frame(width: 308)
         .background(
             RoundedRectangle(cornerRadius: 12)
-                .fill(Color(red: 0.08, green: 0.08, blue: 0.09))
+                .fill(Color.lensjetPanel)
         )
         .overlay(
             RoundedRectangle(cornerRadius: 12)

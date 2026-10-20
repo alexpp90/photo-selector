@@ -106,7 +106,7 @@ public struct ComparisonView: View {
             }
             .padding(Self.padding)
         }
-        .background(Color(red: 0.043, green: 0.043, blue: 0.051))
+        .background(Color.lensjetCanvas)
         .preferredColorScheme(.dark)
         .onChange(of: zoomState) { _, newState in
             if !newState.isZoomed { sharedState.sharedPanOffset = .zero }
@@ -237,11 +237,11 @@ public struct BoundarySlotPane: View {
 
             Text(subtitle)
                 .font(.system(size: 12, weight: .medium))
-                .foregroundStyle(Color(white: 0.85))
+                .foregroundStyle(Color.lensjetTextSecondary)
                 .multilineTextAlignment(.center)
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
-        .background(Color(red: 0.07, green: 0.07, blue: 0.08))
+        .background(Color.lensjetSurface)
         .clipShape(RoundedRectangle(cornerRadius: 6))
         .overlay(
             RoundedRectangle(cornerRadius: 6)
@@ -319,8 +319,8 @@ public struct ComparisonSlotPane: View {
 
     public var body: some View {
         ZStack(alignment: .topLeading) {
-            // Neutral Dark Studio Canvas Background (#0B0B0D)
-            Color(red: 0.043, green: 0.043, blue: 0.051)
+            // Neutral canvas (LensjetPalette.canvas)
+            Color.lensjetCanvas
 
             // Header, image and EXIF strip stack vertically: each reserves its own rows, so
             // no metadata is ever drawn on top of the photograph (REQ-MAC-LAYOUT.05).
@@ -383,7 +383,7 @@ public struct ComparisonSlotPane: View {
             if isActive {
                 FocusReticleShape(cornerLength: 28, cornerRadius: 6)
                     .stroke(
-                        Color(red: 0.22, green: 0.74, blue: 0.97), // #38BDF8 Viewfinder shutter cyan
+                        Color.lensjetSelection,
                         style: StrokeStyle(lineWidth: 3.0, lineCap: .round, lineJoin: .round)
                     )
                     .padding(1.5)
@@ -436,7 +436,7 @@ public struct ComparisonSlotPane: View {
                 HStack(spacing: 3) {
                     Image(systemName: "star.fill")
                         .font(.system(size: 8))
-                        .foregroundStyle(Color(red: 251/255.0, green: 191/255.0, blue: 36/255.0)) // #FBBF24
+                        .foregroundStyle(Color.lensjetRating)
                     Text(String(format: "%.1f", aesthetic))
                         .font(.system(size: 10, weight: .bold).monospacedDigit())
                         .foregroundStyle(Color.white)
@@ -492,12 +492,12 @@ public struct ComparisonSlotPane: View {
                     if scores.highlightClipping > 5.0 {
                         Text("⚠️ Blown (\(Int(scores.highlightClipping))%)")
                             .font(.system(size: 9, weight: .bold))
-                            .foregroundStyle(Color.orange)
+                            .foregroundStyle(Color.lensjetClippingHighlight)
                     }
                     if scores.shadowClipping > 15.0 {
                         Text("⚠️ Crushed (\(Int(scores.shadowClipping))%)")
                             .font(.system(size: 9, weight: .bold))
-                            .foregroundStyle(Color.purple)
+                            .foregroundStyle(Color.lensjetClippingShadow)
                     }
                 }
             }
@@ -509,10 +509,10 @@ public struct ComparisonSlotPane: View {
             HStack(spacing: 4) {
                 Image(systemName: "camera")
                     .font(.system(size: 9))
-                    .foregroundStyle(Color(white: 0.85))
+                    .foregroundStyle(Color.lensjetTextSecondary)
                 Text(photo.exif?.isFallback == true ? "No EXIF" : "Reading EXIF…")
                     .font(.system(size: 9, weight: .medium))
-                    .foregroundStyle(Color(white: 0.85))
+                    .foregroundStyle(Color.lensjetTextSecondary)
             }
             .padding(.horizontal, 6)
             .padding(.vertical, 2)
@@ -552,7 +552,7 @@ public struct ComparisonSlotPane: View {
                 .foregroundStyle(Color.white)
                 .padding(.horizontal, 8)
                 .padding(.vertical, 3)
-                .background(Color(red: 0.22, green: 0.74, blue: 0.97)) // #38BDF8
+                .background(Color.lensjetSelection)
                 .clipShape(Capsule())
 
             case .next:
@@ -587,9 +587,9 @@ public struct ComparisonSlotPane: View {
 
     private func focusColor(for category: SharpnessCategory) -> Color {
         switch category {
-        case .sharp: return Color(red: 52/255.0, green: 211/255.0, blue: 153/255.0)      // #34D399
-        case .acceptable: return Color(red: 245/255.0, green: 158/255.0, blue: 11/255.0) // #F59E0B
-        case .blurry: return Color(red: 244/255.0, green: 63/255.0, blue: 94/255.0)      // #F43F5E
+        case .sharp: return Color.lensjetSharp
+        case .acceptable: return Color.lensjetAcceptable
+        case .blurry: return Color.lensjetBlurry
         }
     }
 }

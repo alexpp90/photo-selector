@@ -42,9 +42,9 @@ public struct CullingHUDView: View {
     private var iconColor: Color {
         if let action = toast.actionType {
             switch action {
-            case .move: return Color.green
-            case .copy: return Color.blue
-            case .trash: return Color.red
+            case .move: return Color.lensjetMove
+            case .copy: return Color.lensjetCopy
+            case .trash: return Color.lensjetTrash
             }
         }
         return Color.accentColor

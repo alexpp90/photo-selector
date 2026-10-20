@@ -1,6 +1,6 @@
-# macOS Desktop
+# Lensjet – Mac Photo Culling
 
-High-performance native macOS photo selection and comparison culling application built in Swift 6 and SwiftUI. Designed specifically for lightning-fast SD-card photo ingestion, large-scale RAW/JPEG triage, and instant decision-making.
+Lensjet (formerly PhotoSelector Studio) is a high-performance native macOS photo selection and comparison culling application built in Swift 6 and SwiftUI. Designed specifically for lightning-fast SD-card photo ingestion, large-scale RAW/JPEG triage, and instant decision-making.
 
 ```
 products/macos-desktop/
@@ -11,7 +11,7 @@ products/macos-desktop/
     PhotoSelectorApp/      Native SwiftUI application: @main, culling workspace, comparison view, settings, tools
   tests/
     unit/                  Automated unit tests for PhotoSelectorKit (Swift Testing / XCTest)
-  scripts/                 build_app.sh (assemble PhotoSelector.app), ui_smoke_test.sh (running-app self-test), make_fixtures.swift
+  scripts/                 build_app.sh (assemble Lensjet.app), ui_smoke_test.sh (running-app self-test), make_fixtures.swift
 ```
 
 ## Key Capabilities
@@ -67,9 +67,11 @@ the distributable `.build/app/`. `scripts/check_no_test_hooks.sh` verifies a bin
 Recommended — assemble and open a proper app bundle (Dock icon, normal keyboard focus):
 
 ```bash
-products/macos-desktop/scripts/build_app.sh          # prints .build/app/PhotoSelector.app
-open products/macos-desktop/.build/app/PhotoSelector.app
+products/macos-desktop/scripts/build_app.sh          # prints .build/app/Lensjet.app
+open products/macos-desktop/.build/app/Lensjet.app
 ```
+
+Settings from the former bundle id `com.photoselectortoolbox.macos` are copied once on the first launch (nothing is overwritten or deleted). macOS asks again for folder and removable-volume access, which belongs to the bundle id `app.alpatix.lensjet`.
 
 The bundle holds the host architecture only. Release packaging adds `--universal` to build
 arm64 and x86_64 slices and merge them with `lipo`, so the published zip runs on Apple Silicon

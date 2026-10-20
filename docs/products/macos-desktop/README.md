@@ -1,6 +1,6 @@
-# macOS Desktop
+# macOS Desktop (Lensjet)
 
-High-performance native macOS photo selection and comparison culling application built in Swift 6
+Lensjet is the high-performance native macOS photo selection and comparison culling application built in Swift 6
 and SwiftUI for macOS 14+ / macOS 15+ (Apple Silicon & Intel). Designed specifically for
 lightning-fast SD-card photo ingestion, large-scale RAW/JPEG triage, on-device Apple Vision
 aesthetic scoring, and instant zero-latency decision making.
@@ -11,7 +11,7 @@ aesthetic scoring, and instant zero-latency decision making.
 | SPM Targets | `PhotoSelectorKit` (core/domain), `PhotoSelectorApp` (SwiftUI executable) |
 | Tests | `products/macos-desktop/tests/unit/` (`PhotoSelectorKitTests`) |
 | Target | macOS 14+ (Sonoma) / macOS 15+ (Sequoia), Apple Silicon & Intel |
-| Artifacts | `PhotoSelectorApp` (macOS Application bundle) |
+| Artifacts | `Lensjet.app` (macOS application bundle, bundle id `app.alpatix.lensjet`) |
 | Entry point | `swift run PhotoSelectorApp` |
 
 ## Documents
