@@ -61,7 +61,7 @@ class GestureTutorialOverlayTest {
 
         awaitGuide()
 
-        composeTestRule.onNode(inGuide("How to Photo-Tok"), useUnmergedTree = true)
+        composeTestRule.onNode(inGuide("How to Jackpix"), useUnmergedTree = true)
             .assertIsDisplayed()
 
         composeTestRule.onNode(inGuide("GOT IT"), useUnmergedTree = true).assertIsDisplayed()
@@ -224,7 +224,7 @@ class GestureTutorialOverlayTest {
 
         awaitGuide()
 
-        composeTestRule.onNode(inGuide("How to Photo-Tok"), useUnmergedTree = true)
+        composeTestRule.onNode(inGuide("How to Jackpix"), useUnmergedTree = true)
             .assertIsDisplayed()
         composeTestRule.onNodeWithText("Top App Bar Logo").assertIsDisplayed()
         composeTestRule.onNodeWithText("Bottom Nav Bar").assertIsDisplayed()
@@ -236,6 +236,6 @@ class GestureTutorialOverlayTest {
             GestureTutorialOverlay(visible = false, onDismiss = {})
         }
 
-        composeTestRule.onNodeWithText("How to Photo-Tok").assertDoesNotExist()
+        composeTestRule.onNodeWithText("How to Jackpix").assertDoesNotExist()
     }
 }

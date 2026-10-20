@@ -196,12 +196,12 @@ fun SettingsScreen(
                             Text(
                                 text = "Change",
                                 style = MaterialTheme.typography.labelMedium,
-                                color = colors.primaryContainer,
+                                color = colors.primary,
                             )
                             Icon(
                                 imageVector = Icons.Default.ChevronRight,
                                 contentDescription = null,
-                                tint = colors.primaryContainer,
+                                tint = colors.primary,
                             )
                         }
                     }
@@ -330,7 +330,7 @@ fun SettingsScreen(
                         onCheckedChange = { viewModel.updateDirectDeleteConfirm(it) },
                         colors = SwitchDefaults.colors(
                             checkedThumbColor = colors.onPrimary,
-                            checkedTrackColor = colors.primaryContainer,
+                            checkedTrackColor = colors.primary,
                             uncheckedThumbColor = colors.onSurfaceVariant,
                             uncheckedTrackColor = colors.secondaryContainer,
                             uncheckedBorderColor = colors.secondaryContainer,
@@ -444,12 +444,12 @@ fun SettingsScreen(
                                 Text(
                                     text = "Change",
                                     style = MaterialTheme.typography.labelMedium,
-                                    color = colors.primaryContainer,
+                                    color = colors.primary,
                                 )
                                 Icon(
                                     imageVector = Icons.Default.ChevronRight,
                                     contentDescription = null,
-                                    tint = colors.primaryContainer,
+                                    tint = colors.primary,
                                 )
                             }
                         }
@@ -542,7 +542,7 @@ fun SettingsScreen(
             // within the app; the Impressum link addresses § 5 DDG (Germany).
             SettingsClickItem(
                 title = "Privacy Policy",
-                description = "How Photo-Tok handles your data",
+                description = "How Jackpix handles your data",
                 onClick = {
                     val intent = Intent(Intent.ACTION_VIEW, Uri.parse(com.phototok.domain.LegalLinks.PRIVACY_POLICY))
                     try {
@@ -578,7 +578,7 @@ fun SettingsScreen(
             horizontalAlignment = Alignment.CenterHorizontally,
         ) {
             Text(
-                text = "Photo-Tok",
+                text = "Jackpix",
                 style = MaterialTheme.typography.titleLarge,
                 color = colors.onSurface.copy(alpha = 0.3f),
             )

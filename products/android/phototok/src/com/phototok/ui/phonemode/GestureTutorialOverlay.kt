@@ -80,7 +80,7 @@ private val TIGHT_STAGE_HEIGHT = 190.dp
 private val TIGHT_VERTICAL_CALLOUTS_HEIGHT = 56.dp
 
 /**
- * Coach-mark overlay explaining every Photo-Tok control **in place**.
+ * Coach-mark overlay explaining every Jackpix control **in place**.
  *
  * Serves two entry points:
  *  - the first-launch tutorial (shown automatically), and
@@ -105,7 +105,7 @@ fun GestureTutorialOverlay(
     collectionAction: CollectionAction = CollectionAction.DEFAULT,
     leftSwipeFolderName: String = "",
     collectionFolderName: String = "",
-    title: String = "How to Photo-Tok",
+    title: String = "How to Jackpix",
     subtitle: String? = null,
     dismissLabel: String = "GOT IT",
     /** Measured positions of the real controls; `null` falls back to nominal geometry. */

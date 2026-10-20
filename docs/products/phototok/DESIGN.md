@@ -1,75 +1,38 @@
-# PhotoTok Design Integration Spec
+# Jackpix Design Integration Spec
 
 Maps each element from the 4 HTML mockups to the Kotlin files that need to change. This is the implementation guide.
 
 ---
 
-## 1. Color System Overhaul
+## 1. Color System
 
 **File:** `ui/theme/Color.kt`
 
-The mockups use a Material 3 tonal palette centered on a lavender primary instead of the current Indigo/Zinc. Replace the entire palette.
+Palette "Lime Fizz", dark-only. The accent is the lime of the app icon; the surfaces are neutral grey so the UI never tints the photo being judged. Pink is part of the icon only and never appears in the UI.
 
-| Token | Current | New (from mockup) |
-|-------|---------|-------------------|
-| Primary | `#6366F1` (Indigo500) | `#C0C1FF` |
-| Primary Container | `#4F46E5` (Indigo600) | `#8083FF` |
-| On Primary | `Color.White` | `#1000A9` |
-| On Primary Container | `Zinc50` | `#0D0096` |
-| Surface | `#18181B` (Zinc900) | `#131316` |
-| Surface Container | `#27272A` (Zinc800) | `#1F1F22` |
-| Surface Container High | `#3F3F46` (Zinc700) | `#2A2A2D` |
-| Surface Container Low | `#18181B` (Zinc900) | `#1B1B1E` |
-| Surface Container Lowest | `#09090B` (Zinc950) | `#0E0E11` |
-| Surface Variant | | `#353438` |
-| Outline | `#3F3F46` (Zinc700) | `#908FA0` |
-| Outline Variant | `#52525B` (Zinc600) | `#464554` |
-| On Surface | `Zinc50` | `#E4E1E6` |
-| On Surface Variant | `Zinc400` | `#C7C4D7` |
-| Secondary | | `#C8C6C9` |
-| Secondary Container | | `#47464A` |
-| Tertiary | | `#C7C5CE` |
-| Error | `#EF4444` | `#FFB4AB` |
-| Error Container | `#93000A` | `#93000A` (same) |
-| On Error Container | | `#FFDAD6` |
-| Inverse Surface | | `#E4E1E6` |
-| Surface Tint | | `#C0C1FF` |
+| Token | Value |
+|-------|-------|
+| Primary | `#B8EB4F` (lime) |
+| On Primary | `#1E2A10` (13.2:1 on `#141414`; 10.8:1 on primary) |
+| Primary Container / On Primary Container | `#3E5A00` / `#D4F58C` |
+| Inverse Primary | `#4A6800` |
+| Surface / Background / Surface Dim | `#131313` |
+| Surface Container Lowest / Low / Container / High / Highest | `#0E0E0E` / `#1B1B1B` / `#1F1F1F` / `#2A2A2A` / `#353535` |
+| Surface Bright | `#393939` |
+| On Surface / Inverse Surface | `#E4E4E4` |
+| On Surface Variant | `#C7C7C7` |
+| Outline / Outline Variant | `#909090` / `#464646` |
+| Secondary / Tertiary | `#C8C8C8` / `#C7C7C7` (neutral) |
+| Error / Error Container | `#FFB4AB` / `#93000A` |
+| SuccessGreen / WarningAmber | `#22C55E` / `#F59E0B` (semantic, unchanged) |
 
-**New colors to add:**
+Every text pair is at least 4.5:1 (`ThemeColorsTest`). Surfaces are checked to be neutral (R = G = B) by the same test.
 
-```kotlin
-// M3 Tonal Palette
-val Primary = Color(0xFFC0C1FF)
-val PrimaryContainer = Color(0xFF8083FF)
-val OnPrimary = Color(0xFF1000A9)
-val OnPrimaryContainer = Color(0xFF0D0096)
-val PrimaryFixed = Color(0xFFE1E0FF)
-val PrimaryFixedDim = Color(0xFFC0C1FF)
-
-val Secondary = Color(0xFFC8C6C9)
-val SecondaryContainer = Color(0xFF47464A)
-val OnSecondary = Color(0xFF303033)
-val OnSecondaryContainer = Color(0xFFB6B4B8)
-
-val Tertiary = Color(0xFFC7C5CE)
-val TertiaryContainer = Color(0xFF77767E)
-
-val SurfaceDim = Color(0xFF131316)
-val SurfaceBright = Color(0xFF39393C)
-val SurfaceContainerLowest = Color(0xFF0E0E11)
-val SurfaceContainerLow = Color(0xFF1B1B1E)
-val SurfaceContainer = Color(0xFF1F1F22)
-val SurfaceContainerHigh = Color(0xFF2A2A2D)
-val SurfaceContainerHighest = Color(0xFF353438)
-
-val OutlineColor = Color(0xFF908FA0)
-val OutlineVariant = Color(0xFF464554)
-val OnSurfaceVariant = Color(0xFFC7C4D7)
-```
+**Brand mark in the app:** the logo in the top bar, the side panel and the landing screen is `drawable/ic_brand_mark` (glyph only, tintable) tinted with `primary`. The launcher icon is adaptive with a themed (monochrome) layer; all icon files are generated from `assets/brand` and not hand-edited.
 
 **File:** `ui/theme/Theme.kt`
 
-Update `DarkColorScheme` to use the new palette values. Also update `window.statusBarColor` and `window.navigationBarColor` to `SurfaceContainerLowest` (`#0E0E11`).
+Update `DarkColorScheme` to use these values. `window.statusBarColor` and `window.navigationBarColor` use `SurfaceContainerLowest` (`#0E0E0E`); the window background before the first frame is `#131313` (`res/values/colors.xml`).
 
 **File:** `ui/theme/Type.kt`
 
@@ -89,7 +52,7 @@ The original mockup replaced the vertical column of `FolderPickerCard` rows with
 
 1. **Hero section** (centered, sized from the window height via `BoxWithConstraints`):
    - Launcher-foreground logo: 56 dp below a 700 dp window height, 72 dp from 700 dp; 16 dp top padding
-   - "Photo-Tok" headline (`headlineMedium`, `onSurface`)
+   - "Jackpix" headline (`headlineMedium`, `onSurface`)
    - "SWIPE. SELECT. SNAP." brand line (`labelSmall`, `onSurfaceVariant`, letter-spacing 3 sp)
    - Photo fan (three tilted sample photos) only from a 760 dp window height
 
@@ -157,7 +120,7 @@ The viewer bottom bar (`ViewerBottomBar`) shows 3 persistent action items paired
 
 ### Top app bar
 
-The top app bar shows the "PhotoTok" logo + wordmark in `primary` color (bold) on the left, and four 48 dp action buttons on the right (`PhoneModeTopBar`): `Sync` (Reload folder), `HelpOutline` (Controls guide), `Info` (EXIF metadata toggle), and `Settings`; an SD/USB source adds `SdCard` (Done with this card) before them. The status and navigation bars always draw light icons over the dark UI (also after a rotation; system light mode must not flip them). TalkBack names: logo "PhotoTok logo: show or hide camera info", Info "Toggle EXIF stats", Help "Show controls guide" / "Hide controls guide". In landscape orientation, the left and right side panels render these actions as `SidePanelButton` items with visible `9.sp` micro-labels (`Sources`, `Selection`, `Revert`, `Help`, `Reload`, `Info`, `Settings`).
+The top app bar shows the "Jackpix" logo + wordmark in `primary` color (bold) on the left, and four 48 dp action buttons on the right (`PhoneModeTopBar`): `Sync` (Reload folder), `HelpOutline` (Controls guide), `Info` (EXIF metadata toggle), and `Settings`; an SD/USB source adds `SdCard` (Done with this card) before them. The status and navigation bars always draw light icons over the dark UI (also after a rotation; system light mode must not flip them). TalkBack names: logo "Jackpix logo: show or hide camera info", Info "Toggle EXIF stats", Help "Show controls guide" / "Hide controls guide". In landscape orientation, the left and right side panels render these actions as `SidePanelButton` items with visible `9.sp` micro-labels (`Sources`, `Selection`, `Revert`, `Help`, `Reload`, `Info`, `Settings`).
 
 **Add to:** `PhoneModeScreen.kt` — fixed `Row` at `Alignment.TopStart` with statusBarsPadding.
 
@@ -207,7 +170,7 @@ The bottom sheet has a drag handle, header row with "Settings" headline + close 
 - Source code: `primaryContainer` colored link with `open_in_new` icon
 
 **Footer**:
-- "PhotoTok" + "Professional Curation Engine" centered, 30% opacity
+- "Jackpix" + "Professional Curation Engine" centered, 30% opacity
 
 ### Settings moved from Landing to Settings
 
@@ -372,7 +335,7 @@ Use `AnimatedVisibility` with fade for all overlay elements.
 ### Header
 
 **Current:** "How it works" (`headlineSmall`)
-**New:** "How to PhotoTok" (`headlineMedium`, bold), white + "Master the curation flow with these simple gestures" subtitle (`bodyMedium`, `onSurfaceVariant`)
+**New:** "How to Jackpix" (`headlineMedium`, bold), white + "Master the curation flow with these simple gestures" subtitle (`bodyMedium`, `onSurfaceVariant`)
 
 ### Gesture cards
 
@@ -410,7 +373,7 @@ Three-tab navigation bar shared across all screens. See Landing section above fo
 
 ### `ui/components/TopAppBar.kt` (new file or inline)
 
-Shared transparent top bar: "PhotoTok" branding left, settings icon right. Can be a simple `Row` composable.
+Shared transparent top bar: "Jackpix" branding left, settings icon right. Can be a simple `Row` composable.
 
 ### Navigation architecture change
 
@@ -434,7 +397,7 @@ For now, keep the 2-state approach but add the bottom nav bar visually. The `his
 
 ## 8. Copy & messaging
 
-PhotoTok is a gesture app: people look at photos, not at text. Every dialog, hint card and
+Jackpix is a gesture app: people look at photos, not at text. Every dialog, hint card and
 snackbar follows these rules. They are binding for new UI as well (REQ-TOK-UX.01).
 
 ### Rules

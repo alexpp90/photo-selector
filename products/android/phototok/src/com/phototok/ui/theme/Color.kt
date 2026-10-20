@@ -4,56 +4,56 @@ import androidx.compose.ui.graphics.Color
 
 // ── M3 Tonal Palette (from design mockups) ──────────────────────────────
 
-// Primary (Golden Hour Theme)
-val PtPrimary = Color(0xFFFBBF24)         // Amber 400
-val PtPrimaryContainer = Color(0xFFF97316)  // Sunset Orange 500
-val PtOnPrimary = Color(0xFF451A03)         // Very dark brown
-val PtOnPrimaryContainer = Color(0xFFFEF3C7) // Very light amber
-val PtPrimaryFixed = Color(0xFFFEF3C7)
-val PtPrimaryFixedDim = Color(0xFFFDE68A)
-val PtOnPrimaryFixed = Color(0xFF78350F)
-val PtOnPrimaryFixedVariant = Color(0xFF92400E)
-val PtInversePrimary = Color(0xFFD97706)
+// Primary (Lime Fizz: lime accent on neutral grey; the pink of the icon is never used in the UI)
+val PtPrimary = Color(0xFFB8EB4F)         // Lime, the icon tile colour
+val PtPrimaryContainer = Color(0xFF3E5A00)  // Dark lime
+val PtOnPrimary = Color(0xFF1E2A10)         // Very dark green, the icon mark colour
+val PtOnPrimaryContainer = Color(0xFFD4F58C) // Light lime
+val PtPrimaryFixed = Color(0xFFD4F58C)
+val PtPrimaryFixedDim = Color(0xFFB8EB4F)
+val PtOnPrimaryFixed = Color(0xFF131E00)
+val PtOnPrimaryFixedVariant = Color(0xFF2F4400)
+val PtInversePrimary = Color(0xFF4A6800)
 
 // Secondary
-val PtSecondary = Color(0xFFC8C6C9)
-val PtSecondaryContainer = Color(0xFF47464A)
-val PtOnSecondary = Color(0xFF303033)
-val PtOnSecondaryContainer = Color(0xFFB6B4B8)
-val PtSecondaryFixed = Color(0xFFE4E1E5)
-val PtSecondaryFixedDim = Color(0xFFC8C6C9)
+val PtSecondary = Color(0xFFC8C8C8)
+val PtSecondaryContainer = Color(0xFF474747)
+val PtOnSecondary = Color(0xFF303030)
+val PtOnSecondaryContainer = Color(0xFFB6B6B6)
+val PtSecondaryFixed = Color(0xFFE4E4E4)
+val PtSecondaryFixedDim = Color(0xFFC8C8C8)
 
 // Tertiary
-val PtTertiary = Color(0xFFC7C5CE)
-val PtTertiaryContainer = Color(0xFF77767E)
-val PtOnTertiary = Color(0xFF303037)
-val PtOnTertiaryContainer = Color(0xFF040509)
-val PtTertiaryFixed = Color(0xFFE3E1EA)
-val PtTertiaryFixedDim = Color(0xFFC7C5CE)
+val PtTertiary = Color(0xFFC7C7C7)
+val PtTertiaryContainer = Color(0xFF777777)
+val PtOnTertiary = Color(0xFF303030)
+val PtOnTertiaryContainer = Color(0xFF040404)
+val PtTertiaryFixed = Color(0xFFE3E3E3)
+val PtTertiaryFixedDim = Color(0xFFC7C7C7)
 
 // Surface
-val PtSurface = Color(0xFF131316)
-val PtSurfaceDim = Color(0xFF131316)
-val PtSurfaceBright = Color(0xFF39393C)
-val PtSurfaceContainerLowest = Color(0xFF0E0E11)
-val PtSurfaceContainerLow = Color(0xFF1B1B1E)
-val PtSurfaceContainer = Color(0xFF1F1F22)
-val PtSurfaceContainerHigh = Color(0xFF2A2A2D)
-val PtSurfaceContainerHighest = Color(0xFF353438)
-val PtSurfaceVariant = Color(0xFF353438)
+val PtSurface = Color(0xFF131313)
+val PtSurfaceDim = Color(0xFF131313)
+val PtSurfaceBright = Color(0xFF393939)
+val PtSurfaceContainerLowest = Color(0xFF0E0E0E)
+val PtSurfaceContainerLow = Color(0xFF1B1B1B)
+val PtSurfaceContainer = Color(0xFF1F1F1F)
+val PtSurfaceContainerHigh = Color(0xFF2A2A2A)
+val PtSurfaceContainerHighest = Color(0xFF353535)
+val PtSurfaceVariant = Color(0xFF353535)
 val PtSurfaceTint = PtPrimary
-val PtOnSurface = Color(0xFFE4E1E6)
-val PtOnSurfaceVariant = Color(0xFFC7C4D7)
-val PtInverseSurface = Color(0xFFE4E1E6)
-val PtInverseOnSurface = Color(0xFF303033)
+val PtOnSurface = Color(0xFFE4E4E4)
+val PtOnSurfaceVariant = Color(0xFFC7C7C7)
+val PtInverseSurface = Color(0xFFE4E4E4)
+val PtInverseOnSurface = Color(0xFF303030)
 
 // Outline
-val PtOutline = Color(0xFF908FA0)
-val PtOutlineVariant = Color(0xFF464554)
+val PtOutline = Color(0xFF909090)
+val PtOutlineVariant = Color(0xFF464646)
 
 // Background
-val PtBackground = Color(0xFF131316)
-val PtOnBackground = Color(0xFFE4E1E6)
+val PtBackground = Color(0xFF131313)
+val PtOnBackground = Color(0xFFE4E4E4)
 
 // Error
 val PtError = Color(0xFFFFB4AB)
