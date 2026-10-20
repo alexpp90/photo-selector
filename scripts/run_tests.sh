@@ -16,9 +16,9 @@
 #   ./scripts/run_tests.sh                  # auto-detects changed products (mirrors CI paths: filters)
 #   ./scripts/run_tests.sh --python         # Python gates only (flake8 + pytest + coverage)
 #   ./scripts/run_tests.sh --android        # Android gates that need no device
-#   ./scripts/run_tests.sh --android-device # Android instrumented tests on the test device only — run on
-#                                           # demand (before a release); never part of any other mode.
-#                                           # Also on each pst.testDevice.extraSerials device on USB.
+#   ./scripts/run_tests.sh --android-device # Android instrumented tests on the configured test devices, all
+#                                           # at once (scripts/android_device_matrix.py) — run on demand
+#                                           # (before a release); never part of any other mode.
 #                                           # No device attached is a skip, not a failure (also with --strict)
 #   ./scripts/run_tests.sh --macos          # macOS Desktop native Swift gates (Darwin only)
 #   ./scripts/run_tests.sh --linux          # Linux Desktop native gates (Python/GTK4 + Debian packaging)
@@ -428,82 +428,27 @@ fi
 # Compose semantics-tree assertions in them genuinely need one.
 if $run_android_device; then
     section "Android instrumented tests (device/emulator)"
-    cd "$ROOT_DIR/products/android" || exit 1
-
-    # Gradle installs on every attached device, so the run is pinned to one test device
-    # (ANDROID_SERIAL, honoured by the Android Gradle plugin). Selection and preparation
-    # live in scripts/android_test_device.py; see docs/build/CI_PARITY.md. The device suite is
-    # run on demand, so a missing device is a stated gap, never a blocker (not even --strict).
-    # run_device_suite SERIAL EXTRA — one locked prepare + Gradle run on one device, one gate.
-    # EXTRA is empty for the test device and "extra" for a pst.testDevice.extraSerials device;
-    # an extra device is prepared by its serial (it was named, so it may be reconfigured).
-    run_device_suite() {
-        local serial="$1" extra="$2" model gate prepare_failed status holder
-        model=$(adb -s "$serial" shell getprop ro.product.model 2>/dev/null | tr -d '\r')
-        gate="gradlew connectedDebugAndroidTest"
-        [ -n "$extra" ] && gate="$gate (extra device ${model:-$serial})"
-        echo -e "${DIM}  ${extra:+extra }test device: $serial (${model:-unknown model})${NC}"
-        # One device lock — the file the device lab's walkthroughs take too — covers prepare and
-        # the whole Gradle run, so no other session drives the phone meanwhile. A lock still held
-        # after PST_DEVICE_LOCK_TIMEOUT seconds is a skip naming the holder, never a failure.
-        # Inside the lock, prepare runs before the export: it must see whether the device was
-        # designated or merely the only one attached (it refuses to reconfigure the latter).
-        prepare_failed="$(mktemp)" && rm -f "$prepare_failed"
-        # The single-quoted script is expanded by the inner bash, from its positional arguments.
-        python3 "$ROOT_DIR/scripts/android_test_device.py" with-lock --serial "$serial" \
-            --timeout "${PST_DEVICE_LOCK_TIMEOUT:-300}" --label "$(basename "$ROOT_DIR")" -- \
-            bash -c 'python3 "$1" prepare ${4:+--serial "$3"} || : > "$2"
-                     python3 "$1" locked --serial "$3" && exit 76
-                     ANDROID_SERIAL="$3" exec ./gradlew :android-desktop:connectedDebugAndroidTest \
-                         :phototok:connectedDebugAndroidTest --stacktrace' \
-            instrumented-tests "$ROOT_DIR/scripts/android_test_device.py" "$prepare_failed" "$serial" "$extra"
-        status=$?
-        if [ -e "$prepare_failed" ]; then
-            warn "test device $serial not prepared (see above)" "local-only"
-            rm -f "$prepare_failed"
-        fi
-        if [ "$status" -eq 75 ]; then
-            holder=$(python3 "$ROOT_DIR/scripts/android_test_device.py" lock-holder --serial "$serial" 2>/dev/null) \
-                || holder="released by its holder just after the wait ended"
-            skip "instrumented tests${extra:+ (extra device $serial)}" "" "test device $serial busy — $holder" false
-            return
-        fi
-        # 76: the lock screen is still up after prepare (a secure lock adb cannot remove), so
-        # every Compose test would fail on "no compose hierarchies"; say so instead.
-        if [ "$status" -eq 76 ]; then
-            skip "instrumented tests${extra:+ (extra device $serial)}" "" \
-                "lock screen showing on ${model:-$serial} — remove its screen lock or unlock it" false
-            return
-        fi
-        TESTED_SERIALS="${TESTED_SERIALS:+$TESTED_SERIALS,}$serial"
-        if [ "$status" -eq 0 ]; then
-            pass "$gate" "android.yml:instrumented-tests"
-        else
-            fail "$gate" "android.yml:instrumented-tests"
-        fi
-    }
-
-    chmod +x ./gradlew 2>/dev/null || true
+    # scripts/android_device_matrix.py builds the APKs once and runs both suites on every
+    # configured test device at the same time (pst.testDevice.serial and .extraSerials in
+    # local.properties; the only attached device when none is named) — each under the device
+    # lock the lab's walkthroughs take, kept awake, and retried once to tell flaky from broken.
+    # It writes a timed report and the open-issue ledger in .git/pst-device-runs/. The device
+    # suite is run on demand, so a missing, busy or locked device is a stated gap, never a
+    # blocker (not even --strict). One gate per device.
+    GATE_LINES="$(mktemp)"
+    python3 "$ROOT_DIR/scripts/android_device_matrix.py" run --configured --gate-lines "$GATE_LINES"
     TESTED_SERIALS=""
-    if ! TEST_SERIAL=$(python3 "$ROOT_DIR/scripts/android_test_device.py" serial 2>&1); then
-        skip "instrumented tests" "" "$TEST_SERIAL — see docs/build/CI_PARITY.md (Instrumented tests)" false
-        TEST_SERIAL=""
-    else
-        run_device_suite "$TEST_SERIAL" ""
-    fi
-    # Extra test devices (pst.testDevice.extraSerials) run only while attached over USB; one that
-    # is not is a non-blocking skip, so the run says which phones it did not reach.
-    EXTRA_ABSENT="$(mktemp)"
-    for EXTRA_SERIAL in $(python3 "$ROOT_DIR/scripts/android_test_device.py" extra-serials 2>"$EXTRA_ABSENT"); do
-        run_device_suite "$EXTRA_SERIAL" extra
-    done
-    while read -r EXTRA_WORD EXTRA_SERIAL; do
-        [ "$EXTRA_WORD" = absent ] && [ -n "$EXTRA_SERIAL" ] && skip "instrumented tests (extra device $EXTRA_SERIAL)" "" \
-            "not attached over USB (pst.testDevice.extraSerials)" false
-    done < "$EXTRA_ABSENT"
-    rm -f "$EXTRA_ABSENT"
+    while IFS=$'\t' read -r verdict serial gate reason; do
+        case "$verdict" in
+            pass) pass "$gate" "android.yml:instrumented-tests" ;;
+            fail) fail "$gate" "android.yml:instrumented-tests" ;;
+            skip) skip "$gate" "" "$reason" false; continue ;;
+            *) continue ;;
+        esac
+        TESTED_SERIALS="${TESTED_SERIALS:+$TESTED_SERIALS,}$serial"
+    done < "$GATE_LINES"
+    rm -f "$GATE_LINES"
     # verification_record.py reports only the devices under test.
-    [ -n "$TEST_SERIAL" ] && export ANDROID_SERIAL="$TEST_SERIAL"
     [ -n "$TESTED_SERIALS" ] && export PST_TESTED_SERIALS="$TESTED_SERIALS"
 fi
 

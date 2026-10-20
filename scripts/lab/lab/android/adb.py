@@ -134,6 +134,26 @@ class AdbClient:
                 time.sleep(poll_interval)
         raise RuntimeError(f"Timed out waiting for user {user_id} to become active on {self.serial}")
 
+    def package_path(self, app_id: str, user: int = 0) -> str | None:
+        """The installed `base.apk` of `app_id` (`pm path`), or None when it is not installed."""
+        try:
+            out = self.run("shell", "pm", "path", "--user", str(user), app_id)
+        except subprocess.CalledProcessError:  # `pm path` exits 1 for a package that is not installed
+            return None
+        for line in out.splitlines():
+            if line.strip().startswith("package:") and line.strip().endswith("base.apk"):
+                return line.strip()[len("package:"):]
+        return None
+
+    def sha256(self, remote_path: str) -> str | None:
+        """`sha256sum` of a device file (toybox, Android 8+), or None when it cannot be read."""
+        try:
+            out = self.run("shell", "sha256sum", remote_path)
+        except subprocess.CalledProcessError:
+            return None
+        m = re.match(r"\s*([0-9a-f]{64})\s", out)
+        return m.group(1) if m else None
+
     def install(self, apk: Path | str, user: int = 0) -> str:
         return self.run("install", "-r", "--user", str(user), str(apk), timeout=120)
 
@@ -234,6 +254,10 @@ class AdbClient:
             files.append({"path": rel, "size": size})
         files.sort(key=lambda e: str(e["path"]))
         return files
+
+    def dir_exists(self, remote_dir: str) -> bool:
+        """Whether `remote_dir` is a directory on the device. Read-only, so any path is allowed."""
+        return self.run("shell", f"test -d '{remote_dir}' && echo yes || echo no").strip() == "yes"
 
     def logcat_clear(self) -> str:
         return self.run("logcat", "-c")

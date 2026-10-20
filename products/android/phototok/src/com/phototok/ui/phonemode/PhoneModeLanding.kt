@@ -9,12 +9,14 @@ import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
@@ -43,15 +45,18 @@ import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.blur
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.shadow
+import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.painterResource
+import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.photoselector.core.storage.SourceKind
@@ -89,11 +94,17 @@ fun PhoneModeLanding(
     val hasSourceFolder = sourceFolderUri != null
     val colors = MaterialTheme.colorScheme
 
-    Box(
+    val scrollState = rememberScrollState()
+
+    BoxWithConstraints(
         modifier = Modifier
             .fillMaxSize()
             .background(colors.background),
     ) {
+        // Window height drives the hero size so all three source rows fit on small phones.
+        val logoSize = landingLogoSize(maxHeight)
+        val showPhotoFan = maxHeight >= LANDING_FAN_MIN_HEIGHT
+
         // Decorative background blurs
         Box(
             modifier = Modifier
@@ -117,20 +128,18 @@ fun PhoneModeLanding(
                 .fillMaxSize()
                 .statusBarsPadding()
                 .navigationBarsPadding()
-                .verticalScroll(rememberScrollState())
+                .verticalScroll(scrollState)
                 .padding(horizontal = 16.dp)
-                .padding(top = 64.dp, bottom = 100.dp),
+                .padding(top = 16.dp, bottom = 100.dp),
             horizontalAlignment = Alignment.CenterHorizontally,
         ) {
-            Spacer(modifier = Modifier.height(24.dp))
-
             // ── Hero branding ────────────────────────────────────────
             Image(
                 painter = painterResource(id = com.phototok.R.mipmap.ic_launcher_foreground),
                 contentDescription = "Logo",
-                modifier = Modifier.size(120.dp),
+                modifier = Modifier.size(logoSize),
             )
-            Spacer(modifier = Modifier.height(16.dp))
+            Spacer(modifier = Modifier.height(8.dp))
             Text(
                 text = "Photo-Tok",
                 style = MaterialTheme.typography.headlineMedium,
@@ -145,62 +154,64 @@ fun PhoneModeLanding(
                 color = colors.onSurfaceVariant,
             )
 
-            Spacer(modifier = Modifier.height(24.dp))
+            if (showPhotoFan) {
+                Spacer(modifier = Modifier.height(24.dp))
 
-            // ── Sample Image Mockup Cards ────────────────────────────
-            Row(
-                horizontalArrangement = Arrangement.spacedBy((-16).dp),
-                modifier = Modifier.padding(vertical = 12.dp)
-            ) {
-                Surface(
-                    modifier = Modifier
-                        .size(width = 80.dp, height = 110.dp)
-                        .graphicsLayer { rotationZ = -8f }
-                        .border(2.dp, Color.White.copy(alpha = 0.15f), RoundedCornerShape(8.dp)),
-                    shape = RoundedCornerShape(8.dp),
-                    color = colors.surfaceVariant
+                // ── Sample Image Mockup Cards ────────────────────────────
+                Row(
+                    horizontalArrangement = Arrangement.spacedBy((-16).dp),
+                    modifier = Modifier.padding(vertical = 12.dp)
                 ) {
-                    Image(
-                        painter = painterResource(id = com.phototok.R.drawable.placeholder_landscape),
-                        contentDescription = "Sample Landscape",
-                        contentScale = ContentScale.Crop,
-                        modifier = Modifier.fillMaxSize()
-                    )
-                }
-                Surface(
-                    modifier = Modifier
-                        .size(width = 90.dp, height = 120.dp)
-                        .graphicsLayer { translationY = -8f }
-                        .border(2.dp, Color.White.copy(alpha = 0.25f), RoundedCornerShape(8.dp))
-                        .shadow(8.dp, RoundedCornerShape(8.dp)),
-                    shape = RoundedCornerShape(8.dp),
-                    color = colors.surfaceVariant
-                ) {
-                    Image(
-                        painter = painterResource(id = com.phototok.R.drawable.placeholder_portrait),
-                        contentDescription = "Sample Lens",
-                        contentScale = ContentScale.Crop,
-                        modifier = Modifier.fillMaxSize()
-                    )
-                }
-                Surface(
-                    modifier = Modifier
-                        .size(width = 80.dp, height = 110.dp)
-                        .graphicsLayer { rotationZ = 8f }
-                        .border(2.dp, Color.White.copy(alpha = 0.15f), RoundedCornerShape(8.dp)),
-                    shape = RoundedCornerShape(8.dp),
-                    color = colors.surfaceVariant
-                ) {
-                    Image(
-                        painter = painterResource(id = com.phototok.R.drawable.placeholder_architecture),
-                        contentDescription = "Sample Architecture",
-                        contentScale = ContentScale.Crop,
-                        modifier = Modifier.fillMaxSize()
-                    )
+                    Surface(
+                        modifier = Modifier
+                            .size(width = 80.dp, height = 110.dp)
+                            .graphicsLayer { rotationZ = -8f }
+                            .border(2.dp, Color.White.copy(alpha = 0.15f), RoundedCornerShape(8.dp)),
+                        shape = RoundedCornerShape(8.dp),
+                        color = colors.surfaceVariant
+                    ) {
+                        Image(
+                            painter = painterResource(id = com.phototok.R.drawable.placeholder_landscape),
+                            contentDescription = "Sample Landscape",
+                            contentScale = ContentScale.Crop,
+                            modifier = Modifier.fillMaxSize()
+                        )
+                    }
+                    Surface(
+                        modifier = Modifier
+                            .size(width = 90.dp, height = 120.dp)
+                            .graphicsLayer { translationY = -8f }
+                            .border(2.dp, Color.White.copy(alpha = 0.25f), RoundedCornerShape(8.dp))
+                            .shadow(8.dp, RoundedCornerShape(8.dp)),
+                        shape = RoundedCornerShape(8.dp),
+                        color = colors.surfaceVariant
+                    ) {
+                        Image(
+                            painter = painterResource(id = com.phototok.R.drawable.placeholder_portrait),
+                            contentDescription = "Sample Lens",
+                            contentScale = ContentScale.Crop,
+                            modifier = Modifier.fillMaxSize()
+                        )
+                    }
+                    Surface(
+                        modifier = Modifier
+                            .size(width = 80.dp, height = 110.dp)
+                            .graphicsLayer { rotationZ = 8f }
+                            .border(2.dp, Color.White.copy(alpha = 0.15f), RoundedCornerShape(8.dp)),
+                        shape = RoundedCornerShape(8.dp),
+                        color = colors.surfaceVariant
+                    ) {
+                        Image(
+                            painter = painterResource(id = com.phototok.R.drawable.placeholder_architecture),
+                            contentDescription = "Sample Architecture",
+                            contentScale = ContentScale.Crop,
+                            modifier = Modifier.fillMaxSize()
+                        )
+                    }
                 }
             }
 
-            Spacer(modifier = Modifier.height(24.dp))
+            Spacer(modifier = Modifier.height(if (showPhotoFan) 24.dp else 16.dp))
 
             // ── Source selection ──────────────────────────────────────
             Text(
@@ -209,7 +220,7 @@ fun PhoneModeLanding(
                 color = colors.onSurfaceVariant,
                 modifier = Modifier
                     .fillMaxWidth()
-                    .padding(start = 4.dp, bottom = 12.dp),
+                    .padding(start = 4.dp, bottom = 8.dp),
             )
 
             SourceCard(
@@ -223,7 +234,7 @@ fun PhoneModeLanding(
                     .testTag("landing_phone_camera_card"),
             )
 
-            Spacer(modifier = Modifier.height(12.dp))
+            Spacer(modifier = Modifier.height(8.dp))
 
             SourceCard(
                 icon = Icons.Default.SdCard,
@@ -236,7 +247,7 @@ fun PhoneModeLanding(
                     .testTag("landing_sd_card_card"),
             )
 
-            Spacer(modifier = Modifier.height(12.dp))
+            Spacer(modifier = Modifier.height(8.dp))
 
             SourceCard(
                 icon = Icons.Default.FolderOpen,
@@ -427,8 +438,32 @@ fun PhoneModeLanding(
 
             Spacer(modifier = Modifier.height(24.dp))
         }
+
+        // Decorative scroll affordance: fades the content into the background while more follows.
+        if (scrollState.canScrollForward) {
+            Box(
+                modifier = Modifier
+                    .align(Alignment.BottomCenter)
+                    .navigationBarsPadding()
+                    .fillMaxWidth()
+                    .height(24.dp)
+                    .background(
+                        Brush.verticalGradient(
+                            colors = listOf(Color.Transparent, colors.background),
+                        ),
+                    )
+                    .testTag("landing_scroll_fade"),
+            )
+        }
     }
 }
+
+/** Below this window height the photo fan is dropped; below [LANDING_LARGE_LOGO_MIN_HEIGHT] the logo shrinks. */
+private val LANDING_FAN_MIN_HEIGHT = 760.dp
+private val LANDING_LARGE_LOGO_MIN_HEIGHT = 700.dp
+
+private fun landingLogoSize(windowHeight: Dp): Dp =
+    if (windowHeight < LANDING_LARGE_LOGO_MIN_HEIGHT) 56.dp else 72.dp
 
 @Composable
 private fun SourceCard(
@@ -441,41 +476,63 @@ private fun SourceCard(
 ) {
     val colors = MaterialTheme.colorScheme
     val borderColor = if (isActive) colors.primaryContainer else colors.outlineVariant
+    val shape = RoundedCornerShape(12.dp)
 
     Surface(
         modifier = modifier
-            .clip(RoundedCornerShape(12.dp))
-            .border(1.dp, borderColor, RoundedCornerShape(12.dp))
-            .clickable(onClick = onClick),
-        shape = RoundedCornerShape(12.dp),
+            .clip(shape)
+            .border(1.dp, borderColor, shape)
+            // One click target; descendants merge so the row is announced once ("label, supporting").
+            .clickable(role = Role.Button, onClick = onClick),
+        shape = shape,
         color = if (isActive) colors.primaryContainer.copy(alpha = 0.1f) else colors.surfaceContainer,
     ) {
-        Column(
-            modifier = Modifier.padding(vertical = 20.dp, horizontal = 12.dp),
-            horizontalAlignment = Alignment.CenterHorizontally,
+        Row(
+            modifier = Modifier
+                .heightIn(min = 64.dp)
+                .padding(horizontal = 16.dp, vertical = 12.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(12.dp),
         ) {
-            Icon(
-                imageVector = icon,
-                contentDescription = label,
-                tint = if (isActive) colors.primary else colors.secondary,
-                modifier = Modifier.size(28.dp),
-            )
-            Spacer(modifier = Modifier.height(8.dp))
-            Text(
-                text = label,
-                style = MaterialTheme.typography.labelMedium,
-                color = colors.onSurface,
-                textAlign = TextAlign.Center,
-            )
-            if (supportingText != null) {
-                Spacer(modifier = Modifier.height(4.dp))
-                Text(
-                    text = supportingText,
-                    style = MaterialTheme.typography.bodySmall,
-                    color = colors.onSurfaceVariant,
-                    textAlign = TextAlign.Center,
+            Box(
+                modifier = Modifier
+                    .size(40.dp)
+                    .background(
+                        (if (isActive) colors.primary else colors.secondary).copy(alpha = 0.12f),
+                        CircleShape,
+                    ),
+                contentAlignment = Alignment.Center,
+            ) {
+                Icon(
+                    imageVector = icon,
+                    // Decorative: the row's text already names it.
+                    contentDescription = null,
+                    tint = if (isActive) colors.primary else colors.secondary,
+                    modifier = Modifier.size(24.dp),
                 )
             }
+            Column(modifier = Modifier.weight(1f)) {
+                Text(
+                    text = label,
+                    style = MaterialTheme.typography.titleSmall,
+                    color = colors.onSurface,
+                )
+                if (supportingText != null) {
+                    Text(
+                        text = supportingText,
+                        style = MaterialTheme.typography.bodySmall,
+                        color = colors.onSurfaceVariant,
+                        maxLines = 2,
+                        overflow = TextOverflow.Ellipsis,
+                    )
+                }
+            }
+            Icon(
+                imageVector = Icons.AutoMirrored.Filled.ArrowForward,
+                contentDescription = null,
+                tint = colors.onSurfaceVariant,
+                modifier = Modifier.size(20.dp),
+            )
         }
     }
 }
