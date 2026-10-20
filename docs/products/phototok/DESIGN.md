@@ -83,23 +83,23 @@ The mockups specify Inter font. Add Inter via Google Fonts in `build.gradle` or 
 
 ### Current → New
 
-The mockup replaces the vertical column of `FolderPickerCard` rows with a centered hero + 3-column source grid + filter chips + CTA.
+The original mockup replaced the vertical column of `FolderPickerCard` rows with a centered hero + 3-column source grid + filter chips + CTA. The shipped landing keeps a centered hero but lists the sources as compact rows, so that all three fit above the fold on a 360×640 dp phone (lab TOK-11a, 2026-10-19; a 3-column grid wraps "SD Card / USB Reader" at 1.3× font and drops the supporting line).
 
 ### Layout structure (top to bottom):
 
-1. **Hero section** (centered):
-   - 80×80dp rounded container (`RoundedCornerShape(16.dp)`) with `primaryContainer.copy(alpha=0.2f)` background
-   - `photo_library` Material Symbol inside (48dp, filled variant, `primary` tint)
+1. **Hero section** (centered, sized from the window height via `BoxWithConstraints`):
+   - Launcher-foreground logo (decorative): 56 dp below a 700 dp window height, 72 dp from 700 dp; 16 dp top padding
    - "Photo-Tok" headline (`headlineMedium`, `onSurface`); no tagline (REQ-TOK-UX.01)
+   - Photo fan (three tilted sample photos, decorative) only from a 760 dp window height
 
 2. **Source selection** (no section label):
-   - **3-column grid** (`LazyVerticalGrid` or `Row` with equal weights):
-     - Each card: `Surface` with `surfaceContainer` fill, `outlineVariant` border, `RoundedCornerShape(12.dp)`
-     - Content: centered icon (Material Symbol) + title only (`labelMedium`, `title_source_*`); no description line
-     - Active state: border → `primary`, background → `primary.copy(alpha=0.1f)`
-     - Cards: `photo_camera` / "Camera", `sd_card` / "SD card / USB", `folder_open` / "Folder or cloud"
-   - **Remove** the separate `FolderPickerCard` composable and `externalVolumes` list
-   - **Remove** the separate Collection folder picker card — collection is now in Settings
+   - **Three list rows** in this order: "Camera", "SD card / USB", "Folder or cloud" (`title_source_*`); 8 dp apart
+     - Each row: full width, `heightIn(min = 64.dp)`, 16/12 dp padding, `surfaceContainer` fill, `outlineVariant` border, `RoundedCornerShape(12.dp)`
+     - Leading 24 dp icon in a 40 dp circle (`secondary` at 12 % alpha), title only (`titleSmall`, no description line, REQ-TOK-UX.04), trailing arrow
+     - Active state: border → `primaryContainer`, fill → `primaryContainer.copy(alpha=0.1f)`, icon → `primary`
+     - One click target (`Role.Button`); the icon is decorative, the row's text names it
+   - Must fit without scrolling at 360×640 dp at 1.0× and 1.3× font (`PhoneModeLandingLayoutTest`)
+   - While the column can scroll further (recents, Resume), a 24 dp bottom fade into `background` sits above the navigation bar (`landing_scroll_fade`, decorative)
 
 3. **Format filter**:
    - Section label: "FORMAT FILTER"

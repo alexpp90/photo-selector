@@ -208,7 +208,8 @@ dependencies {
     testImplementation(libs.turbine)
     testImplementation(libs.mockk)
     testImplementation(libs.robolectric)
-    // Compose in JVM tests: the text-load screenshot tests (tests/unit/.../ui/screenshots)
+    // Compose in JVM tests: layout tests under Robolectric (tests/unit/com/phototok/ui) and the
+    // text-load screenshot tests (tests/unit/.../ui/screenshots)
     testImplementation(platform(libs.androidx.compose.bom))
     testImplementation(libs.androidx.compose.ui.test.junit4)
 

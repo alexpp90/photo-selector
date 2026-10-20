@@ -6,7 +6,8 @@
 # the Selection folder setting); "Copy" also appears in the left-swipe group further down, so the
 # first match (index 0) is the swipe-right one. The Settings button is selected by its tag `settings_button`
 # (added by alexpp90/photo-selector#802); builds without it skip this flow and keep whatever
-# verb they have.
+# verb they have. Steps get 30 s: on the Xperia XA2 one tap takes 5-8 s and the scroll to
+# "Copy to Selection" ran out of 10 s one step short (2026-10-19).
 appId: com.phototok.lab
 ---
 - runFlow:
@@ -21,7 +22,7 @@ appId: com.phototok.lab
             text: "Phone|Telefon"
           centerElement: true
           visibilityPercentage: 100
-          timeout: 10000
+          timeout: 30000
       - tapOn:
           text: "Phone|Telefon"
       - scrollUntilVisible:
@@ -29,7 +30,7 @@ appId: com.phototok.lab
             text: "Copy|Kopieren"
           centerElement: true
           visibilityPercentage: 100
-          timeout: 10000
+          timeout: 30000
       - tapOn:
           text: "Copy|Kopieren"
           index: 0
@@ -37,4 +38,4 @@ appId: com.phototok.lab
       - extendedWaitUntil:
           visible:
             id: "viewer.photo"
-          timeout: 10000
+          timeout: 30000

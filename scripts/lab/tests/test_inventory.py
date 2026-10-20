@@ -128,6 +128,23 @@ class InventoryTests(unittest.TestCase):
         self.assertTrue(ok)
         self.assertEqual(dev.adb_serial, "adb-TTT222-x._adb-tls-connect._tcp")
 
+    def test_resolve_prefers_usb_over_a_second_wireless_registration(self) -> None:
+        # `adb devices` on the hub, 2026-10-19: the Moto G77 on USB and over wireless debugging,
+        # the latter under a second mDNS name with a space in it.
+        dev = parse_inventory({"android": {"moto-g77": {"serial": "ZY22MQCBL6", "role": "phone"}}}).find("moto-g77")
+
+        def run(cmd: list[str], timeout: int) -> subprocess.CompletedProcess[str]:
+            if cmd[:2] == ["adb", "devices"]:
+                return _proc(
+                    "List of devices attached\n13171JEC200817\tdevice\nZY22MQCBL6\tdevice\n"
+                    "adb-ZY22MQCBL6-M2Jjof (2)._adb-tls-connect._tcp\tdevice\n"
+                )
+            return _proc("device\n")
+
+        ok, _ = resolve_android_device(dev, run=run)
+        self.assertTrue(ok)
+        self.assertEqual(dev.adb_serial, "ZY22MQCBL6")
+
     def test_resolve_reports_unpaired_device(self) -> None:
         dev = parse_inventory(INVENTORY).find("pixel-tablet")
 
@@ -321,6 +338,8 @@ class AndroidFanOutTests(unittest.TestCase):
                 build_state={},
                 resolve_fn=resolve,
                 journey_fn=journey,
+                lock_dir=self.run_dir,
+                apk_fn=lambda adb, product, user: (True, None),
             )
         finally:
             orch.record_device_state, orch.reset_config, orch.AdbClient.ensure_ready = orig  # type: ignore[method-assign]

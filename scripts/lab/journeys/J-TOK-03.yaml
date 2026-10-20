@@ -7,6 +7,7 @@ fresh_install: false
 steps:
   # Swipe right must copy (the phone-folder default is ★ Favourite, which touches no file).
   - {maestro: products/android/phototok/tests/e2e/_swipe_right_copies.yaml}
+  - {checkpoint: start}
   - {maestro: products/android/phototok/tests/e2e/J-TOK-03/01_swipe_right_keep.yaml}
   - {wait_ms: 1000}
   - {checkpoint: kept}
@@ -19,13 +20,22 @@ steps:
   - {maestro: products/android/phototok/tests/e2e/J-TOK-03/05_delete_and_open_selection.yaml}
   - {wait_ms: 1000}
   - {checkpoint: selection}
+# The journeys share one folder and PhotoTok resumes it where the last journey left it, so the
+# start photo is not fixed: name the photos the feed showed (LAB-22, 2026-10-19: the hard-coded
+# DSC_0011 gave a false blocker on two phones that started at DSC_0011 and deleted DSC_0010).
+# Swipe right copies the shown photo and the feed moves on; swipe left deletes the next one.
+bind:
+  start: {kept: viewer.photo}
+  kept: {deleted: viewer.photo}
 fs_expect:
+  start:
+    unchanged: true
   kept:
-    present: ["*Selection*DSC_*.JPG"]
+    present: ["Selection/*{kept}"]
   reverted:
-    present: ["DSC_0011.JPG"]
+    present: ["{deleted}"]
   selection:
-    absent: ["DSC_0011.JPG"]
+    absent: ["{deleted}"]
 layout_expect:
   deleted:
     required: [viewer_revert_button]
