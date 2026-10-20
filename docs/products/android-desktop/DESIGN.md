@@ -8,7 +8,7 @@ Derived from `REQUIREMENTS.md`, `ARCHITECTURE.md`, and the current Compose sourc
 under `products/android/android-desktop/src/com/photoselectortoolbox/ui/`.
 
 **Scope note:** this file covers the Android Desktop solution only. The Desktop (Python /
-Tkinter) app and the PhotoTok client (PhotoTok, `products/android/phototok/`) are independent
+Tkinter) app and the Jackpix client (Jackpix, `products/android/phototok/`) are independent
 solutions with their own UX models and their own themes — do not apply these instructions
 to them.
 
@@ -838,7 +838,7 @@ frames and the Legend item appears in the sidebar at the same moment, so a card 
 what the user is looking at.
 
 - **Every string is derived from the user's current settings** through one pure, Android-free
-  object (`SelectorHintText`), mirroring PhotoTok's `FirstRunHintText`. The verb, the folder
+  object (`SelectorHintText`), mirroring Jackpix's `FirstRunHintText`. The verb, the folder
   name, the sorting clause, the undo window and every key name are read from configuration or
   from the binding declaration. "Keep", "Save" and "Favourite" are prohibited exactly as they
   are on the controls (§7.5), and a unit test asserts they never appear.
@@ -1332,7 +1332,7 @@ Short corrections to steer a generated design back on track.
 - [`ARCHITECTURE.md`](ARCHITECTURE.md) — this product's layers, adaptive layout strategy and theme implementation
 - `DESIGN_PROMPT.md` (maintainer-private) — the same material packaged as copy-paste prompt blocks
 - `REQUIREMENTS.md` (maintainer-private) — what this product must do
-- [`../../shared/ANDROID_PLATFORM.md`](../../shared/ANDROID_PLATFORM.md) — the Android baseline shared with PhotoTok
+- [`../../shared/ANDROID_PLATFORM.md`](../../shared/ANDROID_PLATFORM.md) — the Android baseline shared with Jackpix
 - `../../../ai/ROUTING.md` (maintainer-private agent framework) — agent roster and delegation rules
 
 > **Keeping this in sync:** if a design decision here changes app behaviour, update

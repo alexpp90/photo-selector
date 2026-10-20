@@ -11,6 +11,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 ### Changed
 - The app is now called Frameduel (formerly PhotoSelector Studio), in the launcher, Settings and the store listing.
 - New app icon, including a themed icon for Android 13+ home screens.
+- GitHub releases are now titled "Frameduel X.Y.Z". If you filter release titles in Obtainium, update the filter to `^Frameduel `.
 - New colours: a lavender accent replaces the cyan one, and the dark surfaces around your photos are now neutral grey with no colour cast. Keeper amber, score colours and error colours are unchanged.
 - Release builds include native symbol tables, so crashes in image analysis can be diagnosed.
 
