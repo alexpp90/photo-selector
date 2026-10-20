@@ -9,8 +9,11 @@ appId: com.phototok.lab
 # Folder names are scrolled to the middle and fully into view before the tap: in a small
 # window (960x600 dp) the grid stopped with "PSTLab" under the "Use this folder" bar, the tap
 # missed, and the search for "work" scrolled the storage root to its end (2026-10-17).
+# The id is a regex: Google's DocumentsUI (com.google.android.documentsui) and AOSP's
+# (com.android.documentsui, the Xperia XA2's LineageOS) name it alike; with only Google's id the
+# root tap was skipped on the Xperia and "PSTLab" never appeared (2026-10-20).
 - tapOn:
-    id: "com.google.android.documentsui:id/breadcrumb_text"
+    id: "com\\.(google\\.)?android\\.documentsui:id/breadcrumb_text"
     index: 0
     optional: true
 - scrollUntilVisible:
