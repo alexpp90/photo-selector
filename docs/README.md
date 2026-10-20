@@ -1,7 +1,7 @@
 # Documentation
 
 Documentation is organised by **product**, using the same slugs as the code. Every file
-states at the top which product it governs. If a file would need to say "except on PhotoTok",
+states at the top which product it governs. If a file would need to say "except on Jackpix",
 it belongs in [`shared/`](shared/) or it belongs in two files.
 
 Start with the [Glossary](GLOSSARY.md) — the five products (four active native solutions
@@ -32,10 +32,10 @@ Code slug ↔ docs slug:
 | Product | Code | Docs |
 |---|---|---|
 | Desktop | `products/desktop/` | [`products/desktop/`](products/desktop/) |
-| macOS Desktop | `products/macos-desktop/` | [`products/macos-desktop/`](products/macos-desktop/) |
-| Linux Desktop | `products/linux-desktop/` | [`products/linux-desktop/`](products/linux-desktop/) |
-| Android Desktop | `products/android/android-desktop/` | [`products/android-desktop/`](products/android-desktop/) |
-| PhotoTok | `products/android/phototok/` | [`products/phototok/`](products/phototok/) |
+| Lensjet (macOS Desktop) | `products/macos-desktop/` | [`products/macos-desktop/`](products/macos-desktop/) |
+| Blitzlens (Linux Desktop) | `products/linux-desktop/` | [`products/linux-desktop/`](products/linux-desktop/) |
+| Frameduel (Android Desktop) | `products/android/android-desktop/` | [`products/android-desktop/`](products/android-desktop/) |
+| Jackpix | `products/android/phototok/` | [`products/phototok/`](products/phototok/) |
 | *(shared Android code)* | `products/android/core/`, `products/android/saf/` | [`shared/`](shared/) |
 
 ## Map of this tree
@@ -50,21 +50,21 @@ docs/
       README.md          What it is, how to run it, where the code lives
       REQUIREMENTS.md    Authoritative behaviour spec  [private]
       ARCHITECTURE.md    Package layout and layering rules
-    macos-desktop/     Native macOS Desktop — Swift 6 + SwiftUI
+    macos-desktop/     Lensjet — Swift 6 + SwiftUI
       README.md          What it is, how to build/run it, where the code lives
       REQUIREMENTS.md    Authoritative behaviour spec  [private]
       ARCHITECTURE.md    Layering rules, concurrency models, and service interfaces
-    linux-desktop/     Native Linux Desktop — GNOME HIG / Libadwaita (planned)
+    linux-desktop/     Blitzlens — GNOME HIG / Libadwaita
       README.md          What it is, how to test it, where the code lives
       REQUIREMENTS.md    Authoritative behaviour spec  [private]
       ARCHITECTURE.md    Layering rules and GNOME HIG conventions (planned)
-    android-desktop/   Android Desktop — :android-desktop, tablets and DeX
+    android-desktop/   Frameduel — :android-desktop, tablets and DeX
       README.md
       REQUIREMENTS.md    Authoritative behaviour spec  [private]
       ARCHITECTURE.md    Layers, adaptive layout, performance, theme implementation
       DESIGN.md          Visual specification (layout maths, tokens, component sheet)
       DESIGN_PROMPT.md   Design-tool brief derived from DESIGN.md  [private]
-    phototok/          PhotoTok — :phototok, phones
+    phototok/          Jackpix — :phototok, phones
       README.md
       REQUIREMENTS.md    Authoritative behaviour spec, incl. architecture conventions  [private]
       ARCHITECTURE.md    Theme and structural notes
@@ -96,14 +96,14 @@ enough to build, test and contribute.
 | I changed… | Edit |
 |---|---|
 | Desktop behaviour | `products/desktop/REQUIREMENTS.md` |
-| macOS Desktop behaviour | `products/macos-desktop/REQUIREMENTS.md` |
-| macOS Desktop architecture | `products/macos-desktop/ARCHITECTURE.md` |
-| Linux Desktop behaviour | `products/linux-desktop/REQUIREMENTS.md` |
-| Linux Desktop architecture | `products/linux-desktop/ARCHITECTURE.md` (planned) |
-| Android Desktop behaviour | `products/android-desktop/REQUIREMENTS.md` |
-| PhotoTok behaviour | `products/phototok/REQUIREMENTS.md` |
-| Android Desktop visuals | `products/android-desktop/DESIGN.md` |
-| PhotoTok visuals | `products/phototok/DESIGN.md` |
+| Lensjet behaviour | `products/macos-desktop/REQUIREMENTS.md` |
+| Lensjet architecture | `products/macos-desktop/ARCHITECTURE.md` |
+| Blitzlens behaviour | `products/linux-desktop/REQUIREMENTS.md` |
+| Blitzlens architecture | `products/linux-desktop/ARCHITECTURE.md` (planned) |
+| Frameduel behaviour | `products/android-desktop/REQUIREMENTS.md` |
+| Jackpix behaviour | `products/phototok/REQUIREMENTS.md` |
+| Frameduel visuals | `products/android-desktop/DESIGN.md` |
+| Jackpix visuals | `products/phototok/DESIGN.md` |
 | Something both Android products must obey | `shared/ANDROID_PLATFORM.md` |
 | Whether a feature crosses products | `shared/FEATURE_PARITY.md` |
 | A CI gate | `build/CI_PARITY.md` **and** `scripts/run_tests.sh` **and** the workflow, in one commit |

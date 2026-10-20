@@ -1,0 +1,8 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 48 48" width="48" height="48">
+  <!-- Jackpix J-03 "Sharp j": a square-ended j whose dot is a tilted photo. -->
+  <path data-role="M" d="M28 22V34L23 39H15" fill="none" stroke="#1E2A10" stroke-width="6" stroke-linecap="square" stroke-linejoin="miter"/>
+  <g transform="rotate(-14 28 11)">
+    <rect data-role="M" x="20" y="4.5" width="16" height="13" fill="#1E2A10"/>
+    <path data-role="K" d="M22.5 15.5L27 10L31.5 15.5Z" fill="#B8EB4F"/>
+  </g>
+</svg>

@@ -1,0 +1,66 @@
+{
+  "_comment": "Single source of the brand colours. generate.py writes every export from this file; docs/shared/BRANDING.md explains the choices. tile = icon background, mark = glyph, accent = the glyph's second colour, knockout = cut-outs (always the tile colour).",
+  "apps": {
+    "jackpix": {
+      "name": "Jackpix",
+      "palette_id": "P-J11 Lime Fizz",
+      "tile": "#B8EB4F",
+      "mark": "#1E2A10",
+      "accent": "#FF4F93",
+      "monochrome": "#1E2A10",
+      "in_app": {
+        "theme": "dark-only",
+        "surface": "#141414",
+        "accent": "#B8EB4F",
+        "on_accent": "#1E2A10",
+        "semantic": {"success": "#22C55E", "warning": "#F59E0B", "error": "#FFB4AB", "error_container": "#93000A"}
+      }
+    },
+    "frameduel": {
+      "name": "Frameduel",
+      "palette_id": "P-F3 Lavender",
+      "tile": "#DED8FF",
+      "mark": "#2D2570",
+      "accent": "#E2643A",
+      "monochrome": "#2D2570",
+      "in_app": {
+        "theme": "dark-only",
+        "surface": "#141414",
+        "accent": "#C4B8FF",
+        "on_accent": "#2D2570",
+        "semantic": {"keeper": "#F59E0B", "score_good": "#34D399", "score_warn": "#FBBF24", "score_bad": "#F87171", "error": "#EF4444"}
+      }
+    },
+    "lensjet": {
+      "name": "Lensjet",
+      "palette_id": "P-L1 Afterburner",
+      "tile": "#D7652D",
+      "mark": "#FFF6EC",
+      "accent": "#241A14",
+      "monochrome": "#241A14",
+      "dark": {"tile": "#241A14", "mark": "#F08A55", "accent": "#FFF6EC"},
+      "in_app": {
+        "theme": "dark-only",
+        "surface": "#141414",
+        "accent": "system",
+        "brand": "#E8743A",
+        "semantic": {"move": "#32D74B", "copy": "#0A84FF", "trash": "#FF453A", "rating": "#FFD60A"}
+      }
+    },
+    "blitzlens": {
+      "name": "Blitzlens",
+      "palette_id": "P-B1 Flash Yellow",
+      "tile": "#FFC93C",
+      "mark": "#1C1A14",
+      "accent": "#FFFFFF",
+      "monochrome": "#2E3436",
+      "in_app": {
+        "theme": "dark-only",
+        "surface": "#141414",
+        "accent": "system",
+        "brand": "#FFC93C",
+        "semantic": {"keeper": "#2EC27E", "acceptable": "#E5A50A", "cull": "#E01B24"}
+      }
+    }
+  }
+}

@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 #
-# run_tests.sh — CI-parity test runner for Photo Selector Toolbox
+# run_tests.sh — CI-parity test runner for the photo-selector repository
 #
 # This script is the LOCAL MIRROR of .github/workflows/desktop.yml,
 # .github/workflows/android.yml, .github/workflows/macos.yml, and
@@ -615,6 +615,10 @@ if [ -d "$ROOT_DIR/private/.git" ] || [ -f "$ROOT_DIR/private/.git" ]; then
             python3 ai/skills/sync-framework/scripts/gen_gemini_settings.py --check
         gate "requirements traceability" "framework.yml:framework" \
             python3 private/scripts/verify_requirements_traceability.py --check --strict
+        if [ -f "$ROOT_DIR/private/scripts/check_brand_names.py" ]; then
+            gate "brand name guard" "framework.yml:framework" \
+                python3 private/scripts/check_brand_names.py
+        fi
         if python3 -c "import pytest" &>/dev/null; then
             gate "framework & hook tests" "framework.yml:framework" \
                 python3 -m pytest -q -p no:cacheprovider private/tests/framework

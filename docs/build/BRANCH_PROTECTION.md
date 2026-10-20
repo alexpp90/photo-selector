@@ -121,7 +121,7 @@ What has to change in `.github/workflows/` (and, because these are gates, in
 1. A workflow that starts on every PR to `main` and on `merge_group`, with no `paths:` filter,
    for example `ci-gate.yml`, or `android.yml` with its `pull_request.paths` removed. It runs
    the `dorny/paths-filter` step that `detect-changes` runs today, extended with one output
-   per product (Android Desktop, PhotoTok, macOS, Linux, Desktop).
+   per product (Jackpix, Frameduel, Lensjet, Blitzlens, Desktop).
 2. The per-product jobs move behind that detection (`needs: detect-changes` +
    `if: needs.detect-changes.outputs.<product> == 'true'`) instead of behind a workflow
    `paths:` filter. They can stay in their own workflow files only if those files also lose
