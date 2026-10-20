@@ -3,7 +3,7 @@
 Formerly Photo-Tok.
 
 <div align="center">
-  <img src="../../../assets/phototok_logo.png" alt="Jackpix Logo" width="120" />
+  <img src="../../../assets/brand/jackpix/jackpix.svg" alt="Jackpix icon" width="120" />
 
   ### Swipe. Select. Snap.
   **A lightweight, gesture-first, portrait photo curation app designed for sub-second time-to-first-swipe on Android phones.**
