@@ -9,6 +9,9 @@ appId: com.phototok.lab
 # Folder names are scrolled to the middle and fully into view before the tap: in a small
 # window (960x600 dp) the grid stopped with "PSTLab" under the "Use this folder" bar, the tap
 # missed, and the search for "work" scrolled the storage root to its end (2026-10-17).
+# Near the end of a short list an item cannot be centred and the centred scroll runs out its
+# time although the item is fully on screen (Xperia XA2: "PSTLab" third from the end, 2026-10-20);
+# the plain scroll after it then finds it.
 # The id is a regex: Google's DocumentsUI (com.google.android.documentsui) and AOSP's
 # (com.android.documentsui, the Xperia XA2's LineageOS) name it alike; with only Google's id the
 # root tap was skipped on the Xperia and "PSTLab" never appeared (2026-10-20).
@@ -19,16 +22,28 @@ appId: com.phototok.lab
 - scrollUntilVisible:
     element:
       text: "PSTLab"
-    timeout: 10000
+    timeout: 15000
     centerElement: true
+    visibilityPercentage: 100
+    optional: true
+- scrollUntilVisible:
+    element:
+      text: "PSTLab"
+    timeout: 15000
     visibilityPercentage: 100
 - tapOn:
     text: "PSTLab"
 - scrollUntilVisible:
     element:
       text: "work"
-    timeout: 10000
+    timeout: 15000
     centerElement: true
+    visibilityPercentage: 100
+    optional: true
+- scrollUntilVisible:
+    element:
+      text: "work"
+    timeout: 15000
     visibilityPercentage: 100
 - tapOn:
     text: "work"
