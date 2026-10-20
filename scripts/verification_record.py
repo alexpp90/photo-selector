@@ -52,9 +52,9 @@ DATA_RE = re.compile(r"<!-- pst-verification:data (\{.*?\}) -->")
 
 # Gate groups, in the order the PR block lists them.
 GROUPS: List[Tuple[str, str]] = [
-    ("android", "Android (PhotoTok, Android Desktop)"),
-    ("macos", "macOS Desktop"),
-    ("linux", "Linux Desktop"),
+    ("android", "Android (Jackpix, Frameduel)"),
+    ("macos", "Lensjet (macOS Desktop)"),
+    ("linux", "Blitzlens (Linux Desktop)"),
     ("desktop", "Desktop (legacy)"),
     ("repo", "Repository hygiene"),
     ("overlay", "Maintainer framework"),

@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Entry point for the Photo Selector device lab CLI."""
+"""Entry point for the device lab CLI."""
 
 from __future__ import annotations
 

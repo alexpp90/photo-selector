@@ -1,6 +1,7 @@
 # Contributor License Agreement (Individual)
 
-Thank you for contributing to **Photo Selector Toolbox** (the "Project"), maintained by
+Thank you for contributing to the **photo-selector** repository — the apps Jackpix, Frameduel,
+Lensjet and Blitzlens and the legacy Photo Selector Toolbox (the "Project") — maintained by
 AlxPPa (the "Maintainer"). This agreement clarifies the rights in your contributions so the
 Project can stay open source today and keep every option open for the future — including
 distributing builds under other licenses.
