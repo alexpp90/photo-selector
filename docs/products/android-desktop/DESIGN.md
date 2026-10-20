@@ -1,4 +1,4 @@
-# Design.md — Photo Selector Toolbox, Android Desktop (Tablet / DeX)
+# Design.md — Frameduel, Android Desktop (Tablet / DeX)
 
 Complete design instruction set for a visual redesign of the **Android Desktop** solution
 (`products/android/android-desktop/`, package `com.photoselectortoolbox`). Self-contained: everything a design
@@ -95,7 +95,7 @@ Non-negotiable. Every layout decision is checked against these.
    changes a file carries a permanent visible word and a permanent key cap. Hover reveals
    nothing that matters — a tablet has no hover.
 5. **Dark, quiet, neutral.** The UI must not colour-cast the photographs. Greys plus a
-   single indigo accent. No gradients beside images, no coloured glows, no translucent blur
+   single lavender accent. No gradients beside images, no coloured glows, no translucent blur
    panels over image areas.
 6. **Numbers must be readable.** A quality score is never a bare number: it is icon + short
    label + formatted value, with its direction encoded visually and its legend one tap away.
@@ -103,7 +103,7 @@ Non-negotiable. Every layout decision is checked against these.
    spacing over generous consumer padding — while keeping touch targets full size.
 
 **Creative latitude.** Layout composition, hierarchy, information density, empty states and
-visual polish are open. The dark Zinc/Indigo palette, principles 1–3, and the four-destination
+visual polish are open. The dark neutral grey / lavender palette, principles 1–3, and the four-destination
 navigation model are fixed. The three-image comparison view is the heart of the product and
 deserves the most design effort.
 
@@ -113,21 +113,21 @@ deserves the most design effort.
 
 ### 4.1 Colour
 
-Dark theme only. Material 3 `darkColorScheme`. Calibrated Darkroom & Studio palette with Laser Cyan and Curatorial Amber accents.
+Dark theme only. Material 3 `darkColorScheme`. Frameduel palette: neutral-grey studio surfaces (R = G = B, so the surround adds no colour cast to the photos), a lavender brand accent used sparingly for the primary action, selection and focus, and Curatorial Amber reserved for keepers and ratings. The orange-red of the app icon is icon-only and never appears in the UI.
 
 | Role | Hex | Name | Use |
 |---|---|---|---|
-| `background` / `surface` | `#0C0D10` | StudioCanvas | Neutral canvas pedestal; zero chromatic cast |
-| `surfaceVariant` | `#141519` | StudioPanel | 88dp navigation sidebar, details pane shell |
-| `surfaceContainer` | `#1C1E24` | StudioCard | Hardware control block card fill & telemetry tiles |
-| `outline` | `#2D3139` | StudioBorder | 1dp structural hairline dividers & borders |
-| `outlineVariant` | `#434854` | StudioBorderActive | Highlighted / active border |
+| `background` / `surface` | `#0D0D0D` | StudioCanvas | Neutral canvas pedestal; zero chromatic cast |
+| `surfaceVariant` | `#151515` | StudioPanel | 88dp navigation sidebar, details pane shell |
+| `surfaceContainer` | `#1E1E1E` | StudioCard | Hardware control block card fill & telemetry tiles |
+| `outline` | `#313131` | StudioBorder | 1dp structural hairline dividers & borders |
+| `outlineVariant` | `#484848` | StudioBorderActive | Highlighted / active border |
 | `onSurface` / `onBackground` | `#FAFAFA` | Zinc-50 | Primary text |
-| `onSurfaceVariant` | `#A1A1AA` | Zinc-400 | Secondary text, icons at rest |
-| `primary` | `#0284C7` | FocusCyan | Active 2dp hero frame border, optical chrome, active nav |
-| `tertiary` | `#38BDF8` | FocusCyanGlow | Focus diamond indicator (`◈`), telemetry reticles |
+| `onSurfaceVariant` | `#A1A1A1` | Zinc-400 | Secondary text, icons at rest |
+| `primary` | `#C4B8FF` | BrandAccent | Active 2dp hero frame border, primary action, selection, focus, active nav (`onPrimary` `#2D2570`, BrandOnAccent, 7.2:1) |
+| `tertiary` | `#DAD3FF` | BrandAccentGlow | Focus diamond indicator (`◈`), telemetry reticles |
 | `curation` | `#F59E0B` | CurationAmber | Keeper selection, star ratings, curatorial triage |
-| `secondary` | `#A1A1AA` | Zinc-400 | Muted controls |
+| `secondary` | `#A1A1A1` | Zinc-400 | Muted controls |
 
 Semantic score micro-telemetry — used **only** for score direction and destructive actions, never
 decoratively:
@@ -329,11 +329,11 @@ Zinc-700 rule:
   were simply cut off. A 16 dp fade marks an edge only while there is more beyond it; the
   items keep their 72 dp rather than shrinking to fit. **The label is not optional** — an icon plus nothing is the defect this revision exists to
   fix.
-- Active state: `TonalIndigoNav` fill plus an Indigo-500 glyph and label. Toggle items
+- Active state: `BrandAccentNav` fill plus an lavender accent glyph and label. Toggle items
   (Bursts) use the same treatment for their on state, so "selected screen" and "toggle on"
   read identically — both mean *this is currently true*.
-- **Scan** is the one emphasised item: `TonalIndigo` fill at rest. While a scan runs it
-  becomes a counter (`412 / 842`) over a **Cancel** label in `ScoreBad`, with a 2 dp Indigo
+- **Scan** is the one emphasised item: `BrandAccentTonal` fill at rest. While a scan runs it
+  becomes a counter (`412 / 842`) over a **Cancel** label in `ScoreBad`, with a 2 dp accent
   determinate line along the sidebar's right edge. A scan still never takes the screen.
 - **Queued and busy items share that treatment.** Scan and Bursts conflict — each rebuilds
   what the other reads — so the second request waits rather than clobbering the first. A
@@ -397,7 +397,7 @@ controls keep 308.)
 balanced either side — 388 dp each at 4:3, 342.5 at 3:2; the flanks are whatever the frame
 leaves, not a fixed number. Previous and Next are centred as a pair beneath it, so
 the three frames share a vertical centre line. Centring is what marks the current frame as
-the one under judgement — together with its 2 dp Indigo border, and *not* by making it
+the one under judgement — together with its 2 dp accent border, and *not* by making it
 larger, which would destroy the comparison.
 
 600 × 450 against the previous revision's 453 × 340: **+76 % area per frame.** Against the
@@ -496,7 +496,7 @@ screen. Proximity beats tabulation: a value belongs to a frame, so it is drawn o
 that frame.
 
 The metric set, the `ScoreMetric` definitions, the 0..1 goodness normalisation, the 2 dp
-direction bar and the Indigo best-of-three dot are unchanged throughout. Only placement and
+direction bar and the accent best-of-three dot are unchanged throughout. Only placement and
 verbosity differ, and they differ by role.
 
 #### 7.4a Current frame — named, iconed, to its left
@@ -738,12 +738,12 @@ keeps room for both.
 - 60 dp-wide thumbnails, 40 dp tall landscape / 80 dp portrait. **Width is the constant**,
   because in a vertical strip width is the cross axis and a ragged cross axis cannot be
   scanned — the mirror of the horizontal strip's constant 56 dp height.
-- 3 dp radius, 1 dp Zinc-700 outline, .85 opacity; the current thumbnail is 2 dp Indigo-500
+- 3 dp radius, 1 dp Zinc-700 outline, .85 opacity; the current thumbnail is 2 dp lavender accent
   at full opacity.
 - One 6 dp sharpness dot tinted by goodness, bottom-right. No text: at this size a number is
   not legible, and the question the strip answers — "is there anything better nearby" — is
   answered faster by a colour.
-- With Bursts on, thumbnails in the current burst carry the 2 dp Indigo-600 marker down their
+- With Bursts on, thumbnails in the current burst carry the 2 dp deep accent marker down their
   **leading edge** rather than under them, and each new burst starts after a 10 dp gap. Same
   rule, same colour, same reading: a bracket around a run.
 - The mono range caption (`115–156 of 842`, 9 sp, wrapping to two lines) sits **below** the
@@ -842,7 +842,7 @@ what the user is looking at.
   name, the sorting clause, the undo window and every key name are read from configuration or
   from the binding declaration. "Keep", "Save" and "Favourite" are prohibited exactly as they
   are on the controls (§7.5), and a unit test asserts they never appear.
-- **Placement: the flank, beneath the readout block.** 10 dp radius, `PanelSurface`, 1 dp
+- **Placement: the flank, beneath the readout block.** 10 dp radius, `StudioPanel`, 1 dp
   Zinc-700 outline, no shadow. It takes its own space in the flank column rather than
   floating, so it can neither cover a frame nor collide with a control, and it adds **zero**
   height above or below the image region. The bottom centre is unavailable: the snackbar is
@@ -889,7 +889,7 @@ The reasoning worth keeping, all of it now folded into §7:
 - Controls belong in the letterbox columns, not above or below the photographs
   (2026-07-24, `ai/memory/palette.md`). §7.2 generalises this: controls belong wherever the
   binding constraint is *not*.
-- Equal frame sizing is non-negotiable, marked only by a 2 dp Indigo border — never by
+- Equal frame sizing is non-negotiable, marked only by a 2 dp accent border — never by
   dimming, scrimming, shrinking or blurring a neighbour (§7.2).
 - A control shared between layouts must be owned by the layout that renders it
   (2026-07-24). With one layout this class of overlap bug ceases to exist; the UI test
@@ -985,7 +985,7 @@ plain-language explanation:
 **Estimated duration line**, updating live with the selected options:
 *"842 images · about 3 min · 612 already cached and will be skipped."*
 
-**Footer:** `[Cancel]` (text) and `[Start Scan]` (filled Indigo).
+**Footer:** `[Cancel]` (text) and `[Start Scan]` (filled accent).
 
 ---
 
@@ -1024,7 +1024,7 @@ captioned *"Compare the bars, not the numbers."*
 - Shutter Speed Distribution (histogram)
 - Lens Usage (horizontal bar / ranked list)
 
-**Chart styling:** Indigo-500 bars, Zinc-400 axis labels, Zinc-700 grid lines, Zinc-800 card
+**Chart styling:** lavender accent bars, Zinc-400 axis labels, Zinc-700 grid lines, Zinc-800 card
 background, 1 dp Zinc-700 border, 8 dp radius, title in titleSmall. Omit legends where a
 single series makes them redundant.
 
@@ -1051,7 +1051,7 @@ lets the user batch-delete copies.
 
 - **Header:** `Group (3 files)` plus a `Select All But First` text action.
 - **Body:** a horizontal row of thumbnails, one per file. The first file carries an
-  `Original` badge with an Indigo outline. Files marked for deletion get a red-tinted border,
+  `Original` badge with an accent outline. Files marked for deletion get a red-tinted border,
   a checked checkbox, and a *"Selected for deletion"* caption. Below each thumbnail: filename,
   file size, and the folder path, ellipsised from the **left** so the leaf folder stays visible.
 
@@ -1110,7 +1110,7 @@ key is unchanged.
 
 | Item | Control | Supporting text |
 |---|---|---|
-| Reset Guidance | action + Indigo tonal `[Reset]` | Show the first-run explanations and the layout guide again |
+| Reset Guidance | action + accent tonal `[Reset]` | Show the first-run explanations and the layout guide again |
 
 Follows the Clear Cache row without its confirmation dialog: nothing is destroyed, so a modal
 asking *are you sure* would be ceremony. The supporting text changes to *"The explanations and
@@ -1129,12 +1129,12 @@ it, §7.9 opens by itself again and §7.10's cards fire again.
 
 ### About
 
-Photo Selector Toolbox · `Version 1.4.2` · Source Code — *View on GitHub*.
+Frameduel · `Version 1.4.2` · Source Code — *View on GitHub*.
 
 ### Style
 
 Zinc-800 grouped cards on a Zinc-900 canvas, 1 dp Zinc-700 borders. Section headers in
-labelLarge Indigo-500; item titles bodyLarge Zinc-50; supporting text bodySmall Zinc-400;
+labelLarge lavender accent; item titles bodyLarge Zinc-50; supporting text bodySmall Zinc-400;
 controls right-aligned. Destructive items use the red accent for their icon and label only —
 never a red-filled button.
 
@@ -1188,20 +1188,20 @@ Reference frame: 400 × 880 dp portrait.
 
 ## 16. Component sheet
 
-Produce these as a design-system page, dark theme, Zinc/Indigo.
+Produce these as a design-system page, dark theme, neutral grey / lavender.
 
 1. **ScoreChip** — four variants (Sharp, Noise, Highl, Shad) × three states (good,
    neutral, poor) × two sizes (full = icon + label + value; compact = icon + value for
    thumbnail overlays). Show the direction-bar treatment in every variant.
 2. **ScoreChipRow** — wrapping row of up to four chips at column width ~450 dp.
 3. **ImageTile** — 4:3 tile with letterbox and pillarbox behaviour. States: resting,
-   current/active (2 dp Indigo border), hovered (Zinc-600 border), loading (Zinc-800 with a
+   current/active (2 dp accent border), hovered (Zinc-600 border), loading (Zinc-800 with a
    subtle shimmer — no spinner).
 4. **Sidebar item** — 88 × 72 dp, 24 dp glyph over an 11 sp label; resting, hovered, active
-   (`TonalIndigoNav` + Indigo glyph and label), disabled, and the Scan item's emphasised and
+   (`BrandAccentNav` + accent glyph and label), disabled, and the Scan item's emphasised and
    scanning variants.
 5. **Control block** — 388 × 450 dp, 2 × 3 grid of ~190 × 80 dp controls with permanent glyph
-   + word + key cap: Keep (`ScoreGood` tonal), Move (`TonalIndigo`), Delete (outlined,
+   + word + key cap: Keep (`ScoreGood` tonal), Move (`BrandAccentTonal`), Delete (outlined,
    `ScoreBad` glyph and word), Fullscreen, Previous, Next; disabled states (`No previous` /
    `No next`); the 48 dp view-toggle row and the position counter beneath.
 6. **Readout block** — 388 × 450 dp: filename, EXIF line, four icon + name + value rows with
@@ -1224,8 +1224,8 @@ Produce these as a design-system page, dark theme, Zinc/Indigo.
 14. **Key cap** — the permanent mono key-hint style carried by every action control.
 15. **Context menu** — long-press menu with Move, Copy, Delete, Details, Fullscreen.
 16. **Fullscreen gesture card** — rendered from `SelectorGestures`, never from literals.
-17. **Coach mark** — the §7.9 callout: 1 dp Zinc-700 outline on `PanelSurface`, 10 dp radius,
-    a 10 dp Indigo-500 leader rule before the title, title over one line of body, optional
+17. **Coach mark** — the §7.9 callout: 1 dp Zinc-700 outline on `StudioPanel`, 10 dp radius,
+    a 10 dp lavender accent leader rule before the title, title over one line of body, optional
     generated key rows beneath. Full and compact (sidebar / filmstrip) variants.
 18. **Explanation card** — the §7.10 first-run card: title, two lines of body, right-aligned
     **Got it**. Show it at flank width with the readout block above it, and the suppressed
@@ -1235,8 +1235,8 @@ Produce these as a design-system page, dark theme, Zinc/Indigo.
 
 ## 17. Accessibility
 
-- **Contrast.** All text ≥ 4.5:1 against its surface. Zinc-400 (`#A1A1AA`) on Zinc-900
-  passes; Zinc-500 does not. Do not go darker than `#A1A1AA` for any body text.
+- **Contrast.** All text ≥ 4.5:1 against its surface. Zinc-400 (`#A1A1A1`) on Zinc-900
+  passes; Zinc-500 does not. Do not go darker than `#A1A1A1` for any body text.
 - **Direction is not colour-only.** Score direction is conveyed by bar length *and* the
   written direction hint, not by the emerald/amber/red tint alone.
 - **Icon-only controls** need a visible tooltip on hover and a full accessibility label
@@ -1244,7 +1244,7 @@ Produce these as a design-system page, dark theme, Zinc/Indigo.
 - **A control that changes a file is never icon-only.** Move, Copy/Keep and Delete carry a
   permanent visible word at every breakpoint, in every layout, including the compact one.
   Icon-only is permitted only for view controls, which cannot lose a photograph.
-- **Focus rings.** 2 dp Indigo-500 with a 2 dp offset, visible on every interactive element,
+- **Focus rings.** 2 dp lavender accent with a 2 dp offset, visible on every interactive element,
   for keyboard and DeX navigation.
 - **Touch targets.** Minimum 48 dp for every interactive element, everywhere, at every
   breakpoint.
@@ -1276,7 +1276,7 @@ bindings will eventually disagree with the bindings.
 
 **Pointer.** Interactive components show the hand cursor (`PointerIcon.Hand`) on hover —
 buttons, clickable images, filmstrip thumbnails. Dragging a folder from an external file
-manager into the app window loads it; design a drop-target state (Indigo dashed outline over
+manager into the app window loads it; design a drop-target state (accent dashed outline over
 the content area, caption *"Drop a folder to load it"*).
 
 ---
@@ -1314,7 +1314,7 @@ Short corrections to steer a generated design back on track.
 | Values that could belong to any frame | "Each frame's data must touch that frame: filename, exposure and named metrics beside the current frame; filename, exposure and icon-and-value metrics overlaid on the right edge of Previous and Next." |
 | Neighbours missing their EXIF | "Previous and Next carry filename and a two-line exposure block above their metric rows, in the same order as the current frame's readout." |
 | Current frame not centred | "Centre the current frame in the image region, readouts left, controls right, Previous and Next centred as a pair beneath it." |
-| Current image enlarged | "All three images must be identical in size. The active image is marked only by a 2 dp Indigo border." |
+| Current image enlarged | "All three images must be identical in size. The active image is marked only by a 2 dp accent border." |
 | Neighbours dimmed or scrimmed | "Render Previous and Next at full brightness. Dimming defeats the comparison." |
 | Three images in a row | "Never arrange the three frames in a row — that is width-bound and wastes 60 % of the display's height. One frame on top, two below, all three 600 × 450 dp." |
 | Images too small | "Height is the scarce axis. Delete everything above and below the image region — app bar, action row, filmstrip, captions — and move it into the free width beside the frames. Then measure the region, don't reason about it." |

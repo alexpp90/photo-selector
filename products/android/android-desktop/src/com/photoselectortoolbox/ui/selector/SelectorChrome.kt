@@ -34,7 +34,7 @@ import coil.compose.AsyncImage
 import com.photoselectortoolbox.data.model.ImageItem
 import com.photoselectortoolbox.data.model.ScanResult
 import com.photoselectortoolbox.domain.scoring.ScoreMetric
-import com.photoselectortoolbox.ui.theme.FocusCyan
+import com.photoselectortoolbox.ui.theme.BrandAccent
 import com.photoselectortoolbox.ui.theme.StudioBorder
 import com.photoselectortoolbox.ui.theme.StudioBorderActive
 import com.photoselectortoolbox.ui.theme.StudioCard
@@ -51,7 +51,7 @@ import com.photoselectortoolbox.ui.theme.Zinc600
  * one — and three frames at subtly different sizes cannot be compared, which is
  * the whole task. See the 2026-07-27 entry in `ai/memory/palette.md`.
  *
- * The active frame is marked only by a 2dp laser cyan border. Neighbours are never
+ * The active frame is marked only by a 2dp lavender accent border. Neighbours are never
  * dimmed or shrunk: a dimmed frame cannot be judged for exposure, and a smaller
  * one cannot be judged for sharpness.
  */
@@ -70,7 +70,7 @@ fun ImageTile(
 
     val borderColor by animateColorAsState(
         targetValue = when {
-            isCurrent -> FocusCyan
+            isCurrent -> BrandAccent
             hovered -> StudioBorderActive
             else -> StudioBorder
         },

@@ -109,10 +109,9 @@ import com.photoselectortoolbox.ui.components.EmptyStateCard
 import com.photoselectortoolbox.ui.components.StarRatingBar
 import com.photoselectortoolbox.ui.navigation.Screen
 import com.photoselectortoolbox.ui.selector.RatingFilterSelector
-import com.photoselectortoolbox.ui.theme.FocusCyan
-import com.photoselectortoolbox.ui.theme.Indigo500
-import com.photoselectortoolbox.ui.theme.Indigo600
-import com.photoselectortoolbox.ui.theme.PanelSurface
+import com.photoselectortoolbox.ui.theme.BrandAccent
+import com.photoselectortoolbox.ui.theme.BrandAccentDeep
+import com.photoselectortoolbox.ui.theme.StudioPanel
 import com.photoselectortoolbox.ui.theme.ScoreBad
 import com.photoselectortoolbox.ui.theme.ScoreGood
 import com.photoselectortoolbox.ui.theme.ScoreWarn
@@ -561,7 +560,7 @@ internal fun InspectScreenContent(
                     modifier = Modifier
                         .fillMaxWidth()
                         .height(290.dp)
-                        .background(PanelSurface)
+                        .background(StudioPanel)
                         .verticalScroll(rememberScrollState())
                         .padding(12.dp),
                     verticalArrangement = Arrangement.spacedBy(12.dp),
@@ -635,7 +634,7 @@ internal fun InspectScreenContent(
                     modifier = Modifier
                         .width(380.dp)
                         .fillMaxHeight()
-                        .background(PanelSurface)
+                        .background(StudioPanel)
                         .border(1.dp, Zinc800, RoundedCornerShape(0.dp))
                         .verticalScroll(rememberScrollState())
                         .padding(16.dp),
@@ -739,7 +738,7 @@ private fun InspectControlBar(
             Surface(
                 shape = RoundedCornerShape(6.dp),
                 color = if (isSpiralActive) Zinc800 else Zinc900,
-                border = androidx.compose.foundation.BorderStroke(1.dp, if (isSpiralActive) Indigo600 else Zinc700),
+                border = androidx.compose.foundation.BorderStroke(1.dp, if (isSpiralActive) BrandAccentDeep else Zinc700),
                 modifier = Modifier
                     .clip(RoundedCornerShape(6.dp))
                     .clickable(onClick = onFlipSpiral)
@@ -788,8 +787,8 @@ private fun GuideToggleButton(
 ) {
     Surface(
         shape = RoundedCornerShape(6.dp),
-        color = if (active) Indigo600 else Zinc900,
-        border = androidx.compose.foundation.BorderStroke(1.dp, if (active) Indigo500 else Zinc700),
+        color = if (active) BrandAccentDeep else Zinc900,
+        border = androidx.compose.foundation.BorderStroke(1.dp, if (active) BrandAccent else Zinc700),
         modifier = modifier
             .clip(RoundedCornerShape(6.dp))
             .clickable(onClick = onClick)
@@ -835,8 +834,8 @@ private fun LearnTabSelector(
             val active = tab == selectedTab
             Surface(
                 shape = RoundedCornerShape(8.dp),
-                color = if (active) Indigo600 else Zinc900,
-                border = androidx.compose.foundation.BorderStroke(1.dp, if (active) Indigo500 else Zinc800),
+                color = if (active) BrandAccentDeep else Zinc900,
+                border = androidx.compose.foundation.BorderStroke(1.dp, if (active) BrandAccent else Zinc800),
                 modifier = Modifier
                     .weight(1f)
                     .clip(RoundedCornerShape(8.dp))
@@ -885,8 +884,8 @@ private fun ExploreCardsSection(
         ) {
             Surface(
                 shape = RoundedCornerShape(6.dp),
-                color = if (guessFirstEnabled) Indigo600 else Zinc900,
-                border = androidx.compose.foundation.BorderStroke(1.dp, if (guessFirstEnabled) Indigo500 else Zinc800),
+                color = if (guessFirstEnabled) BrandAccentDeep else Zinc900,
+                border = androidx.compose.foundation.BorderStroke(1.dp, if (guessFirstEnabled) BrandAccent else Zinc800),
                 modifier = Modifier
                     .clip(RoundedCornerShape(6.dp))
                     .clickable(onClick = onToggleGuessFirst)
@@ -903,8 +902,8 @@ private fun ExploreCardsSection(
             if (suggestedCrop != null) {
                 Surface(
                     shape = RoundedCornerShape(6.dp),
-                    color = if (whatIfCropActive) Indigo600 else Zinc900,
-                    border = androidx.compose.foundation.BorderStroke(1.dp, if (whatIfCropActive) Indigo500 else Zinc800),
+                    color = if (whatIfCropActive) BrandAccentDeep else Zinc900,
+                    border = androidx.compose.foundation.BorderStroke(1.dp, if (whatIfCropActive) BrandAccent else Zinc800),
                     modifier = Modifier
                         .clip(RoundedCornerShape(6.dp))
                         .clickable(onClick = onToggleWhatIfCrop)
@@ -935,7 +934,7 @@ private fun ExploreCardsSection(
             Card(
                 shape = RoundedCornerShape(10.dp),
                 colors = CardDefaults.cardColors(containerColor = Zinc900),
-                border = androidx.compose.foundation.BorderStroke(1.dp, FocusCyan.copy(alpha = 0.6f)),
+                border = androidx.compose.foundation.BorderStroke(1.dp, BrandAccent.copy(alpha = 0.6f)),
                 modifier = Modifier.fillMaxWidth().testTag("what_if_crop_card"),
             ) {
                 Column(
@@ -958,7 +957,7 @@ private fun ExploreCardsSection(
                             val isChosen = (selectedCropAspect ?: suggestedCrop.aspectRatio) == ratio
                             Surface(
                                 shape = RoundedCornerShape(4.dp),
-                                color = if (isChosen) Indigo600 else Zinc950,
+                                color = if (isChosen) BrandAccentDeep else Zinc950,
                                 border = androidx.compose.foundation.BorderStroke(1.dp, Zinc700),
                                 modifier = Modifier
                                     .clip(RoundedCornerShape(4.dp))
@@ -982,7 +981,7 @@ private fun ExploreCardsSection(
             Card(
                 shape = RoundedCornerShape(12.dp),
                 colors = CardDefaults.cardColors(containerColor = Zinc900),
-                border = androidx.compose.foundation.BorderStroke(1.dp, Indigo500),
+                border = androidx.compose.foundation.BorderStroke(1.dp, BrandAccent),
                 modifier = Modifier.fillMaxWidth().testTag("guess_first_card"),
             ) {
                 Column(
@@ -1087,7 +1086,7 @@ private fun LearnObservationCard(
                 Text(
                     text = "Why? → Open Lesson",
                     style = MaterialTheme.typography.labelSmall,
-                    color = FocusCyan,
+                    color = BrandAccent,
                     fontWeight = FontWeight.SemiBold,
                     modifier = Modifier
                         .clickable { onOpenLesson(lessonId) }
@@ -1116,7 +1115,7 @@ private fun WhatIfCropOverlay(
         val cropHeight = (crop.yMax - crop.yMin).toFloat() * bounds.height
 
         drawRect(
-            color = FocusCyan,
+            color = BrandAccent,
             topLeft = Offset(cropLeft, cropTop),
             size = Size(cropWidth, cropHeight),
             style = Stroke(width = 2.5.dp.toPx()),
@@ -1155,7 +1154,7 @@ private fun LessonsTabContent(
                 Text(
                     text = "← All Lessons (${activeLesson.track.title})",
                     style = MaterialTheme.typography.labelSmall,
-                    color = FocusCyan,
+                    color = BrandAccent,
                     modifier = Modifier.clickable { onSelectLesson(null) },
                 )
                 Text(
@@ -1173,7 +1172,7 @@ private fun LessonsTabContent(
                     text = "Spot It Quiz (2 Questions)",
                     style = MaterialTheme.typography.labelMedium,
                     fontWeight = FontWeight.Bold,
-                    color = Indigo500,
+                    color = BrandAccent,
                 )
                 questions.forEachIndexed { qIdx, q ->
                     Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
@@ -1229,7 +1228,7 @@ private fun LessonsTabContent(
 
                 Surface(
                     shape = RoundedCornerShape(8.dp),
-                    color = Indigo600,
+                    color = BrandAccentDeep,
                     modifier = Modifier
                         .fillMaxWidth()
                         .clip(RoundedCornerShape(8.dp))
@@ -1335,7 +1334,7 @@ private fun CompareTabContent(images: List<ImageItem>) {
                     text = "Why one worked better:",
                     style = MaterialTheme.typography.labelSmall,
                     fontWeight = FontWeight.Bold,
-                    color = FocusCyan,
+                    color = BrandAccent,
                 )
                 scene.differenceBullets.forEach { bullet ->
                     Text(
@@ -1369,7 +1368,7 @@ private fun PracticeTabContent(
     Card(
         shape = RoundedCornerShape(12.dp),
         colors = CardDefaults.cardColors(containerColor = Zinc900),
-        border = androidx.compose.foundation.BorderStroke(1.dp, Indigo500.copy(alpha = 0.6f)),
+        border = androidx.compose.foundation.BorderStroke(1.dp, BrandAccent.copy(alpha = 0.6f)),
         modifier = Modifier.fillMaxWidth().testTag("practice_goal_card"),
     ) {
         Column(
@@ -1379,7 +1378,7 @@ private fun PracticeTabContent(
             Text(
                 text = "Active Practice Goal",
                 style = MaterialTheme.typography.labelSmall,
-                color = Indigo500,
+                color = BrandAccent,
                 fontWeight = FontWeight.Bold,
             )
             if (goalStatus != null) {
@@ -1418,7 +1417,7 @@ private fun PracticeTabContent(
                         Text(
                             text = "Set Goal: ${lesson.title}",
                             style = MaterialTheme.typography.labelSmall,
-                            color = FocusCyan,
+                            color = BrandAccent,
                             modifier = Modifier.padding(8.dp),
                         )
                     }
@@ -1502,7 +1501,7 @@ private fun PhotoCoachCard(
                 Icon(
                     imageVector = Icons.Default.School,
                     contentDescription = null,
-                    tint = Indigo500,
+                    tint = BrandAccent,
                     modifier = Modifier.size(20.dp),
                 )
                 Text(
@@ -1641,7 +1640,7 @@ private fun CoachingTipItem(
     val (chipColor, chipBg) = when (tip.severity) {
         TipSeverity.CRITICAL -> ScoreBad to ScoreBad.copy(alpha = 0.15f)
         TipSeverity.WARNING -> ScoreWarn to ScoreWarn.copy(alpha = 0.15f)
-        TipSeverity.INFO -> Indigo500 to Indigo500.copy(alpha = 0.15f)
+        TipSeverity.INFO -> BrandAccent to BrandAccent.copy(alpha = 0.15f)
     }
 
     Surface(
@@ -1746,7 +1745,7 @@ private fun ExifTechnicalReadoutCard(
                 Icon(
                     imageVector = Icons.Default.CameraAlt,
                     contentDescription = null,
-                    tint = Indigo500,
+                    tint = BrandAccent,
                     modifier = Modifier.size(18.dp),
                 )
                 Text(
@@ -1891,7 +1890,7 @@ private fun InspectFilmstrip(
                         .background(Zinc900)
                         .border(
                             width = if (isSelected) 2.dp else 1.dp,
-                            color = if (isSelected) Indigo500 else Zinc800,
+                            color = if (isSelected) BrandAccent else Zinc800,
                             shape = RoundedCornerShape(6.dp),
                         )
                         .clickable { onSelectImage(index) }

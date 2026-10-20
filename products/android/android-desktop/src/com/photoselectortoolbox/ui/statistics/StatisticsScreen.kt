@@ -40,7 +40,7 @@ import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.photoselectortoolbox.ui.components.EmptyStateCard
 import com.photoselectortoolbox.ui.components.ProgressIndicatorBar
-import com.photoselectortoolbox.ui.theme.Indigo500
+import com.photoselectortoolbox.ui.theme.BrandAccent
 import com.photoselectortoolbox.ui.theme.Zinc800
 import com.photoselectortoolbox.viewmodel.StatisticsViewModel
 
@@ -155,7 +155,7 @@ private fun SummaryCard(
             Icon(
                 imageVector = icon,
                 contentDescription = null,
-                tint = Indigo500,
+                tint = BrandAccent,
             )
             Spacer(modifier = Modifier.height(4.dp))
             Text(

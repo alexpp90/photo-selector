@@ -1,7 +1,7 @@
 package com.photoselectortoolbox.domain
 
 /**
- * Single source of truth for Photo Selector Toolbox's public legal document URLs.
+ * Single source of truth for Frameduel's public legal document URLs.
  *
  * The documents live in `docs/products/android-desktop/` in the repository and
  * are hosted by GitHub Pages from the `docs/` folder of `main`. The same URLs must be

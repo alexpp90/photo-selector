@@ -50,9 +50,9 @@ import com.photoselectortoolbox.domain.format.SelectorLabels
 import com.photoselectortoolbox.domain.session.SelectorWork
 import com.photoselectortoolbox.domain.guidance.SidebarAction
 import com.photoselectortoolbox.ui.navigation.Screen
-import com.photoselectortoolbox.ui.theme.FocusCyan
-import com.photoselectortoolbox.ui.theme.FocusCyanNav
-import com.photoselectortoolbox.ui.theme.FocusCyanTonal
+import com.photoselectortoolbox.ui.theme.BrandAccent
+import com.photoselectortoolbox.ui.theme.BrandAccentNav
+import com.photoselectortoolbox.ui.theme.BrandAccentTonal
 import com.photoselectortoolbox.ui.theme.ScoreBad
 import com.photoselectortoolbox.ui.theme.StudioBorder
 import com.photoselectortoolbox.ui.theme.StudioCard
@@ -289,13 +289,13 @@ private fun SidebarItem(
 
     val contentColor = when {
         !enabled -> Zinc700
-        active -> FocusCyan
+        active -> BrandAccent
         else -> Zinc400
     }
     val background = when {
         !enabled -> Color.Transparent
-        emphasised -> FocusCyanTonal
-        active -> FocusCyanNav
+        emphasised -> BrandAccentTonal
+        active -> BrandAccentNav
         hovered -> StudioCard
         else -> Color.Transparent
     }
@@ -364,7 +364,7 @@ private fun BusyItem(
             .height(SidebarItemHeight)
             .padding(vertical = 2.dp)
             .clip(RoundedCornerShape(8.dp))
-            .background(FocusCyanTonal)
+            .background(BrandAccentTonal)
             .pointerHoverIcon(PointerIcon.Hand)
             .clickable(onClick = onCancel)
             .semantics { contentDescription = description }

@@ -35,7 +35,7 @@ import com.patrykandpatrick.vico.core.cartesian.data.CartesianValueFormatter
 import com.patrykandpatrick.vico.core.cartesian.data.columnSeries
 import com.patrykandpatrick.vico.core.cartesian.layer.ColumnCartesianLayer
 import com.patrykandpatrick.vico.core.common.shape.CorneredShape
-import com.photoselectortoolbox.ui.theme.Indigo500
+import com.photoselectortoolbox.ui.theme.BrandAccent
 import com.photoselectortoolbox.ui.theme.Zinc400
 import com.photoselectortoolbox.ui.theme.Zinc700
 import com.photoselectortoolbox.ui.theme.Zinc800
@@ -117,7 +117,7 @@ private fun VicoColumnChart(
             rememberColumnCartesianLayer(
                 columnProvider = ColumnCartesianLayer.ColumnProvider.series(
                     rememberLineComponent(
-                        fill = fill(Indigo500),
+                        fill = fill(BrandAccent),
                         thickness = 16.dp,
                         shape = remember {
                             CorneredShape.rounded(

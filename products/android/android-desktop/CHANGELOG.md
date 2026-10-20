@@ -6,9 +6,14 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ## [Unreleased]
 
+## [0.6.0] - 2026-10-20
+
+### Changed
+- The app is now called Frameduel (formerly PhotoSelector Studio), in the launcher, Settings and the store listing.
+- New app icon, including a themed icon for Android 13+ home screens.
+- New colours: a lavender accent replaces the cyan one, and the dark surfaces around your photos are now neutral grey with no colour cast. Keeper amber, score colours and error colours are unchanged.
+- Release builds include native symbol tables, so crashes in image analysis can be diagnosed.
+
 ### Fixed
 - The Privacy Policy, Legal Notice and Source Code links in Settings open real pages again; they pointed at addresses that did not exist.
 - The guide and score readouts no longer list an AI aesthetic score; the app has measured technical quality only since on-device AI scoring was removed.
-
-### Changed
-- Release builds include native symbol tables, so crashes in image analysis can be diagnosed.

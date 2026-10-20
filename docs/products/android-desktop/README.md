@@ -1,5 +1,7 @@
 # Android Desktop
 
+**Frameduel** (formerly PhotoSelector Studio) — store title "Frameduel – Photo Culling Desk".
+
 The tablet / Samsung DeX / Chromebook product: a comparison workspace that approaches desktop
 parity on large screens. Quality scoring with OpenCV, a Room-backed score cache, statistics
 charts and a duplicate finder.

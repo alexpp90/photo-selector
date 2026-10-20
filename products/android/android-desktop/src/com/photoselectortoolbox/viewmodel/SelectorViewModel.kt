@@ -368,7 +368,7 @@ class SelectorViewModel @Inject constructor(
     // Everything below belongs to "the folder currently open" and is cleared in
     // exactly one place ([resetSession]). A stale `publishedUris` makes a new
     // folder look empty, and scattered resets are how one gets forgotten — the
-    // same trap recorded against PhotoTok's feed loader in
+    // same trap recorded against Jackpix's feed loader in
     // `ai/memory/code_health.md`.
 
     private var discoveryJob: Job? = null

@@ -62,7 +62,7 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.photoselectortoolbox.domain.grouping.GroupingLevel
 import com.photoselectortoolbox.domain.interaction.FilingAction
 import com.photoselectortoolbox.ui.theme.ErrorRed
-import com.photoselectortoolbox.ui.theme.Indigo500
+import com.photoselectortoolbox.ui.theme.BrandAccent
 import com.photoselectortoolbox.ui.theme.Zinc400
 import com.photoselectortoolbox.ui.theme.Zinc700
 import com.photoselectortoolbox.ui.theme.Zinc800
@@ -155,9 +155,9 @@ fun SettingsScreen(
                     singleLine = true,
                     shape = RoundedCornerShape(8.dp),
                     colors = OutlinedTextFieldDefaults.colors(
-                        focusedBorderColor = Indigo500,
+                        focusedBorderColor = BrandAccent,
                         unfocusedBorderColor = Zinc700,
-                        cursorColor = Indigo500,
+                        cursorColor = BrandAccent,
                         focusedTextColor = MaterialTheme.colorScheme.onSurface,
                         unfocusedTextColor = MaterialTheme.colorScheme.onSurface,
                     ),
@@ -177,7 +177,7 @@ fun SettingsScreen(
                         onClick = { viewModel.updateSelectionFolder(editingFolderName) },
                         modifier = Modifier.align(Alignment.End),
                     ) {
-                        Text("Save", color = Indigo500)
+                        Text("Save", color = BrandAccent)
                     }
                 }
 
@@ -200,9 +200,9 @@ fun SettingsScreen(
                     singleLine = true,
                     shape = RoundedCornerShape(8.dp),
                     colors = OutlinedTextFieldDefaults.colors(
-                        focusedBorderColor = Indigo500,
+                        focusedBorderColor = BrandAccent,
                         unfocusedBorderColor = Zinc700,
-                        cursorColor = Indigo500,
+                        cursorColor = BrandAccent,
                         focusedTextColor = MaterialTheme.colorScheme.onSurface,
                         unfocusedTextColor = MaterialTheme.colorScheme.onSurface,
                     ),
@@ -220,7 +220,7 @@ fun SettingsScreen(
                         onClick = { viewModel.updateSecondarySelectionFolder(editingSecondaryFolderName) },
                         modifier = Modifier.align(Alignment.End),
                     ) {
-                        Text("Save", color = Indigo500)
+                        Text("Save", color = BrandAccent)
                     }
                 }
             }
@@ -240,7 +240,7 @@ fun SettingsScreen(
                 trailing = {
                     if (uiState.phoneCollectionUri != null) {
                         TextButton(onClick = { viewModel.updatePhoneCollectionUri(null) }) {
-                            Text("Reset", color = Indigo500)
+                            Text("Reset", color = BrandAccent)
                         }
                     }
                 },
@@ -308,7 +308,7 @@ fun SettingsScreen(
                                     selected = uiState.groupingLevel == level,
                                     onClick = { viewModel.updateGroupingLevel(level) },
                                     colors = RadioButtonDefaults.colors(
-                                        selectedColor = Indigo500,
+                                        selectedColor = BrandAccent,
                                         unselectedColor = Zinc400,
                                     ),
                                 )
@@ -351,7 +351,7 @@ fun SettingsScreen(
                     Text(
                         text = "${uiState.analysisThreadCount}",
                         style = MaterialTheme.typography.titleMedium,
-                        color = Indigo500,
+                        color = BrandAccent,
                     )
                 }
                 Spacer(modifier = Modifier.height(8.dp))
@@ -361,8 +361,8 @@ fun SettingsScreen(
                     valueRange = 1f..4f,
                     steps = 2,
                     colors = SliderDefaults.colors(
-                        thumbColor = Indigo500,
-                        activeTrackColor = Indigo500,
+                        thumbColor = BrandAccent,
+                        activeTrackColor = BrandAccent,
                         inactiveTrackColor = Zinc700,
                         activeTickColor = Color.Transparent,
                         inactiveTickColor = Color.Transparent,
@@ -433,7 +433,7 @@ fun SettingsScreen(
                             selected = uiState.filingAction == action,
                             onClick = { viewModel.updateFilingAction(action) },
                             colors = RadioButtonDefaults.colors(
-                                selectedColor = Indigo500,
+                                selectedColor = BrandAccent,
                                 unselectedColor = Zinc400,
                             ),
                         )
@@ -486,8 +486,8 @@ fun SettingsScreen(
                             guidanceReset = true
                         },
                         colors = ButtonDefaults.buttonColors(
-                            containerColor = Indigo500.copy(alpha = 0.15f),
-                            contentColor = Indigo500,
+                            containerColor = BrandAccent.copy(alpha = 0.15f),
+                            contentColor = BrandAccent,
                         ),
                         shape = RoundedCornerShape(8.dp),
                     ) {
@@ -535,7 +535,7 @@ fun SettingsScreen(
         // --- About Section ---
         SettingsSection(title = "About") {
             SettingsClickItem(
-                title = "PhotoSelector Studio",
+                title = "Frameduel",
                 description = "Version ${com.photoselectortoolbox.BuildConfig.VERSION_NAME}",
                 onClick = {},
                 icon = Icons.Default.Info,
@@ -561,7 +561,7 @@ fun SettingsScreen(
 
             SettingsClickItem(
                 title = "Privacy Policy",
-                description = "How Photo Selector Toolbox handles your data",
+                description = "How Frameduel handles your data",
                 onClick = {
                     val intent = Intent(Intent.ACTION_VIEW, Uri.parse(com.photoselectortoolbox.domain.LegalLinks.PRIVACY_POLICY))
                     try {

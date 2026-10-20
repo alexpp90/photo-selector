@@ -34,7 +34,8 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.unit.dp
-import com.photoselectortoolbox.ui.theme.FocusCyan
+import com.photoselectortoolbox.ui.theme.BrandAccent
+import com.photoselectortoolbox.ui.theme.BrandOnAccent
 import com.photoselectortoolbox.ui.theme.StudioCard
 import com.photoselectortoolbox.ui.theme.StudioPanel
 
@@ -79,8 +80,8 @@ fun ScanConfigSheet(
                     enabled = config.sharpness || config.noise ||
                         config.highlightClipping || config.shadowClipping,
                     colors = ButtonDefaults.buttonColors(
-                        containerColor = FocusCyan,
-                        contentColor = Color.White,
+                        containerColor = BrandAccent,
+                        contentColor = BrandOnAccent,
                     ),
                 ) {
                     Text("Start Scan")
@@ -131,8 +132,8 @@ fun ScanConfigSheet(
                     enabled = config.sharpness || config.noise ||
                         config.highlightClipping || config.shadowClipping,
                     colors = ButtonDefaults.buttonColors(
-                        containerColor = FocusCyan,
-                        contentColor = Color.White,
+                        containerColor = BrandAccent,
+                        contentColor = BrandOnAccent,
                     ),
                     shape = RoundedCornerShape(8.dp),
                 ) {
@@ -209,7 +210,7 @@ private fun AnalysisCheckbox(
             checked = checked,
             onCheckedChange = null, // handled by row click
             colors = CheckboxDefaults.colors(
-                checkedColor = FocusCyan,
+                checkedColor = BrandAccent,
                 uncheckedColor = MaterialTheme.colorScheme.onSurfaceVariant,
             ),
         )

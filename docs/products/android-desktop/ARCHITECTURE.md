@@ -126,7 +126,7 @@ This is the **primary target**. The layout mirrors the desktop app's capability 
 
 ## 6. Touch Interaction Design
 
-### 6.1 Photo Selector Gestures
+### 6.1 Selector Gestures
 
 | Gesture | Action | Context |
 |---------|--------|---------|
@@ -156,7 +156,7 @@ When a hardware keyboard is detected, the same shortcuts as desktop apply:
 ## 7. Android-Specific UX Deviations from Desktop
 
 ### 7.1 Navigation
-- **Desktop:** Menu bar with "Tools" dropdown for switching between Photo Selector, Statistics, Duplicate Finder
+- **Desktop:** Menu bar with "Tools" dropdown for switching between Selector, Statistics, Duplicate Finder
 - **Android:** NavigationRail (tablet/DeX) or BottomNavigation (phone) — always visible, one-tap switching
 
 ### 7.2 Folder Selection
@@ -213,21 +213,22 @@ val analysisWorkers = minOf(4, Runtime.getRuntime().availableProcessors())
 
 ## Theme Implementation
 
-### 10.1 Photo Selector Toolbox Theme (:app)
-A professional Zinc and Indigo dark theme matching the desktop application style:
+### 10.1 Frameduel Theme (:android-desktop)
+A dark-only theme: neutral-grey studio surfaces (R = G = B) and a lavender brand accent
+(`ui/theme/Color.kt`, `Theme.kt`). Status bar, navigation bar and the window background follow
+`StudioCanvas`, mirrored in `res/values/colors.xml` for the splash.
 
 ```kotlin
 val DarkColorScheme = darkColorScheme(
-    primary = Color(0xFF6366F1),         // Indigo-500 (accent)
-    onPrimary = Color(0xFFFFFFFF),
-    primaryContainer = Color(0xFF4F46E5), // Indigo-600 (accent hover)
-    secondary = Color(0xFFA1A1AA),        // Zinc-400 (muted text)
-    surface = Color(0xFF18181B),          // Zinc-900 (base background)
-    surfaceVariant = Color(0xFF27272A),   // Zinc-800 (card/panel background)
-    onSurface = Color(0xFFFAFAFA),        // Zinc-50 (primary text)
-    onSurfaceVariant = Color(0xFFA1A1AA), // Zinc-400 (secondary text)
-    outline = Color(0xFF3F3F46),          // Zinc-700 (borders)
-    background = Color(0xFF18181B),       // Zinc-900
-    onBackground = Color(0xFFFAFAFA),     // Zinc-50
+    primary = BrandAccent,               // #C4B8FF lavender
+    onPrimary = BrandOnAccent,           // #2D2570, 7.2:1 on primary
+    primaryContainer = BrandAccentDeep,  // #4A3FA6
+    surface = StudioCanvas,              // #0D0D0D
+    surfaceVariant = StudioPanel,        // #151515
+    surfaceContainer = StudioCard,       // #1E1E1E
+    onSurface = Zinc50,                  // #FAFAFA
+    onSurfaceVariant = Zinc400,          // #A1A1A1
+    outline = StudioBorder,              // #313131
+    background = StudioCanvas,
 )
 ```

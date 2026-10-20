@@ -42,8 +42,8 @@ import com.photoselectortoolbox.data.model.ImageItem
 import com.photoselectortoolbox.domain.format.ExifFormatter
 import com.photoselectortoolbox.domain.scoring.ScoreMetric
 import com.photoselectortoolbox.domain.scoring.ScoreMetricIcon
-import com.photoselectortoolbox.ui.theme.FocusCyan
-import com.photoselectortoolbox.ui.theme.FocusCyanGlow
+import com.photoselectortoolbox.ui.theme.BrandAccent
+import com.photoselectortoolbox.ui.theme.BrandAccentGlow
 import com.photoselectortoolbox.ui.theme.ScoreBad
 import com.photoselectortoolbox.ui.theme.ScoreGood
 import com.photoselectortoolbox.ui.theme.ScoreWarn
@@ -126,7 +126,7 @@ fun CurrentFrameReadout(
                         text = it,
                         fontSize = 10.sp,
                         fontFamily = FontFamily.Monospace,
-                        color = FocusCyan,
+                        color = BrandAccent,
                     )
                 }
             }
@@ -227,7 +227,7 @@ private fun NamedMetricRow(
                 Text(
                     text = "◈",
                     fontSize = 11.sp,
-                    color = FocusCyanGlow,
+                    color = BrandAccentGlow,
                     modifier = Modifier.padding(start = 2.dp),
                 )
             }
@@ -446,7 +446,7 @@ private fun CompactMetricRow(
                 Text(
                     text = "◈",
                     fontSize = 9.sp,
-                    color = FocusCyanGlow,
+                    color = BrandAccentGlow,
                     modifier = Modifier.padding(start = 2.dp),
                 )
             }
