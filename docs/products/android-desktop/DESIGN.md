@@ -8,7 +8,7 @@ Derived from `REQUIREMENTS.md`, `ARCHITECTURE.md`, and the current Compose sourc
 under `products/android/android-desktop/src/com/photoselectortoolbox/ui/`.
 
 **Scope note:** this file covers the Android Desktop solution only. The Desktop (Python /
-Tkinter) app and the Jackpix client (Jackpix, `products/android/phototok/`) are independent
+Tkinter) app and the Jackpix phone app (`products/android/phototok/`) are independent
 solutions with their own UX models and their own themes — do not apply these instructions
 to them.
 
