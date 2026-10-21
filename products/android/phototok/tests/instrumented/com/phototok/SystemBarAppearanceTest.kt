@@ -1,13 +1,17 @@
 package com.phototok
 
 import android.app.UiAutomation
+import android.content.res.Configuration
+import android.hardware.display.DisplayManager
 import android.os.ParcelFileDescriptor
 import android.os.SystemClock
+import android.view.Display
 import android.view.Surface
 import androidx.test.core.app.ActivityScenario
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import androidx.test.platform.app.InstrumentationRegistry
 import org.junit.After
+import org.junit.Assume.assumeTrue
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNotNull
 import org.junit.Assert.fail
@@ -25,21 +29,73 @@ import org.junit.runner.RunWith
  * `dumpsys window windows`) after a real rotation: the insets controller's getter returns the
  * *requested* value, and `ActivityScenario.recreate()` is not a rotation — a test built on
  * either passed before the fix.
+ *
+ * The rotation part needs a display that can be rotated. It is skipped (reported as skipped, not
+ * passed; the launch check still runs) where [rotationBlocker] names a reason, and never calls
+ * `setRotation` there. Anything else that fails to rotate fails the test.
  */
 @RunWith(AndroidJUnit4::class)
 class SystemBarAppearanceTest {
 
     private val instrumentation get() = InstrumentationRegistry.getInstrumentation()
 
+    /** True once this test has frozen the rotation, so [restoreRotation] only undoes its own work. */
+    private var rotationFrozen = false
+
     @After
     fun restoreRotation() {
+        if (!rotationFrozen) return
         // Back to portrait first: a bare unfreeze left the Pixel 4a's display in landscape.
+        // Then wait until the display really is there, so the restore cannot land asynchronously
+        // during the next test (Acer Chromebook 714, 2026-10-19: the next test lost its compose
+        // hierarchy mid-run). Best effort: never fails the test.
         instrumentation.uiAutomation.setRotation(UiAutomation.ROTATION_FREEZE_0)
+        val displayManager = instrumentation.targetContext.getSystemService(DisplayManager::class.java)
+        val deadline = SystemClock.uptimeMillis() + TIMEOUT_MS
+        while (SystemClock.uptimeMillis() < deadline) {
+            if (displayManager?.getDisplay(Display.DEFAULT_DISPLAY)?.rotation == Surface.ROTATION_0) break
+            SystemClock.sleep(POLL_MS)
+        }
+        instrumentation.waitForIdleSync()
         instrumentation.uiAutomation.setRotation(UiAutomation.ROTATION_UNFREEZE)
+        rotationFrozen = false
+    }
+
+    /**
+     * Why this device's display cannot be rotated by the test, or null when it can.
+     * Deliberately a device-class check, not "rotation timed out": an ordinary phone that fails
+     * to rotate must still fail.
+     */
+    private fun rotationBlocker(): String? {
+        val context = instrumentation.targetContext
+        val pm = context.packageManager
+        // ChromeOS (ARC, freeform windows): the Acer Chromebook 714 run of 2026-10-19 passed the
+        // body, but UiAutomation.setRotation threw IllegalStateException "Not connected!" in the
+        // teardown, and a late rotation restore broke the next test.
+        if (pm.hasSystemFeature("org.chromium.arc") ||
+            pm.hasSystemFeature("org.chromium.arc.device_management")
+        ) {
+            return "ChromeOS display cannot be rotated through UiAutomation"
+        }
+        // A dock pins the rotation: the Pixel Tablet on its desk dock (2026-10-19) showed
+        // mDockMode=EXTRA_DOCK_STATE_HE_DESK, mDeskDockRotation=ROTATION_270 and uiMode type DESK,
+        // and setRotation(FREEZE_0) never took effect.
+        val uiModeType = context.resources.configuration.uiMode and Configuration.UI_MODE_TYPE_MASK
+        if (uiModeType == Configuration.UI_MODE_TYPE_DESK || uiModeType == Configuration.UI_MODE_TYPE_CAR) {
+            return "dock/car UI mode pins the display rotation"
+        }
+        return null
     }
 
     @Test
     fun systemBars_drawLightIcons_afterLaunchAndAfterRotation() {
+        val blocker = rotationBlocker()
+        if (blocker != null) {
+            ActivityScenario.launch(MainActivity::class.java).use { assertLightIcons("after launch") }
+            assumeTrue("Rotation part skipped: $blocker", false)
+            return
+        }
+        rotationFrozen = true
         instrumentation.uiAutomation.setRotation(UiAutomation.ROTATION_FREEZE_0)
         ActivityScenario.launch(MainActivity::class.java).use { scenario ->
             awaitRotation(scenario, Surface.ROTATION_0)
