@@ -58,4 +58,17 @@ class LegalLinksTest {
             permissions.contains("android.permission.INTERNET"),
         )
     }
+
+    @Test
+    @Requirement("REQ-TOK-ARCH.19")
+    fun `merged manifest requests no permission at all`() {
+        // A dependency can merge permissions into the shipped manifest (Frameduel got four from an
+        // unused WorkManager, audit 2026-10-21); only androidx's own signature permission is allowed.
+        val context = RuntimeEnvironment.getApplication()
+        val requested = context.packageManager
+            .getPackageInfo(context.packageName, PackageManager.GET_PERMISSIONS)
+            .requestedPermissions ?: emptyArray()
+        val unexpected = requested.filterNot { it.endsWith(".DYNAMIC_RECEIVER_NOT_EXPORTED_PERMISSION") }
+        assertTrue("Zero-permission SAF policy: the merged manifest requests $unexpected", unexpected.isEmpty())
+    }
 }
