@@ -1,10 +1,17 @@
-# Changelog — Linux Desktop
+# Changelog — Blitzlens
 
-Notable changes to Linux Desktop, released under the tags `linux-desktop-vX.Y.Z`.
+Notable changes to Blitzlens, released under the tags `linux-desktop-vX.Y.Z`.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and this product adheres to
 [Semantic Versioning](https://semver.org/spec/v2.0.0.html). History before per-product releases: the root `CHANGELOG.md`.
 
 ## [Unreleased]
+
+### Fixed
+- White text on the emerald **Move** button and the "sharp" score badge was hard to read (2.3:1); it is now dark on the same green (8:1).
+- If Undo of a Move could not put every file back, the error now names the files that stayed; before, they were dropped silently.
+- A Trash undo that failed half-way can be tried again: the files already restored are recognised instead of blocking the retry.
+- Exposure, ISO, aperture and lens were empty on systems with a newer Pillow (the MakerNote tag was renamed).
+- The Debian package is built reproducibly: file dates follow the top `debian/changelog` entry (they said 2025) and the checksum list has a fixed order.
 
 ## [0.2.0] - 2026-10-20
 
