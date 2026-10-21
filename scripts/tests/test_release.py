@@ -20,7 +20,13 @@ import release as rel  # noqa: E402
 
 GIT_ENV = {"GIT_AUTHOR_NAME": "t", "GIT_AUTHOR_EMAIL": "t@example.invalid",
            "GIT_COMMITTER_NAME": "t", "GIT_COMMITTER_EMAIL": "t@example.invalid",
-           "GIT_CONFIG_GLOBAL": os.devnull, "GIT_CONFIG_SYSTEM": os.devnull}
+           "GIT_CONFIG_GLOBAL": os.devnull, "GIT_CONFIG_SYSTEM": os.devnull,
+           # No background `git maintenance run --auto --detach` after commits and merges: it
+           # kept writing into .git/objects while tearDown deleted the repository (CI,
+           # 2026-10-18: "Directory not empty: '.../.git/objects'").
+           "GIT_CONFIG_COUNT": "2",
+           "GIT_CONFIG_KEY_0": "gc.auto", "GIT_CONFIG_VALUE_0": "0",
+           "GIT_CONFIG_KEY_1": "maintenance.auto", "GIT_CONFIG_VALUE_1": "false"}
 
 DEBIAN_CHANGELOG = """photo-selector-linux (0.1.0-1) trixie; urgency=medium
 
