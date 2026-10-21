@@ -14,7 +14,7 @@ one is how a change lands in the wrong app.
 products/                   ALL product code. One directory per product, same shape in each.
   desktop/                    src/ tests/ benchmarks/ scripts/ pyproject.toml
   macos-desktop/              src/ tests/ Package.swift
-  linux-desktop/              src/ tests/ debian/ scripts/ pyproject.toml (planned)
+  linux-desktop/              src/ tests/ debian/ scripts/ pyproject.toml
   android/                    Gradle build root for both Android products
     android-desktop/          src/ tests/ res/ AndroidManifest.xml build.gradle.kts
     phototok/                 src/ tests/ res/ AndroidManifest.xml build.gradle.kts
@@ -56,29 +56,39 @@ docs/
       ARCHITECTURE.md    Layering rules, concurrency models, and service interfaces
     linux-desktop/     Blitzlens — GNOME HIG / Libadwaita
       README.md          What it is, how to test it, where the code lives
+      INSTALL.md         Installing from the APT repository
       REQUIREMENTS.md    Authoritative behaviour spec  [private]
-      ARCHITECTURE.md    Layering rules and GNOME HIG conventions (planned)
     android-desktop/   Frameduel — :android-desktop, tablets and DeX
       README.md
       REQUIREMENTS.md    Authoritative behaviour spec  [private]
       ARCHITECTURE.md    Layers, adaptive layout, performance, theme implementation
       DESIGN.md          Visual specification (layout maths, tokens, component sheet)
       DESIGN_PROMPT.md   Design-tool brief derived from DESIGN.md  [private]
+      RELEASE_CHECKLIST.md  Play release checklist (permissions, store listing, legal)
+      privacy-policy.html, impressum.html   Legal pages the app links to (GitHub Pages)
     phototok/          Jackpix — :phototok, phones
       README.md
       REQUIREMENTS.md    Authoritative behaviour spec, incl. architecture conventions  [private]
       ARCHITECTURE.md    Theme and structural notes
       DESIGN.md          Visual specification
+      RELEASE_CHECKLIST.md  Play release checklist (permissions, store listing, legal)
+      privacy-policy.html, impressum.html   Legal pages the app links to (GitHub Pages)
+      LEGAL_COMPLIANCE.md, SECURITY_AUDIT.md, UX_INVESTIGATION.md   Dated investigations  [private]
 
   shared/              Rules that must hold for MORE THAN ONE product
     README.md            What is shared, what is deliberately not, and the admission rule
     ANDROID_PLATFORM.md  Android baseline both Android products obey (EXIF, storage, stack)
     FEATURE_PARITY.md    Feature sync policy, permanent exclusions, desktop → Android mapping
+    FILE_OPERATIONS.md   The non-destructive Move / Copy / Trash / Undo contract and its messages
+    SUPPORTED_FORMATS.md The supported-format contract read by every product's tests
+    UI_TEXT.md           Icon-first UI text rules and EN/DE text budgets
+    BRANDING.md          Names, icons and colours of the four apps
 
   build/               How the products are built, signed and shipped
     CI_PARITY.md                 What runs where and why; local mirror vs GitHub Actions
     BRANCH_PROTECTION.md         Recommended protection for main, as gh api commands (not applied)
     RELEASING.md                 Per-product versions, changelogs, tags and the release procedure
+    ANDROID_BUILD_AND_RELEASE.md Android build, CI and release requirements for both Android apps
     ANDROID_SIGNING_PLAN.md      Rationale for per-app cloud/signing isolation  [private]
     ANDROID_SIGNING_SETUP.md     Step-by-step setup instructions  [private]
     ANDROID_SIGNING_RUNBOOK.md   Operational runbook for the isolation migration  [private]
@@ -99,7 +109,6 @@ enough to build, test and contribute.
 | Lensjet behaviour | `products/macos-desktop/REQUIREMENTS.md` |
 | Lensjet architecture | `products/macos-desktop/ARCHITECTURE.md` |
 | Blitzlens behaviour | `products/linux-desktop/REQUIREMENTS.md` |
-| Blitzlens architecture | `products/linux-desktop/ARCHITECTURE.md` (planned) |
 | Frameduel behaviour | `products/android-desktop/REQUIREMENTS.md` |
 | Jackpix behaviour | `products/phototok/REQUIREMENTS.md` |
 | Frameduel visuals | `products/android-desktop/DESIGN.md` |
