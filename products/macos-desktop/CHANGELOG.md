@@ -11,6 +11,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 - The Selected, Copied and Trashed badges on thumbnails use black or white text, whichever reads better on the badge colour (the white on Selected green was 2.5:1).
 - The "?" button uses your accent colour unblended, so its black or white symbol keeps the contrast it was chosen for.
 - When an interrupted Move cannot put every file back, the message now names the photo and the folder: "Move interrupted — some files of IMG_0001.CR3 stayed in Selection/ and could not be put back".
+- Homebrew: the cask installs Lensjet from its own release tag (`macos-desktop-v…`) with the new name, and `brew uninstall --zap` also removes the new preferences file. Until this release the stable cask pointed at a download that did not exist.
 
 ## [0.2.0] - 2026-10-20
 

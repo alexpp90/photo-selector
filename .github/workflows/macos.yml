@@ -272,9 +272,13 @@ jobs:
                 --macos-sha256 "${MACOS_SHA256}"
               COMMIT_MSG="Update native macOS cask to ${VERSION}"
             fi
-            # Since 0.2.0 the zip holds Lensjet.app (was PhotoSelector.app). Only the cask this
-            # run points at the new zip gets the new app name, so the other keeps installing.
-            perl -pi -e 's/^(\s*app )"PhotoSelector\.app"/$1"Lensjet.app"/' "$CASK"
+            # Since 0.2.0 the zip holds Lensjet.app, the stable cask downloads from the product
+            # tag macos-desktop-v<version>, and name/desc/zap follow the new name and bundle id.
+            # Only the cask this run points at the new zip is rewritten, so the other keeps
+            # installing. Tested in scripts/tests/test_lensjet_cask.py.
+            NIGHTLY_FLAG=""
+            [ "${GH_REF}" = "refs/heads/main" ] && NIGHTLY_FLAG="--nightly"
+            python3 "$GITHUB_WORKSPACE/products/macos-desktop/scripts/lensjet_cask.py" "$CASK" $NIGHTLY_FLAG
             git add Casks/
             git diff --cached --quiet || git commit -m "${COMMIT_MSG}"
             git push origin HEAD
