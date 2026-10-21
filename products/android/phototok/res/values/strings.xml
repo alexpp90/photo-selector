@@ -1,14 +1,14 @@
 <?xml version="1.0" encoding="utf-8"?>
 <!--
-    Every user-visible string of Photo-Tok. The key prefix names the element and with it the
+    Every user-visible string of Jackpix. The key prefix names the element and with it the
     word and character budget (docs/shared/UI_TEXT.md, checked by scripts/check_ui_text_budget.py).
     Every key has a German translation in values-de/strings.xml.
 -->
 <resources>
-    <string name="app_name">Photo-Tok</string>
+    <string name="app_name">Jackpix</string>
 
     <!-- Spoken labels (TalkBack) and tooltips: not counted against the visible budget -->
-    <string name="cd_logo_camera_info">Photo-Tok logo, shows or hides camera info</string>
+    <string name="cd_logo_camera_info">Jackpix logo, shows or hides camera info</string>
     <string name="cd_camera_info">Show or hide camera info</string>
     <string name="cd_help_show">Show controls guide</string>
     <string name="cd_help_hide">Hide controls guide</string>

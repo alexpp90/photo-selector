@@ -93,7 +93,7 @@ private val TIGHT_STAGE_HEIGHT = 190.dp
 private val TIGHT_VERTICAL_CALLOUTS_HEIGHT = 56.dp
 
 /**
- * Coach-mark overlay explaining every Photo-Tok control **in place**.
+ * Coach-mark overlay explaining every Jackpix control **in place**.
  *
  * Serves two entry points:
  *  - the first-launch tutorial (shown automatically), and

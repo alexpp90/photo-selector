@@ -502,7 +502,7 @@ class PhoneModeViewModel @Inject constructor(
         return imageRepository.resolveFolderName(Uri.parse(uri)) ?: fallback
     }
 
-    /** Toggle the EXIF stats overlay (driven by tapping the Photo-Tok logo). */
+    /** Toggle the EXIF stats overlay (driven by tapping the Jackpix logo). */
     fun toggleExifOverlay() {
         viewModelScope.launch {
             settingsRepository.setPhoneShowExifOverlay(!_uiState.value.showExifOverlay)

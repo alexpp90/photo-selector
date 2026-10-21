@@ -5,7 +5,7 @@ import com.phototok.R
 /**
  * One-time explanations shown the first time the user performs an action.
  *
- * Photo-Tok is gesture-first, so an action's *effect* (a file was copied, a
+ * Jackpix is gesture-first, so an action's *effect* (a file was copied, a
  * file was trashed) is invisible unless we say so. Each hint fires exactly
  * once, is persisted by its [key] in DataStore, and can be brought back via
  * "Reset tutorials" in Settings.

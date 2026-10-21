@@ -1,7 +1,9 @@
-# 📱 PhotoTok (Android Phone)
+# 📱 Jackpix (Android Phone)
+
+Formerly Photo-Tok.
 
 <div align="center">
-  <img src="../../../assets/phototok_logo.png" alt="PhotoTok Logo" width="120" />
+  <img src="../../../assets/brand/jackpix/jackpix.svg" alt="Jackpix icon" width="120" />
 
   **A lightweight, gesture-first, portrait photo curation app designed for sub-second time-to-first-swipe on Android phones.**
 
@@ -19,21 +21,21 @@
 
 | 1. Landing & Recent Folders | 2. Full Viewer & Glassmorphic HUD |
 | :---: | :---: |
-| <img src="../../../assets/phototok_01_landing.png" alt="PhotoTok Landing Screen" width="320" style="border-radius: 12px; box-shadow: 0 4px 15px rgba(0,0,0,0.3);" /> | <img src="../../../assets/phototok_02_viewer.png" alt="PhotoTok Culling Viewer" width="320" style="border-radius: 12px; box-shadow: 0 4px 15px rgba(0,0,0,0.3);" /> |
+| <img src="../../../assets/phototok_01_landing.png" alt="Jackpix Landing Screen" width="320" style="border-radius: 12px; box-shadow: 0 4px 15px rgba(0,0,0,0.3);" /> | <img src="../../../assets/phototok_02_viewer.png" alt="Jackpix Culling Viewer" width="320" style="border-radius: 12px; box-shadow: 0 4px 15px rgba(0,0,0,0.3);" /> |
 | *Direct entry via Camera roll or SAF tree picker, tilted photo fan, and 1-tap recent folders.* | *Full-screen preview, glassmorphic EXIF card, live page counter pill, and persistent action bar.* |
 
 | 3. In-Place Coach Marks Guide | 4. Configurable Settings & Privacy |
 | :---: | :---: |
-| <img src="../../../assets/phototok_03_tutorial.png" alt="PhotoTok Coach Mark Tutorial" width="320" style="border-radius: 12px; box-shadow: 0 4px 15px rgba(0,0,0,0.3);" /> | <img src="../../../assets/phototok_04_settings.png" alt="PhotoTok Settings Sheet" width="320" style="border-radius: 12px; box-shadow: 0 4px 15px rgba(0,0,0,0.3);" /> |
+| <img src="../../../assets/phototok_03_tutorial.png" alt="Jackpix Coach Mark Tutorial" width="320" style="border-radius: 12px; box-shadow: 0 4px 15px rgba(0,0,0,0.3);" /> | <img src="../../../assets/phototok_04_settings.png" alt="Jackpix Settings Sheet" width="320" style="border-radius: 12px; box-shadow: 0 4px 15px rgba(0,0,0,0.3);" /> |
 | *Translucent 70% scrim, leader lines pointing to real buttons, and animated directional gesture stage.* | *Customizable swipe destinations, RAW+JPEG link toggles, orientation sorting, and § 5 DDG legal links.* |
 
 ---
 
 ## 🚀 Product Overview
 
-**PhotoTok** (`products/android/phototok/`, package `com.phototok`) is the phone-first photo culling application within the Photo Selector Toolbox ecosystem. It turns a familiar, effortless full-screen vertical swipe feed into a photography triage workflow.
+**Jackpix** (`products/android/phototok/`, package `com.phototok`) is the phone-first photo culling application in this repository. It turns a familiar, effortless full-screen vertical swipe feed into a photography triage workflow.
 
-While the desktop and tablet products emphasize multi-up comparative culling and computational quality scores (OpenCV / Accelerate), **PhotoTok deliberately omits heavy analysis libraries to optimize for a single metric: time-to-first-swipe.** Even folders containing thousands of high-resolution photos become navigable within a fraction of a second.
+While the desktop and tablet products emphasize multi-up comparative culling and computational quality scores (OpenCV / Accelerate), **Jackpix deliberately omits heavy analysis libraries to optimize for a single metric: time-to-first-swipe.** Even folders containing thousands of high-resolution photos become navigable within a fraction of a second.
 
 ---
 
@@ -91,7 +93,7 @@ While the desktop and tablet products emphasize multi-up comparative culling and
 ### Architectural Layering
 *   **`data/`**: SAF implementations (`LocalImageSourceImpl`), DataStore persistence (`SettingsRepositoryImpl`, `RecentPathCodec`), and URI scheme resolution.
 *   **`domain/`**: Pure Kotlin business logic free of Android SDK dependencies (`PhoneFeedOrdering`, `PendingDeleteLogic`, `OptimisticFeed`, `RelatedFiles`, `SwipeLabels`, `LegalLinks`).
-*   **`ui/`**: Jetpack Compose screens (`PhoneModeLanding`, `PhoneModeViewer`, `GestureTutorialOverlay`, `SettingsScreen`) adhering to the Golden Hour studio dark theme.
+*   **`ui/`**: Jetpack Compose screens (`PhoneModeLanding`, `PhoneModeViewer`, `GestureTutorialOverlay`, `SettingsScreen`) adhering to the neutral-grey dark theme with a lime accent.
 *   **`viewmodel/`**: `PhoneModeViewModel`, `SettingsViewModel`, `SelectionViewerViewModel`.
 
 ---

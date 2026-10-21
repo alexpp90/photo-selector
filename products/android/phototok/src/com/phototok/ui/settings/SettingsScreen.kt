@@ -188,7 +188,7 @@ fun SettingsScreen(
                         Icon(
                             imageVector = Icons.Default.ChevronRight,
                             contentDescription = null,
-                            tint = colors.primaryContainer,
+                            tint = colors.primary,
                         )
                     }
                 },
@@ -297,7 +297,7 @@ fun SettingsScreen(
                         onCheckedChange = { viewModel.updateDirectDeleteConfirm(it) },
                         colors = SwitchDefaults.colors(
                             checkedThumbColor = colors.onPrimary,
-                            checkedTrackColor = colors.primaryContainer,
+                            checkedTrackColor = colors.primary,
                             uncheckedThumbColor = colors.onSurfaceVariant,
                             uncheckedTrackColor = colors.secondaryContainer,
                             uncheckedBorderColor = colors.secondaryContainer,
@@ -409,7 +409,7 @@ fun SettingsScreen(
                             Icon(
                                 imageVector = Icons.Default.ChevronRight,
                                 contentDescription = null,
-                                tint = colors.primaryContainer,
+                                tint = colors.primary,
                             )
                         }
                     },

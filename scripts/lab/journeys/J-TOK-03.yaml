@@ -20,7 +20,7 @@ steps:
   - {maestro: products/android/phototok/tests/e2e/J-TOK-03/05_delete_and_open_selection.yaml}
   - {wait_ms: 1000}
   - {checkpoint: selection}
-# The journeys share one folder and PhotoTok resumes it where the last journey left it, so the
+# The journeys share one folder and Jackpix resumes it where the last journey left it, so the
 # start photo is not fixed: name the photos the feed showed (LAB-22, 2026-10-19: the hard-coded
 # DSC_0011 gave a false blocker on two phones that started at DSC_0011 and deleted DSC_0010).
 # Swipe right copies the shown photo and the feed moves on; swipe left deletes the next one.

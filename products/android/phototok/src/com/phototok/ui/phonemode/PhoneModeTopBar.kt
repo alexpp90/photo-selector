@@ -90,7 +90,8 @@ fun PhoneModeTopBar(
         val infoName = stringResource(PhoneModeTopBarDescriptions.INFO)
         NameTooltip(name = infoName) {
             Image(
-                painter = painterResource(id = R.mipmap.ic_launcher_foreground),
+                painter = painterResource(id = R.drawable.ic_brand_mark),
+                colorFilter = androidx.compose.ui.graphics.ColorFilter.tint(colors.primary),
                 contentDescription = null,
                 alpha = if (guideOpen) 0.4f else 1.0f,
                 modifier = Modifier

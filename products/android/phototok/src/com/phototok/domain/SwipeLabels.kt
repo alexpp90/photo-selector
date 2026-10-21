@@ -5,7 +5,7 @@ import com.phototok.R
 /**
  * Wording for the on-screen swipe indicators and coach marks.
  *
- * Photo-Tok is gesture-first, so the indicator that appears mid-swipe is the
+ * Jackpix is gesture-first, so the indicator that appears mid-swipe is the
  * only thing telling the user what is about to happen. It must therefore name
  * the action the user has actually configured: a swipe right that *moves* a
  * file must never be labelled "KEEP".

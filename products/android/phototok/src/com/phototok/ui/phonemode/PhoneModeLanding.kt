@@ -139,7 +139,8 @@ fun PhoneModeLanding(
         ) {
             // ── Hero branding ────────────────────────────────────────
             Image(
-                painter = painterResource(id = R.mipmap.ic_launcher_foreground),
+                painter = painterResource(id = R.drawable.ic_brand_mark),
+                colorFilter = androidx.compose.ui.graphics.ColorFilter.tint(colors.primary),
                 contentDescription = null, // decorative; the lab flows find the landing by its tag
                 modifier = Modifier.size(logoSize).testTag("landing_logo"),
             )
@@ -377,7 +378,7 @@ fun PhoneModeLanding(
                         .clickable(enabled = canResume) { onStart() }
                         .testTag("landing_start_browsing_button"),
                     shape = RoundedCornerShape(12.dp),
-                    color = colors.primaryContainer,
+                    color = colors.primary,
                     shadowElevation = 8.dp,
                 ) {
                     Row(
@@ -390,7 +391,7 @@ fun PhoneModeLanding(
                                 if (sourceFolderName.isNotEmpty()) R.string.action_resume else R.string.action_start,
                             ),
                             style = MaterialTheme.typography.labelLarge,
-                            color = colors.onPrimaryContainer,
+                            color = colors.onPrimary,
                         )
                     }
                 }
@@ -434,7 +435,7 @@ private fun SourceCard(
     modifier: Modifier = Modifier,
 ) {
     val colors = MaterialTheme.colorScheme
-    val borderColor = if (isActive) colors.primaryContainer else colors.outlineVariant
+    val borderColor = if (isActive) colors.primary else colors.outlineVariant
     val shape = RoundedCornerShape(12.dp)
 
     Surface(
@@ -444,7 +445,7 @@ private fun SourceCard(
             // One click target; descendants merge so the row is announced once (its title).
             .clickable(role = Role.Button, onClick = onClick),
         shape = shape,
-        color = if (isActive) colors.primaryContainer.copy(alpha = 0.1f) else colors.surfaceContainer,
+        color = if (isActive) colors.primary.copy(alpha = 0.1f) else colors.surfaceContainer,
     ) {
         Row(
             modifier = Modifier

@@ -1,7 +1,7 @@
 package com.phototok.domain
 
 /**
- * Single source of truth for Photo-Tok's public legal document URLs.
+ * Single source of truth for Jackpix's public legal document URLs.
  *
  * The documents live in `docs/products/phototok/` in the repository and are hosted by
  * GitHub Pages from the `docs/` folder of `main` (Google Play requires a reachable

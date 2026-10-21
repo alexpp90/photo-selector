@@ -1,10 +1,10 @@
 <?xml version="1.0" encoding="utf-8"?>
-<!-- Deutsche Texte von Photo-Tok. Gleiche Schlüssel wie values/strings.xml; Längenlimits siehe docs/shared/UI_TEXT.md. -->
+<!-- Deutsche Texte von Jackpix. Gleiche Schlüssel wie values/strings.xml; Längenlimits siehe docs/shared/UI_TEXT.md. -->
 <resources>
-    <string name="app_name">Photo-Tok</string>
+    <string name="app_name">Jackpix</string>
 
     <!-- Gesprochene Beschriftungen (TalkBack) und Tooltips -->
-    <string name="cd_logo_camera_info">Photo-Tok-Logo, blendet Kamera-Info ein oder aus</string>
+    <string name="cd_logo_camera_info">Jackpix-Logo, blendet Kamera-Info ein oder aus</string>
     <string name="cd_camera_info">Kamera-Info ein- oder ausblenden</string>
     <string name="cd_help_show">Hilfe anzeigen</string>
     <string name="cd_help_hide">Hilfe schließen</string>

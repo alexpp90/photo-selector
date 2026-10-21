@@ -1,7 +1,7 @@
-# PhotoTok — Architecture
+# Jackpix — Architecture
 
-> Product: **PhotoTok** (`products/android/phototok/`, `:phototok`, `com.phototok`).
-> PhotoTok is an independent implementation, not a variant of Android Desktop: no
+> Product: **Jackpix** (`products/android/phototok/`, `:phototok`, `com.phototok`).
+> Jackpix is an independent implementation, not a variant of Android Desktop: no
 > OpenCV, no Room, no Vico, DataStore instead of a database, and a gesture-first feed
 > rather than a comparison workspace.
 > Architecture conventions that are enforced (typed settings, pure domain logic, image
@@ -11,32 +11,25 @@
 
 ## Theme Implementation
 
-### 10.2 PhotoTok Theme (:phototok)
-A modern, design-centric Material 3 custom lavender-based tonal palette for the phone client, optimized for visual appeal:
+### 10.2 Jackpix Theme (:phototok)
+Dark-only Material 3 scheme "Lime Fizz" (`ui/theme/Color.kt`, `Theme.kt`): a lime accent on neutral grey. Surfaces, background, outlines, secondary and tertiary roles are neutral grey (equal R, G, B) so they do not tint the photo being judged; the pink of the app icon is never used in the UI. Semantic colours (`SuccessGreen`, `WarningAmber`, the error roles) keep their meaning.
 
 ```kotlin
 val PtDarkColorScheme = darkColorScheme(
-    primary = Color(0xFFC0C1FF),          // PtPrimary (lavender accent)
-    primaryContainer = Color(0xFF8083FF), // PtPrimaryContainer
-    onPrimary = Color(0xFF1000A9),        // PtOnPrimary
-    onPrimaryContainer = Color(0xFF0D0096),
-    secondary = Color(0xFFC8C6C9),        // PtSecondary
-    secondaryContainer = Color(0xFF47464A),
-    onSecondary = Color(0xFF303033),
-    onSecondaryContainer = Color(0xFFB6B4B8),
-    tertiary = Color(0xFFC7C5CE),         // PtTertiary
-    tertiaryContainer = Color(0xFF77767E),
-    surface = Color(0xFF131316),          // PtSurface
-    surfaceVariant = Color(0xFF353438),   // PtSurfaceVariant
-    onSurface = Color(0xFFE4E1E6),        // PtOnSurface
-    onSurfaceVariant = Color(0xFFC7C4D7), // PtOnSurfaceVariant
-    outline = Color(0xFF908FA0),          // PtOutline
-    outlineVariant = Color(0xFF464554),   // PtOutlineVariant
-    background = Color(0xFF131316),       // PtBackground
-    onBackground = Color(0xFFE4E1E6),     // PtOnBackground
-    error = Color(0xFFFFB4AB),            // PtError
-    errorContainer = Color(0xFF93000A),   // PtErrorContainer
-    onError = Color(0xFF690005),
-    onErrorContainer = Color(0xFFFFDAD6),
+    primary = Color(0xFFB8EB4F),          // PtPrimary (lime, the icon tile colour)
+    onPrimary = Color(0xFF1E2A10),        // PtOnPrimary (the icon mark colour)
+    primaryContainer = Color(0xFF3E5A00), // dark lime
+    onPrimaryContainer = Color(0xFFD4F58C),
+    secondary = Color(0xFFC8C8C8),
+    tertiary = Color(0xFFC7C7C7),
+    surface = Color(0xFF131313),          // PtSurface
+    surfaceVariant = Color(0xFF353535),
+    onSurface = Color(0xFFE4E4E4),
+    onSurfaceVariant = Color(0xFFC7C7C7),
+    outline = Color(0xFF909090),
+    outlineVariant = Color(0xFF464646),
+    background = Color(0xFF131313),
+    error = Color(0xFFFFB4AB),
+    errorContainer = Color(0xFF93000A),
 )
 ```

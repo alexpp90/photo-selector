@@ -659,7 +659,8 @@ internal fun LandscapeLeftPanel(
         val infoName = stringResource(PhoneModeTopBarDescriptions.INFO)
         NameTooltip(name = infoName) {
             Image(
-                painter = painterResource(id = R.mipmap.ic_launcher_foreground),
+                painter = painterResource(id = R.drawable.ic_brand_mark),
+                colorFilter = androidx.compose.ui.graphics.ColorFilter.tint(MaterialTheme.colorScheme.primary),
                 contentDescription = null,
                 modifier = Modifier
                     .size(PhoneModeChromeMetrics.LEFT_PANEL_LOGO_SIZE)

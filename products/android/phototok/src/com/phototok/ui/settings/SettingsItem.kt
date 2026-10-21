@@ -72,7 +72,7 @@ fun SettingsToggleItem(
             onCheckedChange = onCheckedChange,
             colors = SwitchDefaults.colors(
                 checkedThumbColor = colors.onPrimary,
-                checkedTrackColor = colors.primaryContainer,
+                checkedTrackColor = colors.primary,
                 uncheckedThumbColor = colors.onSurfaceVariant,
                 uncheckedTrackColor = colors.secondaryContainer,
                 uncheckedBorderColor = colors.secondaryContainer,
@@ -169,7 +169,7 @@ fun <T> SettingsRadioGroup(
                     selected = selected == value,
                     onClick = { onSelect(value) },
                     colors = RadioButtonDefaults.colors(
-                        selectedColor = colors.primaryContainer,
+                        selectedColor = colors.primary,
                         unselectedColor = colors.onSurfaceVariant,
                     ),
                 )
