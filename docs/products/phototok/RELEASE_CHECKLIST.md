@@ -107,10 +107,10 @@ Jackpix macht Fotos-Aussortieren zu einem Feed, durch den du wischst. Öffne dei
 
 • Nach oben/unten wischen: blättern, neueste zuerst.
 • Nach rechts wischen: Foto in deinen Ordner „Selection“ kopieren (oder verschieben — du entscheidest).
-• Nach links wischen: Foto löschen. Doch behalten? Ein Tipp auf „Revert“ holt es zurück.
+• Nach links wischen: Foto löschen. Doch behalten? Ein Tipp auf „Rückgängig“ holt es zurück.
 
 Funktionen
-• Sofort startklar: „Phone Camera“ oder einen beliebigen Ordner wählen, keine Einrichtung.
+• Sofort startklar: „Kamera“ oder einen beliebigen Ordner wählen, keine Einrichtung.
 • RAW- + JPEG-Paare: Jackpix bietet an, beide Dateien einer Aufnahme als eine zu behandeln — Kopieren, Verschieben und Löschen gelten dann für beide.
 • Kamera-Infos: Tippe auf „Info“ für die EXIF-Daten des Fotos.
 • Mit zwei Fingern oder Doppeltipp zoomen und die Schärfe prüfen.
@@ -121,12 +121,12 @@ Funktionen
 Privatsphäre von Anfang an
 • Keine Berechtigungen, kein Internetzugriff, kein Konto.
 • Keine Werbung, keine Analyse, kein Tracking. Deine Fotos verlassen dein Gerät nie.
-• Kostenlos und Open Source (MIT). Die App-Oberfläche ist auf Englisch.
+• Kostenlos und Open Source (MIT). Die App-Oberfläche gibt es auf Englisch und Deutsch.
 
 Jackpix ist ein unabhängiges, zu 100 % offline arbeitendes Foto-Werkzeug und steht in keiner Verbindung zu TikTok, ByteDance Ltd. oder deren verbundenen Unternehmen; es wird von diesen weder gesponsert noch unterstützt.
 ```
 
-> The app has no German strings yet (`res/values/` only), so the German text quotes the English UI labels („Selection“, „Revert“, „Phone Camera“, „Info“) and says the UI is English. Update both when a German translation ships.
+> The German text quotes the labels of `res/values-de/strings.xml` („Kamera“, „Rückgängig“, „Info“); the folder „Selection“ is the literal folder name the app creates. Keep it in step with that file.
 
 ---
 
