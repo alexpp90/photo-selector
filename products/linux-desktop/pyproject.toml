@@ -1,6 +1,6 @@
 [project]
 name = "photo-selector-linux"
-version = "0.1.0"
+version = "0.2.0"
 description = "High-performance native GNOME photograph culling and selection suite for Debian 13"
 readme = "README.md"
 requires-python = ">=3.12"

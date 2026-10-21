@@ -290,13 +290,14 @@ struct ZoomExitPill: View {
                 .foregroundStyle(Color.white)
             Text("Drag to pan")
                 .font(.system(size: 11))
-                .foregroundStyle(Color(white: 0.85))
+                .foregroundStyle(Color.lensjetTextSecondary)
             Button(action: onExit) {
                 HStack(spacing: 4) {
                     Image(systemName: "arrow.down.right.and.arrow.up.left")
                     Text("Fit (Esc)")
                 }
                 .font(.system(size: 11, weight: .bold))
+                .foregroundStyle(Color.lensjetOnSelection)
                 .padding(.horizontal, 8)
                 .padding(.vertical, 3)
                 .frame(minHeight: 24)

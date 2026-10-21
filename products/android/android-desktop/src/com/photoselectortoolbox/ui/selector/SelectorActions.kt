@@ -17,7 +17,8 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.material3.minimumInteractiveComponentSize
+import androidx.compose.foundation.layout.defaultMinSize
+import androidx.compose.foundation.layout.wrapContentSize
 import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
@@ -57,6 +58,7 @@ import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.Dp
+import androidx.compose.ui.unit.DpSize
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.photoselectortoolbox.domain.curation.DeferredDeletion
@@ -168,7 +170,7 @@ private fun ContextMenuRow(
     Row(
         modifier = Modifier
             .fillMaxWidth()
-            .height(44.dp)
+            .height(48.dp)
             .clip(RoundedCornerShape(6.dp))
             .pointerHoverIcon(PointerIcon.Hand)
             .clickable(onClick = onClick)
@@ -245,24 +247,33 @@ fun FirstRunNavigationHint(
                 modifier = Modifier.size(16.dp),
                 tint = Zinc400,
             )
-            Text(
-                text = "Got it",
-                fontSize = 12.sp,
-                fontWeight = FontWeight.Medium,
-                color = BrandAccentText,
-                // A 48 dp target without a 48 dp pill: the minimum is applied
-                // outside the clickable so the whole square is the control, while
-                // the text stays 12 sp on a 36 dp pill (AD-8).
+            // The node carrying the tag is the 48 x 48 dp box, not the 12 sp text
+            // inside it: a lab measures the tagged node, and a hit target that is
+            // only 48 dp on an inner node reads as 34 dp tall (AD-17).
+            Box(
                 modifier = Modifier
-                    .minimumInteractiveComponentSize()
+                    .size(PillDismissHitSize)
+                    .clip(RoundedCornerShape(999.dp))
                     .pointerHoverIcon(PointerIcon.Hand)
                     .clickable(onClick = onDismiss)
-                    .padding(start = 4.dp)
                     .testTag("first_run_hint_dismiss"),
-            )
+                contentAlignment = Alignment.Center,
+            ) {
+                Text(
+                    text = "Got it",
+                    fontSize = 12.sp,
+                    fontWeight = FontWeight.Medium,
+                    color = BrandAccentText,
+                    maxLines = 1,
+                    softWrap = false,
+                )
+            }
         }
     }
 }
+
+/** The pill's "Got it" hit target (AD-17): at least 48 dp both ways, wider for the word. */
+private val PillDismissHitSize = DpSize(56.dp, 48.dp)
 
 // ── Undo snackbar ───────────────────────────────────────────────────────────
 
@@ -336,9 +347,12 @@ fun SelectorSnackbar(
                     fontWeight = FontWeight.Medium,
                     color = BrandAccentText,
                     modifier = Modifier
+                        .testTag("snackbar_undo")
+                        // A 48 dp hit target around the 12 sp word (AD-17).
+                        .defaultMinSize(minWidth = 48.dp, minHeight = 48.dp)
                         .pointerHoverIcon(PointerIcon.Hand)
                         .clickable { onUndo(); onDismiss() }
-                        .testTag("snackbar_undo"),
+                        .wrapContentSize(Alignment.Center),
                 )
             }
         }

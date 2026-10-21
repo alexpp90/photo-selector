@@ -48,7 +48,7 @@ public struct FolderLoadingView: View {
 
                 Text("Scanning files, extracting EXIF metadata, and caching previews…")
                     .font(.system(size: 13, weight: .medium))
-                    .foregroundStyle(Color(white: 0.8))
+                    .foregroundStyle(Color.lensjetTextSecondary)
                     .multilineTextAlignment(.center)
             }
 
@@ -65,7 +65,7 @@ public struct FolderLoadingView: View {
             .controlSize(.regular)
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
-        .background(Color(red: 0.055, green: 0.055, blue: 0.063))
+        .background(Color.lensjetSurface)
         .preferredColorScheme(.dark)
     }
 }

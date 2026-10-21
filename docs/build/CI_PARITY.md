@@ -145,7 +145,7 @@ the app with `--ui-self-test`. The in-app runner (`UISelfTestRunner`) asserts:
 - the rendered Focus 3-Up frames: CURRENT above PREVIOUS and NEXT, PREVIOUS left of NEXT;
 - posted mouse clicks on the toolbar and on the Fit pill work while zoomed.
 
-It runs against the raw binary (the `swift run` path) and the assembled `PhotoSelector.app`.
+It runs against the raw binary (the `swift run` path) and the assembled `Lensjet.app`.
 On the raw binary it also sends a real arrow key through the window server with
 `osascript … System Events … key code 124`. That needs Accessibility permission for the
 calling terminal; without it the probe prints `⊘ SKIPPED` and the gate still passes on the

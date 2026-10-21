@@ -474,7 +474,7 @@ to right. Neighbours are never dimmed, scrimmed or shrunk.
 two routes land on the same 1376 × 908 dp region — a **4:3 frame at 1211 × 908 dp, 4.1 × the
 area of its three-up tile**:
 
-1. **Maximise badge.** Each tile carries a 44 dp `⛶` badge in its bottom-right corner,
+1. **Maximise badge.** Each tile carries a 48 dp `⛶` badge in its bottom-right corner,
    inside the tile bounds but outside the image's safe centre. Tap it, or press `1` / `2` /
    `3`, and that frame fills the region. The badge is the only permanently drawn on-image
    affordance permitted, and it is drawn on the tile's outline, not over the photograph.
@@ -558,6 +558,9 @@ identity, then exposure, then a rule, then icon + value + bar per metric.
   leads the first line. Lens name is omitted here and remains in the context menu's Photo
   details; it is the one EXIF field that will not fit and the one that is identical across a
   burst.
+  It wraps only *between* tokens — each value (`1/250s`, `f/2.8`, `50mm`) is unbreakable, on
+  the current frame's readout as well — and a trailing token that does not fit in two lines is
+  dropped, never split (AD-16b: the 720 × 560 Chromebook window printed `f/` ⏎ `2.8`).
 - **Fallback EXIF** shows a 10 dp amber `error_outline` after the exposure block instead of
   the words "limited metadata" — the marker is what matters, the explanation is in the
   details panel.
@@ -633,15 +636,15 @@ of ~158 dp (~118 dp with the strip on) carries its word comfortably:
 
 **Height is the block's binding axis too.** Row 1 is one frame tall: ~436 dp on the reference
 device, ~376 dp at 1280 × 800 (Pixel Tablet native), ~336 dp at 1024 × 720 (the DeX/ChromeOS
-default window less its bars) and ~210 dp at 600 × 480. The block above needs 332 dp, and a
+default window less its bars) and ~228 dp at 600 × 480. The block above needs 332 dp, and a
 `Column` pays a shortfall with its last children — the 2026-10-17 device lab found the
 counter gone and the view toggles squashed to slivers below ~410 dp. So the block has two
 variants, chosen by `ControlBlockFit` from the row height it is handed and the font scale:
 
 ```
-FULL (≥ 332 dp)              COMPACT (~196 dp)
+FULL (≥ 332 dp, ≥ 210 dp wide)   COMPACT (201–265 dp)
 ┌──────────┬──────────┐     ┌───────────┬───────────┐
-│ ⧉ Copy C │ ➜ Move M │     │⧉ Copy  [C]│➜ Move  [M]│  48 dp, one line
+│ ⧉ Copy C │ ➜ Move M │     │⧉ Copy  [C]│➜ Move  [M]│  48 dp rows
 │  …80 dp…  │          │     │🗑 Delete[Del]│⛶ Full [F]│
 │          │          │     │‹ Prev  [←]│Next [→] › │
 └──────────┴──────────┘     └───────────┴───────────┘
@@ -649,8 +652,14 @@ FULL (≥ 332 dp)              COMPACT (~196 dp)
         127 / 842
 ```
 
-COMPACT keeps every word and every key cap — the word may ellipsize, the key cap never — and
-moves the counter into the toggle row (its own line when the block is too narrow for both).
+Every view toggle is a 48 × 48 dp target at every size (AD-17): four in a row from 192 dp of
+inner width, a 2 × 2 grid below it, with the counter beside the toggles where it fits and on
+its own line above them where it does not (201 dp tall in one row with the counter beside it,
+217 dp with the counter above, 265 dp as a 2 × 2 grid). COMPACT keeps every word and every key cap,
+never ellipsized (AD-16b): the button is icon, word and key cap on one line from a 100 dp cell,
+the word over the key cap beside the icon from 64 dp, and word over key cap without the icon
+below that, and the word steps down from 13 sp to 9 sp before it could be cut. At 720 × 560 the
+flank is 150 dp, so the block is a 2 × 2 grid with stacked buttons; at 600 × 480 it scrolls.
 Below COMPACT the block scrolls with the counter first, so nothing is ever clipped silently.
 The frames never pay for the block: the variant changes, the frame does not.
 
@@ -681,7 +690,7 @@ One centred pill ("Tap either side to browse" · "Got it"), shown once, `hasSeen
 persisted. It sits over the Previous/Next pair it teaches about, lifted clear of the
 neighbours' maximise-badge band (`FrameGeometry.firstRunPillBottomInset`: badge inset + badge
 + 8 dp) — at the original 16 dp it sat squarely on the Next frame's badge, so the first tap a
-new user aimed at maximise dismissed the hint instead. "Got it" is a 48 dp target. It remains the
+new user aimed at maximise dismissed the hint instead. "Got it" is a 56 × 48 dp target. It remains the
 only image-adjacent overlay besides the maximise badge.
 
 **What "only" restricts, precisely.** It restricts *placement*, not the existence of
@@ -1209,7 +1218,7 @@ Produce these as a design-system page, dark theme, neutral grey / lavender.
 7. **Value overlay** — 148 dp neighbour column: filename, two-line exposure, rule, four icon
    + value + bar rows. Both the outside-the-frame and overlaid-on-the-frame placements, the
    fallback-EXIF amber marker, the unscanned variant, and the suppressed state.
-8. **Maximise badge** — 44 dp `⛶` on a tile's outline: bottom-right on the current frame,
+8. **Maximise badge** — 48 dp `⛶` on a tile's outline: bottom-right on the current frame,
    bottom-left on Previous and Next so it clears the value overlay. Resting and active.
 9. **Filmstrip thumbnail** — resting, current, and in-burst states, 60 dp wide (40 dp tall
    landscape, 80 dp portrait), with the leading-edge burst marker and the sharpness dot.

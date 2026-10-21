@@ -16,12 +16,12 @@ usage() {
     cat <<EOF
 Usage: $(basename "$0") [OPTIONS]
 
-Build the Debian package (.deb) for Photo Selector Linux.
+Build the Debian package (.deb) for Blitzlens.
 
 Options:
   -o, --output-dir DIR   Destination directory for the .deb file (default: products/linux-desktop/dist)
   -v, --version VER      Override package version (default: from photo_selector_linux.__version__)
-  -f, --filename NAME    Override output .deb filename (e.g. photo-selector-linux_0.1.0_all.deb)
+  -f, --filename NAME    Override output .deb filename (e.g. photo-selector-linux_0.2.0_all.deb)
   -p, --pure-python      Force cross-platform pure Python packager (skip dpkg-deb)
   -h, --help             Show this help message
 EOF

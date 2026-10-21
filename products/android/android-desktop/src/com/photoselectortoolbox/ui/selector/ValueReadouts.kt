@@ -5,6 +5,9 @@ import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.ExperimentalLayoutApi
+import androidx.compose.foundation.layout.FlowRow
+import androidx.compose.foundation.layout.FlowRowOverflow
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
@@ -146,13 +149,7 @@ fun CurrentFrameReadout(
         )
 
         ExifFormatter.summaryLine(image.exifData)?.let { line ->
-            Text(
-                text = keepExposureTokensWhole(line),
-                fontSize = 11.5.sp,
-                fontFamily = FontFamily.Monospace,
-                color = Zinc400,
-                maxLines = 2,
-            )
+            ExposureFlow(exposureTokenLabels(line))
         }
 
         if (image.exifData?.isFallback == true) {
@@ -492,17 +489,47 @@ private fun LimitedMetadataMarker() {
 }
 
 /**
- * The exposure line with its only break opportunities after a separator (AD-16).
+ * The exposure tokens of a one-line summary, each carrying the separator that
+ * follows it (`1/250s ·`, `f/2.8 ·`, `50mm ·`, `ISO 400`) (AD-16).
  *
- * Spaces inside a token (`ISO 400`) and before a separator become no-break
- * spaces, so a narrow flank wraps `1/250s · f/2.8 · 50mm ·` / `ISO 400` — never
- * `ISO` / `400`, and never a line that starts with the dot.
+ * A token is the unit that may never be split: the platform line breaker finds a
+ * break opportunity after the `/` of `f/2.8`, which no amount of no-break spaces
+ * prevents, and inserting joiner characters would change the text a screen reader
+ * and a test read. Instead each token is laid out as one unbreakable element by
+ * [ExposureFlow], and lines can only start at a token.
  */
-internal fun keepExposureTokensWhole(line: String): String =
-    line.split(SEPARATOR_PATTERN).joinToString(NO_BREAK_SEPARATOR) { it.trim().replace(' ', NO_BREAK_SPACE) }
+internal fun exposureTokenLabels(line: String): List<String> {
+    val tokens = line.split(SEPARATOR_PATTERN).map { it.trim() }.filter { it.isNotEmpty() }
+    return tokens.mapIndexed { i, t -> if (i < tokens.lastIndex) "$t ·" else t }
+}
 
 private val SEPARATOR_PATTERN = Regex("\\s+·\\s+")
-private const val NO_BREAK_SPACE = '\u00A0'
 
-/** `  ·  ` as drawn, breakable only at its final (ordinary) space. */
-private const val NO_BREAK_SEPARATOR = "\u00A0\u00A0·\u00A0 "
+/**
+ * The current frame's exposure line: whole tokens, wrapped onto at most two lines,
+ * with the trailing tokens that do not fit dropped (REQ-AND-LAYOUT.13). Each token
+ * is a single-line, non-wrapping [Text], so no token can break internally.
+ */
+@OptIn(ExperimentalLayoutApi::class)
+@Composable
+private fun ExposureFlow(labels: List<String>) {
+    FlowRow(
+        modifier = Modifier.fillMaxWidth().testTag("exposure_line"),
+        horizontalArrangement = Arrangement.spacedBy(6.dp),
+        verticalArrangement = Arrangement.spacedBy(2.dp),
+        maxLines = 2,
+        overflow = FlowRowOverflow.Clip,
+    ) {
+        labels.forEach { label ->
+            Text(
+                text = label,
+                fontSize = 11.5.sp,
+                fontFamily = FontFamily.Monospace,
+                color = Zinc400,
+                maxLines = 1,
+                softWrap = false,
+                modifier = Modifier.testTag("exposure_token"),
+            )
+        }
+    }
+}

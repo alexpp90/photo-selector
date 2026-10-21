@@ -54,7 +54,7 @@ public struct SinglePhotoView: View {
             )
 
             ZStack(alignment: .topLeading) {
-                Color(red: 0.043, green: 0.043, blue: 0.051)
+                Color.lensjetCanvas
 
                 ZoomableImageViewport(
                     image: shown,

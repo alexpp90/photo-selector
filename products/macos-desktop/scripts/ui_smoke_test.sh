@@ -5,7 +5,7 @@
 # real app (the process was never allowed to become active). This script therefore:
 #   1. builds the app and generates camera-sized landscape fixtures (+ excluded decoys);
 #   2. runs the in-app self-test (`--ui-self-test`) against BOTH the raw SwiftPM binary
-#      (the `swift run` path that used to fail) and the assembled PhotoSelector.app;
+#      (the `swift run` path that used to fail) and the assembled Lensjet.app;
 #   3. on the raw binary, also sends a real arrow key through the window server via
 #      System Events (osascript). That step needs Accessibility permission for the calling
 #      terminal; without it the step is reported SKIPPED, never silently passed.

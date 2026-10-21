@@ -1,6 +1,6 @@
-# Linux Desktop
+# Linux Desktop (Blitzlens)
 
-Native GNOME photo selection and comparison culling application built in Python 3.12+,
+Blitzlens – Photo Culling: native GNOME photo selection and comparison culling application built in Python 3.12+,
 PyGObject, GTK4, and Libadwaita for Debian 13 (Trixie) and GNOME 46+. Designed specifically for
 lightning-fast SD-card photo ingestion, large-scale RAW/JPEG triage, native Libadwaita look-and-feel,
 and seamless Debian APT package distribution.
@@ -13,6 +13,7 @@ and seamless Debian APT package distribution.
 | Target | Debian 13 (Trixie), GNOME 46+ workstations |
 | Packaging | Debian `.deb` package, signed APT repository published to [`alexpp90/apt`](https://github.com/alexpp90/apt) by `linux.yml` |
 | Entry point | `python3 -m photo_selector_linux` |
+| Application id | `app.alpatix.Blitzlens` (formerly Photo Selector Linux; the package name `photo-selector-linux` is unchanged) |
 
 ## Documents
 
@@ -62,7 +63,7 @@ The product is partitioned into a clean modular architecture following the repos
 
 ## Relationship to the Other Products
 
-Linux Desktop is an independent Python / GTK4 / Libadwaita implementation. It shares photographic concepts (the EXIF contract, quality score semantics, what "Selection" means) with Desktop, macOS Desktop, Android Desktop, and PhotoTok, but shares no implementation code:
+Linux Desktop is an independent Python / GTK4 / Libadwaita implementation. It shares photographic concepts (the EXIF contract, quality score semantics, what "Selection" means) with the legacy Desktop, Lensjet, Frameduel and Jackpix, but shares no implementation code:
 
 - **Distinct from legacy Python Desktop (`products/desktop/`)**: Modern Libadwaita / GTK4 architecture replacing Tkinter, custom dark theme, and PyInstaller with native GNOME HIG and Debian APT packaging.
 - **Distinct from macOS Desktop (`products/macos-desktop/`)**: Pure GNOME desktop experience tailored to Debian 13 and FreeDesktop standards rather than macOS AppKit/SwiftUI.

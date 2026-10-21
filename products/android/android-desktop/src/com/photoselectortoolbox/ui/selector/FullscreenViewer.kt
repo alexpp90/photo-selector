@@ -22,6 +22,7 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.ExperimentalLayoutApi
+import androidx.compose.foundation.layout.defaultMinSize
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
@@ -33,6 +34,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.wrapContentSize
 import androidx.compose.foundation.pager.HorizontalPager
 import androidx.compose.foundation.pager.rememberPagerState
 import androidx.compose.foundation.shape.CircleShape
@@ -447,7 +449,7 @@ private fun FullscreenTopBar(
         ) {
             IconButton(
                 onClick = onClose,
-                modifier = Modifier.size(44.dp).testTag("fullscreen_close"),
+                modifier = Modifier.size(48.dp).testTag("fullscreen_close"),
             ) {
                 Icon(
                     imageVector = Icons.Default.Close,
@@ -605,8 +607,10 @@ private fun FullscreenGestureHint(
             color = BrandAccentText,
             modifier = Modifier
                 .align(Alignment.End)
+                // A 48 dp hit target around the 12 sp word (AD-17).
+                .defaultMinSize(minWidth = 48.dp, minHeight = 48.dp)
                 .clickable(onClick = onDismiss)
-                .padding(top = 4.dp),
+                .wrapContentSize(Alignment.Center),
         )
     }
 }

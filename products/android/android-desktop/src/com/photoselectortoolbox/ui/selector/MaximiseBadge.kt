@@ -25,7 +25,7 @@ import com.photoselectortoolbox.ui.theme.StudioCanvas
 import com.photoselectortoolbox.ui.theme.Zinc50
 
 /** Edge of the maximise badge. */
-val MaximiseBadgeSize: Dp = 44.dp
+val MaximiseBadgeSize: Dp = 48.dp
 
 /** Distance from a frame's corner to the badge, so the pill can clear the badge band. */
 val MaximiseBadgeInset: Dp = 6.dp
@@ -36,7 +36,7 @@ val MaximiseBadgeInset: Dp = 6.dp
  * Three equal frames abreast or stacked are limited by the display, not by the
  * chrome around them — so "as large as possible" for a *single* frame has to be
  * a mode rather than a layout constant. This badge is how the user gets there
- * without learning a gesture: 44 dp, in a corner, on every frame, doing the
+ * without learning a gesture: 48 dp, in a corner, on every frame, doing the
  * obvious thing.
  *
  * It is permitted over the image where nothing else is because it is small,

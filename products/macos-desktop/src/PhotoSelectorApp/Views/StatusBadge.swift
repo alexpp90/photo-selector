@@ -21,7 +21,7 @@ public struct StatusBadge: View {
             .foregroundStyle(.white)
             .padding(.horizontal, 7)
             .padding(.vertical, 3)
-            .background(Color.green.opacity(0.85))
+            .background(Color.lensjetMove.opacity(0.85))
             .clipShape(Capsule())
 
         case .copied:
@@ -34,7 +34,7 @@ public struct StatusBadge: View {
             .foregroundStyle(.white)
             .padding(.horizontal, 7)
             .padding(.vertical, 3)
-            .background(Color.blue.opacity(0.85))
+            .background(Color.lensjetCopy.opacity(0.85))
             .clipShape(Capsule())
 
         case .trashed:
@@ -47,7 +47,7 @@ public struct StatusBadge: View {
             .foregroundStyle(.white)
             .padding(.horizontal, 7)
             .padding(.vertical, 3)
-            .background(Color.red.opacity(0.85))
+            .background(Color.lensjetTrash.opacity(0.85))
             .clipShape(Capsule())
 
         case .candidate:

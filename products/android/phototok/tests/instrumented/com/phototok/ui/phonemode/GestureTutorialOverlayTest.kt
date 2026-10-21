@@ -102,6 +102,9 @@ class GestureTutorialOverlayTest {
     fun overlay_onCompact320x480Screen_displaysAllControlsAndSwipeCallouts() {
         // Default CI AVDs created without a device profile use a 320x480dp HVGA screen.
         // Every top/bottom coach mark and gesture stage callout must still be displayed.
+        // This must hold whatever the device's own orientation: the guide's geometry follows
+        // the box it is given, so landscape-native tablets (Pixel Tablet, Galaxy Tab S11 Ultra)
+        // get the same portrait layout here.
         composeTestRule.setContent {
             Box(modifier = Modifier.size(width = 320.dp, height = 480.dp)) {
                 GestureTutorialOverlay(
