@@ -278,6 +278,27 @@ class PhoneModeViewModelTest {
     }
 
     @Test
+    fun `a folder switch keeps the old folder's grant pinned until its deferred deletes finish (D-TOK-4)`() = runTest {
+        val pins = mutableListOf<Set<String>>()
+        every { settingsRepository.pinUndoHistoryFolders(any()) } answers { pins.add(firstArg()) }
+        val gate = CompletableDeferred<Boolean>()
+        coEvery { imageRepository.deleteImage(any()) } coAnswers { gate.await() }
+        val viewModel = loadFolder(image("a.jpg", 1), image("b.jpg", 2))
+        viewModel.requestDelete()
+        every { imageRepository.discoverImages(any()) } returns flowOf(listOf(image("c.jpg", 3)))
+
+        viewModel.selectSourceFolder(Uri.parse("content://tree/other"))
+
+        assertEquals("grant held while the deletes run", setOf("content://tree/photos"), pins.last())
+        coVerify(exactly = 0) { settingsRepository.releaseFolderGrantIfUnreferenced(any()) }
+
+        gate.complete(true)
+
+        assertEquals("unpinned once they finished", emptySet<String>(), pins.last())
+        coVerify(exactly = 1) { settingsRepository.releaseFolderGrantIfUnreferenced("content://tree/photos") }
+    }
+
+    @Test
     fun `navigateToImage moves to the page`() = runTest {
         val viewModel = loadFolder(image("a.jpg", 1), image("b.jpg", 2))
 

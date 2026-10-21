@@ -51,6 +51,7 @@ import kotlin.math.abs
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Job
+import kotlinx.coroutines.NonCancellable
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -59,6 +60,7 @@ import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 
 data class PhoneModeUiState(
     val images: List<ImageItem> = emptyList(),
@@ -281,10 +283,28 @@ class PhoneModeViewModel @Inject constructor(
         }
     }
 
+    /** Folders whose committed-but-still-running deletions need their grant until they finish (D-TOK-4). */
+    private val foldersWithRunningDeletes = mutableListOf<String>()
+
     init {
         observeSettings()
         observeRepositories()
         restoreLastFolders()
+    }
+
+    /**
+     * Pin the grants the undo history needs: the current folder while its deletions are on the
+     * undo stack, plus every folder whose deferred deletes are still running on the application
+     * scope. Without the second part, switching folders would drop the pin before the deletes ran.
+     */
+    private fun syncUndoHistoryPin() {
+        val state = _uiState.value
+        val pins = linkedSetOf<String>()
+        if (state.undoStack.isNotEmpty() || state.pendingDelete != null) {
+            state.sourceFolderUri?.let(pins::add)
+        }
+        synchronized(foldersWithRunningDeletes) { pins.addAll(foldersWithRunningDeletes) }
+        settingsRepository.pinUndoHistoryFolders(pins)
     }
 
     private fun observeRepositories() {
@@ -294,7 +314,7 @@ class PhoneModeViewModel @Inject constructor(
             _uiState
                 .map { if (it.undoStack.isNotEmpty() || it.pendingDelete != null) it.sourceFolderUri else null }
                 .distinctUntilChanged()
-                .collect { settingsRepository.pinUndoHistoryFolder(it) }
+                .collect { syncUndoHistoryPin() }
         }
         viewModelScope.launch {
             favouritesRepository.favouritedUris.collect { favs ->
@@ -1441,7 +1461,34 @@ class PhoneModeViewModel @Inject constructor(
         folderAtDelete: String?,
         kindAtDelete: SourceKind,
     ) {
+        // Registered synchronously, before the caller's state change can drop the folder's pin.
+        if (folderAtDelete != null) {
+            synchronized(foldersWithRunningDeletes) { foldersWithRunningDeletes.add(folderAtDelete) }
+            syncUndoHistoryPin()
+        }
         appScope.launch {
+            try {
+                runPendingDeletes(entries, folderAtDelete, kindAtDelete)
+            } finally {
+                // The deletions are over: unpin first, or the release below would be refused.
+                withContext(NonCancellable) {
+                    if (folderAtDelete != null) {
+                        synchronized(foldersWithRunningDeletes) { foldersWithRunningDeletes.remove(folderAtDelete) }
+                        syncUndoHistoryPin()
+                        // A folder that was left meanwhile no longer needs its grant.
+                        settingsRepository.releaseFolderGrantIfUnreferenced(folderAtDelete)
+                    }
+                }
+            }
+        }
+    }
+
+    private suspend fun runPendingDeletes(
+        entries: List<PendingDeleteLogic.Pending>,
+        folderAtDelete: String?,
+        kindAtDelete: SourceKind,
+    ) {
+        run {
             // Only these entries leave the journal: others may have been queued meanwhile.
             settingsRepository.removePersistedPendingDeleteUris(
                 entries.flatMap { p -> (listOf(p.image) + p.related).map { it.uri } },
@@ -1519,9 +1566,6 @@ class PhoneModeViewModel @Inject constructor(
                     )
                 }
             }
-
-            // The deletions are committed: a folder that was left meanwhile no longer needs its grant.
-            if (folderAtDelete != null) settingsRepository.releaseFolderGrantIfUnreferenced(folderAtDelete)
         }
     }
 
