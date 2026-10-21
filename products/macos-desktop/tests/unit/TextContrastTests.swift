@@ -67,4 +67,15 @@ struct TextContrastTests {
             #expect(ratio >= TextContrast.minimumRatio, "grey \(level): \(ratio)")
         }
     }
+
+    @Test("Status badge text reaches 4.5:1 on every semantic fill")
+    func statusBadgeFills() {
+        #expect(LensjetPalette.statusBadgeFills.count == 3)
+        for (name, fill) in LensjetPalette.statusBadgeFills {
+            let text = TextContrast.legibleText(on: fill)
+            #expect(TextContrast.contrastRatio(text, fill) >= TextContrast.minimumRatio, "\(name)")
+        }
+        // The old white text on the Selected green was 2.5:1 at best.
+        #expect(TextContrast.contrastRatio(.grey(255), LensjetPalette.moveAccent) < 4.5)
+    }
 }

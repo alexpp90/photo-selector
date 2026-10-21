@@ -2,6 +2,9 @@ import SwiftUI
 import PhotoSelectorKit
 
 /// A badge that indicates the culling status of a photo (Selected, Copied, Trashed).
+///
+/// The fill is opaque and the text is black or white by WCAG contrast on that fill
+/// (`TextContrast`), so it stays at least 4.5:1 on every semantic colour (UX-MAC-1).
 public struct StatusBadge: View {
     public let status: PhotoStatus
 
@@ -12,46 +15,27 @@ public struct StatusBadge: View {
     public var body: some View {
         switch status {
         case .selected:
-            HStack(spacing: 4) {
-                Image(systemName: "checkmark.circle.fill")
-                    .font(.system(size: 10, weight: .bold))
-                Text("Selected")
-                    .font(.system(size: 10, weight: .bold))
-            }
-            .foregroundStyle(.white)
-            .padding(.horizontal, 7)
-            .padding(.vertical, 3)
-            .background(Color.lensjetMove.opacity(0.85))
-            .clipShape(Capsule())
-
+            badge(symbol: "checkmark.circle.fill", title: "Selected", fill: LensjetPalette.moveAccent)
         case .copied:
-            HStack(spacing: 4) {
-                Image(systemName: "doc.on.doc.fill")
-                    .font(.system(size: 10, weight: .bold))
-                Text("Copied")
-                    .font(.system(size: 10, weight: .bold))
-            }
-            .foregroundStyle(.white)
-            .padding(.horizontal, 7)
-            .padding(.vertical, 3)
-            .background(Color.lensjetCopy.opacity(0.85))
-            .clipShape(Capsule())
-
+            badge(symbol: "doc.on.doc.fill", title: "Copied", fill: LensjetPalette.copyAccent)
         case .trashed:
-            HStack(spacing: 4) {
-                Image(systemName: "trash.fill")
-                    .font(.system(size: 10, weight: .bold))
-                Text("Trashed")
-                    .font(.system(size: 10, weight: .bold))
-            }
-            .foregroundStyle(.white)
-            .padding(.horizontal, 7)
-            .padding(.vertical, 3)
-            .background(Color.lensjetTrash.opacity(0.85))
-            .clipShape(Capsule())
-
+            badge(symbol: "trash.fill", title: "Trashed", fill: LensjetPalette.trashAccent)
         case .candidate:
             EmptyView()
         }
+    }
+
+    private func badge(symbol: String, title: String, fill: PaletteRGB) -> some View {
+        HStack(spacing: 4) {
+            Image(systemName: symbol)
+                .font(.system(size: 10, weight: .bold))
+            Text(title)
+                .font(.system(size: 10, weight: .bold))
+        }
+        .foregroundStyle(Color(TextContrast.legibleText(on: fill)))
+        .padding(.horizontal, 7)
+        .padding(.vertical, 3)
+        .background(Color(fill))
+        .clipShape(Capsule())
     }
 }
