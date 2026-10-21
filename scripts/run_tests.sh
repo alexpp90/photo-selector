@@ -418,6 +418,16 @@ if $run_android; then
                 "$ROOT_DIR"/products/android/android-desktop/build/outputs/apk/debug/*.apk \
                 "$ROOT_DIR"/products/android/phototok/build/outputs/apk/debug/*.apk
 
+        # android.yml:minified-build: R8 runs only for release-like builds, so a missing -keep
+        # rule passes every debug gate. `lab` is the minified release build with debug signing.
+        section "Android minified build (R8)"
+        if $quick; then
+            skip "gradlew assembleLab (R8-minified)" "android.yml:minified-build" "--quick"
+        else
+            gate "gradlew assembleLab (R8-minified)" "android.yml:minified-build" \
+                ./gradlew :android-desktop:assembleLab :phototok:assembleLab --stacktrace
+        fi
+
         # ── Android lint (advisory) ───────────────────────────────
         # Deliberately non-blocking: the CI job is `continue-on-error: true`
         # and both modules set `abortOnError = false`. Mirrored as advisory so
