@@ -346,8 +346,9 @@ fun PhoneModeScreen(
                 ) {
                     // Logo toggles the EXIF overlay
                     Image(
-                        painter = painterResource(id = com.phototok.R.mipmap.ic_launcher_foreground),
+                        painter = painterResource(id = com.phototok.R.drawable.ic_brand_mark),
                         contentDescription = null,
+                        colorFilter = androidx.compose.ui.graphics.ColorFilter.tint(colors.primary),
                         modifier = Modifier
                             .size(PhoneModeChromeMetrics.LEFT_PANEL_LOGO_SIZE)
                             .guideAnchor(guideAnchors, GuideAnchor.LOGO)

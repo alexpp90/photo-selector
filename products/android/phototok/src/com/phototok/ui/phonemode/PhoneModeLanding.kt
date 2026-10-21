@@ -135,13 +135,14 @@ fun PhoneModeLanding(
         ) {
             // ── Hero branding ────────────────────────────────────────
             Image(
-                painter = painterResource(id = com.phototok.R.mipmap.ic_launcher_foreground),
+                painter = painterResource(id = com.phototok.R.drawable.ic_brand_mark),
                 contentDescription = "Logo",
+                colorFilter = androidx.compose.ui.graphics.ColorFilter.tint(colors.primary),
                 modifier = Modifier.size(logoSize),
             )
             Spacer(modifier = Modifier.height(8.dp))
             Text(
-                text = "Photo-Tok",
+                text = "Jackpix",
                 style = MaterialTheme.typography.headlineMedium,
                 color = colors.onSurface,
             )
@@ -412,7 +413,7 @@ fun PhoneModeLanding(
                         .clickable(enabled = canResume) { onStart() }
                         .testTag("landing_start_browsing_button"),
                     shape = RoundedCornerShape(12.dp),
-                    color = colors.primaryContainer,
+                    color = colors.primary,
                     shadowElevation = 8.dp,
                 ) {
                     Row(
@@ -423,13 +424,13 @@ fun PhoneModeLanding(
                         Text(
                             text = if (sourceFolderName.isNotEmpty()) "Resume $sourceFolderName" else "Start Browsing",
                             style = MaterialTheme.typography.labelLarge,
-                            color = colors.onPrimaryContainer,
+                            color = colors.onPrimary,
                         )
                         Spacer(modifier = Modifier.width(8.dp))
                         Icon(
                             imageVector = Icons.AutoMirrored.Filled.ArrowForward,
                             contentDescription = null,
-                            tint = colors.onPrimaryContainer,
+                            tint = colors.onPrimary,
                             modifier = Modifier.size(20.dp),
                         )
                     }
@@ -475,7 +476,7 @@ private fun SourceCard(
     supportingText: String? = null,
 ) {
     val colors = MaterialTheme.colorScheme
-    val borderColor = if (isActive) colors.primaryContainer else colors.outlineVariant
+    val borderColor = if (isActive) colors.primary else colors.outlineVariant
     val shape = RoundedCornerShape(12.dp)
 
     Surface(
@@ -485,7 +486,7 @@ private fun SourceCard(
             // One click target; descendants merge so the row is announced once ("label, supporting").
             .clickable(role = Role.Button, onClick = onClick),
         shape = shape,
-        color = if (isActive) colors.primaryContainer.copy(alpha = 0.1f) else colors.surfaceContainer,
+        color = if (isActive) colors.primary.copy(alpha = 0.1f) else colors.surfaceContainer,
     ) {
         Row(
             modifier = Modifier

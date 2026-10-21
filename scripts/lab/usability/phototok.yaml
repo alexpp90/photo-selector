@@ -1,4 +1,4 @@
-# PhotoTok usability scenarios — the walkthrough the persona panel reviews.
+# Jackpix usability scenarios — the walkthrough the persona panel reviews.
 #
 # Scenarios run in order on one device and share state: the first one installs fresh, the
 # others continue where the previous one stopped, as a real first day with the app would.
@@ -14,7 +14,7 @@ fixture:
 scenarios:
   - id: U-TOK-01
     title: First launch — get the trip photos on screen
-    goal: You just installed PhotoTok. The photos of last week's trip are in the folder PSTLab/usability-trip on this phone. Get them on screen.
+    goal: You just installed Jackpix. The photos of last week's trip are in the folder PSTLab/usability-trip on this phone. Get them on screen.
     steps:
       - launch: {clear: true}
       - screen: landing
