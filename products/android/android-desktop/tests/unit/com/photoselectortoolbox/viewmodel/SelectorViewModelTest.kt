@@ -1180,7 +1180,7 @@ class SelectorViewModelTest {
         coVerify(exactly = 1) { imageRepository.deleteImage(any(), Uri.parse(orphanUri)) }
         // Only the recovered entries leave the journal; it is never wiped wholesale (D-9).
         coVerify(exactly = 1) { settingsRepository.removePendingDeletes(listOf(orphanUri)) }
-        coVerify(exactly = 0) { settingsRepository.clearPendingDeleteJournal() }
+        coVerify(exactly = 0) { settingsRepository.setPendingDeleteJournal(any()) }
 
         // Case 2: Keeping drops the recovered entries without calling deleteImage.
         val keepUri = "content://test/folder/keep.jpg"
@@ -1192,7 +1192,7 @@ class SelectorViewModelTest {
         assertNull(vmKeep.uiState.value.uncompletedDeletionsPrompt)
         coVerify(exactly = 0) { imageRepository.deleteImage(any(), Uri.parse(keepUri)) }
         coVerify(exactly = 1) { settingsRepository.removePendingDeletes(listOf(keepUri)) }
-        coVerify(exactly = 0) { settingsRepository.clearPendingDeleteJournal() }
+        coVerify(exactly = 0) { settingsRepository.setPendingDeleteJournal(any()) }
     }
 
     @Test
