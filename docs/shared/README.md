@@ -15,6 +15,7 @@ would notice.
 | [`FEATURE_PARITY.md`](FEATURE_PARITY.md) | All products | The feature sync policy, the permanent exclusions, and cross-product feature mapping |
 | [`FILE_OPERATIONS.md`](FILE_OPERATIONS.md) | All products | The non-destructive file operation contract: collision-free bundle naming, verified move before source removal, non-destructive undo, and partial failure reporting |
 | [`SUPPORTED_FORMATS.md`](SUPPORTED_FORMATS.md) | All products | The supported file-format contract, the real-camera test corpus, and how every product's format conformance tests keep it working |
+| [`UI_TEXT.md`](UI_TEXT.md) | All products (checked for Jackpix and Frameduel) | Icon-first controls, visible-text budgets per element in EN and DE, when a description is allowed, accessibility and localization rules, and the review checklist for UI text |
 
 ## What is shared in code
 

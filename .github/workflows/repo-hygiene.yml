@@ -51,5 +51,10 @@ jobs:
       - name: Format contract manifest
         run: python3 scripts/fetch_format_corpus.py --validate
 
+      # UI text budget (docs/shared/UI_TEXT.md): fails for products in `fail` mode in
+      # scripts/ui_text_budget.json, reports for the rest.
+      - name: UI text budget
+        run: python3 scripts/check_ui_text_budget.py
+
       - name: Format corpus tooling tests
         run: python3 -m unittest discover -s scripts/tests -v
