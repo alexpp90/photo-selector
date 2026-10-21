@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Photo Selector Linux — APT Repository Setup Script for Debian 13 (Trixie)
+# Blitzlens — APT Repository Setup Script for Debian 13 (Trixie)
 set -euo pipefail
 
 if [ "$(id -u)" -ne 0 ]; then
@@ -7,7 +7,7 @@ if [ "$(id -u)" -ne 0 ]; then
     exit 1
 fi
 
-echo "━━━ Setting up Photo Selector APT Repository for Debian 13 (Trixie) ━━━"
+echo "━━━ Setting up Blitzlens APT Repository for Debian 13 (Trixie) ━━━"
 
 # 1. Install prerequisites
 apt-get update
@@ -57,5 +57,5 @@ echo "Updating APT package index..."
 apt-get update
 
 echo "━━━ Setup Complete ━━━"
-echo "Install Photo Selector with:"
+echo "Install Blitzlens with:"
 echo "  sudo apt install -y photo-selector-linux"

@@ -20,8 +20,8 @@ public struct ContentView: View {
     public var body: some View {
         GeometryReader { geometry in
             ZStack {
-                // Neutral Dark Studio Canvas (#0B0B0D)
-                Color(red: 0.043, green: 0.043, blue: 0.051)
+                // Neutral canvas (LensjetPalette.canvas)
+                Color.lensjetCanvas
                     .ignoresSafeArea()
 
                 if viewModel.isLoading && viewModel.photos.isEmpty {
@@ -117,7 +117,7 @@ public struct ContentView: View {
         }
         .frame(minWidth: 960, minHeight: 640)
         .preferredColorScheme(.dark)
-        .navigationTitle(viewModel.rootDirectoryURL != nil ? "PhotoSelector Studio — \(viewModel.rootDirectoryURL!.lastPathComponent)" : "PhotoSelector Studio")
+        .navigationTitle(viewModel.rootDirectoryURL != nil ? "Lensjet — \(viewModel.rootDirectoryURL!.lastPathComponent)" : "Lensjet")
         .focusable()
         .focusEffectDisabled()
         .focused($isWorkspaceFocused)
@@ -458,6 +458,7 @@ public struct ContentView: View {
                 Button(action: { viewModel.presentShortcutsHelp() }) {
                     Image(systemName: "questionmark")
                         .font(.system(size: 11, weight: .bold))
+                        .foregroundStyle(Color.lensjetOnSelection)
                         .padding(.horizontal, 7)
                         .padding(.vertical, 4)
                         .frame(minWidth: Self.minTarget, minHeight: Self.minTarget)
@@ -495,7 +496,7 @@ public struct ContentView: View {
             .padding(.vertical, 4)
             .frame(minWidth: Self.minTarget, minHeight: Self.minTarget)
             .background(isSelected ? Color.accentColor : Color.clear)
-            .foregroundStyle(isSelected ? Color.white : Color.primary)
+            .foregroundStyle(isSelected ? Color.lensjetOnSelection : Color.primary)
             .clipShape(RoundedRectangle(cornerRadius: 5))
         }
         .buttonStyle(.plain)

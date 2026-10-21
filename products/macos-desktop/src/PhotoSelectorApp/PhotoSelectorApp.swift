@@ -30,7 +30,17 @@ struct PhotoSelectorApp: App {
 /// never makes it the active app, and arrow keys go to Terminal instead (REQ-MAC-KEY.01).
 @MainActor
 final class AppDelegate: NSObject, NSApplicationDelegate, ObservableObject {
-    let viewModel = CullingWorkspaceViewModel()
+    /// Created after the one-time settings migration so the view model's first read of
+    /// `UserDefaults` already sees the preferences of the pre-rename bundle id. UI test modes
+    /// skip the migration to stay hermetic.
+    let viewModel: CullingWorkspaceViewModel = {
+        let arguments = ProcessInfo.processInfo.arguments
+        let isTestMode = arguments.contains { ["--ui-self-test", "--ui-scenario", "--screenshot"].contains($0) }
+        if !isTestMode {
+            SettingsMigration.migrateIfNeeded()
+        }
+        return CullingWorkspaceViewModel()
+    }()
     let launchOptions = LaunchOptions(arguments: ProcessInfo.processInfo.arguments)
     #if PST_TEST_HOOKS
     private var selfTest: UISelfTestRunner?

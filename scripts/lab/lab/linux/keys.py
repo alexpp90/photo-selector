@@ -43,12 +43,12 @@ def send_keys_xdotool(
     run_cmd: Callable[[list[str], dict[str, str]], subprocess.CompletedProcess[str]] | None = None,
     delay_s: float = 0.15,
 ) -> list[list[str]]:
-    """Activate the Photo Selector window on display and send each key via xdotool."""
+    """Activate the Blitzlens window on display and send each key via xdotool."""
     env = {"DISPLAY": display}
     runner = run_cmd or (lambda c, e: subprocess.run(c, env=e, capture_output=True, text=True, check=False))
     recorded: list[list[str]] = []
 
-    activate_cmd = ["xdotool", "search", "--sync", "--name", "Photo Selector", "windowactivate", "--sync"]
+    activate_cmd = ["xdotool", "search", "--sync", "--name", "Blitzlens", "windowactivate", "--sync"]
     recorded.append(activate_cmd)
     runner(activate_cmd, env)
 

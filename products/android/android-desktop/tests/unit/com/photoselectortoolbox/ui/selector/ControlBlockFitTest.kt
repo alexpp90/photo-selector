@@ -33,10 +33,16 @@ class ControlBlockFitTest {
 
     @Test
     @Requirement("REQ-AND-LAYOUT.07")
-    fun `compact height is about 200 dp and fits the 210 dp row at 600 by 480`() {
-        val compact = ControlBlockFit.compactHeight(1f).value
-        assertEquals(196f, compact, 0.01f)
-        assertTrue(compact <= 210f)
+    fun `compact height is 201 dp wide and grows where 48 dp toggles need a second row`() {
+        // Wide: four 48 dp toggles and the counter share one row.
+        assertEquals(201f, ControlBlockFit.compactHeight(1f).value, 0.01f)
+        // 1024 wide (inner 240): the counter no longer fits beside four toggles and leads.
+        assertEquals(217.1f, ControlBlockFit.compactHeight(1f, 240.dp).value, 0.01f)
+        // Chromebook small / manifest minimum (inner 142 / 112): 2 x 2 toggles, counter on top.
+        assertEquals(265.1f, ControlBlockFit.compactHeight(1f, 142.dp).value, 0.01f)
+        assertEquals(265.1f, ControlBlockFit.compactHeight(1f, 112.dp).value, 0.01f)
+        // A 2 x 2 grid with room for the counter beside it.
+        assertEquals(249f, ControlBlockFit.compactHeight(1f, 170.dp).value, 0.01f)
     }
 
     @Test
@@ -45,8 +51,8 @@ class ControlBlockFitTest {
         assertEquals(Mode.FULL, ControlBlockFit.mode(376.dp, 1f, Reference))
         assertEquals(Mode.FULL, ControlBlockFit.mode(333.dp, 1f, Reference))
         assertEquals(Mode.COMPACT, ControlBlockFit.mode(332.dp, 1f, Reference))
-        assertEquals(Mode.COMPACT, ControlBlockFit.mode(197.dp, 1f, Reference))
-        assertEquals(Mode.SCROLLING, ControlBlockFit.mode(196.dp, 1f, Reference))
+        assertEquals(Mode.COMPACT, ControlBlockFit.mode(202.dp, 1f, Reference))
+        assertEquals(Mode.SCROLLING, ControlBlockFit.mode(201.dp, 1f, Reference))
     }
 
     @Test
@@ -62,8 +68,8 @@ class ControlBlockFitTest {
         assertEquals(424, ControlBlockFit.fullHeightPx(1.3f, 1.25f))
         assertEquals(593, ControlBlockFit.fullHeightPx(1.3f, 1.75f))
         assertEquals(930, ControlBlockFit.fullHeightPx(1.3f, 2.75f))
-        // The compact block's 196.57 dp at 2.625x (CI's phone emulator): 516 px.
-        assertEquals(516, ControlBlockFit.compactHeightPx(1f, 2.625f))
+        // The wide compact block at 2x is its 201 dp price exactly.
+        assertEquals(402, ControlBlockFit.compactHeightPx(1f, 2f))
     }
 
     @Test
@@ -74,17 +80,22 @@ class ControlBlockFitTest {
         for (dpi in 120..640) {
             val density = dpi / 160f
             for (fontScale in listOf(0.85f, 1f, 1.15f, 1.3f, 1.5f, 2f)) {
-                for (availablePx in (150 * density).toInt()..(420 * density).toInt()) {
-                    val available = (availablePx / density).dp
-                    val drawn = when (ControlBlockFit.mode(available, fontScale, density)) {
-                        Mode.FULL -> ControlBlockFit.fullHeightPx(fontScale, density)
-                        Mode.COMPACT -> ControlBlockFit.compactHeightPx(fontScale, density)
-                        Mode.SCROLLING -> continue
+                // The flank widths that change the arrangement (AD-16b): 2 x 2, counter on top,
+                // counter inline, full.
+                for (width in listOf(112.dp, 142.dp, 200.dp, 240.dp)) {
+                    for (availablePx in (150 * density).toInt()..(420 * density).toInt()) {
+                        val available = (availablePx / density).dp
+                        val drawn = when (ControlBlockFit.mode(available, fontScale, density, width)) {
+                            Mode.FULL -> ControlBlockFit.fullHeightPx(fontScale, density)
+                            Mode.COMPACT -> ControlBlockFit.compactHeightPx(fontScale, density, width)
+                            Mode.SCROLLING -> continue
+                        }
+                        assertTrue(
+                            "a $drawn px block was chosen for a $availablePx px row at $dpi dpi, " +
+                                "scale $fontScale, $width wide",
+                            drawn + ControlBlockFit.PixelSlack <= availablePx,
+                        )
                     }
-                    assertTrue(
-                        "a $drawn px block was chosen for a $availablePx px row at $dpi dpi, scale $fontScale",
-                        drawn + ControlBlockFit.PixelSlack <= availablePx,
-                    )
                 }
             }
         }
@@ -92,8 +103,27 @@ class ControlBlockFitTest {
 
     @Test
     @Requirement("REQ-AND-LAYOUT.07")
+    fun `a price is chosen only with a pixel of slack to spare`() {
+        val pricePx = ControlBlockFit.compactHeightPx(1f, Reference, 142.dp)
+        val withSlack = ((pricePx + ControlBlockFit.PixelSlack) / Reference).dp
+        val exact = (pricePx / Reference).dp
+        assertEquals(Mode.COMPACT, ControlBlockFit.mode(withSlack, 1f, Reference, 142.dp))
+        assertEquals(Mode.SCROLLING, ControlBlockFit.mode(exact, 1f, Reference, 142.dp))
+    }
+
+    @Test
+    @Requirement("REQ-AND-LAYOUT.07")
     fun `an unbounded height is always the full block`() {
         assertEquals(Mode.FULL, ControlBlockFit.mode(androidx.compose.ui.unit.Dp.Infinity, 1.3f, Reference))
+    }
+
+    @Test
+    @Requirement("REQ-AND-LAYOUT.07")
+    fun `a block too narrow for one row of four toggles never takes the full variant`() {
+        // 4 x 48 + 3 x 6 = 210 dp.
+        assertEquals(Mode.FULL, ControlBlockFit.mode(500.dp, 1f, Reference, 210.dp))
+        assertEquals(Mode.COMPACT, ControlBlockFit.mode(500.dp, 1f, Reference, 209.dp))
+        assertEquals(Mode.COMPACT, ControlBlockFit.mode(500.dp, 1f, Reference, 142.dp))
     }
 
     @Test
@@ -112,33 +142,59 @@ class ControlBlockFitTest {
     @Test
     @Requirement("REQ-AND-LAYOUT.07")
     fun `windows resolve as the lab measured them`() {
+        val flank1280 = 289.dp - 20.dp
         // 1280x800 fits the full block at scale 1 (row 1 is ~376 dp tall).
-        assertEquals(Mode.FULL, ControlBlockFit.mode(rowHeight(800).dp, 1f, Reference))
+        assertEquals(Mode.FULL, ControlBlockFit.mode(rowHeight(800).dp, 1f, Reference, flank1280))
         // 1024x720 is the knife edge: 336 dp of row with a 24 dp status bar (full
         // fits by 4 dp), 330 dp with the 36 dp one (compact). Both are legal.
-        assertEquals(Mode.FULL, ControlBlockFit.mode(rowHeight(720).dp, 1f, Reference))
-        assertEquals(Mode.COMPACT, ControlBlockFit.mode(rowHeight(720, statusBar = 36).dp, 1f, Reference))
+        assertEquals(Mode.FULL, ControlBlockFit.mode(rowHeight(720).dp, 1f, Reference, 240.dp))
+        assertEquals(Mode.COMPACT, ControlBlockFit.mode(rowHeight(720, statusBar = 36).dp, 1f, Reference, 240.dp))
         // 960x600 and below do not fit the full block; compact does.
-        assertEquals(Mode.COMPACT, ControlBlockFit.mode(rowHeight(600).dp, 1f, Reference))
-        // 600x480: ~210 dp, compact at 196 dp still fits.
-        assertEquals(Mode.COMPACT, ControlBlockFit.mode(rowHeight(480).dp, 1f, Reference))
+        assertEquals(Mode.COMPACT, ControlBlockFit.mode(rowHeight(600).dp, 1f, Reference, 240.dp))
+        // 720x560 (Chromebook small): a 150 dp flank, 142 dp inside. Without a status
+        // bar the 268 dp row holds the 265.1 dp compact block; with one it scrolls.
+        assertEquals(Mode.COMPACT, ControlBlockFit.mode(268.dp, 1f, Reference, 142.dp))
+        assertEquals(Mode.SCROLLING, ControlBlockFit.mode(rowHeight(560).dp, 1f, Reference, 142.dp))
+        // 600x480: 48 dp toggles cannot be 2 x 2 in 228 dp beside three 48 dp rows,
+        // so the block scrolls with the counter first rather than shrinking a target.
+        assertEquals(Mode.SCROLLING, ControlBlockFit.mode(228.dp, 1f, Reference, 112.dp))
     }
 
     @Test
     @Requirement("REQ-AND-LAYOUT.07")
     fun `a block too narrow for the counter beside the toggles gives it its own line`() {
-        assertTrue(ControlBlockFit.counterInline(220.dp))
-        assertFalse(ControlBlockFit.counterInline(112.dp))
+        assertTrue(ControlBlockFit.counterInline(280.dp))
+        assertFalse(ControlBlockFit.counterInline(240.dp))
+        assertFalse(ControlBlockFit.counterInline(142.dp))
         assertTrue(
-            ControlBlockFit.compactHeight(1f, innerWidth = 112.dp) >
-                ControlBlockFit.compactHeight(1f, innerWidth = 220.dp)
+            ControlBlockFit.compactHeight(1f, innerWidth = 240.dp) >
+                ControlBlockFit.compactHeight(1f, innerWidth = 280.dp)
         )
     }
 
     @Test
     @Requirement("REQ-AND-LAYOUT.07")
-    fun `the compact counter never outgrows its row even at font scale 2`() {
-        assertTrue(ControlBlockFit.counterHeight(2f) <= ControlBlockFit.CompactToggleRowHeight)
+    fun `toggles are four to a row from 192 dp and a 2 by 2 grid below`() {
+        assertEquals(4, ControlBlockFit.togglesPerRow(192.dp))
+        assertEquals(2, ControlBlockFit.togglesPerRow(191.dp))
+        assertEquals(48.dp, ControlBlockFit.compactToggleBlockHeight(240.dp))
+        assertEquals(96.dp, ControlBlockFit.compactToggleBlockHeight(112.dp))
+        // The hit target is 48 dp regardless of the width (AD-17).
+        assertEquals(48.dp, ControlBlockFit.ToggleHitSize)
+    }
+
+    @Test
+    @Requirement("REQ-AND-LAYOUT.07")
+    fun `the button shape follows the cell width so the word and key cap always fit`() {
+        assertEquals(ControlBlockFit.ButtonStyle.INLINE, ControlBlockFit.buttonStyle(240.dp))
+        assertEquals(ControlBlockFit.ButtonStyle.STACKED_WITH_ICON, ControlBlockFit.buttonStyle(142.dp))
+        assertEquals(ControlBlockFit.ButtonStyle.STACKED, ControlBlockFit.buttonStyle(112.dp))
+    }
+
+    @Test
+    @Requirement("REQ-AND-LAYOUT.07")
+    fun `the compact counter never outgrows the 48 dp toggle row even at font scale 2`() {
+        assertTrue(ControlBlockFit.compactCounterHeight(2f) <= ControlBlockFit.ToggleHitSize)
     }
 
     // ── AD-16 ────────────────────────────────────────────────────────────

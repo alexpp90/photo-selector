@@ -366,20 +366,40 @@ def rasterise(svg: str, out: Path, w: int, h: int | None = None) -> None:
         sys.exit("No SVG rasteriser: install librsvg (rsvg-convert), PyGObject+Rsvg or cairosvg.")
 
 
-ICNS_TYPES = [("icp4", 16), ("icp5", 32), ("icp6", 64), ("ic07", 128), ("ic08", 256),
-              ("ic09", 512), ("ic10", 1024), ("ic11", 32), ("ic12", 64), ("ic13", 256),
-              ("ic14", 512)]
+# PNG-capable types only, the set iconutil itself writes as PNG. The legacy 16/32/64 slots
+# (icp4, icp5, icp6) are decoded by IconServices as old bitmap formats, so a PNG there shows
+# as noise in Finder lists, Spotlight and other small sizes; macOS scales ic11/ic12 down.
+ICNS_TYPES = [("ic11", 32), ("ic12", 64), ("ic07", 128), ("ic13", 256), ("ic08", 256),
+              ("ic14", 512), ("ic09", 512), ("ic10", 1024)]
 ICONSET = [("icon_16x16", 16), ("icon_16x16@2x", 32), ("icon_32x32", 32),
            ("icon_32x32@2x", 64), ("icon_128x128", 128), ("icon_128x128@2x", 256),
            ("icon_256x256", 256), ("icon_256x256@2x", 512), ("icon_512x512", 512),
            ("icon_512x512@2x", 1024)]
 
 
+def icns_bytes(pngs: dict[int, bytes]) -> bytes:
+    """The built-in .icns writer, used when iconutil is missing: PNG data by pixel size."""
+    chunks = b""
+    for kind, px in ICNS_TYPES:
+        data = pngs[px]
+        chunks += kind.encode() + struct.pack(">I", len(data) + 8) + data
+    return b"icns" + struct.pack(">I", len(chunks) + 8) + chunks
+
+
+def icns_types(data: bytes) -> list[str]:
+    """Chunk types of an .icns file, in order."""
+    types, i = [], 8
+    while i + 8 <= len(data):
+        types.append(data[i:i + 4].decode("latin-1"))
+        i += struct.unpack(">I", data[i + 4:i + 8])[0]
+    return types
+
+
 def write_icns(svg: str, out: Path) -> None:
     with tempfile.TemporaryDirectory() as tmp:
         tmp = Path(tmp)
         pngs = {}
-        for px in sorted({px for _, px in ICNS_TYPES}):
+        for px in sorted({px for _, px in ICNS_TYPES} | {px for _, px in ICONSET}):
             p = tmp / f"{px}.png"
             rasterise(svg, p, px)
             pngs[px] = p
@@ -391,11 +411,7 @@ def write_icns(svg: str, out: Path) -> None:
                 shutil.copy(pngs[px], iconset / f"{name}.png")
             subprocess.run(["iconutil", "-c", "icns", str(iconset), "-o", str(out)], check=True)
             return
-        chunks = b""
-        for kind, px in ICNS_TYPES:
-            data = pngs[px].read_bytes()
-            chunks += kind.encode() + struct.pack(">I", len(data) + 8) + data
-        out.write_bytes(b"icns" + struct.pack(">I", len(chunks) + 8) + chunks)
+        out.write_bytes(icns_bytes({px: p.read_bytes() for px, p in pngs.items()}))
 
 
 # ── Targets ───────────────────────────────────────────────────────────────────

@@ -56,7 +56,6 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
-import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
@@ -117,11 +116,8 @@ fun GestureTutorialOverlay(
         exit = fadeOut(tween(250)),
     ) {
         val colors = MaterialTheme.colorScheme
-        val configuration = LocalConfiguration.current
-        val isLandscape = configuration.orientation ==
-            android.content.res.Configuration.ORIENTATION_LANDSCAPE
 
-        GuideBox(anchors = anchors, isLandscape = isLandscape) { geometry, compact ->
+        GuideBox(anchors = anchors) { geometry, compact ->
             Column(
                 modifier = Modifier
                     .fillMaxSize()

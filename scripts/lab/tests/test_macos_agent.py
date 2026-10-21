@@ -21,7 +21,7 @@ AGENT_RUN = Path(__file__).resolve().parent.parent / "macos" / "agent_run.sh"
 # Stand-ins for the build and the lab inside the clone: they record how they were called.
 BUILD_STUB = """#!/usr/bin/env bash
 echo "$*" >> "$HOME/build-calls"
-mkdir -p .build/hooks/app/PhotoSelector.app
+mkdir -p .build/hooks/app/Lensjet.app
 """
 LAB_STUB = """import sys, pathlib
 pathlib.Path(sys.argv[sys.argv.index("--out") + 1], "lab-ran").write_text(" ".join(sys.argv[1:]))
