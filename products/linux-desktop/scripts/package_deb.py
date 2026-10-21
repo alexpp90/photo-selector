@@ -8,10 +8,12 @@ using only the Python standard library (ar + tarfile + gzip + hashlib).
 from __future__ import annotations
 
 import argparse
+import email.utils
 import gzip
 import hashlib
 import io
 import os
+import re
 import shutil
 import subprocess
 import sys
@@ -29,7 +31,20 @@ ICON_FILES = (
     "128x128/apps/app.alpatix.Blitzlens.png",
 )
 
-FIXED_MTIME = 1760097600  # Sat, 10 Oct 2026 12:00:00 UTC
+
+def changelog_mtime(changelog: Path) -> int:
+    """Epoch seconds of the top ``debian/changelog`` entry (its `` -- maintainer  <date>`` trailer).
+
+    Every archive timestamp derives from it, so the build is reproducible and the constant can
+    never drift from the release it describes (C-LIN-1)."""
+    for line in changelog.read_text(encoding="utf-8").splitlines():
+        m = re.match(r"^ -- .*>  (.+?)\s*$", line)
+        if m:
+            return int(email.utils.parsedate_to_datetime(m.group(1)).timestamp())
+    raise ValueError(f"No trailer line found in {changelog}")
+
+
+FIXED_MTIME = changelog_mtime(Path(__file__).resolve().parents[1] / "debian" / "changelog")
 
 
 def make_ar_header(name: str, size: int, mtime: int = FIXED_MTIME, mode: int = 0o100644) -> bytes:
@@ -238,7 +253,8 @@ def build_deb_pure_python(
 
     # Build md5sums
     md5_lines = []
-    for root, _, files in os.walk(staging_root):
+    for root, dirs, files in os.walk(staging_root):
+        dirs.sort()
         for f in sorted(files):
             fp = Path(root) / f
             if not fp.is_file() or fp.is_symlink():
@@ -358,7 +374,8 @@ def build_deb_native(
 
     # Build md5sums
     md5_lines = []
-    for root, _, files in os.walk(staging_root):
+    for root, dirs, files in os.walk(staging_root):
+        dirs.sort()
         # Exclude DEBIAN directory from md5sums
         if "DEBIAN" in Path(root).parts:
             continue
