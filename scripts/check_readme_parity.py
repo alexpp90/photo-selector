@@ -48,6 +48,10 @@ FORBIDDEN_SECTION_TERMS = {
     "Jackpix": [
         ("Three-Column", "Jackpix is a vertical swipe-first mobile app"),
     ],
+    "Blitzlens": [
+        ("Optical Cobalt", "the rebrand replaced the fixed accents with the GNOME system accent"),
+        ("Obsidian Darkroom", "the rebrand replaced the fixed accents with the GNOME system accent"),
+    ],
 }
 
 

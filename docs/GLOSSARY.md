@@ -65,5 +65,5 @@ the app name, build configuration keeps the identifier.
 | **Selection** | The destination subfolder (default name `Selection`) that kept photos are moved or copied into. Same concept across all products. |
 | **Selector** | The comparison workspace: previous / current / next, with quality scores. Desktop (legacy), Frameduel, Lensjet and Blitzlens. |
 | **Feed** | Jackpix's vertically paged stream of photos. Jackpix only. |
-| **Score** | One of sharpness, noise, highlight clipping, shadow clipping, aesthetics — computed identically in Desktop (legacy) and Frameduel (see [`shared/FEATURE_PARITY.md`](shared/FEATURE_PARITY.md)), natively via Apple Accelerate and Vision in Lensjet, and natively via a NumPy Laplacian focus variance in Blitzlens. Jackpix computes none of them. |
+| **Score** | One of sharpness, noise, highlight clipping, shadow clipping, aesthetics — computed identically in Desktop (legacy) and, without aesthetics, in Frameduel (see [`shared/FEATURE_PARITY.md`](shared/FEATURE_PARITY.md)), natively via Apple Accelerate and Vision in Lensjet, and natively via a NumPy Laplacian focus variance in Blitzlens. Jackpix computes none of them. |
 | **Window size class** | Compact (< 600 dp), Medium (600–840 dp), Expanded (≥ 840 dp). A layout dimension, never a product name. |

@@ -109,7 +109,7 @@ Every desktop feature proposal or modification is classified into one of four di
 
 *   **Tier 2: Platform-Native Idiomatic Parity (Adapted to Native HIG)**
     Functional capabilities map directly to the idiomatic conventions of each desktop platform:
-    *   **Visual Atmosphere**: Studio dark palette highlighting photo colors. macOS uses `.preferredColorScheme(.dark)` with system vibrancy; Linux uses `AdwStyleManager` with dark palette surfaces (`#141417`, `#1C1C20`, `#3A3A42`) and high-contrast typography (`#FFFFFF` headings, `#D9D9D9` metadata).
+    *   **Visual Atmosphere**: Studio dark palette highlighting photo colors. macOS uses `.preferredColorScheme(.dark)` with system vibrancy; Linux uses `AdwStyleManager` with dark palette surfaces (`#141414`, `#1C1C1C`, `#3A3A3A`) and high-contrast typography (`#FFFFFF` headings, `#D9D9D9` metadata).
     *   **Window Chrome**: macOS uses native AppKit title bar and toolbar items; Linux uses standard `AdwHeaderBar` with view switcher and window buttons.
     *   **Settings Window**: macOS houses settings in the standard Settings scene (`⌘,`); Linux presents a modal `AdwPreferencesWindow` (`Ctrl+,`) using standard `AdwPreferencesGroup` and `AdwActionRow` widgets.
     *   **Secondary Utilities**: macOS exposes Duplicate Finder (`⌘D`) and Library Statistics (`⌘L`) under the Menu Bar "Tools" menu; Linux exposes them via the GNOME Primary Menu button (`AdwMenuButton`) and global accelerators (`Ctrl+D`, `Ctrl+L`).
@@ -167,7 +167,7 @@ When triggered, the agent must present the user with a structured assessment:
 | **Focus Metric (Laplacian+MAD)** | Accelerate `vImage` / `vDSP` ($< 2.0\text{ms}$) | Vectorized NumPy with 50% ROI & strided MAD ($< 2.0\text{ms}$ ref, CI tol) | Tier 1 | ✅ 100% Invariant Parity |
 | **Exposure Clipping Analysis** | 256-bin hardware histogram ($\ge 254, \le 2$) | 256-bin NumPy histogram ($\ge 254, \le 2$) | Tier 1 | ✅ 100% Invariant Parity |
 | **Aesthetic Scoring (AI)** | Native Apple Vision (`VNCalculateImageAestheticsScores`) | Omitted (No native OS neural engine runtime) | Tier 3 | ❌ macOS-Exclusive Capability |
-| **Window Chrome & Palette** | Studio Dark `.preferredColorScheme(.dark)` | Studio Dark Libadwaita (`#141417`, `#1C1C20`) | Tier 2 | ✅ Platform HIG Idiomatic |
+| **Window Chrome & Palette** | Studio Dark `.preferredColorScheme(.dark)` | Studio Dark Libadwaita (`#141414`, `#1C1C1C`) | Tier 2 | ✅ Platform HIG Idiomatic |
 | **Settings Presentation** | macOS Settings Scene (`⌘,`) | `AdwPreferencesWindow` (`Ctrl+,`) | Tier 2 | ✅ Platform HIG Idiomatic |
 | **Secondary Tools Access** | macOS Menu Bar "Tools" (`⌘D`, `⌘L`) | GNOME Primary Menu / Shortcuts (`Ctrl+D`, `Ctrl+L`) | Tier 2 | ✅ Platform HIG Idiomatic |
 | **Duplicate Finder** | CryptoKit streaming SHA-256 | Streaming SHA-256 duplicate engine | Tier 2 | ✅ Platform HIG Idiomatic |
