@@ -1388,6 +1388,37 @@ class PhoneModeViewModelTest {
     }
 
     @Test
+    fun `a bundle whose later member failed keeps the moved member out of the feed and reports it (B-SAF-1)`() = runTest {
+        phoneSettingsFlow.value = PhoneSettings(
+            collectionAction = CollectionAction.MOVE,
+            moveRelatedFiles = true,
+            fileTypeFilter = com.phototok.domain.FileTypeFilter.ALL,
+        )
+        val p = "content://tree/photos"
+        val raw = shot("IMG_1.CR3", p, "IMG_1.xmp").copy(lastModified = 30)
+        val jpg = shot("IMG_1.JPG", p, "IMG_1.xmp").copy(lastModified = 20)
+        val other = shot("IMG_2.CR3", p).copy(lastModified = 10)
+        coEvery { imageRepository.transferBundleDetailed(any(), any(), any(), any(), any()) } returns listOf(
+            FileOperationResult.success(raw.uri, "d1"),
+            FileOperationResult.failure(jpg.uri, "Simulated provider failure"),
+            FileOperationResult.failure("$p/IMG_1.xmp", "Simulated provider failure"),
+        )
+        val viewModel = loadFolder(raw, jpg, other)
+
+        viewModel.addToCollection()
+        advanceUntilIdle()
+
+        val state = viewModel.uiState.value
+        assertEquals(listOf("IMG_1.JPG", "IMG_2.CR3"), state.images.map { it.fileName })
+        val feedback = state.lastActionFeedback
+        assertTrue(feedback?.isError == true)
+        assertEquals(
+            UiText.of(R.string.error_moved_some, 1, 3, UiText.raw(PhotoFolders.SELECTION)),
+            feedback?.message,
+        )
+    }
+
+    @Test
     fun `a linked delete never reaches into a sibling folder with the same stem`() = runTest {
         phoneSettingsFlow.value = PhoneSettings(
             moveRelatedFiles = true,
