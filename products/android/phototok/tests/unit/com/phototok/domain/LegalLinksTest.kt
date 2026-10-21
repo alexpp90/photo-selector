@@ -60,6 +60,19 @@ class LegalLinksTest {
     }
 
     @Test
+    fun `test tags are resource ids only in debug and lab builds`() {
+        fun source(path: String): String =
+            listOf(File(path), File("products/android/phototok/$path"))
+                .firstOrNull { it.exists() }?.readText() ?: error("$path not found from ${File(".").absolutePath}")
+        val activity = source("src/com/phototok/MainActivity.kt")
+        assertTrue(activity.contains("testTagsAsResourceId = BuildConfig.EXPOSE_TEST_TAGS"))
+        assertFalse(activity.contains("testTagsAsResourceId = true"))
+        val release = source("build.gradle.kts").substringAfter("        release {").substringBefore("\n        }")
+        assertTrue(release.contains("buildConfigField(\"boolean\", \"EXPOSE_TEST_TAGS\", \"false\")"))
+        assertTrue(com.phototok.BuildConfig.EXPOSE_TEST_TAGS) // unit tests run the debug build
+    }
+
+    @Test
     @Requirement("REQ-TOK-ARCH.19")
     fun `merged manifest requests no permission at all`() {
         // A dependency can merge permissions into the shipped manifest (Frameduel got four from an
