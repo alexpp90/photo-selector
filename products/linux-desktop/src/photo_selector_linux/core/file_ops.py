@@ -1148,6 +1148,9 @@ class FileCullingManager:
                         completed_moves.append((restore_target, dst))
                     restored_pairs.append((orig_src, restore_target))
             except Exception as e:
+                # A member that cannot be put back into Selection/ stays at its restored path;
+                # it is named, never dropped silently (OPEN-undo-swallow).
+                stranded: List[Path] = []
                 for moved_target, orig_dst in reversed(completed_moves):
                     if moved_target.exists() and not orig_dst.exists():
                         try:
@@ -1156,8 +1159,16 @@ class FileCullingManager:
                             else:
                                 _copy_file(moved_target, orig_dst, fsync=True)
                                 moved_target.unlink()
-                        except Exception:
-                            pass
+                        except Exception as rollback_err:
+                            logger.error("Undo rollback could not put %s back: %s", orig_dst.name, rollback_err)
+                            stranded.append(moved_target)
+                if stranded:
+                    stranded.reverse()
+                    names = ", ".join(p.name for p in stranded)
+                    raise FileCullingError(
+                        f"Failed to restore moved file during undo: {e}; "
+                        f"could not be put back into {stranded[0].parent.name}/: {names}"
+                    ) from e
                 raise FileCullingError(f"Failed to restore moved file during undo: {e}") from e
 
             for src, dst in still_home:
@@ -1178,14 +1189,30 @@ class FileCullingManager:
         elif record.action_type == CullingActionType.TRASH:
             # === Transactional Trash Undo (R-LINUX-CULL-07) ===
             # Restore trashed primary image and all companions from their exact recorded Trash paths
-            undo_targets = self._resolve_undo_targets(record, candidate)
+            # A retry after a half-failed undo: a member whose trash item is gone and whose
+            # original path exists again was restored by the earlier attempt (D-TRASH-UNDO).
+            already_restored: List[Tuple[Path, Path]] = []
+            pending: List[Tuple[Path, Path]] = []
+            for pair in record.affected_paths:
+                orig, trashed = pair
+                trash_gone = (
+                    trashed is None
+                    or (not str(trashed).startswith("trash://") and not trashed.exists() and not trashed.is_symlink())
+                )
+                if trash_gone and (orig.exists() or orig.is_symlink()):
+                    already_restored.append((orig, orig))
+                else:
+                    pending.append(pair)
+            undo_targets = self._resolve_undo_targets(
+                dataclasses.replace(record, affected_paths=pending), candidate
+            )
             for orig_src, _restore_target, dst in undo_targets:
                 if dst is None or str(dst).startswith("trash://") or (not dst.exists() and not dst.is_symlink()):
                     raise FileCullingError(
                         f"Failed to restore trashed file {orig_src.name} during undo: "
                         f"recorded trash item {dst} is missing"
                     )
-            restored_pairs = []
+            restored_pairs = list(already_restored)
             for orig_src, restore_target, dst in undo_targets:
                 try:
                     info_path = record.trash_info_paths.get(orig_src)
