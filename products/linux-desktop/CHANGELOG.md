@@ -26,6 +26,13 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 - An About dialog in the main menu.
 
 ### Fixed
+- A Move to a folder on another drive whose original cannot be removed keeps the verified copy, says "Copied to … — original could not be removed" and stays undoable; renames on the same drive no longer need free space.
+- A photo moved to the Trash is always recorded (or put back) before an error is shown, and trash folders on memory cards follow the FreeDesktop rules; Undo restores only from the recorded Trash location.
+- Undo of a Move that left its original behind deletes the copy it made instead of creating a `-2` duplicate.
+- Edited `-Enhanced-NR` versions travel with their shot on Move, Copy and Trash.
+- When a name was taken, the message says so: "Moved to Selection/ as IMG_0001-2.JPG"; an undo that had to rename says "Restored as …".
+- A Move, Copy or Trash that finishes after you switched folders keeps its undo record.
+- Move, Copy and Trash run in the background, so a slow card or network folder no longer freezes the window during a transfer; the outcome shows beside the action buttons without moving them; 3-Up layout and HUD fixes from the device lab.
 - When a failed Move or Copy cannot undo its own steps, the files left in the Selection folder are reported and can be undone, instead of the app saying everything was rolled back.
 - The package installs one launcher entry and one icon instead of two of each.
 - The APT setup script stops with an error instead of hiding a failed download.
