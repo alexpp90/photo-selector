@@ -52,6 +52,8 @@ import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.input.pointer.PointerIcon
 import androidx.compose.ui.input.pointer.pointerHoverIcon
 import androidx.compose.ui.platform.testTag
+import androidx.compose.ui.semantics.Role
+import com.photoselectortoolbox.ui.components.TouchTarget
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.foundation.text.BasicText
@@ -383,28 +385,34 @@ fun RatingFilterSelector(
             .fillMaxWidth()
             .horizontalScroll(scrollState)
             .testTag("rating_filter_selector"),
-        horizontalArrangement = Arrangement.spacedBy(4.dp, Alignment.CenterHorizontally),
+        horizontalArrangement = Arrangement.spacedBy(0.dp, Alignment.CenterHorizontally),
         verticalAlignment = Alignment.CenterVertically,
     ) {
         RatingFilter.PRESETS.forEach { filter ->
             val isSelected = filter == currentFilter
             val tag = "filter_${filter.label.replace("★", "star").replace("+", "plus").trim()}"
-            Box(
-                modifier = Modifier
-                    .clip(RoundedCornerShape(4.dp))
-                    .background(if (isSelected) BrandAccentNav else StudioCard)
-                    .border(1.dp, if (isSelected) BrandAccent else StudioBorder, RoundedCornerShape(4.dp))
-                    .clickable { onFilterSelected(filter) }
-                    .padding(horizontal = 6.dp, vertical = 2.dp)
-                    .testTag(tag),
-                contentAlignment = Alignment.Center,
+            // The whole 48 dp slot is the control; the drawn chip sits inside it.
+            TouchTarget(
+                onClick = { onFilterSelected(filter) },
+                testTag = tag,
+                shape = RoundedCornerShape(4.dp),
+                role = Role.RadioButton,
             ) {
-                Text(
-                    text = filter.label,
-                    fontSize = 10.sp,
-                    fontFamily = FontFamily.Monospace,
-                    color = if (isSelected) BrandAccentText else Zinc400,
-                )
+                Box(
+                    modifier = Modifier
+                        .clip(RoundedCornerShape(4.dp))
+                        .background(if (isSelected) BrandAccentNav else StudioCard)
+                        .border(1.dp, if (isSelected) BrandAccent else StudioBorder, RoundedCornerShape(4.dp))
+                        .padding(horizontal = 6.dp, vertical = 2.dp),
+                    contentAlignment = Alignment.Center,
+                ) {
+                    Text(
+                        text = filter.label,
+                        fontSize = 10.sp,
+                        fontFamily = FontFamily.Monospace,
+                        color = if (isSelected) BrandAccentText else Zinc400,
+                    )
+                }
             }
         }
     }
