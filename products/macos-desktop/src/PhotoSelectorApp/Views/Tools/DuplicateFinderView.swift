@@ -132,8 +132,8 @@ public struct DuplicateFinderView: View {
                 }
             }
 
-            Button("Done") {
-                dismiss()
+            Button(action: { dismiss() }) {
+                Text("Done").foregroundStyle(Color.lensjetOnSelection)
             }
             .buttonStyle(.borderedProminent)
             .controlSize(.small)
@@ -212,6 +212,7 @@ public struct DuplicateFinderView: View {
             Button(action: selectFolder) {
                 Label("Select Folder to Scan...", systemImage: "folder")
                     .font(.system(size: 13, weight: .medium))
+                    .foregroundStyle(Color.lensjetOnSelection)
             }
             .buttonStyle(.borderedProminent)
             .controlSize(.regular)

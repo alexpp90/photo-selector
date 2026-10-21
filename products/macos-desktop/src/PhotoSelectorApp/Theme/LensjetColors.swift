@@ -1,3 +1,4 @@
+import AppKit
 import SwiftUI
 import PhotoSelectorKit
 
@@ -54,6 +55,26 @@ extension Color {
 
     // MARK: Selection and focus: the system accent, never a fixed colour.
     static var lensjetSelection: Color { .accentColor }
+
+    /// Text and symbols drawn on a SOLID system-accent fill (CURRENT badge, selected view-mode
+    /// segment, prominent buttons). White fails WCAG AA on yellow, orange and blue accents, so
+    /// the colour is re-resolved at draw time from the current accent: black or white,
+    /// whichever has the higher contrast (`TextContrast`). Not needed on accent.opacity(<=0.2)
+    /// or on accent-coloured text over dark surfaces.
+    static var lensjetOnSelection: Color {
+        Color(nsColor: NSColor(name: nil) { appearance in
+            var accent = PaletteRGB.grey(0)
+            appearance.performAsCurrentDrawingAppearance {
+                if let rgb = NSColor.controlAccentColor.usingColorSpace(.sRGB) {
+                    func byte(_ value: CGFloat) -> UInt8 { UInt8(max(0, min(255, (value * 255).rounded()))) }
+                    accent = PaletteRGB(byte(rgb.redComponent), byte(rgb.greenComponent), byte(rgb.blueComponent))
+                }
+            }
+            let text = TextContrast.legibleText(on: accent)
+            return NSColor(srgbRed: CGFloat(text.red) / 255, green: CGFloat(text.green) / 255,
+                           blue: CGFloat(text.blue) / 255, alpha: 1)
+        })
+    }
 
     // MARK: Brand
     /// Afterburner orange for brand surfaces only (6.1:1 on #141414).

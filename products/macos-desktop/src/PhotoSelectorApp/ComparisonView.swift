@@ -549,7 +549,7 @@ public struct ComparisonSlotPane: View {
                     Text("CURRENT")
                         .font(.system(size: 10, weight: .black, design: .rounded))
                 }
-                .foregroundStyle(Color.white)
+                .foregroundStyle(Color.lensjetOnSelection)
                 .padding(.horizontal, 8)
                 .padding(.vertical, 3)
                 .background(Color.lensjetSelection)

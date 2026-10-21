@@ -18,6 +18,10 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 - New app icon.
 
+### Fixed
+
+- Labels on your accent colour (the CURRENT badge, the selected view mode and prominent buttons) switch to black text where white is hard to read, as on yellow, orange or blue.
+
 ### Not carried over
 
 - macOS privacy permissions for Desktop, Documents, Downloads and removable volumes belong to the bundle id, so macOS asks again, and any saved folder access has to be granted again.

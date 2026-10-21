@@ -54,7 +54,7 @@ public struct EmptyDropTargetView: View {
                     Text("Open Folder…")
                         .font(.system(size: 14, weight: .bold))
                 }
-                .foregroundStyle(Color.white)
+                .foregroundStyle(Color.lensjetOnSelection)
                 .padding(.horizontal, 22)
                 .padding(.vertical, 11)
             }

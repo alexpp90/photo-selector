@@ -458,6 +458,7 @@ public struct ContentView: View {
                 Button(action: { viewModel.presentShortcutsHelp() }) {
                     Image(systemName: "questionmark")
                         .font(.system(size: 11, weight: .bold))
+                        .foregroundStyle(Color.lensjetOnSelection)
                         .padding(.horizontal, 7)
                         .padding(.vertical, 4)
                         .frame(minWidth: Self.minTarget, minHeight: Self.minTarget)
@@ -495,7 +496,7 @@ public struct ContentView: View {
             .padding(.vertical, 4)
             .frame(minWidth: Self.minTarget, minHeight: Self.minTarget)
             .background(isSelected ? Color.accentColor : Color.clear)
-            .foregroundStyle(isSelected ? Color.white : Color.primary)
+            .foregroundStyle(isSelected ? Color.lensjetOnSelection : Color.primary)
             .clipShape(RoundedRectangle(cornerRadius: 5))
         }
         .buttonStyle(.plain)

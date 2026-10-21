@@ -297,6 +297,7 @@ struct ZoomExitPill: View {
                     Text("Fit (Esc)")
                 }
                 .font(.system(size: 11, weight: .bold))
+                .foregroundStyle(Color.lensjetOnSelection)
                 .padding(.horizontal, 8)
                 .padding(.vertical, 3)
                 .frame(minHeight: 24)
