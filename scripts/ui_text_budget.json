@@ -1,0 +1,36 @@
+{
+  "_doc": "Visible-text budgets per UI element (docs/shared/UI_TEXT.md § Budgets is the human copy; scripts/tests/test_check_ui_text_budget.py keeps the two equal). Read by scripts/check_ui_text_budget.py. `mode` per product: fail = findings fail the gate; warn = reported only.",
+  "budgets": {
+    "action": {"prefix": "action_", "words": 2, "en": 16, "de": 22},
+    "chip": {"prefix": "chip_", "words": 2, "en": 14, "de": 18},
+    "label": {"prefix": "label_", "words": 2, "en": 18, "de": 24},
+    "title": {"prefix": "title_", "words": 3, "en": 24, "de": 32},
+    "dialog_title": {"prefix": "dialog_title_", "words": 5, "en": 30, "de": 40},
+    "dialog_body": {"prefix": "dialog_body_", "words": 8, "en": 50, "de": 65},
+    "snackbar": {"prefix": "snackbar_", "words": 4, "en": 28, "de": 36},
+    "snackbar_action": {"prefix": "snackbar_action_", "words": 1, "en": 10, "de": 14},
+    "error": {"prefix": "error_", "words": 8, "en": 50, "de": 65},
+    "empty": {"prefix": "empty_", "words": 3, "en": 24, "de": 32},
+    "hint_title": {"prefix": "hint_title_", "words": 6, "en": 36, "de": 48},
+    "hint_body": {"prefix": "hint_body_", "words": 6, "en": 40, "de": 52},
+    "setting_title": {"prefix": "setting_title_", "words": 3, "en": 26, "de": 34},
+    "setting_summary": {"prefix": "setting_summary_", "words": 5, "en": 36, "de": 46},
+    "guide": {"prefix": "guide_", "words": 2, "en": 14, "de": 18},
+    "spoken": {"prefix": "cd_", "words": null, "en": null, "de": null}
+  },
+  "no_sentence_punctuation": ["action", "chip", "snackbar_action", "guide"],
+  "placeholder_sample": {"number": "12", "text": "Selection1"},
+  "exempt_keys": ["app_name"],
+  "products": {
+    "phototok": {
+      "mode": "warn",
+      "res": "products/android/phototok/res",
+      "src": "products/android/phototok/src"
+    },
+    "android-desktop": {
+      "mode": "warn",
+      "res": "products/android/android-desktop/res",
+      "src": "products/android/android-desktop/src"
+    }
+  }
+}

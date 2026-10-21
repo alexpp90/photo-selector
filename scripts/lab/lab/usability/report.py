@@ -10,13 +10,20 @@ from pathlib import Path
 from typing import Any
 
 from ..paths import ensure_under
-from .panel import expected_screen_keys, moderator_input
+from .panel import expected_screen_keys, moderator_input, text_load_rows
 
 MODERATOR_SCHEMA: dict[str, Any] = {
     "type": "object",
-    "required": ["summary", "consensus", "discoverability", "tradeoffs", "keep", "persona_fit"],
+    "required": ["summary", "requirement_checks", "text_load", "consensus", "discoverability", "tradeoffs", "keep", "persona_fit"],
     "properties": {
         "summary": {"type": "string"},
+        "requirement_checks": {"type": "array", "description": "one entry per binding requirement in requirements.json",
+                               "items": {"type": "object", "required": ["id", "verdict", "screens", "evidence"],
+                                         "properties": {"verdict": {"enum": ["pass", "fail", "unclear"]},
+                                                        "variants": {"type": "array", "items": {"type": "string"}}}}},
+        "text_load": {"type": "object", "required": ["verdict", "worst_screens", "note"],
+                      "properties": {"verdict": {"enum": ["ok", "over"]},
+                                     "worst_screens": {"type": "array", "items": {"type": "string"}}}},
         "consensus": {"type": "array", "items": {"type": "object", "required": ["title", "screens", "personas", "evidence", "suggestion"],
                       "properties": {"severity": {"enum": ["blocker", "major", "minor"]}}}},
         "discoverability": {"type": "array", "items": {"type": "object", "required": ["screen", "expected", "missed_by", "suggestion"],
@@ -31,6 +38,20 @@ MODERATOR_SCHEMA: dict[str, Any] = {
 
 _VERDICT_SCORE = {"good": 2, "ok": 1, "bad": 0}
 _FIT_CLASS = {"good": "good", "mixed": "ok", "poor": "bad"}
+
+
+def load_panel_variants(panel_dir: Path) -> dict[str, tuple[Path, dict[str, Any]]]:
+    out: dict[str, tuple[Path, dict[str, Any]]] = {}
+    vdir = panel_dir / "variants"
+    if vdir.is_dir():
+        for p in sorted(vdir.glob("*.json")):
+            out[p.stem] = (p, json.loads(p.read_text(encoding="utf-8")))
+    return out
+
+
+def _requirements(panel_dir: Path) -> list[dict[str, Any]]:
+    p = panel_dir / "requirements.json"
+    return json.loads(p.read_text(encoding="utf-8")) if p.is_file() else []
 
 
 def load_answers(panel_dir: Path) -> dict[str, dict[str, Any]]:
@@ -135,6 +156,19 @@ def render_html(walkthrough: dict[str, Any], answers: dict[str, dict[str, Any]],
     ]
     if decisions:
         parts.append(f"<div class='card'><b>Summary.</b> {_e(decisions.get('summary', ''))}</div>")
+        parts.append("<h2>Binding requirements (stated by you)</h2><div class='scroll'><table><tr><th>requirement</th><th>verdict</th><th>screens</th><th>evidence</th></tr>")
+        checks = {c.get("id"): c for c in decisions.get("requirement_checks", [])}
+        for req in _requirements(panel_dir) or [{"id": k, "title": ""} for k in checks]:
+            c = checks.get(req["id"], {})
+            verdict = c.get("verdict", "not checked")
+            cls = {"pass": "good", "fail": "bad"}.get(verdict, "ok")
+            parts.append(f"<tr><td><b>{_e(req['id'])}</b> {_e(req.get('title', ''))}</td><td><span class='pill {cls}'>{_e(verdict)}</span></td>"
+                         f"<td>{_list(c.get('screens', []))}</td><td>{_e(c.get('evidence', ''))}</td></tr>")
+        parts.append("</table></div>")
+        tl = decisions.get("text_load") or {}
+        if tl:
+            parts.append(f"<div class='card'><b>Text load:</b> <span class='pill {'bad' if tl.get('verdict') == 'over' else 'good'}'>{_e(tl.get('verdict'))}</span> "
+                         f"{_e(tl.get('note', ''))} <span class='muted'>({_list(tl.get('worst_screens', []))})</span></div>")
         parts.append("<h2>Decisions for you — trade-offs</h2>")
         for t in decisions.get("tradeoffs", []):
             opts = "".join(
@@ -182,6 +216,24 @@ def render_html(walkthrough: dict[str, Any], answers: dict[str, dict[str, Any]],
         parts.append(f"<tr><td>{_e(kind)}</td>" + "".join(f"<td>{per.get(p, 0)}</td>" for p in personas) + "</tr>")
     parts.append("</table></div>")
 
+    variants = load_panel_variants(panel_dir)
+    if variants:
+        labels = list(variants)
+        parts.append("<h2>Text load, measured (words on screen · labelled icons · wordy controls)</h2><div class='scroll'><table><tr><th>screen</th>"
+                     + "".join(f"<th>{_e(v)}</th>" for v in labels) + "</tr>")
+        for r in text_load_rows(variants):
+            cells = []
+            for v in labels:
+                c = r["cells"].get(v)
+                if c is None:
+                    cells.append("<td>—</td>")
+                    continue
+                flagged = "".join(f"<li>{_e(' / '.join(f['texts']))} <span class='muted'>{_e(', '.join(f['flags']))}</span></li>" for f in c["flagged"][:6])
+                cls = "bad" if c["verdict"] == "over" and not r["system_screen"] else "good"
+                cells.append(f"<td><span class='pill {cls}'>{c['words']} · {c['labelled_icons']} · {c['wordy_controls']}</span><ul>{flagged}</ul></td>")
+            parts.append(f"<tr><td>{_e(r['screen'])}{' (system)' if r['system_screen'] else ''}</td>{''.join(cells)}</tr>")
+        parts.append("</table></div>")
+
     parts.append("<h2>Every screen</h2><div class='scroll'><table><tr><th>screen</th><th>load</th>"
                  + "".join(f"<th>{_e(p)}</th>" for p in personas) + "</tr>")
     images = panel_dir / "images"
@@ -212,7 +264,8 @@ def render_html(walkthrough: dict[str, Any], answers: dict[str, dict[str, Any]],
     return "".join(parts)
 
 
-def render_markdown(walkthrough: dict[str, Any], answers: dict[str, dict[str, Any]], decisions: dict[str, Any] | None) -> str:
+def render_markdown(walkthrough: dict[str, Any], answers: dict[str, dict[str, Any]], decisions: dict[str, Any] | None,
+                    panel_dir: Path | None = None) -> str:
     rows = screen_matrix(walkthrough, answers)
     personas = list(answers)
     out = [f"# Usability panel — {walkthrough['product']}", ""]
@@ -224,9 +277,23 @@ def render_markdown(walkthrough: dict[str, Any], answers: dict[str, dict[str, An
             for o in t.get("options", []):
                 out.append(f"- **{o.get('option')}** — helps {', '.join(map(str, _as_list(o.get('helps'))))}; hurts {', '.join(map(str, _as_list(o.get('hurts'))))}; cost: {o.get('cost')}")
             out += ["", f"Recommendation: {t.get('recommendation')}", f"Decide by: {t.get('decide_if')}", ""]
+        checks = decisions.get("requirement_checks", [])
+        if checks:
+            out += ["## Binding requirements (stated by you)", "", "| requirement | verdict | screens | evidence |", "|---|---|---|---|"]
+            out += [f"| {c.get('id')} | {c.get('verdict')} | {', '.join(map(str, _as_list(c.get('screens'))))} | {str(c.get('evidence', '')).replace('|', '/')} |" for c in checks]
+            out.append("")
+        tl = decisions.get("text_load") or {}
+        if tl:
+            out += [f"**Text load: {tl.get('verdict')}** — {tl.get('note', '')} ({', '.join(map(str, _as_list(tl.get('worst_screens'))))})", ""]
         out += ["## Everyone agrees — fix", ""]
         out += [f"- **{c.get('title')}** ({', '.join(map(str, _as_list(c.get('screens'))))}): {c.get('suggestion')}" for c in decisions.get("consensus", [])]
         out.append("")
+    variants = load_panel_variants(panel_dir) if panel_dir else {}
+    if variants:
+        from .panel import text_load_table
+
+        table, _ = text_load_table(variants)
+        out += ["## Text load, measured", "", table]
     out += ["## Every screen", "", "| screen | words | " + " | ".join(personas) + " |", "|---|---:|" + "---|" * len(personas)]
     for r in rows:
         cells = [(r["cells"].get(p) or {}).get("verdict", "—") for p in personas]
@@ -246,7 +313,7 @@ def write_report(run_dir: Path) -> tuple[Path, Path]:
     html_path = ensure_under(run_dir / "usability-report.html", run_dir)
     md_path = ensure_under(run_dir / "usability-report.md", run_dir)
     html_path.write_text(render_html(walkthrough, answers, decisions, panel_dir), encoding="utf-8")
-    md_path.write_text(render_markdown(walkthrough, answers, decisions), encoding="utf-8")
+    md_path.write_text(render_markdown(walkthrough, answers, decisions, panel_dir), encoding="utf-8")
     return html_path, md_path
 
 

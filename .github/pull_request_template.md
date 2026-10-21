@@ -35,6 +35,17 @@ _No local verification record yet: run `./scripts/run_tests.sh`, then `python3 s
      (no Mac at hand, no GTK 4, no Android device, sandbox without the SDK, …).
      "Nothing" only when every touched product shows ✅ above. -->
 
+### Binding requirements checked (UI changes)
+
+<!-- If this PR changes anything a user sees (a string, control, layout or flow): list the
+     maintainer-stated requirements of the touched product by ID, and how each was checked
+     (test, `scripts/check_ui_text_budget.py` output, screenshot) or why it is not affected.
+     IDs only. Also paste the `check_ui_text_budget.py --product <p>` summary line.
+     "No UI change" is a valid answer. -->
+
+| Requirement | Checked how | Result |
+|---|---|---|
+
 ### Manual testing on real hardware
 
 <!-- Native apps: what was tried by hand, on which device. Leave the table empty if nothing

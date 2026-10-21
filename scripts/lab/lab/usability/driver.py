@@ -98,17 +98,21 @@ def find_node(nodes: list[UiNode], target: dict[str, Any]) -> UiNode | None:
     """Match by `id` (exact), `text` or `desc` (exact, or case-insensitive substring with `contains`)."""
     contains = bool(target.get("contains"))
 
-    def match(value: str, wanted: str) -> bool:
-        return wanted.lower() in value.lower() if contains else value == wanted
+    def match(value: str, wanted: Any) -> bool:
+        # A list gives alternatives, e.g. the English and German label: [Delete, Löschen].
+        options = [str(w) for w in wanted] if isinstance(wanted, list) else [str(wanted)]
+        if contains:
+            return any(o.lower() in value.lower() for o in options)
+        return value in options
 
     for node in nodes:
         if node.bounds[2] <= node.bounds[0] or node.bounds[3] <= node.bounds[1]:
             continue
         if "id" in target and node.res_id != target["id"]:
             continue
-        if "text" in target and not match(node.text, str(target["text"])):
+        if "text" in target and not match(node.text, target["text"]):
             continue
-        if "desc" in target and not match(node.desc, str(target["desc"])):
+        if "desc" in target and not match(node.desc, target["desc"]):
             continue
         return node
     return None
@@ -116,8 +120,11 @@ def find_node(nodes: list[UiNode], target: dict[str, Any]) -> UiNode | None:
 
 def describe_target(target: dict[str, Any]) -> str:
     for key in ("label", "text", "desc"):
-        if target.get(key):
-            return f"'{target[key]}'"
+        value = target.get(key)
+        if isinstance(value, list):
+            value = value[0] if value else None
+        if value:
+            return f"'{value}'"
     return f"the control '{target.get('id', '?')}'"
 
 
@@ -147,9 +154,12 @@ def describe_action(step: dict[str, Any]) -> str | None:
 class ScenarioDriver:
     """Execute one scenario on a device; writes `<out_dir>/<NN>_<screen>.{png,xml,json}`."""
 
-    def __init__(self, adb: AdbClient, app_id: str, out_dir: Path, *, settle_ms: int = 900) -> None:
+    def __init__(
+        self, adb: AdbClient, app_id: str, out_dir: Path, *, settle_ms: int = 900, app_locale: str | None = None
+    ) -> None:
         self.adb = adb
         self.app_id = app_id
+        self.app_locale = app_locale
         self.out_dir = out_dir
         self.settle_ms = settle_ms
         self.size = (1080, 1920)
@@ -177,6 +187,13 @@ class ScenarioDriver:
             self.size = (nodes[0].bounds[2], nodes[0].bounds[3])
         return nodes
 
+    def _safe_bottom(self, nodes: list[UiNode]) -> int:
+        """Lowest y a tap may target: the top of the navigation bar, else 92 % of the screen."""
+        for n in nodes:
+            if n.res_id == "navigationBarBackground":
+                return n.bounds[1]
+        return int(self.size[1] * 0.92)
+
     def _input(self, *args: str) -> None:
         self.adb.run("shell", "input", *args)
 
@@ -191,7 +208,10 @@ class ScenarioDriver:
         deadline = time.monotonic() + timeout_ms / 1000.0
         scrolls = 0
         while True:
-            node = find_node(self.nodes(), target)
+            nodes = self.nodes()
+            node = find_node(nodes, target)
+            if node is not None and scroll and scrolls < 8 and node.bounds[3] > self._safe_bottom(nodes):
+                node = None  # half under the navigation bar: its centre may be the Home button
             if node is not None:
                 return node
             if scroll and scrolls < 8:
@@ -243,6 +263,8 @@ class ScenarioDriver:
         if "launch" in step:
             if (step.get("launch") or {}).get("clear"):
                 self.adb.run("shell", "pm", "clear", self.app_id)
+                if self.app_locale:  # clearing the app's data also drops its per-app language
+                    set_app_locale(self.adb, self.app_id, self.app_locale)
             self.adb.start(self.app_id)
         elif "tap" in step or "long_press" in step:
             target = step.get("tap") or step.get("long_press")
@@ -304,11 +326,16 @@ class ScenarioDriver:
             "expected": step.get("expected", ""),
             "system_screen": bool(step.get("system")),
             "actions_before": list(self._actions),
-            "metrics": screen_metrics(xml_text, density_dpi=density),
+            "metrics": screen_metrics(xml_text, density_dpi=density, locale=self.app_locale or "en"),
         }
         self._actions = []
         (self.out_dir / f"{stem}.json").write_text(json.dumps(entry, indent=2), encoding="utf-8")
         self.screens.append(entry)
+
+
+def set_app_locale(adb: AdbClient, app_id: str, locale: str | None) -> None:
+    """Per-app language (Android 13+, `cmd locale`); None or "" resets it to the system's."""
+    adb.run("shell", "cmd", "locale", "set-app-locales", app_id, "--locales", locale or "")
 
 
 def push_fixture(adb: AdbClient, local_dir: Path, remote_dir: str) -> None:
