@@ -121,5 +121,31 @@ class AndroidSafeZoneTest(unittest.TestCase):
             self.assertNotIn(G.PALETTE[app]["tile"], xml, app)
 
 
+class MacIconTest(unittest.TestCase):
+    """IconServices reads icp4/icp5/icp6 as legacy bitmaps: PNG data there renders as noise."""
+
+    LEGACY_SLOTS = {"icp4", "icp5", "icp6"}
+
+    def test_builtin_writer_uses_png_capable_types_only(self):
+        pngs = {px: b"\x89PNG-%d" % px for _, px in G.ICNS_TYPES}
+        data = G.icns_bytes(pngs)
+        types = G.icns_types(data)
+        self.assertEqual(types, [kind for kind, _ in G.ICNS_TYPES])
+        self.assertFalse(self.LEGACY_SLOTS & set(types))
+        self.assertEqual(int.from_bytes(data[4:8], "big"), len(data))
+
+    def test_shipped_app_icon_has_no_png_in_legacy_slots(self):
+        icns = ROOT / "products" / "macos-desktop" / "Resources" / "AppIcon.icns"
+        data = icns.read_bytes()
+        offenders, i = [], 8
+        while i + 8 <= len(data):
+            kind = data[i:i + 4].decode("latin-1")
+            size = int.from_bytes(data[i + 4:i + 8], "big")
+            if kind in self.LEGACY_SLOTS and data[i + 8:i + 12] == b"\x89PNG":
+                offenders.append(kind)
+            i += size
+        self.assertEqual(offenders, [], "regenerate: python3 assets/brand/generate.py lensjet")
+
+
 if __name__ == "__main__":
     unittest.main()

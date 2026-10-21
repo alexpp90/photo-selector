@@ -93,7 +93,7 @@ products/macos-desktop/
           LibraryStatisticsView.swift    EXIF metadata distribution dashboard (⌘L)
 
   scripts/
-    build_app.sh                         Assembles PhotoSelector.app (Info.plist, ad-hoc signed)
+    build_app.sh                         Assembles Lensjet.app (Info.plist, ad-hoc signed)
     ui_smoke_test.sh                     Running-app smoke test (raw binary + .app), local CI gate
     make_fixtures.swift                  Landscape JPEG fixtures for the smoke test
 

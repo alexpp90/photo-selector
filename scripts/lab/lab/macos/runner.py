@@ -24,7 +24,7 @@ def default_app_binary(root: Path | None = None) -> Path:
     # Only builds that contain the UI test hooks can run a journey: the `--test-hooks` build
     # (`.build/hooks`) and debug builds. A distributable `.build/app` bundle rejects the flags.
     candidates = [
-        base / "hooks" / "app" / "PhotoSelector.app" / "Contents" / "MacOS" / "PhotoSelectorApp",
+        base / "hooks" / "app" / "Lensjet.app" / "Contents" / "MacOS" / "PhotoSelectorApp",
         base / "hooks" / "release" / "PhotoSelectorApp",
         base / "debug" / "PhotoSelectorApp",
         base / "out" / "Products" / "Release" / "PhotoSelectorApp",

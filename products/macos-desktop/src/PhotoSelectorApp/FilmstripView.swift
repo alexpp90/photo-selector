@@ -39,7 +39,7 @@ public struct FilmstripView: View {
                 .padding(.horizontal, 16)
                 .padding(.vertical, 6)
             }
-            .background(Color(red: 0.043, green: 0.043, blue: 0.051))
+            .background(Color.lensjetCanvas)
             .overlay(
                 Rectangle()
                     .frame(height: 0.5)
@@ -87,7 +87,7 @@ public struct FilmstripThumbnailTile: View {
             ZStack(alignment: .topTrailing) {
                 // Background & Thumbnail (Proportional aspect ratio, .fit to preserve framing)
                 ZStack {
-                    Color(red: 0.08, green: 0.08, blue: 0.09)
+                    Color.lensjetPanel
 
                     if let cgImage = state.thumbnailImage {
                         Image(decorative: cgImage, scale: 1.0)
@@ -122,10 +122,10 @@ public struct FilmstripThumbnailTile: View {
                     }
                 }
 
-                // Selection Border (Obsidian Viewfinder Cyan #38BDF8 for selected photo)
+                // Selection border (system accent for the selected photo)
                 RoundedRectangle(cornerRadius: 6)
                     .strokeBorder(
-                        isSelected ? Color(red: 0.22, green: 0.74, blue: 0.97) : (isInComparison ? Color.cyan.opacity(0.8) : Color.white.opacity(0.08)),
+                        isSelected ? Color.lensjetSelection : (isInComparison ? Color.lensjetComparison.opacity(0.8) : Color.white.opacity(0.08)),
                         lineWidth: isSelected ? 2.5 : (isInComparison ? 1.5 : 0.5)
                     )
             }
@@ -150,26 +150,26 @@ public struct FilmstripThumbnailTile: View {
         case .selected:
             Image(systemName: "checkmark.circle.fill")
                 .font(.system(size: 13))
-                .foregroundStyle(Color(red: 16/255.0, green: 185/255.0, blue: 129/255.0))
+                .foregroundStyle(Color.lensjetMove)
                 .background(Circle().fill(Color.black))
         case .copied:
             Image(systemName: "doc.on.doc.fill")
                 .font(.system(size: 11))
-                .foregroundStyle(Color(red: 59/255.0, green: 130/255.0, blue: 246/255.0))
+                .foregroundStyle(Color.lensjetCopy)
                 .background(Circle().fill(Color.black))
         case .trashed:
             Image(systemName: "trash.fill")
                 .font(.system(size: 11))
-                .foregroundStyle(Color(red: 239/255.0, green: 68/255.0, blue: 68/255.0))
+                .foregroundStyle(Color.lensjetTrash)
                 .background(Circle().fill(Color.black))
         }
     }
 
     private func sharpnessColor(for category: SharpnessCategory) -> Color {
         switch category {
-        case .sharp: return Color(red: 52/255.0, green: 211/255.0, blue: 153/255.0)      // #34D399
-        case .acceptable: return Color(red: 245/255.0, green: 158/255.0, blue: 11/255.0) // #F59E0B
-        case .blurry: return Color(red: 244/255.0, green: 63/255.0, blue: 94/255.0)      // #F43F5E
+        case .sharp: return Color.lensjetSharp
+        case .acceptable: return Color.lensjetAcceptable
+        case .blurry: return Color.lensjetBlurry
         }
     }
 }

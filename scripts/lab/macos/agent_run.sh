@@ -31,8 +31,8 @@ fi
 # The journeys drive the app through its UI test hooks, which only a --test-hooks build contains.
 (cd products/macos-desktop && ./scripts/build_app.sh release --test-hooks)
 mkdir -p "$HOME/Applications"
-rm -rf "$HOME/Applications/PhotoSelector.app"
-cp -R products/macos-desktop/.build/hooks/app/PhotoSelector.app "$HOME/Applications/PhotoSelector.app"
+rm -rf "$HOME/Applications/Lensjet.app"
+cp -R products/macos-desktop/.build/hooks/app/Lensjet.app "$HOME/Applications/Lensjet.app"
 
 # Each journey generates its own small fixture set under the lab's scratch root (/tmp/pstlab,
 # or /tmp/pstlab-<uid> when another account owns that); no full fixture pass (the large set

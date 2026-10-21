@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Assembles PhotoSelector.app from the SwiftPM executable.
+# Assembles Lensjet.app from the SwiftPM executable.
 #
 # A bundled app gets activation policy `.regular` from Launch Services, shows in the Dock
 # and receives keyboard focus normally. (The raw SwiftPM binary is also fixed at runtime by
@@ -55,9 +55,9 @@ SWIFT_EXTRA=()
 if $TEST_HOOKS; then
     export PST_TEST_HOOKS=1
     SWIFT_EXTRA=(--scratch-path "$PRODUCT_DIR/.build/hooks")
-    APP="$PRODUCT_DIR/.build/hooks/app/PhotoSelector.app"
+    APP="$PRODUCT_DIR/.build/hooks/app/Lensjet.app"
 else
-    APP="$PRODUCT_DIR/.build/app/PhotoSelector.app"
+    APP="$PRODUCT_DIR/.build/app/Lensjet.app"
 fi
 rm -rf "$APP"
 mkdir -p "$APP/Contents/MacOS" "$APP/Contents/Resources"
@@ -86,14 +86,11 @@ else
     BIN_DIR="$(swift build -c "$CONFIG" --package-path "$PRODUCT_DIR" ${SWIFT_EXTRA[@]+"${SWIFT_EXTRA[@]}"} --show-bin-path)"
     cp "$BIN_DIR/PhotoSelectorApp" "$APP/Contents/MacOS/PhotoSelectorApp"
 fi
-if [[ -f "$PRODUCT_DIR/Resources/AppIcon.icns" ]]; then
-    cp "$PRODUCT_DIR/Resources/AppIcon.icns" "$APP/Contents/Resources/AppIcon.icns"
-elif [[ -f "$PRODUCT_DIR/../../assets/logo.icns" ]]; then
-    cp "$PRODUCT_DIR/../../assets/logo.icns" "$APP/Contents/Resources/AppIcon.icns"
-else
-    echo "ERROR: AppIcon.icns not found in $PRODUCT_DIR/Resources or assets/" >&2
+if [[ ! -f "$PRODUCT_DIR/Resources/AppIcon.icns" ]]; then
+    echo "ERROR: AppIcon.icns not found in $PRODUCT_DIR/Resources" >&2
     exit 1
 fi
+cp "$PRODUCT_DIR/Resources/AppIcon.icns" "$APP/Contents/Resources/AppIcon.icns"
 
 cat > "$APP/Contents/Info.plist" <<PLIST
 <?xml version="1.0" encoding="UTF-8"?>
@@ -103,9 +100,9 @@ cat > "$APP/Contents/Info.plist" <<PLIST
     <key>CFBundleDevelopmentRegion</key><string>en</string>
     <key>CFBundleExecutable</key><string>PhotoSelectorApp</string>
     <key>CFBundleIconFile</key><string>AppIcon</string>
-    <key>CFBundleIdentifier</key><string>com.photoselectortoolbox.macos</string>
-    <key>CFBundleName</key><string>PhotoSelector Studio</string>
-    <key>CFBundleDisplayName</key><string>PhotoSelector Studio</string>
+    <key>CFBundleIdentifier</key><string>app.alpatix.lensjet</string>
+    <key>CFBundleName</key><string>Lensjet</string>
+    <key>CFBundleDisplayName</key><string>Lensjet</string>
     <key>CFBundlePackageType</key><string>APPL</string>
     <key>CFBundleShortVersionString</key><string>${APP_VERSION}</string>
     <key>CFBundleVersion</key><string>${BUILD_NUMBER}</string>
