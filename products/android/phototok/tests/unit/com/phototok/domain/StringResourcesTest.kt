@@ -79,4 +79,18 @@ class StringResourcesTest {
             }
         }
     }
+
+    @Test
+    fun `every string resource is used by code or a resource file (Q-6)`() {
+        val roots = listOf(File("src"), File("res"), File("AndroidManifest.xml"))
+            .map { if (it.exists()) it else File("products/android/phototok/${it.path}") }
+        val sources = roots.flatMap { r -> if (r.isDirectory) r.walkTopDown().filter { it.isFile }.toList() else listOf(r) }
+            .filter { !it.path.contains("values/strings.xml") && !it.path.contains("values-de/strings.xml") }
+            .joinToString("\n") { it.readText() }
+        val unused = en.keys.filter { name ->
+            !Regex("R\\.(string|plurals)\\.$name\\b").containsMatchIn(sources) &&
+                !Regex("@(string|plurals)/$name\\b").containsMatchIn(sources)
+        }
+        assertEquals("unused string resources", emptyList<String>(), unused)
+    }
 }
