@@ -19,6 +19,7 @@ on:
     paths:
       - 'products/android/**'
       - '.github/workflows/android.yml'
+      - 'scripts/check_native_alignment.py'
       - 'testdata/formats/**'
       - 'scripts/fetch_format_corpus.py'
       - '.github/actions/format-corpus/**'
@@ -27,6 +28,7 @@ on:
     paths:
       - 'products/android/**'
       - '.github/workflows/android.yml'
+      - 'scripts/check_native_alignment.py'
       - 'testdata/formats/**'
       - 'scripts/fetch_format_corpus.py'
       - '.github/actions/format-corpus/**'

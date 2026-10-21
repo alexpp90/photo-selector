@@ -14,6 +14,7 @@ on:
     paths:
       - 'products/macos-desktop/**'
       - '.github/workflows/macos.yml'
+      - 'products/desktop/scripts/update_formula.py'
       - 'testdata/formats/**'
       - 'scripts/fetch_format_corpus.py'
       - '.github/actions/format-corpus/**'
@@ -22,6 +23,7 @@ on:
     paths:
       - 'products/macos-desktop/**'
       - '.github/workflows/macos.yml'
+      - 'products/desktop/scripts/update_formula.py'
       - 'testdata/formats/**'
       - 'scripts/fetch_format_corpus.py'
       - '.github/actions/format-corpus/**'

@@ -163,7 +163,9 @@ filters so that pull requests touching only Android do not execute Desktop or ma
 and vice versa. `run_tests.sh` mirrors this locally: unless `--all` or an explicit product
 flag (`--python`, `--android`, `--macos`, `--linux`) is given, it inspects git status and
 branch diffs against `main` (changes to `.github/`, `run_tests.sh` or the format contract under
-`testdata/formats/` count for every product). If only one product has modifications, gates for untouched
+`testdata/formats/` count for every product; `scripts/check_native_alignment.py` counts for
+Android, and the legacy `products/desktop/scripts/update_formula.py` for Desktop and Lensjet,
+whose cask job runs it — the same as the workflows' `paths:`). If only one product has modifications, gates for untouched
 products are reported as skipped due to path filtering rather than executing redundant suites.
 
 `android.yml:detect-changes` decides which Android products a change touches: a change under

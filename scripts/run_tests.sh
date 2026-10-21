@@ -153,8 +153,10 @@ if ! $explicit_product; then
 
         for f in "${CHANGED_FILES[@]}"; do
             case "$f" in
+                # macos.yml:update-homebrew-taps runs the legacy updater on the Lensjet cask.
+                products/desktop/scripts/update_formula.py) has_desktop=true; has_macos=true ;;
                 products/desktop/*|*.spec) has_desktop=true ;;
-                products/android/*) has_android=true ;;
+                products/android/*|scripts/check_native_alignment.py) has_android=true ;;
                 products/macos-desktop/*) has_macos=true ;;
                 products/linux-desktop/*) has_linux=true ;;
                 .github/workflows/*|.github/actions/*|scripts/run_tests.sh|testdata/formats/*|scripts/fetch_format_corpus.py) has_cross=true ;;
