@@ -136,7 +136,7 @@ def verify_debian_definitions(product_dir: Path) -> None:
     if not inst_path.is_file():
         raise VerificationFailure("debian/install missing")
     inst_text = inst_path.read_text(encoding="utf-8")
-    if "org.photoselector.Linux.desktop" not in inst_text:
+    if "app.alpatix.Blitzlens.desktop" not in inst_text:
         raise VerificationFailure("debian/install missing desktop entry mapping")
     log_pass("debian/install asset mappings verified")
 
@@ -195,8 +195,8 @@ def verify_deb_archive(deb_path: Path) -> None:
     with tarfile.open(fileobj=io.BytesIO(members[data_key]), mode="r:*") as tar:
         names = tar.getnames()
         has_bin = any("usr/bin/photo-selector-linux" in n for n in names)
-        has_desktop = any("org.photoselector.Linux.desktop" in n or "photo-selector-linux.desktop" in n for n in names)
-        has_meta = any("org.photoselector.Linux.metainfo.xml" in n or "photo-selector-linux.metainfo.xml" in n
+        has_desktop = any("app.alpatix.Blitzlens.desktop" in n or "photo-selector-linux.desktop" in n for n in names)
+        has_meta = any("app.alpatix.Blitzlens.metainfo.xml" in n or "photo-selector-linux.metainfo.xml" in n
                        for n in names)
         has_lib = any("usr/lib/python3/dist-packages/photo_selector_linux" in n for n in names)
 

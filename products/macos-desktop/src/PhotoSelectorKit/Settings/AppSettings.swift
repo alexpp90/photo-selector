@@ -17,6 +17,21 @@ public enum AppSettingsKeys {
     public static let thumbnailCacheLimitMB = "thumbnailCacheLimitMB"
     public static let preloadWindowBefore = "preloadWindowBefore"
     public static let preloadWindowAfter = "preloadWindowAfter"
+
+    /// Every key the app persists in `UserDefaults`. `SettingsMigration` copies exactly these;
+    /// add a new key here when you add one above (a test pins the list).
+    public static let all: [String] = [
+        cullingDestinationFolderName,
+        externalCullingDestinationURL,
+        autoAdvance,
+        sharpnessBlurryThreshold,
+        sharpnessAcceptableThreshold,
+        aestheticThreshold,
+        aestheticScoringEnabled,
+        thumbnailCacheLimitMB,
+        preloadWindowBefore,
+        preloadWindowAfter
+    ]
 }
 
 /// Fallback default values for all preferences.

@@ -311,7 +311,7 @@ def generate_repository(
         f"Date: {rfc2822_date}",
         "Architectures: amd64 all",
         f"Components: {component}",
-        "Description: Official Debian 13 (Trixie) repository for Photo Selector Linux",
+        "Description: Official Debian 13 (Trixie) repository for Blitzlens",
     ]
 
     md5_entries = []

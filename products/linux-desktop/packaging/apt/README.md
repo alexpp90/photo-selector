@@ -1,7 +1,7 @@
-# Photo Selector — APT repository
+# Blitzlens — APT repository
 
-Debian 13 (Trixie) package repository for **Photo Selector Linux**, the native GNOME app of
-[Photo Selector Toolbox](https://github.com/alexpp90/photo-selector). Served by GitHub Pages
+Debian 13 (Trixie) package repository for **Blitzlens**, the native GNOME photo culling app
+([source](https://github.com/alexpp90/photo-selector)). Served by GitHub Pages
 at **https://alexpp90.github.io/apt/**.
 
 ## Install

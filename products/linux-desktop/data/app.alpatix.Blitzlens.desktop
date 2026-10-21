@@ -1,15 +1,15 @@
 [Desktop Entry]
 Version=1.5
 Type=Application
-Name=Photo Selector
+Name=Blitzlens
 GenericName=Photograph Culling
 Comment=Cull, compare and select photographs, with RAW and JPEG pairing and focus scoring
 Exec=photo-selector-linux %F
-Icon=org.photoselector.Linux
+Icon=app.alpatix.Blitzlens
 Terminal=false
 Categories=Graphics;Photography;Viewer;
 MimeType=image/heif;image/jpeg;image/png;image/tiff;image/webp;image/x-adobe-dng;image/x-canon-cr2;image/x-canon-cr3;image/x-fuji-raf;image/x-hasselblad-3fr;image/x-kde-raw;image/x-leica-rwl;image/x-mamiya-mef;image/x-minolta-mrw;image/x-nikon-nef;image/x-nikon-nrw;image/x-olympus-orf;image/x-panasonic-rw;image/x-panasonic-rw2;image/x-pentax-pef;image/x-phaseone-iiq;image/x-samsung-srw;image/x-sigma-x3f;image/x-sony-arw;image/x-sony-sr2;image/x-sony-srf;
-Keywords=photo;photography;cull;culling;raw;exif;selector;comparison;sharpness;focus;
+Keywords=photo;photography;cull;culling;raw;exif;blitzlens;comparison;sharpness;focus;
 StartupNotify=true
-StartupWMClass=org.photoselector.Linux
+StartupWMClass=app.alpatix.Blitzlens
 X-GNOME-UsesNotifications=true

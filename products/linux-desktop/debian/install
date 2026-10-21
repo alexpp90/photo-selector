@@ -1,4 +1,7 @@
-data/org.photoselector.Linux.desktop usr/share/applications/
-data/org.photoselector.Linux.metainfo.xml usr/share/metainfo/
-data/icons/hicolor/scalable/apps/org.photoselector.Linux.svg usr/share/icons/hicolor/scalable/apps/
-data/icons/hicolor/128x128/apps/org.photoselector.Linux.png usr/share/icons/hicolor/128x128/apps/
+data/app.alpatix.Blitzlens.desktop usr/share/applications/
+data/app.alpatix.Blitzlens.metainfo.xml usr/share/metainfo/
+data/icons/hicolor/scalable/apps/app.alpatix.Blitzlens.svg usr/share/icons/hicolor/scalable/apps/
+data/icons/hicolor/symbolic/apps/app.alpatix.Blitzlens-symbolic.svg usr/share/icons/hicolor/symbolic/apps/
+data/icons/hicolor/16x16/apps/app.alpatix.Blitzlens.png usr/share/icons/hicolor/16x16/apps/
+data/icons/hicolor/24x24/apps/app.alpatix.Blitzlens.png usr/share/icons/hicolor/24x24/apps/
+data/icons/hicolor/128x128/apps/app.alpatix.Blitzlens.png usr/share/icons/hicolor/128x128/apps/

@@ -23,7 +23,7 @@ public struct EmptyDropTargetView: View {
 
                 Image(systemName: "sdcard.fill")
                     .font(.system(size: 64, weight: .light))
-                    .foregroundStyle(isTargeted ? Color.accentColor : Color.secondary)
+                    .foregroundStyle(isTargeted ? Color.accentColor : Color.lensjetBrand)
 
                 Image(systemName: "arrow.down.circle.fill")
                     .font(.system(size: 28))
@@ -40,11 +40,11 @@ public struct EmptyDropTargetView: View {
 
                 Text("RAW (CR3, ARW, NEF, DNG, RAF, RW2), JPEG, HEIC supported")
                     .font(.system(size: 13, weight: .medium))
-                    .foregroundStyle(Color(white: 0.82))
+                    .foregroundStyle(Color.lensjetTextSecondary)
 
                 Text("High-speed triage, 3-image burst comparison, and zero-latency culling")
                     .font(.system(size: 12, weight: .regular))
-                    .foregroundStyle(Color(white: 0.65))
+                    .foregroundStyle(Color.lensjetTextMuted)
             }
 
             Button(action: onOpenFolder) {
@@ -54,7 +54,7 @@ public struct EmptyDropTargetView: View {
                     Text("Open Folder…")
                         .font(.system(size: 14, weight: .bold))
                 }
-                .foregroundStyle(Color.white)
+                .foregroundStyle(Color.lensjetOnSelection)
                 .padding(.horizontal, 22)
                 .padding(.vertical, 11)
             }

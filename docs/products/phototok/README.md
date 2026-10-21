@@ -3,7 +3,6 @@
 <div align="center">
   <img src="../../../assets/phototok_logo.png" alt="PhotoTok Logo" width="120" />
 
-  ### Swipe. Select. Snap.
   **A lightweight, gesture-first, portrait photo curation app designed for sub-second time-to-first-swipe on Android phones.**
 
   [![Android: 8.0+](https://img.shields.io/badge/Android-8.0%2B%20(API%2026--36)-3DDC84?logo=android&logoColor=white)](https://developer.android.com/)

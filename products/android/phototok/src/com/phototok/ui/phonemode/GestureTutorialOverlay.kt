@@ -60,7 +60,6 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
-import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.stringResource
@@ -130,9 +129,6 @@ fun GestureTutorialOverlay(
         exit = fadeOut(tween(250)),
     ) {
         val colors = MaterialTheme.colorScheme
-        val configuration = LocalConfiguration.current
-        val isLandscape = configuration.orientation ==
-            android.content.res.Configuration.ORIENTATION_LANDSCAPE
 
         // The guide is a transient overlay of short labels placed from measured geometry; German
         // compounds must not break mid-word, so its text scale is capped (the rest of the app
@@ -141,7 +137,7 @@ fun GestureTutorialOverlay(
         CompositionLocalProvider(
             LocalDensity provides Density(density.density, minOf(density.fontScale, GUIDE_MAX_FONT_SCALE)),
         ) {
-        GuideBox(anchors = anchors, isLandscape = isLandscape) { geometry, compact ->
+        GuideBox(anchors = anchors) { geometry, compact ->
             Column(
                 modifier = Modifier
                     .fillMaxSize()

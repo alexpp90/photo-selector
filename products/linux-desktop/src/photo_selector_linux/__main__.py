@@ -30,7 +30,7 @@ def main(argv=None) -> int:
         return app.run(call_args)
     except (ImportError, Exception) as e:
         # Fallback headless verification mode when running on non-display environment
-        print(f"Photo Selector Linux {__version__} (Core Engine Ready: {e})")
+        print(f"Blitzlens {__version__} (Core Engine Ready: {e})")
         return 0
 
 

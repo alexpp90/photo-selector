@@ -1,1 +1,1 @@
-"""UI modules for Photo Selector Linux."""
+"""UI modules for Blitzlens."""

@@ -1,6 +1,6 @@
-# macOS Desktop
+# macOS Desktop (Lensjet)
 
-High-performance native macOS photo selection and comparison culling application built in Swift 6
+Lensjet is the high-performance native macOS photo selection and comparison culling application built in Swift 6
 and SwiftUI for macOS 14+ / macOS 15+ (Apple Silicon & Intel). Designed specifically for
 lightning-fast SD-card photo ingestion, large-scale RAW/JPEG triage, on-device Apple Vision
 aesthetic scoring, and instant zero-latency decision making.
@@ -11,7 +11,7 @@ aesthetic scoring, and instant zero-latency decision making.
 | SPM Targets | `PhotoSelectorKit` (core/domain), `PhotoSelectorApp` (SwiftUI executable) |
 | Tests | `products/macos-desktop/tests/unit/` (`PhotoSelectorKitTests`) |
 | Target | macOS 14+ (Sonoma) / macOS 15+ (Sequoia), Apple Silicon & Intel |
-| Artifacts | `PhotoSelectorApp` (macOS Application bundle) |
+| Artifacts | `Lensjet.app` (macOS application bundle, bundle id `app.alpatix.lensjet`) |
 | Entry point | `swift run PhotoSelectorApp` |
 
 ## Documents
@@ -70,10 +70,10 @@ The product is partitioned into two clean SPM targets following the repository's
 
 ## Relationship to the Other Products
 
-macOS Desktop is an independent Swift implementation. It shares photographic concepts (the EXIF contract, quality score semantics, what "Selection" means) with Desktop, Android Desktop, and PhotoTok, but shares no implementation code:
+macOS Desktop is an independent Swift implementation. It shares photographic concepts (the EXIF contract, quality score semantics, what "Selection" means) with the legacy Desktop, Frameduel, Jackpix and Blitzlens, but shares no implementation code:
 
 - **Distinct from legacy Python Desktop (`products/desktop/`)**: Native Swift 6 / SwiftUI rewrite replacing Tkinter, OpenCV, and Ollama with Apple Vision and Accelerate.
-- **Distinct from Android Desktop & PhotoTok (`products/android/`)**: Pure macOS desktop experience targeting macOS HIG, multi-slot comparison, and keyboard-first workflow, rather than touch or SAF.
+- **Distinct from Frameduel & Jackpix (`products/android/`)**: Pure macOS desktop experience targeting macOS HIG, multi-slot comparison, and keyboard-first workflow, rather than touch or SAF.
 - See [`../../shared/FEATURE_PARITY.md`](../../shared/FEATURE_PARITY.md).
 
 ## Not in This Product

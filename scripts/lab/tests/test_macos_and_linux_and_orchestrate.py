@@ -55,7 +55,7 @@ class TestMacosLinuxAndOrchestrate(unittest.TestCase):
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp)
             build = root / "products" / "macos-desktop" / ".build"
-            distributable = build / "app" / "PhotoSelector.app" / "Contents" / "MacOS" / "PhotoSelectorApp"
+            distributable = build / "app" / "Lensjet.app" / "Contents" / "MacOS" / "PhotoSelectorApp"
             plain_release = build / "release" / "PhotoSelectorApp"
             for path in (distributable, plain_release):
                 path.parent.mkdir(parents=True)
@@ -63,7 +63,7 @@ class TestMacosLinuxAndOrchestrate(unittest.TestCase):
 
             self.assertNotIn(default_app_binary(root), (distributable, plain_release))
 
-            hooks = build / "hooks" / "app" / "PhotoSelector.app" / "Contents" / "MacOS" / "PhotoSelectorApp"
+            hooks = build / "hooks" / "app" / "Lensjet.app" / "Contents" / "MacOS" / "PhotoSelectorApp"
             hooks.parent.mkdir(parents=True)
             hooks.write_text("#!/bin/sh\n")
             self.assertEqual(default_app_binary(root), hooks)

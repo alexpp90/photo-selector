@@ -104,8 +104,8 @@ public struct LibraryStatisticsView: View {
 
             Spacer()
 
-            Button("Done") {
-                dismiss()
+            Button(action: { dismiss() }) {
+                Text("Done").foregroundStyle(Color.lensjetOnSelection)
             }
             .buttonStyle(.borderedProminent)
             .controlSize(.small)
