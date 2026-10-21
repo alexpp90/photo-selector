@@ -426,6 +426,31 @@ class SelectorViewModelTest {
     }
 
     @Test
+    fun `a failed undo of a move stays on the stack so it can be retried`() = runTest {
+        val moved = "content://test/sel/a"
+        coEvery { imageRepository.moveImage(any(), any(), any(), any()) } returns
+            FileOperationResult.success("content://test/folder/a", moved)
+        coEvery { imageRepository.undoMoveBundle(any(), any(), any(), any(), any()) } returnsMany listOf(
+            FileOperationResult.failure("content://test/sel/a", "provider hiccup"),
+            FileOperationResult.success(moved, "content://test/folder/a"),
+        )
+        val viewModel = loadFolder(image("a"), image("b"))
+        viewModel.moveToSelection()
+        assertEquals(1, viewModel.uiState.value.undoHistory.size)
+
+        viewModel.undoLastOperation()
+
+        val kept = viewModel.uiState.value.undoHistory
+        assertTrue("the failed undo must remain retryable", kept.singleOrNull() is UndoableOperation.ReverseMove)
+        assertEquals(listOf("b"), names(viewModel))
+
+        viewModel.undoLastOperation()
+
+        assertEquals(listOf("a", "b"), names(viewModel))
+        assertTrue(viewModel.uiState.value.undoHistory.isEmpty())
+    }
+
+    @Test
     fun `a failed or partial result after a folder switch leaves the new folder's list and messages alone`() = runTest {
         val transfer = CompletableDeferred<FileOperationResult>()
         coEvery { imageRepository.moveImage(any(), any(), any(), any()) } coAnswers { transfer.await() }
