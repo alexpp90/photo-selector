@@ -51,16 +51,14 @@ The original mockup replaced the vertical column of `FolderPickerCard` rows with
 ### Layout structure (top to bottom):
 
 1. **Hero section** (centered, sized from the window height via `BoxWithConstraints`):
-   - Launcher-foreground logo: 56 dp below a 700 dp window height, 72 dp from 700 dp; 16 dp top padding
-   - "Jackpix" headline (`headlineMedium`, `onSurface`)
-   - "SWIPE. SELECT. SNAP." brand line (`labelSmall`, `onSurfaceVariant`, letter-spacing 3 sp)
-   - Photo fan (three tilted sample photos) only from a 760 dp window height
+   - Brand mark (`ic_brand_mark`, tinted `primary`, decorative): 56 dp below a 700 dp window height, 72 dp from 700 dp; 16 dp top padding
+   - "Jackpix" headline (`headlineMedium`, `onSurface`); no tagline (REQ-TOK-UX.01)
+   - Photo fan (three tilted sample photos, decorative) only from a 760 dp window height
 
-2. **Source selection**:
-   - Section label: "SELECT SOURCE" (`labelLarge`, `onSurfaceVariant`), 8 dp below it
-   - **Three list rows** in this order: Phone Camera, SD Card / USB Reader, Folder or Cloud; 8 dp apart
+2. **Source selection** (no section label):
+   - **Three list rows** in this order: "Camera", "SD card / USB", "Folder or cloud" (`title_source_*`); 8 dp apart
      - Each row: full width, `heightIn(min = 64.dp)`, 16/12 dp padding, `surfaceContainer` fill, `outlineVariant` border, `RoundedCornerShape(12.dp)`
-     - Leading 24 dp icon in a 40 dp circle (`secondary` at 12 % alpha), label (`titleSmall`) + one supporting line (`bodySmall`, max 2 lines), trailing arrow
+     - Leading 24 dp icon in a 40 dp circle (`secondary` at 12 % alpha), title only (`titleSmall`, no description line, REQ-TOK-UX.04), trailing arrow
      - Active state: border → `primaryContainer`, fill → `primaryContainer.copy(alpha=0.1f)`, icon → `primary`
      - One click target (`Role.Button`); the icon is decorative, the row's text names it
    - Must fit without scrolling at 360×640 dp at 1.0× and 1.3× font (`PhoneModeLandingLayoutTest`)
@@ -76,10 +74,10 @@ The original mockup replaced the vertical column of `FolderPickerCard` rows with
 4. **CTA button**:
    - Full-width, 56dp height, `primaryContainer` fill, `onPrimaryContainer` text
    - `RoundedCornerShape(12.dp)`
-   - Text: "Start Browsing" + `arrow_forward` icon
+   - Text: "Resume" (the folder name is shown above the button as a value) or "Start"; no icon
    - Shadow: `shadow(8.dp, primaryContainer.copy(alpha=0.1f))`
 
-5. **Subtitle**: "Connect a source to begin your high-velocity curation." (`bodyMedium`, subdued)
+5. *(removed)* The old "Connect a source to begin your high-velocity curation." subtitle is marketing copy and is not shown.
 
 ### Decorative background
 
@@ -101,26 +99,28 @@ Box(Modifier.fillMaxSize()) {
 }
 ```
 
-### Bottom navigation bar (new component)
+### Viewer bottom bar (icon-only)
 
-**New file:** `ui/components/BottomNavBar.kt`
+**File:** `ui/components/BottomNavBar.kt` (holds `ViewerBottomBar`; the unused three-tab `BottomNavBar` was removed).
 
-The viewer bottom bar (`ViewerBottomBar`) shows 3 persistent action items paired with visible `10.sp` (`labelSmall`) micro-labels:
+The viewer bottom bar (`ViewerBottomBar`) shows 3 persistent, **icon-only** controls (REQ-TOK-UX.02):
 
 ```
-[FolderOpen: Sources]  [CollectionsBookmark: Selection]  [RestoreFromTrash: Revert]
+[FolderOpen]  [CollectionsBookmark]  [RestoreFromTrash]
+ Change folder     Selection            Undo delete
 ```
 
-- Container: `surfaceContainerLowest.copy(alpha=0.8f)`, backdrop blur, `RoundedCornerShape(topStart=12.dp, topEnd=12.dp)`
-- Active item: `primaryContainer` circle background, `onPrimaryContainer` icon (filled variant)
-- Inactive items: `secondary` tint; `Revert` uses `RestoreFromTrash` (trash bin with upward restore arrow) so it is visually distinct from the top-bar `Sync` Reload icon
-- Padding: 32dp horizontal, 32dp bottom (for nav bar insets)
+(The names under the icons are the spoken `contentDescription` and the long-press tooltip; they are not drawn.)
 
-**Integrate in:** `ui/phonemode/PhoneModeScreen.kt` — wrap the content in a `Scaffold` or add the nav bar as a fixed overlay at `Alignment.BottomCenter`.
+- Each control: a 24 dp icon in a 72 × 48 dp target, `contentDescription` from a `cd_` string, and a long-press tooltip (`NameTooltip`, Material3 `TooltipBox` + `PlainTooltip`) with the same name. The tooltip only listens for the long press, so taps are unaffected. Removing the micro-label did not shrink the target, so `PhoneModeChromeMetrics` and the controls-guide geometry are unchanged.
+- Container: `surfaceContainerLowest.copy(alpha=0.8f)`, `RoundedCornerShape(topStart=12.dp, topEnd=12.dp)`
+- Active item: `primaryContainer` background, `onPrimaryContainer` icon (filled variant)
+- Inactive items: `secondary` tint; Revert uses `RestoreFromTrash` (trash bin with upward restore arrow) so it is visually distinct from the top-bar `Sync` Reload icon
+- Padding: 24 dp horizontal, 6 dp vertical, plus the navigation-bar inset
 
 ### Top app bar
 
-The top app bar shows the "Jackpix" logo + wordmark in `primary` color (bold) on the left, and four 48 dp action buttons on the right (`PhoneModeTopBar`): `Sync` (Reload folder), `HelpOutline` (Controls guide), `Info` (EXIF metadata toggle), and `Settings`; an SD/USB source adds `SdCard` (Done with this card) before them. The status and navigation bars always draw light icons over the dark UI (also after a rotation; system light mode must not flip them). TalkBack names: logo "Jackpix logo: show or hide camera info", Info "Toggle EXIF stats", Help "Show controls guide" / "Hide controls guide". In landscape orientation, the left and right side panels render these actions as `SidePanelButton` items with visible `9.sp` micro-labels (`Sources`, `Selection`, `Revert`, `Help`, `Reload`, `Info`, `Settings`).
+The top app bar shows the Jackpix brand mark (`ic_brand_mark`, tinted `primary`) on the left, and four 48 dp **icon-only** action buttons on the right (`PhoneModeTopBar`): `Sync` (Reload folder), `HelpOutline` (Controls guide), `Info` (EXIF metadata toggle), and `Settings`; an SD/USB source adds `SdCard` (Done with this card) before them. Every button has a spoken name, a long-press tooltip with the same text and a 48 dp target. The status and navigation bars always draw light icons over the dark UI (also after a rotation; system light mode must not flip them). In landscape orientation, the left and right side panels render the same actions as icon-only `SidePanelButton` items (64 × 48 dp) and `TopBarIconButton`s; the micro-labels are withdrawn.
 
 **Add to:** `PhoneModeScreen.kt` — fixed `Row` at `Alignment.TopStart` with statusBarsPadding.
 
@@ -335,7 +335,7 @@ Use `AnimatedVisibility` with fade for all overlay elements.
 ### Header
 
 **Current:** "How it works" (`headlineSmall`)
-**New:** "How to Jackpix" (`headlineMedium`, bold), white + "Master the curation flow with these simple gestures" subtitle (`bodyMedium`, `onSurfaceVariant`)
+**New:** no header at all. The callouts name the controls and the gestures explain themselves; a title only adds text (REQ-TOK-UX.04). "Master the curation flow…" style subtitles are marketing copy and are not shown.
 
 ### Gesture cards
 
@@ -358,18 +358,16 @@ Use `AnimatedVisibility` with fade for all overlay elements.
 
 **New:**
 - Fixed at bottom with gradient fade-out above (`Color(0xFF09090B)` → transparent)
-- `primaryContainer` fill, `onPrimaryContainer` text
-- `RoundedCornerShape(12.dp)`, full width
-- Text: "GOT IT" uppercase, wide tracking (`labelLarge`)
-- `active:scale-[0.98]` feel
+- `primaryContainer` fill, `onPrimaryContainer` check icon (no text; spoken name "Got it")
+- `RoundedCornerShape(12.dp)`, full width, 48 dp high
 
 ---
 
 ## 6. New Components Needed
 
-### `ui/components/BottomNavBar.kt` (new file)
+### `ui/components/BottomNavBar.kt`
 
-Three-tab navigation bar shared across all screens. See Landing section above for spec.
+Holds `ViewerBottomBar` (see the viewer bottom bar section above) and `NameTooltip.kt` next to it, the long-press tooltip every icon-only control uses. The three-tab `BottomNavBar` of the first mockup was never wired in and has been removed.
 
 ### `ui/components/TopAppBar.kt` (new file or inline)
 
@@ -397,57 +395,87 @@ For now, keep the 2-state approach but add the bottom nav bar visually. The `his
 
 ## 8. Copy & messaging
 
-Jackpix is a gesture app: people look at photos, not at text. Every dialog, hint card and
-snackbar follows these rules. They are binding for new UI as well (REQ-TOK-UX.01).
+Jackpix is a gesture app: people look at photos, not at text. Every dialog, hint card, snackbar,
+bar, chip, settings row and callout follows these rules. They are binding for new UI as well
+(REQ-TOK-UX.01–.05). The budgets (words and characters per element, EN and DE) and the review
+checklist are in [`docs/shared/UI_TEXT.md`](../../shared/UI_TEXT.md); `scripts/check_ui_text_budget.py`
+fails the build on any finding. This section applies them to Jackpix.
 
 ### Rules
 
-1. **Don't ask when there is nothing to decide.** If one choice is clearly right, take it. For
+1. **Icon first.** A control is an icon with no visible text. Bars (bottom bar, top bar, landscape
+   side panels) are icon-only: a spoken `contentDescription` (`cd_` string), a long-press tooltip
+   with the same name (`NameTooltip`) and a touch target of at least 48 dp. The only visible words
+   next to an icon are these exceptions: the three landing source cards (icon above "Camera" /
+   "SD card / USB" / "Folder or cloud": a first-run choice the icons alone cannot tell apart) and
+   the controls guide's callouts, whose job is to name the icons once.
+2. **Don't ask when there is nothing to decide.** If one choice is clearly right, take it. For
    example, reopening a folder with no new photos resumes at the saved photo without a dialog.
-2. **The title carries the message.** A dialog title states the fact or the question in ≤ 5 words; a hint headline states one rule in ≤ 6. Use a
-   number instead of a sentence: "3 new photos", not "3 newer photos were added since you
-   last left".
-3. **Body text is optional.** Use at most one short sentence, and only when the title and
-   buttons cannot stand alone (for example, "This location has no trash." explains
-   *permanently*). Drop "Choose how you would like to…" paragraphs.
-4. **Buttons name the outcome.** Write "Show new", "Stay", "Show both, linked", "RAW",
-   "JPEG", "Leave as is", never "Yes"/"OK". No subline under a button, except under the
-   single recommended or non-obvious option ("1 card per shot": "Swipes act on both files").
-5. **Point at Settings with an action, not a sentence.** Hint cards for configurable behaviour
-   carry a `SETTINGS` action. "You can change this in Settings." is not written anywhere. The
-   one exception is the direct-delete dialog: its confirm/cancel slots are taken, so a single
-   small `bodySmall` line reads "Turn off this prompt in Settings." (REQ-TOK-GESTURE.03).
-6. **Say only what the user cannot see.** No snackbar confirms a jump the user just watched
-   happen. A hint names the *rule* ("Swipe right copies to Selection"), because the copy/move
-   snackbar already reports the event ("Copied to Selection").
-7. **Snackbars use ≤ 4 words**, for example "No new photos", "RAW + JPEG linked" or
-   "Showing RAW only". Error feedback may name the folder and the count.
-8. **One neutral exit.** Multi-choice dialogs have exactly one neutral button ("Leave as is",
-   "Stay"). Back and tap-outside do the same thing, so there is no extra close ✕ next to it.
-9. **Be truthful.** Never say "trash" for a delete that does not go to a trash. Keep the
-   configured verb (copy/move) and the folder name, and never write "Keep".
-10. **No marketing copy** inside the app ("high-velocity curation", "Master the curation flow").
-11. **Sentence case** for titles and buttons. The ALL-CAPS action labels on hint cards
-    (`GOT IT`, `SETTINGS`, `SHOW ALL`) are the only exception.
+3. **The title carries the message.** A dialog title states the fact or the question in ≤ 5 words;
+   a hint headline states one rule in ≤ 6. Use a number instead of a sentence: "3 new photos".
+4. **Body text only for data loss, storage access, first run or an error that needs a decision**,
+   then one line ("This location has no trash."). Settings rows have a title and at most a value
+   (folder name) or a data-loss warning; no subtitle explains a row. Landing cards, guide callouts
+   and chips have no description line.
+5. **Buttons name the outcome** in ≤ 2 words ("Show new", "Stay", "Link both", "Don't change"),
+   never "Yes"/"OK"; no subline except under the single non-obvious option ("Merge pairs": "Swipes act
+   on both files").
+6. **Point at Settings with an action, not a sentence.** Hint cards for configurable behaviour carry
+   a "Settings" action. The one exception is the direct-delete dialog: its confirm/cancel slots are
+   taken, so a single small line reads "Turn off this prompt in Settings." (REQ-TOK-GESTURE.03).
+7. **Say only what the user cannot see, once.** No snackbar or hint confirms what the user just
+   watched. Swipes, page changes and Undo get no hint: the controls guide shows them once and the
+   result is on screen; the copy/move snackbar reports where a file went ("Copied to Selection").
+   Hints remain only for effects that are not visible (a tap hid the overlays; how to leave zoom).
+8. **Snackbars use ≤ 4 words**; errors ≤ 8 words and never a raw exception message. Milestones
+   carry no "!".
+9. **One neutral exit.** Multi-choice dialogs have exactly one neutral button ("Don't change",
+   "Stay"); back and tap-outside do the same.
+10. **Be truthful and consistent.** Never say "trash" for a delete that does not go to a trash. Keep
+    the configured verb (copy/move) and the folder name; never write "Keep". One word per action:
+    "Undo delete" (not Revert/Restore), "Merge pairs"/"Pairs merged".
+11. **No marketing copy**: no tagline, no "engine"/"curation" language.
+12. **Resources, EN and DE.** Every string is in `res/values/strings.xml` with an element prefix
+    (`action_`, `chip_`, `label_`, `title_`, `dialog_title_`, `dialog_body_`, `snackbar_`, `error_`,
+    `empty_`, `hint_title_`, `hint_body_`, `setting_title_`, `setting_summary_`, `guide_`, `cd_`) and
+    in `values-de/strings.xml`; counts are `<plurals>`. Domain wording classes return `UiText`
+    (resource id + arguments), resolved in Compose (`UiText.asString()`); ViewModels hold no `Context`.
+    Sentence case in English; German follows German capitalisation. Layouts must fit EN and DE at
+    font scale 2.0 (`TextLoadScreenshotTest`).
 
-### Reference wording
+### Exceptions: a word next to a control
+
+| Where | Text | Why |
+|---|---|---|
+| Landing source cards | "Camera", "SD card / USB", "Folder or cloud" | Cards, not bar controls; three sources with one icon each need a name once, on the landing page only. |
+| Swipe indicators and guide swipe callouts | COPY / MOVE / DELETE (+ the folder name as a value) | The only thing telling a gesture-first user what a swipe does (REQ-TOK-GESTURE.01/.07). |
+| Controls-guide callouts | one or two words per control | The guide exists to name the controls; ≤ 2 words, no description. |
+| Hint-card action | "Settings", "Show all" | A pointer to Settings is an action, not a sentence. |
+
+### Reference wording (EN · DE)
 
 | Surface | Title | Body | Actions |
 |---|---|---|---|
-| New photos on reload/reopen (`FolderResumeDialog`) | "1 new photo" / "N new photos" (+ photo icon) | — | **Show new** · Stay |
+| Bottom bar | *icons only* | — | spoken/tooltip: "Change folder" · "Selection" · "Undo last delete" (DE "Ordner wechseln" · "Auswahl" · "Letztes Löschen rückgängig machen") |
+| Top bar | *icons only* | — | spoken/tooltip: "Done with this card" · "Reload folder" · "Show/Hide controls guide" · "Show or hide camera info" · "Settings" |
+| Controls guide | callouts: "Camera info" · "Card done" · "Reload" · "Help" · "Info" · "Settings" · "Change folder" · "Selection" · "Undo delete" · "Next" · "Previous" · "Hide overlays" · "Zoom" (DE "Kamera-Info" · "Karte fertig" · "Neu laden" · "Hilfe" · "Info" · "Einstellungen" · "Ordner" · "Auswahl" · "Rückgängig" · "Weiter" · "Zurück" · "Anzeigen aus" · "Zoom") | swipe captions: Copy / Move / Delete with the configured folder name beneath (★ Favourites when the source kind favourites) | dismiss: ✓ icon ("Got it" spoken) |
+| New photos on reload/reopen (`FolderResumeDialog`) | "1 new photo" / "N new photos" (DE "N neue Fotos") | — | **Show new** · Stay (DE **Neue zeigen** · Bleiben) |
 | No new photos | *no dialog* | — | explicit Reload only: snackbar "No new photos" |
-| RAW + JPEG pairs (`RawJpegSuggestionDialog`) | "RAW + JPEG pairs" | — | **1 card per shot** (subline "Swipes act on both files") · Show both, linked · *Show only*: RAW · JPEG · Leave as is |
-| Direct delete (`DirectDeleteDialog`) | "Delete permanently?" | "This location has no trash." + small "Turn off this prompt in Settings." | Cancel · **Delete** |
-| Hint: swipe right / left to folder | "Swipe right copies to «folder»" | — | SETTINGS · GOT IT |
-| Hint: swipe left delete | "Swipe left deletes" | "Tap Revert to undo." | SETTINGS · GOT IT |
-| Hint: filter mismatch | "RAW only" / "JPEG only" | "Most photos here are JPEG." | SHOW ALL · GOT IT |
-| Hints: vertical, tap, zoom, revert | "Your place is saved per folder" · "Tap again to show the overlays" · "Drag to pan, double-tap to reset" · "Revert undoes the last delete only" | — | GOT IT |
-| SD / USB card done (`showCardDoneSheet`) | "Done with this card" | — | **Keep all photos** · Delete rejects · Delete all (N) · Cancel |
+| RAW + JPEG pairs (`RawJpegSuggestionDialog`) | "RAW + JPEG pairs" | — | **Merge pairs** (subline "Swipes act on both files") · Link both · *Show only*: RAW · JPEG · Don't change (DE **Paare bündeln** · Beide verknüpfen · Nur zeigen: RAW · JPEG · Nicht ändern) |
+| Direct delete (`DirectDeleteDialog`) | "Delete permanently?" (DE "Endgültig löschen?") | "This location has no trash." + small "Turn off this prompt in Settings." (DE "In den Einstellungen abschaltbar.") | Cancel · **Delete** |
+| Hint: filter mismatch | "RAW only" / "JPEG only" | "Most photos here are JPEG." | Show all ✕ |
+| Hints: tap, zoom | "Tap again to show overlays" · "Double-tap to reset" (DE "Doppeltippen setzt zurück") | — | ✕ |
+| *No hint* | swipes (the guide shows them once), first page change, first revert: the user just watched the result | — | — |
+| SD / USB card done (`showCardDoneSheet`) | "Card done" | — | **Keep all** · Delete rejects · Delete all (N) · Cancel |
 | Clear whole card confirm | "Delete all N photos?" | "Photos not copied off the card are lost." | Cancel · **Delete all** |
-| Snackbars | — | "No new photos" · "RAW + JPEG linked" · "Showing RAW only" · "Safe to unplug" · "Rejects deleted" · "Cloud folder: copying, not moving" | — |
-| Landing: folder access lost | "Folder Access Needed" | "Access to this folder was lost." | Re-select Folder |
-| Landing: empty folder | "No Photos Found" | "«Folder» has no supported photos" | — |
+| Snackbars | — | "Copied to «folder»" · "Moved to «folder» +K" · "Moved as «name»" · "Marked as favourite" · "No new photos" · "Pairs merged" · "RAW + JPEG linked" · "Safe to unplug" · "Rejects deleted" · "N deleted" · "Cloud: copy only" · "Card disconnected" · "50 MB freed" · "100 reviewed" | — |
+| Errors | — | "Copy to «folder» failed" · "Moved 2 of 3 to «folder»" · "Copied to «folder», original not removed" · "Couldn't delete «file»" · "Can't open this folder" | — |
+| Landing | *no tagline, no section labels* | — | folder name as a value · **Resume** / Start |
+| Landing: folder access lost | "Folder access lost" | — | Re-select |
+| Landing: empty folder | "«Folder»: no photos" | — | — |
+| Settings (first screen) | "Source folder" (value: folder name) · "Reload folder" · "Selection folder" · "RAW / JPEG folders" · "Selection location" (value: Custom/Default) · "Reset this folder" · "Reset all folders" · "Clear cache" · "Confirm delete" (warning "Deletes without asking") · "Milestones" · "Link RAW + JPEG" · "Privacy Policy" · "Legal Notice (Impressum)" | — | — |
 
 Hint cards auto-dismiss after 7 s. A card with an action stays for 12 s, so there is time to
-reach the button. The pure `com.phototok.domain.FirstRunHintText` owns the hint wording, and
-`FirstRunHintTextTest` enforces the length and no-Settings-sentence rules.
+reach the button. The pure `com.phototok.domain.FirstRunHintText` owns the hint wording,
+`FirstRunHintTextTest` enforces the length and no-Settings-sentence rules, and
+`StringResourcesTest` keeps EN and DE in step.

@@ -50,13 +50,16 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.photoselector.core.storage.SourceKind
+import com.phototok.R
 import com.phototok.domain.FeedOrderMode
 import com.phototok.domain.FileTypeFilter
 import com.phototok.domain.SwipeAction
+import com.phototok.domain.PhotoFolders
 import com.phototok.domain.SwipeRightVerb
 import com.phototok.viewmodel.SettingsViewModel
 
@@ -97,10 +100,10 @@ fun SettingsScreen(
             .padding(vertical = 16.dp),
     ) {
         // ── Storage ──────────────────────────────────────────────────
-        SettingsSection(title = "Storage", icon = Icons.Default.Storage) {
+        SettingsSection(title = stringResource(R.string.title_storage), icon = Icons.Default.Storage) {
             SettingsClickItem(
-                title = "Source Folder",
-                description = uiState.sourceFolderName.ifEmpty { "No source folder selected" },
+                title = stringResource(R.string.setting_title_source_folder),
+                summary = uiState.sourceFolderName.ifEmpty { stringResource(R.string.setting_summary_none) },
                 onClick = { onChangeSourceFolder?.invoke() },
                 icon = Icons.Default.FolderOpen,
             )
@@ -108,8 +111,7 @@ fun SettingsScreen(
             if (onReloadFolder != null && uiState.sourceFolderName.isNotEmpty()) {
                 HorizontalDivider(color = colors.outlineVariant.copy(alpha = 0.2f))
                 SettingsClickItem(
-                    title = "Reload Folder",
-                    description = "Rescan photos in source folder",
+                    title = stringResource(R.string.setting_title_reload),
                     onClick = onReloadFolder,
                     icon = Icons.Default.Sync,
                 )
@@ -123,15 +125,9 @@ fun SettingsScreen(
                     .padding(16.dp),
             ) {
                 Text(
-                    text = "Selection Subfolder",
+                    text = stringResource(R.string.setting_title_selection_folder),
                     style = MaterialTheme.typography.labelLarge,
                     color = colors.onSurface,
-                )
-                Spacer(modifier = Modifier.height(2.dp))
-                Text(
-                    text = "Created inside the source folder by default",
-                    style = MaterialTheme.typography.labelMedium,
-                    color = colors.onSurfaceVariant,
                 )
                 Spacer(modifier = Modifier.height(8.dp))
                 OutlinedTextField(
@@ -150,7 +146,7 @@ fun SettingsScreen(
                         unfocusedContainerColor = colors.surfaceDim,
                     ),
                     placeholder = {
-                        Text(text = "Selection", color = colors.onSurfaceVariant)
+                        Text(text = PhotoFolders.SELECTION, color = colors.onSurfaceVariant)
                     },
                 )
                 Spacer(modifier = Modifier.height(4.dp))
@@ -162,7 +158,7 @@ fun SettingsScreen(
                         onClick = { viewModel.updateSelectionFolder(editingFolderName) },
                         modifier = Modifier.align(Alignment.End),
                     ) {
-                        Text("Save", color = colors.primary)
+                        Text(stringResource(R.string.action_save), color = colors.primary)
                     }
                 }
             }
@@ -170,8 +166,7 @@ fun SettingsScreen(
             HorizontalDivider(color = colors.outlineVariant.copy(alpha = 0.2f))
 
             SettingsToggleItem(
-                title = "Organize Selection by RAW / JPEG",
-                description = "Create RAW/ and JPEG/ subfolders inside Selection",
+                title = stringResource(R.string.setting_title_raw_jpeg_folders),
                 checked = uiState.sortingEnabled,
                 onCheckedChange = { viewModel.updateSortingEnabled(it) },
             )
@@ -179,31 +174,22 @@ fun SettingsScreen(
             HorizontalDivider(color = colors.outlineVariant.copy(alpha = 0.2f))
 
             SettingsClickItem(
-                title = "Custom Collection Location",
-                description = if (uiState.collectionUri != null) {
-                    "Using custom folder"
-                } else {
-                    "Default: subfolder in source folder"
-                },
+                title = stringResource(R.string.setting_title_selection_location),
+                summary = stringResource(
+                    if (uiState.collectionUri != null) R.string.setting_summary_custom else R.string.setting_summary_default,
+                ),
                 onClick = { selectionFolderPickerLauncher.launch(null) },
                 trailing = {
                     if (uiState.collectionUri != null) {
                         TextButton(onClick = { viewModel.updateCollectionUri(null) }) {
-                            Text("Reset", color = colors.primary)
+                            Text(stringResource(R.string.action_reset), color = colors.primary)
                         }
                     } else {
-                        Row(verticalAlignment = Alignment.CenterVertically) {
-                            Text(
-                                text = "Change",
-                                style = MaterialTheme.typography.labelMedium,
-                                color = colors.primary,
-                            )
-                            Icon(
-                                imageVector = Icons.Default.ChevronRight,
-                                contentDescription = null,
-                                tint = colors.primary,
-                            )
-                        }
+                        Icon(
+                            imageVector = Icons.Default.ChevronRight,
+                            contentDescription = null,
+                            tint = colors.primary,
+                        )
                     }
                 },
             )
@@ -213,11 +199,11 @@ fun SettingsScreen(
             var seenFolderReset by remember(uiState.sourceFolderUri) { mutableStateOf(false) }
             if (uiState.sourceFolderUri != null) {
                 SettingsClickItem(
-                    title = "Reset Seen History for Current Folder",
-                    description = if (seenFolderReset) {
-                        "Seen history cleared for ${uiState.sourceFolderName.ifEmpty { "current folder" }}"
+                    title = stringResource(R.string.setting_title_reset_folder),
+                    summary = if (seenFolderReset) {
+                        stringResource(R.string.setting_summary_done)
                     } else {
-                        "Mark all photos in ${uiState.sourceFolderName.ifEmpty { "current folder" }} as unseen"
+                        uiState.sourceFolderName.ifEmpty { null }
                     },
                     onClick = {
                         viewModel.resetSeenForCurrentFolder {
@@ -231,12 +217,8 @@ fun SettingsScreen(
 
             var allSeenReset by remember { mutableStateOf(false) }
             SettingsClickItem(
-                title = "Reset All Seen History",
-                description = if (allSeenReset) {
-                    "All seen history cleared"
-                } else {
-                    "Reset reviewed photo progress across all folders and cards"
-                },
+                title = stringResource(R.string.setting_title_reset_all),
+                summary = if (allSeenReset) stringResource(R.string.setting_summary_done) else null,
                 onClick = {
                     viewModel.resetAllSeenHistory {
                         allSeenReset = true
@@ -249,36 +231,27 @@ fun SettingsScreen(
 
             var cacheCleared by remember { mutableStateOf(false) }
             SettingsClickItem(
-                title = "Delete Cache",
-                description = if (cacheCleared) "Cache deleted" else "Clear image cache & folder scan history",
+                title = stringResource(R.string.setting_title_clear_cache),
+                summary = if (cacheCleared) stringResource(R.string.setting_summary_done) else null,
                 onClick = {
                     viewModel.clearCache {
                         cacheCleared = true
                     }
                 },
                 icon = Icons.Default.Delete,
-                trailing = {
-                    TextButton(onClick = {
-                        viewModel.clearCache {
-                            cacheCleared = true
-                        }
-                    }) {
-                        Text(if (cacheCleared) "Deleted" else "Delete", color = colors.primary)
-                    }
-                },
             )
         }
 
         Spacer(modifier = Modifier.height(8.dp))
 
         // ── Browsing (per-SourceKind presets + global toggles) ───────
-        SettingsSection(title = "Browsing", icon = Icons.Default.BrowseGallery) {
+        SettingsSection(title = stringResource(R.string.title_browsing), icon = Icons.Default.BrowseGallery) {
             SettingsRadioGroup(
-                title = "Source Preset",
+                title = stringResource(R.string.setting_title_source_type),
                 options = listOf(
-                    SourceKind.PHONE_LIBRARY to "Phone",
-                    SourceKind.REMOVABLE to "SD / Card",
-                    SourceKind.CAMERA_MTP to "Camera",
+                    SourceKind.PHONE_LIBRARY to stringResource(R.string.chip_phone),
+                    SourceKind.REMOVABLE to stringResource(R.string.chip_sd_card),
+                    SourceKind.CAMERA_MTP to stringResource(R.string.chip_camera),
                 ),
                 selected = uiState.selectedSourceKind,
                 onSelect = { viewModel.selectSourceKindTab(it) },
@@ -287,12 +260,12 @@ fun SettingsScreen(
             HorizontalDivider(color = colors.outlineVariant.copy(alpha = 0.2f))
 
             SettingsRadioGroup(
-                title = "Feed Order",
+                title = stringResource(R.string.setting_title_feed_order),
                 options = listOf(
-                    FeedOrderMode.NEWEST_FIRST to "Newest first",
-                    FeedOrderMode.SHOOTING to "Shooting order (filename)",
-                    FeedOrderMode.SHUFFLE to "Shuffle (unseen first)",
-                    FeedOrderMode.ORIENTATION_THEN_NEWEST to "Group by orientation",
+                    FeedOrderMode.NEWEST_FIRST to stringResource(R.string.chip_newest),
+                    FeedOrderMode.SHOOTING to stringResource(R.string.chip_by_filename),
+                    FeedOrderMode.SHUFFLE to stringResource(R.string.chip_shuffle),
+                    FeedOrderMode.ORIENTATION_THEN_NEWEST to stringResource(R.string.chip_by_orientation),
                 ),
                 selected = uiState.feedOrder,
                 onSelect = { viewModel.updateFeedOrder(it) },
@@ -311,15 +284,9 @@ fun SettingsScreen(
                 ) {
                     Column(modifier = Modifier.weight(1f)) {
                         Text(
-                            text = "Direct Delete Confirmation",
+                            text = stringResource(R.string.setting_title_confirm_delete),
                             style = MaterialTheme.typography.labelLarge,
                             color = colors.onSurface,
-                        )
-                        Spacer(modifier = Modifier.height(2.dp))
-                        Text(
-                            text = "Ask before deleting permanently",
-                            style = MaterialTheme.typography.labelMedium,
-                            color = colors.onSurfaceVariant,
                         )
                     }
 
@@ -345,13 +312,13 @@ fun SettingsScreen(
                     ) {
                         Icon(
                             imageVector = Icons.Default.Warning,
-                            contentDescription = "Warning",
+                            contentDescription = stringResource(R.string.cd_warning),
                             tint = colors.error,
                             modifier = Modifier.size(16.dp)
                         )
                         Spacer(modifier = Modifier.width(6.dp))
                         Text(
-                            text = "Deletes permanently without asking",
+                            text = stringResource(R.string.setting_summary_deletes_unasked),
                             style = MaterialTheme.typography.labelSmall,
                             color = colors.error,
                         )
@@ -362,8 +329,7 @@ fun SettingsScreen(
             HorizontalDivider(color = colors.outlineVariant.copy(alpha = 0.2f))
 
             SettingsToggleItem(
-                title = "Show EXIF Stats",
-                description = "Display aperture and ISO data",
+                title = stringResource(R.string.setting_title_camera_info),
                 checked = uiState.showExifOverlay,
                 onCheckedChange = { viewModel.updateShowExifOverlay(it) },
             )
@@ -371,8 +337,7 @@ fun SettingsScreen(
             HorizontalDivider(color = colors.outlineVariant.copy(alpha = 0.2f))
 
             SettingsToggleItem(
-                title = "Milestone Celebrations",
-                description = "Celebrate space freed and photo review milestones",
+                title = stringResource(R.string.setting_title_milestones),
                 checked = uiState.celebrationsEnabled,
                 onCheckedChange = { viewModel.updateCelebrationsEnabled(it) },
             )
@@ -380,8 +345,7 @@ fun SettingsScreen(
             HorizontalDivider(color = colors.outlineVariant.copy(alpha = 0.2f))
 
             SettingsToggleItem(
-                title = "Move Related Files",
-                description = "Also move/delete same-name files (e.g. .JPG + .RAW)",
+                title = stringResource(R.string.setting_title_link_raw_jpeg),
                 checked = uiState.moveRelatedFiles,
                 onCheckedChange = { viewModel.updateMoveRelatedFiles(it) },
             )
@@ -389,12 +353,12 @@ fun SettingsScreen(
             HorizontalDivider(color = colors.outlineVariant.copy(alpha = 0.2f))
 
             SettingsRadioGroup(
-                title = "Format Filter",
+                title = stringResource(R.string.setting_title_format_filter),
                 options = listOf(
-                    FileTypeFilter.ONE_PER_SHOT to "1 per shot (Recommended)",
-                    FileTypeFilter.ALL to "Both",
-                    FileTypeFilter.RAW to "RAW only",
-                    FileTypeFilter.JPG to "JPG only",
+                    FileTypeFilter.ONE_PER_SHOT to stringResource(R.string.chip_pairs_merged),
+                    FileTypeFilter.ALL to stringResource(R.string.chip_both),
+                    FileTypeFilter.RAW to stringResource(R.string.chip_raw_only),
+                    FileTypeFilter.JPG to stringResource(R.string.chip_jpeg_only),
                 ),
                 selected = uiState.fileTypeFilter,
                 onSelect = { viewModel.updateFileTypeFilter(it) },
@@ -403,11 +367,11 @@ fun SettingsScreen(
             HorizontalDivider(color = colors.outlineVariant.copy(alpha = 0.2f))
 
             SettingsRadioGroup(
-                title = "Swipe Right Action",
+                title = stringResource(R.string.setting_title_swipe_right),
                 options = listOf(
-                    SwipeRightVerb.FAVOURITE to "★ Favourite (in-place)",
-                    SwipeRightVerb.COPY to "Copy to Selection",
-                    SwipeRightVerb.MOVE to "Move to Selection",
+                    SwipeRightVerb.FAVOURITE to stringResource(R.string.chip_favourite),
+                    SwipeRightVerb.COPY to stringResource(R.string.chip_copy),
+                    SwipeRightVerb.MOVE to stringResource(R.string.chip_move),
                 ),
                 selected = uiState.swipeRightVerb,
                 onSelect = { viewModel.updateSwipeRightVerb(it) },
@@ -417,11 +381,11 @@ fun SettingsScreen(
 
             // Left swipe action (triggered by swipe-left)
             SettingsRadioGroup(
-                title = "Left Swipe Action",
+                title = stringResource(R.string.setting_title_swipe_left),
                 options = listOf(
-                    SwipeAction.DELETE to "Delete / Trash",
-                    SwipeAction.COPY to "Copy to Custom Folder",
-                    SwipeAction.MOVE to "Move to Custom Folder",
+                    SwipeAction.DELETE to stringResource(R.string.chip_delete),
+                    SwipeAction.COPY to stringResource(R.string.chip_copy),
+                    SwipeAction.MOVE to stringResource(R.string.chip_move),
                 ),
                 selected = uiState.leftSwipeAction,
                 onSelect = { viewModel.updateLeftSwipeAction(it) },
@@ -431,27 +395,22 @@ fun SettingsScreen(
                 HorizontalDivider(color = colors.outlineVariant.copy(alpha = 0.2f))
 
                 SettingsClickItem(
-                    title = "Left Swipe Custom Location",
-                    description = if (uiState.leftSwipeUri != null) "Using custom folder" else "Default: subfolder in source",
+                    title = stringResource(R.string.setting_title_left_folder),
+                    summary = stringResource(
+                        if (uiState.leftSwipeUri != null) R.string.setting_summary_custom else R.string.setting_summary_default,
+                    ),
                     onClick = { leftSwipeFolderPickerLauncher.launch(null) },
                     trailing = {
                         if (uiState.leftSwipeUri != null) {
                             TextButton(onClick = { viewModel.updateLeftSwipeUri(null) }) {
-                                Text("Reset", color = colors.primary)
+                                Text(stringResource(R.string.action_reset), color = colors.primary)
                             }
                         } else {
-                            Row(verticalAlignment = Alignment.CenterVertically) {
-                                Text(
-                                    text = "Change",
-                                    style = MaterialTheme.typography.labelMedium,
-                                    color = colors.primary,
-                                )
-                                Icon(
-                                    imageVector = Icons.Default.ChevronRight,
-                                    contentDescription = null,
-                                    tint = colors.primary,
-                                )
-                            }
+                            Icon(
+                                imageVector = Icons.Default.ChevronRight,
+                                contentDescription = null,
+                                tint = colors.primary,
+                            )
                         }
                     },
                 )
@@ -461,10 +420,9 @@ fun SettingsScreen(
         Spacer(modifier = Modifier.height(8.dp))
 
         // ── Recent folders ───────────────────────────────────────────
-        SettingsSection(title = "Recent Folders", icon = Icons.Default.History) {
+        SettingsSection(title = stringResource(R.string.title_recent), icon = Icons.Default.History) {
             SettingsToggleItem(
-                title = "Show Recent Folders",
-                description = "List last-used folders on the start screen",
+                title = stringResource(R.string.setting_title_show_recent),
                 checked = uiState.recentPathsEnabled,
                 onCheckedChange = { viewModel.updateRecentPathsEnabled(it) },
             )
@@ -472,7 +430,7 @@ fun SettingsScreen(
             HorizontalDivider(color = colors.outlineVariant.copy(alpha = 0.2f))
 
             SettingsRadioGroup(
-                title = "How Many to Show",
+                title = stringResource(R.string.setting_title_recent_count),
                 options = listOf("1" to "1", "3" to "3", "5" to "5", "10" to "10"),
                 selected = uiState.recentPathsCount.toString(),
                 onSelect = { viewModel.updateRecentPathsCount(it.toIntOrNull() ?: 3) },
@@ -482,16 +440,12 @@ fun SettingsScreen(
         Spacer(modifier = Modifier.height(8.dp))
 
         // ── Help ─────────────────────────────────────────────────────
-        SettingsSection(title = "Help", icon = Icons.AutoMirrored.Filled.HelpOutline) {
+        SettingsSection(title = stringResource(R.string.title_help), icon = Icons.AutoMirrored.Filled.HelpOutline) {
             var tutorialsReset by remember { mutableStateOf(false) }
 
             SettingsClickItem(
-                title = "Reset Tutorials",
-                description = if (tutorialsReset) {
-                    "Tips will show again"
-                } else {
-                    "Show all tips again"
-                },
+                title = stringResource(R.string.setting_title_reset_tips),
+                summary = if (tutorialsReset) stringResource(R.string.setting_summary_done) else null,
                 onClick = { viewModel.resetTutorials { tutorialsReset = true } },
                 icon = Icons.Default.RestartAlt,
             )
@@ -500,7 +454,7 @@ fun SettingsScreen(
         Spacer(modifier = Modifier.height(8.dp))
 
         // ── About ────────────────────────────────────────────────────
-        SettingsSection(title = "About", icon = Icons.Default.Info) {
+        SettingsSection(title = stringResource(R.string.title_about), icon = Icons.Default.Info) {
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
@@ -509,7 +463,7 @@ fun SettingsScreen(
                 verticalAlignment = Alignment.CenterVertically,
             ) {
                 Text(
-                    text = "App version",
+                    text = stringResource(R.string.setting_title_version),
                     style = MaterialTheme.typography.labelMedium,
                     color = colors.onSurfaceVariant,
                 )
@@ -523,8 +477,7 @@ fun SettingsScreen(
             HorizontalDivider(color = colors.outlineVariant.copy(alpha = 0.2f))
 
             SettingsClickItem(
-                title = "Source Code",
-                description = "View on GitHub",
+                title = stringResource(R.string.setting_title_source_code),
                 onClick = {
                     val intent = Intent(Intent.ACTION_VIEW, Uri.parse("https://github.com/alexpp90/photo-selector"))
                     try {
@@ -541,8 +494,7 @@ fun SettingsScreen(
             // Google Play requires the privacy policy to be accessible from
             // within the app; the Impressum link addresses § 5 DDG (Germany).
             SettingsClickItem(
-                title = "Privacy Policy",
-                description = "How Jackpix handles your data",
+                title = stringResource(R.string.setting_title_privacy),
                 onClick = {
                     val intent = Intent(Intent.ACTION_VIEW, Uri.parse(com.phototok.domain.LegalLinks.PRIVACY_POLICY))
                     try {
@@ -557,8 +509,7 @@ fun SettingsScreen(
             HorizontalDivider(color = colors.outlineVariant.copy(alpha = 0.2f))
 
             SettingsClickItem(
-                title = "Legal Notice (Impressum)",
-                description = "Provider identification",
+                title = stringResource(R.string.setting_title_legal),
                 onClick = {
                     val intent = Intent(Intent.ACTION_VIEW, Uri.parse(com.phototok.domain.LegalLinks.IMPRESSUM))
                     try {
@@ -568,24 +519,6 @@ fun SettingsScreen(
                     }
                 },
                 icon = Icons.Default.Gavel,
-            )
-        }
-
-        // Footer branding
-        Spacer(modifier = Modifier.height(32.dp))
-        Column(
-            modifier = Modifier.fillMaxWidth(),
-            horizontalAlignment = Alignment.CenterHorizontally,
-        ) {
-            Text(
-                text = "Jackpix",
-                style = MaterialTheme.typography.titleLarge,
-                color = colors.onSurface.copy(alpha = 0.3f),
-            )
-            Text(
-                text = "Professional Curation Engine",
-                style = MaterialTheme.typography.labelMedium,
-                color = colors.onSurface.copy(alpha = 0.2f),
             )
         }
 

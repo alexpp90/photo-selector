@@ -1,5 +1,7 @@
 package com.phototok.domain
 
+import com.phototok.R
+
 /**
  * One-time explanations shown the first time the user performs an action.
  *
@@ -9,16 +11,17 @@ package com.phototok.domain
  * "Reset tutorials" in Settings.
  */
 enum class FirstRunHint(val key: String) {
-    /** First swipe-right (add to collection). */
+    /** First swipe-right (add to collection). No longer shown (2026-10-19, REQ-TOK-UX.04): the guide explains it once. */
     SWIPE_RIGHT("swipe_right"),
 
-    /** First swipe-left when it copies or moves to the custom folder. */
+    /** First swipe-left when it copies or moves to the custom folder. No longer shown (2026-10-19, REQ-TOK-UX.04): the guide explains it once. */
     SWIPE_LEFT_FOLDER("swipe_left_folder"),
 
-    /** First swipe-left when it deletes. */
+    /** First swipe-left when it deletes. No longer shown (2026-10-19, REQ-TOK-UX.04): the guide explains it once. */
     SWIPE_LEFT_DELETE("swipe_left_delete"),
 
-    /** First vertical swipe (browsing the feed). */
+    /** First vertical swipe. No longer shown (2026-10-19, REQ-TOK-UX.04): the guide shows paging and
+     *  the user sees the page change. Kept so persisted seen-keys stay readable. */
     SWIPE_VERTICAL("swipe_vertical"),
 
     /** First single tap (HUD toggle). */
@@ -27,7 +30,8 @@ enum class FirstRunHint(val key: String) {
     /** First double tap (zoom). */
     DOUBLE_TAP_ZOOM("double_tap_zoom"),
 
-    /** First use of Revert. */
+    /** First use of Revert. No longer shown (2026-10-19, REQ-TOK-UX.01): the restored photo is on
+     *  screen. Kept so persisted seen-keys stay readable. */
     REVERT("revert"),
 
     /** Folder contains RAW+JPEG pairs of the same pictures. */
@@ -46,17 +50,14 @@ enum class FirstRunHint(val key: String) {
  *
  * Kept as a pure function of the user's current settings so the copy always
  * describes what *actually* happened (copy vs. move, which folder) rather than
- * a generic default — and so it is unit-testable without Android.
+ * a generic default — and so it is unit-testable without Android. It returns
+ * [UiText] (a string-resource id plus arguments); the card resolves it.
  *
  * Copy rules (docs/products/phototok/DESIGN.md, "Copy & messaging"): the title
- * states what happened in a few words, the message is one short sentence, and
+ * states the rule in at most six words, the message is one short line, and
  * a pointer to Settings is an action button ([offersSettings]), never text.
  */
 object FirstRunHintText {
-
-    /** Fallback wording when no custom folder name is known yet. */
-    private const val DEFAULT_COLLECTION = "collection"
-    private const val DEFAULT_LEFT_SWIPE = "folder"
 
     /** Hints whose behaviour is configurable; the card offers a Settings action. */
     fun offersSettings(hint: FirstRunHint): Boolean = hint in setOf(
@@ -68,7 +69,8 @@ object FirstRunHintText {
     /**
      * The hint's headline. For the swipe hints it names the *rule* ("Swipe right
      * copies to Keepers"), not the event — the copy/move snackbar already says
-     * what happened to this photo.
+     * what happened to this photo. A blank folder name falls back to the folder the
+     * app really creates ([PhotoFolders]).
      */
     fun title(
         hint: FirstRunHint,
@@ -78,51 +80,59 @@ object FirstRunHintText {
         leftSwipeFolderName: String = "",
         fileTypeFilter: FileTypeFilter = FileTypeFilter.DEFAULT,
         swipeRightVerb: SwipeRightVerb = collectionAction.toSwipeRightVerb(),
-    ): String = when (hint) {
+    ): UiText = when (hint) {
         FirstRunHint.SWIPE_RIGHT -> when (swipeRightVerb) {
-            SwipeRightVerb.FAVOURITE -> "Swipe right marks a favourite"
-            SwipeRightVerb.COPY -> "Swipe right copies to ${collectionFolderName.ifBlank { DEFAULT_COLLECTION }}"
-            SwipeRightVerb.MOVE -> "Swipe right moves to ${collectionFolderName.ifBlank { DEFAULT_COLLECTION }}"
+            SwipeRightVerb.FAVOURITE -> UiText.of(R.string.hint_title_swipe_right_favourite)
+            SwipeRightVerb.COPY ->
+                UiText.of(R.string.hint_title_swipe_right_copy, collectionFolderName.orDefault(PhotoFolders.SELECTION))
+            SwipeRightVerb.MOVE ->
+                UiText.of(R.string.hint_title_swipe_right_move, collectionFolderName.orDefault(PhotoFolders.SELECTION))
         }
         FirstRunHint.SWIPE_LEFT_FOLDER -> {
-            val verb = if (leftSwipeAction == SwipeAction.COPY) "copies" else "moves"
-            "Swipe left $verb to ${leftSwipeFolderName.ifBlank { DEFAULT_LEFT_SWIPE }}"
+            val folder = leftSwipeFolderName.orDefault(PhotoFolders.LEFT_SWIPE)
+            if (leftSwipeAction == SwipeAction.COPY) {
+                UiText.of(R.string.hint_title_swipe_left_copy, folder)
+            } else {
+                UiText.of(R.string.hint_title_swipe_left_move, folder)
+            }
         }
-        FirstRunHint.SWIPE_LEFT_DELETE -> "Swipe left deletes"
-        FirstRunHint.SWIPE_VERTICAL -> "Your place is saved per folder"
-        FirstRunHint.TAP_HUD -> "Tap again to show the overlays"
-        FirstRunHint.DOUBLE_TAP_ZOOM -> "Drag to pan, double-tap to reset"
-        FirstRunHint.REVERT -> "Revert undoes the last delete only"
-        FirstRunHint.RAW_JPEG_PAIRS -> "RAW + JPEG pairs"
+        FirstRunHint.SWIPE_LEFT_DELETE -> UiText.of(R.string.hint_title_swipe_left_delete)
+        FirstRunHint.SWIPE_VERTICAL -> UiText.of(R.string.hint_title_swipe_vertical)
+        FirstRunHint.TAP_HUD -> UiText.of(R.string.hint_title_tap_hud)
+        FirstRunHint.DOUBLE_TAP_ZOOM -> UiText.of(R.string.hint_title_double_tap_zoom)
+        FirstRunHint.REVERT -> UiText.of(R.string.hint_title_revert)
+        FirstRunHint.RAW_JPEG_PAIRS -> UiText.of(R.string.hint_title_raw_jpeg_pairs)
         FirstRunHint.FILTER_MISMATCH -> when (fileTypeFilter) {
-            FileTypeFilter.RAW -> "RAW only"
-            FileTypeFilter.JPG -> "JPEG only"
+            FileTypeFilter.RAW -> UiText.of(R.string.hint_title_filter_raw)
+            FileTypeFilter.JPG -> UiText.of(R.string.hint_title_filter_jpeg)
             FileTypeFilter.ALL,
             FileTypeFilter.ONE_PER_SHOT,
-            -> "Filter active"
+            -> UiText.of(R.string.hint_title_filter_active)
         }
     }
 
-    /** Optional second line; empty when the title says everything. */
+    /** Optional second line; `null` when the title says everything. */
     fun message(
         hint: FirstRunHint,
         fileTypeFilter: FileTypeFilter = FileTypeFilter.DEFAULT,
-    ): String = when (hint) {
-        FirstRunHint.SWIPE_LEFT_DELETE -> "Tap Revert to undo."
-        FirstRunHint.RAW_JPEG_PAIRS -> "Link them or show one format."
+    ): UiText? = when (hint) {
+        FirstRunHint.RAW_JPEG_PAIRS -> UiText.of(R.string.hint_body_raw_jpeg_pairs)
         FirstRunHint.FILTER_MISMATCH -> when (fileTypeFilter) {
-            FileTypeFilter.RAW -> "Most photos here are JPEG."
-            FileTypeFilter.JPG -> "Most photos here are RAW."
+            FileTypeFilter.RAW -> UiText.of(R.string.hint_body_filter_mostly_jpeg)
+            FileTypeFilter.JPG -> UiText.of(R.string.hint_body_filter_mostly_raw)
             FileTypeFilter.ALL,
             FileTypeFilter.ONE_PER_SHOT,
-            -> "Some photos are hidden."
+            -> UiText.of(R.string.hint_body_filter_hidden)
         }
         FirstRunHint.SWIPE_RIGHT,
         FirstRunHint.SWIPE_LEFT_FOLDER,
+        FirstRunHint.SWIPE_LEFT_DELETE, // the controls guide names Undo; no second line
         FirstRunHint.SWIPE_VERTICAL,
         FirstRunHint.TAP_HUD,
         FirstRunHint.DOUBLE_TAP_ZOOM,
         FirstRunHint.REVERT,
-        -> ""
+        -> null
     }
+
+    private fun String.orDefault(default: String): UiText = UiText.raw(ifBlank { default })
 }

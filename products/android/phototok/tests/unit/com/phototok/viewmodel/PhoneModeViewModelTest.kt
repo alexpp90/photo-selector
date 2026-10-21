@@ -1,6 +1,7 @@
 package com.phototok.viewmodel
 
 import android.net.Uri
+import com.phototok.R
 import com.phototok.data.model.ImageItem
 import com.phototok.data.source.FileOperationResult
 import com.phototok.data.model.PhoneSettings
@@ -9,7 +10,9 @@ import com.phototok.data.repository.SettingsRepository
 import com.phototok.domain.CollectionAction
 import com.phototok.domain.FirstRunHint
 import com.phototok.domain.FolderScanInfo
+import com.phototok.domain.PhotoFolders
 import com.phototok.domain.SwipeAction
+import com.phototok.domain.UiText
 import io.mockk.coEvery
 import io.mockk.coVerify
 import io.mockk.every
@@ -228,7 +231,7 @@ class PhoneModeViewModelTest {
         val feedback = state.lastActionFeedback
         assertNotNull(feedback)
         assertTrue(feedback!!.isError)
-        assertEquals("Moved 1 of 2 to collection, 1 failed", feedback.message)
+        assertEquals(UiText.of(R.string.error_moved_some, 1, 2, UiText.raw(PhotoFolders.SELECTION)), feedback.message)
         // Only the successfully moved file left the feed.
         assertTrue(state.images.any { it.fileName == "IMG_001.arw" })
         assertFalse(state.images.any { it.fileName == "IMG_001.jpg" })
@@ -243,7 +246,7 @@ class PhoneModeViewModelTest {
         viewModel.addToCollection()
 
         val state = viewModel.uiState.value
-        assertEquals("Copied to collection", state.lastActionFeedback?.message)
+        assertEquals(UiText.of(R.string.snackbar_copied, UiText.raw(PhotoFolders.SELECTION)), state.lastActionFeedback?.message)
         assertFalse(state.lastActionFeedback?.isError == true)
         assertEquals(2, state.images.size)
     }
@@ -286,28 +289,44 @@ class PhoneModeViewModelTest {
     // ── One-time action explanations ─────────────────────────────────────
 
     @Test
-    fun `first swipe right explains the action and marks it seen`() = runTest {
-        phoneSettingsFlow.value = PhoneSettings(collectionAction = CollectionAction.COPY)
-        val viewModel = loadFolder(image("a.jpg", 1), image("b.jpg", 2))
+    fun `swipes show no first-run hint - the guide explains them once`() = runTest {
+        phoneSettingsFlow.value = PhoneSettings(collectionAction = CollectionAction.COPY, leftSwipeAction = SwipeAction.DELETE)
+        val viewModel = loadFolder(image("a.jpg", 1), image("b.jpg", 2), image("c.jpg", 3))
 
         viewModel.addToCollection()
+        assertNull(viewModel.uiState.value.firstRunHint)
+        viewModel.requestDelete()
+        assertNull(viewModel.uiState.value.firstRunHint)
+
+        phoneSettingsFlow.value = PhoneSettings(leftSwipeAction = SwipeAction.MOVE)
+        val moving = loadFolder(image("d.jpg", 1), image("e.jpg", 2))
+        moving.performLeftSwipeCopyOrMove()
+        assertNull(moving.uiState.value.firstRunHint)
+        coVerify(exactly = 0) { settingsRepository.markFirstRunHintSeen(FirstRunHint.SWIPE_RIGHT) }
+    }
+
+    @Test
+    fun `a hint explains the action once and marks it seen`() = runTest {
+        val viewModel = loadFolder(image("a.jpg", 1), image("b.jpg", 2))
+
+        viewModel.maybeShowFirstRunHint(FirstRunHint.TAP_HUD)
 
         val hint = viewModel.uiState.value.firstRunHint
         assertNotNull(hint)
-        assertEquals(FirstRunHint.SWIPE_RIGHT, hint!!.hint)
-        assertTrue(hint.title, hint.title.startsWith("Swipe right copies"))
-        coVerify { settingsRepository.markFirstRunHintSeen(FirstRunHint.SWIPE_RIGHT) }
+        assertEquals(FirstRunHint.TAP_HUD, hint!!.hint)
+        assertEquals(UiText.of(R.string.hint_title_tap_hud), hint.title)
+        coVerify { settingsRepository.markFirstRunHintSeen(FirstRunHint.TAP_HUD) }
     }
 
     @Test
     fun `a hint fires only once per action`() = runTest {
         val viewModel = loadFolder(image("a.jpg", 1), image("b.jpg", 2))
 
-        viewModel.addToCollection()
+        viewModel.maybeShowFirstRunHint(FirstRunHint.TAP_HUD)
         assertNotNull(viewModel.uiState.value.firstRunHint)
 
         viewModel.dismissFirstRunHint()
-        viewModel.addToCollection()
+        viewModel.maybeShowFirstRunHint(FirstRunHint.TAP_HUD)
 
         assertNull(viewModel.uiState.value.firstRunHint)
     }
@@ -315,33 +334,14 @@ class PhoneModeViewModelTest {
     @Test
     fun `hints already persisted as seen never fire`() = runTest {
         phoneSettingsFlow.value = PhoneSettings(
-            seenFirstRunHints = setOf(FirstRunHint.SWIPE_RIGHT.key),
+            seenFirstRunHints = setOf(FirstRunHint.TAP_HUD.key),
         )
         val viewModel = loadFolder(image("a.jpg", 1), image("b.jpg", 2))
 
-        viewModel.addToCollection()
+        viewModel.maybeShowFirstRunHint(FirstRunHint.TAP_HUD)
 
         assertNull(viewModel.uiState.value.firstRunHint)
         coVerify(exactly = 0) { settingsRepository.markFirstRunHintSeen(any()) }
-    }
-
-    @Test
-    fun `delete uses the delete hint and copy-move uses the folder hint`() = runTest {
-        phoneSettingsFlow.value = PhoneSettings(leftSwipeAction = SwipeAction.DELETE)
-        val deleting = loadFolder(image("a.jpg", 1), image("b.jpg", 2))
-        deleting.requestDelete()
-        assertEquals(
-            FirstRunHint.SWIPE_LEFT_DELETE,
-            deleting.uiState.value.firstRunHint?.hint,
-        )
-
-        phoneSettingsFlow.value = PhoneSettings(leftSwipeAction = SwipeAction.MOVE)
-        val moving = loadFolder(image("c.jpg", 1), image("d.jpg", 2))
-        moving.performLeftSwipeCopyOrMove()
-        assertEquals(
-            FirstRunHint.SWIPE_LEFT_FOLDER,
-            moving.uiState.value.firstRunHint?.hint,
-        )
     }
 
     @Test
@@ -350,7 +350,7 @@ class PhoneModeViewModelTest {
         val viewModel = loadFolder(image("a.jpg", 1), image("b.jpg", 2))
         assertTrue(viewModel.uiState.value.showGestureTutorial)
 
-        viewModel.addToCollection()
+        viewModel.maybeShowFirstRunHint(FirstRunHint.TAP_HUD)
 
         assertNull(viewModel.uiState.value.firstRunHint)
     }
@@ -382,7 +382,7 @@ class PhoneModeViewModelTest {
 
         gate.complete(true)
         advanceUntilIdle()
-        assertEquals("Copied to collection", viewModel.uiState.value.lastActionFeedback?.message)
+        assertEquals(UiText.of(R.string.snackbar_copied, UiText.raw(PhotoFolders.SELECTION)), viewModel.uiState.value.lastActionFeedback?.message)
         assertEquals(2, viewModel.uiState.value.images.size)
     }
 
@@ -403,7 +403,7 @@ class PhoneModeViewModelTest {
 
         gate.complete(true)
         advanceUntilIdle()
-        assertEquals("Moved to collection", viewModel.uiState.value.lastActionFeedback?.message)
+        assertEquals(UiText.of(R.string.snackbar_moved, UiText.raw(PhotoFolders.SELECTION)), viewModel.uiState.value.lastActionFeedback?.message)
         assertEquals(1, viewModel.uiState.value.images.size)
     }
 
@@ -719,9 +719,9 @@ class PhoneModeViewModelTest {
         val hint = viewModel.uiState.value.firstRunHint
         assertNotNull(hint)
         assertEquals(FirstRunHint.FILTER_MISMATCH, hint!!.hint)
-        assertEquals("RAW only", hint.title)
-        assertEquals("Most photos here are JPEG.", hint.message)
-        assertEquals("SHOW ALL", hint.actionLabel)
+        assertEquals(UiText.of(R.string.hint_title_filter_raw), hint.title)
+        assertEquals(UiText.of(R.string.hint_body_filter_mostly_jpeg), hint.message)
+        assertEquals(UiText.of(R.string.action_show_all), hint.actionLabel)
         coVerify { settingsRepository.markFirstRunHintSeen(FirstRunHint.FILTER_MISMATCH) }
     }
 
@@ -872,7 +872,7 @@ class PhoneModeViewModelTest {
         assertNull(viewModel.uiState.value.reloadPrompt)
         assertEquals(1, viewModel.uiState.value.currentIndex)
         assertEquals(img1.uri, viewModel.uiState.value.images[1].uri)
-        assertEquals("No new photos", viewModel.uiState.value.lastActionFeedback?.message)
+        assertEquals(UiText.of(R.string.snackbar_no_new_photos), viewModel.uiState.value.lastActionFeedback?.message)
     }
 
     @Test
@@ -1063,7 +1063,7 @@ class PhoneModeViewModelTest {
         val state = viewModel.uiState.value
         assertTrue(state.images.isEmpty())
         assertNotNull(state.emptyFolderMessage)
-        assertTrue(state.emptyFolderMessage!!.contains("has no supported photos"))
+        assertTrue(state.emptyFolderMessage is UiText.Res && (state.emptyFolderMessage as UiText.Res).id == R.string.empty_folder)
 
         // Selecting a folder with photos clears the emptyFolderMessage
         every { imageRepository.discoverImages(any()) } returns flowOf(listOf(image("photo.jpg", 1)))
@@ -1192,7 +1192,7 @@ class PhoneModeViewModelTest {
         val state = viewModel.uiState.value
         assertEquals(listOf("a.jpg", "b.jpg"), state.images.map { it.fileName })
         assertEquals(
-            "Copied to collection — original could not be removed",
+            UiText.of(R.string.error_move_partial, UiText.raw(PhotoFolders.SELECTION)),
             state.lastActionFeedback?.message,
         )
         assertTrue(state.lastActionFeedback?.isError == true)
@@ -1424,7 +1424,7 @@ class PhoneModeViewModelTest {
         assertEquals(listOf("a.jpg", "b.jpg"), state.images.map { it.fileName })
         assertEquals(listOf("a.jpg", "b.jpg"), state.allImages.map { it.fileName })
         assertTrue(state.lastActionFeedback?.isError == true)
-        assertTrue(state.lastActionFeedback?.message?.contains("a.jpg") == true)
+        assertEquals(UiText.of(R.string.error_delete_one, "a.jpg"), state.lastActionFeedback?.message)
     }
 
     @Test
@@ -1439,8 +1439,7 @@ class PhoneModeViewModelTest {
         val state = viewModel.uiState.value
         assertEquals(listOf("a.jpg", "b.jpg"), state.images.map { it.fileName })
         assertTrue(state.lastActionFeedback?.isError == true)
-        assertTrue(state.lastActionFeedback?.message?.contains("a.jpg") == true)
-        assertTrue(state.lastActionFeedback?.message?.contains("read-only SD card") == true)
+        assertEquals(UiText.of(R.string.error_delete_one, "a.jpg"), state.lastActionFeedback?.message)
     }
 
     @Test
@@ -1464,8 +1463,7 @@ class PhoneModeViewModelTest {
         assertEquals(listOf("IMG_001.arw", "IMG_002.jpg"), state.images.map { it.fileName })
         assertEquals(listOf("IMG_001.arw", "IMG_002.jpg"), state.allImages.map { it.fileName })
         assertTrue(state.lastActionFeedback?.isError == true)
-        assertTrue(state.lastActionFeedback?.message?.contains("Deleted 1 of 2") == true)
-        assertTrue(state.lastActionFeedback?.message?.contains("IMG_001.arw") == true)
+        assertEquals(UiText.of(R.string.error_delete_some, 1, 2), state.lastActionFeedback?.message)
     }
 
     @Test
@@ -1486,7 +1484,7 @@ class PhoneModeViewModelTest {
         assertEquals(listOf("x.jpg"), state.images.map { it.fileName })
         assertEquals(listOf("x.jpg"), state.allImages.map { it.fileName })
         assertTrue(state.lastActionFeedback?.isError == true)
-        assertTrue(state.lastActionFeedback?.message?.contains("a.jpg") == true)
+        assertEquals(UiText.of(R.string.error_delete_one, "a.jpg"), state.lastActionFeedback?.message)
     }
 
     @Test
@@ -1650,7 +1648,7 @@ class PhoneModeViewModelTest {
         viewModel.addToCollection()
         advanceUntilIdle()
 
-        assertEquals("Moved to collection as a-2.jpg", viewModel.uiState.value.lastActionFeedback?.message)
+        assertEquals(UiText.of(R.string.snackbar_moved_renamed, "a-2.jpg"), viewModel.uiState.value.lastActionFeedback?.message)
     }
 
     @Test
@@ -1669,6 +1667,6 @@ class PhoneModeViewModelTest {
         viewModel.addToCollection()
         advanceUntilIdle()
 
-        assertEquals("Moved to collection", viewModel.uiState.value.lastActionFeedback?.message)
+        assertEquals(UiText.of(R.string.snackbar_moved, UiText.raw(PhotoFolders.SELECTION)), viewModel.uiState.value.lastActionFeedback?.message)
     }
 }

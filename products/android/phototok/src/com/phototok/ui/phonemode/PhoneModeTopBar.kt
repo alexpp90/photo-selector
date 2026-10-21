@@ -1,5 +1,6 @@
 package com.phototok.ui.phonemode
 
+import androidx.annotation.StringRes
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.interaction.MutableInteractionSource
@@ -24,19 +25,23 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.painterResource
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.unit.dp
+import com.phototok.R
+import com.phototok.ui.components.NameTooltip
 
-/** TalkBack names for the controls that open the EXIF overlay and the controls guide. */
+/** String resources naming (TalkBack and tooltip) the controls that open the EXIF overlay and the controls guide. */
 object PhoneModeTopBarDescriptions {
-    const val LOGO = "Jackpix logo: show or hide camera info"
-    const val INFO = "Toggle EXIF stats"
-    const val HELP_SHOW = "Show controls guide"
-    const val HELP_HIDE = "Hide controls guide"
+    // Getters, not `const val`: resource ids are only final in the compile-time R class.
+    @get:StringRes val LOGO: Int get() = R.string.cd_logo_camera_info
+    @get:StringRes val INFO: Int get() = R.string.cd_camera_info
+    @get:StringRes val HELP_SHOW: Int get() = R.string.cd_help_show
+    @get:StringRes val HELP_HIDE: Int get() = R.string.cd_help_hide
 
-    fun help(guideOpen: Boolean) = if (guideOpen) HELP_HIDE else HELP_SHOW
+    @StringRes fun help(guideOpen: Boolean): Int = if (guideOpen) HELP_HIDE else HELP_SHOW
 }
 
 /**
@@ -81,94 +86,102 @@ fun PhoneModeTopBar(
         horizontalArrangement = Arrangement.SpaceBetween,
         verticalAlignment = Alignment.CenterVertically,
     ) {
-        Image(
-            painter = painterResource(id = com.phototok.R.drawable.ic_brand_mark),
-            contentDescription = null,
-            colorFilter = androidx.compose.ui.graphics.ColorFilter.tint(colors.primary),
-            alpha = if (guideOpen) 0.4f else 1.0f,
-            modifier = Modifier
-                .size(metrics.TOP_BAR_LOGO_SIZE)
-                .guideAnchor(anchors, GuideAnchor.LOGO)
-                .semantics { contentDescription = PhoneModeTopBarDescriptions.LOGO }
-                .testTag("top_bar_logo")
-                .clickable(
-                    interactionSource = remember { MutableInteractionSource() },
-                    indication = null,
-                    onClickLabel = "Show or hide camera info",
-                    role = Role.Button,
-                    onClick = onToggleExif,
-                ),
-        )
+        val logoName = stringResource(PhoneModeTopBarDescriptions.LOGO)
+        val infoName = stringResource(PhoneModeTopBarDescriptions.INFO)
+        NameTooltip(name = infoName) {
+            Image(
+                painter = painterResource(id = R.drawable.ic_brand_mark),
+                colorFilter = androidx.compose.ui.graphics.ColorFilter.tint(colors.primary),
+                contentDescription = null,
+                alpha = if (guideOpen) 0.4f else 1.0f,
+                modifier = Modifier
+                    .size(metrics.TOP_BAR_LOGO_SIZE)
+                    .guideAnchor(anchors, GuideAnchor.LOGO)
+                    .semantics { contentDescription = logoName }
+                    .testTag("top_bar_logo")
+                    .clickable(
+                        interactionSource = remember { MutableInteractionSource() },
+                        indication = null,
+                        onClickLabel = infoName,
+                        role = Role.Button,
+                        onClick = onToggleExif,
+                    ),
+            )
+        }
         Row(verticalAlignment = Alignment.CenterVertically) {
             if (showControls) {
                 if (showDoneWithCard) {
-                    IconButton(
+                    TopBarIconButton(
+                        icon = Icons.Default.SdCard,
+                        name = stringResource(R.string.cd_card_done),
+                        tint = tint,
                         onClick = onDoneWithCard,
                         modifier = Modifier
                             .size(buttonSize)
                             .guideAnchor(anchors, GuideAnchor.DONE_WITH_CARD)
                             .testTag("done_with_card_button"),
-                    ) {
-                        Icon(
-                            imageVector = Icons.Default.SdCard,
-                            contentDescription = "Done with this card",
-                            tint = tint,
-                        )
-                    }
+                    )
                 }
-                IconButton(
+                TopBarIconButton(
+                    icon = Icons.Default.Sync,
+                    name = stringResource(R.string.cd_reload),
+                    tint = tint,
                     onClick = onReload,
                     modifier = Modifier
                         .size(buttonSize)
                         .guideAnchor(anchors, GuideAnchor.RELOAD)
                         .testTag("reload_folder_button"),
-                ) {
-                    Icon(
-                        imageVector = Icons.Default.Sync,
-                        contentDescription = "Reload folder",
-                        tint = tint,
-                    )
-                }
-                IconButton(
+                )
+                TopBarIconButton(
+                    icon = Icons.AutoMirrored.Filled.HelpOutline,
+                    name = stringResource(PhoneModeTopBarDescriptions.help(guideOpen)),
+                    tint = tint,
                     onClick = onHelp,
                     modifier = Modifier
                         .size(buttonSize)
                         .guideAnchor(anchors, GuideAnchor.HELP)
                         .testTag("help_button"),
-                ) {
-                    Icon(
-                        imageVector = Icons.AutoMirrored.Filled.HelpOutline,
-                        contentDescription = PhoneModeTopBarDescriptions.help(guideOpen),
-                        tint = tint,
-                    )
-                }
-                IconButton(
+                )
+                TopBarIconButton(
+                    icon = Icons.Default.Info,
+                    name = stringResource(PhoneModeTopBarDescriptions.INFO),
+                    tint = if (exifOverlayOn) colors.primary else tint,
                     onClick = onToggleExif,
                     modifier = Modifier
                         .size(buttonSize)
                         .guideAnchor(anchors, GuideAnchor.INFO)
                         .testTag("info_exif_button"),
-                ) {
-                    Icon(
-                        imageVector = Icons.Default.Info,
-                        contentDescription = PhoneModeTopBarDescriptions.INFO,
-                        tint = if (exifOverlayOn) colors.primary else tint,
-                    )
-                }
+                )
             }
-            IconButton(
+            TopBarIconButton(
+                icon = Icons.Default.Settings,
+                name = stringResource(R.string.cd_settings),
+                tint = tint,
                 onClick = onSettings,
                 modifier = Modifier
                     .size(buttonSize)
                     .guideAnchor(anchors, GuideAnchor.SETTINGS)
                     .testTag("settings_button"),
-            ) {
-                Icon(
-                    imageVector = Icons.Default.Settings,
-                    contentDescription = "Settings",
-                    tint = tint,
-                )
-            }
+            )
+        }
+    }
+}
+
+/**
+ * An icon-only 48 dp button named by [name] (spoken label and long-press tooltip). Shared by the
+ * portrait top bar and the landscape right panel.
+ */
+@Composable
+internal fun TopBarIconButton(
+    icon: androidx.compose.ui.graphics.vector.ImageVector,
+    name: String,
+    tint: androidx.compose.ui.graphics.Color,
+    onClick: () -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    NameTooltip(name = name) {
+        IconButton(onClick = onClick, modifier = modifier) {
+            Icon(imageVector = icon, contentDescription = name, tint = tint)
         }
     }
 }

@@ -1,5 +1,6 @@
 package com.phototok.ui.phonemode
 
+import androidx.compose.foundation.layout.FlowRow
 import android.content.res.Configuration
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.core.LinearEasing
@@ -92,6 +93,7 @@ import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.testTag
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.CustomAccessibilityAction
 import androidx.compose.ui.semantics.customActions
 import androidx.compose.ui.semantics.semantics
@@ -109,7 +111,9 @@ import com.phototok.domain.CollectionAction
 import com.phototok.domain.FirstRunHint
 import com.phototok.domain.SeenStore
 import com.phototok.domain.SwipeAction
+import com.phototok.R
 import com.phototok.domain.SwipeLabels
+import com.phototok.ui.asString
 import com.phototok.domain.SwipeRightVerb
 import com.phototok.ui.theme.SuccessGreen
 import kotlin.math.abs
@@ -285,10 +289,8 @@ fun PhoneModeViewer(
         if (pagerState.currentPage > maxPageSeen.value) {
             maxPageSeen.value = pagerState.currentPage
         }
-        // The first actual page change is the user discovering vertical paging.
-        if (!readOnly && pagerState.currentPage != startPage) {
-            onFirstRunHint(FirstRunHint.SWIPE_VERTICAL)
-        }
+        // No hint on the first page change: the user just watched it happen, and the
+        // controls guide already shows up/down (explain once, REQ-TOK-UX.04).
         isZoomed = false
     }
     val showFloatingPeeks = maxPageSeen.value < 3
@@ -298,18 +300,21 @@ fun PhoneModeViewer(
     val hudAlpha by animateFloatAsState(
         targetValue = if (hudVisible) 1f else 0f,
         animationSpec = tween(300),
-        label = "hud",
+        label = "hud", // ui-text: ignore animation debug label
     )
 
     val bottomHudFade by animateFloatAsState(
         targetValue = if (bottomHudSuppressed) 0f else 1f,
         animationSpec = tween(200),
-        label = "bottom-hud",
+        label = "bottom-hud", // ui-text: ignore animation debug label
     )
     val bottomHudAlpha = hudAlpha * bottomHudFade
 
     val colors = MaterialTheme.colorScheme
     val currentImage = images.getOrNull(pagerState.currentPage)
+    val shareLabel = stringResource(R.string.action_share)
+    val openWithLabel = stringResource(R.string.action_open_with)
+    val detailsLabel = stringResource(R.string.action_details)
 
     Box(
         modifier = Modifier
@@ -317,15 +322,15 @@ fun PhoneModeViewer(
             .background(Color.Black)
             .semantics {
                 customActions = listOf(
-                    CustomAccessibilityAction("Share photo") {
+                    CustomAccessibilityAction(shareLabel) {
                         onShareCurrentPhoto()
                         true
                     },
-                    CustomAccessibilityAction("Open in another app") {
+                    CustomAccessibilityAction(openWithLabel) {
                         onOpenWithCurrentPhoto()
                         true
                     },
-                    CustomAccessibilityAction("Show file details") {
+                    CustomAccessibilityAction(detailsLabel) {
                         showFileDetailsDialog = true
                         true
                     },
@@ -395,7 +400,7 @@ fun PhoneModeViewer(
                 onDismissRequest = { showLongPressMenu = false },
             ) {
                 DropdownMenuItem(
-                    text = { Text("Share photo") },
+                    text = { Text(shareLabel) },
                     leadingIcon = { Icon(Icons.Default.Share, contentDescription = null) },
                     onClick = {
                         showLongPressMenu = false
@@ -403,7 +408,7 @@ fun PhoneModeViewer(
                     },
                 )
                 DropdownMenuItem(
-                    text = { Text("Open in another app") },
+                    text = { Text(openWithLabel) },
                     leadingIcon = { Icon(Icons.AutoMirrored.Filled.OpenInNew, contentDescription = null) },
                     onClick = {
                         showLongPressMenu = false
@@ -411,7 +416,7 @@ fun PhoneModeViewer(
                     },
                 )
                 DropdownMenuItem(
-                    text = { Text("Show file details") },
+                    text = { Text(detailsLabel) },
                     leadingIcon = { Icon(Icons.Default.Info, contentDescription = null) },
                     onClick = {
                         showLongPressMenu = false
@@ -427,17 +432,17 @@ fun PhoneModeViewer(
                 title = { Text(currentImage.fileName) },
                 text = {
                     Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                        Text("Resolution: ${currentImage.imageWidth} × ${currentImage.imageHeight}")
-                        Text("Size: ${currentImage.fileSize / 1024} KB")
-                        Text("MIME: ${currentImage.mimeType}")
+                        Text(stringResource(R.string.label_resolution, currentImage.imageWidth, currentImage.imageHeight))
+                        Text(stringResource(R.string.label_file_size, currentImage.fileSize / 1024))
+                        currentImage.mimeType?.let { Text(it) }
                         if (currentImage.uri in rawCompanionUris) {
-                            Text("RAW + JPEG pair")
+                            Text(stringResource(R.string.label_raw_jpeg_pair))
                         }
                     }
                 },
                 confirmButton = {
                     TextButton(onClick = { showFileDetailsDialog = false }) {
-                        Text("Close")
+                        Text(stringResource(R.string.action_close))
                     }
                 },
             )
@@ -463,7 +468,7 @@ fun PhoneModeViewer(
                     contentDescription = SwipeLabels.rightDescription(
                         swipeRightVerb,
                         collectionFolderName,
-                    ),
+                    ).asString(),
                     tint = SuccessGreen.copy(alpha = 0.9f),
                     modifier = Modifier
                         .size(72.dp)
@@ -493,7 +498,7 @@ fun PhoneModeViewer(
                     contentDescription = SwipeLabels.leftDescription(
                         leftSwipeAction,
                         leftSwipeFolderName,
-                    ),
+                    ).asString(),
                     tint = primaryColor.copy(alpha = 0.9f),
                     modifier = Modifier
                         .size(72.dp)
@@ -812,7 +817,7 @@ private fun ImagePage(
                             contentDescription = SwipeLabels.rightDescription(
                                 swipeRightVerb,
                                 collectionFolderName,
-                            ),
+                            ).asString(),
                             tint = Color.White,
                             modifier = Modifier.size((28 + 8 * swipeProgress).dp),
                         )
@@ -820,7 +825,7 @@ private fun ImagePage(
                 }
                 Spacer(modifier = Modifier.height(12.dp))
                 Text(
-                    text = SwipeLabels.rightLabel(swipeRightVerb),
+                    text = SwipeLabels.rightLabel(swipeRightVerb).asString().uppercase(),
                     style = MaterialTheme.typography.labelLarge.copy(letterSpacing = 3.sp),
                     color = SuccessGreen,
                 )
@@ -829,7 +834,7 @@ private fun ImagePage(
 
         // ── Left Swipe Action indicator (pulsing indicator with glow) ───────────────
         if (!readOnly && isSwipingLeft) {
-            val pulseTransition = rememberInfiniteTransition(label = "left-swipe-pulse")
+            val pulseTransition = rememberInfiniteTransition(label = "left-swipe-pulse") // ui-text: ignore animation debug label
             val pulseScale by pulseTransition.animateFloat(
                 initialValue = 1f,
                 targetValue = 1.1f,
@@ -837,7 +842,7 @@ private fun ImagePage(
                     animation = tween(1000, easing = LinearEasing),
                     repeatMode = RepeatMode.Reverse,
                 ),
-                label = "left-swipe-scale",
+                label = "left-swipe-scale", // ui-text: ignore animation debug label
             )
 
             val isDelete = SwipeLabels.leftIsDestructive(leftSwipeAction)
@@ -845,8 +850,8 @@ private fun ImagePage(
             val color = if (isDelete) colors.error else colors.primary
             val containerColor = if (isDelete) colors.errorContainer else colors.primaryContainer
             val onContainerColor = if (isDelete) colors.onErrorContainer else colors.onPrimaryContainer
-            val labelText = SwipeLabels.leftLabel(leftSwipeAction)
-            val contentDesc = SwipeLabels.leftDescription(leftSwipeAction, leftSwipeFolderName)
+            val labelText = SwipeLabels.leftLabel(leftSwipeAction).asString().uppercase()
+            val contentDesc = SwipeLabels.leftDescription(leftSwipeAction, leftSwipeFolderName).asString()
 
             Column(
                 modifier = Modifier
@@ -894,7 +899,7 @@ private fun ImagePage(
 
         // ── Navigation peeks (subtle idle hints on left/right edges with direction arrows) ──
         if (!readOnly && showFloatingPeeks && !isZoomed && !isSwipingLeft && !isSwipingRight && hudAlpha > 0.5f) {
-            val peekTransition = rememberInfiniteTransition(label = "peeks")
+            val peekTransition = rememberInfiniteTransition(label = "peeks") // ui-text: ignore animation debug label
             val trashPeekOffset by peekTransition.animateFloat(
                 initialValue = 12f,
                 targetValue = -4f,
@@ -902,7 +907,7 @@ private fun ImagePage(
                     animation = tween(1500, easing = LinearEasing),
                     repeatMode = RepeatMode.Reverse,
                 ),
-                label = "trash-peek-offset",
+                label = "trash-peek-offset", // ui-text: ignore animation debug label
             )
             val keepPeekOffset by peekTransition.animateFloat(
                 initialValue = -12f,
@@ -911,7 +916,7 @@ private fun ImagePage(
                     animation = tween(1500, easing = LinearEasing),
                     repeatMode = RepeatMode.Reverse,
                 ),
-                label = "keep-peek-offset",
+                label = "keep-peek-offset", // ui-text: ignore animation debug label
             )
 
             Row(
@@ -931,9 +936,10 @@ private fun ImagePage(
                 ) {
                     Icon(
                         imageVector = swipeRightIcon(swipeRightVerb),
-                        contentDescription = "Swipe right to " +
-                            SwipeLabels.rightDescription(swipeRightVerb, collectionFolderName)
-                                .lowercase(),
+                        contentDescription = stringResource(
+                            R.string.cd_peek_right,
+                            SwipeLabels.rightDescription(swipeRightVerb, collectionFolderName).asString(),
+                        ),
                         tint = SuccessGreen,
                         modifier = Modifier.size(20.dp),
                     )
@@ -949,8 +955,10 @@ private fun ImagePage(
             val isDelete = SwipeLabels.leftIsDestructive(leftSwipeAction)
             val icon = leftSwipeIcon(leftSwipeAction)
             val color = if (isDelete) colors.error else colors.primary
-            val contentDesc = "Swipe left to " +
-                SwipeLabels.leftVerb(leftSwipeAction).lowercase()
+            val contentDesc = stringResource(
+                R.string.cd_peek_left,
+                SwipeLabels.leftDescription(leftSwipeAction, leftSwipeFolderName).asString(),
+            )
 
             Row(
                 modifier = Modifier
@@ -1008,7 +1016,7 @@ private fun ImagePage(
                             modifier = Modifier.size(16.dp),
                         )
                         Text(
-                            text = "Portrait photos — rotate your phone",
+                            text = stringResource(R.string.label_portrait_section),
                             style = MaterialTheme.typography.labelMedium,
                             color = colors.onPrimaryContainer,
                             fontWeight = FontWeight.Medium,
@@ -1036,7 +1044,7 @@ private fun ImagePage(
                         color = colors.primaryContainer.copy(alpha = 0.85f),
                     ) {
                         Text(
-                            text = "★ Favourite",
+                            text = stringResource(R.string.chip_favourite),
                             style = MaterialTheme.typography.labelSmall,
                             color = colors.onPrimaryContainer,
                             fontWeight = FontWeight.Bold,
@@ -1050,7 +1058,7 @@ private fun ImagePage(
                         color = colors.secondaryContainer.copy(alpha = 0.85f),
                     ) {
                         Text(
-                            text = "RAW+JPG",
+                            text = stringResource(R.string.chip_raw_jpg),
                             style = MaterialTheme.typography.labelSmall,
                             color = colors.onSecondaryContainer,
                             fontWeight = FontWeight.Bold,
@@ -1097,7 +1105,11 @@ private fun ImagePage(
                         ),
                     ) {
                         Text(
-                            text = "${pageIndex + 1} / $totalCount" + if (isDiscovering) "+" else "",
+                            text = stringResource(
+                                if (isDiscovering) R.string.label_page_counter_more else R.string.label_page_counter,
+                                pageIndex + 1,
+                                totalCount,
+                            ),
                             style = MaterialTheme.typography.labelMedium,
                             color = colors.primary,
                             fontWeight = FontWeight.Bold,
@@ -1148,8 +1160,9 @@ private fun ExifOverlay(
                 text = fileName.uppercase(),
                 style = MaterialTheme.typography.labelLarge.copy(letterSpacing = 1.sp),
                 color = colors.onSurface.copy(alpha = 0.7f),
+                // One line; a long name loses its middle, never its extension (font scale 2.0).
                 maxLines = 1,
-                overflow = TextOverflow.Ellipsis,
+                overflow = TextOverflow.MiddleEllipsis,
             )
 
             if (items.isNotEmpty()) {
@@ -1163,13 +1176,19 @@ private fun ExifOverlay(
                         modifier = Modifier.size(14.dp),
                         tint = colors.primary,
                     )
-                    Text(
-                        text = items.joinToString(" · "),
-                        style = MaterialTheme.typography.bodyMedium,
-                        color = colors.onSurfaceVariant,
-                        maxLines = 1,
-                        overflow = TextOverflow.Ellipsis,
-                    )
+                    // Each value is one unbreakable token; at font scale 2.0 they flow onto a
+                    // second line instead of breaking inside "f/2.8" (REQ-TOK-UX.05).
+                    FlowRow(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                        items.forEachIndexed { i, item ->
+                            Text(
+                                text = if (i == 0) item else "· $item",
+                                style = MaterialTheme.typography.bodyMedium,
+                                color = colors.onSurfaceVariant,
+                                maxLines = 1,
+                                softWrap = false,
+                            )
+                        }
+                    }
                 }
             }
 

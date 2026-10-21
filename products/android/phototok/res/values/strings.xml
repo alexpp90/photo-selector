@@ -1,4 +1,249 @@
 <?xml version="1.0" encoding="utf-8"?>
+<!--
+    Every user-visible string of Jackpix. The key prefix names the element and with it the
+    word and character budget (docs/shared/UI_TEXT.md, checked by scripts/check_ui_text_budget.py).
+    Every key has a German translation in values-de/strings.xml.
+-->
 <resources>
     <string name="app_name">Jackpix</string>
+
+    <!-- Spoken labels (TalkBack) and tooltips: not counted against the visible budget -->
+    <string name="cd_logo_camera_info">Jackpix logo, shows or hides camera info</string>
+    <string name="cd_camera_info">Show or hide camera info</string>
+    <string name="cd_help_show">Show controls guide</string>
+    <string name="cd_help_hide">Hide controls guide</string>
+    <string name="cd_help">Help</string>
+    <string name="cd_card_done">Done with this card</string>
+    <string name="cd_reload">Reload folder</string>
+    <string name="cd_settings">Settings</string>
+    <string name="cd_sources">Change folder</string>
+    <string name="cd_selection">Selection</string>
+    <string name="cd_revert">Undo last delete</string>
+    <string name="cd_back">Back</string>
+    <string name="cd_copy_favourites">Copy favourites to folder</string>
+    <string name="cd_share_all">Share all</string>
+    <string name="cd_warning">Warning</string>
+    <string name="cd_got_it">Got it</string>
+    <string name="cd_dismiss">Dismiss</string>
+    <string name="cd_loading">Loading photos</string>
+    <string name="cd_peek_right">Swipe right: %1$s</string>
+    <string name="cd_peek_left">Swipe left: %1$s</string>
+    <string name="cd_swipe_favourite">Mark as favourite</string>
+    <string name="cd_swipe_copy">Copy to %1$s</string>
+    <string name="cd_swipe_move">Move to %1$s</string>
+    <string name="cd_swipe_delete">Delete photo</string>
+
+    <!-- Controls guide callouts -->
+    <string name="guide_camera_info">Camera info</string>
+    <string name="guide_card_done">Card done</string>
+    <string name="guide_reload">Reload</string>
+    <string name="guide_help">Help</string>
+    <string name="guide_info">Info</string>
+    <string name="guide_settings">Settings</string>
+    <string name="guide_sources">Change folder</string>
+    <string name="guide_selection">Selection</string>
+    <string name="guide_revert">Undo delete</string>
+    <string name="guide_tap">Hide overlays</string>
+    <string name="guide_zoom">Zoom</string>
+    <string name="guide_next">Next</string>
+    <string name="guide_previous">Previous</string>
+
+    <!-- Swipe indicator and caption labels (shown in capitals) -->
+    <string name="label_swipe_copy">Copy</string>
+    <string name="label_swipe_move">Move</string>
+    <string name="label_swipe_delete">Delete</string>
+    <string name="label_swipe_favourite">★</string>
+
+    <!-- Buttons -->
+    <string name="action_cancel">Cancel</string>
+    <string name="action_close">Close</string>
+    <string name="action_delete">Delete</string>
+    <string name="action_delete_all">Delete all</string>
+    <string name="action_delete_all_count">Delete all (%1$d)</string>
+    <string name="action_delete_rejects">Delete rejects</string>
+    <string name="action_keep_all">Keep all</string>
+    <string name="action_show_new">Show new</string>
+    <string name="action_stay">Stay</string>
+    <string name="action_merge_pairs">Merge pairs</string>
+    <string name="action_link_both">Link both</string>
+    <string name="action_dont_change">Don\'t change</string>
+    <string name="action_raw">RAW</string>
+    <string name="action_jpeg">JPEG</string>
+    <string name="action_settings">Settings</string>
+    <string name="action_show_all">Show all</string>
+    <string name="action_reselect">Re-select</string>
+    <string name="action_resume">Resume</string>
+    <string name="action_start">Start</string>
+    <string name="action_save">Save</string>
+    <string name="action_reset">Reset</string>
+    <string name="action_share">Share</string>
+    <string name="action_open_with">Open with</string>
+    <string name="action_details">Details</string>
+
+    <!-- Labels and chips -->
+    <string name="label_show_only">Show only</string>
+    <string name="title_source_camera">Camera</string>
+    <string name="title_source_sd">SD card / USB</string>
+    <string name="title_source_folder">Folder or cloud</string>
+    <string name="label_kind_phone">Phone</string>
+    <string name="label_kind_sd">SD / USB</string>
+    <string name="label_kind_camera">Camera</string>
+    <string name="label_kind_cloud">Cloud</string>
+    <string name="label_folder">Folder</string>
+    <string name="label_not_connected">Not connected</string>
+    <string name="label_seen_progress">%1$d / %2$d</string>
+    <string name="label_page_counter">%1$d / %2$d</string>
+    <string name="label_page_counter_more">%1$d / %2$d+</string>
+    <string name="label_portrait_section">Portrait photos</string>
+    <string name="label_resolution">%1$d × %2$d</string>
+    <string name="label_file_size">%1$d KB</string>
+    <string name="label_raw_jpeg_pair">RAW + JPEG</string>
+    <string name="chip_favourite">Favourite</string>
+    <string name="chip_favourites">Favourites</string>
+    <string name="chip_raw_jpg">RAW+JPG</string>
+
+    <!-- Screen and section titles -->
+    <string name="title_storage">Storage</string>
+    <string name="title_browsing">Browsing</string>
+    <string name="title_recent">Recent folders</string>
+    <string name="title_help">Help</string>
+    <string name="title_about">About</string>
+    <string name="title_folder_access_lost">Folder access lost</string>
+
+    <!-- Dialogs -->
+    <string name="dialog_title_direct_delete">Delete permanently?</string>
+    <string name="dialog_body_no_trash">This location has no trash.</string>
+    <string name="dialog_body_turn_off_prompt">Turn off this prompt in Settings.</string>
+    <string name="dialog_title_card_done">Card done</string>
+    <string name="dialog_body_card_loss">Photos not copied off the card are lost.</string>
+    <plurals name="dialog_title_delete_all">
+        <item quantity="one">Delete 1 photo?</item>
+        <item quantity="other">Delete all %1$d photos?</item>
+    </plurals>
+    <plurals name="dialog_title_new_photos">
+        <item quantity="one">%1$d new photo</item>
+        <item quantity="other">%1$d new photos</item>
+    </plurals>
+    <string name="dialog_title_raw_jpeg">RAW + JPEG pairs</string>
+    <string name="dialog_body_merge_pairs">Swipes act on both files</string>
+
+    <!-- First-run hints -->
+    <string name="hint_title_swipe_right_favourite">Swipe right: favourite</string>
+    <string name="hint_title_swipe_right_copy">Swipe right copies to %1$s</string>
+    <string name="hint_title_swipe_right_move">Swipe right moves to %1$s</string>
+    <string name="hint_title_swipe_left_copy">Swipe left copies to %1$s</string>
+    <string name="hint_title_swipe_left_move">Swipe left moves to %1$s</string>
+    <string name="hint_title_swipe_left_delete">Swipe left deletes</string>
+    <string name="hint_title_swipe_vertical">Place saved per folder</string>
+    <string name="hint_title_tap_hud">Tap again to show overlays</string>
+    <string name="hint_title_double_tap_zoom">Double-tap to reset</string>
+    <string name="hint_title_revert">Undo restores the last delete</string>
+    <string name="hint_title_raw_jpeg_pairs">RAW + JPEG pairs</string>
+    <string name="hint_body_raw_jpeg_pairs">Link them or show one format.</string>
+    <string name="hint_title_filter_raw">RAW only</string>
+    <string name="hint_title_filter_jpeg">JPEG only</string>
+    <string name="hint_title_filter_active">Filter active</string>
+    <string name="hint_body_filter_mostly_jpeg">Most photos here are JPEG.</string>
+    <string name="hint_body_filter_mostly_raw">Most photos here are RAW.</string>
+    <string name="hint_body_filter_hidden">Some photos are hidden.</string>
+
+    <!-- Snackbars -->
+    <string name="snackbar_copied">Copied to %1$s</string>
+    <string name="snackbar_copied_related">Copied to %1$s +%2$d</string>
+    <string name="snackbar_copied_renamed">Copied as %1$s</string>
+    <string name="snackbar_copied_renamed_related">Copied as %1$s +%2$d</string>
+    <string name="snackbar_moved">Moved to %1$s</string>
+    <string name="snackbar_moved_related">Moved to %1$s +%2$d</string>
+    <string name="snackbar_moved_renamed">Moved as %1$s</string>
+    <string name="snackbar_moved_renamed_related">Moved as %1$s +%2$d</string>
+    <string name="snackbar_favourite_added">Marked as favourite</string>
+    <string name="snackbar_favourite_removed">Favourite removed</string>
+    <string name="snackbar_cloud_copy_only">Cloud: copy only</string>
+    <string name="snackbar_card_disconnected">Card disconnected</string>
+    <string name="snackbar_no_new_photos">No new photos</string>
+    <string name="snackbar_safe_to_unplug">Safe to unplug</string>
+    <string name="snackbar_rejects_deleted">Rejects deleted</string>
+    <string name="snackbar_deleted_count">%1$d deleted</string>
+    <string name="snackbar_pairs_merged">Pairs merged</string>
+    <string name="snackbar_filter_raw">RAW only</string>
+    <string name="snackbar_filter_jpeg">JPEG only</string>
+    <string name="snackbar_filter_all">All photos</string>
+    <string name="snackbar_linked">RAW + JPEG linked</string>
+    <string name="snackbar_milestone_freed">%1$s freed</string>
+    <string name="snackbar_milestone_reviewed">%1$d reviewed</string>
+    <string name="snackbar_selection_none">No selection yet</string>
+    <string name="snackbar_selection_empty">Selection is empty</string>
+    <string name="snackbar_nothing_yet">Nothing here yet</string>
+    <string name="snackbar_favourites_copied">%1$d copied to %2$s</string>
+    <string name="snackbar_share_capped">Sharing first %1$d of %2$d</string>
+
+    <!-- Snackbar actions -->
+
+    <!-- Errors and feedback that needs a decision -->
+    <string name="error_move_partial">Copied to %1$s, original not removed</string>
+    <string name="error_copy_failed">Copy to %1$s failed</string>
+    <string name="error_move_failed">Move to %1$s failed</string>
+    <string name="error_copied_some">Copied %1$d of %2$d to %3$s</string>
+    <string name="error_moved_some">Moved %1$d of %2$d to %3$s</string>
+    <string name="error_not_connected">%1$s not connected</string>
+    <string name="error_transfer_failed">Couldn\'t finish the transfer</string>
+    <string name="error_delete_one">Couldn\'t delete %1$s</string>
+    <string name="error_delete_some">Deleted %1$d of %2$d</string>
+    <string name="error_folder_access">Can\'t open this folder</string>
+    <string name="error_load_failed">Couldn\'t load photos</string>
+    <string name="error_selection_local">Local folders only</string>
+    <string name="error_selection_open">Can\'t open selection</string>
+    <string name="error_favourites_partial">Copied %1$d of %2$d</string>
+
+    <!-- Empty states -->
+    <string name="empty_no_favourites">No favourites yet</string>
+    <string name="empty_selection">Selection is empty</string>
+    <string name="empty_folder">%1$s: no photos</string>
+    <string name="empty_card_cleared">Card cleared</string>
+
+    <!-- Settings -->
+    <string name="setting_title_source_folder">Source folder</string>
+    <string name="setting_summary_none">None</string>
+    <string name="setting_title_reload">Reload folder</string>
+    <string name="setting_title_selection_folder">Selection folder</string>
+    <string name="setting_title_raw_jpeg_folders">RAW / JPEG folders</string>
+    <string name="setting_title_selection_location">Selection location</string>
+    <string name="setting_summary_custom">Custom</string>
+    <string name="setting_summary_default">Default</string>
+    <string name="setting_title_reset_folder">Reset this folder</string>
+    <string name="setting_title_reset_all">Reset all folders</string>
+    <string name="setting_title_clear_cache">Clear cache</string>
+    <string name="setting_summary_done">Done</string>
+    <string name="setting_title_source_type">Source type</string>
+    <string name="setting_title_feed_order">Feed order</string>
+    <string name="setting_title_confirm_delete">Confirm delete</string>
+    <string name="setting_summary_deletes_unasked">Deletes without asking</string>
+    <string name="setting_title_camera_info">Camera info</string>
+    <string name="setting_title_milestones">Milestones</string>
+    <string name="setting_title_link_raw_jpeg">Link RAW + JPEG</string>
+    <string name="setting_title_format_filter">Format filter</string>
+    <string name="setting_title_swipe_right">Swipe right</string>
+    <string name="setting_title_swipe_left">Swipe left</string>
+    <string name="setting_title_left_folder">Left swipe folder</string>
+    <string name="setting_title_show_recent">Show list</string>
+    <string name="setting_title_recent_count">How many</string>
+    <string name="setting_title_reset_tips">Reset tips</string>
+    <string name="setting_title_version">Version</string>
+    <string name="setting_title_source_code">Source code</string>
+    <string name="setting_title_privacy">Privacy Policy</string>
+    <string name="setting_title_legal">Legal Notice (Impressum)</string>
+    <string name="chip_phone">Phone</string>
+    <string name="chip_sd_card">SD card</string>
+    <string name="chip_camera">Camera</string>
+    <string name="chip_newest">Newest first</string>
+    <string name="chip_by_filename">By filename</string>
+    <string name="chip_shuffle">Shuffle</string>
+    <string name="chip_by_orientation">By orientation</string>
+    <string name="chip_pairs_merged">Pairs merged</string>
+    <string name="chip_both">Both</string>
+    <string name="chip_raw_only">RAW only</string>
+    <string name="chip_jpeg_only">JPEG only</string>
+    <string name="chip_copy">Copy</string>
+    <string name="chip_move">Move</string>
+    <string name="chip_delete">Delete</string>
 </resources>

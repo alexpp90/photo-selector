@@ -84,7 +84,7 @@ class ImageRepositoryImpl @Inject constructor(
     ): FileOperationResult {
         if (!resolver.sameSource(sourceUri, destFolderUri)) {
             Log.w(TAG, "Cross-source move is not supported: $sourceUri -> $destFolderUri")
-            return FileOperationResult.failure(sourceUri.toString(), "Cross-source move is not supported")
+            return FileOperationResult.failure(sourceUri.toString(), "Cross-source move is not supported") // ui-text: ignore diagnostic code, never shown
         }
         return resolver.sourceFor(sourceUri)
             .moveImageDetailed(sourceUri, destFolderUri, sorting, subfolderName)
@@ -98,7 +98,7 @@ class ImageRepositoryImpl @Inject constructor(
     ): FileOperationResult {
         if (!resolver.sameSource(sourceUri, destFolderUri)) {
             Log.w(TAG, "Cross-source copy is not supported: $sourceUri -> $destFolderUri")
-            return FileOperationResult.failure(sourceUri.toString(), "Cross-source copy is not supported")
+            return FileOperationResult.failure(sourceUri.toString(), "Cross-source copy is not supported") // ui-text: ignore diagnostic code, never shown
         }
         return resolver.sourceFor(sourceUri)
             .copyImageDetailed(sourceUri, destFolderUri, sorting, subfolderName)
@@ -115,7 +115,7 @@ class ImageRepositoryImpl @Inject constructor(
         if (sourceUris.any { !resolver.sameSource(it, destFolderUri) }) {
             Log.w(TAG, "Cross-source bundle transfer is not supported: $destFolderUri")
             return sourceUris.map {
-                FileOperationResult.failure(it.toString(), "Cross-source transfer is not supported")
+                FileOperationResult.failure(it.toString(), "Cross-source transfer is not supported") // ui-text: ignore diagnostic code, never shown
             }
         }
         return resolver.sourceFor(sourceUris.first())

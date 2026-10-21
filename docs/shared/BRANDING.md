@@ -22,7 +22,8 @@ Rules for text:
   "macOS Desktop" and "Linux Desktop" stay as platform descriptors next to the name
   ("Frameduel, the Android Desktop app"), never instead of it.
 - German store titles are the English titles for now.
-- Jackpix's landing subtitle stays "SWIPE. SELECT. SNAP.".
+- No tagline or slogan, in the app or in its docs: Jackpix's landing shows the logo and the name
+  only (maintainer decision 2026-10-21; the former "SWIPE. SELECT. SNAP." is retired).
 - Each product's README and CHANGELOG say "formerly …" once. The old names stay in code
   identifiers and comments (internal codenames), in kept identifiers below, and in old
   CHANGELOG entries.

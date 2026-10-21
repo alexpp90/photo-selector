@@ -1,8 +1,10 @@
 package com.phototok.viewmodel
 
+import com.phototok.R
 import com.phototok.data.model.ImageItem
 import com.phototok.data.repository.ImageRepository
 import com.phototok.data.source.SelectionListing
+import com.phototok.domain.UiText
 import io.mockk.coEvery
 import io.mockk.mockk
 import kotlinx.coroutines.Dispatchers
@@ -57,7 +59,7 @@ class SelectionViewerViewModelTest {
 
         val state = viewModel.uiState.value
         assertFalse(state.isOpen)
-        assertEquals("No selection folder yet", state.feedback?.message)
+        assertEquals(UiText.of(R.string.snackbar_selection_none), state.feedback?.message)
         assertFalse(state.feedback?.isError == true)
     }
 
@@ -85,7 +87,7 @@ class SelectionViewerViewModelTest {
 
         val state = viewModel.uiState.value
         assertFalse(state.isOpen)
-        assertEquals("Selection view is local-only", state.feedback?.message)
+        assertEquals(UiText.of(R.string.error_selection_local), state.feedback?.message)
     }
 
     @Test
@@ -96,7 +98,7 @@ class SelectionViewerViewModelTest {
 
         val state = viewModel.uiState.value
         assertFalse(state.isOpen)
-        assertEquals("Selection folder is empty", state.feedback?.message)
+        assertEquals(UiText.of(R.string.snackbar_selection_empty), state.feedback?.message)
         assertFalse(state.feedback?.isError == true)
     }
 
@@ -108,7 +110,7 @@ class SelectionViewerViewModelTest {
 
         val state = viewModel.uiState.value
         assertFalse(state.isOpen)
-        assertEquals("Failed to open selection: boom", state.feedback?.message)
+        assertEquals(UiText.of(R.string.error_selection_open), state.feedback?.message)
     }
 
     @Test

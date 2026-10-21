@@ -1,0 +1,243 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Deutsche Texte von Jackpix. Gleiche Schlüssel wie values/strings.xml; Längenlimits siehe docs/shared/UI_TEXT.md. -->
+<resources>
+    <string name="app_name">Jackpix</string>
+
+    <!-- Gesprochene Beschriftungen (TalkBack) und Tooltips -->
+    <string name="cd_logo_camera_info">Jackpix-Logo, blendet Kamera-Info ein oder aus</string>
+    <string name="cd_camera_info">Kamera-Info ein- oder ausblenden</string>
+    <string name="cd_help_show">Hilfe anzeigen</string>
+    <string name="cd_help_hide">Hilfe schließen</string>
+    <string name="cd_help">Hilfe</string>
+    <string name="cd_card_done">Mit dieser Karte fertig</string>
+    <string name="cd_reload">Ordner neu laden</string>
+    <string name="cd_settings">Einstellungen</string>
+    <string name="cd_sources">Ordner wechseln</string>
+    <string name="cd_selection">Auswahl</string>
+    <string name="cd_revert">Letztes Löschen rückgängig machen</string>
+    <string name="cd_back">Zurück</string>
+    <string name="cd_copy_favourites">Favoriten in Ordner kopieren</string>
+    <string name="cd_share_all">Alle teilen</string>
+    <string name="cd_warning">Warnung</string>
+    <string name="cd_got_it">Verstanden</string>
+    <string name="cd_dismiss">Schließen</string>
+    <string name="cd_loading">Fotos werden geladen</string>
+    <string name="cd_peek_right">Nach rechts wischen: %1$s</string>
+    <string name="cd_peek_left">Nach links wischen: %1$s</string>
+    <string name="cd_swipe_favourite">Als Favorit markieren</string>
+    <string name="cd_swipe_copy">Nach %1$s kopieren</string>
+    <string name="cd_swipe_move">Nach %1$s verschieben</string>
+    <string name="cd_swipe_delete">Foto löschen</string>
+
+    <!-- Hilfe-Beschriftungen -->
+    <string name="guide_camera_info">Kamera-Info</string>
+    <string name="guide_card_done">Karte fertig</string>
+    <string name="guide_reload">Neu laden</string>
+    <string name="guide_help">Hilfe</string>
+    <string name="guide_info">Info</string>
+    <string name="guide_settings">Optionen</string>
+    <string name="guide_sources">Ordner</string>
+    <string name="guide_selection">Auswahl</string>
+    <string name="guide_revert">Rückgängig</string>
+    <string name="guide_tap">Anzeigen aus</string>
+    <string name="guide_zoom">Zoom</string>
+    <string name="guide_next">Weiter</string>
+    <string name="guide_previous">Zurück</string>
+
+    <!-- Wisch-Anzeigen (in Großbuchstaben) -->
+    <string name="label_swipe_copy">Kopieren</string>
+    <string name="label_swipe_move">Verschieben</string>
+    <string name="label_swipe_delete">Löschen</string>
+    <string name="label_swipe_favourite">★</string>
+
+    <!-- Schaltflächen -->
+    <string name="action_cancel">Abbrechen</string>
+    <string name="action_close">Schließen</string>
+    <string name="action_delete">Löschen</string>
+    <string name="action_delete_all">Alle löschen</string>
+    <string name="action_delete_all_count">Alle löschen (%1$d)</string>
+    <string name="action_delete_rejects">Aussortierte löschen</string>
+    <string name="action_keep_all">Alle behalten</string>
+    <string name="action_show_new">Neue zeigen</string>
+    <string name="action_stay">Bleiben</string>
+    <string name="action_merge_pairs">Paare bündeln</string>
+    <string name="action_link_both">Beide verknüpfen</string>
+    <string name="action_dont_change">Nicht ändern</string>
+    <string name="action_raw">RAW</string>
+    <string name="action_jpeg">JPEG</string>
+    <string name="action_settings">Einstellungen</string>
+    <string name="action_show_all">Alle zeigen</string>
+    <string name="action_reselect">Neu wählen</string>
+    <string name="action_resume">Fortsetzen</string>
+    <string name="action_start">Start</string>
+    <string name="action_save">Speichern</string>
+    <string name="action_reset">Zurücksetzen</string>
+    <string name="action_share">Teilen</string>
+    <string name="action_open_with">Öffnen mit</string>
+    <string name="action_details">Details</string>
+
+    <!-- Beschriftungen und Chips -->
+    <string name="label_show_only">Nur zeigen</string>
+    <string name="title_source_camera">Kamera</string>
+    <string name="title_source_sd">SD-Karte / USB</string>
+    <string name="title_source_folder">Ordner oder Cloud</string>
+    <string name="label_kind_phone">Telefon</string>
+    <string name="label_kind_sd">SD / USB</string>
+    <string name="label_kind_camera">Kamera</string>
+    <string name="label_kind_cloud">Cloud</string>
+    <string name="label_folder">Ordner</string>
+    <string name="label_not_connected">Nicht verbunden</string>
+    <string name="label_seen_progress">%1$d / %2$d</string>
+    <string name="label_page_counter">%1$d / %2$d</string>
+    <string name="label_page_counter_more">%1$d / %2$d+</string>
+    <string name="label_portrait_section">Hochformat</string>
+    <string name="label_resolution">%1$d × %2$d</string>
+    <string name="label_file_size">%1$d KB</string>
+    <string name="label_raw_jpeg_pair">RAW + JPEG</string>
+    <string name="chip_favourite">Favorit</string>
+    <string name="chip_favourites">Favoriten</string>
+    <string name="chip_raw_jpg">RAW+JPG</string>
+
+    <!-- Titel -->
+    <string name="title_storage">Speicher</string>
+    <string name="title_browsing">Ansicht</string>
+    <string name="title_recent">Zuletzt genutzt</string>
+    <string name="title_help">Hilfe</string>
+    <string name="title_about">Info</string>
+    <string name="title_folder_access_lost">Ordnerzugriff verloren</string>
+
+    <!-- Dialoge -->
+    <string name="dialog_title_direct_delete">Endgültig löschen?</string>
+    <string name="dialog_body_no_trash">Dieser Ort hat keinen Papierkorb.</string>
+    <string name="dialog_body_turn_off_prompt">In den Einstellungen abschaltbar.</string>
+    <string name="dialog_title_card_done">Karte fertig</string>
+    <string name="dialog_body_card_loss">Nicht kopierte Fotos gehen verloren.</string>
+    <plurals name="dialog_title_delete_all">
+        <item quantity="one">1 Foto löschen?</item>
+        <item quantity="other">Alle %1$d Fotos löschen?</item>
+    </plurals>
+    <plurals name="dialog_title_new_photos">
+        <item quantity="one">%1$d neues Foto</item>
+        <item quantity="other">%1$d neue Fotos</item>
+    </plurals>
+    <string name="dialog_title_raw_jpeg">RAW + JPEG-Paare</string>
+    <string name="dialog_body_merge_pairs">Wischen betrifft beide Dateien</string>
+
+    <!-- Erste-Schritte-Hinweise -->
+    <string name="hint_title_swipe_right_favourite">Rechts wischen: Favorit</string>
+    <string name="hint_title_swipe_right_copy">Rechts wischen kopiert nach %1$s</string>
+    <string name="hint_title_swipe_right_move">Rechts wischen verschiebt nach %1$s</string>
+    <string name="hint_title_swipe_left_copy">Links wischen kopiert nach %1$s</string>
+    <string name="hint_title_swipe_left_move">Links wischen verschiebt nach %1$s</string>
+    <string name="hint_title_swipe_left_delete">Links wischen löscht</string>
+    <string name="hint_title_swipe_vertical">Position pro Ordner gemerkt</string>
+    <string name="hint_title_tap_hud">Erneut tippen zeigt die Anzeigen</string>
+    <string name="hint_title_double_tap_zoom">Doppeltippen setzt zurück</string>
+    <string name="hint_title_revert">Rückgängig stellt zuletzt Gelöschtes her</string>
+    <string name="hint_title_raw_jpeg_pairs">RAW + JPEG-Paare</string>
+    <string name="hint_body_raw_jpeg_pairs">Verknüpfen oder ein Format zeigen.</string>
+    <string name="hint_title_filter_raw">Nur RAW</string>
+    <string name="hint_title_filter_jpeg">Nur JPEG</string>
+    <string name="hint_title_filter_active">Filter aktiv</string>
+    <string name="hint_body_filter_mostly_jpeg">Hier sind die meisten Fotos JPEG.</string>
+    <string name="hint_body_filter_mostly_raw">Hier sind die meisten Fotos RAW.</string>
+    <string name="hint_body_filter_hidden">Einige Fotos sind ausgeblendet.</string>
+
+    <!-- Snackbars -->
+    <string name="snackbar_copied">Kopiert nach %1$s</string>
+    <string name="snackbar_copied_related">Kopiert nach %1$s +%2$d</string>
+    <string name="snackbar_copied_renamed">Kopiert als %1$s</string>
+    <string name="snackbar_copied_renamed_related">Kopiert als %1$s +%2$d</string>
+    <string name="snackbar_moved">Verschoben nach %1$s</string>
+    <string name="snackbar_moved_related">Verschoben nach %1$s +%2$d</string>
+    <string name="snackbar_moved_renamed">Verschoben als %1$s</string>
+    <string name="snackbar_moved_renamed_related">Verschoben als %1$s +%2$d</string>
+    <string name="snackbar_favourite_added">Als Favorit markiert</string>
+    <string name="snackbar_favourite_removed">Favorit entfernt</string>
+    <string name="snackbar_cloud_copy_only">Cloud: nur Kopieren</string>
+    <string name="snackbar_card_disconnected">Karte getrennt</string>
+    <string name="snackbar_no_new_photos">Keine neuen Fotos</string>
+    <string name="snackbar_safe_to_unplug">Sicher entfernbar</string>
+    <string name="snackbar_rejects_deleted">Aussortierte gelöscht</string>
+    <string name="snackbar_deleted_count">%1$d gelöscht</string>
+    <string name="snackbar_pairs_merged">Paare gebündelt</string>
+    <string name="snackbar_filter_raw">Nur RAW</string>
+    <string name="snackbar_filter_jpeg">Nur JPEG</string>
+    <string name="snackbar_filter_all">Alle Fotos</string>
+    <string name="snackbar_linked">RAW + JPEG verknüpft</string>
+    <string name="snackbar_milestone_freed">%1$s frei</string>
+    <string name="snackbar_milestone_reviewed">%1$d angesehen</string>
+    <string name="snackbar_selection_none">Noch keine Auswahl</string>
+    <string name="snackbar_selection_empty">Auswahl ist leer</string>
+    <string name="snackbar_nothing_yet">Noch nichts hier</string>
+    <string name="snackbar_favourites_copied">%1$d kopiert nach %2$s</string>
+    <string name="snackbar_share_capped">Teile die ersten %1$d von %2$d</string>
+
+    <!-- Fehler -->
+    <string name="error_move_partial">Kopiert nach %1$s, Original nicht entfernt</string>
+    <string name="error_copy_failed">Kopieren nach %1$s fehlgeschlagen</string>
+    <string name="error_move_failed">Verschieben nach %1$s fehlgeschlagen</string>
+    <string name="error_copied_some">%1$d von %2$d nach %3$s kopiert</string>
+    <string name="error_moved_some">%1$d von %2$d nach %3$s verschoben</string>
+    <string name="error_not_connected">%1$s nicht verbunden</string>
+    <string name="error_transfer_failed">Übertragung nicht abgeschlossen</string>
+    <string name="error_delete_one">%1$s nicht gelöscht</string>
+    <string name="error_delete_some">%1$d von %2$d gelöscht</string>
+    <string name="error_folder_access">Ordner nicht zugänglich</string>
+    <string name="error_load_failed">Fotos nicht ladbar</string>
+    <string name="error_selection_local">Nur lokale Ordner</string>
+    <string name="error_selection_open">Auswahl nicht ladbar</string>
+    <string name="error_favourites_partial">%1$d von %2$d kopiert</string>
+
+    <!-- Leere Zustände -->
+    <string name="empty_no_favourites">Noch keine Favoriten</string>
+    <string name="empty_selection">Auswahl ist leer</string>
+    <string name="empty_folder">%1$s: keine Fotos</string>
+    <string name="empty_card_cleared">Karte geleert</string>
+
+    <!-- Einstellungen -->
+    <string name="setting_title_source_folder">Quellordner</string>
+    <string name="setting_summary_none">Keiner</string>
+    <string name="setting_title_reload">Ordner neu laden</string>
+    <string name="setting_title_selection_folder">Auswahlordner</string>
+    <string name="setting_title_raw_jpeg_folders">RAW- / JPEG-Ordner</string>
+    <string name="setting_title_selection_location">Auswahl-Speicherort</string>
+    <string name="setting_summary_custom">Eigener</string>
+    <string name="setting_summary_default">Standard</string>
+    <string name="setting_title_reset_folder">Diesen Ordner zurücksetzen</string>
+    <string name="setting_title_reset_all">Alle Ordner zurücksetzen</string>
+    <string name="setting_title_clear_cache">Cache leeren</string>
+    <string name="setting_summary_done">Fertig</string>
+    <string name="setting_title_source_type">Quellentyp</string>
+    <string name="setting_title_feed_order">Reihenfolge</string>
+    <string name="setting_title_confirm_delete">Löschen bestätigen</string>
+    <string name="setting_summary_deletes_unasked">Löscht ohne Nachfrage</string>
+    <string name="setting_title_camera_info">Kamera-Info</string>
+    <string name="setting_title_milestones">Meilensteine</string>
+    <string name="setting_title_link_raw_jpeg">RAW + JPEG verknüpfen</string>
+    <string name="setting_title_format_filter">Formatfilter</string>
+    <string name="setting_title_swipe_right">Rechts wischen</string>
+    <string name="setting_title_swipe_left">Links wischen</string>
+    <string name="setting_title_left_folder">Ordner für Links-Wischen</string>
+    <string name="setting_title_show_recent">Liste zeigen</string>
+    <string name="setting_title_recent_count">Anzahl</string>
+    <string name="setting_title_reset_tips">Tipps zurücksetzen</string>
+    <string name="setting_title_version">Version</string>
+    <string name="setting_title_source_code">Quellcode</string>
+    <string name="setting_title_privacy">Datenschutzerklärung</string>
+    <string name="setting_title_legal">Impressum</string>
+    <string name="chip_phone">Telefon</string>
+    <string name="chip_sd_card">SD-Karte</string>
+    <string name="chip_camera">Kamera</string>
+    <string name="chip_newest">Neueste zuerst</string>
+    <string name="chip_by_filename">Nach Dateiname</string>
+    <string name="chip_shuffle">Zufällig</string>
+    <string name="chip_by_orientation">Nach Format</string>
+    <string name="chip_pairs_merged">Paare gebündelt</string>
+    <string name="chip_both">Beide</string>
+    <string name="chip_raw_only">Nur RAW</string>
+    <string name="chip_jpeg_only">Nur JPEG</string>
+    <string name="chip_copy">Kopieren</string>
+    <string name="chip_move">Verschieben</string>
+    <string name="chip_delete">Löschen</string>
+</resources>

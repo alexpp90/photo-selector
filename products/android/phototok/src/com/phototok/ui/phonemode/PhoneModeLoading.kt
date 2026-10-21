@@ -27,10 +27,14 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.res.painterResource
+import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.phototok.R
 
 /**
  * Shown while a (possibly large / remote) folder is loading, so the user stays on a
@@ -64,25 +68,21 @@ fun PhoneModeLoading(
                 horizontalArrangement = Arrangement.spacedBy((-16).dp),
                 modifier = Modifier.padding(vertical = 12.dp),
             ) {
-                SampleCard(com.phototok.R.drawable.placeholder_landscape, -8f, 0f, 80, 110, 0.15f)
-                SampleCard(com.phototok.R.drawable.placeholder_portrait, 0f, -8f, 90, 120, 0.25f)
-                SampleCard(com.phototok.R.drawable.placeholder_architecture, 8f, 0f, 80, 110, 0.15f)
+                SampleCard(R.drawable.placeholder_landscape, -8f, 0f, 80, 110, 0.15f)
+                SampleCard(R.drawable.placeholder_portrait, 0f, -8f, 90, 120, 0.25f)
+                SampleCard(R.drawable.placeholder_architecture, 8f, 0f, 80, 110, 0.15f)
             }
 
             Spacer(modifier = Modifier.height(40.dp))
 
-            CircularProgressIndicator(color = colors.primary)
-
-            Spacer(modifier = Modifier.height(20.dp))
-
-            Text(
-                text = "Loading photos…",
-                style = MaterialTheme.typography.titleMedium,
-                color = colors.onSurface,
-                fontWeight = FontWeight.SemiBold,
+            val loadingName = stringResource(R.string.cd_loading)
+            CircularProgressIndicator(
+                color = colors.primary,
+                modifier = Modifier.semantics { contentDescription = loadingName },
             )
+
             if (folderName.isNotEmpty()) {
-                Spacer(modifier = Modifier.height(4.dp))
+                Spacer(modifier = Modifier.height(20.dp))
                 Text(
                     text = folderName,
                     style = MaterialTheme.typography.bodySmall.copy(letterSpacing = 1.sp),

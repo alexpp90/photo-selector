@@ -1,7 +1,7 @@
 """Every app selector in the Android lab flows names something the product's source defines.
 
 The flows select app controls by test tag and dialog buttons by their text (dialog windows do
-not export test tags). Both are strings owned by the product, which can change them without
+not export test tags), found in the Kotlin sources or the string resources. Both are owned by the product, which can change them without
 running the lab: on 2026-10-18 a copy pass renamed PhotoTok's "Start with Newest" and "Link
 actions across both" buttons, and every journey's `_ensure_folder.yaml` would have broken on the
 next device run. This check fails in the CI mirror instead.
@@ -42,8 +42,20 @@ def alternatives(selector: str) -> list[str]:
 
 
 def product_strings(product: str) -> str:
-    src = ROOT / "products" / "android" / product / "src"
-    return "\n".join(p.read_text(encoding="utf-8", errors="replace") for p in src.rglob("*.kt"))
+    """Kotlin sources plus every string resource (EN and translations), each as a `"…"` literal.
+
+    PhotoTok's visible text lives in `res/values*/strings.xml` (docs/shared/UI_TEXT.md), so a
+    dialog button's label is a resource, not a Kotlin literal.
+    """
+    import xml.etree.ElementTree as ET
+
+    base = ROOT / "products" / "android" / product
+    parts = [p.read_text(encoding="utf-8", errors="replace") for p in (base / "src").rglob("*.kt")]
+    for xml in sorted((base / "res").glob("values*/strings.xml")):
+        for el in ET.parse(xml).getroot().iter():
+            if el.tag in ("string", "item") and el.text:
+                parts.append(f'"{el.text.strip()}"'.replace("\\'", "'"))
+    return "\n".join(parts)
 
 
 class TestFlowSelectors(unittest.TestCase):

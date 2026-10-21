@@ -1,5 +1,7 @@
 package com.phototok.ui.phonemode
 
+import androidx.compose.material.icons.filled.Star
+import com.phototok.domain.SwipeRightVerb
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.core.Animatable
 import androidx.compose.animation.core.LinearEasing
@@ -34,6 +36,7 @@ import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.automirrored.filled.ArrowForward
 import androidx.compose.material.icons.automirrored.filled.DriveFileMove
 import androidx.compose.material.icons.automirrored.filled.HelpOutline
+import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.CollectionsBookmark
 import androidx.compose.material.icons.filled.ContentCopy
 import androidx.compose.material.icons.filled.Delete
@@ -49,6 +52,7 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
@@ -56,21 +60,31 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.testTag
+import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.unit.Density
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.phototok.domain.CollectionAction
 import com.phototok.domain.SwipeAction
+import com.phototok.R
 import com.phototok.domain.SwipeLabels
+import com.phototok.ui.asString
 
 /**
  * Space the up/down swipe callouts take above and below the photo frame
  * (44dp circle + label, twice, plus the 6dp gaps).
  */
+private const val GUIDE_MAX_FONT_SCALE = 1.15f
 private val VERTICAL_CALLOUTS_HEIGHT = 140.dp
 private val COMPACT_VERTICAL_CALLOUTS_HEIGHT = 108.dp
 
@@ -104,9 +118,8 @@ fun GestureTutorialOverlay(
     collectionAction: CollectionAction = CollectionAction.DEFAULT,
     leftSwipeFolderName: String = "",
     collectionFolderName: String = "",
-    title: String = "How to Jackpix",
-    subtitle: String? = null,
-    dismissLabel: String = "GOT IT",
+    /** What a right swipe does for this source kind; FAVOURITE on the phone camera (`U-17`). */
+    swipeRightVerb: SwipeRightVerb = collectionAction.toSwipeRightVerb(),
     /** Measured positions of the real controls; `null` falls back to nominal geometry. */
     anchors: ControlsGuideAnchors? = null,
 ) {
@@ -117,6 +130,13 @@ fun GestureTutorialOverlay(
     ) {
         val colors = MaterialTheme.colorScheme
 
+        // The guide is a transient overlay of short labels placed from measured geometry; German
+        // compounds must not break mid-word, so its text scale is capped (the rest of the app
+        // follows the system font scale in full).
+        val density = LocalDensity.current
+        CompositionLocalProvider(
+            LocalDensity provides Density(density.density, minOf(density.fontScale, GUIDE_MAX_FONT_SCALE)),
+        ) {
         GuideBox(anchors = anchors) { geometry, compact ->
             Column(
                 modifier = Modifier
@@ -131,27 +151,8 @@ fun GestureTutorialOverlay(
                     .padding(horizontal = if (compact) 12.dp else 16.dp),
             ) {
                 // The callouts are placed by [GuideLayout] around this column, so
-                // it only ever gets the space between them.
-                Text(
-                    text = title,
-                    style = if (compact) {
-                        MaterialTheme.typography.titleMedium
-                    } else {
-                        MaterialTheme.typography.headlineSmall
-                    },
-                    color = Color.White,
-                    fontWeight = FontWeight.Bold,
-                )
-                if (subtitle != null) {
-                    Text(
-                        text = subtitle,
-                        style = MaterialTheme.typography.bodySmall,
-                        color = colors.onSurfaceVariant,
-                        maxLines = if (compact) 1 else 2,
-                        overflow = TextOverflow.Ellipsis,
-                    )
-                }
-
+                // it only ever gets the space between them. No title: the callouts
+                // and the gestures explain themselves (REQ-TOK-UX.04).
                 // ── Gesture stage: the three swipes over the photo area ───
                 Box(
                     modifier = Modifier
@@ -164,16 +165,20 @@ fun GestureTutorialOverlay(
                         collectionAction = collectionAction,
                         leftSwipeFolderName = leftSwipeFolderName,
                         collectionFolderName = collectionFolderName,
+                        swipeRightVerb = swipeRightVerb,
                         compact = compact,
                     )
                 }
 
+                // Icon-only dismiss: a full-width bar, never below the 48 dp target.
+                val gotIt = stringResource(R.string.cd_got_it)
                 Surface(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .height(if (compact) 32.dp else 36.dp)
+                        .height(48.dp)
                         .clip(RoundedCornerShape(12.dp))
-                        .clickable { onDismiss() }
+                        .clickable(role = Role.Button) { onDismiss() }
+                        .semantics { contentDescription = gotIt }
                         .testTag("gesture_tutorial_got_it"),
                     shape = RoundedCornerShape(12.dp),
                     color = colors.primaryContainer,
@@ -182,16 +187,17 @@ fun GestureTutorialOverlay(
                         contentAlignment = Alignment.Center,
                         modifier = Modifier.fillMaxSize(),
                     ) {
-                        Text(
-                            text = dismissLabel,
-                            style = MaterialTheme.typography.labelLarge.copy(letterSpacing = 3.sp),
-                            color = colors.onPrimaryContainer,
+                        Icon(
+                            imageVector = Icons.Default.Check,
+                            contentDescription = null,
+                            tint = colors.onPrimaryContainer,
                         )
                     }
                 }
 
                 Spacer(modifier = Modifier.height(if (compact) 2.dp else 4.dp))
             }
+        }
         }
     }
 }
@@ -209,10 +215,12 @@ private fun GestureStage(
     collectionAction: CollectionAction,
     leftSwipeFolderName: String,
     collectionFolderName: String,
+    swipeRightVerb: SwipeRightVerb,
     compact: Boolean,
 ) {
     val colors = MaterialTheme.colorScheme
     val destructive = SwipeLabels.leftIsDestructive(leftSwipeAction)
+    val leftCaption = SwipeLabels.leftFolder(leftSwipeAction, leftSwipeFolderName)
     val leftTint = if (destructive) colors.error else colors.primary
 
     BoxWithConstraints(modifier = Modifier.fillMaxWidth()) {
@@ -229,7 +237,7 @@ private fun GestureStage(
             minimumValue = 24.dp,
             maximumValue = if (compact) 132.dp else 260.dp,
         )
-        val sideCalloutWidth = if (compact || maxWidth < 340.dp) 76.dp else 92.dp
+        val sideCalloutWidth = if (maxWidth < 340.dp) 84.dp else 96.dp
 
         Column(
             horizontalAlignment = Alignment.CenterHorizontally,
@@ -239,7 +247,7 @@ private fun GestureStage(
             // ── Up ────────────────────────────────────────────────────
             SwipeCallout(
                 icon = Icons.Default.KeyboardArrowUp,
-                label = "Next photo",
+                label = stringResource(R.string.guide_next),
                 tint = colors.secondary,
                 axis = DriftAxis.UP,
                 delayMs = 0,
@@ -258,8 +266,8 @@ private fun GestureStage(
                 SwipeCallout(
                     icon = Icons.AutoMirrored.Filled.ArrowBack,
                     actionIcon = leftSwipeActionIcon(leftSwipeAction),
-                    label = SwipeLabels.leftLabel(leftSwipeAction),
-                    description = SwipeLabels.leftDescription(leftSwipeAction, leftSwipeFolderName),
+                    label = SwipeLabels.leftLabel(leftSwipeAction).asString(),
+                    caption = leftCaption,
                     tint = leftTint,
                     axis = DriftAxis.LEFT,
                     delayMs = 600,
@@ -288,14 +296,12 @@ private fun GestureStage(
                     ) {
                         TapHint(
                             icon = Icons.Default.TouchApp,
-                            label = "Single tap",
-                            description = "Hide the overlays",
+                            label = stringResource(R.string.guide_tap),
                             compact = compact,
                         )
                         TapHint(
                             icon = Icons.Default.ZoomIn,
-                            label = "Double tap or pinch",
-                            description = "Zoom in, drag to pan",
+                            label = stringResource(R.string.guide_zoom),
                             compact = compact,
                         )
                     }
@@ -304,12 +310,13 @@ private fun GestureStage(
                 // ── Right ─────────────────────────────────────────────
                 SwipeCallout(
                     icon = Icons.AutoMirrored.Filled.ArrowForward,
-                    actionIcon = collectionActionIcon(collectionAction),
-                    label = SwipeLabels.rightLabel(collectionAction),
-                    description = SwipeLabels.rightDescription(
-                        collectionAction,
-                        collectionFolderName,
-                    ),
+                    actionIcon = if (swipeRightVerb == SwipeRightVerb.FAVOURITE) Icons.Default.Star else collectionActionIcon(collectionAction),
+                    label = SwipeLabels.rightLabel(swipeRightVerb).asString(),
+                    caption = if (swipeRightVerb == SwipeRightVerb.FAVOURITE) {
+                        stringResource(R.string.chip_favourites)
+                    } else {
+                        SwipeLabels.rightFolder(collectionFolderName)
+                    },
                     tint = colors.primary,
                     axis = DriftAxis.RIGHT,
                     delayMs = 300,
@@ -324,7 +331,7 @@ private fun GestureStage(
             // ── Down ──────────────────────────────────────────────────
             SwipeCallout(
                 icon = Icons.Default.KeyboardArrowDown,
-                label = "Previous photo",
+                label = stringResource(R.string.guide_previous),
                 tint = colors.secondary,
                 axis = DriftAxis.DOWN,
                 delayMs = 900,
@@ -335,39 +342,35 @@ private fun GestureStage(
     }
 }
 
-/** A tap gesture explained inside the photo frame. */
+/** A tap gesture explained inside the photo frame: its glyph and a two-word caption. */
 @Composable
 private fun TapHint(
     icon: ImageVector,
     label: String,
-    description: String,
     compact: Boolean = false,
 ) {
     val colors = MaterialTheme.colorScheme
     Column(horizontalAlignment = Alignment.CenterHorizontally) {
-        Icon(
-            imageVector = icon,
-            contentDescription = null,
-            tint = colors.onSurfaceVariant,
-            modifier = Modifier.size(if (compact) 16.dp else 22.dp),
-        )
+        GuideGlyph(icon = icon, tint = colors.onSurfaceVariant, size = if (compact) 16.dp else 22.dp)
         Text(
             text = label,
             style = MaterialTheme.typography.labelMedium,
             color = Color.White,
             fontWeight = FontWeight.SemiBold,
-            maxLines = 1,
-            overflow = TextOverflow.Ellipsis,
-        )
-        Text(
-            text = description,
-            style = MaterialTheme.typography.labelSmall,
-            color = colors.onSurfaceVariant,
             textAlign = TextAlign.Center,
-            maxLines = 1,
-            overflow = TextOverflow.Ellipsis,
         )
     }
+}
+
+/** A decorative glyph in the guide (the control or gesture it belongs to is named by the text next to it). */
+@Composable
+private fun GuideGlyph(icon: ImageVector, tint: Color, size: Dp) {
+    Icon(
+        imageVector = icon,
+        contentDescription = null,
+        tint = tint,
+        modifier = Modifier.size(size),
+    )
 }
 
 /**
@@ -382,7 +385,8 @@ private fun SwipeCallout(
     axis: DriftAxis,
     delayMs: Int,
     actionIcon: ImageVector? = null,
-    description: String? = null,
+    /** The configured target folder, shown as a value under the label; `null` for a delete. */
+    caption: String? = null,
     compact: Boolean = false,
     /** Icon and label side by side, for stages too short for the stacked form. */
     inline: Boolean = false,
@@ -413,8 +417,6 @@ private fun SwipeCallout(
                 style = MaterialTheme.typography.labelMedium,
                 color = Color.White,
                 fontWeight = FontWeight.SemiBold,
-                maxLines = 1,
-                overflow = TextOverflow.Ellipsis,
             )
         }
         return
@@ -434,30 +436,10 @@ private fun SwipeCallout(
         ) {
             DriftingIcon(icon = icon, tint = tint, axis = axis, delayMs = delayMs)
         }
-        Row(
-            verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.spacedBy(3.dp),
-        ) {
-            if (actionIcon != null) {
-                Icon(
-                    imageVector = actionIcon,
-                    contentDescription = null,
-                    tint = tint,
-                    modifier = Modifier.size(13.dp),
-                )
-            }
+        CalloutLabel(actionIcon = actionIcon, text = label, tint = tint)
+        if (caption != null) {
             Text(
-                text = label,
-                style = MaterialTheme.typography.labelMedium,
-                color = Color.White,
-                fontWeight = FontWeight.SemiBold,
-                maxLines = 1,
-                overflow = TextOverflow.Ellipsis,
-            )
-        }
-        if (description != null) {
-            Text(
-                text = description,
+                text = caption,
                 style = MaterialTheme.typography.labelSmall,
                 color = colors.onSurfaceVariant,
                 textAlign = TextAlign.Center,
@@ -465,6 +447,26 @@ private fun SwipeCallout(
                 overflow = TextOverflow.Ellipsis,
             )
         }
+    }
+}
+
+/** The label of a swipe callout, led by the glyph of the action it triggers. */
+@Composable
+private fun CalloutLabel(actionIcon: ImageVector?, text: String, tint: Color) {
+    Row(
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(3.dp),
+    ) {
+        if (actionIcon != null) {
+            GuideGlyph(icon = actionIcon, tint = tint, size = 13.dp)
+        }
+        Text(
+            text = text,
+            style = MaterialTheme.typography.labelMedium,
+            color = Color.White,
+            fontWeight = FontWeight.SemiBold,
+            textAlign = TextAlign.Center,
+        )
     }
 }
 

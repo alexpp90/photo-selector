@@ -1,5 +1,7 @@
 package com.phototok.domain
 
+import com.phototok.R
+
 /**
  * Pure threshold and rate-limit rules for storage-freed and photos-reviewed milestone
  * celebrations (`U-19`).
@@ -29,16 +31,16 @@ object Milestones {
     const val MIN_CELEBRATION_INTERVAL_MS = 2 * 60 * 1_000L
 
     sealed interface MilestoneEvent {
-        val message: String
+        val message: UiText
 
         data class BytesFreed(
             val thresholdBytes: Long,
-            override val message: String,
+            override val message: UiText,
         ) : MilestoneEvent
 
         data class PhotosReviewed(
             val thresholdCount: Int,
-            override val message: String,
+            override val message: UiText,
         ) : MilestoneEvent
     }
 
@@ -73,7 +75,7 @@ object Milestones {
         if (crossedByte != null) {
             return MilestoneEvent.BytesFreed(
                 thresholdBytes = crossedByte,
-                message = "${formatBytes(crossedByte)} freed!",
+                message = UiText.of(R.string.snackbar_milestone_freed, formatBytes(crossedByte)),
             )
         }
 
@@ -85,7 +87,7 @@ object Milestones {
         if (crossedSeen != null) {
             return MilestoneEvent.PhotosReviewed(
                 thresholdCount = crossedSeen,
-                message = "$crossedSeen photos reviewed!",
+                message = UiText.of(R.string.snackbar_milestone_reviewed, crossedSeen),
             )
         }
 

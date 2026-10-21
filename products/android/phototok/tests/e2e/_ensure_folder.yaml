@@ -13,13 +13,13 @@ appId: com.phototok.lab
 # neither is visible until the column is scrolled (LAB-23, 2026-10-19: every Xperia journey
 # flow-broken). With a folder set the app usually resumes straight into the feed, often under a
 # dialog window, and a scroll there swipes through photos (2026-10-19, Pixel 4a). So the scrolls
-# run only when the landing's hero logo (content description "Logo", the landing's first item,
-# visible in every orientation) was on screen first. Never guard them with `when: visible` of
+# run only when the landing's hero logo (test tag `landing_logo`, the landing's first item,
+# visible in every orientation; decorative, so it has no spoken name) was on screen first. Never guard them with `when: visible` of
 # their own target: they exist for the screen where it is off screen.
 - runFlow:
     when:
       visible:
-        text: "Logo"
+        id: "landing_logo"
     commands:
       - evalScript: ${output.onLanding = true}
 - runFlow:
@@ -86,11 +86,11 @@ appId: com.phototok.lab
 # (testTagsAsResourceId is set on the activity content only); match the app's own text.
 - extendedWaitUntil:
     visible:
-      text: "Show new|Start with Newest"
+      text: "Show new|Neue zeigen|Start with Newest"
     timeout: 4000
     optional: true
 - tapOn:
-    text: "Show new|Start with Newest"
+    text: "Show new|Neue zeigen|Start with Newest"
     optional: true
 # First feed visit after an install shows the controls guide over the photo.
 - extendedWaitUntil:
@@ -104,7 +104,7 @@ appId: com.phototok.lab
 # A folder with RAW + JPEG pairs asks how to treat them (REQ-TOK-FEATURE.11) in a dialog window
 # over the feed, so viewer.photo is not in the hierarchy until it is answered (2026-10-17: J-TOK-05
 # never got past this flow). Link the pairs: J-TOK-05 keeps a pair. Matched by its text for the
-# same reason as above ("Show both, linked"; the title's "+" is a regex operator).
+# same reason as above ("Link both"; the title's "+" is a regex operator).
 - extendedWaitUntil:
     visible:
       id: "viewer.photo"
@@ -113,10 +113,10 @@ appId: com.phototok.lab
 - runFlow:
     when:
       visible:
-        text: "Show both, linked|Link actions across both"
+        text: "Link both|Beide verknüpfen|Show both, linked|Link actions across both"
     commands:
       - tapOn:
-          text: "Show both, linked|Link actions across both"
+          text: "Link both|Beide verknüpfen|Show both, linked|Link actions across both"
 - extendedWaitUntil:
     visible:
       id: "viewer.photo"
