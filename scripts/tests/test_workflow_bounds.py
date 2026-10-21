@@ -65,6 +65,31 @@ def run_commands(text: str) -> list[str]:
     return commands
 
 
+PUBLISHING_JOB = re.compile(r"^(publish|release|github-release|update-homebrew)")
+
+
+def job_conditions(text: str) -> dict[str, str]:
+    """Each job's job-level ``if:`` expression ("" when the job has none)."""
+    conditions: dict[str, str] = {}
+    in_jobs = False
+    current: str | None = None
+    for line in text.splitlines():
+        if line.startswith("jobs:"):
+            in_jobs = True
+            continue
+        if not in_jobs:
+            continue
+        match = JOB_RE.match(line)
+        if match:
+            current = match.group(1)
+            conditions[current] = ""
+        elif current is not None:
+            cond = re.match(r"^    if:\s*(.*)$", line)
+            if cond:
+                conditions[current] = cond.group(1)
+    return conditions
+
+
 class WorkflowBoundsTest(unittest.TestCase):
     def test_parser_flags_a_job_without_timeout(self):
         text = (
@@ -91,6 +116,21 @@ class WorkflowBoundsTest(unittest.TestCase):
                 if re.search(r"(^|\s)(poetry run |python3? -m )?pytest(\s|$)", command) and "install" not in command:
                     with self.subTest(workflow=path.name, command=command[:80]):
                         self.assertIn("faulthandler_timeout", command)
+
+
+    def test_parser_reads_job_conditions(self):
+        text = "jobs:\n  a:\n    if: github.event_name == 'push'\n    steps:\n      - if: x\n  b:\n    runs-on: y\n"
+        self.assertEqual(job_conditions(text), {"a": "github.event_name == 'push'", "b": ""})
+
+    def test_publishing_jobs_never_run_on_a_manual_dispatch(self):
+        # 2026-10-21: linux.yml publish-apt ran on any workflow_dispatch, from any branch and
+        # without verify-tag, and pushed a signed .deb to the production APT repository.
+        for path in sorted(WORKFLOWS.glob("*.yml")):
+            for job, condition in job_conditions(path.read_text(encoding="utf-8")).items():
+                if PUBLISHING_JOB.match(job):
+                    with self.subTest(workflow=path.name, job=job):
+                        self.assertTrue(condition, "a publishing job needs an explicit if:")
+                        self.assertNotIn("workflow_dispatch", condition)
 
 
 if __name__ == "__main__":
