@@ -374,5 +374,238 @@ class TestScenes(unittest.TestCase):
             shutil.rmtree(out, ignore_errors=True)
 
 
+# ── text load: words per control (docs/shared/UI_TEXT.md) ─────────────────────────────────
+
+def _bar_item(label: str, x: int) -> str:
+    """A bottom-bar control as Compose exports it: clickable, an icon node and a label node."""
+    icon = _node(desc=label, bounds=f"[{x + 60},1674][{x + 113},1727]")
+    text = _node(text=label, bounds=f"[{x + 40},1727][{x + 140},1757]")
+    return _node(rid=f"viewer_{label.lower()}_button", clickable=True, bounds=f"[{x},1652][{x + 189},1778]", children=icon + text)
+
+
+class TestTextLoad(unittest.TestCase):
+    def test_labelled_bar_icons_are_flagged_even_on_a_five_word_screen(self) -> None:
+        from lab.usability.textload import analyse
+
+        xml = _xml(_node(text="1 / 16", bounds="[919,1478][1001,1515]"),
+                   _bar_item("Sources", 128), _bar_item("Selection", 446), _bar_item("Revert", 764))
+        m = screen_metrics(xml)
+        self.assertFalse(m["text_heavy"])  # the old per-screen rule could never see this
+        tl = analyse(xml)
+        self.assertEqual(tl["labelled_icons"], 3)
+        self.assertEqual(tl["verdict"], "over")
+        self.assertEqual(m["text_load"]["labelled_icons"], 3)
+
+    def test_icon_only_controls_and_short_buttons_pass(self) -> None:
+        from lab.usability.textload import analyse
+
+        icon_only = _node(rid="reload_folder_button", clickable=True, bounds="[609,86][714,212]",
+                          children=_node(desc="Reload folder", bounds="[640,117][703,180]"))
+        delete = _node(text="Delete", clickable=True, bounds="[700,1100][900,1200]")
+        tl = analyse(_xml(icon_only, delete))
+        self.assertEqual((tl["labelled_icons"], tl["wordy_controls"], tl["verdict"]), (0, 0, "ok"))
+
+    def test_wordy_button_and_settings_row_budgets(self) -> None:
+        from lab.usability.textload import analyse
+
+        button = _node(text="Continue Where I Left Off", clickable=True, bounds="[100,1100][900,1200]")
+        row = _node(clickable=True, bounds="[0,300][1080,460]", children=(
+            _node(text="Reset All Seen History", bounds="[40,310][900,360]")
+            + _node(text="Reset reviewed photo progress across all folders and cards", bounds="[40,370][1000,420]")))
+        short_row = _node(clickable=True, bounds="[0,500][1080,640]", children=(
+            _node(text="Selection folder", bounds="[40,510][900,560]") + _node(text="Keepers", bounds="[40,570][600,620]")))
+        tl = analyse(_xml(button, row, short_row))
+        flags = {tuple(c["texts"])[0]: c["flags"] for c in tl["controls"]}
+        self.assertEqual(flags["Continue Where I Left Off"], ["wordy"])
+        self.assertEqual(flags["Reset All Seen History"], ["wordy"])
+        self.assertEqual(flags["Selection folder"], [])
+
+    def test_german_uses_its_own_character_budget(self) -> None:
+        from lab.usability.textload import analyse
+
+        # 20 characters: over the English button limit (16), within the German one (22).
+        b = _node(text="Aussortierte löschen", clickable=True, bounds="[100,1100][900,1200]")
+        self.assertEqual(analyse(_xml(b), locale="en")["wordy_controls"], 1)
+        self.assertEqual(analyse(_xml(b), locale="de-DE")["wordy_controls"], 0)
+
+
+class TestTextLoadShapes(unittest.TestCase):
+    def test_full_screen_overlay_is_a_container_and_a_one_line_row_is_a_row(self) -> None:
+        from lab.usability.textload import analyse
+
+        callouts = "".join(_node(text=t, bounds=f"[100,{300 + 60 * i}][400,{340 + 60 * i}]")
+                           for i, t in enumerate(["Next", "Delete", "Copy", "Zoom", "Selection", "Undo delete"]))
+        overlay = _node(rid="controls_guide", clickable=True, bounds="[0,0][1080,1920]", children=callouts)
+        row = _node(clickable=True, bounds="[0,1500][1080,1640]", children=_node(text="Link RAW + JPEG", bounds="[40,1520][700,1600]"))
+        tl = analyse(_xml(overlay, row))
+        self.assertEqual(tl["wordy_controls"], 0)
+        self.assertEqual(tl["verdict"], "ok")
+        self.assertEqual([c["kind"] for c in tl["controls"]], ["row"])
+
+    def test_a_screen_of_more_than_40_words_is_over_even_without_controls(self) -> None:
+        from lab.usability.textload import analyse
+
+        body = _node(text=" ".join(["word"] * 41), bounds="[0,300][1080,900]")
+        tl = analyse(_xml(body))
+        self.assertTrue(tl["text_heavy"])
+        self.assertEqual(tl["verdict"], "over")
+
+
+class TestLocaleAndFontScale(unittest.TestCase):
+    def test_find_node_accepts_alternatives(self) -> None:
+        nodes = drv.parse_nodes(_xml(_node(text="Löschen", clickable=True, bounds="[0,0][10,10]")))
+        self.assertIsNotNone(drv.find_node(nodes, {"text": ["Delete", "Löschen"]}))
+        self.assertEqual(drv.describe_target({"text": ["Delete", "Löschen"]}), "'Delete'")
+
+    def test_clear_launch_reapplies_the_app_locale(self) -> None:
+        class LocAdb(FakeAdb):
+            def __init__(self) -> None:
+                super().__init__([_xml()])
+                self.cmds: list[tuple[str, ...]] = []
+
+            def run(self, *args: str, timeout: int = 30) -> str:
+                self.cmds.append(args)
+                return super().run(*args, timeout=timeout)
+
+        adb = LocAdb()
+        out = _scratch("test_usability_locale")
+        try:
+            d = drv.ScenarioDriver(adb, "com.phototok.lab", out, settle_ms=0, app_locale="de-DE")
+            d.run({"id": "U", "steps": [{"launch": {"clear": True}}]})
+            clear = adb.cmds.index(("shell", "pm", "clear", "com.phototok.lab"))
+            self.assertEqual(adb.cmds[clear + 1],
+                             ("shell", "cmd", "locale", "set-app-locales", "com.phototok.lab", "--locales", "de-DE"))
+        finally:
+            shutil.rmtree(out, ignore_errors=True)
+
+    def test_capture_restores_font_scale_and_locale(self) -> None:
+        from lab.usability import capture as cap
+
+        class CapAdb(FakeAdb):
+            def __init__(self) -> None:
+                super().__init__([_xml()])
+                self.cmds: list[tuple[str, ...]] = []
+
+            def run(self, *args: str, timeout: int = 30) -> str:
+                self.cmds.append(args)
+                if args[-2:] == ("system", "font_scale") and args[2] == "get":
+                    return "1.0\n"
+                return super().run(*args, timeout=timeout)
+
+        adb = CapAdb()
+        out = _scratch("test_usability_capture")
+        spec = {"app_id": "com.phototok.lab", "scenarios": [{"id": "U", "steps": []}]}
+        orig = cap.load_scenarios
+        cap.load_scenarios = lambda product, root=None: spec  # type: ignore[assignment]
+        try:
+            w = cap.run_capture("phototok", "FAKE", out, adb=adb, locale="de-DE", font_scale=2.0)  # type: ignore[arg-type]
+        finally:
+            cap.load_scenarios = orig  # type: ignore[assignment]
+            shutil.rmtree(out, ignore_errors=True)
+        self.assertEqual(w["variant"], "de-DE@2.0")
+        self.assertFalse(cap._restore_file("FAKE").exists())
+        puts = [c for c in adb.cmds if c[:4] == ("shell", "settings", "put", "system") and c[4] == "font_scale"]
+        self.assertEqual([c[5] for c in puts], ["2", "1.0"])
+        self.assertEqual(adb.cmds[-1], ("shell", "cmd", "locale", "set-app-locales", "com.phototok.lab", "--locales", ""))
+
+
+class TestTapsAvoidTheNavigationBar(unittest.TestCase):
+    def test_a_target_half_under_the_navigation_bar_is_scrolled_into_view_first(self) -> None:
+        nav = _node(rid="navigationBarBackground", bounds="[0,1794][1080,1920]")
+        low = _xml(_node(rid="card", clickable=True, bounds="[42,1793][1038,1919]"), nav)
+        high = _xml(_node(rid="card", clickable=True, bounds="[42,1400][1038,1600]"), nav)
+        adb = FakeAdb([low, high])
+        out = _scratch("test_usability_navbar")
+        try:
+            d = drv.ScenarioDriver(adb, "com.phototok.lab", out, settle_ms=0)
+            d.run({"id": "U", "steps": [{"tap": {"id": "card", "scroll": True}}]})
+        finally:
+            shutil.rmtree(out, ignore_errors=True)
+        swipes = [i for i in adb.inputs if i[0] == "swipe"]
+        taps = [i for i in adb.inputs if i[0] == "tap"]
+        self.assertEqual(len(swipes), 1)
+        self.assertEqual(taps, [("tap", "540", "1500")])
+
+
+class TestRestoreAfterACrashedWalk(unittest.TestCase):
+    def test_a_walk_that_died_leaves_the_original_for_the_next_one(self) -> None:
+        from lab.usability import capture as cap
+
+        path = cap._restore_file("FAKE-CRASH")
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_text(json.dumps({"font_scale": "1.0"}))
+        try:
+            class Dev(FakeAdb):
+                def run(self, *args: str, timeout: int = 30) -> str:
+                    if args[:4] == ("shell", "settings", "get", "system"):
+                        return "2.0\n"  # what the dead walk left behind
+                    return super().run(*args, timeout=timeout)
+
+            self.assertEqual(cap._original_font_scale(Dev([_xml()]), "FAKE-CRASH"), "1.0")
+        finally:
+            path.unlink(missing_ok=True)
+
+
+class TestPanelVariantsAndChecklist(unittest.TestCase):
+    def setUp(self) -> None:
+        self.base = _scratch("test_usability_variants")
+        self.runs = {}
+        for label, words in (("en@1.0", 5), ("de-DE@2.0", 7)):
+            run = self.base / label
+            (run / "U-1").mkdir(parents=True)
+            w = _walkthrough()
+            w["variant"] = label
+            bar = _xml(_bar_item("Sources", 128))
+            for s in w["scenarios"][0]["screens"]:
+                (run / "U-1" / s["image"]).write_bytes(PNG_1PX)
+                s["metrics"]["text_load"] = __import__("lab.usability.textload", fromlist=["analyse"]).analyse(bar, locale=label.split("@")[0])
+                s["metrics"]["words"] = words
+            (run / "walkthrough.json").write_text(json.dumps(w), encoding="utf-8")
+            self.runs[label] = run
+        self.priv = self.base / "priv"
+        (self.priv / "personas" / "phototok").mkdir(parents=True)
+        (self.priv / "personas" / "phototok" / "commuter.md").write_text("# Mia\n", encoding="utf-8")
+        (self.priv / "personas" / "phototok" / "newcomer.md").write_text("<!-- setup: de-DE@2.0 -->\n# Renate\n", encoding="utf-8")
+
+    def tearDown(self) -> None:
+        shutil.rmtree(self.base, ignore_errors=True)
+
+    def test_each_persona_reviews_its_setup_and_moderator_sees_all_variants(self) -> None:
+        from lab.usability.panel import text_load_table
+
+        out = build_panel(self.runs["en@1.0"], priv=self.priv, variants=[self.runs["de-DE@2.0"]])
+        self.assertEqual(json.loads((out / "assignments.json").read_text()), {"commuter": "en@1.0", "newcomer": "de-DE@2.0"})
+        self.assertIn("images/de-DE@2.0/U-1_03_guide.png", (out / "walkthrough-newcomer.md").read_text())
+        self.assertIn("images/U-1_03_guide.png", (out / "walkthrough-commuter.md").read_text())
+        self.assertTrue((out / "images" / "de-DE@2.0" / "U-1_01_landing.png").is_file())
+        mod = json.loads((out / "moderator-input.json").read_text())
+        self.assertEqual(set(mod[0]["text_load_by_variant"]), {"en@1.0", "de-DE@2.0"})
+        self.assertEqual(mod[0]["labelled_icons"], 1)
+        self.assertIsInstance(json.loads((out / "requirements.json").read_text()), list)
+        table = (out / "text-load.md").read_text()
+        self.assertIn("✘", table)
+        self.assertIn("Sources [labelled-icon]", table)
+        from lab.usability.panel import load_variants
+
+        _, over = text_load_table(load_variants(self.runs["en@1.0"], [self.runs["de-DE@2.0"]]))
+        self.assertTrue(over)
+
+    def test_report_lists_requirement_checks_and_measured_text_load(self) -> None:
+        out = build_panel(self.runs["en@1.0"], priv=self.priv, variants=[self.runs["de-DE@2.0"]])
+        (out / "requirements.json").write_text(json.dumps([{"id": "REQ-TOK-UX.02", "title": "Icon-First Controls"}]))
+        (out / "answers" / "commuter.json").write_text(json.dumps(_answer("commuter", ["good", "ok", "bad"])))
+        (out / "decisions.json").write_text(json.dumps({
+            "summary": "s", "consensus": [], "discoverability": [], "tradeoffs": [], "keep": [], "persona_fit": [],
+            "requirement_checks": [{"id": "REQ-TOK-UX.02", "verdict": "fail", "screens": ["U-1/landing"],
+                                    "evidence": "Sources, Selection, Revert carry labels"}],
+            "text_load": {"verdict": "over", "worst_screens": ["U-1/landing"], "note": "labels on bar icons"}}))
+        html_path, md_path = write_report(self.runs["en@1.0"])
+        html_text, md = html_path.read_text(), md_path.read_text()
+        self.assertIn("REQ-TOK-UX.02", html_text)
+        self.assertIn("Text load, measured", html_text)
+        self.assertIn("| REQ-TOK-UX.02 | fail |", md)
+        self.assertIn("Text load: over", md)
+
+
 if __name__ == "__main__":
     unittest.main()

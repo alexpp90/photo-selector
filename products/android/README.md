@@ -60,7 +60,7 @@ From the repository root, the CI mirror runs all of the above: `./scripts/run_te
 A file belongs in `core/` when it is identical for both products **and would stay identical**
 if either product evolved independently. Files that merely look similar today stay duplicated
 on purpose. `ImageItem` is the worked example: Android Desktop's carries a `scanResult` field
-PhotoTok has no concept of, so it is not shared.
+Jackpix has no concept of, so it is not shared.
 
 `:core` must not depend on Compose, Room, OpenCV, Vico, or on either app module.
 

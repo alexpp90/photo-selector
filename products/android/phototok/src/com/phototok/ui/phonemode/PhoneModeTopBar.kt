@@ -31,7 +31,7 @@ import androidx.compose.ui.unit.dp
 
 /** TalkBack names for the controls that open the EXIF overlay and the controls guide. */
 object PhoneModeTopBarDescriptions {
-    const val LOGO = "PhotoTok logo: show or hide camera info"
+    const val LOGO = "Jackpix logo: show or hide camera info"
     const val INFO = "Toggle EXIF stats"
     const val HELP_SHOW = "Show controls guide"
     const val HELP_HIDE = "Hide controls guide"
@@ -82,8 +82,9 @@ fun PhoneModeTopBar(
         verticalAlignment = Alignment.CenterVertically,
     ) {
         Image(
-            painter = painterResource(id = com.phototok.R.mipmap.ic_launcher_foreground),
+            painter = painterResource(id = com.phototok.R.drawable.ic_brand_mark),
             contentDescription = null,
+            colorFilter = androidx.compose.ui.graphics.ColorFilter.tint(colors.primary),
             alpha = if (guideOpen) 0.4f else 1.0f,
             modifier = Modifier
                 .size(metrics.TOP_BAR_LOGO_SIZE)

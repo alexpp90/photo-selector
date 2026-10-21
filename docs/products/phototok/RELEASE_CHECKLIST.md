@@ -1,12 +1,12 @@
-# PhotoTok (`:phototok`) — Release & Compliance Checklist
+# Jackpix (`:phototok`) — Release & Compliance Checklist
 
-This checklist is the **single source of truth** for Google Play release readiness, DSGVO/GDPR privacy compliance, German DDG/Impressum compliance, and EU Digital Services Act (DSA) status for **PhotoTok** (`com.phototok`).
+This checklist is the **single source of truth** for Google Play release readiness, DSGVO/GDPR privacy compliance, German DDG/Impressum compliance, and EU Digital Services Act (DSA) status for **Jackpix** (`com.phototok`).
 
 ---
 
 ## 1. Architecture & Privacy Invariants (Repo-Side)
 
-- [x] **100% Local On-Device SAF Architecture:** PhotoTok accesses user photos exclusively via Android Storage Access Framework (`Intent.ACTION_OPEN_DOCUMENT_TREE`). No cloud backend, no Google Drive OAuth, and no WebView Picker are used.
+- [x] **100% Local On-Device SAF Architecture:** Jackpix accesses user photos exclusively via Android Storage Access Framework (`Intent.ACTION_OPEN_DOCUMENT_TREE`). No cloud backend, no Google Drive OAuth, and no WebView Picker are used.
 - [x] **Zero Runtime Permissions & Zero Package Queries:** `products/android/phototok/AndroidManifest.xml` declares zero `<uses-permission>` and zero `<queries>` entries (no `INTERNET`, no `READ_MEDIA_IMAGES`, no `READ_EXTERNAL_STORAGE`). System Share / Open With (`Intent.createChooser`) and Android 11+ `MediaStore` favourite/trash/delete requests (`createFavoriteRequest`, `createTrashRequest`, `createDeleteRequest`) run strictly through user-confirmed system sheets without storage permissions.
 - [x] **Cloud Auto-Backup Hardened:** `AndroidManifest.xml` configures `android:allowBackup="false"`, `android:dataExtractionRules="@xml/data_extraction_rules"`, and `android:fullBackupContent="@xml/backup_rules"` so persisted SAF URI grants, local favourites/pending-delete journals, seen-photo fingerprints (`seen_photos.log`), and local culling statistics in app-private storage are never silently uploaded to cloud backup.
 - [x] **Target & Compile SDK:** `targetSdk = 36` (meets Google Play August 31, 2026 API 36 requirement) and `compileSdk = 37` in `products/android/phototok/build.gradle.kts`.
@@ -19,7 +19,7 @@ This checklist is the **single source of truth** for Google Play release readine
 
 ## 2. Google Play Data Safety Form Answers
 
-Because PhotoTok requests zero permissions, has no network access, and processes all photos locally on-device:
+Because Jackpix requests zero permissions, has no network access, and processes all photos locally on-device:
 
 | Play Console Question | Answer | Rationale |
 |---|---|---|
@@ -32,7 +32,7 @@ Because PhotoTok requests zero permissions, has no network access, and processes
 
 ## 3. EU Digital Services Act (DSA) & German Legal Status
 
-- [x] **Non-Trader Declaration:** PhotoTok is free, open-source (MIT), ad-free, and has no in-app purchases or monetization. Declared as **Non-Trader** in Google Play Console (private physical address is not publicly displayed on the store listing).
+- [x] **Non-Trader Declaration:** Jackpix is free, open-source (MIT), ad-free, and has no in-app purchases or monetization. Declared as **Non-Trader** in Google Play Console (private physical address is not publicly displayed on the store listing).
 - [ ] **Human Review Before Public Store Launch:** If personal contact details in `docs/products/phototok/impressum.html` need to be customized beyond the GitHub contact address prior to public production release in Germany (§ 5 DDG), update `impressum.html` and verify GitHub Pages serving at the URLs in `LegalLinks.kt` (`https://alexpp90.github.io/photo-selector/products/phototok/privacy-policy.html` and `…/impressum.html`; GitHub Pages must serve `main:/docs`).
 
 ---
@@ -59,19 +59,19 @@ Because PhotoTok requests zero permissions, has no network access, and processes
 
 Store text promises behaviour, so every line must be true for the build being released. Before pasting, fact-check each feature line against the current code and remove anything that is no longer true.
 
-- **Title rule:** never "Photo-Tok" alone — always with a descriptive subtitle (trademark distance to TikTok). Play limit: **30 characters**.
+- **Title rule:** always the name with a descriptive subtitle. Play limit: **30 characters**.
 - **Disclaimer:** the non-affiliation sentence goes at the end of the full description (it does not fit the 80-character short description).
 
 ### English (United States) — en-US
 
-**App name** (≤ 30): `Photo-Tok – Photo Selector` (26) · alternative `Photo-Tok: Fast Photo Culler` (28)
+**App name** (≤ 30): `Jackpix – Swipe & Tidy Photos` (29)
 
 **Short description** (≤ 80):
 > Swipe through your photos, keep the best, delete the rest. 100% offline.
 
 **Full description** (≤ 4000):
 ```text
-Photo-Tok turns sorting photos into a feed you flick through. Open your camera roll or any folder — on your phone, an SD card or a USB card reader — and swipe:
+Jackpix turns sorting photos into a feed you flick through. Open your camera roll or any folder — on your phone, an SD card or a USB card reader — and swipe:
 
 • Swipe up/down to browse, newest first.
 • Swipe right to copy the photo into your "Selection" folder (or move it — your choice).
@@ -79,7 +79,7 @@ Photo-Tok turns sorting photos into a feed you flick through. Open your camera r
 
 Features
 • Starts right away: pick "Phone Camera" or any folder, no setup.
-• RAW + JPEG pairs: Photo-Tok offers to treat both files of a shot as one, so copy, move and delete apply to both.
+• RAW + JPEG pairs: Jackpix offers to treat both files of a shot as one, so copy, move and delete apply to both.
 • Camera info: tap Info to see the photo's EXIF data.
 • Pinch or double-tap to zoom and check focus.
 • Recent folders and resume: pick up where you left off.
@@ -91,19 +91,19 @@ Private by design
 • No ads, no analytics, no tracking. Your photos never leave your device.
 • Free and open source (MIT).
 
-Photo-Tok is an independent, 100% offline photography utility and is not affiliated with, sponsored by, endorsed by, or in any way associated with TikTok, ByteDance Ltd., or their affiliates.
+Jackpix is an independent, 100% offline photography utility and is not affiliated with, sponsored by, endorsed by, or in any way associated with TikTok, ByteDance Ltd., or their affiliates.
 ```
 
 ### German (Germany) — de-DE
 
-**App-Name** (≤ 30): `Photo-Tok – Foto-Auswahl` (24)
+**App-Name** (≤ 30): `Jackpix – Swipe & Tidy Photos` (29; same as English for now)
 
 **Kurzbeschreibung** (≤ 80):
 > Fotos durchwischen, die besten behalten, den Rest löschen. 100 % offline.
 
 **Vollständige Beschreibung** (≤ 4000):
 ```text
-Photo-Tok macht Fotos-Aussortieren zu einem Feed, durch den du wischst. Öffne deine Kamera-Galerie oder einen beliebigen Ordner — auf dem Handy, einer SD-Karte oder einem USB-Kartenleser — und wische:
+Jackpix macht Fotos-Aussortieren zu einem Feed, durch den du wischst. Öffne deine Kamera-Galerie oder einen beliebigen Ordner — auf dem Handy, einer SD-Karte oder einem USB-Kartenleser — und wische:
 
 • Nach oben/unten wischen: blättern, neueste zuerst.
 • Nach rechts wischen: Foto in deinen Ordner „Selection“ kopieren (oder verschieben — du entscheidest).
@@ -111,7 +111,7 @@ Photo-Tok macht Fotos-Aussortieren zu einem Feed, durch den du wischst. Öffne d
 
 Funktionen
 • Sofort startklar: „Phone Camera“ oder einen beliebigen Ordner wählen, keine Einrichtung.
-• RAW- + JPEG-Paare: Photo-Tok bietet an, beide Dateien einer Aufnahme als eine zu behandeln — Kopieren, Verschieben und Löschen gelten dann für beide.
+• RAW- + JPEG-Paare: Jackpix bietet an, beide Dateien einer Aufnahme als eine zu behandeln — Kopieren, Verschieben und Löschen gelten dann für beide.
 • Kamera-Infos: Tippe auf „Info“ für die EXIF-Daten des Fotos.
 • Mit zwei Fingern oder Doppeltipp zoomen und die Schärfe prüfen.
 • Zuletzt verwendete Ordner und Fortsetzen: weitermachen, wo du aufgehört hast.
@@ -123,7 +123,7 @@ Privatsphäre von Anfang an
 • Keine Werbung, keine Analyse, kein Tracking. Deine Fotos verlassen dein Gerät nie.
 • Kostenlos und Open Source (MIT). Die App-Oberfläche ist auf Englisch.
 
-Photo-Tok ist ein unabhängiges, zu 100 % offline arbeitendes Foto-Werkzeug und steht in keiner Verbindung zu TikTok, ByteDance Ltd. oder deren verbundenen Unternehmen; es wird von diesen weder gesponsert noch unterstützt.
+Jackpix ist ein unabhängiges, zu 100 % offline arbeitendes Foto-Werkzeug und steht in keiner Verbindung zu TikTok, ByteDance Ltd. oder deren verbundenen Unternehmen; es wird von diesen weder gesponsert noch unterstützt.
 ```
 
 > The app has no German strings yet (`res/values/` only), so the German text quotes the English UI labels („Selection“, „Revert“, „Phone Camera“, „Info“) and says the UI is English. Update both when a German translation ships.
