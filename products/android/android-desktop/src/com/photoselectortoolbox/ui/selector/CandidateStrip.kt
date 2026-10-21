@@ -45,7 +45,8 @@ import com.photoselectortoolbox.domain.format.SelectorLabels
 import com.photoselectortoolbox.domain.scoring.ScoreMetric
 import com.photoselectortoolbox.ui.components.goodnessColor
 import com.photoselectortoolbox.ui.theme.CurationAmber
-import com.photoselectortoolbox.ui.theme.FocusCyan
+import com.photoselectortoolbox.ui.theme.ErrorRed
+import com.photoselectortoolbox.ui.theme.BrandAccent
 import com.photoselectortoolbox.ui.theme.StudioBorder
 import com.photoselectortoolbox.ui.theme.StudioCard
 import com.photoselectortoolbox.ui.theme.StudioPanel
@@ -243,7 +244,7 @@ private fun CandidateThumbnail(
                 .background(StudioCard)
                 .border(
                     width = if (isCurrent) 2.dp else 1.dp,
-                    color = if (isCurrent) FocusCyan else StudioBorder,
+                    color = if (isCurrent) BrandAccent else StudioBorder,
                     shape = shape,
                 )
                 .pointerHoverIcon(PointerIcon.Hand)
@@ -282,7 +283,7 @@ private fun CandidateThumbnail(
                     } else if (image.rating == -1) {
                         Text(
                             text = "✕",
-                            color = Color(0xFFEF4444),
+                            color = ErrorRed,
                             fontSize = 8.sp,
                             lineHeight = 9.sp,
                             fontFamily = FontFamily.Monospace,
@@ -309,14 +310,14 @@ private fun CandidateThumbnail(
         // one, so a photographer can see the shape of the burst they are inside
         // without reading filenames. It ran under the thumbnails when the strip
         // ran across the screen; down the strip's leading edge it is the same
-        // 2 dp FocusCyan rule reading the same way — a bracket around a run.
+        // 2 dp BrandAccent rule reading the same way — a bracket around a run.
         if (inCurrentBurst) {
             Box(
                 modifier = Modifier
                     .align(Alignment.TopStart)
                     .width(2.dp)
                     .height(height)
-                    .background(FocusCyan),
+                    .background(BrandAccent),
             )
         }
     }

@@ -26,7 +26,7 @@ import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.unit.dp
-import com.photoselectortoolbox.ui.theme.Indigo500
+import com.photoselectortoolbox.ui.theme.BrandAccent
 import com.photoselectortoolbox.ui.theme.Zinc400
 import com.photoselectortoolbox.ui.theme.Zinc700
 import com.photoselectortoolbox.ui.theme.Zinc800
@@ -84,7 +84,7 @@ fun SettingsToggleItem(
             onCheckedChange = null,
             colors = SwitchDefaults.colors(
                 checkedThumbColor = MaterialTheme.colorScheme.onPrimary,
-                checkedTrackColor = Indigo500,
+                checkedTrackColor = BrandAccent,
                 uncheckedThumbColor = Zinc400,
                 uncheckedTrackColor = Zinc700,
                 uncheckedBorderColor = Zinc700,
@@ -158,7 +158,7 @@ fun SettingsSection(
         Text(
             text = title,
             style = MaterialTheme.typography.labelLarge,
-            color = Indigo500,
+            color = BrandAccent,
             modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp),
         )
 

@@ -65,7 +65,7 @@ import com.photoselectortoolbox.viewmodel.SelectorHintUi
  *    two is height-bound and reaches 600 × 450 — 76 % more area. See
  *    [FrameGeometry] for the arithmetic.
  * 2. **The current frame is centred**, flanked by its readouts and its controls.
- *    Centring plus the 2 dp Indigo border is what marks it as the frame under
+ *    Centring plus the 2 dp accent border is what marks it as the frame under
  *    judgement. It is never made *larger* than its neighbours: a frame you
  *    cannot compare at equal size is a frame you cannot judge.
  * 3. **Every value touches the frame it describes.** Named beside the current

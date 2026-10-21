@@ -1,12 +1,19 @@
-# Photo Selector Toolbox (`:android-desktop`) — Release & Compliance Checklist
+# Frameduel (`:android-desktop`) — Release & Compliance Checklist
 
-This checklist is the **single source of truth** for Google Play release readiness, DSGVO/GDPR privacy compliance, German DDG/Impressum compliance, and EU Digital Services Act (DSA) status for **Photo Selector Toolbox** (`com.photoselectortoolbox`).
+This checklist is the **single source of truth** for Google Play release readiness, DSGVO/GDPR privacy compliance, German DDG/Impressum compliance, and EU Digital Services Act (DSA) status for **Frameduel** (`com.photoselectortoolbox`).
+
+---
+
+## 0. Store listing
+
+- [ ] **Title:** "Frameduel – Photo Culling Desk" (English and German). Short and full descriptions name the app Frameduel; no earlier name appears in the listing.
+- [ ] **Icon and screenshots:** the lavender Frameduel icon (adaptive, with themed monochrome layer); no screenshot shows the previous name or palette.
 
 ---
 
 ## 1. Architecture & Privacy Invariants (Repo-Side)
 
-- [x] **100% Local On-Device SAF Architecture:** Photo Selector Toolbox accesses user photos exclusively via Android Storage Access Framework (`Intent.ACTION_OPEN_DOCUMENT_TREE`). All sharpness, noise, exposure, subject, composition and technique (OpenCV), and duplicate analyses execute locally on-device.
+- [x] **100% Local On-Device SAF Architecture:** Frameduel accesses user photos exclusively via Android Storage Access Framework (`Intent.ACTION_OPEN_DOCUMENT_TREE`). All sharpness, noise, exposure, subject, composition and technique (OpenCV), and duplicate analyses execute locally on-device.
 - [x] **Zero Runtime Permissions:** `products/android/android-desktop/AndroidManifest.xml` declares zero `<uses-permission>` entries.
 - [x] **Cloud Auto-Backup Hardened:** `AndroidManifest.xml` configures `android:allowBackup="false"`, `android:dataExtractionRules="@xml/data_extraction_rules"` and `android:fullBackupContent="@xml/backup_rules"` so the local Room score cache (`photo_selector_database`) and persisted SAF URI grants are never uploaded to cloud backup.
 - [x] **Target SDK & 16 KB Page-Size Compliance:** `targetSdk = 36` (meets Google Play August 31, 2026 API 36 requirement) and `compileSdk = 37` in `products/android/android-desktop/build.gradle.kts`; every 64-bit native `.so` (`lib/{arm64-v8a,x86_64}/*.so`) is verified for `PT_LOAD` `p_align >= 16384` (16 KB) by `scripts/check_native_alignment.py` in CI and `scripts/run_tests.sh --android`.
@@ -19,7 +26,7 @@ This checklist is the **single source of truth** for Google Play release readine
 
 ## 2. Google Play Data Safety Form Answers
 
-Because Photo Selector Toolbox requests zero permissions, has no network access, and processes all photos locally on-device:
+Because Frameduel requests zero permissions, has no network access, and processes all photos locally on-device:
 
 | Play Console Question | Answer | Rationale |
 |---|---|---|
@@ -32,5 +39,5 @@ Because Photo Selector Toolbox requests zero permissions, has no network access,
 
 ## 3. EU Digital Services Act (DSA) & German Legal Status
 
-- [x] **Non-Trader Declaration:** Photo Selector Toolbox is free, open-source (MIT), ad-free, and has no in-app purchases or monetization. Declared as **Non-Trader** in Google Play Console.
+- [x] **Non-Trader Declaration:** Frameduel is free, open-source (MIT), ad-free, and has no in-app purchases or monetization. Declared as **Non-Trader** in Google Play Console.
 - [ ] **Human Review Before Public Store Launch:** Verify GitHub Pages serving (`https://alexpp90.github.io/photo-selector/products/android-desktop/privacy-policy.html` and `impressum.html`) and customize contact details in `impressum.html` if required before public store launch.

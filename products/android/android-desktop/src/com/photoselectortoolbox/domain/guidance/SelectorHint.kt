@@ -11,7 +11,7 @@ package com.photoselectortoolbox.domain.guidance
  * [com.photoselectortoolbox.domain.format.SelectionActionLabels] /
  * [com.photoselectortoolbox.domain.interaction.FilingAction] at render time. A
  * hard-coded "Keep"/"Save"/"Favourite" is prohibited by REQUIREMENTS §2 and was
- * shipped once already in PhotoTok (see the 2026-07-31 entries in
+ * shipped once already in Jackpix (see the 2026-07-31 entries in
  * `ai/memory/palette.md`). Putting a string on this enum is how that comes back.
  *
  * [key] is persisted in DataStore and is therefore on users' devices: renaming

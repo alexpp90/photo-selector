@@ -5,7 +5,7 @@ import com.photoselectortoolbox.data.model.ImageItem
 /**
  * The list the selector is showing, plus which frame the photographer is on.
  *
- * This product has exactly one list — unlike PhotoTok, which carries a filtered
+ * This product has exactly one list — unlike Jackpix, which carries a filtered
  * feed alongside an unfiltered source list and has to record two indices per
  * item. Modelling that here would be inventing a problem: one list, one index.
  *

@@ -31,7 +31,7 @@ import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import com.photoselectortoolbox.ui.theme.FocusCyanText
+import com.photoselectortoolbox.ui.theme.BrandAccentText
 import com.photoselectortoolbox.ui.theme.StudioBorder
 import com.photoselectortoolbox.ui.theme.StudioPanel
 import com.photoselectortoolbox.ui.theme.Zinc400
@@ -108,7 +108,7 @@ fun SelectorHintCard(
                 text = "Got it",
                 fontSize = 12.sp,
                 fontWeight = FontWeight.Medium,
-                color = FocusCyanText,
+                color = BrandAccentText,
                 modifier = Modifier
                     .align(Alignment.End)
                     // 48 dp target (AD-8): the minimum wraps the clickable, so the

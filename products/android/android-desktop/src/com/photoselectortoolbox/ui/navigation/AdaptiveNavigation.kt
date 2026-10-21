@@ -38,8 +38,8 @@ import com.photoselectortoolbox.ui.inspect.InspectScreen
 import com.photoselectortoolbox.ui.selector.SelectorScreen
 import com.photoselectortoolbox.ui.settings.SettingsScreen
 import com.photoselectortoolbox.ui.statistics.StatisticsScreen
-import com.photoselectortoolbox.ui.theme.FocusCyan
-import com.photoselectortoolbox.ui.theme.FocusCyanNav
+import com.photoselectortoolbox.ui.theme.BrandAccent
+import com.photoselectortoolbox.ui.theme.BrandAccentNav
 import com.photoselectortoolbox.ui.theme.StudioCanvas
 import com.photoselectortoolbox.ui.theme.StudioPanel
 import com.photoselectortoolbox.ui.theme.Zinc400
@@ -117,11 +117,11 @@ private fun DesktopModeApp(
                         selected = selected,
                         onClick = { navigateToScreen(screen) },
                         colors = NavigationRailItemDefaults.colors(
-                            selectedIconColor = FocusCyan,
-                            selectedTextColor = FocusCyan,
+                            selectedIconColor = BrandAccent,
+                            selectedTextColor = BrandAccent,
                             unselectedIconColor = Zinc400,
                             unselectedTextColor = Zinc400,
-                            indicatorColor = FocusCyanNav,
+                            indicatorColor = BrandAccentNav,
                         ),
                     )
                 }
@@ -181,11 +181,11 @@ private fun DesktopModeApp(
                             selected = selected,
                             onClick = { navigateToScreen(screen) },
                             colors = NavigationBarItemDefaults.colors(
-                                selectedIconColor = FocusCyan,
-                                selectedTextColor = FocusCyan,
+                                selectedIconColor = BrandAccent,
+                                selectedTextColor = BrandAccent,
                                 unselectedIconColor = Zinc400,
                                 unselectedTextColor = Zinc400,
-                                indicatorColor = FocusCyanNav,
+                                indicatorColor = BrandAccentNav,
                             ),
                         )
                     }

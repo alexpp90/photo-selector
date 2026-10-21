@@ -65,7 +65,8 @@ import com.photoselectortoolbox.data.model.DuplicateGroup
 import com.photoselectortoolbox.ui.components.EmptyStateCard
 import com.photoselectortoolbox.ui.components.ProgressIndicatorBar
 import com.photoselectortoolbox.ui.theme.ErrorRed
-import com.photoselectortoolbox.ui.theme.Indigo500
+import com.photoselectortoolbox.ui.theme.BrandAccent
+import com.photoselectortoolbox.ui.theme.BrandOnAccent
 import com.photoselectortoolbox.ui.theme.Zinc700
 import com.photoselectortoolbox.ui.theme.Zinc800
 import com.photoselectortoolbox.viewmodel.DuplicatesViewModel
@@ -294,8 +295,8 @@ private fun InstructionCard(
             Button(
                 onClick = onStartScan,
                 colors = ButtonDefaults.buttonColors(
-                    containerColor = Indigo500,
-                    contentColor = Color.White,
+                    containerColor = BrandAccent,
+                    contentColor = BrandOnAccent,
                 ),
                 shape = RoundedCornerShape(8.dp),
             ) {
@@ -470,7 +471,7 @@ private fun DuplicateImageCard(
 ) {
     val borderColor = when {
         isSelected -> ErrorRed
-        isFirst -> Indigo500.copy(alpha = 0.4f)
+        isFirst -> BrandAccent.copy(alpha = 0.4f)
         else -> Color.Transparent
     }
 
@@ -544,12 +545,12 @@ private fun DuplicateImageCard(
                         .align(Alignment.TopStart)
                         .padding(6.dp),
                     shape = RoundedCornerShape(4.dp),
-                    color = Indigo500.copy(alpha = 0.9f),
+                    color = BrandAccent.copy(alpha = 0.9f),
                 ) {
                     Text(
                         text = "Original",
                         style = MaterialTheme.typography.labelSmall,
-                        color = Color.White,
+                        color = BrandOnAccent,
                         modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp),
                     )
                 }

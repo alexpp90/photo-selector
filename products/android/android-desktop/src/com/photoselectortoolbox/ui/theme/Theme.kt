@@ -15,17 +15,17 @@ import androidx.core.view.WindowCompat
 import com.photoselectortoolbox.data.repository.SettingsRepository
 
 private val DarkColorScheme = darkColorScheme(
-    primary = FocusCyan,
-    onPrimary = Color.White,
-    primaryContainer = Color(0xFF0369A1),
+    primary = BrandAccent,
+    onPrimary = BrandOnAccent,
+    primaryContainer = BrandAccentDeep,
     onPrimaryContainer = Zinc50,
     secondary = Zinc600,
     onSecondary = Zinc50,
     secondaryContainer = StudioCard,
     onSecondaryContainer = Zinc200,
-    tertiary = FocusCyanGlow,
+    tertiary = BrandAccentGlow,
     onTertiary = StudioCanvas,
-    tertiaryContainer = Color(0xFF075985),
+    tertiaryContainer = BrandAccentDeeper,
     onTertiaryContainer = Zinc100,
     surface = StudioCanvas,
     onSurface = Zinc50,
@@ -46,7 +46,7 @@ private val DarkColorScheme = darkColorScheme(
     onErrorContainer = Color(0xFFFFDAD6),
     inverseSurface = Zinc100,
     inverseOnSurface = StudioCanvas,
-    inversePrimary = FocusCyan,
+    inversePrimary = BrandAccent,
     scrim = Color.Black,
 )
 

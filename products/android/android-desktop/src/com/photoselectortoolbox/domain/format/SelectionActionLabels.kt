@@ -10,7 +10,7 @@ import com.photoselectortoolbox.domain.interaction.FilingAction
  * "Keep", which is a euphemism — it describes how the photographer feels about
  * the frame, not what happens to the file. Under a "move" configuration the
  * same euphemism is actively wrong, because the file leaves the source folder.
- * PhotoTok already learned this exact lesson (see the 2026-07-31 entry in
+ * Jackpix already learned this exact lesson (see the 2026-07-31 entry in
  * `ai/memory/palette.md`), and a unit test here asserts the word never comes
  * back.
  *

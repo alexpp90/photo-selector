@@ -1,4 +1,5 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <color name="ic_launcher_background">#0C0D10</color>
+    <!-- Neutral studio canvas; mirrors StudioCanvas in ui/theme/Color.kt. -->
+    <color name="studio_canvas">#0D0D0D</color>
 </resources>

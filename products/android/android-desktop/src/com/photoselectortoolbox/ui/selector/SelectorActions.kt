@@ -64,8 +64,8 @@ import androidx.compose.ui.unit.sp
 import com.photoselectortoolbox.domain.curation.DeferredDeletion
 import com.photoselectortoolbox.domain.format.SelectionActionLabels
 import com.photoselectortoolbox.domain.interaction.FilingAction
-import com.photoselectortoolbox.ui.theme.FocusCyan
-import com.photoselectortoolbox.ui.theme.FocusCyanText
+import com.photoselectortoolbox.ui.theme.BrandAccent
+import com.photoselectortoolbox.ui.theme.BrandAccentText
 import com.photoselectortoolbox.ui.theme.ScoreBad
 import com.photoselectortoolbox.ui.theme.StudioBorder
 import com.photoselectortoolbox.ui.theme.StudioCard
@@ -263,7 +263,7 @@ fun FirstRunNavigationHint(
                     text = "Got it",
                     fontSize = 12.sp,
                     fontWeight = FontWeight.Medium,
-                    color = FocusCyanText,
+                    color = BrandAccentText,
                     maxLines = 1,
                     softWrap = false,
                 )
@@ -345,7 +345,7 @@ fun SelectorSnackbar(
                     text = "UNDO",
                     fontSize = 12.sp,
                     fontWeight = FontWeight.Medium,
-                    color = FocusCyanText,
+                    color = BrandAccentText,
                     modifier = Modifier
                         .testTag("snackbar_undo")
                         // A 48 dp hit target around the 12 sp word (AD-17).
@@ -369,7 +369,7 @@ fun SelectorSnackbar(
                     scaleX = remaining.floatValue
                     transformOrigin = TransformOrigin(0f, 0.5f)
                 }
-                .background(FocusCyan)
+                .background(BrandAccent)
                 .testTag("snackbar_countdown"),
         )
     }

@@ -56,8 +56,8 @@ import com.photoselectortoolbox.domain.guidance.TourCallout
 import com.photoselectortoolbox.domain.guidance.TourRegion
 import com.photoselectortoolbox.domain.interaction.FilingAction
 import com.photoselectortoolbox.domain.interaction.GestureRow
-import com.photoselectortoolbox.ui.theme.FocusCyan
-import com.photoselectortoolbox.ui.theme.FocusCyanText
+import com.photoselectortoolbox.ui.theme.BrandAccent
+import com.photoselectortoolbox.ui.theme.BrandAccentText
 import com.photoselectortoolbox.ui.theme.StudioBorder
 import com.photoselectortoolbox.ui.theme.StudioCanvas
 import com.photoselectortoolbox.ui.theme.StudioCard
@@ -381,7 +381,7 @@ private fun FooterButton(label: String, onClick: () -> Unit, tag: String, primar
             text = label,
             fontSize = 13.sp,
             fontWeight = FontWeight.Medium,
-            color = if (primary) FocusCyanText else Zinc400,
+            color = if (primary) BrandAccentText else Zinc400,
         )
     }
 }
@@ -445,7 +445,7 @@ private fun Callout(callout: TourCallout, compact: Boolean = false, tagged: Bool
             text = callout.region.location.uppercase(),
             fontSize = 9.sp,
             fontFamily = FontFamily.Monospace,
-            color = FocusCyanText,
+            color = BrandAccentText,
         )
         Row(
             horizontalArrangement = Arrangement.spacedBy(6.dp),
@@ -516,7 +516,7 @@ private fun Leader() {
         modifier = Modifier
             .width(10.dp)
             .height(1.dp)
-            .background(FocusCyan),
+            .background(BrandAccent),
     )
 }
 

@@ -97,8 +97,8 @@ import com.photoselectortoolbox.domain.interaction.FilingAction
 import com.photoselectortoolbox.domain.interaction.SelectorGestures
 import com.photoselectortoolbox.domain.format.ExifFormatter
 import com.photoselectortoolbox.ui.components.ScoreChipRow
-import com.photoselectortoolbox.ui.theme.FocusCyan
-import com.photoselectortoolbox.ui.theme.FocusCyanText
+import com.photoselectortoolbox.ui.theme.BrandAccent
+import com.photoselectortoolbox.ui.theme.BrandAccentText
 import com.photoselectortoolbox.ui.theme.ScoreBad
 import com.photoselectortoolbox.ui.theme.Zinc400
 import com.photoselectortoolbox.ui.theme.Zinc50
@@ -556,7 +556,7 @@ private fun ZoomNavigator(
                 .align(Alignment.Center)
                 .width(48.dp)
                 .height(36.dp)
-                .border(1.dp, FocusCyan),
+                .border(1.dp, BrandAccent),
         )
     }
 }
@@ -604,7 +604,7 @@ private fun FullscreenGestureHint(
         Text(
             text = "Got it",
             fontSize = 12.sp,
-            color = FocusCyanText,
+            color = BrandAccentText,
             modifier = Modifier
                 .align(Alignment.End)
                 // A 48 dp hit target around the 12 sp word (AD-17).

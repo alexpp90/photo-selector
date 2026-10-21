@@ -67,10 +67,10 @@ import com.photoselectortoolbox.domain.format.SelectorLabels
 import com.photoselectortoolbox.domain.interaction.FilingAction
 import com.photoselectortoolbox.domain.model.RatingFilter
 import com.photoselectortoolbox.ui.components.StarRatingBar
-import com.photoselectortoolbox.ui.theme.FocusCyan
-import com.photoselectortoolbox.ui.theme.FocusCyanNav
-import com.photoselectortoolbox.ui.theme.FocusCyanText
-import com.photoselectortoolbox.ui.theme.FocusCyanTonal
+import com.photoselectortoolbox.ui.theme.BrandAccent
+import com.photoselectortoolbox.ui.theme.BrandAccentNav
+import com.photoselectortoolbox.ui.theme.BrandAccentText
+import com.photoselectortoolbox.ui.theme.BrandAccentTonal
 import com.photoselectortoolbox.ui.theme.ScoreBad
 import com.photoselectortoolbox.ui.theme.ScoreGood
 import com.photoselectortoolbox.ui.theme.StudioBorder
@@ -391,8 +391,8 @@ fun RatingFilterSelector(
             Box(
                 modifier = Modifier
                     .clip(RoundedCornerShape(4.dp))
-                    .background(if (isSelected) FocusCyanNav else StudioCard)
-                    .border(1.dp, if (isSelected) FocusCyan else StudioBorder, RoundedCornerShape(4.dp))
+                    .background(if (isSelected) BrandAccentNav else StudioCard)
+                    .border(1.dp, if (isSelected) BrandAccent else StudioBorder, RoundedCornerShape(4.dp))
                     .clickable { onFilterSelected(filter) }
                     .padding(horizontal = 6.dp, vertical = 2.dp)
                     .testTag(tag),
@@ -402,7 +402,7 @@ fun RatingFilterSelector(
                     text = filter.label,
                     fontSize = 10.sp,
                     fontFamily = FontFamily.Monospace,
-                    color = if (isSelected) FocusCyanText else Zinc400,
+                    color = if (isSelected) BrandAccentText else Zinc400,
                 )
             }
         }
@@ -468,7 +468,7 @@ private fun WordedButton(
     val background by animateColorAsState(
         targetValue = when {
             !enabled -> Color.Transparent
-            filled -> FocusCyanTonal
+            filled -> BrandAccentTonal
             hovered -> StudioBorderActive
             else -> StudioCard
         },
@@ -627,7 +627,7 @@ private fun ViewToggle(
                 imageVector = icon,
                 contentDescription = null,
                 modifier = Modifier.size(20.dp),
-                tint = if (active) FocusCyan else Zinc400,
+                tint = if (active) BrandAccent else Zinc400,
             )
         }
     }

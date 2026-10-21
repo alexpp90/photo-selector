@@ -1,5 +1,7 @@
 # Android Desktop
 
+**Frameduel** (formerly PhotoSelector Studio) — store title "Frameduel – Photo Culling Desk".
+
 The tablet / Samsung DeX / Chromebook product: a comparison workspace that approaches desktop
 parity on large screens. Quality scoring with OpenCV, a Room-backed score cache, statistics
 charts and a duplicate finder.
@@ -32,7 +34,7 @@ and `FormatConformanceTest` holds it to `testdata/formats/manifest.json`.
 - [`ARCHITECTURE.md`](ARCHITECTURE.md) — layers, adaptive layout strategy, performance, theme implementation
 - [`DESIGN.md`](DESIGN.md) — the visual specification: layout maths, tokens, screens, component sheet
 - `DESIGN_PROMPT.md` (maintainer-private) — the same design expressed as a brief for a design tool
-- Shared with PhotoTok: [`../../shared/ANDROID_PLATFORM.md`](../../shared/ANDROID_PLATFORM.md)
+- Shared with Jackpix: [`../../shared/ANDROID_PLATFORM.md`](../../shared/ANDROID_PLATFORM.md)
 - Build & release: [`../../build/ANDROID_BUILD_AND_RELEASE.md`](../../build/ANDROID_BUILD_AND_RELEASE.md)
 
 `DESIGN.md` and `DESIGN_PROMPT.md` overlap substantially — the prompt is a derivative of the
@@ -52,7 +54,7 @@ Or, from the repository root, the CI mirror: `./scripts/run_tests.sh --android`.
 
 ## Relationship to the other products
 
-Android Desktop shares the EXIF model and readers with PhotoTok through the `:core` module
+Android Desktop shares the EXIF model and readers with Jackpix through the `:core` module
 (`products/android/core/`, `com.photoselector.core`). Everything else — layouts, ViewModels, theme,
 storage flow — is independent. Do not copy composables between `:android-desktop` and `:phototok`.
 

@@ -20,7 +20,7 @@ import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
-import com.photoselectortoolbox.ui.theme.FocusCyan
+import com.photoselectortoolbox.ui.theme.BrandAccent
 import com.photoselectortoolbox.ui.theme.StudioCanvas
 import com.photoselectortoolbox.ui.theme.Zinc50
 
@@ -77,7 +77,7 @@ fun MaximiseBadge(
             },
             contentDescription = null,
             modifier = Modifier.size(18.dp),
-            tint = if (active) FocusCyan else Zinc50,
+            tint = if (active) BrandAccent else Zinc50,
         )
     }
 }
