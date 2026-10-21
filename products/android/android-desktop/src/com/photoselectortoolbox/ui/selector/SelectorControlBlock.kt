@@ -136,11 +136,12 @@ fun SelectorControlBlock(
     onSetRating: (Int) -> Unit = {},
 ) {
     val fontScale = LocalDensity.current.fontScale
+    val density = LocalDensity.current.density
     BoxWithConstraints(modifier = modifier) {
         val isNarrow = maxWidth < 240.dp
         val horizontalPadding = if (isNarrow) 4.dp else 10.dp
         val innerWidth = maxWidth - horizontalPadding * 2
-        val mode = ControlBlockFit.mode(maxHeight, fontScale, innerWidth)
+        val mode = ControlBlockFit.mode(maxHeight, fontScale, density, innerWidth)
         val compact = mode != ControlBlockFit.Mode.FULL
         val scrolling = mode == ControlBlockFit.Mode.SCROLLING
         // The counter leads on its own line when scrolling (so it cannot be

@@ -21,7 +21,10 @@ import androidx.compose.foundation.layout.requiredHeight
 import androidx.compose.foundation.layout.width
 import com.photoselectortoolbox.domain.guidance.LegendRow
 import com.photoselectortoolbox.domain.guidance.SelectorTour
+import com.photoselectortoolbox.ui.selector.CandidateStrip
 import com.photoselectortoolbox.ui.selector.ControlBlockFit
+import com.photoselectortoolbox.ui.selector.FilmstripWidth
+import com.photoselectortoolbox.ui.selector.ThumbnailTouchTarget
 import com.photoselectortoolbox.ui.selector.SelectorCoachOverlay
 import com.photoselectortoolbox.ui.selector.SelectorControlBlock
 import androidx.compose.ui.Modifier
@@ -55,6 +58,8 @@ import org.junit.Assert.assertTrue
 import org.junit.Rule
 import org.junit.Test
 import org.junit.runner.RunWith
+import kotlin.math.abs
+import kotlin.math.roundToInt
 
 /**
  * The selector's chrome at forced window sizes (AD-1, AD-2, AD-4, AD-7).
@@ -334,59 +339,117 @@ class SelectorForcedSizeTest {
         composeRule.waitForIdle()
     }
 
+    private val displayDensity: Float
+        get() = InstrumentationRegistry.getInstrumentation().targetContext.resources.displayMetrics.density
+
+    /**
+     * Compares in pixels, because that is what layout draws and what the block
+     * is chosen by: each child is rounded on its own, so the dp sum is only the
+     * drawn height on a 2× screen (3 px over it at 1.25×, 1.75× and 2.75×, device
+     * matrix 2026-10-19). This runs on every device's own density, so the device
+     * matrix is what covers the non-integer ones.
+     */
     private fun assertPriceMatchesMeasurement(
         marker: String,
-        price: androidx.compose.ui.unit.Dp,
+        pricePx: (density: Float) -> Int,
         height: Int,
         fontScale: Float,
         widthDp: Int = 388,
     ) {
         hostBlock(height, fontScale, widthDp)
         assertTrue("expected $marker at ${height}dp / scale $fontScale", count(marker) > 0)
-        val measured = bounds(marker).let { it.bottom - it.top }
+        val density = displayDensity
+        val measuredPx = ((bounds(marker).let { it.bottom - it.top }).value * density).roundToInt()
+        val price = pricePx(density)
         assertTrue(
-            "$marker priced at $price but measured $measured (scale $fontScale): a price below the " +
-                "measurement clips a control on a device. Parts: " +
+            "$marker priced at $price px but measured $measuredPx px (density $density, scale $fontScale): " +
+                "a price below the measurement clips a control on a device. Parts: " +
                 (controls + "position_counter").joinToString { "$it=${bounds(it)}" },
-            price + ControlBlockFit.PixelRoundingAllowance >= measured,
+            price >= measuredPx,
         )
         assertTrue(
-            "$marker priced at $price but measured only $measured (scale $fontScale): " +
-                "the price is stale by more than 8dp",
-            price - measured <= 8.dp,
+            "$marker priced at $price px but measured only $measuredPx px (density $density, " +
+                "scale $fontScale): the price is stale by more than 8dp",
+            price - measuredPx <= (8 * density).roundToInt(),
         )
     }
 
     @Test
     fun fullPriceMatchesTheMeasuredBlock_scale1() =
-        assertPriceMatchesMeasurement("control_block_full", ControlBlockFit.fullHeight(1f), 1000, 1f)
+        assertPriceMatchesMeasurement("control_block_full", { ControlBlockFit.fullHeightPx(1f, it) }, 1000, 1f)
 
     @Test
     fun fullPriceMatchesTheMeasuredBlock_scale1_3() =
-        assertPriceMatchesMeasurement("control_block_full", ControlBlockFit.fullHeight(1.3f), 1000, 1.3f)
+        assertPriceMatchesMeasurement("control_block_full", { ControlBlockFit.fullHeightPx(1.3f, it) }, 1000, 1.3f)
 
     @Test
     fun compactPriceMatchesTheMeasuredBlock_scale1() =
-        assertPriceMatchesMeasurement("control_block_compact", ControlBlockFit.compactHeight(1f), 250, 1f)
+        assertPriceMatchesMeasurement("control_block_compact", { ControlBlockFit.compactHeightPx(1f, it) }, 250, 1f)
 
     @Test
     fun compactPriceMatchesTheMeasuredBlock_scale1_3() =
-        assertPriceMatchesMeasurement("control_block_compact", ControlBlockFit.compactHeight(1.3f), 250, 1.3f)
+        assertPriceMatchesMeasurement("control_block_compact", { ControlBlockFit.compactHeightPx(1.3f, it) }, 250, 1.3f)
+
+    // ── AD-8: filmstrip touch targets ───────────────────────────────────
+
+    /**
+     * Hosted on its own, so it runs on any emulator: in the real screen the strip
+     * only appears on windows wide enough for it (the Pixel Tablet and the Tab S11
+     * Ultra in the device matrix), and CI's phone-class emulator is not one.
+     */
+    @Test
+    fun filmstripThumbnails_are48dpTargetsThatNeverOverlap() {
+        // Landscape and portrait mixed: the 40 dp landscape thumbnail is the one
+        // that needs a slot taller than itself.
+        val images = (1..6).map { n ->
+            if (n % 3 == 0) image(n).copy(imageWidth = 1280, imageHeight = 1920) else image(n)
+        }
+        composeRule.setContent {
+            PhotoSelectorToolboxTheme {
+                Box(Modifier.width(FilmstripWidth).requiredHeight(640.dp)) {
+                    CandidateStrip(images = images, currentIndex = 0, onImageSelected = {})
+                }
+            }
+        }
+        composeRule.waitForIdle()
+
+        val n = count("filmstrip_thumbnail")
+        assertTrue("only $n thumbnails laid out", n == images.size)
+        val targets = (0 until n).map { bounds("filmstrip_thumbnail", it) }
+        // In whole pixels, as layout draws it: at 2.4375x a 48 dp slot is 117 px,
+        // which reads back as 47.999985 dp once the bounds have been offset.
+        val density = displayDensity
+        val floorPx = (ThumbnailTouchTarget.value * density).roundToInt()
+        fun px(d: androidx.compose.ui.unit.Dp) = (d.value * density).roundToInt()
+        targets.forEachIndexed { i, t ->
+            assertTrue(
+                "thumbnail $i is a ${px(t.width)} x ${px(t.height)} px target, below $floorPx px " +
+                    "($ThumbnailTouchTarget at density $density)",
+                px(t.height) >= floorPx && px(t.width) >= floorPx,
+            )
+        }
+        targets.zipWithNext().forEachIndexed { i, (a, b) ->
+            assertTrue("thumbnail targets $i and ${i + 1} overlap: $a, $b", !intersects(a, b))
+        }
+        // The picture itself keeps its 3:2 size; only the target grew.
+        val landscape = bounds("filmstrip_thumbnail_image", 0)
+        assertTrue("landscape thumbnail is ${landscape.height} tall", abs(landscape.height.value - 40f) < 0.5f)
+    }
 
     // Narrow flanks: 150 dp (inner 142, 2 x 2 toggles, counter on top) and 260 dp
     // (inner 240, one row of toggles, counter on top). These fit a phone-class window,
     // so they also run at 420 dpi, where 3 dp is 7.875 px.
     @Test
     fun compactNarrowPriceMatchesTheMeasuredBlock_scale1() =
-        assertPriceMatchesMeasurement("control_block_compact", ControlBlockFit.compactHeight(1f, 142.dp), 300, 1f, 150)
+        assertPriceMatchesMeasurement("control_block_compact", { ControlBlockFit.compactHeightPx(1f, it, 142.dp) }, 300, 1f, 150)
 
     @Test
     fun compactNarrowPriceMatchesTheMeasuredBlock_scale1_3() =
-        assertPriceMatchesMeasurement("control_block_compact", ControlBlockFit.compactHeight(1.3f, 142.dp), 320, 1.3f, 150)
+        assertPriceMatchesMeasurement("control_block_compact", { ControlBlockFit.compactHeightPx(1.3f, it, 142.dp) }, 320, 1.3f, 150)
 
     @Test
     fun compactMidPriceMatchesTheMeasuredBlock_scale1() =
-        assertPriceMatchesMeasurement("control_block_compact", ControlBlockFit.compactHeight(1f, 240.dp), 230, 1f, 260)
+        assertPriceMatchesMeasurement("control_block_compact", { ControlBlockFit.compactHeightPx(1f, it, 240.dp) }, 230, 1f, 260)
 
     // ── AD-16 / AD-17: touch targets, readable words, whole exposure tokens ──
 
