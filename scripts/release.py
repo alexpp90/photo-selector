@@ -197,6 +197,16 @@ def git(*args: str, root: Path = REPO_ROOT, check: bool = True) -> str:
     return out.stdout if out.returncode == 0 else ""
 
 
+def read_file(root: Path, path: str, ref: Optional[str] = None) -> Optional[str]:
+    """A file's text at `ref`, or in the working tree when `ref` is None; None if absent."""
+    if ref is None:
+        full = root / path
+        return full.read_text(encoding="utf-8") if full.is_file() else None
+    out = subprocess.run(["git", "-C", str(root), "show", f"{ref}:{path}"],
+                         capture_output=True, text=True, encoding="utf-8")
+    return out.stdout if out.returncode == 0 else None
+
+
 def default_ref(root: Path) -> str:
     """origin/main when the checkout has it (what is merged), else HEAD."""
     return "origin/main" if git("rev-parse", "-q", "--verify", "origin/main",
@@ -411,16 +421,18 @@ class Status:
         }
 
 
-def read_versions(product: Product, root: Path) -> Tuple[Optional[Version], List[str]]:
-    """The product's in-tree version, and every disagreement or unreadable source."""
+def read_versions(product: Product, root: Path,
+                  ref: Optional[str] = None) -> Tuple[Optional[Version], List[str]]:
+    """The product's version at `ref` (None: the working tree), and every disagreement or
+    unreadable source."""
     found: Dict[str, str] = {}
     problems = []
     for source in product.sources:
-        path = root / source.path
-        if not path.is_file():
+        text = read_file(root, source.path, ref)
+        if text is None:
             problems.append(f"{source.path}: missing")
             continue
-        m = source.regex().search(path.read_text(encoding="utf-8"))
+        m = source.regex().search(text)
         if not m:
             problems.append(f"{source.path}: no version matching /{source.pattern}/")
             continue
@@ -439,16 +451,20 @@ def read_versions(product: Product, root: Path) -> Tuple[Optional[Version], List
         return None, problems
 
 
-def status(product: Product, root: Path = REPO_ROOT, ref: Optional[str] = None) -> Status:
+def status(product: Product, root: Path = REPO_ROOT, ref: Optional[str] = None,
+           worktree: bool = False) -> Status:
+    """The release state at `ref`. Versions and changelog are read at `ref` too, so a
+    checkout on an old branch reports what is merged, not what it has checked out;
+    `worktree=True` reads them from the working tree instead (prepare writes there)."""
     ref = ref or default_ref(root)
+    files_at = None if worktree else ref
     last_tag, last_version = last_release(product, root)
-    in_tree, problems = read_versions(product, root)
+    in_tree, problems = read_versions(product, root, files_at)
     entries = [e for e in history(root, last_tag, ref) if e.kind != "ignored"]
     for entry in entries:
         entry.files = [f for f in entry.files if ships(product, f)]
-    log = root / product.changelog
-    ready = bool(in_tree and log.is_file()
-                 and changelog_section(log.read_text(encoding="utf-8"), fmt(in_tree)))
+    log = read_file(root, product.changelog, files_at)
+    ready = bool(in_tree and log is not None and changelog_section(log, fmt(in_tree)))
     return Status(product, ref, last_tag, last_version, in_tree, problems,
                   [e for e in entries if e.files], ready)
 
@@ -610,7 +626,7 @@ def prepare(product: Product, root: Path = REPO_ROOT, version: Optional[Version]
             level: Optional[str] = None, today: Optional[dt.date] = None,
             ref: Optional[str] = None) -> Tuple[Version, List[str]]:
     """Write the release version into the tree. Returns the version and the files changed."""
-    s = status(product, root, ref)
+    s = status(product, root, ref, worktree=True)
     if s.problems:
         raise ReleaseError("fix the version sources first:\n  " + "\n  ".join(s.problems))
     if version is None:
