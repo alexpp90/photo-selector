@@ -32,6 +32,10 @@ class FakeSafDocumentsProvider : android.content.ContentProvider() {
         /** When set, only documents whose id contains this text refuse to be deleted. */
         var failDeletesMatching: String? = null
 
+        /** When set, opening a document whose id contains this text throws (a provider crash mid-bundle). */
+        @Volatile
+        var throwOnOpenMatching: String? = null
+
         @Volatile
         var autoRenameOnCreate: ((String) -> String)? = null
 
@@ -69,6 +73,7 @@ class FakeSafDocumentsProvider : android.content.ContentProvider() {
             advertiseSupportsMove = false
             failDeletes = false
             failDeletesMatching = null
+            throwOnOpenMatching = null
             opaqueFolderIds = false
             createDelayMs = 0L
             opaqueRegistry.clear()
@@ -275,6 +280,10 @@ class FakeSafDocumentsProvider : android.content.ContentProvider() {
     }
 
     override fun openFile(uri: Uri, mode: String): ParcelFileDescriptor {
+        val id = documentIdOf(uri)
+        if (throwOnOpenMatching?.let { id.contains(it) } == true) {
+            throw IllegalStateException("Simulated provider failure for $id")
+        }
         val file = fileForDocId(documentIdOf(uri))
         val pfdMode = ParcelFileDescriptor.parseMode(mode)
         return ParcelFileDescriptor.open(file, pfdMode)

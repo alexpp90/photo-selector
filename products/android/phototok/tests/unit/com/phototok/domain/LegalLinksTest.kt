@@ -9,11 +9,25 @@ import org.junit.runner.RunWith
 import org.robolectric.RobolectricTestRunner
 import org.robolectric.RuntimeEnvironment
 import org.robolectric.annotation.Config
+import java.io.File
 import java.net.URL
 
 @RunWith(RobolectricTestRunner::class)
 @Config(sdk = [34])
 class LegalLinksTest {
+
+    @Test
+    @Requirement("REQ-TOK-ARCH.20")
+    fun `no web address is hard-coded outside LegalLinks (Q-TOK-1)`() {
+        val src = listOf(File("src"), File("products/android/phototok/src")).first { it.isDirectory }
+        val offenders = src.walkTopDown()
+            .filter { it.isFile && it.extension == "kt" && it.name != "LegalLinks.kt" }
+            .flatMap { f ->
+                f.readLines().filter { it.contains("https://") && !it.contains("xmlns") && !it.contains("ns.adobe.com") }
+                    .map { "${f.name}: ${it.trim()}" }
+            }.toList()
+        assertTrue("URLs belong in LegalLinks.kt: $offenders", offenders.isEmpty())
+    }
 
     @Test
     @Requirement("REQ-TOK-ARCH.20")
@@ -43,5 +57,31 @@ class LegalLinksTest {
             "PhotoTok must not request INTERNET permission (SAF-only requirement)",
             permissions.contains("android.permission.INTERNET"),
         )
+    }
+
+    @Test
+    fun `test tags are resource ids only in debug and lab builds`() {
+        fun source(path: String): String =
+            listOf(File(path), File("products/android/phototok/$path"))
+                .firstOrNull { it.exists() }?.readText() ?: error("$path not found from ${File(".").absolutePath}")
+        val activity = source("src/com/phototok/MainActivity.kt")
+        assertTrue(activity.contains("testTagsAsResourceId = BuildConfig.EXPOSE_TEST_TAGS"))
+        assertFalse(activity.contains("testTagsAsResourceId = true"))
+        val release = source("build.gradle.kts").substringAfter("        release {").substringBefore("\n        }")
+        assertTrue(release.contains("buildConfigField(\"boolean\", \"EXPOSE_TEST_TAGS\", \"false\")"))
+        assertTrue(com.phototok.BuildConfig.EXPOSE_TEST_TAGS) // unit tests run the debug build
+    }
+
+    @Test
+    @Requirement("REQ-TOK-ARCH.19")
+    fun `merged manifest requests no permission at all`() {
+        // A dependency can merge permissions into the shipped manifest (Frameduel got four from an
+        // unused WorkManager, audit 2026-10-21); only androidx's own signature permission is allowed.
+        val context = RuntimeEnvironment.getApplication()
+        val requested = context.packageManager
+            .getPackageInfo(context.packageName, PackageManager.GET_PERMISSIONS)
+            .requestedPermissions ?: emptyArray()
+        val unexpected = requested.filterNot { it.endsWith(".DYNAMIC_RECEIVER_NOT_EXPORTED_PERMISSION") }
+        assertTrue("Zero-permission SAF policy: the merged manifest requests $unexpected", unexpected.isEmpty())
     }
 }

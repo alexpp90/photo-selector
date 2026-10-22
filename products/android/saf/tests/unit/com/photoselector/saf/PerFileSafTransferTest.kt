@@ -40,6 +40,29 @@ class PerFileSafTransferTest : SafTransferContractTest(PER_FILE_POLICY) {
     }
 
     @Test
+    fun `a member whose copy throws does not undo the members already moved (B-SAF-1)`() = runTest {
+        File(rootDir, "IMG_0030.JPG").writeText("first")
+        File(rootDir, "IMG_0030.CR3").writeText("second")
+        File(rootDir, "IMG_0030.XMP").writeText("third")
+        FakeSafDocumentsProvider.throwOnOpenMatching = "IMG_0030.CR3"
+
+        val results = engine.transferBundle(
+            storage,
+            listOf(documentUriFor("IMG_0030.JPG"), documentUriFor("IMG_0030.CR3"), documentUriFor("IMG_0030.XMP")),
+            selection(), true, true,
+        )
+
+        assertTrue("member 1 landed and is reported so", results[0].success)
+        assertFalse(results[1].success)
+        assertEquals("Simulated provider failure for root/IMG_0030.CR3", results[1].error)
+        assertTrue("member 3 is still attempted", results[2].success)
+        assertEquals("first", File(rootDir, "Selection/JPEG/IMG_0030.JPG").readText())
+        assertFalse("the moved source is gone", File(rootDir, "IMG_0030.JPG").exists())
+        assertTrue("the failed member's source stays", File(rootDir, "IMG_0030.CR3").exists())
+        assertFalse("no partial file", File(rootDir, "Selection/RAW/IMG_0030.CR3").exists())
+    }
+
+    @Test
     fun `an unresolvable member fails alone and the others are transferred`() = runTest {
         File(rootDir, "IMG_0014.JPG").writeText("payload")
 

@@ -58,6 +58,7 @@ import com.photoselector.core.storage.SourceKind
 import com.phototok.R
 import com.phototok.domain.FeedOrderMode
 import com.phototok.domain.FileTypeFilter
+import com.phototok.domain.LegalLinks
 import com.phototok.domain.SwipeAction
 import com.phototok.domain.PhotoFolders
 import com.phototok.domain.SwipeRightVerb
@@ -479,7 +480,7 @@ fun SettingsScreen(
             SettingsClickItem(
                 title = stringResource(R.string.setting_title_source_code),
                 onClick = {
-                    val intent = Intent(Intent.ACTION_VIEW, Uri.parse("https://github.com/alexpp90/photo-selector"))
+                    val intent = Intent(Intent.ACTION_VIEW, Uri.parse(LegalLinks.SOURCE_CODE))
                     try {
                         context.startActivity(intent)
                     } catch (e: ActivityNotFoundException) {

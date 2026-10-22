@@ -597,18 +597,27 @@ class SafTransferEngine(
                     parentDocumentId,
                 )
             } else {
-                transferOne(
-                    storage = storage,
-                    sourceUri = src.uri,
-                    sourceDoc = doc,
-                    fileName = name,
-                    desiredName = desiredNames[name] ?: name,
-                    treeRootUri = treeRootUri,
-                    targetFolder = targetFolder,
-                    selectionFolderName = folderName,
-                    isMove = isMove,
-                    parentDocumentId = parentDocumentId,
-                )
+                // B-SAF-1: a member that throws fails alone. Members already moved stay
+                // reported as moved, so the caller never restores a photo that has left.
+                try {
+                    transferOne(
+                        storage = storage,
+                        sourceUri = src.uri,
+                        sourceDoc = doc,
+                        fileName = name,
+                        desiredName = desiredNames[name] ?: name,
+                        treeRootUri = treeRootUri,
+                        targetFolder = targetFolder,
+                        selectionFolderName = folderName,
+                        isMove = isMove,
+                        parentDocumentId = parentDocumentId,
+                    )
+                } catch (e: CancellationException) {
+                    throw e
+                } catch (e: Exception) {
+                    Log.e(TAG, "Failed to transfer $sourceStr", e)
+                    FileOperationResult.failure(sourceStr, e.message, parentDocumentId)
+                }
             }
         }
     }
