@@ -47,6 +47,47 @@ class LocalImageSourceImplTest {
         assertEquals(SafSubfolder.ROOT, rule("IMG_001.xmp"))
     }
 
+    private fun inBundle(name: String, vararg members: String) =
+        LocalImageSourceImpl.SUBFOLDER_RULE.subfolderFor(name, members.toList())
+
+    private val rawBundle = arrayOf("IMG.CR3", "IMG.JPG", "IMG.xmp", "IMG.CR3.xmp", "IMG-Enhanced-NR.tif", "IMG-Enhanced-NR.jpg", "IMG-Edit.jpg")
+    private val jpegBundle = arrayOf("IMG.JPG", "IMG.xmp", "IMG-Edit.jpg", "IMG_Edit.tif")
+
+    @Test
+    fun `a stem sidecar follows the RAW of its bundle`() {
+        assertEquals(SafSubfolder.RAW, inBundle("IMG.xmp", *rawBundle))
+    }
+
+    @Test
+    fun `a file-named sidecar goes with the RAW`() {
+        assertEquals(SafSubfolder.RAW, inBundle("IMG.CR3.xmp", *rawBundle))
+    }
+
+    @Test
+    fun `every derivative goes with the RAW whatever its extension`() {
+        assertEquals(SafSubfolder.RAW, inBundle("IMG-Enhanced-NR.tif", *rawBundle))
+        assertEquals(SafSubfolder.RAW, inBundle("IMG-Enhanced-NR.jpg", *rawBundle))
+        assertEquals(SafSubfolder.RAW, inBundle("IMG-Edit.jpg", *rawBundle))
+    }
+
+    @Test
+    fun `the bundle's own JPEG stays in JPEG`() {
+        assertEquals(SafSubfolder.JPEG, inBundle("IMG.JPG", *rawBundle))
+        assertEquals(SafSubfolder.RAW, inBundle("IMG.CR3", *rawBundle))
+    }
+
+    @Test
+    fun `a JPEG-only bundle sorts its sidecar and derivatives with the JPEG`() {
+        assertEquals(SafSubfolder.JPEG, inBundle("IMG.xmp", *jpegBundle))
+        assertEquals(SafSubfolder.JPEG, inBundle("IMG-Edit.jpg", *jpegBundle))
+        assertEquals(SafSubfolder.JPEG, inBundle("IMG_Edit.tif", *jpegBundle))
+    }
+
+    @Test
+    fun `a sidecar of a bundle without any image stays in the selection folder`() {
+        assertEquals(SafSubfolder.ROOT, inBundle("IMG.xmp", "IMG.xmp"))
+    }
+
     @Test
     fun `unknown extensions stay in selection folder`() {
         assertEquals(SafSubfolder.ROOT, rule("video.mp4"))
