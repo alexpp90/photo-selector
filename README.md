@@ -25,7 +25,7 @@
 
 **Jackpix**, **Frameduel**, **Lensjet** and **Blitzlens** are privacy-first, high-velocity photo culling and metadata analysis apps for professional photographers, enthusiasts, and creators. Whether sorting on the go on your phone, reviewing burst sequences on a tablet, or performing intensive multi-thousand RAW triage at your desktop workstation, each app is built natively for its platform. The original multi-platform Python app, **Photo Selector Toolbox (Legacy)**, stays here as an archived reference.
 
-> 🔒 **100% Private & Strictly Offline:** Your photos never leave your device. All EXIF parsing, duplicate detection, and optical/aesthetic quality scoring (including Apple Neural Engine and local TFLite models) execute strictly on-device. Zero cloud uploads, zero telemetry, and no account required.
+> 🔒 **100% Private & Strictly Offline:** Your photos never leave your device. All EXIF parsing, duplicate detection, and optical/aesthetic quality scoring (including Apple Vision on the Neural Engine) execute strictly on-device. Zero cloud uploads, zero telemetry, and no account required.
 
 ---
 
@@ -136,11 +136,11 @@ A native GNOME photograph culling and selection suite targeting Debian 13 (Trixi
   <img src="assets/brand/blitzlens/blitzlens.svg" alt="Blitzlens icon" width="96" style="margin-bottom: 10px;" />
   <br />
   <img src="assets/linux_desktop_screenshot.png" alt="Blitzlens Culling Workspace" width="750" style="border-radius: 10px; box-shadow: 0 4px 20px rgba(0,0,0,0.3); margin-bottom: 12px;" />
-  <p><em>Native GNOME 46 / Libadwaita Obsidian Darkroom &amp; Optical Cobalt workspace with segmented comparison controls, glassmorphic optical HUD with sharpness goodness bar, and semantic bottom action bar</em></p>
+  <p><em>Native GNOME 46 / Libadwaita workspace on neutral grey surfaces with segmented comparison controls, glassmorphic optical HUD with sharpness goodness bar, and semantic bottom action bar</em></p>
 </div>
 
 ### Key Features
-* **Obsidian Darkroom & Optical Cobalt Theme:** Built with Python 3.12+, PyGObject, GTK4, and Libadwaita featuring a color-neutral Obsidian Darkroom surface (`#141417` / `#181920`), Optical Cobalt (`#3584E4`) & Optical Cyan (`#06B6D4`) focus accents, and $\ge 7:1$ AAA contrast tokens.
+* **Neutral Dark Workspace:** Built with Python 3.12+, PyGObject, GTK4, and Libadwaita on colour-neutral grey surfaces (`#141414` / `#181818` / `#1C1C1C`); selection and focus follow the GNOME accent setting, and the fixed keeper / acceptable / cull colours carry only their meaning.
 * **Vectorized NumPy Focus Engine & Goodness HUD:** 2D discrete Laplacian convolution with 3x3 Gaussian smoothing and strided Median Absolute Deviation (MAD) noise floor subtraction (<2.0 ms compute latency), paired with a glassmorphic HUD (`I`) displaying a normalized sharpness goodness meter, semantic quality badges (`Sharp` / `Acceptable` / `Blurry`), and `RAW+JPG` / `XMP` companion pills.
 * **Responsive Canvas Viewports:** Seamlessly switch between 1-Up (1:1 actual-pixel zoom toggle on `Space`), 2-Up side-by-side comparison (`CHAMPION` / `CHALLENGER`), and 3-Up Focus Mode (one-over-two: `ACTIVE` on top, `PREVIOUS` / `NEXT` below) with boundary slot indicators. Move, Copy, Trash and Undo outcomes show in the bottom action bar, never over its buttons.
 * **Every Camera Format & Google Drive:** Displays, reads EXIF from and scores Sony, Canon (incl. CR3), Nikon, Fujifilm, Panasonic, OM System, Pentax, Samsung and DNG RAW files plus JPEG, HEIC, PNG, TIFF and WebP, proven against real camera files ([supported formats](docs/shared/SUPPORTED_FORMATS.md)). RAWs display through their embedded camera preview (phone DNGs through LibRaw), decoded in the background; folders on Google Drive (GNOME Online Accounts) open like local folders with their real file names, and Move, Copy, Trash and Undo work there too (trashed Drive files go to the local GNOME Trash, so Undo can bring them back). File operations run in the background, so the window stays responsive during a Drive upload, and 1:1 zoom on a RAW shows full sensor resolution.
@@ -174,7 +174,7 @@ The original multi-platform desktop culling application built with Python and Tk
 | **Laplacian Noise (MAD)** | ❌ Omitted | ✅ (MAD) | ✅ (vImage MAD) | ✅ (NumPy MAD) | ✅ (MAD) | Median Absolute Deviation sensor noise floor subtraction. |
 | **Highlights/Shadows Clipping** | ❌ Omitted | ✅ (Histograms) | ✅ (vImage Hist) | ✅ (NumPy Hist) | ✅ (Histograms) | Hardware histogram thresholds $\ge 254$ and $\le 2$. |
 | **Aesthetic Scoring** | ❌ Excluded | ❌ Excluded | ✅ (Apple Vision ANE) | ❌ Excluded | ✅ (Local Ollama) | Lensjet uses the Apple Neural Engine; Frameduel scores technical quality only. |
-| **Star Ratings (1–5)** | ❌ Omitted | ✅ (Room DB v3) | ❌ Omitted | ❌ Omitted | ❌ Omitted | Rating, reject, and composition tracking in Room DB. |
+| **Star Ratings (1–5)** | ❌ Omitted | ✅ (Room) | ❌ Omitted | ❌ Omitted | ❌ Omitted | Rating, reject, and composition tracking in Room DB. |
 | **Score Caching** | ❌ Lightweight | ✅ (Room DB) | ❌ (Memory LRU) | ❌ (Memory LRU) | ✅ (SQLite) | Desktops rely on sub-2ms compute & memory LRU; Android uses Room. |
 | **Duplicate Detection** | ❌ Omitted | ✅ (Room DB) | ✅ (CryptoKit SHA) | ✅ (Streaming SHA) | ✅ (SHA-256) | Two-stage size pre-filtering and SHA-256 duplicate finder. |
 | **Tactile Keyboard Shortcuts** | ❌ Touch-first | ✅ (DeX / Physical) | ✅ (Zero-latency NSEvent)| ✅ (GTK Capture) | ✅ (Tkinter Events) | Full hotkey routing (`←`/`→`, `M`, `C`, `Del`, `Undo`). |
@@ -300,7 +300,7 @@ Standalone archives are available on [GitHub Releases](https://github.com/alexpp
 2. Run directly from `products/linux-desktop`:
    ```bash
    cd products/linux-desktop
-   python3 -m photo_selector_linux [path/to/photos]
+   PYTHONPATH=src python3 -m photo_selector_linux [path/to/photos]
    ```
 
 ### 💻 Legacy Desktop Setup (Python 3.10+)

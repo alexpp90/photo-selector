@@ -117,5 +117,5 @@ In addition to the table:
 | Product | Where the rule is applied | Check |
 |---|---|---|
 | Jackpix | `docs/products/phototok/DESIGN.md` § 8 *Copy & messaging* | `scripts/check_ui_text_budget.py --product phototok`: reports until Jackpix's strings are resources, then fails (`mode` in `scripts/ui_text_budget.json`) |
-| Frameduel (Android Desktop) | its `DESIGN.md` (labels on the 2×3 action block are allowed: large screens, keyboard hints) | reports only |
+| Frameduel (Android Desktop) | its `DESIGN.md` (labels on the 2×3 action block are allowed: large screens, keyboard hints; currently English-only, with resource extraction and German `values-de` tracked as a separate work package) | reports only |
 | Lensjet (macOS Desktop), Blitzlens (Linux Desktop), Desktop (legacy) | their design docs | not yet covered by the script |

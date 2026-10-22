@@ -20,7 +20,13 @@ import release as rel  # noqa: E402
 
 GIT_ENV = {"GIT_AUTHOR_NAME": "t", "GIT_AUTHOR_EMAIL": "t@example.invalid",
            "GIT_COMMITTER_NAME": "t", "GIT_COMMITTER_EMAIL": "t@example.invalid",
-           "GIT_CONFIG_GLOBAL": os.devnull, "GIT_CONFIG_SYSTEM": os.devnull}
+           "GIT_CONFIG_GLOBAL": os.devnull, "GIT_CONFIG_SYSTEM": os.devnull,
+           # No background `git maintenance run --auto --detach` after commits and merges: it
+           # kept writing into .git/objects while tearDown deleted the repository (CI,
+           # 2026-10-18: "Directory not empty: '.../.git/objects'").
+           "GIT_CONFIG_COUNT": "2",
+           "GIT_CONFIG_KEY_0": "gc.auto", "GIT_CONFIG_VALUE_0": "0",
+           "GIT_CONFIG_KEY_1": "maintenance.auto", "GIT_CONFIG_VALUE_1": "false"}
 
 DEBIAN_CHANGELOG = """photo-selector-linux (0.1.0-1) trixie; urgency=medium
 
@@ -238,6 +244,22 @@ class StatusTest(RepoTestCase):
         self.repo.tag("phototok-v0.5.0")
         s = rel.status(rel.BY_SLUG["phototok"], self.root, "HEAD")
         self.assertFalse(s.awaiting_tag or s.unfinished_bump or s.due)
+
+    def test_versions_are_read_at_the_ref_not_from_an_old_checkout(self):
+        # 2026-10-21: a checkout on a stale branch reported "at origin/main" with the
+        # branch's 0.5.0 although main had 0.6.0 prepared, and suggested 0.5.0.
+        self.repo.tag("v0.4.0")
+        self.repo.commit("feat(phototok): a", {"products/android/phototok/src/A.kt": "a"})
+        rel.prepare(rel.BY_SLUG["phototok"], self.root, version=(0, 6, 0),
+                    today=dt.date(2026, 10, 20), ref="HEAD")
+        self.repo.commit("release(phototok): 0.6.0")
+        self.repo.git("switch", "-q", "-c", "stale", "HEAD~1")
+        s = rel.status(rel.BY_SLUG["phototok"], self.root, "main")
+        self.assertEqual(s.in_tree, (0, 6, 0))
+        self.assertTrue(s.awaiting_tag)
+        self.assertEqual(rel.fmt(s.next_version), "0.6.0")
+        here = rel.status(rel.BY_SLUG["phototok"], self.root, "main", worktree=True)
+        self.assertEqual(here.in_tree, (0, 5, 0))
 
     def test_disagreeing_sources_are_reported(self):
         write(self.root, "products/linux-desktop/pyproject.toml",

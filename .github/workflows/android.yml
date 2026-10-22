@@ -19,6 +19,7 @@ on:
     paths:
       - 'products/android/**'
       - '.github/workflows/android.yml'
+      - 'scripts/check_native_alignment.py'
       - 'testdata/formats/**'
       - 'scripts/fetch_format_corpus.py'
       - '.github/actions/format-corpus/**'
@@ -27,6 +28,7 @@ on:
     paths:
       - 'products/android/**'
       - '.github/workflows/android.yml'
+      - 'scripts/check_native_alignment.py'
       - 'testdata/formats/**'
       - 'scripts/fetch_format_corpus.py'
       - '.github/actions/format-corpus/**'
@@ -180,6 +182,31 @@ jobs:
             products/android/android-desktop/build/reports/lint-results-debug.html
             products/android/phototok/build/reports/lint-results-debug.html
           if-no-files-found: ignore
+
+  # ── Minified (R8) build on every change ─────────────────────────
+  # Release builds shrink and obfuscate with R8 (isMinifyEnabled + isShrinkResources); the
+  # debug gates above never run it, so a missing -keep rule (Room, Hilt, OpenCV JNI) used to
+  # surface only in `build` on main, after the merge. `lab` is `initWith(release)` with the
+  # debug signing key, so this needs no secrets. Local mirror: run_tests.sh --android.
+  minified-build:
+    name: Minified build (R8, lab)
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: Set up JDK 17
+        uses: actions/setup-java@v5
+        with:
+          java-version: '17'
+          distribution: 'temurin'
+
+      - name: Setup Gradle
+        uses: gradle/actions/setup-gradle@v6
+
+      - name: Assemble minified lab APKs
+        working-directory: products/android
+        run: ./gradlew :android-desktop:assembleLab :phototok:assembleLab --stacktrace
 
   # ── Instrumented tests on Android emulator ──────────────────────
   instrumented-tests:

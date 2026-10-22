@@ -3,9 +3,9 @@
 > Applies to both Android products. The two apps share one Gradle build and one CI
 > workflow (`.github/workflows/android.yml`) but are **fully isolated** downstream:
 > separate Google Cloud / Firebase projects, signing keys, service accounts and secrets.
-> Step-by-step signing setup: [`ANDROID_SIGNING_SETUP.md`](ANDROID_SIGNING_SETUP.md).
-> Rationale for the isolation: [`ANDROID_SIGNING_PLAN.md`](ANDROID_SIGNING_PLAN.md).
-> Operational runbook: [`ANDROID_SIGNING_RUNBOOK.md`](ANDROID_SIGNING_RUNBOOK.md).
+> Signing setup, the rationale for the isolation and the operational runbook
+> (`ANDROID_SIGNING_SETUP.md`, `ANDROID_SIGNING_PLAN.md`, `ANDROID_SIGNING_RUNBOOK.md`) are
+> maintainer-private and not part of the public repository.
 
 ## Build & CI Requirements
 
