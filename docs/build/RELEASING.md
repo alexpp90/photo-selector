@@ -13,8 +13,11 @@ the tag, runs the product's CI gates, builds, and publishes only that product.
 | Desktop (legacy) | `desktop-vX.Y.Z` | `pyproject.toml`, `photo_selector_toolbox/__init__.py` | [`products/desktop/CHANGELOG.md`](../../products/desktop/CHANGELOG.md) | GitHub release, Homebrew formula + cask |
 
 The shared `vX.Y.Z` tags (last: `v0.4.0`) released all products at once; they are history.
-A product with no tag of its own yet counts its changes from the last shared tag. The
-`nightly` pre-release is unchanged: every push to `main` refreshes it.
+A product with no tag of its own yet counts its changes from the last shared tag. Every push to
+`main` refreshes each product group's own rolling pre-release: `nightly-android` (Jackpix and
+Frameduel), `nightly-macos-desktop` (Lensjet) and `nightly` (legacy Desktop). They used to share
+`nightly`, which then pointed at whichever workflow finished last; `scripts/tests/test_workflow_bounds.py`
+fails if two workflows publish the same tag.
 
 Android `versionCode`s stay CI-computed (`android.yml`, from the run number), so Google Play
 always sees an increasing code; `versionName` is the product version.
