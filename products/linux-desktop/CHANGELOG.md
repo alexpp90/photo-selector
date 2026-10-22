@@ -6,14 +6,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ## [Unreleased]
 
-### Fixed
-- White text on the emerald **Move** button and the "sharp" score badge was hard to read (2.3:1); it is now dark on the same green (8:1).
-- If Undo of a Move could not put every file back, the error now names the files that stayed; before, they were dropped silently.
-- A Trash undo that failed half-way can be tried again: the files already restored are recognised instead of blocking the retry.
-- Exposure, ISO, aperture and lens were empty on systems with a newer Pillow (the MakerNote tag was renamed).
-- The Debian package is built reproducibly: file dates follow the top `debian/changelog` entry (they said 2025) and the checksum list has a fixed order.
-
-## [0.2.0] - 2026-10-20
+## [0.2.0] - 2026-10-22
 
 ### Changed
 - The app is now called **Blitzlens** (formerly Photo Selector Linux): launcher, window title, About dialog, package description and the APT repository pages.
@@ -26,6 +19,11 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 - An About dialog in the main menu.
 
 ### Fixed
+- White text on the emerald **Move** button and the "sharp" score badge was hard to read (2.3:1); it is now dark on the same green (8:1).
+- If Undo of a Move could not put every file back, the error now names the files that stayed; before, they were dropped silently.
+- A Trash undo that failed half-way can be tried again: the files already restored are recognised instead of blocking the retry.
+- Exposure, ISO, aperture and lens were empty on systems with a newer Pillow (the MakerNote tag was renamed).
+- The Debian package is built reproducibly: file dates follow the top `debian/changelog` entry (they said 2025) and the checksum list has a fixed order.
 - A Move to a folder on another drive whose original cannot be removed keeps the verified copy, says "Copied to … — original could not be removed" and stays undoable; renames on the same drive no longer need free space.
 - A photo moved to the Trash is always recorded (or put back) before an error is shown, and trash folders on memory cards follow the FreeDesktop rules; Undo restores only from the recorded Trash location.
 - Undo of a Move that left its original behind deletes the copy it made instead of creating a `-2` duplicate.
