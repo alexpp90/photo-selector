@@ -1509,3 +1509,65 @@ def test_cross_mount_staging_never_deletes_a_file_that_appeared_at_the_destinati
 
     assert occupant.read_bytes() == b"someone else's photo"
     assert raw.exists()
+
+
+def test_move_undo_names_the_members_that_could_not_be_put_back(tmp_path: Path):
+    """OPEN-undo-swallow: a failing rollback re-move is named in the error, not swallowed."""
+    members = [tmp_path / n for n in ("DSC_700.ARW", "DSC_700.JPG", "DSC_700.xmp")]
+    for m in members:
+        m.write_bytes(m.name.encode())
+    candidate = CandidatePhoto(primary_path=members[0], companion_paths=members[1:])
+    mgr = FileCullingManager()
+    record = mgr.move_candidate(candidate, tmp_path)
+
+    orig_move = _move_no_overwrite
+    state = {"restores": 0, "failed": False}
+
+    def flaky(src, dst):
+        # Selection -> original is a restore; original -> Selection is a rollback re-move.
+        if Path(src).parent.name == "Selection":
+            state["restores"] += 1
+            if state["restores"] == 3:
+                raise PermissionError("third restore fails")
+        elif not state["failed"] and Path(src).name == "DSC_700.JPG":
+            state["failed"] = True
+            raise PermissionError("rollback of the 2nd member fails")
+        return orig_move(src, dst)
+
+    with patch("photo_selector_linux.core.file_ops._move_no_overwrite", side_effect=flaky):
+        with pytest.raises(FileCullingError) as exc:
+            mgr.undo_culling(record, candidate)
+
+    assert "DSC_700.JPG" in str(exc.value)
+    assert "DSC_700.ARW" not in str(exc.value).split("could not be put back")[1]
+
+
+def test_trash_undo_can_be_retried_after_the_second_restore_failed(tmp_path: Path):
+    """D-TRASH-UNDO: the member restored by the failed attempt counts as restored on retry."""
+    trash_dir = tmp_path / "Trash"
+    raw = tmp_path / "DSC_800.ARW"
+    jpg = tmp_path / "DSC_800.JPG"
+    raw.write_bytes(b"raw")
+    jpg.write_bytes(b"jpg")
+    candidate = CandidatePhoto(primary_path=raw, companion_paths=[jpg])
+    mgr = FileCullingManager(trash_dir=trash_dir)
+    record = mgr.trash_candidate(candidate)
+
+    orig = mgr._restore_from_trash
+    calls = {"n": 0}
+
+    def flaky(*args, **kwargs):
+        calls["n"] += 1
+        if calls["n"] == 2:
+            raise OSError("disk hiccup")
+        return orig(*args, **kwargs)
+
+    with patch.object(mgr, "_restore_from_trash", side_effect=flaky):
+        with pytest.raises(FileCullingError):
+            mgr.undo_culling(record, candidate)
+    assert raw.exists() and not jpg.exists()
+
+    assert mgr.undo_culling(record, candidate) is True
+    assert raw.read_bytes() == b"raw" and jpg.read_bytes() == b"jpg"
+    assert not (tmp_path / "DSC_800-2.ARW").exists()
+    assert candidate.status == PhotoStatus.CANDIDATE

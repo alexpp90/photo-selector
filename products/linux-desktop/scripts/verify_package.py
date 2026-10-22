@@ -176,13 +176,17 @@ def parse_deb_archive(deb_path: Path) -> Dict[str, bytes]:
 
 
 def verify_deb_archive(deb_path: Path) -> None:
+    deb_path = Path(deb_path)
     if not deb_path.is_file():
         raise VerificationFailure(f"Package file not found: {deb_path}")
 
     members = parse_deb_archive(deb_path)
 
     # Verify control.tar.gz
-    ctrl_key = [k for k in members.keys() if k.startswith("control.tar")][0]
+    ctrl_keys = [k for k in members.keys() if k.startswith("control.tar")]
+    if not ctrl_keys:
+        raise VerificationFailure(f"{deb_path.name}: control.tar archive missing from package")
+    ctrl_key = ctrl_keys[0]
     with tarfile.open(fileobj=io.BytesIO(members[ctrl_key]), mode="r:*") as tar:
         names = tar.getnames()
         if "./control" not in names and "control" not in names:
@@ -191,7 +195,10 @@ def verify_deb_archive(deb_path: Path) -> None:
             raise VerificationFailure(f"{deb_path.name}: control.tar does not contain md5sums file")
 
     # Verify data.tar.gz
-    data_key = [k for k in members.keys() if k.startswith("data.tar")][0]
+    data_keys = [k for k in members.keys() if k.startswith("data.tar")]
+    if not data_keys:
+        raise VerificationFailure(f"{deb_path.name}: data.tar archive missing from package")
+    data_key = data_keys[0]
     with tarfile.open(fileobj=io.BytesIO(members[data_key]), mode="r:*") as tar:
         names = tar.getnames()
         has_bin = any("usr/bin/photo-selector-linux" in n for n in names)
@@ -266,7 +273,57 @@ def verify_version_synchronization(product_dir: Path, deb_path: Path) -> None:
 # The repository is built by package_debian.sh into dist/apt (validation) or into a
 # checkout of alexpp90/apt (publish job); it is no longer committed to this repository.
 
-def verify_apt_structure(apt_dir: Path) -> Path:
+def extract_deb_version(filename: str) -> str:
+    """Extract version string from a .deb package filename.
+
+    e.g. photo-selector-linux_0.2.0-1_all.deb -> '0.2.0-1'
+    """
+    m = re.match(r"^photo-selector-linux_([^_]+)(?:_[^_]+)?\.deb$", filename)
+    if m:
+        return m.group(1)
+    return ""
+
+
+def deb_version_sort_key(version_str: str) -> tuple:
+    """Sort key for Debian package versions supporting epoch, upstream, revision."""
+    if not version_str:
+        return ()
+    epoch = 0
+    work = version_str
+    if ":" in work:
+        ep_part, work = work.split(":", 1)
+        try:
+            epoch = int(ep_part)
+        except ValueError:
+            pass
+    tokens = re.split(r"(\d+)", work)
+    parsed: list = [epoch]
+    for tok in tokens:
+        if not tok:
+            continue
+        if tok.isdigit():
+            parsed.append((0, int(tok)))
+        else:
+            parsed.append((1, tok))
+    return tuple(parsed)
+
+
+def get_current_product_version(product_dir: Path) -> str | None:
+    """Read current project version from __init__.py or pyproject.toml."""
+    init_path = product_dir / "src" / "photo_selector_linux" / "__init__.py"
+    if init_path.is_file():
+        m = re.search(r'__version__\s*=\s*["\']([^"\']+)["\']', init_path.read_text(encoding="utf-8"))
+        if m:
+            return m.group(1)
+    pyproject_path = product_dir / "pyproject.toml"
+    if pyproject_path.is_file():
+        m = re.search(r'version\s*=\s*["\']([^"\']+)["\']', pyproject_path.read_text(encoding="utf-8"))
+        if m:
+            return m.group(1)
+    return None
+
+
+def verify_apt_structure(apt_dir: Path, expected_version: str | None = None) -> Path:
     if not apt_dir.is_dir():
         raise VerificationFailure(
             f"APT repository directory not found: {apt_dir} — build it with scripts/package_debian.sh")
@@ -304,6 +361,28 @@ def verify_apt_structure(apt_dir: Path) -> Path:
     if not debs:
         raise VerificationFailure(f"No .deb packages found in pool: {pool_dir}")
 
+    # Select the package corresponding to the current version being verified
+    # or the latest version by version sorting rather than arbitrary debs[0]
+    selected_deb: Path
+    if expected_version:
+        base_expected = expected_version.split("-")[0]
+        matching_debs = [
+            p for p in debs
+            if extract_deb_version(p.name) == expected_version
+            or extract_deb_version(p.name).split("-")[0] == base_expected
+        ]
+        if not matching_debs:
+            available = [extract_deb_version(p.name) for p in debs]
+            raise VerificationFailure(
+                f"No package matching version '{expected_version}' found in pool: {pool_dir} "
+                f"(available versions: {available})"
+            )
+        matching_debs.sort(key=lambda p: deb_version_sort_key(extract_deb_version(p.name)), reverse=True)
+        selected_deb = matching_debs[0]
+    else:
+        sorted_debs = sorted(debs, key=lambda p: deb_version_sort_key(extract_deb_version(p.name)), reverse=True)
+        selected_deb = sorted_debs[0]
+
     # Check deb822 sources and setup.sh
     sources_file = apt_dir / "photo-selector.sources"
     if not sources_file.is_file():
@@ -319,8 +398,8 @@ def verify_apt_structure(apt_dir: Path) -> Path:
     if "https://alexpp90.github.io/apt/" not in sources_text:
         raise VerificationFailure(f"{sources_file} does not point at https://alexpp90.github.io/apt/")
 
-    log_pass("APT repository directory structure and configuration verified")
-    return debs[0]
+    log_pass(f"APT repository directory structure and configuration verified (selected {selected_deb.name})")
+    return selected_deb
 
 
 # ── Check 5: Release Checksum Integrity ─────────────────────────────────
@@ -370,6 +449,8 @@ def main() -> int:
     parser.add_argument("--product-dir", type=Path, default=None, help="Path to products/linux-desktop")
     parser.add_argument("--apt-dir", type=Path, default=None,
                         help="APT repository to verify (default: products/linux-desktop/dist/apt)")
+    parser.add_argument("--deb", type=Path, default=None, help="Specific .deb package file to verify directly")
+    parser.add_argument("--version", type=str, default=None, help="Expected package version to verify in APT pool")
     args = parser.parse_args()
 
     script_path = Path(__file__).resolve()
@@ -379,10 +460,16 @@ def main() -> int:
     print("━━━ Linux Desktop Debian Packaging & APT Verification ━━━")
     try:
         verify_debian_definitions(product_dir)
-        target_deb = verify_apt_structure(apt_dir)
-        verify_deb_archive(target_deb)
-        verify_version_synchronization(product_dir, target_deb)
-        verify_release_checksums(apt_dir)
+        if args.deb:
+            target_deb = args.deb.resolve()
+            verify_deb_archive(target_deb)
+            verify_version_synchronization(product_dir, target_deb)
+        else:
+            expected_ver = args.version or get_current_product_version(product_dir)
+            target_deb = verify_apt_structure(apt_dir, expected_version=expected_ver)
+            verify_deb_archive(target_deb)
+            verify_version_synchronization(product_dir, target_deb)
+            verify_release_checksums(apt_dir)
         print("✔ ALL PACKAGING & APT VERIFICATION GATES PASSED")
         return 0
     except VerificationFailure as e:

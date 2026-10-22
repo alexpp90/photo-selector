@@ -489,3 +489,57 @@ def test_desktop_file_validates():
     desktop = get_product_root() / "data" / "app.alpatix.Blitzlens.desktop"
     res = subprocess.run(["desktop-file-validate", str(desktop)], capture_output=True, text=True)
     assert res.returncode == 0, res.stdout + res.stderr
+
+
+def test_archive_mtimes_equal_the_top_changelog_entry_and_md5sums_are_sorted(tmp_path):
+    """C-LIN-1 / C-LIN-2: timestamps derive from debian/changelog; md5sums order is stable."""
+    import email.utils
+
+    product_dir = get_product_root()
+    sys.path.insert(0, str(product_dir / "scripts"))
+    try:
+        import package_deb
+    finally:
+        sys.path.pop(0)
+
+    trailer = next(
+        ln for ln in (product_dir / "debian" / "changelog").read_text().splitlines() if ln.startswith(" -- ")
+    )
+    expected = int(email.utils.parsedate_to_datetime(trailer.split(">  ", 1)[1]).timestamp())
+    assert package_deb.FIXED_MTIME == expected
+
+    real_walk = os.walk
+
+    def reversed_walk(top, *a, **k):
+        # A filesystem is free to list directories in any order; hand them over reversed.
+        for root, dirs, files in real_walk(top, *a, **k):
+            dirs.reverse()
+            yield root, dirs, files
+
+    deb = tmp_path / "p.deb"
+    (tmp_path / "stage").mkdir()
+    with pytest.MonkeyPatch.context() as mp:
+        mp.setattr(package_deb.os, "walk", reversed_walk)
+        package_deb.build_deb_pure_python(product_dir, tmp_path / "stage", deb, "0.2.0")
+    data = deb.read_bytes()
+    # ar members: parse header mtimes
+    pos, mtimes, control = 8, [], None
+    while pos + 60 <= len(data):
+        hdr = data[pos : pos + 60]
+        size = int(hdr[48:58])
+        mtimes.append(int(hdr[16:28]))
+        body = data[pos + 60 : pos + 60 + size]
+        if hdr[:16].decode().startswith("control.tar"):
+            control = body
+        pos += 60 + size + (size % 2)
+    assert set(mtimes) == {expected}
+    with tarfile.open(fileobj=io.BytesIO(control), mode="r:*") as t:
+        assert {m.mtime for m in t.getmembers()} == {expected}
+        md5 = t.extractfile("./md5sums").read().decode().splitlines()
+    paths = [ln.split("  ", 1)[1] for ln in md5]
+    expected_order = []
+    for root, dirs, files in os.walk(tmp_path / "stage"):
+        dirs.sort()
+        for f in sorted(files):
+            expected_order.append((Path(root) / f).relative_to(tmp_path / "stage").as_posix())
+    assert paths == expected_order

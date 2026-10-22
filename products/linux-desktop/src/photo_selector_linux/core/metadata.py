@@ -207,13 +207,19 @@ def read_metadata_pil(path: Path, data: Optional[bytes] = None) -> Optional[Expo
 
             # Merge IFD sub-dictionaries
             exif_dict = dict(exif_raw.items())
-            try:
-                for ifd_id in (ExifTags.IFD.Exif, ExifTags.IFD.Makernote):
+            # Pillow renamed IFD.Makernote to IFD.MakerNote; accept both spellings. The Exif IFD
+            # is read on its own so a missing/failing MakerNote never costs the exposure fields.
+            ifd_enum = ExifTags.IFD
+            maker_note = getattr(ifd_enum, "MakerNote", None) or getattr(ifd_enum, "Makernote", None)
+            for ifd_id in (getattr(ifd_enum, "Exif", None), maker_note):
+                if ifd_id is None:
+                    continue
+                try:
                     ifd = exif_raw.get_ifd(ifd_id)
                     if ifd:
                         exif_dict.update(ifd.items())
-            except Exception:
-                pass
+                except Exception:
+                    pass
     except Exception:
         return None
 
