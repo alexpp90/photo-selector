@@ -7,6 +7,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 ## [Unreleased]
 
 ### Fixed
+- With file sorting on, a photo's sidecar (`IMG.xmp` as well as `IMG.CR3.xmp`) and its edits (`-Edit`, `_Edit`, `-Enhanced-NR`, any extension) now go into the same subfolder as its RAW (or its JPEG when there is no RAW), instead of some of them landing loose in the Selection folder.
 - When one file of a photo with companions could not be copied or moved (for example the storage provider failed midway), the files that had already moved are reported as moved. Before, the whole shot was reported as failed and came back into the feed although part of it was already in Selection.
 
 ### Changed

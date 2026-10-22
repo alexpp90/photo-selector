@@ -128,9 +128,31 @@ class LocalImageSourceImpl @Inject constructor(
             }
         }
 
-        /** PhotoTok's sorting rule ([selectionSubfolder]) for the shared engine. */
-        internal val SUBFOLDER_RULE = SelectionSubfolderRule { name, _ ->
-            when (selectionSubfolder(name)) {
+        /**
+         * Bundle-aware sorting (`docs/shared/FILE_OPERATIONS.md`): every sidecar and every
+         * derivative goes into the subfolder of the bundle's RAW, or, when the bundle has none,
+         * of its primary image (first member that is neither sidecar nor derivative). A file's
+         * own type never splits it from its shot. Only when the bundle has no image at all does
+         * a file fall back to [selectionSubfolder] on its own name.
+         */
+        internal fun selectionSubfolderInBundle(
+            fileName: String,
+            bundleNames: Collection<String>,
+        ): SelectionSubfolder {
+            val own = selectionSubfolder(fileName)
+            if (!CompanionFiles.isSidecar(fileName) && !CompanionFiles.isDerivative(fileName)) return own
+            val others = bundleNames.filter { it != fileName }
+            if (others.any { PhotoExtensions.isRaw(it) }) return SelectionSubfolder.RAW
+            val primary = others.firstOrNull {
+                !CompanionFiles.isSidecar(it) && !CompanionFiles.isDerivative(it) &&
+                    selectionSubfolder(it) != SelectionSubfolder.ROOT
+            }
+            return primary?.let { selectionSubfolder(it) } ?: own
+        }
+
+        /** PhotoTok's sorting rule ([selectionSubfolderInBundle]) for the shared engine. */
+        internal val SUBFOLDER_RULE = SelectionSubfolderRule { name, bundleNames ->
+            when (selectionSubfolderInBundle(name, bundleNames)) {
                 SelectionSubfolder.RAW -> SafSubfolder.RAW
                 SelectionSubfolder.JPEG -> SafSubfolder.JPEG
                 SelectionSubfolder.ROOT -> SafSubfolder.ROOT

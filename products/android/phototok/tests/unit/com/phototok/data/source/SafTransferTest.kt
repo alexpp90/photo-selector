@@ -529,6 +529,59 @@ class SafTransferTest {
         assertSourceFolderUntouched("DSC_0007.JPG", "DSC_0004.ARW", "DSC_0004.JPG")
     }
 
+    // REQ-TOK-FEATURE.05 (audit D-TOK-2)
+    @Test
+    fun `sorting on files every sidecar and derivative of a RAW bundle into RAW`() = runTest {
+        val names = listOf("IMG.CR3", "IMG.JPG", "IMG.xmp", "IMG.CR3.xmp", "IMG-Enhanced-NR.tif", "IMG-Enhanced-NR.jpg")
+        seedShot(*names.toTypedArray())
+
+        val results = source.transferBundle(
+            sourceUris = names.map { documentUriFor(it) },
+            destFolderUri = treeUri, sorting = true, subfolderName = PhotoFolders.SELECTION, isMove = false,
+        )
+
+        assertTrue(results.all { it.success })
+        assertEquals(
+            listOf("IMG.CR3", "IMG.CR3.xmp", "IMG.xmp", "IMG-Enhanced-NR.jpg", "IMG-Enhanced-NR.tif").sorted(),
+            File(rootDir, "Selection/RAW").list()!!.sorted(),
+        )
+        assertEquals(listOf("IMG.JPG"), File(rootDir, "Selection/JPEG").list()!!.toList())
+    }
+
+    // REQ-TOK-FEATURE.05 (audit D-TOK-2)
+    @Test
+    fun `sorting on files the stem sidecar of a JPEG-only bundle into JPEG`() = runTest {
+        val names = listOf("IMG.JPG", "IMG.xmp")
+        seedShot(*names.toTypedArray())
+
+        val results = source.transferBundle(
+            sourceUris = names.map { documentUriFor(it) },
+            destFolderUri = treeUri, sorting = true, subfolderName = PhotoFolders.SELECTION, isMove = false,
+        )
+
+        assertTrue(results.all { it.success })
+        assertEquals(listOf("IMG.JPG", "IMG.xmp"), File(rootDir, "Selection/JPEG").list()!!.sorted())
+        assertTrue(!File(rootDir, "Selection/RAW").exists())
+    }
+
+    // REQ-TOK-FEATURE.05 (audit D-TOK-2)
+    @Test
+    fun `sorting off keeps a whole bundle with sidecars and derivatives flat in Selection`() = runTest {
+        val names = listOf("IMG.CR3", "IMG.JPG", "IMG.xmp", "IMG-Enhanced-NR.tif")
+        seedShot(*names.toTypedArray())
+
+        val results = source.transferBundle(
+            sourceUris = names.map { documentUriFor(it) },
+            destFolderUri = treeUri, sorting = false, subfolderName = PhotoFolders.SELECTION, isMove = false,
+        )
+
+        assertTrue(results.all { it.success })
+        assertEquals(
+            (names + LocalImageSourceImpl.SELECTION_MARKER_FILE).sorted(),
+            File(rootDir, "Selection").list()!!.sorted(),
+        )
+    }
+
     // REQ-TOK-FEATURE.05, REQ-TOK-GESTURE.03 (left swipe copy/move to PhotoTok_LeftSwipe)
     @Test
     fun `default left-swipe copy lands flat in PhotoTok_LeftSwipe`() = runTest {
