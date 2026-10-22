@@ -158,12 +158,6 @@ class SettingsViewModel @Inject constructor(
         }
     }
 
-    fun updateCustomSelectionDestinationUri(uri: String?) {
-        viewModelScope.launch {
-            settingsRepository.setCustomSelectionDestinationUri(uri)
-        }
-    }
-
     fun updateFullscreenButtonsEnabled(enabled: Boolean) {
         viewModelScope.launch { settingsRepository.setFullscreenButtonsEnabled(enabled) }
     }

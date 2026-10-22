@@ -109,6 +109,9 @@ import com.photoselectortoolbox.ui.components.EmptyStateCard
 import com.photoselectortoolbox.ui.components.StarRatingBar
 import com.photoselectortoolbox.ui.navigation.Screen
 import com.photoselectortoolbox.ui.selector.RatingFilterSelector
+import com.photoselectortoolbox.ui.components.MinTouchTarget
+import com.photoselectortoolbox.ui.components.TouchTarget
+import androidx.compose.ui.semantics.Role
 import com.photoselectortoolbox.ui.theme.BrandAccent
 import com.photoselectortoolbox.ui.theme.BrandAccentDeep
 import com.photoselectortoolbox.ui.theme.StudioPanel
@@ -632,7 +635,7 @@ internal fun InspectScreenContent(
 
                 Column(
                     modifier = Modifier
-                        .width(380.dp)
+                        .width(400.dp)
                         .fillMaxHeight()
                         .background(StudioPanel)
                         .border(1.dp, Zinc800, RoundedCornerShape(0.dp))
@@ -692,7 +695,7 @@ private fun InspectControlBar(
             IconButton(
                 onClick = onNavigateToSelector,
                 modifier = Modifier
-                    .size(36.dp)
+                    .size(MinTouchTarget)
                     .testTag("back_to_cull_button")
                     .pointerHoverIcon(PointerIcon.Hand),
             ) {
@@ -716,7 +719,6 @@ private fun InspectControlBar(
                 active = isThirdsActive,
                 onClick = onToggleThirds,
                 testTag = "toggle_thirds",
-                aliasTag = "nav_thirds",
             )
 
             GuideToggleButton(
@@ -735,23 +737,20 @@ private fun InspectControlBar(
                 testTag = "toggle_spiral",
             )
 
-            Surface(
-                shape = RoundedCornerShape(6.dp),
-                color = if (isSpiralActive) Zinc800 else Zinc900,
-                border = androidx.compose.foundation.BorderStroke(1.dp, if (isSpiralActive) BrandAccentDeep else Zinc700),
-                modifier = Modifier
-                    .clip(RoundedCornerShape(6.dp))
-                    .clickable(onClick = onFlipSpiral)
-                    .testTag("toggle_spiral_flip")
-                    .pointerHoverIcon(PointerIcon.Hand)
-                    .padding(horizontal = 8.dp, vertical = 6.dp),
-            ) {
-                Text(
-                    text = "Flip ($spiralOrientationLabel)",
-                    style = MaterialTheme.typography.labelSmall,
-                    color = if (isSpiralActive) Color.White else Zinc400,
-                    fontWeight = FontWeight.Medium,
-                )
+            TouchTarget(onClick = onFlipSpiral, testTag = "toggle_spiral_flip") {
+                Surface(
+                    shape = RoundedCornerShape(6.dp),
+                    color = if (isSpiralActive) Zinc800 else Zinc900,
+                    border = androidx.compose.foundation.BorderStroke(1.dp, if (isSpiralActive) BrandAccentDeep else Zinc700),
+                ) {
+                    Text(
+                        text = "Flip ($spiralOrientationLabel)",
+                        style = MaterialTheme.typography.labelSmall,
+                        color = if (isSpiralActive) Color.White else Zinc400,
+                        fontWeight = FontWeight.Medium,
+                        modifier = Modifier.padding(horizontal = 8.dp, vertical = 6.dp),
+                    )
+                }
             }
 
             GuideToggleButton(
@@ -782,19 +781,17 @@ private fun GuideToggleButton(
     active: Boolean,
     onClick: () -> Unit,
     testTag: String,
-    aliasTag: String? = null,
     modifier: Modifier = Modifier,
 ) {
+    TouchTarget(
+        onClick = onClick,
+        testTag = testTag,
+        modifier = modifier,
+    ) {
     Surface(
         shape = RoundedCornerShape(6.dp),
         color = if (active) BrandAccentDeep else Zinc900,
         border = androidx.compose.foundation.BorderStroke(1.dp, if (active) BrandAccent else Zinc700),
-        modifier = modifier
-            .clip(RoundedCornerShape(6.dp))
-            .clickable(onClick = onClick)
-            .testTag(testTag)
-            .then(if (aliasTag != null) Modifier.testTag(aliasTag) else Modifier)
-            .pointerHoverIcon(PointerIcon.Hand),
     ) {
         Row(
             modifier = Modifier.padding(horizontal = 8.dp, vertical = 6.dp),
@@ -815,6 +812,7 @@ private fun GuideToggleButton(
             )
         }
     }
+    }
 }
 
 // ── Learn 4-Tab Bar (U-24 .. U-28) ────────────────────────────────────────────
@@ -832,27 +830,30 @@ private fun LearnTabSelector(
     ) {
         LearnTab.entries.forEach { tab ->
             val active = tab == selectedTab
-            Surface(
+            TouchTarget(
+                onClick = { onSelectTab(tab) },
+                testTag = tab.tag,
+                modifier = Modifier.weight(1f),
+                role = Role.Tab,
                 shape = RoundedCornerShape(8.dp),
-                color = if (active) BrandAccentDeep else Zinc900,
-                border = androidx.compose.foundation.BorderStroke(1.dp, if (active) BrandAccent else Zinc800),
-                modifier = Modifier
-                    .weight(1f)
-                    .clip(RoundedCornerShape(8.dp))
-                    .clickable { onSelectTab(tab) }
-                    .testTag(tab.tag)
-                    .pointerHoverIcon(PointerIcon.Hand),
             ) {
-                Box(
-                    modifier = Modifier.padding(vertical = 8.dp),
-                    contentAlignment = Alignment.Center,
+                Surface(
+                    shape = RoundedCornerShape(8.dp),
+                    color = if (active) BrandAccentDeep else Zinc900,
+                    border = androidx.compose.foundation.BorderStroke(1.dp, if (active) BrandAccent else Zinc800),
+                    modifier = Modifier.fillMaxWidth(),
                 ) {
-                    Text(
-                        text = tab.label,
-                        style = MaterialTheme.typography.labelSmall,
-                        color = if (active) Color.White else Zinc400,
-                        fontWeight = if (active) FontWeight.Bold else FontWeight.Medium,
-                    )
+                    Box(
+                        modifier = Modifier.padding(vertical = 8.dp),
+                        contentAlignment = Alignment.Center,
+                    ) {
+                        Text(
+                            text = tab.label,
+                            style = MaterialTheme.typography.labelSmall,
+                            color = if (active) Color.White else Zinc400,
+                            fontWeight = if (active) FontWeight.Bold else FontWeight.Medium,
+                        )
+                    }
                 }
             }
         }
@@ -882,32 +883,27 @@ private fun ExploreCardsSection(
             horizontalArrangement = Arrangement.SpaceBetween,
             verticalAlignment = Alignment.CenterVertically,
         ) {
-            Surface(
-                shape = RoundedCornerShape(6.dp),
-                color = if (guessFirstEnabled) BrandAccentDeep else Zinc900,
-                border = androidx.compose.foundation.BorderStroke(1.dp, if (guessFirstEnabled) BrandAccent else Zinc800),
-                modifier = Modifier
-                    .clip(RoundedCornerShape(6.dp))
-                    .clickable(onClick = onToggleGuessFirst)
-                    .testTag("guess_first_toggle"),
-            ) {
-                Text(
-                    text = if (guessFirstEnabled) "Guess first: ON" else "Guess first: OFF",
-                    style = MaterialTheme.typography.labelSmall,
-                    color = if (guessFirstEnabled) Color.White else Zinc400,
-                    modifier = Modifier.padding(horizontal = 8.dp, vertical = 5.dp),
-                )
+            TouchTarget(onClick = onToggleGuessFirst, testTag = "guess_first_toggle") {
+                Surface(
+                    shape = RoundedCornerShape(6.dp),
+                    color = if (guessFirstEnabled) BrandAccentDeep else Zinc900,
+                    border = androidx.compose.foundation.BorderStroke(1.dp, if (guessFirstEnabled) BrandAccent else Zinc800),
+                ) {
+                    Text(
+                        text = if (guessFirstEnabled) "Guess first: ON" else "Guess first: OFF",
+                        style = MaterialTheme.typography.labelSmall,
+                        color = if (guessFirstEnabled) Color.White else Zinc400,
+                        modifier = Modifier.padding(horizontal = 8.dp, vertical = 5.dp),
+                    )
+                }
             }
 
             if (suggestedCrop != null) {
+                TouchTarget(onClick = onToggleWhatIfCrop, testTag = "what_if_crop_toggle") {
                 Surface(
                     shape = RoundedCornerShape(6.dp),
                     color = if (whatIfCropActive) BrandAccentDeep else Zinc900,
                     border = androidx.compose.foundation.BorderStroke(1.dp, if (whatIfCropActive) BrandAccent else Zinc800),
-                    modifier = Modifier
-                        .clip(RoundedCornerShape(6.dp))
-                        .clickable(onClick = onToggleWhatIfCrop)
-                        .testTag("what_if_crop_toggle"),
                 ) {
                     Row(
                         modifier = Modifier.padding(horizontal = 8.dp, vertical = 5.dp),
@@ -926,6 +922,7 @@ private fun ExploreCardsSection(
                             color = if (whatIfCropActive) Color.White else Zinc400,
                         )
                     }
+                }
                 }
             }
         }
@@ -952,23 +949,26 @@ private fun ExploreCardsSection(
                         style = MaterialTheme.typography.bodySmall,
                         color = Zinc400,
                     )
-                    Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                    Row(horizontalArrangement = Arrangement.spacedBy(0.dp)) {
                         CropAspectRatio.entries.forEach { ratio ->
                             val isChosen = (selectedCropAspect ?: suggestedCrop.aspectRatio) == ratio
-                            Surface(
+                            TouchTarget(
+                                onClick = { onSelectCropAspect(ratio) },
+                                testTag = "crop_aspect_${ratio.name}",
                                 shape = RoundedCornerShape(4.dp),
-                                color = if (isChosen) BrandAccentDeep else Zinc950,
-                                border = androidx.compose.foundation.BorderStroke(1.dp, Zinc700),
-                                modifier = Modifier
-                                    .clip(RoundedCornerShape(4.dp))
-                                    .clickable { onSelectCropAspect(ratio) },
                             ) {
-                                Text(
-                                    text = ratio.label,
-                                    style = MaterialTheme.typography.labelSmall,
-                                    color = if (isChosen) Color.White else Zinc400,
-                                    modifier = Modifier.padding(horizontal = 6.dp, vertical = 3.dp),
-                                )
+                                Surface(
+                                    shape = RoundedCornerShape(4.dp),
+                                    color = if (isChosen) BrandAccentDeep else Zinc950,
+                                    border = androidx.compose.foundation.BorderStroke(1.dp, Zinc700),
+                                ) {
+                                    Text(
+                                        text = ratio.label,
+                                        style = MaterialTheme.typography.labelSmall,
+                                        color = if (isChosen) Color.White else Zinc400,
+                                        modifier = Modifier.padding(horizontal = 6.dp, vertical = 3.dp),
+                                    )
+                                }
                             }
                         }
                     }
@@ -995,22 +995,24 @@ private fun ExploreCardsSection(
                         color = Color.White,
                     )
                     challenge.options.forEachIndexed { idx, option ->
-                        Surface(
-                            shape = RoundedCornerShape(6.dp),
-                            color = Zinc950,
-                            border = androidx.compose.foundation.BorderStroke(1.dp, Zinc800),
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .clip(RoundedCornerShape(6.dp))
-                                .clickable { onRevealGuess() }
-                                .testTag("guess_option_$idx"),
+                        TouchTarget(
+                            onClick = onRevealGuess,
+                            testTag = "guess_option_$idx",
+                            modifier = Modifier.fillMaxWidth(),
                         ) {
-                            Text(
-                                text = option,
-                                style = MaterialTheme.typography.bodySmall,
-                                color = Zinc200,
-                                modifier = Modifier.padding(10.dp),
-                            )
+                            Surface(
+                                shape = RoundedCornerShape(6.dp),
+                                color = Zinc950,
+                                border = androidx.compose.foundation.BorderStroke(1.dp, Zinc800),
+                                modifier = Modifier.fillMaxWidth(),
+                            ) {
+                                Text(
+                                    text = option,
+                                    style = MaterialTheme.typography.bodySmall,
+                                    color = Zinc200,
+                                    modifier = Modifier.padding(10.dp),
+                                )
+                            }
                         }
                     }
                 }
@@ -1083,15 +1085,15 @@ private fun LearnObservationCard(
                 color = Color.White,
             )
             card.lessonId?.let { lessonId ->
-                Text(
-                    text = "Why? → Open Lesson",
-                    style = MaterialTheme.typography.labelSmall,
-                    color = BrandAccent,
-                    fontWeight = FontWeight.SemiBold,
-                    modifier = Modifier
-                        .clickable { onOpenLesson(lessonId) }
-                        .padding(top = 4.dp),
-                )
+                TouchTarget(onClick = { onOpenLesson(lessonId) }, testTag = "open_lesson_link") {
+                    Text(
+                        text = "Why? → Open Lesson",
+                        style = MaterialTheme.typography.labelSmall,
+                        color = BrandAccent,
+                        fontWeight = FontWeight.SemiBold,
+                        modifier = Modifier.padding(horizontal = 4.dp),
+                    )
+                }
             }
         }
     }
@@ -1151,12 +1153,14 @@ private fun LessonsTabContent(
                 modifier = Modifier.padding(14.dp),
                 verticalArrangement = Arrangement.spacedBy(10.dp),
             ) {
-                Text(
-                    text = "← All Lessons (${activeLesson.track.title})",
-                    style = MaterialTheme.typography.labelSmall,
-                    color = BrandAccent,
-                    modifier = Modifier.clickable { onSelectLesson(null) },
-                )
+                TouchTarget(onClick = { onSelectLesson(null) }, testTag = "all_lessons_link") {
+                    Text(
+                        text = "← All Lessons (${activeLesson.track.title})",
+                        style = MaterialTheme.typography.labelSmall,
+                        color = BrandAccent,
+                        modifier = Modifier.padding(horizontal = 4.dp),
+                    )
+                }
                 Text(
                     text = activeLesson.title,
                     style = MaterialTheme.typography.titleMedium,
@@ -1190,58 +1194,64 @@ private fun LessonsTabContent(
                                 isCorrect -> ScoreGood
                                 else -> ScoreBad
                             }
-                            Surface(
-                                shape = RoundedCornerShape(6.dp),
-                                color = Zinc950,
-                                border = androidx.compose.foundation.BorderStroke(1.dp, borderCol),
-                                modifier = Modifier
-                                    .fillMaxWidth()
-                                    .clip(RoundedCornerShape(6.dp))
-                                    .clickable {
-                                        val updated = answers + (qIdx to optIdx)
-                                        answers = updated
-                                        if (updated.size == questions.size) {
-                                            val correctCount = questions.indices.count { i ->
-                                                updated[i] == questions[i].correctIndex
-                                            }
-                                            onLessonCompleted(
-                                                LessonProgressEntity(
-                                                    lessonId = activeLesson.id,
-                                                    completedAt = System.currentTimeMillis(),
-                                                    spotItCorrect = correctCount,
-                                                    spotItTotal = questions.size,
-                                                )
-                                            )
+                            TouchTarget(
+                                onClick = {
+                                    val updated = answers + (qIdx to optIdx)
+                                    answers = updated
+                                    if (updated.size == questions.size) {
+                                        val correctCount = questions.indices.count { i ->
+                                            updated[i] == questions[i].correctIndex
                                         }
-                                    },
+                                        onLessonCompleted(
+                                            LessonProgressEntity(
+                                                lessonId = activeLesson.id,
+                                                completedAt = System.currentTimeMillis(),
+                                                spotItCorrect = correctCount,
+                                                spotItTotal = questions.size,
+                                            )
+                                        )
+                                    }
+                                },
+                                testTag = "quiz_option_${qIdx}_$optIdx",
+                                modifier = Modifier.fillMaxWidth(),
                             ) {
-                                Text(
-                                    text = optText,
-                                    style = MaterialTheme.typography.bodySmall,
-                                    color = Zinc200,
-                                    modifier = Modifier.padding(8.dp),
-                                )
+                                Surface(
+                                    shape = RoundedCornerShape(6.dp),
+                                    color = Zinc950,
+                                    border = androidx.compose.foundation.BorderStroke(1.dp, borderCol),
+                                    modifier = Modifier.fillMaxWidth(),
+                                ) {
+                                    Text(
+                                        text = optText,
+                                        style = MaterialTheme.typography.bodySmall,
+                                        color = Zinc200,
+                                        modifier = Modifier.padding(8.dp),
+                                    )
+                                }
                             }
                         }
                     }
                 }
 
-                Surface(
+                TouchTarget(
+                    onClick = { onSetPracticeGoal(activeLesson.id) },
+                    testTag = "set_practice_goal_button",
+                    modifier = Modifier.fillMaxWidth(),
                     shape = RoundedCornerShape(8.dp),
-                    color = BrandAccentDeep,
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .clip(RoundedCornerShape(8.dp))
-                        .clickable { onSetPracticeGoal(activeLesson.id) }
-                        .testTag("set_practice_goal_button"),
                 ) {
-                    Text(
-                        text = "Practice this next shoot",
-                        style = MaterialTheme.typography.labelMedium,
-                        fontWeight = FontWeight.Bold,
-                        color = Color.White,
-                        modifier = Modifier.padding(10.dp),
-                    )
+                    Surface(
+                        shape = RoundedCornerShape(8.dp),
+                        color = BrandAccentDeep,
+                        modifier = Modifier.fillMaxWidth(),
+                    ) {
+                        Text(
+                            text = "Practice this next shoot",
+                            style = MaterialTheme.typography.labelMedium,
+                            fontWeight = FontWeight.Bold,
+                            color = Color.White,
+                            modifier = Modifier.padding(10.dp),
+                        )
+                    }
                 }
             }
         }
@@ -1405,21 +1415,24 @@ private fun PracticeTabContent(
                     color = Zinc400,
                 )
                 LessonCatalog.ALL_LESSONS.take(3).forEach { lesson ->
-                    Surface(
-                        shape = RoundedCornerShape(6.dp),
-                        color = Zinc950,
-                        border = androidx.compose.foundation.BorderStroke(1.dp, Zinc800),
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .clip(RoundedCornerShape(6.dp))
-                            .clickable { onSelectLessonForGoal(lesson.id) },
+                    TouchTarget(
+                        onClick = { onSelectLessonForGoal(lesson.id) },
+                        testTag = "set_goal_${lesson.id}",
+                        modifier = Modifier.fillMaxWidth(),
                     ) {
-                        Text(
-                            text = "Set Goal: ${lesson.title}",
-                            style = MaterialTheme.typography.labelSmall,
-                            color = BrandAccent,
-                            modifier = Modifier.padding(8.dp),
-                        )
+                        Surface(
+                            shape = RoundedCornerShape(6.dp),
+                            color = Zinc950,
+                            border = androidx.compose.foundation.BorderStroke(1.dp, Zinc800),
+                            modifier = Modifier.fillMaxWidth(),
+                        ) {
+                            Text(
+                                text = "Set Goal: ${lesson.title}",
+                                style = MaterialTheme.typography.labelSmall,
+                                color = BrandAccent,
+                                modifier = Modifier.padding(8.dp),
+                            )
+                        }
                     }
                 }
             }

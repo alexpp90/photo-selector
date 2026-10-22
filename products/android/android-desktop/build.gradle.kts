@@ -76,6 +76,7 @@ android {
 
     buildTypes {
         release {
+            buildConfigField("boolean", "EXPOSE_TEST_TAGS", "false")
             isMinifyEnabled = true
             isShrinkResources = true
             // Ship native symbol tables so OpenCV crashes are symbolicated in Play vitals.
@@ -91,12 +92,14 @@ android {
         }
         debug {
             isMinifyEnabled = false
+            buildConfigField("boolean", "EXPOSE_TEST_TAGS", "true")
         }
         create("lab") {
             initWith(getByName("release"))
             signingConfig = signingConfigs.getByName("debug")
             applicationIdSuffix = ".lab"
             versionNameSuffix = "-lab"
+            buildConfigField("boolean", "EXPOSE_TEST_TAGS", "true")
             matchingFallbacks += listOf("release")
         }
     }
@@ -195,9 +198,6 @@ dependencies {
 
     // ExifInterface
     implementation(libs.androidx.exifinterface)
-
-    // WorkManager
-    implementation(libs.androidx.work.runtime.ktx)
 
     // DataStore
     implementation(libs.androidx.datastore.preferences)

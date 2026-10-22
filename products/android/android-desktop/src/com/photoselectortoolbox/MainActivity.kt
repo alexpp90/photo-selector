@@ -40,7 +40,7 @@ class MainActivity : ComponentActivity() {
                 Box(
                     modifier = Modifier
                         .fillMaxSize()
-                        .semantics { testTagsAsResourceId = true },
+                        .semantics { testTagsAsResourceId = BuildConfig.EXPOSE_TEST_TAGS },
                 ) {
                     val windowSizeClass = calculateWindowSizeClass(this@MainActivity)
                     PhotoSelectorApp(windowSizeClass = windowSizeClass)

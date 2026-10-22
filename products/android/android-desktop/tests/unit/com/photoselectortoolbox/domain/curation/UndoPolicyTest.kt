@@ -113,4 +113,19 @@ class UndoPolicyTest {
         assertEquals("content://tree/21.jpg", (popped as UndoableOperation.RevertPendingDelete).slots.first().image.uri)
         assertEquals(19, remaining.size)
     }
+
+    @Test
+    fun `a failed restore from the trash keeps exactly the files that are still in the trash`() {
+        val b = image.copy(uri = "content://tree/b.jpg", fileName = "b.jpg")
+        val op = UndoableOperation.RestoreFromTrash(
+            slots = listOf(ImageSlot(image, 0), ImageSlot(b, 1)),
+            uris = listOf(image.uri, b.uri),
+        )
+
+        val remainder = UndoPolicy.remainderAfterRestore(op, failedUris = listOf(b.uri))
+
+        assertEquals(listOf(b.uri), remainder!!.uris)
+        assertEquals(listOf(b.uri), remainder.slots.map { it.uri })
+        assertNull(UndoPolicy.remainderAfterRestore(op, failedUris = emptyList()))
+    }
 }
