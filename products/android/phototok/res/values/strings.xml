@@ -19,6 +19,7 @@
     <string name="cd_sources">Change folder</string>
     <string name="cd_selection">Selection</string>
     <string name="cd_revert">Undo last delete</string>
+    <string name="cd_share">Share photo</string>
     <string name="cd_back">Back</string>
     <string name="cd_copy_favourites">Copy favourites to folder</string>
     <string name="cd_share_all">Share all</string>
@@ -42,6 +43,7 @@
     <string name="guide_settings">Settings</string>
     <string name="guide_sources">Change folder</string>
     <string name="guide_selection">Selection</string>
+    <string name="guide_share">Share</string>
     <string name="guide_revert">Undo delete</string>
     <string name="guide_tap">Hide overlays</string>
     <string name="guide_zoom">Zoom</string>
@@ -100,6 +102,8 @@
     <string name="label_raw_jpeg_pair">RAW + JPEG</string>
     <string name="chip_favourite">Favourite</string>
     <string name="chip_favourites">Favourites</string>
+    <!-- Selection viewer tab / title: name and photo count, e.g. "Favourites 3" -->
+    <string name="chip_name_count">%1$s %2$d</string>
     <string name="chip_raw_jpg">RAW+JPG</string>
 
     <!-- Screen and section titles -->

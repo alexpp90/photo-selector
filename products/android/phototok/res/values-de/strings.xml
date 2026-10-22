@@ -15,6 +15,7 @@
     <string name="cd_sources">Ordner wechseln</string>
     <string name="cd_selection">Auswahl</string>
     <string name="cd_revert">Letztes Löschen rückgängig machen</string>
+    <string name="cd_share">Foto teilen</string>
     <string name="cd_back">Zurück</string>
     <string name="cd_copy_favourites">Favoriten in Ordner kopieren</string>
     <string name="cd_share_all">Alle teilen</string>
@@ -38,6 +39,7 @@
     <string name="guide_settings">Optionen</string>
     <string name="guide_sources">Ordner</string>
     <string name="guide_selection">Auswahl</string>
+    <string name="guide_share">Teilen</string>
     <string name="guide_revert">Rückgängig</string>
     <string name="guide_tap">Anzeigen aus</string>
     <string name="guide_zoom">Zoom</string>
@@ -96,6 +98,7 @@
     <string name="label_raw_jpeg_pair">RAW + JPEG</string>
     <string name="chip_favourite">Favorit</string>
     <string name="chip_favourites">Favoriten</string>
+    <string name="chip_name_count">%1$s %2$d</string>
     <string name="chip_raw_jpg">RAW+JPG</string>
 
     <!-- Titel -->

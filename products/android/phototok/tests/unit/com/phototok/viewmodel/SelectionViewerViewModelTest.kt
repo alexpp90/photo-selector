@@ -4,6 +4,7 @@ import com.phototok.R
 import com.phototok.data.model.ImageItem
 import com.phototok.data.repository.ImageRepository
 import com.phototok.data.source.SelectionListing
+import com.phototok.domain.SwipeRightVerb
 import com.phototok.domain.UiText
 import io.mockk.coEvery
 import io.mockk.mockk
@@ -140,5 +141,115 @@ class SelectionViewerViewModelTest {
 
         viewModel.clearFeedback()
         assertNull(viewModel.uiState.value.feedback)
+    }
+
+    // ── Which list opens first, and whether there is anything to switch (REQ-TOK-FEATURE.17) ──
+
+    private fun source(vararg names: String) = names.map { image(it) }.map { it.copy(uri = "content://source/${it.fileName}") }
+
+    private fun openWith(
+        favourited: Int,
+        selection: Int,
+        preferred: SelectionViewerTab,
+    ) {
+        val sourceImages = source("a.jpg", "b.jpg", "c.jpg", "d.jpg")
+        val favs = sourceImages.take(favourited).map { it.uri }.toSet()
+        coEvery { imageRepository.listSelectionImages(any()) } returns
+            if (selection > 0) {
+                SelectionListing.Available((1..selection).map { image("sel$it.jpg") }, "Keepers")
+            } else {
+                SelectionListing.Missing
+            }
+        viewModel.openWithFavourites(
+            targetFolderUri = "content://tree/photos",
+            sourceImages = sourceImages,
+            favouritedUris = favs,
+            preferredTab = preferred,
+        )
+    }
+
+    @Test
+    fun `preferred tab follows the swipe-right verb`() {
+        assertEquals(SelectionViewerTab.FAVOURITES, SelectionViewerLogic.preferredTab(SwipeRightVerb.FAVOURITE))
+        assertEquals(SelectionViewerTab.SELECTION, SelectionViewerLogic.preferredTab(SwipeRightVerb.COPY))
+        assertEquals(SelectionViewerTab.SELECTION, SelectionViewerLogic.preferredTab(SwipeRightVerb.MOVE))
+    }
+
+    @Test
+    fun `initial tab is the preferred one unless its list is empty`() {
+        val fav = SelectionViewerTab.FAVOURITES
+        val sel = SelectionViewerTab.SELECTION
+        assertEquals(fav, SelectionViewerLogic.initialTab(fav, 3, 5))
+        assertEquals(sel, SelectionViewerLogic.initialTab(sel, 3, 5))
+        assertEquals(sel, SelectionViewerLogic.initialTab(fav, 0, 5))
+        assertEquals(fav, SelectionViewerLogic.initialTab(sel, 3, 0))
+        assertEquals(fav, SelectionViewerLogic.initialTab(fav, 3, 0))
+        assertEquals(sel, SelectionViewerLogic.initialTab(sel, 0, 5))
+    }
+
+    @Test
+    fun `tabs are shown only when both lists have photos`() {
+        assertTrue(SelectionViewerLogic.showTabs(2, 3))
+        assertFalse(SelectionViewerLogic.showTabs(0, 3))
+        assertFalse(SelectionViewerLogic.showTabs(2, 0))
+        assertFalse(SelectionViewerLogic.showTabs(0, 0))
+    }
+
+    @Test
+    fun `a copying swipe opens on the Selection tab even though favourites exist`() = runTest {
+        openWith(favourited = 2, selection = 3, preferred = SelectionViewerTab.SELECTION)
+
+        val state = viewModel.uiState.value
+        assertEquals(SelectionViewerTab.SELECTION, state.activeTab)
+        assertEquals(3, state.images.size)
+        assertEquals("Keepers", state.folderName)
+        assertTrue(state.showTabs)
+        assertEquals(2, state.favouriteImages.size)
+        assertEquals(3, state.selectionImages.size)
+    }
+
+    @Test
+    fun `a favouriting swipe opens on the Favourites tab even though the folder has photos`() = runTest {
+        openWith(favourited = 2, selection = 3, preferred = SelectionViewerTab.FAVOURITES)
+
+        val state = viewModel.uiState.value
+        assertEquals(SelectionViewerTab.FAVOURITES, state.activeTab)
+        assertEquals(2, state.images.size)
+        assertTrue(state.showTabs)
+    }
+
+    @Test
+    fun `with only favourites the viewer opens on them whatever the verb and shows a title, not tabs`() = runTest {
+        openWith(favourited = 2, selection = 0, preferred = SelectionViewerTab.SELECTION)
+
+        val state = viewModel.uiState.value
+        assertTrue(state.isOpen)
+        assertEquals(SelectionViewerTab.FAVOURITES, state.activeTab)
+        assertEquals(2, state.images.size)
+        assertFalse(state.showTabs)
+    }
+
+    @Test
+    fun `with only the Selection folder the viewer opens on it whatever the verb and shows a title, not tabs`() = runTest {
+        openWith(favourited = 0, selection = 3, preferred = SelectionViewerTab.FAVOURITES)
+
+        val state = viewModel.uiState.value
+        assertTrue(state.isOpen)
+        assertEquals(SelectionViewerTab.SELECTION, state.activeTab)
+        assertEquals(3, state.images.size)
+        assertEquals("Keepers", state.selectionFolderName)
+        assertFalse(state.showTabs)
+    }
+
+    @Test
+    fun `selecting a tab swaps the list and the share and copy source follows it`() = runTest {
+        openWith(favourited = 2, selection = 3, preferred = SelectionViewerTab.SELECTION)
+
+        viewModel.selectTab(SelectionViewerTab.FAVOURITES)
+
+        val state = viewModel.uiState.value
+        assertEquals(SelectionViewerTab.FAVOURITES, state.activeTab)
+        assertEquals(state.favouriteImages, state.images)
+        assertEquals(0, state.currentIndex)
     }
 }

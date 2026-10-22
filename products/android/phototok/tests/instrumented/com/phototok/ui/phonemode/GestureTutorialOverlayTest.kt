@@ -51,6 +51,7 @@ class GestureTutorialOverlayTest {
             str(R.string.guide_settings),
             str(R.string.guide_sources),
             str(R.string.guide_selection),
+            str(R.string.guide_share),
             str(R.string.guide_revert),
             str(R.string.guide_next),
             str(R.string.guide_previous),

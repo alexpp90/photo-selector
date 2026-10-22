@@ -18,6 +18,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.CollectionsBookmark
 import androidx.compose.material.icons.filled.FolderOpen
 import androidx.compose.material.icons.filled.RestoreFromTrash
+import androidx.compose.material.icons.filled.Share
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
@@ -116,6 +117,7 @@ private fun nominalMetrics() = with(PhoneModeChromeMetrics) {
         sideSpacing = SIDE_PANEL_BUTTON_SPACING.value,
         leftLogo = LEFT_PANEL_LOGO_SIZE.value,
         leftVPadding = LEFT_PANEL_VERTICAL_PADDING.value,
+        leftBottomSpacer = LEFT_PANEL_BOTTOM_SPACER.value,
         rightPadding = RIGHT_PANEL_PADDING.value,
     )
 }
@@ -181,11 +183,12 @@ private val TOP_ICONS = listOf(
     GuideAnchor.INFO,
     GuideAnchor.SETTINGS,
 )
-private val BOTTOM_BUTTONS = listOf(GuideAnchor.SOURCES, GuideAnchor.SELECTION, GuideAnchor.REVERT)
+private val BOTTOM_BUTTONS = listOf(GuideAnchor.SOURCES, GuideAnchor.SELECTION, GuideAnchor.SHARE, GuideAnchor.REVERT)
 private val LEFT_PANEL_BUTTONS = listOf(
     GuideAnchor.LOGO,
     GuideAnchor.SOURCES,
     GuideAnchor.SELECTION,
+    GuideAnchor.SHARE,
     GuideAnchor.REVERT,
     GuideAnchor.HELP,
 )
@@ -296,7 +299,11 @@ private fun GuideLayout(
                 ?: bottoms.map { a.getValue(it).top }.minOrNull()
             if (barTop != null) {
                 bottomOccupied = barTop
-                val plans = ControlsGuideSolver.planBottom(wDp, bottoms.associateWith { a.getValue(it) })
+                // Intrinsic (one-line) widths decide whether the callouts fit side by side or stagger.
+                val natural = bottoms.associateWith {
+                    callouts.getValue(it).maxIntrinsicWidth(Constraints.Infinity) / density
+                }
+                val plans = ControlsGuideSolver.planBottom(wDp, bottoms.associateWith { a.getValue(it) }, natural)
                 val sizes = plans.associate { it.id to measureCallout(it.id, it.maxWidth) }
                 val bottom = ControlsGuideSolver.placeBottom(barTop, plans, sizes)
                 placed += bottom
@@ -397,6 +404,7 @@ private fun coachMarkSpec(id: GuideAnchor): CoachMarkSpec = when (id) {
     GuideAnchor.SETTINGS -> CoachMarkSpec(R.string.guide_settings)
     GuideAnchor.SOURCES -> CoachMarkSpec(R.string.guide_sources, Icons.Default.FolderOpen)
     GuideAnchor.SELECTION -> CoachMarkSpec(R.string.guide_selection, Icons.Default.CollectionsBookmark)
+    GuideAnchor.SHARE -> CoachMarkSpec(R.string.guide_share, Icons.Default.Share)
     GuideAnchor.REVERT -> CoachMarkSpec(R.string.guide_revert, Icons.Default.RestoreFromTrash)
     else -> CoachMarkSpec(R.string.guide_help)
 }
