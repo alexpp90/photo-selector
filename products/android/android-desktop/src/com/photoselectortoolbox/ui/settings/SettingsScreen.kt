@@ -289,15 +289,6 @@ fun SettingsScreen(
                         Spacer(modifier = Modifier.height(8.dp))
 
                         GroupingLevel.entries.forEach { level ->
-                            val (label, description) = when (level) {
-                                GroupingLevel.TIME_FILENAME -> "Time & Filename" to
-                                    "Group by capture time and filename similarity"
-                                GroupingLevel.TIME_FAST_SIMILARITY -> "Time + Fast Similarity" to
-                                    "Group by time with fast perceptual hash comparison"
-                                GroupingLevel.DETAILED_SIMILARITY -> "Detailed Similarity" to
-                                    "Full similarity analysis (slower, more accurate)"
-                            }
-
                             Row(
                                 modifier = Modifier
                                     .fillMaxWidth()
@@ -315,12 +306,12 @@ fun SettingsScreen(
                                 Spacer(modifier = Modifier.width(8.dp))
                                 Column(modifier = Modifier.weight(1f)) {
                                     Text(
-                                        text = label,
+                                        text = level.label,
                                         style = MaterialTheme.typography.bodyMedium,
                                         color = MaterialTheme.colorScheme.onSurface,
                                     )
                                     Text(
-                                        text = description,
+                                        text = level.description,
                                         style = MaterialTheme.typography.bodySmall,
                                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                                     )
