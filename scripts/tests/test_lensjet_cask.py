@@ -49,13 +49,14 @@ class LensjetCaskTest(unittest.TestCase):
                      'conflicts_with cask: "photo-selector-toolbox@nightly"', "depends_on macos: :sonoma"):
             self.assertIn(kept, out)
 
-    def test_nightly_cask_keeps_its_nightly_url(self):
+    def test_nightly_cask_downloads_from_lensjets_own_nightly_tag(self):
         nightly = (STABLE.replace('cask "photo-selector-toolbox" do', 'cask "photo-selector-toolbox@nightly" do')
                    .replace('version "0.2.0"', "version :latest")
                    .replace('https://github.com/alexpp90/photo-selector/releases/download/v#{version}/'
                             'photo-selector-macos-apple-silicon.zip', NIGHTLY_URL))
         out = cask.rebrand(nightly, nightly=True)
-        self.assertIn(NIGHTLY_URL, out)
+        self.assertIn(NIGHTLY_URL.replace("/download/nightly/", "/download/nightly-macos-desktop/"), out)
+        self.assertNotIn("/download/nightly/", out)
         self.assertIn('  name "Lensjet (Nightly)"\n', out)
         self.assertIn('  app "Lensjet.app"\n', out)
 

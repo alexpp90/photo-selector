@@ -60,8 +60,13 @@ jobs:
 
   # ── Headless Unit Tests (Mirror: scripts/run_tests.sh `linux.yml:test`) ──
   test:
-    name: Headless Unit Tests (pytest)
+    name: Headless Unit Tests (pytest, Python ${{ matrix.python }})
     runs-on: ubuntu-latest
+    # 3.13 is what Debian 13 (Trixie) ships, the product's target; 3.12 stays as the floor.
+    strategy:
+      fail-fast: false
+      matrix:
+        python: ["3.12", "3.13"]
     # The suite takes about a minute. A test that blocks on a real GTK main loop must fail the job in
     # minutes (faulthandler below dumps every thread's stack), not sit "pending" for hours.
     timeout-minutes: 15
@@ -72,10 +77,10 @@ jobs:
     steps:
       - uses: actions/checkout@v7
 
-      - name: Set up Python 3.12
+      - name: Set up Python ${{ matrix.python }}
         uses: actions/setup-python@v7
         with:
-          python-version: "3.12"
+          python-version: ${{ matrix.python }}
 
       - name: Install system dependencies (Linux)
         run: |
@@ -233,7 +238,7 @@ jobs:
           path: release-assets
 
       - name: Create GitHub release
-        uses: softprops/action-gh-release@v3
+        uses: softprops/action-gh-release@efb35369e0ad2afab669f228072c1b0d510eae64 # v3
         with:
           name: "Linux Desktop ${{ steps.tag.outputs.version }}"
           tag_name: ${{ github.ref_name }}
