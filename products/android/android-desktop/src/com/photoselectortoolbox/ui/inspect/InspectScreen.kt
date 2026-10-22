@@ -82,8 +82,6 @@ import com.photoselectortoolbox.data.cache.LessonProgressEntity
 import com.photoselectortoolbox.data.cache.PracticeGoalEntity
 import com.photoselectortoolbox.data.cache.TechniqueFactEntity
 import com.photoselectortoolbox.data.model.ImageItem
-import com.photoselectortoolbox.domain.analysis.CompositionAnalyzer
-import com.photoselectortoolbox.domain.analysis.OpenCvCompositionAnalyzer
 import com.photoselectortoolbox.domain.analysis.PhotoCoachEngine
 import com.photoselectortoolbox.domain.analysis.PhotoCoachEngineImpl
 import com.photoselectortoolbox.domain.format.ExifFormatter
@@ -219,7 +217,6 @@ fun InspectScreen(
     onNavigate: (Screen) -> Unit = {},
     viewModel: SelectorViewModel = hiltViewModel(),
     photoCoachEngine: PhotoCoachEngine = remember { PhotoCoachEngineImpl() },
-    compositionAnalyzer: CompositionAnalyzer = remember { OpenCvCompositionAnalyzer() },
 ) {
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
     val currentImage = uiState.currentImage
@@ -245,46 +242,7 @@ fun InspectScreen(
         ratingFilter = uiState.ratingFilter,
         onRatingFilterSelected = { filter -> viewModel.setRatingFilter(filter) },
         photoCoachEngine = photoCoachEngine,
-        compositionAnalyzer = compositionAnalyzer,
     )
-}
-
-internal fun decodeDownsampledBitmapForComposition(
-    context: android.content.Context,
-    uriString: String,
-    maxDimension: Int = OpenCvCompositionAnalyzer.MAX_IMAGE_DIMENSION,
-): android.graphics.Bitmap? {
-    val parsed = runCatching { android.net.Uri.parse(uriString) }.getOrNull()
-    val directFile = when {
-        parsed?.scheme == "file" -> parsed.path?.let { java.io.File(it) }
-        parsed?.scheme == null -> java.io.File(uriString)
-        else -> parsed.path?.let { p -> val f = java.io.File(p); if (f.exists()) f else null }
-    }
-    val boundsOpts = android.graphics.BitmapFactory.Options().apply { inJustDecodeBounds = true }
-    if (directFile != null && directFile.exists()) {
-        android.graphics.BitmapFactory.decodeFile(directFile.absolutePath, boundsOpts)
-    } else if (parsed != null) {
-        context.contentResolver.openInputStream(parsed)?.use {
-            android.graphics.BitmapFactory.decodeStream(it, null, boundsOpts)
-        }
-    }
-    val w = boundsOpts.outWidth
-    val h = boundsOpts.outHeight
-    if (w <= 0 || h <= 0) return null
-    var sampleSize = 1
-    while (w / sampleSize > maxDimension || h / sampleSize > maxDimension) {
-        sampleSize *= 2
-    }
-    val decodeOpts = android.graphics.BitmapFactory.Options().apply { inSampleSize = sampleSize }
-    return if (directFile != null && directFile.exists()) {
-        android.graphics.BitmapFactory.decodeFile(directFile.absolutePath, decodeOpts)
-    } else if (parsed != null) {
-        context.contentResolver.openInputStream(parsed)?.use {
-            android.graphics.BitmapFactory.decodeStream(it, null, decodeOpts)
-        }
-    } else {
-        null
-    }
 }
 
 @Composable
@@ -303,8 +261,6 @@ internal fun InspectScreenContent(
     onRatingFilterSelected: (RatingFilter) -> Unit = {},
     photoCoachEngine: PhotoCoachEngine = remember { PhotoCoachEngineImpl() },
     compositionResult: CompositionResult? = null,
-    compositionAnalyzer: CompositionAnalyzer? = null,
-    decodeBitmapForComposition: (suspend (ImageItem) -> android.graphics.Bitmap?)? = null,
     factsByUri: Map<String, List<TechniqueFactEntity>> = emptyMap(),
 ) {
     val focusRequester = remember { FocusRequester() }
@@ -405,61 +361,19 @@ internal fun InspectScreenContent(
             )
         }
 
-        val context = androidx.compose.ui.platform.LocalContext.current
-        var analyzedComposition by remember(currentImage.uri) { mutableStateOf<CompositionResult?>(null) }
-        val effectiveCompositionResult = compositionResult ?: analyzedComposition
-
-        LaunchedEffect(currentImage.uri, compositionResult, compositionAnalyzer, decodeBitmapForComposition) {
-            if (compositionResult == null && compositionAnalyzer != null) {
-                analyzedComposition = kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
-                    runCatching {
-                        val bmp = if (decodeBitmapForComposition != null) {
-                            decodeBitmapForComposition(currentImage)
-                        } else {
-                            decodeDownsampledBitmapForComposition(context, currentImage.uri)
-                        }
-                        if (bmp != null) {
-                            try {
-                                compositionAnalyzer.analyze(bmp)
-                            } finally {
-                                bmp.recycle()
-                            }
-                        } else {
-                            null
-                        }
-                    }.getOrNull()
-                }
-            }
+        val defaultSubjectBox = remember(currentImage) {
+            SubjectBoundingBox(
+                xMin = 0.36,
+                yMin = 0.36,
+                xMax = 0.64,
+                yMax = 0.64,
+                centroidX = 0.48,
+                centroidY = 0.48,
+                confidence = 0.70,
+            )
         }
 
-        val defaultSubjectBox = remember(currentImage, effectiveCompositionResult) {
-            val comp = effectiveCompositionResult
-            if (comp != null) {
-                val cx = comp.massCentroidX.toDouble()
-                val cy = comp.massCentroidY.toDouble()
-                SubjectBoundingBox(
-                    xMin = (cx - 0.14).coerceIn(0.0, 1.0),
-                    yMin = (cy - 0.14).coerceIn(0.0, 1.0),
-                    xMax = (cx + 0.14).coerceIn(0.0, 1.0),
-                    yMax = (cy + 0.14).coerceIn(0.0, 1.0),
-                    centroidX = cx,
-                    centroidY = cy,
-                    confidence = 0.70,
-                )
-            } else {
-                SubjectBoundingBox(
-                    xMin = 0.36,
-                    yMin = 0.36,
-                    xMax = 0.64,
-                    yMax = 0.64,
-                    centroidX = 0.48,
-                    centroidY = 0.48,
-                    confidence = 0.70,
-                )
-            }
-        }
-
-        val suggestedCrop = remember(currentImage, selectedCropAspect, defaultSubjectBox) {
+        val suggestedCrop = remember(currentImage, selectedCropAspect) {
             CropSuggester.suggestCrop(
                 subjectBox = defaultSubjectBox,
                 imageWidth = currentImage.imageWidth?.takeIf { it > 0 } ?: 1500,
@@ -632,9 +546,9 @@ internal fun InspectScreenContent(
                         modifier = Modifier.fillMaxSize(),
                         imageAspectRatio = currentImage.aspectRatio ?: (3f / 2f),
                         activeGuides = activeGuides,
-                        compositionResult = effectiveCompositionResult,
-                        showLeadingLines = effectiveCompositionResult?.leadingLines?.isNotEmpty() == true,
-                        showMassDistribution = effectiveCompositionResult != null,
+                        compositionResult = compositionResult,
+                        showLeadingLines = false,
+                        showMassDistribution = false,
                     )
                     if (whatIfCropActive && suggestedCrop != null) {
                         WhatIfCropOverlay(
@@ -699,9 +613,9 @@ internal fun InspectScreenContent(
                             modifier = Modifier.fillMaxSize(),
                             imageAspectRatio = currentImage.aspectRatio ?: (3f / 2f),
                             activeGuides = activeGuides,
-                            compositionResult = effectiveCompositionResult,
-                            showLeadingLines = effectiveCompositionResult?.leadingLines?.isNotEmpty() == true,
-                            showMassDistribution = effectiveCompositionResult != null,
+                            compositionResult = compositionResult,
+                            showLeadingLines = false,
+                            showMassDistribution = false,
                         )
                         if (whatIfCropActive && suggestedCrop != null) {
                             WhatIfCropOverlay(

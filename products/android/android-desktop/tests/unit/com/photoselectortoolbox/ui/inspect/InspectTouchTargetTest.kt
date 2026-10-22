@@ -10,9 +10,6 @@ import androidx.compose.ui.unit.DpSize
 import androidx.compose.ui.unit.dp
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import com.photoselectortoolbox.data.model.ImageItem
-import com.photoselectortoolbox.domain.analysis.CompositionAnalyzer
-import com.photoselectortoolbox.domain.model.CompositionResult
-import com.photoselectortoolbox.domain.model.DetectedLine
 import com.photoselectortoolbox.domain.model.RatingFilter
 import com.photoselectortoolbox.ui.components.StarRatingBarDefaults
 import org.junit.Assert.assertEquals
@@ -114,40 +111,5 @@ class InspectTouchTargetTest {
         host()
         rule.onNodeWithTag(LearnTab.PRACTICE.tag).performClick()
         assertTarget48("set_goal_${com.photoselectortoolbox.domain.learn.LessonCatalog.ALL_LESSONS.first().id}")
-    }
-
-    @Test
-    fun `inspect screen invokes compositionAnalyzer on demand for active image`() {
-        var analyzedCount = 0
-        val fakeAnalyzer = object : CompositionAnalyzer {
-            override suspend fun analyze(bitmap: android.graphics.Bitmap): CompositionResult {
-                analyzedCount++
-                return CompositionResult(
-                    leadingLines = listOf(DetectedLine(0.1f, 0.9f, 0.5f, 0.3f, 0.8f)),
-                    massCentroidX = 0.33f,
-                    massCentroidY = 0.33f,
-                    gridMassDistribution = List(9) { 1f / 9f },
-                )
-            }
-        }
-        rule.setContent {
-            InspectScreenContent(
-                currentImage = photo,
-                images = listOf(photo),
-                currentIndex = 0,
-                windowSizeClass = WindowSizeClass.calculateFromSize(DpSize(1280.dp, 800.dp)),
-                onNavigateToSelector = {},
-                onSelectImage = {},
-                onPrevious = {},
-                onNext = {},
-                onSetRating = { _, _ -> },
-                compositionAnalyzer = fakeAnalyzer,
-                decodeBitmapForComposition = {
-                    android.graphics.Bitmap.createBitmap(16, 16, android.graphics.Bitmap.Config.ARGB_8888)
-                },
-            )
-        }
-        rule.waitUntil(timeoutMillis = 3_000) { analyzedCount == 1 }
-        assertEquals(1, analyzedCount)
     }
 }

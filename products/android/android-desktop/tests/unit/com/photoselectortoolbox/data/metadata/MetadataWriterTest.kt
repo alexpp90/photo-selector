@@ -1,16 +1,7 @@
 package com.photoselectortoolbox.data.metadata
 
-import android.content.ContentProvider
-import android.content.ContentValues
-import android.database.Cursor
-import android.database.MatrixCursor
 import android.graphics.Bitmap
-import android.net.Uri
-import android.os.Bundle
-import android.os.ParcelFileDescriptor
-import android.provider.DocumentsContract
 import androidx.exifinterface.media.ExifInterface
-import androidx.test.core.app.ApplicationProvider
 import com.photoselector.core.Requirement
 import com.photoselector.core.reader.AndroidExifReader
 import kotlinx.coroutines.Dispatchers
@@ -24,7 +15,6 @@ import org.junit.Rule
 import org.junit.Test
 import org.junit.rules.TemporaryFolder
 import org.junit.runner.RunWith
-import org.robolectric.Robolectric
 import org.robolectric.RobolectricTestRunner
 import org.robolectric.annotation.Config
 import java.io.File
@@ -265,160 +255,4 @@ class MetadataWriterTest {
         exif.saveAttributes()
         return file
     }
-
-    @Test
-    fun `SAF content URI for RAW creates and updates companion xmp sidecar without modifying RAW document`() = runTest {
-        val provider = Robolectric.setupContentProvider(
-            TestSafRatingDocumentsProvider::class.java,
-            TestSafRatingDocumentsProvider.AUTHORITY,
-        )
-        provider.rootDir = tempFolder.root
-
-        val rawBytes = byteArrayOf(0x49, 0x49, 0x2A, 0x00, 0x52, 0x41, 0x57, 0x21)
-        val rawFile = File(tempFolder.root, "DSC_9001.ARW").apply { writeBytes(rawBytes) }
-        val treeUri = DocumentsContract.buildTreeDocumentUri(TestSafRatingDocumentsProvider.AUTHORITY, "root")
-        val rawDocUri = DocumentsContract.buildDocumentUriUsingTree(treeUri, "root/DSC_9001.ARW")
-        val context = ApplicationProvider.getApplicationContext<android.content.Context>()
-
-        val firstResult = writer.writeRating(context, rawDocUri, 5)
-        assertTrue("SAF RAW rating write must succeed", firstResult.isSuccess)
-        assertTrue("Original RAW bytes must never be modified", rawBytes.contentEquals(rawFile.readBytes()))
-        assertFalse("RAW document must never be opened for writing", provider.writtenDocIds.contains("root/DSC_9001.ARW"))
-
-        val sidecarFile = File(tempFolder.root, "DSC_9001.ARW.xmp")
-        assertTrue("Companion .xmp sidecar must be created in SAF parent folder", sidecarFile.exists())
-        assertTrue(sidecarFile.readText().contains("<xmp:Rating>5</xmp:Rating>"))
-
-        // Second rating write updates existing .xmp sidecar in place
-        val secondResult = writer.writeRating(context, rawDocUri, 3)
-        assertTrue(secondResult.isSuccess)
-        assertTrue(rawBytes.contentEquals(rawFile.readBytes()))
-        assertTrue(sidecarFile.readText().contains("<xmp:Rating>3</xmp:Rating>"))
-        assertFalse(sidecarFile.readText().contains("<xmp:Rating>5</xmp:Rating>"))
-    }
-
-    @Test
-    fun `SAF content URI for JPEG falls back to companion xmp sidecar when bounds validation fails`() = runTest {
-        val provider = Robolectric.setupContentProvider(
-            TestSafRatingDocumentsProvider::class.java,
-            TestSafRatingDocumentsProvider.AUTHORITY,
-        )
-        provider.rootDir = tempFolder.root
-
-        val jpegFile = createSampleJpeg("saf_protected.jpg", timestamp = "2026:10:21 14:00:00")
-        val originalBytes = jpegFile.readBytes()
-        val treeUri = DocumentsContract.buildTreeDocumentUri(TestSafRatingDocumentsProvider.AUTHORITY, "root")
-        val jpegDocUri = DocumentsContract.buildDocumentUriUsingTree(treeUri, "root/saf_protected.jpg")
-        val context = ApplicationProvider.getApplicationContext<android.content.Context>()
-
-        val failingValidatorWriter = MetadataWriterImpl(validateJpegBounds = { false })
-        val result = failingValidatorWriter.writeRating(context, jpegDocUri, 4)
-        assertTrue(result.isSuccess)
-        assertTrue("Original SAF JPEG must remain untouched", originalBytes.contentEquals(jpegFile.readBytes()))
-
-        val sidecarFile = File(tempFolder.root, "saf_protected.jpg.xmp")
-        assertTrue("Fallback .xmp sidecar must be created in SAF parent", sidecarFile.exists())
-        assertTrue(sidecarFile.readText().contains("<xmp:Rating>4</xmp:Rating>"))
-    }
-}
-
-class TestSafRatingDocumentsProvider : ContentProvider() {
-    companion object {
-        const val AUTHORITY = "com.photoselectortoolbox.test.safrating"
-    }
-
-    lateinit var rootDir: File
-    val writtenDocIds = mutableSetOf<String>()
-
-    override fun onCreate(): Boolean = true
-
-    private fun fileForDocId(docId: String): File {
-        val rel = docId.removePrefix("root").trimStart('/')
-        return if (rel.isEmpty()) rootDir else File(rootDir, rel)
-    }
-
-    override fun query(
-        uri: Uri,
-        projection: Array<out String>?,
-        selection: String?,
-        selectionArgs: Array<out String>?,
-        sortOrder: String?,
-    ): Cursor {
-        val cols = projection ?: arrayOf(
-            DocumentsContract.Document.COLUMN_DOCUMENT_ID,
-            DocumentsContract.Document.COLUMN_DISPLAY_NAME,
-        )
-        val cursor = MatrixCursor(cols)
-        val pathSegs = uri.pathSegments
-        val isChildren = pathSegs.contains("children")
-        if (isChildren) {
-            val parentIdx = pathSegs.indexOf("document") + 1
-            val parentDocId = Uri.decode(pathSegs[parentIdx])
-            val dir = fileForDocId(parentDocId)
-            dir.listFiles()?.forEach { child ->
-                val childDocId = "$parentDocId/${child.name}"
-                cursor.addRow(
-                    cols.map { col ->
-                        when (col) {
-                            DocumentsContract.Document.COLUMN_DOCUMENT_ID -> childDocId
-                            DocumentsContract.Document.COLUMN_DISPLAY_NAME -> child.name
-                            else -> null
-                        }
-                    }.toTypedArray()
-                )
-            }
-        } else {
-            val docId = DocumentsContract.getDocumentId(uri)
-            val file = fileForDocId(docId)
-            if (file.exists()) {
-                cursor.addRow(
-                    cols.map { col ->
-                        when (col) {
-                            DocumentsContract.Document.COLUMN_DOCUMENT_ID -> docId
-                            DocumentsContract.Document.COLUMN_DISPLAY_NAME -> file.name
-                            else -> null
-                        }
-                    }.toTypedArray()
-                )
-            }
-        }
-        return cursor
-    }
-
-    override fun call(method: String, arg: String?, extras: Bundle?): Bundle? {
-        if (method == "android:createDocument" && extras != null) {
-            @Suppress("DEPRECATION")
-            val parentUri = extras.getParcelable<Uri>("uri") ?: return null
-            val displayName = extras.getString(DocumentsContract.Document.COLUMN_DISPLAY_NAME) ?: return null
-            val parentDocId = DocumentsContract.getDocumentId(parentUri)
-            val parentDir = fileForDocId(parentDocId)
-            val target = File(parentDir, displayName)
-            if (!target.exists()) target.createNewFile()
-            val newDocId = "$parentDocId/$displayName"
-            val treeDocId = DocumentsContract.getTreeDocumentId(parentUri)
-            val treeUri = DocumentsContract.buildTreeDocumentUri(AUTHORITY, treeDocId)
-            val createdUri = DocumentsContract.buildDocumentUriUsingTree(treeUri, newDocId)
-            return Bundle().apply {
-                putParcelable("uri", createdUri)
-            }
-        }
-        return null
-    }
-
-    override fun openFile(uri: Uri, mode: String): ParcelFileDescriptor {
-        val docId = DocumentsContract.getDocumentId(uri)
-        val file = fileForDocId(docId)
-        val pfdMode = if (mode.contains("w")) {
-            writtenDocIds.add(docId)
-            ParcelFileDescriptor.MODE_WRITE_ONLY or ParcelFileDescriptor.MODE_CREATE or ParcelFileDescriptor.MODE_TRUNCATE
-        } else {
-            ParcelFileDescriptor.MODE_READ_ONLY
-        }
-        return ParcelFileDescriptor.open(file, pfdMode)
-    }
-
-    override fun getType(uri: Uri): String? = "application/octet-stream"
-    override fun insert(uri: Uri, values: ContentValues?): Uri? = null
-    override fun delete(uri: Uri, selection: String?, selectionArgs: Array<out String>?): Int = 0
-    override fun update(uri: Uri, values: ContentValues?, selection: String?, selectionArgs: Array<out String>?): Int = 0
 }

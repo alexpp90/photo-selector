@@ -8,8 +8,6 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ### Fixed
 - On the Learn screen every control is now at least 48 dp to touch: the back button, guide toggles, Flip, tabs, crop ratios, quiz answers, links, Set Goal, the stars and the rating filter. The side panel is a little wider (400 dp).
-- Rating a RAW photo in a folder opened via Android's folder picker now writes the rating to a companion `.xmp` sidecar file instead of attempting an in-place JPEG update.
-- The Learn screen now runs on-demand composition analysis (leading lines, visual mass centroid and crop suggestion) for the active photo.
 - A failed undo (a move that could not be put back, a file that could not leave the trash) stays on the undo stack, so you can try again instead of losing it.
 - The app no longer requests any Android permission. A library that was never used had added wake-lock, network-state, boot-completed and foreground-service permissions to the installed app.
 
