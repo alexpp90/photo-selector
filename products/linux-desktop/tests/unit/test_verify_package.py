@@ -8,7 +8,6 @@ Adheres to:
 from __future__ import annotations
 
 import io
-import os
 import subprocess
 import sys
 import tarfile
@@ -22,7 +21,6 @@ SCRIPTS_DIR = PRODUCT_DIR / "scripts"
 if str(SCRIPTS_DIR) not in sys.path:
     sys.path.insert(0, str(SCRIPTS_DIR))
 
-import verify_package  # noqa: E402
 from verify_package import (  # noqa: E402
     VerificationFailure,
     deb_version_sort_key,
