@@ -101,19 +101,21 @@ object ImageFormats {
     enum class SelectionSubfolder { RAW, JPEG, ROOT }
 
     /**
-     * Sorting rule for the Selection folder:
-     * - Lightroom edits (`*-Edit.*`) → RAW, whatever their extension;
+     * Sorting rule for the Selection folder, by file name alone:
+     * - derivatives (`-Edit`, `_Edit`, `-Enhanced-NR`, `_Enhanced-NR`) → RAW, whatever their extension;
      * - RAW → RAW; JPEG → JPEG;
      * - XMP sidecars named after a RAW (`IMG_1.CR3.xmp`) → RAW;
      * - everything else → the Selection root.
+     *
+     * A file that belongs to a bundle is placed by [selectionSubfolderInBundle], which only
+     * differs for files that cannot know their image from their name.
      */
     fun selectionSubfolder(fileName: String): SelectionSubfolder {
         val name = fileName.substringAfterLast('/')
         val extension = extensionOf(name)
         val stem = name.substringBeforeLast('.')
         return when {
-            stem.endsWith(EDIT_SUFFIX, ignoreCase = true) ||
-                stem.endsWith("_Edit", ignoreCase = true) -> SelectionSubfolder.RAW
+            isEditDerivative(name) -> SelectionSubfolder.RAW
             extension in RAW_EXTENSIONS -> SelectionSubfolder.RAW
             extension in JPEG_EXTENSIONS -> SelectionSubfolder.JPEG
             extension == XMP_EXTENSION ->
@@ -123,22 +125,22 @@ object ImageFormats {
     }
 
     /**
-     * Bundle-aware sorting rule: [selectionSubfolder] for everything except a stem sidecar
-     * (`DSC_0003.xmp`, no RAW extension in its name). A stem sidecar cannot know its image from
-     * its own name, so it follows the bundle: into the subfolder of the bundle's RAW when the
-     * bundle has one, else of the primary image (first non-sidecar, non-edit member), and only
-     * when the bundle has no image at all it stays at the Selection root.
+     * Bundle-aware sorting rule (FILE_OPERATIONS.md): every sidecar and every derivative goes into
+     * the subfolder of the bundle's RAW, `RAW/` when the bundle has one, otherwise the subfolder of
+     * its primary image (first member that is neither sidecar nor derivative); a file's own type
+     * never splits it from its shot. RAW and plain images and `<file>.<raw>.xmp` follow
+     * [selectionSubfolder]. When the bundle has no image at all a derivative stays in `RAW/` and a
+     * stem sidecar stays at the Selection root.
      */
     fun selectionSubfolderInBundle(fileName: String, bundleFileNames: Collection<String>): SelectionSubfolder {
         val own = selectionSubfolder(fileName)
         val name = fileName.substringAfterLast('/')
-        if (own != SelectionSubfolder.ROOT || extensionOf(name) != XMP_EXTENSION) return own
+        val isStemSidecar = isXmp(name) && own == SelectionSubfolder.ROOT
+        val isDerivative = isEditDerivative(name)
+        if (!isStemSidecar && !isDerivative) return own
         val others = bundleFileNames.map { it.substringAfterLast('/') }.filter { it != name }
         if (others.any { extensionOf(it) in RAW_EXTENSIONS }) return SelectionSubfolder.RAW
-        val image = others.firstOrNull {
-            val sub = selectionSubfolder(it)
-            sub != SelectionSubfolder.ROOT && extensionOf(it) != XMP_EXTENSION
-        }
-        return image?.let { selectionSubfolder(it) } ?: SelectionSubfolder.ROOT
+        val image = others.firstOrNull { !isXmp(it) && !isEditDerivative(it) && selectionSubfolder(it) != SelectionSubfolder.ROOT }
+        return image?.let { selectionSubfolder(it) } ?: if (isDerivative) own else SelectionSubfolder.ROOT
     }
 }

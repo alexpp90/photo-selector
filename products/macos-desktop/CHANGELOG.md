@@ -6,14 +6,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ## [Unreleased]
 
-### Fixed
-
-- The Selected, Copied and Trashed badges on thumbnails use black or white text, whichever reads better on the badge colour (the white on Selected green was 2.5:1).
-- The "?" button uses your accent colour unblended, so its black or white symbol keeps the contrast it was chosen for.
-- When an interrupted Move cannot put every file back, the message now names the photo and the folder: "Move interrupted — some files of IMG_0001.CR3 stayed in Selection/ and could not be put back".
-- Homebrew: the cask installs Lensjet from its own release tag (`macos-desktop-v…`) with the new name, and `brew uninstall --zap` also removes the new preferences file. Until this release the stable cask pointed at a download that did not exist.
-
-## [0.2.0] - 2026-10-20
+## [0.2.0] - 2026-10-22
 
 ### Changed
 
@@ -27,6 +20,10 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ### Fixed
 
+- The Selected, Copied and Trashed badges on thumbnails use black or white text, whichever reads better on the badge colour (the white on Selected green was 2.5:1).
+- The "?" button uses your accent colour unblended, so its black or white symbol keeps the contrast it was chosen for.
+- When an interrupted Move cannot put every file back, the message now names the photo and the folder: "Move interrupted — some files of IMG_0001.CR3 stayed in Selection/ and could not be put back".
+- Homebrew: the cask installs Lensjet from its own release tag (`macos-desktop-v…`) with the new name, and `brew uninstall --zap` also removes the new preferences file. Until this release the stable cask pointed at a download that did not exist.
 - Undo of a Trash restores exactly the files that were trashed, and a bundle (a photo with its RAW, sidecar or edit) whose trashing half-failed stays undoable instead of losing its record.
 - A Move that copied a photo but could not remove the original says so ("Copied to «folder» — original could not be removed"), keeps the copy, and its undo deletes only those copies; a Move whose rollback failed is reported as a partial result with an undo record.
 - When a file had to be renamed to avoid a name clash, the message tells you the new name ("Moved to Selection as IMG_0001-2.CR3 (+1 related)"); an undo that had to rename says "Restored as … (original name was in use)".

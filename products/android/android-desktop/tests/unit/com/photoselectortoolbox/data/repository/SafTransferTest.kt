@@ -583,6 +583,47 @@ class SafTransferTest {
         assertTrue(File(rootDir, "Selection/RAW/IMG_0012.ARW.xmp").exists())
     }
 
+    // REQ-AND-PLATFORM.06 (FILE_OPERATIONS.md: sidecars and derivatives follow the RAW; audit C-AD-1)
+    @Test
+    fun `sorting files every sidecar and derivative of a RAW bundle in RAW and only the JPEG in JPEG`() = runTest {
+        val names = listOf("IMG.ARW", "IMG.JPG", "IMG.xmp", "IMG.ARW.xmp", "IMG-Enhanced-NR.tif", "IMG-Enhanced-NR.jpg")
+        names.forEach { File(rootDir, it).writeText(it) }
+
+        val results = repository.transferBundle(context, names.map(::documentUriFor), treeUri, sorting = true, isMove = false)
+
+        assertTrue(results.all { it.success })
+        val selection = File(rootDir, "Selection")
+        val landed = selection.walkTopDown().filter { it.isFile }
+            .map { it.relativeTo(selection).invariantSeparatorsPath }.toSet() - ".photoselector-selection"
+        assertEquals(names.filter { it != "IMG.JPG" }.map { "RAW/$it" }.toSet() + "JPEG/IMG.JPG", landed)
+    }
+
+    @Test
+    fun `sorting files the sidecar and edit of a JPEG-only bundle in JPEG`() = runTest {
+        val names = listOf("IMG.JPG", "IMG.xmp", "IMG-Edit.jpg")
+        names.forEach { File(rootDir, it).writeText(it) }
+
+        repository.transferBundle(context, names.map(::documentUriFor), treeUri, sorting = true, isMove = false)
+
+        val selection = File(rootDir, "Selection")
+        val landed = selection.walkTopDown().filter { it.isFile }
+            .map { it.relativeTo(selection).invariantSeparatorsPath }.toSet() - ".photoselector-selection"
+        assertEquals(names.map { "JPEG/$it" }.toSet(), landed)
+    }
+
+    @Test
+    fun `without sorting a bundle lands flat in Selection`() = runTest {
+        val names = listOf("IMG.ARW", "IMG.JPG", "IMG.xmp", "IMG-Enhanced-NR.tif")
+        names.forEach { File(rootDir, it).writeText(it) }
+
+        repository.transferBundle(context, names.map(::documentUriFor), treeUri, sorting = false, isMove = false)
+
+        val selection = File(rootDir, "Selection")
+        val landed = selection.walkTopDown().filter { it.isFile }
+            .map { it.relativeTo(selection).invariantSeparatorsPath }.toSet() - ".photoselector-selection"
+        assertEquals(names.toSet(), landed)
+    }
+
     // REQ-AND-PLATFORM.06, REQ-AND-PLATFORM.12
     // REQ-AND-PLATFORM.06, REQ-AND-PLATFORM.12
     @Test

@@ -27,4 +27,32 @@ class ImageFormatsBundleSortingTest {
         assertEquals(RAW, ImageFormats.selectionSubfolderInBundle("DSC_0003-Edit.JPG", full))
         assertEquals(RAW, ImageFormats.selectionSubfolderInBundle("DSC_0003.ARW.xmp", full))
     }
+
+    private val nr = listOf(
+        "IMG.ARW", "IMG.JPG", "IMG.xmp", "IMG.ARW.xmp", "IMG-Enhanced-NR.tif", "IMG-Enhanced-NR.jpg",
+    )
+
+    @Test
+    fun `every sidecar and derivative of a RAW bundle goes to RAW, whatever its extension`() {
+        for (n in nr - "IMG.JPG") assertEquals(n, RAW, ImageFormats.selectionSubfolderInBundle(n, nr))
+        assertEquals(JPEG, ImageFormats.selectionSubfolderInBundle("IMG.JPG", nr))
+        assertEquals(RAW, ImageFormats.selectionSubfolderInBundle("IMG_Enhanced-NR.png", nr))
+        assertEquals(RAW, ImageFormats.selectionSubfolderInBundle("IMG-Edit.xmp", nr + "IMG-Edit.xmp"))
+    }
+
+    @Test
+    fun `without a RAW sidecars and derivatives follow the primary image`() {
+        val jpegOnly = listOf("IMG.JPG", "IMG.xmp", "IMG-Edit.jpg", "IMG-Enhanced-NR.tif")
+        for (n in jpegOnly - "IMG.JPG") assertEquals(n, JPEG, ImageFormats.selectionSubfolderInBundle(n, jpegOnly))
+    }
+
+    @Test
+    fun `a derivative alone is filed in RAW`() =
+        assertEquals(RAW, ImageFormats.selectionSubfolderInBundle("a-Enhanced-NR.tif", listOf("a-Enhanced-NR.tif")))
+
+    @Test
+    fun `by name alone Enhanced-NR derivatives go to RAW`() {
+        assertEquals(RAW, ImageFormats.selectionSubfolder("a-Enhanced-NR.tif"))
+        assertEquals(RAW, ImageFormats.selectionSubfolder("a_Enhanced-NR.jpg"))
+    }
 }
