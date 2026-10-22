@@ -1,6 +1,8 @@
 package com.photoselectortoolbox.ui.components
 
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.horizontalScroll
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Row
@@ -37,6 +39,15 @@ private val StarAmber500 = Color(0xFFF59E0B)
 private val StarAmber400 = Color(0xFFFBBF24)
 
 /**
+ * Slot geometry. Each control is a whole slot of at least [MinTouchTarget] with no gap to its
+ * neighbour (the visual gap lies inside the abutting slots), so the 48 dp target is the node
+ * that carries the click and the test tag.
+ */
+object StarRatingBarDefaults {
+    fun slotSize(starSize: Dp): Dp = maxOf(starSize + 4.dp, MinTouchTarget)
+}
+
+/**
  * Interactive star rating component displaying 1 to 5 stars, unrated/clear, and reject options.
  *
  * Supports touch clicks, S-Pen stylus hover/tap, and accessibility labels.
@@ -56,18 +67,20 @@ fun StarRatingBar(
     showRejectButton: Boolean = true,
     showClearButton: Boolean = true,
 ) {
+    // Seven 48 dp slots are 336 dp; a narrower panel scrolls the row instead of squeezing a target.
     Row(
         modifier = modifier
+            .horizontalScroll(rememberScrollState())
             .testTag("star_rating_bar")
             .semantics { contentDescription = "Rating bar, current rating: $rating" },
-        horizontalArrangement = Arrangement.spacedBy(4.dp),
+        horizontalArrangement = Arrangement.spacedBy(0.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
         if (showRejectButton) {
             val isRejected = rating == -1
             Box(
                 modifier = Modifier
-                    .size(starSize + 4.dp)
+                    .size(StarRatingBarDefaults.slotSize(starSize))
                     .clip(CircleShape)
                     .pointerHoverIcon(PointerIcon.Hand)
                     .clickable(
@@ -105,7 +118,7 @@ fun StarRatingBar(
 
             Box(
                 modifier = Modifier
-                    .size(starSize + 4.dp)
+                    .size(StarRatingBarDefaults.slotSize(starSize))
                     .clip(CircleShape)
                     .pointerHoverIcon(PointerIcon.Hand)
                     .clickable(
@@ -140,7 +153,7 @@ fun StarRatingBar(
         if (showClearButton && rating != 0) {
             Box(
                 modifier = Modifier
-                    .size(starSize + 4.dp)
+                    .size(StarRatingBarDefaults.slotSize(starSize))
                     .clip(CircleShape)
                     .pointerHoverIcon(PointerIcon.Hand)
                     .clickable(

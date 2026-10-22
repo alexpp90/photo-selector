@@ -12,7 +12,6 @@
     <string name="cd_camera_info">Show or hide camera info</string>
     <string name="cd_help_show">Show controls guide</string>
     <string name="cd_help_hide">Hide controls guide</string>
-    <string name="cd_help">Help</string>
     <string name="cd_card_done">Done with this card</string>
     <string name="cd_reload">Reload folder</string>
     <string name="cd_settings">Settings</string>

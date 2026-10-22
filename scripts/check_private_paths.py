@@ -34,6 +34,7 @@ PRIVATE_PATTERNS = [
     (re.compile(r"(^|/)intent_ledger[^/]*\.jsonl$"), "prompt ledger"),
     (re.compile(r"^docs/.*/(REQUIREMENTS|DESIGN_PROMPT|UX_INVESTIGATION|SECURITY_AUDIT|LEGAL_COMPLIANCE)\.md$"),
      "requirement specification / prompt / audit (private overlay)"),
+    (re.compile(r"^docs/(reviews|handover)(/|$)"), "maintainer reviews and handover material (private overlay)"),
     (re.compile(r"^docs/build/ANDROID_SIGNING_[A-Z_]+\.md$"), "release-infrastructure runbook (private overlay)"),
 ]
 

@@ -5,10 +5,12 @@ import androidx.compose.foundation.Image
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.sizeIn
 import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.HelpOutline
@@ -89,13 +91,10 @@ fun PhoneModeTopBar(
         val logoName = stringResource(PhoneModeTopBarDescriptions.LOGO)
         val infoName = stringResource(PhoneModeTopBarDescriptions.INFO)
         NameTooltip(name = infoName) {
-            Image(
-                painter = painterResource(id = R.drawable.ic_brand_mark),
-                colorFilter = androidx.compose.ui.graphics.ColorFilter.tint(colors.primary),
-                contentDescription = null,
-                alpha = if (guideOpen) 0.4f else 1.0f,
+            Box(
+                contentAlignment = Alignment.Center,
                 modifier = Modifier
-                    .size(metrics.TOP_BAR_LOGO_SIZE)
+                    .sizeIn(minWidth = 48.dp, minHeight = 48.dp)
                     .guideAnchor(anchors, GuideAnchor.LOGO)
                     .semantics { contentDescription = logoName }
                     .testTag("top_bar_logo")
@@ -106,7 +105,15 @@ fun PhoneModeTopBar(
                         role = Role.Button,
                         onClick = onToggleExif,
                     ),
-            )
+            ) {
+                Image(
+                    painter = painterResource(id = R.drawable.ic_brand_mark),
+                    colorFilter = androidx.compose.ui.graphics.ColorFilter.tint(colors.primary),
+                    contentDescription = null,
+                    alpha = if (guideOpen) 0.4f else 1.0f,
+                    modifier = Modifier.size(metrics.TOP_BAR_LOGO_SIZE),
+                )
+            }
         }
         Row(verticalAlignment = Alignment.CenterVertically) {
             if (showControls) {

@@ -4,7 +4,8 @@
 
 
     <!--
-      No permissions are declared, and INTERNET in particular is not.
+      No permissions are declared, and INTERNET in particular is not. The merged manifest
+      is held to the same rule: LegalLinksTest fails if a dependency adds a permission.
       Every photograph is read through the Storage Access Framework grant the
       photographer hands over, all analysis is on-device (OpenCV via JNI), and nothing is uploaded anywhere.
     -->

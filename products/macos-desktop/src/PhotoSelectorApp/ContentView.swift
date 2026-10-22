@@ -464,7 +464,7 @@ public struct ContentView: View {
                         .frame(minWidth: Self.minTarget, minHeight: Self.minTarget)
                 }
                 .buttonStyle(.borderedProminent)
-                .tint(Color.accentColor.opacity(0.85))
+                .tint(Color.accentColor)
                 .focusable(false)
                 .accessibilityLabel("Keyboard Shortcuts")
                 .help("Keyboard Shortcuts & Culling Guide (?)")

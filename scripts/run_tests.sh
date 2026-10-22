@@ -153,8 +153,10 @@ if ! $explicit_product; then
 
         for f in "${CHANGED_FILES[@]}"; do
             case "$f" in
+                # macos.yml:update-homebrew-taps runs the legacy updater on the Lensjet cask.
+                products/desktop/scripts/update_formula.py) has_desktop=true; has_macos=true ;;
                 products/desktop/*|*.spec) has_desktop=true ;;
-                products/android/*) has_android=true ;;
+                products/android/*|scripts/check_native_alignment.py) has_android=true ;;
                 products/macos-desktop/*) has_macos=true ;;
                 products/linux-desktop/*) has_linux=true ;;
                 .github/workflows/*|.github/actions/*|scripts/run_tests.sh|testdata/formats/*|scripts/fetch_format_corpus.py) has_cross=true ;;
@@ -418,6 +420,16 @@ if $run_android; then
                 "$ROOT_DIR"/products/android/android-desktop/build/outputs/apk/debug/*.apk \
                 "$ROOT_DIR"/products/android/phototok/build/outputs/apk/debug/*.apk
 
+        # android.yml:minified-build: R8 runs only for release-like builds, so a missing -keep
+        # rule passes every debug gate. `lab` is the minified release build with debug signing.
+        section "Android minified build (R8)"
+        if $quick; then
+            skip "gradlew assembleLab (R8-minified)" "android.yml:minified-build" "--quick"
+        else
+            gate "gradlew assembleLab (R8-minified)" "android.yml:minified-build" \
+                ./gradlew :android-desktop:assembleLab :phototok:assembleLab --stacktrace
+        fi
+
         # ── Android lint (advisory) ───────────────────────────────
         # Deliberately non-blocking: the CI job is `continue-on-error: true`
         # and both modules set `abortOnError = false`. Mirrored as advisory so
@@ -516,7 +528,7 @@ fi
 if $run_linux; then
     section "Linux Desktop gates"
     if [ ! -d "$ROOT_DIR/products/linux-desktop" ]; then
-        skip "Linux Desktop gates" "linux.yml" "products/linux-desktop not yet created (planned for M3)" false
+        skip "Linux Desktop gates" "linux.yml" "products/linux-desktop not yet created" false
     else
         cd "$ROOT_DIR/products/linux-desktop" || exit 1
 
@@ -577,7 +589,7 @@ if $run_linux; then
             gate "debian packaging & apt repo (products/linux-desktop)" "linux.yml:package" \
                 bash ./scripts/package_debian.sh
         else
-            skip "debian packaging (linux-desktop)" "linux.yml:package" "packaging scripts not yet created (planned for M4)" false
+            skip "debian packaging (linux-desktop)" "linux.yml:package" "packaging scripts not yet created" false
         fi
     fi
 elif ! $explicit_product; then

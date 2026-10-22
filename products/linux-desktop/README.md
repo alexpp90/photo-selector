@@ -82,7 +82,7 @@ sudo apt install photo-selector-linux
 To run the application locally:
 
 ```bash
-python3 -m photo_selector_linux [folder_path]
+PYTHONPATH=src python3 -m photo_selector_linux [folder_path]
 ```
 
 To run the automated headless unit test suite:

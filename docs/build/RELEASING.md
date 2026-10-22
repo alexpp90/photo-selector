@@ -50,6 +50,8 @@ waited 21 days. The thresholds are constants at the top of `release.py`.
 ## Procedure
 
 1. **Status.** `git fetch --tags origin && python3 scripts/release.py status <product>`.
+   It reads the history, the version files and the changelog at `origin/main` (`--ref` to
+   change), so it reports what is merged even from a checkout on another branch.
 2. **Prepare** on a branch from `origin/main`: `python3 scripts/release.py prepare <product>`.
    It writes the next version into every version source and turns the changelog's
    `[Unreleased]` section into `[X.Y.Z] - <date>`. If that section was empty it drafts it

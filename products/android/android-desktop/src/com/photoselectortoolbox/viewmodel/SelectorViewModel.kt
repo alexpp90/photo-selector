@@ -1548,14 +1548,36 @@ class SelectorViewModel @Inject constructor(
                 }
                 onFrameChanged()
                 appScope.launch {
+                    val failed = mutableListOf<String>()
                     operation.uris.forEach { uri ->
                         val ok = try {
                             imageRepository.restoreFromTrash(context, Uri.parse(uri))
+                        } catch (e: CancellationException) {
+                            throw e
                         } catch (e: Exception) {
                             Log.e("SelectorViewModel", "Restore from trash failed for $uri", e)
                             false
                         }
-                        if (!ok) reportError("Could not restore the deleted image")
+                        if (!ok) {
+                            failed += uri
+                            reportError("Could not restore the deleted image")
+                        }
+                    }
+                    // What stayed in the trash is still undoable: hide it again and keep it on the stack.
+                    UndoPolicy.remainderAfterRestore(operation, failed)?.let { remainder ->
+                        _uiState.update { current ->
+                            val hidden = OptimisticEdits.apply(
+                                current.listState,
+                                CurationAction.DELETE,
+                                remainder.slots.map { it.uri },
+                            )
+                            current.copy(
+                                images = hidden.state.images,
+                                currentIndex = hidden.state.currentIndex,
+                                undoHistory = UndoPolicy.push(current.undoHistory, remainder).history,
+                            )
+                        }
+                        onFrameChanged()
                     }
                 }
             }
@@ -1632,9 +1654,11 @@ class SelectorViewModel @Inject constructor(
                                 CurationAction.MOVE,
                                 operation.slots.map { it.uri },
                             )
+                            // The failed undo already left the stack; put it back so it can be retried.
                             current.copy(
                                 images = reapplied.state.images,
                                 currentIndex = reapplied.state.currentIndex,
+                                undoHistory = UndoPolicy.push(current.undoHistory, operation).history,
                             )
                         }
                         reportError("Could not move the image back")

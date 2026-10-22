@@ -256,7 +256,7 @@ window, .studio-dark-surface {
 /* Quality Score Badges */
 .score-badge-sharp {
     background-color: #2EC27E;
-    color: #FFFFFF;
+    color: #141414;
     border-radius: 6px;
     padding: 2px 8px;
     font-weight: bold;
@@ -311,7 +311,7 @@ window, .studio-dark-surface {
 /* Bottom Action Bar Buttons */
 .action-btn-move {
     background-color: #2EC27E;
-    color: #FFFFFF;
+    color: #141414;
     font-weight: bold;
     border-radius: 8px;
     padding: 6px 16px;

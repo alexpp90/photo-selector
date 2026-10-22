@@ -768,9 +768,12 @@ class SettingsRepository @Inject constructor(
         folderAccessManager.releaseIfUnreferenced(folderUri, referenced.values.flatten().toSet())
     }
 
-    /** Keep (or drop) the grant of the folder whose deletions are still on the undo stack. */
-    fun pinUndoHistoryFolder(folderUri: String?) {
-        folderAccessManager.pin(FolderAccessPurpose.UNDO_HISTORY, setOfNotNull(folderUri))
+    /**
+     * Keep the grants of the folders whose deletions are still on the undo stack or still being
+     * carried out; an empty set unpins.
+     */
+    fun pinUndoHistoryFolders(folderUris: Set<String>) {
+        folderAccessManager.pin(FolderAccessPurpose.UNDO_HISTORY, folderUris)
     }
 
     suspend fun reconcilePersistedGrants(): Set<String> {

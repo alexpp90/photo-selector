@@ -74,6 +74,9 @@ android {
 
     buildTypes {
         release {
+            // Compose test tags become accessibility resource ids only in builds the lab and the
+            // instrumented tests drive, never in the store build (audit 2026-10-21, S-AD-1).
+            buildConfigField("boolean", "EXPOSE_TEST_TAGS", "false")
             isMinifyEnabled = true
             isShrinkResources = true
             val keystorePath = System.getenv("PHOTOTOK_KEYSTORE_FILE")
@@ -87,12 +90,14 @@ android {
         }
         debug {
             isMinifyEnabled = false
+            buildConfigField("boolean", "EXPOSE_TEST_TAGS", "true")
         }
         create("lab") {
             initWith(getByName("release"))
             signingConfig = signingConfigs.getByName("debug")
             applicationIdSuffix = ".lab"
             versionNameSuffix = "-lab"
+            buildConfigField("boolean", "EXPOSE_TEST_TAGS", "true")
             matchingFallbacks += listOf("release")
         }
     }

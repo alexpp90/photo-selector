@@ -54,12 +54,6 @@ interface ScoreDao {
     @Query("SELECT * FROM user_ratings WHERE uri IN (:uris)")
     suspend fun getUserRatings(uris: List<String>): List<UserRatingEntity>
 
-    @Query("SELECT * FROM user_ratings WHERE rating >= :minRating")
-    suspend fun getUserRatingsWithMinRating(minRating: Int): List<UserRatingEntity>
-
-    @Query("SELECT * FROM user_ratings WHERE rating = :rating")
-    suspend fun getUserRatingsWithRating(rating: Int): List<UserRatingEntity>
-
     /**
      * Chunked wrapper for [getScores] so no single SQLite `IN (:filePaths)`
      * statement binds more than [chunkSize] variables (`SQLITE_MAX_VARIABLE_NUMBER = 999`

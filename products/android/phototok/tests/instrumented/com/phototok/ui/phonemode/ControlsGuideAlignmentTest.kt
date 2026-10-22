@@ -223,13 +223,13 @@ class ControlsGuideAlignmentTest {
         }
         composeTestRule.waitForIdle()
         val density = composeTestRule.density.density
-        listOf("done_with_card_button", "reload_folder_button", "help_button", "info_exif_button", "settings_button")
+        listOf("top_bar_logo", "done_with_card_button", "reload_folder_button", "help_button", "info_exif_button", "settings_button")
             .forEach { tag ->
                 assertEquals(tag, 48f * density, bounds(tag).width, 1f)
                 assertEquals(tag, 48f * density, bounds(tag).height, 1f)
             }
         // Logo + five 48dp buttons + 32dp padding still fit a 320dp phone.
-        assertTrue(bounds("done_with_card_button").left > bounds("top_bar_logo").right)
+        assertTrue(bounds("done_with_card_button").left >= bounds("top_bar_logo").right)
     }
 
     private fun Rect.overlaps(o: Rect) = left < o.right && o.left < right && top < o.bottom && o.top < bottom

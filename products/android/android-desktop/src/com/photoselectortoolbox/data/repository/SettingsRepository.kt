@@ -408,10 +408,6 @@ class SettingsRepository @Inject constructor(
     }
 
     /**
-     * Reconcile OS persisted URI grants against the URIs currently referenced in
-     * DataStore, releasing any orphaned grants from earlier sessions.
-     */
-    /**
      * Release the persisted grant of [folderUri] now if nothing references it any more — called
      * after the last journal entry of a folder that was left was committed or recovered.
      */
@@ -546,12 +542,6 @@ class SettingsRepository @Inject constructor(
             } else {
                 prefs[KEY_PENDING_DELETE_JOURNAL] = updated
             }
-        }
-    }
-
-    suspend fun clearPendingDeleteJournal() {
-        context.dataStore.edit { prefs ->
-            prefs.remove(KEY_PENDING_DELETE_JOURNAL)
         }
     }
 

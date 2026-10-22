@@ -43,4 +43,20 @@ class LegalLinksTest {
             permissions.contains("android.permission.INTERNET"),
         )
     }
+
+    @Test
+    fun `merged manifest requests no permission except the dynamic receiver one`() {
+        val context = RuntimeEnvironment.getApplication()
+        val packageInfo = context.packageManager.getPackageInfo(
+            context.packageName,
+            PackageManager.GET_PERMISSIONS,
+        )
+        val unexpected = (packageInfo.requestedPermissions ?: emptyArray())
+            .filterNot { it.endsWith(".DYNAMIC_RECEIVER_NOT_EXPORTED_PERMISSION") }
+
+        assertTrue(
+            "Zero-permission SAF policy (REQ-AND-PLATFORM.08): a dependency merged in $unexpected",
+            unexpected.isEmpty(),
+        )
+    }
 }

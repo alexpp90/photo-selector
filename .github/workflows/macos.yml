@@ -14,6 +14,7 @@ on:
     paths:
       - 'products/macos-desktop/**'
       - '.github/workflows/macos.yml'
+      - 'products/desktop/scripts/update_formula.py'
       - 'testdata/formats/**'
       - 'scripts/fetch_format_corpus.py'
       - '.github/actions/format-corpus/**'
@@ -22,6 +23,7 @@ on:
     paths:
       - 'products/macos-desktop/**'
       - '.github/workflows/macos.yml'
+      - 'products/desktop/scripts/update_formula.py'
       - 'testdata/formats/**'
       - 'scripts/fetch_format_corpus.py'
       - '.github/actions/format-corpus/**'
@@ -192,7 +194,7 @@ jobs:
       - name: Update GitHub Release
         uses: softprops/action-gh-release@v3
         with:
-          name: ${{ startsWith(github.ref, 'refs/tags/macos-desktop-v') && steps.release_meta.outputs.name || 'Nightly Build' }}
+          name: ${{ startsWith(github.ref, 'refs/tags/macos-desktop-v') && format('{0} {1}', steps.release_meta.outputs.name, steps.release_meta.outputs.version) || 'Nightly Build' }}
           tag_name: ${{ startsWith(github.ref, 'refs/tags/macos-desktop-v') && github.ref_name || 'nightly' }}
           body_path: ${{ startsWith(github.ref, 'refs/tags/macos-desktop-v') && format('{0}/release-notes.md', runner.temp) || '' }}
           prerelease: ${{ !startsWith(github.ref, 'refs/tags/macos-desktop-v') }}
@@ -272,9 +274,13 @@ jobs:
                 --macos-sha256 "${MACOS_SHA256}"
               COMMIT_MSG="Update native macOS cask to ${VERSION}"
             fi
-            # Since 0.2.0 the zip holds Lensjet.app (was PhotoSelector.app). Only the cask this
-            # run points at the new zip gets the new app name, so the other keeps installing.
-            perl -pi -e 's/^(\s*app )"PhotoSelector\.app"/$1"Lensjet.app"/' "$CASK"
+            # Since 0.2.0 the zip holds Lensjet.app, the stable cask downloads from the product
+            # tag macos-desktop-v<version>, and name/desc/zap follow the new name and bundle id.
+            # Only the cask this run points at the new zip is rewritten, so the other keeps
+            # installing. Tested in scripts/tests/test_lensjet_cask.py.
+            NIGHTLY_FLAG=""
+            [ "${GH_REF}" = "refs/heads/main" ] && NIGHTLY_FLAG="--nightly"
+            python3 "$GITHUB_WORKSPACE/products/macos-desktop/scripts/lensjet_cask.py" "$CASK" $NIGHTLY_FLAG
             git add Casks/
             git diff --cached --quiet || git commit -m "${COMMIT_MSG}"
             git push origin HEAD

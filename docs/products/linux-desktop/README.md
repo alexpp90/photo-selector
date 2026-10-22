@@ -7,26 +7,25 @@ and seamless Debian APT package distribution.
 
 | | |
 |---|---|
-| Code | `products/linux-desktop/` (planned for M3) |
+| Code | `products/linux-desktop/` |
 | Modules | `photo_selector_linux` (domain, optical metadata, UI) |
 | Tests | `products/linux-desktop/tests/` (unit and integration tests) |
 | Target | Debian 13 (Trixie), GNOME 46+ workstations |
 | Packaging | Debian `.deb` package, signed APT repository published to [`alexpp90/apt`](https://github.com/alexpp90/apt) by `linux.yml` |
-| Entry point | `python3 -m photo_selector_linux` |
-| Application id | `app.alpatix.Blitzlens` (formerly Photo Selector Linux; the package name `photo-selector-linux` is unchanged) |
+| Entry point | `photo-selector-linux` (installed), `PYTHONPATH=src python3 -m photo_selector_linux` (from source) |
+| Application id | `app.alpatix.Blitzlens` (the package name `photo-selector-linux` is unchanged) |
 
 ## Documents
 
 - `REQUIREMENTS.md` (maintainer-private) — Authoritative behaviour specification
-- `ARCHITECTURE.md` — Modular architecture and packaging (planned for M2)
 - Cross-product feature policy: [`../../shared/FEATURE_PARITY.md`](../../shared/FEATURE_PARITY.md)
 - CI: [`../../build/CI_PARITY.md`](../../build/CI_PARITY.md)
 
-## Run from source (Planned)
+## Run from source
 
 ```bash
 cd products/linux-desktop
-python3 -m photo_selector_linux
+PYTHONPATH=src python3 -m photo_selector_linux [folder_path]
 ```
 
 ## Test
@@ -35,7 +34,7 @@ python3 -m photo_selector_linux
 # Repository CI mirror (recommended):
 ./scripts/run_tests.sh --linux
 
-# Direct pytest execution (planned):
+# Direct pytest execution:
 cd products/linux-desktop
 pytest tests/
 ```

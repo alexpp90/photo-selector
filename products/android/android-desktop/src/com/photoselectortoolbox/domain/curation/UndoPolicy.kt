@@ -124,6 +124,24 @@ object UndoPolicy {
     }
 
     /**
+     * What is left to undo after a restore from the trash in which [failedUris] could not be
+     * restored: the same operation narrowed to those files, or null when everything came back.
+     * A failed undo has already left the history, so without this the photographer could not
+     * try again.
+     */
+    fun remainderAfterRestore(
+        operation: UndoableOperation.RestoreFromTrash,
+        failedUris: List<String>,
+    ): UndoableOperation.RestoreFromTrash? {
+        if (failedUris.isEmpty()) return null
+        val failed = failedUris.toSet()
+        return UndoableOperation.RestoreFromTrash(
+            slots = operation.slots.filter { slot -> slot.image.allFiles.any { it.uri in failed } },
+            uris = operation.uris.filter { it in failed },
+        )
+    }
+
+    /**
      * Undo for a filing action.
      *
      * - **Move** is reversible when the repository reported where the file went;

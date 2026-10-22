@@ -200,3 +200,27 @@ def test_gexiv2_mapping_apex_fallbacks():
     assert meta.is_fallback is True
     assert meta.formatted_shutter_speed == "1/256s"
     assert meta.formatted_aperture == "f/5.7"
+
+
+def test_pillow_reader_survives_an_ifd_enum_without_the_old_makernote_name(tmp_path):
+    """B-LIN-3: newer Pillow renamed IFD.Makernote to IFD.MakerNote; exposure must still be read."""
+    import types
+    from PIL import Image
+    from photo_selector_linux.core import metadata
+
+    img = Image.new("RGB", (4, 4))
+    exif = Image.Exif()
+    exif.get_ifd(0x8769)  # create the Exif IFD
+    exif[0x8769] = {0x829A: 0.01, 0x829D: 2.8, 0x8827: 400}
+    path = tmp_path / "x.jpg"
+    img.save(path, exif=exif)
+
+    fake_ifd = types.SimpleNamespace(Exif=0x8769, MakerNote=0x927C)  # no ``Makernote`` attribute
+    fake_tags = types.SimpleNamespace(IFD=fake_ifd)
+    with patch.object(metadata, "ExifTags", fake_tags):
+        meta = metadata.read_metadata_pil(path)
+
+    assert meta is not None
+    assert meta.iso == 400
+    assert meta.aperture == 2.8
+    assert meta.shutter_speed == 0.01
