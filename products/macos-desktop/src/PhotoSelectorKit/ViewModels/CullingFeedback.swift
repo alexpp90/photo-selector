@@ -24,9 +24,9 @@ public enum CullingFeedback {
 
     /// Toast title of a partial move: the original stayed behind (a verified copy was kept), or a failed
     /// rollback left members in the destination folder (D-12).
-    public static func partialMoveTitle(destinationFolder: String, rollbackFailed: Bool) -> String {
+    public static func partialMoveTitle(name: String, destinationFolder: String, rollbackFailed: Bool) -> String {
         rollbackFailed
-            ? "Move interrupted — some files stayed in \(destinationFolder) and could not be put back"
+            ? "Move interrupted — some files of \(name) stayed in \(destinationFolder)/ and could not be put back"
             : "Copied to \(destinationFolder) — original could not be removed"
     }
 

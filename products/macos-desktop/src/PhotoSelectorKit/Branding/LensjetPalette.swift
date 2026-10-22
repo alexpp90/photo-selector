@@ -67,6 +67,12 @@ public enum LensjetPalette {
     /// Icon accent.
     public static let brandInk = PaletteRGB(0x24, 0x1A, 0x14)
 
+    /// Fills of the Selected, Copied and Trashed status badges, drawn opaque so the text colour
+    /// chosen by `TextContrast.legibleText(on:)` is the contrast that is actually shown.
+    public static let statusBadgeFills: [(name: String, value: PaletteRGB)] = [
+        ("selected", moveAccent), ("copied", copyAccent), ("trashed", trashAccent)
+    ]
+
     public static let neutralSurfaces: [(name: String, value: PaletteRGB)] = [
         ("canvas", canvas), ("surface", surface), ("panel", panel),
         ("separator", separator), ("neutralActionFill", neutralActionFill),

@@ -945,6 +945,7 @@ public final class CullingWorkspaceViewModel: ObservableObject {
                             self.showToast(
                                 icon: "exclamationmark.triangle.fill",
                                 title: CullingFeedback.partialMoveTitle(
+                                    name: photo.filename,
                                     destinationFolder: destinationFolder,
                                     rollbackFailed: rollbackFailed
                                 ),

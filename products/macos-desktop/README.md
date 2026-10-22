@@ -121,5 +121,5 @@ under `--macos` / `--all`):
 
 - **`docs/products/macos-desktop/`** — Product requirements and architectural specifications.
 - **`assets/`** — Shared branding assets, icons, and logos at the repository root.
-- **Homebrew cask** — in [`alexpp90/homebrew-tap`](https://github.com/alexpp90/homebrew-tap), updated by `macos.yml` on release.
+- **Homebrew cask** — in [`alexpp90/homebrew-tap`](https://github.com/alexpp90/homebrew-tap), updated by `macos.yml` on release: version and hash, then `scripts/lensjet_cask.py` (the `macos-desktop-v<version>` download tag, `Lensjet.app`, name, description and the preferences `zap` removes). The cask token `photo-selector-toolbox` stays, so installed casks keep updating.
 - **Legacy Python Desktop** — Archived at Git tag/branch `archive/legacy-desktop` and retained in `products/desktop/`.
