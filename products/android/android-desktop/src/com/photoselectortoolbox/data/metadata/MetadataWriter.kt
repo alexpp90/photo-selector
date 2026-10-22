@@ -3,6 +3,7 @@ package com.photoselectortoolbox.data.metadata
 import android.content.Context
 import android.graphics.BitmapFactory
 import android.net.Uri
+import android.provider.DocumentsContract
 import android.util.Log
 import androidx.exifinterface.media.ExifInterface
 import com.photoselectortoolbox.domain.format.ImageFormats
@@ -85,6 +86,12 @@ class MetadataWriterImpl internal constructor(
             mutexFor(imageUri.toString()).withLock {
                 var tempFile: File? = null
                 try {
+                    val displayName = resolveSafDisplayName(context, imageUri)
+                    if (ImageFormats.isRaw(displayName) || !ImageFormats.isJpeg(displayName)) {
+                        writeSafSidecarRating(context, imageUri, displayName, rating)
+                        return@withLock Result.success(Unit)
+                    }
+
                     val cacheDir = context.cacheDir ?: throw IOException("Cache directory unavailable")
                     val createdTemp = File.createTempFile("saf_rating_", ".tmp", cacheDir)
                     tempFile = createdTemp
@@ -106,9 +113,9 @@ class MetadataWriterImpl internal constructor(
                     exif.saveAttributes()
 
                     if (!validateJpegBounds(createdTemp)) {
-                        return@withLock Result.failure(
-                            IOException("Modified SAF image failed bounds verification for $imageUri")
-                        )
+                        Log.w(TAG, "Modified SAF JPEG failed bounds verification for $imageUri; falling back to sidecar")
+                        writeSafSidecarRating(context, imageUri, displayName, rating)
+                        return@withLock Result.success(Unit)
                     }
 
                     val outputStream = try {
@@ -133,6 +140,121 @@ class MetadataWriterImpl internal constructor(
                 }
             }
         }
+
+    private fun resolveSafDisplayName(context: Context, imageUri: Uri): String {
+        runCatching {
+            context.contentResolver.query(
+                imageUri,
+                arrayOf(DocumentsContract.Document.COLUMN_DISPLAY_NAME),
+                null,
+                null,
+                null,
+            )?.use { cursor ->
+                if (cursor.moveToFirst()) {
+                    val idx = cursor.getColumnIndex(DocumentsContract.Document.COLUMN_DISPLAY_NAME)
+                    if (idx >= 0 && !cursor.isNull(idx)) {
+                        val name = cursor.getString(idx)
+                        if (!name.isNullOrBlank()) return name
+                    }
+                }
+            }
+        }
+        val docId = runCatching { DocumentsContract.getDocumentId(imageUri) }.getOrNull()
+        if (!docId.isNullOrBlank()) {
+            return docId.substringAfterLast('/')
+        }
+        return imageUri.lastPathSegment?.substringAfterLast('/') ?: ""
+    }
+
+    private fun writeSafSidecarRating(
+        context: Context,
+        imageUri: Uri,
+        displayName: String,
+        rating: Int,
+    ) {
+        if (displayName.isBlank()) {
+            throw IOException("Cannot resolve display name for SAF sidecar rating: $imageUri")
+        }
+        val docId = runCatching { DocumentsContract.getDocumentId(imageUri) }.getOrNull()
+            ?: throw IOException("URI is not a SAF document URI: $imageUri")
+        val treeDocId = runCatching { DocumentsContract.getTreeDocumentId(imageUri) }.getOrNull()
+            ?: throw IOException("SAF document URI lacks tree grant for sidecar creation: $imageUri")
+        val parentDocId = if (docId.contains('/')) {
+            docId.substringBeforeLast('/')
+        } else {
+            treeDocId
+        }
+
+        val filenameSidecarName = "$displayName.xmp"
+        val stem = displayName.substringBeforeLast('.', displayName)
+        val stemSidecarName = "$stem.xmp"
+
+        var existingFilenameSidecarUri: Uri? = null
+        var existingStemSidecarUri: Uri? = null
+        val childrenUri = DocumentsContract.buildChildDocumentsUriUsingTree(imageUri, parentDocId)
+        runCatching {
+            context.contentResolver.query(
+                childrenUri,
+                arrayOf(
+                    DocumentsContract.Document.COLUMN_DOCUMENT_ID,
+                    DocumentsContract.Document.COLUMN_DISPLAY_NAME,
+                ),
+                null,
+                null,
+                null,
+            )?.use { cursor ->
+                val idIdx = cursor.getColumnIndex(DocumentsContract.Document.COLUMN_DOCUMENT_ID)
+                val nameIdx = cursor.getColumnIndex(DocumentsContract.Document.COLUMN_DISPLAY_NAME)
+                while (cursor.moveToNext()) {
+                    val childId = if (idIdx >= 0 && !cursor.isNull(idIdx)) cursor.getString(idIdx) else null
+                    val childName = if (nameIdx >= 0 && !cursor.isNull(nameIdx)) cursor.getString(nameIdx) else null
+                    if (childId != null && childName != null) {
+                        if (childName.equals(filenameSidecarName, ignoreCase = true)) {
+                            existingFilenameSidecarUri = DocumentsContract.buildDocumentUriUsingTree(imageUri, childId)
+                        } else if (childName.equals(stemSidecarName, ignoreCase = true)) {
+                            existingStemSidecarUri = DocumentsContract.buildDocumentUriUsingTree(imageUri, childId)
+                        }
+                    }
+                }
+            }
+        }
+
+        val targetSidecarUri = existingFilenameSidecarUri
+            ?: existingStemSidecarUri
+            ?: run {
+                val parentUri = DocumentsContract.buildDocumentUriUsingTree(imageUri, parentDocId)
+                try {
+                    DocumentsContract.createDocument(
+                        context.contentResolver,
+                        parentUri,
+                        "application/rdf+xml",
+                        filenameSidecarName,
+                    )
+                } catch (_: Exception) {
+                    DocumentsContract.createDocument(
+                        context.contentResolver,
+                        parentUri,
+                        "application/octet-stream",
+                        filenameSidecarName,
+                    )
+                } ?: throw IOException("Unable to create SAF sidecar document $filenameSidecarName in $parentUri")
+            }
+
+        val existingContent = if (existingFilenameSidecarUri != null || existingStemSidecarUri != null) {
+            runCatching {
+                context.contentResolver.openInputStream(targetSidecarUri)?.bufferedReader()?.use { it.readText() }
+            }.getOrNull()
+        } else {
+            null
+        }
+        val updatedContent = XmpSidecarWriter.injectOrUpdateRating(existingContent, rating)
+        val out = try {
+            context.contentResolver.openOutputStream(targetSidecarUri, "wt")
+        } catch (_: Exception) {
+            context.contentResolver.openOutputStream(targetSidecarUri, "w")
+        } ?: throw IOException("Unable to open output stream for SAF sidecar $targetSidecarUri")
+        out.bufferedWriter().use { it.write(updatedContent) }
+    }
 
     override suspend fun writeRating(imageFile: File, rating: Int): Result<Unit> =
         withContext(Dispatchers.IO) {
