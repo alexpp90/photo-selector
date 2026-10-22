@@ -122,3 +122,7 @@ for `«folder»`):
 | Move whose staged copies could not be removed (originals untouched) | `Move interrupted — copies of «name» stayed in «folder»/ and could not be removed; the original is untouched` |
 | Copy whose cleanup failed (stray copies in the folder) | `Copy interrupted — some copies of «name» stayed in «folder»/ and could not be removed` |
 | Partial companion bundle transfer | `Moved «succeeded» of «total» to «folder» («failed» failed)` / `Copied «succeeded» of «total» to «folder» («failed» failed)` |
+
+Product-specific compact forms are permitted where space or context demands it: Jackpix uses
+`Moved as «name»` / `Copied as «name»` on its phone snackbar (32-character budget), and Blitzlens
+includes the photo filename (`Moved «photo» to «folder»/ as «name»`) on its desktop status bar.

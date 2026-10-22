@@ -194,7 +194,7 @@ jobs:
       - name: Update GitHub Release
         uses: softprops/action-gh-release@v3
         with:
-          name: ${{ startsWith(github.ref, 'refs/tags/macos-desktop-v') && steps.release_meta.outputs.name || 'Nightly Build' }}
+          name: ${{ startsWith(github.ref, 'refs/tags/macos-desktop-v') && format('{0} {1}', steps.release_meta.outputs.name, steps.release_meta.outputs.version) || 'Nightly Build' }}
           tag_name: ${{ startsWith(github.ref, 'refs/tags/macos-desktop-v') && github.ref_name || 'nightly' }}
           body_path: ${{ startsWith(github.ref, 'refs/tags/macos-desktop-v') && format('{0}/release-notes.md', runner.temp) || '' }}
           prerelease: ${{ !startsWith(github.ref, 'refs/tags/macos-desktop-v') }}

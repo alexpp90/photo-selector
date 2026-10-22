@@ -24,11 +24,27 @@ class ViolationsTest(unittest.TestCase):
         found = cpp.violations(["scripts/verify_requirements_traceability.py"])
         self.assertEqual(len(found), 1)
 
+    def test_reviews_and_handover_are_denied(self):
+        found = cpp.violations([
+            "docs/reviews/CHANGE_REVIEW_2026-10-21.md",
+            "docs/reviews/audit-2026-10-21/summary.md",
+            "docs/handover/audit-2026-10-21/handoff.md",
+            "docs/handover/notes.txt",
+        ])
+        self.assertEqual(len(found), 4)
+        for f in found:
+            self.assertIn("maintainer reviews and handover material", f)
+
     def test_public_paths_pass(self):
         self.assertEqual(cpp.violations(["README.md", "docs/shared/FILE_OPERATIONS.md"]), [])
 
     def test_similar_names_are_not_denied(self):
-        self.assertEqual(cpp.violations(["docs/Claude outputs.md", "Claude outputs.md"]), [])
+        self.assertEqual(cpp.violations([
+            "docs/Claude outputs.md",
+            "Claude outputs.md",
+            "docs/reviews.md",
+            "docs/handover.md",
+        ]), [])
 
 
 class GitignoreTest(unittest.TestCase):

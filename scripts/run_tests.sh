@@ -528,7 +528,7 @@ fi
 if $run_linux; then
     section "Linux Desktop gates"
     if [ ! -d "$ROOT_DIR/products/linux-desktop" ]; then
-        skip "Linux Desktop gates" "linux.yml" "products/linux-desktop not yet created (planned for M3)" false
+        skip "Linux Desktop gates" "linux.yml" "products/linux-desktop not yet created" false
     else
         cd "$ROOT_DIR/products/linux-desktop" || exit 1
 
@@ -589,7 +589,7 @@ if $run_linux; then
             gate "debian packaging & apt repo (products/linux-desktop)" "linux.yml:package" \
                 bash ./scripts/package_debian.sh
         else
-            skip "debian packaging (linux-desktop)" "linux.yml:package" "packaging scripts not yet created (planned for M4)" false
+            skip "debian packaging (linux-desktop)" "linux.yml:package" "packaging scripts not yet created" false
         fi
     fi
 elif ! $explicit_product; then

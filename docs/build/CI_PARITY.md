@@ -48,7 +48,7 @@ The rule that prevents it:
 | APT publish | `linux.yml:publish-apt` | ❌ credentials-bound | On `linux-desktop-v*` tags only (never on a manual dispatch; `scripts/tests/test_workflow_bounds.py` enforces that for every publishing job), after `release.py verify-tag`: builds, signs (`APT_GPG_PRIVATE_KEY`) and pushes the repository to `alexpp90/apt` (GitHub Pages). |
 | Homebrew tap update | `desktop.yml:update-homebrew-taps`, `macos.yml:update-homebrew-taps` | ❌ credentials-bound | Writes formula/cask hashes and versions directly to `alexpp90/homebrew-tap` (`HOMEBREW_TAP_TOKEN`); the main repository holds no Formula/Casks. |
 | PyInstaller build, release, Play/Firebase publish | `desktop.yml:build`+, `android.yml:build`+, `macos.yml:build`, `linux.yml:github-release`, `linux.yml:publish-apt` | ❌ credentials-bound | Only runs on pushes to `main` / the product's own release tag (`phototok-v*`, `android-desktop-v*`, `macos-desktop-v*`, `linux-desktop-v*`, `desktop-v*` — see [RELEASING.md](RELEASING.md)). Not reproducible locally by design — except the macOS universal bundle, which `products/macos-desktop/scripts/build_app.sh release --universal` builds locally (arm64 + x86_64, verified with `lipo -archs`). Main pushes also move the `nightly` tag to the released commit before updating the Nightly Build release. |
-| `check_readme_parity.py --check` | `repo-hygiene.yml:hygiene` | ✅ everywhere | Enforces root `README.md` ecosystem completeness, canonical product ordering (Jackpix -> Frameduel -> Lensjet -> Blitzlens -> Desktop (legacy)), asset integrity, and removal of deprecated terms. |
+| `check_readme_parity.py --check` | `repo-hygiene.yml:hygiene` | ✅ everywhere | Enforces root `README.md` ecosystem completeness, canonical product ordering: Jackpix, Frameduel, Lensjet, Blitzlens, legacy Desktop, asset integrity, and removal of deprecated terms. |
 | `release.py verify-tag` | first step of every tag release job (`android.yml:build`, `desktop.yml:release`, `macos.yml:build`+`release`, `linux.yml:publish-apt`+`github-release`) | ✅ `python3 scripts/release.py verify-tag <tag>` | Fails the release before anything is built or published unless the tag's version equals every in-tree version source and the product's changelog has that section. Locally, `release.py tag` checks the same and additionally refuses a tree without a passing `run_tests.sh` record for the product's gates. |
 | `release.py check` | `repo-hygiene.yml:hygiene` | ✅ everywhere | Every product's version sources agree, it has a `CHANGELOG.md`, and its workflow triggers on its own tag prefix. `release.py`'s unit tests run in `scripts/tests` below. |
 | `check_private_paths.py` | `repo-hygiene.yml:hygiene` | ✅ everywhere | Fails if maintainer-private material (`private/`, `ai/`, `.claude/`, `.agents/`, `.gemini/`, requirement specs, prompts, the prompt ledger) is tracked in this public repository. Also runs as the local pre-commit hook installed by the overlay. |
@@ -334,8 +334,8 @@ satisfy five adversarial verification gates prior to delivery:
    cooperative task cancellation without memory leaks or state corruption.
 4. **Bidirectional Requirements Traceability**:
    `private/scripts/verify_requirements_traceability.py --check --strict` (maintainer overlay) validates that every
-   observable requirement identifier exists in product specifications, is mapped to automated
-   tests, and contains zero orphan test references.
+   requirement identifier in product specifications is well-formed and unique, contains zero
+   orphan or cross-product test references, and reports forward test coverage.
 5. **Pre-Delivery Intent Gate**:
    Lifecycle Stop hooks (`ai/hooks/check_retrospective.py` and `ai/hooks/verify_intent_delivery.py`)
    verify that tests were executed during the session and that all prompt directives from
