@@ -20,6 +20,7 @@ enum class GuideAnchor {
     SETTINGS,
     SOURCES,
     SELECTION,
+    SHARE,
     REVERT,
 
     /** Outline of the portrait top app bar. */
@@ -72,7 +73,7 @@ object PhoneModeChromeMetrics {
     val TOP_BAR_LOGO_SIZE = 36.dp
     val TOP_BAR_BUTTON_SIZE = 48.dp
 
-    val BOTTOM_BAR_HORIZONTAL_PADDING = 24.dp
+    val BOTTOM_BAR_HORIZONTAL_PADDING = 8.dp
     val BOTTOM_BAR_VERTICAL_PADDING = 6.dp
     val BOTTOM_BAR_BUTTON_WIDTH = 72.dp
     val BOTTOM_BAR_BUTTON_HEIGHT = 48.dp
@@ -81,9 +82,12 @@ object PhoneModeChromeMetrics {
     val RIGHT_PANEL_WIDTH = 125.dp
     val SIDE_PANEL_BUTTON_WIDTH = 64.dp
     val SIDE_PANEL_BUTTON_HEIGHT = 48.dp
-    val SIDE_PANEL_BUTTON_SPACING = 16.dp
+    // Five buttons (Sources, Selection, Share, Revert, Help) plus the logo must fit a ~360 dp tall
+    // landscape phone, hence the tight spacing.
+    val SIDE_PANEL_BUTTON_SPACING = 8.dp
     val LEFT_PANEL_LOGO_SIZE = 32.dp
-    val LEFT_PANEL_VERTICAL_PADDING = 16.dp
+    val LEFT_PANEL_VERTICAL_PADDING = 8.dp
+    val LEFT_PANEL_BOTTOM_SPACER = 8.dp
     val RIGHT_PANEL_PADDING = 12.dp
 
     /** Height of the portrait top bar below the status bar. */

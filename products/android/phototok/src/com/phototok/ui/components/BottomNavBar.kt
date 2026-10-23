@@ -15,6 +15,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.CollectionsBookmark
 import androidx.compose.material.icons.filled.FolderOpen
 import androidx.compose.material.icons.filled.RestoreFromTrash
+import androidx.compose.material.icons.filled.Share
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.runtime.Composable
@@ -38,15 +39,16 @@ import com.phototok.ui.phonemode.guideAnchor
  * control has a spoken `contentDescription`, a long-press tooltip with the same name and a
  * 72 × 48 dp target.
  *
- * Left   = Folder → go back to landing page.
- * Middle = Selection → jump to the read-only Selection-folder view.
- * Right  = Revert last deletion from trash (active only when [canRevert]).
+ * Order: Sources (back to the landing page), Selection (the read-only Favourites / Selection
+ * view), Share (the current photo, the same chooser as the long-press menu) and Revert (restore
+ * the last deletion from trash; active only when [canRevert]).
  */
 @Composable
 fun ViewerBottomBar(
     canRevert: Boolean,
     onRevert: () -> Unit,
     onJumpToSelection: () -> Unit,
+    onShare: () -> Unit,
     onGoToLanding: () -> Unit,
     modifier: Modifier = Modifier,
     /** Registers the bar and its buttons for the controls guide's callouts. */
@@ -87,6 +89,15 @@ fun ViewerBottomBar(
             enabled = true,
             onClick = onJumpToSelection,
             modifier = Modifier.guideAnchor(anchors, GuideAnchor.SELECTION).testTag("viewer_selection_button"),
+        )
+        // Share the current photo
+        ActionButton(
+            icon = Icons.Default.Share,
+            name = stringResource(R.string.cd_share),
+            isActive = false,
+            enabled = true,
+            onClick = onShare,
+            modifier = Modifier.guideAnchor(anchors, GuideAnchor.SHARE).testTag("viewer_share_button"),
         )
         // Right: Revert (restore pending deleted photo from trash)
         ActionButton(

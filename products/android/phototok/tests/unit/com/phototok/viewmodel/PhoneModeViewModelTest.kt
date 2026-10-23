@@ -1,13 +1,16 @@
 package com.phototok.viewmodel
 
 import android.net.Uri
+import com.photoselector.core.Requirement
 import com.phototok.R
 import com.phototok.data.model.ImageItem
 import com.phototok.data.source.FileOperationResult
 import com.phototok.data.model.PhoneSettings
+import com.phototok.data.model.SourceSettings
 import com.phototok.data.repository.ImageRepository
 import com.phototok.data.repository.SettingsRepository
 import com.phototok.domain.CollectionAction
+import com.phototok.domain.FeedOrderMode
 import com.phototok.domain.FirstRunHint
 import com.phototok.domain.FolderScanInfo
 import com.phototok.domain.PhotoFolders
@@ -803,14 +806,15 @@ class PhoneModeViewModelTest {
     }
 
     @Test
-    fun `reloadSourceFolder re-scans images and preserves current image position`() = runTest {
+    @Requirement("REQ-TOK-FEATURE.09")
+    fun `reloadSourceFolder re-scans images and lands on the latest photo`() = runTest {
         val img1 = image("photo1.jpg", 10)
         val img2 = image("photo2.jpg", 20)
         val img3 = image("photo3.jpg", 30)
         val viewModel = loadFolder(img1, img2, img3)
         viewModel.navigateToImage(1) // viewing img2
 
-        // Simulate reload returning updated list including a new photo
+        // Simulate reload returning updated list including an older photo
         val imgNew = image("photo0.jpg", 5)
         every { imageRepository.discoverImages(any()) } returns flowOf(listOf(imgNew, img1, img2, img3))
 
@@ -820,13 +824,14 @@ class PhoneModeViewModelTest {
         // Images are newest first: photo3 (30), photo2 (20), photo1 (10), photo0 (5)
         val names = viewModel.uiState.value.images.map { it.fileName }
         assertEquals(listOf("photo3.jpg", "photo2.jpg", "photo1.jpg", "photo0.jpg"), names)
-        // Current index should track img2 ("photo2.jpg"), which was at index 1 and still is
-        assertEquals(1, viewModel.uiState.value.currentIndex)
-        assertEquals(img2.uri, viewModel.uiState.value.images[viewModel.uiState.value.currentIndex].uri)
+        // Reload always goes to the latest photo, not back to the one that was on screen.
+        assertEquals(0, viewModel.uiState.value.currentIndex)
+        assertEquals(img3.uri, viewModel.uiState.value.images[viewModel.uiState.value.currentIndex].uri)
     }
 
     @Test
-    fun `reloadSourceFolder with new photos sets reloadPrompt and confirmReloadJumpToLatest navigates to new photos`() = runTest {
+    @Requirement("REQ-TOK-FEATURE.09")
+    fun `reloadSourceFolder with new photos goes straight to the newest without a dialog`() = runTest {
         val img1 = image("photo1.jpg", 10)
         val img2 = image("photo2.jpg", 20)
         val viewModel = loadFolder(img1, img2)
@@ -838,47 +843,23 @@ class PhoneModeViewModelTest {
         viewModel.reloadSourceFolder()
         advanceUntilIdle()
 
-        // Should preserve current photo (img1, now at index 2) while showing prompt
-        assertEquals(2, viewModel.uiState.value.currentIndex)
-        val prompt = viewModel.uiState.value.reloadPrompt
-        assertNotNull(prompt)
-        assertEquals(1, prompt?.newCount)
-        assertEquals(0, prompt?.firstNewIndex)
-
-        // Confirming jump to latest navigates to new photo
-        viewModel.confirmReloadJumpToLatest()
-        advanceUntilIdle()
-
+        assertNull("an explicit Reload never asks", viewModel.uiState.value.reloadPrompt)
         assertEquals(0, viewModel.uiState.value.currentIndex)
         assertEquals(imgNew.uri, viewModel.uiState.value.images[0].uri)
-        assertNull(viewModel.uiState.value.reloadPrompt)
-        coVerify { settingsRepository.setFolderScanInfo(any(), match { it.maxLastModified == 30L && it.fileCount == 3 }) }
+        // New photos are not a "nothing new" case: no snackbar.
+        assertNull(viewModel.uiState.value.lastActionFeedback)
+        // The scan info is persisted for the landing position.
+        coVerify {
+            settingsRepository.setFolderScanInfo(
+                any(),
+                match { it.maxLastModified == 30L && it.fileCount == 3 && it.lastViewedUri == imgNew.uri && it.lastViewedIndex == 0 },
+            )
+        }
     }
 
     @Test
-    fun `reloadSourceFolder with new photos and dismissReloadPrompt stays at current photo`() = runTest {
-        val img1 = image("photo1.jpg", 10)
-        val img2 = image("photo2.jpg", 20)
-        val viewModel = loadFolder(img1, img2)
-        viewModel.navigateToImage(1)
-
-        val imgNew = image("photo3.jpg", 30)
-        every { imageRepository.discoverImages(any()) } returns flowOf(listOf(img1, img2, imgNew))
-
-        viewModel.reloadSourceFolder()
-        advanceUntilIdle()
-
-        assertNotNull(viewModel.uiState.value.reloadPrompt)
-        viewModel.dismissReloadPrompt()
-        advanceUntilIdle()
-
-        // img1 (the photo being viewed) is now at index 2 behind the new photo
-        assertEquals(2, viewModel.uiState.value.currentIndex)
-        assertNull(viewModel.uiState.value.reloadPrompt)
-    }
-
-    @Test
-    fun `reloadSourceFolder with no new photos shows no prompt and confirms in a snackbar`() = runTest {
+    @Requirement("REQ-TOK-FEATURE.09")
+    fun `reloadSourceFolder with no new photos still goes to the latest and confirms in a snackbar`() = runTest {
         val img1 = image("photo1.jpg", 10)
         val img2 = image("photo2.jpg", 20)
         val viewModel = loadFolder(img1, img2)
@@ -889,11 +870,76 @@ class PhoneModeViewModelTest {
         viewModel.reloadSourceFolder()
         advanceUntilIdle()
 
-        // Nothing new means nothing to decide: no dialog, the viewed photo stays.
         assertNull(viewModel.uiState.value.reloadPrompt)
-        assertEquals(1, viewModel.uiState.value.currentIndex)
-        assertEquals(img1.uri, viewModel.uiState.value.images[1].uri)
+        assertEquals(0, viewModel.uiState.value.currentIndex)
+        assertEquals(img2.uri, viewModel.uiState.value.images[0].uri)
         assertEquals(UiText.of(R.string.snackbar_no_new_photos), viewModel.uiState.value.lastActionFeedback?.message)
+    }
+
+    @Test
+    @Requirement("REQ-TOK-FEATURE.09")
+    fun `reloadSourceFolder in shooting order lands on the last photo`() = runTest {
+        every { settingsRepository.sourceSettingsFlow(any()) } returns
+            flowOf(SourceSettings(feedOrderMode = FeedOrderMode.SHOOTING))
+        val img1 = image("photo1.jpg", 10)
+        val img2 = image("photo2.jpg", 20)
+        val viewModel = loadFolder(img1, img2)
+        assertEquals(listOf("photo1.jpg", "photo2.jpg"), viewModel.uiState.value.images.map { it.fileName })
+
+        val imgNew = image("photo3.jpg", 30)
+        every { imageRepository.discoverImages(any()) } returns flowOf(listOf(img1, img2, imgNew))
+        viewModel.navigateToImage(0)
+
+        viewModel.reloadSourceFolder()
+        advanceUntilIdle()
+
+        assertEquals(listOf("photo1.jpg", "photo2.jpg", "photo3.jpg"), viewModel.uiState.value.images.map { it.fileName })
+        assertEquals(2, viewModel.uiState.value.currentIndex)
+        assertNull(viewModel.uiState.value.reloadPrompt)
+    }
+
+    @Test
+    @Requirement("REQ-TOK-FEATURE.09")
+    fun `reloadSourceFolder keeps the place of a user who swiped while the rescan was running`() = runTest {
+        val img1 = image("photo1.jpg", 10)
+        val img2 = image("photo2.jpg", 20)
+        val img3 = image("photo3.jpg", 30)
+        val viewModel = loadFolder(img1, img2, img3)
+
+        val gate = CompletableDeferred<Unit>()
+        every { imageRepository.discoverImages(any()) } returns kotlinx.coroutines.flow.flow {
+            emit(listOf(img1, img2, img3))
+            gate.await()
+            emit(listOf(img1, img2, img3, image("photo4.jpg", 40)))
+        }
+        viewModel.reloadSourceFolder()
+        advanceUntilIdle()
+        assertTrue("the rescan is still running", viewModel.uiState.value.isDiscovering)
+        viewModel.navigateToImage(2) // the user takes over and looks at photo1
+        assertEquals(img1.uri, viewModel.uiState.value.images[2].uri)
+
+        gate.complete(Unit)
+        advanceUntilIdle()
+
+        val state = viewModel.uiState.value
+        assertFalse(state.isDiscovering)
+        assertNull(state.reloadPrompt)
+        assertEquals("the viewed photo stays on screen", img1.uri, state.images[state.currentIndex].uri)
+    }
+
+    @Test
+    @Requirement("REQ-TOK-FEATURE.09")
+    fun `reloadSourceFolder records the scan so a later reopen does not announce the photos it showed`() = runTest {
+        val img1 = image("photo1.jpg", 10)
+        val img2 = image("photo2.jpg", 20)
+        val viewModel = loadFolder(img1, img2)
+        val imgNew = image("photo3.jpg", 30)
+        every { imageRepository.discoverImages(any()) } returns flowOf(listOf(img1, img2, imgNew))
+        viewModel.reloadSourceFolder()
+        advanceUntilIdle()
+
+        // What Reload persisted is what a later reopen compares against.
+        coVerify { settingsRepository.setFolderScanInfo(any(), match { it.maxLastModified == 30L && it.fileCount == 3 }) }
     }
 
     @Test

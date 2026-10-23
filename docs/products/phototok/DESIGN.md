@@ -103,24 +103,24 @@ Box(Modifier.fillMaxSize()) {
 
 **File:** `ui/components/BottomNavBar.kt` (holds `ViewerBottomBar`; the unused three-tab `BottomNavBar` was removed).
 
-The viewer bottom bar (`ViewerBottomBar`) shows 3 persistent, **icon-only** controls (REQ-TOK-UX.02):
+The viewer bottom bar (`ViewerBottomBar`) shows 4 persistent, **icon-only** controls (REQ-TOK-UX.02):
 
 ```
-[FolderOpen]  [CollectionsBookmark]  [RestoreFromTrash]
- Change folder     Selection            Undo delete
+[FolderOpen]  [CollectionsBookmark]  [Share]       [RestoreFromTrash]
+ Change folder     Selection          Share photo     Undo delete
 ```
 
 (The names under the icons are the spoken `contentDescription` and the long-press tooltip; they are not drawn.)
 
-- Each control: a 24 dp icon in a 72 × 48 dp target, `contentDescription` from a `cd_` string, and a long-press tooltip (`NameTooltip`, Material3 `TooltipBox` + `PlainTooltip`) with the same name. The tooltip only listens for the long press, so taps are unaffected. Removing the micro-label did not shrink the target, so `PhoneModeChromeMetrics` and the controls-guide geometry are unchanged.
+- Each control: a 24 dp icon in a 72 × 48 dp target, `contentDescription` from a `cd_` string, and a long-press tooltip (`NameTooltip`, Material3 `TooltipBox` + `PlainTooltip`) with the same name. The tooltip only listens for the long press, so taps are unaffected. Removing the micro-label did not shrink the target. Share (`viewer_share_button`) calls the same path as the long-press menu (`buildCurrentShareIntent`). Four 72 dp buttons need 288 dp, so the bar padding is 8 dp (it fits a 320 dp phone), and the controls guide staggers the four bottom callouts onto two rows when their labels do not fit side by side (`ControlsGuideSolver.planBottom`).
 - Container: `surfaceContainerLowest.copy(alpha=0.8f)`, `RoundedCornerShape(topStart=12.dp, topEnd=12.dp)`
 - Active item: `primaryContainer` background, `onPrimaryContainer` icon (filled variant)
 - Inactive items: `secondary` tint; Revert uses `RestoreFromTrash` (trash bin with upward restore arrow) so it is visually distinct from the top-bar `Sync` Reload icon
-- Padding: 24 dp horizontal, 6 dp vertical, plus the navigation-bar inset
+- Padding: 8 dp horizontal, 6 dp vertical, plus the navigation-bar inset
 
 ### Top app bar
 
-The top app bar shows the Jackpix brand mark (`ic_brand_mark`, tinted `primary`) on the left, and four 48 dp **icon-only** action buttons on the right (`PhoneModeTopBar`): `Sync` (Reload folder), `HelpOutline` (Controls guide), `Info` (EXIF metadata toggle), and `Settings`; an SD/USB source adds `SdCard` (Done with this card) before them. Every button has a spoken name, a long-press tooltip with the same text and a 48 dp target. The status and navigation bars always draw light icons over the dark UI (also after a rotation; system light mode must not flip them). In landscape orientation, the left and right side panels render the same actions as icon-only `SidePanelButton` items (64 × 48 dp) and `TopBarIconButton`s; the micro-labels are withdrawn.
+The top app bar shows the Jackpix brand mark (`ic_brand_mark`, tinted `primary`) on the left, and four 48 dp **icon-only** action buttons on the right (`PhoneModeTopBar`): `Sync` (Reload folder), `HelpOutline` (Controls guide), `Info` (EXIF metadata toggle), and `Settings`; an SD/USB source adds `SdCard` (Done with this card) before them. Every button has a spoken name, a long-press tooltip with the same text and a 48 dp target. The status and navigation bars always draw light icons over the dark UI (also after a rotation; system light mode must not flip them). In landscape orientation, the left and right side panels render the same actions as icon-only `SidePanelButton` items (64 × 48 dp, 8 dp apart so Sources, Selection, Share, Revert and Help fit a 360 dp tall phone, `landscape_share_button` for Share) and `TopBarIconButton`s; the micro-labels are withdrawn.
 
 **Add to:** `PhoneModeScreen.kt` — fixed `Row` at `Alignment.TopStart` with statusBarsPadding.
 
@@ -456,11 +456,12 @@ fails the build on any finding. This section applies them to Jackpix.
 
 | Surface | Title | Body | Actions |
 |---|---|---|---|
-| Bottom bar | *icons only* | — | spoken/tooltip: "Change folder" · "Selection" · "Undo last delete" (DE "Ordner wechseln" · "Auswahl" · "Letztes Löschen rückgängig machen") |
+| Bottom bar | *icons only* | — | spoken/tooltip: "Change folder" · "Selection" · "Share photo" · "Undo last delete" (DE "Ordner wechseln" · "Auswahl" · "Foto teilen" · "Letztes Löschen rückgängig machen") |
 | Top bar | *icons only* | — | spoken/tooltip: "Done with this card" · "Reload folder" · "Show/Hide controls guide" · "Show or hide camera info" · "Settings" |
-| Controls guide | callouts: "Camera info" · "Card done" · "Reload" · "Help" · "Info" · "Settings" · "Change folder" · "Selection" · "Undo delete" · "Next" · "Previous" · "Hide overlays" · "Zoom" (DE "Kamera-Info" · "Karte fertig" · "Neu laden" · "Hilfe" · "Info" · "Einstellungen" · "Ordner" · "Auswahl" · "Rückgängig" · "Weiter" · "Zurück" · "Anzeigen aus" · "Zoom") | swipe captions: Copy / Move / Delete with the configured folder name beneath (★ Favourites when the source kind favourites) | dismiss: ✓ icon ("Got it" spoken) |
-| New photos on reload/reopen (`FolderResumeDialog`) | "1 new photo" / "N new photos" (DE "N neue Fotos") | — | **Show new** · Stay (DE **Neue zeigen** · Bleiben) |
-| No new photos | *no dialog* | — | explicit Reload only: snackbar "No new photos" |
+| Controls guide | callouts: "Camera info" · "Card done" · "Reload" · "Help" · "Info" · "Settings" · "Change folder" · "Selection" · "Share" · "Undo delete" · "Next" · "Previous" · "Hide overlays" · "Zoom" (DE "Kamera-Info" · "Karte fertig" · "Neu laden" · "Hilfe" · "Info" · "Einstellungen" · "Ordner" · "Auswahl" · "Teilen" · "Rückgängig" · "Weiter" · "Zurück" · "Anzeigen aus" · "Zoom") | swipe captions: Copy / Move / Delete with the configured folder name beneath (★ Favourites when the source kind favourites) | dismiss: ✓ icon ("Got it" spoken) |
+| Selection viewer (`SelectionViewerTabs`) | two tabs when both lists have photos: `Star` "Favourites 3" · `Folder` "Selection 12" (DE "Favoriten 3"; the second is the configured folder name); with one list a single non-clickable title in the same form | — | opens on the list the swipe-right verb fills (★ → Favourites, Copy/Move → Selection); icon actions: Copy favourites · Share all |
+| New photos on reopen (`FolderResumeDialog`) | "1 new photo" / "N new photos" (DE "N neue Fotos") | — | **Show new** · Stay (DE **Neue zeigen** · Bleiben) |
+| No new photos | *no dialog* | — | explicit Reload (which goes to the latest photo either way): snackbar "No new photos" |
 | RAW + JPEG pairs (`RawJpegSuggestionDialog`) | "RAW + JPEG pairs" | — | **Merge pairs** (subline "Swipes act on both files") · Link both · *Show only*: RAW · JPEG · Don't change (DE **Paare bündeln** · Beide verknüpfen · Nur zeigen: RAW · JPEG · Nicht ändern) |
 | Direct delete (`DirectDeleteDialog`) | "Delete permanently?" (DE "Endgültig löschen?") | "This location has no trash." + small "Turn off this prompt in Settings." (DE "In den Einstellungen abschaltbar.") | Cancel · **Delete** |
 | Hint: filter mismatch | "RAW only" / "JPEG only" | "Most photos here are JPEG." | Show all ✕ |

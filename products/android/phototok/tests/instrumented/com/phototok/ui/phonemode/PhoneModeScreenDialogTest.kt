@@ -292,6 +292,7 @@ class PhoneModeScreenDialogTest {
                     canRevert = false,
                     onRevert = {},
                     onJumpToSelection = {},
+                    onShare = {},
                     onGoToLanding = {},
                     modifier = Modifier.align(Alignment.BottomCenter),
                 )
