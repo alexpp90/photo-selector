@@ -82,16 +82,19 @@ def load_variants(run_dir: Path, others: list[Path] | None = None) -> dict[str, 
 def _rescore(run_dir: Path, walkthrough: dict[str, Any]) -> None:
     """Recompute the text load from each screen's saved UI tree, so runs captured with an older
     `textload.py` are judged by the current criterion."""
-    from .textload import analyse
+    from .textload import analyse, analyse_tree
 
     label = variant_of(walkthrough)
     locale = label.split("@")[0]
     density = int(walkthrough.get("device", {}).get("density") or 420)
     for sc in walkthrough["scenarios"]:
         for s in sc["screens"]:
-            xml = run_dir / sc["scenario"] / (Path(s["image"]).stem + ".xml")
+            stem = run_dir / sc["scenario"] / Path(s["image"]).stem
+            xml, tree = stem.with_suffix(".xml"), Path(f"{stem}.tree.json")
             if xml.is_file():
                 s["metrics"]["text_load"] = analyse(xml.read_text(encoding="utf-8"), density_dpi=density, locale=locale)
+            elif tree.is_file():  # a desktop screen
+                s["metrics"]["text_load"] = analyse_tree(json.loads(tree.read_text(encoding="utf-8")), locale=locale)
 
 
 # The lab names the desktop products by platform; the requirements traceability by product folder.

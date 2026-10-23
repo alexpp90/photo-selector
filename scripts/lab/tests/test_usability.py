@@ -2853,3 +2853,30 @@ class TestWalkLocale(unittest.TestCase):
         self.assertEqual(walk_locale("phototok", None), "en")
         self.assertEqual(walk_locale("phototok", "de-DE"), "de-DE")
         self.assertIsNone(walk_locale("android-desktop", None))
+
+
+class TestDesktopTextLoad(unittest.TestCase):
+    def test_desktop_buttons_are_measured_without_their_shortcut_hint(self) -> None:
+        """Desktop screens reported 0 control words: only Android dumps were analysed."""
+        tree = _tree_dict("linux", [
+            _tree_node("btn_move", text="Move to Selection (M)", bounds=[659, 1024, 197, 36]),
+            _tree_node("btn_undo", text="Undo (Ctrl+Z)", bounds=[1758, 1024, 138, 36]),
+            _tree_node("lbl", role="text", text="Photo 1 of 17", interactive=False, bounds=[900, 6, 120, 30]),
+        ], unit="px", w=1910, h=1070)
+        m = screen_metrics(tree)
+        tl = m["text_load"]
+        self.assertEqual([c["texts"] for c in tl["controls"]], [["Move to Selection"], ["Undo"]])
+        self.assertEqual(tl["wordy_controls"], 1)
+        self.assertEqual(tl["flagged"][0]["id"], "btn_move")
+        self.assertEqual(tl["verdict"], "over")
+
+
+class TestUseCaseScore(unittest.TestCase):
+    def test_many_minor_points_do_not_zero_a_use_case(self) -> None:
+        w = {"product": "linux", "scenarios": [{"scenario": "U", "use_case": "UC-4",
+                                                "screens": [{"name": f"s{i}"} for i in range(4)]}]}
+        minor = [{"what": "x", "severity": "minor", "kind": "look"}] * 6
+        answers = {"p": {"screens": [{"screen": f"U/s{i}", "verdict": "ok", "issues": minor} for i in range(4)]}}
+        fit = compute_use_case_fit(w, answers)["UC-4"]
+        self.assertEqual(fit["personas"]["p"]["score"], 0.5)
+        self.assertEqual(fit["personas"]["p"]["fit"], "mixed")

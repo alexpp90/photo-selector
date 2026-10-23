@@ -34,7 +34,12 @@ scenarios:
       - wait_ms: 1500
       - screen: burst-compared
         intent: Decide which shot of the burst is the sharpest
-        expected: Press M to move the best shot to Selection
+        expected: The first shot (previous, bottom left) scores highest; press Left (or H) to go back to it
+      - key: Left
+      - wait_ms: 1500
+      - screen: sharpest-active
+        intent: Keep this sharp shot
+        expected: Press M to move it to Selection
       - key: M
       - wait_ms: 1500
       - screen: after-keep

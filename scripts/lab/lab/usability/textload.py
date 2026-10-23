@@ -155,3 +155,69 @@ def analyse(xml_text: str, density_dpi: int = 420, locale: str = "en") -> dict[s
         + ([{"id": "(screen)", "texts": [f"{screen_words} words to read"], "flags": ["text-heavy"]}] if heavy else []),
         "verdict": "over" if flagged or heavy else "ok",
     }
+
+
+# A keyboard hint the control shows after its name, "Move to Trash (Del)", "Undo (Ctrl+Z)": the
+# engineering invariants ask for shortcut hints on buttons, so they are not words to read.
+_SHORTCUT_HINT = re.compile(r"\s*\((?:[A-Za-z]+\+)*[^()\s]{1,6}\)\s*$")
+
+
+def _without_hint(text: str) -> str:
+    return _SHORTCUT_HINT.sub("", text).strip()
+
+
+def analyse_tree(tree: dict[str, Any], locale: str = "en") -> dict[str, Any]:
+    """Per-control text facts for a desktop screen (the lab's normalised `tree.json`).
+
+    The same criterion as `analyse`: a control's visible words against the action budget, a
+    full-width control as a settings row, and the words on screen. Icons are not identified in
+    the desktop trees, so `labelled_icons` stays 0 there.
+    """
+    lang = _language(locale)
+    b = budgets()
+    nodes = [n for n in tree.get("nodes", []) if n.get("visible", True)]
+    win_w = float((tree.get("window") or {}).get("w") or 0)
+    controls: list[dict[str, Any]] = []
+    for n in nodes:
+        if not (n.get("interactive") or n.get("role") == "button"):
+            continue
+        text = _without_hint(str(n.get("text") or ""))
+        bounds = n.get("bounds") or [0, 0, 0, 0]  # x, y, w, h
+        is_row = win_w > 0 and float(bounds[2]) >= ROW_WIDTH_FRACTION * win_w
+        kind = "row" if is_row else "button"
+        n_words, n_chars = words(text), len(text)
+        if kind == "row":
+            max_words = b["setting_title"]["words"] + b["setting_summary"]["words"]
+            max_chars = b["setting_title"][lang] + b["setting_summary"][lang]
+        else:
+            max_words, max_chars = b["action"]["words"], b["action"][lang]
+        flags = ["wordy"] if text and (n_words > max_words or n_chars > max_chars) else []
+        if text and kind == "button" and re.search(r"[.!?]\s*$", text):
+            flags.append("sentence")
+        controls.append({"id": str(n.get("id", "")), "desc": str(n.get("name") or ""), "kind": kind,
+                         "texts": [text] if text else [], "words": n_words, "chars": n_chars, "icon": False,
+                         "budget_words": max_words, "flags": flags})
+    blocks, seen = [], set()
+    for n in nodes:
+        text = str(n.get("text") or "").strip()
+        key = (text, tuple(n.get("bounds") or ()))
+        if text and key not in seen:
+            seen.add(key)
+            blocks.append(words(_without_hint(text)))
+    screen_words = sum(blocks)
+    heavy = screen_words > SCREEN_WORDS or max(blocks, default=0) > BLOCK_WORDS
+    flagged = [c for c in controls if c["flags"]]
+    return {
+        "locale": locale,
+        "controls": controls,
+        "controls_with_text": sum(1 for c in controls if c["texts"]),
+        "control_words": sum(c["words"] for c in controls),
+        "max_control_words": max((c["words"] for c in controls), default=0),
+        "labelled_icons": 0,
+        "wordy_controls": sum(1 for c in controls if "wordy" in c["flags"]),
+        "screen_words": screen_words,
+        "text_heavy": heavy,
+        "flagged": [{"id": c["id"] or c["desc"], "texts": c["texts"], "flags": c["flags"]} for c in flagged]
+        + ([{"id": "(screen)", "texts": [f"{screen_words} words to read"], "flags": ["text-heavy"]}] if heavy else []),
+        "verdict": "over" if flagged or heavy else "ok",
+    }

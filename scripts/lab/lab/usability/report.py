@@ -255,13 +255,17 @@ def compute_use_case_fit(
 
             total_v = sum(v_counts.values())
             raw_ratio = (v_counts["good"] * 2 + v_counts["ok"]) / (2 * total_v) if total_v > 0 else 0.5
-            penalty = (blockers * 0.25) + (majors * 0.10)
-            score = max(0.0, min(1.0, round(raw_ratio - penalty, 2)))
+            # Shares of screens, not issue counts: a persona that lists five minor points on every
+            # screen used to drive every use case to 0 % ("poor" beside a moderator's "mixed").
+            sev = [{i.get("severity") for i in (r.get("issues") or [])} for r in reviewed]
+            blocker_share = sum("blocker" in s for s in sev) / len(reviewed)
+            major_share = sum("major" in s and "blocker" not in s for s in sev) / len(reviewed)
+            score = max(0.0, min(1.0, round(raw_ratio - 0.5 * blocker_share - 0.2 * major_share, 2)))
             numeric_scores.append(score)
 
-            if blockers > 0 or score < 0.40:
+            if blocker_share > 0.25 or score < 0.35:
                 p_fit = "poor"
-            elif score >= 0.75 and majors == 0:
+            elif score >= 0.7 and blocker_share == 0:
                 p_fit = "good"
             else:
                 p_fit = "mixed"
@@ -321,7 +325,10 @@ def use_case_fits(
     merged = []
     for u in decisions["use_case_fit"]:
         base = computed.get(u.get("use_case")) or {}
-        merged.append({**base, **u, "screens": u.get("screens") or base.get("screens", [])})
+        # The moderator's verdict stands alone: a computed score next to it would contradict it.
+        merged.append({"use_case": u.get("use_case"), "title": base.get("title") or u.get("title", ""),
+                       "screens": u.get("screens") or base.get("screens", []), "score": u.get("score"),
+                       "persona_scores": u.get("persona_scores") or {}, **{k: v for k, v in u.items() if k not in ("screens",)}})
     return merged
 
 
@@ -491,6 +498,10 @@ def _fit_for(persona_id: str, fits: list[dict[str, Any]]) -> dict[str, Any]:
     return {}
 
 
+def _pct(score: Any) -> str:
+    return f" ({float(score):.0%})" if isinstance(score, (int, float)) else ""
+
+
 def _e(value: Any) -> str:
     return html.escape(str(value))
 
@@ -571,12 +582,12 @@ def render_html(
         for u in uc_fits:
             fit_cls = _FIT_CLASS.get(u.get("fit"), "ok")
             p_chips = "".join(
-                f"<span class='uc-chip {ps.get('fit', 'ok')}'>{_e(pid)}: {ps.get('score', 0):.0%}</span>"
+                f"<span class='uc-chip {ps.get('fit', 'ok')}'>{_e(pid)}{_pct(ps.get('score'))}</span>"
                 for pid, ps in (u.get("persona_scores") or {}).items()
             )
             parts.append(
                 f"<div class='card'><b>{_e(u.get('use_case'))}: {_e(u.get('title'))}</b> "
-                f"<span class='pill {fit_cls}'>{_e(u.get('fit', '?'))} ({u.get('score', 0):.0%})</span>"
+                f"<span class='pill {fit_cls}'>{_e(u.get('fit', '?'))}{_pct(u.get('score'))}</span>"
                 f"<p class='muted'>{len(u.get('screens', []))} screens · {_e(u.get('summary', ''))}</p>"
                 f"<div>{p_chips}</div></div>"
             )
@@ -730,7 +741,7 @@ def render_markdown(
         out += ["## Use-case fit (UC-* flows)", "", "| Use Case | Title | Fit | Score | Screens | Persona Breakdown |", "|---|---|:---:|:---:|:---:|---|"]
         for u in uc_fits:
             breakdown = ", ".join(f"{pid}: {ps.get('fit', '?')}" for pid, ps in (u.get("persona_scores") or {}).items())
-            out.append(f"| {u.get('use_case')} | {u.get('title')} | {u.get('fit')} | {u.get('score', 0):.0%} | {len(u.get('screens', []))} | {breakdown} |")
+            out.append(f"| {u.get('use_case')} | {u.get('title')} | {u.get('fit')} | {_pct(u.get('score')).strip(' ()') or '—'} | {len(u.get('screens', []))} | {breakdown or u.get('summary', '')} |")
         out.append("")
 
     # 2. Trade-offs

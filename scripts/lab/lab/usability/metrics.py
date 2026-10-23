@@ -13,7 +13,7 @@ from pathlib import Path
 from typing import Any
 
 from ..model import Node, Tree
-from .textload import analyse
+from .textload import analyse, analyse_tree
 
 # On-screen reading of UI copy, not prose: ~210 words per minute.
 WORDS_PER_SECOND = 3.5
@@ -150,7 +150,14 @@ def tree_metrics(tree: Tree | dict[str, Any], min_target: float | None = None) -
         "unlabeled_controls": unlabeled,
         "text_heavy": words > TEXT_HEAVY_WORDS or longest > LONG_BLOCK_WORDS,
         "control_density": control_density,
+        "text_load": analyse_tree(tree if isinstance(tree, dict) else _tree_dict(normalized)),
     }
+
+
+def _tree_dict(tree: Tree) -> dict[str, Any]:
+    return {"window": dict(tree.window), "nodes": [
+        {"id": n.id, "role": n.role, "name": n.name, "text": n.text, "interactive": n.interactive,
+         "visible": n.visible, "bounds": [n.x, n.y, n.w, n.h]} for n in tree.nodes]}  # x, y, w, h
 
 
 def _xml_metrics(
