@@ -2449,7 +2449,15 @@ class TestLocaleAndFontScale(unittest.TestCase):
         self.assertFalse(cap._restore_file("FAKE").exists())
         puts = [c for c in adb.cmds if c[:4] == ("shell", "settings", "put", "system") and c[4] == "font_scale"]
         self.assertEqual([c[5] for c in puts], ["2", "1.0"])
-        self.assertEqual(adb.cmds[-1], ("shell", "cmd", "locale", "set-app-locales", "com.phototok.lab", "--locales", ""))
+        reset = ("shell", "cmd", "locale", "set-app-locales", "com.phototok.lab", "--locales", "")
+        self.assertIn(reset, adb.cmds[-6:])
+        # Quiet while walking: no notification and no notification icon in a screenshot; then put back.
+        self.assertIn(("shell", "cmd", "notification", "set_dnd", "on"), adb.cmds)
+        demo = [c for c in adb.cmds if c[:4] == ("shell", "am", "broadcast", "-a")]
+        self.assertIn(("shell", "am", "broadcast", "-a", "com.android.systemui.demo", "-e", "command", "notifications",
+                       "-e", "visible", "false"), demo)
+        self.assertEqual(demo[-1][-1], "exit")
+        self.assertEqual(adb.cmds[-1], ("shell", "cmd", "notification", "set_dnd", "off"))
 
 
 class TestTapsAvoidTheNavigationBar(unittest.TestCase):

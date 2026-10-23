@@ -141,7 +141,26 @@ def _restore_file(serial: str) -> Path:
 
 
 _SAVED = (("font_scale", "system", "font_scale"), ("user_rotation", "system", "user_rotation"),
-          ("accelerometer_rotation", "system", "accelerometer_rotation"))
+          ("accelerometer_rotation", "system", "accelerometer_rotation"), ("zen_mode", "global", "zen_mode"),
+          ("sysui_demo_allowed", "global", "sysui_demo_allowed"))
+
+_DEMO = "com.android.systemui.demo"
+
+
+def _demo_status_bar(client: AdbClient, on: bool) -> None:
+    """System UI demo mode: a fixed clock, full battery and no notification icons.
+
+    The screenshots go to the persona and moderator models; the status bar of a lab phone showed
+    the icons of the messaging apps installed on it (Pixel 4a, 2026-10-24).
+    """
+    if not on:
+        client.run("shell", "am", "broadcast", "-a", _DEMO, "-e", "command", "exit")
+        return
+    client.run("shell", "settings", "put", "global", "sysui_demo_allowed", "1")
+    for extra in (["-e", "command", "enter"], ["-e", "command", "clock", "-e", "hhmm", "1200"],
+                  ["-e", "command", "battery", "-e", "level", "100", "-e", "plugged", "false"],
+                  ["-e", "command", "notifications", "-e", "visible", "false"]):
+        client.run("shell", "am", "broadcast", "-a", _DEMO, *extra)
 
 
 def _original_settings(client: AdbClient, serial: str) -> dict[str, str]:
@@ -168,13 +187,13 @@ def _original_font_scale(client: AdbClient, serial: str) -> str:
 
 
 def _restore(client: AdbClient, app_id: str, saved: dict[str, str], *, font: bool, rotation: bool,
-             reset_locale: bool) -> bool:
+             reset_locale: bool, quiet: bool = False) -> bool:
     """Put back what the walk changed; a device that dropped off USB must not hide the walk's
     own error, so a failed restore is reported, not raised."""
     import sys
 
-    def put(name: str, value: str, default: str) -> None:
-        client.run("shell", "settings", "put", "system", name, value if value not in ("", "null") else default)
+    def put(name: str, value: str, default: str, ns: str = "system") -> None:
+        client.run("shell", "settings", "put", ns, name, value if value not in ("", "null") else default)
 
     steps = []
     if font:
@@ -184,6 +203,12 @@ def _restore(client: AdbClient, app_id: str, saved: dict[str, str], *, font: boo
                                            put("accelerometer_rotation", saved.get("accelerometer_rotation", ""), "1"))))
     if reset_locale:
         steps.append(("app language", lambda: set_app_locale(client, app_id, None)))
+    if quiet:
+        from ..android.configs import ZEN_TO_DND, set_dnd
+
+        steps.append(("status bar", lambda: (_demo_status_bar(client, False),
+                                             put("sysui_demo_allowed", saved.get("sysui_demo_allowed", ""), "0", "global"))))
+        steps.append(("Do Not Disturb", lambda: set_dnd(client, ZEN_TO_DND.get(saved.get("zen_mode", "0"), "off"))))
     ok = True
     for what, step in steps:
         try:
@@ -286,10 +311,15 @@ def android_session(client: AdbClient, spec: dict[str, Any], product: str, *, lo
                 set_verified_rotation(client, str(orientation))
             if spec.get("fixture"):
                 push_fixture(client, master_roll(), str(spec["fixture"]["remote"]))
+            # No notification arrives mid-walk, and none shows in a screenshot.
+            from ..android.configs import set_dnd
+
+            set_dnd(client, "on")
+            _demo_status_bar(client, True)
             yield
         finally:
             if _restore(client, app_id, saved, font=font_scale is not None, rotation=bool(orientation),
-                        reset_locale=bool(locale)):
+                        reset_locale=bool(locale), quiet=True):
                 _restore_file(client.serial).unlink(missing_ok=True)
 
 
