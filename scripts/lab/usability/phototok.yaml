@@ -19,6 +19,7 @@ scenarios:
   - id: U-TOK-01
     title: First launch — get the trip photos on screen
     goal: You just installed Jackpix. The photos of last week's trip are in the folder PSTLab/usability-trip on this phone. Get them on screen.
+    use_case: "UC-1, UC-3"
     steps:
       - launch: {clear: true}
       - screen: landing
@@ -57,6 +58,7 @@ scenarios:
   - id: U-TOK-02
     title: Tidy up — delete a miss, regret it, keep a gem
     goal: Go through the trip photos. Get rid of the bad ones, keep the good ones. You are on the train, one hand free.
+    use_case: "UC-1"
     steps:
       - swipe: up
       - screen: blurred-photo
@@ -88,6 +90,7 @@ scenarios:
   - id: U-TOK-03
     title: Look closer — when was it taken, is it sharp?
     goal: Find out when this photo was taken and with what settings, then check whether it is sharp.
+    use_case: "UC-1, UC-2"
     steps:
       - optional_tap: {id: first_run_hint_dismiss, label: GOT IT}
       - screen: photo-before-info
@@ -106,6 +109,7 @@ scenarios:
   - id: U-TOK-04
     title: Review the keepers, look at the settings
     goal: See the photos you kept so far. Then check whether the app can do anything you would want to change.
+    use_case: "UC-1, UC-7"
     steps:
       - screen: feed-before-selection
         intent: See the photos I kept
@@ -147,6 +151,7 @@ scenarios:
   - id: U-TOK-05
     title: Interrupted — a message arrives, come back
     goal: Leave the app to answer a message, then come back and continue where you were.
+    use_case: "UC-1"
     steps:
       - tap: {id: landing_start_browsing_button, label: the resume button, scroll: true}
       - optional_tap: {text: [Stay, Bleiben], label: Stay}

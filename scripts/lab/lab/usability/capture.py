@@ -12,7 +12,19 @@ import yaml
 
 from ..android.adb import AdbClient
 from ..paths import ensure_under, lab_tmp_root, repo_root
-from .driver import ScenarioDriver, check_device_free, device_lock, push_fixture, set_app_locale
+from .driver import (
+    BaseDriver,
+    ScenarioDriver,
+    check_device_free,
+    device_lock,
+    get_driver,
+    push_fixture,
+    set_app_locale,
+)
+
+ANDROID_PRODUCTS = {"phototok", "android-desktop"}
+DESKTOP_PRODUCTS = {"macos", "linux"}
+SUPPORTED_PRODUCTS = ANDROID_PRODUCTS | DESKTOP_PRODUCTS
 
 
 def scenario_file(product: str, root: Path | None = None) -> Path:
@@ -26,31 +38,73 @@ def load_scenarios(product: str, root: Path | None = None) -> dict[str, Any]:
     return data
 
 
-def _prepare_fixture(adb: AdbClient, spec: dict[str, Any]) -> None:
-    from .scenes import generate_roll  # needs real Pillow; imported only when a device run starts
+def _prepare_fixture(product: str, spec: dict[str, Any], adb: AdbClient | None = None) -> Path:
+    from .scenes import generate_roll  # needs real Pillow; imported only when a fixture run starts
 
-    local = lab_tmp_root() / "usability" / Path(str(spec["remote"])).name
-    ensure_under(local, lab_tmp_root())
-    if not local.is_dir() or not any(local.iterdir()):
-        generate_roll(local)
-    push_fixture(adb, local, str(spec["remote"]))
+    remote_spec = str(spec.get("remote", "/tmp/pstlab/usability-trip"))
+    if product in ANDROID_PRODUCTS:
+        local = lab_tmp_root() / "usability" / Path(remote_spec).name
+        ensure_under(local, lab_tmp_root())
+        if not local.is_dir() or not any(local.iterdir()):
+            generate_roll(local)
+        if adb is not None:
+            push_fixture(adb, local, remote_spec)
+        return local
+    else:
+        local = Path(remote_spec)
+        ensure_under(local, lab_tmp_root())
+        local.mkdir(parents=True, exist_ok=True)
+        if not any(local.iterdir()):
+            generate_roll(local)
+        return local
 
 
-def _device_facts(adb: AdbClient, app_id: str = "") -> dict[str, Any]:
-    def prop(name: str) -> str:
-        return adb.run("shell", "getprop", name).strip()
+def _device_facts(
+    product: str, adb: AdbClient | None = None, driver_type: str = "auto", app_id: str = ""
+) -> dict[str, Any]:
+    if driver_type == "mock":
+        return {
+            "platform": product,
+            "mock": True,
+            "size": "1440x900" if product in DESKTOP_PRODUCTS else "1080x1920",
+        }
+    if product in ANDROID_PRODUCTS and adb is not None:
+        def prop(name: str) -> str:
+            return adb.run("shell", "getprop", name).strip()
 
-    return {
-        "serial": adb.serial,
-        "model": prop("ro.product.model"),
-        "android": prop("ro.build.version.release"),
-        "sdk": prop("ro.build.version.sdk"),
-        "size": adb.run("shell", "wm", "size").strip().split(":")[-1].strip(),
-        "density": adb.density(),
-        "font_scale": adb.run("shell", "settings", "get", "system", "font_scale").strip(),
-        "system_locale": prop("persist.sys.locale") or prop("ro.product.locale"),
-        "app_locale": _app_locale(adb, app_id) if app_id else "",
-    }
+        return {
+            "platform": "android",
+            "serial": adb.serial,
+            "model": prop("ro.product.model"),
+            "android": prop("ro.build.version.release"),
+            "sdk": prop("ro.build.version.sdk"),
+            "size": adb.run("shell", "wm", "size").strip().split(":")[-1].strip(),
+            "density": adb.density(),
+            "font_scale": adb.run("shell", "settings", "get", "system", "font_scale").strip(),
+            "system_locale": prop("persist.sys.locale") or prop("ro.product.locale"),
+            "app_locale": _app_locale(adb, app_id) if app_id else "",
+        }
+    if product == "macos":
+        import platform
+
+        return {
+            "platform": "macos",
+            "os": f"macOS {platform.mac_ver()[0]}",
+            "arch": platform.machine(),
+            "size": "1440x900",
+            "scale": 2.0,
+        }
+    if product == "linux":
+        import platform
+
+        return {
+            "platform": "linux",
+            "os": f"{platform.system()} {platform.release()}",
+            "arch": platform.machine(),
+            "size": "1280x800",
+            "scale": 1.0,
+        }
+    return {"platform": product}
 
 
 def _app_locale(adb: AdbClient, app_id: str) -> str:
@@ -107,52 +161,102 @@ def variant_label(locale: str | None, font_scale: float | None) -> str:
 
 def run_capture(
     product: str,
-    serial: str,
-    out_dir: Path,
+    serial: str | None = None,
+    out_dir: Path | str = ...,
     *,
     only: list[str] | None = None,
     adb: AdbClient | None = None,
     locale: str | None = None,
     font_scale: float | None = None,
+    driver: BaseDriver | None = None,
+    driver_type: str = "auto",
+    exec_fn: Any | None = None,
 ) -> dict[str, Any]:
     """Execute every scenario (or `only`) in order; returns and writes `walkthrough.json`.
 
     `locale` sets the app's own language (`cmd locale set-app-locales`, so the system picker keeps
-    the device language); `font_scale` sets the system font scale. Both are restored afterwards.
+    the device language); `font_scale` sets the system font scale. Both are restored afterwards
+    and only apply to a live Android walk.
     """
+    if product not in SUPPORTED_PRODUCTS:
+        raise ValueError(f"unsupported product '{product}'; choices are {sorted(SUPPORTED_PRODUCTS)}")
+
     spec = load_scenarios(product)
-    client = adb or AdbClient(serial=serial)
     app_id = str(spec["app_id"])
-    with device_lock(serial, f"lab usability-capture {product}"):
-        check_device_free(client, app_id)
-        old_scale = _original_font_scale(client, serial)
-        try:
-            if font_scale is not None:
-                client.run("shell", "settings", "put", "system", "font_scale", f"{font_scale:g}")
-            if locale:
-                set_app_locale(client, app_id, locale)
-            walkthrough = _capture_locked(spec, product, client, out_dir, only, locale)
-            walkthrough["variant"] = variant_label(locale, font_scale)
-            (out_dir / "walkthrough.json").write_text(json.dumps(walkthrough, indent=2), encoding="utf-8")
-            return walkthrough
-        finally:
-            if _restore(client, app_id, old_scale if font_scale is not None else None, bool(locale)):
-                _restore_file(serial).unlink(missing_ok=True)
+    out = Path(out_dir)
+    out.mkdir(parents=True, exist_ok=True)
+
+    client = None
+    if product in ANDROID_PRODUCTS and driver_type != "mock" and driver is None:
+        if not serial and not adb:
+            raise ValueError(f"serial is required for Android product '{product}' on device")
+        client = adb or AdbClient(serial=str(serial))
+
+    if client is not None:
+        with device_lock(client.serial, f"lab usability-capture {product}"):
+            check_device_free(client, app_id)
+            old_scale = _original_font_scale(client, client.serial)
+            try:
+                if font_scale is not None:
+                    client.run("shell", "settings", "put", "system", "font_scale", f"{font_scale:g}")
+                if locale:
+                    set_app_locale(client, app_id, locale)
+                # Portrait, locked: a phone walkthrough the reviewers can compare screen by screen.
+                client.run("shell", "settings", "put", "system", "accelerometer_rotation", "0")
+                client.run("shell", "settings", "put", "system", "user_rotation", "0")
+                fixture_spec = spec.get("fixture", {})
+                fixture_path = _prepare_fixture(product, fixture_spec, adb=client) if fixture_spec else None
+                active_driver = get_driver(
+                    product,
+                    app_id,
+                    out,
+                    serial=serial,
+                    adb=client,
+                    fixture_dir=fixture_path,
+                    driver_type=driver_type,
+                    exec_fn=exec_fn,
+                    app_locale=locale,
+                )
+                walkthrough = _execute_scenarios(spec, product, active_driver, out, only, client, driver_type)
+                walkthrough["variant"] = variant_label(locale, font_scale)
+                (out / "walkthrough.json").write_text(json.dumps(walkthrough, indent=2), encoding="utf-8")
+                return walkthrough
+            finally:
+                if _restore(client, app_id, old_scale if font_scale is not None else None, bool(locale)):
+                    _restore_file(client.serial).unlink(missing_ok=True)
+
+    fixture_spec = spec.get("fixture", {})
+    fixture_path = _prepare_fixture(product, fixture_spec) if fixture_spec else None
+    if driver is not None:
+        active_driver = driver
+    else:
+        active_driver = get_driver(
+            product,
+            app_id,
+            out,
+            serial=serial,
+            adb=adb,
+            fixture_dir=fixture_path,
+            driver_type=driver_type,
+            exec_fn=exec_fn,
+            app_locale=locale,
+        )
+    walkthrough = _execute_scenarios(spec, product, active_driver, out, only, adb, driver_type)
+    walkthrough["variant"] = variant_label(locale, font_scale)
+    (out / "walkthrough.json").write_text(json.dumps(walkthrough, indent=2), encoding="utf-8")
+    return walkthrough
 
 
-def _capture_locked(
-    spec: dict[str, Any], product: str, client: AdbClient, out_dir: Path, only: list[str] | None,
-    locale: str | None = None,
+def _execute_scenarios(
+    spec: dict[str, Any],
+    product: str,
+    driver: BaseDriver,
+    out_dir: Path,
+    only: list[str] | None,
+    client: AdbClient | None,
+    driver_type: str,
 ) -> dict[str, Any]:
     out_dir.mkdir(parents=True, exist_ok=True)
-
-    # Portrait, locked: a phone walkthrough the reviewers can compare screen by screen.
-    client.run("shell", "settings", "put", "system", "accelerometer_rotation", "0")
-    client.run("shell", "settings", "put", "system", "user_rotation", "0")
-    if spec.get("fixture", {}).get("kind") == "scenes":
-        _prepare_fixture(client, spec["fixture"])
-
-    driver = ScenarioDriver(client, str(spec["app_id"]), out_dir, app_locale=locale)
     results: list[dict[str, Any]] = []
     started = time.monotonic()
     for scenario in spec["scenarios"]:
@@ -169,7 +273,7 @@ def _capture_locked(
         "product": product,
         "captured_at": datetime.now(timezone.utc).isoformat(timespec="seconds"),
         "duration_s": round(time.monotonic() - started, 1),
-        "device": _device_facts(client, str(spec["app_id"])),
+        "device": _device_facts(product, adb=client, driver_type=driver_type, app_id=str(spec["app_id"])),
         "scenarios": results,
     }
     (out_dir / "walkthrough.json").write_text(json.dumps(walkthrough, indent=2), encoding="utf-8")

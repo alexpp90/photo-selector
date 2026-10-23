@@ -209,8 +209,209 @@ def render_walkthrough_md(walkthrough: dict[str, Any], image_dir: str = "images"
     return "\n".join(lines)
 
 
+def render_screen_packet_md(
+    screen_info: dict[str, Any],
+    persona_id: str | None = None,
+    persona_text: str | None = None,
+    image_dir: str = "images",
+) -> str:
+    """Render a strictly isolated evaluation prompt for a single screen."""
+    lines: list[str] = []
+
+    # 1. Persona Identity & Setup
+    if persona_text:
+        setup_line = ""
+        for raw_line in persona_text.splitlines():
+            if raw_line.strip().startswith("<!-- setup:"):
+                setup_line = raw_line.strip()
+                break
+        if setup_line:
+            lines.append(setup_line)
+        lines += [
+            f"# Screen Evaluation — {screen_info['screen_key']}",
+            "",
+            "## Your Persona",
+            persona_text.strip(),
+            "",
+        ]
+    else:
+        lines += [
+            f"# Screen Evaluation — {screen_info['screen_key']}",
+            "",
+        ]
+
+    # 2. Scenario Goal
+    lines += [
+        "## Scenario Goal",
+        f"**Goal:** {screen_info['scenario_goal']}",
+        "",
+    ]
+
+    # 3. Transition Context (Previous Screen -> Action Just Taken -> Current Screen)
+    lines.append("## Transition Context")
+    if screen_info.get("previous_screen"):
+        prev_img = screen_info.get("previous_image", "")
+        lines.append(f"- **Previous Screen:** `{screen_info['previous_screen']}`" + (f" (`{prev_img}`)" if prev_img else ""))
+        actions = "; ".join(screen_info.get("actions_before", [])) or "None (screen refreshed)"
+        lines.append(f"- **You Just Did:** {actions}")
+        lines.append("- **Transition:** You just took the action above, and the interface transitioned to the screen below.")
+    else:
+        lines.append("- **Initial Screen:** This is the initial screen upon launching the task.")
+        if screen_info.get("actions_before"):
+            lines.append(f"- **Launch Actions:** {'; '.join(screen_info['actions_before'])}")
+    lines.append("")
+
+    # 4. Current State (Screen N)
+    lines.append("## Current Screen")
+    lines.append(f"- **Screenshot:** `{screen_info['image_path']}`")
+    if screen_info.get("system_screen"):
+        lines.append("- **System Screen Notice:** This is an OS system dialog/picker, not the app's own interface.")
+    lines.append(f"- **You Want To:** {screen_info['intent']}")
+    lines.append("")
+
+    # 5. Visual/UX Rubrics & Instructions
+    lines += [
+        "## Evaluation Instructions",
+        f"Examine ONLY the current screenshot (`{screen_info['image_path']}`).",
+        "You do NOT know what happens next. You have NOT seen subsequent screens.",
+        "",
+        "Evaluate the screen against these human UX rubrics:",
+        "- **Visual Hierarchy:** What visual element or text catches your eye first? Is the primary action obvious?",
+        "- **Affordance Clarity:** Are buttons, cards, and interactive gestures obvious, or do controls look like flat decorations?",
+        "- **File-Safety Trust:** Does this interface reassure you that your photos and files are protected from accidental loss or corruption?",
+        "- **Feedback Visibility:** If an action was just taken, is the system state clearly visible and confirmed?",
+        "",
+        "Respond ONLY with a JSON object conforming to the schema below:",
+        "```json",
+        "{",
+        f'  "screen": "{screen_info["screen_key"]}",',
+        '  "first_impression": "<what you think this screen is, <= 20 words>",',
+        '  "would_do": "<what you would do now to reach \'You want to\'. Decide from this screenshot alone>",',
+        '  "read_text": "<all | some | none>",',
+        '  "verdict": "<good | ok | bad>",',
+        '  "issues": [',
+        '    {',
+        '      "what": "<description of issue>",',
+        '      "severity": "<blocker | major | minor>",',
+        '      "kind": "<understanding | discoverability | too-much-text | trust | effort | feedback | look>"',
+        '    }',
+        '  ],',
+        '  "liked": ["<things that worked well>"]',
+        "}",
+        "```",
+    ]
+
+    return "\n".join(lines) + "\n"
+
+
+def build_blind_packets(
+    walkthrough: dict[str, Any],
+    out_dir: Path,
+    personas: dict[str, str] | None = None,
+    image_dir: str = "images",
+) -> list[dict[str, Any]]:
+    """Build strictly isolated per-screen evaluation packets.
+
+    Guarantees:
+    - Zero future actions_before from screen j > i appear in packet i.
+    - Zero expected actions appear in packet i.
+    - Zero dumped UI trees or raw OCR strings appear in packet i.
+    - Screen i > 0 explicitly contains transition context from screen i-1.
+    """
+    out_dir = Path(out_dir).resolve()
+    out_dir.mkdir(parents=True, exist_ok=True)
+    screens_dir = out_dir / "screens"
+    screens_dir.mkdir(exist_ok=True)
+
+    packets: list[dict[str, Any]] = []
+    global_idx = 0
+
+    for scenario in walkthrough.get("scenarios", []):
+        scen_id = scenario["scenario"]
+        scen_goal = scenario["goal"]
+        scen_title = scenario.get("title", "")
+        prev_s: dict[str, Any] | None = None
+
+        for s in scenario.get("screens", []):
+            s_name = s["name"]
+            key = screen_key(scen_id, s_name)
+            img_rel = f"{image_dir}/{scen_id}_{s['image']}"
+
+            prev_key = screen_key(scen_id, prev_s["name"]) if prev_s else None
+            prev_img = f"{image_dir}/{scen_id}_{prev_s['image']}" if prev_s else None
+
+            # Strictly sanitize: NO expected, NO metrics texts, NO future screen info
+            screen_info: dict[str, Any] = {
+                "index": global_idx,
+                "scenario": scen_id,
+                "scenario_title": scen_title,
+                "scenario_goal": scen_goal,
+                "screen": s_name,
+                "screen_key": key,
+                "image": s["image"],
+                "image_path": img_rel,
+                "intent": s["intent"],
+                "actions_before": list(s.get("actions_before", [])),
+                "system_screen": bool(s.get("system_screen", False)),
+                "previous_screen": prev_key,
+                "previous_image": prev_img,
+            }
+
+            # Generic packet markdown
+            generic_md = render_screen_packet_md(screen_info, image_dir=image_dir)
+            file_slug = f"{global_idx:02d}_{scen_id}_{s_name}.md"
+            generic_path = screens_dir / file_slug
+            generic_path.write_text(generic_md, encoding="utf-8")
+            screen_info["path"] = generic_path
+
+            # Persona-specific packet files if personas provided
+            if personas:
+                for pid, ptext in personas.items():
+                    p_dir = out_dir / pid
+                    p_dir.mkdir(parents=True, exist_ok=True)
+                    p_md = render_screen_packet_md(screen_info, persona_id=pid, persona_text=ptext, image_dir=image_dir)
+                    (p_dir / file_slug).write_text(p_md, encoding="utf-8")
+
+            packets.append(screen_info)
+            prev_s = s
+            global_idx += 1
+
+    # Generate overall.md for each persona
+    if personas:
+        for pid, ptext in personas.items():
+            p_dir = out_dir / pid
+            overall_lines = [
+                f"# Overall Assessment — {pid}",
+                "",
+                ptext.strip(),
+                "",
+                "## Overall Usability Questions",
+                "Now that you have evaluated all screens individually, summarize your overall assessment.",
+                "Respond ONLY with a JSON object conforming to the overall schema:",
+                "```json",
+                "{",
+                '  "would_keep_using": "<yes | maybe | no>",',
+                '  "why": "<explanation in persona voice>",',
+                '  "top_problems": ["<problem 1>", "<problem 2>", "<problem 3>"],',
+                '  "top_strengths": ["<strength 1>", "<strength 2>", "<strength 3>"],',
+                '  "one_change": "<the single change you want most>"',
+                "}",
+                "```",
+            ]
+            (p_dir / "overall.md").write_text("\n".join(overall_lines) + "\n", encoding="utf-8")
+
+    # Write sanitized machine-readable index
+    index_records = [
+        {k: v for k, v in p.items() if k != "path"}
+        for p in packets
+    ]
+    (out_dir / "packets.json").write_text(json.dumps(index_records, indent=2), encoding="utf-8")
+
+    return packets
+
+
 def build_panel(run_dir: Path, *, priv: Path | None = None, variants: list[Path] | None = None) -> Path:
-    """Write `<run_dir>/panel/` with images, walkthroughs, persona files, prompts and schema."""
+    """Write `<run_dir>/panel/` with images, walkthroughs, packets, persona files, prompts and schema."""
     run_dir = run_dir.resolve()
     all_variants = load_variants(run_dir, variants)
     walkthrough = all_variants[next(iter(all_variants))][1]
@@ -232,6 +433,10 @@ def build_panel(run_dir: Path, *, priv: Path | None = None, variants: list[Path]
         (vdir_out / f"{label}.json").write_text(json.dumps(w, indent=2), encoding="utf-8")
 
     (out / "walkthrough.md").write_text(render_walkthrough_md(walkthrough), encoding="utf-8")
+
+    # Generate isolated blind packets
+    build_blind_packets(walkthrough, out / "packets", personas=personas)
+
     pdir = out / "personas"
     pdir.mkdir(exist_ok=True)
     assignments: dict[str, str] = {}
@@ -251,6 +456,7 @@ def build_panel(run_dir: Path, *, priv: Path | None = None, variants: list[Path]
     from .report import MODERATOR_SCHEMA
 
     (out / "persona.schema.json").write_text(json.dumps(PERSONA_SCHEMA, indent=2), encoding="utf-8")
+    (out / "screen.schema.json").write_text(json.dumps(SCREEN_ANSWER_SCHEMA, indent=2), encoding="utf-8")
     (out / "moderator.schema.json").write_text(json.dumps(MODERATOR_SCHEMA, indent=2), encoding="utf-8")
     (out / "answers").mkdir(exist_ok=True)
     (out / "requirements.json").write_text(
@@ -339,6 +545,44 @@ PERSONA_SCHEMA: dict[str, Any] = {
 }
 
 
+SCREEN_ANSWER_SCHEMA: dict[str, Any] = {
+    "type": "object",
+    "required": ["screen", "first_impression", "would_do", "read_text", "verdict"],
+    "properties": {
+        "screen": {"type": "string", "description": "the scenario/screen key (e.g. U-1/landing)"},
+        "first_impression": {"type": "string", "description": "what you think this screen is, <= 20 words"},
+        "would_do": {"type": "string", "description": "what you would do now to reach 'You want to'. Decide from this screenshot alone"},
+        "read_text": {"enum": ["all", "some", "none"]},
+        "verdict": {"enum": list(VERDICTS)},
+        "issues": {
+            "type": "array",
+            "items": {
+                "type": "object",
+                "required": ["what", "severity", "kind"],
+                "properties": {
+                    "what": {"type": "string"},
+                    "severity": {"enum": list(SEVERITIES)},
+                    "kind": {"enum": list(ISSUE_KINDS)},
+                },
+            },
+        },
+        "liked": {"type": "array", "items": {"type": "string"}},
+    },
+}
+
+OVERALL_ANSWER_SCHEMA: dict[str, Any] = {
+    "type": "object",
+    "required": ["would_keep_using", "why", "top_problems", "top_strengths", "one_change"],
+    "properties": {
+        "would_keep_using": {"enum": ["yes", "maybe", "no"]},
+        "why": {"type": "string"},
+        "top_problems": {"type": "array", "items": {"type": "string"}, "maxItems": 3},
+        "top_strengths": {"type": "array", "items": {"type": "string"}, "maxItems": 3},
+        "one_change": {"type": "string"},
+    },
+}
+
+
 def extract_json(raw: str) -> Any:
     """The last JSON object or array in an LLM reply (fenced or bare)."""
     fenced = re.findall(r"```(?:json)?\s*(\{.*?\}|\[.*?\])\s*```", raw, flags=re.S)
@@ -373,6 +617,54 @@ def validate_persona(answer: dict[str, Any], expected_screens: list[str]) -> lis
     if missing:
         problems.append(f"screens not reviewed: {', '.join(missing)}")
     return problems
+
+
+def validate_screen_answer(answer: dict[str, Any], expected_screen: str) -> list[str]:
+    """Validate an isolated per-screen answer. Returns empty list if valid."""
+    problems: list[str] = []
+    if not isinstance(answer, dict):
+        return ["answer is not an object"]
+    if answer.get("screen") != expected_screen:
+        problems.append(f"screen mismatch: expected {expected_screen!r}, got {answer.get('screen')!r}")
+    for req in ("first_impression", "would_do", "read_text", "verdict"):
+        if req not in answer:
+            problems.append(f"missing required field '{req}'")
+    if answer.get("read_text") not in ("all", "some", "none"):
+        problems.append(f"invalid read_text: {answer.get('read_text')!r}")
+    if answer.get("verdict") not in VERDICTS:
+        problems.append(f"invalid verdict: {answer.get('verdict')!r}")
+    for issue in answer.get("issues", []) or []:
+        if not isinstance(issue, dict):
+            problems.append("issue is not an object")
+            continue
+        for req in ("what", "severity", "kind"):
+            if req not in issue:
+                problems.append(f"issue missing '{req}'")
+        if issue.get("severity") not in SEVERITIES:
+            problems.append(f"invalid severity: {issue.get('severity')!r}")
+        if issue.get("kind") not in ISSUE_KINDS:
+            problems.append(f"invalid kind: {issue.get('kind')!r}")
+    return problems
+
+
+def assemble_persona_answer(
+    persona_id: str,
+    screen_answers: list[dict[str, Any]],
+    overall: dict[str, Any] | None = None,
+) -> dict[str, Any]:
+    """Assemble per-screen answers and overall evaluation into a valid PERSONA_SCHEMA document."""
+    overall_doc = overall or {
+        "would_keep_using": "maybe",
+        "why": "Walkthrough completed.",
+        "top_problems": [],
+        "top_strengths": [],
+        "one_change": "",
+    }
+    return {
+        "persona": persona_id,
+        "screens": list(screen_answers),
+        "overall": overall_doc,
+    }
 
 
 def expected_screen_keys(walkthrough: dict[str, Any]) -> list[str]:

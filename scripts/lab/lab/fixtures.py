@@ -142,11 +142,23 @@ def _render_synthetic_image(
     return img
 
 
-def _build_exif_bytes(dt: datetime, orientation: int = 1) -> bytes:
+def _build_exif_bytes(
+    dt: datetime,
+    orientation: int = 1,
+    *,
+    iso: int = 400,
+    exposure_time: tuple[int, int] | float = (1, 250),
+    f_number: tuple[int, int] | float = (28, 10),
+    focal_length: tuple[int, int] | float = (50, 1),
+    focal_length_35mm: int | None = 50,
+    lens_model: str = "PSTLab 50mm F2.8",
+    make: str = "PSTLab",
+    model: str = "Fixture",
+) -> bytes:
     exif = Image.Exif()
     dt_str = dt.strftime("%Y:%m:%d %H:%M:%S")
-    exif[0x010F] = "PSTLab"
-    exif[0x0110] = "Fixture"
+    exif[0x010F] = make
+    exif[0x0110] = model
     exif[0x0112] = int(orientation)
     exif[0x0132] = dt_str
     exif[0x9003] = dt_str
@@ -156,12 +168,19 @@ def _build_exif_bytes(dt: datetime, orientation: int = 1) -> bytes:
     if hasattr(exif, "get_ifd"):
         from PIL.TiffImagePlugin import IFDRational
 
+        def _to_rational(val: tuple[int, int] | float) -> IFDRational:
+            if isinstance(val, tuple):
+                return IFDRational(val[0], val[1])
+            return IFDRational(int(round(val * 1000)), 1000)
+
         sub = exif.get_ifd(0x8769)
-        sub[0x8827] = 400  # ISOSpeedRatings
-        sub[0x829A] = IFDRational(1, 250)  # ExposureTime
-        sub[0x829D] = IFDRational(28, 10)  # FNumber
-        sub[0x920A] = IFDRational(50, 1)  # FocalLength
-        sub[0xA434] = "PSTLab 50mm F2.8"  # LensModel
+        sub[0x8827] = int(iso)  # ISOSpeedRatings
+        sub[0x829A] = _to_rational(exposure_time)  # ExposureTime
+        sub[0x829D] = _to_rational(f_number)  # FNumber
+        sub[0x920A] = _to_rational(focal_length)  # FocalLength
+        if focal_length_35mm is not None:
+            sub[0xA405] = int(focal_length_35mm)  # FocalLengthIn35mmFilm
+        sub[0xA434] = lens_model  # LensModel
         sub[0x9003] = dt_str  # DateTimeOriginal
     return exif.tobytes()
 
@@ -171,9 +190,29 @@ def _write_jpeg(
     img: Image.Image,
     dt: datetime,
     orientation: int = 1,
+    *,
+    iso: int = 400,
+    exposure_time: tuple[int, int] | float = (1, 250),
+    f_number: tuple[int, int] | float = (28, 10),
+    focal_length: tuple[int, int] | float = (50, 1),
+    focal_length_35mm: int | None = 50,
+    lens_model: str = "PSTLab 50mm F2.8",
+    make: str = "PSTLab",
+    model: str = "Fixture",
 ) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
-    exif_bytes = _build_exif_bytes(dt, orientation)
+    exif_bytes = _build_exif_bytes(
+        dt,
+        orientation,
+        iso=iso,
+        exposure_time=exposure_time,
+        f_number=f_number,
+        focal_length=focal_length,
+        focal_length_35mm=focal_length_35mm,
+        lens_model=lens_model,
+        make=make,
+        model=model,
+    )
     img.save(path, format="JPEG", quality=88, subsampling=0, exif=exif_bytes)
     ts = dt.timestamp()
     os.utime(path, (ts, ts))

@@ -1,0 +1,150 @@
+# Blitzlens (Linux Desktop) usability scenarios — reviewed by persona panel.
+#
+# Covers GNOME Libadwaita Obsidian Darkroom, 3-Up one-over-two comparison, LibRaw 1:1 zoom, and statistics (UC-4, UC-7, UC-10, UC-13, UC-14, UC-17).
+product: linux
+app_id: app.alpatix.Blitzlens
+fixture:
+  kind: scenes
+  remote: /tmp/pstlab/usability-trip
+scenarios:
+  - id: U-LIN-01
+    title: Launch & 3-Up burst culling with keyboard
+    goal: Launch Blitzlens in Obsidian Darkroom theme, open the shoot with Ctrl+O, compare burst in 3-Up layout, and cull with M, C, and Delete.
+    use_case: UC-4
+    steps:
+      - launch: {}
+      - screen: darkroom-empty
+        intent: Open my shoot folder
+        expected: Press Ctrl+O or tap Open Folder button
+      - key: Ctrl+O
+      - screen: file-chooser
+        system: true
+        intent: Select the trip photos directory
+        expected: Choose usability-trip folder and open
+      - tap: {text: Open}
+      - wait_for: {id: btn_mode_3, timeout_ms: 10000}
+      - screen: workspace-loaded
+        intent: Look at initial photo and switch to 3-Up Focus mode
+        expected: Press 3 or tap 'Focus 3-Up (3)'
+      - key: "3"
+      - screen: three-up-one-over-two
+        intent: Compare current top frame against two bottom neighbours
+        expected: Navigate burst with Right arrow or L
+      - key: Right
+      - screen: burst-comparison
+        intent: Pick the sharpest frame in this burst
+        expected: Press M to move photo and companions to Selection/
+      - key: M
+      - screen: after-move
+        intent: Check tactile action bar status pill and advance
+        expected: Press Delete on out-of-focus frame
+      - key: Delete
+      - screen: after-trash
+        intent: Restore accidentally trashed frame
+        expected: Press Ctrl+Z or tap Undo
+      - key: Ctrl+Z
+      - screen: after-undo
+        intent: Confirm restored frame returns to view
+        expected: Press C to copy to Selection/
+      - key: C
+      - screen: after-copy
+        intent: Check counter pill updates to reflect selected count
+        expected: Navigate forward with Right arrow
+
+  - id: U-LIN-02
+    title: 1-Up detail & LibRaw 1:1 zoom
+    goal: Switch to 1-Up mode, develop RAW sensor pixels at 1:1 via LibRaw with Space, and inspect optical goodness bar.
+    use_case: UC-4
+    steps:
+      - screen: before-1up
+        intent: Switch to 1-Up view for single photo inspection
+        expected: Press 1 or tap '1-Up (1)'
+      - key: "1"
+      - screen: single-photo-1up
+        intent: View single photograph with maximum canvas area
+        expected: Press Space to zoom to 100% sensor pixels
+      - key: Space
+      - screen: libraw-100-zoom
+        intent: Inspect RAW sensor demosaicing and feather sharpness
+        expected: Press Escape or Space to return to fit
+      - key: Space
+      - screen: fit-view
+        intent: Inspect Info HUD and sharpness goodness meter
+        expected: Press I to toggle HUD
+      - key: I
+      - screen: info-hud-active
+        intent: Read focus metric, noise-corrected score, and EXIF
+        expected: Press I to hide HUD
+      - key: I
+
+  - id: U-LIN-03
+    title: Lowest-sharpness-first triage
+    goal: Sweep out obvious blur and focus misses first using lowest-sharpness-first triage.
+    use_case: UC-13
+    steps:
+      - screen: default-sort-order
+        intent: Change sort order to review blurriest photos first
+        expected: Choose View > Sort by Lowest Sharpness
+      - tap: {label: Sort Lowest Sharpness}
+      - screen: lowest-sharpness-view
+        intent: Inspect the worst optical miss in the shoot
+        expected: Press Delete to trash it
+      - key: Delete
+      - screen: triage-next-miss
+        intent: Move to next blurry frame until threshold stop banner appears
+        expected: Observe threshold stop banner
+
+  - id: U-LIN-04
+    title: Safe-to-format SD card import
+    goal: Cull shoot from camera SD card, verify collision suffixing (-2), and confirm safe-to-format card state.
+    use_case: UC-10
+    steps:
+      - screen: sd-card-browse
+        intent: Cull photos from removable storage card
+        expected: Verify destination folder settings
+      - tap: {label: Destination Settings}
+      - screen: card-destination-dialog
+        intent: Set external fast SSD as selection target
+        expected: Confirm atomic bundle transfer
+      - tap: {text: Confirm}
+      - screen: card-transfer-active
+        intent: Observe non-blocking FIFO queue processing file moves
+        expected: Finish reviewing all card images
+      - screen: card-safe-summary
+        intent: Verify all keepers safely verified on SSD with zero uncopied files
+        expected: Read safe-to-format confirmation
+
+  - id: U-LIN-05
+    title: Library statistics & decision log
+    goal: View optical EXIF distributions, camera/lens stats, and local decision history.
+    use_case: UC-14
+    steps:
+      - screen: workspace-before-stats
+        intent: Open Library Statistics dialog
+        expected: Press Ctrl+L or select Main Menu > Library Statistics
+      - key: Ctrl+L
+      - wait_for: {id: library_statistics_dialog, timeout_ms: 6000}
+      - screen: statistics-dialog-overview
+        intent: Review total shots, keeper percentage, and score breakdown
+        expected: Inspect lens aperture distribution chart
+      - swipe: up
+      - screen: statistics-charts
+        intent: Examine sharpness vs ISO distribution curves
+        expected: Close dialog with Escape
+      - key: Escape
+
+  - id: U-LIN-06
+    title: Cloud / Remote folder support
+    goal: Handle a shoot mounted over GVFS remote path with honest cloud deletion and download safeguards.
+    use_case: UC-17
+    steps:
+      - screen: gvfs-folder-loaded
+        intent: Notice Cloud / Remote status counter badge
+        expected: Observe prefetch limited to radius 1
+      - tap: {label: Remote Options}
+      - screen: remote-download-dialog
+        intent: Avoid large unmetered cellular download
+        expected: Read download size confirmation before full-folder scan
+      - screen: cloud-trash-dialog
+        intent: Verify FreeDesktop trash handling on remote volume
+        expected: Confirm or cancel remote trash action

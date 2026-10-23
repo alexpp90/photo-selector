@@ -1,0 +1,150 @@
+# Lensjet (macOS Desktop) usability scenarios — reviewed by persona panel.
+#
+# Covers native macOS keyboard culling, 3-Up Focus Mode, 1:1 sensor zoom, and statistics (UC-4, UC-7, UC-10, UC-13, UC-14, UC-17).
+product: macos
+app_id: app.alpatix.lensjet
+fixture:
+  kind: scenes
+  remote: /tmp/pstlab/usability-trip
+scenarios:
+  - id: U-MAC-01
+    title: Launch & 3-Up burst culling with keyboard
+    goal: Launch Lensjet, open last week's trip shoot with ⌘O, compare burst in 3-Up Focus Mode, and cull with M, C, and Delete.
+    use_case: UC-4
+    steps:
+      - launch: {}
+      - screen: empty-drop-target
+        intent: Open my shoot folder
+        expected: Press ⌘O or drag folder into window
+      - key: Cmd+O
+      - screen: open-panel
+        system: true
+        intent: Select the shoot directory
+        expected: Select usability-trip folder and click Open
+      - tap: {text: Open}
+      - wait_for: {id: focus_mode_workspace, timeout_ms: 10000}
+      - screen: workspace-opened
+        intent: View first loaded photo and switch to 3-Up Focus Mode
+        expected: Press 3 for 3-Up Focus Mode
+      - key: "3"
+      - screen: three-up-focus
+        intent: Compare current top frame with bottom-left and bottom-right neighbours
+        expected: Evaluate sharpness brackets and advance with right arrow
+      - key: Right
+      - screen: three-up-burst-eval
+        intent: This burst frame is sharpest, move it to Selection
+        expected: Press M to move
+      - key: M
+      - screen: after-cull-move
+        intent: Verify photo moved to Selection and auto-advanced to next
+        expected: Press Delete on blurry neighbour
+      - key: Delete
+      - screen: after-cull-trash
+        intent: Realize deletion was a mistake and restore it
+        expected: Press ⌘Z to undo
+      - key: Cmd+Z
+      - screen: after-cull-undo
+        intent: Verify restored frame returns to comparison triplet
+        expected: Press C to copy instead
+      - key: C
+      - screen: after-cull-copy
+        intent: Confirm copy count incremented in status bar
+        expected: Navigate forward with Right arrow
+
+  - id: U-MAC-02
+    title: 1-Up detail & actual sensor-pixel zoom
+    goal: Switch to 1-Up single photo inspection, toggle 1:1 sensor pixel zoom with Space, and inspect EXIF metadata.
+    use_case: UC-4
+    steps:
+      - screen: before-mode-switch
+        intent: Switch to single photo detail view
+        expected: Press 1 for 1-Up mode
+      - key: "1"
+      - screen: single-view-1up
+        intent: View single photo filling 90% of canvas
+        expected: Press Space to zoom to 100% sensor pixels
+      - key: Space
+      - screen: sensor-zoom-100
+        intent: Inspect micro-contrast and pupil sharpness at 1:1
+        expected: Pan or press Space to return to fit
+      - key: Space
+      - screen: back-to-fit
+        intent: Toggle Info HUD to check aperture and shutter speed
+        expected: Press I to show Info HUD
+      - key: I
+      - screen: info-hud-visible
+        intent: Read lens, focal length, ISO, and exposure warnings
+        expected: Press I to dismiss HUD
+      - key: I
+
+  - id: U-MAC-03
+    title: Lowest-sharpness-first triage
+    goal: Sweep out technical misses fast by ordering shoot from blurriest to sharpest.
+    use_case: UC-13
+    steps:
+      - screen: normal-triage-order
+        intent: Re-order shoot to review blurriest misses first
+        expected: Select View > Sort by Lowest Sharpness
+      - tap: {label: Sort Lowest Sharpness}
+      - screen: lowest-sharpness-front
+        intent: Inspect most out-of-focus shot at front of queue
+        expected: Press Delete to trash it
+      - key: Delete
+      - screen: lowest-sharpness-advanced
+        intent: Continue trashing misses until sharpness threshold stop toast appears
+        expected: Observe sharpness stop threshold indicator
+
+  - id: U-MAC-04
+    title: Safe-to-format SD card import
+    goal: Cull directly from camera SD card to external destination and verify safe-to-format status.
+    use_case: UC-10
+    steps:
+      - screen: sd-card-source
+        intent: Cull photos from removable camera card
+        expected: Set destination folder on external SSD
+      - tap: {label: Destination Settings}
+      - screen: destination-config
+        intent: Choose external Selection folder
+        expected: Confirm two-phase verified copy
+      - tap: {text: Confirm}
+      - screen: card-culling-progress
+        intent: Move keeper frames and companion sidecars
+        expected: Complete review pass
+      - screen: safe-to-format-summary
+        intent: Verify all keepers verified on destination and card safe to format
+        expected: Read safe-to-format summary card
+
+  - id: U-MAC-05
+    title: Library statistics & decision log
+    goal: Open Library Statistics to inspect lens usage, sharpness distributions, and private decision log.
+    use_case: UC-14
+    steps:
+      - screen: workspace-before-tools
+        intent: Open Library Statistics window
+        expected: Press ⌘L or choose Tools > Library Statistics
+      - key: Cmd+L
+      - wait_for: {id: library_statistics_window, timeout_ms: 6000}
+      - screen: library-statistics-overview
+        intent: View shoot summary, keeper percentage, and sharpness curve
+        expected: Scroll to EXIF cross-tabulation charts
+      - swipe: up
+      - screen: library-statistics-charts
+        intent: Analyze focal length vs keeper rate to identify sweet spot
+        expected: Close window with Escape
+      - key: Escape
+
+  - id: U-MAC-06
+    title: Cloud folder detection & download safeguards
+    goal: Cull a shoot located in iCloud/Dropbox cloud folder without syncing unnecessary gigabytes.
+    use_case: UC-17
+    steps:
+      - screen: cloud-folder-loaded
+        intent: Check Cloud Folder badge and offline status
+        expected: Notice prefetch radius limited to ±1
+      - tap: {label: Cloud Options}
+      - screen: cloud-download-prompt
+        intent: Avoid accidental full shoot download
+        expected: Read download size warning before full pass
+      - screen: cloud-delete-warning
+        intent: Ensure trashing a cloud file warns of permanent deletion
+        expected: Dismiss warning and return to culling
