@@ -5,6 +5,7 @@ import android.content.res.Configuration
 import android.hardware.display.DisplayManager
 import android.os.ParcelFileDescriptor
 import android.os.SystemClock
+import android.provider.Settings
 import android.view.Display
 import android.view.Surface
 import androidx.test.core.app.ActivityScenario
@@ -14,6 +15,7 @@ import org.junit.After
 import org.junit.Assume.assumeTrue
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNotNull
+import org.junit.Assert.assertTrue
 import org.junit.Assert.fail
 import org.junit.Test
 import org.junit.runner.RunWith
@@ -39,26 +41,64 @@ class SystemBarAppearanceTest {
 
     private val instrumentation get() = InstrumentationRegistry.getInstrumentation()
 
-    /** True once this test has frozen the rotation, so [restoreRotation] only undoes its own work. */
-    private var rotationFrozen = false
+    /** The device's own rotation setting, saved when this test freezes it; null until then. */
+    private var initialRotation: RotationSetting? = null
+
+    /** Auto-rotate on/off and the locked rotation, as the user set them in system settings. */
+    private data class RotationSetting(val auto: Boolean, val userRotation: Int)
+
+    private fun rotationSetting(): RotationSetting {
+        val resolver = instrumentation.targetContext.contentResolver
+        return RotationSetting(
+            auto = Settings.System.getInt(resolver, Settings.System.ACCELEROMETER_ROTATION, 0) == 1,
+            userRotation = Settings.System.getInt(resolver, Settings.System.USER_ROTATION, Surface.ROTATION_0),
+        )
+    }
 
     @After
     fun restoreRotation() {
-        if (!rotationFrozen) return
-        // Back to portrait first: a bare unfreeze left the Pixel 4a's display in landscape.
-        // Then wait until the display really is there, so the restore cannot land asynchronously
-        // during the next test (Acer Chromebook 714, 2026-10-19: the next test lost its compose
-        // hierarchy mid-run). Best effort: never fails the test.
-        instrumentation.uiAutomation.setRotation(UiAutomation.ROTATION_FREEZE_0)
+        val initial = initialRotation ?: return
+        initialRotation = null
+        // Put back the device's own setting, not a bare unfreeze: ROTATION_UNFREEZE switches
+        // auto-rotate on. On the Sony XA2 (2026-10-22: rotation locked, lying on its side, sensor
+        // proposing ROTATION_270) every later test of the run then started in landscape, and
+        // GestureTutorialOverlayTest's 320x480 dp box was clamped to the 411 dp window height.
+        // Each step waits until the display really is there, so the restore cannot land
+        // asynchronously during the next test (Acer Chromebook 714, 2026-10-19: the next test lost
+        // its compose hierarchy mid-run).
+        if (initial.auto) {
+            // Back to portrait first: a bare unfreeze left the Pixel 4a's display in landscape.
+            instrumentation.uiAutomation.setRotation(UiAutomation.ROTATION_FREEZE_0)
+            awaitDisplayRotation(Surface.ROTATION_0)
+            instrumentation.uiAutomation.setRotation(UiAutomation.ROTATION_UNFREEZE)
+        } else {
+            // UiAutomation.ROTATION_FREEZE_n equals Surface.ROTATION_n.
+            instrumentation.uiAutomation.setRotation(initial.userRotation)
+            awaitDisplayRotation(initial.userRotation)
+        }
+        // A leaked setting changes every later test of the run, so name it here, at its source.
+        val deadline = SystemClock.uptimeMillis() + TIMEOUT_MS
+        var restored = rotationSetting()
+        while (!initial.matches(restored) && SystemClock.uptimeMillis() < deadline) {
+            SystemClock.sleep(POLL_MS)
+            restored = rotationSetting()
+        }
+        assertTrue("rotation setting not restored: was $initial, now $restored", initial.matches(restored))
+    }
+
+    /** The locked rotation only counts while auto-rotate is off; with it on the sensor decides. */
+    private fun RotationSetting.matches(other: RotationSetting) =
+        auto == other.auto && (auto || userRotation == other.userRotation)
+
+    /** Best effort: waits until the default display reports [rotation], never fails. */
+    private fun awaitDisplayRotation(rotation: Int) {
         val displayManager = instrumentation.targetContext.getSystemService(DisplayManager::class.java)
         val deadline = SystemClock.uptimeMillis() + TIMEOUT_MS
         while (SystemClock.uptimeMillis() < deadline) {
-            if (displayManager?.getDisplay(Display.DEFAULT_DISPLAY)?.rotation == Surface.ROTATION_0) break
+            if (displayManager?.getDisplay(Display.DEFAULT_DISPLAY)?.rotation == rotation) break
             SystemClock.sleep(POLL_MS)
         }
         instrumentation.waitForIdleSync()
-        instrumentation.uiAutomation.setRotation(UiAutomation.ROTATION_UNFREEZE)
-        rotationFrozen = false
     }
 
     /**
@@ -95,7 +135,7 @@ class SystemBarAppearanceTest {
             assumeTrue("Rotation part skipped: $blocker", false)
             return
         }
-        rotationFrozen = true
+        initialRotation = rotationSetting()
         instrumentation.uiAutomation.setRotation(UiAutomation.ROTATION_FREEZE_0)
         ActivityScenario.launch(MainActivity::class.java).use { scenario ->
             awaitRotation(scenario, Surface.ROTATION_0)

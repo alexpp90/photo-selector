@@ -11,6 +11,7 @@ import com.phototok.data.repository.ImageRepository
 import com.phototok.data.source.SelectionListing
 import com.phototok.domain.PhotoFolders
 import com.phototok.domain.ShareIntentBuilder
+import com.phototok.domain.SwipeRightVerb
 import com.phototok.domain.UiText
 import dagger.hilt.android.lifecycle.HiltViewModel
 import javax.inject.Inject
@@ -28,6 +29,39 @@ enum class SelectionViewerTab {
     SELECTION,
 }
 
+/**
+ * Which list the Selection viewer opens on and whether it offers a choice at all (`REQ-TOK-FEATURE.17`).
+ * Pure, so the decisions are unit-testable.
+ */
+object SelectionViewerLogic {
+    /**
+     * The tab the user most likely wants: the one their swipe right fills. A favouriting swipe
+     * feeds Favourites; a copying or moving swipe feeds the Selection folder.
+     */
+    fun preferredTab(verb: SwipeRightVerb): SelectionViewerTab = when (verb) {
+        SwipeRightVerb.FAVOURITE -> SelectionViewerTab.FAVOURITES
+        SwipeRightVerb.COPY, SwipeRightVerb.MOVE -> SelectionViewerTab.SELECTION
+    }
+
+    /**
+     * The tab to open on: [preferred] unless its list is empty, then the other one. When both are
+     * empty it stays on [preferred] (the caller does not open the viewer in that case).
+     */
+    fun initialTab(preferred: SelectionViewerTab, favouriteCount: Int, selectionCount: Int): SelectionViewerTab {
+        val preferredCount = if (preferred == SelectionViewerTab.FAVOURITES) favouriteCount else selectionCount
+        val otherCount = if (preferred == SelectionViewerTab.FAVOURITES) selectionCount else favouriteCount
+        if (preferredCount > 0 || otherCount == 0) return preferred
+        return if (preferred == SelectionViewerTab.FAVOURITES) {
+            SelectionViewerTab.SELECTION
+        } else {
+            SelectionViewerTab.FAVOURITES
+        }
+    }
+
+    /** Tabs are offered only when both lists have photos; with one list there is nothing to switch to. */
+    fun showTabs(favouriteCount: Int, selectionCount: Int): Boolean = favouriteCount > 0 && selectionCount > 0
+}
+
 data class SelectionViewerUiState(
     /** Whether the read-only selection viewer is currently shown. */
     val isOpen: Boolean = false,
@@ -40,7 +74,11 @@ data class SelectionViewerUiState(
     val selectionFolderName: String = "",
     val currentIndex: Int = 0,
     val feedback: ActionFeedback? = null,
-)
+) {
+    /** Whether the top bar shows two switchable tabs (both lists non-empty) or a single title. */
+    val showTabs: Boolean
+        get() = SelectionViewerLogic.showTabs(favouriteImages.size, selectionImages.size)
+}
 
 /**
  * Read-only viewer for the Selection folder and in-place Favourites (`U-13`, `U-17`).
@@ -114,7 +152,8 @@ class SelectionViewerViewModel @Inject constructor(
 
     /**
      * Open the viewer with both in-place [sourceImages] filtered by [favouritedUris] and
-     * the Selection subfolder inside [targetFolderUri] (`U-17`).
+     * the Selection subfolder inside [targetFolderUri] (`U-17`). It opens on [preferredTab]
+     * (see [SelectionViewerLogic.preferredTab]) unless that list is empty.
      */
     fun openWithFavourites(
         targetFolderUri: String?,
@@ -156,14 +195,7 @@ class SelectionViewerViewModel @Inject constructor(
                 return@launch
             }
 
-            val initialTab = when {
-                preferredTab == SelectionViewerTab.FAVOURITES && favImages.isNotEmpty() ->
-                    SelectionViewerTab.FAVOURITES
-                selImages.isNotEmpty() ->
-                    SelectionViewerTab.SELECTION
-                else ->
-                    SelectionViewerTab.FAVOURITES
-            }
+            val initialTab = SelectionViewerLogic.initialTab(preferredTab, favImages.size, selImages.size)
             val activeList = if (initialTab == SelectionViewerTab.FAVOURITES) favImages else selImages
 
             _uiState.update {

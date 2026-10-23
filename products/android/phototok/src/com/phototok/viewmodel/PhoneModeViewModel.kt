@@ -116,7 +116,7 @@ data class PhoneModeUiState(
     val recentPathsCount: Int = 3,
     /** Whether to show suggestion for folders containing both RAW and JPEG pairs. */
     val showRawJpegSuggestion: Boolean = false,
-    /** Prompt shown when a reload or a reopened folder found photos newer than the last visit. */
+    /** Prompt shown when a reopened folder holds photos newer than the last visit (not after Reload). */
     val reloadPrompt: ReloadPrompt? = null,
     /** Friendly explanation when a selected folder contains 0 supported photos. */
     val emptyFolderMessage: UiText? = null,
@@ -715,6 +715,7 @@ class PhoneModeViewModel @Inject constructor(
         previousScanInfo: FolderScanInfo = FolderScanInfo(),
         wasActiveSession: Boolean = false,
         urisBeforeReload: Set<String> = emptySet(),
+        jumpToLatest: Boolean = false,
     ) {
         publishedUris.clear()
         dimensionsResolved.clear()
@@ -751,7 +752,29 @@ class PhoneModeViewModel @Inject constructor(
             val shouldPromptResume = sorted.images.isNotEmpty() &&
                 (wasActiveSession || previousScanInfo.hasPreviousSession)
 
-            if (shouldPromptResume) {
+            if (jumpToLatest && sorted.images.isNotEmpty()) {
+                // An explicit Reload: no dialog, the user lands on the latest photo. Someone who
+                // already swiped while the folder was being rescanned keeps their place.
+                newIndex = if (userHasNavigated) {
+                    // Follow the photo they are looking at through the final ordering.
+                    sorted.images.indexOfFirst { it.uri == uriToPreserve }.takeIf { it >= 0 }
+                        ?: current.currentIndex.coerceIn(0, sorted.images.size - 1)
+                } else {
+                    FolderScanLogic.latestIndex(sorted.images)
+                }
+                val newPhotos = FolderScanLogic.findNewPhotos(
+                    images = sorted.images,
+                    previousMaxLastModified = previousScanInfo.maxLastModified,
+                    urisBeforeReload = urisBeforeReload,
+                )
+                val updatedScan = FolderScanLogic.computeUpdatedScanInfo(
+                    images = sorted.images,
+                    lastViewedUri = sorted.images.getOrNull(newIndex)?.uri,
+                    lastViewedIndex = newIndex,
+                )
+                settingsRepository.setFolderScanInfo(folderUri.toString(), updatedScan)
+                confirmNoNewPhotos = wasActiveSession && newPhotos.isEmpty()
+            } else if (shouldPromptResume) {
                 val anchorUri = targetUriToKeep ?: previousScanInfo.lastViewedUri
                 val fallbackIdx = if (wasActiveSession) current.currentIndex else previousScanInfo.lastViewedIndex
                 val resumeIdx = FolderScanLogic.resolveResumeIndex(
@@ -1912,13 +1935,14 @@ class PhoneModeViewModel @Inject constructor(
     }
 
     /**
-     * Rescan the current source folder from disk.
+     * Rescan the current source folder from disk and take the user to its latest photo, whether
+     * or not anything new appeared (`REQ-TOK-FEATURE.09`). No dialog: the "N new photos / Show
+     * new / Stay" prompt belongs to reopening a folder. When the rescan finds nothing new a
+     * snackbar says so.
      */
     fun reloadSourceFolder() {
         val folderUriStr = _uiState.value.sourceFolderUri ?: return
         val folderUri = Uri.parse(folderUriStr)
-        val currentIndexBefore = _uiState.value.currentIndex
-        val currentUri = _uiState.value.images.getOrNull(currentIndexBefore)?.uri
         val wasActive = _uiState.value.images.isNotEmpty()
         val urisBefore = _uiState.value.images.map { it.uri }.toSet()
         finalizePendingDelete()
@@ -1962,15 +1986,13 @@ class PhoneModeViewModel @Inject constructor(
                 }
                 return@launch
             }
+            // The old photo is not pinned during discovery: the user is heading for the latest one.
             collectDiscoveredImages(
                 folderUri = folderUri,
-                targetUriToKeep = currentUri,
-                previousScanInfo = scanInfo.copy(
-                    lastViewedUri = currentUri ?: scanInfo.lastViewedUri,
-                    lastViewedIndex = if (wasActive) currentIndexBefore else scanInfo.lastViewedIndex,
-                ),
+                previousScanInfo = scanInfo,
                 wasActiveSession = wasActive,
                 urisBeforeReload = urisBefore,
+                jumpToLatest = true,
             )
         }
     }

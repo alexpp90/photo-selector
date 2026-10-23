@@ -14,7 +14,10 @@ import kotlin.math.min
  *    (rightmost = level 0). A callout's width is limited so same-level neighbours never touch and
  *    a level-1 leader passes through the gap between two level-0 callouts;
  *  - the logo callout is left-aligned at the logo, on the first level where it has room;
- *  - bottom callouts are centred on their button and end above the bottom bar;
+ *  - bottom callouts are centred on their button (slid sideways only where the neighbours or the
+ *    screen edge leave no room) and end above the bottom bar; when the labels do not fit one row
+ *    (four buttons on a 360 dp phone, large fonts) they alternate between two levels, level 0
+ *    nearest the bar;
  *  - landscape side-panel callouts sit beside the panel, vertically centred on their button.
  */
 object ControlsGuideSolver {
@@ -145,27 +148,77 @@ object ControlsGuideSolver {
 
     // ── Bottom bar ───────────────────────────────────────────────────────
 
-    data class BottomPlan(val id: GuideAnchor, val centerX: Float, val maxWidth: Float)
-
-    fun planBottom(screenWidth: Float, buttons: Map<GuideAnchor, Box>): List<BottomPlan> {
-        val sorted = buttons.entries.sortedBy { it.value.centerX }
-        return sorted.mapIndexed { i, (id, box) ->
-            val cx = box.centerX
-            var maxW = 2f * min(cx, screenWidth - cx) - MARGIN
-            for (j in listOf(i - 1, i + 1)) {
-                if (j in sorted.indices) maxW = min(maxW, abs(cx - sorted[j].value.centerX) - GAP)
-            }
-            BottomPlan(id, cx, max(maxW, 0f))
-        }
+    /**
+     * A bottom callout's room: it may use [minLeft]..[maxRight] ([maxWidth] wide) on its [level]
+     * (0 = right above the bar, 1 = above level 0, only when staggered). It is centred on its
+     * button when it fits there, otherwise slid sideways inside that room, so it always covers
+     * the button's x and its leader stays attached.
+     */
+    data class BottomPlan(
+        val id: GuideAnchor,
+        val level: Int,
+        val centerX: Float,
+        val minLeft: Float,
+        val maxRight: Float,
+    ) {
+        val maxWidth get() = max(maxRight - minLeft, 0f)
     }
 
-    fun placeBottom(barTop: Float, plans: List<BottomPlan>, sizes: Map<GuideAnchor, Size>): List<Placed> =
-        plans.mapNotNull { p ->
-            val s = sizes[p.id] ?: return@mapNotNull null
-            val bottom = barTop - LEADER
-            val callout = Box(p.centerX - s.width / 2f, bottom - s.height, p.centerX + s.width / 2f, bottom)
-            Placed(p.id, callout, verticalLeader(p.centerX, bottom, barTop))
+    /**
+     * Plans the bottom callouts. With [naturalWidths] (each callout's one-line width, measured) the
+     * callouts stay on one level while they fit side by side; as soon as one would not (four
+     * buttons on a 360 dp phone, or large font scale) they alternate between two levels, like the
+     * top row, so every callout gets about two button pitches instead of one and no label is
+     * squeezed into a word-broken column. Without widths they stay on one level.
+     *
+     * Same-level neighbours split the space between their buttons at the midpoint; a level-0
+     * callout also keeps clear of the leaders that level-1 callouts drop through its row. The
+     * outermost callouts may extend to the screen margin on their outer side.
+     */
+    fun planBottom(
+        screenWidth: Float,
+        buttons: Map<GuideAnchor, Box>,
+        naturalWidths: Map<GuideAnchor, Float> = emptyMap(),
+    ): List<BottomPlan> {
+        val sorted = buttons.entries.sortedBy { it.value.centerX }
+        val xs = sorted.map { it.value.centerX }
+
+        fun plan(levels: List<Int>): List<BottomPlan> = sorted.mapIndexed { i, (id, box) ->
+            val cx = box.centerX
+            var left = MARGIN
+            var right = screenWidth - MARGIN
+            for (j in sorted.indices) {
+                if (j == i) continue
+                val sameLevel = levels[j] == levels[i]
+                if (sameLevel) {
+                    // Only the nearest same-level neighbour on each side matters.
+                    val between = (cx + xs[j]) / 2f
+                    if (xs[j] < cx) left = max(left, between + GAP / 2f) else right = min(right, between - GAP / 2f)
+                } else if (levels[i] == 0) {
+                    // A level-1 leader runs down through this row at xs[j].
+                    if (xs[j] < cx) left = max(left, xs[j] + GAP / 2f) else right = min(right, xs[j] - GAP / 2f)
+                }
+            }
+            BottomPlan(id, levels[i], cx, left, max(right, left))
         }
+
+        val single = plan(sorted.map { 0 })
+        val fitsOneRow = naturalWidths.isEmpty() ||
+            single.all { (naturalWidths[it.id] ?: 0f) <= it.maxWidth }
+        return if (fitsOneRow) single else plan(sorted.indices.map { it % 2 })
+    }
+
+    fun placeBottom(barTop: Float, plans: List<BottomPlan>, sizes: Map<GuideAnchor, Size>): List<Placed> {
+        val level0Top = plans.filter { it.level == 0 }.mapNotNull { sizes[it.id] }
+            .maxOfOrNull { it.height }?.let { barTop - LEADER - it } ?: (barTop - LEADER)
+        return plans.mapNotNull { p ->
+            val s = sizes[p.id] ?: return@mapNotNull null
+            val bottom = if (p.level == 0) barTop - LEADER else level0Top - ROW_GAP
+            val left = (p.centerX - s.width / 2f).coerceIn(p.minLeft, max(p.maxRight - s.width, p.minLeft))
+            val callout = Box(left, bottom - s.height, left + s.width, bottom)
+            Placed(p.id, callout, verticalLeader(p.centerX, bottom, barTop), p.level)
+        }
+    }
 
     // ── Landscape side panels ────────────────────────────────────────────
 
@@ -223,7 +276,7 @@ object ControlsGuideSolver {
         val topBarVPadding: Float = 8f,
         val topBarLogo: Float = 36f,
         val topBarButton: Float = 48f,
-        val bottomHPadding: Float = 24f,
+        val bottomHPadding: Float = 8f,
         val bottomVPadding: Float = 6f,
         val bottomButtonW: Float = 72f,
         val bottomButtonH: Float = 48f,
@@ -231,9 +284,10 @@ object ControlsGuideSolver {
         val rightPanelW: Float = 125f,
         val sideButtonW: Float = 64f,
         val sideButtonH: Float = 48f,
-        val sideSpacing: Float = 16f,
+        val sideSpacing: Float = 8f,
         val leftLogo: Float = 32f,
-        val leftVPadding: Float = 16f,
+        val leftVPadding: Float = 8f,
+        val leftBottomSpacer: Float = 8f,
         val rightPadding: Float = 12f,
     )
 
@@ -265,10 +319,13 @@ object ControlsGuideSolver {
         val barTop = height - bottomInset - (m.bottomButtonH + 2 * m.bottomVPadding)
         out[GuideAnchor.BOTTOM_BAR] = Box(0f, barTop, width, height - bottomInset)
         val inner = width - 2 * m.bottomHPadding
-        val free = inner - 3 * m.bottomButtonW
+        val bottomIds = listOf(GuideAnchor.SOURCES, GuideAnchor.SELECTION, GuideAnchor.SHARE, GuideAnchor.REVERT)
+        val n = bottomIds.size
+        val free = inner - n * m.bottomButtonW
         val by = barTop + m.bottomVPadding
-        listOf(GuideAnchor.SOURCES, GuideAnchor.SELECTION, GuideAnchor.REVERT).forEachIndexed { i, id ->
-            val left = m.bottomHPadding + free / 6f + i * (m.bottomButtonW + free / 3f)
+        // Arrangement.SpaceAround: half a gap at each end, a full gap between buttons.
+        bottomIds.forEachIndexed { i, id ->
+            val left = m.bottomHPadding + free / (2f * n) + i * (m.bottomButtonW + free / n)
             out[id] = Box(left, by, left + m.bottomButtonW, by + m.bottomButtonH)
         }
         return out
@@ -285,13 +342,16 @@ object ControlsGuideSolver {
         out[GuideAnchor.RIGHT_PANEL] = Box(width - m.rightPanelW, 0f, width, height)
         val lcx = m.leftPanelW / 2f
         val inner = height - 2 * m.leftVPadding
-        val buttonsH = 4 * m.sideButtonH + 3 * m.sideSpacing
-        val spacer = 24f
+        val leftButtons = listOf(
+            GuideAnchor.SOURCES, GuideAnchor.SELECTION, GuideAnchor.SHARE, GuideAnchor.REVERT, GuideAnchor.HELP,
+        )
+        val buttonsH = leftButtons.size * m.sideButtonH + (leftButtons.size - 1) * m.sideSpacing
+        val spacer = m.leftBottomSpacer
         val free = max(inner - m.leftLogo - buttonsH - spacer, 0f)
         val logoTop = m.leftVPadding
         out[GuideAnchor.LOGO] = Box(lcx - m.leftLogo / 2f, logoTop, lcx + m.leftLogo / 2f, logoTop + m.leftLogo)
         var y = logoTop + m.leftLogo + free / 2f
-        listOf(GuideAnchor.SOURCES, GuideAnchor.SELECTION, GuideAnchor.REVERT, GuideAnchor.HELP).forEach { id ->
+        leftButtons.forEach { id ->
             out[id] = Box(lcx - m.sideButtonW / 2f, y, lcx + m.sideButtonW / 2f, y + m.sideButtonH)
             y += m.sideButtonH + m.sideSpacing
         }

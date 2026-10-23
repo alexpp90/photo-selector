@@ -16,13 +16,25 @@ import kotlinx.coroutines.withContext
 /**
  * Grouping granularity levels, matching the desktop implementation.
  */
-enum class GroupingLevel {
+enum class GroupingLevel(
+    val label: String,
+    val description: String,
+) {
     /** Group by filename prefix + modification time proximity. */
-    TIME_FILENAME,
+    TIME_FILENAME(
+        label = "Time & Filename",
+        description = "Group by capture time and filename similarity"
+    ),
     /** Above + fast 8x8 dHash similarity. */
-    TIME_FAST_SIMILARITY,
+    TIME_FAST_SIMILARITY(
+        label = "Time + Fast Similarity",
+        description = "Group by time with fast perceptual hash comparison"
+    ),
     /** Above + detailed 16x16 dHash similarity. */
-    DETAILED_SIMILARITY
+    DETAILED_SIMILARITY(
+        label = "Detailed Similarity",
+        description = "Full similarity analysis (slower, more accurate)"
+    )
 }
 
 /**

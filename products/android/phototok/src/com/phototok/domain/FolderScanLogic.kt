@@ -42,6 +42,20 @@ object FolderScanLogic {
     }
 
     /**
+     * The index of the latest photo in [images]: the one with the greatest
+     * [ImageItem.lastModified], in feed order the first such photo on a tie; `0` for an empty
+     * list. This is where an explicit Reload lands whatever the feed order (newest-first puts it
+     * at 0, a shooting-order feed at the end, an unseen-first feed anywhere), `REQ-TOK-FEATURE.09`.
+     */
+    fun latestIndex(images: List<ImageItem>): Int {
+        var best = 0
+        for (i in 1 until images.size) {
+            if (images[i].lastModified > images[best].lastModified) best = i
+        }
+        return best
+    }
+
+    /**
      * Returns all images in [images] that are newer than [previousMaxLastModified] or were
      * not present in [urisBeforeReload] (when rescanning an active session).
      */

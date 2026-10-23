@@ -93,13 +93,14 @@ class TextLoadScreenshotTest {
                     canRevert = true,
                     onRevert = {},
                     onJumpToSelection = {},
+                    onShare = {},
                     onGoToLanding = {},
                     modifier = Modifier.align(Alignment.BottomCenter),
                 )
             }
         },
         checks = { variant ->
-            assertHasClickableControls("viewer_bottom_bar", 3)
+            assertHasClickableControls("viewer_bottom_bar", 4)
             assertIconOnly(variant, "viewer_bottom_bar")
             assertTouchTargets(variant, "viewer_bottom_bar")
             assertInsideScreen(variant, "viewer_bottom_bar")
@@ -145,6 +146,7 @@ class TextLoadScreenshotTest {
                     onToggleExif = {},
                     onSources = {},
                     onSelection = {},
+                    onShare = {},
                     onRevert = {},
                     onHelp = {},
                 )
@@ -162,7 +164,7 @@ class TextLoadScreenshotTest {
             }
         },
         checks = { variant ->
-            assertHasClickableControls("landscape_side_panel", 8)
+            assertHasClickableControls("landscape_side_panel", 9)
             assertIconOnly(variant, "landscape_side_panel")
             assertTouchTargets(variant, "landscape_side_panel")
             assertInsideScreen(variant, "landscape_side_panel")

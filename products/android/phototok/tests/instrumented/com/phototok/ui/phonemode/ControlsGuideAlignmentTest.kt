@@ -2,6 +2,7 @@ package com.phototok.ui.phonemode
 
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.size
+import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -9,10 +10,12 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.geometry.Rect
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.test.hasContentDescription
 import androidx.compose.ui.test.hasTestTag
 import androidx.compose.ui.test.junit4.createComposeRule
 import androidx.compose.ui.test.onFirst
+import androidx.compose.ui.unit.Density
 import androidx.compose.ui.unit.dp
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import com.phototok.str
@@ -45,35 +48,40 @@ class ControlsGuideAlignmentTest {
     private val bottomControls = mapOf(
         GuideAnchor.SOURCES to "viewer_sources_button",
         GuideAnchor.SELECTION to "viewer_selection_button",
+        GuideAnchor.SHARE to "viewer_share_button",
         GuideAnchor.REVERT to "viewer_revert_button",
     )
 
-    private fun host(widthDp: Int, heightDp: Int, sd: Boolean) {
+    private fun host(widthDp: Int, heightDp: Int, sd: Boolean, fontScale: Float = 1f) {
         composeTestRule.setContent {
             val anchors = remember { ControlsGuideAnchors() }
-            Box(Modifier.size(widthDp.dp, heightDp.dp)) {
-                GestureTutorialOverlay(visible = true, onDismiss = {}, anchors = anchors)
-                PhoneModeTopBar(
-                    showControls = true,
-                    showDoneWithCard = sd,
-                    guideOpen = true,
-                    exifOverlayOn = false,
-                    onToggleExif = {},
-                    onDoneWithCard = {},
-                    onReload = {},
-                    onHelp = {},
-                    onSettings = {},
-                    modifier = Modifier.align(Alignment.TopCenter),
-                    anchors = anchors,
-                )
-                ViewerBottomBar(
-                    canRevert = true,
-                    onRevert = {},
-                    onJumpToSelection = {},
-                    onGoToLanding = {},
-                    modifier = Modifier.align(Alignment.BottomCenter),
-                    anchors = anchors,
-                )
+            val base = LocalDensity.current
+            CompositionLocalProvider(LocalDensity provides Density(base.density, fontScale)) {
+                Box(Modifier.size(widthDp.dp, heightDp.dp)) {
+                    GestureTutorialOverlay(visible = true, onDismiss = {}, anchors = anchors)
+                    PhoneModeTopBar(
+                        showControls = true,
+                        showDoneWithCard = sd,
+                        guideOpen = true,
+                        exifOverlayOn = false,
+                        onToggleExif = {},
+                        onDoneWithCard = {},
+                        onReload = {},
+                        onHelp = {},
+                        onSettings = {},
+                        modifier = Modifier.align(Alignment.TopCenter),
+                        anchors = anchors,
+                    )
+                    ViewerBottomBar(
+                        canRevert = true,
+                        onRevert = {},
+                        onJumpToSelection = {},
+                        onShare = {},
+                        onGoToLanding = {},
+                        modifier = Modifier.align(Alignment.BottomCenter),
+                        anchors = anchors,
+                    )
+                }
             }
         }
         composeTestRule.waitUntil(5000) {
@@ -94,8 +102,8 @@ class ControlsGuideAlignmentTest {
         composeTestRule.onAllNodes(hasTestTag(tag), useUnmergedTree = true)
             .fetchSemanticsNodes().isNotEmpty()
 
-    private fun check(widthDp: Int, heightDp: Int, sd: Boolean) {
-        host(widthDp, heightDp, sd)
+    private fun check(widthDp: Int, heightDp: Int, sd: Boolean, fontScale: Float = 1f) {
+        host(widthDp, heightDp, sd, fontScale)
         val density = composeTestRule.density.density
         val tolerance = 12f * density
 
@@ -116,7 +124,8 @@ class ControlsGuideAlignmentTest {
             val control = controls.getValue(id)
             if (id in bottomControls) {
                 assertTrue("$id callout ends above the bottom bar", c.bottom <= bottomBar.top + 1f)
-                assertEquals("$id centred on its button", control.center.x, c.center.x, tolerance)
+                // Centred, or slid sideways where its neighbours leave no room: it must cover the button.
+                assertTrue("$id covers its button", control.center.x >= c.left - 1f && control.center.x <= c.right + 1f)
             } else {
                 assertTrue("$id callout starts below the top bar", c.top >= topBar.bottom - 1f)
                 if (id != GuideAnchor.LOGO) {
@@ -147,6 +156,22 @@ class ControlsGuideAlignmentTest {
 
     @Test
     fun compact320x480_withSdCardButton() = check(320, 480, sd = true)
+
+    @Test
+    fun portrait360x780_fourBottomCalloutsDoNotOverlap() = check(360, 780, sd = false)
+
+    @Test
+    fun portrait360x780_fourBottomCalloutsDoNotOverlap_atFontScale2() = check(360, 780, sd = false, fontScale = 2f)
+
+    @Test
+    fun shareCalloutLabelsTheShareButtonBetweenSelectionAndRevert() {
+        host(360, 780, sd = false)
+        val share = bounds("viewer_share_button").center.x
+        assertTrue(bounds("viewer_selection_button").center.x < share)
+        assertTrue(share < bounds("viewer_revert_button").center.x)
+        val callout = bounds("guide_callout_SHARE")
+        assertTrue("callout covers the Share button", share >= callout.left && share <= callout.right)
+    }
 
     @Test
     fun infoCalloutIsOverTheInfoButtonNotTheHelpButton() {
