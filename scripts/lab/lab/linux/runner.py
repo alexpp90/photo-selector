@@ -129,6 +129,16 @@ def lab_python() -> str:
     return "/usr/bin/python3" if Path("/usr/bin/python3").is_file() else (shutil.which("python3") or "python3")
 
 
+def session_env(root: Path | None = None) -> dict[str, str]:
+    """Environment for `session.sh` running the source tree: the app's interpreter and its `src`."""
+    r = root or repo_root()
+    env = dict(os.environ)
+    env["PST_LAB_PYTHON"] = lab_python()
+    src_dir = str(r / "products" / "linux-desktop" / "src")
+    env["PYTHONPATH"] = src_dir + (os.pathsep + env["PYTHONPATH"] if env.get("PYTHONPATH") else "")
+    return env
+
+
 def run_linux_journey(
     journey_manifest: dict[str, Any],
     config_name: str,
@@ -209,13 +219,10 @@ def run_linux_journey(
     if installed:
         cmd.append("--installed")
 
-    env = dict(os.environ)
-    env["PST_LAB_PYTHON"] = lab_python()
+    env = session_env(r)
     env["PST_LAB_HUB_PYTHON"] = sys.executable
     env["PST_LAB_HUB_STEP"] = str(Path(__file__).resolve().parent / "hub_step.py")
     env["PST_LAB_HUB_CTX"] = str(hub_ctx_path)
-    src_dir = str(r / "products" / "linux-desktop" / "src")
-    env["PYTHONPATH"] = src_dir + (os.pathsep + env["PYTHONPATH"] if env.get("PYTHONPATH") else "")
     t0 = time.monotonic()
     if exec_fn is not None:
         proc = exec_fn(cmd, env)

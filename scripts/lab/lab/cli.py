@@ -133,6 +133,8 @@ def build_parser() -> argparse.ArgumentParser:
     p_utl = sub.add_parser("usability-textload", help="Text load per screen and control, from captured runs only (no personas)")
     p_utl.add_argument("run_dir")
     p_utl.add_argument("--variant", action="append", default=[], help="Another capture of the same walk; repeatable")
+    p_uasm = sub.add_parser("usability-assemble", help="Collect each persona's per-screen replies into answers/<persona>.json")
+    p_uasm.add_argument("run_dir")
     p_uchk = sub.add_parser("usability-check", help="Validate persona answers (and extract JSON from raw replies)")
     p_uchk.add_argument("run_dir")
     p_urep = sub.add_parser("usability-report", help="Render the decision report from persona answers and the moderator brief")
@@ -409,7 +411,8 @@ def _usability(args: argparse.Namespace) -> int:
             sha = subprocess.run(["git", "-C", str(repo_root()), "rev-parse", "HEAD"], capture_output=True, text=True).stdout
             from .usability.capture import variant_label
 
-            out = new_run_dir(f"{sha.strip()[:12]}-usability-{variant_label(args.locale, args.font_scale).replace('@', '-fs')}")
+            label = variant_label(args.locale, args.font_scale).replace("@", "-fs")
+            out = new_run_dir(sha, label=f"usability-{args.product}-{label}")
 
         serial = args.serial
         driver_mode = getattr(args, "driver", "auto")
@@ -435,20 +438,21 @@ def _usability(args: argparse.Namespace) -> int:
             if out.is_dir() and not any(out.iterdir()):
                 out.rmdir()
             return 3
-        except Exception as exc:
-            print(f"error running capture: {exc}", file=sys.stderr)
-            return 1
+        except ValueError as exc:  # a request the product cannot honour (no serial, no translation)
+            print(f"error: {exc}", file=sys.stderr)
+            return 2
         for sc in w["scenarios"]:
             print(f"{sc['scenario']}: {sc['status']} — {len(sc['screens'])} screens" + (f" ({sc['error']})" if sc["error"] else ""))
         print(out)
         return 0 if all(sc["status"] == "pass" for sc in w["scenarios"]) else 1
 
     if args.subcommand == "usability-explore":
+        import contextlib
         import os
         import subprocess
 
         from .paths import new_run_dir, repo_root
-        from .usability.capture import load_scenarios
+        from .usability.capture import android_session, load_scenarios
         from .usability.driver import DeviceBusy, get_driver
         from .usability.explore import (
             ClaudeExplorationAgent,
@@ -458,88 +462,55 @@ def _usability(args: argparse.Namespace) -> int:
             run_exploration,
         )
 
+        driver_mode = getattr(args, "driver", "auto")
+        if args.product not in ("phototok", "android-desktop") and driver_mode != "mock":
+            # The loop observes the screen between single steps; the desktop hooks run a whole
+            # script per launch and cannot answer "what is on screen now".
+            print(f"error: live exploration needs an Android product, not {args.product!r}", file=sys.stderr)
+            return 2
+        serial = args.serial or os.environ.get("ANDROID_SERIAL")
+        if driver_mode != "mock" and not serial:
+            print(f"error: --serial (or ANDROID_SERIAL env var) is required for Android product '{args.product}'", file=sys.stderr)
+            return 2
+        try:
+            charter = load_charter(args.charter, product=args.product)
+        except (OSError, ValueError) as exc:
+            print(f"error loading charter: {exc}", file=sys.stderr)
+            return 2
         if args.out:
             out = Path(args.out)
         else:
             sha = subprocess.run(["git", "-C", str(repo_root()), "rev-parse", "HEAD"], capture_output=True, text=True).stdout
-            out = new_run_dir(f"{sha.strip()[:12]}-explore")
-
-        serial = args.serial
-        driver_mode = getattr(args, "driver", "auto")
-        if args.product in ("phototok", "android-desktop") and driver_mode != "mock":
-            if not serial:
-                serial = os.environ.get("ANDROID_SERIAL")
-            if not serial:
-                print(f"error: --serial (or ANDROID_SERIAL env var) is required for Android product '{args.product}'", file=sys.stderr)
-                return 2
-
-        # 1. Resolve and load charter
+            out = new_run_dir(sha, label=f"explore-{charter.id}")
+        spec = load_scenarios(args.product)
+        app_id = str(spec["app_id"])
+        agents = {"mock": MockExplorationAgent, "claude": ClaudeExplorationAgent, "gemini": GeminiExplorationAgent}
+        agent = agents[args.agent]()
+        driver = get_driver(args.product, app_id, out, serial=serial, driver_type=driver_mode)
+        session = (
+            contextlib.nullcontext()
+            if driver_mode == "mock"
+            else android_session(driver.adb, spec, args.product, purpose="usability-explore")  # type: ignore[attr-defined]
+        )
         try:
-            charter = load_charter(args.charter, product=args.product)
-        except Exception as exc:
-            print(f"error loading charter: {exc}", file=sys.stderr)
-            return 2
-
-        # 2. Resolve app_id from scenarios if available
-        try:
-            spec = load_scenarios(args.product)
-            app_id = str(spec.get("app_id", "com.phototok.lab"))
-        except Exception:
-            app_id = f"com.{args.product}.lab"
-
-        # 3. Create driver
-        try:
-            driver = get_driver(
-                args.product,
-                app_id,
-                out,
-                serial=serial,
-                driver_type=driver_mode,
-            )
+            with session:
+                if driver_mode != "mock":
+                    driver._step({"launch": {}})  # type: ignore[attr-defined]
+                result = run_exploration(driver=driver, charter=charter, step_budget=args.budget, agent=agent, out_dir=out)
         except DeviceBusy as exc:
             print(f"device {serial} is busy: {exc}", file=sys.stderr)
             return 3
-        except Exception as exc:
-            print(f"error initializing driver: {exc}", file=sys.stderr)
-            return 1
-
-        # 4. Instantiate exploration agent
-        agent_type = getattr(args, "agent", "mock")
-        if agent_type == "mock":
-            agent = MockExplorationAgent()
-        elif agent_type == "claude":
-            agent = ClaudeExplorationAgent()
-        elif agent_type == "gemini":
-            agent = GeminiExplorationAgent()
-        else:
-            print(f"error: unknown agent type '{agent_type}'", file=sys.stderr)
-            return 2
-
-        # 5. Run exploration
-        try:
-            result = run_exploration(
-                driver=driver,
-                charter=charter,
-                step_budget=args.budget,
-                agent=agent,
-                out_dir=out,
-            )
-        except Exception as exc:
-            print(f"error during exploration: {exc}", file=sys.stderr)
-            return 1
         finally:
             driver.close()
 
-        # 6. Report trajectory summary
         status = result.get("status", "unknown")
-        steps_taken = result.get("steps_taken", len(result.get("trajectory", [])))
-        unique_screens = len({s.get("screen") for s in result.get("trajectory", []) if s.get("screen")})
         findings = result.get("findings", [])
-        dead_ends = result.get("dead_ends", 0)
-
-        print(f"Exploration {status}: {steps_taken}/{args.budget} steps, {unique_screens} unique screens, {len(findings)} findings, {dead_ends} dead ends")
+        print(f"Exploration {status}: {result.get('steps_taken', 0)}/{result.get('budget', args.budget)} steps, "
+              f"{result.get('screens_visited_count', 0)} unique screens, {len(findings)} findings, "
+              f"{result.get('dead_ends', 0)} dead ends" + (f" ({result['error']})" if result.get("error") else ""))
         print(out)
-        return 0 if status in ("pass", "goal_reached", "completed", "budget_exhausted") else 1
+        # Reaching the goal, running out of steps or giving up are results; a broken run is not.
+        return 0 if status in ("goal_reached", "budget_exhausted", "gave_up", "dead_end") else 1
 
     run_dir = Path(args.run_dir)
     if args.subcommand == "usability-panel":
@@ -553,6 +524,13 @@ def _usability(args: argparse.Namespace) -> int:
         table, over = text_load_table(load_variants(run_dir, [Path(v) for v in args.variant]))
         print(table)
         return 1 if over else 0
+    if args.subcommand == "usability-assemble":
+        from .usability.panel import assemble_answers
+
+        problems = assemble_answers(run_dir / "panel")
+        for pid, items in problems.items():
+            print(f"{pid}: {'ok' if not items else '; '.join(items)}")
+        return 1 if any(problems.values()) or not problems else 0
     if args.subcommand == "usability-check":
         from .usability.panel import expected_screen_keys, extract_json, validate_persona
 

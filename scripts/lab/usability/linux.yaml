@@ -1,6 +1,15 @@
-# Blitzlens (Linux Desktop) usability scenarios — reviewed by persona panel.
+# Blitzlens (Linux Desktop) usability scenarios — reviewed by the persona panel.
 #
-# Covers GNOME Libadwaita Obsidian Darkroom, 3-Up one-over-two comparison, LibRaw 1:1 zoom, and statistics (UC-4, UC-7, UC-10, UC-13, UC-14, UC-17).
+# The lab session (tests/e2e/session.sh) has no click and no wait-for-element, so every step is
+# a key press or a wait (LinuxDriver.translate refuses anything else). Each scenario is a fresh
+# launch on the run's copy of the roll, opened at start; Delete goes to the session's private
+# trash. The first photo decodes asynchronously, so every screen follows a short wait.
+#
+# Not covered: a sort order (UC-13: no key, menu or preference reaches the lowest-sharpness sort),
+# the file chooser (Ctrl+O), an SD card (UC-10) and a remote mount (UC-17), which a local
+# fixture cannot stage. Statistics, duplicates and shortcuts open windows the keyboard cannot
+# close (no window manager in the session), so they end their scenario. Blitzlens is
+# English-only; `--font-scale` captures a larger-text variant (session text scaling).
 product: linux
 app_id: app.alpatix.Blitzlens
 fixture:
@@ -8,143 +17,81 @@ fixture:
   remote: /tmp/pstlab/usability-trip
 scenarios:
   - id: U-LIN-01
-    title: Launch & 3-Up burst culling with keyboard
-    goal: Launch Blitzlens in Obsidian Darkroom theme, open the shoot with Ctrl+O, compare burst in 3-Up layout, and cull with M, C, and Delete.
+    title: Burst culling in 3-Up with the keyboard
+    goal: Last week's trip photos are open. Compare the three shots of the dawn burst side by side, keep the best one, bin a bad one, and change your mind about it.
     use_case: UC-4
     steps:
       - launch: {}
-      - screen: darkroom-empty
-        intent: Open my shoot folder
-        expected: Press Ctrl+O or tap Open Folder button
-      - key: Ctrl+O
-      - screen: file-chooser
-        system: true
-        intent: Select the trip photos directory
-        expected: Choose usability-trip folder and open
-      - tap: {text: Open}
-      - wait_for: {id: btn_mode_3, timeout_ms: 10000}
-      - screen: workspace-loaded
-        intent: Look at initial photo and switch to 3-Up Focus mode
-        expected: Press 3 or tap 'Focus 3-Up (3)'
+      - screen: first-photo
+        intent: See which photo is open and how many there are
+        expected: Press 3 to compare the photo with its neighbours (3-Up)
       - key: "3"
-      - screen: three-up-one-over-two
-        intent: Compare current top frame against two bottom neighbours
-        expected: Navigate burst with Right arrow or L
+      - wait_ms: 1500
+      - screen: three-up
+        intent: Compare this shot with the one before and the one after
+        expected: Press Right (or L) to step to the next photo
       - key: Right
-      - screen: burst-comparison
-        intent: Pick the sharpest frame in this burst
-        expected: Press M to move photo and companions to Selection/
+      - wait_ms: 1500
+      - screen: burst-compared
+        intent: Decide which shot of the burst is the sharpest
+        expected: Press M to move the best shot to Selection
       - key: M
-      - screen: after-move
-        intent: Check tactile action bar status pill and advance
-        expected: Press Delete on out-of-focus frame
+      - wait_ms: 1500
+      - screen: after-keep
+        intent: Check that the keeper was filed and the counts changed
+        expected: Press Delete to send a blurry shot to the Trash
       - key: Delete
+      - wait_ms: 1500
       - screen: after-trash
-        intent: Restore accidentally trashed frame
-        expected: Press Ctrl+Z or tap Undo
+        intent: Make sure the blurry shot is gone
+        expected: Press Ctrl+Z to take the last action back
       - key: Ctrl+Z
+      - wait_ms: 1500
       - screen: after-undo
-        intent: Confirm restored frame returns to view
-        expected: Press C to copy to Selection/
+        intent: Make sure the shot is back and the counts match
+        expected: Press C to copy this shot to Selection and keep the original
       - key: C
+      - wait_ms: 1500
       - screen: after-copy
-        intent: Check counter pill updates to reflect selected count
-        expected: Navigate forward with Right arrow
+        intent: Check the copy was made and the photo is still in the folder
+        expected: Press Right (or L) to carry on with the next photo
 
   - id: U-LIN-02
-    title: 1-Up detail & LibRaw 1:1 zoom
-    goal: Switch to 1-Up mode, develop RAW sensor pixels at 1:1 via LibRaw with Space, and inspect optical goodness bar.
+    title: Keep a photo together with its RAW file and sidecar
+    goal: The first photo of the shoot was shot RAW plus JPEG and has a settings file next to it. Move it and put it back, and check the screen tells you what happened to every file.
     use_case: UC-4
     steps:
-      - screen: before-1up
-        intent: Switch to 1-Up view for single photo inspection
-        expected: Press 1 or tap '1-Up (1)'
-      - key: "1"
-      - screen: single-photo-1up
-        intent: View single photograph with maximum canvas area
-        expected: Press Space to zoom to 100% sensor pixels
-      - key: Space
-      - screen: libraw-100-zoom
-        intent: Inspect RAW sensor demosaicing and feather sharpness
-        expected: Press Escape or Space to return to fit
-      - key: Space
-      - screen: fit-view
-        intent: Inspect Info HUD and sharpness goodness meter
-        expected: Press I to toggle HUD
+      - launch: {}
+      - screen: first-photo-with-companions
+        intent: Find out whether this photo has other files with it
+        expected: The badges above the photo show its RAW and sidecar; press M to move them all to Selection
+      - key: M
+      - wait_ms: 1500
+      - screen: after-move
+        intent: Check the screen says what was moved
+        expected: The bar at the bottom confirms the move; press Ctrl+Z to put everything back
+      - key: Ctrl+Z
+      - wait_ms: 1500
+      - screen: after-undo
+        intent: Make sure the photo and its files are back
+        expected: Press I to hide or show the photo details
       - key: I
-      - screen: info-hud-active
-        intent: Read focus metric, noise-corrected score, and EXIF
-        expected: Press I to hide HUD
-      - key: I
+      - wait_ms: 500
+      - screen: info-toggled
+        intent: Read the photo details without covering the picture
+        expected: Press I again to bring the details back
 
   - id: U-LIN-03
-    title: Lowest-sharpness-first triage
-    goal: Sweep out obvious blur and focus misses first using lowest-sharpness-first triage.
-    use_case: UC-13
-    steps:
-      - screen: default-sort-order
-        intent: Change sort order to review blurriest photos first
-        expected: Choose View > Sort by Lowest Sharpness
-      - tap: {label: Sort Lowest Sharpness}
-      - screen: lowest-sharpness-view
-        intent: Inspect the worst optical miss in the shoot
-        expected: Press Delete to trash it
-      - key: Delete
-      - screen: triage-next-miss
-        intent: Move to next blurry frame until threshold stop banner appears
-        expected: Observe threshold stop banner
-
-  - id: U-LIN-04
-    title: Safe-to-format SD card import
-    goal: Cull shoot from camera SD card, verify collision suffixing (-2), and confirm safe-to-format card state.
-    use_case: UC-10
-    steps:
-      - screen: sd-card-browse
-        intent: Cull photos from removable storage card
-        expected: Verify destination folder settings
-      - tap: {label: Destination Settings}
-      - screen: card-destination-dialog
-        intent: Set external fast SSD as selection target
-        expected: Confirm atomic bundle transfer
-      - tap: {text: Confirm}
-      - screen: card-transfer-active
-        intent: Observe non-blocking FIFO queue processing file moves
-        expected: Finish reviewing all card images
-      - screen: card-safe-summary
-        intent: Verify all keepers safely verified on SSD with zero uncopied files
-        expected: Read safe-to-format confirmation
-
-  - id: U-LIN-05
-    title: Library statistics & decision log
-    goal: View optical EXIF distributions, camera/lens stats, and local decision history.
+    title: Library statistics
+    goal: Get an overview of the whole shoot — formats, lenses, how sharp it is.
     use_case: UC-14
     steps:
-      - screen: workspace-before-stats
-        intent: Open Library Statistics dialog
-        expected: Press Ctrl+L or select Main Menu > Library Statistics
+      - launch: {}
+      - screen: first-photo
+        intent: Find a way to see numbers for the whole shoot
+        expected: Press Ctrl+L to open Library Statistics (also in the main menu)
       - key: Ctrl+L
-      - wait_for: {id: library_statistics_dialog, timeout_ms: 6000}
-      - screen: statistics-dialog-overview
-        intent: Review total shots, keeper percentage, and score breakdown
-        expected: Inspect lens aperture distribution chart
-      - swipe: up
-      - screen: statistics-charts
-        intent: Examine sharpness vs ISO distribution curves
-        expected: Close dialog with Escape
-      - key: Escape
-
-  - id: U-LIN-06
-    title: Cloud / Remote folder support
-    goal: Handle a shoot mounted over GVFS remote path with honest cloud deletion and download safeguards.
-    use_case: UC-17
-    steps:
-      - screen: gvfs-folder-loaded
-        intent: Notice Cloud / Remote status counter badge
-        expected: Observe prefetch limited to radius 1
-      - tap: {label: Remote Options}
-      - screen: remote-download-dialog
-        intent: Avoid large unmetered cellular download
-        expected: Read download size confirmation before full-folder scan
-      - screen: cloud-trash-dialog
-        intent: Verify FreeDesktop trash handling on remote volume
-        expected: Confirm or cancel remote trash action
+      - wait_ms: 2000
+      - screen: library-statistics
+        intent: Read how many photos there are, which formats and lenses, and how sharp they are
+        expected: The statistics window lists the summary, formats, focal lengths and sharpness by aperture and shutter speed

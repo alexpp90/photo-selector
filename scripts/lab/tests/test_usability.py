@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+import os
 import re
 import shutil
 import sys
@@ -21,7 +22,6 @@ from lab.usability.capture import SUPPORTED_PRODUCTS, load_scenarios, run_captur
 from lab.usability.driver import (  # noqa: E402
     AndroidDriver,
     BaseDriver,
-    FakeDriver,
     LinuxDriver,
     MacOsDriver,
     MockDriver,
@@ -177,6 +177,10 @@ class FakeAdb:
 
     def key(self, code: str) -> str:
         self.inputs.append(("key", code))
+        return ""
+
+    def key_combo(self, *codes: str) -> str:
+        self.inputs.append(("combo", *codes))
         return ""
 
     def home(self) -> str:
@@ -341,7 +345,7 @@ class TestDriver(unittest.TestCase):
         self.assertEqual(drv.describe_action({"tap": {"id": "x", "label": "Folder or Cloud"}}), "Tapped 'Folder or Cloud'")
         self.assertEqual(drv.describe_action({"swipe": "left"}), "Swiped left")
         self.assertEqual(drv.describe_action({"key": "M"}), "Pressed 'M'")
-        self.assertEqual(drv.describe_action({"key": {"code": "z", "modifiers": ["cmd"]}}), "Pressed 'z+cmd'")
+        self.assertEqual(drv.describe_action({"key": {"code": "z", "modifiers": ["cmd"]}}), "Pressed 'Cmd+Z'")
         self.assertIsNone(drv.describe_action({"wait_for": {"id": "x"}}))
 
     def test_describe_target_and_action_with_strings(self) -> None:
@@ -563,15 +567,16 @@ class TestScenarioFile(unittest.TestCase):
             "fixture_prefix": "/sdcard/PSTLab/",
             "min_screens": 20,
         },
+        # The desktop hooks reach fewer controls headless (no picker, no sort): fewer screens.
         "macos": {
             "app_id": "app.alpatix.lensjet",
             "fixture_prefix": "/tmp/pstlab/",
-            "min_screens": 20,
+            "min_screens": 12,
         },
         "linux": {
             "app_id": "app.alpatix.Blitzlens",
             "fixture_prefix": "/tmp/pstlab/",
-            "min_screens": 20,
+            "min_screens": 12,
         },
     }
 
@@ -609,6 +614,54 @@ class TestScenarioFile(unittest.TestCase):
 
     def test_linux_scenarios_are_complete(self) -> None:
         self._assert_scenario_spec("linux")
+
+    def test_every_step_runs_on_its_products_driver(self) -> None:
+        """A step the driver cannot perform used to become a silent wait on the desktops, while
+        the persona was told it happened; now the driver refuses it, and so does this test."""
+        drivers = {
+            "phototok": drv.ScenarioDriver(None, "app", Path("/tmp/pstlab/unused")),  # type: ignore[arg-type]
+            "android-desktop": drv.ScenarioDriver(None, "app", Path("/tmp/pstlab/unused")),  # type: ignore[arg-type]
+            "macos": drv.MacOsDriver("app", Path("/tmp/pstlab/unused"), fixture_dir=Path("/tmp/pstlab/fx")),
+            "linux": drv.LinuxDriver("app", Path("/tmp/pstlab/unused"), fixture_dir=Path("/tmp/pstlab/fx")),
+        }
+        for product, d in drivers.items():
+            for scenario in load_scenarios(product, repo_root())["scenarios"]:
+                with self.subTest(product=product, scenario=scenario["id"]):
+                    self.assertEqual(d.validate(scenario), [])
+
+    def test_macos_keys_match_lensjets_ui_test_driver(self) -> None:
+        src = (repo_root() / "products" / "macos-desktop" / "src" / "PhotoSelectorApp" / "UITestDriver.swift").read_text(encoding="utf-8")
+        body = src[src.index("static func from(name: String)"):]
+        body = body[: body.index("default: return nil")]
+        names = set(re.findall(r'"([^"]+)"', body))
+        self.assertEqual(names, set(drv.MACOS_KEY_NAMES))
+
+    def test_macos_targets_are_frames_lensjet_registers(self) -> None:
+        src_dir = repo_root() / "products" / "macos-desktop" / "src"
+        text = "\n".join(p.read_text(encoding="utf-8") for p in src_dir.rglob("*.swift"))
+        ids = set(re.findall(r'uiTestFrame\("([a-z_]+)"\)', text))
+        ids |= {f"toolbar_mode_{n}" for n in (1, 2, 3)} | {"slot_current", "slot_previous", "slot_next"}
+        for scenario in load_scenarios("macos", repo_root())["scenarios"]:
+            for step in scenario["steps"]:
+                target = step.get("tap") or step.get("wait_for")
+                if target:
+                    self.assertIn(target["id"], ids, f"{scenario['id']}: {target['id']!r} is not a registered frame")
+
+    def test_use_cases_exist_and_name_the_product(self) -> None:
+        catalogue = repo_root() / "private" / "docs" / "USE_CASES.md"
+        if not catalogue.is_file():
+            self.skipTest("needs the private use-case catalogue (private/docs/USE_CASES.md)")
+        text = catalogue.read_text(encoding="utf-8")
+        tags = {"phototok": "Jackpix", "android-desktop": "AndroidDesktop", "macos": "macOS", "linux": "Linux"}
+        from lab.usability.report import parse_use_cases
+
+        for product, tag in tags.items():
+            for scenario in load_scenarios(product, repo_root())["scenarios"]:
+                for uc in parse_use_cases(scenario["use_case"]):
+                    m = re.search(rf"^## {re.escape(uc)} — .*?\n\*\*Products:\*\*([^\n]*)", text, re.M | re.S)
+                    with self.subTest(product=product, scenario=scenario["id"], use_case=uc):
+                        self.assertIsNotNone(m, f"{uc} is not in the catalogue")
+                        self.assertIn(f"`{tag}`", m.group(1) if m else "")
 
 
 class TestPersonaInvariants(unittest.TestCase):
@@ -652,19 +705,14 @@ class TestPersonaInvariants(unittest.TestCase):
                 self.assertTrue(locale, f"{f.name}: locale must be non-empty")
                 self.assertGreater(font_scale, 0.0, f"{f.name}: font_scale must be > 0")
 
-                # Invariant 2: Word count strictly < 100 words (both total and body)
-                words = text.split()
-                body_lines = [line for line in lines if not line.startswith("<!--") and not line.startswith("#")]
-                body_words = " ".join(body_lines).split()
-
-                self.assertLess(
-                    len(words), 100,
-                    f"{f.relative_to(personas_root)}: total word count {len(words)} must be strictly < 100 words",
-                )
-                self.assertLess(
-                    len(body_words), 100,
-                    f"{f.relative_to(personas_root)}: body word count {len(body_words)} must be strictly < 100 words",
-                )
+                # Invariant 2: the persona itself (the paragraph between the title and the
+                # device line) stays under 100 words; a long brief makes a checklist auditor.
+                blocks = [b for b in text.split("\n\n") if b.strip()]
+                paragraph = blocks[1].split() if len(blocks) >= 3 else []
+                self.assertTrue(paragraph, f"{f.relative_to(personas_root)}: setup+title, paragraph, device line")
+                self.assertLess(len(paragraph), 100, f"{f.relative_to(personas_root)}: persona paragraph has {len(paragraph)} words")
+                self.assertLessEqual(len(blocks[-1].split()), 25, f"{f.relative_to(personas_root)}: device line too long")
+                body_words = paragraph
 
                 # Invariant 3: First-person perspective
                 tokens = {re.sub(r"[^a-zA-Z]", "", w).lower() for w in body_words}
@@ -674,6 +722,31 @@ class TestPersonaInvariants(unittest.TestCase):
                 )
 
         self.assertGreaterEqual(total_files, 16, f"Expected at least 16 persona briefs, found {total_files}")
+
+    # Feature and implementation names prime a persona to hunt for features by name, and claims
+    # about speed or file internals cannot be judged from a screenshot (2026-10-24 review).
+    INSIDER_TERMS = re.compile(
+        r"vision|laplacian|libraw|embedded preview|learn workstation|photo coach|3-up|1-up|focus mode|"
+        r"fifo|apex|\bhig\b|wayland|telemetry|queue|latency|xmp|suffix",
+        re.I,
+    )
+
+    def test_personas_speak_as_users_and_judge_a_capture_their_app_can_show(self) -> None:
+        personas_root = repo_root() / "private" / "lab" / "usability" / "personas"
+        if not personas_root.is_dir():
+            self.skipTest("private/lab/usability/personas directory not present (public checkout)")
+        from lab.usability.capture import TRANSLATED_PRODUCTS
+
+        for f in sorted(personas_root.glob("*/*.md")):
+            product = f.parent.name
+            text = f.read_text(encoding="utf-8")
+            with self.subTest(persona=str(f.relative_to(personas_root))):
+                self.assertIsNone(self.INSIDER_TERMS.search(text), "names a feature or an internal")
+                locale, scale = self.SETUP_PATTERN.match(text).groups()  # type: ignore[union-attr]
+                if product not in TRANSLATED_PRODUCTS:
+                    self.assertEqual(locale, "en", f"{product} is English-only; a {locale} capture does not exist")
+                if product == "macos":
+                    self.assertEqual(float(scale), 1.0, "Lensjet has no text scaling")
 
 
 class TestScenes(unittest.TestCase):
@@ -970,70 +1043,71 @@ class TestBlindPackets(unittest.TestCase):
         shutil.rmtree(self.base, ignore_errors=True)
 
     def test_blind_packets_strict_isolation_invariants(self) -> None:
-        """Verify: zero future actions, zero expected strings, and zero OCR/trees in packet i."""
+        """Packet i holds no expected action, no OCR/tree, no later action and no screen label."""
         packets_dir = self.run_dir / "packets"
-        packets = build_blind_packets(self.walkthrough, packets_dir)
+        packets = build_blind_packets(self.walkthrough, packets_dir, personas={"p": "# P\nI am a test persona."})
         screens = self.walkthrough["scenarios"][0]["screens"]
         self.assertEqual(len(packets), len(screens))
-
         all_expected = [s["expected"] for s in screens]
         all_ocr = [text for s in screens for text in s["metrics"]["texts"]]
-
         for i, pkt in enumerate(packets):
-            md_path = pkt["path"]
-            self.assertTrue(md_path.is_file(), f"Packet markdown missing: {md_path}")
-            text = md_path.read_text(encoding="utf-8")
-
-            # Invariant 1: NO expected string from ANY screen
-            for exp in all_expected:
-                self.assertNotIn(exp, text, f"Packet {i} contains expected string {exp!r}")
-
-            # Invariant 2: NO OCR/text dumps or XML tree markers
-            for ocr in all_ocr:
-                self.assertNotIn(ocr, text, f"Packet {i} contains OCR text {ocr!r}")
-            self.assertNotIn("<hierarchy", text)
-            self.assertNotIn("resource-id", text)
-
-            # Invariant 3: NO actions_before from future screens j > i
+            text = (packets_dir / "p" / pkt["file"]).read_text(encoding="utf-8")
+            for leak in all_expected + all_ocr + ["<hierarchy", "resource-id"]:
+                self.assertNotIn(leak, text, f"packet {i} leaks {leak!r}")
+            for s in screens:  # the author's labels: "U-TEST/guide", "03_guide.png"
+                self.assertNotIn(f"U-TEST/{s['name']}", text)
+                self.assertNotIn(s["image"], text)
             for j in range(i + 1, len(screens)):
                 for future_action in screens[j]["actions_before"]:
-                    self.assertNotIn(
-                        future_action,
-                        text,
-                        f"Packet {i} ({screens[i]['name']}) leaked future action from screen {j} ({screens[j]['name']}): {future_action!r}",
-                    )
-
-            # Invariant 4: Transition context for i > 0
+                    self.assertNotIn(future_action, text, f"packet {i} leaks a later action {future_action!r}")
+            self.assertIn(f'"screen": "U-TEST#{i + 1}"', text)
             if i > 0:
-                self.assertIsNotNone(pkt["previous_screen"])
-                self.assertIn(pkt["previous_screen"], text)
+                self.assertEqual(pkt["previous_image"], f"images/U-TEST_{screens[i - 1]['image']}")
+                self.assertIn("previous.png", text)
                 for action in screens[i]["actions_before"]:
-                    self.assertIn(action, text, f"Packet {i} missing transition action: {action!r}")
+                    self.assertIn(action, text)
             else:
-                self.assertIsNone(pkt["previous_screen"])
+                self.assertIsNone(pkt["previous_image"])
+                self.assertIn("first screen of this task", text)
+        system = (packets_dir / "p" / packets[1]["file"]).read_text(encoding="utf-8")
+        self.assertIn("Android system screen", system)
+        self.assertIn("Pixel 4a phone, portrait", system)
 
     def test_blind_packets_with_personas(self) -> None:
-        """Verify persona-bound packets include setup tag, persona profile, and UX rubrics."""
+        """build_panel writes each persona's packets, its overall step and the index the
+        assembler maps replies back with; the persona's setup comment stays out of the prompt."""
         out = build_panel(self.run_dir, priv=self.priv)
         commuter_dir = out / "packets" / "commuter"
-        self.assertTrue(commuter_dir.is_dir())
-
-        pkt0 = commuter_dir / "00_U-TEST_landing.md"
-        self.assertTrue(pkt0.is_file())
-        text = pkt0.read_text(encoding="utf-8")
-        self.assertIn("<!-- setup: en@2.0 -->", text)
+        text = (commuter_dir / "01.md").read_text(encoding="utf-8")
+        self.assertNotIn("<!-- setup", text)
         self.assertIn("Mia — commuter", text)
-        self.assertIn("Visual Hierarchy", text)
-        self.assertIn("Affordance Clarity", text)
-        self.assertIn("File-Safety Trust", text)
-        self.assertIn("Feedback Visibility", text)
+        self.assertIn("Import vacation photos safely", text)
         self.assertNotIn("SECRET_EXPECTED", text)
         self.assertNotIn("SECRET_OCR", text)
+        self.assertIn("would_keep_using", (commuter_dir / "overall.md").read_text(encoding="utf-8"))
+        index = json.loads((commuter_dir / "index.json").read_text(encoding="utf-8"))
+        self.assertEqual([p["screen_key"] for p in index], ["U-TEST/landing", "U-TEST/picker", "U-TEST/guide", "U-TEST/confirm"])
+        self.assertFalse(list(out.glob("walkthrough-*.md")), "personas get packets, not the whole walkthrough")
 
-        overall = commuter_dir / "overall.md"
-        self.assertTrue(overall.is_file())
-        overall_text = overall.read_text(encoding="utf-8")
-        self.assertIn("would_keep_using", overall_text)
+    def test_replies_are_assembled_per_persona_and_mapped_back_to_screens(self) -> None:
+        from lab.usability.panel import assemble_answers
+
+        out = build_panel(self.run_dir, priv=self.priv)
+        replies = out / "answers" / "commuter"
+        replies.mkdir(parents=True)
+        for n in range(1, 5):
+            (replies / f"{n:02d}.raw.txt").write_text("Sure!\n```json\n" + json.dumps({
+                "screen": f"U-TEST#{n}", "first_impression": "x", "would_do": "y", "read_text": "some",
+                "verdict": "ok", "issues": [], "liked": [],
+            }) + "\n```", encoding="utf-8")
+        (replies / "overall.raw.txt").write_text(json.dumps({
+            "would_keep_using": "maybe", "why": "w", "top_problems": [], "top_strengths": [], "one_change": "c"}),
+            encoding="utf-8")
+        self.assertEqual(assemble_answers(out), {"commuter": []})
+        doc = json.loads((out / "answers" / "commuter.json").read_text(encoding="utf-8"))
+        self.assertEqual(validate_persona(doc, expected_screen_keys(self.walkthrough)), [])
+        (replies / "02.raw.txt").write_text(json.dumps({"screen": "U-TEST#7"}), encoding="utf-8")
+        self.assertTrue(any("U-TEST#2" in p for p in assemble_answers(out)["commuter"]))
 
     def test_single_screen_schema_and_answer_assembly(self) -> None:
         """Verify validation of individual screen answer and assembly into full persona answer."""
@@ -1090,8 +1164,9 @@ class TestBlindPackets(unittest.TestCase):
         packets = build_blind_packets(multi_walkthrough, packets_dir)
         self.assertEqual(len(packets), 2)
         # SCEN-B Screen 0 must NOT link to SCEN-A Screen 0 as previous screen
-        self.assertIsNone(packets[0]["previous_screen"])
-        self.assertIsNone(packets[1]["previous_screen"])
+        self.assertIsNone(packets[0]["previous_image"])
+        self.assertIsNone(packets[1]["previous_image"])
+        self.assertEqual([p["packet_id"] for p in packets], ["SCEN-A#1", "SCEN-B#1"])
 
 
 class TestMultiProductDrivers(unittest.TestCase):
@@ -1138,129 +1213,164 @@ class TestMultiProductDrivers(unittest.TestCase):
         self.assertGreater(len(screen["actions_before"]), 5)
 
     def test_mock_driver_step_failure_marks_broken(self) -> None:
-        """Verify step failure records broken scenario and screen."""
-        out = self.base / "mock_broken"
-        driver = MockDriver("phototok", app_id="test.app", out_dir=out, fail_on_step="broken_step")
-        scenario = {
-            "id": "U-FAIL",
-            "title": "Failing Journey",
-            "goal": "Test failure",
-            "steps": [
-                {"launch": {}},
-                {"screen": "start"},
-                {"tap": {"id": "broken_step"}},
-                {"screen": "after"},
-            ],
-        }
-        res = driver.run(scenario)
-        self.assertEqual(res["status"], "broken")
-        self.assertIn("broken_step", str(res["error"]))
-        self.assertEqual(len(res["screens"]), 2)
-        self.assertEqual(res["screens"][1]["name"], "broken")
+        """A failing step (by number or screen name) breaks the scenario and captures 'broken'."""
+        for fail_on, kept in ((3, 1), ("after", 1)):
+            with self.subTest(fail_on=fail_on):
+                out = self.base / f"mock_broken_{fail_on}"
+                driver = MockDriver("phototok", app_id="test.app", out_dir=out, fail_on_step=fail_on)
+                res = driver.run({"id": "U-FAIL", "steps": [
+                    {"launch": {}}, {"screen": "start"}, {"tap": {"id": "x"}}, {"screen": "after"},
+                ]})
+                self.assertEqual(res["status"], "broken")
+                self.assertIn(str(fail_on), str(res["error"]))
+                self.assertEqual([s["name"] for s in res["screens"]][:kept], ["start"])
+                self.assertEqual(res["screens"][-1]["name"], "broken")
 
-    def test_macos_driver_translates_steps_and_collects_checkpoints(self) -> None:
-        """Verify MacOsDriver translates steps to UIScenario JSON and handles checkpoints via exec_fn."""
+    def test_mock_driver_does_not_match_a_number_inside_another_step(self) -> None:
+        """fail_on_step=1 used to fail any step whose text contained a 1 (wait_ms: 1000)."""
+        driver = MockDriver("phototok", out_dir=self.base / "mock_digits", fail_on_step=9)
+        res = driver.run({"id": "U", "steps": [{"wait_ms": 1000}, {"screen": "s"}]})
+        self.assertEqual(res["status"], "pass")
+
+    def _mac_exec(self, out: Path, written: list[str], code: int = 0, log: str = "") -> Any:
+        calls: list[tuple[list[str], dict[str, str]]] = []
+
+        def fake_exec(cmd: list[str], env: dict[str, str]) -> Any:
+            calls.append((cmd, env))
+            for i, name in enumerate(written, start=1):
+                (out / f"{i:02d}_{name}.png").write_bytes(PNG_1PX)
+                tree = _tree_dict("macos", [_tree_node("grid", role="table", text="Photos", bounds=[0, 0, 800, 600])],
+                                  unit="pt", w=1280, h=840)
+                (out / f"{i:02d}_{name}.tree.json").write_text(json.dumps(tree), encoding="utf-8")
+            import subprocess
+
+            return subprocess.CompletedProcess(cmd, code, stdout=log, stderr="")
+
+        fake_exec.calls = calls  # type: ignore[attr-defined]
+        return fake_exec
+
+    def test_macos_driver_translates_supported_steps(self) -> None:
         out = self.base / "mac_run"
-
-        executed_cmds = []
-        executed_envs = []
-
-        def fake_exec(cmd: list[str], env: dict[str, str]) -> None:
-            executed_cmds.append(cmd)
-            executed_envs.append(env)
-            # Create synthetic checkpoint
-            (out / "01_cull_view.png").write_bytes(PNG_1PX)
-            tree_data = _tree_dict(
-                "macos",
-                [_tree_node("grid", role="table", text="Photos", bounds=[0, 0, 800, 600])],
-                unit="pt",
-                w=1280,
-                h=840,
-            )
-            (out / "01_cull_view.tree.json").write_text(json.dumps(tree_data), encoding="utf-8")
-
-        driver = MacOsDriver("com.example.PhotoSelectorApp", out, exec_fn=fake_exec)
-        scenario = {
-            "id": "U-MAC-1",
-            "title": "macOS Culling",
-            "goal": "Fast cull burst",
-            "steps": [
-                {"launch": {}},
-                {"key": "Cmd+O"},
-                {"wait_for": {"id": "folder_picker"}},
-                {"tap": {"id": "select_btn"}},
-                {"wait_ms": 200},
-                {"key": "Right"},
-                {"key": "Delete"},
-                {"screen": "cull_view", "intent": "View culled burst", "expected": "tap Next"},
-            ],
-        }
-        res = driver.run(scenario)
-        self.assertEqual(res["status"], "pass")
-        self.assertEqual(len(executed_cmds), 1)
-        self.assertEqual(executed_envs[0].get("PST_SHOW_GUI"), "0")
-
-        # Verify translated scenario file
-        scen_json = json.loads((out / "ui-scenario.json").read_text(encoding="utf-8"))
-        actions = [s["action"] for s in scen_json["steps"]]
-        self.assertIn("waitLoaded", actions)
-        self.assertIn("waitFor", actions)
-        self.assertIn("click", actions)
-        self.assertIn("wait", actions)
-        self.assertIn("key", actions)
-        self.assertIn("checkpoint", actions)
-
-        # Verify checkpoints collected
-        self.assertEqual(len(res["screens"]), 1)
-        self.assertEqual(res["screens"][0]["name"], "cull_view")
+        fake = self._mac_exec(out, ["cull_view"])
+        driver = MacOsDriver("app.alpatix.lensjet", out, fixture_dir=self.base / "fx", exec_fn=fake)
+        res = driver.run({"id": "U-MAC-1", "steps": [
+            {"launch": {}},
+            {"key": "3"},
+            {"wait_for": {"id": "slot_current", "timeout_ms": 5000}},
+            {"tap": {"id": "dock_move"}},
+            {"wait_ms": 200},
+            {"key": "Cmd+,"},
+            {"key": "Cmd+Z"},
+            {"screen": "cull_view", "intent": "i", "expected": "e"},
+        ]})
+        self.assertEqual(res["status"], "pass", res["error"])
+        cmd, env = fake.calls[0]
+        self.assertEqual(env["PST_SHOW_GUI"], "0")
+        self.assertEqual(cmd[cmd.index("--open") + 1], str(self.base / "fx"))
+        # M and C must write inside the fixture, whatever this account's settings say.
+        self.assertEqual(cmd[cmd.index("-externalCullingDestinationURL") + 1], "")
+        steps = json.loads((out / "ui-scenario.json").read_text(encoding="utf-8"))["steps"]
+        self.assertEqual(steps, [
+            {"action": "waitLoaded"},
+            {"action": "key", "key": "3"},
+            {"action": "waitFor", "target": "slot_current", "timeoutSeconds": 5.0},
+            {"action": "click", "target": "dock_move"},
+            {"action": "wait", "ms": 200},
+            {"action": "key", "key": ",", "modifiers": ["command"]},
+            {"action": "key", "key": "z", "modifiers": ["command"]},
+            {"action": "checkpoint", "name": "cull_view"},
+        ])
+        self.assertEqual(res["screens"][0]["actions_before"],
+                         ["Opened the app", "Pressed '3'", "Tapped the control 'dock_move'", "Pressed 'Cmd+,'", "Pressed 'Cmd+Z'"])
         self.assertEqual(res["screens"][0]["metrics"]["words"], 1)
 
-    def test_linux_driver_translates_steps_and_collects_checkpoints(self) -> None:
-        """Verify LinuxDriver translates steps to session.script and handles checkpoints via exec_fn."""
+    def test_macos_driver_refuses_steps_it_cannot_perform(self) -> None:
+        """These used to become 150 ms waits while the persona read "Pressed 'Cmd+O'"."""
+        for step in ({"key": "Cmd+O"}, {"key": "Enter"}, {"tap": {"text": "Open"}}, {"swipe": "up"},
+                     {"key": {"code": "z", "modifiers": ["hyper"]}}):
+            with self.subTest(step=step):
+                out = self.base / f"mac_refuse_{len(list(self.base.iterdir()))}"
+                fake = self._mac_exec(out, ["s"])
+                driver = MacOsDriver("app", out, fixture_dir=self.base / "fx", exec_fn=fake)
+                res = driver.run({"id": "U", "steps": [step, {"screen": "s", "intent": "i", "expected": "e"}]})
+                self.assertEqual(res["status"], "broken")
+                self.assertIn("cannot run", res["error"])
+                self.assertEqual(fake.calls, [])
+                self.assertEqual(res["screens"], [])
+
+    def test_macos_driver_reports_a_checkpoint_the_app_never_wrote(self) -> None:
+        out = self.base / "mac_short"
+        fake = self._mac_exec(out, ["first"], code=1, log="UIScenarioRunner: step 3 (click) failed\n")
+        driver = MacOsDriver("app", out, fixture_dir=self.base / "fx", exec_fn=fake)
+        res = driver.run({"id": "U", "steps": [
+            {"screen": "first", "intent": "i", "expected": "e"},
+            {"tap": {"id": "dock_move"}},
+            {"screen": "second", "intent": "i", "expected": "e"},
+        ]})
+        self.assertEqual(res["status"], "broken")
+        self.assertIn("'second' was not written", res["error"])
+        self.assertIn("step 3 (click) failed", res["error"])
+        self.assertEqual([s["name"] for s in res["screens"]], ["first"])
+
+    def test_linux_driver_runs_the_session_on_the_fixture_with_the_apps_python(self) -> None:
         out = self.base / "linux_run"
-
-        executed_cmds = []
+        calls: list[tuple[list[str], dict[str, str]]] = []
 
         def fake_exec(cmd: list[str], env: dict[str, str]) -> None:
-            executed_cmds.append(cmd)
-            # Create synthetic checkpoint
+            calls.append((cmd, env))
             (out / "01_overview.png").write_bytes(PNG_1PX)
-            tree_data = _tree_dict(
-                "linux",
-                [_tree_node("btn", role="button", text="Import", bounds=[0, 0, 100, 40])],
-                unit="px",
-                w=1280,
-                h=800,
-            )
-            (out / "01_overview.tree.json").write_text(json.dumps(tree_data), encoding="utf-8")
+            tree = _tree_dict("linux", [_tree_node("btn", role="button", text="Import", bounds=[0, 0, 100, 40])],
+                              unit="px", w=1280, h=800)
+            (out / "01_overview.tree.json").write_text(json.dumps(tree), encoding="utf-8")
 
-        driver = LinuxDriver("photo-selector-linux", out, exec_fn=fake_exec)
-        scenario = {
-            "id": "U-LINUX-1",
-            "title": "Linux Culling",
-            "goal": "Import and review",
-            "steps": [
-                {"launch": {}},
-                {"key": "Right"},
-                {"wait_ms": 500},
-                {"screen": "overview", "intent": "View imported photos", "expected": "hit Space"},
-            ],
-        }
-        res = driver.run(scenario)
-        self.assertEqual(res["status"], "pass")
-        self.assertEqual(len(executed_cmds), 1)
-
-        # Verify script lines
-        script_text = (out / "session.script").read_text(encoding="utf-8")
-        self.assertIn("wait_loaded", script_text)
-        self.assertIn("key Right", script_text)
-        self.assertIn("sleep 0.50", script_text)
-        self.assertIn("checkpoint overview", script_text)
-
-        # Verify checkpoints collected
-        self.assertEqual(len(res["screens"]), 1)
-        self.assertEqual(res["screens"][0]["name"], "overview")
+        driver = LinuxDriver("app.alpatix.Blitzlens", out, fixture_dir=self.base / "fx", exec_fn=fake_exec, text_scaling=1.5)
+        res = driver.run({"id": "U-LIN-1", "steps": [
+            {"launch": {}},
+            {"key": "Space"},
+            {"key": "M"},
+            {"key": "Ctrl+L"},
+            {"wait_ms": 500},
+            {"screen": "overview", "intent": "i", "expected": "e"},
+        ]})
+        self.assertEqual(res["status"], "pass", res["error"])
+        cmd, env = calls[0]
+        self.assertEqual(cmd[cmd.index("--fixture") + 1], str(self.base / "fx"))
+        self.assertEqual(cmd[cmd.index("--text-scaling") + 1], "1.5")
+        self.assertTrue(cmd[cmd.index("--lab-dir") + 1].startswith(str(drv.lab_tmp_root())))
+        self.assertIn(str(repo_root() / "products" / "linux-desktop" / "src"), env["PYTHONPATH"])
+        self.assertTrue(env["PST_LAB_PYTHON"])
+        script = (out / "session.script").read_text(encoding="utf-8").splitlines()
+        # xdotool ignores "Space" with exit 0 and sends "M" as Shift+m: keysyms are spelled exactly.
+        self.assertIn("key space", script)
+        self.assertIn("key m", script)
+        self.assertIn("key ctrl+l", script)
+        self.assertIn("checkpoint overview", script)
         self.assertEqual(res["screens"][0]["metrics"]["words"], 1)
+
+    def test_linux_driver_refuses_clicks_waits_for_and_cmd(self) -> None:
+        driver = LinuxDriver("app", self.base / "l", fixture_dir=self.base / "fx", exec_fn=lambda c, e: None)
+        for step in ({"tap": {"id": "x"}}, {"wait_for": {"id": "x"}}, {"swipe": "up"}, {"key": "Cmd+Z"}):
+            with self.subTest(step=step):
+                self.assertTrue(driver.validate({"id": "U", "steps": [step]}))
+
+    def test_android_key_with_modifiers_is_one_combination(self) -> None:
+        adb = FakeAdb([_xml()])
+        d = drv.ScenarioDriver(adb, "com.photoselectortoolbox.lab", self.base / "a", settle_ms=0)
+        res = d.run({"id": "U", "steps": [{"key": "Ctrl+Z"}, {"key": {"code": "z", "modifiers": ["ctrl", "shift"]}}, {"key": "Delete"}]})
+        self.assertEqual(res["status"], "pass", res["error"])
+        self.assertEqual(adb.inputs, [
+            ("combo", "KEYCODE_CTRL_LEFT", "KEYCODE_Z"),
+            ("combo", "KEYCODE_CTRL_LEFT", "KEYCODE_SHIFT_LEFT", "KEYCODE_Z"),
+            ("key", "KEYCODE_DEL"),
+        ])
+        self.assertEqual(d.validate({"id": "U", "steps": [{"key": "PageTurn"}]}), ["step 1: no Android key code for 'PageTurn'"])
+
+    def test_key_wording(self) -> None:
+        self.assertEqual(drv.format_key("cmd+shift+z"), "Cmd+Shift+Z")
+        self.assertEqual(drv.format_key({"code": "z", "modifiers": ["ctrl"]}), "Ctrl+Z")
+        self.assertEqual(drv.parse_key("Cmd++"), ("+", ("command",)))
+        with self.assertRaises(ValueError):
+            drv.parse_key("Hyper+Z")
 
 
 class TestMultiProductCapture(unittest.TestCase):
@@ -1502,9 +1612,12 @@ class TestExplorationLoop(unittest.TestCase):
         )
         res = run_exploration(driver=driver, charter=self.charter, step_budget=15, agent=agent, out_dir=out)
         self.assertEqual(res["status"], "dead_end")
-        self.assertGreaterEqual(len(res["findings"]), 1)
-        self.assertEqual(res["findings"][0]["kind"], "discoverability")
-        self.assertIn("No visible control", res["findings"][0]["detail"])
+        dead = [f for f in res["findings"] if f["rule"] == "discoverability-dead-end"]
+        self.assertEqual(len(dead), 1)
+        self.assertEqual(dead[0]["kind"], "discoverability")
+        self.assertIn("No visible control", dead[0]["detail"])
+        # The hesitation before it is its own kind: the report must not count it as a dead end.
+        self.assertTrue(all(f["kind"] == "hesitation" for f in res["findings"] if f["rule"] == "affordance-hesitation"))
 
     def test_exploration_charter_never_constraint(self) -> None:
         """Verify that prohibited actions trigger safety findings and are rejected."""
@@ -1877,44 +1990,39 @@ class TestModeratorSynthesis(unittest.TestCase):
         self.assertIn(uc1["overall_fit"], ("mixed", "ok"))
 
     def test_discoverability_misses_extraction(self) -> None:
-        """Verify extraction of discoverability gaps between expected and would_do."""
+        """A miss is a persona's own discoverability/understanding issue or an explorer dead end;
+        a differently worded would_do is not (that string comparison flagged nearly every screen)."""
         answers = {
-            "commuter": {
-                "persona": "commuter",
-                "screens": [
-                    {"screen": "U-TOK-01/landing", "would_do": "Tap Folder or Cloud"},
-                ],
-            },
-            "newcomer": {
-                "persona": "newcomer",
-                "screens": [
-                    {"screen": "U-TOK-01/landing", "would_do": "Look for Settings menu"},
-                ],
-            },
+            "commuter": {"persona": "commuter", "screens": [
+                {"screen": "U-TOK-01/landing", "would_do": "I'd tap the folder card", "verdict": "ok", "issues": []},
+            ]},
+            "newcomer": {"persona": "newcomer", "screens": [
+                {"screen": "U-TOK-01/landing", "would_do": "Look for Settings menu", "verdict": "bad",
+                 "issues": [{"what": "No idea where my photos are", "severity": "major", "kind": "discoverability"}]},
+            ]},
         }
-
-        exploration = {
-            "status": "dead_end",
-            "findings": [
-                {
-                    "kind": "discoverability",
-                    "screen": "landing",
-                    "scenario": "U-TOK-01",
-                    "detail": "Agent cycled searching for cloud import",
-                }
-            ],
-        }
-
-        gaps = extract_discoverability_gaps(self.walkthrough, answers, exploration=exploration)
-        self.assertGreaterEqual(len(gaps), 1)
-        landing_gap = next((g for g in gaps if "landing" in g["screen"]), None)
-        self.assertIsNotNone(landing_gap)
-        self.assertEqual(landing_gap["expected"], "Tap Folder or Cloud")
-        self.assertTrue(any(m["persona"] == "newcomer" and "Settings" in m["would_do"] for m in landing_gap["missed_by"]))
-        self.assertTrue(landing_gap.get("has_exploration_dead_end", False))
-
+        exploration = {"status": "dead_end", "findings": [
+            {"rule": "discoverability-dead-end", "kind": "discoverability", "checkpoint": "U-TOK-01/landing",
+             "severity": "major", "message": "Agent cycled searching for cloud import"},
+            {"rule": "affordance-hesitation", "kind": "hesitation", "checkpoint": "U-TOK-01/feed", "message": "paused"},
+        ]}
         misses = extract_discoverability_misses(self.walkthrough, answers, exploration=exploration)
-        self.assertGreaterEqual(len(misses), 1)
+        self.assertEqual([m["screen"] for m in misses], ["U-TOK-01/landing"])
+        landing = misses[0]
+        self.assertEqual(landing["expected"], "Tap Folder or Cloud")
+        self.assertEqual(landing["severity"], "major")
+        self.assertEqual([m["persona"] for m in landing["missed_by"]], ["newcomer", "AI explorer"])
+        self.assertTrue(landing["has_exploration_dead_end"])
+        without = extract_discoverability_gaps(self.walkthrough, answers)
+        self.assertEqual([m["persona"] for m in without[0]["missed_by"]], ["newcomer"])
+        self.assertFalse(without[0]["has_exploration_dead_end"])
+
+    def test_moderator_discoverability_replaces_the_computed_list(self) -> None:
+        answers = {"newcomer": {"screens": [{"screen": "U-TOK-01/landing", "issues": [
+            {"what": "x", "severity": "minor", "kind": "discoverability"}]}]}}
+        decisions = {"discoverability": [{"screen": "U-TOK-01/feed", "expected": "Swipe up", "missed_by": [], "suggestion": "s"}]}
+        misses = extract_discoverability_misses(self.walkthrough, answers, decisions=decisions)
+        self.assertEqual([m["screen"] for m in misses], ["U-TOK-01/feed"])
 
     def test_synthesize_tradeoffs(self) -> None:
         """Verify automatic trade-off card synthesis from split screens."""
@@ -1939,11 +2047,10 @@ class TestModeratorSynthesis(unittest.TestCase):
         self.assertEqual(t["screens"], ["U-TOK-01/landing"])
         self.assertIn("commuter", t["tension"])
         self.assertIn("newcomer", t["tension"])
-        self.assertEqual(len(t["options"]), 3)
-        self.assertIn("commuter", t["options"][0]["helps"])
-        self.assertIn("newcomer", t["options"][0]["hurts"])
-        self.assertTrue(t["recommendation"])
-        self.assertTrue(t["decide_if"])
+        self.assertIn("Accidental deletion without confirm", t["tension"])
+        # Without a moderator nothing is invented: no options, costs or recommendation.
+        self.assertEqual(t["options"], [])
+        self.assertEqual(t["recommendation"], "")
 
     def test_tradeoffs_rendering_html_and_markdown(self) -> None:
         """Verify rendering of multi-option trade-off cards in HTML and Markdown reports."""
@@ -2396,8 +2503,10 @@ class TestPanelVariantsAndChecklist(unittest.TestCase):
 
         out = build_panel(self.runs["en@1.0"], priv=self.priv, variants=[self.runs["de-DE@2.0"]])
         self.assertEqual(json.loads((out / "assignments.json").read_text()), {"commuter": "en@1.0", "newcomer": "de-DE@2.0"})
-        self.assertIn("images/de-DE@2.0/U-1_03_guide.png", (out / "walkthrough-newcomer.md").read_text())
-        self.assertIn("images/U-1_03_guide.png", (out / "walkthrough-commuter.md").read_text())
+        newcomer = json.loads((out / "packets" / "newcomer" / "index.json").read_text())
+        commuter = json.loads((out / "packets" / "commuter" / "index.json").read_text())
+        self.assertIn("images/de-DE@2.0/U-1_03_guide.png", [p["image_path"] for p in newcomer])
+        self.assertIn("images/U-1_03_guide.png", [p["image_path"] for p in commuter])
         self.assertTrue((out / "images" / "de-DE@2.0" / "U-1_01_landing.png").is_file())
         mod = json.loads((out / "moderator-input.json").read_text())
         self.assertEqual(set(mod[0]["text_load_by_variant"]), {"en@1.0", "de-DE@2.0"})
@@ -2430,3 +2539,268 @@ class TestPanelVariantsAndChecklist(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+def _has_pillow() -> bool:
+    """The real Pillow, not the lab's stdlib shim (which has no ImageEnhance)."""
+    try:
+        from PIL import ImageEnhance
+    except ImportError:
+        return False
+    return ImageEnhance is not None
+
+
+def _tiff_tags(path: Path) -> dict[int, Any]:
+    """Tag -> first value (or the ASCII string) of every IFD reachable from IFD0, incl. SubIFDs and EXIF."""
+    import struct
+
+    data = path.read_bytes()
+    assert data[:4] == b"II*\0"
+    sizes = {1: 1, 2: 1, 3: 2, 4: 4, 5: 8, 10: 8}
+    tags: dict[int, Any] = {}
+    todo = [struct.unpack_from("<I", data, 4)[0]]
+    while todo:
+        at = todo.pop()
+        (n,) = struct.unpack_from("<H", data, at)
+        for i in range(n):
+            tag, typ, count, raw = struct.unpack_from("<HHI4s", data, at + 2 + 12 * i)
+            size = sizes[typ] * count
+            blob = raw[:size] if size <= 4 else data[struct.unpack("<I", raw)[0]:][:size]
+            if typ == 2:
+                value: Any = blob.rstrip(b"\0").decode("ascii")
+            elif typ in (5, 10):
+                value = struct.unpack_from("<II" if typ == 5 else "<ii", blob)
+            else:
+                value = struct.unpack_from({1: "<B", 3: "<H", 4: "<I"}[typ], blob)[0]
+            tags.setdefault(tag, value)
+            if tag in (330, 34665):
+                todo.append(value)
+    return tags
+
+
+class TestFixtureRoll(unittest.TestCase):
+    def setUp(self) -> None:
+        if not _has_pillow():
+            self.skipTest("fixture rendering needs the real Pillow")
+        self.base = _scratch("test_roll")
+        self._env = os.environ.get("PST_LAB_TMP")
+        os.environ["PST_LAB_TMP"] = str(self.base / "lab")  # master roll and work copies stay in this test
+
+    def tearDown(self) -> None:
+        if self._env is None:
+            os.environ.pop("PST_LAB_TMP", None)
+        else:
+            os.environ["PST_LAB_TMP"] = self._env
+        shutil.rmtree(self.base, ignore_errors=True)
+
+    def test_raw_companions_are_real_linear_dngs(self) -> None:
+        """A TIFF named .DNG and random bytes named .CR3 used to show as broken photos in every app."""
+        from lab.usability.scenes import generate_roll
+
+        written = generate_roll(self.base / "roll")
+        raws = [p for p in written if p.suffix.upper() in (".DNG", ".CR3", ".ARW", ".NEF")]
+        self.assertTrue(raws)
+        self.assertEqual({p.suffix for p in raws}, {".DNG"})
+        for raw in raws:
+            tags = _tiff_tags(raw)
+            self.assertEqual(tags[50706], 1)  # DNGVersion 1.4.0.0 (first byte)
+            self.assertEqual(tags[262], 34892)  # LinearRaw
+            self.assertEqual(tags[258], 16)
+            self.assertIn(34855, tags)  # ISO in the EXIF IFD
+            self.assertEqual(tags[259], 1)
+            jpeg = raw.with_suffix(".jpg")
+            self.assertTrue(jpeg.is_file(), f"{raw.name} has no JPEG partner")
+            self.assertAlmostEqual(raw.stat().st_mtime, jpeg.stat().st_mtime, delta=1)
+        identify = shutil.which("raw-identify")
+        if identify:
+            import subprocess
+
+            out = subprocess.run([identify, "-v", str(raws[0])], capture_output=True, text=True, check=True).stdout
+            self.assertIn("DNG Version: 1.4.0.0", out)
+            self.assertIn("Thumb size:  1024 x 768", out)
+
+    def test_jackpix_feed_opens_on_a_good_photo_then_the_blurred_one(self) -> None:
+        """U-TOK-02 swipes up once from the newest photo and expects the blurred frame."""
+        from lab.usability.scenes import ROLL_SPECS
+
+        self.assertEqual([s.flaw for s in ROLL_SPECS[-2:]], ["blur", None])
+
+    def test_master_roll_is_regenerated_when_its_recipe_changes(self) -> None:
+        from lab.usability import capture as cap
+        from lab.usability import scenes
+
+        first = cap.master_roll()
+        stale = first / "IMG_stale.jpg"
+        stale.write_bytes(b"x")
+        self.assertTrue(cap.master_roll().joinpath("IMG_stale.jpg").is_file(), "same recipe: the roll is reused")
+        orig = scenes.roll_signature
+        scenes.roll_signature = lambda: "changed"  # type: ignore[assignment]
+        try:
+            again = cap.master_roll()
+        finally:
+            scenes.roll_signature = orig  # type: ignore[assignment]
+        self.assertFalse((again / "IMG_stale.jpg").exists(), "a changed recipe regenerates the roll")
+
+    def test_desktop_capture_walks_a_fresh_copy_and_removes_it(self) -> None:
+        seen: list[Path] = []
+
+        def fake_exec(cmd: list[str], env: dict[str, str]) -> None:
+            fixture = Path(cmd[cmd.index("--fixture") + 1])
+            seen.append(fixture)
+            (fixture / "moved-away.txt").write_text("the app changed the folder", encoding="utf-8")
+
+        out = self.base / "cap"
+        w = run_capture("linux", None, out, only=["U-LIN-03"], exec_fn=fake_exec)
+        self.assertEqual(w["scenarios"][0]["status"], "broken")  # the fake wrote no checkpoint
+        self.assertIn("was not written", w["scenarios"][0]["error"])
+        self.assertTrue(str(seen[0]).startswith(str(self.base / "lab")))
+        self.assertFalse(seen[0].exists(), "the working copy is removed after the walk")
+        from lab.usability.capture import master_roll
+
+        self.assertFalse((master_roll() / "moved-away.txt").exists(), "the master roll is never walked")
+
+
+class TestLinuxKeyNames(unittest.TestCase):
+    def test_keysyms_xdotool_accepts(self) -> None:
+        from lab.linux.keys import normalize_xdotool_key as n
+
+        self.assertEqual([n(k) for k in ("Space", "M", "Ctrl+L", "Ctrl+comma", ",", "Enter", "Right", "Delete", "3")],
+                         ["space", "m", "ctrl+l", "ctrl+comma", "comma", "Return", "Right", "Delete", "3"])
+
+
+class TestAndroidSessionRestoresRotation(unittest.TestCase):
+    def test_capture_sets_and_restores_the_rotation_from_the_scenario_file(self) -> None:
+        from lab.android import configs
+        from lab.usability import capture as cap
+
+        class RotAdb(FakeAdb):
+            def __init__(self) -> None:
+                super().__init__([_xml()], top="com.photoselectortoolbox.lab")
+                self.cmds: list[tuple[str, ...]] = []
+                self.rot = "0"
+
+            def run(self, *args: str, timeout: int = 30) -> str:
+                self.cmds.append(args)
+                if args[:4] == ("shell", "settings", "get", "system"):
+                    return {"user_rotation": "0\n", "accelerometer_rotation": "1\n", "font_scale": "1.0\n"}[args[4]]
+                if args[:5] == ("shell", "settings", "put", "system", "user_rotation"):
+                    self.rot = args[5]
+                return super().run(*args, timeout=timeout)
+
+            def window_dp(self) -> tuple[int, int]:
+                return (1280, 800) if self.rot in ("1", "3") else (800, 1280)
+
+        adb = RotAdb()
+        out = _scratch("test_rotation")
+        spec = {"app_id": "com.photoselectortoolbox.lab", "orientation": "landscape", "scenarios": [{"id": "U", "steps": []}]}
+        orig, polls = cap.load_scenarios, configs.ROTATION_POLL_S
+        cap.load_scenarios = lambda product, root=None: spec  # type: ignore[assignment]
+        configs.ROTATION_POLL_S = 0
+        try:
+            cap.run_capture("android-desktop", "FAKE-ROT", out, adb=adb)  # type: ignore[arg-type]
+        finally:
+            cap.load_scenarios, configs.ROTATION_POLL_S = orig, polls  # type: ignore[assignment]
+            shutil.rmtree(out, ignore_errors=True)
+        puts = [(c[4], c[5]) for c in adb.cmds if c[:4] == ("shell", "settings", "put", "system")]
+        self.assertIn(("user_rotation", "1"), puts)  # landscape, verified on the display
+        self.assertEqual(puts[-2:], [("user_rotation", "0"), ("accelerometer_rotation", "1")])
+        self.assertFalse(cap._restore_file("FAKE-ROT").exists())
+
+
+class TestExplorationOnRealDrivers(unittest.TestCase):
+    def setUp(self) -> None:
+        self.base = _scratch("test_explore_real")
+
+    def tearDown(self) -> None:
+        shutil.rmtree(self.base, ignore_errors=True)
+
+    def test_a_named_target_becomes_a_node_selector(self) -> None:
+        from lab.usability.explore import resolve_target
+
+        els = [InteractiveElement("viewer_revert_button", "Revert", "", (0, 0, 1, 1), (0, 0), True),
+               InteractiveElement("node_3", "", "Show the filmstrip", (0, 0, 1, 1), (0, 0), True)]
+        self.assertEqual(resolve_target("viewer_revert_button", els), {"id": "viewer_revert_button"})
+        self.assertEqual(resolve_target("Revert", els), {"text": "Revert"})
+        self.assertEqual(resolve_target("Show the filmstrip", els), {"desc": "Show the filmstrip"})
+        self.assertEqual(resolve_target("Delete", els), {"text": "Delete", "contains": True})
+
+    def test_android_tap_with_an_expected_screen_is_performed(self) -> None:
+        """The agent's {"tap": "<text>"} crashed on target.get, and an expected screen label made
+        the driver capture instead of tapping."""
+        screen = _xml(_node(text="Revert", rid="viewer_revert_button", clickable=True, bounds="[100,100][300,200]"))
+        adb = FakeAdb([screen])
+        d = drv.ScenarioDriver(adb, "com.phototok.lab", self.base / "drv", settle_ms=0)
+
+        class Agent(MockExplorationAgent):
+            def decide_action(self, observation: Any, charter: Any, history: Any) -> Any:
+                from lab.usability.explore import ExplorationDecision, resolve_target
+
+                if history:
+                    return ExplorationDecision(action={"finish": {"goal_achieved": True}})
+                return ExplorationDecision(action={"tap": resolve_target("Revert", observation.elements),
+                                                   "expected_screen": "after-revert"})
+
+        res = run_exploration(d, {"id": "c", "goal": "g"}, step_budget=3, agent=Agent(), out_dir=self.base / "exp")
+        self.assertEqual(res["status"], "goal_reached", res.get("error"))
+        self.assertIn(("tap", "200", "150"), adb.inputs)
+
+    def test_a_failing_agent_is_an_error_not_a_result(self) -> None:
+        from lab.usability.explore import AgentError, ExplorationDecision  # noqa: F401
+
+        class Broken(MockExplorationAgent):
+            def decide_action(self, *a: Any) -> Any:
+                raise AgentError("claude: command not found")
+
+        res = run_exploration(MockDriver("phototok", out_dir=self.base / "m"), {"id": "c", "goal": "g"},
+                              agent=Broken(), out_dir=self.base / "exp")
+        self.assertEqual(res["status"], "error")
+        self.assertIn("command not found", res["error"])
+
+    def test_cli_agent_without_the_cli_raises(self) -> None:
+        from lab.usability.explore import AgentError, CliExplorationAgent
+
+        agent = CliExplorationAgent(cli="claude", sandbox_dir=self.base / "sb")
+        obs = ScreenObservation(1, "s", self.base / "none.png", self.base / "none.xml", [], {}, "sig")
+        old = os.environ.get("PATH", "")
+        os.environ["PATH"] = str(self.base)  # no claude here
+        try:
+            with self.assertRaises(AgentError):
+                agent.decide_action(obs, ExplorationCharter(id="c", title="t", goal="g"), [])
+        finally:
+            os.environ["PATH"] = old
+
+    def test_desktop_drivers_are_refused(self) -> None:
+        with self.assertRaises(ValueError):
+            run_exploration(MacOsDriver("app", self.base / "mac"), {"id": "c", "goal": "g"}, out_dir=self.base / "e")
+        self.assertEqual(main(["usability-explore", "--product", "linux", "--charter", "x", "--agent", "mock"]), 2)
+
+
+class TestReportAndPanelNames(unittest.TestCase):
+    def test_use_case_titles_come_from_the_catalogue(self) -> None:
+        from lab.usability.report import use_case_titles
+
+        titles = use_case_titles()
+        if not titles:
+            self.skipTest("needs the private use-case catalogue")
+        self.assertTrue(titles["UC-7"].startswith("Hand over a pre-selection"))
+
+    def test_moderator_use_case_fit_keeps_the_screens(self) -> None:
+        from lab.usability.report import use_case_fits
+
+        w = {"product": "phototok", "scenarios": [{"scenario": "U-1", "use_case": "UC-1", "screens": [{"name": "a"}, {"name": "b"}]}]}
+        fits = use_case_fits(w, {}, {"use_case_fit": [{"use_case": "UC-1", "fit": "good"}]})
+        self.assertEqual(fits[0]["screens"], ["U-1/a", "U-1/b"])
+        self.assertEqual(fits[0]["fit"], "good")
+
+    def test_binding_requirements_for_the_desktop_products(self) -> None:
+        """`macos`/`linux` crashed the private traceability script (KeyError: 'macos')."""
+        from lab.usability.panel import binding_requirements
+
+        for product in ("macos", "linux"):
+            self.assertIsInstance(binding_requirements(product), list)
+
+    def test_walkthrough_names_the_device_kind(self) -> None:
+        mac = {"product": "macos", "device": {"kind": "Mac", "os": "macOS 26.6", "size": "1440x900 pt"}, "scenarios": []}
+        self.assertIn("macOS 26.6 (Mac), window 1440x900 pt", render_walkthrough_md(mac))
+        tab = {"product": "android-desktop", "device": {"platform": "android", "kind": "tablet", "model": "Pixel Tablet"}, "scenarios": []}
+        self.assertIn("Pixel Tablet tablet, landscape", render_walkthrough_md(tab))

@@ -29,12 +29,35 @@ XDOTOOL_KEY_MAP: dict[str, str] = {
 }
 
 
+# Spellings scenarios use for keys whose X keysym is spelled differently; xdotool ignores an
+# unknown name with only a warning and exit 0 ("No such key name 'Space'"), so a wrong
+# spelling is a key that silently never arrives.
+_KEYSYMS = {
+    "SPACE": "space", "ENTER": "Return", "RETURN": "Return", "ESC": "Escape", "TAB": "Tab",
+    "BACKSPACE": "BackSpace", "PAGEUP": "Prior", "PAGEDOWN": "Next", "HOME": "Home", "END": "End",
+    ",": "comma", "COMMA": "comma", ".": "period", "/": "slash", "?": "question", "+": "plus", "-": "minus",
+}
+_XMODIFIERS = {"CTRL": "ctrl", "CONTROL": "ctrl", "SHIFT": "shift", "ALT": "alt", "SUPER": "super"}
+
+
 def normalize_xdotool_key(key_name: str) -> str:
-    """Translate a lab key name into an xdotool key specification."""
-    upper = key_name.strip().upper()
+    """Translate a lab key name (`M`, `Space`, `Ctrl+L`) into an xdotool key specification.
+
+    Letters become lower-case keysyms: `M` would be sent as Shift+m.
+    """
+    name = key_name.strip()
+    upper = name.upper()
     if upper in XDOTOOL_KEY_MAP:
         return XDOTOOL_KEY_MAP[upper]
-    return key_name.strip()
+    if "+" in name.strip("+"):
+        *mods, key = name.split("+")
+        xmods = [_XMODIFIERS.get(m.strip().upper(), m.strip().lower()) for m in mods]
+        return "+".join([*xmods, normalize_xdotool_key(key)])
+    if upper in _KEYSYMS:
+        return _KEYSYMS[upper]
+    if len(name) == 1 and name.isalpha():
+        return name.lower()
+    return name
 
 
 def send_keys_xdotool(

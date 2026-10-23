@@ -4,6 +4,8 @@
 # Scenarios execute in order sharing session state.
 product: android-desktop
 app_id: com.photoselectortoolbox.lab
+# Walked in this orientation, verified on the display; the original rotation is restored after.
+orientation: landscape
 fixture:
   kind: scenes
   remote: /sdcard/PSTLab/usability-trip

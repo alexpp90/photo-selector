@@ -12,6 +12,8 @@
 # context, not as our defect.
 product: phototok
 app_id: com.phototok.lab
+# Walked in this orientation, verified on the display; the original rotation is restored after.
+orientation: portrait
 fixture:
   kind: scenes
   remote: /sdcard/PSTLab/usability-trip
@@ -90,7 +92,7 @@ scenarios:
   - id: U-TOK-03
     title: Look closer — when was it taken, is it sharp?
     goal: Find out when this photo was taken and with what settings, then check whether it is sharp.
-    use_case: "UC-1, UC-2"
+    use_case: "UC-1, UC-3"
     steps:
       - optional_tap: {id: first_run_hint_dismiss, label: GOT IT}
       - screen: photo-before-info
@@ -109,7 +111,7 @@ scenarios:
   - id: U-TOK-04
     title: Review the keepers, look at the settings
     goal: See the photos you kept so far. Then check whether the app can do anything you would want to change.
-    use_case: "UC-1, UC-7"
+    use_case: "UC-3, UC-7"
     steps:
       - screen: feed-before-selection
         intent: See the photos I kept

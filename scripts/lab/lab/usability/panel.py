@@ -94,6 +94,10 @@ def _rescore(run_dir: Path, walkthrough: dict[str, Any]) -> None:
                 s["metrics"]["text_load"] = analyse(xml.read_text(encoding="utf-8"), density_dpi=density, locale=locale)
 
 
+# The lab names the desktop products by platform; the requirements traceability by product folder.
+REQUIREMENTS_PRODUCT = {"macos": "macos-desktop", "linux": "linux-desktop"}
+
+
 def binding_requirements(product: str, root: Path | None = None) -> list[dict[str, Any]]:
     """The product's `[USER …]` requirements from the private overlay, or [] in a public clone."""
     scripts = (root or repo_root()) / "private" / "scripts"
@@ -108,7 +112,7 @@ def binding_requirements(product: str, root: Path | None = None) -> list[dict[st
         return [
             {"id": i.id, "title": i.title, "stated": i.user_dates, "enforced_by": i.enforced_by,
              "text": re.sub(r"\s+", " ", i.text)}
-            for i in enf.collect(product) if i.is_user
+            for i in enf.collect(REQUIREMENTS_PRODUCT.get(product, product)) if i.is_user
         ]
     finally:
         sys.path.remove(str(scripts))
@@ -184,14 +188,26 @@ def screen_key(scenario_id: str, screen_name: str) -> str:
     return f"{scenario_id}/{screen_name}"
 
 
+def device_line(walkthrough: dict[str, Any]) -> str:
+    """What the screenshots were taken on, in the words a reviewer needs: phone, tablet or computer."""
+    dev = walkthrough.get("device", {})
+    kind = dev.get("kind") or {"phototok": "phone", "android-desktop": "tablet"}.get(walkthrough.get("product", ""), "computer")
+    if dev.get("platform") == "android" or kind in ("phone", "tablet"):
+        shape = "portrait" if kind == "phone" else "landscape"
+        return f"{dev.get('model') or 'Android'} {kind}, {shape}"
+    size = f", window {dev['size']}" if dev.get("size") else ""
+    return f"{dev.get('os') or kind} ({kind}){size}"
+
+
+def _system_note(walkthrough: dict[str, Any]) -> str:
+    if walkthrough.get("product") in ("phototok", "android-desktop"):
+        return "This is an Android system screen, not the app's own."
+    return "This is an operating-system window, not the app's own."
+
+
 def render_walkthrough_md(walkthrough: dict[str, Any], image_dir: str = "images") -> str:
-    """The persona's view: goal, what you did, what you want now, and the screenshot."""
-    lines = [
-        "# Walkthrough",
-        "",
-        f"Device: {walkthrough['device'].get('model', '?')} phone, portrait.",
-        "",
-    ]
+    """Every screen in order: the moderator's view (personas get one packet per screen)."""
+    lines = ["# Walkthrough", "", f"Device: {device_line(walkthrough)}.", ""]
     for scenario in walkthrough["scenarios"]:
         lines += [f"## {scenario['scenario']} — {scenario['title']}", "", f"**Your task:** {scenario['goal']}", ""]
         for s in scenario["screens"]:
@@ -201,7 +217,7 @@ def render_walkthrough_md(walkthrough: dict[str, Any], image_dir: str = "images"
                 lines.append(f"- **You just:** {'; '.join(s['actions_before'])}")
             lines.append(f"- **Screenshot:** `{image_dir}/{scenario['scenario']}_{s['image']}`")
             if s.get("system_screen"):
-                lines.append("- This is an Android system screen, not the app's own.")
+                lines.append(f"- {_system_note(walkthrough)}")
             lines.append(f"- **You want to:** {s['intent']}")
             lines.append("")
         if scenario["status"] != "pass":
@@ -209,99 +225,77 @@ def render_walkthrough_md(walkthrough: dict[str, Any], image_dir: str = "images"
     return "\n".join(lines)
 
 
-def render_screen_packet_md(
-    screen_info: dict[str, Any],
-    persona_id: str | None = None,
-    persona_text: str | None = None,
-    image_dir: str = "images",
-) -> str:
-    """Render a strictly isolated evaluation prompt for a single screen."""
-    lines: list[str] = []
+# Inside a packet's sandbox the screenshots get neutral names: the capture's file names carry the
+# scenario author's label for the screen ("after-delete"), which would tell the persona what to see.
+PACKET_SCREEN = "screen.png"
+PACKET_PREVIOUS = "previous.png"
 
-    # 1. Persona Identity & Setup
+
+def render_screen_packet_md(screen_info: dict[str, Any], persona_text: str | None = None) -> str:
+    """One screen for one persona: who you are, your task, what you just did, the screenshot.
+
+    Nothing about later screens, no expected action, no UI tree, no screen label.
+    """
+    lines = ["# One screen", ""]
     if persona_text:
-        setup_line = ""
-        for raw_line in persona_text.splitlines():
-            if raw_line.strip().startswith("<!-- setup:"):
-                setup_line = raw_line.strip()
-                break
-        if setup_line:
-            lines.append(setup_line)
-        lines += [
-            f"# Screen Evaluation — {screen_info['screen_key']}",
-            "",
-            "## Your Persona",
-            persona_text.strip(),
-            "",
-        ]
+        body = "\n".join(ln for ln in persona_text.strip().splitlines() if not ln.strip().startswith("<!--"))
+        lines += ["## You", "", body.strip(), ""]
+    lines += ["## Your task", "", screen_info["scenario_goal"], "", "## What just happened", ""]
+    if screen_info.get("previous_image"):
+        actions = "; ".join(screen_info.get("actions_before", [])) or "nothing (you only waited)"
+        lines.append(f"You were on the screen in `{PACKET_PREVIOUS}` and then: {actions}.")
     else:
-        lines += [
-            f"# Screen Evaluation — {screen_info['screen_key']}",
-            "",
-        ]
-
-    # 2. Scenario Goal
-    lines += [
-        "## Scenario Goal",
-        f"**Goal:** {screen_info['scenario_goal']}",
-        "",
-    ]
-
-    # 3. Transition Context (Previous Screen -> Action Just Taken -> Current Screen)
-    lines.append("## Transition Context")
-    if screen_info.get("previous_screen"):
-        prev_img = screen_info.get("previous_image", "")
-        lines.append(f"- **Previous Screen:** `{screen_info['previous_screen']}`" + (f" (`{prev_img}`)" if prev_img else ""))
-        actions = "; ".join(screen_info.get("actions_before", [])) or "None (screen refreshed)"
-        lines.append(f"- **You Just Did:** {actions}")
-        lines.append("- **Transition:** You just took the action above, and the interface transitioned to the screen below.")
-    else:
-        lines.append("- **Initial Screen:** This is the initial screen upon launching the task.")
+        lines.append("This is the first screen of this task.")
         if screen_info.get("actions_before"):
-            lines.append(f"- **Launch Actions:** {'; '.join(screen_info['actions_before'])}")
-    lines.append("")
-
-    # 4. Current State (Screen N)
-    lines.append("## Current Screen")
-    lines.append(f"- **Screenshot:** `{screen_info['image_path']}`")
-    if screen_info.get("system_screen"):
-        lines.append("- **System Screen Notice:** This is an OS system dialog/picker, not the app's own interface.")
-    lines.append(f"- **You Want To:** {screen_info['intent']}")
-    lines.append("")
-
-    # 5. Visual/UX Rubrics & Instructions
+            lines.append(f"To get here you: {'; '.join(screen_info['actions_before'])}.")
+    lines += ["", "## The screen now", "", f"- Screenshot: `{PACKET_SCREEN}` — {screen_info['device']}."]
+    if screen_info.get("system_note"):
+        lines.append(f"- {screen_info['system_note']}")
+    lines += [f"- You want to: {screen_info['intent']}", ""]
     lines += [
-        "## Evaluation Instructions",
-        f"Examine ONLY the current screenshot (`{screen_info['image_path']}`).",
-        "You do NOT know what happens next. You have NOT seen subsequent screens.",
+        "## Answer",
         "",
-        "Evaluate the screen against these human UX rubrics:",
-        "- **Visual Hierarchy:** What visual element or text catches your eye first? Is the primary action obvious?",
-        "- **Affordance Clarity:** Are buttons, cards, and interactive gestures obvious, or do controls look like flat decorations?",
-        "- **File-Safety Trust:** Does this interface reassure you that your photos and files are protected from accidental loss or corruption?",
-        "- **Feedback Visibility:** If an action was just taken, is the system state clearly visible and confirmed?",
-        "",
-        "Respond ONLY with a JSON object conforming to the schema below:",
+        f"Read `{PACKET_SCREEN}`{' (and `' + PACKET_PREVIOUS + '` for context)' if screen_info.get('previous_image') else ''}, "
+        "follow `panel.md`, and reply with only this JSON:",
         "```json",
         "{",
-        f'  "screen": "{screen_info["screen_key"]}",',
+        f'  "screen": "{screen_info["packet_id"]}",',
         '  "first_impression": "<what you think this screen is, <= 20 words>",',
-        '  "would_do": "<what you would do now to reach \'You want to\'. Decide from this screenshot alone>",',
+        '  "would_do": "<what you would do now to reach \'You want to\', from this screenshot alone>",',
         '  "read_text": "<all | some | none>",',
         '  "verdict": "<good | ok | bad>",',
-        '  "issues": [',
-        '    {',
-        '      "what": "<description of issue>",',
-        '      "severity": "<blocker | major | minor>",',
-        '      "kind": "<understanding | discoverability | too-much-text | trust | effort | feedback | look>"',
-        '    }',
-        '  ],',
-        '  "liked": ["<things that worked well>"]',
+        '  "issues": [{"what": "...", "severity": "<blocker | major | minor>",',
+        '              "kind": "<understanding | discoverability | too-much-text | trust | effort | feedback | look>"}],',
+        '  "liked": ["..."]',
         "}",
         "```",
     ]
-
     return "\n".join(lines) + "\n"
+
+
+def render_overall_md(persona_id: str, persona_text: str) -> str:
+    """The persona's last step: their own one-screen answers (no screenshots) -> overall verdict."""
+    body = "\n".join(ln for ln in persona_text.strip().splitlines() if not ln.strip().startswith("<!--"))
+    return "\n".join([
+        f"# Overall — {persona_id}",
+        "",
+        "## You",
+        "",
+        body.strip(),
+        "",
+        "You have just tried the app screen by screen. `answers.json` holds what you said about each",
+        "screen, in order. Read it, then sum up as yourself. Reply with only this JSON:",
+        "```json",
+        "{",
+        '  "would_keep_using": "<yes | maybe | no>",',
+        '  "why": "<in your own voice>",',
+        '  "top_problems": ["<up to 3>"],',
+        '  "top_strengths": ["<up to 3>"],',
+        '  "one_change": "<the single change you want most>"',
+        "}",
+        "```",
+        "",
+    ])
 
 
 def build_blind_packets(
@@ -309,105 +303,97 @@ def build_blind_packets(
     out_dir: Path,
     personas: dict[str, str] | None = None,
     image_dir: str = "images",
+    persona_walks: dict[str, tuple[dict[str, Any], str]] | None = None,
 ) -> list[dict[str, Any]]:
-    """Build strictly isolated per-screen evaluation packets.
+    """Write one packet per screen and persona under `out_dir/<persona>/`, plus `index.json`.
 
-    Guarantees:
-    - Zero future actions_before from screen j > i appear in packet i.
-    - Zero expected actions appear in packet i.
-    - Zero dumped UI trees or raw OCR strings appear in packet i.
-    - Screen i > 0 explicitly contains transition context from screen i-1.
+    Guarantees, per packet: no later screen and no later action, no `expected`, no UI tree or
+    OCR text, and no screen label (the id is `<scenario>#<n>`, the images get neutral names).
+    The previous screenshot and the actions that led here are the only context. A persona's
+    packets use the screenshots of its own variant (`persona_walks`: walkthrough, image dir).
     """
     out_dir = Path(out_dir).resolve()
     out_dir.mkdir(parents=True, exist_ok=True)
-    screens_dir = out_dir / "screens"
-    screens_dir.mkdir(exist_ok=True)
 
-    packets: list[dict[str, Any]] = []
-    global_idx = 0
+    def packets_for(w: dict[str, Any], img_dir: str) -> list[dict[str, Any]]:
+        packets: list[dict[str, Any]] = []
+        n = 0
+        for scenario in w.get("scenarios", []):
+            prev: dict[str, Any] | None = None
+            for s in scenario.get("screens", []):
+                n += 1
+                sid = scenario["scenario"]
+                packets.append({
+                    "index": n - 1,
+                    "packet_id": f"{sid}#{len([p for p in packets if p['scenario'] == sid]) + 1}",
+                    "file": f"{n:02d}.md",
+                    "scenario": sid,
+                    "scenario_goal": scenario["goal"],
+                    "screen_key": screen_key(sid, s["name"]),
+                    "image_path": f"{img_dir}/{sid}_{s['image']}",
+                    "previous_image": f"{img_dir}/{sid}_{prev['image']}" if prev else None,
+                    "intent": s["intent"],
+                    "actions_before": list(s.get("actions_before", [])),
+                    "system_note": _system_note(w) if s.get("system_screen") else "",
+                    "device": device_line(w),
+                })
+                prev = s
+        return packets
 
-    for scenario in walkthrough.get("scenarios", []):
-        scen_id = scenario["scenario"]
-        scen_goal = scenario["goal"]
-        scen_title = scenario.get("title", "")
-        prev_s: dict[str, Any] | None = None
+    generic = packets_for(walkthrough, image_dir)
+    for pid, text in (personas or {}).items():
+        w, img_dir = (persona_walks or {}).get(pid, (walkthrough, image_dir))
+        p_dir = out_dir / pid
+        shutil.rmtree(p_dir, ignore_errors=True)
+        p_dir.mkdir(parents=True)
+        mine = packets_for(w, img_dir)
+        for pk in mine:
+            (p_dir / pk["file"]).write_text(render_screen_packet_md(pk, persona_text=text), encoding="utf-8")
+        (p_dir / "overall.md").write_text(render_overall_md(pid, text), encoding="utf-8")
+        (p_dir / "index.json").write_text(json.dumps(mine, indent=2, ensure_ascii=False), encoding="utf-8")
+    (out_dir / "packets.json").write_text(json.dumps(generic, indent=2, ensure_ascii=False), encoding="utf-8")
+    return generic
 
-        for s in scenario.get("screens", []):
-            s_name = s["name"]
-            key = screen_key(scen_id, s_name)
-            img_rel = f"{image_dir}/{scen_id}_{s['image']}"
 
-            prev_key = screen_key(scen_id, prev_s["name"]) if prev_s else None
-            prev_img = f"{image_dir}/{scen_id}_{prev_s['image']}" if prev_s else None
+def assemble_answers(panel_dir: Path) -> dict[str, list[str]]:
+    """Turn each persona's per-screen replies into `answers/<persona>.json`; returns problems.
 
-            # Strictly sanitize: NO expected, NO metrics texts, NO future screen info
-            screen_info: dict[str, Any] = {
-                "index": global_idx,
-                "scenario": scen_id,
-                "scenario_title": scen_title,
-                "scenario_goal": scen_goal,
-                "screen": s_name,
-                "screen_key": key,
-                "image": s["image"],
-                "image_path": img_rel,
-                "intent": s["intent"],
-                "actions_before": list(s.get("actions_before", [])),
-                "system_screen": bool(s.get("system_screen", False)),
-                "previous_screen": prev_key,
-                "previous_image": prev_img,
-            }
-
-            # Generic packet markdown
-            generic_md = render_screen_packet_md(screen_info, image_dir=image_dir)
-            file_slug = f"{global_idx:02d}_{scen_id}_{s_name}.md"
-            generic_path = screens_dir / file_slug
-            generic_path.write_text(generic_md, encoding="utf-8")
-            screen_info["path"] = generic_path
-
-            # Persona-specific packet files if personas provided
-            if personas:
-                for pid, ptext in personas.items():
-                    p_dir = out_dir / pid
-                    p_dir.mkdir(parents=True, exist_ok=True)
-                    p_md = render_screen_packet_md(screen_info, persona_id=pid, persona_text=ptext, image_dir=image_dir)
-                    (p_dir / file_slug).write_text(p_md, encoding="utf-8")
-
-            packets.append(screen_info)
-            prev_s = s
-            global_idx += 1
-
-    # Generate overall.md for each persona
-    if personas:
-        for pid, ptext in personas.items():
-            p_dir = out_dir / pid
-            overall_lines = [
-                f"# Overall Assessment — {pid}",
-                "",
-                ptext.strip(),
-                "",
-                "## Overall Usability Questions",
-                "Now that you have evaluated all screens individually, summarize your overall assessment.",
-                "Respond ONLY with a JSON object conforming to the overall schema:",
-                "```json",
-                "{",
-                '  "would_keep_using": "<yes | maybe | no>",',
-                '  "why": "<explanation in persona voice>",',
-                '  "top_problems": ["<problem 1>", "<problem 2>", "<problem 3>"],',
-                '  "top_strengths": ["<strength 1>", "<strength 2>", "<strength 3>"],',
-                '  "one_change": "<the single change you want most>"',
-                "}",
-                "```",
-            ]
-            (p_dir / "overall.md").write_text("\n".join(overall_lines) + "\n", encoding="utf-8")
-
-    # Write sanitized machine-readable index
-    index_records = [
-        {k: v for k, v in p.items() if k != "path"}
-        for p in packets
-    ]
-    (out_dir / "packets.json").write_text(json.dumps(index_records, indent=2), encoding="utf-8")
-
-    return packets
+    Replies live in `answers/<persona>/NN.raw.txt` and `answers/<persona>/overall.raw.txt`
+    (written by `run_panel.sh`). A reply is mapped back from its packet id to the screen key.
+    """
+    problems: dict[str, list[str]] = {}
+    for index_path in sorted((panel_dir / "packets").glob("*/index.json")):
+        pid = index_path.parent.name
+        mine: list[str] = []
+        screens = []
+        for pk in json.loads(index_path.read_text(encoding="utf-8")):
+            raw = panel_dir / "answers" / pid / pk["file"].replace(".md", ".raw.txt")
+            if not raw.is_file():
+                mine.append(f"{pk['packet_id']}: no reply")
+                continue
+            try:
+                ans = extract_json(raw.read_text(encoding="utf-8"))
+            except ValueError as exc:
+                mine.append(f"{pk['packet_id']}: {exc}")
+                continue
+            bad = validate_screen_answer(ans, pk["packet_id"])
+            if bad:
+                mine.append(f"{pk['packet_id']}: {'; '.join(bad)}")
+                continue
+            screens.append({**ans, "screen": pk["screen_key"]})
+        overall_raw = panel_dir / "answers" / pid / "overall.raw.txt"
+        overall = None
+        if overall_raw.is_file():
+            try:
+                overall = extract_json(overall_raw.read_text(encoding="utf-8"))
+            except ValueError as exc:
+                mine.append(f"overall: {exc}")
+        else:
+            mine.append("overall: no reply")
+        doc = assemble_persona_answer(pid, screens, overall)
+        (panel_dir / "answers" / f"{pid}.json").write_text(json.dumps(doc, indent=2, ensure_ascii=False), encoding="utf-8")
+        problems[pid] = mine
+    return problems
 
 
 def build_panel(run_dir: Path, *, priv: Path | None = None, variants: list[Path] | None = None) -> Path:
@@ -434,21 +420,19 @@ def build_panel(run_dir: Path, *, priv: Path | None = None, variants: list[Path]
 
     (out / "walkthrough.md").write_text(render_walkthrough_md(walkthrough), encoding="utf-8")
 
-    # Generate isolated blind packets
-    build_blind_packets(walkthrough, out / "packets", personas=personas)
-
     pdir = out / "personas"
     pdir.mkdir(exist_ok=True)
     assignments: dict[str, str] = {}
+    walks: dict[str, tuple[dict[str, Any], str]] = {}
     for pid, text in personas.items():
         (pdir / f"{pid}.md").write_text(text, encoding="utf-8")
         setup = persona_setup(text)
         label = setup if setup in all_variants else primary
         assignments[pid] = label
-        w = all_variants[label][1]
-        image_dir = "images" if label == primary else f"images/{label}"
-        (out / f"walkthrough-{pid}.md").write_text(render_walkthrough_md(w, image_dir), encoding="utf-8")
+        walks[pid] = (all_variants[label][1], "images" if label == primary else f"images/{label}")
     (out / "assignments.json").write_text(json.dumps(assignments, indent=2), encoding="utf-8")
+    # Personas judge one blind packet per screen (run_panel.sh); walkthrough.md is the moderator's.
+    build_blind_packets(walkthrough, out / "packets", personas=personas, persona_walks=walks)
     for name in ("panel.md", "moderator.md"):
         src = priv_dir / name
         if src.is_file():
@@ -549,7 +533,7 @@ SCREEN_ANSWER_SCHEMA: dict[str, Any] = {
     "type": "object",
     "required": ["screen", "first_impression", "would_do", "read_text", "verdict"],
     "properties": {
-        "screen": {"type": "string", "description": "the scenario/screen key (e.g. U-1/landing)"},
+        "screen": {"type": "string", "description": "the packet id the packet names (e.g. U-TOK-01#2)"},
         "first_impression": {"type": "string", "description": "what you think this screen is, <= 20 words"},
         "would_do": {"type": "string", "description": "what you would do now to reach 'You want to'. Decide from this screenshot alone"},
         "read_text": {"enum": ["all", "some", "none"]},
