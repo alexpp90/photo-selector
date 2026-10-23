@@ -2835,3 +2835,13 @@ class TestDeviceFactsOnOlderAndroid(unittest.TestCase):
                 return super().run(*args, timeout=timeout)
 
         self.assertEqual(cap._app_locale(Old([_xml()]), "com.photoselectortoolbox.lab"), "")  # type: ignore[arg-type]
+
+
+class TestWalkLocale(unittest.TestCase):
+    def test_a_translated_app_is_told_its_language_even_for_english(self) -> None:
+        """Without a per-app language Jackpix followed the German Pixel 4a in the en@1.0 walk."""
+        from lab.usability.capture import walk_locale
+
+        self.assertEqual(walk_locale("phototok", None), "en")
+        self.assertEqual(walk_locale("phototok", "de-DE"), "de-DE")
+        self.assertIsNone(walk_locale("android-desktop", None))

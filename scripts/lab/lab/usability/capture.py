@@ -100,7 +100,13 @@ def _device_facts(
     import platform
 
     facts: dict[str, Any] = {"platform": product, "kind": DEVICE_KIND[product], "arch": platform.machine()}
-    facts["os"] = f"macOS {platform.mac_ver()[0]}" if product == "macos" else f"{platform.system()} {platform.release()}"
+    if product == "macos":
+        facts["os"] = f"macOS {platform.mac_ver()[0]}"
+    else:
+        try:  # "Debian GNU/Linux 13 (trixie)", not the kernel release a reviewer cannot place
+            facts["os"] = platform.freedesktop_os_release().get("PRETTY_NAME") or platform.system()
+        except OSError:
+            facts["os"] = f"{platform.system()} {platform.release()}"
     return facts
 
 
@@ -287,11 +293,18 @@ def android_session(client: AdbClient, spec: dict[str, Any], product: str, *, lo
                 _restore_file(client.serial).unlink(missing_ok=True)
 
 
+def walk_locale(product: str, locale: str | None) -> str | None:
+    """The app language a walk sets: a translated app follows the phone's language unless told
+    otherwise, so an `en` walk on a German phone (the Pixel 4a) showed German screens."""
+    return locale or ("en" if product in TRANSLATED_PRODUCTS else None)
+
+
 def _capture_android(spec: dict[str, Any], product: str, client: AdbClient, out: Path, only: list[str] | None,
                      locale: str | None, font_scale: float | None, exec_fn: Any | None) -> dict[str, Any]:
     app_id = str(spec["app_id"])
-    with android_session(client, spec, product, locale=locale, font_scale=font_scale):
-        driver = get_driver(product, app_id, out, adb=client, exec_fn=exec_fn, app_locale=locale)
+    app_locale = walk_locale(product, locale)
+    with android_session(client, spec, product, locale=app_locale, font_scale=font_scale):
+        driver = get_driver(product, app_id, out, adb=client, exec_fn=exec_fn, app_locale=app_locale)
         walkthrough = _execute_scenarios(spec, product, driver, out, only, client, "auto")
         walkthrough["variant"] = variant_label(locale, font_scale)
         (out / "walkthrough.json").write_text(json.dumps(walkthrough, indent=2), encoding="utf-8")

@@ -453,7 +453,8 @@ class CliExplorationAgent(ExplorationAgent):
                  timeout_s: float = 300.0) -> None:
         self.cli = cli
         self.timeout_s = timeout_s
-        self.model = model or ("sonnet" if cli == "claude" else "gemini-2.5-pro")
+        # Version-free: an alias for Claude, the CLI's own default for Gemini (no -m).
+        self.model = model or ("sonnet" if cli == "claude" else None)
         base_tmp = Path(os.environ.get("PST_LAB_TMP", "/tmp/pstlab"))
         base_tmp.mkdir(parents=True, exist_ok=True)
         self.sandbox_dir = sandbox_dir or Path(tempfile.mkdtemp(prefix=f"ai_explore_{cli}_", dir=base_tmp))
@@ -515,7 +516,9 @@ Action types: "tap", "swipe" ("up"|"down"|"left"|"right"), "key" ("Right"|"Left"
         if self.cli == "claude":
             cmd = ["claude", "-p", prompt_content, "--model", self.model, "--allowedTools", "Read"]
         else:
-            cmd = ["gemini", "-p", f"Inputs: @{prompt_file.name} @{observation.image_path.name}\n{prompt_content}", "-m", self.model]
+            cmd = ["gemini", "-p", f"Inputs: @{prompt_file.name} @{observation.image_path.name}\n{prompt_content}"]
+            if self.model:
+                cmd += ["-m", self.model]
 
         try:
             res = subprocess.run(cmd, cwd=self.sandbox_dir, capture_output=True, text=True, check=True,

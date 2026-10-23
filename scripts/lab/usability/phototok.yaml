@@ -130,6 +130,8 @@ scenarios:
         intent: Continue culling where I was
         expected: Tap 'Stay'
       - optional_tap: {text: [Stay, Bleiben], label: Stay}
+      # Relaunched after Back, the app reopens the Selection viewer; its own Back arrow leaves it.
+      - optional_tap: {desc: [Back, Zurück], label: the back arrow}
       - wait_for: {id: viewer_bottom_bar, timeout_ms: 10000}
       - optional_tap: {id: gesture_tutorial_got_it, label: GOT IT}
       - tap: {id: settings_button, label: the gear icon}
