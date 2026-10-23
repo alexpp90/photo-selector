@@ -2664,6 +2664,19 @@ class TestFixtureRoll(unittest.TestCase):
             scenes.roll_signature = orig  # type: ignore[assignment]
         self.assertFalse((again / "IMG_stale.jpg").exists(), "a changed recipe regenerates the roll")
 
+    def test_every_desktop_scenario_starts_from_the_untouched_roll(self) -> None:
+        """U-LIN-01 moved the first photo, so U-LIN-02 opened on another one (moderator, 2026-10-24)."""
+        seen: list[list[str]] = []
+
+        def fake_exec(cmd: list[str], env: dict[str, str]) -> None:
+            fixture = Path(cmd[cmd.index("--fixture") + 1])
+            seen.append(sorted(p.name for p in fixture.iterdir()))
+            next(p for p in fixture.iterdir() if p.suffix == ".jpg").unlink()  # the walk moves a photo away
+
+        run_capture("linux", None, self.base / "cap2", only=["U-LIN-01", "U-LIN-02"], exec_fn=fake_exec)
+        self.assertEqual(len(seen), 2)
+        self.assertEqual(seen[0], seen[1])
+
     def test_desktop_capture_walks_a_fresh_copy_and_removes_it(self) -> None:
         seen: list[Path] = []
 
@@ -2880,3 +2893,18 @@ class TestUseCaseScore(unittest.TestCase):
         fit = compute_use_case_fit(w, answers)["UC-4"]
         self.assertEqual(fit["personas"]["p"]["score"], 0.5)
         self.assertEqual(fit["personas"]["p"]["fit"], "mixed")
+
+
+class TestModeratorScoresAsNumbers(unittest.TestCase):
+    def test_bare_number_persona_scores_render(self) -> None:
+        """A moderator wrote {"club-volunteer": 0.25}; the report crashed on ps.get."""
+        from lab.usability.report import use_case_fits
+
+        screen = {"name": "a", "image": "01_a.png", "intent": "i", "expected": "e", "actions_before": [],
+                  "metrics": screen_metrics(_tree_dict("linux", [_tree_node("b", text="Keep")]))}
+        w = {"product": "linux", "captured_at": "t", "device": {}, "scenarios": [
+            {"scenario": "U", "title": "T", "goal": "g", "status": "pass", "use_case": "UC-4", "screens": [screen]}]}
+        fits = use_case_fits(w, {}, {"use_case_fit": [{"use_case": "UC-4", "fit": "poor", "persona_scores": {"p": 0.25}}]})
+        self.assertEqual(fits[0]["persona_scores"], {"p": {"score": 0.25}})
+        html = render_html(w, {}, {"use_case_fit": fits}, Path("/nonexistent"))
+        self.assertIn("p (25%)", html)

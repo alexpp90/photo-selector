@@ -405,15 +405,7 @@ def _usability(args: argparse.Namespace) -> int:
         from .usability.capture import run_capture
         from .usability.driver import DeviceBusy
 
-        if args.out:
-            out = Path(args.out)
-        else:
-            sha = subprocess.run(["git", "-C", str(repo_root()), "rev-parse", "HEAD"], capture_output=True, text=True).stdout
-            from .usability.capture import variant_label
-
-            label = variant_label(args.locale, args.font_scale).replace("@", "-fs")
-            out = new_run_dir(sha, label=f"usability-{args.product}-{label}")
-
+        # Refuse before creating a run folder: a refused capture left an empty one behind.
         serial = args.serial
         driver_mode = getattr(args, "driver", "auto")
         if args.product in ("phototok", "android-desktop") and driver_mode != "mock":
@@ -422,6 +414,15 @@ def _usability(args: argparse.Namespace) -> int:
             if not serial:
                 print(f"error: --serial (or ANDROID_SERIAL env var) is required for Android product '{args.product}'", file=sys.stderr)
                 return 2
+
+        if args.out:
+            out = Path(args.out)
+        else:
+            sha = subprocess.run(["git", "-C", str(repo_root()), "rev-parse", "HEAD"], capture_output=True, text=True).stdout
+            from .usability.capture import variant_label
+
+            label = variant_label(args.locale, args.font_scale).replace("@", "-fs")
+            out = new_run_dir(sha, label=f"usability-{args.product}-{label}")
 
         try:
             w = run_capture(
@@ -440,6 +441,8 @@ def _usability(args: argparse.Namespace) -> int:
             return 3
         except ValueError as exc:  # a request the product cannot honour (no serial, no translation)
             print(f"error: {exc}", file=sys.stderr)
+            if out.is_dir() and not any(out.iterdir()):
+                out.rmdir()
             return 2
         for sc in w["scenarios"]:
             print(f"{sc['scenario']}: {sc['status']} — {len(sc['screens'])} screens" + (f" ({sc['error']})" if sc["error"] else ""))

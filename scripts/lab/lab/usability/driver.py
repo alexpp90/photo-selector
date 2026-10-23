@@ -530,6 +530,9 @@ class DesktopDriver(BaseDriver):
     ) -> None:
         super().__init__(app_id, out_dir, settle_ms=0)
         self.fixture_dir = fixture_dir
+        # Set by the capture: each scenario starts from a fresh copy of this roll. A scenario is
+        # its own launch, and U-LIN-02 opened on another photo because U-LIN-01 had moved the first.
+        self.fixture_master: Path | None = None
         self.exec_fn = exec_fn
         self.timeout_s = timeout_s
 
@@ -589,6 +592,9 @@ class DesktopDriver(BaseDriver):
         if problems:
             return self._result(scenario, "broken", "cannot run: " + "; ".join(problems))
         commands, checkpoints = self._commands(scenario)
+        if self.fixture_master is not None and self.fixture_dir is not None:
+            shutil.rmtree(self.fixture_dir, ignore_errors=True)
+            shutil.copytree(self.fixture_master, self.fixture_dir)
         code, log = self._launch(scenario, commands)
         (self.out_dir / "app.log").write_text(log, encoding="utf-8")
         status, error = "pass", None

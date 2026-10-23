@@ -67,7 +67,8 @@ def master_roll() -> Path:
 
 
 def desktop_working_copy(master: Path, run_tag: str) -> Path:
-    """A fresh copy of the roll for one desktop walk: the apps move and trash files in it."""
+    """A copy of the roll for a desktop walk: the apps move and trash files in it, so the master
+    is never walked; the driver renews it before each scenario."""
     base = ensure_under(lab_tmp_root() / f"usability-work-{run_tag}", lab_tmp_root())
     shutil.rmtree(base, ignore_errors=True)
     work = base / master.name
@@ -269,12 +270,15 @@ def run_capture(
     active = driver
     work: Path | None = None
     if active is None:
-        fixture = None
+        fixture = master = None
         if not mock and spec.get("fixture"):
-            work = desktop_working_copy(master_roll(), f"{product}-{os.getpid()}")
+            master = master_roll()
+            work = desktop_working_copy(master, f"{product}-{os.getpid()}")
             fixture = work
         active = get_driver(product, app_id, out, fixture_dir=fixture, driver_type=driver_type, exec_fn=exec_fn,
                             text_scaling=font_scale)
+        if master is not None:
+            active.fixture_master = master  # type: ignore[attr-defined]
     try:
         walkthrough = _execute_scenarios(spec, product, active, out, only, None, "mock" if mock else driver_type)
     finally:

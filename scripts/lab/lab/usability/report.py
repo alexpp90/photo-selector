@@ -326,9 +326,13 @@ def use_case_fits(
     for u in decisions["use_case_fit"]:
         base = computed.get(u.get("use_case")) or {}
         # The moderator's verdict stands alone: a computed score next to it would contradict it.
+        # A moderator may give a persona's score as a bare number or as {fit, score}.
+        scores = {pid: (ps if isinstance(ps, dict) else {"score": ps})
+                  for pid, ps in (u.get("persona_scores") or {}).items()}
         merged.append({"use_case": u.get("use_case"), "title": base.get("title") or u.get("title", ""),
                        "screens": u.get("screens") or base.get("screens", []), "score": u.get("score"),
-                       "persona_scores": u.get("persona_scores") or {}, **{k: v for k, v in u.items() if k not in ("screens",)}})
+                       **{k: v for k, v in u.items() if k not in ("screens", "persona_scores")},
+                       "persona_scores": scores})
     return merged
 
 
