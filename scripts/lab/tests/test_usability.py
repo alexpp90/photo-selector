@@ -2908,3 +2908,58 @@ class TestModeratorScoresAsNumbers(unittest.TestCase):
         self.assertEqual(fits[0]["persona_scores"], {"p": {"score": 0.25}})
         html = render_html(w, {}, {"use_case_fit": fits}, Path("/nonexistent"))
         self.assertIn("p (25%)", html)
+
+
+class TestCliAgentReplies(unittest.TestCase):
+    """A fake `claude` on PATH prints a canned reply; the agent must read it, never guess."""
+
+    def setUp(self) -> None:
+        self.base = _scratch("test_cli_agent")
+        self.bin = self.base / "bin"
+        self.bin.mkdir()
+        self._path = os.environ.get("PATH", "")
+        os.environ["PATH"] = f"{self.bin}{os.pathsep}{self._path}"
+
+    def tearDown(self) -> None:
+        os.environ["PATH"] = self._path
+        shutil.rmtree(self.base, ignore_errors=True)
+
+    def _decide(self, reply: dict[str, Any]) -> Any:
+        from lab.usability.explore import CliExplorationAgent
+
+        script = self.bin / "claude"
+        script.write_text(f"#!/bin/sh\ncat <<'EOF'\n{json.dumps(reply)}\nEOF\n", encoding="utf-8")
+        script.chmod(0o755)
+        agent = CliExplorationAgent(cli="claude", sandbox_dir=self.base / "sb")
+        obs = ScreenObservation(1, "s", self.base / "none.png", self.base / "none.xml", [], {}, "sig")
+        return agent.decide_action(obs, ExplorationCharter(id="c", title="t", goal="g"), [])
+
+    def test_a_swipe_keeps_its_direction(self) -> None:
+        d = self._decide({"thought": "keep it", "action": {"type": "swipe", "direction": "right"}})
+        self.assertEqual(d.action, {"swipe": "right"})
+        self.assertTrue((self.base / "sb" / "step_01_reply.txt").is_file())
+
+    def test_a_swipe_without_direction_is_an_error_not_a_swipe_up(self) -> None:
+        from lab.usability.explore import AgentError
+
+        with self.assertRaises(AgentError):
+            self._decide({"action": {"type": "swipe"}})
+
+
+class TestAndroidScreenNames(unittest.TestCase):
+    def test_the_same_screen_gets_the_same_signature(self) -> None:
+        """Per-step screen names made every signature unique, so ten swipes on the last photo
+        never counted as stagnation."""
+        from lab.usability.explore import capture_current_observation
+
+        screen = _xml(_node(text="17 / 17", rid="position_counter", clickable=False),
+                      _node(rid="viewer_bottom_bar", clickable=True, bounds="[0,1800][1080,1900]"))
+        base = _scratch("test_android_names")
+        try:
+            d = drv.ScenarioDriver(FakeAdb([screen]), "com.phototok.lab", base, settle_ms=0)
+            a = capture_current_observation(d, 1, base)
+            b = capture_current_observation(d, 2, base)
+        finally:
+            shutil.rmtree(base, ignore_errors=True)
+        self.assertEqual(a.signature, b.signature)
+        self.assertEqual(a.screen_name, "position_counter+viewer_bottom_bar")

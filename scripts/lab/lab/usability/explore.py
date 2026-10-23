@@ -507,7 +507,13 @@ Respond ONLY with a JSON object matching this schema:
   }}
 }}
 ```
-Action types: "tap", "swipe" ("up"|"down"|"left"|"right"), "key" ("Right"|"Left"|"Space"|"Delete"|"Enter"|"Escape"), "back", "wait_ms", "finish" (with "goal_achieved": true/false).
+The "action" is exactly one of:
+- {{"type": "tap", "target": "<element id or its visible text>"}} (also "long_press")
+- {{"type": "swipe", "direction": "up" | "down" | "left" | "right"}}
+- {{"type": "key", "key": "Right" | "Left" | "Space" | "Delete" | "Enter" | "Escape"}}
+- {{"type": "back"}}
+- {{"type": "wait_ms", "ms": 500}}
+- {{"type": "finish", "goal_achieved": true | false}}
 """
         prompt_file.write_text(prompt_content, encoding="utf-8")
         if observation.image_path.is_file():
@@ -524,6 +530,7 @@ Action types: "tap", "swipe" ("up"|"down"|"left"|"right"), "key" ("Right"|"Left"
             res = subprocess.run(cmd, cwd=self.sandbox_dir, capture_output=True, text=True, check=True,
                                  timeout=self.timeout_s)
             raw = res.stdout
+            (self.sandbox_dir / f"step_{step:02d}_reply.txt").write_text(raw, encoding="utf-8")
             s_idx = raw.find("{")
             e_idx = raw.rfind("}")
             if s_idx == -1 or e_idx == -1:
@@ -541,9 +548,16 @@ Action types: "tap", "swipe" ("up"|"down"|"left"|"right"), "key" ("Right"|"Left"
         elif act_type == "double_tap":
             norm_act["double_tap"] = True
         elif act_type == "swipe":
-            norm_act["swipe"] = act.get("direction", "up")
+            # Never a default direction: "swipe right to keep" became ten swipes up (2026-10-24).
+            direction = str(act.get("direction") or act.get("target") or act.get("value") or "").lower()
+            if direction not in ("up", "down", "left", "right"):
+                raise AgentError(f"{self.cli} chose a swipe without a direction: {act!r}")
+            norm_act["swipe"] = direction
         elif act_type == "key":
-            norm_act["key"] = act.get("key", act.get("code", "Right"))
+            key = act.get("key") or act.get("code") or act.get("target")
+            if not key:
+                raise AgentError(f"{self.cli} chose a key without naming it: {act!r}")
+            norm_act["key"] = key
         elif act_type == "back":
             norm_act["back"] = True
         elif act_type == "wait_ms":
@@ -570,6 +584,12 @@ def GeminiExplorationAgent(model: str | None = None) -> CliExplorationAgent:
     return CliExplorationAgent(cli="gemini", model=model)
 
 
+def _content_name(nodes: list[Any]) -> str:
+    """A short stable name for an Android screen: the first resource ids on it."""
+    ids = sorted({n.res_id for n in nodes if n.res_id})[:3]
+    return "+".join(ids) or "screen"
+
+
 def capture_current_observation(
     driver: BaseDriver,
     step_idx: int,
@@ -593,7 +613,9 @@ def capture_current_observation(
         nodes = parse_nodes(xml_text)
         if nodes:
             driver.size = (nodes[0].bounds[2], nodes[0].bounds[3])
-            screen_name = current_screen or f"screen_{step_idx:02d}"
+            # Named by content, not by step: the name is part of the signature the cycle detector
+            # compares, and a per-step name hid ten swipes on the same last photo (2026-10-24).
+            screen_name = current_screen or _content_name(nodes)
             elements = [
                 InteractiveElement(
                     id=n.res_id or f"node_{idx}",
