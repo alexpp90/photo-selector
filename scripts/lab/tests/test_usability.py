@@ -615,6 +615,21 @@ class TestScenarioFile(unittest.TestCase):
     def test_linux_scenarios_are_complete(self) -> None:
         self._assert_scenario_spec("linux")
 
+    def test_system_ui_is_tapped_by_resource_id_not_by_its_text(self) -> None:
+        """The picker's "Use this folder" reads "Diesen Ordner verwenden" on a German phone (the
+        Pixel 4a): a text selector broke every Jackpix walk there. Its buttons are android:id/button1."""
+        for product in ("phototok", "android-desktop"):
+            for scenario in load_scenarios(product, repo_root())["scenarios"]:
+                steps = scenario["steps"]
+                for i, step in enumerate(steps):
+                    if not (i and steps[i - 1].get("system")):
+                        continue
+                    target = step.get("tap") or step.get("optional_tap") or {}
+                    text = target.get("text")
+                    owned = {"PSTLab", "usability-trip"}  # folder names the fixture owns
+                    with self.subTest(product=product, scenario=scenario["id"], step=i):
+                        self.assertTrue(not text or set(text if isinstance(text, list) else [text]) <= owned, step)
+
     def test_every_step_runs_on_its_products_driver(self) -> None:
         """A step the driver cannot perform used to become a silent wait on the desktops, while
         the persona was told it happened; now the driver refuses it, and so does this test."""
@@ -2804,3 +2819,19 @@ class TestReportAndPanelNames(unittest.TestCase):
         self.assertIn("macOS 26.6 (Mac), window 1440x900 pt", render_walkthrough_md(mac))
         tab = {"product": "android-desktop", "device": {"platform": "android", "kind": "tablet", "model": "Pixel Tablet"}, "scenarios": []}
         self.assertIn("Pixel Tablet tablet, landscape", render_walkthrough_md(tab))
+
+
+class TestDeviceFactsOnOlderAndroid(unittest.TestCase):
+    def test_no_per_app_locale_command_is_not_a_crash(self) -> None:
+        """Android 11 has no `cmd locale`; the facts lookup ended a finished walk with a traceback."""
+        import subprocess
+
+        from lab.usability import capture as cap
+
+        class Old(FakeAdb):
+            def run(self, *args: str, timeout: int = 30) -> str:
+                if args[1:3] == ("cmd", "locale"):
+                    raise subprocess.CalledProcessError(20, list(args))
+                return super().run(*args, timeout=timeout)
+
+        self.assertEqual(cap._app_locale(Old([_xml()]), "com.photoselectortoolbox.lab"), "")  # type: ignore[arg-type]

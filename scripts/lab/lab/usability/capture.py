@@ -5,6 +5,7 @@ from __future__ import annotations
 import json
 import os
 import shutil
+import subprocess
 import time
 from contextlib import contextmanager
 from datetime import datetime, timezone
@@ -118,7 +119,10 @@ def _window_size(walkthrough: dict[str, Any], out_dir: Path) -> str | None:
 
 
 def _app_locale(adb: AdbClient, app_id: str) -> str:
-    out = adb.run("shell", "cmd", "locale", "get-app-locales", app_id).strip()
+    try:
+        out = adb.run("shell", "cmd", "locale", "get-app-locales", app_id).strip()
+    except subprocess.CalledProcessError:
+        return ""  # Android < 13 has no per-app languages: the app follows the system's
     # "Locales for com.x for user 0 are [de-DE]"
     m = out[out.rfind("[") + 1 : out.rfind("]")] if "[" in out else ""
     return m.strip()

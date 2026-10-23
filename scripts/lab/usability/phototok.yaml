@@ -42,12 +42,12 @@ scenarios:
         system: true
         intent: Confirm this is the right folder
         expected: Tap 'Use this folder'
-      - tap: {text: Use this folder}
+      - tap: {id: button1, label: Use this folder}
       - screen: picker-allow
         system: true
         intent: Let the app see this folder
         expected: Tap 'Allow'
-      - tap: {text: Allow}
+      - tap: {id: button1, label: Allow}
       - wait_for: {id: gesture_tutorial_got_it, timeout_ms: 15000}
       - screen: guide
         intent: Learn just enough to start
