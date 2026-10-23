@@ -319,3 +319,19 @@ def test_failed_window_snapshot_never_falls_back_to_a_root_window_screenshot(tmp
     recorder.record_checkpoint(None, "opened")  # no window: nothing may capture the desktop
 
     assert not (tmp_path / "01_opened.png").exists()
+
+
+def test_frontmost_window_is_the_newest_visible_window_over_the_main_one() -> None:
+    from photo_selector_linux.ui.lab_hooks import frontmost_window
+
+    main = SimpleNamespace(get_visible=lambda: True, get_transient_for=lambda: None)
+
+    def dialog(visible: bool, parent: object) -> SimpleNamespace:
+        return SimpleNamespace(get_visible=lambda: visible, get_transient_for=lambda: parent)
+
+    stats, hidden, other = dialog(True, main), dialog(False, main), dialog(True, None)
+    assert frontmost_window(main, [main]) is main
+    assert frontmost_window(main, [main, stats]) is stats
+    assert frontmost_window(main, [main, stats, hidden, other]) is stats
+    newer = dialog(True, main)
+    assert frontmost_window(main, [stats, main, newer]) is newer

@@ -101,8 +101,11 @@ class PhotoSelectorApplication(Adw.Application if HAS_GI else object):
 
     def _on_action_lab_checkpoint(self, action, param) -> None:
         if self._lab_recorder is not None:
+            from photo_selector_linux.ui.lab_hooks import frontmost_window
+
             name = param.get_string() if param is not None else "checkpoint"
-            self._lab_recorder.record_checkpoint_after_frame(self.window, name)
+            window = frontmost_window(self.window, list(Gtk.Window.list_toplevels()))
+            self._lab_recorder.record_checkpoint_after_frame(window, name)
 
     def _on_action_open_folder(self, action, param) -> None:
         if self.window:
