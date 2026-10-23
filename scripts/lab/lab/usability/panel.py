@@ -448,11 +448,27 @@ def build_panel(run_dir: Path, *, priv: Path | None = None, variants: list[Path]
     (out / "answers").mkdir(exist_ok=True)
     (out / "requirements.json").write_text(
         json.dumps(binding_requirements(walkthrough["product"]), indent=2, ensure_ascii=False), encoding="utf-8")
+    # The moderator rates these use cases (`use_case_fit`); without them it rated scenarios.
+    (out / "use-cases.json").write_text(json.dumps(use_cases_named(walkthrough), indent=2, ensure_ascii=False),
+                                        encoding="utf-8")
     (out / "moderator-input.json").write_text(
         json.dumps(moderator_input(walkthrough, all_variants), indent=2, ensure_ascii=False), encoding="utf-8")
     table, _ = text_load_table(all_variants)
     (out / "text-load.md").write_text(table, encoding="utf-8")
     return out
+
+
+def _use_cases(scenario: dict[str, Any]) -> list[str]:
+    raw = scenario.get("use_case") or ""
+    return [u.strip() for u in str(raw).split(",") if u.strip().startswith("UC-")]
+
+
+def use_cases_named(walkthrough: dict[str, Any]) -> dict[str, str]:
+    """`{UC-n: title}` for the use cases the walk's scenarios name (titles from the catalogue)."""
+    from .report import use_case_titles
+
+    titles = use_case_titles()
+    return {uc: titles.get(uc, "") for sc in walkthrough.get("scenarios", []) for uc in _use_cases(sc)}
 
 
 def moderator_input(
@@ -468,6 +484,7 @@ def moderator_input(
         rows.append(
             {
                 "screen": key,
+                "use_cases": _use_cases(scenario),
                 "intent": s["intent"],
                 "expected": s["expected"],
                 "system_screen": s.get("system_screen", False),

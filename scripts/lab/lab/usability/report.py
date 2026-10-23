@@ -320,10 +320,11 @@ def use_case_fits(
     """The moderator's use-case verdicts with the screens each covers (the moderator does not
     list them); the computed fit when there is no moderator."""
     computed = compute_use_case_fit(walkthrough, answers)
-    if not (decisions and decisions.get("use_case_fit")):
+    mine = [u for u in (decisions or {}).get("use_case_fit") or [] if u.get("use_case") in computed]
+    if not mine:  # none, or keyed by something else (a moderator once rated scenarios: "U-TOK-01")
         return computed
     merged = []
-    for u in decisions["use_case_fit"]:
+    for u in mine:
         base = computed.get(u.get("use_case")) or {}
         # The moderator's verdict stands alone: a computed score next to it would contradict it.
         # A moderator may give a persona's score as a bare number or as {fit, score}.
