@@ -1,0 +1,164 @@
+# Frameduel (Android Desktop) usability scenarios — reviewed by persona panel.
+#
+# Covers large-screen tablet & DeX workflows (UC-4, UC-5, UC-6, UC-13, UC-16).
+# Scenarios execute in order sharing session state.
+product: android-desktop
+app_id: com.photoselectortoolbox.lab
+fixture:
+  kind: scenes
+  remote: /sdcard/PSTLab/usability-trip
+scenarios:
+  - id: U-AD-01
+    title: First launch & 3-Up burst culling with keyboard
+    goal: You opened Frameduel on your tablet with keyboard attached. Open the trip shoot and cull the first burst using keyboard shortcuts.
+    use_case: UC-4
+    steps:
+      - launch: {clear: true}
+      - screen: welcome
+        intent: Understand how to start culling my trip photos
+        expected: Tap 'Open Folder' button or press Ctrl+O
+      - tap: {text: Open Folder}
+      - screen: picker
+        system: true
+        intent: Locate the trip folder
+        expected: Open PSTLab and select usability-trip
+      - tap: {text: PSTLab, scroll: true}
+      - tap: {text: usability-trip, scroll: true}
+      - screen: picker-folder
+        system: true
+        intent: Confirm selection of usability-trip
+        expected: Tap 'Use this folder'
+      - tap: {text: Use this folder}
+      - screen: picker-allow
+        system: true
+        intent: Grant folder storage permission
+        expected: Tap 'Allow'
+      - tap: {text: Allow}
+      - wait_for: {id: control_block, timeout_ms: 15000}
+      - screen: selector-first
+        intent: Review first photo in 3-Up one-over-two layout
+        expected: Compare current top frame with neighbours and press Right arrow
+      - key: Right
+      - screen: selector-burst
+        intent: Frame is sharper than previous, move it to Selection
+        expected: Press M to move to Selection
+      - key: M
+      - screen: after-move
+        intent: Notice next frame is blurry, reject it
+        expected: Press Delete or Backspace
+      - key: Delete
+      - screen: delete-confirm
+        intent: Confirm deletion of blurry frame
+        expected: Tap 'Delete' in confirmation dialog
+      - tap: {id: dialog_confirm_delete, text: Delete}
+      - screen: after-delete
+        intent: Check that next candidate advances automatically
+        expected: Press Right arrow to inspect next series
+
+  - id: U-AD-02
+    title: Couch tablet touch culling
+    goal: Cull weekend photos on the couch with tablet in hand, using touch targets and filmstrip.
+    use_case: UC-5
+    steps:
+      - screen: touch-selector
+        intent: Compare frames comfortably using touch
+        expected: Tap 'Next' (rail_next) button
+      - tap: {id: rail_next, label: Next}
+      - screen: touch-burst-comparison
+        intent: Compare the current frame with neighbours
+        expected: Tap 'Move' button to file the keeper
+      - tap: {id: move_button_expanded, label: Move}
+      - screen: touch-after-move
+        intent: Check undo notification and toggle candidate filmstrip
+        expected: Tap filmstrip toggle button
+      - tap: {id: filmstrip_toggle, desc: Show the filmstrip}
+      - screen: filmstrip-visible
+        intent: See thumbnail strip along bottom
+        expected: Tap details toggle to inspect metadata
+      - tap: {id: details_toggle, desc: Show photo details}
+      - screen: details-overlay-visible
+        intent: View EXIF exposure and rating overlay
+        expected: Dismiss details toggle or proceed
+
+  - id: U-AD-03
+    title: Learn Workstation — Explore & Photo Coach
+    goal: Open the Learn workstation to understand exposure technique and read Photo Coach guidance.
+    use_case: UC-6
+    steps:
+      - screen: before-learn
+        intent: Open Learn workstation for selected photo
+        expected: Press L or tap 'Learn' in sidebar
+      - key: L
+      - wait_for: {id: learn_tab_explore, timeout_ms: 6000}
+      - screen: learn-explore
+        intent: Read exposure feedback and technical facts
+        expected: Read Photo Coach advice and scroll down
+      - swipe: up
+      - screen: learn-coach-details
+        intent: Review reciprocal shutter speed rule and noise critique
+        expected: Rate the photo or explore composition guides
+
+  - id: U-AD-04
+    title: Learn Workstation — Composition Overlays & Crop
+    goal: Evaluate framing using Rule of Thirds and Golden Spiral overlays, then inspect suggested crop.
+    use_case: UC-6
+    steps:
+      - screen: learn-composition-start
+        intent: Turn on composition guides to check subject balance
+        expected: Tap 'Thirds' in top guide bar
+      - tap: {id: toggle_thirds, label: Thirds}
+      - screen: learn-thirds-active
+        intent: Check alignment with Rule of Thirds grid
+        expected: Tap 'Phi' for Golden Ratio grid
+      - tap: {id: toggle_golden_ratio, label: Phi}
+      - screen: learn-phi-active
+        intent: Check Golden Ratio lines, then switch to Fibonacci spiral
+        expected: Tap 'Spiral'
+      - tap: {id: toggle_spiral, label: Spiral}
+      - screen: learn-spiral-active
+        intent: Check Golden Spiral orientation and flip focal eye
+        expected: Tap spiral flip badge
+      - tap: {id: toggle_spiral_flip, label: Flip Spiral}
+      - screen: learn-spiral-flipped
+        intent: See re-oriented spiral focal eye on subject
+        expected: Tap 'Return to Culling' or press L to exit
+      - tap: {id: back_to_cull_button, desc: Return to Culling}
+
+  - id: U-AD-05
+    title: Learn Workstation — Lessons & Scene Comparator
+    goal: Browse interactive photography lessons and compare similar scenes side-by-side.
+    use_case: UC-6
+    steps:
+      - key: L
+      - wait_for: {id: learn_tab_lessons, timeout_ms: 6000}
+      - tap: {id: learn_tab_lessons, label: Lessons}
+      - screen: learn-lessons-catalog
+        intent: Select a photography technique micro-lesson
+        expected: Tap a lesson card or switch to Compare tab
+      - tap: {id: learn_tab_compare, label: Compare}
+      - screen: learn-compare-view
+        intent: Compare two similar frames side-by-side with difference analysis
+        expected: Review difference callouts and return to culling
+      - key: Escape
+
+  - id: U-AD-06
+    title: Worst-first sharpness sweep
+    goal: Triage the shoot by sorting blurriest photos first to quickly eliminate technical misses.
+    use_case: UC-13
+    steps:
+      - screen: selector-before-menu
+        intent: Open sidebar menu to change sort order
+        expected: Tap menu button
+      - tap: {desc: More options, label: Menu}
+      - screen: overflow-menu
+        intent: Select worst-first sharpness sort
+        expected: Tap 'Sort worst sharpness first'
+      - tap: {text: Sort worst sharpness first}
+      - screen: worst-first-active
+        intent: Review blurriest photo at front of triage queue
+        expected: Press Delete to trash out-of-focus frame
+      - key: Delete
+      - tap: {id: dialog_confirm_delete, text: Delete}
+      - screen: worst-first-next
+        intent: Confirm triage advances to next blurriest frame
+        expected: Continue sweep until stop threshold

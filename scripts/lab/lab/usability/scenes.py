@@ -8,33 +8,250 @@ personas judge the app with content that asks for real keep/delete decisions.
 
 from __future__ import annotations
 
+import os
 import random
+from dataclasses import dataclass
 from datetime import datetime, timedelta
 from pathlib import Path
 
-from PIL import Image, ImageDraw, ImageEnhance, ImageFilter
+try:
+    from PIL import Image, ImageDraw, ImageEnhance, ImageFilter
+except ImportError:
+    Image = ImageDraw = ImageEnhance = ImageFilter = None  # type: ignore
 
-from ..fixtures import _write_jpeg
+from ..fixtures import _build_exif_bytes, _write_jpeg, _write_xmp
 from ..paths import ensure_under
 
-# (name, palette, flaw). Order is the shooting order; the feed shows newest first.
+
+@dataclass(frozen=True)
+class SceneSpec:
+    name: str
+    palette: str
+    flaw: str | None = None
+    burst_group: str | None = None
+    burst_offset_s: int = 0
+    blur_radius: float = 0.0
+    iso: int = 400
+    exposure_time: tuple[int, int] = (1, 250)
+    f_number: tuple[int, int] = (28, 10)
+    focal_length: tuple[int, int] = (50, 1)
+    focal_length_35mm: int = 50
+    lens_model: str = "PSTLab 50mm F2.8"
+    rating: int = 0
+    has_raw: bool = False
+    raw_format: str = "dng"
+    has_xmp: bool = False
+    has_edit: bool = False
+    orientation: int = 1
+
+
+ROLL_SPECS: list[SceneSpec] = [
+    # ── 1–3. Dawn Lake Burst: 3-Up comparison culling (UC-4, UC-5, UC-13) ──
+    SceneSpec(
+        name="lake-dawn",
+        palette="dawn",
+        burst_group="dawn-burst",
+        burst_offset_s=0,
+        blur_radius=0.0,  # Sharpest (keeper)
+        iso=200,
+        exposure_time=(1, 500),
+        f_number=(28, 10),
+        focal_length=(70, 1),
+        focal_length_35mm=70,
+        lens_model="PSTLab 24-70mm F2.8 GM",
+        rating=3,
+        has_raw=True,
+        raw_format="dng",
+        has_xmp=True,
+    ),
+    SceneSpec(
+        name="lake-dawn-burst2",
+        palette="dawn",
+        flaw="shift",
+        burst_group="dawn-burst",
+        burst_offset_s=1,
+        blur_radius=2.0,  # Soft focus
+        iso=200,
+        exposure_time=(1, 500),
+        f_number=(28, 10),
+        focal_length=(70, 1),
+        focal_length_35mm=70,
+        lens_model="PSTLab 24-70mm F2.8 GM",
+    ),
+    SceneSpec(
+        name="lake-dawn-burst3",
+        palette="dawn",
+        flaw="shift",
+        burst_group="dawn-burst",
+        burst_offset_s=2,
+        blur_radius=6.0,  # Missed focus
+        iso=200,
+        exposure_time=(1, 500),
+        f_number=(28, 10),
+        focal_length=(70, 1),
+        focal_length_35mm=70,
+        lens_model="PSTLab 24-70mm F2.8 GM",
+    ),
+
+    # ── 4–6. Noon Ridge & Exposure Flaws (UC-6 Photo Coach) ──
+    SceneSpec(
+        name="ridge-noon",
+        palette="noon",
+        iso=100,
+        exposure_time=(1, 250),
+        f_number=(80, 10),  # F8 sweet spot
+        focal_length=(24, 1),
+        focal_length_35mm=24,
+        lens_model="PSTLab 24-70mm F2.8 GM",
+    ),
+    SceneSpec(
+        name="ridge-noon-blown",
+        palette="noon",
+        flaw="blown",  # Overexposed (>5% highlight clipping)
+        iso=100,
+        exposure_time=(1, 30),
+        f_number=(80, 10),
+        focal_length=(24, 1),
+        focal_length_35mm=24,
+        lens_model="PSTLab 24-70mm F2.8 GM",
+    ),
+    SceneSpec(
+        name="pocket",
+        palette="noon",
+        flaw="pocket",  # Accidental pocket shot
+        iso=800,
+        exposure_time=(1, 60),
+        f_number=(28, 10),
+        focal_length=(50, 1),
+        focal_length_35mm=50,
+        lens_model="PSTLab 50mm F1.4",
+    ),
+
+    # ── 7–9. Dusk Valley & Low-Light Camera Shake (UC-6, UC-14) ──
+    SceneSpec(
+        name="valley-dusk",
+        palette="dusk",
+        iso=800,
+        exposure_time=(1, 125),
+        f_number=(14, 10),  # F1.4 wide open
+        focal_length=(50, 1),
+        focal_length_35mm=50,
+        lens_model="PSTLab 50mm F1.4",
+    ),
+    SceneSpec(
+        name="valley-dusk-dark",
+        palette="dusk",
+        flaw="dark",  # Underexposed (>8% shadow clipping)
+        iso=100,
+        exposure_time=(1, 1000),
+        f_number=(40, 10),
+        focal_length=(50, 1),
+        focal_length_35mm=50,
+        lens_model="PSTLab 50mm F1.4",
+    ),
+    SceneSpec(
+        name="valley-dusk-shake",
+        palette="dusk",
+        flaw="shake",  # Camera shake (1/15s on 100mm lens)
+        iso=800,
+        exposure_time=(1, 15),
+        f_number=(40, 10),
+        focal_length=(100, 1),
+        focal_length_35mm=100,
+        lens_model="PSTLab 70-200mm F4 G OSS",
+    ),
+
+    # ── 10–11. Snow Peaks & Tilted Horizon (UC-6) ──
+    SceneSpec(
+        name="snow-peaks",
+        palette="snow",
+        iso=100,
+        exposure_time=(1, 500),
+        f_number=(110, 10),
+        focal_length=(35, 1),
+        focal_length_35mm=35,
+        lens_model="PSTLab 35mm F1.4 GM",
+    ),
+    SceneSpec(
+        name="snow-peaks-tilted",
+        palette="snow",
+        flaw="tilt",  # 8° horizon tilt
+        iso=100,
+        exposure_time=(1, 500),
+        f_number=(110, 10),
+        focal_length=(35, 1),
+        focal_length_35mm=35,
+        lens_model="PSTLab 35mm F1.4 GM",
+    ),
+
+    # ── 12. Desert Noon & F22 Diffraction Warning (UC-6) ──
+    SceneSpec(
+        name="desert-noon",
+        palette="desert",
+        iso=100,
+        exposure_time=(1, 60),
+        f_number=(220, 10),  # F22 diffraction warning
+        focal_length=(24, 1),
+        focal_length_35mm=24,
+        lens_model="PSTLab 24-70mm F2.8 GM",
+    ),
+
+    # ── 13. Night Stars & High ISO Sensor Noise (UC-6, UC-14) ──
+    SceneSpec(
+        name="night-stars",
+        palette="night",
+        iso=6400,  # High sensor noise
+        exposure_time=(1, 30),
+        f_number=(14, 10),
+        focal_length=(24, 1),
+        focal_length_35mm=24,
+        lens_model="PSTLab 24-70mm F2.8 GM",
+    ),
+
+    # ── 14. Vertical Aspect Ratio (UC-1) ──
+    SceneSpec(
+        name="lake-dusk-vertical",
+        palette="dusk",
+        flaw="vertical",  # 1500x2000 vertical
+        iso=100,
+        exposure_time=(1, 1000),
+        f_number=(14, 10),
+        focal_length=(85, 1),
+        focal_length_35mm=85,
+        lens_model="PSTLab 85mm F1.4 GM",
+    ),
+
+    # ── 15–16. Forest Morning & Companion Pair + Blurred Reject (phototok.yaml sequence) ──
+    SceneSpec(
+        name="forest-morning",
+        palette="forest",
+        iso=200,
+        exposure_time=(1, 125),
+        f_number=(56, 10),
+        focal_length=(50, 1),
+        focal_length_35mm=50,
+        lens_model="PSTLab 50mm F1.4",
+        rating=4,
+        has_raw=True,
+        raw_format="cr3",
+        has_xmp=True,
+        has_edit=True,
+    ),
+    SceneSpec(
+        name="forest-morning-blurred",
+        palette="forest",
+        flaw="blur",  # 14px heavy blur for phototok U-TOK-02 swipe left
+        iso=200,
+        exposure_time=(1, 1000),  # Fast shutter speed + blur = Missed Focus
+        f_number=(56, 10),
+        focal_length=(50, 1),
+        focal_length_35mm=50,
+        lens_model="PSTLab 50mm F1.4",
+    ),
+]
+
 ROLL: list[tuple[str, str, str | None]] = [
-    ("lake-dawn", "dawn", None),
-    ("lake-dawn-burst2", "dawn", "shift"),
-    ("lake-dawn-burst3", "dawn", "shift"),
-    ("ridge-noon", "noon", None),
-    ("ridge-noon-blurred", "noon", "blur"),
-    ("pocket", "noon", "pocket"),
-    ("valley-dusk", "dusk", None),
-    ("valley-dusk-dark", "dusk", "dark"),
-    ("snow-peaks", "snow", None),
-    ("snow-peaks-tilted", "snow", "tilt"),
-    ("desert-noon", "desert", None),
-    ("night-stars", "night", None),
-    ("lake-dusk-portrait", "dusk", "portrait"),
-    ("forest-morning", "forest", None),
-    ("forest-morning-blurred", "forest", "blur"),
-    ("coast-noon", "coast", None),
+    (s.name, s.palette, s.flaw) for s in ROLL_SPECS
 ]
 
 PALETTES: dict[str, dict[str, tuple[int, int, int]]] = {
@@ -47,11 +264,11 @@ PALETTES: dict[str, dict[str, tuple[int, int, int]]] = {
     "snow": {"top": (60, 120, 200), "horizon": (210, 230, 250), "sun": (255, 255, 250), "far": (225, 230, 240),
              "near": (180, 190, 205), "water": (120, 160, 200)},
     "desert": {"top": (70, 140, 220), "horizon": (240, 220, 190), "sun": (255, 250, 220), "far": (200, 140, 90),
-               "near": (170, 100, 60), "water": (200, 160, 110)},
+                "near": (170, 100, 60), "water": (200, 160, 110)},
     "night": {"top": (5, 8, 25), "horizon": (30, 40, 80), "sun": (235, 235, 220), "far": (20, 25, 45),
               "near": (8, 10, 18), "water": (15, 20, 40)},
     "forest": {"top": (120, 170, 210), "horizon": (220, 230, 210), "sun": (255, 250, 220), "far": (70, 110, 80),
-               "near": (25, 60, 35), "water": (60, 100, 90)},
+                "near": (25, 60, 35), "water": (60, 100, 90)},
     "coast": {"top": (30, 120, 200), "horizon": (190, 225, 245), "sun": (255, 255, 240), "far": (150, 140, 120),
               "near": (90, 80, 60), "water": (20, 100, 160)},
 }
@@ -77,6 +294,8 @@ def _ridge(rng: random.Random, width: int, base: float, rough: float) -> list[fl
 
 def render_scene(palette: str, size: tuple[int, int], seed: int) -> Image.Image:
     """Render one landscape: sky gradient, sun or moon, two ridges, a reflecting lake."""
+    if Image is None:
+        raise RuntimeError("scene rendering needs the real Pillow")
     rng = random.Random(seed)
     p = PALETTES[palette]
     w, h = size
@@ -115,15 +334,25 @@ def _apply_flaw(img: Image.Image, flaw: str | None, rng: random.Random) -> Image
     if flaw == "blur":
         return img.filter(ImageFilter.GaussianBlur(14))
     if flaw == "dark":
-        return ImageEnhance.Brightness(img).enhance(0.22)
+        dim = ImageEnhance.Brightness(img).enhance(0.12)
+        lut = [0 if i < 18 else i for i in range(256)] * 3
+        return dim.point(lut)
+    if flaw == "blown":
+        return ImageEnhance.Brightness(img).enhance(2.6)
     if flaw == "tilt":
         w, h = img.size
-        rot = img.rotate(9, resample=Image.Resampling.BICUBIC)
+        rot = img.rotate(8, resample=Image.Resampling.BICUBIC)
         return rot.crop((w // 10, h // 10, w - w // 10, h - h // 10)).resize((w, h))
     if flaw == "shift":
         w, h = img.size
         dx, dy = rng.randint(10, 40), rng.randint(5, 20)
         return img.crop((dx, dy, w - 40 + dx, h - 20 + dy)).resize((w, h))
+    if flaw == "shake":
+        base = img.copy()
+        for step in range(1, 9):
+            shifted = img.transform(img.size, Image.Transform.AFFINE, (1, 0, step * 2, 0, 1, step))
+            base = Image.blend(base, shifted, 0.22)
+        return base
     if flaw == "pocket":
         base = Image.new("RGB", img.size, (60, 40, 30))
         blob = Image.effect_noise(img.size, 40).convert("RGB")
@@ -131,21 +360,108 @@ def _apply_flaw(img: Image.Image, flaw: str | None, rng: random.Random) -> Image
     return img
 
 
-def generate_roll(out_dir: Path, *, start: datetime | None = None, seed: int = 7) -> list[Path]:
-    """Write the camera-roll scene set to `out_dir` (`IMG_<date>_<time>.jpg`, EXIF dated)."""
-    out = Path(out_dir)
+def generate_roll(
+    out_dir: Path | str,
+    *,
+    count: int = 16,
+    start: datetime | None = None,
+    seed: int = 7,
+    include_bursts: bool = True,
+    include_companions: bool = True,
+) -> list[Path]:
+    """Write the camera-roll scene set to `out_dir` deterministically."""
+    if Image is None:
+        raise RuntimeError("scene rendering needs the real Pillow")
+
+    out = Path(out_dir).expanduser().resolve()
+    out.mkdir(parents=True, exist_ok=True)
     t0 = start or datetime(2026, 8, 14, 6, 40)
     written: list[Path] = []
     scene_seed: dict[str, int] = {}
-    for idx, (name, palette, flaw) in enumerate(ROLL):
+
+    specs = ROLL_SPECS[:count]
+    base_dt = t0
+
+    for idx, spec in enumerate(specs):
         rng = random.Random(seed * 1000 + idx)
-        size = (1500, 2000) if flaw == "portrait" else (2000, 1500)
-        # A flawed variant renders the same scene as its predecessor of the same palette.
-        base_seed = scene_seed.get(palette, seed * 100 + idx) if flaw not in (None, "portrait") else seed * 100 + idx
-        scene_seed[palette] = base_seed
-        img = _apply_flaw(render_scene(palette, size, base_seed), flaw, rng)
-        dt = t0 + timedelta(hours=idx * 3, minutes=rng.randint(0, 50))
-        dest = ensure_under(out / f"IMG_{dt:%Y%m%d_%H%M%S}.jpg", out)
-        _write_jpeg(dest, img, dt)
-        written.append(dest)
+        size = (1500, 2000) if spec.flaw == "vertical" else (2000, 1500)
+        base_seed = (
+            scene_seed.get(spec.palette, seed * 100 + idx)
+            if spec.flaw not in (None, "vertical")
+            else seed * 100 + idx
+        )
+        scene_seed[spec.palette] = base_seed
+
+        # Render procedural landscape (ZERO PEOPLE invariant)
+        img = render_scene(spec.palette, size, base_seed)
+        if spec.blur_radius > 0:
+            img = img.filter(ImageFilter.GaussianBlur(radius=spec.blur_radius))
+        img = _apply_flaw(img, spec.flaw, rng)
+
+        # Timestamp calculation: burst peers are separated by 1 second
+        if spec.burst_group and include_bursts:
+            dt = base_dt + timedelta(seconds=spec.burst_offset_s)
+        else:
+            base_dt += timedelta(hours=2, minutes=rng.randint(0, 45))
+            dt = base_dt
+
+        dest_jpg = ensure_under(out / f"IMG_{dt:%Y%m%d_%H%M%S}.jpg", out)
+        _write_jpeg(
+            dest_jpg,
+            img,
+            dt,
+            orientation=spec.orientation,
+            iso=spec.iso,
+            exposure_time=spec.exposure_time,
+            f_number=spec.f_number,
+            focal_length=spec.focal_length,
+            focal_length_35mm=spec.focal_length_35mm,
+            lens_model=spec.lens_model,
+        )
+        written.append(dest_jpg)
+
+        # Companion files (UC-2, UC-7, UC-10)
+        if include_companions and spec.has_raw:
+            raw_ext = spec.raw_format.upper()
+            dest_raw = ensure_under(out / f"IMG_{dt:%Y%m%d_%H%M%S}.{raw_ext}", out)
+            if spec.raw_format.lower() == "dng":
+                exif_bytes = _build_exif_bytes(
+                    dt,
+                    spec.orientation,
+                    iso=spec.iso,
+                    exposure_time=spec.exposure_time,
+                    f_number=spec.f_number,
+                    focal_length=spec.focal_length,
+                    focal_length_35mm=spec.focal_length_35mm,
+                    lens_model=spec.lens_model,
+                )
+                img.save(dest_raw, format="TIFF", exif=exif_bytes)
+            else:
+                dest_raw.write_bytes(b"CR3\x00\x00\x00\x18ftypcrx " + rng.randbytes(1024))
+            ts = dt.timestamp()
+            os.utime(dest_raw, (ts, ts))
+            written.append(dest_raw)
+
+        if include_companions and spec.has_xmp:
+            dest_xmp = ensure_under(out / f"IMG_{dt:%Y%m%d_%H%M%S}.xmp", out)
+            _write_xmp(dest_xmp, rating=spec.rating, dt=dt)
+            written.append(dest_xmp)
+
+        if include_companions and spec.has_edit:
+            dest_edit = ensure_under(out / f"IMG_{dt:%Y%m%d_%H%M%S}-Edit.jpg", out)
+            edit_img = ImageEnhance.Color(img).enhance(1.3)
+            _write_jpeg(
+                dest_edit,
+                edit_img,
+                dt,
+                orientation=spec.orientation,
+                iso=spec.iso,
+                exposure_time=spec.exposure_time,
+                f_number=spec.f_number,
+                focal_length=spec.focal_length,
+                focal_length_35mm=spec.focal_length_35mm,
+                lens_model=spec.lens_model,
+            )
+            written.append(dest_edit)
+
     return written
