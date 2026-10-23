@@ -185,4 +185,43 @@ class FolderScanLogicTest {
         )
         assertEquals(listOf("d.jpg"), byUriSet.map { it.fileName })
     }
+
+    // ── latestIndex: where an explicit Reload lands ──────────────────────
+
+    @Test
+    fun `latestIndex of a newest-first feed is 0`() {
+        val feed = listOf(sampleImage("c.jpg", 300L), sampleImage("b.jpg", 200L), sampleImage("a.jpg", 100L))
+        assertEquals(0, FolderScanLogic.latestIndex(feed))
+    }
+
+    @Test
+    fun `latestIndex of a shooting-order (ascending) feed is the last photo`() {
+        val feed = listOf(sampleImage("a.jpg", 100L), sampleImage("b.jpg", 200L), sampleImage("c.jpg", 300L))
+        assertEquals(2, FolderScanLogic.latestIndex(feed))
+    }
+
+    @Test
+    fun `latestIndex finds the newest photo in an unseen-first partitioned feed`() {
+        // Unseen photos first (older), seen ones after, one of which is the newest overall.
+        val feed = listOf(
+            sampleImage("unseen_old.jpg", 100L),
+            sampleImage("unseen_mid.jpg", 150L),
+            sampleImage("seen_newest.jpg", 900L),
+            sampleImage("seen_old.jpg", 50L),
+        )
+        assertEquals(2, FolderScanLogic.latestIndex(feed))
+    }
+
+    @Test
+    fun `latestIndex takes the first occurrence on a tie`() {
+        val feed = listOf(sampleImage("a.jpg", 100L), sampleImage("b.jpg", 300L), sampleImage("c.jpg", 300L))
+        assertEquals(1, FolderScanLogic.latestIndex(feed))
+        assertEquals(0, FolderScanLogic.latestIndex(listOf(sampleImage("x.jpg", 5L), sampleImage("y.jpg", 5L))))
+    }
+
+    @Test
+    fun `latestIndex of an empty or single-photo list is 0`() {
+        assertEquals(0, FolderScanLogic.latestIndex(emptyList()))
+        assertEquals(0, FolderScanLogic.latestIndex(listOf(sampleImage("only.jpg", 42L))))
+    }
 }

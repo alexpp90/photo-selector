@@ -15,7 +15,8 @@ class ControlsGuideSolverTest {
     private val topIcons = listOf(
         GuideAnchor.DONE_WITH_CARD, GuideAnchor.RELOAD, GuideAnchor.HELP, GuideAnchor.INFO, GuideAnchor.SETTINGS,
     )
-    private val bottomButtons = listOf(GuideAnchor.SOURCES, GuideAnchor.SELECTION, GuideAnchor.REVERT)
+    private val bottomButtons =
+        listOf(GuideAnchor.SOURCES, GuideAnchor.SELECTION, GuideAnchor.SHARE, GuideAnchor.REVERT)
 
     /** Stand-in for text measurement: as wide as allowed up to [natural], a fixed height. */
     private fun sizeFor(maxWidth: Float, natural: Float = 120f, height: Float = 40f) =
@@ -38,7 +39,9 @@ class ControlsGuideSolverTest {
         val top = ControlsGuideSolver.placeTop(
             a.getValue(GuideAnchor.TOP_BAR).bottom, plans, sizes, logo, logoPlan, logoSize,
         )
-        val bPlans = ControlsGuideSolver.planBottom(width, bottomButtons.associateWith { a.getValue(it) })
+        val bPlans = ControlsGuideSolver.planBottom(
+            width, bottomButtons.associateWith { a.getValue(it) }, bottomButtons.associateWith { naturalWidth },
+        )
         val bSizes = bPlans.associate { it.id to sizeFor(it.maxWidth, naturalWidth, 52f) }
         val bottom = ControlsGuideSolver.placeBottom(a.getValue(GuideAnchor.BOTTOM_BAR).top, bPlans, bSizes)
         return Portrait(width, a, top + bottom)
@@ -74,9 +77,11 @@ class ControlsGuideSolverTest {
                     when (p.id) {
                         in bottomButtons -> {
                             assertTrue("$tag ${p.id} below bottom bar top", p.callout.bottom <= barTop)
-                            assertEquals(
-                                "$tag ${p.id} centred", r.anchors.getValue(p.id).centerX, p.callout.centerX, 1f,
-                            )
+                            // Centred, or slid sideways where neighbours / the screen edge leave no
+                            // room; either way it covers its button's x so the leader attaches.
+                            val cx = r.anchors.getValue(p.id).centerX
+                            assertTrue("$tag ${p.id} covers its button", cx >= p.callout.left && cx <= p.callout.right)
+                            if (natural <= 60f) assertEquals("$tag ${p.id} centred", cx, p.callout.centerX, 1f)
                         }
                         GuideAnchor.LOGO -> {
                             assertTrue("$tag logo below bar", p.callout.top >= barBottom)
@@ -129,7 +134,8 @@ class ControlsGuideSolverTest {
             val width = 800f
             val a = ControlsGuideSolver.nominalLandscape(width, height)
             val leftIds = listOf(
-                GuideAnchor.LOGO, GuideAnchor.SOURCES, GuideAnchor.SELECTION, GuideAnchor.REVERT, GuideAnchor.HELP,
+                GuideAnchor.LOGO, GuideAnchor.SOURCES, GuideAnchor.SELECTION, GuideAnchor.SHARE,
+                GuideAnchor.REVERT, GuideAnchor.HELP,
             )
             val rightIds = listOf(GuideAnchor.RELOAD, GuideAnchor.INFO, GuideAnchor.SETTINGS)
             val leftEdge = a.getValue(GuideAnchor.LEFT_PANEL).right
@@ -162,8 +168,82 @@ class ControlsGuideSolverTest {
         assertEquals(48f, a.getValue(GuideAnchor.SETTINGS).centerX - a.getValue(GuideAnchor.INFO).centerX, 0.01f)
         assertEquals(24f + 64f, a.getValue(GuideAnchor.TOP_BAR).bottom, 0.01f)
         assertEquals(851f - 24f - 60f, a.getValue(GuideAnchor.BOTTOM_BAR).top, 0.01f)
+        // Four 72dp buttons in the bottom bar, in the order Sources, Selection, Share, Revert.
+        val xs = bottomButtons.map { a.getValue(it).centerX }
+        assertEquals(xs.sorted(), xs)
+        assertTrue(bottomButtons.all { a.getValue(it).width == 72f })
         // Five buttons and the logo fit a 320dp phone.
         val narrow = ControlsGuideSolver.nominalPortrait(320f, 480f, 0f, 0f, true)
         assertTrue(narrow.getValue(GuideAnchor.DONE_WITH_CARD).left > narrow.getValue(GuideAnchor.LOGO).right)
+    }
+
+    private fun bottomRow(width: Float, naturalWidth: Float, height: Float = 52f): List<Placed> {
+        val a = ControlsGuideSolver.nominalPortrait(width, 800f, 24f, 24f, false)
+        val plans = ControlsGuideSolver.planBottom(
+            width, bottomButtons.associateWith { a.getValue(it) }, bottomButtons.associateWith { naturalWidth },
+        )
+        val sizes = plans.associate { it.id to sizeFor(it.maxWidth, naturalWidth, height) }
+        return ControlsGuideSolver.placeBottom(a.getValue(GuideAnchor.BOTTOM_BAR).top, plans, sizes)
+    }
+
+    @Test
+    fun four_bottom_buttons_fit_the_bar_on_320_and_360dp_phones() {
+        for (width in listOf(320f, 360f, 393f)) {
+            val a = ControlsGuideSolver.nominalPortrait(width, 800f, 24f, 24f, false)
+            val boxes = bottomButtons.map { a.getValue(it) }
+            assertTrue("w=$width first button inside the bar", boxes.first().left >= 0f)
+            assertTrue("w=$width last button inside the bar", boxes.last().right <= width)
+            for (i in 0 until boxes.size - 1) {
+                assertTrue("w=$width buttons ${i} and ${i + 1} do not overlap", boxes[i].right <= boxes[i + 1].left)
+            }
+        }
+    }
+
+    @Test
+    fun four_short_bottom_callouts_stay_on_one_level_when_they_fit() {
+        val placed = bottomRow(393f, naturalWidth = 50f)
+        assertTrue(placed.all { it.level == 0 })
+        assertNoOverlapsAndLeadersClear(placed, 393f)
+    }
+
+    @Test
+    fun four_wide_bottom_callouts_at_360dp_alternate_two_levels_and_never_overlap() {
+        // 120 dp is a long label at large font scale (labelMedium at 2.0 is about 24 sp).
+        for (natural in listOf(90f, 120f, 200f, 400f)) {
+            val placed = bottomRow(360f, naturalWidth = natural, height = 60f)
+            assertEquals("every bottom button gets a callout", 4, placed.size)
+            assertNoOverlapsAndLeadersClear(placed, 360f)
+            val byX = placed.sortedBy { it.callout.centerX }
+            assertEquals("adjacent callouts alternate", listOf(0, 1, 0, 1), byX.map { it.level })
+            // Level 1 sits above level 0; every leader still reaches the bar.
+            val level0Top = byX.filter { it.level == 0 }.minOf { it.callout.top }
+            byX.filter { it.level == 1 }.forEach { assertTrue("natural=$natural", it.callout.bottom <= level0Top) }
+            val barTop = ControlsGuideSolver.nominalPortrait(360f, 800f, 24f, 24f, false)
+                .getValue(GuideAnchor.BOTTOM_BAR).top
+            placed.forEach { assertEquals("leader reaches the bar", barTop, it.leader.bottom, 0.01f) }
+            // The leader of every callout stays attached to it.
+            placed.forEach {
+                assertTrue("${it.id} leader under its callout", it.leader.centerX >= it.callout.left && it.leader.centerX <= it.callout.right)
+            }
+        }
+    }
+
+    @Test
+    fun staggered_bottom_callouts_get_about_two_button_pitches() {
+        val a = ControlsGuideSolver.nominalPortrait(360f, 800f, 24f, 24f, false)
+        val plans = ControlsGuideSolver.planBottom(
+            360f, bottomButtons.associateWith { a.getValue(it) }, bottomButtons.associateWith { 120f },
+        )
+        val pitch = a.getValue(GuideAnchor.SELECTION).centerX - a.getValue(GuideAnchor.SOURCES).centerX
+        // The two inner buttons are not limited by the screen edge.
+        plans.filter { it.id == GuideAnchor.SELECTION || it.id == GuideAnchor.SHARE }
+            .forEach { assertTrue("${it.id} maxWidth ${it.maxWidth} vs pitch $pitch", it.maxWidth > pitch) }
+    }
+
+    @Test
+    fun bottom_callouts_without_measured_widths_stay_on_one_level() {
+        val a = ControlsGuideSolver.nominalPortrait(360f, 800f, 24f, 24f, false)
+        val plans = ControlsGuideSolver.planBottom(360f, bottomButtons.associateWith { a.getValue(it) })
+        assertTrue(plans.all { it.level == 0 })
     }
 }

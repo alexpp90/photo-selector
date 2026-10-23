@@ -6,7 +6,8 @@ then this script for everything Lensjet changed since the cask was written:
 
 - the zip holds `Lensjet.app` (was `PhotoSelector.app`);
 - the stable cask downloads from the product's own tag `macos-desktop-v<version>` (was `v<version>`,
-  the old shared tag scheme, so the URL of the first Lensjet release would have been a 404);
+  the old shared tag scheme, so the URL of the first Lensjet release would have been a 404), and
+  the nightly cask from `nightly-macos-desktop` (was the `nightly` tag three workflows shared);
 - `name` and `desc` say Lensjet (the cask *token* stays: installed casks keep updating);
 - `zap` also removes the preferences of the new bundle id `app.alpatix.lensjet`.
 
@@ -28,7 +29,10 @@ NEW_PREFS = "~/Library/Preferences/app.alpatix.lensjet.plist"
 def rebrand(text: str, nightly: bool) -> str:
     """The cask text with Lensjet's app, download tag, name, description and zap paths."""
     text = re.sub(r'^([ \t]*app )"PhotoSelector\.app"', r'\1"Lensjet.app"', text, flags=re.M)
-    if not nightly:
+    if nightly:
+        # Lensjet's nightlies have their own rolling tag (the shared `nightly` is legacy Desktop's).
+        text = text.replace("/releases/download/nightly/", "/releases/download/nightly-macos-desktop/")
+    else:
         text = text.replace("/releases/download/v#{version}/",
                             "/releases/download/macos-desktop-v#{version}/")
     name = "Lensjet (Nightly)" if nightly else "Lensjet"

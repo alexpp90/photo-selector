@@ -19,6 +19,12 @@ overwrites** an existing file.
   `<stem>_Edit.*` / `<stem>-Enhanced-NR.*` derivatives), the product checks whether *any* member's
   target path in the destination folder (including `RAW/` or `JPEG/` subfolders when file sorting
   is enabled) is already occupied.
+- **Sorting keeps a bundle together.** With file sorting enabled, every sidecar (`<file>.xmp`,
+  `<stem>.xmp`) and every derivative (`-Edit`, `_Edit`, `-Enhanced-NR`, whatever its extension)
+  goes into the subfolder of the bundle's RAW — `RAW/` when the bundle has one, otherwise the
+  subfolder of its primary image. A file's own type never splits it from its shot: a
+  `-Enhanced-NR.tif` or a stem `IMG_0001.xmp` never lands in `JPEG/` or the Selection root while
+  its RAW is in `RAW/`. (Maintainer decision 2026-10-22, audit findings D-TOK-2 and C-AD-1.)
 - **Shared numeric suffix.** If any member collides and the source and destination are not the exact
   same canonical file, the **entire bundle** receives the lowest integer suffix `-N` ($N \ge 2$)
   inserted immediately before the file extension for which every member of the bundle is free:

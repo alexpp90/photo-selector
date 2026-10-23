@@ -35,6 +35,7 @@ import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.automirrored.filled.HelpOutline
 import androidx.compose.material.icons.filled.CollectionsBookmark
 import androidx.compose.material.icons.filled.ContentCopy
+import androidx.compose.material.icons.filled.Folder
 import androidx.compose.material.icons.filled.FolderOpen
 import androidx.compose.material.icons.filled.Info
 import androidx.compose.material.icons.filled.Lens
@@ -45,6 +46,7 @@ import androidx.compose.material.icons.filled.RestoreFromTrash
 import androidx.compose.material.icons.filled.SdCard
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material.icons.filled.Share
+import androidx.compose.material.icons.filled.Star
 import androidx.compose.material.icons.filled.Style
 import androidx.compose.material.icons.filled.Sync
 import androidx.compose.material3.AlertDialog
@@ -100,6 +102,7 @@ import com.phototok.ui.resolve
 import com.phototok.ui.settings.SettingsScreen
 import com.phototok.viewmodel.PhoneModeViewModel
 import com.phototok.viewmodel.ReloadPrompt
+import com.phototok.viewmodel.SelectionViewerLogic
 import com.phototok.viewmodel.SelectionViewerTab
 import com.phototok.viewmodel.SelectionViewerViewModel
 import com.phototok.viewmodel.canRevert
@@ -128,7 +131,15 @@ fun PhoneModeScreen(
             targetFolderUri = uiState.collectionFolderUri ?: uiState.sourceFolderUri,
             sourceImages = uiState.images,
             favouritedUris = uiState.favouritedUris,
+            // Open where the user's swipe right puts photos: ★ -> Favourites, copy/move -> Selection.
+            preferredTab = SelectionViewerLogic.preferredTab(uiState.swipeRightVerb),
         )
+    }
+
+    // The bar's Share button and the long-press menu take the same path.
+    val shareCurrentPhoto = {
+        viewModel.buildCurrentShareIntent()?.let { context.startActivity(it) }
+        Unit
     }
 
     var showSettingsSheet by remember { mutableStateOf(false) }
@@ -323,6 +334,9 @@ fun PhoneModeScreen(
                 currentIndex = selectionState.currentIndex,
                 folderName = selectionState.selectionFolderName,
                 activeTab = selectionState.activeTab,
+                showTabs = selectionState.showTabs,
+                favouriteCount = selectionState.favouriteImages.size,
+                selectionCount = selectionState.selectionImages.size,
                 showExifOverlay = uiState.showExifOverlay,
                 onSelectTab = selectionViewModel::selectTab,
                 onShareBatch = {
@@ -351,6 +365,7 @@ fun PhoneModeScreen(
                     onToggleExif = { viewModel.toggleExifOverlay() },
                     onSources = { viewModel.goBackToLanding() },
                     onSelection = openSelectionViewer,
+                    onShare = shareCurrentPhoto,
                     onRevert = { viewModel.revertDelete() },
                     onHelp = { viewModel.showControlsGuide() },
                 )
@@ -607,6 +622,7 @@ fun PhoneModeScreen(
                     canRevert = uiState.canRevert,
                     onRevert = { viewModel.revertDelete() },
                     onJumpToSelection = openSelectionViewer,
+                    onShare = shareCurrentPhoto,
                     onGoToLanding = { viewModel.goBackToLanding() },
                     modifier = Modifier.align(Alignment.BottomCenter),
                     anchors = guideAnchors,
@@ -636,6 +652,7 @@ internal fun LandscapeLeftPanel(
     onToggleExif: () -> Unit,
     onSources: () -> Unit,
     onSelection: () -> Unit,
+    onShare: () -> Unit,
     onRevert: () -> Unit,
     onHelp: () -> Unit,
 ) {
@@ -649,8 +666,8 @@ internal fun LandscapeLeftPanel(
                     WindowInsetsSides.Left + WindowInsetsSides.Top + WindowInsetsSides.Bottom
                 )
             )
-            .width(72.dp)
-            .padding(vertical = 16.dp),
+            .width(PhoneModeChromeMetrics.LEFT_PANEL_WIDTH)
+            .padding(vertical = PhoneModeChromeMetrics.LEFT_PANEL_VERTICAL_PADDING),
         horizontalAlignment = Alignment.CenterHorizontally,
         verticalArrangement = Arrangement.SpaceBetween
     ) {
@@ -678,7 +695,7 @@ internal fun LandscapeLeftPanel(
 
         Column(
             horizontalAlignment = Alignment.CenterHorizontally,
-            verticalArrangement = Arrangement.spacedBy(16.dp)
+            verticalArrangement = Arrangement.spacedBy(PhoneModeChromeMetrics.SIDE_PANEL_BUTTON_SPACING)
         ) {
             SidePanelButton(
                 icon = Icons.Default.FolderOpen,
@@ -695,6 +712,14 @@ internal fun LandscapeLeftPanel(
                 enabled = true,
                 onClick = onSelection,
                 modifier = Modifier.guideAnchor(anchors, GuideAnchor.SELECTION).testTag("landscape_selection_button"),
+            )
+            SidePanelButton(
+                icon = Icons.Default.Share,
+                name = stringResource(R.string.cd_share),
+                isActive = false,
+                enabled = true,
+                onClick = onShare,
+                modifier = Modifier.guideAnchor(anchors, GuideAnchor.SHARE).testTag("landscape_share_button"),
             )
             // Revert (restore pending deleted photo from trash)
             SidePanelButton(
@@ -715,7 +740,7 @@ internal fun LandscapeLeftPanel(
             )
         }
 
-        Spacer(modifier = Modifier.height(24.dp))
+        Spacer(modifier = Modifier.height(PhoneModeChromeMetrics.LEFT_PANEL_BOTTOM_SPACER))
     }
 }
 
@@ -811,9 +836,10 @@ fun DirectDeleteDialog(
 }
 
 /**
- * Shown only when a reload or a reopened folder found photos newer than the last
- * visit (REQ-TOK-FEATURE.09). The count is the whole message; the buttons name
- * the two outcomes. With nothing new there is nothing to decide, so no dialog.
+ * Shown only when a reopened folder holds photos newer than the last visit
+ * (REQ-TOK-FEATURE.09); an explicit Reload goes straight to the latest photo instead. The
+ * count is the whole message; the buttons name the two outcomes. With nothing new there is
+ * nothing to decide, so no dialog.
  */
 @Composable
 fun FolderResumeDialog(
@@ -903,13 +929,23 @@ private fun SidePanelButton(
     }
 }
 
-/** Read-only viewer for the Favourites and PhotoTok_Selection tabs (U-13, U-17). */
+/** Leading icons of the two Selection-viewer lists: a star for ★ favourites, a folder for the copies. */
+private val FAVOURITES_TAB_ICON = Icons.Default.Star
+private val SELECTION_TAB_ICON = Icons.Default.Folder
+
+/**
+ * Read-only viewer for the Favourites and Selection-folder lists (U-13, U-17). Two switchable tabs
+ * only when both lists have photos, otherwise a single title (`REQ-TOK-FEATURE.17`).
+ */
 @Composable
 private fun SelectionFolderViewer(
     images: List<ImageItem>,
     currentIndex: Int,
     folderName: String,
     activeTab: SelectionViewerTab,
+    showTabs: Boolean,
+    favouriteCount: Int,
+    selectionCount: Int,
     showExifOverlay: Boolean,
     onSelectTab: (SelectionViewerTab) -> Unit,
     onShareBatch: () -> Unit,
@@ -976,21 +1012,15 @@ private fun SelectionFolderViewer(
                     onClick = onClose,
                 )
                 Spacer(modifier = Modifier.width(4.dp))
-                FlowRow(
+                SelectionViewerTabs(
+                    activeTab = activeTab,
+                    showTabs = showTabs,
+                    favouriteCount = favouriteCount,
+                    selectionCount = selectionCount,
+                    folderName = folderName,
+                    onSelectTab = onSelectTab,
                     modifier = Modifier.weight(1f),
-                    horizontalArrangement = Arrangement.spacedBy(6.dp),
-                ) {
-                    FilterChip(
-                        selected = activeTab == SelectionViewerTab.FAVOURITES,
-                        onClick = { onSelectTab(SelectionViewerTab.FAVOURITES) },
-                        label = { Text(stringResource(R.string.chip_favourites)) },
-                    )
-                    FilterChip(
-                        selected = activeTab == SelectionViewerTab.SELECTION,
-                        onClick = { onSelectTab(SelectionViewerTab.SELECTION) },
-                        label = { Text(folderName.ifEmpty { PhotoFolders.SELECTION }) },
-                    )
-                }
+                )
             }
             Row(verticalAlignment = Alignment.CenterVertically) {
                 if (activeTab == SelectionViewerTab.FAVOURITES && images.isNotEmpty()) {
@@ -1010,6 +1040,72 @@ private fun SelectionFolderViewer(
                     )
                 }
             }
+        }
+    }
+}
+
+/**
+ * The Selection viewer's list switch: two tabs ("Favourites 3", "Selection 12", each with its own
+ * icon) when both lists have photos, otherwise a single non-clickable title in their place
+ * (`REQ-TOK-FEATURE.17`). Numbers carry the information, there is no description text.
+ */
+@Composable
+internal fun SelectionViewerTabs(
+    activeTab: SelectionViewerTab,
+    showTabs: Boolean,
+    favouriteCount: Int,
+    selectionCount: Int,
+    folderName: String,
+    onSelectTab: (SelectionViewerTab) -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    val colors = MaterialTheme.colorScheme
+    val favouritesLabel = stringResource(
+        R.string.chip_name_count, stringResource(R.string.chip_favourites), favouriteCount,
+    )
+    val selectionLabel = stringResource(
+        R.string.chip_name_count, folderName.ifEmpty { PhotoFolders.SELECTION }, selectionCount,
+    )
+    if (showTabs) {
+        FlowRow(
+            modifier = modifier,
+            horizontalArrangement = Arrangement.spacedBy(6.dp),
+        ) {
+            FilterChip(
+                selected = activeTab == SelectionViewerTab.FAVOURITES,
+                onClick = { onSelectTab(SelectionViewerTab.FAVOURITES) },
+                leadingIcon = { Icon(FAVOURITES_TAB_ICON, contentDescription = null, modifier = Modifier.size(18.dp)) },
+                label = { Text(favouritesLabel) },
+                modifier = Modifier.testTag("selection_tab_favourites"),
+            )
+            FilterChip(
+                selected = activeTab == SelectionViewerTab.SELECTION,
+                onClick = { onSelectTab(SelectionViewerTab.SELECTION) },
+                leadingIcon = { Icon(SELECTION_TAB_ICON, contentDescription = null, modifier = Modifier.size(18.dp)) },
+                label = { Text(selectionLabel) },
+                modifier = Modifier.testTag("selection_tab_selection"),
+            )
+        }
+    } else {
+        // Only one list has photos: a title, not a switch to an empty tab.
+        Row(
+            modifier = modifier.testTag("selection_title"),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(8.dp),
+        ) {
+            Icon(
+                imageVector = if (activeTab == SelectionViewerTab.FAVOURITES) FAVOURITES_TAB_ICON else SELECTION_TAB_ICON,
+                contentDescription = null,
+                tint = colors.primary,
+                modifier = Modifier.size(20.dp),
+            )
+            Text(
+                text = if (activeTab == SelectionViewerTab.FAVOURITES) favouritesLabel else selectionLabel,
+                style = MaterialTheme.typography.titleMedium,
+                color = colors.onSurface,
+                maxLines = 2,
+                overflow = TextOverflow.Ellipsis,
+            )
         }
     }
 }

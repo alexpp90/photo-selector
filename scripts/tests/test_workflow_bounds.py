@@ -133,5 +133,42 @@ class WorkflowBoundsTest(unittest.TestCase):
                         self.assertNotIn("workflow_dispatch", condition)
 
 
+    def test_no_two_workflows_publish_the_same_release_tag(self):
+        # 2026-10-21 audit (CI-3): android.yml, desktop.yml and macos.yml all force-moved the one
+        # `nightly` tag, so after a multi-product merge it pointed at whichever run finished last.
+        owners: dict[str, set[str]] = {}
+        for path in sorted(WORKFLOWS.glob("*.yml")):
+            text = path.read_text(encoding="utf-8")
+            tags = set(re.findall(r"git/refs/tags/([A-Za-z0-9._-]+)", text))
+            tags |= set(re.findall(r"ref=refs/tags/([A-Za-z0-9._-]+)", text))
+            tags |= set(re.findall(r"tag_name:[^\n]*?'([A-Za-z0-9._-]+)'", text))
+            tags |= set(re.findall(r"tag_name: ([A-Za-z0-9._-]+)\s*$", text, flags=re.M))
+            for tag in tags:
+                owners.setdefault(tag, set()).add(path.name)
+        shared = {tag: sorted(files) for tag, files in owners.items() if len(files) > 1}
+        self.assertEqual(shared, {})
+
+    def test_release_titles_come_from_release_py_not_a_hard_coded_name(self):
+        # 2026-10-22: linux.yml titled the Blitzlens 0.2.0 release "Linux Desktop 0.2.0".
+        # verify-tag writes the product's display name (`name`) next to `version`.
+        for path in sorted(WORKFLOWS.glob("*.yml")):
+            for line in path.read_text(encoding="utf-8").splitlines():
+                if re.match(r"^\s+name: .*outputs\.version", line):
+                    with self.subTest(workflow=path.name, line=line.strip()):
+                        self.assertIn("outputs.name", line)
+
+    def test_third_party_actions_are_pinned_to_a_commit(self):
+        # 2026-10-21 audit (CI-7): actions that receive release secrets ran whatever their moving
+        # tag pointed at. GitHub's own `actions/*` and `gradle/actions` stay on major tags.
+        unpinned = []
+        for path in sorted(list(WORKFLOWS.glob("*.yml")) + list((WORKFLOWS.parent / "actions").rglob("*.yml"))):
+            for ref in re.findall(r"^\s*(?:- )?uses:\s*([^\s#]+)", path.read_text(encoding="utf-8"), flags=re.M):
+                if ref.startswith(("./", "actions/", "gradle/actions/")):
+                    continue
+                if not re.fullmatch(r"[^@]+@[0-9a-f]{40}", ref):
+                    unpinned.append(f"{path.name}: {ref}")
+        self.assertEqual(unpinned, [])
+
+
 if __name__ == "__main__":
     unittest.main()
