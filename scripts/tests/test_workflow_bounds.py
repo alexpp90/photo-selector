@@ -148,6 +148,15 @@ class WorkflowBoundsTest(unittest.TestCase):
         shared = {tag: sorted(files) for tag, files in owners.items() if len(files) > 1}
         self.assertEqual(shared, {})
 
+    def test_release_titles_come_from_release_py_not_a_hard_coded_name(self):
+        # 2026-10-22: linux.yml titled the Blitzlens 0.2.0 release "Linux Desktop 0.2.0".
+        # verify-tag writes the product's display name (`name`) next to `version`.
+        for path in sorted(WORKFLOWS.glob("*.yml")):
+            for line in path.read_text(encoding="utf-8").splitlines():
+                if re.match(r"^\s+name: .*outputs\.version", line):
+                    with self.subTest(workflow=path.name, line=line.strip()):
+                        self.assertIn("outputs.name", line)
+
     def test_third_party_actions_are_pinned_to_a_commit(self):
         # 2026-10-21 audit (CI-7): actions that receive release secrets ran whatever their moving
         # tag pointed at. GitHub's own `actions/*` and `gradle/actions` stay on major tags.
