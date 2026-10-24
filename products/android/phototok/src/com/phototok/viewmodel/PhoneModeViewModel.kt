@@ -17,6 +17,7 @@ import com.phototok.data.model.PhoneSettings
 import com.phototok.data.model.RecentPath
 import com.phototok.data.model.SourceSettings
 import com.phototok.data.repository.CullingStats
+import com.phototok.data.repository.FavouriteSyncRequest
 import com.phototok.data.repository.FavouritesRepository
 import com.phototok.data.repository.ImageRepository
 import com.phototok.data.repository.SeenRepository
@@ -43,7 +44,7 @@ import com.phototok.domain.RelatedFiles
 import com.phototok.domain.ShareIntentBuilder
 import com.phototok.domain.SwipeAction
 import com.phototok.domain.SwipeRightVerb
-import com.phototok.domain.SystemFavouriteSync
+import com.phototok.domain.FavouritesSnapshot
 import com.phototok.domain.UiText
 import dagger.hilt.android.lifecycle.HiltViewModel
 import javax.inject.Inject
@@ -124,8 +125,8 @@ data class PhoneModeUiState(
     val missingGrantPrompt: Boolean = false,
     /** When true, Selection folder is stored inside each scanned folder. */
     val selectionUseSourceRoot: Boolean = false,
-    /** In-place favourited photo URIs (`U-17`). */
-    val favouritedUris: Set<String> = emptySet(),
+    /** In-place favourites and how far they reached MediaStore (`U-17`); match feed URIs with `isFavourite`. */
+    val favourites: FavouritesSnapshot = FavouritesSnapshot(),
     /** Count of seen photos in the active folder (`U-15`). */
     val seenCountInFolder: Int = 0,
     /** Per-folder `(seen, total)` summary map for the landing screen (`U-15`). */
@@ -143,8 +144,8 @@ data class PhoneModeUiState(
     val cardDeletedCount: Int = 0,
     val cardClearStep: Int = 0,
     val cardClearComplete: Boolean = false,
-    /** Optional API 30+ batch MediaStore request (`U-17`, `U-18`). */
-    val pendingIntentSenderRequest: SystemFavouriteSync.BatchIntentRequest? = null,
+    /** Favourite request (`createFavoriteRequest`) for the UI to launch once (`U-17`). */
+    val pendingIntentSenderRequest: FavouriteSyncRequest? = null,
 )
 
 data class ReloadPrompt(
@@ -229,6 +230,13 @@ class PhoneModeViewModel @Inject constructor(
     private var discoveryJob: Job? = null
     private var dimensionsJob: Job? = null
     private var sourceSettingsJob: Job? = null
+    private var systemIndexJob: Job? = null
+
+    /** The favourite request the UI is showing or about to show; one at a time. */
+    private var inFlightSyncRequest: FavouriteSyncRequest? = null
+
+    /** Queue size when the user last declined; a full queue flushes only once it grew past it. */
+    private var favouriteFlushFloor = 0
 
     /**
      * Every URI published for the current folder. Discovery streams cumulative
@@ -268,6 +276,16 @@ class PhoneModeViewModel @Inject constructor(
 
         /** Dimension results are applied to the UI state in batches of this size. */
         internal const val DIMENSION_BATCH_SIZE = 24
+
+        /**
+         * Queued favourite changes (MediaStore items, companions included) that trigger a flush
+         * while the user stays in the feed. The request starts a short system activity, so it
+         * should not follow every swipe.
+         */
+        internal const val FAVOURITE_FLUSH_THRESHOLD = 25
+
+        /** Feed photos read back from MediaStore per step. */
+        private const val SYSTEM_INDEX_CHUNK = 50
 
         private const val EXTERNAL_STORAGE_AUTHORITY = "com.android.externalstorage.documents"
         private const val CAMERA_DOCUMENT_ID = "primary:DCIM/Camera"
@@ -323,8 +341,8 @@ class PhoneModeViewModel @Inject constructor(
                 .collect { syncUndoHistoryPin() }
         }
         viewModelScope.launch {
-            favouritesRepository.favouritedUris.collect { favs ->
-                _uiState.update { it.copy(favouritedUris = favs) }
+            favouritesRepository.snapshot.collect { favs ->
+                _uiState.update { it.copy(favourites = favs) }
             }
         }
         viewModelScope.launch {
@@ -608,9 +626,11 @@ class PhoneModeViewModel @Inject constructor(
 
     fun selectSourceFolder(uri: Uri) {
         finalizePendingDelete()
+        flushSystemFavourites()
         feedEpoch++
         discoveryJob?.cancel()
         dimensionsJob?.cancel()
+        systemIndexJob?.cancel()
         publishedUris.clear()
         dimensionsResolved.clear()
         _uiState.update { it.copy(emptyFolderMessage = null, missingGrantPrompt = false) }
@@ -860,6 +880,7 @@ class PhoneModeViewModel @Inject constructor(
             maybeShowRawJpegSuggestion()
             maybeShowFilterMismatchHint()
             loadDimensionsAsynchronously(force = true)
+            indexFeedFromSystem()
         } catch (e: CancellationException) {
             // A newer discovery job owns the state now — do not touch it.
             throw e
@@ -1128,8 +1149,8 @@ class PhoneModeViewModel @Inject constructor(
                 uri = currentImage.uri,
                 favourite = true,
                 companionUris = related.map { it.uri },
-                queueForSystemSync = state.sourceKind == SourceKind.PHONE_LIBRARY,
             )
+            afterFavouriteChange(listOf(currentImage) + related)
             statsRepository.recordKeeper(state.sourceKind, 1 + related.size)
             advanceToNextImage()
             showFeedback(UiText.of(R.string.snackbar_favourite_added))
@@ -1157,8 +1178,8 @@ class PhoneModeViewModel @Inject constructor(
         val nowFav = favouritesRepository.toggleFavourite(
             uri = currentImage.uri,
             companionUris = related.map { it.uri },
-            queueForSystemSync = state.sourceKind == SourceKind.PHONE_LIBRARY,
         )
+        afterFavouriteChange(listOf(currentImage) + related)
         if (nowFav) {
             statsRepository.recordKeeper(state.sourceKind, 1 + related.size)
             showFeedback(UiText.of(R.string.snackbar_favourite_added))
@@ -1755,8 +1776,88 @@ class PhoneModeViewModel @Inject constructor(
         }
     }
 
-    fun clearPendingIntentSenderRequest() {
-        _uiState.update { it.copy(pendingIntentSenderRequest = null) }
+    // ── System favourites (MediaStore IS_FAVORITE, `U-17`) ───────────────────
+
+    /**
+     * Resolve the photos just (un)favourited to MediaStore so the change is queued with its
+     * MediaStore URI, then flush if the queue has grown past [FAVOURITE_FLUSH_THRESHOLD].
+     */
+    private fun afterFavouriteChange(items: List<ImageItem>) {
+        viewModelScope.launch {
+            favouritesRepository.indexFromSystem(items, onlyUnresolved = true)
+            val queued = favouritesRepository.sendablePendingCount()
+            if (queued - favouriteFlushFloor >= FAVOURITE_FLUSH_THRESHOLD) {
+                flushSystemFavourites()
+            }
+        }
+    }
+
+    /**
+     * Read the MediaStore favourite flags of the feed (read-back, conflict rule in
+     * `FavouriteSyncLogic`), in chunks starting at the photo on screen, so favourites set in
+     * another app show here and favourites set here have their MediaStore URI before the flush.
+     */
+    private fun indexFeedFromSystem() {
+        systemIndexJob?.cancel()
+        val state = _uiState.value
+        if (state.sourceKind != SourceKind.PHONE_LIBRARY && state.sourceKind != SourceKind.REMOVABLE) return
+        val current = state.images.getOrNull(state.currentIndex)?.uri
+        val all = state.allImages
+        val start = all.indexOfFirst { it.uri == current }.coerceAtLeast(0)
+        val ordered = all.indices.sortedBy { abs(it - start) }.map { all[it] }
+        systemIndexJob = viewModelScope.launch {
+            for (chunk in ordered.chunked(SYSTEM_INDEX_CHUNK)) {
+                favouritesRepository.indexFromSystem(chunk)
+            }
+        }
+    }
+
+    /**
+     * A flush point (leaving the feed, switching folders, opening the Selection viewer, or a full
+     * queue): hand the next favourite request to the UI. One request runs at a time; a long queue
+     * goes out as consecutive requests of up to `FavouriteSyncLogic.MAX_BATCH` photos.
+     */
+    fun flushSystemFavourites() {
+        if (inFlightSyncRequest != null) return
+        val request = favouritesRepository.nextSyncRequest() ?: return
+        inFlightSyncRequest = request
+        _uiState.update { it.copy(pendingIntentSenderRequest = request) }
+    }
+
+    /** The UI launched [request]; it is not launched again (rotation, recomposition). */
+    fun onSystemFavouriteRequestLaunched(request: FavouriteSyncRequest) {
+        _uiState.update { if (it.pendingIntentSenderRequest === request) it.copy(pendingIntentSenderRequest = null) else it }
+    }
+
+    /**
+     * The system answered. Accepted: confirm (with a read-back) and send the next batch.
+     * Declined or failed to launch: keep everything queued and stop for now. The next flush point
+     * tries again; a full queue only triggers again once it has grown by another threshold, so a
+     * user who declines is not asked after every swipe.
+     */
+    fun onSystemFavouriteResult(request: FavouriteSyncRequest, accepted: Boolean) {
+        if (inFlightSyncRequest !== request) return
+        _uiState.update { if (it.pendingIntentSenderRequest === request) it.copy(pendingIntentSenderRequest = null) else it }
+        viewModelScope.launch {
+            favouritesRepository.onSyncResult(request, accepted)
+            inFlightSyncRequest = null
+            if (accepted) {
+                favouriteFlushFloor = 0
+                flushSystemFavourites()
+            } else {
+                favouriteFlushFloor = favouritesRepository.sendablePendingCount()
+            }
+        }
+    }
+
+    /** Result of the request the UI launched last (the launcher survives a rotation, the request object may not). */
+    fun onLaunchedFavouriteRequestResult(accepted: Boolean) {
+        inFlightSyncRequest?.let { onSystemFavouriteResult(it, accepted) }
+    }
+
+    /** Opening the Selection viewer is a flush point: the user is looking at their favourites. */
+    fun onSelectionViewerOpened() {
+        flushSystemFavourites()
     }
 
     fun updateDirectDeleteConfirm(enabled: Boolean) {
@@ -1947,6 +2048,7 @@ class PhoneModeViewModel @Inject constructor(
         feedEpoch++
         discoveryJob?.cancel()
         dimensionsJob?.cancel()
+        systemIndexJob?.cancel()
         publishedUris.clear()
         dimensionsResolved.clear()
         loadedExifCache.clear()
@@ -2064,9 +2166,11 @@ class PhoneModeViewModel @Inject constructor(
     fun goBackToLanding() {
         persistCurrentFolderPosition()
         finalizePendingDelete()
+        flushSystemFavourites()
         feedEpoch++
         discoveryJob?.cancel()
         dimensionsJob?.cancel()
+        systemIndexJob?.cancel()
         publishedUris.clear()
         dimensionsResolved.clear()
         _uiState.update {

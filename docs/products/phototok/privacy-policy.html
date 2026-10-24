@@ -64,7 +64,7 @@
     <li>
       <strong>Photos and EXIF Metadata (Local Only):</strong>
       You select folders explicitly using the Android System Storage Access Framework (SAF) folder picker (<code>ACTION_OPEN_DOCUMENT_TREE</code>).
-      Jackpix reads image headers, EXIF tags, and thumbnails locally in device memory to display photos and perform file operations (Copy, Move to Selection, or Delete/Trash) inside the folder you selected, as well as optional system-confirmed <code>MediaStore</code> favourite and recycle-bin requests on Android 11+.
+      Jackpix reads image headers, EXIF tags, and thumbnails locally in device memory to display photos and perform file operations (Copy, Move to Selection, or Delete/Trash) inside the folder you selected, as well as <code>MediaStore</code> favourite requests on Android 11+, which the system carries out on the device. The favourite flag is part of Android's media index: other apps on your device that may read the photo can see that it is a favourite.
       When you explicitly invoke <em>Share</em> or <em>Open with…</em>, Android's system chooser (<code>Intent.createChooser</code>) grants temporary read access solely for the selected photo(s) to the target app you choose.
       No images, thumbnails, file names, GPS coordinates, or EXIF tags are ever transmitted over the network.
     </li>
@@ -118,7 +118,7 @@
     <li>
       <strong>Fotos und EXIF-Metadaten (ausschließlich lokal):</strong>
       Der Zugriff auf Fotoordner erfolgt ausschließlich über die vom Nutzer explizit im Android Storage Access Framework (SAF, <code>ACTION_OPEN_DOCUMENT_TREE</code>) ausgewählten Verzeichnisse.
-      Die Auswertung von Bilddaten, EXIF-Informationen, vom System bestätigte <code>MediaStore</code>-Favoriten-/Papierkorb-Aktionen (ab Android 11) sowie Dateioperationen (Kopieren, Verschieben in den Auswahl-Ordner oder Löschen) finden vollständig lokal auf Ihrem Gerät statt. Nutzen Sie aktiv die Funktion <em>Teilen</em> oder <em>Öffnen mit…</em>, übergibt der Android-Systemdialog (<code>Intent.createChooser</code>) die ausgewählte Datei ausschließlich an die von Ihnen gewählte Ziel-App. Es erfolgt keinerlei Übertragung an den Entwickler oder unbeteiligte Dritte.
+      Die Auswertung von Bilddaten, EXIF-Informationen, über das System ausgeführte <code>MediaStore</code>-Favoriten-Anfragen (ab Android 11; die Favoriten-Markierung ist Teil des Android-Medienindex und für andere Apps auf Ihrem Gerät sichtbar, die das Foto lesen dürfen) sowie Dateioperationen (Kopieren, Verschieben in den Auswahl-Ordner oder Löschen) finden vollständig lokal auf Ihrem Gerät statt. Nutzen Sie aktiv die Funktion <em>Teilen</em> oder <em>Öffnen mit…</em>, übergibt der Android-Systemdialog (<code>Intent.createChooser</code>) die ausgewählte Datei ausschließlich an die von Ihnen gewählte Ziel-App. Es erfolgt keinerlei Übertragung an den Entwickler oder unbeteiligte Dritte.
     </li>
     <li>
       <strong>App-Einstellungen, Gesehen-Status &amp; lokale Statistiken (privater App-Speicher):</strong>

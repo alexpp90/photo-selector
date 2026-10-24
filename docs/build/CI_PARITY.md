@@ -203,6 +203,14 @@ What changed is that their *failure modes are now split*:
     runtime. Mitigate them by following the conventions below rather than by
     guessing through CI.
 
+**Lab-only device tests.** A Jackpix test that needs state only a prepared lab device has (a
+persisted SAF folder grant) carries `@LabDeviceOnly` (`products/android/phototok/tests/instrumented/com/phototok/LabDeviceOnly.kt`).
+`:phototok`'s `defaultConfig` excludes that annotation from every Gradle connected run, CI's
+`instrumented-tests` job and `--android-device` included, because the instrumentation runner
+reports an `assumeTrue` skip there as a failure. Run such a test on the lab device with
+`adb shell am instrument -w -e class <Test> com.phototok.test/androidx.test.runner.AndroidJUnitRunner`
+after the app holds the grant (`tests/e2e/_pick_work_folder.yaml`).
+
 To run them locally:
 
 ```bash

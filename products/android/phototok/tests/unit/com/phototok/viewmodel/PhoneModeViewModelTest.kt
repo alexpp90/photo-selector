@@ -1822,4 +1822,147 @@ class PhoneModeViewModelTest {
 
         assertEquals(UiText.of(R.string.snackbar_moved, UiText.raw(PhotoFolders.SELECTION)), viewModel.uiState.value.lastActionFeedback?.message)
     }
+
+    // ── System favourites (MediaStore IS_FAVORITE, U-17) ──────────────────────
+
+    private fun mediaOf(image: ImageItem) = "content://media/external/images/media/${image.fileName.hashCode().toUInt()}"
+
+    private fun favouritesViewModel(
+        gateway: com.phototok.data.repository.FakeMediaStoreFavourites,
+        vararg images: ImageItem,
+    ): Pair<PhoneModeViewModel, com.phototok.data.repository.FavouritesRepository> {
+        val favourites = com.phototok.data.repository.FavouritesRepository(
+            store = com.phototok.data.repository.FavouritesStore(storeFile = null),
+            mediaStore = gateway,
+        ).also { it.ioDispatcher = testDispatcher }
+        val viewModel = PhoneModeViewModel(
+            imageRepository = imageRepository,
+            settingsRepository = settingsRepository,
+            appScope = CoroutineScope(testDispatcher),
+            seenRepository = com.phototok.data.repository.SeenRepository(),
+            favouritesRepository = favourites,
+            statsRepository = com.phototok.data.repository.StatsRepository(),
+            volumeMonitor = com.phototok.data.source.VolumeMonitor(),
+        )
+        every { imageRepository.discoverImages(any()) } returns flowOf(images.toList())
+        viewModel.selectSourceFolder(Uri.parse("content://tree/photos"))
+        return viewModel to favourites
+    }
+
+    @Test
+    fun `favourites wait in the queue while the user swipes and leave with the feed`() = runTest {
+        val a = image("a.jpg", 20)
+        val b = image("b.jpg", 10)
+        val gateway = com.phototok.data.repository.FakeMediaStoreFavourites(
+            index = mapOf(a.uri to mediaOf(a), b.uri to mediaOf(b)),
+        )
+        val (viewModel, favourites) = favouritesViewModel(gateway, a, b)
+        advanceUntilIdle()
+
+        viewModel.toggleCurrentFavourite()
+        advanceUntilIdle()
+        assertTrue(viewModel.uiState.value.favourites.isFavourite(a.uri))
+        assertFalse("not synced yet", viewModel.uiState.value.favourites.isSynced(a.uri))
+        assertNull("no system activity mid-feed for one favourite", viewModel.uiState.value.pendingIntentSenderRequest)
+
+        viewModel.goBackToLanding()
+        val request = viewModel.uiState.value.pendingIntentSenderRequest
+        assertNotNull(request)
+        assertEquals(listOf(mediaOf(a)), request!!.batch.mediaUris)
+        assertTrue(request.batch.favourite)
+
+        viewModel.onSystemFavouriteRequestLaunched(request)
+        assertNull("launched once", viewModel.uiState.value.pendingIntentSenderRequest)
+        gateway.apply(request.batch.mediaUris, true)
+        viewModel.onLaunchedFavouriteRequestResult(accepted = true)
+        advanceUntilIdle()
+
+        assertTrue(favourites.snapshot.value.isSynced(a.uri))
+        assertEquals(0, favourites.sendablePendingCount())
+        assertNull(viewModel.uiState.value.pendingIntentSenderRequest)
+    }
+
+    @Test
+    fun `a declined request stays queued and comes back at the next flush point, not after every swipe`() = runTest {
+        val photos = (1..60).map { image("p$it.jpg", 1000L - it) }
+        val gateway = com.phototok.data.repository.FakeMediaStoreFavourites(index = photos.associate { it.uri to mediaOf(it) })
+        val (viewModel, favourites) = favouritesViewModel(gateway, *photos.toTypedArray())
+        advanceUntilIdle()
+
+        repeat(PhoneModeViewModel.FAVOURITE_FLUSH_THRESHOLD) { i ->
+            viewModel.navigateToImage(i)
+            viewModel.toggleCurrentFavourite()
+            advanceUntilIdle()
+        }
+        val full = viewModel.uiState.value.pendingIntentSenderRequest
+        assertNotNull("a full queue flushes", full)
+        viewModel.onSystemFavouriteRequestLaunched(full!!)
+        viewModel.onLaunchedFavouriteRequestResult(accepted = false)
+        advanceUntilIdle()
+        assertEquals(PhoneModeViewModel.FAVOURITE_FLUSH_THRESHOLD, favourites.sendablePendingCount())
+
+        viewModel.navigateToImage(30)
+        viewModel.toggleCurrentFavourite()
+        advanceUntilIdle()
+        assertNull("one more favourite does not ask again", viewModel.uiState.value.pendingIntentSenderRequest)
+
+        viewModel.onSelectionViewerOpened()
+        val retry = viewModel.uiState.value.pendingIntentSenderRequest
+        assertNotNull("the next flush point retries", retry)
+        assertEquals(PhoneModeViewModel.FAVOURITE_FLUSH_THRESHOLD + 1, retry!!.batch.mediaUris.size)
+    }
+
+    @Test
+    fun `a RAW companion gets the same flag and un-favouriting a synced pair clears both`() = runTest {
+        phoneSettingsFlow.value = PhoneSettings(
+            moveRelatedFiles = true,
+            fileTypeFilter = com.phototok.domain.FileTypeFilter.ALL,
+        )
+        val jpg = image("IMG_001.jpg", 30)
+        val arw = image("IMG_001.arw", 20)
+        val gateway = com.phototok.data.repository.FakeMediaStoreFavourites(
+            index = mapOf(jpg.uri to mediaOf(jpg), arw.uri to mediaOf(arw)),
+        )
+        val (viewModel, favourites) = favouritesViewModel(gateway, jpg, arw)
+        advanceUntilIdle()
+
+        viewModel.toggleCurrentFavourite()
+        advanceUntilIdle()
+        viewModel.goBackToLanding()
+        val add = viewModel.uiState.value.pendingIntentSenderRequest!!
+        assertEquals(setOf(mediaOf(jpg), mediaOf(arw)), add.batch.mediaUris.toSet())
+        viewModel.onSystemFavouriteRequestLaunched(add)
+        gateway.apply(add.batch.mediaUris, true)
+        viewModel.onLaunchedFavouriteRequestResult(accepted = true)
+        advanceUntilIdle()
+
+        viewModel.selectSourceFolder(Uri.parse("content://tree/photos"))
+        advanceUntilIdle()
+        assertTrue(viewModel.uiState.value.favourites.isSynced(arw.uri))
+        viewModel.navigateToImage(0)
+        viewModel.toggleCurrentFavourite()
+        advanceUntilIdle()
+        viewModel.goBackToLanding()
+        val clear = viewModel.uiState.value.pendingIntentSenderRequest!!
+        assertFalse(clear.batch.favourite)
+        assertEquals(setOf(mediaOf(jpg), mediaOf(arw)), clear.batch.mediaUris.toSet())
+        assertTrue(favourites.snapshot.value.favourites.isEmpty())
+    }
+
+    @Test
+    fun `opening a folder shows favourites set in another app`() = runTest {
+        val a = image("a.jpg", 20)
+        val b = image("b.jpg", 10)
+        val gateway = com.phototok.data.repository.FakeMediaStoreFavourites(
+            index = mapOf(a.uri to mediaOf(a), b.uri to mediaOf(b)),
+            initialFlags = mapOf(mediaOf(b) to true),
+        )
+        val (viewModel, _) = favouritesViewModel(gateway, a, b)
+        advanceUntilIdle()
+        assertTrue(viewModel.uiState.value.favourites.isFavourite(b.uri))
+        assertTrue(viewModel.uiState.value.favourites.isSynced(b.uri))
+        assertFalse(viewModel.uiState.value.favourites.isFavourite(a.uri))
+        viewModel.goBackToLanding()
+        assertNull("nothing to send", viewModel.uiState.value.pendingIntentSenderRequest)
+    }
 }
