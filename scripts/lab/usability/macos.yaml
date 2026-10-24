@@ -4,7 +4,8 @@
 # anything else): keys from UITestDriver.Key, taps and waits on registered frame ids
 # (uiTestFrame), Escape to close sheets. Each scenario is a fresh launch on the run's copy of the
 # roll, already opened with --open. Delete moves a file to the account's real Trash, so every
-# Delete is followed by Cmd+Z in the same scenario.
+# Delete is followed by Cmd+Z in the same scenario. The action toast shows for 1.2 s
+# (CullingWorkspaceViewModel.showToast), so a screen after an action waits only 300 ms.
 #
 # Not reachable headless, so not covered here: the folder picker (Cmd+O opens a modal
 # NSOpenPanel), a sort order (UC-13: nothing in the app calls the lowest-sharpness sort), an SD
@@ -33,19 +34,19 @@ scenarios:
         expected: Previous bottom-left, next bottom-right; I shows the exposure details
       - key: I
       - screen: burst-info-toggled
-        intent: Check shutter speed, ISO and sharpness before picking the keeper
-        expected: I shows or hides the details strip under each photo
+        intent: Hide the details to see more of the pictures while I compare
+        expected: I hides the details strip under each photo (it is on by default); I again brings it back
       - key: Right
       - screen: burst-missed
         intent: This frame missed focus; get rid of it
         expected: Delete (or the Trash button in the bottom bar) moves it to the Trash
       - key: Delete
-      - wait_ms: 700
+      - wait_ms: 300
       - screen: after-trash
         intent: Be sure the photo is gone and see my running count
         expected: A toast says it went to the Trash; the bottom bar counts one trashed
       - key: Cmd+Z
-      - wait_ms: 700
+      - wait_ms: 300
       - screen: after-undo
         intent: I changed my mind; bring it back
         expected: Cmd+Z (or Undo in the bottom bar) restores the photo and the count drops back
@@ -53,7 +54,7 @@ scenarios:
       - key: Left
       - key: Left
       - key: M
-      - wait_ms: 700
+      - wait_ms: 300
       - screen: keeper-moved
         intent: Put the sharp first shot with my picks
         expected: M (or Move in the bottom bar) moves it to Selection; a toast and the count confirm it
@@ -69,17 +70,17 @@ scenarios:
         intent: Find out whether this photo has other files with it
         expected: The photo's badges show its RAW and sidecar; the bottom bar offers Move (M), Copy (C), Trash and Undo
       - key: M
-      - wait_ms: 900
+      - wait_ms: 300
       - screen: moved-with-companions
         intent: Make sure the photo went to my picks with its RAW file and settings
         expected: A toast confirms the move to Selection and the count shows one selected
       - key: Cmd+Z
-      - wait_ms: 900
+      - wait_ms: 300
       - screen: move-undone
         intent: Put everything back exactly where it was
         expected: Cmd+Z (or Undo) brings the photo and its files back to the shoot folder
       - key: C
-      - wait_ms: 900
+      - wait_ms: 300
       - screen: copied-with-companions
         intent: Copy it instead, so the original stays where it is
         expected: C copies it to Selection; the toast says copied and the count shows one copied

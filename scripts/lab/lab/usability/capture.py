@@ -303,6 +303,9 @@ def android_session(client: AdbClient, spec: dict[str, Any], product: str, *, lo
     app_id = str(spec["app_id"])
     orientation = spec.get("orientation")
     with device_lock(client.serial, f"lab {purpose} {product}"):
+        # A walk that broke inside the folder picker leaves it on top (as the journey runner does).
+        for picker in ("com.google.android.documentsui", "com.android.documentsui"):
+            client.run("shell", "am", "force-stop", picker)
         check_device_free(client, app_id)
         saved = _original_settings(client, client.serial)
         try:
