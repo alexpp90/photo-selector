@@ -75,8 +75,13 @@ internal fun guideGeometry(
     height: Float,
     topInset: Float,
     bottomInset: Float,
+    cameraInfo: Boolean = true,
 ): GuideGeometry {
-    val measured = anchors?.bounds?.toMap().orEmpty()
+    // Without camera info the logo and the Info button are not controls: never label them, even if
+    // a stale anchor were still registered.
+    val measured = anchors?.bounds?.toMap().orEmpty().let { all ->
+        if (cameraInfo) all else all - GuideAnchor.LOGO - GuideAnchor.INFO
+    }
     val hasChrome = GuideAnchor.TOP_BAR in measured || GuideAnchor.LEFT_PANEL in measured
     if (hasChrome) {
         val local = measured.mapValues { (_, r) ->
@@ -91,10 +96,11 @@ internal fun guideGeometry(
     }
     val landscape = width > height
     val nominal = if (landscape) {
-        ControlsGuideSolver.nominalLandscape(width, height, nominalMetrics())
+        ControlsGuideSolver.nominalLandscape(width, height, nominalMetrics(), hasCameraInfo = cameraInfo)
     } else {
         ControlsGuideSolver.nominalPortrait(
             width, height, topInset, bottomInset, hasDoneWithCard = false, m = nominalMetrics(),
+            hasCameraInfo = cameraInfo,
         )
     }
     return GuideGeometry(landscape, nominal)
@@ -129,6 +135,7 @@ private fun nominalMetrics() = with(PhoneModeChromeMetrics) {
 @Composable
 internal fun GuideBox(
     anchors: ControlsGuideAnchors?,
+    cameraInfo: Boolean = true,
     content: @Composable (geometry: GuideGeometry, compact: Boolean) -> Unit,
 ) {
     var origin by remember { mutableStateOf(Offset.Zero) }
@@ -165,6 +172,7 @@ internal fun GuideBox(
             height = maxHeight.value,
             topInset = topInset.value,
             bottomInset = bottomInset.value,
+            cameraInfo = cameraInfo,
         )
         GuideLayout(geometry = geometry, compact = compact, density = density.density) {
             content(geometry, compact)

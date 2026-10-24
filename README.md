@@ -78,15 +78,16 @@ A lightweight, touch-optimized portrait client designed for lightning-fast, sing
 </div>
 
 ### Key Features
+* **Casual or Pro, One Switch:** Out of the box Jackpix is set up for fast swiping with nothing to configure — ★ favourites on the phone, SD-card keepers copied into the phone's camera folder (`DCIM/Camera/Jackpix`), RAW + JPEG kept together, no camera info. The **Pro mode** switch on the start screen (and at the top of Settings) turns on camera info and unlocks swipe actions, folders, feed order, format filters and per-source profiles; switching it off pauses those settings without erasing them. Settings survive app updates.
 * **Full-Screen Vertical Swipe Feed:** Browse local collections seamlessly via Jetpack Compose native `VerticalPager` with background prefetching and progressive SAF loading (sub-second time-to-first-swipe).
 * **Tactile Culling Swipes:**
-  * **Swipe-Right to File:** Instantly copy or move photos to your designated `Selection/` folder with an animated green confirmation glow.
+  * **Swipe-Right to Keep:** Mark a ★ favourite, or (Pro) copy or move the photo to your `Selection/` folder, with an animated green confirmation glow.
   * **Swipe-Left to Discard or Route:** Configurable action (Trash/Delete, Copy, or Move to secondary folder) with progressive card tilt ($2^\circ$) and non-blocking **Revert** (`RestoreFromTrash`) across scrolls.
 * **Session Resume, Reload & New Photos Prompt:** Reopening a folder resumes where you left off; only when newer photos exist does a short "N new photos" dialog offer **Show new** or **Stay**. The **Reload** button rescans the folder and jumps to its latest photo (position 1 in newest-first order), no dialog.
 * **Share & Selection Viewer:** A **Share** button in the icon-only bottom bar shares the current photo while you scroll. The Selection button opens your Favourites and the Selection folder with photo counts, starting on the list your swipe right fills; the two tabs appear only when both have photos.
 * **Favourites in Other Apps:** On Android 11 and later a Jackpix favourite also sets Android's own favourite flag for photos on the phone and indexed SD cards (in batches, no permission and no dialog), and favourites set in other apps show in Jackpix; a filled star on the badge means the system has it too.
 * **Fluid Zoom & Pan:** Pinch-to-zoom (up to $6\times$) and double-tap to 2.5x zoom with single-finger panning; gestures automatically disable paging conflicts while zoomed.
-* **One-Tap Glassmorphic HUD:** Single tap toggles the translucent camera metadata panel (shutter, aperture, ISO, focal length, lens) and icon-only navigation controls (long-press for the name) for unobstructed viewing.
+* **One-Tap Glassmorphic HUD:** Single tap toggles the translucent camera metadata panel (Pro mode: shutter, aperture, ISO, focal length, lens) and icon-only navigation controls (long-press for the name) for unobstructed viewing.
 * **In-Place Guidance & Pairing:** Interactive coach-mark overlay anchored directly to UI controls, automatic companion pairing (a linked move or delete takes the RAW+JPEG twin, `-Edit` / `-Enhanced-NR` derivatives and `.xmp` sidecars along), and orientation-aware feed ordering.
 
 ---

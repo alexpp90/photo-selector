@@ -2,6 +2,7 @@ package com.phototok.data.repository
 
 import android.content.Context
 import android.net.Uri
+import androidx.datastore.core.DataMigration
 import androidx.datastore.core.DataStore
 import androidx.datastore.preferences.core.MutablePreferences
 import androidx.datastore.preferences.core.Preferences
@@ -24,6 +25,8 @@ import com.phototok.domain.FeedOrderMode
 import com.phototok.domain.FileTypeFilter
 import com.phototok.domain.FirstRunHint
 import com.phototok.domain.FolderScanInfo
+import com.phototok.domain.ProModePolicy
+import com.phototok.domain.UiText
 import com.phototok.domain.SwipeAction
 import com.phototok.domain.SwipeRightVerb
 import dagger.hilt.android.qualifiers.ApplicationContext
@@ -34,7 +37,9 @@ import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.map
 
 internal val Context.dataStore: DataStore<Preferences> by preferencesDataStore(
-    name = "phototok_settings"
+    name = "phototok_settings",
+    // Schema migration runs before the first read or write, so no reader sees an unmigrated store.
+    produceMigrations = { SettingsRepository.dataStoreMigrations },
 )
 
 @Singleton
@@ -47,9 +52,14 @@ class SettingsRepository @Inject constructor(
 
     companion object {
         private const val TAG = "SettingsRepository"
-        const val CURRENT_SCHEMA_VERSION = 2
+        const val CURRENT_SCHEMA_VERSION = 3
 
         internal val KEY_SETTINGS_SCHEMA_VERSION = intPreferencesKey("settings_schema_version")
+        internal val KEY_PRO_MODE = booleanPreferencesKey("pro_mode")
+        internal val KEY_PRO_MODE_EVER_ENABLED = booleanPreferencesKey("pro_mode_ever_enabled")
+
+        /** The tree the Casual SD/camera import copies into (the phone's camera folder), once granted. */
+        internal val KEY_CASUAL_CAMERA_TARGET_URI = stringPreferencesKey("casual_camera_target_uri")
         private val KEY_SELECTION_FOLDER_NAME = stringPreferencesKey("selection_folder_name")
         private val KEY_SORTING_ENABLED = booleanPreferencesKey("sorting_enabled")
         private val KEY_LAST_FOLDER_URI = stringPreferencesKey("last_folder_uri")
@@ -113,174 +123,249 @@ class SettingsRepository @Inject constructor(
         internal fun directDeleteConfirmKey(kind: SourceKind) =
             booleanPreferencesKey("source_${kind.keyPrefix()}_direct_delete_confirm")
 
+        // ── Schema migration ──────────────────────────────────────────────
+
         /**
-         * Migrate v1 flat keys into the `PHONE_LIBRARY` slot so existing users see zero
-         * behaviour change on upgrade, seed `REMOVABLE` and `CAMERA_MTP` with their table
-         * defaults, and record `settings_schema_version = 2` so the migration runs once.
+         * Brings the stored preferences to [CURRENT_SCHEMA_VERSION]. Idempotent, additive and
+         * non-destructive: a key is only ever added, never deleted or overwritten, so removed or
+         * legacy keys stay readable and nothing a user set is lost on update.
+         *
+         * - below 2: the legacy flat keys reach the PHONE per-source keys ([migrateLegacyKeysToPhone]);
+         * - below 3: `pro_mode` is decided once ([migrateToV3]).
          */
-        internal fun migrateToV2(prefs: MutablePreferences) {
+        internal fun applyMigrations(prefs: MutablePreferences) {
             val currentVersion = prefs[KEY_SETTINGS_SCHEMA_VERSION] ?: 0
             if (currentVersion >= CURRENT_SCHEMA_VERSION) return
-
-            val phoneDefault = SourceSettings.defaultFor(SourceKind.PHONE_LIBRARY)
-            val v1CollectionAction = prefs[KEY_COLLECTION_ACTION]
-            val v1LeftSwipeAction = prefs[KEY_LEFT_SWIPE_ACTION]
-            val v1FileTypeFilter = prefs[KEY_FILE_TYPE_FILTER]
-            val v1SortByOrientation = prefs[KEY_SORT_BY_ORIENTATION]
-            val v1RandomizeOrder = prefs[KEY_RANDOMIZE_ORDER]
-            val v1MoveRelated = prefs[KEY_MOVE_RELATED_FILES]
-            val v1CollectionUri = prefs[KEY_COLLECTION_URI]
-            val v1LeftSwipeUri = prefs[KEY_LEFT_SWIPE_URI]
-
-            val phoneRightVerb = if (v1CollectionAction != null) {
-                CollectionAction.fromKey(v1CollectionAction).toSwipeRightVerb()
-            } else {
-                phoneDefault.swipeRightVerb
-            }
-            val phoneLeftVerb = if (v1LeftSwipeAction != null) {
-                SwipeAction.fromKey(v1LeftSwipeAction)
-            } else {
-                phoneDefault.swipeLeftVerb
-            }
-            val phoneFeedOrder = if (v1SortByOrientation != null || v1RandomizeOrder != null) {
-                FeedOrderMode.fromLegacy(
-                    randomize = v1RandomizeOrder ?: false,
-                    sortByOrientation = v1SortByOrientation ?: false,
-                )
-            } else {
-                phoneDefault.feedOrderMode
-            }
-            val phoneFilter = if (v1FileTypeFilter != null) {
-                FileTypeFilter.fromKey(v1FileTypeFilter, phoneDefault.fileTypeFilter)
-            } else {
-                phoneDefault.fileTypeFilter
-            }
-            val phoneMoveRelated = v1MoveRelated ?: phoneDefault.moveRelatedFiles
-
-            if (prefs[swipeRightVerbKey(SourceKind.PHONE_LIBRARY)] == null) {
-                prefs[swipeRightVerbKey(SourceKind.PHONE_LIBRARY)] = phoneRightVerb.key
-            }
-            if (prefs[swipeLeftVerbKey(SourceKind.PHONE_LIBRARY)] == null) {
-                prefs[swipeLeftVerbKey(SourceKind.PHONE_LIBRARY)] = phoneLeftVerb.key
-            }
-            if (prefs[feedOrderKey(SourceKind.PHONE_LIBRARY)] == null) {
-                prefs[feedOrderKey(SourceKind.PHONE_LIBRARY)] = phoneFeedOrder.key
-            }
-            if (prefs[fileTypeFilterKey(SourceKind.PHONE_LIBRARY)] == null) {
-                prefs[fileTypeFilterKey(SourceKind.PHONE_LIBRARY)] = phoneFilter.key
-            }
-            if (prefs[moveRelatedFilesKey(SourceKind.PHONE_LIBRARY)] == null) {
-                prefs[moveRelatedFilesKey(SourceKind.PHONE_LIBRARY)] = phoneMoveRelated
-            }
-            if (v1CollectionUri != null && prefs[collectionUriKey(SourceKind.PHONE_LIBRARY)] == null) {
-                prefs[collectionUriKey(SourceKind.PHONE_LIBRARY)] = v1CollectionUri
-            }
-            if (v1LeftSwipeUri != null && prefs[leftSwipeUriKey(SourceKind.PHONE_LIBRARY)] == null) {
-                prefs[leftSwipeUriKey(SourceKind.PHONE_LIBRARY)] = v1LeftSwipeUri
-            }
-
-            listOf(SourceKind.REMOVABLE, SourceKind.CAMERA_MTP).forEach { kind ->
-                val def = SourceSettings.defaultFor(kind)
-                if (prefs[swipeRightVerbKey(kind)] == null) {
-                    prefs[swipeRightVerbKey(kind)] = def.swipeRightVerb.key
-                }
-                if (prefs[swipeLeftVerbKey(kind)] == null) {
-                    prefs[swipeLeftVerbKey(kind)] = def.swipeLeftVerb.key
-                }
-                if (prefs[feedOrderKey(kind)] == null) {
-                    prefs[feedOrderKey(kind)] = def.feedOrderMode.key
-                }
-                if (prefs[fileTypeFilterKey(kind)] == null) {
-                    prefs[fileTypeFilterKey(kind)] = def.fileTypeFilter.key
-                }
-                if (prefs[moveRelatedFilesKey(kind)] == null) {
-                    prefs[moveRelatedFilesKey(kind)] = def.moveRelatedFiles
-                }
-            }
-
+            if (currentVersion < 2) migrateLegacyKeysToPhone(prefs)
+            if (currentVersion < 3) migrateToV3(prefs)
             prefs[KEY_SETTINGS_SCHEMA_VERSION] = CURRENT_SCHEMA_VERSION
         }
 
-        internal fun sourceSettingsOf(prefs: Preferences, kind: SourceKind): SourceSettings {
-            val effectiveKind = if (
-                kind == SourceKind.CLOUD_OTHER &&
-                (prefs[KEY_CLOUD_INHERITS_PHONE] ?: true)
-            ) {
-                SourceKind.PHONE_LIBRARY
-            } else {
-                kind
+        /**
+         * The v1 to v2 step (it never ran in production before schema 3): every legacy flat key that
+         * exists is copied into the PHONE per-source key, but only where that key is absent.
+         * Absent keys are not seeded (reads fall back to the same code defaults) and the legacy
+         * keys are kept.
+         */
+        internal fun migrateLegacyKeysToPhone(prefs: MutablePreferences) {
+            val phone = SourceKind.PHONE_LIBRARY
+            prefs[KEY_COLLECTION_ACTION]?.let { legacy ->
+                if (prefs[swipeRightVerbKey(phone)] == null) {
+                    prefs[swipeRightVerbKey(phone)] = CollectionAction.fromKey(legacy).toSwipeRightVerb().key
+                }
             }
-            val def = SourceSettings.defaultFor(effectiveKind)
+            prefs[KEY_LEFT_SWIPE_ACTION]?.let { legacy ->
+                if (prefs[swipeLeftVerbKey(phone)] == null) {
+                    prefs[swipeLeftVerbKey(phone)] = SwipeAction.fromKey(legacy).key
+                }
+            }
+            val legacySort = prefs[KEY_SORT_BY_ORIENTATION]
+            val legacyRandom = prefs[KEY_RANDOMIZE_ORDER]
+            if ((legacySort != null || legacyRandom != null) && prefs[feedOrderKey(phone)] == null) {
+                prefs[feedOrderKey(phone)] = FeedOrderMode.fromLegacy(
+                    randomize = legacyRandom ?: false,
+                    sortByOrientation = legacySort ?: false,
+                ).key
+            }
+            prefs[KEY_FILE_TYPE_FILTER]?.let { legacy ->
+                if (prefs[fileTypeFilterKey(phone)] == null) {
+                    prefs[fileTypeFilterKey(phone)] = FileTypeFilter
+                        .fromKey(legacy, SourceSettings.defaultFor(phone).fileTypeFilter).key
+                }
+            }
+            prefs[KEY_MOVE_RELATED_FILES]?.let { legacy ->
+                if (prefs[moveRelatedFilesKey(phone)] == null) prefs[moveRelatedFilesKey(phone)] = legacy
+            }
+            prefs[KEY_COLLECTION_URI]?.let { legacy ->
+                if (prefs[collectionUriKey(phone)] == null) prefs[collectionUriKey(phone)] = legacy
+            }
+            prefs[KEY_LEFT_SWIPE_URI]?.let { legacy ->
+                if (prefs[leftSwipeUriKey(phone)] == null) prefs[leftSwipeUriKey(phone)] = legacy
+            }
+        }
+
+        /**
+         * The v2 to v3 step: decide `pro_mode` once, so nothing changes for an existing user.
+         * A user who already runs on non-Casual values, or who has used an SD card or camera,
+         * starts in Pro mode (and the one-time Pro defaults are marked as applied, so no value
+         * is touched); everyone else, including a fresh install, starts in Casual. An existing
+         * `pro_mode` is never overwritten.
+         */
+        internal fun migrateToV3(prefs: MutablePreferences) {
+            if (prefs[KEY_PRO_MODE] != null) return
+            val startInPro = ProModePolicy.shouldStartInPro(storedProSettingsOf(prefs))
+            prefs[KEY_PRO_MODE] = startInPro
+            if (startInPro) prefs[KEY_PRO_MODE_EVER_ENABLED] = true
+        }
+
+        /** The Pro-only values as stored (ungated), for the migration decision. */
+        internal fun storedProSettingsOf(prefs: Preferences): ProModePolicy.StoredProSettings =
+            ProModePolicy.StoredProSettings(
+                perKind = listOf(
+                    SourceKind.PHONE_LIBRARY,
+                    SourceKind.REMOVABLE,
+                    SourceKind.CAMERA_MTP,
+                    SourceKind.CLOUD_OTHER,
+                ).associateWith { storedSourceSettingsOf(prefs, it) },
+                cloudInheritsPhone = prefs[KEY_CLOUD_INHERITS_PHONE] ?: true,
+                selectionFolderName = prefs[KEY_SELECTION_FOLDER_NAME] ?: DEFAULT_SELECTION_FOLDER_NAME,
+                sortingEnabled = prefs[KEY_SORTING_ENABLED] ?: DEFAULT_SORTING_ENABLED,
+                showExifOverlay = prefs[KEY_SHOW_EXIF_OVERLAY] ?: false,
+                recentPathsEnabled = prefs[KEY_RECENT_PATHS_ENABLED] ?: true,
+                recentPathsCount = prefs[KEY_RECENT_PATHS_COUNT] ?: DEFAULT_RECENT_PATHS_COUNT,
+                hasCardOrCameraRecent = RecentPathCodec.decode(prefs[KEY_RECENT_PATHS])
+                    .any { it.kind == SourceKind.REMOVABLE || it.kind == SourceKind.CAMERA_MTP },
+            )
+
+        /**
+         * Runs [applyMigrations] before the DataStore's first read or write, so no reader ever sees an
+         * unmigrated store and a Pro user never flashes through Casual.
+         */
+        internal val dataStoreMigrations: List<DataMigration<Preferences>> get() = listOf(schemaMigration)
+
+        internal val schemaMigration = object : DataMigration<Preferences> {
+            override suspend fun shouldMigrate(currentData: Preferences): Boolean =
+                (currentData[KEY_SETTINGS_SCHEMA_VERSION] ?: 0) < CURRENT_SCHEMA_VERSION
+
+            override suspend fun migrate(currentData: Preferences): Preferences =
+                currentData.toMutablePreferences().also { applyMigrations(it) }
+
+            override suspend fun cleanUp() = Unit
+        }
+
+        // ── Effective (gated) readers ─────────────────────────────────────
+
+        /** Pro mode as stored; a missing key is [ProModePolicy.DEFAULT_PRO_MODE] (Casual). */
+        internal fun proModeOf(prefs: Preferences): Boolean =
+            prefs[KEY_PRO_MODE] ?: ProModePolicy.DEFAULT_PRO_MODE
+
+        /** The per-source settings exactly as stored (code defaults for absent keys), no gate. */
+        internal fun storedSourceSettingsOf(prefs: Preferences, kind: SourceKind): SourceSettings {
+            val def = SourceSettings.defaultFor(kind)
             return SourceSettings(
                 swipeRightVerb = SwipeRightVerb.fromKey(
-                    prefs[swipeRightVerbKey(effectiveKind)],
+                    prefs[swipeRightVerbKey(kind)],
                     def.swipeRightVerb,
                 ),
-                swipeLeftVerb = prefs[swipeLeftVerbKey(effectiveKind)]
+                swipeLeftVerb = prefs[swipeLeftVerbKey(kind)]
                     ?.let { SwipeAction.fromKey(it) }
                     ?: def.swipeLeftVerb,
                 feedOrderMode = FeedOrderMode.fromKey(
-                    prefs[feedOrderKey(effectiveKind)],
+                    prefs[feedOrderKey(kind)],
                     def.feedOrderMode,
                 ),
                 fileTypeFilter = FileTypeFilter.fromKey(
-                    prefs[fileTypeFilterKey(effectiveKind)],
+                    prefs[fileTypeFilterKey(kind)],
                     def.fileTypeFilter,
                 ),
-                moveRelatedFiles = prefs[moveRelatedFilesKey(effectiveKind)] ?: def.moveRelatedFiles,
-                sortingEnabled = prefs[sortingEnabledKey(effectiveKind)] ?: def.sortingEnabled,
-                directDeleteConfirmEnabled = prefs[directDeleteConfirmKey(effectiveKind)]
+                moveRelatedFiles = prefs[moveRelatedFilesKey(kind)] ?: def.moveRelatedFiles,
+                sortingEnabled = prefs[sortingEnabledKey(kind)] ?: def.sortingEnabled,
+                directDeleteConfirmEnabled = prefs[directDeleteConfirmKey(kind)]
                     ?: prefs[KEY_DIRECT_DELETE_CONFIRM]
                     ?: def.directDeleteConfirmEnabled,
-                collectionUri = prefs[collectionUriKey(effectiveKind)],
-                leftSwipeUri = prefs[leftSwipeUriKey(effectiveKind)],
+                collectionUri = prefs[collectionUriKey(kind)],
+                leftSwipeUri = prefs[leftSwipeUriKey(kind)],
             )
         }
 
-        internal fun appSettingsOf(prefs: Preferences): AppSettings = AppSettings(
-            selectionFolderName = prefs[KEY_SELECTION_FOLDER_NAME] ?: DEFAULT_SELECTION_FOLDER_NAME,
-            sortingEnabled = prefs[KEY_SORTING_ENABLED] ?: DEFAULT_SORTING_ENABLED,
-            directDeleteConfirmEnabled = prefs[KEY_DIRECT_DELETE_CONFIRM] ?: true,
-            showExifOverlay = prefs[KEY_SHOW_EXIF_OVERLAY] ?: false,
-            recentPathsEnabled = prefs[KEY_RECENT_PATHS_ENABLED] ?: true,
-            recentPathsCount = prefs[KEY_RECENT_PATHS_COUNT] ?: DEFAULT_RECENT_PATHS_COUNT,
-            recentPaths = RecentPathCodec.decode(prefs[KEY_RECENT_PATHS]),
-            seenFirstRunHints = prefs[KEY_SEEN_FIRST_RUN_HINTS] ?: emptySet(),
-            celebrationsEnabled = prefs[KEY_CELEBRATIONS_ENABLED] ?: true,
-            cloudInheritsPhone = prefs[KEY_CLOUD_INHERITS_PHONE] ?: true,
-        )
+        /** The settings that act for [kind]: stored in Pro mode, Casual otherwise (cloud inherits phone). */
+        internal fun sourceSettingsOf(prefs: Preferences, kind: SourceKind): SourceSettings {
+            val pro = proModeOf(prefs)
+            val inherits = ProModePolicy.effectiveCloudInheritsPhone(
+                prefs[KEY_CLOUD_INHERITS_PHONE] ?: true,
+                pro,
+            )
+            val effectiveKind = if (kind == SourceKind.CLOUD_OTHER && inherits) SourceKind.PHONE_LIBRARY else kind
+            return ProModePolicy.effective(storedSourceSettingsOf(prefs, effectiveKind), effectiveKind, pro)
+        }
+
+        internal fun appSettingsOf(prefs: Preferences): AppSettings {
+            val pro = proModeOf(prefs)
+            return AppSettings(
+                selectionFolderName = ProModePolicy.effectiveSelectionFolderName(
+                    prefs[KEY_SELECTION_FOLDER_NAME] ?: DEFAULT_SELECTION_FOLDER_NAME,
+                    pro,
+                ),
+                sortingEnabled = ProModePolicy.effectiveSortingEnabled(
+                    prefs[KEY_SORTING_ENABLED] ?: DEFAULT_SORTING_ENABLED,
+                    pro,
+                ),
+                directDeleteConfirmEnabled = prefs[KEY_DIRECT_DELETE_CONFIRM] ?: true,
+                showExifOverlay = ProModePolicy.effectiveShowExifOverlay(prefs[KEY_SHOW_EXIF_OVERLAY] ?: false, pro),
+                recentPathsEnabled = ProModePolicy.effectiveRecentPathsEnabled(
+                    prefs[KEY_RECENT_PATHS_ENABLED] ?: true,
+                    pro,
+                ),
+                recentPathsCount = ProModePolicy.effectiveRecentPathsCount(
+                    prefs[KEY_RECENT_PATHS_COUNT] ?: DEFAULT_RECENT_PATHS_COUNT,
+                    pro,
+                ),
+                recentPaths = RecentPathCodec.decode(prefs[KEY_RECENT_PATHS]),
+                seenFirstRunHints = prefs[KEY_SEEN_FIRST_RUN_HINTS] ?: emptySet(),
+                celebrationsEnabled = prefs[KEY_CELEBRATIONS_ENABLED] ?: true,
+                cloudInheritsPhone = ProModePolicy.effectiveCloudInheritsPhone(
+                    prefs[KEY_CLOUD_INHERITS_PHONE] ?: true,
+                    pro,
+                ),
+                proMode = pro,
+            )
+        }
 
         /**
          * Map raw preferences to the typed settings snapshot. Companion-level and
-         * internal so the mapping is unit-testable without a DataStore instance.
+         * internal so the mapping is unit-testable without a DataStore instance. Every value is
+         * the effective one (see [ProModePolicy]); `proMode` says which mode it is.
          */
-        internal fun phoneSettingsOf(prefs: Preferences): PhoneSettings = PhoneSettings(
-            collectionAction = CollectionAction.fromKey(prefs[KEY_COLLECTION_ACTION]),
-            directDeleteConfirmEnabled = prefs[KEY_DIRECT_DELETE_CONFIRM] ?: true,
-            sortByOrientation = prefs[KEY_SORT_BY_ORIENTATION] ?: false,
-            randomizeOrder = prefs[KEY_RANDOMIZE_ORDER] ?: false,
-            fileTypeFilter = FileTypeFilter.fromKey(prefs[KEY_FILE_TYPE_FILTER]),
-            leftSwipeAction = SwipeAction.fromKey(prefs[KEY_LEFT_SWIPE_ACTION]),
-            showExifOverlay = prefs[KEY_SHOW_EXIF_OVERLAY] ?: false,
-            moveRelatedFiles = prefs[KEY_MOVE_RELATED_FILES] ?: false,
-            recentPathsEnabled = prefs[KEY_RECENT_PATHS_ENABLED] ?: true,
-            recentPathsCount = prefs[KEY_RECENT_PATHS_COUNT] ?: DEFAULT_RECENT_PATHS_COUNT,
-            recentPaths = RecentPathCodec.decode(prefs[KEY_RECENT_PATHS]),
-            seenFirstRunHints = prefs[KEY_SEEN_FIRST_RUN_HINTS] ?: emptySet(),
-            celebrationsEnabled = prefs[KEY_CELEBRATIONS_ENABLED] ?: true,
-            cloudInheritsPhone = prefs[KEY_CLOUD_INHERITS_PHONE] ?: true,
-            phoneSourceSettings = sourceSettingsOf(prefs, SourceKind.PHONE_LIBRARY),
-            removableSourceSettings = sourceSettingsOf(prefs, SourceKind.REMOVABLE),
-            cameraMtpSourceSettings = sourceSettingsOf(prefs, SourceKind.CAMERA_MTP),
-            cloudSourceSettings = sourceSettingsOf(prefs, SourceKind.CLOUD_OTHER),
-        )
-    }
-
-    /** Run one-time v1 -> v2 preference migration if not yet applied. */
-    suspend fun ensureMigratedToV2() {
-        context.dataStore.edit { prefs ->
-            migrateToV2(prefs)
+        internal fun phoneSettingsOf(prefs: Preferences): PhoneSettings {
+            val pro = proModeOf(prefs)
+            val casual = ProModePolicy.casualSourceSettings(SourceKind.PHONE_LIBRARY)
+            return PhoneSettings(
+                collectionAction = if (pro) CollectionAction.fromKey(prefs[KEY_COLLECTION_ACTION]) else casual.collectionAction,
+                directDeleteConfirmEnabled = prefs[KEY_DIRECT_DELETE_CONFIRM] ?: true,
+                sortByOrientation = if (pro) prefs[KEY_SORT_BY_ORIENTATION] ?: false else casual.sortByOrientation,
+                randomizeOrder = if (pro) prefs[KEY_RANDOMIZE_ORDER] ?: false else casual.randomizeOrder,
+                fileTypeFilter = if (pro) FileTypeFilter.fromKey(prefs[KEY_FILE_TYPE_FILTER]) else casual.fileTypeFilter,
+                leftSwipeAction = if (pro) SwipeAction.fromKey(prefs[KEY_LEFT_SWIPE_ACTION]) else casual.swipeLeftVerb,
+                showExifOverlay = ProModePolicy.effectiveShowExifOverlay(prefs[KEY_SHOW_EXIF_OVERLAY] ?: false, pro),
+                moveRelatedFiles = if (pro) prefs[KEY_MOVE_RELATED_FILES] ?: false else casual.moveRelatedFiles,
+                recentPathsEnabled = ProModePolicy.effectiveRecentPathsEnabled(
+                    prefs[KEY_RECENT_PATHS_ENABLED] ?: true,
+                    pro,
+                ),
+                recentPathsCount = ProModePolicy.effectiveRecentPathsCount(
+                    prefs[KEY_RECENT_PATHS_COUNT] ?: DEFAULT_RECENT_PATHS_COUNT,
+                    pro,
+                ),
+                recentPaths = RecentPathCodec.decode(prefs[KEY_RECENT_PATHS]),
+                seenFirstRunHints = prefs[KEY_SEEN_FIRST_RUN_HINTS] ?: emptySet(),
+                celebrationsEnabled = prefs[KEY_CELEBRATIONS_ENABLED] ?: true,
+                cloudInheritsPhone = ProModePolicy.effectiveCloudInheritsPhone(
+                    prefs[KEY_CLOUD_INHERITS_PHONE] ?: true,
+                    pro,
+                ),
+                proMode = pro,
+                phoneSourceSettings = sourceSettingsOf(prefs, SourceKind.PHONE_LIBRARY),
+                removableSourceSettings = sourceSettingsOf(prefs, SourceKind.REMOVABLE),
+                cameraMtpSourceSettings = sourceSettingsOf(prefs, SourceKind.CAMERA_MTP),
+                cloudSourceSettings = sourceSettingsOf(prefs, SourceKind.CLOUD_OTHER),
+            )
         }
+
+        /** Phone-slot collection URI (flat key first, then the per-source key); gated in Casual. */
+        internal fun phoneCollectionUriOf(prefs: Preferences): String? =
+            if (proModeOf(prefs)) {
+                prefs[KEY_COLLECTION_URI] ?: prefs[collectionUriKey(SourceKind.PHONE_LIBRARY)]
+            } else {
+                null
+            }
+
+        /** Phone-slot left-swipe folder URI; gated in Casual. */
+        internal fun phoneLeftSwipeUriOf(prefs: Preferences): String? =
+            if (proModeOf(prefs)) {
+                prefs[KEY_LEFT_SWIPE_URI] ?: prefs[leftSwipeUriKey(SourceKind.PHONE_LIBRARY)]
+            } else {
+                null
+            }
     }
 
     /**
@@ -302,13 +387,24 @@ class SettingsRepository @Inject constructor(
             sourceSettingsOf(prefs, kind)
         }
 
+    /** Selection folder name that acts: the stored one in Pro mode, `Selection` in Casual. */
     val selectionFolderName: Flow<String> = context.dataStore.data.map { prefs ->
-        prefs[KEY_SELECTION_FOLDER_NAME] ?: DEFAULT_SELECTION_FOLDER_NAME
+        ProModePolicy.effectiveSelectionFolderName(
+            prefs[KEY_SELECTION_FOLDER_NAME] ?: DEFAULT_SELECTION_FOLDER_NAME,
+            proModeOf(prefs),
+        )
     }
 
+    /** Whether transfers sort into RAW/JPEG subfolders: the stored choice in Pro mode, off in Casual. */
     val sortingEnabled: Flow<Boolean> = context.dataStore.data.map { prefs ->
-        prefs[KEY_SORTING_ENABLED] ?: DEFAULT_SORTING_ENABLED
+        ProModePolicy.effectiveSortingEnabled(
+            prefs[KEY_SORTING_ENABLED] ?: DEFAULT_SORTING_ENABLED,
+            proModeOf(prefs),
+        )
     }
+
+    /** Pro mode on? A fresh install is Casual ([ProModePolicy.DEFAULT_PRO_MODE]). */
+    val proMode: Flow<Boolean> = context.dataStore.data.map { prefs -> proModeOf(prefs) }
 
     val lastFolderUri: Flow<String?> = context.dataStore.data.map { prefs ->
         prefs[KEY_LAST_FOLDER_URI]
@@ -319,7 +415,7 @@ class SettingsRepository @Inject constructor(
     }
 
     val cloudInheritsPhone: Flow<Boolean> = context.dataStore.data.map { prefs ->
-        prefs[KEY_CLOUD_INHERITS_PHONE] ?: true
+        ProModePolicy.effectiveCloudInheritsPhone(prefs[KEY_CLOUD_INHERITS_PHONE] ?: true, proModeOf(prefs))
     }
 
     val persistedPendingDeleteUris: Flow<Set<String>> = context.dataStore.data.map { prefs ->
@@ -330,6 +426,60 @@ class SettingsRepository @Inject constructor(
         context.dataStore.edit { prefs ->
             if (uris.isEmpty()) prefs.remove(KEY_PERSISTED_PENDING_DELETE_URIS)
             else prefs[KEY_PERSISTED_PENDING_DELETE_URIS] = uris
+        }
+    }
+
+    /**
+     * Switch Pro mode. The `pro_mode` flag and every write [ProModePolicy.transition] asks for are
+     * applied in one DataStore edit, so readers never see a half-switched state. Stored Pro values
+     * are never rewritten or erased.
+     *
+     * @return the snackbar message naming the visible change, or null when the mode did not change.
+     */
+    suspend fun setProMode(enabled: Boolean): UiText? {
+        var message: UiText? = null
+        context.dataStore.edit { prefs ->
+            val transition = ProModePolicy.transition(
+                currentlyPro = proModeOf(prefs),
+                targetPro = enabled,
+                everEnabled = prefs[KEY_PRO_MODE_EVER_ENABLED] ?: false,
+            )
+            prefs[KEY_PRO_MODE] = transition.proMode
+            transition.writes.forEach { write ->
+                when (write) {
+                    is ProModePolicy.ProModeWrite.ShowExifOverlay -> prefs[KEY_SHOW_EXIF_OVERLAY] = write.enabled
+                    is ProModePolicy.ProModeWrite.RecentPathsCount -> prefs[KEY_RECENT_PATHS_COUNT] = write.count
+                    ProModePolicy.ProModeWrite.EverEnabled -> prefs[KEY_PRO_MODE_EVER_ENABLED] = true
+                }
+            }
+            message = transition.message
+        }
+        return message
+    }
+
+    /** The folder tree granted for the Casual SD/camera import (the phone's camera folder), if any. */
+    val casualCameraTargetUri: Flow<String?> = context.dataStore.data.map { prefs ->
+        prefs[KEY_CASUAL_CAMERA_TARGET_URI]
+    }
+
+    /**
+     * Remember [uri] as the Casual import target and hold its grant under a durable purpose
+     * ([FolderAccessPurpose.SELECTION_TARGET], which reconciliation derives from the stored key),
+     * so a restart never releases it.
+     */
+    suspend fun setCasualCameraTarget(uri: String) {
+        var previousUri: String? = null
+        var referencedAfter: Map<FolderAccessPurpose, Set<String>> = emptyMap()
+        context.dataStore.edit { prefs ->
+            previousUri = prefs[KEY_CASUAL_CAMERA_TARGET_URI]
+            prefs[KEY_CASUAL_CAMERA_TARGET_URI] = uri
+            referencedAfter = referencedUrisByPurpose(prefs)
+        }
+        folderAccessManager.syncReferences(referencedAfter)
+        folderAccessManager.takeGrant(Uri.parse(uri), FolderAccessPurpose.SELECTION_TARGET)
+        val old = previousUri
+        if (old != null && old != uri) {
+            folderAccessManager.releaseIfUnreferenced(old, referencedAfter.values.flatten().toSet())
         }
     }
 
@@ -477,22 +627,22 @@ class SettingsRepository @Inject constructor(
 
     /** Action to perform when adding a photo to the collection. */
     val phoneCollectionAction: Flow<CollectionAction> = context.dataStore.data.map { prefs ->
-        CollectionAction.fromKey(prefs[KEY_COLLECTION_ACTION])
+        phoneSettingsOf(prefs).collectionAction
     }
 
     /** Optional custom collection target folder URI. */
     val phoneCollectionUri: Flow<String?> = context.dataStore.data.map { prefs ->
-        prefs[KEY_COLLECTION_URI] ?: prefs[collectionUriKey(SourceKind.PHONE_LIBRARY)]
+        phoneCollectionUriOf(prefs)
     }
 
     /** Action to perform on a left swipe. */
     val phoneLeftSwipeAction: Flow<SwipeAction> = context.dataStore.data.map { prefs ->
-        SwipeAction.fromKey(prefs[KEY_LEFT_SWIPE_ACTION])
+        phoneSettingsOf(prefs).leftSwipeAction
     }
 
     /** Optional custom left swipe target folder URI. */
     val phoneLeftSwipeUri: Flow<String?> = context.dataStore.data.map { prefs ->
-        prefs[KEY_LEFT_SWIPE_URI] ?: prefs[leftSwipeUriKey(SourceKind.PHONE_LIBRARY)]
+        phoneLeftSwipeUriOf(prefs)
     }
 
     /** Whether to show direct delete confirmation dialog (default true). */
@@ -502,12 +652,12 @@ class SettingsRepository @Inject constructor(
 
     /** Sort images horizontal-first, then vertical (default false; base order is by date). */
     val phoneSortByOrientation: Flow<Boolean> = context.dataStore.data.map { prefs ->
-        prefs[KEY_SORT_BY_ORIENTATION] ?: false
+        phoneSettingsOf(prefs).sortByOrientation
     }
 
     /** Randomize picture order (default false). */
     val phoneRandomizeOrder: Flow<Boolean> = context.dataStore.data.map { prefs ->
-        prefs[KEY_RANDOMIZE_ORDER] ?: false
+        phoneSettingsOf(prefs).randomizeOrder
     }
 
     /** Timestamp (millis) when gesture tutorial was last shown. 0 = never. */
@@ -517,27 +667,30 @@ class SettingsRepository @Inject constructor(
 
     /** File-type filter applied to the feed. */
     val phoneFileTypeFilter: Flow<FileTypeFilter> = context.dataStore.data.map { prefs ->
-        FileTypeFilter.fromKey(prefs[KEY_FILE_TYPE_FILTER])
+        phoneSettingsOf(prefs).fileTypeFilter
     }
 
-    /** Whether to show EXIF stats overlay (default false; toggled via the logo). */
+    /** Whether to show EXIF stats overlay (default false; Pro mode only, so always false in Casual). */
     val phoneShowExifOverlay: Flow<Boolean> = context.dataStore.data.map { prefs ->
-        prefs[KEY_SHOW_EXIF_OVERLAY] ?: false
+        ProModePolicy.effectiveShowExifOverlay(prefs[KEY_SHOW_EXIF_OVERLAY] ?: false, proModeOf(prefs))
     }
 
     /** Whether collection/delete actions also affect same-name sibling files (default false). */
     val phoneMoveRelatedFiles: Flow<Boolean> = context.dataStore.data.map { prefs ->
-        prefs[KEY_MOVE_RELATED_FILES] ?: false
+        phoneSettingsOf(prefs).moveRelatedFiles
     }
 
     /** Whether to show the recent-folders list on the landing screen (default true). */
     val phoneRecentPathsEnabled: Flow<Boolean> = context.dataStore.data.map { prefs ->
-        prefs[KEY_RECENT_PATHS_ENABLED] ?: true
+        ProModePolicy.effectiveRecentPathsEnabled(prefs[KEY_RECENT_PATHS_ENABLED] ?: true, proModeOf(prefs))
     }
 
     /** How many recent folders to show on the landing screen (default 3). */
     val phoneRecentPathsCount: Flow<Int> = context.dataStore.data.map { prefs ->
-        prefs[KEY_RECENT_PATHS_COUNT] ?: DEFAULT_RECENT_PATHS_COUNT
+        ProModePolicy.effectiveRecentPathsCount(
+            prefs[KEY_RECENT_PATHS_COUNT] ?: DEFAULT_RECENT_PATHS_COUNT,
+            proModeOf(prefs),
+        )
     }
 
     /** Most-recently-used source folders, newest first. */
@@ -783,7 +936,8 @@ class SettingsRepository @Inject constructor(
 
     internal fun referencedUrisByPurpose(prefs: Preferences): Map<FolderAccessPurpose, Set<String>> {
         val source = prefs[KEY_LAST_FOLDER_URI]?.let(::setOf).orEmpty()
-        val selection = prefs[KEY_COLLECTION_URI]?.let(::setOf).orEmpty()
+        // Gated (Casual) custom folders stay referenced: their grants wait for Pro's return.
+        val selection = listOfNotNull(prefs[KEY_COLLECTION_URI], prefs[KEY_CASUAL_CAMERA_TARGET_URI]).toSet()
         val leftSwipe = prefs[KEY_LEFT_SWIPE_URI]?.let(::setOf).orEmpty()
         val recents = RecentPathCodec.decode(prefs[KEY_RECENT_PATHS])
             .mapTo(LinkedHashSet()) { it.uri }

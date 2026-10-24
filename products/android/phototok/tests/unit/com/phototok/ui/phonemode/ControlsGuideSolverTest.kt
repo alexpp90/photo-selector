@@ -177,6 +177,31 @@ class ControlsGuideSolverTest {
         assertTrue(narrow.getValue(GuideAnchor.DONE_WITH_CARD).left > narrow.getValue(GuideAnchor.LOGO).right)
     }
 
+    @Test
+    fun casual_portrait_has_no_logo_or_info_anchor_and_the_rest_keeps_its_place() {
+        val pro = ControlsGuideSolver.nominalPortrait(393f, 851f, 24f, 24f, true)
+        val casual = ControlsGuideSolver.nominalPortrait(393f, 851f, 24f, 24f, true, hasCameraInfo = false)
+        assertFalse(GuideAnchor.LOGO in casual)
+        assertFalse(GuideAnchor.INFO in casual)
+        // Right-aligned: Settings and Help stay where they are, Reload moves one button right.
+        assertEquals(pro.getValue(GuideAnchor.SETTINGS), casual.getValue(GuideAnchor.SETTINGS))
+        assertEquals(48f, casual.getValue(GuideAnchor.SETTINGS).centerX - casual.getValue(GuideAnchor.HELP).centerX, 0.01f)
+        val plans = ControlsGuideSolver.planTop(393f, topIcons.filter { it in casual }.associateWith { casual.getValue(it) })
+        assertTrue(plans.none { it.id == GuideAnchor.INFO || it.id == GuideAnchor.LOGO })
+    }
+
+    @Test
+    fun casual_landscape_has_no_logo_or_info_anchor_but_keeps_the_other_buttons() {
+        val pro = ControlsGuideSolver.nominalLandscape(800f, 360f)
+        val casual = ControlsGuideSolver.nominalLandscape(800f, 360f, hasCameraInfo = false)
+        assertFalse(GuideAnchor.LOGO in casual)
+        assertFalse(GuideAnchor.INFO in casual)
+        for (id in listOf(GuideAnchor.SOURCES, GuideAnchor.SELECTION, GuideAnchor.SHARE, GuideAnchor.REVERT, GuideAnchor.HELP)) {
+            assertEquals("$id does not move", pro.getValue(id), casual.getValue(id))
+        }
+        assertTrue(GuideAnchor.RELOAD in casual && GuideAnchor.SETTINGS in casual)
+    }
+
     private fun bottomRow(width: Float, naturalWidth: Float, height: Float = 52f): List<Placed> {
         val a = ControlsGuideSolver.nominalPortrait(width, 800f, 24f, 24f, false)
         val plans = ControlsGuideSolver.planBottom(

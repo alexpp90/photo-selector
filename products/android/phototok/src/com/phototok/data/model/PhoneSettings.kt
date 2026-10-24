@@ -4,6 +4,8 @@ import com.photoselector.core.storage.SourceKind
 import com.phototok.domain.CollectionAction
 import com.phototok.domain.FeedOrderMode
 import com.phototok.domain.FileTypeFilter
+import com.phototok.domain.PhotoFolders
+import com.phototok.domain.ProModePolicy
 import com.phototok.domain.SwipeAction
 import com.phototok.domain.SwipeRightVerb
 
@@ -20,6 +22,14 @@ data class SourceSettings(
     val directDeleteConfirmEnabled: Boolean = true,
     val collectionUri: String? = null,
     val leftSwipeUri: String? = null,
+    /** Name of the subfolder swipe-right copies/moves land in (`Selection`, or `Jackpix` for Casual imports). */
+    val selectionSubfolder: String = PhotoFolders.SELECTION,
+    /**
+     * Casual mode on an SD card or camera: swipe right copies into the phone's camera folder
+     * (`ProModePolicy.CAMERA_IMPORT_DOCUMENT_ID`), subfolder [selectionSubfolder], instead of
+     * `<card>/Selection`. Always false for Pro values.
+     */
+    val importToPhoneCamera: Boolean = false,
 ) {
     val collectionAction: CollectionAction
         get() = swipeRightVerb.toCollectionAction()
@@ -86,6 +96,7 @@ data class AppSettings(
     val seenFirstRunHints: Set<String> = emptySet(),
     val celebrationsEnabled: Boolean = true,
     val cloudInheritsPhone: Boolean = true,
+    val proMode: Boolean = ProModePolicy.DEFAULT_PRO_MODE,
 )
 
 /**
@@ -108,10 +119,12 @@ data class PhoneSettings(
     val seenFirstRunHints: Set<String> = emptySet(),
     val celebrationsEnabled: Boolean = true,
     val cloudInheritsPhone: Boolean = true,
-    val phoneSourceSettings: SourceSettings = SourceSettings.defaultFor(SourceKind.PHONE_LIBRARY),
-    val removableSourceSettings: SourceSettings = SourceSettings.defaultFor(SourceKind.REMOVABLE),
-    val cameraMtpSourceSettings: SourceSettings = SourceSettings.defaultFor(SourceKind.CAMERA_MTP),
-    val cloudSourceSettings: SourceSettings = SourceSettings.defaultFor(SourceKind.CLOUD_OTHER),
+    /** Pro mode on? Every other field is already the effective (gated) value. */
+    val proMode: Boolean = ProModePolicy.DEFAULT_PRO_MODE,
+    val phoneSourceSettings: SourceSettings = ProModePolicy.casualSourceSettings(SourceKind.PHONE_LIBRARY),
+    val removableSourceSettings: SourceSettings = ProModePolicy.casualSourceSettings(SourceKind.REMOVABLE),
+    val cameraMtpSourceSettings: SourceSettings = ProModePolicy.casualSourceSettings(SourceKind.CAMERA_MTP),
+    val cloudSourceSettings: SourceSettings = ProModePolicy.casualSourceSettings(SourceKind.CLOUD_OTHER),
 ) {
     fun settingsFor(kind: SourceKind): SourceSettings = when (kind) {
         SourceKind.PHONE_LIBRARY -> phoneSourceSettings

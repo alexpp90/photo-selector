@@ -662,6 +662,7 @@ class PhoneModeViewModelTest {
 
     @Test
     fun `folder with raw and jpeg pairs triggers raw jpeg suggestion`() = runTest {
+        phoneSettingsFlow.value = phoneSettingsFlow.value.copy(proMode = true)
         val viewModel = loadFolder(
             image("photo1.jpg", 10),
             image("photo1.raw", 10),
@@ -672,6 +673,7 @@ class PhoneModeViewModelTest {
 
     @Test
     fun `dismissing raw jpeg suggestion hides it and marks hint seen`() = runTest {
+        phoneSettingsFlow.value = phoneSettingsFlow.value.copy(proMode = true)
         val viewModel = loadFolder(
             image("photo1.jpg", 10),
             image("photo1.raw", 10),
@@ -686,6 +688,7 @@ class PhoneModeViewModelTest {
 
     @Test
     fun `dismissing raw jpeg suggestion leaves settings unchanged (don't change settings)`() = runTest {
+        phoneSettingsFlow.value = phoneSettingsFlow.value.copy(proMode = true)
         val viewModel = loadFolder(
             image("photo1.jpg", 10),
             image("photo1.raw", 10),
@@ -702,6 +705,7 @@ class PhoneModeViewModelTest {
 
     @Test
     fun `applying raw jpeg filter updates settings and hides suggestion`() = runTest {
+        phoneSettingsFlow.value = phoneSettingsFlow.value.copy(proMode = true)
         val viewModel = loadFolder(
             image("photo1.jpg", 10),
             image("photo1.raw", 10),
@@ -716,6 +720,7 @@ class PhoneModeViewModelTest {
 
     @Test
     fun `enabling move related files updates settings and hides suggestion`() = runTest {
+        phoneSettingsFlow.value = phoneSettingsFlow.value.copy(proMode = true)
         val viewModel = loadFolder(
             image("photo1.jpg", 10),
             image("photo1.raw", 10),
@@ -731,6 +736,7 @@ class PhoneModeViewModelTest {
     @Test
     fun `folder with filter mismatch triggers filter mismatch hint`() = runTest {
         phoneSettingsFlow.value = phoneSettingsFlow.value.copy(
+            proMode = true,
             fileTypeFilter = com.phototok.domain.FileTypeFilter.RAW,
         )
         val viewModel = loadFolder(
@@ -752,6 +758,7 @@ class PhoneModeViewModelTest {
     @Test
     fun `folder with raw and jpeg pairs does not trigger filter mismatch hint`() = runTest {
         phoneSettingsFlow.value = phoneSettingsFlow.value.copy(
+            proMode = true,
             fileTypeFilter = com.phototok.domain.FileTypeFilter.RAW,
         )
         val viewModel = loadFolder(
@@ -768,6 +775,7 @@ class PhoneModeViewModelTest {
     @Test
     fun `show all action on filter mismatch hint switches filter to all and marks hint seen`() = runTest {
         phoneSettingsFlow.value = phoneSettingsFlow.value.copy(
+            proMode = true,
             fileTypeFilter = com.phototok.domain.FileTypeFilter.RAW,
         )
         val viewModel = loadFolder(
@@ -790,6 +798,7 @@ class PhoneModeViewModelTest {
     @Test
     fun `dismissing filter mismatch hint hides it and marks hint seen`() = runTest {
         phoneSettingsFlow.value = phoneSettingsFlow.value.copy(
+            proMode = true,
             fileTypeFilter = com.phototok.domain.FileTypeFilter.RAW,
         )
         val viewModel = loadFolder(
@@ -1116,6 +1125,7 @@ class PhoneModeViewModelTest {
     @Test
     fun `toggleExifOverlay updates settings repository`() = runTest {
         coEvery { settingsRepository.setPhoneShowExifOverlay(any()) } just Runs
+        phoneSettingsFlow.value = phoneSettingsFlow.value.copy(proMode = true)
         val viewModel = buildViewModel()
 
         viewModel.toggleExifOverlay()

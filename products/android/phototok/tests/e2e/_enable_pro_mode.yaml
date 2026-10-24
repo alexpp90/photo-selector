@@ -1,0 +1,39 @@
+# Lab: make sure Pro mode is on. Camera info, the swipe verbs and the Phone / SD card / Camera
+# tabs are Pro mode settings; a fresh install is Casual (REQ-TOK-PRO). Pro mode outlives a journey,
+# so the switch is tapped only when it is off (`checked`): tapping it twice would turn it off.
+# The first time Pro mode comes on it also turns camera info on, so the stats can be visible
+# afterwards without a tap on (i). The Settings sheet is a separate window; the app exports its
+# test tags there too (`settings_pro_mode_toggle`). Run from the viewer; the sheet is closed again.
+appId: com.phototok.lab
+---
+- runFlow:
+    when:
+      visible:
+        id: "settings_button"
+    commands:
+      - tapOn:
+          id: "settings_button"
+- runFlow:
+    when:
+      visible:
+        id: "landscape_settings_button"
+    commands:
+      - tapOn:
+          id: "landscape_settings_button"
+- extendedWaitUntil:
+    visible:
+      id: "settings_pro_mode_toggle"
+    timeout: 10000
+- runFlow:
+    when:
+      notVisible:
+        id: "settings_pro_mode_toggle"
+        checked: true
+    commands:
+      - tapOn:
+          id: "settings_pro_mode_toggle"
+- back
+- extendedWaitUntil:
+    visible:
+      id: "viewer.photo"
+    timeout: 10000

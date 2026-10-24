@@ -23,11 +23,12 @@ class PhoneSettingsMapperTest {
     fun `empty preferences map to defaults`() {
         val settings = SettingsRepository.phoneSettingsOf(preferencesOf())
 
-        assertEquals(PhoneSettings(), settings)
-        // Explicit spot-checks so a default change in PhoneSettings is caught.
+        // A fresh install is Casual: every Pro-only value reads its Casual value.
+        assertEquals(false, settings.proMode)
+        assertEquals(PhoneSettings(fileTypeFilter = FileTypeFilter.ONE_PER_SHOT, moveRelatedFiles = true), settings)
         assertEquals(CollectionAction.DEFAULT, settings.collectionAction)
         assertEquals(SwipeAction.DEFAULT, settings.leftSwipeAction)
-        assertEquals(FileTypeFilter.DEFAULT, settings.fileTypeFilter)
+        assertEquals(FileTypeFilter.ONE_PER_SHOT, settings.fileTypeFilter)
         assertEquals(3, settings.recentPathsCount)
         assertEquals(emptyList<Any>(), settings.recentPaths)
     }
@@ -35,6 +36,7 @@ class PhoneSettingsMapperTest {
     @Test
     fun `stored values are mapped to typed fields`() {
         val prefs = preferencesOf(
+            booleanPreferencesKey("pro_mode") to true,
             stringPreferencesKey("collection_action") to CollectionAction.MOVE.key,
             stringPreferencesKey("left_swipe_action") to SwipeAction.COPY.key,
             stringPreferencesKey("file_type_filter") to FileTypeFilter.RAW.key,
@@ -64,6 +66,7 @@ class PhoneSettingsMapperTest {
     @Test
     fun `unknown enum keys fall back to defaults`() {
         val prefs = preferencesOf(
+            booleanPreferencesKey("pro_mode") to true,
             stringPreferencesKey("collection_action") to "bogus",
             stringPreferencesKey("left_swipe_action") to "bogus",
             stringPreferencesKey("file_type_filter") to "bogus",

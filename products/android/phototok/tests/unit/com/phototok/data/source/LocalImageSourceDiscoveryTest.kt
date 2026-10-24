@@ -176,6 +176,24 @@ class LocalImageSourceDiscoveryTest {
     }
 
     @Test
+    fun `the Casual card import folder is never re-ingested by the Camera source`() = runTest {
+        // DCIM/Camera/Jackpix holds the copies a Casual swipe right made from an SD card.
+        tree = mapOf(
+            ROOT to listOf(
+                Row("j", "Jackpix", DIR),
+                Row("jl", "jackpix", DIR), // folder names compare case-insensitively
+                Row("a", "a.jpg", "image/jpeg"),
+            ),
+            "j" to listOf(Row("copy", "copy.jpg", "image/jpeg")),
+            "jl" to listOf(Row("copy2", "copy2.jpg", "image/jpeg")),
+        )
+
+        val images = source.discoverImages(treeUri).toList().last()
+
+        assertEquals(listOf("a.jpg"), images.map { it.fileName })
+    }
+
+    @Test
     fun `an unreadable directory is skipped instead of aborting the walk`() = runTest {
         tree = mapOf(
             // "broken" has no entry, so its query returns null.

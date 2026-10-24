@@ -27,6 +27,7 @@ import com.photoselector.saf.SelectionSubfolderRule
 import com.phototok.data.model.ImageItem
 import com.phototok.domain.CompanionFiles
 import com.phototok.domain.PhotoExtensions
+import com.phototok.domain.PhotoFolders
 import dagger.hilt.android.qualifiers.ApplicationContext
 import java.io.FileInputStream
 import javax.inject.Inject
@@ -75,6 +76,8 @@ class LocalImageSourceImpl @Inject constructor(
             "selected",
             "phototok_selection",
             "phototok_leftswipe",
+            // Casual SD/camera imports land in DCIM/Camera/Jackpix; the Camera source never re-ingests them.
+            PhotoFolders.CASUAL_IMPORT.lowercase(),
             ".photoselector-trash",
         )
 
