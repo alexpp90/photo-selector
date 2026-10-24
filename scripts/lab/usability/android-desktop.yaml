@@ -36,6 +36,12 @@ scenarios:
         intent: Grant folder storage permission
         expected: Tap 'Allow'
       - tap: {id: button1, label: Allow}
+      # The first visit shows the six-page screen guide over everything (SelectorCoachOverlay).
+      - screen: screen-guide
+        when: {id: coach_overlay_skip, timeout_ms: 15000}
+        intent: Get to my photos and understand what is on this screen
+        expected: Page through with Next, or tap Skip to start culling
+      - optional_tap: {id: coach_overlay_skip, label: Skip}
       - wait_for: {id: control_block, timeout_ms: 15000}
       - screen: selector-first
         intent: Review first photo in 3-Up one-over-two layout
@@ -52,7 +58,8 @@ scenarios:
       - screen: delete-confirm
         intent: Confirm deletion of blurry frame
         expected: Tap 'Delete' in confirmation dialog
-      - tap: {id: dialog_confirm_delete, text: Delete}
+      # A dialog is its own window and exports no test tags: its button by its text.
+      - tap: {text: Delete, label: Delete}
       - screen: after-delete
         intent: Check that next candidate advances automatically
         expected: Press Right arrow to inspect next series
@@ -73,11 +80,11 @@ scenarios:
       - screen: touch-after-move
         intent: Check undo notification and toggle candidate filmstrip
         expected: Tap filmstrip toggle button
-      - tap: {id: filmstrip_toggle, desc: Show the filmstrip}
+      - tap: {id: filmstrip_toggle, label: Show the filmstrip}
       - screen: filmstrip-visible
         intent: See thumbnail strip along bottom
         expected: Tap details toggle to inspect metadata
-      - tap: {id: details_toggle, desc: Show photo details}
+      - tap: {id: details_toggle, label: Show photo details}
       - screen: details-overlay-visible
         intent: View EXIF exposure and rating overlay
         expected: Dismiss details toggle or proceed
@@ -124,7 +131,7 @@ scenarios:
       - screen: learn-spiral-flipped
         intent: See re-oriented spiral focal eye on subject
         expected: Tap 'Return to Culling' or press L to exit
-      - tap: {id: back_to_cull_button, desc: Return to Culling}
+      - tap: {id: back_to_cull_button, label: Return to Culling}
 
   - id: U-AD-05
     title: Learn Workstation — Lessons & Scene Comparator
@@ -154,13 +161,22 @@ scenarios:
       - tap: {desc: More options, label: Menu}
       - screen: overflow-menu
         intent: Select worst-first sharpness sort
-        expected: Tap 'Sort worst sharpness first'
+        expected: Tap 'Scan images' first (the sort is greyed out until the photos are scanned), then 'Sort worst sharpness first'
+      # The sort and "Clear scores" stay disabled until the photos are scanned.
+      - tap: {text: Scan images}
+      - screen: scan-configuration
+        intent: Get the photos analysed so I can sort by sharpness
+        expected: Keep the analysis types and tap 'Start Scan'
+      - tap: {text: Start Scan}
+      - wait_ms: 15000
+      - tap: {desc: More options, label: Menu}
       - tap: {text: Sort worst sharpness first}
       - screen: worst-first-active
         intent: Review blurriest photo at front of triage queue
         expected: Press Delete to trash out-of-focus frame
       - key: Delete
-      - tap: {id: dialog_confirm_delete, text: Delete}
+      # A dialog is its own window and exports no test tags: its button by its text.
+      - tap: {text: Delete, label: Delete}
       - screen: worst-first-next
         intent: Confirm triage advances to next blurriest frame
         expected: Continue sweep until stop threshold

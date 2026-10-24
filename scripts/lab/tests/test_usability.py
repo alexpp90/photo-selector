@@ -2963,3 +2963,22 @@ class TestAndroidScreenNames(unittest.TestCase):
             shutil.rmtree(base, ignore_errors=True)
         self.assertEqual(a.signature, b.signature)
         self.assertEqual(a.screen_name, "position_counter+viewer_bottom_bar")
+
+
+class TestAdbFailureEndsTheScenario(unittest.TestCase):
+    def test_a_hung_adb_call_is_a_broken_scenario_not_a_crash(self) -> None:
+        import subprocess
+
+        class Hung(FakeAdb):
+            def start(self, app_id: str) -> str:
+                raise subprocess.TimeoutExpired(["adb", "shell", "am", "start", "-W"], 60)
+
+        out = _scratch("test_adb_hang")
+        try:
+            d = drv.ScenarioDriver(Hung([_xml()], top="com.photoselectortoolbox.lab"), "com.photoselectortoolbox.lab", out, settle_ms=0)
+            res = d.run({"id": "U", "steps": [{"screen": "s", "intent": "i", "expected": "e"}, {"launch": {}}]})
+        finally:
+            shutil.rmtree(out, ignore_errors=True)
+        self.assertEqual(res["status"], "broken")
+        self.assertIn("timed out", res["error"])
+        self.assertEqual([s["name"] for s in res["screens"]], ["s", "broken"])

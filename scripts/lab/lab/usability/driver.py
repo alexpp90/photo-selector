@@ -60,7 +60,9 @@ class BaseDriver:
         try:
             for step in scenario.get("steps", []):
                 self._step(step)
-        except StepFailed as exc:
+        except (StepFailed, subprocess.SubprocessError) as exc:
+            # An adb call that times out or fails (`am start -W` hung for 60 s on the Pixel
+            # Tablet) ends this scenario as broken, with its reason; it must not lose the walk.
             status, error = "broken", str(exc)
             try:
                 self._capture({"screen": "broken", "intent": "(the scenario could not continue)"})
