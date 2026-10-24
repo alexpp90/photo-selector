@@ -18,6 +18,28 @@ except (ImportError, ValueError):
     GLib = None
 
 OUTCOME_SECONDS = 4
+MESSAGE_MAX_CHARS = 48
+# Pixels the end side of the bar needs besides the message and the Undo button (box spacing and
+# the bar's padding); measured, then rounded up.
+END_SIDE_SLACK = 24
+
+
+class _CappedLabel(Gtk.Label if HAS_GI else object):
+    """A label whose natural width never exceeds what ``cap_fn()`` returns (pixels; None: no cap).
+
+    GtkCenterBox moves the centred widget as soon as a side asks for more than half of the free
+    space, so the message may grow only as far as that symmetric room goes (LIN-7).
+    """
+
+    cap_fn = None
+
+    def do_measure(self, orientation, for_size):
+        minimum, natural, _min_baseline, _nat_baseline = Gtk.Label.do_measure(self, orientation, for_size)
+        if orientation == Gtk.Orientation.HORIZONTAL and self.cap_fn is not None:
+            cap = self.cap_fn()
+            if cap is not None:
+                natural = max(minimum, min(natural, cap))
+        return minimum, natural, -1, -1
 
 
 class ActionBarView(Gtk.ActionBar if HAS_GI else object):
@@ -41,6 +63,7 @@ class ActionBarView(Gtk.ActionBar if HAS_GI else object):
         self.status_text: str = ""
         self._status_timer = None
         self._status_generation: int = 0
+        self._was_busy: bool = False
 
         if HAS_GI:
             super().__init__()
@@ -61,6 +84,8 @@ class ActionBarView(Gtk.ActionBar if HAS_GI else object):
         """Last write wins; the text clears itself after OUTCOME_SECONDS."""
         self._status_generation += 1
         self.status_text = message
+        # An outcome arriving while the queue is busy belongs to the action that just ran.
+        self._was_busy = bool(self.viewmodel.is_busy)
         if HAS_GI:
             if self._status_timer is not None:
                 GLib.source_remove(self._status_timer)
@@ -77,6 +102,14 @@ class ActionBarView(Gtk.ActionBar if HAS_GI else object):
         self.status_text = ""
         self._update_state()
         return False
+
+    def _clear_outcome(self) -> None:
+        """Drop the previous outcome the moment a new action starts: it no longer applies."""
+        self._status_generation += 1
+        self.status_text = ""
+        if HAS_GI and self._status_timer is not None:
+            GLib.source_remove(self._status_timer)
+            self._status_timer = None
 
     def _build_ui(self) -> None:
         if not HAS_GI:
@@ -99,11 +132,16 @@ class ActionBarView(Gtk.ActionBar if HAS_GI else object):
         # Progress of running/queued file operations (a Google Drive upload takes seconds).
         self.busy_box = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=6)
         self.busy_spinner = Gtk.Spinner()
-        self.lbl_busy = Gtk.Label(label="")
-        self.lbl_busy.set_ellipsize(3)  # Pango.EllipsizeMode.END: keep the file name visible
-        # Bounded so the bar's centred Move/Copy/Trash buttons never shift under the pointer.
-        self.lbl_busy.set_max_width_chars(24)
+        self.lbl_busy = _CappedLabel(label="")
+        self.lbl_busy.set_ellipsize(3)  # Pango.EllipsizeMode.END: only a very narrow window cuts
+        # Bounded so the bar's centred Move/Copy/Trash buttons never shift under the pointer, but
+        # wide enough for "Moved IMG_…_064000 + 2 to Selection/" (the file name is already
+        # shortened in the middle by the view model; the full text is in the tooltip).
+        self.lbl_busy.set_max_width_chars(MESSAGE_MAX_CHARS)
         self.lbl_busy.set_xalign(1.0)
+        self.lbl_busy.cap_fn = self._message_cap
+        self._surface_width = 0
+        self.connect("realize", self._on_realize)
         self.lbl_queue = Gtk.Label(label="")
         self.lbl_queue.add_css_class("status-counter-badge")
         self.busy_box.append(self.busy_spinner)
@@ -150,6 +188,36 @@ class ActionBarView(Gtk.ActionBar if HAS_GI else object):
         self.busy_box.set_visible(False)
         self.pack_end(self.busy_box)
 
+    def _message_cap(self) -> int | None:
+        """Pixels the message may take: the room beside the centred buttons minus the Undo button.
+
+        None until the bar has a width (the first layout pass).
+        """
+        width = self._surface_width or self.get_width()
+        if width <= 0:
+            return None
+        horizontal = Gtk.Orientation.HORIZONTAL
+        center = self.get_center_widget().measure(horizontal, -1).natural
+        undo = self.btn_undo.measure(horizontal, -1).natural
+        return max(0, (width - center) // 2 - undo - END_SIDE_SLACK)
+
+    def _on_realize(self, _widget) -> None:
+        """Follow the window's size through the surface's one-shot ``layout`` signal.
+
+        No tick callback: it would keep the frame clock running every frame for the window's life.
+        """
+        native = self.get_native()
+        surface = native.get_surface() if native is not None else None
+        if surface is not None:
+            surface.connect("layout", self._on_surface_layout)
+            self._on_surface_layout(surface, surface.get_width(), surface.get_height())
+
+    def _on_surface_layout(self, _surface, width: int, _height: int) -> None:
+        """The window was resized: the message is re-measured against the new width."""
+        if width != self._surface_width:
+            self._surface_width = width
+            self.lbl_busy.queue_resize()
+
     def _on_state_changed(self, vm) -> None:
         self._update_state()
 
@@ -166,6 +234,9 @@ class ActionBarView(Gtk.ActionBar if HAS_GI else object):
         self.trashed_css_class = "status-counter-trashed" if trs > 0 else "status-counter-badge"
         self.remaining_css_class = "status-counter-remaining"
         busy = self.viewmodel.is_busy
+        if busy and not self._was_busy:
+            self._clear_outcome()
+        self._was_busy = busy
         self.busy_text = self.viewmodel.busy_message or ""
         self.queue_label_text = getattr(self.viewmodel, "queue_status_label", None) or ""
         self.cull_sensitive = rem > 0
