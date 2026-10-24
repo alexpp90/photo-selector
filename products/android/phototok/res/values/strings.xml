@@ -163,7 +163,6 @@
     <string name="snackbar_favourite_removed">Favourite removed</string>
     <string name="snackbar_cloud_copy_only">Cloud: copy only</string>
     <string name="snackbar_card_disconnected">Card disconnected</string>
-    <string name="snackbar_no_new_photos">No new photos</string>
     <string name="snackbar_safe_to_unplug">Safe to unplug</string>
     <string name="snackbar_rejects_deleted">Rejects deleted</string>
     <string name="snackbar_deleted_count">%1$d deleted</string>

@@ -158,7 +158,6 @@
     <string name="snackbar_favourite_removed">Favorit entfernt</string>
     <string name="snackbar_cloud_copy_only">Cloud: nur Kopieren</string>
     <string name="snackbar_card_disconnected">Karte getrennt</string>
-    <string name="snackbar_no_new_photos">Keine neuen Fotos</string>
     <string name="snackbar_safe_to_unplug">Sicher entfernbar</string>
     <string name="snackbar_rejects_deleted">Aussortierte gelöscht</string>
     <string name="snackbar_deleted_count">%1$d gelöscht</string>

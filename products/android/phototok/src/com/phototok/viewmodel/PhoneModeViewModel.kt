@@ -249,6 +249,12 @@ class PhoneModeViewModel @Inject constructor(
      */
     private var newestFirstReorderAllowed = true
 
+    /**
+     * False while a Reload streams in: its feed is plain feed order, without the unseen-first
+     * split, so the newest photo is position 1 in a newest-first feed even after it was seen.
+     */
+    private var unseenFirstOrdering = true
+
     /** Whether a per-SourceKind SourceSettings emission has arrived. */
     private var hasSourceSettingsEmission = false
 
@@ -671,7 +677,6 @@ class PhoneModeViewModel @Inject constructor(
             collectDiscoveredImages(
                 folderUri = uri,
                 previousScanInfo = scanInfo,
-                wasActiveSession = false,
             )
         }
     }
@@ -713,8 +718,6 @@ class PhoneModeViewModel @Inject constructor(
         folderUri: Uri,
         targetUriToKeep: String? = null,
         previousScanInfo: FolderScanInfo = FolderScanInfo(),
-        wasActiveSession: Boolean = false,
-        urisBeforeReload: Set<String> = emptySet(),
         jumpToLatest: Boolean = false,
     ) {
         publishedUris.clear()
@@ -722,6 +725,7 @@ class PhoneModeViewModel @Inject constructor(
         userHasNavigated = false
         val config = resolveActiveFeedConfig()
         newestFirstReorderAllowed = targetUriToKeep == null
+        unseenFirstOrdering = !jumpToLatest
 
         try {
             imageRepository.discoverImages(folderUri).collect { discovered ->
@@ -734,7 +738,11 @@ class PhoneModeViewModel @Inject constructor(
             val uriToPreserve = targetUriToKeep
                 ?: current.images.getOrNull(current.currentIndex)?.uri
             val filtered = PhoneFeedOrdering.filterByType(current.allImages, config.fileTypeFilter)
-            val seenUris = seenRepository.filterSeenUris(filtered, folderUri.toString())
+            val seenUris = if (unseenFirstOrdering) {
+                seenRepository.filterSeenUris(filtered, folderUri.toString())
+            } else {
+                emptySet()
+            }
             val sorted = if (!config.randomizeOrder && config.feedOrder != FeedOrderMode.SHUFFLE && current.allImages.isNotEmpty()) {
                 PhoneFeedOrdering.order(
                     images = filtered,
@@ -746,15 +754,14 @@ class PhoneModeViewModel @Inject constructor(
             }
 
             var promptToSet: ReloadPrompt? = null
-            var confirmNoNewPhotos = false
             val newIndex: Int
 
-            val shouldPromptResume = sorted.images.isNotEmpty() &&
-                (wasActiveSession || previousScanInfo.hasPreviousSession)
+            val shouldPromptResume = sorted.images.isNotEmpty() && previousScanInfo.hasPreviousSession
 
             if (jumpToLatest && sorted.images.isNotEmpty()) {
-                // An explicit Reload: no dialog, the user lands on the latest photo. Someone who
-                // already swiped while the folder was being rescanned keeps their place.
+                // An explicit Reload: no dialog and no snackbar, the user lands on the latest photo
+                // (position 1 of a newest-first feed). Someone who already swiped while the folder
+                // was being rescanned keeps their place.
                 newIndex = if (userHasNavigated) {
                     // Follow the photo they are looking at through the final ordering.
                     sorted.images.indexOfFirst { it.uri == uriToPreserve }.takeIf { it >= 0 }
@@ -762,25 +769,18 @@ class PhoneModeViewModel @Inject constructor(
                 } else {
                     FolderScanLogic.latestIndex(sorted.images)
                 }
-                val newPhotos = FolderScanLogic.findNewPhotos(
-                    images = sorted.images,
-                    previousMaxLastModified = previousScanInfo.maxLastModified,
-                    urisBeforeReload = urisBeforeReload,
-                )
                 val updatedScan = FolderScanLogic.computeUpdatedScanInfo(
                     images = sorted.images,
                     lastViewedUri = sorted.images.getOrNull(newIndex)?.uri,
                     lastViewedIndex = newIndex,
                 )
                 settingsRepository.setFolderScanInfo(folderUri.toString(), updatedScan)
-                confirmNoNewPhotos = wasActiveSession && newPhotos.isEmpty()
             } else if (shouldPromptResume) {
                 val anchorUri = targetUriToKeep ?: previousScanInfo.lastViewedUri
-                val fallbackIdx = if (wasActiveSession) current.currentIndex else previousScanInfo.lastViewedIndex
                 val resumeIdx = FolderScanLogic.resolveResumeIndex(
                     images = sorted.images,
                     lastViewedUri = anchorUri,
-                    lastViewedIndex = fallbackIdx,
+                    lastViewedIndex = previousScanInfo.lastViewedIndex,
                 )
                 newIndex = if (userHasNavigated) {
                     resolveFeedIndex(current.currentIndex, sorted.images.size, uriToPreserve, sorted.images)
@@ -791,7 +791,6 @@ class PhoneModeViewModel @Inject constructor(
                 val newPhotos = FolderScanLogic.findNewPhotos(
                     images = sorted.images,
                     previousMaxLastModified = previousScanInfo.maxLastModified,
-                    urisBeforeReload = urisBeforeReload,
                 )
                 if (newPhotos.isNotEmpty()) {
                     val firstNewIdx = sorted.images.indexOfFirst { img ->
@@ -804,15 +803,13 @@ class PhoneModeViewModel @Inject constructor(
                         totalCount = sorted.images.size,
                     )
                 } else {
-                    // Nothing new means nothing to decide: resume silently at the saved
-                    // photo. Only an explicit Reload confirms the rescan, in a snackbar.
+                    // Nothing new means nothing to decide: resume silently at the saved photo.
                     val updatedScan = FolderScanLogic.computeUpdatedScanInfo(
                         images = sorted.images,
                         lastViewedUri = sorted.images.getOrNull(newIndex)?.uri,
                         lastViewedIndex = newIndex,
                     )
                     settingsRepository.setFolderScanInfo(folderUri.toString(), updatedScan)
-                    confirmNoNewPhotos = wasActiveSession
                 }
             } else {
                 newIndex = FolderScanLogic.resolveLandingIndex(
@@ -860,7 +857,6 @@ class PhoneModeViewModel @Inject constructor(
                 )
             }
             loadExifForCurrent()
-            if (confirmNoNewPhotos) showFeedback(UiText.of(R.string.snackbar_no_new_photos))
             maybeShowRawJpegSuggestion()
             maybeShowFilterMismatchHint()
             loadDimensionsAsynchronously(force = true)
@@ -910,7 +906,11 @@ class PhoneModeViewModel @Inject constructor(
         publishedUris += fresh.map { it.uri }
 
         val allCombined = state.allImages + fresh
-        val seenUris = seenRepository.filterSeenUris(allCombined, state.sourceFolderUri)
+        val seenUris = if (unseenFirstOrdering) {
+            seenRepository.filterSeenUris(allCombined, state.sourceFolderUri)
+        } else {
+            emptySet()
+        }
         val freshFiltered = PhoneFeedOrdering.filterByType(fresh, config.fileTypeFilter)
         val merged = PhoneFeedOrdering.appendBatch(
             current = state.images,
@@ -1936,15 +1936,13 @@ class PhoneModeViewModel @Inject constructor(
 
     /**
      * Rescan the current source folder from disk and take the user to its latest photo, whether
-     * or not anything new appeared (`REQ-TOK-FEATURE.09`). No dialog: the "N new photos / Show
-     * new / Stay" prompt belongs to reopening a folder. When the rescan finds nothing new a
-     * snackbar says so.
+     * or not anything new appeared (`REQ-TOK-FEATURE.09`). The rescanned feed drops the
+     * unseen-first split, so in a newest-first feed that is position 1. No dialog and no
+     * snackbar: the "N new photos / Show new / Stay" prompt belongs to reopening a folder.
      */
     fun reloadSourceFolder() {
         val folderUriStr = _uiState.value.sourceFolderUri ?: return
         val folderUri = Uri.parse(folderUriStr)
-        val wasActive = _uiState.value.images.isNotEmpty()
-        val urisBefore = _uiState.value.images.map { it.uri }.toSet()
         finalizePendingDelete()
         feedEpoch++
         discoveryJob?.cancel()
@@ -1990,8 +1988,6 @@ class PhoneModeViewModel @Inject constructor(
             collectDiscoveredImages(
                 folderUri = folderUri,
                 previousScanInfo = scanInfo,
-                wasActiveSession = wasActive,
-                urisBeforeReload = urisBefore,
                 jumpToLatest = true,
             )
         }
