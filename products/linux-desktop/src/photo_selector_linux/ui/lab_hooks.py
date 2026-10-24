@@ -161,6 +161,23 @@ def extract_state_dict(viewmodel: Any) -> Dict[str, Any]:
     }
 
 
+def frontmost_window(main: Any, toplevels: List[Any]) -> Any:
+    """The window a user is looking at: the newest visible window over `main`, else `main`.
+
+    Statistics, preferences, shortcuts and the duplicate finder open as separate windows
+    transient for the main window; a checkpoint of the main window alone showed the workspace
+    where the user saw the statistics. Without a window manager nothing is ever active
+    (`get_active_window()` is None), so the choice is by transient parent, newest last in
+    `toplevels`.
+    """
+    over = [
+        w for w in toplevels
+        if w is not main and getattr(w, "get_visible", lambda: False)()
+        and getattr(w, "get_transient_for", lambda: None)() is main
+    ]
+    return over[-1] if over else main
+
+
 class LabCheckpointRecorder:
     """Stateful checkpoint recorder attached to an application instance when PST_LAB=1."""
 
@@ -244,6 +261,9 @@ class LabCheckpointRecorder:
         tree_path.write_text(json.dumps(tree_dict, indent=2), encoding="utf-8")
 
         vm = getattr(window, "viewmodel", None) if window is not None else None
+        if vm is None and window is not None:  # a dialog over the main window: its state
+            parent = getattr(window, "get_transient_for", lambda: None)()
+            vm = getattr(parent, "viewmodel", None)
         state_dict = extract_state_dict(vm)
         state_path.write_text(json.dumps(state_dict, indent=2), encoding="utf-8")
 

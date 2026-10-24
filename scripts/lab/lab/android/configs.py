@@ -113,29 +113,49 @@ def window_mode_mismatch(adb: AdbClient, app_id: str, cfg: dict[str, Any]) -> st
     return None
 
 
+def _display_rotation(adb: AdbClient) -> int | None:
+    """The rotation the display shows now (`mRotation=1` in `dumpsys window`), or None."""
+    m = re.search(r"\bmRotation=(\d)", adb.run("shell", "dumpsys", "window"))
+    return int(m.group(1)) if m else None
+
+
+def _matches(orientation: str, w: int, h: int) -> bool:
+    return w > h if orientation == "landscape" else h >= w
+
+
 def set_verified_rotation(adb: AdbClient, orientation: str) -> None:
     """Set `portrait` or `landscape` and verify via `window_dp()`, trying each rotation value.
+
+    A display already in the wanted orientation is only locked where it is: trying 1 first
+    turned a landscape-natural tablet emulator to portrait, and the readout taken right after
+    the change still showed the old landscape geometry, so the walk ran in portrait
+    (2026-10-24). After a change a match counts only once two readings a poll apart agree.
 
     Raises `ConfigNotRunError` when the display never changes orientation at all — a docked
     Pixel Tablet ignores every rotation request — so the journey is reported "not run" with
     the reason instead of as an error.
     """
+    w, h = adb.window_dp()
+    current = _display_rotation(adb) if _matches(orientation, w, h) else None
     adb.run("shell", "settings", "put", "system", "accelerometer_rotation", "0")
+    if current is not None:
+        adb.run("shell", "settings", "put", "system", "user_rotation", str(current))
+        return
     candidates = [1, 3, 0, 2] if orientation == "landscape" else [0, 2, 1, 3]
-    seen: set[tuple[int, int]] = set()
+    seen: set[tuple[int, int]] = {(w, h)}
     for rot_val in candidates:
         adb.run("shell", "settings", "put", "system", "user_rotation", str(rot_val))
         # The window manager applies a rotation (and a preceding `wm size`) asynchronously;
         # an immediate readout still shows the old geometry, so poll before trying the next value.
+        agreed = 0
         for _ in range(ROTATION_POLLS):
-            w, h = adb.window_dp()
-            seen.add((w, h))
-            if orientation == "landscape" and w > h:
-                return
-            if orientation == "portrait" and h >= w:
-                return
             if ROTATION_POLL_S > 0:
                 time.sleep(ROTATION_POLL_S)
+            w, h = adb.window_dp()
+            seen.add((w, h))
+            agreed = agreed + 1 if _matches(orientation, w, h) else 0
+            if agreed >= 2:
+                return
     if len(seen) == 1:
         w, h = seen.pop()
         raise ConfigNotRunError(f"display rotation is locked at {w}x{h} dp (docked?); cannot show {orientation}")

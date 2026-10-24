@@ -224,7 +224,43 @@ class _DisplayAdb:
         return (1280, 800) if self.locked or self.rotation in (1, 3) else (800, 1280)
 
 
+class _LaggingDisplayAdb(_DisplayAdb):
+    """Landscape-natural emulator whose readout lags one reading behind a rotation change."""
+
+    def __init__(self) -> None:
+        super().__init__(locked=False)
+        self.shown = 0  # what the display really shows
+        self.puts: list[int] = []
+
+    def run(self, *args: str, timeout: int = 30) -> str:
+        if args[-2:-1] == ("user_rotation",) and "put" in args:
+            self.puts.append(int(args[-1]))
+            self.stale, self.shown = self.shown, int(args[-1])
+            return ""
+        if args[:3] == ("shell", "dumpsys", "window"):
+            return f"  mRotation={self.shown}\n"
+        return super().run(*args, timeout=timeout)
+
+    def window_dp(self) -> tuple[int, int]:
+        rot = getattr(self, "stale", None)
+        self.stale = None
+        rot = self.shown if rot is None else rot
+        return (1480, 844) if rot in (0, 2) else (844, 1480)
+
+
 class GeometryTests(unittest.TestCase):
+    def test_a_display_already_in_landscape_is_locked_where_it_is(self) -> None:
+        adb = _LaggingDisplayAdb()
+        set_verified_rotation(adb, "landscape")  # type: ignore[arg-type]
+        self.assertEqual(adb.puts, [0])
+        self.assertEqual(adb.window_dp(), (1480, 844))
+
+    def test_a_stale_reading_after_a_change_is_not_believed(self) -> None:
+        adb = _LaggingDisplayAdb()
+        set_verified_rotation(adb, "portrait")  # type: ignore[arg-type]
+        self.assertIn(adb.shown, (1, 3))
+        self.assertEqual(adb.window_dp(), (844, 1480))
+
     def setUp(self) -> None:
         self.addCleanup(setattr, android_configs, "ROTATION_POLL_S", android_configs.ROTATION_POLL_S)
         android_configs.ROTATION_POLL_S = 0.0

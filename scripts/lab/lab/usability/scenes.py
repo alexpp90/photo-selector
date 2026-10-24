@@ -8,7 +8,6 @@ personas judge the app with content that asks for real keep/delete decisions.
 
 from __future__ import annotations
 
-import os
 import random
 from dataclasses import dataclass
 from datetime import datetime, timedelta
@@ -19,7 +18,8 @@ try:
 except ImportError:
     Image = ImageDraw = ImageEnhance = ImageFilter = None  # type: ignore
 
-from ..fixtures import _build_exif_bytes, _write_jpeg, _write_xmp
+from ..dng import write_linear_dng
+from ..fixtures import _write_jpeg, _write_xmp
 from ..paths import ensure_under
 
 
@@ -39,7 +39,6 @@ class SceneSpec:
     lens_model: str = "PSTLab 50mm F2.8"
     rating: int = 0
     has_raw: bool = False
-    raw_format: str = "dng"
     has_xmp: bool = False
     has_edit: bool = False
     orientation: int = 1
@@ -61,7 +60,6 @@ ROLL_SPECS: list[SceneSpec] = [
         lens_model="PSTLab 24-70mm F2.8 GM",
         rating=3,
         has_raw=True,
-        raw_format="dng",
         has_xmp=True,
     ),
     SceneSpec(
@@ -70,7 +68,7 @@ ROLL_SPECS: list[SceneSpec] = [
         flaw="shift",
         burst_group="dawn-burst",
         burst_offset_s=1,
-        blur_radius=2.0,  # Soft focus
+        blur_radius=1.0,  # Soft focus: "acceptable", not a keeper
         iso=200,
         exposure_time=(1, 500),
         f_number=(28, 10),
@@ -233,7 +231,6 @@ ROLL_SPECS: list[SceneSpec] = [
         lens_model="PSTLab 50mm F1.4",
         rating=4,
         has_raw=True,
-        raw_format="cr3",
         has_xmp=True,
         has_edit=True,
     ),
@@ -247,6 +244,19 @@ ROLL_SPECS: list[SceneSpec] = [
         focal_length=(50, 1),
         focal_length_35mm=50,
         lens_model="PSTLab 50mm F1.4",
+    ),
+
+    # ── 17. Coast Noon: the newest shot, so Jackpix's newest-first feed opens on a good photo
+    # and one swipe up lands on the blurred forest frame (phototok.yaml U-TOK-01/02) ──
+    SceneSpec(
+        name="coast-noon",
+        palette="coast",
+        iso=100,
+        exposure_time=(1, 640),
+        f_number=(80, 10),
+        focal_length=(35, 1),
+        focal_length_35mm=35,
+        lens_model="PSTLab 35mm F1.4 GM",
     ),
 ]
 
@@ -264,11 +274,11 @@ PALETTES: dict[str, dict[str, tuple[int, int, int]]] = {
     "snow": {"top": (60, 120, 200), "horizon": (210, 230, 250), "sun": (255, 255, 250), "far": (225, 230, 240),
              "near": (180, 190, 205), "water": (120, 160, 200)},
     "desert": {"top": (70, 140, 220), "horizon": (240, 220, 190), "sun": (255, 250, 220), "far": (200, 140, 90),
-                "near": (170, 100, 60), "water": (200, 160, 110)},
+               "near": (170, 100, 60), "water": (200, 160, 110)},
     "night": {"top": (5, 8, 25), "horizon": (30, 40, 80), "sun": (235, 235, 220), "far": (20, 25, 45),
               "near": (8, 10, 18), "water": (15, 20, 40)},
     "forest": {"top": (120, 170, 210), "horizon": (220, 230, 210), "sun": (255, 250, 220), "far": (70, 110, 80),
-                "near": (25, 60, 35), "water": (60, 100, 90)},
+               "near": (25, 60, 35), "water": (60, 100, 90)},
     "coast": {"top": (30, 120, 200), "horizon": (190, 225, 245), "sun": (255, 255, 240), "far": (150, 140, 120),
               "near": (90, 80, 60), "water": (20, 100, 160)},
 }
@@ -290,6 +300,40 @@ def _ridge(rng: random.Random, width: int, base: float, rough: float) -> list[fl
         nxt.append(pts[-1])
         pts, n, amp = nxt, n * 2, amp * 0.55
     return [pts[int(x / width * (len(pts) - 1))] for x in range(width + 1)]
+
+
+def _add_detail(draw: ImageDraw.ImageDraw, rng: random.Random, p: dict[str, tuple[int, int, int]],
+                near: list[float], w: int, h: int, horizon: int) -> None:
+    """Crisp fine structure where a camera would focus: a tree line on the near ridge, rocks
+    on the shore, reeds at the water's edge.
+
+    Without it every scene is smooth gradients, and the products' focus metrics (Laplacian
+    variance over the centre, noise-corrected) rate even the sharpest frame "blurry"; a
+    reviewer then sees a broken sharpness feature. Blur removes this detail, so the sharp,
+    soft and missed frames of a burst separate as they would in a real shoot.
+    """
+    dark = _lerp(p["near"], (0, 0, 0), 0.6)
+    light = _lerp(p["near"], p["sun"], 0.35)
+    x = 0
+    while x < w:  # conifers along the near ridge line
+        top = int(near[min(x, w)] * h)
+        th, tw = rng.randint(14, 46), rng.randint(5, 12)
+        draw.polygon([(x, top + 2), (x + tw // 2, top - th), (x + tw, top + 2)], fill=dark)
+        draw.line([(x + tw // 2, top - th), (x + tw // 2 + 1, top - th // 3)], fill=light, width=1)
+        x += rng.randint(3, 9)
+    for _ in range(900):  # rocks and pebbles along the shore
+        rx, ry = rng.randrange(w), horizon - rng.randint(0, 22)
+        rw, rh = rng.randint(4, 18), rng.randint(3, 9)
+        draw.ellipse((rx, ry - rh, rx + rw, ry), fill=_lerp(dark, light, rng.random()))
+        draw.arc((rx, ry - rh, rx + rw, ry), 200, 340, fill=light, width=1)
+    for _ in range(1400):  # reeds standing in the shallows
+        rx, ry = rng.randrange(w), horizon + rng.randint(2, int((h - horizon) * 0.35))
+        draw.line([(rx, ry), (rx + rng.randint(-3, 3), ry - rng.randint(10, 34))], fill=dark, width=1)
+    glint = _lerp(p["water"], p["sun"], 0.7)
+    shade = _lerp(p["water"], (0, 0, 0), 0.35)
+    for _ in range(5000):  # ripples catching the light across the lake
+        rx, ry = rng.randrange(w), rng.randrange(horizon + 2, h)
+        draw.line([(rx, ry), (rx + rng.randint(6, 40), ry)], fill=glint if rng.random() < 0.5 else shade, width=2)
 
 
 def render_scene(palette: str, size: tuple[int, int], seed: int) -> Image.Image:
@@ -314,10 +358,22 @@ def render_scene(palette: str, size: tuple[int, int], seed: int) -> Image.Image:
     img = Image.composite(Image.new("RGB", size, p["sun"]), img, glow.filter(ImageFilter.GaussianBlur(sr * 2)))
     draw = ImageDraw.Draw(img)
     draw.ellipse((sx - sr, sy - sr, sx + sr, sy + sr), fill=p["sun"])
+    for _ in range(14):  # thin clouds with crisp lower edges
+        cx, cy = rng.randrange(w), rng.randrange(int(horizon * 0.15), int(horizon * 0.7))
+        cw, ch = rng.randint(120, 420), rng.randint(6, 18)
+        draw.ellipse((cx, cy, cx + cw, cy + ch), fill=_lerp(p["horizon"], (255, 255, 255), 0.5))
+    ridges = []
     for colour, base, rough in ((p["far"], 0.42, 0.12), (p["near"], 0.52, 0.08)):
         ridge = _ridge(rng, w, base, rough)
+        ridges.append(ridge)
         poly = [(x, int(ridge[x] * h)) for x in range(0, w + 1, 4)] + [(w, horizon), (0, horizon)]
         draw.polygon(poly, fill=colour)
+        for _ in range(16000):  # shrubs, boulders and scree on the slope
+            x = rng.randrange(w)
+            y = rng.randrange(int(ridge[x] * h) + 2, max(int(ridge[x] * h) + 3, horizon))
+            r = rng.randint(1, 4)
+            draw.ellipse((x - r, y - r, x + r, y + r), fill=_lerp(colour, (0, 0, 0) if rng.random() < 0.6 else p["sun"], rng.uniform(0.25, 0.6)))
+    _add_detail(draw, rng, p, ridges[1], w, h, horizon)
     sky = img.crop((0, 0, w, horizon)).transpose(Image.Transpose.FLIP_TOP_BOTTOM)
     water = Image.blend(sky.resize((w, h - horizon)), Image.new("RGB", (w, h - horizon), p["water"]), 0.45)
     img.paste(water.filter(ImageFilter.GaussianBlur(3)), (0, horizon))
@@ -360,10 +416,22 @@ def _apply_flaw(img: Image.Image, flaw: str | None, rng: random.Random) -> Image
     return img
 
 
+def roll_signature() -> str:
+    """Changes whenever the roll's recipe or its writers change: a cached roll is stale then."""
+    import hashlib
+
+    from .. import dng, fixtures
+
+    h = hashlib.sha256()
+    for mod in (__file__, dng.__file__, fixtures.__file__):
+        h.update(Path(mod).read_bytes())
+    return h.hexdigest()[:16]
+
+
 def generate_roll(
     out_dir: Path | str,
     *,
-    count: int = 16,
+    count: int = len(ROLL_SPECS),
     start: datetime | None = None,
     seed: int = 7,
     include_bursts: bool = True,
@@ -422,24 +490,18 @@ def generate_roll(
 
         # Companion files (UC-2, UC-7, UC-10)
         if include_companions and spec.has_raw:
-            raw_ext = spec.raw_format.upper()
-            dest_raw = ensure_under(out / f"IMG_{dt:%Y%m%d_%H%M%S}.{raw_ext}", out)
-            if spec.raw_format.lower() == "dng":
-                exif_bytes = _build_exif_bytes(
-                    dt,
-                    spec.orientation,
-                    iso=spec.iso,
-                    exposure_time=spec.exposure_time,
-                    f_number=spec.f_number,
-                    focal_length=spec.focal_length,
-                    focal_length_35mm=spec.focal_length_35mm,
-                    lens_model=spec.lens_model,
-                )
-                img.save(dest_raw, format="TIFF", exif=exif_bytes)
-            else:
-                dest_raw.write_bytes(b"CR3\x00\x00\x00\x18ftypcrx " + rng.randbytes(1024))
-            ts = dt.timestamp()
-            os.utime(dest_raw, (ts, ts))
+            dest_raw = ensure_under(out / f"IMG_{dt:%Y%m%d_%H%M%S}.DNG", out)
+            write_linear_dng(
+                dest_raw,
+                img,
+                dt,
+                iso=spec.iso,
+                exposure_time=spec.exposure_time,
+                f_number=spec.f_number,
+                focal_length=spec.focal_length,
+                focal_length_35mm=spec.focal_length_35mm,
+                lens_model=spec.lens_model,
+            )
             written.append(dest_raw)
 
         if include_companions and spec.has_xmp:

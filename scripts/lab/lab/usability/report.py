@@ -6,30 +6,28 @@ import base64
 import html
 import io
 import json
+import re
 from pathlib import Path
 from typing import Any
 
-try:
-    from ..paths import ensure_under
-    from .panel import expected_screen_keys, moderator_input, text_load_rows
-except (ImportError, ValueError):
-    from lab.paths import ensure_under
-    from lab.usability.panel import expected_screen_keys, moderator_input, text_load_rows
+from ..paths import ensure_under, repo_root
+from .panel import expected_screen_keys, moderator_input, text_load_rows
 
-USE_CASE_TITLES: dict[str, str] = {
-    "UC-1": "Phone library tidy, favourites & batched trash",
-    "UC-2": "SD card RAW+JPEG linked pairs & card safety",
-    "UC-3": "Phone trip cull",
-    "UC-4": "Desk keyboard + 3-Up burst culling",
-    "UC-5": "Couch tablet touch culling",
-    "UC-6": "Learn workstation L0..L3",
-    "UC-7": "Companion RAW+JPEG + sidecar safety & hand-over",
-    "UC-10": "Card safe-to-format import",
-    "UC-13": "Lowest-sharpness sweep",
-    "UC-14": "Archive limits & insights",
-    "UC-16": "DeX hotel cull",
-    "UC-17": "Cloud folder sync & safety",
-}
+_UC_HEADING = re.compile(r"^## (UC-\d+) — (.+?)\s*$", re.M)
+
+
+def use_case_titles(root: Path | None = None) -> dict[str, str]:
+    """`{UC-n: title}` from the use-case catalogue (`private/docs/USE_CASES.md`), {} without it.
+
+    Read, not copied: a second list of titles drifts from the catalogue (it already had UC-7 as
+    "sidecar safety" while the catalogue's UC-7 is the phone-to-desk hand-over).
+    """
+    path = (root or repo_root()) / "private" / "docs" / "USE_CASES.md"
+    try:
+        return {m.group(1): m.group(2) for m in _UC_HEADING.finditer(path.read_text(encoding="utf-8"))}
+    except OSError:
+        return {}
+
 
 MODERATOR_SCHEMA: dict[str, Any] = {
     "type": "object",
@@ -223,6 +221,7 @@ def compute_use_case_fit(
 
     results = UseCaseFitList()
     personas = list(answers.keys())
+    titles = use_case_titles()
 
     for uc, screen_keys in sorted(uc_screens.items()):
         persona_scores: dict[str, dict[str, Any]] = {}
@@ -256,13 +255,17 @@ def compute_use_case_fit(
 
             total_v = sum(v_counts.values())
             raw_ratio = (v_counts["good"] * 2 + v_counts["ok"]) / (2 * total_v) if total_v > 0 else 0.5
-            penalty = (blockers * 0.25) + (majors * 0.10)
-            score = max(0.0, min(1.0, round(raw_ratio - penalty, 2)))
+            # Shares of screens, not issue counts: a persona that lists five minor points on every
+            # screen used to drive every use case to 0 % ("poor" beside a moderator's "mixed").
+            sev = [{i.get("severity") for i in (r.get("issues") or [])} for r in reviewed]
+            blocker_share = sum("blocker" in s for s in sev) / len(reviewed)
+            major_share = sum("major" in s and "blocker" not in s for s in sev) / len(reviewed)
+            score = max(0.0, min(1.0, round(raw_ratio - 0.5 * blocker_share - 0.2 * major_share, 2)))
             numeric_scores.append(score)
 
-            if blockers > 0 or score < 0.40:
+            if blocker_share > 0.25 or score < 0.35:
                 p_fit = "poor"
-            elif score >= 0.75 and majors == 0:
+            elif score >= 0.7 and blocker_share == 0:
                 p_fit = "good"
             else:
                 p_fit = "mixed"
@@ -288,7 +291,7 @@ def compute_use_case_fit(
         else:
             overall_fit = "mixed"
 
-        title = USE_CASE_TITLES.get(uc, ", ".join(uc_scenario_titles.get(uc, [])) or uc)
+        title = titles.get(uc) or ", ".join(uc_scenario_titles.get(uc, [])) or uc
         summary_parts = []
         if good_count:
             summary_parts.append(f"{good_count} personas satisfied")
@@ -311,117 +314,101 @@ def compute_use_case_fit(
     return results
 
 
+def use_case_fits(
+    walkthrough: dict[str, Any], answers: dict[str, dict[str, Any]], decisions: dict[str, Any] | None
+) -> list[dict[str, Any]]:
+    """The moderator's use-case verdicts with the screens each covers (the moderator does not
+    list them); the computed fit when there is no moderator."""
+    computed = compute_use_case_fit(walkthrough, answers)
+    mine = [u for u in (decisions or {}).get("use_case_fit") or [] if u.get("use_case") in computed]
+    if not mine:  # none, or keyed by something else (a moderator once rated scenarios: "U-TOK-01")
+        return computed
+    merged = []
+    for u in mine:
+        base = computed.get(u.get("use_case")) or {}
+        # The moderator's verdict stands alone: a computed score next to it would contradict it.
+        # A moderator may give a persona's score as a bare number or as {fit, score}.
+        scores = {pid: (ps if isinstance(ps, dict) else {"score": ps})
+                  for pid, ps in (u.get("persona_scores") or {}).items()}
+        merged.append({"use_case": u.get("use_case"), "title": base.get("title") or u.get("title", ""),
+                       "screens": u.get("screens") or base.get("screens", []), "score": u.get("score"),
+                       **{k: v for k, v in u.items() if k not in ("screens", "persona_scores")},
+                       "persona_scores": scores})
+    return merged
+
+
 def extract_discoverability_misses(
     walkthrough: dict[str, Any],
     answers: dict[str, dict[str, Any]],
     exploration: dict[str, Any] | None = None,
     decisions: dict[str, Any] | None = None,
 ) -> list[dict[str, Any]]:
-    """Extract discoverability gaps comparing would_do vs expected and AI exploration dead ends."""
-    misses: list[dict[str, Any]] = []
-    seen_screens: set[str] = set()
+    """Screens where people could not find their way: the moderator's list, else the personas' own
+    discoverability/understanding issues, plus the explorer's dead ends.
 
-    # 1. Ingest moderator's curated discoverability items
+    A persona's free-text `would_do` is never compared with `expected` as a string: two
+    phrasings of the same action always differ, and that comparison flagged almost every screen.
+    """
+    misses: list[dict[str, Any]] = []
+    meta_by_screen = {m["screen"]: m for m in moderator_input(walkthrough)}
+
     if decisions and decisions.get("discoverability"):
         for d in decisions["discoverability"]:
-            screen = d.get("screen", "")
-            seen_screens.add(screen)
             misses.append({
-                "screen": screen,
+                "screen": d.get("screen", ""),
                 "expected": d.get("expected", ""),
                 "source": d.get("source", "walkthrough"),
-                "severity": d.get("severity", "major"),
-                "missed_by": d.get("missed_by", []),
-                "suggestion": d.get("suggestion", "Improve affordance or CTA visibility."),
+                "severity": d.get("severity") or "major",
+                "missed_by": list(d.get("missed_by", [])),
+                "suggestion": d.get("suggestion", ""),
                 "has_exploration_dead_end": d.get("source") in ("exploration", "both"),
             })
-
-    # 2. Extract walkthrough action divergences where personas hesitated or filed discoverability issues
-    meta_by_screen = {m["screen"]: m for m in moderator_input(walkthrough)}
-    for pid, a in answers.items():
-        for r in a.get("screens", []):
-            s_key = r.get("screen", "")
-            meta = meta_by_screen.get(s_key, {})
-            expected = meta.get("expected", "")
-            would_do = r.get("would_do", "")
-            disc_issues = [i for i in (r.get("issues") or []) if i.get("kind") in ("discoverability", "understanding")]
-
-            diverged = expected and would_do and expected.strip().lower() != would_do.strip().lower()
-            if disc_issues or diverged or (r.get("verdict") in ("bad", "ok") and expected and would_do and s_key not in seen_screens):
-                existing = next((m for m in misses if m["screen"] == s_key), None)
-                item = {"persona": pid, "would_do": would_do}
-                sev = "blocker" if any(i.get("severity") == "blocker" for i in disc_issues) else "major"
-                if existing:
-                    if not any(m.get("persona") == pid for m in existing["missed_by"]):
-                        existing["missed_by"].append(item)
-                else:
-                    misses.append({
-                        "screen": s_key,
-                        "expected": expected,
-                        "source": "walkthrough",
-                        "severity": sev,
-                        "missed_by": [item],
-                        "suggestion": "Clarify button affordance and expected path.",
-                        "has_exploration_dead_end": False,
-                    })
-                    seen_screens.add(s_key)
-
-    # 3. Ingest live exploration dead ends, findings, and loop cycles
-    if exploration:
-        exp_findings = exploration.get("findings", [])
-        raw_dead_ends = exploration.get("dead_ends")
-        dead_ends = list(raw_dead_ends) if isinstance(raw_dead_ends, (list, tuple)) else []
-
-        # Convert findings with discoverability to dead_ends if not populated
-        for f in exp_findings:
-            if f.get("rule") == "discoverability-dead-end" or f.get("kind") == "discoverability":
-                dead_ends.append({
-                    "screen": f.get("checkpoint") or f.get("screen") or "landing",
-                    "reason": f.get("message") or f.get("detail", "Exploration dead end"),
-                    "cycle": [],
-                    "steps": len(exploration.get("trajectory", [])),
+    else:
+        by_screen: dict[str, dict[str, Any]] = {}
+        for pid, a in answers.items():
+            for r in a.get("screens", []):
+                found = [i for i in (r.get("issues") or []) if i.get("kind") in ("discoverability", "understanding")]
+                if not found:
+                    continue
+                key = r.get("screen", "")
+                item = by_screen.setdefault(key, {
+                    "screen": key,
+                    "expected": meta_by_screen.get(key, {}).get("expected", ""),
+                    "source": "walkthrough",
+                    "severity": "minor",
+                    "missed_by": [],
+                    "suggestion": "",
+                    "has_exploration_dead_end": False,
                 })
+                item["missed_by"].append({"persona": pid, "would_do": r.get("would_do", ""),
+                                          "issue": "; ".join(str(i.get("what", "")) for i in found)})
+                worst = min((i.get("severity") or "minor" for i in found), key=lambda s: _SEVERITY_ORDER.get(s, 2))
+                if _SEVERITY_ORDER.get(worst, 2) < _SEVERITY_ORDER.get(item["severity"], 2):
+                    item["severity"] = worst
+        misses.extend(by_screen.values())
 
-        if exploration.get("status") in ("dead_end", "budget_exhausted") and not dead_ends:
-            traj = exploration.get("trajectory", [])
-            last_screen = traj[-1].get("screen", "unknown") if traj else "unknown"
-            dead_ends.append({
-                "screen": last_screen,
-                "reason": exploration.get("failure_reason", "Navigation cycle or budget exhausted"),
-                "cycle": exploration.get("cycle_screens", []),
-                "steps": len(traj),
+    # Explorer dead ends: cycles and "stuck" only; a hesitation is not a dead end.
+    for f in (exploration or {}).get("findings", []):
+        if f.get("rule") != "discoverability-dead-end":
+            continue
+        key = str(f.get("checkpoint") or f.get("screen") or "")
+        dead = {"persona": exploration.get("persona", "AI explorer"),  # type: ignore[union-attr]
+                "would_do": f.get("message") or f.get("detail", "")}
+        existing = next((m for m in misses if key and m["screen"] == key), None)
+        if existing:
+            existing["source"] = "both"
+            existing["has_exploration_dead_end"] = True
+            existing["missed_by"].append(dead)
+        else:
+            misses.append({
+                "screen": key or "(exploration)",
+                "expected": meta_by_screen.get(key, {}).get("expected", ""),
+                "source": "exploration",
+                "severity": f.get("severity") or "major",
+                "missed_by": [dead],
+                "suggestion": "",
+                "has_exploration_dead_end": True,
             })
-
-        for de in dead_ends:
-            s_key = de.get("screen", "")
-            # Match directly or by scenario/name substring
-            existing = next((m for m in misses if m["screen"] == s_key or s_key.endswith(m["screen"]) or m["screen"].endswith(s_key)), None)
-            cycle_desc = (
-                f"Cycle loop ({' -> '.join(de.get('cycle', []))})"
-                if de.get("cycle")
-                else de.get("reason", "Exploration dead end")
-            )
-            exp_item = {
-                "persona": exploration.get("persona", "AI Explorer"),
-                "would_do": f"Dead-ended after {de.get('steps', len(exploration.get('trajectory', [])))} steps: {cycle_desc}",
-            }
-            if existing:
-                existing["source"] = "both"
-                existing["severity"] = "blocker"
-                existing["has_exploration_dead_end"] = True
-                existing["missed_by"].append(exp_item)
-            else:
-                meta = meta_by_screen.get(s_key, {})
-                misses.append({
-                    "screen": s_key,
-                    "expected": meta.get("expected", "Reach charter goal"),
-                    "source": "exploration",
-                    "severity": "blocker",
-                    "missed_by": [exp_item],
-                    "suggestion": "Eliminate navigation trap / provide direct escape CTA.",
-                    "has_exploration_dead_end": True,
-                })
-                seen_screens.add(s_key)
 
     misses.sort(key=lambda m: _SEVERITY_ORDER.get(m.get("severity", "minor"), 2))
     return misses
@@ -436,62 +423,28 @@ def synthesize_tradeoffs(
     answers: dict[str, dict[str, Any]],
     decisions: dict[str, Any] | None = None,
 ) -> list[dict[str, Any]]:
-    """Synthesize explicit design trade-offs where personas conflict, with options, impacts, and criteria."""
+    """The moderator's trade-offs; without a moderator, the screens where personas split.
+
+    Without a moderator there are no options, costs or recommendations: inventing them here
+    would put boilerplate in front of the maintainer as if the panel had weighed it.
+    """
     if decisions and decisions.get("tradeoffs"):
         return decisions["tradeoffs"]
-
-    rows = screen_matrix(walkthrough, answers)
     tradeoffs: list[dict[str, Any]] = []
-
-    for r in rows:
-        if not r.get("split"):
+    for r in screen_matrix(walkthrough, answers):
+        liked = [pid for pid, c in r["cells"].items() if c and c.get("verdict") == "good"]
+        disliked = [pid for pid, c in r["cells"].items() if c and c.get("verdict") == "bad"]
+        if not liked or not disliked:
             continue
-        s_key = r["screen"]
-        pro_p = [pid for pid, c in r["cells"].items() if c and c.get("verdict") == "good"]
-        con_p = [pid for pid, c in r["cells"].items() if c and c.get("verdict") == "bad"]
-        if not pro_p or not con_p:
-            continue
-
-        con_kinds = {iss.get("kind") for pid in con_p for iss in (r["cells"][pid] or {}).get("issues") or []}
-
-        if "too-much-text" in con_kinds:
-            tension = "Compact minimal UI vs Explanatory guidance text"
-            rec = "Progressive disclosure: keep primary UI clean, offer expandable hints"
-        elif "trust" in con_kinds:
-            tension = "Rapid instant action vs Explicit destructive confirmation"
-            rec = "Non-blocking action with undo toast and opt-in confirmation toggle"
-        else:
-            tension = "Fast gesture/keyboard shortcuts vs Discoverable explicit visual controls"
-            rec = "Retain quick interactions but add visual cues for secondary workflows"
-
+        why = sorted({str(i.get("what", "")) for pid in disliked for i in (r["cells"][pid] or {}).get("issues") or []})
         tradeoffs.append({
-            "title": f"Interaction model on {s_key}",
-            "screens": [s_key],
-            "tension": f"{', '.join(pro_p)} prefer fast streamlined workflow, while {', '.join(con_p)} struggle with {tension.lower()}.",
-            "options": [
-                {
-                    "option": "Retain streamlined default (gesture / instant)",
-                    "helps": pro_p,
-                    "hurts": con_p,
-                    "cost": "Zero code changes; ongoing onboarding friction for cautious users",
-                },
-                {
-                    "option": "Add persistent explicit controls and confirmations",
-                    "helps": con_p,
-                    "hurts": pro_p,
-                    "cost": "Adds visual clutter and tap friction for power users",
-                },
-                {
-                    "option": "Progressive disclosure with undo toast & preference toggle",
-                    "helps": pro_p + con_p,
-                    "hurts": [],
-                    "cost": "Low-to-medium engineering (toast notification + setting)",
-                },
-            ],
-            "recommendation": rec,
-            "decide_if": "Decide based on primary target persona: rapid culler vs cautious beginner.",
+            "title": f"Personas split on {r['screen']}",
+            "screens": [r["screen"]],
+            "tension": f"good for {', '.join(liked)}; bad for {', '.join(disliked)}" + (f": {'; '.join(why)}" if why else ""),
+            "options": [],
+            "recommendation": "",
+            "decide_if": "",
         })
-
     return tradeoffs
 
 
@@ -529,7 +482,7 @@ def issue_kinds(answers: dict[str, dict[str, Any]]) -> dict[str, dict[str, int]]
 
 def _thumb(path: Path, width: int = 216) -> str | None:
     try:
-        from PIL import Image
+        from PIL import Image  # real Pillow only; the stdlib shim cannot resample
 
         with Image.open(path) as img:
             img = img.convert("RGB")
@@ -537,11 +490,12 @@ def _thumb(path: Path, width: int = 216) -> str | None:
             buf = io.BytesIO()
             img.save(buf, format="JPEG", quality=72)
         return "data:image/jpeg;base64," + base64.b64encode(buf.getvalue()).decode("ascii")
-    except Exception:
+    except Exception:  # noqa: BLE001 — a missing thumbnail must not lose the report
         return None
 
 
 def _fit_for(persona_id: str, fits: list[dict[str, Any]]) -> dict[str, Any]:
+    """The moderator may write "Mia (commuter)" for the persona file `commuter`."""
     for f in fits:
         name = str(f.get("persona", "")).lower()
         if name == persona_id.lower() or persona_id.lower() in name:
@@ -549,11 +503,16 @@ def _fit_for(persona_id: str, fits: list[dict[str, Any]]) -> dict[str, Any]:
     return {}
 
 
+def _pct(score: Any) -> str:
+    return f" ({float(score):.0%})" if isinstance(score, (int, float)) else ""
+
+
 def _e(value: Any) -> str:
     return html.escape(str(value))
 
 
 def _as_list(items: Any) -> list[Any]:
+    """Moderator replies sometimes give a list field as one string; never split it into letters."""
     if items is None:
         return []
     return [items] if isinstance(items, str) else list(items)
@@ -592,7 +551,7 @@ def render_html(
     rows = screen_matrix(walkthrough, answers)
     personas = list(answers.keys())
     dev = walkthrough.get("device", {})
-    uc_fits = (decisions.get("use_case_fit") if decisions else None) or compute_use_case_fit(walkthrough, answers)
+    uc_fits = use_case_fits(walkthrough, answers, decisions)
     misses = extract_discoverability_misses(walkthrough, answers, exploration=exploration, decisions=decisions)
     tradeoffs = synthesize_tradeoffs(walkthrough, answers, decisions=decisions)
 
@@ -604,8 +563,8 @@ def render_html(
         f"captured {_e(walkthrough.get('captured_at', ''))} · {len(rows)} screens · personas: {_list(personas)}</p>",
     ]
 
-    summary_text = (decisions or {}).get("summary", "Automated usability panel synthesis across evaluated flows.")
-    parts.append(f"<div class='card'><b>Executive Summary.</b> {_e(summary_text)}</div>")
+    summary_text = (decisions or {}).get("summary") or "No moderator brief yet: the sections below are computed from the persona answers alone."
+    parts.append(f"<div class='card'><b>Summary.</b> {_e(summary_text)}</div>")
 
     if decisions:
         parts.append("<h2>Binding requirements (stated by you)</h2><div class='scroll'><table><tr><th>requirement</th><th>verdict</th><th>screens</th><th>evidence</th></tr>")
@@ -628,12 +587,12 @@ def render_html(
         for u in uc_fits:
             fit_cls = _FIT_CLASS.get(u.get("fit"), "ok")
             p_chips = "".join(
-                f"<span class='uc-chip {ps.get('fit', 'ok')}'>{_e(pid)}: {ps.get('score', 0):.0%}</span>"
+                f"<span class='uc-chip {ps.get('fit', 'ok')}'>{_e(pid)}{_pct(ps.get('score'))}</span>"
                 for pid, ps in (u.get("persona_scores") or {}).items()
             )
             parts.append(
                 f"<div class='card'><b>{_e(u.get('use_case'))}: {_e(u.get('title'))}</b> "
-                f"<span class='pill {fit_cls}'>{_e(u.get('fit', '?'))} ({u.get('score', 0):.0%})</span>"
+                f"<span class='pill {fit_cls}'>{_e(u.get('fit', '?'))}{_pct(u.get('score'))}</span>"
                 f"<p class='muted'>{len(u.get('screens', []))} screens · {_e(u.get('summary', ''))}</p>"
                 f"<div>{p_chips}</div></div>"
             )
@@ -648,10 +607,11 @@ def render_html(
                 f"hurts: {_list(o.get('hurts', []))}<br><span class='muted'>cost: {_e(o.get('cost'))}</span></div>"
                 for o in t.get("options", [])
             )
+            rec = f"<p><b>Recommendation:</b> {_e(t.get('recommendation'))}</p>" if t.get("recommendation") else ""
+            dec = f"<p><b>Decide by:</b> {_e(t.get('decide_if'))}</p>" if t.get("decide_if") else ""
             parts.append(
                 f"<div class='card'><b>{_e(t.get('title'))}</b> <span class='muted'>({_list(t.get('screens', []))})</span>"
-                f"<p><b>Tension:</b> {_e(t.get('tension'))}</p>{opts}<p><b>Recommendation:</b> {_e(t.get('recommendation'))}</p>"
-                f"<p><b>Decide by:</b> {_e(t.get('decide_if'))}</p></div>"
+                f"<p><b>Tension:</b> {_e(t.get('tension'))}</p>{opts}{rec}{dec}</div>"
             )
 
     # 3. Discoverability Misses & Dead Ends
@@ -773,12 +733,12 @@ def render_markdown(
 ) -> str:
     rows = screen_matrix(walkthrough, answers)
     personas = list(answers.keys())
-    uc_fits = (decisions.get("use_case_fit") if decisions else None) or compute_use_case_fit(walkthrough, answers)
+    uc_fits = use_case_fits(walkthrough, answers, decisions)
     misses = extract_discoverability_misses(walkthrough, answers, exploration=exploration, decisions=decisions)
     tradeoffs = synthesize_tradeoffs(walkthrough, answers, decisions=decisions)
 
     out = [f"# Usability panel — {walkthrough.get('product', '')}", ""]
-    summary_text = (decisions or {}).get("summary", "Automated usability panel synthesis across evaluated flows.")
+    summary_text = (decisions or {}).get("summary") or "No moderator brief yet: the sections below are computed from the persona answers alone."
     out += [f"> {summary_text}", ""]
 
     # 1. Use-case fit
@@ -786,7 +746,7 @@ def render_markdown(
         out += ["## Use-case fit (UC-* flows)", "", "| Use Case | Title | Fit | Score | Screens | Persona Breakdown |", "|---|---|:---:|:---:|:---:|---|"]
         for u in uc_fits:
             breakdown = ", ".join(f"{pid}: {ps.get('fit', '?')}" for pid, ps in (u.get("persona_scores") or {}).items())
-            out.append(f"| {u.get('use_case')} | {u.get('title')} | {u.get('fit')} | {u.get('score', 0):.0%} | {len(u.get('screens', []))} | {breakdown} |")
+            out.append(f"| {u.get('use_case')} | {u.get('title')} | {u.get('fit')} | {_pct(u.get('score')).strip(' ()') or '—'} | {len(u.get('screens', []))} | {breakdown or u.get('summary', '')} |")
         out.append("")
 
     # 2. Trade-offs
@@ -795,10 +755,17 @@ def render_markdown(
         for t in tradeoffs:
             screens_str = f" ({', '.join(map(str, _as_list(t.get('screens'))))})" if t.get("screens") else ""
             out.append(f"### {t.get('title')}{screens_str}")
-            out += ["", f"**Tension:** {t.get('tension', '')}", "", "**Options:**"]
+            out += ["", f"**Tension:** {t.get('tension', '')}", ""]
+            if t.get("options"):
+                out.append("**Options:**")
             for o in t.get("options", []):
                 out.append(f"- **{o.get('option')}** — helps {', '.join(map(str, _as_list(o.get('helps'))))}; hurts {', '.join(map(str, _as_list(o.get('hurts'))))}; cost: {o.get('cost')}")
-            out += ["", f"Recommendation: {t.get('recommendation')}", f"Decide by: {t.get('decide_if')}", ""]
+            out.append("")
+            if t.get("recommendation"):
+                out.append(f"Recommendation: {t['recommendation']}")
+            if t.get("decide_if"):
+                out.append(f"Decide by: {t['decide_if']}")
+            out.append("")
     if decisions:
         checks = decisions.get("requirement_checks", [])
         if checks:

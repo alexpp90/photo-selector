@@ -10,7 +10,9 @@ from __future__ import annotations
 import json
 import os
 import re
+import shutil
 import subprocess
+import tempfile
 import time
 import xml.etree.ElementTree as ET
 from dataclasses import dataclass
@@ -19,7 +21,7 @@ from typing import Any
 
 from ..android.adb import AdbClient
 from ..locks import DeviceBusy, device_lock  # noqa: F401 - re-exported for android_test_device.py
-from ..paths import ensure_android_lab_path, repo_root
+from ..paths import ensure_android_lab_path, ensure_under, lab_tmp_root, repo_root
 from .metrics import screen_metrics
 
 PNG_1PX = (
@@ -29,7 +31,9 @@ PNG_1PX = (
 
 
 class BaseDriver:
-    """Abstract base class for product usability scenario drivers."""
+    """What every product driver shares: the screen log a walkthrough is built from."""
+
+    product = ""
 
     def __init__(self, app_id: str, out_dir: Path, *, settle_ms: int = 450) -> None:
         self.app_id = app_id
@@ -38,10 +42,21 @@ class BaseDriver:
         self.screens: list[dict[str, Any]] = []
         self._actions: list[str] = []
 
+    def validate(self, scenario: dict[str, Any]) -> list[str]:
+        """Steps this driver cannot carry out, as messages; empty when the scenario runs as written.
+
+        A step the driver cannot perform must never be replaced by a wait: the persona would be
+        told an action happened that never did.
+        """
+        return []
+
     def run(self, scenario: dict[str, Any]) -> dict[str, Any]:
         """Execute a scenario's steps and write scenario.json."""
         self.out_dir.mkdir(parents=True, exist_ok=True)
         status, error = "pass", None
+        problems = self.validate(scenario)
+        if problems:
+            return self._result(scenario, "broken", "cannot run: " + "; ".join(problems))
         try:
             for step in scenario.get("steps", []):
                 self._step(step)
@@ -49,18 +64,39 @@ class BaseDriver:
             status, error = "broken", str(exc)
             try:
                 self._capture({"screen": "broken", "intent": "(the scenario could not continue)"})
-            except Exception:
-                pass
+            except StepFailed:
+                pass  # no screen either; the error above says why
+        return self._result(scenario, status, error)
+
+    def _result(self, scenario: dict[str, Any], status: str, error: str | None) -> dict[str, Any]:
         result = {
             "scenario": scenario["id"],
             "title": scenario.get("title", ""),
             "goal": scenario.get("goal", ""),
+            "use_case": scenario.get("use_case", ""),
             "status": status,
             "error": error,
             "screens": self.screens,
         }
+        self.out_dir.mkdir(parents=True, exist_ok=True)
         (self.out_dir / "scenario.json").write_text(json.dumps(result, indent=2), encoding="utf-8")
         return result
+
+    def _screen_entry(self, idx: int, step: dict[str, Any], image: str, metrics: dict[str, Any]) -> dict[str, Any]:
+        entry = {
+            "index": idx,
+            "name": str(step["screen"]),
+            "image": image,
+            "intent": step.get("intent", ""),
+            "expected": step.get("expected", ""),
+            "system_screen": bool(step.get("system")),
+            "actions_before": list(self._actions),
+            "metrics": metrics,
+        }
+        self._actions = []
+        (self.out_dir / f"{Path(image).stem}.json").write_text(json.dumps(entry, indent=2), encoding="utf-8")
+        self.screens.append(entry)
+        return entry
 
     def _step(self, step: dict[str, Any]) -> None:
         raise NotImplementedError
@@ -183,6 +219,75 @@ def describe_target(target: dict[str, Any] | str) -> str:
     return f"the control '{target.get('id', '?')}'"
 
 
+_MODIFIERS = {
+    "cmd": "command", "command": "command", "ctrl": "control", "control": "control",
+    "shift": "shift", "alt": "option", "opt": "option", "option": "option", "super": "super", "meta": "super",
+}
+_MODIFIER_LABELS = {"command": "Cmd", "control": "Ctrl", "shift": "Shift", "option": "Alt", "super": "Super"}
+
+
+def parse_key(spec: Any) -> tuple[str, tuple[str, ...]]:
+    """`"Cmd+Shift+Z"` or `{code: z, modifiers: [cmd]}` -> `("Z", ("command", "shift"))`.
+
+    The key keeps the scenario's spelling ("Right", "Delete", ","); modifiers are normalised,
+    and an unknown one raises instead of being dropped (a dropped Ctrl turns Undo into Z).
+    """
+    if isinstance(spec, dict):
+        key = str(spec.get("code", "")).strip()
+        mods = [str(m) for m in spec.get("modifiers", []) or []]
+    else:
+        text = str(spec).strip()
+        if text == "+":
+            parts = ["+"]
+        elif text.endswith("++"):  # "Cmd++" names the plus key itself
+            parts = [*text[:-2].split("+"), "+"]
+        else:
+            parts = text.split("+")
+        key, mods = parts[-1].strip(), [p for p in parts[:-1] if p.strip()]
+    if not key:
+        raise ValueError(f"empty key in {spec!r}")
+    names: list[str] = []
+    for m in mods:
+        norm = _MODIFIERS.get(m.strip().lower())
+        if norm is None:
+            raise ValueError(f"unknown modifier {m!r} in {spec!r}")
+        if norm not in names:
+            names.append(norm)
+    return key, tuple(names)
+
+
+def format_key(spec: Any) -> str:
+    """The key as a user names it: `Ctrl+Z`, `Cmd+,`, `Right`, `M`."""
+    key, mods = parse_key(spec)
+    shown = key.upper() if len(key) == 1 else key
+    return "+".join([*(_MODIFIER_LABELS[m] for m in mods), shown])
+
+
+ANDROID_KEY_CODES = {
+    "right": "KEYCODE_DPAD_RIGHT", "left": "KEYCODE_DPAD_LEFT", "up": "KEYCODE_DPAD_UP", "down": "KEYCODE_DPAD_DOWN",
+    "delete": "KEYCODE_DEL", "backspace": "KEYCODE_DEL", "forward_delete": "KEYCODE_FORWARD_DEL",
+    "space": "KEYCODE_SPACE", "escape": "KEYCODE_ESCAPE", "esc": "KEYCODE_ESCAPE", "tab": "KEYCODE_TAB",
+    "enter": "KEYCODE_ENTER", "return": "KEYCODE_ENTER", ",": "KEYCODE_COMMA", "comma": "KEYCODE_COMMA",
+    "/": "KEYCODE_SLASH", "slash": "KEYCODE_SLASH",
+}
+ANDROID_MODIFIER_CODES = {
+    "control": "KEYCODE_CTRL_LEFT", "shift": "KEYCODE_SHIFT_LEFT", "option": "KEYCODE_ALT_LEFT",
+    "command": "KEYCODE_META_LEFT", "super": "KEYCODE_META_LEFT",
+}
+
+
+def android_keycode(key: str) -> str:
+    """`Right` -> `KEYCODE_DPAD_RIGHT`, `m` -> `KEYCODE_M`; raises for a key Android has no code for."""
+    if key.startswith("KEYCODE_"):
+        return key
+    if key.lower() in ANDROID_KEY_CODES:
+        return ANDROID_KEY_CODES[key.lower()]
+    if len(key) == 1 and key.isascii() and key.isalnum():
+        return f"KEYCODE_{key.upper()}"
+    raise ValueError(f"no Android key code for {key!r}")
+
+
+
 def describe_action(step: dict[str, Any]) -> str | None:
     """Human wording of a step for the persona's action log; None for steps a user never sees."""
     if "say" in step:
@@ -204,9 +309,10 @@ def describe_action(step: dict[str, Any]) -> str | None:
     if "background" in step:
         return f"Left the app for {int(step['background']) // 1000} s and came back"
     if "key" in step:
-        k = step["key"]
-        key_str = k if isinstance(k, str) else f"{k.get('code')}+{'+'.join(k.get('modifiers', []))}"
-        return f"Pressed '{key_str}'"
+        try:
+            return f"Pressed '{format_key(step['key'])}'"
+        except ValueError:
+            return f"Pressed {step['key']!r}"
     return None
 
 
@@ -231,7 +337,7 @@ class ScenarioDriver(BaseDriver):
             text = raw.decode("utf-8", errors="replace")
             start, end = text.find("<"), text.rfind("</hierarchy>")
             if start >= 0 and end > start:
-                return text[start:end + len("</hierarchy>")]
+                return text[start : end + len("</hierarchy>")]
             last = text.strip()[:120]
             time.sleep(0.5 * (attempt + 1))
         raise StepFailed(f"no UI dump from the device: {last!r}")
@@ -252,27 +358,30 @@ class ScenarioDriver(BaseDriver):
     def _input(self, *args: str) -> None:
         self.adb.run("shell", "input", *args)
 
-    def key(self, key_name: str) -> None:
-        key_map = {
-            "Right": "KEYCODE_DPAD_RIGHT",
-            "Left": "KEYCODE_DPAD_LEFT",
-            "Up": "KEYCODE_DPAD_UP",
-            "Down": "KEYCODE_DPAD_DOWN",
-            "Delete": "KEYCODE_DEL",
-            "Backspace": "KEYCODE_DEL",
-            "Space": "KEYCODE_SPACE",
-            "Escape": "KEYCODE_ESCAPE",
-            "Tab": "KEYCODE_TAB",
-            "Enter": "KEYCODE_ENTER",
-        }
-        if key_name in key_map:
-            self.adb.key(key_map[key_name])
-        elif len(key_name) == 1 and key_name.isalpha():
-            self.adb.key(f"KEYCODE_{key_name.upper()}")
-        elif len(key_name) == 1 and key_name.isdigit():
-            self.adb.key(f"KEYCODE_{key_name}")
-        else:
-            self.adb.key(key_name)
+    def validate(self, scenario: dict[str, Any]) -> list[str]:
+        problems = []
+        for idx, step in enumerate(scenario.get("steps", [])):
+            if "key" in step:
+                try:
+                    android_keycode(parse_key(step["key"])[0])
+                except ValueError as exc:
+                    problems.append(f"step {idx + 1}: {exc}")
+        return problems
+
+    def key(self, spec: Any) -> None:
+        """Press a key, with modifiers as one key combination (Android 13+)."""
+        try:
+            key, mods = parse_key(spec)
+            code = android_keycode(key)
+        except ValueError as exc:
+            raise StepFailed(str(exc)) from exc
+        if not mods:
+            self.adb.key(code)
+            return
+        try:
+            self.adb.key_combo(*(ANDROID_MODIFIER_CODES[m] for m in mods), code)
+        except RuntimeError as exc:
+            raise StepFailed(str(exc)) from exc
 
     def _swipe(self, direction: str, duration_ms: int = 250) -> None:
         w, h = self.size
@@ -302,29 +411,6 @@ class ScenarioDriver(BaseDriver):
             time.sleep(0.4)
 
     # -- scenario ------------------------------------------------------------------------
-    def run(self, scenario: dict[str, Any]) -> dict[str, Any]:
-        self.out_dir.mkdir(parents=True, exist_ok=True)
-        status, error = "pass", None
-        try:
-            for step in scenario.get("steps", []):
-                self._step(step)
-        except StepFailed as exc:
-            status, error = "broken", str(exc)
-            try:
-                self._capture({"screen": "broken", "intent": "(the scenario could not continue)"})
-            except StepFailed:
-                pass  # the device gave no dump either; the error above says why
-        result = {
-            "scenario": scenario["id"],
-            "title": scenario.get("title", ""),
-            "goal": scenario.get("goal", ""),
-            "status": status,
-            "error": error,
-            "screens": self.screens,
-        }
-        (self.out_dir / "scenario.json").write_text(json.dumps(result, indent=2), encoding="utf-8")
-        return result
-
     def _step(self, step: dict[str, Any]) -> None:
         action = describe_action(step)
         if "screen" in step:
@@ -377,9 +463,7 @@ class ScenarioDriver(BaseDriver):
         elif "wait_ms" in step:
             time.sleep(min(int(step["wait_ms"]) / 1000.0, 30.0))
         elif "key" in step:
-            k = step["key"]
-            key_name = k if isinstance(k, str) else k.get("code", "")
-            self.key(key_name)
+            self.key(step["key"])
         else:
             raise StepFailed(f"unknown step: {step}")
         if action:
@@ -422,329 +506,241 @@ def set_app_locale(adb: AdbClient, app_id: str, locale: str | None) -> None:
 AndroidDriver = ScenarioDriver
 
 
-class MacOsDriver(BaseDriver):
-    """Driver for macOS Lensjet application using offscreen headless UI test hooks."""
+class UnsupportedStep(ValueError):
+    """A scenario step the product's lab hook cannot perform."""
+
+
+class DesktopDriver(BaseDriver):
+    """A desktop app runs a whole scenario in one process and writes `NN_<checkpoint>` files.
+
+    Every scenario is a fresh launch on the run's working copy of the fixture (the copy carries
+    earlier scenarios' moves and deletions, as the Android walk does). Each step is translated
+    into the app's own lab script before anything runs; a step the hook cannot perform fails
+    validation, so a persona is only ever told about actions that happened.
+    """
 
     def __init__(
         self,
         app_id: str,
         out_dir: Path,
         *,
-        app_binary: Path | None = None,
         fixture_dir: Path | None = None,
-        settle_ms: int = 250,
         exec_fn: Any | None = None,
+        timeout_s: float = 600.0,
     ) -> None:
-        super().__init__(app_id, out_dir, settle_ms=settle_ms)
-        self.app_binary = app_binary or (
-            repo_root() / "products" / "macos-desktop" / ".build" / "hooks" / "app" / "Lensjet.app" / "Contents" / "MacOS" / "PhotoSelectorApp"
-        )
+        super().__init__(app_id, out_dir, settle_ms=0)
         self.fixture_dir = fixture_dir
+        # Set by the capture: each scenario starts from a fresh copy of this roll. A scenario is
+        # its own launch, and U-LIN-02 opened on another photo because U-LIN-01 had moved the first.
+        self.fixture_master: Path | None = None
         self.exec_fn = exec_fn
+        self.timeout_s = timeout_s
 
-    _MACOS_LIVE_KEYS = {
-        "1", "2", "3", "c", "d", "f", "h", "i", "j", "k", "l", "m",
-        "s", "z", "tab", "space", "escape", "delete", "backspace",
-        "left", "right", "down", "up", "comma", "slash",
-    }
-    _MACOS_LIVE_TARGETS = {
-        "slot_current", "single_image_viewport", "dock", "toolbar_zoom",
-        "toolbar_next", "toolbar_previous", "toolbar_mode_1",
-        "toolbar_mode_2", "toolbar_mode_3", "dock_move", "dock_copy",
-        "dock_trash", "dock_undo",
-    }
+    def translate(self, step: dict[str, Any]) -> list[Any]:
+        """The step as lab-hook commands; raises `UnsupportedStep`."""
+        raise NotImplementedError
 
-    def _translate_step(self, step: dict[str, Any]) -> dict[str, Any] | None:
-        if "launch" in step:
-            return {"action": "waitLoaded"}
-        if "key" in step:
-            k = step["key"]
-            if isinstance(k, str):
-                key_lower = k.lower()
-                if "+" in k:
-                    parts = [p.strip() for p in k.split("+")]
-                    mods = []
-                    key_char = parts[-1].lower()
-                    for m in parts[:-1]:
-                        ml = m.lower()
-                        if ml in ("cmd", "command"):
-                            mods.append("command")
-                        elif ml in ("shift",):
-                            mods.append("shift")
-                        elif ml in ("opt", "option", "alt"):
-                            mods.append("option")
-                        elif ml in ("ctrl", "control"):
-                            mods.append("control")
-                    if self.exec_fn is not None or key_char in self._MACOS_LIVE_KEYS:
-                        res: dict[str, Any] = {"action": "key", "key": key_char}
-                        if mods:
-                            res["modifiers"] = mods
-                        return res
-                    return {"action": "wait", "ms": 150}
-                elif key_lower in ("right", "left", "up", "down", "space", "escape"):
-                    return {"action": "key", "key": key_lower}
-                elif key_lower in ("delete", "backspace"):
-                    return {"action": "key", "key": "delete"}
-                elif key_lower in ("enter", "return"):
-                    return {"action": "key", "key": "return"}
-                else:
-                    if self.exec_fn is not None or key_lower in self._MACOS_LIVE_KEYS:
-                        return {"action": "key", "key": key_lower}
-                    return {"action": "wait", "ms": 150}
-            elif isinstance(k, dict):
-                code = str(k.get("code", "")).lower()
-                mods = [str(m).lower() for m in k.get("modifiers", [])]
-                if self.exec_fn is not None or code in self._MACOS_LIVE_KEYS:
-                    res = {"action": "key", "key": code}
-                    if mods:
-                        res["modifiers"] = mods
-                    return res
-                return {"action": "wait", "ms": 150}
-        if "wait_for" in step:
-            t = step["wait_for"]
-            target = t.get("id") or t.get("text") or t.get("name") or str(t)
-            if self.exec_fn is not None or target in self._MACOS_LIVE_TARGETS:
-                return {"action": "waitFor", "target": str(target)}
-            return {"action": "wait", "ms": 200}
-        if "tap" in step:
-            t = step["tap"]
-            target = t.get("id") or t.get("text") or t.get("name") or str(t)
-            if self.exec_fn is not None or target in self._MACOS_LIVE_TARGETS:
-                return {"action": "click", "target": str(target)}
-            return {"action": "wait", "ms": 150}
-        if "wait_ms" in step:
-            return {"action": "wait", "ms": int(step["wait_ms"])}
-        if "screen" in step:
-            return {"action": "checkpoint", "name": str(step["screen"])}
-        return None
+    def validate(self, scenario: dict[str, Any]) -> list[str]:
+        problems = []
+        if self.fixture_dir is None:
+            problems.append("no fixture folder to open")
+        for idx, step in enumerate(scenario.get("steps", [])):
+            try:
+                self.translate(step)
+            except (UnsupportedStep, ValueError) as exc:
+                problems.append(f"step {idx + 1} ({next(iter(step), '?')}): {exc}")
+        return problems
+
+    def _commands(self, scenario: dict[str, Any]) -> tuple[list[Any], list[tuple[dict[str, Any], list[str]]]]:
+        """Native commands, and each checkpoint step with the actions the user took before it."""
+        commands: list[Any] = []
+        checkpoints: list[tuple[dict[str, Any], list[str]]] = []
+        actions: list[str] = []
+        steps = list(scenario.get("steps", []))
+        if not steps or "launch" not in steps[0]:
+            steps.insert(0, {"launch": {}})  # every scenario is a fresh process
+        for step in steps:
+            commands.extend(self.translate(step))
+            if "screen" in step:
+                checkpoints.append((step, actions))
+                actions = []
+            else:
+                said = describe_action(step)
+                if said:
+                    actions.append(said)
+        return commands, checkpoints
+
+    def _execute(self, cmd: list[str], env: dict[str, str]) -> tuple[int, str]:
+        if self.exec_fn is not None:
+            proc = self.exec_fn(cmd, env)
+            if proc is None:
+                return 0, ""
+            return int(proc.returncode), (proc.stdout or "") + (proc.stderr or "")
+        try:
+            proc = subprocess.run(cmd, env=env, capture_output=True, text=True, check=False, timeout=self.timeout_s)
+        except subprocess.TimeoutExpired as exc:
+            out = exc.stdout.decode() if isinstance(exc.stdout, bytes) else (exc.stdout or "")
+            return 124, out + f"\ntimed out after {self.timeout_s:.0f} s"
+        return proc.returncode, (proc.stdout or "") + (proc.stderr or "")
+
+    def _launch(self, scenario: dict[str, Any], commands: list[Any]) -> tuple[int, str]:
+        raise NotImplementedError
 
     def run(self, scenario: dict[str, Any]) -> dict[str, Any]:
         self.out_dir.mkdir(parents=True, exist_ok=True)
-        translated_steps: list[dict[str, Any]] = []
-        screen_metas: list[dict[str, Any]] = []
-
-        for step in scenario.get("steps", []):
-            action = describe_action(step)
-            if action:
-                self._actions.append(action)
-            tr = self._translate_step(step)
-            if tr:
-                translated_steps.append(tr)
-            if "screen" in step:
-                screen_metas.append({
-                    "name": str(step["screen"]),
-                    "intent": step.get("intent", ""),
-                    "expected": step.get("expected", ""),
-                    "system_screen": bool(step.get("system")),
-                    "actions_before": list(self._actions),
-                })
-                self._actions = []
-
-        scenario_doc = {
-            "id": scenario["id"],
-            "name": scenario["id"],
-            "scenario": scenario["id"],
-            "title": scenario.get("title", ""),
-            "steps": translated_steps,
-        }
-        scenario_file = self.out_dir / "ui-scenario.json"
-        scenario_file.write_text(json.dumps(scenario_doc, indent=2), encoding="utf-8")
-
+        problems = self.validate(scenario)
+        if problems:
+            return self._result(scenario, "broken", "cannot run: " + "; ".join(problems))
+        commands, checkpoints = self._commands(scenario)
+        if self.fixture_master is not None and self.fixture_dir is not None:
+            shutil.rmtree(self.fixture_dir, ignore_errors=True)
+            shutil.copytree(self.fixture_master, self.fixture_dir)
+        code, log = self._launch(scenario, commands)
+        (self.out_dir / "app.log").write_text(log, encoding="utf-8")
         status, error = "pass", None
-        try:
-            cmd = [
-                str(self.app_binary),
-                "--open", str(self.fixture_dir or "/tmp/pstlab/usability"),
-                "--ui-scenario", str(scenario_file),
-                "--artifacts", str(self.out_dir),
-            ]
-            env = dict(os.environ)
-            env["PST_SHOW_GUI"] = "0"
-            if self.exec_fn is not None:
-                self.exec_fn(cmd, env)
-            else:
-                subprocess.run(cmd, env=env, check=True, capture_output=True)
-        except Exception as exc:
-            status, error = "broken", str(exc)
-
-        # Collect checkpoints
-        for idx, meta in enumerate(screen_metas, start=1):
-            name = meta["name"]
-            stem = f"{idx:02d}_{name}"
+        for idx, (step, actions) in enumerate(checkpoints, start=1):
+            stem = f"{idx:02d}_{step['screen']}"
+            if not (self.out_dir / f"{stem}.png").is_file():
+                tail = " | ".join(line for line in log.strip().splitlines()[-3:])
+                status, error = "broken", f"checkpoint {step['screen']!r} was not written (exit {code}): {tail}"
+                break
             tree_path = self.out_dir / f"{stem}.tree.json"
-            if not tree_path.is_file():
-                tree_path = self.out_dir / f"{name}.tree.json"
-
-            tree_dict: dict[str, Any] = {}
-            if tree_path.is_file():
-                try:
-                    tree_dict = json.loads(tree_path.read_text(encoding="utf-8"))
-                except Exception:
-                    pass
-
-            metrics = screen_metrics(tree_dict) if tree_dict else {
-                "words": 0, "reading_seconds": 0.0, "longest_block_words": 0,
-                "small_targets": 0, "unlabeled_controls": 0, "texts": [],
-            }
-
-            img_name = f"{stem}.png"
-            if not (self.out_dir / img_name).is_file() and (self.out_dir / f"{name}.png").is_file():
-                img_name = f"{name}.png"
-
-            entry = {
-                "index": idx,
-                "name": name,
-                "image": img_name,
-                "intent": meta["intent"],
-                "expected": meta["expected"],
-                "system_screen": meta["system_screen"],
-                "actions_before": meta["actions_before"],
-                "metrics": metrics,
-            }
-            (self.out_dir / f"{stem}.json").write_text(json.dumps(entry, indent=2), encoding="utf-8")
-            self.screens.append(entry)
-
-        result = {
-            "scenario": scenario["id"],
-            "title": scenario.get("title", ""),
-            "goal": scenario.get("goal", ""),
-            "status": status,
-            "error": error,
-            "screens": self.screens,
-        }
-        (self.out_dir / "scenario.json").write_text(json.dumps(result, indent=2), encoding="utf-8")
-        return result
+            metrics = screen_metrics(json.loads(tree_path.read_text(encoding="utf-8"))) if tree_path.is_file() else {}
+            self._actions = list(actions)
+            self._screen_entry(idx, step, f"{stem}.png", metrics)
+        if status == "pass" and code != 0:
+            status, error = "broken", f"the app exited with {code}: " + " | ".join(log.strip().splitlines()[-3:])
+        return self._result(scenario, status, error)
 
 
-class LinuxDriver(BaseDriver):
-    """Driver for Linux Blitzlens application using session.sh and Xvfb."""
+def _checkpoint_name(step: dict[str, Any]) -> str:
+    name = str(step["screen"])
+    if not re.fullmatch(r"[A-Za-z0-9][A-Za-z0-9_-]*", name):
+        raise UnsupportedStep(f"checkpoint name {name!r} must be letters, digits, '-' or '_'")
+    return name
 
-    def __init__(
-        self,
-        app_id: str,
-        out_dir: Path,
-        *,
-        session_script: Path | None = None,
-        fixture_dir: Path | None = None,
-        settle_ms: int = 250,
-        exec_fn: Any | None = None,
-    ) -> None:
-        super().__init__(app_id, out_dir, settle_ms=settle_ms)
+
+# `UITestDriver.Key.from(name:)` in products/macos-desktop/src/PhotoSelectorApp/UITestDriver.swift;
+# test_usability.py checks this set against the Swift source.
+MACOS_KEY_NAMES = frozenset({
+    "1", "one", "2", "two", "3", "three", "c", "d", "f", "h", "i", "j", "k", "l", "m", "s", "z",
+    "tab", "space", "escape", "esc", "delete", "backspace", "/", "slash", "?", ",", "comma",
+    "left", "leftarrow", "right", "rightarrow", "down", "downarrow", "up", "uparrow",
+})
+
+
+class MacOsDriver(DesktopDriver):
+    """Lensjet with its test hooks: `--open <fixture> --ui-scenario <json> --artifacts <dir>`, headless."""
+
+    product = "macos"
+
+    def __init__(self, app_id: str, out_dir: Path, *, app_binary: Path | None = None, **kwargs: Any) -> None:
+        super().__init__(app_id, out_dir, **kwargs)
+        self.app_binary = app_binary
+
+    def translate(self, step: dict[str, Any]) -> list[Any]:
+        if "launch" in step:
+            return [{"action": "waitLoaded"}]
+        if "screen" in step:
+            return [{"action": "checkpoint", "name": _checkpoint_name(step)}]
+        if "key" in step:
+            key, mods = parse_key(step["key"])
+            if key.lower() not in MACOS_KEY_NAMES:
+                raise UnsupportedStep(f"Lensjet's UI test driver has no key {key!r}")
+            cmd: dict[str, Any] = {"action": "key", "key": key.lower()}
+            if mods:
+                cmd["modifiers"] = list(mods)
+            return [cmd]
+        if "tap" in step or "wait_for" in step:
+            target = step.get("tap") or step.get("wait_for")
+            if not isinstance(target, dict) or not target.get("id"):
+                raise UnsupportedStep("Lensjet targets are frame ids: use {id: <frame id>}")
+            if "tap" in step:
+                return [{"action": "click", "target": str(target["id"])}]
+            cmd = {"action": "waitFor", "target": str(target["id"])}
+            if target.get("timeout_ms"):
+                cmd["timeoutSeconds"] = int(target["timeout_ms"]) / 1000.0
+            return [cmd]
+        if "wait_ms" in step:
+            return [{"action": "wait", "ms": int(step["wait_ms"])}]
+        raise UnsupportedStep("not supported by Lensjet's UI scenario runner")
+
+    def _launch(self, scenario: dict[str, Any], commands: list[Any]) -> tuple[int, str]:
+        from ..macos.runner import default_app_binary
+
+        doc = {"id": scenario["id"], "steps": commands}
+        scenario_file = self.out_dir / "ui-scenario.json"
+        scenario_file.write_text(json.dumps(doc, indent=2), encoding="utf-8")
+        binary = self.app_binary or default_app_binary()
+        cmd = [str(binary), "--open", str(self.fixture_dir), "--ui-scenario", str(scenario_file),
+               "--artifacts", str(self.out_dir)]
+        # The app reads UserDefaults.standard: pin the settings that decide where M and C write, so
+        # an external destination set in this account never receives the lab's files.
+        cmd += ["-cullingDestinationFolderName", "Selection", "-externalCullingDestinationURL", ""]
+        env = dict(os.environ)
+        env["PST_SHOW_GUI"] = "0"  # headless: never a window on the developer's desktop
+        return self._execute(cmd, env)
+
+
+class LinuxDriver(DesktopDriver):
+    """Blitzlens in the lab's private Xvfb + D-Bus session (`tests/e2e/session.sh --script`)."""
+
+    product = "linux"
+
+    def __init__(self, app_id: str, out_dir: Path, *, session_script: Path | None = None,
+                 text_scaling: float | None = None, **kwargs: Any) -> None:
+        super().__init__(app_id, out_dir, **kwargs)
         self.session_script = session_script or (
             repo_root() / "products" / "linux-desktop" / "tests" / "e2e" / "session.sh"
         )
-        self.fixture_dir = fixture_dir
-        self.exec_fn = exec_fn
+        self.text_scaling = text_scaling
+        self.final_wait_s = 3.0
 
-    def _translate_step_line(self, step: dict[str, Any]) -> str | None:
+    def translate(self, step: dict[str, Any]) -> list[Any]:
+        from ..linux.keys import normalize_xdotool_key
+
         if "launch" in step:
-            return "wait_loaded"
-        if "key" in step:
-            k = step["key"]
-            key_name = k if isinstance(k, str) else k.get("code", "")
-            return f"key {key_name}"
-        if "wait_ms" in step:
-            sec = int(step["wait_ms"]) / 1000.0
-            return f"sleep {sec:.2f}"
+            # session.sh returns once the window is mapped; the first decode needs a moment more.
+            return ["sleep 1.50"]
         if "screen" in step:
-            return f"checkpoint {step['screen']}"
-        if "tap" in step:
-            t = step["tap"]
-            target = t.get("id") or t.get("text") or t.get("name") or str(t)
-            return f"click {target}"
-        return None
+            return [f"checkpoint {_checkpoint_name(step)}", "sleep 0.50"]
+        if "key" in step:
+            key, mods = parse_key(step["key"])
+            xmods = {"control": "ctrl", "shift": "shift", "option": "alt", "super": "super"}
+            if "command" in mods:
+                raise UnsupportedStep("Cmd is a macOS modifier; Blitzlens uses Ctrl")
+            name = normalize_xdotool_key(key)
+            return [f"key {'+'.join([*(xmods[m] for m in mods), name])}", "sleep 0.20"]
+        if "wait_ms" in step:
+            return [f"sleep {max(0.05, int(step['wait_ms']) / 1000.0):.2f}"]
+        raise UnsupportedStep("the Linux lab session has no click, wait-for or swipe; use keys and waits")
 
-    def run(self, scenario: dict[str, Any]) -> dict[str, Any]:
-        self.out_dir.mkdir(parents=True, exist_ok=True)
-        script_lines: list[str] = ["# Usability Scenario Script"]
-        screen_metas: list[dict[str, Any]] = []
+    def _launch(self, scenario: dict[str, Any], commands: list[Any]) -> tuple[int, str]:
+        from ..linux.runner import session_env
 
-        for step in scenario.get("steps", []):
-            action = describe_action(step)
-            if action:
-                self._actions.append(action)
-            line = self._translate_step_line(step)
-            if line:
-                script_lines.append(line)
-            if "screen" in step:
-                screen_metas.append({
-                    "name": str(step["screen"]),
-                    "intent": step.get("intent", ""),
-                    "expected": step.get("expected", ""),
-                    "system_screen": bool(step.get("system")),
-                    "actions_before": list(self._actions),
-                })
-                self._actions = []
-
-        script_file = self.out_dir / "session.script"
-        script_file.write_text("\n".join(script_lines) + "\n", encoding="utf-8")
-
-        status, error = "pass", None
+        script = self.out_dir / "session.script"
+        # A checkpoint is written after the next frame has painted and settled; the session
+        # stops the app when the script ends, which lost a scenario's last checkpoint.
+        lines = [f"# {scenario['id']}", *commands, f"sleep {self.final_wait_s:.2f}"]
+        script.write_text("\n".join(lines) + "\n", encoding="utf-8")
+        lab_dir = ensure_under(lab_tmp_root() / f"usability-linux-{os.getpid()}-{scenario['id']}", lab_tmp_root())
+        shutil.rmtree(lab_dir, ignore_errors=True)
+        cmd = [str(self.session_script), "--fixture", str(self.fixture_dir), "--script", str(script),
+               "--artifacts", str(self.out_dir), "--lab-dir", str(lab_dir)]
+        if self.text_scaling:
+            cmd += ["--text-scaling", f"{self.text_scaling:g}"]
         try:
-            cmd = [
-                str(self.session_script),
-                "--script", str(script_file),
-                "--artifacts", str(self.out_dir),
-            ]
-            env = dict(os.environ)
-            if self.exec_fn is not None:
-                self.exec_fn(cmd, env)
-            else:
-                subprocess.run(cmd, env=env, check=True, capture_output=True)
-        except Exception as exc:
-            status, error = "broken", str(exc)
-
-        # Collect checkpoints
-        for idx, meta in enumerate(screen_metas, start=1):
-            name = meta["name"]
-            stem = f"{idx:02d}_{name}"
-            tree_path = self.out_dir / f"{stem}.tree.json"
-            if not tree_path.is_file():
-                tree_path = self.out_dir / f"{name}.tree.json"
-
-            tree_dict: dict[str, Any] = {}
-            if tree_path.is_file():
-                try:
-                    tree_dict = json.loads(tree_path.read_text(encoding="utf-8"))
-                except Exception:
-                    pass
-
-            metrics = screen_metrics(tree_dict) if tree_dict else {
-                "words": 0, "reading_seconds": 0.0, "longest_block_words": 0,
-                "small_targets": 0, "unlabeled_controls": 0, "texts": [],
-            }
-
-            img_name = f"{stem}.png"
-            if not (self.out_dir / img_name).is_file() and (self.out_dir / f"{name}.png").is_file():
-                img_name = f"{name}.png"
-
-            entry = {
-                "index": idx,
-                "name": name,
-                "image": img_name,
-                "intent": meta["intent"],
-                "expected": meta["expected"],
-                "system_screen": meta["system_screen"],
-                "actions_before": meta["actions_before"],
-                "metrics": metrics,
-            }
-            (self.out_dir / f"{stem}.json").write_text(json.dumps(entry, indent=2), encoding="utf-8")
-            self.screens.append(entry)
-
-        result = {
-            "scenario": scenario["id"],
-            "title": scenario.get("title", ""),
-            "goal": scenario.get("goal", ""),
-            "status": status,
-            "error": error,
-            "screens": self.screens,
-        }
-        (self.out_dir / "scenario.json").write_text(json.dumps(result, indent=2), encoding="utf-8")
-        return result
+            return self._execute(cmd, session_env())
+        finally:
+            shutil.rmtree(lab_dir, ignore_errors=True)
 
 
 class MockDriver(BaseDriver):
-    """Deterministic offline driver producing synthetic checkpoints for tests without hardware."""
+    """Deterministic offline driver producing synthetic checkpoints for tests without hardware.
+
+    `fail_on_step` fails the step with that 1-based number (int) or the `screen` with that name
+    (str).
+    """
 
     def __init__(
         self,
@@ -752,51 +748,53 @@ class MockDriver(BaseDriver):
         app_id: str = "mock.app",
         out_dir: Path | None = None,
         *,
-        scripted_screens: dict[str, Any] | None = None,
         fail_on_step: str | int | None = None,
         settle_ms: int = 0,
     ) -> None:
-        super().__init__(app_id, out_dir or Path("/tmp/pstlab/mock_run"), settle_ms=settle_ms)
+        super().__init__(app_id, out_dir or Path(tempfile.mkdtemp(prefix="mock_run_", dir=lab_tmp_root())),
+                         settle_ms=settle_ms)
         self.product = product
-        self.scripted_screens = scripted_screens or {}
         self.fail_on_step = fail_on_step
         self.actions_log: list[tuple[str, Any]] = []
         self._step_count = 0
 
+    def validate(self, scenario: dict[str, Any]) -> list[str]:
+        problems = []
+        for idx, step in enumerate(scenario.get("steps", [])):
+            if "key" in step:
+                try:
+                    parse_key(step["key"])
+                except ValueError as exc:
+                    problems.append(f"step {idx + 1}: {exc}")
+        return problems
+
     def _step(self, step: dict[str, Any]) -> None:
         self._step_count += 1
-        if self.fail_on_step is not None:
-            fail_str = str(self.fail_on_step)
-            if (
-                self.fail_on_step == self._step_count
-                or fail_str in step
-                or step.get("screen") == self.fail_on_step
-                or fail_str in str(step)
-            ):
-                raise StepFailed(f"mock step failure on {self.fail_on_step}")
+        if (isinstance(self.fail_on_step, int) and self.fail_on_step == self._step_count) or (
+            isinstance(self.fail_on_step, str) and step.get("screen") == self.fail_on_step
+        ):
+            raise StepFailed(f"mock step failure on {self.fail_on_step}")
         if step.get("fail"):
             raise StepFailed(f"mock step failure configured in step: {step}")
-
+        if "screen" in step:
+            self._capture(step)
+            return
         action = describe_action(step)
         if action:
             self._actions.append(action)
             self.actions_log.append((action, step))
 
-        if "screen" in step:
-            self._capture(step)
-
     def _capture(self, step: dict[str, Any]) -> None:
         idx = len(self.screens) + 1
         name = str(step["screen"])
         stem = f"{idx:02d}_{name}"
-        png_path = self.out_dir / f"{stem}.png"
-        png_path.write_bytes(PNG_1PX)
-
+        self.out_dir.mkdir(parents=True, exist_ok=True)
+        (self.out_dir / f"{stem}.png").write_bytes(PNG_1PX)
         if self.product in ("phototok", "android-desktop"):
             xml_text = (
-                f"<?xml version='1.0' encoding='UTF-8'?><hierarchy rotation='0'>"
+                "<?xml version='1.0' encoding='UTF-8'?><hierarchy rotation='0'>"
                 f"<node bounds='[0,0][1080,1920]' text='{name}' resource-id='{name}' clickable='true'/>"
-                f"</hierarchy>"
+                "</hierarchy>"
             )
             (self.out_dir / f"{stem}.xml").write_text(xml_text, encoding="utf-8")
             metrics = screen_metrics(xml_text, density_dpi=440)
@@ -804,39 +802,15 @@ class MockDriver(BaseDriver):
             tree_dict = {
                 "platform": self.product,
                 "window": {"w": 1440, "h": 900, "unit": "pt", "scale": 2.0},
-                "nodes": [
-                    {
-                        "id": f"node_{name}",
-                        "role": "window",
-                        "name": name,
-                        "text": name,
-                        "bounds": [0, 0, 1440, 900],
-                        "interactive": True,
-                        "visible": True,
-                        "overlay": False,
-                        "clipped": False,
-                    }
-                ],
+                "nodes": [{
+                    "id": f"node_{name}", "role": "window", "name": name, "text": name,
+                    "bounds": [0, 0, 1440, 900], "interactive": True, "visible": True,
+                    "overlay": False, "clipped": False,
+                }],
             }
             (self.out_dir / f"{stem}.tree.json").write_text(json.dumps(tree_dict), encoding="utf-8")
             metrics = screen_metrics(tree_dict)
-
-        entry = {
-            "index": idx,
-            "name": name,
-            "image": f"{stem}.png",
-            "intent": step.get("intent", ""),
-            "expected": step.get("expected", ""),
-            "system_screen": bool(step.get("system")),
-            "actions_before": list(self._actions),
-            "metrics": metrics,
-        }
-        self._actions = []
-        (self.out_dir / f"{stem}.json").write_text(json.dumps(entry, indent=2), encoding="utf-8")
-        self.screens.append(entry)
-
-
-FakeDriver = MockDriver
+        self._screen_entry(idx, step, f"{stem}.png", metrics)
 
 
 def get_driver(
@@ -850,6 +824,7 @@ def get_driver(
     driver_type: str = "auto",
     exec_fn: Any | None = None,
     app_locale: str | None = None,
+    text_scaling: float | None = None,
 ) -> BaseDriver:
     """Factory creating the appropriate driver for a product and mode."""
     if driver_type == "mock":
@@ -860,10 +835,8 @@ def get_driver(
     if product == "macos":
         return MacOsDriver(app_id, out_dir, fixture_dir=fixture_dir, exec_fn=exec_fn)
     if product == "linux":
-        return LinuxDriver(app_id, out_dir, fixture_dir=fixture_dir, exec_fn=exec_fn)
+        return LinuxDriver(app_id, out_dir, fixture_dir=fixture_dir, exec_fn=exec_fn, text_scaling=text_scaling)
     raise ValueError(f"unknown product: {product}")
-
-
 def push_fixture(adb: AdbClient, local_dir: Path, remote_dir: str) -> None:
     """Replace `remote_dir` (inside /sdcard/PSTLab/) with `local_dir` and index it for MediaStore."""
     remote = ensure_android_lab_path(remote_dir)

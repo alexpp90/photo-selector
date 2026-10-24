@@ -14,7 +14,8 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
 
-from .driver import BaseDriver, StepFailed, describe_action
+from ..paths import repo_root
+from .driver import BaseDriver, MockDriver, ScenarioDriver, StepFailed, describe_action, parse_nodes
 from .metrics import screen_metrics
 
 PNG_1PX = (
@@ -164,9 +165,10 @@ def load_charter(
     if p.is_file():
         return ExplorationCharter.from_markdown(p)
 
+    root = repo_root()
     for base in [
-        Path("private/lab/explorer/charters"),
-        Path("scripts/lab/explorer/charters"),
+        root / "private" / "lab" / "explorer" / "charters",
+        root / "scripts" / "lab" / "explorer" / "charters",
     ]:
         cand = base / f"{path_or_id}.md"
         if cand.is_file():
@@ -423,12 +425,36 @@ class MockExplorationAgent(ExplorationAgent):
         )
 
 
+class AgentError(RuntimeError):
+    """The exploration agent produced no decision (CLI missing, timed out, no JSON)."""
+
+
+def resolve_target(target: Any, elements: list[InteractiveElement]) -> dict[str, Any]:
+    """The agent names a control by id or visible text; the driver needs a node selector."""
+    if isinstance(target, dict):
+        return target
+    name = str(target).strip()
+    for el in elements:
+        if name and name == el.id:
+            return {"id": name}
+    for el in elements:
+        if name and name == el.text:
+            return {"text": name}
+    for el in elements:
+        if name and name == el.desc:
+            return {"desc": name}
+    return {"text": name, "contains": True}
+
+
 class CliExplorationAgent(ExplorationAgent):
     """Sandboxed live CLI agent running Claude or Gemini CLI outside checkout."""
 
-    def __init__(self, cli: str = "claude", model: str | None = None, sandbox_dir: Path | None = None) -> None:
+    def __init__(self, cli: str = "claude", model: str | None = None, sandbox_dir: Path | None = None,
+                 timeout_s: float = 300.0) -> None:
         self.cli = cli
-        self.model = model or ("sonnet" if cli == "claude" else "gemini-2.5-pro")
+        self.timeout_s = timeout_s
+        # Version-free: an alias for Claude, the CLI's own default for Gemini (no -m).
+        self.model = model or ("sonnet" if cli == "claude" else None)
         base_tmp = Path(os.environ.get("PST_LAB_TMP", "/tmp/pstlab"))
         base_tmp.mkdir(parents=True, exist_ok=True)
         self.sandbox_dir = sandbox_dir or Path(tempfile.mkdtemp(prefix=f"ai_explore_{cli}_", dir=base_tmp))
@@ -481,7 +507,13 @@ Respond ONLY with a JSON object matching this schema:
   }}
 }}
 ```
-Action types: "tap", "swipe" ("up"|"down"|"left"|"right"), "key" ("Right"|"Left"|"Space"|"Delete"|"Enter"|"Escape"), "back", "wait_ms", "finish" (with "goal_achieved": true/false).
+The "action" is exactly one of:
+- {{"type": "tap", "target": "<element id or its visible text>"}} (also "long_press")
+- {{"type": "swipe", "direction": "up" | "down" | "left" | "right"}}
+- {{"type": "key", "key": "Right" | "Left" | "Space" | "Delete" | "Enter" | "Escape"}}
+- {{"type": "back"}}
+- {{"type": "wait_ms", "ms": 500}}
+- {{"type": "finish", "goal_achieved": true | false}}
 """
         prompt_file.write_text(prompt_content, encoding="utf-8")
         if observation.image_path.is_file():
@@ -490,29 +522,42 @@ Action types: "tap", "swipe" ("up"|"down"|"left"|"right"), "key" ("Right"|"Left"
         if self.cli == "claude":
             cmd = ["claude", "-p", prompt_content, "--model", self.model, "--allowedTools", "Read"]
         else:
-            cmd = ["gemini", "-p", f"Inputs: @{prompt_file.name} @{observation.image_path.name}\n{prompt_content}", "-m", self.model]
+            cmd = ["gemini", "-p", f"Inputs: @{prompt_file.name} @{observation.image_path.name}\n{prompt_content}"]
+            if self.model:
+                cmd += ["-m", self.model]
 
         try:
-            res = subprocess.run(cmd, cwd=self.sandbox_dir, capture_output=True, text=True, check=True)
+            res = subprocess.run(cmd, cwd=self.sandbox_dir, capture_output=True, text=True, check=True,
+                                 timeout=self.timeout_s)
             raw = res.stdout
+            (self.sandbox_dir / f"step_{step:02d}_reply.txt").write_text(raw, encoding="utf-8")
             s_idx = raw.find("{")
             e_idx = raw.rfind("}")
-            if s_idx != -1 and e_idx != -1:
-                data = json.loads(raw[s_idx:e_idx + 1])
-            else:
-                data = {"thought": "No JSON output found", "hesitation": True, "action": {"finish": {"goal_achieved": False}}}
-        except Exception as exc:
-            data = {"thought": f"CLI invocation error: {exc}", "hesitation": True, "action": {"finish": {"goal_achieved": False}}}
+            if s_idx == -1 or e_idx == -1:
+                raise AgentError(f"{self.cli} answered without a JSON object: {raw.strip()[:200]!r}")
+            data = json.loads(raw[s_idx:e_idx + 1])
+        except (OSError, subprocess.SubprocessError, ValueError) as exc:
+            # The persona never decided anything: that is a broken run, not a persona who gave up.
+            raise AgentError(f"{self.cli} exploration agent failed: {exc}") from exc
 
         act = data.get("action", {})
         norm_act: dict[str, Any] = {}
         act_type = act.get("type", "")
-        if act_type in ("tap", "long_press", "double_tap"):
-            norm_act[act_type] = act.get("target", "")
+        if act_type in ("tap", "long_press"):
+            norm_act[act_type] = resolve_target(act.get("target", ""), observation.elements)
+        elif act_type == "double_tap":
+            norm_act["double_tap"] = True
         elif act_type == "swipe":
-            norm_act["swipe"] = act.get("direction", "up")
+            # Never a default direction: "swipe right to keep" became ten swipes up (2026-10-24).
+            direction = str(act.get("direction") or act.get("target") or act.get("value") or "").lower()
+            if direction not in ("up", "down", "left", "right"):
+                raise AgentError(f"{self.cli} chose a swipe without a direction: {act!r}")
+            norm_act["swipe"] = direction
         elif act_type == "key":
-            norm_act["key"] = act.get("key", act.get("code", "Right"))
+            key = act.get("key") or act.get("code") or act.get("target")
+            if not key:
+                raise AgentError(f"{self.cli} chose a key without naming it: {act!r}")
+            norm_act["key"] = key
         elif act_type == "back":
             norm_act["back"] = True
         elif act_type == "wait_ms":
@@ -539,6 +584,12 @@ def GeminiExplorationAgent(model: str | None = None) -> CliExplorationAgent:
     return CliExplorationAgent(cli="gemini", model=model)
 
 
+def _content_name(nodes: list[Any]) -> str:
+    """A short stable name for an Android screen: the first resource ids on it."""
+    ids = sorted({n.res_id for n in nodes if n.res_id})[:3]
+    return "+".join(ids) or "screen"
+
+
 def capture_current_observation(
     driver: BaseDriver,
     step_idx: int,
@@ -554,14 +605,17 @@ def capture_current_observation(
     tree_path = screens_dir / f"{stem}.xml"
 
     elements: list[InteractiveElement] = []
-    metrics: dict[str, Any] = {"words": 10, "reading_seconds": 2.5, "longest_block_words": 10, "small_targets": 0, "unlabeled_controls": 0}
+    metrics: dict[str, Any] = {}  # nothing measured is nothing reported, never a made-up default
     screen_name = current_screen or "screen"
 
-    # Android driver with ADB and nodes
-    if hasattr(driver, "nodes") and callable(driver.nodes):
-        nodes = driver.nodes()
+    if isinstance(driver, ScenarioDriver):
+        xml_text = driver._dump()  # one dump: the elements, the saved tree and the metrics agree
+        nodes = parse_nodes(xml_text)
         if nodes:
-            screen_name = current_screen or nodes[0].res_id or nodes[0].text or "android_screen"
+            driver.size = (nodes[0].bounds[2], nodes[0].bounds[3])
+            # Named by content, not by step: the name is part of the signature the cycle detector
+            # compares, and a per-step name hid ten swipes on the same last photo (2026-10-24).
+            screen_name = current_screen or _content_name(nodes)
             elements = [
                 InteractiveElement(
                     id=n.res_id or f"node_{idx}",
@@ -572,15 +626,12 @@ def capture_current_observation(
                     clickable=n.clickable,
                 )
                 for idx, n in enumerate(nodes)
+                if n.clickable or n.text or n.desc
             ]
-        if hasattr(driver, "adb") and driver.adb:
-            driver.adb.screencap(img_path)
-            xml_text = driver._dump()
-            tree_path.write_text(xml_text, encoding="utf-8")
-            metrics = screen_metrics(xml_text, density_dpi=driver.adb.density())
-
-    # MockDriver or offline driver
-    elif hasattr(driver, "scripted_screens") or hasattr(driver, "product"):
+        driver.adb.screencap(img_path)
+        tree_path.write_text(xml_text, encoding="utf-8")
+        metrics = screen_metrics(xml_text, density_dpi=driver.adb.density())
+    elif isinstance(driver, MockDriver):
         img_path.write_bytes(PNG_1PX)
         if current_screen:
             screen_name = current_screen
@@ -601,6 +652,10 @@ def capture_current_observation(
             for idx in range(3)
         ]
         tree_path.write_text(f"<mock screen='{screen_name}'/>", encoding="utf-8")
+    else:
+        raise ValueError(
+            f"exploration needs a driver that observes the screen between steps (Android or mock), not {type(driver).__name__}"
+        )
 
     sig = compute_screen_signature(elements, screen_name=screen_name)
     return ScreenObservation(
@@ -638,7 +693,7 @@ def run_exploration(
     error = None
     goal_achieved = False
     start_time = time.monotonic()
-    current_screen: str | None = c_obj.target_screen if not hasattr(driver, "screens") else None
+    current_screen: str | None = None
     dead_ends_count = 0
 
     for step_idx in range(1, budget + 1):
@@ -693,7 +748,11 @@ def run_exploration(
             })
 
         # C. DECISION
-        decision = effective_agent.decide_action(obs, c_obj, trajectory)
+        try:
+            decision = effective_agent.decide_action(obs, c_obj, trajectory)
+        except AgentError as exc:
+            status, error = "error", str(exc)
+            break
 
         # Check for hesitation
         if decision.hesitation:
@@ -711,7 +770,7 @@ def run_exploration(
                 "message": f"Persona hesitated on screen '{obs.screen_name}': {decision.thought}",
                 "evidence": [f"Decision thought: {decision.thought}"],
                 "new_since_last_run": True,
-                "kind": "discoverability",
+                "kind": "hesitation",
                 "detail": f"Persona hesitated on screen '{obs.screen_name}': {decision.thought}",
                 "screen": obs.screen_name,
             })
@@ -758,7 +817,7 @@ def run_exploration(
         if "finish" in decision.action or decision.action.get("action") == "finish":
             fin = decision.action.get("finish") if isinstance(decision.action.get("finish"), dict) else decision.action
             goal_achieved = bool(fin.get("goal_achieved", True))
-            status = "goal_reached" if goal_achieved else "budget_exhausted"
+            status = "goal_reached" if goal_achieved else "gave_up"
             trajectory.append({
                 "step": step_idx,
                 "screen": obs.screen_name,
@@ -863,9 +922,9 @@ def run_exploration(
 
         action_status = "ok"
         step_err = None
-        driver_step = dict(decision.action)
-        if next_screen and "screen" not in driver_step:
-            driver_step["screen"] = next_screen
+        # The label the agent expects next names the next observation; it is not part of the
+        # action (a `screen` key makes a driver capture instead of acting).
+        driver_step = {k: v for k, v in decision.action.items() if k not in ("expected_screen", "screen_name", "screen")}
 
         try:
             driver._step(driver_step)

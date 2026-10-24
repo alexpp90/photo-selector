@@ -80,12 +80,12 @@ def runs_dir(root: Path | None = None) -> Path:
     return fallback
 
 
-def new_run_dir(sha: str, root: Path | None = None, now: datetime | None = None) -> Path:
-    """Create and return `<runs_dir>/<YYYY-MM-DD>-<HHMM>-<shortsha>/`."""
+def new_run_dir(sha: str, root: Path | None = None, now: datetime | None = None, label: str = "") -> Path:
+    """Create and return `<runs_dir>/<YYYY-MM-DD>-<HHMM>-<shortsha>[-<label>]/`."""
     ts = (now or datetime.now(timezone.utc)).strftime("%Y-%m-%d-%H%M")
     short_sha = (sha or "unknown").strip()[:12]
     base = runs_dir(root)
-    candidate = base / f"{ts}-{short_sha}"
+    candidate = base / (f"{ts}-{short_sha}-{label}" if label else f"{ts}-{short_sha}")
     suffix = 1
     while candidate.exists():
         suffix += 1

@@ -3,10 +3,14 @@
 from __future__ import annotations
 
 import json
+import os
+import shutil
+import subprocess
 import time
+from contextlib import contextmanager
 from datetime import datetime, timezone
 from pathlib import Path
-from typing import Any
+from typing import Any, Iterator
 
 import yaml
 
@@ -14,7 +18,6 @@ from ..android.adb import AdbClient
 from ..paths import ensure_under, lab_tmp_root, repo_root
 from .driver import (
     BaseDriver,
-    ScenarioDriver,
     check_device_free,
     device_lock,
     get_driver,
@@ -23,7 +26,9 @@ from .driver import (
 )
 
 ANDROID_PRODUCTS = {"phototok", "android-desktop"}
+DEVICE_KIND = {"phototok": "phone", "android-desktop": "tablet", "macos": "Mac", "linux": "Linux desktop"}
 DESKTOP_PRODUCTS = {"macos", "linux"}
+TRANSLATED_PRODUCTS = {"phototok"}  # only Jackpix ships translations (res/values-de)
 SUPPORTED_PRODUCTS = ANDROID_PRODUCTS | DESKTOP_PRODUCTS
 
 
@@ -38,42 +43,51 @@ def load_scenarios(product: str, root: Path | None = None) -> dict[str, Any]:
     return data
 
 
-def _prepare_fixture(product: str, spec: dict[str, Any], adb: AdbClient | None = None) -> Path:
-    from .scenes import generate_roll  # needs real Pillow; imported only when a fixture run starts
 
-    remote_spec = str(spec.get("remote", "/tmp/pstlab/usability-trip"))
-    if product in ANDROID_PRODUCTS:
-        local = lab_tmp_root() / "usability" / Path(remote_spec).name
-        ensure_under(local, lab_tmp_root())
-        if not local.is_dir() or not any(local.iterdir()):
-            generate_roll(local)
-        if adb is not None:
-            push_fixture(adb, local, remote_spec)
-        return local
-    else:
-        local = Path(remote_spec)
-        ensure_under(local, lab_tmp_root())
-        local.mkdir(parents=True, exist_ok=True)
-        if not any(local.iterdir()):
-            generate_roll(local)
-        return local
+def master_roll() -> Path:
+    """The generated camera roll, regenerated whenever its recipe changes.
+
+    A roll is only reused while its recipe stamp matches: an old roll kept because its folder
+    was not empty is a different test than the one the scenarios were written for.
+    """
+    from .scenes import generate_roll, roll_signature  # needs real Pillow; imported only for a real run
+
+    local = ensure_under(lab_tmp_root() / "usability" / "usability-trip", lab_tmp_root())
+    stamp = local.parent / "usability-trip.roll.json"
+    want = roll_signature()
+    try:
+        have = json.loads(stamp.read_text(encoding="utf-8")).get("signature")
+    except (OSError, ValueError):
+        have = None
+    if have != want or not local.is_dir() or not any(local.iterdir()):
+        shutil.rmtree(local, ignore_errors=True)
+        generate_roll(local)
+        stamp.write_text(json.dumps({"signature": want}), encoding="utf-8")
+    return local
+
+
+def desktop_working_copy(master: Path, run_tag: str) -> Path:
+    """A copy of the roll for a desktop walk: the apps move and trash files in it, so the master
+    is never walked; the driver renews it before each scenario."""
+    base = ensure_under(lab_tmp_root() / f"usability-work-{run_tag}", lab_tmp_root())
+    shutil.rmtree(base, ignore_errors=True)
+    work = base / master.name
+    shutil.copytree(master, work)
+    return work
 
 
 def _device_facts(
     product: str, adb: AdbClient | None = None, driver_type: str = "auto", app_id: str = ""
 ) -> dict[str, Any]:
     if driver_type == "mock":
-        return {
-            "platform": product,
-            "mock": True,
-            "size": "1440x900" if product in DESKTOP_PRODUCTS else "1080x1920",
-        }
+        return {"platform": product, "mock": True, "kind": DEVICE_KIND[product]}
     if product in ANDROID_PRODUCTS and adb is not None:
         def prop(name: str) -> str:
             return adb.run("shell", "getprop", name).strip()
 
         return {
             "platform": "android",
+            "kind": DEVICE_KIND[product],
             "serial": adb.serial,
             "model": prop("ro.product.model"),
             "android": prop("ro.build.version.release"),
@@ -84,71 +98,123 @@ def _device_facts(
             "system_locale": prop("persist.sys.locale") or prop("ro.product.locale"),
             "app_locale": _app_locale(adb, app_id) if app_id else "",
         }
+    import platform
+
+    facts: dict[str, Any] = {"platform": product, "kind": DEVICE_KIND[product], "arch": platform.machine()}
     if product == "macos":
-        import platform
+        facts["os"] = f"macOS {platform.mac_ver()[0]}"
+    else:
+        try:  # "Debian GNU/Linux 13 (trixie)", not the kernel release a reviewer cannot place
+            facts["os"] = platform.freedesktop_os_release().get("PRETTY_NAME") or platform.system()
+        except OSError:
+            facts["os"] = f"{platform.system()} {platform.release()}"
+    return facts
 
-        return {
-            "platform": "macos",
-            "os": f"macOS {platform.mac_ver()[0]}",
-            "arch": platform.machine(),
-            "size": "1440x900",
-            "scale": 2.0,
-        }
-    if product == "linux":
-        import platform
 
-        return {
-            "platform": "linux",
-            "os": f"{platform.system()} {platform.release()}",
-            "arch": platform.machine(),
-            "size": "1280x800",
-            "scale": 1.0,
-        }
-    return {"platform": product}
+def _window_size(walkthrough: dict[str, Any], out_dir: Path) -> str | None:
+    """`WxH` of the first desktop checkpoint's window, as its tree recorded it."""
+    for sc in walkthrough["scenarios"]:
+        for s in sc["screens"]:
+            tree = out_dir / sc["scenario"] / (Path(s["image"]).stem + ".tree.json")
+            try:
+                win = json.loads(tree.read_text(encoding="utf-8")).get("window") or {}
+            except (OSError, ValueError):
+                continue
+            if win.get("w") and win.get("h"):
+                return f"{int(win['w'])}x{int(win['h'])} {win.get('unit', '')}".strip()
+    return None
 
 
 def _app_locale(adb: AdbClient, app_id: str) -> str:
-    out = adb.run("shell", "cmd", "locale", "get-app-locales", app_id).strip()
+    try:
+        out = adb.run("shell", "cmd", "locale", "get-app-locales", app_id).strip()
+    except subprocess.CalledProcessError:
+        return ""  # Android < 13 has no per-app languages: the app follows the system's
     # "Locales for com.x for user 0 are [de-DE]"
     m = out[out.rfind("[") + 1 : out.rfind("]")] if "[" in out else ""
     return m.strip()
+
+
 
 
 def _restore_file(serial: str) -> Path:
     return lab_tmp_root() / f"device-{serial}.restore.json"
 
 
-def _original_font_scale(client: AdbClient, serial: str) -> str:
-    """The font scale to put back. A walk that died before restoring (USB dropped) left its
-    original in a file; reading the device then would return the walk's own 2.0."""
+_SAVED = (("font_scale", "system", "font_scale"), ("user_rotation", "system", "user_rotation"),
+          ("accelerometer_rotation", "system", "accelerometer_rotation"), ("zen_mode", "global", "zen_mode"),
+          ("sysui_demo_allowed", "global", "sysui_demo_allowed"))
+
+_DEMO = "com.android.systemui.demo"
+
+
+def _demo_status_bar(client: AdbClient, on: bool) -> None:
+    """System UI demo mode: a fixed clock, full battery and no notification icons.
+
+    The screenshots go to the persona and moderator models; the status bar of a lab phone showed
+    the icons of the messaging apps installed on it (Pixel 4a, 2026-10-24).
+    """
+    if not on:
+        client.run("shell", "am", "broadcast", "-a", _DEMO, "-e", "command", "exit")
+        return
+    client.run("shell", "settings", "put", "global", "sysui_demo_allowed", "1")
+    for extra in (["-e", "command", "enter"], ["-e", "command", "clock", "-e", "hhmm", "1200"],
+                  ["-e", "command", "battery", "-e", "level", "100", "-e", "plugged", "false"],
+                  ["-e", "command", "notifications", "-e", "visible", "false"]):
+        client.run("shell", "am", "broadcast", "-a", _DEMO, *extra)
+
+
+def _original_settings(client: AdbClient, serial: str) -> dict[str, str]:
+    """The settings to put back. A walk that died before restoring (USB dropped) left its
+    originals in a file; reading the device then would return the walk's own values."""
     path = _restore_file(serial)
+    saved: dict[str, str] = {}
     if path.is_file():
         try:
-            return str(json.loads(path.read_text(encoding="utf-8"))["font_scale"])
-        except (ValueError, KeyError):
-            pass
-    current = client.run("shell", "settings", "get", "system", "font_scale").strip()
-    path.parent.mkdir(parents=True, exist_ok=True)
-    path.write_text(json.dumps({"font_scale": current}), encoding="utf-8")
-    return current
+            saved = {k: str(v) for k, v in json.loads(path.read_text(encoding="utf-8")).items()}
+        except ValueError:
+            saved = {}
+    missing = [s for s in _SAVED if s[0] not in saved]
+    for key, ns, name in missing:
+        saved[key] = client.run("shell", "settings", "get", ns, name).strip()
+    if missing:
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_text(json.dumps(saved), encoding="utf-8")
+    return saved
 
 
-def _restore(client: AdbClient, app_id: str, old_scale: str | None, reset_locale: bool) -> bool:
-    """Put the font scale and app language back; a device that dropped off USB must not hide
-    the walk's own error, so a failed restore is reported, not raised."""
+def _original_font_scale(client: AdbClient, serial: str) -> str:
+    return _original_settings(client, serial)["font_scale"]
+
+
+def _restore(client: AdbClient, app_id: str, saved: dict[str, str], *, font: bool, rotation: bool,
+             reset_locale: bool, quiet: bool = False) -> bool:
+    """Put back what the walk changed; a device that dropped off USB must not hide the walk's
+    own error, so a failed restore is reported, not raised."""
     import sys
 
+    def put(name: str, value: str, default: str, ns: str = "system") -> None:
+        client.run("shell", "settings", "put", ns, name, value if value not in ("", "null") else default)
+
     steps = []
-    if old_scale is not None:
-        steps.append(("font scale", lambda: client.run(
-            "shell", "settings", "put", "system", "font_scale", old_scale if old_scale not in ("", "null") else "1.0")))
+    if font:
+        steps.append(("font scale", lambda: put("font_scale", saved.get("font_scale", ""), "1.0")))
+    if rotation:
+        steps.append(("rotation", lambda: (put("user_rotation", saved.get("user_rotation", ""), "0"),
+                                           put("accelerometer_rotation", saved.get("accelerometer_rotation", ""), "1"))))
     if reset_locale:
         steps.append(("app language", lambda: set_app_locale(client, app_id, None)))
+    if quiet:
+        from ..android.configs import ZEN_TO_DND, set_dnd
+
+        steps.append(("status bar", lambda: (_demo_status_bar(client, False),
+                                             put("sysui_demo_allowed", saved.get("sysui_demo_allowed", ""), "0", "global"))))
+        steps.append(("Do Not Disturb", lambda: set_dnd(client, ZEN_TO_DND.get(saved.get("zen_mode", "0"), "off"))))
     ok = True
     for what, step in steps:
         try:
             step()
-        except Exception as exc:  # noqa: BLE001
+        except Exception as exc:  # noqa: BLE001 - reported below; the walk's own result must survive
             ok = False
             print(f"warning: could not restore the {what} on {client.serial}: {exc}; the next walk restores it", file=sys.stderr)
     return ok
@@ -162,7 +228,7 @@ def variant_label(locale: str | None, font_scale: float | None) -> str:
 def run_capture(
     product: str,
     serial: str | None = None,
-    out_dir: Path | str = ...,
+    out_dir: Path | str | None = None,
     *,
     only: list[str] | None = None,
     adb: AdbClient | None = None,
@@ -174,77 +240,109 @@ def run_capture(
 ) -> dict[str, Any]:
     """Execute every scenario (or `only`) in order; returns and writes `walkthrough.json`.
 
-    `locale` sets the app's own language (`cmd locale set-app-locales`, so the system picker keeps
-    the device language); `font_scale` sets the system font scale. Both are restored afterwards
-    and only apply to a live Android walk.
+    Android: `locale` sets the app's own language (`cmd locale set-app-locales`, so the system
+    picker keeps the device language), `font_scale` the system font scale, and the scenario
+    file's `orientation` the rotation; all are restored afterwards. Linux: `font_scale` is the
+    session's text scaling. Lensjet has neither a translation nor text scaling, so a variant
+    there would only relabel the same screenshots and is refused.
     """
     if product not in SUPPORTED_PRODUCTS:
         raise ValueError(f"unsupported product '{product}'; choices are {sorted(SUPPORTED_PRODUCTS)}")
-
+    if out_dir is None:
+        raise ValueError("run_capture needs an out_dir")
     spec = load_scenarios(product)
     app_id = str(spec["app_id"])
     out = Path(out_dir)
     out.mkdir(parents=True, exist_ok=True)
+    mock = driver_type == "mock" or driver is not None
+    # A variant the app cannot show would only relabel the same screenshots for a persona.
+    if product == "macos" and (locale or font_scale is not None) and not mock:
+        raise ValueError("Lensjet has no translation and no text scaling: capture it without --locale/--font-scale")
+    if locale and product not in TRANSLATED_PRODUCTS and not mock:
+        raise ValueError(f"{product} is English-only: capture it without --locale")
 
-    client = None
-    if product in ANDROID_PRODUCTS and driver_type != "mock" and driver is None:
-        if not serial and not adb:
+    if product in ANDROID_PRODUCTS and not mock:
+        if not serial and adb is None:
             raise ValueError(f"serial is required for Android product '{product}' on device")
         client = adb or AdbClient(serial=str(serial))
+        return _capture_android(spec, product, client, out, only, locale, font_scale, exec_fn)
 
-    if client is not None:
-        with device_lock(client.serial, f"lab usability-capture {product}"):
-            check_device_free(client, app_id)
-            old_scale = _original_font_scale(client, client.serial)
-            try:
-                if font_scale is not None:
-                    client.run("shell", "settings", "put", "system", "font_scale", f"{font_scale:g}")
-                if locale:
-                    set_app_locale(client, app_id, locale)
-                # Portrait, locked: a phone walkthrough the reviewers can compare screen by screen.
-                client.run("shell", "settings", "put", "system", "accelerometer_rotation", "0")
-                client.run("shell", "settings", "put", "system", "user_rotation", "0")
-                fixture_spec = spec.get("fixture", {})
-                fixture_path = _prepare_fixture(product, fixture_spec, adb=client) if fixture_spec else None
-                active_driver = get_driver(
-                    product,
-                    app_id,
-                    out,
-                    serial=serial,
-                    adb=client,
-                    fixture_dir=fixture_path,
-                    driver_type=driver_type,
-                    exec_fn=exec_fn,
-                    app_locale=locale,
-                )
-                walkthrough = _execute_scenarios(spec, product, active_driver, out, only, client, driver_type)
-                walkthrough["variant"] = variant_label(locale, font_scale)
-                (out / "walkthrough.json").write_text(json.dumps(walkthrough, indent=2), encoding="utf-8")
-                return walkthrough
-            finally:
-                if _restore(client, app_id, old_scale if font_scale is not None else None, bool(locale)):
-                    _restore_file(client.serial).unlink(missing_ok=True)
-
-    fixture_spec = spec.get("fixture", {})
-    fixture_path = _prepare_fixture(product, fixture_spec) if fixture_spec else None
-    if driver is not None:
-        active_driver = driver
-    else:
-        active_driver = get_driver(
-            product,
-            app_id,
-            out,
-            serial=serial,
-            adb=adb,
-            fixture_dir=fixture_path,
-            driver_type=driver_type,
-            exec_fn=exec_fn,
-            app_locale=locale,
-        )
-    walkthrough = _execute_scenarios(spec, product, active_driver, out, only, adb, driver_type)
+    active = driver
+    work: Path | None = None
+    if active is None:
+        fixture = master = None
+        if not mock and spec.get("fixture"):
+            master = master_roll()
+            work = desktop_working_copy(master, f"{product}-{os.getpid()}")
+            fixture = work
+        active = get_driver(product, app_id, out, fixture_dir=fixture, driver_type=driver_type, exec_fn=exec_fn,
+                            text_scaling=font_scale)
+        if master is not None:
+            active.fixture_master = master  # type: ignore[attr-defined]
+    try:
+        walkthrough = _execute_scenarios(spec, product, active, out, only, None, "mock" if mock else driver_type)
+    finally:
+        if work is not None:
+            shutil.rmtree(work.parent, ignore_errors=True)
+    if product in DESKTOP_PRODUCTS and not mock:
+        walkthrough["device"]["size"] = _window_size(walkthrough, out) or ""
+        if product == "linux" and font_scale is not None:
+            walkthrough["device"]["font_scale"] = f"{font_scale:g}"
     walkthrough["variant"] = variant_label(locale, font_scale)
     (out / "walkthrough.json").write_text(json.dumps(walkthrough, indent=2), encoding="utf-8")
     return walkthrough
+
+
+@contextmanager
+def android_session(client: AdbClient, spec: dict[str, Any], product: str, *, locale: str | None = None,
+                    font_scale: float | None = None, purpose: str = "usability-capture") -> Iterator[None]:
+    """Own the device for a walk: lock, refuse a busy device, set the walk's language, font and
+    rotation, push a fresh fixture, and put every setting back afterwards."""
+    from ..android.configs import set_verified_rotation
+
+    app_id = str(spec["app_id"])
+    orientation = spec.get("orientation")
+    with device_lock(client.serial, f"lab {purpose} {product}"):
+        check_device_free(client, app_id)
+        saved = _original_settings(client, client.serial)
+        try:
+            if font_scale is not None:
+                client.run("shell", "settings", "put", "system", "font_scale", f"{font_scale:g}")
+            if locale:
+                set_app_locale(client, app_id, locale)
+            if orientation:
+                # Phones are walked in portrait, tablets in landscape, checked on the display.
+                set_verified_rotation(client, str(orientation))
+            if spec.get("fixture"):
+                push_fixture(client, master_roll(), str(spec["fixture"]["remote"]))
+            # No notification arrives mid-walk, and none shows in a screenshot.
+            from ..android.configs import set_dnd
+
+            set_dnd(client, "on")
+            _demo_status_bar(client, True)
+            yield
+        finally:
+            if _restore(client, app_id, saved, font=font_scale is not None, rotation=bool(orientation),
+                        reset_locale=bool(locale), quiet=True):
+                _restore_file(client.serial).unlink(missing_ok=True)
+
+
+def walk_locale(product: str, locale: str | None) -> str | None:
+    """The app language a walk sets: a translated app follows the phone's language unless told
+    otherwise, so an `en` walk on a German phone (the Pixel 4a) showed German screens."""
+    return locale or ("en" if product in TRANSLATED_PRODUCTS else None)
+
+
+def _capture_android(spec: dict[str, Any], product: str, client: AdbClient, out: Path, only: list[str] | None,
+                     locale: str | None, font_scale: float | None, exec_fn: Any | None) -> dict[str, Any]:
+    app_id = str(spec["app_id"])
+    app_locale = walk_locale(product, locale)
+    with android_session(client, spec, product, locale=app_locale, font_scale=font_scale):
+        driver = get_driver(product, app_id, out, adb=client, exec_fn=exec_fn, app_locale=app_locale)
+        walkthrough = _execute_scenarios(spec, product, driver, out, only, client, "auto")
+        walkthrough["variant"] = variant_label(locale, font_scale)
+        (out / "walkthrough.json").write_text(json.dumps(walkthrough, indent=2), encoding="utf-8")
+        return walkthrough
 
 
 def _execute_scenarios(
@@ -264,10 +362,11 @@ def _execute_scenarios(
             continue
         driver.out_dir = out_dir / scenario["id"]
         driver.screens = []
+        driver._actions = []
         result = driver.run(scenario)
         results.append(result)
-        if result["status"] != "pass":
-            break  # later scenarios build on this one's end state
+        if result["status"] != "pass" and product in ANDROID_PRODUCTS:
+            break  # one app session: later scenarios build on this one's end state
 
     walkthrough = {
         "product": product,

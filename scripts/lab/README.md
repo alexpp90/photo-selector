@@ -166,47 +166,70 @@ python3 scripts/lab/lab.py report private/lab-runs/<run-id>
 ## Usability panel (release gate, on demand)
 
 The journeys above check that screens are *correct*. The usability panel asks whether they
-are *usable*: several personas walk through the product's key use cases screen by screen and
-say what they understand, what they would do next, what they would read and what bothers
-them. A moderator then compares that with the action the design expects and the measured text
-load, and writes the trade-offs for the maintainer to decide. It is opinion by design, so it
-runs before a release, not in CI. Jackpix only for now.
+are *usable*: four personas per product judge the product's key use cases one screen at a
+time and say what they understand, what they would do next, what they would read and what
+bothers them. A moderator then compares that with the action the design expects and the
+measured text load, and writes the trade-offs for the maintainer to decide. It is opinion by
+design, so it runs before a release, not in CI. Products: Jackpix (`phototok`), Frameduel
+(`android-desktop`), Lensjet (`macos`) and Blitzlens (`linux`).
 
 ```bash
-# 1. Walk the scenarios on a phone (USB, portrait); writes a new private/lab-runs/<id>-usability/
-/usr/bin/python3 scripts/lab/lab.py usability-capture --serial <adb-serial>
-#    Repeat per phone setup the personas use (EN/DE × font scale 1.0/2.0); both are restored after:
-/usr/bin/python3 scripts/lab/lab.py usability-capture --serial <adb-serial> --locale de-DE --font-scale 2.0
+# 1. Walk the scenarios; writes a new private/lab-runs/<sha>-usability-<product>-<variant>/
+#    Android (USB device; Jackpix is walked in portrait, Frameduel in landscape):
+/usr/bin/python3 scripts/lab/lab.py usability-capture --product phototok --serial <adb-serial>
+#    Repeat per setup the personas use; language, font scale and rotation are restored after.
+#    Only Jackpix is translated; Frameduel and Blitzlens can vary the text size:
+/usr/bin/python3 scripts/lab/lab.py usability-capture --product phototok --serial <adb-serial> --locale de-DE --font-scale 2.0
+#    Linux (private Xvfb session on this machine) and macOS (on the Mac, test-hook build):
+/usr/bin/python3 scripts/lab/lab.py usability-capture --product linux [--font-scale 1.5]
+python3 scripts/lab/lab.py usability-capture --product macos
 # Measured text load only (words per screen and per control, no personas); exit 1 when over budget:
 python3 scripts/lab/lab.py usability-textload private/lab-runs/<run-id> --variant private/lab-runs/<de-run-id>
-# 2. Build the persona and moderator packets
+# 2. Build the per-screen persona packets and the moderator's input
 python3 scripts/lab/lab.py usability-panel private/lab-runs/<run-id> --variant private/lab-runs/<other-run-id>
-# 3. Run personas + moderator (claude -p), validate, render the report
+# 3. Run personas (one call per screen) + moderator, validate, render the report
 private/lab/usability/run_panel.sh private/lab-runs/<run-id>
-# or step by step: usability-check <run> (validates panel/answers/*.json), usability-report <run>
+# or step by step: usability-assemble <run> (per-screen replies -> panel/answers/<persona>.json),
+# usability-check <run>, usability-report <run>
 ```
 
 - **Scenarios:** `scripts/lab/usability/<product>.yaml` — plain user actions (`tap`, `swipe`,
-  `back`, `background`, …) and a `screen` step for each screen to review, with the user's
-  `intent` and the `expected` action.
+  `key`, `back`, `background`, …) and a `screen` step for each screen to review, with the
+  user's `intent` and the `expected` action, and the `use_case` (`UC-n` of the use-case
+  catalogue) each scenario covers. Every step must be one the product's driver can perform:
+  the desktop drivers translate a scenario into the app's own lab script (Lensjet
+  `--ui-scenario`: keys from `UITestDriver.Key`, clicks and waits on registered frame ids;
+  Blitzlens `session.sh --script`: keys and waits only) and refuse anything else instead of
+  skipping it, so a persona is never told about an action that did not happen.
+  `test_usability.py` checks every scenario against its driver and Lensjet's sources.
 - **Photos:** a generated trip roll of photo-like landscapes with real flaws (blurred,
-  underexposed, tilted, a burst, a pocket shot), pushed to `/sdcard/PSTLab/usability-trip`.
+  underexposed, overexposed, tilted, camera shake, a burst, a pocket shot) and varied EXIF;
+  two shots are RAW + JPEG pairs (a real Linear DNG that LibRaw decodes) with an XMP sidecar,
+  one has an `-Edit.jpg`. It is regenerated whenever its recipe changes; Android pushes it to
+  `/sdcard/PSTLab/usability-trip`, the desktops walk a fresh copy per run, removed afterwards.
   Rendering needs the real Pillow (`/usr/bin/python3` on Debian).
-- **What a persona sees:** the screenshots, the task and what the user just did — never the
-  code, the requirements, extracted text or the expected action. Personas and prompts live in
-  `private/lab/usability/`.
+- **What a persona sees:** one packet per screen (`panel/packets/<persona>/NN.md`): the task,
+  what the user just did and the screenshot (plus the previous one), with neutral file names —
+  never a later screen, the code, the requirements, extracted text, the screen's label or the
+  expected action. Personas and prompts live in `private/lab/usability/`.
 - **Text load (criterion `text-load`):** per screen the visible words, and per control (button,
   bar item, settings row) its visible words and whether it shows text next to an icon, against
   the budgets in `docs/shared/UI_TEXT.md` (`lab/usability/textload.py`). Spoken labels
   (`content-desc`) are not counted. A five-word screen with a label under every icon is
   flagged; the per-screen word count alone never saw it.
-- **Variants:** each persona file names its phone (`<!-- setup: de-DE@2.0 -->`) and reviews the
-  capture made with that per-app language and font scale. The moderator sees all of them.
+- **Variants:** each persona file names its device setup (`<!-- setup: de-DE@2.0 -->`) and
+  reviews the capture made with that language and text size. The moderator sees all of them.
 - **Binding requirements:** the moderator, not the personas, gets the maintainer's own
   requirements for the product as a checklist (`panel/requirements.json`) and rules on each one.
 - **Output:** `usability-report.html` (self-contained) and `usability-report.md` in the run.
-- The capture refuses a device on which instrumented tests run or another app is in front,
-  and stops when another app takes over mid-walk.
+  Discoverability misses are the personas' own discoverability issues (or the moderator's
+  list) and explorer dead ends; without a moderator the report invents no options or costs.
+- The Android capture takes the device lock, refuses a device on which instrumented tests run
+  or another app is in front, and stops when another app takes over mid-walk.
+- **Exploration (`usability-explore`, Android only):** a persona agent decides one step at a
+  time from the live screen, within a step budget, under the same device lock and fixture; it
+  reports cycles, dead ends, hesitations and charter violations. A failed agent call ends the
+  run as `error`.
 
 ## Safety Guarantees
 

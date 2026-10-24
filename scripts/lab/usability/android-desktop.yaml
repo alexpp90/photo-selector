@@ -4,6 +4,8 @@
 # Scenarios execute in order sharing session state.
 product: android-desktop
 app_id: com.photoselectortoolbox.lab
+# Walked in this orientation, verified on the display; the original rotation is restored after.
+orientation: landscape
 fixture:
   kind: scenes
   remote: /sdcard/PSTLab/usability-trip
@@ -28,12 +30,12 @@ scenarios:
         system: true
         intent: Confirm selection of usability-trip
         expected: Tap 'Use this folder'
-      - tap: {text: Use this folder}
+      - tap: {id: button1, label: Use this folder}
       - screen: picker-allow
         system: true
         intent: Grant folder storage permission
         expected: Tap 'Allow'
-      - tap: {text: Allow}
+      - tap: {id: button1, label: Allow}
       - wait_for: {id: control_block, timeout_ms: 15000}
       - screen: selector-first
         intent: Review first photo in 3-Up one-over-two layout

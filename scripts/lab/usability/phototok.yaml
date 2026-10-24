@@ -12,6 +12,8 @@
 # context, not as our defect.
 product: phototok
 app_id: com.phototok.lab
+# Walked in this orientation, verified on the display; the original rotation is restored after.
+orientation: portrait
 fixture:
   kind: scenes
   remote: /sdcard/PSTLab/usability-trip
@@ -40,12 +42,12 @@ scenarios:
         system: true
         intent: Confirm this is the right folder
         expected: Tap 'Use this folder'
-      - tap: {text: Use this folder}
+      - tap: {id: button1, label: Use this folder}
       - screen: picker-allow
         system: true
         intent: Let the app see this folder
         expected: Tap 'Allow'
-      - tap: {text: Allow}
+      - tap: {id: button1, label: Allow}
       - wait_for: {id: gesture_tutorial_got_it, timeout_ms: 15000}
       - screen: guide
         intent: Learn just enough to start
@@ -90,7 +92,7 @@ scenarios:
   - id: U-TOK-03
     title: Look closer — when was it taken, is it sharp?
     goal: Find out when this photo was taken and with what settings, then check whether it is sharp.
-    use_case: "UC-1, UC-2"
+    use_case: "UC-1, UC-3"
     steps:
       - optional_tap: {id: first_run_hint_dismiss, label: GOT IT}
       - screen: photo-before-info
@@ -109,7 +111,7 @@ scenarios:
   - id: U-TOK-04
     title: Review the keepers, look at the settings
     goal: See the photos you kept so far. Then check whether the app can do anything you would want to change.
-    use_case: "UC-1, UC-7"
+    use_case: "UC-3, UC-7"
     steps:
       - screen: feed-before-selection
         intent: See the photos I kept
@@ -128,6 +130,8 @@ scenarios:
         intent: Continue culling where I was
         expected: Tap 'Stay'
       - optional_tap: {text: [Stay, Bleiben], label: Stay}
+      # Relaunched after Back, the app reopens the Selection viewer; its own Back arrow leaves it.
+      - optional_tap: {desc: [Back, Zurück], label: the back arrow}
       - wait_for: {id: viewer_bottom_bar, timeout_ms: 10000}
       - optional_tap: {id: gesture_tutorial_got_it, label: GOT IT}
       - tap: {id: settings_button, label: the gear icon}
