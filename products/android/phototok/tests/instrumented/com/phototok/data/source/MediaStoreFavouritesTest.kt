@@ -3,14 +3,16 @@ package com.phototok.data.source
 import android.content.ContentUris
 import android.content.ContentValues
 import android.content.Context
-import android.content.Intent
 import android.content.IntentSender
 import android.graphics.Bitmap
 import android.os.Build
 import android.os.SystemClock
 import android.provider.DocumentsContract
 import android.provider.MediaStore
+import androidx.activity.ComponentActivity
+import androidx.test.core.app.ActivityScenario
 import androidx.test.ext.junit.runners.AndroidJUnit4
+import com.phototok.LabDeviceOnly
 import androidx.test.platform.app.InstrumentationRegistry
 import org.junit.After
 import org.junit.Assert.assertEquals
@@ -31,9 +33,10 @@ import org.junit.runner.RunWith
  * - a favourite request launched as an `IntentSender` sets and clears the flag without a dialog;
  * - MediaProvider refuses the `.../file/<id>` URI `getMediaUri` returns, so the gateway converts it.
  *
- * Needs Android 11. The tree test needs a persisted grant on a primary-storage folder that allows
- * writes (pick any folder once in the app, e.g. the lab's `PSTLab/work`); without one it is
- * skipped, not passed. It writes one small photo into that folder and deletes it afterwards.
+ * Needs Android 11. The tree test is [LabDeviceOnly]: it needs a persisted grant on a writable
+ * primary-storage folder (pick one once in the app, e.g. the lab's `PSTLab/work`), so connected
+ * Gradle runs and CI leave it out; without the grant it is skipped, not passed. It writes one
+ * small photo into that folder and deletes it afterwards.
  */
 @RunWith(AndroidJUnit4::class)
 class MediaStoreFavouritesTest {
@@ -59,8 +62,16 @@ class MediaStoreFavouritesTest {
 
     private fun testName() = "jackpix_fav_test_${SystemClock.uptimeMillis()}.jpg"
 
+    /**
+     * Launch the request for a result from a foreground activity, as the app does
+     * (`StartIntentSenderForResult`). MediaProvider's activity reads the caller from
+     * `getCallingPackage()`, which only a for-result start sets: on Android 11 a plain
+     * `startIntentSender` makes it finish with "Missing calling package" and change nothing.
+     */
     private fun launch(sender: IntentSender) {
-        context.startIntentSender(sender, null, Intent.FLAG_ACTIVITY_NEW_TASK, Intent.FLAG_ACTIVITY_NEW_TASK, 0)
+        val scenario = ActivityScenario.launch(ComponentActivity::class.java)
+        cleanup += { scenario.close() }
+        scenario.onActivity { it.startIntentSenderForResult(sender, 1, null, 0, 0, 0) }
     }
 
     /** Poll until [probe] returns [expected]; MediaProvider runs requests and scans asynchronously. */
@@ -75,6 +86,7 @@ class MediaStoreFavouritesTest {
     }
 
     @Test
+    @LabDeviceOnly
     fun aTreeDocumentResolvesAndItsFlagIsSetClearedAndReadBack() {
         val tree = context.contentResolver.persistedUriPermissions.firstOrNull {
             it.isWritePermission && it.uri.authority == "com.android.externalstorage.documents" &&
