@@ -46,18 +46,23 @@ While the desktop and tablet products emphasize multi-up comparative culling and
 *   **Predictive Coil Prefetching:** Pre-fetches high-resolution images within a radius of $\pm 3$ positions around the active viewport, ensuring stutter-free paging transitions.
 *   **Progressive SAF Enumeration:** Emits a first batch after 24 photos, subsequent batches every 250 photos, rendering a live `${index + 1} / ${total}+` indicator while folder discovery streams in the background.
 
-### 2. Tactile Culling Gestures
-*   **Swipe-Right to File (`COPY` / `MOVE`):** Files the photo into the user's `Selection/` folder — by default a `Selection/` subfolder of the source folder, never the source folder itself ("Organize Selection by RAW / JPEG" adds `RAW/` and `JPEG/` inside it). Accompanied by a glowing green action badge and an animated confirmation checkmark flash.
-*   **Swipe-Left to Discard or Route (`DELETE` / `COPY` / `MOVE`):** Configurable in Settings; a copy or move goes into a `PhotoTok_LeftSwipe/` subfolder of the source folder or of the chosen custom folder. Deletions show a progressive pulsing red trash icon, card tilt ($2^\circ$), and optional direct-delete confirmation dialog.
+### 2. Casual and Pro Mode
+*   **Casual (default):** made for swiping fast with no setup. Swipe right marks a ★ favourite on the phone; on an SD card or camera it copies the photo into the phone's camera folder, subfolder `Jackpix` (the first time, the system picker asks for access to `DCIM/Camera`). RAW + JPEG pairs show as one photo and always travel together; no camera info; Settings shows only the basics (source folder, reload, reset, clear cache, delete confirmation, milestones, tips, legal).
+*   **Pro:** the **Pro mode** switch below the three sources on the start screen (its help button lists what it adds) and at the top of Settings. The first switch-on turns camera info on and shows 5 recent folders; Settings then also shows source profiles (Phone + cloud / SD card / Camera), feed order, format filter, RAW + JPEG linking, swipe actions and folders, the Selection folder and its location, RAW/JPEG subfolders and recent folders. Switching Pro off pauses these settings without erasing them — switching it back on restores them exactly.
+*   **Updates keep your setup:** settings are migrated at startup (schema 3). An existing install that had customised a Pro setting, used camera info or used an SD card starts in Pro, so nothing changes after the update.
+
+### 3. Tactile Culling Gestures
+*   **Swipe-Right to File (`★` / `COPY` / `MOVE`):** In Casual see above; in Pro, ★ marks a favourite in place and Copy/Move files the photo into the user's `Selection/` folder — by default a `Selection/` subfolder of the source folder, never the source folder itself ("Organize Selection by RAW / JPEG" adds `RAW/` and `JPEG/` inside it). Accompanied by a glowing green action badge and an animated confirmation checkmark flash.
+*   **Swipe-Left to Discard or Route (`DELETE` / `COPY` / `MOVE`):** Configurable in Settings; a copy or move goes into a `PhotoTok_LeftSwipe/` subfolder of the source folder or of the chosen custom folder. Deletions show a progressive pulsing red trash icon, card tilt ($2^\circ$), and the direct-delete confirmation dialog (on by default in both modes; its "Don't ask" checkbox or the Settings row turns it off, and Undo still restores until the deletions are committed).
 *   **Persistent Revert:** Deletions remain undoable across vertical scrolls via the viewer bottom bar's **Undo delete** button (`RestoreFromTrash`; the bar is icon-only — every control has a spoken name and a long-press tooltip — alongside the folder, **Selection** and **Share** buttons) until navigation away, folder switch, or subsequent file mutation. After Revert the viewer shows the restored photo.
 *   **Non-Blocking Optimistic Execution:** Feed updates immediately upon gesture completion; file transfers run on the injected `@ApplicationScope`. Any failed mutation is cleanly re-inserted into the feed at its original slot.
 
-### 3. Inspection & Tap Controls
-*   **Single-Tap HUD Toggle:** Seamlessly shows or hides the camera EXIF panel, page counter pill, and action bars for an unobstructed view of the photo.
+### 4. Inspection & Tap Controls
+*   **Single-Tap HUD Toggle:** Seamlessly shows or hides the camera EXIF panel (Pro mode), page counter pill, and action bars for an unobstructed view of the photo.
 *   **Double-Tap Zoom to 2.5×:** Instant zoom centered on the tapped coordinate; double-tapping again resets to fit-screen.
 *   **Pinch-to-Zoom & Pan:** Smooth two-finger zoom up to $6\times$ with single-finger panning when zoomed; paging and culling swipes are automatically disabled while inspecting fine details.
 
-### 4. Smart Ingestion & Guidance
+### 5. Smart Ingestion & Guidance
 *   **Reload Goes to the Latest Photo; New Photos Prompt on Reopen:** The Reload button (`Sync`; top bar, landscape panel and Settings) rescans the folder and takes you to its latest photo, new photos or not, with no dialog and no snackbar. In newest-first order that is position 1 (`1/N`), even when you have already seen it: the reloaded feed does not move unseen photos ahead. Reopening a folder resumes at the photo you left off; if newer photos arrived since then, a short dialog ("3 new photos", `FolderResumeDialog`) offers **Show new** or **Stay**.
 *   **Share While Scrolling:** An icon-only **Share** button (`Share`) in the viewer bottom bar (and the landscape left panel) shares the current photo, the same chooser as the long-press menu.
 *   **Selection Viewer:** The Selection button opens your Favourites (★, `Star`) and the Selection folder (`Folder`), each with its photo count ("Favourites 3", "Selection 12"). It opens on the list your swipe right fills (★ Favourite → Favourites, Copy/Move → Selection). The two tabs appear only when both lists have photos; with one, a plain title replaces them.

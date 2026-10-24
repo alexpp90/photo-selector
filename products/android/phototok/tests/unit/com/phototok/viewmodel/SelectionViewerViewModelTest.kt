@@ -8,6 +8,7 @@ import com.phototok.domain.FavouritesSnapshot
 import com.phototok.domain.SwipeRightVerb
 import com.phototok.domain.UiText
 import io.mockk.coEvery
+import io.mockk.coVerify
 import io.mockk.mockk
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
@@ -252,5 +253,27 @@ class SelectionViewerViewModelTest {
         assertEquals(SelectionViewerTab.FAVOURITES, state.activeTab)
         assertEquals(state.favouriteImages, state.images)
         assertEquals(0, state.currentIndex)
+    }
+
+    @Test
+    fun `a casual card import opens the Jackpix folder of the camera target`() = runTest {
+        val images = listOf(image("a.jpg", 1))
+        coEvery { imageRepository.listSelectionImages(any(), "Jackpix") } returns
+            SelectionListing.Available(images, "Jackpix")
+
+        viewModel.openWithFavourites(
+            targetFolderUri = "content://tree/camera",
+            sourceImages = emptyList(),
+            favourites = FavouritesSnapshot(favourites = emptySet()),
+            preferredTab = SelectionViewerTab.SELECTION,
+            selectionSubfolder = "Jackpix",
+        )
+
+        val state = viewModel.uiState.value
+        assertTrue(state.isOpen)
+        assertEquals(images, state.images)
+        assertEquals("Jackpix", state.selectionFolderName)
+        coVerify { imageRepository.listSelectionImages(any(), "Jackpix") }
+        coVerify(exactly = 0) { imageRepository.listSelectionImages(any(), "Selection") }
     }
 }

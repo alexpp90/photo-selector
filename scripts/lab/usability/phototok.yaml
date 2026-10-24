@@ -97,8 +97,15 @@ scenarios:
       - optional_tap: {id: first_run_hint_dismiss, label: GOT IT}
       - screen: photo-before-info
         intent: See when and how this photo was taken
-        expected: Tap the (i) button at the top
-      - tap: {id: info_exif_button, label: "(i)"}
+        expected: Camera info is a Pro mode feature, so there is no (i) button yet. Open Settings (the gear icon)
+      # The (i) button exists only in Pro mode. Pro mode is the first row of Settings; the first time
+      # it comes on it also turns camera info on.
+      - tap: {id: settings_button, label: the gear icon}
+      - screen: settings-pro-mode
+        intent: Find the camera info
+        expected: Turn on 'Pro mode', the first row
+      - tap: {id: settings_pro_mode_toggle, label: Pro mode}
+      - back: {}
       - screen: info-overlay
         intent: Now check whether it is sharp
         expected: Double-tap the photo to zoom

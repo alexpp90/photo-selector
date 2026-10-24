@@ -51,9 +51,11 @@ class SettingsRepositoryTest {
         assertFalse(repository.phoneSortByOrientation.first())
         assertFalse(repository.phoneRandomizeOrder.first())
         assertEquals(0L, repository.phoneGestureTutorialTs.first())
-        assertEquals(FileTypeFilter.DEFAULT, repository.phoneFileTypeFilter.first())
+        // A fresh install is Casual: the effective filter and linking are the Casual values.
+        assertFalse(repository.proMode.first())
+        assertEquals(FileTypeFilter.ONE_PER_SHOT, repository.phoneFileTypeFilter.first())
         assertFalse(repository.phoneShowExifOverlay.first())
-        assertFalse(repository.phoneMoveRelatedFiles.first())
+        assertTrue(repository.phoneMoveRelatedFiles.first())
         assertTrue(repository.phoneRecentPathsEnabled.first())
         assertEquals(3, repository.phoneRecentPathsCount.first())
         assertTrue(repository.phoneRecentPaths.first().isEmpty())
@@ -63,6 +65,8 @@ class SettingsRepositoryTest {
 
     @Test
     fun `setters update respective flows`() = runTest {
+        // Pro-only settings act only in Pro mode (a Casual read returns the Casual value).
+        repository.setProMode(true)
         repository.setSelectionFolderName("CustomSelection")
         assertEquals("CustomSelection", repository.selectionFolderName.first())
 
@@ -125,6 +129,7 @@ class SettingsRepositoryTest {
 
     @Test
     fun `sourceSettingsFlow returns tailored defaults per SourceKind and updates independently`() = runTest {
+        repository.setProMode(true)
         val phoneDefaults = repository.sourceSettingsFlow(com.photoselector.core.storage.SourceKind.PHONE_LIBRARY).first()
         val sdDefaults = repository.sourceSettingsFlow(com.photoselector.core.storage.SourceKind.REMOVABLE).first()
 

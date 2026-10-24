@@ -68,6 +68,11 @@ fun PhoneModeTopBar(
     onSettings: () -> Unit,
     modifier: Modifier = Modifier,
     anchors: ControlsGuideAnchors? = null,
+    /**
+     * Camera info is a Pro mode feature: in Casual the (i) button is not offered and the logo is
+     * a plain logo (no toggle, no guide callout), so no control claims to do what it does not.
+     */
+    cameraInfoEnabled: Boolean = true,
 ) {
     val colors = MaterialTheme.colorScheme
     val metrics = PhoneModeChromeMetrics
@@ -88,31 +93,38 @@ fun PhoneModeTopBar(
         horizontalArrangement = Arrangement.SpaceBetween,
         verticalAlignment = Alignment.CenterVertically,
     ) {
-        val logoName = stringResource(PhoneModeTopBarDescriptions.LOGO)
-        val infoName = stringResource(PhoneModeTopBarDescriptions.INFO)
-        NameTooltip(name = infoName) {
+        if (cameraInfoEnabled) {
+            val logoName = stringResource(PhoneModeTopBarDescriptions.LOGO)
+            val infoName = stringResource(PhoneModeTopBarDescriptions.INFO)
+            NameTooltip(name = infoName) {
+                Box(
+                    contentAlignment = Alignment.Center,
+                    modifier = Modifier
+                        .sizeIn(minWidth = 48.dp, minHeight = 48.dp)
+                        .guideAnchor(anchors, GuideAnchor.LOGO)
+                        .semantics { contentDescription = logoName }
+                        .testTag("top_bar_logo")
+                        .clickable(
+                            interactionSource = remember { MutableInteractionSource() },
+                            indication = null,
+                            onClickLabel = infoName,
+                            role = Role.Button,
+                            onClick = onToggleExif,
+                        ),
+                ) {
+                    TopBarLogo(guideOpen)
+                }
+            }
+        } else {
+            val logoName = stringResource(R.string.cd_logo_plain)
             Box(
                 contentAlignment = Alignment.Center,
                 modifier = Modifier
                     .sizeIn(minWidth = 48.dp, minHeight = 48.dp)
-                    .guideAnchor(anchors, GuideAnchor.LOGO)
                     .semantics { contentDescription = logoName }
-                    .testTag("top_bar_logo")
-                    .clickable(
-                        interactionSource = remember { MutableInteractionSource() },
-                        indication = null,
-                        onClickLabel = infoName,
-                        role = Role.Button,
-                        onClick = onToggleExif,
-                    ),
+                    .testTag("top_bar_logo"),
             ) {
-                Image(
-                    painter = painterResource(id = R.drawable.ic_brand_mark),
-                    colorFilter = androidx.compose.ui.graphics.ColorFilter.tint(colors.primary),
-                    contentDescription = null,
-                    alpha = if (guideOpen) 0.4f else 1.0f,
-                    modifier = Modifier.size(metrics.TOP_BAR_LOGO_SIZE),
-                )
+                TopBarLogo(guideOpen)
             }
         }
         Row(verticalAlignment = Alignment.CenterVertically) {
@@ -149,16 +161,18 @@ fun PhoneModeTopBar(
                         .guideAnchor(anchors, GuideAnchor.HELP)
                         .testTag("help_button"),
                 )
-                TopBarIconButton(
-                    icon = Icons.Default.Info,
-                    name = stringResource(PhoneModeTopBarDescriptions.INFO),
-                    tint = if (exifOverlayOn) colors.primary else tint,
-                    onClick = onToggleExif,
-                    modifier = Modifier
-                        .size(buttonSize)
-                        .guideAnchor(anchors, GuideAnchor.INFO)
-                        .testTag("info_exif_button"),
-                )
+                if (cameraInfoEnabled) {
+                    TopBarIconButton(
+                        icon = Icons.Default.Info,
+                        name = stringResource(PhoneModeTopBarDescriptions.INFO),
+                        tint = if (exifOverlayOn) colors.primary else tint,
+                        onClick = onToggleExif,
+                        modifier = Modifier
+                            .size(buttonSize)
+                            .guideAnchor(anchors, GuideAnchor.INFO)
+                            .testTag("info_exif_button"),
+                    )
+                }
             }
             TopBarIconButton(
                 icon = Icons.Default.Settings,
@@ -172,6 +186,17 @@ fun PhoneModeTopBar(
             )
         }
     }
+}
+
+@Composable
+private fun TopBarLogo(guideOpen: Boolean) {
+    Image(
+        painter = painterResource(id = R.drawable.ic_brand_mark),
+        colorFilter = androidx.compose.ui.graphics.ColorFilter.tint(MaterialTheme.colorScheme.primary),
+        contentDescription = null,
+        alpha = if (guideOpen) 0.4f else 1.0f,
+        modifier = Modifier.size(PhoneModeChromeMetrics.TOP_BAR_LOGO_SIZE),
+    )
 }
 
 /**

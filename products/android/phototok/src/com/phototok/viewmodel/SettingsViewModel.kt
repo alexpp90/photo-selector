@@ -13,6 +13,7 @@ import com.phototok.domain.FeedOrderMode
 import com.phototok.domain.FileTypeFilter
 import com.phototok.domain.SwipeAction
 import com.phototok.domain.SwipeRightVerb
+import com.phototok.domain.UiText
 import dagger.hilt.android.lifecycle.HiltViewModel
 import javax.inject.Inject
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -45,6 +46,8 @@ data class SettingsUiState(
     val celebrationsEnabled: Boolean = true,
     val cloudInheritsPhone: Boolean = true,
     val sourceSettingsByKind: Map<SourceKind, SourceSettings> = emptyMap(),
+    /** Pro mode on? In Casual the settings above are the Casual values and the Pro rows are hidden. */
+    val proMode: Boolean = false,
 )
 
 @HiltViewModel
@@ -77,6 +80,7 @@ class SettingsViewModel @Inject constructor(
                     val hasSourceOverride = state.sourceSettingsByKind.containsKey(SourceKind.PHONE_LIBRARY)
                     if (isPhoneSelected && !hasSourceOverride) {
                         state.copy(
+                            proMode = phone.proMode,
                             selectionFolderName = selectionFolderName,
                             sortingEnabled = sortingEnabled,
                             collectionAction = phone.collectionAction,
@@ -94,6 +98,7 @@ class SettingsViewModel @Inject constructor(
                         )
                     } else {
                         state.copy(
+                            proMode = phone.proMode,
                             selectionFolderName = selectionFolderName,
                             sortingEnabled = sortingEnabled,
                             showExifOverlay = phone.showExifOverlay,
@@ -355,6 +360,15 @@ class SettingsViewModel @Inject constructor(
                 settingsRepository.setSourceLeftSwipeUri(kind, uri)
             }
         }
+    }
+
+    /**
+     * Switch Pro mode from the Settings row. [onMessage] receives the snackbar text naming the
+     * visible change (null when the mode did not change); `PhoneModeViewModel.setProMode` is the
+     * same action with the snackbar already wired.
+     */
+    fun setProMode(enabled: Boolean, onMessage: (UiText?) -> Unit = {}) {
+        viewModelScope.launch { onMessage(settingsRepository.setProMode(enabled)) }
     }
 
     fun updateCelebrationsEnabled(enabled: Boolean) {

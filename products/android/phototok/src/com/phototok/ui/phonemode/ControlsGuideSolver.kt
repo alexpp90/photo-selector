@@ -299,17 +299,23 @@ object ControlsGuideSolver {
         bottomInset: Float,
         hasDoneWithCard: Boolean,
         m: Metrics = Metrics(),
+        hasCameraInfo: Boolean = true,
     ): Map<GuideAnchor, Box> {
         val out = LinkedHashMap<GuideAnchor, Box>()
         val barH = m.topBarButton + 2 * m.topBarVPadding
         out[GuideAnchor.TOP_BAR] = Box(0f, topInset, width, topInset + barH)
         val cy = topInset + barH / 2f
-        out[GuideAnchor.LOGO] = Box(
-            m.topBarHPadding, cy - m.topBarLogo / 2f, m.topBarHPadding + m.topBarLogo, cy + m.topBarLogo / 2f,
-        )
+        // The logo is a labelled control (Camera info) only when camera info is offered (Pro mode).
+        if (hasCameraInfo) {
+            out[GuideAnchor.LOGO] = Box(
+                m.topBarHPadding, cy - m.topBarLogo / 2f, m.topBarHPadding + m.topBarLogo, cy + m.topBarLogo / 2f,
+            )
+        }
         val order = buildList {
             if (hasDoneWithCard) add(GuideAnchor.DONE_WITH_CARD)
-            add(GuideAnchor.RELOAD); add(GuideAnchor.HELP); add(GuideAnchor.INFO); add(GuideAnchor.SETTINGS)
+            add(GuideAnchor.RELOAD); add(GuideAnchor.HELP)
+            if (hasCameraInfo) add(GuideAnchor.INFO)
+            add(GuideAnchor.SETTINGS)
         }
         var right = width - m.topBarHPadding
         for (id in order.reversed()) {
@@ -336,6 +342,7 @@ object ControlsGuideSolver {
         width: Float,
         height: Float,
         m: Metrics = Metrics(),
+        hasCameraInfo: Boolean = true,
     ): Map<GuideAnchor, Box> {
         val out = LinkedHashMap<GuideAnchor, Box>()
         out[GuideAnchor.LEFT_PANEL] = Box(0f, 0f, m.leftPanelW, height)
@@ -349,7 +356,10 @@ object ControlsGuideSolver {
         val spacer = m.leftBottomSpacer
         val free = max(inner - m.leftLogo - buttonsH - spacer, 0f)
         val logoTop = m.leftVPadding
-        out[GuideAnchor.LOGO] = Box(lcx - m.leftLogo / 2f, logoTop, lcx + m.leftLogo / 2f, logoTop + m.leftLogo)
+        // The logo stays in the layout either way; it is a labelled control only with camera info.
+        if (hasCameraInfo) {
+            out[GuideAnchor.LOGO] = Box(lcx - m.leftLogo / 2f, logoTop, lcx + m.leftLogo / 2f, logoTop + m.leftLogo)
+        }
         var y = logoTop + m.leftLogo + free / 2f
         leftButtons.forEach { id ->
             out[id] = Box(lcx - m.sideButtonW / 2f, y, lcx + m.sideButtonW / 2f, y + m.sideButtonH)
@@ -357,7 +367,11 @@ object ControlsGuideSolver {
         }
         val rcx = width - m.rightPanelW / 2f
         var ry = m.rightPadding
-        listOf(GuideAnchor.RELOAD, GuideAnchor.INFO, GuideAnchor.SETTINGS).forEach { id ->
+        listOfNotNull(
+            GuideAnchor.RELOAD,
+            GuideAnchor.INFO.takeIf { hasCameraInfo },
+            GuideAnchor.SETTINGS,
+        ).forEach { id ->
             out[id] = Box(rcx - m.topBarButton / 2f, ry, rcx + m.topBarButton / 2f, ry + m.topBarButton)
             ry += m.topBarButton
         }

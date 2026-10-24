@@ -10,6 +10,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.testTag
+import androidx.compose.ui.test.assertCountEquals
 import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.junit4.createComposeRule
 import androidx.compose.ui.test.onAllNodesWithTag
@@ -49,7 +50,7 @@ class PhoneModeScreenDialogTest {
     }
 
     @Test
-    fun directDeleteDialog_showsConsequenceReasonAndSettingsHint() {
+    fun directDeleteDialog_showsConsequenceReasonAndDontAskChoice() {
         var confirmed = false
         var dismissed = false
 
@@ -62,12 +63,27 @@ class PhoneModeScreenDialogTest {
 
         composeTestRule.onNodeWithText(str(R.string.dialog_title_direct_delete)).assertIsDisplayed()
         composeTestRule.onNodeWithText(str(R.string.dialog_body_no_trash)).assertIsDisplayed()
-        composeTestRule.onNodeWithText(str(R.string.dialog_body_turn_off_prompt)).assertIsDisplayed()
+        // "Don't ask" replaces the old "Turn off this prompt in Settings." line.
+        composeTestRule.onNodeWithTag("direct_delete_dont_ask").assertIsDisplayed()
+        composeTestRule.onNodeWithText(str(R.string.label_dont_ask)).assertIsDisplayed()
         composeTestRule.onNodeWithText(str(R.string.action_cancel)).assertIsDisplayed()
 
         composeTestRule.onNodeWithTag("direct_delete_confirm_button").performClick()
         assertTrue("Confirm button must trigger deletion", confirmed)
         assertFalse("Cancel must not have been triggered", dismissed)
+    }
+
+    @Test
+    fun directDeleteDialog_dontAskIsReportedWithDelete() {
+        var dontAsk: Boolean? = null
+
+        composeTestRule.setContent {
+            DirectDeleteDialog(onConfirm = { dontAsk = it }, onDismiss = {})
+        }
+
+        composeTestRule.onNodeWithTag("direct_delete_dont_ask").performClick()
+        composeTestRule.onNodeWithTag("direct_delete_confirm_button").performClick()
+        assertTrue("Delete with the choice ticked reports it", dontAsk == true)
     }
 
     @Test
@@ -361,6 +377,35 @@ class PhoneModeScreenDialogTest {
         composeTestRule.onAllNodesWithTag("reload_jump_stay_button").onFirst().performClick()
         assertTrue("Stay button must trigger callback", continuedWhereLeftOff)
         assertFalse("Show new button must not be triggered", startedWithNewest)
+    }
+
+    @Test
+    fun phoneModeLanding_proModeRow_togglesAndOpensHelp() {
+        var pro = false
+
+        composeTestRule.setContent {
+            var on by remember { mutableStateOf(pro) }
+            PhoneModeLanding(
+                sourceFolderUri = null,
+                sourceFolderName = "",
+                collectionFolderName = "Selection",
+                isLoading = false,
+                onSelectSource = {},
+                onSelectCollection = {},
+                onStart = {},
+                proMode = on,
+                onProModeChange = { on = it; pro = it },
+            )
+        }
+
+        composeTestRule.onNodeWithTag("landing_pro_mode_toggle").performScrollTo().assertIsDisplayed()
+        composeTestRule.onNodeWithTag("landing_pro_mode_toggle").performClick()
+        assertTrue("The Pro mode row switches Pro mode on", pro)
+
+        composeTestRule.onNodeWithTag("landing_pro_mode_help").performScrollTo().performClick()
+        composeTestRule.onNodeWithTag("pro_mode_help_dialog").assertIsDisplayed()
+        composeTestRule.onNodeWithTag("pro_mode_help_got_it").performClick()
+        composeTestRule.onAllNodesWithTag("pro_mode_help_dialog").assertCountEquals(0)
     }
 
     @Test

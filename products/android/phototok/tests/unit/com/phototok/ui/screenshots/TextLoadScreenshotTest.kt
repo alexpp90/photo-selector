@@ -20,6 +20,7 @@ import com.phototok.domain.CollectionAction
 import com.phototok.domain.FirstRunHint
 import com.phototok.domain.SwipeAction
 import com.phototok.domain.UiText
+import com.phototok.ui.components.ProModeHelpDialog
 import com.phototok.ui.components.ViewerBottomBar
 import com.phototok.ui.phonemode.DirectDeleteDialog
 import com.phototok.ui.phonemode.FirstRunHintCard
@@ -137,6 +138,35 @@ class TextLoadScreenshotTest {
     )
 
     @Test
+    fun topBar_casual_isIconOnly() = everyVariant(
+        surface = "top_bar_casual",
+        content = {
+            Box(Modifier.fillMaxSize()) {
+                PhoneModeTopBar(
+                    showControls = true,
+                    showDoneWithCard = true,
+                    guideOpen = false,
+                    exifOverlayOn = false,
+                    onToggleExif = {},
+                    onDoneWithCard = {},
+                    onReload = {},
+                    onHelp = {},
+                    onSettings = {},
+                    modifier = Modifier.align(Alignment.TopCenter),
+                    cameraInfoEnabled = false,
+                )
+            }
+        },
+        checks = { variant ->
+            // Card done, Reload, Help, Settings: no (i) button, and the logo is not a control.
+            assertHasClickableControls("top_bar_casual", 4)
+            assertIconOnly(variant, "top_bar_casual")
+            assertTouchTargets(variant, "top_bar_casual")
+            assertInsideScreen(variant, "top_bar_casual")
+        },
+    )
+
+    @Test
     fun landscapeSidePanel_isIconOnly() = everyVariant(
         surface = "landscape_side_panel",
         content = {
@@ -174,14 +204,68 @@ class TextLoadScreenshotTest {
     )
 
     @Test
+    fun landscapeSidePanel_casual_isIconOnly() = everyVariant(
+        surface = "landscape_side_panel_casual",
+        content = {
+            Row(Modifier.fillMaxSize()) {
+                LandscapeLeftPanel(
+                    canRevert = true,
+                    helpOpen = false,
+                    anchors = null,
+                    onToggleExif = {},
+                    onSources = {},
+                    onSelection = {},
+                    onShare = {},
+                    onRevert = {},
+                    onHelp = {},
+                    cameraInfoEnabled = false,
+                )
+                Box(Modifier.weight(1f).fillMaxHeight())
+                Box(Modifier.width(125.dp).fillMaxHeight().padding(12.dp)) {
+                    LandscapeRightButtons(
+                        exifOn = false,
+                        tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                        anchors = null,
+                        onReload = {},
+                        onInfo = {},
+                        onSettings = {},
+                        cameraInfoEnabled = false,
+                    )
+                }
+            }
+        },
+        checks = { variant ->
+            // Sources, Selection, Share, Revert, Help, Reload, Settings: the logo and Info are gone.
+            assertHasClickableControls("landscape_side_panel_casual", 7)
+            assertIconOnly(variant, "landscape_side_panel_casual")
+            assertTouchTargets(variant, "landscape_side_panel_casual")
+            assertInsideScreen(variant, "landscape_side_panel_casual")
+        },
+    )
+
+    @Test
     fun directDeleteDialog_fits() = everyVariant(
         surface = "direct_delete_dialog",
         content = { DirectDeleteDialog(onConfirm = {}, onDismiss = {}) },
         checks = { variant ->
-            assertHasClickableControls("direct_delete_dialog", 2)
+            // Cancel, Delete and the "Don't ask" choice (each a 48 dp target).
+            assertHasClickableControls("direct_delete_dialog", 3)
             assertTouchTargets(variant, "direct_delete_dialog")
             assertNoTextOverflow(variant, "direct_delete_dialog")
             assertInsideScreen(variant, "direct_delete_dialog")
+        },
+    )
+
+    @Test
+    fun proModeHelpDialog_fits() = everyVariant(
+        surface = "pro_mode_help_dialog",
+        content = { ProModeHelpDialog(onDismiss = {}) },
+        checks = { variant ->
+            assertHasClickableControls("pro_mode_help_dialog", 1)
+            assertTouchTargets(variant, "pro_mode_help_dialog")
+            assertNoTextOverflow(variant, "pro_mode_help_dialog")
+            // The dialog scrolls at large font scales; only sideways overflow is a defect.
+            assertInsideScreen(variant, "pro_mode_help_dialog", vertical = false)
         },
     )
 
@@ -287,9 +371,14 @@ class TextLoadScreenshotTest {
     )
 
     @Test
-    fun settingsFirstScreen_fits() {
+    fun settingsFirstScreen_fits() = settingsFits(proMode = false, surface = "settings")
+
+    @Test
+    fun settingsFirstScreen_pro_fits() = settingsFits(proMode = true, surface = "settings_pro")
+
+    private fun settingsFits(proMode: Boolean, surface: String) {
         val settingsRepository: SettingsRepository = mockk(relaxed = true)
-        every { settingsRepository.phoneSettings } returns MutableStateFlow(PhoneSettings())
+        every { settingsRepository.phoneSettings } returns MutableStateFlow(PhoneSettings(proMode = proMode))
         every { settingsRepository.selectionFolderName } returns MutableStateFlow("Selection")
         every { settingsRepository.sortingEnabled } returns MutableStateFlow(true)
         every { settingsRepository.phoneCollectionUri } returns MutableStateFlow<String?>(null)
@@ -299,7 +388,7 @@ class TextLoadScreenshotTest {
         val viewModel = SettingsViewModel(settingsRepository, imageRepository)
 
         everyVariant(
-            surface = "settings",
+            surface = surface,
             content = {
                 SettingsScreen(
                     viewModel = viewModel,
@@ -308,10 +397,11 @@ class TextLoadScreenshotTest {
                 )
             },
             checks = { variant ->
-                assertHasClickableControls("settings", 3)
-                assertNoTextOverflow(variant, "settings")
+                // The Pro mode row (toggle + help) and the rows both modes share.
+                assertHasClickableControls(surface, 5)
+                assertNoTextOverflow(variant, surface)
                 // A long list: it scrolls, so only sideways overflow is a defect.
-                assertInsideScreen(variant, "settings", vertical = false)
+                assertInsideScreen(variant, surface, vertical = false)
             },
         )
     }
@@ -331,10 +421,35 @@ class TextLoadScreenshotTest {
             )
         },
         checks = { variant ->
-            assertHasClickableControls("landing", 3)
+            // Three sources, the Pro mode toggle and its help button.
+            assertHasClickableControls("landing", 5)
+            assertTouchTargets(variant, "landing")
             assertNoTextOverflow(variant, "landing")
             // The landing screen scrolls; only sideways overflow is a defect.
             assertInsideScreen(variant, "landing", vertical = false)
+        },
+    )
+
+    @Test
+    fun landing_proModeOn_fits() = everyVariant(
+        surface = "landing_pro",
+        content = {
+            PhoneModeLanding(
+                sourceFolderUri = "content://tree/PSTLab",
+                sourceFolderName = "PSTLab",
+                collectionFolderName = "Selection",
+                isLoading = false,
+                onSelectSource = {},
+                onSelectCollection = {},
+                onStart = {},
+                proMode = true,
+            )
+        },
+        checks = { variant ->
+            assertHasClickableControls("landing_pro", 5)
+            assertTouchTargets(variant, "landing_pro")
+            assertNoTextOverflow(variant, "landing_pro")
+            assertInsideScreen(variant, "landing_pro", vertical = false)
         },
     )
 
