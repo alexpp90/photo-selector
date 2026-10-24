@@ -117,7 +117,9 @@ class ControlsGuideAlignmentTest {
         val callouts = mutableMapOf<GuideAnchor, Rect>()
         for (id in topControls.keys + bottomControls.keys) {
             val present = exists("guide_callout_${id.name}")
-            assertEquals("callout for $id exists exactly when the control does", id in controls, present)
+            // In Casual the logo is still drawn, but plain: it is not a control, so it gets no callout.
+            val labelled = id in controls && !(id == GuideAnchor.LOGO && !cameraInfo)
+            assertEquals("callout for $id exists exactly when the control does", labelled, present)
             if (present) callouts[id] = bounds("guide_callout_${id.name}")
         }
 
