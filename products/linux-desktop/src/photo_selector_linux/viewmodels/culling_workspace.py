@@ -63,6 +63,33 @@ class _QueuedAction:
     workspace: Optional[Path] = None
 
 
+MESSAGE_NAME_CHARS = 16
+
+
+def shorten_middle(name: str, limit: int = MESSAGE_NAME_CHARS) -> str:
+    """Shorten a long file name in the middle so its distinguishing end stays visible.
+
+    Burst files share their prefix (IMG_20260814_064000, IMG_20260814_064001), so the status
+    message keeps the first 4 and the last 7 characters of the stem: ``IMG_…_064000``. A name
+    that fits is returned whole, extension included; a shortened one drops the extension (the
+    companion count says what travelled with it).
+    """
+    if len(name) <= limit:
+        return name
+    stem = name.rsplit(".", 1)[0] if "." in name.strip(".") else name
+    if len(stem) <= limit:
+        return stem
+    return f"{stem[:4]}…{stem[-7:]}"
+
+
+def _name_with_companions(photo: CandidatePhoto, result: Any) -> str:
+    """``name`` or ``name + N`` for the N companion files that went along with the primary."""
+    pairs = list(getattr(result, "affected_paths", None) or [])
+    companions = len(pairs) - 1 if pairs else len(photo.all_paths) - 1
+    name = shorten_middle(photo.filename)
+    return f"{name} + {companions}" if companions > 0 else name
+
+
 class CullingWorkspaceViewModel:
     """Decoupled presentation state machine driving navigation, comparison, and culling.
 
@@ -548,7 +575,9 @@ class CullingWorkspaceViewModel:
                 elif action.kind == "copy":
                     self._notify(self._transfer_message("Copied", action, result), "status")
                 elif action.kind == "trash":
-                    self._notify(f"Moved {action.photo.filename} to Trash", "status")
+                    self._notify(
+                        f"Moved {_name_with_companions(action.photo, result)} to Trash", "status"
+                    )
 
         elif action.kind == "undo":
             target = action.target_action
@@ -587,9 +616,9 @@ class CullingWorkspaceViewModel:
                     self.copied_count = max(0, self.copied_count - 1)
                 restored_as = self._restored_suffixed_name(action.photo, rec)
                 if restored_as is not None:
-                    self._notify(f"Restored as {restored_as} (original name was in use)", "status")
+                    self._notify(f"Restored as {shorten_middle(restored_as)} (original name was in use)", "status")
                 else:
-                    self._notify(f"Undid {rec.action_type.value} for {action.photo.filename}", "status")
+                    self._notify(f"Undid {rec.action_type.value} for {shorten_middle(action.photo.filename)}", "status")
 
     @staticmethod
     def _transfer_message(verb: str, action: "_QueuedAction", result: Any) -> str:
@@ -604,8 +633,8 @@ class CullingWorkspaceViewModel:
         if primary_dst is not None and primary_dst.name != photo.name_of(photo.primary_path):
             related = len(pairs) - 1
             suffix = f" (+{related} related)" if related > 0 else ""
-            return f"{verb} to {action.selection_folder}/ as {primary_dst.name}{suffix}"
-        return f"{verb} {photo.filename} to {action.selection_folder}/"
+            return f"{verb} to {action.selection_folder}/ as {shorten_middle(primary_dst.name)}{suffix}"
+        return f"{verb} {_name_with_companions(photo, result)} to {action.selection_folder}/"
 
     @staticmethod
     def _restored_suffixed_name(photo: CandidatePhoto, record: CullingRecord) -> Optional[str]:
@@ -709,7 +738,7 @@ class CullingWorkspaceViewModel:
             source_action.status = "cancelled"
             self._queue.remove(source_action)
             self._rollback_optimistic(source_action)
-            self._notify(f"Undid {record.action_type.value} for {photo.filename}", "status")
+            self._notify(f"Undid {record.action_type.value} for {shorten_middle(photo.filename)}", "status")
             self._pump_queue()
             self._notify_state_changed()
             return True
