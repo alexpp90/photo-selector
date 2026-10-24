@@ -469,6 +469,9 @@ fails the build on any finding. This section applies them to Jackpix.
 | *No hint* | swipes (the guide shows them once), first page change, first revert: the user just watched the result | — | — |
 | SD / USB card done (`showCardDoneSheet`) | "Card done" | — | **Keep all** · Delete rejects · Delete all (N) · Cancel |
 | Clear whole card confirm | "Delete all N photos?" | "Photos not copied off the card are lost." | Cancel · **Delete all** |
+| Favourite badge (viewer, under the top bar) | `Star` filled + "Favourite" when the system favourite flag is set too; `StarBorder` outlined + "Favourite" while it is only in Jackpix (not sent yet, camera/USB or cloud source, Android ≤ 10). The star scales with the label's font size. Spoken state: "Also a system favourite" / "Only in Jackpix" (DE "Auch System-Favorit" / "Nur in Jackpix") | — | — |
+| Long-press menu | — | — | Share · Open with · **Favourite** / **Remove favourite** (`Star` / `StarBorder`; DE "Favorit" / "Favorit entfernen") · Details |
+| System favourites (MediaStore) | *no dialog, no snackbar*: Android 11+ grants favourite requests itself; the request runs as a short system activity at a flush point (leaving the feed, switching folders, opening the Selection viewer, 25 queued changes) | — | — |
 | Snackbars | — | "Copied to «folder»" · "Moved to «folder» +K" · "Moved as «name»" · "Marked as favourite" · "Pairs merged" · "RAW + JPEG linked" · "Safe to unplug" · "Rejects deleted" · "N deleted" · "Cloud: copy only" · "Card disconnected" · "50 MB freed" · "100 reviewed" | — |
 | Errors | — | "Copy to «folder» failed" · "Moved 2 of 3 to «folder»" · "Copied to «folder», original not removed" · "Couldn't delete «file»" · "Can't open this folder" | — |
 | Landing | *no tagline, no section labels* | — | folder name as a value · **Resume** / Start |

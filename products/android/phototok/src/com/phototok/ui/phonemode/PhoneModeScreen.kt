@@ -3,7 +3,10 @@ package com.phototok.ui.phonemode
 import androidx.compose.foundation.layout.FlowRow
 import android.content.res.Configuration
 import android.net.Uri
+import android.app.Activity
+import android.content.ActivityNotFoundException
 import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.IntentSenderRequest
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
@@ -130,10 +133,11 @@ fun PhoneModeScreen(
         selectionViewModel.openWithFavourites(
             targetFolderUri = uiState.collectionFolderUri ?: uiState.sourceFolderUri,
             sourceImages = uiState.images,
-            favouritedUris = uiState.favouritedUris,
+            favourites = uiState.favourites,
             // Open where the user's swipe right puts photos: ★ -> Favourites, copy/move -> Selection.
             preferredTab = SelectionViewerLogic.preferredTab(uiState.swipeRightVerb),
         )
+        viewModel.onSelectionViewerOpened()
     }
 
     // The bar's Share button and the long-press menu take the same path.
@@ -167,6 +171,21 @@ fun PhoneModeScreen(
     val folderPickerLauncher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.OpenDocumentTree(),
     ) { uri: Uri? -> uri?.let { viewModel.selectSourceFolder(it) } }
+
+    // MediaStore favourite requests (U-17): launched once each; the ViewModel decides when.
+    val favouriteRequestLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.StartIntentSenderForResult(),
+    ) { result -> viewModel.onLaunchedFavouriteRequestResult(result.resultCode == Activity.RESULT_OK) }
+
+    LaunchedEffect(uiState.pendingIntentSenderRequest) {
+        val request = uiState.pendingIntentSenderRequest ?: return@LaunchedEffect
+        viewModel.onSystemFavouriteRequestLaunched(request)
+        try {
+            favouriteRequestLauncher.launch(IntentSenderRequest.Builder(request.intentSender).build())
+        } catch (e: ActivityNotFoundException) {
+            viewModel.onSystemFavouriteResult(request, accepted = false)
+        }
+    }
 
     val copyFavouritesPickerLauncher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.OpenDocumentTree(),
@@ -395,7 +414,7 @@ fun PhoneModeScreen(
                         isDiscovering = uiState.isDiscovering,
                         isCloudSource = uiState.sourceKind == SourceKind.CLOUD_OTHER,
                         rawCompanionUris = uiState.rawCompanionUris,
-                        favouriteUris = uiState.favouritedUris,
+                        favourites = uiState.favourites,
                         onCardDwelled = viewModel::onCardDwelled,
                         onShareCurrentPhoto = {
                             viewModel.buildCurrentShareIntent()?.let { context.startActivity(it) }
@@ -488,7 +507,7 @@ fun PhoneModeScreen(
                     isDiscovering = uiState.isDiscovering,
                     isCloudSource = uiState.sourceKind == SourceKind.CLOUD_OTHER,
                     rawCompanionUris = uiState.rawCompanionUris,
-                    favouriteUris = uiState.favouritedUris,
+                    favourites = uiState.favourites,
                     onCardDwelled = viewModel::onCardDwelled,
                     onShareCurrentPhoto = {
                         viewModel.buildCurrentShareIntent()?.let { context.startActivity(it) }
@@ -496,6 +515,7 @@ fun PhoneModeScreen(
                     onOpenWithCurrentPhoto = {
                         viewModel.buildCurrentOpenWithIntent()?.let { context.startActivity(it) }
                     },
+                    onToggleFavourite = viewModel::toggleCurrentFavourite,
                     onFirstRunHint = viewModel::maybeShowFirstRunHint,
                 )
             } else if (uiState.isLoading) {

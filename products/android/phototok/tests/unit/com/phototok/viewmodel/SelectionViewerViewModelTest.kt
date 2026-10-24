@@ -4,6 +4,7 @@ import com.phototok.R
 import com.phototok.data.model.ImageItem
 import com.phototok.data.repository.ImageRepository
 import com.phototok.data.source.SelectionListing
+import com.phototok.domain.FavouritesSnapshot
 import com.phototok.domain.SwipeRightVerb
 import com.phototok.domain.UiText
 import io.mockk.coEvery
@@ -163,7 +164,7 @@ class SelectionViewerViewModelTest {
         viewModel.openWithFavourites(
             targetFolderUri = "content://tree/photos",
             sourceImages = sourceImages,
-            favouritedUris = favs,
+            favourites = FavouritesSnapshot(favourites = favs),
             preferredTab = preferred,
         )
     }

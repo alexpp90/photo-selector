@@ -57,6 +57,7 @@ import androidx.compose.material.icons.filled.PhotoCamera
 import androidx.compose.material.icons.filled.ScreenRotation
 import androidx.compose.material.icons.filled.Share
 import androidx.compose.material.icons.filled.Star
+import androidx.compose.material.icons.filled.StarBorder
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
@@ -92,11 +93,13 @@ import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.CustomAccessibilityAction
 import androidx.compose.ui.semantics.customActions
 import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.semantics.stateDescription
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.IntSize
@@ -108,6 +111,7 @@ import coil.request.ImageRequest
 import com.photoselector.core.model.ExifData
 import com.phototok.data.model.ImageItem
 import com.phototok.domain.CollectionAction
+import com.phototok.domain.FavouritesSnapshot
 import com.phototok.domain.FirstRunHint
 import com.phototok.domain.SeenStore
 import com.phototok.domain.SwipeAction
@@ -181,10 +185,12 @@ fun PhoneModeViewer(
     readOnly: Boolean = false,
     isCloudSource: Boolean = false,
     rawCompanionUris: Set<String> = emptySet(),
-    favouriteUris: Set<String> = emptySet(),
+    favourites: FavouritesSnapshot = FavouritesSnapshot(),
     onCardDwelled: (ImageItem) -> Unit = {},
     onShareCurrentPhoto: () -> Unit = {},
     onOpenWithCurrentPhoto: () -> Unit = {},
+    /** Long-press "Favourite" / "Remove favourite"; null hides the item (read-only viewers). */
+    onToggleFavourite: (() -> Unit)? = null,
     onFirstRunHint: (FirstRunHint) -> Unit = {},
 ) {
     if (images.isEmpty()) return
@@ -315,6 +321,8 @@ fun PhoneModeViewer(
     val shareLabel = stringResource(R.string.action_share)
     val openWithLabel = stringResource(R.string.action_open_with)
     val detailsLabel = stringResource(R.string.action_details)
+    val currentIsFavourite = currentImage?.let { favourites.isFavourite(it.uri) } == true
+    val favouriteLabel = stringResource(if (currentIsFavourite) R.string.action_unfavourite else R.string.action_favourite)
 
     Box(
         modifier = Modifier
@@ -333,6 +341,13 @@ fun PhoneModeViewer(
                     CustomAccessibilityAction(detailsLabel) {
                         showFileDetailsDialog = true
                         true
+                    },
+                ) + listOfNotNull(
+                    onToggleFavourite?.let { toggle ->
+                        CustomAccessibilityAction(favouriteLabel) {
+                            toggle()
+                            true
+                        }
                     },
                 )
             },
@@ -361,7 +376,8 @@ fun PhoneModeViewer(
                 showFloatingPeeks = showFloatingPeeks,
                 hasRawCompanion = pageItem.uri in rawCompanionUris,
                 topBadgesSuppressed = topBadgesSuppressed,
-                isFavourite = pageItem.uri in favouriteUris,
+                isFavourite = favourites.isFavourite(pageItem.uri),
+                isFavouriteSynced = favourites.isSynced(pageItem.uri),
                 onFirstRunHint = onFirstRunHint,
                 onSingleTap = {
                     hudVisible = !hudVisible
@@ -415,6 +431,19 @@ fun PhoneModeViewer(
                         onOpenWithCurrentPhoto()
                     },
                 )
+                if (onToggleFavourite != null) {
+                    DropdownMenuItem(
+                        text = { Text(favouriteLabel) },
+                        leadingIcon = {
+                            Icon(if (currentIsFavourite) Icons.Default.StarBorder else Icons.Default.Star, contentDescription = null)
+                        },
+                        onClick = {
+                            showLongPressMenu = false
+                            onToggleFavourite()
+                        },
+                        modifier = Modifier.testTag("menu_toggle_favourite"),
+                    )
+                }
                 DropdownMenuItem(
                     text = { Text(detailsLabel) },
                     leadingIcon = { Icon(Icons.Default.Info, contentDescription = null) },
@@ -529,6 +558,7 @@ private fun ImagePage(
     hasRawCompanion: Boolean,
     topBadgesSuppressed: Boolean,
     isFavourite: Boolean,
+    isFavouriteSynced: Boolean = false,
     leftSwipeAction: SwipeAction,
     leftSwipeFolderName: String,
     swipeRightVerb: SwipeRightVerb,
@@ -1039,18 +1069,7 @@ private fun ImagePage(
                 verticalAlignment = Alignment.CenterVertically,
             ) {
                 if (isFavourite) {
-                    Surface(
-                        shape = RoundedCornerShape(50),
-                        color = colors.primaryContainer.copy(alpha = 0.85f),
-                    ) {
-                        Text(
-                            text = stringResource(R.string.chip_favourite),
-                            style = MaterialTheme.typography.labelSmall,
-                            color = colors.onPrimaryContainer,
-                            fontWeight = FontWeight.Bold,
-                            modifier = Modifier.padding(horizontal = 10.dp, vertical = 4.dp),
-                        )
-                    }
+                    FavouriteBadge(synced = isFavouriteSynced)
                 }
                 if (hasRawCompanion) {
                     Surface(
@@ -1212,6 +1231,46 @@ private fun ExifOverlay(
                     )
                 }
             }
+        }
+    }
+}
+
+/**
+ * The favourite badge under the top bar (`U-17`). A filled star means the system favourite flag
+ * (MediaStore `IS_FAVORITE`) is set too; an outlined star means the favourite is only in Jackpix
+ * for now (not synced yet, a source MediaStore does not index, or Android 10 and older).
+ */
+@Composable
+internal fun FavouriteBadge(synced: Boolean) {
+    val colors = MaterialTheme.colorScheme
+    val stateDescription = stringResource(
+        if (synced) R.string.cd_favourite_in_system else R.string.cd_favourite_only_here,
+    )
+    Surface(
+        shape = RoundedCornerShape(50),
+        color = colors.primaryContainer.copy(alpha = 0.85f),
+        modifier = Modifier
+            .testTag(if (synced) "viewer.favourite_badge.synced" else "viewer.favourite_badge.local")
+            .semantics(mergeDescendants = true) { this.stateDescription = stateDescription },
+    ) {
+        Row(
+            modifier = Modifier.padding(start = 8.dp, end = 10.dp, top = 4.dp, bottom = 4.dp),
+            horizontalArrangement = Arrangement.spacedBy(4.dp),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            Icon(
+                imageVector = if (synced) Icons.Default.Star else Icons.Default.StarBorder,
+                contentDescription = null,
+                tint = colors.onPrimaryContainer,
+                // Scales with the label, so the cue stays readable at large font sizes.
+                modifier = Modifier.size(with(LocalDensity.current) { MaterialTheme.typography.labelSmall.fontSize.toDp() } + 3.dp),
+            )
+            Text(
+                text = stringResource(R.string.chip_favourite),
+                style = MaterialTheme.typography.labelSmall,
+                color = colors.onPrimaryContainer,
+                fontWeight = FontWeight.Bold,
+            )
         }
     }
 }
