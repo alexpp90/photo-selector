@@ -61,7 +61,7 @@ class FavouritesStore(
         try {
             _snapshot.value = decode(file.readLines())
         } catch (e: Exception) {
-            onError("Could not read ${file.name}", e)
+            onError("Could not read ${file.name}", e) // ui-text: ignore log message
         }
     }
 
@@ -77,7 +77,7 @@ class FavouritesStore(
                 tmp.delete()
             }
         } catch (e: Exception) {
-            onError("Could not write ${file.name}", e)
+            onError("Could not write ${file.name}", e) // ui-text: ignore log message
         }
     }
 
