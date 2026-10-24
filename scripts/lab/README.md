@@ -28,7 +28,8 @@ device whose installed `base.apk` hashes differently.
 Android devices; a second `lab.py run` waits for it (up to 3 h, then its Android journeys are
 *not run*, naming the holder). Separate devices are not separate runs: every Maestro and adb call
 goes through the one adb server. Each device is also driven under
-`<lab tmp root>/device-<serial>.lock`, the lock instrumented test runs and usability walks take;
+`<lab tmp root>/device-<serial>.lock` (wireless transports keyed by the phone's `ro.serialno`, so
+USB and Wi-Fi debugging of one phone share it), the lock instrumented test runs and usability walks take;
 a device still held after 15 min is *not run*.
 
 The run directory (`private/lab-runs/<date>-<time>-<sha>/`, or `/tmp/lab-runs/` without the

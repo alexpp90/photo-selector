@@ -300,7 +300,8 @@ usability walkthroughs tap on the same phone; one walkthrough tapping during an 
 run caused a spurious failure (2026-10-18). The matrix runner therefore holds each device's
 lock while it prepares, installs and tests it, and any other command can take it with
 `python3 scripts/android_test_device.py with-lock [--timeout S] -- <command…>`. The lock is
-an `flock` on `/tmp/pstlab/device-<serial>.lock` (`PST_LAB_TMP` moves it), the file the
+an `flock` on `/tmp/pstlab/device-<serial>.lock` (`PST_LAB_TMP` moves it; a wireless transport is
+keyed by the phone's `ro.serialno`, so USB and Wi-Fi debugging of one phone share it), the file the
 lab takes too; its holder writes who it is into it (`device-matrix <worktree> pid=… since=…`,
 or `lab usability-capture <product> …`). A held lock is waited for —
 `--lock-timeout`, or `PST_DEVICE_LOCK_TIMEOUT` seconds, default 300 — and still held after that,
