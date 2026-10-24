@@ -846,7 +846,7 @@ class PhoneModeViewModelTest {
         assertNull("an explicit Reload never asks", viewModel.uiState.value.reloadPrompt)
         assertEquals(0, viewModel.uiState.value.currentIndex)
         assertEquals(imgNew.uri, viewModel.uiState.value.images[0].uri)
-        // New photos are not a "nothing new" case: no snackbar.
+        // Reload never shows a snackbar.
         assertNull(viewModel.uiState.value.lastActionFeedback)
         // The scan info is persisted for the landing position.
         coVerify {
@@ -859,7 +859,7 @@ class PhoneModeViewModelTest {
 
     @Test
     @Requirement("REQ-TOK-FEATURE.09")
-    fun `reloadSourceFolder with no new photos still goes to the latest and confirms in a snackbar`() = runTest {
+    fun `reloadSourceFolder with no new photos still goes to the latest without a snackbar`() = runTest {
         val img1 = image("photo1.jpg", 10)
         val img2 = image("photo2.jpg", 20)
         val viewModel = loadFolder(img1, img2)
@@ -873,7 +873,62 @@ class PhoneModeViewModelTest {
         assertNull(viewModel.uiState.value.reloadPrompt)
         assertEquals(0, viewModel.uiState.value.currentIndex)
         assertEquals(img2.uri, viewModel.uiState.value.images[0].uri)
-        assertEquals(UiText.of(R.string.snackbar_no_new_photos), viewModel.uiState.value.lastActionFeedback?.message)
+        assertNull("no \"No new photos\" snackbar", viewModel.uiState.value.lastActionFeedback)
+    }
+
+    @Test
+    @Requirement("REQ-TOK-FEATURE.09")
+    fun `reloadSourceFolder puts the newest photo at position 1 even after it was seen`() = runTest {
+        val img1 = image("photo1.jpg", 10)
+        val img2 = image("photo2.jpg", 20)
+        val img3 = image("photo3.jpg", 30)
+        val img4 = image("photo4.jpg", 40)
+        val viewModel = loadFolder(img1, img2, img3, img4)
+        // The two newest photos were looked at, so an unseen-first feed would start at photo2.
+        viewModel.onCardDwelled(img4)
+        viewModel.onCardDwelled(img3)
+        viewModel.navigateToImage(1)
+
+        val gate = CompletableDeferred<Unit>()
+        every { imageRepository.discoverImages(any()) } returns kotlinx.coroutines.flow.flow {
+            emit(listOf(img1, img2, img3))
+            gate.await()
+            emit(listOf(img1, img2, img3, img4))
+        }
+        viewModel.reloadSourceFolder()
+        advanceUntilIdle()
+
+        // While the rescan streams in, the first batch is newest-first too.
+        assertEquals(listOf("photo3.jpg", "photo2.jpg", "photo1.jpg"), viewModel.uiState.value.images.map { it.fileName })
+        assertEquals(0, viewModel.uiState.value.currentIndex)
+
+        gate.complete(Unit)
+        advanceUntilIdle()
+
+        val state = viewModel.uiState.value
+        assertEquals(listOf("photo4.jpg", "photo3.jpg", "photo2.jpg", "photo1.jpg"), state.images.map { it.fileName })
+        assertEquals("1/total", 0, state.currentIndex)
+        assertEquals(img4.uri, state.images[state.currentIndex].uri)
+        assertNull(state.reloadPrompt)
+        assertNull(state.lastActionFeedback)
+    }
+
+    @Test
+    @Requirement("REQ-TOK-FEATURE.08")
+    fun `reopening a folder after a Reload still puts unseen photos first`() = runTest {
+        val img1 = image("photo1.jpg", 10)
+        val img2 = image("photo2.jpg", 20)
+        val img3 = image("photo3.jpg", 30)
+        val viewModel = loadFolder(img1, img2, img3)
+        viewModel.onCardDwelled(img3)
+        viewModel.reloadSourceFolder()
+        advanceUntilIdle()
+        assertEquals(listOf("photo3.jpg", "photo2.jpg", "photo1.jpg"), viewModel.uiState.value.images.map { it.fileName })
+
+        viewModel.selectSourceFolder(Uri.parse("content://tree/photos"))
+        advanceUntilIdle()
+
+        assertEquals(listOf("photo2.jpg", "photo1.jpg", "photo3.jpg"), viewModel.uiState.value.images.map { it.fileName })
     }
 
     @Test
