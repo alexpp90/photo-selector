@@ -845,9 +845,19 @@ class SelectorViewModel @Inject constructor(
                     uri.path != null && File(uri.path!!).exists() -> File(uri.path!!)
                     else -> File(photo.uri)
                 }
-                val res = metadataWriter.writeRating(file, rating)
+                var res = metadataWriter.writeRating(file, rating)
                 if (res.isFailure && uri.scheme == "content") {
-                    metadataWriter.writeRating(context, uri, rating)
+                    res = metadataWriter.writeRating(context, uri, rating)
+                }
+                if (res.isFailure) {
+                    // The rating is kept in the app (Room); say that the file did not get it.
+                    val reason = res.exceptionOrNull()?.message
+                    _uiState.update {
+                        it.copy(
+                            snackbarMessage = SelectorLabels.ratingNotWrittenMessage(photo.fileName, reason),
+                            snackbarUndoAvailable = false,
+                        )
+                    }
                 }
             } catch (e: CancellationException) {
                 throw e

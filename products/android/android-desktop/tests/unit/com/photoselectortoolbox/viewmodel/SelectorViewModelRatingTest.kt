@@ -35,6 +35,7 @@ import kotlinx.coroutines.test.setMain
 import org.junit.After
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNotNull
+import org.junit.Assert.assertTrue
 import org.junit.Before
 import org.junit.Test
 import org.junit.runner.RunWith
@@ -167,6 +168,21 @@ class SelectorViewModelRatingTest {
 
         // Verify async debounced metadata write-back called
         coVerify { metadataWriter.writeRating(any(), 4) }
+    }
+
+    @Test
+    fun `a rating the file could not take is kept and the user is told`() = runTest {
+        coEvery { metadataWriter.writeRating(any(), any()) } returns Result.failure(java.io.IOException("no"))
+        coEvery { metadataWriter.writeRating(any(), any(), any()) } returns
+            Result.failure(com.photoselectortoolbox.data.metadata.RatingWriteException("Ratings are not written to PNG files"))
+        val viewModel = loadFolder(image("a.png"))
+
+        viewModel.setRatingForCurrent(3)
+        advanceUntilIdle()
+
+        assertEquals(3, viewModel.uiState.value.images[0].rating)
+        val message = viewModel.uiState.value.snackbarMessage
+        assertTrue(message, message!!.contains("a.png") && message.contains("not written to PNG"))
     }
 
     @Test

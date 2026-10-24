@@ -111,4 +111,8 @@ object SelectorLabels {
 
     /** Snackbar text after a scan finishes. */
     fun scanCompleteMessage(count: Int): String = "Scan complete · $count images analysed"
+
+    /** Snackbar text when a rating was kept in the app but could not be written to the photo's file or sidecar. */
+    fun ratingNotWrittenMessage(fileName: String, reason: String?): String =
+        "Rating kept in the app only — not saved to $fileName" + if (reason.isNullOrBlank()) "" else " ($reason)"
 }
