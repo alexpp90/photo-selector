@@ -27,6 +27,13 @@ from photo_selector_linux.ui.keyboard_router import KeyboardRouter
 from photo_selector_linux.ui.styling import APP_BRAND_NAME, APP_ICON_NAME
 from photo_selector_linux.viewmodels.culling_workspace import CullingWorkspaceViewModel
 
+# Menu label -> view model sort order (R-LINUX-CULL-02).
+VIEW_ORDER_LABELS = {
+    "Natural order": "natural",
+    "Lowest sharpness first": "lowest_sharpness_first",
+}
+VIEW_ORDER_TITLES = {order: label for label, order in VIEW_ORDER_LABELS.items()}
+
 
 class MainWindow(Adw.ApplicationWindow if HAS_GI else object):
     """Main window housing the HeaderBar, Multi-View Canvas, and Bottom ActionBar."""
@@ -149,6 +156,13 @@ class MainWindow(Adw.ApplicationWindow if HAS_GI else object):
         menu_button.set_tooltip_text("Main Menu")
         menu = Gio.Menu()
 
+        section_order = Gio.Menu()
+        for label, target in VIEW_ORDER_LABELS.items():
+            item = Gio.MenuItem.new(label, None)
+            item.set_action_and_target_value("win.view_order", GLib.Variant.new_string(target))
+            section_order.append_item(item)
+        menu.append_section("View order (B)", section_order)
+
         section_tools = Gio.Menu()
         section_tools.append("Duplicate Finder (Ctrl+D)", "app.duplicate_finder")
         section_tools.append("Library Statistics (Ctrl+L)", "app.statistics")
@@ -162,6 +176,33 @@ class MainWindow(Adw.ApplicationWindow if HAS_GI else object):
 
         menu_button.set_menu_model(menu)
         self.header_bar.pack_end(menu_button)
+
+        # Radio action behind the menu items and the B shortcut (R-LINUX-CULL-02).
+        self._view_order_action = Gio.SimpleAction.new_stateful(
+            "view_order",
+            GLib.VariantType.new("s"),
+            GLib.Variant.new_string(self.viewmodel.sort_order),
+        )
+        self._view_order_action.connect("activate", self._on_view_order_action)
+        self.add_action(self._view_order_action)
+
+    def _on_view_order_action(self, action, param) -> None:
+        self.set_view_order(param.get_string())
+
+    def set_view_order(self, order: str) -> None:
+        """Switch the view order and say so; the menu radio follows the view model."""
+        if order not in VIEW_ORDER_LABELS.values():
+            return
+        self.viewmodel.set_sort_order(order)
+        if HAS_GI:
+            self.show_toast(f"Order: {VIEW_ORDER_TITLES[order]}")
+
+    def toggle_view_order(self) -> None:
+        """B: natural order <-> lowest sharpness first."""
+        if self.viewmodel.sort_order == "lowest_sharpness_first":
+            self.set_view_order("natural")
+        else:
+            self.set_view_order("lowest_sharpness_first")
 
     def _attach_keyboard_router(self) -> None:
         self.router = KeyboardRouter(window=self, viewmodel=self.viewmodel)
@@ -192,6 +233,10 @@ class MainWindow(Adw.ApplicationWindow if HAS_GI else object):
         queue_label = getattr(vm, "queue_status_label", None)
         self.lbl_queue.set_label(queue_label or "")
         self.lbl_queue.set_visible(bool(queue_label))
+
+        action = getattr(self, "_view_order_action", None)
+        if action is not None:
+            action.set_state(GLib.Variant.new_string(vm.sort_order))
 
         mode = vm.comparison_mode
         self.btn_mode_1.set_css_classes(["suggested-action"] if mode == 1 else [])

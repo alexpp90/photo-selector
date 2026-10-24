@@ -5,7 +5,7 @@ Adheres to:
 - R-LINUX-KEY-02: Navigation Hotkeys (←, →, H, L, J, K)
 - R-LINUX-KEY-03: Culling Hotkeys (M, C, Delete, Backspace)
 - R-LINUX-KEY-04: Comparison Mode Switchers (1, 2, 3)
-- R-LINUX-KEY-05: Inspection Hotkeys (Space, Esc, Tab, I, F, S)
+- R-LINUX-KEY-05: Inspection Hotkeys (Space, Esc, Tab, I, F, S, B)
 - R-LINUX-KEY-06: System & Utility Hotkeys (Ctrl+Z, Ctrl+O, etc.)
 - R-LINUX-KEY-07: Editable Text Entry Exception
 """
@@ -49,6 +49,7 @@ class KeyboardRouterEngine:
     KEY_KP_3 = 0xFFB3
 
     KEY_A = 0x0061
+    KEY_B = 0x0062
     KEY_C = 0x0063
     KEY_D = 0x0064
     KEY_F = 0x0066
@@ -188,6 +189,9 @@ class KeyboardRouterEngine:
         elif norm_key == self.KEY_QUESTION:
             self.target.on_shortcuts()
             return True
+        elif norm_key == self.KEY_B:
+            self.target.on_toggle_sort_order()
+            return True
 
         return False
 
@@ -276,6 +280,15 @@ class KeyboardRouter:
     def on_toggle_hud(self) -> None:
         if hasattr(self.window, "canvas_view") and hasattr(self.window.canvas_view, "toggle_hud"):
             self.window.canvas_view.toggle_hud()
+
+    def on_toggle_sort_order(self) -> None:
+        if hasattr(self.window, "toggle_view_order"):
+            self.window.toggle_view_order()
+        else:
+            self.viewmodel.set_sort_order(
+                "natural" if self.viewmodel.sort_order == "lowest_sharpness_first"
+                else "lowest_sharpness_first"
+            )
 
     def on_toggle_filmstrip(self) -> None:
         pass
