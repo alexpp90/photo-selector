@@ -271,11 +271,30 @@ def wait_for(predicate, budget=15.0):
 
 
 class DeviceLockPathTest(unittest.TestCase):
+    def setUp(self):
+        atd._use_lab_package()
+        from lab import locks
+
+        self.locks = locks
+        locks._SERIALNO.clear()
+        self.addCleanup(locks._SERIALNO.clear)
+
     def test_lock_lives_where_the_device_lab_puts_it(self):
         with mock.patch.dict(os.environ, {"PST_LAB_TMP": "/tmp/pstlab-unit"}):
             self.assertEqual(atd.device_lock_path("CQ30012CMV"), Path("/tmp/pstlab-unit/device-CQ30012CMV.lock"))
-        self.assertEqual(atd.device_lock_path("192.168.0.117:46567", Path("/x")),
-                         Path("/x/device-192.168.0.117:46567.lock"))
+        with mock.patch.object(self.locks, "_adb_serialno", return_value=None):  # transport not readable
+            self.assertEqual(atd.device_lock_path("192.168.0.117:46567", Path("/x")),
+                             Path("/x/device-192.168.0.117:46567.lock"))
+
+    def test_lock_holder_answers_for_either_transport_of_one_phone(self):
+        with tempfile.TemporaryDirectory() as tmp, \
+                mock.patch.object(self.locks, "_adb_serialno", return_value="CQ30012CMV"):
+            from lab.usability.driver import device_lock
+
+            with device_lock("192.168.0.117:46567", "lab usability phototok", lock_dir=Path(tmp)):
+                for serial in ("CQ30012CMV", "192.168.0.117:46567"):
+                    held_by = atd.lock_holder(atd.device_lock_path(serial, Path(tmp)))
+                    self.assertTrue(held_by and held_by.startswith("lab usability phototok pid="), held_by)
         for bad in ("", ".", "..", "a/b"):
             with self.assertRaises(ValueError):
                 atd.device_lock_path(bad, Path("/x"))

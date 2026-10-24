@@ -22,6 +22,7 @@ LAB_DIR = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(LAB_DIR))
 
 from lab.inventory import parse_inventory  # noqa: E402
+from lab import locks  # noqa: E402
 from lab.locks import DeviceBusy, device_lock, device_lock_path, hub_lock_path, waiting_lock  # noqa: E402
 from lab.orchestrate import _run_android_product, run_lab  # noqa: E402
 
@@ -151,6 +152,55 @@ class TestDeviceLock(LockTestCase):
 
         self.assertIs(driver.device_lock, device_lock)
         self.assertIs(driver.DeviceBusy, DeviceBusy)
+
+
+class TestLockKeyedByPhone(LockTestCase):
+    """USB and wireless debugging are two adb serials of one phone, so they share one lock."""
+
+    USB, WIFI, MDNS = "CQ30012CMV", "192.168.0.117:46567", "adb-CQ30012CMV-fAYuME._adb-tls-connect._tcp"
+
+    def setUp(self) -> None:
+        super().setUp()
+        self.reads: list[str] = []
+        serialnos = {self.WIFI: self.USB, self.MDNS: self.USB}
+        original = locks._adb_serialno
+        locks._adb_serialno = lambda serial: self.reads.append(serial) or serialnos.get(serial)
+        locks._SERIALNO.clear()
+        self.addCleanup(setattr, locks, "_adb_serialno", original)
+        self.addCleanup(locks._SERIALNO.clear)
+
+    def test_both_transports_name_the_same_lock_file(self) -> None:
+        paths = {device_lock_path(s, self.tmp) for s in (self.USB, self.WIFI, self.MDNS, self.WIFI)}
+        self.assertEqual(paths, {self.tmp / f"device-{self.USB}.lock"})
+        self.assertEqual(self.reads, [self.WIFI, self.MDNS])  # ro.serialno read once per transport
+
+    def test_a_run_on_the_wireless_transport_waits_for_one_on_usb(self) -> None:
+        holder = Holder(device_lock_path(self.USB, self.tmp), "instrumented-tests :phototok")
+        heard: list[str] = []
+        try:
+            with self.assertRaises(DeviceBusy):
+                with device_lock(self.WIFI, "lab usability phototok", self.tmp):
+                    pass
+            with self.assertRaises(DeviceBusy):
+                with waiting_lock(device_lock_path(self.MDNS, self.tmp), "device-matrix", 0.3,
+                                  poll_s=0.05, on_wait=heard.append):
+                    pass
+        finally:
+            holder.stop()
+        self.assertTrue(heard and "instrumented-tests :phototok" in heard[0], heard)
+        with device_lock(self.WIFI, "lab usability phototok", self.tmp):  # free once the USB run ends
+            pass
+
+    def test_usb_and_emulator_serials_are_not_resolved(self) -> None:
+        # Two emulators of one image can share an ro.serialno and still be two devices.
+        self.assertEqual(locks.lock_key("emulator-5554"), "emulator-5554")
+        self.assertEqual(locks.lock_key(self.USB), self.USB)
+        self.assertEqual(self.reads, [])
+
+    def test_an_unreadable_transport_keeps_its_own_serial_and_is_asked_again(self) -> None:
+        self.assertEqual(locks.lock_key("10.0.0.9:5555"), "10.0.0.9:5555")
+        self.assertEqual(locks.lock_key("10.0.0.9:5555"), "10.0.0.9:5555")
+        self.assertEqual(self.reads, ["10.0.0.9:5555", "10.0.0.9:5555"])
 
 
 if __name__ == "__main__":

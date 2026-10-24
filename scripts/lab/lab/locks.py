@@ -1,8 +1,11 @@
 """Host-wide locks for driving Android devices: one per device, and one for the whole hub.
 
-Device lock: `<lab tmp root>/device-<serial>.lock`. Usability walkthroughs, instrumented test
+Device lock: `<lab tmp root>/device-<key>.lock`. Usability walkthroughs, instrumented test
 runs (`scripts/android_test_device.py with-lock`) and journey runs take it, so two of them never
-drive one phone at once.
+drive one phone at once. The key is the phone, not the adb transport (`lock_key`): a phone on
+USB and on wireless debugging shows up as two serials (`CQ30012CMV` and `192.168.0.117:46567`
+or `adb-CQ30012CMV-…._adb-tls-connect._tcp`), so a network transport is keyed by the
+phone's `ro.serialno`, which is what its USB transport is called.
 
 Hub lock: `<lab tmp root>/android-hub.lock`, held by a `lab.py run` for as long as it drives
 Android devices. Two runs on one hub broke each other even on different devices (LAB-24,
@@ -19,12 +22,19 @@ from __future__ import annotations
 
 import fcntl
 import os
+import re
+import subprocess
 import time
 from contextlib import contextmanager
 from pathlib import Path
 from typing import Callable, Iterator
 
 HUB_LOCK_NAME = "android-hub.lock"
+
+# `host:port` (adb connect) or an mDNS name, possibly with adb's " (2)" duplicate suffix.
+NETWORK_TRANSPORT = re.compile(r":\d+$|\._adb-tls-connect\._tcp$")
+SAFE_KEY = re.compile(r"[A-Za-z0-9._-]+")
+_SERIALNO: dict[str, str] = {}  # transport serial -> ro.serialno, read once per process
 
 
 class DeviceBusy(RuntimeError):
@@ -53,6 +63,32 @@ def _acquire(path: Path, holder: str) -> int:
     return fd
 
 
+def _adb_serialno(serial: str) -> str | None:
+    try:
+        out = subprocess.run(["adb", "-s", serial, "shell", "getprop", "ro.serialno"],
+                             capture_output=True, text=True, timeout=10)
+    except (OSError, subprocess.SubprocessError):
+        return None
+    return out.stdout.strip() if out.returncode == 0 else None
+
+
+def lock_key(serial: str) -> str:
+    """The name a device's lock is keyed by: the phone's `ro.serialno` for a network transport.
+
+    A USB (or emulator) serial is returned as it is: it already is the device's serial, and two
+    emulators of one image can share an `ro.serialno` while being different devices. When the
+    network transport cannot be read, its own serial is the key (and nothing is cached).
+    """
+    if not NETWORK_TRANSPORT.search(serial):
+        return serial
+    if serial not in _SERIALNO:
+        hardware = _adb_serialno(serial)
+        if not hardware or not SAFE_KEY.fullmatch(hardware):
+            return serial
+        _SERIALNO[serial] = hardware
+    return _SERIALNO[serial]
+
+
 @contextmanager
 def held_lock(path: Path, holder: str) -> Iterator[Path]:
     """Hold the flock at `path` or raise `DeviceBusy` naming the current holder."""
@@ -65,8 +101,8 @@ def held_lock(path: Path, holder: str) -> Iterator[Path]:
 
 @contextmanager
 def device_lock(serial: str, holder: str, lock_dir: Path | None = None) -> Iterator[Path]:
-    """Hold `<lock_dir>/device-<serial>.lock`; refuse at once if someone else holds it."""
-    with held_lock(_base(lock_dir) / f"device-{serial}.lock", holder) as path:
+    """Hold `<lock_dir>/device-<lock_key(serial)>.lock`; refuse at once if someone else holds it."""
+    with held_lock(device_lock_path(serial, lock_dir), holder) as path:
         yield path
 
 
@@ -110,4 +146,4 @@ def hub_lock_path(lock_dir: Path | None = None) -> Path:
 
 
 def device_lock_path(serial: str, lock_dir: Path | None = None) -> Path:
-    return _base(lock_dir) / f"device-{serial}.lock"
+    return _base(lock_dir) / f"device-{lock_key(serial)}.lock"

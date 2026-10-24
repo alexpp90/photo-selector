@@ -39,7 +39,7 @@ installs. It uses ``adb root`` when the build allows it and works without it oth
 corpus, and pushes them to ``/sdcard/PSTLab/<set>/`` — the only device path the lab writes.
 
 ``with-lock`` holds the per-device lock the device lab's usability walkthroughs take
-(the lab's ``device_lock()``: an ``fcntl.flock`` on ``<lab tmp root>/device-<serial>.lock``,
+(the lab's ``device_lock()``: an ``fcntl.flock`` on ``<lab tmp root>/device-<key>.lock``,
 ``/tmp/pstlab`` unless ``PST_LAB_TMP`` moves it) while it runs a command, so two sessions never drive the test
 device at once. It waits for a held lock up to ``--timeout`` seconds, then names the holder
 and exits with ``LOCK_BUSY_EXIT``.
@@ -341,15 +341,18 @@ def _use_lab_package() -> None:
 
 
 def device_lock_path(serial: str, base: Optional[Path] = None) -> Path:
-    """``<base>/device-<serial>.lock``; ``base`` defaults to the lab's ``lab_tmp_root()``."""
+    """``<base>/device-<key>.lock``, keyed like the lab's (``lab.locks.lock_key``: a wireless
+    transport by the phone's ``ro.serialno``); ``base`` defaults to the lab's ``lab_tmp_root()``."""
     if not serial or "/" in serial or serial in (".", ".."):
         raise ValueError(f"invalid device serial {serial!r}")
+    _use_lab_package()
+    from lab.locks import lock_key
+
     if base is None:
-        _use_lab_package()
         from lab.paths import lab_tmp_root
 
         base = lab_tmp_root()
-    return base / f"device-{serial}.lock"
+    return base / f"device-{lock_key(serial)}.lock"
 
 
 def lock_holder(path: Path) -> Optional[str]:
