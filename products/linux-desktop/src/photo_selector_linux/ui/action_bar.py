@@ -140,8 +140,8 @@ class ActionBarView(Gtk.ActionBar if HAS_GI else object):
         self.lbl_busy.set_max_width_chars(MESSAGE_MAX_CHARS)
         self.lbl_busy.set_xalign(1.0)
         self.lbl_busy.cap_fn = self._message_cap
-        self._last_width = 0
-        self.add_tick_callback(self._on_tick)
+        self._surface_width = 0
+        self.connect("realize", self._on_realize)
         self.lbl_queue = Gtk.Label(label="")
         self.lbl_queue.add_css_class("status-counter-badge")
         self.busy_box.append(self.busy_spinner)
@@ -193,7 +193,7 @@ class ActionBarView(Gtk.ActionBar if HAS_GI else object):
 
         None until the bar has a width (the first layout pass).
         """
-        width = self.get_width()
+        width = self._surface_width or self.get_width()
         if width <= 0:
             return None
         horizontal = Gtk.Orientation.HORIZONTAL
@@ -201,13 +201,22 @@ class ActionBarView(Gtk.ActionBar if HAS_GI else object):
         undo = self.btn_undo.measure(horizontal, -1).natural
         return max(0, (width - center) // 2 - undo - END_SIDE_SLACK)
 
-    def _on_tick(self, _widget=None, _clock=None) -> bool:
-        """The cap follows the bar's width: re-measure the message when the window is resized."""
-        width = self.get_width()
-        if width != self._last_width:
-            self._last_width = width
+    def _on_realize(self, _widget) -> None:
+        """Follow the window's size through the surface's one-shot ``layout`` signal.
+
+        No tick callback: it would keep the frame clock running every frame for the window's life.
+        """
+        native = self.get_native()
+        surface = native.get_surface() if native is not None else None
+        if surface is not None:
+            surface.connect("layout", self._on_surface_layout)
+            self._on_surface_layout(surface, surface.get_width(), surface.get_height())
+
+    def _on_surface_layout(self, _surface, width: int, _height: int) -> None:
+        """The window was resized: the message is re-measured against the new width."""
+        if width != self._surface_width:
+            self._surface_width = width
             self.lbl_busy.queue_resize()
-        return True  # keep ticking
 
     def _on_state_changed(self, vm) -> None:
         self._update_state()

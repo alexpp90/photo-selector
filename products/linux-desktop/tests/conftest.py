@@ -245,9 +245,6 @@ if "gi" not in sys.modules and not _real_gtk_usable():
         def add_suffix(self, child, *args, **kwargs):
             self.append(child)
 
-        def add_tick_callback(self, *args, **kwargs):
-            return 0
-
     # Mock Gtk
     mock_gtk = MagicMock()
     mock_gtk.Box = MockGtkWidget

@@ -363,10 +363,9 @@ def test_message_fits_unclipped_and_buttons_do_not_move(width):
     bar = ActionBarView(viewmodel=vm)
 
     def layout():
-        # GTK's resize pass: allocate, the tick callback sees the new width and re-measures the
-        # message, allocate again (no frame clock runs under a window-manager-less Xvfb).
-        bar.allocate(width, 60, -1, None)
-        bar._on_tick()
+        # GTK's resize pass: the surface's layout signal announces the width, then allocation
+        # (no frame clock runs under a window-manager-less Xvfb).
+        bar._on_surface_layout(None, width, 60)
         bar.allocate(width, 60, -1, None)
         return {
             name: (b.get_x(), b.get_width())
@@ -375,6 +374,8 @@ def test_message_fits_unclipped_and_buttons_do_not_move(width):
             )
         }
 
+    bar._on_surface_layout(None, 1600, 60)  # a resize between two widths
+    layout()
     before = layout()
     text = "Moved IMG_…_064000 + 2 to Selection/"
     vm._notify(text, "status")
@@ -390,3 +391,16 @@ def test_message_fits_unclipped_and_buttons_do_not_move(width):
     label_right = bar.lbl_busy.compute_bounds(bar)[1].get_x() + bar.lbl_busy.get_width()
     assert label_right <= after["btn_undo"][0] + 1
     assert bar.lbl_busy.compute_bounds(bar)[1].get_x() >= after["btn_trash"][0] + after["btn_trash"][1]
+
+
+@pytest.mark.skipif(STUBBED, reason="needs a real display (xvfb-run)")
+def test_bar_installs_no_tick_callback_so_the_frame_clock_stays_idle(monkeypatch):
+    from gi.repository import Gtk
+
+    added = []
+    original = Gtk.Widget.add_tick_callback
+    monkeypatch.setattr(Gtk.Widget, "add_tick_callback", lambda self, *a: added.append(self) or original(self, *a))
+    bar = ActionBarView(viewmodel=CullingWorkspaceViewModel())
+    bar.allocate(1440, 60, -1, None)
+    bar.allocate(1440, 60, -1, None)
+    assert added == []
