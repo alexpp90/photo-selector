@@ -36,6 +36,12 @@ scenarios:
         intent: Grant folder storage permission
         expected: Tap 'Allow'
       - tap: {id: button1, label: Allow}
+      # The first visit shows the six-page screen guide over everything (SelectorCoachOverlay).
+      - screen: screen-guide
+        when: {id: coach_overlay_skip, timeout_ms: 15000}
+        intent: Get to my photos and understand what is on this screen
+        expected: Page through with Next, or tap Skip to start culling
+      - optional_tap: {id: coach_overlay_skip, label: Skip}
       - wait_for: {id: control_block, timeout_ms: 15000}
       - screen: selector-first
         intent: Review first photo in 3-Up one-over-two layout

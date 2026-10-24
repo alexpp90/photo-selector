@@ -90,7 +90,8 @@ scenarios:
     use_case: UC-14
     steps:
       - launch: {}
-      # The statistics sheet takes its numbers when it opens: give the scores time to finish.
+      # The sheet's quality figures count only the photos scored so far (the prefetch window
+      # around the current photo): 1 of 17 here, also after a 15 s wait (2026-10-24, backlog).
       - wait_ms: 4000
       - screen: workspace-before-tools
         intent: Find a summary of the whole shoot
