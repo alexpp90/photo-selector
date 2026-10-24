@@ -5,6 +5,7 @@ import android.content.res.Configuration
 import android.net.Uri
 import android.app.Activity
 import android.content.ActivityNotFoundException
+import androidx.activity.compose.BackHandler
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.IntentSenderRequest
 import androidx.activity.result.contract.ActivityResultContracts
@@ -122,6 +123,12 @@ import com.phototok.viewmodel.rawCompanionUris
 import com.phototok.viewmodel.unmountedRecentUris
 import kotlinx.coroutines.launch
 
+/** Routes system Back to [onClose] while the Selection viewer is shown; otherwise Back is not intercepted. */
+@Composable
+internal fun SelectionViewerBackHandler(enabled: Boolean, onClose: () -> Unit) {
+    BackHandler(enabled = enabled, onBack = onClose)
+}
+
 /**
  * Root composable for the phone-mode experience.
  * Integrates top app bar, bottom action bar, and content (landing / loading / viewer).
@@ -183,6 +190,10 @@ fun PhoneModeScreen(
     // A Casual card import copies into the phone's camera folder, which is known once it is granted.
     val collectionReady = !uiState.importToPhoneCamera || uiState.collectionFolderUri != null
     val isViewingSelection = selectionState.isOpen
+
+    // System Back (and the predictive back gesture) closes the Selection viewer like its own
+    // back arrow; the feed underneath still shows the photo it was opened from.
+    SelectionViewerBackHandler(enabled = isViewingSelection, onClose = selectionViewModel::close)
 
     val folderPickerLauncher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.OpenDocumentTree(),

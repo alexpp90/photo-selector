@@ -276,4 +276,19 @@ class SelectionViewerViewModelTest {
         coVerify { imageRepository.listSelectionImages(any(), "Jackpix") }
         coVerify(exactly = 0) { imageRepository.listSelectionImages(any(), "Selection") }
     }
+
+    @Test
+    fun `close returns to the feed and a recreated viewmodel starts closed`() = runTest {
+        coEvery { imageRepository.listSelectionImages(any(), any()) } returns
+            SelectionListing.Available(listOf(image("a.jpg", 1), image("b.jpg", 2)), "Selection")
+        viewModel.open("content://tree/photos")
+        viewModel.navigateTo(1)
+        assertTrue(viewModel.uiState.value.isOpen)
+
+        viewModel.close()
+
+        assertFalse(viewModel.uiState.value.isOpen)
+        // Process recreation builds a new ViewModel: the app starts on the feed, never the viewer.
+        assertFalse(SelectionViewerViewModel(imageRepository).uiState.value.isOpen)
+    }
 }
