@@ -5,8 +5,7 @@
 # launch on the run's copy of the roll, opened at start; Delete goes to the session's private
 # trash. The first photo decodes asynchronously, so every screen follows a short wait.
 #
-# Not covered: a sort order (UC-13: no key, menu or preference reaches the lowest-sharpness sort),
-# the file chooser (Ctrl+O), an SD card (UC-10) and a remote mount (UC-17), which a local
+# Not covered: the file chooser (Ctrl+O), an SD card (UC-10) and a remote mount (UC-17), which a local
 # fixture cannot stage. Statistics, duplicates and shortcuts open windows the keyboard cannot
 # close (no window manager in the session), so they end their scenario. Blitzlens is
 # English-only; `--font-scale` captures a larger-text variant (session text scaling).
@@ -100,3 +99,33 @@ scenarios:
       - screen: library-statistics
         intent: Read how many photos there are, which formats and lenses, and how sharp they are
         expected: The statistics window lists the summary, formats, focal lengths and sharpness by aperture and shutter speed
+
+  - id: U-LIN-04
+    title: Sweep out the blurriest photos first
+    goal: Before the real cull, look at the worst-scored shots of the trip first, bin an obvious miss, and return to shooting order.
+    use_case: UC-13
+    steps:
+      - launch: {}
+      - screen: first-photo
+        intent: Find a way to see the blurriest photos first
+        expected: Press B to sort the photos lowest sharpness first (also in the main menu under View order)
+      - key: B
+      - wait_ms: 2000
+      - screen: lowest-sharpness-first
+        intent: Check the view order changed and which photo is open now
+        expected: A message says the order is lowest sharpness first; press Delete to bin an obvious miss
+      - key: Delete
+      - wait_ms: 1500
+      - screen: after-miss-binned
+        intent: Make sure the miss is gone and the next-blurriest photo is open
+        expected: Press Right (or L) to move on past a photo that is not clearly bad
+      - key: Right
+      - wait_ms: 1500
+      - screen: next-in-sweep
+        intent: Carry on through the sweep
+        expected: Press B again to return to shooting order
+      - key: B
+      - wait_ms: 1500
+      - screen: natural-order
+        intent: Check the photos are back in shooting order
+        expected: A message says the order is natural order

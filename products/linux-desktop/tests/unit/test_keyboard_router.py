@@ -262,3 +262,17 @@ def test_accelerator_modifiers_blocked_from_single_key_actions():
 
     assert engine.dispatch(keyval=ord("o"), state=ctrl | super_gdk) is False
     target.on_open_folder.assert_not_called()
+
+
+def test_b_toggles_view_order_and_is_free_of_other_bindings():
+    """B reaches the sort toggle; nothing else maps to it (R-LINUX-CULL-02)."""
+    target = MagicMock()
+    engine = KeyboardRouterEngine(handler_target=target)
+    for key in (0x62, 0x42):
+        target.reset_mock()
+        assert engine.dispatch(keyval=key, state=0) is True
+        target.on_toggle_sort_order.assert_called_once()
+    target.reset_mock()
+    assert engine.dispatch(keyval=0x62, state=0, is_text_editing=True) is False
+    assert engine.dispatch(keyval=0x62, state=KeyboardRouterEngine.CONTROL_MASK) is False
+    target.on_toggle_sort_order.assert_not_called()

@@ -59,6 +59,7 @@ class ShortcutsDialog(Adw.Window if HAS_GI else object):
                 ("1:1 Pixel Zoom Toggle", "Space"),
                 ("Reset Zoom", "Escape"),
                 ("Toggle Metadata HUD", "I"),
+                ("Lowest Sharpness First / Natural Order", "B"),
             ]),
             ("Application", [
                 ("Open Folder", "Ctrl+O"),
