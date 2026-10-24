@@ -198,25 +198,26 @@ class MetadataWriterTest {
     }
 
     @Test
-    fun `jpeg write-back leaves original JPEG untouched and deletes temp file when bounds verification fails`() = runTest {
+    fun `jpeg write-back fails without sidecar and leaves original untouched when bounds verification fails`() = runTest {
         val jpegFile = createSampleJpeg("protected_photo.jpg", timestamp = "2026:10:17 09:00:00")
         val originalBytes = jpegFile.readBytes()
 
         val failingValidatorWriter = MetadataWriterImpl(validateJpegBounds = { false })
         val result = failingValidatorWriter.writeRating(jpegFile, 5)
-        assertTrue(result.isSuccess)
+        assertTrue(result.isFailure)
 
-        // Original JPEG bytes must be 100% untouched because temp file failed verification
         assertTrue(originalBytes.contentEquals(jpegFile.readBytes()))
+        // No silent sidecar fallback, and no temporary files left behind
+        assertEquals(listOf("protected_photo.jpg"), tempFolder.root.list()!!.toList())
+    }
 
-        // Fallback companion .xmp sidecar carries the rating instead
-        val sidecar = File(tempFolder.root, "protected_photo.jpg.xmp")
-        assertTrue(sidecar.exists())
-        assertTrue(sidecar.readText().contains("<xmp:Rating>5</xmp:Rating>"))
-
-        // No temporary files left behind
-        val leftoverTemps = tempFolder.root.listFiles()?.filter { it.name.contains(".tmp.") }.orEmpty()
-        assertTrue(leftoverTemps.isEmpty())
+    @Test
+    fun `non-JPEG non-RAW formats are refused and get no sidecar`() = runTest {
+        for (name in listOf("a.png", "b.heic", "c.webp")) {
+            val f = tempFolder.newFile(name)
+            assertTrue(writer.writeRating(f, 3).isFailure)
+        }
+        assertEquals(setOf("a.png", "b.heic", "c.webp"), tempFolder.root.list()!!.toSet())
     }
 
     @Test

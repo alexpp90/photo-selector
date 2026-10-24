@@ -5,7 +5,7 @@ import android.graphics.BitmapFactory
 import android.net.Uri
 import android.util.Log
 import androidx.exifinterface.media.ExifInterface
-import com.photoselectortoolbox.domain.format.ImageFormats
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
@@ -20,18 +20,17 @@ import javax.inject.Inject
 import javax.inject.Singleton
 
 /**
- * Non-destructive metadata write-back engine for ratings.
+ * Non-destructive metadata write-back engine for ratings (REQ-AND-RATING.01). [RatingFormats]
+ * decides per format, for file paths and SAF documents alike:
  *
- * - JPEG Files: Updates embedded XMP via [ExifInterface] on a temporary copy, verifies the
- *   modified file is non-empty and its image bounds decode cleanly via [BitmapFactory], and
- *   only then atomically replaces the target file — leaving image pixel bytes and EXIF capture
- *   timestamps ([ExifInterface.TAG_DATETIME_ORIGINAL]) untouched and guaranteeing the original
- *   photo is never corrupted if write-back fails.
- * - RAW & DNG Files (CR2, CR3, NEF, ARW, ORF, RAF, DNG, etc.): Creates or updates companion `<filename>.xmp`
- *   sidecar files formatted with ISO 16684-1 standard `<xmp:Rating>`.
- * - Non-destructive fallback: If in-place write fails (read-only, unsupported header, or failed
- *   post-write verification), falls back gracefully to a companion `.xmp` sidecar.
- * - Per-URI serialization: Concurrent writes to the same file or URI are serialized via a per-key [Mutex].
+ * - JPEG: updates the embedded XMP via [ExifInterface] on a temporary copy, verifies the copy's
+ *   image bounds decode via [BitmapFactory], and only then replaces the original (atomically for
+ *   files; for SAF documents see [SafRatingWriter]). A failed step fails the write — it never
+ *   turns into a sidecar.
+ * - RAW and TIFF: creates or updates the companion XMP sidecar (`<file>.xmp`, else an existing
+ *   `<stem>.xmp`) with ISO 16684-1 `<xmp:Rating>`; the image itself is never opened for writing.
+ * - Every other format: fails with a message; no sidecar is invented.
+ * - Per-URI serialization: concurrent writes to the same file or URI are serialized via a [Mutex].
  */
 interface MetadataWriter {
     suspend fun writeRating(imageFile: File, rating: Int): Result<Unit>
@@ -83,53 +82,14 @@ class MetadataWriterImpl internal constructor(
             }
 
             mutexFor(imageUri.toString()).withLock {
-                var tempFile: File? = null
                 try {
-                    val cacheDir = context.cacheDir ?: throw IOException("Cache directory unavailable")
-                    val createdTemp = File.createTempFile("saf_rating_", ".tmp", cacheDir)
-                    tempFile = createdTemp
-
-                    val inputStream = context.contentResolver.openInputStream(imageUri)
-                        ?: return@withLock Result.failure(
-                            IOException("Unable to open input stream for $imageUri")
-                        )
-                    inputStream.use { input ->
-                        createdTemp.outputStream().use { output ->
-                            input.copyTo(output)
-                        }
-                    }
-
-                    val exif = ExifInterface(createdTemp.absolutePath)
-                    val currentXmp = exif.getAttribute(ExifInterface.TAG_XMP)
-                    val updatedXmp = XmpSidecarWriter.injectOrUpdateRating(currentXmp, rating)
-                    exif.setAttribute(ExifInterface.TAG_XMP, updatedXmp)
-                    exif.saveAttributes()
-
-                    if (!validateJpegBounds(createdTemp)) {
-                        return@withLock Result.failure(
-                            IOException("Modified SAF image failed bounds verification for $imageUri")
-                        )
-                    }
-
-                    val outputStream = try {
-                        context.contentResolver.openOutputStream(imageUri, "wt")
-                    } catch (_: Exception) {
-                        context.contentResolver.openOutputStream(imageUri, "w")
-                    } ?: return@withLock Result.failure(
-                        IOException("Unable to open output stream for $imageUri")
-                    )
-
-                    outputStream.use { output ->
-                        createdTemp.inputStream().use { input ->
-                            input.copyTo(output)
-                        }
-                    }
+                    SafRatingWriter(context, validateJpegBounds).write(imageUri, rating)
                     Result.success(Unit)
+                } catch (e: CancellationException) {
+                    throw e
                 } catch (e: Exception) {
-                    Log.w(TAG, "SAF rating write skipped/failed for $imageUri", e)
+                    Log.w(TAG, "SAF rating write failed for $imageUri", e)
                     Result.failure(e)
-                } finally {
-                    tempFile?.delete()
                 }
             }
         }
@@ -144,20 +104,12 @@ class MetadataWriterImpl internal constructor(
                         )
                     }
 
-                    // RAW (and TIFF, via the final branch) get a sidecar; only JPEG is
-                    // edited in place via a verified temporary copy.
-                    if (ImageFormats.isRaw(imageFile.name)) {
-                        writeSidecarRating(imageFile, rating)
-                    } else if (ImageFormats.isJpeg(imageFile.name)) {
-                        try {
-                            writeJpegRating(imageFile, rating)
-                        } catch (e: Exception) {
-                            Log.w(TAG, "Verified JPEG write failed for ${imageFile.name}; falling back to sidecar", e)
-                            writeSidecarRating(imageFile, rating)
-                        }
-                    } else {
-                        // For any other format, use sidecar non-destructively
-                        writeSidecarRating(imageFile, rating)
+                    when (RatingFormats.strategyFor(imageFile.name)) {
+                        RatingStrategy.SIDECAR -> writeSidecarRating(imageFile, rating)
+                        RatingStrategy.EMBEDDED_XMP -> writeJpegRating(imageFile, rating)
+                        RatingStrategy.UNSUPPORTED -> throw RatingWriteException(
+                            RatingFormats.unsupportedMessage(imageFile.name)
+                        )
                     }
                     Result.success(Unit)
                 } catch (e: Exception) {
@@ -214,6 +166,9 @@ class MetadataWriterImpl internal constructor(
             null
         }
 
+        if (!XmpSidecarWriter.canUpdateInPlace(existingContent)) {
+            throw RatingWriteException("${targetSidecar.name} has XMP content the rating cannot be merged into; it was left unchanged")
+        }
         val updatedContent = XmpSidecarWriter.injectOrUpdateRating(existingContent, rating)
         val tempSidecar = File(parent, ".${targetSidecar.name}.tmp.${System.nanoTime()}")
         try {
@@ -268,6 +223,17 @@ object XmpSidecarWriter {
             append("<?xpacket end=\"w\"?>")
         }
     }
+
+    /**
+     * True when [injectOrUpdateRating] can put a rating into [existingXmp] while keeping its
+     * content. When false (no `<rdf:Description>` and no rating to replace) the function would
+     * start a fresh packet and drop what was there, so callers must fail instead of writing.
+     */
+    fun canUpdateInPlace(existingXmp: String?): Boolean =
+        existingXmp.isNullOrBlank() ||
+            RATING_TAG_REGEX.containsMatchIn(existingXmp) ||
+            RATING_ATTR_REGEX.containsMatchIn(existingXmp) ||
+            existingXmp.contains("<rdf:Description")
 
     fun injectOrUpdateRating(existingXmp: String?, rating: Int): String {
         if (existingXmp.isNullOrBlank()) {
