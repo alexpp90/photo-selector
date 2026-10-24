@@ -8,9 +8,12 @@ import android.provider.MediaStore
 
 /**
  * Helper for Android 11+ (`API 30+`) `MediaStore` batch user-consent requests:
- * - `MediaStore.createFavoriteRequest` (`U-17`)
  * - `MediaStore.createTrashRequest` (`U-18`)
  * - `MediaStore.createDeleteRequest` (`U-18`)
+ *
+ * Not called by the app yet. Favourites (`U-17`) go through `data.source.MediaStoreFavourites`,
+ * which also turns the `.../file/<id>` URI `getMediaUri` returns into the `images|video/media/<id>`
+ * URI MediaProvider requires for requests; these builders do not, and need the same before use.
  *
  * Resolves SAF document URIs to `MediaStore` URIs via `MediaStore.getMediaUri` when
  * backed by `com.android.externalstorage.documents`. When a URI is not indexed by
@@ -18,11 +21,6 @@ import android.provider.MediaStore
  * falls back gracefully to local-only state / SAF deletion without crashing.
  */
 object SystemFavouriteSync {
-
-    data class BatchIntentRequest(
-        val intentSender: IntentSender,
-        val uris: List<String>,
-    )
 
     /**
      * Resolve SAF tree document URIs to `MediaStore` content URIs where supported.
@@ -50,25 +48,6 @@ object SystemFavouriteSync {
         if (Build.VERSION.SDK_INT < Build.VERSION_CODES.Q) return null
         return try {
             MediaStore.getMediaUri(context, documentUri)
-        } catch (_: Exception) {
-            null
-        }
-    }
-
-    /**
-     * Build a batch `MediaStore.createFavoriteRequest` [IntentSender] on API 30+, or null
-     * when no URIs are MediaStore-backed or the OS is below API 30.
-     */
-    fun buildFavoriteRequestIntentSender(
-        context: Context,
-        uris: Collection<String>,
-        favorite: Boolean = true,
-    ): IntentSender? {
-        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.R) return null
-        val mediaUris = resolveMediaStoreUris(context, uris)
-        if (mediaUris.isEmpty()) return null
-        return try {
-            MediaStore.createFavoriteRequest(context.contentResolver, mediaUris, favorite).intentSender
         } catch (_: Exception) {
             null
         }

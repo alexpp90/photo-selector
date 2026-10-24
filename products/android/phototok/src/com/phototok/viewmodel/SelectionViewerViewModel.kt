@@ -7,6 +7,7 @@ import androidx.lifecycle.viewModelScope
 import com.phototok.R
 import com.phototok.data.model.ImageItem
 import com.phototok.data.repository.FavouritesRepository
+import com.phototok.domain.FavouritesSnapshot
 import com.phototok.data.repository.ImageRepository
 import com.phototok.data.source.SelectionListing
 import com.phototok.domain.PhotoFolders
@@ -151,7 +152,7 @@ class SelectionViewerViewModel @Inject constructor(
     }
 
     /**
-     * Open the viewer with both in-place [sourceImages] filtered by [favouritedUris] and
+     * Open the viewer with both in-place [sourceImages] filtered by [favourites] and
      * the Selection subfolder inside [targetFolderUri] (`U-17`). It opens on [preferredTab]
      * (see [SelectionViewerLogic.preferredTab]) unless that list is empty. [selectionSubfolder] is
      * the folder swipe right files into: `Selection`, or `Jackpix` for a Casual SD/camera import
@@ -160,11 +161,11 @@ class SelectionViewerViewModel @Inject constructor(
     fun openWithFavourites(
         targetFolderUri: String?,
         sourceImages: List<ImageItem>,
-        favouritedUris: Set<String> = favouritesRepository.favouritedUris.value,
+        favourites: FavouritesSnapshot = favouritesRepository.snapshot.value,
         preferredTab: SelectionViewerTab = SelectionViewerTab.FAVOURITES,
         selectionSubfolder: String = PhotoFolders.SELECTION,
     ) {
-        val favImages = sourceImages.filter { it.uri in favouritedUris }
+        val favImages = sourceImages.filter { favourites.isFavourite(it.uri) }
         if (targetFolderUri == null && favImages.isEmpty()) {
             _uiState.update {
                 it.copy(feedback = ActionFeedback(UiText.of(R.string.snackbar_nothing_yet), isError = false))

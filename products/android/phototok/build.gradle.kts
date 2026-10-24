@@ -53,6 +53,8 @@ android {
             ?: "0.6.0"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
+        // Lab-only device tests need a prepared device (folder grant); see tests/instrumented/.../LabDeviceOnly.kt.
+        testInstrumentationRunnerArguments["notAnnotation"] = "com.phototok.LabDeviceOnly"
 
         ndk {
             abiFilters.addAll(setOf("arm64-v8a", "x86_64"))

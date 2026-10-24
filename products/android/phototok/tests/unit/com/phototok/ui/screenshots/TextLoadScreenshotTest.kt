@@ -28,6 +28,8 @@ import com.phototok.ui.phonemode.FolderResumeDialog
 import com.phototok.ui.phonemode.GestureTutorialOverlay
 import com.phototok.ui.phonemode.LandscapeLeftPanel
 import com.phototok.ui.phonemode.LandscapeRightButtons
+import androidx.compose.foundation.layout.Arrangement
+import com.phototok.ui.phonemode.FavouriteBadge
 import com.phototok.ui.phonemode.PhoneModeLanding
 import com.phototok.ui.phonemode.PhoneModeTopBar
 import com.phototok.ui.phonemode.RawJpegSuggestionDialog
@@ -304,6 +306,21 @@ class TextLoadScreenshotTest {
             assertNoTextOverflow(variant, "raw_jpeg_dialog")
             // The dialog scrolls at large font scales; only sideways overflow is a defect.
             assertInsideScreen(variant, "raw_jpeg_dialog", vertical = false)
+        },
+    )
+
+    @Test
+    fun favouriteBadges_fit() = everyVariant(
+        surface = "favourite_badges",
+        content = {
+            Row(Modifier.padding(16.dp), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                FavouriteBadge(synced = true)
+                FavouriteBadge(synced = false)
+            }
+        },
+        checks = { variant ->
+            assertNoTextOverflow(variant, "favourite_badges")
+            assertInsideScreen(variant, "favourite_badges")
         },
     )
 

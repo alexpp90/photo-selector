@@ -27,6 +27,8 @@
     <string name="cd_peek_right">Nach rechts wischen: %1$s</string>
     <string name="cd_peek_left">Nach links wischen: %1$s</string>
     <string name="cd_swipe_favourite">Als Favorit markieren</string>
+    <string name="cd_favourite_in_system">Auch System-Favorit</string>
+    <string name="cd_favourite_only_here">Nur in Jackpix</string>
     <string name="cd_swipe_copy">Nach %1$s kopieren</string>
     <string name="cd_swipe_move">Nach %1$s verschieben</string>
     <string name="cd_swipe_delete">Foto löschen</string>
@@ -79,6 +81,8 @@
     <string name="action_share">Teilen</string>
     <string name="action_open_with">Öffnen mit</string>
     <string name="action_details">Details</string>
+    <string name="action_favourite">Favorit</string>
+    <string name="action_unfavourite">Favorit entfernen</string>
 
     <!-- Beschriftungen und Chips -->
     <string name="label_show_only">Nur zeigen</string>
