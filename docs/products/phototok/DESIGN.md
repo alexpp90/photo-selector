@@ -62,6 +62,7 @@ The original mockup replaced the vertical column of `FolderPickerCard` rows with
      - Active state: border → `primaryContainer`, fill → `primaryContainer.copy(alpha=0.1f)`, icon → `primary`
      - One click target (`Role.Button`); the icon is decorative, the row's text names it
    - Must fit without scrolling at 360×640 dp at 1.0× and 1.3× font (`PhoneModeLandingLayoutTest`)
+   - **Pro mode row** directly under the three source rows (`ProModeRow`, tags `landing_pro_mode_toggle` / `landing_pro_mode_help`): `Tune` icon · "Pro mode" (DE "Profi-Modus", `titleSmall`) · `Switch`, then a separate 48 dp `HelpOutline` button (spoken and long-press tooltip "What Pro mode does" / "Was der Profi-Modus macht"). Icon, label and Switch are one `toggleable(role = Role.Switch)` target of at least 56 dp (the Switch has `onCheckedChange = null`); the label wraps at font scale 2.0. Off: `surfaceContainerLow` fill, `outlineVariant` border. On: `primary` 8 % fill, 1 dp `primary` 40 % border, icon tinted `primary`; no badge, no red. The row sits below the sources so they stay above the fold; it adds no subtitle (REQ-TOK-UX.04). The help button opens the help dialog (section 8)
    - While the column can scroll further (recents, Resume), a 24 dp bottom fade into `background` sits above the navigation bar (`landing_scroll_fade`, decorative)
 
 3. **Format filter**:
@@ -171,6 +172,17 @@ The bottom sheet has a drag handle, header row with "Settings" headline + close 
 
 **Footer**:
 - "Jackpix" + "Professional Curation Engine" centered, 30% opacity
+
+### Pro mode in Settings
+
+The same `ProModeRow` is the first thing in the sheet, in its own card above Storage (tags `settings_pro_mode_toggle` / `settings_pro_mode_help`). Rows are tagged `settings_row_<id>`; each card draws a divider only between visible rows.
+
+| Rows | Casual | Pro |
+|---|---|---|
+| Pro mode · Source folder · Reload folder · Reset this folder · Reset all folders · Clear cache · Confirm delete · Milestones · Reset tips · About | shown | shown |
+| Selection folder (name) · RAW / JPEG folders · Selection location · Source type · Feed order · Camera info · Link RAW + JPEG · Format filter · Swipe right · Swipe left · Left swipe folder · the whole Recent folders section | hidden (stored values are kept, not acted on) | shown |
+
+The Source type chip for the phone is "Phone + cloud" (DE "Handy + Cloud"): cloud folders follow the phone's settings. A change made in Settings (Pro mode on/off) reports its snackbar from a `SnackbarHost` inside the sheet, because the sheet is its own window and would cover the screen's host. In Casual the viewer has no (i) button, the logo is a plain logo (spoken "Jackpix") and the controls guide has no "Camera info" and no "Info" callout.
 
 ### Settings moved from Landing to Settings
 
@@ -421,8 +433,8 @@ fails the build on any finding. This section applies them to Jackpix.
    never "Yes"/"OK"; no subline except under the single non-obvious option ("Merge pairs": "Swipes act
    on both files").
 6. **Point at Settings with an action, not a sentence.** Hint cards for configurable behaviour carry
-   a "Settings" action. The one exception is the direct-delete dialog: its confirm/cancel slots are
-   taken, so a single small line reads "Turn off this prompt in Settings." (REQ-TOK-GESTURE.03).
+   a "Settings" action. The direct-delete dialog has no such sentence: a "Don't ask" checkbox row
+   (≥ 48 dp, applied with Delete, the same setting as Settings > Confirm delete) replaces it (REQ-TOK-GESTURE.03).
 7. **Say only what the user cannot see, once.** No snackbar or hint confirms what the user just
    watched. Swipes, page changes and Undo get no hint: the controls guide shows them once and the
    result is on screen; the copy/move snackbar reports where a file went ("Copied to Selection").
@@ -451,30 +463,35 @@ fails the build on any finding. This section applies them to Jackpix.
 | Swipe indicators and guide swipe callouts | COPY / MOVE / DELETE (+ the folder name as a value) | The only thing telling a gesture-first user what a swipe does (REQ-TOK-GESTURE.01/.07). |
 | Controls-guide callouts | one or two words per control | The guide exists to name the controls; ≤ 2 words, no description. |
 | Hint-card action | "Settings", "Show all" | A pointer to Settings is an action, not a sentence. |
+| Pro mode row (landing, Settings) | "Pro mode" (DE "Profi-Modus") beside a `Tune` icon and a Switch | A mode switch whose icon alone cannot say what it switches; the one label of the row, no subtitle. |
+| Pro mode help dialog | title "Pro mode adds", three icon items "Camera info" · "Swipes & folders" · "RAW + JPEG", one button "Got it" (DE "Profi-Modus bietet" · "Kamera-Info" · "Wischen & Ordner" · "RAW + JPEG" · "Verstanden") | What a mode adds cannot be shown by a gesture; three icon-led words and no sentence. Centred, `widthIn(max = 460.dp)`, scrolls at large fonts; back and tap-outside dismiss. |
+| Delete dialog choice | "Don't ask" (DE "Nicht fragen") beside a checkbox | The only way to turn the prompt off from where it appears; a checkbox is meaningless without its words. |
 
 ### Reference wording (EN · DE)
 
 | Surface | Title | Body | Actions |
 |---|---|---|---|
 | Bottom bar | *icons only* | — | spoken/tooltip: "Change folder" · "Selection" · "Share photo" · "Undo last delete" (DE "Ordner wechseln" · "Auswahl" · "Foto teilen" · "Letztes Löschen rückgängig machen") |
-| Top bar | *icons only* | — | spoken/tooltip: "Done with this card" · "Reload folder" · "Show/Hide controls guide" · "Show or hide camera info" · "Settings" |
-| Controls guide | callouts: "Camera info" · "Card done" · "Reload" · "Help" · "Info" · "Settings" · "Change folder" · "Selection" · "Share" · "Undo delete" · "Next" · "Previous" · "Hide overlays" · "Zoom" (DE "Kamera-Info" · "Karte fertig" · "Neu laden" · "Hilfe" · "Info" · "Einstellungen" · "Ordner" · "Auswahl" · "Teilen" · "Rückgängig" · "Weiter" · "Zurück" · "Anzeigen aus" · "Zoom") | swipe captions: Copy / Move / Delete with the configured folder name beneath (★ Favourites when the source kind favourites) | dismiss: ✓ icon ("Got it" spoken) |
+| Top bar | *icons only* | — | spoken/tooltip: "Done with this card" · "Reload folder" · "Show/Hide controls guide" · "Show or hide camera info" (Pro only) · "Settings"; the logo is "Jackpix, shows or hides camera info" in Pro and a plain "Jackpix" in Casual |
+| Controls guide | callouts ("Camera info" and "Info" only in Pro mode, where those controls exist): "Camera info" · "Card done" · "Reload" · "Help" · "Info" · "Settings" · "Change folder" · "Selection" · "Share" · "Undo delete" · "Next" · "Previous" · "Hide overlays" · "Zoom" (DE "Kamera-Info" · "Karte fertig" · "Neu laden" · "Hilfe" · "Info" · "Einstellungen" · "Ordner" · "Auswahl" · "Teilen" · "Rückgängig" · "Weiter" · "Zurück" · "Anzeigen aus" · "Zoom") | swipe captions: Copy / Move / Delete with the configured folder name beneath (★ Favourites when the source kind favourites) | dismiss: ✓ icon ("Got it" spoken) |
 | Selection viewer (`SelectionViewerTabs`) | two tabs when both lists have photos: `Star` "Favourites 3" · `Folder` "Selection 12" (DE "Favoriten 3"; the second is the configured folder name); with one list a single non-clickable title in the same form | — | opens on the list the swipe-right verb fills (★ → Favourites, Copy/Move → Selection); icon actions: Copy favourites · Share all |
 | New photos on reopen (`FolderResumeDialog`) | "1 new photo" / "N new photos" (DE "N neue Fotos") | — | **Show new** · Stay (DE **Neue zeigen** · Bleiben) |
 | No new photos | *no dialog* | — | explicit Reload goes to the latest photo either way, with no snackbar |
 | RAW + JPEG pairs (`RawJpegSuggestionDialog`) | "RAW + JPEG pairs" | — | **Merge pairs** (subline "Swipes act on both files") · Link both · *Show only*: RAW · JPEG · Don't change (DE **Paare bündeln** · Beide verknüpfen · Nur zeigen: RAW · JPEG · Nicht ändern) |
-| Direct delete (`DirectDeleteDialog`) | "Delete permanently?" (DE "Endgültig löschen?") | "This location has no trash." + small "Turn off this prompt in Settings." (DE "In den Einstellungen abschaltbar.") | Cancel · **Delete** |
+| Direct delete (`DirectDeleteDialog`) | "Delete permanently?" (DE "Endgültig löschen?") | "This location has no trash." + checkbox row "Don't ask" (DE "Nicht fragen"), applied with Delete | Cancel · **Delete** |
+| Pro mode (landing, Settings) | row label "Pro mode" (DE "Profi-Modus"); help dialog title "Pro mode adds" (DE "Profi-Modus bietet") | items: Camera info · Swipes & folders · RAW + JPEG | **Got it** (DE **Verstanden**) |
+| Source type chip (Settings, Pro) | "Phone + cloud" (DE "Handy + Cloud") · "SD card" · "Camera" | — | — |
 | Hint: filter mismatch | "RAW only" / "JPEG only" | "Most photos here are JPEG." | Show all ✕ |
 | Hints: tap, zoom | "Tap again to show overlays" · "Double-tap to reset" (DE "Doppeltippen setzt zurück") | — | ✕ |
 | *No hint* | swipes (the guide shows them once), first page change, first revert: the user just watched the result | — | — |
 | SD / USB card done (`showCardDoneSheet`) | "Card done" | — | **Keep all** · Delete rejects · Delete all (N) · Cancel |
 | Clear whole card confirm | "Delete all N photos?" | "Photos not copied off the card are lost." | Cancel · **Delete all** |
-| Snackbars | — | "Copied to «folder»" · "Moved to «folder» +K" · "Moved as «name»" · "Marked as favourite" · "Pairs merged" · "RAW + JPEG linked" · "Safe to unplug" · "Rejects deleted" · "N deleted" · "Cloud: copy only" · "Card disconnected" · "50 MB freed" · "100 reviewed" | — |
+| Snackbars | — | "Pro settings paused" · "Camera info on" · "Pro settings restored" · "Not copied" (DE "Profi-Einstellungen pausiert" · "Kamera-Info an" · "Profi-Einstellungen zurück" · "Nicht kopiert") · "Copied to «folder»" · "Moved to «folder» +K" · "Moved as «name»" · "Marked as favourite" · "Pairs merged" · "RAW + JPEG linked" · "Safe to unplug" · "Rejects deleted" · "N deleted" · "Cloud: copy only" · "Card disconnected" · "50 MB freed" · "100 reviewed" | — |
 | Errors | — | "Copy to «folder» failed" · "Moved 2 of 3 to «folder»" · "Copied to «folder», original not removed" · "Couldn't delete «file»" · "Can't open this folder" | — |
 | Landing | *no tagline, no section labels* | — | folder name as a value · **Resume** / Start |
 | Landing: folder access lost | "Folder access lost" | — | Re-select |
 | Landing: empty folder | "«Folder»: no photos" | — | — |
-| Settings (first screen) | "Source folder" (value: folder name) · "Reload folder" · "Selection folder" · "RAW / JPEG folders" · "Selection location" (value: Custom/Default) · "Reset this folder" · "Reset all folders" · "Clear cache" · "Confirm delete" (warning "Deletes without asking") · "Milestones" · "Link RAW + JPEG" · "Privacy Policy" · "Legal Notice (Impressum)" | — | — |
+| Settings (first screen) | "Pro mode" (first, own card) · "Source folder" (value: folder name) · "Reload folder" · "Selection folder" · "RAW / JPEG folders" · "Selection location" (value: Custom/Default) · "Reset this folder" · "Reset all folders" · "Clear cache" · "Confirm delete" (warning "Deletes without asking") · "Milestones" · "Link RAW + JPEG" · "Privacy Policy" · "Legal Notice (Impressum)" (Casual shows only the rows listed in the Pro mode table of section 3) | — | — |
 
 Hint cards auto-dismiss after 7 s. A card with an action stays for 12 s, so there is time to
 reach the button. The pure `com.phototok.domain.FirstRunHintText` owns the hint wording,

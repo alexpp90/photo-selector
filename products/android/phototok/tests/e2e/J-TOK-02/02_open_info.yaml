@@ -1,6 +1,7 @@
 appId: com.phototok.lab
 ---
-# Show the EXIF stats. Info is a toggle whose state outlives a journey, so tap it only when the
+# Show the EXIF stats (Pro mode only: _enable_pro_mode.yaml runs first, and the first time Pro
+# mode comes on it also shows the stats). Info is a toggle whose state outlives a journey, so tap it only when the
 # stats are hidden. Portrait shows them in the `viewer.info` card; the landscape side panel shows
 # them under `landscape_info_exif_button` without a tag of their own, so the fixture's own value
 # (every lab fixture is ISO 400) marks them there (2026-10-18: the first phone-landscape run that

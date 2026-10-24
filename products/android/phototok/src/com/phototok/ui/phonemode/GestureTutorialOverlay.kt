@@ -122,6 +122,11 @@ fun GestureTutorialOverlay(
     swipeRightVerb: SwipeRightVerb = collectionAction.toSwipeRightVerb(),
     /** Measured positions of the real controls; `null` falls back to nominal geometry. */
     anchors: ControlsGuideAnchors? = null,
+    /**
+     * Camera info is a Pro mode feature. When false the guide has no "Camera info" and "Info"
+     * callouts: it never labels a control that is not there.
+     */
+    cameraInfo: Boolean = true,
 ) {
     AnimatedVisibility(
         visible = visible,
@@ -137,7 +142,7 @@ fun GestureTutorialOverlay(
         CompositionLocalProvider(
             LocalDensity provides Density(density.density, minOf(density.fontScale, GUIDE_MAX_FONT_SCALE)),
         ) {
-        GuideBox(anchors = anchors) { geometry, compact ->
+        GuideBox(anchors = anchors, cameraInfo = cameraInfo) { geometry, compact ->
             Column(
                 modifier = Modifier
                     .fillMaxSize()

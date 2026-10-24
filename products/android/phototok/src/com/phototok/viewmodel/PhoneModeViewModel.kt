@@ -39,6 +39,7 @@ import com.phototok.domain.OptimisticFeed
 import com.phototok.domain.PendingDeleteLogic
 import com.phototok.domain.PhoneFeedOrdering
 import com.phototok.domain.PhotoFolders
+import com.phototok.domain.ProModePolicy
 import com.phototok.domain.RelatedFiles
 import com.phototok.domain.ShareIntentBuilder
 import com.phototok.domain.SwipeAction
@@ -145,6 +146,27 @@ data class PhoneModeUiState(
     val cardClearComplete: Boolean = false,
     /** Optional API 30+ batch MediaStore request (`U-17`, `U-18`). */
     val pendingIntentSenderRequest: SystemFavouriteSync.BatchIntentRequest? = null,
+    /** Pro mode on? The settings above are already the effective (gated) values. */
+    val proMode: Boolean = false,
+    /**
+     * Casual mode on an SD card or camera: swipe right copies into the phone's camera folder,
+     * subfolder [selectionSubfolderName] (`Jackpix`), not into `<card>/Selection`.
+     */
+    val importToPhoneCamera: Boolean = false,
+    /** Name of the subfolder swipe right files into: `Selection`, or `Jackpix` for a Casual card import. */
+    val selectionSubfolderName: String = PhotoFolders.SELECTION,
+    /**
+     * Set when a Casual card import has no write access to the phone's camera folder yet: the UI
+     * opens the system folder picker at [CameraFolderGrantRequest.initialUri] and answers with
+     * [PhoneModeViewModel.onCameraFolderGranted] or [PhoneModeViewModel.onCameraFolderGrantCancelled].
+     */
+    val cameraFolderGrantRequest: CameraFolderGrantRequest? = null,
+)
+
+/** Ask the UI to let the user grant the phone's camera folder (the picker opens at [initialUri]). */
+data class CameraFolderGrantRequest(
+    val initialUri: Uri,
+    val id: Long = System.nanoTime(),
 )
 
 data class ReloadPrompt(
@@ -261,6 +283,21 @@ class PhoneModeViewModel @Inject constructor(
     /** Whether the one-time cloud MOVE->COPY notice has been shown in this session. */
     private var cloudMoveCoercedNoticeShown = false
 
+    /** The phone's camera-folder tree a Casual card import copies into, once verified writable. */
+    private var cameraImportTarget: String? = null
+
+    /** The photo whose swipe right is waiting for the camera-folder grant. */
+    private var pendingCameraImportUri: String? = null
+
+    private var pendingCameraImportIsCopy = true
+
+    /** Guards against a second swipe while the camera-folder access check is running. */
+    private var resolvingCameraImportTarget = false
+
+    /** The phone's own collection folder as last read from settings (shown again when a Casual import ends). */
+    private var phoneCollectionUriPref: String? = null
+    private var phoneCollectionNamePref: String = ""
+
     companion object {
         private const val TAG = "PhoneModeVM"
         private const val MAX_EXIF_CACHE_SIZE = 30
@@ -269,8 +306,8 @@ class PhoneModeViewModel @Inject constructor(
         /** Dimension results are applied to the UI state in batches of this size. */
         internal const val DIMENSION_BATCH_SIZE = 24
 
-        private const val EXTERNAL_STORAGE_AUTHORITY = "com.android.externalstorage.documents"
-        private const val CAMERA_DOCUMENT_ID = "primary:DCIM/Camera"
+        private const val EXTERNAL_STORAGE_AUTHORITY = ProModePolicy.CAMERA_IMPORT_AUTHORITY
+        private const val CAMERA_DOCUMENT_ID = ProModePolicy.CAMERA_IMPORT_DOCUMENT_ID
 
         /**
          * The picker's `EXTRA_INITIAL_URI` for [documentId]. It must be a document URI: the system
@@ -413,9 +450,11 @@ class PhoneModeViewModel @Inject constructor(
                             recentPathsCount = s.recentPathsCount,
                             recentPaths = s.recentPaths,
                             seenFirstRunHints = s.seenFirstRunHints,
+                            proMode = s.proMode,
                         )
                     } else {
                         state.copy(
+                            proMode = s.proMode,
                             showExifOverlay = s.showExifOverlay,
                             recentPathsEnabled = s.recentPathsEnabled,
                             recentPathsCount = s.recentPathsCount,
@@ -444,8 +483,12 @@ class PhoneModeViewModel @Inject constructor(
         viewModelScope.launch {
             settingsRepository.phoneCollectionUri.collect { uri ->
                 val name = resolveFolderName(uri, fallback = "Collection")
+                phoneCollectionUriPref = uri
+                phoneCollectionNamePref = name
                 _uiState.update {
-                    it.copy(collectionFolderUri = uri, collectionFolderName = name)
+                    // A Casual card import has its own target; the phone's folder waits for Pro.
+                    if (it.importToPhoneCamera) it
+                    else it.copy(collectionFolderUri = uri, collectionFolderName = name)
                 }
             }
         }
@@ -484,6 +527,17 @@ class PhoneModeViewModel @Inject constructor(
                 }
 
                 _uiState.update { state ->
+                    val leavingImport = state.importToPhoneCamera && !src.importToPhoneCamera
+                    val collectionUri = when {
+                        src.importToPhoneCamera -> cameraImportTarget
+                        leavingImport -> src.collectionFolderUri ?: phoneCollectionUriPref
+                        else -> src.collectionFolderUri ?: state.collectionFolderUri
+                    }
+                    val collectionName = when {
+                        src.importToPhoneCamera -> src.selectionSubfolder
+                        leavingImport -> if (collectionUri == phoneCollectionUriPref) phoneCollectionNamePref else ""
+                        else -> state.collectionFolderName
+                    }
                     state.copy(
                         swipeRightVerb = effectiveVerb,
                         collectionAction = effectiveCollectionAction,
@@ -494,10 +548,14 @@ class PhoneModeViewModel @Inject constructor(
                         moveRelatedFiles = src.moveRelatedFiles,
                         directDeleteConfirmEnabled = src.directDeleteConfirmEnabled,
                         leftSwipeAction = effectiveLeftSwipe,
-                        collectionFolderUri = src.collectionFolderUri ?: state.collectionFolderUri,
+                        collectionFolderUri = collectionUri,
+                        collectionFolderName = collectionName,
                         leftSwipeFolderUri = src.leftSwipeFolderUri ?: state.leftSwipeFolderUri,
+                        importToPhoneCamera = src.importToPhoneCamera,
+                        selectionSubfolderName = src.selectionSubfolder,
                     )
                 }
+                if (src.importToPhoneCamera) refreshCameraImportTarget()
 
                 if (isCloud && !cloudMoveCoercedNoticeShown &&
                     (src.swipeRightVerb == SwipeRightVerb.MOVE || src.leftSwipeAction == SwipeAction.MOVE)
@@ -530,6 +588,8 @@ class PhoneModeViewModel @Inject constructor(
 
     /** Toggle the EXIF stats overlay (driven by tapping the Jackpix logo). */
     fun toggleExifOverlay() {
+        // Camera info is a Pro feature: in Casual the logo toggle is not offered and never acts.
+        if (!_uiState.value.proMode) return
         viewModelScope.launch {
             settingsRepository.setPhoneShowExifOverlay(!_uiState.value.showExifOverlay)
         }
@@ -1136,10 +1196,14 @@ class PhoneModeViewModel @Inject constructor(
             return
         }
 
-        val target = resolveCollectionTargetUri(state)
         val isCopy = state.collectionAction == CollectionAction.COPY ||
             state.swipeRightVerb == SwipeRightVerb.COPY ||
             state.isCloudSource
+        if (state.importToPhoneCamera) {
+            importToPhoneCamera(isCopy = true)
+            return
+        }
+        val target = resolveCollectionTargetUri(state)
         statsRepository.recordKeeper(state.sourceKind, 1)
         copyOrMoveCurrent(
             targetUri = target,
@@ -1170,6 +1234,10 @@ class PhoneModeViewModel @Inject constructor(
     /** Explicit Copy to Selection action from the long-press context menu (`U-13`). */
     fun copyCurrentToSelection() {
         val state = _uiState.value
+        if (state.importToPhoneCamera) {
+            importToPhoneCamera(isCopy = true)
+            return
+        }
         val target = resolveCollectionTargetUri(state)
         statsRepository.recordKeeper(state.sourceKind, 1)
         copyOrMoveCurrent(
@@ -1183,6 +1251,10 @@ class PhoneModeViewModel @Inject constructor(
     /** Explicit Move to Selection action from the long-press context menu (`U-13`). */
     fun moveCurrentToSelection() {
         val state = _uiState.value
+        if (state.importToPhoneCamera) {
+            importToPhoneCamera(isCopy = false)
+            return
+        }
         val target = resolveCollectionTargetUri(state)
         val isCopy = state.isCloudSource
         if (isCopy && !cloudMoveCoercedNoticeShown) {
@@ -1221,6 +1293,111 @@ class PhoneModeViewModel @Inject constructor(
             fileTypeFilter = state.fileTypeFilter,
         )
         return ShareIntentBuilder.buildOpenWithChooser(target)
+    }
+
+    // ── Casual card import: SD card / camera to the phone's camera folder ─────
+
+    private fun cameraTreeUri(): Uri =
+        DocumentsContract.buildTreeDocumentUri(EXTERNAL_STORAGE_AUTHORITY, CAMERA_DOCUMENT_ID)
+
+    /**
+     * Casual swipe right on an SD card or camera: copy the current photo (with its companions) into
+     * `DCIM/Camera/Jackpix` on the phone. Without access to the camera folder nothing is copied
+     * and the photo stays: [PhoneModeUiState.cameraFolderGrantRequest] asks the UI to open the
+     * folder picker, and [onCameraFolderGranted] / [onCameraFolderGrantCancelled] finish the swipe.
+     */
+    private fun importToPhoneCamera(isCopy: Boolean) {
+        val state = _uiState.value
+        val image = state.images.getOrNull(state.currentIndex) ?: return
+        if (state.cameraFolderGrantRequest != null || resolvingCameraImportTarget) return
+        val known = cameraImportTarget
+        if (known != null) {
+            runCameraImport(known, isCopy)
+            return
+        }
+        resolvingCameraImportTarget = true
+        viewModelScope.launch {
+            val target = try {
+                resolveCameraImportTarget()
+            } finally {
+                resolvingCameraImportTarget = false
+            }
+            if (target != null) {
+                runCameraImport(target, isCopy)
+            } else {
+                pendingCameraImportUri = image.uri
+                pendingCameraImportIsCopy = isCopy
+                _uiState.update {
+                    it.copy(cameraFolderGrantRequest = CameraFolderGrantRequest(pickerInitialUri(CAMERA_DOCUMENT_ID)))
+                }
+            }
+        }
+    }
+
+    private fun runCameraImport(target: String, isCopy: Boolean) {
+        val state = _uiState.value
+        statsRepository.recordKeeper(state.sourceKind, 1)
+        copyOrMoveCurrent(
+            targetUri = target,
+            isCopy = isCopy,
+            subfolderName = PhotoFolders.CASUAL_IMPORT,
+            destination = UiText.raw(PhotoFolders.CASUAL_IMPORT),
+        )
+    }
+
+    /**
+     * A tree we can write to for the import: the one granted before, else the camera folder the
+     * Camera source already holds. Remembered (with a durable grant purpose) once found.
+     */
+    private suspend fun resolveCameraImportTarget(): String? {
+        val stored = settingsRepository.casualCameraTargetUri.first()
+        val found = listOfNotNull(stored, cameraTreeUri().toString()).distinct()
+            .firstOrNull { imageRepository.resolveFolderName(Uri.parse(it)) != null }
+        if (found != null && found != stored) settingsRepository.setCasualCameraTarget(found)
+        setCameraImportTarget(found)
+        return found
+    }
+
+    private fun refreshCameraImportTarget() {
+        viewModelScope.launch { resolveCameraImportTarget() }
+    }
+
+    private fun setCameraImportTarget(uri: String?) {
+        cameraImportTarget = uri
+        _uiState.update { if (it.importToPhoneCamera) it.copy(collectionFolderUri = uri) else it }
+    }
+
+    /** The user picked a folder for the pending Casual import: keep the grant and copy that photo. */
+    fun onCameraFolderGranted(uri: Uri) {
+        val pendingUri = pendingCameraImportUri
+        val isCopy = pendingCameraImportIsCopy
+        pendingCameraImportUri = null
+        _uiState.update { it.copy(cameraFolderGrantRequest = null) }
+        if (pendingUri == null) return
+        viewModelScope.launch {
+            if (imageRepository.resolveFolderName(uri) == null) {
+                showFeedback(UiText.of(R.string.snackbar_not_copied), isError = true)
+                return@launch
+            }
+            settingsRepository.setCasualCameraTarget(uri.toString())
+            setCameraImportTarget(uri.toString())
+            val state = _uiState.value
+            val index = state.images.indexOfFirst { it.uri == pendingUri }
+            if (index < 0) {
+                showFeedback(UiText.of(R.string.snackbar_not_copied), isError = true)
+                return@launch
+            }
+            if (index != state.currentIndex) navigateToImage(index)
+            runCameraImport(uri.toString(), isCopy)
+        }
+    }
+
+    /** The picker was dismissed: nothing is copied and the photo stays. */
+    fun onCameraFolderGrantCancelled() {
+        val hadPending = pendingCameraImportUri != null
+        pendingCameraImportUri = null
+        _uiState.update { it.copy(cameraFolderGrantRequest = null) }
+        if (hadPending) showFeedback(UiText.of(R.string.snackbar_not_copied))
     }
 
     private fun resolveCollectionTargetUri(state: PhoneModeUiState): String? {
@@ -1759,6 +1936,16 @@ class PhoneModeViewModel @Inject constructor(
         _uiState.update { it.copy(pendingIntentSenderRequest = null) }
     }
 
+    /**
+     * Switch Pro mode on or off (landing toggle and Settings row). The snackbar names the visible
+     * change ("Pro settings paused", "Camera info on", "Pro settings restored").
+     */
+    fun setProMode(enabled: Boolean) {
+        viewModelScope.launch {
+            settingsRepository.setProMode(enabled)?.let { showFeedback(it) }
+        }
+    }
+
     fun updateDirectDeleteConfirm(enabled: Boolean) {
         viewModelScope.launch {
             settingsRepository.setPhoneDirectDeleteConfirmEnabled(enabled)
@@ -1849,6 +2036,7 @@ class PhoneModeViewModel @Inject constructor(
 
     fun maybeShowRawJpegSuggestion() {
         val state = _uiState.value
+        if (!state.proMode) return
         if (state.showRawJpegSuggestion) return
         if (FirstRunHint.RAW_JPEG_PAIRS.key in state.seenFirstRunHints) return
         if (state.fileTypeFilter == FileTypeFilter.ONE_PER_SHOT) return
@@ -1900,6 +2088,7 @@ class PhoneModeViewModel @Inject constructor(
 
     fun maybeShowFilterMismatchHint() {
         val state = _uiState.value
+        if (!state.proMode) return
         if (state.showGestureTutorial || state.showControlsGuide) return
         if (state.showRawJpegSuggestion) return
         if (state.firstRunHint != null) return

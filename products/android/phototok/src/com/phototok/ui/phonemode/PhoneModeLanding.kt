@@ -39,6 +39,10 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.saveable.rememberSaveable
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
@@ -65,6 +69,8 @@ import com.phototok.R
 import com.phototok.data.model.RecentPath
 import com.phototok.domain.UiText
 import com.phototok.ui.asString
+import com.phototok.ui.components.ProModeHelpDialog
+import com.phototok.ui.components.ProModeRow
 
 /**
  * Landing screen: hero branding, source pickers (Phone Camera / SD Card / Folder or Cloud),
@@ -90,7 +96,11 @@ fun PhoneModeLanding(
     unmountedRecentUris: Set<String> = emptySet(),
     folderSeenProgress: Map<String, Pair<Int, Int>> = emptyMap(),
     onSelectRecentPath: (RecentPath) -> Unit = {},
+    proMode: Boolean = false,
+    onProModeChange: (Boolean) -> Unit = {},
 ) {
+    var showProModeHelp by rememberSaveable { mutableStateOf(false) }
+    if (showProModeHelp) ProModeHelpDialog(onDismiss = { showProModeHelp = false })
     val sourcePickerLauncher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.OpenDocumentTree(),
     ) { uri: Uri? -> uri?.let { onSelectSource(it) } }
@@ -244,6 +254,16 @@ fun PhoneModeLanding(
                 modifier = Modifier
                     .fillMaxWidth()
                     .testTag("landing_custom_folder_card"),
+            )
+
+            // One row under the sources: Pro mode shows or hides the power-user settings.
+            Spacer(modifier = Modifier.height(12.dp))
+            ProModeRow(
+                proMode = proMode,
+                onProModeChange = onProModeChange,
+                onHelp = { showProModeHelp = true },
+                toggleTag = "landing_pro_mode_toggle",
+                helpTag = "landing_pro_mode_help",
             )
 
             if (missingGrantPrompt) {

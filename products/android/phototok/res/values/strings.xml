@@ -24,6 +24,8 @@
     <string name="cd_share_all">Share all</string>
     <string name="cd_warning">Warning</string>
     <string name="cd_got_it">Got it</string>
+    <string name="cd_pro_mode_help">What Pro mode does</string>
+    <string name="cd_logo_plain">Jackpix</string>
     <string name="cd_dismiss">Dismiss</string>
     <string name="cd_loading">Loading photos</string>
     <string name="cd_peek_right">Swipe right: %1$s</string>
@@ -65,6 +67,7 @@
     <string name="action_keep_all">Keep all</string>
     <string name="action_show_new">Show new</string>
     <string name="action_stay">Stay</string>
+    <string name="action_got_it">Got it</string>
     <string name="action_merge_pairs">Merge pairs</string>
     <string name="action_link_both">Link both</string>
     <string name="action_dont_change">Don\'t change</string>
@@ -99,6 +102,10 @@
     <string name="label_resolution">%1$d × %2$d</string>
     <string name="label_file_size">%1$d KB</string>
     <string name="label_raw_jpeg_pair">RAW + JPEG</string>
+    <string name="label_pro_mode">Pro mode</string>
+    <string name="label_pro_camera_info">Camera info</string>
+    <string name="label_pro_swipes_folders">Swipes &amp; folders</string>
+    <string name="label_dont_ask">Don\'t ask</string>
     <string name="chip_favourite">Favourite</string>
     <string name="chip_favourites">Favourites</string>
     <!-- Selection viewer tab / title: name and photo count, e.g. "Favourites 3" -->
@@ -116,7 +123,7 @@
     <!-- Dialogs -->
     <string name="dialog_title_direct_delete">Delete permanently?</string>
     <string name="dialog_body_no_trash">This location has no trash.</string>
-    <string name="dialog_body_turn_off_prompt">Turn off this prompt in Settings.</string>
+    <string name="dialog_title_pro_mode">Pro mode adds</string>
     <string name="dialog_title_card_done">Card done</string>
     <string name="dialog_body_card_loss">Photos not copied off the card are lost.</string>
     <plurals name="dialog_title_delete_all">
@@ -162,6 +169,10 @@
     <string name="snackbar_favourite_added">Marked as favourite</string>
     <string name="snackbar_favourite_removed">Favourite removed</string>
     <string name="snackbar_cloud_copy_only">Cloud: copy only</string>
+    <string name="snackbar_pro_paused">Pro settings paused</string>
+    <string name="snackbar_pro_camera_info_on">Camera info on</string>
+    <string name="snackbar_pro_restored">Pro settings restored</string>
+    <string name="snackbar_not_copied">Not copied</string>
     <string name="snackbar_card_disconnected">Card disconnected</string>
     <string name="snackbar_safe_to_unplug">Safe to unplug</string>
     <string name="snackbar_rejects_deleted">Rejects deleted</string>
@@ -234,7 +245,7 @@
     <string name="setting_title_source_code">Source code</string>
     <string name="setting_title_privacy">Privacy Policy</string>
     <string name="setting_title_legal">Legal Notice (Impressum)</string>
-    <string name="chip_phone">Phone</string>
+    <string name="chip_phone_cloud">Phone + cloud</string>
     <string name="chip_sd_card">SD card</string>
     <string name="chip_camera">Camera</string>
     <string name="chip_newest">Newest first</string>

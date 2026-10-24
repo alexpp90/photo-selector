@@ -7,6 +7,9 @@ fresh_install: false
 steps:
   - {maestro: products/android/phototok/tests/e2e/J-TOK-02/01_swipe_five.yaml}
   - {checkpoint: fifth}
+  # Camera info is a Pro mode feature (no (i) button in Casual): switch Pro mode on first. The
+  # first time it comes on it also turns the stats on, which 02_open_info.yaml accepts.
+  - {maestro: products/android/phototok/tests/e2e/_enable_pro_mode.yaml}
   - {maestro: products/android/phototok/tests/e2e/J-TOK-02/02_open_info.yaml}
   - {checkpoint: info}
   - {maestro: products/android/phototok/tests/e2e/J-TOK-02/03_double_tap_zoom.yaml}

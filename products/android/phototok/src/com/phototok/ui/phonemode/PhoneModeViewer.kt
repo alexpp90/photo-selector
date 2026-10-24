@@ -186,8 +186,14 @@ fun PhoneModeViewer(
     onShareCurrentPhoto: () -> Unit = {},
     onOpenWithCurrentPhoto: () -> Unit = {},
     onFirstRunHint: (FirstRunHint) -> Unit = {},
+    /**
+     * False while a swipe right cannot copy yet (a Casual card import still waiting for the phone's
+     * camera folder grant): the card snaps back and no "copied" flash is played for nothing.
+     */
+    collectionReady: Boolean = true,
 ) {
     if (images.isEmpty()) return
+    val collectionReadyNow by rememberUpdatedState(collectionReady)
 
     val pagerState = rememberPagerState(
         initialPage = currentIndex,
@@ -378,7 +384,7 @@ fun PhoneModeViewer(
                 },
                 onSwipeRightCollect = {
                     onAddToCollection()
-                    showCollectionFlash = true
+                    if (collectionReadyNow) showCollectionFlash = true
                 },
                 leftSwipeAction = leftSwipeAction,
                 leftSwipeFolderName = leftSwipeFolderName,

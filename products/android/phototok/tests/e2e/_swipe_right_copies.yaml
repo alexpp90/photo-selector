@@ -10,6 +10,11 @@
 # "Copy to Selection" ran out of 10 s one step short (2026-10-19).
 appId: com.phototok.lab
 ---
+# The swipe verbs and the source tabs are Pro mode settings (a fresh install is Casual, where
+# swipe right is ★ Favourite and the rows are hidden): turn Pro mode on first. A freshly opened
+# sheet edits the first source tab ("Phone + cloud", the kind of /sdcard/PSTLab/work), so the flow
+# no longer taps it (its label has a "+", which a Maestro text regex would need escaped).
+- runFlow: _enable_pro_mode.yaml
 - runFlow:
     when:
       visible:
@@ -17,14 +22,6 @@ appId: com.phototok.lab
     commands:
       - tapOn:
           id: "settings_button"
-      - scrollUntilVisible:
-          element:
-            text: "Phone|Telefon"
-          centerElement: true
-          visibilityPercentage: 100
-          timeout: 30000
-      - tapOn:
-          text: "Phone|Telefon"
       - scrollUntilVisible:
           element:
             text: "Copy|Kopieren"

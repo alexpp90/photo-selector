@@ -52,13 +52,13 @@ class ControlsGuideAlignmentTest {
         GuideAnchor.REVERT to "viewer_revert_button",
     )
 
-    private fun host(widthDp: Int, heightDp: Int, sd: Boolean, fontScale: Float = 1f) {
+    private fun host(widthDp: Int, heightDp: Int, sd: Boolean, fontScale: Float = 1f, cameraInfo: Boolean = true) {
         composeTestRule.setContent {
             val anchors = remember { ControlsGuideAnchors() }
             val base = LocalDensity.current
             CompositionLocalProvider(LocalDensity provides Density(base.density, fontScale)) {
                 Box(Modifier.size(widthDp.dp, heightDp.dp)) {
-                    GestureTutorialOverlay(visible = true, onDismiss = {}, anchors = anchors)
+                    GestureTutorialOverlay(visible = true, onDismiss = {}, anchors = anchors, cameraInfo = cameraInfo)
                     PhoneModeTopBar(
                         showControls = true,
                         showDoneWithCard = sd,
@@ -71,6 +71,7 @@ class ControlsGuideAlignmentTest {
                         onSettings = {},
                         modifier = Modifier.align(Alignment.TopCenter),
                         anchors = anchors,
+                        cameraInfoEnabled = cameraInfo,
                     )
                     ViewerBottomBar(
                         canRevert = true,
@@ -102,8 +103,8 @@ class ControlsGuideAlignmentTest {
         composeTestRule.onAllNodes(hasTestTag(tag), useUnmergedTree = true)
             .fetchSemanticsNodes().isNotEmpty()
 
-    private fun check(widthDp: Int, heightDp: Int, sd: Boolean, fontScale: Float = 1f) {
-        host(widthDp, heightDp, sd, fontScale)
+    private fun check(widthDp: Int, heightDp: Int, sd: Boolean, fontScale: Float = 1f, cameraInfo: Boolean = true) {
+        host(widthDp, heightDp, sd, fontScale, cameraInfo)
         val density = composeTestRule.density.density
         val tolerance = 12f * density
 
@@ -163,6 +164,23 @@ class ControlsGuideAlignmentTest {
     @Test
     fun portrait360x780_fourBottomCalloutsDoNotOverlap_atFontScale2() = check(360, 780, sd = false, fontScale = 2f)
 
+    // Casual mode: no (i) button and a plain logo, so no "Info" and no "Camera info" callout, and the
+    // remaining callouts still sit over their controls.
+    @Test
+    fun casual393x851_noInfoControlsAndNoInfoCallouts() {
+        check(393, 851, sd = true, cameraInfo = false)
+        assertFalse(exists("info_exif_button"))
+        assertFalse(exists("guide_callout_INFO"))
+        assertFalse(exists("guide_callout_LOGO"))
+    }
+
+    @Test
+    fun casual320x480_noInfoControlsAndNoInfoCallouts() {
+        check(320, 480, sd = false, cameraInfo = false)
+        assertFalse(exists("guide_callout_INFO"))
+        assertFalse(exists("guide_callout_LOGO"))
+    }
+
     @Test
     fun shareCalloutLabelsTheShareButtonBetweenSelectionAndRevert() {
         host(360, 780, sd = false)
@@ -209,6 +227,22 @@ class ControlsGuideAlignmentTest {
             .fetchSemanticsNodes().also { assertEquals(1, it.size) }
         composeTestRule.onAllNodes(hasContentDescription(str(PhoneModeTopBarDescriptions.HELP_SHOW)), useUnmergedTree = true)
             .fetchSemanticsNodes().also { assertEquals(0, it.size) }
+    }
+
+    @Test
+    fun casualLogoIsAPlainLogoWithATruthfulName() {
+        composeTestRule.setContent {
+            PhoneModeTopBar(
+                showControls = true, showDoneWithCard = false, guideOpen = false, exifOverlayOn = false,
+                onToggleExif = {}, onDoneWithCard = {}, onReload = {}, onHelp = {}, onSettings = {},
+                cameraInfoEnabled = false,
+            )
+        }
+        composeTestRule.onAllNodes(hasContentDescription(str(PhoneModeTopBarDescriptions.LOGO)), useUnmergedTree = true)
+            .fetchSemanticsNodes().also { assertEquals("no 'shows or hides camera info' name in Casual", 0, it.size) }
+        assertFalse(exists("info_exif_button"))
+        composeTestRule.onAllNodes(hasTestTag("top_bar_logo") and hasContentDescription(str(com.phototok.R.string.cd_logo_plain)), useUnmergedTree = true)
+            .fetchSemanticsNodes().also { assertEquals(1, it.size) }
     }
 
     @Test

@@ -20,6 +20,8 @@
     <string name="cd_share_all">Alle teilen</string>
     <string name="cd_warning">Warnung</string>
     <string name="cd_got_it">Verstanden</string>
+    <string name="cd_pro_mode_help">Was der Profi-Modus macht</string>
+    <string name="cd_logo_plain">Jackpix</string>
     <string name="cd_dismiss">Schließen</string>
     <string name="cd_loading">Fotos werden geladen</string>
     <string name="cd_peek_right">Nach rechts wischen: %1$s</string>
@@ -61,6 +63,7 @@
     <string name="action_keep_all">Alle behalten</string>
     <string name="action_show_new">Neue zeigen</string>
     <string name="action_stay">Bleiben</string>
+    <string name="action_got_it">Verstanden</string>
     <string name="action_merge_pairs">Paare bündeln</string>
     <string name="action_link_both">Beide verknüpfen</string>
     <string name="action_dont_change">Nicht ändern</string>
@@ -95,6 +98,10 @@
     <string name="label_resolution">%1$d × %2$d</string>
     <string name="label_file_size">%1$d KB</string>
     <string name="label_raw_jpeg_pair">RAW + JPEG</string>
+    <string name="label_pro_mode">Profi-Modus</string>
+    <string name="label_pro_camera_info">Kamera-Info</string>
+    <string name="label_pro_swipes_folders">Wischen &amp; Ordner</string>
+    <string name="label_dont_ask">Nicht fragen</string>
     <string name="chip_favourite">Favorit</string>
     <string name="chip_favourites">Favoriten</string>
     <string name="chip_name_count">%1$s %2$d</string>
@@ -111,7 +118,7 @@
     <!-- Dialoge -->
     <string name="dialog_title_direct_delete">Endgültig löschen?</string>
     <string name="dialog_body_no_trash">Dieser Ort hat keinen Papierkorb.</string>
-    <string name="dialog_body_turn_off_prompt">In den Einstellungen abschaltbar.</string>
+    <string name="dialog_title_pro_mode">Profi-Modus bietet</string>
     <string name="dialog_title_card_done">Karte fertig</string>
     <string name="dialog_body_card_loss">Nicht kopierte Fotos gehen verloren.</string>
     <plurals name="dialog_title_delete_all">
@@ -157,6 +164,10 @@
     <string name="snackbar_favourite_added">Als Favorit markiert</string>
     <string name="snackbar_favourite_removed">Favorit entfernt</string>
     <string name="snackbar_cloud_copy_only">Cloud: nur Kopieren</string>
+    <string name="snackbar_pro_paused">Profi-Einstellungen pausiert</string>
+    <string name="snackbar_pro_camera_info_on">Kamera-Info an</string>
+    <string name="snackbar_pro_restored">Profi-Einstellungen zurück</string>
+    <string name="snackbar_not_copied">Nicht kopiert</string>
     <string name="snackbar_card_disconnected">Karte getrennt</string>
     <string name="snackbar_safe_to_unplug">Sicher entfernbar</string>
     <string name="snackbar_rejects_deleted">Aussortierte gelöscht</string>
@@ -227,7 +238,7 @@
     <string name="setting_title_source_code">Quellcode</string>
     <string name="setting_title_privacy">Datenschutzerklärung</string>
     <string name="setting_title_legal">Impressum</string>
-    <string name="chip_phone">Telefon</string>
+    <string name="chip_phone_cloud">Handy + Cloud</string>
     <string name="chip_sd_card">SD-Karte</string>
     <string name="chip_camera">Kamera</string>
     <string name="chip_newest">Neueste zuerst</string>

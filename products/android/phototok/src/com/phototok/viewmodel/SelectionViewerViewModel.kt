@@ -153,13 +153,16 @@ class SelectionViewerViewModel @Inject constructor(
     /**
      * Open the viewer with both in-place [sourceImages] filtered by [favouritedUris] and
      * the Selection subfolder inside [targetFolderUri] (`U-17`). It opens on [preferredTab]
-     * (see [SelectionViewerLogic.preferredTab]) unless that list is empty.
+     * (see [SelectionViewerLogic.preferredTab]) unless that list is empty. [selectionSubfolder] is
+     * the folder swipe right files into: `Selection`, or `Jackpix` for a Casual SD/camera import
+     * (`PhoneModeUiState.selectionSubfolderName`).
      */
     fun openWithFavourites(
         targetFolderUri: String?,
         sourceImages: List<ImageItem>,
         favouritedUris: Set<String> = favouritesRepository.favouritedUris.value,
         preferredTab: SelectionViewerTab = SelectionViewerTab.FAVOURITES,
+        selectionSubfolder: String = PhotoFolders.SELECTION,
     ) {
         val favImages = sourceImages.filter { it.uri in favouritedUris }
         if (targetFolderUri == null && favImages.isEmpty()) {
@@ -171,10 +174,10 @@ class SelectionViewerViewModel @Inject constructor(
 
         viewModelScope.launch {
             var selImages: List<ImageItem> = emptyList()
-            var selFolderName = PhotoFolders.SELECTION
+            var selFolderName = selectionSubfolder
             if (targetFolderUri != null) {
                 try {
-                    when (val listing = imageRepository.listSelectionImages(Uri.parse(targetFolderUri))) {
+                    when (val listing = imageRepository.listSelectionImages(Uri.parse(targetFolderUri), selectionSubfolder)) {
                         is SelectionListing.Available -> {
                             selImages = listing.images
                             selFolderName = listing.folderName

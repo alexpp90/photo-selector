@@ -20,6 +20,8 @@ import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
+import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.only
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.safeDrawing
@@ -28,6 +30,7 @@ import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.layout.windowInsetsPadding
+import androidx.compose.foundation.selection.toggleable
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
@@ -51,6 +54,7 @@ import androidx.compose.material.icons.filled.Style
 import androidx.compose.material.icons.filled.Sync
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
+import androidx.compose.material3.Checkbox
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.FilterChip
 import androidx.compose.material3.Icon
@@ -69,8 +73,11 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.saveable.rememberSaveable
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
+import androidx.compose.ui.ExperimentalComposeUiApi
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.clipToBounds
@@ -83,6 +90,7 @@ import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.semantics.testTagsAsResourceId
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
@@ -91,6 +99,7 @@ import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.photoselector.core.model.ExifData
 import com.photoselector.core.storage.SourceKind
+import com.phototok.BuildConfig
 import com.phototok.R
 import com.phototok.data.model.ImageItem
 import com.phototok.domain.FileTypeFilter
@@ -108,12 +117,13 @@ import com.phototok.viewmodel.SelectionViewerViewModel
 import com.phototok.viewmodel.canRevert
 import com.phototok.viewmodel.rawCompanionUris
 import com.phototok.viewmodel.unmountedRecentUris
+import kotlinx.coroutines.launch
 
 /**
  * Root composable for the phone-mode experience.
  * Integrates top app bar, bottom action bar, and content (landing / loading / viewer).
  */
-@OptIn(ExperimentalMaterial3Api::class)
+@OptIn(ExperimentalMaterial3Api::class, ExperimentalComposeUiApi::class)
 @Composable
 fun PhoneModeScreen(
     viewModel: PhoneModeViewModel = hiltViewModel(),
@@ -133,6 +143,8 @@ fun PhoneModeScreen(
             favouritedUris = uiState.favouritedUris,
             // Open where the user's swipe right puts photos: ★ -> Favourites, copy/move -> Selection.
             preferredTab = SelectionViewerLogic.preferredTab(uiState.swipeRightVerb),
+            // `Jackpix` for a Casual card import, else the configured Selection folder.
+            selectionSubfolder = uiState.selectionSubfolderName,
         )
     }
 
@@ -145,6 +157,8 @@ fun PhoneModeScreen(
     var showSettingsSheet by remember { mutableStateOf(false) }
     var showDirectDeleteConfirmDialog by remember { mutableStateOf(false) }
     var showClearAllCardConfirm by remember { mutableStateOf(false) }
+    val sheetSnackbarHostState = remember { SnackbarHostState() }
+    val sheetScope = rememberCoroutineScope()
 
     val performDeleteSwipe = {
         if (uiState.leftSwipeAction == SwipeAction.DELETE) {
@@ -162,6 +176,8 @@ fun PhoneModeScreen(
     }
 
     val isViewing = uiState.images.isNotEmpty()
+    // A Casual card import copies into the phone's camera folder, which is known once it is granted.
+    val collectionReady = !uiState.importToPhoneCamera || uiState.collectionFolderUri != null
     val isViewingSelection = selectionState.isOpen
 
     val folderPickerLauncher = rememberLauncherForActivityResult(
@@ -171,6 +187,17 @@ fun PhoneModeScreen(
     val copyFavouritesPickerLauncher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.OpenDocumentTree(),
     ) { uri: Uri? -> uri?.let { selectionViewModel.copyFavouritesToFolder(it) } }
+
+    // Casual swipe right on a card or camera needs write access to the phone's camera folder once:
+    // the picker opens inside DCIM/Camera. The photo stays put until the user has answered.
+    val cameraFolderLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.OpenDocumentTree(),
+    ) { uri: Uri? ->
+        if (uri != null) viewModel.onCameraFolderGranted(uri) else viewModel.onCameraFolderGrantCancelled()
+    }
+    LaunchedEffect(uiState.cameraFolderGrantRequest?.id) {
+        uiState.cameraFolderGrantRequest?.let { cameraFolderLauncher.launch(it.initialUri) }
+    }
 
     // Error snackbar
     LaunchedEffect(uiState.error) {
@@ -210,8 +237,9 @@ fun PhoneModeScreen(
     // Direct Delete Confirmation Dialog
     if (showDirectDeleteConfirmDialog) {
         DirectDeleteDialog(
-            onConfirm = {
+            onConfirm = { dontAskAgain ->
                 showDirectDeleteConfirmDialog = false
+                if (dontAskAgain) viewModel.updateDirectDeleteConfirm(false)
                 viewModel.requestDelete()
             },
             onDismiss = { showDirectDeleteConfirmDialog = false },
@@ -306,16 +334,42 @@ fun PhoneModeScreen(
                 )
             },
         ) {
-            SettingsScreen(
-                onChangeSourceFolder = {
-                    showSettingsSheet = false
-                    folderPickerLauncher.launch(null)
-                },
-                onReloadFolder = {
-                    showSettingsSheet = false
-                    viewModel.reloadSourceFolder()
-                },
-            )
+            // The sheet is its own window and covers the screen's snackbar host, so the messages
+            // Settings raises (Pro mode on/off) are shown by a host inside the sheet.
+            Box(
+                modifier = Modifier
+                    .fillMaxSize()
+                    // The sheet is its own window: export its test tags to the lab flows as well.
+                    .semantics { testTagsAsResourceId = BuildConfig.EXPOSE_TEST_TAGS },
+            ) {
+                SettingsScreen(
+                    onChangeSourceFolder = {
+                        showSettingsSheet = false
+                        folderPickerLauncher.launch(null)
+                    },
+                    onReloadFolder = {
+                        showSettingsSheet = false
+                        viewModel.reloadSourceFolder()
+                    },
+                    onFeedback = { message ->
+                        sheetScope.launch {
+                            sheetSnackbarHostState.currentSnackbarData?.dismiss()
+                            sheetSnackbarHostState.showSnackbar(
+                                message = message.resolve(context),
+                                duration = SnackbarDuration.Short,
+                            )
+                        }
+                    },
+                )
+                SnackbarHost(
+                    hostState = sheetSnackbarHostState,
+                    modifier = Modifier
+                        .align(Alignment.BottomCenter)
+                        .navigationBarsPadding()
+                        .padding(bottom = 16.dp)
+                        .testTag("settings_snackbar_host"),
+                )
+            }
         }
     }
 
@@ -362,6 +416,7 @@ fun PhoneModeScreen(
                     canRevert = uiState.canRevert,
                     helpOpen = guideUp,
                     anchors = guideAnchors,
+                    cameraInfoEnabled = uiState.proMode,
                     onToggleExif = { viewModel.toggleExifOverlay() },
                     onSources = { viewModel.goBackToLanding() },
                     onSelection = openSelectionViewer,
@@ -404,6 +459,7 @@ fun PhoneModeScreen(
                             viewModel.buildCurrentOpenWithIntent()?.let { context.startActivity(it) }
                         },
                         onFirstRunHint = viewModel::maybeShowFirstRunHint,
+                        collectionReady = collectionReady,
                     )
                 }
 
@@ -433,6 +489,7 @@ fun PhoneModeScreen(
                         exifOn = uiState.showExifOverlay,
                         tint = sideIconTint,
                         anchors = guideAnchors,
+                        cameraInfoEnabled = uiState.proMode,
                         onReload = { viewModel.reloadSourceFolder() },
                         onInfo = { viewModel.toggleExifOverlay() },
                         onSettings = { showSettingsSheet = true },
@@ -497,6 +554,7 @@ fun PhoneModeScreen(
                         viewModel.buildCurrentOpenWithIntent()?.let { context.startActivity(it) }
                     },
                     onFirstRunHint = viewModel::maybeShowFirstRunHint,
+                    collectionReady = collectionReady,
                 )
             } else if (uiState.isLoading) {
                 PhoneModeLoading(folderName = uiState.sourceFolderName)
@@ -529,6 +587,8 @@ fun PhoneModeScreen(
                     unmountedRecentUris = uiState.unmountedRecentUris,
                     folderSeenProgress = uiState.folderSeenProgress,
                     onSelectRecentPath = { viewModel.selectRecentPath(it) },
+                    proMode = uiState.proMode,
+                    onProModeChange = viewModel::setProMode,
                 )
             }
         }
@@ -544,6 +604,7 @@ fun PhoneModeScreen(
                 collectionFolderName = uiState.collectionFolderName,
                 swipeRightVerb = uiState.swipeRightVerb,
                 anchors = guideAnchors,
+                cameraInfo = uiState.proMode,
             )
         }
 
@@ -557,6 +618,7 @@ fun PhoneModeScreen(
             collectionFolderName = uiState.collectionFolderName,
             swipeRightVerb = uiState.swipeRightVerb,
             anchors = guideAnchors,
+            cameraInfo = uiState.proMode,
         )
 
         // ── RAW + JPEG pair suggestions dialog ──────────────────────────────
@@ -614,6 +676,7 @@ fun PhoneModeScreen(
                 onSettings = { showSettingsSheet = true },
                 modifier = Modifier.align(Alignment.TopCenter),
                 anchors = guideAnchors,
+                cameraInfoEnabled = uiState.proMode,
             )
 
             // ── Bottom action bar ────────────────────────────────────
@@ -655,6 +718,8 @@ internal fun LandscapeLeftPanel(
     onShare: () -> Unit,
     onRevert: () -> Unit,
     onHelp: () -> Unit,
+    /** Camera info is Pro only: in Casual the logo is plain (no toggle, no guide callout). */
+    cameraInfoEnabled: Boolean = true,
 ) {
     Column(
         modifier = Modifier
@@ -671,25 +736,38 @@ internal fun LandscapeLeftPanel(
         horizontalAlignment = Alignment.CenterHorizontally,
         verticalArrangement = Arrangement.SpaceBetween
     ) {
-        // Logo toggles the EXIF overlay
-        val logoName = stringResource(PhoneModeTopBarDescriptions.LOGO)
-        val infoName = stringResource(PhoneModeTopBarDescriptions.INFO)
-        NameTooltip(name = infoName) {
+        // Logo toggles the EXIF overlay (Pro); in Casual it is just the logo.
+        if (cameraInfoEnabled) {
+            val logoName = stringResource(PhoneModeTopBarDescriptions.LOGO)
+            val infoName = stringResource(PhoneModeTopBarDescriptions.INFO)
+            NameTooltip(name = infoName) {
+                Image(
+                    painter = painterResource(id = R.drawable.ic_brand_mark),
+                    colorFilter = androidx.compose.ui.graphics.ColorFilter.tint(MaterialTheme.colorScheme.primary),
+                    contentDescription = null,
+                    modifier = Modifier
+                        .size(PhoneModeChromeMetrics.LEFT_PANEL_LOGO_SIZE)
+                        .guideAnchor(anchors, GuideAnchor.LOGO)
+                        .semantics { contentDescription = logoName }
+                        .testTag("landscape_logo")
+                        .clickable(
+                            indication = null,
+                            interactionSource = remember { MutableInteractionSource() },
+                            onClickLabel = infoName,
+                            role = Role.Button,
+                        ) { onToggleExif() }
+                )
+            }
+        } else {
+            val logoName = stringResource(R.string.cd_logo_plain)
             Image(
                 painter = painterResource(id = R.drawable.ic_brand_mark),
                 colorFilter = androidx.compose.ui.graphics.ColorFilter.tint(MaterialTheme.colorScheme.primary),
                 contentDescription = null,
                 modifier = Modifier
                     .size(PhoneModeChromeMetrics.LEFT_PANEL_LOGO_SIZE)
-                    .guideAnchor(anchors, GuideAnchor.LOGO)
                     .semantics { contentDescription = logoName }
-                    .testTag("landscape_logo")
-                    .clickable(
-                        indication = null,
-                        interactionSource = remember { MutableInteractionSource() },
-                        onClickLabel = infoName,
-                        role = Role.Button,
-                    ) { onToggleExif() }
+                    .testTag("landscape_logo"),
             )
         }
 
@@ -753,6 +831,8 @@ internal fun LandscapeRightButtons(
     onReload: () -> Unit,
     onInfo: () -> Unit,
     onSettings: () -> Unit,
+    /** Camera info is Pro only: in Casual there is no Info button. */
+    cameraInfoEnabled: Boolean = true,
 ) {
     Column(horizontalAlignment = Alignment.CenterHorizontally) {
         TopBarIconButton(
@@ -765,16 +845,18 @@ internal fun LandscapeRightButtons(
                 .guideAnchor(anchors, GuideAnchor.RELOAD)
                 .testTag("landscape_reload_folder_button"),
         )
-        TopBarIconButton(
-            icon = Icons.Default.Info,
-            name = stringResource(PhoneModeTopBarDescriptions.INFO),
-            tint = if (exifOn) MaterialTheme.colorScheme.primary else tint,
-            onClick = onInfo,
-            modifier = Modifier
-                .size(PhoneModeChromeMetrics.TOP_BAR_BUTTON_SIZE)
-                .guideAnchor(anchors, GuideAnchor.INFO)
-                .testTag("landscape_info_exif_button"),
-        )
+        if (cameraInfoEnabled) {
+            TopBarIconButton(
+                icon = Icons.Default.Info,
+                name = stringResource(PhoneModeTopBarDescriptions.INFO),
+                tint = if (exifOn) MaterialTheme.colorScheme.primary else tint,
+                onClick = onInfo,
+                modifier = Modifier
+                    .size(PhoneModeChromeMetrics.TOP_BAR_BUTTON_SIZE)
+                    .guideAnchor(anchors, GuideAnchor.INFO)
+                    .testTag("landscape_info_exif_button"),
+            )
+        }
         TopBarIconButton(
             icon = Icons.Default.Settings,
             name = stringResource(R.string.cd_settings),
@@ -791,16 +873,20 @@ internal fun LandscapeRightButtons(
 /**
  * Confirmation before a left-swipe delete in a location without a trash.
  *
- * The title carries the consequence and the body the one reason; the Settings
- * pointer is a single small line (REQ-TOK-GESTURE.03). Revert still works after
+ * The title carries the consequence and the body the one reason. A "Don't ask" checkbox, applied
+ * with Delete, turns this prompt off for good (the same setting as Settings > Confirm delete), so
+ * there is no sentence pointing at Settings (REQ-TOK-GESTURE.03). Revert still works after
  * confirming, so the dialog does not claim the delete is immediate.
+ *
+ * @param onConfirm Delete was chosen; the argument is whether "Don't ask" was ticked.
  */
 @Composable
 fun DirectDeleteDialog(
-    onConfirm: () -> Unit,
+    onConfirm: (dontAskAgain: Boolean) -> Unit,
     onDismiss: () -> Unit,
 ) {
     val colors = MaterialTheme.colorScheme
+    var dontAsk by rememberSaveable { mutableStateOf(false) }
     AlertDialog(
         onDismissRequest = onDismiss,
         modifier = Modifier.testTag("direct_delete_dialog"),
@@ -808,16 +894,28 @@ fun DirectDeleteDialog(
         text = {
             Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
                 Text(stringResource(R.string.dialog_body_no_trash))
-                Text(
-                    text = stringResource(R.string.dialog_body_turn_off_prompt),
-                    style = MaterialTheme.typography.bodySmall,
-                    color = colors.onSurfaceVariant,
-                )
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .heightIn(min = 48.dp)
+                        .toggleable(value = dontAsk, role = Role.Checkbox, onValueChange = { dontAsk = it })
+                        .testTag("direct_delete_dont_ask"),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(4.dp),
+                ) {
+                    // The row is the target; the box only draws the state.
+                    Checkbox(checked = dontAsk, onCheckedChange = null)
+                    Text(
+                        text = stringResource(R.string.label_dont_ask),
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = colors.onSurfaceVariant,
+                    )
+                }
             }
         },
         confirmButton = {
             TextButton(
-                onClick = onConfirm,
+                onClick = { onConfirm(dontAsk) },
                 modifier = Modifier.testTag("direct_delete_confirm_button"),
             ) {
                 Text(stringResource(R.string.action_delete), color = colors.error)
