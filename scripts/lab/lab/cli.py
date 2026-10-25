@@ -224,20 +224,20 @@ def build_parser() -> argparse.ArgumentParser:
     p_exp.add_argument(
         "--config",
         default=None,
-        help="Target config layout (e.g. phone-portrait, tab-landscape; default: all supported configs)",
+        help="Android config layout(s), comma-separated (e.g. phone-portrait, tab-landscape; default: the device's own configs)",
     )
     p_exp.add_argument(
         "--ai-provider",
         choices=["claude", "antigravity", "packet", "none"],
         default="none",
-        help="AI provider for pre-interaction expectation generation and judging (default: none)",
+        help="AI judge of each step: claude / antigravity judge live, packet writes review packets, none runs the deterministic oracles only (default: none)",
     )
     p_exp.add_argument(
         "--out",
         "--report-dir",
         dest="out",
         default=None,
-        help="Explicit output run directory (default: new directory under private/lab-runs/ or /tmp/lab-runs/)",
+        help="Run directory; everything the run writes goes there (default: a new directory under private/lab-runs/)",
     )
     p_exp.add_argument(
         "--with-personal",
@@ -249,7 +249,7 @@ def build_parser() -> argparse.ArgumentParser:
         "--driver",
         choices=["auto", "direct", "mock"],
         default="auto",
-        help="Driver execution mode: 'auto' (detect environment), 'direct' (hardware/app), or 'mock' (offline test driver)",
+        help="'auto' and 'direct' drive real devices and never fall back to the mock; 'mock' runs the offline synthetic app",
     )
 
     return parser
@@ -470,63 +470,26 @@ def main(argv: list[str] | None = None) -> int:
 
 
 def _explore(args: argparse.Namespace) -> int:
-    """Execute time-boxed exploratory testing across target devices."""
-    import subprocess
-
+    """Run time-boxed exploratory testing; exit 0 only for a run that did and checked its steps."""
     from .explore.discovery import normalize_product_name
     from .explore.orchestrator import ExploratoryOrchestrator, parse_duration_string
+    from .explore.reporter import BLOCKING_SEVERITIES, generate_explore_report
     from .locks import DeviceBusy
-    from .paths import new_run_dir, repo_root
 
-    # 1. Parse duration
     try:
         duration_s = parse_duration_string(args.duration)
     except ValueError as exc:
         print(f"error: invalid --duration {args.duration!r}: {exc}", file=sys.stderr)
         return 2
-
-    # 2. Normalize product name
     try:
         product = normalize_product_name(args.product)
-    except ValueError as exc:
-        print(f"error: {exc}", file=sys.stderr)
-        return 2
-
-    # 3. Resolve run output directory
-    if args.out:
-        out_dir = Path(args.out).expanduser().resolve()
-        out_dir.mkdir(parents=True, exist_ok=True)
-    elif args.driver == "mock":
-        import tempfile
-
-        from .paths import lab_tmp_root
-
-        out_dir = Path(tempfile.mkdtemp(prefix=f"explore-mock-{product}-", dir=lab_tmp_root()))
-    else:
-        try:
-            sha = subprocess.run(
-                ["git", "-C", str(repo_root()), "rev-parse", "--short", "HEAD"],
-                capture_output=True,
-                text=True,
-                check=False,
-            ).stdout.strip() or "unknown"
-        except Exception:
-            sha = "unknown"
-        out_dir = new_run_dir(sha, label=f"explore-{product}")
-
-    # 4. Parse devices and configs
-    devices = [d.strip() for d in args.device.split(",")] if args.device else None
-    configs = [c.strip() for c in args.config.split(",")] if args.config else None
-
-    # 5. Initialize orchestrator
-    try:
         orchestrator = ExploratoryOrchestrator(
             product=product,
             duration=duration_s,
             seed=int(args.seed),
-            out_dir=out_dir,
-            device=devices,
-            config=configs,
+            out_dir=Path(args.out) if args.out else None,
+            device=args.device,
+            config=args.config,
             ai_provider=args.ai_provider,
             driver=args.driver,
             with_personal=bool(args.with_personal),
@@ -535,73 +498,62 @@ def _explore(args: argparse.Namespace) -> int:
         print(f"error: {exc}", file=sys.stderr)
         return 2
 
-    # 6. Run exploratory session
     try:
         summary = orchestrator.run()
     except DeviceBusy as exc:
         print(f"device is busy: {exc}", file=sys.stderr)
         return 3
-    except KeyboardInterrupt:
-        print("\n[lab] exploration interrupted by user (SIGINT)", file=sys.stderr)
-        return 130
-    except ValueError as exc:
+    except ValueError as exc:  # no target, personal device without --with-personal, unknown config
         print(f"error: {exc}", file=sys.stderr)
         return 2
-    except Exception as exc:
-        print(f"error: exploratory session failed: {exc}", file=sys.stderr)
+    except Exception as exc:  # noqa: BLE001 - reported with a non-zero exit
+        print(f"error: exploratory session failed: {type(exc).__name__}: {exc}", file=sys.stderr)
         return 1
 
-    # Check for in-use or personal device skip errors
-    for w in getattr(summary, "worker_results", []):
-        if w.status in ("skipped_in_use", "skipped_personal"):
-            print(f"error: {w.error}", file=sys.stderr)
-            return 2
-
-    # 7. Generate report and log to canonical backlog
-    report_artifacts = {}
+    known_ids = _known_finding_ids()
     try:
-        from .explore.reporter import generate_explore_report, log_findings_to_canonical_backlog
-
-        import tempfile
-
-        tmp_root_str = str(Path(tempfile.gettempdir()).resolve())
-        is_live_run = args.driver != "mock" and not str(out_dir).startswith(tmp_root_str)
-        report_artifacts = generate_explore_report(
-            summary,
-            summary.run_dir,
-            date_stage=is_live_run if not args.out else None,
-        )
-        if is_live_run:
-            logged_count = log_findings_to_canonical_backlog(
-                summary.findings,
-                repo_path=None,
-                date_str=None,
-                seed=getattr(args, "seed", None),
-            )
-            if logged_count > 0:
-                print(f"Logged {logged_count} blocker/major finding(s) to code_health.md")
-    except Exception as exc:
-        print(f"[lab] Warning: Report generation failed: {exc}", file=sys.stderr)
-
-    # 8. Print summary and return exit code
-    total = summary.total_steps
-    passed = summary.passed_steps
-    failed = summary.failed_steps
-    findings_count = len(summary.findings)
-    print(f"Exploration completed: {total} steps ({passed} passed, {failed} failed), {findings_count} findings")
-    print(f"Run directory: {summary.run_dir}")
-    if "report_md" in report_artifacts:
-        print(f"Report: {report_artifacts['report_md']}")
-    if "report_html" in report_artifacts:
-        print(f"HTML report: {report_artifacts['report_html']}")
-
-    # Check for worker fatal errors
-    if any(w.status == "error" for w in getattr(summary, "worker_results", [])):
+        artifacts = generate_explore_report(summary, known_ids=known_ids)
+    except Exception as exc:  # noqa: BLE001
+        print(f"error: the report could not be written: {type(exc).__name__}: {exc}", file=sys.stderr)
         return 1
 
-    # Exit code: 1 if failures or blocker/major findings exist, otherwise 0
-    blockers = [f for f in summary.findings if getattr(f, "severity", "") in ("blocker", "major")]
-    return 1 if (failed > 0 or len(blockers) > 0) else 0
+    print(
+        f"Exploration {summary.status}: {summary.total_steps} steps "
+        f"({summary.passed_steps} passed, {summary.failed_steps} failed or errored), {len(summary.findings)} findings"
+    )
+    print(f"Run directory: {summary.run_dir}")
+    print(f"Report: {artifacts['report_md']}")
+    print(f"HTML report: {artifacts['report_html']}")
+    for note in summary.skipped_devices:
+        print(f"not run: {note}", file=sys.stderr)
+    problems = [w for w in summary.worker_results if w.status != "completed"]
+    for w in problems:
+        print(f"{w.target.label}: {w.status}: {w.error}", file=sys.stderr)
+
+    if summary.status == "interrupted":
+        return 130
+    if any(w.status in ("skipped_personal", "skipped_in_use", "unavailable") for w in problems):
+        return 2
+    if any(w.status == "error" for w in problems):
+        return 1
+    if summary.total_steps == 0 and duration_s > 0:
+        print("error: no step ran in the time box", file=sys.stderr)
+        return 1
+    open_blocking = [f for f in summary.findings if f.severity in BLOCKING_SEVERITIES and f.id not in known_ids]
+    return 1 if (summary.failed_steps > 0 or open_blocking) else 0
+
+
+def _known_finding_ids() -> set[str]:
+    """Root signatures triaged in `private/lab/review/known_findings.yaml` (read only; none without the overlay)."""
+    from .ingest import _load_active_known_findings
+    from .paths import repo_root
+
+    path = repo_root() / "private" / "lab" / "review" / "known_findings.yaml"
+    try:
+        return set(_load_active_known_findings(path))
+    except Exception as exc:  # noqa: BLE001 - the report still lists every finding, as open
+        print(f"warning: known findings not read from {path}: {exc}", file=sys.stderr)
+        return set()
 
 
 def _usability(args: argparse.Namespace) -> int:

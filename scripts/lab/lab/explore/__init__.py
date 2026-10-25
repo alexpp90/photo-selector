@@ -1,29 +1,21 @@
-"""Exploratory interaction testing engine.
+"""Exploratory interaction testing (`lab.py explore`).
 
-Provides live screen inspection, candidate interaction enumeration, seeded PRNG
-action selection with categorical weighting, target device drivers, pre-action
-structured expectations, deterministic layout/fs oracles, AI adapters, and verification.
+Drives the live app on a device (or the mock), picks interactions with a seeded selector,
+records what each should do before it runs, and checks the result with the lab's oracles and an
+optional AI judge. Everything a run writes stays in its run directory.
 """
 
 from __future__ import annotations
 
-from .actions import (
-    Action,
-    ActionCategory,
-    CandidateInteraction,
-    ScreenState,
-    categorize_action,
-)
+from .actions import Action, ActionCategory, CandidateInteraction, ScreenState, categorize_action
 from .ai_adapters import (
+    AIJudgeError,
     AIProvider,
-    AntigravityAdapter,
-    BaseAIProvider,
-    ClaudeCLIAdapter,
-    NoneAIProvider,
+    CliJudge,
+    JudgeContext,
+    Judgement,
     NoneProvider,
-    OfflineReviewIngest,
     PacketExportAdapter,
-    auto_detect_ai_provider,
     create_ai_adapter,
 )
 from .discovery import (
@@ -37,6 +29,7 @@ from .discovery import (
 from .driver import (
     AndroidDeviceDriver,
     AppCrashedError,
+    AppLeftError,
     DeviceDriver,
     DriverError,
     DriverExecutionError,
@@ -46,126 +39,40 @@ from .driver import (
     MacOSDeviceDriver,
     MockDeviceDriver,
 )
-from .expectations import (
-    STANDARD_FORBIDDEN_UI_NODES,
-    Expectation,
-    ExpectationRecorder,
-    record_cull_expectation,
-    record_navigation_expectation,
-    record_undo_expectation,
-)
-from .selector import (
-    ActionSelector,
-    EmptyCandidatesError,
-    SelectionPolicy,
-    SelectionRecord,
-)
+from .expectations import STANDARD_FORBIDDEN_UI_NODES, Expectation, ExpectationRecorder, read_counter
 from .orchestrator import (
-    DeviceState,
     ExploratoryOrchestrator,
+    NoTargetError,
     RunSummary,
     TargetConfig,
     WorkerResult,
+    group_targets,
     parse_duration_string,
-)
-from .verifier import (
-    SEVERITY_BLOCKER,
-    SEVERITY_MAJOR,
-    SEVERITY_MINOR,
-    SEVERITY_POLISH,
-    InteractionVerifier,
-    StepResult,
-    compute_root_signature,
-    normalize_product_for_verifier,
-    verify_step,
 )
 from .reporter import (
     AggregatedFinding,
-    ExploreReporter,
+    compute_root_signature,
     deduplicate_findings,
-    deduplicate_findings_with_counts,
-    format_backlog_entry,
     generate_explore_report,
-    is_signature_in_backlog,
-    log_findings_to_canonical_backlog,
-    resolve_canonical_backlog_path,
     sort_findings,
 )
+from .selector import ActionSelector, EmptyCandidatesError, SelectionPolicy, SelectionRecord
+from .verifier import InteractionVerifier, StepResult, normalize_product_for_verifier, verify_step
 
 __all__ = [
-    # Actions & State
-    "Action",
-    "ActionCategory",
-    "CandidateInteraction",
-    "ScreenState",
-    "categorize_action",
-    # Discovery
-    "ScreenInspectionResult",
-    "detect_active_modal",
-    "identify_screen_mode",
-    "inspect_screen",
-    "load_discovery_rules",
-    "normalize_product_name",
-    # Selector
-    "ActionSelector",
-    "EmptyCandidatesError",
-    "SelectionPolicy",
-    "SelectionRecord",
-    # Drivers & Errors
-    "DeviceDriver",
-    "AndroidDeviceDriver",
-    "LinuxDeviceDriver",
-    "MacOSDeviceDriver",
-    "MockDeviceDriver",
-    "DriverError",
-    "DriverTimeoutError",
-    "DriverExecutionError",
-    "DriverSettlingError",
-    "AppCrashedError",
-    # Expectations (M2)
-    "Expectation",
-    "ExpectationRecorder",
-    "STANDARD_FORBIDDEN_UI_NODES",
-    "record_navigation_expectation",
-    "record_cull_expectation",
-    "record_undo_expectation",
-    # AI Adapters (M2)
-    "AIProvider",
-    "BaseAIProvider",
-    "NoneAIProvider",
-    "NoneProvider",
-    "ClaudeCLIAdapter",
-    "AntigravityAdapter",
-    "PacketExportAdapter",
-    "OfflineReviewIngest",
-    "create_ai_adapter",
-    "auto_detect_ai_provider",
-    # Verification & Oracles (M2)
-    "StepResult",
-    "InteractionVerifier",
-    "verify_step",
-    "compute_root_signature",
-    "normalize_product_for_verifier",
-    "SEVERITY_BLOCKER",
-    "SEVERITY_MAJOR",
-    "SEVERITY_MINOR",
-    "SEVERITY_POLISH",
-    # Orchestrator & CLI (M3)
-    "ExploratoryOrchestrator",
-    "parse_duration_string",
-    "DeviceState",
-    "TargetConfig",
-    "WorkerResult",
-    "RunSummary",
-    # Deduplication & Reporting (M4)
-    "AggregatedFinding",
-    "ExploreReporter",
-    "deduplicate_findings",
-    "deduplicate_findings_with_counts",
+    "Action", "ActionCategory", "CandidateInteraction", "ScreenState", "categorize_action",
+    "ScreenInspectionResult", "detect_active_modal", "identify_screen_mode", "inspect_screen",
+    "load_discovery_rules", "normalize_product_name",
+    "ActionSelector", "EmptyCandidatesError", "SelectionPolicy", "SelectionRecord",
+    "DeviceDriver", "AndroidDeviceDriver", "LinuxDeviceDriver", "MacOSDeviceDriver", "MockDeviceDriver",
+    "DriverError", "DriverTimeoutError", "DriverExecutionError", "DriverSettlingError",
+    "AppCrashedError", "AppLeftError",
+    "Expectation", "ExpectationRecorder", "STANDARD_FORBIDDEN_UI_NODES", "read_counter",
+    "AIProvider", "NoneProvider", "PacketExportAdapter", "CliJudge", "AIJudgeError",
+    "JudgeContext", "Judgement", "create_ai_adapter",
+    "StepResult", "InteractionVerifier", "verify_step", "normalize_product_for_verifier",
+    "ExploratoryOrchestrator", "NoTargetError", "TargetConfig", "WorkerResult", "RunSummary",
+    "group_targets", "parse_duration_string",
+    "AggregatedFinding", "compute_root_signature", "deduplicate_findings", "generate_explore_report",
     "sort_findings",
-    "generate_explore_report",
-    "log_findings_to_canonical_backlog",
-    "format_backlog_entry",
-    "resolve_canonical_backlog_path",
-    "is_signature_in_backlog",
 ]

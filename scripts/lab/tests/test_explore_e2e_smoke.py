@@ -1,386 +1,241 @@
-"""End-to-End Headless Smoke Test & Adversarial Coverage Hardening (M5).
+"""Blitzlens driven for real in a headless session, and discovery fed hostile trees.
 
-Covers Features 29, 30, 31 across Tiers 1-5:
-- Feature 29: End-to-End Headless Smoke Test Verification (Linux Xvfb & Mock)
-- Feature 30: E2E Test Suite 100% Pass & Multi-Device Concurrent Simulation
-- Feature 31: Adversarial Coverage Hardening (Extreme inputs, corruption, signal storms)
+`TestLinuxRealSession` starts the app in its own Xvfb display and private D-Bus (Xvfb, xdotool,
+gapplication, dbus-daemon and PyGObject with GTK 4 + Libadwaita are needed; the test is skipped
+with the missing piece named) and checks what a run is worth: the captured trees have nodes, an
+executed click changes what the app shows, a killed app is reported, nothing is left running.
 """
 
 from __future__ import annotations
 
-import concurrent.futures
-import hashlib
 import json
 import math
 import os
 import shutil
-import signal
+import subprocess
 import sys
 import tempfile
-import time
 import unittest
-from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Any, Dict, List, Optional
-from unittest.mock import MagicMock, patch
+from typing import List, Optional
 
 LAB_DIR = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(LAB_DIR))
 
-from lab.explore.actions import Action, ScreenState  # noqa: E402
+from lab.explore.actions import Action  # noqa: E402
 from lab.explore.discovery import inspect_screen  # noqa: E402
-from lab.explore.driver import DriverExecutionError, _parse_coord  # noqa: E402
-from lab.explore.expectations import Expectation  # noqa: E402
-from lab.explore.orchestrator import ExploratoryOrchestrator  # noqa: E402
-from lab.explore.reporter import generate_explore_report  # noqa: E402
+from lab.explore.driver import (  # noqa: E402
+    AndroidDeviceDriver,
+    AppCrashedError,
+    DriverExecutionError,
+    LinuxDeviceDriver,
+    _parse_coord,
+)
 from lab.explore.selector import ActionSelector  # noqa: E402
-from lab.explore.verifier import StepResult  # noqa: E402
-from lab.fs_oracle import evaluate_fs_oracle  # noqa: E402
-from lab.layout_lint import lint, load_rules  # noqa: E402
-from lab.model import Finding, Node, Tree  # noqa: E402
-from lab.paths import ensure_android_lab_path, ensure_under  # noqa: E402
-from lab.report import generate_report  # noqa: E402
+from lab.linux.runner import lab_python  # noqa: E402
+from lab.model import Node, Tree  # noqa: E402
+from lab.paths import lab_tmp_root  # noqa: E402
 
 
-# --- Mock Exploratory Engine for Backward Compatibility ---
-class MockExploratoryEngine:
-    """Simulated exploratory testing engine exercising the pipeline."""
-
-    def __init__(self, product: str, duration_s: float, seed: int, run_dir: Path) -> None:
-        self.product = product
-        self.duration_s = duration_s
-        self.seed = seed
-        self.run_dir = run_dir
-        self.step_results: List[StepResult] = []
-        self.findings: List[Finding] = []
-
-    def run(self) -> Dict[str, Any]:
-        orch = ExploratoryOrchestrator(
-            product=self.product,
-            duration=f"{self.duration_s}s",
-            seed=self.seed,
-            out_dir=self.run_dir,
-            driver="mock",
-        )
-        summary = orch.run()
-        generate_explore_report(summary, self.run_dir)
-        self.step_results = summary.step_results
-        self.findings = summary.findings
-        return summary.to_dict()
+def linux_session_gap() -> Optional[str]:
+    """What is missing for a real Blitzlens session on this machine, or None."""
+    if sys.platform != "linux":
+        return f"a Linux host (this is {sys.platform})"
+    for binary in ("Xvfb", "xdotool", "gapplication"):
+        if shutil.which(binary) is None:
+            return f"{binary} on PATH"
+    if shutil.which("dbus-daemon") is None and not Path("/usr/bin/dbus-daemon").is_file():
+        return "dbus-daemon"
+    probe = subprocess.run(
+        [lab_python(), "-c", "import gi; gi.require_version('Gtk', '4.0'); gi.require_version('Adw', '1'); "
+                             "from gi.repository import Gtk, Adw"],
+        capture_output=True, text=True, check=False,
+    )
+    if probe.returncode != 0:
+        return f"PyGObject with GTK 4 and Libadwaita for {lab_python()}"
+    return None
 
 
-# =====================================================================
-# Tier 4: Feature 29 - End-to-End Headless Smoke Test Verification
-# =====================================================================
-class TestE2ESmokeLinuxXvfb(unittest.TestCase):
-    def setUp(self) -> None:
-        self.tmp = Path(tempfile.mkdtemp(prefix="pstlab-test-smoke-"))
-        self.addCleanup(shutil.rmtree, self.tmp, True)
-
-    def test_e2e_smoke_run_executes_and_produces_artifacts(self) -> None:
-        run_dir = self.tmp / "smoke_run"
-        run_dir.mkdir(parents=True, exist_ok=True)
-
-        orchestrator = ExploratoryOrchestrator(
-            product="linux-desktop",
-            driver="mock",
-            duration="0.2s",
-            seed=42,
-            out_dir=run_dir,
-        )
-        summary = orchestrator.run()
-        generate_explore_report(summary, run_dir)
-
-        self.assertEqual(summary.product, "linux-desktop")
-        self.assertGreater(summary.total_steps, 0)
-        self.assertTrue((run_dir / "run.json").is_file())
-        self.assertTrue((run_dir / "report.md").is_file())
-        self.assertTrue((run_dir / "report.html").is_file())
-
-        # Verify discovery, selector, expectations, and verifier executed end-to-end
-        self.assertGreater(len(summary.step_results), 0)
-        first_step = summary.step_results[0]
-        self.assertIsNotNone(first_step.action)
-        self.assertIsNotNone(first_step.expectation)
-        self.assertIsNotNone(first_step.before_state)
-        self.assertIsNotNone(first_step.after_state)
-
-    def test_e2e_smoke_run_is_deterministic_with_same_seed(self) -> None:
-        run_dir_1 = self.tmp / "smoke_run_1"
-        run_dir_2 = self.tmp / "smoke_run_2"
-        run_dir_1.mkdir(parents=True, exist_ok=True)
-        run_dir_2.mkdir(parents=True, exist_ok=True)
-
-        orch_1 = ExploratoryOrchestrator(
-            product="linux-desktop",
-            driver="mock",
-            duration="0.2s",
-            seed=100,
-            out_dir=run_dir_1,
-        )
-        orch_2 = ExploratoryOrchestrator(
-            product="linux-desktop",
-            driver="mock",
-            duration="0.2s",
-            seed=100,
-            out_dir=run_dir_2,
-        )
-
-        summary_1 = orch_1.run()
-        summary_2 = orch_2.run()
-
-        actions_1 = [s.action.action_type for s in summary_1.step_results[:5]]
-        actions_2 = [s.action.action_type for s in summary_2.step_results[:5]]
-        self.assertEqual(actions_1, actions_2)
-
-    def test_e2e_smoke_run_handles_injected_crash_gracefully(self) -> None:
-        run_dir = self.tmp / "smoke_crash"
-        run_dir.mkdir(parents=True, exist_ok=True)
-
-        orch = ExploratoryOrchestrator(
-            product="linux-desktop",
-            driver="mock",
-            duration="0.2s",
-            seed=7,
-            out_dir=run_dir,
-        )
-        summary = orch.run()
-
-        # Inject simulated crash finding
-        crash_finding = Finding(
-            id="crash12345678",
-            source="log",
-            product="linux-desktop",
-            config="fhd",
-            journey="explore",
-            checkpoint="step_03",
-            rule="crash",
-            severity="blocker",
-            confidence="high",
-            region=None,
-            message="SIGSEGV in image decoder",
-            evidence=["core_dump.log"],
-        )
-        summary.findings.append(crash_finding)
-        generate_explore_report(summary, run_dir)
-
-        self.assertTrue((run_dir / "findings.json").is_file())
-        self.assertTrue((run_dir / "findings.dedup.json").is_file())
-        self.assertTrue(any(f.severity == "blocker" for f in summary.findings))
-
-    def test_e2e_smoke_produces_html_and_markdown_reports(self) -> None:
-        run_dir = self.tmp / "smoke_reports"
-        run_dir.mkdir(parents=True, exist_ok=True)
-
-        orch = ExploratoryOrchestrator(
-            product="linux-desktop",
-            driver="mock",
-            duration="0.2s",
-            seed=42,
-            out_dir=run_dir,
-        )
-        summary = orch.run()
-        artifacts = generate_explore_report(summary, run_dir)
-
-        self.assertTrue((run_dir / "report.html").is_file())
-        self.assertTrue((run_dir / "report.md").is_file())
-        self.assertIn("report_html", artifacts)
-        self.assertIn("report_md", artifacts)
-
-    @unittest.skipUnless(shutil.which("Xvfb") and shutil.which("xdotool"), "Xvfb and xdotool required")
-    def test_real_headless_linux_xvfb_smoke(self) -> None:
-        out_dir = self.tmp / "smoke_real"
-        orchestrator = ExploratoryOrchestrator(
-            product="linux-desktop",
-            duration="2.0s",
-            seed=42,
-            out_dir=out_dir,
-            driver="direct",
-        )
-        summary = orchestrator.run()
-        generate_explore_report(summary, out_dir)
-
-        self.assertGreater(summary.total_steps, 0)
-        self.assertTrue((out_dir / "run.json").is_file())
-        self.assertTrue((out_dir / "report.html").is_file())
-        self.assertTrue((out_dir / "report.md").is_file())
+LINUX_GAP = linux_session_gap()
 
 
-# =====================================================================
-# Tier 4: Feature 30 - Multi-Device Concurrent Simulation
-# =====================================================================
-class TestE2EMultiDeviceConcurrentSimulation(unittest.TestCase):
-    def setUp(self) -> None:
-        self.tmp = Path(tempfile.mkdtemp(prefix="pstlab-test-concurrent-"))
-        self.addCleanup(shutil.rmtree, self.tmp, True)
+@unittest.skipIf(LINUX_GAP is not None, f"no headless Blitzlens session without {LINUX_GAP}")
+class TestLinuxRealSession(unittest.TestCase):
+    @classmethod
+    def setUpClass(cls) -> None:
+        lab_tmp_root().mkdir(parents=True, exist_ok=True)
+        cls.out = Path(tempfile.mkdtemp(prefix="pstlab-test-session-", dir=lab_tmp_root()))
+        cls.driver = LinuxDeviceDriver(out_dir=cls.out / "run", settle_ms=200)
+        try:
+            cls.driver.setup()
+            cls.driver.prepare()
+            cls.first = cls.driver.capture_state()
+        except BaseException:
+            cls.driver.teardown()
+            shutil.rmtree(cls.out, ignore_errors=True)
+            raise
 
-    def test_concurrent_simulation_three_products(self) -> None:
-        products = ["phototok", "android-desktop", "linux-desktop"]
-        orchestrators: Dict[str, ExploratoryOrchestrator] = {}
+    @classmethod
+    def tearDownClass(cls) -> None:
+        cls.driver.teardown()
+        shutil.rmtree(cls.out, ignore_errors=True)
 
-        for p in products:
-            p_dir = self.tmp / p
-            p_dir.mkdir(parents=True, exist_ok=True)
-            orchestrators[p] = ExploratoryOrchestrator(
-                product=p,
-                duration="0.2s",
-                seed=42,
-                out_dir=p_dir,
-                driver="mock",
-            )
+    def test_the_first_capture_has_nodes_and_a_screenshot(self) -> None:
+        self.assertGreater(len(self.first.tree.nodes), 0)
+        self.assertTrue(any(n.interactive for n in self.first.tree.nodes))
+        self.assertTrue(self.first.screenshot_bytes.startswith(b"\x89PNG"))
+        self.assertEqual(self.first.screen_mode, "viewer")
+        self.assertGreater(len(self.first.fs_snapshot["files"]), 0)
 
-        with concurrent.futures.ThreadPoolExecutor(max_workers=3) as pool:
-            futures = [pool.submit(orchestrators[p].run) for p in products]
-            summaries = [f.result() for f in futures]
+    def test_the_session_is_private(self) -> None:
+        env = self.driver._env
+        self.assertRegex(env["DISPLAY"], r"^:\d+$")
+        self.assertNotEqual(env["DISPLAY"], os.environ.get("DISPLAY"))
+        self.assertNotEqual(env["DBUS_SESSION_BUS_ADDRESS"], os.environ.get("DBUS_SESSION_BUS_ADDRESS"))
+        self.assertNotIn("WAYLAND_DISPLAY", env)
+        self.assertEqual(env["PST_LAB"], "1")
+        self.assertTrue(str(self.driver.lab_dir).startswith(str(lab_tmp_root())))
+        self.assertTrue(str(self.driver.working_dir).startswith(str(lab_tmp_root())))
 
-        self.assertEqual(len(summaries), 3)
-        for s in summaries:
-            self.assertGreater(s.total_steps, 0)
-            self.assertEqual(s.status, "completed")
-            self.assertTrue((s.run_dir / "run.json").is_file())
+    def click(self, state, node_id: str) -> None:
+        node = next(n for n in state.tree.nodes if n.id == node_id)
+        self.driver.execute_action(Action("click", node_id, params={"x": node.x + node.w / 2, "y": node.y + node.h / 2}))
+        self.driver.settle()
 
-    def test_concurrent_simulation_central_aggregation(self) -> None:
-        products = ["phototok", "android-desktop"]
-        total_steps = 0
-        for p in products:
-            p_dir = self.tmp / p
-            p_dir.mkdir(parents=True, exist_ok=True)
-            orch = ExploratoryOrchestrator(
-                product=p,
-                duration="0.2s",
-                seed=123,
-                out_dir=p_dir,
-                driver="mock",
-            )
-            summ = orch.run()
-            total_steps += summ.total_steps
+    def test_a_click_changes_what_the_app_shows(self) -> None:
+        driver = self.driver
+        self.click(driver.capture_state(), "btn_mode_1")  # a known starting layout
+        before = driver.capture_state()
+        self.click(before, "btn_mode_2")
+        after = driver.capture_state()
+        self.assertNotEqual([n.id for n in before.tree.nodes], [n.id for n in after.tree.nodes])
+        self.click(after, "btn_mode_1")
+        self.assertEqual([n.id for n in driver.capture_state().tree.nodes], [n.id for n in before.tree.nodes])
 
-        self.assertGreater(total_steps, 5)
+    def test_discovered_actions_run_and_every_capture_has_a_screenshot(self) -> None:
+        driver, selector = self.driver, ActionSelector(seed=11)
+        state = driver.capture_state()
+        steps = 0
+        for _ in range(10):
+            candidates = inspect_screen(state.tree, "linux-desktop").candidate_interactions
+            action = selector.select(candidates, screen_state=state)
+            driver.execute_action(action)
+            driver.settle()
+            after = driver.capture_state()
+            selector.record_outcome(action, state, after)
+            self.assertTrue(after.screenshot_bytes.startswith(b"\x89PNG"), action.summary())
+            state, steps = after, steps + 1
+        self.assertEqual(steps, 10)
+
+    def test_an_unsupported_action_raises_against_the_real_session(self) -> None:
+        with self.assertRaises(DriverExecutionError):
+            self.driver.execute_action(Action("swipe", params={"direction": "up"}))
+        with self.assertRaises(DriverExecutionError):
+            self.driver.execute_action(Action("key", params={"key": "z", "modifiers": ["bucky"]}))
+
+    def test_zz_a_killed_app_is_reported_and_restart_brings_it_back(self) -> None:
+        driver = self.driver
+        driver._app_proc.kill()  # type: ignore[union-attr]
+        driver._app_proc.wait(timeout=10)  # type: ignore[union-attr]
+        with self.assertRaises(AppCrashedError):
+            driver.capture_state()
+        driver.restart_app()
+        self.assertGreater(len(driver.capture_state().tree.nodes), 0)
 
 
-# =====================================================================
-# Tier 5: Feature 31 - Adversarial Coverage Hardening
-# =====================================================================
-class TestAdversarialCoverageHardening(unittest.TestCase):
-    def test_adversarial_deeply_nested_tree_recursion(self) -> None:
-        # Build tree with 500 nested parent-child nodes
+@unittest.skipIf(LINUX_GAP is not None, f"no headless Blitzlens session without {LINUX_GAP}")
+class TestLinuxSessionCleanup(unittest.TestCase):
+    def test_teardown_stops_every_process_and_removes_the_session(self) -> None:
+        lab_tmp_root().mkdir(parents=True, exist_ok=True)
+        out = Path(tempfile.mkdtemp(prefix="pstlab-test-cleanup-", dir=lab_tmp_root()))
+        self.addCleanup(shutil.rmtree, out, True)
+        driver = LinuxDeviceDriver(out_dir=out / "run", settle_ms=100)
+        driver.setup()
+        driver.prepare()
+        procs = list(driver._procs) + [driver._app_proc]
+        self.assertEqual(len(procs), 3)  # Xvfb, the session bus, the app
+        self.assertTrue(all(p is not None and p.poll() is None for p in procs))
+        self.assertTrue(driver.lab_dir.is_dir())
+        driver.teardown()
+        self.assertTrue(all(p.poll() is not None for p in procs if p is not None))
+        self.assertFalse(driver.lab_dir.exists())
+
+    def test_a_prepare_that_fails_leaves_nothing_running(self) -> None:
+        lab_tmp_root().mkdir(parents=True, exist_ok=True)
+        out = Path(tempfile.mkdtemp(prefix="pstlab-test-failed-", dir=lab_tmp_root()))
+        self.addCleanup(shutil.rmtree, out, True)
+        driver = LinuxDeviceDriver(out_dir=out / "run", start_timeout_s=3.0)
+        driver.setup()
+        started: List[subprocess.Popen] = []
+        real_spawn = driver._spawn_reporting
+
+        def spawn(cmd: List[str], what: str):
+            proc, line = real_spawn(cmd, what)
+            started.append(proc)
+            return proc, line
+
+        def app_that_exits() -> None:
+            driver._app_log = open(driver.artifacts_dir / "app.log", "ab")
+            driver._app_proc = subprocess.Popen([sys.executable, "-c", "raise SystemExit(3)"], stdout=driver._app_log)
+            started.append(driver._app_proc)
+
+        driver._spawn_reporting = spawn  # type: ignore[method-assign]
+        driver._launch_app = app_that_exits  # type: ignore[method-assign]
+        with self.assertRaises(AppCrashedError):
+            driver.prepare()
+        self.assertEqual(len(started), 3)
+        self.assertTrue(all(p.poll() is not None for p in started))
+        self.assertFalse(driver.lab_dir.exists())
+
+
+class TestHostileTrees(unittest.TestCase):
+    """Trees a broken app or a bad dump can produce must not break discovery or selection."""
+
+    def test_deeply_nested_tree(self) -> None:
         nodes: List[Node] = []
         for i in range(500):
-            parent = f"node_{i-1}" if i > 0 else None
             nodes.append(Node(
-                id=f"node_{i}",
-                parent=parent,
-                role="container" if i < 499 else "button",
-                name=f"Level {i}",
-                bounds=[10.0, 10.0, 100.0, 50.0],
-                interactive=(i == 499),
-                visible=True,
+                id=f"node_{i}", parent=f"node_{i-1}" if i > 0 else None,
+                role="container" if i < 499 else "button", name=f"Level {i}",
+                bounds=[10.0, 10.0, 100.0, 50.0], interactive=(i == 499), visible=True,
             ))
-        tree = Tree(platform="android", window={"w": 1080, "h": 1920}, nodes=nodes)
-        self.assertEqual(len(tree.nodes), 500)
-        self.assertEqual(tree.nodes[499].id, "node_499")
+        res = inspect_screen(Tree(platform="android", window={"w": 1080, "h": 1920}, nodes=nodes), "android-desktop")
+        self.assertIn("node_499", [c.action.target_id for c in res.filter_by_category("element")])
+        self.assertIsNotNone(ActionSelector(seed=42).select(res.candidate_interactions))
 
-        # Directly pass 500-level tree into production inspect_screen and ActionSelector
-        res = inspect_screen(tree, "android-desktop")
+    def test_cyclic_parent_references(self) -> None:
+        a = Node("node_a", "node_b", "button", "A", [10.0, 10.0, 100.0, 50.0], True, True)
+        b = Node("node_b", "node_a", "button", "B", [10.0, 70.0, 100.0, 50.0], True, True)
+        res = inspect_screen(Tree(platform="linux", window={"w": 1920, "h": 1080}, nodes=[a, b]), "linux-desktop")
         self.assertGreater(len(res.candidate_interactions), 0)
-        selector = ActionSelector(seed=42)
-        chosen = selector.select(res.actions)
-        self.assertIsNotNone(chosen)
+        self.assertIsNotNone(ActionSelector(seed=42).select(res.candidate_interactions))
 
-    def test_adversarial_cyclic_tree_parent_references(self) -> None:
-        # Node A -> parent B -> parent A
-        n_a = Node("node_a", "node_b", "button", "A", [10.0, 10.0, 100.0, 50.0], True, True)
-        n_b = Node("node_b", "node_a", "button", "B", [10.0, 70.0, 100.0, 50.0], True, True)
-        tree = Tree(platform="linux", window={"w": 1920, "h": 1080}, nodes=[n_a, n_b])
-
-        # Directly pass cyclic tree into production inspect_screen and ActionSelector
-        res = inspect_screen(tree, "linux-desktop")
-        self.assertGreater(len(res.candidate_interactions), 0)
-        selector = ActionSelector(seed=42)
-        chosen = selector.select(res.actions)
-        self.assertIsNotNone(chosen)
-
-    def test_adversarial_nan_and_inf_coordinates(self) -> None:
-        # Sanitization of NaN / Inf in UI coordinates
-        raw_bounds = [float("nan"), float("inf"), -float("inf"), 100.0]
-        sanitized = [
-            0.0 if math.isnan(b) or math.isinf(b) else b
-            for b in raw_bounds
+    def test_non_finite_bounds_are_never_offered_and_never_executed(self) -> None:
+        nodes = [
+            Node("node_nan", None, "button", "NaN", [float("nan"), float("inf"), 100.0, 50.0], True, True),
+            Node("node_inf", None, "button", "Inf", [-float("inf"), 0.0, 100.0, 50.0], True, True),
+            Node("node_ok", None, "button", "Valid", [50.0, 50.0, 100.0, 50.0], True, True),
         ]
-        self.assertEqual(sanitized, [0.0, 0.0, 0.0, 100.0])
+        res = inspect_screen(Tree(platform="linux", window={"w": 1920, "h": 1080}, nodes=nodes), "linux-desktop")
+        offered = {c.action.target_id for c in res.filter_by_category("element")}
+        self.assertEqual(offered, {"node_ok"})
+        for bad in (float("nan"), float("inf"), -float("inf"), None, "x"):
+            with self.assertRaises(DriverExecutionError):
+                _parse_coord(bad, "x")
+        self.assertEqual(_parse_coord("12.5", "x"), 12.5)
+        self.assertFalse(math.isnan(_parse_coord(0, "x")))
 
-        # Verify coordinate validator rejects non-finite float
-        with self.assertRaises(DriverExecutionError):
-            _parse_coord(float("nan"), "x")
-        with self.assertRaises(DriverExecutionError):
-            _parse_coord(float("inf"), "y")
+    def test_actions_with_awkward_labels_survive_a_json_round_trip(self) -> None:
+        labels = ["👍❤️🔥 Click Me!", "مرحبا بالعالم", "Text with \x00 null and \n newline \t and '\" quotes", "<script>alert(1)</script>"]
+        for i, label in enumerate(labels):
+            action = Action(action_type="tap", target_id=f"btn_{i}", params={"x": 1.5, "y": 2}, label=label)
+            self.assertEqual(Action.from_dict(json.loads(json.dumps(action.to_dict()))), action)
 
-        # Pass nodes with NaN/Inf bounds into production inspect_screen and ActionSelector
-        nodes_nan = [
-            Node("node_nan", None, "button", "NaN Node", [float("nan"), float("inf"), 100.0, 50.0], True, True),
-            Node("node_neg", None, "button", "Inf Node", [-float("inf"), 0.0, 100.0, 50.0], True, True),
-            Node("node_valid", None, "button", "Valid Node", [50.0, 50.0, 100.0, 50.0], True, True),
-        ]
-        tree_nan = Tree(platform="linux", window={"w": 1920, "h": 1080}, nodes=nodes_nan)
-        res_nan = inspect_screen(tree_nan, "linux-desktop")
-        self.assertGreater(len(res_nan.candidate_interactions), 0)
-        selector = ActionSelector(seed=42)
-        chosen_nan = selector.select(res_nan.actions)
-        self.assertIsNotNone(chosen_nan)
-
-    def test_adversarial_unicode_and_control_chars_in_labels(self) -> None:
-        weird_labels = [
-            "👍❤️🔥 Click Me!",
-            "مرحبا بالعالم",
-            "Text with \x00 null byte and \n newlines \t and '\" quotes",
-            "<script>alert('xss')</script>",
-        ]
-        actions = [
-            Action(action_type="tap", target_id=f"btn_{i}", label=label)
-            for i, label in enumerate(weird_labels)
-        ]
-        for a in actions:
-            # Must serialize and deserialize to JSON cleanly
-            d = {"action_type": a.action_type, "label": a.label}
-            encoded = json.dumps(d)
-            decoded = json.loads(encoded)
-            self.assertEqual(decoded["label"], a.label)
-
-    def test_adversarial_non_lab_package_name_rejected(self) -> None:
-        forbidden_packages = [
-            "com.android.settings",
-            "com.google.android.apps.photos",
-            "com.whatsapp",
-            "org.telegram.messenger",
-        ]
-        allowed_packages = [
-            "com.phototok.lab",
-            "com.photoselectortoolbox.lab",
-        ]
-        for pkg in forbidden_packages:
-            self.assertFalse(pkg.endswith(".lab"))
-        for pkg in allowed_packages:
-            self.assertTrue(pkg.endswith(".lab"))
-
-    def test_adversarial_directory_traversal_refusal(self) -> None:
-        with self.assertRaises(ValueError):
-            ensure_under("/etc/passwd", "/tmp/pstlab")
-        with self.assertRaises(ValueError):
-            ensure_android_lab_path("/sdcard/PSTLab/../../system/bin/sh")
-
-    def test_adversarial_zero_byte_screenshot(self) -> None:
-        empty_png = b""
-        state = ScreenState(
-            tree=Tree("android", {"w": 1080, "h": 1920}),
-            screenshot_bytes=empty_png,
-            screen_mode="empty",
-            fs_snapshot={},
-        )
-        self.assertEqual(len(state.screenshot_bytes), 0)
-
-    def test_adversarial_corrupted_png_bytes(self) -> None:
-        corrupted_bytes = b"\x89PNG\r\n\x1a\nCorrupted Payload 1234567890"
-        self.assertTrue(corrupted_bytes.startswith(b"\x89PNG"))
+    def test_an_android_working_folder_cannot_climb_out_of_the_lab_root(self) -> None:
+        for bad in ("/sdcard/PSTLab/../DCIM", "/sdcard/DCIM/Camera", "/data/local/tmp"):
+            with self.subTest(path=bad):
+                with self.assertRaises(ValueError):
+                    AndroidDeviceDriver(serial="X1", app_id="com.phototok.lab", working_dir=bad)
 
 
 if __name__ == "__main__":

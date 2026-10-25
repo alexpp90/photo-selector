@@ -1,33 +1,24 @@
 """Comprehensive E2E and unit tests for Exploratory Interaction Discovery & Execution (M1).
 
-Covers Features 2, 3, 4, 5, 6, 7, 8, 9, 10 across Tiers 1-4:
+Covers Features 2-7 across Tiers 1-4:
 - Feature 2: Live Screen & UI Inspection
 - Feature 3: Candidate Interaction: Taps & Clicks
 - Feature 4: Candidate Interaction: Gestures & Swipes
 - Feature 5: Candidate Interaction: Hardware Shortcuts
 - Feature 6: Candidate Interaction: Lifecycle & Window
 - Feature 7: Seeded PRNG Interaction Selector
-- Feature 8: Direct Android Device Driver
-- Feature 9: Direct Linux Headless Driver
-- Feature 10: Direct macOS Desktop Driver
+
+The drivers are in `test_explore_driver.py`, the real Linux session in `test_explore_e2e_smoke.py`.
 """
 
 from __future__ import annotations
 
-import json
-import math
 import os
-import shlex
-import shutil
 import subprocess
 import sys
-import tempfile
 import unittest
-import xml.etree.ElementTree as ET
-from unittest.mock import MagicMock, patch
-from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Any, Dict, List, Optional
+from typing import List, Optional
 
 LAB_DIR = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(LAB_DIR))
@@ -37,43 +28,25 @@ from lab.explore.actions import (
     ActionCategory,
     CandidateInteraction,
     ScreenState,
-    categorize_action,
 )
 from lab.explore.discovery import (
     ScreenInspectionResult,
-    detect_active_modal,
-    enumerate_gestures,
-    enumerate_interactive_elements,
-    enumerate_keyboard_shortcuts,
-    enumerate_lifecycle_actions,
-    identify_screen_mode,
     inspect_screen,
-    load_discovery_rules,
     normalize_product_name,
-)
-from lab.explore.driver import (
-    AndroidDeviceDriver,
-    AppCrashedError,
-    DeviceDriver,
-    DriverError,
-    DriverExecutionError,
-    DriverSettlingError,
-    DriverTimeoutError,
-    LinuxDeviceDriver,
-    MacOSDeviceDriver,
-    MockDeviceDriver,
 )
 from lab.explore.selector import (
     ActionSelector,
     EmptyCandidatesError,
-    SelectionPolicy,
-    SelectionRecord,
 )
 from lab.model import Node, Tree
-from lab.paths import ensure_android_lab_path, ensure_under, lab_tmp_root
 
 
 # --- Synthetic Tree Helpers ---
+def _root(w: int, h: int) -> Node:
+    """A screen with one non-interactive root: an empty tree offers only back."""
+    return Node(id="root", parent=None, role="frame", name="root", bounds=[0.0, 0.0, float(w), float(h)], interactive=False, visible=True)
+
+
 def make_synthetic_tree(
     platform: str = "android",
     window_w: float = 1080,
@@ -166,6 +139,20 @@ class TestLiveScreenInspection(unittest.TestCase):
         self.assertEqual(tree.window_w, 1080)
         self.assertEqual(tree.window_h, 1920)
         self.assertIsInstance(res, ScreenInspectionResult)
+        self.assertEqual([c.action.action_type for c in res.candidate_interactions], ["back"])
+
+    def test_jackpix_is_offered_no_keyboard_shortcuts(self) -> None:
+        tree = Tree(platform="android", window={"w": 1080, "h": 1920}, nodes=[_root(1080, 1920)])
+        res = inspect_screen(tree, "phototok")
+        self.assertEqual([c for c in res.candidate_interactions if c.category == "key"], [])
+        frameduel = inspect_screen(Tree(platform="android", window={"w": 1080, "h": 1920}, nodes=[_root(1080, 1920)]), "android-desktop")
+        self.assertTrue([c for c in frameduel.candidate_interactions if c.category == "key"])
+
+    def test_inspect_screen_empty_linux_window_offers_only_back(self) -> None:
+        # Blitzlens' Duplicate Finder exports no nodes: main-window keys would go to it.
+        tree = Tree(platform="linux", window={"w": 690, "h": 510}, nodes=[])
+        res = inspect_screen(tree, "linux-desktop")
+        self.assertEqual([c.action.action_type for c in res.candidate_interactions], ["back"])
 
     def test_inspect_screen_corrupted_coordinates_sanitization(self) -> None:
         nodes = [
@@ -444,11 +431,47 @@ class TestCandidateHardwareShortcuts(unittest.TestCase):
         self.assertIn("cmd", undo_mac.params.get("modifiers", []))
 
     def test_text_input_suppression(self) -> None:
-        tree = Tree(platform="linux", window={"w": 1920, "h": 1080},
-                    nodes=[Node(id="folder_path_input", parent=None, role="input", name="Path", bounds=[10, 10, 300, 40], interactive=True, visible=True)])
+        field = Node(id="folder_path_input", parent=None, role="input", name="Path", bounds=[10, 10, 300, 40], interactive=True, visible=True)
+        field.focused = True  # type: ignore[attr-defined]
+        tree = Tree(platform="linux", window={"w": 1920, "h": 1080}, nodes=[field])
         res = inspect_screen(tree, "linux-desktop")
         keys = [c.action.params.get("key") for c in res.filter_by_category("key")]
         self.assertEqual(keys, ["Escape"])
+
+    def test_an_input_that_is_only_on_screen_leaves_the_shortcuts_alone(self) -> None:
+        tree = Tree(platform="linux", window={"w": 1920, "h": 1080},
+                    nodes=[Node(id="folder_path_input", parent=None, role="input", name="Path", bounds=[10, 10, 300, 40], interactive=True, visible=True),
+                           Node(id="slot_current_image", parent=None, role="image", name="Curr", bounds=[100, 100, 800, 600], interactive=True, visible=True)])
+        res = inspect_screen(tree, "linux-desktop")
+        keys = {c.action.params.get("key") for c in res.filter_by_category("key")}
+        self.assertTrue({"M", "Right", "Delete"} <= keys)
+
+    def test_shortcuts_are_a_key_and_modifiers_never_one_string(self) -> None:
+        tree = make_synthetic_tree(platform="linux", screen_mode="viewer")
+        res = inspect_screen(tree, "linux-desktop", allow_folder_picker=True)
+        combos = {}
+        for c in res.filter_by_category("key"):
+            if c.action.params.get("shortcut"):
+                combos[c.action.params["shortcut"]] = (c.action.params["key"], c.action.params["modifiers"])
+        self.assertEqual(combos["Ctrl+O"], ("o", ["ctrl"]))
+        self.assertEqual(combos["Ctrl+D"], ("d", ["ctrl"]))
+        self.assertEqual(combos["Ctrl+,"], (",", ["ctrl"]))
+        self.assertEqual(combos["Ctrl+Z"], ("z", ["ctrl"]))
+        for c in res.filter_by_category("key"):
+            key = str(c.action.params["key"])
+            self.assertTrue(len(key) == 1 or "+" not in key, key)
+
+    def test_macos_shortcuts_use_cmd(self) -> None:
+        res = inspect_screen(make_synthetic_tree(platform="macos", screen_mode="viewer"), "macos-desktop", allow_folder_picker=True)
+        shortcuts = {c.action.params["shortcut"]: c.action.params["modifiers"]
+                     for c in res.filter_by_category("key") if c.action.params.get("shortcut")}
+        self.assertEqual(shortcuts["Cmd+O"], ["cmd"])
+
+    def test_the_folder_picker_shortcut_is_offered_only_when_allowed(self) -> None:
+        tree = make_synthetic_tree(platform="linux", screen_mode="viewer")
+        shortcuts = lambda res: {c.action.params.get("shortcut") for c in res.filter_by_category("key")}  # noqa: E731
+        self.assertNotIn("Ctrl+O", shortcuts(inspect_screen(tree, "linux-desktop")))
+        self.assertIn("Ctrl+O", shortcuts(inspect_screen(tree, "linux-desktop", allow_folder_picker=True)))
 
 
 # =====================================================================
@@ -463,21 +486,21 @@ class TestCandidateLifecycleAndWindow(unittest.TestCase):
         self.assertEqual(back.action.action_type, "back")
 
     def test_background_and_reentry_action(self) -> None:
-        tree = Tree(platform="android", window={"w": 1080, "h": 1920}, nodes=[])
+        tree = Tree(platform="android", window={"w": 1080, "h": 1920}, nodes=[_root(1080, 1920)])
         res = inspect_screen(tree, "phototok")
         bg = next((c for c in res.filter_by_category("lifecycle") if c.action.action_type == "background"), None)
         self.assertIsNotNone(bg)
         self.assertEqual(bg.action.params["duration_s"], 1.0)
 
     def test_window_resize_action(self) -> None:
-        tree = Tree(platform="linux", window={"w": 1920, "h": 1080}, nodes=[])
+        tree = Tree(platform="linux", window={"w": 1920, "h": 1080}, nodes=[_root(1920, 1080)])
         res = inspect_screen(tree, "linux-desktop")
         resize = next((c for c in res.filter_by_category("lifecycle") if c.action.action_type == "resize"), None)
         self.assertIsNotNone(resize)
         self.assertIn("width", resize.action.params)
 
     def test_device_rotation_action(self) -> None:
-        tree = Tree(platform="android", window={"w": 1080, "h": 1920}, nodes=[])
+        tree = Tree(platform="android", window={"w": 1080, "h": 1920}, nodes=[_root(1080, 1920)])
         res = inspect_screen(tree, "phototok")
         rotate = next((c for c in res.filter_by_category("lifecycle") if c.action.action_type == "rotate"), None)
         self.assertIsNotNone(rotate)
@@ -625,689 +648,6 @@ class TestSeededInteractionSelector(unittest.TestCase):
 
 
 # =====================================================================
-# Tier 1 & 2: Feature 8 - Direct Android Device Driver
-# =====================================================================
-class TestDirectAndroidDeviceDriver(unittest.TestCase):
-    def test_android_lab_path_safety_check(self) -> None:
-        valid_path = "/sdcard/PSTLab/photo1.jpg"
-        self.assertEqual(ensure_android_lab_path(valid_path), valid_path)
-        with self.assertRaises(ValueError):
-            ensure_android_lab_path("/sdcard/DCIM/Camera/photo1.jpg")
-        with self.assertRaises(ValueError):
-            ensure_android_lab_path("/data/system/users/0/")
-
-    def test_android_driver_no_global_hub_lock_used(self) -> None:
-        mock_adb = MagicMock()
-        mock_adb.density.return_value = 320
-        serial = "CQ30012CMV"
-        driver = AndroidDeviceDriver(serial=serial, app_id="com.phototok.lab", adb=mock_adb)
-        with patch("lab.explore.driver.device_lock") as mock_lock:
-            lock_instance = MagicMock()
-            mock_lock.return_value = lock_instance
-            driver.setup()
-            mock_lock.assert_called_once_with(serial, driver.holder_name)
-            self.assertNotIn("android-hub", mock_lock.call_args[0][0])
-            lock_instance.__enter__.assert_called_once()
-            driver.teardown()
-            lock_instance.__exit__.assert_called_once()
-
-    def test_android_tap_command_structure(self) -> None:
-        mock_adb = MagicMock()
-        driver = AndroidDeviceDriver(serial="emulator-5554", app_id="com.phototok.lab", adb=mock_adb)
-        driver._density = 320  # scale = 320 / 160 = 2.0
-        # Test with explicit dp coordinates from discovery.py
-        action = Action("tap", "btn_keep", params={"x": 270.0, "y": 480.0})
-        driver._handle_tap(action)
-        mock_adb.run.assert_called_with("shell", "input", "tap", "540", "960")
-
-        # Test with different density (480 dpi -> scale = 3.0)
-        driver._density = 480
-        action2 = Action("tap", "btn_keep", params={"x": 100.0, "y": 150.0})
-        driver._handle_tap(action2)
-        mock_adb.run.assert_called_with("shell", "input", "tap", "300", "450")
-
-        # Test NaN coordinate raises DriverExecutionError
-        with self.assertRaises(DriverExecutionError):
-            driver._handle_tap(Action("tap", params={"x": float("nan"), "y": 100.0}))
-
-    def test_android_swipe_command_structure(self) -> None:
-        mock_adb = MagicMock()
-        driver = AndroidDeviceDriver(serial="emulator-5554", app_id="com.phototok.lab", adb=mock_adb)
-        driver._density = 320  # scale = 2.0
-        # Explicit swipe coordinates in dp
-        action = Action("swipe", params={"x1": 50.0, "y1": 100.0, "x2": 50.0, "y2": 400.0, "duration_ms": 300})
-        driver._handle_swipe(action)
-        mock_adb.run.assert_called_with("shell", "input", "swipe", "100", "200", "100", "800", "300")
-
-        # Directional swipe fallback based on window size
-        driver._window_size = (360, 640)
-        driver._handle_swipe(Action("swipe", params={"direction": "up", "duration_ms": 250}))
-        last_args = mock_adb.run.call_args[0]
-        self.assertEqual(last_args[:3], ("shell", "input", "swipe"))
-        self.assertEqual(last_args[-1], "250")
-
-        # NaN coordinate raises DriverExecutionError
-        with self.assertRaises(DriverExecutionError):
-            driver._handle_swipe(Action("swipe", params={"x1": float("nan"), "y1": 0, "x2": 0, "y2": 0}))
-
-    def test_android_keyevent_command_structure(self) -> None:
-        mock_adb = MagicMock()
-        driver = AndroidDeviceDriver(serial="emulator-5554", app_id="com.phototok.lab", adb=mock_adb)
-        # Key action without modifiers
-        driver._handle_key(Action("key", params={"key": "m"}))
-        mock_adb.key.assert_called_with("KEYCODE_M")
-
-        # Key action with modifier
-        driver._handle_key(Action("key", params={"key": "z", "modifiers": ["ctrl"]}))
-        mock_adb.key_combo.assert_called_with("KEYCODE_CTRL_LEFT", "KEYCODE_Z")
-
-        # Back action via execute_action
-        driver.execute_action(Action("back"))
-        mock_adb.key.assert_called_with("KEYCODE_BACK")
-
-    def test_android_driver_setup_exception_releases_lock(self) -> None:
-        mock_adb = MagicMock()
-        mock_adb.ensure_ready.side_effect = RuntimeError("ADB connection lost")
-        driver = AndroidDeviceDriver(serial="leak-test-device", app_id="com.phototok.lab", adb=mock_adb)
-        with patch("lab.explore.driver.device_lock") as mock_lock:
-            lock_instance = MagicMock()
-            mock_lock.return_value = lock_instance
-            with self.assertRaises(RuntimeError):
-                driver.setup()
-            lock_instance.__exit__.assert_called_once()
-            self.assertIsNone(driver._lock_ctx)
-
-    def test_android_driver_setup_lock_cleanup_on_base_exception(self) -> None:
-        mock_adb = MagicMock()
-        mock_adb.ensure_ready.side_effect = KeyboardInterrupt("Ctrl+C simulation")
-        driver = AndroidDeviceDriver(serial="ctrl-c-device", app_id="com.phototok.lab", adb=mock_adb)
-        with patch("lab.explore.driver.device_lock") as mock_lock:
-            lock_instance = MagicMock()
-            mock_lock.return_value = lock_instance
-            with self.assertRaises(KeyboardInterrupt):
-                driver.setup()
-            lock_instance.__enter__.assert_called_once()
-            lock_instance.__exit__.assert_called_once()
-            self.assertIsNone(driver._lock_ctx)
-
-    def test_android_driver_handle_resize_dimensions_contract(self) -> None:
-        mock_adb = MagicMock()
-        mock_adb.app_task.return_value = (42, "freeform", (50, 50, 850, 650), (1920, 1080))
-        driver = AndroidDeviceDriver(serial="dex-device", app_id="com.photoselectortoolbox.lab", adb=mock_adb)
-        driver._density = 160  # scale = 1.0
-
-        # Test resize with discovery params: {"width": 800, "height": 600, "w": 800, "h": 600}
-        driver._handle_resize(Action("resize", params={"width": 800, "height": 600, "w": 800, "h": 600}))
-        mock_adb.resize_task.assert_called_with(42, 50, 50, 850, 650)
-
-        # Test explicit bounds
-        driver._handle_resize(Action("resize", params={"bounds": (0, 0, 1000, 700)}))
-        mock_adb.resize_task.assert_called_with(42, 0, 0, 1000, 700)
-
-    def test_android_driver_handle_rotate_contract(self) -> None:
-        mock_adb = MagicMock()
-        mock_adb.run.side_effect = lambda *args, **kwargs: "0" if "get" in args else ""
-        driver = AndroidDeviceDriver(serial="rotate-device", app_id="com.phototok.lab", adb=mock_adb)
-
-        # Test toggle from portrait (0) to landscape (1)
-        driver._handle_rotate(Action("rotate", params={"toggle": True, "orientation": "landscape"}))
-        mock_adb.run.assert_any_call("shell", "settings", "put", "system", "user_rotation", "1")
-
-        # Test toggle from landscape (1) to portrait (0)
-        mock_adb.reset_mock()
-        mock_adb.run.side_effect = lambda *args, **kwargs: "1" if "get" in args else ""
-        driver._handle_rotate(Action("rotate", params={"toggle": True, "orientation": "landscape"}))
-        mock_adb.run.assert_any_call("shell", "settings", "put", "system", "user_rotation", "0")
-
-        # Test explicit rotation parameter
-        mock_adb.reset_mock()
-        driver._handle_rotate(Action("rotate", params={"rotation": 3}))
-        mock_adb.run.assert_any_call("shell", "settings", "put", "system", "user_rotation", "3")
-
-    def test_android_driver_retry_backoff_and_crash_detection(self) -> None:
-        class FakeAdb:
-            def __init__(self) -> None:
-                self.calls = 0
-
-            def run_bytes(self, *args: str, timeout: int = 30) -> bytes:
-                self.calls += 1
-                return b"ERROR: could not get idle state."
-
-            def run(self, *args: str, timeout: int = 30) -> str:
-                if "crash" in args:
-                    return "FATAL EXCEPTION: main\nProcess: com.phototok.lab\njava.lang.NullPointerException"
-                return ""
-
-        driver = AndroidDeviceDriver(serial="fake-device", app_id="com.phototok.lab", adb=FakeAdb(), dump_retries=2)
-        with self.assertRaises(AppCrashedError):
-            driver._dump_tree()
-
-    def test_android_driver_dump_tree_parse_error_retry(self) -> None:
-        broken_xml = b'<hierarchy rotation="0"><node index="0" text="hello"</hierarchy>'
-        valid_xml = (
-            b'<hierarchy rotation="0">'
-            b'<node index="0" text="hello" class="android.widget.TextView" '
-            b'package="com.phototok.lab" bounds="[0,0][1080,1920]" clickable="false" />'
-            b'</hierarchy>'
-        )
-
-        class RetryingAdb:
-            def __init__(self) -> None:
-                self.calls = 0
-
-            def run_bytes(self, *args: str, timeout: int = 30) -> bytes:
-                self.calls += 1
-                if self.calls == 1:
-                    return broken_xml
-                return valid_xml
-
-            def run(self, *args: str, timeout: int = 30) -> str:
-                return ""
-
-        driver = AndroidDeviceDriver(serial="fake-device", app_id="com.phototok.lab", adb=RetryingAdb(), dump_retries=3)
-        with patch("time.sleep"):
-            tree = driver._dump_tree()
-        self.assertIsNotNone(tree)
-        self.assertEqual(driver.adb.calls, 2)
-
-    def test_android_driver_dump_tree_persistent_parse_error_raises_settling_error(self) -> None:
-        broken_xml = b'<hierarchy rotation="0"><node index="0" text="hello"</hierarchy>'
-
-        class AlwaysBrokenAdb:
-            def __init__(self) -> None:
-                self.calls = 0
-
-            def run_bytes(self, *args: str, timeout: int = 30) -> bytes:
-                self.calls += 1
-                return broken_xml
-
-            def run(self, *args: str, timeout: int = 30) -> str:
-                return ""
-
-        driver = AndroidDeviceDriver(serial="fake-device", app_id="com.phototok.lab", adb=AlwaysBrokenAdb(), dump_retries=2)
-        with patch("time.sleep"):
-            with self.assertRaises(DriverSettlingError) as ctx:
-                driver._dump_tree()
-        self.assertIn("ParseError", str(ctx.exception))
-        self.assertEqual(driver.adb.calls, 2)
-
-
-# =====================================================================
-# Tier 1 & 2: Feature 9 - Direct Linux Headless Driver
-# =====================================================================
-class TestDirectLinuxHeadlessDriver(unittest.TestCase):
-    def test_linux_xvfb_display_environment(self) -> None:
-        executed = []
-        def fake_exec(cmd: list[str], env: dict[str, str]) -> None:
-            executed.append((cmd, env))
-
-        driver = LinuxDeviceDriver(
-            display=":42",
-            exec_fn=fake_exec,
-            fixture_dir=Path(tempfile.mkdtemp(dir=lab_tmp_root())),
-            out_dir=Path(tempfile.mkdtemp(dir=lab_tmp_root())),
-            settle_ms=0,
-        )
-        driver.setup()
-        self.assertEqual(driver._env["DISPLAY"], ":42")
-        self.assertEqual(driver._env["GSK_RENDERER"], "cairo")
-        self.assertEqual(driver._env["ADW_DISABLE_PORTAL"], "1")
-        self.assertEqual(driver._env["GDK_DEBUG"], "no-portals")
-        self.assertEqual(driver._env["GTK_USE_PORTAL"], "0")
-        self.assertEqual(driver._env["PST_LAB"], "1")
-        driver.teardown()
-
-    def test_linux_xdotool_click_command(self) -> None:
-        executed_cmds = []
-        def fake_exec(cmd: list[str], env: dict[str, str]) -> None:
-            executed_cmds.append(cmd)
-
-        driver = LinuxDeviceDriver(
-            exec_fn=fake_exec,
-            fixture_dir=Path(tempfile.mkdtemp(dir=lab_tmp_root())),
-            out_dir=Path(tempfile.mkdtemp(dir=lab_tmp_root())),
-            settle_ms=0,
-        )
-        driver.execute_action(Action("click", params={"x": 500, "y": 400}))
-        self.assertEqual(executed_cmds, [["xdotool", "mousemove", "--sync", "500", "400", "click", "1"]])
-
-        # Validate NaN coordinate raises DriverExecutionError
-        with self.assertRaises(DriverExecutionError):
-            driver.execute_action(Action("click", params={"x": float("nan"), "y": 400}))
-
-    def test_linux_xdotool_key_command(self) -> None:
-        executed_cmds = []
-        def fake_exec(cmd: list[str], env: dict[str, str]) -> None:
-            executed_cmds.append(cmd)
-
-        driver = LinuxDeviceDriver(
-            exec_fn=fake_exec,
-            fixture_dir=Path(tempfile.mkdtemp(dir=lab_tmp_root())),
-            out_dir=Path(tempfile.mkdtemp(dir=lab_tmp_root())),
-            settle_ms=0,
-        )
-        driver.execute_action(Action("key", params={"key": "m"}))
-        self.assertEqual(executed_cmds, [["xdotool", "key", "--clearmodifiers", "m"]])
-
-    def test_linux_dbus_lab_checkpoint_action(self) -> None:
-        executed_cmds = []
-        def fake_exec(cmd: list[str], env: dict[str, str]) -> None:
-            executed_cmds.append(cmd)
-
-        driver = LinuxDeviceDriver(
-            exec_fn=fake_exec,
-            fixture_dir=Path(tempfile.mkdtemp(dir=lab_tmp_root())),
-            out_dir=Path(tempfile.mkdtemp(dir=lab_tmp_root())),
-            settle_ms=0,
-        )
-        driver.capture_state()
-        self.assertTrue(any(
-            cmd[0] == "gapplication" and "lab-checkpoint" in cmd
-            for cmd in executed_cmds
-        ))
-
-    def test_linux_host_path_safety_guard(self) -> None:
-        root = lab_tmp_root()
-        safe_path = root / "run1" / "step.png"
-        resolved = ensure_under(safe_path, root)
-        self.assertEqual(resolved, safe_path.resolve())
-
-        # Traversal outside lab root raises ValueError
-        escaped_path = root / ".." / "escaped.png"
-        with self.assertRaises(ValueError):
-            ensure_under(escaped_path, root)
-
-        # Foreign system path raises ValueError
-        with self.assertRaises(ValueError):
-            ensure_under(Path("/etc/passwd"), root)
-
-    def test_linux_driver_exec_fn_mock(self) -> None:
-        executed_cmds = []
-
-        def fake_exec(cmd: list[str], env: dict[str, str]) -> None:
-            executed_cmds.append(cmd)
-
-        driver = LinuxDeviceDriver(
-            app_id="app.alpatix.Blitzlens",
-            fixture_dir=Path(tempfile.mkdtemp(dir=lab_tmp_root())),
-            out_dir=Path(tempfile.mkdtemp(dir=lab_tmp_root())),
-            exec_fn=fake_exec,
-            settle_ms=0,
-        )
-        driver.setup()
-        driver.execute_action(Action("key", params={"key": "m"}))
-        driver.execute_action(Action("click", params={"x": 500, "y": 400}))
-        driver.capture_state()
-        driver.teardown()
-
-        self.assertTrue(any("xdotool" in cmd and "m" in cmd for cmd in executed_cmds))
-        self.assertTrue(any("xdotool" in cmd and "click" in cmd for cmd in executed_cmds))
-        self.assertTrue(any("lab-checkpoint" in cmd for cmd in executed_cmds))
-
-    def test_linux_driver_setup_cleanup_on_base_exception(self) -> None:
-        class CustomTermination(BaseException):
-            pass
-
-        # 1. KeyboardInterrupt during setup cleans up lab_dir
-        driver_ki = LinuxDeviceDriver(
-            display=":99",
-            exec_fn=lambda c, e: (_ for _ in ()).throw(KeyboardInterrupt("SIGINT during setup")),
-            settle_ms=0,
-        )
-        with self.assertRaises(KeyboardInterrupt):
-            with driver_ki:
-                pass
-        self.assertFalse(driver_ki.lab_dir.exists())
-
-        # 2. Custom BaseException during setup cleans up lab_dir
-        driver_custom = LinuxDeviceDriver(
-            display=":99",
-            exec_fn=lambda c, e: (_ for _ in ()).throw(CustomTermination("Abrupt exit")),
-            settle_ms=0,
-        )
-        with self.assertRaises(CustomTermination):
-            driver_custom.setup()
-        self.assertFalse(driver_custom.lab_dir.exists())
-
-        # 3. Process termination when exception occurs after Xvfb launch
-        mock_xvfb = MagicMock()
-        mock_xvfb.poll.return_value = None
-        mock_app = MagicMock()
-        mock_app.poll.return_value = None
-
-        driver_proc = LinuxDeviceDriver(display=":99", settle_ms=0)
-        with patch("shutil.which", return_value="/usr/bin/Xvfb"), \
-             patch("subprocess.Popen", side_effect=[mock_xvfb, mock_app]), \
-             patch.object(driver_proc, "settle", side_effect=KeyboardInterrupt("Halt during settle")):
-            with self.assertRaises(KeyboardInterrupt):
-                driver_proc.setup()
-
-        mock_xvfb.terminate.assert_called_once()
-        mock_app.terminate.assert_called_once()
-        self.assertFalse(driver_proc.lab_dir.exists())
-
-    def test_linux_driver_concurrent_directory_isolation(self) -> None:
-        def fake_exec(cmd: list[str], env: dict[str, str]) -> None:
-            pass
-
-        d1 = LinuxDeviceDriver(display=":91", exec_fn=fake_exec, settle_ms=0)
-        d2 = LinuxDeviceDriver(display=":92", exec_fn=fake_exec, settle_ms=0)
-        d3 = LinuxDeviceDriver(display=":91", exec_fn=fake_exec, settle_ms=0)
-
-        # Unique paths even for identical display names
-        self.assertNotEqual(d1.lab_dir, d2.lab_dir)
-        self.assertNotEqual(d1.lab_dir, d3.lab_dir)
-        self.assertNotEqual(d2.lab_dir, d3.lab_dir)
-
-        d1.setup()
-        d2.setup()
-        self.assertTrue(d1.lab_dir.exists())
-        self.assertTrue(d2.lab_dir.exists())
-
-        # Teardown of d1 must not wipe d2's lab_dir
-        d1.teardown()
-        self.assertFalse(d1.lab_dir.exists())
-        self.assertTrue(d2.lab_dir.exists())
-
-        d2.teardown()
-        self.assertFalse(d2.lab_dir.exists())
-
-    def test_linux_driver_teardown_process_lookup_error_resilience(self) -> None:
-        driver = LinuxDeviceDriver(display=":99", settle_ms=0)
-        driver.lab_dir.mkdir(parents=True, exist_ok=True)
-
-        mock_app = MagicMock()
-        mock_app.poll.return_value = None
-        mock_app.terminate.side_effect = ProcessLookupError("No such process")
-
-        mock_xvfb = MagicMock()
-        mock_xvfb.poll.return_value = None
-
-        driver._app_proc = mock_app
-        driver._xvfb_proc = mock_xvfb
-
-        # Teardown must not crash, must attempt xvfb termination, and must clean lab_dir
-        driver.teardown()
-
-        mock_app.terminate.assert_called_once()
-        mock_xvfb.terminate.assert_called_once()
-        self.assertFalse(driver.lab_dir.exists())
-
-    def test_linux_driver_teardown_xvfb_process_lookup_error_resilience(self) -> None:
-        driver = LinuxDeviceDriver(display=":99", settle_ms=0)
-        driver.lab_dir.mkdir(parents=True, exist_ok=True)
-
-        mock_app = MagicMock()
-        mock_app.poll.return_value = None
-
-        mock_xvfb = MagicMock()
-        mock_xvfb.poll.return_value = None
-        mock_xvfb.terminate.side_effect = OSError("No such process")
-
-        driver._app_proc = mock_app
-        driver._xvfb_proc = mock_xvfb
-
-        driver.teardown()
-
-        mock_app.terminate.assert_called_once()
-        mock_xvfb.terminate.assert_called_once()
-        self.assertFalse(driver.lab_dir.exists())
-
-
-
-# =====================================================================
-# Tier 1 & 2: Feature 10 - Direct macOS Desktop Driver
-# =====================================================================
-class TestDirectMacOSDesktopDriver(unittest.TestCase):
-    def test_macos_scenario_json_command(self) -> None:
-        driver = MacOSDeviceDriver(
-            app_id="app.alpatix.lensjet",
-            fixture_dir=Path(tempfile.mkdtemp(dir=lab_tmp_root())),
-            out_dir=Path(tempfile.mkdtemp(dir=lab_tmp_root())),
-            settle_ms=0,
-        )
-        driver.execute_action(Action("click", "slot_current"))
-        driver.execute_action(Action("key", params={"key": "m"}))
-        driver.execute_action(Action("back"))
-        self.assertEqual(driver.action_history, [
-            {"action": "waitLoaded"},
-            {"action": "click", "target": "slot_current"},
-            {"action": "key", "key": "m"},
-            {"action": "key", "key": "escape"},
-        ])
-
-    def test_macos_cli_flags_structure(self) -> None:
-        executed_cmds = []
-        captured_envs = []
-        def fake_exec(cmd: list[str], env: dict[str, str]) -> None:
-            executed_cmds.append(cmd)
-            captured_envs.append(env)
-
-        driver = MacOSDeviceDriver(
-            app_id="app.alpatix.lensjet",
-            fixture_dir=Path(tempfile.mkdtemp(dir=lab_tmp_root())),
-            out_dir=Path(tempfile.mkdtemp(dir=lab_tmp_root())),
-            exec_fn=fake_exec,
-            settle_ms=0,
-        )
-        driver.capture_state()
-        self.assertTrue(len(executed_cmds) > 0)
-        cmd = executed_cmds[0]
-        self.assertIn("--ui-scenario", cmd)
-        self.assertIn("--artifacts", cmd)
-        self.assertIn("-cullingDestinationFolderName", cmd)
-        self.assertIn("Selection", cmd)
-        self.assertIn("-externalCullingDestinationURL", cmd)
-        self.assertEqual(captured_envs[0]["PST_SHOW_GUI"], "0")
-
-    def test_macos_remote_ssh_host_resolution(self) -> None:
-        executed_cmds: list[list[str]] = []
-        captured_envs: list[dict[str, str]] = []
-
-        def fake_exec(cmd: list[str], env: dict[str, str]) -> None:
-            executed_cmds.append(cmd)
-            captured_envs.append(env)
-
-        driver = MacOSDeviceDriver(
-            app_id="app.alpatix.lensjet",
-            fixture_dir=Path(tempfile.mkdtemp(dir=lab_tmp_root())),
-            out_dir=Path(tempfile.mkdtemp(dir=lab_tmp_root())),
-            remote_host="MacBook-Air-von-Alexander.local",
-            remote_user="pst-lab",
-            exec_fn=fake_exec,
-            settle_ms=0,
-        )
-        self.assertEqual(driver.remote_host, "MacBook-Air-von-Alexander.local")
-        self.assertEqual(driver.remote_user, "pst-lab")
-        driver.setup()
-        driver.capture_state()
-        self.assertGreater(len(executed_cmds), 0)
-        ssh_cmd = executed_cmds[0]
-        self.assertEqual(ssh_cmd[0], "ssh")
-        self.assertEqual(ssh_cmd[1], "pst-lab@MacBook-Air-von-Alexander.local")
-        self.assertIn("--ui-scenario", ssh_cmd)
-        url_idx = ssh_cmd.index("-externalCullingDestinationURL")
-        self.assertEqual(ssh_cmd[url_idx + 1], "''")
-        self.assertEqual(captured_envs[0]["PST_SHOW_GUI"], "0")
-
-    def test_macos_remote_ssh_subprocess_invocation_when_exec_fn_none(self) -> None:
-        driver = MacOSDeviceDriver(
-            app_id="app.alpatix.lensjet",
-            fixture_dir=Path(tempfile.mkdtemp(dir=lab_tmp_root())),
-            out_dir=Path(tempfile.mkdtemp(dir=lab_tmp_root())),
-            remote_host="MacBook-Air-von-Alexander.local",
-            remote_user="pst-lab",
-            app_binary=None,
-            exec_fn=None,
-            settle_ms=0,
-        )
-        with patch("subprocess.run") as mock_subproc:
-            driver.setup()
-            state = driver.capture_state()
-            self.assertEqual(mock_subproc.call_count, 1)
-            args, kwargs = mock_subproc.call_args
-            cmd = args[0]
-            self.assertEqual(cmd[0], "ssh")
-            self.assertEqual(cmd[1], "pst-lab@MacBook-Air-von-Alexander.local")
-            self.assertEqual(cmd[2], "PhotoSelectorApp")
-            self.assertIn("--ui-scenario", cmd)
-            self.assertIn("-externalCullingDestinationURL", cmd)
-            url_idx = cmd.index("-externalCullingDestinationURL")
-            self.assertEqual(cmd[url_idx + 1], "''")
-            self.assertFalse(kwargs.get("check"))
-            self.assertEqual(kwargs.get("timeout"), 60)
-            self.assertEqual(kwargs.get("env", {}).get("PST_SHOW_GUI"), "0")
-            self.assertIsNotNone(state)
-
-    def test_macos_remote_ssh_quoting_with_spaces(self) -> None:
-        space_dir = Path(tempfile.mkdtemp(prefix="dir with spaces ", dir=lab_tmp_root()))
-        executed_cmds: list[list[str]] = []
-
-        def fake_exec(cmd: list[str], env: dict[str, str]) -> None:
-            executed_cmds.append(cmd)
-
-        driver = MacOSDeviceDriver(
-            app_id="app.alpatix.lensjet",
-            fixture_dir=space_dir,
-            remote_host="192.168.1.50",
-            remote_user="tester",
-            exec_fn=fake_exec,
-            settle_ms=0,
-        )
-        driver.capture_state()
-        self.assertEqual(len(executed_cmds), 1)
-        ssh_cmd = executed_cmds[0]
-        self.assertEqual(ssh_cmd[0], "ssh")
-        self.assertEqual(ssh_cmd[1], "tester@192.168.1.50")
-        for arg in ssh_cmd[2:]:
-            if " " in arg:
-                self.assertTrue(
-                    (arg.startswith("'") and arg.endswith("'")) or (arg.startswith('"') and arg.endswith('"')),
-                    f"Argument containing space was not shell-quoted: {arg}",
-                )
-        url_idx = ssh_cmd.index("-externalCullingDestinationURL")
-        self.assertEqual(ssh_cmd[url_idx + 1], "''")
-
-    def test_macos_hit_target_size_rule(self) -> None:
-        valid_btn = Node(id="btn_pill", parent=None, role="button", name="Exit",
-                         bounds=[100, 100, 24, 24], interactive=True, visible=True)
-        tiny_btn = Node(id="btn_tiny_close", parent=None, role="button", name="Close",
-                        bounds=[150, 100, 16, 16], interactive=True, visible=True)
-        clipped_btn = Node(id="btn_clipped_edge", parent=None, role="button", name="Offscreen",
-                           bounds=[-15, 100, 30, 30], interactive=True, visible=True)
-        tree = Tree(platform="macos", window={"w": 1440, "h": 900, "unit": "pt", "scale": 2.0},
-                    nodes=[valid_btn, tiny_btn, clipped_btn])
-        res = inspect_screen(tree, "macos-desktop")
-        elem_ids = [c.action.target_id for c in res.filter_by_category("element")]
-        self.assertIn("btn_pill", elem_ids)
-        self.assertNotIn("btn_tiny_close", elem_ids)
-        self.assertNotIn("btn_clipped_edge", elem_ids)
-
-    def test_macos_driver_exec_fn_mock(self) -> None:
-        executed_cmds = []
-
-        def fake_exec(cmd: list[str], env: dict[str, str]) -> None:
-            executed_cmds.append(cmd)
-
-        driver = MacOSDeviceDriver(
-            app_id="app.alpatix.lensjet",
-            fixture_dir=Path(tempfile.mkdtemp(dir=lab_tmp_root())),
-            out_dir=Path(tempfile.mkdtemp(dir=lab_tmp_root())),
-            exec_fn=fake_exec,
-            settle_ms=0,
-        )
-        driver.setup()
-        driver.execute_action(Action("key", params={"key": "m"}))
-        driver.capture_state()
-        driver.teardown()
-
-        self.assertTrue(any("PhotoSelectorApp" in cmd[0] for cmd in executed_cmds))
-
-
-# =====================================================================
-# Offline Synthetic Mock Driver
-# =====================================================================
-class TestMockDeviceDriver(unittest.TestCase):
-    def test_mock_driver_lifecycle_and_transitions(self) -> None:
-        driver = MockDeviceDriver(product="phototok", total_photos=3)
-        with driver:
-            state0 = driver.capture_state()
-            self.assertEqual(state0.screen_mode, "landing")
-            self.assertEqual(len(state0.fs_snapshot["files"]), 3)
-
-            # Tap enters viewer
-            driver.execute_action(Action("tap", "card_folder"))
-            state1 = driver.capture_state()
-            self.assertEqual(state1.screen_mode, "viewer")
-            self.assertEqual(driver.current_index, 0)
-
-            # Swipe up advances to next photo
-            driver.execute_action(Action("swipe", params={"direction": "up"}))
-            self.assertEqual(driver.current_index, 1)
-
-            # Key M moves current photo to Selection/
-            driver.execute_action(Action("key", params={"key": "M"}))
-            state2 = driver.capture_state()
-            selection_files = [f["path"] for f in state2.fs_snapshot["files"] if "Selection/" in f["path"]]
-            self.assertIn("Selection/photo_02.jpg", selection_files)
-
-            # Key Ctrl+Z undoes move
-            driver.execute_action(Action("key", params={"key": "Z", "modifiers": ["ctrl"]}))
-            state3 = driver.capture_state()
-            selection_files_after = [f["path"] for f in state3.fs_snapshot["files"] if "Selection/" in f["path"]]
-            self.assertNotIn("Selection/photo_02.jpg", selection_files_after)
-
-    def test_mock_driver_fault_injection(self) -> None:
-        driver_fail = MockDeviceDriver(fail_on_action="tap")
-        with self.assertRaises(DriverExecutionError):
-            driver_fail.execute_action(Action("tap", "btn_fail"))
-
-        driver_timeout = MockDeviceDriver(timeout_on_capture=True)
-        with self.assertRaises(DriverTimeoutError):
-            driver_timeout.capture_state()
-
-        driver_settle = MockDeviceDriver(settle_failure_count=1)
-        with self.assertRaises(DriverSettlingError):
-            driver_settle.capture_state()
-
-    def test_mock_driver_preserves_caller_supplied_directories(self) -> None:
-        caller_work = Path(tempfile.mkdtemp(prefix="caller_work_test_", dir=lab_tmp_root()))
-        caller_out = Path(tempfile.mkdtemp(prefix="caller_out_test_", dir=lab_tmp_root()))
-        (caller_work / "custom_file.txt").write_text("custom work", encoding="utf-8")
-        (caller_out / "custom_report.json").write_text("{}", encoding="utf-8")
-
-        driver = MockDeviceDriver(working_dir=caller_work, out_dir=caller_out)
-        self.assertFalse(driver._owns_working_dir)
-        self.assertFalse(driver._owns_out_dir)
-
-        driver.setup()
-        driver.teardown()
-
-        self.assertTrue(caller_work.exists())
-        self.assertTrue(caller_out.exists())
-        self.assertTrue((caller_work / "custom_file.txt").exists())
-        self.assertTrue((caller_out / "custom_report.json").exists())
-
-        shutil.rmtree(caller_work, ignore_errors=True)
-        shutil.rmtree(caller_out, ignore_errors=True)
-
-    def test_mock_driver_cleans_up_auto_created_directories(self) -> None:
-        driver = MockDeviceDriver()
-        self.assertTrue(driver._owns_working_dir)
-        self.assertTrue(driver._owns_out_dir)
-
-        driver.setup()
-        work_dir = driver.working_dir
-        out_dir = driver.out_dir
-        self.assertTrue(work_dir.exists())
-        self.assertTrue(out_dir.exists())
-
-        driver.teardown()
-        self.assertFalse(work_dir.exists())
-        self.assertFalse(out_dir.exists())
-
-
-# =====================================================================
 # Tier 3: Cross-Feature Combinations (Discovery & Drivers)
 # =====================================================================
 class TestDiscoveryCrossFeatureCombinations(unittest.TestCase):
@@ -1346,6 +686,149 @@ class TestDiscoveryCrossFeatureCombinations(unittest.TestCase):
         seq1 = [s1.select(candidates) for _ in range(15)]
         seq2 = [s2.select(candidates) for _ in range(15)]
         self.assertEqual(seq1, seq2)
+
+
+# =====================================================================
+# Safety and determinism of what discovery offers
+# =====================================================================
+class TestWhatDiscoveryNeverOffers(unittest.TestCase):
+    def landing(self) -> Tree:
+        def card(nid: str, y: float) -> Node:
+            return Node(id=nid, parent=None, role="button", name=nid, bounds=[40, y, 1000, 250], interactive=True, visible=True)
+
+        nodes = [Node(id="landing_logo", parent=None, role="image", name="", bounds=[40, 20, 200, 100], interactive=False, visible=True),
+                 card("landing_phone_camera_card", 200), card("landing_sd_card_card", 480), card("landing_custom_folder_card", 760),
+                 card("landing_start_browsing_button", 1040)]
+        return Tree(platform="android", window={"w": 1080, "h": 1920, "scale": 2.0, "unit": "dp"}, nodes=nodes)
+
+    def targets(self, **kwargs: bool) -> set:
+        res = inspect_screen(self.landing(), "phototok", **kwargs)
+        return {c.action.target_id for c in res.filter_by_category("element")}
+
+    def test_the_camera_roll_card_is_never_offered(self) -> None:
+        self.assertNotIn("landing_phone_camera_card", self.targets())
+        self.assertNotIn("landing_phone_camera_card", self.targets(allow_folder_picker=True))
+        self.assertIn("landing_start_browsing_button", self.targets())
+
+    def test_controls_that_open_the_folder_picker_need_permission(self) -> None:
+        refused = {"landing_sd_card_card", "landing_custom_folder_card"}
+        self.assertFalse(refused & self.targets())
+        self.assertTrue(refused <= self.targets(allow_folder_picker=True))
+
+    def test_the_picker_controls_of_the_other_products_are_gated_too(self) -> None:
+        for product, nid in (("android-desktop", "sidebar_open_folder"), ("linux-desktop", "btn_open")):
+            node = Node(id=nid, parent=None, role="button", name="Open", bounds=[0, 0, 100, 100], interactive=True, visible=True)
+            tree = Tree(platform="x", window={"w": 1000, "h": 800}, nodes=[node])
+            self.assertNotIn(nid, {c.action.target_id for c in inspect_screen(tree, product).filter_by_category("element")})
+            self.assertIn(nid, {c.action.target_id for c in inspect_screen(tree, product, allow_folder_picker=True).filter_by_category("element")})
+
+    def test_a_desktop_window_has_no_background_or_rotate_action(self) -> None:
+        for product in ("linux-desktop", "macos-desktop"):
+            res = inspect_screen(Tree(platform="x", window={"w": 1920, "h": 1080}, nodes=[]), product)
+            types = {c.action.action_type for c in res.filter_by_category("lifecycle")}
+            self.assertFalse(types & {"background", "rotate", "swipe"}, product)
+
+
+class TestScreenModeRules(unittest.TestCase):
+    def test_the_settings_sheet_is_the_settings_screen_not_a_dialog(self) -> None:
+        sheet = Node(id="PhoneSettingsSheet", parent=None, role="container", name="Settings", bounds=[0, 0, 1080, 1920], interactive=False, visible=True)
+        res = inspect_screen(Tree(platform="android", window={"w": 1080, "h": 1920}, nodes=[sheet]), "phototok")
+        self.assertIsNone(res.active_modal)
+        self.assertEqual(res.screen_mode, "settings")
+
+    def test_other_sheets_and_dialogs_are_still_modal(self) -> None:
+        for nid in ("ExportSheet", "delete_dialog"):
+            node = Node(id=nid, parent=None, role="container", name="", bounds=[0, 0, 500, 500], interactive=False, visible=True)
+            res = inspect_screen(Tree(platform="android", window={"w": 1080, "h": 1920}, nodes=[node]), "phototok")
+            self.assertEqual((res.active_modal, res.screen_mode), (nid, "dialog"))
+
+    def test_the_same_tree_gives_the_same_mode_whatever_the_hash_seed(self) -> None:
+        # No product rule matches, so the generic fallback decides; it must not follow set order.
+        code = (
+            "import sys; sys.path.insert(0, %r)\n"
+            "from lab.model import Node, Tree\n"
+            "from lab.explore.discovery import identify_screen_mode\n"
+            "ids = ['empty_state', 'inspect_panel', 'photo_pane', 'frame_strip', 'learn_more', 'viewer_x']\n"
+            "nodes = [Node(id=i, parent=None, role='container', name='', bounds=[0, 0, 10, 10], interactive=False, visible=True) for i in ids]\n"
+            "tree = Tree(platform='x', window={'w': 100, 'h': 100}, nodes=nodes)\n"
+            "print(identify_screen_mode(tree, 'phototok', {}, {n.id: n for n in nodes}))\n"
+        ) % str(LAB_DIR)
+        answers = set()
+        for seed in ("0", "1", "2", "3", "42", "4711"):
+            out = subprocess.run([sys.executable, "-I", "-c", code], capture_output=True, text=True,
+                                 env={**os.environ, "PYTHONHASHSEED": seed}, check=True)
+            answers.add(out.stdout.strip())
+        self.assertEqual(answers, {"empty"})  # the first node in tree order that names a mode: 'empty_state'
+
+    def test_classify_screen_agrees_with_inspect_screen(self) -> None:
+        from lab.explore.discovery import classify_screen
+
+        tree = make_synthetic_tree(screen_mode="viewer")
+        self.assertEqual(classify_screen(tree, "phototok"), inspect_screen(tree, "phototok").screen_mode)
+
+
+class TestSelectorUsesCandidateWeights(unittest.TestCase):
+    def candidate(self, key: str, weight: float) -> CandidateInteraction:
+        return CandidateInteraction(action=Action("key", params={"key": key}), category="key", weight=weight)
+
+    def test_a_heavier_candidate_is_chosen_more_often(self) -> None:
+        cands = [self.candidate("A", 1.0), self.candidate("B", 0.1)]
+        picks = [ActionSelector(seed=s, avoid_loops=False).select(cands).params["key"] for s in range(400)]
+        self.assertGreater(picks.count("A"), 5 * picks.count("B"))
+        self.assertGreater(picks.count("B"), 0)
+
+    def test_a_zero_weight_candidate_is_never_chosen_while_another_exists(self) -> None:
+        cands = [self.candidate("A", 1.0), self.candidate("B", 0.0)]
+        picks = {ActionSelector(seed=s).select(cands).params["key"] for s in range(100)}
+        self.assertEqual(picks, {"A"})
+
+    def test_all_zero_weights_still_select(self) -> None:
+        cands = [self.candidate("A", 0.0), self.candidate("B", 0.0)]
+        self.assertIn(ActionSelector(seed=1).select(cands).params["key"], {"A", "B"})
+
+    def test_plain_actions_and_candidates_mix_and_return_actions(self) -> None:
+        chosen = ActionSelector(seed=3).select([Action("back"), self.candidate("A", 1.0)])
+        self.assertIsInstance(chosen, Action)
+
+    def test_the_same_action_offered_twice_counts_once_with_its_larger_weight(self) -> None:
+        sel = ActionSelector(seed=5)
+        sel.select([self.candidate("A", 0.2), self.candidate("A", 1.0)])
+        self.assertEqual(sel.history[0].candidate_count, 1)
+
+    def test_candidate_order_does_not_change_the_choice(self) -> None:
+        cands = [self.candidate(k, w) for k, w in (("A", 1.0), ("B", 0.5), ("C", 0.1))]
+        a = [ActionSelector(seed=9).select(cands) for _ in range(3)]
+        b = [ActionSelector(seed=9).select(list(reversed(cands))) for _ in range(3)]
+        self.assertEqual(a, b)
+
+
+class TestRecordOutcomeLearnsNoOps(unittest.TestCase):
+    def state(self, ids: List[str], *, shot: bytes = b"", fs: Optional[dict] = None, mode: str = "viewer") -> ScreenState:
+        nodes = [Node(id=i, parent=None, role="button", name=i, bounds=[0, 0, 60, 60], interactive=True, visible=True) for i in ids]
+        return ScreenState(tree=Tree(platform="x", window={"w": 100, "h": 100}, nodes=nodes), screenshot_bytes=shot,
+                           screen_mode=mode, fs_snapshot=fs or {})
+
+    def test_an_action_that_changed_nothing_is_remembered_for_that_screen(self) -> None:
+        sel = ActionSelector(seed=1)
+        before = self.state(["a"])
+        act = Action("key", params={"key": "Left"})
+        other = Action("key", params={"key": "Right"})
+        sel.select([act, other], screen_state=before)
+        sel.record_outcome(act, before, self.state(["a"]))
+        self.assertIn(act.canonical_key(), sel._known_noops[sel.compute_screen_signature(before)])
+        self.assertTrue(sel.history[-1].was_noop)
+        self.assertEqual({sel.select([act, other], screen_state=before) for _ in range(15)}, {other})
+
+    def test_a_changed_tree_mode_files_or_picture_is_not_a_noop(self) -> None:
+        for after in (self.state(["a", "b"]), self.state(["a"], mode="dialog"), self.state(["a"], fs={"files": ["x"]}),
+                      self.state(["a"], shot=b"\x89PNG2")):
+            with self.subTest(after=after.screen_mode, nodes=len(after.tree.nodes)):
+                sel = ActionSelector(seed=1)
+                before = self.state(["a"], shot=b"\x89PNG1")
+                act = Action("key", params={"key": "Left"})
+                sel.select([act], screen_state=before)
+                sel.record_outcome(act, before, after)
+                self.assertEqual(sel._known_noops, {})
 
 
 if __name__ == "__main__":

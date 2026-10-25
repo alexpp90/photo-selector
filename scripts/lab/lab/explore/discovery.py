@@ -18,11 +18,32 @@ import yaml
 
 from ..layout_lint import TOUCH_TOLERANCE, cut_by_scroll, intersection_rect, is_ancestor, visible_bounds
 from ..model import Node, Tree
+from ..usability.driver import parse_key
 from .actions import Action, CandidateInteraction
 
 RULES_DIR = Path(__file__).resolve().parent.parent.parent / "rules"
 
 SUPPORTED_PRODUCTS = {"phototok", "android-desktop", "macos-desktop", "linux-desktop"}
+
+# Jackpix's "Phone Camera" card opens the device's real camera roll: a lab run must never offer it,
+# on any device (the card needs a camera roll the lab does not create; see `requires_dirs`).
+# Screen mode a driver reports when the system folder picker, not the app, is in front. The
+# explorer only leaves it (Back cancels without granting a folder), whatever opened it: picker
+# triggers without a test tag, such as Jackpix's localized "Quellordner" row, slip past ids.
+SYSTEM_PICKER_MODE = "system-picker"
+
+NEVER_OFFERED_IDS = frozenset({"landing_phone_camera_card", "card_camera"})
+
+# Controls that open the system folder picker. The explorer cannot drive the picker, and on a
+# personal device a wrong pick would hand the app a real folder, so they are offered only when
+# the caller says the picker is safe (`allow_folder_picker`).
+FOLDER_PICKER_IDS = frozenset({
+    "landing_custom_folder_card", "landing_sd_card_card", "reselect_folder_button",
+    "sidebar_open_folder", "btn_open_folder", "btn_open", "card_folder", "card_sd",
+})
+
+# Ids that end in "Sheet" but are screens of their own, not a modal over another screen.
+SCREEN_LEVEL_SHEETS = frozenset({"phonesettingssheet"})
 
 
 def normalize_product_name(product: str) -> str:
@@ -116,7 +137,9 @@ def detect_active_modal(tree: Tree, rules: Dict[str, Any], by_id: Dict[str, Node
         if not node.visible:
             continue
         nid = node.id
-        is_pattern_modal = any(fnmatch.fnmatchcase(nid.lower(), pat.lower()) for pat in modal_patterns)
+        is_pattern_modal = nid.lower() not in SCREEN_LEVEL_SHEETS and any(
+            fnmatch.fnmatchcase(nid.lower(), pat.lower()) for pat in modal_patterns
+        )
         if (nid in overlay_ids and ("dialog" in nid.lower() or "sheet" in nid.lower() or "guide" in nid.lower() or "tutorial" in nid.lower())) or is_pattern_modal:
             if node.w > 0 and node.h > 0:
                 return nid
@@ -196,16 +219,26 @@ def identify_screen_mode(
         if "GtkShortcutsWindow" in node_ids:
             return "shortcuts"
 
-    # Generic heuristics
-    for nid in node_ids:
-        if "inspect" in nid.lower() or "learn" in nid.lower():
+    # Generic heuristics, in tree order: the first node that names a mode decides, so the same
+    # tree gives the same mode in every process (a set would iterate in hash-seed order).
+    for node in tree.nodes:
+        nid = node.id.lower()
+        if "inspect" in nid or "learn" in nid:
             return "inspect"
-        if "viewer" in nid.lower() or "photo" in nid.lower() or "frame" in nid.lower():
+        if "viewer" in nid or "photo" in nid or "frame" in nid:
             return "viewer"
-        if "empty" in nid.lower():
+        if "empty" in nid:
             return "empty"
 
     return "unknown"
+
+
+def classify_screen(tree: Tree, product: str) -> str:
+    """The screen mode of `tree`, by the same rules `inspect_screen` uses (for the drivers)."""
+    norm = normalize_product_name(product)
+    rules = load_discovery_rules(norm)
+    by_id = {node.id: node for node in tree.nodes}
+    return identify_screen_mode(tree, norm, rules, by_id, detect_active_modal(tree, rules, by_id))
 
 
 def enumerate_interactive_elements(
@@ -216,8 +249,13 @@ def enumerate_interactive_elements(
     active_modal: Optional[str],
     screen_mode: str,
     warnings: List[str],
+    allow_folder_picker: bool = False,
 ) -> Tuple[List[CandidateInteraction], List[Node]]:
-    """Enumerate taps and clicks on qualified visible interactive controls."""
+    """Enumerate taps and clicks on qualified visible interactive controls.
+
+    Never offered: `NEVER_OFFERED_IDS` (the real camera roll) and, unless `allow_folder_picker`,
+    the `FOLDER_PICKER_IDS` controls.
+    """
     norm_product = normalize_product_name(product)
     is_android = norm_product in ("phototok", "android-desktop")
     action_type = "tap" if is_android else "click"
@@ -239,6 +277,8 @@ def enumerate_interactive_elements(
 
     for node in tree.nodes:
         if not node.interactive or not node.visible:
+            continue
+        if node.id in NEVER_OFFERED_IDS or (not allow_folder_picker and node.id in FOLDER_PICKER_IDS):
             continue
 
         # Filter out nodes with corrupted NaN, Inf or invalid bounds
@@ -625,31 +665,54 @@ def enumerate_gestures(
     return candidates
 
 
+def _shortcut(spec: str) -> Dict[str, Any]:
+    """`"Ctrl+O"` as the key action params: key and modifiers apart, the spelling kept for reports."""
+    key, mods = parse_key(spec)
+    key = key.lower() if len(key) == 1 else key
+    return {"key": key, "modifiers": list(_MODIFIER_PARAM[m] for m in mods), "shortcut": spec}
+
+
+# `parse_key` normalises modifiers to macOS-style names; the actions carry the short spellings.
+_MODIFIER_PARAM = {"command": "cmd", "control": "ctrl", "shift": "shift", "option": "alt", "super": "super"}
+
+
+def has_focused_input(tree: Tree) -> bool:
+    """A text input holds the keyboard focus (nodes of a tree without focus data never do)."""
+    return any(
+        node.role == "input" and node.visible and getattr(node, "focused", False) for node in tree.nodes
+    )
+
+
 def enumerate_keyboard_shortcuts(
     tree: Tree,
     product: str,
     active_modal: Optional[str],
     screen_mode: str,
     by_id: Dict[str, Node],
+    allow_folder_picker: bool = False,
 ) -> List[CandidateInteraction]:
-    """Enumerate hardware keyboard shortcuts appropriate for the platform and modal state."""
+    """Enumerate hardware keyboard shortcuts appropriate for the platform and modal state.
+
+    Shortcuts with a modifier are key + modifiers (`{"key": "o", "modifiers": ["ctrl"]}`), never
+    one string a driver would have to split.
+    """
     norm_product = normalize_product_name(product)
     is_macos = norm_product == "macos-desktop"
     cmd_mod = "Cmd" if is_macos else "Ctrl"
     candidates: List[CandidateInteraction] = []
 
-    # Check for focused editable text inputs
-    for node in tree.nodes:
-        if node.role == "input" and node.visible:
-            return [
-                CandidateInteraction(
-                    action=Action(action_type="key", params={"key": "Escape"}, label="Key Escape (Exit Focus)"),
-                    category="key",
-                    description="Escape key to dismiss focus from text input",
-                    weight=1.0,
-                    screen_mode=screen_mode,
-                )
-            ]
+    # A focused text input takes every key: only Escape gets out of it. An input that is merely
+    # on screen leaves the shortcuts alone.
+    if has_focused_input(tree):
+        return [
+            CandidateInteraction(
+                action=Action(action_type="key", params={"key": "Escape"}, label="Key Escape (Exit Focus)"),
+                category="key",
+                description="Escape key to dismiss focus from text input",
+                weight=1.0,
+                screen_mode=screen_mode,
+            )
+        ]
 
     # Modal Active Keyboard Handling
     if active_modal:
@@ -683,6 +746,11 @@ def enumerate_keyboard_shortcuts(
                 is_modal_action=True,
             )
         )
+        return candidates
+
+    # Jackpix is gesture-first and handles no keys of its own: a desktop shortcut there would be
+    # judged against a copy or move the app never offers.
+    if norm_product == "phototok":
         return candidates
 
     # Primary Viewport Shortcuts
@@ -768,11 +836,7 @@ def enumerate_keyboard_shortcuts(
         undo_key = f"{cmd_mod}+Z"
         candidates.append(
             CandidateInteraction(
-                action=Action(
-                    action_type="key",
-                    params={"key": "z", "modifiers": ["cmd" if is_macos else "ctrl"], "shortcut": undo_key},
-                    label=f"Key {undo_key} (Undo)",
-                ),
+                action=Action(action_type="key", params=_shortcut(f"{cmd_mod}+Z"), label=f"Key {undo_key} (Undo)"),
                 category="key",
                 description="Undo last culling operation",
                 weight=0.8,
@@ -788,9 +852,11 @@ def enumerate_keyboard_shortcuts(
         (f"{cmd_mod}+,", "Open Settings / Preferences", 0.4),
     ]
     for key, desc, wt in util_keys:
+        if key.endswith("+O") and not allow_folder_picker:
+            continue
         candidates.append(
             CandidateInteraction(
-                action=Action(action_type="key", params={"key": key}, label=f"Key {key}"),
+                action=Action(action_type="key", params=_shortcut(key), label=f"Key {key}"),
                 category="key",
                 description=desc,
                 weight=wt,
@@ -825,16 +891,17 @@ def enumerate_lifecycle_actions(
         )
     )
 
-    # 2. App Backgrounding and Resume
-    candidates.append(
-        CandidateInteraction(
-            action=Action(action_type="background", params={"duration_s": 1.0}, label="Background App & Resume"),
-            category="lifecycle",
-            description="Send application to background for 1s then resume",
-            weight=0.2,
-            screen_mode=screen_mode,
+    # 2. App Backgrounding and Resume (a desktop window has no background state to resume from)
+    if norm_product in ("phototok", "android-desktop"):
+        candidates.append(
+            CandidateInteraction(
+                action=Action(action_type="background", params={"duration_s": 1.0}, label="Background App & Resume"),
+                category="lifecycle",
+                description="Send application to background for 1s then resume",
+                weight=0.2,
+                screen_mode=screen_mode,
+            )
         )
-    )
 
     # 3. Window Resize (Desktop or Android DeX / ChromeOS Freeform)
     if norm_product in ("macos-desktop", "linux-desktop") or is_freeform:
@@ -886,8 +953,13 @@ def inspect_screen(
     rules: Optional[Dict[str, Any]] = None,
     is_tablet: bool = False,
     is_freeform: bool = False,
+    allow_folder_picker: bool = False,
 ) -> ScreenInspectionResult:
-    """Inspect live screen state, classify screen mode, and enumerate candidate interactions."""
+    """Inspect live screen state, classify screen mode, and enumerate candidate interactions.
+
+    `allow_folder_picker` offers the controls and the shortcut that open the system folder
+    picker; leave it off on a personal device.
+    """
     norm_product = normalize_product_name(product)
     active_rules = rules if rules is not None else load_discovery_rules(norm_product)
     by_id = {node.id: node for node in tree.nodes}
@@ -901,19 +973,27 @@ def inspect_screen(
 
     # 3. Enumerate Interactive Elements
     elem_candidates, interactive_nodes = enumerate_interactive_elements(
-        tree, norm_product, active_rules, by_id, active_modal, screen_mode, warnings
+        tree, norm_product, active_rules, by_id, active_modal, screen_mode, warnings, allow_folder_picker
     )
 
     # 4. Enumerate Gestures
     gesture_candidates = enumerate_gestures(tree, norm_product, active_rules, by_id, active_modal, screen_mode)
 
     # 5. Enumerate Keyboard Shortcuts
-    key_candidates = enumerate_keyboard_shortcuts(tree, norm_product, active_modal, screen_mode, by_id)
+    key_candidates = enumerate_keyboard_shortcuts(
+        tree, norm_product, active_modal, screen_mode, by_id, allow_folder_picker
+    )
 
     # 6. Enumerate Lifecycle Actions
     lifecycle_candidates = enumerate_lifecycle_actions(tree, norm_product, active_modal, screen_mode, is_tablet, is_freeform)
 
     all_candidates = elem_candidates + gesture_candidates + key_candidates + lifecycle_candidates
+    if not tree.nodes:
+        # Nothing on screen is known (a window that exports no nodes, such as Blitzlens'
+        # Duplicate Finder): any other key would be aimed at a screen we cannot see, and its
+        # expectation would be about the main window. Only leaving it is a sound step.
+        all_candidates = [c for c in lifecycle_candidates if c.action.action_type == "back"]
+        warnings.append("empty tree: only back is offered")
 
     return ScreenInspectionResult(
         product=norm_product,

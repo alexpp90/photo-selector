@@ -1,82 +1,90 @@
-"""Time-Boxed Parallel Multi-Device Orchestrator (M3).
+"""Time-boxed exploratory orchestrator: one worker per device, one deadline for the run.
 
-Coordinates exploratory interaction testing across all active products:
-- Jackpix (phototok)
-- Frameduel (android-desktop)
-- Lensjet (macos-desktop)
-- Blitzlens (linux-desktop)
+Per device, in this order (the lab's device-settings rule):
 
-Features supported:
-- Feature 1: CLI Explore Subcommand & dispatch
-- Feature 20: Time-Boxing Engine with monotonic deadline and stop event
-- Feature 21: Parallel Multi-Device Scheduler via ThreadPoolExecutor
-- Feature 22: Per-Device Locking Independence (device-<serial>.lock, never android-hub.lock)
-- Feature 23: Device State Backup & Guaranteed Restoration (device-<serial>.restore.json)
-- Feature 24: Personal Device Safety Guard (--with-personal & screen in_use_by check)
+1. `driver.setup()` takes the locks and checks the device answers; it changes nothing.
+2. The device's original settings are recorded and persisted to a per-device file (an earlier
+   run's file wins: it holds the true originals if that run died before restoring).
+3. `driver.prepare()` makes the device ready and launches the app on the lab fixture.
+4. Per config: apply it, explore until the config's share of the remaining time is used.
+5. Restore the recorded settings, read them back, and delete the record only when they match.
+
+A step passes only when something was done and checked; a broken run is a failed run:
+capture failing at step 1, a driver that cannot execute, a second app failure in a row all end
+as `error`, and a run that took no steps in a non-zero time box exits non-zero.
 """
 
 from __future__ import annotations
 
 import concurrent.futures
+import dataclasses
 import json
 import logging
 import math
-import os
+import re
 import signal
+import subprocess
 import sys
+import tempfile
 import threading
 import time
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Any, Callable, Dict, List, Optional, Set, Tuple
 
 from ..android.adb import AdbClient
 from ..android.configs import (
+    ConfigNotRunError,
     SavedDeviceState,
-    ZEN_TO_DND,
     apply_config,
+    load_android_configs,
     record_device_state,
     reset_config,
-    set_dnd,
 )
-from ..inventory import AndroidDevice, Inventory, load_inventory, select_android_devices
-from ..locks import DeviceBusy, device_lock, device_lock_path
-from ..model import Finding, Tree
-from ..paths import ensure_under, lab_tmp_root, repo_root
+from ..inventory import AndroidDevice, Inventory, load_inventory, resolve_android_device, select_android_devices
+from ..locks import DeviceBusy
+from ..model import Finding
+from ..paths import ensure_under, lab_tmp_root, new_run_dir, repo_root
 from .actions import Action, ScreenState
-from .ai_adapters import AIProvider, auto_detect_ai_provider, create_ai_adapter
-from .discovery import inspect_screen, load_discovery_rules, normalize_product_name
+from .ai_adapters import AIProvider, create_ai_adapter
+from .discovery import SYSTEM_PICKER_MODE, inspect_screen, load_discovery_rules, normalize_product_name
 from .driver import (
     AndroidDeviceDriver,
     AppCrashedError,
+    AppLeftError,
     DeviceDriver,
     DriverError,
     DriverExecutionError,
-    DriverSettlingError,
-    DriverTimeoutError,
     LinuxDeviceDriver,
     MacOSDeviceDriver,
     MockDeviceDriver,
 )
-from .expectations import Expectation, ExpectationRecorder
+from .expectations import ExpectationRecorder
+from .reporter import compute_root_signature
 from .selector import ActionSelector
-from .verifier import StepResult, verify_step
+from .verifier import (
+    SEVERITY_BLOCKER,
+    SEVERITY_MAJOR,
+    SEVERITY_MINOR,
+    STATUS_ERROR,
+    STATUS_FAIL,
+    STATUS_PASS,
+    StepResult,
+    normalize_product_for_verifier,
+    verify_step,
+)
 
 logger = logging.getLogger(__name__)
 
+RESTORE_POLLS = 6
+RESTORE_POLL_S = 0.5
+MAX_EXEC_FAILURES = 3  # steps in a row the driver may fail to execute before the target ends
+AI_STEP_RESERVE_S = 20.0  # a step is not started when an AI judge could not finish within the time box
+PRODUCTS = ("phototok", "android-desktop", "macos-desktop", "linux-desktop")
+
 
 def parse_duration_string(duration_str: str) -> float:
-    """Parses duration string like '15m', '300s', '1h', '30' into seconds.
-
-    Supports:
-    - 's': seconds (e.g. '300s' -> 300.0)
-    - 'm': minutes (e.g. '15m' -> 900.0)
-    - 'h': hours (e.g. '1h' -> 3600.0)
-    - raw numeric string (e.g. '45' -> 45.0)
-
-    Raises:
-    - ValueError if string is empty, negative, or invalid format.
-    """
+    """`15m`, `300s`, `1h` or `45` (seconds) as seconds; raises ValueError for anything else."""
     s = str(duration_str).strip().lower()
     if not s:
         raise ValueError("empty duration string")
@@ -91,127 +99,74 @@ def parse_duration_string(duration_str: str) -> float:
             val = float(s)
     except ValueError as exc:
         raise ValueError(f"invalid duration format: {duration_str!r}") from exc
-
     if math.isnan(val) or math.isinf(val):
         raise ValueError(f"duration must be a finite number: {duration_str!r}")
-
     if val < 0:
         raise ValueError("duration must be non-negative")
     return val
 
 
-@dataclass
-class DeviceState:
-    """Serializable snapshot of hardware device display and system settings."""
-
-    serial: str
-    user_rotation: int = 0
-    accelerometer_rotation: int = 0
-    size_override: Optional[str] = None
-    density_override: Optional[str] = None
-    dark_mode: int = 0
-    night_mode: str = "no"
-    font_scale: str = "1.0"
-    stay_on: int = 3
-    zen_mode: str = "0"
-    timestamp: str = ""
-    pid: int = 0
-
-    def to_dict(self) -> Dict[str, Any]:
-        return {
-            "serial": self.serial,
-            "user_rotation": self.user_rotation,
-            "accelerometer_rotation": self.accelerometer_rotation,
-            "size_override": self.size_override,
-            "density_override": str(self.density_override) if self.density_override is not None else None,
-            "dark_mode": self.dark_mode,
-            "night_mode": self.night_mode,
-            "font_scale": self.font_scale,
-            "stay_on": self.stay_on,
-            "zen_mode": self.zen_mode,
-            "timestamp": self.timestamp or time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()),
-            "pid": self.pid or os.getpid(),
-        }
-
-    @classmethod
-    def from_dict(cls, data: Dict[str, Any]) -> DeviceState:
-        dens = data.get("density_override")
-        dark = data.get("dark_mode")
-        if dark is None and "night_mode" in data:
-            dark = 1 if data["night_mode"] == "yes" else 0
-        night = data.get("night_mode")
-        if night is None and dark is not None:
-            night = "yes" if int(dark) == 1 else "no"
-        stay = data.get("stay_on", 3)
-        try:
-            stay_int = int(stay)
-        except (ValueError, TypeError):
-            stay_int = 3
-
-        return cls(
-            serial=str(data["serial"]),
-            user_rotation=int(data.get("user_rotation", 0)),
-            accelerometer_rotation=int(data.get("accelerometer_rotation", 0)),
-            size_override=data.get("size_override"),
-            density_override=str(dens) if dens is not None else None,
-            dark_mode=int(dark if dark is not None else 0),
-            night_mode=str(night or "no"),
-            font_scale=str(data.get("font_scale", "1.0")),
-            stay_on=stay_int,
-            zen_mode=str(data.get("zen_mode", "0")),
-            timestamp=str(data.get("timestamp", "")),
-            pid=int(data.get("pid", 0)),
-        )
+class NoTargetError(ValueError):
+    """No device or target can run the requested product; nothing was started."""
 
 
-def to_saved_device_state(state: DeviceState) -> SavedDeviceState:
-    """Convert DeviceState dataclass to SavedDeviceState for reset_config."""
-    try:
-        dens = int(state.density_override) if state.density_override is not None else None
-    except (ValueError, TypeError):
-        dens = None
-    return SavedDeviceState(
-        user_rotation=state.user_rotation,
-        accelerometer_rotation=state.accelerometer_rotation,
-        size_override=state.size_override,
-        density_override=dens,
-        font_scale=state.font_scale,
-        night_mode=state.night_mode,
-        stay_on=str(state.stay_on),
-        zen_mode=str(state.zen_mode),
-    )
+class RestoreRecordError(RuntimeError):
+    """The device's persisted original settings cannot be trusted; the device is left alone."""
 
+
+# ======================================================================
+# Targets and results
+# ======================================================================
 
 @dataclass(frozen=True)
 class TargetConfig:
-    """Execution target descriptor for a single worker thread."""
+    """One config on one device: what a worker explores."""
 
     product: str
     device_id: str
     config: str = "default"
     serial: Optional[str] = None
     is_personal: bool = False
-    driver_type: str = "auto"
+    driver_type: str = "live"  # live | mock
     app_id: str = "com.phototok.lab"
-    target_type: str = "android"
+    target_type: str = "android"  # android | linux | macos | mock
 
     @property
     def label(self) -> str:
         return f"{self.product}_{self.config}_{self.device_id}"
 
+    @property
+    def config_label(self) -> str:
+        """The `config` of this target's findings, as the lab labels them: `<config>@<device>`."""
+        return f"{self.config}@{self.device_id}"
+
+    @property
+    def device_key(self) -> str:
+        return self.serial or self.device_id
+
+
+def group_targets(targets: List[TargetConfig]) -> List[List[TargetConfig]]:
+    """Targets grouped by device, in first-seen order: one device is driven by one worker."""
+    groups: Dict[str, List[TargetConfig]] = {}
+    for t in targets:
+        groups.setdefault(t.device_key, []).append(t)
+    return list(groups.values())
+
 
 @dataclass
 class WorkerResult:
-    """Result emitted by an individual target worker thread."""
+    """What one target (a config on a device) did."""
 
     target: TargetConfig
     target_dir: Path
-    status: str  # "completed", "skipped_busy", "skipped_personal", "skipped_in_use", "error"
+    # completed | skipped_busy | skipped_personal | skipped_in_use | skipped_config | unavailable | error
+    status: str
     step_results: List[StepResult] = field(default_factory=list)
     findings: List[Finding] = field(default_factory=list)
     start_time: float = 0.0
     end_time: float = 0.0
     error: Optional[str] = None
+    app_restarts: int = 0
 
     @property
     def total_steps(self) -> int:
@@ -228,42 +183,143 @@ class WorkerResult:
 
 @dataclass
 class RunSummary:
-    """Aggregated exploratory test run summary conforming to M3 <-> M4 contract."""
+    """The whole run, as written to `run.json` and read by the reporter."""
 
     run_id: str
     run_dir: Path
     start_time: float
     end_time: float
     product: str
+    seed: int
     target_configs: List[str]
-    total_steps: int
-    passed_steps: int
-    failed_steps: int
     findings: List[Finding]
     step_results: List[StepResult]
-    status: str = "completed"
+    status: str = "completed"  # completed | interrupted | error
     worker_results: List[WorkerResult] = field(default_factory=list)
+    skipped_devices: List[str] = field(default_factory=list)
+
+    @property
+    def total_steps(self) -> int:
+        return len(self.step_results)
+
+    @property
+    def passed_steps(self) -> int:
+        return sum(1 for s in self.step_results if s.passed)
+
+    @property
+    def failed_steps(self) -> int:
+        return self.total_steps - self.passed_steps
 
     def to_dict(self) -> Dict[str, Any]:
         return {
             "run_id": self.run_id,
             "run_dir": str(self.run_dir),
-            "start_time": self.start_time,
-            "end_time": self.end_time,
-            "duration_s": max(0.0, self.end_time - self.start_time),
             "product": self.product,
+            "seed": self.seed,
+            "status": self.status,
+            "duration_s": max(0.0, self.end_time - self.start_time),
             "target_configs": list(self.target_configs),
             "total_steps": self.total_steps,
             "passed_steps": self.passed_steps,
             "failed_steps": self.failed_steps,
             "findings_count": len(self.findings),
-            "findings": [f.__dict__ if hasattr(f, "__dict__") else dict(f) for f in self.findings],
-            "status": self.status,
+            "findings": [f.to_dict() for f in self.findings],
+            "skipped_devices": list(self.skipped_devices),
+            "workers": [
+                {
+                    "target": w.target.label,
+                    "status": w.status,
+                    "steps": w.total_steps,
+                    "app_restarts": w.app_restarts,
+                    "error": w.error,
+                }
+                for w in self.worker_results
+            ],
         }
 
 
+# ======================================================================
+# Device settings: record, persist, restore
+# ======================================================================
+
+def restore_record_path(device_key: str) -> Path:
+    """Where a device's original settings are persisted while a run changes them."""
+    safe = re.sub(r"[^A-Za-z0-9._-]", "_", device_key)
+    root = lab_tmp_root()
+    return ensure_under(root / f"device-{safe}.explore-restore.json", root)
+
+
+def _usability_record_path(device_key: str) -> Path:
+    """The record a usability walk keeps (`lab/usability/capture.py`); a leftover one blocks us."""
+    return lab_tmp_root() / f"device-{device_key}.restore.json"
+
+
+def load_or_record_original(adb: AdbClient, device_key: str) -> Tuple[SavedDeviceState, bool]:
+    """The device's original settings, persisted before anything is changed.
+
+    A record left by an earlier run wins over a fresh read: that run died before restoring, so
+    the device now shows its changed values. Returns `(state, adopted_from_earlier_run)`.
+    """
+    path = restore_record_path(device_key)
+    leftover = _usability_record_path(device_key)
+    if leftover.is_file():
+        raise RestoreRecordError(
+            f"{leftover} is a usability walk's record of unrestored settings; "
+            "run a usability capture on this device (it restores them) or remove the file once checked"
+        )
+    if path.is_file():
+        try:
+            data = json.loads(path.read_text(encoding="utf-8"))
+            return SavedDeviceState(**data["state"]), True
+        except (ValueError, KeyError, TypeError) as exc:
+            raise RestoreRecordError(f"{path} is unreadable ({exc}); check the device's settings, then remove it") from exc
+    saved = record_device_state(adb)
+    path.parent.mkdir(parents=True, exist_ok=True)
+    tmp = path.with_suffix(".tmp")
+    tmp.write_text(
+        json.dumps({"device": device_key, "state": dataclasses.asdict(saved), "taken": time.strftime("%Y-%m-%dT%H:%M:%S")}, indent=2),
+        encoding="utf-8",
+    )
+    tmp.replace(path)
+    return saved, False
+
+
+def restore_device(adb: AdbClient, saved: SavedDeviceState, device_key: str) -> Optional[str]:
+    """Put the recorded settings back and read them back after the change.
+
+    The record is deleted only when the read-back equals it. Returns None on success, else why
+    the device may still be changed (the record stays, so the next run restores from it).
+    """
+    path = restore_record_path(device_key)
+    try:
+        reset_config(adb, saved)
+        mismatch: Dict[str, Tuple[Any, Any]] = {}
+        for attempt in range(RESTORE_POLLS):
+            now = dataclasses.asdict(record_device_state(adb))
+            want = dataclasses.asdict(saved)
+            mismatch = {k: (want[k], now[k]) for k in want if want[k] != now[k]}
+            if not mismatch:
+                break
+            if attempt < RESTORE_POLLS - 1:
+                time.sleep(RESTORE_POLL_S)
+    except Exception as exc:  # noqa: BLE001 - reported to the caller, the record stays
+        return f"restoring {device_key} failed: {exc}; the record {path} stays for the next run"
+    if mismatch:
+        detail = ", ".join(f"{k}: wanted {w!r}, device has {n!r}" for k, (w, n) in sorted(mismatch.items()))
+        return f"settings of {device_key} did not read back as recorded ({detail}); the record {path} stays"
+    path.unlink(missing_ok=True)
+    return None
+
+
+# ======================================================================
+# Orchestrator
+# ======================================================================
+
+DriverFactory = Callable[[TargetConfig, Path], DeviceDriver]
+
+
 class ExploratoryOrchestrator:
-    """Core multi-device time-boxed exploratory orchestrator."""
+    """Runs exploratory loops on every resolved device until one global deadline."""
 
     def __init__(
         self,
@@ -276,534 +332,552 @@ class ExploratoryOrchestrator:
         ai_provider: str = "none",
         driver: str = "auto",
         with_personal: bool = False,
-        step_timeout_s: float = 30.0,
-        lock_timeout_s: float = 0.0,
-        max_workers: Optional[int] = None,
         settle_ms: int = 450,
+        ai_timeout_s: float = 120.0,
         inventory: Optional[Inventory] = None,
+        resolve_fn: Callable[[AndroidDevice], Tuple[bool, Optional[str]]] = resolve_android_device,
+        driver_factory: Optional[DriverFactory] = None,
     ) -> None:
-        # Normalize product; rejects legacy desktop with ValueError
-        self.product = normalize_product_name(product)
-        if self.product not in ("phototok", "android-desktop", "macos-desktop", "linux-desktop"):
+        self.product = normalize_product_name(product)  # rejects the legacy desktop
+        if self.product not in PRODUCTS:
             raise ValueError(f"unsupported product for exploratory testing: {product!r}")
-
-        # Parse duration
-        if isinstance(duration, (int, float)):
-            duration_s = float(duration)
-            if duration_s < 0:
-                raise ValueError("duration must be non-negative")
-            self.duration_s = duration_s
-        else:
-            self.duration_s = parse_duration_string(str(duration))
+        self.duration_s = float(duration) if isinstance(duration, (int, float)) else parse_duration_string(str(duration))
+        if self.duration_s < 0:
+            raise ValueError("duration must be non-negative")
+        if driver not in ("auto", "direct", "mock"):
+            raise ValueError(f"unknown driver mode {driver!r}")
 
         self.seed = int(seed)
         self.ai_provider_name = ai_provider
+        self.ai: AIProvider = create_ai_adapter(ai_provider)
+        if not self.ai.is_available():
+            raise ValueError(f"--ai-provider {ai_provider}: its CLI is not on PATH")
         self.driver_type = driver
         self.with_personal = bool(with_personal)
-        self.step_timeout_s = float(step_timeout_s)
-        self.lock_timeout_s = float(lock_timeout_s)
-        self.max_workers = max_workers
         self.settle_ms = int(settle_ms)
+        self.ai_timeout_s = float(ai_timeout_s)
+        self.out_dir: Optional[Path] = Path(out_dir).expanduser().resolve() if out_dir else None
+        self.device_filter = _split(device)
+        self.config_filter = _split(config)
+        self._inventory = inventory
+        self._resolve_fn = resolve_fn
+        self._driver_factory = driver_factory
+        self.skipped_devices: List[str] = []
 
-        # Output directory
-        self.out_dir = Path(out_dir).expanduser().resolve() if out_dir else (lab_tmp_root() / f"explore_{int(time.time())}")
-
-        # Filters
-        if isinstance(device, str):
-            self.device_filter = [d.strip() for d in device.split(",") if d.strip()]
-        elif isinstance(device, (list, tuple, set)):
-            self.device_filter = [str(d).strip() for d in device if str(d).strip()]
-        else:
-            self.device_filter = None
-
-        if isinstance(config, str):
-            self.config_filter = [c.strip() for c in config.split(",") if c.strip()]
-        elif isinstance(config, (list, tuple, set)):
-            self.config_filter = [str(c).strip() for c in config if str(c).strip()]
-        else:
-            self.config_filter = None
-
-        self.inventory = inventory or load_inventory()
         self.stop_event = threading.Event()
-        self._active_restorations: Dict[str, Tuple[AdbClient, DeviceState, Path]] = {}
+        self._active_restorations: Dict[str, Tuple[AdbClient, SavedDeviceState]] = {}
         self._lock = threading.Lock()
         self._interrupted = False
         self._sig_count = 0
-        self._orig_sigint = None
-        self._orig_sigterm = None
+        self._orig_handlers: Dict[int, Any] = {}
+        self._deadline = 0.0
+
+    @property
+    def inventory(self) -> Inventory:
+        if self._inventory is None:
+            self._inventory = load_inventory()
+        return self._inventory
+
+    # ------------------------------------------------------------------ targets
 
     def resolve_targets(self) -> List[TargetConfig]:
-        """Resolves target devices and layouts according to product, inventory, and filters."""
+        """Targets for the requested product. Raises `ValueError` (`NoTargetError`) when there are none.
+
+        Whether a run is live or mock follows from this: `--driver mock` yields mock targets,
+        anything else yields real ones or an error; there is no silent fallback to the mock.
+        """
+        self.skipped_devices = []
+        app_id = "com.phototok.lab" if self.product == "phototok" else "com.photoselectortoolbox.lab"
         if self.driver_type == "mock":
-            devices = self.device_filter or ["mock-device"]
-            configs = self.config_filter or ["default"]
             return [
-                TargetConfig(
-                    product=self.product,
-                    device_id=d,
-                    config=c,
-                    serial=d,
-                    is_personal=False,
-                    driver_type="mock",
-                    app_id="com.phototok.lab" if self.product == "phototok" else "com.photoselectortoolbox.lab",
-                    target_type="mock",
-                )
-                for d in devices
-                for c in configs
+                TargetConfig(self.product, d, c, serial=d, driver_type="mock", app_id=app_id, target_type="mock")
+                for d in (self.device_filter or ["mock-device"])
+                for c in (self.config_filter or ["default"])
             ]
 
         if self.product in ("phototok", "android-desktop"):
-            # If explicit device filter provided, verify personal opt-in
-            if self.device_filter:
-                for name in self.device_filter:
-                    dev = self.inventory.find(name)
-                    if dev is not None and dev.personal and not self.with_personal:
-                        raise ValueError(f"device '{dev.name}' is a personal device; add --with-personal to opt in")
+            return self._resolve_android(app_id)
 
-            devices = select_android_devices(
-                self.inventory,
-                self.product,
-                with_personal=self.with_personal,
-                only=self.device_filter,
-            )
+        if self.device_filter or self.config_filter:
+            raise ValueError("--device and --config apply to Android products only")
+        if self.product == "linux-desktop":
+            return [TargetConfig(self.product, "xvfb", "default", app_id="app.alpatix.Blitzlens", target_type="linux")]
 
-            # In auto mode, if no devices found in inventory or attached, fallback to mock driver
-            if not devices and self.driver_type == "auto":
-                logger.info("No Android devices found in inventory for %s, falling back to mock driver", self.product)
-                return [
+        mac = self.inventory.mac
+        personal = mac.personal if mac else True
+        if personal and not self.with_personal:
+            raise ValueError("device 'mac' is a personal device; add --with-personal to opt in")
+        return [TargetConfig(self.product, "mac", "default", is_personal=personal, app_id="app.alpatix.lensjet", target_type="macos")]
+
+    def _resolve_android(self, app_id: str) -> List[TargetConfig]:
+        inventory = self.inventory
+        for name in self.device_filter or []:
+            dev = inventory.find(name)
+            if dev is not None and dev.personal and not self.with_personal:
+                raise ValueError(f"device '{dev.name}' is a personal device; add --with-personal to opt in")
+        known_configs = load_android_configs()
+        for cfg in self.config_filter or []:
+            if cfg not in known_configs:
+                raise ValueError(f"unknown Android config {cfg!r}; choices: {', '.join(sorted(known_configs))}")
+
+        devices = select_android_devices(inventory, self.product, with_personal=self.with_personal, only=self.device_filter)
+        if not devices:
+            hidden = [d.name for d in inventory.android if d.runs(self.product) and d.personal]
+            hint = f" (personal devices skipped: {', '.join(hidden)}; add --with-personal)" if hidden and not self.device_filter else ""
+            raise NoTargetError(f"no lab device in devices.yaml runs {self.product}{hint}")
+
+        targets: List[TargetConfig] = []
+        for dev in devices:
+            ok, reason = self._resolve_fn(dev)
+            if not ok:
+                self.skipped_devices.append(f"{dev.name}: {reason}")
+                continue
+            for cfg in self.config_filter or dev.configs or ["default"]:
+                if cfg != "default" and not dev.allows_config(cfg):
+                    self.skipped_devices.append(f"{dev.name}: config {cfg} is not available on this device")
+                    continue
+                targets.append(
                     TargetConfig(
-                        product=self.product,
-                        device_id=self.device_filter[0] if self.device_filter else "mock-device",
-                        config=self.config_filter[0] if self.config_filter else "default",
-                        serial="mock-device",
-                        is_personal=False,
-                        driver_type="mock",
-                        app_id="com.phototok.lab" if self.product == "phototok" else "com.photoselectortoolbox.lab",
-                        target_type="mock",
+                        self.product, dev.name, cfg, serial=dev.adb_serial or dev.serial,
+                        is_personal=dev.personal, driver_type="live", app_id=app_id, target_type="android",
                     )
-                ]
-
-            targets: List[TargetConfig] = []
-            for d in devices:
-                cfgs = self.config_filter or (d.configs or ["default"])
-                for c in cfgs:
-                    targets.append(
-                        TargetConfig(
-                            product=self.product,
-                            device_id=d.name,
-                            config=c,
-                            serial=d.adb_serial or d.serial,
-                            is_personal=d.personal,
-                            driver_type=self.driver_type,
-                            app_id="com.phototok.lab" if self.product == "phototok" else "com.photoselectortoolbox.lab",
-                            target_type="android",
-                        )
-                    )
-            return targets
-
-        elif self.product == "linux-desktop":
-            return [
-                TargetConfig(
-                    product=self.product,
-                    device_id="xvfb",
-                    config=self.config_filter[0] if self.config_filter else "fhd",
-                    driver_type=self.driver_type,
-                    target_type="linux",
                 )
-            ]
+        if not targets:
+            raise NoTargetError("no reachable device: " + "; ".join(self.skipped_devices))
+        return targets
 
-        elif self.product == "macos-desktop":
-            is_personal = self.inventory.mac.personal if self.inventory.mac else True
-            if is_personal and not self.with_personal:
-                raise ValueError("device 'mac' is a personal device; add --with-personal to opt in")
-            return [
-                TargetConfig(
-                    product=self.product,
-                    device_id="mac",
-                    config=self.config_filter[0] if self.config_filter else "default",
-                    is_personal=is_personal,
-                    driver_type=self.driver_type,
-                    target_type="macos",
-                )
-            ]
-
-        return []
+    # ------------------------------------------------------------------ run
 
     def run(self) -> RunSummary:
-        """Execute parallel exploratory loops across resolved targets until duration deadline."""
+        """Explore on every target until the deadline, then restore, summarize and write `run.json`.
+
+        A SIGINT/SIGTERM finishes the current step of each worker, restores the devices and
+        returns a summary with status `interrupted`; a second one restores at once and exits.
+        """
+        targets = self.resolve_targets()
+        self.out_dir = self._create_run_dir()
+        run_id = self.out_dir.name
         start_time = time.monotonic()
-        run_id = f"explore_{int(time.time())}"
-        self.out_dir.mkdir(parents=True, exist_ok=True)
+        self._deadline = start_time + self.duration_s
+        groups = group_targets(targets)
         self._setup_signals()
-
         try:
-            targets = self.resolve_targets()
-            if not targets:
-                logger.warning("No targets available to run for product %s", self.product)
-                summary = RunSummary(
-                    run_id=run_id,
-                    run_dir=self.out_dir,
-                    start_time=start_time,
-                    end_time=time.monotonic(),
-                    product=self.product,
-                    target_configs=[],
-                    total_steps=0,
-                    passed_steps=0,
-                    failed_steps=0,
-                    findings=[],
-                    step_results=[],
-                    status="completed",
-                )
-                (self.out_dir / "run.json").write_text(json.dumps(summary.to_dict(), indent=2), encoding="utf-8")
-                return summary
-
-            worker_results: List[WorkerResult] = []
-            max_threads = self.max_workers or min(len(targets), 8)
-            with concurrent.futures.ThreadPoolExecutor(max_workers=max_threads) as executor:
-                future_to_target = {
-                    executor.submit(self._run_worker_target, target): target
-                    for target in targets
-                }
-                for future in concurrent.futures.as_completed(future_to_target):
-                    target = future_to_target[future]
-                    try:
-                        res = future.result()
-                        worker_results.append(res)
-                    except Exception as exc:
-                        logger.error("Unhandled worker error for %s: %s", target.label, exc)
-                        worker_results.append(
-                            WorkerResult(
-                                target=target,
-                                target_dir=self.out_dir / target.product / target.config / target.device_id,
-                                status="error",
-                                error=str(exc),
-                            )
-                        )
-
-            # Check if all workers failed or skipped
-            busy_count = sum(1 for w in worker_results if w.status == "skipped_busy")
-            if busy_count == len(worker_results) and worker_results:
-                raise DeviceBusy(worker_results[0].error or "all target devices are busy")
-
-            # Check if interrupted by SIGINT
-            if self._interrupted:
-                raise KeyboardInterrupt("exploration interrupted by user (SIGINT)")
-
-            # Aggregate summary
-            end_time = time.monotonic()
-            all_step_results: List[StepResult] = []
-            all_findings: List[Finding] = []
-            for w in worker_results:
-                all_step_results.extend(w.step_results)
-                all_findings.extend(w.findings)
-
-            has_error = any(w.status == "error" for w in worker_results)
-            summary = RunSummary(
-                run_id=run_id,
-                run_dir=self.out_dir,
-                start_time=start_time,
-                end_time=end_time,
-                product=self.product,
-                target_configs=[t.label for t in targets],
-                total_steps=len(all_step_results),
-                passed_steps=sum(1 for s in all_step_results if s.passed),
-                failed_steps=sum(1 for s in all_step_results if not s.passed),
-                findings=all_findings,
-                step_results=all_step_results,
-                status="error" if has_error else ("completed" if not self._interrupted else "interrupted"),
-                worker_results=worker_results,
-            )
-            (self.out_dir / "run.json").write_text(json.dumps(summary.to_dict(), indent=2), encoding="utf-8")
-            return summary
-
+            results = self._run_groups(groups)
         finally:
             self._restore_signals()
 
-    def _setup_signals(self) -> None:
-        if threading.current_thread() is threading.main_thread():
-            def _sig_handler(signum: int, frame: Any) -> None:
-                sig_name = "SIGINT" if signum == signal.SIGINT else "SIGTERM"
-                print(f"\n[lab] Received {sig_name}. Stopping exploratory workers cleanly...", file=sys.stderr)
-                self._interrupted = True
-                self.stop_event.set()
-                if self._sig_count > 0:
-                    print("\n[lab] Second interrupt received. Forcing emergency restore...", file=sys.stderr)
-                    self._emergency_restore_all()
-                    sys.exit(130 if signum == signal.SIGINT else 143)
-                self._sig_count += 1
+        worker_results = [r for group_results in results for r in group_results]
+        step_results = [s for w in worker_results for s in w.step_results]
+        findings = [f for w in worker_results for f in w.findings]
+        if self._interrupted:
+            status = "interrupted"
+        elif any(w.status in ("error", "unavailable") for w in worker_results):
+            status = "error"
+        else:
+            status = "completed"
+        summary = RunSummary(
+            run_id=run_id, run_dir=self.out_dir, start_time=start_time, end_time=time.monotonic(),
+            product=self.product, seed=self.seed, target_configs=[t.label for t in targets],
+            findings=findings, step_results=step_results, status=status,
+            worker_results=worker_results, skipped_devices=list(self.skipped_devices),
+        )
+        self._write("run.json", json.dumps(summary.to_dict(), indent=2))
+        if worker_results and all(w.status == "skipped_busy" for w in worker_results):
+            raise DeviceBusy(worker_results[0].error or "all target devices are busy")
+        return summary
 
-            try:
-                self._orig_sigint = signal.signal(signal.SIGINT, _sig_handler)
-                self._orig_sigterm = signal.signal(signal.SIGTERM, _sig_handler)
-            except (ValueError, AttributeError):
-                pass
+    def _create_run_dir(self) -> Path:
+        if self.out_dir is not None:
+            self.out_dir.mkdir(parents=True, exist_ok=True)
+            return self.out_dir
+        if self.driver_type == "mock":
+            root = lab_tmp_root()
+            root.mkdir(parents=True, exist_ok=True)
+            return Path(tempfile.mkdtemp(prefix=f"explore-mock-{self.product}-", dir=root))
+        sha = subprocess.run(
+            ["git", "-C", str(repo_root()), "rev-parse", "--short", "HEAD"], capture_output=True, text=True, check=False
+        ).stdout.strip()
+        return new_run_dir(sha or "unknown", label=f"explore-{self.product}")
 
-    def _restore_signals(self) -> None:
-        if threading.current_thread() is threading.main_thread():
-            try:
-                if self._orig_sigint is not None:
-                    signal.signal(signal.SIGINT, self._orig_sigint)
-                if self._orig_sigterm is not None:
-                    signal.signal(signal.SIGTERM, self._orig_sigterm)
-            except (ValueError, AttributeError):
-                pass
-
-    def _emergency_restore_all(self) -> None:
-        with self._lock:
-            for serial, (adb, state, restore_file) in list(self._active_restorations.items()):
+    def _run_groups(self, groups: List[List[TargetConfig]]) -> List[List[WorkerResult]]:
+        results: Dict[int, List[WorkerResult]] = {}
+        with concurrent.futures.ThreadPoolExecutor(max_workers=max(1, len(groups))) as pool:
+            futures = {pool.submit(self._run_device_group, g): i for i, g in enumerate(groups)}
+            for future in concurrent.futures.as_completed(futures):
+                i = futures[future]
                 try:
-                    saved_obj = to_saved_device_state(state)
-                    reset_config(adb, saved_obj)
-                    if restore_file.is_file():
-                        restore_file.unlink()
-                except Exception as exc:
-                    logger.warning("Emergency restore failed on %s: %s", serial, exc)
-            self._active_restorations.clear()
+                    results[i] = future.result()
+                except Exception as exc:  # noqa: BLE001 - a worker bug is an error result, not a lost run
+                    logger.exception("worker for %s failed", groups[i][0].device_key)
+                    results[i] = [self._result(t, "error", f"{type(exc).__name__}: {exc}") for t in groups[i]]
+        return [results[i] for i in sorted(results)]
 
-    def _instantiate_driver(self, target: TargetConfig, out_dir: Path) -> DeviceDriver:
+    # ------------------------------------------------------------------ one device
+
+    def _target_dir(self, target: TargetConfig) -> Path:
+        assert self.out_dir is not None
+        return self.out_dir / target.product / target.device_id / target.config
+
+    def _result(self, target: TargetConfig, status: str, error: Optional[str] = None) -> WorkerResult:
+        return WorkerResult(target=target, target_dir=self._target_dir(target), status=status, error=error)
+
+    def _make_driver(self, target: TargetConfig, out_dir: Path) -> DeviceDriver:
+        if self._driver_factory is not None:
+            return self._driver_factory(target, out_dir)
         if target.driver_type == "mock":
             return MockDeviceDriver(product=target.product, app_id=target.app_id, out_dir=out_dir)
-        elif target.product in ("phototok", "android-desktop"):
+        if target.target_type == "android":
             return AndroidDeviceDriver(
-                serial=target.serial or target.device_id,
-                app_id=target.app_id,
-                product=target.product,
-                out_dir=out_dir,
-                settle_ms=self.settle_ms,
+                serial=target.device_key, app_id=target.app_id, product=target.product,
+                out_dir=out_dir, settle_ms=self.settle_ms,
             )
-        elif target.product == "linux-desktop":
+        if target.target_type == "linux":
             return LinuxDeviceDriver(out_dir=out_dir, settle_ms=self.settle_ms)
-        elif target.product == "macos-desktop":
-            return MacOSDeviceDriver(out_dir=out_dir, settle_ms=self.settle_ms)
-        raise ValueError(f"Unknown product/driver combination: {target.product} / {target.driver_type}")
+        return MacOSDeviceDriver(out_dir=out_dir, settle_ms=self.settle_ms)
 
-    def _run_worker_target(self, target: TargetConfig) -> WorkerResult:
-        # Isolated target directory
-        target_dir = self.out_dir / target.product / target.config / target.device_id
-        target_dir.mkdir(parents=True, exist_ok=True)
-        evidence_dir = target_dir / "evidence"
-        evidence_dir.mkdir(parents=True, exist_ok=True)
+    def _run_device_group(self, group: List[TargetConfig]) -> List[WorkerResult]:
+        """Drive one device through all its configs, restoring its settings at the end."""
+        first = group[0]
+        if first.is_personal and not self.with_personal:
+            msg = f"device '{first.device_id}' is a personal device; add --with-personal to opt in"
+            return [self._result(t, "skipped_personal", msg) for t in group]
 
-        # Personal device guard check
-        if target.is_personal and not self.with_personal:
-            msg = f"device '{target.device_id}' is a personal device; add --with-personal to opt in"
-            logger.warning(msg)
-            return WorkerResult(target=target, target_dir=target_dir, status="skipped_personal", error=msg)
-
-        driver = self._instantiate_driver(target, target_dir)
-        restore_tmp = lab_tmp_root() / f"device-{target.serial or target.device_id}.restore.json"
-        restore_target = target_dir / f"device-{target.serial or target.device_id}.restore.json"
-        saved_state: Optional[DeviceState] = None
-
-        t0 = time.monotonic()
+        device_dir = self._target_dir(first).parent
+        driver = self._make_driver(first, device_dir / "driver")
         try:
-            # Personal device screen check prior to entering driver
-            if target.is_personal and isinstance(driver, AndroidDeviceDriver):
-                busy = driver.adb.in_use_by()
-                if busy:
-                    msg = f"error: device {target.device_id} is in use by user ({busy}); refusing to touch"
-                    logger.warning(msg)
-                    return WorkerResult(target=target, target_dir=target_dir, status="skipped_in_use", error=msg)
-
-            # Enter driver context: AndroidDeviceDriver.setup() automatically acquires device_lock
-            with driver:
-                try:
-                    # Personal in-use check after launch
-                    if target.is_personal and isinstance(driver, AndroidDeviceDriver):
-                        busy = driver.adb.in_use_by()
-                        if busy:
-                            msg = f"error: device {target.device_id} is in use by user ({busy}); refusing to touch"
-                            logger.warning(msg)
-                            return WorkerResult(target=target, target_dir=target_dir, status="skipped_in_use", error=msg)
-
-                    # State backup for hardware Android devices
-                    if isinstance(driver, AndroidDeviceDriver):
-                        # True Original Rule: Check if a pre-existing restore file exists on disk
-                        if restore_tmp.is_file():
-                            try:
-                                saved_state = DeviceState.from_dict(json.loads(restore_tmp.read_text(encoding="utf-8")))
-                                logger.info("Adopted pre-existing restore state for %s from %s", driver.serial, restore_tmp)
-                            except Exception as e:
-                                logger.warning("Failed reading existing restore file %s: %s", restore_tmp, e)
-
-                        if saved_state is None:
-                            raw_saved = record_device_state(driver.adb)
-                            saved_state = DeviceState(
-                                serial=driver.serial,
-                                user_rotation=raw_saved.user_rotation,
-                                accelerometer_rotation=raw_saved.accelerometer_rotation,
-                                size_override=raw_saved.size_override,
-                                density_override=str(raw_saved.density_override) if raw_saved.density_override is not None else None,
-                                dark_mode=1 if raw_saved.night_mode == "yes" else 0,
-                                night_mode=raw_saved.night_mode,
-                                stay_on=int(raw_saved.stay_on) if str(raw_saved.stay_on).isdigit() else 3,
-                                font_scale=raw_saved.font_scale,
-                                zen_mode=raw_saved.zen_mode,
-                                timestamp=time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()),
-                                pid=os.getpid(),
-                            )
-                            restore_tmp.write_text(json.dumps(saved_state.to_dict(), indent=2), encoding="utf-8")
-
-                        restore_target.write_text(json.dumps(saved_state.to_dict(), indent=2), encoding="utf-8")
-                        with self._lock:
-                            self._active_restorations[driver.serial] = (driver.adb, saved_state, restore_tmp)
-
-                        # Apply target config if specified and not "default"
-                        if target.config and target.config != "default":
-                            logger.info("Applying config %s to device %s", target.config, driver.serial)
-                            apply_config(driver.adb, target.config)
-
-                    # Run time-boxed step loop
-                    deadline = time.monotonic() + self.duration_s
-                    return self._run_step_loop(driver, target, target_dir, evidence_dir, deadline)
-                finally:
-                    # Guaranteed device state restoration inside device_lock window
-                    if saved_state is not None and isinstance(driver, AndroidDeviceDriver):
-                        try:
-                            saved_obj = to_saved_device_state(saved_state)
-                            reset_config(driver.adb, saved_obj)
-                            if restore_tmp.is_file():
-                                restore_tmp.unlink()
-                        except Exception as exc:
-                            logger.warning("Failed restoring settings for %s: %s", driver.serial, exc)
-                        finally:
-                            with self._lock:
-                                self._active_restorations.pop(driver.serial, None)
-
+            driver.setup()
         except DeviceBusy as exc:
-            logger.warning("Device %s is busy: %s; skipping", target.device_id, exc)
-            return WorkerResult(target=target, target_dir=target_dir, status="skipped_busy", error=str(exc))
-        except Exception as exc:
-            logger.error("Worker failed for %s: %s", target.label, exc)
-            return WorkerResult(target=target, target_dir=target_dir, status="error", error=str(exc))
+            logger.warning("Device %s is busy: %s", first.device_id, exc)
+            return [self._result(t, "skipped_busy", str(exc)) for t in group]
+        except DriverError as exc:
+            return [self._result(t, "unavailable", str(exc)) for t in group]
 
-    def _run_step_loop(
+        adb: Optional[AdbClient] = getattr(driver, "adb", None) if first.target_type == "android" else None
+        restore_error: Optional[str] = None
+        try:
+            results = self._drive_device(driver, adb, group)
+        finally:
+            # Inside the lock window: the settings go back before the device is released.
+            with self._lock:
+                entry = self._active_restorations.pop(first.device_key, None)
+            if entry is not None:
+                restore_error = restore_device(entry[0], entry[1], first.device_key)
+                if restore_error:
+                    logger.error(restore_error)
+            driver.teardown()
+        if restore_error:
+            for r in results:
+                r.status = "error"
+                r.error = "; ".join(filter(None, [r.error, restore_error]))
+        return results
+
+    def _drive_device(self, driver: DeviceDriver, adb: Optional[AdbClient], group: List[TargetConfig]) -> List[WorkerResult]:
+        first = group[0]
+        if adb is not None:
+            if first.is_personal:
+                busy = self._in_use_by(adb)
+                if busy:
+                    msg = f"device {first.device_id} is in use by a person ({busy}); refusing to touch it"
+                    return [self._result(t, "skipped_in_use", msg) for t in group]
+            try:
+                saved, adopted = load_or_record_original(adb, first.device_key)
+            except RestoreRecordError as exc:
+                return [self._result(t, "error", str(exc)) for t in group]
+            if adopted:
+                logger.warning("Restoring %s from an earlier run's record of its original settings", first.device_key)
+            with self._lock:
+                self._active_restorations[first.device_key] = (adb, saved)
+        try:
+            driver.prepare()
+        except DriverError as exc:
+            return [self._result(t, "error", f"the app did not start: {exc}") for t in group]
+
+        results: List[WorkerResult] = []
+        try:
+            for i, target in enumerate(group):
+                if self.stop_event.is_set():
+                    break
+                now = time.monotonic()
+                share = max(0.0, self._deadline - now) / (len(group) - i)
+                results.append(self._run_config(driver, adb, target, now + share))
+        except Exception as exc:  # noqa: BLE001 - recorded on the targets that did not finish
+            logger.exception("Worker failed for %s", first.device_id)
+            done = {r.target for r in results}
+            results += [self._result(t, "error", f"{type(exc).__name__}: {exc}") for t in group if t not in done]
+        return results
+
+    def _in_use_by(self, adb: AdbClient) -> Optional[str]:
+        try:
+            return adb.in_use_by()
+        except Exception as exc:  # noqa: BLE001 - an unreadable state is not proof of use (as lab/orchestrate.py)
+            logger.warning("Could not tell whether a person uses the device: %s", exc)
+            return None
+
+    def _run_config(self, driver: DeviceDriver, adb: Optional[AdbClient], target: TargetConfig, deadline: float) -> WorkerResult:
+        target_dir = self._target_dir(target)
+        self._mkdir(target_dir)
+        if adb is not None and target.config != "default":
+            try:
+                logger.info("Applying config %s to device %s", target.config, target.device_key)
+                apply_config(adb, target.config)
+            except ConfigNotRunError as exc:
+                return self._result(target, "skipped_config", str(exc))
+            try:
+                driver.restart_app()  # the window changed size: start the app on the new layout
+            except DriverError as exc:
+                return self._result(target, "error", f"the app did not restart under config {target.config}: {exc}")
+        return self._explore_loop(driver, target, target_dir, deadline)
+
+    # ------------------------------------------------------------------ the loop
+
+    def _min_step_s(self, driver: DeviceDriver) -> float:
+        reserve = AI_STEP_RESERVE_S if self.ai.name != "none" else 0.0
+        return 2 * (driver.settle_ms or 0) / 1000.0 + reserve
+
+    def _driver_finding(self, target: TargetConfig, checkpoint: str, exc: Exception, screen: str, action_sig: str, what: str) -> Finding:
+        """A finding for an app failure; its signature has no step number, so repeats dedup."""
+        if isinstance(exc, AppCrashedError):
+            rule, severity = "crash", SEVERITY_BLOCKER
+        elif isinstance(exc, AppLeftError):
+            # Often meant (Share, a link to the browser): a lead for triage, not a defect.
+            rule, severity = "app-left", SEVERITY_MINOR
+        elif isinstance(exc, DriverExecutionError):
+            rule, severity = "action-failed", SEVERITY_MAJOR
+        else:
+            rule, severity = "capture-failed", SEVERITY_MAJOR
+        product = normalize_product_for_verifier(target.product)
+        return Finding(
+            id=compute_root_signature(product, screen, action_sig, rule, ""),
+            source="flow", product=product, config=target.config_label, journey="explore",
+            checkpoint=checkpoint, rule=rule, severity=severity, confidence="high", region=None,
+            message=f"{what}: {exc}", evidence=[], new_since_last_run=True,
+        )
+
+    def _explore_loop(self, driver: DeviceDriver, target: TargetConfig, target_dir: Path, deadline: float) -> WorkerResult:
+        steps: List[StepResult] = []
+        findings: List[Finding] = []
+        status, error = "completed", None
+        restarts = 0
+        t_start = time.monotonic()
+        try:
+            status, error, restarts = self._loop_body(driver, target, target_dir, deadline, steps, findings)
+        except Exception as exc:  # noqa: BLE001 - a tool bug ends this target as an error, with its steps kept
+            logger.exception("Exploration loop failed for %s", target.label)
+            status, error = "error", f"{type(exc).__name__}: {exc}"
+        t_end = time.monotonic()
+        result = WorkerResult(
+            target=target, target_dir=target_dir, status=status, step_results=steps, findings=findings,
+            start_time=t_start, end_time=t_end, error=error, app_restarts=restarts,
+        )
+        self._write(
+            target_dir / "run.json",
+            json.dumps(
+                {
+                    "target": target.label, "status": status, "error": error, "total_steps": result.total_steps,
+                    "passed_steps": result.passed_steps, "failed_steps": result.failed_steps,
+                    "findings_count": len(findings), "app_restarts": restarts, "duration_s": t_end - t_start,
+                },
+                indent=2,
+            ),
+        )
+        return result
+
+    def _loop_body(
         self,
         driver: DeviceDriver,
         target: TargetConfig,
         target_dir: Path,
-        evidence_dir: Path,
         deadline: float,
-    ) -> WorkerResult:
-        step_results: List[StepResult] = []
-        findings: List[Finding] = []
+        steps: List[StepResult],
+        findings: List[Finding],
+    ) -> Tuple[str, Optional[str], int]:
         rules = load_discovery_rules(target.product)
         selector = ActionSelector(seed=self.seed)
         recorder = ExpectationRecorder(target.product)
-        ai_provider = create_ai_adapter(self.ai_provider_name, out_dir=target_dir / "packets")
-
         step = 0
-        t_start = time.monotonic()
+        app_failures = 0  # app failures in a row; the second ends the target
+        exec_failures = 0  # steps in a row the driver could not execute
+        restarts = 0
+        captured = False
+        next_before: Optional[ScreenState] = None  # the last step's after-screen, while nothing has happened since
+        last_screen, last_action_sig = "unknown", ""
+        min_step = self._min_step_s(driver)
+        unexecutable: Set[str] = set()  # actions the driver could not perform here: not offered again
 
-        while time.monotonic() < deadline and not self.stop_event.is_set():
-            now = time.monotonic()
-            remaining_s = max(0.0, deadline - now)
-            if remaining_s <= 0.0:
-                break
+        def failed_step(status: str, finding: Finding, action: Action, expectation: Any, before: Any) -> None:
+            result = StepResult(step, action, expectation, status, [finding], before, before, config_label=target.config_label)
+            steps.append(result)
+            findings.append(finding)
+            self._log_step(target_dir, result)
 
-            step += 1
-
-            # 1. Capture pre-action state
+        def app_failed(exc: Exception, what: str) -> Optional[str]:
+            """Restart the app after a failure; the error that ends the target, if any."""
+            nonlocal app_failures, restarts, next_before
+            next_before = None
+            app_failures += 1
+            if app_failures >= 2:
+                return f"the app failed twice in a row ({what}: {exc}); giving up on this target"
             try:
-                before_state = driver.capture_state()
-            except Exception as exc:
-                logger.warning("Pre-action capture failed at step %d: %s", step, exc)
-                break
+                driver.restart_app()
+            except DriverError as restart_exc:
+                return f"the app could not be restarted after {what}: {restart_exc}"
+            restarts += 1
+            return None
 
-            # 2. Enumerate candidates & select action
-            inspection = inspect_screen(before_state.tree, target.product, rules)
-            candidates = inspection.actions
-            if not candidates:
-                action = Action(action_type="back", label="Fallback Back Navigation")
+        while not self.stop_event.is_set() and deadline - time.monotonic() > min_step:
+            step += 1
+            checkpoint = f"step_{step:02d}"
+
+            try:
+                before = next_before if next_before is not None else driver.capture_state()
+                next_before = None
+                captured = True
+            except DriverError as exc:
+                if not captured:
+                    return "error", f"cannot capture the screen at step {step}: {exc}", restarts
+                findings.append(self._driver_finding(target, checkpoint, exc, last_screen, last_action_sig, "capturing the screen"))
+                err = app_failed(exc, "capturing the screen")
+                if err:
+                    return "error", err, restarts
+                continue
+
+            if before.screen_mode == SYSTEM_PICKER_MODE:
+                action = Action("back", label="Leave the system folder picker")
             else:
-                action = selector.select(candidates, screen_state=before_state)
+                candidates = [
+                    c for c in inspect_screen(before.tree, target.product, rules).candidate_interactions
+                    if c.action.signature not in unexecutable
+                ]
+                action = selector.select(candidates, screen_state=before) if candidates else Action("back", label="No candidate interaction: back")
+            expectation = recorder.record(before, action)
+            last_screen, last_action_sig = before.screen_mode or "unknown", action.signature
 
-            # 3. Record structured pre-interaction expectation
-            expectation = recorder.record(before_state, action)
-
-            # 4. Execute action on device
             try:
                 driver.execute_action(action)
-            except AppCrashedError as exc:
-                logger.error("App crashed executing action at step %d: %s", step, exc)
-                f_crash = Finding(
-                    id=Finding.make_id(target.product, "explore", f"step_{step:02d}", "crash", [action.action_type]),
-                    source="driver",
-                    product=target.product,
-                    config=target.config,
-                    journey="explore",
-                    checkpoint=f"step_{step:02d}",
-                    rule="crash",
-                    severity="blocker",
-                    confidence="high",
-                    region=None,
-                    message=f"Application crashed during action '{action.action_type}': {exc}",
-                )
-                step_res = StepResult(
-                    step_index=step,
-                    action=action,
-                    expectation=expectation,
-                    passed=False,
-                    findings=[f_crash],
-                    before_state=before_state,
-                    after_state=before_state,
-                )
-                step_results.append(step_res)
-                findings.append(f_crash)
-                break
-            except Exception as exc:
-                logger.warning("Action execution error at step %d: %s", step, exc)
+            except (AppCrashedError, AppLeftError) as exc:
+                what = f"{action.summary()} ended the session"
+                failed_step(STATUS_FAIL, self._driver_finding(target, checkpoint, exc, last_screen, last_action_sig, what), action, expectation, before)
+                err = app_failed(exc, what)
+                if err:
+                    return "error", err, restarts
+                continue
+            except DriverError as exc:
+                failed_step(STATUS_ERROR, self._driver_finding(target, checkpoint, exc, last_screen, last_action_sig, f"could not execute {action.summary()}"), action, expectation, before)
+                unexecutable.add(action.signature)  # e.g. rotation on a docked tablet: once is the finding
+                exec_failures += 1
+                if exec_failures >= MAX_EXEC_FAILURES:
+                    return "error", f"the driver could not execute {exec_failures} steps in a row ({exc})", restarts
+                continue
+            exec_failures = 0
 
-            # Cooperative settle using stop_event
-            settle_s = (driver.settle_ms if driver.settle_ms is not None else self.settle_ms) / 1000.0
-            if settle_s > 0:
-                self.stop_event.wait(settle_s)
+            self.stop_event.wait(min((driver.settle_ms or 0) / 1000.0, max(0.0, deadline - time.monotonic())))
 
-            # 5. Capture post-action state
             try:
-                after_state = driver.capture_state()
-            except Exception as exc:
-                logger.warning("Post-action capture failed at step %d: %s", step, exc)
-                after_state = before_state
+                after = driver.capture_state()
+            except AppLeftError as exc:
+                # The action took the user out of the app. Back on the root screen does that by
+                # design (no finding); any other way out is a lead to triage. Either way the app
+                # is relaunched and the run goes on.
+                left: List[Finding] = []
+                if action.action_type != "back":
+                    left = [self._driver_finding(target, checkpoint, exc, last_screen, last_action_sig, f"{action.summary()} left the app")]
+                steps.append(StepResult(step, action, expectation, STATUS_PASS, left, before, before, config_label=target.config_label))
+                findings.extend(left)
+                self._log_step(target_dir, steps[-1])
+                try:
+                    driver.restart_app()
+                except DriverError as restart_exc:
+                    return "error", f"the app could not be restarted after {action.summary()} left it: {restart_exc}", restarts
+                restarts += 1
+                continue
+            except DriverError as exc:
+                what = f"capturing the screen after {action.summary()}"
+                finding = self._driver_finding(target, checkpoint, exc, last_screen, last_action_sig, what)
+                failed_step(STATUS_FAIL if finding.severity == SEVERITY_BLOCKER else STATUS_ERROR, finding, action, expectation, before)
+                err = app_failed(exc, what)
+                if err:
+                    return "error", err, restarts
+                continue
 
-            # 6. Verify outcome and generate findings
-            res = verify_step(
-                step_index=step,
-                action=action,
-                expectation=expectation,
-                before_state=before_state,
-                after_state=after_state,
-                product=target.product,
-                config=target.config,
-                rules=rules,
-                ai_provider=ai_provider,
-                evidence_dir=evidence_dir,
-                packet_dir=target_dir / "packets" / f"step_{step:02d}",
+            try:
+                app_log: Optional[List[str]] = driver.read_app_log()
+            except DriverError as exc:
+                logger.warning("Could not read the app log at %s: %s", checkpoint, exc)
+                app_log = None
+
+            result = verify_step(
+                step_index=step, action=action, expectation=expectation, before_state=before, after_state=after,
+                app_log=app_log, product=target.product, config=target.config_label, rules=rules,
+                ai_provider=self.ai, run_dir=self.out_dir, evidence_dir=target_dir / "evidence",
+                packet_dir=target_dir / "packets" / checkpoint,
+                remaining_s=deadline - time.monotonic(), ai_timeout_s=self.ai_timeout_s,
             )
-            step_results.append(res)
-            findings.extend(res.findings)
+            selector.record_outcome(action, before_state=before, after_state=after)
+            next_before = after
+            steps.append(result)
+            findings.extend(result.findings)
+            self._log_step(target_dir, result)
+            app_failures = 0
+        return "completed", None, restarts
 
-            # Append to stream log
-            with (target_dir / "steps.jsonl").open("a", encoding="utf-8") as f:
-                f.write(json.dumps(res.to_dict()) + "\n")
+    def _log_step(self, target_dir: Path, result: StepResult) -> None:
+        path = ensure_under(target_dir / "steps.jsonl", self.out_dir)  # type: ignore[arg-type]
+        with path.open("a", encoding="utf-8") as fh:
+            fh.write(json.dumps(result.to_dict()) + "\n")
 
-        t_end = time.monotonic()
-        target_summary = {
-            "target": target.label,
-            "total_steps": len(step_results),
-            "passed_steps": sum(1 for s in step_results if s.passed),
-            "failed_steps": sum(1 for s in step_results if not s.passed),
-            "findings_count": len(findings),
-            "duration_s": max(0.0, t_end - t_start),
-        }
-        (target_dir / "run.json").write_text(json.dumps(target_summary, indent=2), encoding="utf-8")
+    # ------------------------------------------------------------------ files
 
-        return WorkerResult(
-            target=target,
-            target_dir=target_dir,
-            status="completed",
-            step_results=step_results,
-            findings=findings,
-            start_time=t_start,
-            end_time=t_end,
-        )
+    def _mkdir(self, path: Path) -> None:
+        ensure_under(path, self.out_dir).mkdir(parents=True, exist_ok=True)  # type: ignore[arg-type]
+
+    def _write(self, path: Path | str, text: str) -> None:
+        assert self.out_dir is not None
+        target = ensure_under(self.out_dir / path, self.out_dir)
+        target.parent.mkdir(parents=True, exist_ok=True)
+        target.write_text(text, encoding="utf-8")
+
+    # ------------------------------------------------------------------ signals
+
+    def _setup_signals(self) -> None:
+        if threading.current_thread() is not threading.main_thread():
+            return
+
+        def handler(signum: int, frame: Any) -> None:
+            name = signal.Signals(signum).name
+            if self._sig_count == 0:
+                print(f"\n[lab] {name}: finishing the current steps, then restoring the devices...", file=sys.stderr)
+                self._sig_count += 1
+                self._interrupted = True
+                self.stop_event.set()
+                return
+            print(f"\n[lab] {name} again: restoring the devices now.", file=sys.stderr)
+            self._emergency_restore_all()
+            sys.exit(130 if signum == signal.SIGINT else 143)
+
+        for sig in (signal.SIGINT, signal.SIGTERM):
+            self._orig_handlers[sig] = signal.signal(sig, handler)
+
+    def _restore_signals(self) -> None:
+        if threading.current_thread() is not threading.main_thread():
+            return
+        for sig, old in self._orig_handlers.items():
+            signal.signal(sig, old)
+        self._orig_handlers.clear()
+
+    def _emergency_restore_all(self) -> None:
+        with self._lock:
+            for key, (adb, saved) in list(self._active_restorations.items()):
+                problem = restore_device(adb, saved, key)
+                if problem:
+                    print(f"[lab] {problem}", file=sys.stderr)
+            self._active_restorations.clear()
+
+
+def _split(value: Optional[str | List[str]]) -> Optional[List[str]]:
+    if isinstance(value, str):
+        items = [v.strip() for v in value.split(",") if v.strip()]
+    elif isinstance(value, (list, tuple)):
+        items = [str(v).strip() for v in value if str(v).strip()]
+    else:
+        return None
+    return items or None

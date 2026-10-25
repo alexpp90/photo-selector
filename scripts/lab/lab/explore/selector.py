@@ -10,11 +10,17 @@ import hashlib
 import json
 import random
 import secrets
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from enum import Enum
 from typing import Any, Dict, List, Optional, Sequence, Set, Tuple
 
-from .actions import Action, ActionCategory, categorize_action
+from .actions import Action, ActionCategory, CandidateInteraction, categorize_action
+
+# Weights are integers: the loop-avoidance factor (1000 = unpenalised) times the candidate's own
+# weight (`CandidateInteraction.weight`, 1.0 = ordinary).
+LOOP_BASE = 1000
+LOOP_REPEAT = 100   # 90% damping of an action chosen again and again
+LOOP_PING_PONG = 200  # 80% damping of the middle of A, B, A
 
 
 class SelectionPolicy(str, Enum):
@@ -99,26 +105,42 @@ class ActionSelector:
             return hashlib.sha256(payload.encode("utf-8")).hexdigest()[:12]
         return "default_screen"
 
+    @staticmethod
+    def _unchanged(before_state: Any, after_state: Any, sig_before: str, sig_after: str) -> bool:
+        """Whether the action changed nothing observable: tree, mode, files and picture."""
+        if sig_before != sig_after:
+            return False
+        if getattr(before_state, "screen_mode", "") != getattr(after_state, "screen_mode", ""):
+            return False
+        if getattr(before_state, "fs_snapshot", {}) != getattr(after_state, "fs_snapshot", {}):
+            return False
+        pic_before = getattr(before_state, "screenshot_bytes", b"")
+        pic_after = getattr(after_state, "screenshot_bytes", b"")
+        # A photo that changed under an identical tree (arrow key on a frame) is not a no-op.
+        return not (pic_before and pic_after and pic_before != pic_after)
+
     def record_outcome(
         self,
         action: Action,
-        screen_sig: Optional[str] = None,
         before_state: Optional[Any] = None,
         after_state: Optional[Any] = None,
+        *,
+        screen_sig: Optional[str] = None,
         is_noop: Optional[bool] = None,
     ) -> None:
-        """Record post-execution outcome to inform subsequent loop avoidance."""
-        sig = screen_sig or (self.compute_screen_signature(before_state) if before_state else "default_screen")
+        """Record what `action` did, so later steps stop repeating an action that does nothing.
+
+        The orchestrator calls this after every step with the states before and after. An
+        action that left the screen unchanged is remembered for the screen it was chosen on and
+        is not chosen there again while other actions exist (`_known_noops`).
+        """
+        sig = screen_sig or (self.compute_screen_signature(before_state) if before_state is not None else "default_screen")
 
         # Determine no-op status if not explicitly passed
         if is_noop is None and before_state is not None and after_state is not None:
-            sig_before = self.compute_screen_signature(before_state)
-            sig_after = self.compute_screen_signature(after_state)
-            mode_before = getattr(before_state, "screen_mode", "")
-            mode_after = getattr(after_state, "screen_mode", "")
-            fs_before = getattr(before_state, "fs_snapshot", {})
-            fs_after = getattr(after_state, "fs_snapshot", {})
-            is_noop = (sig_before == sig_after and mode_before == mode_after and fs_before == fs_after)
+            is_noop = self._unchanged(
+                before_state, after_state, sig, self.compute_screen_signature(after_state)
+            )
         else:
             is_noop = bool(is_noop)
 
@@ -129,9 +151,9 @@ class ActionSelector:
             self.history[-1].was_noop = is_noop
 
     def _calculate_candidate_weight(self, cand: Action, screen_sig: str) -> int:
-        """Calculate dynamic damping weight for candidate based on history."""
+        """Loop-avoidance factor (`LOOP_BASE` = none) of `cand`, from what was chosen before."""
         if not self.avoid_loops:
-            return 100
+            return LOOP_BASE
 
         # Known no-op penalty on current screen signature
         if cand.canonical_key() in self._known_noops.get(screen_sig, set()):
@@ -148,7 +170,7 @@ class ActionSelector:
                     else:
                         break
                 if consecutive >= self.max_consecutive_repeats:
-                    return 10  # 90% damping penalty
+                    return LOOP_REPEAT
 
             # Ping-Pong oscillation penalty: [A, B, A] -> penalize B
             if len(self.history) >= 3:
@@ -156,32 +178,43 @@ class ActionSelector:
                 b1 = self.history[-2].chosen_action
                 a2 = self.history[-1].chosen_action
                 if a1 == a2 and a1 != b1 and cand == b1:
-                    return 20  # 80% damping penalty
+                    return LOOP_PING_PONG
 
-        return 100
+        return LOOP_BASE
 
     def select(
         self,
-        candidates: Sequence[Action],
+        candidates: Sequence[CandidateInteraction | Action],
         screen_state: Optional[Any] = None,
         screen_sig: Optional[str] = None,
     ) -> Action:
-        """Select next interaction deterministically from candidates."""
+        """Select next interaction deterministically from candidates.
+
+        `CandidateInteraction`s count with their `weight` (a bare `Action` counts 1.0); the same
+        action offered twice counts once, with the larger weight.
+        """
         if not candidates:
             raise EmptyCandidatesError("Cannot select action: candidate action list is empty")
 
         sig = screen_sig or (self.compute_screen_signature(screen_state) if screen_state else "default_screen")
         self.step_counter += 1
 
+        own_weight: Dict[Action, float] = {}
+        for cand in candidates:
+            action, weight = (cand.action, cand.weight) if isinstance(cand, CandidateInteraction) else (cand, 1.0)
+            own_weight[action] = max(own_weight.get(action, 0.0), max(0.0, float(weight)))
+
         # Canonicalize order to ensure immunity to PYTHONHASHSEED process divergence
-        unique_cands = sorted(list(dict.fromkeys(candidates)), key=lambda a: a.canonical_key())
+        unique_cands = sorted(own_weight, key=lambda a: a.canonical_key())
 
         # Compute dynamic weights
-        cand_weights = {c: self._calculate_candidate_weight(c, sig) for c in unique_cands}
+        cand_weights = {
+            c: int(round(self._calculate_candidate_weight(c, sig) * own_weight[c])) for c in unique_cands
+        }
 
-        # Fallback: if loop avoidance suppressed ALL candidates, reset to uniform
+        # Fallback: if loop avoidance (or zero weights) suppressed ALL candidates, reset to uniform
         if sum(cand_weights.values()) == 0:
-            cand_weights = {c: 100 for c in unique_cands}
+            cand_weights = {c: LOOP_BASE for c in unique_cands}
 
         if self.policy == SelectionPolicy.UNIFORM:
             chosen = self._select_uniform(unique_cands, cand_weights)

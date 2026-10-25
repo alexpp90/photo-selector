@@ -234,82 +234,108 @@ private/lab/usability/run_panel.sh private/lab-runs/<run-id>
 
 ## Exploratory Interaction Testing (explore)
 
-Automated, time-boxed, and parallel exploratory testing loop across all four active applications:
-**Jackpix** (`phototok`), **Frameduel** (`android-desktop`), **Lensjet** (`macos-desktop`), and **Blitzlens** (`linux-desktop`). Legacy Python Desktop is strictly excluded.
+`lab.py explore` explores the live app for a fixed time: it reads the screen, picks one of the
+interactions the screen offers (seeded, so a run can be repeated), records what that interaction
+should do, performs it, and checks the screen that follows. It drives **Jackpix** (`phototok`),
+**Frameduel** (`android-desktop`) and **Blitzlens** (`linux-desktop`). **Lensjet** (`macos-desktop`)
+is refused: its test hook runs a whole scenario per launch, so there is no live app to drive, and
+the driver says `Lensjet exploration needs a live-app driver; not implemented yet` (exit 2). The
+legacy Desktop is excluded.
 
-At each step, the runner inspects the live screen state (UI hierarchy, visible controls, active modal), enumerates valid user interactions (taps, swipes, keyboard shortcuts, back navigation, backgrounding/re-entry), randomly selects an interaction under a configurable seed, establishes explicit pre-interaction expectations, executes the interaction, verifies outcomes with deterministic oracles and AI review, and logs confirmed issues.
+A step is **pass** only when it was performed and every check that applies to it ran and found
+nothing blocking. A step that could not be checked (no app log, no filesystem snapshot, an AI
+judge that failed) is **error**, a step with a blocker or major finding is **fail**, and nothing
+that was not done is reported as done.
 
 ### Command Syntax and Flags
 
 ```bash
-# Run a 15-minute exploratory session on Jackpix with Claude AI visual judging
-python3 scripts/lab/lab.py explore --product phototok --duration 15m --seed 42 --ai-provider claude
+# 15 minutes on every Jackpix device of devices.yaml, deterministic checks only
+python3 scripts/lab/lab.py explore --product phototok --duration 15m --seed 42
 
-# Run parallel exploratory testing on Frameduel tablet with Antigravity AI
-python3 scripts/lab/lab.py explore --product android-desktop --config tablet --duration 300s --ai-provider antigravity
+# One tablet, two configs, each judged live by Claude
+python3 scripts/lab/lab.py explore --product android-desktop --device <name> --config tab-landscape,tab-large-text --duration 10m --ai-provider claude
 
-# Run headless exploratory smoke test on Blitzlens under Xvfb with deterministic oracles only
-python3 scripts/lab/lab.py explore --product linux --duration 30s --ai-provider none
+# Headless Blitzlens in its own Xvfb and session bus
+python3 scripts/lab/lab.py explore --product linux --duration 30s
 
-# Export review packets for offline multi-model evaluation
-python3 scripts/lab/lab.py explore --product macos --duration 5m --ai-provider packet
+# The offline synthetic app (tests, no device)
+python3 scripts/lab/lab.py explore --product phototok --driver mock --duration 5s --out /tmp/pstlab/explore-mock
 ```
 
-Key flags:
-- `--product <name>`: Target application (`phototok`, `android-desktop`, `macos-desktop`, `linux-desktop`, or aliases `jackpix`, `frameduel`, `lensjet`, `blitzlens`, `macos`, `linux`).
-- `--duration <str>`: Time box for the exploratory loop (e.g. `15m`, `300s`, `1h`, `45`). Default: `15m`.
-- `--seed <int>`: Random seed for deterministic and reproducible action sequences. Default: `42`.
-- `--device <name>`: Specific device hardware serial or inventory alias.
-- `--config <name>`: Specific display geometry or mode (`phone`, `tablet`, `dex`, `chromebook`, `fhd`, etc.).
-- `--ai-provider <mode>`: AI expectation and post-interaction judging mode (`claude`, `antigravity`, `packet`, `none`). Default: `none` (options: `claude`, `antigravity`, `packet`, `none`).
-- `--out <dir>` / `--report-dir <dir>`: Custom output directory for run artifacts and logs.
-- `--with-personal`: Opt in to driving personal devices after verifying they are not in active use.
-- `--driver <driver>`: Interaction driver (`auto`, `direct`, `mock`).
+- `--product`: `phototok`, `android-desktop`, `macos-desktop`, `linux-desktop` (aliases `jackpix`, `frameduel`, `lensjet`, `blitzlens`, `macos`, `linux`).
+- `--duration`: the time box for the whole run, setup included (`15m`, `300s`, `1h`, `45` seconds). Default `15m`. Android setup (fixture push and the folder flow) takes about 45 s, so give a phone at least a few minutes; a step takes 5-10 s there and under 1.5 s on Blitzlens.
+- `--seed`: seed of the interaction selector. Default `42`.
+- `--device`: Android only; inventory names or serials, comma-separated. Default: the inventory's dedicated devices for the product.
+- `--config`: Android only; configs of `configs/android.yaml`, comma-separated. Default: the device's own configs. Each config of a device gets an equal share of the remaining time.
+- `--ai-provider`: `none` (default), `packet`, `claude`, `antigravity`.
+- `--out` / `--report-dir`: the run directory. Default: a new one under `private/lab-runs/`.
+- `--with-personal`: allow personal devices (never one a person is using right now).
+- `--driver`: `auto` and `direct` drive real devices; they **never fall back to the mock** (no device found: exit 2). `mock` runs the offline synthetic app and is the only way to get it.
 
-### Duration Syntax
+Exit codes: `0` every step passed and nothing blocking was found; `1` a failed or errored step, a
+blocker/major finding that is not triaged, a worker error, or no step at all in a non-zero time
+box; `2` nothing could be started (no target, a personal device without `--with-personal` or one in
+use, an unknown config, the Lensjet refusal); `3` every device is busy; `130` interrupted.
 
-The `--duration` flag accepts flexible human-readable time specifications:
-- **Seconds:** `30s`, `300s`, or raw integers `45`
-- **Minutes:** `15m`, `1.5m`, `90m`
-- **Hours:** `1h`, `0.5h`
+### What a run does to a device
 
-Workers continuously execute interaction loops until the configured duration expires, then cleanly restore all device state and window settings.
+Per device, one worker, in this order:
+
+1. Take the host locks (the device lock, and the hub lock for Android, see `lab/locks.py`) and check the device answers. Nothing on the device changes.
+2. Record the device's original settings (rotation, display size and density, font scale, night mode, stay-awake, Do Not Disturb) to `device-<serial>.explore-restore.json` in the lab tmp root, *before* the first change. If an earlier run left that file (it died before restoring), its values are the originals and are used.
+3. Make the device ready, push the lab fixture to `/sdcard/PSTLab/work`, and launch the `.lab` app on it (Blitzlens: its own Xvfb, private session bus and fixture folder).
+4. Per config: apply it, restart the app, explore until the config's share of the time is used.
+5. Restore the recorded settings, read them back, and delete the record only when they read back as recorded; otherwise the worker is `error` and the record stays for the next run.
+
+A personal device is only touched with `--with-personal`, and not while the person uses it. When
+the app dies the run records a blocker (`crash`), restarts the app on the fixture and goes on; a
+second failure in a row ends that worker as `error`. Leaving the app is often what the action is
+for: Back on the root screen closes it (no finding), and any other way out, such as Share or a
+link to the browser, is a minor `app-left` lead. Either way the app is relaunched (after Home,
+since a share sheet outlives the app). The system folder picker is never explored or linted: the
+only step taken there is Back, which cancels it without granting a folder. Jackpix is offered no
+keyboard shortcuts (it has none), and an action the driver could not perform (rotation on a
+docked tablet) is recorded once and not offered again. `Ctrl+C` finishes the current step of each
+worker, writes `run.json` and the reports for what ran, restores the devices and exits `130`; a
+second `Ctrl+C` restores at once.
+
+### What is checked
+
+- **App log:** crash and ANR lines in the log of the app's own process since the previous step (`logcat --pid` on Android, the app's stderr on Linux). The screen state's other log lines are not read.
+- **UI nodes:** crash dialogs and error banners must not appear; nodes an expectation requires must stay.
+- **Filesystem:** the lab's filesystem oracle on the working folder, against what the action should do. When exactly one of the folder's files is named on screen, a move/copy/delete must move, copy or trash that file. When none is, Blitzlens is checked by counts (its snapshot includes the Trash): the feed loses exactly one photo on move/delete (a RAW+JPEG pair counts once) and none on copy, and `Selection/` or the Trash must grow; on Android nothing is claimed about the files. Every other action must leave them unchanged. Jackpix's horizontal swipes are not file-checked (their effect depends on the swipe settings).
+- **Counter:** where the screen shows the photo counter (`position_counter`, `viewer.counter`), navigation must move the index by one (not at the ends) and culling must change the count as expected. The count is compared from one source: the counter when both screens show it, else the files.
+- **Layout:** the lab's layout rules R1-R8 on the screen the action led to.
+- **AI judge (optional):** below.
 
 ### AI Provider Modes
 
-1. **`claude`:** Live visual judging via `claude -p` CLI invocation. Analyzes before/after screenshots and UI trees against screen mode expectations.
-2. **`antigravity`:** Live visual review via Antigravity agent integration.
-3. **`packet`:** Host-agnostic packet export mode. Exports each step's before/after states, actions, and expectations to `packet-<step>/` bundles for offline evaluation.
-4. **`none`:** Operates strictly with deterministic invariant oracles (layout overlap linting, zero-size node detection, crash/ANR log parsing, and filesystem delta verification) without invoking AI models.
+- `none`: the checks above only.
+- `packet`: writes a review packet per step (`images/`, trees, `context.md`, the expectation, `schema.json`) to `<target>/packets/step_NN/` for a person or an agent to review later. Nothing ingests the packets automatically and no step is called "judged".
+- `claude`, `antigravity`: judge each step live with `claude -p` / `gemini -p`, started the way `usability-explore` starts them (model alias `sonnet` for Claude, the CLI's default for Gemini), in a sandbox under the lab tmp root outside the checkout. No step is started with less than 20 s left, and a judge call never gets more time than is left. A judge that fails (CLI missing, non-zero exit, timeout, an answer that is not a finding array) is a minor `ai-judge-error` finding and the step is `error`: an AI that did not look at a step has not passed it.
 
-### Offline Review Packet Workflow
+### Output and Triage
 
-When running with `--ai-provider packet` (or when live AI CLI tools are unavailable):
-1. Exploratory runs export structured review packets under the run directory: `packet-<step>/` containing `before.png`, `after.png`, `before.tree.json`, `after.tree.json`, and `expectation.json`.
-2. Bundles are evaluated offline by either Antigravity or Claude CLI using standard review tools:
-   ```bash
-   python3 scripts/lab/lab.py review-bundle <run-dir>
-   python3 scripts/lab/lab.py review-ingest <run-dir> --verdicts <answers.json>
-   ```
-3. Ingested verdicts are normalized, deduplicated by root signature, and merged into the run reports.
+Everything the run writes is inside the run directory; nothing is appended to a backlog,
+`REPORT.md` or any other file. Copy what you want to keep, as with the usability reports.
 
-### Output Artifacts and Reporting
+```
+<run dir>/
+  run.json              run facts: status, seed, per-worker status, errors, skipped devices, all findings
+  report.md, report.html   findings by severity (leads, not verdicts), devices table, every step; thumbnails link to the evidence
+  findings.json         deduplicated findings with occurrences, devices, steps and first/last trace
+  <product>/<device>/<config>/
+    run.json, steps.jsonl      the target's summary and one line per step
+    evidence/                  before/after screenshots and trees of the steps that have findings
+    packets/step_NN/           review packets (packet and the live AI providers)
+```
 
-Every exploratory run automatically generates comprehensive structured artifacts:
-- **Run Directory (`private/lab-runs/<run_id>/` or `/tmp/lab-runs/<run_id>/`):**
-  - `summary.html` & `report.html`: Self-contained HTML report with CSS variables, statistics cards, and inline base64 thumbnails with red bounding box annotations.
-  - `summary.md` & `report.md`: Markdown report with execution statistics, defect lists, and full step table (`| Step | Action | Expectation | Result | Defect ID |`).
-  - `summary.json` & `run.json`: Machine-readable run metadata, timings, and aggregated findings.
-  - `findings.json` & `findings.dedup.json`: Deduplicated findings with root signatures, occurrence counts, and aggregated evidence.
-  - `findings.det.json` & `findings.ai.json`: Partitioned deterministic oracle and AI review findings.
-- **Date-Staged Reports:**
-  - Reports are archived to `private/docs/build/lab-reports/<YYYY-MM-DD>/` as `<run_id>.html`, `<run_id>.md`, and `<run_id>.json`.
-  - Appended to or created as `REPORT.md` in the date directory.
-- **Canonical Backlog Logging (`private/ai/memory/code_health.md`):**
-  - Discovered defects with `blocker` or `major` severity are automatically deduplicated by 12-character root signature SHA1 and appended to `private/ai/memory/code_health.md`.
-  - Entries follow the canonical schema `## [OPEN] YYYY-MM-DD - <title>` with `**Where:**` (mapped to owner agents `@phototok-ui-agent`, `@android-desktop-ui-agent`, `@macos-desktop-agent`, `@linux-desktop-agent`), `**Debt:**` (citing root signature and occurrence count), and `**Proposal:**`.
-  - Appends directly to the resolved canonical file path, strictly preserving repository symlinks (`ai/` -> `private/ai/`).
-  - Idempotent: previously logged root signatures are automatically detected and skipped.
+Findings are deduplicated by root signature (`product|screen|action|rule|subject`, no step
+number), so one defect found on twenty steps or on two devices is one finding. They are **leads
+for a person to triage**: decide which are real, and file those yourself (`lab.py` does not).
+Root signatures listed with an active `id` in `private/lab/review/known_findings.yaml` are shown as
+known and do not fail the run.
 
 ## Safety Guarantees
 
