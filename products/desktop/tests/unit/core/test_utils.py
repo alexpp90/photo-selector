@@ -421,6 +421,23 @@ class TestGetExcludedFolderNames(unittest.TestCase):
         self.assertEqual(names, {"selection", "selected", "phototok_selection", "phototok_leftswipe"})
 
 
+class TestFocalLengthFormatting(unittest.TestCase):
+    def test_format_focal_length_label(self):
+        from photo_selector_toolbox.core.utils import _format_focal_length_label
+        self.assertEqual(_format_focal_length_label(50, 50), "50 mm")
+        self.assertEqual(_format_focal_length_label(50.0, 50.0), "50 mm")
+        self.assertEqual(_format_focal_length_label(50.5, 50.5), "50.5 mm")
+        self.assertEqual(_format_focal_length_label(35, 50), "35-50 mm")
+
+    def test_generate_exact_buckets(self):
+        from photo_selector_toolbox.core.utils import _generate_exact_buckets
+        from collections import Counter
+        counts = Counter({50: 2, 85.5: 1})
+        buckets = _generate_exact_buckets([50, 85.5], counts)
+        self.assertEqual(len(buckets), 2)
+        self.assertEqual(buckets[0], ("50 mm", 2, 50))
+        self.assertEqual(buckets[1], ("85.5 mm", 1, 85.5))
+
 if __name__ == "__main__":
     unittest.main()
 
