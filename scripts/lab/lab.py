@@ -12,7 +12,7 @@ from pathlib import Path
 
 # Commands that put generated photos on real devices. They need the real Pillow: the built-in
 # fallback writes PNG data inside JPEG markers, which no camera app, picker or decoder reads.
-_NEEDS_REAL_DEPS = {"run", "fixtures", "checkpoint"}
+_NEEDS_REAL_DEPS = {"run", "fixtures", "checkpoint", "explore"}
 _PROBE = "import PIL.Image, yaml"
 
 
