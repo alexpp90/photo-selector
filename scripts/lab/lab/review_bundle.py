@@ -30,12 +30,14 @@ def compute_image_change_fraction(
 
         cur_bytes = cur_small.tobytes()
         prev_bytes = prev_small.tobytes()
-        total_pixels = width * cur_h
+        # Count the pixels actually compared: the built-in Pillow fallback keeps a smaller buffer
+        # than width x height.
+        total_pixels = min(len(cur_bytes), len(prev_bytes)) // 3
         if total_pixels == 0:
             return 0.0
 
         changed = 0
-        for idx in range(0, len(cur_bytes), 3):
+        for idx in range(0, total_pixels * 3, 3):
             if (
                 abs(cur_bytes[idx] - prev_bytes[idx]) > threshold
                 or abs(cur_bytes[idx + 1] - prev_bytes[idx + 1]) > threshold
