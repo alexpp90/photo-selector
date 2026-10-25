@@ -237,7 +237,9 @@ class ExpectationRecorder:
             fs = {"present": [photo, f"Selection/{photo}"]}
         elif kind == "delete":
             index, count = 0, -1
-            fs = {"absent": [photo], "trashed": [photo]}
+            fs = {"absent": [photo]}
+            if self.product in _COUNTS_PRODUCTS:  # only there does the snapshot list the Trash
+                fs["trashed"] = [photo]
         else:
             index, count = 0, 1
             fs = {"present": [photo], "absent": [f"Selection/{photo}"]}

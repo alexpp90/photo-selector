@@ -5,6 +5,7 @@ from __future__ import annotations
 import sys
 import tempfile
 import unittest
+from unittest.mock import patch
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
@@ -178,6 +179,16 @@ class FeedCountSourceTest(VerifierTest):
         after = make_state(default_state().tree.nodes, files=["a.jpg", "b.jpg"])  # a dialog hides the counter
         res = self.verify(before=before, after=after, exp=expectation(expected_feed_count_delta=0))
         self.assertNotIn("unexpected-feed-count-delta", [f.rule for f in res.findings])
+
+class LintConfigTest(VerifierTest):
+    def test_the_lint_gets_the_config_without_the_device(self) -> None:
+        with patch("lab.explore.verifier.lint", return_value=[]) as lint:
+            verify_step(
+                step_index=1, action=TAP, expectation=expectation(), before_state=default_state(), after_state=default_state(),
+                app_log=[], product="android-desktop", config="tab-landscape@pixel-tablet", run_dir=self.run_dir,
+                evidence_dir=self.run_dir / "evidence", packet_dir=None,
+            )
+        self.assertEqual(lint.call_args.kwargs["config"], "tab-landscape")
 
 class PickerLintTest(VerifierTest):
     def test_the_system_picker_is_not_linted(self) -> None:

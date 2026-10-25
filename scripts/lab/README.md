@@ -285,15 +285,17 @@ Per device, one worker, in this order:
 1. Take the host locks (the device lock, and the hub lock for Android, see `lab/locks.py`) and check the device answers. Nothing on the device changes.
 2. Record the device's original settings (rotation, display size and density, font scale, night mode, stay-awake, Do Not Disturb) to `device-<serial>.explore-restore.json` in the lab tmp root, *before* the first change. If an earlier run left that file (it died before restoring), its values are the originals and are used.
 3. Make the device ready, push the lab fixture to `/sdcard/PSTLab/work`, and launch the `.lab` app on it (Blitzlens: its own Xvfb, private session bus and fixture folder).
-4. Per config: apply it, restart the app, explore until the config's share of the time is used.
+4. Per config (`default` first): apply it and restart the app (`default` only turns on Do Not Disturb, so no other app's notification reaches a screenshot), then explore until the config's share of the time is used.
 5. Restore the recorded settings, read them back, and delete the record only when they read back as recorded; otherwise the worker is `error` and the record stays for the next run.
 
 A personal device is only touched with `--with-personal`, and not while the person uses it. When
 the app dies the run records a blocker (`crash`), restarts the app on the fixture and goes on; a
 second failure in a row ends that worker as `error`. Leaving the app is often what the action is
-for: Back on the root screen closes it (no finding), and any other way out, such as Share or a
-link to the browser, is a minor `app-left` lead. Either way the app is relaunched (after Home,
-since a share sheet outlives the app). The system folder picker is never explored or linted: the
+for, so it is a lead, not a failure: Back that closes the app is a polish `app-left` (one per
+screen it left from: on the root screen that is normal, elsewhere it may be a defect), any other
+way out, such as Share or a link to the browser, a minor one. Either way the app is relaunched
+(after Home, since a share sheet outlives the app); three exits in a row end that worker as
+`error`. The system folder picker is never explored or linted: the
 only step taken there is Back, which cancels it without granting a folder. Jackpix is offered no
 keyboard shortcuts (it has none), and an action the driver could not perform (rotation on a
 docked tablet) is recorded once and not offered again. `Ctrl+C` finishes the current step of each

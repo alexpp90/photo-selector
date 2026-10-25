@@ -369,7 +369,7 @@ class InteractionVerifier:
             tree=after_state.tree,
             rules=self.rules,
             product=self.product,
-            config=self.config,
+            config=self.config.split("@", 1)[0],  # the rules' frame sizes are keyed by config, not config@device
             journey="explore",
             checkpoint="explore",
         )

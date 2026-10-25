@@ -282,6 +282,20 @@ class TestAndroidCapture(AndroidCase):
     def test_the_app_in_front_is_not_the_picker(self) -> None:
         self.assertNotEqual(self.ready().capture_state().screen_mode, SYSTEM_PICKER_MODE)
 
+    def test_an_offline_device_is_not_a_crashed_app(self) -> None:
+        driver = self.ready()
+
+        def offline(args):
+            if args[:2] == ("shell", "pidof"):
+                return subprocess.CalledProcessError(1, ["adb"], b"", b"error: device offline")
+            return None
+
+        self.device.fail = offline
+        with self.assertRaises(DriverError) as ctx:
+            driver.capture_state()
+        self.assertNotIsInstance(ctx.exception, AppCrashedError)
+        self.assertIn("device offline", str(ctx.exception))
+
     def test_a_vanished_process_raises_app_crashed_with_the_crash_log(self) -> None:
         device = FakeDevice(pid=None)
         device.log = "FATAL EXCEPTION: main"

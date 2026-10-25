@@ -40,6 +40,7 @@ from ..android.configs import (
     load_android_configs,
     record_device_state,
     reset_config,
+    set_dnd,
 )
 from ..inventory import AndroidDevice, Inventory, load_inventory, resolve_android_device, select_android_devices
 from ..locks import DeviceBusy
@@ -66,6 +67,7 @@ from .verifier import (
     SEVERITY_BLOCKER,
     SEVERITY_MAJOR,
     SEVERITY_MINOR,
+    SEVERITY_POLISH,
     STATUS_ERROR,
     STATUS_FAIL,
     STATUS_PASS,
@@ -78,6 +80,10 @@ logger = logging.getLogger(__name__)
 
 RESTORE_POLLS = 6
 RESTORE_POLL_S = 0.5
+# The last step's after-screen stands in for the next before-screen only this fresh: an AI judge
+# can take minutes, and a toast, snackbar or notification may have come or gone meanwhile.
+REUSE_SCREEN_S = 3.0
+MAX_LEFT_STREAK = 3
 MAX_EXEC_FAILURES = 3  # steps in a row the driver may fail to execute before the target ends
 AI_STEP_RESERVE_S = 20.0  # a step is not started when an AI judge could not finish within the time box
 PRODUCTS = ("phototok", "android-desktop", "macos-desktop", "linux-desktop")
@@ -403,11 +409,9 @@ class ExploratoryOrchestrator:
         if self.product == "linux-desktop":
             return [TargetConfig(self.product, "xvfb", "default", app_id="app.alpatix.Blitzlens", target_type="linux")]
 
-        mac = self.inventory.mac
-        personal = mac.personal if mac else True
-        if personal and not self.with_personal:
-            raise ValueError("device 'mac' is a personal device; add --with-personal to opt in")
-        return [TargetConfig(self.product, "mac", "default", is_personal=personal, app_id="app.alpatix.lensjet", target_type="macos")]
+        # Lensjet has no live-app driver: refused before the personal-device check, so this is
+        # the reason a person sees.
+        raise ValueError(MacOSDeviceDriver.REFUSAL)
 
     def _resolve_android(self, app_id: str) -> List[TargetConfig]:
         inventory = self.inventory
@@ -537,6 +541,8 @@ class ExploratoryOrchestrator:
 
     def _run_device_group(self, group: List[TargetConfig]) -> List[WorkerResult]:
         """Drive one device through all its configs, restoring its settings at the end."""
+        # `default` applies no config, so it runs first, before another config changed the device.
+        group = sorted(group, key=lambda t: t.config != "default")
         first = group[0]
         if first.is_personal and not self.with_personal:
             msg = f"device '{first.device_id}' is a personal device; add --with-personal to opt in"
@@ -616,6 +622,10 @@ class ExploratoryOrchestrator:
     def _run_config(self, driver: DeviceDriver, adb: Optional[AdbClient], target: TargetConfig, deadline: float) -> WorkerResult:
         target_dir = self._target_dir(target)
         self._mkdir(target_dir)
+        if adb is not None and target.config == "default":
+            # The device's own settings, but never another app's notification in a screenshot
+            # (or in what an AI judge is sent). DND is part of the recorded state, so it is restored.
+            set_dnd(adb, "on")
         if adb is not None and target.config != "default":
             try:
                 logger.info("Applying config %s to device %s", target.config, target.device_key)
@@ -700,9 +710,11 @@ class ExploratoryOrchestrator:
         restarts = 0
         captured = False
         next_before: Optional[ScreenState] = None  # the last step's after-screen, while nothing has happened since
+        next_before_at = 0.0
         last_screen, last_action_sig = "unknown", ""
         min_step = self._min_step_s(driver)
-        unexecutable: Set[str] = set()  # actions the driver could not perform here: not offered again
+        unexecutable: Set[Tuple[str, str]] = set()  # (screen, action) the driver could not perform: not offered again
+        left_streak = 0  # steps in a row that took the user out of the app
 
         def failed_step(status: str, finding: Finding, action: Action, expectation: Any, before: Any) -> None:
             result = StepResult(step, action, expectation, status, [finding], before, before, config_label=target.config_label)
@@ -729,7 +741,8 @@ class ExploratoryOrchestrator:
             checkpoint = f"step_{step:02d}"
 
             try:
-                before = next_before if next_before is not None else driver.capture_state()
+                fresh = next_before is not None and time.monotonic() - next_before_at <= REUSE_SCREEN_S
+                before = next_before if fresh else driver.capture_state()
                 next_before = None
                 captured = True
             except DriverError as exc:
@@ -746,7 +759,7 @@ class ExploratoryOrchestrator:
             else:
                 candidates = [
                     c for c in inspect_screen(before.tree, target.product, rules).candidate_interactions
-                    if c.action.signature not in unexecutable
+                    if (before.screen_mode or "", c.action.signature) not in unexecutable
                 ]
                 action = selector.select(candidates, screen_state=before) if candidates else Action("back", label="No candidate interaction: back")
             expectation = recorder.record(before, action)
@@ -763,7 +776,8 @@ class ExploratoryOrchestrator:
                 continue
             except DriverError as exc:
                 failed_step(STATUS_ERROR, self._driver_finding(target, checkpoint, exc, last_screen, last_action_sig, f"could not execute {action.summary()}"), action, expectation, before)
-                unexecutable.add(action.signature)  # e.g. rotation on a docked tablet: once is the finding
+                if action.action_type != "back":  # e.g. rotation on a docked tablet: once is the finding
+                    unexecutable.add((before.screen_mode or "", action.signature))
                 exec_failures += 1
                 if exec_failures >= MAX_EXEC_FAILURES:
                     return "error", f"the driver could not execute {exec_failures} steps in a row ({exc})", restarts
@@ -774,13 +788,17 @@ class ExploratoryOrchestrator:
 
             try:
                 after = driver.capture_state()
+                after_captured_at = time.monotonic()
             except AppLeftError as exc:
                 # The action took the user out of the app. Back on the root screen does that by
-                # design (no finding); any other way out is a lead to triage. Either way the app
-                # is relaunched and the run goes on.
-                left: List[Finding] = []
-                if action.action_type != "back":
-                    left = [self._driver_finding(target, checkpoint, exc, last_screen, last_action_sig, f"{action.summary()} left the app")]
+                # design, Share or a link on purpose, so each is a lead to triage, not a failure:
+                # Back as polish (one per screen it left from), anything else as minor. The app is
+                # relaunched; a streak of exits ends the target, as nothing else is being tested.
+                left_streak += 1
+                finding = self._driver_finding(target, checkpoint, exc, last_screen, last_action_sig, f"{action.summary()} left the app")
+                if action.action_type == "back":
+                    finding.severity = SEVERITY_POLISH
+                left = [finding]
                 steps.append(StepResult(step, action, expectation, STATUS_PASS, left, before, before, config_label=target.config_label))
                 findings.extend(left)
                 self._log_step(target_dir, steps[-1])
@@ -789,6 +807,8 @@ class ExploratoryOrchestrator:
                 except DriverError as restart_exc:
                     return "error", f"the app could not be restarted after {action.summary()} left it: {restart_exc}", restarts
                 restarts += 1
+                if left_streak >= MAX_LEFT_STREAK:
+                    return "error", f"{left_streak} steps in a row left the app; nothing else was tested", restarts
                 continue
             except DriverError as exc:
                 what = f"capturing the screen after {action.summary()}"
@@ -813,7 +833,8 @@ class ExploratoryOrchestrator:
                 remaining_s=deadline - time.monotonic(), ai_timeout_s=self.ai_timeout_s,
             )
             selector.record_outcome(action, before_state=before, after_state=after)
-            next_before = after
+            next_before, next_before_at = after, after_captured_at
+            left_streak = 0
             steps.append(result)
             findings.extend(result.findings)
             self._log_step(target_dir, result)

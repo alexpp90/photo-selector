@@ -192,10 +192,12 @@ class DeviceOrderTest(LabTmpCase):
         self.assertEqual(summary.status, "completed")
         self.assertGreater(summary.total_steps, 0)
 
-    def test_the_default_config_is_not_applied(self) -> None:
+    def test_the_default_config_is_not_applied_but_silences_notifications(self) -> None:
         self.patches()
-        self.build(configs=None).run()
+        with patch.object(orch, "set_dnd") as dnd:
+            self.build(configs=None).run()
         self.apply.assert_not_called()
+        dnd.assert_called_once_with(self.adb, "on")  # restored with the recorded state
 
     def test_a_read_back_that_differs_keeps_the_record_and_fails_the_run(self) -> None:
         self.patches(readback=[ORIGINAL, CHANGED, CHANGED])
@@ -338,16 +340,32 @@ class LoopTest(WorkerCase):
         self.assertEqual(worker.app_restarts, 2)
         self.assertNotIn("fail", [r.status for r in summary.step_results])
 
-    def test_back_that_closes_the_app_restarts_it_without_a_finding(self) -> None:
+    def test_back_that_closes_the_app_is_a_polish_lead_and_restarts_it(self) -> None:
         s = default_state()
         left = AppLeftError("com.google.android.apps.nexuslauncher is in front of com.phototok.lab")
         with always_select(Action("back", label="System Back Navigation")):
             summary = self.run_with({"captures": [s, left, s]})
         (worker,) = summary.worker_results
         self.assertEqual(worker.status, "completed")
-        self.assertNotIn("app-left", [f.rule for f in summary.findings])
+        [lead] = [f for f in summary.findings if f.rule == "app-left"]
+        self.assertEqual(lead.severity, "polish")
         self.assertEqual(summary.step_results[0].status, "pass")
         self.assertIn("restart", self.drivers[0].calls)
+
+    def test_a_streak_of_exits_ends_the_target(self) -> None:
+        s = default_state()
+        left = AppLeftError("android is in front of com.phototok.lab")
+        with always_select(Action("tap", target_id="btn_share", label="Share")):
+            summary = self.run_with({"captures": [s, left] * 5})
+        (worker,) = summary.worker_results
+        self.assertEqual(worker.status, "error")
+        self.assertIn("left the app", worker.error)
+        self.assertEqual(summary.total_steps, 3)
+
+    def test_a_stale_after_screen_is_captured_again(self) -> None:
+        with patch.object(orch, "REUSE_SCREEN_S", -1.0):
+            summary = self.run_with()
+        self.assertEqual(self.drivers[0].capture_count, 2 * summary.total_steps)
 
     def test_the_system_picker_is_only_ever_left(self) -> None:
         picker = default_state()
@@ -641,10 +659,11 @@ class CliTest(LabTmpCase):
         self.assertIn("--with-personal", err)
 
     def test_lensjet_is_refused_with_the_drivers_message(self) -> None:
-        inv = Inventory(mac=MacHost(host="mac.local", personal=False))
-        code, _, err = self.run_cli("--product", "lensjet", "--duration", "1s", "--out", str(self.run_dir), inventory=inv)
-        self.assertEqual(code, 2)
-        self.assertIn("needs a live-app driver; not implemented yet", err)
+        for personal in (False, True):  # the refusal comes before the personal-device check
+            inv = Inventory(mac=MacHost(host="mac.local", personal=personal))
+            code, _, err = self.run_cli("--product", "lensjet", "--duration", "1s", "--out", str(self.run_dir), inventory=inv)
+            self.assertEqual(code, 2)
+            self.assertIn("needs a live-app driver; not implemented yet", err)
 
     def test_bad_arguments_exit_2(self) -> None:
         for argv in (["--product", "phototok", "--duration", "soon"], ["--product", "linux", "--device", "x", "--duration", "1s"], ["--product", "phototok", "--config", "nope", "--driver", "auto"]):

@@ -414,7 +414,15 @@ class AndroidDeviceDriver(DeviceDriver):
     def _app_pid(self) -> Optional[int]:
         try:
             out = self.adb.run("shell", "pidof", self.app_id)
-        except subprocess.CalledProcessError:  # pidof exits 1 when there is no such process
+        except subprocess.CalledProcessError as exc:
+            # pidof exits 1 with no output when there is no such process; adb itself failing
+            # (device offline, unauthorized) is not a dead app.
+            said = "".join(
+                part.decode("utf-8", "replace") if isinstance(part, bytes) else str(part)
+                for part in (exc.stderr or b"", exc.output or b"")
+            ).strip()
+            if said:
+                raise DriverError(f"adb could not look for {self.app_id}: {said}") from exc
             return None
         m = re.search(r"\d+", out)
         if m:
