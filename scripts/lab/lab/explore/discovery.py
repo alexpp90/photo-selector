@@ -267,12 +267,12 @@ def enumerate_interactive_elements(
     try:
         w_val = float(tree.window_w)
         win_w = 0.0 if math.isnan(w_val) or math.isinf(w_val) or w_val <= 0 else w_val
-    except Exception:
+    except (TypeError, ValueError):
         win_w = 0.0
     try:
         h_val = float(tree.window_h)
         win_h = 0.0 if math.isnan(h_val) or math.isinf(h_val) or h_val <= 0 else h_val
-    except Exception:
+    except (TypeError, ValueError):
         win_h = 0.0
 
     for node in tree.nodes:
@@ -369,7 +369,7 @@ def enumerate_gestures(
         h_raw = float(tree.window_h)
         win_w = 1080.0 if math.isnan(w_raw) or math.isinf(w_raw) or w_raw <= 0 else max(w_raw, 360.0)
         win_h = 1920.0 if math.isnan(h_raw) or math.isinf(h_raw) or h_raw <= 0 else max(h_raw, 640.0)
-    except Exception:
+    except (TypeError, ValueError):
         win_w, win_h = 1080.0, 1920.0
 
     candidates: List[CandidateInteraction] = []
@@ -910,7 +910,7 @@ def enumerate_lifecycle_actions(
             h_raw = float(tree.window_h)
             cur_w = 1280.0 if math.isnan(w_raw) or math.isinf(w_raw) or w_raw <= 0 else w_raw
             cur_h = 800.0 if math.isnan(h_raw) or math.isinf(h_raw) or h_raw <= 0 else h_raw
-        except Exception:
+        except (TypeError, ValueError):
             cur_w, cur_h = 1280.0, 800.0
         alt_w = int(cur_w * 0.85) if cur_w > 1000 else int(cur_w * 1.15)
         alt_h = int(cur_h * 0.85) if cur_h > 700 else int(cur_h * 1.15)
