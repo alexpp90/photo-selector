@@ -232,6 +232,85 @@ private/lab/usability/run_panel.sh private/lab-runs/<run-id>
   reports cycles, dead ends, hesitations and charter violations. A failed agent call ends the
   run as `error`.
 
+## Exploratory Interaction Testing (explore)
+
+Automated, time-boxed, and parallel exploratory testing loop across all four active applications:
+**Jackpix** (`phototok`), **Frameduel** (`android-desktop`), **Lensjet** (`macos-desktop`), and **Blitzlens** (`linux-desktop`). Legacy Python Desktop is strictly excluded.
+
+At each step, the runner inspects the live screen state (UI hierarchy, visible controls, active modal), enumerates valid user interactions (taps, swipes, keyboard shortcuts, back navigation, backgrounding/re-entry), randomly selects an interaction under a configurable seed, establishes explicit pre-interaction expectations, executes the interaction, verifies outcomes with deterministic oracles and AI review, and logs confirmed issues.
+
+### Command Syntax and Flags
+
+```bash
+# Run a 15-minute exploratory session on Jackpix with Claude AI visual judging
+python3 scripts/lab/lab.py explore --product phototok --duration 15m --seed 42 --ai-provider claude
+
+# Run parallel exploratory testing on Frameduel tablet with Antigravity AI
+python3 scripts/lab/lab.py explore --product android-desktop --config tablet --duration 300s --ai-provider antigravity
+
+# Run headless exploratory smoke test on Blitzlens under Xvfb with deterministic oracles only
+python3 scripts/lab/lab.py explore --product linux --duration 30s --ai-provider none
+
+# Export review packets for offline multi-model evaluation
+python3 scripts/lab/lab.py explore --product macos --duration 5m --ai-provider packet
+```
+
+Key flags:
+- `--product <name>`: Target application (`phototok`, `android-desktop`, `macos-desktop`, `linux-desktop`, or aliases `jackpix`, `frameduel`, `lensjet`, `blitzlens`, `macos`, `linux`).
+- `--duration <str>`: Time box for the exploratory loop (e.g. `15m`, `300s`, `1h`, `45`). Default: `15m`.
+- `--seed <int>`: Random seed for deterministic and reproducible action sequences. Default: `42`.
+- `--device <name>`: Specific device hardware serial or inventory alias.
+- `--config <name>`: Specific display geometry or mode (`phone`, `tablet`, `dex`, `chromebook`, `fhd`, etc.).
+- `--ai-provider <mode>`: AI expectation and post-interaction judging mode (`claude`, `antigravity`, `packet`, `none`). Default: `none` (options: `claude`, `antigravity`, `packet`, `none`).
+- `--out <dir>` / `--report-dir <dir>`: Custom output directory for run artifacts and logs.
+- `--with-personal`: Opt in to driving personal devices after verifying they are not in active use.
+- `--driver <driver>`: Interaction driver (`auto`, `direct`, `mock`).
+
+### Duration Syntax
+
+The `--duration` flag accepts flexible human-readable time specifications:
+- **Seconds:** `30s`, `300s`, or raw integers `45`
+- **Minutes:** `15m`, `1.5m`, `90m`
+- **Hours:** `1h`, `0.5h`
+
+Workers continuously execute interaction loops until the configured duration expires, then cleanly restore all device state and window settings.
+
+### AI Provider Modes
+
+1. **`claude`:** Live visual judging via `claude -p` CLI invocation. Analyzes before/after screenshots and UI trees against screen mode expectations.
+2. **`antigravity`:** Live visual review via Antigravity agent integration.
+3. **`packet`:** Host-agnostic packet export mode. Exports each step's before/after states, actions, and expectations to `packet-<step>/` bundles for offline evaluation.
+4. **`none`:** Operates strictly with deterministic invariant oracles (layout overlap linting, zero-size node detection, crash/ANR log parsing, and filesystem delta verification) without invoking AI models.
+
+### Offline Review Packet Workflow
+
+When running with `--ai-provider packet` (or when live AI CLI tools are unavailable):
+1. Exploratory runs export structured review packets under the run directory: `packet-<step>/` containing `before.png`, `after.png`, `before.tree.json`, `after.tree.json`, and `expectation.json`.
+2. Bundles are evaluated offline by either Antigravity or Claude CLI using standard review tools:
+   ```bash
+   python3 scripts/lab/lab.py review-bundle <run-dir>
+   python3 scripts/lab/lab.py review-ingest <run-dir> --verdicts <answers.json>
+   ```
+3. Ingested verdicts are normalized, deduplicated by root signature, and merged into the run reports.
+
+### Output Artifacts and Reporting
+
+Every exploratory run automatically generates comprehensive structured artifacts:
+- **Run Directory (`private/lab-runs/<run_id>/` or `/tmp/lab-runs/<run_id>/`):**
+  - `summary.html` & `report.html`: Self-contained HTML report with CSS variables, statistics cards, and inline base64 thumbnails with red bounding box annotations.
+  - `summary.md` & `report.md`: Markdown report with execution statistics, defect lists, and full step table (`| Step | Action | Expectation | Result | Defect ID |`).
+  - `summary.json` & `run.json`: Machine-readable run metadata, timings, and aggregated findings.
+  - `findings.json` & `findings.dedup.json`: Deduplicated findings with root signatures, occurrence counts, and aggregated evidence.
+  - `findings.det.json` & `findings.ai.json`: Partitioned deterministic oracle and AI review findings.
+- **Date-Staged Reports:**
+  - Reports are archived to `private/docs/build/lab-reports/<YYYY-MM-DD>/` as `<run_id>.html`, `<run_id>.md`, and `<run_id>.json`.
+  - Appended to or created as `REPORT.md` in the date directory.
+- **Canonical Backlog Logging (`private/ai/memory/code_health.md`):**
+  - Discovered defects with `blocker` or `major` severity are automatically deduplicated by 12-character root signature SHA1 and appended to `private/ai/memory/code_health.md`.
+  - Entries follow the canonical schema `## [OPEN] YYYY-MM-DD - <title>` with `**Where:**` (mapped to owner agents `@phototok-ui-agent`, `@android-desktop-ui-agent`, `@macos-desktop-agent`, `@linux-desktop-agent`), `**Debt:**` (citing root signature and occurrence count), and `**Proposal:**`.
+  - Appends directly to the resolved canonical file path, strictly preserving repository symlinks (`ai/` -> `private/ai/`).
+  - Idempotent: previously logged root signatures are automatically detected and skipped.
+
 ## Safety Guarantees
 
 1. **Path Guard (`lab/paths.py`):** Every host filesystem write or deletion is restricted by `ensure_under()` to `/tmp/pstlab`, `~/PSTLab`, or `private/lab-runs`. Every Android `adb` deletion/push is restricted by `ensure_android_lab_path()` to `/sdcard/PSTLab/`.

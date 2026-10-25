@@ -182,6 +182,76 @@ def build_parser() -> argparse.ArgumentParser:
         help="Run directory (default: a new private/lab-runs/<id>-explore)",
     )
 
+    # explore (Feature 1, M3)
+    p_exp = sub.add_parser(
+        "explore",
+        help="Time-boxed exploratory interaction testing across products",
+        description="Run seeded, expectation-driven exploratory UI testing on target devices.",
+    )
+    p_exp.add_argument(
+        "--product",
+        choices=[
+            "phototok",
+            "jackpix",
+            "android-desktop",
+            "frameduel",
+            "macos-desktop",
+            "macos",
+            "lensjet",
+            "linux-desktop",
+            "linux",
+            "blitzlens",
+        ],
+        required=True,
+        help="Target product (phototok, android-desktop, macos-desktop, linux-desktop, or aliases jackpix, frameduel, lensjet, blitzlens; legacy desktop excluded)",
+    )
+    p_exp.add_argument(
+        "--duration",
+        default="15m",
+        help="Time budget for exploratory session (e.g. 15m, 300s, 1h, 45; default: 15m)",
+    )
+    p_exp.add_argument(
+        "--seed",
+        type=int,
+        default=42,
+        help="PRNG random seed for reproducible action selection (default: 42)",
+    )
+    p_exp.add_argument(
+        "--device",
+        default=None,
+        help="Target device nickname or ADB serial (or comma-separated list; default: all eligible devices)",
+    )
+    p_exp.add_argument(
+        "--config",
+        default=None,
+        help="Target config layout (e.g. phone-portrait, tab-landscape; default: all supported configs)",
+    )
+    p_exp.add_argument(
+        "--ai-provider",
+        choices=["claude", "antigravity", "packet", "none"],
+        default="none",
+        help="AI provider for pre-interaction expectation generation and judging (default: none)",
+    )
+    p_exp.add_argument(
+        "--out",
+        "--report-dir",
+        dest="out",
+        default=None,
+        help="Explicit output run directory (default: new directory under private/lab-runs/ or /tmp/lab-runs/)",
+    )
+    p_exp.add_argument(
+        "--with-personal",
+        action="store_true",
+        default=False,
+        help="Allow running exploratory testing on personal devices (requires active user check)",
+    )
+    p_exp.add_argument(
+        "--driver",
+        choices=["auto", "direct", "mock"],
+        default="auto",
+        help="Driver execution mode: 'auto' (detect environment), 'direct' (hardware/app), or 'mock' (offline test driver)",
+    )
+
     return parser
 
 
@@ -393,7 +463,145 @@ def main(argv: list[str] | None = None) -> int:
         )
         return 0
 
+    if args.subcommand == "explore":
+        return _explore(args)
+
     return 2
+
+
+def _explore(args: argparse.Namespace) -> int:
+    """Execute time-boxed exploratory testing across target devices."""
+    import subprocess
+
+    from .explore.discovery import normalize_product_name
+    from .explore.orchestrator import ExploratoryOrchestrator, parse_duration_string
+    from .locks import DeviceBusy
+    from .paths import new_run_dir, repo_root
+
+    # 1. Parse duration
+    try:
+        duration_s = parse_duration_string(args.duration)
+    except ValueError as exc:
+        print(f"error: invalid --duration {args.duration!r}: {exc}", file=sys.stderr)
+        return 2
+
+    # 2. Normalize product name
+    try:
+        product = normalize_product_name(args.product)
+    except ValueError as exc:
+        print(f"error: {exc}", file=sys.stderr)
+        return 2
+
+    # 3. Resolve run output directory
+    if args.out:
+        out_dir = Path(args.out).expanduser().resolve()
+        out_dir.mkdir(parents=True, exist_ok=True)
+    elif args.driver == "mock":
+        import tempfile
+
+        from .paths import lab_tmp_root
+
+        out_dir = Path(tempfile.mkdtemp(prefix=f"explore-mock-{product}-", dir=lab_tmp_root()))
+    else:
+        try:
+            sha = subprocess.run(
+                ["git", "-C", str(repo_root()), "rev-parse", "--short", "HEAD"],
+                capture_output=True,
+                text=True,
+                check=False,
+            ).stdout.strip() or "unknown"
+        except Exception:
+            sha = "unknown"
+        out_dir = new_run_dir(sha, label=f"explore-{product}")
+
+    # 4. Parse devices and configs
+    devices = [d.strip() for d in args.device.split(",")] if args.device else None
+    configs = [c.strip() for c in args.config.split(",")] if args.config else None
+
+    # 5. Initialize orchestrator
+    try:
+        orchestrator = ExploratoryOrchestrator(
+            product=product,
+            duration=duration_s,
+            seed=int(args.seed),
+            out_dir=out_dir,
+            device=devices,
+            config=configs,
+            ai_provider=args.ai_provider,
+            driver=args.driver,
+            with_personal=bool(args.with_personal),
+        )
+    except ValueError as exc:
+        print(f"error: {exc}", file=sys.stderr)
+        return 2
+
+    # 6. Run exploratory session
+    try:
+        summary = orchestrator.run()
+    except DeviceBusy as exc:
+        print(f"device is busy: {exc}", file=sys.stderr)
+        return 3
+    except KeyboardInterrupt:
+        print("\n[lab] exploration interrupted by user (SIGINT)", file=sys.stderr)
+        return 130
+    except ValueError as exc:
+        print(f"error: {exc}", file=sys.stderr)
+        return 2
+    except Exception as exc:
+        print(f"error: exploratory session failed: {exc}", file=sys.stderr)
+        return 1
+
+    # Check for in-use or personal device skip errors
+    for w in getattr(summary, "worker_results", []):
+        if w.status in ("skipped_in_use", "skipped_personal"):
+            print(f"error: {w.error}", file=sys.stderr)
+            return 2
+
+    # 7. Generate report and log to canonical backlog
+    report_artifacts = {}
+    try:
+        from .explore.reporter import generate_explore_report, log_findings_to_canonical_backlog
+
+        import tempfile
+
+        tmp_root_str = str(Path(tempfile.gettempdir()).resolve())
+        is_live_run = args.driver != "mock" and not str(out_dir).startswith(tmp_root_str)
+        report_artifacts = generate_explore_report(
+            summary,
+            summary.run_dir,
+            date_stage=is_live_run if not args.out else None,
+        )
+        if is_live_run:
+            logged_count = log_findings_to_canonical_backlog(
+                summary.findings,
+                repo_path=None,
+                date_str=None,
+                seed=getattr(args, "seed", None),
+            )
+            if logged_count > 0:
+                print(f"Logged {logged_count} blocker/major finding(s) to code_health.md")
+    except Exception as exc:
+        print(f"[lab] Warning: Report generation failed: {exc}", file=sys.stderr)
+
+    # 8. Print summary and return exit code
+    total = summary.total_steps
+    passed = summary.passed_steps
+    failed = summary.failed_steps
+    findings_count = len(summary.findings)
+    print(f"Exploration completed: {total} steps ({passed} passed, {failed} failed), {findings_count} findings")
+    print(f"Run directory: {summary.run_dir}")
+    if "report_md" in report_artifacts:
+        print(f"Report: {report_artifacts['report_md']}")
+    if "report_html" in report_artifacts:
+        print(f"HTML report: {report_artifacts['report_html']}")
+
+    # Check for worker fatal errors
+    if any(w.status == "error" for w in getattr(summary, "worker_results", [])):
+        return 1
+
+    # Exit code: 1 if failures or blocker/major findings exist, otherwise 0
+    blockers = [f for f in summary.findings if getattr(f, "severity", "") in ("blocker", "major")]
+    return 1 if (failed > 0 or len(blockers) > 0) else 0
 
 
 def _usability(args: argparse.Namespace) -> int:

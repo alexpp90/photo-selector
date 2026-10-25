@@ -51,7 +51,8 @@ def downscale_image(src: Path, dst: Path, max_long_edge: int = 1600) -> tuple[in
         orig_w, orig_h = img.size
         long_edge = max(orig_w, orig_h)
         if long_edge <= max_long_edge:
-            shutil.copy2(src, dst)
+            if src.resolve() != dst.resolve():
+                shutil.copy2(src, dst)
         else:
             scale = max_long_edge / long_edge
             new_size = (max(1, int(round(orig_w * scale))), max(1, int(round(orig_h * scale))))
