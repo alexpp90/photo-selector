@@ -610,9 +610,14 @@ def enumerate_gestures(
 
     # --- Desktop Viewport Slot Gestures / Clicks ---
     elif norm_product in ("macos-desktop", "linux-desktop") and screen_mode in ("viewer", "workspace", "selector", "unknown"):
-        prev_slot = by_id.get("slot_previous") or by_id.get("slot_previous_image")
-        next_slot = by_id.get("slot_next") or by_id.get("slot_next_image")
-        cur_slot = by_id.get("slot_current") or by_id.get("slot_current_image") or by_id.get("single_image_viewport")
+        # A slot is clicked only where the app says it takes clicks: Blitzlens' slot frames are
+        # plain containers (no click handler), so a click there navigates nowhere by design.
+        def clickable(*ids: str) -> Optional[Node]:
+            return next((by_id[i] for i in ids if i in by_id and by_id[i].interactive), None)
+
+        prev_slot = clickable("slot_previous", "slot_previous_image")
+        next_slot = clickable("slot_next", "slot_next_image")
+        cur_slot = clickable("slot_current", "slot_current_image", "single_image_viewport")
 
         if prev_slot and prev_slot.visible and prev_slot.w > 0:
             candidates.append(

@@ -939,6 +939,7 @@ class LinuxDeviceDriver(DeviceDriver):
             tree = Tree.from_dict(json.loads(tree_path.read_text(encoding="utf-8")))
         except (OSError, ValueError, KeyError) as exc:
             raise DriverError(f"checkpoint {stem} has no readable tree: {exc}") from exc
+        position = self._read_position(self.artifacts_dir / f"{stem}.state.json")
         try:
             fs_snapshot = snapshot_directory(
                 self.working_dir, lab_tmp_root(), trash_dir=self.lab_dir / "xdg-data" / "Trash" / "files", root_label="work"
@@ -951,9 +952,23 @@ class LinuxDeviceDriver(DeviceDriver):
             screen_mode=classify_screen(tree, self.product),
             fs_snapshot=fs_snapshot,
             logs=[],
+            position=position,
         )
         self.last_state = state
         return state
+
+    @staticmethod
+    def _read_position(path: Path) -> Tuple[int, int]:
+        """`(current_index, total)` from the checkpoint's `state.json`, the app's own position.
+
+        The tree has no counter node ("Photo 5 of 9" is not exported), so without this file no
+        navigation step on Blitzlens is checked; a checkpoint without it is a driver error.
+        """
+        try:
+            data = json.loads(path.read_text(encoding="utf-8"))
+            return int(data["current_index"]), int(data["total"])
+        except (OSError, ValueError, KeyError, TypeError) as exc:
+            raise DriverError(f"checkpoint {path.name} has no readable position: {exc}") from exc
 
     def read_app_log(self) -> List[str]:
         """What the app wrote to stderr/stdout since the last call."""

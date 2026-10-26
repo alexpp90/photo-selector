@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import dataclasses
+
 import sys
 import tempfile
 import unittest
@@ -121,6 +123,15 @@ class VerifierTest(unittest.TestCase):
         self.assertEqual([f.rule for f in wrong.findings], ["unexpected-index-delta"])
         right = self.verify(before=at("3 / 9"), after=at("4 / 9"), exp=expectation(expected_index_delta=1))
         self.assertEqual(right.status, "pass")
+
+    def test_index_delta_from_the_apps_own_position(self) -> None:
+        # Blitzlens: no counter node in the tree, the driver's position from state.json instead.
+        def at(index: int, total: int):
+            return dataclasses.replace(make_state([node("slot_current", [0, 0, 100, 60], interactive=False)]), position=(index, total))
+
+        stuck = self.verify(before=at(2, 9), after=at(2, 9), exp=expectation(expected_index_delta=1))
+        self.assertEqual([f.rule for f in stuck.findings], ["unexpected-index-delta"])
+        self.assertEqual(self.verify(before=at(2, 9), after=at(3, 9), exp=expectation(expected_index_delta=1)).status, "pass")
 
     def test_layout_findings_name_the_nodes_involved(self) -> None:
         def screen(*pairs):

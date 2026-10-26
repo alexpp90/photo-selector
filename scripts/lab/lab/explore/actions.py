@@ -167,3 +167,6 @@ class ScreenState:
     screen_mode: str  # e.g. "landing", "viewer", "selector", "inspect", "empty", "dialog"
     fs_snapshot: Dict[str, Any]  # Working directory file list & markers
     logs: List[str] = field(default_factory=list)
+    # The app's own `(0-based index, photo count)`, when the driver reads it beside the tree
+    # (Blitzlens writes it with every checkpoint); None where only the tree's counter can tell.
+    position: Optional[Tuple[int, Optional[int]]] = None

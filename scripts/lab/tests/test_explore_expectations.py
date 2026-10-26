@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import dataclasses
 import json
 import sys
 import unittest
@@ -45,6 +46,28 @@ class ReadCounterTest(unittest.TestCase):
         state = make_state([node("position_counter", [0, 0, 10, 10], text="", name="5 / 9", interactive=False)])
         self.assertEqual(read_counter(state), (4, 9))
 
+    def test_the_label_child_of_a_counter_container(self) -> None:
+        # Jackpix (uiautomator, 2026-10-26): the tag is on the container, the text on its child.
+        state = make_state([
+            node("viewer.counter", [300, 700, 80, 30], interactive=False),
+            node("#22", [310, 705, 60, 20], text="1 / 12", parent="viewer.counter", interactive=False),
+            node("exif", [0, 0, 100, 20], text="2 / 3", interactive=False),
+        ])
+        self.assertEqual(read_counter(state), (0, 12))
+        # A grandchild is not the label.
+        state = make_state([node("viewer.counter", [300, 700, 80, 30], interactive=False),
+                            node("box", [300, 700, 80, 30], parent="viewer.counter", interactive=False),
+                            node("#23", [310, 705, 60, 20], text="1 / 12", parent="box", interactive=False)])
+        self.assertIsNone(read_counter(state))
+
+    def test_the_apps_own_position_wins_over_the_tree(self) -> None:
+        # Blitzlens exports no counter node; its driver reads the position from state.json.
+        state = make_state([node("slot_current", [0, 0, 10, 10], interactive=False)])
+        self.assertIsNone(read_counter(state))
+        state.position = (4, 9)
+        self.assertEqual(read_counter(state), (4, 9))
+        self.assertEqual(read_counter(dataclasses.replace(counter_state("1 / 3"), position=(0, 0))), (0, 0))
+
 
 class NavigationTest(unittest.TestCase):
     def test_feed_position_comes_from_the_screen(self) -> None:
@@ -59,8 +82,44 @@ class NavigationTest(unittest.TestCase):
         self.assertEqual(back.expected_index_delta, -1)
 
     def test_explicit_position_overrides_the_screen(self) -> None:
-        exp = ExpectationRecorder().record(counter_state("3 / 24"), Action("key", params={"key": "Right"}), feed_index=23, feed_count=24)
+        exp = ExpectationRecorder("android-desktop").record(counter_state("3 / 24"), Action("key", params={"key": "Right"}), feed_index=23, feed_count=24)
         self.assertEqual(exp.expected_index_delta, 0)
+
+    def test_without_a_position_no_index_change_is_claimed(self) -> None:
+        # Nothing on the screen says where the feed is, so the verifier could not check a claim;
+        # 2026-10-26: 115 and 124 Blitzlens navigation steps per run passed with no oracle behind them.
+        exp = ExpectationRecorder("linux-desktop").record(make_state([node("slot_current", [0, 0, 10, 10], interactive=False)]), Action("key", params={"key": "J"}))
+        self.assertIsNone(exp.expected_index_delta)
+        self.assertIn("index not checked", exp.description)
+
+    def test_navigation_keys_are_the_ones_the_product_binds(self) -> None:
+        def delta(product: str, key: str):
+            return ExpectationRecorder(product).record(counter_state("3 / 24"), Action("key", params={"key": key})).expected_index_delta
+
+        # Blitzlens (keyboard_router.py): Left/H/K back, Right/L/J on; Space zooms, Up/Down are unbound.
+        self.assertEqual([delta("linux-desktop", k) for k in ("Left", "H", "K", "Right", "L", "J")], [-1, -1, -1, 1, 1, 1])
+        for key in ("Space", "Up", "Down", "Page_Down"):
+            self.assertIsNone(delta("linux-desktop", key), key)
+        # Frameduel (SelectorScreen.kt): only the arrows; L opens Inspect.
+        self.assertEqual([delta("android-desktop", k) for k in ("Left", "Right")], [-1, 1])
+        for key in ("L", "J", "K", "H", "Up", "Down", "Space"):
+            self.assertIsNone(delta("android-desktop", key), key)
+        # Lensjet: arrows with Up/Down, and the Vim keys.
+        self.assertEqual([delta("macos-desktop", k) for k in ("Up", "K", "Down", "J")], [-1, -1, 1, 1])
+        # Jackpix handles no keys of its own.
+        self.assertIsNone(delta("phototok", "Right"))
+
+    def test_next_in_a_guide_is_not_feed_navigation(self) -> None:
+        # Frameduel's coach overlay: "Next" turns the guide's page (2026-10-26, 11 taps in one run).
+        rec = ExpectationRecorder("android-desktop")
+        coach = rec.record(counter_state("3 / 24"), Action("tap", target_id="coach_overlay_next", label="Tap Next"))
+        self.assertIsNone(coach.expected_index_delta)
+        self.assertEqual(rec.record(counter_state("3 / 24"), Action("tap", target_id="btn_next", label="Tap Next")).expected_index_delta, 1)
+
+    def test_an_unbound_key_expects_nothing_to_change(self) -> None:
+        exp = ExpectationRecorder("linux-desktop").record(counter_state("3 / 24"), Action("key", params={"key": "Space"}))
+        self.assertEqual(exp.expected_feed_count_delta, 0)
+        self.assertEqual(exp.fs_expect, {"unchanged": True})
 
     def test_modified_arrow_keys_are_not_navigation(self) -> None:
         exp = ExpectationRecorder("android-desktop").record(counter_state("3 / 24"), Action("key", params={"key": "Right", "modifiers": ["alt"]}))

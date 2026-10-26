@@ -399,6 +399,18 @@ class TestCandidateHardwareShortcuts(unittest.TestCase):
         for k in ["Left", "Right", "H", "L", "J", "K"]:
             self.assertIn(k, keys)
 
+    def test_slots_are_clicked_only_where_the_app_takes_clicks(self) -> None:
+        # Blitzlens' slot frames are containers without a click handler: a click navigates
+        # nowhere, and a 2026-10-26 run expected "next photo" from 17 such clicks (27 slot clicks in all).
+        def slot_clicks(interactive: bool) -> set:
+            nodes = [Node(id=i, parent=None, role="container", name=i, bounds=b, interactive=interactive, visible=True)
+                     for i, b in (("slot_current", [0, 46, 1220, 290]), ("slot_previous", [0, 350, 600, 190]), ("slot_next", [616, 350, 600, 190]))]
+            res = inspect_screen(Tree(platform="linux", window={"w": 1220, "h": 600}, nodes=nodes), "linux-desktop")
+            return {c.action.target_id for c in res.candidate_interactions if c.action.target_id and c.action.target_id.startswith("slot_")}
+
+        self.assertEqual(slot_clicks(False), set())
+        self.assertEqual(slot_clicks(True), {"slot_current", "slot_next", "slot_previous"})
+
     def test_culling_shortcuts(self) -> None:
         tree = Tree(platform="linux", window={"w": 1920, "h": 1080},
                     nodes=[Node(id="slot_current_image", parent=None, role="image", name="Curr", bounds=[100, 100, 800, 600], interactive=True, visible=True)])
