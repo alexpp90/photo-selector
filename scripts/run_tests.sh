@@ -360,13 +360,20 @@ if $run_python; then
         # baselines are rendered under Xvfb, so macOS/Windows font metrics
         # produce false diffs. This gate is genuinely un-runnable off Linux —
         # it is reported as SKIPPED rather than silently omitted.
+        # On Linux they hold the CI image's font build too: any other distribution
+        # fails them on glyph edges alone, so scripts/visual_baseline_host.py
+        # reports such a host SKIPPED with its reason (PST_VISUAL_ANY_HOST=1 runs it).
         section "Visual regression"
+        visual_host_rc=0
+        visual_host_reason="$(python3 "$ROOT_DIR/scripts/visual_baseline_host.py")" || visual_host_rc=$?
         if $quick; then
             skip "visual tests" "" "--quick"
         elif [ "$(uname -s)" != "Linux" ]; then
             skip "visual tests" "" "linux_only — baselines are Xvfb-rendered; CI job 'Visual regression tests' covers this"
         elif [ ${#XVFB_PREFIX[@]} -eq 0 ] && [ -z "${DISPLAY:-}" ]; then
             skip "visual tests" "" "no Xvfb and no DISPLAY (apt install xvfb)"
+        elif [ "$visual_host_rc" -eq 3 ]; then
+            skip "visual tests" "" "$visual_host_reason"
         else
             gate "pytest tests/visual/ -m visual" "desktop.yml:visual" \
                 pyx pytest tests/visual/ --tb=short -q -o faulthandler_timeout=120 -m visual

@@ -32,7 +32,7 @@ The rule that prevents it:
 | flake8 `src/ tests/` | `desktop.yml:lint` | ✅ everywhere | **Gates the entire desktop pipeline.** A lint error fails the run before one test executes. |
 | pytest `-m "not visual"` | `desktop.yml:test` | ✅ everywhere | Same marker filter locally and in CI. CI and the mirror both pass `-o faulthandler_timeout=120` (also to the visual job), so a test that blocks in Tk or native code fails with every thread's stack instead of hanging. On Linux the runner renders it on its own Xvfb, as CI does — see [GUI gates run on Xvfb](#gui-gates-run-on-xvfb-not-your-screen). |
 | Coverage `--cov-fail-under=60` | `desktop.yml:test` (**Linux only**) | ✅ advisory everywhere | See [Coverage is Linux-authoritative](#coverage-is-linux-authoritative). |
-| Visual regression | `desktop.yml:visual` | ⚠️ Linux + Xvfb; baselines are runner-rendered | See [Visual regression](#visual-regression-linux-only). |
+| Visual regression | `desktop.yml:visual` | ⚠️ Linux + Xvfb on CI's `ubuntu-24.04` image; SKIPPED elsewhere (baselines are runner-rendered) | See [Visual regression](#visual-regression-linux-only). |
 | `testDebugUnitTest` | `android.yml:unit-tests` | ✅ needs JDK 17 + Android SDK | |
 | `assembleDebugAndroidTest` | `android.yml:unit-tests` | ✅ needs JDK 17 + Android SDK | Compiles `tests/instrumented/`. Nothing else does. |
 | `check_native_alignment.py` | `android.yml:unit-tests`, `android.yml:build` | ✅ needs JDK 17 + Android SDK (unit tests run everywhere via `scripts/tests`) | Inspects every `lib/{arm64-v8a,x86_64}/*.so` in `merged_native_libs/debug` and built APK/AAB archives and fails if any ELF `PT_LOAD` segment has `p_align < 16384` (Google Play 16 KB page-size mandate). For `.apk` files it also fails if a stored (uncompressed) `.so` does not start at a 16 KB-aligned zip offset (`zipalign -P 16`); bundles are exempt. The mirror builds and checks the debug APKs like the `build` job. |
@@ -108,12 +108,16 @@ runner image**. macOS and Windows font rasterisation differs enough to produce f
 so the tests are marked `linux_only` and the local runner reports them SKIPPED off Linux.
 
 Xvfb alone does not make them reproducible on every Linux box. A Debian 13 workstation
-renders the same widgets through a different font build than `ubuntu-latest`, which lands
-around 0.9 % of pixels — just over the 0.5 % `DEFAULT_THRESHOLD` in
-`tests/visual/conftest.py` — on text-heavy baselines. Diffs that size, concentrated on glyph
-edges, are the font stack and not a regression; `tests/visual/diffs/<name>_diff.png` shows
-which. Treat `desktop.yml:visual` as authoritative and re-render baselines only from a CI
-run.
+renders the same widgets through a different font build than `ubuntu-latest`: measured
+2026-10-24, eight of nine tests differ by 0.9–3.9 % of pixels, all on glyphs and emoji,
+against the 0.5 % `DEFAULT_THRESHOLD` in `tests/visual/conftest.py`. That is the font stack,
+not a regression, so the local runner reports the gate `⊘ SKIPPED` on any host other than
+the image the visual job runs on (`ubuntu-24.04`, the `BASELINE_HOST` in
+`scripts/visual_baseline_host.py`; its test checks the job's `runs-on`), naming both hosts.
+`PST_VISUAL_ANY_HOST=1 ./scripts/run_tests.sh` runs it anyway, and
+`tests/visual/diffs/<name>_diff.png` then shows where it differs. Treat `desktop.yml:visual`
+as authoritative and re-render baselines only from a CI run. When GitHub moves
+`ubuntu-latest` to a new image, update `BASELINE_HOST` in the same commit.
 
 ### macOS native Swift testing and Darwin runner isolation
 
