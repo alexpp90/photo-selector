@@ -37,7 +37,7 @@ def make_summary(run_dir: Path, findings=(), steps=(), workers=(), skipped=(), s
         run_id=run_dir.name, run_dir=run_dir, start_time=0.0, end_time=12.0, product="phototok", seed=42,
         status=status, findings=list(findings), step_results=list(steps), worker_results=list(workers),
         skipped_devices=list(skipped), total_steps=len(steps), passed_steps=sum(s.passed for s in steps),
-        failed_steps=sum(not s.passed for s in steps),
+        failed_steps=sum(not s.passed for s in steps), unchecked_passes=sum(bool(s.passed and s.unchecked) for s in steps),
     )
 
 
@@ -171,6 +171,15 @@ class ReportTest(unittest.TestCase):
         reporter.generate_explore_report(make_summary(self.run_dir))
         self.assertIn("_None._", (self.run_dir / "report.md").read_text(encoding="utf-8"))
         self.assertIn("<em>None.</em>", (self.run_dir / "report.html").read_text(encoding="utf-8"))
+
+    def test_a_pass_with_an_unchecked_claim_says_so(self) -> None:
+        open_claim = step(4)
+        open_claim.unchecked = ["index"]
+        reporter.generate_explore_report(make_summary(self.run_dir, [], [step(1), open_claim]))
+        md = (self.run_dir / "report.md").read_text(encoding="utf-8")
+        self.assertIn("- Passed with a claim not checked: 1", md)
+        self.assertIn("| PASS (index not checked) |", md)
+        self.assertIn('class="badge badge-pass">PASS (index not checked)', (self.run_dir / "report.html").read_text(encoding="utf-8"))
 
     def test_step_table_shows_status_and_findings(self) -> None:
         f = finding(fid="c" * 12)

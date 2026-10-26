@@ -26,21 +26,36 @@ _COUNTER_RE = re.compile(r"\s*(\d+)\s*/\s*(\d+)(\+?)\s*")
 
 _CAMEL = re.compile(r"(?<=[a-z0-9])(?=[A-Z])")
 _MODIFIER_UNDO = {"ctrl", "control", "meta", "cmd", "super"}
-_KEYS_NEXT = {"RIGHT", "DOWN", "J", "L", "PAGE_DOWN", "PAGEDOWN", "SPACE"}
-_KEYS_PREV = {"LEFT", "UP", "K", "H", "PAGE_UP", "PAGEUP"}
 _KEYS_DELETE = {"DELETE", "DEL", "BACKSPACE"}
+# The keys each product binds to its previous / next photo, read from its key handling. Any
+# other key is not navigation there: Space zooms in Blitzlens, L opens Inspect in Frameduel.
+_NAV_KEYS: Dict[str, Tuple[Set[str], Set[str]]] = {
+    # SelectorScreen.kt handleSelectorKey: only the arrows navigate.
+    "android-desktop": ({"LEFT"}, {"RIGHT"}),
+    # keyboard_router.py (R-LINUX-KEY-02): Left/H/K and Right/L/J; Up and Down are unbound.
+    "linux-desktop": ({"LEFT", "H", "K"}, {"RIGHT", "L", "J"}),
+    # KeyboardShortcutRouter.swift / ContentView.swift: arrows, Up/Down included, and Vim keys.
+    "macos-desktop": ({"LEFT", "UP", "H", "K"}, {"RIGHT", "DOWN", "L", "J"}),
+}
+_NO_NAV_KEYS: Tuple[Set[str], Set[str]] = (set(), set())  # Jackpix handles no keys of its own
+_GUIDE_WORDS = {"coach", "tutorial", "onboarding", "guide"}
 
 
 def read_counter(state: ScreenState) -> Optional[Tuple[int, Optional[int]]]:
-    """`(0-based index, photo count)` from the HUD counter node, or None when it is not shown.
+    """`(0-based index, photo count)` from the app's own report, else the HUD counter node, or None.
 
     Only the counter node is read, and only its whole text: `1/250` in an EXIF card is not a
     position. A count with a trailing `+` ("3 / 40+", the feed is still loading) has no count.
+    Where the tag sits on a container, its label is a direct child: Jackpix's `viewer.counter`
+    has no text of its own, its "1 / 12" is the child's (2026-10-26, Pixel 4a).
     """
+    if state.position is not None:
+        return state.position
     for node in state.tree.nodes:
         if node.id not in HUD_COUNTER_IDS:
             continue
-        for text in (node.text, node.name):
+        labels = [n for n in state.tree.nodes if n.parent == node.id]
+        for text in [node.text, node.name] + [t for n in labels for t in (n.text, n.name)]:
             m = _COUNTER_RE.fullmatch(text or "")
             if m:
                 return int(m.group(1)) - 1, (None if m.group(3) else int(m.group(2)))
@@ -140,10 +155,13 @@ class ExpectationRecorder:
             return self.record_cull(before_state, action, active_photo, "copy")
 
 
+        prev_keys, next_keys = _NAV_KEYS.get(self.product, _NO_NAV_KEYS)
+        # "Next" in a guide pages the guide, not the feed (Frameduel's coach_overlay_next).
+        guide = bool(_words(action.target_id) & _GUIDE_WORDS)
         if (
             act_type in ("swipe", "scroll")
-            or (key in _KEYS_NEXT | _KEYS_PREV and not mods)
-            or words & {"next", "prev", "previous", "forward"}
+            or (key in prev_keys | next_keys and not mods)
+            or (words & {"next", "prev", "previous", "forward"} and not guide)
         ):
             return self.record_navigation(before_state, action, feed_index, feed_count)
 
@@ -161,18 +179,26 @@ class ExpectationRecorder:
         feed_index: Optional[int] = None,
         feed_count: Optional[int] = None,
     ) -> Expectation:
-        """Directional feed navigation: one photo on, or one back, clamped at the ends."""
+        """Directional feed navigation: one photo on, or one back, clamped at the ends.
+
+        The index change is claimed only when the screen before shows the position: without it
+        the verifier has nothing to compare, and the step must not read as a checked pass.
+        """
         key = str(action.params.get("key", "")).upper()
         direction = str(action.params.get("direction", "")).lower()
-        words = _words(action.target_id, action.label)
-        is_prev = direction in ("down", "left", "prev", "previous") or key in _KEYS_PREV or bool(words & {"prev", "previous"})
+        words = _words(action.target_id, action.label) if action.action_type.lower() != "key" else set()
+        prev_keys = _NAV_KEYS.get(self.product, _NO_NAV_KEYS)[0]
+        is_prev = direction in ("down", "left", "prev", "previous") or key in prev_keys or bool(words & {"prev", "previous"})
 
-        if is_prev:
-            if feed_index is not None and feed_index <= 0:
+        delta: Optional[int]
+        if feed_index is None:
+            delta, desc = None, f"Feed moves to the {'previous' if is_prev else 'next'} photo (no position shown: index not checked)"
+        elif is_prev:
+            if feed_index <= 0:
                 delta, desc = 0, "At the start of the feed, navigation stays on the first photo"
             else:
                 delta, desc = -1, "Feed returns to the previous photo; index decreases by 1"
-        elif feed_index is not None and feed_count is not None and feed_index >= feed_count - 1:
+        elif feed_count is not None and feed_index >= feed_count - 1:
             delta, desc = 0, "At the end of the feed, navigation stays on the last photo"
         else:
             delta, desc = 1, "Feed advances to the next photo; index increases by 1"

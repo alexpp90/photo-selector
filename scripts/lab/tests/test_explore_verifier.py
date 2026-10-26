@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import dataclasses
+
 import sys
 import tempfile
 import unittest
@@ -121,6 +123,31 @@ class VerifierTest(unittest.TestCase):
         self.assertEqual([f.rule for f in wrong.findings], ["unexpected-index-delta"])
         right = self.verify(before=at("3 / 9"), after=at("4 / 9"), exp=expectation(expected_index_delta=1))
         self.assertEqual(right.status, "pass")
+
+    def test_a_claim_without_a_position_after_is_not_checked_never_passed_silently(self) -> None:
+        # 2026-10-26 mentor review: the before side alone was guarded; a counter gone after the
+        # action (a tap hid the overlays) still let the step read as a checked pass.
+        def at(text=None):
+            nodes = [node("position_counter", [0, 0, 100, 60], text=text, interactive=False)] if text else [node("x", [0, 0, 10, 10], interactive=False)]
+            return make_state(nodes)
+
+        open_claim = self.verify(before=at("3 / 9"), after=at(), exp=expectation(expected_index_delta=1))
+        self.assertEqual(open_claim.status, "pass")
+        self.assertEqual(open_claim.unchecked, ["index"])
+        self.assertEqual(open_claim.to_dict()["unchecked"], ["index"])
+        checked = self.verify(before=at("3 / 9"), after=at("4 / 9"), exp=expectation(expected_index_delta=1))
+        self.assertEqual(checked.unchecked, [])
+        no_claim = self.verify(before=at(), after=at())
+        self.assertEqual(no_claim.unchecked, [])
+
+    def test_index_delta_from_the_apps_own_position(self) -> None:
+        # Blitzlens: no counter node in the tree, the driver's position from state.json instead.
+        def at(index: int, total: int):
+            return dataclasses.replace(make_state([node("slot_current", [0, 0, 100, 60], interactive=False)]), position=(index, total))
+
+        stuck = self.verify(before=at(2, 9), after=at(2, 9), exp=expectation(expected_index_delta=1))
+        self.assertEqual([f.rule for f in stuck.findings], ["unexpected-index-delta"])
+        self.assertEqual(self.verify(before=at(2, 9), after=at(3, 9), exp=expectation(expected_index_delta=1)).status, "pass")
 
     def test_layout_findings_name_the_nodes_involved(self) -> None:
         def screen(*pairs):

@@ -24,6 +24,7 @@ from lab.android.adb import AdbClient  # noqa: E402
 from lab.android.configs import ConfigNotRunError  # noqa: E402
 from lab.explore.actions import Action  # noqa: E402
 from lab.explore.discovery import SYSTEM_PICKER_MODE  # noqa: E402
+from lab.explore.expectations import read_counter  # noqa: E402
 from lab.explore.driver import (  # noqa: E402
     AndroidDeviceDriver,
     AppCrashedError,
@@ -680,6 +681,8 @@ class TestLinuxCommands(unittest.TestCase):
                 name = cmd[-1].strip("'")
                 (art / f"01_{name}.png").write_bytes(b"\x89PNGdata")
                 (art / f"01_{name}.tree.json").write_text(json.dumps(tree), encoding="utf-8")
+                state = {"current_index": 4, "total": 9, "tally": {"selected": 1, "trashed": 0, "remaining": 9}, "mode": 3}
+                (art / f"01_{name}.state.json").write_text(json.dumps(state), encoding="utf-8")
                 (art / f"01_{name}.timing.json").write_text("{}", encoding="utf-8")
             return subprocess.CompletedProcess(cmd, 0, "", "")
 
@@ -690,6 +693,29 @@ class TestLinuxCommands(unittest.TestCase):
         self.assertEqual(state.screenshot_bytes, b"\x89PNGdata")
         self.assertEqual(state.fs_snapshot["files"], [{"path": "IMG_1.JPG", "size": 1}])
         self.assertEqual(state.screen_mode, "viewer")
+        # The tree exports no counter; the app's own position is what navigation is checked by.
+        self.assertEqual(state.position, (4, 9))
+        self.assertEqual(read_counter(state), (4, 9))
+
+    def test_a_checkpoint_without_the_apps_position_is_an_error(self) -> None:
+        art = self.driver.artifacts_dir
+        art.mkdir(parents=True)
+        (self.tmp / "work").mkdir()
+        self.driver._app_proc = types.SimpleNamespace(poll=lambda: None)  # type: ignore[assignment]
+        tree = {"platform": "linux", "window": {"w": 100, "h": 100}, "nodes": []}
+
+        def exec_fn(cmd: list[str], env: dict[str, str]) -> subprocess.CompletedProcess[str]:
+            if cmd[0] == "gapplication":
+                name = cmd[-1].strip("'")
+                (art / f"01_{name}.png").write_bytes(b"\x89PNGdata")
+                (art / f"01_{name}.tree.json").write_text(json.dumps(tree), encoding="utf-8")
+                (art / f"01_{name}.timing.json").write_text("{}", encoding="utf-8")
+            return subprocess.CompletedProcess(cmd, 0, "", "")
+
+        self.driver.exec_fn = exec_fn
+        with self.assertRaises(DriverError) as ctx:
+            self.driver.capture_state()
+        self.assertIn("position", str(ctx.exception))
 
     def test_a_checkpoint_without_a_screenshot_is_an_error(self) -> None:
         art = self.driver.artifacts_dir

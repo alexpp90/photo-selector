@@ -12,7 +12,7 @@ from __future__ import annotations
 
 import json
 import logging
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Tuple
 
@@ -52,6 +52,9 @@ class StepResult:
     after_state: ScreenState
     packet_dir: Optional[Path] = None
     config_label: str = ""  # `<config>@<device>`, the `config` of this step's findings
+    # Claims of the expectation no oracle could check (e.g. "index": no position on one side).
+    # The step's status ignores them; the report shows them, so a pass is never read as checked.
+    unchecked: List[str] = field(default_factory=list)
 
     @property
     def passed(self) -> bool:
@@ -66,6 +69,7 @@ class StepResult:
             "status": self.status,
             "findings": [f.to_dict() for f in self.findings],
             "packet_dir": str(self.packet_dir) if self.packet_dir else None,
+            "unchecked": list(self.unchecked),
         }
 
 
@@ -203,7 +207,8 @@ class InteractionVerifier:
             unavailable("fs", "the driver returned no filesystem snapshot")
         else:
             findings += self.verify_filesystem(expectation, before_state, after_state, screen_sig, action_sig, checkpoint, evidence)
-        findings += self.verify_deltas(expectation, before_state, after_state, screen_sig, action_sig, checkpoint, evidence)
+        delta_findings, not_checked = self.verify_deltas(expectation, before_state, after_state, screen_sig, action_sig, checkpoint, evidence)
+        findings += delta_findings
         findings += self.verify_layout(after_state, after_state.screen_mode or "unknown", checkpoint, evidence)
 
         ai_findings, ai_packet, ai_error = self.verify_ai(
@@ -233,6 +238,7 @@ class InteractionVerifier:
             after_state=after_state,
             packet_dir=ai_packet,
             config_label=self.config,
+            unchecked=not_checked,
         )
 
     # ------------------------------------------------------------------ oracles
@@ -337,15 +343,27 @@ class InteractionVerifier:
             )
         ]
 
-    def verify_deltas(self, expectation: Expectation, before_state: ScreenState, after_state: ScreenState, screen_sig: str, action_sig: str, checkpoint: str, evidence: List[str]) -> List[Finding]:
-        """Photo index (HUD counter) and feed size (counter, else the files) moved as expected."""
+    def verify_deltas(
+        self, expectation: Expectation, before_state: ScreenState, after_state: ScreenState, screen_sig: str, action_sig: str, checkpoint: str, evidence: List[str]
+    ) -> Tuple[List[Finding], List[str]]:
+        """Photo index (HUD counter) and feed size (counter, else the files) moved as expected.
+
+        Returns the findings and the claims that could not be checked: a screen without the
+        position or count on either side leaves the claim open, which is not a pass.
+        """
         findings: List[Finding] = []
+        unchecked: List[str] = []
         checks = (
-            ("unexpected-index-delta", "Photo index", expectation.expected_index_delta, _index(before_state), _index(after_state)),
-            ("unexpected-feed-count-delta", "Feed photo count", expectation.expected_feed_count_delta, *_feed_counts(before_state, after_state)),
+            ("index", "unexpected-index-delta", "Photo index", expectation.expected_index_delta, _index(before_state), _index(after_state)),
+            ("feed-count", "unexpected-feed-count-delta", "Feed photo count", expectation.expected_feed_count_delta, *_feed_counts(before_state, after_state)),
         )
-        for rule, what, expected, before, after in checks:
-            if expected is None or before is None or after is None or after - before == expected:
+        for claim, rule, what, expected, before, after in checks:
+            if expected is None:
+                continue
+            if before is None or after is None:
+                unchecked.append(claim)
+                continue
+            if after - before == expected:
                 continue
             findings.append(
                 self._finding(
@@ -354,7 +372,7 @@ class InteractionVerifier:
                     screen_sig=screen_sig, action_sig=action_sig, subject="", checkpoint=checkpoint, evidence=evidence,
                 )
             )
-        return findings
+        return findings, unchecked
 
     def verify_layout(self, after_state: ScreenState, screen_sig: str, checkpoint: str, evidence: List[str]) -> List[Finding]:
         """Layout rules R1-R8 on the screen the action led to.
