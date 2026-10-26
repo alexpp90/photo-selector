@@ -181,7 +181,25 @@ EXIT_CODE=0
 SKIPPED_ANY=false
 SKIPPED_UNRUNNABLE=false
 RESULTS_FILE="$(mktemp)"
-trap 'rm -f "$RESULTS_FILE"' EXIT
+GATE_OUT="$(mktemp)"
+trap 'rm -f "$RESULTS_FILE" "$GATE_OUT"' EXIT
+
+# ── Disk Space Preflight ──────────────────────────────────────────
+# Check disk space before gates that fill the Gradle/SwiftPM caches
+check_disk_space() {
+    local threshold_gb="${PST_MIN_SPACE_GB:-5}"
+    local free_kb
+    free_kb=$(df -kP . | awk 'NR==2 {print $4}')
+    if [ -n "$free_kb" ]; then
+        local free_gb
+        free_gb=$(awk -v kb="$free_kb" 'BEGIN {printf "%.2f", kb / 1048576}')
+        if awk -v free="$free_gb" -v min="$threshold_gb" 'BEGIN {if (free < min) exit 0; else exit 1}'; then
+            echo -e "${RED}Error: Disk space too low. Free space: ${free_gb} GB (Threshold: ${threshold_gb} GB).${NC}"
+            df -h .
+            exit 1
+        fi
+    fi
+}
 
 # ── Result helpers ────────────────────────────────────────────────
 # Every gate reports exactly one line so the closing summary can state, per
@@ -214,9 +232,14 @@ section() { echo -e "\n${BLUE}━━━ $1 ━━━${NC}"; }
 gate() {
     local name="$1"; shift
     local ci_ref="$1"; shift
-    if "$@"; then
+    local rc=0
+    "$@" 2>&1 | tee "$GATE_OUT" || rc=${PIPESTATUS[0]}
+    if [ "$rc" -eq 0 ]; then
         pass "$name" "$ci_ref"
     else
+        if grep -q "No space left on device" "$GATE_OUT"; then
+            echo -e "${RED}  ✘ $name failed: No space left on device${NC}"
+        fi
         fail "$name" "$ci_ref"
     fi
 }
@@ -227,7 +250,12 @@ advisory_gate() {
     local name="$1"; shift
     local ci_ref="$1"; shift
     local rc=0
-    "$@" || rc=$?
+    "$@" 2>&1 | tee "$GATE_OUT" || rc=${PIPESTATUS[0]}
+    if [ "$rc" -ne 0 ] && [ "$rc" -ne 3 ]; then
+        if grep -q "No space left on device" "$GATE_OUT"; then
+            echo -e "${RED}  ✘ $name failed: No space left on device${NC}"
+        fi
+    fi
     case "$rc" in
         0) pass "$name" "$ci_ref" ;;
         3) warn "$name (report-only findings)" "$ci_ref" ;;
@@ -379,6 +407,7 @@ fi
 
 # ── Android gates (mirror: android.yml `unit-tests`, `lint`) ──────
 if $run_android; then
+    check_disk_space
     cd "$ROOT_DIR/products/android" || exit 1
 
     if [ ! -f "./gradlew" ]; then
@@ -480,6 +509,7 @@ fi
 
 # ── macOS Desktop native Swift gates (mirror: macos.yml `swift-test`) ──
 if $run_macos; then
+    check_disk_space
     section "macOS Desktop native Swift tests"
     if [ "$(uname -s)" != "Darwin" ]; then
         skip "swift test (macos-desktop)" "macos.yml:swift-test" "macOS native product requires Darwin runner" false
