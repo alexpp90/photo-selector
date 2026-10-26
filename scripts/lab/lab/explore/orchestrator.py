@@ -216,6 +216,11 @@ class RunSummary:
     def failed_steps(self) -> int:
         return self.total_steps - self.passed_steps
 
+    @property
+    def unchecked_passes(self) -> int:
+        """Passed steps with a claim no oracle could check: passes, but not proven."""
+        return sum(1 for s in self.step_results if s.passed and s.unchecked)
+
     def to_dict(self) -> Dict[str, Any]:
         return {
             "run_id": self.run_id,
@@ -228,6 +233,7 @@ class RunSummary:
             "total_steps": self.total_steps,
             "passed_steps": self.passed_steps,
             "failed_steps": self.failed_steps,
+            "unchecked_passes": self.unchecked_passes,
             "findings_count": len(self.findings),
             "findings": [f.to_dict() for f in self.findings],
             "skipped_devices": list(self.skipped_devices),

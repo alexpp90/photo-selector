@@ -283,7 +283,7 @@ def _step_line(sr: Any) -> Tuple[str, str, str, str, str, str]:
     findings = ", ".join(f.id for f in sr.findings) or "-"
     return (
         str(sr.step_index), sr.config_label or "-", sr.action.summary(), sr.expectation.description,
-        sr.status.upper(), findings,
+        sr.status.upper() + (f" ({', '.join(unchecked)} not checked)" if (unchecked := getattr(sr, "unchecked", None)) else ""), findings,
     )
 
 
@@ -306,6 +306,7 @@ def render_markdown_report(summary: Any, deduped: List[AggregatedFinding]) -> st
         f"- Duration: {duration:.0f}s",
         f"- Seed: {summary.seed}",
         f"- Steps: {summary.total_steps} ({summary.passed_steps} passed, {summary.failed_steps} failed or errored)",
+        f"- Passed with a claim not checked: {getattr(summary, 'unchecked_passes', 0)} (no position or count on one side of the step)",
         f"- Unique findings: {len(open_findings)} open, {len(known)} known (triaged)",
         "",
         "Findings are leads, not verdicts: a person triages them before anything is filed.",
@@ -436,7 +437,7 @@ def render_html_report(summary: Any, deduped: List[AggregatedFinding], run_dir: 
             step, config, action, expectation, result, findings = _step_line(sr)
             parts.append(
                 f"<tr><td>{e(step)}</td><td>{e(config)}</td><td>{e(action)}</td><td>{e(expectation)}</td>"
-                f'<td><span class="badge badge-{e(result.lower())}">{e(result)}</span></td><td><code>{e(findings)}</code></td></tr>'
+                f'<td><span class="badge badge-{e(sr.status.lower())}">{e(result)}</span></td><td><code>{e(findings)}</code></td></tr>'
             )
         parts.append("</tbody></table>")
     parts.append("</div></body></html>")
