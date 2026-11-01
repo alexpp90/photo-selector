@@ -67,6 +67,7 @@ import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableFloatStateOf
@@ -107,6 +108,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import coil.compose.SubcomposeAsyncImage
 import coil.imageLoader
+import coil.request.Disposable
 import coil.request.ImageRequest
 import com.photoselector.core.model.ExifData
 import com.phototok.data.model.ImageItem
@@ -123,10 +125,6 @@ import com.phototok.ui.theme.SuccessGreen
 import kotlin.math.abs
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
-
-/** How many images ahead/behind to warm into Coil's caches for snappy paging. */
-private const val PREFETCH_RADIUS = 3
-private const val CLOUD_PREFETCH_RADIUS = 1
 
 /** Glyph for the configured swipe-right verb. */
 private fun swipeRightIcon(verb: SwipeRightVerb): ImageVector = when (verb) {
@@ -210,20 +208,38 @@ fun PhoneModeViewer(
     var showLongPressMenu by remember { mutableStateOf(false) }
     var showFileDetailsDialog by remember { mutableStateOf(false) }
 
-    // ── Prefetch upcoming/previous images into Coil caches ───────────────
+    // ── Prefetch into Coil caches, weighted toward the scroll direction ──
+    // Most pages ahead of the user, few behind; a page that leaves the window (the user turned
+    // round) has its pending request cancelled so the decoders work on the new direction first.
     val context = LocalContext.current
-    val prefetchRadius = if (isCloudSource) CLOUD_PREFETCH_RADIUS else PREFETCH_RADIUS
-    LaunchedEffect(pagerState.currentPage, images, prefetchRadius) {
-        val center = pagerState.currentPage
-        for (offset in 1..prefetchRadius) {
-            listOf(center + offset, center - offset)
-                .filter { it in images.indices }
-                .forEach { idx ->
-                    val request = ImageRequest.Builder(context)
-                        .data(android.net.Uri.parse(images[idx].uri))
-                        .build()
-                    context.imageLoader.enqueue(request)
-                }
+    val prefetchAhead = if (isCloudSource) PrefetchWindow.CLOUD_AHEAD else PrefetchWindow.AHEAD
+    val prefetchBehind = if (isCloudSource) PrefetchWindow.CLOUD_BEHIND else PrefetchWindow.BEHIND
+    val prefetches = remember { mutableMapOf<String, Disposable>() }
+    DisposableEffect(Unit) {
+        onDispose {
+            prefetches.values.forEach { it.dispose() }
+            prefetches.clear()
+        }
+    }
+    val scrollingBackward = pagerState.lastScrolledBackward
+    LaunchedEffect(pagerState.currentPage, scrollingBackward, images, prefetchAhead, prefetchBehind) {
+        val wanted = PrefetchWindow.pages(
+            center = pagerState.currentPage,
+            pageCount = images.size,
+            backward = scrollingBackward,
+            ahead = prefetchAhead,
+            behind = prefetchBehind,
+        ).map { images[it].uri }
+        val stale = prefetches.keys - wanted.toSet()
+        stale.forEach { prefetches.remove(it)?.dispose() }
+        wanted.forEach { uri ->
+            // A finished request is re-enqueued: a memory-cache hit is free, an evicted photo is decoded again.
+            if (prefetches[uri]?.isDisposed != false) {
+                val request = ImageRequest.Builder(context)
+                    .data(android.net.Uri.parse(uri))
+                    .build()
+                prefetches[uri] = context.imageLoader.enqueue(request)
+            }
         }
     }
 

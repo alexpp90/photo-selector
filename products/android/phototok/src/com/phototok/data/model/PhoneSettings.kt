@@ -70,7 +70,7 @@ data class SourceSettings(
             SourceKind.CAMERA_MTP -> SourceSettings(
                 swipeRightVerb = SwipeRightVerb.COPY,
                 swipeLeftVerb = SwipeAction.DELETE,
-                feedOrderMode = FeedOrderMode.SHOOTING,
+                feedOrderMode = FeedOrderMode.NEWEST_FIRST,
                 fileTypeFilter = FileTypeFilter.ONE_PER_SHOT,
                 moveRelatedFiles = true,
                 sortingEnabled = true,

@@ -66,12 +66,12 @@ class ProModePolicyTest {
     }
 
     @Test
-    fun `casual SD card and camera copy into the phone camera folder under Jackpix, in shooting order`() {
+    fun `casual SD card and camera copy into the phone camera folder under Jackpix, newest first`() {
         for (kind in listOf(SourceKind.REMOVABLE, SourceKind.CAMERA_MTP)) {
             val casual = ProModePolicy.casualSourceSettings(kind)
             assertEquals(SwipeRightVerb.COPY, casual.swipeRightVerb)
             assertEquals(SwipeAction.DELETE, casual.swipeLeftVerb)
-            assertEquals(FeedOrderMode.SHOOTING, casual.feedOrderMode)
+            assertEquals(FeedOrderMode.NEWEST_FIRST, casual.feedOrderMode)
             assertEquals(FileTypeFilter.ONE_PER_SHOT, casual.fileTypeFilter)
             assertTrue(casual.moveRelatedFiles)
             assertFalse(casual.sortingEnabled)

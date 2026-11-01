@@ -81,6 +81,12 @@ object PhoneFeedOrdering {
         shuffler = shuffler,
     )
 
+    /**
+     * Orders [images] for [mode]. Only `SHUFFLE` puts unseen photos ([seenUris]) first; every
+     * other mode is exactly its sort, so a photo keeps its position whether or not it was seen
+     * and the newest photo is position 1 in a newest-first feed. Where the viewer lands is
+     * decided separately (`FolderScanLogic`).
+     */
     fun order(
         images: List<ImageItem>,
         mode: FeedOrderMode,
@@ -101,14 +107,11 @@ object PhoneFeedOrdering {
                         if (cmpName != 0) cmpName else a.uri.compareTo(b.uri)
                     }
                 }
-                Result(partitionUnseenFirst(byShooting, seenUris), -1)
+                Result(byShooting, -1)
             }
-            FeedOrderMode.NEWEST_FIRST -> {
-                val byDate = sortNewestFirst(images)
-                Result(partitionUnseenFirst(byDate, seenUris), -1)
-            }
+            FeedOrderMode.NEWEST_FIRST -> Result(sortNewestFirst(images), -1)
             FeedOrderMode.ORIENTATION_THEN_NEWEST -> {
-                val byDate = partitionUnseenFirst(sortNewestFirst(images), seenUris)
+                val byDate = sortNewestFirst(images)
                 val landscape = byDate.filter { it.isLandscape }
                 val portrait = byDate.filter { !it.isLandscape }
                 val result = landscape + portrait
@@ -116,15 +119,6 @@ object PhoneFeedOrdering {
                 Result(result, split)
             }
         }
-    }
-
-    private fun partitionUnseenFirst(
-        ordered: List<ImageItem>,
-        seenUris: Set<String>,
-    ): List<ImageItem> {
-        if (seenUris.isEmpty()) return ordered
-        val (unseen, seen) = ordered.partition { it.uri !in seenUris }
-        return unseen + seen
     }
 
     private fun sortNewestFirst(images: List<ImageItem>): List<ImageItem> =

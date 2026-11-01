@@ -1,5 +1,6 @@
 package com.phototok.domain
 
+import com.photoselector.core.Requirement
 import com.phototok.data.model.ImageItem
 import org.junit.Assert.assertEquals
 import org.junit.Test
@@ -280,15 +281,53 @@ class PhoneFeedOrderingTest {
     }
 
     @Test
-    fun `order partitions unseen photos before seen photos`() {
+    @Requirement("REQ-TOK-FEATURE.08")
+    fun `newest first keeps the newest photo at position 1 even when it was seen`() {
+        val a = img("a.jpg", date = 300)
+        val b = img("b.jpg", date = 200)
+        val c = img("c.jpg", date = 100)
+
+        val result = PhoneFeedOrdering.order(
+            images = listOf(c, a, b),
+            mode = FeedOrderMode.NEWEST_FIRST,
+            seenUris = setOf(a.uri),
+        )
+
+        assertEquals(listOf("a.jpg", "b.jpg", "c.jpg"), result.images.map { it.fileName })
+    }
+
+    @Test
+    @Requirement("REQ-TOK-FEATURE.08")
+    fun `shooting and orientation orders ignore what was seen`() {
+        val a = img("a.jpg", date = 300, width = 4, height = 3)
+        val b = img("b.jpg", date = 200, width = 3, height = 4)
+        val c = img("c.jpg", date = 100, width = 4, height = 3)
+        val seen = setOf(a.uri, c.uri)
+
+        val shooting = PhoneFeedOrdering.order(listOf(b, a, c), mode = FeedOrderMode.SHOOTING, seenUris = seen)
+        assertEquals(listOf("c.jpg", "b.jpg", "a.jpg"), shooting.images.map { it.fileName })
+
+        val orientation = PhoneFeedOrdering.order(
+            listOf(b, a, c),
+            mode = FeedOrderMode.ORIENTATION_THEN_NEWEST,
+            seenUris = seen,
+        )
+        assertEquals(listOf("a.jpg", "c.jpg", "b.jpg"), orientation.images.map { it.fileName })
+        assertEquals(2, orientation.portraitSectionStart)
+    }
+
+    @Test
+    @Requirement("REQ-TOK-FEATURE.08")
+    fun `shuffle still deals unseen photos before seen ones`() {
         val a = img("a.jpg", date = 300)
         val b = img("b.jpg", date = 200)
         val c = img("c.jpg", date = 100)
 
         val result = PhoneFeedOrdering.order(
             images = listOf(a, b, c),
-            mode = FeedOrderMode.NEWEST_FIRST,
+            mode = FeedOrderMode.SHUFFLE,
             seenUris = setOf(a.uri),
+            shuffler = { it },
         )
 
         assertEquals(listOf("b.jpg", "c.jpg", "a.jpg"), result.images.map { it.fileName })
