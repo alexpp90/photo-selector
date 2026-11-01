@@ -150,6 +150,7 @@ When a hardware keyboard is detected, the same shortcuts as desktop apply:
 | M | Move to Selection |
 | C | Copy to Selection |
 | Escape | Exit fullscreen / comparison mode |
+| I | Fullscreen: pin / unpin the info bar |
 | F | Enter fullscreen viewer |
 | Space | Toggle Focus/comparison mode (tablet only) |
 
@@ -174,7 +175,7 @@ When a hardware keyboard is detected, the same shortcuts as desktop apply:
 
 ### 7.5 Delete Confirmation
 - **Desktop:** Dialog with second Delete keypress to confirm
-- **Android:** Snackbar with "Undo" (30s timeout) for single deletes on Tablet/DeX; Dialog confirmation for batch deletes. On the Jackpix, swiping left triggers a non-blocking temporary deletion where the image is immediately hidden from the viewer and a "Revert Deletion" button is shown. Navigating away from the image or leaving the viewer finalizes the deletion on disk. Leverages Android's trash/recycle via MediaStore `createTrashRequest()` on Android 11+.
+- **Android:** Snackbar with "Undo" (30s timeout, drawn as a draining line — the only snackbar with a real deadline; a move's card is ≈ 4 s with Undo and no line, a copy's ≈ 3 s, and `Ctrl+Z` still undoes a move afterwards) for single deletes on Tablet/DeX; Dialog confirmation for batch deletes. On the Jackpix, swiping left triggers a non-blocking temporary deletion where the image is immediately hidden from the viewer and a "Revert Deletion" button is shown. Navigating away from the image or leaving the viewer finalizes the deletion on disk. Leverages Android's trash/recycle via MediaStore `createTrashRequest()` on Android 11+.
 
 ### 7.6 Settings
 - **Desktop:** Embedded in scan config dialog + Help menu

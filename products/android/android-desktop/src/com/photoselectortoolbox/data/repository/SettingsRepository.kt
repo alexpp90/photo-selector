@@ -60,6 +60,7 @@ class SettingsRepository @Inject constructor(
         private val KEY_FILMSTRIP_VISIBLE = booleanPreferencesKey("filmstrip_visible")
         private val KEY_DETAILS_VISIBLE = booleanPreferencesKey("details_visible")
         private val KEY_SEEN_FULLSCREEN_HINT = booleanPreferencesKey("seen_fullscreen_gesture_hint")
+        private val KEY_FULLSCREEN_INFO_PINNED = booleanPreferencesKey("fullscreen_info_pinned")
 
         /**
          * Which one-time hints the user has already dismissed.
@@ -97,6 +98,7 @@ class SettingsRepository @Inject constructor(
          * preference is persisted, so that decision is made once.
          */
         const val DEFAULT_FILMSTRIP_VISIBLE = false
+        const val DEFAULT_FULLSCREEN_INFO_PINNED = false
 
         /** Scheme of the removed Google Drive source; see [lastFolderUri]. */
         const val RETIRED_DRIVE_SCHEME = "gdrive://"
@@ -309,6 +311,24 @@ class SettingsRepository @Inject constructor(
     suspend fun setHasSeenFullscreenGestureHint(seen: Boolean) {
         context.dataStore.edit { prefs ->
             prefs[KEY_SEEN_FULLSCREEN_HINT] = seen
+        }
+    }
+
+    /**
+     * Whether the fullscreen top bar (file name, position, EXIF) stays up instead of
+     * fading out after a few seconds. Toggled with `I` in the fullscreen viewer.
+     *
+     * Default off ([DEFAULT_FULLSCREEN_INFO_PINNED]): a bar that never leaves sits on
+     * the sky of the frame being inspected. A photographer who wants the numbers
+     * beside every frame pins it once and the decision survives a relaunch.
+     */
+    val fullscreenInfoPinned: Flow<Boolean> = context.dataStore.data.map { prefs ->
+        prefs[KEY_FULLSCREEN_INFO_PINNED] ?: DEFAULT_FULLSCREEN_INFO_PINNED
+    }
+
+    suspend fun setFullscreenInfoPinned(pinned: Boolean) {
+        context.dataStore.edit { prefs ->
+            prefs[KEY_FULLSCREEN_INFO_PINNED] = pinned
         }
     }
 

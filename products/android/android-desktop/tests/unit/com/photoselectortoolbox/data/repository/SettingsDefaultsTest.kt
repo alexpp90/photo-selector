@@ -29,6 +29,13 @@ class SettingsDefaultsTest {
     }
 
     @Test
+    fun `the fullscreen info bar starts unpinned`() {
+        // A bar that never fades sits on the sky of the frame being inspected, so
+        // pinning is a choice (`I`), not the opening state.
+        assertFalse(SettingsRepository.DEFAULT_FULLSCREEN_INFO_PINNED)
+    }
+
+    @Test
     fun `sorting is on and grouping is off`() {
         // Pinned alongside, so this file is the one place the opening state of
         // the selector is stated.

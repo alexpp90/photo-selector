@@ -330,6 +330,17 @@ fun SelectorScreen(
             filingAction = uiState.filingAction,
             showGestureHint = !uiState.hasSeenFullscreenHint,
             onGestureHintSeen = viewModel::markFullscreenHintSeen,
+            selectionFolderName = uiState.selectionFolderName,
+            infoPinned = uiState.fullscreenInfoPinned,
+            onToggleInfoPinned = viewModel::toggleFullscreenInfoPinned,
+            // The card is hosted in the main window, and fullscreen is a second
+            // window above it: without these the viewer showed no confirmation
+            // and no UNDO for a move or delete made inside it.
+            snackbarMessage = uiState.snackbarMessage,
+            snackbarSequence = uiState.snackbarSequence,
+            snackbarLifetime = uiState.snackbarLifetime,
+            onUndo = if (uiState.undoOperation != null) viewModel::undoLastOperation else null,
+            onDismissSnackbar = viewModel::dismissSnackbar,
         )
     }
 
@@ -579,6 +590,8 @@ fun SelectorScreen(
             onUndo = if (uiState.undoOperation != null) viewModel::undoLastOperation else null,
             onDismiss = viewModel::dismissSnackbar,
             sidebarInset = if (useExpandedLayout) SidebarWidth else 0.dp,
+            sequence = uiState.snackbarSequence,
+            lifetime = uiState.snackbarLifetime,
         )
 
         // Last in the Box, so it is above every piece of chrome it labels —

@@ -16,6 +16,8 @@ import com.photoselectortoolbox.data.repository.FileOperationResult
 import com.photoselectortoolbox.data.repository.ImageRepository
 import com.photoselectortoolbox.data.repository.SettingsRepository
 import androidx.compose.ui.input.key.Key
+import com.photoselectortoolbox.domain.curation.DeferredDeletion
+import com.photoselectortoolbox.domain.curation.SnackbarLifetime
 import com.photoselectortoolbox.domain.curation.UndoableOperation
 import com.photoselectortoolbox.domain.grouping.GroupingLevel
 import com.photoselectortoolbox.domain.interaction.FilingAction
@@ -85,6 +87,7 @@ class SelectorViewModelTest {
     private val lastFolderUriFlow = MutableStateFlow<String?>(null)
     private val filingActionFlow = MutableStateFlow(FilingAction.COPY)
     private val fullscreenButtonsFlow = MutableStateFlow(true)
+    private val fullscreenInfoPinnedFlow = MutableStateFlow(false)
     private val overlayValuesFlow = MutableStateFlow(true)
     private val filmstripVisibleFlow = MutableStateFlow(true)
     private val detailsVisibleFlow = MutableStateFlow(true)
@@ -108,6 +111,7 @@ class SelectorViewModelTest {
         every { lastFolderUri } returns lastFolderUriFlow
         every { filingAction } returns filingActionFlow
         every { fullscreenButtonsEnabled } returns fullscreenButtonsFlow
+        every { fullscreenInfoPinned } returns fullscreenInfoPinnedFlow
         every { overlayValuesVisible } returns overlayValuesFlow
         every { filmstripVisible } returns filmstripVisibleFlow
         every { detailsVisible } returns detailsVisibleFlow
@@ -683,6 +687,113 @@ class SelectorViewModelTest {
 
         assertEquals("Could not read the folder", viewModel.uiState.value.snackbarMessage)
         assertNull(viewModel.uiState.value.undoOperation)
+    }
+
+    // ── Snackbar lifetime: only a real deadline counts down ──────────────
+
+    @Test
+    fun `a move confirmation is transient, with no deadline, and still offers its undo`() = runTest {
+        coEvery { imageRepository.moveImage(any(), any(), any(), any()) } returns
+            FileOperationResult.success("content://test/folder/a", "content://test/sel/a")
+
+        val viewModel = loadFolder(image("a"), image("b"))
+        viewModel.moveToSelection()
+
+        val state = viewModel.uiState.value
+        assertEquals(SnackbarLifetime.MOVE, state.snackbarLifetime)
+        assertFalse("a move's undo never expires, so there is no deadline", state.snackbarLifetime.countsDown)
+        assertEquals(4_000L, state.snackbarLifetime.millis)
+        assertTrue("UNDO stays on the card", state.undoOperation is UndoableOperation.ReverseMove)
+    }
+
+    @Test
+    fun `a copy confirmation is transient and has no undo`() = runTest {
+        coEvery { imageRepository.copyImage(any(), any(), any(), any()) } returns
+            FileOperationResult.success("content://test/folder/a", "content://test/sel/a")
+
+        val viewModel = loadFolder(image("a"), image("b"))
+        viewModel.copyToSelection()
+
+        val state = viewModel.uiState.value
+        assertEquals(SnackbarLifetime.COPY, state.snackbarLifetime)
+        assertFalse(state.snackbarLifetime.countsDown)
+        assertEquals(3_000L, state.snackbarLifetime.millis)
+        assertNull(state.undoOperation)
+    }
+
+    @Test
+    fun `a delete carries the real 30 second deadline`() = runTest {
+        val viewModel = loadFolder(image("a"), image("b"))
+        viewModel.deleteCurrentImage()
+
+        val state = viewModel.uiState.value
+        assertEquals(SnackbarLifetime.DELETE, state.snackbarLifetime)
+        assertTrue(state.snackbarLifetime.countsDown)
+        assertEquals(DeferredDeletion.UNDO_WINDOW_MILLIS, state.snackbarLifetime.millis)
+    }
+
+    @Test
+    fun `an error is transient and outlasts a confirmation`() = runTest {
+        val viewModel = loadFolder(image("a"))
+        viewModel.setError("Move failed: the file could not be transferred")
+
+        val state = viewModel.uiState.value
+        assertEquals(SnackbarLifetime.ERROR, state.snackbarLifetime)
+        assertFalse(state.snackbarLifetime.countsDown)
+        assertTrue(state.snackbarLifetime.millis > SnackbarLifetime.MOVE.millis)
+    }
+
+    @Test
+    fun `two consecutive identical moves are two messages with distinct sequence numbers`() = runTest {
+        // The snackbar's timer used to be keyed on the text, and the second "Moved
+        // to Selection" is the same text: it inherited the first one's clock.
+        coEvery { imageRepository.moveImage(any(), any(), any(), any()) } coAnswers {
+            val source = secondArg<Uri>()
+            FileOperationResult.success(source.toString(), "content://test/sel/${source.lastPathSegment}")
+        }
+
+        val viewModel = loadFolder(image("a"), image("b"), image("c"))
+        viewModel.moveToSelection()
+        val first = viewModel.uiState.value
+        viewModel.moveToSelection()
+        val second = viewModel.uiState.value
+
+        assertEquals(first.snackbarMessage, second.snackbarMessage)
+        assertTrue(
+            "sequence ${first.snackbarSequence} then ${second.snackbarSequence}",
+            second.snackbarSequence > first.snackbarSequence,
+        )
+    }
+
+    @Test
+    fun `a message replaced by a longer one for the same move is a new message`() = runTest {
+        // "Moved to Selection" becomes "Moved to Selection as IMG_0001-2.jpg" once the
+        // transfer reports its name; the card must get a fresh read time for it.
+        coEvery { imageRepository.moveImage(any(), any(), any(), any()) } returns
+            FileOperationResult.success("content://test/folder/a", "content://test/sel/a-2")
+
+        val viewModel = loadFolder(image("a"), image("b"))
+        viewModel.moveToSelection()
+
+        val state = viewModel.uiState.value
+        assertTrue(state.snackbarMessage!!.contains(" as "))
+        assertEquals(SnackbarLifetime.MOVE, state.snackbarLifetime)
+        assertTrue("sequence ${state.snackbarSequence}", state.snackbarSequence >= 2)
+        assertNotNull("the UNDO already offered stays", state.undoOperation)
+    }
+
+    @Test
+    fun `info pin is off by default and a toggle is applied at once and persisted`() = runTest {
+        val viewModel = loadFolder(image("a"))
+        assertFalse(viewModel.uiState.value.fullscreenInfoPinned)
+
+        viewModel.toggleFullscreenInfoPinned()
+        assertTrue(viewModel.uiState.value.fullscreenInfoPinned)
+        coVerify(exactly = 1) { settingsRepository.setFullscreenInfoPinned(true) }
+
+        viewModel.toggleFullscreenInfoPinned()
+        assertFalse(viewModel.uiState.value.fullscreenInfoPinned)
+        coVerify(exactly = 1) { settingsRepository.setFullscreenInfoPinned(false) }
     }
 
     // ── Background merges must not roll back what landed while they ran ──
