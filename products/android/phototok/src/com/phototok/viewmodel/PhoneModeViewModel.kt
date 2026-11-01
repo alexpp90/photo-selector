@@ -280,8 +280,9 @@ class PhoneModeViewModel @Inject constructor(
     private var newestFirstReorderAllowed = true
 
     /**
-     * False while a Reload streams in: its feed is plain feed order, without the unseen-first
-     * split, so the newest photo is position 1 in a newest-first feed even after it was seen.
+     * False while a Reload streams in: a Reload ignores what was seen, so a shuffled feed is not
+     * split unseen-first and a shooting-order feed does not land on the first unseen photo.
+     * (Every other order never splits, see `PhoneFeedOrdering.order`.)
      */
     private var unseenFirstOrdering = true
 

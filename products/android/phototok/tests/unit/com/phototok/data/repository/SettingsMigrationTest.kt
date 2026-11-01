@@ -256,7 +256,7 @@ class SettingsMigrationTest {
     fun `each pro-only value that differs lands in pro, per kind`() {
         val cases = listOf<Pair<String, Preferences.Pair<*>>>(
             "phone swipe right" to (SettingsRepository.swipeRightVerbKey(SourceKind.PHONE_LIBRARY) to SwipeRightVerb.COPY.key),
-            "sd feed order" to (SettingsRepository.feedOrderKey(SourceKind.REMOVABLE) to FeedOrderMode.NEWEST_FIRST.key),
+            "sd feed order" to (SettingsRepository.feedOrderKey(SourceKind.REMOVABLE) to FeedOrderMode.SHOOTING.key),
             "camera filter" to (SettingsRepository.fileTypeFilterKey(SourceKind.CAMERA_MTP) to FileTypeFilter.ALL.key),
             "phone link" to (SettingsRepository.moveRelatedFilesKey(SourceKind.PHONE_LIBRARY) to false),
             "phone selection location" to (SettingsRepository.collectionUriKey(SourceKind.PHONE_LIBRARY) to "content://tree/c"),
@@ -279,7 +279,7 @@ class SettingsMigrationTest {
             SettingsRepository.swipeLeftVerbKey(SourceKind.PHONE_LIBRARY) to SwipeAction.DELETE.key,
             SettingsRepository.fileTypeFilterKey(SourceKind.PHONE_LIBRARY) to FileTypeFilter.ONE_PER_SHOT.key,
             SettingsRepository.moveRelatedFilesKey(SourceKind.PHONE_LIBRARY) to true,
-            SettingsRepository.feedOrderKey(SourceKind.REMOVABLE) to FeedOrderMode.SHOOTING.key,
+            SettingsRepository.feedOrderKey(SourceKind.REMOVABLE) to FeedOrderMode.NEWEST_FIRST.key,
             stringPreferencesKey("selection_folder_name") to "Selection",
             intPreferencesKey("recent_paths_count") to 3,
             booleanPreferencesKey("recent_paths_enabled") to true,

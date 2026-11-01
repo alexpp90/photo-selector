@@ -136,7 +136,7 @@ class SettingsRepositoryTest {
         assertEquals(com.phototok.domain.FeedOrderMode.NEWEST_FIRST, phoneDefaults.feedOrder)
         assertFalse(phoneDefaults.sortingEnabled)
 
-        assertEquals(com.phototok.domain.FeedOrderMode.SHOOTING, sdDefaults.feedOrder)
+        assertEquals(com.phototok.domain.FeedOrderMode.NEWEST_FIRST, sdDefaults.feedOrder)
         assertEquals(FileTypeFilter.ONE_PER_SHOT, sdDefaults.fileTypeFilter)
         assertTrue(sdDefaults.sortingEnabled)
         assertTrue(sdDefaults.moveRelatedFiles)
@@ -150,7 +150,7 @@ class SettingsRepositoryTest {
             repository.sourceSettingsFlow(com.photoselector.core.storage.SourceKind.PHONE_LIBRARY).first().feedOrder,
         )
         assertEquals(
-            com.phototok.domain.FeedOrderMode.SHOOTING,
+            com.phototok.domain.FeedOrderMode.NEWEST_FIRST,
             repository.sourceSettingsFlow(com.photoselector.core.storage.SourceKind.REMOVABLE).first().feedOrder,
         )
     }

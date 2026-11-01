@@ -18,6 +18,9 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 - A favourite is recognised whichever folder you open the photo from (`DCIM` or `DCIM/Camera`, or the system's Images view). Existing favourites are kept.
 
 ### Fixed
+- The newest photo is now always 1 of N in newest-first order. Before, reopening a folder moved the photos you had already seen to the end, so a newest photo you had looked at ended up near the highest number and you had to scroll back to it.
+- SD card and camera folders now start with the newest photo too, as phone folders do. Before, they started with the oldest. In Pro mode, Settings → Feed order still offers file-name (shooting) order, shuffle and landscape-first, per source.
+- Preloading follows your scroll direction: it loads 4 photos ahead in the direction you scroll and 1 behind (2 and 0 for cloud folders), and turns round with you. Before, it loaded the same few photos on both sides, so scrolling back often hit photos that were not loaded yet.
 - **Reload** now shows the newest photo as 1 of N. Before, once you had seen the newest photo, Reload landed behind all the photos you had not seen yet, so the position changed with every reload. Reload also no longer shows "No new photos".
 
 ## [0.6.0] - 2026-10-23

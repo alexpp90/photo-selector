@@ -924,7 +924,7 @@ class PhoneModeViewModelTest {
 
     @Test
     @Requirement("REQ-TOK-FEATURE.08")
-    fun `reopening a folder after a Reload still puts unseen photos first`() = runTest {
+    fun `reopening a folder keeps the newest photo at position 1 even after it was seen`() = runTest {
         val img1 = image("photo1.jpg", 10)
         val img2 = image("photo2.jpg", 20)
         val img3 = image("photo3.jpg", 30)
@@ -937,7 +937,7 @@ class PhoneModeViewModelTest {
         viewModel.selectSourceFolder(Uri.parse("content://tree/photos"))
         advanceUntilIdle()
 
-        assertEquals(listOf("photo2.jpg", "photo1.jpg", "photo3.jpg"), viewModel.uiState.value.images.map { it.fileName })
+        assertEquals(listOf("photo3.jpg", "photo2.jpg", "photo1.jpg"), viewModel.uiState.value.images.map { it.fileName })
     }
 
     @Test
