@@ -218,7 +218,8 @@ Move to Selection · Copy to Selection · Delete · Open Fullscreen.
 
 "Selection" is a destination subfolder — default name `Selection`, configurable — created
 inside the source folder. Deletion goes to the Android trash and is undoable via a
-30-second Snackbar.
+30-second Snackbar; a move is undoable for as long as it stays on the 20-deep stack
+(`Ctrl+Z`), and its card leaves after about 4 seconds.
 
 ### Persistent state the design must reflect
 
@@ -920,13 +921,21 @@ The reasoning worth keeping, all of it now folded into §7:
 **Frame:** 1480 × 924 dp landscape tablet.
 
 Pure black or Zinc-900 canvas, image fitted to the window. Chrome auto-hides after 3 seconds
-of inactivity and returns on tap or pointer movement.
+of inactivity and returns on tap, on **any key press**, and on every **page change** (swipe,
+arrow, or the next frame taking the place of one just filed) — the frame just arrived at is
+the one whose name and EXIF the photographer now wants to read. `I` **pins** the top bar so
+it never hides (persisted, default off); the same pin is a 48 dp toggle at the right end of
+the bar, so it is reachable without a keyboard and its state is visible. A pinned bar is
+the existing bar — no new surface, no gradient.
 
 **When chrome is visible:**
 
-- **Top bar** — close (`X`), filename, `127 / 842`, and a single-line EXIF summary
-  (`1/250s | f/2.8 | 35mm | ISO 400`). Render as a minimal Zinc-900 bar at ~90% opacity —
-  a bar, not a gradient scrim.
+- **Top bar** — close (`X`), filename, `127 / 842`, a single-line EXIF summary
+  (`1/250s | f/2.8 | 35mm | ISO 400`), the lens from the Expanded width (≥ 840 dp) up, and
+  the info pin at the end. Render as a minimal Zinc-900 bar at ~90% opacity — a bar, not a
+  gradient scrim. At 600 dp everything stays on one line: the exposure summary and the
+  position keep their full width, the file name is what ellipsises, and the lens is
+  dropped rather than squeezed.
 - **Bottom** — only when *Show Fullscreen Action Buttons* is enabled in Settings:
   `[Move to Selection] [Copy to Selection] [Delete]`, ≥ 48 dp, centred.
 - **Score chip row** — bottom-left, compact variant.
@@ -942,6 +951,17 @@ of inactivity and returns on tap or pointer movement.
 | `Esc` | Exit fullscreen |
 | `← / →` | Previous / next image |
 | `M` / `C` / `Del` | Move / copy / delete the current frame |
+| `I` | Pin / unpin the info bar (in the selector `I` still opens Inspect) |
+
+`M` and `C` show the centre check mark, whose accessibility label is the sentence the
+confirmation card shows ("Moved to Selection"), for the key exactly as for the button. The
+confirmation card (§7, "Action feedback") is drawn inside this window too: fullscreen is a
+second window above the selector, and the card hosted in the selector would be hidden behind it.
+
+The arrow keys page from where the pager is going, not where it last settled, so a quick
+second press lands two frames on. The viewer holds key focus itself (a focus target that
+handles keys before its children), so the first press after opening, after the chrome has
+faded and after a move inside fullscreen all page.
 
 When zoomed beyond fit, show a small navigator thumbnail in the bottom-right corner
 indicating which part of the frame is visible.
@@ -1222,8 +1242,11 @@ Produce these as a design-system page, dark theme, neutral grey / lavender.
    bottom-left on Previous and Next so it clears the value overlay. Resting and active.
 9. **Filmstrip thumbnail** — resting, current, and in-burst states, 60 dp wide (40 dp tall
    landscape, 80 dp portrait), with the leading-edge burst marker and the sharpness dot.
-10. **Snackbar with Undo** — `Moved to «folder»` / `Copied to «folder»` / `1 image deleted`,
-    each with a 30 s Undo action and a thin countdown line. «folder» is the configured
+10. **Snackbar with Undo** — `Moved to «folder»` (≈ 4 s, Undo, no line) / `Copied to «folder»`
+    (≈ 3 s, no action, no line) / `1 image deleted` (30 s, Undo, thin countdown line — the only
+    card whose time is a real deadline). Scan-complete and rating notices ≈ 4 s, errors ≈ 7 s,
+    neither with a line. Durations are stretched to the platform's accessibility timeout, and
+    the card is also drawn inside the fullscreen viewer. «folder» is the configured
     Selection folder name, so mock the longest name the setting allows, not just `Selection`.
 11. **Empty-state card** — icon, title, one-line body, primary + secondary button.
 12. **Confirmation dialog** — standard and destructive variants.
@@ -1275,6 +1298,7 @@ Shortcuts work in both the standard and fullscreen views.
 | `C` | Copy to Selection |
 | `F` | Enter fullscreen |
 | `Esc` | Exit fullscreen / leave maximised / close sheet or menu |
+| `I` | In fullscreen: pin / unpin the info bar (in the selector: Inspect) |
 | `1` / `2` / `3` | Maximise Previous / Current / Next in place (§7.3) |
 | `?` | Open the coach-mark guide (§7.9) |
 

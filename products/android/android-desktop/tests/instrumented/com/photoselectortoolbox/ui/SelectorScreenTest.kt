@@ -576,6 +576,117 @@ class SelectorScreenTest {
         composeRule.waitUntil(timeoutMillis = 5000) { positionCounterShows("2 / 2") }
     }
 
+    // ── Fullscreen: the arrow keys, the chrome and the EXIF ───────────────
+
+    /** Three frames, so a move leaves two and there is somewhere to page to. */
+    private fun loadThreeImages() {
+        fakeRepo.imagesFlow.value = mockImages + mockImages[0].copy(
+            uri = "content://test/test_folder/image3.jpg",
+            fileName = "image3.jpg",
+            exifData = mockImages[0].exifData!!.copy(iso = 3200),
+        )
+        runBlocking { settingsRepository.setLastFolderUri("content://test/test_folder") }
+        composeRule.waitUntil(timeoutMillis = 15000) {
+            composeRule.onAllNodesWithText("image1.jpg", ignoreCase = true)
+                .fetchSemanticsNodes().isNotEmpty()
+        }
+        dismissGestureTutorialIfShown()
+        composeRule.waitForIdle()
+    }
+
+    private fun openFullscreen() {
+        composeRule.onAllNodesWithTag("fullscreen_button", useUnmergedTree = true)
+            .onFirst().performClick()
+        composeRule.waitUntil(timeoutMillis = 15000) { fullscreenShows("1 / 3") }
+    }
+
+    private fun fullscreenShows(position: String): Boolean =
+        composeRule.onAllNodes(
+            hasTestTag("fullscreen_position") and hasText(position),
+            useUnmergedTree = true,
+        ).fetchSemanticsNodes().isNotEmpty()
+
+    private fun fullscreenChromeShown(): Boolean =
+        composeRule.onAllNodes(hasTestTag("fullscreen_position"), useUnmergedTree = true)
+            .fetchSemanticsNodes().isNotEmpty()
+
+    private fun pressKey(keyCode: Int) {
+        // One key through the window, like a keyboard: `sendKeyDownUpSync` leaves
+        // touch mode, and `performKeyInput` would request focus first and so hide
+        // exactly the failure under test.
+        androidx.test.platform.app.InstrumentationRegistry.getInstrumentation()
+            .sendKeyDownUpSync(keyCode)
+    }
+
+    @Test
+    fun fullscreen_firstRightArrow_pagesOnTheFirstPress() {
+        loadThreeImages()
+        // CI's phone-class emulator runs the compact layout, which has no fullscreen button.
+        if (isCompactLayout()) return
+        openFullscreen()
+
+        pressKey(android.view.KeyEvent.KEYCODE_DPAD_RIGHT)
+
+        composeRule.waitUntil(timeoutMillis = 5000) { fullscreenShows("2 / 3") }
+    }
+
+    @Test
+    fun fullscreen_arrowAfterTheChromeFaded_stillPages_andShowsTheNewFramesExif() {
+        loadThreeImages()
+        // CI's phone-class emulator runs the compact layout, which has no fullscreen button.
+        if (isCompactLayout()) return
+        openFullscreen()
+        // The chrome fades after 3 s, and the button that held focus went with it.
+        composeRule.waitUntil(timeoutMillis = 10000) { !fullscreenChromeShown() }
+
+        pressKey(android.view.KeyEvent.KEYCODE_DPAD_RIGHT)
+
+        composeRule.waitUntil(timeoutMillis = 5000) { fullscreenShows("2 / 3") }
+        // The key brought the bar back, and the EXIF on it is the second frame's.
+        composeRule.waitUntil(timeoutMillis = 5000) {
+            composeRule.onAllNodes(
+                hasTestTag("fullscreen_exif") and hasText("ISO 200", substring = true),
+                useUnmergedTree = true,
+            ).fetchSemanticsNodes().isNotEmpty()
+        }
+    }
+
+    @Test
+    fun fullscreen_arrowAfterAMoveInsideFullscreen_stillPages() {
+        loadThreeImages()
+        // CI's phone-class emulator runs the compact layout, which has no fullscreen button.
+        if (isCompactLayout()) return
+        openFullscreen()
+
+        pressKey(android.view.KeyEvent.KEYCODE_M)
+        composeRule.waitUntil(timeoutMillis = 10000) { fullscreenShows("1 / 2") }
+
+        pressKey(android.view.KeyEvent.KEYCODE_DPAD_RIGHT)
+
+        composeRule.waitUntil(timeoutMillis = 5000) { fullscreenShows("2 / 2") }
+    }
+
+    @Test
+    fun fullscreen_moveShowsAConfirmationWithoutACountdown() {
+        loadThreeImages()
+        // CI's phone-class emulator runs the compact layout, which has no fullscreen button.
+        if (isCompactLayout()) return
+        openFullscreen()
+
+        pressKey(android.view.KeyEvent.KEYCODE_M)
+
+        composeRule.waitUntil(timeoutMillis = 10000) {
+            composeRule.onAllNodes(
+                hasText("Moved to Selection", ignoreCase = true) and
+                    hasAnyAncestor(hasTestTag("selector_snackbar")),
+                useUnmergedTree = true,
+            ).fetchSemanticsNodes().isNotEmpty()
+        }
+        // A move's undo does not expire, so the card draws no deadline.
+        composeRule.onAllNodesWithTag("snackbar_countdown", useUnmergedTree = true)
+            .assertCountEquals(0)
+    }
+
     /** True when the window is narrow enough to be running the phone layout. */
     private fun isCompactLayout(): Boolean =
         composeRule.onAllNodesWithTag("copy_button_compact").fetchSemanticsNodes().isNotEmpty()
@@ -655,11 +766,11 @@ class SelectorScreenTest {
         }
         composeRule.onNodeWithText("Copied to Selection", ignoreCase = true).assertIsDisplayed()
 
-        // Move straight away, as a photographer would. The copy snackbar stays up
-        // for the whole 30 s undo window, and waiting it out made this the slowest
-        // test on every device (31–40 s, device matrix 2026-10-19). It cannot block
-        // the button: the card has no pointer input, and the next confirmation
-        // replaces it. What can be late after the copy is the compact action bar
+        // Move straight away, as a photographer would, rather than waiting for the
+        // copy card to leave (3 s now; it was the whole 30 s undo window when this
+        // made the test the slowest on every device, device matrix 2026-10-19). It
+        // cannot block the button: the card has no pointer input, and the next
+        // confirmation replaces it. What can be late after the copy is the compact action bar
         // recomposing, so wait for the button itself (code_health 2026-10-10).
         val moveTag = if (isCompact) "move_button_compact" else "move_button_expanded"
         composeRule.waitUntil(timeoutMillis = 15000) {
@@ -1076,6 +1187,10 @@ class SelectorScreenTest {
         }
         val inSnackbar = hasAnyAncestor(hasTestTag("selector_snackbar"))
         composeRule.onAllNodes(hasText("1 image deleted") and inSnackbar, useUnmergedTree = true)
+            .onFirst().assertExists()
+        // A delete is the one action whose time is a real deadline, so it is the
+        // one card that draws the draining line.
+        composeRule.onAllNodesWithTag("snackbar_countdown", useUnmergedTree = true)
             .onFirst().assertExists()
 
         composeRule.onAllNodesWithTag("snackbar_undo", useUnmergedTree = true)

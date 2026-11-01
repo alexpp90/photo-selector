@@ -182,6 +182,13 @@ enum class FullscreenGesture(
     DOUBLE_TAP("double-tap", "fit ↔ 100%"),
     HORIZONTAL_SWIPE("swipe ← →", "previous / next"),
     SWIPE_DOWN("swipe down", "dismiss"),
+
+    /**
+     * Pins the top bar (name, position, EXIF) so it stops fading out. In the
+     * selector `I` means Inspect; the fullscreen viewer is its own window with
+     * its own key handler, so the two never meet.
+     */
+    INFO("I", "pin / unpin the info bar"),
     ESCAPE("Esc", "exit"),
 }
 

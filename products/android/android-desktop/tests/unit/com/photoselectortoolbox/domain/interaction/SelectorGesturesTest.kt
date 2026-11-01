@@ -100,6 +100,14 @@ class SelectorGesturesTest {
     }
 
     @Test
+    fun `the fullscreen card lists I as the info pin`() {
+        val row = SelectorGestures.fullscreenHintRows().single { it.input == "I" }
+
+        assertEquals(FullscreenGesture.INFO.effect, row.effect)
+        assertTrue(row.effect, row.effect.contains("info"))
+    }
+
+    @Test
     fun `every shortcut row has a non-empty effect`() {
         FilingAction.entries.forEach { action ->
             SelectorGestures.selectorShortcutRows(action).forEach { row ->

@@ -33,6 +33,7 @@ import com.photoselectortoolbox.domain.curation.OptimisticEdits
 import com.photoselectortoolbox.domain.curation.ParkedUndo
 import com.photoselectortoolbox.domain.curation.PendingDeletion
 import com.photoselectortoolbox.domain.curation.SelectorListState
+import com.photoselectortoolbox.domain.curation.SnackbarLifetime
 import com.photoselectortoolbox.domain.curation.UndoParking
 import com.photoselectortoolbox.domain.curation.UndoPolicy
 import com.photoselectortoolbox.domain.curation.UndoableOperation
@@ -137,6 +138,16 @@ data class SelectorUiState(
      */
     val snackbarMessage: String? = null,
     /**
+     * Which message this is, counted up on every one shown.
+     *
+     * The snackbar's timer is keyed on this, not on the text: two consecutive
+     * moves produce the same sentence, and a timer keyed on the sentence never
+     * restarted for the second one.
+     */
+    val snackbarSequence: Long = 0L,
+    /** How long [snackbarMessage] stays and whether that is a real deadline. */
+    val snackbarLifetime: SnackbarLifetime = SnackbarLifetime.NOTICE,
+    /**
      * Unified undo stack (newest first, up to [UndoPolicy.MAX_UNDO_HISTORY] = 20).
      *
      * Holds both deferred deletions ([UndoableOperation.RevertPendingDelete]) and
@@ -162,6 +173,8 @@ data class SelectorUiState(
     val groupingEnabled: Boolean = false,
     val groups: List<List<Int>> = emptyList(),
     val fullscreenButtonsEnabled: Boolean = true,
+    /** Whether the fullscreen top bar (name, position, EXIF) stays up instead of fading (persisted). */
+    val fullscreenInfoPinned: Boolean = false,
     /** Which of Copy and Move is the emphasised filing control (persisted). */
     val filingAction: FilingAction = FilingAction.DEFAULT,
     /** Whether the one-time on-image nav arrows have already been shown. */
@@ -241,6 +254,24 @@ data class SelectorUiState(
      */
     val undoOperation: UndoableOperation?
         get() = if (snackbarUndoAvailable) undoHistory.firstOrNull() else null
+
+    /**
+     * This state showing a new snackbar message.
+     *
+     * The one way a message is raised, so the three facts that belong to it —
+     * the sequence number its timer is keyed on, how long it stays, and whether
+     * UNDO is offered — are always decided together (REQ-AND-LAYOUT.21).
+     */
+    fun withSnackbar(
+        message: String,
+        lifetime: SnackbarLifetime,
+        undoAvailable: Boolean = false,
+    ): SelectorUiState = copy(
+        snackbarMessage = message,
+        snackbarSequence = snackbarSequence + 1,
+        snackbarLifetime = lifetime,
+        snackbarUndoAvailable = undoAvailable,
+    )
 
     /** The most recent deletion removed from the list but not yet committed to disk. */
     val pendingDeletion: PendingDeletion?
@@ -456,6 +487,12 @@ class SelectorViewModel @Inject constructor(
         viewModelScope.launch {
             settingsRepository.fullscreenButtonsEnabled.collect { enabled ->
                 _uiState.update { it.copy(fullscreenButtonsEnabled = enabled) }
+            }
+        }
+
+        viewModelScope.launch {
+            settingsRepository.fullscreenInfoPinned.collect { pinned ->
+                _uiState.update { it.copy(fullscreenInfoPinned = pinned) }
             }
         }
 
@@ -853,9 +890,9 @@ class SelectorViewModel @Inject constructor(
                     // The rating is kept in the app (Room); say that the file did not get it.
                     val reason = res.exceptionOrNull()?.message
                     _uiState.update {
-                        it.copy(
-                            snackbarMessage = SelectorLabels.ratingNotWrittenMessage(photo.fileName, reason),
-                            snackbarUndoAvailable = false,
+                        it.withSnackbar(
+                            SelectorLabels.ratingNotWrittenMessage(photo.fileName, reason),
+                            SnackbarLifetime.NOTICE,
                         )
                     }
                 }
@@ -1030,9 +1067,7 @@ class SelectorViewModel @Inject constructor(
                     it.copy(
                         scanProgress = 1f,
                         scanStatusText = "",
-                        snackbarMessage = SelectorLabels.scanCompleteMessage(analysed),
-                        snackbarUndoAvailable = false,
-                    )
+                    ).withSnackbar(SelectorLabels.scanCompleteMessage(analysed), SnackbarLifetime.NOTICE)
                 }
             } catch (e: CancellationException) {
                 throw e
@@ -1162,10 +1197,12 @@ class SelectorViewModel @Inject constructor(
                 images = listState.images,
                 currentIndex = listState.currentIndex,
                 showDeleteConfirmation = false,
-                snackbarMessage = SelectorLabels.deletedMessage(pending.slots.size),
                 undoHistory = pushResult.history,
-                snackbarUndoAvailable = true,
                 sessionDeletedCount = current.sessionDeletedCount + pending.slots.size,
+            ).withSnackbar(
+                SelectorLabels.deletedMessage(pending.slots.size),
+                SnackbarLifetime.DELETE,
+                undoAvailable = true,
             )
         }
         onFrameChanged()
@@ -1337,10 +1374,16 @@ class SelectorViewModel @Inject constructor(
             it.copy(
                 images = edit.state.images,
                 currentIndex = edit.state.currentIndex,
+                performedFilingAction = if (action == CurationAction.MOVE) {
+                    FilingAction.MOVE
+                } else {
+                    FilingAction.COPY
+                },
+            ).withSnackbar(
                 // One sentence, one source: the hint card heading is generated by
                 // this same call, so the card and the snackbar beside it cannot
                 // disagree about the verb or name a folder the user renamed away.
-                snackbarMessage = SelectionActionLabels.confirmation(
+                SelectionActionLabels.confirmation(
                     action = if (action == CurationAction.MOVE) {
                         FilingAction.MOVE
                     } else {
@@ -1348,14 +1391,10 @@ class SelectorViewModel @Inject constructor(
                     },
                     selectionFolderName = state.selectionFolderName,
                 ),
-                // Populated once the transfer reports where the file went; a
-                // move with no destination URI is not reversible.
-                snackbarUndoAvailable = false,
-                performedFilingAction = if (action == CurationAction.MOVE) {
-                    FilingAction.MOVE
-                } else {
-                    FilingAction.COPY
-                },
+                // A move's undo never expires and a copy has none, so neither is a
+                // deadline. UNDO is populated once the transfer reports where the
+                // file went; a move with no destination URI is not reversible.
+                if (action == CurationAction.MOVE) SnackbarLifetime.MOVE else SnackbarLifetime.COPY,
             )
         }
         onFrameChanged()
@@ -1430,13 +1469,18 @@ class SelectorViewModel @Inject constructor(
                 if (resultName != null && resultName != currentItem.fileName) {
                     _uiState.update {
                         if (it.folderUri != folderUri) return@update it
-                        it.copy(
-                            snackbarMessage = SelectionActionLabels.suffixedConfirmation(
+                        // The longer sentence replaces the plain one, so it is a new
+                        // message: it gets its own sequence number, and with it a
+                        // fresh read time. UNDO, already offered, stays.
+                        it.withSnackbar(
+                            SelectionActionLabels.suffixedConfirmation(
                                 action = if (action == CurationAction.MOVE) FilingAction.MOVE else FilingAction.COPY,
                                 selectionFolderName = it.selectionFolderName,
                                 resultName = resultName,
                                 relatedCount = (result.destinationUris.size - 1).coerceAtLeast(0),
                             ),
+                            if (action == CurationAction.MOVE) SnackbarLifetime.MOVE else SnackbarLifetime.COPY,
+                            undoAvailable = it.snackbarUndoAvailable,
                         )
                     }
                 }
@@ -1642,17 +1686,17 @@ class SelectorViewModel @Inject constructor(
                             }
                         }
                     }
-                    if (result?.success == true && result.notice != null) {
-                        _uiState.update { it.copy(snackbarMessage = result.notice, snackbarUndoAvailable = false) }
+                    result?.notice?.takeIf { result.success }?.let { notice ->
+                        _uiState.update { it.withSnackbar(notice, SnackbarLifetime.NOTICE) }
                     }
                     if (result?.success == true && result.notice == null) {
                         val restoredName = (result.destinationUri ?: result.destinationUris.firstOrNull())
                             ?.let(SelectionActionLabels::displayNameOf)
                         if (restoredName != null && restoredName != SelectionActionLabels.displayNameOf(operation.sourceUri)) {
                             _uiState.update {
-                                it.copy(
-                                    snackbarMessage = SelectionActionLabels.restoredAs(restoredName),
-                                    snackbarUndoAvailable = false,
+                                it.withSnackbar(
+                                    SelectionActionLabels.restoredAs(restoredName),
+                                    SnackbarLifetime.NOTICE,
                                 )
                             }
                         }
@@ -1797,6 +1841,16 @@ class SelectorViewModel @Inject constructor(
     }
 
     /** Persist that the fullscreen gesture hint has been dismissed. */
+    /** `I` in the fullscreen viewer: keep the top bar up, or let it fade again. */
+    fun toggleFullscreenInfoPinned() {
+        // Flipped in the state first and persisted after, so two quick presses
+        // toggle twice instead of both reading the value the store has not
+        // emitted yet.
+        val pinned = !_uiState.value.fullscreenInfoPinned
+        _uiState.update { it.copy(fullscreenInfoPinned = pinned) }
+        viewModelScope.launch { settingsRepository.setFullscreenInfoPinned(pinned) }
+    }
+
     fun markFullscreenHintSeen() {
         viewModelScope.launch {
             if (!settingsRepository.hasSeenFullscreenGestureHint.first()) {
@@ -1814,7 +1868,7 @@ class SelectorViewModel @Inject constructor(
     /** Errors reach the photographer through the same snackbar as everything else. */
     private fun reportError(message: String) {
         _uiState.update {
-            it.copy(error = message, snackbarMessage = message, snackbarUndoAvailable = false)
+            it.copy(error = message).withSnackbar(message, SnackbarLifetime.ERROR)
         }
     }
 

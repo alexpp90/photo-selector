@@ -1,5 +1,8 @@
 package com.photoselectortoolbox.ui.selector
 
+import android.content.Context
+import android.os.Build
+import android.view.accessibility.AccessibilityManager
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.core.tween
 import androidx.compose.animation.fadeIn
@@ -41,6 +44,7 @@ import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -52,6 +56,7 @@ import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.input.pointer.PointerIcon
 import androidx.compose.ui.input.pointer.pointerHoverIcon
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
@@ -62,6 +67,7 @@ import androidx.compose.ui.unit.DpSize
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.photoselectortoolbox.domain.curation.DeferredDeletion
+import com.photoselectortoolbox.domain.curation.SnackbarLifetime
 import com.photoselectortoolbox.domain.format.SelectionActionLabels
 import com.photoselectortoolbox.domain.interaction.FilingAction
 import com.photoselectortoolbox.ui.theme.BrandAccent
@@ -278,16 +284,25 @@ private val PillDismissHitSize = DpSize(56.dp, 48.dp)
 // ── Undo snackbar ───────────────────────────────────────────────────────────
 
 /**
- * Confirmation of an action, with the time remaining to take it back drawn as
- * a draining line.
+ * Confirmation of an action. Only a message whose time is a real deadline draws
+ * the line draining under the card.
  *
- * The window is 30 seconds rather than the Material default of a few seconds
- * because culling is fast and inattentive: the user is three frames further on
- * before they register that the last one was a mistake.
+ * What the line used to say was "you have 30 seconds", under every message. That
+ * is true for a deferred delete (the files are removed for real when the window
+ * closes) and false for everything else: a move's undo never expires (the
+ * 20-deep stack, `Ctrl+Z`), a copy has none, a scan notice has nothing to take
+ * back. So [lifetime] — decided by the ViewModel together with the message —
+ * says which it is: [SnackbarLifetime.DELETE] counts down over
+ * [DeferredDeletion.UNDO_WINDOW_MILLIS], the same constant the stack's commit
+ * window uses (two copies of that number is a countdown that lies), and the
+ * rest are a plain card that leaves after 3–7 s.
  *
- * The duration is [DeferredDeletion.UNDO_WINDOW_MILLIS] — the same constant the
- * ViewModel's commit timer uses. Two copies of that number is a countdown that
- * lies about how long is left (REQUIREMENTS §2).
+ * The timer is keyed on [sequence], never on the text: two consecutive moves
+ * produce the same sentence, and a timer keyed on it never restarted for the
+ * second (the first card's remaining time was inherited).
+ *
+ * A time that is not a deadline is stretched to what the platform recommends
+ * for people using accessibility services ([recommendedTimeoutMillis]).
  */
 @Composable
 fun SelectorSnackbar(
@@ -295,26 +310,35 @@ fun SelectorSnackbar(
     onUndo: (() -> Unit)?,
     onDismiss: () -> Unit,
     modifier: Modifier = Modifier,
+    sequence: Long = 0L,
+    lifetime: SnackbarLifetime = SnackbarLifetime.NOTICE,
 ) {
     if (message == null) return
 
+    val context = LocalContext.current
+    val latestOnDismiss by rememberUpdatedState(onDismiss)
+
     // Driven from wall-clock time rather than an animation, because the line has
-    // to agree with a timer that is *also* wall-clock: the ViewModel commits the
-    // deletion 30 real seconds after it was requested. A frame-clock animation
-    // would drift from that under any clock manipulation and, in an instrumented
-    // test, would be fast-forwarded to zero the moment the harness waited for
-    // idle — dismissing the snackbar before the UNDO could be pressed.
-    val remaining = remember(message) { mutableFloatStateOf(1f) }
-    LaunchedEffect(message) {
-        val startedAt = System.currentTimeMillis()
-        while (true) {
-            val left = DeferredDeletion.UNDO_WINDOW_MILLIS - (System.currentTimeMillis() - startedAt)
-            remaining.floatValue =
-                (left.toFloat() / DeferredDeletion.UNDO_WINDOW_MILLIS).coerceIn(0f, 1f)
-            if (left <= 0L) break
-            delay(COUNTDOWN_TICK_MILLIS)
+    // to agree with a timer that is *also* wall-clock: the deletion is committed
+    // 30 real seconds after it was requested. A frame-clock animation would drift
+    // from that under any clock manipulation and, in an instrumented test, would
+    // be fast-forwarded to zero the moment the harness waited for idle —
+    // dismissing the snackbar before the UNDO could be pressed.
+    val remaining = remember(sequence) { mutableFloatStateOf(1f) }
+    LaunchedEffect(sequence, lifetime) {
+        val shownFor = lifetime.displayMillis { ms -> recommendedTimeoutMillis(context, ms) }
+        if (lifetime.countsDown) {
+            val startedAt = System.currentTimeMillis()
+            while (true) {
+                val left = shownFor - (System.currentTimeMillis() - startedAt)
+                remaining.floatValue = (left.toFloat() / shownFor).coerceIn(0f, 1f)
+                if (left <= 0L) break
+                delay(COUNTDOWN_TICK_MILLIS)
+            }
+        } else {
+            delay(shownFor)
         }
-        onDismiss()
+        latestOnDismiss()
     }
 
     Column(
@@ -351,28 +375,45 @@ fun SelectorSnackbar(
                         // A 48 dp hit target around the 12 sp word (AD-17).
                         .defaultMinSize(minWidth = 48.dp, minHeight = 48.dp)
                         .pointerHoverIcon(PointerIcon.Hand)
-                        .clickable { onUndo(); onDismiss() }
+                        .clickable { onUndo(); latestOnDismiss() }
                         .wrapContentSize(Alignment.Center),
                 )
             }
         }
-        // The line drains left to right over the undo window, so "how long have
-        // I got" is answerable at a glance rather than by counting. The fraction
-        // is read inside `graphicsLayer`, which defers it to the draw phase —
-        // 300 ticks over the window cost 300 draws of a 2 dp bar and zero
-        // recompositions of the snackbar around it.
-        Box(
-            modifier = Modifier
-                .fillMaxWidth()
-                .height(2.dp)
-                .graphicsLayer {
-                    scaleX = remaining.floatValue
-                    transformOrigin = TransformOrigin(0f, 0.5f)
-                }
-                .background(BrandAccent)
-                .testTag("snackbar_countdown"),
-        )
+        if (lifetime.countsDown) {
+            // The line drains left to right over the undo window, so "how long
+            // have I got" is answerable at a glance rather than by counting. The
+            // fraction is read inside `graphicsLayer`, which defers it to the
+            // draw phase — 300 ticks over the window cost 300 draws of a 2 dp
+            // bar and zero recompositions of the snackbar around it.
+            Box(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(2.dp)
+                    .graphicsLayer {
+                        scaleX = remaining.floatValue
+                        transformOrigin = TransformOrigin(0f, 0.5f)
+                    }
+                    .background(BrandAccent)
+                    .testTag("snackbar_countdown"),
+            )
+        }
     }
+}
+
+/**
+ * [millis] stretched to the platform's accessibility recommendation (API 29+;
+ * below that, unchanged). Text and controls both count: the card has words to
+ * read and, for a move or delete, an UNDO to reach.
+ */
+private fun recommendedTimeoutMillis(context: Context, millis: Long): Long {
+    if (Build.VERSION.SDK_INT < Build.VERSION_CODES.Q) return millis
+    val manager = context.getSystemService(Context.ACCESSIBILITY_SERVICE) as? AccessibilityManager
+        ?: return millis
+    return manager.getRecommendedTimeoutMillis(
+        millis.coerceAtMost(Int.MAX_VALUE.toLong()).toInt(),
+        AccessibilityManager.FLAG_CONTENT_TEXT or AccessibilityManager.FLAG_CONTENT_CONTROLS,
+    ).toLong()
 }
 
 /** Narrowest and widest the snackbar card is drawn (AD-7). */
@@ -395,6 +436,8 @@ fun SelectorSnackbarHost(
     onDismiss: () -> Unit,
     sidebarInset: Dp,
     modifier: Modifier = Modifier,
+    sequence: Long = 0L,
+    lifetime: SnackbarLifetime = SnackbarLifetime.NOTICE,
 ) {
     Box(
         modifier = modifier
@@ -402,9 +445,15 @@ fun SelectorSnackbarHost(
             .padding(start = sidebarInset, end = FrameGeometry.OuterPadding, bottom = 96.dp),
         contentAlignment = Alignment.BottomCenter,
     ) {
-        SelectorSnackbar(message = message, onUndo = onUndo, onDismiss = onDismiss)
+        SelectorSnackbar(
+            message = message,
+            onUndo = onUndo,
+            onDismiss = onDismiss,
+            sequence = sequence,
+            lifetime = lifetime,
+        )
     }
 }
 
-/** How often the countdown line is redrawn. Fine enough to read as continuous. */
+/** How often the countdown line is redrawn (a deferred delete only). Fine enough to read as continuous. */
 private const val COUNTDOWN_TICK_MILLIS = 100L
