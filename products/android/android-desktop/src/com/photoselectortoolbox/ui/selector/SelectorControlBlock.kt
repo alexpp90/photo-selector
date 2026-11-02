@@ -16,6 +16,7 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.heightIn
+import androidx.compose.foundation.layout.wrapContentHeight
 import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.ui.platform.LocalDensity
@@ -178,7 +179,20 @@ fun SelectorControlBlock(
                 maxLines = 1,
                 softWrap = false,
                 textAlign = if (compact) TextAlign.End else TextAlign.Start,
+                // Opens "Go to photo". The layout size is the priced one (a 48 dp slot
+                // would change [ControlBlockFit]'s heights and, in the compact block,
+                // overlap the 48 dp toggles beside it), so the 48 dp target is the
+                // framework's minimum touch-target expansion around this node.
                 modifier = counterModifier
+                    .clickable(
+                        onClickLabel = SelectorLabels.GO_TO_PHOTO,
+                        role = Role.Button,
+                        onClick = actions.onGoToPhoto,
+                    )
+                    .pointerHoverIcon(PointerIcon.Hand)
+                    // Beside the toggles the row is already 48 dp tall, so the counter
+                    // there is a real 48 dp slot with its text centred in it.
+                    .wrapContentHeight(Alignment.CenterVertically)
                     .semantics { contentDescription = counterDescription }
                     .testTag("position_counter"),
             )
@@ -350,6 +364,7 @@ fun SelectorControlBlock(
                             counter(
                                 Modifier.padding(start = ControlBlockFit.CounterGap)
                                     .widthIn(min = ControlBlockFit.CounterWidth)
+                                    .heightIn(min = ControlBlockFit.ToggleHitSize)
                             )
                         }
                     }

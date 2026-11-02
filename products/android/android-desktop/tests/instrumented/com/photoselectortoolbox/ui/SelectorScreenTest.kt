@@ -23,6 +23,7 @@ import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.onRoot
 import androidx.compose.ui.test.performClick
+import androidx.compose.ui.test.performTextInput
 import androidx.compose.ui.test.performTouchInput
 import androidx.compose.ui.test.printToLog
 import androidx.compose.ui.test.swipeLeft
@@ -38,6 +39,7 @@ import com.photoselectortoolbox.data.repository.FakeImageRepository
 import com.photoselectortoolbox.data.repository.ImageRepository
 import com.photoselectortoolbox.data.repository.SettingsRepository
 import com.photoselectortoolbox.domain.guidance.SelectorHint
+import com.photoselectortoolbox.domain.session.SelectorSortOrder
 import com.photoselectortoolbox.ui.selector.FrameGeometry
 import com.photoselectortoolbox.ui.selector.SidebarWidth
 import dagger.hilt.android.testing.HiltAndroidRule
@@ -126,6 +128,10 @@ class SelectorScreenTest {
             settingsRepository.setLastFolderUri(null)
             settingsRepository.setSortingEnabled(true)
             settingsRepository.setGroupingEnabled(false)
+            // The default order is newest first. These tests count frames in the
+            // order the fixtures are listed (image1, image2, image3), which is
+            // file-name order; the new order has its own tests below.
+            settingsRepository.setSelectorSortOrder(SelectorSortOrder.FILE_NAME)
             // The one-time coach affordances are overlays. Left un-dismissed
             // they sit on top of the frames these tests are asserting about,
             // and whether they appear depends on leftover DataStore state — so
@@ -574,6 +580,90 @@ class SelectorScreenTest {
             .sendKeyDownUpSync(android.view.KeyEvent.KEYCODE_DPAD_RIGHT)
 
         composeRule.waitUntil(timeoutMillis = 5000) { positionCounterShows("2 / 2") }
+    }
+
+    // ── Go to photo ───────────────────────────────────────────────────────
+
+    private fun goToPhotoDialogShown(): Boolean =
+        composeRule.onAllNodes(hasTestTag("go_to_photo_field"), useUnmergedTree = true)
+            .fetchSemanticsNodes().isNotEmpty()
+
+    @Test
+    fun goToPhoto_keyG_opensTheDialog_aTypedOneDoesNotMaximise_escCloses_andFocusReturns() {
+        loadTwoImages()
+        // CI's phone-class emulator runs the compact layout, which has no selector key handler.
+        if (isCompactLayout()) return
+
+        pressKey(android.view.KeyEvent.KEYCODE_G)
+        composeRule.waitUntil(timeoutMillis = 5000) { goToPhotoDialogShown() }
+
+        // A real `1` key into the focused field: it is text, not "maximise the left frame".
+        pressKey(android.view.KeyEvent.KEYCODE_1)
+        composeRule.waitForIdle()
+        assertTrue("the field took the 1", composeRule.onAllNodes(
+            hasTestTag("go_to_photo_field") and hasText("1"),
+            useUnmergedTree = true,
+        ).fetchSemanticsNodes().isNotEmpty())
+        // A maximised frame hides the control block (and its counter) entirely.
+        assertTrue("no frame was maximised behind the dialog", positionCounterShows("1 / 2"))
+
+        // One Esc closes it even with a soft keyboard up (this AVD has no `hw.keyboard`):
+        // without the pre-IME intercept the IME took this Esc to hide itself.
+        pressKey(android.view.KeyEvent.KEYCODE_ESCAPE)
+        composeRule.waitUntil(timeoutMillis = 5000) { !goToPhotoDialogShown() }
+
+        // Focus is back on the selector root: the very next arrow key navigates.
+        pressKey(android.view.KeyEvent.KEYCODE_DPAD_RIGHT)
+        composeRule.waitUntil(timeoutMillis = 5000) { positionCounterShows("2 / 2") }
+    }
+
+    @Test
+    fun goToPhoto_tappingTheCounter_opensTheDialog_andGoJumps() {
+        loadTwoImages()
+        if (isCompactLayout()) return
+
+        composeRule.onAllNodesWithTag("position_counter", useUnmergedTree = true)
+            .onFirst().performClick()
+        composeRule.waitUntil(timeoutMillis = 5000) { goToPhotoDialogShown() }
+
+        composeRule.onNodeWithTag("go_to_photo_field").performTextInput("2")
+        composeRule.onNodeWithTag("go_to_photo_go").performClick()
+
+        composeRule.waitUntil(timeoutMillis = 5000) { !goToPhotoDialogShown() }
+        composeRule.waitUntil(timeoutMillis = 5000) { positionCounterShows("2 / 2") }
+    }
+
+    @Test
+    fun sortOrder_newestFirst_isTheDefaultOrder_andTheMenuSwitchesIt() {
+        runBlocking { settingsRepository.setSelectorSortOrder(SelectorSortOrder.NEWEST_FIRST) }
+        loadTwoImagesNewestFirst()
+        if (isCompactLayout()) return
+
+        // Newest first: image2 (2000) is frame 1, so the counter reads 1 / 2 on image2.
+        composeRule.waitUntil(timeoutMillis = 15000) { positionCounterShows("1 / 2") }
+        assertTrue(
+            composeRule.onAllNodesWithText("image2.jpg", ignoreCase = true)
+                .fetchSemanticsNodes().isNotEmpty(),
+        )
+
+        composeRule.onAllNodesWithText(SidebarAction.MORE.label, useUnmergedTree = true)
+            .onFirst().performClick()
+        composeRule.onAllNodesWithTag("sort_oldest_first", useUnmergedTree = true)
+            .onFirst().performClick()
+
+        // The frame on screen stays on screen: image2 is now the second of two.
+        composeRule.waitUntil(timeoutMillis = 5000) { positionCounterShows("2 / 2") }
+    }
+
+    private fun loadTwoImagesNewestFirst() {
+        fakeRepo.imagesFlow.value = mockImages
+        runBlocking { settingsRepository.setLastFolderUri("content://test/test_folder") }
+        composeRule.waitUntil(timeoutMillis = 15000) {
+            composeRule.onAllNodesWithText("image2.jpg", ignoreCase = true)
+                .fetchSemanticsNodes().isNotEmpty()
+        }
+        dismissGestureTutorialIfShown()
+        composeRule.waitForIdle()
     }
 
     // ── Fullscreen: the arrow keys, the chrome and the EXIF ───────────────

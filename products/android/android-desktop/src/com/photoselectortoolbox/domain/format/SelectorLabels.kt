@@ -115,4 +115,34 @@ object SelectorLabels {
     /** Snackbar text when a rating was kept in the app but could not be written to the photo's file or sidecar. */
     fun ratingNotWrittenMessage(fileName: String, reason: String?): String =
         "Rating kept in the app only — not saved to $fileName" + if (reason.isNullOrBlank()) "" else " ($reason)"
+
+    // ── Sort order and "Go to photo" ─────────────────────────────────────
+
+    /** The overflow-menu radio group, in the order it is shown. */
+    const val SORT_NEWEST_FIRST = "Newest first"
+    const val SORT_OLDEST_FIRST = "Oldest first"
+    const val SORT_FILE_NAME = "File name"
+
+    /** Worst-first reject triage (`U-34`), the fourth item of the same radio group. */
+    const val SORT_BLURRIEST_FIRST = "Blurriest first"
+
+    /** The overflow item that opens the dialog; `G` is its key hint. */
+    const val GO_TO_PHOTO_MENU = "Go to photo…"
+
+    /** Dialog title, button words and the counter's spoken click label. */
+    const val GO_TO_PHOTO = "Go to photo"
+    const val GO_TO_PHOTO_GO = "Go"
+    const val GO_TO_PHOTO_CANCEL = "Cancel"
+
+    /** The field's label; a name is accepted as well as a number. */
+    const val GO_TO_PHOTO_FIELD = "Number or name"
+
+    /** What the supporting line says when the input names no photo. */
+    const val GO_TO_PHOTO_NO_MATCH = "No match"
+
+    /** The field's placeholder: the numbers the counter can show. */
+    fun goToPhotoPlaceholder(total: Int): String = if (total <= 1) "1" else "1–$total"
+
+    /** The supporting line for an empty or out-of-range number. */
+    fun goToPhotoRange(total: Int): String = "Enter ${goToPhotoPlaceholder(total)}"
 }

@@ -6,6 +6,15 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ## [Unreleased]
 
+### Added
+
+- Sort order: a folder now opens with the newest photo first. The overflow menu switches to oldest first, file name or blurriest first (after a scan), and your choice is kept.
+- Go to photo: press `G`, tap the position counter, or use the menu, then type a photo's number or part of its file name. The dialog shows which file it will open.
+
+### Fixed
+
+- Fullscreen and the compact layout no longer jump to another photo when the list is re-ordered or an undo puts a photo back.
+
 ## [0.6.0] - 2026-10-22
 
 ### Added

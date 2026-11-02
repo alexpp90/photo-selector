@@ -16,6 +16,7 @@ import com.photoselector.saf.FolderAccessPurpose
 import com.photoselectortoolbox.domain.grouping.GroupingLevel
 import com.photoselectortoolbox.domain.guidance.SelectorHint
 import com.photoselectortoolbox.domain.interaction.FilingAction
+import com.photoselectortoolbox.domain.session.SelectorSortOrder
 import dagger.hilt.android.qualifiers.ApplicationContext
 import javax.inject.Inject
 import javax.inject.Singleton
@@ -40,6 +41,7 @@ class SettingsRepository @Inject constructor(
         private val KEY_SORTING_ENABLED = booleanPreferencesKey("sorting_enabled")
         private val KEY_GROUPING_ENABLED = booleanPreferencesKey("grouping_enabled")
         private val KEY_GROUPING_LEVEL = stringPreferencesKey("grouping_level")
+        private val KEY_SELECTOR_SORT_ORDER = stringPreferencesKey("selector_sort_order")
         private val KEY_LAST_FOLDER_URI = stringPreferencesKey("last_folder_uri")
         private val KEY_ANALYSIS_THREAD_COUNT = intPreferencesKey("analysis_thread_count")
 
@@ -104,6 +106,19 @@ class SettingsRepository @Inject constructor(
         const val RETIRED_DRIVE_SCHEME = "gdrive://"
 
         val DEFAULT_GROUPING_LEVEL = GroupingLevel.TIME_FILENAME
+
+        /**
+         * Newest first, on a fresh install and on upgrade alike: there was no
+         * setting before, and the order the selector showed then (filename,
+         * which for camera files is oldest first) is what was reported as wrong.
+         */
+        val DEFAULT_SELECTOR_SORT_ORDER: SelectorSortOrder = SelectorSortOrder.DEFAULT
+
+        /** The persisted sort order in [prefs]; absent or unknown is the default. */
+        internal fun selectorSortOrderOf(prefs: Preferences): SelectorSortOrder =
+            prefs[KEY_SELECTOR_SORT_ORDER]
+                ?.let(SelectorSortOrder::fromStoredName)
+                ?: DEFAULT_SELECTOR_SORT_ORDER
         val DEFAULT_ANALYSIS_THREAD_COUNT = Runtime.getRuntime().availableProcessors().coerceIn(1, 4)
     }
 
@@ -131,6 +146,9 @@ class SettingsRepository @Inject constructor(
             DEFAULT_GROUPING_LEVEL
         }
     }
+
+    /** The order the selector shows a folder in (`selector_sort_order`). */
+    val selectorSortOrder: Flow<SelectorSortOrder> = context.dataStore.data.map { prefs -> selectorSortOrderOf(prefs) }
 
     /**
      * The folder to reopen on launch, or null.
@@ -189,6 +207,12 @@ class SettingsRepository @Inject constructor(
     suspend fun setGroupingLevel(level: GroupingLevel) {
         context.dataStore.edit { prefs ->
             prefs[KEY_GROUPING_LEVEL] = level.name
+        }
+    }
+
+    suspend fun setSelectorSortOrder(order: SelectorSortOrder) {
+        context.dataStore.edit { prefs ->
+            prefs[KEY_SELECTOR_SORT_ORDER] = order.name
         }
     }
 

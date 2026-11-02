@@ -114,11 +114,13 @@ class SelectorTourTest {
 
         val keysWithoutControls = callouts.getValue(TourRegion.KEYS).rows.map { it.input }.toSet()
 
-        // 1/2/3, Esc and ? have nothing on screen to point at, which is the
-        // entire reason that callout exists.
+        // 1/2/3, G, Esc and ? have nothing on screen to point at, which is the
+        // entire reason that callout exists. G opens Go to photo: the position
+        // counter is clickable too, but it carries no key cap to point at.
         assertEquals(
             setOf(
                 SelectorShortcut.MAXIMISE.input,
+                SelectorShortcut.GO_TO.input,
                 SelectorShortcut.ESCAPE.input,
                 SelectorShortcut.SHORTCUTS.input,
             ),

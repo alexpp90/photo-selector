@@ -20,6 +20,8 @@ import androidx.compose.ui.unit.dp
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import com.photoselector.core.model.ExifData
 import com.photoselectortoolbox.data.model.ImageItem
+import com.photoselectortoolbox.domain.curation.DeferredDeletion
+import com.photoselectortoolbox.domain.curation.SelectorListState
 import com.photoselectortoolbox.domain.curation.SnackbarLifetime
 import com.photoselectortoolbox.domain.interaction.FilingAction
 import org.junit.Assert.assertEquals
@@ -92,6 +94,8 @@ class FullscreenViewerTest {
         var undos = 0
         val moved = mutableListOf<String>()
         val copied = mutableListOf<String>()
+        /** Every page the viewer reported to the ViewModel. */
+        val reported = mutableListOf<Int>()
     }
 
     private fun host(
@@ -112,7 +116,7 @@ class FullscreenViewerTest {
                 },
                 onCopyToSelection = { i -> harness.copied += harness.images[i].fileName },
                 windowSizeClass = WindowSizeClass.calculateFromSize(DpSize(width.dp, 800.dp)),
-                onPageSelected = { harness.index = it },
+                onPageSelected = { harness.reported += it; harness.index = it },
                 fullscreenButtonsEnabled = true,
                 filingAction = filing,
                 infoPinned = harness.pinned,
@@ -453,5 +457,104 @@ class FullscreenViewerTest {
             lifetime = SnackbarLifetime.DELETE
         }
         assertEquals(1, rule.onAllNodesWithTag("snackbar_countdown", useUnmergedTree = true).fetchSemanticsNodes().size)
+    }
+
+    // ── The list changes while the viewer is open ────────────────────────
+    //
+    // The pager is keyed by URI, so a list change re-indexes it with no scroll. The
+    // ViewModel's index is the truth, and a re-order it applied must not be reported
+    // back as the page the old photo moved to.
+
+    private fun afterListChange() {
+        rule.waitForIdle()
+        repeat(5) { rule.mainClock.advanceTimeByFrame() }
+        rule.waitForIdle()
+    }
+
+    @Test
+    fun `a settle re-order that lands on the new frame 1 is not dragged back to the old photo`() {
+        // Fullscreen was opened before discovery settled: untouched, on frame 1 (a).
+        // Settle puts the newest first and the ViewModel lands on it; the pager's
+        // key-follow would carry it to a.jpg's new page, 5.
+        val harness = open()
+        assertEquals("1 / 5", position())
+
+        harness.images = five.reversed()
+        harness.index = 0
+        afterListChange()
+
+        assertEquals("the ViewModel's frame is the truth", 0, harness.index)
+        assertEquals("e.jpg, the new frame 1, is on screen", "1 / 5", position())
+        assertTrue(exif().orEmpty(), exif().orEmpty().contains("1600"))
+        assertTrue("the viewer reported ${harness.reported}", harness.reported.isEmpty())
+    }
+
+    @Test
+    fun `a sort change keeps the photo on screen and reports nothing`() {
+        val harness = open { index = 1 }
+        assertEquals("2 / 5", position())
+
+        harness.images = five.reversed()
+        harness.index = 3
+        afterListChange()
+
+        assertEquals(3, harness.index)
+        assertEquals("4 / 5", position())
+        assertTrue(exif().orEmpty(), exif().orEmpty().contains("200"))
+        assertTrue("the viewer reported ${harness.reported}", harness.reported.isEmpty())
+    }
+
+    @Test
+    fun `an undo that restores a photo above the current one keeps the current photo`() {
+        // The real list logic: delete a, then take it back.
+        val afterDelete = DeferredDeletion.beginForCurrent(SelectorListState(five, 0), 0L)!!
+        val harness = open {
+            images = afterDelete.first.images
+            index = afterDelete.first.currentIndex
+        }
+        assertEquals("1 / 4", position())
+        assertTrue(exif().orEmpty(), exif().orEmpty().contains("200"))
+
+        val restored = DeferredDeletion.revert(SelectorListState(harness.images, harness.index), afterDelete.second)
+        harness.images = restored.images
+        harness.index = restored.currentIndex
+        afterListChange()
+
+        assertEquals("b.jpg is still the frame on screen", "2 / 5", position())
+        assertTrue(exif().orEmpty(), exif().orEmpty().contains("200"))
+        assertEquals(1, harness.index)
+        assertTrue("the viewer reported ${harness.reported}", harness.reported.isEmpty())
+    }
+
+    @Test
+    fun `an undo that restores a photo above and re-sorts to a different frame follows the ViewModel`() {
+        // Newest first with e deleted earlier: [d, c, b, a] on c. The undo restores e at
+        // the top and the ViewModel, having re-sorted, lands on d (its rule, not the
+        // pager's): index 1 of [e, d, c, b, a].
+        val harness = open {
+            images = listOf(five[3], five[2], five[1], five[0])
+            index = 1
+        }
+        assertEquals("2 / 4", position())
+
+        harness.images = listOf(five[4], five[3], five[2], five[1], five[0])
+        harness.index = 1
+        afterListChange()
+
+        assertEquals(1, harness.index)
+        assertEquals("2 / 5", position())
+        assertTrue(exif().orEmpty(), exif().orEmpty().contains("800"))
+        assertTrue("the viewer reported ${harness.reported}", harness.reported.isEmpty())
+    }
+
+    @Test
+    fun `a swipe or arrow is still reported`() {
+        val harness = open()
+
+        press(KeyEvent.KEYCODE_DPAD_RIGHT)
+        settle()
+
+        assertEquals(listOf(1), harness.reported)
+        assertEquals("2 / 5", position())
     }
 }
