@@ -373,6 +373,7 @@ fun PhoneModeScreen(
                     .semantics { testTagsAsResourceId = BuildConfig.EXPOSE_TEST_TAGS },
             ) {
                 SettingsScreen(
+                    sourceKind = uiState.sourceKind.takeIf { uiState.sourceFolderUri != null },
                     onChangeSourceFolder = {
                         showSettingsSheet = false
                         folderPickerLauncher.launch(null)

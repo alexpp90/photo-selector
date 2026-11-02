@@ -205,6 +205,14 @@ class SettingsViewModel @Inject constructor(
         }
     }
 
+    /**
+     * Show the tab of the folder being browsed, so a change in Settings acts on that folder. Cloud
+     * has no tab of its own: it follows the phone's settings (`cloudInheritsPhone`).
+     */
+    fun showSourceKind(kind: SourceKind) {
+        selectSourceKindTab(if (kind == SourceKind.CLOUD_OTHER) SourceKind.PHONE_LIBRARY else kind)
+    }
+
     fun updateSelectionFolder(name: String) {
         val trimmed = name.trim()
         if (trimmed.isEmpty()) return

@@ -44,6 +44,7 @@ import androidx.compose.material3.SwitchDefaults
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.key
 import androidx.compose.runtime.mutableStateOf
@@ -79,9 +80,13 @@ fun SettingsScreen(
     onReloadFolder: (() -> Unit)? = null,
     /** A message to show after a change (Pro mode on/off); the host shows it above the sheet. */
     onFeedback: (UiText) -> Unit = {},
+    /** The kind of the folder being browsed: Settings opens on its tab, so a change acts on it. */
+    sourceKind: SourceKind? = null,
 ) {
     var showProModeHelp by rememberSaveable { mutableStateOf(false) }
+    var folderDialog by rememberSaveable { mutableStateOf<String?>(null) }
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
+    LaunchedEffect(sourceKind) { sourceKind?.let(viewModel::showSourceKind) }
     val context = LocalContext.current
     val colors = MaterialTheme.colorScheme
 
@@ -124,6 +129,36 @@ fun SettingsScreen(
             modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp),
         )
         if (showProModeHelp) ProModeHelpDialog(onDismiss = { showProModeHelp = false })
+        when (folderDialog) {
+            FOLDER_DIALOG_SELECTION -> FolderTargetDialog(
+                title = stringResource(R.string.setting_title_selection_location),
+                defaultSubfolder = PhotoFolders.SELECTION,
+                isCustom = uiState.collectionUri != null,
+                onUseDefault = {
+                    folderDialog = null
+                    viewModel.updateCollectionUri(null)
+                },
+                onChooseFolder = {
+                    folderDialog = null
+                    selectionFolderPickerLauncher.launch(null)
+                },
+                onDismiss = { folderDialog = null },
+            )
+            FOLDER_DIALOG_LEFT_SWIPE -> FolderTargetDialog(
+                title = stringResource(R.string.setting_title_left_folder),
+                defaultSubfolder = PhotoFolders.LEFT_SWIPE,
+                isCustom = uiState.leftSwipeUri != null,
+                onUseDefault = {
+                    folderDialog = null
+                    viewModel.updateLeftSwipeUri(null)
+                },
+                onChooseFolder = {
+                    folderDialog = null
+                    leftSwipeFolderPickerLauncher.launch(null)
+                },
+                onDismiss = { folderDialog = null },
+            )
+        }
 
         Spacer(modifier = Modifier.height(8.dp))
 
@@ -211,7 +246,7 @@ fun SettingsScreen(
                             summary = stringResource(
                                 if (uiState.collectionUri != null) R.string.setting_summary_custom else R.string.setting_summary_default,
                             ),
-                            onClick = { selectionFolderPickerLauncher.launch(null) },
+                            onClick = { folderDialog = FOLDER_DIALOG_SELECTION },
                             trailing = {
                                 if (uiState.collectionUri != null) {
                                     TextButton(onClick = { viewModel.updateCollectionUri(null) }) {
@@ -445,7 +480,7 @@ fun SettingsScreen(
                                 summary = stringResource(
                                     if (uiState.leftSwipeUri != null) R.string.setting_summary_custom else R.string.setting_summary_default,
                                 ),
-                                onClick = { leftSwipeFolderPickerLauncher.launch(null) },
+                                onClick = { folderDialog = FOLDER_DIALOG_LEFT_SWIPE },
                                 trailing = {
                                     if (uiState.leftSwipeUri != null) {
                                         TextButton(onClick = { viewModel.updateLeftSwipeUri(null) }) {
@@ -598,3 +633,7 @@ private fun DividedRows(dividerColor: Color, build: SettingsRowsBuilder.() -> Un
         }
     }
 }
+
+/** Which folder row's [FolderTargetDialog] is open (saved across rotation). */
+private const val FOLDER_DIALOG_SELECTION = "selection"
+private const val FOLDER_DIALOG_LEFT_SWIPE = "left_swipe"

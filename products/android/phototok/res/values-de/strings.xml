@@ -57,6 +57,7 @@
 
     <!-- Schaltflächen -->
     <string name="action_cancel">Abbrechen</string>
+    <string name="action_choose_folder">Ordner wählen</string>
     <string name="action_close">Schließen</string>
     <string name="action_delete">Löschen</string>
     <string name="action_delete_all">Alle löschen</string>
@@ -219,6 +220,7 @@
     <string name="setting_title_raw_jpeg_folders">RAW- / JPEG-Ordner</string>
     <string name="setting_title_selection_location">Auswahl-Speicherort</string>
     <string name="setting_summary_custom">Eigener</string>
+    <string name="setting_summary_in_source_folder">Unterordner %1$s im Quellordner</string>
     <string name="setting_summary_default">Standard</string>
     <string name="setting_title_reset_folder">Diesen Ordner zurücksetzen</string>
     <string name="setting_title_reset_all">Alle Ordner zurücksetzen</string>
