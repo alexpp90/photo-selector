@@ -19,6 +19,8 @@ Behaviour specification: `../../docs/products/desktop/REQUIREMENTS.md` (maintain
 
 ## Run
 
+Python 3.12 or newer, Tkinter and [Poetry](https://python-poetry.org/).
+
 ```bash
 cd products/desktop
 poetry install

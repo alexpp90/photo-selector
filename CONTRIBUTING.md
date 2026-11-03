@@ -32,7 +32,7 @@ Features should be tailored specifically to the targeted form factors:
 ## Desktop Development (Python)
 
 ### Prerequisites
-- Python 3.10+
+- Python 3.12+
 - Tkinter (on Linux: `sudo apt install python3-tk`, on macOS: `brew install python-tk`)
 - [Poetry](https://python-poetry.org/) for package management
 
