@@ -5,11 +5,14 @@ import android.net.Uri
 import android.provider.DocumentsContract
 import java.io.File
 import java.util.concurrent.atomic.AtomicInteger
+import java.util.concurrent.atomic.AtomicReference
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.async
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.test.StandardTestDispatcher
 import kotlinx.coroutines.test.advanceUntilIdle
 import kotlinx.coroutines.test.runTest
@@ -323,6 +326,27 @@ abstract class SafTransferContractTest(policy: SafTransferPolicy) : SafTestHarne
                 assertEquals("Transfer cancelled by scope", expected.message)
             }
         }
+    }
+
+    // AS-D-2: the caller's cancellation arrives between two source deletes of one bundle.
+    @Test
+    fun `a caller cancelled after the first source delete still finishes the bundle, never half of it`() = runTest {
+        val names = listOf("IMG_0410.JPG", "IMG_0410.CR3")
+        names.forEach { File(rootDir, it).writeText("payload-$it") }
+        val job = AtomicReference<Job?>(null)
+        FakeSafDocumentsProvider.onDelete = { id -> if (!id.contains("Selection")) job.get()?.cancel() }
+
+        val launched = launch {
+            engine.transferBundle(storage, names.map(::documentUriFor), selection(), sorting = true, isMove = true)
+        }
+        job.set(launched)
+        advanceUntilIdle()
+        launched.join()
+
+        assertTrue("the caller was cancelled", launched.isCancelled)
+        names.forEach { assertFalse("$it must not stay behind as an original next to its copy", File(rootDir, it).exists()) }
+        assertEquals("payload-IMG_0410.JPG", File(rootDir, "Selection/JPEG/IMG_0410.JPG").readText())
+        assertEquals("payload-IMG_0410.CR3", File(rootDir, "Selection/RAW/IMG_0410.CR3").readText())
     }
 
     // ── 7. Destination: always the Selection subfolder ───────────────────

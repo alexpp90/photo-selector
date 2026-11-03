@@ -8,6 +8,7 @@ import java.util.concurrent.ConcurrentHashMap
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.NonCancellable
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.Semaphore
 import kotlinx.coroutines.sync.withLock
@@ -238,8 +239,11 @@ class SafTransferEngine(
                     storage.singleDocument(Uri.parse(original))?.exists() == true
                 }.keys
                 var deleteFailed: String? = null
-                deletableCopies.forEach { copyUri ->
-                    if (!delete(storage, Uri.parse(copyUri))) deleteFailed = copyUri
+                // Not cancellable between two copies: the results of the deleted ones must come back.
+                withContext(NonCancellable) {
+                    deletableCopies.forEach { copyUri ->
+                        if (!delete(storage, Uri.parse(copyUri))) deleteFailed = copyUri
+                    }
                 }
                 deleteFailed?.let {
                     return@withContext FileOperationResult.failure(
@@ -546,12 +550,20 @@ class SafTransferEngine(
         // and report a partial outcome.
         var anyDeleteFailed = false
         val survivingOriginals = LinkedHashMap<String, String>() // destination copy -> original kept
-        for ((src, destDoc) in stagedCopies) {
-            // A copy whose source size the provider never reported is not proven complete:
-            // the original stays (AS-D-1).
-            if (!unverifiedSources.contains(src.uri) && deleteSourceAfterVerifiedCopy(storage, src.uri)) continue
-            anyDeleteFailed = true
-            survivingOriginals[destDoc.uri.toString()] = src.uri.toString()
+        // Once the first source is gone the bundle must be finished: a cancellation between two
+        // deletes would drop the results of the members already moved and leave the rest as
+        // originals plus copies, with no undo record (AS-D-2). The caller's cancellation is
+        // rethrown at the next suspension point after the bundle is whole.
+        withContext(NonCancellable) {
+            for ((src, destDoc) in stagedCopies) {
+                // A copy whose source size the provider never reported is not proven complete:
+                // the original stays (AS-D-1).
+                if (!unverifiedSources.contains(src.uri) && deleteSourceAfterVerifiedCopy(storage, src.uri)) {
+                    continue
+                }
+                anyDeleteFailed = true
+                survivingOriginals[destDoc.uri.toString()] = src.uri.toString()
+            }
         }
 
         return if (!anyDeleteFailed) {
@@ -598,7 +610,9 @@ class SafTransferEngine(
         val resolvedSources = resolveSources(storage, sourceUris, selectionDir, sorting, targetFoldersByKey)
         val desiredNames = collisionFreeNames(storage, resolvedSources, targetFoldersByKey)
 
-        return resolvedSources.map { src ->
+        // A cancellation between two members would drop the results of the members already
+        // moved (AS-D-2); the members' copies cannot be cancelled anyway, so finish the bundle.
+        return withContext(NonCancellable) { resolvedSources.map { src ->
             val sourceStr = src.uri.toString()
             val doc = src.doc
             val name = src.fileName
@@ -632,7 +646,7 @@ class SafTransferEngine(
                     FileOperationResult.failure(sourceStr, e.message, parentDocumentId)
                 }
             }
-        }
+        } }
     }
 
     private suspend fun transferOne(

@@ -2,6 +2,8 @@ package com.photoselector.saf
 
 import java.io.File
 import kotlinx.coroutines.ExperimentalCoroutinesApi
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.test.advanceUntilIdle
 import kotlinx.coroutines.test.runTest
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
@@ -228,6 +230,30 @@ class AllOrNothingSafTransferTest : SafTransferContractTest(ALL_OR_NOTHING_POLIC
         assertFalse(undone.success)
         assertEquals("Could not delete the copy in the destination folder", undone.error)
         assertTrue(File(rootDir, "Selection/JPEG/IMG_0045.JPG").exists())
+    }
+
+    // AS-D-2: an undo cancelled after the first copy was deleted still deletes the rest and reports it.
+    @Test
+    fun `an undo cancelled between two copy deletes still deletes every copy of the partial move`() = runTest {
+        val names = listOf("IMG_0046.JPG", "IMG_0046.CR3")
+        seed("sub/day6", *names.toTypedArray())
+        FakeSafDocumentsProvider.failDeletesMatching = "sub/day6"
+        val moved = moveBundle("sub/day6", names)
+        assertTrue(moved.partial)
+        FakeSafDocumentsProvider.failDeletesMatching = null
+        val job = java.util.concurrent.atomic.AtomicReference<kotlinx.coroutines.Job?>(null)
+        FakeSafDocumentsProvider.onDelete = { job.get()?.cancel() }
+
+        val launched = launch { undo(moved) }
+        job.set(launched)
+        advanceUntilIdle()
+        launched.join()
+
+        assertTrue(launched.isCancelled)
+        assertFalse(File(rootDir, "Selection/JPEG/IMG_0046.JPG").exists())
+        assertFalse(File(rootDir, "Selection/RAW/IMG_0046.CR3").exists())
+        assertTrue(File(rootDir, "sub/day6/IMG_0046.JPG").exists())
+        assertTrue(File(rootDir, "sub/day6/IMG_0046.CR3").exists())
     }
 
     // ── B-4 / D-4: restore-folder resolution with opaque document ids ────
