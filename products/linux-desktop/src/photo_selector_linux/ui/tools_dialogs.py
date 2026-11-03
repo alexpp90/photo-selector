@@ -22,6 +22,7 @@ from typing import Callable, List, Optional
 from photo_selector_linux.core.duplicate_finder import DuplicateCluster, find_duplicates
 from photo_selector_linux.core.statistics import LibraryStatistics, calculate_library_statistics
 from photo_selector_linux.ui.file_worker import run_inline
+from photo_selector_linux.ui.secondary_window import install_chrome
 
 REMOTE_NOTICE = "Remote / Cloud folder detected. Confirm before scanning all files."
 SCAN_LABEL = "Scan for Duplicates"
@@ -50,6 +51,7 @@ class DuplicateFinderDialog(Adw.Window if HAS_GI else object):
             self.set_default_size(700, 520)
             if transient_for:
                 self.set_transient_for(transient_for)
+            self._toolbar = install_chrome(self)
             self._build_ui()
 
     @property
@@ -91,7 +93,7 @@ class DuplicateFinderDialog(Adw.Window if HAS_GI else object):
         self.scrolled.set_child(self.results_box)
         box.append(self.scrolled)
 
-        self.set_content(box)
+        self._toolbar.set_content(box)
 
     def _set_status(self, text: str) -> None:
         self.status_text = text
@@ -203,6 +205,7 @@ class LibraryStatisticsDialog(Adw.Window if HAS_GI else object):
             self.set_default_size(680, 560)
             if transient_for:
                 self.set_transient_for(transient_for)
+            self._toolbar = install_chrome(self)
             self._build_ui()
 
     @property
@@ -243,7 +246,7 @@ class LibraryStatisticsDialog(Adw.Window if HAS_GI else object):
         if self.needs_remote_confirmation:
             self.awaiting_remote_confirmation = True
             if HAS_GI:
-                self.set_content(self._build_remote_placeholder())
+                self._toolbar.set_content(self._build_remote_placeholder())
             return
 
         photos = self.viewmodel.candidates if self.viewmodel else []
@@ -333,4 +336,4 @@ class LibraryStatisticsDialog(Adw.Window if HAS_GI else object):
                 ss_group.add(row)
             box.append(ss_group)
 
-        self.set_content(scrolled)
+        self._toolbar.set_content(scrolled)

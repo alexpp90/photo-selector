@@ -290,7 +290,7 @@ def test_remote_confirmation_controls_exist_in_the_real_dialogs(tmp_path: Path):
     vm = _remote_vm(tmp_path)
 
     stats = LibraryStatisticsDialog(viewmodel=vm)
-    assert stats.get_content() is not None, "a blank window on a remote folder"
+    assert stats._toolbar.get_content() is not None, "a blank window on a remote folder"
     assert stats.btn_confirm.get_label() == "Scan anyway"
     stats.btn_confirm.emit("clicked")
     assert not stats.awaiting_remote_confirmation and stats.stats is not None

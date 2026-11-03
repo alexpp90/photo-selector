@@ -16,6 +16,8 @@ except (ImportError, ValueError):
     HAS_GI = False
     Gtk = Adw = None
 
+from photo_selector_linux.ui.secondary_window import install_chrome
+
 
 class ShortcutsDialog(Adw.Window if HAS_GI else object):
     """Cheat sheet window presenting keyboard shortcuts."""
@@ -27,6 +29,7 @@ class ShortcutsDialog(Adw.Window if HAS_GI else object):
             self.set_default_size(500, 480)
             if transient_for:
                 self.set_transient_for(transient_for)
+            self._toolbar = install_chrome(self)
             self._build_ui()
 
     def _build_ui(self) -> None:
@@ -80,4 +83,4 @@ class ShortcutsDialog(Adw.Window if HAS_GI else object):
                 group.add(row)
             box.append(group)
 
-        self.set_content(scrolled)
+        self._toolbar.set_content(scrolled)

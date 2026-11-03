@@ -7,6 +7,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 ## [Unreleased]
 
 ### Fixed
+- Duplicate Finder, Library Statistics and the shortcut list have a header bar with a close button and close with Escape.
 - Closing the folder picker without choosing no longer shows "Open folder cancelled: Dismissed by user". A folder that cannot be opened says "Could not open <folder>" and why.
 - A Google Drive (or other cloud mount) connected while Blitzlens is already running now shows real file names; before, its files stayed unreadable until the app was restarted.
 - Settings are saved atomically, so a crash while saving can no longer reset them to the defaults. A settings file that cannot be read is logged and a copy is kept as `settings.json.corrupt`.
