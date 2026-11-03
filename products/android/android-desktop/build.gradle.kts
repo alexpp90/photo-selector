@@ -27,7 +27,6 @@ android {
             java.directories.apply { clear(); add("src") }
             kotlin.directories.apply { clear(); add("src") }
             res.directories.apply { clear(); add("res") }
-            jniLibs.directories.apply { clear(); add("jniLibs") }
             manifest.srcFile("AndroidManifest.xml")
         }
         getByName("test") {
