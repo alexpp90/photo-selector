@@ -7,6 +7,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 ## [Unreleased]
 
 ### Changed
+- The empty start screen lost its tagline, and its key hints are generated from the same key table the app uses.
 - The action buttons read **Keep**, **Copy**, **Trash** and **Undo**; the keys moved into the tooltips and the `?` shortcut sheet. The tooltip of **Undo** names the action it would undo.
 - The view switcher (1-Up, 2-Up, 3-Up) is a toggle group, so a screen reader announces which view is pressed.
 - Counters, badges, captions and the info card follow the system text size; before, they stayed the same size at 150 % text.

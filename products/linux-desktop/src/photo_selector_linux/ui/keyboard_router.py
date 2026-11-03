@@ -24,6 +24,16 @@ except (ImportError, ValueError):
     Gtk = Gdk = None
 
 
+# What the empty state teaches: (keyval, state, label) triples. The key shown is the one dispatched,
+# so a changed binding cannot leave a stale pill; a test sends each through the engine.
+EMPTY_STATE_HINTS = (
+    (0x6F, 4, "Ctrl+O", "Open folder"),
+    (0x31, 0, "1 2 3", "Views"),
+    (0x6D, 0, "M C Del", "Keep, copy, trash"),
+    (0x69, 0, "I", "Info"),
+)
+
+
 class KeyboardRouterEngine:
     """Decoupled key matching and dispatching engine.
 

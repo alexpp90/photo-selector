@@ -315,3 +315,41 @@ def test_real_router_passes_a_focused_button_to_the_engine():
     router.on_toggle_zoom = MagicMock()
     router.engine.target = router
     assert router._on_key_pressed(None, 0x20, 0, 0) is kr.Gdk.EVENT_STOP
+
+
+def test_every_empty_state_hint_names_a_key_the_router_handles():
+    """The pills are generated from EMPTY_STATE_HINTS: each key shown must do something (BL-UX-8)."""
+    from photo_selector_linux.ui.keyboard_router import EMPTY_STATE_HINTS
+
+    for keyval, state, keys, meaning in EMPTY_STATE_HINTS:
+        target = MagicMock()
+        assert KeyboardRouterEngine(handler_target=target).dispatch(keyval=keyval, state=state) is True, keys
+        assert meaning and keys
+
+
+def test_the_empty_state_has_no_tagline_and_builds_its_pills_from_the_table():
+    import pytest
+
+    from photo_selector_linux.ui import canvas as canvas_module
+    from photo_selector_linux.ui.keyboard_router import EMPTY_STATE_HINTS
+    from photo_selector_linux.viewmodels.culling_workspace import CullingWorkspaceViewModel
+
+    if isinstance(canvas_module.Gtk, MagicMock):
+        pytest.skip("needs real Gtk")
+    view = canvas_module.CanvasView(viewmodel=CullingWorkspaceViewModel())
+    labels = []
+
+    def walk(widget):
+        from gi.repository import Gtk
+
+        if isinstance(widget, Gtk.Label):
+            labels.append(widget.get_label())
+        child = widget.get_first_child()
+        while child is not None:
+            walk(child)
+            child = child.get_next_sibling()
+
+    walk(view._create_empty_state())
+    assert "Optical RAW & JPEG Triage" not in labels
+    for _k, _s, keys, meaning in EMPTY_STATE_HINTS:
+        assert f"{keys} {meaning}" in labels
