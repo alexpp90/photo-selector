@@ -188,7 +188,7 @@ enum class FullscreenGesture(
      * selector `I` means Inspect; the fullscreen viewer is its own window with
      * its own key handler, so the two never meet.
      */
-    INFO("I", "pin / unpin the info bar"),
+    INFO("I", "pin / unpin the info panel"),
     ESCAPE("Esc", "exit"),
 }
 

@@ -150,7 +150,7 @@ When a hardware keyboard is detected, the same shortcuts as desktop apply:
 | M | Move to Selection |
 | C | Copy to Selection |
 | Escape | Exit fullscreen / comparison mode |
-| I | Fullscreen: pin / unpin the info bar |
+| I | Fullscreen: pin / unpin the info panel |
 | F | Enter fullscreen viewer |
 | Space | Toggle Focus/comparison mode (tablet only) |
 
