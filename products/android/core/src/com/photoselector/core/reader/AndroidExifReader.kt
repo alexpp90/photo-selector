@@ -511,7 +511,7 @@ internal object BinaryExifRatingReader {
             RandomAccessFile(file, "r").use { raf ->
                 readFromRaf(raf)
             }
-        } catch (e: Throwable) {
+        } catch (e: Exception) {
             null
         }
     }
@@ -529,7 +529,7 @@ internal object BinaryExifRatingReader {
                 buffer.flip()
                 parseFromBuffer(buffer)
             }
-        } catch (e: Throwable) {
+        } catch (e: Exception) {
             null
         }
     }
@@ -547,7 +547,7 @@ internal object BinaryExifRatingReader {
     fun parseFromBuffer(buffer: ByteBuffer): Int? {
         return try {
             parseFromBufferInternal(buffer)
-        } catch (e: Throwable) {
+        } catch (e: Exception) {
             null
         }
     }
