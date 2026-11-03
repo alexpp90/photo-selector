@@ -172,7 +172,8 @@ def test_version_consistent_across_sources():
                      (product_dir / "src" / "photo_selector_linux" / "__init__.py").read_text()).group(1)
     import xml.etree.ElementTree as ET
     meta = ET.parse(product_dir / "data" / "app.alpatix.Blitzlens.metainfo.xml").getroot().find("releases/release")
-    assert pyproject == deb == init == meta.get("version") == "0.2.0"
+    # Compared with each other, not with a literal: `release.py prepare` moves all four together.
+    assert pyproject == deb == init == meta.get("version")
 
 
 @pytest.mark.skipif(not shutil.which("dpkg-deb"), reason="dpkg-deb not available")
