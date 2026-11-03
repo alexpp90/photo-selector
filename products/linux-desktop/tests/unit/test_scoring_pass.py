@@ -174,7 +174,8 @@ def test_window_wires_the_loader_pass_and_it_scores_real_images(tmp_path):
     vm = win.viewmodel
     assert vm.score_runner == win.canvas_view.loader.run_scoring_pass
     vm.current_folder = tmp_path
-    vm.candidates = [CandidatePhoto(primary_path=tmp_path / n) for n in ("IMG_0001.jpg", "IMG_0002.jpg", "IMG_0003.jpg")]
+    names = ("IMG_0001.jpg", "IMG_0002.jpg", "IMG_0003.jpg")
+    vm.candidates = [CandidatePhoto(primary_path=tmp_path / n) for n in names]
     vm.set_sort_order(LOWEST)
 
     context = GLib.MainContext.default()

@@ -962,7 +962,12 @@ def test_partial_move_is_recorded_for_undo_and_reported_without_losing_the_photo
     vm.current_folder = Path("/tmp/test_dir")
     messages = []
     severities = []
-    vm.connect("notification", lambda _vm, message: (messages.append(message), severities.append(_vm.last_notification_severity)))
+
+    def remember(_vm, message):
+        messages.append(message)
+        severities.append(_vm.last_notification_severity)
+
+    vm.connect("notification", remember)
 
     vm.cull_move()
 
