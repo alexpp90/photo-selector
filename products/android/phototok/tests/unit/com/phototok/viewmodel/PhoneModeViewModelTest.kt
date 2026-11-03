@@ -1255,6 +1255,32 @@ class PhoneModeViewModelTest {
     }
 
     @Test
+    fun `switching folders mid-walk stops the old walk from adding to the feed`() = runTest {
+        val folderA = MutableSharedFlow<List<ImageItem>>(extraBufferCapacity = 8)
+        val folderB = MutableSharedFlow<List<ImageItem>>(extraBufferCapacity = 8)
+        every { imageRepository.discoverImages(match { it.toString() == "content://tree/a" }) } returns folderA
+        every { imageRepository.discoverImages(match { it.toString() == "content://tree/b" }) } returns folderB
+        val viewModel = buildViewModel()
+        viewModel.selectSourceFolder(Uri.parse("content://tree/a"))
+        folderA.tryEmit(listOf(image("a1.jpg", 30)))
+        assertEquals(listOf("a1.jpg"), viewModel.uiState.value.images.map { it.fileName })
+        assertTrue("folder A is still being walked", viewModel.uiState.value.isDiscovering)
+
+        viewModel.selectSourceFolder(Uri.parse("content://tree/b"))
+        folderB.tryEmit(listOf(image("b1.jpg", 20)))
+        // The old walk finds more files after the switch: none of them may reach the feed.
+        folderA.tryEmit(listOf(image("a1.jpg", 30), image("a2.jpg", 10)))
+        folderB.tryEmit(listOf(image("b1.jpg", 20), image("b2.jpg", 5)))
+        advanceUntilIdle()
+
+        val state = viewModel.uiState.value
+        assertEquals(listOf("b1.jpg", "b2.jpg"), state.images.map { it.fileName })
+        assertEquals(listOf("b1.jpg", "b2.jpg"), state.allImages.map { it.fileName })
+        assertEquals("content://tree/b", state.sourceFolderUri)
+        assertEquals("the old walk has no collector left", 0, folderA.subscriptionCount.value)
+    }
+
+    @Test
     fun `scrolling through feed does not finalize pending delete`() = runTest {
         val viewModel = loadFolder(image("a.jpg", 3), image("b.jpg", 2), image("c.jpg", 1))
 
