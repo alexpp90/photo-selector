@@ -496,6 +496,10 @@ fun PhoneModeScreen(
                         onOpenWithCurrentPhoto = {
                             viewModel.buildCurrentOpenWithIntent()?.let { context.startActivity(it) }
                         },
+                        onToggleFavourite = viewModel::toggleCurrentFavourite,
+                        onCopyToSelection = viewModel::copyCurrentToSelection,
+                        // A cloud provider cannot move; the ViewModel would copy instead.
+                        onMoveToSelection = if (uiState.isCloudSource) null else viewModel::moveCurrentToSelection,
                         onFirstRunHint = viewModel::maybeShowFirstRunHint,
                         onFileDetailsOpened = viewModel::loadDimensionsOfCurrent,
                         collectionReady = collectionReady,
@@ -593,6 +597,9 @@ fun PhoneModeScreen(
                         viewModel.buildCurrentOpenWithIntent()?.let { context.startActivity(it) }
                     },
                     onToggleFavourite = viewModel::toggleCurrentFavourite,
+                    onCopyToSelection = viewModel::copyCurrentToSelection,
+                    // A cloud provider cannot move; the ViewModel would copy instead.
+                    onMoveToSelection = if (uiState.isCloudSource) null else viewModel::moveCurrentToSelection,
                     onFirstRunHint = viewModel::maybeShowFirstRunHint,
                     onFileDetailsOpened = viewModel::loadDimensionsOfCurrent,
                     collectionReady = collectionReady,

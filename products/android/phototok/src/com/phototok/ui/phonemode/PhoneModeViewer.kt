@@ -189,6 +189,10 @@ fun PhoneModeViewer(
     onOpenWithCurrentPhoto: () -> Unit = {},
     /** Long-press "Favourite" / "Remove favourite"; null hides the item (read-only viewers). */
     onToggleFavourite: (() -> Unit)? = null,
+    /** Long-press "Copy" into the Selection folder (REQ-TOK-GESTURE.03); null hides the item. */
+    onCopyToSelection: (() -> Unit)? = null,
+    /** Long-press "Move" into the Selection folder; null hides the item (read-only, cloud). */
+    onMoveToSelection: (() -> Unit)? = null,
     onFirstRunHint: (FirstRunHint) -> Unit = {},
     /** The file details opened for the current photo: the feed does not measure photos by default. */
     onFileDetailsOpened: () -> Unit = {},
@@ -347,13 +351,56 @@ fun PhoneModeViewer(
     val detailsLabel = stringResource(R.string.action_details)
     val currentIsFavourite = currentImage?.let { favourites.isFavourite(it.uri) } == true
     val favouriteLabel = stringResource(if (currentIsFavourite) R.string.action_unfavourite else R.string.action_favourite)
+    val copyLabel = stringResource(R.string.action_copy)
+    val moveLabel = stringResource(R.string.action_move)
+
+    // The swipe actions, shared by the drag gesture and the accessibility actions so both take
+    // the same path (the delete confirmation included). They read the newest callbacks: the drag
+    // detector is installed once per page and must not keep the first composition's lambdas.
+    val currentOnAddToCollection by rememberUpdatedState(onAddToCollection)
+    val currentOnRequestDelete by rememberUpdatedState(onRequestDelete)
+    val currentLeftSwipeAction by rememberUpdatedState(leftSwipeAction)
+    val swipeRight: () -> Unit = {
+        currentOnAddToCollection()
+        if (collectionReadyNow) showCollectionFlash = true
+    }
+    val swipeLeft: () -> Unit = {
+        currentOnRequestDelete()
+        if (currentLeftSwipeAction != SwipeAction.DELETE) {
+            showLeftSwipeFlash = true
+        }
+    }
+    // TalkBack cannot drag a card, so each configured swipe is also a custom action named like
+    // the mid-swipe indicator's spoken text ("Copy to Selection", "Delete photo"). A favourite
+    // swipe is already covered by the Favourite action when that is offered.
+    val swipeRightActionLabel = SwipeLabels.rightDescription(swipeRightVerb, collectionFolderName).asString()
+    val swipeLeftActionLabel = SwipeLabels.leftDescription(leftSwipeAction, leftSwipeFolderName).asString()
+    val offerSwipeRightAction = !readOnly &&
+        !(swipeRightVerb == SwipeRightVerb.FAVOURITE && onToggleFavourite != null)
 
     Box(
         modifier = Modifier
             .fillMaxSize()
             .background(Color.Black)
             .semantics {
-                customActions = listOf(
+                customActions = listOfNotNull(
+                    if (offerSwipeRightAction) {
+                        CustomAccessibilityAction(swipeRightActionLabel) {
+                            swipeRight()
+                            true
+                        }
+                    } else {
+                        null
+                    },
+                    if (!readOnly) {
+                        CustomAccessibilityAction(swipeLeftActionLabel) {
+                            swipeLeft()
+                            true
+                        }
+                    } else {
+                        null
+                    },
+                ) + listOf(
                     CustomAccessibilityAction(shareLabel) {
                         onShareCurrentPhoto()
                         true
@@ -410,16 +457,8 @@ fun PhoneModeViewer(
                 onLongPress = {
                     showLongPressMenu = true
                 },
-                onSwipeLeftDelete = {
-                    onRequestDelete()
-                    if (leftSwipeAction != SwipeAction.DELETE) {
-                        showLeftSwipeFlash = true
-                    }
-                },
-                onSwipeRightCollect = {
-                    onAddToCollection()
-                    if (collectionReadyNow) showCollectionFlash = true
-                },
+                onSwipeLeftDelete = swipeLeft,
+                onSwipeRightCollect = swipeRight,
                 leftSwipeAction = leftSwipeAction,
                 leftSwipeFolderName = leftSwipeFolderName,
                 swipeRightVerb = swipeRightVerb,
@@ -466,6 +505,28 @@ fun PhoneModeViewer(
                             onToggleFavourite()
                         },
                         modifier = Modifier.testTag("menu_toggle_favourite"),
+                    )
+                }
+                if (onCopyToSelection != null) {
+                    DropdownMenuItem(
+                        text = { Text(copyLabel) },
+                        leadingIcon = { Icon(Icons.Default.ContentCopy, contentDescription = null) },
+                        onClick = {
+                            showLongPressMenu = false
+                            onCopyToSelection()
+                        },
+                        modifier = Modifier.testTag("menu_copy_to_selection"),
+                    )
+                }
+                if (onMoveToSelection != null) {
+                    DropdownMenuItem(
+                        text = { Text(moveLabel) },
+                        leadingIcon = { Icon(Icons.AutoMirrored.Filled.DriveFileMove, contentDescription = null) },
+                        onClick = {
+                            showLongPressMenu = false
+                            onMoveToSelection()
+                        },
+                        modifier = Modifier.testTag("menu_move_to_selection"),
                     )
                 }
                 DropdownMenuItem(
@@ -650,6 +711,8 @@ private fun ImagePage(
 
     val currentOnSingleTap by rememberUpdatedState(onSingleTap)
     val currentOnLongPress by rememberUpdatedState(onLongPress)
+    val currentOnSwipeLeft by rememberUpdatedState(onSwipeLeftDelete)
+    val currentOnSwipeRight by rememberUpdatedState(onSwipeRightCollect)
     val currentOnFirstRunHint by rememberUpdatedState(onFirstRunHint)
 
     val colors = MaterialTheme.colorScheme
@@ -768,9 +831,9 @@ private fun ImagePage(
                         detectHorizontalDragGestures(
                             onDragEnd = {
                                 if (horizontalDragOffset < -actionThreshold) {
-                                    onSwipeLeftDelete()
+                                    currentOnSwipeLeft()
                                 } else if (horizontalDragOffset > actionThreshold) {
-                                    onSwipeRightCollect()
+                                    currentOnSwipeRight()
                                 }
                                 horizontalDragOffset = 0f
                             },

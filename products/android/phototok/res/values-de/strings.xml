@@ -83,6 +83,8 @@
     <string name="action_details">Details</string>
     <string name="action_favourite">Favorit</string>
     <string name="action_unfavourite">Favorit entfernen</string>
+    <string name="action_copy">Kopieren</string>
+    <string name="action_move">Verschieben</string>
 
     <!-- Beschriftungen und Chips -->
     <string name="label_show_only">Nur zeigen</string>

@@ -12,6 +12,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 - The delete confirmation has a **Don't ask** checkbox: tick it and confirm to stop the prompt (the Settings row turns it back on). Cancel never turns it off. The confirmation stays on by default in both modes.
 - Favourites now reach Android (11 and later): Jackpix sets the system favourite flag for photos on the phone and on an indexed SD card, RAW+JPEG companions included, and clears it when you remove the favourite. The changes go out in batches when you leave the feed, switch folders, open the Selection viewer, or after 25 changes. Favourites set in another app show in Jackpix. Before, favourites never left Jackpix.
 - **Favourite** / **Remove favourite** in the long-press menu.
+- **Copy** and **Move** into the Selection folder in the long-press menu (Move is not offered for a cloud folder, which cannot move).
+- TalkBack can cull: the swipe right and swipe left you configured are custom actions on the photo ("Copy to Selection", "Delete photo"), and a delete asks first like the swipe does. Before, copy, move and delete were reachable only by dragging the photo.
 - The favourite badge shows a filled star when the system has the favourite too, and an outlined star while it is only in Jackpix.
 
 ### Changed
