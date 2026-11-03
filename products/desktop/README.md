@@ -9,7 +9,7 @@ products/desktop/
   src/photo_selector_toolbox/   core/ exif/ tools/ gui/ cli.py
   tests/                        conftest.py, unit/{core,exif,tools,gui}/, visual/
   benchmarks/
-  scripts/                      build.py, generate_icons.py, generate_notices.py,
+  scripts/                      build.py, generate_notices.py,
                                 update_formula.py, install-{mac,linux}.sh
   pyproject.toml  poetry.lock  .flake8
 ```
@@ -67,4 +67,4 @@ GUI tests need a display; on headless Linux use `xvfb-run`. Visual regression te
   from here. `tap_migrations.json` at the repository root forwards users of the old in-repo
   tap to `alexpp90/tap`.
 - **`assets/` is at the repository root** — the logo and screenshots are shared with the
-  top-level README, and `scripts/generate_icons.py` reads them from there.
+  top-level README, and `scripts/build.py` bundles `logo.png`, `logo.ico` and `logo.icns` from there.

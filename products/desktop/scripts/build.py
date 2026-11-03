@@ -270,31 +270,7 @@ def run_pyinstaller(target):
             print(f"Signing {app_path} with ad-hoc signature...")
             subprocess.run(["codesign", "--force", "--deep", "--sign", "-", str(app_path)], check=True)
 
-def generate_icons_if_possible():
-    # Only try generating icons on Linux, or if explicit env var is set.
-    # On Windows/Mac, installing Cairo is tricky, so we rely on pre-generated assets.
-    if platform.system() != "Linux" and os.environ.get("FORCE_ICON_GEN") != "1":
-        print("Skipping icon generation on non-Linux platform (using existing assets).")
-        return True
-
-    # Try importing and running generation script
-    # It might fail if dependencies (cairo) are missing
-    try:
-        sys.path.append(str(Path(__file__).parent))
-        from generate_icons import generate_icons
-        print("Generating icons...")
-        return generate_icons()
-    except (ImportError, OSError) as e:
-        print(f"Warning: Could not run icon generation script: {e}")
-        print("Build will proceed using existing assets if available.")
-        return False
-    except Exception as e:
-        print(f"Warning: Unexpected error during icon generation: {e}")
-        return False
-
 def main():
-    generate_icons_if_possible()
-
     setup_exiftool()
 
     print("Building CLI...")
