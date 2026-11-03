@@ -574,6 +574,38 @@ abstract class SafTransferContractTest(policy: SafTransferPolicy) : SafTestHarne
         assertEquals(setOf("payload-A", "payload-B"), jpeg.map { File(rootDir, "Selection/JPEG/$it").readText() }.toSet())
     }
 
+    // JP-P-1: the destination root of a real camera folder holds thousands of photographs.
+    @Test
+    fun `transfers into a folder of many photographs ask the provider about no child one by one`() = runTest {
+        File(rootDir, "Selection/JPEG").mkdirs()
+        repeat(300) { File(rootDir, "DSC_%04d.JPG".format(it)).writeText("photo-$it") }
+
+        FakeSafDocumentsProvider.documentQueryCalls.set(0)
+        assertTrue(copy("DSC_0000.JPG").success)
+        val firstTransfer = FakeSafDocumentsProvider.documentQueryCalls.get()
+        assertTrue(copy("DSC_0001.JPG").success)
+        assertTrue(copy("DSC_0002.JPG").success)
+        val threeTransfers = FakeSafDocumentsProvider.documentQueryCalls.get()
+
+        assertTrue("first transfer asked about $firstTransfer documents", firstTransfer < 40)
+        assertTrue("three transfers asked about $threeTransfers documents", threeTransfers < 100)
+        assertEquals(setOf("DSC_0000.JPG", "DSC_0001.JPG", "DSC_0002.JPG"), File(rootDir, "Selection/JPEG").list()!!.toSet())
+    }
+
+    @Test
+    fun `a Selection folder removed between two transfers is created again`() = runTest {
+        File(rootDir, "IMG_0450.JPG").writeText("one")
+        File(rootDir, "IMG_0451.JPG").writeText("two")
+        assertTrue(copy("IMG_0450.JPG").success)
+        File(rootDir, "Selection").deleteRecursively()
+
+        val second = copy("IMG_0451.JPG")
+
+        assertTrue(second.success)
+        assertEquals("two", File(rootDir, "Selection/JPEG/IMG_0451.JPG").readText())
+        assertFalse(File(rootDir, "Selection/JPEG/IMG_0450.JPG").exists())
+    }
+
     // ── Provider seam ────────────────────────────────────────────────────
 
     @Test

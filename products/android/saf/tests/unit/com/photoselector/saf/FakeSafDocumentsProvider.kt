@@ -80,6 +80,9 @@ class FakeSafDocumentsProvider : android.content.ContentProvider() {
         val moveDocumentCalls = AtomicInteger(0)
         val childrenQueryCalls = AtomicInteger(0)
 
+        /** Queries about one document (`getName()`, `exists()`, `length()` …), not a child listing. */
+        val documentQueryCalls = AtomicInteger(0)
+
         fun reset(root: File) {
             rootDir = root
             advertiseSupportsMove = false
@@ -96,6 +99,7 @@ class FakeSafDocumentsProvider : android.content.ContentProvider() {
             onDelete = null
             moveDocumentCalls.set(0)
             childrenQueryCalls.set(0)
+            documentQueryCalls.set(0)
         }
     }
 
@@ -181,6 +185,7 @@ class FakeSafDocumentsProvider : android.content.ContentProvider() {
                 addRow(cursor, cols, child)
             }
         } else {
+            documentQueryCalls.incrementAndGet()
             val file = fileForDocId(id)
             if (file.exists()) {
                 addRow(cursor, cols, file)

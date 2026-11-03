@@ -53,6 +53,12 @@ class SafTransferEngine(
     private val transferSemaphore = Semaphore(maxConcurrentTransfers)
     private val destinationLocks = ConcurrentHashMap<String, Mutex>()
 
+    /**
+     * The Selection folder of a destination, by canonical root URI and folder name (JP-P-1).
+     * URIs, not `DocumentFile`s: those hold the `Context` of the call that made them.
+     */
+    private val selectionDirs = ConcurrentHashMap<String, Uri>()
+
     var ioDispatcher: CoroutineDispatcher = Dispatchers.IO
     var documentMover: SafDocumentMover = DefaultSafDocumentMover
 
@@ -116,13 +122,12 @@ class SafTransferEngine(
                             unresolvedSourceError ?: "Could not write to the ${destination.folderName} folder",
                         )
                     val folderName = destination.folderNameIn(destRoot)
-                    val selectionDir = destRoot.findFile(folderName)
-                        ?: destRoot.createDirectory(folderName)
+                    val selectionDir = resolveSelectionDir(storage, destRoot, destination.rootUri, folderName)
                         ?: return@withContext failAll(
                             unresolvedSourceError ?: "Could not write to the $folderName folder",
                         )
                     if (policy.markerTiming == MarkerTiming.WHEN_FOLDER_RESOLVED) {
-                        ensureSelectionMarker(selectionDir)
+                        ensureSelectionMarker(storage, selectionDir)
                     }
 
                     val results = when (policy.bundleAtomicity) {
@@ -152,7 +157,7 @@ class SafTransferEngine(
                     if (policy.markerTiming == MarkerTiming.AFTER_FIRST_TRANSFER &&
                         results.any { it.success || it.partial }
                     ) {
-                        ensureSelectionMarker(selectionDir)
+                        ensureSelectionMarker(storage, selectionDir)
                     }
                     results
                 }
@@ -873,15 +878,80 @@ class SafTransferEngine(
     }
 
     /** Drop the Selection marker into [selectionDir] (best effort; never fails a transfer). */
-    fun ensureSelectionMarker(selectionDir: DocumentFile) {
+    internal fun ensureSelectionMarker(storage: SafStorage, selectionDir: DocumentFile) {
         try {
-            if (selectionDir.findFile(SELECTION_MARKER_FILE_NAME) == null) {
+            if (findChild(storage, selectionDir, SELECTION_MARKER_FILE_NAME) == null) {
                 selectionDir.createFile("application/octet-stream", SELECTION_MARKER_FILE_NAME)
             }
         } catch (e: Exception) {
             Log.d(TAG, "Could not create $SELECTION_MARKER_FILE_NAME in ${selectionDir.uri}: ${e.message}")
         }
     }
+
+    /**
+     * The folder [folderName] inside [destRoot], found or created. A folder that was resolved
+     * before is kept per destination and only re-checked with one query for its own type, so a
+     * transfer into a camera folder of thousands of photographs never lists it (JP-P-1). A
+     * folder that has disappeared since is looked up again, and created when it is gone.
+     */
+    private fun resolveSelectionDir(
+        storage: SafStorage,
+        destRoot: DocumentFile,
+        rootUri: Uri,
+        folderName: String,
+    ): DocumentFile? {
+        val key = FolderAccessManager.canonicalUri(rootUri.toString()) + "\u0000" + folderName
+        selectionDirs[key]?.let { cachedUri ->
+            val cached = storage.treeDocument(cachedUri)
+            if (cached != null && try { cached.isDirectory } catch (_: Exception) { false }) return cached
+            selectionDirs.remove(key)
+        }
+        val dir = findChild(storage, destRoot, folderName) ?: destRoot.createDirectory(folderName)
+        if (dir != null && dir.isDirectory) selectionDirs[key] = dir.uri
+        return dir
+    }
+
+    /**
+     * The child of [parent] called [name], or null. One cursor query over the children's ids and
+     * names instead of `DocumentFile.findFile`, which lists the children and then asks the
+     * provider for every child's name one by one (JP-P-1). Falls back to `findFile` when the
+     * provider offers no cursor.
+     */
+    internal fun findChild(storage: SafStorage, parent: DocumentFile, name: String): DocumentFile? {
+        val childrenUri = childrenUriOf(parent.uri)
+        if (childrenUri != null) {
+            try {
+                val found = storage.contentResolver.query(
+                    childrenUri,
+                    arrayOf(DocumentsContract.Document.COLUMN_DOCUMENT_ID, DocumentsContract.Document.COLUMN_DISPLAY_NAME),
+                    null,
+                    null,
+                    null,
+                )?.use { cursor ->
+                    val idIndex = cursor.getColumnIndex(DocumentsContract.Document.COLUMN_DOCUMENT_ID)
+                    val nameIndex = cursor.getColumnIndex(DocumentsContract.Document.COLUMN_DISPLAY_NAME)
+                    if (idIndex < 0 || nameIndex < 0) return@use null
+                    var documentId: String? = null
+                    while (documentId == null && cursor.moveToNext()) {
+                        if (!cursor.isNull(nameIndex) && cursor.getString(nameIndex) == name) {
+                            documentId = cursor.getString(idIndex)
+                        }
+                    }
+                    FoundChild(documentId)
+                }
+                if (found != null) {
+                    return found.documentId?.let {
+                        storage.treeDocument(DocumentsContract.buildDocumentUriUsingTree(parent.uri, it))
+                    }
+                }
+            } catch (e: Exception) {
+                Log.w(TAG, "Cursor lookup of $name failed in ${parent.uri}, falling back to findFile", e)
+            }
+        }
+        return parent.findFile(name)
+    }
+
+    private class FoundChild(val documentId: String?)
 
     /**
      * Stream-copy [sourceUri] into [targetFolder] as [desiredName], verifying
@@ -977,6 +1047,17 @@ class SafTransferEngine(
         null
     }
 
+    /** The URI listing the children of the folder [folderUri] names, or null for a non-tree URI. */
+    private fun childrenUriOf(folderUri: Uri): Uri? = try {
+        DocumentsContract.buildChildDocumentsUriUsingTree(folderUri, DocumentsContract.getDocumentId(folderUri))
+    } catch (_: Exception) {
+        try {
+            DocumentsContract.buildChildDocumentsUriUsingTree(folderUri, DocumentsContract.getTreeDocumentId(folderUri))
+        } catch (_: Exception) {
+            null
+        }
+    }
+
     /** The names and provider document ids of the children of one folder. */
     internal class FolderListing(val names: Set<String>, val documentIds: Set<String>)
 
@@ -990,17 +1071,7 @@ class SafTransferEngine(
         targetFolder: DocumentFile,
     ): FolderListing {
         val folderUri = targetFolder.uri
-        val childrenUri = try {
-            val docId = DocumentsContract.getDocumentId(folderUri)
-            DocumentsContract.buildChildDocumentsUriUsingTree(folderUri, docId)
-        } catch (_: Exception) {
-            try {
-                val treeDocId = DocumentsContract.getTreeDocumentId(folderUri)
-                DocumentsContract.buildChildDocumentsUriUsingTree(folderUri, treeDocId)
-            } catch (_: Exception) {
-                null
-            }
-        }
+        val childrenUri = childrenUriOf(folderUri)
 
         if (childrenUri != null) {
             try {
