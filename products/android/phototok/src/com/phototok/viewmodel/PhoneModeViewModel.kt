@@ -23,6 +23,7 @@ import com.phototok.data.repository.ImageRepository
 import com.phototok.data.repository.SeenRepository
 import com.phototok.data.repository.SettingsRepository
 import com.phototok.data.repository.StatsRepository
+import com.phototok.data.share.ShareIntentBuilder
 import com.phototok.data.source.VolumeMonitor
 import com.phototok.di.ApplicationScope
 import com.phototok.domain.CardTransferJournal
@@ -42,7 +43,6 @@ import com.phototok.domain.PhoneFeedOrdering
 import com.phototok.domain.PhotoFolders
 import com.phototok.domain.ProModePolicy
 import com.phototok.domain.RelatedFiles
-import com.phototok.domain.ShareIntentBuilder
 import com.phototok.domain.SwipeAction
 import com.phototok.domain.SwipeRightVerb
 import com.phototok.domain.FavouritesSnapshot

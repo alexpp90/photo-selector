@@ -1,12 +1,16 @@
-package com.phototok.domain
+package com.phototok.data.share
 
 import android.content.ClipData
 import android.content.Intent
 import android.net.Uri
 import com.phototok.data.model.ImageItem
+import com.phototok.domain.FileTypeFilter
+import com.phototok.domain.PhotoExtensions
+import com.phototok.domain.RelatedFiles
 
 /**
- * Pure companion resolution and Android share/open-with `Intent` builders (`U-13`).
+ * Companion resolution and Android share/open-with `Intent` builders (`U-13`). Lives in `data/`
+ * because it builds `Intent`s; the `domain` package stays free of Android classes.
  *
  * Uses `Intent.createChooser` with `ACTION_SEND`, `ACTION_SEND_MULTIPLE`, and `ACTION_VIEW`
  * so zero `<queries>` manifest declarations are needed.

@@ -9,9 +9,9 @@ import com.phototok.data.model.ImageItem
 import com.phototok.data.repository.FavouritesRepository
 import com.phototok.domain.FavouritesSnapshot
 import com.phototok.data.repository.ImageRepository
+import com.phototok.data.share.ShareIntentBuilder
 import com.phototok.data.source.SelectionListing
 import com.phototok.domain.PhotoFolders
-import com.phototok.domain.ShareIntentBuilder
 import com.phototok.domain.SwipeRightVerb
 import com.phototok.domain.UiText
 import dagger.hilt.android.lifecycle.HiltViewModel
