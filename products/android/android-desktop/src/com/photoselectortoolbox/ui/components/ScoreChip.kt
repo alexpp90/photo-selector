@@ -9,6 +9,7 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.ExperimentalLayoutApi
 import androidx.compose.foundation.layout.FlowRow
+import androidx.compose.foundation.layout.IntrinsicSize
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -114,6 +115,10 @@ fun ScoreChip(
 
     Column(
         modifier = modifier
+            // As wide as the icon and value, not as wide as the room: the bar
+            // below fills the chip, so without this every chip in a wrapping
+            // row grew to the full row width and stacked into full-width bars.
+            .width(IntrinsicSize.Max)
             .clip(RoundedCornerShape(8.dp))
             .background(Zinc800)
             .border(1.dp, Zinc700, RoundedCornerShape(8.dp))

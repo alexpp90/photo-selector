@@ -144,4 +144,18 @@ class ExifFormatterTest {
         assertTrue(lines.first().contains("f/2.8"))
         assertFalse(lines.first().contains("f/2,8"))
     }
+
+    @Test
+    fun `lens line is the trimmed lens name`() {
+        assertEquals("FE 85mm F1.4 GM", ExifFormatter.lensLine(ExifData(lens = "  FE 85mm F1.4 GM  ")))
+    }
+
+    @Test
+    fun `lens line is null without EXIF, with a blank lens and with the Unknown placeholder`() {
+        assertNull(ExifFormatter.lensLine(null))
+        assertNull(ExifFormatter.lensLine(ExifData(lens = "")))
+        assertNull(ExifFormatter.lensLine(ExifData(lens = "   ")))
+        assertNull(ExifFormatter.lensLine(ExifData(lens = ExifFormatter.UNKNOWN)))
+        assertNull("the default ExifData has no lens", ExifFormatter.lensLine(ExifData()))
+    }
 }

@@ -642,10 +642,11 @@ class SelectorScreenTest {
         pressKey(android.view.KeyEvent.KEYCODE_DPAD_RIGHT)
 
         composeRule.waitUntil(timeoutMillis = 5000) { fullscreenShows("2 / 3") }
-        // The key brought the bar back, and the EXIF on it is the second frame's.
+        // The key brought the info panel back, and the EXIF on it is the second frame's.
         composeRule.waitUntil(timeoutMillis = 5000) {
             composeRule.onAllNodes(
-                hasTestTag("fullscreen_exif") and hasText("ISO 200", substring = true),
+                hasTestTag("exposure_token") and hasText("ISO 200", substring = true) and
+                    hasAnyAncestor(hasTestTag("fullscreen_exif")),
                 useUnmergedTree = true,
             ).fetchSemanticsNodes().isNotEmpty()
         }

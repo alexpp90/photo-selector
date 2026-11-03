@@ -152,6 +152,20 @@ fun CurrentFrameReadout(
             ExposureFlow(exposureTokenLabels(line))
         }
 
+        // The lens goes with the exposure it produced: same mono face and
+        // colour, one line, ellipsised at the end (never wrapped).
+        ExifFormatter.lensLine(image.exifData)?.let { lens ->
+            Text(
+                text = lens,
+                fontSize = 11.5.sp,
+                fontFamily = FontFamily.Monospace,
+                color = Zinc400,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+                modifier = Modifier.fillMaxWidth().testTag("readout_lens"),
+            )
+        }
+
         if (image.exifData?.isFallback == true) {
             LimitedMetadataMarker()
         }
@@ -347,6 +361,23 @@ fun NeighbourValueOverlay(
             )
         }
 
+        // One line under the exposure block, ellipsised at the end. The visible
+        // text may be cut; the full name is in the description.
+        ExifFormatter.lensLine(image.exifData)?.let { lens ->
+            Text(
+                text = lens,
+                fontSize = 9.5.sp,
+                fontFamily = FontFamily.Monospace,
+                color = Zinc400,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .semantics { contentDescription = "Lens $lens" }
+                    .testTag("neighbour_lens"),
+            )
+        }
+
         if (image.exifData?.isFallback == true) {
             Icon(
                 imageVector = Icons.Outlined.ErrorOutline,
@@ -512,9 +543,13 @@ private val SEPARATOR_PATTERN = Regex("\\s+·\\s+")
  */
 @OptIn(ExperimentalLayoutApi::class)
 @Composable
-private fun ExposureFlow(labels: List<String>) {
+internal fun ExposureFlow(
+    labels: List<String>,
+    color: Color = Zinc400,
+    containerTag: String = "exposure_line",
+) {
     FlowRow(
-        modifier = Modifier.fillMaxWidth().testTag("exposure_line"),
+        modifier = Modifier.fillMaxWidth().testTag(containerTag),
         horizontalArrangement = Arrangement.spacedBy(6.dp),
         verticalArrangement = Arrangement.spacedBy(2.dp),
         maxLines = 2,
@@ -525,7 +560,7 @@ private fun ExposureFlow(labels: List<String>) {
                 text = label,
                 fontSize = 11.5.sp,
                 fontFamily = FontFamily.Monospace,
-                color = Zinc400,
+                color = color,
                 maxLines = 1,
                 softWrap = false,
                 modifier = Modifier.testTag("exposure_token"),

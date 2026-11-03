@@ -11,7 +11,9 @@ import androidx.compose.ui.semantics.SemanticsActions
 import androidx.compose.ui.semantics.SemanticsProperties
 import androidx.compose.ui.semantics.getOrNull
 import androidx.compose.ui.test.assertIsFocused
+import androidx.compose.ui.test.hasAnyAncestor
 import androidx.compose.ui.test.hasContentDescription
+import androidx.compose.ui.test.hasTestTag
 import androidx.compose.ui.test.junit4.createComposeRule
 import androidx.compose.ui.test.onAllNodesWithTag
 import androidx.compose.ui.test.onNodeWithTag
@@ -168,10 +170,15 @@ class FullscreenViewerTest {
             .fetchSemanticsNodes().firstOrNull()
             ?.config?.getOrNull(SemanticsProperties.Text)?.joinToString("") { it.text }
 
+    /** The exposure line as the panel shows it: its tokens, in order, one space apart. */
     private fun exif(): String? =
-        rule.onAllNodesWithTag("fullscreen_exif", useUnmergedTree = true)
-            .fetchSemanticsNodes().firstOrNull()
-            ?.config?.getOrNull(SemanticsProperties.Text)?.joinToString("") { it.text }
+        rule.onAllNodes(
+            hasTestTag("exposure_token") and hasAnyAncestor(hasTestTag("fullscreen_exif")),
+            useUnmergedTree = true,
+        ).fetchSemanticsNodes().takeIf { it.isNotEmpty() }
+            ?.joinToString(" ") { node ->
+                node.config.getOrNull(SemanticsProperties.Text)?.joinToString("") { it.text }.orEmpty()
+            }
 
     private fun chromeShown() = position() != null
 
@@ -304,7 +311,7 @@ class FullscreenViewerTest {
     @Test
     fun `the first frame shows its exposure line`() {
         open()
-        assertEquals("1/125s  ·  f/4.0  ·  85mm  ·  ISO 100", exif())
+        assertEquals("1/125s · f/4.0 · 85mm · ISO 100", exif())
     }
 
     @Test
@@ -360,7 +367,7 @@ class FullscreenViewerTest {
     // ── The info pin ─────────────────────────────────────────────────────
 
     @Test
-    fun `I pins the bar and a pinned bar never fades`() {
+    fun `I pins the panel and a pinned panel never fades`() {
         val harness = open()
 
         press(KeyEvent.KEYCODE_I)
@@ -374,7 +381,7 @@ class FullscreenViewerTest {
     }
 
     @Test
-    fun `a pinned bar stays through a page change and I releases it`() {
+    fun `a pinned panel stays through a page change and I releases it`() {
         val harness = open { pinned = true }
         rule.mainClock.advanceTimeBy(10_000)
         rule.waitForIdle()
@@ -392,7 +399,7 @@ class FullscreenViewerTest {
     }
 
     @Test
-    fun `the pin button is a 48 dp toggle in the bar`() {
+    fun `the pin button is a 48 dp toggle in the panel`() {
         val harness = open()
         val node = rule.onNodeWithTag("fullscreen_info_pin", useUnmergedTree = true)
         val size = node.fetchSemanticsNode().size

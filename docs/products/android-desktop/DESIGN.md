@@ -525,7 +525,8 @@ DSC_0127.JPG
 - The icon here is the *same glyph* the overlays use — this block is what teaches it. Each
   metric therefore has exactly one icon, defined once on `ScoreMetric` alongside its label,
   format and direction, never chosen at a call site.
-- Filename and the one-line EXIF summary head the block; `127 / 842` sits under the controls
+- Filename, the one-line EXIF summary and the lens on its own line (ellipsised; omitted when
+  unknown) head the block; `127 / 842` sits under the controls
   on the opposite side, balancing the composition.
 - Unscanned: a single dashed "Not scanned" row, not four blanks.
 
@@ -556,9 +557,9 @@ identity, then exposure, then a rule, then icon + value + bar per metric.
 - **Exposure wraps to two lines rather than truncating.** `1/250 · f2.8` then
   `35mm · ISO 400`, tabular mono so shutter speeds and apertures align vertically between
   Previous and Next — the comparison the photographer is actually making. Position number
-  leads the first line. Lens name is omitted here and remains in the context menu's Photo
-  details; it is the one EXIF field that will not fit and the one that is identical across a
-  burst.
+  leads the first line. The lens follows on its own line, ellipsised at 148 dp with the full
+  name in its content description: inside a burst it is the same in every frame, but in a
+  folder shot with two bodies or a zoom swap it is exactly the difference worth seeing.
   It wraps only *between* tokens — each value (`1/250s`, `f/2.8`, `50mm`) is unbreakable, on
   the current frame's readout as well — and a trailing token that does not fit in two lines is
   dropped, never split (AD-16b: the 720 × 560 Chromebook window printed `f/` ⏎ `2.8`).
@@ -572,7 +573,7 @@ identity, then exposure, then a rule, then icon + value + bar per metric.
 - **Overlay treatment.** `Zinc950` at 72 % over a 6 dp radius, 8 dp inset top, right and
   bottom, vertically centred, 14 dp icons, `Zinc50` values. Deliberately a flat panel and not
   a gradient scrim: a gradient across the right of a photograph reads as part of the
-  photograph, which is the failure mode §9 already documents for the fullscreen top bar.
+  photograph, which is the failure mode §9 already documents for the fullscreen info overlay.
 - **It covers roughly 25 % of the frame's width, and that is a real cost.** Two mitigations,
   both required: the overlay hides while a frame is maximised (§7.3), and the eye control in
   the view cluster toggles all overlays off for a clean look at the photographs. The state is
@@ -923,22 +924,30 @@ The reasoning worth keeping, all of it now folded into §7:
 Pure black or Zinc-900 canvas, image fitted to the window. Chrome auto-hides after 3 seconds
 of inactivity and returns on tap, on **any key press**, and on every **page change** (swipe,
 arrow, or the next frame taking the place of one just filed) — the frame just arrived at is
-the one whose name and EXIF the photographer now wants to read. `I` **pins** the top bar so
-it never hides (persisted, default off); the same pin is a 48 dp toggle at the right end of
-the bar, so it is reachable without a keyboard and its state is visible. A pinned bar is
-the existing bar — no new surface, no gradient.
+the one whose name and EXIF the photographer now wants to read. `I` **pins** the info panel
+so it never hides (persisted, default off); the same pin is a 48 dp toggle at the right edge
+of the panel, so it is reachable without a keyboard and its state is visible. A pinned panel
+is the existing panel — no new surface, no gradient.
+
+**The photograph is as large as the window.** The image is laid out in the whole viewer
+window, into a display cutout too, with the system bars — taskbar included — hidden on the
+viewer's own window; nothing — chrome, insets, padding — reserves space from it. Insets only position the chrome. Everything shown over the photograph is an overlay
+sized to its content, never a bar across it.
 
 **When chrome is visible:**
 
-- **Top bar** — close (`X`), filename, `127 / 842`, a single-line EXIF summary
-  (`1/250s | f/2.8 | 35mm | ISO 400`), the lens from the Expanded width (≥ 840 dp) up, and
-  the info pin at the end. Render as a minimal Zinc-900 bar at ~90% opacity — a bar, not a
-  gradient scrim. At 600 dp everything stays on one line: the exposure summary and the
-  position keep their full width, the file name is what ellipsises, and the lens is
-  dropped rather than squeezed.
+- **Info overlay, top-left** — a 48 dp close (`X`) and beside it a panel as wide as its
+  content, clamped to 280–420 dp and never more than 35 % of the window (so ~210 dp at
+  600 dp): filename (ellipsises) and `127 / 842`; the exposure line
+  (`1/250s · f/2.8 · 35mm · ISO 400`) as whole tokens that wrap only between tokens; the lens
+  on its own line, ellipsised, at every width; the info pin at the right edge. Flat
+  `StudioCanvas` at 85 % with 6 dp corners — not a gradient scrim, which darkens the sky in a
+  way the photographer reads as part of the photograph — exposure and lens in Zinc-300 for
+  contrast over a bright sky. A screen reader reads the text as one item.
 - **Bottom** — only when *Show Fullscreen Action Buttons* is enabled in Settings:
   `[Move to Selection] [Copy to Selection] [Delete]`, ≥ 48 dp, centred.
-- **Score chip row** — bottom-left, compact variant.
+- **Score chip row** — bottom-left, compact variant, wrapping within the left half of the
+  window so it never runs under the action buttons.
 
 **Gestures**, communicated through a dismissible one-time hint card:
 
@@ -951,7 +960,7 @@ the existing bar — no new surface, no gradient.
 | `Esc` | Exit fullscreen |
 | `← / →` | Previous / next image |
 | `M` / `C` / `Del` | Move / copy / delete the current frame |
-| `I` | Pin / unpin the info bar (in the selector `I` still opens Inspect) |
+| `I` | Pin / unpin the info panel (in the selector `I` still opens Inspect) |
 
 `M` and `C` show the centre check mark, whose accessibility label is the sentence the
 confirmation card shows ("Moved to Selection"), for the key exactly as for the button. The
@@ -1233,7 +1242,7 @@ Produce these as a design-system page, dark theme, neutral grey / lavender.
    + word + key cap: Keep (`ScoreGood` tonal), Move (`BrandAccentTonal`), Delete (outlined,
    `ScoreBad` glyph and word), Fullscreen, Previous, Next; disabled states (`No previous` /
    `No next`); the 48 dp view-toggle row and the position counter beneath.
-6. **Readout block** — 388 × 450 dp: filename, EXIF line, four icon + name + value rows with
+6. **Readout block** — 388 × 450 dp: filename, EXIF line, lens, four icon + name + value rows with
    goodness bars and the best-of-three dot, the "Not scanned" row, the embedded filmstrip.
 7. **Value overlay** — 148 dp neighbour column: filename, two-line exposure, rule, four icon
    + value + bar rows. Both the outside-the-frame and overlaid-on-the-frame placements, the
@@ -1298,7 +1307,7 @@ Shortcuts work in both the standard and fullscreen views.
 | `C` | Copy to Selection |
 | `F` | Enter fullscreen |
 | `Esc` | Exit fullscreen / leave maximised / close sheet or menu |
-| `I` | In fullscreen: pin / unpin the info bar (in the selector: Inspect) |
+| `I` | In fullscreen: pin / unpin the info panel (in the selector: Inspect) |
 | `1` / `2` / `3` | Maximise Previous / Current / Next in place (§7.3) |
 | `?` | Open the coach-mark guide (§7.9) |
 
