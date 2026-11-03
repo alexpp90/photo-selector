@@ -516,11 +516,6 @@ class FileCullingManager:
             return matches[0][1], matches[0][2]
         return None
 
-    def _find_trashed_file(self, original_src: Path) -> Optional[Path]:
-        """Locate a trashed file path matching ``original_src`` via ``.trashinfo`` metadata."""
-        entry = self._find_trashed_entry(original_src)
-        return entry[0] if entry is not None else None
-
     def _restore_from_trash(
         self,
         src: Path,
