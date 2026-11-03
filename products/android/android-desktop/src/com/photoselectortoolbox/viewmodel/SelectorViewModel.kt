@@ -21,6 +21,7 @@ import com.photoselectortoolbox.domain.model.PhotoItem
 import com.photoselectortoolbox.domain.model.RatingFilter
 import com.photoselectortoolbox.data.model.ImageDimensions
 import com.photoselectortoolbox.data.model.ImageItem
+import com.photoselectortoolbox.data.repository.FileOperationResult
 import com.photoselectortoolbox.data.model.ScanResult
 import com.photoselectortoolbox.data.repository.CacheRepository
 import com.photoselectortoolbox.data.repository.ImageRepository
@@ -35,6 +36,7 @@ import com.photoselectortoolbox.domain.curation.PendingDeletion
 import com.photoselectortoolbox.domain.curation.SelectorListState
 import com.photoselectortoolbox.domain.curation.SnackbarLifetime
 import com.photoselectortoolbox.domain.curation.UndoParking
+import com.photoselectortoolbox.domain.curation.UndoRestore
 import com.photoselectortoolbox.domain.curation.UndoPolicy
 import com.photoselectortoolbox.domain.curation.UndoableOperation
 import com.photoselectortoolbox.domain.format.SelectorLabels
@@ -1731,6 +1733,7 @@ class SelectorViewModel @Inject constructor(
             }
 
             is UndoableOperation.RestoreFromTrash -> {
+                val folderUri = state.folderUri
                 _uiState.update {
                     it.withRestored(OptimisticEdits.restore(it.listState, operation.slots)).copy(
                         undoHistory = remainingHistory,
@@ -1750,14 +1753,17 @@ class SelectorViewModel @Inject constructor(
                             Log.e("SelectorViewModel", "Restore from trash failed for $uri", e)
                             false
                         }
-                        if (!ok) {
-                            failed += uri
-                            reportError("Could not restore the deleted image")
-                        }
+                        if (!ok) failed += uri
                     }
-                    // What stayed in the trash is still undoable: hide it again and keep it on the stack.
+                    val stillOpen = _uiState.value.folderUri == folderUri
+                    if (failed.isNotEmpty() && stillOpen) reportError("Could not restore the deleted image")
+                    // What stayed in the trash is still undoable: hide it again and keep it on the stack
+                    // of the folder it belongs to — parked there once another folder is open (FD-B-3).
                     UndoPolicy.remainderAfterRestore(operation, failed)?.let { remainder ->
                         _uiState.update { current ->
+                            if (folderUri != null && current.folderUri != folderUri) {
+                                return@update current.copy(parkedUndo = current.parkedUndo.park(folderUri, listOf(remainder)))
+                            }
                             val hidden = OptimisticEdits.apply(
                                 current.listState,
                                 CurationAction.DELETE,
@@ -1791,64 +1797,122 @@ class SelectorViewModel @Inject constructor(
                             parentDocumentId = operation.parentDocumentId,
                             copiesOfSurvivingOriginals = operation.copiesOfSurvivingOriginals,
                         )
+                    } catch (e: CancellationException) {
+                        throw e
                     } catch (e: Exception) {
                         Log.e("SelectorViewModel", "Undo move failed", e)
                         null
                     }
-                    if (result?.success == true) {
-                        // A copy deleted by a partial-move undo takes its own rating row with it; the
-                        // surviving original keeps the rating it has (it was never re-keyed).
-                        result.deletedCopies.forEach { gone ->
-                            try {
-                                cacheRepository.deleteRating(gone)
-                            } catch (e: CancellationException) {
-                                throw e
-                            } catch (e: Exception) {
-                                Log.e("SelectorViewModel", "Could not drop the rating of deleted copy $gone", e)
-                            }
-                        }
-                        // The rating follows the primary file back — unless the primary was one of the
-                        // deleted copies, in which case `back` is some other restored file.
-                        result.destinationUri?.takeIf { operation.destinationUri !in result.deletedCopies }?.let { back ->
-                            try {
-                                cacheRepository.moveRating(operation.destinationUri, back)
-                            } catch (e: CancellationException) {
-                                throw e
-                            } catch (e: Exception) {
-                                Log.e("SelectorViewModel", "Could not carry the rating back to $back", e)
-                            }
-                        }
+                    finishUndoMove(operation, folderUri, result)
+                }
+            }
+        }
+    }
+
+    /**
+     * The tail of a [UndoableOperation.ReverseMove] once the transfer reported back.
+     *
+     * Durable data (ratings) follows the files whatever is open now. Everything on screen belongs
+     * to [folderUri], the folder the undo was started in, and is skipped once another folder is
+     * open; a failed undo is then parked under [folderUri] instead of being pushed onto the open
+     * folder's stack (FD-B-3, the rule [pushFilingUndo] applies to filing).
+     *
+     * A restore that created new documents rebuilds the list item at their URIs (FD-B-11). A
+     * partial result restored the copies, but the files in Selection could not be removed: the
+     * frame stays, the user is told, and nothing is pushed for a retry, which would only make
+     * `-2` duplicates (FD-D-15).
+     */
+    private suspend fun finishUndoMove(
+        operation: UndoableOperation.ReverseMove,
+        folderUri: String,
+        result: FileOperationResult?,
+    ) {
+        fun stillOpen() = _uiState.value.folderUri == folderUri
+        val restored = result != null && (result.success || result.partial)
+        if (restored) {
+            // A copy deleted by a partial-move undo takes its own rating row with it; the
+            // surviving original keeps the rating it has (it was never re-keyed).
+            result!!.deletedCopies.forEach { gone ->
+                try {
+                    cacheRepository.deleteRating(gone)
+                } catch (e: CancellationException) {
+                    throw e
+                } catch (e: Exception) {
+                    Log.e("SelectorViewModel", "Could not drop the rating of deleted copy $gone", e)
+                }
+            }
+            // The rating follows the primary file back — unless the primary was one of the
+            // deleted copies, in which case `back` is some other restored file. When the file in
+            // Selection is still there (partial), both keep it.
+            result.destinationUri?.takeIf { it.isNotBlank() && operation.destinationUri !in result.deletedCopies }?.let { back ->
+                try {
+                    if (result.partial && back in result.copiesOfSurvivingOriginals) {
+                        cacheRepository.copyRating(operation.destinationUri, back)
+                    } else {
+                        cacheRepository.moveRating(operation.destinationUri, back)
                     }
-                    result?.notice?.takeIf { result.success }?.let { notice ->
-                        _uiState.update { it.withSnackbar(notice, SnackbarLifetime.NOTICE) }
+                } catch (e: CancellationException) {
+                    throw e
+                } catch (e: Exception) {
+                    Log.e("SelectorViewModel", "Could not carry the rating back to $back", e)
+                }
+            }
+            if (operation.slots.isNotEmpty() && result.destinationUris.isNotEmpty()) {
+                _uiState.update { current ->
+                    if (current.folderUri != folderUri) return@update current
+                    val relocated = operation.slots.fold(current.listState) { list, slot ->
+                        UndoRestore.replace(
+                            list,
+                            slot.uri,
+                            UndoRestore.relocate(slot.image, operation.destinationUris, result.destinationUris),
+                        )
                     }
-                    if (result?.success == true && result.notice == null) {
-                        val restoredName = (result.destinationUri ?: result.destinationUris.firstOrNull())
-                            ?.let(SelectionActionLabels::displayNameOf)
-                        if (restoredName != null && restoredName != SelectionActionLabels.displayNameOf(operation.sourceUri)) {
-                            _uiState.update {
-                                it.withSnackbar(
-                                    SelectionActionLabels.restoredAs(restoredName),
-                                    SnackbarLifetime.NOTICE,
-                                )
-                            }
-                        }
-                    }
-                    if (result == null || !result.success) {
-                        _uiState.update { current ->
-                            val reapplied = OptimisticEdits.apply(
-                                current.listState,
-                                CurationAction.MOVE,
-                                operation.slots.map { it.uri },
-                            )
-                            // The failed undo already left the stack; put it back so it can be retried.
-                            current.withList(reapplied.state).copy(
-                                undoHistory = UndoPolicy.push(current.undoHistory, operation).history,
-                            )
-                        }
-                        reportError("Could not move the image back")
+                    if (relocated == current.listState) current else current.withList(relocated)
+                }
+            }
+        }
+        when {
+            result?.success == true -> {
+                if (!stillOpen()) return
+                result.notice?.let { notice ->
+                    _uiState.update { it.withSnackbar(notice, SnackbarLifetime.NOTICE) }
+                    return
+                }
+                val restoredName = (result.destinationUri ?: result.destinationUris.firstOrNull())
+                    ?.let(SelectionActionLabels::displayNameOf)
+                if (restoredName != null && restoredName != SelectionActionLabels.displayNameOf(operation.sourceUri)) {
+                    _uiState.update {
+                        it.withSnackbar(SelectionActionLabels.restoredAs(restoredName), SnackbarLifetime.NOTICE)
                     }
                 }
+            }
+            result?.partial == true -> {
+                if (!stillOpen()) return
+                val name = operation.slots.firstOrNull()?.image?.fileName
+                    ?: SelectionActionLabels.displayNameOf(operation.sourceUri)
+                reportError(
+                    SelectionActionLabels.undoPartialMessage(
+                        fileName = name,
+                        selectionFolderName = FilingAction.selectionFolderOrDefault(_uiState.value.selectionFolderName),
+                    )
+                )
+            }
+            else -> {
+                _uiState.update { current ->
+                    if (current.folderUri != folderUri) {
+                        return@update current.copy(parkedUndo = current.parkedUndo.park(folderUri, listOf(operation)))
+                    }
+                    val reapplied = OptimisticEdits.apply(
+                        current.listState,
+                        CurationAction.MOVE,
+                        operation.slots.map { it.uri },
+                    )
+                    // The failed undo already left the stack; put it back so it can be retried.
+                    current.withList(reapplied.state).copy(
+                        undoHistory = UndoPolicy.push(current.undoHistory, operation).history,
+                    )
+                }
+                if (stillOpen()) reportError("Could not move the image back")
             }
         }
     }

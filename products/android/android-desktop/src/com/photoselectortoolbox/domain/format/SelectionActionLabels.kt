@@ -87,6 +87,13 @@ object SelectionActionLabels {
         return "${confirmation(action, selectionFolderName)} as $resultName$related"
     }
 
+    /**
+     * An undo that put the file back but could not remove the one in the Selection (FD-D-15):
+     * both exist now, and saying so is the whole message.
+     */
+    fun undoPartialMessage(fileName: String, selectionFolderName: String): String =
+        "Restored $fileName — the copy in $selectionFolderName could not be removed"
+
     /** The snackbar after an undo that had to add a suffix because the original name was taken. */
     fun restoredAs(resultName: String): String =
         "Restored as $resultName (original name was in use)"

@@ -924,6 +924,90 @@ class SelectorViewModelTest {
 
         viewModel.undoLastOperation()
         coVerify { cacheRepository.moveRating(moved, restored) }
+        // The list item is the restored file, where the rating now lives (FD-B-11).
+        val back = viewModel.uiState.value.images.single { it.uri == restored }
+        assertEquals("IMG_0010-2.jpg", back.fileName)
+        assertTrue(viewModel.uiState.value.images.none { it.uri == item.uri })
+    }
+
+    @Test
+    fun `an undone bundle on a provider with opaque ids is listed at the new documents, companions included`() = runTest {
+        val item = ImageItem(
+            uri = "content://test/folder/document/msf%3A11",
+            fileName = "DSC_7.JPG",
+            fileSize = 1,
+            lastModified = nextModified(),
+            mimeType = "image/jpeg",
+            companions = listOf(
+                com.photoselectortoolbox.data.model.CompanionFile(uri = "content://test/folder/document/msf%3A12", fileName = "DSC_7.ARW"),
+            ),
+        )
+        val moved = listOf("content://test/folder/document/msf%3A21", "content://test/folder/document/msf%3A22")
+        val restored = listOf("content://test/folder/document/msf%3A31", "content://test/folder/document/msf%3A32")
+        coEvery { imageRepository.moveBundle(any(), item, any(), any()) } returns
+            FileOperationResult.success(item.uri, moved.first(), moved, null)
+        coEvery { imageRepository.undoMoveBundle(any(), moved, Uri.parse(FOLDER_URI), any(), any()) } returns
+            FileOperationResult.success(moved.first(), restored.first(), restored, null)
+
+        val viewModel = loadFolder(item, image("b.jpg"))
+        viewModel.moveToSelection()
+        viewModel.undoLastOperation()
+
+        val back = viewModel.uiState.value.images.single { it.fileName == "DSC_7.JPG" }
+        assertEquals(restored.first(), back.uri)
+        assertEquals(listOf(restored[1]), back.companions.map { it.uri })
+        // An opaque id says nothing about the name: the names stay.
+        assertEquals("DSC_7.JPG", back.fileName)
+        assertEquals(listOf("DSC_7.ARW"), back.companions.map { it.fileName })
+    }
+
+    @Test
+    fun `a partial undo shows the restored frame, says the Selection copy stayed, and pushes no retry`() = runTest {
+        val item = image("IMG_0020.jpg")
+        val moved = "content://test/folder/Selection/JPEG/IMG_0020.jpg"
+        val restored = "content://test/folder/IMG_0020.jpg"
+        coEvery { imageRepository.moveBundle(any(), item, any(), any()) } returns
+            FileOperationResult.success(item.uri, moved, listOf(moved), null)
+        coEvery { imageRepository.undoMoveBundle(any(), listOf(moved), Uri.parse(FOLDER_URI), any(), any()) } returns
+            FileOperationResult.partial(
+                sourceUri = moved,
+                destinationUri = restored,
+                copiesOfSurvivingOriginals = mapOf(restored to moved),
+            )
+
+        val viewModel = loadFolder(item, image("b.jpg"))
+        viewModel.moveToSelection()
+        viewModel.undoLastOperation()
+
+        val state = viewModel.uiState.value
+        assertTrue(state.images.any { it.uri == restored })
+        assertTrue("no retry that would make a -2 duplicate", state.undoHistory.isEmpty())
+        assertEquals("Restored IMG_0020.jpg — the copy in Selection could not be removed", state.snackbarMessage)
+        // The file in Selection still exists, so both keep the rating.
+        coVerify(exactly = 1) { cacheRepository.copyRating(moved, restored) }
+        coVerify(exactly = 0) { cacheRepository.moveRating(moved, restored) }
+    }
+
+    @Test
+    fun `a failed undo that finishes after a folder switch is parked in its own folder and leaves the new one alone`() = runTest {
+        val moved = "content://test/sel/a"
+        coEvery { imageRepository.moveImage(any(), any(), any(), any()) } returns
+            FileOperationResult.success("content://test/folder/a", moved)
+        val undo = CompletableDeferred<FileOperationResult>()
+        coEvery { imageRepository.undoMoveBundle(any(), any(), any(), any(), any()) } coAnswers { undo.await() }
+        val viewModel = loadFolder(image("a"), image("b"))
+        viewModel.moveToSelection()
+        viewModel.undoLastOperation()
+        discovery.resetReplayCache()
+        viewModel.selectFolder(Uri.parse(OTHER_FOLDER_URI))
+        discovery.emit(listOf(otherImage("x"), otherImage("y")))
+
+        undo.complete(FileOperationResult.failure(moved, "provider hiccup"))
+
+        assertEquals(listOf("x", "y"), names(viewModel))
+        assertNull(viewModel.uiState.value.error)
+        assertTrue(viewModel.uiState.value.undoHistory.isEmpty())
+        assertTrue(viewModel.uiState.value.parkedUndo.historyOf(FOLDER_URI).single() is UndoableOperation.ReverseMove)
     }
 
     @Test
