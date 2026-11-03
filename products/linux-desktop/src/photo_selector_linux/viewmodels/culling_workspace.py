@@ -10,6 +10,7 @@ Adheres to:
 from __future__ import annotations
 
 from dataclasses import dataclass
+import os
 from pathlib import Path
 import threading
 from typing import Any, Callable, Dict, List, Optional, Tuple
@@ -786,43 +787,57 @@ class CullingWorkspaceViewModel:
 
         Cancels any in-flight scan from a previous folder via ``_folder_generation``, while allowing
         queued file operations from the previous folder to finish draining on the worker.
+
+        With ``scan_idle_add`` set (the window sets it) nothing here touches the disk: resolving the
+        path, asking the mount table and listing the parent through GVFS (a network round trip on a
+        cloud mount) happen on the scan thread, and the main loop only receives the results. Without
+        it (tests, headless use) the same steps run inline.
         """
         previous_folder = self.current_folder
-        self.current_folder = folder.resolve()
         self._folder_generation += 1
         generation = self._folder_generation
-        self.is_remote_folder = is_remote_filesystem(self.current_folder)
-
         scanner = self._make_scanner()
-        parent_names = scanner.name_resolver.names_in(self.current_folder.parent)
-        self.current_folder_name = parent_names.get(
-            self.current_folder.name,
-            self.current_folder.name,
-        )
+        threaded = self.scan_idle_add is not None
+
+        if threaded:
+            # Provisional, no I/O; the scan thread reports the resolved folder, the filesystem kind
+            # and the display name before the first photograph arrives.
+            self.current_folder = Path(os.path.abspath(folder))
+            self.current_folder_name = self.current_folder.name
+            self.is_remote_folder = False
+        else:
+            self.current_folder = folder.resolve()
+            self.is_remote_folder, self.current_folder_name = self._describe_folder(
+                scanner, self.current_folder
+            )
 
         self.candidates = []
         self.current_index = 0
         self._remember_undo_stack(previous_folder)
-        self.undo_stack = self._folder_undo_history.pop(self.current_folder, [])
+        self.undo_stack = [] if threaded else self._folder_undo_history.pop(self.current_folder, [])
         self.selected_count = 0
         self.copied_count = 0
         self.trashed_count = 0
         self.is_scanning = True
 
-        if self.scan_idle_add is not None:
-            folder_to_scan = self.current_folder
+        if threaded:
+            requested = folder
+            idle_add = self.scan_idle_add
 
             def _scan_worker() -> None:
-                for batch in scanner.scan_stream(
-                    folder_to_scan,
-                    batch_size=30,
-                    first_batch_size=1,
-                ):
-                    if generation != self._folder_generation:
-                        return
-                    self.scan_idle_add(self._on_scan_batch, generation, list(batch))
+                try:
+                    resolved = requested.resolve()
+                    remote, name = self._describe_folder(scanner, resolved)
+                    idle_add(self._on_scan_prepared, generation, resolved, remote, name)
+                    for batch in scanner.scan_stream(resolved, batch_size=30, first_batch_size=1):
+                        if generation != self._folder_generation:
+                            return
+                        idle_add(self._on_scan_batch, generation, list(batch))
+                except Exception as e:
+                    idle_add(self._on_scan_failed, generation, str(e))
+                    return
                 if generation == self._folder_generation:
-                    self.scan_idle_add(self._on_scan_complete, generation)
+                    idle_add(self._on_scan_complete, generation)
 
             thread = threading.Thread(
                 target=_scan_worker,
@@ -854,6 +869,30 @@ class CullingWorkspaceViewModel:
         self._notify(f"Loaded {len(self.candidates)} photographs from {self.current_folder_name}")
         if not notified_any:
             self._notify_state_changed()
+
+    @staticmethod
+    def _describe_folder(scanner: DirectoryScanner, folder: Path) -> Tuple[bool, str]:
+        """``(is_remote, display name)`` of a resolved folder; reads the mount table and GVFS."""
+        parent_names = scanner.name_resolver.names_in(folder.parent)
+        return is_remote_filesystem(folder), parent_names.get(folder.name, folder.name)
+
+    def _on_scan_prepared(self, generation: int, folder: Path, is_remote: bool, name: str) -> bool:
+        if generation != self._folder_generation:
+            return False
+        self.current_folder = folder
+        self.is_remote_folder = is_remote
+        self.current_folder_name = name
+        self.undo_stack = self._folder_undo_history.pop(folder, self.undo_stack)
+        self._notify_state_changed()
+        return False
+
+    def _on_scan_failed(self, generation: int, reason: str) -> bool:
+        if generation != self._folder_generation:
+            return False
+        self.is_scanning = False
+        self._notify(f"Could not read {self.current_folder_name}: {reason}", severity="error")
+        self._notify_state_changed()
+        return False
 
     def _on_scan_batch(self, generation: int, batch: List[CandidatePhoto]) -> bool:
         if generation != self._folder_generation:

@@ -22,7 +22,7 @@ except (ImportError, ValueError):
 from photo_selector_linux.core.settings import SettingsStore
 from photo_selector_linux.ui.action_bar import ActionBarView
 from photo_selector_linux.ui.canvas import CanvasView
-from photo_selector_linux.ui.file_worker import FileOperationWorker
+from photo_selector_linux.ui.file_worker import FileOperationWorker, schedule_on_main_loop
 from photo_selector_linux.ui.keyboard_router import KeyboardRouter
 from photo_selector_linux.ui.styling import APP_BRAND_NAME, APP_ICON_NAME
 from photo_selector_linux.viewmodels.culling_workspace import CullingWorkspaceViewModel
@@ -54,6 +54,9 @@ class MainWindow(Adw.ApplicationWindow if HAS_GI else object):
         self.viewmodel = CullingWorkspaceViewModel(
             dispatcher=self.file_worker,
             settings=self.settings,
+            # The folder scan runs on its own thread; its batches reach the main loop above the
+            # frame clock's redraw priority (R-LINUX-CULL-01, LIN-4).
+            scan_idle_add=schedule_on_main_loop if HAS_GI else None,
         )
         if HAS_GI:
             self._build_ui()
