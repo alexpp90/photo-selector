@@ -6,6 +6,14 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ## [Unreleased]
 
+### Added
+- Favourites now reach Android (11 and later): Jackpix sets the system favourite flag for photos on the phone and on an indexed SD card, RAW+JPEG companions included, and clears it when you remove the favourite. The changes go out in batches when you leave the feed, switch folders, open the Selection viewer, or after 25 changes. Favourites set in another app show in Jackpix. Before, favourites never left Jackpix.
+- **Favourite** / **Remove favourite** in the long-press menu.
+- The favourite badge shows a filled star when the system has the favourite too, and an outlined star while it is only in Jackpix.
+
+### Changed
+- A favourite is recognised whichever folder you open the photo from (`DCIM` or `DCIM/Camera`, or the system's Images view). Existing favourites are kept.
+
 ### Fixed
 - A stray `.photoselector-selection` marker file no longer hides a whole folder from the feed; the app's own output folders (Selection, Favourites, the Jackpix import folder and a Selection folder name you typed in Pro mode) are skipped by name.
 - Swiping in big folders is smoother: marking a photo as seen and the review statistics are written in the background, the "seen" counter no longer re-checks the whole folder on every swipe, and folders with many photos no longer re-check them all for each batch while opening. The statistics file is now written safely (a kill mid-write can no longer reset the lifetime totals).
@@ -21,16 +29,6 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 - Opening another source no longer carries the previous source's Selection and left-swipe folders over. Before, a Pro user with a Selection folder on the SD card who then opened a phone folder moved phone photos into the card's folder (and the phone folder set in Settings caught the card's keepers); each source now uses its own folders, or its own source folder when it has none.
 - **Delete all** on the "Card done" sheet now counts and deletes the same files: every file on the card, hidden RAW companions, files of another type and `.xmp` sidecars included ("Delete all 5 files?"). Before, the dialog showed the number of cards in the feed. It waits until the card has been read completely, and says "Card cleared" only when nothing is left; if some files could not be deleted they stay in the feed and the message says how many went.
 - System Back (and the back gesture) in the Selection viewer now returns to the feed on the photo you came from, instead of leaving the app.
-
-### Added
-- Favourites now reach Android (11 and later): Jackpix sets the system favourite flag for photos on the phone and on an indexed SD card, RAW+JPEG companions included, and clears it when you remove the favourite. The changes go out in batches when you leave the feed, switch folders, open the Selection viewer, or after 25 changes. Favourites set in another app show in Jackpix. Before, favourites never left Jackpix.
-- **Favourite** / **Remove favourite** in the long-press menu.
-- The favourite badge shows a filled star when the system has the favourite too, and an outlined star while it is only in Jackpix.
-
-### Changed
-- A favourite is recognised whichever folder you open the photo from (`DCIM` or `DCIM/Camera`, or the system's Images view). Existing favourites are kept.
-
-### Fixed
 - The newest photo is now always 1 of N in newest-first order. Before, reopening a folder moved the photos you had already seen to the end, so a newest photo you had looked at ended up near the highest number and you had to scroll back to it.
 - SD card and camera folders now start with the newest photo too, as phone folders do. Before, they started with the oldest. In Pro mode, Settings → Feed order still offers file-name (shooting) order, shuffle and landscape-first, per source.
 - Preloading follows your scroll direction: it loads 4 photos ahead in the direction you scroll and 1 behind (2 and 0 for cloud folders), and turns round with you. Before, it loaded the same few photos on both sides, so scrolling back often hit photos that were not loaded yet.
