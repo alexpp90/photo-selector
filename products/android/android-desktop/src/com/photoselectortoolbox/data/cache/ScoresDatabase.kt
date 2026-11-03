@@ -13,7 +13,7 @@ import androidx.sqlite.db.SupportSQLiteDatabase
         LessonProgressEntity::class,
         PracticeGoalEntity::class,
     ],
-    version = 7,
+    version = 8,
     exportSchema = true
 )
 abstract class ScoresDatabase : RoomDatabase() {
@@ -99,6 +99,24 @@ abstract class ScoresDatabase : RoomDatabase() {
             }
         }
 
+        /**
+         * v7 → v8, no schema change: the analysis bitmap is now capped at 2048 px on the long
+         * edge (FD-P-11) and the sharpness and noise metrics depend on resolution, so every
+         * cached score was computed at another size. Each row's cache key is broken
+         * (`fileSize = -1` matches no file), so the next scan recomputes and overwrites it; the
+         * row itself and its legacy rating stay. Any non-zero legacy rating not yet in
+         * `user_ratings` is copied there first, because an invalid row no longer supplies it
+         * (invariant: updates never destroy the user's setup).
+         */
+        val MIGRATION_7_8 = object : Migration(7, 8) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL(
+                    "INSERT OR IGNORE INTO `user_ratings` (`uri`, `rating`, `updatedAt`) SELECT `filePath`, `rating`, `lastAccessTime` FROM `scores_cache` WHERE `rating` != 0"
+                )
+                db.execSQL("UPDATE `scores_cache` SET `fileSize` = -1")
+            }
+        }
+
         val MIGRATIONS = arrayOf(
             MIGRATION_1_2,
             MIGRATION_2_3,
@@ -106,6 +124,7 @@ abstract class ScoresDatabase : RoomDatabase() {
             MIGRATION_4_5,
             MIGRATION_5_6,
             MIGRATION_6_7,
+            MIGRATION_7_8,
         )
     }
 }

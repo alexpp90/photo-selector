@@ -13,6 +13,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ### Changed
 
+- Image analysis now works on a copy of at most 2048 pixels on the long edge for every photo, which uses less memory and makes sharpness comparable across cameras. Scores from earlier versions are recalculated the next time you scan; ratings are kept.
 - The documentation no longer claims a "safe to format" check for memory cards: Frameduel has none in any screen yet. The check behind it now requires every kept file, RAW and sidecar included, at the destination with its exact name and size.
 
 ### Fixed
