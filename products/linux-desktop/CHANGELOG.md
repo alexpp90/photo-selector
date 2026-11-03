@@ -7,6 +7,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 ## [Unreleased]
 
 ### Fixed
+- A Google Drive (or other cloud mount) connected while Blitzlens is already running now shows real file names; before, its files stayed unreadable until the app was restarted.
 - Settings are saved atomically, so a crash while saving can no longer reset them to the defaults. A settings file that cannot be read is logged and a copy is kept as `settings.json.corrupt`.
 - A copy to the Selection folder is written under a hidden temporary name and takes its real name only when complete, so a crash or power loss can no longer leave a truncated photo there. A Trash on another drive whose original cannot be removed no longer leaves a stray file in the Trash.
 - "Open with Blitzlens" on a photo (or several) opens the photo's folder with that photo selected. Before, one photo showed an empty "Loaded 0 photographs" and several photos failed with a usage error.
