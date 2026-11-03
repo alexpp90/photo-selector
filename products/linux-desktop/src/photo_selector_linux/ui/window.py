@@ -101,6 +101,9 @@ class MainWindow(Adw.ApplicationWindow if HAS_GI else object):
 
         # Main Canvas View
         self.canvas_view = CanvasView(viewmodel=self.viewmodel)
+        loader = getattr(self.canvas_view, "loader", None)
+        if loader is not None:
+            self.viewmodel.score_runner = loader.run_scoring_pass
         # The toast overlay wraps only the canvas so a toast can never cover the action bar (LIN-7).
         self.toast_overlay = Adw.ToastOverlay()
         self.toast_overlay.set_child(self.canvas_view)
@@ -210,13 +213,14 @@ class MainWindow(Adw.ApplicationWindow if HAS_GI else object):
         """Switch the view order and say so; the menu radio follows the view model."""
         if order not in VIEW_ORDER_LABELS.values():
             return
-        self.viewmodel.set_sort_order(order)
         if HAS_GI:
+            # First, so the view model's own toast ("Scoring N photographs…") is the one that stays.
             self.show_toast(f"Order: {VIEW_ORDER_TITLES[order]}")
+        self.viewmodel.set_sort_order(order)
 
     def toggle_view_order(self) -> None:
         """B: natural order <-> lowest sharpness first."""
-        if self.viewmodel.sort_order == "lowest_sharpness_first":
+        if self.viewmodel.sort_order == "lowest_sharpness_first" and not self.viewmodel.scoring_confirmation_pending:
             self.set_view_order("natural")
         else:
             self.set_view_order("lowest_sharpness_first")

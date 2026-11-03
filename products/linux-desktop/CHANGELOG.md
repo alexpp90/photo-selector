@@ -7,6 +7,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 ## [Unreleased]
 
 ### Fixed
+- **Lowest sharpness first** now orders the whole folder. Before, only the few photos you had already looked at were sorted and the rest stayed in file order behind them. Choosing the order scores every photo in the background (on a cloud folder: choose it a second time to confirm), keeps the photo on screen where it is while the order settles, and starts at the lowest-scored photo if you have not moved on.
 - Duplicate Finder and Library Statistics work on a cloud or remote folder. The first click now offers **Scan anyway**; before, the confirmation was asked for but nothing could give it (Statistics even opened as an empty window). Hashing for duplicates no longer freezes the window.
 - Moving a symlinked photo to the Trash trashes the link, not the file it points at; Undo puts the link back. Before, the original in the other folder was trashed and a dangling link stayed.
 - Closing the window while file operations are queued no longer drops them. Press M four times and quit, and all four photos are moved first; the window says "Finishing N file operations…" and closes when the last one is done. Closing a second time quits at once.

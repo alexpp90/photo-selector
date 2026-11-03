@@ -141,6 +141,8 @@ class PhotoTextureLoader:
     ) -> None:
         self._cache = ThumbnailCache(max_mb=max_mb)
         self._pool = ThreadPoolExecutor(max_workers=workers, thread_name_prefix="photo-decode")
+        # The whole-folder scoring pass has its own workers: viewing a photo never waits for it.
+        self._score_pool = ThreadPoolExecutor(max_workers=workers, thread_name_prefix="photo-score")
         self._pending: Dict[Tuple[Path, Optional[int]], List[TextureCallback]] = {}
         self._lock = threading.Lock()
         self.blurry_threshold: float = float(blurry_threshold)
@@ -204,8 +206,56 @@ class PhotoTextureLoader:
     def clear(self) -> None:
         self._cache.clear()
 
+    def run_scoring_pass(self, candidates, on_scored) -> Callable[[], None]:
+        """Score ``candidates`` in the background; ``on_scored(candidate, scores)`` runs on the main loop.
+
+        Decodes like display does (same pixels, so the same scores), keeps no texture, and never
+        writes the candidate: the view model applies the result. Returns the cancel function.
+        """
+        cancelled = threading.Event()
+
+        def work(candidate) -> None:
+            if cancelled.is_set():
+                return
+            scores = candidate.scores if candidate.scores is not None else self._score_candidate(candidate)
+            if cancelled.is_set() or GLib is None:
+                return
+
+            def deliver() -> bool:
+                if not cancelled.is_set():
+                    on_scored(candidate, scores)
+                return False
+
+            GLib.idle_add(deliver, priority=GLib.PRIORITY_DEFAULT)
+
+        futures = [self._score_pool.submit(work, candidate) for candidate in candidates]
+
+        def cancel() -> None:
+            cancelled.set()
+            for future in futures:
+                future.cancel()
+
+        return cancel
+
+    def _score_candidate(self, candidate):
+        path = candidate.primary_path
+        try:
+            data = path.read_bytes() if is_gvfs_fuse_path(path) else None
+            source = read_display_source(path, candidate.filename, data)
+            pixbuf = decode_pixbuf(source, FIT_MAX_EDGE) if source is not None else None
+            if pixbuf is None:
+                return None
+            return score_pixbuf(
+                pixbuf,
+                blurry_threshold=self.blurry_threshold,
+                sharp_threshold=self.sharp_threshold,
+            )
+        except Exception:
+            return None
+
     def shutdown(self) -> None:
         self._pool.shutdown(wait=False, cancel_futures=True)
+        self._score_pool.shutdown(wait=False, cancel_futures=True)
         self._cache.clear()
 
     def _work(self, key, candidate) -> None:

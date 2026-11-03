@@ -33,6 +33,12 @@ from photo_selector_linux.core.statistics import record_decision_log
 Job = Callable[[], Any]
 JobDone = Callable[[Any, Optional[BaseException]], None]
 Dispatcher = Callable[[Job, JobDone], None]
+#: Scores photographs in the background. ``runner(photos, on_scored)`` returns a cancel function;
+#: ``on_scored(photo, scores_or_None)`` is called on the main loop once per photo.
+ScoreRunner = Callable[
+    [List[CandidatePhoto], Callable[[CandidatePhoto, Optional[QualityScores]], None]],
+    Callable[[], None],
+]
 
 
 def run_inline(job: Job, done: JobDone) -> None:
@@ -108,6 +114,7 @@ class CullingWorkspaceViewModel:
         scan_idle_add: Optional[Callable[..., Any]] = None,
         scanner: Optional[DirectoryScanner] = None,
         scanner_factory: Optional[Callable[[str], DirectoryScanner]] = None,
+        score_runner: Optional[ScoreRunner] = None,
         auto_advance: Optional[bool] = None,
         external_destination_root: Optional[Path] = None,
         decision_log_path: Optional[Path] = None,
@@ -163,6 +170,18 @@ class CullingWorkspaceViewModel:
             custom_selection_folder=self.selection_folder_name
         )
         self._scan_thread: Optional[threading.Thread] = None
+
+        # "Lowest sharpness first" needs a score for every photo, not only the ones viewed so far.
+        self.score_runner: Optional[ScoreRunner] = score_runner
+        self.scoring_confirmation_pending: bool = False
+        self._scoring_confirmed: bool = False
+        self._scoring_generation: int = 0
+        self._scoring_inflight: Dict[str, CandidatePhoto] = {}
+        self._scoring_total: int = 0
+        self._scoring_done: int = 0
+        self._scoring_since_resort: int = 0
+        self._scoring_anchor: Optional[CandidatePhoto] = None
+        self._cancel_scoring: Optional[Callable[[], None]] = None
 
         self._queue: List[_QueuedAction] = []
         self._running_action: Optional[_QueuedAction] = None
@@ -303,10 +322,106 @@ class CullingWorkspaceViewModel:
         """Set candidate ordering ('natural' or 'lowest_sharpness_first') and re-sort (U-34)."""
         if order not in ("natural", "lowest_sharpness_first"):
             return
+        if order == self.sort_order and self.scoring_confirmation_pending:
+            self._scoring_confirmed = True  # chosen again on a remote folder: that is the consent
         self.sort_order = order
         self._apply_sort_order()
         self.current_index = 0
         self._check_stop_sharpness_threshold()
+        if order == "lowest_sharpness_first":
+            self._scoring_anchor = self.current_photo
+            self._begin_scoring_pass()
+        else:
+            self._cancel_scoring_pass()
+        self._notify_state_changed()
+
+    @property
+    def is_scoring(self) -> bool:
+        return bool(self._scoring_inflight)
+
+    def _cancel_scoring_pass(self) -> None:
+        """Stop the background pass: folder switch, back to natural order."""
+        self._scoring_generation += 1
+        cancel, self._cancel_scoring = self._cancel_scoring, None
+        if cancel is not None:
+            cancel()
+        self._scoring_inflight = {}
+        self._scoring_total = self._scoring_done = self._scoring_since_resort = 0
+        self.scoring_confirmation_pending = False
+        self._scoring_anchor = None
+
+    def _begin_scoring_pass(self) -> None:
+        """Score every photo that has no score yet, so the order covers the whole folder (UC-13).
+
+        Photos already scored by viewing are skipped. A remote/cloud folder is read in full only
+        after the user chooses the order a second time (U-31).
+        """
+        if self.sort_order != "lowest_sharpness_first" or self.score_runner is None:
+            return
+        todo = [
+            c for c in self.candidates
+            if c.scores is None and c.id not in self._scoring_inflight
+        ]
+        if not todo:
+            self._finish_scoring_pass()
+            return
+        if self.is_remote_folder and not self._scoring_confirmed:
+            self.scoring_confirmation_pending = True
+            self._notify("Cloud / Remote folder: choose this order again to score every photo")
+            return
+        self.scoring_confirmation_pending = False
+        generation = self._scoring_generation
+        for photo in todo:
+            self._scoring_inflight[photo.id] = photo
+        self._scoring_total += len(todo)
+        self._notify(f"Scoring {len(todo)} photographs…")
+
+        def on_scored(photo: CandidatePhoto, scores: Optional[QualityScores]) -> None:
+            self._on_photo_scored(generation, photo, scores)
+
+        cancel = self.score_runner(todo, on_scored)
+        # The runner may have delivered everything inline; keep only a live pass's cancel handle.
+        if generation == self._scoring_generation and self._scoring_inflight:
+            self._cancel_scoring = cancel
+
+    def _on_photo_scored(
+        self, generation: int, photo: CandidatePhoto, scores: Optional[QualityScores]
+    ) -> None:
+        if generation != self._scoring_generation:
+            return
+        self._scoring_inflight.pop(photo.id, None)
+        self._scoring_done += 1
+        self._scoring_since_resort += 1
+        if scores is not None and photo.scores is None:
+            photo.scores = scores
+        if not self._scoring_inflight:
+            self._finish_scoring_pass()
+        elif self._scoring_since_resort >= (10 if self._scoring_total <= 200 else 50):
+            self._resort_keeping_view()
+            self._notify_state_changed()
+
+    def _resort_keeping_view(self) -> None:
+        """Re-sort by the scores that exist now; the photo on screen stays on screen."""
+        shown = self.current_photo
+        self._apply_sort_order()
+        if shown is not None:
+            idx = self._index_of(shown)
+            if idx is not None:
+                self.current_index = idx
+        self._scoring_since_resort = 0
+
+    def _finish_scoring_pass(self) -> None:
+        if self.is_scanning:
+            return  # photos still arriving; the scan's completion starts the next pass
+        total = self._scoring_total
+        self._resort_keeping_view()
+        self._cancel_scoring = None
+        self._scoring_total = self._scoring_done = 0
+        anchor, self._scoring_anchor = self._scoring_anchor, None
+        if anchor is not None and self.current_photo is anchor:
+            self.current_index = 0  # not navigated meanwhile: start the sweep at the lowest
+        if total:
+            self._notify(f"Scored {total} photographs, lowest sharpness first")
         self._notify_state_changed()
 
     def _apply_sort_order(self) -> None:
@@ -794,6 +909,8 @@ class CullingWorkspaceViewModel:
         it (tests, headless use) the same steps run inline.
         """
         previous_folder = self.current_folder
+        self._cancel_scoring_pass()
+        self._scoring_confirmed = False
         self._folder_generation += 1
         generation = self._folder_generation
         scanner = self._make_scanner()
@@ -869,6 +986,7 @@ class CullingWorkspaceViewModel:
         self._notify(f"Loaded {len(self.candidates)} photographs from {self.current_folder_name}")
         if not notified_any:
             self._notify_state_changed()
+        self._begin_scoring_pass()
 
     @staticmethod
     def _describe_folder(scanner: DirectoryScanner, folder: Path) -> Tuple[bool, str]:
@@ -909,4 +1027,5 @@ class CullingWorkspaceViewModel:
         self.is_scanning = False
         self._notify(f"Loaded {len(self.candidates)} photographs from {self.current_folder_name}")
         self._notify_state_changed()
+        self._begin_scoring_pass()
         return False
