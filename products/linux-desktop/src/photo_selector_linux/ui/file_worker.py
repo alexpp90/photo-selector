@@ -7,6 +7,7 @@ operations in order, which the undo stack relies on.
 
 from __future__ import annotations
 
+import threading
 from concurrent.futures import ThreadPoolExecutor
 from typing import Callable
 
@@ -34,6 +35,24 @@ from photo_selector_linux.viewmodels.culling_workspace import (  # noqa: F401
 def schedule_on_main_loop(fn: Callable[..., object], *args) -> int:
     """``GLib.idle_add`` at PRIORITY_DEFAULT: above the frame clock's redraw."""
     return GLib.idle_add(fn, *args, priority=GLib.PRIORITY_DEFAULT)
+
+
+def run_on_thread(job: Job, done: JobDone, idle_add: Callable[..., object] = None) -> None:
+    """Dispatcher for long read-only work (Duplicate Finder hashing): own thread, ``done`` on the main loop.
+
+    Kept apart from ``FileOperationWorker`` so minutes of hashing never queue behind, or in front
+    of, the culls and their undo order.
+    """
+    deliver = idle_add or schedule_on_main_loop
+
+    def work() -> None:
+        try:
+            result, error = job(), None
+        except Exception as e:
+            result, error = None, e
+        deliver(FileOperationWorker._deliver, done, result, error)
+
+    threading.Thread(target=work, name="background-job", daemon=True).start()
 
 
 class FileOperationWorker:
