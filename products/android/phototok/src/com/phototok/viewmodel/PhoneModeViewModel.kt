@@ -1816,6 +1816,8 @@ class PhoneModeViewModel @Inject constructor(
             }
 
             if (allSucceededUris.isNotEmpty()) {
+                // A rescan that started while the unlinks ran may have listed these files again.
+                dropFromFeed(allSucceededUris)
                 val milestone = statsRepository.recordCommittedDelete(
                     kind = kindAtDelete,
                     bytesFreed = totalBytesFreed,
@@ -2476,6 +2478,27 @@ class PhoneModeViewModel @Inject constructor(
         }
         persistCurrentFolderPosition()
         loadExifForCurrent()
+    }
+
+    /**
+     * Take files that are gone from disk out of the current feed, if they are in it: nothing else
+     * changes (no position persist, no EXIF load). A no-op for a feed that never listed them.
+     */
+    private fun dropFromFeed(uris: Set<String>) {
+        _uiState.update { s ->
+            if (s.allImages.none { it.uri in uris } && s.images.none { it.uri in uris }) return@update s
+            val activeUri = s.images.getOrNull(s.currentIndex)?.uri
+            val images = s.images.filter { it.uri !in uris }
+            val all = s.allImages.filter { it.uri !in uris }
+            val index = activeUri?.let { u -> images.indexOfFirst { it.uri == u } }?.takeIf { it >= 0 }
+                ?: s.currentIndex.coerceIn(0, (images.size - 1).coerceAtLeast(0))
+            s.copy(
+                images = images,
+                allImages = all,
+                currentIndex = index,
+                portraitSectionStart = PhoneFeedOrdering.portraitSplit(images, s.sortByOrientation),
+            )
+        }
     }
 
     private fun loadExifForCurrent() {

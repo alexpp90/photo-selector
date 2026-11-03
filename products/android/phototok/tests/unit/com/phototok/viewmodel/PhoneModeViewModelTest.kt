@@ -2416,6 +2416,29 @@ class PhoneModeViewModelTest {
     }
 
     @Test
+    fun `a photo deleted while a rescan listed it again does not stay in the new feed`() = runTest {
+        val gate = CompletableDeferred<Boolean>()
+        coEvery { imageRepository.deleteImage(any()) } coAnswers { gate.await() }
+        val a = image("a.jpg", 20)
+        val b = image("b.jpg", 10)
+        val viewModel = loadFolder(a, b)
+
+        viewModel.requestDelete()
+        viewModel.finalizePendingDelete() // the unlink is running on the application scope
+        // A rescan of the same folder starts before it finishes and still sees the file.
+        every { imageRepository.discoverImages(any()) } returns flowOf(listOf(a, b))
+        viewModel.reloadSourceFolder()
+        advanceUntilIdle()
+        assertEquals(listOf("a.jpg", "b.jpg"), viewModel.uiState.value.images.map { it.fileName })
+
+        gate.complete(true)
+        advanceUntilIdle()
+
+        assertEquals(listOf("b.jpg"), viewModel.uiState.value.images.map { it.fileName })
+        assertEquals(listOf("b.jpg"), viewModel.uiState.value.allImages.map { it.fileName })
+    }
+
+    @Test
     fun `a card clear finishing after an unmount does not mark the card as cleared`() = runTest {
         val gate = CompletableDeferred<Boolean>()
         coEvery { imageRepository.deleteImage(any()) } coAnswers { gate.await() }
