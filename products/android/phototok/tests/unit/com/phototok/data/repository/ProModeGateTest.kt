@@ -88,7 +88,6 @@ class ProModeGateTest {
                 prefs[SettingsRepository.moveRelatedFilesKey(kind)] = false
                 prefs[SettingsRepository.collectionUriKey(kind)] = "content://tree/coll-$tag"
                 prefs[SettingsRepository.leftSwipeUriKey(kind)] = "content://tree/left-$tag"
-                prefs[SettingsRepository.sortingEnabledKey(kind)] = true
             }
         }
     }

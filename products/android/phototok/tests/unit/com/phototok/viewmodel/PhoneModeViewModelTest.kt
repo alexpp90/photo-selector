@@ -2303,6 +2303,28 @@ class PhoneModeViewModelTest {
     }
 
     @Test
+    fun `an SD card import is flat unless the one File Sorting setting is on`() = runTest {
+        perSourceSettings(removable = SourceSettings(swipeRightVerb = SwipeRightVerb.COPY))
+        sortingEnabledFlow.value = false
+        val viewModel = buildViewModel()
+        openFolder(sdTree, image("a.jpg", 20), image("b.jpg", 10), viewModel = viewModel)
+        advanceUntilIdle()
+
+        viewModel.addToCollection()
+        advanceUntilIdle()
+        coVerify(exactly = 1) {
+            imageRepository.copyImageDetailed(Uri.parse("content://photos/a.jpg"), any(), false, PhotoFolders.SELECTION)
+        }
+
+        sortingEnabledFlow.value = true
+        viewModel.addToCollection()
+        advanceUntilIdle()
+        coVerify(exactly = 1) {
+            imageRepository.copyImageDetailed(Uri.parse("content://photos/b.jpg"), any(), true, PhotoFolders.SELECTION)
+        }
+    }
+
+    @Test
     fun `a card clear finishing after an unmount does not mark the card as cleared`() = runTest {
         val gate = CompletableDeferred<Boolean>()
         coEvery { imageRepository.deleteImage(any()) } coAnswers { gate.await() }

@@ -117,9 +117,6 @@ class SettingsRepository @Inject constructor(
         internal fun leftSwipeUriKey(kind: SourceKind) =
             stringPreferencesKey("source_${kind.keyPrefix()}_left_swipe_uri")
 
-        internal fun sortingEnabledKey(kind: SourceKind) =
-            booleanPreferencesKey("source_${kind.keyPrefix()}_sorting_enabled")
-
         internal fun directDeleteConfirmKey(kind: SourceKind) =
             booleanPreferencesKey("source_${kind.keyPrefix()}_direct_delete_confirm")
 
@@ -259,7 +256,6 @@ class SettingsRepository @Inject constructor(
                     def.fileTypeFilter,
                 ),
                 moveRelatedFiles = prefs[moveRelatedFilesKey(kind)] ?: def.moveRelatedFiles,
-                sortingEnabled = prefs[sortingEnabledKey(kind)] ?: def.sortingEnabled,
                 directDeleteConfirmEnabled = prefs[directDeleteConfirmKey(kind)]
                     ?: prefs[KEY_DIRECT_DELETE_CONFIRM]
                     ?: def.directDeleteConfirmEnabled,

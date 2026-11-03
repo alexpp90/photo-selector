@@ -27,7 +27,6 @@ class ProModePolicyTest {
         feedOrderMode = FeedOrderMode.SHUFFLE,
         fileTypeFilter = FileTypeFilter.RAW,
         moveRelatedFiles = false,
-        sortingEnabled = !ProModePolicy.casualSourceSettings(kind).sortingEnabled,
         collectionUri = "content://tree/collection",
         leftSwipeUri = "content://tree/left",
     )
@@ -57,7 +56,6 @@ class ProModePolicyTest {
             assertEquals(FeedOrderMode.NEWEST_FIRST, casual.feedOrderMode)
             assertEquals(FileTypeFilter.ONE_PER_SHOT, casual.fileTypeFilter)
             assertTrue(casual.moveRelatedFiles)
-            assertFalse(casual.sortingEnabled)
             assertNull(casual.collectionUri)
             assertNull(casual.leftSwipeUri)
             assertEquals(PhotoFolders.SELECTION, casual.selectionSubfolder)
@@ -74,7 +72,6 @@ class ProModePolicyTest {
             assertEquals(FeedOrderMode.NEWEST_FIRST, casual.feedOrderMode)
             assertEquals(FileTypeFilter.ONE_PER_SHOT, casual.fileTypeFilter)
             assertTrue(casual.moveRelatedFiles)
-            assertFalse(casual.sortingEnabled)
             assertTrue(casual.importToPhoneCamera)
             assertEquals("Jackpix", casual.selectionSubfolder)
             assertNull(casual.collectionUri)
@@ -242,9 +239,7 @@ class ProModePolicyTest {
     }
 
     @Test
-    fun `the factory SD defaults alone do not start pro, only the stored per-source sorting default differs`() {
-        // SourceSettings.defaultFor(REMOVABLE) has sortingEnabled = true, but transfers read only the
-        // global flag; comparing the per-source field would push every install into Pro.
+    fun `the factory SD defaults alone do not start pro`() {
         assertFalse(ProModePolicy.shouldStartInPro(stored()))
     }
 
