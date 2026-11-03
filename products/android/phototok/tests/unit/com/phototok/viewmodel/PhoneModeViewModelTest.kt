@@ -2051,6 +2051,46 @@ class PhoneModeViewModelTest {
         assertEquals(listOf("b.jpg", "c.jpg"), viewModel.uiState.value.allImages.map { it.fileName })
     }
 
+    private fun viewModelWithJournal(journal: com.phototok.domain.CardTransferJournal) = PhoneModeViewModel(
+        imageRepository = imageRepository,
+        settingsRepository = settingsRepository,
+        appScope = CoroutineScope(testDispatcher),
+        seenRepository = com.phototok.data.repository.SeenRepository(),
+        favouritesRepository = com.phototok.data.repository.FavouritesRepository(),
+        statsRepository = com.phototok.data.repository.StatsRepository(),
+        volumeMonitor = com.phototok.data.source.VolumeMonitor(),
+        cardTransferJournal = journal,
+    )
+
+    @Test
+    fun `what was copied off a card is still counted after the process was killed`() = runTest {
+        perSourceSettings(removable = SourceSettings(swipeRightVerb = SwipeRightVerb.COPY))
+        val dir = java.nio.file.Files.createTempDirectory("journal_vm").toFile()
+        try {
+            val file = java.io.File(dir, "card_transfer_journal.tsv")
+            val first = viewModelWithJournal(com.phototok.domain.CardTransferJournal(file))
+            openFolder(sdTree, image("a.jpg", 20), image("b.jpg", 10), viewModel = first)
+            advanceUntilIdle()
+            first.addToCollection()
+            advanceUntilIdle()
+            first.navigateToImage(1)
+            first.addToCollection()
+            advanceUntilIdle()
+            first.openCardDoneSheet()
+            assertEquals(2, first.uiState.value.cardCopiedCount)
+
+            // The process is gone; a new view model reads the journal file again.
+            val second = viewModelWithJournal(com.phototok.domain.CardTransferJournal(file))
+            openFolder(sdTree, image("a.jpg", 20), image("b.jpg", 10), viewModel = second)
+            advanceUntilIdle()
+            second.openCardDoneSheet()
+
+            assertEquals(2, second.uiState.value.cardCopiedCount)
+        } finally {
+            dir.deleteRecursively()
+        }
+    }
+
     @Test
     fun `a card clear finishing after an unmount does not mark the card as cleared`() = runTest {
         val gate = CompletableDeferred<Boolean>()

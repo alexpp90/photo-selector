@@ -227,6 +227,7 @@ class PhoneModeViewModel @Inject constructor(
     private val favouritesRepository: FavouritesRepository,
     private val statsRepository: StatsRepository,
     private val volumeMonitor: VolumeMonitor,
+    private val cardTransferJournal: CardTransferJournal = CardTransferJournal(),
 ) : ViewModel() {
 
     constructor(
@@ -245,8 +246,6 @@ class PhoneModeViewModel @Inject constructor(
 
     private val _uiState = MutableStateFlow(PhoneModeUiState())
     val uiState: StateFlow<PhoneModeUiState> = _uiState.asStateFlow()
-
-    internal val cardTransferJournal = CardTransferJournal()
 
     /**
      * Bumped whenever the visible feed is discarded or rebuilt (folder switch, reload, landing,
@@ -1548,8 +1547,6 @@ class PhoneModeViewModel @Inject constructor(
                             ) {
                                 cardTransferJournal.recordCopy(
                                     sourceUri = img.uri,
-                                    destUri = result.destinationUri ?: targetUri,
-                                    byteSize = img.fileSize,
                                     sourceFolderUri = state.sourceFolderUri ?: "",
                                 )
                             }
@@ -1961,6 +1958,8 @@ class PhoneModeViewModel @Inject constructor(
                 }
             }
             val deletedCount = deletedUris.size
+            // A wiped card starts a new count; a card with files left keeps what was copied off it.
+            if (deletedCount == toDelete.size) cardTransferJournal.clearSource(state.sourceFolderUri ?: "")
             if (deletedCount > 0) {
                 statsRepository.recordCommittedDelete(
                     kind = state.sourceKind,
