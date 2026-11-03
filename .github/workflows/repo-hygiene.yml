@@ -52,6 +52,11 @@ jobs:
       - name: Format contract manifest
         run: python3 scripts/fetch_format_corpus.py --validate
 
+      # Every relative link, image and #anchor in the tracked Markdown/HTML resolves (the three
+      # platform badges of the root README pointed at renamed headings for weeks).
+      - name: Documentation links and anchors
+        run: python3 scripts/check_doc_links.py --check
+
       # UI text budget (docs/shared/UI_TEXT.md): fails for products in `fail` mode in
       # scripts/ui_text_budget.json, reports for the rest.
       - name: UI text budget

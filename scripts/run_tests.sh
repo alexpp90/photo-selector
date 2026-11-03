@@ -713,6 +713,8 @@ if have python3; then
         python3 scripts/release.py check
     gate "format contract manifest" "repo-hygiene.yml:hygiene" \
         python3 scripts/fetch_format_corpus.py --validate
+    gate "documentation links and anchors" "repo-hygiene.yml:hygiene" \
+        python3 scripts/check_doc_links.py --check
     # docs/shared/UI_TEXT.md: fails for products in `fail` mode (scripts/ui_text_budget.json),
     # reports for the rest.
     advisory_gate "UI text budget" "repo-hygiene.yml:hygiene" \
@@ -726,6 +728,7 @@ else
     skip "no private-overlay material tracked" "" "python3 not found"
     skip "release metadata consistent" "" "python3 not found"
     skip "format contract manifest" "" "python3 not found"
+    skip "documentation links and anchors" "" "python3 not found"
     skip "UI text budget" "" "python3 not found"
     skip "format corpus tooling tests" "" "python3 not found"
     skip "lab tooling tests" "" "python3 not found"
