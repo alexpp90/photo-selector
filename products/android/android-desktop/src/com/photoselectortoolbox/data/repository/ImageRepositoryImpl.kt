@@ -383,9 +383,6 @@ class ImageRepositoryImpl @Inject constructor(
         }
     }
 
-    override suspend fun getImageDimensions(context: Context, uri: Uri): Pair<Int, Int> =
-        localImageSource.getImageDimensions(uri)
-
     override suspend fun resolveDimensions(
         context: Context,
         uris: Collection<String>,

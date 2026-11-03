@@ -30,9 +30,6 @@ interface LocalImageSource {
      */
     fun discoverImages(folderUri: Uri): Flow<List<ImageItem>>
 
-    /** Header-only dimensions for one image. [ImageDimensions.UNKNOWN] if unreadable. */
-    suspend fun getImageDimensions(uri: Uri): Pair<Int, Int>
-
     /**
      * Header-only dimensions for a set of images, keyed by URI string.
      *
@@ -186,12 +183,6 @@ class LocalImageSourceImpl @Inject constructor(
         // last value (statistics, duplicates) still sees the complete folder.
         emit(published.toList())
     }.flowOn(Dispatchers.IO)
-
-    override suspend fun getImageDimensions(uri: Uri): Pair<Int, Int> =
-        withContext(Dispatchers.IO) {
-            val dimensions = cachedOrRead(uri.toString())
-            Pair(dimensions.width, dimensions.height)
-        }
 
     override suspend fun resolveDimensions(
         uris: Collection<String>

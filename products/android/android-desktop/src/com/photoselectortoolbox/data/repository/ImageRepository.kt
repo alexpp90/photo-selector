@@ -159,8 +159,6 @@ interface ImageRepository {
         item: ImageItem,
     ): Boolean
 
-    suspend fun getImageDimensions(context: Context, uri: Uri): Pair<Int, Int>
-
     /**
      * Header-only dimensions for a set of images, keyed by URI string.
      *

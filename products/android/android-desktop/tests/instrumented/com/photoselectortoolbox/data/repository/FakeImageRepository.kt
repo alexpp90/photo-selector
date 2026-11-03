@@ -146,11 +146,6 @@ class FakeImageRepository @Inject constructor() : ImageRepository {
         return uri.substringBeforeLast('/') + "/Selection/" + uri.substringAfterLast('/')
     }
 
-    override suspend fun getImageDimensions(context: Context, uri: Uri): Pair<Int, Int> {
-        val img = imagesFlow.value.find { it.uri == uri.toString() }
-        return if (img != null) Pair(img.imageWidth, img.imageHeight) else Pair(0, 0)
-    }
-
     override suspend fun resolveDimensions(
         context: Context,
         uris: Collection<String>,

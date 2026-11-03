@@ -171,7 +171,7 @@ When a hardware keyboard is detected, the same shortcuts as desktop apply:
 
 ### 7.4 Progress & Status
 - **Desktop:** Log tab with scrollable text output
-- **Android:** Compact progress bar in app bar + expandable notification for background scans via WorkManager. Minimal log view accessible via "Details" expansion.
+- **Android:** Compact progress bar in the app bar while a scan runs. Scans run in the app only; there are no background scans and no WorkManager (the dependency was removed).
 
 ### 7.5 Delete Confirmation
 - **Desktop:** Dialog with second Delete keypress to confirm
@@ -199,10 +199,12 @@ val analysisWorkers = minOf(4, Runtime.getRuntime().availableProcessors())
 - Release `Mat` objects immediately after OpenCV operations
 
 ### 8.3 Battery-Aware Scanning
+
+Not implemented: nothing in the product reads the battery state. The plan was:
+
 - Monitor `BatteryManager.EXTRA_STATUS` during long scans
 - Reduce worker thread count when battery < 20%
 - Pause scan and notify user when battery < 10%
-- Use `WorkManager` with battery-not-low constraint for background scans
 
 ### 8.4 Memory Management
 - Coil handles display image caching with configurable memory/disk limits

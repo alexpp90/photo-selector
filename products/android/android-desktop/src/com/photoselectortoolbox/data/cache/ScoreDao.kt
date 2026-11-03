@@ -112,12 +112,6 @@ interface ScoreDao {
     @Query("SELECT * FROM technique_facts WHERE uri = :uri")
     suspend fun getTechniqueFactsForUri(uri: String): List<TechniqueFactEntity>
 
-    @Query("SELECT * FROM technique_facts WHERE uri IN (:uris)")
-    suspend fun getTechniqueFactsForUris(uris: List<String>): List<TechniqueFactEntity>
-
-    @Query("SELECT * FROM technique_facts WHERE kind = :kind AND confidence >= :minConfidence")
-    suspend fun getTechniqueFactsByKind(kind: String, minConfidence: Double = 0.0): List<TechniqueFactEntity>
-
     @Query("DELETE FROM technique_facts WHERE uri = :uri")
     suspend fun deleteTechniqueFactsForUri(uri: String)
 
