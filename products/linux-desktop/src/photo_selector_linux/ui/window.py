@@ -295,12 +295,21 @@ class MainWindow(Adw.ApplicationWindow if HAS_GI else object):
     def _on_folder_dialog_finish(self, dialog, result) -> None:
         try:
             folder = dialog.select_folder_finish(result)
-            if folder:
-                path = Path(folder.get_path())
-                self.open_directory(path)
+        except GLib.Error as e:
+            # Closing the picker is not an error: say nothing. Anything else is.
+            if e.matches(Gtk.dialog_error_quark(), Gtk.DialogError.DISMISSED) or e.matches(
+                Gtk.dialog_error_quark(), Gtk.DialogError.CANCELLED
+            ):
+                return
+            self.show_toast(f"Could not open the folder: {e.message}")
+            return
+        if not folder or not folder.get_path():
+            return
+        path = Path(folder.get_path())
+        try:
+            self.open_directory(path)
         except Exception as e:
-            if HAS_GI and GLib:
-                GLib.idle_add(self.show_toast, f"Open folder cancelled: {e}")
+            self.show_toast(f"Could not open {path.name}: {e}")
 
     def open_directory(self, path: Path) -> None:
         """Open a folder; a photo opens its folder with that photo selected."""
