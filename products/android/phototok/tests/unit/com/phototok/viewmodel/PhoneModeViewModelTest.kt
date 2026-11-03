@@ -15,6 +15,8 @@ import com.phototok.domain.FirstRunHint
 import com.phototok.domain.FolderScanInfo
 import com.phototok.domain.PhotoFolders
 import com.phototok.domain.SwipeAction
+import com.phototok.domain.SwipeRightVerb
+import com.photoselector.core.storage.SourceKind
 import com.phototok.domain.UiText
 import io.mockk.coEvery
 import io.mockk.coVerify
@@ -1836,6 +1838,108 @@ class PhoneModeViewModelTest {
         assertEquals(listOf("b.jpg"), state.allImages.map { it.fileName })
         assertTrue(state.lastActionFeedback?.isError == true)
         assertEquals(UiText.of(R.string.error_delete_some, 1, 2), state.lastActionFeedback?.message)
+    }
+
+    private val sdTree = "content://com.android.externalstorage.documents/tree/1A2B-3C4D%3ADCIM"
+    private val sdSelection = "content://com.android.externalstorage.documents/tree/1A2B-3C4D%3AKeepers"
+    private val sdRejects = "content://com.android.externalstorage.documents/tree/1A2B-3C4D%3ARejects"
+    private val phoneTree = "content://com.android.externalstorage.documents/tree/primary%3ADCIM"
+
+    private fun perSourceSettings(
+        removable: SourceSettings,
+        phone: SourceSettings = SourceSettings(swipeRightVerb = SwipeRightVerb.MOVE, swipeLeftVerb = SwipeAction.COPY),
+    ) {
+        every { settingsRepository.sourceSettingsFlow(any()) } answers {
+            flowOf(if (firstArg<SourceKind>() == SourceKind.REMOVABLE) removable else phone)
+        }
+        coEvery { imageRepository.resolveFolderName(Uri.parse(sdSelection)) } returns "Keepers"
+        coEvery { imageRepository.resolveFolderName(Uri.parse(sdRejects)) } returns "Rejects"
+        coEvery { imageRepository.moveImageDetailed(any(), any(), any(), any()) } coAnswers {
+            FileOperationResult.success(firstArg<Uri>().toString(), null)
+        }
+        coEvery { imageRepository.copyImageDetailed(any(), any(), any(), any()) } coAnswers {
+            FileOperationResult.success(firstArg<Uri>().toString(), null)
+        }
+    }
+
+    private fun openFolder(uri: String, vararg images: ImageItem, viewModel: PhoneModeViewModel) {
+        every { imageRepository.discoverImages(any()) } returns flowOf(images.toList())
+        viewModel.selectSourceFolder(Uri.parse(uri))
+    }
+
+    @Test
+    fun `the Selection folder of an SD card does not catch the phone photos you swipe right next`() = runTest {
+        perSourceSettings(
+            removable = SourceSettings(swipeRightVerb = SwipeRightVerb.MOVE, collectionUri = sdSelection),
+        )
+        val viewModel = buildViewModel()
+        openFolder(sdTree, image("card.jpg", 5), viewModel = viewModel)
+        advanceUntilIdle()
+        assertEquals(sdSelection, viewModel.uiState.value.collectionFolderUri)
+        assertEquals("Keepers", viewModel.uiState.value.collectionFolderName)
+
+        openFolder(phoneTree, image("a.jpg", 20), image("b.jpg", 10), viewModel = viewModel)
+        advanceUntilIdle()
+        val state = viewModel.uiState.value
+        assertNull("the phone has no folder of its own", state.collectionFolderUri)
+        assertEquals("", state.collectionFolderName)
+
+        viewModel.addToCollection()
+        advanceUntilIdle()
+
+        coVerify(exactly = 1) {
+            imageRepository.moveImageDetailed(Uri.parse("content://photos/a.jpg"), Uri.parse(phoneTree), any(), PhotoFolders.SELECTION)
+        }
+        coVerify(exactly = 0) {
+            imageRepository.moveImageDetailed(any(), Uri.parse(sdSelection), any(), any())
+        }
+        assertEquals(
+            "the snackbar names the folder the photo went to, not the card's",
+            UiText.of(R.string.snackbar_moved, UiText.raw(PhotoFolders.SELECTION)),
+            viewModel.uiState.value.lastActionFeedback?.message,
+        )
+    }
+
+    @Test
+    fun `the left-swipe folder of an SD card does not catch the phone photos either`() = runTest {
+        perSourceSettings(
+            removable = SourceSettings(swipeLeftVerb = SwipeAction.COPY, leftSwipeUri = sdRejects),
+        )
+        val viewModel = buildViewModel()
+        openFolder(sdTree, image("card.jpg", 5), viewModel = viewModel)
+        advanceUntilIdle()
+        assertEquals(sdRejects, viewModel.uiState.value.leftSwipeFolderUri)
+        assertEquals("Rejects", viewModel.uiState.value.leftSwipeFolderName)
+
+        openFolder(phoneTree, image("a.jpg", 20), image("b.jpg", 10), viewModel = viewModel)
+        advanceUntilIdle()
+        assertNull(viewModel.uiState.value.leftSwipeFolderUri)
+
+        viewModel.performLeftSwipeCopyOrMove()
+        advanceUntilIdle()
+
+        coVerify(exactly = 0) { imageRepository.copyImageDetailed(any(), Uri.parse(sdRejects), any(), any()) }
+        coVerify(exactly = 1) {
+            imageRepository.copyImageDetailed(Uri.parse("content://photos/a.jpg"), Uri.parse(phoneTree), any(), PhotoFolders.LEFT_SWIPE)
+        }
+    }
+
+    @Test
+    fun `the phone folder you set in Settings does not capture the keepers of an open SD card`() = runTest {
+        perSourceSettings(removable = SourceSettings(swipeRightVerb = SwipeRightVerb.COPY))
+        val viewModel = buildViewModel()
+        openFolder(sdTree, image("card.jpg", 5), viewModel = viewModel)
+        advanceUntilIdle()
+
+        collectionUriFlow.value = "content://com.android.externalstorage.documents/tree/primary%3APhoneSelection"
+        advanceUntilIdle()
+
+        assertNull(viewModel.uiState.value.collectionFolderUri)
+        viewModel.addToCollection()
+        advanceUntilIdle()
+        coVerify(exactly = 1) {
+            imageRepository.copyImageDetailed(any(), Uri.parse(sdTree), any(), PhotoFolders.SELECTION)
+        }
     }
 
     @Test

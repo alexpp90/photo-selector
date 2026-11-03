@@ -316,10 +316,6 @@ class PhoneModeViewModel @Inject constructor(
     /** Guards against a second swipe while the camera-folder access check is running. */
     private var resolvingCameraImportTarget = false
 
-    /** The phone's own collection folder as last read from settings (shown again when a Casual import ends). */
-    private var phoneCollectionUriPref: String? = null
-    private var phoneCollectionNamePref: String = ""
-
     companion object {
         private const val TAG = "PhoneModeVM"
         private const val MAX_EXIF_CACHE_SIZE = 30
@@ -515,11 +511,10 @@ class PhoneModeViewModel @Inject constructor(
         viewModelScope.launch {
             settingsRepository.phoneCollectionUri.collect { uri ->
                 val name = resolveFolderName(uri, fallback = "Collection")
-                phoneCollectionUriPref = uri
-                phoneCollectionNamePref = name
                 _uiState.update {
-                    // A Casual card import has its own target; the phone's folder waits for Pro.
-                    if (it.importToPhoneCamera) it
+                    // The phone's folder belongs to the phone source: another source (and a Casual
+                    // card import, which has its own target) keeps the destinations its own settings give.
+                    if (it.importToPhoneCamera || ownedByOtherSource(it)) it
                     else it.copy(collectionFolderUri = uri, collectionFolderName = name)
                 }
             }
@@ -528,12 +523,17 @@ class PhoneModeViewModel @Inject constructor(
             settingsRepository.phoneLeftSwipeUri.collect { uri ->
                 val name = resolveFolderName(uri, fallback = "Folder")
                 _uiState.update {
-                    it.copy(leftSwipeFolderUri = uri, leftSwipeFolderName = name)
+                    if (ownedByOtherSource(it)) it
+                    else it.copy(leftSwipeFolderUri = uri, leftSwipeFolderName = name)
                 }
             }
         }
         observeSourceSettingsForKind(SourceKind.PHONE_LIBRARY)
     }
+
+    /** True once the per-source settings are live and the open source is not the phone's own. */
+    private fun ownedByOtherSource(state: PhoneModeUiState): Boolean =
+        hasSourceSettingsEmission && state.sourceKind != SourceKind.PHONE_LIBRARY
 
     private fun observeSourceSettingsForKind(kind: SourceKind) {
         sourceSettingsJob?.cancel()
@@ -558,18 +558,19 @@ class PhoneModeViewModel @Inject constructor(
                     src.leftSwipeAction
                 }
 
+                // Destinations belong to the source kind that is open: a source without a folder of
+                // its own uses its own default (the source folder, name `Selection`), never the
+                // previous source's folder. Names are resolved here, outside the state update.
+                val collectionUri = if (src.importToPhoneCamera) cameraImportTarget else src.collectionFolderUri
+                val collectionName = if (src.importToPhoneCamera) {
+                    src.selectionSubfolder
+                } else {
+                    resolveFolderName(collectionUri, fallback = "Collection")
+                }
+                val leftSwipeUri = src.leftSwipeFolderUri
+                val leftSwipeName = resolveFolderName(leftSwipeUri, fallback = "Folder")
+
                 _uiState.update { state ->
-                    val leavingImport = state.importToPhoneCamera && !src.importToPhoneCamera
-                    val collectionUri = when {
-                        src.importToPhoneCamera -> cameraImportTarget
-                        leavingImport -> src.collectionFolderUri ?: phoneCollectionUriPref
-                        else -> src.collectionFolderUri ?: state.collectionFolderUri
-                    }
-                    val collectionName = when {
-                        src.importToPhoneCamera -> src.selectionSubfolder
-                        leavingImport -> if (collectionUri == phoneCollectionUriPref) phoneCollectionNamePref else ""
-                        else -> state.collectionFolderName
-                    }
                     state.copy(
                         swipeRightVerb = effectiveVerb,
                         collectionAction = effectiveCollectionAction,
@@ -582,7 +583,8 @@ class PhoneModeViewModel @Inject constructor(
                         leftSwipeAction = effectiveLeftSwipe,
                         collectionFolderUri = collectionUri,
                         collectionFolderName = collectionName,
-                        leftSwipeFolderUri = src.leftSwipeFolderUri ?: state.leftSwipeFolderUri,
+                        leftSwipeFolderUri = leftSwipeUri,
+                        leftSwipeFolderName = leftSwipeName,
                         importToPhoneCamera = src.importToPhoneCamera,
                         selectionSubfolderName = src.selectionSubfolder,
                     )
@@ -712,6 +714,15 @@ class PhoneModeViewModel @Inject constructor(
         val kind = classifyUri(uri, _uiState.value.mountedVolumes)
         val volUuid = SourceKindClassifier.extractRemovableUuid(uri)
         val isCloud = kind == SourceKind.CLOUD_OTHER
+        // Until this kind's settings arrive, no destination of the previous source applies.
+        _uiState.update {
+            if (it.sourceKind == kind) it else it.copy(
+                collectionFolderUri = null,
+                collectionFolderName = "",
+                leftSwipeFolderUri = null,
+                leftSwipeFolderName = "",
+            )
+        }
         observeSourceSettingsForKind(kind)
 
         _uiState.update {
