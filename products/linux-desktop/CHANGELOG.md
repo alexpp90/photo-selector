@@ -13,6 +13,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 - Counters, badges, captions and the info card follow the system text size; before, they stayed the same size at 150 % text.
 
 ### Fixed
+- Opening another folder cancels the photos still queued for decoding in the folder you left, and a photo that was already decoding no longer fills the new folder's cache.
 - When a Move, Copy or Trash leaves files in an unexpected place ("Move interrupted — … stayed in Selection/", "original could not be removed"), the message stays on screen until the next file operation. Before, it was a 3-second toast and a 4-second line in the action bar.
 - Tab moves the keyboard focus through the header and the action bar again, and Space presses a focused button, instead of both being swallowed by the photo view.
 - Duplicate Finder, Library Statistics and the shortcut list have a header bar with a close button and close with Escape.

@@ -144,6 +144,10 @@ class PhotoTextureLoader:
         # The whole-folder scoring pass has its own workers: viewing a photo never waits for it.
         self._score_pool = ThreadPoolExecutor(max_workers=workers, thread_name_prefix="photo-score")
         self._pending: Dict[Tuple[Path, Optional[int]], List[TextureCallback]] = {}
+        # Queued decodes of the folder that was left are cancelled by ``clear()``; ``_generation``
+        # also keeps a decode that was already running from filling the next folder's cache.
+        self._generation: int = 0
+        self._futures: Dict[Tuple[Path, Optional[int]], object] = {}
         self._lock = threading.Lock()
         self.blurry_threshold: float = float(blurry_threshold)
         self.sharp_threshold: float = float(sharp_threshold)
@@ -193,7 +197,10 @@ class PhotoTextureLoader:
                 self._pending[key].append(callback)
                 return
             self._pending[key] = [callback]
-        self._pool.submit(self._work, key, candidate)
+            generation = self._generation
+        future = self._pool.submit(self._work, key, candidate, generation)
+        with self._lock:
+            self._futures[key] = future
 
     def prefetch(self, candidates) -> None:
         """Warm the cache for a single candidate or an iterable of neighbouring candidates."""
@@ -204,6 +211,13 @@ class PhotoTextureLoader:
             self.request(candidate, lambda _texture: None)
 
     def clear(self) -> None:
+        """Forget the previous folder: drop its textures and cancel its queued decodes."""
+        with self._lock:
+            self._generation += 1
+            futures, self._futures = list(self._futures.values()), {}
+            for future in futures:
+                future.cancel()  # a running decode cannot be stopped; its result is dropped as stale
+            self._pending.clear()  # callbacks of the folder that was left
         self._cache.clear()
 
     def run_scoring_pass(self, candidates, on_scored) -> Callable[[], None]:
@@ -258,7 +272,7 @@ class PhotoTextureLoader:
         self._score_pool.shutdown(wait=False, cancel_futures=True)
         self._cache.clear()
 
-    def _work(self, key, candidate) -> None:
+    def _work(self, key, candidate, generation: Optional[int] = None) -> None:
         path, max_edge = key
         pixbuf = None
         try:
@@ -282,9 +296,15 @@ class PhotoTextureLoader:
             pixbuf = None
         if GLib is not None:
             # Above the redraw priority (120) so animating spinners cannot starve it (LIN-4).
-            GLib.idle_add(self._deliver, key, pixbuf, priority=GLib.PRIORITY_DEFAULT)
+            args = (key, pixbuf) if generation is None else (key, pixbuf, generation)
+            GLib.idle_add(self._deliver, *args, priority=GLib.PRIORITY_DEFAULT)
 
-    def _deliver(self, key, pixbuf) -> bool:
+    def _deliver(self, key, pixbuf, generation: Optional[int] = None) -> bool:
+        with self._lock:
+            self._futures.pop(key, None)
+            stale = generation is not None and generation != self._generation
+        if stale:
+            return False  # decoded for a folder that was closed meanwhile
         texture = None
         if pixbuf is not None:
             texture = Gdk.Texture.new_for_pixbuf(pixbuf)
