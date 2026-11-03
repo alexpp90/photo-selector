@@ -122,7 +122,7 @@ A high-performance native macOS photo selection and comparison culling suite bui
 
 <div align="center">
   <img src="assets/macos_desktop_screenshot.png" alt="Lensjet Culling Workspace" width="750" style="border-radius: 10px; box-shadow: 0 4px 20px rgba(0,0,0,0.3); margin-bottom: 12px;" />
-  <p><em>Native macOS studio workspace with floating Apple Vision HUD pill, 1-Up maximized canvas, and tactile action bar</em></p>
+  <p><em>Lensjet culling workspace: 1-Up canvas, action bar and filmstrip</em></p>
 </div>
 
 ### Key Features
@@ -130,7 +130,7 @@ A high-performance native macOS photo selection and comparison culling suite bui
 * **Hardware-Accelerated Focus Metric:** Sub-millisecond 2D Laplacian variance computation via Apple Accelerate (`vImageConvolve_PlanarF` + `vDSP`), processing >1,500 images/second per thread with noise-floor subtraction.
 * **Maximized Viewport Canvas:** Borderless comparison layouts (1-Up with 1:1 pixel zoom on `Space`, 2-Up side-by-side, and Focus 3-Up sliding triplet) allocating >85% of window area to photo previews.
 * **Zero-Latency Keyboard Navigation:** Window-level `NSEvent` interceptor routing arrow keys, `M` (Move to `Selection/`), `C` (Copy), `Delete` (System Trash), and `⌘Z` (Instant Undo) with zero AppKit focus lag.
-* **Actor-Isolated Transactional Culling:** Serial FIFO disk mutations on `AsyncCullingActor` guaranteeing zero data loss and automated companion file pairing (RAW+JPEG, XMP sidecars).
+* **Actor-Isolated Transactional Culling:** Serial FIFO disk mutations on `AsyncCullingActor` that never overwrite a file (a name clash gets a `-2` suffix), keep an undo record for Move, Copy and Trash, and pair companion files automatically (RAW+JPEG, XMP sidecars).
 * **macOS Design Standards:** Studio dark theme, configuration housed in standard macOS Settings (`⌘,`), secondary utilities housed under the Menu Bar `Tools` menu, and a toolbar and action bar that collapse to short labels and icons (with tooltips) in narrow windows instead of wrapping.
 
 ---
@@ -219,6 +219,14 @@ brew install --cask photo-selector-toolbox
 
 #### Standalone ZIP
 Download the pre-compiled `photo-selector-macos-apple-silicon.zip` from the latest [Lensjet release](https://github.com/alexpp90/photo-selector/releases?q=macos-desktop-v&expanded=true), unpack it, and drag `Lensjet.app` into `/Applications`.
+
+#### First launch (Gatekeeper)
+Lensjet is signed ad hoc and is **not notarized by Apple yet**, so macOS 14 and 15 refuse the first launch ("Apple could not verify …"), however you installed it. Allow it once:
+
+1. Try to open Lensjet, then click **Done** (not *Move to Bin*).
+2. Open **System Settings → Privacy & Security**, scroll to **Security**, click **Open Anyway** next to Lensjet and confirm.
+
+Or remove the quarantine flag in Terminal: `xattr -dr com.apple.quarantine /Applications/Lensjet.app`. The Homebrew cask prints the same note after install.
 
 ---
 
@@ -338,8 +346,7 @@ To verify all products against the exact gates CI enforces:
   ```
 * **Lensjet (Swift 6):**
   ```bash
-  cd products/macos-desktop
-  swift test
+  ./scripts/run_tests.sh --macos   # the CI gate: swift test -c release --no-parallel, plus the UI smoke test
   ```
 * **Blitzlens (Pytest):**
   ```bash
