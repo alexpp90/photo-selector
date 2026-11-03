@@ -399,4 +399,14 @@ class SelectionViewerViewModelTest {
         coVerify(exactly = 1) { imageRepository.copyImageDetailed(Uri.parse(b.uri), dest, false, "Favourites") }
         assertEquals(UiText.of(R.string.snackbar_favourites_copied, 2, "Favourites"), vm.uiState.value.feedback?.message)
     }
+
+    @Test
+    fun `a cancelled listing is not reported as a failure to open`() = runTest {
+        coEvery { imageRepository.listSelectionImages(any()) } throws kotlinx.coroutines.CancellationException("left the screen")
+
+        viewModel.open("content://tree/photos")
+
+        assertNull("cancellation is not an error the user should see", viewModel.uiState.value.feedback)
+    }
 }
+

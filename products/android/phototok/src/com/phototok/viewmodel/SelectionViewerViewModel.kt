@@ -147,6 +147,8 @@ class SelectionViewerViewModel @Inject constructor(
                         )
                     }
                 }
+            } catch (e: CancellationException) {
+                throw e
             } catch (e: Exception) {
                 _uiState.update {
                     it.copy(
@@ -192,6 +194,8 @@ class SelectionViewerViewModel @Inject constructor(
                         }
                         else -> Unit
                     }
+                } catch (e: CancellationException) {
+                    throw e
                 } catch (_: Exception) {
                 }
             }
