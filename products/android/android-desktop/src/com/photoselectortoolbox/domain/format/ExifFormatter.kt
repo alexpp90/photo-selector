@@ -60,8 +60,9 @@ object ExifFormatter {
      * single line ellipsised at 148 dp would drop ISO — the field most likely
      * to differ inside a burst — which is the opposite of useful.
      *
-     * Lens is deliberately absent: it does not fit, and inside a burst it is
-     * the one field guaranteed not to vary. [detailRows] still carries it.
+     * The lens is not part of this block: a lens name has no fixed length and
+     * cannot be split at a token, so it is its own line ([lensLine]) that the
+     * overlay draws beneath these two and ellipsises.
      *
      * Returns an empty list when nothing is known, so the caller omits the
      * block rather than drawing an empty one over a photograph.
@@ -81,6 +82,15 @@ object ExifFormatter {
             optics.takeIf { it.isNotEmpty() }?.let { add(it.joinToString(" · ")) }
         }
     }
+
+    /**
+     * The lens name for a single line under the exposure, or null when there is
+     * nothing worth a line: no EXIF, a blank string, or [UNKNOWN] (what the readers
+     * store when the file carried no lens). Unlike [detailRows], where "Unknown"
+     * is information, a line reading "Unknown" under a photograph is noise.
+     */
+    fun lensLine(exif: ExifData?): String? =
+        exif?.lens?.trim()?.takeIf { it.isNotEmpty() && !it.equals(UNKNOWN, ignoreCase = true) }
 
     /**
      * The label/value pairs for the details panel, in display order.

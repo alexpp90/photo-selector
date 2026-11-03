@@ -29,7 +29,7 @@ class SettingsDefaultsTest {
     }
 
     @Test
-    fun `the fullscreen info bar starts unpinned`() {
+    fun `the fullscreen info panel starts unpinned`() {
         // A bar that never fades sits on the sky of the frame being inspected, so
         // pinning is a choice (`I`), not the opening state.
         assertFalse(SettingsRepository.DEFAULT_FULLSCREEN_INFO_PINNED)

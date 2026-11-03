@@ -451,4 +451,23 @@ class FrameGeometryTest {
 
         assertEquals(1.5f, layout.frame.width.value / layout.frame.height.value, 0.01f)
     }
+
+    @Test
+    @Requirement("REQ-AND-LAYOUT.13")
+    fun `frame sizes at the reference windows do not depend on what the readouts print`() {
+        // The lens line (REQ-AND-LAYOUT.13) is one more line in the flank readout
+        // and in the neighbour overlay. The solver takes no readout content at all,
+        // so these 3:2 sizes must hold.
+        fun frameAt(width: Float, height: Float): Pair<Float, Float> {
+            val region = FrameGeometry.imageRegion(width.dp, height.dp, sidebarWidth = 88.dp)
+            val frame = FrameGeometry.threeUpLayout(region.width, region.height, aspect = 3f / 2f).frame
+            return frame.width.value to frame.height.value
+        }
+        val reference = frameAt(1480f, 924f)
+        assertEquals(675f, reference.first, 0.5f)
+        assertEquals(450f, reference.second, 0.5f)
+        val small = frameAt(1280f, 800f)
+        assertEquals(582f, small.first, 0.5f)
+        assertEquals(388f, small.second, 0.5f)
+    }
 }
