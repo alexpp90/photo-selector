@@ -551,13 +551,17 @@ if $run_android_device; then
     # It writes a timed report and the open-issue ledger in .git/pst-device-runs/. The device
     # suite is run on demand, so a missing, busy or locked device is a stated gap, never a
     # blocker (not even --strict). One gate per device.
+    # CI's emulator has a compact window, and 28 expanded-layout checks in :android-desktop
+    # (`if (isCompactLayout()) return`) pass vacuously there; the label says so wherever this gate
+    # is reported. Only a device with an expanded window (a tablet) runs them.
+    INSTRUMENTED_CI_REF="android.yml:instrumented-tests (partial — compact window)"
     GATE_LINES="$(mktemp)"
     python3 "$ROOT_DIR/scripts/android_device_matrix.py" run --configured --gate-lines "$GATE_LINES"
     TESTED_SERIALS=""
     while IFS=$'\t' read -r verdict serial gate reason; do
         case "$verdict" in
-            pass) pass "$gate" "android.yml:instrumented-tests" ;;
-            fail) fail "$gate" "android.yml:instrumented-tests" ;;
+            pass) pass "$gate" "$INSTRUMENTED_CI_REF" ;;
+            fail) fail "$gate" "$INSTRUMENTED_CI_REF" ;;
             skip) skip "$gate" "" "$reason" false; continue ;;
             *) continue ;;
         esac
