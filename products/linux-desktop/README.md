@@ -13,7 +13,7 @@ The codebase enforces strict separation of concerns:
 - `photo_selector_linux.core`:
   - `models`: Typed photographic data models (`CandidatePhoto`, `ExposureMetadata`, `QualityScores`, `CullingRecord`).
   - `formats`: The Linux side of the shared format contract ([`docs/shared/SUPPORTED_FORMATS.md`](../../docs/shared/SUPPORTED_FORMATS.md)): required RAW (`ARW`, `CR2`, `CR3`, `NEF`, `NRW`, `RAF`, `RW2`, `ORF`, `PEF`, `DNG`, `SRW`), recognized RAW (`3FR`, `FFF`, `IIQ`, `RWL`, `RAW`, `SR2`, `SRF`, `MRW`, `X3F`, `ERF`, `MEF`, `MOS`) and bitmaps (`JPG`/`JPEG`, `HEIC`/`HEIF`, `PNG`, `TIF`/`TIFF`, `WebP`), matched case-insensitively.
-  - `scanner`: Recursive progressive directory scanner with companion binding, Lightroom derivative detection, and dynamic `Selection/` subfolder exclusion.
+  - `scanner`: Recursive progressive directory scanner with companion binding (RAW, JPEG, `X.xmp` and file-specific `X.NEF.xmp` sidecars of every file of a shot, Lightroom derivatives), and dynamic `Selection/` subfolder exclusion. Each folder is listed once and grouped in memory, so a folder of thousands of photos lists in well under a second; the window runs the scan on its own thread and shows photos as they arrive.
   - `metadata`: Optical metadata extraction via `GExiv2` with Pillow fallback (ISO from `ISOSpeedRatings`, then `ISOSpeed` / `RecommendedExposureIndex` for Canon CR3 and Sony; padded make/model trimmed), APEX math conversions ($T_v \to 2^{-T_v}$, $A_v \to 2^{A_v/2}$), and fractional shutter formatting.
   - `image_source`: Camera RAW files (`.ARW`, `.NEF`, `.CR3`, …) are displayed through their embedded JPEG preview, upright per the RAW's EXIF orientation; when that preview is below `min(1024 px, native)` (phone DNGs) the file is developed at half size by LibRaw `dcraw_emu` (`libraw-bin`). HEIC decodes through GdkPixbuf (`heif-gdk-pixbuf` with `libheif-plugin-libde265`, both recommended by the package); formats GdkPixbuf has no loader for (WebP without `webp-pixbuf-loader`) display through Pillow. Photos decode in the background with a spinner and are scored from the pixels they display during that decode; 1:1 zoom on a RAW develops it at full sensor resolution with LibRaw instead of showing the smaller preview.
   - `gvfs_names`: Google Drive and other GVFS cloud mounts (GNOME Online Accounts) open like local folders — real file names are resolved through GIO, since Drive lists files under opaque IDs. Move, Copy, Trash and Undo work there too; Trash keeps the file in the local GNOME Trash (under its real name) so it can be undone.
@@ -31,6 +31,10 @@ The codebase enforces strict separation of concerns:
   - `preferences`: Modal `Adw.PreferencesWindow` (`Ctrl+,`).
   - `keyboard_router`: Root window `Gtk.EventControllerKey` in `CAPTURE` phase with modifier lock masking (`state & ~(LOCK_MASK | MOD2_MASK)`) and text entry bypass.
   - `styling`: Dark-only CSS palette (internal name "Obsidian Darkroom & System Accent"): neutral grey surfaces (`#141414` surface, `#181818` elevated chrome, `#1C1C1C` cards), selection, focus and active state in the system accent colour (`@accent_bg_color`, follows the GNOME accent setting), and fixed semantic colours `#2EC27E` keeper, `#E5A50A` acceptable, `#E01B24` cull. The brand yellow `#FFC93C` appears only in the icon.
+
+## Opening photos
+
+Start Blitzlens with a folder (`photo-selector-linux ~/Pictures/2026`) or let the file manager open photos with it ("Open With"): a photo opens its folder with that photo selected. Closing the window while Move, Copy or Trash operations are queued waits for them to finish; close again to quit at once.
 
 ## Scope and privacy
 
@@ -51,9 +55,10 @@ The codebase enforces strict separation of concerns:
 | `Space` | Toggle 100% 1:1 actual-pixel zoom in 1-Up mode |
 | `Escape` | Reset zoom to fit / dismiss |
 | `I` | Toggle floating optical metadata & quality score HUD |
-| `B` | Toggle view order: lowest sharpness first / natural order (also main menu → View order) |
+| `B` | Toggle view order: lowest sharpness first / natural order (also main menu → View order). Choosing lowest sharpness first scores every photo of the folder in the background (on a cloud folder, choose it a second time to confirm), then sorts them |
 | `Ctrl+Z` | Undo last culling operation (atomic reversal); every folder keeps its own undo history, including an operation that finished while you switched folders |
 | `Ctrl+O` | Open folder / SD card directory |
+| `Tab` | Move the keyboard focus through the header and action bar (`Space` presses the focused button) |
 | `Ctrl+D` | Open Duplicate Finder |
 | `Ctrl+L` | Open Library Statistics |
 | `Ctrl+,` | Open Preferences |
