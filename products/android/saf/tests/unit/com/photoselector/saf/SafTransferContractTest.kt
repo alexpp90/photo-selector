@@ -132,6 +132,53 @@ abstract class SafTransferContractTest(policy: SafTransferPolicy) : SafTestHarne
         assertEquals(4096L, srcFile.length())
     }
 
+    // AS-D-1: a provider that reports no source size cannot vouch for the stream it serves.
+    @Test
+    fun `a move whose source size is unknown keeps the source even when the stream ends early`() = runTest {
+        val srcFile = File(rootDir, "IMG_0401.CR3").apply { writeBytes(ByteArray(4096) { (it % 251).toByte() }) }
+        FakeSafDocumentsProvider.sizeUnknownFor = { it.name == "IMG_0401.CR3" && it.parentFile == rootDir }
+        FakeSafDocumentsProvider.readOverride = { file ->
+            File.createTempFile("short", ".bin").apply { deleteOnExit(); writeBytes(file.readBytes().copyOf(1024)) }
+        }
+
+        val result = move(srcFile.name)
+
+        assertFalse(result.success)
+        assertTrue(result.partial)
+        assertTrue("the original is never deleted on an unproven copy", srcFile.exists())
+        assertEquals(4096L, srcFile.length())
+        assertEquals(mapOf(result.destinationUri!! to documentUriFor(srcFile.name).toString()), result.copiesOfSurvivingOriginals)
+    }
+
+    @Test
+    fun `a copy whose source size is unknown and whose stream is empty fails and leaves nothing behind`() = runTest {
+        val srcFile = File(rootDir, "IMG_0402.CR3").apply { writeBytes(ByteArray(2048) { 7 }) }
+        FakeSafDocumentsProvider.sizeUnknownFor = { it.name == "IMG_0402.CR3" && it.parentFile == rootDir }
+        FakeSafDocumentsProvider.readOverride = { File.createTempFile("empty", ".bin").apply { deleteOnExit() } }
+
+        for (isMove in listOf(true, false)) {
+            val result = if (isMove) move(srcFile.name) else copy(srcFile.name)
+
+            assertFalse(result.success)
+            assertFalse(result.partial)
+            assertEquals("Copied file size mismatch", result.error)
+            assertFalse(File(rootDir, "Selection/RAW/IMG_0402.CR3").exists())
+            assertTrue(srcFile.exists())
+        }
+    }
+
+    @Test
+    fun `a move whose source size is unknown but whose stream is complete still copies and keeps the original`() = runTest {
+        val srcFile = File(rootDir, "IMG_0403.JPG").apply { writeText("complete-stream") }
+        FakeSafDocumentsProvider.sizeUnknownFor = { it.name == "IMG_0403.JPG" && it.parentFile == rootDir }
+
+        val result = move(srcFile.name)
+
+        assertTrue(result.partial)
+        assertEquals("complete-stream", File(rootDir, "Selection/JPEG/IMG_0403.JPG").readText())
+        assertTrue(srcFile.exists())
+    }
+
     // ── 3. Source-delete failure reported as partial ─────────────────────
 
     // AD: source delete failure after verified copy keeps destination and returns partial result

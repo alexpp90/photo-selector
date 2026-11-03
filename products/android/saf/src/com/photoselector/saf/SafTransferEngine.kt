@@ -59,7 +59,12 @@ class SafTransferEngine(
         destinationLocks.getOrPut(destinationKey) { Mutex() }
 
     private sealed class CopyStepResult {
-        data class Success(val destinationFile: DocumentFile) : CopyStepResult()
+        /**
+         * [sourceVerified] is false when the provider did not report the source's size: the copy
+         * is only known to be as long as the stream that was read, so a move must keep the source.
+         */
+        data class Success(val destinationFile: DocumentFile, val sourceVerified: Boolean = true) :
+            CopyStepResult()
         data class Failure(val reason: String) : CopyStepResult()
     }
 
@@ -487,6 +492,7 @@ class SafTransferEngine(
         // deleting any source file. If any copy fails, clean up all newly
         // created destination files from this transaction and keep all sources intact.
         val stagedCopies = ArrayList<Pair<ResolvedSource, DocumentFile>>(resolvedSources.size)
+        val unverifiedSources = HashSet<Uri>()
         for (src in resolvedSources) {
             val doc = src.doc!!
             val name = src.fileName!!
@@ -494,7 +500,6 @@ class SafTransferEngine(
                 copyToTargetFolder(
                     storage = storage,
                     sourceUri = src.uri,
-                    sourceDoc = doc,
                     targetFolder = src.targetFolder!!,
                     mimeType = doc.type ?: "application/octet-stream",
                     desiredName = desiredNames[name] ?: name,
@@ -517,7 +522,10 @@ class SafTransferEngine(
                         )
                     }
                 }
-                is CopyStepResult.Success -> stagedCopies.add(src to copyResult.destinationFile)
+                is CopyStepResult.Success -> {
+                    stagedCopies.add(src to copyResult.destinationFile)
+                    if (!copyResult.sourceVerified) unverifiedSources.add(src.uri)
+                }
             }
         }
 
@@ -539,10 +547,11 @@ class SafTransferEngine(
         var anyDeleteFailed = false
         val survivingOriginals = LinkedHashMap<String, String>() // destination copy -> original kept
         for ((src, destDoc) in stagedCopies) {
-            if (!deleteSourceAfterVerifiedCopy(storage, src.uri)) {
-                anyDeleteFailed = true
-                survivingOriginals[destDoc.uri.toString()] = src.uri.toString()
-            }
+            // A copy whose source size the provider never reported is not proven complete:
+            // the original stays (AS-D-1).
+            if (!unverifiedSources.contains(src.uri) && deleteSourceAfterVerifiedCopy(storage, src.uri)) continue
+            anyDeleteFailed = true
+            survivingOriginals[destDoc.uri.toString()] = src.uri.toString()
         }
 
         return if (!anyDeleteFailed) {
@@ -555,7 +564,11 @@ class SafTransferEngine(
                 )
             }
         } else {
-            val partialError = "Copied to $targetFolderLabel — original could not be removed"
+            val partialError = if (unverifiedSources.isNotEmpty()) {
+                "Copied to $targetFolderLabel — original kept, its size could not be verified"
+            } else {
+                "Copied to $targetFolderLabel — original could not be removed"
+            }
             stagedCopies.map { (src, destDoc) ->
                 FileOperationResult.partial(
                     sourceUri = src.uri.toString(),
@@ -651,7 +664,6 @@ class SafTransferEngine(
             val copyResult = copyToTargetFolder(
                 storage = storage,
                 sourceUri = sourceUri,
-                sourceDoc = sourceDoc,
                 targetFolder = targetFolder,
                 mimeType = sourceDoc.type ?: "application/octet-stream",
                 desiredName = desiredName,
@@ -661,15 +673,22 @@ class SafTransferEngine(
             is CopyStepResult.Failure -> FileOperationResult.failure(source, copyResult.reason, parentDocumentId)
             is CopyStepResult.Success -> {
                 val destination = copyResult.destinationFile.uri.toString()
-                if (!isMove || deleteSourceAfterVerifiedCopy(storage, sourceUri)) {
+                if (!isMove ||
+                    (copyResult.sourceVerified && deleteSourceAfterVerifiedCopy(storage, sourceUri))
+                ) {
                     FileOperationResult.success(source, destination, parentDocumentId = parentDocumentId)
                 } else {
                     // The copy is verified on disk, so never delete it when source
-                    // removal fails; report a partial outcome instead.
+                    // removal fails; report a partial outcome instead. A copy whose source
+                    // size the provider never reported keeps its original (AS-D-1).
                     FileOperationResult.partial(
                         sourceUri = source,
                         destinationUri = destination,
-                        error = "Copied to $selectionFolderName — original could not be removed",
+                        error = if (copyResult.sourceVerified) {
+                            "Copied to $selectionFolderName — original could not be removed"
+                        } else {
+                            "Copied to $selectionFolderName — original kept, its size could not be verified"
+                        },
                         parentDocumentId = parentDocumentId,
                     )
                 }
@@ -730,7 +749,6 @@ class SafTransferEngine(
     private fun copyToTargetFolder(
         storage: SafStorage,
         sourceUri: Uri,
-        sourceDoc: DocumentFile,
         targetFolder: DocumentFile,
         mimeType: String,
         desiredName: String,
@@ -750,7 +768,7 @@ class SafTransferEngine(
         }
 
         val resolver = storage.contentResolver
-        val sourceSize = sourceDoc.length()
+        val sourceSize = querySourceSize(resolver, sourceUri)
         var bytesCopied = -1L
 
         try {
@@ -782,16 +800,39 @@ class SafTransferEngine(
             return CopyStepResult.Failure("Could not write to the $selectionFolderName folder")
         }
 
-        val expectedSize = if (sourceSize > 0L) sourceSize else bytesCopied
-        val destSize = destFile.length()
-        if ((sourceSize > 0L && bytesCopied != sourceSize) ||
-            (expectedSize > 0L && destSize != expectedSize)
-        ) {
+        // A provider that reports no size (null, or 0 as many do) cannot vouch for the stream: the
+        // copy is then only as long as what was read. Never accept an empty one, and let the
+        // caller know the source was not size-verified so a move keeps it (AS-D-1).
+        if (sourceSize == null && bytesCopied == 0L) {
+            cleanUpFailedCopy(destFile)
+            return CopyStepResult.Failure("Copied file size mismatch")
+        }
+        val expectedSize = sourceSize ?: bytesCopied
+        if ((sourceSize != null && bytesCopied != sourceSize) || destFile.length() != expectedSize) {
             cleanUpFailedCopy(destFile)
             return CopyStepResult.Failure("Copied file size mismatch")
         }
 
-        return CopyStepResult.Success(destFile)
+        return CopyStepResult.Success(destFile, sourceVerified = sourceSize != null)
+    }
+
+    /**
+     * The size the provider reports for [sourceUri], or null when it reports none (null or 0:
+     * an unknown size, since no photograph is empty).
+     */
+    private fun querySourceSize(resolver: android.content.ContentResolver, sourceUri: Uri): Long? = try {
+        resolver.query(
+            sourceUri,
+            arrayOf(DocumentsContract.Document.COLUMN_SIZE),
+            null,
+            null,
+            null,
+        )?.use { cursor ->
+            val index = cursor.getColumnIndex(DocumentsContract.Document.COLUMN_SIZE)
+            if (index >= 0 && cursor.moveToFirst() && !cursor.isNull(index)) cursor.getLong(index) else null
+        }?.takeIf { it > 0L }
+    } catch (_: Exception) {
+        null
     }
 
     /**

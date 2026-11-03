@@ -42,6 +42,18 @@ class FakeSafDocumentsProvider : android.content.ContentProvider() {
         @Volatile
         var reportedSizeOverride: ((File) -> Long?)? = null
 
+        /** Files for which the provider answers a null `COLUMN_SIZE` (an unknown size). */
+        @Volatile
+        var sizeUnknownFor: ((File) -> Boolean)? = null
+
+        /** Read-only opens of a file are served from the file this returns (a stream that ends early). */
+        @Volatile
+        var readOverride: ((File) -> File)? = null
+
+        /** Called with the document id at the start of every delete (a test cancels the caller here). */
+        @Volatile
+        var onDelete: ((String) -> Unit)? = null
+
         /** Milliseconds each file creation takes, to widen race windows in concurrency tests. */
         @Volatile
         var createDelayMs: Long = 0L
@@ -79,6 +91,9 @@ class FakeSafDocumentsProvider : android.content.ContentProvider() {
             opaqueRegistry.clear()
             autoRenameOnCreate = null
             reportedSizeOverride = null
+            sizeUnknownFor = null
+            readOverride = null
+            onDelete = null
             moveDocumentCalls.set(0)
             childrenQueryCalls.set(0)
         }
@@ -122,7 +137,7 @@ class FakeSafDocumentsProvider : android.content.ContentProvider() {
                     Document.COLUMN_DOCUMENT_ID -> docIdForFile(file)
                     Document.COLUMN_DISPLAY_NAME -> file.name
                     Document.COLUMN_MIME_TYPE -> mimeForFile(file)
-                    Document.COLUMN_SIZE -> size
+                    Document.COLUMN_SIZE -> if (sizeUnknownFor?.invoke(file) == true) null else size
                     Document.COLUMN_LAST_MODIFIED -> file.lastModified()
                     Document.COLUMN_FLAGS -> flags
                     else -> null
@@ -254,6 +269,7 @@ class FakeSafDocumentsProvider : android.content.ContentProvider() {
     }
 
     private fun handleDeleteDocument(documentId: String) {
+        onDelete?.invoke(documentId)
         if (failDeletes || failDeletesMatching?.let { documentId.contains(it) } == true) {
             throw SecurityException("Simulated read-only delete failure for $documentId")
         }
@@ -284,7 +300,8 @@ class FakeSafDocumentsProvider : android.content.ContentProvider() {
         if (throwOnOpenMatching?.let { id.contains(it) } == true) {
             throw IllegalStateException("Simulated provider failure for $id")
         }
-        val file = fileForDocId(documentIdOf(uri))
+        var file = fileForDocId(documentIdOf(uri))
+        if (mode == "r") readOverride?.let { file = it(file) }
         val pfdMode = ParcelFileDescriptor.parseMode(mode)
         return ParcelFileDescriptor.open(file, pfdMode)
     }
