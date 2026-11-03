@@ -628,3 +628,13 @@ def test_package_debian_deb_option_publishes_the_given_bytes(tmp_path):
     pooled = list((apt / "pool" / "main" / "p" / "photo-selector-linux").glob("*.deb"))
     assert [p.name for p in pooled] == [prebuilt.name]
     assert hashlib.sha256(pooled[0].read_bytes()).hexdigest() == hashlib.sha256(prebuilt.read_bytes()).hexdigest()
+
+
+def test_desktop_file_does_not_claim_notifications_the_app_never_sends():
+    """The key makes GNOME list the app under Notifications settings (BL-C-1)."""
+    desktop = (get_product_root() / "data" / "app.alpatix.Blitzlens.desktop").read_text(encoding="utf-8")
+    sends_notifications = any(
+        "send_notification" in p.read_text(encoding="utf-8")
+        for p in (get_product_root() / "src").rglob("*.py")
+    )
+    assert sends_notifications or "X-GNOME-UsesNotifications" not in desktop

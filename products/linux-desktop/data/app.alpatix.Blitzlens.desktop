@@ -12,4 +12,3 @@ MimeType=image/heif;image/jpeg;image/png;image/tiff;image/webp;image/x-adobe-dng
 Keywords=photo;photography;cull;culling;raw;exif;blitzlens;comparison;sharpness;focus;
 StartupNotify=true
 StartupWMClass=app.alpatix.Blitzlens
-X-GNOME-UsesNotifications=true
