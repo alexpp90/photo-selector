@@ -11,10 +11,8 @@ import org.junit.Test
 /**
  * A delete the photographer can still take back.
  *
- * The selector has drawn a 30-second countdown next to a null `onUndo` since the
- * refresh (`ai/memory/code_health.md`,
- * `[OPEN] 2026-07-27 - No Repository-Level Undo`). These are the list mechanics
- * that make the countdown mean something.
+ * These are the list mechanics behind it: the frame leaves the list now and
+ * comes back on undo; the files go when the folder is left. There is no timer.
  */
 class DeferredDeletionTest {
 
@@ -69,26 +67,6 @@ class DeferredDeletionTest {
     fun `deleting nothing yields no pending deletion`() {
         assertNull(DeferredDeletion.beginForCurrent(SelectorListState(emptyList(), 0), 0L))
         assertNull(DeferredDeletion.begin(stateOf("a.jpg"), listOf("content://ghost"), 0L))
-    }
-
-    @Test
-    fun `the undo window is one declared number`() {
-        // The snackbar's countdown line and the timer that commits the deletion
-        // are the same 30 seconds (REQUIREMENTS §2, "Action Feedback"). Two
-        // copies of this constant is a countdown that lies.
-        assertEquals(30_000L, DeferredDeletion.UNDO_WINDOW_MILLIS)
-    }
-
-    @Test
-    fun `the window drains and then closes`() {
-        val (_, pending) = DeferredDeletion.beginForCurrent(stateOf("a.jpg"), 1_000L)!!
-
-        assertEquals(30_000L, pending.remainingMillis(1_000L))
-        assertEquals(20_000L, pending.remainingMillis(11_000L))
-        assertTrue(pending.isRevertable(30_999L))
-        assertFalse(pending.isRevertable(31_000L))
-        // Never negative: a countdown line reads this as a fraction.
-        assertEquals(0L, pending.remainingMillis(99_000L))
     }
 
     @Test

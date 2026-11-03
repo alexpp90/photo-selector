@@ -457,13 +457,14 @@ class FullscreenViewerTest {
     }
 
     @Test
-    fun `a delete's card in fullscreen keeps its draining line`() {
+    fun `a delete's card in fullscreen shows with no draining line`() {
         open {
             message = "1 image deleted"
             sequence = 1
             lifetime = SnackbarLifetime.DELETE
         }
-        assertEquals(1, rule.onAllNodesWithTag("snackbar_countdown", useUnmergedTree = true).fetchSemanticsNodes().size)
+        assertEquals(1, rule.onAllNodesWithTag("selector_snackbar", useUnmergedTree = true).fetchSemanticsNodes().size)
+        assertEquals(0, rule.onAllNodesWithTag("snackbar_countdown", useUnmergedTree = true).fetchSemanticsNodes().size)
     }
 
     // ── The list changes while the viewer is open ────────────────────────

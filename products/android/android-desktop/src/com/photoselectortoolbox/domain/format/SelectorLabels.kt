@@ -80,7 +80,7 @@ object SelectorLabels {
         providerLabel: String? = null,
     ): String {
         val base = "Delete \"$fileName\"? Deletions in this folder are permanent once committed. " +
-            "You can undo up to 20 actions with Ctrl+Z before leaving the folder."
+            "You can undo up to 20 actions with Ctrl+Z $DELETE_UNDO_SCOPE."
         return if (isCloudProvider) {
             val provider = providerLabel?.takeIf { it.isNotBlank() } ?: "a cloud provider"
             "$base Warning: This folder is backed by $provider — deleting here may permanently remove the photo across all synced devices."
@@ -113,6 +113,13 @@ object SelectorLabels {
     fun scanCompleteMessage(count: Int): String = "Scan complete · $count images analysed"
 
     /** Snackbar text when a rating was kept in the app but could not be written to the photo's file or sidecar. */
+    /**
+     * How long a delete can be taken back: until the folder is left (or 20 newer actions push it
+     * off the undo stack). There is no timer (FD-D-1); the dialog and the hint say the same
+     * thing through this one phrase.
+     */
+    const val DELETE_UNDO_SCOPE = "until you leave the folder"
+
     fun ratingNotWrittenMessage(fileName: String, reason: String?): String =
         "Rating kept in the app only — not saved to $fileName" + if (reason.isNullOrBlank()) "" else " ($reason)"
 

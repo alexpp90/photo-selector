@@ -2389,8 +2389,8 @@ class SelectorViewModel @Inject constructor(
      * The selector is going away.
      *
      * The pending deletion is committed here rather than dropped: the
-     * photographer asked for it, the frame has been gone from the list for up to
-     * thirty seconds, and a deletion that silently un-happens because a screen
+     * photographer asked for it, the frame has been gone from the list since then,
+     * and a deletion that silently un-happens because a screen
      * was left is a data-integrity bug. The commit itself runs on [appScope], so
      * cancelling `viewModelScope` a moment later does not take it with it.
      */

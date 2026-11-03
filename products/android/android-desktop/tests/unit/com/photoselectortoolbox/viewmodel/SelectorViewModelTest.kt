@@ -743,8 +743,7 @@ class SelectorViewModelTest {
 
         val state = viewModel.uiState.value
         assertEquals(SnackbarLifetime.MOVE, state.snackbarLifetime)
-        assertFalse("a move's undo never expires, so there is no deadline", state.snackbarLifetime.countsDown)
-        assertEquals(4_000L, state.snackbarLifetime.millis)
+                assertEquals(4_000L, state.snackbarLifetime.millis)
         assertTrue("UNDO stays on the card", state.undoOperation is UndoableOperation.ReverseMove)
     }
 
@@ -758,20 +757,25 @@ class SelectorViewModelTest {
 
         val state = viewModel.uiState.value
         assertEquals(SnackbarLifetime.COPY, state.snackbarLifetime)
-        assertFalse(state.snackbarLifetime.countsDown)
         assertEquals(3_000L, state.snackbarLifetime.millis)
         assertNull(state.undoOperation)
     }
 
     @Test
-    fun `a delete carries the real 30 second deadline`() = runTest {
+    fun `a delete promises no deadline - its card offers UNDO and the undo outlives it`() = runTest {
         val viewModel = loadFolder(image("a"), image("b"))
         viewModel.deleteCurrentImage()
 
         val state = viewModel.uiState.value
         assertEquals(SnackbarLifetime.DELETE, state.snackbarLifetime)
-        assertTrue(state.snackbarLifetime.countsDown)
-        assertEquals(DeferredDeletion.UNDO_WINDOW_MILLIS, state.snackbarLifetime.millis)
+        assertTrue(state.snackbarUndoAvailable)
+        assertTrue(state.snackbarMessage!!.none { it.isDigit() && it != '1' })
+
+        viewModel.dismissSnackbar()
+        viewModel.undoLastOperation()
+
+        assertEquals(listOf("a", "b"), names(viewModel))
+        coVerify(exactly = 0) { imageRepository.deleteImage(any(), any()) }
     }
 
     @Test
@@ -781,7 +785,6 @@ class SelectorViewModelTest {
 
         val state = viewModel.uiState.value
         assertEquals(SnackbarLifetime.ERROR, state.snackbarLifetime)
-        assertFalse(state.snackbarLifetime.countsDown)
         assertTrue(state.snackbarLifetime.millis > SnackbarLifetime.MOVE.millis)
     }
 

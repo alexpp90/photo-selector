@@ -89,13 +89,18 @@ class SelectorSnackbarTest {
     }
 
     @Test
-    fun `a delete's card draws the deadline line`() {
+    fun `a delete's card promises no deadline - no line, UNDO, and it leaves like a move's`() {
         val state = State().apply { message = "1 image deleted"; sequence = 1; lifetime = SnackbarLifetime.DELETE }
         host(state, withUndo = true)
 
-        assertEquals(1, count("snackbar_countdown"))
-        rule.mainClock.advanceTimeBy(5_000)
-        assertEquals("a delete is not a 4 s notice", 1, count("selector_snackbar"))
+        // Nothing is committed when the card leaves (FD-D-1): Ctrl+Z works until the folder is left.
+        assertEquals(0, count("snackbar_countdown"))
+        assertEquals(1, count("snackbar_undo"))
+        rule.mainClock.advanceTimeBy(3_900)
+        assertEquals(1, count("selector_snackbar"))
+        rule.mainClock.advanceTimeBy(200)
+        rule.waitForIdle()
+        assertEquals(0, count("selector_snackbar"))
     }
 
     @Test

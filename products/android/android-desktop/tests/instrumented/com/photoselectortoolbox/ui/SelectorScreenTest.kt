@@ -1279,10 +1279,9 @@ class SelectorScreenTest {
         val inSnackbar = hasAnyAncestor(hasTestTag("selector_snackbar"))
         composeRule.onAllNodes(hasText("1 image deleted") and inSnackbar, useUnmergedTree = true)
             .onFirst().assertExists()
-        // A delete is the one action whose time is a real deadline, so it is the
-        // one card that draws the draining line.
+        // A delete's undo lasts until the folder is left, so no card draws a deadline (FD-D-1).
         composeRule.onAllNodesWithTag("snackbar_countdown", useUnmergedTree = true)
-            .onFirst().assertExists()
+            .assertCountEquals(0)
 
         composeRule.onAllNodesWithTag("snackbar_undo", useUnmergedTree = true)
             .onFirst().performClick()
