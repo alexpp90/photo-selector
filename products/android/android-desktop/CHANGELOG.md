@@ -11,6 +11,10 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 - Sort order: a folder now opens with the newest photo first. The overflow menu switches to oldest first, file name or blurriest first (after a scan), and your choice is kept.
 - Go to photo: press `G`, tap the position counter, or use the menu, then type a photo's number or part of its file name. The dialog shows which file it will open.
 
+### Changed
+
+- The documentation no longer claims a "safe to format" check for memory cards: Frameduel has none in any screen yet. The check behind it now requires every kept file, RAW and sidecar included, at the destination with its exact name and size.
+
 ### Fixed
 
 - One frame, full size (`1`/`2`/`3`): the photo now takes the whole area, and its file name, exposure, lens and scores lie over it. The new ⓘ button on the frame hides them.
