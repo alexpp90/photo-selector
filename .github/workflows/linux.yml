@@ -186,11 +186,20 @@ jobs:
           token: ${{ secrets.APT_REPO_TOKEN }}
           path: apt-repo
 
-      - name: Build, generate and sign repository
+      # The release ships the .deb the package job built and verified; index exactly those bytes
+      # instead of building a second package (SET-R-3).
+      - name: Download .deb
+        uses: actions/download-artifact@v8
+        with:
+          name: linux-desktop-deb
+          path: release-assets
+
+      - name: Index and sign repository
         env:
           GPG_KEY_ID: ${{ steps.gpg.outputs.key_id }}
         run: |
-          bash products/linux-desktop/scripts/package_debian.sh --apt-dir apt-repo --sign
+          bash products/linux-desktop/scripts/package_debian.sh --apt-dir apt-repo --sign \
+            --deb "$(ls release-assets/*.deb)"
           gpg --export "$GPG_KEY_ID" > apt-repo/photo-selector-archive-keyring.gpg
           gpg --armor --export "$GPG_KEY_ID" > apt-repo/photo-selector-archive-keyring.asc
 
