@@ -8,6 +8,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ### Fixed
 - System Back (and the back gesture) in the Selection viewer now returns to the feed on the photo you came from, instead of leaving the app.
+- Copying and moving are safer when a storage provider misbehaves: a photo whose size the provider does not report is never deleted after its copy (the move is reported as copied, with the original kept); a copy that could not be cleaned up after a failed transfer is reported instead of left unnoticed in the Selection; a photo that is already in the folder it would be filed into is left alone instead of being renamed to `-2`; leaving the screen while a move is under way no longer leaves a bundle half moved.
+- Swiping a photo into a camera folder with thousands of photos no longer asks the storage provider about every photo first, so queued swipes finish sooner.
 
 ### Added
 - Favourites now reach Android (11 and later): Jackpix sets the system favourite flag for photos on the phone and on an indexed SD card, RAW+JPEG companions included, and clears it when you remove the favourite. The changes go out in batches when you leave the feed, switch folders, open the Selection viewer, or after 25 changes. Favourites set in another app show in Jackpix. Before, favourites never left Jackpix.
