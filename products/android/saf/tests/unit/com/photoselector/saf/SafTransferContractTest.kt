@@ -236,6 +236,42 @@ abstract class SafTransferContractTest(policy: SafTransferPolicy) : SafTestHarne
         assertTrue(srcFile.exists())
     }
 
+    // ── Self-move guard (FILE_OPERATIONS section 1, AS-D-5) ──────────────
+
+    @Test
+    fun `a file already in its destination folder is neither renamed nor copied by a move or a copy`() = runTest {
+        val inPlace = File(rootDir, "Selection/RAW/IMG_0430.ARW").apply { parentFile?.mkdirs(); writeText("already-filed") }
+
+        for (isMove in listOf(true, false)) {
+            val result = engine.transferBundle(
+                storage, listOf(documentUriFor("Selection/RAW/IMG_0430.ARW")), selection(), sorting = true, isMove = isMove,
+            ).single()
+
+            assertTrue(result.success)
+            assertEquals(documentUriFor("Selection/RAW/IMG_0430.ARW").toString(), result.destinationUri)
+            assertEquals("already-filed", inPlace.readText())
+            assertEquals(listOf("IMG_0430.ARW"), File(rootDir, "Selection/RAW").list()!!.toList())
+        }
+    }
+
+    @Test
+    fun `a bundle that already sits in its destination folders stays exactly as it is`() = runTest {
+        val raw = File(rootDir, "Selection/RAW/IMG_0431.CR3").apply { parentFile?.mkdirs(); writeText("raw") }
+        val jpg = File(rootDir, "Selection/JPEG/IMG_0431.JPG").apply { parentFile?.mkdirs(); writeText("jpg") }
+
+        val results = engine.transferBundle(
+            storage,
+            listOf(documentUriFor("Selection/RAW/IMG_0431.CR3"), documentUriFor("Selection/JPEG/IMG_0431.JPG")),
+            selection(), sorting = true, isMove = true,
+        )
+
+        assertTrue(results.all { it.success })
+        assertEquals("raw", raw.readText())
+        assertEquals("jpg", jpg.readText())
+        assertEquals(listOf("IMG_0431.CR3"), File(rootDir, "Selection/RAW").list()!!.toList())
+        assertEquals(listOf("IMG_0431.JPG"), File(rootDir, "Selection/JPEG").list()!!.toList())
+    }
+
     // ── 4. Atomic DocumentsContract.moveDocument when supported ──────────
 
     // AD + TOK: moveImage uses DocumentsContract moveDocument when same authority and FLAG_SUPPORTS_MOVE and no rename needed

@@ -427,14 +427,39 @@ class SafTransferEngine(
         }
     }
 
-    private fun collisionFreeNames(
+    /** One listing per target folder (a single cursor query each), by the key [resolveSources] gave it. */
+    private fun listTargetFolders(
         storage: SafStorage,
-        resolvedSources: List<ResolvedSource>,
         targetFoldersByKey: Map<String, DocumentFile>,
-    ): Map<String, String> {
-        val existingNamesByFolder = targetFoldersByKey.mapValues { (_, folder) ->
-            queryExistingDisplayNames(storage, folder)
+    ): Map<String, FolderListing> = targetFoldersByKey.mapValues { (_, folder) ->
+        queryFolderListing(storage, folder)
+    }
+
+    /**
+     * True when every member already sits in the folder it would be filed into — a Selection
+     * re-filed into itself. Nothing is copied, renamed or deleted then: FILE_OPERATIONS §1,
+     * self-move guard (AS-D-5). Identity is the provider's document id, never a path or a name.
+     */
+    private fun allMembersInPlace(
+        resolvedSources: List<ResolvedSource>,
+        listings: Map<String, FolderListing>,
+    ): Boolean = resolvedSources.isNotEmpty() && resolvedSources.all { src ->
+        val folder = src.targetFolder ?: return@all false
+        val listing = listings[src.folderKey] ?: return@all false
+        if (src.uri.authority != folder.uri.authority) return@all false
+        val documentId = try {
+            DocumentsContract.getDocumentId(src.uri)
+        } catch (_: Exception) {
+            null
         }
+        documentId != null && documentId in listing.documentIds
+    }
+
+    private fun collisionFreeNames(
+        resolvedSources: List<ResolvedSource>,
+        listings: Map<String, FolderListing>,
+    ): Map<String, String> {
+        val existingNamesByFolder = listings.mapValues { (_, listing) -> listing.names }
         val validNames = resolvedSources.mapNotNull { it.fileName }
         val folderKeyByName = resolvedSources
             .filter { it.fileName != null }
@@ -472,7 +497,19 @@ class SafTransferEngine(
             }
         }
 
-        val desiredNames = collisionFreeNames(storage, resolvedSources, targetFoldersByKey)
+        val listings = listTargetFolders(storage, targetFoldersByKey)
+        if (allMembersInPlace(resolvedSources, listings)) {
+            val inPlace = resolvedSources.map { it.uri.toString() }
+            return inPlace.map { uri ->
+                FileOperationResult.success(
+                    sourceUri = uri,
+                    destinationUri = uri,
+                    destinationUris = inPlace,
+                    parentDocumentId = parentDocumentId,
+                )
+            }
+        }
+        val desiredNames = collisionFreeNames(resolvedSources, listings)
 
         // Single-file fast path: attempt atomic DocumentsContract.moveDocument
         // when moving without a collision rename and the provider supports it.
@@ -481,17 +518,6 @@ class SafTransferEngine(
             val name = single.fileName!!
             val desiredName = desiredNames[name] ?: name
             val targetFolder = single.targetFolder!!
-            if (single.uri == targetFolder.uri) {
-                val uriStr = single.uri.toString()
-                return listOf(
-                    FileOperationResult.success(
-                        sourceUri = uriStr,
-                        destinationUri = uriStr,
-                        destinationUris = listOf(uriStr),
-                        parentDocumentId = parentDocumentId,
-                    )
-                )
-            }
             if (desiredName == name) {
                 atomicMove(storage, single.uri, treeRootUri, targetFolder)?.let { movedStr ->
                     return listOf(
@@ -630,7 +656,14 @@ class SafTransferEngine(
     ): List<FileOperationResult> {
         val targetFoldersByKey = LinkedHashMap<String, DocumentFile>()
         val resolvedSources = resolveSources(storage, sourceUris, selectionDir, sorting, targetFoldersByKey)
-        val desiredNames = collisionFreeNames(storage, resolvedSources, targetFoldersByKey)
+        val listings = listTargetFolders(storage, targetFoldersByKey)
+        if (allMembersInPlace(resolvedSources, listings)) {
+            return resolvedSources.map { src ->
+                val uri = src.uri.toString()
+                FileOperationResult.success(uri, uri, parentDocumentId = parentDocumentId)
+            }
+        }
+        val desiredNames = collisionFreeNames(resolvedSources, listings)
 
         // A cancellation between two members would drop the results of the members already
         // moved (AS-D-2); the members' copies cannot be cancelled anyway, so finish the bundle.
@@ -684,9 +717,6 @@ class SafTransferEngine(
         parentDocumentId: String?,
     ): FileOperationResult {
         val source = sourceUri.toString()
-        if (sourceUri == targetFolder.uri) {
-            return FileOperationResult.success(source, source, parentDocumentId = parentDocumentId)
-        }
 
         // Attempt atomic DocumentsContract.moveDocument when moving without a
         // collision rename and the provider supports FLAG_SUPPORTS_MOVE.
@@ -943,16 +973,18 @@ class SafTransferEngine(
         null
     }
 
+    /** The names and provider document ids of the children of one folder. */
+    internal class FolderListing(val names: Set<String>, val documentIds: Set<String>)
+
     /**
-     * List existing child display names in [targetFolder] using a **single**
-     * `ContentResolver` cursor query (`COLUMN_DISPLAY_NAME`), falling back to
-     * [DocumentFile.listFiles] only when [targetFolder] is not backed by a tree
-     * document URI.
+     * List the children of [targetFolder] (display names and document ids) using a **single**
+     * `ContentResolver` cursor query, falling back to [DocumentFile.listFiles] only when
+     * [targetFolder] is not backed by a tree document URI.
      */
-    internal fun queryExistingDisplayNames(
+    internal fun queryFolderListing(
         storage: SafStorage,
         targetFolder: DocumentFile,
-    ): Set<String> {
+    ): FolderListing {
         val folderUri = targetFolder.uri
         val childrenUri = try {
             val docId = DocumentsContract.getDocumentId(folderUri)
@@ -970,20 +1002,25 @@ class SafTransferEngine(
             try {
                 storage.contentResolver.query(
                     childrenUri,
-                    arrayOf(DocumentsContract.Document.COLUMN_DISPLAY_NAME),
+                    arrayOf(DocumentsContract.Document.COLUMN_DISPLAY_NAME, DocumentsContract.Document.COLUMN_DOCUMENT_ID),
                     null,
                     null,
                     null,
                 )?.use { cursor ->
                     val nameIndex = cursor.getColumnIndex(DocumentsContract.Document.COLUMN_DISPLAY_NAME)
+                    val idIndex = cursor.getColumnIndex(DocumentsContract.Document.COLUMN_DOCUMENT_ID)
                     if (nameIndex >= 0) {
                         val names = LinkedHashSet<String>(cursor.count.coerceAtLeast(0))
+                        val ids = HashSet<String>()
                         while (cursor.moveToNext()) {
                             if (!cursor.isNull(nameIndex)) {
                                 cursor.getString(nameIndex)?.let { names.add(it) }
                             }
+                            if (idIndex >= 0 && !cursor.isNull(idIndex)) {
+                                cursor.getString(idIndex)?.let { ids.add(it) }
+                            }
                         }
-                        return names
+                        return FolderListing(names, ids)
                     }
                 }
             } catch (e: Exception) {
@@ -992,10 +1029,20 @@ class SafTransferEngine(
         }
 
         return try {
-            targetFolder.listFiles().mapNotNull { it.name }.toSet()
+            val children = targetFolder.listFiles()
+            FolderListing(
+                names = children.mapNotNull { it.name }.toSet(),
+                documentIds = children.mapNotNull {
+                    try {
+                        DocumentsContract.getDocumentId(it.uri)
+                    } catch (_: Exception) {
+                        null
+                    }
+                }.toSet(),
+            )
         } catch (e: Exception) {
             Log.w(TAG, "Fallback listFiles failed in $folderUri", e)
-            emptySet()
+            FolderListing(emptySet(), emptySet())
         }
     }
 
