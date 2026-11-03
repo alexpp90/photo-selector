@@ -21,6 +21,7 @@ import com.photoselectortoolbox.domain.curation.SnackbarLifetime
 import com.photoselectortoolbox.domain.curation.UndoableOperation
 import com.photoselectortoolbox.domain.grouping.GroupingLevel
 import com.photoselectortoolbox.domain.interaction.FilingAction
+import com.photoselectortoolbox.domain.session.SelectorSortOrder
 import com.photoselectortoolbox.domain.usecase.ScanImagesUseCase
 import com.photoselectortoolbox.ui.selector.SelectorActions
 import com.photoselectortoolbox.ui.selector.handleSelectorKey
@@ -82,6 +83,7 @@ class SelectorViewModelTest {
     private val appScope = CoroutineScope(testDispatcher)
 
     private val groupingEnabledFlow = MutableStateFlow(false)
+    private val selectorSortOrderFlow = MutableStateFlow(SelectorSortOrder.OLDEST_FIRST)
     private val groupingLevelFlow = MutableStateFlow(GroupingLevel.TIME_FILENAME)
     private val sortingEnabledFlow = MutableStateFlow(true)
     private val lastFolderUriFlow = MutableStateFlow<String?>(null)
@@ -106,6 +108,7 @@ class SelectorViewModelTest {
 
     private val settingsRepository: SettingsRepository = mockk(relaxed = true) {
         every { groupingEnabled } returns groupingEnabledFlow
+        every { selectorSortOrder } returns selectorSortOrderFlow
         every { groupingLevel } returns groupingLevelFlow
         every { sortingEnabled } returns sortingEnabledFlow
         every { lastFolderUri } returns lastFolderUriFlow
@@ -170,11 +173,20 @@ class SelectorViewModelTest {
         coEvery { getScore(any()) } returns null
     }
 
+    /**
+     * Fixtures keep the order they are listed in: every photo is a moment later than
+     * the one built before it, and these suites run on the oldest-first order. The
+     * default order (newest first) is pinned in [SelectorSortJumpViewModelTest].
+     */
+    private var clock = 0L
+
+    private fun nextModified(): Long = ++clock
+
     private fun image(name: String) = ImageItem(
         uri = "content://test/folder/$name",
         fileName = name,
         fileSize = 1,
-        lastModified = 1,
+        lastModified = nextModified(),
         mimeType = "image/jpeg",
     )
 
@@ -1088,7 +1100,7 @@ class SelectorViewModelTest {
             uri = "content://test/folder/sub/day1/IMG_0001.JPG",
             fileName = "IMG_0001.JPG",
             fileSize = 100L,
-            lastModified = 1L,
+            lastModified = nextModified(),
             mimeType = "image/jpeg",
             companions = listOf(
                 com.photoselectortoolbox.data.model.CompanionFile(
@@ -1139,7 +1151,7 @@ class SelectorViewModelTest {
             uri = "content://test/folder/IMG_0002.JPG",
             fileName = "IMG_0002.JPG",
             fileSize = 100L,
-            lastModified = 1L,
+            lastModified = nextModified(),
             mimeType = "image/jpeg",
             companions = listOf(
                 com.photoselectortoolbox.data.model.CompanionFile(

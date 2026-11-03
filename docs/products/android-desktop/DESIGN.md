@@ -342,6 +342,12 @@ Zinc-700 rule:
   pass shows `Grouping` over it. Neither control is ever greyed out: a disabled control and
   a frozen app look identical from the outside, and this is the mirror case the desktop
   product got wrong (`ai/memory/palette.md`, 2026-07-24).
+- **The overflow menu holds the sort order**, one flat radio group between dividers, a leading
+  ✓ on the active item (never colour alone; `Role.RadioButton`, `selected`): **Newest first**
+  (default), **Oldest first**, **File name**, **Blurriest first**. The first three are the
+  persisted order; **Blurriest first** is worst-first triage (`U-34`), a session view that is
+  disabled until the folder has scores, and picking any of the first three leaves it. **Go to
+  photo…** with its `G` key cap follows the second divider.
 - Folder name and the burst chip move into the head of the **left readout block** (§7.4a);
   `127 / 842` closes the control block on the opposite side (§7.5). Nothing goes above the image region: a 32 dp strip would still be 21 dp off
   the height of every frame.
@@ -630,6 +636,10 @@ of ~158 dp (~118 dp with the strip on) carries its word comfortably:
   running total for the first seconds of a large shoot; the `+` is the whole of the loading
   indication this screen gets, because the first batch is already usable and a spinner over
   a usable screen is a lie about what the photographer can do.
+- The counter is also a button (`Role.Button`, spoken click label "Go to photo", key `G`): it
+  opens the **Go to photo** dialog. It adds no layout — the block's priced heights are
+  unchanged — so beside the toggles it is a real 48 dp slot (the row is already that tall) and
+  elsewhere its 48 dp target is the framework's minimum touch-target expansion.
 - Key caps are **permanent**, not hover-revealed. A tablet has no hover, and the desktop
   lesson already recorded (2024-05-18, `ai/memory/palette.md`) is that unhinted shortcuts go
   unused.
@@ -1309,6 +1319,7 @@ Shortcuts work in both the standard and fullscreen views.
 | `Esc` | Exit fullscreen / leave maximised / close sheet or menu |
 | `I` | In fullscreen: pin / unpin the info panel (in the selector: Inspect) |
 | `1` / `2` / `3` | Maximise Previous / Current / Next in place (§7.3) |
+| `G` | Open **Go to photo**: one field (focused on open, label "Number or name"), a number 1…N as the counter shows it or part of a file name, `Enter` / **Go** jumps, `Esc` / **Cancel** closes. The line under the field previews the file name the input lands on; an empty or out-of-range number says "Enter 1–N" only after **Go** |
 | `?` | Open the coach-mark guide (§7.9) |
 
 Shortcuts are suppressed while any sheet, dialog or the guide is open, **except `Esc`**. Every

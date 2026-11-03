@@ -26,6 +26,7 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.FolderOpen
 import androidx.compose.material.icons.filled.PhotoCamera
 import androidx.compose.material3.AlertDialog
@@ -33,6 +34,7 @@ import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.FilledTonalButton
+import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
@@ -64,13 +66,20 @@ import androidx.compose.ui.input.key.type
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalWindowInfo
 import androidx.compose.ui.platform.testTag
+import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.semantics.role
+import androidx.compose.ui.semantics.selected
+import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.window.Popup
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.photoselectortoolbox.domain.format.SelectorLabels
+import com.photoselectortoolbox.domain.interaction.SelectorShortcut
 import com.photoselectortoolbox.domain.model.RatingFilter
+import com.photoselectortoolbox.domain.session.SelectorSortOrder
 import com.photoselectortoolbox.ui.components.EmptyStateCard
 import com.photoselectortoolbox.ui.theme.StudioCanvas
 import com.photoselectortoolbox.ui.theme.StudioCard
@@ -111,6 +120,7 @@ fun SelectorScreen(
     var showFullscreen by remember { mutableStateOf(false) }
     var showMenu by remember { mutableStateOf(false) }
     var showGuide by remember { mutableStateOf(false) }
+    var showJump by remember { mutableStateOf(false) }
     var contextMenuAt by remember { mutableStateOf<Offset?>(null) }
     var lastPointerPosition by remember { mutableStateOf(Offset.Zero) }
 
@@ -136,10 +146,15 @@ fun SelectorScreen(
         showGuide = true
     }
 
+    // "Go to photo" needs a photo to go to, so it never opens on an empty folder.
+    val jumpOpen = showJump && uiState.images.isNotEmpty()
+    val openJump: () -> Unit = { if (uiState.images.isNotEmpty()) showJump = true }
+
     // Any open sheet swallows the shortcuts, so a stray M while configuring a
     // scan cannot move the frame behind the sheet. Esc is the exception — it is
-    // what closes the sheet.
-    val sheetOpen = showScanConfig || guideOpen ||
+    // what closes the sheet. The Go-to-photo dialog is one of them: without it,
+    // typing `1` into its field would maximise a frame.
+    val sheetOpen = showScanConfig || guideOpen || jumpOpen ||
         uiState.showDeleteConfirmation || uiState.uncompletedDeletionsPrompt != null
 
     val dismissGuide: () -> Unit = {
@@ -185,6 +200,7 @@ fun SelectorScreen(
         onToggleFilmstrip = viewModel::toggleFilmstrip,
         onToggleOverlayValues = viewModel::toggleOverlayValues,
         onShowShortcuts = openGuide,
+        onGoToPhoto = openJump,
     )
 
     // Errors already reached the snackbar through the ViewModel; the sticky
@@ -199,7 +215,7 @@ fun SelectorScreen(
     // switch), and any overlay closing (AD-11). Tab/arrow traversal in other
     // screens is untouched — this node exists only on the selector.
     val windowFocused = LocalWindowInfo.current.isWindowFocused
-    val overlayOpen = showScanConfig || showFullscreen || guideOpen || contextMenuAt != null ||
+    val overlayOpen = showScanConfig || showFullscreen || guideOpen || jumpOpen || contextMenuAt != null ||
         uiState.showDeleteConfirmation || uiState.uncompletedDeletionsPrompt != null
     LaunchedEffect(uiState.images.isNotEmpty(), windowFocused, overlayOpen) {
         if (uiState.images.isNotEmpty() && windowFocused && !overlayOpen) {
@@ -239,6 +255,15 @@ fun SelectorScreen(
                 TextButton(onClick = { viewModel.dismissDeleteConfirmation() }) { Text("Cancel") }
             },
             containerColor = StudioCard,
+        )
+    }
+
+    if (jumpOpen) {
+        GoToPhotoDialog(
+            images = uiState.images,
+            ratingFilter = uiState.ratingFilter,
+            onGo = viewModel::jumpToPhoto,
+            onDismiss = { showJump = false },
         )
     }
 
@@ -387,8 +412,10 @@ fun SelectorScreen(
                                 onNext = viewModel::navigateNext,
                                 onMaximise = viewModel::toggleMaximised,
                                 onShowShortcuts = openGuide,
+                                onGoToPhoto = openJump,
                                 onCloseOverlays = {
                                     when {
+                                        jumpOpen -> showJump = false
                                         showFullscreen -> showFullscreen = false
                                         contextMenuAt != null -> contextMenuAt = null
                                         showScanConfig -> showScanConfig = false
@@ -451,18 +478,45 @@ fun SelectorScreen(
                                 text = { Text("Open folder") },
                                 onClick = { showMenu = false; folderPickerLauncher.launch(null) },
                             )
-                            DropdownMenuItem(
-                                text = {
-                                    Text(
-                                        if (uiState.sortWorstFirst) {
-                                            "Sort by filename (exit worst-first)"
-                                        } else {
-                                            "Sort worst sharpness first"
-                                        }
-                                    )
-                                },
-                                onClick = { showMenu = false; viewModel.toggleSortWorstFirst() },
+                            HorizontalDivider()
+                            SortMenuItem(
+                                label = SelectorLabels.SORT_NEWEST_FIRST,
+                                selected = !uiState.sortWorstFirst && uiState.sortOrder == SelectorSortOrder.NEWEST_FIRST,
+                                tag = "sort_newest_first",
+                                onClick = { showMenu = false; viewModel.setSortOrder(SelectorSortOrder.NEWEST_FIRST) },
+                            )
+                            SortMenuItem(
+                                label = SelectorLabels.SORT_OLDEST_FIRST,
+                                selected = !uiState.sortWorstFirst && uiState.sortOrder == SelectorSortOrder.OLDEST_FIRST,
+                                tag = "sort_oldest_first",
+                                onClick = { showMenu = false; viewModel.setSortOrder(SelectorSortOrder.OLDEST_FIRST) },
+                            )
+                            SortMenuItem(
+                                label = SelectorLabels.SORT_FILE_NAME,
+                                selected = !uiState.sortWorstFirst && uiState.sortOrder == SelectorSortOrder.FILE_NAME,
+                                tag = "sort_file_name",
+                                onClick = { showMenu = false; viewModel.setSortOrder(SelectorSortOrder.FILE_NAME) },
+                            )
+                            // Worst-first triage (U-34) is the fourth member of the group:
+                            // a session view over scores, so it needs them. Picking one of
+                            // the three above leaves it and returns to that order.
+                            SortMenuItem(
+                                label = SelectorLabels.SORT_BLURRIEST_FIRST,
+                                selected = uiState.sortWorstFirst,
+                                tag = "sort_blurriest_first",
                                 enabled = uiState.hasAnyScores,
+                                onClick = {
+                                    showMenu = false
+                                    if (!uiState.sortWorstFirst) viewModel.toggleSortWorstFirst()
+                                },
+                            )
+                            HorizontalDivider()
+                            DropdownMenuItem(
+                                text = { Text(SelectorLabels.GO_TO_PHOTO_MENU) },
+                                trailingIcon = { KeyCap(SelectorShortcut.GO_TO.input) },
+                                onClick = { showMenu = false; openJump() },
+                                enabled = uiState.images.isNotEmpty(),
+                                modifier = Modifier.testTag("menu_go_to_photo"),
                             )
                             DropdownMenuItem(
                                 text = { Text("Clear scores") },
@@ -671,6 +725,7 @@ internal fun handleSelectorKey(
     onMaximise: (SelectorFrame) -> Unit,
     onShowShortcuts: () -> Unit,
     onCloseOverlays: () -> Unit,
+    onGoToPhoto: (() -> Unit)? = null,
     onSetRating: ((Int) -> Unit)? = null,
     onNavigate: ((Screen) -> Unit)? = null,
     ctrlOrMetaPressed: Boolean = false,
@@ -711,8 +766,61 @@ internal fun handleSelectorKey(
         Key.Two -> { onMaximise(SelectorFrame.CURRENT); true }
         Key.Three -> { onMaximise(SelectorFrame.NEXT); true }
         Key.Slash -> { onShowShortcuts(); true }
+        Key.G -> {
+            if (onGoToPhoto == null) {
+                false
+            } else {
+                onGoToPhoto()
+                true
+            }
+        }
         else -> false
     }
+}
+
+/**
+ * One entry of the sort radio group in the overflow menu.
+ *
+ * The active entry leads with a check mark, not a colour change alone, and says
+ * `selected` to a screen reader.
+ */
+@Composable
+private fun SortMenuItem(
+    label: String,
+    selected: Boolean,
+    tag: String,
+    onClick: () -> Unit,
+    enabled: Boolean = true,
+) {
+    DropdownMenuItem(
+        text = { Text(label) },
+        leadingIcon = {
+            if (selected) {
+                Icon(Icons.Default.Check, contentDescription = null)
+            } else {
+                Spacer(Modifier.size(24.dp))
+            }
+        },
+        onClick = onClick,
+        enabled = enabled,
+        modifier = Modifier
+            .semantics {
+                role = Role.RadioButton
+                this.selected = selected
+            }
+            .testTag(tag),
+    )
+}
+
+/** A mono key cap, the key hint shown at the end of a menu row. */
+@Composable
+private fun KeyCap(key: String) {
+    Text(
+        text = key,
+        style = MaterialTheme.typography.labelMedium,
+        fontFamily = FontFamily.Monospace,
+        color = MaterialTheme.colorScheme.onSurfaceVariant,
+    )
 }
 
 /**

@@ -99,6 +99,8 @@ data class SelectorActions(
     val onToggleFilmstrip: () -> Unit,
     val onToggleOverlayValues: () -> Unit,
     val onShowShortcuts: () -> Unit,
+    /** Opens "Go to photo" — the position counter and the `G` key. */
+    val onGoToPhoto: () -> Unit = {},
 )
 
 // ── Context menu ────────────────────────────────────────────────────────────

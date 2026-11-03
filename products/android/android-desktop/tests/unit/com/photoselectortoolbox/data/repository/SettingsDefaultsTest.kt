@@ -1,5 +1,7 @@
 package com.photoselectortoolbox.data.repository
 
+import com.photoselectortoolbox.domain.session.SelectorSortOrder
+import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
 import org.junit.Test
@@ -41,5 +43,13 @@ class SettingsDefaultsTest {
         // the selector is stated.
         assertTrue(SettingsRepository.DEFAULT_SORTING_ENABLED)
         assertFalse(SettingsRepository.DEFAULT_GROUPING_ENABLED)
+    }
+
+    @Test
+    fun `the selector opens newest first`() {
+        // [USER 2026-11-02]: the old filename order read oldest first for camera
+        // files, and that is what was reported as wrong. Fresh installs and
+        // upgrades alike get this: there was no stored value before.
+        assertEquals(SelectorSortOrder.NEWEST_FIRST, SettingsRepository.DEFAULT_SELECTOR_SORT_ORDER)
     }
 }

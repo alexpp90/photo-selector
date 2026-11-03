@@ -45,8 +45,12 @@ import com.photoselectortoolbox.domain.guidance.SelectorHintText
 import com.photoselectortoolbox.domain.grouping.ImageGrouper
 import com.photoselectortoolbox.domain.format.SelectionActionLabels
 import com.photoselectortoolbox.domain.interaction.FilingAction
+import com.photoselectortoolbox.domain.session.JumpResolution
+import com.photoselectortoolbox.domain.session.PhotoJump
 import com.photoselectortoolbox.domain.session.ProgressiveMerge
 import com.photoselectortoolbox.domain.session.ScoreMerge
+import com.photoselectortoolbox.domain.session.SelectorReorder
+import com.photoselectortoolbox.domain.session.SelectorSortOrder
 import com.photoselectortoolbox.domain.session.SelectorWindows
 import com.photoselectortoolbox.domain.session.SelectorWork
 import com.photoselectortoolbox.domain.session.SelectorWorkQueue
@@ -225,6 +229,11 @@ data class SelectorUiState(
     val showCloudScanConfirmation: Boolean = false,
     /** Whether images are sorted ascending by sharpness for worst-first reject triage (`U-34`). */
     val sortWorstFirst: Boolean = false,
+    /**
+     * The persisted order the folder is shown in (`selector_sort_order`). Worst-first
+     * triage is a session view over it: leaving triage returns to this order.
+     */
+    val sortOrder: SelectorSortOrder = SelectorSortOrder.DEFAULT,
     /** Optional sharpness stop-line threshold for worst-first reject triage (`U-34`). */
     val sharpnessStopThreshold: Double? = null,
     /** Session decision log counters (`U-33`, `U-35`). */
@@ -435,6 +444,14 @@ class SelectorViewModel @Inject constructor(
     /** Coil prefetch requests in flight, keyed by URI so they can be superseded. */
     private val prefetchRequests = mutableMapOf<String, Disposable>()
 
+    /**
+     * Whether the photographer has done anything since this folder opened:
+     * navigated, rated, filed, deleted or undone. Decides where the one re-order
+     * at enumeration settle lands them ([SelectorReorder.atSettle]). Reset in
+     * [resetSession].
+     */
+    private var photographerHasActed = false
+
     private var workQueue = WorkQueueState()
     private var pendingGroupingLevel: GroupingLevel = GroupingLevel.TIME_FILENAME
 
@@ -482,6 +499,10 @@ class SelectorViewModel @Inject constructor(
                     _uiState.update { it.copy(groups = emptyList()) }
                 }
             }
+        }
+
+        viewModelScope.launch {
+            settingsRepository.selectorSortOrder.collect { order -> onPersistedSortOrder(order) }
         }
 
         viewModelScope.launch {
@@ -599,6 +620,7 @@ class SelectorViewModel @Inject constructor(
         cancelAllPrefetch()
         loadedExifCache.clear()
         workQueue = SelectorWorkQueue.reset()
+        photographerHasActed = false
         _ratingFilter.value = RatingFilter.All
         _uiState.update {
             parkUndoHistory(it).copy(
@@ -719,7 +741,7 @@ class SelectorViewModel @Inject constructor(
             imageRepository.discoverImages(folderUri).collect { batch ->
                 publishBatch(batch)
             }
-            _uiState.update { it.copy(isLoading = false, isEnumerating = false) }
+            settleOrder()
             // Enumeration has settled: restore scores over the complete list and
             // pick up the tail of the dimensions nobody has asked for yet.
             scheduleScoreRestore(immediate = true)
@@ -741,7 +763,13 @@ class SelectorViewModel @Inject constructor(
     /** Merge one cumulative batch into the visible list, append-only. */
     private fun publishBatch(batch: List<ImageItem>) {
         val isFirstBatch = publishedUris.isEmpty()
+        // Each fresh batch is ordered before it is appended; only the settle
+        // (see [settleOrder]) ever orders the list as a whole.
         val fresh = ProgressiveMerge.newItems(batch, publishedUris)
+            .let { items ->
+                val state = _uiState.value
+                items.sortedWith(state.activeComparator())
+            }
         if (fresh.isEmpty() && !isFirstBatch) {
             _uiState.update { it.copy(isLoading = false) }
             return
@@ -777,9 +805,113 @@ class SelectorViewModel @Inject constructor(
         scheduleScoreRestore()
     }
 
+    // ── Sort order ───────────────────────────────────────────────────────
+
+    /**
+     * The one re-order of a folder open, when enumeration settles.
+     *
+     * "Newest" needs the whole folder, which only exists once discovery has
+     * finished, so the batches appended in the active order are put in order as a
+     * whole — once. An untouched session on frame 1 lands on the new frame 1;
+     * anyone else keeps the frame on screen by URI ([SelectorReorder.atSettle]).
+     * Burst groups are remapped in the same update, and the regrouping that follows
+     * runs over the settled list. Worst-first triage is left alone: it is a view the
+     * photographer chose, and leaving it returns to the persisted order.
+     */
+    private fun settleOrder() {
+        val before = _uiState.value.images
+        _uiState.update { state ->
+            val settled = state.copy(isLoading = false, isEnumerating = false)
+            if (state.sortWorstFirst) return@update settled
+            val reordered = SelectorReorder.atSettle(state.listState, state.sortOrder, photographerHasActed)
+            if (reordered.changed) settled.withList(reordered.state) else settled
+        }
+        if (_uiState.value.images !== before) refreshAfterListChange()
+    }
+
+    /** The order picked in the overflow menu: leaves worst-first, keeps the frame on screen, persists. */
+    fun setSortOrder(order: SelectorSortOrder) {
+        _uiState.update { state ->
+            val reordered = SelectorReorder.keepingFrame(state.listState, order)
+            state.withList(reordered.state).copy(sortOrder = order, sortWorstFirst = false)
+        }
+        refreshAfterListChange()
+        viewModelScope.launch { settingsRepository.setSelectorSortOrder(order) }
+    }
+
+    /**
+     * The persisted order as the repository reports it. Equal to what the state
+     * already holds after [setSortOrder]; different on first load, when it
+     * re-orders the list keeping the frame on screen.
+     */
+    private fun onPersistedSortOrder(order: SelectorSortOrder) {
+        if (_uiState.value.sortOrder == order) return
+        val before = _uiState.value.images
+        _uiState.update { state ->
+            if (state.sortWorstFirst) return@update state.copy(sortOrder = order)
+            val reordered = SelectorReorder.keepingFrame(state.listState, order)
+            state.withList(reordered.state).copy(sortOrder = order)
+        }
+        if (_uiState.value.images !== before) refreshAfterListChange()
+    }
+
+    /**
+     * Put a list that has just had slots restored back in the active order,
+     * keeping the frame on screen by URI. Restores go to their *recorded* index,
+     * which is a position in the order at the time of removal — after a re-order
+     * that is no longer where the photo belongs.
+     *
+     * While discovery is still running the list is only ordered per batch, so it
+     * is left as restored: the settle orders it once.
+     */
+    private fun SelectorUiState.withRestored(restored: SelectorListState): SelectorUiState {
+        val placed = if (isEnumerating) restored else SelectorReorder.keepingFrame(restored, activeComparator()).state
+        return withList(placed)
+    }
+
+    /** The order the list is currently in: worst-first while triage is on, else the persisted order. */
+    private fun SelectorUiState.activeComparator(): Comparator<ImageItem> =
+        if (sortWorstFirst) WORST_FIRST else sortOrder.comparator
+
+    /**
+     * [next] as the list and index, with burst groups (index lists) carried over by
+     * URI. Every update that removes, inserts or re-orders frames goes through here:
+     * a stale index list points at a different photo.
+     */
+    private fun SelectorUiState.withList(next: SelectorListState): SelectorUiState = copy(
+        images = next.images,
+        currentIndex = next.currentIndex,
+        groups = if (next.images === images) groups else SelectorReorder.remapGroups(groups, images, next.images),
+    )
+
+    /** What a changed list or frame implies, without counting as the photographer acting. */
+    private fun refreshAfterListChange() {
+        loadMetadataForActiveRange()
+        resolveVisibleDimensions()
+        prefetchNeighbours()
+    }
+
     // ── Navigation & Rating Filtering ────────────────────────────────────
 
+    /**
+     * Go to the photo the "Go to photo" input names (number or file name), in the
+     * list as it is ordered now. A photo the rating filter hides is shown anyway —
+     * the photographer asked for it — by resetting the filter to All.
+     *
+     * Returns what the input resolved to, so the dialog can say why it did not move.
+     */
+    fun jumpToPhoto(input: String): JumpResolution {
+        val state = _uiState.value
+        val resolution = PhotoJump.resolve(input, state.images, state.ratingFilter)
+        if (resolution is JumpResolution.Resolved) {
+            if (resolution.hiddenByFilter) setRatingFilter(RatingFilter.All)
+            navigateToImage(resolution.index)
+        }
+        return resolution
+    }
+
     fun setRatingFilter(filter: RatingFilter) {
+        photographerHasActed = true
         _ratingFilter.value = filter
         _uiState.update { it.copy(ratingFilter = filter) }
         adjustCurrentIndexForFilter(filter)
@@ -852,6 +984,7 @@ class SelectorViewModel @Inject constructor(
      *    leaving the folder or clearing the ViewModel.
      */
     fun setRating(photo: ImageItem, rating: Int) {
+        photographerHasActed = true
         _uiState.update { state ->
             val updatedImages = state.images.map { img ->
                 if (img.uri == photo.uri) img.copy(rating = rating) else img
@@ -925,9 +1058,8 @@ class SelectorViewModel @Inject constructor(
 
     /** Everything the frame under judgement changing implies. */
     private fun onFrameChanged() {
-        loadMetadataForActiveRange()
-        resolveVisibleDimensions()
-        prefetchNeighbours()
+        photographerHasActed = true
+        refreshAfterListChange()
     }
 
     // ── Scanning, grouping, and the queue between them ───────────────────
@@ -958,21 +1090,15 @@ class SelectorViewModel @Inject constructor(
      */
     fun toggleSortWorstFirst() {
         _uiState.update { state ->
-            val enableWorstFirst = !state.sortWorstFirst
-            val sorted = if (enableWorstFirst) {
-                state.images.sortedWith(
-                    compareBy<ImageItem> { it.scanResult?.sharpnessScore == null }
-                        .thenBy { it.scanResult?.sharpnessScore ?: Double.MAX_VALUE }
-                        .thenBy { it.fileName.lowercase() }
-                )
+            if (!state.sortWorstFirst) {
+                // Triage starts at the blurriest frame.
+                state.withList(SelectorListState(state.images.sortedWith(WORST_FIRST), currentIndex = 0))
+                    .copy(sortWorstFirst = true)
             } else {
-                state.images.sortedBy { it.fileName.lowercase() }
+                // Leaving it returns to the persisted order, on the frame on screen.
+                val back = SelectorReorder.keepingFrame(state.listState, state.sortOrder)
+                state.withList(back.state).copy(sortWorstFirst = false)
             }
-            state.copy(
-                images = sorted,
-                currentIndex = 0,
-                sortWorstFirst = enableWorstFirst,
-            )
         }
         onFrameChanged()
     }
@@ -1104,7 +1230,14 @@ class SelectorViewModel @Inject constructor(
                     group.mapNotNull { grouped -> indexByUri[grouped.uri] }
                 }.filter { it.isNotEmpty() }
 
-                _uiState.update { it.copy(groups = indexGroups, groupingEnabled = true) }
+                // `images` was read before the suspension; the list may have been
+                // re-ordered or lost frames since, so the indices are carried over by URI.
+                _uiState.update {
+                    it.copy(
+                        groups = SelectorReorder.remapGroups(indexGroups, images, it.images),
+                        groupingEnabled = true,
+                    )
+                }
             } catch (e: CancellationException) {
                 throw e
             } catch (e: Exception) {
@@ -1193,9 +1326,7 @@ class SelectorViewModel @Inject constructor(
         _uiState.update { current ->
             val pushResult = UndoPolicy.push(current.undoHistory, operation)
             evictedPendings = pushResult.evictedPendingDeletions
-            current.copy(
-                images = listState.images,
-                currentIndex = listState.currentIndex,
+            current.withList(listState).copy(
                 showDeleteConfirmation = false,
                 undoHistory = pushResult.history,
                 sessionDeletedCount = current.sessionDeletedCount + pending.slots.size,
@@ -1267,11 +1398,7 @@ class SelectorViewModel @Inject constructor(
                 val failedName = pending.slots.firstOrNull()?.image?.fileName ?: "image"
                 _uiState.update { state ->
                     if (originFolderUri != null && state.folderUri == originFolderUri) {
-                        val restored = DeferredDeletion.revert(state.listState, pending)
-                        state.copy(
-                            images = restored.images,
-                            currentIndex = restored.currentIndex,
-                        )
+                        state.withRestored(DeferredDeletion.revert(state.listState, pending))
                     } else {
                         state
                     }
@@ -1288,11 +1415,7 @@ class SelectorViewModel @Inject constructor(
         val prompt = _uiState.value.uncompletedDeletionsPrompt ?: return
         _uiState.update { state ->
             val edit = OptimisticEdits.apply(state.listState, CurationAction.DELETE, prompt.uris)
-            state.copy(
-                images = edit.state.images,
-                currentIndex = edit.state.currentIndex,
-                uncompletedDeletionsPrompt = null,
-            )
+            state.withList(edit.state).copy(uncompletedDeletionsPrompt = null)
         }
         appScope.launch {
             val failures = mutableListOf<Pair<String, String?>>()
@@ -1371,9 +1494,7 @@ class SelectorViewModel @Inject constructor(
         val edit = OptimisticEdits.applyToCurrent(before, action)
 
         _uiState.update {
-            it.copy(
-                images = edit.state.images,
-                currentIndex = edit.state.currentIndex,
+            it.withList(edit.state).copy(
                 performedFilingAction = if (action == CurationAction.MOVE) {
                     FilingAction.MOVE
                 } else {
@@ -1550,11 +1671,7 @@ class SelectorViewModel @Inject constructor(
     private fun rollbackFiling(action: CurationAction, slots: List<ImageSlot>) {
         _uiState.update { state ->
             val restored = OptimisticEdits.rollback(state.listState, action, slots)
-            state.copy(
-                images = restored.images,
-                currentIndex = restored.currentIndex,
-                snackbarUndoAvailable = false,
-            )
+            state.withRestored(restored).copy(snackbarUndoAvailable = false)
         }
     }
 
@@ -1573,11 +1690,8 @@ class SelectorViewModel @Inject constructor(
             null -> return
 
             is UndoableOperation.RevertPendingDelete -> {
-                val restored = DeferredDeletion.revert(state.listState, operation.pending)
                 _uiState.update {
-                    it.copy(
-                        images = restored.images,
-                        currentIndex = restored.currentIndex,
+                    it.withRestored(DeferredDeletion.revert(it.listState, operation.pending)).copy(
                         undoHistory = remainingHistory,
                         snackbarUndoAvailable = false,
                         snackbarMessage = null,
@@ -1590,11 +1704,8 @@ class SelectorViewModel @Inject constructor(
             }
 
             is UndoableOperation.RestoreFromTrash -> {
-                val restored = OptimisticEdits.restore(state.listState, operation.slots)
                 _uiState.update {
-                    it.copy(
-                        images = restored.images,
-                        currentIndex = restored.currentIndex,
+                    it.withRestored(OptimisticEdits.restore(it.listState, operation.slots)).copy(
                         undoHistory = remainingHistory,
                         snackbarUndoAvailable = false,
                         snackbarMessage = null,
@@ -1625,9 +1736,7 @@ class SelectorViewModel @Inject constructor(
                                 CurationAction.DELETE,
                                 remainder.slots.map { it.uri },
                             )
-                            current.copy(
-                                images = hidden.state.images,
-                                currentIndex = hidden.state.currentIndex,
+                            current.withList(hidden.state).copy(
                                 undoHistory = UndoPolicy.push(current.undoHistory, remainder).history,
                             )
                         }
@@ -1638,11 +1747,8 @@ class SelectorViewModel @Inject constructor(
 
             is UndoableOperation.ReverseMove -> {
                 val folderUri = state.folderUri ?: return
-                val restored = OptimisticEdits.restore(state.listState, operation.slots)
                 _uiState.update {
-                    it.copy(
-                        images = restored.images,
-                        currentIndex = restored.currentIndex,
+                    it.withRestored(OptimisticEdits.restore(it.listState, operation.slots)).copy(
                         undoHistory = remainingHistory,
                         snackbarUndoAvailable = false,
                         snackbarMessage = null,
@@ -1709,9 +1815,7 @@ class SelectorViewModel @Inject constructor(
                                 operation.slots.map { it.uri },
                             )
                             // The failed undo already left the stack; put it back so it can be retried.
-                            current.copy(
-                                images = reapplied.state.images,
-                                currentIndex = reapplied.state.currentIndex,
+                            current.withList(reapplied.state).copy(
                                 undoHistory = UndoPolicy.push(current.undoHistory, operation).history,
                             )
                         }
@@ -2193,6 +2297,16 @@ class SelectorViewModel @Inject constructor(
     }
 
     companion object {
+        /**
+         * Worst-first reject triage (`U-34`): lowest sharpness first, unscored frames
+         * at the end, ties by file name. The comparator the list is re-sorted with
+         * whenever slots are restored while triage is on.
+         */
+        internal val WORST_FIRST: Comparator<ImageItem> =
+            compareBy<ImageItem> { it.scanResult?.sharpnessScore == null }
+                .thenBy { it.scanResult?.sharpnessScore ?: Double.MAX_VALUE }
+                .thenBy { it.fileName.lowercase() }
+
         /** Maximum number of EXIF data entries to keep in memory. */
         private const val MAX_EXIF_CACHE_SIZE = 50
 

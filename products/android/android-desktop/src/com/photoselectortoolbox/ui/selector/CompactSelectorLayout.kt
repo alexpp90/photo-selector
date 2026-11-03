@@ -32,7 +32,10 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.rememberUpdatedState
+import androidx.compose.runtime.withFrameNanos
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.runtime.snapshotFlow
@@ -97,15 +100,41 @@ fun CompactSelectorLayout(
         pageCount = { uiState.images.size },
     )
 
-    LaunchedEffect(uiState.currentIndex) {
-        if (pagerState.currentPage != uiState.currentIndex) {
-            pagerState.animateScrollToPage(uiState.currentIndex)
+    // The pager is keyed by URI, so when the list is re-ordered (sort order changed,
+    // enumeration settled, a restored slot) it moves itself to the page its current
+    // key now has — `settledPage` changes with no scroll at all. Two rules keep that
+    // from reading as a swipe:
+    //
+    // - pager -> ViewModel only when a scroll *ends* (never on a bare change of
+    //   `settledPage`), and only when it says something new;
+    // - ViewModel -> pager is keyed on the index *and* the order, and waits one frame
+    //   for the pager's key-follow before deciding whether anything is left to do. A
+    //   re-order is applied without an animation; a step to a neighbour animates.
+    val latestIndex by rememberUpdatedState(uiState.currentIndex)
+    val latestCount by rememberUpdatedState(uiState.images.size)
+    val latestNavigate by rememberUpdatedState(onNavigateToImage)
+    val orderKey = remember(uiState.images) { uiState.images.map { it.uri }.hashCode() }
+    var lastOrderKey by remember { mutableIntStateOf(orderKey) }
+
+    LaunchedEffect(uiState.currentIndex, orderKey) {
+        val reordered = lastOrderKey != orderKey
+        lastOrderKey = orderKey
+        withFrameNanos { }
+        if (latestCount == 0) return@LaunchedEffect
+        val target = latestIndex.coerceIn(0, latestCount - 1)
+        if (pagerState.currentPage != target) {
+            if (reordered) pagerState.scrollToPage(target) else pagerState.animateScrollToPage(target)
         }
     }
 
     LaunchedEffect(pagerState) {
-        snapshotFlow { pagerState.settledPage }.collect { page ->
-            onNavigateToImage(page)
+        var wasScrolling = false
+        snapshotFlow { pagerState.isScrollInProgress }.collect { scrolling ->
+            if (wasScrolling && !scrolling) {
+                val page = pagerState.currentPage
+                if (page != latestIndex) latestNavigate(page)
+            }
+            wasScrolling = scrolling
         }
     }
 

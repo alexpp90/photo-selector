@@ -331,15 +331,33 @@ private fun FullscreenContent(
     // there has just been filed away — is a reason to show its details.
     LaunchedEffect(currentImage?.uri) { revealChrome() }
 
-    // Pager -> ViewModel: the page that was settled on, reported. The last one
-    // reported is kept so the other direction can tell an echo of it from a real
-    // change made elsewhere.
+    // Pager -> ViewModel: the page a *user scroll* ended on, reported. Never a bare
+    // change of `settledPage`: the pager is keyed by URI, so when the list changes
+    // while fullscreen is open (enumeration settling, a sort change, an undo that
+    // inserts a photo above the current one) it re-indexes itself to the page its
+    // current key now has, with no scroll at all. Reporting that would hand the
+    // ViewModel the *old* photo's new index and undo the re-order it just applied.
+    // So: only the end of a scroll, and only when it says something the ViewModel's
+    // index does not already. The last report (and the order it was made in) is kept
+    // so the other direction can tell an echo of it from a real change elsewhere.
     val latestOnPageSelected by rememberUpdatedState(onPageSelected)
+    val latestIndex by rememberUpdatedState(initialIndex)
+    val orderKey = remember(images) { images.map { it.uri }.hashCode() }
+    val latestOrderKey by rememberUpdatedState(orderKey)
     var reportedPage by remember { mutableIntStateOf(initialIndex) }
+    var reportedOrderKey by remember { mutableIntStateOf(orderKey) }
     LaunchedEffect(pagerState) {
-        snapshotFlow { pagerState.settledPage }.collect { page ->
-            reportedPage = page
-            latestOnPageSelected(page)
+        var wasScrolling = false
+        snapshotFlow { pagerState.isScrollInProgress }.collect { scrolling ->
+            if (wasScrolling && !scrolling) {
+                val page = pagerState.currentPage
+                if (page != latestIndex) {
+                    reportedPage = page
+                    reportedOrderKey = latestOrderKey
+                    latestOnPageSelected(page)
+                }
+            }
+            wasScrolling = scrolling
         }
     }
 
@@ -347,13 +365,16 @@ private fun FullscreenContent(
     // reported it. Keyed on the list as well as the index: with `key = uri` the
     // pager re-indexes itself when the list changes (a move removes the page it
     // is on, an undo inserts one before it), so the answer to "is the pager
-    // already there?" is only valid a frame later. And never while the pager is
+    // already there?" is only valid a frame later. A list that changed since the
+    // last report is never an echo of it, even at the same index: the pager may
+    // have followed its key to another page. And never while the pager is
     // scrolling: the VM's index is then the echo of an earlier settle, and
     // pulling the pager back to it would undo the user's second arrow press.
     LaunchedEffect(initialIndex, images) {
         withFrameNanos { }
+        val echoOfReport = initialIndex == reportedPage && orderKey == reportedOrderKey
         if (initialIndex in images.indices &&
-            initialIndex != reportedPage &&
+            !echoOfReport &&
             initialIndex != pagerState.currentPage &&
             !pagerState.isScrollInProgress
         ) {
