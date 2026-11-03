@@ -682,8 +682,7 @@ private fun FullscreenInfoChrome(
     modifier: Modifier = Modifier,
 ) {
     BoxWithConstraints(modifier = modifier.fillMaxWidth()) {
-        val maxPanelWidth = minOf(InfoPanelMaxWidth, maxWidth * InfoPanelMaxShare)
-        val minPanelWidth = minOf(InfoPanelMinWidth, maxPanelWidth)
+        val windowWidth = maxWidth
         Row(
             modifier = Modifier
                 .windowInsetsPadding(
@@ -711,104 +710,39 @@ private fun FullscreenInfoChrome(
                 }
             }
 
-            Row(
-                modifier = Modifier
-                    .widthIn(min = minPanelWidth, max = maxPanelWidth)
-                    .clip(InfoPanelShape)
-                    .background(StudioCanvas.copy(alpha = InfoPanelAlpha))
-                    .testTag("fullscreen_info_overlay"),
-                verticalAlignment = Alignment.Top,
-            ) {
-                // One item for a screen reader: name, position, exposure, lens.
-                Column(
-                    modifier = Modifier
-                        .weight(1f, fill = false)
-                        .padding(start = 10.dp, top = 8.dp, bottom = 8.dp)
-                        .semantics(mergeDescendants = true) {},
-                    verticalArrangement = Arrangement.spacedBy(3.dp),
-                ) {
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.spacedBy(8.dp),
-                        verticalAlignment = Alignment.CenterVertically,
-                    ) {
-                        // The name is what gives way; the position keeps its width.
-                        Text(
-                            text = image?.fileName.orEmpty(),
-                            fontSize = 14.sp,
-                            color = Zinc50,
-                            maxLines = 1,
-                            overflow = TextOverflow.Ellipsis,
-                            modifier = Modifier.weight(1f, fill = false).testTag("fullscreen_file_name"),
-                        )
-                        Text(
-                            text = "$position / $total",
-                            fontSize = 12.sp,
-                            fontFamily = FontFamily.Monospace,
-                            color = Zinc400,
-                            maxLines = 1,
-                            softWrap = false,
-                            modifier = Modifier.testTag("fullscreen_position"),
-                        )
-                    }
-
-                    // Zinc300 rather than 400: this sits over whatever the sky
-                    // is doing, and 400 on 85 % canvas is too faint on a bright one.
-                    ExifFormatter.summaryLine(image?.exifData)?.let { line ->
-                        ExposureFlow(
-                            labels = exposureTokenLabels(line),
-                            color = Zinc300,
-                            containerTag = "fullscreen_exif",
-                        )
-                    }
-                    ExifFormatter.lensLine(image?.exifData)?.let { lens ->
-                        Text(
-                            text = lens,
-                            fontSize = 11.5.sp,
-                            fontFamily = FontFamily.Monospace,
-                            color = Zinc300,
-                            maxLines = 1,
-                            overflow = TextOverflow.Ellipsis,
-                            modifier = Modifier.fillMaxWidth().testTag("fullscreen_lens"),
-                        )
-                    }
-                }
-
+            PhotoInfoPanel(
+                image = image,
+                position = position,
+                total = total,
+                availableWidth = windowWidth,
+                tagPrefix = "fullscreen",
                 // The pin is the only visible sign that `I` did something, and the
                 // only way to pin without a keyboard. It lives in the panel it
                 // pins — no new surface.
-                IconToggleButton(
-                    checked = infoPinned,
-                    onCheckedChange = { onToggleInfoPinned() },
-                    modifier = Modifier
-                        .size(48.dp)
-                        .pointerHoverIcon(PointerIcon.Hand)
-                        .testTag("fullscreen_info_pin"),
-                ) {
-                    Icon(
-                        imageVector = if (infoPinned) Icons.Filled.PushPin else Icons.Outlined.PushPin,
-                        contentDescription = if (infoPinned) {
-                            "Unpin info panel, shortcut I"
-                        } else {
-                            "Pin info panel, shortcut I"
-                        },
-                        tint = if (infoPinned) BrandAccentText else Zinc400,
-                    )
-                }
-            }
+                trailing = {
+                    IconToggleButton(
+                        checked = infoPinned,
+                        onCheckedChange = { onToggleInfoPinned() },
+                        modifier = Modifier
+                            .size(48.dp)
+                            .pointerHoverIcon(PointerIcon.Hand)
+                            .testTag("fullscreen_info_pin"),
+                    ) {
+                        Icon(
+                            imageVector = if (infoPinned) Icons.Filled.PushPin else Icons.Outlined.PushPin,
+                            contentDescription = if (infoPinned) {
+                                "Unpin info panel, shortcut I"
+                            } else {
+                                "Pin info panel, shortcut I"
+                            },
+                            tint = if (infoPinned) BrandAccentText else Zinc400,
+                        )
+                    }
+                },
+            )
         }
     }
 }
-
-private val InfoPanelShape = RoundedCornerShape(6.dp)
-private const val InfoPanelAlpha = 0.85f
-
-/** The panel is as wide as its content, within these bounds. */
-private val InfoPanelMinWidth = 280.dp
-private val InfoPanelMaxWidth = 420.dp
-
-/** ... and never more than this share of the window, so it cannot become a bar. */
-private const val InfoPanelMaxShare = 0.35f
 
 @Composable
 private fun FullscreenActionButton(

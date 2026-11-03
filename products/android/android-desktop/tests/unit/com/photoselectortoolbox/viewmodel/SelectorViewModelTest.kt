@@ -1,5 +1,6 @@
 package com.photoselectortoolbox.viewmodel
 
+import com.photoselectortoolbox.domain.guidance.SelectorHint
 import android.net.Uri
 import androidx.lifecycle.viewModelScope
 import androidx.test.core.app.ApplicationProvider
@@ -603,6 +604,35 @@ class SelectorViewModelTest {
         assertNotNull(hint)
         assertTrue(hint!!.title, hint.title.startsWith("Copied to"))
         assertTrue(hint.message, hint.message.contains("M moves instead"))
+    }
+
+    // ── Maximise hint ────────────────────────────────────────────────────
+
+    @Test
+    fun `the maximise hint is raised on entering and does not outlive the maximised state`() = runTest {
+        val viewModel = loadFolder(image("a"), image("b"), image("c"))
+
+        viewModel.toggleMaximised(SelectorFrame.CURRENT)
+        assertEquals(SelectorHint.MAXIMISE, viewModel.uiState.value.pendingHint)
+
+        // Another frame is still maximised: the explanation still applies.
+        viewModel.toggleMaximised(SelectorFrame.NEXT)
+        assertEquals(SelectorHint.MAXIMISE, viewModel.uiState.value.pendingHint)
+
+        // Back in three-up it would explain how to get to where the user already is.
+        viewModel.toggleMaximised(SelectorFrame.NEXT)
+        assertNull(viewModel.uiState.value.maximisedFrame)
+        assertNull(viewModel.uiState.value.pendingHint)
+    }
+
+    @Test
+    fun `Escape out of the maximised state also drops an undrawn maximise hint`() = runTest {
+        val viewModel = loadFolder(image("a"), image("b"), image("c"))
+
+        viewModel.toggleMaximised(SelectorFrame.CURRENT)
+        viewModel.clearMaximised()
+
+        assertNull(viewModel.uiState.value.pendingHint)
     }
 
     // ── Deferred deletion ────────────────────────────────────────────────

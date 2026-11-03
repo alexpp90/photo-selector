@@ -1857,7 +1857,8 @@ class SelectorViewModel @Inject constructor(
     fun toggleMaximised(frame: SelectorFrame) {
         val entering = _uiState.value.maximisedFrame != frame
         _uiState.update {
-            it.copy(maximisedFrame = if (it.maximisedFrame == frame) null else frame)
+            val next = if (it.maximisedFrame == frame) null else frame
+            it.copy(maximisedFrame = next, pendingHint = it.pendingHint.keptIn(next))
         }
         // Nothing on the maximised screen says how to get back out, so it is
         // said once, on the way in.
@@ -1867,9 +1868,21 @@ class SelectorViewModel @Inject constructor(
     /** Leave the maximised state, if in it. Bound to Escape. */
     fun clearMaximised() {
         if (_uiState.value.maximisedFrame != null) {
-            _uiState.update { it.copy(maximisedFrame = null) }
+            _uiState.update {
+                it.copy(maximisedFrame = null, pendingHint = it.pendingHint.keptIn(null))
+            }
         }
     }
+
+    /**
+     * The maximise explanation describes the maximised state, so it does not
+     * outlive it. Where no slack beside the frame was wide enough it was never
+     * drawn; left pending it would greet the user in three-up, explaining how to
+     * return to a view they are already in. Dropped without being marked seen, so
+     * it is offered again on the next maximise.
+     */
+    private fun SelectorHint?.keptIn(maximised: SelectorFrame?): SelectorHint? =
+        if (this == SelectorHint.MAXIMISE && maximised == null) null else this
 
     /** Persist that the one-time on-image navigation arrows have now been shown. */
     fun markNavHintSeen() {
