@@ -7,6 +7,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 ## [Unreleased]
 
 ### Fixed
+- A darktable-style sidecar (`DSC_0001.NEF.xmp`, `IMG_1.JPG.xmp`) now travels with its shot on Move, Copy and Trash whichever file of the shot it belongs to. Before, it stayed behind when a JPG sorted before the RAW (NEF, RAF, RW2, ORF, PEF and others).
 - Opening a big folder no longer freezes the window. The scan (including the folder-name look-up on a cloud mount) runs in the background and photos appear as they are found. A folder of 2000 RAW+JPEG pairs took 46 seconds to list, and the window did not respond meanwhile; it now takes about 0.3 seconds.
 
 ## [0.2.0] - 2026-10-22
