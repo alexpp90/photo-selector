@@ -432,12 +432,12 @@ if $run_android; then
 
         # ── Android lint (advisory) ───────────────────────────────
         # Deliberately non-blocking: the CI job is `continue-on-error: true`
-        # and both modules set `abortOnError = false`. Mirrored as advisory so
+        # and every module sets `abortOnError = false`. Mirrored as advisory so
         # local and CI agree; the report is still printed for review.
         section "Android lint (advisory)"
         if $quick; then
             skip "android lint" "" "--quick"
-        elif ./gradlew :android-desktop:lintDebug :phototok:lintDebug --continue --stacktrace; then
+        elif ./gradlew :core:lintDebug :saf:lintDebug :android-desktop:lintDebug :phototok:lintDebug --continue --stacktrace; then
             pass "gradlew lintDebug (advisory)" "android.yml:lint"
         else
             warn "gradlew lintDebug (advisory — does not fail CI)" "android.yml:lint"

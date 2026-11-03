@@ -175,7 +175,7 @@ jobs:
 
       - name: Run lint
         working-directory: products/android
-        run: ./gradlew :android-desktop:lintDebug :phototok:lintDebug --continue --stacktrace
+        run: ./gradlew :core:lintDebug :saf:lintDebug :android-desktop:lintDebug :phototok:lintDebug --continue --stacktrace
 
       - name: Upload lint reports
         if: always()
@@ -183,6 +183,8 @@ jobs:
         with:
           name: lint-report
           path: |
+            products/android/core/build/reports/lint-results-debug.html
+            products/android/saf/build/reports/lint-results-debug.html
             products/android/android-desktop/build/reports/lint-results-debug.html
             products/android/phototok/build/reports/lint-results-debug.html
           if-no-files-found: ignore
