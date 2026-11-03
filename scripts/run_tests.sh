@@ -26,6 +26,10 @@
 #   ./scripts/run_tests.sh --strict         # treat unrunnable SKIPPED gates as failures
 #   ./scripts/run_tests.sh --quick          # tests only, no lint/coverage (inner-loop use)
 #
+# The Python gates run in each product's own Poetry venv (poetry --directory products/desktop
+# install --no-root; products/linux-desktop likewise) and FAIL, naming that command, when it is
+# not provisioned; they never use a tool found on PATH. PST_VENV_BIN=<bin dir> overrides the lookup.
+#
 # Every run ends by saving a verification record (machine, toolchains, gates, tested tree) in
 # .git/pst-verification/; `python3 scripts/verification_record.py pr` puts it into the PR
 # description. PST_NO_RECORD=1 skips it; PST_EXECUTOR="<agent or person>" names who ran it.
@@ -108,7 +112,7 @@ for arg in "$@"; do
             explicit_product=true
             ;;
         -h|--help)
-            sed -n '2,32p' "$0" | sed 's/^# \{0,1\}//'
+            sed -n '2,38p' "$0" | sed 's/^# \{0,1\}//'
             exit 0
             ;;
         *)
@@ -235,32 +239,101 @@ advisory_gate() {
     esac
 }
 
-# Prefer poetry when a lockfile-managed venv exists, else fall back to bare tools.
-PY_RUNNER=()
+# ── Python environments ───────────────────────────────────────────
+# Each Python product is gated in its own Poetry virtualenv, the way CI installs it
+# (products/desktop and products/linux-desktop each run `poetry install`). The venv is found
+# READ-ONLY (`poetry env info -p`; a bare `poetry run` would create an empty venv for every
+# worktree and then run whatever same-named tool is first on PATH, which is how a global
+# pytest without pytest-cov once became the gate) and PROBED: if it lacks a tool or a
+# dependency the gates need, the run fails with the exact command that provisions it. It never
+# falls back to a tool found on PATH. Poetry names a venv after the project path, so a fresh
+# worktree has none; the main checkout's venv is used when it is provisioned.
+# PST_VENV_BIN=<dir with python, pytest, flake8> points both products at one environment
+# (a machine without Poetry); it is probed the same way.
 VENV_BIN=""
-if have poetry && [ -f "$ROOT_DIR/products/desktop/poetry.lock" ]; then
-    PY_RUNNER=(poetry run)
-    VENV_PATH="$(poetry --directory "$ROOT_DIR/products/desktop" env info -p 2>/dev/null || true)"
-    if [ ! -x "$VENV_PATH/bin/pytest" ] && have git; then
-        COMMON_GIT="$(git -C "$ROOT_DIR" rev-parse --path-format=absolute --git-common-dir 2>/dev/null || true)"
-        COMMON_ROOT="${COMMON_GIT%/.git}"
-        if [ -n "$COMMON_ROOT" ] && [ -f "$COMMON_ROOT/products/desktop/poetry.lock" ]; then
-            VENV_PATH="$(poetry --directory "$COMMON_ROOT/products/desktop" env info -p 2>/dev/null || true)"
+DESKTOP_VENV_BIN=""
+
+# Prints the bin/ directory of the Poetry venv of the project at $1, then that of the same
+# project in the main checkout when this is a worktree (one per line, existing ones only).
+venv_bins_for() {
+    local project="$1" venv common_git common_root rel
+    if [ -n "${PST_VENV_BIN:-}" ]; then
+        printf '%s\n' "$PST_VENV_BIN"
+        return 0
+    fi
+    have poetry || return 0
+    venv="$(poetry --directory "$project" env info -p 2>/dev/null || true)"
+    if [ -n "$venv" ] && [ -x "$venv/bin/python" ]; then printf '%s\n' "$venv/bin"; fi
+    if have git; then
+        common_git="$(git -C "$project" rev-parse --path-format=absolute --git-common-dir 2>/dev/null || true)"
+        common_root="${common_git%/.git}"
+        rel="${project#"$ROOT_DIR"/}"
+        if [ -n "$common_root" ] && [ "$common_root" != "$ROOT_DIR" ] && [ -f "$common_root/$rel/poetry.lock" ]; then
+            venv="$(poetry --directory "$common_root/$rel" env info -p 2>/dev/null || true)"
+            if [ -n "$venv" ] && [ -x "$venv/bin/python" ]; then printf '%s\n' "$venv/bin"; fi
         fi
     fi
-    if [ -x "$VENV_PATH/bin/pytest" ]; then
-        VENV_BIN="$VENV_PATH/bin"
+    return 0
+}
+
+# Modules a gate imports, as the probe sees them (importlib finds them without running them).
+PY_PROBE='import importlib.util, sys
+missing = [m for m in sys.argv[1:] if importlib.util.find_spec(m) is None]
+print(" ".join(missing))
+sys.exit(1 if missing else 0)'
+
+# prepare_python_env <label> <project dir> <ci_ref> <remedy> <module>... — sets VENV_BIN and
+# returns 0 when the environment is provisioned; otherwise records ONE failed gate that names
+# the missing pieces and the remedy, and returns 1 (the caller then runs no Python gate).
+prepare_python_env() {
+    local label="$1" project="$2" ci_ref="$3" remedy="$4"; shift 4
+    local bin reason="" first="" status=0
+    VENV_BIN=""
+    while IFS= read -r bin; do
+        [ -z "$bin" ] && continue
+        status=0
+        reason="$("$bin/python" -c "$PY_PROBE" "$@" 2>/dev/null)" || status=$?
+        if [ "$status" -eq 0 ]; then
+            VENV_BIN="$bin"
+            return 0
+        fi
+        if [ -n "$reason" ]; then
+            reason="missing in $bin: $reason"
+        else
+            reason="$bin/python is not a working interpreter"
+        fi
+        [ -z "$first" ] && first="$reason"
+    done < <(venv_bins_for "$project")
+    if [ -z "$first" ]; then
+        first="no virtualenv found"
+        have poetry || first="no virtualenv found (poetry is not installed: pip install poetry)"
     fi
-fi
+    local missing="$first"
+    fail "Python environment ($label) not installed" "$ci_ref"
+    echo -e "${RED}    $missing${NC}"
+    echo -e "${RED}    The Python gates run only in the project's own environment, never on a tool found on PATH. Install it:${NC}"
+    printf '      %s\n' "$remedy"
+    return 1
+}
+
+DESKTOP_ENV_MODULES=(pytest pytest_cov flake8 matplotlib PIL numpy cv2 tqdm)
+DESKTOP_ENV_REMEDY="poetry --directory products/desktop install --no-root"
+# gi comes from the system packages (python3-gi, gir1.2-gtk-4.0, …), so the venv must see the
+# system site-packages; gates report the display path as "partial" when the typelibs are missing.
+LINUX_ENV_MODULES=(pytest pytest_cov flake8 numpy PIL)
+LINUX_ENV_REMEDY="poetry config virtualenvs.options.system-site-packages true
+      poetry --directory products/linux-desktop env remove --all   # only if its venv already exists without system site packages
+      poetry --directory products/linux-desktop install --no-root"
+
 PY_ARGV=()
+# Resolves a tool of the prepared environment; a tool the probe did not cover is still
+# looked up only there. The argv is `false` when it is absent, so the gate fails loudly.
 py_resolve() {
-    if [ -n "$VENV_BIN" ] && [ -x "$VENV_BIN/$1" ]; then
-        local tool="$1"; shift
+    local tool="$1"; shift
+    if [ -n "$VENV_BIN" ] && [ -x "$VENV_BIN/$tool" ]; then
         PY_ARGV=("$VENV_BIN/$tool" "$@")
-    elif [ ${#PY_RUNNER[@]} -gt 0 ]; then
-        PY_ARGV=("${PY_RUNNER[@]}" "$@")
     else
-        PY_ARGV=("$@")
+        PY_ARGV=(false "$tool not found in the project environment")
     fi
 }
 py() {
@@ -316,10 +389,12 @@ fi
 if $run_python; then
     cd "$ROOT_DIR/products/desktop" || exit 1
 
-    if ! have poetry && ! have pytest; then
-        section "Python"
-        skip "Python gates" "" "neither poetry nor pytest found (pip install poetry)"
-    else
+    section "Python environment (products/desktop)"
+    if prepare_python_env "products/desktop" "$ROOT_DIR/products/desktop" "desktop.yml:test" \
+            "$DESKTOP_ENV_REMEDY" "${DESKTOP_ENV_MODULES[@]}"; then
+        DESKTOP_VENV_BIN="$VENV_BIN"
+        echo -e "${DIM}  environment: $VENV_BIN${NC}"
+        pass "Python environment provisioned (products/desktop)" "desktop.yml:test"
         # ── flake8 ────────────────────────────────────────────────
         # CI runs this as a *separate job that gates every other job*. A flake8
         # error therefore fails the whole pipeline before a single test runs,
@@ -327,11 +402,9 @@ if $run_python; then
         section "Lint (flake8)"
         if $quick; then
             skip "flake8" "" "--quick"
-        elif py flake8 --version &>/dev/null; then
+        else
             gate "flake8 src/ tests/" "desktop.yml:lint" \
                 py flake8 src/ tests/ --count --show-source --statistics
-        else
-            skip "flake8" "" "flake8 not installed in the active environment"
         fi
 
         # ── pytest + coverage ─────────────────────────────────────
@@ -532,25 +605,32 @@ if $run_linux; then
     else
         cd "$ROOT_DIR/products/linux-desktop" || exit 1
 
+        section "Linux Desktop Python environment (products/linux-desktop)"
+        if ! prepare_python_env "products/linux-desktop" "$ROOT_DIR/products/linux-desktop" "linux.yml:test" \
+                "$LINUX_ENV_REMEDY" "${LINUX_ENV_MODULES[@]}"; then
+            LINUX_ENV_OK=false
+        else
+            LINUX_ENV_OK=true
+            echo -e "${DIM}  environment: $VENV_BIN${NC}"
+            pass "Python environment provisioned (products/linux-desktop)" "linux.yml:test"
+        fi
+
         # 1. Lint / Static analysis
-        if [ -d "$ROOT_DIR/products/linux-desktop/src" ]; then
+        if $LINUX_ENV_OK && [ -d "$ROOT_DIR/products/linux-desktop/src" ]; then
             section "Linux Desktop lint (flake8)"
             if $quick; then
                 skip "flake8 (linux-desktop)" "linux.yml:lint" "--quick"
-            elif py flake8 --version &>/dev/null; then
+            else
                 gate "flake8 (products/linux-desktop)" "linux.yml:lint" \
                     py flake8 src/ tests/ --count --show-source --statistics --max-line-length=120 --extend-ignore=E203,W503
-            elif have flake8; then
-                gate "flake8 (products/linux-desktop)" "linux.yml:lint" \
-                    flake8 src/ tests/ --count --show-source --statistics --max-line-length=120 --extend-ignore=E203,W503
-            else
-                skip "flake8 (linux-desktop)" "linux.yml:lint" "flake8 not installed in the active environment"
             fi
         fi
 
         # 2. Unit tests (pytest)
         section "Linux Desktop unit tests"
-        if [ -d "$ROOT_DIR/products/linux-desktop/tests" ]; then
+        if ! $LINUX_ENV_OK; then
+            :  # already reported as a failed environment gate above
+        elif [ -d "$ROOT_DIR/products/linux-desktop/tests" ]; then
             # Without the real GTK 4 / GExiv2 typelibs (macOS, or a bare Linux box) conftest.py
             # stubs gi, so the display decode path (ui/photo_loader.py) never runs and the
             # format-conformance display checks fall back to Pillow. Say so instead of
@@ -559,25 +639,15 @@ if $run_linux; then
             if ! py python -c "import gi; gi.require_version('Gdk', '4.0'); gi.require_version('GExiv2', '0.10'); from gi.repository import Gdk, GExiv2" &>/dev/null; then
                 linux_ci_ref="linux.yml:test (partial — no GTK 4/GExiv2 typelibs, display path stubbed)"
             fi
-            if ! have pytest && ! have poetry; then
-                skip "pytest (linux-desktop)" "linux.yml:test" "neither poetry nor pytest found"
-            elif $quick; then
+            if $quick; then
                 gate "pytest (products/linux-desktop, quick)" "$linux_ci_ref" \
                     pyx pytest tests/ --tb=short -q
-            elif py pytest --version &>/dev/null; then
-                gate "pytest --cov-fail-under=$LINUX_COV_FAIL_UNDER (products/linux-desktop)" "$linux_ci_ref" \
-                    pyx pytest tests/ --tb=short -q -o faulthandler_timeout=120 \
-                        --cov=photo_selector_linux \
-                        --cov-report=term-missing:skip-covered \
-                        --cov-fail-under="$LINUX_COV_FAIL_UNDER"
-            elif have pytest; then
-                gate "pytest --cov-fail-under=$LINUX_COV_FAIL_UNDER (products/linux-desktop)" "$linux_ci_ref" \
-                    pyx pytest tests/ --tb=short -q -o faulthandler_timeout=120 \
-                        --cov=photo_selector_linux \
-                        --cov-report=term-missing:skip-covered \
-                        --cov-fail-under="$LINUX_COV_FAIL_UNDER"
             else
-                skip "pytest (linux-desktop)" "linux.yml:test" "pytest runner not found"
+                gate "pytest --cov-fail-under=$LINUX_COV_FAIL_UNDER (products/linux-desktop)" "$linux_ci_ref" \
+                    pyx pytest tests/ --tb=short -q -o faulthandler_timeout=120 \
+                        --cov=photo_selector_linux \
+                        --cov-report=term-missing:skip-covered \
+                        --cov-fail-under="$LINUX_COV_FAIL_UNDER"
             fi
         else
             skip "pytest (linux-desktop)" "linux.yml:test" "tests/ directory not yet created" false
@@ -657,9 +727,9 @@ if [ -d "$ROOT_DIR/private/.git" ] || [ -f "$ROOT_DIR/private/.git" ]; then
         if python3 -c "import pytest" &>/dev/null; then
             gate "framework & hook tests" "framework.yml:framework" \
                 python3 -m pytest -q -p no:cacheprovider private/tests/framework
-        elif [ -n "$VENV_BIN" ] && [ -x "$VENV_BIN/pytest" ]; then
+        elif [ -n "$DESKTOP_VENV_BIN" ] && [ -x "$DESKTOP_VENV_BIN/pytest" ]; then
             gate "framework & hook tests" "framework.yml:framework" \
-                "$VENV_BIN/pytest" -q -p no:cacheprovider private/tests/framework
+                "$DESKTOP_VENV_BIN/pytest" -q -p no:cacheprovider private/tests/framework
         else
             skip "framework & hook tests" "framework.yml:framework" "pytest not importable by python3"
         fi
