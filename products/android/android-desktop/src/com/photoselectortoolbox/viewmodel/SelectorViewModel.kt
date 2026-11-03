@@ -64,6 +64,7 @@ import dagger.hilt.android.qualifiers.ApplicationContext
 import javax.inject.Inject
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineDispatcher
+import kotlinx.coroutines.CoroutineStart
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
@@ -78,6 +79,8 @@ import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.take
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.withContext
 
 /**
@@ -401,6 +404,25 @@ class SelectorViewModel @Inject constructor(
 
     /** Quiet period before coalesced rating changes are written back to disk; overridable in tests. */
     internal var ratingWriteDebounceMs: Long = RATING_WRITE_DEBOUNCE_MILLIS
+
+    /**
+     * Serialises every write to the pending-delete journal (FD-D-20). The add of a delete and the
+     * remove of its commit or undo ran in separate launches on a multi-threaded scope, so a quick
+     * delete-then-leave could remove before it added and leave already-deleted URIs in the journal.
+     * An add takes the lock before [deleteCurrentImage] returns ([CoroutineStart.UNDISPATCHED]), so
+     * every later remove waits for it.
+     */
+    private val journalMutex = Mutex()
+
+    private fun journalAdd(uris: List<String>) {
+        appScope.launch(start = CoroutineStart.UNDISPATCHED) {
+            journalMutex.withLock { settingsRepository.addPendingDeletes(uris) }
+        }
+    }
+
+    private suspend fun journalRemove(uris: List<String>) {
+        journalMutex.withLock { settingsRepository.removePendingDeletes(uris) }
+    }
 
     /** In-flight debounced disk write-back jobs keyed by photo URI, running on [appScope]. */
     private val ratingWriteJobs = java.util.concurrent.ConcurrentHashMap<String, Job>()
@@ -1368,9 +1390,7 @@ class SelectorViewModel @Inject constructor(
         onFrameChanged()
         raiseHint(SelectorHint.DELETE_UNDO)
 
-        appScope.launch {
-            settingsRepository.addPendingDeletes(pending.uris)
-        }
+        journalAdd(pending.uris)
 
         evictedPendings.forEach { evicted ->
             commitPendingDeletion(evicted, state.folderUri)
@@ -1404,35 +1424,62 @@ class SelectorViewModel @Inject constructor(
      * Write a single [pending] deletion to disk and remove its URIs from the
      * durable pending-delete journal.
      *
-     * If deleting any file fails while [originFolderUri] is still open, the
-     * frame is restored to the list and an error naming the photo is reported.
+     * Every deleted file takes its rating and cached analysis with it (FD-D-14): document ids on
+     * local and SD storage are paths, so a new photo at the same path (camera numbering restarts,
+     * a reused card) would otherwise inherit them.
+     *
+     * When some files could not be deleted while [originFolderUri] is still open, the frame
+     * comes back only with what is left of it (FD-D-16): untouched, it is restored as it was and
+     * "Could not delete «name»" is reported; half deleted, it is rebuilt from the surviving files
+     * ([DeferredDeletion.survivors]) and the message says how many went.
      */
     private fun commitPendingDeletion(pending: PendingDeletion, originFolderUri: String?) {
         appScope.launch {
-            var failures = 0
+            val failed = mutableSetOf<String>()
+            val deleted = mutableListOf<String>()
             pending.uris.forEach { uri ->
-                val deleted = try {
+                val ok = try {
                     imageRepository.deleteImage(context, Uri.parse(uri))
+                } catch (e: CancellationException) {
+                    throw e
                 } catch (e: Exception) {
                     Log.e("SelectorViewModel", "Delete failed for $uri", e)
                     false
                 }
-                if (!deleted) failures++
+                if (ok) deleted += uri else failed += uri
             }
-            settingsRepository.removePendingDeletes(pending.uris)
+            journalRemove(pending.uris)
+            deleted.forEach { gone ->
+                try {
+                    cacheRepository.forgetDeletedFile(gone)
+                } catch (e: CancellationException) {
+                    throw e
+                } catch (e: Exception) {
+                    Log.e("SelectorViewModel", "Could not drop the cached data of deleted $gone", e)
+                }
+            }
             // The folder may have been left meanwhile; its grant was kept only for these entries.
             originFolderUri?.let { settingsRepository.releaseFolderGrantIfUnreferenced(it) }
 
-            if (failures > 0) {
-                val failedName = pending.slots.firstOrNull()?.image?.fileName ?: "image"
+            if (failed.isEmpty()) return@launch
+            val stillOpen = originFolderUri != null && _uiState.value.folderUri == originFolderUri
+            if (!stillOpen) return@launch
+            val firstName = pending.slots.firstOrNull()?.image?.fileName ?: "image"
+            if (deleted.isEmpty()) {
                 _uiState.update { state ->
-                    if (originFolderUri != null && state.folderUri == originFolderUri) {
-                        state.withRestored(DeferredDeletion.revert(state.listState, pending))
-                    } else {
-                        state
+                    if (state.folderUri != originFolderUri) state
+                    else state.withRestored(DeferredDeletion.revert(state.listState, pending))
+                }
+                reportError("Could not delete $firstName")
+            } else {
+                val survivors = DeferredDeletion.survivors(pending, failed)
+                if (survivors != null) {
+                    _uiState.update { state ->
+                        if (state.folderUri != originFolderUri) state
+                        else state.withRestored(DeferredDeletion.revert(state.listState, survivors))
                     }
                 }
-                reportError("Could not delete $failedName")
+                reportError(SelectorLabels.partialDeleteMessage(firstName, deleted.size, pending.uris.size))
             }
         }
     }
@@ -1462,7 +1509,7 @@ class SelectorViewModel @Inject constructor(
             }
             // Drop only the recovered entries: the journal may already hold deletions of
             // the current session, which a wholesale clear would erase (D-9).
-            settingsRepository.removePendingDeletes(prompt.uris)
+            journalRemove(prompt.uris)
             if (failures.isNotEmpty()) {
                 val names = failures.joinToString { it.first }
                 val reason = failures.firstNotNullOfOrNull { it.second }
@@ -1486,7 +1533,7 @@ class SelectorViewModel @Inject constructor(
         val prompt = _uiState.value.uncompletedDeletionsPrompt ?: return
         _uiState.update { it.copy(uncompletedDeletionsPrompt = null) }
         appScope.launch {
-            settingsRepository.removePendingDeletes(prompt.uris)
+            journalRemove(prompt.uris)
         }
     }
 
@@ -1728,7 +1775,7 @@ class SelectorViewModel @Inject constructor(
                 }
                 onFrameChanged()
                 appScope.launch {
-                    settingsRepository.removePendingDeletes(operation.pending.uris)
+                    journalRemove(operation.pending.uris)
                 }
             }
 

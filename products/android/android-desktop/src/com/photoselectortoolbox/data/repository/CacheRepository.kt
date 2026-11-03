@@ -20,6 +20,12 @@ interface CacheRepository {
     suspend fun copyRating(fromUri: String, toUri: String)
     /** Drops the rating row of a file that no longer exists (a deleted copy), leaving every other row alone. */
     suspend fun deleteRating(uri: String)
+    /**
+     * A file was deleted: its rating, its cached analysis and its technique facts go with it, so
+     * a new file at the same URI (document ids on local and SD storage are paths) starts clean
+     * (FD-D-14).
+     */
+    suspend fun forgetDeletedFile(uri: String)
     suspend fun getRating(uri: String): Int?
     suspend fun getRatings(uris: List<String>): Map<String, Int>
     suspend fun updateCompositionAnalysis(filePath: String, analysis: String?)
@@ -98,6 +104,12 @@ class CacheRepositoryImpl @Inject constructor(
 
     override suspend fun deleteRating(uri: String) {
         scoreDao.deleteUserRating(uri)
+    }
+
+    override suspend fun forgetDeletedFile(uri: String) {
+        scoreDao.deleteUserRating(uri)
+        scoreDao.deleteScore(uri)
+        scoreDao.deleteTechniqueFactsForUri(uri)
     }
 
     override suspend fun getRating(uri: String): Int? {

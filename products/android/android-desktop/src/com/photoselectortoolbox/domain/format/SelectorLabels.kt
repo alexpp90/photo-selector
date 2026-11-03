@@ -120,6 +120,10 @@ object SelectorLabels {
      */
     const val DELETE_UNDO_SCOPE = "until you leave the folder"
 
+    /** A bundle delete that removed some of its files and not others (FD-D-16). */
+    fun partialDeleteMessage(fileName: String, deletedCount: Int, totalCount: Int): String =
+        "Deleted $deletedCount of $totalCount files of $fileName"
+
     fun ratingNotWrittenMessage(fileName: String, reason: String?): String =
         "Rating kept in the app only — not saved to $fileName" + if (reason.isNullOrBlank()) "" else " ($reason)"
 

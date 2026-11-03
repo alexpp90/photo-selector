@@ -1,5 +1,7 @@
 package com.photoselectortoolbox.domain.curation
 
+import com.photoselectortoolbox.domain.format.ImageFormats
+
 /**
  * A deletion the photographer can still take back.
  *
@@ -30,6 +32,31 @@ data class PendingDeletion(
  * Android in it.
  */
 object DeferredDeletion {
+
+    /**
+     * What is left of [pending] after a commit in which the files in [failed] could not be
+     * deleted (FD-D-16): each frame rebuilt from its surviving files, or null when no frame keeps
+     * a photo. A frame whose primary is gone is led by its first surviving image (a RAW twin, an
+     * `-Edit`); one left with sidecars only is not a photo and stays out of the list.
+     */
+    fun survivors(pending: PendingDeletion, failed: Set<String>): PendingDeletion? {
+        val slots = pending.slots.mapNotNull { slot ->
+            val left = slot.image.allFiles.filter { it.uri in failed }
+            val primary = left.firstOrNull { it.uri == slot.image.uri }
+                ?: left.firstOrNull { ImageFormats.isSupported(it.fileName) }
+                ?: return@mapNotNull null
+            val image = slot.image.copy(
+                uri = primary.uri,
+                fileName = primary.fileName,
+                fileSize = primary.fileSize,
+                lastModified = primary.lastModified,
+                mimeType = primary.mimeType,
+                companions = left.filter { it !== primary },
+            )
+            slot.copy(image = image)
+        }
+        return if (slots.isEmpty()) null else pending.copy(slots = slots)
+    }
 
     /**
      * Remove [uris] from the list and hold them pending.

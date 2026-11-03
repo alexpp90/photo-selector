@@ -19,6 +19,9 @@ interface ScoreDao {
     @Query("DELETE FROM scores_cache")
     suspend fun deleteAll()
 
+    @Query("DELETE FROM scores_cache WHERE filePath = :filePath")
+    suspend fun deleteScore(filePath: String)
+
     @Query(
         """
         DELETE FROM scores_cache WHERE filePath NOT IN (

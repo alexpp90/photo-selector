@@ -1405,6 +1405,68 @@ class SelectorViewModelTest {
     }
 
     @Test
+    fun `a committed delete drops the cached data of every deleted file and nothing else`() = runTest {
+        val viewModel = loadFolder(image("a.jpg"), image("b.jpg"))
+        viewModel.deleteCurrentImage()
+
+        viewModel.selectFolder(Uri.parse(OTHER_FOLDER_URI))
+
+        coVerify(exactly = 1) { cacheRepository.forgetDeletedFile("content://test/folder/a.jpg") }
+        coVerify(exactly = 0) { cacheRepository.forgetDeletedFile("content://test/folder/b.jpg") }
+    }
+
+    @Test
+    fun `a bundle delete that removed some files restores what is left and says how many went`() = runTest {
+        val bundle = ImageItem(
+            uri = "content://test/folder/DSC_1.JPG",
+            fileName = "DSC_1.JPG",
+            fileSize = 1,
+            lastModified = nextModified(),
+            mimeType = "image/jpeg",
+            companions = listOf(
+                com.photoselectortoolbox.data.model.CompanionFile(uri = "content://test/folder/DSC_1.ARW", fileName = "DSC_1.ARW"),
+            ),
+        )
+        coEvery { imageRepository.deleteImage(any(), Uri.parse("content://test/folder/DSC_1.JPG")) } returns true
+        coEvery { imageRepository.deleteImage(any(), Uri.parse("content://test/folder/DSC_1.ARW")) } returns false
+        val items = listOf(bundle) + (2..21).map { image("img_$it.jpg") }
+        val viewModel = loadFolder(*items.toTypedArray())
+
+        // 21 deletes: the bundle is evicted and committed while its folder is still open.
+        repeat(21) { viewModel.deleteCurrentImage() }
+
+        val state = viewModel.uiState.value
+        val back = state.images.single { it.fileName == "DSC_1.ARW" }
+        assertEquals("content://test/folder/DSC_1.ARW", back.uri)
+        assertTrue(back.companions.isEmpty())
+        assertTrue(state.images.none { it.uri == "content://test/folder/DSC_1.JPG" })
+        assertEquals("Deleted 1 of 2 files of DSC_1.JPG", state.snackbarMessage)
+        coVerify(exactly = 1) { cacheRepository.forgetDeletedFile("content://test/folder/DSC_1.JPG") }
+        coVerify(exactly = 0) { cacheRepository.forgetDeletedFile("content://test/folder/DSC_1.ARW") }
+    }
+
+    @Test
+    fun `a commit that overtakes a slow journal add still leaves the journal empty`() = runTest {
+        val journal = mutableSetOf<String>()
+        val addGate = CompletableDeferred<Unit>()
+        coEvery { settingsRepository.addPendingDeletes(any()) } coAnswers {
+            addGate.await()
+            journal += firstArg<Collection<String>>()
+        }
+        coEvery { settingsRepository.removePendingDeletes(any()) } coAnswers {
+            journal -= firstArg<Collection<String>>().toSet()
+        }
+        val viewModel = loadFolder(image("a.jpg"), image("b.jpg"))
+
+        viewModel.deleteCurrentImage()
+        // Leave at once: the commit deletes the file while the journal add is still in flight.
+        viewModel.selectFolder(Uri.parse(OTHER_FOLDER_URI))
+        addGate.complete(Unit)
+
+        assertTrue("journal must not keep a deleted file: $journal", journal.isEmpty())
+    }
+
+    @Test
     fun `non-empty pendingDeleteJournal on startup exposes prompt and confirm or keep clears journal`() = runTest {
         val orphanUri = "content://test/folder/orphan.jpg"
         pendingDeleteJournalFlow.value = setOf(orphanUri)
