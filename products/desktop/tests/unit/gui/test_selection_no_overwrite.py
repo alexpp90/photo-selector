@@ -12,6 +12,9 @@ from unittest.mock import MagicMock, patch
 import pytest
 
 
+pytestmark = pytest.mark.requirement("REQ-DESK-VIEW.07")
+
+
 @pytest.fixture
 def tk_root():
     """SharpnessTool builds Tk variables; give it a root instead of relying on earlier tests."""
