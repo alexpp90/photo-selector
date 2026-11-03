@@ -1,3 +1,4 @@
+import argparse
 import os
 import sys
 import shutil
@@ -203,7 +204,7 @@ def setup_exiftool():
 
     print(f"Exiftool setup complete in {BIN_DIR}")
 
-def run_pyinstaller(target):
+def run_pyinstaller(target, dry_run=False):
     sep = ";" if platform.system() == "Windows" else ":"
     src_data = "src/photo_selector_toolbox/bin"
     dst_data = "."
@@ -261,6 +262,8 @@ def run_pyinstaller(target):
         cmd.append("src/photo_selector_toolbox/cli.py")
 
     print(f"Running: {' '.join(cmd)}")
+    if dry_run:
+        return
     subprocess.run(cmd, check=True)
 
     # Add ad-hoc signing for macOS .app bundles
@@ -270,14 +273,37 @@ def run_pyinstaller(target):
             print(f"Signing {app_path} with ad-hoc signature...")
             subprocess.run(["codesign", "--force", "--deep", "--sign", "-", str(app_path)], check=True)
 
-def main():
-    setup_exiftool()
+def parse_args(argv=None):
+    parser = argparse.ArgumentParser(
+        description="Build the legacy Desktop CLI and GUI with PyInstaller and bundle ExifTool. "
+                    "Run from products/desktop (the CI working directory)."
+    )
+    parser.add_argument(
+        "--dry-run",
+        action="store_true",
+        help="print the ExifTool download and the PyInstaller commands without downloading, "
+             "building or writing anything",
+    )
+    return parser.parse_args(argv)
+
+
+def main(argv=None):
+    args = parse_args(argv)
+
+    if args.dry_run:
+        print(f"Dry run: would download ExifTool {EXIFTOOL_VERSION} into {BIN_DIR}")
+    else:
+        setup_exiftool()
 
     print("Building CLI...")
-    run_pyinstaller("analyzer")
+    run_pyinstaller("analyzer", dry_run=args.dry_run)
 
     print("Building GUI...")
-    run_pyinstaller("gui")
+    run_pyinstaller("gui", dry_run=args.dry_run)
+
+    if args.dry_run:
+        print("Dry run: nothing was built.")
+        return
 
     # Generate fresh notices
     try:
