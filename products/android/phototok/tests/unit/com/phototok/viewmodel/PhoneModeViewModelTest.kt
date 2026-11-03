@@ -1433,6 +1433,41 @@ class PhoneModeViewModelTest {
     }
 
     @Test
+    fun `swiping a derivative left deletes only that file and its own sidecars, never the original`() = runTest {
+        phoneSettingsFlow.value = PhoneSettings(
+            moveRelatedFiles = true,
+            fileTypeFilter = com.phototok.domain.FileTypeFilter.ALL,
+        )
+        val p = "content://tree/photos"
+        val xmps = arrayOf("IMG_1.xmp", "IMG_1.CR3.xmp", "IMG_1-Edit.xmp", "IMG_1-Edit.tif.xmp")
+        val edit = shot("IMG_1-Edit.tif", p, *xmps).copy(lastModified = 40)
+        val raw = shot("IMG_1.CR3", p, *xmps).copy(lastModified = 30)
+        val jpg = shot("IMG_1.JPG", p, *xmps).copy(lastModified = 20)
+        val other = shot("IMG_2.CR3", p).copy(lastModified = 10)
+        coEvery { imageRepository.deleteImage(any()) } returns true
+        val viewModel = loadFolder(edit, raw, jpg, other)
+        assertEquals("IMG_1-Edit.tif", viewModel.uiState.value.images[viewModel.uiState.value.currentIndex].fileName)
+
+        viewModel.requestDelete()
+        val journaled = slot<Set<String>>()
+        coVerify { settingsRepository.setPersistedPendingDeleteUris(capture(journaled)) }
+        assertEquals(
+            setOf("IMG_1-Edit.tif", "IMG_1-Edit.xmp", "IMG_1-Edit.tif.xmp").map { "$p/$it" }.toSet(),
+            journaled.captured,
+        )
+        viewModel.finalizePendingDelete()
+        advanceUntilIdle()
+
+        for (name in listOf("IMG_1-Edit.tif", "IMG_1-Edit.xmp", "IMG_1-Edit.tif.xmp")) {
+            coVerify(exactly = 1) { imageRepository.deleteImage(Uri.parse("$p/$name")) }
+        }
+        for (name in listOf("IMG_1.CR3", "IMG_1.JPG", "IMG_1.xmp", "IMG_1.CR3.xmp", "IMG_2.CR3")) {
+            coVerify(exactly = 0) { imageRepository.deleteImage(Uri.parse("$p/$name")) }
+        }
+        assertEquals(listOf("IMG_1.CR3", "IMG_1.JPG", "IMG_2.CR3"), viewModel.uiState.value.allImages.map { it.fileName })
+    }
+
+    @Test
     fun `a linked move takes the sidecars too and sidecars never enter the feed`() = runTest {
         phoneSettingsFlow.value = PhoneSettings(
             collectionAction = CollectionAction.MOVE,

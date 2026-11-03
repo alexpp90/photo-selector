@@ -32,6 +32,14 @@ object CompanionFiles {
         return (if (suffix != null) base.dropLast(suffix.length) else base).lowercase()
     }
 
+    /**
+     * True when [sidecarName] is the sidecar of exactly this photo: `IMG_1-Edit.xmp` and
+     * `IMG_1-Edit.tif.xmp` belong to `IMG_1-Edit.tif`, whereas `IMG_1.xmp` belongs to the original
+     * `IMG_1.CR3` even though discovery attaches it to the whole shot.
+     */
+    fun isOwnSidecar(photoName: String, sidecarName: String): Boolean =
+        isSidecar(sidecarName) && baseStem(sidecarName).equals(baseStem(photoName), ignoreCase = true)
+
     private fun derivativeSuffixOf(base: String): String? =
         DERIVATIVE_SUFFIXES.firstOrNull { base.length > it.length && base.endsWith(it, ignoreCase = true) }
 

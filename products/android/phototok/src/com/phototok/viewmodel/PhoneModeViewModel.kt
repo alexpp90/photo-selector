@@ -1642,7 +1642,11 @@ class PhoneModeViewModel @Inject constructor(
         val state = _uiState.value
         if (state.images.isEmpty()) return
         val imageToDelete = state.images[state.currentIndex]
-        val related = if (state.moveRelatedFiles) relatedImages(imageToDelete) else emptyList()
+        val related = if (state.moveRelatedFiles) {
+            RelatedFiles.deleteBundleOf(state.allImages, imageToDelete)
+        } else {
+            emptyList()
+        }
 
         val pushResult = PendingDeleteLogic.pushRemove(
             images = state.images,
