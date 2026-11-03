@@ -839,7 +839,9 @@ class PhoneModeViewModel @Inject constructor(
         unseenFirstOrdering = !jumpToLatest
 
         try {
-            imageRepository.discoverImages(folderUri).collect { discovered ->
+            // A Pro user's own Selection folder name is output too, wherever the marker is or is not.
+            val outputNames = PhotoFolders.extraOutputNames(_uiState.value.selectionSubfolderName)
+            imageRepository.discoverImages(folderUri, outputNames).collect { discovered ->
                 publishBatch(discovered, config, targetUriToKeep)
             }
             // Enumeration finished:

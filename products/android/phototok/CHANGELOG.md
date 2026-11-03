@@ -7,6 +7,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 ## [Unreleased]
 
 ### Fixed
+- A stray `.photoselector-selection` marker file no longer hides a whole folder from the feed; the app's own output folders (Selection, Favourites, the Jackpix import folder and a Selection folder name you typed in Pro mode) are skipped by name.
 - Swiping in big folders is smoother: marking a photo as seen and the review statistics are written in the background, the "seen" counter no longer re-checks the whole folder on every swipe, and folders with many photos no longer re-check them all for each batch while opening. The statistics file is now written safely (a kill mid-write can no longer reset the lifetime totals).
 - "Copy favourites to folder…" now copies each favourite with its linked files (RAW or JPEG twin, edited copies, `.xmp` sidecars) under one shared name, so a second run keeps the pairs paired, and it keeps going when you close the viewer. Before it copied single files, so sidecars were left behind and a RAW and its JPEG could get different suffixes.
 - Copy and move feedback no longer says "Copied as 123" after every copy into a provider (Google Drive, some camera and media providers) whose file ids are not file names; it shows the plain "Copied to …" message unless the new name is certain.

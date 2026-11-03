@@ -256,5 +256,39 @@ class LocalImageSourceDiscoveryTest {
         assertEquals(SelectionListing.Missing, source.listSelectionImages(treeUri, "Selection"))
         assertEquals(SelectionListing.Missing, source.listSelectionImages(treeUri, "Keepers"))
     }
+
+    @Test
+    fun `a stray Selection marker does not hide the photos of a source folder`() = runTest {
+        tree = mapOf(
+            ROOT to listOf(Row("t", "Trips", DIR), Row("a", "a.jpg", "image/jpeg")),
+            "t" to listOf(
+                Row("m", LocalImageSourceImpl.SELECTION_MARKER_FILE, "application/octet-stream"),
+                Row("t1", "trip1.jpg", "image/jpeg"),
+            ),
+        )
+
+        val images = source.discoverImages(treeUri).toList().last()
+
+        assertEquals(listOf("a.jpg", "trip1.jpg"), images.map { it.fileName }.sorted())
+    }
+
+    @Test
+    fun `the output folders of the app are skipped by name, a copy of favourites included`() = runTest {
+        tree = mapOf(
+            ROOT to listOf(Row("f", "Favourites", DIR), Row("k", "Keepers", DIR), Row("a", "a.jpg", "image/jpeg")),
+            "f" to listOf(Row("f1", "fav.jpg", "image/jpeg")),
+            "k" to listOf(Row("k1", "keep.jpg", "image/jpeg")),
+        )
+
+        assertEquals(
+            "Keepers is a user's folder until the caller names it as output",
+            listOf("a.jpg", "keep.jpg"),
+            source.discoverImages(treeUri).toList().last().map { it.fileName }.sorted(),
+        )
+        assertEquals(
+            listOf("a.jpg"),
+            source.discoverImages(treeUri, setOf("Keepers")).toList().last().map { it.fileName },
+        )
+    }
 }
 

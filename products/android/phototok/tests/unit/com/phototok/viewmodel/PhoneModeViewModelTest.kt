@@ -2268,7 +2268,10 @@ class PhoneModeViewModelTest {
         coEvery { imageRepository.moveImageDetailed(any(), any(), any(), any()) } coAnswers {
             FileOperationResult.success(firstArg<Uri>().toString(), null)
         }
-        val viewModel = loadFolder(image("a.jpg", 40), image("b.jpg", 30), image("c.jpg", 20))
+        every { imageRepository.discoverImages(any(), any(), any()) } returns
+            flowOf(listOf(image("a.jpg", 40), image("b.jpg", 30), image("c.jpg", 20)))
+        val viewModel = buildViewModel()
+        viewModel.selectSourceFolder(Uri.parse("content://tree/photos"))
         assertEquals("Keepers", viewModel.uiState.value.selectionSubfolderName)
 
         viewModel.addToCollection()
@@ -2389,6 +2392,27 @@ class PhoneModeViewModelTest {
         assertEquals(30, viewModel.uiState.value.images.size)
 
         io.mockk.verify(exactly = 0) { seen.filterSeenUris(any(), any()) }
+    }
+
+    @Test
+    fun `a Pro user's own Selection folder is excluded from the scan by name`() = runTest {
+        every { settingsRepository.sourceSettingsFlow(any()) } returns
+            flowOf(SourceSettings(selectionSubfolder = "Keepers"))
+        every { imageRepository.discoverImages(any(), any(), any()) } returns flowOf(listOf(image("a.jpg", 10)))
+        val viewModel = buildViewModel()
+
+        viewModel.selectSourceFolder(Uri.parse("content://tree/photos"))
+        advanceUntilIdle()
+
+        io.mockk.verify { imageRepository.discoverImages(Uri.parse("content://tree/photos"), setOf("Keepers"), false) }
+    }
+
+    @Test
+    fun `the default Selection folder needs no extra exclusion`() {
+        assertEquals(emptySet<String>(), PhotoFolders.extraOutputNames("Selection"))
+        assertEquals(emptySet<String>(), PhotoFolders.extraOutputNames("  selection "))
+        assertEquals(setOf("Keepers"), PhotoFolders.extraOutputNames(" Keepers "))
+        assertEquals(emptySet<String>(), PhotoFolders.extraOutputNames(""))
     }
 
     @Test
