@@ -31,7 +31,7 @@ interface CacheRepository {
     suspend fun updateCompositionAnalysis(filePath: String, analysis: String?)
 }
 
-private const val DEFAULT_CACHE_LIMIT = 10_000
+private const val DEFAULT_CACHE_LIMIT = ScoreDao.MRU_LIMIT
 internal const val SQLITE_BIND_CHUNK_SIZE = ScoreDao.SQLITE_MAX_BIND_PARAMS
 
 @Singleton
@@ -75,6 +75,7 @@ class CacheRepositoryImpl @Inject constructor(
         if (count > limit) {
             scoreDao.pruneToMru(limit)
         }
+        scoreDao.deleteTechniqueFactsWithoutScore()
     }
 
     override suspend fun updateRating(filePath: String, rating: Int) {
