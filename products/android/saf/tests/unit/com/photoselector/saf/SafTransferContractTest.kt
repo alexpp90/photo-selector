@@ -547,6 +547,33 @@ abstract class SafTransferContractTest(policy: SafTransferPolicy) : SafTestHarne
         assertEquals(listOf("Selection"), rootDir.list()!!.filter { it.startsWith("Selection") }.sorted())
     }
 
+    // B-AD-2: two spellings of one tree share one destination lock.
+    @Test
+    fun `concurrent transfers into one tree named by two spellings of its URI still get distinct names`() {
+        engine.ioDispatcher = Dispatchers.IO
+        FakeSafDocumentsProvider.createDelayMs = 150L
+        File(rootDir, "dayA").mkdirs(); File(rootDir, "dayA/IMG_0101.JPG").writeText("payload-A")
+        File(rootDir, "dayB").mkdirs(); File(rootDir, "dayB/IMG_0101.JPG").writeText("payload-B")
+        val spelledWithSlash = Uri.parse(treeUri.toString() + "/")
+
+        val results = kotlinx.coroutines.runBlocking {
+            val a = async(Dispatchers.IO) {
+                engine.transferBundle(storage, listOf(documentUriFor("dayA/IMG_0101.JPG")), selection(), true, false)
+            }
+            val b = async(Dispatchers.IO) {
+                engine.transferBundle(
+                    storage, listOf(documentUriFor("dayB/IMG_0101.JPG")), selection(root = spelledWithSlash), true, false,
+                )
+            }
+            a.await() + b.await()
+        }
+
+        assertTrue(results.all { it.success })
+        val jpeg = File(rootDir, "Selection/JPEG").list()!!.sorted()
+        assertEquals(listOf("IMG_0101-2.JPG", "IMG_0101.JPG"), jpeg)
+        assertEquals(setOf("payload-A", "payload-B"), jpeg.map { File(rootDir, "Selection/JPEG/$it").readText() }.toSet())
+    }
+
     // ── Provider seam ────────────────────────────────────────────────────
 
     @Test

@@ -110,7 +110,7 @@ class SafTransferEngine(
                 FileOperationResult.failure(uri.toString(), error, parentDocumentId)
             }
             try {
-                destinationLockFor(destination.rootUri.toString()).withLock {
+                destinationLockFor(FolderAccessManager.canonicalUri(destination.rootUri.toString())).withLock {
                     val destRoot = storage.treeDocument(destination.rootUri)
                         ?: return@withContext failAll(
                             unresolvedSourceError ?: "Could not write to the ${destination.folderName} folder",
@@ -243,68 +243,72 @@ class SafTransferEngine(
             // record shrinks with them and a retry does not meet a copy that is already gone (AS-D-4).
             val deletedCopyUris = ArrayList<String>()
             try {
-                val deletableCopies = copiesOfSurvivingOriginals.filter { (_, original) ->
-                    storage.singleDocument(Uri.parse(original))?.exists() == true
-                }.keys
-                var deleteFailed: String? = null
-                // Not cancellable between two copies: the results of the deleted ones must come back.
-                withContext(NonCancellable) {
-                    deletableCopies.forEach { copyUri ->
-                        val copy = Uri.parse(copyUri)
-                        // A copy a previous attempt already deleted counts as deleted.
-                        if (delete(storage, copy) || storage.singleDocument(copy)?.exists() != true) {
-                            deletedCopyUris += copyUri
-                        } else if (deleteFailed == null) {
-                            deleteFailed = copyUri
+                // Restoring writes into the same tree that transfers are serialised on: an undo racing
+                // a move or another undo would pick the same free name (B-AD-2).
+                destinationLockFor(FolderAccessManager.canonicalUri(rootFolderUri.toString())).withLock {
+                    val deletableCopies = copiesOfSurvivingOriginals.filter { (_, original) ->
+                        storage.singleDocument(Uri.parse(original))?.exists() == true
+                    }.keys
+                    var deleteFailed: String? = null
+                    // Not cancellable between two copies: the results of the deleted ones must come back.
+                    withContext(NonCancellable) {
+                        deletableCopies.forEach { copyUri ->
+                            val copy = Uri.parse(copyUri)
+                            // A copy a previous attempt already deleted counts as deleted.
+                            if (delete(storage, copy) || storage.singleDocument(copy)?.exists() != true) {
+                                deletedCopyUris += copyUri
+                            } else if (deleteFailed == null) {
+                                deleteFailed = copyUri
+                            }
                         }
                     }
-                }
-                deleteFailed?.let {
-                    return@withContext FileOperationResult.failure(
-                        sourceUri = it,
-                        error = "Could not delete the copy in the destination folder",
+                    deleteFailed?.let {
+                        return@withContext FileOperationResult.failure(
+                            sourceUri = it,
+                            error = "Could not delete the copy in the destination folder",
+                            parentDocumentId = parentDocumentId,
+                        ).copy(deletedCopies = deletedCopyUris.toList())
+                    }
+                    val toRestore = destinationUris.filterNot { it in deletableCopies }
+                    if (toRestore.isEmpty()) {
+                        return@withContext FileOperationResult.success(
+                            sourceUri = primarySource,
+                            destinationUri = null,
+                            destinationUris = emptyList(),
+                            parentDocumentId = parentDocumentId,
+                        ).copy(deletedCopies = deletedCopyUris.toList())
+                    }
+                    val restore = resolveRestoreFolder(storage, rootFolderUri, parentDocumentId)
+                        ?: return@withContext FileOperationResult.failure(
+                            sourceUri = primarySource,
+                            error = "Could not resolve the original folder",
+                            parentDocumentId = parentDocumentId,
+                        ).copy(deletedCopies = deletedCopyUris.toList())
+                    val restoreFolder = restore.folder
+                    val results = executeAllOrNothing(
+                        storage = storage,
+                        sourceUris = toRestore.map { Uri.parse(it) },
+                        treeRootUri = rootFolderUri,
+                        baseTargetFolder = restoreFolder,
+                        sorting = false,
+                        targetFolderLabel = restoreFolder.name ?: "original folder",
+                        isMove = true,
                         parentDocumentId = parentDocumentId,
-                    ).copy(deletedCopies = deletedCopyUris.toList())
-                }
-                val toRestore = destinationUris.filterNot { it in deletableCopies }
-                if (toRestore.isEmpty()) {
-                    return@withContext FileOperationResult.success(
-                        sourceUri = primarySource,
-                        destinationUri = null,
-                        destinationUris = emptyList(),
-                        parentDocumentId = parentDocumentId,
-                    ).copy(deletedCopies = deletedCopyUris.toList())
-                }
-                val restore = resolveRestoreFolder(storage, rootFolderUri, parentDocumentId)
-                    ?: return@withContext FileOperationResult.failure(
-                        sourceUri = primarySource,
-                        error = "Could not resolve the original folder",
-                        parentDocumentId = parentDocumentId,
-                    ).copy(deletedCopies = deletedCopyUris.toList())
-                val restoreFolder = restore.folder
-                val results = executeAllOrNothing(
-                    storage = storage,
-                    sourceUris = toRestore.map { Uri.parse(it) },
-                    treeRootUri = rootFolderUri,
-                    baseTargetFolder = restoreFolder,
-                    sorting = false,
-                    targetFolderLabel = restoreFolder.name ?: "original folder",
-                    isMove = true,
-                    parentDocumentId = parentDocumentId,
-                    unresolvedSourceError = null,
-                )
-                val aggregated = aggregateBundleResults(
-                    primarySourceUri = primarySource,
-                    results = results,
-                    parentDocumentId = parentDocumentId,
-                )
-                if (restore.fellBackToRoot && aggregated.success) {
-                    aggregated.copy(
-                        notice = "Restored to the opened folder — the original folder no longer exists",
-                        deletedCopies = deletedCopyUris.toList(),
+                        unresolvedSourceError = null,
                     )
-                } else {
-                    aggregated.copy(deletedCopies = deletedCopyUris.toList())
+                    val aggregated = aggregateBundleResults(
+                        primarySourceUri = primarySource,
+                        results = results,
+                        parentDocumentId = parentDocumentId,
+                    )
+                    if (restore.fellBackToRoot && aggregated.success) {
+                        aggregated.copy(
+                            notice = "Restored to the opened folder — the original folder no longer exists",
+                            deletedCopies = deletedCopyUris.toList(),
+                        )
+                    } else {
+                        aggregated.copy(deletedCopies = deletedCopyUris.toList())
+                    }
                 }
             } catch (e: CancellationException) {
                 throw e

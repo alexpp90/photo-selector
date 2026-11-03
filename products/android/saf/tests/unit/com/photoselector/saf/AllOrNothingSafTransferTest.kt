@@ -2,6 +2,7 @@ package com.photoselector.saf
 
 import java.io.File
 import kotlinx.coroutines.ExperimentalCoroutinesApi
+import kotlinx.coroutines.async
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.test.advanceUntilIdle
 import kotlinx.coroutines.test.runTest
@@ -310,6 +311,30 @@ class AllOrNothingSafTransferTest : SafTransferContractTest(ALL_OR_NOTHING_POLIC
         assertFalse(File(rootDir, "Selection/RAW/IMG_0047.CR3").exists())
         names.forEach { assertEquals("payload-$it", File(rootDir, "sub/day7/$it").readText()) }
         assertEquals(setOf("IMG_0047.CR3", "IMG_0047.JPG"), File(rootDir, "sub/day7").list()!!.toSet())
+    }
+
+    // B-AD-2: undo takes the destination lock, so two undos into one folder pick distinct names.
+    @Test
+    fun `two concurrent undos into one folder restore under distinct names`() {
+        engine.ioDispatcher = kotlinx.coroutines.Dispatchers.IO
+        File(rootDir, "filedA").mkdirs(); File(rootDir, "filedA/IMG_0440.JPG").writeText("payload-A")
+        File(rootDir, "filedB").mkdirs(); File(rootDir, "filedB/IMG_0440.JPG").writeText("payload-B")
+        FakeSafDocumentsProvider.createDelayMs = 150L
+
+        val results = kotlinx.coroutines.runBlocking {
+            listOf("filedA", "filedB").map { dir ->
+                async(kotlinx.coroutines.Dispatchers.IO) {
+                    engine.undoMoveBundle(storage, listOf(documentUriFor("$dir/IMG_0440.JPG").toString()), treeUri, null)
+                }
+            }.map { it.await() }
+        }
+
+        assertTrue(results.joinToString { it.error.orEmpty() }, results.all { it.success })
+        assertEquals(setOf("IMG_0440-2.JPG", "IMG_0440.JPG"), rootDir.list()!!.filter { it.startsWith("IMG_0440") }.toSet())
+        assertEquals(
+            setOf("payload-A", "payload-B"),
+            rootDir.list()!!.filter { it.startsWith("IMG_0440") }.map { File(rootDir, it).readText() }.toSet(),
+        )
     }
 
     // ── B-4 / D-4: restore-folder resolution with opaque document ids ────
