@@ -7,11 +7,16 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 ## [Unreleased]
 
 ### Added
+- **Casual and Pro mode.** A new install starts in Casual mode: swipe fast with nothing to set up. Swipe right marks a ★ favourite on the phone, RAW + JPEG pairs show as one photo, there is no camera info, and Settings shows only the basics. The **Pro mode** switch below the three sources on the start screen (its help button lists what it adds) and at the top of Settings brings back camera info, swipe actions, folders, the Selection folder, feed order, format filter, RAW + JPEG linking and source profiles. Switching Pro off pauses these settings without erasing them; switching it back on restores them exactly.
+- Casual mode on an SD card or camera: swipe right copies the photo (with its RAW or JPEG twin) into the phone's camera folder, subfolder `Jackpix`. The first time, the system picker asks for access to `DCIM/Camera`; if you cancel, the photo stays on the card and the app says "Not copied". Pro mode keeps the card's own `Selection` folder.
+- The delete confirmation has a **Don't ask** checkbox: tick it and confirm to stop the prompt (the Settings row turns it back on). Cancel never turns it off. The confirmation stays on by default in both modes.
 - Favourites now reach Android (11 and later): Jackpix sets the system favourite flag for photos on the phone and on an indexed SD card, RAW+JPEG companions included, and clears it when you remove the favourite. The changes go out in batches when you leave the feed, switch folders, open the Selection viewer, or after 25 changes. Favourites set in another app show in Jackpix. Before, favourites never left Jackpix.
 - **Favourite** / **Remove favourite** in the long-press menu.
 - The favourite badge shows a filled star when the system has the favourite too, and an outlined star while it is only in Jackpix.
 
 ### Changed
+- Updating keeps your setup. Settings from every earlier version are carried over before the app first reads them, and an existing install that had changed a Pro setting, used camera info or an SD card starts in Pro mode, so nothing you set up disappears behind Casual mode.
+- Camera info and the (i) button exist only in Pro mode; the controls guide shows their callouts only there.
 - A favourite is recognised whichever folder you open the photo from (`DCIM` or `DCIM/Camera`, or the system's Images view). Existing favourites are kept.
 
 ### Fixed
