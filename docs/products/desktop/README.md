@@ -1,7 +1,7 @@
 # Desktop
 
-Python + Tkinter culling suite for macOS, Linux and Windows workstations. One of four independent
-products in the repository: it provides the CLI, statistics plots, duplicate finder and the only
+Python + Tkinter culling suite for macOS, Linux and Windows workstations. One of five independent
+products in the repository, and the archived one: it provides the CLI, statistics plots, duplicate finder and the only
 local-VLM aesthetic scoring.
 
 > [!WARNING]

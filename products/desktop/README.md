@@ -1,8 +1,8 @@
 # Desktop
 
-Python + Tkinter culling suite for macOS, Linux and Windows. The most complete of the three
-products: it has the CLI, the statistics plots, the duplicate finder and the only local-VLM
-aesthetic scoring.
+Python + Tkinter culling suite for macOS, Linux and Windows. **Archived**: the native apps
+(Lensjet, Blitzlens) replace it, and it is kept buildable, installable and documented, with no new
+features. It has the CLI, the statistics plots, the duplicate finder and local-VLM aesthetic scoring.
 
 ```
 products/desktop/
@@ -10,7 +10,7 @@ products/desktop/
   tests/                        conftest.py, unit/{core,exif,tools,gui}/, visual/
   benchmarks/
   scripts/                      build.py, generate_notices.py,
-                                update_formula.py, install-{mac,linux}.sh
+                                update_formula.py
   pyproject.toml  poetry.lock  .flake8
 ```
 
