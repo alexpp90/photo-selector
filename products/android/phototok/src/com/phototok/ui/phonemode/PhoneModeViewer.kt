@@ -190,6 +190,8 @@ fun PhoneModeViewer(
     /** Long-press "Favourite" / "Remove favourite"; null hides the item (read-only viewers). */
     onToggleFavourite: (() -> Unit)? = null,
     onFirstRunHint: (FirstRunHint) -> Unit = {},
+    /** The file details opened for the current photo: the feed does not measure photos by default. */
+    onFileDetailsOpened: () -> Unit = {},
     /**
      * False while a swipe right cannot copy yet (a Casual card import still waiting for the phone's
      * camera folder grant): the card snaps back and no "copied" flash is played for nothing.
@@ -478,12 +480,15 @@ fun PhoneModeViewer(
         }
 
         if (showFileDetailsDialog && currentImage != null) {
+            LaunchedEffect(currentImage.uri) { onFileDetailsOpened() }
             AlertDialog(
                 onDismissRequest = { showFileDetailsDialog = false },
                 title = { Text(currentImage.fileName) },
                 text = {
                     Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                        Text(stringResource(R.string.label_resolution, currentImage.imageWidth, currentImage.imageHeight))
+                        if (currentImage.imageWidth > 0 && currentImage.imageHeight > 0) {
+                            Text(stringResource(R.string.label_resolution, currentImage.imageWidth, currentImage.imageHeight))
+                        }
                         Text(stringResource(R.string.label_file_size, currentImage.fileSize / 1024))
                         currentImage.mimeType?.let { Text(it) }
                         if (currentImage.uri in rawCompanionUris) {

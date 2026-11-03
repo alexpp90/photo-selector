@@ -1185,6 +1185,75 @@ class PhoneModeViewModelTest {
         assertEquals(1, viewModel.uiState.value.portraitSectionStart)
     }
 
+    private fun unmeasured(name: String, modified: Long) = image(name, modified).copy(imageWidth = 0, imageHeight = 0)
+
+    @Test
+    fun `a dimension read that is cancelled by the restart is read again, not marked resolved`() = runTest {
+        phoneSettingsFlow.value = phoneSettingsFlow.value.copy(sortByOrientation = true, randomizeOrder = false)
+        val a = unmeasured("a.jpg", 30)
+        val b = unmeasured("b.jpg", 20)
+        val gate = CompletableDeferred<Pair<Int, Int>>()
+        var readsOfA = 0
+        coEvery { imageRepository.getImageDimensions(Uri.parse(a.uri)) } coAnswers {
+            if (readsOfA++ == 0) gate.await() else Pair(4000, 3000)
+        }
+        coEvery { imageRepository.getImageDimensions(Uri.parse(b.uri)) } returns Pair(4000, 3000)
+        val finish = CompletableDeferred<Unit>()
+        every { imageRepository.discoverImages(any()) } returns kotlinx.coroutines.flow.flow {
+            emit(listOf(a, b))
+            finish.await()
+        }
+        val viewModel = buildViewModel()
+        viewModel.selectSourceFolder(Uri.parse("content://tree/photos"))
+        advanceUntilIdle()
+        assertEquals("the first read of a is still pending", 1, readsOfA)
+
+        finish.complete(Unit) // the end of discovery restarts the dimension pass and cancels the pending read
+        advanceUntilIdle()
+
+        assertEquals("a was read again after the restart", 2, readsOfA)
+        val images = viewModel.uiState.value.images
+        assertEquals(listOf(4000, 4000), images.map { it.imageWidth })
+    }
+
+    @Test
+    fun `the default feed opens no photo to measure it`() = runTest {
+        val viewModel = loadFolder(unmeasured("a.jpg", 30), unmeasured("b.jpg", 20), unmeasured("c.jpg", 10))
+        advanceUntilIdle()
+
+        coVerify(exactly = 0) { imageRepository.getImageDimensions(any()) }
+        assertEquals(3, viewModel.uiState.value.images.size)
+    }
+
+    @Test
+    fun `the file details measure only the photo they show`() = runTest {
+        coEvery { imageRepository.getImageDimensions(any()) } returns Pair(4000, 3000)
+        val viewModel = loadFolder(unmeasured("a.jpg", 30), unmeasured("b.jpg", 20), unmeasured("c.jpg", 10))
+        advanceUntilIdle()
+
+        viewModel.loadDimensionsOfCurrent()
+        advanceUntilIdle()
+
+        val state = viewModel.uiState.value
+        assertEquals(4000, state.images[state.currentIndex].imageWidth)
+        assertEquals(listOf(4000, 0, 0), state.images.map { it.imageWidth })
+        coVerify(exactly = 1) { imageRepository.getImageDimensions(any()) }
+    }
+
+    @Test
+    fun `turning landscape first on measures the folder then`() = runTest {
+        coEvery { imageRepository.getImageDimensions(any()) } returns Pair(4000, 3000)
+        val viewModel = loadFolder(unmeasured("a.jpg", 30), unmeasured("b.jpg", 20))
+        advanceUntilIdle()
+        coVerify(exactly = 0) { imageRepository.getImageDimensions(any()) }
+
+        phoneSettingsFlow.value = phoneSettingsFlow.value.copy(sortByOrientation = true)
+        advanceUntilIdle()
+
+        coVerify(exactly = 2) { imageRepository.getImageDimensions(any()) }
+        assertEquals(listOf(4000, 4000), viewModel.uiState.value.images.map { it.imageWidth })
+    }
+
     @Test
     fun `scrolling through feed does not finalize pending delete`() = runTest {
         val viewModel = loadFolder(image("a.jpg", 3), image("b.jpg", 2), image("c.jpg", 1))

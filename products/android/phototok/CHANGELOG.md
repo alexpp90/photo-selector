@@ -7,6 +7,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 ## [Unreleased]
 
 ### Fixed
+- Jackpix no longer opens every photo of a folder in the background to measure it. Only Pro mode's landscape-first order needs that; the file details measure just the photo they show. Before, a 20 000-photo card meant 20 000 background file opens in every mode. A photo whose size read was interrupted by a restart of the pass is now measured again instead of staying at 0 × 0.
 - A favourite now follows its photo when you move it to the Selection folder (and a copy of a favourite is a favourite too). Before, moving a favourite silently dropped the star.
 - Photos you had swiped left (not yet deleted) when the app was killed are simply still in their folder at the next start; the folder's access is released then instead of staying pinned for good, which could exhaust Android's limit on remembered folders over time.
 - The "N copied" count on the "Done with this card" sheet now survives the app being closed or killed; before, it restarted from 0, next to the warning that photos not copied off the card are lost.

@@ -1115,6 +1115,8 @@ class PhoneModeViewModel @Inject constructor(
                     currentIndex = newIndex,
                 )
             }
+            // Landscape first needs every photo's shape; a pass that is already running carries on.
+            loadDimensionsAsynchronously()
         }
     }
 
@@ -2500,7 +2502,13 @@ class PhoneModeViewModel @Inject constructor(
         }
     }
 
+    /**
+     * Read the dimensions of the feed in the background, nearest photos first. Only "landscape
+     * first" ordering needs them for the whole folder (everything else reads one photo's size when
+     * its details are opened, see [loadDimensionsOfCurrent]), and each read opens the file.
+     */
     private fun loadDimensionsAsynchronously(force: Boolean = false) {
+        if (!_uiState.value.sortByOrientation) return
         if (!force && dimensionsJob?.isActive == true) return
         dimensionsJob?.cancel()
         dimensionsJob = viewModelScope.launch {
@@ -2515,6 +2523,9 @@ class PhoneModeViewModel @Inject constructor(
                 if (image.imageWidth == 0 && image.imageHeight == 0) {
                     val (w, h) = try {
                         imageRepository.getImageDimensions(Uri.parse(image.uri))
+                    } catch (e: CancellationException) {
+                        // A restarted pass reads this photo again: it must not count as resolved.
+                        throw e
                     } catch (e: Exception) {
                         Pair(0, 0)
                     }
@@ -2531,6 +2542,23 @@ class PhoneModeViewModel @Inject constructor(
             if (batch.isNotEmpty()) {
                 applyDimensions(batch.toMap())
             }
+        }
+    }
+
+    /** Read the size of the photo on screen, for its details (the folder-wide pass is off by default). */
+    fun loadDimensionsOfCurrent() {
+        val state = _uiState.value
+        val image = state.images.getOrNull(state.currentIndex) ?: return
+        if (image.imageWidth > 0 || image.imageHeight > 0) return
+        viewModelScope.launch {
+            val (w, h) = try {
+                imageRepository.getImageDimensions(Uri.parse(image.uri))
+            } catch (e: CancellationException) {
+                throw e
+            } catch (e: Exception) {
+                return@launch
+            }
+            if (w > 0 && h > 0) applyDimensions(mapOf(image.uri to Pair(w, h)))
         }
     }
 

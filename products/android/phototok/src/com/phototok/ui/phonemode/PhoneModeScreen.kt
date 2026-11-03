@@ -497,6 +497,7 @@ fun PhoneModeScreen(
                             viewModel.buildCurrentOpenWithIntent()?.let { context.startActivity(it) }
                         },
                         onFirstRunHint = viewModel::maybeShowFirstRunHint,
+                        onFileDetailsOpened = viewModel::loadDimensionsOfCurrent,
                         collectionReady = collectionReady,
                     )
                 }
@@ -593,6 +594,7 @@ fun PhoneModeScreen(
                     },
                     onToggleFavourite = viewModel::toggleCurrentFavourite,
                     onFirstRunHint = viewModel::maybeShowFirstRunHint,
+                    onFileDetailsOpened = viewModel::loadDimensionsOfCurrent,
                     collectionReady = collectionReady,
                 )
             } else if (uiState.isLoading) {
