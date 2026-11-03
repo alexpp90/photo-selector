@@ -394,6 +394,8 @@ if $run_python; then
     if prepare_python_env "products/desktop" "$ROOT_DIR/products/desktop" "desktop.yml:test" \
             "$DESKTOP_ENV_REMEDY" "${DESKTOP_ENV_MODULES[@]}"; then
         DESKTOP_VENV_BIN="$VENV_BIN"
+        # The verification record reports the interpreter that ran the gates, not `python3` on PATH.
+        export PST_GATE_PYTHON="$VENV_BIN/python"
         echo -e "${DIM}  environment: $VENV_BIN${NC}"
         pass "Python environment provisioned (products/desktop)" "desktop.yml:test"
         # ── flake8 ────────────────────────────────────────────────
@@ -643,6 +645,7 @@ if $run_linux; then
             LINUX_ENV_OK=false
         else
             LINUX_ENV_OK=true
+            export PST_GATE_PYTHON="${PST_GATE_PYTHON:-$VENV_BIN/python}"
             echo -e "${DIM}  environment: $VENV_BIN${NC}"
             pass "Python environment provisioned (products/linux-desktop)" "linux.yml:test"
         fi

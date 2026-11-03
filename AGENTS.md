@@ -50,8 +50,8 @@ both Android products. Canonical names:
    `python3 scripts/verification_record.py pr` (or paste `… render`) so the PR description
    shows the machine, toolchains and gate results, and fill in the template's *Who did the
    work*, *Not tested locally* and *Manual testing* parts. An agent with limited tooling
-   (cloud, sandbox, no device) names itself and lists what it could not run — a gap stated is
-   fine, a gap hidden is not. See CONTRIBUTING.md, "Verification record".
+   (cloud, sandbox, no device) names the tool it ran in — never a model name or version — and
+   lists what it could not run; a gap stated is fine, a gap hidden is not. See CONTRIBUTING.md, "Verification record".
 7. **Never commit maintainer-private material.** `private/`, `ai/`, `.claude/`, `.agents/`,
    `.gemini/`, requirement specifications and prompt files are ignored on purpose;
    `scripts/check_private_paths.py` fails CI if any of them is tracked.
