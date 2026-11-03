@@ -302,11 +302,12 @@ fun PhoneModeScreen(
                             viewModel.dismissCardDoneSheet()
                             showClearAllCardConfirm = true
                         },
+                        enabled = uiState.cardClearReady,
                         modifier = Modifier.fillMaxWidth(),
                     ) {
                         Text(
-                            stringResource(R.string.action_delete_all_count, uiState.images.size),
-                            color = colors.error,
+                            stringResource(R.string.action_delete_all_count, uiState.cardClearFileCount),
+                            color = if (uiState.cardClearReady) colors.error else colors.onSurfaceVariant,
                         )
                     }
                 }
@@ -325,7 +326,11 @@ fun PhoneModeScreen(
             onDismissRequest = { showClearAllCardConfirm = false },
             title = {
                 Text(
-                    pluralStringResource(R.plurals.dialog_title_delete_all, uiState.images.size, uiState.images.size),
+                    pluralStringResource(
+                        R.plurals.dialog_title_delete_all,
+                        uiState.cardClearFileCount,
+                        uiState.cardClearFileCount,
+                    ),
                     color = colors.error,
                 )
             },
@@ -333,10 +338,13 @@ fun PhoneModeScreen(
                 Text(stringResource(R.string.dialog_body_card_loss))
             },
             confirmButton = {
-                TextButton(onClick = {
-                    showClearAllCardConfirm = false
-                    viewModel.confirmClearEntireCard()
-                }) {
+                TextButton(
+                    onClick = {
+                        showClearAllCardConfirm = false
+                        viewModel.confirmClearEntireCard()
+                    },
+                    enabled = uiState.cardClearReady,
+                ) {
                     Text(stringResource(R.string.action_delete_all), color = colors.error)
                 }
             },

@@ -7,6 +7,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 ## [Unreleased]
 
 ### Fixed
+- **Delete all** on the "Card done" sheet now counts and deletes the same files: every file on the card, hidden RAW companions, files of another type and `.xmp` sidecars included ("Delete all 5 files?"). Before, the dialog showed the number of cards in the feed. It waits until the card has been read completely, and says "Card cleared" only when nothing is left; if some files could not be deleted they stay in the feed and the message says how many went.
 - System Back (and the back gesture) in the Selection viewer now returns to the feed on the photo you came from, instead of leaving the app.
 
 ### Added

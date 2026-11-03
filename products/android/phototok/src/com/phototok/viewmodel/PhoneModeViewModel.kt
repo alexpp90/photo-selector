@@ -162,7 +162,20 @@ data class PhoneModeUiState(
      * [PhoneModeViewModel.onCameraFolderGranted] or [PhoneModeViewModel.onCameraFolderGrantCancelled].
      */
     val cameraFolderGrantRequest: CameraFolderGrantRequest? = null,
-)
+) {
+    /**
+     * What "Delete all" removes and counts: every discovered file of the card, the hidden RAW
+     * companions, the filtered-out types and the `.xmp` sidecars included. Not the number of cards
+     * in the feed.
+     */
+    val cardClearTargets: List<ImageItem>
+        get() = (allImages + allImages.flatMap { it.sidecars }).distinctBy { it.uri }
+
+    val cardClearFileCount: Int get() = cardClearTargets.size
+
+    /** Delete all is offered once the scan has finished: a count taken mid-scan would be too small. */
+    val cardClearReady: Boolean get() = !isDiscovering && !isLoading && allImages.isNotEmpty()
+}
 
 /** Ask the UI to let the user grant the phone's camera folder (the picker opens at [initialUri]). */
 data class CameraFolderGrantRequest(
@@ -1893,10 +1906,16 @@ class PhoneModeViewModel @Inject constructor(
         _uiState.update { it.copy(cardClearStep = 0) }
     }
 
-    /** Final confirmation for Option 3: Clear entire card (`U-14c`). */
+    /**
+     * Final confirmation for Option 3: Clear entire card (`U-14c`). It deletes exactly the files
+     * [PhoneModeUiState.cardClearFileCount] announced, and only once the scan has finished. The
+     * card counts as cleared only when nothing is left on it; files that could not be deleted stay
+     * in the feed and the outcome says how many went.
+     */
     fun confirmClearEntireCard() {
         val state = _uiState.value
-        val toDelete = state.allImages
+        if (state.isDiscovering || state.isLoading) return
+        val toDelete = state.cardClearTargets
         if (toDelete.isEmpty()) {
             _uiState.update {
                 it.copy(
@@ -1911,19 +1930,22 @@ class PhoneModeViewModel @Inject constructor(
         _uiState.update { it.copy(cardClearStep = 3) }
         val epochAtLaunch = feedEpoch
         appScope.launch {
-            var deletedCount = 0
+            val deletedUris = mutableSetOf<String>()
             var freedBytes = 0L
             for (img in toDelete) {
                 val ok = try {
                     imageRepository.deleteImage(Uri.parse(img.uri))
+                } catch (e: CancellationException) {
+                    throw e
                 } catch (_: Exception) {
                     false
                 }
                 if (ok) {
-                    deletedCount++
+                    deletedUris.add(img.uri)
                     freedBytes += img.fileSize
                 }
             }
+            val deletedCount = deletedUris.size
             if (deletedCount > 0) {
                 statsRepository.recordCommittedDelete(
                     kind = state.sourceKind,
@@ -1938,19 +1960,31 @@ class PhoneModeViewModel @Inject constructor(
                 showFeedback(UiText.of(R.string.snackbar_deleted_count, deletedCount))
                 return@launch
             }
-            _uiState.update {
-                it.copy(
-                    images = emptyList(),
-                    allImages = emptyList(),
-                    currentIndex = 0,
+            val leftBehind = toDelete.size - deletedCount
+            _uiState.update { s ->
+                val images = s.images.filter { it.uri !in deletedUris }
+                val all = s.allImages.filter { it.uri !in deletedUris }
+                s.copy(
+                    images = images,
+                    allImages = all,
+                    currentIndex = s.currentIndex.coerceIn(0, (images.size - 1).coerceAtLeast(0)),
+                    portraitSectionStart = PhoneFeedOrdering.portraitSplit(images, s.sortByOrientation),
                     showCardDoneSheet = false,
                     cardClearStep = 0,
-                    cardClearComplete = true,
-                    cardDeletedCount = it.cardDeletedCount + deletedCount,
-                    emptyFolderMessage = UiText.of(R.string.empty_card_cleared),
+                    cardClearComplete = leftBehind == 0 && all.isEmpty(),
+                    cardDeletedCount = s.cardDeletedCount + deletedCount,
+                    emptyFolderMessage = if (leftBehind == 0 && all.isEmpty()) {
+                        UiText.of(R.string.empty_card_cleared)
+                    } else {
+                        s.emptyFolderMessage
+                    },
                 )
             }
-            showFeedback(UiText.of(R.string.snackbar_deleted_count, deletedCount))
+            if (leftBehind == 0) {
+                showFeedback(UiText.of(R.string.snackbar_deleted_count, deletedCount))
+            } else {
+                showFeedback(UiText.of(R.string.error_delete_some, deletedCount, toDelete.size), isError = true)
+            }
         }
     }
 

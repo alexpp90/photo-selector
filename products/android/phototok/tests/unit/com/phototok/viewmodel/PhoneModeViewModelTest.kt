@@ -1766,6 +1766,79 @@ class PhoneModeViewModelTest {
     }
 
     @Test
+    fun `delete all waits for discovery and deletes nothing while the card is still being read`() = runTest {
+        val gate = CompletableDeferred<Unit>()
+        every { imageRepository.discoverImages(any()) } returns kotlinx.coroutines.flow.flow {
+            emit(listOf(image("a.jpg", 20), image("b.jpg", 10)))
+            gate.await()
+            emit(listOf(image("a.jpg", 20), image("b.jpg", 10), image("c.jpg", 5)))
+        }
+        coEvery { imageRepository.deleteImage(any()) } returns true
+        val viewModel = buildViewModel()
+        viewModel.selectSourceFolder(Uri.parse("content://tree/photos"))
+        advanceUntilIdle()
+        assertTrue("the scan is still running", viewModel.uiState.value.isDiscovering)
+        assertFalse("Delete all is not offered mid-scan", viewModel.uiState.value.cardClearReady)
+
+        viewModel.confirmClearEntireCard()
+        advanceUntilIdle()
+
+        coVerify(exactly = 0) { imageRepository.deleteImage(any()) }
+        assertEquals(listOf("a.jpg", "b.jpg"), viewModel.uiState.value.allImages.map { it.fileName })
+        assertFalse(viewModel.uiState.value.cardClearComplete)
+
+        gate.complete(Unit)
+        advanceUntilIdle()
+        assertTrue(viewModel.uiState.value.cardClearReady)
+        assertEquals(3, viewModel.uiState.value.cardClearFileCount)
+    }
+
+    @Test
+    fun `delete all counts every file it deletes, hidden companions and sidecars included`() = runTest {
+        phoneSettingsFlow.value = PhoneSettings(fileTypeFilter = com.phototok.domain.FileTypeFilter.ONE_PER_SHOT)
+        val p = "content://tree/photos"
+        val a = shot("IMG_1.JPG", p, "IMG_1.xmp").copy(lastModified = 30)
+        val aRaw = shot("IMG_1.CR3", p, "IMG_1.xmp").copy(lastModified = 30)
+        val b = shot("IMG_2.JPG", p).copy(lastModified = 20)
+        val bRaw = shot("IMG_2.CR3", p).copy(lastModified = 20)
+        coEvery { imageRepository.deleteImage(any()) } returns true
+        val viewModel = loadFolder(a, aRaw, b, bRaw)
+        advanceUntilIdle()
+
+        val state = viewModel.uiState.value
+        assertEquals("two cards in the feed", 2, state.images.size)
+        assertEquals("the dialog counts the five files that go", 5, state.cardClearFileCount)
+
+        viewModel.confirmClearEntireCard()
+        advanceUntilIdle()
+
+        for (f in listOf(a, aRaw, b, bRaw)) coVerify(exactly = 1) { imageRepository.deleteImage(Uri.parse(f.uri)) }
+        coVerify(exactly = 1) { imageRepository.deleteImage(Uri.parse("$p/IMG_1.xmp")) }
+        assertTrue(viewModel.uiState.value.cardClearComplete)
+        assertTrue(viewModel.uiState.value.allImages.isEmpty())
+    }
+
+    @Test
+    fun `delete all that leaves files behind does not claim the card is cleared`() = runTest {
+        val a = image("a.jpg", 20)
+        val b = image("b.jpg", 10)
+        coEvery { imageRepository.deleteImage(Uri.parse(a.uri)) } returns true
+        coEvery { imageRepository.deleteImage(Uri.parse(b.uri)) } returns false
+        val viewModel = loadFolder(a, b)
+
+        viewModel.confirmClearEntireCard()
+        advanceUntilIdle()
+
+        val state = viewModel.uiState.value
+        assertFalse(state.cardClearComplete)
+        assertNull(state.emptyFolderMessage)
+        assertEquals("only the file still on the card stays in the feed", listOf("b.jpg"), state.images.map { it.fileName })
+        assertEquals(listOf("b.jpg"), state.allImages.map { it.fileName })
+        assertTrue(state.lastActionFeedback?.isError == true)
+        assertEquals(UiText.of(R.string.error_delete_some, 1, 2), state.lastActionFeedback?.message)
+    }
+
+    @Test
     fun `a card clear finishing after an unmount does not mark the card as cleared`() = runTest {
         val gate = CompletableDeferred<Boolean>()
         coEvery { imageRepository.deleteImage(any()) } coAnswers { gate.await() }

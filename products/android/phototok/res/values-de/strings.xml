@@ -126,8 +126,8 @@
     <string name="dialog_title_card_done">Karte fertig</string>
     <string name="dialog_body_card_loss">Nicht kopierte Fotos gehen verloren.</string>
     <plurals name="dialog_title_delete_all">
-        <item quantity="one">1 Foto löschen?</item>
-        <item quantity="other">Alle %1$d Fotos löschen?</item>
+        <item quantity="one">1 Datei löschen?</item>
+        <item quantity="other">Alle %1$d Dateien löschen?</item>
     </plurals>
     <plurals name="dialog_title_new_photos">
         <item quantity="one">%1$d neues Foto</item>
