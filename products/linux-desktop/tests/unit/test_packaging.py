@@ -663,3 +663,22 @@ def test_ci_installs_the_validators_and_requires_them():
     test_job = workflow.split("  test:", 1)[1].split("\n  package:", 1)[0]
     assert "appstream" in test_job and "desktop-file-utils" in test_job
     assert "PST_REQUIRE_PACKAGING_TOOLS" in test_job
+
+
+@pytest.mark.skipif(not shutil.which("dpkg-deb"), reason="dpkg-deb not available")
+def test_native_and_pure_python_builders_list_the_same_files(tmp_path):
+    """The pure-Python builder is the shipped one; --native must not drift from it (BL-R-1):
+    same paths, modes and owners (directories used to carry the build machine's umask)."""
+    product_dir = get_product_root()
+    script = product_dir / "scripts" / "package_deb.py"
+    listings = {}
+    for mode in ("python", "native"):
+        deb = f"{mode}.deb"
+        subprocess.run(
+            [sys.executable, str(script), "--product-dir", str(product_dir), "--output-dir", str(tmp_path),
+             "--version", "0.2.0", "--output-filename", deb, "--mode", mode],
+            check=True, capture_output=True, text=True, timeout=120,
+        )
+        out = subprocess.run(["dpkg-deb", "-c", str(tmp_path / deb)], check=True, capture_output=True, text=True).stdout
+        listings[mode] = sorted((f[0], f[1], f[2], f[5]) for f in (line.split() for line in out.splitlines()))
+    assert listings["python"] == listings["native"]

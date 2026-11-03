@@ -404,6 +404,14 @@ def build_deb_native(
         md5_content = "\n".join(md5_lines) + "\n"
         (debian_dir / "md5sums").write_text(md5_content, encoding="utf-8")
 
+    # dpkg-deb archives directories with the modes they have on disk: the build machine's umask
+    # (drwxrwxr-x) and mkdtemp's 0700 for the root. Pin them, as the pure-Python builder does.
+    for root, dirs, _files in os.walk(staging_root):
+        for name in dirs:
+            if name != "DEBIAN":
+                os.chmod(Path(root) / name, 0o755)
+    os.chmod(staging_root, 0o755)
+
     # -Zxz: recent dpkg defaults to zstd, which Python's tarfile (generate_apt_repo.py,
     # verify_package.py) cannot read; xz is universally supported by apt.
     cmd = ["dpkg-deb", "-Zxz", "--build", "--root-owner-group", str(staging_root), str(output_deb)]
