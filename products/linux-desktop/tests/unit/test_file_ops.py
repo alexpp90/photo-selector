@@ -1571,3 +1571,66 @@ def test_trash_undo_can_be_retried_after_the_second_restore_failed(tmp_path: Pat
     assert raw.read_bytes() == b"raw" and jpg.read_bytes() == b"jpg"
     assert not (tmp_path / "DSC_800-2.ARW").exists()
     assert candidate.status == PhotoStatus.CANDIDATE
+
+
+# ── A symlinked photo is its own entry: Trash and Undo act on the link (BL-D-3) ──────────────────
+
+
+def _symlinked_photo(tmp_path: Path):
+    original_dir = tmp_path / "orig"
+    picks = tmp_path / "picks"
+    original_dir.mkdir()
+    picks.mkdir()
+    original = original_dir / "IMG_1.JPG"
+    original.write_bytes(b"the original")
+    link = picks / "IMG_1.JPG"
+    link.symlink_to(original)
+    return original, link
+
+
+def test_trash_of_a_symlinked_photo_trashes_the_link_not_the_original(tmp_path: Path):
+    original, link = _symlinked_photo(tmp_path)
+    trash_dir = tmp_path / "Trash"
+    mgr = FileCullingManager(trash_dir=trash_dir)
+    candidate = CandidatePhoto(primary_path=link)
+
+    record = mgr.trash_candidate(candidate)
+
+    assert original.read_bytes() == b"the original", "the file the link points at must stay"
+    assert not link.is_symlink() and not link.exists()
+    trashed = trash_dir / "files" / "IMG_1.JPG"
+    assert trashed.is_symlink()
+    info = (trash_dir / "info" / "IMG_1.JPG.trashinfo").read_text()
+    assert f"Path={link}" in info.replace("%2F", "/")
+
+    assert mgr.undo_culling(record, candidate) is True
+
+    assert link.is_symlink() and link.resolve() == original.resolve()
+    assert sorted(p.name for p in link.parent.iterdir()) == ["IMG_1.JPG"], "no IMG_1-2.JPG, no dangling link"
+    assert original.read_bytes() == b"the original"
+    assert not trashed.is_symlink() and not (trash_dir / "info" / "IMG_1.JPG.trashinfo").exists()
+
+
+def test_trash_of_a_symlink_across_devices_keeps_a_link(tmp_path: Path):
+    original, link = _symlinked_photo(tmp_path)
+    trash_dir = tmp_path / "Trash"
+    mgr = FileCullingManager(
+        trash_dir=trash_dir,
+        dev_of=lambda p: 2 if "Trash" in str(p) else 1,
+    )
+    candidate = CandidatePhoto(primary_path=link)
+
+    record = mgr.trash_candidate(candidate)
+    assert original.exists() and (trash_dir / "files" / "IMG_1.JPG").is_symlink()
+
+    mgr.undo_culling(record, candidate)
+    assert link.is_symlink() and original.read_bytes() == b"the original"
+
+
+def test_scanner_lists_a_symlinked_photo_with_its_companion(tmp_path: Path):
+    original, link = _symlinked_photo(tmp_path)
+    (link.parent / "IMG_1.ARW").write_bytes(b"raw")
+    candidates = DirectoryScanner().scan_directory(link.parent, recursive=False)
+    assert len(candidates) == 1
+    assert sorted(p.name for p in candidates[0].all_paths) == ["IMG_1.ARW", "IMG_1.JPG"]
+    assert link in candidates[0].all_paths
