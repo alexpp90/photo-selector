@@ -54,6 +54,14 @@ class FakeSafDocumentsProvider : android.content.ContentProvider() {
         @Volatile
         var failCreateNamed: String? = null
 
+        /** Called with the parent folder and the requested name just before a file is created (a racing writer). */
+        @Volatile
+        var beforeCreate: ((File, String) -> Unit)? = null
+
+        /** Like a real provider: a name that is taken yields "name (1).ext" instead of reusing the file. */
+        @Volatile
+        var renameOnExistingName: Boolean = false
+
         /** Called with the document id at the start of every delete (a test cancels the caller here). */
         @Volatile
         var onDelete: ((String) -> Unit)? = null
@@ -102,6 +110,8 @@ class FakeSafDocumentsProvider : android.content.ContentProvider() {
             readOverride = null
             onDelete = null
             failCreateNamed = null
+            beforeCreate = null
+            renameOnExistingName = false
             moveDocumentCalls.set(0)
             childrenQueryCalls.set(0)
             documentQueryCalls.set(0)
@@ -259,10 +269,14 @@ class FakeSafDocumentsProvider : android.content.ContentProvider() {
     ): String {
         if (failCreateNamed == displayName) throw FileNotFoundException("Simulated create failure for $displayName")
         val parent = fileForDocId(parentDocumentId)
-        val actualName = if (mimeType == Document.MIME_TYPE_DIR) {
+        if (mimeType != Document.MIME_TYPE_DIR) beforeCreate?.invoke(parent, displayName)
+        var actualName = if (mimeType == Document.MIME_TYPE_DIR) {
             displayName
         } else {
             autoRenameOnCreate?.invoke(displayName) ?: displayName
+        }
+        if (renameOnExistingName && mimeType != Document.MIME_TYPE_DIR && File(parent, actualName).exists()) {
+            actualName = actualName.substringBeforeLast('.') + " (1)." + actualName.substringAfterLast('.')
         }
         val target = File(parent, actualName)
         if (createDelayMs > 0L) Thread.sleep(createDelayMs)

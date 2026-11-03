@@ -325,6 +325,25 @@ abstract class SafTransferContractTest(policy: SafTransferPolicy) : SafTestHarne
         assertTrue(srcFile.exists())
     }
 
+    // The EEXIST case: a foreign file appears under the wanted name between the listing and the
+    // create. A real provider answers with "name (1).ext"; the cleanup removes only that document.
+    @Test
+    fun `a foreign file that takes the wanted name first is never deleted by the cleanup`() = runTest {
+        val srcFile = File(rootDir, "IMG_0470.CR3").apply { writeText("mine") }
+        FakeSafDocumentsProvider.renameOnExistingName = true
+        FakeSafDocumentsProvider.beforeCreate = { parent, name ->
+            if (name == "IMG_0470.CR3") File(parent, name).writeText("someone else's file")
+        }
+
+        val result = move(srcFile.name)
+
+        assertFalse(result.success)
+        assertTrue(result.error.orEmpty().contains("IMG_0470 (1).CR3"))
+        assertEquals("someone else's file", File(rootDir, "Selection/RAW/IMG_0470.CR3").readText())
+        assertFalse("the renamed document it created is removed", File(rootDir, "Selection/RAW/IMG_0470 (1).CR3").exists())
+        assertEquals("mine", srcFile.readText())
+    }
+
     // ── 6. Semaphore and CancellationException hygiene ───────────────────
 
     // AD + TOK: transferSemaphore bounds concurrent transfers to at most 2 in flight
