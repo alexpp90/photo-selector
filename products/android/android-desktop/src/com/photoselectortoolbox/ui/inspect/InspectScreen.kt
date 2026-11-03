@@ -87,13 +87,13 @@ import com.photoselectortoolbox.domain.analysis.PhotoCoachEngineImpl
 import com.photoselectortoolbox.domain.format.ExifFormatter
 import com.photoselectortoolbox.domain.learn.CardGenerator
 import com.photoselectortoolbox.domain.learn.CropAspectRatio
+import com.photoselectortoolbox.domain.learn.DetectedSubject
 import com.photoselectortoolbox.domain.learn.CropSuggester
 import com.photoselectortoolbox.domain.learn.LearnCard
 import com.photoselectortoolbox.domain.learn.LessonCatalog
 import com.photoselectortoolbox.domain.learn.MicroLesson
 import com.photoselectortoolbox.domain.learn.PracticeAndInsightsEngine
 import com.photoselectortoolbox.domain.learn.SceneComparator
-import com.photoselectortoolbox.domain.learn.SubjectBoundingBox
 import com.photoselectortoolbox.domain.learn.SuggestedCrop
 import com.photoselectortoolbox.domain.learn.TechniqueFactDetector
 import com.photoselectortoolbox.domain.model.CoachingTip
@@ -361,23 +361,13 @@ internal fun InspectScreenContent(
             )
         }
 
-        val defaultSubjectBox = remember(currentImage) {
-            SubjectBoundingBox(
-                xMin = 0.36,
-                yMin = 0.36,
-                xMax = 0.64,
-                yMax = 0.64,
-                centroidX = 0.48,
-                centroidY = 0.48,
-                confidence = 0.70,
-            )
-        }
-
-        val suggestedCrop = remember(currentImage, selectedCropAspect) {
-            CropSuggester.suggestCrop(
-                subjectBox = defaultSubjectBox,
-                imageWidth = currentImage.imageWidth?.takeIf { it > 0 } ?: 1500,
-                imageHeight = currentImage.imageHeight?.takeIf { it > 0 } ?: 1000,
+        // Only a subject the scan detected, at the photo's real size; otherwise no crop
+        // suggestion at all — never one built on an assumed box or size (FD-B-1).
+        val suggestedCrop = remember(currentImage, currentFacts, selectedCropAspect) {
+            learnCropSuggestion(
+                facts = currentFacts,
+                imageWidth = currentImage.imageWidth,
+                imageHeight = currentImage.imageHeight,
                 requestedAspect = selectedCropAspect,
             )
         }
@@ -1956,4 +1946,25 @@ private fun InspectFilmstrip(
             }
         }
     }
+}
+
+/**
+ * Learn's crop suggestion for a photo: from the subject the scan detected
+ * ([DetectedSubject.fromFacts]) and the photo's known dimensions, or null when either is missing.
+ */
+internal fun learnCropSuggestion(
+    facts: List<TechniqueFactEntity>,
+    imageWidth: Int?,
+    imageHeight: Int?,
+    requestedAspect: CropAspectRatio?,
+): SuggestedCrop? {
+    val subject = DetectedSubject.fromFacts(facts) ?: return null
+    val width = imageWidth?.takeIf { it > 0 } ?: return null
+    val height = imageHeight?.takeIf { it > 0 } ?: return null
+    return CropSuggester.suggestCrop(
+        subjectBox = subject,
+        imageWidth = width,
+        imageHeight = height,
+        requestedAspect = requestedAspect,
+    )
 }
