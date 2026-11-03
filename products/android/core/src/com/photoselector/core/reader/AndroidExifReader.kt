@@ -46,11 +46,13 @@ class AndroidExifReader @Inject constructor() : ExifReaderStrategy {
     override suspend fun readExif(context: Context, uri: Uri): ExifData? =
         withContext(Dispatchers.IO) {
             try {
-                // If direct file or file URI, resolve File object
+                // A file: URI (or a bare path) names a file. The path of a content: URI is the
+                // provider's own and may coincide with an unrelated file: such a URI always goes
+                // through the ContentResolver.
                 val directFile = when {
                     uri.scheme == "file" -> uri.path?.let { File(it) }
                     uri.scheme == null && uri.path != null -> File(uri.path!!)
-                    else -> uri.path?.let { p -> val f = File(p); if (f.exists()) f else null }
+                    else -> null
                 }
 
                 if (directFile != null && directFile.exists()) {
