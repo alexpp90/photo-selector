@@ -66,7 +66,12 @@ class SafTransferEngine(
          */
         data class Success(val destinationFile: DocumentFile, val sourceVerified: Boolean = true) :
             CopyStepResult()
-        data class Failure(val reason: String) : CopyStepResult()
+        /**
+         * [strays] are copies this attempt wrote and could not remove again: they are reported to
+         * the caller (AS-D-3) instead of being forgotten in the destination folder.
+         */
+        data class Failure(val reason: String, val strays: List<DocumentFile> = emptyList()) :
+            CopyStepResult()
     }
 
     private data class ResolvedSource(
@@ -510,21 +515,29 @@ class SafTransferEngine(
                     selectionFolderName = targetFolderLabel,
                 )
             } catch (e: Exception) {
-                // CancellationException included: never leave staged copies behind.
-                stagedCopies.forEach { (_, destDoc) -> cleanUpFailedCopy(destDoc) }
-                throw e
+                // Never leave staged copies behind. A cancelled caller is gone and gets no
+                // report; any other failure reports the copies that could not be removed.
+                val strays = removeStagedCopies(stagedCopies)
+                if (e is CancellationException) throw e
+                Log.e(TAG, "Failed to copy ${src.uri}", e)
+                return failedBundleResults(
+                    resolvedSources, e.message ?: "Could not write to the $targetFolderLabel folder",
+                    strays, isMove, targetFolderLabel, parentDocumentId,
+                )
             }
 
             when (copyResult) {
                 is CopyStepResult.Failure -> {
-                    stagedCopies.forEach { (_, destDoc) -> cleanUpFailedCopy(destDoc) }
-                    return resolvedSources.map { member ->
-                        FileOperationResult.failure(
-                            sourceUri = member.uri.toString(),
-                            error = copyResult.reason,
-                            parentDocumentId = parentDocumentId,
-                        )
-                    }
+                    val strays = removeStagedCopies(stagedCopies)
+                    copyResult.strays.firstOrNull()?.let { strays[src.uri] = it }
+                    return failedBundleResults(
+                        sources = resolvedSources,
+                        reason = copyResult.reason,
+                        strays = strays,
+                        isMove = isMove,
+                        folderLabel = targetFolderLabel,
+                        parentDocumentId = parentDocumentId,
+                    )
                 }
                 is CopyStepResult.Success -> {
                     stagedCopies.add(src to copyResult.destinationFile)
@@ -684,7 +697,21 @@ class SafTransferEngine(
                 selectionFolderName = selectionFolderName,
             )
         ) {
-            is CopyStepResult.Failure -> FileOperationResult.failure(source, copyResult.reason, parentDocumentId)
+            is CopyStepResult.Failure -> {
+                val stray = copyResult.strays.firstOrNull()
+                if (stray == null) {
+                    FileOperationResult.failure(source, copyResult.reason, parentDocumentId)
+                } else {
+                    failedBundleResults(
+                        sources = listOf(ResolvedSource(sourceUri, sourceDoc, fileName, "", targetFolder)),
+                        reason = copyResult.reason,
+                        strays = mapOf(sourceUri to stray),
+                        isMove = isMove,
+                        folderLabel = selectionFolderName,
+                        parentDocumentId = parentDocumentId,
+                    ).single()
+                }
+            }
             is CopyStepResult.Success -> {
                 val destination = copyResult.destinationFile.uri.toString()
                 if (!isMove ||
@@ -706,6 +733,64 @@ class SafTransferEngine(
                         parentDocumentId = parentDocumentId,
                     )
                 }
+            }
+        }
+    }
+
+    /** Delete the staged copies of a failed bundle; the ones that could not be deleted, by source. */
+    private fun removeStagedCopies(
+        stagedCopies: List<Pair<ResolvedSource, DocumentFile>>,
+    ): LinkedHashMap<Uri, DocumentFile> {
+        val strays = LinkedHashMap<Uri, DocumentFile>()
+        stagedCopies.forEach { (staged, destDoc) ->
+            if (!cleanUpFailedCopy(destDoc)) strays[staged.uri] = destDoc
+        }
+        return strays
+    }
+
+    /**
+     * The results of a bundle whose copy failed. Every member whose copy could not be removed
+     * again ([strays], by source) is a partial result that names the stray copy and the original
+     * it belongs to, so the caller can offer the undo that deletes it and tell the user the
+     * copy stayed in the folder (`docs/shared/FILE_OPERATIONS.md` §4, rollback failure, AS-D-3).
+     * With no stray every member simply failed.
+     */
+    private fun failedBundleResults(
+        sources: List<ResolvedSource>,
+        reason: String,
+        strays: Map<Uri, DocumentFile>,
+        isMove: Boolean,
+        folderLabel: String,
+        parentDocumentId: String?,
+    ): List<FileOperationResult> {
+        if (strays.isEmpty()) {
+            return sources.map { member ->
+                FileOperationResult.failure(member.uri.toString(), reason, parentDocumentId)
+            }
+        }
+        val name = sources.firstOrNull()?.fileName ?: "the photo"
+        val error = if (isMove) {
+            "Move interrupted — copies of $name stayed in $folderLabel/ and could not be removed; " +
+                "the original is untouched"
+        } else {
+            "Copy interrupted — some copies of $name stayed in $folderLabel/ and could not be removed"
+        }
+        val strayUris = strays.values.map { it.uri.toString() }
+        return sources.map { member ->
+            val stray = strays[member.uri]
+            if (stray == null) {
+                FileOperationResult.failure(member.uri.toString(), error, parentDocumentId)
+            } else {
+                FileOperationResult.partial(
+                    sourceUri = member.uri.toString(),
+                    destinationUri = stray.uri.toString(),
+                    error = error,
+                    destinationUris = strayUris,
+                    parentDocumentId = parentDocumentId,
+                    copiesOfSurvivingOriginals = strays.entries.associate { (source, copy) ->
+                        copy.uri.toString() to source.toString()
+                    },
+                )
             }
         }
     }
@@ -775,9 +860,9 @@ class SafTransferEngine(
         // (e.g. "IMG_0001 (1).CR3") on a race, which would break companion pairing.
         val actualName = destFile.name
         if (!actualName.isNullOrEmpty() && !actualName.equals(desiredName, ignoreCase = true)) {
-            cleanUpFailedCopy(destFile)
-            return CopyStepResult.Failure(
-                "Provider renamed destination file to '$actualName' instead of '$desiredName'"
+            return failedCopy(
+                destFile,
+                "Provider renamed destination file to '$actualName' instead of '$desiredName'",
             )
         }
 
@@ -801,30 +886,30 @@ class SafTransferEngine(
                     // Best-effort fsync when the destination provider supports file descriptor sync.
                 }
             }
-        } catch (e: Exception) {
-            // CancellationException included. Never leave a half-written file in the
-            // Selection: a truncated photograph that looks filed is worse than a failed move.
+        } catch (e: CancellationException) {
+            // Never leave a half-written file in the Selection: a truncated photograph that
+            // looks filed is worse than a failed move. (The caller is gone: nothing to report to.)
             cleanUpFailedCopy(destFile)
             throw e
+        } catch (e: Exception) {
+            Log.e(TAG, "Failed to copy $sourceUri", e)
+            return failedCopy(destFile, e.message ?: "Could not write to the $selectionFolderName folder")
         }
 
         if (bytesCopied < 0L) {
             // Streams could not be opened — remove the empty placeholder file.
-            cleanUpFailedCopy(destFile)
-            return CopyStepResult.Failure("Could not write to the $selectionFolderName folder")
+            return failedCopy(destFile, "Could not write to the $selectionFolderName folder")
         }
 
         // A provider that reports no size (null, or 0 as many do) cannot vouch for the stream: the
         // copy is then only as long as what was read. Never accept an empty one, and let the
         // caller know the source was not size-verified so a move keeps it (AS-D-1).
         if (sourceSize == null && bytesCopied == 0L) {
-            cleanUpFailedCopy(destFile)
-            return CopyStepResult.Failure("Copied file size mismatch")
+            return failedCopy(destFile, "Copied file size mismatch")
         }
         val expectedSize = sourceSize ?: bytesCopied
         if ((sourceSize != null && bytesCopied != sourceSize) || destFile.length() != expectedSize) {
-            cleanUpFailedCopy(destFile)
-            return CopyStepResult.Failure("Copied file size mismatch")
+            return failedCopy(destFile, "Copied file size mismatch")
         }
 
         return CopyStepResult.Success(destFile, sourceVerified = sourceSize != null)
@@ -940,13 +1025,21 @@ class SafTransferEngine(
         }
     }
 
-    internal fun cleanUpFailedCopy(destFile: DocumentFile) {
-        try {
-            destFile.delete()
-        } catch (e: Exception) {
-            Log.w(TAG, "Could not clean up failed copy: ${destFile.uri}", e)
-        }
+    /** Remove a copy that failed; false when it is still there (AS-D-3), never throws. */
+    internal fun cleanUpFailedCopy(destFile: DocumentFile): Boolean = try {
+        destFile.delete() || !destFile.exists()
+    } catch (e: Exception) {
+        Log.w(TAG, "Could not clean up failed copy: ${destFile.uri}", e)
+        false
     }
+
+    /** A failed copy: the half-written [destFile] is removed, or reported as a stray when it cannot be. */
+    private fun failedCopy(destFile: DocumentFile, reason: String): CopyStepResult.Failure =
+        if (cleanUpFailedCopy(destFile)) {
+            CopyStepResult.Failure(reason)
+        } else {
+            CopyStepResult.Failure(reason, strays = listOf(destFile))
+        }
 
     /** The `RAW/` or `JPEG/` folder inside [selectionDir] (found or created), or [selectionDir] itself. */
     internal fun subfolderIn(subfolder: SelectionSubfolder, selectionDir: DocumentFile): DocumentFile {

@@ -73,6 +73,32 @@ class AllOrNothingSafTransferTest : SafTransferContractTest(ALL_OR_NOTHING_POLIC
         assertFalse(File(rootDir, "Selection/${SafTransferEngine.SELECTION_MARKER_FILE_NAME}").exists())
     }
 
+    // AS-D-3: the staged copy that could not be rolled back is the bundle's undo record.
+    @Test
+    fun `a staged copy that cannot be rolled back is reported while the rest of the bundle is cleaned`() = runTest {
+        File(rootDir, "IMG_0421.JPG").writeText("primary-jpeg-ok")
+        File(rootDir, "IMG_0421.CR3").writeBytes(ByteArray(2048) { (it % 127).toByte() })
+        FakeSafDocumentsProvider.reportedSizeOverride = { file ->
+            if (file.parentFile?.name == "RAW" && file.name == "IMG_0421.CR3") 512L else file.length()
+        }
+        FakeSafDocumentsProvider.failDeletesMatching = "Selection/JPEG/IMG_0421.JPG"
+        val jpeg = documentUriFor("IMG_0421.JPG").toString()
+        val jpegCopy = documentUriFor("Selection/JPEG/IMG_0421.JPG").toString()
+
+        val results = engine.transferBundle(
+            storage, listOf(documentUriFor("IMG_0421.JPG"), documentUriFor("IMG_0421.CR3")), selection(), true, true,
+        )
+        val bundle = engine.aggregateBundleResults(jpeg, results, null)
+
+        assertTrue(bundle.partial)
+        assertEquals(mapOf(jpegCopy to jpeg), bundle.copiesOfSurvivingOriginals)
+        assertEquals(listOf(jpegCopy), bundle.destinationUris)
+        assertTrue(File(rootDir, "Selection/JPEG/IMG_0421.JPG").exists())
+        assertFalse(File(rootDir, "Selection/RAW/IMG_0421.CR3").exists())
+        assertTrue(File(rootDir, "IMG_0421.JPG").exists())
+        assertTrue(File(rootDir, "IMG_0421.CR3").exists())
+    }
+
     @Test
     fun `an unresolvable member fails the whole bundle and moves nothing`() = runTest {
         File(rootDir, "IMG_0014.JPG").writeText("payload")

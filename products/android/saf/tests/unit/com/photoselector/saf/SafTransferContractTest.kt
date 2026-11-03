@@ -182,6 +182,38 @@ abstract class SafTransferContractTest(policy: SafTransferPolicy) : SafTestHarne
         assertTrue(srcFile.exists())
     }
 
+    // AS-D-3: a failed rollback never forgets the copy it could not remove.
+    @Test
+    fun `a size mismatch whose copy cannot be removed reports the stray copy and keeps the source`() = runTest {
+        val srcFile = File(rootDir, "IMG_0420.CR3").apply { writeBytes(ByteArray(4096) { (it % 251).toByte() }) }
+        FakeSafDocumentsProvider.reportedSizeOverride = { file ->
+            if (file.parentFile?.name == "RAW" && file.name == "IMG_0420.CR3") 1024L else file.length()
+        }
+        FakeSafDocumentsProvider.failDeletesMatching = "Selection/RAW/IMG_0420.CR3"
+
+        for (isMove in listOf(true, false)) {
+            val result = if (isMove) move(srcFile.name) else copy(srcFile.name)
+
+            assertFalse(result.success)
+            assertTrue("the stray copy is reported as a partial result", result.partial)
+            assertEquals(documentUriFor("Selection/RAW/IMG_0420.CR3").toString(), result.destinationUri)
+            assertEquals(
+                mapOf(result.destinationUri!! to documentUriFor(srcFile.name).toString()),
+                result.copiesOfSurvivingOriginals,
+            )
+            val expected = if (isMove) {
+                "Move interrupted — copies of IMG_0420.CR3 stayed in Selection/ and could not be removed; the original is untouched"
+            } else {
+                "Copy interrupted — some copies of IMG_0420.CR3 stayed in Selection/ and could not be removed"
+            }
+            assertEquals(expected, result.error)
+            assertTrue("the stray copy is really still there", File(rootDir, "Selection/RAW/IMG_0420.CR3").exists())
+            assertTrue(srcFile.exists())
+            // Next round starts clean, as an undo or the user's own tidy-up would leave it.
+            File(rootDir, "Selection/RAW/IMG_0420.CR3").delete()
+        }
+    }
+
     // ── 3. Source-delete failure reported as partial ─────────────────────
 
     // AD: source delete failure after verified copy keeps destination and returns partial result

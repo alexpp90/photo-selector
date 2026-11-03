@@ -4,7 +4,9 @@ import androidx.documentfile.provider.DocumentFile
 import io.mockk.every
 import io.mockk.mockk
 import io.mockk.verify
+import org.junit.Assert.assertFalse
 import org.junit.Assert.assertSame
+import org.junit.Assert.assertTrue
 import org.junit.Test
 import org.junit.runner.RunWith
 import org.robolectric.RobolectricTestRunner
@@ -58,7 +60,7 @@ class SafEngineInternalsTest {
     @Test
     fun `cleanUpFailedCopy deletes the destination file`() {
         val destFile = mockk<DocumentFile>(relaxed = true) { every { delete() } returns true }
-        engine.cleanUpFailedCopy(destFile)
+        assertTrue(engine.cleanUpFailedCopy(destFile))
         verify { destFile.delete() }
     }
 
@@ -66,7 +68,7 @@ class SafEngineInternalsTest {
     @Test
     fun `cleanUpFailedCopy swallows an exception from delete`() {
         val destFile = mockk<DocumentFile>(relaxed = true) { every { delete() } throws SecurityException("denied") }
-        engine.cleanUpFailedCopy(destFile) // must not throw
+        assertFalse("a copy that could not be removed is reported", engine.cleanUpFailedCopy(destFile))
         verify { destFile.delete() }
     }
 }
