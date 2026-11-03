@@ -239,6 +239,9 @@ class SafTransferEngine(
                     parentDocumentId = parentDocumentId,
                 )
             }
+            // Copies deleted so far, kept on every result — failures included — so the caller's
+            // record shrinks with them and a retry does not meet a copy that is already gone (AS-D-4).
+            val deletedCopyUris = ArrayList<String>()
             try {
                 val deletableCopies = copiesOfSurvivingOriginals.filter { (_, original) ->
                     storage.singleDocument(Uri.parse(original))?.exists() == true
@@ -247,7 +250,13 @@ class SafTransferEngine(
                 // Not cancellable between two copies: the results of the deleted ones must come back.
                 withContext(NonCancellable) {
                     deletableCopies.forEach { copyUri ->
-                        if (!delete(storage, Uri.parse(copyUri))) deleteFailed = copyUri
+                        val copy = Uri.parse(copyUri)
+                        // A copy a previous attempt already deleted counts as deleted.
+                        if (delete(storage, copy) || storage.singleDocument(copy)?.exists() != true) {
+                            deletedCopyUris += copyUri
+                        } else if (deleteFailed == null) {
+                            deleteFailed = copyUri
+                        }
                     }
                 }
                 deleteFailed?.let {
@@ -255,9 +264,8 @@ class SafTransferEngine(
                         sourceUri = it,
                         error = "Could not delete the copy in the destination folder",
                         parentDocumentId = parentDocumentId,
-                    )
+                    ).copy(deletedCopies = deletedCopyUris.toList())
                 }
-                val deletedCopyUris = deletableCopies.toList()
                 val toRestore = destinationUris.filterNot { it in deletableCopies }
                 if (toRestore.isEmpty()) {
                     return@withContext FileOperationResult.success(
@@ -265,14 +273,14 @@ class SafTransferEngine(
                         destinationUri = null,
                         destinationUris = emptyList(),
                         parentDocumentId = parentDocumentId,
-                    ).copy(deletedCopies = deletedCopyUris)
+                    ).copy(deletedCopies = deletedCopyUris.toList())
                 }
                 val restore = resolveRestoreFolder(storage, rootFolderUri, parentDocumentId)
                     ?: return@withContext FileOperationResult.failure(
                         sourceUri = primarySource,
                         error = "Could not resolve the original folder",
                         parentDocumentId = parentDocumentId,
-                    )
+                    ).copy(deletedCopies = deletedCopyUris.toList())
                 val restoreFolder = restore.folder
                 val results = executeAllOrNothing(
                     storage = storage,
@@ -293,16 +301,17 @@ class SafTransferEngine(
                 if (restore.fellBackToRoot && aggregated.success) {
                     aggregated.copy(
                         notice = "Restored to the opened folder — the original folder no longer exists",
-                        deletedCopies = deletedCopyUris,
+                        deletedCopies = deletedCopyUris.toList(),
                     )
                 } else {
-                    aggregated.copy(deletedCopies = deletedCopyUris)
+                    aggregated.copy(deletedCopies = deletedCopyUris.toList())
                 }
             } catch (e: CancellationException) {
                 throw e
             } catch (e: Exception) {
                 Log.e(TAG, "Failed to undo bundle move: $destinationUris", e)
                 FileOperationResult.failure(primarySource, e.message, parentDocumentId)
+                    .copy(deletedCopies = deletedCopyUris.toList())
             }
         }
     }

@@ -282,6 +282,36 @@ class AllOrNothingSafTransferTest : SafTransferContractTest(ALL_OR_NOTHING_POLIC
         assertTrue(File(rootDir, "sub/day6/IMG_0046.CR3").exists())
     }
 
+    // AS-D-4: a half-failed undo of a partial move can be retried.
+    @Test
+    fun `an undo whose second copy delete fails reports the first as deleted and succeeds on retry`() = runTest {
+        val names = listOf("IMG_0047.JPG", "IMG_0047.CR3")
+        seed("sub/day7", *names.toTypedArray())
+        FakeSafDocumentsProvider.failDeletes = true
+        val moved = moveBundle("sub/day7", names)
+        assertTrue(moved.partial)
+        assertEquals(2, moved.copiesOfSurvivingOriginals.size)
+        FakeSafDocumentsProvider.failDeletes = false
+        FakeSafDocumentsProvider.failDeletesMatching = "Selection/RAW/IMG_0047.CR3"
+
+        val first = undo(moved)
+
+        assertFalse(first.success)
+        assertEquals("Could not delete the copy in the destination folder", first.error)
+        assertEquals(listOf(documentUriFor("Selection/JPEG/IMG_0047.JPG").toString()), first.deletedCopies)
+        assertFalse(File(rootDir, "Selection/JPEG/IMG_0047.JPG").exists())
+        assertTrue(File(rootDir, "Selection/RAW/IMG_0047.CR3").exists())
+
+        FakeSafDocumentsProvider.failDeletesMatching = null
+        val retry = undo(moved) // the same record: the first copy is already gone
+
+        assertTrue("the retry must not trip over the copy that is already deleted", retry.success)
+        assertEquals(2, retry.deletedCopies.size)
+        assertFalse(File(rootDir, "Selection/RAW/IMG_0047.CR3").exists())
+        names.forEach { assertEquals("payload-$it", File(rootDir, "sub/day7/$it").readText()) }
+        assertEquals(setOf("IMG_0047.CR3", "IMG_0047.JPG"), File(rootDir, "sub/day7").list()!!.toSet())
+    }
+
     // ── B-4 / D-4: restore-folder resolution with opaque document ids ────
 
     // AD: undo restores into the original folder when the provider uses opaque document ids and creates no folder
