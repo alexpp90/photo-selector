@@ -905,7 +905,7 @@ class SafTransferEngine(
     ): DocumentFile? {
         val key = FolderAccessManager.canonicalUri(rootUri.toString()) + "\u0000" + folderName
         selectionDirs[key]?.let { cachedUri ->
-            val cached = storage.treeDocument(cachedUri)
+            val cached = storage.treeDocument(cachedUri)?.takeIf { it.uri == cachedUri }
             if (cached != null && try { cached.isDirectory } catch (_: Exception) { false }) return cached
             selectionDirs.remove(key)
         }
@@ -943,9 +943,12 @@ class SafTransferEngine(
                     FoundChild(documentId)
                 }
                 if (found != null) {
-                    return found.documentId?.let {
-                        storage.treeDocument(DocumentsContract.buildDocumentUriUsingTree(parent.uri, it))
-                    }
+                    val documentId = found.documentId ?: return null
+                    val childUri = DocumentsContract.buildDocumentUriUsingTree(parent.uri, documentId)
+                    // `DocumentFile.fromTreeUri` silently answers the tree root when it does not
+                    // recognise the authority as a documents provider (not visible, not registered):
+                    // trust the document only when it is the one asked for.
+                    storage.treeDocument(childUri)?.takeIf { it.uri == childUri }?.let { return it }
                 }
             } catch (e: Exception) {
                 Log.w(TAG, "Cursor lookup of $name failed in ${parent.uri}, falling back to findFile", e)
