@@ -251,6 +251,19 @@ class SafRatingWriterTest {
     }
 
     @Test
+    fun `a sidecar Windows also rated keeps its MicrosoftPhoto rating`() = runTest {
+        val raw = file("IMG_12.NEF")
+        val xmp = """<x:xmpmeta xmlns:x="adobe:ns:meta/"><rdf:RDF xmlns:rdf="http://www.w3.org/1999/02/22-rdf-syntax-ns#">
+            |<rdf:Description rdf:about="" xmlns:xmp="http://ns.adobe.com/xap/1.0/" xmlns:MicrosoftPhoto="http://ns.microsoft.com/photo/1.0/">
+            |<xmp:Rating>3</xmp:Rating><MicrosoftPhoto:Rating>50</MicrosoftPhoto:Rating></rdf:Description></rdf:RDF></x:xmpmeta>""".trimMargin()
+        val sidecar = file("IMG_12.NEF.xmp", xmp.toByteArray())
+
+        assertTrue(writer.writeRating(context, uriOf(raw), 5).isSuccess)
+
+        assertEquals(xmp.replace("<xmp:Rating>3</xmp:Rating>", "<xmp:Rating>5</xmp:Rating>"), sidecar.readText())
+    }
+
+    @Test
     fun `file sidecar wins over stem sidecar when both exist`() = runTest {
         val raw = file("IMG_3.CR3")
         val stem = file("IMG_3.xmp", "<x:xmpmeta><rdf:Description><xmp:Rating>1</xmp:Rating></rdf:Description></x:xmpmeta>".toByteArray())

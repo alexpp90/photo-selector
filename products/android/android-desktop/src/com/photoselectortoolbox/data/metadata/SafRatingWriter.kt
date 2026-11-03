@@ -119,10 +119,10 @@ internal class SafRatingWriter(
         } catch (e: CharacterCodingException) {
             throw RatingWriteException("The existing ${entry.name} is not UTF-8 text; it was left unchanged", e)
         }
-        if (!XmpSidecarWriter.canUpdateInPlace(text)) {
-            throw RatingWriteException("The existing ${entry.name} has content the rating cannot be merged into; it was left unchanged")
-        }
-        val updated = XmpSidecarWriter.injectOrUpdateRating(text, rating).toByteArray(Charsets.UTF_8)
+        val updated = (
+            XmpSidecarWriter.injectOrUpdateRating(text, rating)
+                ?: throw RatingWriteException("The existing ${entry.name} has content the rating cannot be merged into; it was left unchanged")
+            ).toByteArray(Charsets.UTF_8)
         replaceVerified(uri, entry.name, original, updated)
     }
 
@@ -153,10 +153,9 @@ internal class SafRatingWriter(
             work.writeBytes(original)
             val exif = ExifInterface(work.absolutePath)
             val currentXmp = exif.getAttribute(ExifInterface.TAG_XMP)
-            if (!XmpSidecarWriter.canUpdateInPlace(currentXmp)) {
-                throw RatingWriteException("The XMP inside $name has content the rating cannot be merged into; it was left unchanged")
-            }
-            exif.setAttribute(ExifInterface.TAG_XMP, XmpSidecarWriter.injectOrUpdateRating(currentXmp, rating))
+            val updatedXmp = XmpSidecarWriter.injectOrUpdateRating(currentXmp, rating)
+                ?: throw RatingWriteException("The XMP inside $name has content the rating cannot be merged into; it was left unchanged")
+            exif.setAttribute(ExifInterface.TAG_XMP, updatedXmp)
             exif.saveAttributes()
             if (!validateJpegBounds(work)) {
                 throw RatingWriteException("The updated $name failed verification; it was left unchanged")
