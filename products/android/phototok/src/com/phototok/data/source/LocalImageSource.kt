@@ -241,7 +241,7 @@ class LocalImageSourceImpl @Inject constructor(
 
         // Final snapshot — also the only emission for folders smaller than a batch.
         emit(images.toList())
-    }.flowOn(Dispatchers.IO)
+    }.flowOn(ioDispatcher)
 
     override suspend fun prepareSourceFolder(folderUri: Uri): String? =
         withContext(ioDispatcher) {
@@ -371,25 +371,24 @@ class LocalImageSourceImpl @Inject constructor(
         folderUri: Uri,
         subfolderName: String,
     ): SelectionListing = withContext(ioDispatcher) {
+        val rootDocumentId = treeDocumentIdOf(folderUri) ?: return@withContext SelectionListing.Missing
+        // One children query finds the folder; `DocumentFile.findFile` would list the whole root and
+        // ask for every child's name separately (thousands of binder calls in a camera folder).
         val selectionDir = try {
-            DocumentFile.fromTreeUri(context, folderUri)?.findFile(subfolderName)
+            findChildDirectory(folderUri, rootDocumentId, subfolderName)
         } catch (e: CancellationException) {
             throw e
         } catch (_: Exception) {
             null
-        }
-        if (selectionDir == null || !selectionDir.exists()) {
-            return@withContext SelectionListing.Missing
-        }
+        } ?: return@withContext SelectionListing.Missing
         // Walk the sub-folder directly: passing a child document URI through
         // discoverImages() would re-resolve to the tree root via fromTreeUri().
-        val selectionDocumentId = documentIdOf(selectionDir.uri)
-            ?: return@withContext SelectionListing.Missing
+        val selectionDocumentId = selectionDir.documentId
         val images = mutableListOf<ImageItem>()
         walkImages(folderUri, selectionDocumentId) { images.add(it) }
         SelectionListing.Available(
             images = images.sortedByDescending { it.lastModified },
-            folderName = selectionDir.name ?: "Selection",
+            folderName = selectionDir.name,
         )
     }
 
@@ -431,6 +430,27 @@ class LocalImageSourceImpl @Inject constructor(
         } ?: Pair(0, 0)
     } catch (e: Exception) {
         Pair(0, 0)
+    }
+
+    private class ChildDirectory(val documentId: String, val name: String)
+
+    /** The sub-folder called [name] directly under [parentDocumentId], from a single children query. */
+    private fun findChildDirectory(treeUri: Uri, parentDocumentId: String, name: String): ChildDirectory? {
+        val childrenUri = DocumentsContract.buildChildDocumentsUriUsingTree(treeUri, parentDocumentId)
+        val projection = arrayOf(
+            DocumentsContract.Document.COLUMN_DOCUMENT_ID,
+            DocumentsContract.Document.COLUMN_DISPLAY_NAME,
+            DocumentsContract.Document.COLUMN_MIME_TYPE,
+        )
+        context.contentResolver.query(childrenUri, projection, null, null, null)?.use { cursor ->
+            while (cursor.moveToNext()) {
+                val childName = cursor.getString(1) ?: continue
+                if (childName == name && cursor.getString(2) == DocumentsContract.Document.MIME_TYPE_DIR) {
+                    return ChildDirectory(cursor.getString(0), childName)
+                }
+            }
+        }
+        return null
     }
 
     /** The tree document id of a `content://…/tree/<id>` URI, or null. */

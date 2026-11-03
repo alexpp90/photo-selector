@@ -230,4 +230,31 @@ class LocalImageSourceDiscoveryTest {
 
         assertEquals(listOf(0), source.discoverImages(notATree).toList().map { it.size })
     }
+
+    @Test
+    fun `opening the Selection viewer finds the folder with one query, not a listing of every child`() = runTest {
+        tree = mapOf(
+            ROOT to photos(3000) + Row("sel", "Selection", DIR),
+            "sel" to listOf(
+                Row("s1", "keep1.jpg", "image/jpeg", modified = 7L),
+                Row("s2", "keep2.jpg", "image/jpeg", modified = 9L),
+            ),
+        )
+
+        val listing = source.listSelectionImages(treeUri, "Selection")
+
+        listing as SelectionListing.Available
+        assertEquals(listOf("keep2.jpg", "keep1.jpg"), listing.images.map { it.fileName })
+        assertEquals("Selection", listing.folderName)
+        assertEquals("one query for the root, one for the Selection folder", 2, queryCount)
+    }
+
+    @Test
+    fun `a missing Selection folder, or a file of that name, is reported as missing`() = runTest {
+        tree = mapOf(ROOT to listOf(Row("f", "Selection", "image/jpeg"), Row("a", "a.jpg", "image/jpeg")))
+
+        assertEquals(SelectionListing.Missing, source.listSelectionImages(treeUri, "Selection"))
+        assertEquals(SelectionListing.Missing, source.listSelectionImages(treeUri, "Keepers"))
+    }
 }
+
