@@ -1554,8 +1554,7 @@ class PhoneModeViewModel @Inject constructor(
                             }
                             if (img === currentImage) {
                                 // The primary file got a collision suffix: say which name it became.
-                                val resultName = result.destinationUri?.let(CopyMoveFeedback::displayNameOf)
-                                if (resultName != null && resultName != img.fileName) renamedTo = resultName
+                                CopyMoveFeedback.renamedName(img.fileName, result.destinationUri)?.let { renamedTo = it }
                             }
                             if (state.sourceKind == SourceKind.REMOVABLE ||
                                 state.sourceKind == SourceKind.CAMERA_MTP

@@ -2325,6 +2325,26 @@ class PhoneModeViewModelTest {
     }
 
     @Test
+    fun `a copy into a provider with opaque document ids does not claim a new name`() = runTest {
+        phoneSettingsFlow.value = PhoneSettings(collectionAction = CollectionAction.COPY)
+        coEvery { imageRepository.copyImageDetailed(any(), any(), any(), any()) } coAnswers {
+            FileOperationResult.success(
+                firstArg<Uri>().toString(),
+                "content://com.android.providers.media.documents/document/msf%3A123",
+            )
+        }
+        val viewModel = loadFolder(image("a.jpg", 20), image("b.jpg", 10))
+
+        viewModel.addToCollection()
+        advanceUntilIdle()
+
+        assertEquals(
+            UiText.of(R.string.snackbar_copied, UiText.raw(PhotoFolders.SELECTION)),
+            viewModel.uiState.value.lastActionFeedback?.message,
+        )
+    }
+
+    @Test
     fun `a card clear finishing after an unmount does not mark the card as cleared`() = runTest {
         val gate = CompletableDeferred<Boolean>()
         coEvery { imageRepository.deleteImage(any()) } coAnswers { gate.await() }
