@@ -2259,6 +2259,50 @@ class PhoneModeViewModelTest {
     }
 
     @Test
+    fun `a Pro user's Selection folder name is where swipe right, copy and move file the photo`() = runTest {
+        every { settingsRepository.sourceSettingsFlow(any()) } returns
+            flowOf(SourceSettings(swipeRightVerb = SwipeRightVerb.COPY, selectionSubfolder = "Keepers"))
+        coEvery { imageRepository.copyImageDetailed(any(), any(), any(), any()) } coAnswers {
+            FileOperationResult.success(firstArg<Uri>().toString(), null)
+        }
+        coEvery { imageRepository.moveImageDetailed(any(), any(), any(), any()) } coAnswers {
+            FileOperationResult.success(firstArg<Uri>().toString(), null)
+        }
+        val viewModel = loadFolder(image("a.jpg", 40), image("b.jpg", 30), image("c.jpg", 20))
+        assertEquals("Keepers", viewModel.uiState.value.selectionSubfolderName)
+
+        viewModel.addToCollection()
+        viewModel.copyCurrentToSelection()
+        viewModel.moveCurrentToSelection()
+        advanceUntilIdle()
+
+        for (name in listOf("a.jpg", "b.jpg")) {
+            coVerify(exactly = 1) {
+                imageRepository.copyImageDetailed(Uri.parse("content://photos/$name"), any(), any(), "Keepers")
+            }
+        }
+        coVerify(exactly = 1) {
+            imageRepository.moveImageDetailed(Uri.parse("content://photos/c.jpg"), any(), any(), "Keepers")
+        }
+        coVerify(exactly = 0) { imageRepository.copyImageDetailed(any(), any(), any(), PhotoFolders.SELECTION) }
+        assertEquals("the snackbar names the folder", UiText.of(R.string.snackbar_moved, UiText.raw("Keepers")),
+            viewModel.uiState.value.lastActionFeedback?.message)
+    }
+
+    @Test
+    fun `without a typed name photos still land in Selection`() = runTest {
+        every { settingsRepository.sourceSettingsFlow(any()) } returns flowOf(SourceSettings(swipeRightVerb = SwipeRightVerb.COPY))
+        val viewModel = loadFolder(image("a.jpg", 40), image("b.jpg", 30))
+
+        viewModel.addToCollection()
+        advanceUntilIdle()
+
+        coVerify(exactly = 1) {
+            imageRepository.copyImageDetailed(Uri.parse("content://photos/a.jpg"), any(), any(), PhotoFolders.SELECTION)
+        }
+    }
+
+    @Test
     fun `a card clear finishing after an unmount does not mark the card as cleared`() = runTest {
         val gate = CompletableDeferred<Boolean>()
         coEvery { imageRepository.deleteImage(any()) } coAnswers { gate.await() }

@@ -173,6 +173,12 @@ data class PhoneModeUiState(
 
     val cardClearFileCount: Int get() = cardClearTargets.size
 
+    /**
+     * What swipe right names as its destination: the custom folder when the user chose one, else
+     * the Selection subfolder (`Selection`, the configured name in Pro, `Jackpix` for a Casual import).
+     */
+    val collectionLabel: String get() = collectionFolderName.ifBlank { selectionSubfolderName }
+
     /** Delete all is offered once the scan has finished: a count taken mid-scan would be too small. */
     val cardClearReady: Boolean get() = !isDiscovering && !isLoading && allImages.isNotEmpty()
 }
@@ -1255,7 +1261,7 @@ class PhoneModeViewModel @Inject constructor(
         copyOrMoveCurrent(
             targetUri = target,
             isCopy = isCopy,
-            subfolderName = PhotoFolders.SELECTION,
+            subfolderName = state.selectionSubfolderName,
             destination = collectionDestination(state),
         )
     }
@@ -1290,7 +1296,7 @@ class PhoneModeViewModel @Inject constructor(
         copyOrMoveCurrent(
             targetUri = target,
             isCopy = true,
-            subfolderName = PhotoFolders.SELECTION,
+            subfolderName = state.selectionSubfolderName,
             destination = collectionDestination(state),
         )
     }
@@ -1311,7 +1317,7 @@ class PhoneModeViewModel @Inject constructor(
         copyOrMoveCurrent(
             targetUri = target,
             isCopy = isCopy,
-            subfolderName = PhotoFolders.SELECTION,
+            subfolderName = state.selectionSubfolderName,
             destination = collectionDestination(state),
         )
     }
@@ -1454,7 +1460,7 @@ class PhoneModeViewModel @Inject constructor(
 
     /** Name of the Selection destination for feedback: the configured folder, else the default. */
     private fun collectionDestination(state: PhoneModeUiState): UiText =
-        UiText.raw(state.collectionFolderName.ifBlank { PhotoFolders.SELECTION })
+        UiText.raw(state.collectionLabel)
 
     /** Swipe left (copy/move mode): copy or move the current photo to the custom folder. */
     fun performLeftSwipeCopyOrMove() {
@@ -2191,7 +2197,7 @@ class PhoneModeViewModel @Inject constructor(
                         swipeRightVerb = state.swipeRightVerb,
                         collectionAction = state.collectionAction,
                         leftSwipeAction = state.leftSwipeAction,
-                        collectionFolderName = state.collectionFolderName,
+                        collectionFolderName = state.collectionLabel,
                         leftSwipeFolderName = state.leftSwipeFolderName,
                     ),
                     message = FirstRunHintText.message(hint),

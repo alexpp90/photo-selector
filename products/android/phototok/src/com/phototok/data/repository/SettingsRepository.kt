@@ -276,7 +276,16 @@ class SettingsRepository @Inject constructor(
                 pro,
             )
             val effectiveKind = if (kind == SourceKind.CLOUD_OTHER && inherits) SourceKind.PHONE_LIBRARY else kind
-            return ProModePolicy.effective(storedSourceSettingsOf(prefs, effectiveKind), effectiveKind, pro)
+            val effective = ProModePolicy.effective(storedSourceSettingsOf(prefs, effectiveKind), effectiveKind, pro)
+            // A Casual card import keeps its own subfolder; every other source files into the
+            // configured Selection folder name (Pro) or `Selection` (Casual).
+            if (effective.importToPhoneCamera) return effective
+            return effective.copy(
+                selectionSubfolder = ProModePolicy.effectiveSelectionFolderName(
+                    prefs[KEY_SELECTION_FOLDER_NAME] ?: DEFAULT_SELECTION_FOLDER_NAME,
+                    pro,
+                ),
+            )
         }
 
         internal fun appSettingsOf(prefs: Preferences): AppSettings {
