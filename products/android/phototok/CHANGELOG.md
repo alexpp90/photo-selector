@@ -7,6 +7,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 ## [Unreleased]
 
 ### Fixed
+- A failed move that puts its photo back, and a move that takes one out, no longer overwrite a swipe or a batch of newly found photos that landed at the same moment (a photo you had just deleted could reappear, or a new photo disappear from the feed).
 - Swiping left on an edited copy (`IMG_1-Edit.jpg`, `IMG_1-Enhanced-NR.dng`) now deletes only that file and its own sidecars. Before, it permanently deleted the whole shot with linked files on, the original RAW included; the original is deleted when you swipe the original.
 - Opening another source no longer carries the previous source's Selection and left-swipe folders over. Before, a Pro user with a Selection folder on the SD card who then opened a phone folder moved phone photos into the card's folder (and the phone folder set in Settings caught the card's keepers); each source now uses its own folders, or its own source folder when it has none.
 - **Delete all** on the "Card done" sheet now counts and deletes the same files: every file on the card, hidden RAW companions, files of another type and `.xmp` sidecars included ("Delete all 5 files?"). Before, the dialog showed the number of cards in the feed. It waits until the card has been read completely, and says "Card cleared" only when nothing is left; if some files could not be deleted they stay in the feed and the message says how many went.

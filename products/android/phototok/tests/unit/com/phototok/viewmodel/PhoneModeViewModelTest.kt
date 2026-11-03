@@ -13,6 +13,8 @@ import com.phototok.domain.CollectionAction
 import com.phototok.domain.FeedOrderMode
 import com.phototok.domain.FirstRunHint
 import com.phototok.domain.FolderScanInfo
+import com.phototok.domain.OptimisticFeed
+import com.phototok.domain.PhoneFeedOrdering
 import com.phototok.domain.PhotoFolders
 import com.phototok.domain.SwipeAction
 import com.phototok.domain.SwipeRightVerb
@@ -23,6 +25,8 @@ import io.mockk.coVerify
 import io.mockk.every
 import io.mockk.just
 import io.mockk.mockk
+import io.mockk.mockkObject
+import io.mockk.unmockkObject
 import io.mockk.slot
 import io.mockk.Runs
 import kotlinx.coroutines.CompletableDeferred
@@ -1975,6 +1979,76 @@ class PhoneModeViewModelTest {
         coVerify(exactly = 1) {
             imageRepository.copyImageDetailed(any(), Uri.parse(sdTree), any(), PhotoFolders.SELECTION)
         }
+    }
+
+    @Test
+    fun `a failed move rolling back does not undo a delete swiped while it ran`() = runTest {
+        phoneSettingsFlow.value = PhoneSettings(collectionAction = CollectionAction.MOVE)
+        val gate = CompletableDeferred<FileOperationResult>()
+        coEvery { imageRepository.moveImageDetailed(any(), any(), any(), any()) } coAnswers { gate.await() }
+        val viewModel = loadFolder(image("a.jpg", 30), image("b.jpg", 20), image("c.jpg", 10))
+        viewModel.addToCollection() // a leaves the feed at once; b is on screen
+        assertEquals(listOf("b.jpg", "c.jpg"), viewModel.uiState.value.images.map { it.fileName })
+
+        // The rollback runs on the application scope; a swipe lands while it computes the new lists.
+        mockkObject(OptimisticFeed)
+        var swiped = false
+        every { OptimisticFeed.restore(any(), any(), any(), any(), any()) } answers {
+            if (!swiped) {
+                swiped = true
+                viewModel.requestDelete() // b
+            }
+            callOriginal()
+        }
+        try {
+            gate.complete(FileOperationResult.failure("content://photos/a.jpg", null))
+            advanceUntilIdle()
+        } finally {
+            unmockkObject(OptimisticFeed)
+        }
+
+        val state = viewModel.uiState.value
+        assertTrue("the swipe really happened during the rollback", swiped)
+        assertEquals("a is back, b stays gone while it waits for Undo", listOf("a.jpg", "c.jpg"), state.images.map { it.fileName })
+        assertEquals(listOf("a.jpg", "c.jpg"), state.allImages.map { it.fileName })
+        assertEquals(listOf("b.jpg"), state.undoStack.map { it.image.fileName })
+    }
+
+    @Test
+    fun `a move taking its photo out of the feed does not drop a batch merged meanwhile`() = runTest {
+        phoneSettingsFlow.value = PhoneSettings(collectionAction = CollectionAction.MOVE)
+        coEvery { imageRepository.moveImageDetailed(any(), any(), any(), any()) } coAnswers {
+            FileOperationResult.success(firstArg<Uri>().toString(), null)
+        }
+        val a = image("a.jpg", 30)
+        val b = image("b.jpg", 20)
+        val c = image("c.jpg", 10)
+        val batches = MutableSharedFlow<List<ImageItem>>(extraBufferCapacity = 8)
+        every { imageRepository.discoverImages(any()) } returns batches
+        val viewModel = buildViewModel()
+        viewModel.selectSourceFolder(Uri.parse("content://tree/photos"))
+        batches.tryEmit(listOf(a, b))
+        assertEquals(listOf("a.jpg", "b.jpg"), viewModel.uiState.value.images.map { it.fileName })
+
+        // The discovery of the next batch lands while the removal computes the new lists.
+        mockkObject(PhoneFeedOrdering)
+        var merged = false
+        every { PhoneFeedOrdering.portraitSplit(any(), any()) } answers {
+            if (!merged) {
+                merged = true
+                Thread { batches.tryEmit(listOf(a, b, c)) }.also { it.start() }.join()
+            }
+            callOriginal()
+        }
+        try {
+            viewModel.addToCollection()
+        } finally {
+            unmockkObject(PhoneFeedOrdering)
+        }
+
+        assertTrue("the batch really landed during the removal", merged)
+        assertEquals(listOf("b.jpg", "c.jpg"), viewModel.uiState.value.images.map { it.fileName })
+        assertEquals(listOf("b.jpg", "c.jpg"), viewModel.uiState.value.allImages.map { it.fileName })
     }
 
     @Test

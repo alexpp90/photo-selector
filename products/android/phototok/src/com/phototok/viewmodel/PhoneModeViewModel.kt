@@ -1011,30 +1011,29 @@ class PhoneModeViewModel @Inject constructor(
         }
         publishedUris += fresh.map { it.uri }
 
-        val allCombined = state.allImages + fresh
-        val seenUris = if (unseenFirstOrdering) {
-            seenRepository.filterSeenUris(allCombined, state.sourceFolderUri)
-        } else {
-            emptySet()
-        }
         val freshFiltered = PhoneFeedOrdering.filterByType(fresh, config.fileTypeFilter)
-        val merged = PhoneFeedOrdering.appendBatch(
-            current = state.images,
-            fresh = freshFiltered,
-            mode = config.feedOrder,
-            reorder = newestFirstReorderAllowed && !userHasNavigated,
-            currentIndex = state.currentIndex,
-            seenUris = seenUris,
-        )
-
-        val nextIndex = resolveFeedIndex(state.currentIndex, merged.images.size, targetUriToKeep, merged.images)
-
-        _uiState.update {
-            it.copy(
+        // Computed from the state the write replaces: a rollback or a swipe may have changed the
+        // lists since the read above, and publishedUris stops a dropped photo from coming back.
+        _uiState.update { s ->
+            val allCombined = s.allImages + fresh
+            val seenUris = if (unseenFirstOrdering) {
+                seenRepository.filterSeenUris(allCombined, s.sourceFolderUri)
+            } else {
+                emptySet()
+            }
+            val merged = PhoneFeedOrdering.appendBatch(
+                current = s.images,
+                fresh = freshFiltered,
+                mode = config.feedOrder,
+                reorder = newestFirstReorderAllowed && !userHasNavigated,
+                currentIndex = s.currentIndex,
+                seenUris = seenUris,
+            )
+            s.copy(
                 allImages = allCombined,
                 images = merged.images,
                 portraitSectionStart = merged.portraitSectionStart,
-                currentIndex = nextIndex,
+                currentIndex = resolveFeedIndex(s.currentIndex, merged.images.size, targetUriToKeep, merged.images),
                 isLoading = false,
             )
         }
@@ -1612,16 +1611,17 @@ class PhoneModeViewModel @Inject constructor(
     /** Put optimistically removed photos back where they were. */
     private fun restoreToFeed(slots: List<OptimisticFeed.Slot>) {
         if (slots.isEmpty()) return
-        val state = _uiState.value
-        val lists = OptimisticFeed.restore(
-            images = state.images,
-            allImages = state.allImages,
-            slots = slots,
-            currentIndex = state.currentIndex,
-            sortByOrientation = state.sortByOrientation,
-        )
-        _uiState.update {
-            it.copy(
+        // Runs on the application scope while swipes and discovery batches keep writing the feed:
+        // the new lists are computed from the state this write replaces, never from an earlier read.
+        _uiState.update { s ->
+            val lists = OptimisticFeed.restore(
+                images = s.images,
+                allImages = s.allImages,
+                slots = slots,
+                currentIndex = s.currentIndex,
+                sortByOrientation = s.sortByOrientation,
+            )
+            s.copy(
                 images = lists.images,
                 allImages = lists.allImages,
                 currentIndex = lists.currentIndex,
@@ -2429,20 +2429,14 @@ class PhoneModeViewModel @Inject constructor(
 
     /** Remove a set of images (by URI) from both the filtered and unfiltered lists. */
     private fun removeImagesFromLists(uris: Set<String>) {
-        val state = _uiState.value
-        val updatedImages = state.images.filter { it.uri !in uris }
-        val updatedAll = state.allImages.filter { it.uri !in uris }
-        val newIndex = state.currentIndex.coerceAtMost(updatedImages.size - 1).coerceAtLeast(0)
-
-        _uiState.update {
-            it.copy(
+        _uiState.update { s ->
+            val updatedImages = s.images.filter { it.uri !in uris }
+            val updatedAll = s.allImages.filter { it.uri !in uris }
+            s.copy(
                 images = updatedImages,
                 allImages = updatedAll,
-                currentIndex = newIndex,
-                portraitSectionStart = PhoneFeedOrdering.portraitSplit(
-                    updatedImages,
-                    state.sortByOrientation,
-                ),
+                currentIndex = s.currentIndex.coerceAtMost(updatedImages.size - 1).coerceAtLeast(0),
+                portraitSectionStart = PhoneFeedOrdering.portraitSplit(updatedImages, s.sortByOrientation),
             )
         }
         persistCurrentFolderPosition()
