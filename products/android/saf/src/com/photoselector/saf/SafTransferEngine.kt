@@ -38,6 +38,10 @@ class SafTransferEngine(
     private val subfolderRule: SelectionSubfolderRule,
     private val policy: SafTransferPolicy,
     maxConcurrentTransfers: Int = MAX_CONCURRENT_TRANSFERS,
+    /** The dispatcher the I/O runs on. Tests swap it through the property. */
+    var ioDispatcher: CoroutineDispatcher = Dispatchers.IO,
+    /** The atomic-move collaborator. Tests swap it through the property. */
+    var documentMover: SafDocumentMover = DefaultSafDocumentMover,
 ) {
     companion object {
         private const val TAG = "SafTransferEngine"
@@ -58,9 +62,6 @@ class SafTransferEngine(
      * URIs, not `DocumentFile`s: those hold the `Context` of the call that made them.
      */
     private val selectionDirs = ConcurrentHashMap<String, Uri>()
-
-    var ioDispatcher: CoroutineDispatcher = Dispatchers.IO
-    var documentMover: SafDocumentMover = DefaultSafDocumentMover
 
     private fun destinationLockFor(destinationKey: String): Mutex =
         destinationLocks.getOrPut(destinationKey) { Mutex() }
@@ -425,9 +426,11 @@ class SafTransferEngine(
                 ResolvedSource(uri, doc, null, SINGLE_FOLDER_KEY, null)
             } else if (sorting) {
                 val subfolder = subfolderRule.subfolderFor(name, bundleNames)
-                val target = targetFoldersByKey.getOrPut(subfolder.name) {
-                    subfolderIn(subfolder, baseTargetFolder)
-                }
+                // A RAW/ or JPEG/ folder that cannot be created leaves the member without a target:
+                // it fails like an unresolvable source instead of landing in the Selection root and
+                // splitting a sorted bundle without a word (AS-Q-1).
+                val target = targetFoldersByKey[subfolder.name]
+                    ?: subfolderIn(subfolder, baseTargetFolder)?.also { targetFoldersByKey[subfolder.name] = it }
                 ResolvedSource(uri, doc, name, subfolder.name, target)
             } else {
                 targetFoldersByKey.getOrPut(SINGLE_FOLDER_KEY) { baseTargetFolder }
@@ -1172,13 +1175,16 @@ class SafTransferEngine(
             CopyStepResult.Failure(reason, strays = listOf(destFile))
         }
 
-    /** The `RAW/` or `JPEG/` folder inside [selectionDir] (found or created), or [selectionDir] itself. */
-    internal fun subfolderIn(subfolder: SelectionSubfolder, selectionDir: DocumentFile): DocumentFile {
+    /**
+     * The `RAW/` or `JPEG/` folder inside [selectionDir] (found or created), [selectionDir] itself
+     * for [SelectionSubfolder.ROOT], or null when the subfolder cannot be created.
+     */
+    internal fun subfolderIn(subfolder: SelectionSubfolder, selectionDir: DocumentFile): DocumentFile? {
         fun sub(name: String): DocumentFile? =
             selectionDir.findFile(name) ?: selectionDir.createDirectory(name)
         return when (subfolder) {
-            SelectionSubfolder.RAW -> sub(RAW_SUBFOLDER) ?: selectionDir
-            SelectionSubfolder.JPEG -> sub(JPEG_SUBFOLDER) ?: selectionDir
+            SelectionSubfolder.RAW -> sub(RAW_SUBFOLDER)
+            SelectionSubfolder.JPEG -> sub(JPEG_SUBFOLDER)
             SelectionSubfolder.ROOT -> selectionDir
         }
     }

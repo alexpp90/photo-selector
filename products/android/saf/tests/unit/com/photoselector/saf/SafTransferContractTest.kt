@@ -606,6 +606,20 @@ abstract class SafTransferContractTest(policy: SafTransferPolicy) : SafTestHarne
         assertFalse(File(rootDir, "Selection/JPEG/IMG_0450.JPG").exists())
     }
 
+    // AS-Q-1: a sorted file never falls back into the Selection root when its subfolder is refused.
+    @Test
+    fun `a file whose sorting subfolder cannot be created fails and keeps its source`() = runTest {
+        val srcFile = File(rootDir, "IMG_0460.CR3").apply { writeText("raw") }
+        FakeSafDocumentsProvider.failCreateNamed = "RAW"
+
+        val result = move(srcFile.name)
+
+        assertFalse(result.success)
+        assertFalse(result.partial)
+        assertTrue(srcFile.exists())
+        assertFalse("nothing is filed into the Selection root instead", File(rootDir, "Selection/IMG_0460.CR3").exists())
+    }
+
     // ── Provider seam ────────────────────────────────────────────────────
 
     @Test

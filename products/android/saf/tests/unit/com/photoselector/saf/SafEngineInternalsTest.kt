@@ -5,6 +5,7 @@ import io.mockk.every
 import io.mockk.mockk
 import io.mockk.verify
 import org.junit.Assert.assertFalse
+import org.junit.Assert.assertNull
 import org.junit.Assert.assertSame
 import org.junit.Assert.assertTrue
 import org.junit.Test
@@ -46,14 +47,14 @@ class SafEngineInternalsTest {
         assertSame(created, engine.subfolderIn(SelectionSubfolder.RAW, dir))
     }
 
-    // TOK: falls back to selection folder when subfolder cannot be created
+    // AS-Q-1: the old fallback put a RAW into the Selection root, away from its sorted bundle.
     @Test
-    fun `falls back to the Selection folder when the subfolder cannot be created`() {
+    fun `a subfolder that cannot be created is null, never the Selection folder`() {
         val brokenDir = mockk<DocumentFile> {
             every { findFile("RAW") } returns null
             every { createDirectory("RAW") } returns null
         }
-        assertSame(brokenDir, engine.subfolderIn(SelectionSubfolder.RAW, brokenDir))
+        assertNull(engine.subfolderIn(SelectionSubfolder.RAW, brokenDir))
     }
 
     // TOK: cleanUpFailedCopy calls delete on destination file

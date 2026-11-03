@@ -50,6 +50,10 @@ class FakeSafDocumentsProvider : android.content.ContentProvider() {
         @Volatile
         var readOverride: ((File) -> File)? = null
 
+        /** Creating a document with exactly this display name fails (a provider that refuses a folder). */
+        @Volatile
+        var failCreateNamed: String? = null
+
         /** Called with the document id at the start of every delete (a test cancels the caller here). */
         @Volatile
         var onDelete: ((String) -> Unit)? = null
@@ -97,6 +101,7 @@ class FakeSafDocumentsProvider : android.content.ContentProvider() {
             sizeUnknownFor = null
             readOverride = null
             onDelete = null
+            failCreateNamed = null
             moveDocumentCalls.set(0)
             childrenQueryCalls.set(0)
             documentQueryCalls.set(0)
@@ -252,6 +257,7 @@ class FakeSafDocumentsProvider : android.content.ContentProvider() {
         mimeType: String,
         displayName: String,
     ): String {
+        if (failCreateNamed == displayName) throw FileNotFoundException("Simulated create failure for $displayName")
         val parent = fileForDocId(parentDocumentId)
         val actualName = if (mimeType == Document.MIME_TYPE_DIR) {
             displayName
