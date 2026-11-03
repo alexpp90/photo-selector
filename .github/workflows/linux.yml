@@ -12,6 +12,7 @@ on:
     tags: ["linux-desktop-v*"]
     paths:
       - 'products/linux-desktop/**'
+      - 'docs/products/linux-desktop/INSTALL.md'
       - '.github/workflows/linux.yml'
       - 'testdata/formats/**'
       - 'scripts/fetch_format_corpus.py'
@@ -20,6 +21,7 @@ on:
     branches: [main]
     paths:
       - 'products/linux-desktop/**'
+      - 'docs/products/linux-desktop/INSTALL.md'
       - '.github/workflows/linux.yml'
       - 'testdata/formats/**'
       - 'scripts/fetch_format_corpus.py'
@@ -38,7 +40,7 @@ jobs:
   # ── Static Analysis & Lint Gate (Mirror: scripts/run_tests.sh `linux.yml:lint`) ──
   lint:
     name: Lint (flake8)
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     timeout-minutes: 10
     defaults:
       run:
@@ -61,7 +63,7 @@ jobs:
   # ── Headless Unit Tests (Mirror: scripts/run_tests.sh `linux.yml:test`) ──
   test:
     name: Headless Unit Tests (pytest, Python ${{ matrix.python }})
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     # 3.13 is what Debian 13 (Trixie) ships, the product's target; 3.12 stays as the floor.
     strategy:
       fail-fast: false
@@ -69,7 +71,7 @@ jobs:
         python: ["3.12", "3.13"]
     # The suite takes about a minute. A test that blocks on a real GTK main loop must fail the job in
     # minutes (faulthandler below dumps every thread's stack), not sit "pending" for hours.
-    timeout-minutes: 15
+    timeout-minutes: 10
     defaults:
       run:
         shell: bash
@@ -83,10 +85,11 @@ jobs:
           python-version: ${{ matrix.python }}
 
       - name: Install system dependencies (Linux)
+        timeout-minutes: 5
         run: |
-          sudo apt-get update
-          sudo apt-get install -y libglib2.0-dev libgirepository1.0-dev libcairo2-dev gir1.2-gtk-4.0 gir1.2-adw-1 gir1.2-gexiv2-0.10 python3-gi python3-gi-cairo pkg-config xvfb libraw-bin heif-gdk-pixbuf libheif-plugin-libde265
-          sudo apt-get install -y libgirepository-2.0-dev || true
+          sudo apt-get -o Acquire::Retries=3 update
+          sudo apt-get -o Acquire::Retries=3 install -y libglib2.0-dev libgirepository1.0-dev libcairo2-dev gir1.2-gtk-4.0 gir1.2-adw-1 gir1.2-gexiv2-0.10 python3-gi python3-gi-cairo pkg-config xvfb libraw-bin heif-gdk-pixbuf libheif-plugin-libde265
+          sudo apt-get -o Acquire::Retries=3 install -y libgirepository-2.0-dev || true
 
       - name: Install dependencies
         run: |
@@ -109,8 +112,8 @@ jobs:
   # ── Debian Packaging & APT Validation (Mirror: scripts/run_tests.sh `linux.yml:package`) ──
   package:
     name: Debian Packaging & APT Validation
-    runs-on: ubuntu-latest
-    timeout-minutes: 15
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
     steps:
       - uses: actions/checkout@v7
 
@@ -120,9 +123,10 @@ jobs:
           python-version: "3.12"
 
       - name: Install packaging tools
+        timeout-minutes: 5
         run: |
-          sudo apt-get update
-          sudo apt-get install -y dpkg-dev binutils
+          sudo apt-get -o Acquire::Retries=3 update
+          sudo apt-get -o Acquire::Retries=3 install -y dpkg-dev binutils
 
       - name: Build package, generate APT repository (unsigned) & verify
         run: bash products/linux-desktop/scripts/package_debian.sh
@@ -144,7 +148,7 @@ jobs:
     name: Publish APT repository
     needs: [lint, test, package]
     if: startsWith(github.ref, 'refs/tags/linux-desktop-v')
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     timeout-minutes: 15
     permissions:
       contents: read
@@ -212,7 +216,7 @@ jobs:
     name: GitHub release
     needs: [lint, test, package]
     if: startsWith(github.ref, 'refs/tags/linux-desktop-v')
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     timeout-minutes: 10
     permissions:
       contents: write

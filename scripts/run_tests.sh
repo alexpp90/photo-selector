@@ -162,7 +162,8 @@ if ! $explicit_product; then
                 products/desktop/*|*.spec) has_desktop=true ;;
                 products/android/*|scripts/check_native_alignment.py) has_android=true ;;
                 products/macos-desktop/*) has_macos=true ;;
-                products/linux-desktop/*) has_linux=true ;;
+                # linux.yml:test reads the APT key fingerprint from INSTALL.md (test_packaging.py).
+                products/linux-desktop/*|docs/products/linux-desktop/INSTALL.md) has_linux=true ;;
                 .github/workflows/*|.github/actions/*|scripts/run_tests.sh|testdata/formats/*|scripts/fetch_format_corpus.py) has_cross=true ;;
             esac
         done
@@ -444,6 +445,22 @@ if $run_python; then
             gate "pytest tests/visual/ -m visual" "desktop.yml:visual" \
                 pyx pytest tests/visual/ --tb=short -q -o faulthandler_timeout=120 -m visual
         fi
+
+        # ── PyInstaller build (desktop.yml:build — main pushes and desktop-v* tags only) ──
+        # Needs no credential, only the network (it downloads ExifTool) and a few minutes, and it
+        # regenerates THIRDPARTY_NOTICES.txt; so it is opt-in locally. A change to build.py, a
+        # dependency or a native import is otherwise first built on `main`, where the release
+        # job `needs: build`. Run it with PST_BUILD_GATES=1 before merging such a change.
+        section "PyInstaller build"
+        if $quick; then
+            skip "PyInstaller build (scripts/build.py)" "desktop.yml:build" "--quick" false
+        elif [ "${PST_BUILD_GATES:-0}" = "1" ]; then
+            gate "PyInstaller build (scripts/build.py)" "desktop.yml:build" \
+                py python scripts/build.py
+        else
+            skip "PyInstaller build (scripts/build.py)" "desktop.yml:build" \
+                "CI builds it on main and release tags only; opt in with PST_BUILD_GATES=1 (network, minutes)" false
+        fi
     fi
 elif ! $explicit_product; then
     section "Python gates (skipped)"
@@ -573,6 +590,17 @@ if $run_macos; then
         gate "release binary carries no UI test hooks" "macos.yml:swift-test" \
             "$ROOT_DIR/products/macos-desktop/scripts/check_no_test_hooks.sh" \
             "$ROOT_DIR/products/macos-desktop/.build/release/PhotoSelectorApp"
+
+        # macos.yml:build assembles the universal (arm64 + x86_64) app bundle and checks the
+        # bundle for the hooks again; stopping at the bare binary left build_app.sh (lipo,
+        # codesign, Info.plist) to be first exercised on `main`. Same minutes as CI.
+        if $quick; then
+            skip "Lensjet.app universal bundle" "macos.yml:build" "--quick" false
+        else
+            gate "build_app.sh release --universal + app-bundle hook check" "macos.yml:build" \
+                bash -c 'cd "$1/products/macos-desktop" && scripts/build_app.sh release --universal && scripts/check_no_test_hooks.sh .build/app/Lensjet.app' \
+                _ "$ROOT_DIR"
+        fi
 
         # Local-only gate: drives the RUNNING app (activation policy, real key events,
         # rendered Focus 3-Up geometry, clicks while zoomed, time-to-first-photo). Unit

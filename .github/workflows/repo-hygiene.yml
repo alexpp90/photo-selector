@@ -19,12 +19,13 @@ permissions:
 
 concurrency:
   group: hygiene-${{ github.ref }}
-  cancel-in-progress: true
+  # A superseded PR run is noise; a main run is the verdict on a merge and is kept.
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 jobs:
   hygiene:
     name: README parity & private-path guard
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     timeout-minutes: 10
     steps:
       - uses: actions/checkout@v7
