@@ -475,18 +475,26 @@ def test_archive_key_fingerprint_documented():
         assert fpr in doc.read_text(encoding="utf-8"), doc
 
 
-@pytest.mark.skipif(not __import__("shutil").which("appstreamcli"), reason="appstreamcli not installed")
+def _require_tool(name: str) -> None:
+    """Skip when ``name`` is missing, unless the gate is the mandatory one (CI, or ``run_tests.sh``
+    with the tools installed): a silently skipped validator is no validator (BL-CI-1)."""
+    if shutil.which(name):
+        return
+    if os.environ.get("PST_REQUIRE_PACKAGING_TOOLS") == "1":
+        pytest.fail(f"{name} is not installed (PST_REQUIRE_PACKAGING_TOOLS=1)")
+    pytest.skip(f"{name} not installed")
+
+
 def test_appstream_validates():
+    _require_tool("appstreamcli")
     res = subprocess.run(["appstreamcli", "validate", "--no-net",
                           str(get_product_root() / "data" / "app.alpatix.Blitzlens.metainfo.xml")],
                          capture_output=True, text=True)
     assert res.returncode == 0, res.stdout + res.stderr
 
 
-@pytest.mark.skipif(
-    not __import__("shutil").which("desktop-file-validate"), reason="desktop-file-validate not installed"
-)
 def test_desktop_file_validates():
+    _require_tool("desktop-file-validate")
     desktop = get_product_root() / "data" / "app.alpatix.Blitzlens.desktop"
     res = subprocess.run(["desktop-file-validate", str(desktop)], capture_output=True, text=True)
     assert res.returncode == 0, res.stdout + res.stderr
@@ -638,3 +646,20 @@ def test_desktop_file_does_not_claim_notifications_the_app_never_sends():
         for p in (get_product_root() / "src").rglob("*.py")
     )
     assert sends_notifications or "X-GNOME-UsesNotifications" not in desktop
+
+
+def test_a_missing_validator_fails_the_mandatory_gate_instead_of_skipping(monkeypatch):
+    monkeypatch.setattr(shutil, "which", lambda _name: None)
+    monkeypatch.setenv("PST_REQUIRE_PACKAGING_TOOLS", "1")
+    with pytest.raises(pytest.fail.Exception, match="not installed"):
+        _require_tool("appstreamcli")
+    monkeypatch.delenv("PST_REQUIRE_PACKAGING_TOOLS")
+    with pytest.raises(pytest.skip.Exception):
+        _require_tool("appstreamcli")
+
+
+def test_ci_installs_the_validators_and_requires_them():
+    workflow = (get_repo_root() / ".github" / "workflows" / "linux.yml").read_text(encoding="utf-8")
+    test_job = workflow.split("  test:", 1)[1].split("\n  package:", 1)[0]
+    assert "appstream" in test_job and "desktop-file-utils" in test_job
+    assert "PST_REQUIRE_PACKAGING_TOOLS" in test_job
