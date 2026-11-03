@@ -6,6 +6,9 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ## [Unreleased]
 
+### Added
+- **Lowest sharpness first** is in the main menu (View order) and on the **B** key, next to the natural order; the menu shows which one is active.
+
 ### Changed
 - The empty start screen lost its tagline, and its key hints are generated from the same key table the app uses.
 - The action buttons read **Keep**, **Copy**, **Trash** and **Undo**; the keys moved into the tooltips and the `?` shortcut sheet. The tooltip of **Undo** names the action it would undo.
@@ -13,6 +16,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 - Counters, badges, captions and the info card follow the system text size; before, they stayed the same size at 150 % text.
 
 ### Fixed
+- After a Move, Copy or Trash the action bar says what happened: the photo's name (shortened in the middle when long), where it went (Selection or Trash) and how many companion files went along, for example `Moved IMG_…_064000 + 2 to Selection/`. The line no longer shifts the centred buttons.
+- The action bar follows the window width without a permanent frame callback, so an idle window no longer redraws every frame.
 - The `.deb` is now really reproducible: the package on the GitHub release and the one in the APT repository are the same file (same checksum). Before, two builds of the same version differed in the build time stored in the archive, so the repository and the release carried different bytes.
 - Opening another folder cancels the photos still queued for decoding in the folder you left, and a photo that was already decoding no longer fills the new folder's cache.
 - When a Move, Copy or Trash leaves files in an unexpected place ("Move interrupted — … stayed in Selection/", "original could not be removed"), the message stays on screen until the next file operation. Before, it was a 3-second toast and a 4-second line in the action bar.
