@@ -42,6 +42,8 @@ class MainWindow(Adw.ApplicationWindow if HAS_GI else object):
         self.window_title: str = APP_BRAND_NAME
         self.icon_name: str = APP_ICON_NAME
         self.settings: SettingsStore = settings or SettingsStore()
+        self._close_when_idle = False
+        self._close_forced = False
         if HAS_GI:
             super().__init__(application=application, **kwargs)
             self.set_default_size(1440, 900)
@@ -68,6 +70,18 @@ class MainWindow(Adw.ApplicationWindow if HAS_GI else object):
             self.action_bar = ActionBarView(viewmodel=self.viewmodel)
 
     def _on_close_request(self, *_args) -> bool:
+        """Hold the close until every queued file operation ran (R-LINUX-UI-10).
+
+        The view model hands the worker one job at a time, so shutting the worker down with
+        culls still queued lost them (or raised in the next dispatch). A second close request
+        while waiting quits anyway, for a mount that hangs.
+        """
+        pending = self.viewmodel.queued_count
+        if pending > 0 and not self._close_forced:
+            self._close_forced = True
+            self._close_when_idle = True
+            self.show_toast(f"Finishing {pending} file operation{'s' if pending != 1 else ''}…")
+            return True
         if self.file_worker is not None:
             self.file_worker.shutdown()
         if getattr(self.canvas_view, "loader", None) is not None:
@@ -240,6 +254,10 @@ class MainWindow(Adw.ApplicationWindow if HAS_GI else object):
         action = getattr(self, "_view_order_action", None)
         if action is not None:
             action.set_state(GLib.Variant.new_string(vm.sort_order))
+
+        if self._close_when_idle and vm.queued_count == 0:
+            self._close_when_idle = False
+            self.close()
 
         mode = vm.comparison_mode
         self.btn_mode_1.set_css_classes(["suggested-action"] if mode == 1 else [])

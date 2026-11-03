@@ -42,8 +42,11 @@ class FileOperationWorker:
     def __init__(self, idle_add: Callable[..., object] = None) -> None:
         self._pool = ThreadPoolExecutor(max_workers=1, thread_name_prefix="culling-file-ops")
         self._idle_add = idle_add or schedule_on_main_loop
+        self._closed = False
 
     def __call__(self, job: Job, done: JobDone) -> None:
+        if self._closed:  # the window is gone (quit anyway): nothing can show an outcome
+            return
         self._pool.submit(self._work, job, done)
 
     def _work(self, job: Job, done: JobDone) -> None:
@@ -59,5 +62,7 @@ class FileOperationWorker:
         return False
 
     def shutdown(self) -> None:
-        """Drain running and queued operations cleanly without abandoning pending culls (R-LINUX-UI-10)."""
+        """Finish the job that is running and refuse new ones. The window holds its close until the
+        view model's queue is empty (R-LINUX-UI-10); only a deliberate second close gets here with work left."""
+        self._closed = True
         self._pool.shutdown(wait=True, cancel_futures=False)
