@@ -38,6 +38,9 @@ in `exif/reader.py`.
 - **Bitmaps:** JPEG, HEIC/HEIF, PNG, TIFF, WebP.
 - Extensions match case-insensitively; a RAW and a JPEG with the same stem are companions and
   move together (RAW into `Selection/RAW/`).
+- Move and Copy to Selection never overwrite: when a file of the bundle (RAW, JPEG, `.xmp`,
+  `-Edit`) is already in the destination, the whole bundle takes the next free `-2`, `-3`, … after
+  the stem (`DSC_0001-2.JPG`), as in [`FILE_OPERATIONS.md`](../../docs/shared/FILE_OPERATIONS.md).
 
 Known gaps, enforced by `tests/unit/test_format_conformance.py`:
 
