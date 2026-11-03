@@ -159,6 +159,40 @@ class FullscreenViewerTest {
         rule.waitForIdle()
     }
 
+    /** A key held down: the press, [repeats] auto-repeats of it, then the release. */
+    private fun hold(keyCode: Int, repeats: Int) {
+        val dialog = checkNotNull(ShadowDialog.getLatestDialog()) { "the viewer opened no dialog" }
+        val decor = dialog.window!!.decorView
+        rule.runOnUiThread {
+            (0..repeats).forEach { n -> decor.dispatchKeyEvent(KeyEvent(0L, n * 33L, KeyEvent.ACTION_DOWN, keyCode, n)) }
+            decor.dispatchKeyEvent(KeyEvent(0L, repeats * 33L + 10, KeyEvent.ACTION_UP, keyCode, 0))
+        }
+        rule.waitForIdle()
+    }
+
+    @Test
+    fun `a held Delete, M or C acts once, not once per auto-repeat`() {
+        val harness = open()
+
+        hold(KeyEvent.KEYCODE_FORWARD_DEL, repeats = 5)
+        hold(KeyEvent.KEYCODE_M, repeats = 5)
+        hold(KeyEvent.KEYCODE_C, repeats = 5)
+
+        assertEquals(1, harness.deletes)
+        assertEquals(listOf("a.jpg"), harness.moved)
+        assertEquals(1, harness.copied.size)
+    }
+
+    @Test
+    fun `a held arrow still pages once per repeat`() {
+        open()
+
+        hold(KeyEvent.KEYCODE_DPAD_RIGHT, repeats = 2)
+        settle()
+
+        assertEquals("4 / 5", position())
+    }
+
     private fun settle() {
         rule.mainClock.advanceTimeBy(600)
         rule.waitForIdle()

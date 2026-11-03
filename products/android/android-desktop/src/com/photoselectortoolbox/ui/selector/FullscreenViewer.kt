@@ -451,6 +451,10 @@ private fun FullscreenContent(
                 if (event.isCtrlPressed || event.isMetaPressed || event.isAltPressed) {
                     return@onPreviewKeyEvent false
                 }
+                // A held Del, M or C acts once, not once per auto-repeat (FD-D-2).
+                if (isHeldOneShotKey(event.key, event.nativeKeyEvent.repeatCount > 0)) {
+                    return@onPreviewKeyEvent true
+                }
                 when (event.key) {
                     Key.Escape -> { onDismiss(); true }
                     Key.Delete, Key.Backspace -> { onDelete(currentPageIndex); true }

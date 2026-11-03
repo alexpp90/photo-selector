@@ -403,6 +403,7 @@ fun SelectorScreen(
                             if (event.type != KeyEventType.KeyDown) return@onPreviewKeyEvent false
                             handleSelectorKey(
                                 key = event.key,
+                                repeat = event.nativeKeyEvent.repeatCount > 0,
                                 sheetOpen = sheetOpen,
                                 contextMenuOpen = contextMenuAt != null,
                                 fullscreenOpen = showFullscreen,
@@ -713,6 +714,17 @@ private fun EmptySelectorState(
  * suppressed while a sheet is open, except Escape" — can be reasoned about and
  * tested without composing the screen.
  */
+/**
+ * Keys that file or delete a photo. A held key auto-repeats (about 30 a second on a DeX or
+ * keyboard dock); repeated, these would delete or file frame after frame — past 20 deletes the
+ * oldest are committed to disk, and a repeated Copy cannot be undone at all. So only the first
+ * press of each acts, and its repeats are swallowed (FD-D-2). Arrows keep repeating on purpose.
+ */
+internal val ONE_SHOT_KEYS: Set<Key> = setOf(Key.Delete, Key.Backspace, Key.M, Key.C)
+
+/** True for an auto-repeat of a [ONE_SHOT_KEYS] key: consume it and do nothing. */
+internal fun isHeldOneShotKey(key: Key, repeat: Boolean): Boolean = repeat && key in ONE_SHOT_KEYS
+
 internal fun handleSelectorKey(
     key: Key,
     sheetOpen: Boolean,
@@ -730,6 +742,8 @@ internal fun handleSelectorKey(
     onNavigate: ((Screen) -> Unit)? = null,
     ctrlOrMetaPressed: Boolean = false,
     onUndo: (() -> Unit)? = null,
+    /** The key event is an auto-repeat of a held key ([isHeldOneShotKey]). */
+    repeat: Boolean = false,
 ): Boolean {
     if (key == Key.Escape) {
         if (sheetOpen || contextMenuOpen || fullscreenOpen || maximised) {
@@ -748,6 +762,8 @@ internal fun handleSelectorKey(
         }
         return false
     }
+
+    if (isHeldOneShotKey(key, repeat)) return true
 
     return when (key) {
         Key.L, Key.I -> {

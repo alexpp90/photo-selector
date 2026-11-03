@@ -18,6 +18,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 ### Fixed
 
 - One frame, full size (`1`/`2`/`3`): the photo now takes the whole area, and its file name, exposure, lens and scores lie over it. The new ⓘ button on the frame hides them.
+- Holding down Delete, Backspace, M or C acts once. Before, the key's auto-repeat deleted, moved or copied photo after photo.
 - A delete no longer claims a 30-second deadline. The draining line under the delete card and the "for 30 seconds" hint are gone: a delete can be undone with Ctrl+Z until you leave the folder, which is when the files are actually removed.
 - Rating a JPEG can no longer leave a cut-off photo. Before the photo is rewritten, a copy of the original (`<name>.frameduel-backup`) is saved beside it and deleted once the rating is written. If the app, the device or the card reader stops during the write, the photo is restored from that copy the next time the folder opens, and the app tells you.
 - After an undo the photo is listed at the file it was restored to, so its rating shows and the next Move or Delete of it works. This affected renamed restores (`IMG-2.jpg`) and RAW+JPEG pairs on Drive, Downloads and camera storage.
