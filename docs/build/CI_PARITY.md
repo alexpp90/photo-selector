@@ -85,6 +85,7 @@ away, so it fails.
 poetry --directory products/desktop install --no-root                 # --python, and the framework tests
 poetry config virtualenvs.options.system-site-packages true            # Blitzlens: gi comes from the system packages
 poetry --directory products/linux-desktop install --no-root            # --linux
+poetry --directory products/linux-desktop install --no-root --only dev  # --linux without libcairo2-dev & co: numpy, Pillow, gi from the distro
 PST_VENV_BIN=/path/to/env/bin ./scripts/run_tests.sh --python          # a machine without Poetry; probed the same way
 ```
 

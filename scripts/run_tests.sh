@@ -324,7 +324,10 @@ DESKTOP_ENV_REMEDY="poetry --directory products/desktop install --no-root"
 LINUX_ENV_MODULES=(pytest pytest_cov flake8 numpy PIL)
 LINUX_ENV_REMEDY="poetry config virtualenvs.options.system-site-packages true
       poetry --directory products/linux-desktop env remove --all   # only if its venv already exists without system site packages
-      poetry --directory products/linux-desktop install --no-root"
+      poetry --directory products/linux-desktop install --no-root
+      # without the C build dependencies PyGObject needs (libcairo2-dev libgirepository-2.0-dev pkg-config), install the
+      # test tools only; numpy, Pillow and gi then come from the distribution (python3-numpy python3-pil python3-gi):
+      poetry --directory products/linux-desktop install --no-root --only dev"
 
 PY_ARGV=()
 # Resolves a tool of the prepared environment; a tool the probe did not cover is still
