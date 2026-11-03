@@ -141,16 +141,22 @@ class MainWindow(Adw.ApplicationWindow if HAS_GI else object):
         # Segmented view mode buttons
         mode_box = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL)
         mode_box.add_css_class("linked")
-        self.btn_mode_1 = Gtk.Button(label="1-Up (1)")
-        self.btn_mode_1.set_name("btn_mode_1")
-        self.btn_mode_2 = Gtk.Button(label="2-Up (2)")
-        self.btn_mode_2.set_name("btn_mode_2")
-        self.btn_mode_3 = Gtk.Button(label="Focus 3-Up (3)")
-        self.btn_mode_3.set_name("btn_mode_3")
-
-        self.btn_mode_1.connect("clicked", lambda b: self.viewmodel.set_comparison_mode(1))
-        self.btn_mode_2.connect("clicked", lambda b: self.viewmodel.set_comparison_mode(2))
-        self.btn_mode_3.connect("clicked", lambda b: self.viewmodel.set_comparison_mode(3))
+        # A toggle group, so assistive technology reads which view is pressed; keys in tooltips.
+        self._syncing_modes = False
+        self.btn_mode_1 = Gtk.ToggleButton(label="1-Up")
+        self.btn_mode_2 = Gtk.ToggleButton(label="2-Up")
+        self.btn_mode_3 = Gtk.ToggleButton(label="3-Up")
+        for mode, button, tip in (
+            (1, self.btn_mode_1, "Single photo (1)"),
+            (2, self.btn_mode_2, "Two photos side by side (2)"),
+            (3, self.btn_mode_3, "Focus 3-Up (3)"),
+        ):
+            button.set_name(f"btn_mode_{mode}")
+            button.set_tooltip_text(tip)
+            button.set_focus_on_click(False)
+            if button is not self.btn_mode_1:
+                button.set_group(self.btn_mode_1)
+            button.connect("toggled", self._on_mode_toggled, mode)
 
         mode_box.append(self.btn_mode_1)
         mode_box.append(self.btn_mode_2)
@@ -205,6 +211,11 @@ class MainWindow(Adw.ApplicationWindow if HAS_GI else object):
         )
         self._view_order_action.connect("activate", self._on_view_order_action)
         self.add_action(self._view_order_action)
+
+    def _on_mode_toggled(self, button, mode: int) -> None:
+        if self._syncing_modes or not button.get_active():
+            return
+        self.viewmodel.set_comparison_mode(mode)
 
     def _on_view_order_action(self, action, param) -> None:
         self.set_view_order(param.get_string())
@@ -264,9 +275,13 @@ class MainWindow(Adw.ApplicationWindow if HAS_GI else object):
             self.close()
 
         mode = vm.comparison_mode
-        self.btn_mode_1.set_css_classes(["suggested-action"] if mode == 1 else [])
-        self.btn_mode_2.set_css_classes(["suggested-action"] if mode == 2 else [])
-        self.btn_mode_3.set_css_classes(["suggested-action"] if mode == 3 else [])
+        self._syncing_modes = True  # the toggles follow the view model; do not echo it back
+        try:
+            for number, button in ((1, self.btn_mode_1), (2, self.btn_mode_2), (3, self.btn_mode_3)):
+                button.set_active(mode == number)
+                button.set_css_classes(["suggested-action"] if mode == number else [])
+        finally:
+            self._syncing_modes = False
 
     def _on_viewmodel_notification(self, vm, message: str) -> None:
         """Cull/undo outcomes live in the action bar; load info and errors also get a toast."""

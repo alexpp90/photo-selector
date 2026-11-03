@@ -276,3 +276,42 @@ def test_b_toggles_view_order_and_is_free_of_other_bindings():
     assert engine.dispatch(keyval=0x62, state=0, is_text_editing=True) is False
     assert engine.dispatch(keyval=0x62, state=KeyboardRouterEngine.CONTROL_MASK) is False
     target.on_toggle_sort_order.assert_not_called()
+
+
+def test_tab_is_left_to_focus_traversal_until_slots_can_cycle():
+    """The router's own Tab handler cycles nothing, so it must not consume the key (BL-UX-3)."""
+    from photo_selector_linux.ui.keyboard_router import KeyboardRouter
+
+    router = KeyboardRouter(window=MagicMock(), viewmodel=MagicMock())
+    assert router.engine.dispatch(keyval=0xFF09, state=0) is False
+
+
+def test_space_presses_a_focused_button_instead_of_toggling_zoom():
+    target = MagicMock()
+    engine = KeyboardRouterEngine(handler_target=target)
+
+    assert engine.dispatch(keyval=0x20, state=0, focus_on_button=True) is False
+    target.on_toggle_zoom.assert_not_called()
+    assert engine.dispatch(keyval=0x20, state=0) is True
+    target.on_toggle_zoom.assert_called_once()
+    # The other single keys still work with a button focused.
+    assert engine.dispatch(keyval=0x6D, state=0, focus_on_button=True) is True
+
+
+def test_real_router_passes_a_focused_button_to_the_engine():
+    import pytest
+
+    from photo_selector_linux.ui import keyboard_router as kr
+
+    if not kr.HAS_GI or isinstance(kr.Gtk, MagicMock):
+        pytest.skip("needs real Gtk")
+    from gi.repository import Gtk
+
+    window = MagicMock()
+    window.get_focus.return_value = Gtk.Button()
+    router = kr.KeyboardRouter(window=window, viewmodel=MagicMock())
+    assert router._on_key_pressed(None, 0x20, 0, 0) is kr.Gdk.EVENT_PROPAGATE
+    window.get_focus.return_value = Gtk.Label()
+    router.on_toggle_zoom = MagicMock()
+    router.engine.target = router
+    assert router._on_key_pressed(None, 0x20, 0, 0) is kr.Gdk.EVENT_STOP

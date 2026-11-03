@@ -19,6 +19,36 @@ except (ImportError, ValueError):
 from photo_selector_linux.ui.secondary_window import install_chrome
 
 
+SHORTCUTS = [
+    ("Navigation", [
+        ("Previous Photo", "Left Arrow / H / K"),
+        ("Next Photo", "Right Arrow / L / J"),
+    ]),
+    ("Culling Actions", [
+        ("Keep (move to Selection)", "M"),
+        ("Copy to Selection", "C"),
+        ("Trash", "Delete / Backspace"),
+        ("Undo Action", "Ctrl+Z"),
+    ]),
+    ("View Modes", [
+        ("1-Up (Single View)", "1"),
+        ("2-Up (Side-by-Side)", "2"),
+        ("3-Up (Focus Triplet)", "3"),
+        ("1:1 Pixel Zoom Toggle", "Space"),
+        ("Reset Zoom", "Escape"),
+        ("Toggle Metadata HUD", "I"),
+        ("Lowest Sharpness First / Natural Order", "B"),
+    ]),
+    ("Application", [
+        ("Open Folder", "Ctrl+O"),
+        ("Duplicate Finder", "Ctrl+D"),
+        ("Library Statistics", "Ctrl+L"),
+        ("Preferences", "Ctrl+,"),
+        ("Keyboard Shortcuts", "? or Ctrl+?"),
+    ]),
+]
+
+
 class ShortcutsDialog(Adw.Window if HAS_GI else object):
     """Cheat sheet window presenting keyboard shortcuts."""
 
@@ -44,36 +74,7 @@ class ShortcutsDialog(Adw.Window if HAS_GI else object):
         box.set_margin_end(16)
         scrolled.set_child(box)
 
-        shortcuts = [
-            ("Navigation", [
-                ("Previous Photo", "Left Arrow / H / K"),
-                ("Next Photo", "Right Arrow / L / J"),
-            ]),
-            ("Culling Actions", [
-                ("Move to Selection", "M"),
-                ("Copy to Selection", "C"),
-                ("Move to Trash", "Delete / Backspace"),
-                ("Undo Action", "Ctrl+Z"),
-            ]),
-            ("View Modes", [
-                ("1-Up (Single View)", "1"),
-                ("2-Up (Side-by-Side)", "2"),
-                ("3-Up (Focus Triplet)", "3"),
-                ("1:1 Pixel Zoom Toggle", "Space"),
-                ("Reset Zoom", "Escape"),
-                ("Toggle Metadata HUD", "I"),
-                ("Lowest Sharpness First / Natural Order", "B"),
-            ]),
-            ("Application", [
-                ("Open Folder", "Ctrl+O"),
-                ("Duplicate Finder", "Ctrl+D"),
-                ("Library Statistics", "Ctrl+L"),
-                ("Preferences", "Ctrl+,"),
-                ("Keyboard Shortcuts", "? or Ctrl+?"),
-            ]),
-        ]
-
-        for section_title, items in shortcuts:
+        for section_title, items in SHORTCUTS:
             group = Adw.PreferencesGroup()
             group.set_title(section_title)
             for title, accel in items:

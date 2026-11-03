@@ -348,7 +348,8 @@ def test_action_bar_semantic_status_counters():
     assert bar.selected_css_class == "status-counter-badge"
     assert bar.trashed_css_class == "status-counter-badge"
     assert bar.remaining_css_class == "status-counter-remaining"
-    assert bar.undo_label_text == "Undo (Ctrl+Z)"
+    assert bar.undo_label_text == "Undo"
+    assert bar.undo_tooltip_text == "Nothing to undo (Ctrl+Z)"
     assert bar.undo_sensitive is False
     assert bar.btn_undo.get_sensitive() is False
 
@@ -376,14 +377,15 @@ def test_action_bar_semantic_status_counters():
     assert bar.remaining_label_text == "2 Remaining"
     assert bar.selected_css_class == "status-counter-selected"
     assert bar.trashed_css_class == "status-counter-trashed"
-    assert bar.undo_label_text == "Undo (2) (Ctrl+Z)"
+    assert bar.undo_label_text == "Undo"
+    assert bar.undo_tooltip_text == "Undo trash of p_1.jpg (Ctrl+Z), 2 in all"
     assert bar.undo_sensitive is True
     assert bar.lbl_selected.get_label() == "1 Selected"
     assert bar.lbl_selected.get_css_classes() == ["status-counter-selected"]
     assert bar.lbl_trashed.get_label() == "1 Trashed"
     assert bar.lbl_trashed.get_css_classes() == ["status-counter-trashed"]
     assert bar.btn_undo.get_sensitive() is True
-    assert bar.btn_undo.get_label() == "Undo (2) (Ctrl+Z)"
+    assert bar.btn_undo.get_label() == "Undo"
 
 
 def test_styling_helper_edge_cases():

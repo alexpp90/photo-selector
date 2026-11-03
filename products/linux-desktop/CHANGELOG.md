@@ -6,7 +6,13 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ## [Unreleased]
 
+### Changed
+- The action buttons read **Keep**, **Copy**, **Trash** and **Undo**; the keys moved into the tooltips and the `?` shortcut sheet. The tooltip of **Undo** names the action it would undo.
+- The view switcher (1-Up, 2-Up, 3-Up) is a toggle group, so a screen reader announces which view is pressed.
+- Counters, badges, captions and the info card follow the system text size; before, they stayed the same size at 150 % text.
+
 ### Fixed
+- Tab moves the keyboard focus through the header and the action bar again, and Space presses a focused button, instead of both being swallowed by the photo view.
 - Duplicate Finder, Library Statistics and the shortcut list have a header bar with a close button and close with Escape.
 - Closing the folder picker without choosing no longer shows "Open folder cancelled: Dismissed by user". A folder that cannot be opened says "Could not open <folder>" and why.
 - A Google Drive (or other cloud mount) connected while Blitzlens is already running now shows real file names; before, its files stayed unreadable until the app was restarted.
