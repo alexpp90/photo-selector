@@ -16,6 +16,10 @@ import com.phototok.domain.SwipeRightVerb
 import com.phototok.domain.UiText
 import dagger.hilt.android.lifecycle.HiltViewModel
 import javax.inject.Inject
+import com.phototok.di.ApplicationScope
+import com.phototok.domain.RelatedFiles
+import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -88,11 +92,14 @@ data class SelectionViewerUiState(
 class SelectionViewerViewModel @Inject constructor(
     private val imageRepository: ImageRepository,
     private val favouritesRepository: FavouritesRepository,
+    /** Copies that must finish after the viewer is closed run here, never on [viewModelScope]. */
+    @ApplicationScope private val appScope: CoroutineScope,
 ) : ViewModel() {
 
     constructor(
         imageRepository: ImageRepository,
-    ) : this(imageRepository, FavouritesRepository())
+        appScope: CoroutineScope,
+    ) : this(imageRepository, FavouritesRepository(), appScope)
 
     private val _uiState = MutableStateFlow(SelectionViewerUiState())
     val uiState: StateFlow<SelectionViewerUiState> = _uiState.asStateFlow()
@@ -238,33 +245,64 @@ class SelectionViewerViewModel @Inject constructor(
     }
 
     /**
-     * Copy all favourited photos to a user-chosen destination folder (`U-17`).
+     * Copy all favourited photos to a user-chosen destination folder (`U-17`). Each photo travels
+     * with its linked files (RAW or JPEG twin, derivatives, `.xmp` sidecars, found in
+     * [allSourceImages]) as one bundle under one collision suffix, so a second run keeps the pairs
+     * paired. The copy runs on the application scope: closing the viewer does not cut it short.
      */
-    fun copyFavouritesToFolder(destFolderUri: Uri, subfolderName: String = FAVOURITES_FOLDER) {
+    fun copyFavouritesToFolder(
+        destFolderUri: Uri,
+        subfolderName: String = FAVOURITES_FOLDER,
+        allSourceImages: List<ImageItem> = emptyList(),
+    ) {
         val favs = _uiState.value.favouriteImages.ifEmpty { _uiState.value.images }
         if (favs.isEmpty()) return
-        viewModelScope.launch {
+        // Photos whose twin is a favourite too (companions are favourited together) copy once.
+        val covered = mutableSetOf<String>()
+        val bundles = favs.mapNotNull { img ->
+            if (img.uri in covered) return@mapNotNull null
+            val bundle = listOf(img) + RelatedFiles.bundleOf(allSourceImages, img)
+            covered += bundle.map { it.uri }
+            bundle
+        }
+        appScope.launch {
             var copied = 0
-            for (img in favs) {
-                val ok = try {
-                    imageRepository.copyImage(
-                        sourceUri = Uri.parse(img.uri),
-                        destFolderUri = destFolderUri,
-                        sorting = false,
-                        subfolderName = subfolderName,
-                    )
+            for (bundle in bundles) {
+                val sources = bundle.map { Uri.parse(it.uri) }
+                val results = try {
+                    if (sources.size > 1) {
+                        imageRepository.transferBundleDetailed(
+                            sourceUris = sources,
+                            destFolderUri = destFolderUri,
+                            sorting = false,
+                            subfolderName = subfolderName,
+                            isMove = false,
+                        )
+                    } else {
+                        listOf(
+                            imageRepository.copyImageDetailed(
+                                sourceUri = sources.first(),
+                                destFolderUri = destFolderUri,
+                                sorting = false,
+                                subfolderName = subfolderName,
+                            ),
+                        )
+                    }
+                } catch (e: CancellationException) {
+                    throw e
                 } catch (_: Exception) {
-                    false
+                    emptyList()
                 }
-                if (ok) copied++
+                if (results.size == sources.size && results.all { it.success }) copied++
             }
-            val msg = if (copied == favs.size) {
+            val total = bundles.size
+            val msg = if (copied == total) {
                 UiText.of(R.string.snackbar_favourites_copied, copied, subfolderName)
             } else {
-                UiText.of(R.string.error_favourites_partial, copied, favs.size)
+                UiText.of(R.string.error_favourites_partial, copied, total)
             }
             _uiState.update {
-                it.copy(feedback = ActionFeedback(msg, isError = copied < favs.size))
+                it.copy(feedback = ActionFeedback(msg, isError = copied < total))
             }
         }
     }

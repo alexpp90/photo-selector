@@ -216,7 +216,7 @@ fun PhoneModeScreen(
 
     val copyFavouritesPickerLauncher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.OpenDocumentTree(),
-    ) { uri: Uri? -> uri?.let { selectionViewModel.copyFavouritesToFolder(it) } }
+    ) { uri: Uri? -> uri?.let { selectionViewModel.copyFavouritesToFolder(it, allSourceImages = uiState.allImages) } }
 
     // Casual swipe right on a card or camera needs write access to the phone's camera folder once:
     // the picker opens inside DCIM/Camera. The photo stays put until the user has answered.

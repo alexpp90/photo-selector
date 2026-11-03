@@ -7,6 +7,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 ## [Unreleased]
 
 ### Fixed
+- "Copy favourites to folder…" now copies each favourite with its linked files (RAW or JPEG twin, edited copies, `.xmp` sidecars) under one shared name, so a second run keeps the pairs paired, and it keeps going when you close the viewer. Before it copied single files, so sidecars were left behind and a RAW and its JPEG could get different suffixes.
 - Copy and move feedback no longer says "Copied as 123" after every copy into a provider (Google Drive, some camera and media providers) whose file ids are not file names; it shows the plain "Copied to …" message unless the new name is certain.
 - Pro mode: the **Selection folder** name you type in Settings is now the folder swipe right, Copy and Move file into (and the one the Selection viewer opens). Before, the setting did nothing and photos always went to "Selection". If you never typed a name nothing changes; Casual mode always uses "Selection".
 - Jackpix no longer opens every photo of a folder in the background to measure it. Only Pro mode's landscape-first order needs that; the file details measure just the photo they show. Before, a 20 000-photo card meant 20 000 background file opens in every mode. A photo whose size read was interrupted by a restart of the pass is now measured again instead of staying at 0 × 0.
