@@ -303,7 +303,11 @@ class MainWindow(Adw.ApplicationWindow if HAS_GI else object):
                 GLib.idle_add(self.show_toast, f"Open folder cancelled: {e}")
 
     def open_directory(self, path: Path) -> None:
-        self.viewmodel.load_directory(path)
+        """Open a folder; a photo opens its folder with that photo selected."""
+        if path.is_file():
+            self.viewmodel.load_directory(path.parent, select=path)
+        else:
+            self.viewmodel.load_directory(path)
 
     def show_duplicate_finder(self) -> None:
         from photo_selector_linux.ui.tools_dialogs import DuplicateFinderDialog

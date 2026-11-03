@@ -7,6 +7,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 ## [Unreleased]
 
 ### Fixed
+- "Open with Blitzlens" on a photo (or several) opens the photo's folder with that photo selected. Before, one photo showed an empty "Loaded 0 photographs" and several photos failed with a usage error.
+- A start-up error is no longer reported as "Core Engine Ready" with exit status 0. It stops with the error and a non-zero status.
 - **Lowest sharpness first** now orders the whole folder. Before, only the few photos you had already looked at were sorted and the rest stayed in file order behind them. Choosing the order scores every photo in the background (on a cloud folder: choose it a second time to confirm), keeps the photo on screen where it is while the order settles, and starts at the lowest-scored photo if you have not moved on.
 - Duplicate Finder and Library Statistics work on a cloud or remote folder. The first click now offers **Scan anyway**; before, the confirmation was asked for but nothing could give it (Statistics even opened as an empty window). Hashing for duplicates no longer freezes the window.
 - Moving a symlinked photo to the Trash trashes the link, not the file it points at; Undo puts the link back. Before, the original in the other folder was trashed and a dangling link stayed.

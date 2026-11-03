@@ -170,6 +170,7 @@ class CullingWorkspaceViewModel:
             custom_selection_folder=self.selection_folder_name
         )
         self._scan_thread: Optional[threading.Thread] = None
+        self._select_name: Optional[str] = None  # photo to land on once the scan reaches it
 
         # "Lowest sharpness first" needs a score for every photo, not only the ones viewed so far.
         self.score_runner: Optional[ScoreRunner] = score_runner
@@ -897,7 +898,7 @@ class CullingWorkspaceViewModel:
             for record, _photo, _idx in self._folder_undo_history.pop(oldest):
                 self._undo_actions.pop(record.id, None)
 
-    def load_directory(self, folder: Path) -> None:
+    def load_directory(self, folder: Path, select: Optional[Path] = None) -> None:
         """Stream photographs from ``folder`` in depth-first per-folder natural order (U-06b, UD-9).
 
         Cancels any in-flight scan from a previous folder via ``_folder_generation``, while allowing
@@ -907,10 +908,14 @@ class CullingWorkspaceViewModel:
         path, asking the mount table and listing the parent through GVFS (a network round trip on a
         cloud mount) happen on the scan thread, and the main loop only receives the results. Without
         it (tests, headless use) the same steps run inline.
+
+        ``select`` names a photo of ``folder`` (a file opened from the file manager): the view
+        lands on it as soon as the scan reaches it.
         """
         previous_folder = self.current_folder
         self._cancel_scoring_pass()
         self._scoring_confirmed = False
+        self._select_name = select.name if select is not None else None
         self._folder_generation += 1
         generation = self._folder_generation
         scanner = self._make_scanner()
@@ -977,6 +982,7 @@ class CullingWorkspaceViewModel:
             self.candidates.extend(batch)
             if self.sort_order == "lowest_sharpness_first":
                 self._apply_sort_order()
+            self._select_requested_photo()
             notified_any = True
             self._notify_state_changed()
 
@@ -1018,8 +1024,23 @@ class CullingWorkspaceViewModel:
         self.candidates.extend(batch)
         if self.sort_order == "lowest_sharpness_first":
             self._apply_sort_order()
+        self._select_requested_photo()
         self._notify_state_changed()
         return False
+
+    def _select_requested_photo(self) -> None:
+        """Land on the photo the folder was opened for, once it has been scanned."""
+        name = self._select_name
+        if name is None or self.current_folder is None:
+            return
+        for idx, candidate in enumerate(self.candidates):
+            if any(
+                p.parent == self.current_folder and candidate.name_of(p) == name
+                for p in candidate.all_paths
+            ):
+                self.current_index = idx
+                self._select_name = None
+                return
 
     def _on_scan_complete(self, generation: int) -> bool:
         if generation != self._folder_generation:
