@@ -61,8 +61,8 @@ def test_text_scaling_grows_the_counters():
     css.load_from_data(styling.STUDIO_DARK_CSS.encode("utf-8"))
     display = Gdk.Display.get_default()
     Gtk.StyleContext.add_provider_for_display(display, css, Gtk.STYLE_PROVIDER_PRIORITY_APPLICATION)
-    settings = Gtk.Settings.get_for_display(display)
     sizes = []
+    settings = Gtk.Settings.get_for_display(display)
     original = settings.get_property("gtk-font-name")
     try:
         for font in ("Sans 10", "Sans 20"):
@@ -76,6 +76,7 @@ def test_text_scaling_grows_the_counters():
             window.destroy()
     finally:
         settings.set_property("gtk-font-name", original)
+        Gtk.StyleContext.remove_provider_for_display(display, css)  # leave the display as found
     assert sizes[1] > sizes[0] * 1.5, sizes
 
 

@@ -352,9 +352,30 @@ def test_a_new_action_clears_the_previous_outcome_while_it_runs():
     assert bar.status_text == ""
 
 
+@pytest.fixture
+def studio_css():
+    """The stylesheet the shipped app loads, present whatever ran before (BL-T-2).
+
+    The layout test measures widget widths, which the CSS padding changes. An earlier test that
+    started the application left the provider on the display; run alone, the test saw none, and
+    at 1440 px the message was cut in one order and not in the other. Loading it here makes the
+    measurement the shipped one in every order; it is removed again afterwards.
+    """
+    from gi.repository import Gdk, Gtk
+
+    from photo_selector_linux.ui.styling import STUDIO_DARK_CSS
+
+    provider = Gtk.CssProvider()
+    provider.load_from_data(STUDIO_DARK_CSS.encode("utf-8"))
+    display = Gdk.Display.get_default()
+    Gtk.StyleContext.add_provider_for_display(display, provider, Gtk.STYLE_PROVIDER_PRIORITY_APPLICATION)
+    yield
+    Gtk.StyleContext.remove_provider_for_display(display, provider)
+
+
 @pytest.mark.skipif(STUBBED, reason="needs a real display (xvfb-run)")
 @pytest.mark.parametrize("width", [1910, 1440])
-def test_message_fits_unclipped_and_buttons_do_not_move(width):
+def test_message_fits_unclipped_and_buttons_do_not_move(width, studio_css):
     """1440 px is the window default (the bar itself needs ~930 px; below ~1400 the message is
     end-ellipsised). The bar is laid out directly (no frame clock under a window-manager-less Xvfb)."""
 
