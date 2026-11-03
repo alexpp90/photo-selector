@@ -929,6 +929,21 @@ class SettingsRepository @Inject constructor(
         folderAccessManager.pin(FolderAccessPurpose.UNDO_HISTORY, folderUris)
     }
 
+    private val stalePendingDeletesDiscarded = java.util.concurrent.atomic.AtomicBoolean(false)
+
+    /**
+     * Once per process start: forget the queued deletions an earlier process left behind. Deletions
+     * wait in memory (undo stack) and are only journaled to hold their folder's grant; a process that
+     * died with some queued deleted nothing, the photos are simply still in their folder, so an
+     * entry found at start is stale. Without this a kill pinned the folder's grant for good (the
+     * OS allows 128 grants on API < 30). Later calls in the same process do nothing: by then the
+     * journal belongs to live view models.
+     */
+    suspend fun discardStalePendingDeletes() {
+        if (!stalePendingDeletesDiscarded.compareAndSet(false, true)) return
+        context.dataStore.edit { prefs -> prefs.remove(KEY_PERSISTED_PENDING_DELETE_URIS) }
+    }
+
     suspend fun reconcilePersistedGrants(): Set<String> {
         val prefs = context.dataStore.data.first()
         return folderAccessManager.reconcilePersistedGrants(referencedUrisByPurpose(prefs))

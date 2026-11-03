@@ -5,7 +5,9 @@ import android.net.Uri
 import com.photoselector.saf.FolderAccessManager
 import com.photoselector.saf.FolderAccessPurpose
 import com.photoselector.saf.SafGrantBackend
+import androidx.datastore.preferences.core.edit
 import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.test.runTest
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
@@ -53,6 +55,8 @@ class FolderAccessManagerTest {
     @Before
     fun setUp() {
         context = RuntimeEnvironment.getApplication()
+        // The DataStore is a process-wide singleton: start every test from an empty store.
+        runBlocking { context.dataStore.edit { it.clear() } }
     }
 
     private val tree = "content://com.android.externalstorage.documents/tree/primary%3ADCIM"
@@ -144,6 +148,39 @@ class FolderAccessManagerTest {
         settings.removePersistedPendingDeleteUris(listOf(document))
 
         assertEquals(setOf(other), settings.persistedPendingDeleteUris.first())
+        settings.setPersistedPendingDeleteUris(emptySet())
+    }
+
+    @Test
+    fun `queued deletions a killed process left behind no longer pin their folder`() = runTest {
+        val folderA = tree
+        val folderB = "content://com.android.externalstorage.documents/tree/primary%3APictures"
+        // What the dead process left: folder A's grant, and a journal naming a photo in A.
+        val backend = FakeSafGrantBackend(initialPersisted = setOf(folderA, folderB))
+        val settings = SettingsRepository(context, FolderAccessManager(backend))
+        settings.setLastFolderUri(folderB)
+        settings.setPersistedPendingDeleteUris(setOf(document))
+        backend.releasedCalls.clear()
+        backend.persistedUris += folderA
+        assertEquals(setOf(document), settings.persistedPendingDeleteUris.first())
+
+        settings.discardStalePendingDeletes()
+        settings.reconcilePersistedGrants()
+
+        assertEquals(emptySet<String>(), settings.persistedPendingDeleteUris.first())
+        assertTrue("folder A's grant is released", backend.releasedCalls.any { it.first == folderA })
+        assertTrue("the open folder keeps its grant", folderB in backend.persistedUris)
+    }
+
+    @Test
+    fun `entries queued after the process started are not discarded by a later view model`() = runTest {
+        val settings = SettingsRepository(context, FolderAccessManager(FakeSafGrantBackend()))
+        settings.discardStalePendingDeletes()
+        settings.setPersistedPendingDeleteUris(setOf(document))
+
+        settings.discardStalePendingDeletes() // a second view model is created in the same process
+
+        assertEquals(setOf(document), settings.persistedPendingDeleteUris.first())
         settings.setPersistedPendingDeleteUris(emptySet())
     }
 }

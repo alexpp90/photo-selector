@@ -689,6 +689,7 @@ class PhoneModeViewModel @Inject constructor(
 
     private fun restoreLastFolders() {
         viewModelScope.launch {
+            settingsRepository.discardStalePendingDeletes()
             settingsRepository.reconcilePersistedGrants()
             val lastUri = settingsRepository.lastFolderUri.first()
             if (lastUri != null && _uiState.value.sourceFolderUri == null) {

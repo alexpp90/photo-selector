@@ -22,6 +22,7 @@ import com.photoselector.core.storage.SourceKind
 import com.phototok.domain.UiText
 import io.mockk.coEvery
 import io.mockk.coVerify
+import io.mockk.coVerifyOrder
 import io.mockk.every
 import io.mockk.just
 import io.mockk.mockk
@@ -199,6 +200,12 @@ class PhoneModeViewModelTest {
         val viewModel = buildViewModel()
 
         coVerify(exactly = 1) { settingsRepository.reconcilePersistedGrants() }
+        // A previous process's queued deletions are dropped before the grants are reconciled, or
+        // the journal would keep pinning the folder they were in.
+        coVerifyOrder {
+            settingsRepository.discardStalePendingDeletes()
+            settingsRepository.reconcilePersistedGrants()
+        }
 
         viewModel.selectSourceFolder(Uri.parse("content://tree/gone"))
 
