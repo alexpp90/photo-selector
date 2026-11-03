@@ -82,5 +82,20 @@ class CommandLineTest(unittest.TestCase):
         self.assertEqual(len(pyinstaller), 2)
 
 
+class ReleaseMetadataTest(unittest.TestCase):
+    """The first tag must not fail the release job after three builds: the in-tree version needs
+    its CHANGELOG section (LD-R-5)."""
+
+    def test_in_tree_version_would_pass_verify_tag(self):
+        spec = importlib.util.spec_from_file_location("release", SCRIPTS.parents[2] / "scripts" / "release.py")
+        release = importlib.util.module_from_spec(spec)
+        sys.modules["release"] = release  # dataclasses resolve their module through sys.modules
+        spec.loader.exec_module(release)
+        product = release.BY_SLUG["desktop"]
+        in_tree, problems = release.read_versions(product, SCRIPTS.parents[2])
+        self.assertEqual(problems, [])
+        release.verify_tag(product.tag(in_tree), SCRIPTS.parents[2])
+
+
 if __name__ == "__main__":
     unittest.main()
