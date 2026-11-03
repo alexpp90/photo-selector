@@ -2344,6 +2344,53 @@ class PhoneModeViewModelTest {
         )
     }
 
+    private fun viewModelWithSeen(seen: com.phototok.data.repository.SeenRepository) = PhoneModeViewModel(
+        imageRepository = imageRepository,
+        settingsRepository = settingsRepository,
+        appScope = CoroutineScope(testDispatcher),
+        seenRepository = seen,
+        favouritesRepository = com.phototok.data.repository.FavouritesRepository(),
+        statsRepository = com.phototok.data.repository.StatsRepository(),
+        volumeMonitor = com.phototok.data.source.VolumeMonitor(),
+    )
+
+    @Test
+    fun `a swipe counts the new card instead of fingerprinting the whole feed`() = runTest {
+        val seen = io.mockk.spyk(com.phototok.data.repository.SeenRepository())
+        val viewModel = viewModelWithSeen(seen)
+        every { imageRepository.discoverImages(any()) } returns flowOf(
+            (1..40).map { image("p$it.jpg", 1000L - it) },
+        )
+        viewModel.selectSourceFolder(Uri.parse("content://tree/photos"))
+        advanceUntilIdle()
+        val before = viewModel.uiState.value.seenCountInFolder
+        io.mockk.clearMocks(seen, answers = false, recordedCalls = true)
+
+        repeat(3) { i ->
+            viewModel.navigateToImage(i)
+            viewModel.onCardDwelled(viewModel.uiState.value.images[i])
+        }
+
+        io.mockk.verify(exactly = 0) { seen.countSeen(any(), any()) }
+        assertEquals(before + 3, viewModel.uiState.value.seenCountInFolder)
+    }
+
+    @Test
+    fun `batches of a newest-first feed do not ask for the seen set`() = runTest {
+        val seen = io.mockk.spyk(com.phototok.data.repository.SeenRepository())
+        val viewModel = viewModelWithSeen(seen)
+        val batches = MutableSharedFlow<List<ImageItem>>(extraBufferCapacity = 8)
+        every { imageRepository.discoverImages(any()) } returns batches
+        viewModel.selectSourceFolder(Uri.parse("content://tree/photos"))
+        val all = (1..30).map { image("p$it.jpg", 1000L - it) }
+        batches.tryEmit(all.take(10))
+        batches.tryEmit(all.take(20))
+        batches.tryEmit(all)
+        assertEquals(30, viewModel.uiState.value.images.size)
+
+        io.mockk.verify(exactly = 0) { seen.filterSeenUris(any(), any()) }
+    }
+
     @Test
     fun `a card clear finishing after an unmount does not mark the card as cleared`() = runTest {
         val gate = CompletableDeferred<Boolean>()

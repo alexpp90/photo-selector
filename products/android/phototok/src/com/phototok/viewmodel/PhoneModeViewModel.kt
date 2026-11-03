@@ -1022,7 +1022,9 @@ class PhoneModeViewModel @Inject constructor(
         // lists since the read above, and publishedUris stops a dropped photo from coming back.
         _uiState.update { s ->
             val allCombined = s.allImages + fresh
-            val seenUris = if (unseenFirstOrdering) {
+            // Only a shuffled feed deals unseen photos first; no other order reads the seen set, and
+            // fingerprinting the whole feed for each 250-photo batch is quadratic.
+            val seenUris = if (unseenFirstOrdering && config.feedOrder == FeedOrderMode.SHUFFLE) {
                 seenRepository.filterSeenUris(allCombined, s.sourceFolderUri)
             } else {
                 emptySet()
@@ -1164,7 +1166,9 @@ class PhoneModeViewModel @Inject constructor(
             }
         }
         if (wasNewlySeen) {
-            val newSeenCount = seenRepository.countSeen(state.images, sourceUri)
+            // One more card is seen: count it instead of fingerprinting the whole feed on a swipe.
+            // Discovery, reload and folder changes recompute the exact figure.
+            val newSeenCount = (state.seenCountInFolder + 1).coerceAtMost(state.images.size)
             _uiState.update { it.copy(seenCountInFolder = newSeenCount) }
             viewModelScope.launch {
                 settingsRepository.setFolderSeenProgress(
