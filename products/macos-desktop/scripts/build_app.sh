@@ -92,6 +92,9 @@ if [[ ! -f "$PRODUCT_DIR/Resources/AppIcon.icns" ]]; then
 fi
 cp "$PRODUCT_DIR/Resources/AppIcon.icns" "$APP/Contents/Resources/AppIcon.icns"
 
+# Shown in the system's folder-access prompts (TCC). Plain text: it sits inside the XML below.
+ACCESS_REASON="Lensjet shows the photos in the folders you open and moves, copies or trashes the ones you cull."
+
 cat > "$APP/Contents/Info.plist" <<PLIST
 <?xml version="1.0" encoding="UTF-8"?>
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
@@ -110,10 +113,20 @@ cat > "$APP/Contents/Info.plist" <<PLIST
     <key>LSApplicationCategoryType</key><string>public.app-category.photography</string>
     <key>NSHighResolutionCapable</key><true/>
     <key>NSPrincipalClass</key><string>NSApplication</string>
+    <key>NSDesktopFolderUsageDescription</key><string>${ACCESS_REASON}</string>
+    <key>NSDocumentsFolderUsageDescription</key><string>${ACCESS_REASON}</string>
+    <key>NSDownloadsFolderUsageDescription</key><string>${ACCESS_REASON}</string>
+    <key>NSRemovableVolumesUsageDescription</key><string>${ACCESS_REASON}</string>
+    <key>NSNetworkVolumesUsageDescription</key><string>${ACCESS_REASON}</string>
 </dict>
 </plist>
 PLIST
 
 # Ad-hoc signature so Gatekeeper/TCC treat the bundle as one stable identity.
-codesign --force --sign - "$APP" >/dev/null 2>&1 || true
+# A failed signature stops the build: an unsigned bundle must not be packaged as if it were signed
+# (the output goes to stderr so that the last stdout line stays the bundle path).
+if ! codesign --force --sign - "$APP" >&2; then
+    echo "ERROR: ad-hoc code signing of $APP failed" >&2
+    exit 1
+fi
 echo "$APP"

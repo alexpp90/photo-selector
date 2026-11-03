@@ -9,7 +9,10 @@ then this script for everything Lensjet changed since the cask was written:
   the old shared tag scheme, so the URL of the first Lensjet release would have been a 404), and
   the nightly cask from `nightly-macos-desktop` (was the `nightly` tag three workflows shared);
 - `name` and `desc` say Lensjet (the cask *token* stays: installed casks keep updating);
-- `zap` also removes the preferences of the new bundle id `app.alpatix.lensjet`.
+- `zap` also removes the preferences of the new bundle id `app.alpatix.lensjet`;
+- a `caveats` block tells the user how to open the app the first time: Lensjet is ad-hoc signed
+  and not notarized, so Gatekeeper refuses the first launch until the user allows it (finding
+  SET-R-2/LJ-R-1; the block goes when Lensjet is notarized).
 
 Idempotent: a cask that is already right is left byte for byte. The cask token, `version`,
 `sha256`, `conflicts_with` and `depends_on` are never touched.
@@ -24,6 +27,17 @@ from pathlib import Path
 
 OLD_PREFS = "~/Library/Preferences/com.photoselectortoolbox.macos.plist"
 NEW_PREFS = "~/Library/Preferences/app.alpatix.lensjet.plist"
+
+# Shown by `brew install --cask`. No `#{...}` and no square brackets: it sits inside a Ruby heredoc.
+CAVEATS = """  caveats <<~EOS
+    Lensjet is not notarized by Apple yet, so macOS blocks the first launch
+    ("Apple could not verify ...").
+    Open System Settings > Privacy & Security, scroll to Security, click "Open Anyway"
+    next to Lensjet and confirm. This is needed once.
+    Or, in Terminal: xattr -dr com.apple.quarantine /Applications/Lensjet.app
+  EOS
+
+"""
 
 
 def rebrand(text: str, nightly: bool) -> str:
@@ -47,6 +61,11 @@ def rebrand(text: str, nightly: bool) -> str:
         listed = ",\n".join(f'{zap.group(1)}  "{p}"' for p in paths)
         text = text[:zap.start()] + f"{zap.group(1)}zap trash: [\n{listed},\n{zap.group(1)}]" \
             + text[zap.end():]
+    if "caveats" not in text:
+        # Before `zap`, which is the last stanza of the casks in the tap; else before the final `end`.
+        anchor = re.search(r'^[ \t]*zap ', text, flags=re.M) or re.search(r'^end\s*$', text, flags=re.M)
+        if anchor:
+            text = text[:anchor.start()] + CAVEATS + text[anchor.start():]
     return text
 
 
