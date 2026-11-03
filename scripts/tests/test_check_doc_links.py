@@ -99,6 +99,36 @@ class RepositoryTest(unittest.TestCase):
         self.assertEqual(out.returncode, 0, out.stderr)
 
 
+class IndexTest(unittest.TestCase):
+    """docs/README.md and docs/shared/README.md link every document they index."""
+
+    @staticmethod
+    def linked_from(index: str) -> set[str]:
+        text = (ROOT / index).read_text(encoding="utf-8")
+        base = index.rpartition("/")[0]
+        found = set()
+        for _number, target in links.links_of(index, text):
+            if links.SCHEME.match(target):
+                continue
+            resolved = links.normalise(base, target.partition("#")[0])
+            if resolved:
+                found.add(resolved)
+        return found
+
+    @staticmethod
+    def tracked(prefix: str, suffixes: tuple[str, ...]) -> set[str]:
+        out = subprocess.run(["git", "-C", str(ROOT), "ls-files", prefix], capture_output=True, text=True, check=True)
+        return {f for f in out.stdout.splitlines() if f.endswith(suffixes)}
+
+    def test_every_document_under_docs_is_linked_from_the_docs_index(self):
+        documents = self.tracked("docs", (".md", ".html")) - {"docs/README.md"}
+        self.assertEqual(sorted(documents - self.linked_from("docs/README.md")), [])
+
+    def test_every_shared_rule_is_linked_from_the_shared_index(self):
+        documents = self.tracked("docs/shared", (".md",)) - {"docs/shared/README.md"}
+        self.assertEqual(sorted(documents - self.linked_from("docs/shared/README.md")), [])
+
+
 class AptDocumentationTest(unittest.TestCase):
     def test_docs_name_only_files_the_apt_repository_serves(self):
         # 2026-11-03: INSTALL.md told users to fetch apt/KEY.gpg, which the published repository

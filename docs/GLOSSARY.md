@@ -53,7 +53,7 @@ the app name, build configuration keeps the identifier.
 | Release asset names `phototok-android-release.*`, `photo-selector-toolbox-android-release.*`, `photo-selector-macos-*.zip` | release workflows | download links and update tools |
 | Tags `phototok-v*`, `android-desktop-v*`, `macos-desktop-v*`, `linux-desktop-v*` | releases | release history and `scripts/release.py` |
 | Folder `PhotoTok_LeftSwipe`, legacy `PhotoTok_Selection` exclusion | Jackpix, every product's scanner | user files already on disk |
-| Marker file `.photoselector-selection` | every product | Selection folders users already have |
+| Marker file `.photoselector-selection` | Frameduel, Lensjet, Blitzlens (the legacy Desktop does not write or read it) | Selection folders users already have |
 | Debian package `photo-selector-linux`, settings `~/.config/photo-selector-linux/`, APT Origin/Label | Blitzlens | installed systems keep updating; settings kept |
 | Homebrew cask token | `alexpp90/homebrew-tap` | installed casks keep updating |
 | Gradle modules, Swift targets, Python packages, folder names | code | internal |
@@ -65,5 +65,5 @@ the app name, build configuration keeps the identifier.
 | **Selection** | The destination subfolder (default name `Selection`) that kept photos are moved or copied into. Same concept across all products. |
 | **Selector** | The comparison workspace: previous / current / next, with quality scores. Desktop (legacy), Frameduel, Lensjet and Blitzlens. |
 | **Feed** | Jackpix's vertically paged stream of photos. Jackpix only. |
-| **Score** | One of sharpness, noise, highlight clipping, shadow clipping, aesthetics — computed identically in Desktop (legacy) and, without aesthetics, in Frameduel (see [`shared/FEATURE_PARITY.md`](shared/FEATURE_PARITY.md)), natively via Apple Accelerate and Vision in Lensjet, and natively via a NumPy Laplacian focus variance in Blitzlens. Jackpix computes none of them. |
+| **Score** | One of sharpness, noise, highlight clipping, shadow clipping, aesthetics — computed per product, not by shared code: the legacy Desktop (OpenCV/NumPy, noise floor subtracted from the Laplacian variance, aesthetics through Apple Vision or Ollama) and Lensjet (Apple Accelerate for the four technical scores, plus Apple Vision aesthetics) follow the focus contract of [`shared/FEATURE_PARITY.md`](shared/FEATURE_PARITY.md); Blitzlens computes sharpness, noise, highlight and shadow clipping with NumPy and no aesthetics; Frameduel computes the same four technical scores with OpenCV, without aesthetics and with no noise floor in its sharpness (a recorded gap). Jackpix computes none of them. |
 | **Window size class** | Compact (< 600 dp), Medium (600–840 dp), Expanded (≥ 840 dp). A layout dimension, never a product name. |
