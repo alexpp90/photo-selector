@@ -1500,6 +1500,9 @@ class PhoneModeViewModel @Inject constructor(
                 val folderUri = Uri.parse(targetUri)
 
                 val succeededUris = mutableSetOf<String>()
+                // (source, destination) pairs, so favourites follow their files.
+                val movedFiles = mutableListOf<Pair<String, String>>()
+                val copiedFiles = mutableListOf<Pair<String, String>>()
                 var failed = 0
                 var partial = 0
                 var renamedTo: String? = null
@@ -1538,6 +1541,9 @@ class PhoneModeViewModel @Inject constructor(
                     when {
                         result.success -> {
                             succeededUris.add(img.uri)
+                            result.destinationUri?.let { dest ->
+                                (if (isCopy) copiedFiles else movedFiles) += img.uri to dest
+                            }
                             if (img === currentImage) {
                                 // The primary file got a collision suffix: say which name it became.
                                 val resultName = result.destinationUri?.let(CopyMoveFeedback::displayNameOf)
@@ -1552,8 +1558,24 @@ class PhoneModeViewModel @Inject constructor(
                                 )
                             }
                         }
-                        result.partial -> partial++
+                        result.partial -> {
+                            partial++
+                            // The verified copy exists and the original stays: both are the photo.
+                            result.destinationUri?.let { dest -> copiedFiles += img.uri to dest }
+                        }
                         else -> failed++
+                    }
+                }
+                favouritesRepository.followTransfer(moved = movedFiles, copied = copiedFiles)
+                val destinations = (movedFiles + copiedFiles).map { it.second }
+                if (destinations.isNotEmpty()) {
+                    // Best effort: a MediaStore lookup must never turn a finished transfer into a failure.
+                    try {
+                        favouritesRepository.indexUrisFromSystem(destinations, onlyUnresolved = true)
+                    } catch (e: CancellationException) {
+                        throw e
+                    } catch (e: Exception) {
+                        Log.w(TAG, "Could not index ${destinations.size} transferred photos", e)
                     }
                 }
 

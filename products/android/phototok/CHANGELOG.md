@@ -7,6 +7,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 ## [Unreleased]
 
 ### Fixed
+- A favourite now follows its photo when you move it to the Selection folder (and a copy of a favourite is a favourite too). Before, moving a favourite silently dropped the star.
 - Photos you had swiped left (not yet deleted) when the app was killed are simply still in their folder at the next start; the folder's access is released then instead of staying pinned for good, which could exhaust Android's limit on remembered folders over time.
 - The "N copied" count on the "Done with this card" sheet now survives the app being closed or killed; before, it restarted from 0, next to the warning that photos not copied off the card are lost.
 - A failed move that puts its photo back, and a move that takes one out, no longer overwrite a swipe or a batch of newly found photos that landed at the same moment (a photo you had just deleted could reappear, or a new photo disappear from the feed).

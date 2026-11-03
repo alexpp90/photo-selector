@@ -2098,6 +2098,71 @@ class PhoneModeViewModelTest {
         }
     }
 
+    private fun favouriteMoveSetup(move: Boolean, result: (Uri) -> FileOperationResult): Triple<PhoneModeViewModel, com.phototok.data.repository.FavouritesRepository, ImageItem> {
+        phoneSettingsFlow.value = PhoneSettings(
+            collectionAction = if (move) CollectionAction.MOVE else CollectionAction.COPY,
+            moveRelatedFiles = false,
+        )
+        coEvery { imageRepository.moveImageDetailed(any(), any(), any(), any()) } coAnswers { result(firstArg()) }
+        coEvery { imageRepository.copyImageDetailed(any(), any(), any(), any()) } coAnswers { result(firstArg()) }
+        val a = image("a.jpg", 20)
+        val b = image("b.jpg", 10)
+        val (viewModel, favourites) = favouritesViewModel(
+            com.phototok.data.repository.FakeMediaStoreFavourites(index = emptyMap()),
+            a,
+            b,
+        )
+        viewModel.toggleCurrentFavourite()
+        assertTrue(favourites.isFavourite(a.uri))
+        return Triple(viewModel, favourites, a)
+    }
+
+    private val a2Selection = "content://photos/Selection/a.jpg"
+
+    @Test
+    fun `a favourite follows its photo into the Selection folder on a move`() = runTest {
+        val (viewModel, favourites, a) = favouriteMoveSetup(move = true) { FileOperationResult.success(it.toString(), a2Selection) }
+
+        viewModel.addToCollection()
+        advanceUntilIdle()
+
+        assertTrue("the moved photo is still a favourite", favourites.isFavourite(a2Selection))
+        assertFalse(favourites.isFavourite(a.uri))
+    }
+
+    @Test
+    fun `a copy of a favourite is a favourite too and the original stays one`() = runTest {
+        val (viewModel, favourites, a) = favouriteMoveSetup(move = false) { FileOperationResult.success(it.toString(), a2Selection) }
+
+        viewModel.addToCollection()
+        advanceUntilIdle()
+
+        assertTrue(favourites.isFavourite(a2Selection))
+        assertTrue(favourites.isFavourite(a.uri))
+    }
+
+    @Test
+    fun `a move that only half worked gives the verified copy the favourite and keeps the original's`() = runTest {
+        val (viewModel, favourites, a) = favouriteMoveSetup(move = true) { FileOperationResult.partial(it.toString(), a2Selection) }
+
+        viewModel.addToCollection()
+        advanceUntilIdle()
+
+        assertTrue(favourites.isFavourite(a2Selection))
+        assertTrue(favourites.isFavourite(a.uri))
+    }
+
+    @Test
+    fun `a failed move leaves the favourite where it was`() = runTest {
+        val (viewModel, favourites, a) = favouriteMoveSetup(move = true) { FileOperationResult.failure(it.toString(), null) }
+
+        viewModel.addToCollection()
+        advanceUntilIdle()
+
+        assertTrue(favourites.isFavourite(a.uri))
+        assertFalse(favourites.isFavourite(a2Selection))
+    }
+
     @Test
     fun `a card clear finishing after an unmount does not mark the card as cleared`() = runTest {
         val gate = CompletableDeferred<Boolean>()

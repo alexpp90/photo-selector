@@ -100,6 +100,39 @@ object FavouriteSyncLogic {
     }
 
     /**
+     * A photo was copied or moved from [source] to [destination]: a favourite follows its file
+     * (user data keyed by a file's location moves with the file). The destination is recorded under
+     * its document key; it is attached to its MediaStore item when that resolves, which queues the
+     * system flag then.
+     *
+     * With [keepSource] (a copy, or a move whose original could not be removed) the source stays a
+     * favourite too. Otherwise the source key is forgotten **without** queueing an un-favourite:
+     * if the MediaStore row survived the move it is the destination's row, and a read-back of it
+     * restores the favourite; if it did not, the request would target nothing.
+     */
+    fun followFile(
+        snapshot: FavouritesSnapshot,
+        source: String,
+        destination: String,
+        keepSource: Boolean,
+    ): FavouritesSnapshot {
+        if (!snapshot.isFavourite(source)) return snapshot
+        val sourceDocumentKey = FavouriteKeys.documentKey(source)
+        val destinationDocumentKey = FavouriteKeys.documentKey(destination)
+        if (sourceDocumentKey == destinationDocumentKey) return snapshot
+        val destinationKey = snapshot.keyOf(destinationDocumentKey)
+        val withDestination = requeue(snapshot.copy(favourites = snapshot.favourites + destinationKey), listOf(destinationKey))
+        if (keepSource) return withDestination
+        val sourceKey = snapshot.keyOf(sourceDocumentKey)
+        return withDestination.copy(
+            favourites = withDestination.favourites - sourceKey - sourceDocumentKey,
+            systemFavourites = withDestination.systemFavourites - sourceKey,
+            pending = withDestination.pending - sourceKey,
+            mediaUris = withDestination.mediaUris - sourceDocumentKey,
+        )
+    }
+
+    /**
      * Record that [documentUri] is the MediaStore item [mediaUri]. A favourite kept under the
      * document key moves to the MediaStore URI, so the same photo is recognised from any source.
      */
