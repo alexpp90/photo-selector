@@ -1634,3 +1634,74 @@ def test_scanner_lists_a_symlinked_photo_with_its_companion(tmp_path: Path):
     assert len(candidates) == 1
     assert sorted(p.name for p in candidates[0].all_paths) == ["IMG_1.ARW", "IMG_1.JPG"]
     assert link in candidates[0].all_paths
+
+
+# ── A copy appears under its real name only when complete; no orphan in the Trash (BL-D-4) ───────
+
+
+def test_copy_is_never_visible_under_the_real_name_before_it_is_complete(tmp_path: Path):
+    src = tmp_path / "DSC_0001.JPG"
+    src.write_bytes(b"x" * 4096)
+    mgr = FileCullingManager()
+    candidate = CandidatePhoto(primary_path=src)
+    selection = tmp_path / "Selection"
+    seen = {}
+    real_copyfileobj = shutil.copyfileobj
+
+    def watching_copy(fsrc, fdst, length=0):
+        real_copyfileobj(fsrc, fdst, length)
+        seen["names"] = sorted(p.name for p in selection.iterdir())  # mid-copy, as a kill -9 would find it
+
+    with patch("shutil.copyfileobj", watching_copy):
+        mgr.copy_candidate(candidate, tmp_path)
+
+    assert "DSC_0001.JPG" not in seen["names"], "a truncated file would sit under the real name"
+    assert any(n.startswith(".DSC_0001.JPG.") and n.endswith(".part") for n in seen["names"])
+    assert sorted(p.name for p in selection.iterdir() if not p.name.startswith(".photoselector")) == ["DSC_0001.JPG"]
+    assert (selection / "DSC_0001.JPG").read_bytes() == b"x" * 4096
+
+
+def test_a_copy_that_fails_leaves_no_part_file(tmp_path: Path):
+    from photo_selector_linux.core.file_ops import _copy_file
+
+    src = tmp_path / "a.jpg"
+    src.write_bytes(b"data")
+    dst = tmp_path / "out" / "a.jpg"
+    dst.parent.mkdir()
+    with patch("shutil.copyfileobj", side_effect=OSError("disk full")):
+        with pytest.raises(OSError):
+            _copy_file(src, dst)
+    assert list(dst.parent.iterdir()) == []
+
+
+def test_copy_file_never_overwrites(tmp_path: Path):
+    from photo_selector_linux.core.file_ops import _copy_file
+
+    src = tmp_path / "a.jpg"
+    src.write_bytes(b"new")
+    dst = tmp_path / "b.jpg"
+    dst.write_bytes(b"theirs")
+    with pytest.raises(FileExistsError):
+        _copy_file(src, dst)
+    assert dst.read_bytes() == b"theirs" and sorted(p.name for p in tmp_path.iterdir()) == ["a.jpg", "b.jpg"]
+
+
+def test_cross_device_trash_with_unremovable_original_leaves_no_orphan(tmp_path: Path):
+    photo = tmp_path / "IMG_1.JPG"
+    photo.write_bytes(b"payload")
+    trash_dir = tmp_path / "Trash"
+    mgr = FileCullingManager(trash_dir=trash_dir, dev_of=lambda p: 2 if "Trash" in str(p) else 1)
+    real_unlink = Path.unlink
+
+    def refuse_original(self, *args, **kwargs):
+        if self == photo:
+            raise PermissionError("read-only card")
+        return real_unlink(self, *args, **kwargs)
+
+    with patch.object(Path, "unlink", refuse_original):
+        with pytest.raises(Exception):
+            mgr.trash_candidate(CandidatePhoto(primary_path=photo))
+
+    assert photo.read_bytes() == b"payload"
+    assert list((trash_dir / "files").iterdir()) == [], "a payload without a .trashinfo is an orphan"
+    assert list((trash_dir / "info").iterdir()) == []

@@ -7,6 +7,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 ## [Unreleased]
 
 ### Fixed
+- A copy to the Selection folder is written under a hidden temporary name and takes its real name only when complete, so a crash or power loss can no longer leave a truncated photo there. A Trash on another drive whose original cannot be removed no longer leaves a stray file in the Trash.
 - "Open with Blitzlens" on a photo (or several) opens the photo's folder with that photo selected. Before, one photo showed an empty "Loaded 0 photographs" and several photos failed with a usage error.
 - A start-up error is no longer reported as "Core Engine Ready" with exit status 0. It stops with the error and a non-zero status.
 - **Lowest sharpness first** now orders the whole folder. Before, only the few photos you had already looked at were sorted and the rest stayed in file order behind them. Choosing the order scores every photo in the background (on a cloud folder: choose it a second time to confirm), keeps the photo on screen where it is while the order settles, and starts at the lowest-scored photo if you have not moved on.

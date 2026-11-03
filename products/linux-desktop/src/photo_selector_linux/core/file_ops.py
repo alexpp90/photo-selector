@@ -18,6 +18,7 @@ import os
 import shutil
 import stat
 import threading
+import uuid
 from pathlib import Path
 from typing import Callable, Dict, List, Optional, Tuple
 from urllib.parse import quote, unquote
@@ -154,12 +155,22 @@ def _resolve_bundle_destinations(
 def _copy_file(src: Path, dst: Path, fsync: bool = False) -> None:
     """Copy content exclusively (never overwriting an existing file), then permissions and timestamps.
 
-    Opens ``dst`` with ``O_WRONLY | O_CREAT | O_EXCL`` so an existing file is never truncated.
-    When ``fsync=True``, flushes file data to disk before closing. GVFS cloud mounts (Google Drive)
-    reject ``utime``/``chmod`` with ENOTSUP, which is ignored so copies and cross-mount moves succeed.
+    On a local filesystem the bytes go to a hidden ``.<name>.<id>.part`` beside ``dst`` and appear
+    under the real name only when complete (BL-D-4): a power loss or ``kill -9`` mid-copy leaves a
+    dot-file the scanner ignores, never a truncated photo under the name the next Copy would then
+    suffix around. Opens with ``O_WRONLY | O_CREAT | O_EXCL`` so nothing existing is truncated, and
+    the final step never overwrites ``dst`` (``FileExistsError``). When ``fsync=True``, flushes
+    file data to disk before closing. GVFS cloud mounts (Google Drive) reject ``utime``/``chmod``
+    with ENOTSUP, which is ignored so copies and cross-mount moves succeed; they are written in
+    place, since a rename there changes the file's identity.
     """
+    if dst.exists() or dst.is_symlink():
+        raise FileExistsError(errno.EEXIST, os.strerror(errno.EEXIST), str(dst))
+    staged = dst if is_gvfs_fuse_path(dst) else dst.with_name(
+        f".{dst.name[:100]}.{uuid.uuid4().hex[:8]}.part"
+    )
     flags = os.O_WRONLY | os.O_CREAT | os.O_EXCL
-    fd = os.open(dst, flags, 0o666)
+    fd = os.open(staged, flags, 0o666)
     try:
         try:
             fobj = os.fdopen(fd, "wb")
@@ -176,10 +187,12 @@ def _copy_file(src: Path, dst: Path, fsync: bool = False) -> None:
                 except OSError as e:
                     if e.errno not in (errno.EINVAL, errno.ENOTSUP, errno.EOPNOTSUPP):
                         raise
+        if staged != dst:
+            _move_no_overwrite(staged, dst)
     except BaseException:
-        if dst.exists() or dst.is_symlink():
+        if staged.exists() or staged.is_symlink():
             try:
-                dst.unlink()
+                staged.unlink()
             except OSError:
                 pass
         raise
@@ -441,6 +454,15 @@ class FileCullingManager:
                 _copy_file(src_resolved, dst_file, fsync=True)
                 src_resolved.unlink()
         except Exception:
+            # A copy that landed in the Trash while the original could not be removed would stay
+            # there without a .trashinfo (an orphan); the original is intact, so drop the copy.
+            if (src_resolved.exists() or src_resolved.is_symlink()) and (
+                dst_file.exists() or dst_file.is_symlink()
+            ):
+                try:
+                    dst_file.unlink()
+                except Exception:
+                    pass
             if info_file.exists():
                 try:
                     info_file.unlink()
