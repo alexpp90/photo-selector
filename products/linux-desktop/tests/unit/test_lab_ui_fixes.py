@@ -404,3 +404,39 @@ def test_bar_installs_no_tick_callback_so_the_frame_clock_stays_idle(monkeypatch
     bar.allocate(1440, 60, -1, None)
     bar.allocate(1440, 60, -1, None)
     assert added == []
+
+
+# ── Stranded files stay on screen until the next file operation (BL-UX-4, SET-UX-3) ─────────────
+
+
+def test_a_stranded_outcome_stays_in_the_action_bar_until_the_next_operation():
+    vm = CullingWorkspaceViewModel()
+    bar = ActionBarView(viewmodel=vm)
+    message = "Move interrupted — some files of a.jpg stayed in Selection/ and could not be put back"
+
+    vm._notify(message, "stranded")
+    assert bar.status_text == message
+    assert bar._status_timer is None, "no expiry timer for a stranded outcome"
+
+    vm._running_action = object()  # the next file operation starts
+    bar._update_state()
+    assert bar.status_text == ""
+
+
+def test_an_ordinary_outcome_keeps_its_expiry_timer():
+    from photo_selector_linux.ui import action_bar as action_bar_module
+
+    vm = CullingWorkspaceViewModel()
+    bar = ActionBarView(viewmodel=vm)
+    vm._notify("Moved a.jpg to Selection/", "status")
+    if action_bar_module.HAS_GI and not isinstance(action_bar_module.GLib, MagicMock):
+        assert bar._status_timer is not None
+
+
+@pytest.mark.skipif(isinstance(window_module.Gtk, MagicMock), reason="needs real Adw.Toast")
+def test_a_stranded_toast_stays_until_dismissed():
+    win = window_module.MainWindow()
+    win.viewmodel._notify("Move interrupted — some files of a.jpg stayed in Selection/", "stranded")
+    assert win._toast.get_timeout() == 0
+    win.viewmodel._notify("Could not move a.jpg: boom", "error")
+    assert win._toast.get_timeout() == 3

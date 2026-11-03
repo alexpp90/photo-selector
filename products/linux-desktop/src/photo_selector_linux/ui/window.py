@@ -287,16 +287,18 @@ class MainWindow(Adw.ApplicationWindow if HAS_GI else object):
         """Cull/undo outcomes live in the action bar; load info and errors also get a toast."""
         if not HAS_GI:
             return
-        if getattr(vm, "last_notification_severity", "info") == "status":
+        severity = getattr(vm, "last_notification_severity", "info")
+        if severity == "status":
             return
-        self.show_toast(message)
+        # Files left in an unexpected place: the toast stays until the user dismisses it.
+        self.show_toast(message, persistent=severity == "stranded")
 
-    def show_toast(self, message: str) -> None:
+    def show_toast(self, message: str, persistent: bool = False) -> None:
         """Show one toast at a time: the previous one is dismissed, never queued."""
         if self._toast is not None:
             self._toast.dismiss()
         toast = Adw.Toast.new(message)
-        toast.set_timeout(3)
+        toast.set_timeout(0 if persistent else 3)
         self._toast = toast
         self.toast_overlay.add_toast(toast)
 

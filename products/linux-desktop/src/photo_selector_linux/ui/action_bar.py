@@ -78,11 +78,16 @@ class ActionBarView(Gtk.ActionBar if HAS_GI else object):
 
     def _on_notification(self, vm, message: str) -> None:
         """Show cull/undo outcomes and errors here; info messages (load) stay toasts."""
-        if getattr(vm, "last_notification_severity", "info") in ("status", "error"):
-            self.show_outcome(message)
+        severity = getattr(vm, "last_notification_severity", "info")
+        if severity in ("status", "error", "stranded"):
+            self.show_outcome(message, persistent=severity == "stranded")
 
-    def show_outcome(self, message: str) -> None:
-        """Last write wins; the text clears itself after OUTCOME_SECONDS."""
+    def show_outcome(self, message: str, persistent: bool = False) -> None:
+        """Last write wins; the text clears itself after OUTCOME_SECONDS.
+
+        ``persistent``: files were left in an unexpected place. The text stays until the next file
+        operation starts (``_clear_outcome``), so a user who looked away still finds it.
+        """
         self._status_generation += 1
         self.status_text = message
         # An outcome arriving while the queue is busy belongs to the action that just ran.
@@ -90,10 +95,12 @@ class ActionBarView(Gtk.ActionBar if HAS_GI else object):
         if HAS_GI:
             if self._status_timer is not None:
                 GLib.source_remove(self._status_timer)
-            generation = self._status_generation
-            self._status_timer = GLib.timeout_add_seconds(
-                OUTCOME_SECONDS, self._expire_outcome, generation
-            )
+                self._status_timer = None
+            if not persistent:
+                generation = self._status_generation
+                self._status_timer = GLib.timeout_add_seconds(
+                    OUTCOME_SECONDS, self._expire_outcome, generation
+                )
         self._update_state()
 
     def _expire_outcome(self, generation: int | None = None) -> bool:

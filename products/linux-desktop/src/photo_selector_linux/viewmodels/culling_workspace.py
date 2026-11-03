@@ -301,7 +301,8 @@ class CullingWorkspaceViewModel:
 
         ``severity`` is stored in ``last_notification_severity`` before the callbacks run:
         ``"status"`` = cull/undo outcome (shown in the action bar, no toast), ``"error"`` =
-        failure (toast and action bar), ``"info"`` = everything else (toast only).
+        failure (toast and action bar), ``"stranded"`` = files left in an unexpected place (as
+        ``"error"``, but the action bar keeps it until the next file operation starts), ``"info"`` = everything else (toast only).
         """
         self.last_notification_severity = severity
         for cb in self._notification_callbacks:
@@ -644,16 +645,22 @@ class CullingWorkspaceViewModel:
                         self._notify(
                             f"Move interrupted — copies of {action.photo.filename} stayed in "
                             f"{action.selection_folder}/ and could not be removed; the original is untouched"
+                        ,
+                            "stranded",
                         )
                     elif action.kind == "move":
                         self._notify(
                             f"Move interrupted — some files of {action.photo.filename} stayed in "
                             f"{action.selection_folder}/ and could not be put back"
+                        ,
+                            "stranded",
                         )
                     else:
                         self._notify(
                             f"Copy interrupted — some copies of {action.photo.filename} stayed in "
                             f"{action.selection_folder}/ and could not be removed"
+                        ,
+                            "stranded",
                         )
                     return
 
@@ -666,7 +673,7 @@ class CullingWorkspaceViewModel:
                     self._notify(
                         f"Copied {action.photo.filename} to {action.selection_folder}/ "
                         f"— original could not be removed",
-                        "error",
+                        "stranded",
                     )
                     return
 

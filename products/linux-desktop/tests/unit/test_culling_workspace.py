@@ -961,7 +961,8 @@ def test_partial_move_is_recorded_for_undo_and_reported_without_losing_the_photo
     vm.candidates = [photo, make_candidate("b.jpg")]
     vm.current_folder = Path("/tmp/test_dir")
     messages = []
-    vm.connect("notification", lambda _vm, message: messages.append(message))
+    severities = []
+    vm.connect("notification", lambda _vm, message: (messages.append(message), severities.append(_vm.last_notification_severity)))
 
     vm.cull_move()
 
@@ -969,6 +970,7 @@ def test_partial_move_is_recorded_for_undo_and_reported_without_losing_the_photo
     assert [entry[0] for entry in vm.undo_stack] == [record]
     assert vm.selected_count == 0
     assert messages == ["Copied a.jpg to Selection/ — original could not be removed"]
+    assert severities == ["stranded"]
 
 
 def _stranded_vm(kind: str):
@@ -993,7 +995,13 @@ def _stranded_vm(kind: str):
     vm.candidates = [photo, make_candidate("b.jpg")]
     vm.current_folder = Path("/tmp/test_dir")
     messages = []
-    vm.connect("notification", lambda _vm, message: messages.append(message))
+    vm.severities = []  # severity of each notification, in order
+
+    def remember(_vm, message):
+        messages.append(message)
+        vm.severities.append(_vm.last_notification_severity)
+
+    vm.connect("notification", remember)
     return vm, photo, record, messages
 
 
@@ -1008,6 +1016,7 @@ def test_move_whose_rollback_failed_keeps_the_record_and_does_not_claim_a_rollba
     assert messages == [
         "Move interrupted — some files of a.jpg stayed in Selection/ and could not be put back"
     ]
+    assert vm.severities[-1] == "stranded", "stranded files stay on screen until the next action"
 
 
 def test_copy_whose_cleanup_failed_keeps_the_record_and_undo_leaves_the_counters_alone():
@@ -1021,6 +1030,7 @@ def test_copy_whose_cleanup_failed_keeps_the_record_and_undo_leaves_the_counters
     assert messages == [
         "Copy interrupted — some copies of a.jpg stayed in Selection/ and could not be removed"
     ]
+    assert vm.severities[-1] == "stranded"
 
     # The failed copy already gave its optimistic counts back; undoing the stray copies must not
     # take them away a second time.
@@ -1042,6 +1052,7 @@ def test_move_whose_stray_copies_could_not_be_removed_says_the_originals_are_unt
         "Move interrupted — copies of a.jpg stayed in Selection/ and could not be removed; "
         "the original is untouched"
     ]
+    assert vm.severities[-1] == "stranded"
 
 
 # ── B-7: feedback templates of docs/shared/FILE_OPERATIONS.md (finding D-8) ─────────────────────
