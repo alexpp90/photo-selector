@@ -35,7 +35,11 @@ on:
   workflow_dispatch:
 
 concurrency:
-  group: android-${{ github.ref }}
+  # A pull request keeps one group per ref so a superseded run is cancelled. Every other run
+  # gets a group of its own (the commit): a group shared by main pushes would replace a
+  # *pending* run with the newest one even with cancel-in-progress off, and the module that
+  # run would have published is then never built (the next push only diffs its own range).
+  group: android-${{ github.ref }}-${{ github.event_name == 'pull_request' && 'pr' || github.sha }}
   # Only cancel superseded PR runs; never abort an in-flight main/tag run
   # that may already be publishing to Play or Firebase.
   cancel-in-progress: ${{ github.event_name == 'pull_request' }}
