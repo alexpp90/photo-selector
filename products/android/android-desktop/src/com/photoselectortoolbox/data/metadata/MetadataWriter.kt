@@ -25,8 +25,8 @@ import javax.inject.Singleton
  *
  * - JPEG: updates the embedded XMP via [ExifInterface] on a temporary copy, verifies the copy's
  *   image bounds decode via [BitmapFactory], and only then replaces the original (atomically for
- *   files; for SAF documents see [SafRatingWriter]). A failed step fails the write — it never
- *   turns into a sidecar.
+ *   files; for SAF documents behind a verified backup document, see [SafRatingWriter] and
+ *   [RatingBackups]). A failed step fails the write — it never turns into a sidecar.
  * - RAW and TIFF: creates or updates the companion XMP sidecar (`<file>.xmp`, else an existing
  *   `<stem>.xmp`) with ISO 16684-1 `<xmp:Rating>`; the image itself is never opened for writing.
  * - Every other format: fails with a message; no sidecar is invented.
@@ -44,6 +44,14 @@ interface MetadataWriter {
         }
         return writeRating(file, rating)
     }
+
+    /**
+     * Resolves the backups that interrupted JPEG rating writes left under the opened tree
+     * [folderUri] ([RatingBackups], finding FD-D-11): restores a cut-off photo, discards a backup
+     * of a photo that was never touched, and keeps (and returns) the rest. Never throws; a folder
+     * that cannot be read yields [RatingRecovery.NONE].
+     */
+    suspend fun recoverInterruptedWrites(context: Context, folderUri: Uri): RatingRecovery
 }
 
 @Singleton
@@ -91,6 +99,20 @@ class MetadataWriterImpl internal constructor(
                     Log.w(TAG, "SAF rating write failed for $imageUri", e)
                     Result.failure(e)
                 }
+            }
+        }
+
+    override suspend fun recoverInterruptedWrites(context: Context, folderUri: Uri): RatingRecovery =
+        withContext(Dispatchers.IO) {
+            try {
+                SafRatingWriter(context, validateJpegBounds).recover(folderUri) { photoUri, block ->
+                    mutexFor(photoUri.toString()).withLock { block() }
+                }
+            } catch (e: CancellationException) {
+                throw e
+            } catch (e: Exception) {
+                Log.w(TAG, "Rating backup recovery failed for $folderUri", e)
+                RatingRecovery.NONE
             }
         }
 

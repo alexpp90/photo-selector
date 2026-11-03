@@ -116,6 +116,26 @@ object SelectorLabels {
     fun ratingNotWrittenMessage(fileName: String, reason: String?): String =
         "Rating kept in the app only — not saved to $fileName" + if (reason.isNullOrBlank()) "" else " ($reason)"
 
+    /**
+     * What a folder open did with the backups of interrupted JPEG rating writes (FD-D-11), or null
+     * when there were none. [kept] pairs a photo with the backup left beside it.
+     */
+    fun ratingRecoveryMessage(restored: List<String>, kept: List<Pair<String, String>>): String? {
+        val parts = buildList {
+            when (restored.size) {
+                0 -> Unit
+                1 -> add("Restored ${restored[0]} from its backup after an interrupted rating write")
+                else -> add("Restored ${restored.size} photos from their backups after an interrupted rating write")
+            }
+            when (kept.size) {
+                0 -> Unit
+                1 -> add("Backup of ${kept[0].first} kept as ${kept[0].second} — check the photo, then delete the backup")
+                else -> add("${kept.size} rating backups kept (*.frameduel-backup) — check the photos, then delete the backups")
+            }
+        }
+        return parts.takeIf { it.isNotEmpty() }?.joinToString(". ")
+    }
+
     // ── Sort order and "Go to photo" ─────────────────────────────────────
 
     /** The overflow-menu radio group, in the order it is shown. */

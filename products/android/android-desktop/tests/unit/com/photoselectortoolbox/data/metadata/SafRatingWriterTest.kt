@@ -61,6 +61,14 @@ class SafRatingWriterTest {
             @Volatile var failReadOf: String? = null
             /** The first truncating open of this file name truncates, then throws (a write that dies half way). */
             @Volatile var dieAfterTruncateOf: String? = null
+            /**
+             * After [dieAfterTruncateOf] fired, every open of every document fails: the card was
+             * pulled or the process died, so nothing can be read or restored until [dead] is cleared.
+             */
+            @Volatile var goneAfterTruncate = false
+            @Volatile var dead = false
+            /** A provider without "wt": the truncating open of this file name fails before touching it. */
+            @Volatile var rejectTruncateOf: String? = null
             @Volatile var renameCreatedTo: ((String) -> String)? = null
             @Volatile var supportFindDocumentPath = false
             val findPathCalls = java.util.concurrent.atomic.AtomicInteger(0)
@@ -68,6 +76,7 @@ class SafRatingWriterTest {
             fun reset(root: File) {
                 rootDir = root; ids.clear(); files.clear(); counter = 0; opens.clear()
                 failReadOf = null; dieAfterTruncateOf = null; renameCreatedTo = null
+                goneAfterTruncate = false; dead = false; rejectTruncateOf = null
                 supportFindDocumentPath = false; findPathCalls.set(0)
             }
 
@@ -150,12 +159,17 @@ class SafRatingWriterTest {
         override fun openFile(uri: Uri, mode: String): ParcelFileDescriptor {
             val f = fileFor(docId(uri))
             opens += f.name to mode
+            if (dead) throw FileNotFoundException("simulated: the storage is gone")
             if (mode.contains('r') && !mode.contains('w') && f.name == failReadOf) {
                 throw FileNotFoundException("simulated read failure")
+            }
+            if (mode.contains('t') && f.name == rejectTruncateOf) {
+                throw FileNotFoundException("simulated: mode wt is not supported")
             }
             if (mode.contains('t') && f.name == dieAfterTruncateOf) {
                 dieAfterTruncateOf = null
                 f.writeBytes(ByteArray(0))
+                if (goneAfterTruncate) dead = true
                 throw IOException("simulated death after truncate")
             }
             return ParcelFileDescriptor.open(f, ParcelFileDescriptor.parseMode(mode))
@@ -198,9 +212,9 @@ class SafRatingWriterTest {
         return f
     }
 
-    private fun jpeg(rel: String): File {
+    private fun jpeg(rel: String, size: Int = 32): File {
         val f = file(rel)
-        java.io.FileOutputStream(f).use { Bitmap.createBitmap(32, 32, Bitmap.Config.ARGB_8888).compress(Bitmap.CompressFormat.JPEG, 90, it) }
+        java.io.FileOutputStream(f).use { Bitmap.createBitmap(size, size, Bitmap.Config.ARGB_8888).compress(Bitmap.CompressFormat.JPEG, 90, it) }
         return f
     }
 
@@ -354,6 +368,120 @@ class SafRatingWriterTest {
         assertTrue(result.exceptionOrNull()?.message, result.isSuccess)
         assertTrue(ExifInterface(jpg.absolutePath).getAttribute(ExifInterface.TAG_XMP)!!.contains("<xmp:Rating>4</xmp:Rating>"))
         assertFalse(File(jpg.parentFile, "shot.jpg.xmp").exists())
+        // The backup existed while the photo was written, and is gone after the verified write.
+        assertTrue(RatingProvider.opens.any { it.first == "shot.jpg.frameduel-backup" && it.second.contains('w') })
+        assertEquals(listOf("shot.jpg"), jpg.parentFile!!.list()!!.toList())
+    }
+
+    // ── FD-D-11: a JPEG write that dies half way is recoverable, and recovered at the next open ──
+
+    @Test
+    fun `a JPEG write that dies after the truncate keeps the original as a backup and the next open restores it`() = runTest {
+        val jpg = jpeg("card/DSC_1.jpg")
+        val original = jpg.readBytes()
+        RatingProvider.dieAfterTruncateOf = "DSC_1.jpg"
+        RatingProvider.goneAfterTruncate = true
+
+        val result = writer.writeRating(context, uriOf(jpg), 4)
+
+        // The photo is cut off and could not be restored (the storage went away) ...
+        assertTrue(result.isFailure)
+        assertEquals(0L, jpg.length())
+        assertTrue(result.exceptionOrNull()!!.message!!.contains("DSC_1.jpg.frameduel-backup"))
+        // ... but every byte of it is beside it.
+        val backup = File(jpg.parentFile, "DSC_1.jpg.frameduel-backup")
+        assertTrue(original.contentEquals(backup.readBytes()))
+
+        // Next session: the storage is back, a fresh writer opens the folder.
+        RatingProvider.dead = false
+        val recovery = MetadataWriterImpl().recoverInterruptedWrites(context, treeUri)
+
+        assertEquals(listOf("DSC_1.jpg"), recovery.restored)
+        assertTrue(recovery.kept.isEmpty())
+        assertTrue(original.contentEquals(jpg.readBytes()))
+        assertFalse(backup.exists())
+    }
+
+    @Test
+    fun `a JPEG write that dies after the truncate but can still restore leaves the original and no backup`() = runTest {
+        val jpg = jpeg("DSC_2.jpg")
+        val original = jpg.readBytes()
+        RatingProvider.dieAfterTruncateOf = "DSC_2.jpg"
+
+        val result = writer.writeRating(context, uriOf(jpg), 4)
+
+        assertTrue(result.isFailure)
+        assertTrue(original.contentEquals(jpg.readBytes()))
+        assertEquals(listOf("DSC_2.jpg"), root.list()!!.toList())
+    }
+
+    @Test
+    fun `no JPEG write starts while a backup from an interrupted write is beside the photo`() = runTest {
+        val jpg = jpeg("DSC_3.jpg")
+        val before = jpg.readBytes()
+        val backup = file("DSC_3.jpg.frameduel-backup", byteArrayOf(1, 2, 3))
+
+        val result = writer.writeRating(context, uriOf(jpg), 4)
+
+        assertTrue(result.isFailure)
+        assertTrue(before.contentEquals(jpg.readBytes()))
+        assertTrue(byteArrayOf(1, 2, 3).contentEquals(backup.readBytes()))
+        assertTrue(writesTo("DSC_3.jpg").isEmpty())
+    }
+
+    @Test
+    fun `at open a backup of a photo that was never overwritten is deleted silently`() = runTest {
+        val jpg = jpeg("a/DSC_4.jpg")
+        val bytes = jpg.readBytes()
+        // Equal, and cut off while the backup itself was written: the photo was never touched.
+        file("a/DSC_4.jpg.frameduel-backup", bytes)
+        val partial = jpeg("b/DSC_5.jpg").readBytes()
+        file("b/DSC_5.jpg.frameduel-backup", partial.copyOf(partial.size / 2))
+
+        val recovery = writer.recoverInterruptedWrites(context, treeUri)
+
+        assertTrue(recovery.isEmpty)
+        assertTrue(bytes.contentEquals(jpg.readBytes()))
+        assertEquals(listOf("DSC_4.jpg"), File(root, "a").list()!!.toList())
+        assertEquals(listOf("DSC_5.jpg"), File(root, "b").list()!!.toList())
+        assertTrue(RatingProvider.opens.none { it.first.startsWith("DSC_") && it.second.contains('w') })
+    }
+
+    @Test
+    fun `at open a complete photo that differs from its backup is left alone and the backup is reported`() = runTest {
+        val jpg = jpeg("DSC_6.jpg")
+        val rated = jpg.readBytes()
+        val other = jpeg("other.jpg", size = 48).readBytes()
+        File(root, "other.jpg").delete()
+        val backup = file("DSC_6.jpg.frameduel-backup", other)
+
+        val recovery = writer.recoverInterruptedWrites(context, treeUri)
+
+        assertEquals(listOf(KeptRatingBackup("DSC_6.jpg", "DSC_6.jpg.frameduel-backup")), recovery.kept)
+        assertTrue(recovery.restored.isEmpty())
+        assertTrue(rated.contentEquals(jpg.readBytes()))
+        assertTrue(other.contentEquals(backup.readBytes()))
+    }
+
+    @Test
+    fun `a folder that is not an opened tree recovers nothing`() = runTest {
+        assertEquals(RatingRecovery.NONE, writer.recoverInterruptedWrites(context, Uri.parse("content://test/folder")))
+    }
+
+    @Test
+    fun `a provider that refuses a truncating open reports the file unchanged and writes nothing back`() = runTest {
+        val raw = file("IMG_11.ARW")
+        val sidecar = file("IMG_11.ARW.xmp", "<x:xmpmeta><rdf:Description><xmp:Rating>2</xmp:Rating></rdf:Description></x:xmpmeta>".toByteArray())
+        val before = sidecar.readBytes()
+        RatingProvider.rejectTruncateOf = "IMG_11.ARW.xmp"
+
+        val result = writer.writeRating(context, uriOf(raw), 5)
+
+        assertTrue(result.isFailure)
+        assertTrue(result.exceptionOrNull()!!.message!!.contains("left unchanged"))
+        assertTrue(before.contentEquals(sidecar.readBytes()))
+        // One refused attempt, no "restore" of a file that was never touched (FD-D-19).
+        assertEquals(1, writesTo("IMG_11.ARW.xmp").size)
     }
 
     @Test

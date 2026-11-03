@@ -100,6 +100,7 @@ class RatingNavigationStressTest {
     }
     private val metadataWriter: MetadataWriter = mockk(relaxed = true) {
         coEvery { writeRating(any(), any()) } returns Result.success(Unit)
+        coEvery { recoverInterruptedWrites(any(), any()) } returns com.photoselectortoolbox.data.metadata.RatingRecovery.NONE
     }
 
     /**

@@ -703,6 +703,7 @@ class SelectorViewModel @Inject constructor(
             _uiState.update { it.copy(folderName = folderName, missingGrantPrompt = false) }
 
             settingsRepository.setLastFolderUri(uri.toString())
+            recoverInterruptedRatingWrites(uri)
 
             collectDiscovery(uri, "images") { e ->
                 if (e is SecurityException) {
@@ -716,6 +717,32 @@ class SelectorViewModel @Inject constructor(
                     settingsRepository.setLastFolderUri(null)
                 }
             }
+        }
+    }
+
+    /**
+     * Resolves the backups interrupted JPEG rating writes left in [folderUri] (FD-D-11,
+     * [MetadataWriter.recoverInterruptedWrites]) beside the discovery, on [appScope] so a restore
+     * that has started is not cut off by a folder switch. The result is told only while the folder
+     * is still open.
+     */
+    private fun recoverInterruptedRatingWrites(folderUri: Uri) {
+        val folder = folderUri.toString()
+        appScope.launch(ioDispatcher) {
+            val recovery = try {
+                metadataWriter.recoverInterruptedWrites(context, folderUri)
+            } catch (e: CancellationException) {
+                throw e
+            } catch (e: Exception) {
+                Log.w("SelectorViewModel", "Rating backup recovery failed for $folderUri", e)
+                return@launch
+            }
+            val message = SelectorLabels.ratingRecoveryMessage(
+                restored = recovery.restored,
+                kept = recovery.kept.map { it.photoName to it.backupName },
+            ) ?: return@launch
+            val lifetime = if (recovery.kept.isEmpty()) SnackbarLifetime.NOTICE else SnackbarLifetime.ERROR
+            _uiState.update { if (it.folderUri == folder) it.withSnackbar(message, lifetime) else it }
         }
     }
 
