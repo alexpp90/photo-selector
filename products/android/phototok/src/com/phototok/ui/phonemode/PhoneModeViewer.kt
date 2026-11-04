@@ -47,10 +47,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.automirrored.filled.ArrowForward
-import androidx.compose.material.icons.automirrored.filled.DriveFileMove
 import androidx.compose.material.icons.automirrored.filled.OpenInNew
-import androidx.compose.material.icons.filled.ContentCopy
-import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Info
 import androidx.compose.material.icons.filled.Lens
 import androidx.compose.material.icons.filled.PhotoCamera
@@ -117,6 +114,7 @@ import com.phototok.domain.FavouritesSnapshot
 import com.phototok.domain.FirstRunHint
 import com.phototok.domain.SeenStore
 import com.phototok.domain.SwipeAction
+import com.phototok.ui.components.SwipeActionIcons
 import com.phototok.R
 import com.phototok.domain.SwipeLabels
 import com.phototok.ui.asString
@@ -132,18 +130,10 @@ import kotlinx.coroutines.launch
 private const val PEEK_ALPHA = 0.85f
 
 /** Glyph for the configured swipe-right verb. */
-private fun swipeRightIcon(verb: SwipeRightVerb): ImageVector = when (verb) {
-    SwipeRightVerb.COPY -> Icons.Default.ContentCopy
-    SwipeRightVerb.MOVE -> Icons.AutoMirrored.Filled.DriveFileMove
-    SwipeRightVerb.FAVOURITE -> Icons.Default.Star
-}
+private fun swipeRightIcon(verb: SwipeRightVerb): ImageVector = SwipeActionIcons.right(verb)
 
 /** Glyph for the configured swipe-left action. */
-private fun leftSwipeIcon(action: SwipeAction): ImageVector = when (action) {
-    SwipeAction.DELETE -> Icons.Default.Delete
-    SwipeAction.COPY -> Icons.Default.ContentCopy
-    SwipeAction.MOVE -> Icons.AutoMirrored.Filled.DriveFileMove
-}
+private fun leftSwipeIcon(action: SwipeAction): ImageVector = SwipeActionIcons.left(action)
 
 /**
  * Full-screen TikTok-style vertical-pager image viewer.
@@ -515,7 +505,7 @@ fun PhoneModeViewer(
                 if (onCopyToSelection != null) {
                     DropdownMenuItem(
                         text = { Text(copyLabel) },
-                        leadingIcon = { Icon(Icons.Default.ContentCopy, contentDescription = null) },
+                        leadingIcon = { Icon(SwipeActionIcons.right(SwipeRightVerb.COPY), contentDescription = null) },
                         onClick = {
                             showLongPressMenu = false
                             onCopyToSelection()
@@ -526,7 +516,7 @@ fun PhoneModeViewer(
                 if (onMoveToSelection != null) {
                     DropdownMenuItem(
                         text = { Text(moveLabel) },
-                        leadingIcon = { Icon(Icons.AutoMirrored.Filled.DriveFileMove, contentDescription = null) },
+                        leadingIcon = { Icon(SwipeActionIcons.right(SwipeRightVerb.MOVE), contentDescription = null) },
                         onClick = {
                             showLongPressMenu = false
                             onMoveToSelection()
