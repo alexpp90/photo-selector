@@ -5,11 +5,14 @@ import android.net.Uri
 import android.provider.DocumentsContract
 import java.io.File
 import java.util.concurrent.atomic.AtomicInteger
+import java.util.concurrent.atomic.AtomicReference
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.async
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.test.StandardTestDispatcher
 import kotlinx.coroutines.test.advanceUntilIdle
 import kotlinx.coroutines.test.runTest
@@ -132,6 +135,85 @@ abstract class SafTransferContractTest(policy: SafTransferPolicy) : SafTestHarne
         assertEquals(4096L, srcFile.length())
     }
 
+    // AS-D-1: a provider that reports no source size cannot vouch for the stream it serves.
+    @Test
+    fun `a move whose source size is unknown keeps the source even when the stream ends early`() = runTest {
+        val srcFile = File(rootDir, "IMG_0401.CR3").apply { writeBytes(ByteArray(4096) { (it % 251).toByte() }) }
+        FakeSafDocumentsProvider.sizeUnknownFor = { it.name == "IMG_0401.CR3" && it.parentFile == rootDir }
+        FakeSafDocumentsProvider.readOverride = { file ->
+            File.createTempFile("short", ".bin").apply { deleteOnExit(); writeBytes(file.readBytes().copyOf(1024)) }
+        }
+
+        val result = move(srcFile.name)
+
+        assertFalse(result.success)
+        assertTrue(result.partial)
+        assertTrue("the original is never deleted on an unproven copy", srcFile.exists())
+        assertEquals(4096L, srcFile.length())
+        assertEquals(mapOf(result.destinationUri!! to documentUriFor(srcFile.name).toString()), result.copiesOfSurvivingOriginals)
+    }
+
+    @Test
+    fun `a copy whose source size is unknown and whose stream is empty fails and leaves nothing behind`() = runTest {
+        val srcFile = File(rootDir, "IMG_0402.CR3").apply { writeBytes(ByteArray(2048) { 7 }) }
+        FakeSafDocumentsProvider.sizeUnknownFor = { it.name == "IMG_0402.CR3" && it.parentFile == rootDir }
+        FakeSafDocumentsProvider.readOverride = { File.createTempFile("empty", ".bin").apply { deleteOnExit() } }
+
+        for (isMove in listOf(true, false)) {
+            val result = if (isMove) move(srcFile.name) else copy(srcFile.name)
+
+            assertFalse(result.success)
+            assertFalse(result.partial)
+            assertEquals("Copied file size mismatch", result.error)
+            assertFalse(File(rootDir, "Selection/RAW/IMG_0402.CR3").exists())
+            assertTrue(srcFile.exists())
+        }
+    }
+
+    @Test
+    fun `a move whose source size is unknown but whose stream is complete still copies and keeps the original`() = runTest {
+        val srcFile = File(rootDir, "IMG_0403.JPG").apply { writeText("complete-stream") }
+        FakeSafDocumentsProvider.sizeUnknownFor = { it.name == "IMG_0403.JPG" && it.parentFile == rootDir }
+
+        val result = move(srcFile.name)
+
+        assertTrue(result.partial)
+        assertEquals("complete-stream", File(rootDir, "Selection/JPEG/IMG_0403.JPG").readText())
+        assertTrue(srcFile.exists())
+    }
+
+    // AS-D-3: a failed rollback never forgets the copy it could not remove.
+    @Test
+    fun `a size mismatch whose copy cannot be removed reports the stray copy and keeps the source`() = runTest {
+        val srcFile = File(rootDir, "IMG_0420.CR3").apply { writeBytes(ByteArray(4096) { (it % 251).toByte() }) }
+        FakeSafDocumentsProvider.reportedSizeOverride = { file ->
+            if (file.parentFile?.name == "RAW" && file.name == "IMG_0420.CR3") 1024L else file.length()
+        }
+        FakeSafDocumentsProvider.failDeletesMatching = "Selection/RAW/IMG_0420.CR3"
+
+        for (isMove in listOf(true, false)) {
+            val result = if (isMove) move(srcFile.name) else copy(srcFile.name)
+
+            assertFalse(result.success)
+            assertTrue("the stray copy is reported as a partial result", result.partial)
+            assertEquals(documentUriFor("Selection/RAW/IMG_0420.CR3").toString(), result.destinationUri)
+            assertEquals(
+                mapOf(result.destinationUri!! to documentUriFor(srcFile.name).toString()),
+                result.copiesOfSurvivingOriginals,
+            )
+            val expected = if (isMove) {
+                "Move interrupted — copies of IMG_0420.CR3 stayed in Selection/ and could not be removed; the original is untouched"
+            } else {
+                "Copy interrupted — some copies of IMG_0420.CR3 stayed in Selection/ and could not be removed"
+            }
+            assertEquals(expected, result.error)
+            assertTrue("the stray copy is really still there", File(rootDir, "Selection/RAW/IMG_0420.CR3").exists())
+            assertTrue(srcFile.exists())
+            // Next round starts clean, as an undo or the user's own tidy-up would leave it.
+            File(rootDir, "Selection/RAW/IMG_0420.CR3").delete()
+        }
+    }
+
     // ── 3. Source-delete failure reported as partial ─────────────────────
 
     // AD: source delete failure after verified copy keeps destination and returns partial result
@@ -152,6 +234,42 @@ abstract class SafTransferContractTest(policy: SafTransferPolicy) : SafTestHarne
         assertEquals(mapOf(result.destinationUri!! to documentUriFor(srcFile.name).toString()), result.copiesOfSurvivingOriginals)
         assertEquals(payload, File(rootDir, "Selection/JPEG/IMG_0003.JPG").readText())
         assertTrue(srcFile.exists())
+    }
+
+    // ── Self-move guard (FILE_OPERATIONS section 1, AS-D-5) ──────────────
+
+    @Test
+    fun `a file already in its destination folder is neither renamed nor copied by a move or a copy`() = runTest {
+        val inPlace = File(rootDir, "Selection/RAW/IMG_0430.ARW").apply { parentFile?.mkdirs(); writeText("already-filed") }
+
+        for (isMove in listOf(true, false)) {
+            val result = engine.transferBundle(
+                storage, listOf(documentUriFor("Selection/RAW/IMG_0430.ARW")), selection(), sorting = true, isMove = isMove,
+            ).single()
+
+            assertTrue(result.success)
+            assertEquals(documentUriFor("Selection/RAW/IMG_0430.ARW").toString(), result.destinationUri)
+            assertEquals("already-filed", inPlace.readText())
+            assertEquals(listOf("IMG_0430.ARW"), File(rootDir, "Selection/RAW").list()!!.toList())
+        }
+    }
+
+    @Test
+    fun `a bundle that already sits in its destination folders stays exactly as it is`() = runTest {
+        val raw = File(rootDir, "Selection/RAW/IMG_0431.CR3").apply { parentFile?.mkdirs(); writeText("raw") }
+        val jpg = File(rootDir, "Selection/JPEG/IMG_0431.JPG").apply { parentFile?.mkdirs(); writeText("jpg") }
+
+        val results = engine.transferBundle(
+            storage,
+            listOf(documentUriFor("Selection/RAW/IMG_0431.CR3"), documentUriFor("Selection/JPEG/IMG_0431.JPG")),
+            selection(), sorting = true, isMove = true,
+        )
+
+        assertTrue(results.all { it.success })
+        assertEquals("raw", raw.readText())
+        assertEquals("jpg", jpg.readText())
+        assertEquals(listOf("IMG_0431.CR3"), File(rootDir, "Selection/RAW").list()!!.toList())
+        assertEquals(listOf("IMG_0431.JPG"), File(rootDir, "Selection/JPEG").list()!!.toList())
     }
 
     // ── 4. Atomic DocumentsContract.moveDocument when supported ──────────
@@ -205,6 +323,25 @@ abstract class SafTransferContractTest(policy: SafTransferPolicy) : SafTestHarne
         assertFalse(File(rootDir, "Selection/RAW/IMG_0005 (1).CR3").exists())
         assertFalse(File(rootDir, "Selection/RAW/IMG_0005.CR3").exists())
         assertTrue(srcFile.exists())
+    }
+
+    // The EEXIST case: a foreign file appears under the wanted name between the listing and the
+    // create. A real provider answers with "name (1).ext"; the cleanup removes only that document.
+    @Test
+    fun `a foreign file that takes the wanted name first is never deleted by the cleanup`() = runTest {
+        val srcFile = File(rootDir, "IMG_0470.CR3").apply { writeText("mine") }
+        FakeSafDocumentsProvider.renameOnExistingName = true
+        FakeSafDocumentsProvider.beforeCreate = { parent, name ->
+            if (name == "IMG_0470.CR3") File(parent, name).writeText("someone else's file")
+        }
+
+        val result = move(srcFile.name)
+
+        assertFalse(result.success)
+        assertTrue(result.error.orEmpty().contains("IMG_0470 (1).CR3"))
+        assertEquals("someone else's file", File(rootDir, "Selection/RAW/IMG_0470.CR3").readText())
+        assertFalse("the renamed document it created is removed", File(rootDir, "Selection/RAW/IMG_0470 (1).CR3").exists())
+        assertEquals("mine", srcFile.readText())
     }
 
     // ── 6. Semaphore and CancellationException hygiene ───────────────────
@@ -276,6 +413,27 @@ abstract class SafTransferContractTest(policy: SafTransferPolicy) : SafTestHarne
                 assertEquals("Transfer cancelled by scope", expected.message)
             }
         }
+    }
+
+    // AS-D-2: the caller's cancellation arrives between two source deletes of one bundle.
+    @Test
+    fun `a caller cancelled after the first source delete still finishes the bundle, never half of it`() = runTest {
+        val names = listOf("IMG_0410.JPG", "IMG_0410.CR3")
+        names.forEach { File(rootDir, it).writeText("payload-$it") }
+        val job = AtomicReference<Job?>(null)
+        FakeSafDocumentsProvider.onDelete = { id -> if (!id.contains("Selection")) job.get()?.cancel() }
+
+        val launched = launch {
+            engine.transferBundle(storage, names.map(::documentUriFor), selection(), sorting = true, isMove = true)
+        }
+        job.set(launched)
+        advanceUntilIdle()
+        launched.join()
+
+        assertTrue("the caller was cancelled", launched.isCancelled)
+        names.forEach { assertFalse("$it must not stay behind as an original next to its copy", File(rootDir, it).exists()) }
+        assertEquals("payload-IMG_0410.JPG", File(rootDir, "Selection/JPEG/IMG_0410.JPG").readText())
+        assertEquals("payload-IMG_0410.CR3", File(rootDir, "Selection/RAW/IMG_0410.CR3").readText())
     }
 
     // ── 7. Destination: always the Selection subfolder ───────────────────
@@ -406,6 +564,79 @@ abstract class SafTransferContractTest(policy: SafTransferPolicy) : SafTestHarne
         assertEquals(listOf("IMG_0100-2.JPG", "IMG_0100.JPG"), jpeg)
         assertEquals(setOf("payload-A", "payload-B"), jpeg.map { File(rootDir, "Selection/JPEG/$it").readText() }.toSet())
         assertEquals(listOf("Selection"), rootDir.list()!!.filter { it.startsWith("Selection") }.sorted())
+    }
+
+    // B-AD-2: two spellings of one tree share one destination lock.
+    @Test
+    fun `concurrent transfers into one tree named by two spellings of its URI still get distinct names`() {
+        engine.ioDispatcher = Dispatchers.IO
+        FakeSafDocumentsProvider.createDelayMs = 150L
+        File(rootDir, "dayA").mkdirs(); File(rootDir, "dayA/IMG_0101.JPG").writeText("payload-A")
+        File(rootDir, "dayB").mkdirs(); File(rootDir, "dayB/IMG_0101.JPG").writeText("payload-B")
+        val spelledWithSlash = Uri.parse(treeUri.toString() + "/")
+
+        val results = kotlinx.coroutines.runBlocking {
+            val a = async(Dispatchers.IO) {
+                engine.transferBundle(storage, listOf(documentUriFor("dayA/IMG_0101.JPG")), selection(), true, false)
+            }
+            val b = async(Dispatchers.IO) {
+                engine.transferBundle(
+                    storage, listOf(documentUriFor("dayB/IMG_0101.JPG")), selection(root = spelledWithSlash), true, false,
+                )
+            }
+            a.await() + b.await()
+        }
+
+        assertTrue(results.all { it.success })
+        val jpeg = File(rootDir, "Selection/JPEG").list()!!.sorted()
+        assertEquals(listOf("IMG_0101-2.JPG", "IMG_0101.JPG"), jpeg)
+        assertEquals(setOf("payload-A", "payload-B"), jpeg.map { File(rootDir, "Selection/JPEG/$it").readText() }.toSet())
+    }
+
+    // JP-P-1: the destination root of a real camera folder holds thousands of photographs.
+    @Test
+    fun `transfers into a folder of many photographs ask the provider about no child one by one`() = runTest {
+        File(rootDir, "Selection/JPEG").mkdirs()
+        repeat(300) { File(rootDir, "DSC_%04d.JPG".format(it)).writeText("photo-$it") }
+
+        FakeSafDocumentsProvider.documentQueryCalls.set(0)
+        assertTrue(copy("DSC_0000.JPG").success)
+        val firstTransfer = FakeSafDocumentsProvider.documentQueryCalls.get()
+        assertTrue(copy("DSC_0001.JPG").success)
+        assertTrue(copy("DSC_0002.JPG").success)
+        val threeTransfers = FakeSafDocumentsProvider.documentQueryCalls.get()
+
+        assertTrue("first transfer asked about $firstTransfer documents", firstTransfer < 40)
+        assertTrue("three transfers asked about $threeTransfers documents", threeTransfers < 100)
+        assertEquals(setOf("DSC_0000.JPG", "DSC_0001.JPG", "DSC_0002.JPG"), File(rootDir, "Selection/JPEG").list()!!.toSet())
+    }
+
+    @Test
+    fun `a Selection folder removed between two transfers is created again`() = runTest {
+        File(rootDir, "IMG_0450.JPG").writeText("one")
+        File(rootDir, "IMG_0451.JPG").writeText("two")
+        assertTrue(copy("IMG_0450.JPG").success)
+        File(rootDir, "Selection").deleteRecursively()
+
+        val second = copy("IMG_0451.JPG")
+
+        assertTrue(second.success)
+        assertEquals("two", File(rootDir, "Selection/JPEG/IMG_0451.JPG").readText())
+        assertFalse(File(rootDir, "Selection/JPEG/IMG_0450.JPG").exists())
+    }
+
+    // AS-Q-1: a sorted file never falls back into the Selection root when its subfolder is refused.
+    @Test
+    fun `a file whose sorting subfolder cannot be created fails and keeps its source`() = runTest {
+        val srcFile = File(rootDir, "IMG_0460.CR3").apply { writeText("raw") }
+        FakeSafDocumentsProvider.failCreateNamed = "RAW"
+
+        val result = move(srcFile.name)
+
+        assertFalse(result.success)
+        assertFalse(result.partial)
+        assertTrue(srcFile.exists())
+        assertFalse("nothing is filed into the Selection root instead", File(rootDir, "Selection/IMG_0460.CR3").exists())
     }
 
     // ── Provider seam ────────────────────────────────────────────────────

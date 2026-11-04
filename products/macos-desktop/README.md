@@ -25,7 +25,7 @@ products/macos-desktop/
 - **Maximized Viewport Culling**: Borderless comparison layouts (single, side-by-side, triplet) allocating >85% of window area to photo previews without clutter or chrome.
 - **Fits the smallest window**: down to the 960 pt minimum width no toolbar or action-bar label wraps or truncates; the controls step down to short labels (`3-Up`, `3 / 120`, `Move`) and then to icons, keeping a tooltip with the full name and shortcut. Action toasts and the zoom-exit pill appear inside the active photo, never over a slot header or EXIF strip.
 - **Zero-Latency Keyboard Navigation**: Arrow keys for navigation, `M` (Move to `Selection/`), `C` (Copy to `Selection/`), and `Delete` (System Trash) with automatic companion file pairing (RAW+JPEG, XMP sidecars). `⌘Z` undoes the last operation; every folder keeps its own undo history, including an operation that finished while you switched folders.
-- **Native macOS Interface**: Clean workspace; configuration moved to standard macOS Settings scene (`⌘,`), secondary utilities (Duplicate Finder, Library Stats) housed in the Menu Bar `Tools` menu.
+- **Native macOS Interface**: Clean workspace; configuration moved to standard macOS Settings scene (`⌘,`), where **Culling Destination** chooses between the working folder and a custom folder and shows the resolved destination as a full path, secondary utilities (Duplicate Finder, Library Stats) housed in the Menu Bar `Tools` menu.
 
 ## Architecture & Layering
 

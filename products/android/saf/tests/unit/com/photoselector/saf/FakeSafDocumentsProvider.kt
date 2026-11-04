@@ -42,6 +42,30 @@ class FakeSafDocumentsProvider : android.content.ContentProvider() {
         @Volatile
         var reportedSizeOverride: ((File) -> Long?)? = null
 
+        /** Files for which the provider answers a null `COLUMN_SIZE` (an unknown size). */
+        @Volatile
+        var sizeUnknownFor: ((File) -> Boolean)? = null
+
+        /** Read-only opens of a file are served from the file this returns (a stream that ends early). */
+        @Volatile
+        var readOverride: ((File) -> File)? = null
+
+        /** Creating a document with exactly this display name fails (a provider that refuses a folder). */
+        @Volatile
+        var failCreateNamed: String? = null
+
+        /** Called with the parent folder and the requested name just before a file is created (a racing writer). */
+        @Volatile
+        var beforeCreate: ((File, String) -> Unit)? = null
+
+        /** Like a real provider: a name that is taken yields "name (1).ext" instead of reusing the file. */
+        @Volatile
+        var renameOnExistingName: Boolean = false
+
+        /** Called with the document id at the start of every delete (a test cancels the caller here). */
+        @Volatile
+        var onDelete: ((String) -> Unit)? = null
+
         /** Milliseconds each file creation takes, to widen race windows in concurrency tests. */
         @Volatile
         var createDelayMs: Long = 0L
@@ -68,6 +92,9 @@ class FakeSafDocumentsProvider : android.content.ContentProvider() {
         val moveDocumentCalls = AtomicInteger(0)
         val childrenQueryCalls = AtomicInteger(0)
 
+        /** Queries about one document (`getName()`, `exists()`, `length()` …), not a child listing. */
+        val documentQueryCalls = AtomicInteger(0)
+
         fun reset(root: File) {
             rootDir = root
             advertiseSupportsMove = false
@@ -79,8 +106,15 @@ class FakeSafDocumentsProvider : android.content.ContentProvider() {
             opaqueRegistry.clear()
             autoRenameOnCreate = null
             reportedSizeOverride = null
+            sizeUnknownFor = null
+            readOverride = null
+            onDelete = null
+            failCreateNamed = null
+            beforeCreate = null
+            renameOnExistingName = false
             moveDocumentCalls.set(0)
             childrenQueryCalls.set(0)
+            documentQueryCalls.set(0)
         }
     }
 
@@ -122,7 +156,7 @@ class FakeSafDocumentsProvider : android.content.ContentProvider() {
                     Document.COLUMN_DOCUMENT_ID -> docIdForFile(file)
                     Document.COLUMN_DISPLAY_NAME -> file.name
                     Document.COLUMN_MIME_TYPE -> mimeForFile(file)
-                    Document.COLUMN_SIZE -> size
+                    Document.COLUMN_SIZE -> if (sizeUnknownFor?.invoke(file) == true) null else size
                     Document.COLUMN_LAST_MODIFIED -> file.lastModified()
                     Document.COLUMN_FLAGS -> flags
                     else -> null
@@ -166,6 +200,7 @@ class FakeSafDocumentsProvider : android.content.ContentProvider() {
                 addRow(cursor, cols, child)
             }
         } else {
+            documentQueryCalls.incrementAndGet()
             val file = fileForDocId(id)
             if (file.exists()) {
                 addRow(cursor, cols, file)
@@ -232,11 +267,16 @@ class FakeSafDocumentsProvider : android.content.ContentProvider() {
         mimeType: String,
         displayName: String,
     ): String {
+        if (failCreateNamed == displayName) throw FileNotFoundException("Simulated create failure for $displayName")
         val parent = fileForDocId(parentDocumentId)
-        val actualName = if (mimeType == Document.MIME_TYPE_DIR) {
+        if (mimeType != Document.MIME_TYPE_DIR) beforeCreate?.invoke(parent, displayName)
+        var actualName = if (mimeType == Document.MIME_TYPE_DIR) {
             displayName
         } else {
             autoRenameOnCreate?.invoke(displayName) ?: displayName
+        }
+        if (renameOnExistingName && mimeType != Document.MIME_TYPE_DIR && File(parent, actualName).exists()) {
+            actualName = actualName.substringBeforeLast('.') + " (1)." + actualName.substringAfterLast('.')
         }
         val target = File(parent, actualName)
         if (createDelayMs > 0L) Thread.sleep(createDelayMs)
@@ -254,6 +294,7 @@ class FakeSafDocumentsProvider : android.content.ContentProvider() {
     }
 
     private fun handleDeleteDocument(documentId: String) {
+        onDelete?.invoke(documentId)
         if (failDeletes || failDeletesMatching?.let { documentId.contains(it) } == true) {
             throw SecurityException("Simulated read-only delete failure for $documentId")
         }
@@ -284,7 +325,8 @@ class FakeSafDocumentsProvider : android.content.ContentProvider() {
         if (throwOnOpenMatching?.let { id.contains(it) } == true) {
             throw IllegalStateException("Simulated provider failure for $id")
         }
-        val file = fileForDocId(documentIdOf(uri))
+        var file = fileForDocId(documentIdOf(uri))
+        if (mode == "r") readOverride?.let { file = it(file) }
         val pfdMode = ParcelFileDescriptor.parseMode(mode)
         return ParcelFileDescriptor.open(file, pfdMode)
     }

@@ -15,6 +15,13 @@ from pathlib import Path
 import threading
 from typing import Any, Callable, Dict, List, Optional, Tuple
 
+from photo_selector_linux.core.destination import (
+    MODE_CUSTOM,
+    MODE_WORKING,
+    DestinationResolution,
+    describe_destination,
+    resolve_destination,
+)
 from photo_selector_linux.core.file_ops import FileCullingManager
 from photo_selector_linux.core.gvfs_names import is_remote_filesystem
 from photo_selector_linux.core.models import (
@@ -137,6 +144,7 @@ class CullingWorkspaceViewModel:
         self.blurry_threshold: float = settings.blurry_threshold if settings else 35.0
         self.sharp_threshold: float = settings.sharp_threshold if settings else 70.0
         self.cache_limit_mb: float = settings.cache_limit_mb if settings else 512.0
+        #: The custom destination folder (``destination_mode == "custom"`` puts photos in it).
         self.external_destination_root: Optional[Path] = (
             Path(external_destination_root)
             if external_destination_root is not None
@@ -145,6 +153,11 @@ class CullingWorkspaceViewModel:
                 if (settings and settings.external_destination_folder)
                 else None
             )
+        )
+        self.destination_mode: str = (
+            MODE_CUSTOM
+            if external_destination_root is not None
+            else (settings.destination_mode if settings else MODE_WORKING)
         )
         self.stop_sharpness_threshold: Optional[float] = (
             settings.stop_sharpness_threshold if settings else None
@@ -215,6 +228,7 @@ class CullingWorkspaceViewModel:
             if store.external_destination_folder
             else None
         )
+        self.destination_mode = store.destination_mode
         self.stop_sharpness_threshold = store.stop_sharpness_threshold
         if self._custom_scanner is None:
             self.scanner = DirectoryScanner(custom_selection_folder=self.selection_folder_name)
@@ -288,6 +302,28 @@ class CullingWorkspaceViewModel:
             self._state_callbacks.append(callback)
         elif signal == "notification":
             self._notification_callbacks.append(callback)
+
+    def disconnect(self, signal: str, callback: Callable) -> None:
+        """Remove a callback registered with ``connect`` (a no-op when it is not registered)."""
+        callbacks = {
+            "state-changed": self._state_callbacks,
+            "notification": self._notification_callbacks,
+        }.get(signal)
+        if callbacks is not None and callback in callbacks:
+            callbacks.remove(callback)
+
+    def resolve_destination(self) -> DestinationResolution:
+        """Where Move/Copy put the next photo, for the open folder and the current settings.
+
+        The one resolution: ``cull_move``/``cull_copy`` write where it says and Preferences
+        shows what it says (R-LINUX-PREF-03).
+        """
+        return resolve_destination(
+            self.destination_mode,
+            self.selection_folder_name,
+            self.current_folder,
+            self.external_destination_root,
+        )
 
     def _notify_state_changed(self) -> None:
         for cb in self._state_callbacks:
@@ -772,8 +808,14 @@ class CullingWorkspaceViewModel:
         photo, folder = self.current_photo, self.current_folder
         if not photo or not folder:
             return False
-        selection = self.selection_folder_name
-        dest_root = self.external_destination_root or folder
+        destination = self.resolve_destination()
+        if not destination.ok or destination.root is None:
+            self._notify(
+                f"Cannot move: {describe_destination(destination)}", "error"
+            )
+            return False
+        selection = destination.selection_name
+        dest_root = destination.root
         orig_idx = self._remove(photo)
         self.selected_count += 1
         self._check_stop_sharpness_threshold()
@@ -796,8 +838,14 @@ class CullingWorkspaceViewModel:
         photo, folder = self.current_photo, self.current_folder
         if not photo or not folder:
             return False
-        selection = self.selection_folder_name
-        dest_root = self.external_destination_root or folder
+        destination = self.resolve_destination()
+        if not destination.ok or destination.root is None:
+            self._notify(
+                f"Cannot copy: {describe_destination(destination)}", "error"
+            )
+            return False
+        selection = destination.selection_name
+        dest_root = destination.root
         idx = self._index_of(photo)
         orig_idx = idx if idx is not None else self.current_index
         self.copied_count += 1

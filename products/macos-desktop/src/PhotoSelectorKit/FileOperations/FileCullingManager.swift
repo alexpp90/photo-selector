@@ -289,8 +289,7 @@ public final class FileCullingManager: @unchecked Sendable {
             throw FileCullingError.fileNotFound(photoURL)
         }
 
-        let folder = AppSettings.sanitizeDestinationFolderName(destinationFolderName)
-        let selectionDir = rootURL.appendingPathComponent(folder, isDirectory: true)
+        let selectionDir = CullingDestinationResolver.selectionFolder(in: rootURL, named: destinationFolderName)
         if !fileManager.fileExists(atPath: selectionDir.path) {
             do {
                 try fileManager.createDirectory(at: selectionDir, withIntermediateDirectories: true)
@@ -405,8 +404,7 @@ public final class FileCullingManager: @unchecked Sendable {
             throw FileCullingError.fileNotFound(photoURL)
         }
 
-        let folder = AppSettings.sanitizeDestinationFolderName(destinationFolderName)
-        let selectionDir = rootURL.appendingPathComponent(folder, isDirectory: true)
+        let selectionDir = CullingDestinationResolver.selectionFolder(in: rootURL, named: destinationFolderName)
         if !fileManager.fileExists(atPath: selectionDir.path) {
             do {
                 try fileManager.createDirectory(at: selectionDir, withIntermediateDirectories: true)

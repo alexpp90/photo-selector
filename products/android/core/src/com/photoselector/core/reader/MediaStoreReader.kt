@@ -31,11 +31,8 @@ class MediaStoreReader @Inject constructor() : ExifReaderStrategy {
             "image/gif"
         )
 
-        private val PROJECTION = arrayOf(
-            MediaStore.Images.Media.DATA,
-            MediaStore.Images.Media.SIZE,
-            MediaStore.Images.Media.DATE_MODIFIED
-        )
+        // Only the row's existence matters; the deprecated DATA path column is not read.
+        private val PROJECTION = arrayOf(MediaStore.Images.Media.SIZE)
     }
 
     override suspend fun readExif(context: Context, uri: Uri): ExifData? =

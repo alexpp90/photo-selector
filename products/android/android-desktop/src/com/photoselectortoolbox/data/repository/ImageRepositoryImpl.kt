@@ -10,6 +10,8 @@ import com.photoselector.core.reader.AndroidExifReader
 import com.photoselector.core.reader.MediaStoreReader
 import com.photoselector.core.storage.ExternalStorageDetector
 import com.photoselector.core.storage.SafTreeDisplayPath
+import com.photoselector.core.storage.SourceKind
+import com.photoselector.core.storage.SourceKindClassifier
 import com.photoselector.saf.BundleAtomicity
 import com.photoselector.saf.FolderAccessManager
 import com.photoselector.saf.FolderAccessPurpose
@@ -81,11 +83,14 @@ class ImageRepositoryImpl @Inject constructor(
         /**
          * Android Desktop's transfer semantics (`docs/shared/FILE_OPERATIONS.md`): a bundle is
          * copied and verified in full before any source is deleted, and the Selection marker is
-         * written once something landed.
+         * written once something landed. Copies onto removable media (an OTG card, the case this
+         * product is for) are fsynced, as Jackpix does: an unflushed copy is lost when the card is
+         * pulled right after the original was deleted (FILE_OPERATIONS section 2).
          */
         internal val TRANSFER_POLICY = SafTransferPolicy(
             bundleAtomicity = BundleAtomicity.ALL_OR_NOTHING,
             markerTiming = MarkerTiming.AFTER_FIRST_TRANSFER,
+            syncDestination = { SourceKindClassifier.classify(it) == SourceKind.REMOVABLE },
         )
 
         data class SafeToFormatVerification(

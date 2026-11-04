@@ -49,6 +49,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 - SD card and camera folders now start with the newest photo too, as phone folders do. Before, they started with the oldest. In Pro mode, Settings → Feed order still offers file-name (shooting) order, shuffle and landscape-first, per source.
 - Preloading follows your scroll direction: it loads 4 photos ahead in the direction you scroll and 1 behind (2 and 0 for cloud folders), and turns round with you. Before, it loaded the same few photos on both sides, so scrolling back often hit photos that were not loaded yet.
 - **Reload** now shows the newest photo as 1 of N. Before, once you had seen the newest photo, Reload landed behind all the photos you had not seen yet, so the position changed with every reload. Reload also no longer shows "No new photos".
+- Copying and moving are safer when a storage provider misbehaves: a photo whose size the provider does not report is never deleted after its copy (the move is reported as copied, with the original kept); a copy that could not be cleaned up after a failed transfer is reported instead of left unnoticed in the Selection; a photo that is already in the folder it would be filed into is left alone instead of being renamed to `-2`; leaving the screen while a move is under way no longer leaves a bundle half moved.
+- Swiping a photo into a camera folder with thousands of photos no longer asks the storage provider about every photo first, so queued swipes finish sooner.
 
 ## [0.6.0] - 2026-10-23
 

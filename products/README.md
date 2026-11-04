@@ -29,7 +29,7 @@ Each one overrides `sourceSets` in its `build.gradle.kts` so its layout matches 
 That is a deliberate trade: the repository reads consistently, at the cost of a five-line
 block per module that Android tooling does not expect. Keep the three copies in sync.
 
-`res/`, `jniLibs/` and `AndroidManifest.xml` sit at the Android module root next to `src/`,
+`res/` and `AndroidManifest.xml` sit at the Android module root next to `src/`,
 for the same reason.
 
 ## Why `android/` groups two products
