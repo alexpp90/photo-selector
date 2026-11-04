@@ -197,4 +197,39 @@ class SelectionActionLabelsTest {
         assertEquals("IMG_0001-2.JPG", SelectionActionLabels.displayNameOf("content://x/tree/root/document/root%2FSelection%2FJPEG%2FIMG_0001-2.JPG"))
         assertEquals("IMG_1.JPG", SelectionActionLabels.displayNameOf("content://x/tree/primary%3ADCIM/document/primary%3ADCIM%2FIMG_1.JPG"))
     }
+
+    @Test
+    fun `a custom destination names its folder in the confirmation, the control keeps the bare verb`() {
+        assertEquals(
+            "Moved to «Keepers › Selection»",
+            SelectionActionLabels.confirmation(FilingAction.MOVE, "Selection", customFolderName = "Keepers"),
+        )
+        assertEquals(
+            "Copied to «Keepers › Picks»",
+            SelectionActionLabels.confirmation(FilingAction.COPY, "Picks", customFolderName = "Keepers"),
+        )
+        // The button never carries the place (REQ-AND-LAYOUT.08): the bare verb.
+        FilingAction.entries.forEach { configured ->
+            SelectionActionLabels.both(configured, "Selection").forEach { label ->
+                assertFalse(label.verb, label.verb.contains("Keepers") || label.verb.contains("›"))
+            }
+        }
+    }
+
+    @Test
+    fun `without a custom folder the confirmation is the sentence it always was`() {
+        assertEquals("Moved to Selection", SelectionActionLabels.confirmation(FilingAction.MOVE, "Selection"))
+        assertEquals("Moved to Selection", SelectionActionLabels.confirmation(FilingAction.MOVE, "Selection", null))
+        assertEquals("Moved to Selection", SelectionActionLabels.confirmation(FilingAction.MOVE, "Selection", " "))
+    }
+
+    @Test
+    fun `a renamed file in a custom folder keeps the folder in the longer sentence`() {
+        assertEquals(
+            "Moved to «Keepers › Selection» as IMG_0001-2.JPG (+2 related)",
+            SelectionActionLabels.suffixedConfirmation(
+                FilingAction.MOVE, "Selection", "IMG_0001-2.JPG", 2, customFolderName = "Keepers",
+            ),
+        )
+    }
 }

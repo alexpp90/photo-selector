@@ -10,8 +10,9 @@ import org.junit.Assert.assertTrue
 import org.junit.Test
 
 /**
- * The three control-block heights and the rows that choose them (AD-1), the
- * overlay-hide rule and the first-run pill's lift (AD-16, AD-4).
+ * The control-block ladder — FULL + locator row, COMPACT + locator row, COMPACT with the
+ * counter alone, SCROLLING — and the rows that choose them (AD-1), the overlay-hide rule
+ * and the first-run pill's lift (AD-16, AD-4).
  */
 class ControlBlockFitTest {
 
@@ -27,8 +28,18 @@ class ControlBlockFitTest {
 
     @Test
     @Requirement("REQ-AND-LAYOUT.07")
-    fun `full height is the measured 332 dp at font scale 1`() {
-        assertEquals(332f, ControlBlockFit.fullHeight(1f).value, 0.01f)
+    fun `full height is 3 button rows, the toggle row and the 48 dp locator row, 362 dp`() {
+        // 3 x 80 + (2 + 48) + 48 + 4 x 6. The counter line it replaces is gone: the counter
+        // is inside the Go chip, so the price no longer moves with the font scale.
+        assertEquals(362f, ControlBlockFit.fullHeight.value, 0.01f)
+    }
+
+    @Test
+    @Requirement("REQ-AND-LAYOUT.07")
+    fun `compact height with the locator row is 252 dp`() {
+        // 3 x 48 + 48 + 48 + 4 x 3.
+        assertEquals(252f, ControlBlockFit.compactHeight(1f, 240.dp, withLocator = true).value, 0.01f)
+        assertEquals(252f, ControlBlockFit.compactHeight(2f, 192.dp, withLocator = true).value, 0.01f)
     }
 
     @Test
@@ -49,26 +60,69 @@ class ControlBlockFitTest {
     @Requirement("REQ-AND-LAYOUT.07")
     fun `mode picks the first variant that fits`() {
         assertEquals(Mode.FULL, ControlBlockFit.mode(376.dp, 1f, Reference))
-        assertEquals(Mode.FULL, ControlBlockFit.mode(333.dp, 1f, Reference))
-        assertEquals(Mode.COMPACT, ControlBlockFit.mode(332.dp, 1f, Reference))
+        assertEquals(Mode.FULL, ControlBlockFit.mode(363.dp, 1f, Reference))
+        assertEquals(Mode.COMPACT, ControlBlockFit.mode(362.dp, 1f, Reference))
         assertEquals(Mode.COMPACT, ControlBlockFit.mode(202.dp, 1f, Reference))
         assertEquals(Mode.SCROLLING, ControlBlockFit.mode(201.dp, 1f, Reference))
     }
 
     @Test
+    @Requirement("REQ-AND-LAYOUT.07", "REQ-AND-WORKFLOW.06", "REQ-AND-WORKFLOW.07")
+    fun `the ladder is FULL with the locator row, COMPACT with it, COMPACT with the counter alone, then scrolling`() {
+        val wide = 240.dp
+        assertEquals(ControlBlockFit.Fit(Mode.FULL, true), ControlBlockFit.fit(363.dp, 1f, Reference, wide))
+        // FULL without the row is retired: a row of 332..362 dp gets COMPACT with the row.
+        assertEquals(ControlBlockFit.Fit(Mode.COMPACT, true), ControlBlockFit.fit(362.dp, 1f, Reference, wide))
+        assertEquals(ControlBlockFit.Fit(Mode.COMPACT, true), ControlBlockFit.fit(340.dp, 1f, Reference, wide))
+        assertEquals(ControlBlockFit.Fit(Mode.COMPACT, true), ControlBlockFit.fit(253.dp, 1f, Reference, wide))
+        // Below 252 dp the row goes, the counter stays (201 dp wide / 217 dp at this width).
+        assertEquals(ControlBlockFit.Fit(Mode.COMPACT, false), ControlBlockFit.fit(252.dp, 1f, Reference, wide))
+        assertEquals(ControlBlockFit.Fit(Mode.COMPACT, false), ControlBlockFit.fit(219.dp, 1f, Reference, wide))
+        assertEquals(ControlBlockFit.Fit(Mode.SCROLLING, false), ControlBlockFit.fit(217.dp, 1f, Reference, wide))
+    }
+
+    @Test
+    @Requirement("REQ-AND-LAYOUT.07", "REQ-AND-WORKFLOW.06", "REQ-AND-WORKFLOW.07")
+    fun `the locator row needs 192 dp of inner width and never appears below it`() {
+        assertTrue(ControlBlockFit.fit(500.dp, 1f, Reference, 192.dp).locatorRow)
+        assertFalse(ControlBlockFit.fit(500.dp, 1f, Reference, 191.dp).locatorRow)
+        // 720 x 560 (142 dp inside) and 600 x 480 (112 dp inside) keep the counter alone.
+        assertFalse(ControlBlockFit.fit(500.dp, 1f, Reference, 142.dp).locatorRow)
+        assertFalse(ControlBlockFit.fit(500.dp, 1f, Reference, 112.dp).locatorRow)
+        // An unbounded height is the widest rung the width allows.
+        assertEquals(ControlBlockFit.Fit(Mode.FULL, true), ControlBlockFit.fit(androidx.compose.ui.unit.Dp.Infinity, 1.3f, Reference, 240.dp))
+        assertEquals(ControlBlockFit.Fit(Mode.COMPACT, true), ControlBlockFit.fit(androidx.compose.ui.unit.Dp.Infinity, 1.3f, Reference, 200.dp))
+        assertEquals(ControlBlockFit.Fit(Mode.COMPACT, false), ControlBlockFit.fit(androidx.compose.ui.unit.Dp.Infinity, 1.3f, Reference, 150.dp))
+    }
+
+    @Test
+    @Requirement("REQ-AND-LAYOUT.07")
+    fun `a locator chip is wide from a 160 dp cell, one word from 100 dp, and the word alone below`() {
+        assertEquals(ControlBlockFit.LocatorStyle.WIDE, ControlBlockFit.locatorStyle(320.dp))
+        assertEquals(ControlBlockFit.LocatorStyle.MID, ControlBlockFit.locatorStyle(319.dp))
+        assertEquals(ControlBlockFit.LocatorStyle.MID, ControlBlockFit.locatorStyle(200.dp))
+        assertEquals(ControlBlockFit.LocatorStyle.NARROW, ControlBlockFit.locatorStyle(199.dp))
+        assertEquals(ControlBlockFit.LocatorStyle.NARROW, ControlBlockFit.locatorStyle(ControlBlockFit.LocatorMinInnerWidth))
+        // Every cell the row can have is a 48 dp target wide.
+        assertTrue(ControlBlockFit.LocatorMinInnerWidth / 2 >= 48.dp)
+    }
+
+    @Test
     @Requirement("REQ-AND-LAYOUT.07")
     fun `the pixel price is the height the device matrix measured`() {
-        // control_block_full as drawn on real devices, 2026-10-19: 3 px over the dp
-        // sum at every non-integer density, from the half-pixel 6 dp gaps and 2 dp
-        // paddings, and the text line rounded up.
-        assertEquals(664, ControlBlockFit.fullHeightPx(1f, 2f)) // Pixel Tablet, 320 dpi
-        assertEquals(418, ControlBlockFit.fullHeightPx(1f, 1.25f)) // Chromebook 714, 200 dpi
-        assertEquals(584, ControlBlockFit.fullHeightPx(1f, 1.75f)) // Tab S11 Ultra, 280 dpi
-        assertEquals(916, ControlBlockFit.fullHeightPx(1f, 2.75f)) // Pixel 4a, 440 dpi
-        assertEquals(424, ControlBlockFit.fullHeightPx(1.3f, 1.25f))
-        assertEquals(593, ControlBlockFit.fullHeightPx(1.3f, 1.75f))
-        assertEquals(930, ControlBlockFit.fullHeightPx(1.3f, 2.75f))
-        // The wide compact block at 2x is its 201 dp price exactly.
+        // The FULL block is 3 x 80 + (2 + 48) + 48 + 4 x 6 dp, each child rounded to whole
+        // pixels as layout rounds it: the half-pixel 6 dp gaps and 2 dp padding are why it is
+        // not a plain 362 dp x density at 1.25x, 1.75x and 2.75x (device matrix, 2026-10-19).
+        assertEquals(724, ControlBlockFit.fullHeightPx(2f)) // Pixel Tablet, 320 dpi
+        assertEquals(455, ControlBlockFit.fullHeightPx(1.25f)) // Chromebook 714, 200 dpi
+        assertEquals(636, ControlBlockFit.fullHeightPx(1.75f)) // Tab S11 Ultra, 280 dpi
+        assertEquals(998, ControlBlockFit.fullHeightPx(2.75f)) // Pixel 4a, 440 dpi
+        // The compact block with the locator row is 3 x 48 + 48 + 48 + 4 x 3 dp.
+        assertEquals(504, ControlBlockFit.compactHeightPx(1f, 2f, 240.dp, withLocator = true))
+        assertEquals(316, ControlBlockFit.compactHeightPx(1f, 1.25f, 240.dp, withLocator = true))
+        assertEquals(440, ControlBlockFit.compactHeightPx(1f, 1.75f, 240.dp, withLocator = true))
+        assertEquals(692, ControlBlockFit.compactHeightPx(1f, 2.75f, 240.dp, withLocator = true))
+        // The wide compact block with the counter alone is its 201 dp price exactly.
         assertEquals(402, ControlBlockFit.compactHeightPx(1f, 2f))
     }
 
@@ -82,12 +136,14 @@ class ControlBlockFitTest {
             for (fontScale in listOf(0.85f, 1f, 1.15f, 1.3f, 1.5f, 2f)) {
                 // The flank widths that change the arrangement (AD-16b): 2 x 2, counter on top,
                 // counter inline, full.
-                for (width in listOf(112.dp, 142.dp, 200.dp, 240.dp)) {
+                for (width in listOf(112.dp, 142.dp, 192.dp, 200.dp, 240.dp)) {
                     for (availablePx in (150 * density).toInt()..(420 * density).toInt()) {
                         val available = (availablePx / density).dp
-                        val drawn = when (ControlBlockFit.mode(available, fontScale, density, width)) {
-                            Mode.FULL -> ControlBlockFit.fullHeightPx(fontScale, density)
-                            Mode.COMPACT -> ControlBlockFit.compactHeightPx(fontScale, density, width)
+                        val fit = ControlBlockFit.fit(available, fontScale, density, width)
+                        val drawn = when (fit.mode) {
+                            Mode.FULL -> ControlBlockFit.fullHeightPx(density)
+                            Mode.COMPACT ->
+                                ControlBlockFit.compactHeightPx(fontScale, density, width, fit.locatorRow)
                             Mode.SCROLLING -> continue
                         }
                         assertTrue(
@@ -132,7 +188,7 @@ class ControlBlockFitTest {
         val row = rowHeight(800).dp
         val mode = ControlBlockFit.mode(row, 1.3f, Reference)
         val needed = when (mode) {
-            Mode.FULL -> ControlBlockFit.fullHeight(1.3f)
+            Mode.FULL -> ControlBlockFit.fullHeight
             Mode.COMPACT -> ControlBlockFit.compactHeight(1.3f)
             Mode.SCROLLING -> row
         }
@@ -143,17 +199,18 @@ class ControlBlockFitTest {
     @Requirement("REQ-AND-LAYOUT.07")
     fun `windows resolve as the lab measured them`() {
         val flank1280 = 289.dp - 20.dp
-        // 1280x800 fits the full block at scale 1 (row 1 is ~376 dp tall).
+        // 1280x800 fits the full block with the locator row (row 1 is ~376 dp tall, it needs 363).
         assertEquals(Mode.FULL, ControlBlockFit.mode(rowHeight(800).dp, 1f, Reference, flank1280))
-        // 1024x720 is the knife edge: 336 dp of row with a 24 dp status bar (full
-        // fits by 4 dp), 330 dp with the 36 dp one (compact). Both are legal.
-        assertEquals(Mode.FULL, ControlBlockFit.mode(rowHeight(720).dp, 1f, Reference, 240.dp))
-        assertEquals(Mode.COMPACT, ControlBlockFit.mode(rowHeight(720, statusBar = 36).dp, 1f, Reference, 240.dp))
-        // 960x600 and below do not fit the full block; compact does.
-        assertEquals(Mode.COMPACT, ControlBlockFit.mode(rowHeight(600).dp, 1f, Reference, 240.dp))
-        // 720x560 (Chromebook small): a 150 dp flank, 142 dp inside. Without a status
-        // bar the 268 dp row holds the 265.1 dp compact block; with one it scrolls.
-        assertEquals(Mode.COMPACT, ControlBlockFit.mode(268.dp, 1f, Reference, 142.dp))
+        assertTrue(ControlBlockFit.fit(rowHeight(800).dp, 1f, Reference, flank1280).locatorRow)
+        // 1024x720 (336 dp of row, 330 dp with a 36 dp status bar) no longer gets FULL: it
+        // needs 363 dp with the row, and FULL without it is retired. COMPACT with the row.
+        assertEquals(ControlBlockFit.Fit(Mode.COMPACT, true), ControlBlockFit.fit(rowHeight(720).dp, 1f, Reference, 240.dp))
+        assertEquals(ControlBlockFit.Fit(Mode.COMPACT, true), ControlBlockFit.fit(rowHeight(720, statusBar = 36).dp, 1f, Reference, 240.dp))
+        // 960x600 and below: the row is 252+ dp only down to ~260 dp, then the counter alone.
+        assertEquals(ControlBlockFit.Fit(Mode.COMPACT, true), ControlBlockFit.fit(rowHeight(600).dp, 1f, Reference, 240.dp))
+        // 720x560 (Chromebook small): a 150 dp flank, 142 dp inside, too narrow for the row.
+        // Without a status bar the 268 dp row holds the 265.1 dp compact block; with one it scrolls.
+        assertEquals(ControlBlockFit.Fit(Mode.COMPACT, false), ControlBlockFit.fit(268.dp, 1f, Reference, 142.dp))
         assertEquals(Mode.SCROLLING, ControlBlockFit.mode(rowHeight(560).dp, 1f, Reference, 142.dp))
         // 600x480: 48 dp toggles cannot be 2 x 2 in 228 dp beside three 48 dp rows,
         // so the block scrolls with the counter first rather than shrinking a target.
