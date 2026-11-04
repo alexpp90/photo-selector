@@ -677,6 +677,21 @@ class SelectorScreenTest {
 
     @ExpandedWindow
     @Test
+    fun duplicates_opensTheFolderTheSelectorHasOpen() {
+        loadTwoImages()
+        requireExpandedLayout()
+
+        composeRule.onAllNodesWithTag("nav_duplicates", useUnmergedTree = true).onFirst().performClick()
+
+        // Not "No Folder Selected": the folder open in Cull is open here (FD-UX-3).
+        composeRule.waitUntil(timeoutMillis = 15000) {
+            composeRule.onAllNodesWithText("Start Scan", ignoreCase = true).fetchSemanticsNodes().isNotEmpty()
+        }
+        composeRule.onAllNodesWithText("No Folder Selected", ignoreCase = true).assertCountEquals(0)
+    }
+
+    @ExpandedWindow
+    @Test
     fun sortOrder_newestFirst_isTheDefaultOrder_andTheMenuSwitchesIt() {
         runBlocking { settingsRepository.setSelectorSortOrder(SelectorSortOrder.NEWEST_FIRST) }
         loadTwoImagesNewestFirst()

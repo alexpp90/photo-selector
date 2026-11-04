@@ -39,6 +39,7 @@ import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.photoselectortoolbox.ui.components.EmptyStateCard
+import com.photoselectortoolbox.ui.components.SeedFolderEffect
 import com.photoselectortoolbox.ui.components.ProgressIndicatorBar
 import com.photoselectortoolbox.ui.theme.BrandAccent
 import com.photoselectortoolbox.ui.theme.Zinc800
@@ -47,9 +48,12 @@ import com.photoselectortoolbox.viewmodel.StatisticsViewModel
 @Composable
 fun StatisticsScreen(
     windowSizeClass: WindowSizeClass,
+    /** The folder open in the selector, opened here when this screen has none of its own (FD-UX-3). */
+    seedFolderUri: String? = null,
     viewModel: StatisticsViewModel = hiltViewModel(),
 ) {
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
+    SeedFolderEffect(seedFolderUri, uiState.folderUri) { viewModel.selectFolder(it) }
 
     val folderPickerLauncher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.OpenDocumentTree(),

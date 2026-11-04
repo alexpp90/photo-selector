@@ -68,6 +68,7 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import coil.compose.AsyncImage
 import com.photoselectortoolbox.data.model.DuplicateGroup
 import com.photoselectortoolbox.ui.components.EmptyStateCard
+import com.photoselectortoolbox.ui.components.SeedFolderEffect
 import com.photoselectortoolbox.ui.components.ProgressIndicatorBar
 import com.photoselectortoolbox.ui.theme.DestructiveFill
 import com.photoselectortoolbox.ui.theme.DestructiveText
@@ -82,9 +83,12 @@ import com.photoselectortoolbox.viewmodel.DuplicatesViewModel
 @Composable
 fun DuplicatesScreen(
     windowSizeClass: WindowSizeClass,
+    /** The folder open in the selector, opened here when this screen has none of its own (FD-UX-3). */
+    seedFolderUri: String? = null,
     viewModel: DuplicatesViewModel = hiltViewModel(),
 ) {
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
+    SeedFolderEffect(seedFolderUri, uiState.folderUri) { viewModel.selectFolder(it) }
 
     val folderPickerLauncher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.OpenDocumentTree(),
