@@ -746,6 +746,19 @@ class SelectorScreenTest {
         composeRule.onAllNodesWithTag("fullscreen_button", useUnmergedTree = true)
             .onFirst().performClick()
         composeRule.waitUntil(timeoutMillis = 15000) { fullscreenShows("1 / 3") }
+        // The viewer is a window of its own and takes key focus a moment after it shows. A key sent
+        // before that goes to the window behind it, which is how the first arrow of a class run on a
+        // Pixel 4a was lost (2026-11-04); waiting for the claim keeps this a test of the viewer's
+        // key handling, and a viewer that never claims focus still fails here.
+        composeRule.waitUntil(timeoutMillis = 5000) {
+            composeRule.onAllNodes(
+                hasTestTag("fullscreen_root") and
+                    androidx.compose.ui.test.SemanticsMatcher.expectValue(
+                        androidx.compose.ui.semantics.SemanticsProperties.Focused, true,
+                    ),
+                useUnmergedTree = true,
+            ).fetchSemanticsNodes().isNotEmpty()
+        }
     }
 
     private fun fullscreenShows(position: String): Boolean =

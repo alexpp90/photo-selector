@@ -40,7 +40,6 @@ class WindowGeometryRule : TestRule {
                 val saved = Saved.read()
                 try {
                     applyReference(saved.naturalPortrait)
-                    waitForExpanded()
                     base.evaluate()
                 } finally {
                     saved.restore()
@@ -50,23 +49,51 @@ class WindowGeometryRule : TestRule {
     }
 
     private fun applyReference(naturalPortrait: Boolean) {
+        shell("settings put system accelerometer_rotation 0")
+        shell("settings put system user_rotation ${if (naturalPortrait) 1 else 0}")
+        shell("wm density 320")
         // `wm size` is given in the panel's natural orientation: portrait-natural devices (phones,
         // the Pixel Tablet) take 1848x2960 and are rotated; landscape-natural ones take 2960x1848.
-        if (naturalPortrait) {
-            shell("settings put system accelerometer_rotation 0")
-            shell("settings put system user_rotation 1")
-            shell("wm size 1848x2960")
-        } else {
-            shell("settings put system accelerometer_rotation 0")
-            shell("settings put system user_rotation 0")
-            shell("wm size 2960x1848")
+        // A display cutout beside the window (a Pixel 4a's punch hole, scaled with the size) takes
+        // width the activity cannot use, so the long edge grows by that inset until the usable
+        // width is the reference 2960 px: the test sees the reference window, not a narrower one.
+        var longEdge = REFERENCE_LONG_EDGE_PX
+        repeat(4) {
+            shell(if (naturalPortrait) "wm size 1848x$longEdge" else "wm size ${longEdge}x1848")
+            waitForExpanded(naturalPortrait)
+            Thread.sleep(500)
+            val inset = horizontalCutoutPx()
+            if (longEdge - inset >= REFERENCE_LONG_EDGE_PX) return
+            longEdge = REFERENCE_LONG_EDGE_PX + inset
         }
-        shell("wm density 320")
     }
 
-    private fun waitForExpanded() = waitUntil("the display reports an expanded window") {
-        val dp = displayDp()
-        dp != null && dp.first >= REFERENCE_MIN_WIDTH_DP && dp.first > dp.second
+    /** Left plus right cutout inset of the display in its current rotation, in px (0 when none). */
+    private fun horizontalCutoutPx(): Int {
+        val match = Regex("""mDisplayCutout=DisplayCutout\{insets=Rect\((\d+), \d+ - (\d+), \d+\)""")
+            .find(shell("dumpsys window displays")) ?: return 0
+        return match.groupValues[1].toInt() + match.groupValues[2].toInt()
+    }
+
+    /**
+     * Waits for a landscape window of at least 1400 dp. The rotation is put again every 2.5 s: when
+     * the previous test's restore is still settling, the window manager can take the first
+     * `user_rotation` for the one it is about to undo (a Pixel 4a, 2026-11-04).
+     */
+    private fun waitForExpanded(naturalPortrait: Boolean) {
+        val deadline = SystemClock.elapsedRealtime() + 25_000
+        var lastRotation = SystemClock.elapsedRealtime()
+        while (true) {
+            val dp = displayDp()
+            if (dp != null && dp.first >= REFERENCE_MIN_WIDTH_DP && dp.first > dp.second) return
+            val now = SystemClock.elapsedRealtime()
+            check(now <= deadline) { "Timed out waiting for the display reports an expanded window (display is now $dp dp)" }
+            if (now - lastRotation > 2_500) {
+                shell("settings put system user_rotation ${if (naturalPortrait) 1 else 0}")
+                lastRotation = now
+            }
+            Thread.sleep(100)
+        }
     }
 
     private class Saved(
@@ -85,7 +112,7 @@ class WindowGeometryRule : TestRule {
             // phone stays in landscape (measured on a Pixel 4a, 2026-11-04). It is put again, up to
             // four times, until the display reports the width it had before.
             waitUntil("the display leaves the reference size", timeoutMillis = 5_000, fatal = false) {
-                displayDp()?.first != REFERENCE_WIDTH_DP
+                (displayDp()?.first ?: 0) < REFERENCE_MIN_WIDTH_DP
             }
             Thread.sleep(1_500)
             repeat(4) {
@@ -127,7 +154,7 @@ class WindowGeometryRule : TestRule {
     companion object {
         /** The reference landscape window is 1480 dp wide; anything from 1400 dp up is it. */
         const val REFERENCE_MIN_WIDTH_DP = 1400
-        private const val REFERENCE_WIDTH_DP = 1480
+        private const val REFERENCE_LONG_EDGE_PX = 2960
 
         private fun shell(command: String): String {
             val descriptor = InstrumentationRegistry.getInstrumentation().uiAutomation.executeShellCommand(command)
