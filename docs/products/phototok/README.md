@@ -10,7 +10,7 @@ Formerly Photo-Tok.
   [![Android: 8.0+](https://img.shields.io/badge/Android-8.0%2B%20(API%2026--36)-3DDC84?logo=android&logoColor=white)](https://developer.android.com/)
   [![Kotlin](https://img.shields.io/badge/Kotlin-2.0%2B-7F52FF?logo=kotlin&logoColor=white)](https://kotlinlang.org/)
   [![Jetpack Compose](https://img.shields.io/badge/Compose-BOM%202024%2B-4285F4?logo=jetpackcompose&logoColor=white)](https://developer.android.com/jetpack/compose)
-  [![Target](https://img.shields.io/badge/Form%20Factor-Phones%20%3C%20600%20dp-blue)](#target-environment)
+  [![Target](https://img.shields.io/badge/Form%20Factor-Phones%2C%20every%20size-blue)](#target-environment)
   [![Privacy](https://img.shields.io/badge/Privacy-100%25%20Offline%20%7C%20SAF%20Only-green)](#privacy--zero-cloud-guarantee)
   [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](../../../LICENSE)
 </div>
@@ -43,7 +43,7 @@ While the desktop and tablet products emphasize multi-up comparative culling and
 
 ### 1. Vertical Pager Feed & Progressive Loading
 *   **Compose Native `VerticalPager`:** Smooth, fluid scrolling between photos powered by `androidx.compose.foundation.pager.VerticalPager`.
-*   **Predictive Coil Prefetching:** Pre-fetches high-resolution images within a radius of $\pm 3$ positions around the active viewport, ensuring stutter-free paging transitions.
+*   **Predictive Coil Prefetching:** Pre-fetches the photos ahead in the direction you scroll: 4 ahead and 1 behind (2 and 0 for cloud folders), turning round with you, so paging does not stutter.
 *   **Progressive SAF Enumeration:** Emits a first batch after 24 photos, subsequent batches every 250 photos, rendering a live `${index + 1} / ${total}+` indicator while folder discovery streams in the background.
 
 ### 2. Casual and Pro Mode
@@ -74,7 +74,7 @@ While the desktop and tablet products emphasize multi-up comparative culling and
 *   **Short, Action-First Copy:** Dialogs, hint cards and snackbars keep to a few words. A count replaces a sentence, buttons name their outcome, and hints offer a **SETTINGS** button rather than telling you where to look (rules in [`DESIGN.md` § 8](DESIGN.md#8-copy--messaging)).
 *   **In-Place Coach Marks Tutorial (`GestureTutorialOverlay`):** Contextual guide whose callouts are placed from the measured positions of the real bar buttons (under the top bar, above the bottom bar, beside the side panels in landscape), so each label points at its control on every phone and font size, without scrolling. Each callout is one or two words (no description lines); the swipe captions name the configured action and folder. Triggers automatically on first run, after 7+ days of inactivity, or on demand via the Help icon.
 *   **Minimal Text, English & German:** Bars and toolbars are icon-only with a long-press tooltip; buttons, hints and snackbars are a few words (`docs/shared/UI_TEXT.md`). Every string is a resource in English and German (`res/values/strings.xml`, `res/values-de/strings.xml`); the budgets and the translation are checked in CI and by the `TextLoadScreenshotTest` renderings at font scale 2.0.
-*   **RAW+JPEG Sibling Pairing:** Centered dialog detects companion RAW and JPEG files, allowing users to link operations across both formats (`moveRelatedFiles = true`) or filter by format. With linking on, a swipe-left delete takes the whole bundle (shown file and its siblings) out of the feed together (a derivative card such as `IMG_1-Edit.tif` is the exception: it deletes only itself and its own sidecars, the original goes when you swipe the original), **Revert** brings all of it back in place, and a delete the file system refuses is reported by name and the photo returns to the feed. A move whose copy succeeded but whose original could not be removed keeps the photo in the feed and says so ("Copied to … — original could not be removed").
+*   **RAW+JPEG Sibling Pairing:** Centered dialog detects companion RAW and JPEG files, allowing users to link operations across both formats (`moveRelatedFiles = true`) or filter by format. With linking on, a swipe-left delete takes the whole bundle (shown file and its siblings) out of the feed together (a derivative card such as `IMG_1-Edit.tif` is the exception: it deletes only itself and its own sidecars, the original goes when you swipe the original), **Revert** brings all of it back in place, and a delete the file system refuses is reported by name and the photo returns to the feed. A move whose copy succeeded but whose original could not be removed keeps the photo in the feed and says so ("Copied to …, original not removed").
 *   **Supported Formats:** JPEG, HEIF/HEIC, PNG, TIFF and WebP, plus camera RAW — Sony ARW, Canon CR2 and CR3, Nikon NEF and NRW, Fujifilm RAF, Panasonic RW2, OM System/Olympus ORF, Pentax PEF, DNG and Samsung SRW, with further RAW extensions (3FR, IIQ, RWL, SR2, MRW, X3F, ERF, MEF, …) recognised for discovery and pairing. Extensions match case-insensitively. RAWs are shown from the camera's embedded JPEG preview (no full RAW decode, so swiping stays fast); a RAW whose preview is smaller than 1024 px (phone DNGs) falls back to the platform decoder. The contract is `testdata/formats/manifest.json` ([docs/shared/SUPPORTED_FORMATS.md](../../shared/SUPPORTED_FORMATS.md)).
 *   **Orientation-Aware Sorting & Shuffle:** Settings toggles allow prioritizing landscape or portrait orientations first, or shuffling the feed randomly.
 
@@ -98,8 +98,8 @@ While the desktop and tablet products emphasize multi-up comparative culling and
 | **Package Name** | `com.phototok` |
 | **Application ID** | `com.phototok` |
 | **minSdk / targetSdk / compileSdk** | 26 (Android 8.0) / 36 (Android 16) / 37 |
-| **Target Device Class** | Portrait phones $< 600$ dp (Compact window size class) |
-| **Shared Code** | `:core` (`products/android/core/`) for shared EXIF models |
+| **Target Device Class** | Phones of every size, compact and large flagship phones alike; portrait first, landscape supported |
+| **Shared Code** | `:core` (`products/android/core/`, EXIF model and readers) and `:saf` (`products/android/saf/`, SAF copy/move engine and folder access), shared with Frameduel |
 | **Output Artifacts** | `phototok-android-release.apk` / `.aab` |
 
 ### Architectural Layering
