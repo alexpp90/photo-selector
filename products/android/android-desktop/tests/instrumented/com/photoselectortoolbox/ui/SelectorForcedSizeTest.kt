@@ -115,6 +115,10 @@ class SelectorForcedSizeTest {
         fontScale: Float? = null,
         maximised: SelectorFrame? = null,
     ): Boolean {
+        // The process learns of the display change a moment after the rule has made it; wait for
+        // that (state, not time: the size either arrives or the test fails with it).
+        val deadline = System.currentTimeMillis() + 10_000
+        while (!windowHolds(width, height) && System.currentTimeMillis() < deadline) Thread.sleep(100)
         assertTrue("the window holds a $width x $height dp host", windowHolds(width, height))
         composeRule.setContent {
             PhotoSelectorToolboxTheme {
