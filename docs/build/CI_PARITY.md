@@ -400,6 +400,13 @@ these rules removes almost all of that class:
    with a display cutout loses that inset from the window (86 dp on a Pixel 4a), so size
    assertions are made against `FrameGeometry` for the width the screen actually offers, and
    absolute floors are guarded by `FrameGeometry.ReferenceWindowWidth` and `ReferenceWindowHeight`.
+   The window manager clamps a forced size to twice the panel's own (`MAX_SCALE`), and CI's
+   default AVD is 320x640 px: asking it for 1848x2960 px leaves the display at 320x640 dp. The
+   rule therefore scales size and density by the same factor, so the window in dp is the
+   reference one in as few pixels as the panel allows.
+   A phone's launcher requests `SCREEN_ORIENTATION_NOSENSOR` and holds the display in portrait
+   whatever `user_rotation` says, and no test activity is up yet when the rule runs, so the rule
+   also sets `cmd window set-fix-to-user-rotation enabled` and puts the previous value back.
 
 These rules are also part of the Android UI agent definitions in the maintainer's agent
 framework.

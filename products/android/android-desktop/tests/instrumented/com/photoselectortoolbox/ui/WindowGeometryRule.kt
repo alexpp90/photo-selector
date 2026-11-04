@@ -6,6 +6,8 @@ import androidx.test.platform.app.InstrumentationRegistry
 import org.junit.rules.TestRule
 import org.junit.runner.Description
 import org.junit.runners.model.Statement
+import kotlin.math.ceil
+import kotlin.math.floor
 
 /**
  * Marks a test (or a whole class) that asserts the expanded layout. [WindowGeometryRule] puts the
@@ -39,7 +41,7 @@ class WindowGeometryRule : TestRule {
             override fun evaluate() {
                 val saved = Saved.read()
                 try {
-                    applyReference(saved.naturalPortrait)
+                    applyReference(saved)
                     base.evaluate()
                 } finally {
                     saved.restore()
@@ -48,23 +50,41 @@ class WindowGeometryRule : TestRule {
         }
     }
 
-    private fun applyReference(naturalPortrait: Boolean) {
+    private fun applyReference(saved: Saved) {
+        val naturalPortrait = saved.naturalPortrait
         shell("settings put system accelerometer_rotation 0")
         shell("settings put system user_rotation ${if (naturalPortrait) 1 else 0}")
-        shell("wm density 320")
+        // The launcher (and any other activity that asks for SCREEN_ORIENTATION_NOSENSOR) holds a
+        // phone in portrait whatever `user_rotation` says, and no test activity is on screen yet
+        // when this rule runs: CI's emulator stayed at 922 x 1477 dp (2026-11-04). Fixing the
+        // display to the user rotation makes the rotation independent of the foreground app.
+        if (saved.fixedToUserRotation != null) shell("cmd window set-fix-to-user-rotation enabled")
         // `wm size` is given in the panel's natural orientation: portrait-natural devices (phones,
         // the Pixel Tablet) take 1848x2960 and are rotated; landscape-natural ones take 2960x1848.
         // A display cutout beside the window (a Pixel 4a's punch hole, scaled with the size) takes
         // width the activity cannot use, so the long edge grows by that inset until the usable
         // width is the reference 2960 px: the test sees the reference window, not a narrower one.
-        var longEdge = REFERENCE_LONG_EDGE_PX
+        //
+        // The window manager clamps a forced size to twice the panel's own (WMS MAX_SCALE = 2), so
+        // a panel smaller than 924 x 1480 px (CI's 320x640 emulator) can never be given the
+        // reference size in pixels. Size and density are scaled together by [referenceScale]: the
+        // result is the same window in dp, in fewer pixels.
+        var referenceLong = REFERENCE_LONG_EDGE_PX // in px at the reference 320 dpi
         repeat(4) {
-            shell(if (naturalPortrait) "wm size 1848x$longEdge" else "wm size ${longEdge}x1848")
+            val scale = referenceScale(saved.physicalShort, saved.physicalLong, referenceLong)
+            // Density rounds down and the pixels up, so the window in dp is never narrower than
+            // the reference (rounding both to nearest gave 1477 dp, three short of the 1480 dp
+            // hosts); the pixels stay within the clamp because density <= 320 * scale.
+            val density = floor(REFERENCE_DENSITY * scale).toInt()
+            val short = ceil(REFERENCE_SHORT_EDGE_PX * density / REFERENCE_DENSITY.toDouble()).toInt()
+            val long = ceil(referenceLong * density / REFERENCE_DENSITY.toDouble()).toInt()
+            shell("wm density $density")
+            shell(if (naturalPortrait) "wm size ${short}x$long" else "wm size ${long}x$short")
             waitForExpanded(naturalPortrait)
             Thread.sleep(500)
-            val inset = horizontalCutoutPx()
-            if (longEdge - inset >= REFERENCE_LONG_EDGE_PX) return
-            longEdge = REFERENCE_LONG_EDGE_PX + inset
+            val inset = horizontalCutoutPx() * REFERENCE_DENSITY / density
+            if (referenceLong - inset >= REFERENCE_LONG_EDGE_PX - 1) return
+            referenceLong = REFERENCE_LONG_EDGE_PX + inset
         }
     }
 
@@ -98,6 +118,10 @@ class WindowGeometryRule : TestRule {
 
     private class Saved(
         val naturalPortrait: Boolean,
+        val physicalShort: Int,
+        val physicalLong: Int,
+        /** Whether the display ignores app-requested orientations; null if the build does not say. */
+        val fixedToUserRotation: Boolean?,
         private val sizeOverride: String?,
         private val densityOverride: String?,
         private val accelerometerRotation: String,
@@ -105,6 +129,17 @@ class WindowGeometryRule : TestRule {
         val widthDpBefore: Int?,
     ) {
         fun restore() {
+            try {
+                restoreDisplay()
+            } finally {
+                // Last, so the rotation loop below still runs with the display fixed to it.
+                if (fixedToUserRotation != null) {
+                    shell("cmd window set-fix-to-user-rotation ${if (fixedToUserRotation) "enabled" else "disabled"}")
+                }
+            }
+        }
+
+        private fun restoreDisplay() {
             if (sizeOverride == null) shell("wm size reset") else shell("wm size $sizeOverride")
             if (densityOverride == null) shell("wm density reset") else shell("wm density $densityOverride")
             // The rotation is put back only once the size has landed: set in the same breath, the
@@ -140,6 +175,10 @@ class WindowGeometryRule : TestRule {
                 val naturalPortrait = physical?.let { it.groupValues[1].toInt() < it.groupValues[2].toInt() } ?: true
                 return Saved(
                     naturalPortrait = naturalPortrait,
+                    physicalShort = physical?.groupValues?.let { minOf(it[1].toInt(), it[2].toInt()) } ?: REFERENCE_SHORT_EDGE_PX,
+                    fixedToUserRotation = Regex("""mFixedToUserRotation=(true|false)""")
+                        .find(shell("dumpsys window displays"))?.groupValues?.get(1)?.toBooleanStrictOrNull(),
+                    physicalLong = physical?.groupValues?.let { maxOf(it[1].toInt(), it[2].toInt()) } ?: REFERENCE_LONG_EDGE_PX,
                     sizeOverride = Regex("""Override size:\s*(\d+x\d+)""").find(size)?.groupValues?.get(1),
                     densityOverride = Regex("""Override density:\s*(\d+)""")
                         .find(shell("wm density"))?.groupValues?.get(1),
@@ -155,6 +194,23 @@ class WindowGeometryRule : TestRule {
         /** The reference landscape window is 1480 dp wide; anything from 1400 dp up is it. */
         const val REFERENCE_MIN_WIDTH_DP = 1400
         private const val REFERENCE_LONG_EDGE_PX = 2960
+        private const val REFERENCE_SHORT_EDGE_PX = 1848
+        private const val REFERENCE_DENSITY = 320
+
+        /** WindowManagerService clamps a forced display size to this multiple of the panel's size. */
+        private const val MAX_FORCED_SCALE = 2
+
+        /**
+         * The factor, at most 1, by which the reference size (1848 x [longEdge] px at 320 dpi) and
+         * density shrink so that the forced size stays within [MAX_FORCED_SCALE] times the panel.
+         * The window in dp is unchanged.
+         */
+        internal fun referenceScale(physicalShort: Int, physicalLong: Int, longEdge: Int): Double =
+            minOf(
+                1.0,
+                MAX_FORCED_SCALE * physicalShort.toDouble() / REFERENCE_SHORT_EDGE_PX,
+                MAX_FORCED_SCALE * physicalLong.toDouble() / longEdge,
+            )
 
         private fun shell(command: String): String {
             val descriptor = InstrumentationRegistry.getInstrumentation().uiAutomation.executeShellCommand(command)
