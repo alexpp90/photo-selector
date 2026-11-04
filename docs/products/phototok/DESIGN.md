@@ -253,10 +253,14 @@ Add subtle left-pointing chevrons on the left edge during swipe:
 
 **Current:** 80dp green circle with checkmark.
 
-**New (from mockup):** Larger with glow effect:
-- Outer glow: `SuccessGreen.copy(alpha=0.2f)` circle with backdrop blur, border `SuccessGreen.copy(0.3f)`
-- Icon: `check_circle` (filled), 80dp, `SuccessGreen` tint
-- Drop shadow filter: `SuccessGreen.copy(0.6f)`, 20dp blur
+**New (from mockup):** Larger with glow effect, in the theme's lime (`primary`; `SuccessGreen` was dropped from the swipe cues in the 2026-11-03 review, it is outside the lime/neutral palette):
+- Outer glow: `primary.copy(alpha=0.15f)` circle, border `primary.copy(0.3f)`
+- Icon: the configured verb's glyph, 72dp, `primary` tint
+- Drop shadow: `primary`, 20dp
+
+### Mid-swipe indicators (`SwipeCues.kt`)
+- Swipe right: glyph `onPrimary` on a `primary` disc (≥ 4.5:1); swipe left: `onErrorContainer` on `errorContainer` for a delete, `onPrimaryContainer` on `primaryContainer` for copy/move.
+- The label (`COPY`, `DELETE`, …) is `primary` / `error` text on an 8 dp-rounded `surfaceContainerLowest` 80 % pill, so it reads ≥ 4.5:1 over a white photo as well as a black one (`SwipeCueColorsTest`).
 - Pop-in animation: scale 0.5→1.0 with bounce easing
 
 ### EXIF metadata overlay (bottom-left)
@@ -329,9 +333,8 @@ Use `AnimatedVisibility` with fade for all overlay elements.
 ### Trash peek animation (idle state)
 
 **New** — subtle hint on the right edge when not swiping:
-- Small `delete` icon in a circle at `Alignment.CenterEnd`
-- `surfaceContainerHigh.copy(alpha=0.4f)`, backdrop blur
-- Animated sliding left/right subtly (translateX oscillating ±15dp)
+- The configured swipe glyph and an arrow at `Alignment.CenterStart` / `CenterEnd`, on a `surfaceContainerLowest` 80 % pill, at 85 % opacity (40 % on a 40 % disc was too faint, review 2026-11-03)
+- Animated sliding left/right subtly (translateX oscillating between −4 and 12 dp); with animations removed (animator duration scale 0) they stand still
 - Only shows on first few images or when idle for >2 seconds
 
 ---

@@ -121,10 +121,15 @@ import com.phototok.R
 import com.phototok.domain.SwipeLabels
 import com.phototok.ui.asString
 import com.phototok.domain.SwipeRightVerb
-import com.phototok.ui.theme.SuccessGreen
 import kotlin.math.abs
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
+
+/**
+ * Opacity of the idle edge hints. They sit on a dark pill now, so they can be clearly visible
+ * without competing with the photo (40 % on a 40 % disc was too faint, review JP-UX-3).
+ */
+private const val PEEK_ALPHA = 0.85f
 
 /** Glyph for the configured swipe-right verb. */
 private fun swipeRightIcon(verb: SwipeRightVerb): ImageVector = when (verb) {
@@ -566,6 +571,7 @@ fun PhoneModeViewer(
         }
 
         // ── Collection / Favourite flash (centered glyph with glow) ────
+        val collectionFlashColor = swipeCueColors(colors, leftIsDelete = true).rightAccent
         AnimatedVisibility(
             visible = showCollectionFlash,
             modifier = Modifier.align(Alignment.Center),
@@ -577,8 +583,8 @@ fun PhoneModeViewer(
                     modifier = Modifier
                         .size(120.dp)
                         .clip(CircleShape)
-                        .background(SuccessGreen.copy(alpha = 0.15f))
-                        .border(1.dp, SuccessGreen.copy(alpha = 0.3f), CircleShape),
+                        .background(collectionFlashColor.copy(alpha = 0.15f))
+                        .border(1.dp, collectionFlashColor.copy(alpha = 0.3f), CircleShape),
                 )
                 Icon(
                     imageVector = swipeRightIcon(swipeRightVerb),
@@ -586,10 +592,10 @@ fun PhoneModeViewer(
                         swipeRightVerb,
                         collectionFolderName,
                     ).asString(),
-                    tint = SuccessGreen.copy(alpha = 0.9f),
+                    tint = collectionFlashColor.copy(alpha = 0.9f),
                     modifier = Modifier
                         .size(72.dp)
-                        .shadow(20.dp, CircleShape, ambientColor = SuccessGreen),
+                        .shadow(20.dp, CircleShape, ambientColor = collectionFlashColor),
                 )
             }
         }
@@ -716,6 +722,9 @@ private fun ImagePage(
     val currentOnFirstRunHint by rememberUpdatedState(onFirstRunHint)
 
     val colors = MaterialTheme.colorScheme
+    val cues = swipeCueColors(colors, SwipeLabels.leftIsDestructive(leftSwipeAction))
+    val pageContext = LocalContext.current
+    val cueMotion = remember { cueMotionEnabled(pageContext) }
 
     Box(
         modifier = Modifier
@@ -918,7 +927,7 @@ private fun ImagePage(
                         modifier = Modifier
                             .size(96.dp)
                             .clip(CircleShape)
-                            .background(SuccessGreen.copy(alpha = 0.25f)),
+                            .background(cues.rightContainer.copy(alpha = 0.25f)),
                     )
                     Box(
                         modifier = Modifier
@@ -926,10 +935,10 @@ private fun ImagePage(
                             .shadow(
                                 elevation = (20 * swipeProgress).dp,
                                 shape = CircleShape,
-                                ambientColor = SuccessGreen.copy(alpha = 0.4f),
+                                ambientColor = cues.rightContainer.copy(alpha = 0.4f),
                             )
                             .clip(CircleShape)
-                            .background(SuccessGreen.copy(alpha = 0.85f)),
+                            .background(cues.rightContainer),
                         contentAlignment = Alignment.Center,
                     ) {
                         Icon(
@@ -938,7 +947,7 @@ private fun ImagePage(
                                 swipeRightVerb,
                                 collectionFolderName,
                             ).asString(),
-                            tint = Color.White,
+                            tint = cues.rightContent,
                             modifier = Modifier.size((28 + 8 * swipeProgress).dp),
                         )
                     }
@@ -947,7 +956,11 @@ private fun ImagePage(
                 Text(
                     text = SwipeLabels.rightLabel(swipeRightVerb).asString().uppercase(),
                     style = MaterialTheme.typography.labelLarge.copy(letterSpacing = 3.sp),
-                    color = SuccessGreen,
+                    color = cues.rightAccent,
+                    modifier = Modifier
+                        .clip(RoundedCornerShape(8.dp))
+                        .background(cues.cueScrim)
+                        .padding(horizontal = 8.dp, vertical = 2.dp),
                 )
             }
         }
@@ -955,7 +968,7 @@ private fun ImagePage(
         // ── Left Swipe Action indicator (pulsing indicator with glow) ───────────────
         if (!readOnly && isSwipingLeft) {
             val pulseTransition = rememberInfiniteTransition(label = "left-swipe-pulse") // ui-text: ignore animation debug label
-            val pulseScale by pulseTransition.animateFloat(
+            val pulseScaleAnimated by pulseTransition.animateFloat(
                 initialValue = 1f,
                 targetValue = 1.1f,
                 animationSpec = infiniteRepeatable(
@@ -964,12 +977,12 @@ private fun ImagePage(
                 ),
                 label = "left-swipe-scale", // ui-text: ignore animation debug label
             )
+            val pulseScale = if (cueMotion) pulseScaleAnimated else 1f
 
-            val isDelete = SwipeLabels.leftIsDestructive(leftSwipeAction)
             val icon = leftSwipeIcon(leftSwipeAction)
-            val color = if (isDelete) colors.error else colors.primary
-            val containerColor = if (isDelete) colors.errorContainer else colors.primaryContainer
-            val onContainerColor = if (isDelete) colors.onErrorContainer else colors.onPrimaryContainer
+            val color = cues.leftAccent
+            val containerColor = cues.leftContainer
+            val onContainerColor = cues.leftContent
             val labelText = SwipeLabels.leftLabel(leftSwipeAction).asString().uppercase()
             val contentDesc = SwipeLabels.leftDescription(leftSwipeAction, leftSwipeFolderName).asString()
 
@@ -1013,6 +1026,10 @@ private fun ImagePage(
                         letterSpacing = 3.sp,
                     ),
                     color = color,
+                    modifier = Modifier
+                        .clip(RoundedCornerShape(8.dp))
+                        .background(cues.cueScrim)
+                        .padding(horizontal = 8.dp, vertical = 2.dp),
                 )
             }
         }
@@ -1020,7 +1037,7 @@ private fun ImagePage(
         // ── Navigation peeks (subtle idle hints on left/right edges with direction arrows) ──
         if (!readOnly && showFloatingPeeks && !isZoomed && !isSwipingLeft && !isSwipingRight && hudAlpha > 0.5f) {
             val peekTransition = rememberInfiniteTransition(label = "peeks") // ui-text: ignore animation debug label
-            val trashPeekOffset by peekTransition.animateFloat(
+            val trashPeekOffsetAnimated by peekTransition.animateFloat(
                 initialValue = 12f,
                 targetValue = -4f,
                 animationSpec = infiniteRepeatable(
@@ -1029,7 +1046,7 @@ private fun ImagePage(
                 ),
                 label = "trash-peek-offset", // ui-text: ignore animation debug label
             )
-            val keepPeekOffset by peekTransition.animateFloat(
+            val keepPeekOffsetAnimated by peekTransition.animateFloat(
                 initialValue = -12f,
                 targetValue = 4f,
                 animationSpec = infiniteRepeatable(
@@ -1038,20 +1055,24 @@ private fun ImagePage(
                 ),
                 label = "keep-peek-offset", // ui-text: ignore animation debug label
             )
+            // Remove animations: the hints stand still at their resting place.
+            val trashPeekOffset = if (cueMotion) trashPeekOffsetAnimated else 0f
+            val keepPeekOffset = if (cueMotion) keepPeekOffsetAnimated else 0f
 
             Row(
                 modifier = Modifier
                     .align(Alignment.CenterStart)
                     .offset(x = keepPeekOffset.dp)
-                    .graphicsLayer { alpha = hudAlpha * 0.4f },
+                    .graphicsLayer { alpha = hudAlpha * PEEK_ALPHA }
+                    .clip(RoundedCornerShape(24.dp))
+                    .background(cues.cueScrim)
+                    .testTag("viewer.peek_right"),
                 verticalAlignment = Alignment.CenterVertically,
                 horizontalArrangement = Arrangement.spacedBy(4.dp)
             ) {
                 Box(
                     modifier = Modifier
-                        .size(48.dp)
-                        .clip(CircleShape)
-                        .background(colors.surfaceContainerHigh.copy(alpha = 0.4f)),
+                        .size(48.dp),
                     contentAlignment = Alignment.Center,
                 ) {
                     Icon(
@@ -1060,21 +1081,20 @@ private fun ImagePage(
                             R.string.cd_peek_right,
                             SwipeLabels.rightDescription(swipeRightVerb, collectionFolderName).asString(),
                         ),
-                        tint = SuccessGreen,
+                        tint = cues.rightAccent,
                         modifier = Modifier.size(20.dp),
                     )
                 }
                 Icon(
                     imageVector = Icons.AutoMirrored.Filled.ArrowForward,
                     contentDescription = null,
-                    tint = SuccessGreen,
+                    tint = cues.rightAccent,
                     modifier = Modifier.size(16.dp),
                 )
             }
 
-            val isDelete = SwipeLabels.leftIsDestructive(leftSwipeAction)
             val icon = leftSwipeIcon(leftSwipeAction)
-            val color = if (isDelete) colors.error else colors.primary
+            val color = cues.leftAccent
             val contentDesc = stringResource(
                 R.string.cd_peek_left,
                 SwipeLabels.leftDescription(leftSwipeAction, leftSwipeFolderName).asString(),
@@ -1084,7 +1104,10 @@ private fun ImagePage(
                 modifier = Modifier
                     .align(Alignment.CenterEnd)
                     .offset(x = trashPeekOffset.dp)
-                    .graphicsLayer { alpha = hudAlpha * 0.4f },
+                    .graphicsLayer { alpha = hudAlpha * PEEK_ALPHA }
+                    .clip(RoundedCornerShape(24.dp))
+                    .background(cues.cueScrim)
+                    .testTag("viewer.peek_left"),
                 verticalAlignment = Alignment.CenterVertically,
                 horizontalArrangement = Arrangement.spacedBy(4.dp)
             ) {
@@ -1096,9 +1119,7 @@ private fun ImagePage(
                 )
                 Box(
                     modifier = Modifier
-                        .size(48.dp)
-                        .clip(CircleShape)
-                        .background(colors.surfaceContainerHigh.copy(alpha = 0.4f)),
+                        .size(48.dp),
                     contentAlignment = Alignment.Center,
                 ) {
                     Icon(
