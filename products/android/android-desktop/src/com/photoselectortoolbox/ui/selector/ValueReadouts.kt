@@ -45,6 +45,7 @@ import com.photoselectortoolbox.data.model.ImageItem
 import com.photoselectortoolbox.domain.format.ExifFormatter
 import com.photoselectortoolbox.domain.scoring.ScoreMetric
 import com.photoselectortoolbox.domain.scoring.ScoreMetricIcon
+import com.photoselectortoolbox.ui.theme.HintText
 import com.photoselectortoolbox.ui.theme.BrandAccent
 import com.photoselectortoolbox.ui.theme.BrandAccentGlow
 import com.photoselectortoolbox.ui.theme.ScoreBad
@@ -55,7 +56,6 @@ import com.photoselectortoolbox.ui.theme.StudioCanvas
 import com.photoselectortoolbox.ui.theme.WarningAmber
 import com.photoselectortoolbox.ui.theme.Zinc400
 import com.photoselectortoolbox.ui.theme.Zinc50
-import com.photoselectortoolbox.ui.theme.Zinc600
 
 /**
  * The glyph for a metric.
@@ -136,7 +136,7 @@ fun CurrentFrameReadout(
         }
 
         if (image == null) {
-            Text(text = "No image", fontSize = 13.sp, color = Zinc600)
+            Text(text = "No image", fontSize = 13.sp, color = HintText)
             return@Column
         }
 
@@ -497,7 +497,7 @@ private fun NotScannedRow(compact: Boolean = false) {
         Text(
             text = "Not scanned",
             fontSize = if (compact) 10.sp else 12.sp,
-            color = Zinc600,
+            color = HintText,
         )
     }
 }

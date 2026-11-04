@@ -14,7 +14,7 @@ import androidx.compose.ui.unit.Density
 import androidx.core.view.WindowCompat
 import com.photoselectortoolbox.data.repository.SettingsRepository
 
-private val DarkColorScheme = darkColorScheme(
+internal val DarkColorScheme = darkColorScheme(
     primary = BrandAccent,
     onPrimary = BrandOnAccent,
     primaryContainer = BrandAccentDeep,
@@ -40,8 +40,8 @@ private val DarkColorScheme = darkColorScheme(
     outlineVariant = Zinc600,
     background = StudioCanvas,
     onBackground = Zinc50,
-    error = ErrorRed,
-    onError = Color.White,
+    error = DestructiveText,
+    onError = StudioCanvas,
     errorContainer = Color(0xFF93000A),
     onErrorContainer = Color(0xFFFFDAD6),
     inverseSurface = Zinc100,

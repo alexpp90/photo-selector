@@ -47,13 +47,13 @@ import com.photoselectortoolbox.data.model.ImageItem
 import com.photoselectortoolbox.domain.format.SelectorLabels
 import com.photoselectortoolbox.domain.scoring.ScoreMetric
 import com.photoselectortoolbox.ui.components.goodnessColor
+import com.photoselectortoolbox.ui.theme.HintText
 import com.photoselectortoolbox.ui.theme.CurationAmber
 import com.photoselectortoolbox.ui.theme.ErrorRed
 import com.photoselectortoolbox.ui.theme.BrandAccent
 import com.photoselectortoolbox.ui.theme.StudioBorder
 import com.photoselectortoolbox.ui.theme.StudioCard
 import com.photoselectortoolbox.ui.theme.StudioPanel
-import com.photoselectortoolbox.ui.theme.Zinc500
 
 /**
  * Width of the strip, decided by the frame solver rather than here.
@@ -227,7 +227,7 @@ fun CandidateStrip(
                     fontSize = 9.sp,
                     lineHeight = 11.sp,
                     fontFamily = FontFamily.Monospace,
-                    color = Zinc500,
+                    color = HintText,
                     textAlign = TextAlign.Center,
                     modifier = Modifier
                         .fillMaxWidth()

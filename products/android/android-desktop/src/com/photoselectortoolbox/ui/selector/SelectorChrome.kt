@@ -34,11 +34,11 @@ import coil.compose.AsyncImage
 import com.photoselectortoolbox.data.model.ImageItem
 import com.photoselectortoolbox.data.model.ScanResult
 import com.photoselectortoolbox.domain.scoring.ScoreMetric
+import com.photoselectortoolbox.ui.theme.HintText
 import com.photoselectortoolbox.ui.theme.BrandAccent
 import com.photoselectortoolbox.ui.theme.StudioBorder
 import com.photoselectortoolbox.ui.theme.StudioBorderActive
 import com.photoselectortoolbox.ui.theme.StudioCard
-import com.photoselectortoolbox.ui.theme.Zinc600
 
 // ── Image tile ──────────────────────────────────────────────────────────────
 
@@ -108,7 +108,7 @@ fun ImageTile(
             Text(
                 text = emptyLabel,
                 fontSize = 12.sp,
-                color = Zinc600,
+                color = HintText,
             )
         }
     }

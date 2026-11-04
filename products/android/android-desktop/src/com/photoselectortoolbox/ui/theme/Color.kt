@@ -88,3 +88,20 @@ val ScoreBad = Color(0xFFF87171)
 val ErrorRed = Color(0xFFEF4444)
 val SuccessGreen = Color(0xFF22C55E)
 val WarningAmber = Color(0xFFF59E0B)
+
+// ── Text roles that must stay readable (WCAG 1.4.3, 4.5:1) ────────────────
+//
+// Pinned by ContrastTokensTest against every Studio surface they are drawn on. Zinc500 and below
+// are for borders, tracks and disabled controls, never for text that carries information.
+
+/** Small hint text: key caps, "No image", "Not scanned", ranges, captions. */
+val HintText = Zinc400
+
+/** Fill of a destructive button (Delete): white on it is 4.83:1; [ErrorRed] gave 3.76:1. */
+val DestructiveFill = Color(0xFFDC2626)
+
+/** Content on [DestructiveFill]. */
+val OnDestructiveFill = Color.White
+
+/** Destructive or error text and icons on the dark surfaces (ErrorRed gave 4.43:1 on a dialog). */
+val DestructiveText = ScoreBad

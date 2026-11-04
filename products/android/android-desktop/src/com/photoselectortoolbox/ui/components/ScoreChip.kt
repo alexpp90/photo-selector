@@ -51,12 +51,12 @@ import androidx.compose.ui.unit.sp
 import com.photoselectortoolbox.data.model.ScanResult
 import com.photoselectortoolbox.domain.scoring.ScoreMetric
 import com.photoselectortoolbox.ui.selector.vector
+import com.photoselectortoolbox.ui.theme.HintText
 import com.photoselectortoolbox.ui.theme.BrandAccentGlow
 import com.photoselectortoolbox.ui.theme.ScoreBad
 import com.photoselectortoolbox.ui.theme.ScoreGood
 import com.photoselectortoolbox.ui.theme.ScoreWarn
 import com.photoselectortoolbox.ui.theme.Zinc400
-import com.photoselectortoolbox.ui.theme.Zinc500
 import com.photoselectortoolbox.ui.theme.Zinc700
 import com.photoselectortoolbox.ui.theme.Zinc800
 
@@ -201,12 +201,12 @@ fun NotScannedChip(modifier: Modifier = Modifier) {
             imageVector = Icons.Default.Radar,
             contentDescription = null,
             modifier = Modifier.size(14.dp),
-            tint = Zinc500,
+            tint = HintText,
         )
         Text(
             text = "Not scanned",
             fontSize = 11.sp,
-            color = Zinc500,
+            color = HintText,
             maxLines = 1,
         )
     }

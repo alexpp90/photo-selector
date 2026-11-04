@@ -65,6 +65,7 @@ import androidx.compose.ui.unit.sp
 import com.photoselectortoolbox.domain.curation.SnackbarLifetime
 import com.photoselectortoolbox.domain.format.SelectionActionLabels
 import com.photoselectortoolbox.domain.interaction.FilingAction
+import com.photoselectortoolbox.ui.theme.HintText
 import com.photoselectortoolbox.ui.theme.BrandAccentText
 import com.photoselectortoolbox.ui.theme.ScoreBad
 import com.photoselectortoolbox.ui.theme.StudioBorder
@@ -72,7 +73,6 @@ import com.photoselectortoolbox.ui.theme.StudioCard
 import com.photoselectortoolbox.ui.theme.StudioPanel
 import com.photoselectortoolbox.ui.theme.Zinc400
 import com.photoselectortoolbox.ui.theme.Zinc50
-import com.photoselectortoolbox.ui.theme.Zinc500
 import kotlinx.coroutines.delay
 
 /**
@@ -197,7 +197,7 @@ private fun ContextMenuRow(
                 text = keyHint,
                 fontSize = 10.sp,
                 fontFamily = FontFamily.Monospace,
-                color = Zinc500,
+                color = HintText,
             )
         }
     }

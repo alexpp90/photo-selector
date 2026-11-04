@@ -61,7 +61,10 @@ import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.photoselectortoolbox.domain.grouping.GroupingLevel
 import com.photoselectortoolbox.domain.interaction.FilingAction
+import com.photoselectortoolbox.ui.theme.DestructiveFill
+import com.photoselectortoolbox.ui.theme.DestructiveText
 import com.photoselectortoolbox.ui.theme.ErrorRed
+import com.photoselectortoolbox.ui.theme.OnDestructiveFill
 import com.photoselectortoolbox.ui.theme.BrandAccent
 import com.photoselectortoolbox.ui.theme.Zinc400
 import com.photoselectortoolbox.ui.theme.Zinc700
@@ -108,7 +111,10 @@ fun SettingsScreen(
                         showClearCacheDialog = false
                         viewModel.clearCache()
                     },
-                    colors = ButtonDefaults.buttonColors(containerColor = ErrorRed),
+                    colors = ButtonDefaults.buttonColors(
+                        containerColor = DestructiveFill,
+                        contentColor = OnDestructiveFill,
+                    ),
                 ) {
                     Text("Clear")
                 }
@@ -510,7 +516,7 @@ fun SettingsScreen(
                         onClick = { showClearCacheDialog = true },
                         colors = ButtonDefaults.buttonColors(
                             containerColor = ErrorRed.copy(alpha = 0.15f),
-                            contentColor = ErrorRed,
+                            contentColor = DestructiveText,
                         ),
                         shape = RoundedCornerShape(8.dp),
                     ) {

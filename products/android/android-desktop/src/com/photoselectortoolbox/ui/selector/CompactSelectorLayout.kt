@@ -57,11 +57,11 @@ import com.photoselectortoolbox.domain.format.SelectionActionLabels
 import com.photoselectortoolbox.domain.interaction.FilingAction
 import com.photoselectortoolbox.ui.components.MetadataPanel
 import com.photoselectortoolbox.ui.components.ScoreChipRow
+import com.photoselectortoolbox.ui.theme.HintText
 import com.photoselectortoolbox.ui.theme.BrandAccentTonal
 import com.photoselectortoolbox.ui.theme.ScoreBad
 import com.photoselectortoolbox.ui.theme.ScoreGood
 import com.photoselectortoolbox.ui.theme.Zinc50
-import com.photoselectortoolbox.ui.theme.Zinc700
 import com.photoselectortoolbox.ui.theme.Zinc900
 import com.photoselectortoolbox.ui.theme.Zinc950
 import com.photoselectortoolbox.viewmodel.SelectorUiState
@@ -391,7 +391,7 @@ private fun CompactActionButton(
             text = label.shortcut,
             fontSize = 11.sp,
             fontFamily = FontFamily.Monospace,
-            color = Zinc700,
+            color = HintText,
         )
     }
 }

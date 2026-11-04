@@ -112,6 +112,7 @@ import com.photoselectortoolbox.ui.selector.RatingFilterSelector
 import com.photoselectortoolbox.ui.components.MinTouchTarget
 import com.photoselectortoolbox.ui.components.TouchTarget
 import androidx.compose.ui.semantics.Role
+import com.photoselectortoolbox.ui.theme.HintText
 import com.photoselectortoolbox.ui.theme.BrandAccent
 import com.photoselectortoolbox.ui.theme.BrandAccentDeep
 import com.photoselectortoolbox.ui.theme.StudioPanel
@@ -120,7 +121,6 @@ import com.photoselectortoolbox.ui.theme.ScoreGood
 import com.photoselectortoolbox.ui.theme.ScoreWarn
 import com.photoselectortoolbox.ui.theme.Zinc200
 import com.photoselectortoolbox.ui.theme.Zinc400
-import com.photoselectortoolbox.ui.theme.Zinc500
 import com.photoselectortoolbox.ui.theme.Zinc700
 import com.photoselectortoolbox.ui.theme.Zinc800
 import com.photoselectortoolbox.ui.theme.Zinc900
@@ -699,7 +699,7 @@ private fun InspectControlBar(
             Text(
                 text = "Guides:",
                 style = MaterialTheme.typography.labelSmall,
-                color = Zinc500,
+                color = HintText,
                 modifier = Modifier.padding(end = 2.dp),
             )
 
@@ -1440,7 +1440,7 @@ private fun PracticeTabContent(
         Text(
             text = "Scan at least ${PracticeAndInsightsEngine.MIN_SAMPLE_SIZE} photos in a shoot folder to unlock statistically grounded personal pattern insights.",
             style = MaterialTheme.typography.bodySmall,
-            color = Zinc500,
+            color = HintText,
         )
     } else {
         insights.forEach { insight ->
@@ -1623,7 +1623,7 @@ private fun PhotoCoachCard(
                     Text(
                         text = "Clean capture: exposure parameters and sharpness are within optimal thresholds.",
                         style = MaterialTheme.typography.bodySmall,
-                        color = Zinc500,
+                        color = HintText,
                     )
                 } else {
                     for (tip in coachReport.tips) {
@@ -1827,7 +1827,7 @@ private fun InspectRatingCard(
                 Text(
                     text = "Hotkeys 0–5, X",
                     style = MaterialTheme.typography.labelSmall,
-                    color = Zinc500,
+                    color = HintText,
                 )
             }
 

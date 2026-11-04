@@ -69,7 +69,10 @@ import coil.compose.AsyncImage
 import com.photoselectortoolbox.data.model.DuplicateGroup
 import com.photoselectortoolbox.ui.components.EmptyStateCard
 import com.photoselectortoolbox.ui.components.ProgressIndicatorBar
+import com.photoselectortoolbox.ui.theme.DestructiveFill
+import com.photoselectortoolbox.ui.theme.DestructiveText
 import com.photoselectortoolbox.ui.theme.ErrorRed
+import com.photoselectortoolbox.ui.theme.OnDestructiveFill
 import com.photoselectortoolbox.ui.theme.BrandAccent
 import com.photoselectortoolbox.ui.theme.BrandOnAccent
 import com.photoselectortoolbox.ui.theme.Zinc700
@@ -107,7 +110,10 @@ fun DuplicatesScreen(
                         showDeleteConfirmation = false
                         viewModel.deleteSelected()
                     },
-                    colors = ButtonDefaults.buttonColors(containerColor = ErrorRed),
+                    colors = ButtonDefaults.buttonColors(
+                        containerColor = DestructiveFill,
+                        contentColor = OnDestructiveFill,
+                    ),
                 ) {
                     Text("Delete")
                 }
@@ -219,7 +225,8 @@ fun DuplicatesScreen(
                                 Button(
                                     onClick = { showDeleteConfirmation = true },
                                     colors = ButtonDefaults.buttonColors(
-                                        containerColor = ErrorRed,
+                                        containerColor = DestructiveFill,
+                                        contentColor = OnDestructiveFill,
                                     ),
                                     shape = RoundedCornerShape(8.dp),
                                 ) {
