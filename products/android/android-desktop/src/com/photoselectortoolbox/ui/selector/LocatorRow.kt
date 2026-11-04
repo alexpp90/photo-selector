@@ -51,12 +51,13 @@ import androidx.compose.ui.unit.sp
 import com.photoselectortoolbox.domain.format.SelectorLabels
 import com.photoselectortoolbox.domain.interaction.SelectorShortcut
 import com.photoselectortoolbox.domain.session.SelectorSortOrder
+import com.photoselectortoolbox.ui.components.handCursor
+import com.photoselectortoolbox.ui.theme.HintText
 import com.photoselectortoolbox.ui.theme.StudioBorder
 import com.photoselectortoolbox.ui.theme.StudioBorderActive
 import com.photoselectortoolbox.ui.theme.StudioCard
 import com.photoselectortoolbox.ui.theme.Zinc400
 import com.photoselectortoolbox.ui.theme.Zinc50
-import com.photoselectortoolbox.ui.theme.Zinc600
 
 /**
  * The four orders the selector can be in, as one radio group: the three plain orders
@@ -142,7 +143,7 @@ internal fun SortMenuItem(
                 role = Role.RadioButton
                 this.selected = selected
             }
-            .testTag(tag),
+            .testTag(tag).handCursor(),
     )
 }
 
@@ -314,7 +315,7 @@ private fun ChipKeyCap(key: String, tag: String) {
         text = "[$key]",
         fontSize = 10.sp,
         fontFamily = FontFamily.Monospace,
-        color = Zinc600,
+        color = HintText, // a key hint: 4.5:1 on the card, as every other key cap
         maxLines = 1,
         softWrap = false,
         modifier = Modifier.testTag(tag),

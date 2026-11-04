@@ -162,6 +162,11 @@ locale-dependent, or the same score renders differently on different devices.
 - Spacing scale: 4 / 6 / 8 / 12 / 16 / 24 dp. In the comparison layouts, outer padding is
   ≤ 8 dp and column gaps are 8 dp — space is not decoration here.
 - All screens are edge-to-edge and must respect `WindowInsets` for system bars.
+- `NoElevationTest` fails any `tonalElevation`, `shadowElevation` or `.shadow` in the UI sources.
+- **The selector without frames** shows one of four states (`selectorEmptyKind`): no folder
+  ("Select a Folder"), access lost ("Folder Access Needed"), a folder still opening (a progress
+  ring, no text) and an open folder without supported photos ("No photos found" /
+  "«folder» holds no supported photos." / `[Open Folder]`).
 
 ### 4.4 Iconography
 
@@ -217,9 +222,9 @@ Clear Scores · Group Similar Series · Score legend.
 Move to Selection · Copy to Selection · Delete · Open Fullscreen.
 
 "Selection" is a destination subfolder — default name `Selection`, configurable — created
-inside the source folder. Deletion goes to the Android trash and is undoable via a
-30-second Snackbar; a move is undoable for as long as it stays on the 20-deep stack
-(`Ctrl+Z`), and its card leaves after about 4 seconds.
+inside the source folder. A delete and a move are undoable for as long as they stay on the
+20-deep stack (`Ctrl+Z`, or the card's UNDO), which is until the folder is left; their cards
+leave after about 4 seconds and draw no countdown, because nothing has a deadline.
 
 ### Persistent state the design must reflect
 
@@ -905,7 +910,7 @@ where the **effect is invisible**:
 | Hint | Fires on | Says |
 |---|---|---|
 | `filing_action` | the first Move or Copy | where the file now is — the configured verb, the configured folder, whether RAW and JPEG were sorted, and the other verb's key. The important one: the photograph left the centre of the screen and nothing said where it went. |
-| `delete_undo` | the first Delete | that nothing has touched the disk yet and UNDO has 30 seconds |
+| `delete_undo` | the first Delete | that nothing has touched the disk yet and `Ctrl+Z` undoes it until the folder is left |
 | `maximise_frame` | the first maximise | that `Esc` or a second press comes back — nothing on that screen says so (side slack only; see §7.3) |
 
 `scan_scores` is defined and worded but deliberately **not** raised: the bars appear on the
@@ -1145,7 +1150,7 @@ lets the user batch-delete copies.
 
 | State | Design |
 |---|---|
-| No folder | **"No Folder Selected"** / *"Select a folder to scan for duplicate images."* / `[Select Folder]` |
+| No folder | **"No Folder Selected"** / *"Select a folder to scan for duplicate images."* / `[Select Folder]` — only when the selector has none either: the screen opens the folder open in Cull |
 | Ready | **"Ready to Scan"**, folder name, `[Start Scan]` |
 | Scanning | Determinate progress with file counter and `[Cancel]` |
 | Results | See below |
@@ -1154,7 +1159,9 @@ lets the user batch-delete copies.
 
 - **Header:** `Group (3 files)` plus a `Select All But First` text action.
 - **Body:** a horizontal row of thumbnails, one per file. The first file carries an
-  `Original` badge with an accent outline. Files marked for deletion get a red-tinted border,
+  `First` badge with an accent outline (the order is the scan's, not a quality judgement). The last
+  copy still unticked cannot be ticked: its card is disabled and named "kept", so a group never
+  loses every copy. Files marked for deletion get a red-tinted border,
   a checked checkbox, and a *"Selected for deletion"* caption. Below each thumbnail: filename,
   file size, and the folder path, ellipsised from the **left** so the leaf folder stays visible.
 
@@ -1388,7 +1395,16 @@ Produce these as a design-system page, dark theme, neutral grey / lavender.
 ## 17. Accessibility
 
 - **Contrast.** All text ≥ 4.5:1 against its surface. Zinc-400 (`#A1A1A1`) on Zinc-900
-  passes; Zinc-500 does not. Do not go darker than `#A1A1A1` for any body text.
+  passes; Zinc-500 does not. Do not go darker than `#A1A1A1` for any text that carries
+  information: small hints (key caps, "No image", "Not scanned", the filmstrip range, Learn
+  captions) use `HintText` (= Zinc-400). The Delete fill is `DestructiveFill` `#DC2626` with white
+  content (4.83:1; `#EF4444` gave 3.76:1) and destructive text on the dark surfaces is
+  `DestructiveText` (= `ScoreBad`, which is also the scheme's `error`/`onError` pair).
+  `ContrastTokensTest` pins every text token against every surface, and a source scan keeps
+  Zinc-500/600/700 out of `Text` calls. Disabled controls are exempt and stay dim.
+- **Announcements.** The confirmation card after a move, copy or delete is a polite live region
+  (re-created per message, so an identical second message is announced again); UNDO and the
+  custom buttons carry the button role.
 - **Direction is not colour-only.** Score direction is conveyed by bar length *and* the
   written direction hint, not by the emerald/amber/red tint alone.
 - **Icon-only controls** need a visible tooltip on hover and a full accessibility label
@@ -1422,15 +1438,19 @@ Shortcuts work in both the standard and fullscreen views.
 | `1` / `2` / `3` | Maximise Previous / Current / Next in place (§7.3) |
 | `G` | Open **Go to photo**: one field (focused on open, label "Number, name or date"), a number 1…N as the counter shows it, part of a file name, or a date (`12.10.2026`, `12.10.26`, `2026-10-12`, `12.10.`), `Enter` / **Go** jumps, `Esc` / **Cancel** closes. A 48 dp calendar button inside the field ("Pick a date") swaps a Material 3 date picker into the same dialog — limited to days that have photos, opening on the day of the photo on screen (else the newest day) — and picking a day jumps at once and closes; it is disabled when no photo has a known date, and scrolls inside the dialog in a 600 × 480 window. The line under the field is, by what is typed: nothing → the days the folder spans (`3 Oct 2026 – 12 Oct 2026`); a position, a name or a date → the file it lands on and when it was taken; a day without photos → that plus "No photos on 13 Oct 2026 — showing 14 Oct 2026" in the neutral colour (Go jumps to the nearest day; it is not an error). An empty or out-of-range number says "Enter 1–N" only after **Go**, and a date still being typed is not "No match" until **Go** |
 | `S` | Open the **Sort** menu (the Sort chip's dropdown, §7.5): Newest first, Oldest first, File name, Blurriest first. It opens only; it never cycles the order. While it is open the selector's other keys are suppressed (`Esc` closes it) |
+| `Ctrl+Z` / `Cmd+Z` | Undo the latest delete or move (20 deep), also in fullscreen |
 | `?` | Open the coach-mark guide (§7.9) |
+
+A held `Delete`, `Backspace`, `M` or `C` acts once; arrows repeat.
 
 Shortcuts are suppressed while any sheet, dialog or the guide is open, **except `Esc`**. Every
 one of these bindings is rendered as a permanent key cap on the control it drives, and the `?`
 guide is generated from the same binding table — a shortcut list that can disagree with the
 bindings will eventually disagree with the bindings.
 
-**Pointer.** Interactive components show the hand cursor (`PointerIcon.Hand`) on hover —
-buttons, clickable images, filmstrip thumbnails. Dragging a folder from an external file
+**Pointer.** Every interactive component shows the hand cursor (`PointerIcon.Hand`) on hover —
+Material buttons, switches and checkboxes through `Modifier.handCursor()`, custom clickables
+through `pointerHoverIcon`; `PointerCursorTest` lists any that has neither. Dragging a folder from an external file
 manager into the app window loads it; design a drop-target state (accent dashed outline over
 the content area, caption *"Drop a folder to load it"*).
 

@@ -430,6 +430,24 @@ these rules removes almost all of that class:
    happen must first prove the gesture was handled, or a late or lost event passes
    it (`PhoneModeViewerInteractionTest`).
 
+7. **A Frameduel test of the expanded layout carries `@ExpandedWindow` and never returns
+   early.** CI's emulator is phone-class, so 28 screen tests that began with
+   `if (isCompactLayout()) return` passed there without asserting anything. Annotate the test
+   (or the class); `WindowGeometryRule` (listed first in the rule order, so it wraps the
+   activity) sets the display to the reference geometry, 1480 x 924 dp, through `wm size`,
+   `wm density` and `user_rotation`, and puts it back in a `finally`. The test then fails,
+   rather than returns, when the window is not expanded (`requireExpandedLayout()`). A phone
+   with a display cutout loses that inset from the window (86 dp on a Pixel 4a), so size
+   assertions are made against `FrameGeometry` for the width the screen actually offers, and
+   absolute floors are guarded by `FrameGeometry.ReferenceWindowWidth` and `ReferenceWindowHeight`.
+   The window manager clamps a forced size to twice the panel's own (`MAX_SCALE`), and CI's
+   default AVD is 320x640 px: asking it for 1848x2960 px leaves the display at 320x640 dp. The
+   rule therefore scales size and density by the same factor, so the window in dp is the
+   reference one in as few pixels as the panel allows.
+   A phone's launcher requests `SCREEN_ORIENTATION_NOSENSOR` and holds the display in portrait
+   whatever `user_rotation` says, and no test activity is up yet when the rule runs, so the rule
+   also sets `cmd window set-fix-to-user-rotation enabled` and puts the previous value back.
+
 These rules are also part of the Android UI agent definitions in the maintainer's agent
 framework.
 

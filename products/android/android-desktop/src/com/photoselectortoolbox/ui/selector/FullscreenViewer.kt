@@ -1,5 +1,7 @@
 package com.photoselectortoolbox.ui.selector
 
+import com.photoselectortoolbox.ui.components.handCursor
+import androidx.compose.ui.semantics.Role
 import android.app.Activity
 import android.net.Uri
 import android.os.Build
@@ -341,6 +343,7 @@ private fun FullscreenContent(
     // index does not already. The last report (and the order it was made in) is kept
     // so the other direction can tell an echo of it from a real change elsewhere.
     val latestOnPageSelected by rememberUpdatedState(onPageSelected)
+    val currentOnUndo by rememberUpdatedState(onUndo)
     val latestIndex by rememberUpdatedState(initialIndex)
     val orderKey = remember(images) { images.map { it.uri }.hashCode() }
     val latestOrderKey by rememberUpdatedState(orderKey)
@@ -448,8 +451,18 @@ private fun FullscreenContent(
                 if (event.type != KeyEventType.KeyDown) return@onPreviewKeyEvent false
                 // Any key at all is the user being here.
                 revealChrome()
+                // Ctrl/Cmd+Z undoes the latest delete or move here as it does on the selector;
+                // the same undo the card's UNDO button runs (FD-B-4). Nothing to undo: not ours.
+                if ((event.isCtrlPressed || event.isMetaPressed) && !event.isAltPressed && event.key == Key.Z) {
+                    val undo = currentOnUndo
+                    return@onPreviewKeyEvent if (undo != null) { undo(); true } else false
+                }
                 if (event.isCtrlPressed || event.isMetaPressed || event.isAltPressed) {
                     return@onPreviewKeyEvent false
+                }
+                // A held Del, M or C acts once, not once per auto-repeat (FD-D-2).
+                if (isHeldOneShotKey(event.key, event.nativeKeyEvent.repeatCount > 0)) {
+                    return@onPreviewKeyEvent true
                 }
                 when (event.key) {
                     Key.Escape -> { onDismiss(); true }
@@ -700,7 +713,7 @@ private fun FullscreenInfoChrome(
             ) {
                 IconButton(
                     onClick = onClose,
-                    modifier = Modifier.size(48.dp).testTag("fullscreen_close"),
+                    modifier = Modifier.size(48.dp).testTag("fullscreen_close").handCursor(),
                 ) {
                     Icon(
                         imageVector = Icons.Default.Close,
@@ -847,7 +860,8 @@ private fun FullscreenGestureHint(
                 .align(Alignment.End)
                 // A 48 dp hit target around the 12 sp word (AD-17).
                 .defaultMinSize(minWidth = 48.dp, minHeight = 48.dp)
-                .clickable(onClick = onDismiss)
+                .handCursor()
+                .clickable(onClick = onDismiss, role = Role.Button)
                 .wrapContentSize(Alignment.Center),
         )
     }

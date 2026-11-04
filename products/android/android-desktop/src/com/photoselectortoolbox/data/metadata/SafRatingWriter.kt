@@ -33,6 +33,10 @@ import kotlinx.coroutines.ensureActive
  *   built and verified in a cache copy, with the original bytes kept: after the write the
  *   document is read back and compared, and on any mismatch or error the original bytes are
  *   written back and checked too.
+ * - A JPEG is the user's original, so before it is opened for writing a backup document of it is
+ *   created beside it and read back ([RatingBackups]); it is deleted only after the photo read
+ *   back as written or as restored. A backup left by a process that died mid-write is resolved at
+ *   the next folder open ([recover]).
  * - A RAW/TIFF image document is never opened for writing; nothing is ever written next to a
  *   format that [RatingFormats] does not cover.
  */
@@ -115,16 +119,29 @@ internal class SafRatingWriter(
         } catch (e: CharacterCodingException) {
             throw RatingWriteException("The existing ${entry.name} is not UTF-8 text; it was left unchanged", e)
         }
-        if (!XmpSidecarWriter.canUpdateInPlace(text)) {
-            throw RatingWriteException("The existing ${entry.name} has content the rating cannot be merged into; it was left unchanged")
-        }
-        val updated = XmpSidecarWriter.injectOrUpdateRating(text, rating).toByteArray(Charsets.UTF_8)
+        val updated = (
+            XmpSidecarWriter.injectOrUpdateRating(text, rating)
+                ?: throw RatingWriteException("The existing ${entry.name} has content the rating cannot be merged into; it was left unchanged")
+            ).toByteArray(Charsets.UTF_8)
         replaceVerified(uri, entry.name, original, updated)
     }
 
     // ── JPEG ─────────────────────────────────────────────────────────────
 
-    private fun writeJpeg(imageUri: Uri, name: String, rating: Int) {
+    /**
+     * Embeds the rating in the JPEG itself. The photo is the user's original, so it is opened for
+     * writing only after a verified backup document of it exists beside it ([RatingBackups]): a
+     * write that dies between the truncate and the last byte leaves the backup, and the next
+     * folder open ([recover]) puts it back.
+     */
+    private suspend fun writeJpeg(imageUri: Uri, name: String, rating: Int) {
+        val parent = resolveParent(imageUri)
+        val listing = children(parent.treeUri, parent.documentId)
+            ?: throw RatingWriteException("Could not list the folder of $name to keep a backup; it was left unchanged")
+        val backupName = RatingBackups.backupNameFor(name)
+        if (listing.any { it.name == backupName }) {
+            throw RatingWriteException("$backupName from an earlier interrupted write is still beside $name; reopen the folder to recover it")
+        }
         val cacheDir = context.cacheDir ?: throw RatingWriteException("Cache directory unavailable")
         val work = File.createTempFile("saf_rating_", ".tmp", cacheDir)
         try {
@@ -135,15 +152,17 @@ internal class SafRatingWriter(
             }
             work.writeBytes(original)
             val exif = ExifInterface(work.absolutePath)
-            exif.setAttribute(
-                ExifInterface.TAG_XMP,
-                XmpSidecarWriter.injectOrUpdateRating(exif.getAttribute(ExifInterface.TAG_XMP), rating),
-            )
+            val currentXmp = exif.getAttribute(ExifInterface.TAG_XMP)
+            val updatedXmp = XmpSidecarWriter.injectOrUpdateRating(currentXmp, rating)
+                ?: throw RatingWriteException("The XMP inside $name has content the rating cannot be merged into; it was left unchanged")
+            exif.setAttribute(ExifInterface.TAG_XMP, updatedXmp)
             exif.saveAttributes()
             if (!validateJpegBounds(work)) {
                 throw RatingWriteException("The updated $name failed verification; it was left unchanged")
             }
-            replaceVerified(imageUri, name, original, work.readBytes())
+            val updated = work.readBytes()
+            val backup = createBackup(parent, backupName, original)
+            replaceVerified(imageUri, name, original, updated, backup = backup, backupName = backupName)
         } catch (e: RatingWriteException) {
             throw e
         } catch (e: Exception) {
@@ -153,27 +172,162 @@ internal class SafRatingWriter(
         }
     }
 
+    /** Creates [backupName] beside the photo holding [original], read back and compared. */
+    private fun createBackup(parent: Parent, backupName: String, original: ByteArray): Uri {
+        val folder = DocumentFile.fromTreeUri(context, parent.folderUri)
+            ?: throw RatingWriteException("Could not open the folder to create $backupName; the photo was left unchanged")
+        val created = folder.createFile("application/octet-stream", backupName)
+            ?: throw RatingWriteException("Could not create $backupName; the photo was left unchanged")
+        try {
+            if (created.name != backupName) {
+                throw RatingWriteException("The storage provider named the backup '${created.name}' instead of '$backupName'; the photo was left unchanged")
+            }
+            (resolver.openOutputStream(created.uri, "w") ?: throw IOException("Cannot open $backupName for writing"))
+                .use { it.write(original) }
+            if (!readAll(created.uri).contentEquals(original)) throw IOException("$backupName did not read back as written")
+            return created.uri
+        } catch (e: Exception) {
+            runCatching { created.delete() }
+            throw e as? RatingWriteException
+                ?: RatingWriteException("Could not write $backupName: ${e.message}; the photo was left unchanged", e)
+        }
+    }
+
+    // ── Recovery at folder open ──────────────────────────────────────────
+
+    /**
+     * Finds every [RatingBackups] document under [folderUri] (breadth first, one query per folder)
+     * and resolves it as [RatingBackups] describes. [lockPhoto] serialises the work on a photo
+     * with a rating write to the same document.
+     */
+    suspend fun recover(
+        folderUri: Uri,
+        lockPhoto: suspend (Uri, suspend () -> Unit) -> Unit,
+    ): RatingRecovery {
+        val rootId = try {
+            DocumentsContract.getTreeDocumentId(folderUri)
+        } catch (_: Exception) {
+            return RatingRecovery.NONE
+        }
+        val restored = mutableListOf<String>()
+        val kept = mutableListOf<KeptRatingBackup>()
+        val queue = ArrayDeque(listOf(rootId))
+        val seen = HashSet<String>()
+        while (queue.isNotEmpty()) {
+            coroutineContext.ensureActive()
+            val dir = queue.removeFirst()
+            if (!seen.add(dir)) continue
+            val entries = children(folderUri, dir) ?: continue
+            entries.filter { it.mime == Document.MIME_TYPE_DIR }.forEach { queue.addLast(it.documentId) }
+            for (backup in entries) {
+                val photoName = RatingBackups.photoNameOf(backup.name) ?: continue
+                if (backup.mime == Document.MIME_TYPE_DIR) continue
+                coroutineContext.ensureActive()
+                val photo = entries.singleOrNull { it.name == photoName && it.mime != Document.MIME_TYPE_DIR }
+                val backupUri = DocumentsContract.buildDocumentUriUsingTree(folderUri, backup.documentId)
+                if (photo == null) {
+                    kept += KeptRatingBackup(photoName, backup.name)
+                    continue
+                }
+                val photoUri = DocumentsContract.buildDocumentUriUsingTree(folderUri, photo.documentId)
+                lockPhoto(photoUri) {
+                    when (resolveBackup(photoUri, backupUri, photoName)) {
+                        BackupOutcome.DISCARDED -> Unit
+                        BackupOutcome.RESTORED -> restored += photoName
+                        BackupOutcome.KEPT -> kept += KeptRatingBackup(photoName, backup.name)
+                    }
+                }
+            }
+        }
+        return RatingRecovery(restored, kept)
+    }
+
+    private enum class BackupOutcome { DISCARDED, RESTORED, KEPT }
+
+    private fun resolveBackup(photoUri: Uri, backupUri: Uri, photoName: String): BackupOutcome {
+        val backupBytes = runCatching { readAll(backupUri) }.getOrElse {
+            Log.w(TAG, "Cannot read the backup of $photoName", it)
+            return BackupOutcome.KEPT
+        }
+        val photoBytes = runCatching { readAll(photoUri) }.getOrNull()
+        if (photoBytes != null && RatingBackups.photoUntouched(photoBytes, backupBytes)) {
+            return if (deleteDocument(backupUri)) BackupOutcome.DISCARDED else BackupOutcome.KEPT
+        }
+        if (photoBytes != null && RatingBackups.isCompleteJpeg(photoBytes, ::decodesBounds)) return BackupOutcome.KEPT
+        if (!decodesBounds(backupBytes)) return BackupOutcome.KEPT
+        return try {
+            overwrite(photoUri, backupBytes)
+            if (!readAll(photoUri).contentEquals(backupBytes)) throw IOException("$photoName did not read back as restored")
+            deleteDocument(backupUri)
+            BackupOutcome.RESTORED
+        } catch (e: Exception) {
+            Log.w(TAG, "Could not restore $photoName from its backup", e)
+            BackupOutcome.KEPT
+        }
+    }
+
+    private fun decodesBounds(bytes: ByteArray): Boolean {
+        val cacheDir = context.cacheDir ?: return false
+        val probe = File.createTempFile("saf_rating_probe_", ".jpg", cacheDir)
+        return try {
+            probe.writeBytes(bytes)
+            validateJpegBounds(probe)
+        } catch (_: Exception) {
+            false
+        } finally {
+            probe.delete()
+        }
+    }
+
+    private fun deleteDocument(uri: Uri): Boolean = try {
+        DocumentsContract.deleteDocument(resolver, uri)
+    } catch (e: Exception) {
+        Log.w(TAG, "Cannot delete $uri", e)
+        false
+    }
+
     // ── Verified in-place replacement ────────────────────────────────────
 
     /**
-     * Writes [updated] over [uri], reads it back and compares. On any failure [original] is
-     * written back (and compared too). Only reached with both byte arrays fully in hand.
+     * Writes [updated] over [uri], reads it back and compares. On any failure the document is
+     * read first: when it still holds [original] nothing was changed (a provider that refuses
+     * `"wt"` fails before truncating, FD-D-19); otherwise [original] is written back and compared.
+     * Only reached with both byte arrays fully in hand.
+     *
+     * [backup], when given, is a verified copy of [original] beside the document. It is deleted
+     * once the document reads back as written or as restored, and kept when neither happened —
+     * the next folder open recovers from it.
      */
-    private fun replaceVerified(uri: Uri, name: String, original: ByteArray, updated: ByteArray) {
+    private fun replaceVerified(
+        uri: Uri,
+        name: String,
+        original: ByteArray,
+        updated: ByteArray,
+        backup: Uri? = null,
+        backupName: String? = null,
+    ) {
         try {
             overwrite(uri, updated)
             if (!readAll(uri).contentEquals(updated)) throw IOException("$name did not read back as written")
         } catch (e: Exception) {
-            val restored = runCatching {
+            val unchanged = runCatching { readAll(uri).contentEquals(original) }.getOrDefault(false)
+            val restored = unchanged || runCatching {
                 overwrite(uri, original)
                 readAll(uri).contentEquals(original)
             }.getOrDefault(false)
-            Log.w(TAG, "Rating write to $name failed; original restored=$restored", e)
+            if (restored && backup != null) deleteDocument(backup)
+            Log.w(TAG, "Rating write to $name failed; unchanged=$unchanged restored=$restored", e)
             throw RatingWriteException(
-                if (restored) "Could not write the rating into $name; it was left unchanged"
-                else "Could not write the rating into $name and could not restore it; check the file",
+                when {
+                    restored -> "Could not write the rating into $name; it was left unchanged"
+                    backupName != null -> "Could not write the rating into $name and could not restore it; the original is kept as $backupName"
+                    else -> "Could not write the rating into $name and could not restore it; check the file"
+                },
                 e,
             )
+        }
+        if (backup != null && !deleteDocument(backup)) {
+            Log.w(TAG, "The rating is in $name, but its backup could not be deleted")
         }
     }
 

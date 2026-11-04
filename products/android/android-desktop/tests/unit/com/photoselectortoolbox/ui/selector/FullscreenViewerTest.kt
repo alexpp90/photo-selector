@@ -1,5 +1,6 @@
 package com.photoselectortoolbox.ui.selector
 
+import com.photoselector.core.Requirement
 import android.view.KeyEvent
 import androidx.compose.material3.windowsizeclass.ExperimentalMaterial3WindowSizeClassApi
 import androidx.compose.material3.windowsizeclass.WindowSizeClass
@@ -157,6 +158,63 @@ class FullscreenViewerTest {
             decor.dispatchKeyEvent(KeyEvent(KeyEvent.ACTION_UP, keyCode))
         }
         rule.waitForIdle()
+    }
+
+    /** A key chord such as Ctrl+Z, delivered like [press]. */
+    private fun pressWithMeta(keyCode: Int, meta: Int) {
+        val dialog = checkNotNull(ShadowDialog.getLatestDialog()) { "the viewer opened no dialog" }
+        val decor = dialog.window!!.decorView
+        rule.runOnUiThread {
+            decor.dispatchKeyEvent(KeyEvent(0L, 0L, KeyEvent.ACTION_DOWN, keyCode, 0, meta))
+            decor.dispatchKeyEvent(KeyEvent(0L, 10L, KeyEvent.ACTION_UP, keyCode, 0, meta))
+        }
+        rule.waitForIdle()
+    }
+
+    /** A key held down: the press, [repeats] auto-repeats of it, then the release. */
+    private fun hold(keyCode: Int, repeats: Int) {
+        val dialog = checkNotNull(ShadowDialog.getLatestDialog()) { "the viewer opened no dialog" }
+        val decor = dialog.window!!.decorView
+        rule.runOnUiThread {
+            (0..repeats).forEach { n -> decor.dispatchKeyEvent(KeyEvent(0L, n * 33L, KeyEvent.ACTION_DOWN, keyCode, n)) }
+            decor.dispatchKeyEvent(KeyEvent(0L, repeats * 33L + 10, KeyEvent.ACTION_UP, keyCode, 0))
+        }
+        rule.waitForIdle()
+    }
+
+    @Test
+    fun `a held Delete, M or C acts once, not once per auto-repeat`() {
+        val harness = open()
+
+        hold(KeyEvent.KEYCODE_FORWARD_DEL, repeats = 5)
+        hold(KeyEvent.KEYCODE_M, repeats = 5)
+        hold(KeyEvent.KEYCODE_C, repeats = 5)
+
+        assertEquals(1, harness.deletes)
+        assertEquals(listOf("a.jpg"), harness.moved)
+        assertEquals(1, harness.copied.size)
+    }
+
+    @Test
+    @Requirement("REQ-AND-LAYOUT.22")
+    fun `Ctrl+Z in fullscreen runs the same undo as the card's UNDO button`() {
+        val harness = open()
+
+        pressWithMeta(KeyEvent.KEYCODE_Z, KeyEvent.META_CTRL_ON or KeyEvent.META_CTRL_LEFT_ON)
+        pressWithMeta(KeyEvent.KEYCODE_Z, KeyEvent.META_META_ON or KeyEvent.META_META_LEFT_ON)
+        press(KeyEvent.KEYCODE_Z)
+
+        assertEquals("Ctrl+Z and Cmd+Z undo, a bare Z does not", 2, harness.undos)
+    }
+
+    @Test
+    fun `a held arrow still pages once per repeat`() {
+        open()
+
+        hold(KeyEvent.KEYCODE_DPAD_RIGHT, repeats = 2)
+        settle()
+
+        assertEquals("4 / 5", position())
     }
 
     private fun settle() {
@@ -457,13 +515,14 @@ class FullscreenViewerTest {
     }
 
     @Test
-    fun `a delete's card in fullscreen keeps its draining line`() {
+    fun `a delete's card in fullscreen shows with no draining line`() {
         open {
             message = "1 image deleted"
             sequence = 1
             lifetime = SnackbarLifetime.DELETE
         }
-        assertEquals(1, rule.onAllNodesWithTag("snackbar_countdown", useUnmergedTree = true).fetchSemanticsNodes().size)
+        assertEquals(1, rule.onAllNodesWithTag("selector_snackbar", useUnmergedTree = true).fetchSemanticsNodes().size)
+        assertEquals(0, rule.onAllNodesWithTag("snackbar_countdown", useUnmergedTree = true).fetchSemanticsNodes().size)
     }
 
     // ── The list changes while the viewer is open ────────────────────────

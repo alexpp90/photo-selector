@@ -192,4 +192,16 @@ class SelectorUiStateTest {
         ImageItem("uri2", "b.jpg", 200, 2000, "image/jpeg"),
         ImageItem("uri3", "c.jpg", 300, 3000, "image/jpeg"),
     )
+
+    @Test
+    fun `filteredIndex is the 0-based twin of the 1-based filteredPosition`() {
+        fun img(n: String, rating: Int) = ImageItem(
+            uri = "content://t/$n", fileName = n, fileSize = 1, lastModified = 0, mimeType = null, rating = rating,
+        )
+        val state = SelectorUiState(images = listOf(img("a", 1), img("b", 5), img("c", 5)), currentIndex = 2)
+
+        assertEquals(3, state.filteredPosition)
+        assertEquals(2, state.filteredIndex)
+        assertEquals(0, SelectorUiState().filteredIndex)
+    }
 }

@@ -10,6 +10,7 @@ import com.photoselectortoolbox.data.repository.ImageRepository
 import dagger.hilt.android.lifecycle.HiltViewModel
 import dagger.hilt.android.qualifiers.ApplicationContext
 import javax.inject.Inject
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.async
 import kotlinx.coroutines.coroutineScope
@@ -72,6 +73,9 @@ class StatisticsViewModel @Inject constructor(
         cacheRepository = null,
         context = context,
     )
+
+    /** The dispatcher EXIF reading runs on; a test swaps it. */
+    internal var ioDispatcher: kotlinx.coroutines.CoroutineDispatcher = Dispatchers.IO
 
     private val _uiState = MutableStateFlow(StatisticsUiState())
     val uiState: StateFlow<StatisticsUiState> = _uiState.asStateFlow()
@@ -143,7 +147,7 @@ class StatisticsViewModel @Inject constructor(
                 }
 
                 val processedCount = java.util.concurrent.atomic.AtomicInteger(0)
-                val analyzedPairs = withContext(Dispatchers.IO) {
+                val analyzedPairs = withContext(ioDispatcher) {
                     coroutineScope {
                         val semaphore = Semaphore(8)
                         images.map { image ->
@@ -151,11 +155,15 @@ class StatisticsViewModel @Inject constructor(
                                 semaphore.withPermit {
                                     val exif = try {
                                         imageRepository.getExifData(context, Uri.parse(image.uri))
+                                    } catch (e: CancellationException) {
+                                        throw e
                                     } catch (e: Exception) {
                                         null
                                     }
                                     val cachedScore = try {
                                         cacheRepository?.getCachedScore(image.uri)?.sharpnessScore
+                                    } catch (e: CancellationException) {
+                                        throw e
                                     } catch (_: Exception) {
                                         null
                                     } ?: image.scanResult?.sharpnessScore
@@ -227,11 +235,13 @@ class StatisticsViewModel @Inject constructor(
                         focalLengthSharpness = sharpnessBreakdowns.byFocalLength,
                     )
                 }
+            } catch (e: CancellationException) {
+                throw e
             } catch (e: Exception) {
                 _uiState.update {
                     it.copy(
                         isLoading = false,
-                        error = "Analysis failed: ${e.message}"
+                        error = "Analysis failed"
                     )
                 }
             }

@@ -123,14 +123,20 @@ object OptimisticEdits {
 
         val activeUri = state.currentUri
         val images = state.images.toMutableList()
+        // A frame that stayed with only its original is whole again where it stands.
+        var activeFollowsRestoredShot: String? = null
 
         slots.sortedBy { it.index }.forEach { slot ->
-            if (images.none { it.uri == slot.uri }) {
+            val keptAt = slot.kept?.let { kept -> images.indexOfFirst { it.uri == kept.uri } } ?: -1
+            if (keptAt >= 0) {
+                if (images[keptAt].uri == activeUri) activeFollowsRestoredShot = slot.uri
+                images[keptAt] = slot.image
+            } else if (images.none { it.uri == slot.uri }) {
                 images.add(slot.index.coerceIn(0, images.size), slot.image)
             }
         }
 
-        val restoredActiveUri = activeUri ?: slots.minByOrNull { it.index }?.uri
+        val restoredActiveUri = activeFollowsRestoredShot ?: activeUri ?: slots.minByOrNull { it.index }?.uri
         return SelectorListState(images, state.currentIndex).focusedOn(restoredActiveUri)
     }
 }

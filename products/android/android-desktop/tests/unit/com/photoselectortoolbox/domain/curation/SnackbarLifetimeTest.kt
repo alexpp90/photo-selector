@@ -5,15 +5,14 @@ import org.junit.Assert.assertTrue
 import org.junit.Test
 
 /**
- * The snackbar's time is a promise only where the data keeps it: a deferred
- * delete. Everything else is a notice that leaves on its own.
+ * No snackbar time is a deadline: a delete's undo, like a move's, lasts until the
+ * folder is left (FD-D-1). Every card is a notice that leaves on its own.
  */
 class SnackbarLifetimeTest {
 
     @Test
-    fun `only the delete window counts down, and it is the real undo window`() {
-        assertEquals(listOf(SnackbarLifetime.DELETE), SnackbarLifetime.entries.filter { it.countsDown })
-        assertEquals(DeferredDeletion.UNDO_WINDOW_MILLIS, SnackbarLifetime.DELETE.millis)
+    fun `a delete's card lasts like a move's, because neither undo has a deadline`() {
+        assertEquals(SnackbarLifetime.MOVE.millis, SnackbarLifetime.DELETE.millis)
     }
 
     @Test
@@ -22,7 +21,7 @@ class SnackbarLifetimeTest {
         assertEquals(3_000L, SnackbarLifetime.COPY.millis)
         assertEquals(4_000L, SnackbarLifetime.NOTICE.millis)
         assertTrue(SnackbarLifetime.ERROR.millis > SnackbarLifetime.MOVE.millis)
-        SnackbarLifetime.entries.filter { !it.countsDown }.forEach {
+        SnackbarLifetime.entries.forEach {
             assertTrue("${it.name} is ${it.millis} ms", it.millis <= 10_000L)
         }
     }
@@ -35,7 +34,7 @@ class SnackbarLifetimeTest {
     }
 
     @Test
-    fun `a real deadline is never stretched, because UNDO past the commit would be a lie`() {
-        assertEquals(30_000L, SnackbarLifetime.DELETE.displayMillis { 90_000L })
+    fun `a delete's card is stretched for accessibility like every other`() {
+        assertEquals(90_000L, SnackbarLifetime.DELETE.displayMillis { 90_000L })
     }
 }

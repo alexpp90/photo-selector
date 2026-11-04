@@ -13,7 +13,6 @@ import com.photoselector.core.storage.SafTreeDisplayPath
 import com.photoselector.core.storage.SourceKind
 import com.photoselector.core.storage.SourceKindClassifier
 import com.photoselector.saf.BundleAtomicity
-import com.photoselector.saf.BundleNaming
 import com.photoselector.saf.FolderAccessManager
 import com.photoselector.saf.FolderAccessPurpose
 import com.photoselector.saf.MarkerTiming
@@ -94,54 +93,54 @@ class ImageRepositoryImpl @Inject constructor(
             syncDestination = { SourceKindClassifier.classify(it) == SourceKind.REMOVABLE },
         )
 
-        data class SafeToFormatVerdict(
+        data class SafeToFormatVerification(
             val isSafe: Boolean,
             val verifiedCount: Int,
-            val missingOrEmptyFiles: List<String>,
+            val missingOrMismatchedFiles: List<String>,
             val summaryMessage: String,
         )
 
         /**
-         * Verify that all kept filenames from a culling session are present and non-empty
-         * in the destination folder before formatting an OTG SD card (`U-33`).
+         * Verify, before an OTG SD card is formatted (`U-33`), that every kept *file* of a culling
+         * session — each bundle member, RAW twin and sidecar included, mapped to its source size —
+         * is at the destination under exactly its name with exactly that byte size.
+         *
+         * No stem fallback (FD-C-11): a kept `DSC0001.ARW` is not verified by a `DSC0001.JPG`
+         * that did arrive. A source of unknown (≤ 0) size cannot be verified. Not called by any UI
+         * yet; the requirement says so until one does.
          */
         internal fun verifySafeToFormat(
-            keptFileNames: Collection<String>,
+            keptFiles: Map<String, Long>,
             destinationFilesWithSizes: Map<String, Long>,
-        ): SafeToFormatVerdict {
-            if (keptFileNames.isEmpty()) {
-                return SafeToFormatVerdict(
+        ): SafeToFormatVerification {
+            if (keptFiles.isEmpty()) {
+                return SafeToFormatVerification(
                     isSafe = false,
                     verifiedCount = 0,
-                    missingOrEmptyFiles = emptyList(),
+                    missingOrMismatchedFiles = emptyList(),
                     summaryMessage = "No kept photos recorded in this session yet.",
                 )
             }
-            val lowerDest = destinationFilesWithSizes.entries.associate { (k, v) -> k.lowercase() to v }
             val missing = mutableListOf<String>()
             var verified = 0
-            for (name in keptFileNames) {
-                val stem = BundleNaming.extractPrimaryStem(name).lowercase()
-                val matchedSize = lowerDest[name.lowercase()]
-                    ?: lowerDest.entries.firstOrNull { (destName, _) ->
-                        BundleNaming.extractPrimaryStem(destName).lowercase() == stem
-                    }?.value
-                if (matchedSize != null && matchedSize > 0L) {
+            for ((name, sourceSize) in keptFiles) {
+                val destinationSize = destinationFilesWithSizes[name]
+                if (sourceSize > 0L && destinationSize == sourceSize) {
                     verified++
                 } else {
                     missing.add(name)
                 }
             }
-            val safe = missing.isEmpty() && verified == keptFileNames.size
+            val safe = missing.isEmpty() && verified == keptFiles.size
             val msg = if (safe) {
-                "Safe to format SD card: all $verified kept photo(s) verified on destination storage."
+                "Safe to format SD card: all $verified kept file(s) verified on destination storage."
             } else {
-                "Do NOT format SD card: ${missing.size} of ${keptFileNames.size} kept photo(s) missing or empty (${missing.take(3).joinToString()})."
+                "Do NOT format SD card: ${missing.size} of ${keptFiles.size} kept file(s) missing or of another size (${missing.take(3).joinToString()})."
             }
-            return SafeToFormatVerdict(
+            return SafeToFormatVerification(
                 isSafe = safe,
                 verifiedCount = verified,
-                missingOrEmptyFiles = missing,
+                missingOrMismatchedFiles = missing,
                 summaryMessage = msg,
             )
         }
@@ -502,9 +501,6 @@ class ImageRepositoryImpl @Inject constructor(
             }
         return false
     }
-
-    override suspend fun getImageDimensions(context: Context, uri: Uri): Pair<Int, Int> =
-        localImageSource.getImageDimensions(uri)
 
     override suspend fun resolveDimensions(
         context: Context,

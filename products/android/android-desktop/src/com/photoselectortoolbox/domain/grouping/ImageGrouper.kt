@@ -72,7 +72,7 @@ class ImageGrouper @Inject constructor(
     private val dHashCalculator = DHashCalculator()
 
     /** Per-run cache of computed dHash values, keyed by "uri:hashSize". */
-    private val dHashCache = mutableMapOf<String, Long>()
+    private val dHashCache = mutableMapOf<String, LongArray>()
 
     /**
      * Group images into sequences based on the specified grouping level.
@@ -193,7 +193,7 @@ class ImageGrouper @Inject constructor(
      * redundant bitmap decoding for consecutive pair comparisons.
      * Returns null if the image cannot be loaded.
      */
-    private fun computeImageDHash(image: ImageItem, hashSize: Int): Long? {
+    private fun computeImageDHash(image: ImageItem, hashSize: Int): LongArray? {
         val cacheKey = "${image.uri}:$hashSize"
         dHashCache[cacheKey]?.let { return it }
 

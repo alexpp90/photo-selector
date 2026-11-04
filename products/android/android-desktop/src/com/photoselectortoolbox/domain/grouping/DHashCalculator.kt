@@ -9,7 +9,11 @@ import android.graphics.Color
  * making it robust to scaling and minor modifications.
  *
  * - Fast mode (hashSize=8): 9x8 resize -> 64-bit hash
- * - Detailed mode (hashSize=16): 17x16 resize -> uses lower 64 bits of a wider hash
+ * - Detailed mode (hashSize=16): 17x16 resize -> 256-bit hash
+ *
+ * The hash holds all hashSize² bits, as the legacy desktop's `compute_dhash` does
+ * (FD-C-12): the detailed hash used to keep only the first 64 of 256 bits — the top
+ * quarter of the frame — and so saw nothing below it.
  */
 class DHashCalculator {
 
@@ -18,23 +22,24 @@ class DHashCalculator {
      *
      * The image is resized to (hashSize+1) x hashSize, converted to grayscale,
      * and a horizontal gradient is computed. Each bit represents whether a pixel
-     * is brighter than its right neighbor.
+     * is brighter than its right neighbor; bit `i` (row-major) is bit `i % 64`
+     * of word `i / 64`.
      *
      * @param bitmap The image to hash.
      * @param hashSize 8 for fast comparison, 16 for detailed comparison.
-     * @return A Long hash value encoding the gradient pattern.
+     * @return hashSize² bits packed into `ceil(hashSize² / 64)` words.
      */
-    fun computeDHash(bitmap: Bitmap, hashSize: Int = 8): Long {
+    fun computeDHash(bitmap: Bitmap, hashSize: Int = 8): LongArray {
         val width = hashSize + 1
         val height = hashSize
+        val bits = hashSize * hashSize
+        val hash = LongArray((bits + 63) / 64)
 
         // Resize to (hashSize+1) x hashSize
         val resized = Bitmap.createScaledBitmap(bitmap, width, height, true)
 
         try {
-            var hash = 0L
             var bitPosition = 0
-
             for (y in 0 until height) {
                 for (x in 0 until hashSize) {
                     // Compare each pixel with its right neighbor
@@ -42,19 +47,11 @@ class DHashCalculator {
                     val rightLuminance = luminance(resized.getPixel(x + 1, y))
 
                     if (leftLuminance > rightLuminance) {
-                        hash = hash or (1L shl bitPosition)
+                        hash[bitPosition / 64] = hash[bitPosition / 64] or (1L shl (bitPosition % 64))
                     }
-
                     bitPosition++
-
-                    // Long only holds 64 bits; for hashSize=16 (256 bits needed),
-                    // we use the first 64 bits which still provides good discrimination
-                    if (bitPosition >= 64) {
-                        return hash
-                    }
                 }
             }
-
             return hash
         } finally {
             if (resized !== bitmap) {
@@ -64,16 +61,18 @@ class DHashCalculator {
     }
 
     /**
-     * Compute the Hamming distance between two hashes.
-     * This is the number of bit positions where the hashes differ.
-     *
-     * @param hash1 First hash value.
-     * @param hash2 Second hash value.
-     * @return Number of differing bits (0 = identical, 64 = maximally different).
+     * Compute the Hamming distance between two hashes of the same size: the number of
+     * bit positions where they differ (0 = identical, hashSize² = maximally different).
      */
-    fun hammingDistance(hash1: Long, hash2: Long): Int {
-        return (hash1 xor hash2).countOneBits()
+    fun hammingDistance(hash1: LongArray, hash2: LongArray): Int {
+        require(hash1.size == hash2.size) { "hashes of different sizes" }
+        var distance = 0
+        for (i in hash1.indices) distance += (hash1[i] xor hash2[i]).countOneBits()
+        return distance
     }
+
+    /** The Hamming distance of two 64-bit words. */
+    fun hammingDistance(hash1: Long, hash2: Long): Int = (hash1 xor hash2).countOneBits()
 
     /**
      * Convert an ARGB pixel to grayscale luminance using the standard

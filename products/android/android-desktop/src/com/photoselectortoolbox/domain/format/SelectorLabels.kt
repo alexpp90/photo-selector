@@ -86,7 +86,7 @@ object SelectorLabels {
         providerLabel: String? = null,
     ): String {
         val base = "Delete \"$fileName\"? Deletions in this folder are permanent once committed. " +
-            "You can undo up to 20 actions with Ctrl+Z before leaving the folder."
+            "You can undo up to 20 actions with Ctrl+Z $DELETE_UNDO_SCOPE."
         return if (isCloudProvider) {
             val provider = providerLabel?.takeIf { it.isNotBlank() } ?: "a cloud provider"
             "$base Warning: This folder is backed by $provider — deleting here may permanently remove the photo across all synced devices."
@@ -119,8 +119,39 @@ object SelectorLabels {
     fun scanCompleteMessage(count: Int): String = "Scan complete · $count images analysed"
 
     /** Snackbar text when a rating was kept in the app but could not be written to the photo's file or sidecar. */
+    /**
+     * How long a delete can be taken back: until the folder is left (or 20 newer actions push it
+     * off the undo stack). There is no timer (FD-D-1); the dialog and the hint say the same
+     * thing through this one phrase.
+     */
+    const val DELETE_UNDO_SCOPE = "until you leave the folder"
+
+    /** A bundle delete that removed some of its files and not others (FD-D-16). */
+    fun partialDeleteMessage(fileName: String, deletedCount: Int, totalCount: Int): String =
+        "Deleted $deletedCount of $totalCount files of $fileName"
+
     fun ratingNotWrittenMessage(fileName: String, reason: String?): String =
         "Rating kept in the app only — not saved to $fileName" + if (reason.isNullOrBlank()) "" else " ($reason)"
+
+    /**
+     * What a folder open did with the backups of interrupted JPEG rating writes (FD-D-11), or null
+     * when there were none. [kept] pairs a photo with the backup left beside it.
+     */
+    fun ratingRecoveryMessage(restored: List<String>, kept: List<Pair<String, String>>): String? {
+        val parts = buildList {
+            when (restored.size) {
+                0 -> Unit
+                1 -> add("Restored ${restored[0]} from its backup after an interrupted rating write")
+                else -> add("Restored ${restored.size} photos from their backups after an interrupted rating write")
+            }
+            when (kept.size) {
+                0 -> Unit
+                1 -> add("Backup of ${kept[0].first} kept as ${kept[0].second} — check the photo, then delete the backup")
+                else -> add("${kept.size} rating backups kept (*.frameduel-backup) — check the photos, then delete the backups")
+            }
+        }
+        return parts.takeIf { it.isNotEmpty() }?.joinToString(". ")
+    }
 
     // ── Sort order and "Go to photo" ─────────────────────────────────────
 

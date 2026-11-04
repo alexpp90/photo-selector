@@ -1,5 +1,6 @@
 package com.photoselectortoolbox.ui.selector
 
+import com.photoselectortoolbox.ui.components.handCursor
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.core.tween
 import androidx.compose.animation.fadeIn
@@ -146,6 +147,7 @@ fun SelectorCoachOverlay(
                 // A scrim, not an opaque sheet: the controls being explained stay
                 // visible underneath, which is the whole point of a coach mark.
                 .background(StudioCanvas.copy(alpha = 0.85f))
+                .handCursor()
                 .clickable(
                     indication = null,
                     interactionSource = remember { MutableInteractionSource() },

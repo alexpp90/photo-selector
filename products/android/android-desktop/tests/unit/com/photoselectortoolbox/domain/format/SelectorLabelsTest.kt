@@ -88,7 +88,7 @@ class SelectorLabelsTest {
     fun `delete confirmation message states permanent commit and 20-step Ctrl+Z undo`() {
         val msg = SelectorLabels.deleteConfirmationMessage("DSC001.JPG")
         assertEquals(
-            "Delete \"DSC001.JPG\"? Deletions in this folder are permanent once committed. You can undo up to 20 actions with Ctrl+Z before leaving the folder.",
+            "Delete \"DSC001.JPG\"? Deletions in this folder are permanent once committed. You can undo up to 20 actions with Ctrl+Z until you leave the folder.",
             msg,
         )
     }

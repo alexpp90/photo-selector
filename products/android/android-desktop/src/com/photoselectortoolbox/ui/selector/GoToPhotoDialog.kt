@@ -1,6 +1,7 @@
 package com.photoselectortoolbox.ui.selector
 
 import androidx.compose.foundation.layout.Column
+import com.photoselectortoolbox.ui.components.handCursor
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.rememberScrollState
@@ -226,17 +227,17 @@ internal fun GoToPhotoDialog(
         },
         confirmButton = {
             if (picking) {
-                TextButton(onClick = { picking = false }, modifier = Modifier.testTag("go_to_photo_back")) {
+                TextButton(onClick = { picking = false }, modifier = Modifier.testTag("go_to_photo_back").handCursor()) {
                     Text(SelectorLabels.GO_TO_PHOTO_BACK)
                 }
             } else {
-                TextButton(onClick = submit, modifier = Modifier.testTag("go_to_photo_go")) {
+                TextButton(onClick = submit, modifier = Modifier.testTag("go_to_photo_go").handCursor()) {
                     Text(SelectorLabels.GO_TO_PHOTO_GO)
                 }
             }
         },
         dismissButton = {
-            TextButton(onClick = onDismiss, modifier = Modifier.testTag("go_to_photo_cancel")) {
+            TextButton(onClick = onDismiss, modifier = Modifier.testTag("go_to_photo_cancel").handCursor()) {
                 Text(SelectorLabels.GO_TO_PHOTO_CANCEL)
             }
         },

@@ -1,5 +1,7 @@
 package com.photoselectortoolbox.ui.selector
 
+import com.photoselectortoolbox.ui.components.handCursor
+import androidx.compose.ui.semantics.Role
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
@@ -57,11 +59,11 @@ import com.photoselectortoolbox.domain.format.SelectionActionLabels
 import com.photoselectortoolbox.domain.interaction.FilingAction
 import com.photoselectortoolbox.ui.components.MetadataPanel
 import com.photoselectortoolbox.ui.components.ScoreChipRow
+import com.photoselectortoolbox.ui.theme.HintText
 import com.photoselectortoolbox.ui.theme.BrandAccentTonal
 import com.photoselectortoolbox.ui.theme.ScoreBad
 import com.photoselectortoolbox.ui.theme.ScoreGood
 import com.photoselectortoolbox.ui.theme.Zinc50
-import com.photoselectortoolbox.ui.theme.Zinc700
 import com.photoselectortoolbox.ui.theme.Zinc900
 import com.photoselectortoolbox.ui.theme.Zinc950
 import com.photoselectortoolbox.viewmodel.SelectorUiState
@@ -174,7 +176,7 @@ fun CompactSelectorLayout(
                     onClick = onFullscreen,
                     modifier = Modifier
                         .align(Alignment.TopEnd)
-                        .padding(8.dp),
+                        .padding(8.dp).handCursor(),
                 ) {
                     Icon(
                         imageVector = Icons.Default.Fullscreen,
@@ -286,6 +288,7 @@ private fun GestureTutorialOverlay(
         modifier = Modifier
             .fillMaxSize()
             .background(Color.Black.copy(alpha = 0.75f))
+            .handCursor()
             .clickable { onDismiss() }
             .testTag("gesture_tutorial_overlay"),
         contentAlignment = Alignment.Center,
@@ -374,7 +377,8 @@ private fun CompactActionButton(
                 if (label.isPrimary) BrandAccentTonal else Color.Transparent,
                 RoundedCornerShape(8.dp),
             )
-            .clickable(onClick = onClick)
+            .handCursor()
+            .clickable(onClick = onClick, role = Role.Button)
             .semantics { contentDescription = label.accessibilityLabel }
             .padding(horizontal = 10.dp),
         horizontalArrangement = Arrangement.spacedBy(6.dp, Alignment.CenterHorizontally),
@@ -391,7 +395,7 @@ private fun CompactActionButton(
             text = label.shortcut,
             fontSize = 11.sp,
             fontFamily = FontFamily.Monospace,
-            color = Zinc700,
+            color = HintText,
         )
     }
 }
@@ -405,7 +409,8 @@ private fun CompactDeleteButton(
     Row(
         modifier = modifier
             .height(52.dp)
-            .clickable(onClick = onClick)
+            .handCursor()
+            .clickable(onClick = onClick, role = Role.Button)
             .semantics { contentDescription = "Delete this photo" }
             .padding(horizontal = 10.dp),
         horizontalArrangement = Arrangement.spacedBy(6.dp, Alignment.CenterHorizontally),

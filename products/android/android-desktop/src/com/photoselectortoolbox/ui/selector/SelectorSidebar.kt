@@ -1,5 +1,6 @@
 package com.photoselectortoolbox.ui.selector
 
+import androidx.compose.ui.semantics.Role
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.hoverable
@@ -312,7 +313,7 @@ private fun SidebarItem(
                 if (enabled) {
                     Modifier
                         .pointerHoverIcon(PointerIcon.Hand)
-                        .clickable(onClick = onClick)
+                        .clickable(onClick = onClick, role = Role.Button)
                 } else {
                     Modifier
                 }
@@ -366,7 +367,7 @@ private fun BusyItem(
             .clip(RoundedCornerShape(8.dp))
             .background(BrandAccentTonal)
             .pointerHoverIcon(PointerIcon.Hand)
-            .clickable(onClick = onCancel)
+            .clickable(onClick = onCancel, role = Role.Button)
             .semantics { contentDescription = description }
             .testTag(testTag)
             .padding(horizontal = 4.dp),

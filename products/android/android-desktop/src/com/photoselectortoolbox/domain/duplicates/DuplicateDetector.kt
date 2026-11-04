@@ -151,7 +151,10 @@ class DuplicateDetector @Inject constructor() {
         withContext(Dispatchers.IO) {
             try {
                 val digest = MessageDigest.getInstance(HASH_ALGORITHM)
-                context.contentResolver.openInputStream(uri)?.use { inputStream ->
+                // A stream that does not open is an unreadable file, not an empty one: hashing
+                // nothing would make every unreadable file of a size a "duplicate" (FD-D-17).
+                val stream = context.contentResolver.openInputStream(uri) ?: return@withContext null
+                stream.use { inputStream ->
                     val digestStream = DigestInputStream(inputStream, digest)
                     val buffer = ByteArray(BUFFER_SIZE)
                     @Suppress("ControlFlowWithEmptyBody")

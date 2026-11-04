@@ -97,8 +97,8 @@ class Phase5and6EnhancementsTest {
     // --- U-33: Safe to Format Verification ---
 
     @Test
-    fun `verifySafeToFormat succeeds when all expected files exist and are non-empty`() {
-        val kept = listOf("DSC0001.ARW", "DSC0002.JPG")
+    fun `verifySafeToFormat succeeds only when every kept file arrived with its exact size`() {
+        val kept = mapOf("DSC0001.ARW" to 24_000_000L, "DSC0002.JPG" to 8_500_000L)
         val matchingActual = mapOf(
             "DSC0001.ARW" to 24_000_000L,
             "DSC0002.JPG" to 8_500_000L,
@@ -107,15 +107,27 @@ class Phase5and6EnhancementsTest {
         val okResult = ImageRepositoryImpl.verifySafeToFormat(kept, matchingActual)
         assertTrue(okResult.isSafe)
         assertEquals(2, okResult.verifiedCount)
-        assertTrue(okResult.missingOrEmptyFiles.isEmpty())
+        assertTrue(okResult.missingOrMismatchedFiles.isEmpty())
 
-        val missingActual = mapOf(
-            "DSC0001.ARW" to 24_000_000L,
-            "DSC0002.JPG" to 0L, // 0-byte failed copy
-        )
-        val badResult = ImageRepositoryImpl.verifySafeToFormat(kept, missingActual)
+        val emptyCopy = mapOf("DSC0001.ARW" to 24_000_000L, "DSC0002.JPG" to 0L)
+        val badResult = ImageRepositoryImpl.verifySafeToFormat(kept, emptyCopy)
         assertFalse(badResult.isSafe)
-        assertEquals(listOf("DSC0002.JPG"), badResult.missingOrEmptyFiles)
+        assertEquals(listOf("DSC0002.JPG"), badResult.missingOrMismatchedFiles)
+
+        // A copy cut short is not the file (FD-C-11): only equal sizes verify.
+        val shortCopy = mapOf("DSC0001.ARW" to 23_999_999L, "DSC0002.JPG" to 8_500_000L)
+        assertEquals(listOf("DSC0001.ARW"), ImageRepositoryImpl.verifySafeToFormat(kept, shortCopy).missingOrMismatchedFiles)
+    }
+
+    @Test
+    fun `verifySafeToFormat does not count a kept RAW as safe when only its JPEG arrived`() {
+        val kept = mapOf("DSC0001.ARW" to 24_000_000L, "DSC0001.JPG" to 8_000_000L)
+        val onlyJpeg = mapOf("DSC0001.JPG" to 8_000_000L)
+
+        val result = ImageRepositoryImpl.verifySafeToFormat(kept, onlyJpeg)
+
+        assertFalse(result.isSafe)
+        assertEquals(listOf("DSC0001.ARW"), result.missingOrMismatchedFiles)
     }
 
     // --- U-34: Worst-First Reject Triage ---

@@ -1,5 +1,9 @@
 package com.photoselectortoolbox.ui.selector
 
+import androidx.compose.runtime.key
+import androidx.compose.ui.semantics.liveRegion
+import androidx.compose.ui.semantics.LiveRegionMode
+import androidx.compose.ui.semantics.Role
 import android.content.Context
 import android.os.Build
 import android.view.accessibility.AccessibilityManager
@@ -40,10 +44,8 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
-import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
@@ -51,8 +53,6 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.TransformOrigin
-import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.input.pointer.PointerIcon
 import androidx.compose.ui.input.pointer.pointerHoverIcon
@@ -66,11 +66,10 @@ import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.DpSize
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import com.photoselectortoolbox.domain.curation.DeferredDeletion
 import com.photoselectortoolbox.domain.curation.SnackbarLifetime
 import com.photoselectortoolbox.domain.format.SelectionActionLabels
 import com.photoselectortoolbox.domain.interaction.FilingAction
-import com.photoselectortoolbox.ui.theme.BrandAccent
+import com.photoselectortoolbox.ui.theme.HintText
 import com.photoselectortoolbox.ui.theme.BrandAccentText
 import com.photoselectortoolbox.ui.theme.ScoreBad
 import com.photoselectortoolbox.ui.theme.StudioBorder
@@ -78,7 +77,6 @@ import com.photoselectortoolbox.ui.theme.StudioCard
 import com.photoselectortoolbox.ui.theme.StudioPanel
 import com.photoselectortoolbox.ui.theme.Zinc400
 import com.photoselectortoolbox.ui.theme.Zinc50
-import com.photoselectortoolbox.ui.theme.Zinc500
 import kotlinx.coroutines.delay
 
 /**
@@ -181,7 +179,7 @@ private fun ContextMenuRow(
             .height(48.dp)
             .clip(RoundedCornerShape(6.dp))
             .pointerHoverIcon(PointerIcon.Hand)
-            .clickable(onClick = onClick)
+            .clickable(onClick = onClick, role = Role.Button)
             .padding(horizontal = 10.dp),
         horizontalArrangement = Arrangement.spacedBy(10.dp),
         verticalAlignment = Alignment.CenterVertically,
@@ -203,7 +201,7 @@ private fun ContextMenuRow(
                 text = keyHint,
                 fontSize = 10.sp,
                 fontFamily = FontFamily.Monospace,
-                color = Zinc500,
+                color = HintText,
             )
         }
     }
@@ -263,7 +261,7 @@ fun FirstRunNavigationHint(
                     .size(PillDismissHitSize)
                     .clip(RoundedCornerShape(999.dp))
                     .pointerHoverIcon(PointerIcon.Hand)
-                    .clickable(onClick = onDismiss)
+                    .clickable(onClick = onDismiss, role = Role.Button)
                     .testTag("first_run_hint_dismiss"),
                 contentAlignment = Alignment.Center,
             ) {
@@ -286,18 +284,12 @@ private val PillDismissHitSize = DpSize(56.dp, 48.dp)
 // ── Undo snackbar ───────────────────────────────────────────────────────────
 
 /**
- * Confirmation of an action. Only a message whose time is a real deadline draws
- * the line draining under the card.
+ * Confirmation of an action: a plain card that leaves after 3–7 s ([lifetime],
+ * decided by the ViewModel together with the message).
  *
- * What the line used to say was "you have 30 seconds", under every message. That
- * is true for a deferred delete (the files are removed for real when the window
- * closes) and false for everything else: a move's undo never expires (the
- * 20-deep stack, `Ctrl+Z`), a copy has none, a scan notice has nothing to take
- * back. So [lifetime] — decided by the ViewModel together with the message —
- * says which it is: [SnackbarLifetime.DELETE] counts down over
- * [DeferredDeletion.UNDO_WINDOW_MILLIS], the same constant the stack's commit
- * window uses (two copies of that number is a countdown that lies), and the
- * rest are a plain card that leaves after 3–7 s.
+ * No card draws a countdown. A delete's or a move's undo lasts until the folder
+ * is left (the 20-deep stack, `Ctrl+Z`), so a draining line under it promised a
+ * deadline that does not exist (FD-D-1).
  *
  * The timer is keyed on [sequence], never on the text: two consecutive moves
  * produce the same sentence, and a timer keyed on it never restarted for the
@@ -320,35 +312,21 @@ fun SelectorSnackbar(
     val context = LocalContext.current
     val latestOnDismiss by rememberUpdatedState(onDismiss)
 
-    // Driven from wall-clock time rather than an animation, because the line has
-    // to agree with a timer that is *also* wall-clock: the deletion is committed
-    // 30 real seconds after it was requested. A frame-clock animation would drift
-    // from that under any clock manipulation and, in an instrumented test, would
-    // be fast-forwarded to zero the moment the harness waited for idle —
-    // dismissing the snackbar before the UNDO could be pressed.
-    val remaining = remember(sequence) { mutableFloatStateOf(1f) }
     LaunchedEffect(sequence, lifetime) {
-        val shownFor = lifetime.displayMillis { ms -> recommendedTimeoutMillis(context, ms) }
-        if (lifetime.countsDown) {
-            val startedAt = System.currentTimeMillis()
-            while (true) {
-                val left = shownFor - (System.currentTimeMillis() - startedAt)
-                remaining.floatValue = (left.toFloat() / shownFor).coerceIn(0f, 1f)
-                if (left <= 0L) break
-                delay(COUNTDOWN_TICK_MILLIS)
-            }
-        } else {
-            delay(shownFor)
-        }
+        delay(lifetime.displayMillis { ms -> recommendedTimeoutMillis(context, ms) })
         latestOnDismiss()
     }
 
+    // A live region, keyed on the sequence: a screen reader announces the outcome of a move,
+    // a copy or a delete when the card appears, and again for a second identical message.
+    key(sequence) {
     Column(
         modifier = modifier
             .widthIn(min = SnackbarMinWidth, max = SnackbarMaxWidth)
             .clip(RoundedCornerShape(10.dp))
             .background(StudioCard)
             .border(1.dp, StudioBorder, RoundedCornerShape(10.dp))
+            .semantics { liveRegion = LiveRegionMode.Polite }
             .testTag("selector_snackbar"),
     ) {
         Row(
@@ -377,29 +355,12 @@ fun SelectorSnackbar(
                         // A 48 dp hit target around the 12 sp word (AD-17).
                         .defaultMinSize(minWidth = 48.dp, minHeight = 48.dp)
                         .pointerHoverIcon(PointerIcon.Hand)
-                        .clickable { onUndo(); latestOnDismiss() }
+                        .clickable(role = Role.Button) { onUndo(); latestOnDismiss() }
                         .wrapContentSize(Alignment.Center),
                 )
             }
         }
-        if (lifetime.countsDown) {
-            // The line drains left to right over the undo window, so "how long
-            // have I got" is answerable at a glance rather than by counting. The
-            // fraction is read inside `graphicsLayer`, which defers it to the
-            // draw phase — 300 ticks over the window cost 300 draws of a 2 dp
-            // bar and zero recompositions of the snackbar around it.
-            Box(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .height(2.dp)
-                    .graphicsLayer {
-                        scaleX = remaining.floatValue
-                        transformOrigin = TransformOrigin(0f, 0.5f)
-                    }
-                    .background(BrandAccent)
-                    .testTag("snackbar_countdown"),
-            )
-        }
+    }
     }
 }
 
@@ -456,6 +417,3 @@ fun SelectorSnackbarHost(
         )
     }
 }
-
-/** How often the countdown line is redrawn (a deferred delete only). Fine enough to read as continuous. */
-private const val COUNTDOWN_TICK_MILLIS = 100L

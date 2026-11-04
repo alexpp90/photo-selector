@@ -21,6 +21,7 @@ import dagger.hilt.android.lifecycle.HiltViewModel
 import dagger.hilt.android.qualifiers.ApplicationContext
 import javax.inject.Inject
 import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -120,7 +121,7 @@ class SettingsViewModel @Inject constructor(
 
     init {
         viewModelScope.launch {
-            combine<Any, SettingsUiState>(
+            combine<Any, (SettingsUiState) -> SettingsUiState>(
                 settingsRepository.selectionFolderName,
                 settingsRepository.sortingEnabled,
                 settingsRepository.groupingEnabled,
@@ -129,44 +130,26 @@ class SettingsViewModel @Inject constructor(
                 settingsRepository.fullscreenButtonsEnabled,
                 settingsRepository.filingAction
             ) { arrays ->
-                val current = _uiState.value
-                current.copy(
-                    selectionFolderName = arrays[0] as String,
-                    sortingEnabled = arrays[1] as Boolean,
-                    groupingEnabled = arrays[2] as Boolean,
-                    groupingLevel = arrays[3] as GroupingLevel,
-                    analysisThreadCount = arrays[4] as Int,
-                    fullscreenButtonsEnabled = arrays[5] as Boolean,
-                    filingAction = arrays[6] as FilingAction,
-                )
-            }.collect { newState ->
-                _uiState.update { newState }
+                { current: SettingsUiState ->
+                    current.copy(
+                        selectionFolderName = arrays[0] as String,
+                        sortingEnabled = arrays[1] as Boolean,
+                        groupingEnabled = arrays[2] as Boolean,
+                        groupingLevel = arrays[3] as GroupingLevel,
+                        analysisThreadCount = arrays[4] as Int,
+                        fullscreenButtonsEnabled = arrays[5] as Boolean,
+                        filingAction = arrays[6] as FilingAction,
+                    )
+                }
+            }.collect { apply ->
+                // Applied to the state as it is now: a count refreshed meanwhile is not overwritten.
+                _uiState.update(apply)
             }
         }
 
-        viewModelScope.launch {
-            runCatching {
-                settingsRepository.secondarySelectionFolderName.collect { name ->
-                    _uiState.update { it.copy(secondarySelectionFolderName = name) }
-                }
-            }
-        }
-
-        viewModelScope.launch {
-            runCatching {
-                settingsRepository.customSelectionDestinationUri.collect { uri ->
-                    _uiState.update { it.copy(customSelectionDestinationUri = uri) }
-                }
-            }
-        }
-
-        viewModelScope.launch {
-            runCatching {
-                settingsRepository.tvDisplayScaleEnabled.collect { enabled ->
-                    _uiState.update { it.copy(tvDisplayScaleEnabled = enabled) }
-                }
-            }
-        }
+        collectInto(settingsRepository.secondarySelectionFolderName) { name -> copy(secondarySelectionFolderName = name) }
+        collectInto(settingsRepository.customSelectionDestinationUri) { uri -> copy(customSelectionDestinationUri = uri) }
+        collectInto(settingsRepository.tvDisplayScaleEnabled) { enabled -> copy(tvDisplayScaleEnabled = enabled) }
 
         viewModelScope.launch { collectDestination() }
 
@@ -244,6 +227,22 @@ class SettingsViewModel @Inject constructor(
         destinationRefresh.update { it + 1 }
     }
 
+    /**
+     * Fold every value of [flow] into the state. A failing flow ends only its own field; the
+     * scope's own cancellation is never swallowed.
+     */
+    private fun <T> collectInto(flow: Flow<T>, fold: SettingsUiState.(T) -> SettingsUiState) {
+        viewModelScope.launch {
+            try {
+                flow.collect { value -> _uiState.update { it.fold(value) } }
+            } catch (e: CancellationException) {
+                throw e
+            } catch (e: Exception) {
+                // A setting that cannot be read keeps its default; the screen still works.
+            }
+        }
+    }
+
     fun updateSelectionFolder(name: String) {
         val trimmed = name.trim()
         if (trimmed.isEmpty()) return
@@ -291,6 +290,8 @@ class SettingsViewModel @Inject constructor(
             try {
                 cacheRepository.clearAll()
                 _uiState.update { it.copy(cachedScoreCount = 0) }
+            } catch (e: CancellationException) {
+                throw e
             } catch (e: Exception) {
                 // Cache clear failure is non-critical
             }
@@ -325,11 +326,10 @@ class SettingsViewModel @Inject constructor(
         viewModelScope.launch {
             try {
                 cacheRepository.pruneToLimit()
-                // CacheRepository does not expose a count method directly,
-                // so we note a zero count initially. The UI can refresh this
-                // by calling refreshCachedScoreCount() when the settings screen
-                // becomes visible.
-                _uiState.update { it.copy(cachedScoreCount = 0) }
+                val stored = cacheRepository.count()
+                _uiState.update { it.copy(cachedScoreCount = stored) }
+            } catch (e: CancellationException) {
+                throw e
             } catch (e: Exception) {
                 // Non-critical
             }

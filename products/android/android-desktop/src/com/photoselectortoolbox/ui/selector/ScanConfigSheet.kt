@@ -1,5 +1,6 @@
 package com.photoselectortoolbox.ui.selector
 
+import com.photoselectortoolbox.ui.components.handCursor
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -76,6 +77,7 @@ fun ScanConfigSheet(
             },
             confirmButton = {
                 Button(
+                    modifier = Modifier.handCursor(),
                     onClick = { onStartScan(config) },
                     enabled = config.sharpness || config.noise ||
                         config.highlightClipping || config.shadowClipping,
@@ -88,7 +90,7 @@ fun ScanConfigSheet(
                 }
             },
             dismissButton = {
-                TextButton(onClick = onDismiss) {
+                TextButton(modifier = Modifier.handCursor(), onClick = onDismiss) {
                     Text("Cancel")
                 }
             },
@@ -128,7 +130,7 @@ fun ScanConfigSheet(
 
                 Button(
                     onClick = { onStartScan(config) },
-                    modifier = Modifier.fillMaxWidth(),
+                    modifier = Modifier.fillMaxWidth().handCursor(),
                     enabled = config.sharpness || config.noise ||
                         config.highlightClipping || config.shadowClipping,
                     colors = ButtonDefaults.buttonColors(
@@ -198,6 +200,7 @@ private fun AnalysisCheckbox(
     Row(
         modifier = Modifier
             .fillMaxWidth()
+            .handCursor()
             .selectable(
                 selected = checked,
                 onClick = { onCheckedChange(!checked) },
@@ -207,6 +210,7 @@ private fun AnalysisCheckbox(
         verticalAlignment = Alignment.CenterVertically,
     ) {
         Checkbox(
+            modifier = Modifier.handCursor(),
             checked = checked,
             onCheckedChange = null, // handled by row click
             colors = CheckboxDefaults.colors(

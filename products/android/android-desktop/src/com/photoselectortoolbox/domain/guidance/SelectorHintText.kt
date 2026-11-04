@@ -1,7 +1,7 @@
 package com.photoselectortoolbox.domain.guidance
 
-import com.photoselectortoolbox.domain.curation.DeferredDeletion
 import com.photoselectortoolbox.domain.format.DestinationLabels
+import com.photoselectortoolbox.domain.format.SelectorLabels
 import com.photoselectortoolbox.domain.format.SelectionActionLabels
 import com.photoselectortoolbox.domain.interaction.FilingAction
 import com.photoselectortoolbox.domain.interaction.SelectorShortcut
@@ -20,7 +20,7 @@ import com.photoselectortoolbox.domain.interaction.SelectorShortcut
  * Two rules hold every string here together:
  *
  * 1. **Nothing is a constant that depends on a setting.** The filing verb, the
- *    destination folder, whether RAW and JPEG are sorted, the undo window and
+ *    destination folder, whether RAW and JPEG are sorted, how long an undo lasts and
  *    every key name are read from the configuration or from the binding
  *    declaration. A hint that says "moved" under a copy configuration is the
  *    same defect as a shortcut sheet that advertises an unbound key.
@@ -33,9 +33,6 @@ import com.photoselectortoolbox.domain.interaction.SelectorShortcut
  * Kept free of Compose and Android types so all of it is unit-testable.
  */
 object SelectorHintText {
-
-    /** The undo window, stated in the same seconds the countdown line drains. */
-    private val UNDO_WINDOW_SECONDS = DeferredDeletion.UNDO_WINDOW_MILLIS / 1000
 
     /**
      * The heading of the explanation.
@@ -53,7 +50,7 @@ object SelectorHintText {
         customFolderName: String? = null,
     ): String = when (hint) {
         SelectorHint.FILING -> SelectionActionLabels.confirmation(filingAction, selectionFolderName, customFolderName)
-        SelectorHint.DELETE_UNDO -> "Deleted — for $UNDO_WINDOW_SECONDS seconds"
+        SelectorHint.DELETE_UNDO -> "Deleted — undo ${SelectorLabels.DELETE_UNDO_SCOPE}"
         SelectorHint.MAXIMISE -> "One frame, full size"
         SelectorHint.SCORES -> "Scores are on the frames"
         SelectorHint.TOUR -> "The selector"
@@ -96,8 +93,8 @@ object SelectorHintText {
         }
 
         SelectorHint.DELETE_UNDO ->
-            "Nothing has been written to disk yet. UNDO in the bar at the bottom puts the " +
-                "frame back for $UNDO_WINDOW_SECONDS seconds; after that it is deleted for real."
+            "Nothing has been written to disk yet. Ctrl+Z or UNDO puts the frame back " +
+                "${SelectorLabels.DELETE_UNDO_SCOPE}; then it is deleted for real."
 
         SelectorHint.MAXIMISE ->
             "${SelectorShortcut.ESCAPE.input}, or the same number again, returns to comparing " +

@@ -147,8 +147,9 @@ When a hardware keyboard is detected, the same shortcuts as desktop apply:
 |-----|--------|
 | ← / → | Previous / Next image |
 | Delete / Backspace | Delete (with confirmation) |
-| M | Move to Selection |
+| M | Move to Selection (a held key acts once) |
 | C | Copy to Selection |
+| Ctrl+Z / Cmd+Z | Undo the latest delete or move (also in fullscreen) |
 | Escape | Exit fullscreen / comparison mode |
 | I | Fullscreen: pin / unpin the info panel |
 | F | Enter fullscreen viewer |
@@ -171,11 +172,11 @@ When a hardware keyboard is detected, the same shortcuts as desktop apply:
 
 ### 7.4 Progress & Status
 - **Desktop:** Log tab with scrollable text output
-- **Android:** Compact progress bar in app bar + expandable notification for background scans via WorkManager. Minimal log view accessible via "Details" expansion.
+- **Android:** Compact progress bar in the app bar while a scan runs. Scans run in the app only; there are no background scans and no WorkManager (the dependency was removed).
 
 ### 7.5 Delete Confirmation
 - **Desktop:** Dialog with second Delete keypress to confirm
-- **Android:** Snackbar with "Undo" (30s timeout, drawn as a draining line — the only snackbar with a real deadline; a move's card is ≈ 4 s with Undo and no line, a copy's ≈ 3 s, and `Ctrl+Z` still undoes a move afterwards) for single deletes on Tablet/DeX; Dialog confirmation for batch deletes. On the Jackpix, swiping left triggers a non-blocking temporary deletion where the image is immediately hidden from the viewer and a "Revert Deletion" button is shown. Navigating away from the image or leaving the viewer finalizes the deletion on disk. Leverages Android's trash/recycle via MediaStore `createTrashRequest()` on Android 11+.
+- **Android:** A confirmation card with "Undo" for a delete or move (about 4 s, no countdown: nothing has a deadline; a copy's card is ≈ 3 s and has no Undo). A delete leaves the list at once and the files go when the folder is left; `Ctrl+Z` (also in fullscreen) steps back through the last 20 deletes and moves until then. The first delete in a folder on a provider without a trash asks once with a dialog. Delete on a frame led by an `-Edit` removes the edit and its own sidecars only. On the Jackpix, swiping left triggers a non-blocking temporary deletion where the image is immediately hidden from the viewer and a "Revert Deletion" button is shown (a separate product).
 
 ### 7.6 Settings
 - **Desktop:** Embedded in scan config dialog + Help menu
@@ -199,10 +200,12 @@ val analysisWorkers = minOf(4, Runtime.getRuntime().availableProcessors())
 - Release `Mat` objects immediately after OpenCV operations
 
 ### 8.3 Battery-Aware Scanning
+
+Not implemented: nothing in the product reads the battery state. The plan was:
+
 - Monitor `BatteryManager.EXTRA_STATUS` during long scans
 - Reduce worker thread count when battery < 20%
 - Pause scan and notify user when battery < 10%
-- Use `WorkManager` with battery-not-low constraint for background scans
 
 ### 8.4 Memory Management
 - Coil handles display image caching with configurable memory/disk limits

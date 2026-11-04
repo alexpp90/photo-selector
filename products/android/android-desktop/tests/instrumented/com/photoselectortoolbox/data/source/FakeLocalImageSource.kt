@@ -14,10 +14,6 @@ class FakeLocalImageSource @Inject constructor() : LocalImageSource {
         return flowOf(emptyList())
     }
 
-    override suspend fun getImageDimensions(uri: Uri): Pair<Int, Int> {
-        return Pair(0, 0)
-    }
-
     override suspend fun resolveDimensions(
         uris: Collection<String>,
     ): Map<String, ImageDimensions> = uris.associateWith { ImageDimensions.UNKNOWN }

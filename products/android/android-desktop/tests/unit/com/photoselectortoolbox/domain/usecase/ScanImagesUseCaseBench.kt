@@ -59,6 +59,8 @@ class ScanImagesUseCaseBench {
                 lastAccessTime = 0L
             )}
         coEvery { scoreDao.updateAccessTimes(any(), any()) } returns Unit
+        coEvery { scoreDao.getCount() } returns 0
+        coEvery { scoreDao.deleteTechniqueFactsWithoutScore() } returns Unit
         images.forEach { image ->
             coEvery { scoreDao.getScore(image.uri) } returns ScoreEntity(
                 filePath = image.uri,

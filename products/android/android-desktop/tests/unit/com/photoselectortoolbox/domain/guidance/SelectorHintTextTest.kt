@@ -1,6 +1,5 @@
 package com.photoselectortoolbox.domain.guidance
 
-import com.photoselectortoolbox.domain.curation.DeferredDeletion
 import com.photoselectortoolbox.domain.format.SelectionActionLabels
 import com.photoselectortoolbox.domain.interaction.FilingAction
 import com.photoselectortoolbox.domain.interaction.SelectorShortcut
@@ -123,14 +122,16 @@ class SelectorHintTextTest {
     }
 
     @Test
-    fun `the delete explanation states the real undo window`() {
-        // Two copies of this number is a countdown that lies: the snackbar's
-        // line and the commit timer both read the same constant, so this must.
-        val seconds = DeferredDeletion.UNDO_WINDOW_MILLIS / 1000
+    fun `the delete explanation promises no deadline and says what the delete dialog says`() {
+        // Nothing commits a delete on a timer: it goes when the folder is left (FD-D-1).
         val text = SelectorHintText.title(SelectorHint.DELETE_UNDO, FilingAction.COPY) +
             SelectorHintText.message(SelectorHint.DELETE_UNDO, FilingAction.COPY, "Selection", true)
+        val dialog = com.photoselectortoolbox.domain.format.SelectorLabels.deleteConfirmationMessage("a.jpg")
 
-        assertTrue(text, text.contains("$seconds seconds"))
+        for (said in listOf(text, dialog)) {
+            assertTrue(said, said.contains(com.photoselectortoolbox.domain.format.SelectorLabels.DELETE_UNDO_SCOPE))
+            assertFalse(said, Regex("\\b30\\b|second").containsMatchIn(said))
+        }
     }
 
     @Test

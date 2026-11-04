@@ -358,6 +358,13 @@ object FrameGeometry {
     val ReferenceWindowHeight: Dp = 900.dp
 
     /**
+     * The reference window's width (a Galaxy Tab S11 Ultra in landscape). The flank claims a fixed
+     * share of the width, so a claim that holds only there, such as "the filmstrip costs the frames
+     * nothing", is asserted at or above it and held to the solver below it.
+     */
+    val ReferenceWindowWidth: Dp = 1480.dp
+
+    /**
      * The minimum frame height the reference device must produce.
      *
      * Asserted by a UI test, on a reference-class window and for a 3:2 frame —

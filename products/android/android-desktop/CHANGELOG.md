@@ -6,6 +6,41 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ## [Unreleased]
 
+### Added
+
+- A screen reader announces the result of a move, copy or delete, and UNDO is a button for it.
+- An open folder with no supported photos says so ("<folder> holds no supported photos.") instead of asking for a folder; while a folder is still opening a progress ring shows.
+- Statistics and Duplicates open the folder you have open in Cull instead of asking for one again.
+
+### Changed
+
+- Hint text (key names under the buttons, "No image", "Not scanned", the filmstrip range, the Learn captions) and the Delete buttons are readable on the dark surfaces (contrast 4.5:1 or better); before, some were at 2:1 to 3.8:1.
+- Every control shows the hand cursor under a mouse or trackpad, in Settings, Duplicates and the dialogs too. Error messages are short sentences; the technical detail goes to the log.
+- Image analysis now works on a copy of at most 2048 pixels on the long edge for every photo, which uses less memory and makes sharpness comparable across cameras. Scores from earlier versions are recalculated the next time you scan; ratings are kept.
+- The documentation no longer claims a "safe to format" check for memory cards: Frameduel has none in any screen yet. The check behind it now requires every kept file, RAW and sidecar included, at the destination with its exact name and size.
+
+### Fixed
+
+- The analysis cache keeps its limit of 10,000 photos after every scan, not only when Settings is opened, and Learn's stored facts are removed with the photo's scores.
+- Detailed Similarity grouping compares the whole frame. It used to look at the top quarter only, so it grouped shots that differed below it.
+- A deleted photo's star rating and reject flag are deleted with it, so a new photo with the same name in the same place (a reused card, restarted camera numbering) starts unrated.
+- When only some files of a RAW+JPEG pair could be deleted, the photo comes back with the files that are left, and the message says how many were deleted.
+- Leaving a folder right after a delete no longer brings up an "uncompleted deletions" prompt for files that were already deleted.
+- The duplicate finder no longer groups files it could not read as duplicates of each other.
+- Learn's crop suggestion is now built on the subject the scan detected in the photo. Before, every photo got the same suggestion from an assumed box in the centre; a photo with no detected subject (or not scanned yet) now shows none.
+- Holding down Delete, Backspace, M or C acts once. Before, the key's auto-repeat deleted, moved or copied photo after photo.
+- A delete no longer claims a 30-second deadline. The draining line under the delete card and the "for 30 seconds" hint are gone: a delete can be undone with Ctrl+Z until you leave the folder, which is when the files are actually removed.
+- Rating a JPEG can no longer leave a cut-off photo. Before the photo is rewritten, a copy of the original (`<name>.frameduel-backup`) is saved beside it and deleted once the rating is written. If the app, the device or the card reader stops during the write, the photo is restored from that copy the next time the folder opens, and the app tells you.
+- After an undo the photo is listed at the file it was restored to, so its rating shows and the next Move or Delete of it works. This affected renamed restores (`IMG-2.jpg`) and RAW+JPEG pairs on Drive, Downloads and camera storage.
+- An undo that put the photo back but could not remove the file in Selection now shows the photo and says so, instead of hiding it again and leaving an undo that would create a second copy.
+- An undo that fails after you opened another folder no longer changes the folder you are in; it stays undoable in its own folder.
+- Writing a rating into an `.xmp` sidecar or a JPEG no longer changes a Windows rating (`MicrosoftPhoto:Rating`) or writes a second, undeclared `xmp:Rating` beside an older `xap:Rating`. XMP the rating cannot be merged into is left alone and the write fails, for JPEGs too, instead of being replaced.
+- Delete on a photo shown as its `-Edit` (a shot with no JPEG) removes the edit and its own sidecars only. The RAW stays in the folder and the shot goes on showing it; Undo gives the whole shot back. Delete on the original still removes the shot with its edits.
+- The Duplicates screen no longer lets you tick every copy of a photo (the last one left is kept and its card is disabled), deletes a copy together with its sidecars, and its "Original" badge reads "First", which is all it ever knew.
+- Settings states how many analysis results are stored; it always said 0.
+- The filmstrip's burst marker follows the photo on screen, also on the last photo of a burst; it used to mark the next burst.
+- Undo on a move's confirmation can no longer reverse an earlier move when two moves finish out of order.
+
 ## [0.7.0] - 2026-11-04
 
 ### Added

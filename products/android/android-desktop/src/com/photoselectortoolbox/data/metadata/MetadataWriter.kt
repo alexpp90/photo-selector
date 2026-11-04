@@ -25,8 +25,8 @@ import javax.inject.Singleton
  *
  * - JPEG: updates the embedded XMP via [ExifInterface] on a temporary copy, verifies the copy's
  *   image bounds decode via [BitmapFactory], and only then replaces the original (atomically for
- *   files; for SAF documents see [SafRatingWriter]). A failed step fails the write — it never
- *   turns into a sidecar.
+ *   files; for SAF documents behind a verified backup document, see [SafRatingWriter] and
+ *   [RatingBackups]). A failed step fails the write — it never turns into a sidecar.
  * - RAW and TIFF: creates or updates the companion XMP sidecar (`<file>.xmp`, else an existing
  *   `<stem>.xmp`) with ISO 16684-1 `<xmp:Rating>`; the image itself is never opened for writing.
  * - Every other format: fails with a message; no sidecar is invented.
@@ -44,6 +44,14 @@ interface MetadataWriter {
         }
         return writeRating(file, rating)
     }
+
+    /**
+     * Resolves the backups that interrupted JPEG rating writes left under the opened tree
+     * [folderUri] ([RatingBackups], finding FD-D-11): restores a cut-off photo, discards a backup
+     * of a photo that was never touched, and keeps (and returns) the rest. Never throws; a folder
+     * that cannot be read yields [RatingRecovery.NONE].
+     */
+    suspend fun recoverInterruptedWrites(context: Context, folderUri: Uri): RatingRecovery
 }
 
 @Singleton
@@ -94,6 +102,20 @@ class MetadataWriterImpl internal constructor(
             }
         }
 
+    override suspend fun recoverInterruptedWrites(context: Context, folderUri: Uri): RatingRecovery =
+        withContext(Dispatchers.IO) {
+            try {
+                SafRatingWriter(context, validateJpegBounds).recover(folderUri) { photoUri, block ->
+                    mutexFor(photoUri.toString()).withLock { block() }
+                }
+            } catch (e: CancellationException) {
+                throw e
+            } catch (e: Exception) {
+                Log.w(TAG, "Rating backup recovery failed for $folderUri", e)
+                RatingRecovery.NONE
+            }
+        }
+
     override suspend fun writeRating(imageFile: File, rating: Int): Result<Unit> =
         withContext(Dispatchers.IO) {
             mutexFor(imageFile.absolutePath).withLock {
@@ -131,6 +153,7 @@ class MetadataWriterImpl internal constructor(
             val exif = ExifInterface(tempFile.absolutePath)
             val currentXmp = exif.getAttribute(ExifInterface.TAG_XMP)
             val updatedXmp = XmpSidecarWriter.injectOrUpdateRating(currentXmp, rating)
+                ?: throw RatingWriteException("The XMP inside ${imageFile.name} has content the rating cannot be merged into; it was left unchanged")
 
             exif.setAttribute(ExifInterface.TAG_XMP, updatedXmp)
             exif.saveAttributes()
@@ -170,6 +193,7 @@ class MetadataWriterImpl internal constructor(
             throw RatingWriteException("${targetSidecar.name} has XMP content the rating cannot be merged into; it was left unchanged")
         }
         val updatedContent = XmpSidecarWriter.injectOrUpdateRating(existingContent, rating)
+            ?: throw RatingWriteException("${targetSidecar.name} has XMP content the rating cannot be merged into; it was left unchanged")
         val tempSidecar = File(parent, ".${targetSidecar.name}.tmp.${System.nanoTime()}")
         try {
             tempSidecar.writeText(updatedContent)
@@ -199,23 +223,30 @@ class MetadataWriterImpl internal constructor(
     }
 }
 
+/**
+ * Puts a rating into an XMP packet (sidecar or embedded) while keeping everything else in it.
+ *
+ * Only the `Rating` of the XMP basic namespace ([XMP_NS]) is touched, under the prefix the packet
+ * itself binds to it (`xmp:`, the older `xap:`, or any other; FD-D-12). A `Rating` in another
+ * namespace — `MicrosoftPhoto:Rating`, which Windows reads on a 1–99 scale — is left exactly as it
+ * is. An undeclared `xmp:` or `xap:` prefix (seen in hand-written sidecars) counts as the XMP
+ * namespace unless the packet binds it to another one.
+ */
 object XmpSidecarWriter {
 
-    private val RATING_TAG_REGEX = Regex(
-        "<(?:[a-zA-Z0-9_-]+:)?Rating>\\s*(-?\\d+(?:\\.\\d+)?)\\s*</(?:[a-zA-Z0-9_-]+:)?Rating>",
-        RegexOption.IGNORE_CASE
+    const val XMP_NS = "http://ns.adobe.com/xap/1.0/"
+
+    private val XMP_NS_DECLARATION = Regex(
+        "xmlns:([A-Za-z_][A-Za-z0-9_.-]*)\\s*=\\s*[\"']" + Regex.escape(XMP_NS) + "[\"']"
     )
-    private val RATING_ATTR_REGEX = Regex(
-        "((?:[a-zA-Z0-9_-]+:)?Rating\\s*=\\s*[\"'])(-?\\d+(?:\\.\\d+)?)([\"'])",
-        RegexOption.IGNORE_CASE
-    )
+    private const val NUMBER = "-?\\d+(?:\\.\\d+)?"
 
     fun createXmpPacket(rating: Int): String {
         return buildString {
             append("<?xpacket begin=\"\" id=\"W5M0MpCehiHzreSzNTczkc9d\"?>\n")
             append("<x:xmpmeta xmlns:x=\"adobe:ns:meta/\">\n")
             append("  <rdf:RDF xmlns:rdf=\"http://www.w3.org/1999/02/22-rdf-syntax-ns#\">\n")
-            append("    <rdf:Description rdf:about=\"\" xmlns:xmp=\"http://ns.adobe.com/xap/1.0/\">\n")
+            append("    <rdf:Description rdf:about=\"\" xmlns:xmp=\"$XMP_NS\">\n")
             append("      <xmp:Rating>$rating</xmp:Rating>\n")
             append("    </rdf:Description>\n")
             append("  </rdf:RDF>\n")
@@ -226,57 +257,66 @@ object XmpSidecarWriter {
 
     /**
      * True when [injectOrUpdateRating] can put a rating into [existingXmp] while keeping its
-     * content. When false (no `<rdf:Description>` and no rating to replace) the function would
-     * start a fresh packet and drop what was there, so callers must fail instead of writing.
+     * content — the same predicate, so a caller that checks this never gets a null back. When
+     * false, callers must fail instead of writing.
      */
-    fun canUpdateInPlace(existingXmp: String?): Boolean =
-        existingXmp.isNullOrBlank() ||
-            RATING_TAG_REGEX.containsMatchIn(existingXmp) ||
-            RATING_ATTR_REGEX.containsMatchIn(existingXmp) ||
-            existingXmp.contains("<rdf:Description")
+    fun canUpdateInPlace(existingXmp: String?): Boolean = injectOrUpdateRating(existingXmp, 0) != null
 
-    fun injectOrUpdateRating(existingXmp: String?, rating: Int): String {
+    /**
+     * [existingXmp] with its XMP rating set to [rating], or a fresh packet when there is none.
+     * Null when [existingXmp] has content the rating cannot be merged into (no rating of the XMP
+     * namespace and no well-formed `<rdf:Description>`): replacing it would drop that content
+     * (FD-D-13).
+     */
+    fun injectOrUpdateRating(existingXmp: String?, rating: Int): String? {
         if (existingXmp.isNullOrBlank()) {
             return createXmpPacket(rating)
         }
+        val prefixes = xmpPrefixes(existingXmp)
 
-        // 1. If <xmp:Rating>...</xmp:Rating> exists, replace it
-        if (RATING_TAG_REGEX.containsMatchIn(existingXmp)) {
-            return existingXmp.replace(RATING_TAG_REGEX, "<xmp:Rating>$rating</xmp:Rating>")
-        }
-
-        // 2. If xmp:Rating="..." attribute exists, replace it
-        if (RATING_ATTR_REGEX.containsMatchIn(existingXmp)) {
-            return existingXmp.replace(RATING_ATTR_REGEX, "$1$rating$3")
-        }
-
-        // 3. If <rdf:Description exists, inject inside it
-        val descIndex = existingXmp.indexOf("<rdf:Description")
-        if (descIndex != -1) {
-            val closeIndex = existingXmp.indexOf("</rdf:Description>", descIndex)
-            if (closeIndex != -1) {
-                val descTagEnd = existingXmp.indexOf(">", descIndex)
-                val hasXmpNs = existingXmp.substring(descIndex, descTagEnd).contains("xmlns:xmp")
-                val ratingTag = if (hasXmpNs) {
-                    "      <xmp:Rating>$rating</xmp:Rating>\n"
-                } else {
-                    "      <xmp:Rating xmlns:xmp=\"http://ns.adobe.com/xap/1.0/\">$rating</xmp:Rating>\n"
-                }
-                return StringBuilder(existingXmp)
-                    .insert(closeIndex, ratingTag)
-                    .toString()
-            } else {
-                // Self-closing <rdf:Description ... />
-                val selfCloseIndex = existingXmp.indexOf("/>", descIndex)
-                if (selfCloseIndex != -1) {
-                    val before = existingXmp.substring(0, selfCloseIndex)
-                    val after = existingXmp.substring(selfCloseIndex + 2)
-                    return "$before>\n      <xmp:Rating xmlns:xmp=\"http://ns.adobe.com/xap/1.0/\">$rating</xmp:Rating>\n    </rdf:Description>$after"
-                }
+        // 1. An element or an attribute rating under a prefix bound to the XMP namespace: replace it, keep the prefix.
+        for (prefix in prefixes) {
+            val p = Regex.escape(prefix)
+            val element = Regex("<$p:Rating>\\s*$NUMBER\\s*</$p:Rating>")
+            if (element.containsMatchIn(existingXmp)) {
+                return existingXmp.replace(element, "<$prefix:Rating>$rating</$prefix:Rating>")
+            }
+            val attribute = Regex("(?<![A-Za-z0-9_.:-])($p:Rating\\s*=\\s*[\"'])$NUMBER([\"'])")
+            if (attribute.containsMatchIn(existingXmp)) {
+                return existingXmp.replace(attribute) { it.groupValues[1] + rating + it.groupValues[2] }
             }
         }
 
-        // Fallback: create fresh packet
-        return createXmpPacket(rating)
+        // 2. Otherwise inject into the first <rdf:Description>.
+        val descIndex = existingXmp.indexOf("<rdf:Description")
+        if (descIndex == -1) return null
+        val tagEnd = existingXmp.indexOf('>', descIndex)
+        if (tagEnd == -1) return null
+        val startTag = existingXmp.substring(descIndex, tagEnd)
+        val declared = prefixes.firstOrNull { Regex("xmlns:${Regex.escape(it)}\\s*=").containsMatchIn(startTag) }
+        val ratingElement = if (declared != null) {
+            "<$declared:Rating>$rating</$declared:Rating>"
+        } else {
+            "<xmp:Rating xmlns:xmp=\"$XMP_NS\">$rating</xmp:Rating>"
+        }
+        if (startTag.endsWith("/")) {
+            // Self-closing <rdf:Description … />: open it up around the rating.
+            return existingXmp.substring(0, tagEnd - 1).trimEnd() + ">\n      " + ratingElement +
+                "\n    </rdf:Description>" + existingXmp.substring(tagEnd + 1)
+        }
+        val closeIndex = existingXmp.indexOf("</rdf:Description>", tagEnd)
+        if (closeIndex == -1) return null
+        return StringBuilder(existingXmp).insert(closeIndex, "      $ratingElement\n").toString()
+    }
+
+    /** The prefixes [xmp] binds to [XMP_NS], plus `xmp` and `xap` where they are not bound to anything else. */
+    private fun xmpPrefixes(xmp: String): List<String> {
+        val declared = XMP_NS_DECLARATION.findAll(xmp).map { it.groupValues[1] }.toMutableList()
+        for (conventional in listOf("xmp", "xap")) {
+            if (conventional in declared) continue
+            val boundElsewhere = Regex("xmlns:$conventional\\s*=").containsMatchIn(xmp)
+            if (!boundElsewhere) declared += conventional
+        }
+        return declared.distinct()
     }
 }

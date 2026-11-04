@@ -11,6 +11,7 @@ import com.photoselectortoolbox.data.model.ScanResult
 import com.photoselectortoolbox.data.cache.ScoreEntity
 import com.photoselector.core.model.ExifData
 import com.photoselectortoolbox.data.model.ImageDimensions
+import com.photoselectortoolbox.data.model.CompanionFile
 import com.photoselectortoolbox.data.model.ImageItem
 import com.photoselectortoolbox.data.repository.CacheRepository
 import com.photoselectortoolbox.data.repository.FileOperationResult
@@ -736,6 +737,70 @@ class SelectorViewModelTest {
         }
     }
 
+    /** A shot with no JPEG: led by its `-Edit`, the RAW and the sidecars of both as companions. */
+    private fun editLedShot() = image("IMG_1-Edit.tif").copy(
+        companions = listOf(
+            CompanionFile("content://test/folder/IMG_1.CR3", "IMG_1.CR3"),
+            CompanionFile("content://test/folder/IMG_1-Edit.tif.xmp", "IMG_1-Edit.tif.xmp"),
+            CompanionFile("content://test/folder/IMG_1.CR3.xmp", "IMG_1.CR3.xmp"),
+        ),
+    )
+
+    @Test
+    fun `deleting a frame led by an edit removes the edit and its sidecar and never the original`() = runTest {
+        val viewModel = loadFolder(editLedShot(), image("IMG_2.jpg"))
+        viewModel.deleteCurrentImage()
+
+        // The shot stays, led by its RAW; nothing is on disk yet.
+        assertEquals(listOf("IMG_1.CR3", "IMG_2.jpg"), viewModel.uiState.value.images.map { it.fileName })
+        coVerify(exactly = 0) { imageRepository.deleteImage(any(), any()) }
+
+        viewModel.selectFolder(Uri.parse(OTHER_FOLDER_URI))
+
+        val deleted = mutableListOf<Uri>()
+        coVerify { imageRepository.deleteImage(any(), capture(deleted)) }
+        assertEquals(
+            listOf("IMG_1-Edit.tif", "IMG_1-Edit.tif.xmp"),
+            deleted.map { it.toString().substringAfterLast('/') },
+        )
+    }
+
+    @Test
+    fun `undoing the delete of an edit gives the whole shot back, led by the edit again`() = runTest {
+        val viewModel = loadFolder(editLedShot(), image("IMG_2.jpg"))
+        viewModel.deleteCurrentImage()
+        viewModel.undoLastOperation()
+
+        val restored = viewModel.uiState.value.images.first()
+        assertEquals("IMG_1-Edit.tif", restored.fileName)
+        assertEquals(
+            listOf("IMG_1.CR3", "IMG_1-Edit.tif.xmp", "IMG_1.CR3.xmp").sorted(),
+            restored.companions.map { it.fileName }.sorted(),
+        )
+        assertEquals(2, viewModel.uiState.value.images.size)
+        coVerify(exactly = 0) { imageRepository.deleteImage(any(), any()) }
+    }
+
+    @Test
+    fun `deleting the original card still takes the whole shot with its edit`() = runTest {
+        val shot = image("IMG_1.jpg").copy(
+            companions = listOf(
+                CompanionFile("content://test/folder/IMG_1-Edit.tif", "IMG_1-Edit.tif"),
+                CompanionFile("content://test/folder/IMG_1.CR3", "IMG_1.CR3"),
+            ),
+        )
+        val viewModel = loadFolder(shot, image("IMG_2.jpg"))
+        viewModel.deleteCurrentImage()
+        viewModel.selectFolder(Uri.parse(OTHER_FOLDER_URI))
+
+        val deleted = mutableListOf<Uri>()
+        coVerify { imageRepository.deleteImage(any(), capture(deleted)) }
+        assertEquals(
+            listOf("IMG_1-Edit.tif", "IMG_1.CR3", "IMG_1.jpg"),
+            deleted.map { it.toString().substringAfterLast('/') }.sorted(),
+        )
+    }
+
     @Test
     fun `delete is confirmed by dialog only where the file cannot be trashed`() = runTest {
         every { imageRepository.canTrash(any()) } returns false
@@ -786,8 +851,7 @@ class SelectorViewModelTest {
 
         val state = viewModel.uiState.value
         assertEquals(SnackbarLifetime.MOVE, state.snackbarLifetime)
-        assertFalse("a move's undo never expires, so there is no deadline", state.snackbarLifetime.countsDown)
-        assertEquals(4_000L, state.snackbarLifetime.millis)
+                assertEquals(4_000L, state.snackbarLifetime.millis)
         assertTrue("UNDO stays on the card", state.undoOperation is UndoableOperation.ReverseMove)
     }
 
@@ -801,20 +865,25 @@ class SelectorViewModelTest {
 
         val state = viewModel.uiState.value
         assertEquals(SnackbarLifetime.COPY, state.snackbarLifetime)
-        assertFalse(state.snackbarLifetime.countsDown)
         assertEquals(3_000L, state.snackbarLifetime.millis)
         assertNull(state.undoOperation)
     }
 
     @Test
-    fun `a delete carries the real 30 second deadline`() = runTest {
+    fun `a delete promises no deadline - its card offers UNDO and the undo outlives it`() = runTest {
         val viewModel = loadFolder(image("a"), image("b"))
         viewModel.deleteCurrentImage()
 
         val state = viewModel.uiState.value
         assertEquals(SnackbarLifetime.DELETE, state.snackbarLifetime)
-        assertTrue(state.snackbarLifetime.countsDown)
-        assertEquals(DeferredDeletion.UNDO_WINDOW_MILLIS, state.snackbarLifetime.millis)
+        assertTrue(state.snackbarUndoAvailable)
+        assertTrue(state.snackbarMessage!!.none { it.isDigit() && it != '1' })
+
+        viewModel.dismissSnackbar()
+        viewModel.undoLastOperation()
+
+        assertEquals(listOf("a", "b"), names(viewModel))
+        coVerify(exactly = 0) { imageRepository.deleteImage(any(), any()) }
     }
 
     @Test
@@ -824,7 +893,6 @@ class SelectorViewModelTest {
 
         val state = viewModel.uiState.value
         assertEquals(SnackbarLifetime.ERROR, state.snackbarLifetime)
-        assertFalse(state.snackbarLifetime.countsDown)
         assertTrue(state.snackbarLifetime.millis > SnackbarLifetime.MOVE.millis)
     }
 
@@ -949,6 +1017,36 @@ class SelectorViewModelTest {
         assertEquals("Moved to Selection as IMG_0001-2.jpg", viewModel.uiState.value.snackbarMessage)
     }
 
+    @Test
+    fun `a late first move does not hand its undo to the second move's card`() = runTest {
+        val first = image("a")
+        val second = image("b")
+        val firstDone = kotlinx.coroutines.CompletableDeferred<Unit>()
+        val movedA = "content://test/folder/Selection/JPEG/a.jpg"
+        val movedB = "content://test/folder/Selection/JPEG/b.jpg"
+        coEvery { imageRepository.moveBundle(any(), first, any(), any()) } coAnswers {
+            firstDone.await()
+            FileOperationResult.success(first.uri, movedA, listOf(movedA), null)
+        }
+        coEvery { imageRepository.moveBundle(any(), second, any(), any()) } coAnswers {
+            // Never finishes in this test: the second card is on screen without its record.
+            kotlinx.coroutines.CompletableDeferred<Unit>().await()
+            FileOperationResult.success(second.uri, movedB, listOf(movedB), null)
+        }
+
+        val viewModel = loadFolder(first, second, image("c"))
+        viewModel.moveToSelection()
+        viewModel.moveToSelection()
+        assertEquals("both moves are in flight", 1, viewModel.uiState.value.images.size)
+
+        firstDone.complete(Unit)
+
+        // The first record is on the stack, but the card on screen belongs to the second move.
+        val state = viewModel.uiState.value
+        assertEquals(1, state.undoHistory.size)
+        assertFalse("UNDO on the second card would reverse the first move", state.snackbarUndoAvailable)
+    }
+
     // ── B-9 / D-13: a rating follows its file ─────────────────────────────
 
     @Test
@@ -967,6 +1065,90 @@ class SelectorViewModelTest {
 
         viewModel.undoLastOperation()
         coVerify { cacheRepository.moveRating(moved, restored) }
+        // The list item is the restored file, where the rating now lives (FD-B-11).
+        val back = viewModel.uiState.value.images.single { it.uri == restored }
+        assertEquals("IMG_0010-2.jpg", back.fileName)
+        assertTrue(viewModel.uiState.value.images.none { it.uri == item.uri })
+    }
+
+    @Test
+    fun `an undone bundle on a provider with opaque ids is listed at the new documents, companions included`() = runTest {
+        val item = ImageItem(
+            uri = "content://test/folder/document/msf%3A11",
+            fileName = "DSC_7.JPG",
+            fileSize = 1,
+            lastModified = nextModified(),
+            mimeType = "image/jpeg",
+            companions = listOf(
+                com.photoselectortoolbox.data.model.CompanionFile(uri = "content://test/folder/document/msf%3A12", fileName = "DSC_7.ARW"),
+            ),
+        )
+        val moved = listOf("content://test/folder/document/msf%3A21", "content://test/folder/document/msf%3A22")
+        val restored = listOf("content://test/folder/document/msf%3A31", "content://test/folder/document/msf%3A32")
+        coEvery { imageRepository.moveBundle(any(), item, any(), any()) } returns
+            FileOperationResult.success(item.uri, moved.first(), moved, null)
+        coEvery { imageRepository.undoMoveBundle(any(), moved, Uri.parse(FOLDER_URI), any(), any()) } returns
+            FileOperationResult.success(moved.first(), restored.first(), restored, null)
+
+        val viewModel = loadFolder(item, image("b.jpg"))
+        viewModel.moveToSelection()
+        viewModel.undoLastOperation()
+
+        val back = viewModel.uiState.value.images.single { it.fileName == "DSC_7.JPG" }
+        assertEquals(restored.first(), back.uri)
+        assertEquals(listOf(restored[1]), back.companions.map { it.uri })
+        // An opaque id says nothing about the name: the names stay.
+        assertEquals("DSC_7.JPG", back.fileName)
+        assertEquals(listOf("DSC_7.ARW"), back.companions.map { it.fileName })
+    }
+
+    @Test
+    fun `a partial undo shows the restored frame, says the Selection copy stayed, and pushes no retry`() = runTest {
+        val item = image("IMG_0020.jpg")
+        val moved = "content://test/folder/Selection/JPEG/IMG_0020.jpg"
+        val restored = "content://test/folder/IMG_0020.jpg"
+        coEvery { imageRepository.moveBundle(any(), item, any(), any()) } returns
+            FileOperationResult.success(item.uri, moved, listOf(moved), null)
+        coEvery { imageRepository.undoMoveBundle(any(), listOf(moved), Uri.parse(FOLDER_URI), any(), any()) } returns
+            FileOperationResult.partial(
+                sourceUri = moved,
+                destinationUri = restored,
+                copiesOfSurvivingOriginals = mapOf(restored to moved),
+            )
+
+        val viewModel = loadFolder(item, image("b.jpg"))
+        viewModel.moveToSelection()
+        viewModel.undoLastOperation()
+
+        val state = viewModel.uiState.value
+        assertTrue(state.images.any { it.uri == restored })
+        assertTrue("no retry that would make a -2 duplicate", state.undoHistory.isEmpty())
+        assertEquals("Restored IMG_0020.jpg — the copy in Selection could not be removed", state.snackbarMessage)
+        // The file in Selection still exists, so both keep the rating.
+        coVerify(exactly = 1) { cacheRepository.copyRating(moved, restored) }
+        coVerify(exactly = 0) { cacheRepository.moveRating(moved, restored) }
+    }
+
+    @Test
+    fun `a failed undo that finishes after a folder switch is parked in its own folder and leaves the new one alone`() = runTest {
+        val moved = "content://test/sel/a"
+        coEvery { imageRepository.moveImage(any(), any(), any(), any()) } returns
+            FileOperationResult.success("content://test/folder/a", moved)
+        val undo = CompletableDeferred<FileOperationResult>()
+        coEvery { imageRepository.undoMoveBundle(any(), any(), any(), any(), any()) } coAnswers { undo.await() }
+        val viewModel = loadFolder(image("a"), image("b"))
+        viewModel.moveToSelection()
+        viewModel.undoLastOperation()
+        discovery.resetReplayCache()
+        viewModel.selectFolder(Uri.parse(OTHER_FOLDER_URI))
+        discovery.emit(listOf(otherImage("x"), otherImage("y")))
+
+        undo.complete(FileOperationResult.failure(moved, "provider hiccup"))
+
+        assertEquals(listOf("x", "y"), names(viewModel))
+        assertNull(viewModel.uiState.value.error)
+        assertTrue(viewModel.uiState.value.undoHistory.isEmpty())
+        assertTrue(viewModel.uiState.value.parkedUndo.historyOf(FOLDER_URI).single() is UndoableOperation.ReverseMove)
     }
 
     @Test
@@ -1361,6 +1543,68 @@ class SelectorViewModelTest {
     }
 
     @Test
+    fun `a committed delete drops the cached data of every deleted file and nothing else`() = runTest {
+        val viewModel = loadFolder(image("a.jpg"), image("b.jpg"))
+        viewModel.deleteCurrentImage()
+
+        viewModel.selectFolder(Uri.parse(OTHER_FOLDER_URI))
+
+        coVerify(exactly = 1) { cacheRepository.forgetDeletedFile("content://test/folder/a.jpg") }
+        coVerify(exactly = 0) { cacheRepository.forgetDeletedFile("content://test/folder/b.jpg") }
+    }
+
+    @Test
+    fun `a bundle delete that removed some files restores what is left and says how many went`() = runTest {
+        val bundle = ImageItem(
+            uri = "content://test/folder/DSC_1.JPG",
+            fileName = "DSC_1.JPG",
+            fileSize = 1,
+            lastModified = nextModified(),
+            mimeType = "image/jpeg",
+            companions = listOf(
+                com.photoselectortoolbox.data.model.CompanionFile(uri = "content://test/folder/DSC_1.ARW", fileName = "DSC_1.ARW"),
+            ),
+        )
+        coEvery { imageRepository.deleteImage(any(), Uri.parse("content://test/folder/DSC_1.JPG")) } returns true
+        coEvery { imageRepository.deleteImage(any(), Uri.parse("content://test/folder/DSC_1.ARW")) } returns false
+        val items = listOf(bundle) + (2..21).map { image("img_$it.jpg") }
+        val viewModel = loadFolder(*items.toTypedArray())
+
+        // 21 deletes: the bundle is evicted and committed while its folder is still open.
+        repeat(21) { viewModel.deleteCurrentImage() }
+
+        val state = viewModel.uiState.value
+        val back = state.images.single { it.fileName == "DSC_1.ARW" }
+        assertEquals("content://test/folder/DSC_1.ARW", back.uri)
+        assertTrue(back.companions.isEmpty())
+        assertTrue(state.images.none { it.uri == "content://test/folder/DSC_1.JPG" })
+        assertEquals("Deleted 1 of 2 files of DSC_1.JPG", state.snackbarMessage)
+        coVerify(exactly = 1) { cacheRepository.forgetDeletedFile("content://test/folder/DSC_1.JPG") }
+        coVerify(exactly = 0) { cacheRepository.forgetDeletedFile("content://test/folder/DSC_1.ARW") }
+    }
+
+    @Test
+    fun `a commit that overtakes a slow journal add still leaves the journal empty`() = runTest {
+        val journal = mutableSetOf<String>()
+        val addGate = CompletableDeferred<Unit>()
+        coEvery { settingsRepository.addPendingDeletes(any()) } coAnswers {
+            addGate.await()
+            journal += firstArg<Collection<String>>()
+        }
+        coEvery { settingsRepository.removePendingDeletes(any()) } coAnswers {
+            journal -= firstArg<Collection<String>>().toSet()
+        }
+        val viewModel = loadFolder(image("a.jpg"), image("b.jpg"))
+
+        viewModel.deleteCurrentImage()
+        // Leave at once: the commit deletes the file while the journal add is still in flight.
+        viewModel.selectFolder(Uri.parse(OTHER_FOLDER_URI))
+        addGate.complete(Unit)
+
+        assertTrue("journal must not keep a deleted file: $journal", journal.isEmpty())
+    }
+
+    @Test
     fun `non-empty pendingDeleteJournal on startup exposes prompt and confirm or keep clears journal`() = runTest {
         val orphanUri = "content://test/folder/orphan.jpg"
         pendingDeleteJournalFlow.value = setOf(orphanUri)
@@ -1418,7 +1662,8 @@ class SelectorViewModelTest {
 
         val message = viewModel.uiState.value.snackbarMessage
         assertTrue(message?.contains("bad.jpg") == true)
-        assertTrue(message?.contains("read-only card") == true)
+        // The exception's own text goes to the log, not to the photographer (FD-UX-4).
+        assertTrue(message?.contains("read-only card") == false)
     }
 
     @Test

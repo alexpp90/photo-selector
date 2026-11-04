@@ -1,5 +1,6 @@
 package com.photoselectortoolbox.ui.settings
 
+import com.photoselectortoolbox.ui.components.handCursor
 import android.content.ActivityNotFoundException
 import android.content.Intent
 import android.net.Uri
@@ -58,7 +59,10 @@ import androidx.lifecycle.compose.LifecycleResumeEffect
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.photoselectortoolbox.domain.grouping.GroupingLevel
 import com.photoselectortoolbox.domain.interaction.FilingAction
+import com.photoselectortoolbox.ui.theme.DestructiveFill
+import com.photoselectortoolbox.ui.theme.DestructiveText
 import com.photoselectortoolbox.ui.theme.ErrorRed
+import com.photoselectortoolbox.ui.theme.OnDestructiveFill
 import com.photoselectortoolbox.ui.theme.BrandAccent
 import com.photoselectortoolbox.ui.theme.Zinc400
 import com.photoselectortoolbox.ui.theme.Zinc700
@@ -102,17 +106,21 @@ fun SettingsScreen(
             },
             confirmButton = {
                 Button(
+                    modifier = Modifier.handCursor(),
                     onClick = {
                         showClearCacheDialog = false
                         viewModel.clearCache()
                     },
-                    colors = ButtonDefaults.buttonColors(containerColor = ErrorRed),
+                    colors = ButtonDefaults.buttonColors(
+                        containerColor = DestructiveFill,
+                        contentColor = OnDestructiveFill,
+                    ),
                 ) {
                     Text("Clear")
                 }
             },
             dismissButton = {
-                TextButton(onClick = { showClearCacheDialog = false }) {
+                TextButton(modifier = Modifier.handCursor(), onClick = { showClearCacheDialog = false }) {
                     Text("Cancel")
                 }
             },
@@ -177,6 +185,7 @@ fun SettingsScreen(
                                 verticalAlignment = Alignment.CenterVertically,
                             ) {
                                 RadioButton(
+                                    modifier = Modifier.handCursor(),
                                     selected = uiState.groupingLevel == level,
                                     onClick = { viewModel.updateGroupingLevel(level) },
                                     colors = RadioButtonDefaults.colors(
@@ -302,6 +311,7 @@ fun SettingsScreen(
                         verticalAlignment = Alignment.CenterVertically,
                     ) {
                         RadioButton(
+                            modifier = Modifier.handCursor(),
                             selected = uiState.filingAction == action,
                             onClick = { viewModel.updateFilingAction(action) },
                             colors = RadioButtonDefaults.colors(
@@ -353,6 +363,7 @@ fun SettingsScreen(
                 icon = Icons.Default.School,
                 trailing = {
                     Button(
+                        modifier = Modifier.handCursor(),
                         onClick = {
                             viewModel.resetGuidance()
                             guidanceReset = true
@@ -376,7 +387,6 @@ fun SettingsScreen(
             SettingsClickItem(
                 title = "Cached Scores",
                 description = "${uiState.cachedScoreCount} analysis results stored",
-                onClick = {},
                 icon = Icons.Default.Cached,
             )
 
@@ -389,10 +399,11 @@ fun SettingsScreen(
                 icon = Icons.Default.DeleteSweep,
                 trailing = {
                     Button(
+                        modifier = Modifier.handCursor(),
                         onClick = { showClearCacheDialog = true },
                         colors = ButtonDefaults.buttonColors(
                             containerColor = ErrorRed.copy(alpha = 0.15f),
-                            contentColor = ErrorRed,
+                            contentColor = DestructiveText,
                         ),
                         shape = RoundedCornerShape(8.dp),
                     ) {

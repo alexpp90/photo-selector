@@ -3,8 +3,19 @@
 **Frameduel** (formerly PhotoSelector Studio) — store title "Frameduel – Photo Culling Desk".
 
 The tablet / Samsung DeX / Chromebook product: a comparison workspace that approaches desktop
-parity on large screens. Quality scoring with OpenCV, a Room-backed score cache, statistics
-charts and a duplicate finder.
+parity on large screens.
+
+- **Cull** — three equal frames, one over two, the current one centred, with EXIF and the lens
+  beside each; quality scoring with OpenCV (sharpness, exposure), burst grouping, star ratings and
+  a reject flag, sort orders and Go to photo. `M` moves, `C` copies and `Del` deletes with its
+  companions (RAW, JPEG, `-Edit`, `.xmp`) into the Selection folder; `Ctrl+Z` steps back through the
+  last 20 deletes and moves, also in fullscreen.
+- **Learn** — technique and composition of your own photos, from the scan's facts.
+- **Statistics** and **Duplicates** — EXIF charts of the open folder and a finder for byte-identical
+  copies (it never lets you delete the last copy of a photo).
+- A Room-backed score cache; ratings are written into the photo (embedded in a JPEG, an `.xmp`
+  sidecar beside RAW and TIFF).
+- Interface language: English only for now.
 
 | | |
 |---|---|
@@ -24,8 +35,10 @@ and scored. RAW frames are displayed and scored from the camera's embedded JPEG;
 decoder for CR3 at all, and other RAWs vary by device. Phone DNGs embed only a ~672 px preview,
 so they fall back to the platform DNG decoder. TIFF is decoded by the app, because Android has
 no TIFF codec. The recognised tier (`3FR`, `IIQ`, `RWL`, `X3F`, …) is discovered and sorted as
-RAW, and displayed where its embedded preview allows. A RAW and its JPEG appear as two frames;
-filing sorts them into `RAW/` and `JPEG/`. The one list lives in `domain/format/ImageFormats.kt`,
+RAW, and displayed where its embedded preview allows. A RAW, its JPEG, its `-Edit`/`-Enhanced-NR`
+versions and its `.xmp` sidecars are **one frame**, led by the JPEG (else the edit, else the RAW);
+filing sorts them into `RAW/` and `JPEG/`, and Delete on a frame led by an edit removes the edit
+and its own sidecars only. The one list lives in `domain/format/ImageFormats.kt`,
 and `FormatConformanceTest` holds it to `testdata/formats/manifest.json`.
 
 ## Documents
@@ -51,6 +64,11 @@ cd android
 ```
 
 Or, from the repository root, the CI mirror: `./scripts/run_tests.sh --android`.
+
+The instrumented screen tests of the expanded layout carry `@ExpandedWindow`: `WindowGeometryRule`
+puts the device (an emulator or a phone) into the reference geometry, 1480 x 924 dp, for the test and
+restores it afterwards, so they assert on CI's phone-class emulator instead of returning early
+(`docs/build/CI_PARITY.md`, rule 7).
 
 ## Relationship to the other products
 

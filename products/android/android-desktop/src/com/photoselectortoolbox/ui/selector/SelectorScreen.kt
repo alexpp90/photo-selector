@@ -1,5 +1,6 @@
 package com.photoselectortoolbox.ui.selector
 
+import com.photoselectortoolbox.ui.components.handCursor
 import android.app.Activity
 import android.net.Uri
 import android.util.Log
@@ -28,6 +29,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.FolderOpen
 import androidx.compose.material.icons.filled.PhotoCamera
 import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
@@ -257,7 +259,7 @@ fun SelectorScreen(
     if (uiState.showDeleteConfirmation) {
         AlertDialog(
             onDismissRequest = { viewModel.dismissDeleteConfirmation() },
-            title = { Text("Delete Image") },
+            title = { Text("Delete image") },
             text = {
                 Text(
                     SelectorLabels.deleteConfirmationMessage(
@@ -270,13 +272,13 @@ fun SelectorScreen(
             confirmButton = {
                 TextButton(
                     onClick = { viewModel.deleteCurrentImage() },
-                    modifier = Modifier.testTag("dialog_confirm_delete"),
+                    modifier = Modifier.testTag("dialog_confirm_delete").handCursor(),
                 ) {
                     Text("Delete", color = MaterialTheme.colorScheme.error)
                 }
             },
             dismissButton = {
-                TextButton(onClick = { viewModel.dismissDeleteConfirmation() }) { Text("Cancel") }
+                TextButton(modifier = Modifier.handCursor(), onClick = { viewModel.dismissDeleteConfirmation() }) { Text("Cancel") }
             },
             containerColor = StudioCard,
         )
@@ -298,7 +300,7 @@ fun SelectorScreen(
     if (uiState.showCloudScanConfirmation) {
         AlertDialog(
             onDismissRequest = { viewModel.dismissCloudScanConfirmation() },
-            title = { Text("Cloud Folder Scan") },
+            title = { Text("Cloud folder scan") },
             text = {
                 Text(
                     SelectorLabels.cloudScanConfirmationMessage(
@@ -310,13 +312,13 @@ fun SelectorScreen(
             confirmButton = {
                 TextButton(
                     onClick = { viewModel.confirmCloudScan() },
-                    modifier = Modifier.testTag("dialog_confirm_cloud_scan"),
+                    modifier = Modifier.testTag("dialog_confirm_cloud_scan").handCursor(),
                 ) {
                     Text("Scan")
                 }
             },
             dismissButton = {
-                TextButton(onClick = { viewModel.dismissCloudScanConfirmation() }) { Text("Cancel") }
+                TextButton(modifier = Modifier.handCursor(), onClick = { viewModel.dismissCloudScanConfirmation() }) { Text("Cancel") }
             },
             containerColor = StudioCard,
         )
@@ -325,14 +327,14 @@ fun SelectorScreen(
     uiState.uncompletedDeletionsPrompt?.let { prompt ->
         AlertDialog(
             onDismissRequest = { viewModel.keepUncompletedDeletions() },
-            title = { Text("Uncompleted Deletions") },
+            title = { Text("Uncompleted deletions") },
             text = {
                 Text(SelectorLabels.uncompletedDeletionsMessage(prompt.uris.size))
             },
             confirmButton = {
                 TextButton(
                     onClick = { viewModel.confirmUncompletedDeletions() },
-                    modifier = Modifier.testTag("dialog_confirm_uncompleted_deletions"),
+                    modifier = Modifier.testTag("dialog_confirm_uncompleted_deletions").handCursor(),
                 ) {
                     Text("Delete now", color = MaterialTheme.colorScheme.error)
                 }
@@ -340,7 +342,7 @@ fun SelectorScreen(
             dismissButton = {
                 TextButton(
                     onClick = { viewModel.keepUncompletedDeletions() },
-                    modifier = Modifier.testTag("dialog_keep_uncompleted_deletions"),
+                    modifier = Modifier.testTag("dialog_keep_uncompleted_deletions").handCursor(),
                 ) {
                     Text("Keep")
                 }
@@ -432,6 +434,7 @@ fun SelectorScreen(
                             if (event.type != KeyEventType.KeyDown) return@onPreviewKeyEvent false
                             handleSelectorKey(
                                 key = event.key,
+                                repeat = event.nativeKeyEvent.repeatCount > 0,
                                 sheetOpen = sheetOpen,
                                 contextMenuOpen = contextMenuAt != null,
                                 fullscreenOpen = showFullscreen,
@@ -501,11 +504,13 @@ fun SelectorScreen(
                             onDismissRequest = { showMenu = false },
                         ) {
                             DropdownMenuItem(
+                                modifier = Modifier.handCursor(),
                                 text = { Text("Scan images") },
                                 onClick = { showMenu = false; showScanConfig = true },
                                 enabled = uiState.images.isNotEmpty() && !uiState.isScanRunning,
                             )
                             DropdownMenuItem(
+                                modifier = Modifier.handCursor(),
                                 text = { Text("Open folder") },
                                 onClick = { showMenu = false; folderPickerLauncher.launch(null) },
                             )
@@ -522,14 +527,16 @@ fun SelectorScreen(
                                 trailingIcon = { KeyCap(SelectorShortcut.GO_TO.input) },
                                 onClick = { showMenu = false; openJump() },
                                 enabled = uiState.images.isNotEmpty(),
-                                modifier = Modifier.testTag("menu_go_to_photo"),
+                                modifier = Modifier.testTag("menu_go_to_photo").handCursor(),
                             )
                             DropdownMenuItem(
+                                modifier = Modifier.handCursor(),
                                 text = { Text("Clear scores") },
                                 onClick = { showMenu = false; viewModel.clearScores() },
                                 enabled = uiState.hasAnyScores,
                             )
                             DropdownMenuItem(
+                                modifier = Modifier.handCursor(),
                                 text = { Text("Shortcuts and guide") },
                                 onClick = { showMenu = false; openGuide() },
                             )
@@ -541,7 +548,13 @@ fun SelectorScreen(
             Column(modifier = Modifier.weight(1f).fillMaxSize()) {
                 if (uiState.folderUri == null || uiState.images.isEmpty()) {
                     EmptySelectorState(
-                        missingGrantPrompt = uiState.missingGrantPrompt,
+                        kind = selectorEmptyKind(
+                            folderUri = uiState.folderUri,
+                            missingGrantPrompt = uiState.missingGrantPrompt,
+                            isLoading = uiState.isLoading,
+                            isEnumerating = uiState.isEnumerating,
+                        ),
+                        folderName = uiState.folderName,
                         onOpenFolder = { folderPickerLauncher.launch(null) },
                     )
                 } else {
@@ -605,7 +618,7 @@ fun SelectorScreen(
                                 filmstrip = {
                                     CandidateStrip(
                                         images = uiState.filteredImages,
-                                        currentIndex = uiState.filteredPosition,
+                                        currentIndex = uiState.filteredIndex,
                                         selectedUri = uiState.currentImage?.uri,
                                         onImageSelected = { filteredIdx ->
                                             val targetImage = uiState.filteredImages.getOrNull(filteredIdx)
@@ -683,17 +696,37 @@ fun SelectorScreen(
     }
 }
 
+/** Which card the selector shows in place of the frames. */
+internal enum class SelectorEmptyKind { NO_FOLDER, MISSING_GRANT, OPENING, EMPTY_FOLDER }
+
+/**
+ * An open folder with nothing to show is not "no folder": while it is still being read the screen
+ * waits, and once read it says the folder holds no photos (FD-UX-5).
+ */
+internal fun selectorEmptyKind(
+    folderUri: String?,
+    missingGrantPrompt: Boolean,
+    isLoading: Boolean,
+    isEnumerating: Boolean,
+): SelectorEmptyKind = when {
+    missingGrantPrompt -> SelectorEmptyKind.MISSING_GRANT
+    folderUri == null -> SelectorEmptyKind.NO_FOLDER
+    isLoading || isEnumerating -> SelectorEmptyKind.OPENING
+    else -> SelectorEmptyKind.EMPTY_FOLDER
+}
+
 @Composable
-private fun EmptySelectorState(
-    missingGrantPrompt: Boolean = false,
+internal fun EmptySelectorState(
+    kind: SelectorEmptyKind,
+    folderName: String,
     onOpenFolder: () -> Unit,
 ) {
     Box(
         modifier = Modifier.fillMaxSize(),
         contentAlignment = Alignment.Center,
     ) {
-        if (missingGrantPrompt) {
-            EmptyStateCard(
+        when (kind) {
+            SelectorEmptyKind.MISSING_GRANT -> EmptyStateCard(
                 icon = Icons.Default.FolderOpen,
                 title = "Folder Access Needed",
                 description = "Permission for this folder was revoked or the folder was moved. Re-select the folder to continue.",
@@ -701,8 +734,23 @@ private fun EmptySelectorState(
                 onAction = onOpenFolder,
                 modifier = Modifier.testTag("missing_grant_prompt_card"),
             )
-        } else {
-            EmptyStateCard(
+            SelectorEmptyKind.OPENING -> CircularProgressIndicator(
+                modifier = Modifier.testTag("opening_folder_progress"),
+                color = MaterialTheme.colorScheme.primary,
+            )
+            SelectorEmptyKind.EMPTY_FOLDER -> EmptyStateCard(
+                icon = Icons.Default.FolderOpen,
+                title = "No photos found",
+                description = if (folderName.isBlank()) {
+                    "This folder holds no supported photos."
+                } else {
+                    "$folderName holds no supported photos."
+                },
+                actionLabel = "Open Folder",
+                onAction = onOpenFolder,
+                modifier = Modifier.testTag("empty_folder_card"),
+            )
+            SelectorEmptyKind.NO_FOLDER -> EmptyStateCard(
                 icon = Icons.Default.PhotoCamera,
                 title = "Select a Folder",
                 description = "Choose a shoot folder to start comparing and culling frames.",
@@ -720,6 +768,17 @@ private fun EmptySelectorState(
  * suppressed while a sheet is open, except Escape" — can be reasoned about and
  * tested without composing the screen.
  */
+/**
+ * Keys that file or delete a photo. A held key auto-repeats (about 30 a second on a DeX or
+ * keyboard dock); repeated, these would delete or file frame after frame — past 20 deletes the
+ * oldest are committed to disk, and a repeated Copy cannot be undone at all. So only the first
+ * press of each acts, and its repeats are swallowed (FD-D-2). Arrows keep repeating on purpose.
+ */
+internal val ONE_SHOT_KEYS: Set<Key> = setOf(Key.Delete, Key.Backspace, Key.M, Key.C)
+
+/** True for an auto-repeat of a [ONE_SHOT_KEYS] key: consume it and do nothing. */
+internal fun isHeldOneShotKey(key: Key, repeat: Boolean): Boolean = repeat && key in ONE_SHOT_KEYS
+
 internal fun handleSelectorKey(
     key: Key,
     sheetOpen: Boolean,
@@ -738,6 +797,8 @@ internal fun handleSelectorKey(
     onNavigate: ((Screen) -> Unit)? = null,
     ctrlOrMetaPressed: Boolean = false,
     onUndo: (() -> Unit)? = null,
+    /** The key event is an auto-repeat of a held key ([isHeldOneShotKey]). */
+    repeat: Boolean = false,
 ): Boolean {
     if (key == Key.Escape) {
         if (sheetOpen || contextMenuOpen || fullscreenOpen || maximised) {
@@ -756,6 +817,8 @@ internal fun handleSelectorKey(
         }
         return false
     }
+
+    if (isHeldOneShotKey(key, repeat)) return true
 
     return when (key) {
         Key.L, Key.I -> {
@@ -795,6 +858,7 @@ internal fun handleSelectorKey(
         else -> false
     }
 }
+
 
 /** A mono key cap, the key hint shown at the end of a menu row. */
 @Composable

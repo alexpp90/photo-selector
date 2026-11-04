@@ -42,8 +42,21 @@ data class SelectorListState(
 data class ImageSlot(
     val image: ImageItem,
     val index: Int,
+    /**
+     * What stays in the list in this slot when only part of the shot goes: the original that
+     * remains after Delete removed the displayed `-Edit` and its own sidecars ([DerivativeDelete]).
+     * Null when the whole frame left.
+     */
+    val kept: ImageItem? = null,
 ) {
     val uri: String get() = image.uri
+
+    /** The files that leave the disk when this slot is deleted: all of [image]'s, less those [kept] holds. */
+    val deletedFiles: List<com.photoselectortoolbox.data.model.CompanionFile>
+        get() {
+            val keptUris = kept?.allFiles?.map { it.uri }?.toSet() ?: return image.allFiles
+            return image.allFiles.filter { it.uri !in keptUris }
+        }
 }
 
 /**

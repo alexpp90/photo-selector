@@ -102,6 +102,7 @@ class SelectorViewModelRatingTest {
     }
     private val metadataWriter: MetadataWriter = mockk(relaxed = true) {
         coEvery { writeRating(any(), any()) } returns Result.success(Unit)
+        coEvery { recoverInterruptedWrites(any(), any()) } returns com.photoselectortoolbox.data.metadata.RatingRecovery.NONE
     }
 
     /**
@@ -180,6 +181,22 @@ class SelectorViewModelRatingTest {
 
         // Verify async debounced metadata write-back called
         coVerify { metadataWriter.writeRating(any(), 4) }
+    }
+
+    @Test
+    fun `opening a folder recovers interrupted JPEG rating writes there and says what it did`() = runTest {
+        coEvery { metadataWriter.recoverInterruptedWrites(any(), Uri.parse(FOLDER_URI)) } returns
+            com.photoselectortoolbox.data.metadata.RatingRecovery(
+                restored = listOf("DSC_1.jpg"),
+                kept = listOf(com.photoselectortoolbox.data.metadata.KeptRatingBackup("DSC_2.jpg", "DSC_2.jpg.frameduel-backup")),
+            )
+
+        val viewModel = loadFolder(image("DSC_1.jpg"))
+        advanceUntilIdle()
+
+        coVerify(exactly = 1) { metadataWriter.recoverInterruptedWrites(any(), Uri.parse(FOLDER_URI)) }
+        val message = viewModel.uiState.value.snackbarMessage
+        assertTrue(message, message!!.contains("Restored DSC_1.jpg") && message.contains("DSC_2.jpg.frameduel-backup"))
     }
 
     @Test

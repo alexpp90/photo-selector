@@ -70,6 +70,7 @@ import com.photoselectortoolbox.domain.format.SelectorLabels
 import com.photoselectortoolbox.domain.interaction.FilingAction
 import com.photoselectortoolbox.domain.model.RatingFilter
 import com.photoselectortoolbox.ui.components.StarRatingBar
+import com.photoselectortoolbox.ui.theme.HintText
 import com.photoselectortoolbox.ui.theme.BrandAccent
 import com.photoselectortoolbox.ui.theme.BrandAccentNav
 import com.photoselectortoolbox.ui.theme.BrandAccentText
@@ -540,7 +541,7 @@ private fun WordedButton(
             if (enabled) {
                 Modifier
                     .pointerHoverIcon(PointerIcon.Hand)
-                    .clickable(onClick = onClick)
+                    .clickable(onClick = onClick, role = Role.Button)
             } else {
                 Modifier
             }
@@ -554,7 +555,7 @@ private fun WordedButton(
             }
         )
     val formattedKey = if (keyHint.startsWith("[")) keyHint else "[$keyHint]"
-    val keyColor = if (enabled) Zinc600 else Zinc700
+    val keyColor = if (enabled) HintText else Zinc700
 
     // The word shrinks (13 sp down to 9 sp) before it ever ellipsizes: at 960 x 600
     // the 13 sp word read "Dele…", and a destructive control must say what it does.
@@ -662,7 +663,7 @@ private fun ViewToggle(
             .clip(RoundedCornerShape(8.dp))
             .hoverable(interactionSource)
             .pointerHoverIcon(PointerIcon.Hand)
-            .clickable(onClick = onClick)
+            .clickable(onClick = onClick, role = Role.Button)
             .semantics { contentDescription = description },
         contentAlignment = Alignment.Center,
     ) {

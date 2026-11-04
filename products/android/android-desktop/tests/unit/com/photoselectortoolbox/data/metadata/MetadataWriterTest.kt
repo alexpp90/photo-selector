@@ -193,8 +193,24 @@ class MetadataWriterTest {
         """.trimIndent()
 
         val updated = XmpSidecarWriter.injectOrUpdateRating(xmpWithDecimal, 5)
-        assertTrue("Must replace decimal rating with 5", updated.contains("<xmp:Rating>5</xmp:Rating>"))
+        assertTrue("Must replace decimal rating with 5", updated!!.contains("<xmp:Rating>5</xmp:Rating>"))
         assertFalse("Must not contain old decimal 3.5", updated.contains("3.5"))
+    }
+
+    @Test
+    fun `jpeg whose embedded XMP cannot take the rating fails and keeps its bytes`() = runTest {
+        val jpegFile = createSampleJpeg("odd_xmp.jpg", timestamp = "2026:10:17 09:00:00")
+        ExifInterface(jpegFile.absolutePath).apply {
+            setAttribute(ExifInterface.TAG_XMP, "<x:xmpmeta xmlns:x=\"adobe:ns:meta/\"><vendor:Thing/></x:xmpmeta>")
+            saveAttributes()
+        }
+        val before = jpegFile.readBytes()
+
+        val result = writer.writeRating(jpegFile, 4)
+
+        assertTrue(result.isFailure)
+        assertTrue(result.exceptionOrNull() is RatingWriteException)
+        assertTrue(before.contentEquals(jpegFile.readBytes()))
     }
 
     @Test

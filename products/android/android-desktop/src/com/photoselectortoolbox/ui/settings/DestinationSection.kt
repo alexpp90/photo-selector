@@ -41,6 +41,7 @@ import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.unit.dp
 import com.photoselectortoolbox.domain.curation.DestinationMode
 import com.photoselectortoolbox.domain.format.DestinationLabels
+import com.photoselectortoolbox.ui.components.handCursor
 import com.photoselectortoolbox.ui.theme.BrandAccent
 import com.photoselectortoolbox.ui.theme.ScoreBad
 import com.photoselectortoolbox.ui.theme.Zinc400
@@ -141,7 +142,7 @@ internal fun DestinationSection(
             if (editingFolderName != uiState.selectionFolderName && editingFolderName.isNotBlank()) {
                 TextButton(
                     onClick = { onSaveSelectionName(editingFolderName) },
-                    modifier = Modifier.align(Alignment.End),
+                    modifier = Modifier.align(Alignment.End).handCursor(),
                 ) {
                     Text("Save", color = BrandAccent)
                 }
@@ -170,7 +171,7 @@ internal fun DestinationSection(
             ) {
                 TextButton(
                     onClick = { onSaveSecondPassName(editingSecondaryFolderName) },
-                    modifier = Modifier.align(Alignment.End),
+                    modifier = Modifier.align(Alignment.End).handCursor(),
                 ) {
                     Text("Save", color = BrandAccent)
                 }
@@ -223,6 +224,8 @@ private fun DestinationRadioRow(
             RadioButton(
                 selected = selected,
                 onClick = null,
+                // The row is the control; the cursor stays a hand over the radio inside it too.
+                modifier = Modifier.handCursor(),
                 colors = RadioButtonDefaults.colors(selectedColor = BrandAccent, unselectedColor = Zinc400),
             )
             Spacer(modifier = Modifier.width(8.dp))
