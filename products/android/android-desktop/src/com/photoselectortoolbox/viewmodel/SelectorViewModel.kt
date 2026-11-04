@@ -810,7 +810,7 @@ class SelectorViewModel @Inject constructor(
         } catch (e: Exception) {
             Log.e("SelectorViewModel", "Failed to discover images in $folderUri", e)
             _uiState.update { it.copy(isLoading = false, isEnumerating = false) }
-            reportError("Failed to load $errorLabel: ${e.message}")
+            reportError("Could not load $errorLabel")
             onError(e)
         }
     }
@@ -1254,7 +1254,8 @@ class SelectorViewModel @Inject constructor(
                 throw e
             } catch (e: Exception) {
                 _uiState.update { it.copy(scanProgress = 0f, scanStatusText = "") }
-                reportError("Scan failed: ${e.message}")
+                Log.e("SelectorViewModel", "Scan failed", e)
+                reportError("Scan failed")
             } finally {
                 finishWork(SelectorWork.SCAN)
             }
@@ -1296,7 +1297,8 @@ class SelectorViewModel @Inject constructor(
             } catch (e: CancellationException) {
                 throw e
             } catch (e: Exception) {
-                reportError("Grouping failed: ${e.message}")
+                Log.e("SelectorViewModel", "Grouping failed", e)
+                reportError("Grouping failed")
             } finally {
                 finishWork(SelectorWork.GROUPING)
             }
@@ -1508,7 +1510,7 @@ class SelectorViewModel @Inject constructor(
                     throw e
                 } catch (e: Exception) {
                     Log.e("SelectorViewModel", "Recovery delete failed for $uri", e)
-                    failures += recoveredName(uri) to e.message
+                    failures += recoveredName(uri) to null
                 }
             }
             // Drop only the recovered entries: the journal may already hold deletions of
@@ -1723,7 +1725,8 @@ class SelectorViewModel @Inject constructor(
             } else if (stillOpen()) {
                 rollbackFiling(edit.action, edit.slots)
                 val verb = if (action == CurationAction.COPY) "Copy" else "Move"
-                reportError("$verb failed: ${result?.error ?: "the file could not be transferred"}")
+                Log.w("SelectorViewModel", "$verb failed: ${result?.error}")
+                reportError("$verb failed")
             }
         }
     }
@@ -1984,8 +1987,11 @@ class SelectorViewModel @Inject constructor(
                     image.copy(scanResult = null)
                 }
                 _uiState.update { it.copy(images = clearedImages) }
+            } catch (e: CancellationException) {
+                throw e
             } catch (e: Exception) {
-                reportError("Failed to clear cache: ${e.message}")
+                Log.e("SelectorViewModel", "Clearing the cache failed", e)
+                reportError("Could not clear the cache")
             }
         }
     }
@@ -2234,7 +2240,7 @@ class SelectorViewModel @Inject constructor(
     private fun startDimensionBackfill(force: Boolean = false) {
         if (!force && backfillDimensionsJob?.isActive == true) return
         backfillDimensionsJob?.cancel()
-        backfillDimensionsJob = viewModelScope.launch(Dispatchers.IO) {
+        backfillDimensionsJob = viewModelScope.launch(ioDispatcher) {
             val state = _uiState.value
             val images = state.images
             if (images.isEmpty()) return@launch
@@ -2321,6 +2327,8 @@ class SelectorViewModel @Inject constructor(
                     .build()
                 prefetchRequests[uri] = loader.enqueue(request)
             }
+        } catch (e: CancellationException) {
+            throw e
         } catch (e: Exception) {
             Log.w("SelectorViewModel", "Neighbour prefetch unavailable", e)
         }
@@ -2365,6 +2373,8 @@ class SelectorViewModel @Inject constructor(
                         }
                     }
                 }
+            } catch (e: CancellationException) {
+                throw e
             } catch (e: Exception) {
                 emptyMap()
             }
@@ -2373,6 +2383,8 @@ class SelectorViewModel @Inject constructor(
                 val userRating = userRatings[image.uri]
                 val cached = try {
                     scoreDao.getScore(image.uri)
+                } catch (e: CancellationException) {
+                    throw e
                 } catch (e: Exception) {
                     null
                 }

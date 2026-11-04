@@ -1589,7 +1589,8 @@ class SelectorViewModelTest {
 
         val message = viewModel.uiState.value.snackbarMessage
         assertTrue(message?.contains("bad.jpg") == true)
-        assertTrue(message?.contains("read-only card") == true)
+        // The exception's own text goes to the log, not to the photographer (FD-UX-4).
+        assertTrue(message?.contains("read-only card") == false)
     }
 
     @Test
