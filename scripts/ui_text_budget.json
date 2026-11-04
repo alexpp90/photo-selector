@@ -23,7 +23,7 @@
   "exempt_keys": ["app_name"],
   "products": {
     "phototok": {
-      "mode": "warn",
+      "mode": "fail",
       "res": "products/android/phototok/res",
       "src": "products/android/phototok/src"
     },

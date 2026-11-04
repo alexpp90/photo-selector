@@ -12,26 +12,32 @@ def main(argv=None) -> int:
         description="Native GNOME photograph culling suite for Debian 13 / Linux.",
     )
     parser.add_argument("--version", action="version", version=f"%(prog)s {__version__}")
-    parser.add_argument("folder", nargs="?", type=str, help="Initial folder or SD card directory to open.")
+    parser.add_argument(
+        "paths",
+        nargs="*",
+        type=str,
+        metavar="path",
+        help="Folder or SD card directory to open; photos given by a file manager open their folder.",
+    )
 
     args = parser.parse_args(argv)
 
-    target = None
-    if args.folder:
-        target = Path(args.folder).resolve()
+    targets = []
+    for given in args.paths:
+        target = Path(given).resolve()
         if not target.exists():
             print(f"Error: Target path does not exist: {target}", file=sys.stderr)
             return 1
+        targets.append(target)
 
     try:
         from photo_selector_linux.ui.application import PhotoSelectorApplication
-        app = PhotoSelectorApplication()
-        call_args = sys.argv[:1] + ([str(target)] if target else [])
-        return app.run(call_args)
-    except (ImportError, Exception) as e:
-        # Fallback headless verification mode when running on non-display environment
-        print(f"Blitzlens {__version__} (Core Engine Ready: {e})")
-        return 0
+    except (ImportError, ValueError) as e:
+        print(f"Error: GTK 4 / Libadwaita are not available ({e}).", file=sys.stderr)
+        return 1
+
+    app = PhotoSelectorApplication()
+    return app.run(sys.argv[:1] + [str(t) for t in targets])
 
 
 if __name__ == "__main__":

@@ -135,6 +135,9 @@ PRODUCTS: Tuple[Product, ...] = (
                           r'^__version__ = "(?P<v>[^"]+)"'),
             VersionSource("products/linux-desktop/debian/changelog",
                           r"\Aphoto-selector-linux \((?P<v>[^)-]+)-\d+\)", bump=False),
+            # The AppStream <release> list: the top entry is this release (`prepare` inserts it).
+            VersionSource("products/linux-desktop/data/app.alpatix.Blitzlens.metainfo.xml",
+                          r'<releases>\s*<release version="(?P<v>[^"]+)"', bump=False),
         ),
         changelog="products/linux-desktop/CHANGELOG.md",
         workflow=".github/workflows/linux.yml",
@@ -675,6 +678,14 @@ def prepare(product: Product, root: Path = REPO_ROOT, version: Optional[Version]
             notes = changelog_section(log, fmt(version)) or ""
             deb.write_text(debian_entry(text, version, notes, when) + text, encoding="utf-8")
             changed.append("products/linux-desktop/debian/changelog")
+        meta = root / "products/linux-desktop/data/app.alpatix.Blitzlens.metainfo.xml"
+        text = meta.read_text(encoding="utf-8")
+        if f'<release version="{fmt(version)}"' not in text:
+            entry = f'<releases>\n    <release version="{fmt(version)}" date="{today.isoformat()}"/>'
+            new = re.sub(r"<releases>", lambda _m: entry, text, count=1)
+            if new != text:
+                meta.write_text(new, encoding="utf-8")
+                changed.append("products/linux-desktop/data/app.alpatix.Blitzlens.metainfo.xml")
     return version, changed
 
 

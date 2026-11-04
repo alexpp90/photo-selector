@@ -49,7 +49,7 @@ import androidx.compose.material.icons.filled.Lens
 import androidx.compose.material.icons.filled.PhotoCamera
 import androidx.compose.material.icons.filled.PhotoLibrary
 import androidx.compose.material.icons.filled.Refresh
-import androidx.compose.material.icons.filled.RestoreFromTrash
+import androidx.compose.material.icons.automirrored.filled.Undo
 import androidx.compose.material.icons.filled.SdCard
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material.icons.filled.Share
@@ -68,6 +68,7 @@ import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.SnackbarDuration
 import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
+import androidx.compose.material3.SnackbarResult
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
@@ -75,18 +76,22 @@ import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.ExperimentalComposeUiApi
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.clipToBounds
+import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
@@ -97,6 +102,7 @@ import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.semantics.testTagsAsResourceId
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.hilt.navigation.compose.hiltViewModel
@@ -108,11 +114,11 @@ import com.phototok.R
 import com.phototok.data.model.ImageItem
 import com.phototok.domain.FileTypeFilter
 import com.phototok.domain.PhotoFolders
-import com.phototok.domain.SwipeAction
 import com.phototok.ui.components.NameTooltip
 import com.phototok.ui.components.ViewerBottomBar
 import com.phototok.ui.resolve
 import com.phototok.ui.settings.SettingsScreen
+import com.phototok.viewmodel.ActionFeedback
 import com.phototok.viewmodel.PhoneModeViewModel
 import com.phototok.viewmodel.ReloadPrompt
 import com.phototok.viewmodel.SelectionViewerLogic
@@ -155,6 +161,7 @@ fun PhoneModeScreen(
             preferredTab = SelectionViewerLogic.preferredTab(uiState.swipeRightVerb),
             // `Jackpix` for a Casual card import, else the configured Selection folder.
             selectionSubfolder = uiState.selectionSubfolderName,
+            feed = uiState.sourceFolderUri,
         )
         viewModel.onSelectionViewerOpened()
     }
@@ -166,25 +173,12 @@ fun PhoneModeScreen(
     }
 
     var showSettingsSheet by remember { mutableStateOf(false) }
-    var showDirectDeleteConfirmDialog by remember { mutableStateOf(false) }
     var showClearAllCardConfirm by remember { mutableStateOf(false) }
     val sheetSnackbarHostState = remember { SnackbarHostState() }
     val sheetScope = rememberCoroutineScope()
 
-    val performDeleteSwipe = {
-        if (uiState.leftSwipeAction == SwipeAction.DELETE) {
-            val currentImage = uiState.images.getOrNull(uiState.currentIndex)
-            if (currentImage != null) {
-                if (uiState.directDeleteConfirmEnabled) {
-                    showDirectDeleteConfirmDialog = true
-                } else {
-                    viewModel.requestDelete()
-                }
-            }
-        } else {
-            viewModel.performLeftSwipeCopyOrMove()
-        }
-    }
+    // Swipe left: the ViewModel decides between copy/move, a delete and its confirmation.
+    val performDeleteSwipe: () -> Unit = viewModel::onSwipeLeft
 
     val isViewing = uiState.images.isNotEmpty()
     // A Casual card import copies into the phone's camera folder, which is known once it is granted.
@@ -192,8 +186,16 @@ fun PhoneModeScreen(
     val isViewingSelection = selectionState.isOpen
 
     // System Back (and the predictive back gesture) closes the Selection viewer like its own
-    // back arrow; the feed underneath still shows the photo it was opened from.
-    SelectionViewerBackHandler(enabled = isViewingSelection, onClose = selectionViewModel::close)
+    // back arrow; the feed underneath still shows the photo it was opened from. While a slow
+    // listing is still opening it, Back cancels the open instead of leaving the app.
+    SelectionViewerBackHandler(
+        enabled = isViewingSelection || selectionState.isOpening,
+        onClose = selectionViewModel::close,
+    )
+    // Another folder in the feed closes a viewer opened (or still opening) for the previous one.
+    LaunchedEffect(uiState.sourceFolderUri) {
+        selectionViewModel.closeUnlessOpenedFor(uiState.sourceFolderUri)
+    }
 
     val folderPickerLauncher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.OpenDocumentTree(),
@@ -216,7 +218,7 @@ fun PhoneModeScreen(
 
     val copyFavouritesPickerLauncher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.OpenDocumentTree(),
-    ) { uri: Uri? -> uri?.let { selectionViewModel.copyFavouritesToFolder(it) } }
+    ) { uri: Uri? -> uri?.let { selectionViewModel.copyFavouritesToFolder(it, allSourceImages = uiState.allImages) } }
 
     // Casual swipe right on a card or camera needs write access to the phone's camera folder once:
     // the picker opens inside DCIM/Camera. The photo stays put until the user has answered.
@@ -237,13 +239,13 @@ fun PhoneModeScreen(
         }
     }
 
-    // Action feedback snackbar
-    LaunchedEffect(uiState.lastActionFeedback) {
-        uiState.lastActionFeedback?.let { fb ->
-            snackbarHostState.showSnackbar(message = fb.message.resolve(context), duration = SnackbarDuration.Short)
-            viewModel.clearFeedback()
-        }
-    }
+    // Action feedback snackbar (with Undo after a delete)
+    ActionFeedbackSnackbar(
+        feedback = uiState.lastActionFeedback,
+        hostState = snackbarHostState,
+        onShown = viewModel::clearFeedback,
+        onUndoDelete = viewModel::revertDelete,
+    )
 
     // Selection-viewer feedback snackbar
     LaunchedEffect(selectionState.feedback) {
@@ -265,14 +267,10 @@ fun PhoneModeScreen(
     }
 
     // Direct Delete Confirmation Dialog
-    if (showDirectDeleteConfirmDialog) {
+    if (uiState.confirmDeleteRequested) {
         DirectDeleteDialog(
-            onConfirm = { dontAskAgain ->
-                showDirectDeleteConfirmDialog = false
-                if (dontAskAgain) viewModel.updateDirectDeleteConfirm(false)
-                viewModel.requestDelete()
-            },
-            onDismiss = { showDirectDeleteConfirmDialog = false },
+            onConfirm = viewModel::confirmDelete,
+            onDismiss = viewModel::cancelDelete,
         )
     }
 
@@ -302,11 +300,12 @@ fun PhoneModeScreen(
                             viewModel.dismissCardDoneSheet()
                             showClearAllCardConfirm = true
                         },
+                        enabled = uiState.cardClearReady,
                         modifier = Modifier.fillMaxWidth(),
                     ) {
                         Text(
-                            stringResource(R.string.action_delete_all_count, uiState.images.size),
-                            color = colors.error,
+                            stringResource(R.string.action_delete_all_count, uiState.cardClearFileCount),
+                            color = if (uiState.cardClearReady) colors.error else colors.onSurfaceVariant,
                         )
                     }
                 }
@@ -325,7 +324,11 @@ fun PhoneModeScreen(
             onDismissRequest = { showClearAllCardConfirm = false },
             title = {
                 Text(
-                    pluralStringResource(R.plurals.dialog_title_delete_all, uiState.images.size, uiState.images.size),
+                    pluralStringResource(
+                        R.plurals.dialog_title_delete_all,
+                        uiState.cardClearFileCount,
+                        uiState.cardClearFileCount,
+                    ),
                     color = colors.error,
                 )
             },
@@ -333,10 +336,13 @@ fun PhoneModeScreen(
                 Text(stringResource(R.string.dialog_body_card_loss))
             },
             confirmButton = {
-                TextButton(onClick = {
-                    showClearAllCardConfirm = false
-                    viewModel.confirmClearEntireCard()
-                }) {
+                TextButton(
+                    onClick = {
+                        showClearAllCardConfirm = false
+                        viewModel.confirmClearEntireCard()
+                    },
+                    enabled = uiState.cardClearReady,
+                ) {
                     Text(stringResource(R.string.action_delete_all), color = colors.error)
                 }
             },
@@ -405,6 +411,9 @@ fun PhoneModeScreen(
 
     val configuration = LocalConfiguration.current
     val isLandscape = configuration.orientation == Configuration.ORIENTATION_LANDSCAPE
+    // The viewer bottom bar's measured height (navigation-bar inset included): the snackbar sits
+    // above it, so it never covers the bar's 48 dp targets (3-button navigation, review JP-UX-2).
+    var bottomBarHeightPx by remember { mutableIntStateOf(0) }
 
     // Measured positions of the real controls, shared by the bars and the controls guide.
     val guideAnchors = remember { ControlsGuideAnchors() }
@@ -473,7 +482,7 @@ fun PhoneModeScreen(
                         leftSwipeFolderName = uiState.leftSwipeFolderName,
                         collectionAction = uiState.collectionAction,
                         swipeRightVerb = uiState.swipeRightVerb,
-                        collectionFolderName = uiState.collectionFolderName,
+                        collectionFolderName = uiState.collectionLabel,
                         showExifOverlay = false,
                         showPageCounter = false,
                         topBadgesSuppressed = guideUp,
@@ -488,7 +497,12 @@ fun PhoneModeScreen(
                         onOpenWithCurrentPhoto = {
                             viewModel.buildCurrentOpenWithIntent()?.let { context.startActivity(it) }
                         },
+                        onToggleFavourite = viewModel::toggleCurrentFavourite,
+                        onCopyToSelection = viewModel::copyCurrentToSelection,
+                        // A cloud provider cannot move; the ViewModel would copy instead.
+                        onMoveToSelection = if (uiState.isCloudSource) null else viewModel::moveCurrentToSelection,
                         onFirstRunHint = viewModel::maybeShowFirstRunHint,
+                        onFileDetailsOpened = viewModel::loadDimensionsOfCurrent,
                         collectionReady = collectionReady,
                     )
                 }
@@ -568,7 +582,7 @@ fun PhoneModeScreen(
                     leftSwipeFolderName = uiState.leftSwipeFolderName,
                     collectionAction = uiState.collectionAction,
                     swipeRightVerb = uiState.swipeRightVerb,
-                    collectionFolderName = uiState.collectionFolderName,
+                    collectionFolderName = uiState.collectionLabel,
                     showExifOverlay = uiState.showExifOverlay,
                     bottomHudSuppressed = uiState.firstRunHint != null || guideUp,
                     topBadgesSuppressed = guideUp,
@@ -584,7 +598,11 @@ fun PhoneModeScreen(
                         viewModel.buildCurrentOpenWithIntent()?.let { context.startActivity(it) }
                     },
                     onToggleFavourite = viewModel::toggleCurrentFavourite,
+                    onCopyToSelection = viewModel::copyCurrentToSelection,
+                    // A cloud provider cannot move; the ViewModel would copy instead.
+                    onMoveToSelection = if (uiState.isCloudSource) null else viewModel::moveCurrentToSelection,
                     onFirstRunHint = viewModel::maybeShowFirstRunHint,
+                    onFileDetailsOpened = viewModel::loadDimensionsOfCurrent,
                     collectionReady = collectionReady,
                 )
             } else if (uiState.isLoading) {
@@ -632,7 +650,7 @@ fun PhoneModeScreen(
                 leftSwipeAction = uiState.leftSwipeAction,
                 collectionAction = uiState.collectionAction,
                 leftSwipeFolderName = uiState.leftSwipeFolderName,
-                collectionFolderName = uiState.collectionFolderName,
+                collectionFolderName = uiState.collectionLabel,
                 swipeRightVerb = uiState.swipeRightVerb,
                 anchors = guideAnchors,
                 cameraInfo = uiState.proMode,
@@ -646,7 +664,7 @@ fun PhoneModeScreen(
             leftSwipeAction = uiState.leftSwipeAction,
             collectionAction = uiState.collectionAction,
             leftSwipeFolderName = uiState.leftSwipeFolderName,
-            collectionFolderName = uiState.collectionFolderName,
+            collectionFolderName = uiState.collectionLabel,
             swipeRightVerb = uiState.swipeRightVerb,
             anchors = guideAnchors,
             cameraInfo = uiState.proMode,
@@ -718,20 +736,74 @@ fun PhoneModeScreen(
                     onJumpToSelection = openSelectionViewer,
                     onShare = shareCurrentPhoto,
                     onGoToLanding = { viewModel.goBackToLanding() },
-                    modifier = Modifier.align(Alignment.BottomCenter),
+                    modifier = Modifier
+                        .align(Alignment.BottomCenter)
+                        .onSizeChanged { bottomBarHeightPx = it.height },
                     anchors = guideAnchors,
                 )
             }
         }
 
         // ── Snackbar ─────────────────────────────────────────────
-        SnackbarHost(
+        val bottomBarShown = isViewing && !isViewingSelection && !isLandscape
+        FeedSnackbarHost(
             hostState = snackbarHostState,
-            modifier = Modifier
-                .align(Alignment.BottomCenter)
-                .padding(bottom = if (isLandscape && isViewing) 16.dp else 80.dp),
+            bottomBarHeight = if (bottomBarShown) with(LocalDensity.current) { bottomBarHeightPx.toDp() } else 0.dp,
+            modifier = Modifier.align(Alignment.BottomCenter),
         )
     }
+}
+
+/**
+ * Shows [feedback] once in [hostState]. A delete's feedback carries Undo ([USER 2026-10-24]), which
+ * calls [onUndoDelete] (the same restore as the bar's Revert button).
+ */
+@Composable
+internal fun ActionFeedbackSnackbar(
+    feedback: ActionFeedback?,
+    hostState: SnackbarHostState,
+    onShown: () -> Unit,
+    onUndoDelete: () -> Unit,
+) {
+    val context = LocalContext.current
+    val currentOnShown by rememberUpdatedState(onShown)
+    val currentOnUndoDelete by rememberUpdatedState(onUndoDelete)
+    LaunchedEffect(feedback) {
+        val fb = feedback ?: return@LaunchedEffect
+        val result = hostState.showSnackbar(
+            message = fb.message.resolve(context),
+            actionLabel = if (fb.offersUndoDelete) context.getString(R.string.snackbar_action_undo) else null,
+            duration = SnackbarDuration.Short,
+        )
+        // No suspension between the two: clearing restarts this effect only at the next frame.
+        currentOnShown()
+        if (result == SnackbarResult.ActionPerformed && fb.offersUndoDelete) currentOnUndoDelete()
+    }
+}
+
+/**
+ * The feed's snackbar. Above the viewer bottom bar when it is shown ([bottomBarHeight], measured,
+ * with the navigation-bar inset it already contains), otherwise above the navigation bar. A fixed
+ * offset of 80 dp let the snackbar cover the top of the bar's buttons with 3-button navigation.
+ */
+@Composable
+internal fun FeedSnackbarHost(
+    hostState: SnackbarHostState,
+    bottomBarHeight: Dp,
+    modifier: Modifier = Modifier,
+) {
+    SnackbarHost(
+        hostState = hostState,
+        modifier = modifier
+            .then(
+                if (bottomBarHeight > 0.dp) {
+                    Modifier.padding(bottom = bottomBarHeight + 8.dp)
+                } else {
+                    Modifier.navigationBarsPadding().padding(bottom = 16.dp)
+                },
+            )
+            .testTag("feed_snackbar_host"),
+    )
 }
 
 /**
@@ -832,7 +904,7 @@ internal fun LandscapeLeftPanel(
             )
             // Revert (restore pending deleted photo from trash)
             SidePanelButton(
-                icon = Icons.Default.RestoreFromTrash,
+                icon = Icons.AutoMirrored.Filled.Undo,
                 name = stringResource(R.string.cd_revert),
                 isActive = canRevert,
                 enabled = canRevert,
@@ -1240,7 +1312,7 @@ internal fun SelectionViewerTabs(
 }
 
 @Composable
-private fun ExifSidebarPanel(
+internal fun ExifSidebarPanel(
     exif: ExifData,
     fileName: String,
     modifier: Modifier = Modifier,
@@ -1257,7 +1329,7 @@ private fun ExifSidebarPanel(
     val colors = MaterialTheme.colorScheme
 
     Surface(
-        modifier = modifier.fillMaxWidth(),
+        modifier = modifier.fillMaxWidth().testTag("landscape.exif_panel"),
         shape = RoundedCornerShape(12.dp),
         color = colors.surfaceContainerLowest.copy(alpha = 0.5f),
         border = androidx.compose.foundation.BorderStroke(
@@ -1270,11 +1342,12 @@ private fun ExifSidebarPanel(
             verticalArrangement = Arrangement.spacedBy(6.dp),
         ) {
             Text(
-                text = fileName.uppercase(),
+                // The name as it is on disk; a long one loses its middle, never its extension.
+                text = fileName,
                 style = MaterialTheme.typography.labelMedium.copy(letterSpacing = 0.5.sp),
                 color = colors.onSurface.copy(alpha = 0.7f),
                 maxLines = 1,
-                overflow = TextOverflow.Ellipsis,
+                overflow = TextOverflow.MiddleEllipsis,
             )
 
             items.forEach { item ->

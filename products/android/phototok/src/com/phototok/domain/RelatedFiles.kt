@@ -46,6 +46,19 @@ object RelatedFiles {
         return photos + sidecars
     }
 
+    /**
+     * Everything a **delete** of [target] takes with it. A delete is permanent, so it is narrower
+     * than [bundleOf]: swiping a derivative card (`IMG_1-Edit.tif`, `IMG_1-Enhanced-NR.dng`) deletes
+     * that file and its own sidecars only. The original RAW/JPEG, the other derivatives and the
+     * sidecars of the original stay, and go only when the original card is swiped.
+     */
+    fun deleteBundleOf(all: List<ImageItem>, target: ImageItem): List<ImageItem> {
+        if (!CompanionFiles.isDerivative(target.fileName)) return bundleOf(all, target)
+        return target.sidecars
+            .filter { it.parentUri == target.parentUri && CompanionFiles.isOwnSidecar(target.fileName, it.fileName) }
+            .distinctBy { it.uri }
+    }
+
     /** Collapse `RAW + JPEG` pairs into a single feed entry per shot `(parentUri, stem)`:
      * - When both a processed image (JPEG / HEIC / non-RAW) and a RAW exist for the same shot,
      *   show the processed image for instant decode.

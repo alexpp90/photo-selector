@@ -757,4 +757,102 @@ class SafTransferTest {
         assertTrue(File(rootDir, "DSC_0003-2.xmp").exists())
         assertFalse(File(rootDir, "Selection/RAW/DSC_0003-2.xmp").exists())
     }
+
+    // ── Where photos go: the Settings description and the transfer agree ([USER 2026-11-04]) ──
+
+    // REQ-AND-WORKFLOW.02
+    @Test
+    fun `describeFolder reports a resolving folder without a persisted grant as having no permission`() = runTest {
+        File(rootDir, "Keepers").mkdirs()
+
+        val description = repository.describeFolder(context, treeUriOf("Keepers"))
+
+        assertTrue(description.exists)
+        assertTrue(description.canWrite)
+        assertFalse(description.hasPersistedGrant)
+        assertEquals(com.photoselectortoolbox.data.model.FolderReachability.NO_PERMISSION, description.reachability)
+        assertEquals("Keepers", description.name)
+        assertEquals(listOf("Keepers"), description.displayPath)
+    }
+
+    @Test
+    fun `describeFolder with the persisted grant is reachable`() = runTest {
+        File(rootDir, "Keepers").mkdirs()
+        val folder = treeUriOf("Keepers")
+        com.photoselector.saf.FolderAccessManager(context)
+            .takeGrant(folder, com.photoselector.saf.FolderAccessPurpose.SELECTION_TARGET)
+
+        val description = repository.describeFolder(context, folder)
+
+        assertTrue(description.hasPersistedGrant)
+        assertTrue(description.isReachable)
+    }
+
+    @Test
+    fun `describeFolder reports a deleted folder as missing, never throwing`() = runTest {
+        val description = repository.describeFolder(context, treeUriOf("Gone"))
+
+        assertFalse(description.exists)
+        assertFalse(description.isReachable)
+        assertNull(description.name)
+        assertTrue(description.displayPath.isNotEmpty())
+    }
+
+    @Test
+    fun `describeFolder finds the Selection marker with one children query`() = runTest {
+        File(rootDir, "Culled").mkdirs()
+        repeat(20) { File(rootDir, "Culled/IMG_$it.JPG").writeText("x") }
+        File(rootDir, "Culled/${ImageRepositoryImpl.SELECTION_MARKER_FILE_NAME}").writeText("")
+        File(rootDir, "Plain").mkdirs()
+        FakeSafDocumentsProvider.childrenQueryCalls.set(0)
+
+        assertTrue(repository.describeFolder(context, treeUriOf("Culled")).hasSelectionMarker)
+        assertEquals(1, FakeSafDocumentsProvider.childrenQueryCalls.get())
+        assertFalse(repository.describeFolder(context, treeUriOf("Plain")).hasSelectionMarker)
+    }
+
+    /**
+     * The defect the transparency fixes is a label that disagrees with the file operation.
+     * Agreement oracle: for each configuration the Settings preview is built from
+     * [com.photoselectortoolbox.viewmodel.DestinationUiState.of] over [ImageRepositoryImpl.describeFolder],
+     * then a real copy runs, and the file must land in the folder the preview named.
+     */
+    @Test
+    fun `the Settings preview names the folder the copy lands in`() = runTest {
+        data class Case(val label: String, val opened: String, val custom: String?, val sorting: Boolean)
+        File(rootDir, "Trip").mkdirs()
+        File(rootDir, "Trip/Selection").mkdirs()
+        File(rootDir, "Keepers").mkdirs()
+        val cases = listOf(
+            Case("working folder, sorted", opened = "Trip", custom = null, sorting = true),
+            Case("working folder, flat", opened = "Trip", custom = null, sorting = false),
+            Case("second pass", opened = "Trip/Selection", custom = null, sorting = false),
+            Case("custom folder", opened = "Trip", custom = "Keepers", sorting = true),
+        )
+        cases.forEachIndexed { i, case ->
+            val name = "IMG_10$i.JPG"
+            File(rootDir, "${case.opened}/$name").writeText(case.label)
+            val customUri = case.custom?.let { treeUriOf(it).toString() }
+            val repo = repositoryWith(settingsWith(customDestination = customUri))
+            val openedUri = treeUriOf(case.opened)
+
+            val state = com.photoselectortoolbox.viewmodel.DestinationUiState.of(
+                settings = com.photoselectortoolbox.domain.curation.DestinationSettings(
+                    customDestinationUri = customUri,
+                    sortingEnabled = case.sorting,
+                ),
+                customFolder = customUri?.let { repo.describeFolder(context, Uri.parse(it)) },
+                openedFolder = repo.describeFolder(context, openedUri),
+            )
+            val result = repo.copyImage(context, documentUriFor("${case.opened}/$name"), openedUri, sorting = case.sorting)
+            assertTrue(case.label, result.success)
+
+            // The preview's path below the root folder (the fake provider names the root by its folder name).
+            val previewRoot = (case.custom ?: case.opened).substringAfterLast('/')
+            val segments = state.preview.segments!!
+            assertEquals(case.label, previewRoot, segments.dropLast(1).last())
+            val landed = File(rootDir, "${case.custom ?: case.opened}/${segments.last()}" + if (state.preview.sortsIntoRawAndJpeg) "/JPEG" else "")
+            assertEquals(case.label, case.label, File(landed, name).readText())
+        }
+    }
 }

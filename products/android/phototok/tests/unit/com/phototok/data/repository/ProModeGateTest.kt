@@ -88,7 +88,6 @@ class ProModeGateTest {
                 prefs[SettingsRepository.moveRelatedFilesKey(kind)] = false
                 prefs[SettingsRepository.collectionUriKey(kind)] = "content://tree/coll-$tag"
                 prefs[SettingsRepository.leftSwipeUriKey(kind)] = "content://tree/left-$tag"
-                prefs[SettingsRepository.sortingEnabledKey(kind)] = true
             }
         }
     }
@@ -183,7 +182,7 @@ class ProModeGateTest {
             assertEquals(FileTypeFilter.RAW, src.fileTypeFilter)
             assertFalse(src.moveRelatedFiles)
             assertFalse(src.importToPhoneCamera)
-            assertEquals(PhotoFolders.SELECTION, src.selectionSubfolder)
+            assertEquals("a Pro user's typed Selection folder name acts", "Keepers", src.selectionSubfolder)
         }
         // Cloud no longer inherits: it reads its own stored values.
         assertEquals("content://tree/coll-cloud", repository.sourceSettingsFlow(SourceKind.CLOUD_OTHER).first().collectionUri)
@@ -331,5 +330,19 @@ class ProModeGateTest {
     fun `source settings default type is unaffected by the new fields`() {
         assertFalse(SourceSettings().importToPhoneCamera)
         assertEquals(PhotoFolders.SELECTION, SourceSettings().selectionSubfolder)
+    }
+
+    @Test
+    fun `the typed Selection folder name acts per source in pro and Selection acts in casual`() = runTest {
+        storeNonCasualValues()
+        setMode(false)
+        for (kind in SourceKind.entries) {
+            val expected = if (ProModePolicy.importsToPhoneCamera(kind)) PhotoFolders.CASUAL_IMPORT else PhotoFolders.SELECTION
+            assertEquals("$kind casual", expected, repository.sourceSettingsFlow(kind).first().selectionSubfolder)
+        }
+        setMode(true)
+        for (kind in SourceKind.entries) {
+            assertEquals("$kind pro", "Keepers", repository.sourceSettingsFlow(kind).first().selectionSubfolder)
+        }
     }
 }

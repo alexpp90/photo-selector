@@ -21,6 +21,11 @@ import io.mockk.coEvery
 import io.mockk.coVerify
 import io.mockk.every
 import io.mockk.mockk
+import java.time.Clock
+import java.time.Instant
+import java.time.LocalDate
+import java.time.LocalDateTime
+import java.time.ZoneId
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
@@ -467,5 +472,153 @@ class SelectorSortJumpViewModelTest {
 
         assertEquals(RatingFilter.ExactRating(5), viewModel.uiState.value.ratingFilter)
         assertEquals("IMG_1", viewModel.current())
+    }
+
+    // ── Go to a date ([USER 2026-11-04]) ─────────────────────────────────
+
+    private val berlin: ZoneId = ZoneId.of("Europe/Berlin")
+
+    private fun on(dateTime: String): Long = LocalDateTime.parse(dateTime).atZone(berlin).toInstant().toEpochMilli()
+
+    /** The ViewModel reads photo times in Berlin, with "today" on 4 Nov 2026. */
+    private fun SelectorViewModel.inBerlin(): SelectorViewModel = apply {
+        zoneId = { berlin }
+        clock = Clock.fixed(Instant.parse("2026-11-04T10:00:00Z"), berlin)
+    }
+
+    /** A returning user's folder: three days, one photo of unknown time, settled newest first. */
+    private suspend fun openTrip(): SelectorViewModel = openSettled(
+        image("A_1011.JPG", on("2026-10-11T09:00")),
+        image("B_1012_morning.JPG", on("2026-10-12T08:00")),
+        image("C_1012_evening.JPG", on("2026-10-12T18:00"), rating = 5),
+        image("D_1014.JPG", on("2026-10-14T10:00")),
+        image("E_unknown.JPG", 0L),
+    ).inBerlin()
+
+    @Test
+    fun `a typed date goes to the first photo of that day in the current order`() = runTest {
+        val viewModel = openTrip()
+        // Newest first: D, C, B, A, E. The first of 12 Oct is the evening photo.
+
+        val result = viewModel.jumpToPhoto("12.10.2026") as JumpResolution.Resolved
+
+        assertEquals("C_1012_evening.JPG", viewModel.current())
+        assertEquals(1, viewModel.uiState.value.currentIndex)
+        assertEquals(2, viewModel.uiState.value.position)
+        assertTrue(result.date!!.isExact)
+
+        viewModel.setSortOrder(SelectorSortOrder.OLDEST_FIRST)
+        viewModel.jumpToPhoto("2026-10-12")
+        assertEquals("B_1012_morning.JPG", viewModel.current())
+        assertEquals(1, viewModel.uiState.value.currentIndex)
+    }
+
+    @Test
+    fun `the picker opens on the day of the photo on screen`() = runTest {
+        val viewModel = openTrip()
+        viewModel.jumpToPhoto("12.10.2026")
+
+        assertEquals(LocalDate.of(2026, 10, 12), viewModel.pickerStartDay())
+    }
+
+    @Test
+    fun `the picker opens on the newest day when the photo on screen has no known time`() = runTest {
+        val viewModel = openTrip()
+        viewModel.jumpToPhoto("E_unknown")
+        assertEquals("E_unknown.JPG", viewModel.current())
+
+        assertEquals(LocalDate.of(2026, 10, 14), viewModel.pickerStartDay())
+    }
+
+    @Test
+    fun `there is no day to open the picker on when no photo has a known time`() = runTest {
+        val viewModel = openSettled(image("A.JPG", 0L), image("B.JPG", 0L)).inBerlin()
+
+        assertEquals(null, viewModel.pickerStartDay())
+    }
+
+    @Test
+    fun `a day without photos goes to the nearest day and the result says which`() = runTest {
+        val viewModel = openTrip()
+
+        val result = viewModel.jumpToPhoto("13.10.26") as JumpResolution.Resolved
+
+        assertEquals(LocalDate.of(2026, 10, 13), result.date!!.requested)
+        assertEquals(LocalDate.of(2026, 10, 14), result.date!!.landed)
+        assertEquals("D_1014.JPG", viewModel.current())
+    }
+
+    @Test
+    fun `day and month without a year use the current year`() = runTest {
+        val viewModel = openTrip()
+
+        viewModel.jumpToPhoto("11.10.")
+
+        assertEquals("A_1011.JPG", viewModel.current())
+    }
+
+    @Test
+    fun `the picker entry goes to the day, and a hidden photo resets the filter`() = runTest {
+        val viewModel = openTrip()
+        viewModel.setRatingFilter(RatingFilter.ExactRating(5))
+
+        val result = viewModel.jumpToDate(LocalDate.of(2026, 10, 14))
+
+        assertTrue(result!!.hiddenByFilter)
+        assertEquals("D_1014.JPG", viewModel.current())
+        assertEquals(RatingFilter.All, viewModel.uiState.value.ratingFilter)
+    }
+
+    @Test
+    fun `within the day a photo the filter shows is preferred, keeping the filter`() = runTest {
+        val viewModel = openTrip()
+        viewModel.setSortOrder(SelectorSortOrder.OLDEST_FIRST)
+        viewModel.setRatingFilter(RatingFilter.ExactRating(5))
+
+        viewModel.jumpToDate(LocalDate.of(2026, 10, 12))
+
+        // Oldest first the morning photo comes first, but only the evening one passes the filter.
+        assertEquals("C_1012_evening.JPG", viewModel.current())
+        assertEquals(RatingFilter.ExactRating(5), viewModel.uiState.value.ratingFilter)
+    }
+
+    @Test
+    fun `a folder with no known times does not move on a picked date`() = runTest {
+        val viewModel = openSettled(image("X.JPG", 0L), image("Y.JPG", 0L)).inBerlin()
+        viewModel.navigateToImage(1)
+
+        // The action is handled — the answer is "nowhere to go" — and nothing moved.
+        assertEquals(null, viewModel.jumpToDate(LocalDate.of(2026, 10, 12)))
+        assertEquals(1, viewModel.uiState.value.currentIndex)
+        assertTrue(viewModel.photoDates().isEmpty)
+    }
+
+    @Test
+    fun `the dates with photos follow the list`() = runTest {
+        val viewModel = openTrip()
+
+        val dates = viewModel.photoDates()
+
+        assertEquals(
+            listOf(LocalDate.of(2026, 10, 11), LocalDate.of(2026, 10, 12), LocalDate.of(2026, 10, 14)),
+            dates.dates,
+        )
+        assertTrue(dates === viewModel.photoDates())
+
+        // Deleting the only photo of 11 Oct takes the day out.
+        viewModel.jumpToPhoto("A_1011")
+        viewModel.deleteCurrentImage()
+        assertFalse(LocalDate.of(2026, 10, 11) in viewModel.photoDates())
+    }
+
+    @Test
+    fun `the preview names the target and its time, and agrees with the jump`() = runTest {
+        val viewModel = openTrip()
+
+        val preview = viewModel.previewJump("12.10.2026")
+
+        assertEquals("C_1012_evening.JPG", preview.fileName)
+        assertEquals(LocalDateTime.of(2026, 10, 12, 18, 0), preview.takenAt)
+        assertEquals(viewModel.jumpToPhoto("12.10.2026"), preview.resolution)
     }
 }

@@ -111,7 +111,7 @@ Donald Stufft <donald@stufft.io>
 https://github.com/pypa/packaging
 
 pillow
-12.3.0
+13.0.0
 MIT-CMU
 "Jeffrey A. Clark" <aclark@aclark.net>
 https://python-pillow.github.io

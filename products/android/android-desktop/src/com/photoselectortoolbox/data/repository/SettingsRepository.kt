@@ -13,6 +13,7 @@ import androidx.datastore.preferences.core.stringSetPreferencesKey
 import androidx.datastore.preferences.preferencesDataStore
 import com.photoselector.saf.FolderAccessManager
 import com.photoselector.saf.FolderAccessPurpose
+import com.photoselectortoolbox.domain.curation.DestinationMode
 import com.photoselectortoolbox.domain.grouping.GroupingLevel
 import com.photoselectortoolbox.domain.guidance.SelectorHint
 import com.photoselectortoolbox.domain.interaction.FilingAction
@@ -113,6 +114,10 @@ class SettingsRepository @Inject constructor(
          * which for camera files is oldest first) is what was reported as wrong.
          */
         val DEFAULT_SELECTOR_SORT_ORDER: SelectorSortOrder = SelectorSortOrder.DEFAULT
+
+        /** The destination mode [prefs] stand for: a stored custom folder is Custom. */
+        internal fun destinationModeOf(prefs: Preferences): DestinationMode =
+            DestinationMode.of(prefs[KEY_CUSTOM_SELECTION_DESTINATION_URI])
 
         /** The persisted sort order in [prefs]; absent or unknown is the default. */
         internal fun selectorSortOrderOf(prefs: Preferences): SelectorSortOrder =
@@ -398,7 +403,12 @@ class SettingsRepository @Inject constructor(
         prefs[KEY_PHONE_COLLECTION_ACTION] ?: "copy"
     }
 
-    /** Optional custom collection target folder URI. null = use Selection subfolder. */
+    /**
+     * Legacy: the folder Settings stored before the custom Selection destination existed.
+     * Copy and Move never read it — [customSelectionDestinationUri] is the setting — but it
+     * still holds its grant ([referencedUrisByPurpose]) and is kept in step by
+     * [setCustomSelectionDestinationUri].
+     */
     val phoneCollectionUri: Flow<String?> = context.dataStore.data.map { prefs ->
         prefs[KEY_PHONE_COLLECTION_URI]
     }
@@ -477,7 +487,11 @@ class SettingsRepository @Inject constructor(
             ?.takeUnless { it.startsWith(RETIRED_DRIVE_SCHEME) }
             ?.let(::setOf)
             .orEmpty()
-        val selection = prefs[KEY_PHONE_COLLECTION_URI]?.let(::setOf).orEmpty()
+        // The custom destination Copy and Move read, and the legacy key Settings wrote before
+        // it existed (left in place, so a grant taken then is not dropped by an upgrade).
+        val selection = listOfNotNull(prefs[KEY_CUSTOM_SELECTION_DESTINATION_URI], prefs[KEY_PHONE_COLLECTION_URI])
+            .filter { it.isNotBlank() }
+            .toSet()
         // Uncommitted deletions still need the grant of the folder they live in (finding D-10).
         val journal = prefs[KEY_PENDING_DELETE_JOURNAL].orEmpty()
         return mapOf(
@@ -601,17 +615,55 @@ class SettingsRepository @Inject constructor(
         }
     }
 
+    /**
+     * The custom Selection destination (`custom_selection_destination_uri`), or null for
+     * the working folder. This key is what Copy and Move read (`SelectionDestinationPlan`).
+     */
     val customSelectionDestinationUri: Flow<String?> = context.dataStore.data.map { prefs ->
         prefs[KEY_CUSTOM_SELECTION_DESTINATION_URI]
     }
 
+    /**
+     * Working folder or Custom, read from the stored custom destination: there is no mode
+     * key, so an upgrade with a custom folder reads as Custom and one without as Working
+     * folder — the place files already went ([destinationModeOf]).
+     */
+    val destinationMode: Flow<DestinationMode> = context.dataStore.data.map { prefs -> destinationModeOf(prefs) }
+
+    /**
+     * Set (a folder from the picker) or clear (back to the working folder) the custom
+     * Selection destination, with its persisted grant.
+     *
+     * One DataStore edit writes `custom_selection_destination_uri` and mirrors it into the
+     * legacy `phone_collection_uri` (the key Settings wrote before the custom destination
+     * existed; kept readable and in step for at least one release). The new folder's grant
+     * is taken through [FolderAccessManager] as [FolderAccessPurpose.SELECTION_TARGET];
+     * a previous folder nothing references any more — source, journal, undo pins — is
+     * released at once.
+     */
     suspend fun setCustomSelectionDestinationUri(uri: String?) {
+        val newUri = uri?.trim()?.takeIf { it.isNotEmpty() }
+        val previous = LinkedHashSet<String>()
+        var referencedAfter: Map<FolderAccessPurpose, Set<String>> = emptyMap()
         context.dataStore.edit { prefs ->
-            if (uri != null) {
-                prefs[KEY_CUSTOM_SELECTION_DESTINATION_URI] = uri
+            prefs[KEY_CUSTOM_SELECTION_DESTINATION_URI]?.let(previous::add)
+            prefs[KEY_PHONE_COLLECTION_URI]?.let(previous::add)
+            if (newUri != null) {
+                prefs[KEY_CUSTOM_SELECTION_DESTINATION_URI] = newUri
+                prefs[KEY_PHONE_COLLECTION_URI] = newUri
             } else {
                 prefs.remove(KEY_CUSTOM_SELECTION_DESTINATION_URI)
+                prefs.remove(KEY_PHONE_COLLECTION_URI)
             }
+            referencedAfter = referencedUrisByPurpose(prefs)
+        }
+        folderAccessManager.syncReferences(referencedAfter)
+        if (newUri != null) {
+            folderAccessManager.takeGrant(Uri.parse(newUri), FolderAccessPurpose.SELECTION_TARGET)
+        }
+        val stillReferenced = referencedAfter.values.flatten().toSet()
+        for (old in previous) {
+            if (old != newUri) folderAccessManager.releaseIfUnreferenced(old, stillReferenced)
         }
     }
 

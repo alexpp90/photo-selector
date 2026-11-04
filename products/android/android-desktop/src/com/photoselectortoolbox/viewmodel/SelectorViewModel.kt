@@ -45,7 +45,9 @@ import com.photoselectortoolbox.domain.guidance.SelectorHintText
 import com.photoselectortoolbox.domain.grouping.ImageGrouper
 import com.photoselectortoolbox.domain.format.SelectionActionLabels
 import com.photoselectortoolbox.domain.interaction.FilingAction
+import com.photoselectortoolbox.domain.session.JumpPreview
 import com.photoselectortoolbox.domain.session.JumpResolution
+import com.photoselectortoolbox.domain.session.PhotoDates
 import com.photoselectortoolbox.domain.session.PhotoJump
 import com.photoselectortoolbox.domain.session.ProgressiveMerge
 import com.photoselectortoolbox.domain.session.ScoreMerge
@@ -59,6 +61,9 @@ import com.photoselectortoolbox.domain.session.WorkQueueState
 import com.photoselectortoolbox.domain.usecase.ScanImagesUseCase
 import dagger.hilt.android.lifecycle.HiltViewModel
 import dagger.hilt.android.qualifiers.ApplicationContext
+import java.time.Clock
+import java.time.LocalDate
+import java.time.ZoneId
 import javax.inject.Inject
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineDispatcher
@@ -69,6 +74,7 @@ import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.map
@@ -217,6 +223,11 @@ data class SelectorUiState(
     val performedFilingAction: FilingAction? = null,
     /** The destination folder name, so the filing hint can name it (persisted). */
     val selectionFolderName: String = FilingAction.DEFAULT_SELECTION_FOLDER,
+    /**
+     * The name of the custom destination folder when Copy and Move file into one
+     * (`[USER 2026-11-04]`), else null. The confirmation and the filing hint name it.
+     */
+    val customDestinationName: String? = null,
     /** Whether RAW and JPEG are filed into subfolders (persisted). */
     val sortingEnabled: Boolean = true,
     /** Active rating filter driving the filmstrip and navigation order. */
@@ -358,12 +369,13 @@ data class SelectorUiState(
             }
             SelectorHintUi(
                 hint = hint,
-                title = SelectorHintText.title(hint, verb, selectionFolderName),
+                title = SelectorHintText.title(hint, verb, selectionFolderName, customDestinationName),
                 message = SelectorHintText.message(
                     hint = hint,
                     filingAction = verb,
                     selectionFolderName = selectionFolderName,
                     sortingEnabled = sortingEnabled,
+                    customFolderName = customDestinationName,
                 ),
             )
         }
@@ -581,6 +593,15 @@ class SelectorViewModel @Inject constructor(
             }
         }
 
+        // The custom destination folder, by name, so a filing confirmation can say where
+        // the photo went. A lookup that fails leaves the name out (the plain sentence).
+        viewModelScope.launch {
+            settingsRepository.customSelectionDestinationUri.collectLatest { uri ->
+                val name = uri?.takeIf { it.isNotBlank() }?.let { customFolderName(it) }
+                _uiState.update { it.copy(customDestinationName = name) }
+            }
+        }
+
         viewModelScope.launch {
             settingsRepository.reconcilePersistedGrants()
             settingsRepository.lastFolderUri.collect { uri ->
@@ -589,6 +610,17 @@ class SelectorViewModel @Inject constructor(
                 }
             }
         }
+    }
+
+    /** The custom destination's own name (its display name, else the last segment of its path), or null. */
+    private suspend fun customFolderName(uri: String): String? = try {
+        val folder = imageRepository.describeFolder(context, Uri.parse(uri))
+        folder.name?.takeIf { it.isNotBlank() } ?: folder.displayPath.lastOrNull()
+    } catch (e: CancellationException) {
+        throw e
+    } catch (e: Exception) {
+        Log.w("SelectorViewModel", "Could not name the custom destination folder", e)
+        null
     }
 
     // ── Folder selection and progressive loading ─────────────────────────
@@ -902,12 +934,74 @@ class SelectorViewModel @Inject constructor(
      */
     fun jumpToPhoto(input: String): JumpResolution {
         val state = _uiState.value
-        val resolution = PhotoJump.resolve(input, state.images, state.ratingFilter)
+        val zone = zoneId()
+        val resolution = PhotoJump.resolve(input, state.images, state.ratingFilter, zone, LocalDate.now(clock.withZone(zone)))
+        goTo(resolution)
+        return resolution
+    }
+
+    /**
+     * Go to the first photo of [date] in the list as it is ordered now — the date
+     * picker's entry. A day without photos lands on the nearest day that has one
+     * ([JumpResolution.Resolved.date] says which); null when no photo has a known time
+     * (nothing moves). A photo the rating filter hides is shown, resetting the filter.
+     */
+    fun jumpToDate(date: LocalDate): JumpResolution.Resolved? {
+        val state = _uiState.value
+        val resolution = PhotoJump.resolveDate(date, state.images, state.ratingFilter, zoneId())
+        resolution?.let(::goTo)
+        return resolution
+    }
+
+    /**
+     * What "Go to photo" would do with [input], without doing it: the resolution plus
+     * the target's file name and time, for the dialog's supporting line. Uses the same
+     * zone and today as [jumpToPhoto], so the preview and the jump agree.
+     */
+    fun previewJump(input: String): JumpPreview {
+        val state = _uiState.value
+        val zone = zoneId()
+        return PhotoJump.preview(input, state.images, state.ratingFilter, zone, LocalDate.now(clock.withZone(zone)))
+    }
+
+    /**
+     * The days the list has photos on, for a date picker limited to them
+     * (`SelectableDates`). Recomputed only when the list changes (cached by identity).
+     */
+    fun photoDates(): PhotoDates {
+        val images = _uiState.value.images
+        val zone = zoneId()
+        photoDatesCache?.let { (cachedImages, cachedZone, dates) ->
+            if (cachedImages === images && cachedZone == zone) return dates
+        }
+        return PhotoDates.of(images, zone).also { photoDatesCache = Triple(images, zone, it) }
+    }
+
+    /**
+     * The month the date picker opens on: the day of the photo on screen, else the last day
+     * with photos (the newest), else null when no photo has a known time.
+     */
+    fun pickerStartDay(): LocalDate? {
+        val state = _uiState.value
+        val zone = zoneId()
+        return state.currentImage?.let { PhotoJump.dayOf(it, zone) } ?: photoDates().last
+    }
+
+    private var photoDatesCache: Triple<List<ImageItem>, ZoneId, PhotoDates>? = null
+
+    /**
+     * The clock "today" comes from (a `12.10.` without a year, a two-digit year) and the
+     * zone photo times are read in — the device's, read at each jump so a zone change
+     * takes effect. Overridable in tests.
+     */
+    internal var clock: Clock = Clock.systemDefaultZone()
+    internal var zoneId: () -> ZoneId = { ZoneId.systemDefault() }
+
+    private fun goTo(resolution: JumpResolution) {
         if (resolution is JumpResolution.Resolved) {
             if (resolution.hiddenByFilter) setRatingFilter(RatingFilter.All)
             navigateToImage(resolution.index)
         }
-        return resolution
     }
 
     fun setRatingFilter(filter: RatingFilter) {
@@ -1511,6 +1605,7 @@ class SelectorViewModel @Inject constructor(
                         FilingAction.COPY
                     },
                     selectionFolderName = state.selectionFolderName,
+                    customFolderName = state.customDestinationName,
                 ),
                 // A move's undo never expires and a copy has none, so neither is a
                 // deadline. UNDO is populated once the transfer reports where the
@@ -1599,6 +1694,7 @@ class SelectorViewModel @Inject constructor(
                                 selectionFolderName = it.selectionFolderName,
                                 resultName = resultName,
                                 relatedCount = (result.destinationUris.size - 1).coerceAtLeast(0),
+                                customFolderName = it.customDestinationName,
                             ),
                             if (action == CurationAction.MOVE) SnackbarLifetime.MOVE else SnackbarLifetime.COPY,
                             undoAvailable = it.snackbarUndoAvailable,

@@ -8,7 +8,9 @@ Adheres to:
 from __future__ import annotations
 
 import json
+import logging
 import os
+import shutil
 from pathlib import Path
 from typing import Any, Callable, Dict, List, Optional
 
@@ -18,6 +20,8 @@ from photo_selector_linux.core.destination import (
     MODES,
     selection_subfolder_name,
 )
+
+logger = logging.getLogger(__name__)
 
 
 def default_settings_path() -> Path:
@@ -131,10 +135,16 @@ class SettingsStore:
             return self
         try:
             raw = json.loads(self.config_path.read_text(encoding="utf-8"))
-            if isinstance(raw, dict):
-                self._apply_dict(raw)
-        except Exception:
-            pass
+        except (OSError, ValueError) as e:
+            # Defaults apply, and the next save would overwrite the unreadable file: keep a copy.
+            logger.warning("Could not read settings %s (%s); using defaults", self.config_path, e)
+            try:
+                shutil.copy2(self.config_path, self.config_path.with_name(self.config_path.name + ".corrupt"))
+            except OSError:
+                pass
+            return self
+        if isinstance(raw, dict):
+            self._apply_dict(raw)
         return self
 
     @classmethod
@@ -146,14 +156,23 @@ class SettingsStore:
 
     def save(self) -> None:
         """Persist current settings to ``self.config_path``."""
+        text = json.dumps(self.to_dict(), indent=2, sort_keys=True) + "\n"
+        temp = self.config_path.with_name(self.config_path.name + ".tmp")
         try:
             self.config_path.parent.mkdir(parents=True, exist_ok=True)
-            self.config_path.write_text(
-                json.dumps(self.to_dict(), indent=2, sort_keys=True) + "\n",
-                encoding="utf-8",
-            )
-        except OSError:
-            pass
+            # Write beside the file and rename over it: a crash leaves the old settings, not a
+            # half-written file that reads back as defaults.
+            with open(temp, "w", encoding="utf-8") as handle:
+                handle.write(text)
+                handle.flush()
+                os.fsync(handle.fileno())
+            os.replace(temp, self.config_path)
+        except OSError as e:
+            logger.warning("Could not save settings %s: %s", self.config_path, e)
+            try:
+                temp.unlink()
+            except OSError:
+                pass
 
     def update(self, **kwargs: Any) -> None:
         """Update one or more settings, persist to disk, and notify observers."""

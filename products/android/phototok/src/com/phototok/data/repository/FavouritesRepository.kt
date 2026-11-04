@@ -171,6 +171,21 @@ class FavouritesRepository(
         store.update { FavouriteSyncLogic.setFavourite(it, listOf(uri) + companionUris, favourite) }
     }
 
+    /**
+     * Favourites follow their files after a copy or move: [moved] are (source, destination) pairs
+     * whose original is gone, [copied] pairs whose original stays (a copy, or a move that could not
+     * remove it).
+     */
+    fun followTransfer(moved: List<Pair<String, String>>, copied: List<Pair<String, String>>) {
+        if (moved.isEmpty() && copied.isEmpty()) return
+        store.update { snapshot ->
+            var next = snapshot
+            for ((from, to) in copied) next = FavouriteSyncLogic.followFile(next, from, to, keepSource = true)
+            for ((from, to) in moved) next = FavouriteSyncLogic.followFile(next, from, to, keepSource = false)
+            next
+        }
+    }
+
     fun toggleFavourite(
         uri: String,
         companionUris: Collection<String> = emptyList(),
@@ -185,10 +200,14 @@ class FavouritesRepository(
      * documents of the external-storage and Media providers can resolve; others stay
      * Jackpix-only. With [onlyUnresolved], documents resolved before are skipped.
      */
-    suspend fun indexFromSystem(items: List<ImageItem>, onlyUnresolved: Boolean = false) {
+    suspend fun indexFromSystem(items: List<ImageItem>, onlyUnresolved: Boolean = false) =
+        indexUrisFromSystem(items.map { it.uri }, onlyUnresolved)
+
+    /** [indexFromSystem] for documents that are not (or not yet) feed items, e.g. a transfer's destinations. */
+    suspend fun indexUrisFromSystem(documentUris: List<String>, onlyUnresolved: Boolean = false) {
         val gateway = mediaStore ?: return
         val known = store.snapshot.value.mediaUris
-        val uris = items.map { it.uri }
+        val uris = documentUris
             .filter { gateway.canResolve(it) && !(onlyUnresolved && FavouriteKeys.documentKey(it) in known) }
         if (uris.isEmpty()) return
         val resolved = withContext(ioDispatcher) { gateway.resolve(uris) }

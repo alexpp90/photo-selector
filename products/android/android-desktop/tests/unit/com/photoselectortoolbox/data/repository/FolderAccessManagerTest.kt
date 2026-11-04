@@ -2,8 +2,12 @@ package com.photoselectortoolbox.data.repository
 
 import android.content.Context
 import android.net.Uri
+import androidx.datastore.preferences.core.preferencesOf
+import androidx.datastore.preferences.core.stringPreferencesKey
 import com.photoselector.saf.FolderAccessManager
+import com.photoselector.saf.FolderAccessPurpose
 import com.photoselector.saf.SafGrantBackend
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.test.runTest
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
@@ -119,5 +123,93 @@ class FolderAccessManagerTest {
 
         assertTrue(backend.releasedCalls.any { it.first == folderA })
         settings.setLastFolderUri(null)
+    }
+
+    // ── The custom Selection destination (B-8, [USER 2026-11-04]) ─────────
+
+    private suspend fun resetDestination(settings: SettingsRepository, backend: FakeSafGrantBackend) {
+        settings.setLastFolderUri(null)
+        settings.setCustomSelectionDestinationUri(null)
+        settings.setPhoneCollectionUri(null)
+        settings.setPendingDeleteJournal(emptySet())
+        backend.releasedCalls.clear()
+        backend.takenCalls.clear()
+        backend.persistedUris.clear()
+    }
+
+    @Test
+    fun `a custom destination takes its grant and keeps it across a folder change and a restart`() = runTest {
+        val custom = "content://com.android.externalstorage.documents/tree/primary%3APictures%2FKeepers"
+        val backend = FakeSafGrantBackend()
+        val settings = SettingsRepository(context, FolderAccessManager(backend))
+        resetDestination(settings, backend)
+        try {
+            settings.setCustomSelectionDestinationUri(custom)
+            assertTrue("the custom folder's grant is taken", backend.takenCalls.any { it.first == custom })
+
+            settings.setLastFolderUri(tree)
+            settings.setLastFolderUri("content://com.android.externalstorage.documents/tree/primary%3AMovies")
+            assertFalse(backend.releasedCalls.any { it.first == custom })
+
+            // A restart: a fresh manager reconciles against what is stored.
+            val afterRestart = SettingsRepository(context, FolderAccessManager(backend))
+            afterRestart.reconcilePersistedGrants()
+            assertTrue("the custom folder survives the startup reconcile", custom in backend.persistedUris)
+        } finally {
+            resetDestination(settings, backend)
+        }
+    }
+
+    @Test
+    fun `back to the working folder releases the custom grant unless the source still uses it`() = runTest {
+        val custom = "content://com.android.externalstorage.documents/tree/primary%3APictures%2FKeepers"
+        val backend = FakeSafGrantBackend()
+        val settings = SettingsRepository(context, FolderAccessManager(backend))
+        resetDestination(settings, backend)
+        try {
+            settings.setCustomSelectionDestinationUri(custom)
+            settings.setLastFolderUri(custom)
+            settings.setCustomSelectionDestinationUri(null)
+            assertFalse("the source still needs it", backend.releasedCalls.any { it.first == custom })
+
+            settings.setCustomSelectionDestinationUri(custom)
+            settings.setLastFolderUri(tree)
+            settings.setCustomSelectionDestinationUri(null)
+            assertTrue("nothing references it any more", backend.releasedCalls.any { it.first == custom })
+            assertFalse(custom in backend.persistedUris)
+        } finally {
+            resetDestination(settings, backend)
+        }
+    }
+
+    @Test
+    fun `changing the custom folder releases the previous one`() = runTest {
+        val first = "content://com.android.externalstorage.documents/tree/primary%3AOne"
+        val second = "content://com.android.externalstorage.documents/tree/primary%3ATwo"
+        val backend = FakeSafGrantBackend()
+        val settings = SettingsRepository(context, FolderAccessManager(backend))
+        resetDestination(settings, backend)
+        try {
+            settings.setCustomSelectionDestinationUri(first)
+            settings.setCustomSelectionDestinationUri(second)
+            assertTrue(backend.releasedCalls.any { it.first == first })
+            assertTrue(second in backend.persistedUris)
+            assertEquals(second, settings.customSelectionDestinationUri.first())
+            // The legacy key is kept in step for a downgrade.
+            assertEquals(second, settings.phoneCollectionUri.first())
+        } finally {
+            resetDestination(settings, backend)
+        }
+    }
+
+    @Test
+    fun `the custom destination key alone is a grant holder, and so is the legacy key`() {
+        val settings = SettingsRepository(context, FolderAccessManager(FakeSafGrantBackend()))
+        val custom = "content://com.android.externalstorage.documents/tree/primary%3AKeepers"
+        val legacy = "content://com.android.externalstorage.documents/tree/primary%3AOld"
+        val customOnly = settings.referencedUrisByPurpose(preferencesOf(stringPreferencesKey("custom_selection_destination_uri") to custom))
+        assertEquals(setOf(custom), customOnly[FolderAccessPurpose.SELECTION_TARGET])
+        val legacyOnly = settings.referencedUrisByPurpose(preferencesOf(stringPreferencesKey("phone_collection_uri") to legacy))
+        assertEquals(setOf(legacy), legacyOnly[FolderAccessPurpose.SELECTION_TARGET])
     }
 }

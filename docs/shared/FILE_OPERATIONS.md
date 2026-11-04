@@ -130,5 +130,22 @@ for `«folder»`):
 | Partial companion bundle transfer | `Moved «succeeded» of «total» to «folder» («failed» failed)` / `Copied «succeeded» of «total» to «folder» («failed» failed)` |
 
 Product-specific compact forms are permitted where space or context demands it: Jackpix uses
-`Moved as «name»` / `Copied as «name»` on its phone snackbar (32-character budget), and Blitzlens
+`Moved as «name»` / `Copied as «name»` on its phone snackbar (budget: 28 characters in English, 36 in German, `snackbar_` in [`UI_TEXT.md`](UI_TEXT.md)), and Blitzlens
 includes the photo filename (`Moved «photo» to «folder»/ as «name»`) on its desktop status bar.
+
+### How long an outcome stays on screen
+
+An outcome that tells the user something is left undone, or that they must act on, is not a
+passing notification. These stay until the user's next action, are never replaced by a routine
+"Moved"/"Copied" message, and wrap to as many lines as they need (at least three) instead of
+being cut off:
+
+- any **partial result** (`Moved «succeeded» of «total» … («failed» failed)`),
+- any **stranded-file** outcome (members or copies that stayed in the destination folder, a
+  rollback or cleanup that failed, `Move interrupted …`, `Copy interrupted …`),
+- `Copied to «folder» — original could not be removed`.
+
+Routine success messages may time out. In every product the messages above come from one named
+constant or policy, and a test pins it, so that a 1.2-second toast cannot carry "some files stayed
+in the destination folder". Each product implements this in its own code; the contract is the
+behaviour.
