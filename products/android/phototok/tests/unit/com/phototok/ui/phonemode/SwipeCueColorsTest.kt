@@ -95,6 +95,29 @@ class SwipeCueColorsTest {
         return first to later
     }
 
+    @Test
+    fun edgeHintsHideUnderTheControlsGuide() {
+        rule.setContent {
+            PhotoTokTheme {
+                PhoneModeViewer(
+                    images = listOf(photo),
+                    currentIndex = 0,
+                    portraitSectionStart = -1,
+                    onNavigate = {},
+                    onAddToCollection = {},
+                    onRequestDelete = {},
+                    topBadgesSuppressed = true,
+                )
+            }
+        }
+        rule.waitForIdle()
+        assertTrue(
+            "the guide's own callouts sit where the hints are",
+            rule.onAllNodes(hasTestTag("viewer.peek_right")).fetchSemanticsNodes().isEmpty() &&
+                rule.onAllNodes(hasTestTag("viewer.peek_left")).fetchSemanticsNodes().isEmpty(),
+        )
+    }
+
     private fun setAnimatorScale(scale: Float) {
         val resolver = ApplicationProvider.getApplicationContext<Application>().contentResolver
         Settings.Global.putFloat(resolver, Settings.Global.ANIMATOR_DURATION_SCALE, scale)

@@ -169,8 +169,9 @@ fun PhoneModeViewer(
      */
     bottomHudSuppressed: Boolean = false,
     /**
-     * Hides the favourite / RAW+JPG badges under the top bar, where the controls guide puts
-     * its callouts, so they do not show through the guide's scrim behind the callout text.
+     * True while the controls guide is up: hides the favourite / RAW+JPG badges under the top bar
+     * and the idle swipe edge hints, where the guide puts its callouts, so they do not show
+     * through the guide's scrim next to the callout text.
      */
     topBadgesSuppressed: Boolean = false,
     /** True while the folder is still being enumerated (page count still grows). */
@@ -1025,7 +1026,10 @@ private fun ImagePage(
         }
 
         // ── Navigation peeks (subtle idle hints on left/right edges with direction arrows) ──
-        if (!readOnly && showFloatingPeeks && !isZoomed && !isSwipingLeft && !isSwipingRight && hudAlpha > 0.5f) {
+        // Not under the controls guide: the guide draws its own swipe callouts at the same edges.
+        if (!readOnly && showFloatingPeeks && !isZoomed && !isSwipingLeft && !isSwipingRight && hudAlpha > 0.5f &&
+            !topBadgesSuppressed
+        ) {
             val peekTransition = rememberInfiniteTransition(label = "peeks") // ui-text: ignore animation debug label
             val trashPeekOffsetAnimated by peekTransition.animateFloat(
                 initialValue = 12f,
