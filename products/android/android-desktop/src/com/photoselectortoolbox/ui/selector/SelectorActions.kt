@@ -1,5 +1,9 @@
 package com.photoselectortoolbox.ui.selector
 
+import androidx.compose.runtime.key
+import androidx.compose.ui.semantics.liveRegion
+import androidx.compose.ui.semantics.LiveRegionMode
+import androidx.compose.ui.semantics.Role
 import android.content.Context
 import android.os.Build
 import android.view.accessibility.AccessibilityManager
@@ -175,7 +179,7 @@ private fun ContextMenuRow(
             .height(48.dp)
             .clip(RoundedCornerShape(6.dp))
             .pointerHoverIcon(PointerIcon.Hand)
-            .clickable(onClick = onClick)
+            .clickable(onClick = onClick, role = Role.Button)
             .padding(horizontal = 10.dp),
         horizontalArrangement = Arrangement.spacedBy(10.dp),
         verticalAlignment = Alignment.CenterVertically,
@@ -257,7 +261,7 @@ fun FirstRunNavigationHint(
                     .size(PillDismissHitSize)
                     .clip(RoundedCornerShape(999.dp))
                     .pointerHoverIcon(PointerIcon.Hand)
-                    .clickable(onClick = onDismiss)
+                    .clickable(onClick = onDismiss, role = Role.Button)
                     .testTag("first_run_hint_dismiss"),
                 contentAlignment = Alignment.Center,
             ) {
@@ -313,12 +317,16 @@ fun SelectorSnackbar(
         latestOnDismiss()
     }
 
+    // A live region, keyed on the sequence: a screen reader announces the outcome of a move,
+    // a copy or a delete when the card appears, and again for a second identical message.
+    key(sequence) {
     Column(
         modifier = modifier
             .widthIn(min = SnackbarMinWidth, max = SnackbarMaxWidth)
             .clip(RoundedCornerShape(10.dp))
             .background(StudioCard)
             .border(1.dp, StudioBorder, RoundedCornerShape(10.dp))
+            .semantics { liveRegion = LiveRegionMode.Polite }
             .testTag("selector_snackbar"),
     ) {
         Row(
@@ -347,11 +355,12 @@ fun SelectorSnackbar(
                         // A 48 dp hit target around the 12 sp word (AD-17).
                         .defaultMinSize(minWidth = 48.dp, minHeight = 48.dp)
                         .pointerHoverIcon(PointerIcon.Hand)
-                        .clickable { onUndo(); latestOnDismiss() }
+                        .clickable(role = Role.Button) { onUndo(); latestOnDismiss() }
                         .wrapContentSize(Alignment.Center),
                 )
             }
         }
+    }
     }
 }
 

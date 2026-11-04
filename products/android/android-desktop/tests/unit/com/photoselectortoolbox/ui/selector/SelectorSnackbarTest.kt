@@ -8,7 +8,13 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.semantics.LiveRegionMode
+import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.semantics.SemanticsProperties
+import androidx.compose.ui.test.SemanticsMatcher
+import androidx.compose.ui.test.assert
 import androidx.compose.ui.test.junit4.createComposeRule
+import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onAllNodesWithTag
 import androidx.test.core.app.ApplicationProvider
 import androidx.test.ext.junit.runners.AndroidJUnit4
@@ -162,5 +168,16 @@ class SelectorSnackbarTest {
         rule.mainClock.advanceTimeBy(1_100)
         rule.waitForIdle()
         assertEquals(0, count("selector_snackbar"))
+    }
+
+    @Test
+    fun `the card is announced by a screen reader and UNDO is a button`() {
+        val state = State().apply { message = "Moved to Selection" }
+        host(state, withUndo = true)
+
+        rule.onNodeWithTag("selector_snackbar", useUnmergedTree = true)
+            .assert(SemanticsMatcher.expectValue(SemanticsProperties.LiveRegion, LiveRegionMode.Polite))
+        rule.onNodeWithTag("snackbar_undo", useUnmergedTree = true)
+            .assert(SemanticsMatcher.expectValue(SemanticsProperties.Role, Role.Button))
     }
 }

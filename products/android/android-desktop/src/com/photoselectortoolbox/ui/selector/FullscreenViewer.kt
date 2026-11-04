@@ -1,5 +1,6 @@
 package com.photoselectortoolbox.ui.selector
 
+import androidx.compose.ui.semantics.Role
 import android.app.Activity
 import android.net.Uri
 import android.os.Build
@@ -858,7 +859,7 @@ private fun FullscreenGestureHint(
                 .align(Alignment.End)
                 // A 48 dp hit target around the 12 sp word (AD-17).
                 .defaultMinSize(minWidth = 48.dp, minHeight = 48.dp)
-                .clickable(onClick = onDismiss)
+                .clickable(onClick = onDismiss, role = Role.Button)
                 .wrapContentSize(Alignment.Center),
         )
     }

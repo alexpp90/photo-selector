@@ -515,7 +515,7 @@ private fun WordedButton(
             if (enabled) {
                 Modifier
                     .pointerHoverIcon(PointerIcon.Hand)
-                    .clickable(onClick = onClick)
+                    .clickable(onClick = onClick, role = Role.Button)
             } else {
                 Modifier
             }
@@ -637,7 +637,7 @@ private fun ViewToggle(
             .clip(RoundedCornerShape(8.dp))
             .hoverable(interactionSource)
             .pointerHoverIcon(PointerIcon.Hand)
-            .clickable(onClick = onClick)
+            .clickable(onClick = onClick, role = Role.Button)
             .semantics { contentDescription = description },
         contentAlignment = Alignment.Center,
     ) {

@@ -1,5 +1,6 @@
 package com.photoselectortoolbox.ui.selector
 
+import androidx.compose.ui.semantics.Role
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
@@ -374,7 +375,7 @@ private fun CompactActionButton(
                 if (label.isPrimary) BrandAccentTonal else Color.Transparent,
                 RoundedCornerShape(8.dp),
             )
-            .clickable(onClick = onClick)
+            .clickable(onClick = onClick, role = Role.Button)
             .semantics { contentDescription = label.accessibilityLabel }
             .padding(horizontal = 10.dp),
         horizontalArrangement = Arrangement.spacedBy(6.dp, Alignment.CenterHorizontally),
@@ -405,7 +406,7 @@ private fun CompactDeleteButton(
     Row(
         modifier = modifier
             .height(52.dp)
-            .clickable(onClick = onClick)
+            .clickable(onClick = onClick, role = Role.Button)
             .semantics { contentDescription = "Delete this photo" }
             .padding(horizontal = 10.dp),
         horizontalArrangement = Arrangement.spacedBy(6.dp, Alignment.CenterHorizontally),
