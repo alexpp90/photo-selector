@@ -117,6 +117,8 @@ fun ThreeUpSelectorLayout(
     ratingFilter: RatingFilter = RatingFilter.All,
     onRatingFilterSelected: (RatingFilter) -> Unit = {},
     onSetRating: (Int) -> Unit = {},
+    /** The Sort chip in the control block's locator row, and its menu. */
+    sort: SortControl = SortControl(),
     /**
      * The filmstrip, drawn as a vertical column at the outer edge of the
      * control flank.
@@ -285,6 +287,7 @@ fun ThreeUpSelectorLayout(
                                 onRatingFilterSelected = onRatingFilterSelected,
                                 currentRating = current?.rating ?: 0,
                                 onSetRating = onSetRating,
+                                sort = sort,
                             )
                         }
 

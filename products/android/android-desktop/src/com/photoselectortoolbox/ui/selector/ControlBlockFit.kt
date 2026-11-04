@@ -6,8 +6,25 @@ import kotlin.math.ceil
 import kotlin.math.roundToInt
 
 /**
- * Which of the control block's three heights a row can afford (AD-1), and how the
+ * Which of the control block's variants a row can afford (AD-1), and how the
  * block lays itself out at the width the flank gives it (AD-16, AD-17).
+ *
+ * ## The locator row (`[USER 2026-11-04]`, REQ-AND-WORKFLOW.06 / .07)
+ *
+ * The last child of the block is a 48 dp **locator row**: the Go chip (it holds the position
+ * counter and opens "Go to photo") and the Sort chip (a menu). It is how the two are found
+ * without opening the overflow menu. The variants are a ladder, tried in order:
+ *
+ * 1. **FULL + locator** (80 dp buttons) — [fullHeight] = 362 dp.
+ * 2. **COMPACT + locator** (48 dp buttons) — [compactHeight] with `withLocator` = 252 dp.
+ * 3. **COMPACT** with the counter alone, no locator row — 201..265 dp, as before.
+ * 4. **SCROLLING** — counter first.
+ *
+ * FULL *without* the row no longer exists: a window whose row is 332..361 dp tall gets
+ * COMPACT + locator (the buttons shrink, the row stays), not FULL without it. The row needs
+ * [LocatorMinInnerWidth] of inner width (it is one row of two cells over four 48 dp toggles),
+ * so the narrow windows (720 x 560, 600 x 480) go on to rung 3 and keep the counter tap and the
+ * `G` and `S` keys.
  *
  * The block's height is the one thing on the selector that does not follow the
  * frames: row 1 is exactly one frame tall, which is ~376 dp at 1280 x 800, ~336 dp
@@ -39,8 +56,9 @@ import kotlin.math.roundToInt
  * ## Derivation of the prices (kept honest by `SelectorForcedSizeTest`)
  *
  * ```
- * FULL    = 3 x 80 (button rows) + (2 + 48) (toggle row) + (2 + 16 x fontScale) (counter)
- *           + 4 x 6 (gaps between the five children)          = 332 dp at scale 1.0
+ * FULL + locator = 3 x 80 (button rows) + (2 + 48) (toggle row) + 48 (locator row)
+ *           + 4 x 6 (gaps between the five children)          = 362 dp, at any font scale
+ * COMPACT + locator = 3 x 48 + 48 (toggles) + 48 (locator row) + 4 x 3 = 252 dp
  * COMPACT = 3 x 48 (button rows) + toggle block (48 per row of toggles, abutting)
  *           + counter line (13.1 x fontScale) when it leads the block
  *           + 3 gaps of 3 dp (4 gaps when the counter leads)
@@ -72,10 +90,13 @@ import kotlin.math.roundToInt
 object ControlBlockFit {
 
     enum class Mode {
-        /** 80 dp two-line buttons, a 48 dp toggle row and the counter beneath it. */
+        /** 80 dp two-line buttons, a 48 dp toggle row and the locator row beneath it. */
         FULL,
 
-        /** 48 dp buttons, 48 dp toggles (one row of four, or 2 x 2), the counter beside or above them. */
+        /**
+         * 48 dp buttons and 48 dp toggles (one row of four, or 2 x 2). With the locator row
+         * ([Fit.locatorRow]) beneath them, else the counter beside or above the toggles.
+         */
         COMPACT,
 
         /** Compact content, scrolled, counter first. Only when nothing else fits. */
@@ -85,6 +106,17 @@ object ControlBlockFit {
     val FullButtonHeight: Dp = 80.dp
     val FullGap: Dp = 6.dp
     val FullToggleSize: Dp = 48.dp
+
+    /** The locator row: a 48 dp hit slot, the chips drawn 40 dp tall inside it. */
+    val LocatorRowHeight: Dp = 48.dp
+    val LocatorChipHeight: Dp = 40.dp
+
+    /** Inner width the locator row needs: four 48 dp toggles in one row, over two cells. */
+    val LocatorMinInnerWidth: Dp = 192.dp
+
+    /** Cell widths at which a locator chip changes shape: phrase and key cap, one word, counter or word only. */
+    val LocatorWideMinCell: Dp = 160.dp
+    val LocatorMidMinCell: Dp = 100.dp
     val CompactButtonHeight: Dp = 48.dp
     val CompactGap: Dp = 3.dp
 
@@ -161,18 +193,22 @@ object ControlBlockFit {
      */
     fun compactCounterHeight(fontScale: Float): Dp = (13.1f * fontScale).dp
 
-    /** Nominal height of the FULL variant: 3 button rows + toggle row + counter, 4 gaps. */
-    fun fullHeight(fontScale: Float): Dp =
-        FullButtonHeight * 3 +
+    /**
+     * Nominal height of the FULL variant: 3 button rows, the toggle row and the locator row,
+     * four gaps. The locator row is a fixed 48 dp (its chips are 40 dp and a line of 12 sp is
+     * 24 dp even at font scale 2), so the price no longer depends on the font scale.
+     */
+    val fullHeight: Dp
+        get() = FullButtonHeight * 3 +
             (TopPadding + FullToggleSize) +
-            (TopPadding + counterHeight(fontScale)) +
+            LocatorRowHeight +
             FullGap * 4
 
     /** Drawn height of the FULL variant at [density], each child rounded as layout rounds it. */
-    fun fullHeightPx(fontScale: Float, density: Float): Int =
+    fun fullHeightPx(density: Float): Int =
         FullButtonHeight.px(density) * 3 +
             (TopPadding.px(density) + FullToggleSize.px(density)) +
-            (TopPadding.px(density) + counterHeight(fontScale).textPx(density)) +
+            LocatorRowHeight.px(density) +
             FullGap.px(density) * 4
 
     /** Toggles per row in the compact block: all four, or a 2 x 2 grid. */
@@ -186,10 +222,15 @@ object ControlBlockFit {
     fun compactToggleBlockHeight(innerWidth: Dp): Dp = ToggleHitSize * (4 / togglesPerRow(innerWidth))
 
     /**
-     * Natural height of the COMPACT variant: 3 button rows + the toggle block, with
-     * the counter's own line on top when it cannot sit beside the toggles.
+     * Natural height of the COMPACT variant: 3 button rows + the toggle block. Without the
+     * locator row the counter takes its own line on top when it cannot sit beside the
+     * toggles; with it ([withLocator], which needs [LocatorMinInnerWidth]) the counter is in
+     * the Go chip and the block is 3 x 48 + 48 + 48 + 4 x 3 = 252 dp.
      */
-    fun compactHeight(fontScale: Float, innerWidth: Dp = Dp.Infinity): Dp {
+    fun compactHeight(fontScale: Float, innerWidth: Dp = Dp.Infinity, withLocator: Boolean = false): Dp {
+        if (withLocator) {
+            return CompactButtonHeight * 3 + ToggleHitSize + LocatorRowHeight + CompactGap * 4
+        }
         val toggles = compactToggleBlockHeight(innerWidth)
         val inline = counterInline(innerWidth)
         val children = if (inline) 4 else 5
@@ -199,7 +240,16 @@ object ControlBlockFit {
     }
 
     /** Drawn height of the COMPACT variant at [density]; see [compactHeight]. */
-    fun compactHeightPx(fontScale: Float, density: Float, innerWidth: Dp = Dp.Infinity): Int {
+    fun compactHeightPx(
+        fontScale: Float,
+        density: Float,
+        innerWidth: Dp = Dp.Infinity,
+        withLocator: Boolean = false,
+    ): Int {
+        if (withLocator) {
+            return CompactButtonHeight.px(density) * 3 + ToggleHitSize.px(density) +
+                LocatorRowHeight.px(density) + CompactGap.px(density) * 4
+        }
         // Each toggle row is a row of 48 dp slots, so it rounds on its own.
         val toggles = ToggleHitSize.px(density) * (4 / togglesPerRow(innerWidth))
         val inline = counterInline(innerWidth)
@@ -210,17 +260,57 @@ object ControlBlockFit {
             CompactGap.px(density) * (children - 1)
     }
 
-    /** The first variant whose drawn height at [density] fits [available]. */
-    fun mode(available: Dp, fontScale: Float, density: Float, innerWidth: Dp = Dp.Infinity): Mode {
+    /**
+     * The variant a row affords and whether it carries the locator row. [mode] is the
+     * variant alone.
+     */
+    data class Fit(val mode: Mode, val locatorRow: Boolean)
+
+    /** The ladder in the class doc: the first rung whose drawn height at [density] fits [available]. */
+    fun fit(available: Dp, fontScale: Float, density: Float, innerWidth: Dp = Dp.Infinity): Fit {
+        val locatorWidth = innerWidth >= LocatorMinInnerWidth
         if (available == Dp.Infinity) {
-            return if (innerWidth >= FullMinInnerWidth) Mode.FULL else Mode.COMPACT
+            return when {
+                innerWidth >= FullMinInnerWidth -> Fit(Mode.FULL, locatorRow = true)
+                locatorWidth -> Fit(Mode.COMPACT, locatorRow = true)
+                else -> Fit(Mode.COMPACT, locatorRow = false)
+            }
         }
         val availablePx = (available.value * density).roundToInt()
         return when {
             innerWidth >= FullMinInnerWidth &&
-                fullHeightPx(fontScale, density) + PixelSlack <= availablePx -> Mode.FULL
-            compactHeightPx(fontScale, density, innerWidth) + PixelSlack <= availablePx -> Mode.COMPACT
-            else -> Mode.SCROLLING
+                fullHeightPx(density) + PixelSlack <= availablePx -> Fit(Mode.FULL, locatorRow = true)
+            locatorWidth &&
+                compactHeightPx(fontScale, density, innerWidth, withLocator = true) + PixelSlack <= availablePx ->
+                Fit(Mode.COMPACT, locatorRow = true)
+            compactHeightPx(fontScale, density, innerWidth) + PixelSlack <= availablePx ->
+                Fit(Mode.COMPACT, locatorRow = false)
+            else -> Fit(Mode.SCROLLING, locatorRow = false)
+        }
+    }
+
+    /** The variant alone; see [fit] for whether it carries the locator row. */
+    fun mode(available: Dp, fontScale: Float, density: Float, innerWidth: Dp = Dp.Infinity): Mode =
+        fit(available, fontScale, density, innerWidth).mode
+
+    /** How the two locator chips draw their content at an [innerWidth] block (two equal cells). */
+    enum class LocatorStyle {
+        /** icon, phrase and key cap: `⌕ 127 / 842 [G]`, `⇅ Newest first ▾ [S]`. */
+        WIDE,
+
+        /** icon and one word: `⌕ 127 / 842`, `⇅ Newest ▾`. */
+        MID,
+
+        /** the counter alone, the sort word and its caret alone. */
+        NARROW,
+    }
+
+    fun locatorStyle(innerWidth: Dp): LocatorStyle {
+        val cell = innerWidth / 2
+        return when {
+            cell >= LocatorWideMinCell -> LocatorStyle.WIDE
+            cell >= LocatorMidMinCell -> LocatorStyle.MID
+            else -> LocatorStyle.NARROW
         }
     }
 

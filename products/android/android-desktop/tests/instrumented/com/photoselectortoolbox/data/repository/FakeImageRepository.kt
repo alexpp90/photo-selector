@@ -3,6 +3,7 @@ package com.photoselectortoolbox.data.repository
 import android.content.Context
 import android.net.Uri
 import com.photoselector.core.model.ExifData
+import com.photoselectortoolbox.data.model.FolderDescription
 import com.photoselectortoolbox.data.model.ImageDimensions
 import com.photoselectortoolbox.data.model.ImageItem
 import javax.inject.Inject
@@ -44,6 +45,19 @@ class FakeImageRepository @Inject constructor() : ImageRepository {
         openedFolders += folderUri.toString()
         return folderName
     }
+
+    /** Every folder this fake knows is reachable; a test that needs otherwise sets [describeFolderResult]. */
+    var describeFolderResult: ((String) -> FolderDescription)? = null
+
+    override suspend fun describeFolder(context: Context, folderUri: Uri): FolderDescription =
+        describeFolderResult?.invoke(folderUri.toString()) ?: FolderDescription(
+            uri = folderUri.toString(),
+            displayPath = listOf(folderName ?: "Test Folder"),
+            name = folderName,
+            hasPersistedGrant = true,
+            exists = folderName != null,
+            canWrite = folderName != null,
+        )
 
     override fun discoverImages(folderUri: Uri): Flow<List<ImageItem>> =
         if (completeAfterFirstBatch) flowOf(imagesFlow.value) else imagesFlow

@@ -4,6 +4,7 @@ import android.content.Context
 import android.net.Uri
 import com.photoselector.core.model.ExifData
 import com.photoselector.saf.FolderAccessManager
+import com.photoselectortoolbox.data.model.FolderDescription
 import com.photoselectortoolbox.data.model.ImageDimensions
 import com.photoselectortoolbox.data.model.ImageItem
 import kotlinx.coroutines.flow.Flow
@@ -30,6 +31,15 @@ interface ImageRepository {
      * be faked at all.
      */
     suspend fun openFolder(context: Context, folderUri: Uri): String?
+
+    /**
+     * What Settings shows about [folderUri] — its readable path, whether the app still
+     * holds its persisted grant, whether it resolves and takes files, whether it is itself
+     * a Selection folder — without taking a grant or creating anything.
+     *
+     * Display only: [FolderDescription.displayPath] is a label, never a path to act on.
+     */
+    suspend fun describeFolder(context: Context, folderUri: Uri): FolderDescription
 
     /**
      * Progressive folder discovery. Emissions are cumulative and append-only —
