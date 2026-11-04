@@ -75,6 +75,7 @@ import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.saveable.rememberSaveable
@@ -85,8 +86,10 @@ import androidx.compose.ui.ExperimentalComposeUiApi
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.clipToBounds
+import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
@@ -97,6 +100,7 @@ import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.semantics.testTagsAsResourceId
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.hilt.navigation.compose.hiltViewModel
@@ -422,6 +426,9 @@ fun PhoneModeScreen(
 
     val configuration = LocalConfiguration.current
     val isLandscape = configuration.orientation == Configuration.ORIENTATION_LANDSCAPE
+    // The viewer bottom bar's measured height (navigation-bar inset included): the snackbar sits
+    // above it, so it never covers the bar's 48 dp targets (3-button navigation, review JP-UX-2).
+    var bottomBarHeightPx by remember { mutableIntStateOf(0) }
 
     // Measured positions of the real controls, shared by the bars and the controls guide.
     val guideAnchors = remember { ControlsGuideAnchors() }
@@ -744,20 +751,47 @@ fun PhoneModeScreen(
                     onJumpToSelection = openSelectionViewer,
                     onShare = shareCurrentPhoto,
                     onGoToLanding = { viewModel.goBackToLanding() },
-                    modifier = Modifier.align(Alignment.BottomCenter),
+                    modifier = Modifier
+                        .align(Alignment.BottomCenter)
+                        .onSizeChanged { bottomBarHeightPx = it.height },
                     anchors = guideAnchors,
                 )
             }
         }
 
         // ── Snackbar ─────────────────────────────────────────────
-        SnackbarHost(
+        val bottomBarShown = isViewing && !isViewingSelection && !isLandscape
+        FeedSnackbarHost(
             hostState = snackbarHostState,
-            modifier = Modifier
-                .align(Alignment.BottomCenter)
-                .padding(bottom = if (isLandscape && isViewing) 16.dp else 80.dp),
+            bottomBarHeight = if (bottomBarShown) with(LocalDensity.current) { bottomBarHeightPx.toDp() } else 0.dp,
+            modifier = Modifier.align(Alignment.BottomCenter),
         )
     }
+}
+
+/**
+ * The feed's snackbar. Above the viewer bottom bar when it is shown ([bottomBarHeight], measured,
+ * with the navigation-bar inset it already contains), otherwise above the navigation bar. A fixed
+ * offset of 80 dp let the snackbar cover the top of the bar's buttons with 3-button navigation.
+ */
+@Composable
+internal fun FeedSnackbarHost(
+    hostState: SnackbarHostState,
+    bottomBarHeight: Dp,
+    modifier: Modifier = Modifier,
+) {
+    SnackbarHost(
+        hostState = hostState,
+        modifier = modifier
+            .then(
+                if (bottomBarHeight > 0.dp) {
+                    Modifier.padding(bottom = bottomBarHeight + 8.dp)
+                } else {
+                    Modifier.navigationBarsPadding().padding(bottom = 16.dp)
+                },
+            )
+            .testTag("feed_snackbar_host"),
+    )
 }
 
 /**

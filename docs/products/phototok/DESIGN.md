@@ -113,6 +113,7 @@ The viewer bottom bar (`ViewerBottomBar`) shows 4 persistent, **icon-only** cont
 
 (The names under the icons are the spoken `contentDescription` and the long-press tooltip; they are not drawn.)
 
+- The feed snackbar (`FeedSnackbarHost`) sits 8 dp above the bar's measured height, navigation-bar inset included, so it never covers the 48 dp targets with 3-button navigation; without the bar (landing, landscape) it sits 16 dp above the navigation bar.
 - Each control: a 24 dp icon in a 72 × 48 dp target, `contentDescription` from a `cd_` string, and a long-press tooltip (`NameTooltip`, Material3 `TooltipBox` + `PlainTooltip`) with the same name. The tooltip only listens for the long press, so taps are unaffected. Removing the micro-label did not shrink the target. Share (`viewer_share_button`) calls the same path as the long-press menu (`buildCurrentShareIntent`). Four 72 dp buttons need 288 dp, so the bar padding is 8 dp (it fits a 320 dp phone), and the controls guide staggers the four bottom callouts onto two rows when their labels do not fit side by side (`ControlsGuideSolver.planBottom`).
 - Container: `surfaceContainerLowest.copy(alpha=0.8f)`, `RoundedCornerShape(topStart=12.dp, topEnd=12.dp)`
 - Active item: `primaryContainer` background, `onPrimaryContainer` icon (filled variant)
