@@ -131,7 +131,11 @@ fun CandidateStrip(
             }
         }
     }
-    val currentGroup = indexToGroup[currentIndex]
+    // The frame the strip marks is the one the selected URI names: an index passed in the wrong
+    // base (the 1-based position readout) marked the burst of the frame after the current one.
+    val markedIndex = selectedUri?.let { uri -> images.indexOfFirst { it.uri == uri }.takeIf { it >= 0 } }
+        ?: currentIndex
+    val currentGroup = indexToGroup[markedIndex]
 
     // Determine the scroll target index honoring selectedUri if present
     val scrollToIndex = remember(images, selectedUri, currentIndex) {

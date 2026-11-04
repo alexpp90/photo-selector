@@ -311,6 +311,10 @@ data class SelectorUiState(
             return if (idx >= 0) idx + 1 else 0
         }
 
+    /** [filteredPosition] as a 0-based index into [filteredImages] (what list widgets take), or 0 if none. */
+    val filteredIndex: Int
+        get() = (filteredPosition - 1).coerceAtLeast(0)
+
     /** The frame being judged, or null when no folder is loaded. */
     val currentImage: ImageItem?
         get() = images.getOrNull(currentIndex)

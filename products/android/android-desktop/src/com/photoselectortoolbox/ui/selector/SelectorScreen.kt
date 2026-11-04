@@ -599,7 +599,7 @@ fun SelectorScreen(
                                 filmstrip = {
                                     CandidateStrip(
                                         images = uiState.filteredImages,
-                                        currentIndex = uiState.filteredPosition,
+                                        currentIndex = uiState.filteredIndex,
                                         selectedUri = uiState.currentImage?.uri,
                                         onImageSelected = { filteredIdx ->
                                             val targetImage = uiState.filteredImages.getOrNull(filteredIdx)
