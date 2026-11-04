@@ -6,10 +6,10 @@ authors = [
     {name = "Jules"}
 ]
 readme = "README.md"
-requires-python = ">=3.10,<3.15"
+requires-python = ">=3.12,<3.15"
 dependencies = [
     "matplotlib (>=3.10.8,<4.0.0)",
-    "pillow (>=12.1.0,<13.0.0)",
+    "pillow (>=13.0.0,<14.0.0)",
     "tqdm (>=4.67.1,<5.0.0)",
     "exifread (>=3.5.1,<4.0.0)",
     "pyexiftool (>=0.5.6,<0.6.0)",
@@ -25,7 +25,7 @@ dependencies = [
     # 0.095 s/image here against 18.7 s/image for Ollama llava:7b, and no model
     # file to ship. The marker leaves the Linux and Windows dependency sets
     # unchanged; PyObjC ships macosx_*_universal2 wheels, so no compiler is
-    # involved on any supported Python (3.10-3.14). MIT-licensed.
+    # involved on any supported Python (3.12-3.14). MIT-licensed.
     "pyobjc-framework-Vision (>=10.0) ; sys_platform == 'darwin'"
 ]
 

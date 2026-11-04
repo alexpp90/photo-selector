@@ -32,7 +32,7 @@ Features should be tailored specifically to the targeted form factors:
 ## Desktop Development (Python)
 
 ### Prerequisites
-- Python 3.10+
+- Python 3.12+
 - Tkinter (on Linux: `sudo apt install python3-tk`, on macOS: `brew install python-tk`)
 - [Poetry](https://python-poetry.org/) for package management
 
@@ -153,7 +153,9 @@ or the cloud, with limited tooling, say so just as plainly.
    validates (`docs/build/CI_PARITY.md`, Instrumented tests). Every run, including a failed or partial one, saves a record in
    `.git/pst-verification/`: hardware model, OS, toolchain versions, attached Android device
    models, the detected agent environment, each gate's result and the exact tested tree.
-   Set `PST_EXECUTOR="<agent or person>"` when the environment is not detected correctly.
+   Set `PST_EXECUTOR="<agent or person>"` when the environment is not detected correctly; the record
+   keeps only the tool or person (anything in brackets, after a comma and any word with a digit is
+   dropped). **Commit messages, trailers and PR text name no AI model or version**, only the tool.
 2. Open the PR, then run `python3 scripts/verification_record.py pr` (needs `gh`). It adds this
    machine's block to the PR description, or replaces it, and leaves everything else alone.
    Without `gh`, paste the output of `python3 scripts/verification_record.py render`.

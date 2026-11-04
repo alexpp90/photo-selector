@@ -223,6 +223,15 @@ class DocumentAndConfigAgree(unittest.TestCase):
         for name, p in chk.load_config()["products"].items():
             self.assertTrue((REPO / p["src"]).is_dir(), name)
 
+    def test_jackpix_is_binding_and_clean(self) -> None:
+        # UI_TEXT.md calls the rule binding for Jackpix. It stayed in `warn` after its strings became
+        # resources and reached zero findings (2026-11-03), so an over-budget string could not fail
+        # the hygiene job. The mode is `fail` and the real tree passes it.
+        cfg = chk.load_config()
+        self.assertEqual(cfg["products"]["phototok"]["mode"], "fail")
+        result = chk.run(cfg, REPO)["phototok"]
+        self.assertEqual(result.findings, [], result.findings[:5])
+
 
 if __name__ == "__main__":
     unittest.main()

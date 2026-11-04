@@ -26,8 +26,11 @@ _No local verification record yet: run `./scripts/run_tests.sh`, then `python3 s
 ### Who did the work
 
 - [ ] The maintainer, hands-on
-- [ ] An agent on the maintainer's machine (which: …)
-- [ ] An agent with limited tooling — cloud agent or sandbox (which: …)
+- [ ] An agent on the maintainer's machine (which tool: …)
+- [ ] An agent with limited tooling — cloud agent or sandbox (which tool: …)
+
+<!-- Name the tool, not a model or its version, here and anywhere else in the PR text, commit
+     messages and trailers. -->
 
 ### Not tested locally
 
