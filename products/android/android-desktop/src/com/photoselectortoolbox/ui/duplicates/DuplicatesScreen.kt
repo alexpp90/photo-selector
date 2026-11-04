@@ -1,5 +1,6 @@
 package com.photoselectortoolbox.ui.duplicates
 
+import com.photoselectortoolbox.ui.components.handCursor
 import android.net.Uri
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
@@ -110,6 +111,7 @@ fun DuplicatesScreen(
             },
             confirmButton = {
                 Button(
+                    modifier = Modifier.handCursor(),
                     onClick = {
                         showDeleteConfirmation = false
                         viewModel.deleteSelected()
@@ -123,7 +125,7 @@ fun DuplicatesScreen(
                 }
             },
             dismissButton = {
-                TextButton(onClick = { showDeleteConfirmation = false }) {
+                TextButton(modifier = Modifier.handCursor(), onClick = { showDeleteConfirmation = false }) {
                     Text("Cancel")
                 }
             },
@@ -227,6 +229,7 @@ fun DuplicatesScreen(
                                     modifier = Modifier.weight(1f),
                                 )
                                 Button(
+                                    modifier = Modifier.handCursor(),
                                     onClick = { showDeleteConfirmation = true },
                                     colors = ButtonDefaults.buttonColors(
                                         containerColor = DestructiveFill,
@@ -309,6 +312,7 @@ private fun InstructionCard(
             Spacer(modifier = Modifier.height(20.dp))
 
             Button(
+                modifier = Modifier.handCursor(),
                 onClick = onStartScan,
                 colors = ButtonDefaults.buttonColors(
                     containerColor = BrandAccent,
@@ -350,6 +354,7 @@ private fun ExpandedDuplicateGroupCard(
                     color = MaterialTheme.colorScheme.onSurface,
                 )
                 FilledTonalButton(
+                    modifier = Modifier.handCursor(),
                     onClick = onSelectAllButFirst,
                     contentPadding = PaddingValues(horizontal = 12.dp, vertical = 4.dp),
                 ) {
@@ -419,6 +424,7 @@ private fun CompactDuplicateGroupCard(
                     color = MaterialTheme.colorScheme.onSurface,
                 )
                 FilledTonalButton(
+                    modifier = Modifier.handCursor(),
                     onClick = onSelectAllButFirst,
                     contentPadding = PaddingValues(horizontal = 12.dp, vertical = 4.dp),
                 ) {
@@ -567,7 +573,7 @@ private fun DuplicateImageCard(
                 enabled = !isLastKept,
                 modifier = Modifier
                     .align(Alignment.TopEnd)
-                    .padding(4.dp),
+                    .padding(4.dp).handCursor(),
                 colors = CheckboxDefaults.colors(
                     checkedColor = ErrorRed,
                     uncheckedColor = Color.White.copy(alpha = 0.7f),

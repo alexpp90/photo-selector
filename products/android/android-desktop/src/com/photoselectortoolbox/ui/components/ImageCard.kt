@@ -37,6 +37,7 @@ fun ImageCard(
     Surface(
         modifier = modifier
             .clip(RoundedCornerShape(12.dp))
+            .handCursor()
             .combinedClickable(
                 onClick = onClick,
                 onLongClick = onLongClick,

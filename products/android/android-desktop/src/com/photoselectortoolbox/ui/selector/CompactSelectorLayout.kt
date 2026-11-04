@@ -1,5 +1,6 @@
 package com.photoselectortoolbox.ui.selector
 
+import com.photoselectortoolbox.ui.components.handCursor
 import androidx.compose.ui.semantics.Role
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.fadeIn
@@ -175,7 +176,7 @@ fun CompactSelectorLayout(
                     onClick = onFullscreen,
                     modifier = Modifier
                         .align(Alignment.TopEnd)
-                        .padding(8.dp),
+                        .padding(8.dp).handCursor(),
                 ) {
                     Icon(
                         imageVector = Icons.Default.Fullscreen,
@@ -287,6 +288,7 @@ private fun GestureTutorialOverlay(
         modifier = Modifier
             .fillMaxSize()
             .background(Color.Black.copy(alpha = 0.75f))
+            .handCursor()
             .clickable { onDismiss() }
             .testTag("gesture_tutorial_overlay"),
         contentAlignment = Alignment.Center,
@@ -375,6 +377,7 @@ private fun CompactActionButton(
                 if (label.isPrimary) BrandAccentTonal else Color.Transparent,
                 RoundedCornerShape(8.dp),
             )
+            .handCursor()
             .clickable(onClick = onClick, role = Role.Button)
             .semantics { contentDescription = label.accessibilityLabel }
             .padding(horizontal = 10.dp),
@@ -406,6 +409,7 @@ private fun CompactDeleteButton(
     Row(
         modifier = modifier
             .height(52.dp)
+            .handCursor()
             .clickable(onClick = onClick, role = Role.Button)
             .semantics { contentDescription = "Delete this photo" }
             .padding(horizontal = 10.dp),

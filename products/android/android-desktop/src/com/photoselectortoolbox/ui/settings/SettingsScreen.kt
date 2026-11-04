@@ -1,5 +1,6 @@
 package com.photoselectortoolbox.ui.settings
 
+import com.photoselectortoolbox.ui.components.handCursor
 import android.content.ActivityNotFoundException
 import android.content.Intent
 import android.net.Uri
@@ -107,6 +108,7 @@ fun SettingsScreen(
             },
             confirmButton = {
                 Button(
+                    modifier = Modifier.handCursor(),
                     onClick = {
                         showClearCacheDialog = false
                         viewModel.clearCache()
@@ -120,7 +122,7 @@ fun SettingsScreen(
                 }
             },
             dismissButton = {
-                TextButton(onClick = { showClearCacheDialog = false }) {
+                TextButton(modifier = Modifier.handCursor(), onClick = { showClearCacheDialog = false }) {
                     Text("Cancel")
                 }
             },
@@ -181,7 +183,7 @@ fun SettingsScreen(
                 ) {
                     TextButton(
                         onClick = { viewModel.updateSelectionFolder(editingFolderName) },
-                        modifier = Modifier.align(Alignment.End),
+                        modifier = Modifier.align(Alignment.End).handCursor(),
                     ) {
                         Text("Save", color = BrandAccent)
                     }
@@ -224,7 +226,7 @@ fun SettingsScreen(
                 ) {
                     TextButton(
                         onClick = { viewModel.updateSecondarySelectionFolder(editingSecondaryFolderName) },
-                        modifier = Modifier.align(Alignment.End),
+                        modifier = Modifier.align(Alignment.End).handCursor(),
                     ) {
                         Text("Save", color = BrandAccent)
                     }
@@ -245,7 +247,7 @@ fun SettingsScreen(
                 icon = Icons.Default.FolderOpen,
                 trailing = {
                     if (uiState.phoneCollectionUri != null) {
-                        TextButton(onClick = { viewModel.updatePhoneCollectionUri(null) }) {
+                        TextButton(modifier = Modifier.handCursor(), onClick = { viewModel.updatePhoneCollectionUri(null) }) {
                             Text("Reset", color = BrandAccent)
                         }
                     }
@@ -302,6 +304,7 @@ fun SettingsScreen(
                                 verticalAlignment = Alignment.CenterVertically,
                             ) {
                                 RadioButton(
+                                    modifier = Modifier.handCursor(),
                                     selected = uiState.groupingLevel == level,
                                     onClick = { viewModel.updateGroupingLevel(level) },
                                     colors = RadioButtonDefaults.colors(
@@ -427,6 +430,7 @@ fun SettingsScreen(
                         verticalAlignment = Alignment.CenterVertically,
                     ) {
                         RadioButton(
+                            modifier = Modifier.handCursor(),
                             selected = uiState.filingAction == action,
                             onClick = { viewModel.updateFilingAction(action) },
                             colors = RadioButtonDefaults.colors(
@@ -478,6 +482,7 @@ fun SettingsScreen(
                 icon = Icons.Default.School,
                 trailing = {
                     Button(
+                        modifier = Modifier.handCursor(),
                         onClick = {
                             viewModel.resetGuidance()
                             guidanceReset = true
@@ -513,6 +518,7 @@ fun SettingsScreen(
                 icon = Icons.Default.DeleteSweep,
                 trailing = {
                     Button(
+                        modifier = Modifier.handCursor(),
                         onClick = { showClearCacheDialog = true },
                         colors = ButtonDefaults.buttonColors(
                             containerColor = ErrorRed.copy(alpha = 0.15f),

@@ -1,5 +1,6 @@
 package com.photoselectortoolbox.ui.selector
 
+import com.photoselectortoolbox.ui.components.handCursor
 import androidx.compose.ui.semantics.Role
 import android.app.Activity
 import android.net.Uri
@@ -712,7 +713,7 @@ private fun FullscreenInfoChrome(
             ) {
                 IconButton(
                     onClick = onClose,
-                    modifier = Modifier.size(48.dp).testTag("fullscreen_close"),
+                    modifier = Modifier.size(48.dp).testTag("fullscreen_close").handCursor(),
                 ) {
                     Icon(
                         imageVector = Icons.Default.Close,
@@ -859,6 +860,7 @@ private fun FullscreenGestureHint(
                 .align(Alignment.End)
                 // A 48 dp hit target around the 12 sp word (AD-17).
                 .defaultMinSize(minWidth = 48.dp, minHeight = 48.dp)
+                .handCursor()
                 .clickable(onClick = onDismiss, role = Role.Button)
                 .wrapContentSize(Alignment.Center),
         )

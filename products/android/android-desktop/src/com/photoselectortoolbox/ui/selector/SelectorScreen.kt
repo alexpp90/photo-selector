@@ -1,5 +1,6 @@
 package com.photoselectortoolbox.ui.selector
 
+import com.photoselectortoolbox.ui.components.handCursor
 import android.app.Activity
 import android.net.Uri
 import android.util.Log
@@ -247,13 +248,13 @@ fun SelectorScreen(
             confirmButton = {
                 TextButton(
                     onClick = { viewModel.deleteCurrentImage() },
-                    modifier = Modifier.testTag("dialog_confirm_delete"),
+                    modifier = Modifier.testTag("dialog_confirm_delete").handCursor(),
                 ) {
                     Text("Delete", color = MaterialTheme.colorScheme.error)
                 }
             },
             dismissButton = {
-                TextButton(onClick = { viewModel.dismissDeleteConfirmation() }) { Text("Cancel") }
+                TextButton(modifier = Modifier.handCursor(), onClick = { viewModel.dismissDeleteConfirmation() }) { Text("Cancel") }
             },
             containerColor = StudioCard,
         )
@@ -283,13 +284,13 @@ fun SelectorScreen(
             confirmButton = {
                 TextButton(
                     onClick = { viewModel.confirmCloudScan() },
-                    modifier = Modifier.testTag("dialog_confirm_cloud_scan"),
+                    modifier = Modifier.testTag("dialog_confirm_cloud_scan").handCursor(),
                 ) {
                     Text("Scan")
                 }
             },
             dismissButton = {
-                TextButton(onClick = { viewModel.dismissCloudScanConfirmation() }) { Text("Cancel") }
+                TextButton(modifier = Modifier.handCursor(), onClick = { viewModel.dismissCloudScanConfirmation() }) { Text("Cancel") }
             },
             containerColor = StudioCard,
         )
@@ -305,7 +306,7 @@ fun SelectorScreen(
             confirmButton = {
                 TextButton(
                     onClick = { viewModel.confirmUncompletedDeletions() },
-                    modifier = Modifier.testTag("dialog_confirm_uncompleted_deletions"),
+                    modifier = Modifier.testTag("dialog_confirm_uncompleted_deletions").handCursor(),
                 ) {
                     Text("Delete now", color = MaterialTheme.colorScheme.error)
                 }
@@ -313,7 +314,7 @@ fun SelectorScreen(
             dismissButton = {
                 TextButton(
                     onClick = { viewModel.keepUncompletedDeletions() },
-                    modifier = Modifier.testTag("dialog_keep_uncompleted_deletions"),
+                    modifier = Modifier.testTag("dialog_keep_uncompleted_deletions").handCursor(),
                 ) {
                     Text("Keep")
                 }
@@ -472,11 +473,13 @@ fun SelectorScreen(
                             onDismissRequest = { showMenu = false },
                         ) {
                             DropdownMenuItem(
+                                modifier = Modifier.handCursor(),
                                 text = { Text("Scan images") },
                                 onClick = { showMenu = false; showScanConfig = true },
                                 enabled = uiState.images.isNotEmpty() && !uiState.isScanRunning,
                             )
                             DropdownMenuItem(
+                                modifier = Modifier.handCursor(),
                                 text = { Text("Open folder") },
                                 onClick = { showMenu = false; folderPickerLauncher.launch(null) },
                             )
@@ -518,14 +521,16 @@ fun SelectorScreen(
                                 trailingIcon = { KeyCap(SelectorShortcut.GO_TO.input) },
                                 onClick = { showMenu = false; openJump() },
                                 enabled = uiState.images.isNotEmpty(),
-                                modifier = Modifier.testTag("menu_go_to_photo"),
+                                modifier = Modifier.testTag("menu_go_to_photo").handCursor(),
                             )
                             DropdownMenuItem(
+                                modifier = Modifier.handCursor(),
                                 text = { Text("Clear scores") },
                                 onClick = { showMenu = false; viewModel.clearScores() },
                                 enabled = uiState.hasAnyScores,
                             )
                             DropdownMenuItem(
+                                modifier = Modifier.handCursor(),
                                 text = { Text("Shortcuts and guide") },
                                 onClick = { showMenu = false; openGuide() },
                             )
@@ -866,7 +871,7 @@ private fun SortMenuItem(
                 role = Role.RadioButton
                 this.selected = selected
             }
-            .testTag(tag),
+            .testTag(tag).handCursor(),
     )
 }
 

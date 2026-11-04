@@ -1,5 +1,6 @@
 package com.photoselectortoolbox.ui.selector
 
+import com.photoselectortoolbox.ui.components.handCursor
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
@@ -136,12 +137,12 @@ internal fun GoToPhotoDialog(
             )
         },
         confirmButton = {
-            TextButton(onClick = submit, modifier = Modifier.testTag("go_to_photo_go")) {
+            TextButton(onClick = submit, modifier = Modifier.testTag("go_to_photo_go").handCursor()) {
                 Text(SelectorLabels.GO_TO_PHOTO_GO)
             }
         },
         dismissButton = {
-            TextButton(onClick = onDismiss, modifier = Modifier.testTag("go_to_photo_cancel")) {
+            TextButton(onClick = onDismiss, modifier = Modifier.testTag("go_to_photo_cancel").handCursor()) {
                 Text(SelectorLabels.GO_TO_PHOTO_CANCEL)
             }
         },

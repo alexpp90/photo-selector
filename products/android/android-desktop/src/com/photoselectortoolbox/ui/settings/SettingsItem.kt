@@ -1,5 +1,6 @@
 package com.photoselectortoolbox.ui.settings
 
+import com.photoselectortoolbox.ui.components.handCursor
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.ColumnScope
@@ -83,6 +84,7 @@ fun SettingsToggleItem(
         Spacer(modifier = Modifier.width(12.dp))
 
         Switch(
+            modifier = Modifier.handCursor(),
             checked = checked,
             onCheckedChange = null,
             colors = SwitchDefaults.colors(

@@ -1,5 +1,6 @@
 package com.photoselectortoolbox.ui.selector
 
+import com.photoselectortoolbox.ui.components.handCursor
 import androidx.compose.animation.animateColorAsState
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.ExperimentalFoundationApi
@@ -154,7 +155,7 @@ private fun Modifier.tileClickable(
     onClick: () -> Unit,
     onLongClick: (() -> Unit)?,
 ): Modifier = if (onLongClick == null) {
-    this.clickable(onClick = onClick)
+    this.handCursor().clickable(onClick = onClick)
 } else {
-    this.combinedClickable(onClick = onClick, onLongClick = onLongClick)
+    this.handCursor().combinedClickable(onClick = onClick, onLongClick = onLongClick)
 }
