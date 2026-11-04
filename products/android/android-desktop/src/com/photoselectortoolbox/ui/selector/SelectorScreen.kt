@@ -30,6 +30,7 @@ import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.FolderOpen
 import androidx.compose.material.icons.filled.PhotoCamera
 import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
@@ -536,7 +537,13 @@ fun SelectorScreen(
             Column(modifier = Modifier.weight(1f).fillMaxSize()) {
                 if (uiState.folderUri == null || uiState.images.isEmpty()) {
                     EmptySelectorState(
-                        missingGrantPrompt = uiState.missingGrantPrompt,
+                        kind = selectorEmptyKind(
+                            folderUri = uiState.folderUri,
+                            missingGrantPrompt = uiState.missingGrantPrompt,
+                            isLoading = uiState.isLoading,
+                            isEnumerating = uiState.isEnumerating,
+                        ),
+                        folderName = uiState.folderName,
                         onOpenFolder = { folderPickerLauncher.launch(null) },
                     )
                 } else {
@@ -677,17 +684,37 @@ fun SelectorScreen(
     }
 }
 
+/** Which card the selector shows in place of the frames. */
+internal enum class SelectorEmptyKind { NO_FOLDER, MISSING_GRANT, OPENING, EMPTY_FOLDER }
+
+/**
+ * An open folder with nothing to show is not "no folder": while it is still being read the screen
+ * waits, and once read it says the folder holds no photos (FD-UX-5).
+ */
+internal fun selectorEmptyKind(
+    folderUri: String?,
+    missingGrantPrompt: Boolean,
+    isLoading: Boolean,
+    isEnumerating: Boolean,
+): SelectorEmptyKind = when {
+    missingGrantPrompt -> SelectorEmptyKind.MISSING_GRANT
+    folderUri == null -> SelectorEmptyKind.NO_FOLDER
+    isLoading || isEnumerating -> SelectorEmptyKind.OPENING
+    else -> SelectorEmptyKind.EMPTY_FOLDER
+}
+
 @Composable
-private fun EmptySelectorState(
-    missingGrantPrompt: Boolean = false,
+internal fun EmptySelectorState(
+    kind: SelectorEmptyKind,
+    folderName: String,
     onOpenFolder: () -> Unit,
 ) {
     Box(
         modifier = Modifier.fillMaxSize(),
         contentAlignment = Alignment.Center,
     ) {
-        if (missingGrantPrompt) {
-            EmptyStateCard(
+        when (kind) {
+            SelectorEmptyKind.MISSING_GRANT -> EmptyStateCard(
                 icon = Icons.Default.FolderOpen,
                 title = "Folder Access Needed",
                 description = "Permission for this folder was revoked or the folder was moved. Re-select the folder to continue.",
@@ -695,8 +722,23 @@ private fun EmptySelectorState(
                 onAction = onOpenFolder,
                 modifier = Modifier.testTag("missing_grant_prompt_card"),
             )
-        } else {
-            EmptyStateCard(
+            SelectorEmptyKind.OPENING -> CircularProgressIndicator(
+                modifier = Modifier.testTag("opening_folder_progress"),
+                color = MaterialTheme.colorScheme.primary,
+            )
+            SelectorEmptyKind.EMPTY_FOLDER -> EmptyStateCard(
+                icon = Icons.Default.FolderOpen,
+                title = "No photos found",
+                description = if (folderName.isBlank()) {
+                    "This folder holds no supported photos."
+                } else {
+                    "$folderName holds no supported photos."
+                },
+                actionLabel = "Open Folder",
+                onAction = onOpenFolder,
+                modifier = Modifier.testTag("empty_folder_card"),
+            )
+            SelectorEmptyKind.NO_FOLDER -> EmptyStateCard(
                 icon = Icons.Default.PhotoCamera,
                 title = "Select a Folder",
                 description = "Choose a shoot folder to start comparing and culling frames.",
