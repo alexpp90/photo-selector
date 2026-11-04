@@ -1993,6 +1993,40 @@ class PhoneModeViewModelTest {
         assertEquals(UiText.of(R.string.error_delete_some, 1, 2), state.lastActionFeedback?.message)
     }
 
+    @Test
+    fun `a copy into a custom location names the Selection folder the file lands in, not the location`() = runTest {
+        perSourceSettings(
+            removable = SourceSettings(swipeRightVerb = SwipeRightVerb.COPY, collectionUri = sdSelection),
+        )
+        val viewModel = buildViewModel()
+        openFolder(sdTree, image("card.jpg", 5), viewModel = viewModel)
+        advanceUntilIdle()
+        assertEquals("Keepers", viewModel.uiState.value.collectionFolderName)
+
+        viewModel.addToCollection()
+        advanceUntilIdle()
+
+        // The file is in Keepers/Selection/, so the message and the guide say Selection.
+        assertEquals(PhotoFolders.SELECTION, viewModel.uiState.value.collectionLabel)
+        assertEquals(
+            UiText.of(R.string.snackbar_copied, UiText.raw(PhotoFolders.SELECTION)),
+            viewModel.uiState.value.lastActionFeedback?.message,
+        )
+    }
+
+    @Test
+    fun `a folder whose name the provider does not report is named from its document id, never in English`() = runTest {
+        perSourceSettings(
+            removable = SourceSettings(swipeRightVerb = SwipeRightVerb.COPY, swipeLeftVerb = SwipeAction.MOVE, leftSwipeUri = sdRejects),
+        )
+        coEvery { imageRepository.resolveFolderName(Uri.parse(sdRejects)) } returns null
+        val viewModel = buildViewModel()
+        openFolder(sdTree, image("card.jpg", 5), viewModel = viewModel)
+        advanceUntilIdle()
+
+        assertEquals("Rejects", viewModel.uiState.value.leftSwipeFolderName)
+    }
+
     private val sdTree = "content://com.android.externalstorage.documents/tree/1A2B-3C4D%3ADCIM"
     private val sdSelection = "content://com.android.externalstorage.documents/tree/1A2B-3C4D%3AKeepers"
     private val sdRejects = "content://com.android.externalstorage.documents/tree/1A2B-3C4D%3ARejects"

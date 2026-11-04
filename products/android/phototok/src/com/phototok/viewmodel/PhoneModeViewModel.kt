@@ -174,10 +174,12 @@ data class PhoneModeUiState(
     val cardClearFileCount: Int get() = cardClearTargets.size
 
     /**
-     * What swipe right names as its destination: the custom folder when the user chose one, else
-     * the Selection subfolder (`Selection`, the configured name in Pro, `Jackpix` for a Casual import).
+     * What swipe right names as its destination: the folder the files land in, which is always the
+     * Selection subfolder (`Selection`, the configured name in Pro, `Jackpix` for a Casual import),
+     * also inside a custom location. Naming the custom root said "Copied to Pictures" for a file in
+     * `Pictures/Selection/` (review JP-UX-1).
      */
-    val collectionLabel: String get() = collectionFolderName.ifBlank { selectionSubfolderName }
+    val collectionLabel: String get() = selectionSubfolderName
 
     /** Delete all is offered once the scan has finished: a count taken mid-scan would be too small. */
     val cardClearReady: Boolean get() = !isDiscovering && !isLoading && allImages.isNotEmpty()
@@ -517,7 +519,7 @@ class PhoneModeViewModel @Inject constructor(
         // URI settings resolve display names via the repository (I/O) — kept separate.
         viewModelScope.launch {
             settingsRepository.phoneCollectionUri.collect { uri ->
-                val name = resolveFolderName(uri, fallback = "Collection")
+                val name = resolveFolderName(uri)
                 _uiState.update {
                     // The phone's folder belongs to the phone source: another source (and a Casual
                     // card import, which has its own target) keeps the destinations its own settings give.
@@ -528,7 +530,7 @@ class PhoneModeViewModel @Inject constructor(
         }
         viewModelScope.launch {
             settingsRepository.phoneLeftSwipeUri.collect { uri ->
-                val name = resolveFolderName(uri, fallback = "Folder")
+                val name = resolveFolderName(uri)
                 _uiState.update {
                     if (ownedByOtherSource(it)) it
                     else it.copy(leftSwipeFolderUri = uri, leftSwipeFolderName = name)
@@ -572,10 +574,10 @@ class PhoneModeViewModel @Inject constructor(
                 val collectionName = if (src.importToPhoneCamera) {
                     src.selectionSubfolder
                 } else {
-                    resolveFolderName(collectionUri, fallback = "Collection")
+                    resolveFolderName(collectionUri)
                 }
                 val leftSwipeUri = src.leftSwipeFolderUri
-                val leftSwipeName = resolveFolderName(leftSwipeUri, fallback = "Folder")
+                val leftSwipeName = resolveFolderName(leftSwipeUri)
 
                 _uiState.update { state ->
                     state.copy(
@@ -622,9 +624,10 @@ class PhoneModeViewModel @Inject constructor(
         }
     }
 
-    private suspend fun resolveFolderName(uri: String?, fallback: String): String {
+    private suspend fun resolveFolderName(uri: String?): String {
         if (uri == null) return ""
-        return imageRepository.resolveFolderName(Uri.parse(uri)) ?: fallback
+        val parsed = Uri.parse(uri)
+        return imageRepository.resolveFolderName(parsed) ?: PhotoFolders.nameFromDocumentId(parsed.lastPathSegment)
     }
 
     /** Toggle the EXIF stats overlay (driven by tapping the Jackpix logo). */
@@ -1079,7 +1082,7 @@ class PhoneModeViewModel @Inject constructor(
     fun selectCollectionFolder(uri: Uri) {
         viewModelScope.launch {
             settingsRepository.setPhoneCollectionUri(uri.toString())
-            val name = resolveFolderName(uri.toString(), fallback = "Collection")
+            val name = resolveFolderName(uri.toString())
             _uiState.update {
                 it.copy(collectionFolderUri = uri.toString(), collectionFolderName = name)
             }
@@ -1089,7 +1092,7 @@ class PhoneModeViewModel @Inject constructor(
     fun selectLeftSwipeFolder(uri: Uri) {
         viewModelScope.launch {
             settingsRepository.setPhoneLeftSwipeUri(uri.toString())
-            val name = resolveFolderName(uri.toString(), fallback = "Folder")
+            val name = resolveFolderName(uri.toString())
             _uiState.update {
                 it.copy(leftSwipeFolderUri = uri.toString(), leftSwipeFolderName = name)
             }

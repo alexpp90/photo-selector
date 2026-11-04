@@ -39,4 +39,13 @@ object PhotoFolders {
         selectionName.trim().takeIf { it.isNotEmpty() && it.lowercase() !in OUTPUT_FOLDER_NAMES }
             ?.let(::setOf)
             ?: emptySet()
+
+    /**
+     * A folder's name taken from its SAF document id (`primary:DCIM/Camera` → `Camera`), for when
+     * the provider does not report a display name. It is the folder's own name, so it needs no
+     * translation, unlike the English "Collection" / "Folder" / "Photos" placeholders it replaces
+     * (REQ-TOK-UX.05). Blank when the id has no usable last segment.
+     */
+    fun nameFromDocumentId(documentId: String?): String =
+        documentId.orEmpty().substringAfterLast(':').trimEnd('/').substringAfterLast('/')
 }
