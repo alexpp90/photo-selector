@@ -17,7 +17,7 @@ struct PhotoSelectorApp: App {
         }
 
         Settings {
-            SettingsView()
+            SettingsView(workspace: appDelegate.viewModel)
                 .preferredColorScheme(.dark)
         }
     }

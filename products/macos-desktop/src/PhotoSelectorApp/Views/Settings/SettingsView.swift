@@ -1,4 +1,5 @@
 import SwiftUI
+import AppKit
 import PhotoSelectorKit
 
 /// Native 3-tab macOS Settings view accessible via Preferences / Settings (⌘,).
@@ -9,11 +10,17 @@ public struct SettingsView: View {
         case performance
     }
 
-    public init() {}
+    /// The workspace is observed only for the folder that is open, so the Selection destination
+    /// can be shown as a real path (Settings is a separate scene and has no other way to know it).
+    @ObservedObject private var workspace: CullingWorkspaceViewModel
+
+    public init(workspace: CullingWorkspaceViewModel) {
+        self.workspace = workspace
+    }
 
     public var body: some View {
         TabView {
-            GeneralSettingsTab()
+            GeneralSettingsTab(openFolderURL: workspace.rootDirectoryURL)
                 .tabItem {
                     Label("General", systemImage: "gearshape")
                 }
@@ -36,24 +43,101 @@ public struct SettingsView: View {
 }
 
 // MARK: - Tab 1: General
+
+/// Writes the destination choice to `UserDefaults` and runs the folder picker. The Picker and the
+/// path text read the same keys through `@AppStorage`, so a write re-renders them; `objectWillChange`
+/// is sent as well so that a cancelled picker puts the radio button back.
+@MainActor
+final class DestinationSettingsModel: ObservableObject {
+    private let defaults: UserDefaults
+
+    init(defaults: UserDefaults = .standard) {
+        self.defaults = defaults
+    }
+
+    func select(_ mode: CullingDestinationMode) {
+        switch mode {
+        case .workingFolder:
+            // The custom folder stays stored, so switching back to Custom needs no new pick.
+            defaults.cullingDestinationMode = .workingFolder
+        case .customFolder:
+            if defaults.externalCullingDestinationURL != nil {
+                defaults.cullingDestinationMode = .customFolder
+            } else {
+                // No folder yet: ask for one; cancelling leaves Working folder selected.
+                Task { @MainActor [weak self] in self?.chooseCustomFolder() }
+            }
+        }
+        objectWillChange.send()
+    }
+
+    func chooseCustomFolder() {
+        let panel = NSOpenPanel()
+        panel.canChooseDirectories = true
+        panel.canChooseFiles = false
+        panel.allowsMultipleSelection = false
+        panel.canCreateDirectories = true
+        panel.prompt = "Choose"
+        panel.title = "Choose the Folder for Moved and Copied Photos"
+        panel.directoryURL = defaults.externalCullingDestinationURL
+
+        if panel.runModal() == .OK, let url = panel.url {
+            defaults.externalCullingDestinationURL = url
+            defaults.cullingDestinationMode = .customFolder
+        }
+        objectWillChange.send()
+    }
+}
+
 struct GeneralSettingsTab: View {
+    /// The folder being culled, nil when none is open.
+    let openFolderURL: URL?
+
     @AppStorage(AppSettingsKeys.cullingDestinationFolderName)
     private var cullingDestinationFolderName: String = AppSettingsDefaults.cullingDestinationFolderName
+
+    @AppStorage(AppSettingsKeys.cullingDestinationMode)
+    private var storedDestinationMode: String = ""
+
+    @AppStorage(AppSettingsKeys.externalCullingDestinationURL)
+    private var storedCustomFolderPath: String = ""
 
     @AppStorage(AppSettingsKeys.autoAdvance)
     private var autoAdvance: Bool = AppSettingsDefaults.autoAdvance
 
+    @StateObject private var destinationModel = DestinationSettingsModel()
+
     var body: some View {
+        let destination = resolvedDestination
+        let summary = CullingDestinationResolver.summary(of: destination)
         Form {
             Section("Culling Destination") {
-                LabeledContent("Destination Folder") {
+                Picker("Photos go to", selection: modeBinding) {
+                    Text("Working folder").tag(CullingDestinationMode.workingFolder)
+                    Text("Custom folder").tag(CullingDestinationMode.customFolder)
+                }
+                .pickerStyle(.radioGroup)
+
+                if destination.mode == .customFolder {
+                    LabeledContent("Custom folder") {
+                        HStack(spacing: 8) {
+                            PathText(text: summary.customFolderPathText ?? "")
+                            Button("Change\u{2026}") {
+                                destinationModel.chooseCustomFolder()
+                            }
+                            .focusable(false)
+                            .accessibilityLabel("Change custom folder")
+                        }
+                    }
+                }
+
+                LabeledContent("Subfolder") {
                     TextField("Folder Name", text: $cullingDestinationFolderName)
                         .textFieldStyle(.roundedBorder)
                         .frame(width: 180)
                 }
-                Text("Selected and copied photos will be placed into <Root>/\(sanitizedFolderName)/.")
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
+
+                destinationLines(summary)
             }
 
             Section("Navigation & Culling") {
@@ -67,9 +151,61 @@ struct GeneralSettingsTab: View {
         .padding(16)
     }
 
-    private var sanitizedFolderName: String {
-        let trimmed = cullingDestinationFolderName.trimmingCharacters(in: .whitespacesAndNewlines)
-        return trimmed.isEmpty ? AppSettingsDefaults.cullingDestinationFolderName : trimmed
+    // The same resolution `CullingWorkspaceViewModel.cullCurrentPhoto` uses to pick the folder.
+    private var resolvedDestination: ResolvedCullingDestination {
+        let custom = storedCustomFolderPath.trimmingCharacters(in: .whitespacesAndNewlines)
+        let customURL = custom.isEmpty ? nil : URL(fileURLWithPath: custom, isDirectory: true)
+        return CullingDestinationResolver.resolve(
+            mode: CullingDestinationMode.effective(
+                storedRaw: storedDestinationMode.isEmpty ? nil : storedDestinationMode,
+                hasCustomFolder: customURL != nil
+            ),
+            folderName: cullingDestinationFolderName,
+            customFolderURL: customURL,
+            openFolderURL: openFolderURL
+        )
+    }
+
+    private var modeBinding: Binding<CullingDestinationMode> {
+        Binding(
+            get: { resolvedDestination.mode },
+            set: { destinationModel.select($0) }
+        )
+    }
+
+    @ViewBuilder
+    private func destinationLines(_ summary: CullingDestinationSummary) -> some View {
+        if let path = summary.selectionPathText {
+            LabeledContent("Destination") {
+                PathText(text: path)
+            }
+        }
+        if let placeholder = summary.placeholderText {
+            Text(placeholder)
+                .font(.caption)
+                .foregroundStyle(.secondary)
+        }
+        if let warning = summary.warningText {
+            Label(warning, systemImage: "exclamationmark.triangle.fill")
+                .font(.caption)
+                .foregroundStyle(.orange)
+                .accessibilityLabel("Warning: \(warning)")
+        }
+    }
+}
+
+/// A full path the user can read and select; the middle is elided when it does not fit, and the
+/// whole path is in the tooltip.
+private struct PathText: View {
+    let text: String
+
+    var body: some View {
+        Text(text)
+            .font(.system(.callout, design: .monospaced))
+            .lineLimit(1)
+            .truncationMode(.middle)
+            .textSelection(.enabled)
+            .help(text)
     }
 }
 

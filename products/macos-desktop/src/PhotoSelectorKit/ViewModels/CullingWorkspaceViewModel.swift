@@ -243,7 +243,8 @@ public final class CullingWorkspaceViewModel: ObservableObject {
         let inFlight = inFlightJobIDs.count
 
         let hasExternalDest: Bool = {
-            guard let extURL = userDefaults.externalCullingDestinationURL else { return false }
+            let destination = CullingDestinationResolver.resolve(defaults: userDefaults, openFolderURL: rootDirectoryURL)
+            guard destination.mode == .customFolder, let extURL = destination.baseFolderURL else { return false }
             guard let rootURL = rootDirectoryURL else { return true }
             let extPath = extURL.standardizedFileURL.resolvingSymlinksInPath().path
             let rootPath = rootURL.standardizedFileURL.resolvingSymlinksInPath().path
@@ -782,9 +783,21 @@ public final class CullingWorkspaceViewModel: ObservableObject {
         guard let sourceRootURL = rootDirectoryURL ?? photo.url.deletingLastPathComponent() as URL? else {
             return
         }
+        // The same resolution the Settings text shows (CullingDestinationResolver). A custom folder
+        // that is gone or unwritable refuses the Move/Copy: it must never silently create that path
+        // (an unplugged SSD's mount point would otherwise be recreated on the system volume).
+        let destination = CullingDestinationResolver.resolve(defaults: userDefaults, openFolderURL: sourceRootURL)
         let effectiveRootURL: URL
-        if (action == .move || action == .copy), let externalURL = userDefaults.externalCullingDestinationURL {
-            effectiveRootURL = externalURL
+        if action == .move || action == .copy {
+            guard destination.isUsable, let base = destination.baseFolderURL else {
+                showToast(
+                    icon: "exclamationmark.triangle.fill",
+                    title: "Custom folder not available",
+                    subtitle: "Choose another in Settings (\u{2318},)"
+                )
+                return
+            }
+            effectiveRootURL = base
         } else {
             effectiveRootURL = sourceRootURL
         }
@@ -796,7 +809,7 @@ public final class CullingWorkspaceViewModel: ObservableObject {
         let toastTitle: String
         let toastIcon: String
 
-        let destinationFolder = userDefaults.cullingDestinationFolderName
+        let destinationFolder = destination.folderName
 
         switch action {
         case .move:

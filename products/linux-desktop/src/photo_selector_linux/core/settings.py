@@ -14,6 +14,13 @@ import shutil
 from pathlib import Path
 from typing import Any, Callable, Dict, List, Optional
 
+from photo_selector_linux.core.destination import (
+    MODE_CUSTOM,
+    MODE_WORKING,
+    MODES,
+    selection_subfolder_name,
+)
+
 logger = logging.getLogger(__name__)
 
 
@@ -40,6 +47,10 @@ class SettingsStore:
         self.blurry_threshold: float = 35.0
         self.sharp_threshold: float = 70.0
         self.cache_limit_mb: float = 512.0
+        #: Where Move/Copy put photos: ``working`` (inside the open folder) or ``custom``
+        #: (inside ``external_destination_folder``). Never ``custom`` without a folder.
+        self.destination_mode: str = MODE_WORKING
+        #: The custom folder. Kept when the user switches back to the working folder.
         self.external_destination_folder: Optional[str] = None
         self.stop_sharpness_threshold: Optional[float] = None
         self._callbacks: List[Callable[[SettingsStore], None]] = []
@@ -61,11 +72,7 @@ class SettingsStore:
 
     @staticmethod
     def _sanitize_folder_name(value: Any) -> str:
-        if not isinstance(value, str):
-            return "Selection"
-        cleaned = value.strip().rstrip("/\\").strip()
-        name = Path(cleaned).name.strip() if cleaned else ""
-        return name if name else "Selection"
+        return selection_subfolder_name(value)
 
     def to_dict(self) -> Dict[str, Any]:
         return {
@@ -74,6 +81,7 @@ class SettingsStore:
             "blurry_threshold": self.blurry_threshold,
             "sharp_threshold": self.sharp_threshold,
             "cache_limit_mb": self.cache_limit_mb,
+            "destination_mode": self.destination_mode,
             "external_destination_folder": self.external_destination_folder,
             "stop_sharpness_threshold": self.stop_sharpness_threshold,
         }
@@ -102,7 +110,15 @@ class SettingsStore:
                 pass
         if "external_destination_folder" in data:
             val = data["external_destination_folder"]
-            self.external_destination_folder = str(val).strip() if val else None
+            self.external_destination_folder = (str(val).strip() or None) if val else None
+            if "destination_mode" not in data and self.external_destination_folder:
+                # Settings written before the choice existed: a stored folder was in use.
+                self.destination_mode = MODE_CUSTOM
+        if "destination_mode" in data:
+            mode = data["destination_mode"]
+            self.destination_mode = mode if mode in MODES else MODE_WORKING
+        if self.destination_mode == MODE_CUSTOM and not self.external_destination_folder:
+            self.destination_mode = MODE_WORKING
         if "stop_sharpness_threshold" in data:
             val = data["stop_sharpness_threshold"]
             if val is None or val == "":
