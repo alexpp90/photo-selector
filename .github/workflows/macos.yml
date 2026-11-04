@@ -41,7 +41,7 @@ jobs:
   # ── Native Swift Test Suite (Mirror: scripts/run_tests.sh `macos.yml:swift-test`) ──
   swift-test:
     name: Swift Tests (macOS)
-    runs-on: macos-15
+    runs-on: macos-26
     timeout-minutes: 15
     defaults:
       run:
@@ -102,7 +102,7 @@ jobs:
     name: Build & Package macOS Binary
     needs: swift-test
     if: github.event_name == 'workflow_dispatch' || (github.event_name == 'push' && (github.ref == 'refs/heads/main' || startsWith(github.ref, 'refs/tags/macos-desktop-v')))
-    runs-on: macos-15
+    runs-on: macos-26
     timeout-minutes: 15
     defaults:
       run:

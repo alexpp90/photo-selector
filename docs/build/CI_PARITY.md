@@ -39,7 +39,7 @@ The rule that prevents it:
 | `lintDebug` | `android.yml:lint` | ✅ advisory | Non-blocking in both places, on purpose. |
 | `assembleLab` (R8-minified) | `android.yml:minified-build` | ✅ needs JDK 17 + Android SDK | Builds `:android-desktop` and `:phototok` as `lab` (`initWith(release)`: R8 minify + resource shrinking, debug signing, no secrets), so a missing `-keep` rule fails before the merge instead of in `android.yml:build` on `main`. Skipped under `--quick`. |
 | `connectedDebugAndroidTest` (**partial — compact window**) | `android.yml:instrumented-tests` | ❌ **needs emulator/device** | **A green CI job is partial evidence:** CI's emulator has a compact window, and 28 expanded-layout checks in `:android-desktop` (`if (isCompactLayout()) return`, e.g. `SelectorScreenTest`) pass vacuously there; `SelectorForcedSizeTest` forces expanded sizes for part of it. Only a device with an expanded window (a tablet) runs them: use `--android-device` on one before a release. The mirror labels the gate `(partial — compact window)`. Local: on demand only (`--android-device`, before a release), on every configured test device at once (`scripts/android_device_matrix.py run --configured`: `pst.testDevice.serial` + `.extraSerials`, or the only attached device), each under its device lock, one gate per device; no device, or a device busy or locked after the wait, is a non-blocking `⊘ SKIPPED`, also under `--strict`. See [Instrumented tests](#instrumented-tests-genuinely-need-a-device). |
-| `swift test (macos-desktop)` | `macos.yml:swift-test` | ⚠️ Darwin only | Native Swift 6 suite covering PhotoSelectorKit & App (release SLA benchmark included). Runs on the pinned `macos-15` image in CI. |
+| `swift test (macos-desktop)` | `macos.yml:swift-test` | ⚠️ Darwin only | Native Swift 6 suite covering PhotoSelectorKit & App (release SLA benchmark included). Runs on the pinned `macos-26` image in CI. |
 | `check_no_test_hooks.sh` (release binary) | `macos.yml:swift-test` | ⚠️ Darwin only | `swift build -c release`, then fails if the binary contains the UI test hooks (`UIScenarioRunner`, `UITestDriver`, `UISelfTestRunner`), which are compiled in only for debug and `build_app.sh --test-hooks` builds. |
 | Lensjet universal app bundle | `macos.yml:build` | ⚠️ Darwin only (skipped under `--quick`) | `build_app.sh release --universal` (arm64 + x86_64 merged with `lipo`, ad-hoc signed) followed by `check_no_test_hooks.sh` on the `.app`. The release packaging that publishes it runs only on `main` and `macos-desktop-v*` tags; the mirror runs the same two commands, so a break in `build_app.sh` shows before the merge. Not yet exercised on a Mac by the agent that added it. |
 | macOS UI smoke test (running app) | — (local-only) | ⚠️ Darwin + logged-in GUI session | `products/macos-desktop/scripts/ui_smoke_test.sh`: drives the running app (raw binary **and** `.app` bundle) — activation policy, real key events, rendered Focus 3-Up geometry, clicks while zoomed, time-to-first-photo. Window-server key probe needs Accessibility permission, else `⊘ SKIPPED`. See [macOS UI smoke test](#macos-ui-smoke-test-local-only). |
@@ -154,7 +154,7 @@ These proprietary frameworks require Apple Darwin operating system kernels:
 
 1. **Darwin Host Dependency**: Running `swift test` against `products/macos-desktop/`
    requires a macOS host environment. In GitHub Actions, `.github/workflows/macos.yml`
-   runs on the pinned `macos-15` runner image (Apple Silicon arm64). On Linux or Windows developer
+   runs on the pinned `macos-26` runner image (Apple Silicon arm64). On Linux or Windows developer
    machines, `scripts/run_tests.sh` reports `swift test (macos-desktop)` as `⊘ SKIPPED`.
 2. **Xcode 16 / Swift 6 Parity**: The CI runner selects the active Xcode 16 toolchain,
    matching local developer environments.
@@ -470,7 +470,7 @@ framework.
 
 ## Runner images and dependencies
 
-Every job runs on a pinned image (`ubuntu-24.04`, `macos-15`, `windows-2025`), never `*-latest`:
+Every job runs on a pinned image (`ubuntu-24.04`, `macos-26`, `windows-2025`), never `*-latest`:
 GitHub moves `-latest` to a new release without a commit in this repository, which would change
 the apt package set, the emulator job's KVM step and the glibc the legacy Linux binary is linked
 against on `main`, unannounced. Moving to a newer image is one deliberate change

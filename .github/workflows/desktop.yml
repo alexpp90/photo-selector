@@ -79,7 +79,7 @@ jobs:
           - os: ubuntu-24.04
             python-version: "3.12"
             architecture: x64
-          - os: macos-15
+          - os: macos-26
             python-version: "3.12"
             architecture: arm64
           - os: windows-2025
@@ -249,7 +249,7 @@ jobs:
           - os: ubuntu-24.04
             architecture: x64
             artifact_name: photo-selector-toolbox-linux-x64
-          - os: macos-15
+          - os: macos-26
             architecture: arm64
             artifact_name: photo-selector-toolbox-macos-apple-silicon
           - os: windows-2025
