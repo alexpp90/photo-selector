@@ -1,5 +1,6 @@
 package com.photoselectortoolbox.ui.theme
 
+import com.photoselector.core.Requirement
 import java.io.File
 import org.junit.Assert.assertTrue
 import org.junit.Test
@@ -8,6 +9,7 @@ import org.junit.Test
 class NoElevationTest {
 
     @Test
+    @Requirement("REQ-AND-THEME.03")
     fun `no surface is raised or shadowed`() {
         val raised = Regex("""(tonalElevation|shadowElevation|elevation)\s*=\s*(?!0\.dp)[1-9]\d*(\.\d+)?\.dp|\.shadow\(""")
         val bad = mutableListOf<String>()

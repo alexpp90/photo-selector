@@ -1,5 +1,6 @@
 package com.photoselectortoolbox.ui.theme
 
+import com.photoselector.core.Requirement
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.luminance
 import java.io.File
@@ -42,6 +43,7 @@ class ContrastTokensTest {
     )
 
     @Test
+    @Requirement("REQ-AND-THEME.02")
     fun `every text token reads at 4_5 to 1 on every surface`() {
         val failures = texts.flatMap { (textName, text) ->
             surfaces.mapNotNull { (surfaceName, surface) ->

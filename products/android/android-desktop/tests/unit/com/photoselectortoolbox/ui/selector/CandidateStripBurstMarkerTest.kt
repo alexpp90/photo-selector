@@ -1,5 +1,6 @@
 package com.photoselectortoolbox.ui.selector
 
+import com.photoselector.core.Requirement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.width
@@ -68,6 +69,7 @@ class CandidateStripBurstMarkerTest {
     }
 
     @Test
+    @Requirement("REQ-AND-LAYOUT.14")
     fun `the marker follows the current frame at the last frame of a burst`() {
         host(currentIndex = 1, selectedUri = images[1].uri)
 

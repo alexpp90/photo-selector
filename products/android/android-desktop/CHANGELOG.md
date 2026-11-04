@@ -10,9 +10,18 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 - Sort order: a folder now opens with the newest photo first. The overflow menu switches to oldest first, file name or blurriest first (after a scan), and your choice is kept.
 - Go to photo: press `G`, tap the position counter, or use the menu, then type a photo's number or part of its file name. The dialog shows which file it will open.
+- Ratings are saved with the photo: embedded in a JPEG, in an `.xmp` sidecar beside a RAW or TIFF. A format that can hold neither (PNG, HEIC, WebP) says so instead of creating files, and the RAW itself is never opened for writing.
+- The lens is shown with the exposure on the current frame, on the neighbour frames and in fullscreen. In fullscreen the file name, position, exposure and lens sit in a small panel at the top-left instead of a bar across the photo; `I` (or the pin button) keeps it on screen.
+- Fullscreen: the first arrow key pages as soon as the viewer opens, also after the panel has faded, and the panel returns for three seconds on every key press and every page. `Ctrl+Z` (`Cmd+Z`) undoes the last delete or move there, as it does on the selector.
+- A screen reader announces the result of a move, copy or delete, and UNDO is a button for it.
+- An open folder with no supported photos says so ("<folder> holds no supported photos.") instead of asking for a folder; while a folder is still opening a progress ring shows.
+- Statistics and Duplicates open the folder you have open in Cull instead of asking for one again.
 
 ### Changed
 
+- Confirmations are quieter: a move shows for about four seconds with Undo, a copy for about three, notices four, errors seven. None draws a countdown, because none has a deadline.
+- Hint text (key names under the buttons, "No image", "Not scanned", the filmstrip range, the Learn captions) and the Delete buttons are readable on the dark surfaces (contrast 4.5:1 or better); before, some were at 2:1 to 3.8:1.
+- Every control shows the hand cursor under a mouse or trackpad, in Settings, Duplicates and the dialogs too. Error messages are short sentences; the technical detail goes to the log.
 - Image analysis now works on a copy of at most 2048 pixels on the long edge for every photo, which uses less memory and makes sharpness comparable across cameras. Scores from earlier versions are recalculated the next time you scan; ratings are kept.
 - The documentation no longer claims a "safe to format" check for memory cards: Frameduel has none in any screen yet. The check behind it now requires every kept file, RAW and sidecar included, at the destination with its exact name and size.
 
@@ -33,6 +42,11 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 - An undo that put the photo back but could not remove the file in Selection now shows the photo and says so, instead of hiding it again and leaving an undo that would create a second copy.
 - An undo that fails after you opened another folder no longer changes the folder you are in; it stays undoable in its own folder.
 - Writing a rating into an `.xmp` sidecar or a JPEG no longer changes a Windows rating (`MicrosoftPhoto:Rating`) or writes a second, undeclared `xmp:Rating` beside an older `xap:Rating`. XMP the rating cannot be merged into is left alone and the write fails, for JPEGs too, instead of being replaced.
+- Delete on a photo shown as its `-Edit` (a shot with no JPEG) removes the edit and its own sidecars only. The RAW stays in the folder and the shot goes on showing it; Undo gives the whole shot back. Delete on the original still removes the shot with its edits.
+- The Duplicates screen no longer lets you tick every copy of a photo (the last one left is kept and its card is disabled), deletes a copy together with its sidecars, and its "Original" badge reads "First", which is all it ever knew.
+- Settings states how many analysis results are stored; it always said 0.
+- The filmstrip's burst marker follows the photo on screen, also on the last photo of a burst; it used to mark the next burst.
+- Undo on a move's confirmation can no longer reverse an earlier move when two moves finish out of order.
 - Fullscreen and the compact layout no longer jump to another photo when the list is re-ordered or an undo puts a photo back.
 
 ## [0.6.0] - 2026-10-22

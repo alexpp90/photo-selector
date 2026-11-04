@@ -1,5 +1,6 @@
 package com.photoselectortoolbox.ui.components
 
+import com.photoselector.core.Requirement
 import java.io.File
 import org.junit.Assert.assertTrue
 import org.junit.Test
@@ -37,6 +38,7 @@ class PointerCursorTest {
     private fun hasCursor(text: String) = "handCursor" in text || "pointerHoverIcon" in text
 
     @Test
+    @Requirement("REQ-AND-INPUT.08")
     fun `every Material control has the hand cursor`() {
         val missing = mutableListOf<String>()
         uiSources().forEach { file ->
@@ -52,6 +54,7 @@ class PointerCursorTest {
     }
 
     @Test
+    @Requirement("REQ-AND-INPUT.08")
     fun `every custom clickable sits in a chain with the hand cursor`() {
         val missing = mutableListOf<String>()
         uiSources().forEach { file ->

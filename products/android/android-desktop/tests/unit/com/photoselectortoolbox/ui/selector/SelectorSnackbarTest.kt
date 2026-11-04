@@ -1,5 +1,6 @@
 package com.photoselectortoolbox.ui.selector
 
+import com.photoselector.core.Requirement
 import android.content.Context
 import android.content.ContextWrapper
 import android.view.accessibility.AccessibilityManager
@@ -171,6 +172,7 @@ class SelectorSnackbarTest {
     }
 
     @Test
+    @Requirement("REQ-AND-LAYOUT.21")
     fun `the card is announced by a screen reader and UNDO is a button`() {
         val state = State().apply { message = "Moved to Selection" }
         host(state, withUndo = true)

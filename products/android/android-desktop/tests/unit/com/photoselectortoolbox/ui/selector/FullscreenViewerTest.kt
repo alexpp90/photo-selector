@@ -1,5 +1,6 @@
 package com.photoselectortoolbox.ui.selector
 
+import com.photoselector.core.Requirement
 import android.view.KeyEvent
 import androidx.compose.material3.windowsizeclass.ExperimentalMaterial3WindowSizeClassApi
 import androidx.compose.material3.windowsizeclass.WindowSizeClass
@@ -195,6 +196,7 @@ class FullscreenViewerTest {
     }
 
     @Test
+    @Requirement("REQ-AND-LAYOUT.22")
     fun `Ctrl+Z in fullscreen runs the same undo as the card's UNDO button`() {
         val harness = open()
 

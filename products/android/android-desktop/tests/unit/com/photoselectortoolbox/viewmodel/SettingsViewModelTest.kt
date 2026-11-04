@@ -1,5 +1,6 @@
 package com.photoselectortoolbox.viewmodel
 
+import com.photoselector.core.Requirement
 import com.photoselectortoolbox.data.repository.CacheRepository
 import com.photoselectortoolbox.data.repository.SettingsRepository
 import com.photoselectortoolbox.domain.grouping.GroupingLevel
@@ -47,6 +48,7 @@ class SettingsViewModelTest {
     }
 
     @Test
+    @Requirement("REQ-AND-CACHE.02")
     fun `the cache row states how many results are stored`() {
         coEvery { cache.count() } returns 3
 
