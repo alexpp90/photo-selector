@@ -260,9 +260,6 @@ if "gi" not in sys.modules and not _real_gtk_usable():
         def set_subtitle_selectable(self, *args, **kwargs):
             pass
 
-        def set_group(self, *args, **kwargs):
-            pass
-
         def remove_css_class(self, cls_name: str, *args, **kwargs):
             if cls_name in self._css_classes:
                 self._css_classes.remove(cls_name)
