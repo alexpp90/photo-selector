@@ -220,6 +220,7 @@ products is a defect (the separation rule of the maintainer's agent framework, `
 | Progressive SAF enumeration | Jackpix 2026-07-31 | ❌ N/A | ❌ N/A | ❌ N/A | ✅ ported 2026-08-08 | ✅ origin | 2026-08-08 |
 | Optimistic filing + deferred deletion with undo | Jackpix 2026-07-31 | ◐ partial | ✅ ported 2026-10-07 | ✅ ported 2026-10-09 | ✅ ported 2026-08-08 | ✅ origin | 2026-08-08 |
 | Coach marks in place, replacing shortcut list | Jackpix 2026-07-31 | ❌ solved differently | ❌ solved differently | ❌ solved differently | ✅ ported 2026-08-08 | ✅ origin | 2026-08-08 |
+| Settings open on the browsed source's profile; a "Default" folder value explains itself when tapped | Jackpix 2026-11-02 | ❌ N/A — no per-source settings, no default-folder value | ❌ N/A — no per-source settings, no default-folder value | ❌ N/A — no per-source settings, no default-folder value | ❌ N/A — no per-source settings profiles (`SourceKind` only names the source) | ✅ origin | 2026-11-02 |
 | First-run explanations derived from live settings | Jackpix 2026-07-24 | ❌ solved differently | ❌ solved differently | ❌ solved differently | ✅ ported 2026-08-08 | ✅ origin | 2026-08-08 |
 | Symmetric queuing of conflicting long passes | Desktop 2026-07-24 | ✅ origin | ❌ N/A (Actor queue) | ❌ N/A (Async queue) | ✅ ported 2026-08-08 | ❌ N/A | 2026-08-08 |
 | Neighbour image prefetch | Desktop (`preload`) | ✅ origin | ✅ independent | ✅ ported 2026-10-09 | ✅ ported 2026-08-08 | ✅ independent | 2026-08-08 |
