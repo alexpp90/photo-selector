@@ -17,6 +17,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 - The favourite badge shows a filled star when the system has the favourite too, and an outlined star while it is only in Jackpix.
 
 ### Changed
+- Marking a favourite no longer shows "Marked as favourite": the star flash and the lit favourite badge already show it. Removing a favourite still says so.
 - The swipe indicators use the app's lime instead of a green, with a dark glyph on the lime disc and their label on a dark pill, so they are readable on any photo (white on the green was about 2.3:1). The idle edge hints are clearly visible on a dark pill, and they stand still when animations are turned off.
 - After a delete a "Photo deleted" snackbar offers **Undo**, and the bar's undo-delete button is a back arrow instead of a bin with an arrow, which people read as a second delete.
 - Updating keeps your setup. Settings from every earlier version are carried over before the app first reads them, and an existing install that had changed a Pro setting, used camera info or an SD card starts in Pro mode, so nothing you set up disappears behind Casual mode.

@@ -1258,7 +1258,7 @@ class PhoneModeViewModel @Inject constructor(
             afterFavouriteChange(listOf(currentImage) + related)
             statsRepository.recordKeeper(state.sourceKind, 1 + related.size)
             advanceToNextImage()
-            showFeedback(UiText.of(R.string.snackbar_favourite_added))
+            // No snackbar: the star flash and the lit favourite badge already say it (REQ-TOK-UX.01).
             return
         }
 
@@ -1291,7 +1291,7 @@ class PhoneModeViewModel @Inject constructor(
         afterFavouriteChange(listOf(currentImage) + related)
         if (nowFav) {
             statsRepository.recordKeeper(state.sourceKind, 1 + related.size)
-            showFeedback(UiText.of(R.string.snackbar_favourite_added))
+            // The favourite badge lights up on the photo; a snackbar would repeat it (REQ-TOK-UX.01).
         } else {
             showFeedback(UiText.of(R.string.snackbar_favourite_removed))
         }

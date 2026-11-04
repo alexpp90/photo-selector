@@ -167,7 +167,6 @@
     <string name="snackbar_moved_related">Verschoben nach %1$s +%2$d</string>
     <string name="snackbar_moved_renamed">Verschoben als %1$s</string>
     <string name="snackbar_moved_renamed_related">Verschoben als %1$s +%2$d</string>
-    <string name="snackbar_favourite_added">Als Favorit markiert</string>
     <string name="snackbar_favourite_removed">Favorit entfernt</string>
     <string name="snackbar_cloud_copy_only">Cloud: nur Kopieren</string>
     <string name="snackbar_pro_paused">Profi-Einstellungen pausiert</string>

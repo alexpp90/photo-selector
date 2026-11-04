@@ -2099,6 +2099,22 @@ class PhoneModeViewModelTest {
         }
     }
 
+    @Test
+    fun `a favourite shows no snackbar, the lit badge says it, and removing one is confirmed`() = runTest {
+        perSourceSettings(removable = SourceSettings(swipeRightVerb = SwipeRightVerb.FAVOURITE))
+        val viewModel = buildViewModel()
+        openFolder(sdTree, image("a.jpg", 20), image("b.jpg", 10), viewModel = viewModel)
+        advanceUntilIdle()
+
+        viewModel.addToCollection()
+        assertNull("swipe right ★: no snackbar", viewModel.uiState.value.lastActionFeedback)
+
+        viewModel.toggleCurrentFavourite()
+        assertNull("menu Favourite: no snackbar", viewModel.uiState.value.lastActionFeedback)
+        viewModel.toggleCurrentFavourite()
+        assertEquals(UiText.of(R.string.snackbar_favourite_removed), viewModel.uiState.value.lastActionFeedback?.message)
+    }
+
     private fun openFolder(uri: String, vararg images: ImageItem, viewModel: PhoneModeViewModel) {
         every { imageRepository.discoverImages(any()) } returns flowOf(images.toList())
         viewModel.selectSourceFolder(Uri.parse(uri))
