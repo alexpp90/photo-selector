@@ -29,6 +29,9 @@ interface CacheRepository {
     suspend fun getRating(uri: String): Int?
     suspend fun getRatings(uris: List<String>): Map<String, Int>
     suspend fun updateCompositionAnalysis(filePath: String, analysis: String?)
+
+    /** How many analysis results are stored (the Settings "Cache" row). */
+    suspend fun count(): Int
 }
 
 private const val DEFAULT_CACHE_LIMIT = ScoreDao.MRU_LIMIT
@@ -69,6 +72,8 @@ class CacheRepositoryImpl @Inject constructor(
         scoreDao.deleteAll()
         scoreDao.deleteAllTechniqueFacts()
     }
+
+    override suspend fun count(): Int = scoreDao.getCount()
 
     override suspend fun pruneToLimit(limit: Int) {
         val count = scoreDao.getCount()

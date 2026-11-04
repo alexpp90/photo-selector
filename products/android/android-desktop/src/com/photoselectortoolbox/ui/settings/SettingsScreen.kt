@@ -495,7 +495,6 @@ fun SettingsScreen(
             SettingsClickItem(
                 title = "Cached Scores",
                 description = "${uiState.cachedScoreCount} analysis results stored",
-                onClick = {},
                 icon = Icons.Default.Cached,
             )
 

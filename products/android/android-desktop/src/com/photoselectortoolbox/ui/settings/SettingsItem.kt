@@ -23,6 +23,8 @@ import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.input.pointer.PointerIcon
+import androidx.compose.ui.input.pointer.pointerHoverIcon
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.unit.dp
@@ -42,6 +44,7 @@ fun SettingsToggleItem(
     Row(
         modifier = Modifier
             .fillMaxWidth()
+            .pointerHoverIcon(PointerIcon.Hand)
             .toggleable(
                 value = checked,
                 onValueChange = onCheckedChange,
@@ -97,16 +100,22 @@ fun SettingsToggleItem(
 fun SettingsClickItem(
     title: String,
     description: String? = null,
-    onClick: () -> Unit,
+    /** Null for a row that only states a fact: it takes no click and no pointer cursor. */
+    onClick: (() -> Unit)? = null,
     icon: ImageVector? = null,
     trailing: @Composable (() -> Unit)? = null,
 ) {
     Row(
         modifier = Modifier
             .fillMaxWidth()
-            .clickable(
-                onClick = onClick,
-                role = Role.Button
+            .then(
+                if (onClick != null) {
+                    Modifier
+                        .pointerHoverIcon(PointerIcon.Hand)
+                        .clickable(onClick = onClick, role = Role.Button)
+                } else {
+                    Modifier
+                },
             )
             .semantics(mergeDescendants = true) {}
             .padding(horizontal = 16.dp, vertical = 12.dp),
