@@ -5,6 +5,8 @@ public enum AppSettingsKeys {
     // MARK: - General
     public static let cullingDestinationFolderName = "cullingDestinationFolderName"
     public static let externalCullingDestinationURL = "externalCullingDestinationURL"
+    /// `CullingDestinationMode` raw value. Absent in stores written before the choice existed.
+    public static let cullingDestinationMode = "cullingDestinationMode"
     public static let autoAdvance = "autoAdvance"
 
     // MARK: - Scoring & Aesthetics
@@ -23,6 +25,7 @@ public enum AppSettingsKeys {
     public static let all: [String] = [
         cullingDestinationFolderName,
         externalCullingDestinationURL,
+        cullingDestinationMode,
         autoAdvance,
         sharpnessBlurryThreshold,
         sharpnessAcceptableThreshold,
@@ -69,8 +72,10 @@ public extension UserDefaults {
         }
     }
 
-    /// Optional external base directory for Move/Copy destination (e.g., an internal SSD folder
-    /// when culling directly off an SD card). When nil, Move/Copy targets `<rootDirectoryURL>/<cullingDestinationFolderName>`.
+    /// The custom Move/Copy folder the user chose (e.g. an internal SSD folder when culling directly
+    /// off an SD card), kept even while `cullingDestinationMode` is `.workingFolder` so switching back
+    /// to Custom needs no new pick. It only applies in custom mode: the destination is decided by
+    /// `CullingDestinationResolver.resolve`, never by reading this alone.
     var externalCullingDestinationURL: URL? {
         get {
             guard let rawPath = string(forKey: AppSettingsKeys.externalCullingDestinationURL)?
@@ -86,6 +91,20 @@ public extension UserDefaults {
             } else {
                 removeObject(forKey: AppSettingsKeys.externalCullingDestinationURL)
             }
+        }
+    }
+
+    /// Working folder (default) or custom folder. Reads `.customFolder` for a store that has a custom
+    /// folder but no mode (written by an earlier version), and `.workingFolder` when no custom folder is stored.
+    var cullingDestinationMode: CullingDestinationMode {
+        get {
+            CullingDestinationMode.effective(
+                storedRaw: string(forKey: AppSettingsKeys.cullingDestinationMode),
+                hasCustomFolder: externalCullingDestinationURL != nil
+            )
+        }
+        set {
+            set(newValue.rawValue, forKey: AppSettingsKeys.cullingDestinationMode)
         }
     }
 
@@ -171,6 +190,7 @@ public extension UserDefaults {
     func resetAppSettingsToDefaults() {
         removeObject(forKey: AppSettingsKeys.cullingDestinationFolderName)
         removeObject(forKey: AppSettingsKeys.externalCullingDestinationURL)
+        removeObject(forKey: AppSettingsKeys.cullingDestinationMode)
         removeObject(forKey: AppSettingsKeys.autoAdvance)
         removeObject(forKey: AppSettingsKeys.sharpnessBlurryThreshold)
         removeObject(forKey: AppSettingsKeys.sharpnessAcceptableThreshold)

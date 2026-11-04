@@ -6,6 +6,10 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ## [Unreleased]
 
+### Added
+
+- Settings → General → Culling Destination now shows where Move and Copy put your photos. Choose **Working folder** (the Selection folder inside the folder you are culling, as before) or **Custom folder** (pick a folder, for example on an SSD), and read the full destination path right below, such as `~/Pictures/Trip/Selection/`. With no folder open it says so. A custom folder that is gone or not writable shows a warning, and Move and Copy refuse instead of creating it. If you already used a custom destination, it stays selected.
+
 ## [0.2.0] - 2026-10-22
 
 ### Changed
