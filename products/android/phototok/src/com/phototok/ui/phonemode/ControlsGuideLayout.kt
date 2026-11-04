@@ -17,7 +17,7 @@ import androidx.compose.foundation.layout.statusBars
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.CollectionsBookmark
 import androidx.compose.material.icons.filled.FolderOpen
-import androidx.compose.material.icons.filled.RestoreFromTrash
+import androidx.compose.material.icons.automirrored.filled.Undo
 import androidx.compose.material.icons.filled.Share
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
@@ -413,6 +413,6 @@ private fun coachMarkSpec(id: GuideAnchor): CoachMarkSpec = when (id) {
     GuideAnchor.SOURCES -> CoachMarkSpec(R.string.guide_sources, Icons.Default.FolderOpen)
     GuideAnchor.SELECTION -> CoachMarkSpec(R.string.guide_selection, Icons.Default.CollectionsBookmark)
     GuideAnchor.SHARE -> CoachMarkSpec(R.string.guide_share, Icons.Default.Share)
-    GuideAnchor.REVERT -> CoachMarkSpec(R.string.guide_revert, Icons.Default.RestoreFromTrash)
+    GuideAnchor.REVERT -> CoachMarkSpec(R.string.guide_revert, Icons.AutoMirrored.Filled.Undo)
     else -> CoachMarkSpec(R.string.guide_help)
 }

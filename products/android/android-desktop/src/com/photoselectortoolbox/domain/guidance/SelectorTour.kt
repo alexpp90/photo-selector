@@ -115,6 +115,9 @@ object SelectorTour {
         SelectorShortcut.FULLSCREEN,
         SelectorShortcut.PREVIOUS,
         SelectorShortcut.NEXT,
+        // The locator row beside the current frame: the Go chip carries G, the Sort chip S.
+        SelectorShortcut.GO_TO,
+        SelectorShortcut.SORT,
     )
 
     /** Shortcuts with nothing on screen to point at, so the guide must list them. */

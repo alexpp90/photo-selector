@@ -60,6 +60,26 @@ class LensjetCaskTest(unittest.TestCase):
         self.assertIn('  name "Lensjet (Nightly)"\n', out)
         self.assertIn('  app "Lensjet.app"\n', out)
 
+    def test_both_casks_tell_the_user_how_to_open_the_unnotarized_app(self):
+        for nightly in (False, True):
+            out = cask.rebrand(STABLE, nightly=nightly)
+            self.assertEqual(out.count("caveats <<~EOS"), 1)
+            block = out.split("caveats <<~EOS", 1)[1].split("EOS", 1)[0]
+            self.assertIn("Open Anyway", block)
+            self.assertIn("xattr -dr com.apple.quarantine /Applications/Lensjet.app", block)
+            self.assertNotIn("#{", block)  # a Ruby heredoc would interpolate it
+            # Between the app and the zap stanzas; the heredoc is closed before `zap`.
+            self.assertLess(out.index('app "Lensjet.app"'), out.index("caveats"))
+            self.assertLess(out.index("\n  EOS\n"), out.index("zap trash"))
+
+    def test_caveats_are_added_once_and_an_existing_block_is_left_alone(self):
+        once = cask.rebrand(STABLE, nightly=False)
+        self.assertEqual(cask.rebrand(once, nightly=False).count("caveats"), 1)
+        own = STABLE.replace("  zap trash", '  caveats "hand written"\n\n  zap trash')
+        out = cask.rebrand(own, nightly=False)
+        self.assertEqual(out.count("caveats"), 1)
+        self.assertIn('caveats "hand written"', out)
+
     def test_rewrite_is_idempotent(self):
         once = cask.rebrand(STABLE, nightly=False)
         self.assertEqual(cask.rebrand(once, nightly=False), once)

@@ -12,6 +12,7 @@ would notice.
 | File | Applies to | Contents |
 |---|---|---|
 | [`ANDROID_PLATFORM.md`](ANDROID_PLATFORM.md) | Frameduel + Jackpix | The Android baseline both apps obey: tech stack, EXIF extraction contract, storage and file access, project structure |
+| [`BRANDING.md`](BRANDING.md) | All products | Product names, icons, palettes and contrast numbers (reproduced by `assets/brand/generate.py --palette`) |
 | [`FEATURE_PARITY.md`](FEATURE_PARITY.md) | All products | The feature sync policy, the permanent exclusions, and cross-product feature mapping |
 | [`FILE_OPERATIONS.md`](FILE_OPERATIONS.md) | All products | The non-destructive file operation contract: collision-free bundle naming, verified move before source removal, non-destructive undo, and partial failure reporting |
 | [`SUPPORTED_FORMATS.md`](SUPPORTED_FORMATS.md) | All products | The supported file-format contract, the real-camera test corpus, and how every product's format conformance tests keep it working |
@@ -43,9 +44,11 @@ Android Desktop's carries a `scanResult` field that Jackpix has no concept of.
 `:core` and `:saf` must not depend on Compose, Room, OpenCV, Vico or on either app module;
 `:saf` also has no Hilt and no product types (each product provides it in its own graph).
 
-The Desktop and macOS Desktop products share no code with the Android products — only the data *contract*.
-`core/models.py`'s `ExifData` and `com.photoselector.core.model.ExifData` must describe the
-same fields; changing one is a cross-product change.
+The desktop products (Lensjet, Blitzlens, the legacy Desktop) share no code with the Android products — only the data *contract*.
+Lensjet's and Blitzlens' EXIF models and `com.photoselector.core.model.ExifData` must describe
+the same fields; changing one is a cross-product change. The archived legacy Desktop is the one
+exception: its `core/models.py` `ExifData` has no camera make/model, and it is frozen, so the
+gap is recorded in [`FEATURE_PARITY.md`](FEATURE_PARITY.md) and not closed.
 
 ## What is deliberately not shared
 

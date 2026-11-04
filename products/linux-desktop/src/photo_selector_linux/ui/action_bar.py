@@ -53,7 +53,8 @@ class ActionBarView(Gtk.ActionBar if HAS_GI else object):
         self.selected_css_class: str = "status-counter-badge"
         self.trashed_css_class: str = "status-counter-badge"
         self.remaining_css_class: str = "status-counter-remaining"
-        self.undo_label_text: str = "Undo (Ctrl+Z)"
+        self.undo_label_text: str = "Undo"
+        self.undo_tooltip_text: str = "Nothing to undo (Ctrl+Z)"
         self.undo_sensitive: bool = False
         # While a file operation runs: what it does and how many are queued; buttons stay active so rapid keys queue.
         self.busy_text: str = ""
@@ -77,11 +78,16 @@ class ActionBarView(Gtk.ActionBar if HAS_GI else object):
 
     def _on_notification(self, vm, message: str) -> None:
         """Show cull/undo outcomes and errors here; info messages (load) stay toasts."""
-        if getattr(vm, "last_notification_severity", "info") in ("status", "error"):
-            self.show_outcome(message)
+        severity = getattr(vm, "last_notification_severity", "info")
+        if severity in ("status", "error", "stranded"):
+            self.show_outcome(message, persistent=severity == "stranded")
 
-    def show_outcome(self, message: str) -> None:
-        """Last write wins; the text clears itself after OUTCOME_SECONDS."""
+    def show_outcome(self, message: str, persistent: bool = False) -> None:
+        """Last write wins; the text clears itself after OUTCOME_SECONDS.
+
+        ``persistent``: files were left in an unexpected place. The text stays until the next file
+        operation starts (``_clear_outcome``), so a user who looked away still finds it.
+        """
         self._status_generation += 1
         self.status_text = message
         # An outcome arriving while the queue is busy belongs to the action that just ran.
@@ -89,10 +95,12 @@ class ActionBarView(Gtk.ActionBar if HAS_GI else object):
         if HAS_GI:
             if self._status_timer is not None:
                 GLib.source_remove(self._status_timer)
-            generation = self._status_generation
-            self._status_timer = GLib.timeout_add_seconds(
-                OUTCOME_SECONDS, self._expire_outcome, generation
-            )
+                self._status_timer = None
+            if not persistent:
+                generation = self._status_generation
+                self._status_timer = GLib.timeout_add_seconds(
+                    OUTCOME_SECONDS, self._expire_outcome, generation
+                )
         self._update_state()
 
     def _expire_outcome(self, generation: int | None = None) -> bool:
@@ -151,7 +159,7 @@ class ActionBarView(Gtk.ActionBar if HAS_GI else object):
         # Center: Tactile Action Buttons
         center_box = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=12)
 
-        self.btn_move = Gtk.Button(label="Move to Selection (M)")
+        self.btn_move = Gtk.Button(label="Keep")
         self.btn_move.set_name("btn_move")
         self.btn_move.add_css_class("action-btn-move")
         self.btn_move.add_css_class("suggested-action")
@@ -159,14 +167,14 @@ class ActionBarView(Gtk.ActionBar if HAS_GI else object):
         self.btn_move.connect("clicked", lambda b: self.viewmodel.cull_move())
         center_box.append(self.btn_move)
 
-        self.btn_copy = Gtk.Button(label="Copy to Selection (C)")
+        self.btn_copy = Gtk.Button(label="Copy")
         self.btn_copy.set_name("btn_copy")
         self.btn_copy.add_css_class("action-btn-copy")
         self.btn_copy.set_tooltip_text("Copy photo & companions to Selection/ (C)")
         self.btn_copy.connect("clicked", lambda b: self.viewmodel.cull_copy())
         center_box.append(self.btn_copy)
 
-        self.btn_trash = Gtk.Button(label="Move to Trash (Del)")
+        self.btn_trash = Gtk.Button(label="Trash")
         self.btn_trash.set_name("btn_trash")
         self.btn_trash.add_css_class("action-btn-trash")
         self.btn_trash.add_css_class("destructive-action")
@@ -180,9 +188,13 @@ class ActionBarView(Gtk.ActionBar if HAS_GI else object):
         self.btn_undo = Gtk.Button(label=self.undo_label_text)
         self.btn_undo.set_name("btn_undo")
         self.btn_undo.set_icon_name("edit-undo-symbolic")
-        self.btn_undo.set_tooltip_text("Undo last culling action (Ctrl+Z)")
+        self.btn_undo.set_tooltip_text(self.undo_tooltip_text)
         self.btn_undo.connect("clicked", lambda b: self.viewmodel.undo())
         self.pack_end(self.btn_undo)
+        # Buttons take focus from the keyboard only: a click would leave Space bound to the button
+        # instead of the zoom toggle.
+        for button in (self.btn_move, self.btn_copy, self.btn_trash, self.btn_undo):
+            button.set_focus_on_click(False)
         # Status (busy text, last outcome) sits left of Undo: the end side has more free room
         # than the start side with its three counters.
         self.busy_box.set_visible(False)
@@ -241,7 +253,15 @@ class ActionBarView(Gtk.ActionBar if HAS_GI else object):
         self.queue_label_text = getattr(self.viewmodel, "queue_status_label", None) or ""
         self.cull_sensitive = rem > 0
         self.undo_sensitive = undo_depth > 0
-        self.undo_label_text = f"Undo ({undo_depth}) (Ctrl+Z)" if undo_depth > 0 else "Undo (Ctrl+Z)"
+        self.undo_label_text = "Undo"
+        if undo_depth > 0:
+            record, photo, _idx = self.viewmodel.undo_stack[-1]
+            self.undo_tooltip_text = (
+                f"Undo {record.action_type.value} of {photo.filename} (Ctrl+Z)"
+                + (f", {undo_depth} in all" if undo_depth > 1 else "")
+            )
+        else:
+            self.undo_tooltip_text = "Nothing to undo (Ctrl+Z)"
 
         if not HAS_GI:
             return
@@ -268,3 +288,4 @@ class ActionBarView(Gtk.ActionBar if HAS_GI else object):
         else:
             self.busy_spinner.stop()
         self.btn_undo.set_label(self.undo_label_text)
+        self.btn_undo.set_tooltip_text(self.undo_tooltip_text)

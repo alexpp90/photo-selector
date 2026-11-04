@@ -161,13 +161,13 @@ window, .studio-dark-surface {
 
 .boundary-slot-title {
     color: #FFFFFF;
-    font-size: 16px;
+    font-size: 110%;
     font-weight: bold;
 }
 
 .boundary-slot-subtitle {
     color: #D9D9D9;
-    font-size: 13px;
+    font-size: 90%;
 }
 
 /* Slot Role & Active Pill Badges */
@@ -175,7 +175,7 @@ window, .studio-dark-surface {
     background-color: @accent_bg_color;
     color: @accent_fg_color;
     font-weight: bold;
-    font-size: 11px;
+    font-size: 75%;
     border-radius: 10px;
     padding: 2px 10px;
 }
@@ -185,7 +185,7 @@ window, .studio-dark-surface {
     border: 1px solid #3A3A3A;
     color: #D9D9D9;
     font-weight: 600;
-    font-size: 11px;
+    font-size: 75%;
     border-radius: 10px;
     padding: 2px 10px;
 }
@@ -195,7 +195,7 @@ window, .studio-dark-surface {
     border: 1px solid #6E6E6E;
     color: #FFFFFF;
     font-weight: bold;
-    font-size: 11px;
+    font-size: 75%;
     border-radius: 10px;
     padding: 2px 8px;
 }
@@ -206,7 +206,7 @@ window, .studio-dark-surface {
     border: 1px solid #7A7A7A;
     color: #FFFFFF;
     font-weight: bold;
-    font-size: 10px;
+    font-size: 68%;
     border-radius: 6px;
     padding: 1px 6px;
 }
@@ -216,7 +216,7 @@ window, .studio-dark-surface {
     border: 1px solid #6E6E6E;
     color: #FFFFFF;
     font-weight: bold;
-    font-size: 10px;
+    font-size: 68%;
     border-radius: 6px;
     padding: 1px 6px;
 }
@@ -229,7 +229,7 @@ window, .studio-dark-surface {
     border-radius: 12px;
     padding: 4px 12px;
     font-weight: 600;
-    font-size: 13px;
+    font-size: 90%;
 }
 
 /* Floating Info HUD Overlay (Glassmorphic Darkroom Card) */
@@ -245,12 +245,12 @@ window, .studio-dark-surface {
 .optical-strip-primary {
     color: #FFFFFF;
     font-weight: bold;
-    font-size: 14px;
+    font-size: 95%;
 }
 
 .optical-strip-secondary {
     color: #D9D9D9;
-    font-size: 12px;
+    font-size: 82%;
 }
 
 /* Quality Score Badges */
@@ -260,7 +260,7 @@ window, .studio-dark-surface {
     border-radius: 6px;
     padding: 2px 8px;
     font-weight: bold;
-    font-size: 11px;
+    font-size: 75%;
 }
 
 .score-badge-acceptable {
@@ -269,7 +269,7 @@ window, .studio-dark-surface {
     border-radius: 6px;
     padding: 2px 8px;
     font-weight: bold;
-    font-size: 11px;
+    font-size: 75%;
 }
 
 .score-badge-blurry {
@@ -278,7 +278,7 @@ window, .studio-dark-surface {
     border-radius: 6px;
     padding: 2px 8px;
     font-weight: bold;
-    font-size: 11px;
+    font-size: 75%;
 }
 
 /* Optical Sharpness Goodness Meter */
@@ -340,7 +340,7 @@ window, .studio-dark-surface {
     color: #D9D9D9;
     border-radius: 6px;
     padding: 4px 10px;
-    font-size: 12px;
+    font-size: 82%;
     font-weight: 500;
 }
 
@@ -350,7 +350,7 @@ window, .studio-dark-surface {
     color: #FFFFFF;
     border-radius: 6px;
     padding: 4px 10px;
-    font-size: 12px;
+    font-size: 82%;
     font-weight: 600;
 }
 
@@ -360,7 +360,7 @@ window, .studio-dark-surface {
     color: #FFFFFF;
     border-radius: 6px;
     padding: 4px 10px;
-    font-size: 12px;
+    font-size: 82%;
     font-weight: 600;
 }
 
@@ -370,7 +370,7 @@ window, .studio-dark-surface {
     color: #D9D9D9;
     border-radius: 6px;
     padding: 4px 10px;
-    font-size: 12px;
+    font-size: 82%;
     font-weight: 500;
 }
 
@@ -384,13 +384,13 @@ window, .studio-dark-surface {
 
 .empty-state-title {
     color: #FFFFFF;
-    font-size: 22px;
+    font-size: 150%;
     font-weight: bold;
 }
 
 .empty-state-subtitle {
     color: #D9D9D9;
-    font-size: 14px;
+    font-size: 95%;
 }
 
 .hotkey-hint-pill {
@@ -399,7 +399,7 @@ window, .studio-dark-surface {
     color: #D9D9D9;
     border-radius: 6px;
     padding: 3px 8px;
-    font-size: 11px;
+    font-size: 75%;
     font-weight: 600;
 }
 """

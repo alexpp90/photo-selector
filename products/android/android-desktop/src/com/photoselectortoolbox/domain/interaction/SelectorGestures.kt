@@ -225,6 +225,7 @@ enum class SelectorShortcut(val input: String) {
     FULLSCREEN("F"),
     MAXIMISE("1 / 2 / 3"),
     GO_TO("G"),
+    SORT("S"),
     ESCAPE("Esc"),
     SHORTCUTS("?");
 
@@ -241,6 +242,7 @@ enum class SelectorShortcut(val input: String) {
         FULLSCREEN -> "open fullscreen"
         MAXIMISE -> "maximise previous / current / next"
         GO_TO -> "go to photo"
+        SORT -> "choose the sort order"
         ESCAPE -> "leave fullscreen or maximised, close a sheet"
         SHORTCUTS -> "show this guide"
     }

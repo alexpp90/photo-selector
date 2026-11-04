@@ -19,12 +19,13 @@ permissions:
 
 concurrency:
   group: hygiene-${{ github.ref }}
-  cancel-in-progress: true
+  # A superseded PR run is noise; a main run is the verdict on a merge and is kept.
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 jobs:
   hygiene:
     name: README parity & private-path guard
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     timeout-minutes: 10
     steps:
       - uses: actions/checkout@v7
@@ -50,6 +51,11 @@ jobs:
       # committed bitmap fixtures match their pinned hashes, and the corpus fetcher works.
       - name: Format contract manifest
         run: python3 scripts/fetch_format_corpus.py --validate
+
+      # Every relative link, image and #anchor in the tracked Markdown/HTML resolves (the three
+      # platform badges of the root README pointed at renamed headings for weeks).
+      - name: Documentation links and anchors
+        run: python3 scripts/check_doc_links.py --check
 
       # UI text budget (docs/shared/UI_TEXT.md): fails for products in `fail` mode in
       # scripts/ui_text_budget.json, reports for the rest.

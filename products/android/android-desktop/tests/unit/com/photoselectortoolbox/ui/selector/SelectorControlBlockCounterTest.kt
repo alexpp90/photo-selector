@@ -87,7 +87,8 @@ class SelectorControlBlockCounterTest {
 
     @Test
     fun `the counter is a button that still speaks its position`() {
-        host(width = 388.dp, height = 420.dp)
+        // Where the locator row is dropped the counter is the control itself.
+        host(width = 300.dp, height = 240.dp)
 
         rule.onNode(hasTestTag("position_counter") and hasClickAction(), useUnmergedTree = true)
             .assertIsDisplayed()
@@ -105,18 +106,17 @@ class SelectorControlBlockCounterTest {
         assertTrue("${size.width}x${size.height} px, needs ${px(48.dp)}", size.width >= px(48.dp) && size.height >= px(48.dp))
     }
 
-    // Heights measured on the control block as it was before the counter became
-    // clickable (HEAD, same Robolectric xhdpi window): FULL 668, COMPACT 402,
-    // narrow COMPACT 540 px. Under Robolectric's fonts those sit 4 and 9 px above
-    // the analytic price for FULL and narrow COMPACT, which is why they are pinned
-    // to the measurement rather than to [ControlBlockFit]'s price; the price itself
-    // is asserted against real fonts by `SelectorForcedSizeTest` on a device.
+    // Heights measured under Robolectric's fonts. The FULL block is now its analytic price
+    // (3 x 80 + 50 + the 48 dp locator row + 4 x 6 = 724 px at xhdpi): the counter line it
+    // used to end in is inside the Go chip. The two counter-only compact blocks are exactly
+    // what they were before the counter became a button, 402 and 540 px.
 
     @Test
-    fun `the full block is exactly as tall as before the counter was clickable`() {
+    fun `the full block is exactly its price with the locator row`() {
         host(width = 388.dp, height = 420.dp)
 
-        assertEquals(668, blockHeightPx())
+        assertEquals(724, blockHeightPx())
+        assertEquals(ControlBlockFit.fullHeightPx(rule.density.density), blockHeightPx())
     }
 
     @Test

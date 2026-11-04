@@ -43,6 +43,16 @@ GRADLE = """    defaultConfig {{
 """
 
 
+METAINFO = """<?xml version="1.0" encoding="UTF-8"?>
+<component type="desktop-application">
+  <id>app.alpatix.Blitzlens</id>
+  <releases>
+    <release version="0.1.0" date="2026-10-10"/>
+  </releases>
+</component>
+"""
+
+
 def write(root: Path, rel_path: str, text: str) -> None:
     path = root / rel_path
     path.parent.mkdir(parents=True, exist_ok=True)
@@ -65,6 +75,7 @@ class Repo:
         write(self.root, "products/linux-desktop/src/photo_selector_linux/__init__.py",
               '"""Linux."""\n\n__version__ = "0.1.0"\n')
         write(self.root, "products/linux-desktop/debian/changelog", DEBIAN_CHANGELOG)
+        write(self.root, "products/linux-desktop/data/app.alpatix.Blitzlens.metainfo.xml", METAINFO)
         write(self.root, "products/desktop/pyproject.toml",
               '[project]\nname = "photo-selector-toolbox"\nversion = "0.5.0"\n')
         write(self.root, "products/desktop/src/photo_selector_toolbox/__init__.py",
@@ -316,6 +327,24 @@ class PrepareTest(RepoTestCase):
         self.assertIn("(0.1.0-1)", deb)            # the previous entry stays
         self.assertEqual(rel.read_versions(rel.BY_SLUG["linux-desktop"], self.root),
                          ((0, 2, 0), []))
+
+    def test_linux_gets_an_appstream_release_and_check_sees_drift(self):
+        self.repo.commit("feat(linux): a", {"products/linux-desktop/src/photo_selector_linux/a.py": "a"})
+        linux = rel.BY_SLUG["linux-desktop"]
+        meta = self.root / "products/linux-desktop/data/app.alpatix.Blitzlens.metainfo.xml"
+
+        version, changed = rel.prepare(linux, self.root, version=(0, 2, 0),
+                                       today=dt.date(2026, 10, 17), ref="HEAD")
+
+        text = meta.read_text()
+        self.assertIn("products/linux-desktop/data/app.alpatix.Blitzlens.metainfo.xml", changed)
+        self.assertLess(text.index('<release version="0.2.0" date="2026-10-17"/>'),
+                        text.index('<release version="0.1.0"'))
+        self.assertEqual(rel.read_versions(linux, self.root), ((0, 2, 0), []))
+
+        meta.write_text(text.replace('<release version="0.2.0" date="2026-10-17"/>\n    ', ""))
+        _, problems = rel.read_versions(linux, self.root)
+        self.assertTrue(any("disagree" in p and "metainfo" in p for p in problems), problems)
 
     def test_never_writes_a_version_below_the_in_tree_one(self):
         # PhotoTok today: last tag v0.4.0, in-tree 0.5.0 — a patch bump must not give 0.4.1.

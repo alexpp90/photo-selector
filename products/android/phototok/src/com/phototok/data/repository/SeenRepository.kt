@@ -22,7 +22,10 @@ class SeenRepository(
     constructor(
         @ApplicationContext context: Context,
     ) : this(
-        store = SeenStore(logFile = File(context.filesDir, "seen_photos.log")),
+        store = SeenStore(
+            logFile = File(context.filesDir, "seen_photos.log"),
+            ioExecutor = SeenStore.backgroundWriter("jackpix-seen-writer"),
+        ),
     )
 
     private val _version = MutableStateFlow(0L)
