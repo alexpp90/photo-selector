@@ -245,6 +245,25 @@ if "gi" not in sys.modules and not _real_gtk_usable():
         def add_suffix(self, child, *args, **kwargs):
             self.append(child)
 
+        def add_prefix(self, child, *args, **kwargs):
+            self.append(child)
+
+        def set_activatable_widget(self, *args, **kwargs):
+            pass
+
+        def set_subtitle_selectable(self, *args, **kwargs):
+            pass
+
+        def set_group(self, *args, **kwargs):
+            pass
+
+        def remove_css_class(self, cls_name: str, *args, **kwargs):
+            if cls_name in self._css_classes:
+                self._css_classes.remove(cls_name)
+
+        def update_property(self, *args, **kwargs):
+            pass
+
     # Mock Gtk
     mock_gtk = MagicMock()
     mock_gtk.Box = MockGtkWidget

@@ -22,6 +22,7 @@ from pathlib import Path
 from typing import Callable, Dict, List, Optional, Tuple
 from urllib.parse import quote, unquote
 
+from photo_selector_linux.core.destination import selection_subfolder_name
 from photo_selector_linux.core.gvfs_names import (
     DisplayNameResolver,
     default_resolver,
@@ -546,8 +547,7 @@ class FileCullingManager:
     SELECTION_MARKER_FILENAME: str = ".photoselector-selection"
 
     def _get_selection_dir(self, root_dir: Path, custom_folder: Optional[str] = None) -> Path:
-        folder_name = custom_folder or self.default_selection_folder
-        folder_name = str(folder_name).strip().rstrip("/\\").strip() or "Selection"
+        folder_name = selection_subfolder_name(custom_folder or self.default_selection_folder)
         # On GVFS cloud mounts an existing folder is listed under an opaque ID, not its name:
         # reuse it instead of creating a duplicate "Selection" on every cull.
         for on_disk, display in self.name_resolver.names_in(root_dir).items():
