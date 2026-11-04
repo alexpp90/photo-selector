@@ -20,6 +20,7 @@ import com.phototok.di.ApplicationScope
 import com.phototok.domain.RelatedFiles
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -79,6 +80,13 @@ data class SelectionViewerUiState(
     val selectionFolderName: String = "",
     val currentIndex: Int = 0,
     val feedback: ActionFeedback? = null,
+    /**
+     * True while the lists are being read for an open that has not shown yet (a slow SAF or cloud
+     * listing). Back cancels it like a close; the viewer only appears when the listing finishes.
+     */
+    val isOpening: Boolean = false,
+    /** The feed (source folder) the viewer was opened for; a different feed closes it. */
+    val openedForFeed: String? = null,
 ) {
     /** Whether the top bar shows two switchable tabs (both lists non-empty) or a single title. */
     val showTabs: Boolean
@@ -105,6 +113,12 @@ class SelectionViewerViewModel @Inject constructor(
     val uiState: StateFlow<SelectionViewerUiState> = _uiState.asStateFlow()
 
     /**
+     * The listing of the open in progress. A close, a folder switch or a second open cancels it,
+     * so a slow listing can never reopen the viewer the user already left (review JP-B-3).
+     */
+    private var openJob: Job? = null
+
+    /**
      * Open the selection folder inside [targetFolderUri] (the collection target,
      * falling back to the source folder). Local folders only.
      */
@@ -116,7 +130,8 @@ class SelectionViewerViewModel @Inject constructor(
             return
         }
 
-        viewModelScope.launch {
+        openJob?.cancel()
+        openJob = viewModelScope.launch {
             _uiState.update {
                 it.copy(
                     isOpen = true,
@@ -173,16 +188,23 @@ class SelectionViewerViewModel @Inject constructor(
         favourites: FavouritesSnapshot = favouritesRepository.snapshot.value,
         preferredTab: SelectionViewerTab = SelectionViewerTab.FAVOURITES,
         selectionSubfolder: String = PhotoFolders.SELECTION,
+        /** The source folder of the feed it is opened from; see [closeUnlessOpenedFor]. */
+        feed: String? = null,
     ) {
+        openJob?.cancel()
         val favImages = sourceImages.filter { favourites.isFavourite(it.uri) }
         if (targetFolderUri == null && favImages.isEmpty()) {
             _uiState.update {
-                it.copy(feedback = ActionFeedback(UiText.of(R.string.snackbar_nothing_yet), isError = false))
+                it.copy(
+                    isOpening = false,
+                    feedback = ActionFeedback(UiText.of(R.string.snackbar_nothing_yet), isError = false),
+                )
             }
             return
         }
 
-        viewModelScope.launch {
+        _uiState.update { it.copy(isOpening = true, openedForFeed = feed) }
+        openJob = viewModelScope.launch {
             var selImages: List<ImageItem> = emptyList()
             var selFolderName = selectionSubfolder
             if (targetFolderUri != null) {
@@ -204,6 +226,7 @@ class SelectionViewerViewModel @Inject constructor(
                 _uiState.update {
                     it.copy(
                         isOpen = false,
+                        isOpening = false,
                         feedback = ActionFeedback(UiText.of(R.string.snackbar_nothing_yet), isError = false),
                     )
                 }
@@ -216,6 +239,7 @@ class SelectionViewerViewModel @Inject constructor(
             _uiState.update {
                 it.copy(
                     isOpen = true,
+                    isOpening = false,
                     activeTab = initialTab,
                     images = activeList,
                     selectionImages = selImages,
@@ -259,7 +283,8 @@ class SelectionViewerViewModel @Inject constructor(
         subfolderName: String = FAVOURITES_FOLDER,
         allSourceImages: List<ImageItem> = emptyList(),
     ) {
-        val favs = _uiState.value.favouriteImages.ifEmpty { _uiState.value.images }
+        // Only favourites: with none there is nothing to copy (it never falls back to the Selection list).
+        val favs = _uiState.value.favouriteImages
         if (favs.isEmpty()) return
         // Photos whose twin is a favourite too (companions are favourited together) copy once.
         val covered = mutableSetOf<String>()
@@ -339,9 +364,20 @@ class SelectionViewerViewModel @Inject constructor(
     }
 
     fun close() {
+        openJob?.cancel()
+        openJob = null
         _uiState.update {
-            it.copy(isOpen = false, images = emptyList(), currentIndex = 0)
+            it.copy(isOpen = false, isOpening = false, images = emptyList(), currentIndex = 0)
         }
+    }
+
+    /**
+     * The feed now shows [feed]: a viewer opened (or opening) for another folder closes, so its
+     * lists never appear over the new folder. The same folder (a rotation) leaves it alone.
+     */
+    fun closeUnlessOpenedFor(feed: String?) {
+        val state = _uiState.value
+        if ((state.isOpen || state.isOpening) && state.openedForFeed != feed) close()
     }
 
     fun navigateTo(index: Int) {

@@ -408,5 +408,91 @@ class SelectionViewerViewModelTest {
 
         assertNull("cancellation is not an error the user should see", viewModel.uiState.value.feedback)
     }
+
+    // ── A slow listing never reopens a viewer the user left (review JP-B-3) ──
+
+    private fun gatedListing(gate: CompletableDeferred<Unit>, vararg names: String) {
+        coEvery { imageRepository.listSelectionImages(any(), any()) } coAnswers {
+            gate.await()
+            SelectionListing.Available(names.map { image(it) }, "Selection")
+        }
+    }
+
+    private fun openFor(feed: String) = viewModel.openWithFavourites(
+        targetFolderUri = "$feed/target",
+        sourceImages = emptyList(),
+        favourites = FavouritesSnapshot(),
+        preferredTab = SelectionViewerTab.SELECTION,
+        feed = feed,
+    )
+
+    @Test
+    fun `closing while the listing runs keeps the viewer closed when it finishes`() = runTest {
+        val gate = CompletableDeferred<Unit>()
+        gatedListing(gate, "a.jpg")
+        openFor("content://tree/one")
+        assertTrue("Back must be able to cancel the open", viewModel.uiState.value.isOpening)
+        assertFalse(viewModel.uiState.value.isOpen)
+
+        viewModel.close()
+        gate.complete(Unit)
+
+        val state = viewModel.uiState.value
+        assertFalse(state.isOpen)
+        assertFalse(state.isOpening)
+        assertTrue(state.images.isEmpty())
+    }
+
+    @Test
+    fun `a folder switch while the listing runs keeps the old folder's lists out`() = runTest {
+        val gate = CompletableDeferred<Unit>()
+        gatedListing(gate, "old.jpg")
+        openFor("content://tree/one")
+
+        viewModel.closeUnlessOpenedFor("content://tree/two")
+        gate.complete(Unit)
+
+        assertFalse(viewModel.uiState.value.isOpen)
+        assertTrue(viewModel.uiState.value.selectionImages.isEmpty())
+    }
+
+    @Test
+    fun `the same folder again, as after a rotation, leaves an open viewer open`() = runTest {
+        coEvery { imageRepository.listSelectionImages(any(), any()) } returns
+            SelectionListing.Available(listOf(image("a.jpg")), "Selection")
+        openFor("content://tree/one")
+        assertTrue(viewModel.uiState.value.isOpen)
+
+        viewModel.closeUnlessOpenedFor("content://tree/one")
+
+        assertTrue(viewModel.uiState.value.isOpen)
+    }
+
+    @Test
+    fun `a second open replaces the first listing`() = runTest {
+        val first = CompletableDeferred<Unit>()
+        gatedListing(first, "first.jpg")
+        openFor("content://tree/one")
+        coEvery { imageRepository.listSelectionImages(any(), any()) } returns
+            SelectionListing.Available(listOf(image("second.jpg")), "Selection")
+        openFor("content://tree/one")
+
+        first.complete(Unit)
+
+        assertEquals(listOf("second.jpg"), viewModel.uiState.value.images.map { it.fileName })
+    }
+
+    @Test
+    fun `with no favourites nothing is copied into Favourites`() = runTest {
+        coEvery { imageRepository.listSelectionImages(any(), any()) } returns
+            SelectionListing.Available(listOf(image("sel.jpg")), "Selection")
+        openFor("content://tree/one")
+        assertEquals(1, viewModel.uiState.value.images.size)
+
+        viewModel.copyFavouritesToFolder(dest)
+
+        coVerify(exactly = 0) { imageRepository.copyImageDetailed(any(), any(), any(), any()) }
+        coVerify(exactly = 0) { imageRepository.transferBundleDetailed(any(), any(), any(), any(), any()) }
+    }
 }
 

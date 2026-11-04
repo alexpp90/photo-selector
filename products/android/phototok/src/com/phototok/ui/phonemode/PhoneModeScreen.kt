@@ -155,6 +155,7 @@ fun PhoneModeScreen(
             preferredTab = SelectionViewerLogic.preferredTab(uiState.swipeRightVerb),
             // `Jackpix` for a Casual card import, else the configured Selection folder.
             selectionSubfolder = uiState.selectionSubfolderName,
+            feed = uiState.sourceFolderUri,
         )
         viewModel.onSelectionViewerOpened()
     }
@@ -192,8 +193,16 @@ fun PhoneModeScreen(
     val isViewingSelection = selectionState.isOpen
 
     // System Back (and the predictive back gesture) closes the Selection viewer like its own
-    // back arrow; the feed underneath still shows the photo it was opened from.
-    SelectionViewerBackHandler(enabled = isViewingSelection, onClose = selectionViewModel::close)
+    // back arrow; the feed underneath still shows the photo it was opened from. While a slow
+    // listing is still opening it, Back cancels the open instead of leaving the app.
+    SelectionViewerBackHandler(
+        enabled = isViewingSelection || selectionState.isOpening,
+        onClose = selectionViewModel::close,
+    )
+    // Another folder in the feed closes a viewer opened (or still opening) for the previous one.
+    LaunchedEffect(uiState.sourceFolderUri) {
+        selectionViewModel.closeUnlessOpenedFor(uiState.sourceFolderUri)
+    }
 
     val folderPickerLauncher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.OpenDocumentTree(),
