@@ -114,7 +114,6 @@ import com.phototok.R
 import com.phototok.data.model.ImageItem
 import com.phototok.domain.FileTypeFilter
 import com.phototok.domain.PhotoFolders
-import com.phototok.domain.SwipeAction
 import com.phototok.ui.components.NameTooltip
 import com.phototok.ui.components.ViewerBottomBar
 import com.phototok.ui.resolve
@@ -174,25 +173,12 @@ fun PhoneModeScreen(
     }
 
     var showSettingsSheet by remember { mutableStateOf(false) }
-    var showDirectDeleteConfirmDialog by remember { mutableStateOf(false) }
     var showClearAllCardConfirm by remember { mutableStateOf(false) }
     val sheetSnackbarHostState = remember { SnackbarHostState() }
     val sheetScope = rememberCoroutineScope()
 
-    val performDeleteSwipe = {
-        if (uiState.leftSwipeAction == SwipeAction.DELETE) {
-            val currentImage = uiState.images.getOrNull(uiState.currentIndex)
-            if (currentImage != null) {
-                if (uiState.directDeleteConfirmEnabled) {
-                    showDirectDeleteConfirmDialog = true
-                } else {
-                    viewModel.requestDelete()
-                }
-            }
-        } else {
-            viewModel.performLeftSwipeCopyOrMove()
-        }
-    }
+    // Swipe left: the ViewModel decides between copy/move, a delete and its confirmation.
+    val performDeleteSwipe: () -> Unit = viewModel::onSwipeLeft
 
     val isViewing = uiState.images.isNotEmpty()
     // A Casual card import copies into the phone's camera folder, which is known once it is granted.
@@ -281,14 +267,10 @@ fun PhoneModeScreen(
     }
 
     // Direct Delete Confirmation Dialog
-    if (showDirectDeleteConfirmDialog) {
+    if (uiState.confirmDeleteRequested) {
         DirectDeleteDialog(
-            onConfirm = { dontAskAgain ->
-                showDirectDeleteConfirmDialog = false
-                if (dontAskAgain) viewModel.updateDirectDeleteConfirm(false)
-                viewModel.requestDelete()
-            },
-            onDismiss = { showDirectDeleteConfirmDialog = false },
+            onConfirm = viewModel::confirmDelete,
+            onDismiss = viewModel::cancelDelete,
         )
     }
 

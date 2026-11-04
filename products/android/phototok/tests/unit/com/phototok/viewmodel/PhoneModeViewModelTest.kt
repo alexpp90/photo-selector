@@ -293,6 +293,56 @@ class PhoneModeViewModelTest {
         assertFalse(feedback?.isError == true)
     }
 
+    // ── Swipe left → Direct Delete Confirmation (REQ-TOK-GESTURE.03, review JP-T-1) ──
+
+    @Test
+    fun `a delete swipe with the confirmation on asks first and deletes nothing yet`() = runTest {
+        val viewModel = loadFolder(image("a.jpg", 1), image("b.jpg", 2))
+
+        viewModel.onSwipeLeft()
+
+        val state = viewModel.uiState.value
+        assertTrue("the dialog is requested", state.confirmDeleteRequested)
+        assertNull(state.pendingDelete)
+        assertEquals(2, state.images.size)
+    }
+
+    @Test
+    fun `Delete in the dialog deletes, Don't ask turns the prompt off`() = runTest {
+        val viewModel = loadFolder(image("a.jpg", 1), image("b.jpg", 2))
+        viewModel.onSwipeLeft()
+
+        viewModel.confirmDelete(dontAskAgain = true)
+
+        assertFalse(viewModel.uiState.value.confirmDeleteRequested)
+        assertNotNull(viewModel.uiState.value.pendingDelete)
+        coVerify(exactly = 1) { settingsRepository.setPhoneDirectDeleteConfirmEnabled(false) }
+    }
+
+    @Test
+    fun `Cancel in the dialog deletes nothing and keeps asking`() = runTest {
+        val viewModel = loadFolder(image("a.jpg", 1), image("b.jpg", 2))
+        viewModel.onSwipeLeft()
+
+        viewModel.cancelDelete()
+
+        assertFalse(viewModel.uiState.value.confirmDeleteRequested)
+        assertNull(viewModel.uiState.value.pendingDelete)
+        assertEquals(2, viewModel.uiState.value.images.size)
+        coVerify(exactly = 0) { settingsRepository.setPhoneDirectDeleteConfirmEnabled(any()) }
+    }
+
+    @Test
+    fun `with the confirmation off a delete swipe deletes at once`() = runTest {
+        phoneSettingsFlow.value = PhoneSettings(directDeleteConfirmEnabled = false)
+        val viewModel = loadFolder(image("a.jpg", 1), image("b.jpg", 2))
+
+        viewModel.onSwipeLeft()
+
+        assertFalse(viewModel.uiState.value.confirmDeleteRequested)
+        assertNotNull(viewModel.uiState.value.pendingDelete)
+    }
+
     @Test
     fun `finalizePendingDelete deletes via the repository`() = runTest {
         coEvery { imageRepository.deleteImage(any()) } returns true

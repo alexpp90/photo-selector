@@ -100,6 +100,8 @@ data class PhoneModeUiState(
     val feedOrder: FeedOrderMode = FeedOrderMode.NEWEST_FIRST,
     val collectionAction: CollectionAction = CollectionAction.DEFAULT,
     val directDeleteConfirmEnabled: Boolean = true,
+    /** A swipe-left delete waits for the Direct Delete Confirmation dialog (REQ-TOK-GESTURE.03). */
+    val confirmDeleteRequested: Boolean = false,
     val sortByOrientation: Boolean = false,
     val randomizeOrder: Boolean = false,
     val fileTypeFilter: FileTypeFilter = FileTypeFilter.DEFAULT,
@@ -1472,6 +1474,36 @@ class PhoneModeViewModel @Inject constructor(
     /** Name of the Selection destination for feedback: the configured folder, else the default. */
     private fun collectionDestination(state: PhoneModeUiState): UiText =
         UiText.raw(state.collectionLabel)
+
+    /**
+     * Swipe left, by drag or the TalkBack action: the configured copy/move, or a delete, which
+     * first asks when the confirmation is on (the dialog shows while [PhoneModeUiState.confirmDeleteRequested]).
+     */
+    fun onSwipeLeft() {
+        val state = _uiState.value
+        if (state.leftSwipeAction != SwipeAction.DELETE) {
+            performLeftSwipeCopyOrMove()
+            return
+        }
+        if (state.images.getOrNull(state.currentIndex) == null) return
+        if (state.directDeleteConfirmEnabled) {
+            _uiState.update { it.copy(confirmDeleteRequested = true) }
+        } else {
+            requestDelete()
+        }
+    }
+
+    /** Delete in the confirmation dialog; [dontAskAgain] is its "Don't ask" checkbox. */
+    fun confirmDelete(dontAskAgain: Boolean) {
+        _uiState.update { it.copy(confirmDeleteRequested = false) }
+        if (dontAskAgain) updateDirectDeleteConfirm(false)
+        requestDelete()
+    }
+
+    /** Cancel in the confirmation dialog: nothing is deleted and the setting is unchanged. */
+    fun cancelDelete() {
+        _uiState.update { it.copy(confirmDeleteRequested = false) }
+    }
 
     /** Swipe left (copy/move mode): copy or move the current photo to the custom folder. */
     fun performLeftSwipeCopyOrMove() {
