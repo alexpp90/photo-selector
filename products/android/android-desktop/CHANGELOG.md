@@ -28,7 +28,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 - Fullscreen and the compact layout no longer jump to another photo when the list is re-ordered or an undo puts a photo back.
 - Settings no longer says "Using custom folder" for a folder picked in a version before 0.6.0, which Copy and Move never used: photos keep going where they went, and Settings now says so.
 - Arrow keys in fullscreen work from the first press, also after the controls hide and after a move. `Ctrl`+`C` there no longer files a copy.
-- A star rating on a RAW or TIFF is written to its `.xmp` sidecar (an existing `IMG.CR3.xmp` or `IMG.xmp` is updated); the RAW itself is never changed. A JPEG gets the rating inside the file, checked and restored if the write fails. PNG, HEIC, WebP and other formats keep the rating in the app. A rating that could not be saved now says so.
+- A star rating on a RAW or TIFF is written to its `.xmp` sidecar (an existing `IMG.CR3.xmp` or `IMG.xmp` is updated, otherwise `IMG.CR3.xmp` is created); the RAW itself is never changed. A JPEG gets the rating inside the file, checked and restored if the write fails. PNG, HEIC, WebP and other formats keep the rating in the app. A rating that could not be saved now says so.
 
 ## [0.6.0] - 2026-10-22
 
