@@ -25,6 +25,7 @@ import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.runBlocking
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNull
+import org.junit.Assert.assertTrue
 import org.junit.Before
 import org.junit.Rule
 import org.junit.Test
@@ -79,6 +80,21 @@ class SettingsFolderAndSourceTabTest {
 
     private fun stored(kind: SourceKind) = runBlocking { repository.sourceSettingsFlow(kind).first() }
 
+    /**
+     * Settings writes go through DataStore on an IO thread, which `waitForIdle` does not wait
+     * for (CI read the value before the write landed). `rule.waitUntil` does not run the
+     * Robolectric main looper the ViewModel resumes on, so idle it between checks instead.
+     */
+    private fun awaitStored(condition: () -> Boolean) {
+        val deadline = System.currentTimeMillis() + 5_000
+        while (true) {
+            rule.waitForIdle()
+            if (condition()) return
+            assertTrue("settings write not seen within 5 s", System.currentTimeMillis() < deadline)
+            Thread.sleep(20)
+        }
+    }
+
     private fun count(tag: String) =
         rule.onAllNodes(hasTestTag(tag), useUnmergedTree = true).fetchSemanticsNodes().size
 
@@ -87,7 +103,9 @@ class SettingsFolderAndSourceTabTest {
         host(SourceKind.REMOVABLE)
 
         clickOption("swipe_right", R.string.chip_move)
+        awaitStored { stored(SourceKind.REMOVABLE).swipeRightVerb == SwipeRightVerb.MOVE }
         clickOption("swipe_left", R.string.chip_move)
+        awaitStored { stored(SourceKind.REMOVABLE).swipeLeftVerb == SwipeAction.MOVE }
 
         assertEquals(SwipeRightVerb.MOVE, stored(SourceKind.REMOVABLE).swipeRightVerb)
         assertEquals(SwipeAction.MOVE, stored(SourceKind.REMOVABLE).swipeLeftVerb)
@@ -98,6 +116,7 @@ class SettingsFolderAndSourceTabTest {
     fun browsingACamera_opensOnTheCameraTab() {
         host(SourceKind.CAMERA_MTP)
         clickOption("swipe_right", R.string.chip_move)
+        awaitStored { stored(SourceKind.CAMERA_MTP).swipeRightVerb == SwipeRightVerb.MOVE }
         assertEquals(SwipeRightVerb.MOVE, stored(SourceKind.CAMERA_MTP).swipeRightVerb)
         assertEquals(SwipeRightVerb.COPY, stored(SourceKind.REMOVABLE).swipeRightVerb)
     }
@@ -106,6 +125,7 @@ class SettingsFolderAndSourceTabTest {
     fun browsingTheCloud_opensOnThePhoneTab_whoseSettingsItFollows() {
         host(SourceKind.CLOUD_OTHER)
         clickOption("swipe_right", R.string.chip_copy)
+        awaitStored { stored(SourceKind.PHONE_LIBRARY).swipeRightVerb == SwipeRightVerb.COPY }
         assertEquals(SwipeRightVerb.COPY, stored(SourceKind.PHONE_LIBRARY).swipeRightVerb)
     }
 
@@ -113,7 +133,7 @@ class SettingsFolderAndSourceTabTest {
     fun selectionLocation_explainsDefault_andCanGoBackToIt() {
         host(SourceKind.PHONE_LIBRARY)
         runBlocking { repository.setPhoneCollectionUri("content://com.android.externalstorage.documents/tree/primary%3APicked") }
-        rule.waitForIdle()
+        awaitStored { runBlocking { repository.phoneCollectionUri.first() } != null }
 
         rule.onNodeWithTag("settings_row_selection_location").performScrollTo().performClick()
         rule.waitForIdle()
@@ -122,7 +142,7 @@ class SettingsFolderAndSourceTabTest {
         assertEquals(1, rule.onAllNodes(hasText(explanation), useUnmergedTree = true).fetchSemanticsNodes().size)
 
         rule.onNodeWithTag("folder_target_default").performClick()
-        rule.waitForIdle()
+        awaitStored { runBlocking { repository.phoneCollectionUri.first() } == null }
         assertEquals(0, count("folder_target_dialog"))
         assertNull(runBlocking { repository.phoneCollectionUri.first() })
     }
@@ -131,6 +151,7 @@ class SettingsFolderAndSourceTabTest {
     fun leftSwipeFolder_explainsItsOwnDefault_andCancelChangesNothing() {
         host(SourceKind.PHONE_LIBRARY)
         clickOption("swipe_left", R.string.chip_copy)
+        awaitStored { count("settings_row_left_folder") == 1 }
 
         rule.onNodeWithTag("settings_row_left_folder").performScrollTo().performClick()
         rule.waitForIdle()
