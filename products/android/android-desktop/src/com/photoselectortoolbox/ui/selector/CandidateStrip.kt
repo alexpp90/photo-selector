@@ -47,13 +47,13 @@ import com.photoselectortoolbox.data.model.ImageItem
 import com.photoselectortoolbox.domain.format.SelectorLabels
 import com.photoselectortoolbox.domain.scoring.ScoreMetric
 import com.photoselectortoolbox.ui.components.goodnessColor
+import com.photoselectortoolbox.ui.theme.HintText
 import com.photoselectortoolbox.ui.theme.CurationAmber
 import com.photoselectortoolbox.ui.theme.ErrorRed
 import com.photoselectortoolbox.ui.theme.BrandAccent
 import com.photoselectortoolbox.ui.theme.StudioBorder
 import com.photoselectortoolbox.ui.theme.StudioCard
 import com.photoselectortoolbox.ui.theme.StudioPanel
-import com.photoselectortoolbox.ui.theme.Zinc500
 
 /**
  * Width of the strip, decided by the frame solver rather than here.
@@ -131,7 +131,11 @@ fun CandidateStrip(
             }
         }
     }
-    val currentGroup = indexToGroup[currentIndex]
+    // The frame the strip marks is the one the selected URI names: an index passed in the wrong
+    // base (the 1-based position readout) marked the burst of the frame after the current one.
+    val markedIndex = selectedUri?.let { uri -> images.indexOfFirst { it.uri == uri }.takeIf { it >= 0 } }
+        ?: currentIndex
+    val currentGroup = indexToGroup[markedIndex]
 
     // Determine the scroll target index honoring selectedUri if present
     val scrollToIndex = remember(images, selectedUri, currentIndex) {
@@ -223,7 +227,7 @@ fun CandidateStrip(
                     fontSize = 9.sp,
                     lineHeight = 11.sp,
                     fontFamily = FontFamily.Monospace,
-                    color = Zinc500,
+                    color = HintText,
                     textAlign = TextAlign.Center,
                     modifier = Modifier
                         .fillMaxWidth()

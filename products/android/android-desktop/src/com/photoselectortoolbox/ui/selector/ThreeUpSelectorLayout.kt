@@ -13,6 +13,20 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.widthIn
+import androidx.compose.foundation.selection.toggleable
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Info
+import androidx.compose.material.icons.outlined.Info
+import androidx.compose.material3.Icon
+import androidx.compose.ui.input.pointer.PointerIcon
+import androidx.compose.ui.input.pointer.pointerHoverIcon
+import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.semantics
+import com.photoselectortoolbox.ui.components.ScoreChipRow
+import com.photoselectortoolbox.ui.theme.StudioCanvas
+import com.photoselectortoolbox.ui.theme.Zinc50
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -103,6 +117,8 @@ fun ThreeUpSelectorLayout(
     ratingFilter: RatingFilter = RatingFilter.All,
     onRatingFilterSelected: (RatingFilter) -> Unit = {},
     onSetRating: (Int) -> Unit = {},
+    /** The Sort chip in the control block's locator row, and its menu. */
+    sort: SortControl = SortControl(),
     /**
      * The filmstrip, drawn as a vertical column at the outer edge of the
      * control flank.
@@ -131,13 +147,19 @@ fun ThreeUpSelectorLayout(
                     SelectorFrame.CURRENT -> current
                     SelectorFrame.NEXT -> next
                 },
+                position = when (maximisedFrame) {
+                    SelectorFrame.PREVIOUS -> currentIndex
+                    SelectorFrame.CURRENT -> currentIndex + 1
+                    SelectorFrame.NEXT -> currentIndex + 2
+                },
+                total = total,
                 bestMetrics = bestSets[maximisedFrame.readoutIndex],
                 detailsVisible = detailsVisible,
+                onToggleDetails = actions.onToggleDetails,
                 onExit = { onMaximise(maximisedFrame) },
                 onLongPress = onLongPressFrame,
                 pendingHint = pendingHint,
                 onDismissHint = onDismissHint,
-                onSetRating = onSetRating,
                 canGoPrevious = previous != null,
                 canGoNext = next != null,
                 onNavigatePrevious = onNavigatePrevious,
@@ -265,6 +287,7 @@ fun ThreeUpSelectorLayout(
                                 onRatingFilterSelected = onRatingFilterSelected,
                                 currentRating = current?.rating ?: 0,
                                 onSetRating = onSetRating,
+                                sort = sort,
                             )
                         }
 
@@ -536,22 +559,34 @@ private fun FrameTile(
 /**
  * One frame filling the whole region.
  *
- * On the reference tablet this is 1211 × 908 dp against 600 × 450 in three-up —
- * 4.1× the area. The readouts stay beside it so the numbers do not vanish
- * exactly when the user looks closest; the neighbours' overlays go, because
- * their frames have.
+ * On the reference tablet this is 1008 × 756 dp for a 4:3 photograph against
+ * 600 × 450 in three-up — 2.8× the area — and the photograph owns the full height
+ * of the region whether or not the details are shown. The readout used to be a
+ * 388 dp column beside the frame; measured on the Pixel Tablet that took the frame
+ * to 778 × 584 and left 600 dp of mostly empty flank. It is an overlay now, like
+ * the fullscreen viewer's: a flat info panel at the top-left and compact score
+ * chips at the bottom-left, both inside the frame and neither taking input, so the
+ * photograph stays swipeable under them. The ⓘ toggle beside the restore badge
+ * turns them off (the same persisted setting as the three-up toggle, which is not
+ * on screen here). The neighbours' value overlays go, because their frames have.
+ *
+ * The one-time maximise card is the only thing that may take slack, and it takes
+ * the slack *beside* the frame, never a part of it. Where that is narrower than the
+ * card's minimum nothing is drawn and the hint stays unspent.
  */
 @Composable
 private fun MaximisedFrame(
     frame: SelectorFrame,
     image: ImageItem?,
+    position: Int,
+    total: Int,
     bestMetrics: Set<ScoreMetric>,
     detailsVisible: Boolean,
+    onToggleDetails: () -> Unit,
     onExit: () -> Unit,
     onLongPress: () -> Unit,
     pendingHint: SelectorHintUi?,
     onDismissHint: () -> Unit,
-    onSetRating: (Int) -> Unit = {},
     canGoPrevious: Boolean = false,
     canGoNext: Boolean = false,
     onNavigatePrevious: () -> Unit = {},
@@ -563,68 +598,141 @@ private fun MaximisedFrame(
             if (raw < 1f) 1f / raw else raw
         } ?: FrameGeometry.DefaultLandscapeAspect
 
-        val readoutWidth = if (detailsVisible) FrameGeometry.FlankWidth else 0.dp
+        // The whole region, always: the details are drawn on the photograph, so
+        // they cost it nothing.
         val size = FrameGeometry.maximisedFrameSize(
-            regionWidth = maxWidth - readoutWidth - FrameGeometry.Gap,
+            regionWidth = maxWidth,
             regionHeight = maxHeight,
             aspect = aspect,
         )
 
-        Row(
-            modifier = Modifier.fillMaxSize(),
-            horizontalArrangement = Arrangement.spacedBy(
-                FrameGeometry.Gap,
-                Alignment.CenterHorizontally,
-            ),
-            verticalAlignment = Alignment.CenterVertically,
-        ) {
-            if (detailsVisible) {
-                // The maximise explanation fires exactly here — on the way into
-                // this state — so the flank that carries it in three-up carries
-                // it here too, and for the same reason: it is the only slack.
-                Column(
-                    modifier = Modifier.width(FrameGeometry.FlankWidth).fillMaxHeight(),
-                    horizontalAlignment = Alignment.End,
-                ) {
-                    Box(
-                        modifier = Modifier.weight(1f),
-                        contentAlignment = Alignment.CenterEnd,
-                    ) {
-                        CurrentFrameReadout(image = image, bestMetrics = bestMetrics)
-                    }
-                    HintSlotCard(
-                        pendingHint = pendingHint,
-                        flankWidth = FrameGeometry.FlankWidth,
-                        detailsVisible = true,
-                        onDismiss = onDismissHint,
-                    )
-                }
-            }
-
+        // The maximise explanation fires exactly on the way into this state, so
+        // it is drawn here, in the slack left of the frame.
+        val cardWidth = (maxWidth - size.width) / 2 - FrameGeometry.Gap
+        if (SelectorGuidance.slotFor(cardWidth.value, detailsVisible = true) != HintSlot.NONE) {
             Box(
-                modifier = Modifier.comparisonSwipeNavigation(
+                modifier = Modifier.align(Alignment.CenterStart).width(cardWidth),
+                contentAlignment = Alignment.Center,
+            ) {
+                HintSlotCard(
+                    pendingHint = pendingHint,
+                    flankWidth = cardWidth,
+                    detailsVisible = true,
+                    onDismiss = onDismissHint,
+                )
+            }
+        }
+
+        Box(
+            modifier = Modifier
+                .align(Alignment.Center)
+                .comparisonSwipeNavigation(
                     canGoPrevious = canGoPrevious,
                     canGoNext = canGoNext,
                     onNavigatePrevious = onNavigatePrevious,
                     onNavigateNext = onNavigateNext,
                 ),
-            ) {
-                ImageTile(
+        ) {
+            ImageTile(
+                image = image,
+                isCurrent = frame == SelectorFrame.CURRENT,
+                onClick = onExit,
+                onLongClick = onLongPress,
+                emptyLabel = "No image",
+                modifier = Modifier
+                    .size(size)
+                    .testTag("maximised_frame"),
+            )
+
+            if (detailsVisible && image != null) {
+                PhotoInfoPanel(
                     image = image,
-                    isCurrent = frame == SelectorFrame.CURRENT,
-                    onClick = onExit,
-                    onLongClick = onLongPress,
-                    emptyLabel = "No image",
-                    modifier = Modifier
-                        .size(size)
-                        .testTag("maximised_frame"),
+                    position = position,
+                    total = total,
+                    availableWidth = size.width,
+                    tagPrefix = "maximised",
+                    modifier = Modifier.align(Alignment.TopStart).padding(MaximisedOverlayInset),
                 )
-                MaximiseBadge(
-                    active = true,
-                    onClick = onExit,
-                    modifier = Modifier.align(Alignment.BottomEnd).padding(6.dp),
-                )
+                // Clear of the toggle and the badge: the chips wrap inside what is
+                // left of the frame's width rather than running under them.
+                image.scanResult?.let { scores ->
+                    Box(
+                        modifier = Modifier
+                            .align(Alignment.BottomStart)
+                            .widthIn(max = (size.width - MaximisedChipsReservedEnd).coerceAtLeast(0.dp))
+                            .padding(start = MaximisedOverlayInset, bottom = MaximisedOverlayInset),
+                    ) {
+                        ScoreChipRow(
+                            scores = scores,
+                            compact = true,
+                            bestMetrics = bestMetrics,
+                            modifier = Modifier.testTag("maximised_score_chips"),
+                        )
+                    }
+                }
             }
+
+            MaximisedInfoToggle(
+                checked = detailsVisible,
+                onCheckedChange = { onToggleDetails() },
+                modifier = Modifier
+                    .align(Alignment.BottomEnd)
+                    .padding(
+                        end = MaximiseBadgeInset * 2 + MaximiseBadgeSize,
+                        bottom = MaximiseBadgeInset,
+                    ),
+            )
+            MaximiseBadge(
+                active = true,
+                onClick = onExit,
+                modifier = Modifier.align(Alignment.BottomEnd).padding(MaximiseBadgeInset),
+            )
         }
+    }
+}
+
+/** Inset of the info panel and the chips from the frame's edges. */
+private val MaximisedOverlayInset = 8.dp
+
+/**
+ * What the chip row leaves free at the frame's right: toggle, badge, three 6 dp
+ * insets between and around them, and the chips' own left inset.
+ */
+private val MaximisedChipsReservedEnd: Dp =
+    MaximiseBadgeSize * 2 + MaximiseBadgeInset * 3 + MaximisedOverlayInset
+
+/**
+ * The maximised frame's ⓘ switch: 48 dp, on the photograph beside the restore badge.
+ *
+ * The three-up control block carries the same toggle but is not drawn here, so
+ * without this the details could not be turned off in the one state that puts
+ * them on the photograph. It reads and writes the same persisted setting. Filled
+ * glyph = shown, outline = hidden; a switch to a screen reader.
+ */
+@Composable
+private fun MaximisedInfoToggle(
+    checked: Boolean,
+    onCheckedChange: (Boolean) -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    Box(
+        modifier = modifier
+            .size(MaximiseBadgeSize)
+            .clip(RoundedCornerShape(8.dp))
+            .background(StudioCanvas.copy(alpha = 0.72f))
+            .pointerHoverIcon(PointerIcon.Hand)
+            .toggleable(value = checked, role = Role.Switch, onValueChange = onCheckedChange)
+            .semantics {
+                contentDescription = if (checked) "Hide photo info" else "Show photo info"
+            }
+            .testTag("maximised_info_toggle"),
+        contentAlignment = Alignment.Center,
+    ) {
+        Icon(
+            imageVector = if (checked) Icons.Filled.Info else Icons.Outlined.Info,
+            contentDescription = null,
+            modifier = Modifier.size(18.dp),
+            tint = Zinc50,
+        )
     }
 }

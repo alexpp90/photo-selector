@@ -224,4 +224,40 @@ class RelatedFilesTest {
         val preferredSolo = RelatedFiles.preferredShareItem(all = all, target = soloRaw)
         assertEquals(soloRaw, preferredSolo)
     }
+
+    private fun withSidecars(photo: ImageItem, vararg sidecarNames: String) =
+        photo.copy(sidecars = sidecarNames.map { img(it) })
+
+    @Test
+    fun `a delete of a derivative takes only itself and its own sidecars`() {
+        val xmps = arrayOf("IMG_1.xmp", "IMG_1.CR3.xmp", "IMG_1-Edit.xmp", "IMG_1-Edit.tif.xmp", "IMG_1_Edit.xmp")
+        val edit = withSidecars(img("IMG_1-Edit.tif"), *xmps)
+        val raw = withSidecars(img("IMG_1.CR3"), *xmps)
+        val all = listOf(edit, raw, img("IMG_1.JPG"))
+
+        val bundle = RelatedFiles.deleteBundleOf(all, edit).map { it.fileName }
+
+        assertEquals(listOf("IMG_1-Edit.xmp", "IMG_1-Edit.tif.xmp"), bundle)
+    }
+
+    @Test
+    fun `a delete of an original still takes its derivatives and every sidecar of the shot`() {
+        val xmps = arrayOf("IMG_1.xmp", "IMG_1-Edit.xmp")
+        val raw = withSidecars(img("IMG_1.CR3"), *xmps)
+        val edit = withSidecars(img("IMG_1-Edit.tif"), *xmps)
+        val jpg = withSidecars(img("IMG_1.JPG"), *xmps)
+
+        val bundle = RelatedFiles.deleteBundleOf(listOf(raw, edit, jpg), raw).map { it.fileName }
+
+        assertEquals(setOf("IMG_1-Edit.tif", "IMG_1.JPG", "IMG_1.xmp", "IMG_1-Edit.xmp"), bundle.toSet())
+        assertEquals(bundle.size, bundle.toSet().size)
+    }
+
+    @Test
+    fun `a derivative without sidecars deletes alone`() {
+        val edit = img("DSC_0007_Enhanced-NR.dng")
+        val all = listOf(edit, img("DSC_0007.ARW"))
+
+        assertTrue(RelatedFiles.deleteBundleOf(all, edit).isEmpty())
+    }
 }

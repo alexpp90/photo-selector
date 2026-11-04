@@ -51,32 +51,48 @@ class GioDisplayNameResolver:
         # (FUSE root path, native root GFile) pairs; discovered lazily from the volume monitor.
         self._mounts = mounts
 
-    def _native_mounts(self) -> List[Tuple[Path, object]]:
-        if self._mounts is None:
-            mounts: List[Tuple[Path, object]] = []
-            if HAS_GIO:
-                try:
-                    for mount in Gio.VolumeMonitor.get().get_mounts():
-                        root = mount.get_root()
-                        if root.has_uri_scheme("file"):
-                            continue
-                        fuse_path = root.get_path()
-                        if fuse_path:
-                            mounts.append((Path(fuse_path), root))
-                except Exception:
-                    mounts = []
-            self._mounts = mounts
+    @staticmethod
+    def _discover_mounts() -> List[Tuple[Path, object]]:
+        mounts: List[Tuple[Path, object]] = []
+        if HAS_GIO:
+            try:
+                for mount in Gio.VolumeMonitor.get().get_mounts():
+                    root = mount.get_root()
+                    if root.has_uri_scheme("file"):
+                        continue
+                    fuse_path = root.get_path()
+                    if fuse_path:
+                        mounts.append((Path(fuse_path), root))
+            except Exception:
+                mounts = []
+        return mounts
+
+    def _native_mounts(self, refresh: bool = False) -> List[Tuple[Path, object]]:
+        if self._mounts is None or refresh:
+            self._mounts = self._discover_mounts()
         return self._mounts
 
-    def names_in(self, directory: Path) -> Dict[str, str]:
-        for fuse_root, native_root in self._native_mounts():
+    @staticmethod
+    def _match(mounts, directory: Path):
+        for fuse_root, native_root in mounts:
             try:
-                rel = directory.relative_to(fuse_root)
+                return native_root, directory.relative_to(fuse_root)
             except ValueError:
                 continue
-            native_dir = native_root.resolve_relative_path(rel.as_posix()) if rel.parts else native_root
-            return _enumerate_display_names(native_dir)
-        return {}
+        return None
+
+    def names_in(self, directory: Path) -> Dict[str, str]:
+        found = self._match(self._native_mounts(), directory)
+        if found is None and is_gvfs_fuse_path(directory):
+            # A mount added after the list was first read (Drive connected while the app runs):
+            # look again, but only for paths that really are under the GVFS FUSE root, so local
+            # folders never re-query the volume monitor.
+            found = self._match(self._native_mounts(refresh=True), directory)
+        if found is None:
+            return {}
+        native_root, rel = found
+        native_dir = native_root.resolve_relative_path(rel.as_posix()) if rel.parts else native_root
+        return _enumerate_display_names(native_dir)
 
 
 def _enumerate_display_names(native_dir) -> Dict[str, str]:

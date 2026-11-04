@@ -12,6 +12,7 @@ import android.provider.MediaStore
 import androidx.activity.ComponentActivity
 import androidx.test.core.app.ActivityScenario
 import androidx.test.ext.junit.runners.AndroidJUnit4
+import androidx.test.filters.SdkSuppress
 import com.phototok.LabDeviceOnly
 import androidx.test.platform.app.InstrumentationRegistry
 import org.junit.After
@@ -21,7 +22,6 @@ import org.junit.Assert.assertNotNull
 import org.junit.Assert.assertTrue
 import org.junit.Assert.fail
 import org.junit.Assume.assumeTrue
-import org.junit.Before
 import org.junit.Test
 import org.junit.runner.RunWith
 
@@ -39,15 +39,11 @@ import org.junit.runner.RunWith
  * small photo into that folder and deletes it afterwards.
  */
 @RunWith(AndroidJUnit4::class)
+@SdkSuppress(minSdkVersion = Build.VERSION_CODES.R) // not an Assume: Gradle's runner counts that as a failure
 class MediaStoreFavouritesTest {
 
     private val context: Context = InstrumentationRegistry.getInstrumentation().targetContext
     private val cleanup = mutableListOf<() -> Unit>()
-
-    @Before
-    fun requireAndroid11() {
-        assumeTrue("IS_FAVORITE and createFavoriteRequest need Android 11", Build.VERSION.SDK_INT >= Build.VERSION_CODES.R)
-    }
 
     @After
     fun cleanUp() {
@@ -92,8 +88,9 @@ class MediaStoreFavouritesTest {
             it.isWritePermission && it.uri.authority == "com.android.externalstorage.documents" &&
                 DocumentsContract.getTreeDocumentId(it.uri).startsWith("primary:")
         }?.uri
-        assumeTrue("no persisted, writable primary-storage tree grant: pick a folder in the app once", tree != null)
-        val parent = DocumentsContract.buildDocumentUriUsingTree(tree, DocumentsContract.getTreeDocumentId(tree))
+        // Lab state, not a reason to skip: the lab device must have a granted folder (@LabDeviceOnly).
+        assertNotNull("no persisted, writable primary-storage tree grant: pick a folder in the app once", tree)
+        val parent = DocumentsContract.buildDocumentUriUsingTree(tree!!, DocumentsContract.getTreeDocumentId(tree))
         val document = DocumentsContract.createDocument(context.contentResolver, parent, "image/jpeg", testName())
         assertNotNull("could not create a photo in $tree", document)
         cleanup += { DocumentsContract.deleteDocument(context.contentResolver, document!!) }

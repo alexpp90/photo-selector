@@ -8,9 +8,20 @@ Adheres to:
 from __future__ import annotations
 
 import json
+import logging
 import os
+import shutil
 from pathlib import Path
 from typing import Any, Callable, Dict, List, Optional
+
+from photo_selector_linux.core.destination import (
+    MODE_CUSTOM,
+    MODE_WORKING,
+    MODES,
+    selection_subfolder_name,
+)
+
+logger = logging.getLogger(__name__)
 
 
 def default_settings_path() -> Path:
@@ -36,6 +47,10 @@ class SettingsStore:
         self.blurry_threshold: float = 35.0
         self.sharp_threshold: float = 70.0
         self.cache_limit_mb: float = 512.0
+        #: Where Move/Copy put photos: ``working`` (inside the open folder) or ``custom``
+        #: (inside ``external_destination_folder``). Never ``custom`` without a folder.
+        self.destination_mode: str = MODE_WORKING
+        #: The custom folder. Kept when the user switches back to the working folder.
         self.external_destination_folder: Optional[str] = None
         self.stop_sharpness_threshold: Optional[float] = None
         self._callbacks: List[Callable[[SettingsStore], None]] = []
@@ -57,11 +72,7 @@ class SettingsStore:
 
     @staticmethod
     def _sanitize_folder_name(value: Any) -> str:
-        if not isinstance(value, str):
-            return "Selection"
-        cleaned = value.strip().rstrip("/\\").strip()
-        name = Path(cleaned).name.strip() if cleaned else ""
-        return name if name else "Selection"
+        return selection_subfolder_name(value)
 
     def to_dict(self) -> Dict[str, Any]:
         return {
@@ -70,6 +81,7 @@ class SettingsStore:
             "blurry_threshold": self.blurry_threshold,
             "sharp_threshold": self.sharp_threshold,
             "cache_limit_mb": self.cache_limit_mb,
+            "destination_mode": self.destination_mode,
             "external_destination_folder": self.external_destination_folder,
             "stop_sharpness_threshold": self.stop_sharpness_threshold,
         }
@@ -98,7 +110,15 @@ class SettingsStore:
                 pass
         if "external_destination_folder" in data:
             val = data["external_destination_folder"]
-            self.external_destination_folder = str(val).strip() if val else None
+            self.external_destination_folder = (str(val).strip() or None) if val else None
+            if "destination_mode" not in data and self.external_destination_folder:
+                # Settings written before the choice existed: a stored folder was in use.
+                self.destination_mode = MODE_CUSTOM
+        if "destination_mode" in data:
+            mode = data["destination_mode"]
+            self.destination_mode = mode if mode in MODES else MODE_WORKING
+        if self.destination_mode == MODE_CUSTOM and not self.external_destination_folder:
+            self.destination_mode = MODE_WORKING
         if "stop_sharpness_threshold" in data:
             val = data["stop_sharpness_threshold"]
             if val is None or val == "":
@@ -115,10 +135,16 @@ class SettingsStore:
             return self
         try:
             raw = json.loads(self.config_path.read_text(encoding="utf-8"))
-            if isinstance(raw, dict):
-                self._apply_dict(raw)
-        except Exception:
-            pass
+        except (OSError, ValueError) as e:
+            # Defaults apply, and the next save would overwrite the unreadable file: keep a copy.
+            logger.warning("Could not read settings %s (%s); using defaults", self.config_path, e)
+            try:
+                shutil.copy2(self.config_path, self.config_path.with_name(self.config_path.name + ".corrupt"))
+            except OSError:
+                pass
+            return self
+        if isinstance(raw, dict):
+            self._apply_dict(raw)
         return self
 
     @classmethod
@@ -130,14 +156,23 @@ class SettingsStore:
 
     def save(self) -> None:
         """Persist current settings to ``self.config_path``."""
+        text = json.dumps(self.to_dict(), indent=2, sort_keys=True) + "\n"
+        temp = self.config_path.with_name(self.config_path.name + ".tmp")
         try:
             self.config_path.parent.mkdir(parents=True, exist_ok=True)
-            self.config_path.write_text(
-                json.dumps(self.to_dict(), indent=2, sort_keys=True) + "\n",
-                encoding="utf-8",
-            )
-        except OSError:
-            pass
+            # Write beside the file and rename over it: a crash leaves the old settings, not a
+            # half-written file that reads back as defaults.
+            with open(temp, "w", encoding="utf-8") as handle:
+                handle.write(text)
+                handle.flush()
+                os.fsync(handle.fileno())
+            os.replace(temp, self.config_path)
+        except OSError as e:
+            logger.warning("Could not save settings %s: %s", self.config_path, e)
+            try:
+                temp.unlink()
+            except OSError:
+                pass
 
     def update(self, **kwargs: Any) -> None:
         """Update one or more settings, persist to disk, and notify observers."""

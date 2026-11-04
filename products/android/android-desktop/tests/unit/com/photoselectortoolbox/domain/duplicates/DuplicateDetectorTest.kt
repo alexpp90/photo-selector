@@ -57,6 +57,18 @@ class DuplicateDetectorTest {
     }
 
     @Test
+    fun `same-size files whose streams do not open are never grouped as duplicates`() = runTest {
+        val uri1 = Uri.parse("content://media/1")
+        val uri2 = Uri.parse("content://media/2")
+        every { contentResolver.openInputStream(uri1) } returns null
+        every { contentResolver.openInputStream(uri2) } returns null
+
+        val result = detector.findDuplicates(listOf(uri1 to 500L, uri2 to 500L), context)
+
+        assertTrue(result.isEmpty())
+    }
+
+    @Test
     fun `findDuplicates returns empty when same-size files have different content`() = runTest {
         val uri1 = Uri.parse("content://media/1")
         val uri2 = Uri.parse("content://media/2")

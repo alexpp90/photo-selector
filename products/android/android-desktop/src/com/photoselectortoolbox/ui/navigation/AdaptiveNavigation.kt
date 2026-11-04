@@ -1,5 +1,9 @@
 package com.photoselectortoolbox.ui.navigation
 
+import kotlinx.coroutines.flow.map
+import kotlinx.coroutines.flow.distinctUntilChanged
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import androidx.compose.runtime.remember
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Row
@@ -218,6 +222,10 @@ private fun AppNavHost(
     selectorViewModel: com.photoselectortoolbox.viewmodel.SelectorViewModel,
     modifier: Modifier = Modifier,
 ) {
+    // Only the folder, so the host does not recompose with every change of the selector's state.
+    val selectorFolderUri by remember(selectorViewModel) {
+        selectorViewModel.uiState.map { it.folderUri }.distinctUntilChanged()
+    }.collectAsStateWithLifecycle(initialValue = selectorViewModel.uiState.value.folderUri)
     NavHost(
         navController = navController,
         startDestination = Screen.PhotoSelector.route,
@@ -240,10 +248,10 @@ private fun AppNavHost(
             )
         }
         composable(Screen.Statistics.route) {
-            StatisticsScreen(windowSizeClass = windowSizeClass)
+            StatisticsScreen(windowSizeClass = windowSizeClass, seedFolderUri = selectorFolderUri)
         }
         composable(Screen.DuplicateFinder.route) {
-            DuplicatesScreen(windowSizeClass = windowSizeClass)
+            DuplicatesScreen(windowSizeClass = windowSizeClass, seedFolderUri = selectorFolderUri)
         }
         composable(Screen.Settings.route) {
             SettingsScreen()

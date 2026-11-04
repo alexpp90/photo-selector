@@ -36,6 +36,15 @@ class CacheRepositoryImplTest {
     }
 
     @Test
+    fun `a deleted file leaves no rating, score or facts for a new file at its uri`() = runTest {
+        repo.forgetDeletedFile("content://card/IMG_0001.JPG")
+
+        coVerify(exactly = 1) { dao.deleteUserRating("content://card/IMG_0001.JPG") }
+        coVerify(exactly = 1) { dao.deleteScore("content://card/IMG_0001.JPG") }
+        coVerify(exactly = 1) { dao.deleteTechniqueFactsForUri("content://card/IMG_0001.JPG") }
+    }
+
+    @Test
     fun `moveRating without a rating does nothing`() = runTest {
         coEvery { dao.getUserRating("old") } returns null
 

@@ -50,15 +50,41 @@ class PhotoBitmapDecoder @Inject constructor(
          * display minimum (testdata/formats/manifest.json `display`).
          */
         const val MIN_DISPLAY_LONG_EDGE = 1024
+
+        /**
+         * The size a [width] × [height] image is decoded at so its long edge is at most
+         * [maxLongEdge], aspect kept; null when it already fits (FD-P-11). A power-of-two sample
+         * size alone floors: 4000 px / 2048 gave 1, so a 4000 px photo was analysed at full size.
+         */
+        internal fun sizeWithin(width: Int, height: Int, maxLongEdge: Int): Pair<Int, Int>? {
+            val longEdge = maxOf(width, height)
+            if (width <= 0 || height <= 0 || longEdge <= maxLongEdge) return null
+            val scale = maxLongEdge.toDouble() / longEdge
+            val w = if (width >= height) maxLongEdge else (width * scale).toInt().coerceAtLeast(1)
+            val h = if (height > width) maxLongEdge else (height * scale).toInt().coerceAtLeast(1)
+            return w to h
+        }
+
+        /** [bitmap] scaled down so its long edge is at most [maxLongEdge]; the original is recycled. */
+        internal fun capLongEdge(bitmap: Bitmap, maxLongEdge: Int): Bitmap {
+            val size = sizeWithin(bitmap.width, bitmap.height, maxLongEdge) ?: return bitmap
+            val scaled = Bitmap.createScaledBitmap(bitmap, size.first, size.second, true)
+            if (scaled !== bitmap) bitmap.recycle()
+            return scaled
+        }
     }
 
     /** A bitmap whose long edge is about [targetLongEdge] (never upscaled). */
     fun decodeForDisplay(uri: Uri, fileName: String, targetLongEdge: Int): Bitmap? =
         decode(uri, fileName, targetLongEdge.coerceAtLeast(1))
 
-    /** The analysis bitmap: long edge at most about [ANALYSIS_MAX_LONG_EDGE]. */
+    /**
+     * The analysis bitmap: long edge at most [ANALYSIS_MAX_LONG_EDGE] (REQ-AND-PERF.09), whatever
+     * the decode path — RAW previews and TIFFs come back at or above the target and are scaled
+     * down after the decode.
+     */
     fun decodeForAnalysis(uri: Uri, fileName: String): Bitmap? =
-        decode(uri, fileName, ANALYSIS_MAX_LONG_EDGE)
+        decode(uri, fileName, ANALYSIS_MAX_LONG_EDGE)?.let { capLongEdge(it, ANALYSIS_MAX_LONG_EDGE) }
 
     /**
      * Header-only dimensions (after orientation) for files the platform cannot
@@ -101,9 +127,10 @@ class PhotoBitmapDecoder @Inject constructor(
     }
 
     /**
-     * The platform decoders, exactly as the analysis path has always used them:
-     * a software allocation (OpenCV's `bitmapToMat` cannot read HARDWARE
-     * bitmaps) subsampled so the long edge stays near [maxLongEdge].
+     * The platform decoders: a software allocation (OpenCV's `bitmapToMat`
+     * cannot read HARDWARE bitmaps) whose long edge is at most [maxLongEdge] —
+     * exactly, via `setTargetSize`, on API 28+; by a power-of-two sample size
+     * that never stays above it below that.
      */
     private fun decodePlatform(uri: Uri, maxLongEdge: Int): Bitmap? {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
@@ -111,10 +138,8 @@ class PhotoBitmapDecoder @Inject constructor(
                 val source = ImageDecoder.createSource(context.contentResolver, uri)
                 return ImageDecoder.decodeBitmap(source) { decoder, info, _ ->
                     decoder.allocator = ImageDecoder.ALLOCATOR_SOFTWARE
-                    val longestEdge = maxOf(info.size.width, info.size.height)
-                    if (longestEdge > maxLongEdge) {
-                        val sampleSize = longestEdge / maxLongEdge
-                        if (sampleSize > 1) decoder.setTargetSampleSize(sampleSize)
+                    sizeWithin(info.size.width, info.size.height, maxLongEdge)?.let { (w, h) ->
+                        decoder.setTargetSize(w, h)
                     }
                 }
             } catch (e: Exception) {

@@ -1,4 +1,8 @@
 #!/usr/bin/make -f
+#
+# Source-package recipe for a Debian archive build. The .deb that Blitzlens releases is built by
+# scripts/package_deb.py (pure Python, the default; --native uses dpkg-deb); CI does not run this
+# file, so keep it in step by hand when the layout changes.
 
 export PYBUILD_NAME = photo-selector-linux
 export PYBUILD_SYSTEM = pyproject

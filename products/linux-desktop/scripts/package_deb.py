@@ -47,6 +47,21 @@ def changelog_mtime(changelog: Path) -> int:
 FIXED_MTIME = changelog_mtime(Path(__file__).resolve().parents[1] / "debian" / "changelog")
 
 
+def _tar_gz(write_members) -> bytes:
+    """A reproducible ``.tar.gz``: the gzip header carries ``FIXED_MTIME``, not the build time.
+
+    ``tarfile.open(mode="w:gz")`` stamps the current time into the gzip header, so two builds of the
+    same tree differed (SET-R-3: the APT pool and the GitHub release shipped different bytes).
+    """
+    raw = io.BytesIO()
+    with tarfile.open(fileobj=raw, mode="w", format=tarfile.PAX_FORMAT) as tar:
+        write_members(tar)
+    out = io.BytesIO()
+    with gzip.GzipFile(filename="", mode="wb", fileobj=out, compresslevel=9, mtime=FIXED_MTIME) as gz:
+        gz.write(raw.getvalue())
+    return out.getvalue()
+
+
 def make_ar_header(name: str, size: int, mtime: int = FIXED_MTIME, mode: int = 0o100644) -> bytes:
     """Construct a standard 60-byte Unix ar archive member header."""
     file_id = f"{name}/".ljust(16)
@@ -265,8 +280,7 @@ def build_deb_pure_python(
     md5_content = "\n".join(md5_lines) + "\n"
 
     # Assemble control.tar.gz
-    ctrl_buf = io.BytesIO()
-    with tarfile.open(fileobj=ctrl_buf, mode="w:gz", format=tarfile.PAX_FORMAT) as tar:
+    def write_control(tar) -> None:
         # ./control
         c_bytes = control_content.encode("utf-8")
         ti = tarfile.TarInfo(name="./control")
@@ -287,11 +301,10 @@ def build_deb_pure_python(
         ti.mtime = FIXED_MTIME
         tar.addfile(ti, io.BytesIO(m_bytes))
 
-    control_tar_gz = ctrl_buf.getvalue()
+    control_tar_gz = _tar_gz(write_control)
 
     # Assemble data.tar.gz
-    data_buf = io.BytesIO()
-    with tarfile.open(fileobj=data_buf, mode="w:gz", format=tarfile.PAX_FORMAT) as tar:
+    def write_data(tar) -> None:
         # Root ./ directory
         ti = tarfile.TarInfo(name="./")
         ti.type = tarfile.DIRTYPE
@@ -327,7 +340,7 @@ def build_deb_pure_python(
                 ti.mtime = FIXED_MTIME
                 tar.addfile(ti, io.BytesIO(content))
 
-    data_tar_gz = data_buf.getvalue()
+    data_tar_gz = _tar_gz(write_data)
 
     # Assemble .deb container (ar archive)
     debian_binary = b"2.0\n"
@@ -390,6 +403,14 @@ def build_deb_native(
     if md5_lines:
         md5_content = "\n".join(md5_lines) + "\n"
         (debian_dir / "md5sums").write_text(md5_content, encoding="utf-8")
+
+    # dpkg-deb archives directories with the modes they have on disk: the build machine's umask
+    # (drwxrwxr-x) and mkdtemp's 0700 for the root. Pin them, as the pure-Python builder does.
+    for root, dirs, _files in os.walk(staging_root):
+        for name in dirs:
+            if name != "DEBIAN":
+                os.chmod(Path(root) / name, 0o755)
+    os.chmod(staging_root, 0o755)
 
     # -Zxz: recent dpkg defaults to zstd, which Python's tarfile (generate_apt_repo.py,
     # verify_package.py) cannot read; xz is universally supported by apt.

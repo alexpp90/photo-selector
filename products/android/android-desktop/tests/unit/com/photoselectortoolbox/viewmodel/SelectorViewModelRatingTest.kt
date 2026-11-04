@@ -15,6 +15,7 @@ import com.photoselectortoolbox.data.repository.SettingsRepository
 import com.photoselectortoolbox.domain.curation.UndoableOperation
 import com.photoselectortoolbox.domain.grouping.GroupingLevel
 import com.photoselectortoolbox.domain.interaction.FilingAction
+import com.photoselectortoolbox.domain.session.SelectorSortOrder
 import com.photoselectortoolbox.domain.model.RatingFilter
 import com.photoselectortoolbox.domain.usecase.ScanImagesUseCase
 import io.mockk.coEvery
@@ -51,6 +52,7 @@ class SelectorViewModelRatingTest {
     private val appScope = CoroutineScope(testDispatcher)
 
     private val groupingEnabledFlow = MutableStateFlow(false)
+    private val selectorSortOrderFlow = MutableStateFlow(SelectorSortOrder.OLDEST_FIRST)
     private val groupingLevelFlow = MutableStateFlow(GroupingLevel.TIME_FILENAME)
     private val sortingEnabledFlow = MutableStateFlow(true)
     private val lastFolderUriFlow = MutableStateFlow<String?>(null)
@@ -71,6 +73,7 @@ class SelectorViewModelRatingTest {
 
     private val settingsRepository: SettingsRepository = mockk(relaxed = true) {
         every { groupingEnabled } returns groupingEnabledFlow
+        every { selectorSortOrder } returns selectorSortOrderFlow
         every { groupingLevel } returns groupingLevelFlow
         every { sortingEnabled } returns sortingEnabledFlow
         every { lastFolderUri } returns lastFolderUriFlow
@@ -99,13 +102,23 @@ class SelectorViewModelRatingTest {
     }
     private val metadataWriter: MetadataWriter = mockk(relaxed = true) {
         coEvery { writeRating(any(), any()) } returns Result.success(Unit)
+        coEvery { recoverInterruptedWrites(any(), any()) } returns com.photoselectortoolbox.data.metadata.RatingRecovery.NONE
     }
+
+    /**
+     * Fixtures keep the order they are listed in: every photo is a moment later than
+     * the one built before it, and these suites run on the oldest-first order. The
+     * default order (newest first) is pinned in [SelectorSortJumpViewModelTest].
+     */
+    private var clock = 0L
+
+    private fun nextModified(): Long = ++clock
 
     private fun image(name: String, rating: Int = 0) = ImageItem(
         uri = "content://test/folder/$name",
         fileName = name,
         fileSize = 1,
-        lastModified = 1,
+        lastModified = nextModified(),
         mimeType = "image/jpeg",
         rating = rating,
     )
@@ -168,6 +181,22 @@ class SelectorViewModelRatingTest {
 
         // Verify async debounced metadata write-back called
         coVerify { metadataWriter.writeRating(any(), 4) }
+    }
+
+    @Test
+    fun `opening a folder recovers interrupted JPEG rating writes there and says what it did`() = runTest {
+        coEvery { metadataWriter.recoverInterruptedWrites(any(), Uri.parse(FOLDER_URI)) } returns
+            com.photoselectortoolbox.data.metadata.RatingRecovery(
+                restored = listOf("DSC_1.jpg"),
+                kept = listOf(com.photoselectortoolbox.data.metadata.KeptRatingBackup("DSC_2.jpg", "DSC_2.jpg.frameduel-backup")),
+            )
+
+        val viewModel = loadFolder(image("DSC_1.jpg"))
+        advanceUntilIdle()
+
+        coVerify(exactly = 1) { metadataWriter.recoverInterruptedWrites(any(), Uri.parse(FOLDER_URI)) }
+        val message = viewModel.uiState.value.snackbarMessage
+        assertTrue(message, message!!.contains("Restored DSC_1.jpg") && message.contains("DSC_2.jpg.frameduel-backup"))
     }
 
     @Test

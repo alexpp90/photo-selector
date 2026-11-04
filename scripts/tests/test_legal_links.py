@@ -68,5 +68,31 @@ class OldRepositoryNameTest(unittest.TestCase):
         self.assertEqual(out.stdout.split(), [])
 
 
+class PolicyDisclosureTest(unittest.TestCase):
+    """What the policies must say about data that leaves the app's own storage (2026-11-03 review)."""
+
+    @staticmethod
+    def sections(product: str) -> tuple[str, str]:
+        text = (REPO / "docs" / "products" / product / "privacy-policy.html").read_text(encoding="utf-8")
+        english, german = text.split('<hr id="de">')
+        return english, german
+
+    def test_both_policies_disclose_the_pages_host_and_cloud_folders_in_both_languages(self):
+        for product in ("phototok", "android-desktop"):
+            english, german = self.sections(product)
+            with self.subTest(product=product):
+                self.assertIn("GitHub Pages", english)
+                self.assertIn("GitHub Pages", german)
+                self.assertIn("cloud storage app", english)
+                self.assertIn("Cloud-Speicher-App", german)
+
+    def test_frameduel_discloses_that_ratings_are_written_into_the_photo(self):
+        # MetadataWriter writes the star rating into the JPEG's XMP or a sidecar in the user's folder.
+        english, german = self.sections("android-desktop")
+        self.assertIn("XMP", english)
+        self.assertIn("XMP", german)
+        self.assertIn("Cache &rarr; Clear Cache", german)
+
+
 if __name__ == "__main__":
     unittest.main()

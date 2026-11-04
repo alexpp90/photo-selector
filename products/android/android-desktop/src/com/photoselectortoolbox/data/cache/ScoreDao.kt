@@ -19,6 +19,9 @@ interface ScoreDao {
     @Query("DELETE FROM scores_cache")
     suspend fun deleteAll()
 
+    @Query("DELETE FROM scores_cache WHERE filePath = :filePath")
+    suspend fun deleteScore(filePath: String)
+
     @Query(
         """
         DELETE FROM scores_cache WHERE filePath NOT IN (
@@ -96,6 +99,9 @@ interface ScoreDao {
 
     companion object {
         const val SQLITE_MAX_BIND_PARAMS = 900
+
+        /** The analysis cache keeps the most recently used this many rows (REQ-AND-CACHE.02). */
+        const val MRU_LIMIT = 10_000
     }
 
     // ── Technique Facts (U-22a) ───────────────────────────────────────────
@@ -106,17 +112,15 @@ interface ScoreDao {
     @Query("SELECT * FROM technique_facts WHERE uri = :uri")
     suspend fun getTechniqueFactsForUri(uri: String): List<TechniqueFactEntity>
 
-    @Query("SELECT * FROM technique_facts WHERE uri IN (:uris)")
-    suspend fun getTechniqueFactsForUris(uris: List<String>): List<TechniqueFactEntity>
-
-    @Query("SELECT * FROM technique_facts WHERE kind = :kind AND confidence >= :minConfidence")
-    suspend fun getTechniqueFactsByKind(kind: String, minConfidence: Double = 0.0): List<TechniqueFactEntity>
-
     @Query("DELETE FROM technique_facts WHERE uri = :uri")
     suspend fun deleteTechniqueFactsForUri(uri: String)
 
     @Query("DELETE FROM technique_facts")
     suspend fun deleteAllTechniqueFacts()
+
+    /** Facts are written with a photo's scores; once its score row is pruned they go too (FD-P-12). */
+    @Query("DELETE FROM technique_facts WHERE uri NOT IN (SELECT filePath FROM scores_cache)")
+    suspend fun deleteTechniqueFactsWithoutScore()
 
     // ── Lesson Progress (U-26) ────────────────────────────────────────────
 

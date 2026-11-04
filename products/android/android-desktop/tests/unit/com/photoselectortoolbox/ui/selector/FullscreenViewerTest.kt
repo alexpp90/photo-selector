@@ -1,5 +1,6 @@
 package com.photoselectortoolbox.ui.selector
 
+import com.photoselector.core.Requirement
 import android.view.KeyEvent
 import androidx.compose.material3.windowsizeclass.ExperimentalMaterial3WindowSizeClassApi
 import androidx.compose.material3.windowsizeclass.WindowSizeClass
@@ -11,7 +12,9 @@ import androidx.compose.ui.semantics.SemanticsActions
 import androidx.compose.ui.semantics.SemanticsProperties
 import androidx.compose.ui.semantics.getOrNull
 import androidx.compose.ui.test.assertIsFocused
+import androidx.compose.ui.test.hasAnyAncestor
 import androidx.compose.ui.test.hasContentDescription
+import androidx.compose.ui.test.hasTestTag
 import androidx.compose.ui.test.junit4.createComposeRule
 import androidx.compose.ui.test.onAllNodesWithTag
 import androidx.compose.ui.test.onNodeWithTag
@@ -20,6 +23,8 @@ import androidx.compose.ui.unit.dp
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import com.photoselector.core.model.ExifData
 import com.photoselectortoolbox.data.model.ImageItem
+import com.photoselectortoolbox.domain.curation.DeferredDeletion
+import com.photoselectortoolbox.domain.curation.SelectorListState
 import com.photoselectortoolbox.domain.curation.SnackbarLifetime
 import com.photoselectortoolbox.domain.interaction.FilingAction
 import org.junit.Assert.assertEquals
@@ -92,6 +97,8 @@ class FullscreenViewerTest {
         var undos = 0
         val moved = mutableListOf<String>()
         val copied = mutableListOf<String>()
+        /** Every page the viewer reported to the ViewModel. */
+        val reported = mutableListOf<Int>()
     }
 
     private fun host(
@@ -112,7 +119,7 @@ class FullscreenViewerTest {
                 },
                 onCopyToSelection = { i -> harness.copied += harness.images[i].fileName },
                 windowSizeClass = WindowSizeClass.calculateFromSize(DpSize(width.dp, 800.dp)),
-                onPageSelected = { harness.index = it },
+                onPageSelected = { harness.reported += it; harness.index = it },
                 fullscreenButtonsEnabled = true,
                 filingAction = filing,
                 infoPinned = harness.pinned,
@@ -153,6 +160,63 @@ class FullscreenViewerTest {
         rule.waitForIdle()
     }
 
+    /** A key chord such as Ctrl+Z, delivered like [press]. */
+    private fun pressWithMeta(keyCode: Int, meta: Int) {
+        val dialog = checkNotNull(ShadowDialog.getLatestDialog()) { "the viewer opened no dialog" }
+        val decor = dialog.window!!.decorView
+        rule.runOnUiThread {
+            decor.dispatchKeyEvent(KeyEvent(0L, 0L, KeyEvent.ACTION_DOWN, keyCode, 0, meta))
+            decor.dispatchKeyEvent(KeyEvent(0L, 10L, KeyEvent.ACTION_UP, keyCode, 0, meta))
+        }
+        rule.waitForIdle()
+    }
+
+    /** A key held down: the press, [repeats] auto-repeats of it, then the release. */
+    private fun hold(keyCode: Int, repeats: Int) {
+        val dialog = checkNotNull(ShadowDialog.getLatestDialog()) { "the viewer opened no dialog" }
+        val decor = dialog.window!!.decorView
+        rule.runOnUiThread {
+            (0..repeats).forEach { n -> decor.dispatchKeyEvent(KeyEvent(0L, n * 33L, KeyEvent.ACTION_DOWN, keyCode, n)) }
+            decor.dispatchKeyEvent(KeyEvent(0L, repeats * 33L + 10, KeyEvent.ACTION_UP, keyCode, 0))
+        }
+        rule.waitForIdle()
+    }
+
+    @Test
+    fun `a held Delete, M or C acts once, not once per auto-repeat`() {
+        val harness = open()
+
+        hold(KeyEvent.KEYCODE_FORWARD_DEL, repeats = 5)
+        hold(KeyEvent.KEYCODE_M, repeats = 5)
+        hold(KeyEvent.KEYCODE_C, repeats = 5)
+
+        assertEquals(1, harness.deletes)
+        assertEquals(listOf("a.jpg"), harness.moved)
+        assertEquals(1, harness.copied.size)
+    }
+
+    @Test
+    @Requirement("REQ-AND-LAYOUT.22")
+    fun `Ctrl+Z in fullscreen runs the same undo as the card's UNDO button`() {
+        val harness = open()
+
+        pressWithMeta(KeyEvent.KEYCODE_Z, KeyEvent.META_CTRL_ON or KeyEvent.META_CTRL_LEFT_ON)
+        pressWithMeta(KeyEvent.KEYCODE_Z, KeyEvent.META_META_ON or KeyEvent.META_META_LEFT_ON)
+        press(KeyEvent.KEYCODE_Z)
+
+        assertEquals("Ctrl+Z and Cmd+Z undo, a bare Z does not", 2, harness.undos)
+    }
+
+    @Test
+    fun `a held arrow still pages once per repeat`() {
+        open()
+
+        hold(KeyEvent.KEYCODE_DPAD_RIGHT, repeats = 2)
+        settle()
+
+        assertEquals("4 / 5", position())
+    }
+
     private fun settle() {
         rule.mainClock.advanceTimeBy(600)
         rule.waitForIdle()
@@ -168,10 +232,15 @@ class FullscreenViewerTest {
             .fetchSemanticsNodes().firstOrNull()
             ?.config?.getOrNull(SemanticsProperties.Text)?.joinToString("") { it.text }
 
+    /** The exposure line as the panel shows it: its tokens, in order, one space apart. */
     private fun exif(): String? =
-        rule.onAllNodesWithTag("fullscreen_exif", useUnmergedTree = true)
-            .fetchSemanticsNodes().firstOrNull()
-            ?.config?.getOrNull(SemanticsProperties.Text)?.joinToString("") { it.text }
+        rule.onAllNodes(
+            hasTestTag("exposure_token") and hasAnyAncestor(hasTestTag("fullscreen_exif")),
+            useUnmergedTree = true,
+        ).fetchSemanticsNodes().takeIf { it.isNotEmpty() }
+            ?.joinToString(" ") { node ->
+                node.config.getOrNull(SemanticsProperties.Text)?.joinToString("") { it.text }.orEmpty()
+            }
 
     private fun chromeShown() = position() != null
 
@@ -304,7 +373,7 @@ class FullscreenViewerTest {
     @Test
     fun `the first frame shows its exposure line`() {
         open()
-        assertEquals("1/125s  ·  f/4.0  ·  85mm  ·  ISO 100", exif())
+        assertEquals("1/125s · f/4.0 · 85mm · ISO 100", exif())
     }
 
     @Test
@@ -360,7 +429,7 @@ class FullscreenViewerTest {
     // ── The info pin ─────────────────────────────────────────────────────
 
     @Test
-    fun `I pins the bar and a pinned bar never fades`() {
+    fun `I pins the panel and a pinned panel never fades`() {
         val harness = open()
 
         press(KeyEvent.KEYCODE_I)
@@ -374,7 +443,7 @@ class FullscreenViewerTest {
     }
 
     @Test
-    fun `a pinned bar stays through a page change and I releases it`() {
+    fun `a pinned panel stays through a page change and I releases it`() {
         val harness = open { pinned = true }
         rule.mainClock.advanceTimeBy(10_000)
         rule.waitForIdle()
@@ -392,7 +461,7 @@ class FullscreenViewerTest {
     }
 
     @Test
-    fun `the pin button is a 48 dp toggle in the bar`() {
+    fun `the pin button is a 48 dp toggle in the panel`() {
         val harness = open()
         val node = rule.onNodeWithTag("fullscreen_info_pin", useUnmergedTree = true)
         val size = node.fetchSemanticsNode().size
@@ -446,12 +515,112 @@ class FullscreenViewerTest {
     }
 
     @Test
-    fun `a delete's card in fullscreen keeps its draining line`() {
+    fun `a delete's card in fullscreen shows with no draining line`() {
         open {
             message = "1 image deleted"
             sequence = 1
             lifetime = SnackbarLifetime.DELETE
         }
-        assertEquals(1, rule.onAllNodesWithTag("snackbar_countdown", useUnmergedTree = true).fetchSemanticsNodes().size)
+        assertEquals(1, rule.onAllNodesWithTag("selector_snackbar", useUnmergedTree = true).fetchSemanticsNodes().size)
+        assertEquals(0, rule.onAllNodesWithTag("snackbar_countdown", useUnmergedTree = true).fetchSemanticsNodes().size)
+    }
+
+    // ── The list changes while the viewer is open ────────────────────────
+    //
+    // The pager is keyed by URI, so a list change re-indexes it with no scroll. The
+    // ViewModel's index is the truth, and a re-order it applied must not be reported
+    // back as the page the old photo moved to.
+
+    private fun afterListChange() {
+        rule.waitForIdle()
+        repeat(5) { rule.mainClock.advanceTimeByFrame() }
+        rule.waitForIdle()
+    }
+
+    @Test
+    fun `a settle re-order that lands on the new frame 1 is not dragged back to the old photo`() {
+        // Fullscreen was opened before discovery settled: untouched, on frame 1 (a).
+        // Settle puts the newest first and the ViewModel lands on it; the pager's
+        // key-follow would carry it to a.jpg's new page, 5.
+        val harness = open()
+        assertEquals("1 / 5", position())
+
+        harness.images = five.reversed()
+        harness.index = 0
+        afterListChange()
+
+        assertEquals("the ViewModel's frame is the truth", 0, harness.index)
+        assertEquals("e.jpg, the new frame 1, is on screen", "1 / 5", position())
+        assertTrue(exif().orEmpty(), exif().orEmpty().contains("1600"))
+        assertTrue("the viewer reported ${harness.reported}", harness.reported.isEmpty())
+    }
+
+    @Test
+    fun `a sort change keeps the photo on screen and reports nothing`() {
+        val harness = open { index = 1 }
+        assertEquals("2 / 5", position())
+
+        harness.images = five.reversed()
+        harness.index = 3
+        afterListChange()
+
+        assertEquals(3, harness.index)
+        assertEquals("4 / 5", position())
+        assertTrue(exif().orEmpty(), exif().orEmpty().contains("200"))
+        assertTrue("the viewer reported ${harness.reported}", harness.reported.isEmpty())
+    }
+
+    @Test
+    fun `an undo that restores a photo above the current one keeps the current photo`() {
+        // The real list logic: delete a, then take it back.
+        val afterDelete = DeferredDeletion.beginForCurrent(SelectorListState(five, 0), 0L)!!
+        val harness = open {
+            images = afterDelete.first.images
+            index = afterDelete.first.currentIndex
+        }
+        assertEquals("1 / 4", position())
+        assertTrue(exif().orEmpty(), exif().orEmpty().contains("200"))
+
+        val restored = DeferredDeletion.revert(SelectorListState(harness.images, harness.index), afterDelete.second)
+        harness.images = restored.images
+        harness.index = restored.currentIndex
+        afterListChange()
+
+        assertEquals("b.jpg is still the frame on screen", "2 / 5", position())
+        assertTrue(exif().orEmpty(), exif().orEmpty().contains("200"))
+        assertEquals(1, harness.index)
+        assertTrue("the viewer reported ${harness.reported}", harness.reported.isEmpty())
+    }
+
+    @Test
+    fun `an undo that restores a photo above and re-sorts to a different frame follows the ViewModel`() {
+        // Newest first with e deleted earlier: [d, c, b, a] on c. The undo restores e at
+        // the top and the ViewModel, having re-sorted, lands on d (its rule, not the
+        // pager's): index 1 of [e, d, c, b, a].
+        val harness = open {
+            images = listOf(five[3], five[2], five[1], five[0])
+            index = 1
+        }
+        assertEquals("2 / 4", position())
+
+        harness.images = listOf(five[4], five[3], five[2], five[1], five[0])
+        harness.index = 1
+        afterListChange()
+
+        assertEquals(1, harness.index)
+        assertEquals("2 / 5", position())
+        assertTrue(exif().orEmpty(), exif().orEmpty().contains("800"))
+        assertTrue("the viewer reported ${harness.reported}", harness.reported.isEmpty())
+    }
+
+    @Test
+    fun `a swipe or arrow is still reported`() {
+        val harness = open()
+
+        press(KeyEvent.KEYCODE_DPAD_RIGHT)
+        settle()
+
+        assertEquals(listOf(1), harness.reported)
+        assertEquals("2 / 5", position())
     }
 }

@@ -3,23 +3,38 @@
 Adheres to:
 - R-LINUX-PREF-01: Decoupled AdwPreferencesWindow
 - R-LINUX-PREF-02: Configurable Application Preferences backed by SettingsStore
+- R-LINUX-PREF-03: Where photos go (working folder or custom folder, resolved path shown live)
 """
 
 from __future__ import annotations
 
-from typing import Optional
+from pathlib import Path
+from typing import Callable, Optional
 
 try:
     import gi
     gi.require_version("Gtk", "4.0")
     gi.require_version("Adw", "1")
-    from gi.repository import Gtk, Adw
+    from gi.repository import Gtk, Adw, Gio
     HAS_GI = True
 except (ImportError, ValueError):
     HAS_GI = False
-    Gtk = Adw = None
+    Gtk = Adw = Gio = None
 
+from photo_selector_linux.core.destination import (
+    MODE_CUSTOM,
+    MODE_WORKING,
+    DestinationResolution,
+    describe_custom_folder,
+    describe_destination,
+    resolve_destination,
+)
 from photo_selector_linux.core.settings import SettingsStore
+
+#: Receives the chosen folder, or ``None`` when the picker was cancelled.
+FolderChosen = Callable[[Optional[Path]], None]
+#: Opens a folder picker and reports back through the callback.
+FolderChooser = Callable[[FolderChosen], None]
 
 
 class PreferencesDialog(Adw.PreferencesWindow if HAS_GI else object):
@@ -29,9 +44,15 @@ class PreferencesDialog(Adw.PreferencesWindow if HAS_GI else object):
         self,
         settings: Optional[SettingsStore] = None,
         viewmodel=None,
+        folder_chooser: Optional[FolderChooser] = None,
         **kwargs,
     ):
         self.viewmodel = viewmodel
+        #: Opens the folder picker for the custom destination; tests inject one that never
+        #: opens a window.
+        self._folder_chooser: FolderChooser = folder_chooser or self._open_folder_dialog
+        self._closed = False
+        self._destination_view: Optional[tuple] = None
         # True while a setter writes the (sanitised) value back into its widget: the widget's
         # change signal must not call the setter again (a feedback loop that hung GTK).
         self._syncing = False
@@ -47,6 +68,13 @@ class PreferencesDialog(Adw.PreferencesWindow if HAS_GI else object):
 
         self.row_folder_name = None
         self.row_sel_folder = None
+        self.row_working = None
+        self.row_custom = None
+        self.row_destination = None
+        self.check_working = None
+        self.check_custom = None
+        self.btn_custom_folder = None
+        self.icon_destination_warning = None
         self.row_auto_advance = None
         self.row_blurry_cutoff = None
         self.row_sharp_cutoff = None
@@ -60,8 +88,13 @@ class PreferencesDialog(Adw.PreferencesWindow if HAS_GI else object):
             self.set_title("Preferences")
             self.set_default_size(560, 480)
             self._build_pages()
+            self.connect("close-request", self._on_close_request)
         else:
             self._build_headless_controls()
+        self.refresh_destination()
+        if viewmodel is not None:
+            # The open folder decides the working-folder destination: follow it live.
+            viewmodel.connect("state-changed", self._on_viewmodel_state_changed)
 
     def _build_headless_controls(self) -> None:
         class _EntryStub:
@@ -94,6 +127,42 @@ class PreferencesDialog(Adw.PreferencesWindow if HAS_GI else object):
             def set_value(self, value: float) -> None:
                 self._value = float(value)
 
+        class _RowStub:
+            def __init__(self):
+                self._subtitle = ""
+                self._visible = True
+                self._active = False
+
+            def set_subtitle(self, text: str) -> None:
+                self._subtitle = text
+
+            def get_subtitle(self) -> str:
+                return self._subtitle
+
+            def set_active(self, active: bool) -> None:
+                self._active = bool(active)
+
+            def get_active(self) -> bool:
+                return self._active
+
+            def set_visible(self, visible: bool) -> None:
+                self._visible = bool(visible)
+
+            def get_visible(self) -> bool:
+                return self._visible
+
+            def add_css_class(self, *_args) -> None:
+                pass
+
+            def remove_css_class(self, *_args) -> None:
+                pass
+
+        self.row_working = _RowStub()
+        self.row_custom = _RowStub()
+        self.row_destination = _RowStub()
+        self.check_working = _RowStub()
+        self.check_custom = _RowStub()
+        self.icon_destination_warning = _RowStub()
         self.row_folder_name = _EntryStub(self.settings.selection_folder_name)
         self.row_sel_folder = self.row_folder_name
         self.row_auto_advance = _SwitchStub(self.settings.auto_advance)
@@ -113,6 +182,34 @@ class PreferencesDialog(Adw.PreferencesWindow if HAS_GI else object):
         group_dest = Adw.PreferencesGroup()
         group_dest.set_title("Culling Destination")
 
+        # Two-way exclusive choice: where Move and Copy put photos (R-LINUX-PREF-03).
+        self.check_working = Gtk.CheckButton()
+        self.check_working.set_valign(Gtk.Align.CENTER)
+        self.check_custom = Gtk.CheckButton()
+        self.check_custom.set_valign(Gtk.Align.CENTER)
+        self.check_custom.set_group(self.check_working)
+
+        self.row_working = Adw.ActionRow()
+        self.row_working.set_title("Working folder")
+        self.row_working.add_prefix(self.check_working)
+        self.row_working.set_activatable_widget(self.check_working)
+        group_dest.add(self.row_working)
+
+        self.row_custom = Adw.ActionRow()
+        self.row_custom.set_title("Custom folder")
+        self.row_custom.add_prefix(self.check_custom)
+        self.row_custom.set_activatable_widget(self.check_custom)
+        self.row_custom.set_subtitle_selectable(True)
+        self.btn_custom_folder = Gtk.Button.new_from_icon_name("folder-open-symbolic")
+        self.btn_custom_folder.set_valign(Gtk.Align.CENTER)
+        self.btn_custom_folder.set_tooltip_text("Choose folder\u2026")
+        self.btn_custom_folder.update_property(
+            [Gtk.AccessibleProperty.LABEL], ["Choose custom folder"]
+        )
+        self.btn_custom_folder.connect("clicked", lambda _btn: self.choose_custom_folder())
+        self.row_custom.add_suffix(self.btn_custom_folder)
+        group_dest.add(self.row_custom)
+
         self.row_folder_name = Adw.EntryRow()
         self.row_sel_folder = self.row_folder_name
         self.row_folder_name.set_title("Selection Subfolder Name")
@@ -122,6 +219,18 @@ class PreferencesDialog(Adw.PreferencesWindow if HAS_GI else object):
             lambda row, _pspec=None: self._on_selection_folder_changed(row),
         )
         group_dest.add(self.row_folder_name)
+
+        # The resolved destination, from the same resolution Move and Copy use.
+        self.row_destination = Adw.ActionRow()
+        self.row_destination.set_title("Photos go to")
+        self.row_destination.set_subtitle_selectable(True)
+        self.icon_destination_warning = Gtk.Image.new_from_icon_name("dialog-warning-symbolic")
+        self.icon_destination_warning.set_tooltip_text("Warning")
+        self.row_destination.add_prefix(self.icon_destination_warning)
+        group_dest.add(self.row_destination)
+
+        self.check_working.connect("toggled", self._on_destination_toggled, MODE_WORKING)
+        self.check_custom.connect("toggled", self._on_destination_toggled, MODE_CUSTOM)
 
         self.row_auto_advance = Adw.SwitchRow()
         self.row_auto_advance.set_title("Auto-Advance on Culling")
@@ -190,6 +299,129 @@ class PreferencesDialog(Adw.PreferencesWindow if HAS_GI else object):
             return
         self.set_selection_folder_name(row.get_text())
 
+    def _on_destination_toggled(self, button, mode: str) -> None:
+        if self._syncing or not button.get_active():
+            return
+        self.select_destination_mode(mode)
+
+    def _on_close_request(self, *_args) -> bool:
+        self._closed = True
+        if self.viewmodel is not None:
+            self.viewmodel.disconnect("state-changed", self._on_viewmodel_state_changed)
+        return False
+
+    def _on_viewmodel_state_changed(self, *_args) -> None:
+        if not self._closed:
+            self.refresh_destination()
+
+    # -- Culling destination (R-LINUX-PREF-03) ------------------------------------------------
+
+    def destination_resolution(self) -> DestinationResolution:
+        """The resolution Move/Copy use right now (the workspace's when there is one)."""
+        if self.viewmodel is not None and hasattr(self.viewmodel, "resolve_destination"):
+            return self.viewmodel.resolve_destination()
+        custom = self.settings.external_destination_folder
+        return resolve_destination(
+            self.settings.destination_mode,
+            self.settings.selection_folder_name,
+            None,
+            Path(custom) if custom else None,
+        )
+
+    def destination_text(self) -> str:
+        """The "Photos go to" line."""
+        return describe_destination(self.destination_resolution())
+
+    def custom_folder_text(self) -> str:
+        """The Custom folder row's subtitle: the chosen folder, or why it cannot be used."""
+        return describe_custom_folder(self.destination_resolution())
+
+    def refresh_destination(self, force: bool = False) -> None:
+        """Show the current choice and resolved destination; idempotent and signal-safe.
+
+        ``force`` rewrites the widgets even when the model did not change: a click on a radio
+        button moves it before the model decides, so the widgets must be put back.
+        """
+        resolution = self.destination_resolution()
+        view = (
+            resolution,
+            describe_destination(resolution),
+            describe_custom_folder(resolution),
+        )
+        if view == self._destination_view and not force:
+            return
+        self._destination_view = view
+        is_custom = resolution.mode == MODE_CUSTOM
+        warning = resolution.problem is not None
+
+        def write() -> None:
+            # Radio group: activating one deactivates the other (never deactivate directly).
+            (self.check_custom if is_custom else self.check_working).set_active(True)
+            self.row_custom.set_subtitle(view[2])
+            self.row_destination.set_subtitle(view[1])
+            self.icon_destination_warning.set_visible(warning)
+
+        self._write_back(write)
+        if HAS_GI:
+            if warning:
+                self.row_destination.add_css_class("error")
+            else:
+                self.row_destination.remove_css_class("error")
+
+    def select_destination_mode(self, mode: str) -> None:
+        """Switch between the working folder and the custom folder.
+
+        Choosing Custom with no folder stored opens the picker instead; cancelling leaves the
+        working folder selected, so there is never a Custom choice without a folder. Switching
+        back to the working folder keeps the custom folder stored for later.
+        """
+        if mode == MODE_CUSTOM:
+            if not self.settings.external_destination_folder:
+                self.refresh_destination(force=True)  # stay on Working until a folder is chosen
+                self.choose_custom_folder()
+                return
+            self.settings.update(destination_mode=MODE_CUSTOM)
+        else:
+            self.settings.update(destination_mode=MODE_WORKING)
+        self.refresh_destination(force=True)
+
+    def choose_custom_folder(self) -> None:
+        """Open the folder picker; a chosen folder becomes the destination at once."""
+        try:
+            self._folder_chooser(self.set_custom_destination_folder)
+        except Exception:
+            self.refresh_destination(force=True)
+
+    def set_custom_destination_folder(self, folder: Optional[Path]) -> None:
+        """Use ``folder`` as the custom destination (``None``: the picker was cancelled)."""
+        if folder is not None:
+            self.settings.update(
+                external_destination_folder=str(folder),
+                destination_mode=MODE_CUSTOM,
+            )
+        self.refresh_destination(force=True)
+
+    def _open_folder_dialog(self, on_chosen: FolderChosen) -> None:
+        """Real picker (``Gtk.FileDialog``); every failure or dismissal reports ``None``."""
+        if not HAS_GI:
+            on_chosen(None)
+            return
+        dialog = Gtk.FileDialog()
+        dialog.set_title("Custom Destination Folder")
+        stored = self.settings.external_destination_folder
+        if stored and Path(stored).is_dir():
+            dialog.set_initial_folder(Gio.File.new_for_path(stored))
+
+        def finished(dlg, result) -> None:
+            try:
+                gfile = dlg.select_folder_finish(result)
+                path = gfile.get_path() if gfile is not None else None
+            except Exception:
+                path = None
+            on_chosen(Path(path) if path else None)
+
+        dialog.select_folder(self, None, finished)
+
     def _on_auto_advance_changed(self, row, *_args) -> None:
         if self._syncing:
             return
@@ -220,6 +452,7 @@ class PreferencesDialog(Adw.PreferencesWindow if HAS_GI else object):
 
     def set_selection_folder_name(self, name: str) -> None:
         self.settings.update(selection_folder_name=name)
+        self.refresh_destination()
         if HAS_GI and self.row_folder_name is not None:
             if self.row_folder_name.get_text() != self.settings.selection_folder_name:
                 self._write_back(lambda: self.row_folder_name.set_text(self.settings.selection_folder_name))

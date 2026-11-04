@@ -164,8 +164,25 @@ class ScanImagesUseCase @Inject constructor(
                 )
             }
             progressChannel.close()
+            pruneCache()
         }
     }.flowOn(Dispatchers.IO)
+
+    /**
+     * Keeps the cache at its MRU limit after every scan (REQ-AND-CACHE.02, FD-P-12): the limit used
+     * to be enforced only when Settings opened, and `technique_facts` never. Ratings live in
+     * `user_ratings` and are not touched. A failure here costs disk, not results, so it is logged.
+     */
+    private suspend fun pruneCache() {
+        try {
+            if (scoreDao.getCount() > ScoreDao.MRU_LIMIT) scoreDao.pruneToMru(ScoreDao.MRU_LIMIT)
+            scoreDao.deleteTechniqueFactsWithoutScore()
+        } catch (e: kotlinx.coroutines.CancellationException) {
+            throw e
+        } catch (e: Exception) {
+            android.util.Log.w("ScanImagesUseCase", "Could not prune the analysis cache", e)
+        }
+    }
 
     /**
      * Run all analysis tools on an image.

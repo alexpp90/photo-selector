@@ -45,6 +45,7 @@ import com.photoselectortoolbox.data.model.ImageItem
 import com.photoselectortoolbox.domain.format.ExifFormatter
 import com.photoselectortoolbox.domain.scoring.ScoreMetric
 import com.photoselectortoolbox.domain.scoring.ScoreMetricIcon
+import com.photoselectortoolbox.ui.theme.HintText
 import com.photoselectortoolbox.ui.theme.BrandAccent
 import com.photoselectortoolbox.ui.theme.BrandAccentGlow
 import com.photoselectortoolbox.ui.theme.ScoreBad
@@ -55,7 +56,6 @@ import com.photoselectortoolbox.ui.theme.StudioCanvas
 import com.photoselectortoolbox.ui.theme.WarningAmber
 import com.photoselectortoolbox.ui.theme.Zinc400
 import com.photoselectortoolbox.ui.theme.Zinc50
-import com.photoselectortoolbox.ui.theme.Zinc600
 
 /**
  * The glyph for a metric.
@@ -136,7 +136,7 @@ fun CurrentFrameReadout(
         }
 
         if (image == null) {
-            Text(text = "No image", fontSize = 13.sp, color = Zinc600)
+            Text(text = "No image", fontSize = 13.sp, color = HintText)
             return@Column
         }
 
@@ -150,6 +150,20 @@ fun CurrentFrameReadout(
 
         ExifFormatter.summaryLine(image.exifData)?.let { line ->
             ExposureFlow(exposureTokenLabels(line))
+        }
+
+        // The lens goes with the exposure it produced: same mono face and
+        // colour, one line, ellipsised at the end (never wrapped).
+        ExifFormatter.lensLine(image.exifData)?.let { lens ->
+            Text(
+                text = lens,
+                fontSize = 11.5.sp,
+                fontFamily = FontFamily.Monospace,
+                color = Zinc400,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+                modifier = Modifier.fillMaxWidth().testTag("readout_lens"),
+            )
         }
 
         if (image.exifData?.isFallback == true) {
@@ -347,6 +361,23 @@ fun NeighbourValueOverlay(
             )
         }
 
+        // One line under the exposure block, ellipsised at the end. The visible
+        // text may be cut; the full name is in the description.
+        ExifFormatter.lensLine(image.exifData)?.let { lens ->
+            Text(
+                text = lens,
+                fontSize = 9.5.sp,
+                fontFamily = FontFamily.Monospace,
+                color = Zinc400,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .semantics { contentDescription = "Lens $lens" }
+                    .testTag("neighbour_lens"),
+            )
+        }
+
         if (image.exifData?.isFallback == true) {
             Icon(
                 imageVector = Icons.Outlined.ErrorOutline,
@@ -466,7 +497,7 @@ private fun NotScannedRow(compact: Boolean = false) {
         Text(
             text = "Not scanned",
             fontSize = if (compact) 10.sp else 12.sp,
-            color = Zinc600,
+            color = HintText,
         )
     }
 }
@@ -512,9 +543,13 @@ private val SEPARATOR_PATTERN = Regex("\\s+·\\s+")
  */
 @OptIn(ExperimentalLayoutApi::class)
 @Composable
-private fun ExposureFlow(labels: List<String>) {
+internal fun ExposureFlow(
+    labels: List<String>,
+    color: Color = Zinc400,
+    containerTag: String = "exposure_line",
+) {
     FlowRow(
-        modifier = Modifier.fillMaxWidth().testTag("exposure_line"),
+        modifier = Modifier.fillMaxWidth().testTag(containerTag),
         horizontalArrangement = Arrangement.spacedBy(6.dp),
         verticalArrangement = Arrangement.spacedBy(2.dp),
         maxLines = 2,
@@ -525,7 +560,7 @@ private fun ExposureFlow(labels: List<String>) {
                 text = label,
                 fontSize = 11.5.sp,
                 fontFamily = FontFamily.Monospace,
-                color = Zinc400,
+                color = color,
                 maxLines = 1,
                 softWrap = false,
                 modifier = Modifier.testTag("exposure_token"),

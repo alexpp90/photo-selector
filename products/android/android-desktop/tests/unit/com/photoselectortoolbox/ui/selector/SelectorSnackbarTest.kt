@@ -1,5 +1,6 @@
 package com.photoselectortoolbox.ui.selector
 
+import com.photoselector.core.Requirement
 import android.content.Context
 import android.content.ContextWrapper
 import android.view.accessibility.AccessibilityManager
@@ -8,7 +9,13 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.semantics.LiveRegionMode
+import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.semantics.SemanticsProperties
+import androidx.compose.ui.test.SemanticsMatcher
+import androidx.compose.ui.test.assert
 import androidx.compose.ui.test.junit4.createComposeRule
+import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onAllNodesWithTag
 import androidx.test.core.app.ApplicationProvider
 import androidx.test.ext.junit.runners.AndroidJUnit4
@@ -89,13 +96,18 @@ class SelectorSnackbarTest {
     }
 
     @Test
-    fun `a delete's card draws the deadline line`() {
+    fun `a delete's card promises no deadline - no line, UNDO, and it leaves like a move's`() {
         val state = State().apply { message = "1 image deleted"; sequence = 1; lifetime = SnackbarLifetime.DELETE }
         host(state, withUndo = true)
 
-        assertEquals(1, count("snackbar_countdown"))
-        rule.mainClock.advanceTimeBy(5_000)
-        assertEquals("a delete is not a 4 s notice", 1, count("selector_snackbar"))
+        // Nothing is committed when the card leaves (FD-D-1): Ctrl+Z works until the folder is left.
+        assertEquals(0, count("snackbar_countdown"))
+        assertEquals(1, count("snackbar_undo"))
+        rule.mainClock.advanceTimeBy(3_900)
+        assertEquals(1, count("selector_snackbar"))
+        rule.mainClock.advanceTimeBy(200)
+        rule.waitForIdle()
+        assertEquals(0, count("selector_snackbar"))
     }
 
     @Test
@@ -157,5 +169,17 @@ class SelectorSnackbarTest {
         rule.mainClock.advanceTimeBy(1_100)
         rule.waitForIdle()
         assertEquals(0, count("selector_snackbar"))
+    }
+
+    @Test
+    @Requirement("REQ-AND-LAYOUT.21")
+    fun `the card is announced by a screen reader and UNDO is a button`() {
+        val state = State().apply { message = "Moved to Selection" }
+        host(state, withUndo = true)
+
+        rule.onNodeWithTag("selector_snackbar", useUnmergedTree = true)
+            .assert(SemanticsMatcher.expectValue(SemanticsProperties.LiveRegion, LiveRegionMode.Polite))
+        rule.onNodeWithTag("snackbar_undo", useUnmergedTree = true)
+            .assert(SemanticsMatcher.expectValue(SemanticsProperties.Role, Role.Button))
     }
 }

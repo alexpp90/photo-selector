@@ -276,3 +276,80 @@ def test_b_toggles_view_order_and_is_free_of_other_bindings():
     assert engine.dispatch(keyval=0x62, state=0, is_text_editing=True) is False
     assert engine.dispatch(keyval=0x62, state=KeyboardRouterEngine.CONTROL_MASK) is False
     target.on_toggle_sort_order.assert_not_called()
+
+
+def test_tab_is_left_to_focus_traversal_until_slots_can_cycle():
+    """The router's own Tab handler cycles nothing, so it must not consume the key (BL-UX-3)."""
+    from photo_selector_linux.ui.keyboard_router import KeyboardRouter
+
+    router = KeyboardRouter(window=MagicMock(), viewmodel=MagicMock())
+    assert router.engine.dispatch(keyval=0xFF09, state=0) is False
+
+
+def test_space_presses_a_focused_button_instead_of_toggling_zoom():
+    target = MagicMock()
+    engine = KeyboardRouterEngine(handler_target=target)
+
+    assert engine.dispatch(keyval=0x20, state=0, focus_on_button=True) is False
+    target.on_toggle_zoom.assert_not_called()
+    assert engine.dispatch(keyval=0x20, state=0) is True
+    target.on_toggle_zoom.assert_called_once()
+    # The other single keys still work with a button focused.
+    assert engine.dispatch(keyval=0x6D, state=0, focus_on_button=True) is True
+
+
+def test_real_router_passes_a_focused_button_to_the_engine():
+    import pytest
+
+    from photo_selector_linux.ui import keyboard_router as kr
+
+    if not kr.HAS_GI or isinstance(kr.Gtk, MagicMock):
+        pytest.skip("needs real Gtk")
+    from gi.repository import Gtk
+
+    window = MagicMock()
+    window.get_focus.return_value = Gtk.Button()
+    router = kr.KeyboardRouter(window=window, viewmodel=MagicMock())
+    assert router._on_key_pressed(None, 0x20, 0, 0) is kr.Gdk.EVENT_PROPAGATE
+    window.get_focus.return_value = Gtk.Label()
+    router.on_toggle_zoom = MagicMock()
+    router.engine.target = router
+    assert router._on_key_pressed(None, 0x20, 0, 0) is kr.Gdk.EVENT_STOP
+
+
+def test_every_empty_state_hint_names_a_key_the_router_handles():
+    """The pills are generated from EMPTY_STATE_HINTS: each key shown must do something (BL-UX-8)."""
+    from photo_selector_linux.ui.keyboard_router import EMPTY_STATE_HINTS
+
+    for keyval, state, keys, meaning in EMPTY_STATE_HINTS:
+        target = MagicMock()
+        assert KeyboardRouterEngine(handler_target=target).dispatch(keyval=keyval, state=state) is True, keys
+        assert meaning and keys
+
+
+def test_the_empty_state_has_no_tagline_and_builds_its_pills_from_the_table():
+    import pytest
+
+    from photo_selector_linux.ui import canvas as canvas_module
+    from photo_selector_linux.ui.keyboard_router import EMPTY_STATE_HINTS
+    from photo_selector_linux.viewmodels.culling_workspace import CullingWorkspaceViewModel
+
+    if isinstance(canvas_module.Gtk, MagicMock):
+        pytest.skip("needs real Gtk")
+    view = canvas_module.CanvasView(viewmodel=CullingWorkspaceViewModel())
+    labels = []
+
+    def walk(widget):
+        from gi.repository import Gtk
+
+        if isinstance(widget, Gtk.Label):
+            labels.append(widget.get_label())
+        child = widget.get_first_child()
+        while child is not None:
+            walk(child)
+            child = child.get_next_sibling()
+
+    walk(view._create_empty_state())
+    assert "Optical RAW & JPEG Triage" not in labels
+    for _k, _s, keys, meaning in EMPTY_STATE_HINTS:
+        assert f"{keys} {meaning}" in labels

@@ -1,11 +1,12 @@
 package com.photoselectortoolbox.ui.duplicates
 
+import com.photoselectortoolbox.ui.components.handCursor
 import android.net.Uri
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
-import androidx.compose.foundation.clickable
+import androidx.compose.foundation.selection.toggleable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -57,14 +58,23 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.input.pointer.PointerIcon
+import androidx.compose.ui.input.pointer.pointerHoverIcon
+import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import coil.compose.AsyncImage
 import com.photoselectortoolbox.data.model.DuplicateGroup
 import com.photoselectortoolbox.ui.components.EmptyStateCard
+import com.photoselectortoolbox.ui.components.SeedFolderEffect
 import com.photoselectortoolbox.ui.components.ProgressIndicatorBar
+import com.photoselectortoolbox.ui.theme.DestructiveFill
+import com.photoselectortoolbox.ui.theme.DestructiveText
 import com.photoselectortoolbox.ui.theme.ErrorRed
+import com.photoselectortoolbox.ui.theme.OnDestructiveFill
 import com.photoselectortoolbox.ui.theme.BrandAccent
 import com.photoselectortoolbox.ui.theme.BrandOnAccent
 import com.photoselectortoolbox.ui.theme.Zinc700
@@ -74,9 +84,12 @@ import com.photoselectortoolbox.viewmodel.DuplicatesViewModel
 @Composable
 fun DuplicatesScreen(
     windowSizeClass: WindowSizeClass,
+    /** The folder open in the selector, opened here when this screen has none of its own (FD-UX-3). */
+    seedFolderUri: String? = null,
     viewModel: DuplicatesViewModel = hiltViewModel(),
 ) {
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
+    SeedFolderEffect(seedFolderUri, uiState.folderUri) { viewModel.selectFolder(it) }
 
     val folderPickerLauncher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.OpenDocumentTree(),
@@ -89,26 +102,28 @@ fun DuplicatesScreen(
     if (showDeleteConfirmation) {
         AlertDialog(
             onDismissRequest = { showDeleteConfirmation = false },
-            title = { Text("Delete Selected Files") },
+            title = { Text("Delete selected files") },
             text = {
-                Text(
-                    "Are you sure you want to delete ${uiState.selectedForDeletion.size} " +
-                        "file(s)? This action cannot be undone."
-                )
+                val count = uiState.selectedForDeletion.size
+                Text("Permanently delete $count ${if (count == 1) "file" else "files"}? This cannot be undone.")
             },
             confirmButton = {
                 Button(
+                    modifier = Modifier.handCursor(),
                     onClick = {
                         showDeleteConfirmation = false
                         viewModel.deleteSelected()
                     },
-                    colors = ButtonDefaults.buttonColors(containerColor = ErrorRed),
+                    colors = ButtonDefaults.buttonColors(
+                        containerColor = DestructiveFill,
+                        contentColor = OnDestructiveFill,
+                    ),
                 ) {
                     Text("Delete")
                 }
             },
             dismissButton = {
-                TextButton(onClick = { showDeleteConfirmation = false }) {
+                TextButton(modifier = Modifier.handCursor(), onClick = { showDeleteConfirmation = false }) {
                     Text("Cancel")
                 }
             },
@@ -196,7 +211,6 @@ fun DuplicatesScreen(
                         Surface(
                             modifier = Modifier.fillMaxWidth(),
                             color = Zinc800,
-                            tonalElevation = 8.dp,
                         ) {
                             Row(
                                 modifier = Modifier
@@ -212,9 +226,11 @@ fun DuplicatesScreen(
                                     modifier = Modifier.weight(1f),
                                 )
                                 Button(
+                                    modifier = Modifier.handCursor(),
                                     onClick = { showDeleteConfirmation = true },
                                     colors = ButtonDefaults.buttonColors(
-                                        containerColor = ErrorRed,
+                                        containerColor = DestructiveFill,
+                                        contentColor = OnDestructiveFill,
                                     ),
                                     shape = RoundedCornerShape(8.dp),
                                 ) {
@@ -293,6 +309,7 @@ private fun InstructionCard(
             Spacer(modifier = Modifier.height(20.dp))
 
             Button(
+                modifier = Modifier.handCursor(),
                 onClick = onStartScan,
                 colors = ButtonDefaults.buttonColors(
                     containerColor = BrandAccent,
@@ -334,6 +351,7 @@ private fun ExpandedDuplicateGroupCard(
                     color = MaterialTheme.colorScheme.onSurface,
                 )
                 FilledTonalButton(
+                    modifier = Modifier.handCursor(),
                     onClick = onSelectAllButFirst,
                     contentPadding = PaddingValues(horizontal = 12.dp, vertical = 4.dp),
                 ) {
@@ -352,6 +370,8 @@ private fun ExpandedDuplicateGroupCard(
 
             Spacer(modifier = Modifier.height(12.dp))
 
+            // The copy that would be the last one left is the one the screen will not let go.
+            val lastKept = group.files.singleOrNull { it !in selectedUris }
             LazyRow(
                 horizontalArrangement = Arrangement.spacedBy(12.dp),
             ) {
@@ -361,6 +381,7 @@ private fun ExpandedDuplicateGroupCard(
                         fileUri = fileUri,
                         isSelected = isSelected,
                         isFirst = index == 0,
+                        isLastKept = fileUri == lastKept,
                         onToggle = { onToggleSelection(fileUri) },
                         modifier = Modifier
                             .width(180.dp)
@@ -400,6 +421,7 @@ private fun CompactDuplicateGroupCard(
                     color = MaterialTheme.colorScheme.onSurface,
                 )
                 FilledTonalButton(
+                    modifier = Modifier.handCursor(),
                     onClick = onSelectAllButFirst,
                     contentPadding = PaddingValues(horizontal = 12.dp, vertical = 4.dp),
                 ) {
@@ -418,6 +440,8 @@ private fun CompactDuplicateGroupCard(
 
             Spacer(modifier = Modifier.height(12.dp))
 
+            val lastKept = group.files.singleOrNull { it !in selectedUris }
+
             // First image displayed larger
             if (group.files.isNotEmpty()) {
                 val firstUri = group.files.first()
@@ -427,6 +451,7 @@ private fun CompactDuplicateGroupCard(
                     fileUri = firstUri,
                     isSelected = isFirstSelected,
                     isFirst = true,
+                    isLastKept = firstUri == lastKept,
                     onToggle = { onToggleSelection(firstUri) },
                     modifier = Modifier
                         .fillMaxWidth()
@@ -450,6 +475,7 @@ private fun CompactDuplicateGroupCard(
                             fileUri = fileUri,
                             isSelected = isSelected,
                             isFirst = false,
+                            isLastKept = fileUri == lastKept,
                             onToggle = { onToggleSelection(fileUri) },
                             modifier = Modifier
                                 .size(100.dp),
@@ -468,6 +494,8 @@ private fun DuplicateImageCard(
     isFirst: Boolean,
     onToggle: () -> Unit,
     modifier: Modifier = Modifier,
+    /** The only copy of its photograph still unticked: it cannot be ticked (FD-B-5). */
+    isLastKept: Boolean = false,
 ) {
     val borderColor = when {
         isSelected -> ErrorRed
@@ -475,8 +503,23 @@ private fun DuplicateImageCard(
         else -> Color.Transparent
     }
 
+    val fileName = remember(fileUri) {
+        Uri.parse(fileUri).lastPathSegment?.substringAfterLast('/') ?: "Unknown"
+    }
+
     Card(
-        modifier = modifier.clickable(onClick = onToggle),
+        modifier = modifier
+            .pointerHoverIcon(PointerIcon.Hand)
+            .toggleable(
+                value = isSelected,
+                enabled = !isLastKept,
+                role = Role.Checkbox,
+                onValueChange = { onToggle() },
+            )
+            // One named, toggleable node per copy, instead of an unnamed card and checkbox.
+            .semantics(mergeDescendants = true) {
+                contentDescription = if (isLastKept) "$fileName, kept" else fileName
+            },
         shape = RoundedCornerShape(12.dp),
         colors = CardDefaults.cardColors(containerColor = Zinc700),
         border = if (borderColor != Color.Transparent) {
@@ -504,10 +547,6 @@ private fun DuplicateImageCard(
             }
 
             // File name at bottom
-            val fileName = remember(fileUri) {
-                Uri.parse(fileUri).lastPathSegment?.substringAfterLast('/') ?: "Unknown"
-            }
-
             Box(
                 modifier = Modifier
                     .fillMaxWidth()
@@ -527,10 +566,11 @@ private fun DuplicateImageCard(
             // Checkbox overlay at top-right
             Checkbox(
                 checked = isSelected,
-                onCheckedChange = { onToggle() },
+                onCheckedChange = null,
+                enabled = !isLastKept,
                 modifier = Modifier
                     .align(Alignment.TopEnd)
-                    .padding(4.dp),
+                    .padding(4.dp).handCursor(),
                 colors = CheckboxDefaults.colors(
                     checkedColor = ErrorRed,
                     uncheckedColor = Color.White.copy(alpha = 0.7f),
@@ -548,7 +588,7 @@ private fun DuplicateImageCard(
                     color = BrandAccent.copy(alpha = 0.9f),
                 ) {
                     Text(
-                        text = "Original",
+                        text = "First",
                         style = MaterialTheme.typography.labelSmall,
                         color = BrandOnAccent,
                         modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp),

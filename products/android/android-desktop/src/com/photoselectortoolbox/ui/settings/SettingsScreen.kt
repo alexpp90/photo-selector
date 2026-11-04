@@ -1,5 +1,6 @@
 package com.photoselectortoolbox.ui.settings
 
+import com.photoselectortoolbox.ui.components.handCursor
 import android.content.ActivityNotFoundException
 import android.content.Intent
 import android.net.Uri
@@ -26,21 +27,17 @@ import androidx.compose.material.icons.filled.Cached
 import androidx.compose.material.icons.filled.Code
 import androidx.compose.material.icons.filled.Collections
 import androidx.compose.material.icons.filled.DeleteSweep
-import androidx.compose.material.icons.filled.FolderOpen
 import androidx.compose.material.icons.filled.FolderSpecial
 import androidx.compose.material.icons.filled.Gavel
 import androidx.compose.material.icons.filled.Info
 import androidx.compose.material.icons.filled.Memory
 import androidx.compose.material.icons.filled.PrivacyTip
 import androidx.compose.material.icons.filled.School
-import androidx.compose.material.icons.filled.Sort
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.OutlinedTextField
-import androidx.compose.material3.OutlinedTextFieldDefaults
 import androidx.compose.material3.RadioButton
 import androidx.compose.material3.RadioButtonDefaults
 import androidx.compose.material3.Slider
@@ -58,10 +55,14 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
+import androidx.lifecycle.compose.LifecycleResumeEffect
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.photoselectortoolbox.domain.grouping.GroupingLevel
 import com.photoselectortoolbox.domain.interaction.FilingAction
+import com.photoselectortoolbox.ui.theme.DestructiveFill
+import com.photoselectortoolbox.ui.theme.DestructiveText
 import com.photoselectortoolbox.ui.theme.ErrorRed
+import com.photoselectortoolbox.ui.theme.OnDestructiveFill
 import com.photoselectortoolbox.ui.theme.BrandAccent
 import com.photoselectortoolbox.ui.theme.Zinc400
 import com.photoselectortoolbox.ui.theme.Zinc700
@@ -79,20 +80,21 @@ fun SettingsScreen(
     // Confirmation only. The reset itself is one repository call and is already
     // done by the time this flips.
     var guidanceReset by remember { mutableStateOf(false) }
-    var editingFolderName by remember(uiState.selectionFolderName) {
-        mutableStateOf(uiState.selectionFolderName)
-    }
-    var editingSecondaryFolderName by remember(uiState.secondarySelectionFolderName) {
-        mutableStateOf(uiState.secondarySelectionFolderName)
+
+    // The folders are described again whenever Settings comes back to the foreground:
+    // a permission revoked or a card removed while the app was away shows up here, not
+    // at the next failed Copy.
+    LifecycleResumeEffect(viewModel) {
+        viewModel.refreshDestination()
+        onPauseOrDispose {}
     }
 
-    // Folder picker for custom selection destination
+    // Folder picker for the custom destination. A cancelled picker returns null and
+    // changes nothing, so the choice stays where it was.
     val selectionFolderPickerLauncher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.OpenDocumentTree(),
     ) { uri: Uri? ->
-        uri?.let {
-            viewModel.updatePhoneCollectionUri(it.toString())
-        }
+        uri?.let { viewModel.chooseCustomFolder(it.toString()) }
     }
 
     if (showClearCacheDialog) {
@@ -104,17 +106,21 @@ fun SettingsScreen(
             },
             confirmButton = {
                 Button(
+                    modifier = Modifier.handCursor(),
                     onClick = {
                         showClearCacheDialog = false
                         viewModel.clearCache()
                     },
-                    colors = ButtonDefaults.buttonColors(containerColor = ErrorRed),
+                    colors = ButtonDefaults.buttonColors(
+                        containerColor = DestructiveFill,
+                        contentColor = OnDestructiveFill,
+                    ),
                 ) {
                     Text("Clear")
                 }
             },
             dismissButton = {
-                TextButton(onClick = { showClearCacheDialog = false }) {
+                TextButton(modifier = Modifier.handCursor(), onClick = { showClearCacheDialog = false }) {
                     Text("Cancel")
                 }
             },
@@ -130,132 +136,15 @@ fun SettingsScreen(
             .verticalScroll(rememberScrollState())
             .padding(vertical = 16.dp),
     ) {
-        // --- Storage Section ---
-        SettingsSection(title = "Storage") {
-            Column(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(16.dp),
-            ) {
-                Text(
-                    text = "Selection Subfolder Name",
-                    style = MaterialTheme.typography.bodyMedium,
-                    color = MaterialTheme.colorScheme.onSurface,
-                )
-                Text(
-                    text = "Created inside the source folder by default",
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                )
-                Spacer(modifier = Modifier.height(8.dp))
-                OutlinedTextField(
-                    value = editingFolderName,
-                    onValueChange = { editingFolderName = it },
-                    modifier = Modifier.fillMaxWidth(),
-                    singleLine = true,
-                    shape = RoundedCornerShape(8.dp),
-                    colors = OutlinedTextFieldDefaults.colors(
-                        focusedBorderColor = BrandAccent,
-                        unfocusedBorderColor = Zinc700,
-                        cursorColor = BrandAccent,
-                        focusedTextColor = MaterialTheme.colorScheme.onSurface,
-                        unfocusedTextColor = MaterialTheme.colorScheme.onSurface,
-                    ),
-                    placeholder = {
-                        Text(
-                            text = "Selection",
-                            color = Zinc400,
-                        )
-                    },
-                )
-                Spacer(modifier = Modifier.height(4.dp))
-
-                if (editingFolderName != uiState.selectionFolderName &&
-                    editingFolderName.isNotBlank()
-                ) {
-                    TextButton(
-                        onClick = { viewModel.updateSelectionFolder(editingFolderName) },
-                        modifier = Modifier.align(Alignment.End),
-                    ) {
-                        Text("Save", color = BrandAccent)
-                    }
-                }
-
-                Spacer(modifier = Modifier.height(12.dp))
-                Text(
-                    text = "Second-Pass Selection Subfolder Name",
-                    style = MaterialTheme.typography.bodyMedium,
-                    color = MaterialTheme.colorScheme.onSurface,
-                )
-                Text(
-                    text = "Used automatically when re-culling an existing Selection folder",
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                )
-                Spacer(modifier = Modifier.height(8.dp))
-                OutlinedTextField(
-                    value = editingSecondaryFolderName,
-                    onValueChange = { editingSecondaryFolderName = it },
-                    modifier = Modifier.fillMaxWidth(),
-                    singleLine = true,
-                    shape = RoundedCornerShape(8.dp),
-                    colors = OutlinedTextFieldDefaults.colors(
-                        focusedBorderColor = BrandAccent,
-                        unfocusedBorderColor = Zinc700,
-                        cursorColor = BrandAccent,
-                        focusedTextColor = MaterialTheme.colorScheme.onSurface,
-                        unfocusedTextColor = MaterialTheme.colorScheme.onSurface,
-                    ),
-                    placeholder = {
-                        Text(
-                            text = "Final",
-                            color = Zinc400,
-                        )
-                    },
-                )
-                if (editingSecondaryFolderName != uiState.secondarySelectionFolderName &&
-                    editingSecondaryFolderName.isNotBlank()
-                ) {
-                    TextButton(
-                        onClick = { viewModel.updateSecondarySelectionFolder(editingSecondaryFolderName) },
-                        modifier = Modifier.align(Alignment.End),
-                    ) {
-                        Text("Save", color = BrandAccent)
-                    }
-                }
-            }
-
-            HorizontalDivider(color = Zinc700.copy(alpha = 0.5f))
-
-            // Custom selection destination
-            SettingsClickItem(
-                title = "Custom Selection Location",
-                description = if (uiState.phoneCollectionUri != null) {
-                    "Using custom folder"
-                } else {
-                    "Default: subfolder in source folder"
-                },
-                onClick = { selectionFolderPickerLauncher.launch(null) },
-                icon = Icons.Default.FolderOpen,
-                trailing = {
-                    if (uiState.phoneCollectionUri != null) {
-                        TextButton(onClick = { viewModel.updatePhoneCollectionUri(null) }) {
-                            Text("Reset", color = BrandAccent)
-                        }
-                    }
-                },
-            )
-
-            HorizontalDivider(color = Zinc700.copy(alpha = 0.5f))
-
-            SettingsToggleItem(
-                title = "File Sorting",
-                description = "Sort RAW and JPEG files into separate subfolders",
-                checked = uiState.sortingEnabled,
-                onCheckedChange = { viewModel.updateSortingEnabled(it) },
-                icon = Icons.Default.Sort,
-            )
-        }
+        // --- Where photos go ---
+        DestinationSection(
+            uiState = uiState,
+            onUseWorkingFolder = viewModel::useWorkingFolder,
+            onChooseCustom = { selectionFolderPickerLauncher.launch(null) },
+            onSaveSelectionName = viewModel::updateSelectionFolder,
+            onSaveSecondPassName = viewModel::updateSecondarySelectionFolder,
+            onSortingChange = viewModel::updateSortingEnabled,
+        )
 
         Spacer(modifier = Modifier.height(8.dp))
 
@@ -296,6 +185,7 @@ fun SettingsScreen(
                                 verticalAlignment = Alignment.CenterVertically,
                             ) {
                                 RadioButton(
+                                    modifier = Modifier.handCursor(),
                                     selected = uiState.groupingLevel == level,
                                     onClick = { viewModel.updateGroupingLevel(level) },
                                     colors = RadioButtonDefaults.colors(
@@ -421,6 +311,7 @@ fun SettingsScreen(
                         verticalAlignment = Alignment.CenterVertically,
                     ) {
                         RadioButton(
+                            modifier = Modifier.handCursor(),
                             selected = uiState.filingAction == action,
                             onClick = { viewModel.updateFilingAction(action) },
                             colors = RadioButtonDefaults.colors(
@@ -472,6 +363,7 @@ fun SettingsScreen(
                 icon = Icons.Default.School,
                 trailing = {
                     Button(
+                        modifier = Modifier.handCursor(),
                         onClick = {
                             viewModel.resetGuidance()
                             guidanceReset = true
@@ -495,7 +387,6 @@ fun SettingsScreen(
             SettingsClickItem(
                 title = "Cached Scores",
                 description = "${uiState.cachedScoreCount} analysis results stored",
-                onClick = {},
                 icon = Icons.Default.Cached,
             )
 
@@ -508,10 +399,11 @@ fun SettingsScreen(
                 icon = Icons.Default.DeleteSweep,
                 trailing = {
                     Button(
+                        modifier = Modifier.handCursor(),
                         onClick = { showClearCacheDialog = true },
                         colors = ButtonDefaults.buttonColors(
                             containerColor = ErrorRed.copy(alpha = 0.15f),
-                            contentColor = ErrorRed,
+                            contentColor = DestructiveText,
                         ),
                         shape = RoundedCornerShape(8.dp),
                     ) {

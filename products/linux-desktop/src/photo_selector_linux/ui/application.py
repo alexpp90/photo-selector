@@ -51,7 +51,9 @@ class PhotoSelectorApplication(Adw.Application if HAS_GI else object):
 
     def do_open(self, files, n_files, hint) -> None:
         self.do_activate()
-        if n_files > 0 and files:
+        # A photo (or several) handed over by a file manager: the first one's folder opens,
+        # with that photo selected once the scan reaches it.
+        if n_files > 0 and files and files[0].get_path():
             target_path = Path(files[0].get_path())
             if target_path.exists() and self.window:
                 self.window.open_directory(target_path)

@@ -6,6 +6,38 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ## [Unreleased]
 
+### Added
+- Preferences > Culling Destination: choose **Working folder** (Selection inside the folder you cull, as before) or a **Custom folder**, and see the full path your photos will go to, updated as you open another folder. A custom folder that is gone or not writable is shown as a warning.
+- **Lowest sharpness first** is in the main menu (View order) and on the **B** key, next to the natural order; the menu shows which one is active.
+
+### Changed
+- Move and Copy no longer recreate a custom destination folder that has disappeared (for example an unplugged drive); they report the problem and leave the photo where it is. An existing custom destination is read as the Custom folder choice.
+- The empty start screen lost its tagline, and its key hints are generated from the same key table the app uses.
+- The action buttons read **Keep**, **Copy**, **Trash** and **Undo**; the keys moved into the tooltips and the `?` shortcut sheet. The tooltip of **Undo** names the action it would undo.
+- The view switcher (1-Up, 2-Up, 3-Up) is a toggle group, so a screen reader announces which view is pressed.
+- Counters, badges, captions and the info card follow the system text size; before, they stayed the same size at 150 % text.
+
+### Fixed
+- After a Move, Copy or Trash the action bar says what happened: the photo's name (shortened in the middle when long), where it went (Selection or Trash) and how many companion files went along, for example `Moved IMG_…_064000 + 2 to Selection/`. The line no longer shifts the centred buttons.
+- The action bar follows the window width without a permanent frame callback, so an idle window no longer redraws every frame.
+- The `.deb` is now really reproducible: the package on the GitHub release and the one in the APT repository are the same file (same checksum). Before, two builds of the same version differed in the build time stored in the archive, so the repository and the release carried different bytes.
+- Opening another folder cancels the photos still queued for decoding in the folder you left, and a photo that was already decoding no longer fills the new folder's cache.
+- When a Move, Copy or Trash leaves files in an unexpected place ("Move interrupted — … stayed in Selection/", "original could not be removed"), the message stays on screen until the next file operation. Before, it was a 3-second toast and a 4-second line in the action bar.
+- Tab moves the keyboard focus through the header and the action bar again, and Space presses a focused button, instead of both being swallowed by the photo view.
+- Duplicate Finder, Library Statistics and the shortcut list have a header bar with a close button and close with Escape.
+- Closing the folder picker without choosing no longer shows "Open folder cancelled: Dismissed by user". A folder that cannot be opened says "Could not open <folder>" and why.
+- A Google Drive (or other cloud mount) connected while Blitzlens is already running now shows real file names; before, its files stayed unreadable until the app was restarted.
+- Settings are saved atomically, so a crash while saving can no longer reset them to the defaults. A settings file that cannot be read is logged and a copy is kept as `settings.json.corrupt`.
+- A copy to the Selection folder is written under a hidden temporary name and takes its real name only when complete, so a crash or power loss can no longer leave a truncated photo there. A Trash on another drive whose original cannot be removed no longer leaves a stray file in the Trash.
+- "Open with Blitzlens" on a photo (or several) opens the photo's folder with that photo selected. Before, one photo showed an empty "Loaded 0 photographs" and several photos failed with a usage error.
+- A start-up error is no longer reported as "Core Engine Ready" with exit status 0. It stops with the error and a non-zero status.
+- **Lowest sharpness first** now orders the whole folder. Before, only the few photos you had already looked at were sorted and the rest stayed in file order behind them. Choosing the order scores every photo in the background (on a cloud folder: choose it a second time to confirm), keeps the photo on screen where it is while the order settles, and starts at the lowest-scored photo if you have not moved on.
+- Duplicate Finder and Library Statistics work on a cloud or remote folder. The first click now offers **Scan anyway**; before, the confirmation was asked for but nothing could give it (Statistics even opened as an empty window). Hashing for duplicates no longer freezes the window.
+- Moving a symlinked photo to the Trash trashes the link, not the file it points at; Undo puts the link back. Before, the original in the other folder was trashed and a dangling link stayed.
+- Closing the window while file operations are queued no longer drops them. Press M four times and quit, and all four photos are moved first; the window says "Finishing N file operations…" and closes when the last one is done. Closing a second time quits at once.
+- A darktable-style sidecar (`DSC_0001.NEF.xmp`, `IMG_1.JPG.xmp`) now travels with its shot on Move, Copy and Trash whichever file of the shot it belongs to. Before, it stayed behind when a JPG sorted before the RAW (NEF, RAF, RW2, ORF, PEF and others).
+- Opening a big folder no longer freezes the window. The scan (including the folder-name look-up on a cloud mount) runs in the background and photos appear as they are found. A folder of 2000 RAW+JPEG pairs took 46 seconds to list, and the window did not respond meanwhile; it now takes about 0.3 seconds.
+
 ## [0.2.0] - 2026-10-22
 
 ### Changed

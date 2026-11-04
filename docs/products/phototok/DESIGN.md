@@ -107,16 +107,17 @@ Box(Modifier.fillMaxSize()) {
 The viewer bottom bar (`ViewerBottomBar`) shows 4 persistent, **icon-only** controls (REQ-TOK-UX.02):
 
 ```
-[FolderOpen]  [CollectionsBookmark]  [Share]       [RestoreFromTrash]
+[FolderOpen]  [CollectionsBookmark]  [Share]       [Undo]
  Change folder     Selection          Share photo     Undo delete
 ```
 
 (The names under the icons are the spoken `contentDescription` and the long-press tooltip; they are not drawn.)
 
+- The feed snackbar (`FeedSnackbarHost`) sits 8 dp above the bar's measured height, navigation-bar inset included, so it never covers the 48 dp targets with 3-button navigation; without the bar (landing, landscape) it sits 16 dp above the navigation bar.
 - Each control: a 24 dp icon in a 72 × 48 dp target, `contentDescription` from a `cd_` string, and a long-press tooltip (`NameTooltip`, Material3 `TooltipBox` + `PlainTooltip`) with the same name. The tooltip only listens for the long press, so taps are unaffected. Removing the micro-label did not shrink the target. Share (`viewer_share_button`) calls the same path as the long-press menu (`buildCurrentShareIntent`). Four 72 dp buttons need 288 dp, so the bar padding is 8 dp (it fits a 320 dp phone), and the controls guide staggers the four bottom callouts onto two rows when their labels do not fit side by side (`ControlsGuideSolver.planBottom`).
 - Container: `surfaceContainerLowest.copy(alpha=0.8f)`, `RoundedCornerShape(topStart=12.dp, topEnd=12.dp)`
 - Active item: `primaryContainer` background, `onPrimaryContainer` icon (filled variant)
-- Inactive items: `secondary` tint; Revert uses `RestoreFromTrash` (trash bin with upward restore arrow) so it is visually distinct from the top-bar `Sync` Reload icon
+- Inactive items: `secondary` tint; Revert uses `Undo` (a curved back arrow, `Icons.AutoMirrored.Filled.Undo`; [USER 2026-10-24]: the earlier `RestoreFromTrash` bin read as a second delete in the 2026-10-24 usability panel) so it is visually distinct from the top-bar `Sync` Reload icon and from any delete
 - Padding: 8 dp horizontal, 6 dp vertical, plus the navigation-bar inset
 
 ### Top app bar
@@ -252,10 +253,14 @@ Add subtle left-pointing chevrons on the left edge during swipe:
 
 **Current:** 80dp green circle with checkmark.
 
-**New (from mockup):** Larger with glow effect:
-- Outer glow: `SuccessGreen.copy(alpha=0.2f)` circle with backdrop blur, border `SuccessGreen.copy(0.3f)`
-- Icon: `check_circle` (filled), 80dp, `SuccessGreen` tint
-- Drop shadow filter: `SuccessGreen.copy(0.6f)`, 20dp blur
+**New (from mockup):** Larger with glow effect, in the theme's lime (`primary`; `SuccessGreen` was dropped from the swipe cues in the 2026-11-03 review, it is outside the lime/neutral palette):
+- Outer glow: `primary.copy(alpha=0.15f)` circle, border `primary.copy(0.3f)`
+- Icon: the configured verb's glyph, 72dp, `primary` tint
+- Drop shadow: `primary`, 20dp
+
+### Mid-swipe indicators (`SwipeCues.kt`)
+- Swipe right: glyph `onPrimary` on a `primary` disc (≥ 4.5:1); swipe left: `onErrorContainer` on `errorContainer` for a delete, `onPrimaryContainer` on `primaryContainer` for copy/move.
+- The label (`COPY`, `DELETE`, …) is `primary` / `error` text on an 8 dp-rounded `surfaceContainerLowest` 80 % pill, so it reads ≥ 4.5:1 over a white photo as well as a black one (`SwipeCueColorsTest`).
 - Pop-in animation: scale 0.5→1.0 with bounce easing
 
 ### EXIF metadata overlay (bottom-left)
@@ -328,9 +333,8 @@ Use `AnimatedVisibility` with fade for all overlay elements.
 ### Trash peek animation (idle state)
 
 **New** — subtle hint on the right edge when not swiping:
-- Small `delete` icon in a circle at `Alignment.CenterEnd`
-- `surfaceContainerHigh.copy(alpha=0.4f)`, backdrop blur
-- Animated sliding left/right subtly (translateX oscillating ±15dp)
+- The configured swipe glyph and an arrow at `Alignment.CenterStart` / `CenterEnd`, on a `surfaceContainerLowest` 80 % pill, at 85 % opacity (40 % on a 40 % disc was too faint, review 2026-11-03)
+- Animated sliding left/right subtly (translateX oscillating between −4 and 12 dp); with animations removed (animator duration scale 0) they stand still
 - Only shows on first few images or when idle for >2 seconds
 
 ---
@@ -487,9 +491,10 @@ fails the build on any finding. This section applies them to Jackpix.
 | SD / USB card done (`showCardDoneSheet`) | "Card done" | — | **Keep all** · Delete rejects · Delete all (N) · Cancel |
 | Clear whole card confirm | "Delete all N photos?" | "Photos not copied off the card are lost." | Cancel · **Delete all** |
 | Favourite badge (viewer, under the top bar) | `Star` filled + "Favourite" when the system favourite flag is set too; `StarBorder` outlined + "Favourite" while it is only in Jackpix (not sent yet, camera/USB or cloud source, Android ≤ 10). The star scales with the label's font size. Spoken state: "Also a system favourite" / "Only in Jackpix" (DE "Auch System-Favorit" / "Nur in Jackpix") | — | — |
-| Long-press menu | — | — | Share · Open with · **Favourite** / **Remove favourite** (`Star` / `StarBorder`; DE "Favorit" / "Favorit entfernen") · Details |
+| Long-press menu | — | — | Share · Open with · **Favourite** / **Remove favourite** (`Star` / `StarBorder`; DE "Favorit" / "Favorit entfernen") · **Copy** / **Move** into the Selection folder (`ContentCopy` / `DriveFileMove`; DE "Kopieren" / "Verschieben"; Move is hidden for a cloud folder, which cannot move) · Details |
+| TalkBack custom actions (viewer) | — | — | The configured swipe right and swipe left, named like the mid-swipe indicator's spoken text ("Copy to Selection", "Delete photo", `cd_swipe_*`), then Share, Open with, Details, Favourite. A ★ swipe is covered by the Favourite action. No visible control (REQ-TOK-UX.02); not in the read-only Selection viewer |
 | System favourites (MediaStore) | *no dialog, no snackbar*: Android 11+ grants favourite requests itself; the request runs as a short system activity at a flush point (leaving the feed, switching folders, opening the Selection viewer, 25 queued changes) | — | — |
-| Snackbars | — | "Pro settings paused" · "Camera info on" · "Pro settings restored" · "Not copied" (DE "Profi-Einstellungen pausiert" · "Kamera-Info an" · "Profi-Einstellungen zurück" · "Nicht kopiert") · "Copied to «folder»" · "Moved to «folder» +K" · "Moved as «name»" · "Marked as favourite" · "Pairs merged" · "RAW + JPEG linked" · "Safe to unplug" · "Rejects deleted" · "N deleted" · "Cloud: copy only" · "Card disconnected" · "50 MB freed" · "100 reviewed" | — |
+| Snackbars | — | "Photo deleted" with the action **Undo** after every delete (DE "Foto gelöscht" · "Rückgängig"; Undo restores like Revert, [USER 2026-10-24]) · "Pro settings paused" · "Camera info on" · "Pro settings restored" · "Not copied" (DE "Profi-Einstellungen pausiert" · "Kamera-Info an" · "Profi-Einstellungen zurück" · "Nicht kopiert") · "Copied to «folder»" · "Moved to «folder» +K" · "Moved as «name»" · "Favourite removed" (a new favourite has no snackbar: the star flash and the lit badge show it) · "Pairs merged" · "RAW + JPEG linked" · "Safe to unplug" · "Rejects deleted" · "N deleted" · "Cloud: copy only" · "Card disconnected" · "50 MB freed" · "100 reviewed" | — |
 | Errors | — | "Copy to «folder» failed" · "Moved 2 of 3 to «folder»" · "Copied to «folder», original not removed" · "Couldn't delete «file»" · "Can't open this folder" | — |
 | Landing | *no tagline, no section labels* | — | folder name as a value · **Resume** / Start |
 | Landing: folder access lost | "Folder access lost" | — | Re-select |

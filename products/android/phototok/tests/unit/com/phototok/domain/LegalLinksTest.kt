@@ -2,6 +2,7 @@ package com.phototok.domain
 
 import android.content.pm.PackageManager
 import com.photoselector.core.Requirement
+import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
 import org.junit.Test
@@ -83,5 +84,35 @@ class LegalLinksTest {
             .requestedPermissions ?: emptyArray()
         val unexpected = requested.filterNot { it.endsWith(".DYNAMIC_RECEIVER_NOT_EXPORTED_PERMISSION") }
         assertTrue("Zero-permission SAF policy: the merged manifest requests $unexpected", unexpected.isEmpty())
+    }
+
+    @Test
+    fun `merged manifest exports nothing but the launcher and the profile installer`() {
+        // The WorkManager regression (audit 2026-10-21) merged exported services as well as
+        // permissions; the permission test above alone would not have caught that part. The unit
+        // tests run the debug manifest, which also carries the two Compose debug-only activities
+        // (ui-test-manifest, ui-tooling); a release or lab build has neither.
+        val context = RuntimeEnvironment.getApplication()
+        val info = context.packageManager.getPackageInfo(
+            context.packageName,
+            PackageManager.GET_ACTIVITIES or PackageManager.GET_SERVICES or
+                PackageManager.GET_RECEIVERS or PackageManager.GET_PROVIDERS,
+        )
+        val exported = listOf(
+            info.activities.orEmpty().toList(),
+            info.services.orEmpty().toList(),
+            info.receivers.orEmpty().toList(),
+            info.providers.orEmpty().toList(),
+        ).flatten().filter { it.exported }.map { it.name }.sorted()
+        assertEquals(
+            "Exported components of the merged manifest",
+            listOf(
+                "androidx.activity.ComponentActivity", // debugImplementation ui-test-manifest
+                "androidx.compose.ui.tooling.PreviewActivity", // debugImplementation ui-tooling
+                "androidx.profileinstaller.ProfileInstallReceiver", // guarded by android.permission.DUMP
+                "com.phototok.MainActivity",
+            ).sorted(),
+            exported,
+        )
     }
 }

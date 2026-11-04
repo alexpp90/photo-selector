@@ -232,7 +232,7 @@ dependencies {
     debugImplementation(libs.androidx.compose.ui.test.manifest)
 
     constraints {
-        implementation("androidx.concurrent:concurrent-futures:1.2.0")
+        implementation(libs.androidx.concurrent.futures)
     }
 }
 

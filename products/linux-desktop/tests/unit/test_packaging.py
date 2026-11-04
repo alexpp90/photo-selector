@@ -172,7 +172,8 @@ def test_version_consistent_across_sources():
                      (product_dir / "src" / "photo_selector_linux" / "__init__.py").read_text()).group(1)
     import xml.etree.ElementTree as ET
     meta = ET.parse(product_dir / "data" / "app.alpatix.Blitzlens.metainfo.xml").getroot().find("releases/release")
-    assert pyproject == deb == init == meta.get("version") == "0.2.0"
+    # Compared with each other, not with a literal: `release.py prepare` moves all four together.
+    assert pyproject == deb == init == meta.get("version")
 
 
 @pytest.mark.skipif(not shutil.which("dpkg-deb"), reason="dpkg-deb not available")
@@ -474,18 +475,26 @@ def test_archive_key_fingerprint_documented():
         assert fpr in doc.read_text(encoding="utf-8"), doc
 
 
-@pytest.mark.skipif(not __import__("shutil").which("appstreamcli"), reason="appstreamcli not installed")
+def _require_tool(name: str) -> None:
+    """Skip when ``name`` is missing, unless the gate is the mandatory one (CI, or ``run_tests.sh``
+    with the tools installed): a silently skipped validator is no validator (BL-CI-1)."""
+    if shutil.which(name):
+        return
+    if os.environ.get("PST_REQUIRE_PACKAGING_TOOLS") == "1":
+        pytest.fail(f"{name} is not installed (PST_REQUIRE_PACKAGING_TOOLS=1)")
+    pytest.skip(f"{name} not installed")
+
+
 def test_appstream_validates():
+    _require_tool("appstreamcli")
     res = subprocess.run(["appstreamcli", "validate", "--no-net",
                           str(get_product_root() / "data" / "app.alpatix.Blitzlens.metainfo.xml")],
                          capture_output=True, text=True)
     assert res.returncode == 0, res.stdout + res.stderr
 
 
-@pytest.mark.skipif(
-    not __import__("shutil").which("desktop-file-validate"), reason="desktop-file-validate not installed"
-)
 def test_desktop_file_validates():
+    _require_tool("desktop-file-validate")
     desktop = get_product_root() / "data" / "app.alpatix.Blitzlens.desktop"
     res = subprocess.run(["desktop-file-validate", str(desktop)], capture_output=True, text=True)
     assert res.returncode == 0, res.stdout + res.stderr
@@ -543,3 +552,133 @@ def test_archive_mtimes_equal_the_top_changelog_entry_and_md5sums_are_sorted(tmp
         for f in sorted(files):
             expected_order.append((Path(root) / f).relative_to(tmp_path / "stage").as_posix())
     assert paths == expected_order
+
+
+# ── Reproducible .deb (SET-R-3): the APT pool and the GitHub release carry the same bytes ────────
+
+
+def _import_package_deb():
+    product_dir = get_product_root()
+    sys.path.insert(0, str(product_dir / "scripts"))
+    try:
+        import package_deb
+    finally:
+        sys.path.pop(0)
+    return package_deb
+
+
+def test_two_builds_a_thousand_seconds_apart_are_byte_identical(tmp_path, monkeypatch):
+    """tarfile 'w:gz' wrote the build time into both gzip headers: same tree, different sha256."""
+    import time
+
+    package_deb = _import_package_deb()
+    product_dir = get_product_root()
+    clock = {"now": time.time()}
+    monkeypatch.setattr(time, "time", lambda: clock["now"])
+
+    digests = []
+    for n in range(2):
+        stage = tmp_path / f"stage{n}"
+        stage.mkdir()
+        deb = tmp_path / f"p{n}.deb"
+        package_deb.build_deb_pure_python(product_dir, stage, deb, "0.2.0")
+        digests.append(hashlib.sha256(deb.read_bytes()).hexdigest())
+        clock["now"] += 1000
+
+    assert digests[0] == digests[1]
+
+
+def test_gzip_headers_carry_the_changelog_date_not_the_build_time(tmp_path):
+    package_deb = _import_package_deb()
+    stage = tmp_path / "stage"
+    stage.mkdir()
+    deb = tmp_path / "p.deb"
+    package_deb.build_deb_pure_python(get_product_root(), stage, deb, "0.2.0")
+    data = deb.read_bytes()
+    pos = 8
+    found = 0
+    while pos + 60 <= len(data):
+        header = data[pos : pos + 60]
+        name = header[:16].decode().strip().rstrip("/")
+        size = int(header[48:58])
+        body = data[pos + 60 : pos + 60 + size]
+        if name.endswith(".tar.gz"):
+            found += 1
+            assert int.from_bytes(body[4:8], "little") == package_deb.FIXED_MTIME, name
+        pos += 60 + size + (size % 2)
+    assert found == 2
+
+
+def test_publish_apt_indexes_the_artifact_the_release_ships():
+    """publish-apt rebuilt the package; it now downloads the verified artifact and only indexes it."""
+    workflow = (get_repo_root() / ".github" / "workflows" / "linux.yml").read_text(encoding="utf-8")
+    job = workflow.split("  publish-apt:", 1)[1].split("\n  github-release:", 1)[0]
+    assert "actions/download-artifact" in job and "name: linux-desktop-deb" in job
+    assert "--deb" in job
+    assert "package_debian.sh --apt-dir apt-repo --sign" in job
+
+
+@pytest.mark.skipif(not shutil.which("dpkg-deb") or not shutil.which("bash"), reason="needs dpkg-deb and bash")
+def test_package_debian_deb_option_publishes_the_given_bytes(tmp_path):
+    package_deb = _import_package_deb()
+    product_dir = get_product_root()
+    stage = tmp_path / "stage"
+    stage.mkdir()
+    prebuilt = tmp_path / "photo-selector-linux_0.2.0-1_all.deb"
+    package_deb.build_deb_pure_python(product_dir, stage, prebuilt, "0.2.0-1")
+    apt = tmp_path / "apt"
+
+    result = subprocess.run(
+        ["bash", str(product_dir / "scripts" / "package_debian.sh"), "--apt-dir", str(apt), "--deb", str(prebuilt)],
+        capture_output=True, text=True, timeout=300,
+    )
+    assert result.returncode == 0, result.stdout + result.stderr
+    pooled = list((apt / "pool" / "main" / "p" / "photo-selector-linux").glob("*.deb"))
+    assert [p.name for p in pooled] == [prebuilt.name]
+    assert hashlib.sha256(pooled[0].read_bytes()).hexdigest() == hashlib.sha256(prebuilt.read_bytes()).hexdigest()
+
+
+def test_desktop_file_does_not_claim_notifications_the_app_never_sends():
+    """The key makes GNOME list the app under Notifications settings (BL-C-1)."""
+    desktop = (get_product_root() / "data" / "app.alpatix.Blitzlens.desktop").read_text(encoding="utf-8")
+    sends_notifications = any(
+        "send_notification" in p.read_text(encoding="utf-8")
+        for p in (get_product_root() / "src").rglob("*.py")
+    )
+    assert sends_notifications or "X-GNOME-UsesNotifications" not in desktop
+
+
+def test_a_missing_validator_fails_the_mandatory_gate_instead_of_skipping(monkeypatch):
+    monkeypatch.setattr(shutil, "which", lambda _name: None)
+    monkeypatch.setenv("PST_REQUIRE_PACKAGING_TOOLS", "1")
+    with pytest.raises(pytest.fail.Exception, match="not installed"):
+        _require_tool("appstreamcli")
+    monkeypatch.delenv("PST_REQUIRE_PACKAGING_TOOLS")
+    with pytest.raises(pytest.skip.Exception):
+        _require_tool("appstreamcli")
+
+
+def test_ci_installs_the_validators_and_requires_them():
+    workflow = (get_repo_root() / ".github" / "workflows" / "linux.yml").read_text(encoding="utf-8")
+    test_job = workflow.split("  test:", 1)[1].split("\n  package:", 1)[0]
+    assert "appstream" in test_job and "desktop-file-utils" in test_job
+    assert "PST_REQUIRE_PACKAGING_TOOLS" in test_job
+
+
+@pytest.mark.skipif(not shutil.which("dpkg-deb"), reason="dpkg-deb not available")
+def test_native_and_pure_python_builders_list_the_same_files(tmp_path):
+    """The pure-Python builder is the shipped one; --native must not drift from it (BL-R-1):
+    same paths, modes and owners (directories used to carry the build machine's umask)."""
+    product_dir = get_product_root()
+    script = product_dir / "scripts" / "package_deb.py"
+    listings = {}
+    for mode in ("python", "native"):
+        deb = f"{mode}.deb"
+        subprocess.run(
+            [sys.executable, str(script), "--product-dir", str(product_dir), "--output-dir", str(tmp_path),
+             "--version", "0.2.0", "--output-filename", deb, "--mode", mode],
+            check=True, capture_output=True, text=True, timeout=120,
+        )
+        out = subprocess.run(["dpkg-deb", "-c", str(tmp_path / deb)], check=True, capture_output=True, text=True).stdout
+        listings[mode] = sorted((f[0], f[1], f[2], f[5]) for f in (line.split() for line in out.splitlines()))
+    assert listings["python"] == listings["native"]

@@ -71,6 +71,8 @@ class ScanImagesUseCaseTest {
 
         coEvery { scoreDao.getScores(listOf("content://media/external/images/media/1", "content://media/external/images/media/2")) } returns cachedScores
         coEvery { scoreDao.updateAccessTimes(any(), any()) } returns Unit
+        coEvery { scoreDao.getCount() } returns 2
+        coEvery { scoreDao.deleteTechniqueFactsWithoutScore() } returns Unit
 
         val useCase = ScanImagesUseCase(
             sharpnessAnalyzer, noiseAnalyzer, clippingAnalyzer,
@@ -82,6 +84,36 @@ class ScanImagesUseCaseTest {
         assertEquals(8.0, progress.results["content://media/external/images/media/1"]?.aestheticScore)
         assertEquals(null, progress.results["content://media/external/images/media/2"]?.aestheticScore)
         verify(exactly = 0) { bitmapDecoder.decodeForAnalysis(any(), any()) }
+    }
+
+    // REQ-AND-CACHE.02
+    @Test
+    fun `a scan that leaves 10 001 cached rows prunes the cache to 10 000 and drops orphaned facts`() = runBlocking {
+        val context = androidx.test.core.app.ApplicationProvider.getApplicationContext<android.content.Context>()
+        val db = androidx.room.Room.inMemoryDatabaseBuilder(context, com.photoselectortoolbox.data.cache.ScoresDatabase::class.java)
+            .allowMainThreadQueries().build()
+        val dao = db.scoreDao()
+        try {
+            (1..10_001).forEach { i ->
+                dao.insertOrUpdate(ScoreEntity(filePath = "content://old/$i", fileSize = 1, lastModified = 1, lastAccessTime = i.toLong()))
+            }
+            dao.upsertTechniqueFacts(listOf(
+                com.photoselectortoolbox.data.cache.TechniqueFactEntity("content://old/1", "light.hour", "golden_hour", 0.9, null, 1, 1, 1),
+            ))
+            val settings = mockk<SettingsRepository> { every { analysisThreadCount } returns flowOf(1) }
+            val useCase = ScanImagesUseCase(
+                mockk(relaxed = true), mockk(relaxed = true), mockk(relaxed = true),
+                dao, settings, mockk(relaxed = true),
+            )
+
+            useCase(emptyList()).toList()
+
+            assertEquals(10_000, dao.getCount())
+            assertEquals(null, dao.getScore("content://old/1"))
+            assertEquals(0, dao.getTechniqueFactsForUri("content://old/1").size)
+        } finally {
+            db.close()
+        }
     }
 
     // REQ-AND-CACHE.03, REQ-AND-CACHE.06
@@ -121,6 +153,8 @@ class ScanImagesUseCaseTest {
             val chunk = firstArg<List<String>>()
             updateAccessChunkSizes.add(chunk.size)
         }
+        coEvery { scoreDao.getCount() } returns 2500
+        coEvery { scoreDao.deleteTechniqueFactsWithoutScore() } returns Unit
 
         val useCase = ScanImagesUseCase(
             sharpnessAnalyzer, noiseAnalyzer, clippingAnalyzer,

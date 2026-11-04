@@ -188,7 +188,7 @@ enum class FullscreenGesture(
      * selector `I` means Inspect; the fullscreen viewer is its own window with
      * its own key handler, so the two never meet.
      */
-    INFO("I", "pin / unpin the info bar"),
+    INFO("I", "pin / unpin the info panel"),
     ESCAPE("Esc", "exit"),
 }
 
@@ -224,6 +224,8 @@ enum class SelectorShortcut(val input: String) {
     DELETE("Del"),
     FULLSCREEN("F"),
     MAXIMISE("1 / 2 / 3"),
+    GO_TO("G"),
+    SORT("S"),
     ESCAPE("Esc"),
     SHORTCUTS("?");
 
@@ -239,6 +241,8 @@ enum class SelectorShortcut(val input: String) {
         DELETE -> "delete, with confirmation"
         FULLSCREEN -> "open fullscreen"
         MAXIMISE -> "maximise previous / current / next"
+        GO_TO -> "go to photo"
+        SORT -> "choose the sort order"
         ESCAPE -> "leave fullscreen or maximised, close a sheet"
         SHORTCUTS -> "show this guide"
     }

@@ -177,3 +177,59 @@ def test_cloud_trash_keeps_real_names_and_undo_relinks_the_candidate(tmp_path: P
     assert candidate.filename == "DSC0001.ARW"
     assert [candidate.name_of(p) for p in candidate.companion_paths] == ["DSC0001.JPG"]
     assert all(p.exists() for p in candidate.all_paths)
+
+
+def test_a_drive_mounted_after_the_first_lookup_is_resolved(tmp_path, monkeypatch):
+    """The mount list was cached forever, so a Drive connected later stayed opaque IDs (BL-B-4)."""
+    from photo_selector_linux.core import gvfs_names
+
+    monkeypatch.setenv("XDG_RUNTIME_DIR", str(tmp_path))
+    drive = tmp_path / "gvfs" / "google-drive:host=example"
+    folder = drive / "1folder"
+    log = []
+
+    class Root:
+        def has_uri_scheme(self, scheme):
+            return False
+
+        def get_path(self):
+            return str(drive)
+
+        def resolve_relative_path(self, rel):
+            log.append(rel)
+            return _FakeNativeDir([("1abc", "DSC01100.ARW")], log)
+
+    class Monitor:
+        mounts = []
+        queries = 0
+
+        @classmethod
+        def get(cls):
+            return cls
+
+        @classmethod
+        def get_mounts(cls):
+            cls.queries += 1
+            return list(cls.mounts)
+
+    class Mount:
+        def get_root(self):
+            return Root()
+
+    fake_gio = type("FakeGio", (), {
+        "VolumeMonitor": Monitor,
+        "FileQueryInfoFlags": type("F", (), {"NONE": 0}),
+    })
+    monkeypatch.setattr(gvfs_names, "Gio", fake_gio)
+    monkeypatch.setattr(gvfs_names, "HAS_GIO", True)
+
+    resolver = gvfs_names.GioDisplayNameResolver()
+    assert resolver.names_in(folder) == {}  # nothing mounted yet
+
+    Monitor.mounts = [Mount()]
+    assert resolver.names_in(folder) == {"1abc": "DSC01100.ARW"}
+
+    queries = Monitor.queries
+    local = tmp_path / "pictures"
+    assert resolver.names_in(local) == {}
+    assert Monitor.queries == queries, "a local folder must not re-query the volume monitor"

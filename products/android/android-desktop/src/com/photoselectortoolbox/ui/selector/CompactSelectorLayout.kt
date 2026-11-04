@@ -1,5 +1,7 @@
 package com.photoselectortoolbox.ui.selector
 
+import com.photoselectortoolbox.ui.components.handCursor
+import androidx.compose.ui.semantics.Role
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
@@ -32,7 +34,10 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.rememberUpdatedState
+import androidx.compose.runtime.withFrameNanos
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.runtime.snapshotFlow
@@ -54,11 +59,11 @@ import com.photoselectortoolbox.domain.format.SelectionActionLabels
 import com.photoselectortoolbox.domain.interaction.FilingAction
 import com.photoselectortoolbox.ui.components.MetadataPanel
 import com.photoselectortoolbox.ui.components.ScoreChipRow
+import com.photoselectortoolbox.ui.theme.HintText
 import com.photoselectortoolbox.ui.theme.BrandAccentTonal
 import com.photoselectortoolbox.ui.theme.ScoreBad
 import com.photoselectortoolbox.ui.theme.ScoreGood
 import com.photoselectortoolbox.ui.theme.Zinc50
-import com.photoselectortoolbox.ui.theme.Zinc700
 import com.photoselectortoolbox.ui.theme.Zinc900
 import com.photoselectortoolbox.ui.theme.Zinc950
 import com.photoselectortoolbox.viewmodel.SelectorUiState
@@ -97,15 +102,41 @@ fun CompactSelectorLayout(
         pageCount = { uiState.images.size },
     )
 
-    LaunchedEffect(uiState.currentIndex) {
-        if (pagerState.currentPage != uiState.currentIndex) {
-            pagerState.animateScrollToPage(uiState.currentIndex)
+    // The pager is keyed by URI, so when the list is re-ordered (sort order changed,
+    // enumeration settled, a restored slot) it moves itself to the page its current
+    // key now has — `settledPage` changes with no scroll at all. Two rules keep that
+    // from reading as a swipe:
+    //
+    // - pager -> ViewModel only when a scroll *ends* (never on a bare change of
+    //   `settledPage`), and only when it says something new;
+    // - ViewModel -> pager is keyed on the index *and* the order, and waits one frame
+    //   for the pager's key-follow before deciding whether anything is left to do. A
+    //   re-order is applied without an animation; a step to a neighbour animates.
+    val latestIndex by rememberUpdatedState(uiState.currentIndex)
+    val latestCount by rememberUpdatedState(uiState.images.size)
+    val latestNavigate by rememberUpdatedState(onNavigateToImage)
+    val orderKey = remember(uiState.images) { uiState.images.map { it.uri }.hashCode() }
+    var lastOrderKey by remember { mutableIntStateOf(orderKey) }
+
+    LaunchedEffect(uiState.currentIndex, orderKey) {
+        val reordered = lastOrderKey != orderKey
+        lastOrderKey = orderKey
+        withFrameNanos { }
+        if (latestCount == 0) return@LaunchedEffect
+        val target = latestIndex.coerceIn(0, latestCount - 1)
+        if (pagerState.currentPage != target) {
+            if (reordered) pagerState.scrollToPage(target) else pagerState.animateScrollToPage(target)
         }
     }
 
     LaunchedEffect(pagerState) {
-        snapshotFlow { pagerState.settledPage }.collect { page ->
-            onNavigateToImage(page)
+        var wasScrolling = false
+        snapshotFlow { pagerState.isScrollInProgress }.collect { scrolling ->
+            if (wasScrolling && !scrolling) {
+                val page = pagerState.currentPage
+                if (page != latestIndex) latestNavigate(page)
+            }
+            wasScrolling = scrolling
         }
     }
 
@@ -145,7 +176,7 @@ fun CompactSelectorLayout(
                     onClick = onFullscreen,
                     modifier = Modifier
                         .align(Alignment.TopEnd)
-                        .padding(8.dp),
+                        .padding(8.dp).handCursor(),
                 ) {
                     Icon(
                         imageVector = Icons.Default.Fullscreen,
@@ -257,6 +288,7 @@ private fun GestureTutorialOverlay(
         modifier = Modifier
             .fillMaxSize()
             .background(Color.Black.copy(alpha = 0.75f))
+            .handCursor()
             .clickable { onDismiss() }
             .testTag("gesture_tutorial_overlay"),
         contentAlignment = Alignment.Center,
@@ -345,7 +377,8 @@ private fun CompactActionButton(
                 if (label.isPrimary) BrandAccentTonal else Color.Transparent,
                 RoundedCornerShape(8.dp),
             )
-            .clickable(onClick = onClick)
+            .handCursor()
+            .clickable(onClick = onClick, role = Role.Button)
             .semantics { contentDescription = label.accessibilityLabel }
             .padding(horizontal = 10.dp),
         horizontalArrangement = Arrangement.spacedBy(6.dp, Alignment.CenterHorizontally),
@@ -362,7 +395,7 @@ private fun CompactActionButton(
             text = label.shortcut,
             fontSize = 11.sp,
             fontFamily = FontFamily.Monospace,
-            color = Zinc700,
+            color = HintText,
         )
     }
 }
@@ -376,7 +409,8 @@ private fun CompactDeleteButton(
     Row(
         modifier = modifier
             .height(52.dp)
-            .clickable(onClick = onClick)
+            .handCursor()
+            .clickable(onClick = onClick, role = Role.Button)
             .semantics { contentDescription = "Delete this photo" }
             .padding(horizontal = 10.dp),
         horizontalArrangement = Arrangement.spacedBy(6.dp, Alignment.CenterHorizontally),

@@ -4,6 +4,7 @@ import android.content.Context
 import android.net.Uri
 import com.photoselector.core.model.ExifData
 import com.photoselector.saf.FolderAccessManager
+import com.photoselectortoolbox.data.model.FolderDescription
 import com.photoselectortoolbox.data.model.ImageDimensions
 import com.photoselectortoolbox.data.model.ImageItem
 import kotlinx.coroutines.flow.Flow
@@ -30,6 +31,15 @@ interface ImageRepository {
      * be faked at all.
      */
     suspend fun openFolder(context: Context, folderUri: Uri): String?
+
+    /**
+     * What Settings shows about [folderUri] — its readable path, whether the app still
+     * holds its persisted grant, whether it resolves and takes files, whether it is itself
+     * a Selection folder — without taking a grant or creating anything.
+     *
+     * Display only: [FolderDescription.displayPath] is a label, never a path to act on.
+     */
+    suspend fun describeFolder(context: Context, folderUri: Uri): FolderDescription
 
     /**
      * Progressive folder discovery. Emissions are cumulative and append-only —
@@ -111,24 +121,16 @@ interface ImageRepository {
     /**
      * Move an [ImageItem] and all of its [ImageItem.companions] into the
      * Selection of [destFolderUri] using bundle-wide collision-free naming.
+     *
+     * Abstract on purpose, like the rest of the bundle contract (FD-Q-15): a default that moved
+     * only the primary would silently leave every companion behind in a second implementation.
      */
     suspend fun moveBundle(
         context: Context,
         item: ImageItem,
         destFolderUri: Uri,
         sorting: Boolean,
-    ): FileOperationResult = moveImage(
-        context = context,
-        sourceUri = Uri.parse(item.uri),
-        destFolderUri = destFolderUri,
-        sorting = sorting,
-    ).let { result ->
-        if (item.parentDocumentId != null && result.parentDocumentId == null) {
-            result.copy(parentDocumentId = item.parentDocumentId)
-        } else {
-            result
-        }
-    }
+    ): FileOperationResult
 
     /**
      * Copy an [ImageItem] and all of its [ImageItem.companions] into the
@@ -139,18 +141,7 @@ interface ImageRepository {
         item: ImageItem,
         destFolderUri: Uri,
         sorting: Boolean,
-    ): FileOperationResult = copyImage(
-        context = context,
-        sourceUri = Uri.parse(item.uri),
-        destFolderUri = destFolderUri,
-        sorting = sorting,
-    ).let { result ->
-        if (item.parentDocumentId != null && result.parentDocumentId == null) {
-            result.copy(parentDocumentId = item.parentDocumentId)
-        } else {
-            result
-        }
-    }
+    ): FileOperationResult
 
     /**
      * Reverse a completed bundle move: move all [destinationUris] back into
@@ -168,21 +159,15 @@ interface ImageRepository {
         rootFolderUri: Uri,
         parentDocumentId: String? = null,
         copiesOfSurvivingOriginals: Map<String, String> = emptyMap(),
-    ): FileOperationResult {
-        val first = destinationUris.firstOrNull()
-            ?: return FileOperationResult.failure("", "No files to restore", parentDocumentId)
-        return undoMove(context, Uri.parse(first), rootFolderUri)
-    }
+    ): FileOperationResult
 
     /**
-     * Delete an [ImageItem] and all of its [ImageItem.companions].
+     * Delete an [ImageItem] and all of its [ImageItem.companions]; true only when every file went.
      */
     suspend fun deleteBundle(
         context: Context,
         item: ImageItem,
-    ): Boolean = item.allFiles.all { deleteImage(context, Uri.parse(it.uri)) }
-
-    suspend fun getImageDimensions(context: Context, uri: Uri): Pair<Int, Int>
+    ): Boolean
 
     /**
      * Header-only dimensions for a set of images, keyed by URI string.

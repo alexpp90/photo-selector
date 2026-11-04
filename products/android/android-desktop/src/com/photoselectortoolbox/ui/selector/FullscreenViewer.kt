@@ -1,7 +1,11 @@
 package com.photoselectortoolbox.ui.selector
 
+import com.photoselectortoolbox.ui.components.handCursor
+import androidx.compose.ui.semantics.Role
 import android.app.Activity
 import android.net.Uri
+import android.os.Build
+import android.view.WindowManager
 import android.util.Log
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.core.Spring
@@ -26,14 +30,18 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.ExperimentalLayoutApi
 import androidx.compose.foundation.layout.defaultMinSize
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.WindowInsets
+import androidx.compose.foundation.layout.WindowInsetsSides
+import androidx.compose.foundation.layout.only
+import androidx.compose.foundation.layout.safeDrawing
+import androidx.compose.foundation.layout.widthIn
+import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
-import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.wrapContentSize
 import androidx.compose.foundation.pager.HorizontalPager
@@ -61,6 +69,7 @@ import androidx.compose.material3.windowsizeclass.WindowWidthSizeClass
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.SideEffect
 import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableFloatStateOf
@@ -95,6 +104,7 @@ import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalView
 import androidx.compose.ui.platform.LocalWindowInfo
 import androidx.compose.ui.platform.testTag
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.IntOffset
@@ -102,6 +112,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
+import androidx.compose.ui.window.DialogWindowProvider
 import androidx.core.view.WindowCompat
 import androidx.core.view.WindowInsetsCompat
 import androidx.core.view.WindowInsetsControllerCompat
@@ -116,6 +127,8 @@ import com.photoselectortoolbox.ui.components.ScoreChipRow
 import com.photoselectortoolbox.ui.theme.BrandAccent
 import com.photoselectortoolbox.ui.theme.BrandAccentText
 import com.photoselectortoolbox.ui.theme.ScoreBad
+import com.photoselectortoolbox.ui.theme.StudioCanvas
+import com.photoselectortoolbox.ui.theme.Zinc300
 import com.photoselectortoolbox.ui.theme.Zinc400
 import com.photoselectortoolbox.ui.theme.Zinc50
 import com.photoselectortoolbox.ui.theme.Zinc700
@@ -180,6 +193,8 @@ fun FullscreenViewer(
             decorFitsSystemWindows = false,
         ),
     ) {
+        UseWholeWindow()
+        HideSystemBarsInDialogWindow()
         FullscreenContent(
             images = images,
             initialIndex = initialIndex,
@@ -202,6 +217,54 @@ fun FullscreenViewer(
             onUndo = onUndo,
             onDismissSnackbar = onDismissSnackbar,
         )
+    }
+}
+
+/**
+ * Lets the viewer's window draw into a display cutout. The photograph is laid
+ * out in the full window and the chrome keeps clear of the cutout through
+ * `safeDrawing` insets, so a landscape tablet with a camera notch shows the
+ * picture edge to edge instead of leaving a black band the width of the notch.
+ * `ALWAYS` (API 30) covers the long edges too; below that `SHORT_EDGES`.
+ */
+@Composable
+private fun UseWholeWindow() {
+    val window = (LocalView.current.parent as? DialogWindowProvider)?.window
+    SideEffect {
+        if (window == null || Build.VERSION.SDK_INT < Build.VERSION_CODES.P) return@SideEffect
+        val attributes = window.attributes
+        attributes.layoutInDisplayCutoutMode =
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
+                WindowManager.LayoutParams.LAYOUT_IN_DISPLAY_CUTOUT_MODE_ALWAYS
+            } else {
+                WindowManager.LayoutParams.LAYOUT_IN_DISPLAY_CUTOUT_MODE_SHORT_EDGES
+            }
+        window.attributes = attributes
+    }
+}
+
+/**
+ * Hides the status bar and the navigation bar / taskbar in the *viewer's own*
+ * window.
+ *
+ * The effect in [FullscreenViewer] hides them on the activity's window, which is
+ * not the window this `Dialog` draws in: the dialog has its own insets controller,
+ * and its bars stayed over the photograph (status bar on top, the launcher taskbar
+ * across the bottom of a landscape tablet). Swiping from the edge still brings
+ * them back transiently. The activity window is restored by the effect in
+ * [FullscreenViewer]; this window is destroyed with the dialog.
+ */
+@Composable
+private fun HideSystemBarsInDialogWindow() {
+    val window = (LocalView.current.parent as? DialogWindowProvider)?.window
+    DisposableEffect(window) {
+        if (window != null) {
+            WindowCompat.getInsetsController(window, window.decorView).let {
+                it.systemBarsBehavior = WindowInsetsControllerCompat.BEHAVIOR_SHOW_TRANSIENT_BARS_BY_SWIPE
+                it.hide(WindowInsetsCompat.Type.systemBars())
+            }
+        }
+        onDispose { }
     }
 }
 
@@ -270,15 +333,34 @@ private fun FullscreenContent(
     // there has just been filed away — is a reason to show its details.
     LaunchedEffect(currentImage?.uri) { revealChrome() }
 
-    // Pager -> ViewModel: the page that was settled on, reported. The last one
-    // reported is kept so the other direction can tell an echo of it from a real
-    // change made elsewhere.
+    // Pager -> ViewModel: the page a *user scroll* ended on, reported. Never a bare
+    // change of `settledPage`: the pager is keyed by URI, so when the list changes
+    // while fullscreen is open (enumeration settling, a sort change, an undo that
+    // inserts a photo above the current one) it re-indexes itself to the page its
+    // current key now has, with no scroll at all. Reporting that would hand the
+    // ViewModel the *old* photo's new index and undo the re-order it just applied.
+    // So: only the end of a scroll, and only when it says something the ViewModel's
+    // index does not already. The last report (and the order it was made in) is kept
+    // so the other direction can tell an echo of it from a real change elsewhere.
     val latestOnPageSelected by rememberUpdatedState(onPageSelected)
+    val currentOnUndo by rememberUpdatedState(onUndo)
+    val latestIndex by rememberUpdatedState(initialIndex)
+    val orderKey = remember(images) { images.map { it.uri }.hashCode() }
+    val latestOrderKey by rememberUpdatedState(orderKey)
     var reportedPage by remember { mutableIntStateOf(initialIndex) }
+    var reportedOrderKey by remember { mutableIntStateOf(orderKey) }
     LaunchedEffect(pagerState) {
-        snapshotFlow { pagerState.settledPage }.collect { page ->
-            reportedPage = page
-            latestOnPageSelected(page)
+        var wasScrolling = false
+        snapshotFlow { pagerState.isScrollInProgress }.collect { scrolling ->
+            if (wasScrolling && !scrolling) {
+                val page = pagerState.currentPage
+                if (page != latestIndex) {
+                    reportedPage = page
+                    reportedOrderKey = latestOrderKey
+                    latestOnPageSelected(page)
+                }
+            }
+            wasScrolling = scrolling
         }
     }
 
@@ -286,13 +368,16 @@ private fun FullscreenContent(
     // reported it. Keyed on the list as well as the index: with `key = uri` the
     // pager re-indexes itself when the list changes (a move removes the page it
     // is on, an undo inserts one before it), so the answer to "is the pager
-    // already there?" is only valid a frame later. And never while the pager is
+    // already there?" is only valid a frame later. A list that changed since the
+    // last report is never an echo of it, even at the same index: the pager may
+    // have followed its key to another page. And never while the pager is
     // scrolling: the VM's index is then the echo of an earlier settle, and
     // pulling the pager back to it would undo the user's second arrow press.
     LaunchedEffect(initialIndex, images) {
         withFrameNanos { }
+        val echoOfReport = initialIndex == reportedPage && orderKey == reportedOrderKey
         if (initialIndex in images.indices &&
-            initialIndex != reportedPage &&
+            !echoOfReport &&
             initialIndex != pagerState.currentPage &&
             !pagerState.isScrollInProgress
         ) {
@@ -366,8 +451,18 @@ private fun FullscreenContent(
                 if (event.type != KeyEventType.KeyDown) return@onPreviewKeyEvent false
                 // Any key at all is the user being here.
                 revealChrome()
+                // Ctrl/Cmd+Z undoes the latest delete or move here as it does on the selector;
+                // the same undo the card's UNDO button runs (FD-B-4). Nothing to undo: not ours.
+                if ((event.isCtrlPressed || event.isMetaPressed) && !event.isAltPressed && event.key == Key.Z) {
+                    val undo = currentOnUndo
+                    return@onPreviewKeyEvent if (undo != null) { undo(); true } else false
+                }
                 if (event.isCtrlPressed || event.isMetaPressed || event.isAltPressed) {
                     return@onPreviewKeyEvent false
+                }
+                // A held Del, M or C acts once, not once per auto-repeat (FD-D-2).
+                if (isHeldOneShotKey(event.key, event.nativeKeyEvent.repeatCount > 0)) {
+                    return@onPreviewKeyEvent true
                 }
                 when (event.key) {
                     Key.Escape -> { onDismiss(); true }
@@ -391,7 +486,7 @@ private fun FullscreenContent(
         HorizontalPager(
             state = pagerState,
             userScrollEnabled = pagerScrollEnabled,
-            modifier = Modifier.fillMaxSize(),
+            modifier = Modifier.fillMaxSize().testTag("fullscreen_pager"),
             key = { images[it].uri },
             beyondViewportPageCount = 1,
         ) { page ->
@@ -422,7 +517,7 @@ private fun FullscreenContent(
             exit = fadeOut(tween(200)),
         ) {
             Box(modifier = Modifier.fillMaxSize()) {
-                FullscreenTopBar(
+                FullscreenInfoChrome(
                     image = currentImage,
                     position = currentPageIndex + 1,
                     total = images.size,
@@ -438,23 +533,33 @@ private fun FullscreenContent(
                 // Compact chips: fullscreen is for judging the photograph, so
                 // the scores get the smallest footprint that still carries the
                 // bar. The labels are recoverable from the legend.
+                //
+                // They wrap inside the left half of the window, short of the
+                // action buttons at bottom-centre: the row used to take the whole
+                // width and, wrapped at 600 dp, ran under the buttons.
                 currentImage?.scanResult?.let { scores ->
-                    ScoreChipRow(
-                        scores = scores,
-                        compact = true,
+                    Box(
                         modifier = Modifier
                             .align(Alignment.BottomStart)
-                            .navigationBarsPadding()
-                            .padding(12.dp),
-                    )
+                            .fillMaxWidth(0.5f)
+                            .padding(end = if (fullscreenButtonsEnabled) ActionRowHalfWidth else 0.dp)
+                            .windowInsetsPadding(BottomSafeInsets),
+                    ) {
+                        ScoreChipRow(
+                            scores = scores,
+                            compact = true,
+                            modifier = Modifier.padding(12.dp).testTag("fullscreen_score_chips"),
+                        )
+                    }
                 }
 
                 if (fullscreenButtonsEnabled) {
                     Row(
                         modifier = Modifier
                             .align(Alignment.BottomCenter)
-                            .navigationBarsPadding()
-                            .padding(bottom = 16.dp),
+                            .windowInsetsPadding(BottomSafeInsets)
+                            .padding(bottom = 16.dp)
+                            .testTag("fullscreen_actions"),
                         horizontalArrangement = Arrangement.spacedBy(8.dp),
                     ) {
                         // Configured verb first, then the other. Filing is a
@@ -489,7 +594,7 @@ private fun FullscreenContent(
                 image = currentImage,
                 modifier = Modifier
                     .align(Alignment.BottomEnd)
-                    .navigationBarsPadding()
+                    .windowInsetsPadding(BottomSafeInsets)
                     .padding(16.dp),
             )
         }
@@ -497,10 +602,16 @@ private fun FullscreenContent(
         if (showGestureHint) {
             FullscreenGestureHint(
                 onDismiss = onGestureHintSeen,
+                // Top-right, level with the info chrome rather than below a bar
+                // that no longer exists. The chrome is at most 35 % of the window
+                // wide at the left, the card 270 dp at the right: they are
+                // horizontally clear from 600 dp up (asserted at 600 dp).
                 modifier = Modifier
                     .align(Alignment.TopEnd)
-                    .statusBarsPadding()
-                    .padding(top = 64.dp, end = 16.dp),
+                    .windowInsetsPadding(
+                        WindowInsets.safeDrawing.only(WindowInsetsSides.Horizontal + WindowInsetsSides.Top),
+                    )
+                    .padding(top = 8.dp, end = 16.dp),
             )
         }
 
@@ -541,18 +652,40 @@ private fun FullscreenContent(
     }
 }
 
+/** Where bottom-anchored chrome keeps clear of the system bars and a display cutout. */
+private val BottomSafeInsets: WindowInsets
+    @Composable get() = WindowInsets.safeDrawing.only(WindowInsetsSides.Horizontal + WindowInsetsSides.Bottom)
+
+/**
+ * Half the width of the bottom-centre action row (three 48 dp buttons and two
+ * 8 dp gaps = 160 dp) plus an 8 dp gap, so the chips end before the buttons start.
+ */
+private val ActionRowHalfWidth = 88.dp
+
 /** How long the chrome waits before fading out. */
 private const val CHROME_AUTO_HIDE_MILLIS = 3_000L
 
 /**
- * The fullscreen top bar: a bar, deliberately, not a gradient scrim.
+ * The fullscreen chrome at the top: a close button and, beside it, an info panel
+ * that is exactly as wide as its content (never a bar across the photograph).
  *
- * A gradient over the top of the frame darkens the sky in a way the
- * photographer will read as part of the photograph. A hard-edged bar with a
- * visible bottom border does not lie about where the image starts.
+ * The photograph owns the whole window, so this covers as little of it as it
+ * can: two small flat surfaces at the top-left corner. The panel is clamped to
+ * [InfoPanelMinWidth]..[InfoPanelMaxWidth] and to [InfoPanelMaxShare] of the
+ * window, whichever is smaller, so a wide window gets the same compact card as a
+ * narrow one. Flat and 85 % opaque, never a gradient scrim: a gradient over the
+ * top of the frame darkens the sky in a way the photographer will read as part
+ * of the photograph.
+ *
+ * Name and position lead; the exposure line follows as whole tokens that wrap
+ * only between tokens (see [ExposureFlow]); the lens closes the panel on its own
+ * line and ellipsises. All three are there at every window width.
+ *
+ * Insets are applied to this overlay's own position only (status bar and display
+ * cutout): the image beneath is laid out in the full window.
  */
 @Composable
-private fun FullscreenTopBar(
+private fun FullscreenInfoChrome(
     image: ImageItem?,
     position: Int,
     total: Int,
@@ -561,130 +694,68 @@ private fun FullscreenTopBar(
     onToggleInfoPinned: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
-    Column(modifier = modifier.fillMaxWidth()) {
-        BoxWithConstraints(
+    BoxWithConstraints(modifier = modifier.fillMaxWidth()) {
+        val windowWidth = maxWidth
+        Row(
             modifier = Modifier
-                .fillMaxWidth()
-                .background(Zinc900.copy(alpha = 0.9f))
-                .statusBarsPadding()
-                .height(52.dp)
-                .padding(horizontal = 8.dp),
+                .windowInsetsPadding(
+                    WindowInsets.safeDrawing.only(WindowInsetsSides.Horizontal + WindowInsetsSides.Top),
+                )
+                .padding(8.dp),
+            horizontalArrangement = Arrangement.spacedBy(8.dp),
+            verticalAlignment = Alignment.Top,
         ) {
-            // The lens is the first thing to go when the bar is narrow: the
-            // exposure line is what the photographer came for, and a lens name
-            // squeezed to "FE 8…" is noise. 840 dp is where Expanded starts.
-            val showLens = maxWidth >= LensMinBarWidth
-            Row(
-                modifier = Modifier.fillMaxSize(),
-                verticalAlignment = Alignment.CenterVertically,
+            Box(
+                modifier = Modifier
+                    .size(48.dp)
+                    .clip(InfoPanelShape)
+                    .background(StudioCanvas.copy(alpha = InfoPanelAlpha)),
             ) {
-                Row(
-                    modifier = Modifier.weight(1f),
-                    horizontalArrangement = Arrangement.spacedBy(8.dp),
-                    verticalAlignment = Alignment.CenterVertically,
-                ) {
-                    IconButton(
-                        onClick = onClose,
-                        modifier = Modifier.size(48.dp).testTag("fullscreen_close"),
-                    ) {
-                        Icon(
-                            imageVector = Icons.Default.Close,
-                            contentDescription = "Close fullscreen",
-                            tint = Zinc50,
-                        )
-                    }
-
-                    // Weighted, so the name is what gives way: the position and
-                    // the exposure line are measured first and keep their width.
-                    Text(
-                        text = image?.fileName.orEmpty(),
-                        fontSize = 14.sp,
-                        color = Zinc50,
-                        maxLines = 1,
-                        overflow = TextOverflow.Ellipsis,
-                        modifier = Modifier.weight(1f, fill = false).testTag("fullscreen_file_name"),
-                    )
-
-                    Text(
-                        text = "$position / $total",
-                        fontSize = 12.sp,
-                        fontFamily = FontFamily.Monospace,
-                        color = Zinc400,
-                        maxLines = 1,
-                        softWrap = false,
-                        modifier = Modifier.testTag("fullscreen_position"),
-                    )
-
-                    val exifLine = ExifFormatter.summaryLine(image?.exifData)
-                    val lens = image?.exifData?.lens
-                        ?.takeIf { it != ExifFormatter.UNKNOWN && showLens }
-                    if (exifLine != null || lens != null) {
-                        Box(
-                            modifier = Modifier
-                                .width(1.dp)
-                                .height(22.dp)
-                                .background(Zinc700),
-                        )
-                    }
-                    if (exifLine != null) {
-                        Text(
-                            text = exifLine,
-                            fontSize = 12.sp,
-                            fontFamily = FontFamily.Monospace,
-                            color = Zinc400,
-                            maxLines = 1,
-                            softWrap = false,
-                            modifier = Modifier.testTag("fullscreen_exif"),
-                        )
-                    }
-                    if (lens != null) {
-                        Text(
-                            text = lens,
-                            fontSize = 12.sp,
-                            fontFamily = FontFamily.Monospace,
-                            color = Zinc400,
-                            maxLines = 1,
-                            overflow = TextOverflow.Ellipsis,
-                            modifier = Modifier.weight(0.7f, fill = false).testTag("fullscreen_lens"),
-                        )
-                    }
-                }
-
-                // The pin is the only visible sign that `I` did something, and the
-                // only way to pin without a keyboard. It lives in the bar it
-                // pins — no new surface.
-                IconToggleButton(
-                    checked = infoPinned,
-                    onCheckedChange = { onToggleInfoPinned() },
-                    modifier = Modifier
-                        .size(48.dp)
-                        .pointerHoverIcon(PointerIcon.Hand)
-                        .testTag("fullscreen_info_pin"),
+                IconButton(
+                    onClick = onClose,
+                    modifier = Modifier.size(48.dp).testTag("fullscreen_close").handCursor(),
                 ) {
                     Icon(
-                        imageVector = if (infoPinned) Icons.Filled.PushPin else Icons.Outlined.PushPin,
-                        contentDescription = if (infoPinned) {
-                            "Unpin info bar, shortcut I"
-                        } else {
-                            "Pin info bar, shortcut I"
-                        },
-                        tint = if (infoPinned) BrandAccentText else Zinc400,
+                        imageVector = Icons.Default.Close,
+                        contentDescription = "Close fullscreen",
+                        tint = Zinc50,
                     )
                 }
             }
-        }
 
-        Box(
-            modifier = Modifier
-                .fillMaxWidth()
-                .height(1.dp)
-                .background(Zinc800),
-        )
+            PhotoInfoPanel(
+                image = image,
+                position = position,
+                total = total,
+                availableWidth = windowWidth,
+                tagPrefix = "fullscreen",
+                // The pin is the only visible sign that `I` did something, and the
+                // only way to pin without a keyboard. It lives in the panel it
+                // pins — no new surface.
+                trailing = {
+                    IconToggleButton(
+                        checked = infoPinned,
+                        onCheckedChange = { onToggleInfoPinned() },
+                        modifier = Modifier
+                            .size(48.dp)
+                            .pointerHoverIcon(PointerIcon.Hand)
+                            .testTag("fullscreen_info_pin"),
+                    ) {
+                        Icon(
+                            imageVector = if (infoPinned) Icons.Filled.PushPin else Icons.Outlined.PushPin,
+                            contentDescription = if (infoPinned) {
+                                "Unpin info panel, shortcut I"
+                            } else {
+                                "Pin info panel, shortcut I"
+                            },
+                            tint = if (infoPinned) BrandAccentText else Zinc400,
+                        )
+                    }
+                },
+            )
+        }
     }
 }
-
-/** The bar width from which the lens name is shown beside the exposure line. */
-private val LensMinBarWidth = 840.dp
 
 @Composable
 private fun FullscreenActionButton(
@@ -789,7 +860,8 @@ private fun FullscreenGestureHint(
                 .align(Alignment.End)
                 // A 48 dp hit target around the 12 sp word (AD-17).
                 .defaultMinSize(minWidth = 48.dp, minHeight = 48.dp)
-                .clickable(onClick = onDismiss)
+                .handCursor()
+                .clickable(onClick = onDismiss, role = Role.Button)
                 .wrapContentSize(Alignment.Center),
         )
     }
@@ -964,6 +1036,7 @@ private fun ZoomableImage(
                 contentDescription = contentDescription,
                 modifier = Modifier
                     .fillMaxSize()
+                    .testTag("fullscreen_image")
                     .graphicsLayer {
                         scaleX = scale
                         scaleY = scale

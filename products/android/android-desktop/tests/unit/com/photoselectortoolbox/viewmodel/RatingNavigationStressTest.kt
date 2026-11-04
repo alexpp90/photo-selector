@@ -12,6 +12,7 @@ import com.photoselectortoolbox.data.repository.ImageRepository
 import com.photoselectortoolbox.data.repository.SettingsRepository
 import com.photoselectortoolbox.domain.grouping.GroupingLevel
 import com.photoselectortoolbox.domain.interaction.FilingAction
+import com.photoselectortoolbox.domain.session.SelectorSortOrder
 import com.photoselectortoolbox.domain.model.RatingFilter
 import com.photoselectortoolbox.domain.usecase.ScanImagesUseCase
 import io.mockk.coEvery
@@ -49,6 +50,7 @@ class RatingNavigationStressTest {
     private val appScope = CoroutineScope(testDispatcher)
 
     private val groupingEnabledFlow = MutableStateFlow(false)
+    private val selectorSortOrderFlow = MutableStateFlow(SelectorSortOrder.OLDEST_FIRST)
     private val groupingLevelFlow = MutableStateFlow(GroupingLevel.TIME_FILENAME)
     private val sortingEnabledFlow = MutableStateFlow(true)
     private val lastFolderUriFlow = MutableStateFlow<String?>(null)
@@ -69,6 +71,7 @@ class RatingNavigationStressTest {
 
     private val settingsRepository: SettingsRepository = mockk(relaxed = true) {
         every { groupingEnabled } returns groupingEnabledFlow
+        every { selectorSortOrder } returns selectorSortOrderFlow
         every { groupingLevel } returns groupingLevelFlow
         every { sortingEnabled } returns sortingEnabledFlow
         every { lastFolderUri } returns lastFolderUriFlow
@@ -97,13 +100,23 @@ class RatingNavigationStressTest {
     }
     private val metadataWriter: MetadataWriter = mockk(relaxed = true) {
         coEvery { writeRating(any(), any()) } returns Result.success(Unit)
+        coEvery { recoverInterruptedWrites(any(), any()) } returns com.photoselectortoolbox.data.metadata.RatingRecovery.NONE
     }
+
+    /**
+     * Fixtures keep the order they are listed in: every photo is a moment later than
+     * the one built before it, and these suites run on the oldest-first order. The
+     * default order (newest first) is pinned in [SelectorSortJumpViewModelTest].
+     */
+    private var clock = 0L
+
+    private fun nextModified(): Long = ++clock
 
     private fun image(name: String, rating: Int = 0) = ImageItem(
         uri = "content://test/folder/$name",
         fileName = name,
         fileSize = 1024L,
-        lastModified = 1000L,
+        lastModified = nextModified(),
         mimeType = "image/jpeg",
         rating = rating,
     )

@@ -114,8 +114,9 @@ class SelectorTourTest {
 
         val keysWithoutControls = callouts.getValue(TourRegion.KEYS).rows.map { it.input }.toSet()
 
-        // 1/2/3, Esc and ? have nothing on screen to point at, which is the
-        // entire reason that callout exists.
+        // 1/2/3, Esc and ? have nothing on screen to point at, which is the entire
+        // reason that callout exists. G and S drive the locator row's two chips (Go and
+        // Sort), so they are explained in the controls callout, beside the chips.
         assertEquals(
             setOf(
                 SelectorShortcut.MAXIMISE.input,
@@ -124,6 +125,9 @@ class SelectorTourTest {
             ),
             keysWithoutControls,
         )
+        val controls = callouts.getValue(TourRegion.CONTROLS).rows.map { it.input }
+        assertTrue(controls.toString(), SelectorShortcut.GO_TO.input in controls)
+        assertTrue(controls.toString(), SelectorShortcut.SORT.input in controls)
     }
 
     @Test

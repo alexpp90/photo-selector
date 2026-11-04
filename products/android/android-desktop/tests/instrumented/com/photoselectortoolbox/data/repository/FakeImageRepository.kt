@@ -3,6 +3,7 @@ package com.photoselectortoolbox.data.repository
 import android.content.Context
 import android.net.Uri
 import com.photoselector.core.model.ExifData
+import com.photoselectortoolbox.data.model.FolderDescription
 import com.photoselectortoolbox.data.model.ImageDimensions
 import com.photoselectortoolbox.data.model.ImageItem
 import javax.inject.Inject
@@ -44,6 +45,19 @@ class FakeImageRepository @Inject constructor() : ImageRepository {
         openedFolders += folderUri.toString()
         return folderName
     }
+
+    /** Every folder this fake knows is reachable; a test that needs otherwise sets [describeFolderResult]. */
+    var describeFolderResult: ((String) -> FolderDescription)? = null
+
+    override suspend fun describeFolder(context: Context, folderUri: Uri): FolderDescription =
+        describeFolderResult?.invoke(folderUri.toString()) ?: FolderDescription(
+            uri = folderUri.toString(),
+            displayPath = listOf(folderName ?: "Test Folder"),
+            name = folderName,
+            hasPersistedGrant = true,
+            exists = folderName != null,
+            canWrite = folderName != null,
+        )
 
     override fun discoverImages(folderUri: Uri): Flow<List<ImageItem>> =
         if (completeAfterFirstBatch) flowOf(imagesFlow.value) else imagesFlow
@@ -97,6 +111,45 @@ class FakeImageRepository @Inject constructor() : ImageRepository {
     ): FileOperationResult =
         FileOperationResult.success(movedTo.toString(), movedTo.toString())
 
+    override suspend fun moveBundle(
+        context: Context,
+        item: ImageItem,
+        destFolderUri: Uri,
+        sorting: Boolean,
+    ): FileOperationResult {
+        val files = item.allFiles.map { Uri.parse(it.uri) }
+        files.forEach { deleteImage(context, it) }
+        val destinations = files.map(::destinationOf)
+        return FileOperationResult.success(item.uri, destinations.first(), destinations, item.parentDocumentId)
+    }
+
+    override suspend fun copyBundle(
+        context: Context,
+        item: ImageItem,
+        destFolderUri: Uri,
+        sorting: Boolean,
+    ): FileOperationResult {
+        val destinations = item.allFiles.map { destinationOf(Uri.parse(it.uri)) }
+        return FileOperationResult.success(item.uri, destinations.first(), destinations, item.parentDocumentId)
+    }
+
+    /** Puts every file back at the URI it had before the move (the stand-in Selection is a URI rewrite). */
+    override suspend fun undoMoveBundle(
+        context: Context,
+        destinationUris: List<String>,
+        rootFolderUri: Uri,
+        parentDocumentId: String?,
+        copiesOfSurvivingOriginals: Map<String, String>,
+    ): FileOperationResult {
+        if (destinationUris.isEmpty()) return FileOperationResult.failure("", "No files to restore", parentDocumentId)
+        val restored = destinationUris.filterNot { it in copiesOfSurvivingOriginals }.map { it.replace("/Selection/", "/") }
+        return FileOperationResult.success(destinationUris.first(), restored.firstOrNull(), restored, parentDocumentId)
+            .copy(deletedCopies = destinationUris.filter { it in copiesOfSurvivingOriginals })
+    }
+
+    override suspend fun deleteBundle(context: Context, item: ImageItem): Boolean =
+        item.allFiles.map { deleteImage(context, Uri.parse(it.uri)) }.all { it }
+
     /**
      * A stand-in Selection destination, so undo paths have a URI to work with. The file keeps its
      * name, as a real transfer without a collision does (a different name would be reported to the
@@ -105,11 +158,6 @@ class FakeImageRepository @Inject constructor() : ImageRepository {
     private fun destinationOf(sourceUri: Uri): String {
         val uri = sourceUri.toString()
         return uri.substringBeforeLast('/') + "/Selection/" + uri.substringAfterLast('/')
-    }
-
-    override suspend fun getImageDimensions(context: Context, uri: Uri): Pair<Int, Int> {
-        val img = imagesFlow.value.find { it.uri == uri.toString() }
-        return if (img != null) Pair(img.imageWidth, img.imageHeight) else Pair(0, 0)
     }
 
     override suspend fun resolveDimensions(

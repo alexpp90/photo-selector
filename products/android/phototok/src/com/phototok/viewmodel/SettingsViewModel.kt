@@ -8,6 +8,7 @@ import com.phototok.data.model.SourceSettings
 import com.phototok.data.repository.ImageRepository
 import com.phototok.data.repository.SeenRepository
 import com.phototok.data.repository.SettingsRepository
+import com.phototok.domain.PhotoFolders
 import com.phototok.domain.CollectionAction
 import com.phototok.domain.FeedOrderMode
 import com.phototok.domain.FileTypeFilter
@@ -178,7 +179,8 @@ class SettingsViewModel @Inject constructor(
         viewModelScope.launch {
             settingsRepository.lastFolderUri.collect { uri ->
                 val name = if (uri != null) {
-                    imageRepository.resolveFolderName(Uri.parse(uri)) ?: "Photos"
+                    imageRepository.resolveFolderName(Uri.parse(uri))
+                        ?: PhotoFolders.nameFromDocumentId(Uri.parse(uri).lastPathSegment)
                 } else ""
                 _uiState.update { it.copy(sourceFolderUri = uri, sourceFolderName = name) }
             }

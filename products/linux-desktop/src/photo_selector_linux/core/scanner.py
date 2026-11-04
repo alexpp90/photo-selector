@@ -56,6 +56,56 @@ def natural_sort_key(s: str) -> List[Union[int, str]]:
     return [int(text) if text.isdigit() else text.lower() for text in re.split(r"(\d+)", s)]
 
 
+_EDIT_MARKERS = ("-edit", "_edit", "-enhanced-nr", "_enhanced-nr")
+
+
+class _CompanionIndex:
+    """One directory listing, indexed once so grouping a photo costs O(its group), not O(directory).
+
+    A capture ``S.<ext>`` binds: every file with stem ``S`` and a supported extension or ``xmp``;
+    ``<name>.xmp`` darktable-style sidecars of **every** member of the group (BL-D-1: the sidecar
+    of a NEF that sorts after its JPG is no different from one of an ARW that sorts before it);
+    and Lightroom derivatives whose stem starts ``S-edit`` / ``S_edit`` / ``S-enhanced-nr`` /
+    ``S_enhanced-nr``.
+    """
+
+    def __init__(self, entries: Sequence[Tuple[Path, str]]) -> None:
+        self._by_stem: Dict[str, List[Tuple[Path, str]]] = {}
+        self._by_name: Dict[str, List[Tuple[Path, str]]] = {}
+        self._by_edit_base: Dict[str, List[Tuple[Path, str]]] = {}
+        for entry_path, entry_name in entries:
+            lowered = entry_name.lower()
+            if lowered.startswith("."):
+                continue
+            item = (entry_path, entry_name)
+            stem = Path(lowered).stem
+            ext = _extension_of(lowered)
+            if ext in SUPPORTED_EXTENSIONS or ext == "xmp":
+                self._by_stem.setdefault(stem, []).append(item)
+            self._by_name.setdefault(lowered, []).append(item)
+            seen_bases: Set[str] = set()
+            for marker in _EDIT_MARKERS:
+                at = stem.find(marker)
+                while at != -1:
+                    base = stem[:at]
+                    if base not in seen_bases:
+                        seen_bases.add(base)
+                        self._by_edit_base.setdefault(base, []).append(item)
+                    at = stem.find(marker, at + 1)
+
+    def group_for(self, target: Path, target_name: str) -> List[Path]:
+        stem = Path(target_name.lower()).stem
+        companions: Dict[Path, str] = {target: target_name}
+        for path, name in self._by_stem.get(stem, ()):
+            companions[path] = name
+        for path, name in self._by_edit_base.get(stem, ()):
+            companions[path] = name
+        for member_name in [name for name in companions.values() if _extension_of(name.lower()) != "xmp"]:
+            for path, name in self._by_name.get(f"{member_name.lower()}.xmp", ()):
+                companions[path] = name
+        return sorted(companions, key=lambda p: natural_sort_key(companions[p]))
+
+
 class DirectoryScanner:
     """High-performance directory scanner for SD cards and local folders."""
 
@@ -103,17 +153,6 @@ class DirectoryScanner:
                 pass
         return False
 
-    def find_companion_files(self, primary_path: Path) -> List[Path]:
-        """Find all bound companion files (RAW, JPEG, XMP, -Edit) in the same directory (R-LINUX-META-04)."""
-        if not self.handle_companions:
-            return [primary_path]
-        parent = primary_path.parent
-        try:
-            entries = [(Path(e.path), e.name) for e in os.scandir(parent) if _is_file_entry(e)]
-        except OSError:
-            return [primary_path]
-        return self._companions_in_listing(primary_path, primary_path.name, entries)
-
     @staticmethod
     def _companions_in_listing(
         target: Path,
@@ -122,38 +161,10 @@ class DirectoryScanner:
     ) -> List[Path]:
         """Group ``target`` with its companions from one directory listing of ``(path, display_name)``.
 
-        Matching uses display names, so it works where on-disk names are opaque IDs (GVFS).
+        Matching uses display names, so it works where on-disk names are opaque IDs (GVFS). Callers
+        grouping many photos of one listing build a :class:`_CompanionIndex` once instead.
         """
-        target_lower = target_name.lower()
-        stem_lower = Path(target_lower).stem
-        dot_xmp = f"{target_lower}.xmp"
-        edit_prefixes = (
-            f"{stem_lower}-edit",
-            f"{stem_lower}_edit",
-            f"{stem_lower}-enhanced-nr",
-            f"{stem_lower}_enhanced-nr",
-        )
-
-        companions: Dict[Path, str] = {target: target_name}
-        for entry_path, entry_name in entries:
-            entry_name_lower = entry_name.lower()
-            if entry_name_lower.startswith("."):
-                continue
-            entry_stem_lower = Path(entry_name_lower).stem
-            entry_ext_lower = _extension_of(entry_name_lower)
-
-            # 1. Exact stem match (e.g. DSC0001.ARW <-> DSC0001.JPG or DSC0001.xmp)
-            if entry_stem_lower == stem_lower:
-                if entry_ext_lower in SUPPORTED_EXTENSIONS or entry_ext_lower == "xmp":
-                    companions[entry_path] = entry_name
-                continue
-
-            # 2. Direct filename sidecar (e.g. DSC0001.ARW.xmp)
-            # 3. Lightroom derivatives (-Edit.*, _Edit.*, -Enhanced-NR.*)
-            if entry_name_lower == dot_xmp or entry_stem_lower.startswith(edit_prefixes):
-                companions[entry_path] = entry_name
-
-        return sorted(companions, key=lambda p: natural_sort_key(companions[p]))
+        return _CompanionIndex(entries).group_for(target, target_name)
 
     def _resolve_primary_and_companions(
         self,
@@ -233,6 +244,11 @@ class DirectoryScanner:
             ]
             valid_files.sort(key=lambda item: natural_sort_key(item[1]))
 
+            index = _CompanionIndex(entries) if self.handle_companions else None
+            first_by_stem: Dict[str, Tuple[Path, str]] = {}
+            for path, name in valid_files:
+                first_by_stem.setdefault(Path(name).stem.lower(), (path, name))
+
             claimed_paths: Set[Path] = set()
             for file_path, file_name in valid_files:
                 if file_path in claimed_paths:
@@ -240,17 +256,15 @@ class DirectoryScanner:
 
                 # An Edit file whose base capture exists in the same folder groups with that base
                 search_target, search_name = file_path, file_name
-                if self.handle_companions:
+                if index is not None:
                     stem_lower = Path(file_name).stem.lower()
-                    for edit_marker in ("-edit", "_edit", "-enhanced-nr", "_enhanced-nr"):
+                    for edit_marker in _EDIT_MARKERS:
                         if edit_marker in stem_lower:
-                            base_stem = stem_lower.split(edit_marker)[0]
-                            for base_path, base_name in valid_files:
-                                if Path(base_name).stem.lower() == base_stem:
-                                    search_target, search_name = base_path, base_name
-                                    break
+                            base = first_by_stem.get(stem_lower.split(edit_marker)[0])
+                            if base is not None:
+                                search_target, search_name = base
                             break
-                    group = self._companions_in_listing(search_target, search_name, entries)
+                    group = index.group_for(search_target, search_name)
                 else:
                     group = [file_path]
                 group = [p for p in group if p not in claimed_paths]
@@ -279,21 +293,6 @@ class DirectoryScanner:
 
         if current_batch:
             yield current_batch
-
-    def scan_directory_stream(
-        self,
-        root_path: Path,
-        recursive: bool = True,
-        first_batch_size: int = 1,
-        batch_size: int = 30,
-    ) -> Generator[List[CandidatePhoto], None, None]:
-        """Yield first candidate batch immediately (first_batch_size=1), then subsequent batches (R-LINUX-CULL-01)."""
-        yield from self.scan_stream(
-            root_path,
-            recursive=recursive,
-            batch_size=batch_size,
-            first_batch_size=first_batch_size,
-        )
 
     def scan_directory(self, root_path: Path, recursive: bool = True) -> List[CandidatePhoto]:
         """Enumerate and return all candidates in depth-first per-folder natural order (R-LINUX-CULL-02)."""

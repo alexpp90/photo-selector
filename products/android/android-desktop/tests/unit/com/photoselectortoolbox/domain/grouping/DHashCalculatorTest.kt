@@ -39,7 +39,7 @@ class DHashCalculatorTest {
     fun `identical images produce same hash`() {
         val bmp1 = solidBitmap(100, 100, Color.RED)
         val bmp2 = solidBitmap(100, 100, Color.RED)
-        assertEquals(calculator.computeDHash(bmp1), calculator.computeDHash(bmp2))
+        assertArrayEquals(calculator.computeDHash(bmp1), calculator.computeDHash(bmp2))
         bmp1.recycle()
         bmp2.recycle()
     }
@@ -76,12 +76,39 @@ class DHashCalculatorTest {
         assertEquals(64, calculator.hammingDistance(0L, -1L)) // 0 vs all-ones
     }
 
+    /** Top half the same in both; the bottom half's gradient runs the other way in [flipped]. */
+    private fun halfAndHalf(flipped: Boolean): Bitmap {
+        val bmp = Bitmap.createBitmap(170, 160, Bitmap.Config.ARGB_8888)
+        for (y in 0 until 160) for (x in 0 until 170) {
+            val rising = x * 255 / 170
+            val gray = if (y >= 80 && flipped) 255 - rising else rising
+            bmp.setPixel(x, y, Color.rgb(gray, gray, gray))
+        }
+        return bmp
+    }
+
+    @Test
+    fun `the detailed hash has 256 bits and sees the bottom half of the frame`() {
+        val a = calculator.computeDHash(halfAndHalf(flipped = false), hashSize = 16)
+        val b = calculator.computeDHash(halfAndHalf(flipped = true), hashSize = 16)
+
+        assertEquals(4, a.size)
+        // The bottom 8 of 16 rows flip every one of their 16 comparisons; the top 8 do not change.
+        assertTrue(calculator.hammingDistance(a, b) >= 100)
+        assertEquals(256, calculator.hammingDistance(LongArray(4), LongArray(4) { -1L }))
+    }
+
+    @Test
+    fun `the fast hash keeps its 64 bits`() {
+        assertEquals(1, calculator.computeDHash(halfAndHalf(flipped = false), hashSize = 8).size)
+    }
+
     @Test
     fun `hash size 8 produces deterministic result`() {
         val bmp = gradientBitmap(100, 100)
         val h1 = calculator.computeDHash(bmp, hashSize = 8)
         val h2 = calculator.computeDHash(bmp, hashSize = 8)
-        assertEquals(h1, h2)
+        assertArrayEquals(h1, h2)
         bmp.recycle()
     }
 
@@ -90,7 +117,7 @@ class DHashCalculatorTest {
         val bmp = gradientBitmap(100, 100)
         val h1 = calculator.computeDHash(bmp, hashSize = 16)
         val h2 = calculator.computeDHash(bmp, hashSize = 16)
-        assertEquals(h1, h2)
+        assertArrayEquals(h1, h2)
         bmp.recycle()
     }
 }

@@ -6,7 +6,7 @@ This checklist is the **single source of truth** for Google Play release readine
 
 ## 0. Store listing
 
-- [ ] **Title:** "Frameduel – Photo Culling Desk" (English and German). Short and full descriptions name the app Frameduel; no earlier name appears in the listing.
+- [ ] **Title:** "Frameduel – Photo Culling Desk" (English; add the German (de-DE) listing text only once the app itself has a German interface — it is English-only today). Short and full descriptions name the app Frameduel; no earlier name appears in the listing.
 - [ ] **Icon and screenshots:** the lavender Frameduel icon (adaptive, with themed monochrome layer); no screenshot shows the previous name or palette.
 
 ---
@@ -41,3 +41,21 @@ Because Frameduel requests zero permissions, has no network access, and processe
 
 - [x] **Non-Trader Declaration:** Frameduel is free, open-source (MIT), ad-free, and has no in-app purchases or monetization. Declared as **Non-Trader** in Google Play Console.
 - [ ] **Human Review Before Public Store Launch:** Verify GitHub Pages serving (`https://alexpp90.github.io/photo-selector/products/android-desktop/privacy-policy.html` and `impressum.html`) and customize contact details in `impressum.html` if required before public store launch.
+
+---
+
+## 4. Play Console Manual Steps (Human-Only)
+
+Mirrors the Jackpix checklist; the automated internal-track uploads from `android.yml` already
+succeed for `com.photoselectortoolbox`, so the first manual upload has been done — confirm each
+step in Play Console before ticking it.
+
+- [ ] **Create the app:** package `com.photoselectortoolbox`, default language English (United States), *App*, *Free*, category **Photography**.
+- [ ] Verify GitHub Pages serves `privacy-policy.html` and `impressum.html` with HTTP 200 (the four legal URLs and the site root answered 200 on 2026-11-03).
+- [ ] Paste the Privacy Policy URL into **Play Console → Policy and programs → App content → Privacy policy**.
+- [ ] Submit the Data Safety form using the table in §2 above.
+- [ ] The first signed `.aab` was uploaded manually to the **Internal testing** track; automated publishing runs with `TOOLBOX_GP_SERVICE_ACCOUNT_JSON`.
+- [ ] **App content → Content rating:** complete the IARC questionnaire (utility app, no user-generated content). **Target audience:** 13+, not directed at children.
+- [ ] **Closed testing gate (mandatory for personal accounts created after 13 Nov 2023):** a closed test with at least 12 testers opted in for 14 consecutive days, then **Dashboard → Apply for production**. Re-check [Google's requirements](https://support.google.com/googleplay/android-developer/answer/14151465) before starting.
+- [ ] **Android developer verification (regional enforcement since 2026-09-30, global in 2027):** in Play Console → Home, check that the package `com.photoselectortoolbox` is registered.
+- [ ] **Off-Play APKs:** the GitHub Releases and Obtainium APKs are signed with the **upload key**, not the Play app-signing key. Register the upload-key certificate for `com.photoselectortoolbox` as an off-Play key in Play Console before the 2027 global rollout.

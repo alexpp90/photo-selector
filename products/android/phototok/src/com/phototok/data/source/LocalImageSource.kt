@@ -68,18 +68,13 @@ class LocalImageSourceImpl @Inject constructor(
 
     companion object {
         private const val TAG = "LocalImageSource"
-        /** Dropped into every Selection folder so scans skip it and a card is recognised as culled. */
+        /**
+         * Dropped into every output folder: the sibling app skips marked folders, and a card is
+         * recognised as culled. This source skips output folders by name ([PhotoFolders.OUTPUT_FOLDER_NAMES]).
+         */
         const val SELECTION_MARKER_FILE = SafTransferEngine.SELECTION_MARKER_FILE_NAME
 
-        internal val EXCLUDED_FOLDER_NAMES = setOf(
-            "selection",
-            "selected",
-            "phototok_selection",
-            "phototok_leftswipe",
-            // Casual SD/camera imports land in DCIM/Camera/Jackpix; the Camera source never re-ingests them.
-            PhotoFolders.CASUAL_IMPORT.lowercase(),
-            ".photoselector-trash",
-        )
+        internal val EXCLUDED_FOLDER_NAMES = PhotoFolders.OUTPUT_FOLDER_NAMES
 
         /**
          * How many images to gather before the very first emission. Small on
@@ -220,7 +215,6 @@ class LocalImageSourceImpl @Inject constructor(
             treeUri = folderUri,
             startDocumentId = rootDocumentId,
             extraExcludedFolderNames = excludedFolderNames,
-            skipSelectionMarkerDirs = true,
             onFirstDirectoryComplete = if (shuffleFirstBatch) {
                 {
                     if (images.isNotEmpty()) {
@@ -241,7 +235,7 @@ class LocalImageSourceImpl @Inject constructor(
 
         // Final snapshot — also the only emission for folders smaller than a batch.
         emit(images.toList())
-    }.flowOn(Dispatchers.IO)
+    }.flowOn(ioDispatcher)
 
     override suspend fun prepareSourceFolder(folderUri: Uri): String? =
         withContext(ioDispatcher) {
@@ -371,25 +365,24 @@ class LocalImageSourceImpl @Inject constructor(
         folderUri: Uri,
         subfolderName: String,
     ): SelectionListing = withContext(ioDispatcher) {
+        val rootDocumentId = treeDocumentIdOf(folderUri) ?: return@withContext SelectionListing.Missing
+        // One children query finds the folder; `DocumentFile.findFile` would list the whole root and
+        // ask for every child's name separately (thousands of binder calls in a camera folder).
         val selectionDir = try {
-            DocumentFile.fromTreeUri(context, folderUri)?.findFile(subfolderName)
+            findChildDirectory(folderUri, rootDocumentId, subfolderName)
         } catch (e: CancellationException) {
             throw e
         } catch (_: Exception) {
             null
-        }
-        if (selectionDir == null || !selectionDir.exists()) {
-            return@withContext SelectionListing.Missing
-        }
+        } ?: return@withContext SelectionListing.Missing
         // Walk the sub-folder directly: passing a child document URI through
         // discoverImages() would re-resolve to the tree root via fromTreeUri().
-        val selectionDocumentId = documentIdOf(selectionDir.uri)
-            ?: return@withContext SelectionListing.Missing
+        val selectionDocumentId = selectionDir.documentId
         val images = mutableListOf<ImageItem>()
         walkImages(folderUri, selectionDocumentId) { images.add(it) }
         SelectionListing.Available(
             images = images.sortedByDescending { it.lastModified },
-            folderName = selectionDir.name ?: "Selection",
+            folderName = selectionDir.name,
         )
     }
 
@@ -433,6 +426,27 @@ class LocalImageSourceImpl @Inject constructor(
         Pair(0, 0)
     }
 
+    private class ChildDirectory(val documentId: String, val name: String)
+
+    /** The sub-folder called [name] directly under [parentDocumentId], from a single children query. */
+    private fun findChildDirectory(treeUri: Uri, parentDocumentId: String, name: String): ChildDirectory? {
+        val childrenUri = DocumentsContract.buildChildDocumentsUriUsingTree(treeUri, parentDocumentId)
+        val projection = arrayOf(
+            DocumentsContract.Document.COLUMN_DOCUMENT_ID,
+            DocumentsContract.Document.COLUMN_DISPLAY_NAME,
+            DocumentsContract.Document.COLUMN_MIME_TYPE,
+        )
+        context.contentResolver.query(childrenUri, projection, null, null, null)?.use { cursor ->
+            while (cursor.moveToNext()) {
+                val childName = cursor.getString(1) ?: continue
+                if (childName == name && cursor.getString(2) == DocumentsContract.Document.MIME_TYPE_DIR) {
+                    return ChildDirectory(cursor.getString(0), childName)
+                }
+            }
+        }
+        return null
+    }
+
     /** The tree document id of a `content://…/tree/<id>` URI, or null. */
     private fun treeDocumentIdOf(treeUri: Uri): String? = try {
         DocumentsContract.getTreeDocumentId(treeUri)
@@ -463,7 +477,6 @@ class LocalImageSourceImpl @Inject constructor(
         treeUri: Uri,
         startDocumentId: String,
         extraExcludedFolderNames: Set<String> = emptySet(),
-        skipSelectionMarkerDirs: Boolean = true,
         onFirstDirectoryComplete: (suspend () -> Unit)? = null,
         onImage: suspend (ImageItem) -> Unit,
     ) {
@@ -495,7 +508,6 @@ class LocalImageSourceImpl @Inject constructor(
             val imagesInParent = mutableListOf<ImageItem>()
             // `.xmp` sidecars seen in this very listing: kept per directory, never fed.
             val sidecarsInParent = mutableListOf<ImageItem>()
-            var hasSelectionMarker = false
 
             cursor.use { c ->
                 val idIndex = c.getColumnIndex(DocumentsContract.Document.COLUMN_DOCUMENT_ID)
@@ -514,10 +526,10 @@ class LocalImageSourceImpl @Inject constructor(
                     val name = c.getStringOrNull(nameIndex) ?: continue
                     val mimeType = c.getStringOrNull(mimeIndex)
 
-                    if (name.equals(SELECTION_MARKER_FILE, ignoreCase = true)) {
-                        hasSelectionMarker = true
-                        continue
-                    }
+                    // The marker is not a photo. Whether a folder is an output folder is decided by
+                    // its name: a stray marker (an older version wrote one into source folders) must
+                    // not hide the photos next to it.
+                    if (name.equals(SELECTION_MARKER_FILE, ignoreCase = true)) continue
 
                     if (mimeType == DocumentsContract.Document.MIME_TYPE_DIR) {
                         if (name.lowercase() in excludedLower) {
@@ -551,12 +563,6 @@ class LocalImageSourceImpl @Inject constructor(
                         )
                     )
                 }
-            }
-
-            // A folder that holds the Selection marker is an output folder, not a source.
-            if (skipSelectionMarkerDirs && hasSelectionMarker && parentId != startDocumentId) {
-                Log.d(TAG, "Skipping directory containing $SELECTION_MARKER_FILE: $parentId")
-                continue
             }
 
             for (dirId in dirsInParent) {

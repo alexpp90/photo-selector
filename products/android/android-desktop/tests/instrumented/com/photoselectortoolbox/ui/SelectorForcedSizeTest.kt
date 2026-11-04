@@ -53,6 +53,8 @@ import com.photoselectortoolbox.ui.selector.SelectorSnackbarHost
 import com.photoselectortoolbox.ui.selector.SidebarWidth
 import com.photoselectortoolbox.ui.selector.ThreeUpSelectorLayout
 import com.photoselectortoolbox.ui.theme.PhotoSelectorToolboxTheme
+import com.photoselectortoolbox.viewmodel.SelectorFrame
+import com.photoselectortoolbox.ui.selector.FrameGeometry
 import androidx.test.platform.app.InstrumentationRegistry
 import org.junit.Assert.assertTrue
 import org.junit.Rule
@@ -70,10 +72,17 @@ import kotlin.math.roundToInt
  * `getUnclippedBoundsInRoot()`: merged accessibility bounds report a clipped
  * node as smaller than it was laid out, which is how a squashed control passes.
  */
+@ExpandedWindow
 @RunWith(AndroidJUnit4::class)
 class SelectorForcedSizeTest {
 
-    @get:Rule
+    // Outermost: puts the display at the reference geometry, so every size below fits
+    // on whatever device runs the suite (FD-T-1: on CI's phone-class emulator these tests
+    // used to return early and assert nothing).
+    @get:Rule(order = 0)
+    val geometryRule = WindowGeometryRule()
+
+    @get:Rule(order = 1)
     val composeRule = createComposeRule()
 
     private fun image(n: Int) = ImageItem(
@@ -104,8 +113,18 @@ class SelectorForcedSizeTest {
         snackbar: String? = null,
         guide: Boolean = false,
         fontScale: Float? = null,
+        maximised: SelectorFrame? = null,
     ): Boolean {
-        if (!windowHolds(width, height)) return false
+        // The process learns of the display change a moment after the rule has made it; wait for
+        // that (state, not time: the size either arrives or the test fails with it).
+        val deadline = System.currentTimeMillis() + 10_000
+        while (!windowHolds(width, height) && System.currentTimeMillis() < deadline) Thread.sleep(100)
+        val seen = InstrumentationRegistry.getInstrumentation().targetContext.resources.displayMetrics
+        assertTrue(
+            "the window holds a $width x $height dp host (the process sees " +
+                "${(seen.widthPixels / seen.density).toInt()} x ${(seen.heightPixels / seen.density).toInt()} dp)",
+            windowHolds(width, height),
+        )
         composeRule.setContent {
             PhotoSelectorToolboxTheme {
               val base = LocalDensity.current
@@ -128,7 +147,7 @@ class SelectorForcedSizeTest {
                                 detailsVisible = true,
                                 filmstripVisible = false,
                                 overlayValuesVisible = true,
-                                maximisedFrame = null,
+                                maximisedFrame = maximised,
                                 actions = noActions,
                                 onNavigatePrevious = {},
                                 onNavigateNext = {},
@@ -163,13 +182,11 @@ class SelectorForcedSizeTest {
     }
 
     /**
-     * Whether the device can hold a [width] x [height] dp host at all.
+     * Whether the display can hold a [width] x [height] dp host at all.
      *
-     * A `requiredSize` box larger than the window is laid out off-screen, so on CI's
-     * phone-class emulator these sizes cannot be tested; the reference AVD
-     * (playbook-verify-android-desktop-on-reference-device) is where they run. The
-     * test returns early there, like every expanded-layout test in this module —
-     * this runner reports a JUnit assumption as a failure, not a skip.
+     * A `requiredSize` box larger than the window is laid out off-screen. The class is
+     * [ExpandedWindow], so [WindowGeometryRule] has put the display at the reference
+     * geometry and [host] fails, rather than returns, when a size does not fit.
      */
     private fun windowHolds(width: Int, height: Int): Boolean {
         val metrics = InstrumentationRegistry.getInstrumentation().targetContext.resources.displayMetrics
@@ -218,7 +235,12 @@ class SelectorForcedSizeTest {
         assertTrue("control_block has no height: $block", block.height > 0.dp)
         assertTrue("control_block runs off the window: $block", block.bottom <= height.dp && block.top >= 0.dp)
 
-        val tags = controls + "position_counter"
+        // The locator row (REQ-AND-WORKFLOW.06/.07) is the block's last child wherever the ladder
+        // grants it: its two chips are controls like the rest, and are in the block, 48 dp targets
+        // and clear of every other control. Where it is dropped the counter stands alone.
+        val hasLocator = count("locator_row") > 0
+        val chips = if (hasLocator) listOf("go_chip", "sort_chip") else emptyList()
+        val tags = controls + chips + "position_counter"
         tags.forEach { tag ->
             composeRule.onAllNodesWithTag(tag, useUnmergedTree = true).onFirst().assertIsDisplayed()
             val b = bounds(tag)
@@ -230,10 +252,29 @@ class SelectorForcedSizeTest {
         }
         assertTrue("position_counter is squashed", bounds("position_counter").height >= 11.5.dp)
 
-        for (i in controls.indices) for (j in i + 1 until controls.size) {
+        val all = controls + chips
+        for (i in all.indices) for (j in i + 1 until all.size) {
             assertTrue(
-                "${controls[i]} overlaps ${controls[j]} at ${width}x$height",
-                !intersects(bounds(controls[i]), bounds(controls[j])),
+                "${all[i]} overlaps ${all[j]} at ${width}x$height",
+                !intersects(bounds(all[i]), bounds(all[j])),
+            )
+        }
+        if (hasLocator) {
+            val density = displayDensity
+            chips.forEach { chip ->
+                val b = bounds(chip)
+                // Whole pixels, as layout draws them (a 48 dp slot reads 47.999985 dp at 2.4375x).
+                assertTrue(
+                    "$chip is ${(b.width.value * density).roundToInt()} x ${(b.height.value * density).roundToInt()} px, " +
+                        "below ${(48 * density).roundToInt()} px at ${width}x$height",
+                    (b.width.value * density).roundToInt() >= (48 * density).roundToInt() &&
+                        (b.height.value * density).roundToInt() >= (48 * density).roundToInt(),
+                )
+            }
+            // The row is the last child: nothing of the block lies below it.
+            assertTrue(
+                "locator_row ${bounds("locator_row")} is not the last child of $block",
+                bounds("locator_row").bottom.value >= block.bottom.value - 1f,
             )
         }
         // Whichever variant was chosen, exactly one marker says so.
@@ -279,11 +320,52 @@ class SelectorForcedSizeTest {
         )) return
         composeRule.onAllNodesWithTag("selector_snackbar", useUnmergedTree = true).onFirst().assertIsDisplayed()
         val card = bounds("selector_snackbar")
-        assertTrue("snackbar ${card.width} wide at ${width}x$height", card.width in 340.dp..480.dp)
+        assertTrue("snackbar ${card.width} wide at ${width}x$height", card.width in 340.dp..(480f + 1f / displayDensity).dp)
         assertTrue(
             "snackbar $card intersects the sidebar ${bounds("selector_sidebar")}",
             !intersects(card, bounds("selector_sidebar")),
         )
+    }
+
+    /**
+     * The maximised frame takes the whole image region with the details on (the readout is
+     * an overlay on the photograph, not a column beside it), and its overlay and switch lie
+     * on the frame without sharing bounds. 1280 x 800 and 1480 x 844 dp are the two lab
+     * windows; both fit the reference AVD, and on a phone-class emulator `host` returns
+     * false and the test returns (no `assumeTrue`: this runner reports it as a failure).
+     */
+    @Test
+    fun maximisedFrame_fillsTheRegionHeightWithDetailsVisible_1280x800() = checkMaximised(1280, 800)
+
+    @Test
+    fun maximisedFrame_fillsTheRegionHeightWithDetailsVisible_1480x844() = checkMaximised(1480, 844)
+
+    private fun checkMaximised(w: Int, h: Int) {
+        if (!host(w, h, maximised = SelectorFrame.CURRENT)) return
+        val frame = bounds("maximised_frame")
+        // The host is the window less the sidebar; the layout pads 8 dp all round.
+        val region = DpRect(0.dp, 0.dp, (w - 88 - 16).dp, (h - 16).dp)
+        val expected = FrameGeometry.maximisedFrameSize(region.width, region.height, 1.5f)
+        // Two pixels, or 1 dp where that is less: CI's scaled-down window draws 0.69 px per dp, and
+        // the frame and the 8 dp paddings each round to a whole pixel.
+        val tolerance = maxOf(1f, 2f / displayDensity)
+        assertTrue(
+            "maximised frame ${frame.width} x ${frame.height} is not the region's ${expected.width} x ${expected.height} at ${w}x$h",
+            abs(frame.width.value - expected.width.value) <= tolerance && abs(frame.height.value - expected.height.value) <= tolerance,
+        )
+        assertTrue(
+            "maximised frame height ${frame.height} is not the region height ${region.height} at ${w}x$h",
+            frame.height.value >= region.height.value - maxOf(2f, tolerance),
+        )
+        val panel = bounds("maximised_info_overlay")
+        val toggle = bounds("maximised_info_toggle")
+        val badge = bounds("maximise_badge")
+        assertTrue("panel $panel is not on the frame $frame", panel.left >= frame.left && panel.top >= frame.top && panel.right <= frame.right)
+        assertTrue("panel $panel shares bounds with the toggle $toggle", !intersects(panel, toggle))
+        assertTrue("toggle $toggle shares bounds with the badge $badge", !intersects(toggle, badge))
+        assertTrue("panel $panel shares bounds with the badge $badge", !intersects(panel, badge))
+        assertTrue("the toggle is under 48 dp", toggle.width.value >= 47.5f && toggle.height.value >= 47.5f)
+        assertTrue("no readout column is drawn beside the maximised frame", count("current_readout") == 0)
     }
 
     @Test
@@ -376,11 +458,11 @@ class SelectorForcedSizeTest {
 
     @Test
     fun fullPriceMatchesTheMeasuredBlock_scale1() =
-        assertPriceMatchesMeasurement("control_block_full", { ControlBlockFit.fullHeightPx(1f, it) }, 1000, 1f)
+        assertPriceMatchesMeasurement("control_block_full", { ControlBlockFit.fullHeightPx(it) }, 1000, 1f)
 
     @Test
     fun fullPriceMatchesTheMeasuredBlock_scale1_3() =
-        assertPriceMatchesMeasurement("control_block_full", { ControlBlockFit.fullHeightPx(1.3f, it) }, 1000, 1.3f)
+        assertPriceMatchesMeasurement("control_block_full", { ControlBlockFit.fullHeightPx(it) }, 1000, 1.3f)
 
     @Test
     fun compactPriceMatchesTheMeasuredBlock_scale1() =
@@ -389,6 +471,17 @@ class SelectorForcedSizeTest {
     @Test
     fun compactPriceMatchesTheMeasuredBlock_scale1_3() =
         assertPriceMatchesMeasurement("control_block_compact", { ControlBlockFit.compactHeightPx(1.3f, it) }, 250, 1.3f)
+
+    // COMPACT with the locator row: 388 dp wide (inner 368), a row that holds 252 dp but not 362.
+    @Test
+    fun compactLocatorPriceMatchesTheMeasuredBlock_scale1() = assertPriceMatchesMeasurement(
+        "control_block_compact", { ControlBlockFit.compactHeightPx(1f, it, 368.dp, withLocator = true) }, 300, 1f,
+    )
+
+    @Test
+    fun compactLocatorPriceMatchesTheMeasuredBlock_scale1_3() = assertPriceMatchesMeasurement(
+        "control_block_compact", { ControlBlockFit.compactHeightPx(1.3f, it, 368.dp, withLocator = true) }, 300, 1.3f,
+    )
 
     // ── AD-8: filmstrip touch targets ───────────────────────────────────
 
@@ -433,7 +526,7 @@ class SelectorForcedSizeTest {
         }
         // The picture itself keeps its 3:2 size; only the target grew.
         val landscape = bounds("filmstrip_thumbnail_image", 0)
-        assertTrue("landscape thumbnail is ${landscape.height} tall", abs(landscape.height.value - 40f) < 0.5f)
+        assertTrue("landscape thumbnail is ${landscape.height} tall", abs(landscape.height.value - 40f) < maxOf(0.5f, 1f / displayDensity))
     }
 
     // Narrow flanks: 150 dp (inner 142, 2 x 2 toggles, counter on top) and 260 dp
@@ -539,7 +632,17 @@ class SelectorForcedSizeTest {
         composeRule.onAllNodesWithTag("first_run_hint", useUnmergedTree = true).onFirst().assertIsDisplayed()
         val failures = mutableListOf<String>()
         if (expectedMarker != null) {
-            soft(failures) { assertTrue("expected $expectedMarker at ${width}x$height", count(expectedMarker) > 0) }
+            // Below one pixel per dp (CI's emulator draws 0.69) a pixel is 1.45 dp, and the pixel
+            // price of the compact block no longer fits the dp window it fits at a real tablet's
+            // density: the designed fallback, scrolling, is then the right answer.
+            val accepted = if (expectedMarker == "control_block_compact" && displayDensity < 1f) {
+                listOf(expectedMarker, "control_block_scrolling")
+            } else {
+                listOf(expectedMarker)
+            }
+            soft(failures) {
+                assertTrue("expected one of $accepted at ${width}x$height", accepted.any { count(it) > 0 })
+            }
         }
         // AD-17: every one of these is a 48 x 48 dp hit target, at every size.
         (viewToggles + "first_run_hint_dismiss").forEach { tag ->
@@ -596,6 +699,10 @@ class SelectorForcedSizeTest {
 
     private val frameTags = listOf("selector.frame.current", "selector.frame.previous", "selector.frame.next")
 
+    /** 48 dp in whole pixels at the window's density, as layout draws it (33 px, not 33.3, at 0.69x). */
+    private fun atLeast48DpInPixels(height: androidx.compose.ui.unit.Dp): Boolean =
+        (height.value * displayDensity).roundToInt() >= (48 * displayDensity).roundToInt()
+
     private fun checkGuide(width: Int, height: Int, fontScale: Float? = null) {
         if (!host(width, height, guide = true, fontScale = fontScale)) return
         composeRule.onAllNodesWithTag("selector_coach_overlay", useUnmergedTree = true).onFirst().assertIsDisplayed()
@@ -631,7 +738,7 @@ class SelectorForcedSizeTest {
                 assertTrue("coach cards overlap: ${cards[i]} ${cards[j]}", !intersects(cards[i].second, cards[j].second))
             }
             val footer = bounds("coach_footer")
-            assertTrue("footer is ${footer.height} tall", footer.height >= 48.dp)
+            assertTrue("footer is ${footer.height} tall", atLeast48DpInPixels(footer.height))
             // Every page explains something, and no card runs under the footer —
             // the pager clips, so a card that overhangs it is a card cut off.
             assertTrue("page $pages at ${width}x$height carries no card", cards.isNotEmpty())
@@ -642,7 +749,7 @@ class SelectorForcedSizeTest {
                 )
             }
             val primary = if (count("coach_overlay_next") > 0) "coach_overlay_next" else "coach_overlay_dismiss"
-            assertTrue("$primary is ${bounds(primary).height} tall", bounds(primary).height >= 48.dp)
+            assertTrue("$primary is ${bounds(primary).height} tall", atLeast48DpInPixels(bounds(primary).height))
             composeRule.onAllNodesWithTag("coach_footer", useUnmergedTree = true).onFirst().assertIsDisplayed()
 
             composeRule.onAllNodesWithTag("coach_callout", useUnmergedTree = true).fetchSemanticsNodes().forEach {

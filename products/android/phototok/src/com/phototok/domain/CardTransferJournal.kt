@@ -1,187 +1,87 @@
 package com.phototok.domain
 
 import java.io.File
-import org.json.JSONArray
-import org.json.JSONObject
 
 /**
- * Lightweight JSON journal (`filesDir/card_transfer_journal.json`) for removable-card
- * safety (`U-14b`) and the *"Done with this card"* workflow (`U-14c`).
+ * Journal of what was copied off a removable card or camera (`filesDir/card_transfer_journal.tsv`,
+ * one tab-separated `C<TAB>card folder<TAB>source uri` line per copied file) for the *"Done with
+ * this card"* sheet (`U-14c`): "N copied" must still be right after the process was killed and the
+ * card is opened again.
  *
- * Tracks:
- * 1. In-flight transfers (`inFlight`) so a mid-copy surprise card pull can clean up any
- *    partial destination file and tell the user which file was interrupted.
- * 2. Card source URIs that were successfully copied out during a card session
- *    (`copiedBySource`) so the user can optionally delete only the copied files from the card
- *    via *"Done with this card"*.
+ * It does **not** recover an interrupted copy. A copy killed half-way leaves a truncated file under
+ * its final name in the destination, and the engine is the only party that knows that file
+ * (handover H-JP-1: the engine should write under a marked temporary name and rename after the
+ * verified copy; the journal can then grow an in-flight record again).
+ *
+ * Android-free; with no file it is an in-memory journal (unit tests).
  */
 class CardTransferJournal(
     private val journalFile: File? = null,
 ) {
 
-    data class InFlightTransfer(
-        val sourceUri: String,
-        val destFolderUri: String,
-        val targetFileName: String,
-        val volumeUuid: String? = null,
-        val destFileUri: String? = null,
-        val startedAtMs: Long = System.currentTimeMillis(),
-    )
-
-    private val inFlight = LinkedHashMap<String, InFlightTransfer>()
     private val copiedBySource = LinkedHashMap<String, MutableSet<String>>()
 
     init {
         loadFromDisk()
     }
 
-    @Synchronized
-    fun recordTransferStart(entry: InFlightTransfer) {
-        inFlight[entry.sourceUri] = entry
-        persistLocked()
-    }
-
-    @Synchronized
-    fun updateInFlightDestinationUri(sourceUri: String, destFileUri: String) {
-        val current = inFlight[sourceUri] ?: return
-        inFlight[sourceUri] = current.copy(destFileUri = destFileUri)
-        persistLocked()
-    }
-
-    @Synchronized
-    fun recordTransferComplete(
-        sourceUri: String,
-        cardSourceKey: String? = null,
-    ) {
-        inFlight.remove(sourceUri)
-        if (!cardSourceKey.isNullOrBlank()) {
-            copiedBySource.getOrPut(cardSourceKey) { LinkedHashSet() }.add(sourceUri)
-        }
-        persistLocked()
-    }
-
-    @Synchronized
-    fun recordTransferFailed(sourceUri: String) {
-        if (inFlight.remove(sourceUri) != null) {
-            persistLocked()
-        }
-    }
-
-    @Synchronized
-    fun inFlightTransfers(): List<InFlightTransfer> = inFlight.values.toList()
-
-    @Synchronized
-    fun popInterruptedTransfers(volumeUuid: String? = null): List<InFlightTransfer> {
-        val matching = inFlight.values.filter { entry ->
-            volumeUuid == null ||
-                entry.volumeUuid == null ||
-                entry.volumeUuid.equals(volumeUuid, ignoreCase = true)
-        }
-        if (matching.isNotEmpty()) {
-            matching.forEach { inFlight.remove(it.sourceUri) }
-            persistLocked()
-        }
-        return matching
-    }
-
-    @Synchronized
-    fun copiedCardUris(cardSourceKey: String): Set<String> =
-        copiedBySource[cardSourceKey]?.toSet() ?: emptySet()
-
+    /** Number of distinct files copied out of the card folder [cardSourceKey]. */
     @Synchronized
     fun copiedCountForFolder(cardSourceKey: String): Int =
         copiedBySource[cardSourceKey]?.size ?: 0
 
+    /** Record that [sourceUri] of the card folder [sourceFolderUri] was copied out. */
     @Synchronized
-    fun recordCopy(
-        sourceUri: String,
-        destUri: String,
-        byteSize: Long,
-        sourceFolderUri: String,
-    ) {
-        recordTransferComplete(sourceUri = sourceUri, cardSourceKey = sourceFolderUri)
+    fun recordCopy(sourceUri: String, sourceFolderUri: String) {
+        val added = copiedBySource.getOrPut(sourceFolderUri) { LinkedHashSet() }.add(sourceUri)
+        if (added) appendLocked(sourceFolderUri, sourceUri)
     }
 
-    @Synchronized
-    fun removeCopiedCardUris(cardSourceKey: String, uris: Collection<String>) {
-        val set = copiedBySource[cardSourceKey] ?: return
-        set.removeAll(uris.toSet())
-        if (set.isEmpty()) {
-            copiedBySource.remove(cardSourceKey)
-        }
-        persistLocked()
-    }
-
+    /** Forget a card folder, e.g. once the card has been cleared. */
     @Synchronized
     fun clearSource(cardSourceKey: String) {
-        if (copiedBySource.remove(cardSourceKey) != null) {
-            persistLocked()
-        }
+        if (copiedBySource.remove(cardSourceKey) != null) rewriteLocked()
     }
 
-    @Synchronized
-    fun clearAll() {
-        inFlight.clear()
-        copiedBySource.clear()
-        persistLocked()
-    }
-
-    @Synchronized
     private fun loadFromDisk() {
         val file = journalFile ?: return
         if (!file.exists()) return
         try {
             file.forEachLine { line ->
-                if (line.isBlank()) return@forEachLine
                 val parts = line.split('\t')
-                when (parts.firstOrNull()) {
-                    "I" -> if (parts.size >= 7) {
-                        val src = parts[1]
-                        if (src.isNotBlank()) {
-                            inFlight[src] = InFlightTransfer(
-                                sourceUri = src,
-                                destFolderUri = parts[2],
-                                targetFileName = parts[3],
-                                volumeUuid = parts[4].takeIf { it.isNotBlank() },
-                                destFileUri = parts[5].takeIf { it.isNotBlank() },
-                                startedAtMs = parts[6].toLongOrNull() ?: 0L,
-                            )
-                        }
-                    }
-                    "C" -> if (parts.size >= 3) {
-                        val key = parts[1]
-                        val uri = parts[2]
-                        if (key.isNotBlank() && uri.isNotBlank()) {
-                            copiedBySource.getOrPut(key) { LinkedHashSet() }.add(uri)
-                        }
-                    }
+                if (parts.size >= 3 && parts[0] == "C" && parts[1].isNotBlank() && parts[2].isNotBlank()) {
+                    copiedBySource.getOrPut(parts[1]) { LinkedHashSet() }.add(parts[2])
                 }
             }
-        } catch (_: Exception) {
+        } catch (_: java.io.IOException) {
+            // An unreadable journal only loses the counter, never a photo.
         }
     }
 
-    private fun persistLocked() {
+    private fun appendLocked(key: String, uri: String) {
         val file = journalFile ?: return
         try {
             file.parentFile?.mkdirs()
-            val sb = StringBuilder()
-            for (entry in inFlight.values) {
-                sb.append("I\t")
-                    .append(entry.sourceUri).append('\t')
-                    .append(entry.destFolderUri).append('\t')
-                    .append(entry.targetFileName).append('\t')
-                    .append(entry.volumeUuid.orEmpty()).append('\t')
-                    .append(entry.destFileUri.orEmpty()).append('\t')
-                    .append(entry.startedAtMs).append('\n')
+            file.appendText("C\t$key\t$uri\n")
+        } catch (_: java.io.IOException) {
+        }
+    }
+
+    private fun rewriteLocked() {
+        val file = journalFile ?: return
+        try {
+            file.parentFile?.mkdirs()
+            val tmp = File(file.parentFile, file.name + ".tmp")
+            tmp.writeText(
+                buildString {
+                    for ((key, uris) in copiedBySource) for (u in uris) append("C\t").append(key).append('\t').append(u).append('\n')
+                },
+            )
+            if (!tmp.renameTo(file)) {
+                file.writeText(tmp.readText())
+                tmp.delete()
             }
-            for ((source, uris) in copiedBySource) {
-                for (u in uris) {
-                    sb.append("C\t").append(source).append('\t').append(u).append('\n')
-                }
-            }
-            file.writeText(sb.toString())
-        } catch (_: Exception) {
+        } catch (_: java.io.IOException) {
         }
     }
 }

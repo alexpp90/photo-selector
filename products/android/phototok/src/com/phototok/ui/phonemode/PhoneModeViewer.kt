@@ -47,10 +47,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.automirrored.filled.ArrowForward
-import androidx.compose.material.icons.automirrored.filled.DriveFileMove
 import androidx.compose.material.icons.automirrored.filled.OpenInNew
-import androidx.compose.material.icons.filled.ContentCopy
-import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Info
 import androidx.compose.material.icons.filled.Lens
 import androidx.compose.material.icons.filled.PhotoCamera
@@ -117,28 +114,26 @@ import com.phototok.domain.FavouritesSnapshot
 import com.phototok.domain.FirstRunHint
 import com.phototok.domain.SeenStore
 import com.phototok.domain.SwipeAction
+import com.phototok.ui.components.SwipeActionIcons
 import com.phototok.R
 import com.phototok.domain.SwipeLabels
 import com.phototok.ui.asString
 import com.phototok.domain.SwipeRightVerb
-import com.phototok.ui.theme.SuccessGreen
 import kotlin.math.abs
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 
+/**
+ * Opacity of the idle edge hints. They sit on a dark pill now, so they can be clearly visible
+ * without competing with the photo (40 % on a 40 % disc was too faint, review JP-UX-3).
+ */
+private const val PEEK_ALPHA = 0.85f
+
 /** Glyph for the configured swipe-right verb. */
-private fun swipeRightIcon(verb: SwipeRightVerb): ImageVector = when (verb) {
-    SwipeRightVerb.COPY -> Icons.Default.ContentCopy
-    SwipeRightVerb.MOVE -> Icons.AutoMirrored.Filled.DriveFileMove
-    SwipeRightVerb.FAVOURITE -> Icons.Default.Star
-}
+private fun swipeRightIcon(verb: SwipeRightVerb): ImageVector = SwipeActionIcons.right(verb)
 
 /** Glyph for the configured swipe-left action. */
-private fun leftSwipeIcon(action: SwipeAction): ImageVector = when (action) {
-    SwipeAction.DELETE -> Icons.Default.Delete
-    SwipeAction.COPY -> Icons.Default.ContentCopy
-    SwipeAction.MOVE -> Icons.AutoMirrored.Filled.DriveFileMove
-}
+private fun leftSwipeIcon(action: SwipeAction): ImageVector = SwipeActionIcons.left(action)
 
 /**
  * Full-screen TikTok-style vertical-pager image viewer.
@@ -174,8 +169,9 @@ fun PhoneModeViewer(
      */
     bottomHudSuppressed: Boolean = false,
     /**
-     * Hides the favourite / RAW+JPG badges under the top bar, where the controls guide puts
-     * its callouts, so they do not show through the guide's scrim behind the callout text.
+     * True while the controls guide is up: hides the favourite / RAW+JPG badges under the top bar
+     * and the idle swipe edge hints, where the guide puts its callouts, so they do not show
+     * through the guide's scrim next to the callout text.
      */
     topBadgesSuppressed: Boolean = false,
     /** True while the folder is still being enumerated (page count still grows). */
@@ -189,7 +185,13 @@ fun PhoneModeViewer(
     onOpenWithCurrentPhoto: () -> Unit = {},
     /** Long-press "Favourite" / "Remove favourite"; null hides the item (read-only viewers). */
     onToggleFavourite: (() -> Unit)? = null,
+    /** Long-press "Copy" into the Selection folder (REQ-TOK-GESTURE.03); null hides the item. */
+    onCopyToSelection: (() -> Unit)? = null,
+    /** Long-press "Move" into the Selection folder; null hides the item (read-only, cloud). */
+    onMoveToSelection: (() -> Unit)? = null,
     onFirstRunHint: (FirstRunHint) -> Unit = {},
+    /** The file details opened for the current photo: the feed does not measure photos by default. */
+    onFileDetailsOpened: () -> Unit = {},
     /**
      * False while a swipe right cannot copy yet (a Casual card import still waiting for the phone's
      * camera folder grant): the card snaps back and no "copied" flash is played for nothing.
@@ -345,13 +347,56 @@ fun PhoneModeViewer(
     val detailsLabel = stringResource(R.string.action_details)
     val currentIsFavourite = currentImage?.let { favourites.isFavourite(it.uri) } == true
     val favouriteLabel = stringResource(if (currentIsFavourite) R.string.action_unfavourite else R.string.action_favourite)
+    val copyLabel = stringResource(R.string.action_copy)
+    val moveLabel = stringResource(R.string.action_move)
+
+    // The swipe actions, shared by the drag gesture and the accessibility actions so both take
+    // the same path (the delete confirmation included). They read the newest callbacks: the drag
+    // detector is installed once per page and must not keep the first composition's lambdas.
+    val currentOnAddToCollection by rememberUpdatedState(onAddToCollection)
+    val currentOnRequestDelete by rememberUpdatedState(onRequestDelete)
+    val currentLeftSwipeAction by rememberUpdatedState(leftSwipeAction)
+    val swipeRight: () -> Unit = {
+        currentOnAddToCollection()
+        if (collectionReadyNow) showCollectionFlash = true
+    }
+    val swipeLeft: () -> Unit = {
+        currentOnRequestDelete()
+        if (currentLeftSwipeAction != SwipeAction.DELETE) {
+            showLeftSwipeFlash = true
+        }
+    }
+    // TalkBack cannot drag a card, so each configured swipe is also a custom action named like
+    // the mid-swipe indicator's spoken text ("Copy to Selection", "Delete photo"). A favourite
+    // swipe is already covered by the Favourite action when that is offered.
+    val swipeRightActionLabel = SwipeLabels.rightDescription(swipeRightVerb, collectionFolderName).asString()
+    val swipeLeftActionLabel = SwipeLabels.leftDescription(leftSwipeAction, leftSwipeFolderName).asString()
+    val offerSwipeRightAction = !readOnly &&
+        !(swipeRightVerb == SwipeRightVerb.FAVOURITE && onToggleFavourite != null)
 
     Box(
         modifier = Modifier
             .fillMaxSize()
             .background(Color.Black)
             .semantics {
-                customActions = listOf(
+                customActions = listOfNotNull(
+                    if (offerSwipeRightAction) {
+                        CustomAccessibilityAction(swipeRightActionLabel) {
+                            swipeRight()
+                            true
+                        }
+                    } else {
+                        null
+                    },
+                    if (!readOnly) {
+                        CustomAccessibilityAction(swipeLeftActionLabel) {
+                            swipeLeft()
+                            true
+                        }
+                    } else {
+                        null
+                    },
+                ) + listOf(
                     CustomAccessibilityAction(shareLabel) {
                         onShareCurrentPhoto()
                         true
@@ -408,16 +453,8 @@ fun PhoneModeViewer(
                 onLongPress = {
                     showLongPressMenu = true
                 },
-                onSwipeLeftDelete = {
-                    onRequestDelete()
-                    if (leftSwipeAction != SwipeAction.DELETE) {
-                        showLeftSwipeFlash = true
-                    }
-                },
-                onSwipeRightCollect = {
-                    onAddToCollection()
-                    if (collectionReadyNow) showCollectionFlash = true
-                },
+                onSwipeLeftDelete = swipeLeft,
+                onSwipeRightCollect = swipeRight,
                 leftSwipeAction = leftSwipeAction,
                 leftSwipeFolderName = leftSwipeFolderName,
                 swipeRightVerb = swipeRightVerb,
@@ -466,6 +503,28 @@ fun PhoneModeViewer(
                         modifier = Modifier.testTag("menu_toggle_favourite"),
                     )
                 }
+                if (onCopyToSelection != null) {
+                    DropdownMenuItem(
+                        text = { Text(copyLabel) },
+                        leadingIcon = { Icon(SwipeActionIcons.right(SwipeRightVerb.COPY), contentDescription = null) },
+                        onClick = {
+                            showLongPressMenu = false
+                            onCopyToSelection()
+                        },
+                        modifier = Modifier.testTag("menu_copy_to_selection"),
+                    )
+                }
+                if (onMoveToSelection != null) {
+                    DropdownMenuItem(
+                        text = { Text(moveLabel) },
+                        leadingIcon = { Icon(SwipeActionIcons.right(SwipeRightVerb.MOVE), contentDescription = null) },
+                        onClick = {
+                            showLongPressMenu = false
+                            onMoveToSelection()
+                        },
+                        modifier = Modifier.testTag("menu_move_to_selection"),
+                    )
+                }
                 DropdownMenuItem(
                     text = { Text(detailsLabel) },
                     leadingIcon = { Icon(Icons.Default.Info, contentDescription = null) },
@@ -478,12 +537,15 @@ fun PhoneModeViewer(
         }
 
         if (showFileDetailsDialog && currentImage != null) {
+            LaunchedEffect(currentImage.uri) { onFileDetailsOpened() }
             AlertDialog(
                 onDismissRequest = { showFileDetailsDialog = false },
                 title = { Text(currentImage.fileName) },
                 text = {
                     Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                        Text(stringResource(R.string.label_resolution, currentImage.imageWidth, currentImage.imageHeight))
+                        if (currentImage.imageWidth > 0 && currentImage.imageHeight > 0) {
+                            Text(stringResource(R.string.label_resolution, currentImage.imageWidth, currentImage.imageHeight))
+                        }
                         Text(stringResource(R.string.label_file_size, currentImage.fileSize / 1024))
                         currentImage.mimeType?.let { Text(it) }
                         if (currentImage.uri in rawCompanionUris) {
@@ -500,6 +562,7 @@ fun PhoneModeViewer(
         }
 
         // ── Collection / Favourite flash (centered glyph with glow) ────
+        val collectionFlashColor = swipeCueColors(colors, leftIsDelete = true).rightAccent
         AnimatedVisibility(
             visible = showCollectionFlash,
             modifier = Modifier.align(Alignment.Center),
@@ -511,8 +574,8 @@ fun PhoneModeViewer(
                     modifier = Modifier
                         .size(120.dp)
                         .clip(CircleShape)
-                        .background(SuccessGreen.copy(alpha = 0.15f))
-                        .border(1.dp, SuccessGreen.copy(alpha = 0.3f), CircleShape),
+                        .background(collectionFlashColor.copy(alpha = 0.15f))
+                        .border(1.dp, collectionFlashColor.copy(alpha = 0.3f), CircleShape),
                 )
                 Icon(
                     imageVector = swipeRightIcon(swipeRightVerb),
@@ -520,10 +583,10 @@ fun PhoneModeViewer(
                         swipeRightVerb,
                         collectionFolderName,
                     ).asString(),
-                    tint = SuccessGreen.copy(alpha = 0.9f),
+                    tint = collectionFlashColor.copy(alpha = 0.9f),
                     modifier = Modifier
                         .size(72.dp)
-                        .shadow(20.dp, CircleShape, ambientColor = SuccessGreen),
+                        .shadow(20.dp, CircleShape, ambientColor = collectionFlashColor),
                 )
             }
         }
@@ -645,9 +708,14 @@ private fun ImagePage(
 
     val currentOnSingleTap by rememberUpdatedState(onSingleTap)
     val currentOnLongPress by rememberUpdatedState(onLongPress)
+    val currentOnSwipeLeft by rememberUpdatedState(onSwipeLeftDelete)
+    val currentOnSwipeRight by rememberUpdatedState(onSwipeRightCollect)
     val currentOnFirstRunHint by rememberUpdatedState(onFirstRunHint)
 
     val colors = MaterialTheme.colorScheme
+    val cues = swipeCueColors(colors, SwipeLabels.leftIsDestructive(leftSwipeAction))
+    val pageContext = LocalContext.current
+    val cueMotion = remember { cueMotionEnabled(pageContext) }
 
     Box(
         modifier = Modifier
@@ -763,9 +831,9 @@ private fun ImagePage(
                         detectHorizontalDragGestures(
                             onDragEnd = {
                                 if (horizontalDragOffset < -actionThreshold) {
-                                    onSwipeLeftDelete()
+                                    currentOnSwipeLeft()
                                 } else if (horizontalDragOffset > actionThreshold) {
-                                    onSwipeRightCollect()
+                                    currentOnSwipeRight()
                                 }
                                 horizontalDragOffset = 0f
                             },
@@ -850,7 +918,7 @@ private fun ImagePage(
                         modifier = Modifier
                             .size(96.dp)
                             .clip(CircleShape)
-                            .background(SuccessGreen.copy(alpha = 0.25f)),
+                            .background(cues.rightContainer.copy(alpha = 0.25f)),
                     )
                     Box(
                         modifier = Modifier
@@ -858,10 +926,10 @@ private fun ImagePage(
                             .shadow(
                                 elevation = (20 * swipeProgress).dp,
                                 shape = CircleShape,
-                                ambientColor = SuccessGreen.copy(alpha = 0.4f),
+                                ambientColor = cues.rightContainer.copy(alpha = 0.4f),
                             )
                             .clip(CircleShape)
-                            .background(SuccessGreen.copy(alpha = 0.85f)),
+                            .background(cues.rightContainer),
                         contentAlignment = Alignment.Center,
                     ) {
                         Icon(
@@ -870,7 +938,7 @@ private fun ImagePage(
                                 swipeRightVerb,
                                 collectionFolderName,
                             ).asString(),
-                            tint = Color.White,
+                            tint = cues.rightContent,
                             modifier = Modifier.size((28 + 8 * swipeProgress).dp),
                         )
                     }
@@ -879,7 +947,11 @@ private fun ImagePage(
                 Text(
                     text = SwipeLabels.rightLabel(swipeRightVerb).asString().uppercase(),
                     style = MaterialTheme.typography.labelLarge.copy(letterSpacing = 3.sp),
-                    color = SuccessGreen,
+                    color = cues.rightAccent,
+                    modifier = Modifier
+                        .clip(RoundedCornerShape(8.dp))
+                        .background(cues.cueScrim)
+                        .padding(horizontal = 8.dp, vertical = 2.dp),
                 )
             }
         }
@@ -887,7 +959,7 @@ private fun ImagePage(
         // ── Left Swipe Action indicator (pulsing indicator with glow) ───────────────
         if (!readOnly && isSwipingLeft) {
             val pulseTransition = rememberInfiniteTransition(label = "left-swipe-pulse") // ui-text: ignore animation debug label
-            val pulseScale by pulseTransition.animateFloat(
+            val pulseScaleAnimated by pulseTransition.animateFloat(
                 initialValue = 1f,
                 targetValue = 1.1f,
                 animationSpec = infiniteRepeatable(
@@ -896,12 +968,12 @@ private fun ImagePage(
                 ),
                 label = "left-swipe-scale", // ui-text: ignore animation debug label
             )
+            val pulseScale = if (cueMotion) pulseScaleAnimated else 1f
 
-            val isDelete = SwipeLabels.leftIsDestructive(leftSwipeAction)
             val icon = leftSwipeIcon(leftSwipeAction)
-            val color = if (isDelete) colors.error else colors.primary
-            val containerColor = if (isDelete) colors.errorContainer else colors.primaryContainer
-            val onContainerColor = if (isDelete) colors.onErrorContainer else colors.onPrimaryContainer
+            val color = cues.leftAccent
+            val containerColor = cues.leftContainer
+            val onContainerColor = cues.leftContent
             val labelText = SwipeLabels.leftLabel(leftSwipeAction).asString().uppercase()
             val contentDesc = SwipeLabels.leftDescription(leftSwipeAction, leftSwipeFolderName).asString()
 
@@ -945,14 +1017,21 @@ private fun ImagePage(
                         letterSpacing = 3.sp,
                     ),
                     color = color,
+                    modifier = Modifier
+                        .clip(RoundedCornerShape(8.dp))
+                        .background(cues.cueScrim)
+                        .padding(horizontal = 8.dp, vertical = 2.dp),
                 )
             }
         }
 
         // ── Navigation peeks (subtle idle hints on left/right edges with direction arrows) ──
-        if (!readOnly && showFloatingPeeks && !isZoomed && !isSwipingLeft && !isSwipingRight && hudAlpha > 0.5f) {
+        // Not under the controls guide: the guide draws its own swipe callouts at the same edges.
+        if (!readOnly && showFloatingPeeks && !isZoomed && !isSwipingLeft && !isSwipingRight && hudAlpha > 0.5f &&
+            !topBadgesSuppressed
+        ) {
             val peekTransition = rememberInfiniteTransition(label = "peeks") // ui-text: ignore animation debug label
-            val trashPeekOffset by peekTransition.animateFloat(
+            val trashPeekOffsetAnimated by peekTransition.animateFloat(
                 initialValue = 12f,
                 targetValue = -4f,
                 animationSpec = infiniteRepeatable(
@@ -961,7 +1040,7 @@ private fun ImagePage(
                 ),
                 label = "trash-peek-offset", // ui-text: ignore animation debug label
             )
-            val keepPeekOffset by peekTransition.animateFloat(
+            val keepPeekOffsetAnimated by peekTransition.animateFloat(
                 initialValue = -12f,
                 targetValue = 4f,
                 animationSpec = infiniteRepeatable(
@@ -970,20 +1049,24 @@ private fun ImagePage(
                 ),
                 label = "keep-peek-offset", // ui-text: ignore animation debug label
             )
+            // Remove animations: the hints stand still at their resting place.
+            val trashPeekOffset = if (cueMotion) trashPeekOffsetAnimated else 0f
+            val keepPeekOffset = if (cueMotion) keepPeekOffsetAnimated else 0f
 
             Row(
                 modifier = Modifier
                     .align(Alignment.CenterStart)
                     .offset(x = keepPeekOffset.dp)
-                    .graphicsLayer { alpha = hudAlpha * 0.4f },
+                    .graphicsLayer { alpha = hudAlpha * PEEK_ALPHA }
+                    .clip(RoundedCornerShape(24.dp))
+                    .background(cues.cueScrim)
+                    .testTag("viewer.peek_right"),
                 verticalAlignment = Alignment.CenterVertically,
                 horizontalArrangement = Arrangement.spacedBy(4.dp)
             ) {
                 Box(
                     modifier = Modifier
-                        .size(48.dp)
-                        .clip(CircleShape)
-                        .background(colors.surfaceContainerHigh.copy(alpha = 0.4f)),
+                        .size(48.dp),
                     contentAlignment = Alignment.Center,
                 ) {
                     Icon(
@@ -992,21 +1075,20 @@ private fun ImagePage(
                             R.string.cd_peek_right,
                             SwipeLabels.rightDescription(swipeRightVerb, collectionFolderName).asString(),
                         ),
-                        tint = SuccessGreen,
+                        tint = cues.rightAccent,
                         modifier = Modifier.size(20.dp),
                     )
                 }
                 Icon(
                     imageVector = Icons.AutoMirrored.Filled.ArrowForward,
                     contentDescription = null,
-                    tint = SuccessGreen,
+                    tint = cues.rightAccent,
                     modifier = Modifier.size(16.dp),
                 )
             }
 
-            val isDelete = SwipeLabels.leftIsDestructive(leftSwipeAction)
             val icon = leftSwipeIcon(leftSwipeAction)
-            val color = if (isDelete) colors.error else colors.primary
+            val color = cues.leftAccent
             val contentDesc = stringResource(
                 R.string.cd_peek_left,
                 SwipeLabels.leftDescription(leftSwipeAction, leftSwipeFolderName).asString(),
@@ -1016,7 +1098,10 @@ private fun ImagePage(
                 modifier = Modifier
                     .align(Alignment.CenterEnd)
                     .offset(x = trashPeekOffset.dp)
-                    .graphicsLayer { alpha = hudAlpha * 0.4f },
+                    .graphicsLayer { alpha = hudAlpha * PEEK_ALPHA }
+                    .clip(RoundedCornerShape(24.dp))
+                    .background(cues.cueScrim)
+                    .testTag("viewer.peek_left"),
                 verticalAlignment = Alignment.CenterVertically,
                 horizontalArrangement = Arrangement.spacedBy(4.dp)
             ) {
@@ -1028,9 +1113,7 @@ private fun ImagePage(
                 )
                 Box(
                     modifier = Modifier
-                        .size(48.dp)
-                        .clip(CircleShape)
-                        .background(colors.surfaceContainerHigh.copy(alpha = 0.4f)),
+                        .size(48.dp),
                     contentAlignment = Alignment.Center,
                 ) {
                     Icon(
@@ -1166,7 +1249,7 @@ private fun ImagePage(
 // ── Glassmorphic EXIF overlay ────────────────────────────────────────────
 
 @Composable
-private fun ExifOverlay(
+internal fun ExifOverlay(
     exif: ExifData,
     fileName: String,
     modifier: Modifier = Modifier,
@@ -1198,7 +1281,8 @@ private fun ExifOverlay(
             verticalArrangement = Arrangement.spacedBy(4.dp),
         ) {
             Text(
-                text = fileName.uppercase(),
+                // The name as it is on disk: upper-casing misstated names such as dsc_0001.arw.
+                text = fileName,
                 style = MaterialTheme.typography.labelLarge.copy(letterSpacing = 1.sp),
                 color = colors.onSurface.copy(alpha = 0.7f),
                 // One line; a long name loses its middle, never its extension (font scale 2.0).

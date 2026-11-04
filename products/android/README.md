@@ -27,7 +27,6 @@ Each module uses the repository's uniform product shape rather than Gradle's def
 <module>/
   src/                  Kotlin sources (was src/main/java)
   res/                  Resources (was src/main/res)          — apps only
-  jniLibs/              Native libraries (was src/main/jniLibs) — :android-desktop only
   AndroidManifest.xml   (was src/main/AndroidManifest.xml)     — apps only
   tests/unit/           JVM unit tests (was src/test/java)
   tests/instrumented/   Emulator tests (was src/androidTest/java)

@@ -162,6 +162,11 @@ locale-dependent, or the same score renders differently on different devices.
 - Spacing scale: 4 / 6 / 8 / 12 / 16 / 24 dp. In the comparison layouts, outer padding is
   ≤ 8 dp and column gaps are 8 dp — space is not decoration here.
 - All screens are edge-to-edge and must respect `WindowInsets` for system bars.
+- `NoElevationTest` fails any `tonalElevation`, `shadowElevation` or `.shadow` in the UI sources.
+- **The selector without frames** shows one of four states (`selectorEmptyKind`): no folder
+  ("Select a Folder"), access lost ("Folder Access Needed"), a folder still opening (a progress
+  ring, no text) and an open folder without supported photos ("No photos found" /
+  "«folder» holds no supported photos." / `[Open Folder]`).
 
 ### 4.4 Iconography
 
@@ -205,7 +210,7 @@ Four top-level destinations, reached from a persistent **NavigationRail** on the
 | 1 | **Selector** | The culling workspace. Default destination. | ~95% |
 | 2 | **Statistics** | EXIF distribution charts for the loaded folder. | small |
 | 3 | **Duplicates** | Byte-identical file finder (SHA-256) with batch delete. | small |
-| 4 | **Settings** | Storage, analysis, display, cache, about. | rare |
+| 4 | **Settings** | Where photos go, analysis, display, cache, about. | rare |
 
 ### Session-level actions
 
@@ -217,9 +222,9 @@ Clear Scores · Group Similar Series · Score legend.
 Move to Selection · Copy to Selection · Delete · Open Fullscreen.
 
 "Selection" is a destination subfolder — default name `Selection`, configurable — created
-inside the source folder. Deletion goes to the Android trash and is undoable via a
-30-second Snackbar; a move is undoable for as long as it stays on the 20-deep stack
-(`Ctrl+Z`), and its card leaves after about 4 seconds.
+inside the source folder. A delete and a move are undoable for as long as they stay on the
+20-deep stack (`Ctrl+Z`, or the card's UNDO), which is until the folder is left; their cards
+leave after about 4 seconds and draw no countdown, because nothing has a deadline.
 
 ### Persistent state the design must reflect
 
@@ -342,8 +347,16 @@ Zinc-700 rule:
   pass shows `Grouping` over it. Neither control is ever greyed out: a disabled control and
   a frozen app look identical from the outside, and this is the mirror case the desktop
   product got wrong (`ai/memory/palette.md`, 2026-07-24).
+- **The overflow menu holds the sort order**, one flat radio group between dividers, a leading
+  ✓ on the active item (never colour alone; `Role.RadioButton`, `selected`): **Newest first**
+  (default), **Oldest first**, **File name**, **Blurriest first**. The first three are the
+  persisted order; **Blurriest first** is worst-first triage (`U-34`), a session view that is
+  disabled until the folder has scores, and picking any of the first three leaves it. **Go to
+  photo…** with its `G` key cap follows the second divider. Both stay in the menu always: the
+  locator row (§7.5), where the same two controls are one tap away, is dropped in small
+  windows, and the menu is what is left there besides the counter tap and the keys.
 - Folder name and the burst chip move into the head of the **left readout block** (§7.4a);
-  `127 / 842` closes the control block on the opposite side (§7.5). Nothing goes above the image region: a 32 dp strip would still be 21 dp off
+  the **locator row** (`127 / 842` and the sort order) closes the control block on the opposite side (§7.5). Nothing goes above the image region: a 32 dp strip would still be 21 dp off
   the height of every frame.
 - Net budget: the sidebar costs 88 dp of width against the 80 dp rail it replaces, and
   returns the app bar's whole 44 dp of height. Because §7 is height-bound, that is **+29 dp
@@ -482,11 +495,35 @@ area of its three-up tile**:
 2. **Fullscreen** (`F`, or tap the current frame) — unchanged, and now reachable for a
    *neighbour* too, via that neighbour's badge.
 
-In the maximised state the maximised frame keeps the §7.4a readout block beside it, and the
-two hidden frames' values collapse into a single 148 dp column at the right
-edge — the same overlay vocabulary as §7.4b, so the numbers for the frames you can no longer
-see stay readable and stay recognisable. `Esc` or a second tap on the badge returns to three-up. Transition is a
-180 ms crossfade — no scale, no slide. The user is judging sharpness, and movement lies.
+In the maximised state the frame always takes the **whole image region**
+(`FrameGeometry.maximisedFrameSize` over the full width and height, centred), whether or not the
+details are shown. The readout is an **overlay on the photograph**, not a column beside it (a 388 dp
+column took a 4:3 frame from 1176 × 784 to 868 × 578 on a 1280 × 800 window, measured; user report
+2026-11-03):
+
+- **Top-left:** the flat info panel of the fullscreen viewer (the one composable `PhotoInfoPanel`
+  serves both): filename and `n / N`, the exposure line as whole tokens, the lens line. 280–420 dp
+  and at most 35 % of the frame's width, 85 % `StudioCanvas`, no gradient, Zinc 300 values, 8 dp
+  from the corner, one merged node for a screen reader.
+- **Bottom-left:** the four score chips, compact (icon and value, no label), wrapping inside the
+  frame's width less the 122 dp the two controls and their insets take at the right.
+- **Bottom-right:** the 48 dp ⓘ switch (`maximised_info_toggle`, filled glyph = shown, outline =
+  hidden, "Hide photo info" / "Show photo info", `Role.Switch`), 6 dp left of the 48 dp restore
+  badge. It flips the same persisted `details_visible` as the three-up ⓘ toggle, which is not on
+  screen here. Off, nothing but the restore badge and this switch lies on the photograph. There is
+  no keyboard shortcut for it (`I` is Inspect).
+
+The panel and the chips take no pointer input, so a swipe that starts on them still navigates, a
+tap on them is a tap on the photograph (leave maximised), and only the switch and the badge are
+controls. The two hidden frames' values are gone with their frames. `Esc` or a second tap on the
+badge returns to three-up. Transition is a 180 ms crossfade — no scale, no slide. The user is
+judging sharpness, and movement lies.
+
+The one-time *One frame, full size* card (§7.10) is placed in the slack **left of the frame** and only
+when that slack, less the 8 dp gap, is at least the card's 240 dp minimum. On a window whose region
+is close to the photograph's aspect (the reference tablets) there is none: the card is then not drawn
+and not marked seen, and it is dropped without being marked seen when the user leaves the maximised
+state, so it is offered again on the next maximise instead of greeting them in three-up.
 
 ### 7.4 Value readouts — every number touching the photograph it describes
 
@@ -525,7 +562,8 @@ DSC_0127.JPG
 - The icon here is the *same glyph* the overlays use — this block is what teaches it. Each
   metric therefore has exactly one icon, defined once on `ScoreMetric` alongside its label,
   format and direction, never chosen at a call site.
-- Filename and the one-line EXIF summary head the block; `127 / 842` sits under the controls
+- Filename, the one-line EXIF summary and the lens on its own line (ellipsised; omitted when
+  unknown) head the block; `127 / 842` sits under the controls
   on the opposite side, balancing the composition.
 - Unscanned: a single dashed "Not scanned" row, not four blanks.
 
@@ -556,9 +594,9 @@ identity, then exposure, then a rule, then icon + value + bar per metric.
 - **Exposure wraps to two lines rather than truncating.** `1/250 · f2.8` then
   `35mm · ISO 400`, tabular mono so shutter speeds and apertures align vertically between
   Previous and Next — the comparison the photographer is actually making. Position number
-  leads the first line. Lens name is omitted here and remains in the context menu's Photo
-  details; it is the one EXIF field that will not fit and the one that is identical across a
-  burst.
+  leads the first line. The lens follows on its own line, ellipsised at 148 dp with the full
+  name in its content description: inside a burst it is the same in every frame, but in a
+  folder shot with two bodies or a zoom swap it is exactly the difference worth seeing.
   It wraps only *between* tokens — each value (`1/250s`, `f/2.8`, `50mm`) is unbreakable, on
   the current frame's readout as well — and a trailing token that does not fit in two lines is
   dropped, never split (AD-16b: the 720 × 560 Chromebook window printed `f/` ⏎ `2.8`).
@@ -572,7 +610,7 @@ identity, then exposure, then a rule, then icon + value + bar per metric.
 - **Overlay treatment.** `Zinc950` at 72 % over a 6 dp radius, 8 dp inset top, right and
   bottom, vertically centred, 14 dp icons, `Zinc50` values. Deliberately a flat panel and not
   a gradient scrim: a gradient across the right of a photograph reads as part of the
-  photograph, which is the failure mode §9 already documents for the fullscreen top bar.
+  photograph, which is the failure mode §9 already documents for the fullscreen info overlay.
 - **It covers roughly 25 % of the frame's width, and that is a real cost.** Two mitigations,
   both required: the overlay hides while a frame is maximised (§7.3), and the eye control in
   the view cluster toggles all overlays off for a clean look at the photographs. The state is
@@ -609,7 +647,7 @@ of ~158 dp (~118 dp with the strip on) carries its word comfortably:
 │ ‹ Prev ← │ Next → › │
 └──────────┴──────────┘
       ▤  ▭  👁  ⌨
-        127 / 842
+ [⌕ 127 / 842 G][⇅ Newest ▾ S]      ← the locator row, 48 dp
 ```
 
 - Each cell is 80 dp tall and as wide as the flank allows: glyph above, word below, key cap
@@ -624,11 +662,34 @@ of ~158 dp (~118 dp with the strip on) carries its word comfortably:
 - Beneath the grid, a 48 dp icon row of view controls — readout panel, filmstrip, overlay
   visibility, shortcut sheet. Icon-only is acceptable *only here*, because none of them
   changes a file; each carries a tooltip and a full `contentDescription`.
-- The position counter `127 / 842` closes the block, in tabular mono — and reads
-  `127 / 842+` while the folder is still enumerating. Discovery streams, so the total is a
-  running total for the first seconds of a large shoot; the `+` is the whole of the loading
-  indication this screen gets, because the first batch is already usable and a spinner over
-  a usable screen is a lie about what the photographer can do.
+- The **locator row** closes the block (`[USER 2026-11-04]`: Sort order and Go to photo were
+  only in the overflow menu, a key and a tap on the counter, and the user did not find them;
+  "I think right of the current image might be good. There is still space"). It is two chips
+  side by side, a 48 dp row: the **Go chip** holds the position counter `127 / 842`, in
+  tabular mono, which reads `127 / 842+` while the folder is still enumerating (discovery
+  streams, so the total is a running total for the first seconds of a large shoot; the `+` is
+  the whole of the loading indication this screen gets, because the first batch is already
+  usable and a spinner over a usable screen is a lie about what the photographer can do). A
+  tap opens **Go to photo** (spoken "Go to photo, 127 of 842", key `G`). The **Sort chip**
+  shows the order in force and opens the same radio group as the overflow menu in a dropdown
+  anchored to it (spoken "Sort order: Newest first. Change", key `S`): ✓ on the active entry,
+  `Role.RadioButton`, **Blurriest first** disabled until the folder has scores.
+  - Each chip is a **48 dp slot, half the row wide, and that slot is the clickable and the
+    node that carries the tag** (`go_chip`, `sort_chip`); the chip is drawn 40 dp tall inside
+    it (1 dp `StudioBorder` outline on `StudioCard`, 8 dp radius, no shadow), the ripple on the
+    chip, so the two slots abut and never overlap each other or the toggles above.
+  - Content follows the cell width (`ControlBlockFit.locatorStyle`): from a 160 dp cell icon,
+    full phrase and key cap (`⌕ 127 / 842 [G]`, `⇅ Newest first ▾ [S]`); from 100 dp icon and
+    one word (`Newest`, `Oldest`, `Name`, `Blurry`); below that the counter or the word alone.
+    The key caps are the ones the guide lists (§7.9).
+  - **`S` opens the menu and never cycles the order**: a stray key must not reorder a folder
+    mid-cull. While the menu is open the selector's shortcuts are suppressed like for a dialog
+    (`Esc` closes it). Where the row is dropped (below) `S` still opens it, over the block.
+- **Where the row is dropped.** It needs 192 dp of inner width (one row of four 48 dp toggles
+  over two cells), so at 720 × 560 and 600 × 480 the counter stands alone as before, beside the
+  toggles or leading the block, and is still the Go control (`Role.Button`, spoken click label
+  "Go to photo", its 48 dp target the toggle row or the framework's minimum touch-target
+  expansion); `G`, `S` and the two overflow entries remain.
 - Key caps are **permanent**, not hover-revealed. A tablet has no hover, and the desktop
   lesson already recorded (2024-05-18, `ai/memory/palette.md`) is that unhinted shortcuts go
   unused.
@@ -637,32 +698,41 @@ of ~158 dp (~118 dp with the strip on) carries its word comfortably:
 
 **Height is the block's binding axis too.** Row 1 is one frame tall: ~436 dp on the reference
 device, ~376 dp at 1280 × 800 (Pixel Tablet native), ~336 dp at 1024 × 720 (the DeX/ChromeOS
-default window less its bars) and ~228 dp at 600 × 480. The block above needs 332 dp, and a
-`Column` pays a shortfall with its last children — the 2026-10-17 device lab found the
-counter gone and the view toggles squashed to slivers below ~410 dp. So the block has two
-variants, chosen by `ControlBlockFit` from the row height it is handed and the font scale:
+default window less its bars) and ~228 dp at 600 × 480. The block above needs 362 dp with the
+locator row, and a `Column` pays a shortfall with its last children — the 2026-10-17 device lab
+found the counter gone and the view toggles squashed to slivers below ~410 dp. So the block is
+a ladder, and `ControlBlockFit` takes the first rung the row height it is handed (font scale
+included, priced in pixels at the device density) and the width afford:
 
 ```
-FULL (≥ 332 dp, ≥ 210 dp wide)   COMPACT (201–265 dp)
-┌──────────┬──────────┐     ┌───────────┬───────────┐
-│ ⧉ Copy C │ ➜ Move M │     │⧉ Copy  [C]│➜ Move  [M]│  48 dp rows
-│  …80 dp…  │          │     │🗑 Delete[Del]│⛶ Full [F]│
-│          │          │     │‹ Prev  [←]│Next [→] › │
-└──────────┴──────────┘     └───────────┴───────────┘
-      ▤  ▭  👁  ⌨             ▤ ▭ 👁 ⌨      127 / 842
-        127 / 842
+FULL + row (≥ 363 dp)           COMPACT + row (253–362 dp)     COMPACT, counter alone     SCROLLING
+┌──────────┬──────────┐     ┌───────────┬───────────┐     ┌───────────┬───────────┐     counter first,
+│ ⧉ Copy C │ ➜ Move M │     │⧉ Copy  [C]│➜ Move  [M]│     │⧉ Copy  [C]│➜ Move  [M]│     the rest scrolls
+│  …80 dp…  │          │     │🗑 Delete[Del]│⛶ Full [F]│     │🗑 Delete[Del]│⛶ Full [F]│
+│          │          │     │‹ Prev  [←]│Next [→] › │     │‹ Prev  [←]│Next [→] › │
+└──────────┴──────────┘     ├───────────┴───────────┤     └───────────┴───────────┘
+      ▤  ▭  👁  ⌨           │   ▤    ▭    👁    ⌨   │      ▤ ▭ 👁 ⌨     127 / 842
+[⌕ 127 / 842][⇅ Newest ▾]    │[127 / 842]  [Newest ▾] │
+                            └───────────────────────┘
 ```
+
+FULL is 3 × 80 + (2 + 48) + 48 + 4 × 6 = **362 dp** at any font scale (the locator row is a fixed
+48 dp: its chips are 40 dp and a line of 12 sp is 24 dp even at scale 2); COMPACT with the row
+is 3 × 48 + 48 + 48 + 4 × 3 = **252 dp**; COMPACT with the counter alone is 201 dp (one row of
+toggles with the counter beside it), 217 dp (counter above), 265 dp (2 × 2 toggles). **FULL
+without the row is retired**: a window whose row is 332–362 dp tall (1024 × 720 on a 24 dp status
+bar) gets COMPACT with the row rather than FULL without it. The frames never pay for the block:
+the rung changes, the frame does not (`SelectorForcedSizeTest`).
 
 Every view toggle is a 48 × 48 dp target at every size (AD-17): four in a row from 192 dp of
 inner width, a 2 × 2 grid below it, with the counter beside the toggles where it fits and on
-its own line above them where it does not (201 dp tall in one row with the counter beside it,
-217 dp with the counter above, 265 dp as a 2 × 2 grid). COMPACT keeps every word and every key cap,
-never ellipsized (AD-16b): the button is icon, word and key cap on one line from a 100 dp cell,
-the word over the key cap beside the icon from 64 dp, and word over key cap without the icon
-below that, and the word steps down from 13 sp to 9 sp before it could be cut. At 720 × 560 the
-flank is 150 dp, so the block is a 2 × 2 grid with stacked buttons; at 600 × 480 it scrolls.
-Below COMPACT the block scrolls with the counter first, so nothing is ever clipped silently.
-The frames never pay for the block: the variant changes, the frame does not.
+its own line above them where it does not (counter-alone rungs only). COMPACT keeps every word
+and every key cap, never ellipsized (AD-16b): the button is icon, word and key cap on one line
+from a 100 dp cell, the word over the key cap beside the icon from 64 dp, and word over key cap
+without the icon below that, and the word steps down from 13 sp to 9 sp before it could be cut.
+At 720 × 560 the flank is 150 dp, so the block is a 2 × 2 grid with stacked buttons and no
+locator row; at 600 × 480 it scrolls. Below COMPACT the block scrolls with the counter first,
+so nothing is ever clipped silently.
 
 ### 7.6 Interaction — one gesture vocabulary, defined once
 
@@ -823,9 +893,9 @@ bottom strip would push every callout up by 76 dp and start labelling the wrong 
   bound set exactly, that no advertised gesture is destructive, and that no callout names a
   glyph. The retired sheet claimed *"tap the ⛱ badge"*; `MaximiseBadge` renders an
   open-in-full arrow pair and always has, which is the 2026-07-31 lesson in one line.
-- **Keys split by whether anything can be pointed at.** `C`/`M`, `Del`, `F`, `←`, `→` drive a
-  labelled control, so they belong to that control's callout; `1`/`2`/`3`, `Esc` and `?`
-  drive nothing visible, so they get a callout of their own.
+- **Keys split by whether anything can be pointed at.** `C`/`M`, `Del`, `F`, `←`, `→` and the
+  locator row's `G` and `S` drive a labelled control, so they belong to the controls callout;
+  `1`/`2`/`3`, `Esc` and `?` drive nothing visible, so they get a callout of their own.
 - Callouts for chrome the user has switched off are omitted — labelling a hidden panel is the
   same defect as inventing a control that does not exist.
 - 200 ms fade in, 150 ms out. No slide. `Esc`, a tap on the scrim, Skip or **Got it** closes it;
@@ -840,8 +910,8 @@ where the **effect is invisible**:
 | Hint | Fires on | Says |
 |---|---|---|
 | `filing_action` | the first Move or Copy | where the file now is — the configured verb, the configured folder, whether RAW and JPEG were sorted, and the other verb's key. The important one: the photograph left the centre of the screen and nothing said where it went. |
-| `delete_undo` | the first Delete | that nothing has touched the disk yet and UNDO has 30 seconds |
-| `maximise_frame` | the first maximise | that `Esc` or a second press comes back — nothing on that screen says so |
+| `delete_undo` | the first Delete | that nothing has touched the disk yet and `Ctrl+Z` undoes it until the folder is left |
+| `maximise_frame` | the first maximise | that `Esc` or a second press comes back — nothing on that screen says so (side slack only; see §7.3) |
 
 `scan_scores` is defined and worded but deliberately **not** raised: the bars appear on the
 frames and the Legend item appears in the sidebar at the same moment, so a card would explain
@@ -856,7 +926,8 @@ what the user is looking at.
   Zinc-700 outline, no shadow. It takes its own space in the flank column rather than
   floating, so it can neither cover a frame nor collide with a control, and it adds **zero**
   height above or below the image region. The bottom centre is unavailable: the snackbar is
-  there, confirming the very action the card is explaining.
+  there, confirming the very action the card is explaining. The maximise card has no readout
+  block to sit under (§7.3); it takes the slack left of the maximised frame instead.
 - Where no flank is wide enough — readouts hidden, or under 240 dp — the card is not drawn
   **and the hint is not spent**, so it appears the next time there is room. The one thing it
   never does is fall back to the image region.
@@ -923,22 +994,30 @@ The reasoning worth keeping, all of it now folded into §7:
 Pure black or Zinc-900 canvas, image fitted to the window. Chrome auto-hides after 3 seconds
 of inactivity and returns on tap, on **any key press**, and on every **page change** (swipe,
 arrow, or the next frame taking the place of one just filed) — the frame just arrived at is
-the one whose name and EXIF the photographer now wants to read. `I` **pins** the top bar so
-it never hides (persisted, default off); the same pin is a 48 dp toggle at the right end of
-the bar, so it is reachable without a keyboard and its state is visible. A pinned bar is
-the existing bar — no new surface, no gradient.
+the one whose name and EXIF the photographer now wants to read. `I` **pins** the info panel
+so it never hides (persisted, default off); the same pin is a 48 dp toggle at the right edge
+of the panel, so it is reachable without a keyboard and its state is visible. A pinned panel
+is the existing panel — no new surface, no gradient.
+
+**The photograph is as large as the window.** The image is laid out in the whole viewer
+window, into a display cutout too, with the system bars — taskbar included — hidden on the
+viewer's own window; nothing — chrome, insets, padding — reserves space from it. Insets only position the chrome. Everything shown over the photograph is an overlay
+sized to its content, never a bar across it.
 
 **When chrome is visible:**
 
-- **Top bar** — close (`X`), filename, `127 / 842`, a single-line EXIF summary
-  (`1/250s | f/2.8 | 35mm | ISO 400`), the lens from the Expanded width (≥ 840 dp) up, and
-  the info pin at the end. Render as a minimal Zinc-900 bar at ~90% opacity — a bar, not a
-  gradient scrim. At 600 dp everything stays on one line: the exposure summary and the
-  position keep their full width, the file name is what ellipsises, and the lens is
-  dropped rather than squeezed.
+- **Info overlay, top-left** — a 48 dp close (`X`) and beside it a panel as wide as its
+  content, clamped to 280–420 dp and never more than 35 % of the window (so ~210 dp at
+  600 dp): filename (ellipsises) and `127 / 842`; the exposure line
+  (`1/250s · f/2.8 · 35mm · ISO 400`) as whole tokens that wrap only between tokens; the lens
+  on its own line, ellipsised, at every width; the info pin at the right edge. Flat
+  `StudioCanvas` at 85 % with 6 dp corners — not a gradient scrim, which darkens the sky in a
+  way the photographer reads as part of the photograph — exposure and lens in Zinc-300 for
+  contrast over a bright sky. A screen reader reads the text as one item.
 - **Bottom** — only when *Show Fullscreen Action Buttons* is enabled in Settings:
   `[Move to Selection] [Copy to Selection] [Delete]`, ≥ 48 dp, centred.
-- **Score chip row** — bottom-left, compact variant.
+- **Score chip row** — bottom-left, compact variant, wrapping within the left half of the
+  window so it never runs under the action buttons.
 
 **Gestures**, communicated through a dismissible one-time hint card:
 
@@ -951,7 +1030,7 @@ the existing bar — no new surface, no gradient.
 | `Esc` | Exit fullscreen |
 | `← / →` | Previous / next image |
 | `M` / `C` / `Del` | Move / copy / delete the current frame |
-| `I` | Pin / unpin the info bar (in the selector `I` still opens Inspect) |
+| `I` | Pin / unpin the info panel (in the selector `I` still opens Inspect) |
 
 `M` and `C` show the centre check mark, whose accessibility label is the sentence the
 confirmation card shows ("Moved to Selection"), for the key exactly as for the button. The
@@ -1071,7 +1150,7 @@ lets the user batch-delete copies.
 
 | State | Design |
 |---|---|
-| No folder | **"No Folder Selected"** / *"Select a folder to scan for duplicate images."* / `[Select Folder]` |
+| No folder | **"No Folder Selected"** / *"Select a folder to scan for duplicate images."* / `[Select Folder]` — only when the selector has none either: the screen opens the folder open in Cull |
 | Ready | **"Ready to Scan"**, folder name, `[Start Scan]` |
 | Scanning | Determinate progress with file counter and `[Cancel]` |
 | Results | See below |
@@ -1080,7 +1159,9 @@ lets the user batch-delete copies.
 
 - **Header:** `Group (3 files)` plus a `Select All But First` text action.
 - **Body:** a horizontal row of thumbnails, one per file. The first file carries an
-  `Original` badge with an accent outline. Files marked for deletion get a red-tinted border,
+  `First` badge with an accent outline (the order is the scan's, not a quality judgement). The last
+  copy still unticked cannot be ticked: its card is disabled and named "kept", so a group never
+  loses every copy. Files marked for deletion get a red-tinted border,
   a checked checkbox, and a *"Selected for deletion"* caption. Below each thumbnail: filename,
   file size, and the folder path, ellipsised from the **left** so the leaf folder stays visible.
 
@@ -1102,13 +1183,57 @@ cannot be undone."* / `[Cancel]` `[Delete]`.
 
 Labels below are final — use them verbatim.
 
-### Storage
+### Where photos go
+
+`[USER 2026-11-04]`: "As a user I do not understand where the pictures go when they get moved.
+There should be a selection: Custom Path or Working folder with the full transparency what that
+folder is currently." This section replaces the old Storage rows *Custom Selection Location* and
+*File Sorting* (the Selection and second-pass name fields stay).
+
+```
+Where photos go
+◉ Working folder
+   📁 Internal storage › DCIM › Trip › Selection › RAW · JPEG
+○ Custom folder                                        [Choose]
+Selection Subfolder Name   [Selection        ]
+Second-Pass Selection Subfolder Name   [Final        ]
+RAW and JPEG folders                                      (●)
+```
 
 | Item | Control | Supporting text |
 |---|---|---|
-| Selection Subfolder Name | editable text, value `Selection` | Created inside the source folder by default |
-| Custom Selection Location | folder picker | `Default: subfolder in source folder` → `Using custom folder` when set |
-| File Sorting | switch | Sort RAW and JPEG files into separate subfolders |
+| Working folder | radio row | the resolved path under it while selected (below) |
+| Custom folder | radio row, **Choose** / **Change** beside it | the resolved path under it while selected; a lost folder shows the warning (below) |
+| Selection Subfolder Name | editable text, value `Selection` | none (the path line says where it ends up) |
+| Second-Pass Selection Subfolder Name | editable text, value `Final` | Used automatically when re-culling an existing Selection folder |
+| RAW and JPEG folders | switch | none — the path line ends `› RAW · JPEG` exactly while it is on |
+
+- **Each radio row is a whole 48 dp row** (`Role.RadioButton`, merged semantics, `selected`), the
+  circle its picture; **Choose** / **Change** is its own 48 dp button beside the row, not inside
+  it.
+- **The path line is the resolved destination of the next Copy or Move**, from the same
+  `SelectionDestinationPlan` the file operation uses (`DestinationPreview.segments` joined with
+  ` › `), so it cannot name a folder files do not go to: `Internal storage › DCIM › Trip ›
+  Selection › RAW · JPEG`. The `› RAW · JPEG` end appears only while *RAW and JPEG folders* is
+  on. Working folder with no folder open says "«Selection» inside the folder you open — no folder
+  open yet" instead of inventing a path. When the open folder is itself a Selection folder, the
+  path ends in the second-pass name and a line says "Second pass — the open folder is a
+  Selection folder". The path carries the spoken description ("Photos go to Internal storage,
+  DCIM, Trip, Selection, in RAW and JPEG subfolders").
+- **Custom folder** uses `<custom>/<Selection name>` too, so both name fields stay in both
+  modes; a custom folder is never a second pass. Tapping the row with no custom folder opens
+  the system folder picker; **cancelling it changes nothing** and the choice stays Working
+  folder. **Choosing Working folder clears the custom folder** and releases its permission — it
+  is not kept dimmed for later, because a parked permission counts against the system's limit
+  and goes stale — so Custom needs the picker again.
+- **A custom folder that will not take files** (permission lost, folder gone or on a card that is
+  not mounted, read-only) shows a `ScoreBad` warning glyph and "Folder unavailable · <reason>"
+  (*No permission — choose the folder again*, *The folder is missing*, *The folder is read-only*)
+  above its path, with **Choose** beside it. Copy and Move do not fall back to another folder:
+  they fail visibly. The folders are described again whenever Settings resumes, so a permission
+  revoked while the app was away shows here, not at the next failed Copy.
+- A filing confirmation names a custom destination too — `Moved to «Keepers › Selection»` — while
+  the button keeps the bare verb (REQ-AND-LAYOUT.08).
 
 ### Analysis
 
@@ -1233,13 +1358,15 @@ Produce these as a design-system page, dark theme, neutral grey / lavender.
    + word + key cap: Keep (`ScoreGood` tonal), Move (`BrandAccentTonal`), Delete (outlined,
    `ScoreBad` glyph and word), Fullscreen, Previous, Next; disabled states (`No previous` /
    `No next`); the 48 dp view-toggle row and the position counter beneath.
-6. **Readout block** — 388 × 450 dp: filename, EXIF line, four icon + name + value rows with
+6. **Readout block** — 388 × 450 dp: filename, EXIF line, lens, four icon + name + value rows with
    goodness bars and the best-of-three dot, the "Not scanned" row, the embedded filmstrip.
 7. **Value overlay** — 148 dp neighbour column: filename, two-line exposure, rule, four icon
    + value + bar rows. Both the outside-the-frame and overlaid-on-the-frame placements, the
    fallback-EXIF amber marker, the unscanned variant, and the suppressed state.
 8. **Maximise badge** — 48 dp `⛶` on a tile's outline: bottom-right on the current frame,
-   bottom-left on Previous and Next so it clears the value overlay. Resting and active.
+   bottom-left on Previous and Next so it clears the value overlay. Resting and active. In the
+   maximised state: the active badge plus the 48 dp ⓘ switch left of it, the top-left info panel and
+   the bottom-left chips (§7.3).
 9. **Filmstrip thumbnail** — resting, current, and in-burst states, 60 dp wide (40 dp tall
    landscape, 80 dp portrait), with the leading-edge burst marker and the sharpness dot.
 10. **Snackbar with Undo** — `Moved to «folder»` (≈ 4 s, Undo, no line) / `Copied to «folder»`
@@ -1268,7 +1395,16 @@ Produce these as a design-system page, dark theme, neutral grey / lavender.
 ## 17. Accessibility
 
 - **Contrast.** All text ≥ 4.5:1 against its surface. Zinc-400 (`#A1A1A1`) on Zinc-900
-  passes; Zinc-500 does not. Do not go darker than `#A1A1A1` for any body text.
+  passes; Zinc-500 does not. Do not go darker than `#A1A1A1` for any text that carries
+  information: small hints (key caps, "No image", "Not scanned", the filmstrip range, Learn
+  captions) use `HintText` (= Zinc-400). The Delete fill is `DestructiveFill` `#DC2626` with white
+  content (4.83:1; `#EF4444` gave 3.76:1) and destructive text on the dark surfaces is
+  `DestructiveText` (= `ScoreBad`, which is also the scheme's `error`/`onError` pair).
+  `ContrastTokensTest` pins every text token against every surface, and a source scan keeps
+  Zinc-500/600/700 out of `Text` calls. Disabled controls are exempt and stay dim.
+- **Announcements.** The confirmation card after a move, copy or delete is a polite live region
+  (re-created per message, so an identical second message is announced again); UNDO and the
+  custom buttons carry the button role.
 - **Direction is not colour-only.** Score direction is conveyed by bar length *and* the
   written direction hint, not by the emerald/amber/red tint alone.
 - **Icon-only controls** need a visible tooltip on hover and a full accessibility label
@@ -1298,17 +1434,23 @@ Shortcuts work in both the standard and fullscreen views.
 | `C` | Copy to Selection |
 | `F` | Enter fullscreen |
 | `Esc` | Exit fullscreen / leave maximised / close sheet or menu |
-| `I` | In fullscreen: pin / unpin the info bar (in the selector: Inspect) |
+| `I` | In fullscreen: pin / unpin the info panel (in the selector: Inspect) |
 | `1` / `2` / `3` | Maximise Previous / Current / Next in place (§7.3) |
+| `G` | Open **Go to photo**: one field (focused on open, label "Number, name or date"), a number 1…N as the counter shows it, part of a file name, or a date (`12.10.2026`, `12.10.26`, `2026-10-12`, `12.10.`), `Enter` / **Go** jumps, `Esc` / **Cancel** closes. A 48 dp calendar button inside the field ("Pick a date") swaps a Material 3 date picker into the same dialog — limited to days that have photos, opening on the day of the photo on screen (else the newest day) — and picking a day jumps at once and closes; it is disabled when no photo has a known date, and scrolls inside the dialog in a 600 × 480 window. The line under the field is, by what is typed: nothing → the days the folder spans (`3 Oct 2026 – 12 Oct 2026`); a position, a name or a date → the file it lands on and when it was taken; a day without photos → that plus "No photos on 13 Oct 2026 — showing 14 Oct 2026" in the neutral colour (Go jumps to the nearest day; it is not an error). An empty or out-of-range number says "Enter 1–N" only after **Go**, and a date still being typed is not "No match" until **Go** |
+| `S` | Open the **Sort** menu (the Sort chip's dropdown, §7.5): Newest first, Oldest first, File name, Blurriest first. It opens only; it never cycles the order. While it is open the selector's other keys are suppressed (`Esc` closes it) |
+| `Ctrl+Z` / `Cmd+Z` | Undo the latest delete or move (20 deep), also in fullscreen |
 | `?` | Open the coach-mark guide (§7.9) |
+
+A held `Delete`, `Backspace`, `M` or `C` acts once; arrows repeat.
 
 Shortcuts are suppressed while any sheet, dialog or the guide is open, **except `Esc`**. Every
 one of these bindings is rendered as a permanent key cap on the control it drives, and the `?`
 guide is generated from the same binding table — a shortcut list that can disagree with the
 bindings will eventually disagree with the bindings.
 
-**Pointer.** Interactive components show the hand cursor (`PointerIcon.Hand`) on hover —
-buttons, clickable images, filmstrip thumbnails. Dragging a folder from an external file
+**Pointer.** Every interactive component shows the hand cursor (`PointerIcon.Hand`) on hover —
+Material buttons, switches and checkboxes through `Modifier.handCursor()`, custom clickables
+through `pointerHoverIcon`; `PointerCursorTest` lists any that has neither. Dragging a folder from an external file
 manager into the app window loads it; design a drop-target state (accent dashed outline over
 the content area, caption *"Drop a folder to load it"*).
 

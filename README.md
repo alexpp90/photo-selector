@@ -1,4 +1,5 @@
 <div align="center">
+
   # Jackpix · Frameduel · Lensjet · Blitzlens
 
   **Four native apps to cull, compare and organize your photos at speed — one each for Android phones, Android tablets & DeX, the Mac and GNOME. Private and offline.**
@@ -11,9 +12,9 @@
   [![macOS CI](https://img.shields.io/github/actions/workflow/status/alexpp90/photo-selector/macos.yml?branch=main&label=macOS&logo=github)](https://github.com/alexpp90/photo-selector/actions/workflows/macos.yml)
   [![Linux CI](https://img.shields.io/github/actions/workflow/status/alexpp90/photo-selector/linux.yml?branch=main&label=Linux&logo=github)](https://github.com/alexpp90/photo-selector/actions/workflows/linux.yml)
   [![Releases](https://img.shields.io/badge/Releases-per%20product-181717?logo=github)](docs/build/RELEASING.md)
-  [![Android](https://img.shields.io/badge/Android-3DDC84?logo=android&logoColor=white)](#-android-installation)
-  [![macOS](https://img.shields.io/badge/macOS-000000?logo=apple&logoColor=white)](#-macos-desktop-installation)
-  [![Linux](https://img.shields.io/badge/Linux-FCC624?logo=linux&logoColor=black)](#-linux-desktop-installation)
+  [![Android](https://img.shields.io/badge/Android-3DDC84?logo=android&logoColor=white)](#-android-installation-jackpix--frameduel)
+  [![macOS](https://img.shields.io/badge/macOS-000000?logo=apple&logoColor=white)](#-lensjet-macos-installation)
+  [![Linux](https://img.shields.io/badge/Linux-FCC624?logo=linux&logoColor=black)](#-blitzlens-linux-installation-debian-13-trixie)
 
   <br />
   <img src="assets/banner.png" alt="The Jackpix, Frameduel, Lensjet and Blitzlens app icons" width="800" style="border-radius: 12px; box-shadow: 0 4px 20px rgba(0,0,0,0.3);" />
@@ -35,11 +36,11 @@ The repository ships **five products** (four active native solutions alongside t
 
 | Product | Directory | Tech Stack | Target Environment | Primary UX Paradigm | Docs |
 | :--- | :--- | :--- | :--- | :--- | :--- |
-| 📱 **Jackpix** | `products/android/phototok/` | Kotlin, Compose, DataStore | Portrait phones ($< 600$dp) | Gesture-first vertical swipe feed | [docs](docs/products/phototok/README.md) |
+| 📱 **Jackpix** | `products/android/phototok/` | Kotlin, Compose, DataStore | Phones of every size | Gesture-first vertical swipe feed | [docs](docs/products/phototok/README.md) |
 | 🖥️ **Frameduel** (Android Desktop) | `products/android/android-desktop/` | Kotlin, Compose, Room, OpenCV | Samsung DeX, tablets ($\ge 840$dp) | 1-over-2 three-frame layout, sidebar & controls | [docs](docs/products/android-desktop/README.md) |
 | 🍎 **Lensjet** (macOS Desktop) | `products/macos-desktop/` | Swift 6, SwiftUI, Vision, Accelerate | macOS 14+ / 15+ Apple Silicon & Intel | Maximized preview (>85%), Apple Vision aesthetics | [docs](docs/products/macos-desktop/README.md) |
 | 🐧 **Blitzlens** (Linux Desktop) | `products/linux-desktop/` | Python 3.12+, GTK4, Libadwaita | Debian 13 (Trixie), GNOME 46+ | Libadwaita dark studio, 1/2/3-Up canvas, NumPy (<2ms) | [docs](docs/products/linux-desktop/README.md) |
-| 📦 **Photo Selector Toolbox (Legacy)** | `products/desktop/src/` | Python 3.10+, Tkinter | macOS, Windows, Linux | Split view, menu/hotkeys (archived reference) | [docs](docs/products/desktop/README.md) |
+| 📦 **Photo Selector Toolbox (Legacy)** | `products/desktop/src/` | Python 3.12+, Tkinter | macOS, Windows, Linux | Split view, menu/hotkeys (archived reference) | [docs](docs/products/desktop/README.md) |
 | *(shared library)* | `products/android/core/` | Kotlin | — | EXIF model + readers used by both Android products | [docs](docs/shared/README.md) |
 | *(shared library)* | `products/android/saf/` | Kotlin | — | SAF copy/move engine + folder grants used by both Android products | [docs](docs/shared/README.md) |
 
@@ -81,8 +82,8 @@ A lightweight, touch-optimized portrait client designed for lightning-fast, sing
 * **Casual or Pro, One Switch:** Out of the box Jackpix is set up for fast swiping with nothing to configure — ★ favourites on the phone, SD-card keepers copied into the phone's camera folder (`DCIM/Camera/Jackpix`), RAW + JPEG kept together, no camera info. The **Pro mode** switch on the start screen (and at the top of Settings) turns on camera info and unlocks swipe actions, folders, feed order, format filters and per-source profiles; switching it off pauses those settings without erasing them. Settings survive app updates.
 * **Full-Screen Vertical Swipe Feed:** Browse local collections seamlessly via Jetpack Compose native `VerticalPager` with background prefetching and progressive SAF loading (sub-second time-to-first-swipe).
 * **Tactile Culling Swipes:**
-  * **Swipe-Right to Keep:** Mark a ★ favourite, or (Pro) copy or move the photo to your `Selection/` folder, with an animated green confirmation glow.
-  * **Swipe-Left to Discard or Route:** Configurable action (Trash/Delete, Copy, or Move to secondary folder) with progressive card tilt ($2^\circ$) and non-blocking **Revert** (`RestoreFromTrash`) across scrolls.
+  * **Swipe-Right to Keep:** Mark a ★ favourite, or (Pro) copy or move the photo to your `Selection/` folder, with an animated lime confirmation glow.
+  * **Swipe-Left to Discard or Route:** Configurable action (permanent Delete after confirmation, Copy, or Move to a secondary folder) with progressive card tilt ($2^\circ$) and non-blocking **Undo** (a "Photo deleted · Undo" snackbar and the bar's `Undo` arrow) across scrolls.
 * **Newest Photo First, Preloaded Ahead:** Phone, cloud, SD card and camera folders all start with the newest photo as `1/N`; Pro mode can sort by file name, shuffle or orientation instead. Photos ahead of you in the direction you scroll are preloaded.
 * **Session Resume, Reload & New Photos Prompt:** Reopening a folder resumes where you left off; only when newer photos exist does a short "N new photos" dialog offer **Show new** or **Stay**. The **Reload** button rescans the folder and jumps to its latest photo (position 1 in newest-first order), no dialog.
 * **Share & Selection Viewer:** A **Share** button in the icon-only bottom bar shares the current photo while you scroll. The Selection button opens your Favourites and the Selection folder with photo counts, starting on the list your swipe right fills; the two tabs appear only when both have photos.
@@ -106,9 +107,12 @@ Built specifically for large-screen tablets (≥ 840 dp) and desktop environment
 * **1-over-2 Three-Frame Layout:** Height-optimized comparison architecture allocating maximum display area to the Current frame, flanked by named metric readouts to the left and primary action buttons to the right, with Previous and Next frames centered as a pair beneath.
 * **Zero-Area-Cost Columnar Chrome:** 88dp labeled left sidebar and 72dp vertical filmstrip running top-to-bottom in horizontal display slack, preserving 100% of vertical photo height without adding top or bottom bars.
 * **On-Device Optical Scoring:** Real-time Center Sharpness (OpenCV Laplacian variance on center 50% ROI), MAD noise floor estimation, highlight/shadow clipping histograms.
-* **Star Ratings & Composition Feedback:** 1–5 star rating controls, reject tags, and composition heuristics persisted in a local Room SQLite database with a 10,000-image MRU cache. Ratings are written back to the photo too: embedded XMP for JPEG, an `.xmp` sidecar for RAW and TIFF; for other formats (PNG, HEIC, WebP) the rating stays in the app and you are told so.
-* **Desktop Ergonomics:** Mouse pointer hover states (`PointerIcon.Hand`), physical keyboard shortcuts (`←`/`→`, `M`, `C`, `Del`, `1`/`2`/`3`, `Esc`; `I` pins the info bar in fullscreen), and drag-and-drop folder import from Android file managers. Every control is a ≥ 48 dp touch target, and in small Chromebook or DeX windows the action buttons restack their word and key cap instead of truncating them.
-* **Quiet Feedback:** A move or copy confirms with a short card that leaves by itself (a move keeps its Undo; `Ctrl+Z` works afterwards); only a delete shows a draining line, because only its 30-second window is a real deadline. The card also appears in fullscreen, where the file name, position and EXIF reappear on every page change and `I` pins them.
+* **Star Ratings & Composition Feedback:** 1–5 star rating controls, reject tags, and composition heuristics persisted in a local Room SQLite database with a 10,000-image MRU cache. Ratings are written back to the photo too: embedded XMP for JPEG (while it is rewritten, a `.frameduel-backup` copy of the original sits beside it, and an interrupted write is restored the next time the folder opens), an `.xmp` sidecar for RAW and TIFF; for other formats (PNG, HEIC, WebP) the rating stays in the app and you are told so.
+* **Desktop Ergonomics:** Mouse pointer hover states (`PointerIcon.Hand`), physical keyboard shortcuts (`←`/`→`, `M`, `C`, `Del`, `1`/`2`/`3`, `G`, `S`, `Esc`; `I` pins the info panel in fullscreen), and drag-and-drop folder import from Android file managers. Every control is a ≥ 48 dp touch target, and in small Chromebook or DeX windows the action buttons restack their word and key cap instead of truncating them.
+* **Sort and Go To:** A folder opens newest first. Right of the current photo, a Sort button (or `S`, or the overflow menu) switches to oldest first, file name or blurriest first (after a scan), and the choice is kept. The position counter beside it (or `G`) jumps straight to a photo by its number, a date (`12.10.2026`, `2026-10-12` or `12.10.`, or a calendar picker limited to days with photos; a day without photos goes to the nearest one) or its file name. In very small windows the two buttons give way to the counter, the keys and the overflow menu.
+* **Where Photos Go:** Settings says where a move or copy lands: the Selection folder inside the folder you are culling (Working folder) or one you pick (Custom folder), with the full path shown, a warning when a custom folder lost its permission, and the folder named in the confirmation.
+* **Edge-to-Edge Fullscreen:** One frame, full size (`1`/`2`/`3`) gives the photo the whole area beside the sidebar, with its details as an overlay that the ⓘ button on the frame turns off. In fullscreen (`F`) the photo fills the whole window. File name, position, exposure and lens float in a compact corner panel that fades after 3 s; `I` pins it. The lens is shown wherever the exposure is, in the comparison view too.
+* **Quiet Feedback:** A move, copy or delete confirms with a short card that leaves by itself; a move or delete keeps its Undo, and `Ctrl+Z` undoes it until you leave the folder (deletions are carried out then). The card also appears in fullscreen, where the file name, position and EXIF reappear on every page change and `I` pins them.
 * **Every Camera Format:** Discovers, displays, reads EXIF from and scores Sony, Canon (incl. CR3), Nikon, Fujifilm, Panasonic, OM System, Pentax, Samsung and DNG RAW files plus JPEG, HEIC, PNG, TIFF and WebP. RAWs are shown from their embedded camera JPEG; phone DNGs fall back to the platform decoder. Proven against real camera files ([supported formats](docs/shared/SUPPORTED_FORMATS.md)).
 * **Zero Network Permissions:** Declares no Android permissions (`INTERNET` included) and requires zero Google Play Services dependencies for complete privacy.
 
@@ -120,7 +124,7 @@ A high-performance native macOS photo selection and comparison culling suite bui
 
 <div align="center">
   <img src="assets/macos_desktop_screenshot.png" alt="Lensjet Culling Workspace" width="750" style="border-radius: 10px; box-shadow: 0 4px 20px rgba(0,0,0,0.3); margin-bottom: 12px;" />
-  <p><em>Native macOS studio workspace with floating Apple Vision HUD pill, 1-Up maximized canvas, and tactile action bar</em></p>
+  <p><em>Lensjet culling workspace: 1-Up canvas, action bar and filmstrip</em></p>
 </div>
 
 ### Key Features
@@ -128,7 +132,7 @@ A high-performance native macOS photo selection and comparison culling suite bui
 * **Hardware-Accelerated Focus Metric:** Sub-millisecond 2D Laplacian variance computation via Apple Accelerate (`vImageConvolve_PlanarF` + `vDSP`), processing >1,500 images/second per thread with noise-floor subtraction.
 * **Maximized Viewport Canvas:** Borderless comparison layouts (1-Up with 1:1 pixel zoom on `Space`, 2-Up side-by-side, and Focus 3-Up sliding triplet) allocating >85% of window area to photo previews.
 * **Zero-Latency Keyboard Navigation:** Window-level `NSEvent` interceptor routing arrow keys, `M` (Move to `Selection/`), `C` (Copy), `Delete` (System Trash), and `⌘Z` (Instant Undo) with zero AppKit focus lag.
-* **Actor-Isolated Transactional Culling:** Serial FIFO disk mutations on `AsyncCullingActor` guaranteeing zero data loss and automated companion file pairing (RAW+JPEG, XMP sidecars).
+* **Actor-Isolated Transactional Culling:** Serial FIFO disk mutations on `AsyncCullingActor` that never overwrite a file (a name clash gets a `-2` suffix), keep an undo record for Move, Copy and Trash, and pair companion files automatically (RAW+JPEG, XMP sidecars).
 * **macOS Design Standards:** Studio dark theme, configuration housed in standard macOS Settings (`⌘,`), secondary utilities housed under the Menu Bar `Tools` menu, and a toolbar and action bar that collapse to short labels and icons (with tooltips) in narrow windows instead of wrapping.
 
 ---
@@ -183,7 +187,7 @@ The original multi-platform desktop culling application built with Python and Tk
 | **Score Caching** | ❌ Lightweight | ✅ (Room DB) | ❌ (Memory LRU) | ❌ (Memory LRU) | ✅ (SQLite) | Desktops rely on sub-2ms compute & memory LRU; Android uses Room. |
 | **Duplicate Detection** | ❌ Omitted | ✅ (Room DB) | ✅ (CryptoKit SHA) | ✅ (Streaming SHA) | ✅ (SHA-256) | Two-stage size pre-filtering and SHA-256 duplicate finder. |
 | **Tactile Keyboard Shortcuts** | ❌ Touch-first | ✅ (DeX / Physical) | ✅ (Zero-latency NSEvent)| ✅ (GTK Capture) | ✅ (Tkinter Events) | Full hotkey routing (`←`/`→`, `M`, `C`, `Del`, `Undo`). |
-| **100% Offline Privacy** | ✅ (SAF Only) | ✅ (Zero Permissions) | ✅ (Strictly Local) | ✅ (Strictly Local) | ✅ (Local) | Zero telemetry, zero cloud dependencies, strict privacy guarantee. |
+| **100% Offline Privacy** | ✅ (SAF Only) | ✅ (Zero Permissions) | ✅ (Strictly Local) | ✅ (Strictly Local) | ✅ (Local) | Zero telemetry, zero cloud dependencies, strict privacy guarantee. The legacy Desktop's optional Ollama aesthetic engine sends images to the Ollama server URL you configure (localhost by default). |
 
 ---
 
@@ -192,9 +196,9 @@ The original multi-platform desktop culling application built with Python and Tk
 ### 📱 Android Installation (Jackpix & Frameduel)
 
 #### Option A: Obtainium (Direct Auto-Updates)
-1. Install [Obtainium](https://github.com/ImranOmarRashid/Obtainium) on your Android device.
+1. Install [Obtainium](https://github.com/ImranR98/Obtainium) on your Android device.
 2. In Obtainium, click **Add App** and paste this repository's URL: `https://github.com/alexpp90/photo-selector`.
-3. Each app has its own releases, named `Jackpix X.Y.Z` and `Frameduel X.Y.Z`: set Obtainium's **Filter release titles by regular expression** to `^Jackpix ` or `^Frameduel ` (or allow pre-releases for the `nightly` build). Obtainium will download and install APK updates directly from GitHub Releases.
+3. Each app has its own releases, named `Jackpix X.Y.Z` and `Frameduel X.Y.Z`: set Obtainium's **Filter release titles by regular expression** to `^Jackpix ` or `^Frameduel ` (Jackpix and Frameduel share one pre-release, titled `Jackpix & Frameduel Nightly`: to follow it, allow pre-releases with the filter `^Jackpix ` and pick the APK of the app you want). Obtainium will download and install APK updates directly from GitHub Releases.
 
 #### Option B: GitHub Releases (Direct APK)
 Download the APK from the latest [Jackpix](https://github.com/alexpp90/photo-selector/releases?q=phototok-v&expanded=true) or [Frameduel](https://github.com/alexpp90/photo-selector/releases?q=android-desktop-v&expanded=true) release.
@@ -216,7 +220,15 @@ brew install --cask photo-selector-toolbox
 ```
 
 #### Standalone ZIP
-Download the pre-compiled `photo-selector-macos-apple-silicon.zip` from the latest [Lensjet release](https://github.com/alexpp90/photo-selector/releases?q=macos-desktop-v&expanded=true), unpack it, and drag `Lensjet.app` into `/Applications`.
+Download the pre-compiled `photo-selector-macos-apple-silicon.zip` (the file name is historical: the app inside is a universal build for Apple Silicon and Intel Macs) from the latest [Lensjet release](https://github.com/alexpp90/photo-selector/releases?q=macos-desktop-v&expanded=true), unpack it, and drag `Lensjet.app` into `/Applications`.
+
+#### First launch (Gatekeeper)
+Lensjet is signed ad hoc and is **not notarized by Apple yet**, so macOS 14 and 15 refuse the first launch ("Apple could not verify …"), however you installed it. Allow it once:
+
+1. Try to open Lensjet, then click **Done** (not *Move to Bin*).
+2. Open **System Settings → Privacy & Security**, scroll to **Security**, click **Open Anyway** next to Lensjet and confirm.
+
+Or remove the quarantine flag in Terminal: `xattr -dr com.apple.quarantine /Applications/Lensjet.app`. The Homebrew cask prints the same note after install.
 
 ---
 
@@ -277,8 +289,8 @@ Standalone archives are available on [GitHub Releases](https://github.com/alexpp
 ## 🛠️ Run from Source
 
 ### 📱 Android Setup (Jackpix & Frameduel)
-1. Open the repository root in **Android Studio Ladybug** (or newer).
-2. Ensure JDK 17 and Android SDK 36 are configured.
+1. Open `products/android` in a current **Android Studio**: it must support the Android Gradle Plugin version pinned in `products/android/gradle/libs.versions.toml` (`agp`, currently 9.4), which older releases such as Ladybug cannot open.
+2. Ensure JDK 17 and Android SDK 37 (`compileSdk`) are configured.
 3. Build the debug binaries:
    ```bash
    cd products/android
@@ -300,7 +312,7 @@ Standalone archives are available on [GitHub Releases](https://github.com/alexpp
 ### 🐧 Blitzlens Setup (Python & GTK4)
 1. Ensure Python 3.12+ and system GTK4 / Libadwaita libraries are installed:
    ```bash
-   sudo apt install python3-gi python3-gi-cairo gir1.2-gtk-4.0 gir1.2-adw-1 libgexiv2-2
+   sudo apt install python3-gi python3-gi-cairo gir1.2-gtk-4.0 gir1.2-adw-1 gir1.2-gexiv2-0.10
    ```
 2. Run directly from `products/linux-desktop`:
    ```bash
@@ -308,8 +320,8 @@ Standalone archives are available on [GitHub Releases](https://github.com/alexpp
    PYTHONPATH=src python3 -m photo_selector_linux [path/to/photos]
    ```
 
-### 💻 Legacy Desktop Setup (Python 3.10+)
-1. Ensure Python 3.10+ and Tkinter are installed:
+### 💻 Legacy Desktop Setup (Python 3.12+)
+1. Ensure Python 3.12+ and Tkinter are installed:
    ```bash
    cd products/desktop
    poetry install
@@ -336,8 +348,7 @@ To verify all products against the exact gates CI enforces:
   ```
 * **Lensjet (Swift 6):**
   ```bash
-  cd products/macos-desktop
-  swift test
+  ./scripts/run_tests.sh --macos   # the CI gate: swift test -c release --no-parallel, plus the UI smoke test
   ```
 * **Blitzlens (Pytest):**
   ```bash

@@ -19,6 +19,10 @@ Frameduel), `nightly-macos-desktop` (Lensjet) and `nightly` (legacy Desktop). Th
 `nightly`, which then pointed at whichever workflow finished last; `scripts/tests/test_workflow_bounds.py`
 fails if two workflows publish the same tag.
 
+The Android workflow also publishes to the Google Play **internal track** on every push to `main`
+that changes the app's module or the shared Android files, not only on the product's tag; the tag
+is what produces the GitHub release and its notes.
+
 Android `versionCode`s stay CI-computed (`android.yml`, from the run number), so Google Play
 always sees an increasing code; `versionName` is the product version.
 
@@ -59,7 +63,7 @@ waited 21 days. The thresholds are constants at the top of `release.py`.
    It writes the next version into every version source and turns the changelog's
    `[Unreleased]` section into `[X.Y.Z] - <date>`. If that section was empty it drafts it
    from the PR titles: rewrite the draft for users. Linux Desktop also gets a new
-   `debian/changelog` entry.
+   `debian/changelog` entry and a new AppStream `<release>` in its `metainfo.xml`.
 3. **Test, and fix every failure.** Run the product's gates with the CI mirror:
 
    | Product | Command |

@@ -65,12 +65,24 @@ object SelectionActionLabels {
      * Names [selectionFolderName], because "Moved to Selection" is simply false
      * for a photographer who renamed the folder — and the snackbar is the only
      * thing on screen that says where the photograph went.
+     *
+     * When the destination is a custom folder ([customFolderName], `[USER 2026-11-04]`) it is
+     * named too, `Moved to «Keepers › Selection»`, because "Moved to Selection" does not say
+     * which of the user's folders called Selection. The control keeps the bare verb; only this
+     * sentence carries the place.
      */
     fun confirmation(
         action: FilingAction,
         selectionFolderName: String = FilingAction.DEFAULT_SELECTION_FOLDER,
-    ): String =
-        "${action.pastTense} to ${FilingAction.selectionFolderOrDefault(selectionFolderName)}"
+        customFolderName: String? = null,
+    ): String {
+        val folder = FilingAction.selectionFolderOrDefault(selectionFolderName)
+        return if (customFolderName.isNullOrBlank()) {
+            "${action.pastTense} to $folder"
+        } else {
+            "${action.pastTense} to «${DestinationLabels.customDestinationName(customFolderName, folder)}»"
+        }
+    }
 
     /**
      * The snackbar after a transfer whose primary file had to be renamed to avoid a collision
@@ -82,10 +94,18 @@ object SelectionActionLabels {
         selectionFolderName: String,
         resultName: String,
         relatedCount: Int,
+        customFolderName: String? = null,
     ): String {
         val related = if (relatedCount > 0) " (+$relatedCount related)" else ""
-        return "${confirmation(action, selectionFolderName)} as $resultName$related"
+        return "${confirmation(action, selectionFolderName, customFolderName)} as $resultName$related"
     }
+
+    /**
+     * An undo that put the file back but could not remove the one in the Selection (FD-D-15):
+     * both exist now, and saying so is the whole message.
+     */
+    fun undoPartialMessage(fileName: String, selectionFolderName: String): String =
+        "Restored $fileName — the copy in $selectionFolderName could not be removed"
 
     /** The snackbar after an undo that had to add a suffix because the original name was taken. */
     fun restoredAs(resultName: String): String =

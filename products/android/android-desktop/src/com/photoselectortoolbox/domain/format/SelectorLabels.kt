@@ -1,5 +1,11 @@
 package com.photoselectortoolbox.domain.format
 
+import com.photoselectortoolbox.domain.session.DateJump
+import java.time.LocalDate
+import java.time.LocalDateTime
+import java.time.format.DateTimeFormatter
+import java.util.Locale
+
 /**
  * Short strings the selector chrome shows, kept out of the composables so the
  * wording can be tested without a device.
@@ -80,7 +86,7 @@ object SelectorLabels {
         providerLabel: String? = null,
     ): String {
         val base = "Delete \"$fileName\"? Deletions in this folder are permanent once committed. " +
-            "You can undo up to 20 actions with Ctrl+Z before leaving the folder."
+            "You can undo up to 20 actions with Ctrl+Z $DELETE_UNDO_SCOPE."
         return if (isCloudProvider) {
             val provider = providerLabel?.takeIf { it.isNotBlank() } ?: "a cloud provider"
             "$base Warning: This folder is backed by $provider — deleting here may permanently remove the photo across all synced devices."
@@ -113,6 +119,128 @@ object SelectorLabels {
     fun scanCompleteMessage(count: Int): String = "Scan complete · $count images analysed"
 
     /** Snackbar text when a rating was kept in the app but could not be written to the photo's file or sidecar. */
+    /**
+     * How long a delete can be taken back: until the folder is left (or 20 newer actions push it
+     * off the undo stack). There is no timer (FD-D-1); the dialog and the hint say the same
+     * thing through this one phrase.
+     */
+    const val DELETE_UNDO_SCOPE = "until you leave the folder"
+
+    /** A bundle delete that removed some of its files and not others (FD-D-16). */
+    fun partialDeleteMessage(fileName: String, deletedCount: Int, totalCount: Int): String =
+        "Deleted $deletedCount of $totalCount files of $fileName"
+
     fun ratingNotWrittenMessage(fileName: String, reason: String?): String =
         "Rating kept in the app only — not saved to $fileName" + if (reason.isNullOrBlank()) "" else " ($reason)"
+
+    /**
+     * What a folder open did with the backups of interrupted JPEG rating writes (FD-D-11), or null
+     * when there were none. [kept] pairs a photo with the backup left beside it.
+     */
+    fun ratingRecoveryMessage(restored: List<String>, kept: List<Pair<String, String>>): String? {
+        val parts = buildList {
+            when (restored.size) {
+                0 -> Unit
+                1 -> add("Restored ${restored[0]} from its backup after an interrupted rating write")
+                else -> add("Restored ${restored.size} photos from their backups after an interrupted rating write")
+            }
+            when (kept.size) {
+                0 -> Unit
+                1 -> add("Backup of ${kept[0].first} kept as ${kept[0].second} — check the photo, then delete the backup")
+                else -> add("${kept.size} rating backups kept (*.frameduel-backup) — check the photos, then delete the backups")
+            }
+        }
+        return parts.takeIf { it.isNotEmpty() }?.joinToString(". ")
+    }
+
+    // ── Sort order and "Go to photo" ─────────────────────────────────────
+
+    /** The overflow-menu radio group, in the order it is shown. */
+    const val SORT_NEWEST_FIRST = "Newest first"
+    const val SORT_OLDEST_FIRST = "Oldest first"
+    const val SORT_FILE_NAME = "File name"
+
+    /** Worst-first reject triage (`U-34`), the fourth item of the same radio group. */
+    const val SORT_BLURRIEST_FIRST = "Blurriest first"
+
+    /**
+     * The sort chip's word where the cell cannot hold the phrase: one word per order, a
+     * word each so no two chips ever read alike.
+     */
+    const val SORT_CHIP_NEWEST = "Newest"
+    const val SORT_CHIP_OLDEST = "Oldest"
+    const val SORT_CHIP_FILE_NAME = "Name"
+    const val SORT_CHIP_BLURRIEST = "Blurry"
+
+    /** The sort chip, spoken: the order now in force, then what the chip does. */
+    fun sortChipDescription(orderLabel: String): String = "Sort order: $orderLabel. Change"
+
+    /** The overflow item that opens the dialog; `G` is its key hint. */
+    const val GO_TO_PHOTO_MENU = "Go to photo…"
+
+    /** Dialog title, button words and the counter's spoken click label. */
+    const val GO_TO_PHOTO = "Go to photo"
+    const val GO_TO_PHOTO_GO = "Go"
+    const val GO_TO_PHOTO_CANCEL = "Cancel"
+
+    /** The field's label; a name is accepted as well as a number. */
+    const val GO_TO_PHOTO_FIELD = "Number, name or date"
+
+    /** The calendar button inside the field, which swaps the date picker into the dialog. */
+    const val GO_TO_PHOTO_PICK_DATE = "Pick a date"
+
+    /** Leaves the date picker for the field again. */
+    const val GO_TO_PHOTO_BACK = "Back"
+
+    /**
+     * The Go chip, spoken: its action and where the user stands. Names the running total
+     * for what it is while the folder is still being listed.
+     */
+    fun goToChipDescription(position: Int, total: Int, stillEnumerating: Boolean): String =
+        if (stillEnumerating) {
+            "$GO_TO_PHOTO, $position of $total so far, still loading"
+        } else {
+            "$GO_TO_PHOTO, $position of $total"
+        }
+
+    /** The empty field's supporting line: the days the folder spans, `3 Oct 2026 – 2 Nov 2026`. */
+    fun goToPhotoDateSpan(first: LocalDate, last: LocalDate): String =
+        if (first == last) jumpDate(first) else "${jumpDate(first)} – ${jumpDate(last)}"
+
+    /** What the supporting line says when the input names no photo. */
+    const val GO_TO_PHOTO_NO_MATCH = "No match"
+
+    /** The field's placeholder: the numbers the counter can show. */
+    fun goToPhotoPlaceholder(total: Int): String = if (total <= 1) "1" else "1–$total"
+
+    /** The supporting line for an empty or out-of-range number. */
+    fun goToPhotoRange(total: Int): String = "Enter ${goToPhotoPlaceholder(total)}"
+
+    /**
+     * A day as the Go to photo dialog writes it: `12 Oct 2026`. English, like every
+     * other word in the app, with a fixed locale so a German device does not mix
+     * `12 Okt.` into English copy.
+     */
+    fun jumpDate(date: LocalDate): String = date.format(JUMP_DATE)
+
+    /** A photo's time as the dialog writes it: `12 Oct 2026, 14:32`. */
+    fun jumpDateTime(dateTime: LocalDateTime): String = dateTime.format(JUMP_DATE_TIME)
+
+    /**
+     * The supporting line for a photo the input lands on: its file name, and when it
+     * was taken if that is known — `DSC_0123.JPG · 12 Oct 2026, 14:32`.
+     */
+    fun goToPhotoPreview(fileName: String, takenAt: LocalDateTime?): String =
+        if (takenAt == null) fileName else "$fileName · ${jumpDateTime(takenAt)}"
+
+    /**
+     * What a date jump says when the day asked for has no photo and the nearest day
+     * was taken instead: `No photos on 13 Oct 2026 — showing 14 Oct 2026`; null when
+     * the day was found (nothing to say).
+     */
+    fun goToPhotoNearestDay(jump: DateJump): String? =
+        if (jump.isExact) null else "No photos on ${jumpDate(jump.requested)} — showing ${jumpDate(jump.landed)}"
+
+    private val JUMP_DATE: DateTimeFormatter = DateTimeFormatter.ofPattern("d MMM yyyy", Locale.ENGLISH)
+    private val JUMP_DATE_TIME: DateTimeFormatter = DateTimeFormatter.ofPattern("d MMM yyyy, HH:mm", Locale.ENGLISH)
 }

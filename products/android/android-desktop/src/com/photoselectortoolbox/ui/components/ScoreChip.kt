@@ -9,6 +9,7 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.ExperimentalLayoutApi
 import androidx.compose.foundation.layout.FlowRow
+import androidx.compose.foundation.layout.IntrinsicSize
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -50,12 +51,12 @@ import androidx.compose.ui.unit.sp
 import com.photoselectortoolbox.data.model.ScanResult
 import com.photoselectortoolbox.domain.scoring.ScoreMetric
 import com.photoselectortoolbox.ui.selector.vector
+import com.photoselectortoolbox.ui.theme.HintText
 import com.photoselectortoolbox.ui.theme.BrandAccentGlow
 import com.photoselectortoolbox.ui.theme.ScoreBad
 import com.photoselectortoolbox.ui.theme.ScoreGood
 import com.photoselectortoolbox.ui.theme.ScoreWarn
 import com.photoselectortoolbox.ui.theme.Zinc400
-import com.photoselectortoolbox.ui.theme.Zinc500
 import com.photoselectortoolbox.ui.theme.Zinc700
 import com.photoselectortoolbox.ui.theme.Zinc800
 
@@ -114,6 +115,10 @@ fun ScoreChip(
 
     Column(
         modifier = modifier
+            // As wide as the icon and value, not as wide as the room: the bar
+            // below fills the chip, so without this every chip in a wrapping
+            // row grew to the full row width and stacked into full-width bars.
+            .width(IntrinsicSize.Max)
             .clip(RoundedCornerShape(8.dp))
             .background(Zinc800)
             .border(1.dp, Zinc700, RoundedCornerShape(8.dp))
@@ -196,12 +201,12 @@ fun NotScannedChip(modifier: Modifier = Modifier) {
             imageVector = Icons.Default.Radar,
             contentDescription = null,
             modifier = Modifier.size(14.dp),
-            tint = Zinc500,
+            tint = HintText,
         )
         Text(
             text = "Not scanned",
             fontSize = 11.sp,
-            color = Zinc500,
+            color = HintText,
             maxLines = 1,
         )
     }

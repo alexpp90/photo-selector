@@ -12,14 +12,15 @@ appId: com.photoselectortoolbox.lab
     timeout: 6000
     optional: true
 # Deletions an earlier journey left pending are offered on the next launch ("Uncompleted
-# Deletions", REQ-AND-LAYOUT.23) in a dialog window; "Keep" changes nothing on disk.
+# deletions", REQ-AND-LAYOUT.23) in a dialog window; "Keep" changes nothing on disk. Selected by
+# the dialog's own ids, not its title, so a change of wording or case cannot silently skip it.
 - runFlow:
     when:
       visible:
-        text: "Uncompleted Deletions"
+        id: "dialog_keep_uncompleted_deletions"
     commands:
       - tapOn:
-          text: "Keep"
+          id: "dialog_keep_uncompleted_deletions"
 - tapOn:
     id: "coach_overlay_(skip|dismiss)"
     optional: true

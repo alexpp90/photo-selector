@@ -1,9 +1,9 @@
 # Dependency update PRs. Grouped and monthly so they arrive as a few reviewable PRs, not a
-# stream. Covered: the Android Gradle build (both Android products and :core) and the GitHub
-# Actions used by every workflow. Not covered on purpose: macOS Desktop (SwiftPM, no external
-# packages), Linux Desktop (Debian system packages, versions follow the distribution) and the
-# legacy Desktop (archived; security alerts still apply through the repository's Dependabot
-# alerts setting).
+# stream. Covered: the Android Gradle build (both Android products and :core), the GitHub
+# Actions used by every workflow and by the composite actions in .github/actions/, and the
+# Python dependencies of the legacy Desktop and Blitzlens (minor and patch updates only: the
+# legacy Desktop is archived, but its locked Pillow once carried ~60 advisories that nobody was
+# told about). Not covered on purpose: macOS Desktop (SwiftPM, no external packages).
 version: 2
 updates:
   - package-ecosystem: gradle
@@ -33,10 +33,28 @@ updates:
           - "*"
 
   - package-ecosystem: github-actions
-    directory: /
+    directories:
+      - /
+      - /.github/actions/*
     schedule:
       interval: monthly
     groups:
       actions:
+        patterns:
+          - "*"
+
+  # Poetry projects (poetry.lock beside each pyproject.toml). Majors are decided by a person.
+  - package-ecosystem: pip
+    directories:
+      - /products/desktop
+      - /products/linux-desktop
+    schedule:
+      interval: monthly
+    open-pull-requests-limit: 3
+    ignore:
+      - dependency-name: "*"
+        update-types: ["version-update:semver-major"]
+    groups:
+      python-dependencies:
         patterns:
           - "*"

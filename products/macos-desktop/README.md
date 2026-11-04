@@ -25,7 +25,7 @@ products/macos-desktop/
 - **Maximized Viewport Culling**: Borderless comparison layouts (single, side-by-side, triplet) allocating >85% of window area to photo previews without clutter or chrome.
 - **Fits the smallest window**: down to the 960 pt minimum width no toolbar or action-bar label wraps or truncates; the controls step down to short labels (`3-Up`, `3 / 120`, `Move`) and then to icons, keeping a tooltip with the full name and shortcut. Action toasts and the zoom-exit pill appear inside the active photo, never over a slot header or EXIF strip.
 - **Zero-Latency Keyboard Navigation**: Arrow keys for navigation, `M` (Move to `Selection/`), `C` (Copy to `Selection/`), and `Delete` (System Trash) with automatic companion file pairing (RAW+JPEG, XMP sidecars). `⌘Z` undoes the last operation; every folder keeps its own undo history, including an operation that finished while you switched folders.
-- **Native macOS Interface**: Clean workspace; configuration moved to standard macOS Settings scene (`⌘,`), secondary utilities (Duplicate Finder, Library Stats) housed in the Menu Bar `Tools` menu.
+- **Native macOS Interface**: Clean workspace; configuration moved to standard macOS Settings scene (`⌘,`), where **Culling Destination** chooses between the working folder and a custom folder and shows the resolved destination as a full path, secondary utilities (Duplicate Finder, Library Stats) housed in the Menu Bar `Tools` menu.
 
 ## Architecture & Layering
 
@@ -77,6 +77,10 @@ The bundle holds the host architecture only. Release packaging adds `--universal
 arm64 and x86_64 slices and merge them with `lipo`, so the published zip runs on Apple Silicon
 and Intel Macs alike.
 
+The bundle is signed ad hoc and not notarized yet, so macOS blocks the first launch of a downloaded
+copy: System Settings → Privacy & Security → **Open Anyway**, or
+`xattr -dr com.apple.quarantine /Applications/Lensjet.app`. The Homebrew cask prints the same note.
+
 Directly from SPM also works; the app promotes itself to a regular foreground app at launch
 (an unbundled binary otherwise receives no key events at all):
 
@@ -87,12 +91,14 @@ swift run PhotoSelectorApp                       # optional: -- --open /path/to/
 
 ## Test
 
-To run the full automated test suite:
+To run the full automated test suite the way CI does (`swift test -c release --no-parallel`, plus
+the macro-plugin flags Command Line Tools need), use the repository mirror from the repository root:
 
 ```bash
-cd products/macos-desktop
-swift test
+./scripts/run_tests.sh --macos
 ```
+
+A bare `swift test` runs a different configuration (debug, parallel) and can fail or diverge from the gate.
 
 UI smoke test of the **running** app (keyboard delivery, real key events, Focus 3-Up
 geometry, clicks while zoomed, time-to-first-photo, single-line toolbar/action-bar labels and

@@ -29,7 +29,8 @@ object RatingFormats {
 }
 
 /**
- * A rating write that was refused or failed with a reason the user can be told. Nothing was
- * changed in the photograph or in an existing sidecar when this is raised.
+ * A rating write that was refused or failed with a reason the user can be told. Unless its
+ * message says otherwise ("could not restore it"), nothing was changed in the photograph or in an
+ * existing sidecar when this is raised.
  */
 class RatingWriteException(message: String, cause: Throwable? = null) : IOException(message, cause)
