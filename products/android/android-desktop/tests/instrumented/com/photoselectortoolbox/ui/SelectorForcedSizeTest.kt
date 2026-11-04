@@ -53,6 +53,8 @@ import com.photoselectortoolbox.ui.selector.SelectorSnackbarHost
 import com.photoselectortoolbox.ui.selector.SidebarWidth
 import com.photoselectortoolbox.ui.selector.ThreeUpSelectorLayout
 import com.photoselectortoolbox.ui.theme.PhotoSelectorToolboxTheme
+import com.photoselectortoolbox.viewmodel.SelectorFrame
+import com.photoselectortoolbox.ui.selector.FrameGeometry
 import androidx.test.platform.app.InstrumentationRegistry
 import org.junit.Assert.assertTrue
 import org.junit.Rule
@@ -104,6 +106,7 @@ class SelectorForcedSizeTest {
         snackbar: String? = null,
         guide: Boolean = false,
         fontScale: Float? = null,
+        maximised: SelectorFrame? = null,
     ): Boolean {
         if (!windowHolds(width, height)) return false
         composeRule.setContent {
@@ -128,7 +131,7 @@ class SelectorForcedSizeTest {
                                 detailsVisible = true,
                                 filmstripVisible = false,
                                 overlayValuesVisible = true,
-                                maximisedFrame = null,
+                                maximisedFrame = maximised,
                                 actions = noActions,
                                 onNavigatePrevious = {},
                                 onNavigateNext = {},
@@ -284,6 +287,44 @@ class SelectorForcedSizeTest {
             "snackbar $card intersects the sidebar ${bounds("selector_sidebar")}",
             !intersects(card, bounds("selector_sidebar")),
         )
+    }
+
+    /**
+     * The maximised frame takes the whole image region with the details on (the readout is
+     * an overlay on the photograph, not a column beside it), and its overlay and switch lie
+     * on the frame without sharing bounds. 1280 x 800 and 1480 x 844 dp are the two lab
+     * windows; both fit the reference AVD, and on a phone-class emulator `host` returns
+     * false and the test returns (no `assumeTrue`: this runner reports it as a failure).
+     */
+    @Test
+    fun maximisedFrame_fillsTheRegionHeightWithDetailsVisible_1280x800() = checkMaximised(1280, 800)
+
+    @Test
+    fun maximisedFrame_fillsTheRegionHeightWithDetailsVisible_1480x844() = checkMaximised(1480, 844)
+
+    private fun checkMaximised(w: Int, h: Int) {
+        if (!host(w, h, maximised = SelectorFrame.CURRENT)) return
+        val frame = bounds("maximised_frame")
+        // The host is the window less the sidebar; the layout pads 8 dp all round.
+        val region = DpRect(0.dp, 0.dp, (w - 88 - 16).dp, (h - 16).dp)
+        val expected = FrameGeometry.maximisedFrameSize(region.width, region.height, 1.5f)
+        assertTrue(
+            "maximised frame ${frame.width} x ${frame.height} is not the region's ${expected.width} x ${expected.height} at ${w}x$h",
+            abs(frame.width.value - expected.width.value) <= 1f && abs(frame.height.value - expected.height.value) <= 1f,
+        )
+        assertTrue(
+            "maximised frame height ${frame.height} is not the region height ${region.height} at ${w}x$h",
+            frame.height.value >= region.height.value - 2f,
+        )
+        val panel = bounds("maximised_info_overlay")
+        val toggle = bounds("maximised_info_toggle")
+        val badge = bounds("maximise_badge")
+        assertTrue("panel $panel is not on the frame $frame", panel.left >= frame.left && panel.top >= frame.top && panel.right <= frame.right)
+        assertTrue("panel $panel shares bounds with the toggle $toggle", !intersects(panel, toggle))
+        assertTrue("toggle $toggle shares bounds with the badge $badge", !intersects(toggle, badge))
+        assertTrue("panel $panel shares bounds with the badge $badge", !intersects(panel, badge))
+        assertTrue("the toggle is under 48 dp", toggle.width.value >= 47.5f && toggle.height.value >= 47.5f)
+        assertTrue("no readout column is drawn beside the maximised frame", count("current_readout") == 0)
     }
 
     @Test
