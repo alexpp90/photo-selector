@@ -974,6 +974,36 @@ class SelectorViewModelTest {
         assertEquals("Moved to Selection as IMG_0001-2.jpg", viewModel.uiState.value.snackbarMessage)
     }
 
+    @Test
+    fun `a late first move does not hand its undo to the second move's card`() = runTest {
+        val first = image("a")
+        val second = image("b")
+        val firstDone = kotlinx.coroutines.CompletableDeferred<Unit>()
+        val movedA = "content://test/folder/Selection/JPEG/a.jpg"
+        val movedB = "content://test/folder/Selection/JPEG/b.jpg"
+        coEvery { imageRepository.moveBundle(any(), first, any(), any()) } coAnswers {
+            firstDone.await()
+            FileOperationResult.success(first.uri, movedA, listOf(movedA), null)
+        }
+        coEvery { imageRepository.moveBundle(any(), second, any(), any()) } coAnswers {
+            // Never finishes in this test: the second card is on screen without its record.
+            kotlinx.coroutines.CompletableDeferred<Unit>().await()
+            FileOperationResult.success(second.uri, movedB, listOf(movedB), null)
+        }
+
+        val viewModel = loadFolder(first, second, image("c"))
+        viewModel.moveToSelection()
+        viewModel.moveToSelection()
+        assertEquals("both moves are in flight", 1, viewModel.uiState.value.images.size)
+
+        firstDone.complete(Unit)
+
+        // The first record is on the stack, but the card on screen belongs to the second move.
+        val state = viewModel.uiState.value
+        assertEquals(1, state.undoHistory.size)
+        assertFalse("UNDO on the second card would reverse the first move", state.snackbarUndoAvailable)
+    }
+
     // ── B-9 / D-13: a rating follows its file ─────────────────────────────
 
     @Test

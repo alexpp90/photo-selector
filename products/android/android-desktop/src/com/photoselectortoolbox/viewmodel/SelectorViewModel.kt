@@ -1601,6 +1601,10 @@ class SelectorViewModel @Inject constructor(
             )
         }
         onFrameChanged()
+        // The card this transfer showed. Its UNDO is offered only while that card is still the
+        // one on screen: two quick moves share a sentence, and the first one's late result
+        // must not hand its record to the second one's card (FD-B-7).
+        val ownCardSequence = _uiState.value.snackbarSequence
         // The photograph left the centre of the screen and nothing on it says
         // where it went. This is the explanation that matters most.
         raiseHint(SelectorHint.FILING)
@@ -1650,7 +1654,7 @@ class SelectorViewModel @Inject constructor(
                     destinationUris = result.destinationUris,
                     parentDocumentId = result.parentDocumentId ?: currentItem.parentDocumentId,
                 )
-                if (undo != null) pushFilingUndo(undo, folderUri, snackbarOffersUndo = true)
+                if (undo != null) pushFilingUndo(undo, folderUri, snackbarOffersUndo = true, cardSequence = ownCardSequence)
                 // The rating belongs to the photograph: it follows the file (a copy starts with it).
                 result.destinationUri?.let { moved ->
                     try {
@@ -1731,7 +1735,12 @@ class SelectorViewModel @Inject constructor(
         }
     }
 
-    private fun pushFilingUndo(undo: UndoableOperation, folderUri: String?, snackbarOffersUndo: Boolean) {
+    private fun pushFilingUndo(
+        undo: UndoableOperation,
+        folderUri: String?,
+        snackbarOffersUndo: Boolean,
+        cardSequence: Long? = null,
+    ) {
         var evictedPendings: List<PendingDeletion> = emptyList()
         _uiState.update { current ->
             // The record belongs to the folder the transfer started in. If the photographer has
@@ -1743,7 +1752,8 @@ class SelectorViewModel @Inject constructor(
             evictedPendings = pushResult.evictedPendingDeletions
             current.copy(
                 undoHistory = pushResult.history,
-                snackbarUndoAvailable = snackbarOffersUndo && current.snackbarMessage != null,
+                snackbarUndoAvailable = snackbarOffersUndo && current.snackbarMessage != null &&
+                    (cardSequence == null || cardSequence == current.snackbarSequence),
             )
         }
         evictedPendings.forEach { evicted ->

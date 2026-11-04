@@ -102,12 +102,10 @@ fun DuplicatesScreen(
     if (showDeleteConfirmation) {
         AlertDialog(
             onDismissRequest = { showDeleteConfirmation = false },
-            title = { Text("Delete Selected Files") },
+            title = { Text("Delete selected files") },
             text = {
-                Text(
-                    "Are you sure you want to delete ${uiState.selectedForDeletion.size} " +
-                        "file(s)? This action cannot be undone."
-                )
+                val count = uiState.selectedForDeletion.size
+                Text("Permanently delete $count ${if (count == 1) "file" else "files"}? This cannot be undone.")
             },
             confirmButton = {
                 Button(
@@ -213,7 +211,6 @@ fun DuplicatesScreen(
                         Surface(
                             modifier = Modifier.fillMaxWidth(),
                             color = Zinc800,
-                            tonalElevation = 8.dp,
                         ) {
                             Row(
                                 modifier = Modifier

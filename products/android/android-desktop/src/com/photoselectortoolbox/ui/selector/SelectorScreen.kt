@@ -235,7 +235,7 @@ fun SelectorScreen(
     if (uiState.showDeleteConfirmation) {
         AlertDialog(
             onDismissRequest = { viewModel.dismissDeleteConfirmation() },
-            title = { Text("Delete Image") },
+            title = { Text("Delete image") },
             text = {
                 Text(
                     SelectorLabels.deleteConfirmationMessage(
@@ -272,7 +272,7 @@ fun SelectorScreen(
     if (uiState.showCloudScanConfirmation) {
         AlertDialog(
             onDismissRequest = { viewModel.dismissCloudScanConfirmation() },
-            title = { Text("Cloud Folder Scan") },
+            title = { Text("Cloud folder scan") },
             text = {
                 Text(
                     SelectorLabels.cloudScanConfirmationMessage(
@@ -299,7 +299,7 @@ fun SelectorScreen(
     uiState.uncompletedDeletionsPrompt?.let { prompt ->
         AlertDialog(
             onDismissRequest = { viewModel.keepUncompletedDeletions() },
-            title = { Text("Uncompleted Deletions") },
+            title = { Text("Uncompleted deletions") },
             text = {
                 Text(SelectorLabels.uncompletedDeletionsMessage(prompt.uris.size))
             },
