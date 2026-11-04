@@ -2,14 +2,17 @@ package com.photoselectortoolbox.viewmodel
 
 import android.content.Context
 import android.net.Uri
+import android.util.Log
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.photoselectortoolbox.data.model.DuplicateGroup
+import com.photoselectortoolbox.data.model.ImageItem
 import com.photoselectortoolbox.data.repository.ImageRepository
 import com.photoselectortoolbox.domain.usecase.FindDuplicatesUseCase
 import dagger.hilt.android.lifecycle.HiltViewModel
 import dagger.hilt.android.qualifiers.ApplicationContext
 import javax.inject.Inject
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -40,6 +43,12 @@ class DuplicatesViewModel @Inject constructor(
     val uiState: StateFlow<DuplicatesUiState> = _uiState.asStateFlow()
 
     private var scanJob: Job? = null
+
+    /**
+     * The scanned photographs by URI, so a delete takes a copy's sidecars and companions with it
+     * instead of leaving them orphaned in the folder (FD-B-5).
+     */
+    private var scanned: Map<String, ImageItem> = emptyMap()
 
     fun selectFolder(uri: Uri) {
         scanJob?.cancel()
@@ -109,6 +118,7 @@ class DuplicatesViewModel @Inject constructor(
                     it.copy(statusText = "Scanning ${images.size} images for duplicates...")
                 }
 
+                scanned = images.associateBy { it.uri }
                 val uriSizePairs = images.map { image ->
                     Uri.parse(image.uri) to image.fileSize
                 }
@@ -149,12 +159,15 @@ class DuplicatesViewModel @Inject constructor(
                         }
                     )
                 }
+            } catch (e: CancellationException) {
+                throw e
             } catch (e: Exception) {
+                Log.e("DuplicatesViewModel", "Duplicate scan failed", e)
                 _uiState.update {
                     it.copy(
                         isScanning = false,
                         statusText = "",
-                        error = "Scan failed: ${e.message}"
+                        error = "Scan failed"
                     )
                 }
             }
@@ -167,6 +180,11 @@ class DuplicatesViewModel @Inject constructor(
             if (uri in updated) {
                 updated.remove(uri)
             } else {
+                // Never every copy of a photograph: the last one left unticked stays unticked.
+                val group = state.duplicateGroups.firstOrNull { uri in it.files }
+                if (group != null && group.files.all { it == uri || it in updated }) {
+                    return@update state.copy(error = KEEP_ONE_COPY)
+                }
                 updated.add(uri)
             }
             state.copy(selectedForDeletion = updated)
@@ -185,7 +203,8 @@ class DuplicatesViewModel @Inject constructor(
     }
 
     fun deleteSelected() {
-        val selected = _uiState.value.selectedForDeletion
+        // Whatever the screen allowed, at least one copy of each photograph survives.
+        val selected = keepingOneCopyPerGroup(_uiState.value.selectedForDeletion)
         if (selected.isEmpty()) return
 
         viewModelScope.launch {
@@ -201,14 +220,21 @@ class DuplicatesViewModel @Inject constructor(
 
             for (uriString in selected) {
                 try {
-                    val uri = Uri.parse(uriString)
-                    val deleted = imageRepository.deleteImage(context, uri)
+                    val item = scanned[uriString]
+                    val deleted = if (item != null) {
+                        imageRepository.deleteBundle(context, item)
+                    } else {
+                        imageRepository.deleteImage(context, Uri.parse(uriString))
+                    }
                     if (deleted) {
                         deletedCount++
                     } else {
                         failedUris.add(uriString)
                     }
+                } catch (e: CancellationException) {
+                    throw e
                 } catch (e: Exception) {
+                    Log.e("DuplicatesViewModel", "Delete failed for $uriString", e)
                     failedUris.add(uriString)
                 }
             }
@@ -243,7 +269,20 @@ class DuplicatesViewModel @Inject constructor(
         }
     }
 
+    /** [selected] less, for every group that would lose all its copies, the first copy. */
+    private fun keepingOneCopyPerGroup(selected: Set<String>): Set<String> {
+        val spared = _uiState.value.duplicateGroups
+            .filter { group -> group.files.all { it in selected } }
+            .map { it.files.first() }
+            .toSet()
+        return selected - spared
+    }
+
     fun clearError() {
         _uiState.update { it.copy(error = null) }
+    }
+
+    private companion object {
+        const val KEEP_ONE_COPY = "Keep one copy"
     }
 }
