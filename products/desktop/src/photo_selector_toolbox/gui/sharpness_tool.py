@@ -37,6 +37,95 @@ from photo_selector_toolbox.gui.image_panels import ImagePanelsMixin
 
 logger = logging.getLogger(__name__)
 
+def _is_mock(obj) -> bool:
+    return type(obj).__name__ in ("MagicMock", "Mock")
+
+
+def _same_file(src: Path, dest: Path) -> bool:
+    """True when ``dest`` is ``src`` itself (same path, or same resolved file)."""
+    if src == dest:
+        return True
+    try:
+        s_res = src.resolve()
+        d_res = dest.resolve()
+        if not _is_mock(s_res) and not _is_mock(d_res) and s_res == d_res:
+            return True
+    except Exception:
+        pass
+    return False
+
+
+def _suffixed_name(name: str, stem: str, n: int) -> str:
+    """Insert ``-n`` right after the bundle stem: ``IMG_1.CR3.xmp`` -> ``IMG_1-2.CR3.xmp``,
+    ``IMG_1-Edit.tif`` -> ``IMG_1-2-Edit.tif``."""
+    if n < 2:
+        return name
+    if name.lower().startswith(stem.lower()):
+        return f"{name[:len(stem)]}-{n}{name[len(stem):]}"
+    p = Path(name)
+    return f"{p.stem}-{n}{p.suffix}"
+
+
+def plan_selection_targets(path, related, selection_dir, separate_raw_jpeg):
+    """Plan where each file of a bundle goes inside the Selection folder.
+
+    Returns ``[(source, subfolder, dest_dir, dest), ...]``. A transfer into Selection never
+    overwrites (docs/shared/FILE_OPERATIONS.md section 1): if any member's target is already
+    taken by another file, the whole bundle takes the lowest ``-N`` (N >= 2) for which every
+    member is free, so the RAW, JPEG, sidecars and edits keep sharing one stem.
+    """
+    stem = path.stem
+    path_stem_lower_edit = f"{stem.lower()}-edit"
+    has_raw = False
+    has_jpeg = False
+    file_info = []
+
+    # Determine if RAW or JPEG files are present in the related group to sort sidecars
+    for f in related:
+        suffix = f.suffix.lower()
+        is_lightroom_edit = f.name.lower().startswith(path_stem_lower_edit)
+
+        if suffix in RAW_EXTENSIONS or is_lightroom_edit:
+            has_raw = True
+        elif suffix in {".jpg", ".jpeg"}:
+            has_jpeg = True
+
+        file_info.append((f, suffix, is_lightroom_edit))
+
+    placed = []
+    for f, suffix, is_lightroom_edit in file_info:
+        subfolder = ""
+
+        if separate_raw_jpeg:
+            if suffix in RAW_EXTENSIONS or is_lightroom_edit:
+                subfolder = "RAW"
+            elif suffix in {".jpg", ".jpeg"}:
+                subfolder = "JPEG"
+            elif suffix == ".xmp":
+                if has_raw:
+                    subfolder = "RAW"
+                elif has_jpeg:
+                    subfolder = "JPEG"
+
+        dest_dir = selection_dir / subfolder if subfolder else selection_dir
+        placed.append((f, subfolder, dest_dir))
+
+    def taken(f, dest):
+        return os.path.lexists(dest) and not _same_file(f, dest)
+
+    for n in range(1, 10000):
+        dests = [d / _suffixed_name(f.name, stem, n) for f, _, d in placed]
+        if not any(taken(f, dest) for (f, _, _), dest in zip(placed, dests)):
+            return [(f, sub, d, dest) for (f, sub, d), dest in zip(placed, dests)]
+    raise FileExistsError(f"No free name for {path.name} in {selection_dir}")
+
+
+def _ensure_absent(dest) -> None:
+    """Last look before a write: refuse to replace a file that appeared since planning."""
+    if os.path.lexists(dest):
+        raise FileExistsError(f"Refusing to overwrite existing file: {dest}")
+
+
 
 class ImageGroup:
     """Represents a group of visually similar series of images."""
@@ -3235,43 +3324,9 @@ class SharpnessTool(ttk.Frame, ImagePanelsMixin):
         moved_files = []
         failed_files = []
 
-        # Determine if RAW or JPEG files are present in the related group to sort sidecars
-        path_stem_lower_edit = f"{path.stem.lower()}-edit"
-        has_raw = False
-        has_jpeg = False
-        file_info = []
+        plan = plan_selection_targets(path, related, selection_dir, separate_raw_jpeg)
 
-        for f in related:
-            suffix = f.suffix.lower()
-            name_lower = f.name.lower()
-            is_lightroom_edit = name_lower.startswith(path_stem_lower_edit)
-
-            if suffix in RAW_EXTENSIONS or is_lightroom_edit:
-                has_raw = True
-            elif suffix in {".jpg", ".jpeg"}:
-                has_jpeg = True
-
-            file_info.append((f, suffix, is_lightroom_edit))
-
-        for f, suffix, is_lightroom_edit in file_info:
-            subfolder = ""
-
-            if separate_raw_jpeg:
-                if suffix in RAW_EXTENSIONS or is_lightroom_edit:
-                    subfolder = "RAW"
-                elif suffix in {".jpg", ".jpeg"}:
-                    subfolder = "JPEG"
-                elif suffix == ".xmp":
-                    if has_raw:
-                        subfolder = "RAW"
-                    elif has_jpeg:
-                        subfolder = "JPEG"
-                    else:
-                        subfolder = ""
-                else:
-                    subfolder = ""
-
-            dest_dir = selection_dir / subfolder if subfolder else selection_dir
+        for f, subfolder, dest_dir, dest in plan:
             try:
                 if subfolder:
                     dest_dir.mkdir(parents=True, exist_ok=True)
@@ -3281,21 +3336,8 @@ class SharpnessTool(ttk.Frame, ImagePanelsMixin):
                 self.log(msg)
                 continue
 
-            dest = dest_dir / f.name
             try:
-                is_same = (f == dest)
-                if not is_same:
-                    try:
-                        s_res = f.resolve()
-                        d_res = dest.resolve()
-                        if (
-                            type(s_res).__name__ not in ("MagicMock", "Mock")
-                            and type(d_res).__name__ not in ("MagicMock", "Mock")
-                            and s_res == d_res
-                        ):
-                            is_same = True
-                    except Exception:
-                        pass
+                is_same = _same_file(f, dest)
 
                 if is_same:
                     moved_files.append(f)
@@ -3303,15 +3345,18 @@ class SharpnessTool(ttk.Frame, ImagePanelsMixin):
                     continue
 
                 try:
+                    _ensure_absent(dest)
                     f.rename(dest)
                 except FileExistsError:
-                    os.replace(f, dest)
+                    # Never replace an existing file (Windows rename raises, POSIX would clobber).
+                    raise
                 except OSError as ex:
                     import errno
                     if ex.errno == errno.EXDEV:
                         tmp_dest = dest_dir / f".{f.name}.tmp.{os.getpid()}"
                         try:
                             shutil.copy2(f, tmp_dest)
+                            _ensure_absent(dest)
                             os.replace(tmp_dest, dest)
                             f.unlink()
                         except Exception:
@@ -3327,7 +3372,7 @@ class SharpnessTool(ttk.Frame, ImagePanelsMixin):
                 moved_files.append(f)
                 log_path_name = selection_dir.name
                 log_path = f"{log_path_name}/{subfolder}" if subfolder else log_path_name
-                self.log(f"Moved to {log_path}: {f.name}")
+                self.log(f"Moved to {log_path}: {f.name}" + (f" as {dest.name}" if dest.name != f.name else ""))
             except Exception as e:
                 failed_files.append((f, e))
                 msg = f"Move failed for {f}: {e}"
@@ -3426,43 +3471,9 @@ class SharpnessTool(ttk.Frame, ImagePanelsMixin):
         copied_files = []
         failed_files = []
 
-        # Determine if RAW or JPEG files are present in the related group to sort sidecars
-        path_stem_lower_edit = f"{path.stem.lower()}-edit"
-        has_raw = False
-        has_jpeg = False
-        file_info = []
+        plan = plan_selection_targets(path, related, selection_dir, separate_raw_jpeg)
 
-        for f in related:
-            suffix = f.suffix.lower()
-            name_lower = f.name.lower()
-            is_lightroom_edit = name_lower.startswith(path_stem_lower_edit)
-
-            if suffix in RAW_EXTENSIONS or is_lightroom_edit:
-                has_raw = True
-            elif suffix in {".jpg", ".jpeg"}:
-                has_jpeg = True
-
-            file_info.append((f, suffix, is_lightroom_edit))
-
-        for f, suffix, is_lightroom_edit in file_info:
-            subfolder = ""
-
-            if separate_raw_jpeg:
-                if suffix in RAW_EXTENSIONS or is_lightroom_edit:
-                    subfolder = "RAW"
-                elif suffix in {".jpg", ".jpeg"}:
-                    subfolder = "JPEG"
-                elif suffix == ".xmp":
-                    if has_raw:
-                        subfolder = "RAW"
-                    elif has_jpeg:
-                        subfolder = "JPEG"
-                    else:
-                        subfolder = ""
-                else:
-                    subfolder = ""
-
-            dest_dir = selection_dir / subfolder if subfolder else selection_dir
+        for f, subfolder, dest_dir, dest in plan:
             try:
                 if subfolder:
                     dest_dir.mkdir(parents=True, exist_ok=True)
@@ -3472,32 +3483,20 @@ class SharpnessTool(ttk.Frame, ImagePanelsMixin):
                 self.log(msg)
                 continue
 
-            dest = dest_dir / f.name
             try:
-                is_same = (f == dest)
-                if not is_same:
-                    try:
-                        s_res = f.resolve()
-                        d_res = dest.resolve()
-                        if (
-                            type(s_res).__name__ not in ("MagicMock", "Mock")
-                            and type(d_res).__name__ not in ("MagicMock", "Mock")
-                            and s_res == d_res
-                        ):
-                            is_same = True
-                    except Exception:
-                        pass
+                is_same = _same_file(f, dest)
 
                 if is_same:
                     copied_files.append(f)
                     self.log(f"Already in selection: {f.name}")
                     continue
 
+                _ensure_absent(dest)
                 shutil.copy2(f, dest)
                 copied_files.append(f)
                 log_path_name = selection_dir.name
                 log_path = f"{log_path_name}/{subfolder}" if subfolder else log_path_name
-                self.log(f"Copied to {log_path}: {f.name}")
+                self.log(f"Copied to {log_path}: {f.name}" + (f" as {dest.name}" if dest.name != f.name else ""))
             except Exception as e:
                 failed_files.append((f, e))
                 msg = f"Copy failed for {f}: {e}"
