@@ -43,7 +43,7 @@
 </head>
 <body>
   <h1>Privacy Policy — Frameduel (Android Desktop)</h1>
-  <p class="meta">Last updated: October 2026 &middot; <a href="#de">Deutsche Version unten</a></p>
+  <p class="meta">Last updated: November 2026 &middot; <a href="#de">Deutsche Version unten</a></p>
 
   <h2>1. Summary</h2>
   <p>
@@ -65,11 +65,13 @@
       <strong>Photos, EXIF Metadata &amp; On-Device Analysis (Local Only):</strong>
       You select folders explicitly using the Android System Storage Access Framework (SAF) folder picker (<code>ACTION_OPEN_DOCUMENT_TREE</code>).
       All sharpness, noise, exposure, subject, composition, and technique (OpenCV), and duplicate analyses run strictly locally on your device.
-      No images, thumbnails, file paths, GPS coordinates, or EXIF tags are ever transmitted over a network.
+      No images, thumbnails, file paths, GPS coordinates, or EXIF tags are ever transmitted over a network by Frameduel.
+      If you choose a folder that a cloud storage app provides, that app transfers and syncs the files under its own privacy policy; Frameduel itself sends nothing.
     </li>
     <li>
       <strong>Local Score Cache &amp; Preferences (Room &amp; DataStore):</strong>
       Calculated image quality scores, detected technique facts, and star ratings are cached locally in an internal SQLite (Room) database so folders re-open quickly, and user preferences are stored in Android Jetpack DataStore.
+      A star rating you give is also written into the photo's XMP metadata (JPEG) or into an XMP sidecar file next to the photo (RAW, TIFF), in the folder you chose, so other apps and anyone you share the file with can read it.
       You can clear the local score cache at any time in <strong>Settings &rarr; Cache &rarr; Clear Cache</strong>.
       Cloud auto-backup of the local score database and SAF folder grants is disabled so local file URIs and metadata are never uploaded to cloud backup services.
     </li>
@@ -90,10 +92,15 @@
     Under the General Data Protection Regulation (Arts. 15–21, 77 GDPR), you have the right to access, rectification, erasure, restriction of processing, data portability, and to lodge a complaint with a supervisory authority. Because the developer receives or stores no personal data from your use of Frameduel, you retain full technical control over all data directly on your device.
   </p>
 
+  <h2>7. This Website</h2>
+  <p>
+    This page and the Legal Notice are hosted on GitHub Pages (GitHub Inc., USA, certified under the EU-U.S. Data Privacy Framework). When you open them, GitHub may process technical access data such as your IP address in its server logs under its own privacy policy; the developer receives none of it. The app opens these pages only when you tap their link in Settings.
+  </p>
+
   <hr id="de">
 
   <h1>Datenschutzerklärung — Frameduel (Deutsch)</h1>
-  <p class="meta">Stand: Oktober 2026</p>
+  <p class="meta">Stand: November 2026</p>
 
   <h2>1. Überblick</h2>
   <p>
@@ -114,17 +121,23 @@
     <li>
       <strong>Fotos, EXIF-Metadaten &amp; Bildanalyse (ausschließlich lokal):</strong>
       Der Zugriff auf Fotoordner erfolgt ausschließlich über die vom Nutzer explizit im Android Storage Access Framework (SAF, <code>ACTION_OPEN_DOCUMENT_TREE</code>) ausgewählten Verzeichnisse.
-      Sämtliche Berechnungen (Schärfe, Bildrauschen, Belichtung, Motiv-, Technik- und Bildkompositionsanalyse mittels OpenCV sowie Duplikaterkennung) finden vollständig lokal auf Ihrem Gerät statt.
+      Sämtliche Berechnungen (Schärfe, Bildrauschen, Belichtung, Motiv-, Technik- und Bildkompositionsanalyse mittels OpenCV sowie Duplikaterkennung) finden vollständig lokal auf Ihrem Gerät statt. Wählen Sie einen Ordner, den eine Cloud-Speicher-App bereitstellt, überträgt und synchronisiert diese App die Dateien nach ihrer eigenen Datenschutzerklärung; Frameduel selbst sendet nichts.
     </li>
     <li>
       <strong>Lokaler Bewertungs-Cache &amp; Einstellungen (Room &amp; DataStore):</strong>
-      Berechnete Qualitätswerte, erkannte Aufnahmetechnik-Merkmale und Sternebewertungen werden lokal in einer internen SQLite-Datenbank (Room) zwischengespeichert; Einstellungen liegen lokal im Jetpack DataStore. Sie können den Analyse-Cache jederzeit in den App-Einstellungen (<strong>Settings &rarr; Clear Cache</strong>) löschen. Ein Cloud-Auto-Backup dieser Datenbanken ist deaktiviert.
+      Berechnete Qualitätswerte, erkannte Aufnahmetechnik-Merkmale und Sternebewertungen werden lokal in einer internen SQLite-Datenbank (Room) zwischengespeichert; Einstellungen liegen lokal im Jetpack DataStore. Sie können den Analyse-Cache jederzeit in den App-Einstellungen (<strong>Settings &rarr; Cache &rarr; Clear Cache</strong>) löschen. Ein Cloud-Auto-Backup dieser Datenbanken ist deaktiviert.
+      Eine von Ihnen vergebene Sternebewertung wird zusätzlich in die XMP-Metadaten des Fotos (JPEG) bzw. in eine XMP-Sidecar-Datei neben dem Foto (RAW, TIFF) im von Ihnen gewählten Ordner geschrieben; andere Apps und alle, denen Sie die Datei weitergeben, können sie dadurch lesen.
     </li>
   </ul>
 
   <h2>4. Rechtsgrundlage, Speicherdauer &amp; Ihre Rechte</h2>
   <p>
     Alle Verarbeitungsschritte erfolgen ausschließlich lokal auf Ihrem Gerät zur Bereitstellung der von Ihnen genutzten Funktionen (Art. 6 Abs. 1 lit. b DSGVO bzw. § 25 Abs. 2 Nr. 2 TDDDG). Durch das Leeren des Caches oder die Deinstallation der App werden sämtliche lokalen Daten vollständig gelöscht. Da keinerlei personenbezogene Daten an den Entwickler übermittelt werden, behalten Sie jederzeit die vollständige Kontrolle über Ihre Daten direkt auf Ihrem Endgerät.
+  </p>
+
+  <h2>5. Diese Webseite</h2>
+  <p>
+    Diese Seite und das Impressum werden über GitHub Pages bereitgestellt (GitHub Inc., USA, zertifiziert nach dem EU-U.S. Data Privacy Framework). Beim Aufruf kann GitHub technische Zugriffsdaten wie Ihre IP-Adresse in seinen Server-Logs nach eigener Datenschutzerklärung verarbeiten; der Entwickler erhält diese Daten nicht. Die App öffnet diese Seiten nur, wenn Sie in den Einstellungen den entsprechenden Link antippen.
   </p>
 </body>
 </html>

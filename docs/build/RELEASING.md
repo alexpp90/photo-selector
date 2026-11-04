@@ -19,6 +19,10 @@ Frameduel), `nightly-macos-desktop` (Lensjet) and `nightly` (legacy Desktop). Th
 `nightly`, which then pointed at whichever workflow finished last; `scripts/tests/test_workflow_bounds.py`
 fails if two workflows publish the same tag.
 
+The Android workflow also publishes to the Google Play **internal track** on every push to `main`
+that changes the app's module or the shared Android files, not only on the product's tag; the tag
+is what produces the GitHub release and its notes.
+
 Android `versionCode`s stay CI-computed (`android.yml`, from the run number), so Google Play
 always sees an increasing code; `versionName` is the product version.
 

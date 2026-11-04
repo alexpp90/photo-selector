@@ -1,4 +1,5 @@
 <div align="center">
+
   # Jackpix · Frameduel · Lensjet · Blitzlens
 
   **Four native apps to cull, compare and organize your photos at speed — one each for Android phones, Android tablets & DeX, the Mac and GNOME. Private and offline.**
@@ -11,9 +12,9 @@
   [![macOS CI](https://img.shields.io/github/actions/workflow/status/alexpp90/photo-selector/macos.yml?branch=main&label=macOS&logo=github)](https://github.com/alexpp90/photo-selector/actions/workflows/macos.yml)
   [![Linux CI](https://img.shields.io/github/actions/workflow/status/alexpp90/photo-selector/linux.yml?branch=main&label=Linux&logo=github)](https://github.com/alexpp90/photo-selector/actions/workflows/linux.yml)
   [![Releases](https://img.shields.io/badge/Releases-per%20product-181717?logo=github)](docs/build/RELEASING.md)
-  [![Android](https://img.shields.io/badge/Android-3DDC84?logo=android&logoColor=white)](#-android-installation)
-  [![macOS](https://img.shields.io/badge/macOS-000000?logo=apple&logoColor=white)](#-macos-desktop-installation)
-  [![Linux](https://img.shields.io/badge/Linux-FCC624?logo=linux&logoColor=black)](#-linux-desktop-installation)
+  [![Android](https://img.shields.io/badge/Android-3DDC84?logo=android&logoColor=white)](#-android-installation-jackpix--frameduel)
+  [![macOS](https://img.shields.io/badge/macOS-000000?logo=apple&logoColor=white)](#-lensjet-macos-installation)
+  [![Linux](https://img.shields.io/badge/Linux-FCC624?logo=linux&logoColor=black)](#-blitzlens-linux-installation-debian-13-trixie)
 
   <br />
   <img src="assets/banner.png" alt="The Jackpix, Frameduel, Lensjet and Blitzlens app icons" width="800" style="border-radius: 12px; box-shadow: 0 4px 20px rgba(0,0,0,0.3);" />
@@ -185,7 +186,7 @@ The original multi-platform desktop culling application built with Python and Tk
 | **Score Caching** | ❌ Lightweight | ✅ (Room DB) | ❌ (Memory LRU) | ❌ (Memory LRU) | ✅ (SQLite) | Desktops rely on sub-2ms compute & memory LRU; Android uses Room. |
 | **Duplicate Detection** | ❌ Omitted | ✅ (Room DB) | ✅ (CryptoKit SHA) | ✅ (Streaming SHA) | ✅ (SHA-256) | Two-stage size pre-filtering and SHA-256 duplicate finder. |
 | **Tactile Keyboard Shortcuts** | ❌ Touch-first | ✅ (DeX / Physical) | ✅ (Zero-latency NSEvent)| ✅ (GTK Capture) | ✅ (Tkinter Events) | Full hotkey routing (`←`/`→`, `M`, `C`, `Del`, `Undo`). |
-| **100% Offline Privacy** | ✅ (SAF Only) | ✅ (Zero Permissions) | ✅ (Strictly Local) | ✅ (Strictly Local) | ✅ (Local) | Zero telemetry, zero cloud dependencies, strict privacy guarantee. |
+| **100% Offline Privacy** | ✅ (SAF Only) | ✅ (Zero Permissions) | ✅ (Strictly Local) | ✅ (Strictly Local) | ✅ (Local) | Zero telemetry, zero cloud dependencies, strict privacy guarantee. The legacy Desktop's optional Ollama aesthetic engine sends images to the Ollama server URL you configure (localhost by default). |
 
 ---
 
@@ -194,9 +195,9 @@ The original multi-platform desktop culling application built with Python and Tk
 ### 📱 Android Installation (Jackpix & Frameduel)
 
 #### Option A: Obtainium (Direct Auto-Updates)
-1. Install [Obtainium](https://github.com/ImranOmarRashid/Obtainium) on your Android device.
+1. Install [Obtainium](https://github.com/ImranR98/Obtainium) on your Android device.
 2. In Obtainium, click **Add App** and paste this repository's URL: `https://github.com/alexpp90/photo-selector`.
-3. Each app has its own releases, named `Jackpix X.Y.Z` and `Frameduel X.Y.Z`: set Obtainium's **Filter release titles by regular expression** to `^Jackpix ` or `^Frameduel ` (or allow pre-releases for the `nightly` build). Obtainium will download and install APK updates directly from GitHub Releases.
+3. Each app has its own releases, named `Jackpix X.Y.Z` and `Frameduel X.Y.Z`: set Obtainium's **Filter release titles by regular expression** to `^Jackpix ` or `^Frameduel ` (Jackpix and Frameduel share one pre-release, titled `Jackpix & Frameduel Nightly`: to follow it, allow pre-releases with the filter `^Jackpix ` and pick the APK of the app you want). Obtainium will download and install APK updates directly from GitHub Releases.
 
 #### Option B: GitHub Releases (Direct APK)
 Download the APK from the latest [Jackpix](https://github.com/alexpp90/photo-selector/releases?q=phototok-v&expanded=true) or [Frameduel](https://github.com/alexpp90/photo-selector/releases?q=android-desktop-v&expanded=true) release.
@@ -218,7 +219,7 @@ brew install --cask photo-selector-toolbox
 ```
 
 #### Standalone ZIP
-Download the pre-compiled `photo-selector-macos-apple-silicon.zip` from the latest [Lensjet release](https://github.com/alexpp90/photo-selector/releases?q=macos-desktop-v&expanded=true), unpack it, and drag `Lensjet.app` into `/Applications`.
+Download the pre-compiled `photo-selector-macos-apple-silicon.zip` (the file name is historical: the app inside is a universal build for Apple Silicon and Intel Macs) from the latest [Lensjet release](https://github.com/alexpp90/photo-selector/releases?q=macos-desktop-v&expanded=true), unpack it, and drag `Lensjet.app` into `/Applications`.
 
 ---
 
@@ -279,8 +280,8 @@ Standalone archives are available on [GitHub Releases](https://github.com/alexpp
 ## 🛠️ Run from Source
 
 ### 📱 Android Setup (Jackpix & Frameduel)
-1. Open the repository root in **Android Studio Ladybug** (or newer).
-2. Ensure JDK 17 and Android SDK 36 are configured.
+1. Open `products/android` in a current **Android Studio**: it must support the Android Gradle Plugin version pinned in `products/android/gradle/libs.versions.toml` (`agp`, currently 9.4), which older releases such as Ladybug cannot open.
+2. Ensure JDK 17 and Android SDK 37 (`compileSdk`) are configured.
 3. Build the debug binaries:
    ```bash
    cd products/android
@@ -302,7 +303,7 @@ Standalone archives are available on [GitHub Releases](https://github.com/alexpp
 ### 🐧 Blitzlens Setup (Python & GTK4)
 1. Ensure Python 3.12+ and system GTK4 / Libadwaita libraries are installed:
    ```bash
-   sudo apt install python3-gi python3-gi-cairo gir1.2-gtk-4.0 gir1.2-adw-1 libgexiv2-2
+   sudo apt install python3-gi python3-gi-cairo gir1.2-gtk-4.0 gir1.2-adw-1 gir1.2-gexiv2-0.10
    ```
 2. Run directly from `products/linux-desktop`:
    ```bash
