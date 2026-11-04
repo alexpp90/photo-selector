@@ -77,6 +77,10 @@ The bundle holds the host architecture only. Release packaging adds `--universal
 arm64 and x86_64 slices and merge them with `lipo`, so the published zip runs on Apple Silicon
 and Intel Macs alike.
 
+The bundle is signed ad hoc and not notarized yet, so macOS blocks the first launch of a downloaded
+copy: System Settings → Privacy & Security → **Open Anyway**, or
+`xattr -dr com.apple.quarantine /Applications/Lensjet.app`. The Homebrew cask prints the same note.
+
 Directly from SPM also works; the app promotes itself to a regular foreground app at launch
 (an unbundled binary otherwise receives no key events at all):
 
@@ -87,12 +91,14 @@ swift run PhotoSelectorApp                       # optional: -- --open /path/to/
 
 ## Test
 
-To run the full automated test suite:
+To run the full automated test suite the way CI does (`swift test -c release --no-parallel`, plus
+the macro-plugin flags Command Line Tools need), use the repository mirror from the repository root:
 
 ```bash
-cd products/macos-desktop
-swift test
+./scripts/run_tests.sh --macos
 ```
+
+A bare `swift test` runs a different configuration (debug, parallel) and can fail or diverge from the gate.
 
 UI smoke test of the **running** app (keyboard delivery, real key events, Focus 3-Up
 geometry, clicks while zoomed, time-to-first-photo, single-line toolbar/action-bar labels and

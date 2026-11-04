@@ -26,6 +26,10 @@
 #   ./scripts/run_tests.sh --strict         # treat unrunnable SKIPPED gates as failures
 #   ./scripts/run_tests.sh --quick          # tests only, no lint/coverage (inner-loop use)
 #
+# The Python gates run in each product's own Poetry venv (poetry --directory products/desktop
+# install --no-root; products/linux-desktop likewise) and FAIL, naming that command, when it is
+# not provisioned; they never use a tool found on PATH. PST_VENV_BIN=<bin dir> overrides the lookup.
+#
 # Every run ends by saving a verification record (machine, toolchains, gates, tested tree) in
 # .git/pst-verification/; `python3 scripts/verification_record.py pr` puts it into the PR
 # description. PST_NO_RECORD=1 skips it; PST_EXECUTOR="<agent or person>" names who ran it.
@@ -108,7 +112,7 @@ for arg in "$@"; do
             explicit_product=true
             ;;
         -h|--help)
-            sed -n '2,32p' "$0" | sed 's/^# \{0,1\}//'
+            sed -n '2,38p' "$0" | sed 's/^# \{0,1\}//'
             exit 0
             ;;
         *)
@@ -158,7 +162,8 @@ if ! $explicit_product; then
                 products/desktop/*|*.spec) has_desktop=true ;;
                 products/android/*|scripts/check_native_alignment.py) has_android=true ;;
                 products/macos-desktop/*) has_macos=true ;;
-                products/linux-desktop/*) has_linux=true ;;
+                # linux.yml:test reads the APT key fingerprint from INSTALL.md (test_packaging.py).
+                products/linux-desktop/*|docs/products/linux-desktop/INSTALL.md) has_linux=true ;;
                 .github/workflows/*|.github/actions/*|scripts/run_tests.sh|testdata/formats/*|scripts/fetch_format_corpus.py) has_cross=true ;;
             esac
         done
@@ -235,32 +240,104 @@ advisory_gate() {
     esac
 }
 
-# Prefer poetry when a lockfile-managed venv exists, else fall back to bare tools.
-PY_RUNNER=()
+# ── Python environments ───────────────────────────────────────────
+# Each Python product is gated in its own Poetry virtualenv, the way CI installs it
+# (products/desktop and products/linux-desktop each run `poetry install`). The venv is found
+# READ-ONLY (`poetry env info -p`; a bare `poetry run` would create an empty venv for every
+# worktree and then run whatever same-named tool is first on PATH, which is how a global
+# pytest without pytest-cov once became the gate) and PROBED: if it lacks a tool or a
+# dependency the gates need, the run fails with the exact command that provisions it. It never
+# falls back to a tool found on PATH. Poetry names a venv after the project path, so a fresh
+# worktree has none; the main checkout's venv is used when it is provisioned.
+# PST_VENV_BIN=<dir with python, pytest, flake8> points both products at one environment
+# (a machine without Poetry); it is probed the same way.
 VENV_BIN=""
-if have poetry && [ -f "$ROOT_DIR/products/desktop/poetry.lock" ]; then
-    PY_RUNNER=(poetry run)
-    VENV_PATH="$(poetry --directory "$ROOT_DIR/products/desktop" env info -p 2>/dev/null || true)"
-    if [ ! -x "$VENV_PATH/bin/pytest" ] && have git; then
-        COMMON_GIT="$(git -C "$ROOT_DIR" rev-parse --path-format=absolute --git-common-dir 2>/dev/null || true)"
-        COMMON_ROOT="${COMMON_GIT%/.git}"
-        if [ -n "$COMMON_ROOT" ] && [ -f "$COMMON_ROOT/products/desktop/poetry.lock" ]; then
-            VENV_PATH="$(poetry --directory "$COMMON_ROOT/products/desktop" env info -p 2>/dev/null || true)"
+DESKTOP_VENV_BIN=""
+
+# Prints the bin/ directory of the Poetry venv of the project at $1, then that of the same
+# project in the main checkout when this is a worktree (one per line, existing ones only).
+venv_bins_for() {
+    local project="$1" venv common_git common_root rel
+    if [ -n "${PST_VENV_BIN:-}" ]; then
+        printf '%s\n' "$PST_VENV_BIN"
+        return 0
+    fi
+    have poetry || return 0
+    venv="$(poetry --directory "$project" env info -p 2>/dev/null || true)"
+    if [ -n "$venv" ] && [ -x "$venv/bin/python" ]; then printf '%s\n' "$venv/bin"; fi
+    if have git; then
+        common_git="$(git -C "$project" rev-parse --path-format=absolute --git-common-dir 2>/dev/null || true)"
+        common_root="${common_git%/.git}"
+        rel="${project#"$ROOT_DIR"/}"
+        if [ -n "$common_root" ] && [ "$common_root" != "$ROOT_DIR" ] && [ -f "$common_root/$rel/poetry.lock" ]; then
+            venv="$(poetry --directory "$common_root/$rel" env info -p 2>/dev/null || true)"
+            if [ -n "$venv" ] && [ -x "$venv/bin/python" ]; then printf '%s\n' "$venv/bin"; fi
         fi
     fi
-    if [ -x "$VENV_PATH/bin/pytest" ]; then
-        VENV_BIN="$VENV_PATH/bin"
+    return 0
+}
+
+# Modules a gate imports, as the probe sees them (importlib finds them without running them).
+PY_PROBE='import importlib.util, sys
+missing = [m for m in sys.argv[1:] if importlib.util.find_spec(m) is None]
+print(" ".join(missing))
+sys.exit(1 if missing else 0)'
+
+# prepare_python_env <label> <project dir> <ci_ref> <remedy> <module>... — sets VENV_BIN and
+# returns 0 when the environment is provisioned; otherwise records ONE failed gate that names
+# the missing pieces and the remedy, and returns 1 (the caller then runs no Python gate).
+prepare_python_env() {
+    local label="$1" project="$2" ci_ref="$3" remedy="$4"; shift 4
+    local bin reason="" first="" status=0
+    VENV_BIN=""
+    while IFS= read -r bin; do
+        [ -z "$bin" ] && continue
+        status=0
+        reason="$("$bin/python" -c "$PY_PROBE" "$@" 2>/dev/null)" || status=$?
+        if [ "$status" -eq 0 ]; then
+            VENV_BIN="$bin"
+            return 0
+        fi
+        if [ -n "$reason" ]; then
+            reason="missing in $bin: $reason"
+        else
+            reason="$bin/python is not a working interpreter"
+        fi
+        [ -z "$first" ] && first="$reason"
+    done < <(venv_bins_for "$project")
+    if [ -z "$first" ]; then
+        first="no virtualenv found"
+        have poetry || first="no virtualenv found (poetry is not installed: pip install poetry)"
     fi
-fi
+    local missing="$first"
+    fail "Python environment ($label) not installed" "$ci_ref"
+    echo -e "${RED}    $missing${NC}"
+    echo -e "${RED}    The Python gates run only in the project's own environment, never on a tool found on PATH. Install it:${NC}"
+    printf '      %s\n' "$remedy"
+    return 1
+}
+
+DESKTOP_ENV_MODULES=(pytest pytest_cov flake8 matplotlib PIL numpy cv2 tqdm)
+DESKTOP_ENV_REMEDY="poetry --directory products/desktop install --no-root"
+# gi comes from the system packages (python3-gi, gir1.2-gtk-4.0, …), so the venv must see the
+# system site-packages; gates report the display path as "partial" when the typelibs are missing.
+LINUX_ENV_MODULES=(pytest pytest_cov flake8 numpy PIL)
+LINUX_ENV_REMEDY="poetry config virtualenvs.options.system-site-packages true
+      poetry --directory products/linux-desktop env remove --all   # only if its venv already exists without system site packages
+      poetry --directory products/linux-desktop install --no-root
+      # without the C build dependencies PyGObject needs (libcairo2-dev libgirepository-2.0-dev pkg-config), install the
+      # test tools only; numpy, Pillow and gi then come from the distribution (python3-numpy python3-pil python3-gi):
+      poetry --directory products/linux-desktop install --no-root --only dev"
+
 PY_ARGV=()
+# Resolves a tool of the prepared environment; a tool the probe did not cover is still
+# looked up only there. The argv is `false` when it is absent, so the gate fails loudly.
 py_resolve() {
-    if [ -n "$VENV_BIN" ] && [ -x "$VENV_BIN/$1" ]; then
-        local tool="$1"; shift
+    local tool="$1"; shift
+    if [ -n "$VENV_BIN" ] && [ -x "$VENV_BIN/$tool" ]; then
         PY_ARGV=("$VENV_BIN/$tool" "$@")
-    elif [ ${#PY_RUNNER[@]} -gt 0 ]; then
-        PY_ARGV=("${PY_RUNNER[@]}" "$@")
     else
-        PY_ARGV=("$@")
+        PY_ARGV=(false "$tool not found in the project environment")
     fi
 }
 py() {
@@ -316,10 +393,14 @@ fi
 if $run_python; then
     cd "$ROOT_DIR/products/desktop" || exit 1
 
-    if ! have poetry && ! have pytest; then
-        section "Python"
-        skip "Python gates" "" "neither poetry nor pytest found (pip install poetry)"
-    else
+    section "Python environment (products/desktop)"
+    if prepare_python_env "products/desktop" "$ROOT_DIR/products/desktop" "desktop.yml:test" \
+            "$DESKTOP_ENV_REMEDY" "${DESKTOP_ENV_MODULES[@]}"; then
+        DESKTOP_VENV_BIN="$VENV_BIN"
+        # The verification record reports the interpreter that ran the gates, not `python3` on PATH.
+        export PST_GATE_PYTHON="$VENV_BIN/python"
+        echo -e "${DIM}  environment: $VENV_BIN${NC}"
+        pass "Python environment provisioned (products/desktop)" "desktop.yml:test"
         # ── flake8 ────────────────────────────────────────────────
         # CI runs this as a *separate job that gates every other job*. A flake8
         # error therefore fails the whole pipeline before a single test runs,
@@ -327,11 +408,9 @@ if $run_python; then
         section "Lint (flake8)"
         if $quick; then
             skip "flake8" "" "--quick"
-        elif py flake8 --version &>/dev/null; then
+        else
             gate "flake8 src/ tests/" "desktop.yml:lint" \
                 py flake8 src/ tests/ --count --show-source --statistics
-        else
-            skip "flake8" "" "flake8 not installed in the active environment"
         fi
 
         # ── pytest + coverage ─────────────────────────────────────
@@ -370,6 +449,22 @@ if $run_python; then
         else
             gate "pytest tests/visual/ -m visual" "desktop.yml:visual" \
                 pyx pytest tests/visual/ --tb=short -q -o faulthandler_timeout=120 -m visual
+        fi
+
+        # ── PyInstaller build (desktop.yml:build — main pushes and desktop-v* tags only) ──
+        # Needs no credential, only the network (it downloads ExifTool) and a few minutes, and it
+        # regenerates THIRDPARTY_NOTICES.txt; so it is opt-in locally. A change to build.py, a
+        # dependency or a native import is otherwise first built on `main`, where the release
+        # job `needs: build`. Run it with PST_BUILD_GATES=1 before merging such a change.
+        section "PyInstaller build"
+        if $quick; then
+            skip "PyInstaller build (scripts/build.py)" "desktop.yml:build" "--quick" false
+        elif [ "${PST_BUILD_GATES:-0}" = "1" ]; then
+            gate "PyInstaller build (scripts/build.py)" "desktop.yml:build" \
+                py python scripts/build.py
+        else
+            skip "PyInstaller build (scripts/build.py)" "desktop.yml:build" \
+                "CI builds it on main and release tags only; opt in with PST_BUILD_GATES=1 (network, minutes)" false
         fi
     fi
 elif ! $explicit_product; then
@@ -461,13 +556,17 @@ if $run_android_device; then
     # It writes a timed report and the open-issue ledger in .git/pst-device-runs/. The device
     # suite is run on demand, so a missing, busy or locked device is a stated gap, never a
     # blocker (not even --strict). One gate per device.
+    # CI's emulator has a compact window, and 28 expanded-layout checks in :android-desktop
+    # (`if (isCompactLayout()) return`) pass vacuously there; the label says so wherever this gate
+    # is reported. Only a device with an expanded window (a tablet) runs them.
+    INSTRUMENTED_CI_REF="android.yml:instrumented-tests (partial — compact window)"
     GATE_LINES="$(mktemp)"
     python3 "$ROOT_DIR/scripts/android_device_matrix.py" run --configured --gate-lines "$GATE_LINES"
     TESTED_SERIALS=""
     while IFS=$'\t' read -r verdict serial gate reason; do
         case "$verdict" in
-            pass) pass "$gate" "android.yml:instrumented-tests" ;;
-            fail) fail "$gate" "android.yml:instrumented-tests" ;;
+            pass) pass "$gate" "$INSTRUMENTED_CI_REF" ;;
+            fail) fail "$gate" "$INSTRUMENTED_CI_REF" ;;
             skip) skip "$gate" "" "$reason" false; continue ;;
             *) continue ;;
         esac
@@ -501,6 +600,17 @@ if $run_macos; then
             "$ROOT_DIR/products/macos-desktop/scripts/check_no_test_hooks.sh" \
             "$ROOT_DIR/products/macos-desktop/.build/release/PhotoSelectorApp"
 
+        # macos.yml:build assembles the universal (arm64 + x86_64) app bundle and checks the
+        # bundle for the hooks again; stopping at the bare binary left build_app.sh (lipo,
+        # codesign, Info.plist) to be first exercised on `main`. Same minutes as CI.
+        if $quick; then
+            skip "Lensjet.app universal bundle" "macos.yml:build" "--quick" false
+        else
+            gate "build_app.sh release --universal + app-bundle hook check" "macos.yml:build" \
+                bash -c 'cd "$1/products/macos-desktop" && scripts/build_app.sh release --universal && scripts/check_no_test_hooks.sh .build/app/Lensjet.app' \
+                _ "$ROOT_DIR"
+        fi
+
         # Local-only gate: drives the RUNNING app (activation policy, real key events,
         # rendered Focus 3-Up geometry, clicks while zoomed, time-to-first-photo). Unit
         # tests alone passed while arrow keys were dead in the real app.
@@ -532,25 +642,33 @@ if $run_linux; then
     else
         cd "$ROOT_DIR/products/linux-desktop" || exit 1
 
+        section "Linux Desktop Python environment (products/linux-desktop)"
+        if ! prepare_python_env "products/linux-desktop" "$ROOT_DIR/products/linux-desktop" "linux.yml:test" \
+                "$LINUX_ENV_REMEDY" "${LINUX_ENV_MODULES[@]}"; then
+            LINUX_ENV_OK=false
+        else
+            LINUX_ENV_OK=true
+            export PST_GATE_PYTHON="${PST_GATE_PYTHON:-$VENV_BIN/python}"
+            echo -e "${DIM}  environment: $VENV_BIN${NC}"
+            pass "Python environment provisioned (products/linux-desktop)" "linux.yml:test"
+        fi
+
         # 1. Lint / Static analysis
-        if [ -d "$ROOT_DIR/products/linux-desktop/src" ]; then
+        if $LINUX_ENV_OK && [ -d "$ROOT_DIR/products/linux-desktop/src" ]; then
             section "Linux Desktop lint (flake8)"
             if $quick; then
                 skip "flake8 (linux-desktop)" "linux.yml:lint" "--quick"
-            elif py flake8 --version &>/dev/null; then
+            else
                 gate "flake8 (products/linux-desktop)" "linux.yml:lint" \
                     py flake8 src/ tests/ --count --show-source --statistics --max-line-length=120 --extend-ignore=E203,W503
-            elif have flake8; then
-                gate "flake8 (products/linux-desktop)" "linux.yml:lint" \
-                    flake8 src/ tests/ --count --show-source --statistics --max-line-length=120 --extend-ignore=E203,W503
-            else
-                skip "flake8 (linux-desktop)" "linux.yml:lint" "flake8 not installed in the active environment"
             fi
         fi
 
         # 2. Unit tests (pytest)
         section "Linux Desktop unit tests"
-        if [ -d "$ROOT_DIR/products/linux-desktop/tests" ]; then
+        if ! $LINUX_ENV_OK; then
+            :  # already reported as a failed environment gate above
+        elif [ -d "$ROOT_DIR/products/linux-desktop/tests" ]; then
             # Without the real GTK 4 / GExiv2 typelibs (macOS, or a bare Linux box) conftest.py
             # stubs gi, so the display decode path (ui/photo_loader.py) never runs and the
             # format-conformance display checks fall back to Pillow. Say so instead of
@@ -564,25 +682,15 @@ if $run_linux; then
             if ! py python -c "import gi; gi.require_version('Gdk', '4.0'); gi.require_version('GExiv2', '0.10'); from gi.repository import Gdk, GExiv2" &>/dev/null; then
                 linux_ci_ref="linux.yml:test (partial — no GTK 4/GExiv2 typelibs, display path stubbed)"
             fi
-            if ! have pytest && ! have poetry; then
-                skip "pytest (linux-desktop)" "linux.yml:test" "neither poetry nor pytest found"
-            elif $quick; then
+            if $quick; then
                 gate "pytest (products/linux-desktop, quick)" "$linux_ci_ref" \
                     pyx pytest tests/ --tb=short -q
-            elif py pytest --version &>/dev/null; then
-                gate "pytest --cov-fail-under=$LINUX_COV_FAIL_UNDER (products/linux-desktop)" "$linux_ci_ref" \
-                    pyx pytest tests/ --tb=short -q -o faulthandler_timeout=120 \
-                        --cov=photo_selector_linux \
-                        --cov-report=term-missing:skip-covered \
-                        --cov-fail-under="$LINUX_COV_FAIL_UNDER"
-            elif have pytest; then
-                gate "pytest --cov-fail-under=$LINUX_COV_FAIL_UNDER (products/linux-desktop)" "$linux_ci_ref" \
-                    pyx pytest tests/ --tb=short -q -o faulthandler_timeout=120 \
-                        --cov=photo_selector_linux \
-                        --cov-report=term-missing:skip-covered \
-                        --cov-fail-under="$LINUX_COV_FAIL_UNDER"
             else
-                skip "pytest (linux-desktop)" "linux.yml:test" "pytest runner not found"
+                gate "pytest --cov-fail-under=$LINUX_COV_FAIL_UNDER (products/linux-desktop)" "$linux_ci_ref" \
+                    pyx pytest tests/ --tb=short -q -o faulthandler_timeout=120 \
+                        --cov=photo_selector_linux \
+                        --cov-report=term-missing:skip-covered \
+                        --cov-fail-under="$LINUX_COV_FAIL_UNDER"
             fi
         else
             skip "pytest (linux-desktop)" "linux.yml:test" "tests/ directory not yet created" false
@@ -616,6 +724,8 @@ if have python3; then
         python3 scripts/release.py check
     gate "format contract manifest" "repo-hygiene.yml:hygiene" \
         python3 scripts/fetch_format_corpus.py --validate
+    gate "documentation links and anchors" "repo-hygiene.yml:hygiene" \
+        python3 scripts/check_doc_links.py --check
     # docs/shared/UI_TEXT.md: fails for products in `fail` mode (scripts/ui_text_budget.json),
     # reports for the rest.
     advisory_gate "UI text budget" "repo-hygiene.yml:hygiene" \
@@ -629,6 +739,7 @@ else
     skip "no private-overlay material tracked" "" "python3 not found"
     skip "release metadata consistent" "" "python3 not found"
     skip "format contract manifest" "" "python3 not found"
+    skip "documentation links and anchors" "" "python3 not found"
     skip "UI text budget" "" "python3 not found"
     skip "format corpus tooling tests" "" "python3 not found"
     skip "lab tooling tests" "" "python3 not found"
@@ -662,9 +773,9 @@ if [ -d "$ROOT_DIR/private/.git" ] || [ -f "$ROOT_DIR/private/.git" ]; then
         if python3 -c "import pytest" &>/dev/null; then
             gate "framework & hook tests" "framework.yml:framework" \
                 python3 -m pytest -q -p no:cacheprovider private/tests/framework
-        elif [ -n "$VENV_BIN" ] && [ -x "$VENV_BIN/pytest" ]; then
+        elif [ -n "$DESKTOP_VENV_BIN" ] && [ -x "$DESKTOP_VENV_BIN/pytest" ]; then
             gate "framework & hook tests" "framework.yml:framework" \
-                "$VENV_BIN/pytest" -q -p no:cacheprovider private/tests/framework
+                "$DESKTOP_VENV_BIN/pytest" -q -p no:cacheprovider private/tests/framework
         else
             skip "framework & hook tests" "framework.yml:framework" "pytest not importable by python3"
         fi

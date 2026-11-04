@@ -488,11 +488,35 @@ area of its three-up tile**:
 2. **Fullscreen** (`F`, or tap the current frame) — unchanged, and now reachable for a
    *neighbour* too, via that neighbour's badge.
 
-In the maximised state the maximised frame keeps the §7.4a readout block beside it, and the
-two hidden frames' values collapse into a single 148 dp column at the right
-edge — the same overlay vocabulary as §7.4b, so the numbers for the frames you can no longer
-see stay readable and stay recognisable. `Esc` or a second tap on the badge returns to three-up. Transition is a
-180 ms crossfade — no scale, no slide. The user is judging sharpness, and movement lies.
+In the maximised state the frame always takes the **whole image region**
+(`FrameGeometry.maximisedFrameSize` over the full width and height, centred), whether or not the
+details are shown. The readout is an **overlay on the photograph**, not a column beside it (a 388 dp
+column took a 4:3 frame from 1176 × 784 to 868 × 578 on a 1280 × 800 window, measured; user report
+2026-11-03):
+
+- **Top-left:** the flat info panel of the fullscreen viewer (the one composable `PhotoInfoPanel`
+  serves both): filename and `n / N`, the exposure line as whole tokens, the lens line. 280–420 dp
+  and at most 35 % of the frame's width, 85 % `StudioCanvas`, no gradient, Zinc 300 values, 8 dp
+  from the corner, one merged node for a screen reader.
+- **Bottom-left:** the four score chips, compact (icon and value, no label), wrapping inside the
+  frame's width less the 122 dp the two controls and their insets take at the right.
+- **Bottom-right:** the 48 dp ⓘ switch (`maximised_info_toggle`, filled glyph = shown, outline =
+  hidden, "Hide photo info" / "Show photo info", `Role.Switch`), 6 dp left of the 48 dp restore
+  badge. It flips the same persisted `details_visible` as the three-up ⓘ toggle, which is not on
+  screen here. Off, nothing but the restore badge and this switch lies on the photograph. There is
+  no keyboard shortcut for it (`I` is Inspect).
+
+The panel and the chips take no pointer input, so a swipe that starts on them still navigates, a
+tap on them is a tap on the photograph (leave maximised), and only the switch and the badge are
+controls. The two hidden frames' values are gone with their frames. `Esc` or a second tap on the
+badge returns to three-up. Transition is a 180 ms crossfade — no scale, no slide. The user is
+judging sharpness, and movement lies.
+
+The one-time *One frame, full size* card (§7.10) is placed in the slack **left of the frame** and only
+when that slack, less the 8 dp gap, is at least the card's 240 dp minimum. On a window whose region
+is close to the photograph's aspect (the reference tablets) there is none: the card is then not drawn
+and not marked seen, and it is dropped without being marked seen when the user leaves the maximised
+state, so it is offered again on the next maximise instead of greeting them in three-up.
 
 ### 7.4 Value readouts — every number touching the photograph it describes
 
@@ -852,7 +876,7 @@ where the **effect is invisible**:
 |---|---|---|
 | `filing_action` | the first Move or Copy | where the file now is — the configured verb, the configured folder, whether RAW and JPEG were sorted, and the other verb's key. The important one: the photograph left the centre of the screen and nothing said where it went. |
 | `delete_undo` | the first Delete | that nothing has touched the disk yet and UNDO has 30 seconds |
-| `maximise_frame` | the first maximise | that `Esc` or a second press comes back — nothing on that screen says so |
+| `maximise_frame` | the first maximise | that `Esc` or a second press comes back — nothing on that screen says so (side slack only; see §7.3) |
 
 `scan_scores` is defined and worded but deliberately **not** raised: the bars appear on the
 frames and the Legend item appears in the sidebar at the same moment, so a card would explain
@@ -867,7 +891,8 @@ what the user is looking at.
   Zinc-700 outline, no shadow. It takes its own space in the flank column rather than
   floating, so it can neither cover a frame nor collide with a control, and it adds **zero**
   height above or below the image region. The bottom centre is unavailable: the snackbar is
-  there, confirming the very action the card is explaining.
+  there, confirming the very action the card is explaining. The maximise card has no readout
+  block to sit under (§7.3); it takes the slack left of the maximised frame instead.
 - Where no flank is wide enough — readouts hidden, or under 240 dp — the card is not drawn
   **and the hint is not spent**, so it appears the next time there is room. The one thing it
   never does is fall back to the image region.
@@ -1258,7 +1283,9 @@ Produce these as a design-system page, dark theme, neutral grey / lavender.
    + value + bar rows. Both the outside-the-frame and overlaid-on-the-frame placements, the
    fallback-EXIF amber marker, the unscanned variant, and the suppressed state.
 8. **Maximise badge** — 48 dp `⛶` on a tile's outline: bottom-right on the current frame,
-   bottom-left on Previous and Next so it clears the value overlay. Resting and active.
+   bottom-left on Previous and Next so it clears the value overlay. Resting and active. In the
+   maximised state: the active badge plus the 48 dp ⓘ switch left of it, the top-left info panel and
+   the bottom-left chips (§7.3).
 9. **Filmstrip thumbnail** — resting, current, and in-burst states, 60 dp wide (40 dp tall
    landscape, 80 dp portrait), with the leading-edge burst marker and the sharpness dot.
 10. **Snackbar with Undo** — `Moved to «folder»` (≈ 4 s, Undo, no line) / `Copied to «folder»`

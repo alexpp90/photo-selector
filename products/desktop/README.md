@@ -1,16 +1,16 @@
 # Desktop
 
-Python + Tkinter culling suite for macOS, Linux and Windows. The most complete of the three
-products: it has the CLI, the statistics plots, the duplicate finder and the only local-VLM
-aesthetic scoring.
+Python + Tkinter culling suite for macOS, Linux and Windows. **Archived**: the native apps
+(Lensjet, Blitzlens) replace it, and it is kept buildable, installable and documented, with no new
+features. It has the CLI, the statistics plots, the duplicate finder and local-VLM aesthetic scoring.
 
 ```
 products/desktop/
   src/photo_selector_toolbox/   core/ exif/ tools/ gui/ cli.py
   tests/                        conftest.py, unit/{core,exif,tools,gui}/, visual/
   benchmarks/
-  scripts/                      build.py, generate_icons.py, generate_notices.py,
-                                update_formula.py, install-{mac,linux}.sh
+  scripts/                      build.py, generate_notices.py,
+                                update_formula.py
   pyproject.toml  poetry.lock  .flake8
 ```
 
@@ -18,6 +18,8 @@ Package layout and the layering rules: [`../../docs/products/desktop/ARCHITECTUR
 Behaviour specification: `../../docs/products/desktop/REQUIREMENTS.md` (maintainer-private).
 
 ## Run
+
+Python 3.12 or newer, Tkinter and [Poetry](https://python-poetry.org/).
 
 ```bash
 cd products/desktop
@@ -38,6 +40,9 @@ in `exif/reader.py`.
 - **Bitmaps:** JPEG, HEIC/HEIF, PNG, TIFF, WebP.
 - Extensions match case-insensitively; a RAW and a JPEG with the same stem are companions and
   move together (RAW into `Selection/RAW/`).
+- Move and Copy to Selection never overwrite: when a file of the bundle (RAW, JPEG, `.xmp`,
+  `-Edit`) is already in the destination, the whole bundle takes the next free `-2`, `-3`, … after
+  the stem (`DSC_0001-2.JPG`), as in [`FILE_OPERATIONS.md`](../../docs/shared/FILE_OPERATIONS.md).
 
 Known gaps, enforced by `tests/unit/test_format_conformance.py`:
 
@@ -64,4 +69,4 @@ GUI tests need a display; on headless Linux use `xvfb-run`. Visual regression te
   from here. `tap_migrations.json` at the repository root forwards users of the old in-repo
   tap to `alexpp90/tap`.
 - **`assets/` is at the repository root** — the logo and screenshots are shared with the
-  top-level README, and `scripts/generate_icons.py` reads them from there.
+  top-level README, and `scripts/build.py` bundles `logo.png`, `logo.ico` and `logo.icns` from there.

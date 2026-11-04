@@ -135,7 +135,7 @@ What has to change in `.github/workflows/` (and, because these are gates, in
      name: CI gate
      if: always()
      needs: [detect-changes, unit-tests, lint, instrumented-tests]
-     runs-on: ubuntu-latest
+     runs-on: ubuntu-24.04
      timeout-minutes: 5
      steps:
        - run: |

@@ -10,8 +10,8 @@ Formerly Photo-Tok.
   [![Android: 8.0+](https://img.shields.io/badge/Android-8.0%2B%20(API%2026--36)-3DDC84?logo=android&logoColor=white)](https://developer.android.com/)
   [![Kotlin](https://img.shields.io/badge/Kotlin-2.0%2B-7F52FF?logo=kotlin&logoColor=white)](https://kotlinlang.org/)
   [![Jetpack Compose](https://img.shields.io/badge/Compose-BOM%202024%2B-4285F4?logo=jetpackcompose&logoColor=white)](https://developer.android.com/jetpack/compose)
-  [![Target](https://img.shields.io/badge/Form%20Factor-Phones%20%3C%20600%20dp-blue)](#target-environment)
-  [![Privacy](https://img.shields.io/badge/Privacy-100%25%20Offline%20%7C%20SAF%20Only-green)](#privacy--zero-cloud-guarantee)
+  [![Target](https://img.shields.io/badge/Form%20Factor-Phones%20%3C%20600%20dp-blue)](#-product-overview)
+  [![Privacy](https://img.shields.io/badge/Privacy-100%25%20Offline%20%7C%20SAF%20Only-green)](#-privacy--zero-cloud-guarantee)
   [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](../../../LICENSE)
 </div>
 

@@ -224,6 +224,16 @@ def scrub(value: Any, tokens: List[Tuple[str, str]]) -> Any:
     return value
 
 
+def scrub_machine(machine: Dict[str, Any], tokens: List[Tuple[str, str]]) -> Dict[str, Any]:
+    """Scrub the machine description. The hardware model and CPU come from the firmware or
+    system_profiler, not from the user, so a host name that happens to equal a model token
+    (a ThinkPad named "T14") must not rewrite them ("Lenovo ThinkPad <host> Gen 1"); they are
+    still scrubbed of paths and user names.
+    """
+    hardware = [t for t in tokens if t[1] != "<host>"]
+    return {k: scrub(v, hardware if k in ("model", "cpu") else tokens) for k, v in machine.items()}
+
+
 # ── what ran ─────────────────────────────────────────────────────────────────
 
 
@@ -387,11 +397,22 @@ def machine_label(machine: Dict[str, Any]) -> str:
     return " · ".join(b for b in bits if b)
 
 
+def executor_name(value: str) -> str:
+    """The tool or person behind a run, never a model: a PR description names where the work was
+    done, and a model name or version in it would be public text the repository does not want.
+    Keep the words before the first bracket, comma, colon or dot-separator, and drop any word that
+    carries a digit (a version).
+    """
+    head = re.split(r"[(\[,;:|·—–]", value.strip(), maxsplit=1)[0]
+    words = [w for w in head.split() if not re.search(r"\d", w)]
+    return " ".join(words) or "unnamed executor"
+
+
 def environment() -> Dict[str, str]:
     """Best-effort: which agent host (if any) the run happened in."""
     e = os.environ
     if e.get("PST_EXECUTOR"):
-        return {"kind": e["PST_EXECUTOR"], "source": "PST_EXECUTOR"}
+        return {"kind": executor_name(e["PST_EXECUTOR"]), "source": "PST_EXECUTOR"}
     term = e.get("TERM_PROGRAM", "").lower()
     if e.get("GITHUB_ACTIONS") == "true":
         kind = "GitHub Actions runner"
@@ -412,8 +433,18 @@ def environment() -> Dict[str, str]:
     return {"kind": kind, "source": "detected"}
 
 
+def gate_python() -> Optional[str]:
+    """The interpreter that ran the Python gates (run_tests.sh exports the project venv's), if any."""
+    candidate = os.environ.get("PST_GATE_PYTHON", "")
+    return candidate if candidate and os.access(candidate, os.X_OK) else None
+
+
 def toolchains(root: Path) -> Dict[str, str]:
-    tools: Dict[str, Optional[str]] = {"Python": platform.python_version()}
+    # `python3` on PATH can be a different interpreter than the venv the gates ran in (2026-10-25: a
+    # record said "Python 3.15" although pytest ran on 3.13).
+    interpreter = gate_python()
+    python = version_in(run([interpreter, "--version"]), r"Python (\S+)") if interpreter else None
+    tools: Dict[str, Optional[str]] = {"Python": python or platform.python_version()}
     tools["Poetry"] = version_in(run(["poetry", "--version"]), r"(\d+\.\d+(?:\.\d+)?)")
     tools["JDK"] = version_in(run(["java", "-version"]), r'version "([^"]+)"')
     wrapper = read_text(root / "products/android/gradle/wrapper/gradle-wrapper.properties")
@@ -427,7 +458,7 @@ def toolchains(root: Path) -> Dict[str, str]:
                  "from gi.repository import Gtk, Adw;"
                  "print(f'{Gtk.get_major_version()}.{Gtk.get_minor_version()}.{Gtk.get_micro_version()} '"
                  "f'{Adw.get_major_version()}.{Adw.get_minor_version()}.{Adw.get_micro_version()}')")
-        out = first_line(run(["python3", "-c", probe], timeout=20))
+        out = first_line(run([interpreter or "python3", "-c", probe], timeout=20))
         if out and " " in out:
             tools["GTK"], tools["Libadwaita"] = out.split(" ", 1)
     return {k: v for k, v in tools.items() if v}
@@ -762,7 +793,8 @@ def cmd_write(args: argparse.Namespace) -> int:
     # Scrub what the local system reported; our own labels and the git hashes are left alone
     # (a hostname such as "claude" must not mangle "Claude Code").
     tokens = private_tokens(root)
-    for key in ("machine", "toolchains", "android_devices", "gates", "args"):
+    record["machine"] = scrub_machine(record["machine"], tokens)
+    for key in ("toolchains", "android_devices", "gates", "args"):
         record[key] = scrub(record[key], tokens)
     slug = machine_slug(record["machine"])
     record["machine"]["slug"] = slug
@@ -778,7 +810,7 @@ def cmd_write(args: argparse.Namespace) -> int:
 
 
 def records_for_here(root: Path, allow_stale: bool) -> Tuple[str, List[Dict[str, Any]], bool]:
-    slug = machine_slug(scrub(machine_info(), private_tokens(root)))
+    slug = machine_slug(scrub_machine(machine_info(), private_tokens(root)))
     mine = [r for r in load_records(root) if r.get("machine", {}).get("slug") == slug]
     if not mine:
         sys.exit(f"No verification record for this machine ({slug}). Run ./scripts/run_tests.sh first.")

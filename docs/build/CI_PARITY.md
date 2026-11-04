@@ -29,7 +29,7 @@ The rule that prevents it:
 
 | Gate | CI job | Local | Notes |
 |---|---|---|---|
-| flake8 `src/ tests/` | `desktop.yml:lint` | ✅ everywhere | **Gates the entire desktop pipeline.** A lint error fails the run before one test executes. |
+| flake8 `src/ tests/` | `desktop.yml:lint` | ✅ in the provisioned [Python environment](#python-gates-run-in-the-projects-own-environment) | **Gates the entire desktop pipeline.** A lint error fails the run before one test executes. |
 | pytest `-m "not visual"` | `desktop.yml:test` | ✅ everywhere | Same marker filter locally and in CI. CI and the mirror both pass `-o faulthandler_timeout=120` (also to the visual job), so a test that blocks in Tk or native code fails with every thread's stack instead of hanging. On Linux the runner renders it on its own Xvfb, as CI does — see [GUI gates run on Xvfb](#gui-gates-run-on-xvfb-not-your-screen). |
 | Coverage `--cov-fail-under=60` | `desktop.yml:test` (**Linux only**) | ✅ advisory everywhere | See [Coverage is Linux-authoritative](#coverage-is-linux-authoritative). |
 | Visual regression | `desktop.yml:visual` | ⚠️ Linux + Xvfb; baselines are runner-rendered | See [Visual regression](#visual-regression-linux-only). |
@@ -38,21 +38,24 @@ The rule that prevents it:
 | `check_native_alignment.py` | `android.yml:unit-tests`, `android.yml:build` | ✅ needs JDK 17 + Android SDK (unit tests run everywhere via `scripts/tests`) | Inspects every `lib/{arm64-v8a,x86_64}/*.so` in `merged_native_libs/debug` and built APK/AAB archives and fails if any ELF `PT_LOAD` segment has `p_align < 16384` (Google Play 16 KB page-size mandate). For `.apk` files it also fails if a stored (uncompressed) `.so` does not start at a 16 KB-aligned zip offset (`zipalign -P 16`); bundles are exempt. The mirror builds and checks the debug APKs like the `build` job. |
 | `lintDebug` | `android.yml:lint` | ✅ advisory | Non-blocking in both places, on purpose. |
 | `assembleLab` (R8-minified) | `android.yml:minified-build` | ✅ needs JDK 17 + Android SDK | Builds `:android-desktop` and `:phototok` as `lab` (`initWith(release)`: R8 minify + resource shrinking, debug signing, no secrets), so a missing `-keep` rule fails before the merge instead of in `android.yml:build` on `main`. Skipped under `--quick`. |
-| `connectedDebugAndroidTest` | `android.yml:instrumented-tests` | ❌ **needs emulator/device** | Local: on demand only (`--android-device`, before a release), on every configured test device at once (`scripts/android_device_matrix.py run --configured`: `pst.testDevice.serial` + `.extraSerials`, or the only attached device), each under its device lock, one gate per device; no device, or a device busy or locked after the wait, is a non-blocking `⊘ SKIPPED`, also under `--strict`. See [Instrumented tests](#instrumented-tests-genuinely-need-a-device). |
-| `swift test (macos-desktop)` | `macos.yml:swift-test` | ⚠️ Darwin only | Native Swift 6 suite covering PhotoSelectorKit & App (release SLA benchmark included). Runs on `macos-latest` in CI. |
-| `check_no_test_hooks.sh` (release binary) | `macos.yml:swift-test`, `macos.yml:build` | ⚠️ Darwin only | `swift build -c release`, then fails if the binary contains the UI test hooks (`UIScenarioRunner`, `UITestDriver`, `UISelfTestRunner`), which are compiled in only for debug and `build_app.sh --test-hooks` builds. |
+| `connectedDebugAndroidTest` (**partial — compact window**) | `android.yml:instrumented-tests` | ❌ **needs emulator/device** | **A green CI job is partial evidence:** CI's emulator has a compact window, and 28 expanded-layout checks in `:android-desktop` (`if (isCompactLayout()) return`, e.g. `SelectorScreenTest`) pass vacuously there; `SelectorForcedSizeTest` forces expanded sizes for part of it. Only a device with an expanded window (a tablet) runs them: use `--android-device` on one before a release. The mirror labels the gate `(partial — compact window)`. Local: on demand only (`--android-device`, before a release), on every configured test device at once (`scripts/android_device_matrix.py run --configured`: `pst.testDevice.serial` + `.extraSerials`, or the only attached device), each under its device lock, one gate per device; no device, or a device busy or locked after the wait, is a non-blocking `⊘ SKIPPED`, also under `--strict`. See [Instrumented tests](#instrumented-tests-genuinely-need-a-device). |
+| `swift test (macos-desktop)` | `macos.yml:swift-test` | ⚠️ Darwin only | Native Swift 6 suite covering PhotoSelectorKit & App (release SLA benchmark included). Runs on the pinned `macos-26` image in CI. |
+| `check_no_test_hooks.sh` (release binary) | `macos.yml:swift-test` | ⚠️ Darwin only | `swift build -c release`, then fails if the binary contains the UI test hooks (`UIScenarioRunner`, `UITestDriver`, `UISelfTestRunner`), which are compiled in only for debug and `build_app.sh --test-hooks` builds. |
+| Lensjet universal app bundle | `macos.yml:build` | ⚠️ Darwin only (skipped under `--quick`) | `build_app.sh release --universal` (arm64 + x86_64 merged with `lipo`, ad-hoc signed) followed by `check_no_test_hooks.sh` on the `.app`. The release packaging that publishes it runs only on `main` and `macos-desktop-v*` tags; the mirror runs the same two commands, so a break in `build_app.sh` shows before the merge. Not yet exercised on a Mac by the agent that added it. |
 | macOS UI smoke test (running app) | — (local-only) | ⚠️ Darwin + logged-in GUI session | `products/macos-desktop/scripts/ui_smoke_test.sh`: drives the running app (raw binary **and** `.app` bundle) — activation policy, real key events, rendered Focus 3-Up geometry, clicks while zoomed, time-to-first-photo. Window-server key probe needs Accessibility permission, else `⊘ SKIPPED`. See [macOS UI smoke test](#macos-ui-smoke-test-local-only). |
-| `linux-desktop lint` | `linux.yml:lint` | ✅ everywhere | Flake8 static analysis on `products/linux-desktop/` |
-| `linux-desktop test` (`--cov-fail-under=70`) | `linux.yml:test` | ⚠️ full only with GTK 4 + GExiv2 typelibs (partial elsewhere) | CI runs it on Python 3.12 and 3.13 (Debian 13 ships 3.13); the mirror uses the local interpreter. Headless unit tests covering metadata, scoring, file transactions, window/dialog controllers, and format conformance with `--cov=photo_selector_linux --cov-fail-under=70`. CI installs the Debian decoding backends (`gir1.2-gexiv2-0.10`, `libraw-bin`, `heif-gdk-pixbuf` + `libheif-plugin-libde265`; deliberately no `webp-pixbuf-loader`, so the Pillow display fallback stays tested) and, with the corpus, fails if any is missing; off Linux the backend-dependent format checks skip with the package to install. Without the real GTK 4 / GExiv2 typelibs (macOS, or a Linux box without them) `conftest.py` stubs `gi`, so the GTK display decode path never runs; the mirror then labels the gate `linux.yml:test (partial — …)` instead of claiming CI parity. Runs under Xvfb on Linux, mirroring `xvfb-run -a` in CI. The CI job has `timeout-minutes: 15` and both CI and the mirror pass `-o faulthandler_timeout=120`, so a test that blocks forever on a real GTK main loop fails with every thread's stack instead of hanging (a preferences-dialog signal feedback loop did exactly that on 2026-10-17 while the Mac gate, which stubs GTK, was green). CI installs `appstream` and `desktop-file-utils` and sets `PST_REQUIRE_PACKAGING_TOOLS=1`, so the AppStream and `.desktop` validation tests fail instead of skipping; `run_tests.sh` sets it when both tools are installed. |
+| `linux-desktop lint` | `linux.yml:lint` | ✅ in its own [Python environment](#python-gates-run-in-the-projects-own-environment) | Flake8 static analysis on `products/linux-desktop/` |
+| `linux-desktop test` (`--cov-fail-under=70`) | `linux.yml:test` | ⚠️ full only with GTK 4 + GExiv2 typelibs (partial elsewhere) | CI runs it on Python 3.12 and 3.13 (Debian 13 ships 3.13); the mirror uses the interpreter of the Blitzlens venv. Headless unit tests covering metadata, scoring, file transactions, window/dialog controllers, and format conformance with `--cov=photo_selector_linux --cov-fail-under=70`. CI installs the Debian decoding backends (`gir1.2-gexiv2-0.10`, `libraw-bin`, `heif-gdk-pixbuf` + `libheif-plugin-libde265`; deliberately no `webp-pixbuf-loader`, so the Pillow display fallback stays tested) and, with the corpus, fails if any is missing; off Linux the backend-dependent format checks skip with the package to install. Without the real GTK 4 / GExiv2 typelibs (macOS, or a Linux box without them) `conftest.py` stubs `gi`, so the GTK display decode path never runs; the mirror then labels the gate `linux.yml:test (partial — …)` instead of claiming CI parity. Runs under Xvfb on Linux, mirroring `xvfb-run -a` in CI. The CI job has `timeout-minutes: 15` and both CI and the mirror pass `-o faulthandler_timeout=120`, so a test that blocks forever on a real GTK main loop fails with every thread's stack instead of hanging (a preferences-dialog signal feedback loop did exactly that on 2026-10-17 while the Mac gate, which stubs GTK, was green). CI installs `appstream` and `desktop-file-utils` and sets `PST_REQUIRE_PACKAGING_TOOLS=1`, so the AppStream and `.desktop` validation tests fail instead of skipping; `run_tests.sh` sets it when both tools are installed. |
 | `debian packaging & apt repo` | `linux.yml:package` | ✅ everywhere (pure-Python builder) | `package_debian.sh`: builds the `.deb`, generates an unsigned APT repository in `products/linux-desktop/dist/apt` and verifies it. |
 | APT publish | `linux.yml:publish-apt` | ❌ credentials-bound | On `linux-desktop-v*` tags only (never on a manual dispatch; `scripts/tests/test_workflow_bounds.py` enforces that for every publishing job), after `release.py verify-tag`: downloads the `package` job's verified `.deb` (the bytes the GitHub release ships), indexes and signs (`APT_GPG_PRIVATE_KEY`) and pushes the repository to `alexpp90/apt` (GitHub Pages). |
 | Homebrew tap update | `desktop.yml:update-homebrew-taps`, `macos.yml:update-homebrew-taps` | ❌ credentials-bound | Writes formula/cask hashes and versions directly to `alexpp90/homebrew-tap` (`HOMEBREW_TAP_TOKEN`); the main repository holds no Formula/Casks. |
-| PyInstaller build, release, Play/Firebase publish | `desktop.yml:build`+, `android.yml:build`+, `macos.yml:build`, `linux.yml:github-release`, `linux.yml:publish-apt` | ❌ credentials-bound | Only runs on pushes to `main` / the product's own release tag (`phototok-v*`, `android-desktop-v*`, `macos-desktop-v*`, `linux-desktop-v*`, `desktop-v*` — see [RELEASING.md](RELEASING.md)). Not reproducible locally by design — except the macOS universal bundle, which `products/macos-desktop/scripts/build_app.sh release --universal` builds locally (arm64 + x86_64, verified with `lipo -archs`). Main pushes also move each product group's own rolling tag (`nightly-android`, `nightly-macos-desktop`, legacy `nightly`) to the released commit before updating its pre-release; no two workflows share a tag (`test_workflow_bounds.py`). Third-party actions (everything but `actions/*`, `gradle/actions` and local actions) are pinned to a commit SHA with the tag as a comment; Dependabot's `github-actions` updates bump them. |
+| PyInstaller build | `desktop.yml:build` | ✅ opt-in: `PST_BUILD_GATES=1 ./scripts/run_tests.sh --python` | Needs no credential, only the network (it downloads ExifTool 13.59 from SourceForge) and a few minutes; it also regenerates `THIRDPARTY_NOTICES.txt`. CI runs it on pushes to `main`, `desktop-v*` tags and manual dispatch, never on a pull request, so a change to `build.py`, a dependency or a native import is first built on `main` (where `release` `needs: build`). The mirror reports it `⊘ SKIPPED` unless opted in; run it before merging such a change. |
+| Release, Play/Firebase publish | `android.yml:build`+, `macos.yml:build`+`release`, `desktop.yml:release`, `linux.yml:github-release`, `linux.yml:publish-apt` | ❌ credentials-bound | Only runs on pushes to `main` / the product's own release tag (`phototok-v*`, `android-desktop-v*`, `macos-desktop-v*`, `linux-desktop-v*`, `desktop-v*` — see [RELEASING.md](RELEASING.md)). Not reproducible locally by design: it needs signing keys and publishing tokens. The packaging steps in front of it are mirrored where they can be (the Lensjet bundle above, the debug APKs, the PyInstaller build opt-in). The nightly tag move is the last step and best-effort: a refused tag move does not fail a run whose assets are published. Main pushes also move each product group's own rolling tag (`nightly-android`, `nightly-macos-desktop`, legacy `nightly`) to the released commit before updating its pre-release; no two workflows share a tag (`test_workflow_bounds.py`). Third-party actions (everything but `actions/*`, `gradle/actions` and local actions) are pinned to a commit SHA with the tag as a comment; Dependabot's `github-actions` updates bump them. |
 | `check_readme_parity.py --check` | `repo-hygiene.yml:hygiene` | ✅ everywhere | Enforces root `README.md` ecosystem completeness, canonical product ordering: Jackpix, Frameduel, Lensjet, Blitzlens, legacy Desktop, asset integrity, and removal of deprecated terms. |
 | `release.py verify-tag` | first step of every tag release job (`android.yml:build`, `desktop.yml:release`, `macos.yml:build`+`release`, `linux.yml:publish-apt`+`github-release`) | ✅ `python3 scripts/release.py verify-tag <tag>` | Fails the release before anything is built or published unless the tag's version equals every in-tree version source and the product's changelog has that section. Locally, `release.py tag` checks the same and additionally refuses a tree without a passing `run_tests.sh` record for the product's gates. |
 | `release.py check` | `repo-hygiene.yml:hygiene` | ✅ everywhere | Every product's version sources agree, it has a `CHANGELOG.md`, and its workflow triggers on its own tag prefix. `release.py`'s unit tests run in `scripts/tests` below. |
 | `check_private_paths.py` | `repo-hygiene.yml:hygiene` | ✅ everywhere | Fails if maintainer-private material (`private/`, `ai/`, `.claude/`, `.agents/`, `.gemini/`, requirement specs, prompts, the prompt ledger) is tracked in this public repository. Also runs as the local pre-commit hook installed by the overlay. |
 | Format corpus (`fetch_format_corpus.py`) | `.github/actions/format-corpus`, used by `desktop.yml:test`, `android.yml:unit-tests`, `macos.yml:swift-test`, `linux.yml:test` | ⚠️ once downloaded (~280 MB, network) | Restores the real-camera RAW corpus pinned in `testdata/formats/manifest.json` (cache key = manifest hash) and sets `PST_REQUIRE_FORMAT_CORPUS=1`, so every product's format conformance tests **fail** rather than skip without it. Locally `run_tests.sh` exports the same variables when the corpus is present and reports `⊘ SKIPPED` otherwise. See [`docs/shared/SUPPORTED_FORMATS.md`](../shared/SUPPORTED_FORMATS.md). |
+| `check_doc_links.py --check` | `repo-hygiene.yml:hygiene` | ✅ everywhere | Every relative link, image and `#anchor` in the tracked `*.md` and `*.html` resolves (GitHub slug rules, case-sensitive paths). External URLs are not fetched; links into the private overlay are skipped in a public clone. `test_check_doc_links.py` also fails when the docs name a file the APT repository does not serve. |
 | `check_ui_text_budget.py` | `repo-hygiene.yml:hygiene` | ✅ everywhere | Visible UI text within the budgets of `docs/shared/UI_TEXT.md` (`scripts/ui_text_budget.json`): string resources per element prefix, EN and `values-de` limits, no sentence punctuation on buttons, no hard-coded Compose text, no visible label next to an icon. Fails for products in `fail` mode; the mirror shows report-only findings as `!` (exit code 3). Its tests run in `scripts/tests`. |
 | `fetch_format_corpus.py --validate` + `scripts/tests` | `repo-hygiene.yml:hygiene` | ✅ everywhere | The format contract is well-formed: every required format has a sample with ground-truth EXIF, extensions are unique, committed bitmap fixtures match their pinned SHA-256; unit tests for the fetcher (mirror fallback, hash verification), for `verification_record.py`, `release.py`, `android_test_device.py` and `android_device_matrix.py`. |
 | PR verification record (`verification_record.py check`) | `pr-verification.yml:record` | ⚠️ PR description only — advisory | Compares the verification blocks in the PR description (written by `scripts/verification_record.py pr` from the record every `run_tests.sh` run saves) with the PR head tree and the products the PR touches; annotates missing, stale or partial verification and never fails. Not a `run_tests.sh` gate: it judges the PR description, which exists only on GitHub. Local equivalent: `python3 scripts/verification_record.py check --body-file <description.md> --base origin/main`. Its unit tests run in `scripts/tests` above. See [CONTRIBUTING.md § Verification record](../../CONTRIBUTING.md#verification-record). |
@@ -60,6 +63,34 @@ The rule that prevents it:
 | `lab tooling tests` (`scripts/lab/tests`) | — (local-only) | ✅ everywhere (needs Pillow + PyYAML) | Local-only unit tests (`python3 -m unittest discover -s scripts/lab/tests -q`) covering the device lab's schemas, fixture generator, layout lint, file-system/timing/log oracles, runners, and report builder without touching devices or a GUI. |
 | Device lab (`scripts/lab/lab.py`) | — (not a CI gate) | ⚠️ local, on demand, opt-in | Local, on demand, not a CI gate; opt-in; see [`scripts/lab/README.md`](../../scripts/lab/README.md). |
 | Private overlay gates (`link_overlay.py --check`, `sync_framework.py --check`, `validate_framework.py`, `gen_gemini_settings.py --check`, `verify_requirements_traceability.py --check --strict`, the brand name guard `check_brand_names.py` (run only when the overlay has it), framework tests) | private repo `framework.yml` | ⚠️ maintainer checkout only | Run by `run_tests.sh` when `private/` is checked out; `⊘ SKIPPED` (not a risk) in a public clone. The private repository's CI checks out this repository and runs the same gates. |
+
+---
+
+## Python gates run in the project's own environment
+
+`products/desktop/` and `products/linux-desktop/` each have a Poetry project, and CI installs
+each with `poetry install` before its gates. The mirror does the same per product: it finds the
+venv **read-only** (`poetry env info -p`; in a worktree, the main checkout's venv when the
+worktree's own is empty) and probes it for the tools and dependencies its gates import
+(`pytest`, `pytest-cov`, `flake8`, and the product's libraries). A venv that fails the probe is
+**one failed gate** that names what is missing and the command that provisions it. The
+mirror never falls back to a tool found on `PATH` and never calls `poetry run`: `poetry run`
+creates the venv it cannot find (one empty venv per worktree) and then runs whichever
+same-named tool is first on `PATH`, which once made a user-global pytest without `pytest-cov`
+the gate ("unrecognized arguments: --cov") and silently skipped both flake8 gates. Skipping
+is for what cannot run here (Swift on Linux, no device); a missing environment is one command
+away, so it fails.
+
+```bash
+poetry --directory products/desktop install --no-root                 # --python, and the framework tests
+poetry config virtualenvs.options.system-site-packages true            # Blitzlens: gi comes from the system packages
+poetry --directory products/linux-desktop install --no-root            # --linux
+poetry --directory products/linux-desktop install --no-root --only dev  # --linux without libcairo2-dev & co: numpy, Pillow, gi from the distro
+PST_VENV_BIN=/path/to/env/bin ./scripts/run_tests.sh --python          # a machine without Poetry; probed the same way
+```
+
+`scripts/tests/test_run_tests_sh.py` proves it against a fake `PATH` that holds a pytest without
+`pytest-cov`.
 
 ---
 
@@ -108,7 +139,7 @@ runner image**. macOS and Windows font rasterisation differs enough to produce f
 so the tests are marked `linux_only` and the local runner reports them SKIPPED off Linux.
 
 Xvfb alone does not make them reproducible on every Linux box. A Debian 13 workstation
-renders the same widgets through a different font build than `ubuntu-latest`, which lands
+renders the same widgets through a different font build than the pinned `ubuntu-24.04` image, which lands
 around 0.9 % of pixels — just over the 0.5 % `DEFAULT_THRESHOLD` in
 `tests/visual/conftest.py` — on text-heavy baselines. Diffs that size, concentrated on glyph
 edges, are the font stack and not a regression; `tests/visual/diffs/<name>_diff.png` shows
@@ -123,7 +154,7 @@ These proprietary frameworks require Apple Darwin operating system kernels:
 
 1. **Darwin Host Dependency**: Running `swift test` against `products/macos-desktop/`
    requires a macOS host environment. In GitHub Actions, `.github/workflows/macos.yml`
-   runs on `macos-latest` runners (Apple Silicon arm64). On Linux or Windows developer
+   runs on the pinned `macos-26` runner image (Apple Silicon arm64). On Linux or Windows developer
    machines, `scripts/run_tests.sh` reports `swift test (macos-desktop)` as `⊘ SKIPPED`.
 2. **Xcode 16 / Swift 6 Parity**: The CI runner selects the active Xcode 16 toolchain,
    matching local developer environments.
@@ -158,15 +189,24 @@ skips it.
 
 ### Automatic path filtering (selective product gates)
 
-GitHub Actions workflows (`desktop.yml`, `android.yml`, `macos.yml`) configure `paths:`
+The four product workflows (`desktop.yml`, `android.yml`, `macos.yml`, `linux.yml`) configure `paths:`
 filters so that pull requests touching only Android do not execute Desktop or macOS CI,
 and vice versa. `run_tests.sh` mirrors this locally: unless `--all` or an explicit product
 flag (`--python`, `--android`, `--macos`, `--linux`) is given, it inspects git status and
 branch diffs against `main` (changes to `.github/`, `run_tests.sh` or the format contract under
 `testdata/formats/` count for every product; `scripts/check_native_alignment.py` counts for
-Android, and the legacy `products/desktop/scripts/update_formula.py` for Desktop and Lensjet,
-whose cask job runs it — the same as the workflows' `paths:`). If only one product has modifications, gates for untouched
+Android, the legacy `products/desktop/scripts/update_formula.py` for Desktop and Lensjet,
+whose cask job runs it, and `docs/products/linux-desktop/INSTALL.md` for Blitzlens, whose
+packaging test reads the APT key fingerprint from it — the same as the workflows' `paths:`).
+If only one product has modifications, gates for untouched
 products are reported as skipped due to path filtering rather than executing redundant suites.
+There is deliberately no `scripts/**` filter: the legacy Desktop reads from `scripts/` only the
+format-corpus fetcher, so a change to `scripts/lab/`, `release.py` or the Android tooling does not
+rebuild it, publish its nightly or rewrite its Homebrew hashes.
+`scripts/tests/test_ci_mirror.py` (part of `scripts/tests`, run by `repo-hygiene.yml` and the
+mirror) parses both sides and fails when a workflow path does not select its product in
+`run_tests.sh`, when a product arm of `run_tests.sh` is missing from its workflow's filter, or
+when a workflow's push and pull-request filters differ.
 
 `android.yml:detect-changes` decides which Android products a change touches: a change under
 one product's directory builds that product, and a change under a shared module
@@ -415,16 +455,31 @@ framework.
   step did not produce it. All release uploads now use
   `if-no-files-found: error`, so this should fail at the producing step first.
 - **A job that sits "in progress" far past its usual time** is hung, not slow. Every job
-  declares `timeout-minutes` (about three times its slowest green run, at least 10), so it
+  declares `timeout-minutes` (about three times its slowest green run, at least 10; the tag-only publish jobs, which have run once, keep a generous bound until measured), so it
   fails instead of running into GitHub's 360-minute default. The pytest jobs
   (`desktop.yml:test`, `desktop.yml:visual`, `linux.yml:test`) pass
   `-o faulthandler_timeout=120`, so a single blocked test dumps every thread's stack into the
   log. `scripts/tests/test_workflow_bounds.py` (run by `repo-hygiene.yml` and the mirror)
-  fails when a job or a CI pytest command lacks either. A timeout is a CI-only bound with no local mirror: `run_tests.sh` runs in the
+  fails when a job or a CI pytest command lacks either. Every `apt-get` step retries (`-o Acquire::Retries=3`) and is bounded to 5 minutes, since a stalled mirror fetch once consumed 15 of a job's 20 minutes (same test). A timeout is a CI-only bound with no local mirror: `run_tests.sh` runs in the
   foreground, where you see a hang yourself.
 - **An "Unexpected input(s) …" annotation** is a *warning*, not an error: the
   input was silently ignored and whatever it was supposed to configure never
   took effect. Treat it as a broken fix, not cosmetic noise.
+
+---
+
+## Runner images and dependencies
+
+Every job runs on a pinned image (`ubuntu-24.04`, `macos-26`, `windows-2025`), never `*-latest`:
+GitHub moves `-latest` to a new release without a commit in this repository, which would change
+the apt package set, the emulator job's KVM step and the glibc the legacy Linux binary is linked
+against on `main`, unannounced. Moving to a newer image is one deliberate change
+(`scripts/tests/test_workflow_bounds.py` fails on a floating image). The visual-regression
+baselines are rendered on the pinned `ubuntu-24.04`.
+
+Dependabot (monthly, grouped) covers Gradle, the GitHub Actions in `.github/workflows/` and
+`.github/actions/*`, and the Poetry projects `products/desktop` and `products/linux-desktop`
+(minor and patch updates only).
 
 ---
 
