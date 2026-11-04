@@ -93,3 +93,51 @@ def test_running_app_menu_action_and_key_switch_order(tmp_path, monkeypatch):
     win.router.engine.dispatch(0x62, 0)
     assert win.viewmodel.sort_order == "natural"
     assert action.get_state().get_string() == "natural"
+
+
+# ── Open-folder picker (BL-UX-1 of the review: dismissing it is not an error) ─────────────────────
+
+
+def _picker(win, outcome):
+    class Dialog:
+        def select_folder_finish(self, _result):
+            if isinstance(outcome, Exception):
+                raise outcome
+            return outcome
+
+    win._on_folder_dialog_finish(Dialog(), None)
+
+
+@pytest.mark.skipif(STUBBED, reason="needs real Gtk/GLib")
+def test_dismissing_the_folder_picker_says_nothing(tmp_path, monkeypatch):
+    from gi.repository import GLib, Gtk
+
+    win = _window(tmp_path, monkeypatch)
+    for code in (Gtk.DialogError.DISMISSED, Gtk.DialogError.CANCELLED):
+        _picker(win, GLib.Error.new_literal(Gtk.dialog_error_quark(), "Dismissed by user", code))
+    context = GLib.MainContext.default()
+    for _ in range(50):  # a toast deferred with idle_add would show up here
+        context.iteration(False)
+    win.show_toast.assert_not_called()
+
+
+@pytest.mark.skipif(STUBBED, reason="needs real Gtk/GLib")
+def test_a_failing_picker_or_open_is_reported_as_a_failure(tmp_path, monkeypatch):
+    from gi.repository import GLib, Gtk
+
+    win = _window(tmp_path, monkeypatch)
+    _picker(win, GLib.Error.new_literal(Gtk.dialog_error_quark(), "portal gone", Gtk.DialogError.FAILED))
+    assert "portal gone" in win.show_toast.call_args.args[0]
+    assert "cancelled" not in win.show_toast.call_args.args[0]
+
+    monkeypatch.setattr(win, "open_directory", MagicMock(side_effect=PermissionError("denied")))
+    _picker(win, SimpleNamespace(get_path=lambda: str(tmp_path)))
+    assert win.show_toast.call_args.args[0] == f"Could not open {tmp_path.name}: denied"
+
+
+@pytest.mark.skipif(STUBBED, reason="needs real Gtk/GLib")
+def test_choosing_a_folder_opens_it(tmp_path, monkeypatch):
+    win = _window(tmp_path, monkeypatch)
+    monkeypatch.setattr(win, "open_directory", MagicMock())
+    _picker(win, SimpleNamespace(get_path=lambda: str(tmp_path)))
+    win.open_directory.assert_called_once_with(tmp_path)

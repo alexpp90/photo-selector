@@ -674,6 +674,11 @@ if $run_linux; then
             # format-conformance display checks fall back to Pillow. Say so instead of
             # reporting the full CI gate as passed.
             linux_ci_ref="linux.yml:test"
+            # linux.yml installs appstream + desktop-file-utils and makes their two validation tests
+            # mandatory; here they are mandatory once both tools are installed, else they skip.
+            if have appstreamcli && have desktop-file-validate; then
+                export PST_REQUIRE_PACKAGING_TOOLS=1
+            fi
             if ! py python -c "import gi; gi.require_version('Gdk', '4.0'); gi.require_version('GExiv2', '0.10'); from gi.repository import Gdk, GExiv2" &>/dev/null; then
                 linux_ci_ref="linux.yml:test (partial — no GTK 4/GExiv2 typelibs, display path stubbed)"
             fi

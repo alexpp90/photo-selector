@@ -63,7 +63,7 @@ waited 21 days. The thresholds are constants at the top of `release.py`.
    It writes the next version into every version source and turns the changelog's
    `[Unreleased]` section into `[X.Y.Z] - <date>`. If that section was empty it drafts it
    from the PR titles: rewrite the draft for users. Linux Desktop also gets a new
-   `debian/changelog` entry.
+   `debian/changelog` entry and a new AppStream `<release>` in its `metainfo.xml`.
 3. **Test, and fix every failure.** Run the product's gates with the CI mirror:
 
    | Product | Command |

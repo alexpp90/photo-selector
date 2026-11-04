@@ -24,6 +24,16 @@ except (ImportError, ValueError):
     Gtk = Gdk = None
 
 
+# What the empty state teaches: (keyval, state, label) triples. The key shown is the one dispatched,
+# so a changed binding cannot leave a stale pill; a test sends each through the engine.
+EMPTY_STATE_HINTS = (
+    (0x6F, 4, "Ctrl+O", "Open folder"),
+    (0x31, 0, "1 2 3", "Views"),
+    (0x6D, 0, "M C Del", "Keep, copy, trash"),
+    (0x69, 0, "I", "Info"),
+)
+
+
 class KeyboardRouterEngine:
     """Decoupled key matching and dispatching engine.
 
@@ -98,10 +108,17 @@ class KeyboardRouterEngine:
         """Mask out CapsLock (LOCK_MASK) and NumLock (MOD2_MASK) (R-LINUX-KEY-01)."""
         return state & ~(cls.LOCK_MASK | cls.MOD2_MASK)
 
-    def dispatch(self, keyval: int, state: int, is_text_editing: bool = False) -> bool:
+    def dispatch(
+        self,
+        keyval: int,
+        state: int,
+        is_text_editing: bool = False,
+        focus_on_button: bool = False,
+    ) -> bool:
         """Dispatch keypress to target handler.
 
-        Returns True if handled, False otherwise.
+        Returns True if handled, False otherwise. ``focus_on_button``: keyboard focus sits on a
+        button, which Space must be able to press.
         """
         if is_text_editing:
             return False  # Editable text entry exception (R-LINUX-KEY-07)
@@ -169,14 +186,17 @@ class KeyboardRouterEngine:
 
         # 5. Inspection Toggles (R-LINUX-KEY-05)
         if norm_key == self.KEY_SPACE:
+            if focus_on_button:
+                return False
             self.target.on_toggle_zoom()
             return True
         elif norm_key == self.KEY_ESCAPE:
             self.target.on_reset_zoom()
             return True
         elif norm_key == self.KEY_TAB:
-            self.target.on_cycle_slot()
-            return True
+            # Only a handler that really cycled slots consumes Tab; otherwise focus traversal
+            # (header, action bar, menu) keeps working.
+            return bool(self.target.on_cycle_slot())
         elif norm_key == self.KEY_I:
             self.target.on_toggle_hud()
             return True
@@ -221,7 +241,12 @@ class KeyboardRouter:
         ):
             is_text_editing = True
 
-        handled = self.engine.dispatch(keyval, int(state), is_text_editing=is_text_editing)
+        focus_on_button = focus_widget is not None and isinstance(
+            focus_widget, (Gtk.Button, Gtk.MenuButton, Gtk.CheckButton, Gtk.Switch)
+        )
+        handled = self.engine.dispatch(
+            keyval, int(state), is_text_editing=is_text_editing, focus_on_button=focus_on_button
+        )
         return Gdk.EVENT_STOP if handled else Gdk.EVENT_PROPAGATE
 
     # Delegated actions
@@ -274,8 +299,8 @@ class KeyboardRouter:
         if hasattr(self.window, "canvas_view") and hasattr(self.window.canvas_view, "reset_zoom"):
             self.window.canvas_view.reset_zoom()
 
-    def on_cycle_slot(self) -> None:
-        pass
+    def on_cycle_slot(self) -> bool:
+        return False  # no slot cycling yet: Tab keeps moving the keyboard focus
 
     def on_toggle_hud(self) -> None:
         if hasattr(self.window, "canvas_view") and hasattr(self.window.canvas_view, "toggle_hud"):

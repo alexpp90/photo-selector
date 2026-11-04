@@ -77,3 +77,59 @@ def test_decode_worker_fills_in_scores_and_exif(tmp_path: Path, monkeypatch):
     assert 0.0 <= candidate.scores.sharpness <= 100.0
     assert candidate.exif is not None
     assert delivered and delivered[0][1] is not None  # the decoded pixbuf
+
+
+def test_a_folder_change_cancels_queued_decodes_and_ignores_the_running_one(monkeypatch):
+    """clear() only dropped the cache: every prefetch queued for the folder that was left still ran (BL-P-2)."""
+    import threading
+
+    gate, started, ran = threading.Event(), threading.Event(), []
+    loader = photo_loader.PhotoTextureLoader(workers=1)
+
+    def slow_work(key, candidate, generation=None):
+        ran.append(key[0].name)
+        started.set()
+        gate.wait(timeout=5)
+        loader._deliver(key, None, generation)
+
+    monkeypatch.setattr(loader, "_work", slow_work)
+    callbacks = []
+    for name in ("a.jpg", "b.jpg", "c.jpg"):
+        loader.request(CandidatePhoto(primary_path=Path("/old") / name), callbacks.append)
+    assert started.wait(timeout=5)  # a.jpg is decoding; b and c are queued
+
+    loader.clear()  # the user opened another folder
+    gate.set()
+    loader._pool.shutdown(wait=True)  # lets the running decode finish; cancelled ones never start
+
+    assert ran == ["a.jpg"], "queued decodes of the old folder must not run"
+    assert callbacks == [], "callbacks of the old folder are dropped, running decode included"
+    assert loader._pending == {}
+
+
+def test_a_request_after_clear_is_not_swallowed_by_a_stale_pending_entry(monkeypatch):
+    import threading
+    import time
+
+    gate, started = threading.Event(), threading.Event()
+    loader = photo_loader.PhotoTextureLoader(workers=2)
+    delivered = []
+
+    def work(key, candidate, generation=None):
+        started.set()
+        gate.wait(timeout=5)
+        loader._deliver(key, None, generation)
+
+    monkeypatch.setattr(loader, "_work", work)
+    photo = CandidatePhoto(primary_path=Path("/old/a.jpg"))
+    loader.request(photo, lambda texture: delivered.append("old"))
+    assert started.wait(timeout=5)
+    loader.clear()
+    loader.request(photo, lambda texture: delivered.append("new"))  # same path in the new folder
+    gate.set()
+    deadline = time.monotonic() + 5
+    while not delivered and time.monotonic() < deadline:
+        time.sleep(0.005)
+    loader.shutdown()
+    # Only the new request is answered; the stale delivery of the old one is ignored.
+    assert delivered == ["new"]
