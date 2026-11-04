@@ -159,6 +159,17 @@ class FullscreenViewerTest {
         rule.waitForIdle()
     }
 
+    /** A key chord such as Ctrl+Z, delivered like [press]. */
+    private fun pressWithMeta(keyCode: Int, meta: Int) {
+        val dialog = checkNotNull(ShadowDialog.getLatestDialog()) { "the viewer opened no dialog" }
+        val decor = dialog.window!!.decorView
+        rule.runOnUiThread {
+            decor.dispatchKeyEvent(KeyEvent(0L, 0L, KeyEvent.ACTION_DOWN, keyCode, 0, meta))
+            decor.dispatchKeyEvent(KeyEvent(0L, 10L, KeyEvent.ACTION_UP, keyCode, 0, meta))
+        }
+        rule.waitForIdle()
+    }
+
     /** A key held down: the press, [repeats] auto-repeats of it, then the release. */
     private fun hold(keyCode: Int, repeats: Int) {
         val dialog = checkNotNull(ShadowDialog.getLatestDialog()) { "the viewer opened no dialog" }
@@ -181,6 +192,17 @@ class FullscreenViewerTest {
         assertEquals(1, harness.deletes)
         assertEquals(listOf("a.jpg"), harness.moved)
         assertEquals(1, harness.copied.size)
+    }
+
+    @Test
+    fun `Ctrl+Z in fullscreen runs the same undo as the card's UNDO button`() {
+        val harness = open()
+
+        pressWithMeta(KeyEvent.KEYCODE_Z, KeyEvent.META_CTRL_ON or KeyEvent.META_CTRL_LEFT_ON)
+        pressWithMeta(KeyEvent.KEYCODE_Z, KeyEvent.META_META_ON or KeyEvent.META_META_LEFT_ON)
+        press(KeyEvent.KEYCODE_Z)
+
+        assertEquals("Ctrl+Z and Cmd+Z undo, a bare Z does not", 2, harness.undos)
     }
 
     @Test
