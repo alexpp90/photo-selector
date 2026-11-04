@@ -2,6 +2,9 @@ package com.photoselector.saf
 
 import java.io.File
 import kotlinx.coroutines.ExperimentalCoroutinesApi
+import kotlinx.coroutines.async
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.test.advanceUntilIdle
 import kotlinx.coroutines.test.runTest
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
@@ -69,6 +72,32 @@ class AllOrNothingSafTransferTest : SafTransferContractTest(ALL_OR_NOTHING_POLIC
         assertTrue(File(rootDir, "IMG_0011.CR3").exists())
         // Nothing landed, so no marker was written.
         assertFalse(File(rootDir, "Selection/${SafTransferEngine.SELECTION_MARKER_FILE_NAME}").exists())
+    }
+
+    // AS-D-3: the staged copy that could not be rolled back is the bundle's undo record.
+    @Test
+    fun `a staged copy that cannot be rolled back is reported while the rest of the bundle is cleaned`() = runTest {
+        File(rootDir, "IMG_0421.JPG").writeText("primary-jpeg-ok")
+        File(rootDir, "IMG_0421.CR3").writeBytes(ByteArray(2048) { (it % 127).toByte() })
+        FakeSafDocumentsProvider.reportedSizeOverride = { file ->
+            if (file.parentFile?.name == "RAW" && file.name == "IMG_0421.CR3") 512L else file.length()
+        }
+        FakeSafDocumentsProvider.failDeletesMatching = "Selection/JPEG/IMG_0421.JPG"
+        val jpeg = documentUriFor("IMG_0421.JPG").toString()
+        val jpegCopy = documentUriFor("Selection/JPEG/IMG_0421.JPG").toString()
+
+        val results = engine.transferBundle(
+            storage, listOf(documentUriFor("IMG_0421.JPG"), documentUriFor("IMG_0421.CR3")), selection(), true, true,
+        )
+        val bundle = engine.aggregateBundleResults(jpeg, results, null)
+
+        assertTrue(bundle.partial)
+        assertEquals(mapOf(jpegCopy to jpeg), bundle.copiesOfSurvivingOriginals)
+        assertEquals(listOf(jpegCopy), bundle.destinationUris)
+        assertTrue(File(rootDir, "Selection/JPEG/IMG_0421.JPG").exists())
+        assertFalse(File(rootDir, "Selection/RAW/IMG_0421.CR3").exists())
+        assertTrue(File(rootDir, "IMG_0421.JPG").exists())
+        assertTrue(File(rootDir, "IMG_0421.CR3").exists())
     }
 
     @Test
@@ -228,6 +257,84 @@ class AllOrNothingSafTransferTest : SafTransferContractTest(ALL_OR_NOTHING_POLIC
         assertFalse(undone.success)
         assertEquals("Could not delete the copy in the destination folder", undone.error)
         assertTrue(File(rootDir, "Selection/JPEG/IMG_0045.JPG").exists())
+    }
+
+    // AS-D-2: an undo cancelled after the first copy was deleted still deletes the rest and reports it.
+    @Test
+    fun `an undo cancelled between two copy deletes still deletes every copy of the partial move`() = runTest {
+        val names = listOf("IMG_0046.JPG", "IMG_0046.CR3")
+        seed("sub/day6", *names.toTypedArray())
+        FakeSafDocumentsProvider.failDeletesMatching = "sub/day6"
+        val moved = moveBundle("sub/day6", names)
+        assertTrue(moved.partial)
+        FakeSafDocumentsProvider.failDeletesMatching = null
+        val job = java.util.concurrent.atomic.AtomicReference<kotlinx.coroutines.Job?>(null)
+        FakeSafDocumentsProvider.onDelete = { job.get()?.cancel() }
+
+        val launched = launch { undo(moved) }
+        job.set(launched)
+        advanceUntilIdle()
+        launched.join()
+
+        assertTrue(launched.isCancelled)
+        assertFalse(File(rootDir, "Selection/JPEG/IMG_0046.JPG").exists())
+        assertFalse(File(rootDir, "Selection/RAW/IMG_0046.CR3").exists())
+        assertTrue(File(rootDir, "sub/day6/IMG_0046.JPG").exists())
+        assertTrue(File(rootDir, "sub/day6/IMG_0046.CR3").exists())
+    }
+
+    // AS-D-4: a half-failed undo of a partial move can be retried.
+    @Test
+    fun `an undo whose second copy delete fails reports the first as deleted and succeeds on retry`() = runTest {
+        val names = listOf("IMG_0047.JPG", "IMG_0047.CR3")
+        seed("sub/day7", *names.toTypedArray())
+        FakeSafDocumentsProvider.failDeletes = true
+        val moved = moveBundle("sub/day7", names)
+        assertTrue(moved.partial)
+        assertEquals(2, moved.copiesOfSurvivingOriginals.size)
+        FakeSafDocumentsProvider.failDeletes = false
+        FakeSafDocumentsProvider.failDeletesMatching = "Selection/RAW/IMG_0047.CR3"
+
+        val first = undo(moved)
+
+        assertFalse(first.success)
+        assertEquals("Could not delete the copy in the destination folder", first.error)
+        assertEquals(listOf(documentUriFor("Selection/JPEG/IMG_0047.JPG").toString()), first.deletedCopies)
+        assertFalse(File(rootDir, "Selection/JPEG/IMG_0047.JPG").exists())
+        assertTrue(File(rootDir, "Selection/RAW/IMG_0047.CR3").exists())
+
+        FakeSafDocumentsProvider.failDeletesMatching = null
+        val retry = undo(moved) // the same record: the first copy is already gone
+
+        assertTrue("the retry must not trip over the copy that is already deleted", retry.success)
+        assertEquals(2, retry.deletedCopies.size)
+        assertFalse(File(rootDir, "Selection/RAW/IMG_0047.CR3").exists())
+        names.forEach { assertEquals("payload-$it", File(rootDir, "sub/day7/$it").readText()) }
+        assertEquals(setOf("IMG_0047.CR3", "IMG_0047.JPG"), File(rootDir, "sub/day7").list()!!.toSet())
+    }
+
+    // B-AD-2: undo takes the destination lock, so two undos into one folder pick distinct names.
+    @Test
+    fun `two concurrent undos into one folder restore under distinct names`() {
+        engine.ioDispatcher = kotlinx.coroutines.Dispatchers.IO
+        File(rootDir, "filedA").mkdirs(); File(rootDir, "filedA/IMG_0440.JPG").writeText("payload-A")
+        File(rootDir, "filedB").mkdirs(); File(rootDir, "filedB/IMG_0440.JPG").writeText("payload-B")
+        FakeSafDocumentsProvider.createDelayMs = 150L
+
+        val results = kotlinx.coroutines.runBlocking {
+            listOf("filedA", "filedB").map { dir ->
+                async(kotlinx.coroutines.Dispatchers.IO) {
+                    engine.undoMoveBundle(storage, listOf(documentUriFor("$dir/IMG_0440.JPG").toString()), treeUri, null)
+                }
+            }.map { it.await() }
+        }
+
+        assertTrue(results.joinToString { it.error.orEmpty() }, results.all { it.success })
+        assertEquals(setOf("IMG_0440-2.JPG", "IMG_0440.JPG"), rootDir.list()!!.filter { it.startsWith("IMG_0440") }.toSet())
+        assertEquals(
+            setOf("payload-A", "payload-B"),
+            rootDir.list()!!.filter { it.startsWith("IMG_0440") }.map { File(rootDir, it).readText() }.toSet(),
+        )
     }
 
     // ── B-4 / D-4: restore-folder resolution with opaque document ids ────

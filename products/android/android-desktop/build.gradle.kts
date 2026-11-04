@@ -27,7 +27,6 @@ android {
             java.directories.apply { clear(); add("src") }
             kotlin.directories.apply { clear(); add("src") }
             res.directories.apply { clear(); add("res") }
-            jniLibs.directories.apply { clear(); add("jniLibs") }
             manifest.srcFile("AndroidManifest.xml")
         }
         getByName("test") {
@@ -252,7 +251,7 @@ dependencies {
     debugImplementation(libs.androidx.compose.ui.test.manifest)
 
     constraints {
-        implementation("androidx.concurrent:concurrent-futures:1.2.0")
+        implementation(libs.androidx.concurrent.futures)
     }
 }
 

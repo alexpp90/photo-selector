@@ -8,6 +8,7 @@ import java.util.concurrent.ConcurrentHashMap
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.NonCancellable
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.Semaphore
 import kotlinx.coroutines.sync.withLock
@@ -37,6 +38,10 @@ class SafTransferEngine(
     private val subfolderRule: SelectionSubfolderRule,
     private val policy: SafTransferPolicy,
     maxConcurrentTransfers: Int = MAX_CONCURRENT_TRANSFERS,
+    /** The dispatcher the I/O runs on. Tests swap it through the property. */
+    var ioDispatcher: CoroutineDispatcher = Dispatchers.IO,
+    /** The atomic-move collaborator. Tests swap it through the property. */
+    var documentMover: SafDocumentMover = DefaultSafDocumentMover,
 ) {
     companion object {
         private const val TAG = "SafTransferEngine"
@@ -52,15 +57,28 @@ class SafTransferEngine(
     private val transferSemaphore = Semaphore(maxConcurrentTransfers)
     private val destinationLocks = ConcurrentHashMap<String, Mutex>()
 
-    var ioDispatcher: CoroutineDispatcher = Dispatchers.IO
-    var documentMover: SafDocumentMover = DefaultSafDocumentMover
+    /**
+     * The Selection folder of a destination, by canonical root URI and folder name (JP-P-1).
+     * URIs, not `DocumentFile`s: those hold the `Context` of the call that made them.
+     */
+    private val selectionDirs = ConcurrentHashMap<String, Uri>()
 
     private fun destinationLockFor(destinationKey: String): Mutex =
         destinationLocks.getOrPut(destinationKey) { Mutex() }
 
     private sealed class CopyStepResult {
-        data class Success(val destinationFile: DocumentFile) : CopyStepResult()
-        data class Failure(val reason: String) : CopyStepResult()
+        /**
+         * [sourceVerified] is false when the provider did not report the source's size: the copy
+         * is only known to be as long as the stream that was read, so a move must keep the source.
+         */
+        data class Success(val destinationFile: DocumentFile, val sourceVerified: Boolean = true) :
+            CopyStepResult()
+        /**
+         * [strays] are copies this attempt wrote and could not remove again: they are reported to
+         * the caller (AS-D-3) instead of being forgotten in the destination folder.
+         */
+        data class Failure(val reason: String, val strays: List<DocumentFile> = emptyList()) :
+            CopyStepResult()
     }
 
     private data class ResolvedSource(
@@ -99,19 +117,18 @@ class SafTransferEngine(
                 FileOperationResult.failure(uri.toString(), error, parentDocumentId)
             }
             try {
-                destinationLockFor(destination.rootUri.toString()).withLock {
+                destinationLockFor(FolderAccessManager.canonicalUri(destination.rootUri.toString())).withLock {
                     val destRoot = storage.treeDocument(destination.rootUri)
                         ?: return@withContext failAll(
                             unresolvedSourceError ?: "Could not write to the ${destination.folderName} folder",
                         )
                     val folderName = destination.folderNameIn(destRoot)
-                    val selectionDir = destRoot.findFile(folderName)
-                        ?: destRoot.createDirectory(folderName)
+                    val selectionDir = resolveSelectionDir(storage, destRoot, destination.rootUri, folderName)
                         ?: return@withContext failAll(
                             unresolvedSourceError ?: "Could not write to the $folderName folder",
                         )
                     if (policy.markerTiming == MarkerTiming.WHEN_FOLDER_RESOLVED) {
-                        ensureSelectionMarker(selectionDir)
+                        ensureSelectionMarker(storage, selectionDir)
                     }
 
                     val results = when (policy.bundleAtomicity) {
@@ -141,7 +158,7 @@ class SafTransferEngine(
                     if (policy.markerTiming == MarkerTiming.AFTER_FIRST_TRANSFER &&
                         results.any { it.success || it.partial }
                     ) {
-                        ensureSelectionMarker(selectionDir)
+                        ensureSelectionMarker(storage, selectionDir)
                     }
                     results
                 }
@@ -228,67 +245,83 @@ class SafTransferEngine(
                     parentDocumentId = parentDocumentId,
                 )
             }
+            // Copies deleted so far, kept on every result — failures included — so the caller's
+            // record shrinks with them and a retry does not meet a copy that is already gone (AS-D-4).
+            val deletedCopyUris = ArrayList<String>()
             try {
-                val deletableCopies = copiesOfSurvivingOriginals.filter { (_, original) ->
-                    storage.singleDocument(Uri.parse(original))?.exists() == true
-                }.keys
-                var deleteFailed: String? = null
-                deletableCopies.forEach { copyUri ->
-                    if (!delete(storage, Uri.parse(copyUri))) deleteFailed = copyUri
-                }
-                deleteFailed?.let {
-                    return@withContext FileOperationResult.failure(
-                        sourceUri = it,
-                        error = "Could not delete the copy in the destination folder",
+                // Restoring writes into the same tree that transfers are serialised on: an undo racing
+                // a move or another undo would pick the same free name (B-AD-2).
+                destinationLockFor(FolderAccessManager.canonicalUri(rootFolderUri.toString())).withLock {
+                    val deletableCopies = copiesOfSurvivingOriginals.filter { (_, original) ->
+                        storage.singleDocument(Uri.parse(original))?.exists() == true
+                    }.keys
+                    var deleteFailed: String? = null
+                    // Not cancellable between two copies: the results of the deleted ones must come back.
+                    withContext(NonCancellable) {
+                        deletableCopies.forEach { copyUri ->
+                            val copy = Uri.parse(copyUri)
+                            // A copy a previous attempt already deleted counts as deleted.
+                            if (delete(storage, copy) || storage.singleDocument(copy)?.exists() != true) {
+                                deletedCopyUris += copyUri
+                            } else if (deleteFailed == null) {
+                                deleteFailed = copyUri
+                            }
+                        }
+                    }
+                    deleteFailed?.let {
+                        return@withContext FileOperationResult.failure(
+                            sourceUri = it,
+                            error = "Could not delete the copy in the destination folder",
+                            parentDocumentId = parentDocumentId,
+                        ).copy(deletedCopies = deletedCopyUris.toList())
+                    }
+                    val toRestore = destinationUris.filterNot { it in deletableCopies }
+                    if (toRestore.isEmpty()) {
+                        return@withContext FileOperationResult.success(
+                            sourceUri = primarySource,
+                            destinationUri = null,
+                            destinationUris = emptyList(),
+                            parentDocumentId = parentDocumentId,
+                        ).copy(deletedCopies = deletedCopyUris.toList())
+                    }
+                    val restore = resolveRestoreFolder(storage, rootFolderUri, parentDocumentId)
+                        ?: return@withContext FileOperationResult.failure(
+                            sourceUri = primarySource,
+                            error = "Could not resolve the original folder",
+                            parentDocumentId = parentDocumentId,
+                        ).copy(deletedCopies = deletedCopyUris.toList())
+                    val restoreFolder = restore.folder
+                    val results = executeAllOrNothing(
+                        storage = storage,
+                        sourceUris = toRestore.map { Uri.parse(it) },
+                        treeRootUri = rootFolderUri,
+                        baseTargetFolder = restoreFolder,
+                        sorting = false,
+                        targetFolderLabel = restoreFolder.name ?: "original folder",
+                        isMove = true,
+                        parentDocumentId = parentDocumentId,
+                        unresolvedSourceError = null,
+                    )
+                    val aggregated = aggregateBundleResults(
+                        primarySourceUri = primarySource,
+                        results = results,
                         parentDocumentId = parentDocumentId,
                     )
-                }
-                val deletedCopyUris = deletableCopies.toList()
-                val toRestore = destinationUris.filterNot { it in deletableCopies }
-                if (toRestore.isEmpty()) {
-                    return@withContext FileOperationResult.success(
-                        sourceUri = primarySource,
-                        destinationUri = null,
-                        destinationUris = emptyList(),
-                        parentDocumentId = parentDocumentId,
-                    ).copy(deletedCopies = deletedCopyUris)
-                }
-                val restore = resolveRestoreFolder(storage, rootFolderUri, parentDocumentId)
-                    ?: return@withContext FileOperationResult.failure(
-                        sourceUri = primarySource,
-                        error = "Could not resolve the original folder",
-                        parentDocumentId = parentDocumentId,
-                    )
-                val restoreFolder = restore.folder
-                val results = executeAllOrNothing(
-                    storage = storage,
-                    sourceUris = toRestore.map { Uri.parse(it) },
-                    treeRootUri = rootFolderUri,
-                    baseTargetFolder = restoreFolder,
-                    sorting = false,
-                    targetFolderLabel = restoreFolder.name ?: "original folder",
-                    isMove = true,
-                    parentDocumentId = parentDocumentId,
-                    unresolvedSourceError = null,
-                )
-                val aggregated = aggregateBundleResults(
-                    primarySourceUri = primarySource,
-                    results = results,
-                    parentDocumentId = parentDocumentId,
-                )
-                if (restore.fellBackToRoot && aggregated.success) {
-                    aggregated.copy(
-                        notice = "Restored to the opened folder — the original folder no longer exists",
-                        deletedCopies = deletedCopyUris,
-                    )
-                } else {
-                    aggregated.copy(deletedCopies = deletedCopyUris)
+                    if (restore.fellBackToRoot && aggregated.success) {
+                        aggregated.copy(
+                            notice = "Restored to the opened folder — the original folder no longer exists",
+                            deletedCopies = deletedCopyUris.toList(),
+                        )
+                    } else {
+                        aggregated.copy(deletedCopies = deletedCopyUris.toList())
+                    }
                 }
             } catch (e: CancellationException) {
                 throw e
             } catch (e: Exception) {
                 Log.e(TAG, "Failed to undo bundle move: $destinationUris", e)
                 FileOperationResult.failure(primarySource, e.message, parentDocumentId)
+                    .copy(deletedCopies = deletedCopyUris.toList())
             }
         }
     }
@@ -393,9 +426,11 @@ class SafTransferEngine(
                 ResolvedSource(uri, doc, null, SINGLE_FOLDER_KEY, null)
             } else if (sorting) {
                 val subfolder = subfolderRule.subfolderFor(name, bundleNames)
-                val target = targetFoldersByKey.getOrPut(subfolder.name) {
-                    subfolderIn(subfolder, baseTargetFolder)
-                }
+                // A RAW/ or JPEG/ folder that cannot be created leaves the member without a target:
+                // it fails like an unresolvable source instead of landing in the Selection root and
+                // splitting a sorted bundle without a word (AS-Q-1).
+                val target = targetFoldersByKey[subfolder.name]
+                    ?: subfolderIn(subfolder, baseTargetFolder)?.also { targetFoldersByKey[subfolder.name] = it }
                 ResolvedSource(uri, doc, name, subfolder.name, target)
             } else {
                 targetFoldersByKey.getOrPut(SINGLE_FOLDER_KEY) { baseTargetFolder }
@@ -404,14 +439,39 @@ class SafTransferEngine(
         }
     }
 
-    private fun collisionFreeNames(
+    /** One listing per target folder (a single cursor query each), by the key [resolveSources] gave it. */
+    private fun listTargetFolders(
         storage: SafStorage,
-        resolvedSources: List<ResolvedSource>,
         targetFoldersByKey: Map<String, DocumentFile>,
-    ): Map<String, String> {
-        val existingNamesByFolder = targetFoldersByKey.mapValues { (_, folder) ->
-            queryExistingDisplayNames(storage, folder)
+    ): Map<String, FolderListing> = targetFoldersByKey.mapValues { (_, folder) ->
+        queryFolderListing(storage, folder)
+    }
+
+    /**
+     * True when every member already sits in the folder it would be filed into — a Selection
+     * re-filed into itself. Nothing is copied, renamed or deleted then: FILE_OPERATIONS §1,
+     * self-move guard (AS-D-5). Identity is the provider's document id, never a path or a name.
+     */
+    private fun allMembersInPlace(
+        resolvedSources: List<ResolvedSource>,
+        listings: Map<String, FolderListing>,
+    ): Boolean = resolvedSources.isNotEmpty() && resolvedSources.all { src ->
+        val folder = src.targetFolder ?: return@all false
+        val listing = listings[src.folderKey] ?: return@all false
+        if (src.uri.authority != folder.uri.authority) return@all false
+        val documentId = try {
+            DocumentsContract.getDocumentId(src.uri)
+        } catch (_: Exception) {
+            null
         }
+        documentId != null && documentId in listing.documentIds
+    }
+
+    private fun collisionFreeNames(
+        resolvedSources: List<ResolvedSource>,
+        listings: Map<String, FolderListing>,
+    ): Map<String, String> {
+        val existingNamesByFolder = listings.mapValues { (_, listing) -> listing.names }
         val validNames = resolvedSources.mapNotNull { it.fileName }
         val folderKeyByName = resolvedSources
             .filter { it.fileName != null }
@@ -449,7 +509,19 @@ class SafTransferEngine(
             }
         }
 
-        val desiredNames = collisionFreeNames(storage, resolvedSources, targetFoldersByKey)
+        val listings = listTargetFolders(storage, targetFoldersByKey)
+        if (allMembersInPlace(resolvedSources, listings)) {
+            val inPlace = resolvedSources.map { it.uri.toString() }
+            return inPlace.map { uri ->
+                FileOperationResult.success(
+                    sourceUri = uri,
+                    destinationUri = uri,
+                    destinationUris = inPlace,
+                    parentDocumentId = parentDocumentId,
+                )
+            }
+        }
+        val desiredNames = collisionFreeNames(resolvedSources, listings)
 
         // Single-file fast path: attempt atomic DocumentsContract.moveDocument
         // when moving without a collision rename and the provider supports it.
@@ -458,17 +530,6 @@ class SafTransferEngine(
             val name = single.fileName!!
             val desiredName = desiredNames[name] ?: name
             val targetFolder = single.targetFolder!!
-            if (single.uri == targetFolder.uri) {
-                val uriStr = single.uri.toString()
-                return listOf(
-                    FileOperationResult.success(
-                        sourceUri = uriStr,
-                        destinationUri = uriStr,
-                        destinationUris = listOf(uriStr),
-                        parentDocumentId = parentDocumentId,
-                    )
-                )
-            }
             if (desiredName == name) {
                 atomicMove(storage, single.uri, treeRootUri, targetFolder)?.let { movedStr ->
                     return listOf(
@@ -487,6 +548,7 @@ class SafTransferEngine(
         // deleting any source file. If any copy fails, clean up all newly
         // created destination files from this transaction and keep all sources intact.
         val stagedCopies = ArrayList<Pair<ResolvedSource, DocumentFile>>(resolvedSources.size)
+        val unverifiedSources = HashSet<Uri>()
         for (src in resolvedSources) {
             val doc = src.doc!!
             val name = src.fileName!!
@@ -494,30 +556,40 @@ class SafTransferEngine(
                 copyToTargetFolder(
                     storage = storage,
                     sourceUri = src.uri,
-                    sourceDoc = doc,
                     targetFolder = src.targetFolder!!,
                     mimeType = doc.type ?: "application/octet-stream",
                     desiredName = desiredNames[name] ?: name,
                     selectionFolderName = targetFolderLabel,
                 )
             } catch (e: Exception) {
-                // CancellationException included: never leave staged copies behind.
-                stagedCopies.forEach { (_, destDoc) -> cleanUpFailedCopy(destDoc) }
-                throw e
+                // Never leave staged copies behind. A cancelled caller is gone and gets no
+                // report; any other failure reports the copies that could not be removed.
+                val strays = removeStagedCopies(stagedCopies)
+                if (e is CancellationException) throw e
+                Log.e(TAG, "Failed to copy ${src.uri}", e)
+                return failedBundleResults(
+                    resolvedSources, e.message ?: "Could not write to the $targetFolderLabel folder",
+                    strays, isMove, targetFolderLabel, parentDocumentId,
+                )
             }
 
             when (copyResult) {
                 is CopyStepResult.Failure -> {
-                    stagedCopies.forEach { (_, destDoc) -> cleanUpFailedCopy(destDoc) }
-                    return resolvedSources.map { member ->
-                        FileOperationResult.failure(
-                            sourceUri = member.uri.toString(),
-                            error = copyResult.reason,
-                            parentDocumentId = parentDocumentId,
-                        )
-                    }
+                    val strays = removeStagedCopies(stagedCopies)
+                    copyResult.strays.firstOrNull()?.let { strays[src.uri] = it }
+                    return failedBundleResults(
+                        sources = resolvedSources,
+                        reason = copyResult.reason,
+                        strays = strays,
+                        isMove = isMove,
+                        folderLabel = targetFolderLabel,
+                        parentDocumentId = parentDocumentId,
+                    )
                 }
-                is CopyStepResult.Success -> stagedCopies.add(src to copyResult.destinationFile)
+                is CopyStepResult.Success -> {
+                    stagedCopies.add(src to copyResult.destinationFile)
+                    if (!copyResult.sourceVerified) unverifiedSources.add(src.uri)
+                }
             }
         }
 
@@ -538,8 +610,17 @@ class SafTransferEngine(
         // and report a partial outcome.
         var anyDeleteFailed = false
         val survivingOriginals = LinkedHashMap<String, String>() // destination copy -> original kept
-        for ((src, destDoc) in stagedCopies) {
-            if (!deleteSourceAfterVerifiedCopy(storage, src.uri)) {
+        // Once the first source is gone the bundle must be finished: a cancellation between two
+        // deletes would drop the results of the members already moved and leave the rest as
+        // originals plus copies, with no undo record (AS-D-2). The caller's cancellation is
+        // rethrown at the next suspension point after the bundle is whole.
+        withContext(NonCancellable) {
+            for ((src, destDoc) in stagedCopies) {
+                // A copy whose source size the provider never reported is not proven complete:
+                // the original stays (AS-D-1).
+                if (!unverifiedSources.contains(src.uri) && deleteSourceAfterVerifiedCopy(storage, src.uri)) {
+                    continue
+                }
                 anyDeleteFailed = true
                 survivingOriginals[destDoc.uri.toString()] = src.uri.toString()
             }
@@ -555,7 +636,11 @@ class SafTransferEngine(
                 )
             }
         } else {
-            val partialError = "Copied to $targetFolderLabel — original could not be removed"
+            val partialError = if (unverifiedSources.isNotEmpty()) {
+                "Copied to $targetFolderLabel — original kept, its size could not be verified"
+            } else {
+                "Copied to $targetFolderLabel — original could not be removed"
+            }
             stagedCopies.map { (src, destDoc) ->
                 FileOperationResult.partial(
                     sourceUri = src.uri.toString(),
@@ -583,9 +668,18 @@ class SafTransferEngine(
     ): List<FileOperationResult> {
         val targetFoldersByKey = LinkedHashMap<String, DocumentFile>()
         val resolvedSources = resolveSources(storage, sourceUris, selectionDir, sorting, targetFoldersByKey)
-        val desiredNames = collisionFreeNames(storage, resolvedSources, targetFoldersByKey)
+        val listings = listTargetFolders(storage, targetFoldersByKey)
+        if (allMembersInPlace(resolvedSources, listings)) {
+            return resolvedSources.map { src ->
+                val uri = src.uri.toString()
+                FileOperationResult.success(uri, uri, parentDocumentId = parentDocumentId)
+            }
+        }
+        val desiredNames = collisionFreeNames(resolvedSources, listings)
 
-        return resolvedSources.map { src ->
+        // A cancellation between two members would drop the results of the members already
+        // moved (AS-D-2); the members' copies cannot be cancelled anyway, so finish the bundle.
+        return withContext(NonCancellable) { resolvedSources.map { src ->
             val sourceStr = src.uri.toString()
             val doc = src.doc
             val name = src.fileName
@@ -619,7 +713,7 @@ class SafTransferEngine(
                     FileOperationResult.failure(sourceStr, e.message, parentDocumentId)
                 }
             }
-        }
+        } }
     }
 
     private suspend fun transferOne(
@@ -635,9 +729,6 @@ class SafTransferEngine(
         parentDocumentId: String?,
     ): FileOperationResult {
         val source = sourceUri.toString()
-        if (sourceUri == targetFolder.uri) {
-            return FileOperationResult.success(source, source, parentDocumentId = parentDocumentId)
-        }
 
         // Attempt atomic DocumentsContract.moveDocument when moving without a
         // collision rename and the provider supports FLAG_SUPPORTS_MOVE.
@@ -651,28 +742,106 @@ class SafTransferEngine(
             val copyResult = copyToTargetFolder(
                 storage = storage,
                 sourceUri = sourceUri,
-                sourceDoc = sourceDoc,
                 targetFolder = targetFolder,
                 mimeType = sourceDoc.type ?: "application/octet-stream",
                 desiredName = desiredName,
                 selectionFolderName = selectionFolderName,
             )
         ) {
-            is CopyStepResult.Failure -> FileOperationResult.failure(source, copyResult.reason, parentDocumentId)
+            is CopyStepResult.Failure -> {
+                val stray = copyResult.strays.firstOrNull()
+                if (stray == null) {
+                    FileOperationResult.failure(source, copyResult.reason, parentDocumentId)
+                } else {
+                    failedBundleResults(
+                        sources = listOf(ResolvedSource(sourceUri, sourceDoc, fileName, "", targetFolder)),
+                        reason = copyResult.reason,
+                        strays = mapOf(sourceUri to stray),
+                        isMove = isMove,
+                        folderLabel = selectionFolderName,
+                        parentDocumentId = parentDocumentId,
+                    ).single()
+                }
+            }
             is CopyStepResult.Success -> {
                 val destination = copyResult.destinationFile.uri.toString()
-                if (!isMove || deleteSourceAfterVerifiedCopy(storage, sourceUri)) {
+                if (!isMove ||
+                    (copyResult.sourceVerified && deleteSourceAfterVerifiedCopy(storage, sourceUri))
+                ) {
                     FileOperationResult.success(source, destination, parentDocumentId = parentDocumentId)
                 } else {
                     // The copy is verified on disk, so never delete it when source
-                    // removal fails; report a partial outcome instead.
+                    // removal fails; report a partial outcome instead. A copy whose source
+                    // size the provider never reported keeps its original (AS-D-1).
                     FileOperationResult.partial(
                         sourceUri = source,
                         destinationUri = destination,
-                        error = "Copied to $selectionFolderName — original could not be removed",
+                        error = if (copyResult.sourceVerified) {
+                            "Copied to $selectionFolderName — original could not be removed"
+                        } else {
+                            "Copied to $selectionFolderName — original kept, its size could not be verified"
+                        },
                         parentDocumentId = parentDocumentId,
                     )
                 }
+            }
+        }
+    }
+
+    /** Delete the staged copies of a failed bundle; the ones that could not be deleted, by source. */
+    private fun removeStagedCopies(
+        stagedCopies: List<Pair<ResolvedSource, DocumentFile>>,
+    ): LinkedHashMap<Uri, DocumentFile> {
+        val strays = LinkedHashMap<Uri, DocumentFile>()
+        stagedCopies.forEach { (staged, destDoc) ->
+            if (!cleanUpFailedCopy(destDoc)) strays[staged.uri] = destDoc
+        }
+        return strays
+    }
+
+    /**
+     * The results of a bundle whose copy failed. Every member whose copy could not be removed
+     * again ([strays], by source) is a partial result that names the stray copy and the original
+     * it belongs to, so the caller can offer the undo that deletes it and tell the user the
+     * copy stayed in the folder (`docs/shared/FILE_OPERATIONS.md` §4, rollback failure, AS-D-3).
+     * With no stray every member simply failed.
+     */
+    private fun failedBundleResults(
+        sources: List<ResolvedSource>,
+        reason: String,
+        strays: Map<Uri, DocumentFile>,
+        isMove: Boolean,
+        folderLabel: String,
+        parentDocumentId: String?,
+    ): List<FileOperationResult> {
+        if (strays.isEmpty()) {
+            return sources.map { member ->
+                FileOperationResult.failure(member.uri.toString(), reason, parentDocumentId)
+            }
+        }
+        val name = sources.firstOrNull()?.fileName ?: "the photo"
+        val error = if (isMove) {
+            "Move interrupted — copies of $name stayed in $folderLabel/ and could not be removed; " +
+                "the original is untouched"
+        } else {
+            "Copy interrupted — some copies of $name stayed in $folderLabel/ and could not be removed"
+        }
+        val strayUris = strays.values.map { it.uri.toString() }
+        return sources.map { member ->
+            val stray = strays[member.uri]
+            if (stray == null) {
+                FileOperationResult.failure(member.uri.toString(), error, parentDocumentId)
+            } else {
+                FileOperationResult.partial(
+                    sourceUri = member.uri.toString(),
+                    destinationUri = stray.uri.toString(),
+                    error = error,
+                    destinationUris = strayUris,
+                    parentDocumentId = parentDocumentId,
+                    copiesOfSurvivingOriginals = strays.entries.associate { (source, copy) ->
+                        copy.uri.toString() to source.toString()
+                    },
+                )
             }
         }
     }
@@ -712,15 +881,83 @@ class SafTransferEngine(
     }
 
     /** Drop the Selection marker into [selectionDir] (best effort; never fails a transfer). */
-    fun ensureSelectionMarker(selectionDir: DocumentFile) {
+    internal fun ensureSelectionMarker(storage: SafStorage, selectionDir: DocumentFile) {
         try {
-            if (selectionDir.findFile(SELECTION_MARKER_FILE_NAME) == null) {
+            if (findChild(storage, selectionDir, SELECTION_MARKER_FILE_NAME) == null) {
                 selectionDir.createFile("application/octet-stream", SELECTION_MARKER_FILE_NAME)
             }
         } catch (e: Exception) {
             Log.d(TAG, "Could not create $SELECTION_MARKER_FILE_NAME in ${selectionDir.uri}: ${e.message}")
         }
     }
+
+    /**
+     * The folder [folderName] inside [destRoot], found or created. A folder that was resolved
+     * before is kept per destination and only re-checked with one query for its own type, so a
+     * transfer into a camera folder of thousands of photographs never lists it (JP-P-1). A
+     * folder that has disappeared since is looked up again, and created when it is gone.
+     */
+    private fun resolveSelectionDir(
+        storage: SafStorage,
+        destRoot: DocumentFile,
+        rootUri: Uri,
+        folderName: String,
+    ): DocumentFile? {
+        val key = FolderAccessManager.canonicalUri(rootUri.toString()) + "\u0000" + folderName
+        selectionDirs[key]?.let { cachedUri ->
+            val cached = storage.treeDocument(cachedUri)?.takeIf { it.uri == cachedUri }
+            if (cached != null && try { cached.isDirectory } catch (_: Exception) { false }) return cached
+            selectionDirs.remove(key)
+        }
+        val dir = findChild(storage, destRoot, folderName) ?: destRoot.createDirectory(folderName)
+        if (dir != null && dir.isDirectory) selectionDirs[key] = dir.uri
+        return dir
+    }
+
+    /**
+     * The child of [parent] called [name], or null. One cursor query over the children's ids and
+     * names instead of `DocumentFile.findFile`, which lists the children and then asks the
+     * provider for every child's name one by one (JP-P-1). Falls back to `findFile` when the
+     * provider offers no cursor.
+     */
+    internal fun findChild(storage: SafStorage, parent: DocumentFile, name: String): DocumentFile? {
+        val childrenUri = childrenUriOf(parent.uri)
+        if (childrenUri != null) {
+            try {
+                val found = storage.contentResolver.query(
+                    childrenUri,
+                    arrayOf(DocumentsContract.Document.COLUMN_DOCUMENT_ID, DocumentsContract.Document.COLUMN_DISPLAY_NAME),
+                    null,
+                    null,
+                    null,
+                )?.use { cursor ->
+                    val idIndex = cursor.getColumnIndex(DocumentsContract.Document.COLUMN_DOCUMENT_ID)
+                    val nameIndex = cursor.getColumnIndex(DocumentsContract.Document.COLUMN_DISPLAY_NAME)
+                    if (idIndex < 0 || nameIndex < 0) return@use null
+                    var documentId: String? = null
+                    while (documentId == null && cursor.moveToNext()) {
+                        if (!cursor.isNull(nameIndex) && cursor.getString(nameIndex) == name) {
+                            documentId = cursor.getString(idIndex)
+                        }
+                    }
+                    FoundChild(documentId)
+                }
+                if (found != null) {
+                    val documentId = found.documentId ?: return null
+                    val childUri = DocumentsContract.buildDocumentUriUsingTree(parent.uri, documentId)
+                    // `DocumentFile.fromTreeUri` silently answers the tree root when it does not
+                    // recognise the authority as a documents provider (not visible, not registered):
+                    // trust the document only when it is the one asked for.
+                    storage.treeDocument(childUri)?.takeIf { it.uri == childUri }?.let { return it }
+                }
+            } catch (e: Exception) {
+                Log.w(TAG, "Cursor lookup of $name failed in ${parent.uri}, falling back to findFile", e)
+            }
+        }
+        return parent.findFile(name)
+    }
+
+    private class FoundChild(val documentId: String?)
 
     /**
      * Stream-copy [sourceUri] into [targetFolder] as [desiredName], verifying
@@ -730,7 +967,6 @@ class SafTransferEngine(
     private fun copyToTargetFolder(
         storage: SafStorage,
         sourceUri: Uri,
-        sourceDoc: DocumentFile,
         targetFolder: DocumentFile,
         mimeType: String,
         desiredName: String,
@@ -743,14 +979,14 @@ class SafTransferEngine(
         // (e.g. "IMG_0001 (1).CR3") on a race, which would break companion pairing.
         val actualName = destFile.name
         if (!actualName.isNullOrEmpty() && !actualName.equals(desiredName, ignoreCase = true)) {
-            cleanUpFailedCopy(destFile)
-            return CopyStepResult.Failure(
-                "Provider renamed destination file to '$actualName' instead of '$desiredName'"
+            return failedCopy(
+                destFile,
+                "Provider renamed destination file to '$actualName' instead of '$desiredName'",
             )
         }
 
         val resolver = storage.contentResolver
-        val sourceSize = sourceDoc.length()
+        val sourceSize = querySourceSize(resolver, sourceUri)
         var bytesCopied = -1L
 
         try {
@@ -769,72 +1005,103 @@ class SafTransferEngine(
                     // Best-effort fsync when the destination provider supports file descriptor sync.
                 }
             }
-        } catch (e: Exception) {
-            // CancellationException included. Never leave a half-written file in the
-            // Selection: a truncated photograph that looks filed is worse than a failed move.
+        } catch (e: CancellationException) {
+            // Never leave a half-written file in the Selection: a truncated photograph that
+            // looks filed is worse than a failed move. (The caller is gone: nothing to report to.)
             cleanUpFailedCopy(destFile)
             throw e
+        } catch (e: Exception) {
+            Log.e(TAG, "Failed to copy $sourceUri", e)
+            return failedCopy(destFile, e.message ?: "Could not write to the $selectionFolderName folder")
         }
 
         if (bytesCopied < 0L) {
             // Streams could not be opened — remove the empty placeholder file.
-            cleanUpFailedCopy(destFile)
-            return CopyStepResult.Failure("Could not write to the $selectionFolderName folder")
+            return failedCopy(destFile, "Could not write to the $selectionFolderName folder")
         }
 
-        val expectedSize = if (sourceSize > 0L) sourceSize else bytesCopied
-        val destSize = destFile.length()
-        if ((sourceSize > 0L && bytesCopied != sourceSize) ||
-            (expectedSize > 0L && destSize != expectedSize)
-        ) {
-            cleanUpFailedCopy(destFile)
-            return CopyStepResult.Failure("Copied file size mismatch")
+        // A provider that reports no size (null, or 0 as many do) cannot vouch for the stream: the
+        // copy is then only as long as what was read. Never accept an empty one, and let the
+        // caller know the source was not size-verified so a move keeps it (AS-D-1).
+        if (sourceSize == null && bytesCopied == 0L) {
+            return failedCopy(destFile, "Copied file size mismatch")
+        }
+        val expectedSize = sourceSize ?: bytesCopied
+        if ((sourceSize != null && bytesCopied != sourceSize) || destFile.length() != expectedSize) {
+            return failedCopy(destFile, "Copied file size mismatch")
         }
 
-        return CopyStepResult.Success(destFile)
+        return CopyStepResult.Success(destFile, sourceVerified = sourceSize != null)
     }
 
     /**
-     * List existing child display names in [targetFolder] using a **single**
-     * `ContentResolver` cursor query (`COLUMN_DISPLAY_NAME`), falling back to
-     * [DocumentFile.listFiles] only when [targetFolder] is not backed by a tree
-     * document URI.
+     * The size the provider reports for [sourceUri], or null when it reports none (null or 0:
+     * an unknown size, since no photograph is empty).
      */
-    internal fun queryExistingDisplayNames(
+    private fun querySourceSize(resolver: android.content.ContentResolver, sourceUri: Uri): Long? = try {
+        resolver.query(
+            sourceUri,
+            arrayOf(DocumentsContract.Document.COLUMN_SIZE),
+            null,
+            null,
+            null,
+        )?.use { cursor ->
+            val index = cursor.getColumnIndex(DocumentsContract.Document.COLUMN_SIZE)
+            if (index >= 0 && cursor.moveToFirst() && !cursor.isNull(index)) cursor.getLong(index) else null
+        }?.takeIf { it > 0L }
+    } catch (_: Exception) {
+        null
+    }
+
+    /** The URI listing the children of the folder [folderUri] names, or null for a non-tree URI. */
+    private fun childrenUriOf(folderUri: Uri): Uri? = try {
+        DocumentsContract.buildChildDocumentsUriUsingTree(folderUri, DocumentsContract.getDocumentId(folderUri))
+    } catch (_: Exception) {
+        try {
+            DocumentsContract.buildChildDocumentsUriUsingTree(folderUri, DocumentsContract.getTreeDocumentId(folderUri))
+        } catch (_: Exception) {
+            null
+        }
+    }
+
+    /** The names and provider document ids of the children of one folder. */
+    internal class FolderListing(val names: Set<String>, val documentIds: Set<String>)
+
+    /**
+     * List the children of [targetFolder] (display names and document ids) using a **single**
+     * `ContentResolver` cursor query, falling back to [DocumentFile.listFiles] only when
+     * [targetFolder] is not backed by a tree document URI.
+     */
+    internal fun queryFolderListing(
         storage: SafStorage,
         targetFolder: DocumentFile,
-    ): Set<String> {
+    ): FolderListing {
         val folderUri = targetFolder.uri
-        val childrenUri = try {
-            val docId = DocumentsContract.getDocumentId(folderUri)
-            DocumentsContract.buildChildDocumentsUriUsingTree(folderUri, docId)
-        } catch (_: Exception) {
-            try {
-                val treeDocId = DocumentsContract.getTreeDocumentId(folderUri)
-                DocumentsContract.buildChildDocumentsUriUsingTree(folderUri, treeDocId)
-            } catch (_: Exception) {
-                null
-            }
-        }
+        val childrenUri = childrenUriOf(folderUri)
 
         if (childrenUri != null) {
             try {
                 storage.contentResolver.query(
                     childrenUri,
-                    arrayOf(DocumentsContract.Document.COLUMN_DISPLAY_NAME),
+                    arrayOf(DocumentsContract.Document.COLUMN_DISPLAY_NAME, DocumentsContract.Document.COLUMN_DOCUMENT_ID),
                     null,
                     null,
                     null,
                 )?.use { cursor ->
                     val nameIndex = cursor.getColumnIndex(DocumentsContract.Document.COLUMN_DISPLAY_NAME)
+                    val idIndex = cursor.getColumnIndex(DocumentsContract.Document.COLUMN_DOCUMENT_ID)
                     if (nameIndex >= 0) {
                         val names = LinkedHashSet<String>(cursor.count.coerceAtLeast(0))
+                        val ids = HashSet<String>()
                         while (cursor.moveToNext()) {
                             if (!cursor.isNull(nameIndex)) {
                                 cursor.getString(nameIndex)?.let { names.add(it) }
                             }
+                            if (idIndex >= 0 && !cursor.isNull(idIndex)) {
+                                cursor.getString(idIndex)?.let { ids.add(it) }
+                            }
                         }
-                        return names
+                        return FolderListing(names, ids)
                     }
                 }
             } catch (e: Exception) {
@@ -843,10 +1110,20 @@ class SafTransferEngine(
         }
 
         return try {
-            targetFolder.listFiles().mapNotNull { it.name }.toSet()
+            val children = targetFolder.listFiles()
+            FolderListing(
+                names = children.mapNotNull { it.name }.toSet(),
+                documentIds = children.mapNotNull {
+                    try {
+                        DocumentsContract.getDocumentId(it.uri)
+                    } catch (_: Exception) {
+                        null
+                    }
+                }.toSet(),
+            )
         } catch (e: Exception) {
             Log.w(TAG, "Fallback listFiles failed in $folderUri", e)
-            emptySet()
+            FolderListing(emptySet(), emptySet())
         }
     }
 
@@ -885,21 +1162,32 @@ class SafTransferEngine(
         }
     }
 
-    internal fun cleanUpFailedCopy(destFile: DocumentFile) {
-        try {
-            destFile.delete()
-        } catch (e: Exception) {
-            Log.w(TAG, "Could not clean up failed copy: ${destFile.uri}", e)
-        }
+    /** Remove a copy that failed; false when it is still there (AS-D-3), never throws. */
+    internal fun cleanUpFailedCopy(destFile: DocumentFile): Boolean = try {
+        destFile.delete() || !destFile.exists()
+    } catch (e: Exception) {
+        Log.w(TAG, "Could not clean up failed copy: ${destFile.uri}", e)
+        false
     }
 
-    /** The `RAW/` or `JPEG/` folder inside [selectionDir] (found or created), or [selectionDir] itself. */
-    internal fun subfolderIn(subfolder: SelectionSubfolder, selectionDir: DocumentFile): DocumentFile {
+    /** A failed copy: the half-written [destFile] is removed, or reported as a stray when it cannot be. */
+    private fun failedCopy(destFile: DocumentFile, reason: String): CopyStepResult.Failure =
+        if (cleanUpFailedCopy(destFile)) {
+            CopyStepResult.Failure(reason)
+        } else {
+            CopyStepResult.Failure(reason, strays = listOf(destFile))
+        }
+
+    /**
+     * The `RAW/` or `JPEG/` folder inside [selectionDir] (found or created), [selectionDir] itself
+     * for [SelectionSubfolder.ROOT], or null when the subfolder cannot be created.
+     */
+    internal fun subfolderIn(subfolder: SelectionSubfolder, selectionDir: DocumentFile): DocumentFile? {
         fun sub(name: String): DocumentFile? =
             selectionDir.findFile(name) ?: selectionDir.createDirectory(name)
         return when (subfolder) {
-            SelectionSubfolder.RAW -> sub(RAW_SUBFOLDER) ?: selectionDir
-            SelectionSubfolder.JPEG -> sub(JPEG_SUBFOLDER) ?: selectionDir
+            SelectionSubfolder.RAW -> sub(RAW_SUBFOLDER)
+            SelectionSubfolder.JPEG -> sub(JPEG_SUBFOLDER)
             SelectionSubfolder.ROOT -> selectionDir
         }
     }

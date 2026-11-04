@@ -4,7 +4,10 @@ import androidx.documentfile.provider.DocumentFile
 import io.mockk.every
 import io.mockk.mockk
 import io.mockk.verify
+import org.junit.Assert.assertFalse
+import org.junit.Assert.assertNull
 import org.junit.Assert.assertSame
+import org.junit.Assert.assertTrue
 import org.junit.Test
 import org.junit.runner.RunWith
 import org.robolectric.RobolectricTestRunner
@@ -44,21 +47,21 @@ class SafEngineInternalsTest {
         assertSame(created, engine.subfolderIn(SelectionSubfolder.RAW, dir))
     }
 
-    // TOK: falls back to selection folder when subfolder cannot be created
+    // AS-Q-1: the old fallback put a RAW into the Selection root, away from its sorted bundle.
     @Test
-    fun `falls back to the Selection folder when the subfolder cannot be created`() {
+    fun `a subfolder that cannot be created is null, never the Selection folder`() {
         val brokenDir = mockk<DocumentFile> {
             every { findFile("RAW") } returns null
             every { createDirectory("RAW") } returns null
         }
-        assertSame(brokenDir, engine.subfolderIn(SelectionSubfolder.RAW, brokenDir))
+        assertNull(engine.subfolderIn(SelectionSubfolder.RAW, brokenDir))
     }
 
     // TOK: cleanUpFailedCopy calls delete on destination file
     @Test
     fun `cleanUpFailedCopy deletes the destination file`() {
         val destFile = mockk<DocumentFile>(relaxed = true) { every { delete() } returns true }
-        engine.cleanUpFailedCopy(destFile)
+        assertTrue(engine.cleanUpFailedCopy(destFile))
         verify { destFile.delete() }
     }
 
@@ -66,7 +69,7 @@ class SafEngineInternalsTest {
     @Test
     fun `cleanUpFailedCopy swallows an exception from delete`() {
         val destFile = mockk<DocumentFile>(relaxed = true) { every { delete() } throws SecurityException("denied") }
-        engine.cleanUpFailedCopy(destFile) // must not throw
+        assertFalse("a copy that could not be removed is reported", engine.cleanUpFailedCopy(destFile))
         verify { destFile.delete() }
     }
 }
