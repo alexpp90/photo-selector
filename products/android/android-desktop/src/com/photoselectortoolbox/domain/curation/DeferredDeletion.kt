@@ -20,10 +20,11 @@ data class PendingDeletion(
 ) {
     /**
      * The URIs that must actually be deleted when this is committed: every
-     * removed frame's primary URI plus all of its companion URIs.
+     * removed frame's primary URI plus all of its companion URIs, except the files
+     * of a shot that stays because only its `-Edit` was deleted ([DerivativeDelete]).
      */
     val uris: List<String>
-        get() = slots.flatMap { slot -> slot.image.allFiles.map { it.uri } }
+        get() = slots.flatMap { slot -> slot.deletedFiles.map { it.uri } }
 }
 
 /**
@@ -41,9 +42,16 @@ object DeferredDeletion {
      */
     fun survivors(pending: PendingDeletion, failed: Set<String>): PendingDeletion? {
         val slots = pending.slots.mapNotNull { slot ->
-            val left = slot.image.allFiles.filter { it.uri in failed }
-            val primary = left.firstOrNull { it.uri == slot.image.uri }
-                ?: left.firstOrNull { ImageFormats.isSupported(it.fileName) }
+            val left = slot.deletedFiles.filter { it.uri in failed }
+            if (left.isEmpty()) return@mapNotNull null
+            // The frame as it is on disk now: what stayed, plus what could not be deleted.
+            val files = (slot.kept?.allFiles.orEmpty() + left)
+            val primary = left.firstOrNull { it.uri == slot.image.uri && slot.kept == null }
+                ?: files.filter { ImageFormats.isSupported(it.fileName) }
+                    .minWithOrNull(
+                        compareBy<com.photoselectortoolbox.data.model.CompanionFile> { ImageFormats.primaryRank(it.fileName) }
+                            .thenBy { it.fileName.lowercase() },
+                    )
                 ?: return@mapNotNull null
             val image = slot.image.copy(
                 uri = primary.uri,
@@ -51,7 +59,7 @@ object DeferredDeletion {
                 fileSize = primary.fileSize,
                 lastModified = primary.lastModified,
                 mimeType = primary.mimeType,
-                companions = left.filter { it !== primary },
+                companions = files.filter { it.uri != primary.uri },
             )
             slot.copy(image = image)
         }
@@ -69,9 +77,19 @@ object DeferredDeletion {
         uris: List<String>,
         nowMillis: Long,
     ): Pair<SelectorListState, PendingDeletion>? {
-        val edit = OptimisticEdits.apply(state, CurationAction.DELETE, uris)
-        if (edit.slots.isEmpty()) return null
-        return edit.state to PendingDeletion(edit.slots, nowMillis)
+        val slots = OptimisticEdits.slotsOf(state, uris)
+            .map { slot -> slot.copy(kept = DerivativeDelete.remainderOf(slot.image)) }
+        if (slots.isEmpty()) return null
+
+        val bySlot = slots.associateBy { it.uri }
+        val images = state.images.mapNotNull { image ->
+            val slot = bySlot[image.uri] ?: return@mapNotNull image
+            slot.kept
+        }
+        // The frame that slid up into a freed slot becomes the current one; at the end of the
+        // folder we step back instead. A frame that stayed (its original) keeps its place.
+        val index = state.currentIndex.coerceAtMost(images.size - 1).coerceAtLeast(0)
+        return SelectorListState(images, index) to PendingDeletion(slots, nowMillis)
     }
 
     /** Remove the frame on screen and hold it pending. */

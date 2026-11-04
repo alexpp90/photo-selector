@@ -419,7 +419,7 @@ internal fun groupCompanionsInDirectory(
         }
 
         val primary = supportedImages.minWith(
-            compareBy<RawDirectoryEntry> { primaryPriorityRank(it.fileName) }
+            compareBy<RawDirectoryEntry> { ImageFormats.primaryRank(it.fileName) }
                 .thenBy { it.fileName.lowercase() }
         )
 
@@ -455,16 +455,4 @@ internal fun groupCompanionsInDirectory(
         )
     }
     return result
-}
-
-private fun primaryPriorityRank(fileName: String): Int {
-    val isRaw = ImageFormats.isRaw(fileName)
-    val isEdit = ImageFormats.isEditDerivative(fileName)
-    return when {
-        !isRaw && !isEdit && ImageFormats.isJpeg(fileName) -> 0
-        !isRaw && !isEdit -> 1
-        !isRaw && isEdit -> 2
-        isRaw && !isEdit -> 3
-        else -> 4
-    }
 }

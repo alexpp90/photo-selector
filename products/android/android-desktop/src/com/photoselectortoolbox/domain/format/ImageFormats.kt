@@ -82,6 +82,30 @@ object ImageFormats {
         return stripped.lowercase()
     }
 
+    /**
+     * True when [a] and [b] are the same file's names apart from the extension and case:
+     * `IMG_1-Edit.tif`, `IMG_1-Edit.tif.xmp` and `IMG_1-Edit.xmp` belong together, `IMG_1.xmp` does not.
+     */
+    fun sameFileBase(a: String, b: String): Boolean =
+        baseStemWithoutExtensions(a).equals(baseStemWithoutExtensions(b), ignoreCase = true)
+
+    /**
+     * Which of a shot's files leads its frame: lower wins. A processed non-edit JPEG first, then
+     * another processed original, a processed `-Edit`, a RAW, a RAW edit. The frame decodes the
+     * leader, so a quick format comes before a RAW.
+     */
+    fun primaryRank(fileName: String): Int {
+        val isRaw = isRaw(fileName)
+        val isEdit = isEditDerivative(fileName)
+        return when {
+            !isRaw && !isEdit && isJpeg(fileName) -> 0
+            !isRaw && !isEdit -> 1
+            !isRaw && isEdit -> 2
+            isRaw && !isEdit -> 3
+            else -> 4
+        }
+    }
+
     private fun baseStemWithoutExtensions(fileName: String): String {
         val name = fileName.substringAfterLast('/')
         if (!name.contains('.')) return name

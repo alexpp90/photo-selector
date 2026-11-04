@@ -11,6 +11,7 @@ import com.photoselectortoolbox.data.model.ScanResult
 import com.photoselectortoolbox.data.cache.ScoreEntity
 import com.photoselector.core.model.ExifData
 import com.photoselectortoolbox.data.model.ImageDimensions
+import com.photoselectortoolbox.data.model.CompanionFile
 import com.photoselectortoolbox.data.model.ImageItem
 import com.photoselectortoolbox.data.repository.CacheRepository
 import com.photoselectortoolbox.data.repository.FileOperationResult
@@ -691,6 +692,70 @@ class SelectorViewModelTest {
         coVerify(exactly = 1) {
             imageRepository.deleteImage(any(), match { it.toString().endsWith("/a") })
         }
+    }
+
+    /** A shot with no JPEG: led by its `-Edit`, the RAW and the sidecars of both as companions. */
+    private fun editLedShot() = image("IMG_1-Edit.tif").copy(
+        companions = listOf(
+            CompanionFile("content://test/folder/IMG_1.CR3", "IMG_1.CR3"),
+            CompanionFile("content://test/folder/IMG_1-Edit.tif.xmp", "IMG_1-Edit.tif.xmp"),
+            CompanionFile("content://test/folder/IMG_1.CR3.xmp", "IMG_1.CR3.xmp"),
+        ),
+    )
+
+    @Test
+    fun `deleting a frame led by an edit removes the edit and its sidecar and never the original`() = runTest {
+        val viewModel = loadFolder(editLedShot(), image("IMG_2.jpg"))
+        viewModel.deleteCurrentImage()
+
+        // The shot stays, led by its RAW; nothing is on disk yet.
+        assertEquals(listOf("IMG_1.CR3", "IMG_2.jpg"), viewModel.uiState.value.images.map { it.fileName })
+        coVerify(exactly = 0) { imageRepository.deleteImage(any(), any()) }
+
+        viewModel.selectFolder(Uri.parse(OTHER_FOLDER_URI))
+
+        val deleted = mutableListOf<Uri>()
+        coVerify { imageRepository.deleteImage(any(), capture(deleted)) }
+        assertEquals(
+            listOf("IMG_1-Edit.tif", "IMG_1-Edit.tif.xmp"),
+            deleted.map { it.toString().substringAfterLast('/') },
+        )
+    }
+
+    @Test
+    fun `undoing the delete of an edit gives the whole shot back, led by the edit again`() = runTest {
+        val viewModel = loadFolder(editLedShot(), image("IMG_2.jpg"))
+        viewModel.deleteCurrentImage()
+        viewModel.undoLastOperation()
+
+        val restored = viewModel.uiState.value.images.first()
+        assertEquals("IMG_1-Edit.tif", restored.fileName)
+        assertEquals(
+            listOf("IMG_1.CR3", "IMG_1-Edit.tif.xmp", "IMG_1.CR3.xmp").sorted(),
+            restored.companions.map { it.fileName }.sorted(),
+        )
+        assertEquals(2, viewModel.uiState.value.images.size)
+        coVerify(exactly = 0) { imageRepository.deleteImage(any(), any()) }
+    }
+
+    @Test
+    fun `deleting the original card still takes the whole shot with its edit`() = runTest {
+        val shot = image("IMG_1.jpg").copy(
+            companions = listOf(
+                CompanionFile("content://test/folder/IMG_1-Edit.tif", "IMG_1-Edit.tif"),
+                CompanionFile("content://test/folder/IMG_1.CR3", "IMG_1.CR3"),
+            ),
+        )
+        val viewModel = loadFolder(shot, image("IMG_2.jpg"))
+        viewModel.deleteCurrentImage()
+        viewModel.selectFolder(Uri.parse(OTHER_FOLDER_URI))
+
+        val deleted = mutableListOf<Uri>()
+        coVerify { imageRepository.deleteImage(any(), capture(deleted)) }
+        assertEquals(
+            listOf("IMG_1-Edit.tif", "IMG_1.CR3", "IMG_1.jpg"),
+            deleted.map { it.toString().substringAfterLast('/') }.sorted(),
+        )
     }
 
     @Test
