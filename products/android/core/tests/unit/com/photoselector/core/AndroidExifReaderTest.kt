@@ -72,6 +72,29 @@ class AndroidExifReaderTest {
         assertFalse(exif!!.isFallback)
     }
 
+    // AS-Q-2: the path of a content: URI is the provider's, not a file on this device.
+    @Test
+    fun `a content Uri whose path names an existing file is still read through the ContentResolver`() = runTest {
+        val unrelated = tempFolder.newFile("COLLIDE.CR3")
+        unrelated.writeBytes(ByteArray(100))
+        File(tempFolder.root, "COLLIDE.CR3.xmp").writeText("<xmp:Rating>4</xmp:Rating>")
+        val document = tempFolder.newFile("DOCUMENT.JPG")
+        document.writeBytes(ByteArray(64))
+
+        val resolver = io.mockk.mockk<android.content.ContentResolver>()
+        val context = io.mockk.mockk<android.content.Context>()
+        val uri = android.net.Uri.parse("content://com.photoselector.test" + unrelated.absolutePath)
+        io.mockk.every { context.contentResolver } returns resolver
+        io.mockk.every { resolver.openFileDescriptor(uri, "r") } returns null
+        io.mockk.every { resolver.openInputStream(uri) } answers { document.inputStream() }
+
+        val exif = reader.readExif(context, uri)
+
+        assertNotNull(exif)
+        io.mockk.verify { resolver.openInputStream(uri) }
+        assertTrue("the unrelated file's sidecar rating must not leak in", exif?.rating != 4)
+    }
+
     @Test
     fun `XmpRatingParser extracts element tag rating`() {
         val xmp = """
