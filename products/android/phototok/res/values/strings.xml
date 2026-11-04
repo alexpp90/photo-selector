@@ -183,6 +183,8 @@
     <string name="snackbar_safe_to_unplug">Safe to unplug</string>
     <string name="snackbar_rejects_deleted">Rejects deleted</string>
     <string name="snackbar_deleted_count">%1$d deleted</string>
+    <string name="snackbar_photo_deleted">Photo deleted</string>
+    <string name="snackbar_action_undo">Undo</string>
     <string name="snackbar_pairs_merged">Pairs merged</string>
     <string name="snackbar_filter_raw">RAW only</string>
     <string name="snackbar_filter_jpeg">JPEG only</string>

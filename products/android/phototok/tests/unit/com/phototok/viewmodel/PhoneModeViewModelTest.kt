@@ -282,6 +282,18 @@ class PhoneModeViewModelTest {
     }
 
     @Test
+    fun `a delete says so and offers Undo, which restores the photo`() = runTest {
+        val viewModel = loadFolder(image("a.jpg", 1), image("b.jpg", 2))
+
+        viewModel.requestDelete()
+
+        val feedback = viewModel.uiState.value.lastActionFeedback
+        assertEquals(UiText.of(R.string.snackbar_photo_deleted), feedback?.message)
+        assertTrue("the delete snackbar carries Undo", feedback?.offersUndoDelete == true)
+        assertFalse(feedback?.isError == true)
+    }
+
+    @Test
     fun `finalizePendingDelete deletes via the repository`() = runTest {
         coEvery { imageRepository.deleteImage(any()) } returns true
         val viewModel = loadFolder(image("a.jpg", 1), image("b.jpg", 2))

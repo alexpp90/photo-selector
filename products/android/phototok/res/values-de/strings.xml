@@ -178,6 +178,8 @@
     <string name="snackbar_safe_to_unplug">Sicher entfernbar</string>
     <string name="snackbar_rejects_deleted">Aussortierte gelöscht</string>
     <string name="snackbar_deleted_count">%1$d gelöscht</string>
+    <string name="snackbar_photo_deleted">Foto gelöscht</string>
+    <string name="snackbar_action_undo">Rückgängig</string>
     <string name="snackbar_pairs_merged">Paare gebündelt</string>
     <string name="snackbar_filter_raw">Nur RAW</string>
     <string name="snackbar_filter_jpeg">Nur JPEG</string>

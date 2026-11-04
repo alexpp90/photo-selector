@@ -17,6 +17,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 - The favourite badge shows a filled star when the system has the favourite too, and an outlined star while it is only in Jackpix.
 
 ### Changed
+- After a delete a "Photo deleted" snackbar offers **Undo**, and the bar's undo-delete button is a back arrow instead of a bin with an arrow, which people read as a second delete.
 - Updating keeps your setup. Settings from every earlier version are carried over before the app first reads them, and an existing install that had changed a Pro setting, used camera info or an SD card starts in Pro mode, so nothing you set up disappears behind Casual mode.
 - Camera info and the (i) button exist only in Pro mode; the controls guide shows their callouts only there.
 - A favourite is recognised whichever folder you open the photo from (`DCIM` or `DCIM/Camera`, or the system's Images view). Existing favourites are kept.

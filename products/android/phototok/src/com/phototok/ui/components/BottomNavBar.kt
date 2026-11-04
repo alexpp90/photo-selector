@@ -14,7 +14,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.CollectionsBookmark
 import androidx.compose.material.icons.filled.FolderOpen
-import androidx.compose.material.icons.filled.RestoreFromTrash
+import androidx.compose.material.icons.automirrored.filled.Undo
 import androidx.compose.material.icons.filled.Share
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
@@ -101,7 +101,7 @@ fun ViewerBottomBar(
         )
         // Right: Revert (restore pending deleted photo from trash)
         ActionButton(
-            icon = Icons.Default.RestoreFromTrash,
+            icon = Icons.AutoMirrored.Filled.Undo,
             name = stringResource(R.string.cd_revert),
             isActive = canRevert,
             enabled = canRevert,

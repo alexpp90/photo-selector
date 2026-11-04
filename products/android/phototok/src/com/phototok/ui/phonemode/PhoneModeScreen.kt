@@ -49,7 +49,7 @@ import androidx.compose.material.icons.filled.Lens
 import androidx.compose.material.icons.filled.PhotoCamera
 import androidx.compose.material.icons.filled.PhotoLibrary
 import androidx.compose.material.icons.filled.Refresh
-import androidx.compose.material.icons.filled.RestoreFromTrash
+import androidx.compose.material.icons.automirrored.filled.Undo
 import androidx.compose.material.icons.filled.SdCard
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material.icons.filled.Share
@@ -68,6 +68,7 @@ import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.SnackbarDuration
 import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
+import androidx.compose.material3.SnackbarResult
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
@@ -80,6 +81,7 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.ExperimentalComposeUiApi
@@ -117,6 +119,7 @@ import com.phototok.ui.components.NameTooltip
 import com.phototok.ui.components.ViewerBottomBar
 import com.phototok.ui.resolve
 import com.phototok.ui.settings.SettingsScreen
+import com.phototok.viewmodel.ActionFeedback
 import com.phototok.viewmodel.PhoneModeViewModel
 import com.phototok.viewmodel.ReloadPrompt
 import com.phototok.viewmodel.SelectionViewerLogic
@@ -250,13 +253,13 @@ fun PhoneModeScreen(
         }
     }
 
-    // Action feedback snackbar
-    LaunchedEffect(uiState.lastActionFeedback) {
-        uiState.lastActionFeedback?.let { fb ->
-            snackbarHostState.showSnackbar(message = fb.message.resolve(context), duration = SnackbarDuration.Short)
-            viewModel.clearFeedback()
-        }
-    }
+    // Action feedback snackbar (with Undo after a delete)
+    ActionFeedbackSnackbar(
+        feedback = uiState.lastActionFeedback,
+        hostState = snackbarHostState,
+        onShown = viewModel::clearFeedback,
+        onUndoDelete = viewModel::revertDelete,
+    )
 
     // Selection-viewer feedback snackbar
     LaunchedEffect(selectionState.feedback) {
@@ -770,6 +773,33 @@ fun PhoneModeScreen(
 }
 
 /**
+ * Shows [feedback] once in [hostState]. A delete's feedback carries Undo ([USER 2026-10-24]), which
+ * calls [onUndoDelete] (the same restore as the bar's Revert button).
+ */
+@Composable
+internal fun ActionFeedbackSnackbar(
+    feedback: ActionFeedback?,
+    hostState: SnackbarHostState,
+    onShown: () -> Unit,
+    onUndoDelete: () -> Unit,
+) {
+    val context = LocalContext.current
+    val currentOnShown by rememberUpdatedState(onShown)
+    val currentOnUndoDelete by rememberUpdatedState(onUndoDelete)
+    LaunchedEffect(feedback) {
+        val fb = feedback ?: return@LaunchedEffect
+        val result = hostState.showSnackbar(
+            message = fb.message.resolve(context),
+            actionLabel = if (fb.offersUndoDelete) context.getString(R.string.snackbar_action_undo) else null,
+            duration = SnackbarDuration.Short,
+        )
+        // No suspension between the two: clearing restarts this effect only at the next frame.
+        currentOnShown()
+        if (result == SnackbarResult.ActionPerformed && fb.offersUndoDelete) currentOnUndoDelete()
+    }
+}
+
+/**
  * The feed's snackbar. Above the viewer bottom bar when it is shown ([bottomBarHeight], measured,
  * with the navigation-bar inset it already contains), otherwise above the navigation bar. A fixed
  * offset of 80 dp let the snackbar cover the top of the bar's buttons with 3-button navigation.
@@ -892,7 +922,7 @@ internal fun LandscapeLeftPanel(
             )
             // Revert (restore pending deleted photo from trash)
             SidePanelButton(
-                icon = Icons.Default.RestoreFromTrash,
+                icon = Icons.AutoMirrored.Filled.Undo,
                 name = stringResource(R.string.cd_revert),
                 isActive = canRevert,
                 enabled = canRevert,

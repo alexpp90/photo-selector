@@ -212,6 +212,8 @@ data class ActionFeedback(
     val message: UiText,
     val isError: Boolean = false,
     val id: Long = System.nanoTime(),
+    /** The snackbar offers Undo, which restores the last deletion ([PhoneModeViewModel.revertDelete]). */
+    val offersUndoDelete: Boolean = false,
 )
 
 /** A one-time explanation, resolved against the user's current settings. */
@@ -1716,6 +1718,16 @@ class PhoneModeViewModel @Inject constructor(
             settingsRepository.setPersistedPendingDeleteUris(allQueuedUris.toSet())
         }
         loadExifForCurrent()
+        // The screen only shows the next photo, so say what went and offer the way back
+        // ([USER 2026-10-24]: undo snackbar after a delete; the bar stays icon-only).
+        _uiState.update {
+            it.copy(
+                lastActionFeedback = ActionFeedback(
+                    message = UiText.of(R.string.snackbar_photo_deleted),
+                    offersUndoDelete = true,
+                ),
+            )
+        }
     }
 
     /**

@@ -107,7 +107,7 @@ Box(Modifier.fillMaxSize()) {
 The viewer bottom bar (`ViewerBottomBar`) shows 4 persistent, **icon-only** controls (REQ-TOK-UX.02):
 
 ```
-[FolderOpen]  [CollectionsBookmark]  [Share]       [RestoreFromTrash]
+[FolderOpen]  [CollectionsBookmark]  [Share]       [Undo]
  Change folder     Selection          Share photo     Undo delete
 ```
 
@@ -117,7 +117,7 @@ The viewer bottom bar (`ViewerBottomBar`) shows 4 persistent, **icon-only** cont
 - Each control: a 24 dp icon in a 72 × 48 dp target, `contentDescription` from a `cd_` string, and a long-press tooltip (`NameTooltip`, Material3 `TooltipBox` + `PlainTooltip`) with the same name. The tooltip only listens for the long press, so taps are unaffected. Removing the micro-label did not shrink the target. Share (`viewer_share_button`) calls the same path as the long-press menu (`buildCurrentShareIntent`). Four 72 dp buttons need 288 dp, so the bar padding is 8 dp (it fits a 320 dp phone), and the controls guide staggers the four bottom callouts onto two rows when their labels do not fit side by side (`ControlsGuideSolver.planBottom`).
 - Container: `surfaceContainerLowest.copy(alpha=0.8f)`, `RoundedCornerShape(topStart=12.dp, topEnd=12.dp)`
 - Active item: `primaryContainer` background, `onPrimaryContainer` icon (filled variant)
-- Inactive items: `secondary` tint; Revert uses `RestoreFromTrash` (trash bin with upward restore arrow) so it is visually distinct from the top-bar `Sync` Reload icon
+- Inactive items: `secondary` tint; Revert uses `Undo` (a curved back arrow, `Icons.AutoMirrored.Filled.Undo`; [USER 2026-10-24]: the earlier `RestoreFromTrash` bin read as a second delete in the 2026-10-24 usability panel) so it is visually distinct from the top-bar `Sync` Reload icon and from any delete
 - Padding: 8 dp horizontal, 6 dp vertical, plus the navigation-bar inset
 
 ### Top app bar
@@ -491,7 +491,7 @@ fails the build on any finding. This section applies them to Jackpix.
 | Long-press menu | — | — | Share · Open with · **Favourite** / **Remove favourite** (`Star` / `StarBorder`; DE "Favorit" / "Favorit entfernen") · **Copy** / **Move** into the Selection folder (`ContentCopy` / `DriveFileMove`; DE "Kopieren" / "Verschieben"; Move is hidden for a cloud folder, which cannot move) · Details |
 | TalkBack custom actions (viewer) | — | — | The configured swipe right and swipe left, named like the mid-swipe indicator's spoken text ("Copy to Selection", "Delete photo", `cd_swipe_*`), then Share, Open with, Details, Favourite. A ★ swipe is covered by the Favourite action. No visible control (REQ-TOK-UX.02); not in the read-only Selection viewer |
 | System favourites (MediaStore) | *no dialog, no snackbar*: Android 11+ grants favourite requests itself; the request runs as a short system activity at a flush point (leaving the feed, switching folders, opening the Selection viewer, 25 queued changes) | — | — |
-| Snackbars | — | "Pro settings paused" · "Camera info on" · "Pro settings restored" · "Not copied" (DE "Profi-Einstellungen pausiert" · "Kamera-Info an" · "Profi-Einstellungen zurück" · "Nicht kopiert") · "Copied to «folder»" · "Moved to «folder» +K" · "Moved as «name»" · "Marked as favourite" · "Pairs merged" · "RAW + JPEG linked" · "Safe to unplug" · "Rejects deleted" · "N deleted" · "Cloud: copy only" · "Card disconnected" · "50 MB freed" · "100 reviewed" | — |
+| Snackbars | — | "Photo deleted" with the action **Undo** after every delete (DE "Foto gelöscht" · "Rückgängig"; Undo restores like Revert, [USER 2026-10-24]) · "Pro settings paused" · "Camera info on" · "Pro settings restored" · "Not copied" (DE "Profi-Einstellungen pausiert" · "Kamera-Info an" · "Profi-Einstellungen zurück" · "Nicht kopiert") · "Copied to «folder»" · "Moved to «folder» +K" · "Moved as «name»" · "Marked as favourite" · "Pairs merged" · "RAW + JPEG linked" · "Safe to unplug" · "Rejects deleted" · "N deleted" · "Cloud: copy only" · "Card disconnected" · "50 MB freed" · "100 reviewed" | — |
 | Errors | — | "Copy to «folder» failed" · "Moved 2 of 3 to «folder»" · "Copied to «folder», original not removed" · "Couldn't delete «file»" · "Can't open this folder" | — |
 | Landing | *no tagline, no section labels* | — | folder name as a value · **Resume** / Start |
 | Landing: folder access lost | "Folder access lost" | — | Re-select |
