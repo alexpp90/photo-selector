@@ -95,25 +95,34 @@ import com.photoselectortoolbox.ui.theme.Zinc700
  * icon-only.** The previous rail was 48 dp glyphs with hover-revealed key
  * hints, on a tablet, which has no hover.
  *
- * ## Three heights, chosen by measurement (AD-1)
+ * ## Four rungs, chosen by measurement (AD-1)
  *
- * The block is 332 dp tall at font scale 1.0 and the frames do not give way for
+ * The block is 362 dp tall at font scale 1.0 and the frames do not give way for
  * it — row 1 is exactly one frame tall, ~376 dp at 1280 × 800 but ~210 dp at
  * 600 × 480 and ~336 dp at 1024 × 720. [ControlBlockFit] compares the height the
  * row actually hands over with what each variant needs (font scale included) and
  * picks the first that fits:
  *
- * 1. **FULL** — the 80 dp two-line buttons above, the toggle row, the counter.
- * 2. **COMPACT** (~196 dp) — 48 dp one-line buttons (icon · word · key cap, the
- *    key cap never ellipsized: the word gives way first), four 36 dp toggles with
- *    the position counter right-aligned in the same row. Nothing is hidden.
- * 3. **SCROLLING** — only when even COMPACT does not fit: the block scrolls with
+ * 1. **FULL** — the 80 dp two-line buttons above, the toggle row, and the **locator
+ *    row** (the Go chip holding the position counter, the Sort chip).
+ * 2. **COMPACT + locator** (252 dp) — 48 dp one-line buttons (icon · word · key cap,
+ *    the key cap never ellipsized: the word gives way first), four 48 dp toggles,
+ *    the locator row.
+ * 3. **COMPACT** (~201–265 dp) — as 2 without the row: the position counter sits beside
+ *    the toggles or leads the block. The counter is still the Go control, and `G` and `S`
+ *    still work; the row needs [ControlBlockFit.LocatorMinInnerWidth] of width.
+ * 4. **SCROLLING** — only when even COMPACT does not fit: the block scrolls with
  *    the counter *first*, so the one fact that locates the user is the one that
  *    cannot be scrolled out of sight. It is never silently clipped.
  *
+ * FULL without the locator row no longer exists (`[USER 2026-11-04]`: Sort and Go to
+ * must be findable). The row is a fixed 48 dp, so the frames never pay for it: it is
+ * priced inside the block, which sits on the non-binding axis of row 1.
+ *
  * The state is exposed as a marker tag on a wrapper (`control_block_full`,
  * `control_block_compact`, `control_block_scrolling`) so a test can tell which
- * variant it is looking at; `control_block` stays on the block itself.
+ * variant it is looking at, and `locator_row` exists exactly where the row is drawn;
+ * `control_block` stays on the block itself.
  *
  * The two filing verbs come from [SelectionActionLabels], so they say Copy and
  * Move according to the user's setting and can never drift into a euphemism.
@@ -137,6 +146,8 @@ fun SelectorControlBlock(
     onRatingFilterSelected: (RatingFilter) -> Unit = {},
     currentRating: Int = 0,
     onSetRating: (Int) -> Unit = {},
+    /** The Sort chip and its menu; the menu is also what the `S` key opens. */
+    sort: SortControl = SortControl(),
 ) {
     val fontScale = LocalDensity.current.fontScale
     val density = LocalDensity.current.density
@@ -144,7 +155,11 @@ fun SelectorControlBlock(
         val isNarrow = maxWidth < 240.dp
         val horizontalPadding = if (isNarrow) 4.dp else 10.dp
         val innerWidth = maxWidth - horizontalPadding * 2
-        val mode = ControlBlockFit.mode(maxHeight, fontScale, density, innerWidth)
+        val fit = ControlBlockFit.fit(maxHeight, fontScale, density, innerWidth)
+        val mode = fit.mode
+        // The locator row (Go chip with the counter, Sort chip) is the last child
+        // wherever the ladder grants it; elsewhere the counter stands alone as before.
+        val locatorRow = fit.locatorRow
         val compact = mode != ControlBlockFit.Mode.FULL
         val scrolling = mode == ControlBlockFit.Mode.SCROLLING
         // The counter leads on its own line when scrolling (so it cannot be
@@ -204,6 +219,8 @@ fun SelectorControlBlock(
                 .then(if (scrolling) Modifier.heightIn(max = maxHeight) else Modifier)
                 .testTag("control_block_${mode.name.lowercase()}"),
         ) {
+            // Where the locator row is not drawn the `S` key still opens the menu, over the block.
+            if (!locatorRow) SortMenu(sort)
             Column(
                 modifier = Modifier
                     .padding(horizontal = horizontalPadding)
@@ -217,7 +234,7 @@ fun SelectorControlBlock(
 
                 // The counter leads, on its own line, so it is the one thing a
                 // scroll position can never hide.
-                if (counterOnTop) {
+                if (counterOnTop && !locatorRow) {
                     counter(Modifier.fillMaxWidth())
                 }
 
@@ -360,7 +377,7 @@ fun SelectorControlBlock(
                                 }
                             }
                         }
-                        if (!counterOnTop) {
+                        if (!counterOnTop && !locatorRow) {
                             counter(
                                 Modifier.padding(start = ControlBlockFit.CounterGap)
                                     .widthIn(min = ControlBlockFit.CounterWidth)
@@ -378,7 +395,16 @@ fun SelectorControlBlock(
                     ) {
                         toggles.forEach { it() }
                     }
-                    counter(Modifier.fillMaxWidth().padding(top = 2.dp))
+                }
+
+                if (locatorRow) {
+                    LocatorRow(
+                        counterText = counterText,
+                        goDescription = SelectorLabels.goToChipDescription(position, total, stillEnumerating),
+                        onGoToPhoto = actions.onGoToPhoto,
+                        sort = sort,
+                        style = ControlBlockFit.locatorStyle(innerWidth),
+                    )
                 }
             }
         }

@@ -1,6 +1,7 @@
 package com.photoselectortoolbox.domain.guidance
 
 import com.photoselectortoolbox.domain.curation.DeferredDeletion
+import com.photoselectortoolbox.domain.format.DestinationLabels
 import com.photoselectortoolbox.domain.format.SelectionActionLabels
 import com.photoselectortoolbox.domain.interaction.FilingAction
 import com.photoselectortoolbox.domain.interaction.SelectorShortcut
@@ -49,8 +50,9 @@ object SelectorHintText {
         hint: SelectorHint,
         filingAction: FilingAction,
         selectionFolderName: String = FilingAction.DEFAULT_SELECTION_FOLDER,
+        customFolderName: String? = null,
     ): String = when (hint) {
-        SelectorHint.FILING -> SelectionActionLabels.confirmation(filingAction, selectionFolderName)
+        SelectorHint.FILING -> SelectionActionLabels.confirmation(filingAction, selectionFolderName, customFolderName)
         SelectorHint.DELETE_UNDO -> "Deleted — for $UNDO_WINDOW_SECONDS seconds"
         SelectorHint.MAXIMISE -> "One frame, full size"
         SelectorHint.SCORES -> "Scores are on the frames"
@@ -69,14 +71,21 @@ object SelectorHintText {
         filingAction: FilingAction,
         selectionFolderName: String,
         sortingEnabled: Boolean,
+        customFolderName: String? = null,
     ): String = when (hint) {
         SelectorHint.FILING -> {
             val folder = FilingAction.selectionFolderOrDefault(selectionFolderName)
             val other = filingAction.other
             buildString {
                 append("The file is in \"")
-                append(folder)
-                append("\", inside the shoot folder.")
+                if (customFolderName.isNullOrBlank()) {
+                    append(folder)
+                    append("\", inside the shoot folder.")
+                } else {
+                    // A custom folder is the user's own choice, not "inside the shoot folder".
+                    append(DestinationLabels.customDestinationName(customFolderName, folder))
+                    append("\".")
+                }
                 if (sortingEnabled) append(" RAW and JPEG are sorted into subfolders.")
                 append(" ")
                 append(other.shortcut)
