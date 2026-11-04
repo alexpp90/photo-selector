@@ -21,9 +21,6 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 - In windows too short for the full control block (1024 × 720 on the default DeX window), the buttons shrink to their compact form so the Sort and position buttons stay visible; in windows too narrow for them (720 × 560 and below) the position counter, `G`, `S` and the overflow menu remain.
 - Fullscreen shows the photo on the whole screen: the status bar and taskbar are hidden, and the file name, exposure and lens sit in a small panel at the top left instead of a bar across the top. The panel comes back for 3 seconds on every key press and photo change; `I` (or its pin button) keeps it on screen.
 - After a Move or Copy the message no longer counts down 30 seconds: a move shows for 4 seconds with Undo (Ctrl+Z keeps working afterwards), a copy for 3. Only Delete keeps its 30-second countdown. The message now also appears in fullscreen.
-
-### Changed
-
 - The debug and lab builds use OpenCV's own 1.2 MB `libc++_shared.so` instead of four unstripped 7-9 MB copies kept in the repository (two of them for ABIs the app never ships). Release builds are unchanged.
 
 ### Fixed
