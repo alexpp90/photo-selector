@@ -224,6 +224,8 @@ private fun DestinationRadioRow(
             RadioButton(
                 selected = selected,
                 onClick = null,
+                // The row is the control; the cursor stays a hand over the radio inside it too.
+                modifier = Modifier.handCursor(),
                 colors = RadioButtonDefaults.colors(selectedColor = BrandAccent, unselectedColor = Zinc400),
             )
             Spacer(modifier = Modifier.width(8.dp))
