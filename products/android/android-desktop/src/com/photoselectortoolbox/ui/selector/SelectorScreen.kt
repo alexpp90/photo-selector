@@ -14,7 +14,6 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.WindowInsetsSides
 import androidx.compose.foundation.layout.fillMaxHeight
@@ -27,7 +26,6 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.FolderOpen
 import androidx.compose.material.icons.filled.PhotoCamera
 import androidx.compose.material3.AlertDialog
@@ -37,7 +35,6 @@ import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.FilledTonalButton
 import androidx.compose.material3.HorizontalDivider
-import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
@@ -68,10 +65,6 @@ import androidx.compose.ui.input.key.type
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalWindowInfo
 import androidx.compose.ui.platform.testTag
-import androidx.compose.ui.semantics.Role
-import androidx.compose.ui.semantics.role
-import androidx.compose.ui.semantics.selected
-import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.dp
@@ -123,6 +116,7 @@ fun SelectorScreen(
     var showMenu by remember { mutableStateOf(false) }
     var showGuide by remember { mutableStateOf(false) }
     var showJump by remember { mutableStateOf(false) }
+    var showSortMenu by remember { mutableStateOf(false) }
     var contextMenuAt by remember { mutableStateOf<Offset?>(null) }
     var lastPointerPosition by remember { mutableStateOf(Offset.Zero) }
 
@@ -152,11 +146,41 @@ fun SelectorScreen(
     val jumpOpen = showJump && uiState.images.isNotEmpty()
     val openJump: () -> Unit = { if (uiState.images.isNotEmpty()) showJump = true }
 
+    // The Sort menu hangs off the control block, so it opens only where that block
+    // is drawn: the comparison layout, with a photo, not while a frame is maximised
+    // (the flanks are not composed then). `S` is not consumed anywhere else.
+    val sortMenuAvailable = useExpandedLayout && uiState.images.isNotEmpty() && uiState.maximisedFrame == null
+    val sortMenuOpen = showSortMenu && sortMenuAvailable
+    // Where the block goes away (a frame is maximised, the folder empties) the request goes with
+    // it, so the menu does not spring open when the block comes back.
+    LaunchedEffect(sortMenuAvailable) { if (!sortMenuAvailable) showSortMenu = false }
+    val openSortMenu: (() -> Unit)? = if (sortMenuAvailable) ({ showSortMenu = true }) else null
+    val sortChoice = SortChoice.of(uiState.sortOrder, uiState.sortWorstFirst)
+    val selectSortChoice: (SortChoice) -> Unit = { choice ->
+        when (choice) {
+            SortChoice.NEWEST_FIRST -> viewModel.setSortOrder(SelectorSortOrder.NEWEST_FIRST)
+            SortChoice.OLDEST_FIRST -> viewModel.setSortOrder(SelectorSortOrder.OLDEST_FIRST)
+            SortChoice.FILE_NAME -> viewModel.setSortOrder(SelectorSortOrder.FILE_NAME)
+            // Worst-first triage (U-34) is the fourth member of the group: a session
+            // view over scores. Picking one of the three above leaves it.
+            SortChoice.BLURRIEST_FIRST -> if (!uiState.sortWorstFirst) viewModel.toggleSortWorstFirst()
+        }
+    }
+    val sortControl = SortControl(
+        selected = sortChoice,
+        blurriestEnabled = uiState.hasAnyScores,
+        menuOpen = sortMenuOpen,
+        onMenuOpenChange = { showSortMenu = it },
+        onSelect = selectSortChoice,
+    )
+
     // Any open sheet swallows the shortcuts, so a stray M while configuring a
     // scan cannot move the frame behind the sheet. Esc is the exception — it is
     // what closes the sheet. The Go-to-photo dialog is one of them: without it,
-    // typing `1` into its field would maximise a frame.
-    val sheetOpen = showScanConfig || guideOpen || jumpOpen ||
+    // typing `1` into its field would maximise a frame. So is the Sort menu: its
+    // popup is a window of its own, but a key that reaches the selector while it
+    // is up must not file a photo behind it.
+    val sheetOpen = showScanConfig || guideOpen || jumpOpen || sortMenuOpen ||
         uiState.showDeleteConfirmation || uiState.uncompletedDeletionsPrompt != null
 
     val dismissGuide: () -> Unit = {
@@ -217,7 +241,7 @@ fun SelectorScreen(
     // switch), and any overlay closing (AD-11). Tab/arrow traversal in other
     // screens is untouched — this node exists only on the selector.
     val windowFocused = LocalWindowInfo.current.isWindowFocused
-    val overlayOpen = showScanConfig || showFullscreen || guideOpen || jumpOpen || contextMenuAt != null ||
+    val overlayOpen = showScanConfig || showFullscreen || guideOpen || jumpOpen || sortMenuOpen || contextMenuAt != null ||
         uiState.showDeleteConfirmation || uiState.uncompletedDeletionsPrompt != null
     LaunchedEffect(uiState.images.isNotEmpty(), windowFocused, overlayOpen) {
         if (uiState.images.isNotEmpty() && windowFocused && !overlayOpen) {
@@ -264,7 +288,11 @@ fun SelectorScreen(
         GoToPhotoDialog(
             images = uiState.images,
             ratingFilter = uiState.ratingFilter,
+            dates = viewModel.photoDates(),
+            pickerStartDay = viewModel.pickerStartDay(),
+            preview = viewModel::previewJump,
             onGo = viewModel::jumpToPhoto,
+            onJumpToDate = viewModel::jumpToDate,
             onDismiss = { showJump = false },
         )
     }
@@ -389,6 +417,7 @@ fun SelectorScreen(
                 target = dragAndDropTarget,
             )
             .trackPointerPosition { lastPointerPosition = it }
+            .testTag("selector_root")
             .then(
                 if (uiState.images.isNotEmpty()) {
                     Modifier
@@ -416,9 +445,11 @@ fun SelectorScreen(
                                 onMaximise = viewModel::toggleMaximised,
                                 onShowShortcuts = openGuide,
                                 onGoToPhoto = openJump,
+                                onSortMenu = openSortMenu,
                                 onCloseOverlays = {
                                     when {
                                         jumpOpen -> showJump = false
+                                        sortMenuOpen -> showSortMenu = false
                                         showFullscreen -> showFullscreen = false
                                         contextMenuAt != null -> contextMenuAt = null
                                         showScanConfig -> showScanConfig = false
@@ -484,36 +515,11 @@ fun SelectorScreen(
                                 onClick = { showMenu = false; folderPickerLauncher.launch(null) },
                             )
                             HorizontalDivider()
-                            SortMenuItem(
-                                label = SelectorLabels.SORT_NEWEST_FIRST,
-                                selected = !uiState.sortWorstFirst && uiState.sortOrder == SelectorSortOrder.NEWEST_FIRST,
-                                tag = "sort_newest_first",
-                                onClick = { showMenu = false; viewModel.setSortOrder(SelectorSortOrder.NEWEST_FIRST) },
-                            )
-                            SortMenuItem(
-                                label = SelectorLabels.SORT_OLDEST_FIRST,
-                                selected = !uiState.sortWorstFirst && uiState.sortOrder == SelectorSortOrder.OLDEST_FIRST,
-                                tag = "sort_oldest_first",
-                                onClick = { showMenu = false; viewModel.setSortOrder(SelectorSortOrder.OLDEST_FIRST) },
-                            )
-                            SortMenuItem(
-                                label = SelectorLabels.SORT_FILE_NAME,
-                                selected = !uiState.sortWorstFirst && uiState.sortOrder == SelectorSortOrder.FILE_NAME,
-                                tag = "sort_file_name",
-                                onClick = { showMenu = false; viewModel.setSortOrder(SelectorSortOrder.FILE_NAME) },
-                            )
-                            // Worst-first triage (U-34) is the fourth member of the group:
-                            // a session view over scores, so it needs them. Picking one of
-                            // the three above leaves it and returns to that order.
-                            SortMenuItem(
-                                label = SelectorLabels.SORT_BLURRIEST_FIRST,
-                                selected = uiState.sortWorstFirst,
-                                tag = "sort_blurriest_first",
-                                enabled = uiState.hasAnyScores,
-                                onClick = {
-                                    showMenu = false
-                                    if (!uiState.sortWorstFirst) viewModel.toggleSortWorstFirst()
-                                },
+                            // The same radio group the Sort chip opens (one list, two doors).
+                            SortMenuItems(
+                                selected = sortChoice,
+                                blurriestEnabled = uiState.hasAnyScores,
+                                onSelect = { choice -> showMenu = false; selectSortChoice(choice) },
                             )
                             HorizontalDivider()
                             DropdownMenuItem(
@@ -600,6 +606,7 @@ fun SelectorScreen(
                                         viewModel.setRatingForCurrent(rating)
                                     }
                                 },
+                                sort = sortControl,
                                 // Passed as a slot and drawn as a vertical column
                                 // at the outer edge of the control flank. It
                                 // used to span the bottom of the window, which
@@ -785,6 +792,7 @@ internal fun handleSelectorKey(
     onShowShortcuts: () -> Unit,
     onCloseOverlays: () -> Unit,
     onGoToPhoto: (() -> Unit)? = null,
+    onSortMenu: (() -> Unit)? = null,
     onSetRating: ((Int) -> Unit)? = null,
     onNavigate: ((Screen) -> Unit)? = null,
     ctrlOrMetaPressed: Boolean = false,
@@ -837,43 +845,20 @@ internal fun handleSelectorKey(
                 true
             }
         }
+        // Opens the Sort menu; it never cycles the order, so a stray press cannot
+        // reorder a folder the photographer is part-way through.
+        Key.S -> {
+            if (onSortMenu == null) {
+                false
+            } else {
+                onSortMenu()
+                true
+            }
+        }
         else -> false
     }
 }
 
-/**
- * One entry of the sort radio group in the overflow menu.
- *
- * The active entry leads with a check mark, not a colour change alone, and says
- * `selected` to a screen reader.
- */
-@Composable
-private fun SortMenuItem(
-    label: String,
-    selected: Boolean,
-    tag: String,
-    onClick: () -> Unit,
-    enabled: Boolean = true,
-) {
-    DropdownMenuItem(
-        text = { Text(label) },
-        leadingIcon = {
-            if (selected) {
-                Icon(Icons.Default.Check, contentDescription = null)
-            } else {
-                Spacer(Modifier.size(24.dp))
-            }
-        },
-        onClick = onClick,
-        enabled = enabled,
-        modifier = Modifier
-            .semantics {
-                role = Role.RadioButton
-                this.selected = selected
-            }
-            .testTag(tag).handCursor(),
-    )
-}
 
 /** A mono key cap, the key hint shown at the end of a menu row. */
 @Composable

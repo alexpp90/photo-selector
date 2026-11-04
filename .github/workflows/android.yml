@@ -47,7 +47,7 @@ jobs:
   # ── Module change detection ──────────────────────────────────────
   detect-changes:
     name: Detect changed modules
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     timeout-minutes: 10
     # `toolbox` / `phototok` say which module the release steps build and publish:
     # the path filter on branch pushes, exactly the tagged product on a tag push.
@@ -99,7 +99,7 @@ jobs:
   # ── JVM unit tests (no emulator needed) ─────────────────────────
   unit-tests:
     name: Unit tests (JVM)
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     timeout-minutes: 20
     steps:
       - uses: actions/checkout@v7
@@ -154,7 +154,7 @@ jobs:
   # ── Android Lint (advisory for now — tighten once baseline is clean) ──
   lint:
     name: Android Lint
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     timeout-minutes: 20
     continue-on-error: true
     steps:
@@ -190,7 +190,7 @@ jobs:
   # debug signing key, so this needs no secrets. Local mirror: run_tests.sh --android.
   minified-build:
     name: Minified build (R8, lab)
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     timeout-minutes: 25
     steps:
       - uses: actions/checkout@v7
@@ -211,7 +211,7 @@ jobs:
   # ── Instrumented tests on Android emulator ──────────────────────
   instrumented-tests:
     name: Instrumented tests (API ${{ matrix.api-level }})
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     timeout-minutes: 45
     # The emulator job is the slowest and least readable in the pipeline (~15
     # min vs ~2 min). `unit-tests` already compiles :app and :phototok
@@ -289,7 +289,7 @@ jobs:
     name: Build Android
     needs: [unit-tests, instrumented-tests, detect-changes]
     if: github.event_name == 'workflow_dispatch' || (github.event_name == 'push' && (github.ref == 'refs/heads/main' || startsWith(github.ref, 'refs/tags/phototok-v') || startsWith(github.ref, 'refs/tags/android-desktop-v')))
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     timeout-minutes: 30
     permissions:
       contents: write
@@ -561,7 +561,7 @@ jobs:
     name: Publish to Google Play
     needs: [build, detect-changes]
     if: github.event_name == 'push' && (github.ref == 'refs/heads/main' || startsWith(github.ref, 'refs/tags/phototok-v') || startsWith(github.ref, 'refs/tags/android-desktop-v')) && (needs.detect-changes.outputs.toolbox == 'true' || needs.detect-changes.outputs.phototok == 'true')
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     timeout-minutes: 15
 
     steps:

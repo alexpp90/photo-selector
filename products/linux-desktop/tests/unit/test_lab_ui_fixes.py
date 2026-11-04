@@ -352,9 +352,30 @@ def test_a_new_action_clears_the_previous_outcome_while_it_runs():
     assert bar.status_text == ""
 
 
+@pytest.fixture
+def studio_css():
+    """The stylesheet the shipped app loads, present whatever ran before (BL-T-2).
+
+    The layout test measures widget widths, which the CSS padding changes. An earlier test that
+    started the application left the provider on the display; run alone, the test saw none, and
+    at 1440 px the message was cut in one order and not in the other. Loading it here makes the
+    measurement the shipped one in every order; it is removed again afterwards.
+    """
+    from gi.repository import Gdk, Gtk
+
+    from photo_selector_linux.ui.styling import STUDIO_DARK_CSS
+
+    provider = Gtk.CssProvider()
+    provider.load_from_data(STUDIO_DARK_CSS.encode("utf-8"))
+    display = Gdk.Display.get_default()
+    Gtk.StyleContext.add_provider_for_display(display, provider, Gtk.STYLE_PROVIDER_PRIORITY_APPLICATION)
+    yield
+    Gtk.StyleContext.remove_provider_for_display(display, provider)
+
+
 @pytest.mark.skipif(STUBBED, reason="needs a real display (xvfb-run)")
 @pytest.mark.parametrize("width", [1910, 1440])
-def test_message_fits_unclipped_and_buttons_do_not_move(width):
+def test_message_fits_unclipped_and_buttons_do_not_move(width, studio_css):
     """1440 px is the window default (the bar itself needs ~930 px; below ~1400 the message is
     end-ellipsised). The bar is laid out directly (no frame clock under a window-manager-less Xvfb)."""
 
@@ -404,3 +425,39 @@ def test_bar_installs_no_tick_callback_so_the_frame_clock_stays_idle(monkeypatch
     bar.allocate(1440, 60, -1, None)
     bar.allocate(1440, 60, -1, None)
     assert added == []
+
+
+# ── Stranded files stay on screen until the next file operation (BL-UX-4, SET-UX-3) ─────────────
+
+
+def test_a_stranded_outcome_stays_in_the_action_bar_until_the_next_operation():
+    vm = CullingWorkspaceViewModel()
+    bar = ActionBarView(viewmodel=vm)
+    message = "Move interrupted — some files of a.jpg stayed in Selection/ and could not be put back"
+
+    vm._notify(message, "stranded")
+    assert bar.status_text == message
+    assert bar._status_timer is None, "no expiry timer for a stranded outcome"
+
+    vm._running_action = object()  # the next file operation starts
+    bar._update_state()
+    assert bar.status_text == ""
+
+
+def test_an_ordinary_outcome_keeps_its_expiry_timer():
+    from photo_selector_linux.ui import action_bar as action_bar_module
+
+    vm = CullingWorkspaceViewModel()
+    bar = ActionBarView(viewmodel=vm)
+    vm._notify("Moved a.jpg to Selection/", "status")
+    if action_bar_module.HAS_GI and not isinstance(action_bar_module.GLib, MagicMock):
+        assert bar._status_timer is not None
+
+
+@pytest.mark.skipif(isinstance(window_module.Gtk, MagicMock), reason="needs real Adw.Toast")
+def test_a_stranded_toast_stays_until_dismissed():
+    win = window_module.MainWindow()
+    win.viewmodel._notify("Move interrupted — some files of a.jpg stayed in Selection/", "stranded")
+    assert win._toast.get_timeout() == 0
+    win.viewmodel._notify("Could not move a.jpg: boom", "error")
+    assert win._toast.get_timeout() == 3

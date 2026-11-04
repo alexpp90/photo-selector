@@ -18,6 +18,7 @@ import os
 import shutil
 import stat
 import threading
+import uuid
 from pathlib import Path
 from typing import Callable, Dict, List, Optional, Tuple
 from urllib.parse import quote, unquote
@@ -154,12 +155,22 @@ def _resolve_bundle_destinations(
 def _copy_file(src: Path, dst: Path, fsync: bool = False) -> None:
     """Copy content exclusively (never overwriting an existing file), then permissions and timestamps.
 
-    Opens ``dst`` with ``O_WRONLY | O_CREAT | O_EXCL`` so an existing file is never truncated.
-    When ``fsync=True``, flushes file data to disk before closing. GVFS cloud mounts (Google Drive)
-    reject ``utime``/``chmod`` with ENOTSUP, which is ignored so copies and cross-mount moves succeed.
+    On a local filesystem the bytes go to a hidden ``.<name>.<id>.part`` beside ``dst`` and appear
+    under the real name only when complete (BL-D-4): a power loss or ``kill -9`` mid-copy leaves a
+    dot-file the scanner ignores, never a truncated photo under the name the next Copy would then
+    suffix around. Opens with ``O_WRONLY | O_CREAT | O_EXCL`` so nothing existing is truncated, and
+    the final step never overwrites ``dst`` (``FileExistsError``). When ``fsync=True``, flushes
+    file data to disk before closing. GVFS cloud mounts (Google Drive) reject ``utime``/``chmod``
+    with ENOTSUP, which is ignored so copies and cross-mount moves succeed; they are written in
+    place, since a rename there changes the file's identity.
     """
+    if dst.exists() or dst.is_symlink():
+        raise FileExistsError(errno.EEXIST, os.strerror(errno.EEXIST), str(dst))
+    staged = dst if is_gvfs_fuse_path(dst) else dst.with_name(
+        f".{dst.name[:100]}.{uuid.uuid4().hex[:8]}.part"
+    )
     flags = os.O_WRONLY | os.O_CREAT | os.O_EXCL
-    fd = os.open(dst, flags, 0o666)
+    fd = os.open(staged, flags, 0o666)
     try:
         try:
             fobj = os.fdopen(fd, "wb")
@@ -176,10 +187,12 @@ def _copy_file(src: Path, dst: Path, fsync: bool = False) -> None:
                 except OSError as e:
                     if e.errno not in (errno.EINVAL, errno.ENOTSUP, errno.EOPNOTSUPP):
                         raise
+        if staged != dst:
+            _move_no_overwrite(staged, dst)
     except BaseException:
-        if dst.exists() or dst.is_symlink():
+        if staged.exists() or staged.is_symlink():
             try:
-                dst.unlink()
+                staged.unlink()
             except OSError:
                 pass
         raise
@@ -187,6 +200,15 @@ def _copy_file(src: Path, dst: Path, fsync: bool = False) -> None:
         shutil.copystat(src, dst)
     except OSError as e:
         logger.debug("Metadata not preserved for %s: %s", dst, e)
+
+
+def _entry_path(path: Path) -> Path:
+    """``path`` with its folder resolved but the last component left alone.
+
+    A symlinked photo is its own directory entry: Trash and Undo act on the link, never on the
+    original it points at (BL-D-3). ``Path.resolve()`` would follow the link.
+    """
+    return path.parent.resolve() / path.name
 
 
 def _move_no_overwrite(src: Path, dst: Path) -> None:
@@ -270,7 +292,7 @@ class FileCullingManager:
         if self._mount_root_for_fn is not None:
             res = self._mount_root_for_fn(path)
             return res.resolve() if res is not None else None
-        curr = path.resolve()
+        curr = _entry_path(path)
         while not curr.exists() and curr.parent != curr:
             curr = curr.parent
         if curr.is_file() or curr.is_symlink():
@@ -314,7 +336,7 @@ class FileCullingManager:
             return home_trash, None
 
         try:
-            src_dev = self._dev_of(src)
+            src_dev = self._dev_of(src.parent)
             home_dev = self._dev_of(home_trash)
         except OSError:
             return home_trash, None
@@ -323,7 +345,7 @@ class FileCullingManager:
             mount_root = self._mount_root_for(src)
             if mount_root is not None:
                 try:
-                    src.resolve().relative_to(mount_root)
+                    _entry_path(src).relative_to(mount_root)
                 except ValueError:
                     pass
                 else:
@@ -386,7 +408,7 @@ class FileCullingManager:
         files_dir.mkdir(mode=dir_mode, parents=True, exist_ok=True)
         info_dir.mkdir(mode=dir_mode, parents=True, exist_ok=True)
 
-        src_resolved = src.resolve()
+        src_resolved = _entry_path(src)
         name = name or src.name
         deletion_date = datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%S")
         logical_src = src_resolved.parent / name
@@ -425,10 +447,22 @@ class FileCullingManager:
         try:
             if self._dev_of(src_resolved.parent) == self._dev_of(files_dir):
                 _move_no_overwrite(src_resolved, dst_file)
+            elif src_resolved.is_symlink():
+                os.symlink(os.readlink(src_resolved), dst_file)
+                src_resolved.unlink()
             else:
                 _copy_file(src_resolved, dst_file, fsync=True)
                 src_resolved.unlink()
         except Exception:
+            # A copy that landed in the Trash while the original could not be removed would stay
+            # there without a .trashinfo (an orphan); the original is intact, so drop the copy.
+            if (src_resolved.exists() or src_resolved.is_symlink()) and (
+                dst_file.exists() or dst_file.is_symlink()
+            ):
+                try:
+                    dst_file.unlink()
+                except Exception:
+                    pass
             if info_file.exists():
                 try:
                     info_file.unlink()
@@ -444,7 +478,7 @@ class FileCullingManager:
         Matches only via ``.trashinfo`` ``Path=`` metadata (resolving relative paths against the
         mount root for top-directory trash); never falls back to a bare filename match.
         """
-        target_resolved = original_src.resolve()
+        target_resolved = _entry_path(original_src)
         matches: List[Tuple[int, Path, Path]] = []
 
         for trash_base, mount_root in self._candidate_trash_bases(original_src):
@@ -461,18 +495,18 @@ class FileCullingManager:
                         recorded_raw = unquote(line.split("=", 1)[1].strip())
                         recorded_path = Path(recorded_raw)
                         if recorded_path.is_absolute():
-                            recorded_resolved = recorded_path.resolve()
+                            recorded_resolved = _entry_path(recorded_path)
                         elif mount_root is not None:
-                            recorded_resolved = (mount_root / recorded_path).resolve()
+                            recorded_resolved = _entry_path(mount_root / recorded_path)
                         else:
-                            recorded_resolved = (trash_base.parent / recorded_path).resolve()
+                            recorded_resolved = _entry_path(trash_base.parent / recorded_path)
 
                         if recorded_resolved == target_resolved:
                             trashed_name = info_file.name[:-len(".trashinfo")]
                             payload = files_dir / trashed_name
                             if payload.exists() or payload.is_symlink():
                                 matches.append(
-                                    (info_file.stat().st_mtime_ns, payload.resolve(), info_file.resolve())
+                                    (info_file.stat().st_mtime_ns, _entry_path(payload), _entry_path(info_file))
                                 )
                 except Exception:
                     continue
@@ -481,11 +515,6 @@ class FileCullingManager:
             matches.sort(key=lambda item: item[0], reverse=True)
             return matches[0][1], matches[0][2]
         return None
-
-    def _find_trashed_file(self, original_src: Path) -> Optional[Path]:
-        """Locate a trashed file path matching ``original_src`` via ``.trashinfo`` metadata."""
-        entry = self._find_trashed_entry(original_src)
-        return entry[0] if entry is not None else None
 
     def _restore_from_trash(
         self,
@@ -504,8 +533,11 @@ class FileCullingManager:
 
         target = restore_target if restore_target is not None else src
         target.parent.mkdir(parents=True, exist_ok=True)
-        if self._dev_of(target.parent) == self._dev_of(dst):
+        if self._dev_of(target.parent) == self._dev_of(dst.parent):
             _move_no_overwrite(dst, target)
+        elif dst.is_symlink():
+            os.symlink(os.readlink(dst), target)
+            dst.unlink()
         else:
             _copy_file(dst, target, fsync=True)
             if target.stat().st_size != dst.stat().st_size:
@@ -856,7 +888,7 @@ class FileCullingManager:
         a failed lookup must never leave it there unrecorded: look again through GIO's own trash
         listing, and failing that put the file back before raising.
         """
-        src_resolved = src.resolve()
+        src_resolved = _entry_path(src)
         Gio.File.new_for_path(str(src_resolved)).trash(None)
         located = self._find_trashed_entry(src)
         names: List[str] = []
@@ -870,7 +902,7 @@ class FileCullingManager:
                     payload = base / "files" / trashed_name
                     info = base / "info" / f"{trashed_name}.trashinfo"
                     if (payload.exists() or payload.is_symlink()) and info.exists():
-                        located = (payload.resolve(), info.resolve())
+                        located = (_entry_path(payload), _entry_path(info))
                         break
                 if located is not None:
                     break
@@ -906,7 +938,7 @@ class FileCullingManager:
                     # undo's reach: keep the file in the local Trash under its real name instead.
                     name = candidate.name_of(src)
                     dst_trash, info_trash = self._trash_file_freedesktop(src, name)
-                    orig_key = src.resolve().parent / name
+                    orig_key = _entry_path(src).parent / name
                     trashed_paths.append((orig_key, dst_trash))
                     trash_info_paths[orig_key] = info_trash
                 elif self._use_gio():

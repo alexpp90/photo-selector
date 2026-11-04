@@ -7,6 +7,7 @@ import android.content.IntentFilter
 import android.os.Build
 import android.os.storage.StorageManager
 import android.os.storage.StorageVolume
+import androidx.annotation.VisibleForTesting
 import androidx.core.content.ContextCompat
 import com.photoselector.core.storage.ExternalStorageDetector
 import com.photoselector.core.storage.ExternalVolume
@@ -22,6 +23,7 @@ import kotlinx.coroutines.flow.SharedFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asSharedFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.getAndUpdate
 
 /**
  * Monitors mounted removable storage volumes and media eject/unmount events (`U-14a`, `U-14b`).
@@ -71,13 +73,15 @@ class VolumeMonitor @Inject constructor(
 
     fun refreshVolumes(): List<ExternalVolume> {
         val detector = externalStorageDetector ?: return _mountedVolumes.value
-        val previous = _mountedVolumes.value
         val current = try {
             detector.detectRemovableVolumes()
         } catch (_: Exception) {
             emptyList()
         }
-        _mountedVolumes.value = current
+        // Init, the storage callback and the receiver call this from different threads. The state
+        // is swapped in one step, so each unmount is diffed against exactly the state it replaced
+        // and announced once, never against a stale list read before a slower detection finished.
+        val previous = _mountedVolumes.getAndUpdate { current }
 
         val currentUuids = current.mapNotNull { it.uuid?.lowercase() }.toSet()
         for (old in previous) {
@@ -89,13 +93,9 @@ class VolumeMonitor @Inject constructor(
         return current
     }
 
-    /** Test/manual setter for mounted volumes. */
-    fun setMountedVolumesForTest(volumes: List<ExternalVolume>) {
-        _mountedVolumes.value = volumes
-    }
-
-    /** Test/manual trigger for surprise unmount of [volumeUuid]. */
-    fun notifyVolumeUnmounted(volumeUuid: String?) {
+    /** Trigger for a surprise unmount of [volumeUuid]; used by tests. */
+    @VisibleForTesting
+    internal fun notifyVolumeUnmounted(volumeUuid: String?) {
         _unmountEvents.tryEmit(volumeUuid)
         refreshVolumes()
     }

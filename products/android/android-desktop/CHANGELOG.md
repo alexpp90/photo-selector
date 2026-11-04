@@ -8,8 +8,9 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ### Added
 
-- Sort order: a folder now opens with the newest photo first. The overflow menu switches to oldest first, file name or blurriest first (after a scan), and your choice is kept.
-- Go to photo: press `G`, tap the position counter, or use the menu, then type a photo's number or part of its file name. The dialog shows which file it will open.
+- Sort order: a folder now opens with the newest photo first. The new Sort button right of the current photo (or `S`, or the overflow menu) switches to oldest first, file name or blurriest first (after a scan), and your choice is kept.
+- Go to photo: tap the position counter beside the Sort button, press `G`, or use the menu, then type a photo's number, a date (`12.10.2026`, `12.10.26`, `2026-10-12` or `12.10.`) or part of its file name, or tap the calendar button and pick a day. A date goes to the first photo of that day in the current order, or to the nearest day with photos. The dialog shows which file it will open and when it was taken.
+- Settings → Where photos go: choose Working folder (the Selection folder inside the folder you are culling) or a Custom folder. Under the choice, Settings shows the full path your next Copy or Move will use, say when a custom folder has lost its permission or is missing, and mark a second pass. A move or copy into a custom folder now names it in the confirmation (`Moved to «Keepers › Selection»`).
 - Ratings are saved with the photo: embedded in a JPEG, in an `.xmp` sidecar beside a RAW or TIFF. A format that can hold neither (PNG, HEIC, WebP) says so instead of creating files, and the RAW itself is never opened for writing.
 - The lens is shown with the exposure on the current frame, on the neighbour frames and in fullscreen. In fullscreen the file name, position, exposure and lens sit in a small panel at the top-left instead of a bar across the photo; `I` (or the pin button) keeps it on screen.
 - Fullscreen: the first arrow key pages as soon as the viewer opens, also after the panel has faded, and the panel returns for three seconds on every key press and every page. `Ctrl+Z` (`Cmd+Z`) undoes the last delete or move there, as it does on the selector.
@@ -19,6 +20,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ### Changed
 
+- Settings: "File Sorting" is now "RAW and JPEG folders", and "Custom Selection Location" is replaced by the Working folder / Custom folder choice. Choosing Working folder forgets the custom folder.
+- In windows too short for the full control block (1024 × 720 on the default DeX window), the buttons shrink to their compact form so the Sort and position buttons stay visible; in windows too narrow for them (720 × 560 and below) the position counter, `G`, `S` and the overflow menu remain.
 - Confirmations are quieter: a move shows for about four seconds with Undo, a copy for about three, notices four, errors seven. None draws a countdown, because none has a deadline.
 - Hint text (key names under the buttons, "No image", "Not scanned", the filmstrip range, the Learn captions) and the Delete buttons are readable on the dark surfaces (contrast 4.5:1 or better); before, some were at 2:1 to 3.8:1.
 - Every control shows the hand cursor under a mouse or trackpad, in Settings, Duplicates and the dialogs too. Error messages are short sentences; the technical detail goes to the log.
@@ -48,6 +51,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 - The filmstrip's burst marker follows the photo on screen, also on the last photo of a burst; it used to mark the next burst.
 - Undo on a move's confirmation can no longer reverse an earlier move when two moves finish out of order.
 - Fullscreen and the compact layout no longer jump to another photo when the list is re-ordered or an undo puts a photo back.
+- Settings no longer says "Using custom folder" for a folder picked in a version before 0.6.0, which Copy and Move never used: photos keep going where they went, and Settings now says so.
 
 ## [0.6.0] - 2026-10-22
 

@@ -7,6 +7,7 @@ operations in order, which the undo stack relies on.
 
 from __future__ import annotations
 
+import threading
 from concurrent.futures import ThreadPoolExecutor
 from typing import Callable
 
@@ -36,14 +37,35 @@ def schedule_on_main_loop(fn: Callable[..., object], *args) -> int:
     return GLib.idle_add(fn, *args, priority=GLib.PRIORITY_DEFAULT)
 
 
+def run_on_thread(job: Job, done: JobDone, idle_add: Callable[..., object] = None) -> None:
+    """Dispatcher for long read-only work (Duplicate Finder hashing): own thread, ``done`` on the main loop.
+
+    Kept apart from ``FileOperationWorker`` so minutes of hashing never queue behind, or in front
+    of, the culls and their undo order.
+    """
+    deliver = idle_add or schedule_on_main_loop
+
+    def work() -> None:
+        try:
+            result, error = job(), None
+        except Exception as e:
+            result, error = None, e
+        deliver(FileOperationWorker._deliver, done, result, error)
+
+    threading.Thread(target=work, name="background-job", daemon=True).start()
+
+
 class FileOperationWorker:
     """A ``CullingWorkspaceViewModel`` dispatcher: job on a worker thread, ``done`` on the main loop."""
 
     def __init__(self, idle_add: Callable[..., object] = None) -> None:
         self._pool = ThreadPoolExecutor(max_workers=1, thread_name_prefix="culling-file-ops")
         self._idle_add = idle_add or schedule_on_main_loop
+        self._closed = False
 
     def __call__(self, job: Job, done: JobDone) -> None:
+        if self._closed:  # the window is gone (quit anyway): nothing can show an outcome
+            return
         self._pool.submit(self._work, job, done)
 
     def _work(self, job: Job, done: JobDone) -> None:
@@ -59,5 +81,7 @@ class FileOperationWorker:
         return False
 
     def shutdown(self) -> None:
-        """Drain running and queued operations cleanly without abandoning pending culls (R-LINUX-UI-10)."""
+        """Finish the job that is running and refuse new ones. The window holds its close until the
+        view model's queue is empty (R-LINUX-UI-10); only a deliberate second close gets here with work left."""
+        self._closed = True
         self._pool.shutdown(wait=True, cancel_futures=False)

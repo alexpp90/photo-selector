@@ -2,7 +2,6 @@ package com.phototok.ui.phonemode
 
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
-import androidx.compose.foundation.layout.size
 import androidx.compose.material3.Text
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.test.assertIsDisplayed
@@ -14,6 +13,9 @@ import androidx.compose.ui.test.junit4.createComposeRule
 import androidx.compose.ui.test.onFirst
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
+import androidx.compose.ui.test.DeviceConfigurationOverride
+import androidx.compose.ui.test.ForcedSize
+import androidx.compose.ui.unit.DpSize
 import androidx.compose.ui.unit.dp
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import com.phototok.R
@@ -112,8 +114,10 @@ class GestureTutorialOverlayTest {
         // This must hold whatever the device's own orientation: the guide's geometry follows
         // the box it is given, so landscape-native tablets (Pixel Tablet, Galaxy Tab S11 Ultra)
         // get the same portrait layout here.
+        // ForcedSize, not Modifier.size: a window shorter than 480 dp (a phone in landscape)
+        // clamps a sized Box, and the guide then lays out for the clamped height.
         composeTestRule.setContent {
-            Box(modifier = Modifier.size(width = 320.dp, height = 480.dp)) {
+            DeviceConfigurationOverride(DeviceConfigurationOverride.ForcedSize(DpSize(320.dp, 480.dp))) {
                 GestureTutorialOverlay(
                     visible = true,
                     onDismiss = {},

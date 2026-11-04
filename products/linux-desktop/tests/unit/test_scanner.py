@@ -267,3 +267,42 @@ def test_companion_grouping_follows_the_shared_table(tmp_path: Path, case):
     expected = sorted(sorted(n.lower() for n in bundle) for bundle in case["bundles"])
 
     assert groups == expected
+
+
+# ── File-specific sidecars follow every member of the shot, not only the first in name order ─────
+# (BL-D-1). The shared table above uses CR3, which sorts before JPG, so it cannot see this.
+# Candidate additions to testdata/formats/companions.json once the other products pass them.
+SIDECAR_ORDER_CASES = [
+    {
+        "name": "NEF sorts after JPG: its darktable sidecar still travels",
+        "files": ["DSC_0001.NEF", "DSC_0001.JPG", "DSC_0001.NEF.xmp"],
+        "bundles": [["DSC_0001.NEF", "DSC_0001.JPG", "DSC_0001.NEF.xmp"]],
+    },
+    {
+        "name": "RAF with a JPG, both sidecars",
+        "files": ["DSCF0002.RAF", "DSCF0002.JPG", "DSCF0002.RAF.xmp", "DSCF0002.JPG.xmp"],
+        "bundles": [["DSCF0002.RAF", "DSCF0002.JPG", "DSCF0002.RAF.xmp", "DSCF0002.JPG.xmp"]],
+    },
+    {
+        "name": "the JPG's own sidecar next to an ARW",
+        "files": ["IMG_3.ARW", "IMG_3.JPG", "IMG_3.JPG.xmp"],
+        "bundles": [["IMG_3.ARW", "IMG_3.JPG", "IMG_3.JPG.xmp"]],
+    },
+    {
+        "name": "an edit derivative's sidecar follows the shot",
+        "files": ["IMG_4.NEF", "IMG_4-Edit.tif", "IMG_4-Edit.tif.xmp", "IMG_5.NEF", "IMG_5.NEF.xmp"],
+        "bundles": [["IMG_4.NEF", "IMG_4-Edit.tif", "IMG_4-Edit.tif.xmp"], ["IMG_5.NEF", "IMG_5.NEF.xmp"]],
+    },
+]
+
+
+@pytest.mark.parametrize("case", SIDECAR_ORDER_CASES, ids=lambda c: c["name"])
+def test_file_specific_sidecar_follows_whichever_member_carries_it(tmp_path: Path, case):
+    for name in case["files"]:
+        (tmp_path / name).write_bytes(b"x")
+
+    candidates = DirectoryScanner().scan_directory(tmp_path, recursive=False)
+    groups = sorted(sorted(p.name.lower() for p in c.all_paths) for c in candidates)
+    expected = sorted(sorted(n.lower() for n in bundle) for bundle in case["bundles"])
+
+    assert groups == expected

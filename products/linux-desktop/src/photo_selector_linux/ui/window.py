@@ -22,7 +22,7 @@ except (ImportError, ValueError):
 from photo_selector_linux.core.settings import SettingsStore
 from photo_selector_linux.ui.action_bar import ActionBarView
 from photo_selector_linux.ui.canvas import CanvasView
-from photo_selector_linux.ui.file_worker import FileOperationWorker
+from photo_selector_linux.ui.file_worker import FileOperationWorker, run_on_thread, schedule_on_main_loop
 from photo_selector_linux.ui.keyboard_router import KeyboardRouter
 from photo_selector_linux.ui.styling import APP_BRAND_NAME, APP_ICON_NAME
 from photo_selector_linux.viewmodels.culling_workspace import CullingWorkspaceViewModel
@@ -42,6 +42,8 @@ class MainWindow(Adw.ApplicationWindow if HAS_GI else object):
         self.window_title: str = APP_BRAND_NAME
         self.icon_name: str = APP_ICON_NAME
         self.settings: SettingsStore = settings or SettingsStore()
+        self._close_when_idle = False
+        self._close_forced = False
         if HAS_GI:
             super().__init__(application=application, **kwargs)
             self.set_default_size(1440, 900)
@@ -54,6 +56,9 @@ class MainWindow(Adw.ApplicationWindow if HAS_GI else object):
         self.viewmodel = CullingWorkspaceViewModel(
             dispatcher=self.file_worker,
             settings=self.settings,
+            # The folder scan runs on its own thread; its batches reach the main loop above the
+            # frame clock's redraw priority (R-LINUX-CULL-01, LIN-4).
+            scan_idle_add=schedule_on_main_loop if HAS_GI else None,
         )
         if HAS_GI:
             self._build_ui()
@@ -65,6 +70,18 @@ class MainWindow(Adw.ApplicationWindow if HAS_GI else object):
             self.action_bar = ActionBarView(viewmodel=self.viewmodel)
 
     def _on_close_request(self, *_args) -> bool:
+        """Hold the close until every queued file operation ran (R-LINUX-UI-10).
+
+        The view model hands the worker one job at a time, so shutting the worker down with
+        culls still queued lost them (or raised in the next dispatch). A second close request
+        while waiting quits anyway, for a mount that hangs.
+        """
+        pending = self.viewmodel.queued_count
+        if pending > 0 and not self._close_forced:
+            self._close_forced = True
+            self._close_when_idle = True
+            self.show_toast(f"Finishing {pending} file operation{'s' if pending != 1 else ''}…")
+            return True
         if self.file_worker is not None:
             self.file_worker.shutdown()
         if getattr(self.canvas_view, "loader", None) is not None:
@@ -84,6 +101,9 @@ class MainWindow(Adw.ApplicationWindow if HAS_GI else object):
 
         # Main Canvas View
         self.canvas_view = CanvasView(viewmodel=self.viewmodel)
+        loader = getattr(self.canvas_view, "loader", None)
+        if loader is not None:
+            self.viewmodel.score_runner = loader.run_scoring_pass
         # The toast overlay wraps only the canvas so a toast can never cover the action bar (LIN-7).
         self.toast_overlay = Adw.ToastOverlay()
         self.toast_overlay.set_child(self.canvas_view)
@@ -121,16 +141,22 @@ class MainWindow(Adw.ApplicationWindow if HAS_GI else object):
         # Segmented view mode buttons
         mode_box = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL)
         mode_box.add_css_class("linked")
-        self.btn_mode_1 = Gtk.Button(label="1-Up (1)")
-        self.btn_mode_1.set_name("btn_mode_1")
-        self.btn_mode_2 = Gtk.Button(label="2-Up (2)")
-        self.btn_mode_2.set_name("btn_mode_2")
-        self.btn_mode_3 = Gtk.Button(label="Focus 3-Up (3)")
-        self.btn_mode_3.set_name("btn_mode_3")
-
-        self.btn_mode_1.connect("clicked", lambda b: self.viewmodel.set_comparison_mode(1))
-        self.btn_mode_2.connect("clicked", lambda b: self.viewmodel.set_comparison_mode(2))
-        self.btn_mode_3.connect("clicked", lambda b: self.viewmodel.set_comparison_mode(3))
+        # A toggle group, so assistive technology reads which view is pressed; keys in tooltips.
+        self._syncing_modes = False
+        self.btn_mode_1 = Gtk.ToggleButton(label="1-Up")
+        self.btn_mode_2 = Gtk.ToggleButton(label="2-Up")
+        self.btn_mode_3 = Gtk.ToggleButton(label="3-Up")
+        for mode, button, tip in (
+            (1, self.btn_mode_1, "Single photo (1)"),
+            (2, self.btn_mode_2, "Two photos side by side (2)"),
+            (3, self.btn_mode_3, "Focus 3-Up (3)"),
+        ):
+            button.set_name(f"btn_mode_{mode}")
+            button.set_tooltip_text(tip)
+            button.set_focus_on_click(False)
+            if button is not self.btn_mode_1:
+                button.set_group(self.btn_mode_1)
+            button.connect("toggled", self._on_mode_toggled, mode)
 
         mode_box.append(self.btn_mode_1)
         mode_box.append(self.btn_mode_2)
@@ -186,6 +212,11 @@ class MainWindow(Adw.ApplicationWindow if HAS_GI else object):
         self._view_order_action.connect("activate", self._on_view_order_action)
         self.add_action(self._view_order_action)
 
+    def _on_mode_toggled(self, button, mode: int) -> None:
+        if self._syncing_modes or not button.get_active():
+            return
+        self.viewmodel.set_comparison_mode(mode)
+
     def _on_view_order_action(self, action, param) -> None:
         self.set_view_order(param.get_string())
 
@@ -193,13 +224,14 @@ class MainWindow(Adw.ApplicationWindow if HAS_GI else object):
         """Switch the view order and say so; the menu radio follows the view model."""
         if order not in VIEW_ORDER_LABELS.values():
             return
-        self.viewmodel.set_sort_order(order)
         if HAS_GI:
+            # First, so the view model's own toast ("Scoring N photographs…") is the one that stays.
             self.show_toast(f"Order: {VIEW_ORDER_TITLES[order]}")
+        self.viewmodel.set_sort_order(order)
 
     def toggle_view_order(self) -> None:
         """B: natural order <-> lowest sharpness first."""
-        if self.viewmodel.sort_order == "lowest_sharpness_first":
+        if self.viewmodel.sort_order == "lowest_sharpness_first" and not self.viewmodel.scoring_confirmation_pending:
             self.set_view_order("natural")
         else:
             self.set_view_order("lowest_sharpness_first")
@@ -238,25 +270,35 @@ class MainWindow(Adw.ApplicationWindow if HAS_GI else object):
         if action is not None:
             action.set_state(GLib.Variant.new_string(vm.sort_order))
 
+        if self._close_when_idle and vm.queued_count == 0:
+            self._close_when_idle = False
+            self.close()
+
         mode = vm.comparison_mode
-        self.btn_mode_1.set_css_classes(["suggested-action"] if mode == 1 else [])
-        self.btn_mode_2.set_css_classes(["suggested-action"] if mode == 2 else [])
-        self.btn_mode_3.set_css_classes(["suggested-action"] if mode == 3 else [])
+        self._syncing_modes = True  # the toggles follow the view model; do not echo it back
+        try:
+            for number, button in ((1, self.btn_mode_1), (2, self.btn_mode_2), (3, self.btn_mode_3)):
+                button.set_active(mode == number)
+                button.set_css_classes(["suggested-action"] if mode == number else [])
+        finally:
+            self._syncing_modes = False
 
     def _on_viewmodel_notification(self, vm, message: str) -> None:
         """Cull/undo outcomes live in the action bar; load info and errors also get a toast."""
         if not HAS_GI:
             return
-        if getattr(vm, "last_notification_severity", "info") == "status":
+        severity = getattr(vm, "last_notification_severity", "info")
+        if severity == "status":
             return
-        self.show_toast(message)
+        # Files left in an unexpected place: the toast stays until the user dismisses it.
+        self.show_toast(message, persistent=severity == "stranded")
 
-    def show_toast(self, message: str) -> None:
+    def show_toast(self, message: str, persistent: bool = False) -> None:
         """Show one toast at a time: the previous one is dismissed, never queued."""
         if self._toast is not None:
             self._toast.dismiss()
         toast = Adw.Toast.new(message)
-        toast.set_timeout(3)
+        toast.set_timeout(0 if persistent else 3)
         self._toast = toast
         self.toast_overlay.add_toast(toast)
 
@@ -270,19 +312,32 @@ class MainWindow(Adw.ApplicationWindow if HAS_GI else object):
     def _on_folder_dialog_finish(self, dialog, result) -> None:
         try:
             folder = dialog.select_folder_finish(result)
-            if folder:
-                path = Path(folder.get_path())
-                self.open_directory(path)
+        except GLib.Error as e:
+            # Closing the picker is not an error: say nothing. Anything else is.
+            if e.matches(Gtk.dialog_error_quark(), Gtk.DialogError.DISMISSED) or e.matches(
+                Gtk.dialog_error_quark(), Gtk.DialogError.CANCELLED
+            ):
+                return
+            self.show_toast(f"Could not open the folder: {e.message}")
+            return
+        if not folder or not folder.get_path():
+            return
+        path = Path(folder.get_path())
+        try:
+            self.open_directory(path)
         except Exception as e:
-            if HAS_GI and GLib:
-                GLib.idle_add(self.show_toast, f"Open folder cancelled: {e}")
+            self.show_toast(f"Could not open {path.name}: {e}")
 
     def open_directory(self, path: Path) -> None:
-        self.viewmodel.load_directory(path)
+        """Open a folder; a photo opens its folder with that photo selected."""
+        if path.is_file():
+            self.viewmodel.load_directory(path.parent, select=path)
+        else:
+            self.viewmodel.load_directory(path)
 
     def show_duplicate_finder(self) -> None:
         from photo_selector_linux.ui.tools_dialogs import DuplicateFinderDialog
-        dlg = DuplicateFinderDialog(transient_for=self, viewmodel=self.viewmodel)
+        dlg = DuplicateFinderDialog(transient_for=self, viewmodel=self.viewmodel, dispatcher=run_on_thread)
         dlg.present()
 
     def show_library_statistics(self) -> None:

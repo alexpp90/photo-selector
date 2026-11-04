@@ -235,7 +235,12 @@ class SelectorForcedSizeTest {
         assertTrue("control_block has no height: $block", block.height > 0.dp)
         assertTrue("control_block runs off the window: $block", block.bottom <= height.dp && block.top >= 0.dp)
 
-        val tags = controls + "position_counter"
+        // The locator row (REQ-AND-WORKFLOW.06/.07) is the block's last child wherever the ladder
+        // grants it: its two chips are controls like the rest, and are in the block, 48 dp targets
+        // and clear of every other control. Where it is dropped the counter stands alone.
+        val hasLocator = count("locator_row") > 0
+        val chips = if (hasLocator) listOf("go_chip", "sort_chip") else emptyList()
+        val tags = controls + chips + "position_counter"
         tags.forEach { tag ->
             composeRule.onAllNodesWithTag(tag, useUnmergedTree = true).onFirst().assertIsDisplayed()
             val b = bounds(tag)
@@ -247,10 +252,29 @@ class SelectorForcedSizeTest {
         }
         assertTrue("position_counter is squashed", bounds("position_counter").height >= 11.5.dp)
 
-        for (i in controls.indices) for (j in i + 1 until controls.size) {
+        val all = controls + chips
+        for (i in all.indices) for (j in i + 1 until all.size) {
             assertTrue(
-                "${controls[i]} overlaps ${controls[j]} at ${width}x$height",
-                !intersects(bounds(controls[i]), bounds(controls[j])),
+                "${all[i]} overlaps ${all[j]} at ${width}x$height",
+                !intersects(bounds(all[i]), bounds(all[j])),
+            )
+        }
+        if (hasLocator) {
+            val density = displayDensity
+            chips.forEach { chip ->
+                val b = bounds(chip)
+                // Whole pixels, as layout draws them (a 48 dp slot reads 47.999985 dp at 2.4375x).
+                assertTrue(
+                    "$chip is ${(b.width.value * density).roundToInt()} x ${(b.height.value * density).roundToInt()} px, " +
+                        "below ${(48 * density).roundToInt()} px at ${width}x$height",
+                    (b.width.value * density).roundToInt() >= (48 * density).roundToInt() &&
+                        (b.height.value * density).roundToInt() >= (48 * density).roundToInt(),
+                )
+            }
+            // The row is the last child: nothing of the block lies below it.
+            assertTrue(
+                "locator_row ${bounds("locator_row")} is not the last child of $block",
+                bounds("locator_row").bottom.value >= block.bottom.value - 1f,
             )
         }
         // Whichever variant was chosen, exactly one marker says so.
@@ -434,11 +458,11 @@ class SelectorForcedSizeTest {
 
     @Test
     fun fullPriceMatchesTheMeasuredBlock_scale1() =
-        assertPriceMatchesMeasurement("control_block_full", { ControlBlockFit.fullHeightPx(1f, it) }, 1000, 1f)
+        assertPriceMatchesMeasurement("control_block_full", { ControlBlockFit.fullHeightPx(it) }, 1000, 1f)
 
     @Test
     fun fullPriceMatchesTheMeasuredBlock_scale1_3() =
-        assertPriceMatchesMeasurement("control_block_full", { ControlBlockFit.fullHeightPx(1.3f, it) }, 1000, 1.3f)
+        assertPriceMatchesMeasurement("control_block_full", { ControlBlockFit.fullHeightPx(it) }, 1000, 1.3f)
 
     @Test
     fun compactPriceMatchesTheMeasuredBlock_scale1() =
@@ -447,6 +471,17 @@ class SelectorForcedSizeTest {
     @Test
     fun compactPriceMatchesTheMeasuredBlock_scale1_3() =
         assertPriceMatchesMeasurement("control_block_compact", { ControlBlockFit.compactHeightPx(1.3f, it) }, 250, 1.3f)
+
+    // COMPACT with the locator row: 388 dp wide (inner 368), a row that holds 252 dp but not 362.
+    @Test
+    fun compactLocatorPriceMatchesTheMeasuredBlock_scale1() = assertPriceMatchesMeasurement(
+        "control_block_compact", { ControlBlockFit.compactHeightPx(1f, it, 368.dp, withLocator = true) }, 300, 1f,
+    )
+
+    @Test
+    fun compactLocatorPriceMatchesTheMeasuredBlock_scale1_3() = assertPriceMatchesMeasurement(
+        "control_block_compact", { ControlBlockFit.compactHeightPx(1.3f, it, 368.dp, withLocator = true) }, 300, 1.3f,
+    )
 
     // ── AD-8: filmstrip touch targets ───────────────────────────────────
 

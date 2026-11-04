@@ -3,16 +3,23 @@ package com.phototok.domain
 import com.phototok.data.model.ImageItem
 import java.io.File
 import java.util.concurrent.ConcurrentHashMap
+import java.util.concurrent.Executor
+import java.util.concurrent.Executors
 
 /**
  * Append-only seen-photo fingerprint store (`U-15`).
  *
  * Uses a 64-bit FNV-1a fingerprint of `(documentIdOrUri, fileSize, lastModified)` so
  * re-grants of the same folder recognize already-reviewed photos.
+ *
+ * The fingerprint sets are in memory and answer at once; every write to [logFile] (a swipe marks a
+ * photo seen) is handed to [ioExecutor] and runs there in order, so the UI thread never waits for
+ * the file system. The default executor runs the write in place (unit tests, in-memory stores).
  */
 class SeenStore(
     private val logFile: File? = null,
     private val maxEntriesBeforeCompact: Int = MAX_ENTRIES_BEFORE_COMPACT,
+    private val ioExecutor: Executor = Executor { it.run() },
 ) {
 
     companion object {
@@ -28,6 +35,10 @@ class SeenStore(
         private const val OP_ADD = "A"
         private const val OP_RESET_SOURCE = "R"
         private const val OP_RESET_ALL = "X"
+
+        /** One daemon thread for a store's file writes: they stay in order and leave the UI thread alone. */
+        fun backgroundWriter(threadName: String): Executor =
+            Executors.newSingleThreadExecutor { r -> Thread(r, threadName).apply { isDaemon = true } }
 
         /**
          * Compute a deterministic 64-bit FNV-1a fingerprint from [documentKey], [fileSize],
@@ -74,6 +85,7 @@ class SeenStore(
 
     private val bySource = ConcurrentHashMap<String, MutableSet<Long>>()
     private val allFingerprints: MutableSet<Long> = ConcurrentHashMap.newKeySet()
+    private val fileLock = Any()
     private var logLineCount = 0
 
     init {
@@ -108,8 +120,8 @@ class SeenStore(
                     }
                 }
             }
-            logLineCount = lines
-            if (logLineCount > maxEntriesBeforeCompact) {
+            synchronized(fileLock) { logLineCount = lines }
+            if (lines > maxEntriesBeforeCompact) {
                 compactLocked()
             }
         } catch (_: Exception) {
@@ -171,10 +183,14 @@ class SeenStore(
     fun resetAll() {
         bySource.clear()
         allFingerprints.clear()
-        logLineCount = 0
-        try {
-            logFile?.writeText("")
-        } catch (_: Exception) {
+        ioExecutor.execute {
+            synchronized(fileLock) {
+                logLineCount = 0
+                try {
+                    logFile?.writeText("")
+                } catch (_: Exception) {
+                }
+            }
         }
     }
 
@@ -185,19 +201,28 @@ class SeenStore(
 
     private fun appendLineLocked(line: String) {
         val file = logFile ?: return
-        try {
-            file.parentFile?.mkdirs()
-            file.appendText("$line\n")
-            logLineCount++
-            if (logLineCount > maxEntriesBeforeCompact) {
-                compactLocked()
+        ioExecutor.execute {
+            synchronized(fileLock) {
+                try {
+                    file.parentFile?.mkdirs()
+                    file.appendText("$line\n")
+                    logLineCount++
+                    if (logLineCount > maxEntriesBeforeCompact) {
+                        compactNow(file)
+                    }
+                } catch (_: Exception) {
+                }
             }
-        } catch (_: Exception) {
         }
     }
 
     private fun compactLocked() {
         val file = logFile ?: return
+        ioExecutor.execute { synchronized(fileLock) { compactNow(file) } }
+    }
+
+    /** Rewrites the log from the in-memory sets. Runs under [fileLock], on the writer. */
+    private fun compactNow(file: File) {
         try {
             file.parentFile?.mkdirs()
             val tempFile = File(file.parentFile, "${file.name}.tmp")

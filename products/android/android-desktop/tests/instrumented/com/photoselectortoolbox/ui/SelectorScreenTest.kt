@@ -713,6 +713,28 @@ class SelectorScreenTest {
         composeRule.waitUntil(timeoutMillis = 5000) { positionCounterShows("2 / 2") }
     }
 
+    @Test
+    fun sortOrder_keyS_opensTheMenu_andPickingChangesTheOrder() {
+        runBlocking { settingsRepository.setSelectorSortOrder(SelectorSortOrder.NEWEST_FIRST) }
+        loadTwoImagesNewestFirst()
+        // CI's phone-class emulator runs the compact layout, which has no selector key handler.
+        if (isCompactLayout()) return
+        composeRule.waitUntil(timeoutMillis = 15000) { positionCounterShows("1 / 2") }
+
+        // One real `S` through the window: it opens the menu and does not re-order anything.
+        pressKey(android.view.KeyEvent.KEYCODE_S)
+        composeRule.waitUntil(timeoutMillis = 5000) {
+            composeRule.onAllNodesWithTag("sort_oldest_first", useUnmergedTree = true)
+                .fetchSemanticsNodes().isNotEmpty()
+        }
+        assertTrue("S opens, it does not cycle", positionCounterShows("1 / 2"))
+
+        composeRule.onAllNodesWithTag("sort_oldest_first", useUnmergedTree = true).onFirst().performClick()
+
+        // The frame on screen stays on screen: image2 is now the second of two.
+        composeRule.waitUntil(timeoutMillis = 5000) { positionCounterShows("2 / 2") }
+    }
+
     private fun loadTwoImagesNewestFirst() {
         fakeRepo.imagesFlow.value = mockImages
         runBlocking { settingsRepository.setLastFolderUri("content://test/test_folder") }

@@ -27,6 +27,7 @@ import com.photoselectortoolbox.domain.session.SelectorSortOrder
 import com.photoselectortoolbox.domain.usecase.ScanImagesUseCase
 import com.photoselectortoolbox.ui.selector.SelectorActions
 import com.photoselectortoolbox.ui.selector.handleSelectorKey
+import com.photoselectortoolbox.data.model.FolderDescription
 import io.mockk.coEvery
 import io.mockk.coVerify
 import io.mockk.every
@@ -98,6 +99,7 @@ class SelectorViewModelTest {
     private val seenFullscreenHintFlow = MutableStateFlow(true)
     private val seenNavHintFlow = MutableStateFlow(true)
     private val selectionFolderNameFlow = MutableStateFlow(FilingAction.DEFAULT_SELECTION_FOLDER)
+    private val customDestinationFlow = MutableStateFlow<String?>(null)
     private val pendingDeleteJournalFlow = MutableStateFlow<Set<String>>(emptySet())
 
     /** Discovery batches, pushed by the test to imitate progressive enumeration. */
@@ -123,6 +125,7 @@ class SelectorViewModelTest {
         every { hasSeenFullscreenGestureHint } returns seenFullscreenHintFlow
         every { hasSeenNavHint } returns seenNavHintFlow
         every { selectionFolderName } returns selectionFolderNameFlow
+        every { customSelectionDestinationUri } returns customDestinationFlow
         every { pendingDeleteJournal } returns pendingDeleteJournalFlow
     }
 
@@ -333,6 +336,46 @@ class SelectorViewModelTest {
         viewModel.moveToSelection()
 
         assertEquals("Moved to Picks", viewModel.uiState.value.snackbarMessage)
+    }
+
+    @Test
+    fun `a custom destination folder is named in the confirmation and the filing hint`() = runTest {
+        // [USER 2026-11-04]: "I do not understand where the pictures go when they get moved."
+        // The sentence names the user's folder, not only the Selection folder inside it.
+        val keepers = "content://com.android.externalstorage.documents/tree/primary%3APictures%2FKeepers"
+        customDestinationFlow.value = keepers
+        coEvery { imageRepository.describeFolder(any(), any()) } returns FolderDescription(
+            uri = keepers, displayPath = listOf("Internal storage", "Pictures", "Keepers"), name = "Keepers",
+            hasPersistedGrant = true, exists = true, canWrite = true,
+        )
+        coEvery { imageRepository.moveImage(any(), any(), any(), any()) } returns
+            FileOperationResult.success("content://test/folder/a", "content://test/sel/a")
+
+        val viewModel = loadFolder(image("a"), image("b"))
+        viewModel.moveToSelection()
+
+        assertEquals("Moved to «Keepers › Selection»", viewModel.uiState.value.snackbarMessage)
+        val hint = viewModel.uiState.value.pendingHintText
+        assertEquals("Moved to «Keepers › Selection»", hint!!.title)
+        assertFalse(hint.message, hint.message.contains("inside the shoot folder"))
+    }
+
+    @Test
+    fun `back on the working folder the confirmation is the plain sentence again`() = runTest {
+        val keepers = "content://com.android.externalstorage.documents/tree/primary%3APictures%2FKeepers"
+        customDestinationFlow.value = keepers
+        coEvery { imageRepository.describeFolder(any(), any()) } returns FolderDescription(
+            uri = keepers, displayPath = listOf("Keepers"), name = "Keepers",
+            hasPersistedGrant = true, exists = true, canWrite = true,
+        )
+        coEvery { imageRepository.moveImage(any(), any(), any(), any()) } returns
+            FileOperationResult.success("content://test/folder/a", "content://test/sel/a")
+        val viewModel = loadFolder(image("a"), image("b"), image("c"))
+        customDestinationFlow.value = null
+
+        viewModel.moveToSelection()
+
+        assertEquals("Moved to Selection", viewModel.uiState.value.snackbarMessage)
     }
 
     @Test

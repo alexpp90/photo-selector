@@ -104,4 +104,45 @@ class SelectorLabelsTest {
             SelectorLabels.uncompletedDeletionsMessage(3),
         )
     }
+
+    @Test
+    fun `the go chip speaks its action and where the user stands`() {
+        assertEquals("Go to photo, 127 of 842", SelectorLabels.goToChipDescription(127, 842, false))
+        assertEquals(
+            "Go to photo, 127 of 842 so far, still loading",
+            SelectorLabels.goToChipDescription(127, 842, true),
+        )
+    }
+
+    @Test
+    fun `the sort chip speaks the order and that it can be changed`() {
+        assertEquals("Sort order: Newest first. Change", SelectorLabels.sortChipDescription("Newest first"))
+        assertEquals(
+            listOf("Newest", "Oldest", "Name", "Blurry"),
+            listOf(
+                SelectorLabels.SORT_CHIP_NEWEST,
+                SelectorLabels.SORT_CHIP_OLDEST,
+                SelectorLabels.SORT_CHIP_FILE_NAME,
+                SelectorLabels.SORT_CHIP_BLURRIEST,
+            ),
+        )
+    }
+
+    @Test
+    fun `the date span of a folder is first and last day, one day when they are the same`() {
+        assertEquals(
+            "3 Oct 2026 – 2 Nov 2026",
+            SelectorLabels.goToPhotoDateSpan(java.time.LocalDate.of(2026, 10, 3), java.time.LocalDate.of(2026, 11, 2)),
+        )
+        assertEquals(
+            "3 Oct 2026",
+            SelectorLabels.goToPhotoDateSpan(java.time.LocalDate.of(2026, 10, 3), java.time.LocalDate.of(2026, 10, 3)),
+        )
+    }
+
+    @Test
+    fun `the go to field says it takes a number, a name or a date`() {
+        assertEquals("Number, name or date", SelectorLabels.GO_TO_PHOTO_FIELD)
+        assertEquals("Pick a date", SelectorLabels.GO_TO_PHOTO_PICK_DATE)
+    }
 }

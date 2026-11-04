@@ -15,7 +15,6 @@ on:
     paths:
       - 'products/desktop/**'
       - '*.spec'
-      - 'scripts/**'
       - '.github/workflows/desktop.yml'
       - 'testdata/formats/**'
       - 'scripts/fetch_format_corpus.py'
@@ -25,7 +24,6 @@ on:
     paths:
       - 'products/desktop/**'
       - '*.spec'
-      - 'scripts/**'
       - '.github/workflows/desktop.yml'
       - 'testdata/formats/**'
       - 'scripts/fetch_format_corpus.py'
@@ -45,7 +43,7 @@ jobs:
   # ── Fast lint gate (< 30s) ──────────────────────────────────────
   lint:
     name: Lint
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     timeout-minutes: 10
     defaults:
       run:
@@ -69,7 +67,7 @@ jobs:
     name: Tests on ${{ matrix.os }} / Python ${{ matrix.python-version }}
     needs: lint
     runs-on: ${{ matrix.os }}
-    timeout-minutes: 20
+    timeout-minutes: 15
     defaults:
       run:
         shell: bash
@@ -78,13 +76,13 @@ jobs:
       fail-fast: false
       matrix:
         include:
-          - os: ubuntu-latest
+          - os: ubuntu-24.04
             python-version: "3.12"
             architecture: x64
-          - os: macos-latest
+          - os: macos-26
             python-version: "3.12"
             architecture: arm64
-          - os: windows-latest
+          - os: windows-2025
             python-version: "3.12"
             architecture: x64
 
@@ -99,9 +97,10 @@ jobs:
 
       - name: Install system dependencies (Linux)
         if: runner.os == 'Linux'
+        timeout-minutes: 5
         run: |
-          sudo apt-get update
-          sudo apt-get install -y python3-tk libcairo2-dev xvfb scrot
+          sudo apt-get -o Acquire::Retries=3 update
+          sudo apt-get -o Acquire::Retries=3 install -y python3-tk libcairo2-dev xvfb scrot
 
       - name: Install Poetry
         run: |
@@ -174,8 +173,8 @@ jobs:
   visual:
     name: Visual regression tests
     needs: lint
-    runs-on: ubuntu-latest
-    timeout-minutes: 15
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
     defaults:
       run:
         working-directory: products/desktop
@@ -188,9 +187,10 @@ jobs:
           python-version: "3.12"
 
       - name: Install system dependencies
+        timeout-minutes: 5
         run: |
-          sudo apt-get update
-          sudo apt-get install -y python3-tk libcairo2-dev xvfb scrot
+          sudo apt-get -o Acquire::Retries=3 update
+          sudo apt-get -o Acquire::Retries=3 install -y python3-tk libcairo2-dev xvfb scrot
 
       - name: Install Poetry
         run: |
@@ -238,7 +238,7 @@ jobs:
     needs: [test, visual]
     if: github.event_name == 'workflow_dispatch' || (github.event_name == 'push' && (github.ref == 'refs/heads/main' || startsWith(github.ref, 'refs/tags/desktop-v')))
     runs-on: ${{ matrix.os }}
-    timeout-minutes: 30
+    timeout-minutes: 15
     defaults:
       run:
         shell: bash
@@ -246,13 +246,13 @@ jobs:
     strategy:
       matrix:
         include:
-          - os: ubuntu-latest
+          - os: ubuntu-24.04
             architecture: x64
             artifact_name: photo-selector-toolbox-linux-x64
-          - os: macos-latest
+          - os: macos-26
             architecture: arm64
             artifact_name: photo-selector-toolbox-macos-apple-silicon
-          - os: windows-latest
+          - os: windows-2025
             architecture: x64
             artifact_name: photo-selector-toolbox-windows-x64
 
@@ -267,9 +267,10 @@ jobs:
 
     - name: Install system dependencies (Linux)
       if: runner.os == 'Linux'
+      timeout-minutes: 5
       run: |
-        sudo apt-get update
-        sudo apt-get install -y python3-tk libcairo2-dev
+        sudo apt-get -o Acquire::Retries=3 update
+        sudo apt-get -o Acquire::Retries=3 install -y python3-tk libcairo2-dev
 
     - name: Install Poetry
       run: |
@@ -314,7 +315,7 @@ jobs:
     name: Update Release
     needs: build
     if: github.event_name == 'push' && (github.ref == 'refs/heads/main' || startsWith(github.ref, 'refs/tags/desktop-v'))
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     timeout-minutes: 10
     permissions:
       contents: write
@@ -343,16 +344,6 @@ jobs:
       - name: Display Downloaded Artifacts
         run: ls -R artifacts
 
-      - name: Move nightly tag to this commit
-        # softprops/action-gh-release never moves an existing tag, so without this the Nightly
-        # Build release serves new assets under a tag pinned to an old commit.
-        if: github.ref == 'refs/heads/main'
-        env:
-          GH_TOKEN: ${{ github.token }}
-        run: |
-          gh api -X PATCH "repos/${{ github.repository }}/git/refs/tags/nightly" -f sha="$GITHUB_SHA" -F force=true \
-            || gh api -X POST "repos/${{ github.repository }}/git/refs" -f ref=refs/tags/nightly -f sha="$GITHUB_SHA"
-
       - name: Update GitHub Release
         uses: softprops/action-gh-release@efb35369e0ad2afab669f228072c1b0d510eae64 # v3
         with:
@@ -363,11 +354,24 @@ jobs:
           files: artifacts/*.zip
           make_latest: ${{ startsWith(github.ref, 'refs/tags/') && 'true' || 'false' }}
 
+      - name: Move nightly tag to this commit
+        # After the publish and best-effort: a refused tag move (HTTP 403 on 2026-10-22, SET-CI-4) must not
+        # fail a run whose assets are already published.
+        continue-on-error: true
+        # softprops/action-gh-release never moves an existing tag, so without this the Nightly
+        # Build release serves new assets under a tag pinned to an old commit.
+        if: github.ref == 'refs/heads/main'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh api -X PATCH "repos/${{ github.repository }}/git/refs/tags/nightly" -f sha="$GITHUB_SHA" -F force=true \
+            || gh api -X POST "repos/${{ github.repository }}/git/refs" -f ref=refs/tags/nightly -f sha="$GITHUB_SHA"
+
   update-homebrew-taps:
     name: Update Homebrew Taps
     needs: release
     if: github.event_name == 'push' && (github.ref == 'refs/heads/main' || startsWith(github.ref, 'refs/tags/desktop-v'))
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     timeout-minutes: 10
     permissions:
       contents: read
@@ -434,10 +438,10 @@ jobs:
               # desktop-v0.5.0 -> 0.5.0 (the release job already ran verify-tag on this tag)
               VERSION="${GH_REF_NAME##*-v}"
               python3 "$UPDATER" --file Casks/photo-selector-toolbox-legacy.rb \
-                --version-val "${VERSION}" \
+                --version-val "${VERSION}" --tag-prefix desktop-v \
                 --macos-sha256 "${MACOS_SHA256}"
               python3 "$UPDATER" --file Formula/photo-selector-toolbox.rb \
-                --version-val "${VERSION}" \
+                --version-val "${VERSION}" --tag-prefix desktop-v \
                 --macos-sha256 "${MACOS_SHA256}" \
                 --linux-sha256 "${LINUX_SHA256}"
               COMMIT_MSG="Update legacy Desktop to ${VERSION}"

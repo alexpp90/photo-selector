@@ -31,68 +31,57 @@ Code slug ↔ docs slug:
 
 | Product | Code | Docs |
 |---|---|---|
-| Desktop | `products/desktop/` | [`products/desktop/`](products/desktop/) |
+| Jackpix | `products/android/phototok/` | [`products/phototok/`](products/phototok/) |
+| Frameduel (Android Desktop) | `products/android/android-desktop/` | [`products/android-desktop/`](products/android-desktop/) |
 | Lensjet (macOS Desktop) | `products/macos-desktop/` | [`products/macos-desktop/`](products/macos-desktop/) |
 | Blitzlens (Linux Desktop) | `products/linux-desktop/` | [`products/linux-desktop/`](products/linux-desktop/) |
-| Frameduel (Android Desktop) | `products/android/android-desktop/` | [`products/android-desktop/`](products/android-desktop/) |
-| Jackpix | `products/android/phototok/` | [`products/phototok/`](products/phototok/) |
+| Desktop (legacy, archived) | `products/desktop/` | [`products/desktop/`](products/desktop/) |
 | *(shared Android code)* | `products/android/core/`, `products/android/saf/` | [`shared/`](shared/) |
 
 ## Map of this tree
 
-```
-docs/
-  README.md            This file
-  GLOSSARY.md          Canonical product names, slugs, modules, packages
+Every public document below is a link; `docs/README.md` is the index, and a test
+(`scripts/tests/test_check_doc_links.py`) fails when a file under `docs/` is not linked from here.
 
-  products/
-    desktop/           Desktop — Python + Tkinter
-      README.md          What it is, how to run it, where the code lives
-      REQUIREMENTS.md    Authoritative behaviour spec  [private]
-      ARCHITECTURE.md    Package layout and layering rules
-    macos-desktop/     Lensjet — Swift 6 + SwiftUI
-      README.md          What it is, how to build/run it, where the code lives
-      REQUIREMENTS.md    Authoritative behaviour spec  [private]
-      ARCHITECTURE.md    Layering rules, concurrency models, and service interfaces
-    linux-desktop/     Blitzlens — GNOME HIG / Libadwaita
-      README.md          What it is, how to test it, where the code lives
-      INSTALL.md         Installing from the APT repository
-      REQUIREMENTS.md    Authoritative behaviour spec  [private]
-    android-desktop/   Frameduel — :android-desktop, tablets and DeX
-      README.md
-      REQUIREMENTS.md    Authoritative behaviour spec  [private]
-      ARCHITECTURE.md    Layers, adaptive layout, performance, theme implementation
-      DESIGN.md          Visual specification (layout maths, tokens, component sheet)
-      DESIGN_PROMPT.md   Design-tool brief derived from DESIGN.md  [private]
-      RELEASE_CHECKLIST.md  Play release checklist (permissions, store listing, legal)
-      privacy-policy.html, impressum.html   Legal pages the app links to (GitHub Pages)
-    phototok/          Jackpix — :phototok, phones
-      README.md
-      REQUIREMENTS.md    Authoritative behaviour spec, incl. architecture conventions  [private]
-      ARCHITECTURE.md    Theme and structural notes
-      DESIGN.md          Visual specification
-      RELEASE_CHECKLIST.md  Play release checklist (permissions, store listing, legal)
-      privacy-policy.html, impressum.html   Legal pages the app links to (GitHub Pages)
-      LEGAL_COMPLIANCE.md, SECURITY_AUDIT.md, UX_INVESTIGATION.md   Dated investigations  [private]
-
-  shared/              Rules that must hold for MORE THAN ONE product
-    README.md            What is shared, what is deliberately not, and the admission rule
-    ANDROID_PLATFORM.md  Android baseline both Android products obey (EXIF, storage, stack)
-    FEATURE_PARITY.md    Feature sync policy, permanent exclusions, desktop → Android mapping
-    FILE_OPERATIONS.md   The non-destructive Move / Copy / Trash / Undo contract and its messages
-    SUPPORTED_FORMATS.md The supported-format contract read by every product's tests
-    UI_TEXT.md           Icon-first UI text rules and EN/DE text budgets
-    BRANDING.md          Names, icons and colours of the four apps
-
-  build/               How the products are built, signed and shipped
-    CI_PARITY.md                 What runs where and why; local mirror vs GitHub Actions
-    BRANCH_PROTECTION.md         Recommended protection for main, as gh api commands (not applied)
-    RELEASING.md                 Per-product versions, changelogs, tags and the release procedure
-    ANDROID_BUILD_AND_RELEASE.md Android build, CI and release requirements for both Android apps
-    ANDROID_SIGNING_PLAN.md      Rationale for per-app cloud/signing isolation  [private]
-    ANDROID_SIGNING_SETUP.md     Step-by-step setup instructions  [private]
-    ANDROID_SIGNING_RUNBOOK.md   Operational runbook for the isolation migration  [private]
-```
+| Where | Document | What it holds |
+|---|---|---|
+| `docs/` | [`GLOSSARY.md`](GLOSSARY.md) | Canonical product names, slugs, modules, packages |
+| | [`index.html`](index.html) | The landing page of the GitHub Pages site that serves the legal pages |
+| `products/phototok/` Jackpix | [`README.md`](products/phototok/README.md) | What it is, how to run it, where the code lives |
+| | `REQUIREMENTS.md` | Authoritative behaviour spec, incl. architecture conventions  [private] |
+| | [`ARCHITECTURE.md`](products/phototok/ARCHITECTURE.md) | Theme and structural notes |
+| | [`DESIGN.md`](products/phototok/DESIGN.md) | Visual specification |
+| | [`RELEASE_CHECKLIST.md`](products/phototok/RELEASE_CHECKLIST.md) | Play release checklist (permissions, store listing, legal) |
+| | [`privacy-policy.html`](products/phototok/privacy-policy.html), [`impressum.html`](products/phototok/impressum.html) | Legal pages the app links to (GitHub Pages; favicons and the touch icon beside them belong to these pages) |
+| | `LEGAL_COMPLIANCE.md`, `SECURITY_AUDIT.md`, `UX_INVESTIGATION.md` | Dated investigations  [private] |
+| `products/android-desktop/` Frameduel | [`README.md`](products/android-desktop/README.md) | What it is, how to run it |
+| | `REQUIREMENTS.md` | Authoritative behaviour spec  [private] |
+| | [`ARCHITECTURE.md`](products/android-desktop/ARCHITECTURE.md) | Layers, adaptive layout, performance, theme implementation |
+| | [`DESIGN.md`](products/android-desktop/DESIGN.md) | Visual specification (layout maths, tokens, component sheet) |
+| | `DESIGN_PROMPT.md` | Design-tool brief derived from DESIGN.md  [private] |
+| | [`RELEASE_CHECKLIST.md`](products/android-desktop/RELEASE_CHECKLIST.md) | Play release checklist (permissions, store listing, legal) |
+| | [`privacy-policy.html`](products/android-desktop/privacy-policy.html), [`impressum.html`](products/android-desktop/impressum.html) | Legal pages the app links to (GitHub Pages) |
+| `products/macos-desktop/` Lensjet | [`README.md`](products/macos-desktop/README.md) | What it is, how to build/run it, where the code lives |
+| | `REQUIREMENTS.md` | Authoritative behaviour spec  [private] |
+| | [`ARCHITECTURE.md`](products/macos-desktop/ARCHITECTURE.md) | Layering rules, concurrency models, and service interfaces |
+| `products/linux-desktop/` Blitzlens | [`README.md`](products/linux-desktop/README.md) | What it is, how to test it, where the code lives |
+| | [`INSTALL.md`](products/linux-desktop/INSTALL.md) | Installing from the APT repository |
+| | `REQUIREMENTS.md` | Authoritative behaviour spec  [private] |
+| `products/desktop/` legacy Desktop | [`README.md`](products/desktop/README.md) | What it is, how to run it, where the code lives |
+| | `REQUIREMENTS.md` | Authoritative behaviour spec  [private] |
+| | [`ARCHITECTURE.md`](products/desktop/ARCHITECTURE.md) | Package layout and layering rules |
+| `shared/` | [`README.md`](shared/README.md) | What is shared, what is deliberately not, and the admission rule |
+| | [`ANDROID_PLATFORM.md`](shared/ANDROID_PLATFORM.md) | Android baseline both Android products obey (EXIF, storage, stack) |
+| | [`FEATURE_PARITY.md`](shared/FEATURE_PARITY.md) | Feature sync policy, permanent exclusions, cross-product mapping |
+| | [`FILE_OPERATIONS.md`](shared/FILE_OPERATIONS.md) | The non-destructive Move / Copy / Trash / Undo contract and its messages |
+| | [`SUPPORTED_FORMATS.md`](shared/SUPPORTED_FORMATS.md) | The supported-format contract read by every product's tests |
+| | [`UI_TEXT.md`](shared/UI_TEXT.md) | Icon-first UI text rules and EN/DE text budgets |
+| | [`BRANDING.md`](shared/BRANDING.md) | Names, icons and colours of the four apps |
+| `build/` | [`CI_PARITY.md`](build/CI_PARITY.md) | What runs where and why; local mirror vs GitHub Actions |
+| | [`BRANCH_PROTECTION.md`](build/BRANCH_PROTECTION.md) | Recommended protection for main, as gh api commands (not applied) |
+| | [`RELEASING.md`](build/RELEASING.md) | Per-product versions, changelogs, tags and the release procedure |
+| | [`ANDROID_BUILD_AND_RELEASE.md`](build/ANDROID_BUILD_AND_RELEASE.md) | Android build, CI and release requirements for both Android apps |
+| | `ANDROID_SIGNING_PLAN.md`, `ANDROID_SIGNING_SETUP.md`, `ANDROID_SIGNING_RUNBOOK.md` | Per-app cloud/signing isolation: rationale, setup, runbook  [private] |
 
 Files marked **[private]** — requirement specifications, design prompts, audits and the
 signing runbooks — are kept in the maintainer's private overlay repository and are linked
@@ -122,7 +111,8 @@ enough to build, test and contribute.
 
 ## Known gaps
 
-- **Desktop has no visual design document.** Its UI is specified inside
-  `products/desktop/REQUIREMENTS.md` § 3 (layout constraints, display modes, dark theme), which
-  is a requirements file doing a design file's job. The two Android products each have a proper
-  `DESIGN.md`; Desktop should get one.
+- **No visual design document** for Lensjet, Blitzlens or the legacy Desktop. Their UI is
+  specified inside their `REQUIREMENTS.md` (the legacy Desktop in § 3), which is a requirements
+  file doing a design file's job; Jackpix and Frameduel each have a `DESIGN.md`. Only the
+  active apps matter here: the legacy Desktop is archived.
+- **Blitzlens has no `ARCHITECTURE.md`**; Lensjet, Jackpix, Frameduel and the legacy Desktop do.

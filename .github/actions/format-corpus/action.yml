@@ -9,7 +9,7 @@ runs:
   using: composite
   steps:
     - name: Restore format corpus cache
-      uses: actions/cache@v4
+      uses: actions/cache@v6
       with:
         path: ${{ runner.temp }}/format-corpus
         key: format-corpus-${{ hashFiles('testdata/formats/manifest.json') }}

@@ -2,11 +2,14 @@ package com.photoselectortoolbox.data.repository
 
 import android.content.Context
 import android.net.Uri
+import android.provider.DocumentsContract
 import android.util.Log
 import androidx.documentfile.provider.DocumentFile
 import com.photoselector.core.model.ExifData
 import com.photoselector.core.reader.AndroidExifReader
 import com.photoselector.core.reader.MediaStoreReader
+import com.photoselector.core.storage.ExternalStorageDetector
+import com.photoselector.core.storage.SafTreeDisplayPath
 import com.photoselector.saf.BundleAtomicity
 import com.photoselector.saf.FolderAccessManager
 import com.photoselector.saf.FolderAccessPurpose
@@ -17,9 +20,13 @@ import com.photoselector.saf.SafTransferPolicy
 import com.photoselector.saf.SelectionDestination
 import com.photoselector.saf.SelectionSubfolder
 import com.photoselector.saf.SelectionSubfolderRule
+import com.photoselectortoolbox.data.model.FolderDescription
 import com.photoselectortoolbox.data.model.ImageDimensions
 import com.photoselectortoolbox.data.model.ImageItem
 import com.photoselectortoolbox.data.source.LocalImageSource
+import com.photoselectortoolbox.domain.curation.DestinationSettings
+import com.photoselectortoolbox.domain.curation.OpenedFolder
+import com.photoselectortoolbox.domain.curation.SelectionDestinationPlan
 import com.photoselectortoolbox.domain.format.ImageFormats
 import javax.inject.Inject
 import javax.inject.Singleton
@@ -56,8 +63,6 @@ class ImageRepositoryImpl @Inject constructor(
 
     companion object {
         private const val TAG = "ImageRepositoryImpl"
-        private const val SELECTION_FOLDER_NAME = "Selection"
-        private const val SECONDARY_SELECTION_FOLDER_NAME = "Final"
         const val SELECTION_MARKER_FILE_NAME = SafTransferEngine.SELECTION_MARKER_FILE_NAME
 
         /**
@@ -172,6 +177,63 @@ class ImageRepositoryImpl @Inject constructor(
 
             if (folderDoc == null || !folderDoc.exists()) return@withContext null
             folderDoc.name ?: "Unknown"
+        }
+
+    /**
+     * Read-only: the readable path, the grant, whether the tree resolves and takes files,
+     * and whether it is itself a Selection folder. Takes no grant and creates nothing, so
+     * Settings can call it for any stored folder. Every lookup that fails reads as "no"
+     * (the folder is then shown as unreachable, which is the truthful answer), except
+     * cancellation.
+     */
+    override suspend fun describeFolder(context: Context, folderUri: Uri): FolderDescription =
+        withContext(ioDispatcher) {
+            val uriString = folderUri.toString()
+            val hasGrant = try {
+                val wanted = FolderAccessManager.canonicalUri(uriString)
+                context.contentResolver.persistedUriPermissions.any { permission ->
+                    val tree = FolderAccessManager.canonicalUri(permission.uri.toString())
+                    permission.isReadPermission && permission.isWritePermission &&
+                        (tree == wanted || wanted.startsWith("$tree/document/"))
+                }
+            } catch (e: Exception) {
+                Log.w(TAG, "Could not read persisted grants for $uriString", e)
+                false
+            }
+            val folder = try {
+                DocumentFile.fromTreeUri(context, folderUri)
+            } catch (e: Exception) {
+                // SecurityException (no grant) or IllegalArgumentException (not a tree URI).
+                Log.w(TAG, "Folder $uriString does not resolve", e)
+                null
+            }
+            val exists = folder != null && runCatching { folder.exists() && folder.isDirectory }.getOrDefault(false)
+            val name = if (exists) runCatching { folder?.name }.getOrNull() else null
+            val canWrite = exists && runCatching { folder?.canWrite() == true }.getOrDefault(false)
+            val hasMarker = exists && folder != null && try {
+                hasChildNamed(context, folder.uri, SELECTION_MARKER_FILE_NAME)
+            } catch (e: Exception) {
+                Log.w(TAG, "Could not list $uriString for the Selection marker", e)
+                false
+            }
+            val volumeLabel = SafTreeDisplayPath.removableVolumeId(uriString)?.let { volumeId ->
+                ExternalStorageDetector(context).detectExternalVolumes()
+                    .firstOrNull { it.uuid.equals(volumeId, ignoreCase = true) }
+                    ?.description
+            }
+            FolderDescription(
+                uri = uriString,
+                displayPath = SafTreeDisplayPath.segments(
+                    treeUri = uriString,
+                    volumeLabel = volumeLabel,
+                    providerTreeName = name,
+                ),
+                name = name,
+                hasPersistedGrant = hasGrant,
+                exists = exists,
+                canWrite = canWrite,
+                hasSelectionMarker = hasMarker,
+            )
         }
 
     override fun discoverImages(folderUri: Uri): Flow<List<ImageItem>> =
@@ -334,7 +396,7 @@ class ImageRepositoryImpl @Inject constructor(
     ): List<FileOperationResult> {
         if (sourceUris.isEmpty()) return emptyList()
         val destination = try {
-            selectionDestination(destFolderUri)
+            selectionDestination(context, destFolderUri, sorting)
         } catch (e: CancellationException) {
             throw e
         } catch (e: Exception) {
@@ -351,36 +413,88 @@ class ImageRepositoryImpl @Inject constructor(
         )
     }
 
-    private suspend fun selectionDestination(destFolderUri: Uri): SelectionDestination {
+    /**
+     * The destination of a transfer from [destFolderUri] (the opened folder), resolved by
+     * [SelectionDestinationPlan] — the same function the Settings preview shows, so the
+     * two cannot disagree. Whether the opened folder is itself a Selection folder (second
+     * pass) is looked up on the resolved root only in Working folder mode, where it matters.
+     */
+    private suspend fun selectionDestination(
+        context: Context,
+        destFolderUri: Uri,
+        sorting: Boolean,
+    ): SelectionDestination {
+        val settings = destinationSettings(sorting)
+        val opened = destFolderUri.toString()
+        val plan = SelectionDestinationPlan.resolve(settings, OpenedFolder(uri = opened))
+        return SelectionDestination(
+            rootUri = plan.rootUri?.let(Uri::parse) ?: destFolderUri,
+            folderName = plan.folderName,
+        ) { destRoot ->
+            if (!SelectionDestinationPlan.needsOpenedFolderDetails(settings)) {
+                plan.folderName
+            } else {
+                val folder = OpenedFolder(
+                    uri = opened,
+                    name = destRoot.name,
+                    hasSelectionMarker = runCatching {
+                        hasChildNamed(context, destRoot.uri, SELECTION_MARKER_FILE_NAME)
+                    }.getOrDefault(false),
+                )
+                SelectionDestinationPlan.resolve(settings, folder).folderName
+            }
+        }
+    }
+
+    /**
+     * The settings [SelectionDestinationPlan] needs. The Selection name is read strictly —
+     * a failing read fails the transfer with its message; the second-pass name and the
+     * custom destination fall back to their defaults on a failed read, as they always did.
+     */
+    private suspend fun destinationSettings(sorting: Boolean): DestinationSettings {
         val primaryFolderName = settingsRepository.selectionFolderName.first()
-            .trim().ifEmpty { SELECTION_FOLDER_NAME }
         val secondaryFolderName = try {
             settingsRepository.secondarySelectionFolderName.firstOrNull()
-                ?.trim()?.ifEmpty { SECONDARY_SELECTION_FOLDER_NAME }
-                ?: SECONDARY_SELECTION_FOLDER_NAME
         } catch (e: CancellationException) {
             throw e
-        } catch (_: Exception) {
-            SECONDARY_SELECTION_FOLDER_NAME
+        } catch (e: Exception) {
+            Log.w(TAG, "Second-pass folder name unreadable, using the default", e)
+            null
         }
         val customDestUriStr = try {
             settingsRepository.customSelectionDestinationUri.firstOrNull()
-                ?.trim()?.takeIf { it.isNotEmpty() }
         } catch (e: CancellationException) {
             throw e
-        } catch (_: Exception) {
+        } catch (e: Exception) {
+            Log.w(TAG, "Custom Selection destination unreadable, using the working folder", e)
             null
         }
-        return SelectionDestination(
-            rootUri = customDestUriStr?.let { Uri.parse(it) } ?: destFolderUri,
-            folderName = primaryFolderName,
-        ) { destRoot ->
-            val isSecondPass = customDestUriStr == null && (
-                destRoot.name?.equals(primaryFolderName, ignoreCase = true) == true ||
-                    runCatching { destRoot.findFile(SELECTION_MARKER_FILE_NAME) != null }.getOrDefault(false)
-                )
-            if (isSecondPass) secondaryFolderName else primaryFolderName
-        }
+        return DestinationSettings(
+            customDestinationUri = customDestUriStr,
+            selectionFolderName = primaryFolderName,
+            secondPassFolderName = secondaryFolderName.orEmpty(),
+            sortingEnabled = sorting,
+        )
+    }
+
+    /**
+     * Whether the directory [directoryUri] (a document URI inside a tree) has a child named
+     * [childName]: one `ContentResolver.query` over its children, display names only —
+     * never `DocumentFile.findFile`, which costs a binder call per child.
+     */
+    private fun hasChildNamed(context: Context, directoryUri: Uri, childName: String): Boolean {
+        val resolver = context.contentResolver
+        val childrenUri = DocumentsContract.buildChildDocumentsUriUsingTree(
+            directoryUri,
+            DocumentsContract.getDocumentId(directoryUri),
+        )
+        resolver.query(childrenUri, arrayOf(DocumentsContract.Document.COLUMN_DISPLAY_NAME), null, null, null)
+            ?.use { cursor ->
+                while (cursor.moveToNext()) {
+                    if (cursor.getString(0) == childName) return true
+                }
+            }
+        return false
     }
 
     override suspend fun resolveDimensions(

@@ -210,7 +210,7 @@ Four top-level destinations, reached from a persistent **NavigationRail** on the
 | 1 | **Selector** | The culling workspace. Default destination. | ~95% |
 | 2 | **Statistics** | EXIF distribution charts for the loaded folder. | small |
 | 3 | **Duplicates** | Byte-identical file finder (SHA-256) with batch delete. | small |
-| 4 | **Settings** | Storage, analysis, display, cache, about. | rare |
+| 4 | **Settings** | Where photos go, analysis, display, cache, about. | rare |
 
 ### Session-level actions
 
@@ -352,9 +352,11 @@ Zinc-700 rule:
   (default), **Oldest first**, **File name**, **Blurriest first**. The first three are the
   persisted order; **Blurriest first** is worst-first triage (`U-34`), a session view that is
   disabled until the folder has scores, and picking any of the first three leaves it. **Go to
-  photo…** with its `G` key cap follows the second divider.
+  photo…** with its `G` key cap follows the second divider. Both stay in the menu always: the
+  locator row (§7.5), where the same two controls are one tap away, is dropped in small
+  windows, and the menu is what is left there besides the counter tap and the keys.
 - Folder name and the burst chip move into the head of the **left readout block** (§7.4a);
-  `127 / 842` closes the control block on the opposite side (§7.5). Nothing goes above the image region: a 32 dp strip would still be 21 dp off
+  the **locator row** (`127 / 842` and the sort order) closes the control block on the opposite side (§7.5). Nothing goes above the image region: a 32 dp strip would still be 21 dp off
   the height of every frame.
 - Net budget: the sidebar costs 88 dp of width against the 80 dp rail it replaces, and
   returns the app bar's whole 44 dp of height. Because §7 is height-bound, that is **+29 dp
@@ -645,7 +647,7 @@ of ~158 dp (~118 dp with the strip on) carries its word comfortably:
 │ ‹ Prev ← │ Next → › │
 └──────────┴──────────┘
       ▤  ▭  👁  ⌨
-        127 / 842
+ [⌕ 127 / 842 G][⇅ Newest ▾ S]      ← the locator row, 48 dp
 ```
 
 - Each cell is 80 dp tall and as wide as the flank allows: glyph above, word below, key cap
@@ -660,15 +662,34 @@ of ~158 dp (~118 dp with the strip on) carries its word comfortably:
 - Beneath the grid, a 48 dp icon row of view controls — readout panel, filmstrip, overlay
   visibility, shortcut sheet. Icon-only is acceptable *only here*, because none of them
   changes a file; each carries a tooltip and a full `contentDescription`.
-- The position counter `127 / 842` closes the block, in tabular mono — and reads
-  `127 / 842+` while the folder is still enumerating. Discovery streams, so the total is a
-  running total for the first seconds of a large shoot; the `+` is the whole of the loading
-  indication this screen gets, because the first batch is already usable and a spinner over
-  a usable screen is a lie about what the photographer can do.
-- The counter is also a button (`Role.Button`, spoken click label "Go to photo", key `G`): it
-  opens the **Go to photo** dialog. It adds no layout — the block's priced heights are
-  unchanged — so beside the toggles it is a real 48 dp slot (the row is already that tall) and
-  elsewhere its 48 dp target is the framework's minimum touch-target expansion.
+- The **locator row** closes the block (`[USER 2026-11-04]`: Sort order and Go to photo were
+  only in the overflow menu, a key and a tap on the counter, and the user did not find them;
+  "I think right of the current image might be good. There is still space"). It is two chips
+  side by side, a 48 dp row: the **Go chip** holds the position counter `127 / 842`, in
+  tabular mono, which reads `127 / 842+` while the folder is still enumerating (discovery
+  streams, so the total is a running total for the first seconds of a large shoot; the `+` is
+  the whole of the loading indication this screen gets, because the first batch is already
+  usable and a spinner over a usable screen is a lie about what the photographer can do). A
+  tap opens **Go to photo** (spoken "Go to photo, 127 of 842", key `G`). The **Sort chip**
+  shows the order in force and opens the same radio group as the overflow menu in a dropdown
+  anchored to it (spoken "Sort order: Newest first. Change", key `S`): ✓ on the active entry,
+  `Role.RadioButton`, **Blurriest first** disabled until the folder has scores.
+  - Each chip is a **48 dp slot, half the row wide, and that slot is the clickable and the
+    node that carries the tag** (`go_chip`, `sort_chip`); the chip is drawn 40 dp tall inside
+    it (1 dp `StudioBorder` outline on `StudioCard`, 8 dp radius, no shadow), the ripple on the
+    chip, so the two slots abut and never overlap each other or the toggles above.
+  - Content follows the cell width (`ControlBlockFit.locatorStyle`): from a 160 dp cell icon,
+    full phrase and key cap (`⌕ 127 / 842 [G]`, `⇅ Newest first ▾ [S]`); from 100 dp icon and
+    one word (`Newest`, `Oldest`, `Name`, `Blurry`); below that the counter or the word alone.
+    The key caps are the ones the guide lists (§7.9).
+  - **`S` opens the menu and never cycles the order**: a stray key must not reorder a folder
+    mid-cull. While the menu is open the selector's shortcuts are suppressed like for a dialog
+    (`Esc` closes it). Where the row is dropped (below) `S` still opens it, over the block.
+- **Where the row is dropped.** It needs 192 dp of inner width (one row of four 48 dp toggles
+  over two cells), so at 720 × 560 and 600 × 480 the counter stands alone as before, beside the
+  toggles or leading the block, and is still the Go control (`Role.Button`, spoken click label
+  "Go to photo", its 48 dp target the toggle row or the framework's minimum touch-target
+  expansion); `G`, `S` and the two overflow entries remain.
 - Key caps are **permanent**, not hover-revealed. A tablet has no hover, and the desktop
   lesson already recorded (2024-05-18, `ai/memory/palette.md`) is that unhinted shortcuts go
   unused.
@@ -677,32 +698,41 @@ of ~158 dp (~118 dp with the strip on) carries its word comfortably:
 
 **Height is the block's binding axis too.** Row 1 is one frame tall: ~436 dp on the reference
 device, ~376 dp at 1280 × 800 (Pixel Tablet native), ~336 dp at 1024 × 720 (the DeX/ChromeOS
-default window less its bars) and ~228 dp at 600 × 480. The block above needs 332 dp, and a
-`Column` pays a shortfall with its last children — the 2026-10-17 device lab found the
-counter gone and the view toggles squashed to slivers below ~410 dp. So the block has two
-variants, chosen by `ControlBlockFit` from the row height it is handed and the font scale:
+default window less its bars) and ~228 dp at 600 × 480. The block above needs 362 dp with the
+locator row, and a `Column` pays a shortfall with its last children — the 2026-10-17 device lab
+found the counter gone and the view toggles squashed to slivers below ~410 dp. So the block is
+a ladder, and `ControlBlockFit` takes the first rung the row height it is handed (font scale
+included, priced in pixels at the device density) and the width afford:
 
 ```
-FULL (≥ 332 dp, ≥ 210 dp wide)   COMPACT (201–265 dp)
-┌──────────┬──────────┐     ┌───────────┬───────────┐
-│ ⧉ Copy C │ ➜ Move M │     │⧉ Copy  [C]│➜ Move  [M]│  48 dp rows
-│  …80 dp…  │          │     │🗑 Delete[Del]│⛶ Full [F]│
-│          │          │     │‹ Prev  [←]│Next [→] › │
-└──────────┴──────────┘     └───────────┴───────────┘
-      ▤  ▭  👁  ⌨             ▤ ▭ 👁 ⌨      127 / 842
-        127 / 842
+FULL + row (≥ 363 dp)           COMPACT + row (253–362 dp)     COMPACT, counter alone     SCROLLING
+┌──────────┬──────────┐     ┌───────────┬───────────┐     ┌───────────┬───────────┐     counter first,
+│ ⧉ Copy C │ ➜ Move M │     │⧉ Copy  [C]│➜ Move  [M]│     │⧉ Copy  [C]│➜ Move  [M]│     the rest scrolls
+│  …80 dp…  │          │     │🗑 Delete[Del]│⛶ Full [F]│     │🗑 Delete[Del]│⛶ Full [F]│
+│          │          │     │‹ Prev  [←]│Next [→] › │     │‹ Prev  [←]│Next [→] › │
+└──────────┴──────────┘     ├───────────┴───────────┤     └───────────┴───────────┘
+      ▤  ▭  👁  ⌨           │   ▤    ▭    👁    ⌨   │      ▤ ▭ 👁 ⌨     127 / 842
+[⌕ 127 / 842][⇅ Newest ▾]    │[127 / 842]  [Newest ▾] │
+                            └───────────────────────┘
 ```
+
+FULL is 3 × 80 + (2 + 48) + 48 + 4 × 6 = **362 dp** at any font scale (the locator row is a fixed
+48 dp: its chips are 40 dp and a line of 12 sp is 24 dp even at scale 2); COMPACT with the row
+is 3 × 48 + 48 + 48 + 4 × 3 = **252 dp**; COMPACT with the counter alone is 201 dp (one row of
+toggles with the counter beside it), 217 dp (counter above), 265 dp (2 × 2 toggles). **FULL
+without the row is retired**: a window whose row is 332–362 dp tall (1024 × 720 on a 24 dp status
+bar) gets COMPACT with the row rather than FULL without it. The frames never pay for the block:
+the rung changes, the frame does not (`SelectorForcedSizeTest`).
 
 Every view toggle is a 48 × 48 dp target at every size (AD-17): four in a row from 192 dp of
 inner width, a 2 × 2 grid below it, with the counter beside the toggles where it fits and on
-its own line above them where it does not (201 dp tall in one row with the counter beside it,
-217 dp with the counter above, 265 dp as a 2 × 2 grid). COMPACT keeps every word and every key cap,
-never ellipsized (AD-16b): the button is icon, word and key cap on one line from a 100 dp cell,
-the word over the key cap beside the icon from 64 dp, and word over key cap without the icon
-below that, and the word steps down from 13 sp to 9 sp before it could be cut. At 720 × 560 the
-flank is 150 dp, so the block is a 2 × 2 grid with stacked buttons; at 600 × 480 it scrolls.
-Below COMPACT the block scrolls with the counter first, so nothing is ever clipped silently.
-The frames never pay for the block: the variant changes, the frame does not.
+its own line above them where it does not (counter-alone rungs only). COMPACT keeps every word
+and every key cap, never ellipsized (AD-16b): the button is icon, word and key cap on one line
+from a 100 dp cell, the word over the key cap beside the icon from 64 dp, and word over key cap
+without the icon below that, and the word steps down from 13 sp to 9 sp before it could be cut.
+At 720 × 560 the flank is 150 dp, so the block is a 2 × 2 grid with stacked buttons and no
+locator row; at 600 × 480 it scrolls. Below COMPACT the block scrolls with the counter first,
+so nothing is ever clipped silently.
 
 ### 7.6 Interaction — one gesture vocabulary, defined once
 
@@ -863,9 +893,9 @@ bottom strip would push every callout up by 76 dp and start labelling the wrong 
   bound set exactly, that no advertised gesture is destructive, and that no callout names a
   glyph. The retired sheet claimed *"tap the ⛱ badge"*; `MaximiseBadge` renders an
   open-in-full arrow pair and always has, which is the 2026-07-31 lesson in one line.
-- **Keys split by whether anything can be pointed at.** `C`/`M`, `Del`, `F`, `←`, `→` drive a
-  labelled control, so they belong to that control's callout; `1`/`2`/`3`, `Esc` and `?`
-  drive nothing visible, so they get a callout of their own.
+- **Keys split by whether anything can be pointed at.** `C`/`M`, `Del`, `F`, `←`, `→` and the
+  locator row's `G` and `S` drive a labelled control, so they belong to the controls callout;
+  `1`/`2`/`3`, `Esc` and `?` drive nothing visible, so they get a callout of their own.
 - Callouts for chrome the user has switched off are omitted — labelling a hidden panel is the
   same defect as inventing a control that does not exist.
 - 200 ms fade in, 150 ms out. No slide. `Esc`, a tap on the scrim, Skip or **Got it** closes it;
@@ -1153,13 +1183,57 @@ cannot be undone."* / `[Cancel]` `[Delete]`.
 
 Labels below are final — use them verbatim.
 
-### Storage
+### Where photos go
+
+`[USER 2026-11-04]`: "As a user I do not understand where the pictures go when they get moved.
+There should be a selection: Custom Path or Working folder with the full transparency what that
+folder is currently." This section replaces the old Storage rows *Custom Selection Location* and
+*File Sorting* (the Selection and second-pass name fields stay).
+
+```
+Where photos go
+◉ Working folder
+   📁 Internal storage › DCIM › Trip › Selection › RAW · JPEG
+○ Custom folder                                        [Choose]
+Selection Subfolder Name   [Selection        ]
+Second-Pass Selection Subfolder Name   [Final        ]
+RAW and JPEG folders                                      (●)
+```
 
 | Item | Control | Supporting text |
 |---|---|---|
-| Selection Subfolder Name | editable text, value `Selection` | Created inside the source folder by default |
-| Custom Selection Location | folder picker | `Default: subfolder in source folder` → `Using custom folder` when set |
-| File Sorting | switch | Sort RAW and JPEG files into separate subfolders |
+| Working folder | radio row | the resolved path under it while selected (below) |
+| Custom folder | radio row, **Choose** / **Change** beside it | the resolved path under it while selected; a lost folder shows the warning (below) |
+| Selection Subfolder Name | editable text, value `Selection` | none (the path line says where it ends up) |
+| Second-Pass Selection Subfolder Name | editable text, value `Final` | Used automatically when re-culling an existing Selection folder |
+| RAW and JPEG folders | switch | none — the path line ends `› RAW · JPEG` exactly while it is on |
+
+- **Each radio row is a whole 48 dp row** (`Role.RadioButton`, merged semantics, `selected`), the
+  circle its picture; **Choose** / **Change** is its own 48 dp button beside the row, not inside
+  it.
+- **The path line is the resolved destination of the next Copy or Move**, from the same
+  `SelectionDestinationPlan` the file operation uses (`DestinationPreview.segments` joined with
+  ` › `), so it cannot name a folder files do not go to: `Internal storage › DCIM › Trip ›
+  Selection › RAW · JPEG`. The `› RAW · JPEG` end appears only while *RAW and JPEG folders* is
+  on. Working folder with no folder open says "«Selection» inside the folder you open — no folder
+  open yet" instead of inventing a path. When the open folder is itself a Selection folder, the
+  path ends in the second-pass name and a line says "Second pass — the open folder is a
+  Selection folder". The path carries the spoken description ("Photos go to Internal storage,
+  DCIM, Trip, Selection, in RAW and JPEG subfolders").
+- **Custom folder** uses `<custom>/<Selection name>` too, so both name fields stay in both
+  modes; a custom folder is never a second pass. Tapping the row with no custom folder opens
+  the system folder picker; **cancelling it changes nothing** and the choice stays Working
+  folder. **Choosing Working folder clears the custom folder** and releases its permission — it
+  is not kept dimmed for later, because a parked permission counts against the system's limit
+  and goes stale — so Custom needs the picker again.
+- **A custom folder that will not take files** (permission lost, folder gone or on a card that is
+  not mounted, read-only) shows a `ScoreBad` warning glyph and "Folder unavailable · <reason>"
+  (*No permission — choose the folder again*, *The folder is missing*, *The folder is read-only*)
+  above its path, with **Choose** beside it. Copy and Move do not fall back to another folder:
+  they fail visibly. The folders are described again whenever Settings resumes, so a permission
+  revoked while the app was away shows here, not at the next failed Copy.
+- A filing confirmation names a custom destination too — `Moved to «Keepers › Selection»` — while
+  the button keeps the bare verb (REQ-AND-LAYOUT.08).
 
 ### Analysis
 
@@ -1362,7 +1436,8 @@ Shortcuts work in both the standard and fullscreen views.
 | `Esc` | Exit fullscreen / leave maximised / close sheet or menu |
 | `I` | In fullscreen: pin / unpin the info panel (in the selector: Inspect) |
 | `1` / `2` / `3` | Maximise Previous / Current / Next in place (§7.3) |
-| `G` | Open **Go to photo**: one field (focused on open, label "Number or name"), a number 1…N as the counter shows it or part of a file name, `Enter` / **Go** jumps, `Esc` / **Cancel** closes. The line under the field previews the file name the input lands on; an empty or out-of-range number says "Enter 1–N" only after **Go** |
+| `G` | Open **Go to photo**: one field (focused on open, label "Number, name or date"), a number 1…N as the counter shows it, part of a file name, or a date (`12.10.2026`, `12.10.26`, `2026-10-12`, `12.10.`), `Enter` / **Go** jumps, `Esc` / **Cancel** closes. A 48 dp calendar button inside the field ("Pick a date") swaps a Material 3 date picker into the same dialog — limited to days that have photos, opening on the day of the photo on screen (else the newest day) — and picking a day jumps at once and closes; it is disabled when no photo has a known date, and scrolls inside the dialog in a 600 × 480 window. The line under the field is, by what is typed: nothing → the days the folder spans (`3 Oct 2026 – 12 Oct 2026`); a position, a name or a date → the file it lands on and when it was taken; a day without photos → that plus "No photos on 13 Oct 2026 — showing 14 Oct 2026" in the neutral colour (Go jumps to the nearest day; it is not an error). An empty or out-of-range number says "Enter 1–N" only after **Go**, and a date still being typed is not "No match" until **Go** |
+| `S` | Open the **Sort** menu (the Sort chip's dropdown, §7.5): Newest first, Oldest first, File name, Blurriest first. It opens only; it never cycles the order. While it is open the selector's other keys are suppressed (`Esc` closes it) |
 | `Ctrl+Z` / `Cmd+Z` | Undo the latest delete or move (20 deep), also in fullscreen |
 | `?` | Open the coach-mark guide (§7.9) |
 

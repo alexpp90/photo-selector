@@ -1,6 +1,5 @@
 package com.phototok.ui.phonemode
 
-import androidx.compose.material.icons.filled.Star
 import com.phototok.domain.SwipeRightVerb
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.core.Animatable
@@ -34,16 +33,12 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.automirrored.filled.ArrowForward
-import androidx.compose.material.icons.automirrored.filled.DriveFileMove
 import androidx.compose.material.icons.automirrored.filled.HelpOutline
 import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.CollectionsBookmark
-import androidx.compose.material.icons.filled.ContentCopy
-import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.FolderOpen
 import androidx.compose.material.icons.filled.KeyboardArrowDown
 import androidx.compose.material.icons.filled.KeyboardArrowUp
-import androidx.compose.material.icons.filled.RestoreFromTrash
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material.icons.filled.TouchApp
 import androidx.compose.material.icons.filled.ZoomIn
@@ -76,6 +71,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.phototok.domain.CollectionAction
 import com.phototok.domain.SwipeAction
+import com.phototok.ui.components.SwipeActionIcons
 import com.phototok.R
 import com.phototok.domain.SwipeLabels
 import com.phototok.ui.asString
@@ -270,7 +266,7 @@ private fun GestureStage(
                 // ── Left ──────────────────────────────────────────────
                 SwipeCallout(
                     icon = Icons.AutoMirrored.Filled.ArrowBack,
-                    actionIcon = leftSwipeActionIcon(leftSwipeAction),
+                    actionIcon = SwipeActionIcons.left(leftSwipeAction),
                     label = SwipeLabels.leftLabel(leftSwipeAction).asString(),
                     caption = leftCaption,
                     tint = leftTint,
@@ -315,7 +311,7 @@ private fun GestureStage(
                 // ── Right ─────────────────────────────────────────────
                 SwipeCallout(
                     icon = Icons.AutoMirrored.Filled.ArrowForward,
-                    actionIcon = if (swipeRightVerb == SwipeRightVerb.FAVOURITE) Icons.Default.Star else collectionActionIcon(collectionAction),
+                    actionIcon = SwipeActionIcons.right(swipeRightVerb),
                     label = SwipeLabels.rightLabel(swipeRightVerb).asString(),
                     caption = if (swipeRightVerb == SwipeRightVerb.FAVOURITE) {
                         stringResource(R.string.chip_favourites)
@@ -514,17 +510,4 @@ private fun DriftingIcon(icon: ImageVector, tint: Color, axis: DriftAxis, delayM
                 }
             },
     )
-}
-
-// ── Icon mapping (mirrors the viewer's indicators) ───────────────────────
-
-private fun collectionActionIcon(action: CollectionAction): ImageVector = when (action) {
-    CollectionAction.COPY -> Icons.Default.ContentCopy
-    CollectionAction.MOVE -> Icons.AutoMirrored.Filled.DriveFileMove
-}
-
-private fun leftSwipeActionIcon(action: SwipeAction): ImageVector = when (action) {
-    SwipeAction.DELETE -> Icons.Default.Delete
-    SwipeAction.COPY -> Icons.Default.ContentCopy
-    SwipeAction.MOVE -> Icons.AutoMirrored.Filled.DriveFileMove
 }

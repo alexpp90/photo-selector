@@ -24,6 +24,7 @@ except (ImportError, ValueError):
 
 from photo_selector_linux.ui.boundary_slot import BoundarySlotPane
 from photo_selector_linux.ui.info_hud import InfoHUD
+from photo_selector_linux.ui.keyboard_router import EMPTY_STATE_HINTS
 from photo_selector_linux.ui.layout import (
     Rect,
     can_fit_1to1_development,
@@ -32,7 +33,6 @@ from photo_selector_linux.ui.layout import (
 from photo_selector_linux.ui.photo_loader import PhotoTextureLoader
 from photo_selector_linux.ui.styling import (
     APP_BRAND_NAME,
-    APP_BRAND_TAGLINE,
     APP_ICON_NAME,
     get_candidate_companion_badges,
     get_slot_role_label,
@@ -480,23 +480,14 @@ class CanvasView(Gtk.Box if HAS_GI else object):
         title.add_css_class("empty-state-title")
         hero.append(title)
 
-        tagline = Gtk.Label(label=APP_BRAND_TAGLINE)
-        tagline.add_css_class("empty-state-subtitle")
-        hero.append(tagline)
-
         prompt = Gtk.Label(label="No photographs loaded. Press Ctrl+O to open a directory or SD card.")
         prompt.add_css_class("optical-strip-secondary")
         hero.append(prompt)
 
         hints_row = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=8)
         hints_row.set_halign(Gtk.Align.CENTER)
-        for hint in (
-            "Ctrl+O Open Folder",
-            "1 / 2 / 3 View Modes",
-            "M Move · C Copy · Del Trash",
-            "I Optical HUD",
-        ):
-            pill = Gtk.Label(label=hint)
+        for _keyval, _state, keys, meaning in EMPTY_STATE_HINTS:
+            pill = Gtk.Label(label=f"{keys} {meaning}")
             pill.add_css_class("hotkey-hint-pill")
             hints_row.append(pill)
         hero.append(hints_row)

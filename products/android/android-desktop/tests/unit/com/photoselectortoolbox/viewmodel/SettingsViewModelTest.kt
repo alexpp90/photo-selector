@@ -1,7 +1,9 @@
 package com.photoselectortoolbox.viewmodel
 
+import android.content.Context
 import com.photoselector.core.Requirement
 import com.photoselectortoolbox.data.repository.CacheRepository
+import com.photoselectortoolbox.data.repository.ImageRepository
 import com.photoselectortoolbox.data.repository.SettingsRepository
 import com.photoselectortoolbox.domain.grouping.GroupingLevel
 import com.photoselectortoolbox.domain.interaction.FilingAction
@@ -36,11 +38,18 @@ class SettingsViewModelTest {
         every { settings.analysisThreadCount } returns flowOf(4)
         every { settings.fullscreenButtonsEnabled } returns flowOf(true)
         every { settings.filingAction } returns flowOf(FilingAction.DEFAULT)
-        every { settings.phoneCollectionUri } returns flowOf(null)
+        every { settings.lastFolderUri } returns flowOf(null)
         every { settings.secondarySelectionFolderName } returns flowOf("Second")
         every { settings.customSelectionDestinationUri } returns flowOf(null)
         every { settings.tvDisplayScaleEnabled } returns flowOf(false)
     }
+
+    private fun viewModel() = SettingsViewModel(
+        settingsRepository = settings,
+        cacheRepository = cache,
+        imageRepository = mockk<ImageRepository>(relaxed = true),
+        context = mockk<Context>(relaxed = true),
+    )
 
     @After
     fun tearDown() {
@@ -52,7 +61,7 @@ class SettingsViewModelTest {
     fun `the cache row states how many results are stored`() {
         coEvery { cache.count() } returns 3
 
-        val viewModel = SettingsViewModel(settings, cache)
+        val viewModel = viewModel()
 
         assertEquals(3, viewModel.uiState.value.cachedScoreCount)
     }
@@ -60,7 +69,7 @@ class SettingsViewModelTest {
     @Test
     fun `clearing the cache reads zero`() {
         coEvery { cache.count() } returns 3
-        val viewModel = SettingsViewModel(settings, cache)
+        val viewModel = viewModel()
 
         viewModel.clearCache()
 
@@ -71,7 +80,7 @@ class SettingsViewModelTest {
     fun `the settings flows do not overwrite the stored count`() {
         coEvery { cache.count() } returns 7
 
-        val viewModel = SettingsViewModel(settings, cache)
+        val viewModel = viewModel()
 
         assertEquals("Second", viewModel.uiState.value.secondarySelectionFolderName)
         assertEquals(7, viewModel.uiState.value.cachedScoreCount)

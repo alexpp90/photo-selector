@@ -80,9 +80,9 @@ sudo apt install -y photo-selector-linux
 If your tooling or configuration management requires the traditional single-line APT format, configure `/etc/apt/sources.list.d/photo-selector.list`:
 
 ```bash
-# Import key (same as Step 2 above)
+# Import key (same as Step 2 above: the published keyring is already binary, no --dearmor)
 sudo install -m 0755 -d /etc/apt/keyrings
-curl -fsSL https://alexpp90.github.io/apt/KEY.gpg | sudo gpg --dearmor -o /etc/apt/keyrings/photo-selector-archive-keyring.gpg
+curl -fsSL https://alexpp90.github.io/apt/photo-selector-archive-keyring.gpg | sudo tee /etc/apt/keyrings/photo-selector-archive-keyring.gpg > /dev/null
 
 # Add one-line source entry
 echo "deb [signed-by=/etc/apt/keyrings/photo-selector-archive-keyring.gpg] https://alexpp90.github.io/apt/ trixie main" | sudo tee /etc/apt/sources.list.d/photo-selector.list
@@ -121,7 +121,7 @@ You can install the `.deb` package directly. `apt` will automatically resolve an
 
 ```bash
 # build it first: products/linux-desktop/scripts/package_debian.sh
-sudo apt install ./products/linux-desktop/dist/photo-selector-linux_0.2.0_all.deb
+sudo apt install ./products/linux-desktop/dist/photo-selector-linux_*_all.deb
 ```
 *(Note: The `./` prefix is mandatory so `apt` recognizes it as a local filesystem path).*
 
