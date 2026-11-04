@@ -3,8 +3,10 @@ package com.phototok.data.repository
 import android.content.Context
 import com.photoselector.core.storage.SourceKind
 import com.phototok.domain.Milestones
+import com.phototok.domain.SeenStore
 import dagger.hilt.android.qualifiers.ApplicationContext
 import java.io.File
+import java.util.concurrent.Executor
 import javax.inject.Inject
 import javax.inject.Singleton
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -43,6 +45,9 @@ data class CullingStats(
 
 class StatsStore(
     private val statsFile: File? = null,
+    /** Runs the file write; production uses a background thread so a swipe never waits for the disk. */
+    private val ioExecutor: Executor = Executor { it.run() },
+    private val onError: (String, Throwable) -> Unit = { _, _ -> },
 ) {
     private val _stats = MutableStateFlow(CullingStats())
     val stats: StateFlow<CullingStats> = _stats.asStateFlow()
@@ -206,24 +211,39 @@ class StatsStore(
                 .forEach { firedByteThresholds.add(it) }
             Milestones.SEEN_THRESHOLDS.filter { it <= loaded.totalLifetimePhotosReviewed }
                 .forEach { firedSeenThresholds.add(it) }
-        } catch (_: Exception) {
+        } catch (e: Exception) {
+            onError("Could not read ${file.name}", e) // ui-text: ignore log message
         }
     }
 
     private fun persistLocked(current: CullingStats) {
         val file = statsFile ?: return
+        val json = JSONObject().apply {
+            put("lifetimeBytesFreedPhone", current.lifetimeBytesFreedPhone)
+            put("lifetimeBytesFreedCard", current.lifetimeBytesFreedCard)
+            put("lifetimePhotosReviewedPhone", current.lifetimePhotosReviewedPhone)
+            put("lifetimePhotosReviewedCard", current.lifetimePhotosReviewedCard)
+            put("lifetimeKeepersPhone", current.lifetimeKeepersPhone)
+            put("lifetimeKeepersCard", current.lifetimeKeepersCard)
+        }.toString()
+        ioExecutor.execute { writeAtomically(file, json) }
+    }
+
+    /**
+     * Write aside, then rename: a kill mid-write leaves the previous file, never a truncated one
+     * (a truncated JSON would restart the lifetime totals at 0). Failures are reported, not hidden.
+     */
+    private fun writeAtomically(file: File, text: String) {
         try {
             file.parentFile?.mkdirs()
-            val root = JSONObject().apply {
-                put("lifetimeBytesFreedPhone", current.lifetimeBytesFreedPhone)
-                put("lifetimeBytesFreedCard", current.lifetimeBytesFreedCard)
-                put("lifetimePhotosReviewedPhone", current.lifetimePhotosReviewedPhone)
-                put("lifetimePhotosReviewedCard", current.lifetimePhotosReviewedCard)
-                put("lifetimeKeepersPhone", current.lifetimeKeepersPhone)
-                put("lifetimeKeepersCard", current.lifetimeKeepersCard)
+            val tmp = File(file.parentFile, "${file.name}.tmp")
+            tmp.writeText(text)
+            if (!tmp.renameTo(file)) {
+                file.writeText(text)
+                tmp.delete()
             }
-            file.writeText(root.toString())
-        } catch (_: Exception) {
+        } catch (e: java.io.IOException) {
+            onError("Could not write ${file.name}", e) // ui-text: ignore log message
         }
     }
 }
@@ -236,7 +256,11 @@ class StatsRepository(
     constructor(
         @ApplicationContext context: Context,
     ) : this(
-        store = StatsStore(statsFile = File(context.filesDir, "culling_stats.json")),
+        store = StatsStore(
+            statsFile = File(context.filesDir, "culling_stats.json"),
+            ioExecutor = SeenStore.backgroundWriter("jackpix-stats-writer"),
+            onError = { message, e -> android.util.Log.w("Stats", message, e) },
+        ),
     )
 
     val stats: StateFlow<CullingStats> = store.stats

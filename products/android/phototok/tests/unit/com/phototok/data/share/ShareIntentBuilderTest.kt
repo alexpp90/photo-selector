@@ -1,6 +1,7 @@
-package com.phototok.domain
+package com.phototok.data.share
 
 import com.phototok.data.model.ImageItem
+import com.phototok.domain.FileTypeFilter
 import org.junit.Assert.assertEquals
 import org.junit.Test
 

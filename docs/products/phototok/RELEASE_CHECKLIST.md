@@ -8,7 +8,7 @@ This checklist is the **single source of truth** for Google Play release readine
 
 - [x] **100% Local On-Device SAF Architecture:** Jackpix accesses user photos exclusively via Android Storage Access Framework (`Intent.ACTION_OPEN_DOCUMENT_TREE`). No cloud backend, no Google Drive OAuth, and no WebView Picker are used.
 - [x] **Zero Runtime Permissions & Zero Package Queries:** `products/android/phototok/AndroidManifest.xml` declares zero `<uses-permission>` and zero `<queries>` entries (no `INTERNET`, no `READ_MEDIA_IMAGES`, no `READ_EXTERNAL_STORAGE`). System Share / Open With (`Intent.createChooser`) and Android 11+ `MediaStore` favourite/trash/delete requests (`createFavoriteRequest`, `createTrashRequest`, `createDeleteRequest`) run through system-mediated `IntentSender` requests without storage permissions (favourite requests are granted by MediaProvider without a dialog; trash/delete requests show the system confirmation and are not wired yet).
-- [x] **Cloud Auto-Backup Hardened:** `AndroidManifest.xml` configures `android:allowBackup="false"`, `android:dataExtractionRules="@xml/data_extraction_rules"`, and `android:fullBackupContent="@xml/backup_rules"` so persisted SAF URI grants, local favourites/pending-delete journals, seen-photo fingerprints (`seen_photos.log`), and local culling statistics in app-private storage are never silently uploaded to cloud backup.
+- [x] **Cloud Auto-Backup Hardened:** `AndroidManifest.xml` configures `android:allowBackup="false"`, `android:dataExtractionRules="@xml/data_extraction_rules"`, and `android:fullBackupContent="@xml/backup_rules"` so persisted SAF URI grants, local favourites/pending-delete journals, seen-photo fingerprints (`seen_photos.log`), and local culling statistics in app-private storage are never silently uploaded to cloud backup. The real guard is `allowBackup="false"`: the two rule files exclude only `datastore`, so if backup is ever enabled they must first list every file store under `files/` (`favourites_store.json`, `seen_photos.log`, `culling_stats.json`, `card_transfer_journal.tsv`).
 - [x] **Target & Compile SDK:** `targetSdk = 36` (meets Google Play August 31, 2026 API 36 requirement) and `compileSdk = 37` in `products/android/phototok/build.gradle.kts`.
 - [x] **Hosted Legal Documents Present in Repo:**
   - `docs/products/phototok/privacy-policy.html` (bilingual EN/DE GDPR/DSGVO Art. 13 policy)
@@ -48,6 +48,8 @@ Because Jackpix requests zero permissions, has no network access, and processes 
 - [ ] **App content → Content rating:** complete the IARC questionnaire (utility app, no user-generated content, no violence/nudity). **Target audience:** 13+, not directed at children.
 - [ ] **Closed testing gate (mandatory for this account):** personal accounts created after 13 Nov 2023 must run a closed test with **at least 12 testers opted in for 14 consecutive days** before they can apply for production access. Create a *Closed testing* track, upload the CI-built AAB, add the testers by e-mail list and send them the opt-in link; keep them opted in for the full 14 days while iterating.
 - [ ] After the 14 days: **Dashboard → Apply for production** (short questionnaire about the closed test).
+- [ ] **Android developer verification (regional enforcement since 2026-09-30, global in 2027):** in Play Console → Home, check that the package `com.phototok` is registered (Play accounts are registered automatically for Play distribution; the deadline for the first regions has passed, so check now).
+- [ ] **Off-Play APKs:** the GitHub Releases and Obtainium APKs are signed with the **upload key**, which is not the Play app-signing key. Register the upload-key certificate for `com.phototok` as an off-Play key in Play Console before the 2027 global rollout, or those APKs will not install on certified devices.
 
 > Tester counts and the gate are Google policy and change — re-check
 > [App testing requirements for new personal developer accounts](https://support.google.com/googleplay/android-developer/answer/14151465)
@@ -90,8 +92,6 @@ Private by design
 • No permissions, no internet access, no account.
 • No ads, no analytics, no tracking. Your photos never leave your device.
 • Free and open source (MIT).
-
-Jackpix is an independent, 100% offline photography utility and is not affiliated with, sponsored by, endorsed by, or in any way associated with TikTok, ByteDance Ltd., or their affiliates.
 ```
 
 ### German (Germany) — de-DE
@@ -122,8 +122,6 @@ Privatsphäre von Anfang an
 • Keine Berechtigungen, kein Internetzugriff, kein Konto.
 • Keine Werbung, keine Analyse, kein Tracking. Deine Fotos verlassen dein Gerät nie.
 • Kostenlos und Open Source (MIT). Die App-Oberfläche gibt es auf Englisch und Deutsch.
-
-Jackpix ist ein unabhängiges, zu 100 % offline arbeitendes Foto-Werkzeug und steht in keiner Verbindung zu TikTok, ByteDance Ltd. oder deren verbundenen Unternehmen; es wird von diesen weder gesponsert noch unterstützt.
 ```
 
 > The German text quotes the labels of `res/values-de/strings.xml` („Kamera“, „Rückgängig“, „Info“); the folder „Selection“ is the literal folder name the app creates. Keep it in step with that file.

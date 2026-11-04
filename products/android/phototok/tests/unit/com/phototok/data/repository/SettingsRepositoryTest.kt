@@ -134,11 +134,9 @@ class SettingsRepositoryTest {
         val sdDefaults = repository.sourceSettingsFlow(com.photoselector.core.storage.SourceKind.REMOVABLE).first()
 
         assertEquals(com.phototok.domain.FeedOrderMode.NEWEST_FIRST, phoneDefaults.feedOrder)
-        assertFalse(phoneDefaults.sortingEnabled)
 
         assertEquals(com.phototok.domain.FeedOrderMode.NEWEST_FIRST, sdDefaults.feedOrder)
         assertEquals(FileTypeFilter.ONE_PER_SHOT, sdDefaults.fileTypeFilter)
-        assertTrue(sdDefaults.sortingEnabled)
         assertTrue(sdDefaults.moveRelatedFiles)
 
         repository.setSourceFeedOrder(

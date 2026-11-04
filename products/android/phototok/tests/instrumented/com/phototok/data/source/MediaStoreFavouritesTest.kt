@@ -88,8 +88,9 @@ class MediaStoreFavouritesTest {
             it.isWritePermission && it.uri.authority == "com.android.externalstorage.documents" &&
                 DocumentsContract.getTreeDocumentId(it.uri).startsWith("primary:")
         }?.uri
-        assumeTrue("no persisted, writable primary-storage tree grant: pick a folder in the app once", tree != null)
-        val parent = DocumentsContract.buildDocumentUriUsingTree(tree, DocumentsContract.getTreeDocumentId(tree))
+        // Lab state, not a reason to skip: the lab device must have a granted folder (@LabDeviceOnly).
+        assertNotNull("no persisted, writable primary-storage tree grant: pick a folder in the app once", tree)
+        val parent = DocumentsContract.buildDocumentUriUsingTree(tree!!, DocumentsContract.getTreeDocumentId(tree))
         val document = DocumentsContract.createDocument(context.contentResolver, parent, "image/jpeg", testName())
         assertNotNull("could not create a photo in $tree", document)
         cleanup += { DocumentsContract.deleteDocument(context.contentResolver, document!!) }

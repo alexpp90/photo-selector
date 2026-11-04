@@ -12,6 +12,8 @@ import json
 from pathlib import Path
 from unittest.mock import MagicMock
 
+import pytest
+
 from photo_selector_linux.core.file_ops import (
     SELECTION_MARKER_FILENAME,
     FileCullingManager,
@@ -246,3 +248,101 @@ def test_application_actions_and_window_dialogs(tmp_path: Path):
 
     app._on_action_statistics(None, None)
     win.show_library_statistics.assert_called_once()
+
+
+# ── Remote folders: the confirmation has a control, and hashing leaves the main loop (BL-UX-1) ────
+
+
+def _remote_vm(tmp_path: Path):
+    f1, f2 = tmp_path / "dup1.jpg", tmp_path / "dup2.jpg"
+    f1.write_bytes(b"identical-image-payload")
+    f2.write_bytes(b"identical-image-payload")
+    vm = CullingWorkspaceViewModel()
+    vm.candidates = [CandidatePhoto(primary_path=f1), CandidatePhoto(primary_path=f2)]
+    vm.is_remote_folder = True
+    return vm
+
+
+def test_duplicate_finder_second_click_on_a_remote_folder_scans(tmp_path: Path):
+    """The button turns into "Scan anyway"; clicking it again runs the scan instead of repeating the notice."""
+    ran = []
+    dlg = DuplicateFinderDialog(
+        viewmodel=_remote_vm(tmp_path),
+        dispatcher=lambda job, done: (ran.append(1), done(job(), None)),
+    )
+    button = object()  # what GTK passes to the "clicked" handler
+
+    dlg._on_scan_clicked(button)
+    assert dlg.awaiting_remote_confirmation and ran == []
+    assert dlg.scan_button_label == "Scan anyway"
+
+    dlg._on_scan_clicked(button)
+    assert ran == [1] and not dlg.awaiting_remote_confirmation
+    assert len(dlg.clusters) == 1
+    assert dlg.scan_button_label == "Scan for Duplicates"
+
+
+def test_remote_confirmation_controls_exist_in_the_real_dialogs(tmp_path: Path):
+    from photo_selector_linux.ui import tools_dialogs
+
+    if not tools_dialogs.HAS_GI or isinstance(tools_dialogs.Gtk, MagicMock):
+        pytest.skip("real GTK needed")
+    vm = _remote_vm(tmp_path)
+
+    stats = LibraryStatisticsDialog(viewmodel=vm)
+    assert stats._toolbar.get_content() is not None, "a blank window on a remote folder"
+    assert stats.btn_confirm.get_label() == "Scan anyway"
+    stats.btn_confirm.emit("clicked")
+    assert not stats.awaiting_remote_confirmation and stats.stats is not None
+
+    ran = []
+    dlg = DuplicateFinderDialog(
+        viewmodel=vm, dispatcher=lambda job, done: (ran.append(1), done(job(), None))
+    )
+    dlg.btn_scan.emit("clicked")
+    assert dlg.btn_scan.get_label() == "Scan anyway" and ran == []
+    dlg.btn_scan.emit("clicked")
+    assert ran == [1] and dlg.btn_scan.get_label() == "Scan for Duplicates"
+
+
+def test_window_scans_for_duplicates_off_the_main_thread(tmp_path: Path, monkeypatch):
+    from photo_selector_linux.ui import file_worker, tools_dialogs
+    from photo_selector_linux.ui.window import MainWindow
+
+    seen = {}
+
+    class Recorder:
+        def __init__(self, **kwargs):
+            seen.update(kwargs)
+
+        def present(self):
+            pass
+
+    monkeypatch.setattr(tools_dialogs, "DuplicateFinderDialog", Recorder)
+    MainWindow().show_duplicate_finder()
+    assert seen["dispatcher"] is file_worker.run_on_thread
+
+
+def test_run_on_thread_keeps_the_main_loop_free():
+    import time
+
+    from photo_selector_linux.core import image_source
+    from photo_selector_linux.ui import file_worker, photo_loader
+
+    if not (image_source.HAS_GEXIV2 and photo_loader.HAS_GI) or isinstance(photo_loader.GLib, MagicMock):
+        pytest.skip("needs the real GLib")
+    from gi.repository import GLib
+
+    ticks, delivered = [], []
+    timer = GLib.timeout_add(10, lambda: ticks.append(1) or True)
+    context = GLib.MainContext.default()
+    try:
+        file_worker.run_on_thread(lambda: time.sleep(0.5) or "hashes", lambda r, e: delivered.append((r, e)))
+        deadline = time.monotonic() + 10
+        while not delivered and time.monotonic() < deadline:
+            context.iteration(False)
+            time.sleep(0.001)
+    finally:
+        GLib.source_remove(timer)
+    assert delivered == [("hashes", None)]
+    assert len(ticks) >= 15, f"main loop ran {len(ticks)} ticks while the job slept"

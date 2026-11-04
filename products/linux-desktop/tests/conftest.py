@@ -89,6 +89,12 @@ if "gi" not in sys.modules and not _real_gtk_usable():
         def set_tooltip_text(self, *args, **kwargs):
             pass
 
+        def set_focus_on_click(self, *args, **kwargs):
+            pass
+
+        def set_group(self, *args, **kwargs):
+            pass
+
         def set_action_name(self, *args, **kwargs):
             pass
 
@@ -251,6 +257,7 @@ if "gi" not in sys.modules and not _real_gtk_usable():
     mock_gtk.ActionBar = MockGtkWidget
     mock_gtk.Widget = MockGtkWidget
     mock_gtk.Button = MockGtkWidget
+    mock_gtk.ToggleButton = MockGtkWidget
     mock_gtk.Label = MockGtkWidget
     mock_gtk.ProgressBar = MockGtkWidget
     mock_gtk.ScrolledWindow = MockGtkWidget

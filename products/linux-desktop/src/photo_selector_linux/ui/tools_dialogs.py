@@ -22,6 +22,11 @@ from typing import Callable, List, Optional
 from photo_selector_linux.core.duplicate_finder import DuplicateCluster, find_duplicates
 from photo_selector_linux.core.statistics import LibraryStatistics, calculate_library_statistics
 from photo_selector_linux.ui.file_worker import run_inline
+from photo_selector_linux.ui.secondary_window import install_chrome
+
+REMOTE_NOTICE = "Remote / Cloud folder detected. Confirm before scanning all files."
+SCAN_LABEL = "Scan for Duplicates"
+CONFIRM_LABEL = "Scan anyway"
 
 
 class DuplicateFinderDialog(Adw.Window if HAS_GI else object):
@@ -39,12 +44,14 @@ class DuplicateFinderDialog(Adw.Window if HAS_GI else object):
         self.status_text: str = "Ready to scan loaded library."
         self.awaiting_remote_confirmation: bool = False
         self.remote_confirmed: bool = False
+        self.scan_button_label: str = SCAN_LABEL
         if HAS_GI:
             super().__init__()
             self.set_title("Duplicate Finder")
             self.set_default_size(700, 520)
             if transient_for:
                 self.set_transient_for(transient_for)
+            self._toolbar = install_chrome(self)
             self._build_ui()
 
     @property
@@ -73,7 +80,7 @@ class DuplicateFinderDialog(Adw.Window if HAS_GI else object):
         self.lbl_status.add_css_class("dim-label")
         box.append(self.lbl_status)
 
-        self.btn_scan = Gtk.Button(label="Scan for Duplicates")
+        self.btn_scan = Gtk.Button(label=SCAN_LABEL)
         self.btn_scan.add_css_class("suggested-action")
         self.btn_scan.connect("clicked", self._on_scan_clicked)
         box.append(self.btn_scan)
@@ -86,12 +93,21 @@ class DuplicateFinderDialog(Adw.Window if HAS_GI else object):
         self.scrolled.set_child(self.results_box)
         box.append(self.scrolled)
 
-        self.set_content(box)
+        self._toolbar.set_content(box)
 
     def _set_status(self, text: str) -> None:
         self.status_text = text
         if HAS_GI and hasattr(self, "lbl_status"):
             self.lbl_status.set_label(text)
+
+    def _set_scan_enabled(self, enabled: bool) -> None:
+        if HAS_GI and hasattr(self, "btn_scan"):
+            self.btn_scan.set_sensitive(enabled)
+
+    def _set_scan_label(self, label: str) -> None:
+        self.scan_button_label = label
+        if HAS_GI and hasattr(self, "btn_scan"):
+            self.btn_scan.set_label(label)
 
     def confirm_remote_scan(self) -> None:
         """Confirm full-folder duplicate pass over a remote/cloud mount (U-31)."""
@@ -100,25 +116,32 @@ class DuplicateFinderDialog(Adw.Window if HAS_GI else object):
         self._on_scan_clicked(None)
 
     def _on_scan_clicked(self, btn) -> None:
+        if btn is not None and self.awaiting_remote_confirmation:
+            # The button read "Scan anyway": this click is the confirmation (U-31).
+            self.confirm_remote_scan()
+            return
         if not self.viewmodel or not self.viewmodel.candidates:
             self._set_status("No photographs loaded to scan.")
             return
 
         if self.needs_remote_confirmation:
             self.awaiting_remote_confirmation = True
-            self._set_status(
-                "Remote / Cloud folder detected. Confirm before scanning all files."
-            )
+            self._set_status(REMOTE_NOTICE)
+            self._set_scan_label(CONFIRM_LABEL)
             return
 
         self.awaiting_remote_confirmation = False
+        self._set_scan_label(SCAN_LABEL)
         self._set_status("Scanning files...")
         candidates_snapshot = list(self.viewmodel.candidates)
 
         def job():
             return find_duplicates(candidates_snapshot)
 
+        self._set_scan_enabled(False)
+
         def done(clusters, error):
+            self._set_scan_enabled(True)
             if error is not None:
                 self._set_status(f"Error scanning files: {error}")
                 return
@@ -182,6 +205,7 @@ class LibraryStatisticsDialog(Adw.Window if HAS_GI else object):
             self.set_default_size(680, 560)
             if transient_for:
                 self.set_transient_for(transient_for)
+            self._toolbar = install_chrome(self)
             self._build_ui()
 
     @property
@@ -197,9 +221,32 @@ class LibraryStatisticsDialog(Adw.Window if HAS_GI else object):
         self.awaiting_remote_confirmation = False
         self._build_ui()
 
+    def _build_remote_placeholder(self):
+        """What a remote folder shows until the user agrees to the full pass: never a blank window."""
+        box = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=12)
+        box.set_valign(Gtk.Align.CENTER)
+        box.set_halign(Gtk.Align.CENTER)
+        box.set_margin_top(24)
+        box.set_margin_bottom(24)
+        box.set_margin_start(24)
+        box.set_margin_end(24)
+        label = Gtk.Label(label=REMOTE_NOTICE)
+        label.set_wrap(True)
+        label.set_justify(Gtk.Justification.CENTER)
+        box.append(label)
+        self.btn_confirm = Gtk.Button(label=CONFIRM_LABEL)
+        self.btn_confirm.set_name("btn_confirm_remote")
+        self.btn_confirm.add_css_class("suggested-action")
+        self.btn_confirm.set_halign(Gtk.Align.CENTER)
+        self.btn_confirm.connect("clicked", lambda _b: self.confirm_remote_scan())
+        box.append(self.btn_confirm)
+        return box
+
     def _build_ui(self) -> None:
         if self.needs_remote_confirmation:
             self.awaiting_remote_confirmation = True
+            if HAS_GI:
+                self._toolbar.set_content(self._build_remote_placeholder())
             return
 
         photos = self.viewmodel.candidates if self.viewmodel else []
@@ -289,4 +336,4 @@ class LibraryStatisticsDialog(Adw.Window if HAS_GI else object):
                 ss_group.add(row)
             box.append(ss_group)
 
-        self.set_content(scrolled)
+        self._toolbar.set_content(scrolled)

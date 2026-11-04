@@ -169,6 +169,72 @@ class WorkflowBoundsTest(unittest.TestCase):
                     unpinned.append(f"{path.name}: {ref}")
         self.assertEqual(unpinned, [])
 
+    def test_runner_images_are_pinned(self):
+        # 2026-11-03 (SET-CI-8): every job ran on a floating image, and GitHub had already announced
+        # that `ubuntu-latest` moves to a new release. The flip would have landed on `main`
+        # unannounced (apt package names, the emulator job's KVM step, the glibc the legacy Linux
+        # binary is linked against). Moving to a newer image is one deliberate change.
+        floating = []
+        for path in sorted(WORKFLOWS.glob("*.yml")):
+            for line in path.read_text(encoding="utf-8").splitlines():
+                if re.search(r"(runs-on:|- os:)\s*[\w.-]*-latest\b", line):
+                    floating.append(f"{path.name}: {line.strip()}")
+        self.assertEqual(floating, [])
+
+    def test_apt_steps_retry_and_are_bounded(self):
+        # 2026-10-23: one `apt-get update` stalled for 15 minutes and consumed 80 % of a 20-minute
+        # job bound. Retries are the cure; a 5-minute step bound makes a stall cheap.
+        problems = []
+        for path in sorted(WORKFLOWS.glob("*.yml")):
+            steps = re.split(r"(?m)^\s*- (?=name:|uses:|run:)", path.read_text(encoding="utf-8"))
+            for step in steps:
+                for command in run_commands(step):
+                    for apt in re.findall(r"apt-get\s+(?:-\S+\s+)*(?:update|install)", command):
+                        if "Acquire::Retries=3" not in apt:
+                            problems.append(f"{path.name}: {apt} has no Acquire::Retries=3")
+                if "apt-get" in step and not re.search(r"(?m)^\s+timeout-minutes:\s*[1-5]\s*$", step):
+                    problems.append(f"{path.name}: an apt-get step has no step-level timeout-minutes of at most 5")
+        self.assertEqual(problems, [])
+
+    def test_actions_cache_is_not_the_node_20_release(self):
+        # The composite action under .github/actions was the one place still on actions/cache@v4.
+        for path in sorted(list(WORKFLOWS.glob("*.yml")) + list((WORKFLOWS.parent / "actions").rglob("*.yml"))):
+            with self.subTest(file=path.name):
+                self.assertNotIn("actions/cache@v4", path.read_text(encoding="utf-8"))
+
+    def test_the_nightly_tag_move_cannot_fail_a_published_run(self):
+        # 2026-10-22: a 403 on the tag step failed Desktop, macOS and Android runs after (or before)
+        # their assets were published. The step is a convenience for the nightly link.
+        for name in ("desktop.yml", "macos.yml"):
+            text = (WORKFLOWS / name).read_text(encoding="utf-8")
+            with self.subTest(workflow=name):
+                tag_step = text.index("- name: Move nightly tag to this commit")
+                publish = text.index("- name: Update GitHub Release")
+                self.assertGreater(tag_step, publish, "the tag moves after the release is published")
+                self.assertIn("continue-on-error: true", text[tag_step:tag_step + 400])
+
+
+DEPENDABOT = WORKFLOWS.parent / "dependabot.yml"
+
+
+class DependabotCoverageTest(unittest.TestCase):
+    def test_python_projects_and_composite_actions_are_covered(self):
+        # 2026-11-03 (LD-S-2, SET-CI-10): Dependabot scanned neither Poetry project (the locked
+        # Pillow carried ~60 advisories nobody was told about) nor .github/actions/*.
+        text = DEPENDABOT.read_text(encoding="utf-8")
+        blocks = re.split(r"(?m)^  - package-ecosystem: ", text)[1:]
+        by_ecosystem = {block.split()[0]: block for block in blocks}
+        for directory in ("/products/desktop", "/products/linux-desktop"):
+            with self.subTest(directory=directory):
+                self.assertIn(directory, by_ecosystem["pip"])
+        self.assertIn("/.github/actions/*", by_ecosystem["github-actions"])
+        self.assertIn("version-update:semver-major", by_ecosystem["pip"])
+
+    def test_every_composite_action_directory_is_in_the_glob(self):
+        actions = WORKFLOWS.parent / "actions"
+        self.assertTrue(list(actions.glob("*/action.yml")), "no composite action found")
+        self.assertIn("/.github/actions/*", DEPENDABOT.read_text(encoding="utf-8"))
+
 
 if __name__ == "__main__":
     unittest.main()

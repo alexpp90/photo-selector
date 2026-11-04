@@ -2,6 +2,9 @@ package com.phototok.ui.settings
 
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.selection.toggleable
+import androidx.compose.foundation.selection.selectable
+import androidx.compose.ui.semantics.Role
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.ColumnScope
@@ -45,7 +48,8 @@ fun SettingsToggleItem(
     Row(
         modifier = Modifier
             .fillMaxWidth()
-            .clickable { onCheckedChange(!checked) }
+            // One TalkBack stop: the row is the switch ("Title, on, switch"); the Switch only draws.
+            .toggleable(value = checked, role = Role.Switch, onValueChange = onCheckedChange)
             .padding(horizontal = 16.dp, vertical = 14.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
@@ -69,7 +73,7 @@ fun SettingsToggleItem(
 
         Switch(
             checked = checked,
-            onCheckedChange = onCheckedChange,
+            onCheckedChange = null,
             colors = SwitchDefaults.colors(
                 checkedThumbColor = colors.onPrimary,
                 checkedTrackColor = colors.primary,
@@ -161,13 +165,13 @@ fun <T> SettingsRadioGroup(
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .clickable { onSelect(value) }
+                    .selectable(selected = selected == value, role = Role.RadioButton, onClick = { onSelect(value) })
                     .padding(vertical = 4.dp),
                 verticalAlignment = Alignment.CenterVertically,
             ) {
                 RadioButton(
                     selected = selected == value,
-                    onClick = { onSelect(value) },
+                    onClick = null,
                     colors = RadioButtonDefaults.colors(
                         selectedColor = colors.primary,
                         unselectedColor = colors.onSurfaceVariant,

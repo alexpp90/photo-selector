@@ -177,4 +177,68 @@ class FavouriteSyncLogicTest {
         assertFalse(s.isSynced(sd))
         assertTrue(FavouriteSyncLogic.batches(s).isEmpty())
     }
+
+    private val moved = doc(tree, "Selection%2FIMG_1.JPG")
+
+    @Test
+    fun `a favourite follows its file when the photo is moved`() {
+        val s = FavouriteSyncLogic.setFavourite(FavouritesSnapshot(), listOf(jpg), favourite = true)
+
+        val after = FavouriteSyncLogic.followFile(s, source = jpg, destination = moved, keepSource = false)
+
+        assertTrue(after.isFavourite(moved))
+        assertFalse("the original path no longer holds a favourite", after.isFavourite(jpg))
+    }
+
+    @Test
+    fun `a favourite stays on the original and the copy is a favourite too`() {
+        val s = FavouriteSyncLogic.setFavourite(FavouritesSnapshot(), listOf(jpg), favourite = true)
+
+        val after = FavouriteSyncLogic.followFile(s, source = jpg, destination = moved, keepSource = true)
+
+        assertTrue(after.isFavourite(jpg))
+        assertTrue(after.isFavourite(moved))
+    }
+
+    @Test
+    fun `a photo that is not a favourite stays one-sided after a transfer`() {
+        val after = FavouriteSyncLogic.followFile(FavouritesSnapshot(), jpg, moved, keepSource = false)
+
+        assertEquals(FavouritesSnapshot(), after)
+    }
+
+    @Test
+    fun `moving a resolved favourite queues no un-favourite for the old media item`() {
+        val synced = FavouriteSyncLogic.applyResult(
+            FavouriteSyncLogic.setFavourite(resolved(), listOf(jpg), favourite = true),
+            FavouriteSyncBatch(listOf(jpgMedia), favourite = true),
+            accepted = true,
+        )
+        assertTrue(synced.pending.isEmpty())
+
+        val after = FavouriteSyncLogic.followFile(synced, jpg, moved, keepSource = false)
+
+        assertTrue("nothing is sent for the old item", after.pending.isEmpty())
+        assertTrue(after.isFavourite(moved))
+        assertFalse(after.isFavourite(jpg))
+        // The destination resolves to its own MediaStore row: the favourite is queued for it.
+        val destMedia = "content://media/external/images/media/99"
+        val resolvedMoved = FavouriteSyncLogic.attachMediaUris(after, mapOf(moved to destMedia))
+        assertEquals(mapOf(destMedia to true), resolvedMoved.pending)
+    }
+
+    @Test
+    fun `a copy whose destination already resolved is queued for its media item`() {
+        val destMedia = "content://media/external/images/media/77"
+        val s = FavouriteSyncLogic.attachMediaUris(
+            FavouriteSyncLogic.setFavourite(resolved(), listOf(jpg), favourite = true),
+            mapOf(moved to destMedia),
+        )
+
+        val after = FavouriteSyncLogic.followFile(s, jpg, moved, keepSource = true)
+
+        assertEquals(true, after.pending[destMedia])
+        assertTrue(after.isFavourite(jpg))
+    }
 }
+

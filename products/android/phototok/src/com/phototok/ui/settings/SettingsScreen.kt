@@ -6,6 +6,8 @@ import android.net.Uri
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.selection.toggleable
+import androidx.compose.ui.semantics.Role
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -319,7 +321,11 @@ fun SettingsScreen(
                     Column(
                         modifier = Modifier
                             .fillMaxWidth()
-                            .clickable { viewModel.updateDirectDeleteConfirm(!uiState.directDeleteConfirmEnabled) }
+                            .toggleable(
+                                value = uiState.directDeleteConfirmEnabled,
+                                role = Role.Switch,
+                                onValueChange = { viewModel.updateDirectDeleteConfirm(it) },
+                            )
                             .padding(horizontal = 16.dp, vertical = 14.dp)
                     ) {
                         Row(
@@ -337,7 +343,7 @@ fun SettingsScreen(
 
                             Switch(
                                 checked = uiState.directDeleteConfirmEnabled,
-                                onCheckedChange = { viewModel.updateDirectDeleteConfirm(it) },
+                                onCheckedChange = null,
                                 colors = SwitchDefaults.colors(
                                     checkedThumbColor = colors.onPrimary,
                                     checkedTrackColor = colors.primary,

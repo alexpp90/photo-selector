@@ -174,10 +174,59 @@ class PrivacyTest(unittest.TestCase):
         self.assertIn("~/.cache", flat)
 
     def test_machine_info_holds_no_host_or_user(self):
-        info = json.dumps(vr.scrub(vr.machine_info(), vr.private_tokens(None)))
+        machine = vr.scrub_machine(vr.machine_info(), vr.private_tokens(None))
         host = socket.gethostname().split(".")[0]
+        # The firmware's model and the CPU name are not user data; the rest of the description is.
+        info = json.dumps({k: v for k, v in machine.items() if k not in ("model", "cpu")})
         if len(host) >= 3:
             self.assertNotIn(host.lower(), info.lower())
+
+    def test_a_host_name_equal_to_a_model_token_does_not_rewrite_the_model(self):
+        # 2026-11-03: a ThinkPad named "T14" came out as "Lenovo ThinkPad <host> Gen 1".
+        with mock.patch.object(socket, "gethostname", return_value="T14"), \
+                mock.patch.object(getpass, "getuser", return_value="someone"), \
+                mock.patch.object(os.path, "expanduser", return_value="/home/someone"), \
+                mock.patch.object(vr.platform, "system", return_value="Linux"):
+            tokens = vr.private_tokens(None)
+        machine = {"model": "Lenovo ThinkPad T14 Gen 1", "cpu": "Intel Core i5", "os": "Debian on T14",
+                   "arch": "x86_64"}
+        scrubbed = vr.scrub_machine(machine, tokens)
+        self.assertEqual(scrubbed["model"], "Lenovo ThinkPad T14 Gen 1")
+        self.assertEqual(scrubbed["os"], "Debian on <host>")
+        # A user name inside a model string is still removed.
+        self.assertNotIn("someone", vr.scrub_machine({"model": "someone's laptop"}, tokens)["model"])
+
+
+class ExecutorTest(unittest.TestCase):
+    def test_the_executor_is_a_tool_or_person_never_a_model_or_version(self):
+        for given, expected in (
+            ("Claude Code", "Claude Code"),
+            ("Claude Code (some-model 4.1)", "Claude Code"),
+            ("Gemini CLI, model x-2.5 pro", "Gemini CLI"),
+            ("Cursor v1.2.3", "Cursor"),
+            ("Jules · 3.0", "Jules"),
+            ("Alex", "Alex"),
+            ("4.7", "unnamed executor"),
+        ):
+            with self.subTest(given=given):
+                self.assertEqual(vr.executor_name(given), expected)
+
+    def test_environment_applies_it_to_PST_EXECUTOR(self):
+        with mock.patch.dict(os.environ, {"PST_EXECUTOR": "Claude Code (model 9.9)"}):
+            self.assertEqual(vr.environment()["kind"], "Claude Code")
+
+
+class ToolchainInterpreterTest(unittest.TestCase):
+    def test_python_is_the_interpreter_that_ran_the_gates(self):
+        # 2026-10-25: the record said "Python 3.15" although pytest ran in the 3.13 venv.
+        with tempfile.TemporaryDirectory() as tmp:
+            fake = Path(tmp) / "python"
+            fake.write_text("#!/bin/sh\necho 'Python 3.13.7'\n", encoding="utf-8")
+            fake.chmod(0o755)
+            with mock.patch.dict(os.environ, {"PST_GATE_PYTHON": str(fake)}):
+                self.assertEqual(vr.toolchains(Path(tmp))["Python"], "3.13.7")
+            with mock.patch.dict(os.environ, {"PST_GATE_PYTHON": str(Path(tmp) / "missing")}):
+                self.assertEqual(vr.toolchains(Path(tmp))["Python"], vr.platform.python_version())
 
 
 class EvaluateTest(unittest.TestCase):

@@ -18,13 +18,17 @@ permissions:
   contents: read
 
 concurrency:
-  group: pr-verification-${{ github.event.pull_request.number }}
+  # A no-op `edited` event (title or base branch) skips the job below, and a skipped run would still
+  # cancel the record check in flight if it shared the group: it gets a group of its own.
+  group: pr-verification-${{ github.event.pull_request.number }}-${{ github.event.action == 'edited' && github.event.changes.body == null && 'noop' || 'record' }}
   cancel-in-progress: true
 
 jobs:
   record:
     name: Verification record (advisory)
-    runs-on: ubuntu-latest
+    # An `edited` event for a changed title or base branch leaves the description as it was.
+    if: github.event.action != 'edited' || github.event.changes.body != null
+    runs-on: ubuntu-24.04
     timeout-minutes: 10
     steps:
       - uses: actions/checkout@v7

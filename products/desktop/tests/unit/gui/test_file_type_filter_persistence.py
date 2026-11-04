@@ -11,6 +11,11 @@ def mock_sys_modules():
     import sys
     import importlib
 
+    # SharpnessTool binds core.sharpness, exif.reader, ... by name at import time. Import it
+    # for real before the stand-ins go into sys.modules; otherwise a run of this file on its own
+    # (where nothing imported it earlier) binds the MagicMocks and every scan returns a mock.
+    importlib.import_module("photo_selector_toolbox.gui.sharpness_tool")
+
     modules_to_mock = [
         "rawpy",
         "photo_selector_toolbox.gui.controllers",

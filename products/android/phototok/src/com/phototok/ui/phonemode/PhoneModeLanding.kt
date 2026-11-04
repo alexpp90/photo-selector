@@ -301,8 +301,8 @@ fun PhoneModeLanding(
                         Surface(
                             modifier = Modifier
                                 .fillMaxWidth()
-                                .height(44.dp)
-                                .clickable {
+                                .heightIn(min = 48.dp)
+                                .clickable(role = Role.Button) {
                                     onReselectFolder?.invoke() ?: sourcePickerLauncher.launch(null)
                                 }
                                 .testTag("reselect_folder_button"),
@@ -395,7 +395,7 @@ fun PhoneModeLanding(
                     modifier = Modifier
                         .fillMaxWidth()
                         .height(56.dp)
-                        .clickable(enabled = canResume) { onStart() }
+                        .clickable(enabled = canResume, role = Role.Button) { onStart() }
                         .testTag("landing_start_browsing_button"),
                     shape = RoundedCornerShape(12.dp),
                     color = colors.primary,
@@ -528,13 +528,16 @@ private fun RecentPathRow(
 ) {
     val colors = MaterialTheme.colorScheme
 
+    // A disconnected folder fades its icon, name and badge, never its "Not connected" line,
+    // which must stay readable (review JP-UX-8: faded it was 3.8:1).
+    val fade = if (isUnmounted) 0.55f else 1f
     Surface(
         modifier = Modifier
             .fillMaxWidth()
-            .alpha(if (isUnmounted) 0.55f else 1f)
             .clip(RoundedCornerShape(12.dp))
             .border(1.dp, colors.outlineVariant, RoundedCornerShape(12.dp))
-            .clickable(onClick = onClick),
+            .clickable(role = Role.Button, onClick = onClick)
+            .testTag("landing_recent_row"),
         shape = RoundedCornerShape(12.dp),
         color = colors.surfaceContainer,
     ) {
@@ -547,13 +550,14 @@ private fun RecentPathRow(
                 imageVector = Icons.Default.History,
                 contentDescription = null,
                 tint = if (isUnmounted) colors.onSurfaceVariant else colors.primary,
-                modifier = Modifier.size(20.dp),
+                modifier = Modifier.size(20.dp).alpha(fade),
             )
             Column(modifier = Modifier.weight(1f)) {
                 Text(
                     text = recent.name.ifEmpty { stringResource(R.string.label_folder) },
                     style = MaterialTheme.typography.bodyMedium,
                     color = colors.onSurface,
+                    modifier = Modifier.alpha(fade),
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis,
                 )
@@ -573,6 +577,7 @@ private fun RecentPathRow(
             Surface(
                 shape = RoundedCornerShape(6.dp),
                 color = colors.surfaceContainerHighest,
+                modifier = Modifier.alpha(fade),
             ) {
                 Text(
                     text = sourceKindBadgeLabel(recent.kind),
@@ -585,7 +590,7 @@ private fun RecentPathRow(
                 imageVector = Icons.AutoMirrored.Filled.ArrowForward,
                 contentDescription = null,
                 tint = colors.onSurfaceVariant,
-                modifier = Modifier.size(18.dp),
+                modifier = Modifier.size(18.dp).alpha(fade),
             )
         }
     }

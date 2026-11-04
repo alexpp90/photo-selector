@@ -10,8 +10,8 @@ Formerly Photo-Tok.
   [![Android: 8.0+](https://img.shields.io/badge/Android-8.0%2B%20(API%2026--36)-3DDC84?logo=android&logoColor=white)](https://developer.android.com/)
   [![Kotlin](https://img.shields.io/badge/Kotlin-2.0%2B-7F52FF?logo=kotlin&logoColor=white)](https://kotlinlang.org/)
   [![Jetpack Compose](https://img.shields.io/badge/Compose-BOM%202024%2B-4285F4?logo=jetpackcompose&logoColor=white)](https://developer.android.com/jetpack/compose)
-  [![Target](https://img.shields.io/badge/Form%20Factor-Phones%20%3C%20600%20dp-blue)](#target-environment)
-  [![Privacy](https://img.shields.io/badge/Privacy-100%25%20Offline%20%7C%20SAF%20Only-green)](#privacy--zero-cloud-guarantee)
+  [![Target](https://img.shields.io/badge/Form%20Factor-Phones%2C%20every%20size-blue)](#-product-overview)
+  [![Privacy](https://img.shields.io/badge/Privacy-100%25%20Offline%20%7C%20SAF%20Only-green)](#-privacy--zero-cloud-guarantee)
   [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](../../../LICENSE)
 </div>
 
@@ -19,15 +19,17 @@ Formerly Photo-Tok.
 
 ## 🌟 Visual Showcase
 
-| 1. Landing & Recent Folders | 2. Full Viewer & Glassmorphic HUD |
+| 1. Start Screen & Pro Mode | 2. Viewer & Swipe Hints |
 | :---: | :---: |
 | <img src="../../../assets/phototok_01_landing.png" alt="Jackpix Landing Screen" width="320" style="border-radius: 12px; box-shadow: 0 4px 15px rgba(0,0,0,0.3);" /> | <img src="../../../assets/phototok_02_viewer.png" alt="Jackpix Culling Viewer" width="320" style="border-radius: 12px; box-shadow: 0 4px 15px rgba(0,0,0,0.3);" /> |
-| *Direct entry via Camera roll or SAF tree picker, tilted photo fan, and 1-tap recent folders.* | *Full-screen preview, glassmorphic EXIF card, live page counter pill, and persistent action bar.* |
+| *Camera, SD card / USB and folder or cloud sources, the photo fan, and the Pro mode switch.* | *Full-screen photo, the idle swipe hints (★ right, delete left), the page counter and the icon-only bar.* |
 
-| 3. In-Place Coach Marks Guide | 4. Configurable Settings & Privacy |
+| 3. Controls Guide | 4. Settings (Pro mode) |
 | :---: | :---: |
 | <img src="../../../assets/phototok_03_tutorial.png" alt="Jackpix Coach Mark Tutorial" width="320" style="border-radius: 12px; box-shadow: 0 4px 15px rgba(0,0,0,0.3);" /> | <img src="../../../assets/phototok_04_settings.png" alt="Jackpix Settings Sheet" width="320" style="border-radius: 12px; box-shadow: 0 4px 15px rgba(0,0,0,0.3);" /> |
-| *Translucent 70% scrim, leader lines pointing to real buttons, and animated directional gesture stage.* | *Customizable swipe destinations, RAW+JPEG link toggles, orientation sorting, and § 5 DDG legal links.* |
+| *Each control and swipe named in one or two words, with leader lines to the real buttons.* | *Confirm delete, camera info, RAW + JPEG linking, format filter and the swipe actions.* |
+
+Captured on a Pixel 4a (en, font scale 1.0) with the lab's synthetic trip roll (`scripts/lab/lab.py usability-capture`).
 
 ---
 
@@ -43,7 +45,7 @@ While the desktop and tablet products emphasize multi-up comparative culling and
 
 ### 1. Vertical Pager Feed & Progressive Loading
 *   **Compose Native `VerticalPager`:** Smooth, fluid scrolling between photos powered by `androidx.compose.foundation.pager.VerticalPager`.
-*   **Predictive Coil Prefetching:** Pre-fetches high-resolution images within a radius of $\pm 3$ positions around the active viewport, ensuring stutter-free paging transitions.
+*   **Predictive Coil Prefetching:** Pre-fetches the photos ahead in the direction you scroll: 4 ahead and 1 behind (2 and 0 for cloud folders), turning round with you, so paging does not stutter.
 *   **Progressive SAF Enumeration:** Emits a first batch after 24 photos, subsequent batches every 250 photos, rendering a live `${index + 1} / ${total}+` indicator while folder discovery streams in the background.
 
 ### 2. Casual and Pro Mode
@@ -52,9 +54,9 @@ While the desktop and tablet products emphasize multi-up comparative culling and
 *   **Updates keep your setup:** settings are migrated at startup (schema 3). An existing install that had customised a Pro setting, used camera info or used an SD card starts in Pro, so nothing changes after the update.
 
 ### 3. Tactile Culling Gestures
-*   **Swipe-Right to File (`★` / `COPY` / `MOVE`):** In Casual see above; in Pro, ★ marks a favourite in place and Copy/Move files the photo into the user's `Selection/` folder — by default a `Selection/` subfolder of the source folder, never the source folder itself ("Organize Selection by RAW / JPEG" adds `RAW/` and `JPEG/` inside it). Accompanied by a glowing green action badge and an animated confirmation checkmark flash.
+*   **Swipe-Right to File (`★` / `COPY` / `MOVE`):** In Casual see above; in Pro, ★ marks a favourite in place and Copy/Move files the photo into the user's `Selection/` folder — by default a `Selection/` subfolder of the source folder (Pro: the name set under Settings → Selection folder), never the source folder itself ("Organize Selection by RAW / JPEG" adds `RAW/` and `JPEG/` inside it, for every source, and is off by default). A source uses its own Selection and left-swipe folders, or its own source folder when it has none; opening another source never carries them over. A favourite follows its photo into the Selection folder, and a copy of a favourite is a favourite too. Accompanied by a glowing lime action badge and an animated confirmation checkmark flash.
 *   **Swipe-Left to Discard or Route (`DELETE` / `COPY` / `MOVE`):** Configurable in Settings; a copy or move goes into a `PhotoTok_LeftSwipe/` subfolder of the source folder or of the chosen custom folder. Deletions show a progressive pulsing red trash icon, card tilt ($2^\circ$), and the direct-delete confirmation dialog (on by default in both modes; its "Don't ask" checkbox or the Settings row turns it off, and Undo still restores until the deletions are committed).
-*   **Persistent Revert:** Deletions remain undoable across vertical scrolls via the viewer bottom bar's **Undo delete** button (`RestoreFromTrash`; the bar is icon-only — every control has a spoken name and a long-press tooltip — alongside the folder, **Selection** and **Share** buttons) until navigation away, folder switch, or subsequent file mutation. After Revert the viewer shows the restored photo.
+*   **Persistent Revert:** Deletions remain undoable across vertical scrolls via the **Undo** action of the "Photo deleted" snackbar and the viewer bottom bar's **Undo delete** button (`Undo` arrow; the bar is icon-only — every control has a spoken name and a long-press tooltip — alongside the folder, **Selection** and **Share** buttons) until navigation away, folder switch, or subsequent file mutation. After Revert the viewer shows the restored photo.
 *   **Non-Blocking Optimistic Execution:** Feed updates immediately upon gesture completion; file transfers run on the injected `@ApplicationScope`. Any failed mutation is cleanly re-inserted into the feed at its original slot.
 
 ### 4. Inspection & Tap Controls
@@ -66,13 +68,15 @@ While the desktop and tablet products emphasize multi-up comparative culling and
 *   **Newest Photo First:** Every source — phone, cloud, SD card and camera — starts newest first, so the newest photo is `1/N`, whether you have seen it or not. Pro mode adds **Feed order** (per source): newest first, by file name (shooting order), shuffle, or landscape first.
 *   **Preloading Follows Your Scroll Direction:** the photos ahead of you in the direction you are scrolling are loaded in advance (4 on the phone or a card, 2 from the cloud); turn round and the preloading turns with you.
 *   **Reload Goes to the Latest Photo; New Photos Prompt on Reopen:** The Reload button (`Sync`; top bar, landscape panel and Settings) rescans the folder and takes you to its latest photo, new photos or not, with no dialog and no snackbar. In newest-first order that is position 1 (`1/N`), even when you have already seen it. Reopening a folder resumes at the photo you left off; if newer photos arrived since then, a short dialog ("3 new photos", `FolderResumeDialog`) offers **Show new** or **Stay**.
+*   **Cull Without Swiping:** The long-press menu also has **Copy** and **Move** into the Selection folder, and with TalkBack the configured swipe right and swipe left are custom actions on the photo ("Copy to Selection", "Delete photo"); a delete still asks first when the confirmation is on.
 *   **Share While Scrolling:** An icon-only **Share** button (`Share`) in the viewer bottom bar (and the landscape left panel) shares the current photo, the same chooser as the long-press menu.
+*   **Done with this card:** the top bar of an SD card or camera opens a sheet with **Keep all** (default), **Delete rejects** (the queued left-swipes) and **Delete all (N)**. N counts every file that goes, the RAW companions, other file types and `.xmp` sidecars included, and the button waits until the card has been read completely; if some files cannot be deleted they stay in the feed and the message says how many went. "N copied" on the sheet survives the app being closed.
 *   **Selection Viewer:** The Selection button opens your Favourites (★, `Star`) and the Selection folder (`Folder`), each with its photo count ("Favourites 3", "Selection 12"). It opens on the list your swipe right fills (★ Favourite → Favourites, Copy/Move → Selection). The two tabs appear only when both lists have photos; with one, a plain title replaces them.
 *   **Favourites in Other Apps (Android 11+):** A favourite (swipe right set to ★, or **Favourite** / **Remove favourite** in the long-press menu) also sets Android's own favourite flag (`MediaStore` `IS_FAVORITE`) for photos on the phone's storage and on an SD card the system has indexed, RAW+JPEG companions included. Jackpix sends the changes in batches when you leave the feed, switch folders, open the Selection viewer, or after 25 changes, through the system's favourite request; Android 11 and later grant it without a dialog. It also reads the flag back: a favourite set in another app shows here. The badge under the top bar tells the two apart: a filled star is a favourite the system has too, an outlined star one that is only in Jackpix for now (not sent yet, a camera/USB or cloud source, or Android 10 and older). Which galleries show the flag is up to them; the system photo picker lists such photos in its Favourites album.
 *   **Short, Action-First Copy:** Dialogs, hint cards and snackbars keep to a few words. A count replaces a sentence, buttons name their outcome, and hints offer a **SETTINGS** button rather than telling you where to look (rules in [`DESIGN.md` § 8](DESIGN.md#8-copy--messaging)).
 *   **In-Place Coach Marks Tutorial (`GestureTutorialOverlay`):** Contextual guide whose callouts are placed from the measured positions of the real bar buttons (under the top bar, above the bottom bar, beside the side panels in landscape), so each label points at its control on every phone and font size, without scrolling. Each callout is one or two words (no description lines); the swipe captions name the configured action and folder. Triggers automatically on first run, after 7+ days of inactivity, or on demand via the Help icon.
 *   **Minimal Text, English & German:** Bars and toolbars are icon-only with a long-press tooltip; buttons, hints and snackbars are a few words (`docs/shared/UI_TEXT.md`). Every string is a resource in English and German (`res/values/strings.xml`, `res/values-de/strings.xml`); the budgets and the translation are checked in CI and by the `TextLoadScreenshotTest` renderings at font scale 2.0.
-*   **RAW+JPEG Sibling Pairing:** Centered dialog detects companion RAW and JPEG files, allowing users to link operations across both formats (`moveRelatedFiles = true`) or filter by format. With linking on, a swipe-left delete takes the whole bundle (shown file and its siblings) out of the feed together, **Revert** brings all of it back in place, and a delete the file system refuses is reported by name and the photo returns to the feed. A move whose copy succeeded but whose original could not be removed keeps the photo in the feed and says so ("Copied to … — original could not be removed").
+*   **RAW+JPEG Sibling Pairing:** Centered dialog detects companion RAW and JPEG files, allowing users to link operations across both formats (`moveRelatedFiles = true`) or filter by format. With linking on, a swipe-left delete takes the whole bundle (shown file and its siblings) out of the feed together (a derivative card such as `IMG_1-Edit.tif` is the exception: it deletes only itself and its own sidecars, the original goes when you swipe the original), **Revert** brings all of it back in place, and a delete the file system refuses is reported by name and the photo returns to the feed. A move whose copy succeeded but whose original could not be removed keeps the photo in the feed and says so ("Copied to …, original not removed").
 *   **Supported Formats:** JPEG, HEIF/HEIC, PNG, TIFF and WebP, plus camera RAW — Sony ARW, Canon CR2 and CR3, Nikon NEF and NRW, Fujifilm RAF, Panasonic RW2, OM System/Olympus ORF, Pentax PEF, DNG and Samsung SRW, with further RAW extensions (3FR, IIQ, RWL, SR2, MRW, X3F, ERF, MEF, …) recognised for discovery and pairing. Extensions match case-insensitively. RAWs are shown from the camera's embedded JPEG preview (no full RAW decode, so swiping stays fast); a RAW whose preview is smaller than 1024 px (phone DNGs) falls back to the platform decoder. The contract is `testdata/formats/manifest.json` ([docs/shared/SUPPORTED_FORMATS.md](../../shared/SUPPORTED_FORMATS.md)).
 *   **Orientation-Aware Sorting & Shuffle:** Settings toggles allow prioritizing landscape or portrait orientations first, or shuffling the feed randomly.
 
@@ -96,8 +100,8 @@ While the desktop and tablet products emphasize multi-up comparative culling and
 | **Package Name** | `com.phototok` |
 | **Application ID** | `com.phototok` |
 | **minSdk / targetSdk / compileSdk** | 26 (Android 8.0) / 36 (Android 16) / 37 |
-| **Target Device Class** | Portrait phones $< 600$ dp (Compact window size class) |
-| **Shared Code** | `:core` (`products/android/core/`) for shared EXIF models |
+| **Target Device Class** | Phones of every size, compact and large flagship phones alike; portrait first, landscape supported |
+| **Shared Code** | `:core` (`products/android/core/`, EXIF model and readers) and `:saf` (`products/android/saf/`, SAF copy/move engine and folder access), shared with Frameduel |
 | **Output Artifacts** | `phototok-android-release.apk` / `.aab` |
 
 ### Architectural Layering
