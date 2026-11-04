@@ -7,9 +7,11 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 ## [Unreleased]
 
 ### Added
+- Preferences > Culling Destination: choose **Working folder** (Selection inside the folder you cull, as before) or a **Custom folder**, and see the full path your photos will go to, updated as you open another folder. A custom folder that is gone or not writable is shown as a warning.
 - **Lowest sharpness first** is in the main menu (View order) and on the **B** key, next to the natural order; the menu shows which one is active.
 
 ### Changed
+- Move and Copy no longer recreate a custom destination folder that has disappeared (for example an unplugged drive); they report the problem and leave the photo where it is. An existing custom destination is read as the Custom folder choice.
 - The empty start screen lost its tagline, and its key hints are generated from the same key table the app uses.
 - The action buttons read **Keep**, **Copy**, **Trash** and **Undo**; the keys moved into the tooltips and the `?` shortcut sheet. The tooltip of **Undo** names the action it would undo.
 - The view switcher (1-Up, 2-Up, 3-Up) is a toggle group, so a screen reader announces which view is pressed.
