@@ -57,10 +57,14 @@ import org.junit.runner.RunWith
 @RunWith(AndroidJUnit4::class)
 class SelectorScreenTest {
 
+    // Outermost: the activity must start in the geometry the test asks for.
     @get:Rule(order = 0)
-    val hiltRule = HiltAndroidRule(this)
+    val geometryRule = WindowGeometryRule()
 
     @get:Rule(order = 1)
+    val hiltRule = HiltAndroidRule(this)
+
+    @get:Rule(order = 2)
     val composeRule = createAndroidComposeRule<MainActivity>()
 
     @Inject
@@ -224,6 +228,7 @@ class SelectorScreenTest {
         composeRule.onAllNodesWithText("50mm", substring = true).onFirst().assertIsDisplayed()
     }
 
+    @ExpandedWindow
     @Test
     fun threeUpLayout_allThreeFramesAreExactlyTheSameSize() {
         // The core promise of the layout: the active frame is marked only by a
@@ -244,8 +249,8 @@ class SelectorScreenTest {
         }
         dismissGestureTutorialIfShown()
 
-        if (isCompactLayout()) return
-        if (composeRule.onAllNodesWithTag("column_next").fetchSemanticsNodes().isEmpty()) return
+        requireExpandedLayout()
+        assertTrue("the next frame is on screen", composeRule.onAllNodesWithTag("column_next").fetchSemanticsNodes().isNotEmpty())
 
         val current = composeRule.onNodeWithTag("column_current").getUnclippedBoundsInRoot()
         val previous = composeRule.onNodeWithTag("column_previous").getUnclippedBoundsInRoot()
@@ -271,6 +276,7 @@ class SelectorScreenTest {
         }
     }
 
+    @ExpandedWindow
     @Test
     fun hidingTheDetails_keepsTheControlsAndLeavesTheFrameCentred() {
         // The reported bug, in one test. Switching the readouts off collapsed
@@ -287,8 +293,8 @@ class SelectorScreenTest {
         }
         dismissGestureTutorialIfShown()
 
-        if (isCompactLayout()) return
-        if (composeRule.onAllNodesWithTag("details_toggle").fetchSemanticsNodes().isEmpty()) return
+        requireExpandedLayout()
+        assertTrue("the details toggle is on screen", composeRule.onAllNodesWithTag("details_toggle").fetchSemanticsNodes().isNotEmpty())
 
         composeRule.onNodeWithTag("details_toggle").performClick()
         composeRule.waitForIdle()
@@ -308,6 +314,7 @@ class SelectorScreenTest {
         }
     }
 
+    @ExpandedWindow
     @Test
     fun threeUpLayout_framesUseTheHeightTheDisplayAllows() {
         // A size floor, not a style preference. Both previous revisions of this
@@ -340,17 +347,20 @@ class SelectorScreenTest {
         }
         dismissGestureTutorialIfShown()
 
-        if (isCompactLayout()) return
-        if (composeRule.onAllNodesWithTag("column_current").fetchSemanticsNodes().isEmpty()) return
+        requireExpandedLayout()
+        assertTrue("the current frame is on screen", composeRule.onAllNodesWithTag("column_current").fetchSemanticsNodes().isNotEmpty())
 
         val rootBounds = composeRule.onRoot().getUnclippedBoundsInRoot()
-        val windowWidth = rootBounds.right - rootBounds.left
         val windowHeight = rootBounds.bottom - rootBounds.top
         val frame = composeRule.onNodeWithTag("column_current").getUnclippedBoundsInRoot()
         val frameHeight = frame.bottom - frame.top
 
         val imageRegionBounds = composeRule.onNodeWithTag("image_region").getUnclippedBoundsInRoot()
         val statusBarHeight = (imageRegionBounds.top - rootBounds.top).coerceAtLeast(0.dp)
+        // A display cutout (a punch-hole phone driven at the reference size, 86 dp on a Pixel 4a)
+        // takes width from the window before the screen draws anything; what the solver is
+        // offered is the window less that inset.
+        val windowWidth = offeredWindowWidth()
 
         val region = FrameGeometry.imageRegion(windowWidth, windowHeight, SidebarWidth, statusBarHeight)
         val expected = FrameGeometry.threeUpLayout(
@@ -366,13 +376,14 @@ class SelectorScreenTest {
             "frame is ${frameHeight.value}dp tall in a ${windowWidth.value}x" +
                 "${windowHeight.value}dp window, but the sidebar and the outer padding are " +
                 "the only chrome allowed and they leave room for ${expected.height.value}dp — " +
-                "something is consuming the height budget"
+                "something is consuming the height budget " +
+                "(image region ${imageRegionBounds}, status bar ${statusBarHeight.value}dp, root ${rootBounds})"
         }
 
         // The absolute floor, only where the window is the size the product is
         // designed for. A 1280x800 CI emulator is a smaller display than a Tab
         // S11 Ultra, not a regression.
-        if (windowHeight >= FrameGeometry.ReferenceWindowHeight) {
+        if (windowHeight >= FrameGeometry.ReferenceWindowHeight && windowWidth >= FrameGeometry.ReferenceWindowWidth) {
             assert(frameHeight >= FrameGeometry.MinimumReferenceFrameHeight) {
                 "frame is only ${frameHeight.value}dp on a reference-class " +
                     "${windowHeight.value}dp window; the floor is " +
@@ -381,6 +392,7 @@ class SelectorScreenTest {
         }
     }
 
+    @ExpandedWindow
     @Test
     fun filmstrip_defaultsToOffAndTheFramesKeepTheirFullHeightEitherWay() {
         // Two facts, and they are the same fact: the strip starts hidden
@@ -405,8 +417,8 @@ class SelectorScreenTest {
         }
         dismissGestureTutorialIfShown()
 
-        if (isCompactLayout()) return
-        if (composeRule.onAllNodesWithTag("column_current").fetchSemanticsNodes().isEmpty()) return
+        requireExpandedLayout()
+        assertTrue("the current frame is on screen", composeRule.onAllNodesWithTag("column_current").fetchSemanticsNodes().isNotEmpty())
 
         composeRule.onAllNodesWithTag("filmstrip").assertCountEquals(0)
         val hidden = composeRule.onNodeWithTag("column_current").getUnclippedBoundsInRoot()
@@ -416,18 +428,42 @@ class SelectorScreenTest {
             composeRule.onAllNodesWithTag("filmstrip").fetchSemanticsNodes().isNotEmpty()
         }
         val shown = composeRule.onNodeWithTag("column_current").getUnclippedBoundsInRoot()
+        val hiddenHeight = (hidden.bottom - hidden.top).value
+        val shownHeight = (shown.bottom - shown.top).value
 
-        assert(
-            kotlin.math.abs(
-                (shown.bottom - shown.top).value - (hidden.bottom - hidden.top).value,
-            ) < 1f
-        ) {
-            "turning the filmstrip on moved the frames from " +
-                "${(hidden.bottom - hidden.top).value}dp to " +
-                "${(shown.bottom - shown.top).value}dp — it is back in the height budget"
+        // The strip is free on a window as wide as the reference one; on a narrower one (a display
+        // cutout takes 86 dp from a Pixel 4a driven at the reference size) the solver itself says
+        // what it costs, so each state is held to the solver's answer for the width offered.
+        val rootBounds = composeRule.onRoot().getUnclippedBoundsInRoot()
+        val imageRegionBounds = composeRule.onNodeWithTag("image_region").getUnclippedBoundsInRoot()
+        val region = FrameGeometry.imageRegion(
+            offeredWindowWidth(),
+            rootBounds.bottom - rootBounds.top,
+            SidebarWidth,
+            (imageRegionBounds.top - rootBounds.top).coerceAtLeast(0.dp),
+        )
+        listOf(false to hiddenHeight, true to shownHeight).forEach { (strip, actual) ->
+            val expected = FrameGeometry.threeUpLayout(
+                regionWidth = region.width,
+                regionHeight = region.height,
+                aspect = 1.5f,
+                detailsVisible = true,
+                filmstripVisible = strip,
+            ).frame.height.value
+            assert(kotlin.math.abs(actual - expected) < 2f) {
+                "with the filmstrip ${if (strip) "on" else "off"} the frames are ${actual}dp tall, " +
+                    "the solver offers ${expected}dp"
+            }
+        }
+        if (offeredWindowWidth() >= FrameGeometry.ReferenceWindowWidth) {
+            assert(kotlin.math.abs(shownHeight - hiddenHeight) < 1f) {
+                "turning the filmstrip on moved the frames from ${hiddenHeight}dp to " +
+                    "${shownHeight}dp — it is back in the height budget"
+            }
         }
     }
 
+    @ExpandedWindow
     @Test
     fun filmstrip_isAVerticalColumnBesideTheFramesAndNeverOverThem() {
         // The filmstrip is the one piece of chrome that keeps trying to get back
@@ -447,9 +483,9 @@ class SelectorScreenTest {
         }
         dismissGestureTutorialIfShown()
 
-        if (isCompactLayout()) return
+        requireExpandedLayout()
         val strips = composeRule.onAllNodesWithTag("filmstrip").fetchSemanticsNodes()
-        if (strips.isEmpty()) return
+        assertTrue("the filmstrip is on screen", strips.isNotEmpty())
 
         val frames = listOf("column_current", "column_previous", "column_next")
             .flatMap { tag ->
@@ -493,6 +529,7 @@ class SelectorScreenTest {
         }
     }
 
+    @ExpandedWindow
     @Test
     fun neighbourFrame_maximiseBadgeDoesNotOverlapItsValueOverlay() {
         // Both sit inside the same tile bounds, so their placement is a rule
@@ -509,10 +546,11 @@ class SelectorScreenTest {
         }
         dismissGestureTutorialIfShown()
 
-        if (isCompactLayout()) return
+        requireExpandedLayout()
         val overlays = composeRule.onAllNodesWithTag("neighbour_overlay").fetchSemanticsNodes()
         val badges = composeRule.onAllNodesWithTag("maximise_badge").fetchSemanticsNodes()
-        if (overlays.isEmpty() || badges.isEmpty()) return
+        assertTrue("a neighbour value overlay is on screen", overlays.isNotEmpty())
+        assertTrue("a maximise badge is on screen", badges.isNotEmpty())
 
         overlays.forEach { overlay ->
             badges.forEach { badge ->
@@ -546,11 +584,12 @@ class SelectorScreenTest {
             useUnmergedTree = true,
         ).fetchSemanticsNodes().isNotEmpty()
 
+    @ExpandedWindow
     @Test
     fun firstRightArrowAfterLaunch_movesToTheSecondFrame() {
         loadTwoImages()
-        // CI's phone-class emulator runs the compact layout, which has its own keys.
-        if (isCompactLayout()) return
+        // Expanded-only (the compact layout has its own keys); WindowGeometryRule makes the window expanded.
+        requireExpandedLayout()
 
         // One key, through the window, like a keyboard: `sendKeyDownUpSync`
         // leaves touch mode. On a real Tab S11 Ultra the first press was spent on
@@ -561,11 +600,12 @@ class SelectorScreenTest {
         composeRule.waitUntil(timeoutMillis = 5000) { positionCounterShows("2 / 2") }
     }
 
+    @ExpandedWindow
     @Test
     fun firstRightArrowAfterClosingTheGuide_movesToTheSecondFrame() {
         loadTwoImages()
-        // CI's phone-class emulator runs the compact layout, which has its own keys.
-        if (isCompactLayout()) return
+        // Expanded-only (the compact layout has its own keys); WindowGeometryRule makes the window expanded.
+        requireExpandedLayout()
 
         composeRule.onAllNodesWithTag("shortcuts_button", useUnmergedTree = true)
             .onFirst().performClick()
@@ -588,11 +628,12 @@ class SelectorScreenTest {
         composeRule.onAllNodes(hasTestTag("go_to_photo_field"), useUnmergedTree = true)
             .fetchSemanticsNodes().isNotEmpty()
 
+    @ExpandedWindow
     @Test
     fun goToPhoto_keyG_opensTheDialog_aTypedOneDoesNotMaximise_escCloses_andFocusReturns() {
         loadTwoImages()
-        // CI's phone-class emulator runs the compact layout, which has no selector key handler.
-        if (isCompactLayout()) return
+        // Expanded-only (the compact layout has no selector key handler); WindowGeometryRule makes the window expanded.
+        requireExpandedLayout()
 
         pressKey(android.view.KeyEvent.KEYCODE_G)
         composeRule.waitUntil(timeoutMillis = 5000) { goToPhotoDialogShown() }
@@ -617,10 +658,11 @@ class SelectorScreenTest {
         composeRule.waitUntil(timeoutMillis = 5000) { positionCounterShows("2 / 2") }
     }
 
+    @ExpandedWindow
     @Test
     fun goToPhoto_tappingTheCounter_opensTheDialog_andGoJumps() {
         loadTwoImages()
-        if (isCompactLayout()) return
+        requireExpandedLayout()
 
         composeRule.onAllNodesWithTag("position_counter", useUnmergedTree = true)
             .onFirst().performClick()
@@ -633,11 +675,12 @@ class SelectorScreenTest {
         composeRule.waitUntil(timeoutMillis = 5000) { positionCounterShows("2 / 2") }
     }
 
+    @ExpandedWindow
     @Test
     fun sortOrder_newestFirst_isTheDefaultOrder_andTheMenuSwitchesIt() {
         runBlocking { settingsRepository.setSelectorSortOrder(SelectorSortOrder.NEWEST_FIRST) }
         loadTwoImagesNewestFirst()
-        if (isCompactLayout()) return
+        requireExpandedLayout()
 
         // Newest first: image2 (2000) is frame 1, so the counter reads 1 / 2 on image2.
         composeRule.waitUntil(timeoutMillis = 15000) { positionCounterShows("1 / 2") }
@@ -708,11 +751,12 @@ class SelectorScreenTest {
             .sendKeyDownUpSync(keyCode)
     }
 
+    @ExpandedWindow
     @Test
     fun fullscreen_firstRightArrow_pagesOnTheFirstPress() {
         loadThreeImages()
-        // CI's phone-class emulator runs the compact layout, which has no fullscreen button.
-        if (isCompactLayout()) return
+        // Expanded-only (the compact layout has no fullscreen button); WindowGeometryRule makes the window expanded.
+        requireExpandedLayout()
         openFullscreen()
 
         pressKey(android.view.KeyEvent.KEYCODE_DPAD_RIGHT)
@@ -720,11 +764,12 @@ class SelectorScreenTest {
         composeRule.waitUntil(timeoutMillis = 5000) { fullscreenShows("2 / 3") }
     }
 
+    @ExpandedWindow
     @Test
     fun fullscreen_arrowAfterTheChromeFaded_stillPages_andShowsTheNewFramesExif() {
         loadThreeImages()
-        // CI's phone-class emulator runs the compact layout, which has no fullscreen button.
-        if (isCompactLayout()) return
+        // Expanded-only (the compact layout has no fullscreen button); WindowGeometryRule makes the window expanded.
+        requireExpandedLayout()
         openFullscreen()
         // The chrome fades after 3 s, and the button that held focus went with it.
         composeRule.waitUntil(timeoutMillis = 10000) { !fullscreenChromeShown() }
@@ -742,11 +787,12 @@ class SelectorScreenTest {
         }
     }
 
+    @ExpandedWindow
     @Test
     fun fullscreen_arrowAfterAMoveInsideFullscreen_stillPages() {
         loadThreeImages()
-        // CI's phone-class emulator runs the compact layout, which has no fullscreen button.
-        if (isCompactLayout()) return
+        // Expanded-only (the compact layout has no fullscreen button); WindowGeometryRule makes the window expanded.
+        requireExpandedLayout()
         openFullscreen()
 
         pressKey(android.view.KeyEvent.KEYCODE_M)
@@ -757,11 +803,12 @@ class SelectorScreenTest {
         composeRule.waitUntil(timeoutMillis = 5000) { fullscreenShows("2 / 2") }
     }
 
+    @ExpandedWindow
     @Test
     fun fullscreen_moveShowsAConfirmationWithoutACountdown() {
         loadThreeImages()
-        // CI's phone-class emulator runs the compact layout, which has no fullscreen button.
-        if (isCompactLayout()) return
+        // Expanded-only (the compact layout has no fullscreen button); WindowGeometryRule makes the window expanded.
+        requireExpandedLayout()
         openFullscreen()
 
         pressKey(android.view.KeyEvent.KEYCODE_M)
@@ -778,9 +825,32 @@ class SelectorScreenTest {
             .assertCountEquals(0)
     }
 
+    /**
+     * The window width the screen can actually use: the root's width less the horizontal inset
+     * the screen applies (a display cutout; none on a tablet). The sidebar is the first thing
+     * drawn at the inset's edge.
+     */
+    private fun offeredWindowWidth(): androidx.compose.ui.unit.Dp {
+        val root = composeRule.onRoot().getUnclippedBoundsInRoot()
+        val sidebar = composeRule.onAllNodesWithTag("selector_sidebar").onFirst().getUnclippedBoundsInRoot()
+        return (root.right - root.left) - (sidebar.left - root.left).coerceAtLeast(0.dp)
+    }
+
     /** True when the window is narrow enough to be running the phone layout. */
     private fun isCompactLayout(): Boolean =
         composeRule.onAllNodesWithTag("copy_button_compact").fetchSemanticsNodes().isNotEmpty()
+
+    /**
+     * The expanded-layout tests carry [ExpandedWindow], so [WindowGeometryRule] has made the window
+     * expanded; this fails, instead of returning, when it is not. The 28 tests that used to start
+     * with `if (isCompactLayout()) return` passed on CI's phone-class emulator without asserting
+     * anything (FD-T-1).
+     */
+    private fun requireExpandedLayout() {
+        val widthDp = composeRule.activity.resources.configuration.screenWidthDp
+        assertTrue("the window must be expanded (>= 840 dp) but it is $widthDp dp wide", widthDp >= 840)
+        assertTrue("the expanded layout is on screen", !isCompactLayout())
+    }
 
     @Test
     fun navigateBetweenImages_updatesActiveExif() {
@@ -943,6 +1013,7 @@ class SelectorScreenTest {
         composeRule.onNodeWithText("image1.jpg", ignoreCase = true).assertDoesNotExist()
     }
 
+    @ExpandedWindow
     @Test
     fun scanImages_computesMetricsAndDisplaysScores() {
         fakeRepo.imagesFlow.value = mockImages
@@ -969,7 +1040,7 @@ class SelectorScreenTest {
         }
         dismissGestureTutorialIfShown()
 
-        if (isCompactLayout()) return
+        requireExpandedLayout()
 
         // Tap Scan button on sidebar/chrome
         composeRule.onAllNodesWithTag("scan_button", useUnmergedTree = true).onFirst().performClick()
@@ -993,6 +1064,7 @@ class SelectorScreenTest {
         composeRule.onAllNodesWithText("1.2", substring = true).onFirst().assertIsDisplayed()
     }
 
+    @ExpandedWindow
     @Test
     fun noTwoSelectorControlsShareBounds() {
         // Generalised from the regression it replaces: the layout toggle used
@@ -1009,7 +1081,7 @@ class SelectorScreenTest {
         }
         dismissGestureTutorialIfShown()
 
-        if (isCompactLayout()) return
+        requireExpandedLayout()
 
         val tags = listOf(
             "copy_button_expanded",
@@ -1041,6 +1113,7 @@ class SelectorScreenTest {
         }
     }
 
+    @ExpandedWindow
     @Test
     fun filingButtonsAreWordedAndNeverSayKeep() {
         // The label is derived from the Filing Action setting, so it says what
@@ -1055,7 +1128,7 @@ class SelectorScreenTest {
         }
         dismissGestureTutorialIfShown()
 
-        if (isCompactLayout()) return
+        requireExpandedLayout()
 
         composeRule.onAllNodesWithText("Keep", substring = true, ignoreCase = true)
             .assertCountEquals(0)
@@ -1131,6 +1204,7 @@ class SelectorScreenTest {
             .onFirst().assertExists()
     }
 
+    @ExpandedWindow
     @Test
     fun legend_namesTheScoresAndTheSidebarIconsInPlace() {
         fakeRepo.imagesFlow.value = mockImages
@@ -1144,7 +1218,7 @@ class SelectorScreenTest {
         }
         dismissGestureTutorialIfShown()
 
-        if (isCompactLayout()) return
+        requireExpandedLayout()
 
         // No scan has run. The legend is still offered, because it now explains
         // the rail as well as the scores — which is when a new photographer
@@ -1184,6 +1258,7 @@ class SelectorScreenTest {
         }
     }
 
+    @ExpandedWindow
     @Test
     fun positionReadout_marksAFolderThatIsStillEnumerating() {
         // Discovery streams, so for the first seconds of a large shoot the total
@@ -1198,7 +1273,7 @@ class SelectorScreenTest {
         }
         dismissGestureTutorialIfShown()
 
-        if (isCompactLayout()) return
+        requireExpandedLayout()
         // An assertion, not an early return: a missing counter is the AD-1 defect
         // itself, and returning here is how it passed CI for as long as it did.
         composeRule.waitUntil(timeoutMillis = 15000) {
@@ -1214,6 +1289,7 @@ class SelectorScreenTest {
         ).onFirst().assertExists()
     }
 
+    @ExpandedWindow
     @Test
     fun positionReadout_hasNoPlusOnceEnumerationHasSettled() {
         fakeRepo.imagesFlow.value = mockImages
@@ -1225,7 +1301,7 @@ class SelectorScreenTest {
         }
         dismissGestureTutorialIfShown()
 
-        if (isCompactLayout()) return
+        requireExpandedLayout()
         // An assertion, not an early return: a missing counter is the AD-1 defect
         // itself, and returning here is how it passed CI for as long as it did.
         composeRule.waitUntil(timeoutMillis = 15000) {
@@ -1245,6 +1321,7 @@ class SelectorScreenTest {
         ).assertCountEquals(0)
     }
 
+    @ExpandedWindow
     @Test
     fun deleteAction_offersAnUndoThatBringsTheFrameBack() {
         // The affordance the snackbar has drawn a countdown next to since the
@@ -1261,7 +1338,7 @@ class SelectorScreenTest {
         }
         dismissGestureTutorialIfShown()
 
-        if (isCompactLayout()) return
+        requireExpandedLayout()
 
         composeRule.onAllNodesWithTag("delete_button_expanded", useUnmergedTree = true)
             .onFirst().performClick()
@@ -1294,6 +1371,7 @@ class SelectorScreenTest {
             .assertIsDisplayed()
     }
 
+    @ExpandedWindow
     @Test
     fun copyAction_offersNoUndo_becauseTheOriginalNeverMoved() {
         // Undoing a copy could only mean deleting the file the photographer just
@@ -1308,7 +1386,7 @@ class SelectorScreenTest {
         }
         dismissGestureTutorialIfShown()
 
-        if (isCompactLayout()) return
+        requireExpandedLayout()
 
         composeRule.onAllNodesWithTag("copy_button_expanded", useUnmergedTree = true)
             .onFirst().performClick()
@@ -1320,6 +1398,7 @@ class SelectorScreenTest {
         composeRule.onAllNodesWithTag("snackbar_undo", useUnmergedTree = true).assertCountEquals(0)
     }
 
+    @ExpandedWindow
     @Test
     fun coachOverlay_calloutsNeverOverlapEachOther() {
         // The guide now carries the legend too — every score named, every icon
@@ -1336,7 +1415,7 @@ class SelectorScreenTest {
         }
         dismissGestureTutorialIfShown()
 
-        if (isCompactLayout()) return
+        requireExpandedLayout()
         if (composeRule.onAllNodesWithTag("shortcuts_button", useUnmergedTree = true)
                 .fetchSemanticsNodes().isEmpty()
         ) return
@@ -1369,6 +1448,7 @@ class SelectorScreenTest {
         }
     }
 
+    @ExpandedWindow
     @Test
     fun coachOverlay_neverCoversAFrame() {
         // The whole reason this is a coach-mark overlay rather than a sheet is
@@ -1385,14 +1465,14 @@ class SelectorScreenTest {
         }
         dismissGestureTutorialIfShown()
 
-        if (isCompactLayout()) return
-        if (composeRule.onAllNodesWithTag("column_current").fetchSemanticsNodes().isEmpty()) return
+        requireExpandedLayout()
+        assertTrue("the current frame is on screen", composeRule.onAllNodesWithTag("column_current").fetchSemanticsNodes().isNotEmpty())
 
         val frames = listOf("column_current", "column_previous", "column_next")
             .flatMap { tag ->
                 composeRule.onAllNodesWithTag(tag).fetchSemanticsNodes().map { tag to it.boundsInRoot }
             }
-        if (frames.isEmpty()) return
+        assertTrue("the frames are on screen", frames.isNotEmpty())
 
         composeRule.onAllNodesWithTag("shortcuts_button", useUnmergedTree = true)
             .onFirst().performClick()
@@ -1418,6 +1498,7 @@ class SelectorScreenTest {
         }
     }
 
+    @ExpandedWindow
     @Test
     fun coachOverlay_opensFromTheControlBlockAndClosesOnGotIt() {
         fakeRepo.imagesFlow.value = mockImages
@@ -1429,7 +1510,7 @@ class SelectorScreenTest {
         }
         dismissGestureTutorialIfShown()
 
-        if (isCompactLayout()) return
+        requireExpandedLayout()
         if (composeRule.onAllNodesWithTag("shortcuts_button", useUnmergedTree = true)
                 .fetchSemanticsNodes().isEmpty()
         ) {
@@ -1467,6 +1548,7 @@ class SelectorScreenTest {
             .assertCountEquals(0)
     }
 
+    @ExpandedWindow
     @Test
     fun firstFiling_explainsWhereThePhotographWentAndNeverSaysKeep() {
         // The one explanation that matters most: the frame left the centre of
@@ -1487,7 +1569,7 @@ class SelectorScreenTest {
         }
         dismissGestureTutorialIfShown()
 
-        if (isCompactLayout()) return
+        requireExpandedLayout()
         if (composeRule.onAllNodesWithTag("copy_button_expanded").fetchSemanticsNodes().isEmpty()) {
             return
         }
@@ -1542,6 +1624,7 @@ class SelectorScreenTest {
      * Size is therefore asserted explicitly, and the click is aimed at the
      * button's own tag rather than at its text.
      */
+    @ExpandedWindow
     @Test
     fun coachOverlay_gotItIsAHittableTargetAndCloses() {
         fakeRepo.imagesFlow.value = mockImages
@@ -1552,7 +1635,7 @@ class SelectorScreenTest {
                 .fetchSemanticsNodes().isNotEmpty()
         }
         dismissGestureTutorialIfShown()
-        if (isCompactLayout()) return
+        requireExpandedLayout()
 
         // The intro tour only opens itself once per install, and sibling tests
         // in this class may already have marked it seen, so open the guide the

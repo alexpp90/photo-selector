@@ -72,10 +72,17 @@ import kotlin.math.roundToInt
  * `getUnclippedBoundsInRoot()`: merged accessibility bounds report a clipped
  * node as smaller than it was laid out, which is how a squashed control passes.
  */
+@ExpandedWindow
 @RunWith(AndroidJUnit4::class)
 class SelectorForcedSizeTest {
 
-    @get:Rule
+    // Outermost: puts the display at the reference geometry, so every size below fits
+    // on whatever device runs the suite (FD-T-1: on CI's phone-class emulator these tests
+    // used to return early and assert nothing).
+    @get:Rule(order = 0)
+    val geometryRule = WindowGeometryRule()
+
+    @get:Rule(order = 1)
     val composeRule = createComposeRule()
 
     private fun image(n: Int) = ImageItem(
@@ -108,7 +115,7 @@ class SelectorForcedSizeTest {
         fontScale: Float? = null,
         maximised: SelectorFrame? = null,
     ): Boolean {
-        if (!windowHolds(width, height)) return false
+        assertTrue("the window holds a $width x $height dp host", windowHolds(width, height))
         composeRule.setContent {
             PhotoSelectorToolboxTheme {
               val base = LocalDensity.current
@@ -166,13 +173,11 @@ class SelectorForcedSizeTest {
     }
 
     /**
-     * Whether the device can hold a [width] x [height] dp host at all.
+     * Whether the display can hold a [width] x [height] dp host at all.
      *
-     * A `requiredSize` box larger than the window is laid out off-screen, so on CI's
-     * phone-class emulator these sizes cannot be tested; the reference AVD
-     * (playbook-verify-android-desktop-on-reference-device) is where they run. The
-     * test returns early there, like every expanded-layout test in this module —
-     * this runner reports a JUnit assumption as a failure, not a skip.
+     * A `requiredSize` box larger than the window is laid out off-screen. The class is
+     * [ExpandedWindow], so [WindowGeometryRule] has put the display at the reference
+     * geometry and [host] fails, rather than returns, when a size does not fit.
      */
     private fun windowHolds(width: Int, height: Int): Boolean {
         val metrics = InstrumentationRegistry.getInstrumentation().targetContext.resources.displayMetrics
