@@ -19,15 +19,17 @@ Formerly Photo-Tok.
 
 ## 🌟 Visual Showcase
 
-| 1. Landing & Recent Folders | 2. Full Viewer & Glassmorphic HUD |
+| 1. Start Screen & Pro Mode | 2. Viewer & Swipe Hints |
 | :---: | :---: |
 | <img src="../../../assets/phototok_01_landing.png" alt="Jackpix Landing Screen" width="320" style="border-radius: 12px; box-shadow: 0 4px 15px rgba(0,0,0,0.3);" /> | <img src="../../../assets/phototok_02_viewer.png" alt="Jackpix Culling Viewer" width="320" style="border-radius: 12px; box-shadow: 0 4px 15px rgba(0,0,0,0.3);" /> |
-| *Direct entry via Camera roll or SAF tree picker, tilted photo fan, and 1-tap recent folders.* | *Full-screen preview, glassmorphic EXIF card, live page counter pill, and persistent action bar.* |
+| *Camera, SD card / USB and folder or cloud sources, the photo fan, and the Pro mode switch.* | *Full-screen photo, the idle swipe hints (★ right, delete left), the page counter and the icon-only bar.* |
 
-| 3. In-Place Coach Marks Guide | 4. Configurable Settings & Privacy |
+| 3. Controls Guide | 4. Settings (Pro mode) |
 | :---: | :---: |
 | <img src="../../../assets/phototok_03_tutorial.png" alt="Jackpix Coach Mark Tutorial" width="320" style="border-radius: 12px; box-shadow: 0 4px 15px rgba(0,0,0,0.3);" /> | <img src="../../../assets/phototok_04_settings.png" alt="Jackpix Settings Sheet" width="320" style="border-radius: 12px; box-shadow: 0 4px 15px rgba(0,0,0,0.3);" /> |
-| *Translucent 70% scrim, leader lines pointing to real buttons, and animated directional gesture stage.* | *Customizable swipe destinations, RAW+JPEG link toggles, orientation sorting, and § 5 DDG legal links.* |
+| *Each control and swipe named in one or two words, with leader lines to the real buttons.* | *Confirm delete, camera info, RAW + JPEG linking, format filter and the swipe actions.* |
+
+Captured on a Pixel 4a (en, font scale 1.0) with the lab's synthetic trip roll (`scripts/lab/lab.py usability-capture`).
 
 ---
 
