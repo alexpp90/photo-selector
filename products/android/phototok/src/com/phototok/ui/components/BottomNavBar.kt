@@ -143,13 +143,13 @@ private fun ActionButton(
                     if (isActive) Modifier.clip(RoundedCornerShape(14.dp)).background(colors.primaryContainer)
                     else Modifier,
                 )
-                .then(
-                    if (enabled) Modifier.clickable(
-                        indication = null,
-                        interactionSource = remember { MutableInteractionSource() },
-                        role = Role.Button,
-                        onClick = onClick,
-                    ) else Modifier,
+                // Disabled stays a button to TalkBack ("Undo last delete, disabled"), not a bare image.
+                .clickable(
+                    enabled = enabled,
+                    indication = null,
+                    interactionSource = remember { MutableInteractionSource() },
+                    role = Role.Button,
+                    onClick = onClick,
                 ),
             contentAlignment = Alignment.Center,
         ) {
