@@ -1255,7 +1255,7 @@ private fun ImagePage(
 // ── Glassmorphic EXIF overlay ────────────────────────────────────────────
 
 @Composable
-private fun ExifOverlay(
+internal fun ExifOverlay(
     exif: ExifData,
     fileName: String,
     modifier: Modifier = Modifier,
@@ -1287,7 +1287,8 @@ private fun ExifOverlay(
             verticalArrangement = Arrangement.spacedBy(4.dp),
         ) {
             Text(
-                text = fileName.uppercase(),
+                // The name as it is on disk: upper-casing misstated names such as dsc_0001.arw.
+                text = fileName,
                 style = MaterialTheme.typography.labelLarge.copy(letterSpacing = 1.sp),
                 color = colors.onSurface.copy(alpha = 0.7f),
                 // One line; a long name loses its middle, never its extension (font scale 2.0).

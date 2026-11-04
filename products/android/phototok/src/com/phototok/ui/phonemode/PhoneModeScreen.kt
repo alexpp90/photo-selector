@@ -1312,7 +1312,7 @@ internal fun SelectionViewerTabs(
 }
 
 @Composable
-private fun ExifSidebarPanel(
+internal fun ExifSidebarPanel(
     exif: ExifData,
     fileName: String,
     modifier: Modifier = Modifier,
@@ -1329,7 +1329,7 @@ private fun ExifSidebarPanel(
     val colors = MaterialTheme.colorScheme
 
     Surface(
-        modifier = modifier.fillMaxWidth(),
+        modifier = modifier.fillMaxWidth().testTag("landscape.exif_panel"),
         shape = RoundedCornerShape(12.dp),
         color = colors.surfaceContainerLowest.copy(alpha = 0.5f),
         border = androidx.compose.foundation.BorderStroke(
@@ -1342,11 +1342,12 @@ private fun ExifSidebarPanel(
             verticalArrangement = Arrangement.spacedBy(6.dp),
         ) {
             Text(
-                text = fileName.uppercase(),
+                // The name as it is on disk; a long one loses its middle, never its extension.
+                text = fileName,
                 style = MaterialTheme.typography.labelMedium.copy(letterSpacing = 0.5.sp),
                 color = colors.onSurface.copy(alpha = 0.7f),
                 maxLines = 1,
-                overflow = TextOverflow.Ellipsis,
+                overflow = TextOverflow.MiddleEllipsis,
             )
 
             items.forEach { item ->
