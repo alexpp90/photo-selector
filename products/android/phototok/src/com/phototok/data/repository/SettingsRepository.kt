@@ -117,9 +117,6 @@ class SettingsRepository @Inject constructor(
         internal fun leftSwipeUriKey(kind: SourceKind) =
             stringPreferencesKey("source_${kind.keyPrefix()}_left_swipe_uri")
 
-        internal fun sortingEnabledKey(kind: SourceKind) =
-            booleanPreferencesKey("source_${kind.keyPrefix()}_sorting_enabled")
-
         internal fun directDeleteConfirmKey(kind: SourceKind) =
             booleanPreferencesKey("source_${kind.keyPrefix()}_direct_delete_confirm")
 
@@ -259,7 +256,6 @@ class SettingsRepository @Inject constructor(
                     def.fileTypeFilter,
                 ),
                 moveRelatedFiles = prefs[moveRelatedFilesKey(kind)] ?: def.moveRelatedFiles,
-                sortingEnabled = prefs[sortingEnabledKey(kind)] ?: def.sortingEnabled,
                 directDeleteConfirmEnabled = prefs[directDeleteConfirmKey(kind)]
                     ?: prefs[KEY_DIRECT_DELETE_CONFIRM]
                     ?: def.directDeleteConfirmEnabled,
@@ -276,7 +272,16 @@ class SettingsRepository @Inject constructor(
                 pro,
             )
             val effectiveKind = if (kind == SourceKind.CLOUD_OTHER && inherits) SourceKind.PHONE_LIBRARY else kind
-            return ProModePolicy.effective(storedSourceSettingsOf(prefs, effectiveKind), effectiveKind, pro)
+            val effective = ProModePolicy.effective(storedSourceSettingsOf(prefs, effectiveKind), effectiveKind, pro)
+            // A Casual card import keeps its own subfolder; every other source files into the
+            // configured Selection folder name (Pro) or `Selection` (Casual).
+            if (effective.importToPhoneCamera) return effective
+            return effective.copy(
+                selectionSubfolder = ProModePolicy.effectiveSelectionFolderName(
+                    prefs[KEY_SELECTION_FOLDER_NAME] ?: DEFAULT_SELECTION_FOLDER_NAME,
+                    pro,
+                ),
+            )
         }
 
         internal fun appSettingsOf(prefs: Preferences): AppSettings {
@@ -927,6 +932,21 @@ class SettingsRepository @Inject constructor(
      */
     fun pinUndoHistoryFolders(folderUris: Set<String>) {
         folderAccessManager.pin(FolderAccessPurpose.UNDO_HISTORY, folderUris)
+    }
+
+    private val stalePendingDeletesDiscarded = java.util.concurrent.atomic.AtomicBoolean(false)
+
+    /**
+     * Once per process start: forget the queued deletions an earlier process left behind. Deletions
+     * wait in memory (undo stack) and are only journaled to hold their folder's grant; a process that
+     * died with some queued deleted nothing, the photos are simply still in their folder, so an
+     * entry found at start is stale. Without this a kill pinned the folder's grant for good (the
+     * OS allows 128 grants on API < 30). Later calls in the same process do nothing: by then the
+     * journal belongs to live view models.
+     */
+    suspend fun discardStalePendingDeletes() {
+        if (!stalePendingDeletesDiscarded.compareAndSet(false, true)) return
+        context.dataStore.edit { prefs -> prefs.remove(KEY_PERSISTED_PENDING_DELETE_URIS) }
     }
 
     suspend fun reconcilePersistedGrants(): Set<String> {

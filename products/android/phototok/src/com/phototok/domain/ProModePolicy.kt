@@ -49,7 +49,6 @@ object ProModePolicy {
      */
     fun casualSourceSettings(kind: SourceKind): SourceSettings {
         val base = SourceSettings.defaultFor(kind).copy(
-            sortingEnabled = CASUAL_SORTING_ENABLED,
             collectionUri = null,
             leftSwipeUri = null,
         )

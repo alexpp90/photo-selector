@@ -10,7 +10,18 @@ import com.phototok.domain.UiText
 import io.mockk.coEvery
 import io.mockk.coVerify
 import io.mockk.mockk
+import kotlinx.coroutines.CompletableDeferred
+import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.yield
+import androidx.lifecycle.ViewModelProvider
+import androidx.lifecycle.ViewModelStore
+import androidx.lifecycle.viewmodel.CreationExtras
+import com.phototok.data.source.FileOperationResult
+import android.net.Uri
+import com.phototok.domain.FavouriteSyncLogic
+import io.mockk.slot
+import io.mockk.every
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.test.UnconfinedTestDispatcher
 import kotlinx.coroutines.test.resetMain
@@ -48,7 +59,7 @@ class SelectionViewerViewModelTest {
     @Before
     fun setUp() {
         Dispatchers.setMain(testDispatcher)
-        viewModel = SelectionViewerViewModel(imageRepository)
+        viewModel = SelectionViewerViewModel(imageRepository, CoroutineScope(testDispatcher))
     }
 
     @After
@@ -289,6 +300,199 @@ class SelectionViewerViewModelTest {
 
         assertFalse(viewModel.uiState.value.isOpen)
         // Process recreation builds a new ViewModel: the app starts on the feed, never the viewer.
-        assertFalse(SelectionViewerViewModel(imageRepository).uiState.value.isOpen)
+        assertFalse(SelectionViewerViewModel(imageRepository, CoroutineScope(testDispatcher)).uiState.value.isOpen)
+    }
+
+    private val dest = Uri.parse("content://tree/dest")
+    private val p = "content://tree/photos"
+
+    private fun shot(name: String, vararg sidecars: String) = image(name).copy(
+        uri = "$p/$name",
+        parentUri = p,
+        sidecars = sidecars.map { image(it).copy(uri = "$p/$it", parentUri = p, mimeType = null) },
+    )
+
+    private fun openWithFavourites(favs: List<ImageItem>, all: List<ImageItem>) {
+        val snapshot = FavouriteSyncLogic.setFavourite(FavouritesSnapshot(), favs.map { it.uri }, favourite = true)
+        viewModel.openWithFavourites(targetFolderUri = null, sourceImages = favs, favourites = snapshot)
+        assertEquals(favs, viewModel.uiState.value.favouriteImages)
+    }
+
+    @Test
+    fun `copying favourites takes the RAW and the sidecar of a favourite JPEG in one bundle`() = runTest {
+        val jpg = shot("IMG_1.JPG", "IMG_1.xmp")
+        val raw = shot("IMG_1.CR3", "IMG_1.xmp")
+        val sent = slot<List<Uri>>()
+        coEvery {
+            imageRepository.transferBundleDetailed(capture(sent), any(), any(), any(), any())
+        } coAnswers { sent.captured.map { FileOperationResult.success(it.toString(), "d") } }
+        openWithFavourites(listOf(jpg), all = listOf(jpg, raw))
+
+        viewModel.copyFavouritesToFolder(dest, allSourceImages = listOf(jpg, raw))
+
+        assertEquals(
+            listOf("$p/IMG_1.JPG", "$p/IMG_1.CR3", "$p/IMG_1.xmp").map(Uri::parse).toSet(),
+            sent.captured.toSet(),
+        )
+        coVerify(exactly = 1) { imageRepository.transferBundleDetailed(any(), dest, false, "Favourites", false) }
+        assertEquals(UiText.of(R.string.snackbar_favourites_copied, 1, "Favourites"), viewModel.uiState.value.feedback?.message)
+    }
+
+    @Test
+    fun `favourites that are twins of each other are copied once`() = runTest {
+        val jpg = shot("IMG_1.JPG")
+        val raw = shot("IMG_1.CR3")
+        coEvery { imageRepository.transferBundleDetailed(any(), any(), any(), any(), any()) } coAnswers {
+            firstArg<List<Uri>>().map { FileOperationResult.success(it.toString(), "d") }
+        }
+        openWithFavourites(listOf(jpg, raw), all = listOf(jpg, raw))
+
+        viewModel.copyFavouritesToFolder(dest, allSourceImages = listOf(jpg, raw))
+
+        coVerify(exactly = 1) { imageRepository.transferBundleDetailed(any(), any(), any(), any(), any()) }
+        assertEquals(UiText.of(R.string.snackbar_favourites_copied, 1, "Favourites"), viewModel.uiState.value.feedback?.message)
+    }
+
+    @Test
+    fun `a bundle with a failed member is reported as not copied`() = runTest {
+        val jpg = shot("IMG_1.JPG", "IMG_1.xmp")
+        coEvery { imageRepository.transferBundleDetailed(any(), any(), any(), any(), any()) } returns listOf(
+            FileOperationResult.success("$p/IMG_1.JPG", "d"),
+            FileOperationResult.failure("$p/IMG_1.xmp", "no"),
+        )
+        openWithFavourites(listOf(jpg), all = listOf(jpg))
+
+        viewModel.copyFavouritesToFolder(dest, allSourceImages = listOf(jpg))
+
+        assertEquals(UiText.of(R.string.error_favourites_partial, 0, 1), viewModel.uiState.value.feedback?.message)
+        assertTrue(viewModel.uiState.value.feedback?.isError == true)
+    }
+
+    @Test
+    fun `closing the viewer does not cut a favourites copy short`() = runTest {
+        val a = shot("IMG_1.JPG")
+        val b = shot("IMG_2.JPG")
+        val gate = CompletableDeferred<Unit>()
+        coEvery { imageRepository.copyImageDetailed(any(), any(), any(), any()) } coAnswers {
+            gate.await()
+            yield() // a cancellation point, like the real file I/O
+            FileOperationResult.success(firstArg<Uri>().toString(), "d")
+        }
+        // The viewer's view model is cleared (the user leaves the Selection viewer) while the copy runs.
+        val store = ViewModelStore()
+        val vm = ViewModelProvider(store, object : ViewModelProvider.Factory {
+            @Suppress("UNCHECKED_CAST")
+            override fun <T : androidx.lifecycle.ViewModel> create(modelClass: Class<T>, extras: CreationExtras): T =
+                SelectionViewerViewModel(imageRepository, CoroutineScope(testDispatcher)) as T
+        })[SelectionViewerViewModel::class.java]
+        vm.openWithFavourites(
+            targetFolderUri = null,
+            sourceImages = listOf(a, b),
+            favourites = FavouriteSyncLogic.setFavourite(FavouritesSnapshot(), listOf(a.uri, b.uri), favourite = true),
+        )
+        vm.copyFavouritesToFolder(dest)
+        store.clear()
+
+        gate.complete(Unit)
+
+        coVerify(exactly = 1) { imageRepository.copyImageDetailed(Uri.parse(a.uri), dest, false, "Favourites") }
+        coVerify(exactly = 1) { imageRepository.copyImageDetailed(Uri.parse(b.uri), dest, false, "Favourites") }
+        assertEquals(UiText.of(R.string.snackbar_favourites_copied, 2, "Favourites"), vm.uiState.value.feedback?.message)
+    }
+
+    @Test
+    fun `a cancelled listing is not reported as a failure to open`() = runTest {
+        coEvery { imageRepository.listSelectionImages(any()) } throws kotlinx.coroutines.CancellationException("left the screen")
+
+        viewModel.open("content://tree/photos")
+
+        assertNull("cancellation is not an error the user should see", viewModel.uiState.value.feedback)
+    }
+
+    // ── A slow listing never reopens a viewer the user left (review JP-B-3) ──
+
+    private fun gatedListing(gate: CompletableDeferred<Unit>, vararg names: String) {
+        coEvery { imageRepository.listSelectionImages(any(), any()) } coAnswers {
+            gate.await()
+            SelectionListing.Available(names.map { image(it) }, "Selection")
+        }
+    }
+
+    private fun openFor(feed: String) = viewModel.openWithFavourites(
+        targetFolderUri = "$feed/target",
+        sourceImages = emptyList(),
+        favourites = FavouritesSnapshot(),
+        preferredTab = SelectionViewerTab.SELECTION,
+        feed = feed,
+    )
+
+    @Test
+    fun `closing while the listing runs keeps the viewer closed when it finishes`() = runTest {
+        val gate = CompletableDeferred<Unit>()
+        gatedListing(gate, "a.jpg")
+        openFor("content://tree/one")
+        assertTrue("Back must be able to cancel the open", viewModel.uiState.value.isOpening)
+        assertFalse(viewModel.uiState.value.isOpen)
+
+        viewModel.close()
+        gate.complete(Unit)
+
+        val state = viewModel.uiState.value
+        assertFalse(state.isOpen)
+        assertFalse(state.isOpening)
+        assertTrue(state.images.isEmpty())
+    }
+
+    @Test
+    fun `a folder switch while the listing runs keeps the old folder's lists out`() = runTest {
+        val gate = CompletableDeferred<Unit>()
+        gatedListing(gate, "old.jpg")
+        openFor("content://tree/one")
+
+        viewModel.closeUnlessOpenedFor("content://tree/two")
+        gate.complete(Unit)
+
+        assertFalse(viewModel.uiState.value.isOpen)
+        assertTrue(viewModel.uiState.value.selectionImages.isEmpty())
+    }
+
+    @Test
+    fun `the same folder again, as after a rotation, leaves an open viewer open`() = runTest {
+        coEvery { imageRepository.listSelectionImages(any(), any()) } returns
+            SelectionListing.Available(listOf(image("a.jpg")), "Selection")
+        openFor("content://tree/one")
+        assertTrue(viewModel.uiState.value.isOpen)
+
+        viewModel.closeUnlessOpenedFor("content://tree/one")
+
+        assertTrue(viewModel.uiState.value.isOpen)
+    }
+
+    @Test
+    fun `a second open replaces the first listing`() = runTest {
+        val first = CompletableDeferred<Unit>()
+        gatedListing(first, "first.jpg")
+        openFor("content://tree/one")
+        coEvery { imageRepository.listSelectionImages(any(), any()) } returns
+            SelectionListing.Available(listOf(image("second.jpg")), "Selection")
+        openFor("content://tree/one")
+
+        first.complete(Unit)
+
+        assertEquals(listOf("second.jpg"), viewModel.uiState.value.images.map { it.fileName })
+    }
+
+    @Test
+    fun `with no favourites nothing is copied into Favourites`() = runTest {
+        coEvery { imageRepository.listSelectionImages(any(), any()) } returns
+            SelectionListing.Available(listOf(image("sel.jpg")), "Selection")
+        openFor("content://tree/one")
+        assertEquals(1, viewModel.uiState.value.images.size)
+
+        viewModel.copyFavouritesToFolder(dest)
+
+        coVerify(exactly = 0) { imageRepository.copyImageDetailed(any(), any(), any(), any()) }
+        coVerify(exactly = 0) { imageRepository.transferBundleDetailed(any(), any(), any(), any(), any()) }
     }
 }
+

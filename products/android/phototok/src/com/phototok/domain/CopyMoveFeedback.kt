@@ -75,6 +75,20 @@ object CopyMoveFeedback {
         return decoded.substringAfterLast('/').substringAfterLast(':')
     }
 
+    /**
+     * The name the primary file got when the transfer had to add a collision suffix, or null when it
+     * kept its name **or when the destination URI does not say**. Providers whose document ids are
+     * not file names (`msf:123`, Drive and camera ids) would otherwise be reported as "Copied as 123".
+     * A suffixed name keeps the file's extension, so an id without it is never taken for a name.
+     */
+    fun renamedName(sourceName: String, destinationUri: String?): String? {
+        val candidate = destinationUri?.let(::displayNameOf) ?: return null
+        if (candidate == sourceName) return null
+        val sourceExtension = PhotoExtensions.extensionOf(sourceName)
+        if (sourceExtension.isEmpty() || PhotoExtensions.extensionOf(candidate) != sourceExtension) return null
+        return candidate
+    }
+
     /** True when the message reports an error (any file failed or only partially moved). */
     fun isError(failed: Int, partial: Int = 0): Boolean = failed > 0 || partial > 0
 }

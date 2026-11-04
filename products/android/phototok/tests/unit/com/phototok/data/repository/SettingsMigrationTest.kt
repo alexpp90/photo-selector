@@ -166,6 +166,8 @@ class SettingsMigrationTest {
             intPreferencesKey("folder_scan_count_v1_content://x") to 5,
             intPreferencesKey("folder_seen_count_v1_content://x") to 6,
             stringPreferencesKey("some_key_from_a_future_or_removed_feature") to "keep me",
+            // The per-source sorting flag was retired (nothing ever wrote it); a store that has it keeps it.
+            booleanPreferencesKey("source_removable_sorting_enabled") to true,
         )
         for (kind in SourceKind.entries) {
             entries += SettingsRepository.swipeRightVerbKey(kind) to SwipeRightVerb.MOVE.key
@@ -175,7 +177,6 @@ class SettingsMigrationTest {
             entries += SettingsRepository.moveRelatedFilesKey(kind) to false
             entries += SettingsRepository.collectionUriKey(kind) to "content://tree/c-$kind"
             entries += SettingsRepository.leftSwipeUriKey(kind) to "content://tree/l-$kind"
-            entries += SettingsRepository.sortingEnabledKey(kind) to true
             entries += SettingsRepository.directDeleteConfirmKey(kind) to false
         }
         val before = mutablePreferencesOf(*entries.toTypedArray()).asMap().toMap()
