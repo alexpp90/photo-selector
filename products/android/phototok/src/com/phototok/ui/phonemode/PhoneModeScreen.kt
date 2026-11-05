@@ -16,6 +16,7 @@ import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.ColumnScope
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.WindowInsets
@@ -57,6 +58,7 @@ import androidx.compose.material.icons.filled.Star
 import androidx.compose.material.icons.filled.Style
 import androidx.compose.material.icons.filled.Sync
 import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.BottomSheetDefaults
 import androidx.compose.material3.Button
 import androidx.compose.material3.Checkbox
 import androidx.compose.material3.ExperimentalMaterial3Api
@@ -72,6 +74,7 @@ import androidx.compose.material3.SnackbarResult
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
+import androidx.compose.material3.minimumInteractiveComponentSize
 import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
@@ -356,20 +359,7 @@ fun PhoneModeScreen(
 
     // Settings bottom sheet
     if (showSettingsSheet) {
-        ModalBottomSheet(
-            onDismissRequest = { showSettingsSheet = false },
-            sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true),
-            containerColor = colors.surfaceContainerLow,
-            shape = RoundedCornerShape(topStart = 32.dp, topEnd = 32.dp),
-            dragHandle = {
-                Box(
-                    modifier = Modifier
-                        .padding(top = 16.dp, bottom = 8.dp)
-                        .size(width = 32.dp, height = 4.dp)
-                        .background(colors.outlineVariant, RoundedCornerShape(50)),
-                )
-            },
-        ) {
+        SettingsSheet(onDismissRequest = { showSettingsSheet = false }) {
             // The sheet is its own window and covers the screen's snackbar host, so the messages
             // Settings raises (Pro mode on/off) are shown by a host inside the sheet.
             Box(
@@ -509,65 +499,19 @@ fun PhoneModeScreen(
                 }
 
                 // Right Side Panel: Settings, EXIF and Page Counter
-                Column(
-                    modifier = Modifier
-                        .fillMaxHeight()
-                        .background(MaterialTheme.colorScheme.surfaceContainerLowest.copy(alpha = 0.8f))
-                        .guideAnchor(guideAnchors, GuideAnchor.RIGHT_PANEL)
-                        .windowInsetsPadding(
-                            WindowInsets.safeDrawing.only(
-                                WindowInsetsSides.Right + WindowInsetsSides.Top + WindowInsetsSides.Bottom
-                            )
-                        )
-                        .width(125.dp)
-                        .padding(12.dp),
-                    horizontalAlignment = Alignment.CenterHorizontally,
-                    verticalArrangement = Arrangement.SpaceBetween
-                ) {
-                    val isHelpOrTutorialActive = uiState.showGestureTutorial || uiState.showControlsGuide
-                    val sideIconTint = if (isHelpOrTutorialActive) {
-                        colors.onSurfaceVariant.copy(alpha = 0.4f)
-                    } else {
-                        colors.onSurfaceVariant
-                    }
-                    LandscapeRightButtons(
-                        exifOn = uiState.showExifOverlay,
-                        tint = sideIconTint,
-                        anchors = guideAnchors,
-                        cameraInfoEnabled = uiState.proMode,
-                        onReload = { viewModel.reloadSourceFolder() },
-                        onInfo = { viewModel.toggleExifOverlay() },
-                        onSettings = { showSettingsSheet = true },
-                    )
-
-                    val currentImage = uiState.images.getOrNull(uiState.currentIndex)
-                    if (uiState.showExifOverlay && currentImage?.exifData != null) {
-                        ExifSidebarPanel(
-                            exif = currentImage.exifData!!,
-                            fileName = currentImage.fileName,
-                            modifier = Modifier.weight(1f, fill = false)
-                        )
-                    } else {
-                        Spacer(modifier = Modifier.weight(1f))
-                    }
-
-                    Surface(
-                        shape = RoundedCornerShape(50),
-                        color = colors.surfaceContainerHigh.copy(alpha = 0.8f),
-                        border = androidx.compose.foundation.BorderStroke(
-                            1.dp,
-                            colors.outline.copy(alpha = 0.2f)
-                        )
-                    ) {
-                        Text(
-                            text = stringResource(R.string.label_page_counter, uiState.currentIndex + 1, uiState.images.size),
-                            style = MaterialTheme.typography.labelMedium,
-                            color = colors.primary,
-                            fontWeight = FontWeight.Bold,
-                            modifier = Modifier.padding(horizontal = 14.dp, vertical = 6.dp)
-                        )
-                    }
-                }
+                LandscapeRightPanel(
+                    exifOn = uiState.showExifOverlay,
+                    guideOpen = guideUp,
+                    anchors = guideAnchors,
+                    cameraInfoEnabled = uiState.proMode,
+                    currentImage = uiState.images.getOrNull(uiState.currentIndex),
+                    pageIndex = uiState.currentIndex,
+                    total = uiState.images.size,
+                    isDiscovering = uiState.isDiscovering,
+                    onReload = { viewModel.reloadSourceFolder() },
+                    onInfo = { viewModel.toggleExifOverlay() },
+                    onSettings = { showSettingsSheet = true },
+                )
             }
         } else {
             // ── Portrait: viewer / loading / landing ────────────────────────
@@ -756,6 +700,37 @@ fun PhoneModeScreen(
 }
 
 /**
+ * The Settings bottom sheet (its only host is [SettingsScreen]). Its drag handle is M3's own: a
+ * 32 x 4 dp pill in a 48 x 48 dp target (`minimumInteractiveComponentSize`, before M3's 22 dp
+ * vertical padding) with M3's localised "drag handle" name. The handle dismisses the sheet, so it
+ * is a control: `onSurfaceVariant` at 50 % (about 3.5:1 on the sheet, WCAG 1.4.11). A custom
+ * 32 x 28 dp unnamed handle failed the 48 dp target and TalkBack read an unlabelled button
+ * (device lab 2026-11-05). Never `size(48.dp)`/`widthIn(min = 48.dp)` here: the Surface passes
+ * min constraints on and stretches the pill.
+ */
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+internal fun SettingsSheet(
+    onDismissRequest: () -> Unit,
+    content: @Composable ColumnScope.() -> Unit,
+) {
+    val colors = MaterialTheme.colorScheme
+    ModalBottomSheet(
+        onDismissRequest = onDismissRequest,
+        sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true),
+        containerColor = colors.surfaceContainerLow,
+        shape = RoundedCornerShape(topStart = 32.dp, topEnd = 32.dp),
+        dragHandle = {
+            BottomSheetDefaults.DragHandle(
+                modifier = Modifier.minimumInteractiveComponentSize(),
+                color = colors.onSurfaceVariant.copy(alpha = 0.5f),
+            )
+        },
+        content = content,
+    )
+}
+
+/**
  * Shows [feedback] once in [hostState]. A delete's feedback carries Undo ([USER 2026-10-24]), which
  * calls [onUndoDelete] (the same restore as the bar's Revert button).
  */
@@ -805,6 +780,71 @@ internal fun FeedSnackbarHost(
             )
             .testTag("feed_snackbar_host"),
     )
+}
+
+/**
+ * The landscape right panel: Reload, camera info and Settings at the top, the EXIF panel (Pro, when
+ * on) and the position counter at the bottom. The feed's viewer draws no counter in landscape
+ * (`showPageCounter = false`), so this [PageCounterPill] is the only `viewer.counter` on screen.
+ */
+@Composable
+internal fun LandscapeRightPanel(
+    exifOn: Boolean,
+    guideOpen: Boolean,
+    anchors: ControlsGuideAnchors?,
+    cameraInfoEnabled: Boolean,
+    currentImage: ImageItem?,
+    pageIndex: Int,
+    total: Int,
+    isDiscovering: Boolean,
+    onReload: () -> Unit,
+    onInfo: () -> Unit,
+    onSettings: () -> Unit,
+) {
+    val colors = MaterialTheme.colorScheme
+    Column(
+        modifier = Modifier
+            .fillMaxHeight()
+            .background(colors.surfaceContainerLowest.copy(alpha = 0.8f))
+            .guideAnchor(anchors, GuideAnchor.RIGHT_PANEL)
+            .windowInsetsPadding(
+                WindowInsets.safeDrawing.only(
+                    WindowInsetsSides.Right + WindowInsetsSides.Top + WindowInsetsSides.Bottom
+                )
+            )
+            .width(125.dp)
+            .padding(12.dp),
+        horizontalAlignment = Alignment.CenterHorizontally,
+        verticalArrangement = Arrangement.SpaceBetween
+    ) {
+        val sideIconTint = if (guideOpen) colors.onSurfaceVariant.copy(alpha = 0.4f) else colors.onSurfaceVariant
+        LandscapeRightButtons(
+            exifOn = exifOn,
+            tint = sideIconTint,
+            anchors = anchors,
+            cameraInfoEnabled = cameraInfoEnabled,
+            onReload = onReload,
+            onInfo = onInfo,
+            onSettings = onSettings,
+        )
+
+        val exif = currentImage?.exifData
+        if (exifOn && exif != null) {
+            ExifSidebarPanel(
+                exif = exif,
+                fileName = currentImage.fileName,
+                modifier = Modifier.weight(1f, fill = false)
+            )
+        } else {
+            Spacer(modifier = Modifier.weight(1f))
+        }
+
+        PageCounterPill(
+            pageIndex = pageIndex,
+            total = total,
+            isDiscovering = isDiscovering,
+        )
+    }
 }
 
 /**
@@ -1140,7 +1180,7 @@ private val SELECTION_TAB_ICON = Icons.Default.Folder
  * only when both lists have photos, otherwise a single title (`REQ-TOK-FEATURE.17`).
  */
 @Composable
-private fun SelectionFolderViewer(
+internal fun SelectionFolderViewer(
     images: List<ImageItem>,
     currentIndex: Int,
     folderName: String,
@@ -1196,7 +1236,11 @@ private fun SelectionFolderViewer(
                 .fillMaxWidth()
                 .align(Alignment.TopCenter)
                 .statusBarsPadding()
-                .padding(horizontal = 8.dp, vertical = 8.dp),
+                // Full screen in landscape too: Back clear of a left bar/cutout, Share and Copy
+                // clear of the 3-button navigation bar on the right.
+                .horizontalSafeDrawingPadding()
+                .padding(horizontal = 8.dp, vertical = 8.dp)
+                .testTag("selection_viewer_bar"),
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.SpaceBetween,
         ) {
@@ -1212,6 +1256,7 @@ private fun SelectionFolderViewer(
                     name = stringResource(R.string.cd_back),
                     tint = colors.onSurface,
                     onClick = onClose,
+                    modifier = Modifier.size(PhoneModeChromeMetrics.TOP_BAR_BUTTON_SIZE).testTag("selection_back_button"),
                 )
                 Spacer(modifier = Modifier.width(4.dp))
                 SelectionViewerTabs(
@@ -1231,6 +1276,7 @@ private fun SelectionFolderViewer(
                         name = stringResource(R.string.cd_copy_favourites),
                         tint = colors.onSurface,
                         onClick = onCopyFavouritesToFolder,
+                        modifier = Modifier.size(PhoneModeChromeMetrics.TOP_BAR_BUTTON_SIZE).testTag("selection_copy_favourites_button"),
                     )
                 }
                 if (images.isNotEmpty()) {
@@ -1239,6 +1285,7 @@ private fun SelectionFolderViewer(
                         name = stringResource(R.string.cd_share_all),
                         tint = colors.onSurface,
                         onClick = onShareBatch,
+                        modifier = Modifier.size(PhoneModeChromeMetrics.TOP_BAR_BUTTON_SIZE).testTag("selection_share_all_button"),
                     )
                 }
             }

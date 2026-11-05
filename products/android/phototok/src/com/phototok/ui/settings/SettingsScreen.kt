@@ -119,7 +119,8 @@ fun SettingsScreen(
         modifier = Modifier
             .fillMaxSize()
             .verticalScroll(rememberScrollState())
-            .padding(vertical = 16.dp),
+            // No top padding: the sheet's 48 dp drag-handle target above already spaces it.
+            .padding(bottom = 16.dp),
     ) {
         // ── Pro mode: its own card at the very top, shown in both modes ────────
         ProModeRow(

@@ -122,7 +122,7 @@ The viewer bottom bar (`ViewerBottomBar`) shows 4 persistent, **icon-only** cont
 
 ### Top app bar
 
-The top app bar shows the Jackpix brand mark (`ic_brand_mark`, tinted `primary`) on the left, and four 48 dp **icon-only** action buttons on the right (`PhoneModeTopBar`): `Sync` (Reload folder), `HelpOutline` (Controls guide), `Info` (EXIF metadata toggle), and `Settings`; an SD/USB source adds `SdCard` (Done with this card) before them. Every button has a spoken name, a long-press tooltip with the same text and a 48 dp target. The status and navigation bars always draw light icons over the dark UI (also after a rotation; system light mode must not flip them). In landscape orientation, the left and right side panels render the same actions as icon-only `SidePanelButton` items (64 × 48 dp, 8 dp apart so Sources, Selection, Share, Revert and Help fit a 360 dp tall phone, `landscape_share_button` for Share) and `TopBarIconButton`s; the micro-labels are withdrawn.
+The top app bar shows the Jackpix brand mark (`ic_brand_mark`, tinted `primary`) on the left, and four 48 dp **icon-only** action buttons on the right (`PhoneModeTopBar`): `Sync` (Reload folder), `HelpOutline` (Controls guide), `Info` (EXIF metadata toggle), and `Settings`; an SD/USB source adds `SdCard` (Done with this card) before them. Every button has a spoken name, a long-press tooltip with the same text and a 48 dp target. The status and navigation bars always draw light icons over the dark UI (also after a rotation; system light mode must not flip them). In landscape orientation, the left and right side panels render the same actions as icon-only `SidePanelButton` items (64 × 48 dp, 8 dp apart so Sources, Selection, Share, Revert and Help fit a 360 dp tall phone, `landscape_share_button` for Share) and `TopBarIconButton`s; the micro-labels are withdrawn. In landscape the top bar and the Selection-viewer bar inset horizontally by the safe-drawing insets (3-button navigation bar on the right at rotation 90, on the left at 270; display cutouts), with one shared modifier (`horizontalSafeDrawingPadding`, applied after `statusBarsPadding()` and before the bar's own padding, so portrait does not move); the landing column and the read-only Selection viewer's badges use the same inset. The Selection viewer's Back, Copy and Share buttons are 48 × 48 dp (`selection_back_button`, `selection_copy_favourites_button`, `selection_share_all_button`).
 
 **Add to:** `PhoneModeScreen.kt` — fixed `Row` at `Alignment.TopStart` with statusBarsPadding.
 
@@ -139,7 +139,7 @@ The bottom sheet has a drag handle, header row with "Settings" headline + close 
 **Sheet container** (in `PhoneModeScreen.kt`):
 - `surfaceContainerLow` background
 - Top corners: `RoundedCornerShape(32.dp)` (currently uses default)
-- Add drag handle: 32×4dp pill, `outlineVariant`, centered at top with 16dp top padding
+- Drag handle: M3 `BottomSheetDefaults.DragHandle`, a 32 × 4 dp pill in a 48 × 48 dp target (`minimumInteractiveComponentSize`), 22 dp above and below, `onSurfaceVariant` at 50 %; it carries M3's localised "drag handle" name and dismisses the sheet, so it is a control. The settings column has no top padding (16 dp at the bottom) because the handle target already spaces it
 
 **Section headers** (update `SettingsSection`):
 - Current: just label text in `Indigo500`
@@ -289,6 +289,7 @@ Add subtle left-pointing chevrons on the left edge during swipe:
 - Format: "24 / 150" (spaces around slash)
 - Shares one bottom row with the EXIF card (card at the start, `weight(1f, fill = false)`; counter at the end), so the two never overlap at large font scales
 - Fades out with the EXIF card while a first-run hint card or the controls guide is shown
+- One composable (`PageCounterPill`) for portrait and the landscape right panel, tagged `viewer.counter` on the Surface with the Text as its direct child; in landscape the viewer draws none (`showPageCounter = false`), so the panel's pill is the only one on screen. Both show "24 / 150+" while the folder is still being enumerated
 
 ### Gradient vignettes
 
