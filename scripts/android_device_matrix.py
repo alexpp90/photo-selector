@@ -21,6 +21,8 @@ the test devices named in ``products/android/local.properties`` (what ``run_test
 --android-device`` uses); ``--serial`` picks devices explicitly. A designated test device (and
 an emulator) gets ``android_test_device.py prepare``'s persistent setup; any other device gets
 animations off, a maximal screen-off timeout and stay-awake for the run only, restored after.
+Every device's display (size, density, rotation) is put back after a hang or a lost connection and at
+the end of the run, and read back: a killed test never runs its own restore.
 An app the device already has under the same package id (``com.photoselectortoolbox``,
 ``com.phototok``) is never removed: a compatible one is updated in place and left installed; one
 signed differently (a release build) is left alone and that product is not tested there, unless
@@ -325,14 +327,26 @@ class TestResult:
     message: str = ""
     stack: str = ""
     retry: str = ""        # "" (not retried) | passed | failed
+    hung: bool = False     # the matrix killed the instrumentation: no output for the test timeout
 
     @property
     def key(self) -> str:
         return f"{self.module}:{self.cls}#{self.name}"
 
     @property
-    def flaky(self) -> bool:
+    def recovered(self) -> bool:
+        """Failed the first time and passed on retry — flaky, or hung."""
         return self.status == "failed" and self.retry == "passed"
+
+    @property
+    def flaky(self) -> bool:
+        return self.recovered and not self.hung
+
+    @property
+    def hung_then_passed(self) -> bool:
+        """A hang is never reported as flakiness: it cost the timeout and may have left the device
+        in a state the test would have restored (run 20261105-202303)."""
+        return self.recovered and self.hung
 
 
 def first_line(text: str, limit: int = 300) -> str:
@@ -421,7 +435,7 @@ class InstrumentationParser:
         cls, name, started = self.current
         self.current = None
         result = TestResult(self.module, cls, name, "failed", round(self.clock() - started, 2),
-                            reason, reason)
+                            reason, reason, hung=why.startswith("hung"))
         self.results.append(result)
         return result
 
@@ -562,6 +576,7 @@ class DeviceWorker:
         self.stop = stop
         self.restore = restore
         self.runner = runner
+        self.sleep: Callable[[float], None] = time.sleep   # tests replace it
         self.result = DeviceRun(device)
         self.installed: List[str] = []   # packages absent before this run — the only ones it removes
         self.modules: List[Module] = []   # products installed and tested on this device
@@ -612,6 +627,7 @@ class DeviceWorker:
         self.phase("setting up")
         try:
             if self.d.designated or self.d.kind == "emulator":
+                self._record_fixed_rotation()   # before anything runs: PREPARE_STEPS have no baseline for it
                 failed_steps = self._prepare()
                 self.result.notes.append("prepared as a test device"
                                          + (f" (failed: {', '.join(failed_steps)})" if failed_steps else ""))
@@ -651,12 +667,21 @@ class DeviceWorker:
         self.progress.event(self.d.label, f"adb {'root' if root else 'shell (no root)'}")
         return failed
 
+    def _record_fixed_rotation(self) -> None:
+        """Write the display's fixed-to-user-rotation mode to the RestoreBook, if the build reports it."""
+        state = read_display(self.d.serial, self.runner)
+        if FIXED_ROTATION in state:
+            self.restore.save(self.d.serial, {FIXED_ROTATION: state[FIXED_ROTATION]})
+            self.progress.event(self.d.label, f"saved fixed_to_user_rotation={state[FIXED_ROTATION]}")
+
     def _apply_temp_settings(self) -> None:
         saved: Dict[str, str] = {}
         for ns, key, _ in TEMP_SETTINGS:
             code, old = self.adb("shell", f"settings get {ns} {key}")
             if code == 0:
                 saved[f"{ns}/{key}"] = old.strip()
+        # The display too: a killed test leaves its forced size, density and rotation behind.
+        saved.update(read_display(self.d.serial, self.runner))
         self.restore.save(self.d.serial, saved)   # on disk before anything changes
         self.progress.event(self.d.label, "saved settings " + ", ".join(f"{k}={v}" for k, v in saved.items()))
         for ns, key, value in TEMP_SETTINGS:
@@ -667,11 +692,42 @@ class DeviceWorker:
     def _restore_temp_settings(self) -> None:
         saved = self.restore.pop(self.d.serial)
         if saved:
-            ok = restore_settings(self.d.serial, saved, self.runner)
+            ok = restore_settings(self.d.serial, saved, self.runner, self.sleep)
             self.progress.event(self.d.label, f"restored settings {'✓' if ok else '✗ (some failed)'} "
                                 + ", ".join(f"{k}={v}" for k, v in saved.items()))
             if not ok:
+                self.restore.save(self.d.serial, saved)   # stays on disk until a read-back matches
                 self.result.notes.append("settings restore failed — see progress.log")
+
+    def _reset_display(self, reason: str) -> None:
+        """Put the display back where it was before this run (a designated device or emulator: where
+        PREPARE_STEPS put it), whatever a killed or lost test left, and read it back. A change or a
+        failure is a note in the report."""
+        prepared = self.d.designated or self.d.kind == "emulator"
+        if prepared:
+            wanted = dict(PREPARED_DISPLAY)
+            recorded = self.restore.peek(self.d.serial).get(FIXED_ROTATION)
+            if recorded:
+                wanted[FIXED_ROTATION] = recorded
+        else:
+            saved = self.restore.peek(self.d.serial)
+            wanted = {k: v for k, v in saved.items() if k in DISPLAY_KEYS}
+            if not wanted:
+                self.progress.event(self.d.label, f"display not checked {reason}: no original recorded")
+                return
+        outcome = restore_display(self.d.serial, wanted, self.runner, prepare=prepared, sleep=self.sleep)
+        if outcome.ok and not outcome.changed:
+            self.progress.event(self.d.label, f"display checked {reason}: already {describe_display(outcome.after)}")
+            return
+        if outcome.ok:
+            note = (f"display reset {reason}: was {describe_display(outcome.before)}, "
+                    f"now {describe_display(outcome.after)}")
+        else:
+            note = (f"DISPLAY RESTORE FAILED {reason}: {'; '.join(outcome.problems)} "
+                    f"(display was {describe_display(outcome.before)}, now {describe_display(outcome.after)})")
+        self.progress.event(self.d.label, note, show=True)
+        if note not in self.result.notes:
+            self.result.notes.append(note)
 
     def _wait_build(self) -> bool:
         if not self.build_done.is_set():
@@ -799,6 +855,7 @@ class DeviceWorker:
                 if not self._wait_reconnect():
                     mrun.problems.append("device did not come back within 2 min — the rest of this suite did not run")
                     break
+                self._reset_display("after the device reconnected")
             elif not parser.results:
                 break  # it died before any test: resuming would repeat the same failure
             resumes += 1
@@ -875,6 +932,10 @@ class DeviceWorker:
                     mrun.results.append(hung)
             if why and why != DISCONNECTED:
                 self.adb("shell", f"am force-stop {module.target}")
+            if why != DISCONNECTED:
+                # The killed process never ran its tests' `finally` blocks: whatever display a
+                # WindowGeometryRule had set is still set, and the next test would take it for normal.
+                self._reset_display("after a hang" if why.startswith("hung") else "after the instrumentation died")
         return parser, inflight
 
     def _retry_failures(self, module: Module, component: str, mrun: ModuleRun, log_path: Path) -> None:
@@ -897,7 +958,8 @@ class DeviceWorker:
         self.progress.event(self.d.label, text, show=result.status == "failed")
 
     def _tally(self, mrun: ModuleRun) -> None:
-        failed = sum(1 for m in [*self.result.modules, mrun] for r in m.results if r.status == "failed" and not r.flaky)
+        failed = sum(1 for m in [*self.result.modules, mrun] for r in m.results
+                     if r.status == "failed" and not r.recovered)
         self.progress.tally(self.d.label, failed)
 
     def _capture_logcat(self, module: Module) -> None:
@@ -909,12 +971,16 @@ class DeviceWorker:
 
     def _done_text(self) -> str:
         results = self.result.results()
-        failed = [r for r in results if r.status == "failed" and not r.flaky]
+        failed = [r for r in results if r.status == "failed" and not r.recovered]
         flaky = [r for r in results if r.flaky]
+        hung = [r for r in results if r.hung_then_passed]
         text = f"done — {len(results)} tests, {len(failed)} failed"
-        return text + (f", {len(flaky)} flaky" if flaky else "")
+        text += f", {len(flaky)} flaky" if flaky else ""
+        return text + (f", {len(hung)} hung (passed on retry)" if hung else "")
 
     def _cleanup(self) -> None:
+        if self.d.designated or self.d.kind == "emulator":
+            self._reset_display("at the end of the run")   # a non-test device: _restore_temp_settings below
         if not self.opts.keep_installed:
             for package in reversed(self.installed):
                 self.adb("uninstall", package)
@@ -991,8 +1057,15 @@ class RestoreBook:
     def save(self, serial: str, saved: Dict[str, str]) -> None:
         with self.lock:
             data = self._load()
-            data.setdefault(serial, saved)   # never overwrite an older, true original
+            # Never overwrite an older, true original: per key, what is on disk wins; only keys the
+            # older entry did not record (an entry written before the display was recorded) are added.
+            data[serial] = {**saved, **data.get(serial, {})}
             self._store(data)
+
+    def peek(self, serial: str) -> Dict[str, str]:
+        """The recorded originals of ``serial``, left on disk."""
+        with self.lock:
+            return dict(self._load().get(serial, {}))
 
     def pop(self, serial: str) -> Dict[str, str]:
         with self.lock:
@@ -1006,14 +1079,188 @@ class RestoreBook:
             return self._load()
 
 
-def restore_settings(serial: str, saved: Dict[str, str], runner: Runner = run) -> bool:
-    """Put the saved values back; False when the device was not reachable."""
+# The display, which a killed test leaves wherever it had put it. ``WindowGeometryRule``
+# (android-desktop's @ExpandedWindow tests) forces the reference tablet geometry with ``wm size``,
+# ``wm density`` and ``user_rotation`` and undoes it in a ``finally`` that never runs when the
+# instrumentation is killed (a hang, a USB drop): the next test then reads the leftover as "the
+# original" and restores *that* (2026-11-05, Moto G77, run 20261105-202303). Whenever the matrix
+# kills or loses an instrumentation, and at the end of a run, it puts the display back itself and
+# reads it back. ``size`` / ``density`` hold the override ("1848x2960", "320") or ``reset``.
+DISPLAY_SIZE, DISPLAY_DENSITY = "display/size", "display/density"
+ROTATION_KEYS = ("system/user_rotation", "system/accelerometer_rotation")
+# How the display treats an app's requested orientation: WindowGeometryRule forces it on and its
+# `finally` puts it back. On API 31+ the shell knows `cmd window fixed-to-user-rotation [default|
+# enabled|disabled|enabled_if_no_auto_rotation]`, and the mode printed with no argument is the exact
+# original: a plain boolean cannot say `default` (a Pixel Tablet, API 37, prints `default` while
+# dumpsys shows `mFixedToUserRotation=false`), so restoring `disabled` would change the device. Up to
+# API 30 the command is `set-fix-to-user-rotation <enabled|disabled>` and only the dumpsys boolean
+# ("true" | "false", first display) is available. The recorded value says which: a mode word or a
+# boolean. Absent when the build reports neither: then it is left alone, as the rule does.
+FIXED_ROTATION = "display/fixed_to_user_rotation"
+FIXED_MODES = ("default", "enabled", "disabled", "enabled_if_no_auto_rotation")
+FIXED_COMMAND = "cmd window fixed-to-user-rotation"          # API 31+; the default display is 0
+FIXED_COMMAND_OLD = "cmd window set-fix-to-user-rotation"    # up to API 30
+DISPLAY_KEYS = (DISPLAY_SIZE, DISPLAY_DENSITY, *ROTATION_KEYS, FIXED_ROTATION)
+RESET = "reset"
+# What a designated test device and an emulator are prepared to (android_test_device.PREPARE_STEPS).
+PREPARED_DISPLAY = {DISPLAY_SIZE: RESET, DISPLAY_DENSITY: RESET,
+                    "system/user_rotation": "0", "system/accelerometer_rotation": "0"}
+GEOMETRY_STEP, ROTATION_STEP = "default display size and density", "fixed portrait rotation"
+DISPLAY_POLLS = 10             # read-backs, one DISPLAY_POLL_SECONDS apart, before a restore counts as failed
+DISPLAY_POLL_SECONDS = 1.0
+DISPLAY_SETTLE_SECONDS = 1.5   # after the size lands: put at once, the window manager re-saves the old rotation
+
+
+def read_display(serial: str, runner: Runner = run) -> Dict[str, str]:
+    """The display state as DISPLAY_KEYS -> value; a key the device did not answer for is absent."""
+    def shell(command: str) -> Tuple[int, str]:
+        return runner(["adb", "-s", serial, "shell", command])
+
+    state: Dict[str, str] = {}
+    code, out = shell("wm size")
+    if code == 0 and re.search(r"Physical size:\s*\d+x\d+", out):
+        override = re.search(r"Override size:\s*(\d+x\d+)", out)
+        state[DISPLAY_SIZE] = override.group(1) if override else RESET
+    code, out = shell("wm density")
+    if code == 0 and re.search(r"Physical density:\s*\d+", out):
+        override = re.search(r"Override density:\s*(\d+)", out)
+        state[DISPLAY_DENSITY] = override.group(1) if override else RESET
+    for key in ROTATION_KEYS:
+        namespace, name = key.split("/", 1)
+        code, out = shell(f"settings get {namespace} {name}")
+        if code == 0 and out.strip():
+            state[key] = out.strip().splitlines()[-1].strip()
+    code, out = shell(FIXED_COMMAND)
+    if code == 0 and out.strip() in FIXED_MODES:
+        state[FIXED_ROTATION] = out.strip()
+    else:   # an Android that predates the command (it exits 255, "Unknown command"): dumpsys's boolean
+        code, out = shell("dumpsys window displays")
+        fixed = re.search(r"mFixedToUserRotation=(\w+)", out) if code == 0 else None   # first = display 0
+        if fixed and fixed.group(1) in ("true", "false"):
+            state[FIXED_ROTATION] = fixed.group(1)
+    return state
+
+
+def describe_display(state: Dict[str, str]) -> str:
+    names = {DISPLAY_SIZE: "size", DISPLAY_DENSITY: "density", "system/user_rotation": "user_rotation",
+             "system/accelerometer_rotation": "accelerometer_rotation",
+             FIXED_ROTATION: "fixed_to_user_rotation"}
+    return ", ".join(f"{names[k]} {'default' if state[k] == RESET else state[k]}" for k in DISPLAY_KEYS if k in state)
+
+
+@dataclass
+class DisplayRestore:
+    before: Dict[str, str] = field(default_factory=dict)
+    after: Dict[str, str] = field(default_factory=dict)
+    changed: bool = False
+    problems: List[str] = field(default_factory=list)
+
+    @property
+    def ok(self) -> bool:
+        return not self.problems
+
+
+def _put_command(key: str, value: str) -> str:
+    namespace, name = key.split("/", 1)
+    if value in ("", "null"):
+        return f"settings delete {namespace} {name}"
+    return f"settings put {namespace} {name} {value}"
+
+
+def restore_display(serial: str, wanted: Dict[str, str], runner: Runner = run, prepare: bool = False,
+                    sleep: Callable[[float], None] = time.sleep) -> DisplayRestore:
+    """Put the display at ``wanted`` (DISPLAY_KEYS -> value) and read it back until it shows.
+
+    ``prepare`` re-applies the PREPARE_STEPS for the geometry and the rotation (a designated test
+    device, an emulator) instead of single ``wm`` / ``settings`` commands. Nothing is sent when the
+    display already reads as wanted. Size and density go first; the rotation is put only once they
+    have landed (set in the same breath, the window manager re-saves the rotation it still shows),
+    and again until it reads back."""
+    outcome = DisplayRestore()
+    keys = [k for k in DISPLAY_KEYS if k in wanted]
+    outcome.before = outcome.after = read_display(serial, runner)
+    unreadable = [k for k in keys if k not in outcome.before]
+    if unreadable:
+        outcome.problems.append(f"display unreadable ({', '.join(unreadable)}) — device not reachable?")
+        return outcome
+
+    def run_shell(command: str) -> None:
+        runner(["adb", "-s", serial, "shell", command])
+
+    def mismatched(state: Dict[str, str], among: Sequence[str]) -> List[str]:
+        return [k for k in among if state.get(k) != wanted[k]]
+
+    steps = dict(atd.PREPARE_STEPS)
+    geometry = [k for k in (DISPLAY_SIZE, DISPLAY_DENSITY) if k in wanted]
+    if mismatched(outcome.before, geometry):
+        outcome.changed = True
+        if prepare:
+            run_shell(steps[GEOMETRY_STEP])
+        else:
+            for key in mismatched(outcome.before, geometry):
+                what = key.split("/", 1)[1]
+                run_shell(f"wm {what} {'reset' if wanted[key] == RESET else wanted[key]}")
+        for _ in range(DISPLAY_POLLS):
+            outcome.after = read_display(serial, runner)
+            if not mismatched(outcome.after, geometry):
+                break
+            sleep(DISPLAY_POLL_SECONDS)
+        for key in mismatched(outcome.after, geometry):
+            outcome.problems.append(f"{key.split('/', 1)[1]} is {outcome.after.get(key, 'unreadable')} after the "
+                                    f"restore, wanted {wanted[key]}")
+        sleep(DISPLAY_SETTLE_SECONDS)
+
+    rotation = [k for k in ROTATION_KEYS if k in wanted]
+    for attempt in range(DISPLAY_POLLS + 1):
+        outcome.after = read_display(serial, runner)
+        bad = mismatched(outcome.after, rotation)
+        if not bad or attempt == DISPLAY_POLLS:
+            break
+        outcome.changed = True
+        if prepare:
+            run_shell(steps[ROTATION_STEP])
+        else:
+            for key in rotation:
+                run_shell(_put_command(key, wanted[key]))
+        sleep(DISPLAY_POLL_SECONDS)
+    for key in mismatched(outcome.after, rotation):
+        outcome.problems.append(f"{key.split('/', 1)[1]} is {outcome.after.get(key, 'unreadable')} after the "
+                                f"restore, wanted {wanted[key]}")
+    if FIXED_ROTATION in wanted and outcome.after.get(FIXED_ROTATION) != wanted[FIXED_ROTATION]:
+        # Last, so the rotation above was put while the display was still fixed to it.
+        outcome.changed = True
+        mode = wanted[FIXED_ROTATION]
+        if mode in FIXED_MODES:
+            command = f"{FIXED_COMMAND} {mode}"
+        else:
+            command = f"{FIXED_COMMAND_OLD} {'enabled' if mode == 'true' else 'disabled'}"
+        code, out = runner(["adb", "-s", serial, "shell", command])
+        # An unknown command exits 255; the read-back is the proof either way.
+        polls = 1 if code != 0 or "Unknown command" in out else DISPLAY_POLLS
+        for _ in range(polls):
+            outcome.after = read_display(serial, runner)
+            if outcome.after.get(FIXED_ROTATION) == mode:
+                break
+            sleep(DISPLAY_POLL_SECONDS)
+        if outcome.after.get(FIXED_ROTATION) != mode:
+            outcome.problems.append(f"fixed_to_user_rotation is {outcome.after.get(FIXED_ROTATION, 'unreadable')} "
+                                    f"after the restore, wanted {mode}")
+    return outcome
+
+
+def restore_settings(serial: str, saved: Dict[str, str], runner: Runner = run,
+                     sleep: Callable[[float], None] = time.sleep) -> bool:
+    """Put the saved values back; False when the device was not reachable or the display did not
+    read back as saved."""
     ok = True
     for ns_key, value in saved.items():
-        ns, key = ns_key.split("/", 1)
-        command = f"settings delete {ns} {key}" if value in ("", "null") else f"settings put {ns} {key} {value}"
-        code, _ = runner(["adb", "-s", serial, "shell", command])
+        if ns_key in DISPLAY_KEYS:
+            continue
+        code, _ = runner(["adb", "-s", serial, "shell", _put_command(ns_key, value)])
         ok = ok and code == 0
+    display = {k: v for k, v in saved.items() if k in DISPLAY_KEYS}
+    if display:
+        ok = restore_display(serial, display, runner, sleep=sleep).ok and ok
     return ok
 
 
@@ -1036,7 +1283,8 @@ def load_ledger(path: Path) -> Dict[str, object]:
 
 def observations(runs: Sequence[DeviceRun]) -> Tuple[Dict[str, Dict[str, Tuple[str, str]]], Dict[str, str]]:
     """``(tests, installs)``: per test key, hw serial -> (outcome, message); per hw serial, the
-    install error ("" when it installed). Outcome is passed | failed | flaky | skipped."""
+    install error ("" when it installed). Outcome is passed | failed | flaky | hung (hung, then passed on retry)
+    | skipped."""
     tests: Dict[str, Dict[str, Tuple[str, str]]] = {}
     installs: Dict[str, str] = {}
     for dr in runs:
@@ -1044,7 +1292,7 @@ def observations(runs: Sequence[DeviceRun]) -> Tuple[Dict[str, Dict[str, Tuple[s
         if dr.status == "ran" or dr.install_error:
             installs[hw] = dr.install_error
         for r in dr.results():
-            outcome = "flaky" if r.flaky else r.status
+            outcome = "hung" if r.hung_then_passed else "flaky" if r.flaky else r.status
             tests.setdefault(r.key, {})[hw] = (outcome, r.message)
     return tests, installs
 
@@ -1069,7 +1317,15 @@ def update_ledger(ledger: Dict[str, object], runs: Sequence[DeviceRun], run_id: 
         else:
             seen = {hw: tests.get(str(issue["test_key"]), {})[hw][0]
                     for hw in before if hw in tests.get(str(issue["test_key"]), {})}
-        entry = {"key": key, "issue": issue, "seen": {labels.get(hw, before[hw]["label"]): o for hw, o in seen.items()}}
+        if key in now_failing:
+            # Name every device that failed or was flaky this run too, not only the ones the ledger
+            # knew: "Pixel 4a: passed" next to "still failing" contradicted itself when the issue had
+            # moved to three other devices (2026-11-05). Failures first, then the devices that passed.
+            for hw, info in now_failing[key]["devices"].items():  # type: ignore[union-attr]
+                seen[hw] = str(info["outcome"])
+            seen = dict(sorted(seen.items(), key=lambda kv: kv[1] not in ("failed", "flaky", "hung")))
+        entry = {"key": key, "issue": issue,
+                 "seen": {labels.get(hw, before[hw]["label"] if hw in before else hw): o for hw, o in seen.items()}}
         if key in now_failing:
             verdicts["still"].append(entry)
         elif seen and all(o in ("passed", "skipped") for o in seen.values()):
@@ -1110,10 +1366,13 @@ def current_issues(tests: Dict[str, Dict[str, Tuple[str, str]]], installs: Dict[
                    labels: Dict[str, str], run_id: str) -> Dict[str, Dict[str, object]]:
     issues: Dict[str, Dict[str, object]] = {}
     for test_key, per_device in sorted(tests.items()):
-        bad = {hw: v for hw, v in per_device.items() if v[0] in ("failed", "flaky")}
+        bad = {hw: v for hw, v in per_device.items() if v[0] in ("failed", "flaky", "hung")}
         if not bad:
             continue
-        kind = "flaky" if all(o == "flaky" for o, _ in bad.values()) else "test"
+        outcomes = {o for o, _ in bad.values()}
+        # "hung" is new in the ledger; an old issues.json only has test | flaky | install and loads as before.
+        kind = "hung" if "hung" in outcomes and outcomes <= {"hung", "flaky"} else \
+            "flaky" if outcomes == {"flaky"} else "test"
         issues[test_key] = {
             "kind": kind, "title": test_key, "test_key": test_key, "first_seen": run_id, "last_seen": run_id,
             "runs_seen": 1,
@@ -1195,8 +1454,9 @@ def tree_state() -> str:
 def render_report(meta: Dict[str, object], runs: Sequence[DeviceRun],
                   verdicts: Dict[str, List[Dict[str, object]]], ledger: Dict[str, object]) -> str:
     all_results = [(dr, r) for dr in runs for r in dr.results()]
-    failed = [(dr, r) for dr, r in all_results if r.status == "failed" and not r.flaky]
+    failed = [(dr, r) for dr, r in all_results if r.status == "failed" and not r.recovered]
     flaky = [(dr, r) for dr, r in all_results if r.flaky]
+    hung = [(dr, r) for dr, r in all_results if r.hung_then_passed]
     ran = [dr for dr in runs if dr.status == "ran"]
     not_ran = [dr for dr in runs if dr.status != "ran"]
     failing_tests = sorted({r.key for _, r in failed})
@@ -1205,8 +1465,9 @@ def render_report(meta: Dict[str, object], runs: Sequence[DeviceRun],
         verdict = "⊘ no device ran the suites"
 
     lines = [f"# Android device test run {meta['run_id']}", ""]
+    hung_text = f"**{len({r.key for _, r in hung})} hung (passed on retry)**, " if hung else ""
     lines += [f"**{verdict}** — {len(failing_tests)} failing test(s), {len({r.key for _, r in flaky})} flaky, "
-              f"{len(ran)}/{len(runs)} device(s) ran"
+              f"{hung_text}{len(ran)}/{len(runs)} device(s) ran"
               + (f", {len(not_ran)} did not ({', '.join(dr.device.label for dr in not_ran)})" if not_ran else ""), ""]
     lines += [f"- Started {meta['started_at']}, wall time **{fmt_secs(float(meta['wall_seconds']))}** "  # type: ignore[arg-type]
               f"(build {fmt_secs(float(meta['build_seconds']))}{', skipped' if meta.get('no_build') else ''})",  # type: ignore[arg-type]
@@ -1227,8 +1488,9 @@ def render_report(meta: Dict[str, object], runs: Sequence[DeviceRun],
             lines += [f"**New this run:** {len(verdicts['new'])} issue(s) — see *Issues found*.", ""]
 
     lines += ["## Devices", "",
-              "| Device | Android | Screen | Via | Total | Setup | Install | Per module | Passed | Failed | Flaky | Skipped | Notes |",
-              "|---|---|---|---|---|---|---|---|---|---|---|---|---|"]
+              "| Device | Android | Screen | Via | Total | Setup | Install | Per module | Passed | Failed | Flaky | Hung "
+              "| Skipped | Notes |",
+              "|---|---|---|---|---|---|---|---|---|---|---|---|---|---|"]
     for dr in sorted(runs, key=lambda x: -x.seconds):
         d, res = dr.device, dr.results()
         per_module = ", ".join(f"{m.module} {fmt_secs(m.seconds)}" for m in dr.modules) or "—"
@@ -1237,20 +1499,26 @@ def render_report(meta: Dict[str, object], runs: Sequence[DeviceRun],
         lines.append(
             f"| {d.label} | {d.android} (API {d.sdk}) | {d.screen} @{d.density} | {d.kind} | {fmt_secs(dr.seconds)} | "
             f"{fmt_secs(dr.setup_seconds)} | {fmt_secs(dr.install_seconds)} | {per_module} | "
-            f"{sum(r.status == 'passed' for r in res)} | {sum(r.status == 'failed' and not r.flaky for r in res)} | "
-            f"{sum(r.flaky for r in res)} | {sum(r.status == 'skipped' for r in res)} | {notes or '—'} |")
+            f"{sum(r.status == 'passed' for r in res)} | "
+            f"{sum(r.status == 'failed' and not r.recovered for r in res)} | "
+            f"{sum(r.flaky for r in res)} | {sum(r.hung_then_passed for r in res)} | "
+            f"{sum(r.status == 'skipped' for r in res)} | {notes or '—'} |")
     lines.append("")
 
-    if failed or flaky or any(dr.install_error for dr in runs):
+    if failed or flaky or hung or any(dr.install_error for dr in runs):
         lines += ["## Issues found", ""]
         for dr in runs:
             if dr.install_error:
                 lines += [f"### Install fails on {dr.device.label}", "", f"    {dr.install_error}", ""]
-        for n, cluster in enumerate(clusters([(dr.device.label, r) for dr, r in failed + flaky]), 1):
+        for n, cluster in enumerate(clusters([(dr.device.label, r) for dr, r in failed + flaky + hung]), 1):
             tests, devices, messages = cluster["tests"], cluster["devices"], cluster["messages"]
-            all_flaky = all(r.flaky for _, r in cluster["hits"])
-            lines += [f"### {n}. {len(tests)} test(s) on {len(devices)} device(s)"
-                      + (" — flaky (passed on retry)" if all_flaky else ""), "",
+            kinds = {"hung" if r.hung_then_passed else "flaky" if r.flaky else "failed" for _, r in cluster["hits"]}
+            heading = {"flaky": " — flaky (passed on retry)",
+                       "hung": " — HUNG, then passed on retry (killed after no output; not flakiness)"}.get(
+                next(iter(kinds)) if len(kinds) == 1 else "", "")
+            if kinds == {"hung", "flaky"}:
+                heading = " — hung or flaky (passed on retry; the hung ones were killed after no output)"
+            lines += [f"### {n}. {len(tests)} test(s) on {len(devices)} device(s){heading}", "",
                       f"Devices: {', '.join(devices)}", "", "Tests:"]
             for key in tests:
                 ran_it = sum(1 for dr in ran if any(r.key == key for r in dr.results()))
@@ -1309,7 +1577,7 @@ def gate_lines(runs: Sequence[DeviceRun]) -> List[str]:
     out = []
     for dr in runs:
         head = f"{dr.device.serial}\tinstrumented tests on {dr.device.label}"
-        hard = [r for r in dr.results() if r.status == "failed" and not r.flaky]
+        hard = [r for r in dr.results() if r.status == "failed" and not r.recovered]
         if dr.status == "skipped":
             out.append(f"skip\t{head}\t{dr.reason}")
         elif dr.status != "ran" or hard or any(m.problems and not m.results for m in dr.modules):
