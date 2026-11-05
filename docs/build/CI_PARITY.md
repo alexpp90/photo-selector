@@ -281,6 +281,13 @@ and then skipped, not failed. While it runs it prints each device's phase, every
 happens, and a progress board; `progress.log` in the run directory has every test event
 (`tail -f` it). A test with no output for `--test-timeout` (600 s) counts as hung; a crash or
 hang fails the test it hit and the suite resumes after it.
+A killed test never runs its `finally` blocks, and `WindowGeometryRule` leaves the display at the
+reference tablet size, density and rotation: whenever the runner kills or loses an instrumentation
+(hang, crash, USB drop) and again at the end of the run, it puts the display back itself and reads
+`wm size`, `wm density`, the rotation settings and the `cmd window fixed-to-user-rotation` mode (`default`, `enabled`, …; dumpsys boolean before API 31) back. A test device and an emulator return to the
+`prepare` state; any other device to the values recorded in `restore-pending.json` before the run.
+A change or a failed restore is a note on the device's row in the report.
+A test that hung and passed on its retry is reported as *hung* (own column, heading and ledger outcome `hung`), never as flaky.
 
 **Report and issue hand-over.** Each run writes `.git/pst-device-runs/<run-id>/` (the common git
 directory, shared by every worktree): `report.md` — wall time, build time, per device setup,
@@ -313,7 +320,7 @@ With several devices attached and none named, `--configured` refuses rather than
 personal devices. A named test device (and an emulator) gets `android_test_device.py prepare`'s
 persistent setup; any other device gets only animations off, stay-awake and a maximal
 screen-off timeout for the run, saved to `.git/pst-device-runs/restore-pending.json` first and
-put back afterwards — by the next run if this one was killed.
+put back afterwards (with its display size, density and rotation) — by the next run if this one was killed.
 
 **A secure lock screen cannot be prepared away.** `locksettings set-disabled` succeeds silently
 on a phone with a PIN, pattern or password, and the lock screen then covers every activity, so
