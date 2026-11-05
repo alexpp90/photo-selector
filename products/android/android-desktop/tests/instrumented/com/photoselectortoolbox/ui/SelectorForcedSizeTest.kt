@@ -119,12 +119,15 @@ class SelectorForcedSizeTest {
         // that (state, not time: the size either arrives or the test fails with it).
         val deadline = System.currentTimeMillis() + 10_000
         while (!windowHolds(width, height) && System.currentTimeMillis() < deadline) Thread.sleep(100)
-        val seen = InstrumentationRegistry.getInstrumentation().targetContext.resources.displayMetrics
-        assertTrue(
-            "the window holds a $width x $height dp host (the process sees " +
-                "${(seen.widthPixels / seen.density).toInt()} x ${(seen.heightPixels / seen.density).toInt()} dp)",
-            windowHolds(width, height),
-        )
+        if (!windowHolds(width, height)) {
+            val seen = InstrumentationRegistry.getInstrumentation().targetContext.resources.displayMetrics
+            // The process's own view is not the display's: the report says which of the two is wrong.
+            throw AssertionError(
+                "the window holds a $width x $height dp host (the process sees " +
+                    "${seen.widthPixels / seen.density} x ${seen.heightPixels / seen.density} dp; " +
+                    geometryRule.displayReport() + ")",
+            )
+        }
         composeRule.setContent {
             PhotoSelectorToolboxTheme {
               val base = LocalDensity.current
