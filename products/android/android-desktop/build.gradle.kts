@@ -29,13 +29,16 @@ android {
             res.directories.apply { clear(); add("res") }
             manifest.srcFile("AndroidManifest.xml")
         }
+        // `tests/common` is compiled into both test source sets: pure-Kotlin test helpers
+        // (the arithmetic of the instrumented `WindowGeometryRule`) that a JVM unit test proves
+        // and an instrumented test uses. It holds nothing that needs a device.
         getByName("test") {
-            java.directories.apply { clear(); add("tests/unit") }
-            kotlin.directories.apply { clear(); add("tests/unit") }
+            java.directories.apply { clear(); add("tests/unit"); add("tests/common") }
+            kotlin.directories.apply { clear(); add("tests/unit"); add("tests/common") }
         }
         getByName("androidTest") {
-            java.directories.apply { clear(); add("tests/instrumented") }
-            kotlin.directories.apply { clear(); add("tests/instrumented") }
+            java.directories.apply { clear(); add("tests/instrumented"); add("tests/common") }
+            kotlin.directories.apply { clear(); add("tests/instrumented"); add("tests/common") }
         }
     }
 
