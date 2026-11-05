@@ -1,0 +1,9 @@
+        InsetsSource id=3 type=ime frame=[0,0][0,0] visible=false flags=INVALID sideHint=NONE
+        InsetsSource id=28f90000 type=statusBars frame=[0,0][1920,74] visible=true flags= sideHint=TOP
+        InsetsSource id=28f90005 type=mandatorySystemGestures frame=[0,0][1920,74] visible=true flags= sideHint=TOP
+        InsetsSource id=28f90006 type=tappableElement frame=[0,0][1920,74] visible=true flags= sideHint=TOP
+        InsetsSource id=74310001 type=navigationBars frame=[1794,0][1920,1080] visible=true flags= sideHint=RIGHT
+        InsetsSource id=74310004 type=systemGestures frame=[0,0][0,0] visible=true flags= sideHint=NONE
+        InsetsSource id=74310005 type=mandatorySystemGestures frame=[1794,0][1920,1080] visible=true flags= sideHint=RIGHT
+        InsetsSource id=74310006 type=tappableElement frame=[1794,0][1920,1080] visible=true flags= sideHint=RIGHT
+        InsetsSource id=74310024 type=systemGestures frame=[0,0][0,0] visible=true flags= sideHint=NONE

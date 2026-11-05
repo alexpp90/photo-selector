@@ -16,7 +16,7 @@ from _explore_fakes import default_state, make_state, node  # noqa: E402
 from lab.explore.actions import Action  # noqa: E402
 from lab.explore.ai_adapters import AIJudgeError, AIProvider, Judgement  # noqa: E402
 from lab.explore.discovery import SYSTEM_PICKER_MODE  # noqa: E402
-from lab.explore.expectations import Expectation  # noqa: E402
+from lab.explore.expectations import Expectation, ExpectationRecorder  # noqa: E402
 from lab.explore.verifier import verify_step  # noqa: E402
 from lab.model import Finding  # noqa: E402
 
@@ -139,6 +139,16 @@ class VerifierTest(unittest.TestCase):
         self.assertEqual(checked.unchecked, [])
         no_claim = self.verify(before=at(), after=at())
         self.assertEqual(no_claim.unchecked, [])
+
+    def test_navigation_recorded_without_a_position_is_reported_unchecked(self) -> None:
+        # 2026-11-05, Pixel 4a (explore run 2026-11-05-explore-tok): swipes on a screen without the
+        # counter were recorded "index not checked", yet the header said 0 passes with an unchecked
+        # claim, because the step carried no claim the verifier could leave open.
+        bare = make_state([node("viewer.photo", [0, 0, 400, 800], interactive=False)])
+        exp = ExpectationRecorder("phototok").record_navigation(bare, Action("swipe", target_id="viewer.photo", params={"direction": "up"}))
+        res = self.verify(before=bare, after=bare, exp=exp)
+        self.assertEqual(res.status, "pass")
+        self.assertEqual(res.unchecked, ["index"])
 
     def test_index_delta_from_the_apps_own_position(self) -> None:
         # Blitzlens: no counter node in the tree, the driver's position from state.json instead.

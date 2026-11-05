@@ -372,6 +372,9 @@ class InteractionVerifier:
                     screen_sig=screen_sig, action_sig=action_sig, subject="", checkpoint=checkpoint, evidence=evidence,
                 )
             )
+        # A navigation step recorded without a position on the screen before claims a move it
+        # could not state (2026-11-05, Pixel 4a: 4 of 34 swipes, reported as checked passes).
+        unchecked += [claim for claim in expectation.unverifiable if claim not in unchecked]
         return findings, unchecked
 
     def verify_layout(self, after_state: ScreenState, screen_sig: str, checkpoint: str, evidence: List[str]) -> List[Finding]:

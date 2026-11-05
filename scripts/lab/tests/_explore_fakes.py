@@ -75,6 +75,8 @@ class ScriptedDriver(DeviceDriver):
         adb: Any = None,
         serial: str = "FAKE1",
         calls: Optional[List[str]] = None,
+        home: frozenset = frozenset(),
+        browsers: frozenset = frozenset(),
     ) -> None:
         super().__init__("phototok", "com.phototok.lab", out_dir / "work", out_dir, settle_ms)
         self.captures = list(captures if captures is not None else [default_state()])
@@ -88,6 +90,13 @@ class ScriptedDriver(DeviceDriver):
         self.adb = adb
         self.serial = serial
         self.capture_count = 0
+        self.home, self.browsers = home, browsers
+
+    def home_packages(self) -> frozenset:
+        return self.home
+
+    def default_browser_packages(self) -> frozenset:
+        return self.browsers
 
     def setup(self) -> None:
         self.calls.append("setup")

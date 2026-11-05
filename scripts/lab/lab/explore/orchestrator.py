@@ -48,6 +48,7 @@ from ..model import Finding
 from ..paths import ensure_under, lab_tmp_root, new_run_dir, repo_root
 from .actions import Action, ScreenState
 from .ai_adapters import AIProvider, create_ai_adapter
+from .appleft import EXPECTED, OUTBOUND_LINK, classify_app_left
 from .discovery import SYSTEM_PICKER_MODE, inspect_screen, load_discovery_rules, normalize_product_name
 from .driver import (
     AndroidDeviceDriver,
@@ -59,6 +60,7 @@ from .driver import (
     LinuxDeviceDriver,
     MacOSDeviceDriver,
     MockDeviceDriver,
+    TargetUnderSystemBarError,
 )
 from .expectations import ExpectationRecorder
 from .reporter import compute_root_signature
@@ -646,28 +648,81 @@ class ExploratoryOrchestrator:
 
     # ------------------------------------------------------------------ the loop
 
+    @staticmethod
+    def _device_fact(read: Callable[[], frozenset]) -> frozenset:
+        """A package set the driver reads from the device; empty when it cannot (the step stays a lead)."""
+        try:
+            return read()
+        except DriverError as exc:
+            logger.warning("Could not read a device fact for an app-left step: %s", exc)
+            return frozenset()
+
     def _min_step_s(self, driver: DeviceDriver) -> float:
         reserve = AI_STEP_RESERVE_S if self.ai.name != "none" else 0.0
         return 2 * (driver.settle_ms or 0) / 1000.0 + reserve
 
-    def _driver_finding(self, target: TargetConfig, checkpoint: str, exc: Exception, screen: str, action_sig: str, what: str) -> Finding:
-        """A finding for an app failure; its signature has no step number, so repeats dedup."""
+    def _driver_finding(
+        self, target: TargetConfig, checkpoint: str, exc: Exception, screen: str, action_sig: str, what: str,
+        evidence: Optional[List[str]] = None, rule: Optional[str] = None, severity: Optional[str] = None,
+    ) -> Finding:
+        """A finding for an app failure; its signature has no step number, so repeats dedup.
+
+        `rule` and `severity` replace the ones the failure's type gives (a verdict of `appleft.py`).
+        """
         if isinstance(exc, AppCrashedError):
-            rule, severity = "crash", SEVERITY_BLOCKER
+            _rule, _severity = "crash", SEVERITY_BLOCKER
         elif isinstance(exc, AppLeftError):
             # Often meant (Share, a link to the browser): a lead for triage, not a defect.
-            rule, severity = "app-left", SEVERITY_MINOR
+            _rule, _severity = "app-left", SEVERITY_MINOR
+        elif isinstance(exc, TargetUnderSystemBarError):
+            # The control cannot be tapped: the app's defect, except where it only scrolls under the bar.
+            _rule, _severity = "under-system-bar", SEVERITY_POLISH if exc.in_scroll else SEVERITY_MINOR
         elif isinstance(exc, DriverExecutionError):
-            rule, severity = "action-failed", SEVERITY_MAJOR
+            _rule, _severity = "action-failed", SEVERITY_MAJOR
         else:
-            rule, severity = "capture-failed", SEVERITY_MAJOR
+            _rule, _severity = "capture-failed", SEVERITY_MAJOR
+        rule, severity = rule or _rule, severity or _severity
         product = normalize_product_for_verifier(target.product)
         return Finding(
             id=compute_root_signature(product, screen, action_sig, rule, ""),
             source="flow", product=product, config=target.config_label, journey="explore",
             checkpoint=checkpoint, rule=rule, severity=severity, confidence="high", region=None,
-            message=f"{what}: {exc}", evidence=[], new_since_last_run=True,
+            message=f"{what}: {exc}", evidence=list(evidence or []), new_since_last_run=True,
         )
+
+    def _step_evidence(
+        self, target_dir: Path, step: int, before: Optional[ScreenState], exc: Optional[Exception] = None
+    ) -> List[str]:
+        """Write what a step that never reached the verifier saw; return the files, relative to the run directory.
+
+        The screen before the action (screenshot and tree) and, for an `AppLeftError`, the window
+        that came to the front (screenshot and tree) and the top-task line: they say which app was
+        in front and why the step is a lead. Without them the finding was a sentence about a screen
+        no one could open (2026-11-05: every `app-left` had `evidence: []`).
+        """
+        run_root = self.out_dir.resolve()  # type: ignore[union-attr]
+        evidence_dir = ensure_under(target_dir / "evidence", self.out_dir)  # type: ignore[arg-type]
+        written: List[Path] = []
+
+        def put(name: str, data: Any) -> None:
+            evidence_dir.mkdir(parents=True, exist_ok=True)
+            path = evidence_dir / f"step_{step:02d}_{name}"
+            if isinstance(data, bytes):
+                path.write_bytes(data)
+            else:
+                path.write_text(data, encoding="utf-8")
+            written.append(path)
+
+        left = exc if isinstance(exc, AppLeftError) else None
+        for role, state in (("before", before), ("after", left.after if left else None)):
+            if state is None:
+                continue
+            if state.screenshot_bytes:
+                put(f"{role}.png", state.screenshot_bytes)
+            put(f"{role}_tree.json", json.dumps(state.tree.to_dict(), indent=2))
+        if left is not None and left.top_task:
+            put("top_task.txt", left.top_task + "\n")
+        return [str(p.resolve().relative_to(run_root)) for p in written]
 
     def _explore_loop(self, driver: DeviceDriver, target: TargetConfig, target_dir: Path, deadline: float) -> WorkerResult:
         steps: List[StepResult] = []
@@ -754,7 +809,10 @@ class ExploratoryOrchestrator:
             except DriverError as exc:
                 if not captured:
                     return "error", f"cannot capture the screen at step {step}: {exc}", restarts
-                findings.append(self._driver_finding(target, checkpoint, exc, last_screen, last_action_sig, "capturing the screen"))
+                findings.append(self._driver_finding(
+                    target, checkpoint, exc, last_screen, last_action_sig, "capturing the screen",
+                    evidence=self._step_evidence(target_dir, step, None, exc),
+                ))
                 err = app_failed(exc, "capturing the screen")
                 if err:
                     return "error", err, restarts
@@ -775,10 +833,24 @@ class ExploratoryOrchestrator:
                 driver.execute_action(action)
             except (AppCrashedError, AppLeftError) as exc:
                 what = f"{action.summary()} ended the session"
-                failed_step(STATUS_FAIL, self._driver_finding(target, checkpoint, exc, last_screen, last_action_sig, what), action, expectation, before)
+                failed_step(STATUS_FAIL, self._driver_finding(
+                    target, checkpoint, exc, last_screen, last_action_sig, what,
+                    evidence=self._step_evidence(target_dir, step, before, exc),
+                ), action, expectation, before)
                 err = app_failed(exc, what)
                 if err:
                     return "error", err, restarts
+                continue
+            except TargetUnderSystemBarError as exc:
+                # The app's own control cannot be tapped (the system bar covers its centre), which
+                # is a finding about the app, not a failure of the tool: not retried on this screen,
+                # and not counted among the steps the driver could not execute.
+                finding = self._driver_finding(
+                    target, checkpoint, exc, last_screen, last_action_sig, f"{action.summary()} was not performed",
+                    evidence=self._step_evidence(target_dir, step, before),
+                )
+                failed_step(STATUS_ERROR, finding, action, expectation, before)
+                unexecutable.add((before.screen_mode or "", action.signature))
                 continue
             except DriverError as exc:
                 failed_step(STATUS_ERROR, self._driver_finding(target, checkpoint, exc, last_screen, last_action_sig, f"could not execute {action.summary()}"), action, expectation, before)
@@ -796,15 +868,26 @@ class ExploratoryOrchestrator:
                 after = driver.capture_state()
                 after_captured_at = time.monotonic()
             except AppLeftError as exc:
-                # The action took the user out of the app. Back on the root screen does that by
-                # design, Share or a link on purpose, so each is a lead to triage, not a failure:
-                # Back as polish (one per screen it left from), anything else as minor. The app is
-                # relaunched; a streak of exits ends the target, as nothing else is being tested.
+                # The action took the user out of the app. Decided by machine facts (`appleft.py`):
+                # Back at the root screen brings the launcher by design (no finding), a tap that
+                # opens the default browser is an outbound link (polish), anything else a lead
+                # (Back as polish, the rest minor). The app is relaunched; a streak of exits ends
+                # the target, as nothing else is being tested.
                 left_streak += 1
-                finding = self._driver_finding(target, checkpoint, exc, last_screen, last_action_sig, f"{action.summary()} left the app")
-                if action.action_type == "back":
-                    finding.severity = SEVERITY_POLISH
-                left = [finding]
+                verdict = classify_app_left(
+                    action.action_type, before.screen_mode or "", normalize_product_name(target.product),
+                    exc.packages, self._device_fact(driver.home_packages), self._device_fact(driver.default_browser_packages),
+                )
+                left: List[Finding] = []
+                if verdict.kind != EXPECTED:
+                    what = f"{action.summary()} left the app"
+                    left = [self._driver_finding(
+                        target, checkpoint, exc, last_screen, last_action_sig,
+                        f"{what}: {verdict.reason}" if verdict.reason else what,
+                        evidence=self._step_evidence(target_dir, step, before, exc),
+                        rule="outbound-link" if verdict.kind == OUTBOUND_LINK else None,
+                        severity=SEVERITY_POLISH if verdict.kind == OUTBOUND_LINK or action.action_type == "back" else None,
+                    )]
                 steps.append(StepResult(step, action, expectation, STATUS_PASS, left, before, before, config_label=target.config_label))
                 findings.extend(left)
                 self._log_step(target_dir, steps[-1])

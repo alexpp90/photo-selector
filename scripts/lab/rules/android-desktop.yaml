@@ -19,14 +19,17 @@ frame_ids:
   - selector.frame.next
 ignore_ids: []
 # By-design overlaps ([a, b] id globs; a node matches through itself or an ancestor). The
-# maximise badge sits on its frame, and the rating pill on the maximised frame. The badge is
-# not an overlay: exempting it hid the first-run pill covering it (AD-4).
+# maximise badge sits on its frame, the rating pill and the info toggle on the maximised frame
+# (REQ-AND-LAYOUT.06: the toggle sits ON the frame, 9378f7da; J-AD-02 `maximised` reported the
+# pair twice on 2026-11-05). The badge is not an overlay: exempting it hid the first-run pill
+# covering it (AD-4).
 allowed_overlaps:
   - [maximise_badge, "column_*"]
   - [maximise_badge, "selector.frame.*"]
   - [maximise_badge, maximised_frame]
   - [maximise_badge, image_region]
   - [star_rating_bar, maximised_frame]
+  - [maximised_info_toggle, maximised_frame]
 guidance_must_not_cover:
   first_run_hint: [maximise_badge]
 frame_size:

@@ -158,6 +158,106 @@ def overlap_allowed(a: Node, b: Node, pairs: list[list[str]], by_id: dict[str, N
 TOUCH_TOLERANCE = 0.5
 
 
+def cut_by_overlap(node: Node, nodes: list[Node], by_id: dict[str, Node]) -> tuple[bool, bool]:
+    """`(width_cut, height_cut)`: an overlapping node cuts `node`'s reported bounds on that axis.
+
+    Accessibility reports a control's visible bounds, so a snackbar drawn over the edge of the
+    first-run pill's Got-it button reported it 26 dp high instead of 48 (2026-11-05, Pixel Tablet,
+    `first_run_hint_dismiss` 56x26 beside 56x48 in 15 other checkpoints). Evidence of the cut, all
+    from the tree: a descendant of `node` reaches past one of its edges, another node (neither
+    ancestor nor descendant) covers that reach, and that node's edge meets `node`'s on the cut
+    edge. The axis of the cut is then unknown, not too small (as `cut_by_scroll`, LAB-26); the
+    other axis is still real.
+    """
+    tol = TOUCH_TOLERANCE
+
+    def related(a: Node, b: Node) -> bool:
+        return is_ancestor(a.id, b, by_id) or is_ancestor(b.id, a, by_id)
+
+    def spans(a0: float, a1: float, b0: float, b1: float) -> bool:
+        return min(a1, b1) - max(a0, b0) > tol
+
+    inner = [d for d in nodes if d is not node and d.w > 0 and d.h > 0 and is_ancestor(node.id, d, by_id)]
+    width_cut = height_cut = False
+    for d in inner:
+        reach_top, reach_bottom = d.y < node.y - tol, d.y + d.h > node.y + node.h + tol
+        reach_left, reach_right = d.x < node.x - tol, d.x + d.w > node.x + node.w + tol
+        if not (reach_top or reach_bottom or reach_left or reach_right):
+            continue
+        for o in nodes:
+            if o is node or o is d or o.w <= 0 or o.h <= 0 or related(o, node) or intersection_rect(d.bounds, o.bounds) is None:
+                continue
+            across_x = spans(o.x, o.x + o.w, node.x, node.x + node.w)
+            across_y = spans(o.y, o.y + o.h, node.y, node.y + node.h)
+            if across_x and ((reach_top and abs(o.y + o.h - node.y) <= tol) or (reach_bottom and abs(o.y - (node.y + node.h)) <= tol)):
+                height_cut = True
+            if across_y and ((reach_left and abs(o.x + o.w - node.x) <= tol) or (reach_right and abs(o.x - (node.x + node.w)) <= tol)):
+                width_cut = True
+    return width_cut, height_cut
+
+
+def _contains(outer: Node, inner: Node, tol: float = TOUCH_TOLERANCE) -> bool:
+    return (
+        outer.x <= inner.x + tol
+        and outer.y <= inner.y + tol
+        and outer.x + outer.w >= inner.x + inner.w - tol
+        and outer.y + outer.h >= inner.y + inner.h - tol
+    )
+
+
+def nested_control_groups(
+    nodes: list[Node], by_id: dict[str, Node], min_target: float
+) -> dict[int, tuple[list[float], list[Node]]]:
+    """Interactive nodes that are one control, keyed by `id()` of the member that stands for it.
+
+    Compose nests two interactive nodes for one control: a tooltip anchor (long-clickable, 32x28
+    dp) around the IconButton that grows to 48 dp past it (Jackpix's sheet drag handle, #9 and
+    #10, 2026-11-05: touch-target and unnamed-control each reported twice). A node joins its
+    nearest interactive ancestor when one's bounds contain the other's and that ancestor is
+    under-sized itself. An ancestor of full size keeps ruling its children through R5's
+    `parent_covers`, so no small control is hidden inside a big one.
+
+    Nodes are told apart by identity, not by id: Frameduel repeats ids (one `filmstrip_thumbnail`
+    per frame). Value: (the union of the members' bounds `[x, y, w, h]`, all members). The key is
+    the member with the largest area (the first in tree order on a tie): the one judged.
+    """
+    tol = TOUCH_TOLERANCE
+    root: dict[int, int] = {}
+
+    def find(i: int) -> int:
+        while root.get(i, i) != i:
+            i = root[i]
+        return i
+
+    joined: set[int] = set()
+    for node in nodes:
+        if not node.interactive:
+            continue
+        visited: set[str] = set()
+        cur = by_id.get(node.parent) if node.parent else None
+        while cur is not None and cur.id not in visited:
+            visited.add(cur.id)
+            if cur.interactive:
+                small = cur.w < min_target - tol or (not cut_by_scroll(cur, by_id) and cur.h < min_target - tol)
+                if small and (_contains(cur, node) or _contains(node, cur)):
+                    root[find(id(node))] = find(id(cur))
+                    joined.update((id(node), id(cur)))
+                break
+            cur = by_id.get(cur.parent) if cur.parent else None
+
+    groups: dict[int, list[Node]] = {}
+    for node in nodes:
+        if id(node) in joined:
+            groups.setdefault(find(id(node)), []).append(node)
+    out: dict[int, tuple[list[float], list[Node]]] = {}
+    for group in groups.values():
+        x1, y1 = min(m.x for m in group), min(m.y for m in group)
+        x2, y2 = max(m.x + m.w for m in group), max(m.y + m.h for m in group)
+        stand_in = max(group, key=lambda m: m.w * m.h)
+        out[id(stand_in)] = ([x1, y1, x2 - x1, y2 - y1], group)
+    return out
+
+
 def lint(
     tree: Tree,
     rules: dict[str, Any],
@@ -183,7 +283,22 @@ def lint(
 
     by_id: dict[str, Node] = {n.id: n for n in tree.nodes}
     labelled = named_ids(tree.nodes)
-    seen_bounds = {n.id: visible_bounds(n, by_id) for n in tree.nodes}
+    # Per node, not per id: Frameduel repeats ids (one `filmstrip_thumbnail` per frame), and a dict
+    # by id kept the last duplicate, so R1 intersected it with itself (2026-11-05: 233 false majors).
+    seen_bounds = {id(n): visible_bounds(n, by_id) for n in tree.nodes}
+    id_count: dict[str, int] = {}
+    for n in tree.nodes:
+        id_count[n.id] = id_count.get(n.id, 0) + 1
+
+    def ref(n: Node) -> str:
+        """A node's name in a finding's id: its id, plus its bounds where the id is not unique.
+
+        Findings of repeated ids shared one id per checkpoint; a unique id keeps the name it had,
+        so triaged finding ids stay valid.
+        """
+        if id_count[n.id] == 1:
+            return n.id
+        return f"{n.id}@{n.x:.0f},{n.y:.0f},{n.w:.0f},{n.h:.0f}"
     active_nodes = [
         n
         for n in tree.nodes
@@ -247,7 +362,7 @@ def lint(
         for b in interactive_nodes[i + 1:]:
             if is_ancestor(a.id, b, by_id) or is_ancestor(b.id, a, by_id):
                 continue
-            va, vb = seen_bounds.get(a.id), seen_bounds.get(b.id)
+            va, vb = seen_bounds.get(id(a)), seen_bounds.get(id(b))
             if va is None or vb is None:
                 continue
             inter = intersection_rect(va, vb)
@@ -261,7 +376,7 @@ def lint(
                     "major",
                     inter,
                     f"{a.id} overlaps {b.id} by {inter_area:.0f} {unit}²",
-                    [a.id, b.id],
+                    [ref(a), ref(b)],
                 )
 
     # R2: occludes-frame (major)
@@ -281,7 +396,7 @@ def lint(
                 continue
             if overlap_allowed(node, frame, allowed_pairs, by_id):
                 continue
-            seen = seen_bounds.get(node.id)
+            seen = seen_bounds.get(id(node))
             inter = intersection_rect(seen, frame.bounds) if seen is not None else None
             if inter is None:
                 continue
@@ -292,10 +407,13 @@ def lint(
                     "major",
                     inter,
                     f"{node.id} occludes frame {frame.id} by {(inter_area / f_area) * 100:.1f}%",
-                    [frame.id, node.id],
+                    [ref(frame), ref(node)],
                 )
 
-    # R4-R7: per active node checks
+    # R4-R7: per active node checks. Nested interactive nodes of one control (a tooltip anchor
+    # around its button) are judged once, for R5 and R6, by the member that stands for them.
+    groups = nested_control_groups([n for n in active_nodes if n.interactive], by_id, min_target)
+    grouped = {id(m) for _, members in groups.values() for m in members}
     for node in active_nodes:
         cut = node.interactive and cut_by_scroll(node, by_id)
         if node.interactive:
@@ -311,36 +429,49 @@ def lint(
                     "major",
                     node.bounds,
                     f"{node.id} extends outside window ({tree.window_w:.0f}x{tree.window_h:.0f} {unit})",
-                    [node.id],
+                    [ref(node)],
                 )
 
-            # R5: touch-target (minor); a control cut by its scroll container has no known height
-            if node.w < min_target - TOUCH_TOLERANCE or (not cut and node.h < min_target - TOUCH_TOLERANCE):
-                parent_node = by_id.get(node.parent) if node.parent else None
-                parent_covers = (
-                    parent_node is not None
-                    and parent_node.interactive
-                    and parent_node.w >= min_target - TOUCH_TOLERANCE
-                    and parent_node.h >= min_target - TOUCH_TOLERANCE
-                )
-                if not parent_covers:
-                    add_finding(
-                        "touch-target",
-                        "minor",
-                        node.bounds,
-                        f"{node.id} is {node.w:.0f}x{node.h:.0f} {unit} (min {min_target:.0f} {unit})",
-                        [node.id],
+            group = groups.get(id(node))
+            if id(node) not in grouped or group is not None:  # a member is judged by its stand-in
+                ctrl = group[0] if group else node.bounds  # the union of a nested control
+                ctrl_w, ctrl_h = float(ctrl[2]), float(ctrl[3])
+                ctrl_members = group[1] if group else [node]
+                cut = any(cut_by_scroll(m, by_id) for m in ctrl_members)
+
+                # R5: touch-target (minor); a control cut by its scroll container has no known height,
+                # one cut by an overlapping node no known size on the cut axis
+                too_narrow = ctrl_w < min_target - TOUCH_TOLERANCE
+                too_short = not cut and ctrl_h < min_target - TOUCH_TOLERANCE
+                if too_narrow or too_short:
+                    w_cut, h_cut = cut_by_overlap(node, active_nodes, by_id)
+                    too_narrow, too_short = too_narrow and not w_cut, too_short and not h_cut
+                if too_narrow or too_short:
+                    parent_node = by_id.get(node.parent) if node.parent else None
+                    parent_covers = (
+                        parent_node is not None
+                        and parent_node.interactive
+                        and parent_node.w >= min_target - TOUCH_TOLERANCE
+                        and parent_node.h >= min_target - TOUCH_TOLERANCE
                     )
+                    if not parent_covers:
+                        add_finding(
+                            "touch-target",
+                            "minor",
+                            list(ctrl),
+                            f"{node.id} is {ctrl_w:.0f}x{ctrl_h:.0f} {unit} (min {min_target:.0f} {unit})",
+                            [ref(node)],
+                        )
 
-            # R6: unnamed-control (minor); a cut control's label may be the part off screen
-            if node.id not in labelled and not cut:
-                add_finding(
-                    "unnamed-control",
-                    "minor",
-                    node.bounds,
-                    f"interactive control {node.id} has empty name and text",
-                    [node.id],
-                )
+                # R6: unnamed-control (minor); a cut control's label may be the part off screen
+                if not any(m.id in labelled for m in ctrl_members) and not cut:
+                    add_finding(
+                        "unnamed-control",
+                        "minor",
+                        list(ctrl),
+                        f"interactive control {node.id} has empty name and text",
+                        [ref(node)],
+                    )
 
         # R7: clipped-text (minor)
         if node.clipped is True:
@@ -349,7 +480,7 @@ def lint(
                 "minor",
                 node.bounds,
                 f"text in {node.id} is clipped/ellipsized",
-                [node.id],
+                [ref(node)],
             )
 
     # R9: guidance-covers-control (major). Guidance is exempt from the overlap rules, so the
@@ -372,7 +503,7 @@ def lint(
                         "major",
                         inter,
                         f"{g.id} covers {c.id} by {rect_area(inter):.0f} {unit}²",
-                        [g.id, c.id],
+                        [ref(g), ref(c)],
                     )
 
     # R8: frame-size (major)
@@ -389,7 +520,7 @@ def lint(
                     fnode.bounds,
                     f"frame {fnode.id} is {fnode.w:.0f}x{fnode.h:.0f} {unit} "
                     f"(expected >= {min_w:.0f}x{min_h:.0f} {unit} in {config})",
-                    [fnode.id],
+                    [ref(fnode)],
                 )
 
     return findings

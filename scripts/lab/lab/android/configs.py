@@ -176,21 +176,56 @@ def natural_size(adb: AdbClient, size: str) -> str:
     return f"{w}x{h}"
 
 
+# `dumpsys input`, InputReader state: `Device 3: Logitech K380`, then the device's mapper dumps,
+# among them `KeyboardType: 2` (AINPUT_KEYBOARD_TYPE_ALPHABETIC; 1 is non-alphabetic) or its
+# spelled-out form. Written from AOSP's `InputReader::dump` / `KeyboardInputMapper::dump`, not from a
+# capture of the Pixel Tablet: the first run on it must confirm (`tests/test_android.py` says so).
+_INPUT_DEVICE = re.compile(r"^[ \t]*Device[ \t]+(-?\d+):[ \t]*(.*)$", re.MULTILINE)
+_ALPHABETIC = re.compile(r"Keyboard[ \t]?Type:[ \t]*(?:alphabetic|2)\b", re.IGNORECASE)
+
+
+def physical_alphabetic_keyboards(dumpsys_input: str) -> list[str]:
+    """Names of the input devices of `dumpsys input` that are real alphabetic keyboards.
+
+    The framework's virtual keyboard (id -1, path `<virtual>`) is always there and is not one.
+    An AVD with `hw.keyboard=yes` lists its `qwerty2` device here like any hardware keyboard.
+    """
+    starts = list(_INPUT_DEVICE.finditer(dumpsys_input))
+    found: list[str] = []
+    for i, m in enumerate(starts):
+        body = dumpsys_input[m.end(): starts[i + 1].start() if i + 1 < len(starts) else len(dumpsys_input)]
+        virtual = m.group(1) == "-1" or "<virtual>" in body or m.group(2).strip().lower() == "virtual"
+        if _ALPHABETIC.search(body) and not virtual:
+            found.append(m.group(2).strip())
+    return found
+
+
+def has_physical_keyboard(adb: AdbClient) -> bool:
+    """True when the device reports a physical alphabetic keyboard (a dock, a paired one, an AVD's)."""
+    return bool(physical_alphabetic_keyboards(adb.run("shell", "dumpsys", "input")))
+
+
 def apply_config(
     adb: AdbClient,
     config_name: str,
     configs: dict[str, dict[str, Any]] | None = None,
     *,
-    is_avd_kbd: bool = False,
+    is_avd_kbd: bool | None = None,
 ) -> None:
-    """Apply `config_name` to `adb`, verifying rotation and checking keyboard requirements."""
+    """Apply `config_name` to `adb`, verifying rotation and checking keyboard requirements.
+
+    A `keyboard: true` config needs a physical alphabetic keyboard, which the device is asked
+    for (`is_avd_kbd` overrides the question: True runs it, False refuses it).
+    """
     all_cfgs = configs or load_android_configs()
     if config_name not in all_cfgs:
         raise ValueError(f"Unknown Android config {config_name!r}")
     cfg = all_cfgs[config_name]
 
-    if cfg.get("keyboard") and not is_avd_kbd:
-        raise ConfigNotRunError("needs AVD with hw.keyboard=yes")
+    if cfg.get("keyboard"):
+        has_keyboard = has_physical_keyboard(adb) if is_avd_kbd is None else is_avd_kbd
+        if not has_keyboard:
+            raise ConfigNotRunError("no physical keyboard: the device reports no alphabetic keyboard (dock one, or use an AVD with hw.keyboard=yes)")
 
     # Do Not Disturb while the lab drives the device: a heads-up notification is drawn over
     # the app in its own window, which no tree dump shows, but every screenshot would.

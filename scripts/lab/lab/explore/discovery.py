@@ -42,8 +42,10 @@ FOLDER_PICKER_IDS = frozenset({
     "sidebar_open_folder", "btn_open_folder", "btn_open", "card_folder", "card_sd",
 })
 
-# Ids that end in "Sheet" but are screens of their own, not a modal over another screen.
-SCREEN_LEVEL_SHEETS = frozenset({"phonesettingssheet"})
+# What Jackpix's Settings sheet really holds: it has no root tag of its own, every row and
+# section carries one of these (SettingsScreen.kt; `settings_button` and `settings_snackbar_host`
+# belong to the feed). The feed and the sheet never share a tree: the sheet covers the feed.
+JACKPIX_SETTINGS_PREFIXES = ("settings_row_", "settings_section_", "settings_pro_mode_")
 
 
 def normalize_product_name(product: str) -> str:
@@ -137,9 +139,7 @@ def detect_active_modal(tree: Tree, rules: Dict[str, Any], by_id: Dict[str, Node
         if not node.visible:
             continue
         nid = node.id
-        is_pattern_modal = nid.lower() not in SCREEN_LEVEL_SHEETS and any(
-            fnmatch.fnmatchcase(nid.lower(), pat.lower()) for pat in modal_patterns
-        )
+        is_pattern_modal = any(fnmatch.fnmatchcase(nid.lower(), pat.lower()) for pat in modal_patterns)
         if (nid in overlay_ids and ("dialog" in nid.lower() or "sheet" in nid.lower() or "guide" in nid.lower() or "tutorial" in nid.lower())) or is_pattern_modal:
             if node.w > 0 and node.h > 0:
                 return nid
@@ -176,7 +176,7 @@ def identify_screen_mode(
             return "empty"
         if any(nid in node_ids for nid in ("selection_tab_favourites", "selection_tab_selection", "selection_title")):
             return "selection"
-        if "PhoneSettingsSheet" in node_ids or "settings_title" in node_ids:
+        if any(nid.startswith(JACKPIX_SETTINGS_PREFIXES) for nid in node_ids):
             return "settings"
         if any(nid in node_ids for nid in ("viewer.photo", "phone_top_bar", "viewer_bottom_bar", "btn_keep", "btn_discard")):
             return "viewer"
@@ -375,12 +375,12 @@ def enumerate_gestures(
     candidates: List[CandidateInteraction] = []
 
     # --- Jackpix Gestures ---
-    if norm_product == "phototok" and screen_mode in ("viewer", "unknown"):
-        photo_node = by_id.get("viewer.photo")
-        px = photo_node.x if photo_node else 0.0
-        py = photo_node.y if photo_node else 0.0
-        pw = photo_node.w if photo_node else win_w
-        ph = photo_node.h if photo_node else win_h
+    # Only where the feed is: its photo node. A tree without it is the Settings sheet, a dialog
+    # (a window of its own, whose size is not the screen's) or the landing, and a swipe aimed at
+    # the window's middle there scrolls a list or taps a row (2026-11-05: step 10 reset every folder).
+    photo_node = by_id.get("viewer.photo")
+    if norm_product == "phototok" and photo_node is not None and photo_node.visible and photo_node.w > 0 and photo_node.h > 0:
+        px, py, pw, ph = photo_node.x, photo_node.y, photo_node.w, photo_node.h
         cx = int(max(0.0, min(win_w, px + pw / 2.0)))
         cy = int(max(0.0, min(win_h, py + ph / 2.0)))
 

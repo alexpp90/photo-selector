@@ -13,6 +13,7 @@ The drivers are in `test_explore_driver.py`, the real Linux session in `test_exp
 
 from __future__ import annotations
 
+import json
 import os
 import subprocess
 import sys
@@ -23,6 +24,7 @@ from typing import List, Optional
 LAB_DIR = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(LAB_DIR))
 
+from lab.android.tree_android import parse_uiautomator_xml
 from lab.explore.actions import (
     Action,
     ActionCategory,
@@ -741,12 +743,90 @@ class TestWhatDiscoveryNeverOffers(unittest.TestCase):
             self.assertFalse(types & {"background", "rotate", "swipe"}, product)
 
 
+DATA_DIR = Path(__file__).resolve().parent / "data"
+
+
+def real_tree(name: str) -> Tree:
+    """A tree captured from the dedicated Pixel 4a (Jackpix, German, 2026-11-05)."""
+    return Tree.from_dict(json.loads((DATA_DIR / name).read_text(encoding="utf-8")))
+
+
+def swipes_and_zooms(res: ScreenInspectionResult) -> List[CandidateInteraction]:
+    return res.filter_by_category("gesture")
+
+
+class TestJackpixFeedGesturesOnlyOnTheFeed(unittest.TestCase):
+    """2026-11-05 run on the Pixel 4a: feed gestures were aimed at the Settings sheet and the
+    delete dialog, which discovery called "unknown" (step 10 reset every folder)."""
+
+    def test_the_feed_gets_its_five_gestures_inside_the_photo(self) -> None:
+        tree = real_tree("jackpix_feed_before_settings.tree.json")
+        res = inspect_screen(tree, "phototok")
+        self.assertEqual(res.screen_mode, "viewer")
+        gestures = swipes_and_zooms(res)
+        self.assertEqual(sorted(g.action.label for g in gestures), sorted([
+            "Swipe Up (Next Photo)", "Swipe Down (Previous Photo)", "Swipe Right (Keep/Selection)",
+            "Swipe Left (Discard/Delete)", "Double-tap Zoom Toggle",
+        ]))
+        photo = next(n for n in tree.nodes if n.id == "viewer.photo")
+        for g in gestures:
+            self.assertEqual(g.action.target_id, "viewer.photo")
+            self.assertTrue(photo.y <= g.action.params.get("start_y", photo.y) <= photo.y + photo.h)
+
+    def test_the_settings_sheet_is_recognised_by_its_rows_and_offers_no_feed_gesture(self) -> None:
+        tree = real_tree("jackpix_settings_sheet.tree.json")
+        self.assertNotIn("viewer.photo", {n.id for n in tree.nodes})
+        res = inspect_screen(tree, "phototok")
+        self.assertEqual(res.screen_mode, "settings")
+        self.assertIsNone(res.active_modal)
+        self.assertEqual(swipes_and_zooms(res), [])
+        self.assertFalse([c for c in res.candidate_interactions if c.action.action_type == "swipe"])
+        # its rows are still tappable, as they were in the run: the swipe that landed on
+        # `settings_row_reset_all` was meant for the feed
+        reset_all = next(n for n in tree.nodes if n.parent == "settings_row_reset_all" and n.interactive)
+        self.assertIn(reset_all.id, {c.action.target_id for c in res.filter_by_category("element")})
+
+    def test_the_delete_dialog_window_offers_its_buttons_and_no_feed_gesture(self) -> None:
+        # J-TOK-03 03_delete-confirm.xml: the dump is the dialog window alone, 320x244 dp,
+        # with no test tag at all (a Compose Dialog does not export them).
+        tree = parse_uiautomator_xml((DATA_DIR / "jackpix_delete_confirm_dialog.xml").read_text(encoding="utf-8"), density_dpi=440)
+        self.assertEqual((round(tree.window_w), round(tree.window_h)), (320, 244))
+        res = inspect_screen(tree, "phototok")
+        self.assertEqual(swipes_and_zooms(res), [])
+        self.assertEqual([c for c in res.candidate_interactions if c.action.action_type == "swipe"], [])
+        taps = [c for c in res.filter_by_category("element") if c.action.action_type == "tap"]
+        self.assertTrue(taps)  # Abbrechen and Löschen can be tapped
+        for c in taps:
+            self.assertLessEqual(c.action.params["x"], tree.window_w)
+            self.assertLessEqual(c.action.params["y"], tree.window_h)
+
+    def test_a_tree_with_no_feed_marker_at_all_offers_none(self) -> None:
+        res = inspect_screen(Tree(platform="android", window={"w": 392, "h": 850}, nodes=[_root(392, 850)]), "phototok")
+        self.assertEqual(swipes_and_zooms(res), [])
+
+    def test_the_other_products_still_offer_their_gestures_from_their_own_markers(self) -> None:
+        def node(nid: str, bounds: List[float], interactive: bool = False) -> Node:
+            return Node(id=nid, parent="root", role="container", name="", bounds=bounds, interactive=interactive, visible=True)
+
+        fd = Tree(platform="android", window={"w": 1280, "h": 800}, nodes=[
+            _root(1280, 800), node("image_region", [100, 100, 800, 500]), node("selector.frame.next", [920, 100, 300, 200], True)])
+        labels = {g.action.label for g in swipes_and_zooms(inspect_screen(fd, "android-desktop"))}
+        self.assertEqual(labels, {"Tap Next Frame (Navigate Next)", "Swipe Left (Next Photo)", "Swipe Right (Previous Photo)"})
+        bare = Tree(platform="android", window={"w": 1280, "h": 800}, nodes=[_root(1280, 800)])
+        self.assertEqual(swipes_and_zooms(inspect_screen(bare, "android-desktop")), [])
+        linux = Tree(platform="linux", window={"w": 1280, "h": 800}, nodes=[_root(1280, 800), node("slot_current", [100, 100, 800, 500], True)])
+        self.assertEqual([g.action.label for g in swipes_and_zooms(inspect_screen(linux, "linux-desktop"))], ["Double-click Slot (1:1 Zoom Toggle)"])
+
+
 class TestScreenModeRules(unittest.TestCase):
     def test_the_settings_sheet_is_the_settings_screen_not_a_dialog(self) -> None:
-        sheet = Node(id="PhoneSettingsSheet", parent=None, role="container", name="Settings", bounds=[0, 0, 1080, 1920], interactive=False, visible=True)
-        res = inspect_screen(Tree(platform="android", window={"w": 1080, "h": 1920}, nodes=[sheet]), "phototok")
+        res = inspect_screen(real_tree("jackpix_settings_sheet.tree.json"), "phototok")
         self.assertIsNone(res.active_modal)
         self.assertEqual(res.screen_mode, "settings")
+
+    def test_the_feeds_settings_button_does_not_make_it_the_settings_screen(self) -> None:
+        # `settings_button` and `settings_snackbar_host` are the feed's own ids.
+        self.assertEqual(inspect_screen(real_tree("jackpix_feed_before_settings.tree.json"), "phototok").screen_mode, "viewer")
 
     def test_other_sheets_and_dialogs_are_still_modal(self) -> None:
         for nid in ("ExportSheet", "delete_dialog"):

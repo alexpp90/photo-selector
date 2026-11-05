@@ -34,9 +34,12 @@ import org.junit.runner.RunWith
  * - MediaProvider refuses the `.../file/<id>` URI `getMediaUri` returns, so the gateway converts it.
  *
  * Needs Android 11. The tree test is [LabDeviceOnly]: it needs a persisted grant on a writable
- * primary-storage folder (pick one once in the app, e.g. the lab's `PSTLab/work`), so connected
- * Gradle runs and CI leave it out; without the grant it is skipped, not passed. It writes one
- * small photo into that folder and deletes it afterwards.
+ * primary-storage folder, so connected Gradle runs and CI leave it out. Without the grant it
+ * fails with "no persisted, writable primary-storage tree grant": a lab device must hold one, for
+ * the installed debug build (`com.phototok`). Grant it once per device with the lab's
+ * `tests/e2e/_ensure_folder.yaml` (appId `com.phototok`, folder `PSTLab/work`) and keep the debug
+ * build installed, as `playbook-run-android-device-matrix` describes. It writes one small photo
+ * into that folder and deletes it afterwards.
  */
 @RunWith(AndroidJUnit4::class)
 @SdkSuppress(minSdkVersion = Build.VERSION_CODES.R) // not an Assume: Gradle's runner counts that as a failure

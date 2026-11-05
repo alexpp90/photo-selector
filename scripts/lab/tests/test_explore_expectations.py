@@ -91,6 +91,8 @@ class NavigationTest(unittest.TestCase):
         exp = ExpectationRecorder("linux-desktop").record(make_state([node("slot_current", [0, 0, 10, 10], interactive=False)]), Action("key", params={"key": "J"}))
         self.assertIsNone(exp.expected_index_delta)
         self.assertIn("index not checked", exp.description)
+        self.assertEqual(exp.unverifiable, ["index"])
+        self.assertEqual(Expectation.from_dict(exp.to_dict()).unverifiable, ["index"])
 
     def test_navigation_keys_are_the_ones_the_product_binds(self) -> None:
         def delta(product: str, key: str):

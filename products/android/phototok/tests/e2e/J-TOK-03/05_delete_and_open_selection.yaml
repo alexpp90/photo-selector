@@ -5,13 +5,14 @@ appId: com.phototok.lab
     end: "15%,50%"
 # The confirm dialog is its own window, so its test tag is not exported as a resource id;
 # while it is open the hierarchy holds only the dialog, so its "Delete" button is unambiguous.
+# Jackpix follows the system language: the German lab phones label it "Löschen" (2026-11-05).
 - extendedWaitUntil:
     visible:
-      text: "Delete"
+      text: "Delete|Löschen"
     timeout: 4000
     optional: true
 - tapOn:
-    text: "Delete"
+    text: "Delete|Löschen"
     optional: true
 - tapOn:
     id: "viewer_selection_button"

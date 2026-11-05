@@ -82,6 +82,9 @@ class Expectation:
     fs_expect: Dict[str, Any] = field(default_factory=dict)
     required_ui_nodes: List[str] = field(default_factory=list)
     forbidden_ui_nodes: List[str] = field(default_factory=list)
+    # Claims the step makes but could not state, because the screen before showed no position:
+    # the verifier reports them as not checked, so the step never reads as a checked pass.
+    unverifiable: List[str] = field(default_factory=list)
 
     def __post_init__(self) -> None:
         # Standard error dialogs are forbidden after every interaction.
@@ -98,6 +101,7 @@ class Expectation:
             "fs_expect": dict(self.fs_expect),
             "required_ui_nodes": list(self.required_ui_nodes),
             "forbidden_ui_nodes": list(self.forbidden_ui_nodes),
+            "unverifiable": list(self.unverifiable),
         }
 
     @classmethod
@@ -110,6 +114,7 @@ class Expectation:
             fs_expect=dict(data.get("fs_expect", {})),
             required_ui_nodes=list(data.get("required_ui_nodes", [])),
             forbidden_ui_nodes=list(data.get("forbidden_ui_nodes", [])),
+            unverifiable=list(data.get("unverifiable", [])),
         )
 
 
@@ -209,6 +214,7 @@ class ExpectationRecorder:
             expected_index_delta=delta,
             expected_feed_count_delta=0,
             fs_expect={"unchanged": True},
+            unverifiable=["index"] if delta is None else [],
         )
 
     @staticmethod
