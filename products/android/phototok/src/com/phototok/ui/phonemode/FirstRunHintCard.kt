@@ -217,6 +217,50 @@ fun FirstRunHintCard(
     }
 }
 
+/**
+ * Whether a first-run hint belongs on the screen that is showing (REQ-TOK-GESTURE.05).
+ *
+ * Every hint explains the feed, so it is drawn only over the feed: never over the landing, the
+ * loading screen or the Selection viewer (lab 2026-11-06: the double-tap hint covered the
+ * landing's Pro-mode and recent-folder rows after "Change folder"). The one exception is the
+ * filter-mismatch hint over the empty result of a folder whose every photo the format filter
+ * hides: that empty screen is what it explains, and its Show all is the way out.
+ *
+ * @param feedShown the feed (portrait or landscape) is on screen.
+ * @param filterHidesWholeFolder the folder has photos but the format filter hides all of them.
+ */
+internal fun firstRunHintFitsScreen(
+    hint: FirstRunHint?,
+    feedShown: Boolean,
+    filterHidesWholeFolder: Boolean,
+): Boolean = when {
+    hint == null -> false
+    feedShown -> true
+    else -> hint == FirstRunHint.FILTER_MISMATCH && filterHidesWholeFolder
+}
+
+/**
+ * The [FirstRunHintCard] slot of the phone screen: composes the card only while
+ * [firstRunHintFitsScreen] holds, so a hint left in the state is never drawn over another screen.
+ */
+@Composable
+internal fun ScreenFirstRunHint(
+    hint: FirstRunHintUi?,
+    feedShown: Boolean,
+    filterHidesWholeFolder: Boolean,
+    onDismiss: () -> Unit,
+    modifier: Modifier = Modifier,
+    onOpenSettings: (() -> Unit)? = null,
+) {
+    if (!firstRunHintFitsScreen(hint?.hint, feedShown, filterHidesWholeFolder)) return
+    FirstRunHintCard(
+        hint = hint,
+        onDismiss = onDismiss,
+        modifier = modifier,
+        onOpenSettings = onOpenSettings,
+    )
+}
+
 private fun iconFor(hint: FirstRunHint): ImageVector = when (hint) {
     FirstRunHint.SWIPE_RIGHT -> Icons.AutoMirrored.Filled.ArrowForward
     FirstRunHint.SWIPE_LEFT_FOLDER -> Icons.AutoMirrored.Filled.ArrowBack

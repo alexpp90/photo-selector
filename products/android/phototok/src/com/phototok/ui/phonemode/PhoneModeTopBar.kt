@@ -7,11 +7,16 @@ import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.WindowInsets
+import androidx.compose.foundation.layout.WindowInsetsSides
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.only
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.safeDrawing
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.sizeIn
 import androidx.compose.foundation.layout.statusBarsPadding
+import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.HelpOutline
 import androidx.compose.material.icons.filled.Info
@@ -25,6 +30,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.composed
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
@@ -44,6 +50,18 @@ object PhoneModeTopBarDescriptions {
     @get:StringRes val HELP_HIDE: Int get() = R.string.cd_help_hide
 
     @StringRes fun help(guideOpen: Boolean): Int = if (guideOpen) HELP_HIDE else HELP_SHOW
+}
+
+/**
+ * Insets a full-width bar or column by the horizontal safe-drawing insets: the 3-button navigation
+ * bar in landscape (right at rotation 90, left at 270) and display cutouts. Zero in portrait and
+ * with gesture navigation, so nothing moves there. The one modifier every full-width top chrome
+ * uses (top bar, Selection-viewer bar, read-only badges, landing column); apply it after
+ * `statusBarsPadding()` and before the bar's own padding (device lab 2026-11-05: the landscape
+ * Settings button lay 32 dp under the navigation bar and two taps hit Recents).
+ */
+internal fun Modifier.horizontalSafeDrawingPadding(): Modifier = composed {
+    windowInsetsPadding(WindowInsets.safeDrawing.only(WindowInsetsSides.Horizontal))
 }
 
 /**
@@ -85,6 +103,8 @@ fun PhoneModeTopBar(
             .statusBarsPadding()
             // Outline of the bar below the status bar: the guide's callouts start under it.
             .guideAnchor(anchors, GuideAnchor.TOP_BAR)
+            // Landscape landing/loading: clear of the side navigation bar and cutout.
+            .horizontalSafeDrawingPadding()
             .padding(
                 horizontal = metrics.TOP_BAR_HORIZONTAL_PADDING,
                 vertical = metrics.TOP_BAR_VERTICAL_PADDING,

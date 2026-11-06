@@ -1168,6 +1168,10 @@ private fun ImagePage(
                     .align(Alignment.TopStart)
                     .testTag("viewer.badges")
                     .statusBarsPadding()
+                    // Read-only (Selection viewer) is full screen in landscape: clear of a left
+                    // navigation bar/cutout. The feed's landscape viewer sits between the side
+                    // panels, which already inset, so it must not inset twice.
+                    .then(if (readOnly) Modifier.horizontalSafeDrawingPadding() else Modifier)
                     .padding(start = 16.dp, top = 56.dp)
                     .graphicsLayer { alpha = hudAlpha },
                 horizontalArrangement = Arrangement.spacedBy(6.dp),
@@ -1219,30 +1223,51 @@ private fun ImagePage(
                     Spacer(modifier = Modifier.width(0.dp))
                 }
                 if (showPageCounter) {
-                    Surface(
-                        modifier = Modifier.testTag("viewer.counter"),
-                        shape = RoundedCornerShape(50),
-                        color = colors.surfaceContainerHigh.copy(alpha = 0.8f),
-                        border = androidx.compose.foundation.BorderStroke(
-                            1.dp,
-                            colors.outline.copy(alpha = 0.2f),
-                        ),
-                    ) {
-                        Text(
-                            text = stringResource(
-                                if (isDiscovering) R.string.label_page_counter_more else R.string.label_page_counter,
-                                pageIndex + 1,
-                                totalCount,
-                            ),
-                            style = MaterialTheme.typography.labelMedium,
-                            color = colors.primary,
-                            fontWeight = FontWeight.Bold,
-                            modifier = Modifier.padding(horizontal = 14.dp, vertical = 6.dp),
-                        )
-                    }
+                    PageCounterPill(
+                        pageIndex = pageIndex,
+                        total = totalCount,
+                        isDiscovering = isDiscovering,
+                    )
                 }
             }
         }
+    }
+}
+
+/**
+ * The position pill "n / m" ("n / m+" while the folder is still being enumerated). One composable
+ * for the portrait HUD and the landscape right panel, tagged `viewer.counter` on the Surface with
+ * the Text as its direct child: the lab reads the position from that shape, and exactly one node
+ * carries the tag per screen (the landscape feed passes `showPageCounter = false` to the viewer).
+ */
+@Composable
+internal fun PageCounterPill(
+    pageIndex: Int,
+    total: Int,
+    isDiscovering: Boolean,
+    modifier: Modifier = Modifier,
+) {
+    val colors = MaterialTheme.colorScheme
+    Surface(
+        modifier = modifier.testTag("viewer.counter"),
+        shape = RoundedCornerShape(50),
+        color = colors.surfaceContainerHigh.copy(alpha = 0.8f),
+        border = androidx.compose.foundation.BorderStroke(
+            1.dp,
+            colors.outline.copy(alpha = 0.2f),
+        ),
+    ) {
+        Text(
+            text = stringResource(
+                if (isDiscovering) R.string.label_page_counter_more else R.string.label_page_counter,
+                pageIndex + 1,
+                total,
+            ),
+            style = MaterialTheme.typography.labelMedium,
+            color = colors.primary,
+            fontWeight = FontWeight.Bold,
+            modifier = Modifier.padding(horizontal = 14.dp, vertical = 6.dp),
+        )
     }
 }
 

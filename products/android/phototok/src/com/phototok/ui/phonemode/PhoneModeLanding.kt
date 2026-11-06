@@ -142,6 +142,8 @@ fun PhoneModeLanding(
                 .fillMaxSize()
                 .statusBarsPadding()
                 .navigationBarsPadding()
+                // Plus a display cutout: logo and cards keep one left edge with the top bar.
+                .horizontalSafeDrawingPadding()
                 .verticalScroll(scrollState)
                 .padding(horizontal = 16.dp)
                 .padding(top = 16.dp, bottom = 100.dp),

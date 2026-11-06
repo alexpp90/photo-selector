@@ -1223,6 +1223,83 @@ class PhoneModeViewModelTest {
         coVerify(exactly = 1) { imageRepository.deleteImage(Uri.parse("content://photos/b.jpg")) }
     }
 
+    // Lab 2026-11-06 (2026-11-06-explore-tok, step 26): the double-tap hint covered the landing.
+    @Test
+    @Requirement("REQ-TOK-GESTURE.05")
+    fun `goBackToLanding drops the feed's first-run hint, which stays seen`() = runTest {
+        val viewModel = loadFolder(image("a.jpg", 1), image("b.jpg", 2))
+        viewModel.maybeShowFirstRunHint(FirstRunHint.DOUBLE_TAP_ZOOM)
+        assertNotNull(viewModel.uiState.value.firstRunHint)
+
+        viewModel.goBackToLanding()
+        advanceUntilIdle()
+
+        assertNull(viewModel.uiState.value.firstRunHint)
+        // Seen when shown, exactly like a dismissed hint: it does not come back on the next feed.
+        assertTrue(FirstRunHint.DOUBLE_TAP_ZOOM.key in viewModel.uiState.value.seenFirstRunHints)
+        coVerify(exactly = 1) { settingsRepository.markFirstRunHintSeen(FirstRunHint.DOUBLE_TAP_ZOOM) }
+        viewModel.selectSourceFolder(Uri.parse("content://tree/photos"))
+        viewModel.maybeShowFirstRunHint(FirstRunHint.DOUBLE_TAP_ZOOM)
+        assertNull(viewModel.uiState.value.firstRunHint)
+    }
+
+    @Test
+    @Requirement("REQ-TOK-GESTURE.05")
+    fun `opening another folder drops the previous folder's hint`() = runTest {
+        phoneSettingsFlow.value = phoneSettingsFlow.value.copy(
+            proMode = true,
+            fileTypeFilter = com.phototok.domain.FileTypeFilter.RAW,
+        )
+        // Every photo is a JPEG: the RAW filter hides the whole folder and the hint explains it.
+        val viewModel = loadFolder(image("a.jpg", 1), image("b.jpg", 2), image("c.jpg", 3))
+        assertEquals(FirstRunHint.FILTER_MISMATCH, viewModel.uiState.value.firstRunHint?.hint)
+
+        every { imageRepository.discoverImages(any()) } returns
+            flowOf(listOf(image("d.raw", 1), image("e.raw", 2)))
+        viewModel.selectSourceFolder(Uri.parse("content://tree/raws"))
+        advanceUntilIdle()
+
+        assertEquals(2, viewModel.uiState.value.images.size)
+        assertNull(viewModel.uiState.value.firstRunHint)
+    }
+
+    @Test
+    @Requirement("REQ-TOK-GESTURE.05")
+    fun `an unmounted card drops the feed's first-run hint`() = runTest {
+        val monitor = com.phototok.data.source.VolumeMonitor()
+        val viewModel = PhoneModeViewModel(
+            imageRepository = imageRepository,
+            settingsRepository = settingsRepository,
+            appScope = CoroutineScope(testDispatcher),
+            seenRepository = com.phototok.data.repository.SeenRepository(),
+            favouritesRepository = com.phototok.data.repository.FavouritesRepository(),
+            statsRepository = com.phototok.data.repository.StatsRepository(),
+            volumeMonitor = monitor,
+        )
+        every { imageRepository.discoverImages(any()) } returns
+            flowOf(listOf(image("a.jpg", 20), image("b.jpg", 10)))
+        viewModel.selectSourceFolder(Uri.parse("content://com.android.externalstorage.documents/tree/1A2B-3C4D%3ADCIM"))
+        viewModel.maybeShowFirstRunHint(FirstRunHint.TAP_HUD)
+        assertNotNull(viewModel.uiState.value.firstRunHint)
+
+        monitor.notifyVolumeUnmounted("1A2B-3C4D")
+        advanceUntilIdle()
+
+        assertTrue(viewModel.uiState.value.images.isEmpty())
+        assertNull(viewModel.uiState.value.firstRunHint)
+    }
+
+    @Test
+    @Requirement("REQ-TOK-GESTURE.05")
+    fun `a gesture hint without a feed is neither shown nor marked seen`() = runTest {
+        val viewModel = buildViewModel()
+
+        viewModel.maybeShowFirstRunHint(FirstRunHint.TAP_HUD)
+
+        assertNull(viewModel.uiState.value.firstRunHint)
+        coVerify(exactly = 0) { settingsRepository.markFirstRunHintSeen(any()) }
+    }
+
     @Test
     fun `dimension loading updates dimensions and regroups by orientation`() = runTest {
         phoneSettingsFlow.value = phoneSettingsFlow.value.copy(

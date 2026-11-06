@@ -25,6 +25,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 - A favourite is recognised whichever folder you open the photo from (`DCIM` or `DCIM/Camera`, or the system's Images view). Existing favourites are kept.
 
 ### Fixed
+- A tip card ("Double-tap to reset", "Tap again to show overlays", "RAW only") no longer stays on screen after you leave the photos: Change folder, opening another folder or unplugging the card closes it, so it no longer covers the start screen's Pro mode switch and recent folders.
 - A stray `.photoselector-selection` marker file no longer hides a whole folder from the feed; the app's own output folders (Selection, Favourites, the Jackpix import folder and a Selection folder name you typed in Pro mode) are skipped by name.
 - Swiping in big folders is smoother: marking a photo as seen and the review statistics are written in the background, the "seen" counter no longer re-checks the whole folder on every swipe, and folders with many photos no longer re-check them all for each batch while opening. The statistics file is now written safely (a kill mid-write can no longer reset the lifetime totals).
 - "Copy favourites to folder…" now copies each favourite with its linked files (RAW or JPEG twin, edited copies, `.xmp` sidecars) under one shared name, so a second run keeps the pairs paired, and it keeps going when you close the viewer. Before it copied single files, so sidecars were left behind and a RAW and its JPEG could get different suffixes.

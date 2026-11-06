@@ -454,6 +454,7 @@ class PhoneModeViewModel @Inject constructor(
                 pendingDelete = null,
                 undoStack = emptyList(),
                 showCardDoneSheet = false,
+                firstRunHint = null,
                 lastActionFeedback = ActionFeedback(
                     message = UiText.of(R.string.snackbar_card_disconnected),
                     isError = false,
@@ -766,6 +767,8 @@ class PhoneModeViewModel @Inject constructor(
                     currentIndex = 0,
                     portraitSectionStart = -1,
                     showRawJpegSuggestion = false,
+                    // A hint about the previous folder ("Most photos here are JPEG") is stale here.
+                    firstRunHint = null,
                 )
             }
 
@@ -2238,6 +2241,8 @@ class PhoneModeViewModel @Inject constructor(
     fun maybeShowFirstRunHint(hint: FirstRunHint) {
         val state = _uiState.value
         if (hint.key in state.seenFirstRunHints) return
+        // A gesture hint explains the feed; without one it would be marked seen and never drawn.
+        if (state.images.isEmpty()) return
         // Never stack a hint on top of the full-screen tutorial.
         if (state.showGestureTutorial) return
 
@@ -2505,6 +2510,9 @@ class PhoneModeViewModel @Inject constructor(
                 isDiscovering = false,
                 reloadPrompt = null,
                 showCardDoneSheet = false,
+                // Every first-run hint explains the feed the user just left (REQ-TOK-GESTURE.05).
+                // It was marked seen when shown, so dropping it is what its own dismiss does.
+                firstRunHint = null,
             )
         }
     }
