@@ -29,12 +29,12 @@ android {
             manifest.srcFile("AndroidManifest.xml")
         }
         getByName("test") {
-            java.directories.apply { clear(); add("tests/unit") }
-            kotlin.directories.apply { clear(); add("tests/unit") }
+            java.directories.apply { clear(); add("tests/unit"); add("tests/common") }
+            kotlin.directories.apply { clear(); add("tests/unit"); add("tests/common") }
         }
         getByName("androidTest") {
-            java.directories.apply { clear(); add("tests/instrumented") }
-            kotlin.directories.apply { clear(); add("tests/instrumented") }
+            java.directories.apply { clear(); add("tests/instrumented"); add("tests/common") }
+            kotlin.directories.apply { clear(); add("tests/instrumented"); add("tests/common") }
         }
     }
 
