@@ -357,12 +357,15 @@ class InteractionVerifier:
         # (fs_oracle.photo_stem): 2026-11-06, Jackpix's "Change folder" committed one.
         by_files = _counter_count(before_state) is None or _counter_count(after_state) is None
         pending = int(expectation.fs_expect.get("removals_allowed", 0)) if by_files else 0
+        if by_files and expectation.fs_expect.get("deferred_delete"):
+            # The files change only when the delete is committed: they cannot show the feed's size.
+            unchecked.append("feed-count")
         checks = (
             ("index", "unexpected-index-delta", "Photo index", expectation.expected_index_delta, 0, _index(before_state), _index(after_state)),
             ("feed-count", "unexpected-feed-count-delta", "Feed photo count", expectation.expected_feed_count_delta, pending, *_feed_counts(before_state, after_state)),
         )
         for claim, rule, what, expected, slack, before, after in checks:
-            if expected is None:
+            if expected is None or claim in unchecked:
                 continue
             if before is None or after is None:
                 unchecked.append(claim)

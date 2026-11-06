@@ -230,6 +230,18 @@ class FeedCountSourceTest(VerifierTest):
         self.assertIn("unexpected-feed-count-delta", [f.rule for f in res.findings])
 
 
+    def test_a_deferred_delete_leaves_a_file_count_unchecked(self) -> None:
+        # 2026-11-06, Pixel Tablet: the delete dialog hid the counter, and the files cannot show a
+        # delete Frameduel commits later.
+        before = make_state(default_state().tree.nodes, files=["a.jpg", "b.jpg"])
+        after = make_state(default_state().tree.nodes, files=["a.jpg", "b.jpg"])
+        exp = expectation(expected_feed_count_delta=-1, fs_expect={"deferred_delete": True})
+        res = self.verify(before=before, after=after, exp=exp)
+        self.assertNotIn("unexpected-feed-count-delta", [f.rule for f in res.findings])
+        self.assertNotIn("fs-absent", [f.rule for f in res.findings])
+        self.assertIn("feed-count", res.unchecked)
+
+
 class LintConfigTest(VerifierTest):
     def test_the_lint_gets_the_config_without_the_device(self) -> None:
         with patch("lab.explore.verifier.lint", return_value=[]) as lint:

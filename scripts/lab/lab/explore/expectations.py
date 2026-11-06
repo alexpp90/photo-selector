@@ -305,6 +305,11 @@ class ExpectationRecorder:
         elif kind == "copy":
             index, count = 1, 0
             fs = {"present": [photo, f"Selection/{photo}"]}
+        elif kind == "delete" and self.product in _DEFERRED_DELETE_PRODUCTS:
+            # The photo leaves the feed now and the disk later (when the delete is committed):
+            # nothing is claimed of the files, and a feed count read from them is not checked.
+            index, count = 0, -1
+            fs = {"deferred_delete": True}
         elif kind == "delete":
             index, count = 0, -1
             fs = {"absent": [photo]}
@@ -326,6 +331,11 @@ class ExpectationRecorder:
 # check was proven against the live app. Android trashes through MediaStore (`.trashed-*` names,
 # no Trash list in the snapshot), so counts there would be wrong.
 _COUNTS_PRODUCTS = {"linux-desktop"}
+
+# Products whose delete stays undoable until it is committed (Jackpix's undo stack, Frameduel's
+# pending-delete stack): the file goes later, on another step (2026-11-06, Pixel Tablet: a confirmed
+# Frameduel delete read as a blocker because DSC_0012.JPG was still on disk).
+_DEFERRED_DELETE_PRODUCTS = {"phototok", "android-desktop"}
 
 
 def _snapshot_stems(state: ScreenState) -> Optional[Set[str]]:

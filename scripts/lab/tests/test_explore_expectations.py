@@ -249,7 +249,9 @@ class CullTest(unittest.TestCase):
         rec = ExpectationRecorder("android-desktop")
         state = self.shown("a.jpg")
         delete = rec.record(state, Action("key", params={"key": "Delete"}))
-        self.assertEqual(delete.fs_expect, {"absent": ["a.jpg"]})  # Android snapshots list no Trash
+        # Frameduel keeps a confirmed delete undoable until it is committed: the file stays for now.
+        self.assertEqual(delete.fs_expect, {"deferred_delete": True})
+        self.assertEqual(delete.expected_feed_count_delta, -1)
         linux = ExpectationRecorder("linux-desktop").record(state, Action("key", params={"key": "Delete"}))
         self.assertEqual(linux.fs_expect, {"absent": ["a.jpg"], "trashed": ["a.jpg"]})
         copy = rec.record(state, Action("tap", target_id="btn_copy"))
