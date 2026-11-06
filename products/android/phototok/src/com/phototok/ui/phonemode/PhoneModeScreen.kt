@@ -627,8 +627,11 @@ fun PhoneModeScreen(
             )
 
             if (!uiState.showRawJpegSuggestion) {
-                FirstRunHintCard(
+                ScreenFirstRunHint(
                     hint = uiState.firstRunHint,
+                    feedShown = isViewing && !isViewingSelection,
+                    filterHidesWholeFolder = !isViewing && !isViewingSelection &&
+                        !uiState.isLoading && uiState.allImages.isNotEmpty(),
                     onDismiss = viewModel::dismissFirstRunHint,
                     onOpenSettings = { showSettingsSheet = true },
                     modifier = Modifier

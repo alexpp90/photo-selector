@@ -503,6 +503,9 @@ fails the build on any finding. This section applies them to Jackpix.
 | Settings (first screen) | "Pro mode" (first, own card) · "Source folder" (value: folder name) · "Reload folder" · "Selection folder" · "RAW / JPEG folders" · "Selection location" (value: Custom/Default) · "Reset this folder" · "Reset all folders" · "Clear cache" · "Confirm delete" (warning "Deletes without asking") · "Milestones" · "Link RAW + JPEG" · "Privacy Policy" · "Legal Notice (Impressum)" (Casual shows only the rows listed in the Pro mode table of section 3) | — | — |
 
 Hint cards auto-dismiss after 7 s. A card with an action stays for 12 s, so there is time to
-reach the button. The pure `com.phototok.domain.FirstRunHintText` owns the hint wording,
+reach the button. A hint card appears only over the feed it explains, never over the landing, the
+loading screen or the Selection viewer, and leaving the feed (Change folder, another folder, an
+unplugged card) drops it. The one exception is the filter-mismatch card over a folder whose every
+photo the format filter hides: that empty result is what it explains, and Show all is the way out. The pure `com.phototok.domain.FirstRunHintText` owns the hint wording,
 `FirstRunHintTextTest` enforces the length and no-Settings-sentence rules, and
 `StringResourcesTest` keeps EN and DE in step.
