@@ -227,7 +227,11 @@ class ExpectationRecorder:
         direction = str(action.params.get("direction", "")).lower()
         words = _words(action.target_id, action.label) if action.action_type.lower() != "key" else set()
         prev_keys = _NAV_KEYS.get(self.product, _NO_NAV_KEYS)[0]
-        is_prev = direction in ("down", "left", "prev", "previous") or key in prev_keys or bool(words & {"prev", "previous"})
+        # A swipe moves the content with the finger: left brings the next photo, right or down
+        # the previous one (Frameduel's frames, Jackpix's pager). "Swipe Left (Next Photo)" was
+        # checked as a step back (2026-11-06, Pixel Tablet).
+        back_directions = ("down", "right") if action.action_type.lower() == "swipe" else ("down", "left", "prev", "previous")
+        is_prev = direction in back_directions or key in prev_keys or bool(words & {"prev", "previous"})
 
         delta: Optional[int]
         if feed_index is None:

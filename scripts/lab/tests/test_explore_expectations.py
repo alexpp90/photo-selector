@@ -81,6 +81,18 @@ class NavigationTest(unittest.TestCase):
         back = rec.record(counter_state("5 / 24"), Action("key", params={"key": "Left"}))
         self.assertEqual(back.expected_index_delta, -1)
 
+    def test_a_swipe_moves_the_content_with_the_finger(self) -> None:
+        # Frameduel's frames and Jackpix's pager: left brings the next photo, right or down the
+        # previous one (2026-11-06: "Swipe Left (Next Photo)" was checked as a step back).
+        def delta(product: str, direction: str):
+            action = Action("swipe", target_id="selector.frame.current", params={"direction": direction})
+            return ExpectationRecorder(product).record(counter_state("3 / 24"), action).expected_index_delta
+
+        self.assertEqual(delta("android-desktop", "left"), 1)
+        self.assertEqual(delta("android-desktop", "right"), -1)
+        self.assertEqual(delta("phototok", "up"), 1)
+        self.assertEqual(delta("phototok", "down"), -1)
+
     def test_explicit_position_overrides_the_screen(self) -> None:
         exp = ExpectationRecorder("android-desktop").record(counter_state("3 / 24"), Action("key", params={"key": "Right"}), feed_index=23, feed_count=24)
         self.assertEqual(exp.expected_index_delta, 0)

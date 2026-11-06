@@ -555,8 +555,10 @@ def enumerate_gestures(
                     )
                 )
 
-        # 2. Horizontal Navigation Swipes across Image Region
-        img_node = by_id.get("image_region") or by_id.get("selector.frame.current")
+        # 2. Horizontal Navigation Swipes on the current frame: each frame row takes the drag
+        # (ThreeUpSelectorLayout `comparisonSwipeNavigation`), the gap between the rows does not,
+        # and the image region's centre lies in that gap at 1280x800 (2026-11-06, Pixel Tablet).
+        img_node = by_id.get("selector.frame.current") or by_id.get("image_region")
         if img_node and img_node.visible and img_node.w > 0 and img_node.h > 0:
             cx = int(max(0.0, min(win_w, img_node.x + img_node.w / 2.0)))
             cy = int(max(0.0, min(win_h, img_node.y + img_node.h / 2.0)))

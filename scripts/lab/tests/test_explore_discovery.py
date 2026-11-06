@@ -836,6 +836,12 @@ class TestJackpixFeedGesturesOnlyOnTheFeed(unittest.TestCase):
         self.assertEqual(labels, {"Tap Next Frame (Navigate Next)", "Swipe Left (Next Photo)", "Swipe Right (Previous Photo)"})
         bare = Tree(platform="android", window={"w": 1280, "h": 800}, nodes=[_root(1280, 800)])
         self.assertEqual(swipes_and_zooms(inspect_screen(bare, "android-desktop")), [])
+        # The swipe runs on the current frame, not across the region's centre, which lies in the
+        # gap between the frame rows at 1280x800 (2026-11-06, Pixel Tablet).
+        fd.nodes.append(node("selector.frame.current", [384, 42, 524, 348], True))
+        for swipe in (g for g in swipes_and_zooms(inspect_screen(fd, "android-desktop")) if g.action.action_type == "swipe"):
+            self.assertEqual(swipe.action.target_id, "selector.frame.current")
+            self.assertTrue(42 <= swipe.action.params["start_y"] <= 390, swipe.action.params)
         linux = Tree(platform="linux", window={"w": 1280, "h": 800}, nodes=[_root(1280, 800), node("slot_current", [100, 100, 800, 500], True)])
         self.assertEqual([g.action.label for g in swipes_and_zooms(inspect_screen(linux, "linux-desktop"))], ["Double-click Slot (1:1 Zoom Toggle)"])
 
