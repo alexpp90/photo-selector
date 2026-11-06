@@ -38,8 +38,6 @@ import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.RadioButton
-import androidx.compose.material3.RadioButtonDefaults
 import androidx.compose.material3.Slider
 import androidx.compose.material3.SliderDefaults
 import androidx.compose.material3.Text
@@ -178,35 +176,13 @@ fun SettingsScreen(
                         Spacer(modifier = Modifier.height(8.dp))
 
                         GroupingLevel.entries.forEach { level ->
-                            Row(
-                                modifier = Modifier
-                                    .fillMaxWidth()
-                                    .padding(vertical = 4.dp),
-                                verticalAlignment = Alignment.CenterVertically,
-                            ) {
-                                RadioButton(
-                                    modifier = Modifier.handCursor(),
-                                    selected = uiState.groupingLevel == level,
-                                    onClick = { viewModel.updateGroupingLevel(level) },
-                                    colors = RadioButtonDefaults.colors(
-                                        selectedColor = BrandAccent,
-                                        unselectedColor = Zinc400,
-                                    ),
-                                )
-                                Spacer(modifier = Modifier.width(8.dp))
-                                Column(modifier = Modifier.weight(1f)) {
-                                    Text(
-                                        text = level.label,
-                                        style = MaterialTheme.typography.bodyMedium,
-                                        color = MaterialTheme.colorScheme.onSurface,
-                                    )
-                                    Text(
-                                        text = level.description,
-                                        style = MaterialTheme.typography.bodySmall,
-                                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                                    )
-                                }
-                            }
+                            SettingsRadioRow(
+                                label = level.label,
+                                description = level.description,
+                                selected = uiState.groupingLevel == level,
+                                onSelect = { viewModel.updateGroupingLevel(level) },
+                                tag = "settings_grouping_${level.name.lowercase()}",
+                            )
                         }
                     }
                 }
@@ -304,28 +280,12 @@ fun SettingsScreen(
                 Spacer(modifier = Modifier.height(8.dp))
 
                 FilingAction.entries.forEach { action ->
-                    Row(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .padding(vertical = 4.dp),
-                        verticalAlignment = Alignment.CenterVertically,
-                    ) {
-                        RadioButton(
-                            modifier = Modifier.handCursor(),
-                            selected = uiState.filingAction == action,
-                            onClick = { viewModel.updateFilingAction(action) },
-                            colors = RadioButtonDefaults.colors(
-                                selectedColor = BrandAccent,
-                                unselectedColor = Zinc400,
-                            ),
-                        )
-                        Spacer(modifier = Modifier.width(8.dp))
-                        Text(
-                            text = action.phrase,
-                            style = MaterialTheme.typography.bodyMedium,
-                            color = MaterialTheme.colorScheme.onSurface,
-                        )
-                    }
+                    SettingsRadioRow(
+                        label = action.phrase,
+                        selected = uiState.filingAction == action,
+                        onSelect = { viewModel.updateFilingAction(action) },
+                        tag = "settings_filing_${action.name.lowercase()}",
+                    )
                 }
             }
 

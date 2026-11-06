@@ -7,16 +7,20 @@ import androidx.compose.foundation.layout.ColumnScope
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.selection.selectable
 import androidx.compose.foundation.selection.toggleable
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.RadioButton
+import androidx.compose.material3.RadioButtonDefaults
 import androidx.compose.material3.Switch
 import androidx.compose.material3.SwitchDefaults
 import androidx.compose.material3.Text
@@ -27,6 +31,7 @@ import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.input.pointer.PointerIcon
 import androidx.compose.ui.input.pointer.pointerHoverIcon
 import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.unit.dp
 import com.photoselectortoolbox.ui.theme.BrandAccent
@@ -184,6 +189,55 @@ fun SettingsSection(
                 modifier = Modifier.fillMaxWidth(),
                 content = content,
             )
+        }
+    }
+}
+
+/**
+ * One choice of a radio group, as a single control: the whole row (at least 48 dp tall) is the
+ * target, carries `Role.RadioButton` and the selected state, and merges its [label] and
+ * [description] into its name, so a screen reader says "Time & Filename, radio button, not
+ * selected" instead of an unnamed radio beside loose text. The circle is only the picture, so
+ * it takes no click of its own (the same shape as the destination rows).
+ */
+@Composable
+internal fun SettingsRadioRow(
+    label: String,
+    selected: Boolean,
+    onSelect: () -> Unit,
+    tag: String,
+    description: String? = null,
+) {
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .heightIn(min = 48.dp)
+            .selectable(selected = selected, role = Role.RadioButton, onClick = onSelect)
+            .pointerHoverIcon(PointerIcon.Hand)
+            .semantics(mergeDescendants = true) {}
+            .testTag(tag),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        RadioButton(
+            selected = selected,
+            onClick = null,
+            modifier = Modifier.handCursor(),
+            colors = RadioButtonDefaults.colors(selectedColor = BrandAccent, unselectedColor = Zinc400),
+        )
+        Spacer(modifier = Modifier.width(8.dp))
+        Column(modifier = Modifier.weight(1f)) {
+            Text(
+                text = label,
+                style = MaterialTheme.typography.bodyMedium,
+                color = MaterialTheme.colorScheme.onSurface,
+            )
+            if (description != null) {
+                Text(
+                    text = description,
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+            }
         }
     }
 }
