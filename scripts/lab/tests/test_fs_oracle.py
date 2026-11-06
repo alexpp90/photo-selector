@@ -56,6 +56,25 @@ class TestFsOracle(unittest.TestCase):
         resized = {"files": before["files"][:3] + [{"path": "DSC_0003.JPG", "size": 7}], "trash": []}
         self.assertEqual(len(evaluate_fs_oracle(resized, one, initial_fs=before)), 1)
 
+    def test_rewrites_allowed_tolerates_one_photo_written_in_place_or_a_sidecar(self) -> None:
+        # Frameduel writes a JPEG's rating into its XMP (2026-11-06, Pixel Tablet: "Tap 1 star").
+        def files(*entries):
+            return {"files": [{"path": p, "size": s} for p, s in entries], "trash": []}
+
+        before = files(("DSC_0009.JPG", 100), ("DSC_0010.JPG", 100), ("DSC_0011.ARW", 300))
+        rate = {"unchanged": True, "rewrites_allowed": 1}
+        rated = files(("DSC_0009.JPG", 140), ("DSC_0010.JPG", 100), ("DSC_0011.ARW", 300))
+        self.assertEqual(evaluate_fs_oracle(rated, rate, initial_fs=before), [])
+        sidecar = files(("DSC_0009.JPG", 100), ("DSC_0010.JPG", 100), ("DSC_0011.ARW", 300), ("DSC_0011.ARW.xmp", 9))
+        self.assertEqual(evaluate_fs_oracle(sidecar, rate, initial_fs=before), [])
+        two = files(("DSC_0009.JPG", 140), ("DSC_0010.JPG", 120), ("DSC_0011.ARW", 300))
+        self.assertEqual(len(evaluate_fs_oracle(two, rate, initial_fs=before)), 1)
+        gone = files(("DSC_0010.JPG", 100), ("DSC_0011.ARW", 300))
+        self.assertEqual(len(evaluate_fs_oracle(gone, rate, initial_fs=before)), 1)  # a rating deletes nothing
+        other = files(("DSC_0009.JPG", 100), ("DSC_0010.JPG", 100), ("DSC_0011.ARW", 300), ("notes.txt", 5))
+        self.assertEqual(len(evaluate_fs_oracle(other, rate, initial_fs=before)), 1)
+        self.assertEqual(len(evaluate_fs_oracle(rated, {"unchanged": True}, initial_fs=before)), 1)
+
     def test_present_absent_and_trashed(self) -> None:
         after_move = {
             "root": "PSTLab/burst-sharpness",

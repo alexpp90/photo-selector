@@ -41,6 +41,7 @@ _NAV_KEYS: Dict[str, Tuple[Set[str], Set[str]]] = {
 _NO_NAV_KEYS: Tuple[Set[str], Set[str]] = (set(), set())  # Jackpix handles no keys of its own
 _GUIDE_WORDS = {"coach", "tutorial", "onboarding", "guide"}
 _DELETE_DESCRIPTION = "Active photo deleted; feed count decreases by 1"
+_RATING_WORDS = {"star", "stars", "rating", "rate"}
 
 
 def read_counter(state: ScreenState) -> Optional[Tuple[int, Optional[int]]]:
@@ -204,11 +205,15 @@ class ExpectationRecorder:
         ):
             return self.record_navigation(before_state, action, feed_index, feed_count)
 
+        fs: Dict[str, Any] = {"unchanged": True}
+        if words & _RATING_WORDS:
+            # A rating is written into the photo (a JPEG's XMP) or its sidecar.
+            fs["rewrites_allowed"] = 1
         return Expectation(
             action=action,
             description=action.label or f"Execute {action.action_type}",
             expected_feed_count_delta=0,
-            fs_expect={"unchanged": True},
+            fs_expect=fs,
         )
 
     def record_navigation(

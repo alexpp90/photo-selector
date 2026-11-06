@@ -194,6 +194,14 @@ class PendingDeleteTest(unittest.TestCase):
             self.assertEqual(exp.fs_expect.get("removals_allowed"), allowed, key)
 
 
+class RatingTest(unittest.TestCase):
+    def test_a_rating_may_rewrite_one_photo(self) -> None:
+        exp = ExpectationRecorder("android-desktop").record(counter_state("2 / 10"), Action("tap", target_id="star_1", label="1 star"))
+        self.assertEqual(exp.fs_expect, {"unchanged": True, "rewrites_allowed": 1})
+        other = ExpectationRecorder("android-desktop").record(counter_state("2 / 10"), Action("tap", target_id="help_button", label="Help"))
+        self.assertEqual(other.fs_expect, {"unchanged": True})
+
+
 class CullTest(unittest.TestCase):
     def shown(self, name: str):
         return counter_state("2 / 2", files=["a.jpg", "b.jpg"], extra=[node("exif_card", [0, 60, 200, 50], text=name, interactive=False)])

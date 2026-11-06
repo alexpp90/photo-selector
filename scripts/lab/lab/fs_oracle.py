@@ -54,6 +54,23 @@ def photo_stem(path: str) -> str:
     return path.replace("\\", "/").rsplit("/", 1)[-1].split(".", 1)[0]
 
 
+def _explained(missing: list[tuple[str, int]], added: list[tuple[str, int]], expect: dict[str, Any]) -> bool:
+    """Whether an `unchanged` difference is only what the expectation allows.
+
+    `removals_allowed: N`: the files of at most N photos disappear (a pending delete landed).
+    `rewrites_allowed: N`: at most N photos change in place or gain an `.xmp` sidecar (a rating
+    written into the JPEG's XMP, Frameduel's REQ-AND-RATING.01; 2026-11-06, Pixel Tablet). Nothing
+    else may appear or change.
+    """
+    gone, new = {p for p, _ in missing}, {p for p, _ in added}
+    rewritten, removed, created = gone & new, gone - new, new - gone
+    if any(not p.lower().endswith(".xmp") for p in created):
+        return False
+    rewrites = {photo_stem(p) for p in rewritten | created}
+    return (len({photo_stem(p) for p in removed}) <= int(expect.get("removals_allowed", 0))
+            and len(rewrites) <= int(expect.get("rewrites_allowed", 0)))
+
+
 def evaluate_fs_oracle(
     fs_data: dict[str, Any],
     expect: dict[str, Any] | str | None,
@@ -112,10 +129,8 @@ def evaluate_fs_oracle(
             init_bag = Counter((str(e["path"]), int(e["size"])) for e in initial_fs.get("files", []))
             missing = sorted(list((init_bag - cur_bag).elements()))
             added = sorted(list((cur_bag - init_bag).elements()))
-            allowed = int(expect_dict.get("removals_allowed", 0))
-            if missing and not added and len({photo_stem(p) for p, _ in missing}) <= allowed:
-                pass  # a delete the user confirmed earlier was committed (see photo_stem)
-            elif cur_bag != init_bag:
+            if cur_bag != init_bag and not _explained(missing, added, expect_dict):
+
                 changed_paths = sorted({p for p, _ in missing} | {p for p, _ in added})
                 add_finding(
                     "fs-unchanged",
