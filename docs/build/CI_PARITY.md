@@ -281,6 +281,13 @@ and then skipped, not failed. While it runs it prints each device's phase, every
 happens, and a progress board; `progress.log` in the run directory has every test event
 (`tail -f` it). A test with no output for `--test-timeout` (600 s) counts as hung; a crash or
 hang fails the test it hit and the suite resumes after it.
+A killed test never runs its `finally` blocks, and `WindowGeometryRule` leaves the display at the
+reference tablet size, density and rotation: whenever the runner kills or loses an instrumentation
+(hang, crash, USB drop) and again at the end of the run, it puts the display back itself and reads
+`wm size`, `wm density`, the rotation settings and the `cmd window fixed-to-user-rotation` mode (`default`, `enabled`, …; dumpsys boolean before API 31) back. A test device and an emulator return to the
+`prepare` state; any other device to the values recorded in `restore-pending.json` before the run.
+A change or a failed restore is a note on the device's row in the report.
+A test that hung and passed on its retry is reported as *hung* (own column, heading and ledger outcome `hung`), never as flaky.
 
 **Report and issue hand-over.** Each run writes `.git/pst-device-runs/<run-id>/` (the common git
 directory, shared by every worktree): `report.md` — wall time, build time, per device setup,
@@ -313,7 +320,7 @@ With several devices attached and none named, `--configured` refuses rather than
 personal devices. A named test device (and an emulator) gets `android_test_device.py prepare`'s
 persistent setup; any other device gets only animations off, stay-awake and a maximal
 screen-off timeout for the run, saved to `.git/pst-device-runs/restore-pending.json` first and
-put back afterwards — by the next run if this one was killed.
+put back afterwards (with its display size, density and rotation) — by the next run if this one was killed.
 
 **A secure lock screen cannot be prepared away.** `locksettings set-disabled` succeeds silently
 on a phone with a PIN, pattern or password, and the lock screen then covers every activity, so
@@ -446,7 +453,25 @@ these rules removes almost all of that class:
    reference one in as few pixels as the panel allows.
    A phone's launcher requests `SCREEN_ORIENTATION_NOSENSOR` and holds the display in portrait
    whatever `user_rotation` says, and no test activity is up yet when the rule runs, so the rule
-   also sets `cmd window set-fix-to-user-rotation enabled` and puts the previous value back.
+   also fixes the display to the user rotation and puts the previous mode back exactly. The
+   subcommand is `cmd window fixed-to-user-rotation <mode>` from API 31 and
+   `set-fix-to-user-rotation` on API 30 only (`FixedRotation`); the wrong spelling answers
+   `Unknown command` on stdout with no exception, so the rule used the old one on every device and
+   never fixed the rotation (found 2026-11-05). `shell()` now fails on that answer.
+   The usable width is exact: a cutout scales with the forced size (a Pixel 4a's punch hole is
+   172 px at 2960 px, 183 at 3142), so the rule grows the long edge until `size - cutout`
+   reaches 1480 dp to the pixel, not one pixel less (2959 px is 1479.5 dp, and every 1480 dp
+   host refused to start, 2026-11-05). That arithmetic is `tests/common/.../ReferenceWindowMath.kt`,
+   compiled into the unit tests too and proved on the JVM (`ReferenceWindowMathTest`). The
+   rule returns only after the display has stayed landscape and unchanged for a second, a host
+   that still does not see the window calls `reassertLandscape()` while it waits, and a failing
+   test carries the display's size changes as a suppressed exception. The rule also bounds what
+   used to be able to hang: the test body (150 s), each shell command (20 s) and each injected
+   key (`BoundedKeys`, 10 s) fail with the blocked thread's stack instead of holding the process
+   until the matrix kills it, which skipped the `finally` and left a Moto G77 at tablet size. The
+   device's own state is written to a global setting (`frameduel_test_display_original`) before
+   anything is forced and deleted after the restore, so the run after a kill restores the
+   device's own geometry, not the leftover.
 
 These rules are also part of the Android UI agent definitions in the maintainer's agent
 framework.

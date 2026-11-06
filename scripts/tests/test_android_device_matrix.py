@@ -236,6 +236,160 @@ class LedgerTest(unittest.TestCase):
             self.assertEqual(adm.load_ledger(path), adm.empty_ledger())
 
 
+class ValidationVerdictTest(unittest.TestCase):
+    """The shape of run 20261105-202303: the ledger had the issue on the Pixel 4a only; this run it
+    passed there and failed (retry failed too) on three other devices, one of which also had a flake."""
+
+    NAME = "aTreeDocumentResolvesAndItsFlagIsSetClearedAndReadBack"
+    GRANT = "java.lang.AssertionError: no persisted, writable primary-storage tree grant: pick a folder in the app once"
+
+    def pixel_4a_failed(self):
+        return device_run("Pixel 4a", "13171JEC200817", [result(self.NAME, "failed", "failed", "x")])
+
+    def runs(self):
+        return [device_run("Pixel 4a", "13171JEC200817", [result(self.NAME, "passed")]),
+                device_run("Sony Xperia XA2 (H3113)", "CQ30012CMV",
+                           [result(self.NAME, "failed", "failed", self.GRANT)]),
+                device_run("Moto G77", "ZY22MQCBL6", [result(self.NAME, "failed", "failed", self.GRANT)]),
+                device_run("Pixel Tablet", "3620105H804AS8", [result(self.NAME, "failed", "passed", self.GRANT)])]
+
+    def validation_row(self, ledger, runs):
+        verdicts = adm.update_ledger(ledger, runs, "r2")
+        meta = {"run_id": "r2", "started_at": "now", "wall_seconds": 1.0, "build_seconds": 1.0, "tree": "main @ abc",
+                "scope": "full", "run_dir": "/tmp/x", "ledger": "/tmp/issues.json"}
+        report = adm.render_report(meta, runs, verdicts, ledger)
+        return verdicts, [line for line in report.splitlines() if "still failing" in line or "fixed" in line]
+
+    def test_the_this_run_cell_names_every_device_that_failed_and_the_one_that_passed(self):
+        ledger = adm.empty_ledger()
+        adm.update_ledger(ledger, [self.pixel_4a_failed()], "r1")
+        verdicts, rows = self.validation_row(ledger, self.runs())
+        self.assertEqual([e["key"] for e in verdicts["still"]], [f"phototok:com.x.T#{self.NAME}"])
+        seen = verdicts["still"][0]["seen"]
+        self.assertEqual(seen, {"Sony Xperia XA2 (H3113)": "failed", "Moto G77": "failed", "Pixel Tablet": "flaky",
+                                "Pixel 4a": "passed"})
+        self.assertEqual(list(seen)[-1], "Pixel 4a")   # failures first, then the devices that passed
+        self.assertEqual(len(rows), 1)
+        for fragment in ("❌ still failing", "Sony Xperia XA2 (H3113): failed", "Moto G77: failed",
+                         "Pixel Tablet: flaky", "Pixel 4a: passed"):
+            self.assertIn(fragment, rows[0])
+
+    def test_the_ledger_keeps_its_semantics_the_passing_device_drops_out_and_the_new_ones_come_in(self):
+        ledger = adm.empty_ledger()
+        adm.update_ledger(ledger, [self.pixel_4a_failed()], "r1")
+        adm.update_ledger(ledger, self.runs(), "r2")
+        issue = ledger["open"][f"phototok:com.x.T#{self.NAME}"]
+        self.assertEqual(sorted(issue["devices"]), ["3620105H804AS8", "CQ30012CMV", "ZY22MQCBL6"])
+        self.assertEqual((issue["first_seen"], issue["runs_seen"]), ("r1", 2))
+
+    def test_a_fixed_issue_still_lists_only_the_devices_that_ran_it(self):
+        ledger = adm.empty_ledger()
+        adm.update_ledger(ledger, [self.pixel_4a_failed()], "r1")
+        passed = device_run("Pixel 4a", "13171JEC200817", [result(self.NAME, "passed")])
+        verdicts, rows = self.validation_row(ledger, [passed])
+        self.assertEqual([e["key"] for e in verdicts["fixed"]], [f"phototok:com.x.T#{self.NAME}"])
+        self.assertIn("Pixel 4a: passed", rows[0])
+        self.assertIn("✅ fixed", rows[0])
+
+    def test_an_install_issue_that_persists_names_the_device(self):
+        ledger = adm.empty_ledger()
+        adm.update_ledger(ledger, [device_run("Old", "O1", [], status="failed-setup", install_error="E1")], "r1")
+        verdicts = adm.update_ledger(ledger, [
+            device_run("Old", "O1", [], status="failed-setup", install_error="E1"),
+            device_run("New", "N1", [], status="failed-setup", install_error="E2")], "r2")
+        self.assertEqual(verdicts["still"][0]["seen"], {"Old": "failed"})
+
+
+HUNG = "hung — no output for 10m00s"
+
+
+def hung_result(name="goToPhoto_keyG", retry="passed"):
+    return adm.TestResult("android-desktop", "com.x.SelectorScreenTest", name, "failed", 600.0, HUNG, HUNG, retry,
+                          hung=True)
+
+
+class HungThenPassedTest(unittest.TestCase):
+    """Run 20261105-202303 reported the Moto G77's hung goToPhoto_keyG… as "flaky (passed on retry)"."""
+
+    def runs(self):
+        dr = adm.DeviceRun(device("Moto G77", "M1"), status="ran")
+        dr.modules.append(adm.ModuleRun("android-desktop", results=[
+            hung_result(), result("plain", "failed", "passed", "boom")]))
+        return [dr]
+
+    def test_the_matrix_marks_a_killed_test_as_hung(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            worker, _ = display_worker(FakeDisplayDevice(), tmp)
+            original = adm.stream_command
+            adm.stream_command = hung_stream(lambda: None)
+            try:
+                mrun = adm.ModuleRun("android-desktop")
+                worker._instrument(adm.MODULES["android-desktop"], "x/Runner", [], worker.dir / "i.txt", mrun)
+            finally:
+                adm.stream_command = original
+            self.assertTrue(mrun.results[-1].hung)
+            parser = adm.InstrumentationParser("m")
+            feed(parser, status("p.C", "t", 1, 1, 1))
+            self.assertFalse(parser.close("instrumentation crashed").hung)
+
+    def test_properties_hung_is_not_flaky_and_both_are_recovered(self):
+        hung, flaky = hung_result(), result("plain", "failed", "passed")
+        self.assertTrue(hung.hung_then_passed and hung.recovered and not hung.flaky)
+        self.assertTrue(flaky.flaky and flaky.recovered and not flaky.hung_then_passed)
+        self.assertFalse(hung_result(retry="failed").hung_then_passed)   # still hung, never recovered: a plain failure
+
+    def test_ledger_outcome_and_kind_say_hung(self):
+        ledger = adm.empty_ledger()
+        adm.update_ledger(ledger, self.runs(), "r1")
+        hung_issue = ledger["open"]["android-desktop:com.x.SelectorScreenTest#goToPhoto_keyG"]
+        self.assertEqual(hung_issue["kind"], "hung")
+        self.assertEqual(hung_issue["devices"]["M1"]["outcome"], "hung")
+        self.assertEqual(ledger["open"]["phototok:com.x.T#plain"]["kind"], "flaky")
+
+    def test_report_names_the_hang_in_the_heading_headline_and_table(self):
+        runs = self.runs()
+        ledger = adm.empty_ledger()
+        verdicts = adm.update_ledger(ledger, runs, "r1")
+        meta = {"run_id": "r1", "started_at": "now", "wall_seconds": 1.0, "build_seconds": 1.0, "tree": "main @ abc",
+                "scope": "full", "run_dir": "/tmp/x", "ledger": "/tmp/issues.json"}
+        report = adm.render_report(meta, runs, verdicts, ledger)
+        self.assertIn("1 hung (passed on retry)", report)
+        self.assertIn("1 flaky", report)
+        self.assertIn("— HUNG, then passed on retry (killed after no output; not flakiness)", report)
+        self.assertIn("— flaky (passed on retry)", report)
+        self.assertIn("| Flaky | Hung |", report)
+        self.assertIn("| 0 | 0 | 1 | 1 | 0 |", report)   # passed, failed, flaky, hung, skipped
+        sections = report.split("### ")
+        hung_section = next(x for x in sections if "HUNG" in x)
+        self.assertNotIn("flaky (passed on retry)", hung_section)
+        self.assertIn(HUNG, hung_section)
+
+    def test_gate_and_ledger_validation(self):
+        self.assertEqual(adm.gate_lines(self.runs())[0].split("\t")[0], "pass")   # recovered on retry: as flaky was
+        ledger = adm.empty_ledger()
+        adm.update_ledger(ledger, self.runs(), "r1")
+        clean = adm.DeviceRun(device("Moto G77", "M1"), status="ran")
+        clean.modules.append(adm.ModuleRun("android-desktop", results=[
+            adm.TestResult("android-desktop", "com.x.SelectorScreenTest", "goToPhoto_keyG", "passed")]))
+        verdicts = adm.update_ledger(ledger, [clean], "r2")
+        self.assertEqual([e["key"] for e in verdicts["fixed"]],
+                         ["android-desktop:com.x.SelectorScreenTest#goToPhoto_keyG"])
+
+    def test_an_old_ledger_without_hung_still_loads_and_validates(self):
+        old = {"schema": 1, "updated_run": "20261104-061934", "resolved": [], "open": {
+            "phototok:com.x.T#a": {"kind": "flaky", "title": "phototok:com.x.T#a", "test_key": "phototok:com.x.T#a",
+                                   "first_seen": "r0", "last_seen": "r0", "runs_seen": 1,
+                                   "devices": {"P1": {"label": "Pixel", "outcome": "flaky", "message": "m"}}}}}
+        with tempfile.TemporaryDirectory() as tmp:
+            path = Path(tmp) / "issues.json"
+            path.write_text(__import__("json").dumps(old), encoding="utf-8")
+            ledger = adm.load_ledger(path)
+        self.assertEqual(list(ledger["open"]), ["phototok:com.x.T#a"])
+        verdicts = adm.update_ledger(ledger, [device_run("Pixel", "P1", [result("a", "failed", "passed", "m")])], "r1")
+        self.assertEqual([e["key"] for e in verdicts["still"]], ["phototok:com.x.T#a"])
+        self.assertEqual(ledger["open"]["phototok:com.x.T#a"]["runs_seen"], 2)
+
+
 class ReportTest(unittest.TestCase):
     def test_gate_lines_and_report(self):
         runs = [device_run("Pixel", "P1", [result("a", "failed", "failed", "No compose hierarchies found")]),
@@ -402,6 +556,529 @@ class WorkerCleanupTest(unittest.TestCase):
             book.save("S1", {"system/screen_off_timeout": "30000"})
             book.save("S1", {"system/screen_off_timeout": "2147483647"})
             self.assertEqual(book.pop("S1"), {"system/screen_off_timeout": "30000"})
+
+
+# ── Display state after a killed or lost test ────────────────────────────────
+
+# Verbatim from the Moto G77 after run 20261105-202303 (read back by hand), and the same device
+# before WindowGeometryRule touched it.
+FIXED_MODES_FOR_TEST = ("default", "enabled", "disabled", "enabled_if_no_auto_rotation")
+WM_SIZE_LEAKED = "Physical size: 1080x2352\nOverride size: 1848x2960\n"
+WM_DENSITY_LEAKED = "Physical density: 390\nOverride density: 320\n"
+WM_SIZE_CLEAN = "Physical size: 1080x2352\n"
+WM_DENSITY_CLEAN = "Physical density: 390\n"
+
+
+class FakeDisplayDevice:
+    """adb fake that keeps display state and answers ``wm`` / ``settings`` like the real device.
+
+    ``ignore_wm_reset`` makes ``wm size reset`` a silent no-op (exit 0, nothing changes): a step
+    whose exit status says nothing about its effect. ``lag`` is the number of ``wm size`` reads
+    before a new size shows. ``rotation_resaved`` makes the window manager put the old rotation
+    back once after the first ``user_rotation`` put."""
+
+    def __init__(self, size_override="1848x2960", density_override="320", user_rotation="1",
+                 accelerometer_rotation="0", ignore_wm_reset=False, lag=0, rotation_resaved=False,
+                 serial="S1", fixed=None, fixed_command="fixed-to-user-rotation"):
+        self.size, self.density = size_override, density_override
+        self.settings = {"system/user_rotation": user_rotation,
+                         "system/accelerometer_rotation": accelerometer_rotation}
+        self.ignore_wm_reset, self.lag, self.rotation_resaved = ignore_wm_reset, lag, rotation_resaved
+        self.pending_size = None
+        # `fixed` is what the display holds: a mode word on API 31+ ("default", "enabled", "disabled",
+        # "enabled_if_no_auto_rotation"), "true" | "false" up to API 30 (dumpsys only), None when the
+        # build reports nothing. `fixed_command` is the spelling this Android version knows:
+        # "fixed-to-user-rotation" (API 31+), "set-fix-to-user-rotation" (up to API 30), or neither.
+        self.fixed, self.fixed_command = fixed, fixed_command
+        self.calls = []
+        self.connected = True
+        self.serial = serial
+
+    def shell_commands(self):
+        return [c[4] for c in self.calls if c[3:4] == ["shell"]]
+
+    def __call__(self, cmd, timeout=120):
+        self.calls.append(list(cmd))
+        if cmd[3:] == ["get-state"]:
+            return (0, "device") if self.connected else (1, "error: device not found")
+        if cmd[3:4] != ["shell"] or len(cmd) < 5:
+            return 0, "Success"
+        out, self.exit_code = "", 0
+        for part in cmd[4].split(" && "):
+            out = self._one(part.strip())
+        return self.exit_code, out
+
+    def _one(self, command):
+        words = command.split()
+        if command == "wm size":
+            shown = self.size
+            if self.pending_size is not None:
+                self.lag -= 1
+                if self.lag < 0:
+                    self.size, self.pending_size = self.pending_size[0], None
+                    shown = self.size
+            return WM_SIZE_CLEAN + (f"Override size: {shown}\n" if shown else "")
+        if command == "wm density":
+            return WM_DENSITY_CLEAN + (f"Override density: {self.density}\n" if self.density else "")
+        if command == "dumpsys window displays":
+            # Pixel Tablet, API 37: `grep -o mFixedToUserRotation=[a-z]*` gave `false` then `null`
+            # (two displays); the boolean is what the mode makes of it, `default` included.
+            boolean = "true" if self.fixed in ("true", "enabled") else "false"
+            return ("WINDOW MANAGER DISPLAY CONTENTS (dumpsys window displays)\n"
+                    "  Display: mDisplayId=0 (organized)\n"
+                    "    init=1080x2352 390dpi cur=1080x2352 app=1080x2352 rng=1080x973-2352x2245\n"
+                    + (f"    mFixedToUserRotation={boolean}\n" if self.fixed else "")
+                    + "    mUserRotationMode=USER_ROTATION_LOCKED mUserRotation=ROTATION_0\n"
+                    + ("  Display: mDisplayId=2 (organized)\n    mFixedToUserRotation=null\n"
+                       if self.fixed in FIXED_MODES_FOR_TEST else ""))
+        if words[:2] == ["cmd", "window"]:
+            if len(words) < 3 or words[2] != self.fixed_command or self.fixed is None:
+                self.exit_code = 255
+                return f"Unknown command: {words[2] if len(words) > 2 else ''}\n"   # verbatim, exit 255
+            if len(words) == 3:                      # no argument: print the mode
+                if self.fixed_command == "fixed-to-user-rotation":
+                    return f"{self.fixed}\n"
+                self.exit_code = 255
+                return "Error: expecting enabled or disabled\n"
+            if self.fixed_command == "fixed-to-user-rotation":
+                self.fixed = words[3]
+            else:
+                self.fixed = "true" if words[3] == "enabled" else "false"
+            return ""
+        if words[:2] == ["wm", "size"]:
+            if words[2] == "reset":
+                if not self.ignore_wm_reset:
+                    self._set_size(None)
+            else:
+                self._set_size(words[2])
+        elif words[:2] == ["wm", "density"]:
+            if words[2] == "reset":
+                if not self.ignore_wm_reset:
+                    self.density = None
+            else:
+                self.density = words[2]
+        elif words[:2] == ["settings", "get"]:
+            return self.settings.get(f"{words[2]}/{words[3]}", "null") + "\n"
+        elif words[:2] == ["settings", "put"]:
+            key = f"{words[2]}/{words[3]}"
+            old = self.settings.get(key)
+            self.settings[key] = words[4]
+            if key == "system/user_rotation" and self.rotation_resaved:
+                self.rotation_resaved = False
+                self.settings[key] = old   # the window manager writes the old value back, once
+        elif words[:2] == ["settings", "delete"]:
+            self.settings.pop(f"{words[2]}/{words[3]}", None)
+        return ""
+
+    def _set_size(self, value):
+        if self.lag > 0:
+            self.pending_size = (value,)
+        else:
+            self.size = value
+
+
+def display_worker(runner, tmp, designated=True, kind="usb", book_entry=None):
+    book = adm.RestoreBook(Path(tmp) / "r.json")
+    if book_entry:
+        book.save("S1", book_entry)
+    opts = adm.Options([adm.MODULES["android-desktop"]], {})
+    dev = adm.Device("S1", "S1", "Moto G77", kind, label="Moto G77", designated=designated)
+    worker = adm.DeviceWorker(dev, opts, Path(tmp), adm.Progress(Path(tmp) / "p.log", 0.0, echo=lambda _: None),
+                              threading.Event(), lambda: True, threading.Event(), book, runner)
+    worker.sleep = lambda seconds: None
+    worker.dir.mkdir(parents=True, exist_ok=True)
+    return worker, book
+
+
+PHONE_ORIGINALS = {"display/size": "reset", "display/density": "reset",
+                   "system/user_rotation": "0", "system/accelerometer_rotation": "0"}
+
+
+class ReadDisplayTest(unittest.TestCase):
+    def test_reads_the_real_wm_output_with_and_without_override_lines(self):
+        leaked = adm.read_display("S1", FakeDisplayDevice())
+        self.assertEqual(leaked, {"display/size": "1848x2960", "display/density": "320",
+                                  "system/user_rotation": "1", "system/accelerometer_rotation": "0"})
+        clean = adm.read_display("S1", FakeDisplayDevice(size_override=None, density_override=None,
+                                                         user_rotation="0"))
+        self.assertEqual(clean["display/size"], "reset")
+        self.assertEqual(clean["display/density"], "reset")
+        self.assertEqual(clean["system/user_rotation"], "0")
+
+    def test_an_unreachable_device_reads_as_nothing(self):
+        self.assertEqual(adm.read_display("S1", lambda cmd, timeout=120: (1, "error: device offline")), {})
+
+    def test_the_fake_replays_the_text_the_coordinator_read_back(self):
+        dev = FakeDisplayDevice()
+        self.assertEqual(dev(["adb", "-s", "S1", "shell", "wm size"])[1], WM_SIZE_LEAKED)
+        self.assertEqual(dev(["adb", "-s", "S1", "shell", "wm density"])[1], WM_DENSITY_LEAKED)
+
+
+class RestoreDisplayTest(unittest.TestCase):
+    def test_prepared_device_gets_the_prepare_steps_and_reads_back_clean(self):
+        dev = FakeDisplayDevice()
+        out = adm.restore_display("S1", adm.PREPARED_DISPLAY, dev, prepare=True, sleep=lambda s: None)
+        self.assertTrue(out.ok and out.changed, out.problems)
+        steps = dict(adm.atd.PREPARE_STEPS)
+        sent = dev.shell_commands()
+        self.assertIn(steps[adm.GEOMETRY_STEP], sent)
+        self.assertIn(steps[adm.ROTATION_STEP], sent)
+        self.assertLess(sent.index(steps[adm.GEOMETRY_STEP]), sent.index(steps[adm.ROTATION_STEP]))
+        after = adm.read_display("S1", dev)
+        self.assertEqual(after, PHONE_ORIGINALS)
+        self.assertEqual(out.before["display/size"], "1848x2960")
+
+    def test_nothing_is_sent_when_the_display_is_already_right(self):
+        dev = FakeDisplayDevice(size_override=None, density_override=None, user_rotation="0")
+        out = adm.restore_display("S1", adm.PREPARED_DISPLAY, dev, prepare=True, sleep=lambda s: None)
+        self.assertTrue(out.ok)
+        self.assertFalse(out.changed)
+        reads = ("wm size", "wm density", "settings get", "dumpsys window displays")
+        self.assertTrue(all((c.startswith(reads) or c == "cmd window fixed-to-user-rotation") and "reset" not in c
+                            for c in dev.shell_commands()), dev.shell_commands())
+
+    def test_a_recorded_override_is_restored_not_reset(self):
+        # A Chromebook the owner had set to 1080x1920 / 280 before the run.
+        dev = FakeDisplayDevice()
+        wanted = {"display/size": "1080x1920", "display/density": "280",
+                  "system/user_rotation": "null", "system/accelerometer_rotation": "1"}
+        out = adm.restore_display("S1", wanted, dev, sleep=lambda s: None)
+        self.assertTrue(out.ok, out.problems)
+        state = adm.read_display("S1", dev)
+        self.assertEqual(state["display/size"], "1080x1920")
+        self.assertEqual(state["display/density"], "280")
+        self.assertEqual(state["system/user_rotation"], "null")      # settings delete
+        self.assertEqual(state["system/accelerometer_rotation"], "1")
+        self.assertNotIn("wm size reset", dev.shell_commands())
+
+    def test_a_restore_whose_command_does_nothing_is_a_failure_after_polling(self):
+        dev = FakeDisplayDevice(ignore_wm_reset=True)
+        sleeps = []
+        out = adm.restore_display("S1", adm.PREPARED_DISPLAY, dev, prepare=True, sleep=sleeps.append)
+        self.assertFalse(out.ok)
+        self.assertIn("size is 1848x2960 after the restore, wanted reset", " ".join(out.problems))
+        self.assertGreaterEqual(len([s for s in sleeps if s == adm.DISPLAY_POLL_SECONDS]), adm.DISPLAY_POLLS)
+
+    def test_a_size_that_lands_late_is_waited_for(self):
+        dev = FakeDisplayDevice(lag=3)
+        out = adm.restore_display("S1", adm.PREPARED_DISPLAY, dev, prepare=True, sleep=lambda s: None)
+        self.assertTrue(out.ok, out.problems)
+        self.assertEqual(adm.read_display("S1", dev)["display/size"], "reset")
+
+    def test_a_rotation_the_window_manager_writes_back_is_put_again(self):
+        dev = FakeDisplayDevice(rotation_resaved=True)
+        out = adm.restore_display("S1", adm.PREPARED_DISPLAY, dev, prepare=True, sleep=lambda s: None)
+        self.assertTrue(out.ok, out.problems)
+        puts = [c for c in dev.shell_commands() if "user_rotation 0" in c]
+        self.assertEqual(len(puts), 2)
+
+    def test_an_unreachable_device_is_a_problem_not_a_silent_success(self):
+        out = adm.restore_display("S1", adm.PREPARED_DISPLAY, lambda cmd, timeout=120: (1, "offline"),
+                                  prepare=True, sleep=lambda s: None)
+        self.assertFalse(out.ok)
+        self.assertIn("unreadable", out.problems[0])
+
+    def test_restore_settings_restores_the_display_keys_and_reports_a_failed_readback(self):
+        dev = FakeDisplayDevice()
+        saved = {"system/screen_off_timeout": "30000", **PHONE_ORIGINALS}
+        self.assertTrue(adm.restore_settings("S1", saved, dev, sleep=lambda s: None))
+        self.assertEqual(adm.read_display("S1", dev), PHONE_ORIGINALS)
+        stuck = FakeDisplayDevice(ignore_wm_reset=True)
+        self.assertFalse(adm.restore_settings("S1", saved, stuck, sleep=lambda s: None))
+
+
+class FixedToUserRotationTest(unittest.TestCase):
+    """WindowGeometryRule's `cmd window … enabled` is skipped by a kill: the display stays fixed to
+    the user rotation. Real Pixel Tablet (API 37) output: `cmd window set-fix-to-user-rotation
+    enabled` -> "Unknown command: set-fix-to-user-rotation", exit 255; `cmd window
+    fixed-to-user-rotation` -> "default", exit 0; dumpsys prints `mFixedToUserRotation=false` for
+    display 0 and `=null` for a second one."""
+
+    OLD = "set-fix-to-user-rotation"
+
+    def wanted(self, mode):
+        return dict(adm.PREPARED_DISPLAY, **{adm.FIXED_ROTATION: mode})
+
+    def test_the_real_mode_is_recorded_not_the_dumpsys_boolean(self):
+        dev = FakeDisplayDevice(fixed="default")
+        self.assertEqual(dev(["adb", "-s", "S1", "shell", "cmd window fixed-to-user-rotation"]), (0, "default\n"))
+        self.assertEqual(dev(["adb", "-s", "S1", "shell", "cmd window set-fix-to-user-rotation enabled"]),
+                         (255, "Unknown command: set-fix-to-user-rotation\n"))
+        self.assertIn("mFixedToUserRotation=false\n", dev(["adb", "-s", "S1", "shell", "dumpsys window displays"])[1])
+        self.assertEqual(adm.read_display("S1", dev)[adm.FIXED_ROTATION], "default")
+        for mode in ("enabled", "disabled", "enabled_if_no_auto_rotation"):
+            self.assertEqual(adm.read_display("S1", FakeDisplayDevice(fixed=mode))[adm.FIXED_ROTATION], mode)
+
+    def test_older_android_falls_back_to_the_first_dumpsys_boolean(self):
+        for value in ("true", "false"):
+            dev = FakeDisplayDevice(fixed=value, fixed_command=self.OLD)
+            self.assertEqual(adm.read_display("S1", dev)[adm.FIXED_ROTATION], value)
+        self.assertNotIn(adm.FIXED_ROTATION, adm.read_display("S1", FakeDisplayDevice(fixed=None)))
+
+    def test_a_default_mode_is_restored_as_default_not_disabled(self):
+        dev = FakeDisplayDevice(fixed="enabled")     # WindowGeometryRule's leftover
+        out = adm.restore_display("S1", self.wanted("default"), dev, prepare=True, sleep=lambda s: None)
+        self.assertTrue(out.ok, out.problems)
+        self.assertEqual(dev.fixed, "default")
+        self.assertEqual(out.after[adm.FIXED_ROTATION], "default")
+        sent = dev.shell_commands()
+        self.assertIn("cmd window fixed-to-user-rotation default", sent)
+        self.assertNotIn("cmd window fixed-to-user-rotation disabled", sent)
+        self.assertFalse([c for c in sent if "set-fix-to-user-rotation" in c])
+        # the mode goes last, after the rotation was put while the display was still fixed to it
+        self.assertGreater(sent.index("cmd window fixed-to-user-rotation default"),
+                           max(i for i, c in enumerate(sent) if "user_rotation 0" in c))
+
+    def test_every_mode_round_trips(self):
+        for original in ("default", "enabled", "disabled", "enabled_if_no_auto_rotation"):
+            dev = FakeDisplayDevice(fixed="enabled" if original != "enabled" else "disabled")
+            out = adm.restore_display("S1", self.wanted(original), dev, prepare=True, sleep=lambda s: None)
+            self.assertTrue(out.ok, (original, out.problems))
+            self.assertEqual(dev.fixed, original)
+
+    def test_an_old_android_is_restored_with_the_old_spelling_and_read_back(self):
+        dev = FakeDisplayDevice(fixed="true", fixed_command=self.OLD)
+        out = adm.restore_display("S1", self.wanted("false"), dev, prepare=True, sleep=lambda s: None)
+        self.assertTrue(out.ok, out.problems)
+        self.assertEqual(dev.fixed, "false")
+        self.assertIn("cmd window set-fix-to-user-rotation disabled", dev.shell_commands())
+
+    def test_a_mode_that_is_already_right_is_not_touched(self):
+        dev = FakeDisplayDevice(fixed="default")
+        out = adm.restore_display("S1", self.wanted("default"), dev, prepare=True, sleep=lambda s: None)
+        self.assertTrue(out.ok)
+        self.assertFalse([c for c in dev.shell_commands() if c.startswith("cmd window") and c.count(" ") > 2])
+
+    def test_a_restore_that_does_not_take_is_a_failure_after_the_readback(self):
+        dev = FakeDisplayDevice(fixed="enabled")
+        original = dev._one
+        dev._one = lambda c: "" if c.startswith("cmd window fixed-to-user-rotation ") else original(c)  # no-op set
+        out = adm.restore_display("S1", self.wanted("default"), dev, prepare=True, sleep=lambda s: None)
+        self.assertFalse(out.ok)
+        self.assertIn("fixed_to_user_rotation is enabled after the restore, wanted default", out.problems[-1])
+
+    def test_a_recorded_boolean_on_a_device_that_lost_the_old_command_is_a_failure(self):
+        dev = FakeDisplayDevice(fixed="enabled")     # upgraded since it was recorded: no old spelling
+        out = adm.restore_display("S1", self.wanted("false"), dev, prepare=True, sleep=lambda s: None)
+        self.assertFalse(out.ok)
+
+    def test_nothing_recorded_means_the_mode_is_not_touched(self):
+        dev = FakeDisplayDevice(fixed="enabled")
+        out = adm.restore_display("S1", adm.PREPARED_DISPLAY, dev, prepare=True, sleep=lambda s: None)
+        self.assertTrue(out.ok)
+        self.assertEqual(dev.fixed, "enabled")
+
+    def test_designated_device_records_it_before_prepare_and_restores_it_after_a_hang(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            dev = FakeDisplayDevice(size_override=None, density_override=None, user_rotation="0", fixed="default")
+            worker, book = display_worker(dev, tmp, designated=True)
+            worker._record_fixed_rotation()
+            self.assertEqual(book.peek("S1"), {adm.FIXED_ROTATION: "default"})
+            dev.fixed = "enabled"   # WindowGeometryRule enabled it, then the process was killed
+            worker._reset_display("after a hang")
+            self.assertEqual(dev.fixed, "default")
+            self.assertIn("fixed_to_user_rotation enabled", worker.result.notes[0])
+            worker._cleanup()       # and the end of the run pops the record
+            self.assertEqual(book.leftovers(), {})
+            self.assertEqual(dev.fixed, "default")
+
+    def test_non_designated_device_records_it_with_the_other_originals(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            dev = FakeDisplayDevice(size_override=None, density_override=None, user_rotation="0", fixed="default")
+            worker, book = display_worker(dev, tmp, designated=False)
+            worker._apply_temp_settings()
+            self.assertEqual(book.peek("S1")[adm.FIXED_ROTATION], "default")
+            dev.fixed = "enabled"
+            worker._cleanup()
+            self.assertEqual(dev.fixed, "default")
+            self.assertEqual(book.leftovers(), {})
+
+    def test_a_device_that_reports_nothing_records_nothing(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            dev = FakeDisplayDevice(fixed=None)
+            worker, book = display_worker(dev, tmp, designated=True)
+            worker._record_fixed_rotation()
+            self.assertEqual(book.peek("S1"), {})
+
+
+class RestoreBookDisplayTest(unittest.TestCase):
+    def test_older_original_wins_per_key_and_new_keys_are_added(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            book = adm.RestoreBook(Path(tmp) / "restore.json")
+            book.save("S1", {"system/screen_off_timeout": "30000"})
+            book.save("S1", {"system/screen_off_timeout": "2147483647", "display/size": "1848x2960"})
+            self.assertEqual(book.peek("S1"), {"system/screen_off_timeout": "30000", "display/size": "1848x2960"})
+            self.assertEqual(book.peek("S1"), book.pop("S1"))   # peek leaves it; pop takes it
+            self.assertEqual(book.peek("S1"), {})
+
+    def test_temp_settings_record_the_display_on_disk_before_the_first_change(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            dev = FakeDisplayDevice(size_override=None, density_override=None, user_rotation="0")
+            worker, book = display_worker(dev, tmp, designated=False)
+            on_disk_at_first_put = []
+            original = dev._one
+
+            def spy(command):
+                if command.startswith("settings put") and not on_disk_at_first_put:
+                    on_disk_at_first_put.append(book.peek("S1"))
+                return original(command)
+            dev._one = spy
+            worker._apply_temp_settings()
+            self.assertEqual(on_disk_at_first_put[0]["display/size"], "reset")
+            self.assertEqual(on_disk_at_first_put[0]["system/user_rotation"], "0")
+            self.assertEqual(on_disk_at_first_put[0]["system/accelerometer_rotation"], "0")
+            self.assertIn("global/window_animation_scale", on_disk_at_first_put[0])
+
+
+def hung_stream(leave):
+    """A stream_command stand-in: one test starts, the instrumentation is silent, the matrix kills it."""
+    def fake(cmd, on_line, idle_timeout, stop):
+        for line in (status("p.C", "keyG", 1, 1, 2)).splitlines():
+            on_line(line)
+        leave()
+        return "hung — no output for 10m00s"
+    return fake
+
+
+class DisplayAfterHangTest(unittest.TestCase):
+    def run_instrument(self, worker, stream):
+        original = adm.stream_command
+        adm.stream_command = stream
+        try:
+            mrun = adm.ModuleRun("android-desktop")
+            return worker._instrument(adm.MODULES["android-desktop"], "x/Runner", [],
+                                      worker.dir / "i.txt", mrun)
+        finally:
+            adm.stream_command = original
+
+    def test_a_designated_device_is_put_back_after_the_hung_instrumentation_is_killed(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            dev = FakeDisplayDevice()   # the leak from the Moto G77
+            worker, _ = display_worker(dev, tmp, designated=True)
+            self.run_instrument(worker, hung_stream(lambda: None))
+            self.assertEqual(adm.read_display("S1", dev), PHONE_ORIGINALS)
+            sent = dev.shell_commands()
+            self.assertLess(sent.index("am force-stop com.photoselectortoolbox"),
+                            sent.index(dict(adm.atd.PREPARE_STEPS)[adm.GEOMETRY_STEP]))
+            self.assertTrue(any(n.startswith("display reset after a hang: was size 1848x2960")
+                                for n in worker.result.notes), worker.result.notes)
+
+    def test_a_non_designated_device_gets_its_recorded_original_back(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            dev = FakeDisplayDevice(user_rotation="1")
+            originals = {"display/size": "reset", "display/density": "reset", "system/user_rotation": "null",
+                         "system/accelerometer_rotation": "1", "system/screen_off_timeout": "1800000"}
+            worker, book = display_worker(dev, tmp, designated=False, book_entry=originals)
+            self.run_instrument(worker, hung_stream(lambda: None))
+            state = adm.read_display("S1", dev)
+            self.assertEqual(state["display/size"], "reset")
+            self.assertEqual(state["display/density"], "reset")
+            self.assertEqual(state["system/user_rotation"], "null")
+            self.assertEqual(state["system/accelerometer_rotation"], "1")
+            self.assertEqual(book.peek("S1"), originals)   # still on disk: the run is not over
+            self.assertIn("after a hang", worker.result.notes[0])
+
+    def test_nothing_recorded_for_a_non_designated_device_is_logged_not_guessed(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            dev = FakeDisplayDevice()
+            worker, _ = display_worker(dev, tmp, designated=False)
+            self.run_instrument(worker, hung_stream(lambda: None))
+            self.assertEqual(adm.read_display("S1", dev)["display/size"], "1848x2960")
+            self.assertEqual(worker.result.notes, [])
+            self.assertIn("no original recorded", Path(tmp, "p.log").read_text())
+
+    def test_a_restore_that_does_not_take_is_a_note_in_the_report(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            dev = FakeDisplayDevice(ignore_wm_reset=True)
+            worker, _ = display_worker(dev, tmp, designated=True)
+            self.run_instrument(worker, hung_stream(lambda: None))
+            self.assertTrue(worker.result.notes[0].startswith("DISPLAY RESTORE FAILED after a hang"),
+                            worker.result.notes)
+
+    def test_a_crash_without_a_kill_also_resets_the_display(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            dev = FakeDisplayDevice()
+            worker, _ = display_worker(dev, tmp, designated=True)
+
+            def crash(cmd, on_line, idle_timeout, stop):
+                for line in status("p.C", "keyG", 1, 1, 2).splitlines():
+                    on_line(line)
+                return ""   # the stream just ends: process died, adb still there
+            self.run_instrument(worker, crash)
+            self.assertEqual(adm.read_display("S1", dev), PHONE_ORIGINALS)
+            self.assertIn("after the instrumentation died", worker.result.notes[0])
+
+
+class DisplayAfterDisconnectTest(unittest.TestCase):
+    def test_the_display_is_reset_once_the_device_is_back_and_not_while_it_is_gone(self):
+        passes = [status("p.C", "a", 1, 1, 2) + status("p.C", "a", 0, 1, 2) + status("p.C", "b", 1, 2, 2),
+                  status("p.C", "b", 1, 1, 1) + status("p.C", "b", 0, 1, 1) + "INSTRUMENTATION_CODE: -1\n"]
+
+        def fake_stream(cmd, on_line, idle_timeout, stop):
+            for line in passes.pop(0).splitlines():
+                on_line(line)
+            return ""
+
+        class Gone(FakeDisplayDevice):
+            # get-state answers: lost when the stream ended, back on the first poll of the reconnect wait.
+            states = iter([False, True])
+
+            def __call__(self, cmd, timeout=120):
+                if cmd[3:] == ["get-state"]:
+                    self.calls.append(list(cmd))
+                    return (0, "device") if next(self.states) else (1, "error: device not found")
+                if cmd[3:5] == ["shell", "pm list instrumentation"]:
+                    return 0, "instrumentation:com.photoselectortoolbox.test/x.Runner (target=com.photoselectortoolbox)"
+                return super().__call__(cmd, timeout)
+
+        original = adm.stream_command
+        adm.stream_command = fake_stream
+        try:
+            with tempfile.TemporaryDirectory() as tmp:
+                dev = Gone()
+                worker, _ = display_worker(dev, tmp, designated=True)
+                worker.opts.only = {"android-desktop": ["p.C#a", "p.C#b"]}
+                mrun = worker._run_module(adm.MODULES["android-desktop"])
+        finally:
+            adm.stream_command = original
+        self.assertIn(adm.DISCONNECTED, mrun.problems)
+        self.assertEqual(adm.read_display("S1", dev), PHONE_ORIGINALS)
+        self.assertTrue(any("after the device reconnected" in n for n in worker.result.notes), worker.result.notes)
+
+
+class DisplayAtCleanupTest(unittest.TestCase):
+    def test_designated_cleanup_resets_the_display_even_when_nothing_else_ran(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            dev = FakeDisplayDevice()
+            worker, _ = display_worker(dev, tmp, designated=True)
+            worker._cleanup()
+            self.assertEqual(adm.read_display("S1", dev), PHONE_ORIGINALS)
+            self.assertIn("at the end of the run", worker.result.notes[0])
+
+    def test_emulators_count_as_prepared_devices(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            dev = FakeDisplayDevice()
+            worker, _ = display_worker(dev, tmp, designated=False, kind="emulator")
+            worker._cleanup()
+            self.assertEqual(adm.read_display("S1", dev), PHONE_ORIGINALS)
+
+    def test_non_designated_cleanup_restores_the_recorded_display_and_clears_the_book(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            dev = FakeDisplayDevice(user_rotation="1")
+            originals = {"system/screen_off_timeout": "1800000", **PHONE_ORIGINALS}
+            worker, book = display_worker(dev, tmp, designated=False, book_entry=originals)
+            worker._cleanup()
+            self.assertEqual(adm.read_display("S1", dev), PHONE_ORIGINALS)
+            self.assertEqual(book.leftovers(), {})
+            self.assertEqual(worker.result.notes, [])
+
+    def test_a_failed_display_restore_stays_in_the_book_for_the_next_run(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            dev = FakeDisplayDevice(ignore_wm_reset=True)
+            worker, book = display_worker(dev, tmp, designated=False, book_entry=dict(PHONE_ORIGINALS))
+            worker._cleanup()
+            self.assertEqual(book.peek("S1"), PHONE_ORIGINALS)
+            self.assertIn("settings restore failed", worker.result.notes[0])
 
 
 if __name__ == "__main__":

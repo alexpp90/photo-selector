@@ -13,6 +13,7 @@ import androidx.compose.ui.test.getUnclippedBoundsInRoot
 import androidx.compose.ui.test.hasAnyAncestor
 import androidx.compose.ui.test.hasTestTag
 import androidx.compose.ui.test.hasText
+import androidx.compose.ui.test.isFocused
 import androidx.compose.ui.test.junit4.accessibility.enableAccessibilityChecks
 import androidx.compose.ui.test.junit4.createAndroidComposeRule
 import androidx.compose.ui.test.onAllNodesWithContentDescription
@@ -594,8 +595,7 @@ class SelectorScreenTest {
         // One key, through the window, like a keyboard: `sendKeyDownUpSync`
         // leaves touch mode. On a real Tab S11 Ultra the first press was spent on
         // Android's initial-focus pass and only the second one navigated.
-        androidx.test.platform.app.InstrumentationRegistry.getInstrumentation()
-            .sendKeyDownUpSync(android.view.KeyEvent.KEYCODE_DPAD_RIGHT)
+        BoundedKeys.send(android.view.KeyEvent.KEYCODE_DPAD_RIGHT)
 
         composeRule.waitUntil(timeoutMillis = 5000) { positionCounterShows("2 / 2") }
     }
@@ -616,8 +616,7 @@ class SelectorScreenTest {
         dismissGestureTutorialIfShown()
         composeRule.waitForIdle()
 
-        androidx.test.platform.app.InstrumentationRegistry.getInstrumentation()
-            .sendKeyDownUpSync(android.view.KeyEvent.KEYCODE_DPAD_RIGHT)
+        BoundedKeys.send(android.view.KeyEvent.KEYCODE_DPAD_RIGHT)
 
         composeRule.waitUntil(timeoutMillis = 5000) { positionCounterShows("2 / 2") }
     }
@@ -653,10 +652,21 @@ class SelectorScreenTest {
         pressKey(android.view.KeyEvent.KEYCODE_ESCAPE)
         composeRule.waitUntil(timeoutMillis = 5000) { !goToPhotoDialogShown() }
 
-        // Focus is back on the selector root: the very next arrow key navigates.
+        // Focus is back on the selector root: the very next arrow key navigates. The dialog's node
+        // leaves the tree before its window is gone: the activity's window takes focus a frame or
+        // two later and the selector's reclaim runs after that (`SelectorScreen`, `windowFocused`),
+        // so an arrow sent on the dialog's disappearance reaches a window nobody has focus in and
+        // is dropped (Pixel Tablet, API 37, 2026-11-05: dialog gone at 43.435, activity window back
+        // at 43.565, about 1 run in 5). A person cannot press a key that fast; the test waits for
+        // the state the key needs, then sends it once.
+        composeRule.waitUntil(timeoutMillis = 5000) { selectorRootHasKeyFocus() }
         pressKey(android.view.KeyEvent.KEYCODE_DPAD_RIGHT)
         composeRule.waitUntil(timeoutMillis = 5000) { positionCounterShows("2 / 2") }
     }
+
+    private fun selectorRootHasKeyFocus(): Boolean =
+        composeRule.onAllNodes(hasTestTag("selector_root") and isFocused(), useUnmergedTree = true)
+            .fetchSemanticsNodes().isNotEmpty()
 
     @ExpandedWindow
     @Test
@@ -797,8 +807,7 @@ class SelectorScreenTest {
         // One key through the window, like a keyboard: `sendKeyDownUpSync` leaves
         // touch mode, and `performKeyInput` would request focus first and so hide
         // exactly the failure under test.
-        androidx.test.platform.app.InstrumentationRegistry.getInstrumentation()
-            .sendKeyDownUpSync(keyCode)
+        BoundedKeys.send(keyCode)
     }
 
     @ExpandedWindow
@@ -1413,10 +1422,15 @@ class SelectorScreenTest {
         composeRule.onAllNodesWithTag("snackbar_undo", useUnmergedTree = true)
             .onFirst().performClick()
 
+        // The restored frame is a neighbour of the one on screen, so it is only on screen in the
+        // expanded layout. If the window dropped to the compact one meanwhile (the display moving
+        // under the test, Pixel 4a 2026-11-05), say so at once instead of timing out on a text
+        // that cannot be there: the assertion below still demands the expanded layout.
         composeRule.waitUntil(timeoutMillis = 15000) {
             composeRule.onAllNodesWithText("image1.jpg", ignoreCase = true)
-                .fetchSemanticsNodes().isNotEmpty()
+                .fetchSemanticsNodes().isNotEmpty() || isCompactLayout()
         }
+        requireExpandedLayout()
         composeRule.onAllNodesWithText("image1.jpg", ignoreCase = true).onFirst()
             .assertIsDisplayed()
     }

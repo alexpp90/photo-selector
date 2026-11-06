@@ -80,5 +80,6 @@ Distribution lives in separate repositories: the Homebrew tap
 
 The Android modules override Gradle's default source-set convention so that they match the
 other products: sources in `src/`, unit tests in `tests/unit/`, instrumented tests in
-`tests/instrumented/`. The overriding `sourceSets` block is in each module's
+`tests/instrumented/`, and pure-Kotlin test helpers both of them compile in `tests/common/`
+(optional; no device code). The overriding `sourceSets` block is in each module's
 `build.gradle.kts` — keep the copies in sync.
