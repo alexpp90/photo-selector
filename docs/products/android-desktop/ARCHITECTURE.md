@@ -150,7 +150,7 @@ When a hardware keyboard is detected, the same shortcuts as desktop apply:
 | M | Move to Selection (a held key acts once) |
 | C | Copy to Selection |
 | Ctrl+Z / Cmd+Z | Undo the latest delete or move (also in fullscreen) |
-| Escape | Exit fullscreen / comparison mode |
+| Escape | Exit fullscreen / leave maximised / close sheet, menu or guide (system Back does the same, via `BackHandler`) |
 | I | Fullscreen: pin / unpin the info panel |
 | F | Enter fullscreen viewer |
 | Space | Toggle Focus/comparison mode (tablet only) |
