@@ -606,6 +606,28 @@ class TestSystemBarsAndStaleApps(AndroidCase):
         driver.capture_state()
         self.assertEqual([(b.kind, b.rect) for b in driver._bars], [("status", (0, 0, 2340, 77)), ("navigation", (2208, 0, 2340, 1080))])
 
+    def test_an_immersive_screen_hides_the_cached_status_bar(self) -> None:
+        # Pixel Tablet, 2026-11-06: Frameduel's full-screen viewer hides the status bar without a
+        # new window geometry, and "Close fullscreen" at (64, 64) px was refused under it. The real
+        # insets of the selector (status bar shown) and of the viewer (hidden), trimmed.
+        shown = (DATA_DIR / "pixel_tablet_dumpsys_window_insets_shown.txt").read_text(encoding="utf-8")
+        hidden = (DATA_DIR / "pixel_tablet_dumpsys_window_insets_immersive.txt").read_text(encoding="utf-8")
+        close = node("close", "[32,32][96,96]", clickable=True)
+        xml = f'<?xml version="1.0"?><hierarchy rotation="0">{node("", "[0,0][2560,1600]", children=close)}</hierarchy>'
+        device = FakeDevice(xml=xml, density=320)
+        device.insets = shown
+        driver = self.ready(device)
+        self.assertIn(("status", (0, 0, 2560, 72)), [(b.kind, b.rect) for b in driver._bars])
+        device.insets = hidden
+        driver.capture_state()
+        driver.execute_action(Action("tap", "close", params={"x": 32.0, "y": 32.0}))
+        self.assertEqual(self.device.commands("shell", "input", "tap"), [("shell", "input", "tap", "64", "64")])
+        # Shown again: the tap is refused, as under any visible bar.
+        device.insets = shown
+        driver.capture_state()
+        with self.assertRaises(TargetUnderSystemBarError):
+            driver.execute_action(Action("tap", "close", params={"x": 32.0, "y": 32.0}))
+
     def test_a_target_in_a_scroll_container_says_so(self) -> None:
         # A row passing under the navigation bar while the list scrolls is not the app's defect.
         scroller = node("", "[0,0][1080,1920]", package=APP).replace('scrollable="false"', 'scrollable="true"')

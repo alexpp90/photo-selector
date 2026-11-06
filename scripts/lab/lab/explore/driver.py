@@ -349,7 +349,10 @@ class AndroidDeviceDriver(DeviceDriver):
         # (rotation moves the navigation bar to the side), kept until that geometry changes.
         self._bars: List[SystemBar] = []
         self._bars_key: Optional[Tuple[Any, ...]] = None
+        self._dump_bars: List[SystemBar] = []
         self._insets: List[SystemBar] = []
+        self._insets_fresh = False
+        self._seen_bars: List[SystemBar] = []  # every inset bar of this window geometry, shown or not
         self._stale: set = set()  # packages seen in front of the app: stopped at the next relaunch
         self._home: Optional[frozenset] = None
         self._browsers: Optional[frozenset] = None
@@ -623,14 +626,20 @@ class AndroidDeviceDriver(DeviceDriver):
 
     def _read_bars(self, xml: str, key: Tuple[Any, ...]) -> None:
         """System bars of the screen: the dump's own, plus the display's insets once per window geometry."""
-        if key != self._bars_key:
+        self._dump_bars = bars_from_dump(xml)
+        self._insets_fresh = key != self._bars_key
+        if self._insets_fresh:
             self._bars_key = key
-            try:
-                insets = bars_from_insets(self.adb.run("shell", "dumpsys", "window", timeout=30))
-            except (subprocess.SubprocessError, OSError):
-                insets = []
-            self._insets = insets
-        self._bars = list(dict.fromkeys([*bars_from_dump(xml), *self._insets]))
+            self._seen_bars = []
+            self._insets = self._read_insets()
+        self._bars = list(dict.fromkeys([*self._dump_bars, *self._insets]))
+        self._seen_bars = list(dict.fromkeys([*self._seen_bars, *self._insets]))
+
+    def _read_insets(self) -> List[SystemBar]:
+        try:
+            return bars_from_insets(self.adb.run("shell", "dumpsys", "window", timeout=30))
+        except (subprocess.SubprocessError, OSError):
+            return []
 
     @staticmethod
     def _mark_focus(xml: str, tree: Tree) -> None:
@@ -695,7 +704,15 @@ class AndroidDeviceDriver(DeviceDriver):
         )
 
     def _bar_at(self, point: Tuple[int, int]) -> Optional[SystemBar]:
-        return next((bar for bar in self._bars if bar.contains(*point)), None)
+        if not self._insets_fresh and any(b.contains(*point) for b in self._seen_bars):
+            # The insets are read once per window geometry, but an immersive screen hides the bars,
+            # and leaving it shows them, without changing it (2026-11-06, Frameduel's full-screen
+            # viewer on the Pixel Tablet: "Close fullscreen" refused under a status bar that was not
+            # shown). Where a bar has been, read them again.
+            self._insets, self._insets_fresh = self._read_insets(), True
+            self._bars = list(dict.fromkeys([*self._dump_bars, *self._insets]))
+            self._seen_bars = list(dict.fromkeys([*self._seen_bars, *self._insets]))
+        return next((b for b in self._bars if b.contains(*point)), None)
 
     def _px(self, x_dp: Any, y_dp: Any) -> Tuple[int, int]:
         """A gesture's point in screen pixels, moved out of every system bar (a swipe that starts or ends on one is the system's)."""

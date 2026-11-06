@@ -1,0 +1,2 @@
+        InsetsSource id=cb850000 type=statusBars frame=[0,0][2560,72] visible=false flags= sideHint=TOP
+        InsetsSource id=53120001 type=navigationBars frame=[0,1488][2560,1600] visible=false flags=INSETS_ROUNDED_CORNER sideHint=BOTTOM
