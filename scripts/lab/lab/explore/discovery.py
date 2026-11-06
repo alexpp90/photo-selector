@@ -139,7 +139,9 @@ def detect_active_modal(tree: Tree, rules: Dict[str, Any], by_id: Dict[str, Node
         if not node.visible:
             continue
         nid = node.id
-        is_pattern_modal = any(fnmatch.fnmatchcase(nid.lower(), pat.lower()) for pat in modal_patterns)
+        # A pattern names a container, never a control: "Shortcuts*" matched Frameduel's
+        # always-visible `shortcuts_button`, so every selector screen read as a dialog (2026-11-06).
+        is_pattern_modal = not node.interactive and any(fnmatch.fnmatchcase(nid.lower(), pat.lower()) for pat in modal_patterns)
         if (nid in overlay_ids and ("dialog" in nid.lower() or "sheet" in nid.lower() or "guide" in nid.lower() or "tutorial" in nid.lower())) or is_pattern_modal:
             if node.w > 0 and node.h > 0:
                 return nid

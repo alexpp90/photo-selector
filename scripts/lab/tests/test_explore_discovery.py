@@ -125,6 +125,15 @@ class TestLiveScreenInspection(unittest.TestCase):
         self.assertEqual(len(photo_nodes), 1)
         self.assertEqual(photo_nodes[0].id, "viewer.photo")
 
+    def test_a_control_named_like_a_modal_is_no_modal(self) -> None:
+        # Frameduel's always-visible `shortcuts_button` matched "Shortcuts*": every selector
+        # screen read as a dialog (2026-11-06, Pixel Tablet).
+        tree = make_synthetic_tree(screen_mode="three_up", window_w=1480, window_h=924)
+        tree.nodes.append(Node(id="shortcuts_button", parent=None, role="button", name="Shortcuts", bounds=[1400, 600, 48, 48], interactive=True, visible=True))
+        self.assertEqual(inspect_screen(tree, "android-desktop").screen_mode, "selector")
+        tree.nodes.append(Node(id="ShortcutsSheet", parent=None, role="container", name="", bounds=[200, 100, 800, 600], interactive=False, visible=True))
+        self.assertEqual(inspect_screen(tree, "android-desktop").screen_mode, "dialog")
+
     def test_frameduel_overlays_above_the_selector_have_their_own_mode(self) -> None:
         # Back over them must close them, not leave the app (appleft.ROOT_SCREEN_MODES).
         for tag, mode in (("selector_coach_overlay", "guide"), ("maximised_frame", "maximised")):
