@@ -621,6 +621,85 @@ class SelectorScreenTest {
         composeRule.waitUntil(timeoutMillis = 5000) { positionCounterShows("2 / 2") }
     }
 
+    // ── System Back does what Escape does (device lab 2026-11-06) ─────────
+
+    private fun guideShown(): Boolean =
+        composeRule.onAllNodesWithTag("selector_coach_overlay", useUnmergedTree = true)
+            .fetchSemanticsNodes().isNotEmpty()
+
+    private fun activityFinishing(): Boolean {
+        var finishing = false
+        composeRule.activityRule.scenario.onActivity { finishing = it.isFinishing }
+        return finishing
+    }
+
+    private fun backClaimedByTheApp(): Boolean {
+        var claimed = false
+        composeRule.activityRule.scenario.onActivity { claimed = it.onBackPressedDispatcher.hasEnabledCallbacks() }
+        return claimed
+    }
+
+    @ExpandedWindow
+    @Test
+    fun systemBack_closesTheGuideNotTheApp() {
+        loadTwoImages()
+        requireExpandedLayout()
+        composeRule.onAllNodesWithTag("shortcuts_button", useUnmergedTree = true)
+            .onFirst().performClick()
+        composeRule.waitUntil(timeoutMillis = 15000) { guideShown() }
+
+        // The real BACK key through the window, as `adb shell input keyevent KEYCODE_BACK` sends it.
+        BoundedKeys.send(android.view.KeyEvent.KEYCODE_BACK)
+
+        composeRule.waitUntil(timeoutMillis = 15000) { !guideShown() }
+        assertTrue("one Back closes the guide; it must not close the app", !activityFinishing())
+        // Nothing is open any more, so Back is the system's again.
+        assertTrue("with nothing open Back must fall through", !backClaimedByTheApp())
+    }
+
+    @ExpandedWindow
+    @Test
+    fun systemBack_leavesAMaximisedFrameThenFallsThrough() {
+        loadTwoImages()
+        requireExpandedLayout()
+        BoundedKeys.send(android.view.KeyEvent.KEYCODE_2)
+        composeRule.waitUntil(timeoutMillis = 15000) {
+            composeRule.onAllNodesWithTag("maximised_frame", useUnmergedTree = true)
+                .fetchSemanticsNodes().isNotEmpty()
+        }
+
+        BoundedKeys.send(android.view.KeyEvent.KEYCODE_BACK)
+
+        composeRule.waitUntil(timeoutMillis = 15000) {
+            composeRule.onAllNodesWithTag("maximised_frame", useUnmergedTree = true)
+                .fetchSemanticsNodes().isEmpty()
+        }
+        assertTrue("one Back leaves the maximised frame; it must not close the app", !activityFinishing())
+        assertTrue("three-up is back", positionCounterShows("1 / 2"))
+        assertTrue("at the bare selector Back is the system's", !backClaimedByTheApp())
+    }
+
+    @ExpandedWindow
+    @Test
+    fun systemBack_fromLearnReturnsToTheSelector() {
+        loadTwoImages()
+        requireExpandedLayout()
+        composeRule.onAllNodesWithTag("nav_inspect", useUnmergedTree = true).onFirst().performClick()
+        composeRule.waitUntil(timeoutMillis = 15000) {
+            composeRule.onAllNodesWithTag("inspect_screen", useUnmergedTree = true)
+                .fetchSemanticsNodes().isNotEmpty()
+        }
+
+        BoundedKeys.send(android.view.KeyEvent.KEYCODE_BACK)
+
+        composeRule.waitUntil(timeoutMillis = 15000) {
+            composeRule.onAllNodesWithTag("inspect_screen", useUnmergedTree = true)
+                .fetchSemanticsNodes().isEmpty()
+        }
+        assertTrue("Back from Learn returns to Cull, not to the launcher", !activityFinishing())
+        assertTrue("the selector is on screen", positionCounterShows("1 / 2"))
+    }
+
     // ── Go to photo ───────────────────────────────────────────────────────
 
     private fun goToPhotoDialogShown(): Boolean =

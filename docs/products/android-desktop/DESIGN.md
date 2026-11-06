@@ -898,7 +898,7 @@ bottom strip would push every callout up by 76 dp and start labelling the wrong 
   `1`/`2`/`3`, `Esc` and `?` drive nothing visible, so they get a callout of their own.
 - Callouts for chrome the user has switched off are omitted — labelling a hidden panel is the
   same defect as inventing a control that does not exist.
-- 200 ms fade in, 150 ms out. No slide. `Esc`, a tap on the scrim, Skip or **Got it** closes it;
+- 200 ms fade in, 150 ms out. No slide. `Esc`, system Back, a tap on the scrim, Skip or **Got it** closes it;
   the dismissal persists as `selector_tour` in the hint set, so the first-launch showing and
   the on-demand one are the same fact.
 
@@ -1433,7 +1433,7 @@ Shortcuts work in both the standard and fullscreen views.
 | `M` | Move to Selection |
 | `C` | Copy to Selection |
 | `F` | Enter fullscreen |
-| `Esc` | Exit fullscreen / leave maximised / close sheet or menu |
+| `Esc` | Exit fullscreen / leave maximised / close sheet, menu or the guide. System **Back** does the same, one layer per press, topmost first; only at the bare selector does Back leave the app |
 | `I` | In fullscreen: pin / unpin the info panel (in the selector: Inspect) |
 | `1` / `2` / `3` | Maximise Previous / Current / Next in place (§7.3) |
 | `G` | Open **Go to photo**: one field (focused on open, label "Number, name or date"), a number 1…N as the counter shows it, part of a file name, or a date (`12.10.2026`, `12.10.26`, `2026-10-12`, `12.10.`), `Enter` / **Go** jumps, `Esc` / **Cancel** closes. A 48 dp calendar button inside the field ("Pick a date") swaps a Material 3 date picker into the same dialog — limited to days that have photos, opening on the day of the photo on screen (else the newest day) — and picking a day jumps at once and closes; it is disabled when no photo has a known date, and scrolls inside the dialog in a 600 × 480 window. The line under the field is, by what is typed: nothing → the days the folder spans (`3 Oct 2026 – 12 Oct 2026`); a position, a name or a date → the file it lands on and when it was taken; a day without photos → that plus "No photos on 13 Oct 2026 — showing 14 Oct 2026" in the neutral colour (Go jumps to the nearest day; it is not an error). An empty or out-of-range number says "Enter 1–N" only after **Go**, and a date still being typed is not "No match" until **Go** |

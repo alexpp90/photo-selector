@@ -68,6 +68,7 @@ import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.dp
+import androidx.activity.compose.BackHandler
 import androidx.compose.ui.window.Popup
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
@@ -188,6 +189,32 @@ fun SelectorScreen(
         viewModel.markGuideSeen()
     }
 
+    // The one place that knows which layer is on top and how to close it. Escape calls it
+    // (through `handleSelectorKey`) and so does system Back (the `BackHandler` below), so the
+    // two cannot drift apart: one press, one layer, topmost first.
+    val closeTopLayer: () -> Unit = {
+        when {
+            jumpOpen -> showJump = false
+            sortMenuOpen -> showSortMenu = false
+            showFullscreen -> showFullscreen = false
+            contextMenuAt != null -> contextMenuAt = null
+            showScanConfig -> showScanConfig = false
+            guideOpen -> dismissGuide()
+            uiState.showDeleteConfirmation -> viewModel.dismissDeleteConfirmation()
+            uiState.uncompletedDeletionsPrompt != null -> viewModel.keepUncompletedDeletions()
+            uiState.maximisedFrame != null -> viewModel.clearMaximised()
+        }
+    }
+
+    // System Back does what Escape does. Only the layers drawn inside this window need it: the
+    // dialogs, the fullscreen viewer, the sheet and the Sort menu are windows of their own and
+    // take Back themselves, so handling them here too would close two layers per press. The
+    // context menu is a non-focusable popup, which is never offered the key. With none of
+    // these open the handler is disabled and Back falls through to the system (leaves the app).
+    BackHandler(enabled = guideOpen || contextMenuAt != null || uiState.maximisedFrame != null) {
+        closeTopLayer()
+    }
+
     val dragAndDropTarget = remember(context, viewModel) {
         object : DragAndDropTarget {
             override fun onDrop(event: DragAndDropEvent): Boolean {
@@ -241,10 +268,13 @@ fun SelectorScreen(
     // switch), and any overlay closing (AD-11). Tab/arrow traversal in other
     // screens is untouched — this node exists only on the selector.
     val windowFocused = LocalWindowInfo.current.isWindowFocused
-    val overlayOpen = showScanConfig || showFullscreen || guideOpen || jumpOpen || sortMenuOpen || contextMenuAt != null ||
+    // The guide is drawn in this window, so it does not take focus away: the selector keeps it,
+    // and Esc reaches `handleSelectorKey` even when the guide opened by itself at first launch
+    // (before this, nothing had asked for focus yet and Esc went nowhere).
+    val windowOverlayOpen = showScanConfig || showFullscreen || jumpOpen || sortMenuOpen || contextMenuAt != null ||
         uiState.showDeleteConfirmation || uiState.uncompletedDeletionsPrompt != null
-    LaunchedEffect(uiState.images.isNotEmpty(), windowFocused, overlayOpen) {
-        if (uiState.images.isNotEmpty() && windowFocused && !overlayOpen) {
+    LaunchedEffect(uiState.images.isNotEmpty(), windowFocused, windowOverlayOpen) {
+        if (uiState.images.isNotEmpty() && windowFocused && !windowOverlayOpen) {
             try {
                 focusRequester.requestFocus()
             } catch (e: IllegalStateException) {
@@ -446,19 +476,7 @@ fun SelectorScreen(
                                 onShowShortcuts = openGuide,
                                 onGoToPhoto = openJump,
                                 onSortMenu = openSortMenu,
-                                onCloseOverlays = {
-                                    when {
-                                        jumpOpen -> showJump = false
-                                        sortMenuOpen -> showSortMenu = false
-                                        showFullscreen -> showFullscreen = false
-                                        contextMenuAt != null -> contextMenuAt = null
-                                        showScanConfig -> showScanConfig = false
-                                        guideOpen -> dismissGuide()
-                                        uiState.showDeleteConfirmation -> viewModel.dismissDeleteConfirmation()
-                                        uiState.uncompletedDeletionsPrompt != null -> viewModel.keepUncompletedDeletions()
-                                        uiState.maximisedFrame != null -> viewModel.clearMaximised()
-                                    }
-                                },
+                                onCloseOverlays = closeTopLayer,
                                 onSetRating = { rating ->
                                     if (uiState.maximisedFrame != null) {
                                         viewModel.setRatingForMaximised(rating)

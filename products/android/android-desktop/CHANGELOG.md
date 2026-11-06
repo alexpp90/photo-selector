@@ -21,6 +21,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ### Fixed
 
+- System Back closes the layout guide, a maximised frame or the context menu, one layer per press, like `Esc`; it used to close the whole app. `Esc` also closes the guide when it opened by itself at first launch.
 - The analysis cache keeps its limit of 10,000 photos after every scan, not only when Settings is opened, and Learn's stored facts are removed with the photo's scores.
 - Detailed Similarity grouping compares the whole frame. It used to look at the top quarter only, so it grouped shots that differed below it.
 - A deleted photo's star rating and reject flag are deleted with it, so a new photo with the same name in the same place (a reused card, restarted camera numbering) starts unrated.
