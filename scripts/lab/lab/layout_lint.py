@@ -144,6 +144,26 @@ def _under(node: Node, pattern: str, by_id: dict[str, Node]) -> bool:
     return False
 
 
+def dismiss_scrims(tree: Tree) -> dict[int, int]:
+    """Scrims behind a sheet or dialog, mapped to their position in drawing order.
+
+    A scrim is an interactive node with no children that covers most of the window: Material's
+    modal bottom sheet exposes one ("Close sheet"), and in landscape it shows beside the centred
+    sheet. Everything drawn after it lies above it by design (2026-11-06, Jackpix Settings on a
+    Pixel 4a: eight overlap majors against the scrim).
+    """
+    win_area = float(tree.window.get("w", 0)) * float(tree.window.get("h", 0))
+    parents = {n.parent for n in tree.nodes}
+    return {
+        id(n): i
+        for i, n in enumerate(tree.nodes)
+        if n.interactive and n.id not in parents and win_area > 0 and n.w * n.h >= SCRIM_SHARE * win_area
+    }
+
+
+SCRIM_SHARE = 0.9
+
+
 def overlap_allowed(a: Node, b: Node, pairs: list[list[str]], by_id: dict[str, Node]) -> bool:
     """True for a by-design overlap listed in the rules' `allowed_overlaps` ([a, b] globs)."""
     for pair in pairs:
@@ -358,9 +378,14 @@ def lint(
         for n in active_nodes
         if n.interactive and not is_overlay_or_descendant(n, overlay_ids, by_id)
     ]
+    scrims = dismiss_scrims(tree)
+    order = {id(n): i for i, n in enumerate(tree.nodes)}
     for i, a in enumerate(interactive_nodes):
         for b in interactive_nodes[i + 1:]:
             if is_ancestor(a.id, b, by_id) or is_ancestor(b.id, a, by_id):
+                continue
+            # A scrim drawn first lies under everything drawn after it.
+            if id(min((a, b), key=lambda n: order[id(n)])) in scrims:
                 continue
             va, vb = seen_bounds.get(id(a)), seen_bounds.get(id(b))
             if va is None or vb is None:

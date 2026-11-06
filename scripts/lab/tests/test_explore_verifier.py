@@ -217,6 +217,19 @@ class FeedCountSourceTest(VerifierTest):
         res = self.verify(before=before, after=after, exp=expectation(expected_feed_count_delta=0))
         self.assertNotIn("unexpected-feed-count-delta", [f.rule for f in res.findings])
 
+    def test_counted_from_files_the_feed_may_shrink_by_the_pending_deletes(self) -> None:
+        # 2026-11-06, Pixel 4a: "Change folder" committed the delete confirmed a step before.
+        before = make_state(default_state().tree.nodes, files=["a.jpg", "b.jpg", "c.jpg"])
+        after = make_state(default_state().tree.nodes, files=["b.jpg", "c.jpg"])
+        rules = lambda exp: [f.rule for f in self.verify(before=before, after=after, exp=exp).findings]  # noqa: E731
+        pending = expectation(expected_feed_count_delta=0, fs_expect={"unchanged": True, "removals_allowed": 1})
+        self.assertNotIn("unexpected-feed-count-delta", rules(pending))
+        self.assertIn("unexpected-feed-count-delta", rules(expectation(expected_feed_count_delta=0)))
+        gone_two = make_state(default_state().tree.nodes, files=["c.jpg"])
+        res = self.verify(before=before, after=gone_two, exp=pending)
+        self.assertIn("unexpected-feed-count-delta", [f.rule for f in res.findings])
+
+
 class LintConfigTest(VerifierTest):
     def test_the_lint_gets_the_config_without_the_device(self) -> None:
         with patch("lab.explore.verifier.lint", return_value=[]) as lint:

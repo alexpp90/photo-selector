@@ -69,6 +69,29 @@ class TestNestedControls(unittest.TestCase):
         self.assertEqual(len([f for f in lint(tree, {"min_target": 48}) if f.rule == "touch-target"]), 2)
 
 
+class TestDismissScrim(unittest.TestCase):
+    """A modal sheet's scrim lies under the sheet: Jackpix Settings in landscape on a Pixel 4a
+    (2026-11-06) exposes "Tabelle schließen" (#7, the whole window) beside the centred sheet."""
+
+    def test_the_real_landscape_sheet_has_no_overlap_with_its_scrim(self) -> None:
+        findings = lint(real("jackpix_settings_sheet_landscape.tree.json"), load_rules("phototok"), product="phototok")
+        self.assertEqual([f.message for f in findings if f.rule == "overlap-interactive"], [])
+
+    def test_a_full_window_control_drawn_on_top_still_overlaps(self) -> None:
+        sheet = node("sheet_button", [300, 200, 400, 100], parent="root", name="Row")
+        scrim = node("scrim", [0, 0, 1000, 800], parent="root", name="Close")
+        under = synthetic(node("root", [0, 0, 1000, 800], interactive=False), scrim, sheet)
+        over = synthetic(node("root", [0, 0, 1000, 800], interactive=False), sheet, scrim)
+        self.assertEqual([f.rule for f in lint(under, {}) if f.rule == "overlap-interactive"], [])
+        self.assertEqual([f.rule for f in lint(over, {}) if f.rule == "overlap-interactive"], ["overlap-interactive"])
+
+    def test_a_scrim_has_no_children_and_covers_most_of_the_window(self) -> None:
+        row = node("row", [300, 200, 400, 100], parent="root", name="Row")
+        big_card = node("card", [0, 0, 1000, 500], parent="root", name="Card")  # 62 % of the window
+        tree = synthetic(node("root", [0, 0, 1000, 800], interactive=False), big_card, row)
+        self.assertEqual([f.rule for f in lint(tree, {}) if f.rule == "overlap-interactive"], ["overlap-interactive"])
+
+
 class TestRepeatedIds(unittest.TestCase):
     """Frameduel exports one `filmstrip_thumbnail` per frame: same id, distinct nodes."""
 

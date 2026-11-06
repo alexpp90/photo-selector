@@ -353,17 +353,21 @@ class InteractionVerifier:
         """
         findings: List[Finding] = []
         unchecked: List[str] = []
+        # Counted from the files, the feed may also shrink by the deletes still pending
+        # (fs_oracle.photo_stem): 2026-11-06, Jackpix's "Change folder" committed one.
+        by_files = _counter_count(before_state) is None or _counter_count(after_state) is None
+        pending = int(expectation.fs_expect.get("removals_allowed", 0)) if by_files else 0
         checks = (
-            ("index", "unexpected-index-delta", "Photo index", expectation.expected_index_delta, _index(before_state), _index(after_state)),
-            ("feed-count", "unexpected-feed-count-delta", "Feed photo count", expectation.expected_feed_count_delta, *_feed_counts(before_state, after_state)),
+            ("index", "unexpected-index-delta", "Photo index", expectation.expected_index_delta, 0, _index(before_state), _index(after_state)),
+            ("feed-count", "unexpected-feed-count-delta", "Feed photo count", expectation.expected_feed_count_delta, pending, *_feed_counts(before_state, after_state)),
         )
-        for claim, rule, what, expected, before, after in checks:
+        for claim, rule, what, expected, slack, before, after in checks:
             if expected is None:
                 continue
             if before is None or after is None:
                 unchecked.append(claim)
                 continue
-            if after - before == expected:
+            if expected - slack <= after - before <= expected:
                 continue
             findings.append(
                 self._finding(
