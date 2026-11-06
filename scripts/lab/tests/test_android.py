@@ -14,7 +14,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
 import lab.android.configs as android_configs  # noqa: E402
 from lab.android.adb import AdbClient  # noqa: E402
-from lab.android.configs import ConfigNotRunError, apply_config, record_device_state, reset_config  # noqa: E402
+from lab.android.configs import ConfigNotRunError, apply_config, physical_alphabetic_keyboards, record_device_state, reset_config  # noqa: E402
 from lab.android.runner import is_infra_failure, run_android_journey  # noqa: E402
 from lab.android.tree_android import parse_uiautomator_xml  # noqa: E402
 from lab.schema import validate  # noqa: E402
@@ -24,7 +24,8 @@ DATA_DIR = Path(__file__).resolve().parent / "data"
 
 
 class FakeAdbExec:
-    def __init__(self, landscape_on_rot: int = 0) -> None:
+    def __init__(self, landscape_on_rot: int = 0, input_dump: str = "") -> None:
+        self.input_dump = input_dump
         self.commands: list[list[str]] = []
         self.cur_rotation = 1
         self.landscape_on_rot = landscape_on_rot
@@ -36,6 +37,8 @@ class FakeAdbExec:
             self.cur_rotation = int(cmd[-1])
         if "wm density" in joined and "reset" not in joined and cmd[-1] == "density":
             return subprocess.CompletedProcess(cmd, 0, stdout=b"Physical density: 320\n", stderr=b"")
+        if cmd[-3:] == ["shell", "dumpsys", "input"]:
+            return subprocess.CompletedProcess(cmd, 0, stdout=self.input_dump.encode(), stderr=b"")
         if "dumpsys window" in joined:
             if self.cur_rotation == self.landscape_on_rot:
                 return subprocess.CompletedProcess(cmd, 0, stdout=b"sw924dp w1480dp h924dp\n", stderr=b"")
@@ -64,6 +67,11 @@ class TestAndroidLayer(unittest.TestCase):
         self.assertTrue(is_infra_failure("maestro.android.DeviceServerDiedException: Device server died"))
         self.assertTrue(is_infra_failure("Device 192.168.0.117:46567 was requested, but it is not connected."))
         self.assertFalse(is_infra_failure("[Failed] 02_open_info (20s) (Element not found: Id matching regex: x)"))
+        # Real Maestro output, Xperia XA2, 2026-11-05 (lab run 2026-11-05-tok-full).
+        self.assertTrue(is_infra_failure(
+            "maestro.MaestroDriverStartupException$AndroidDriverTimeoutException: Maestro Android driver did not "
+            "start up in time on emulator [ CQ30012CMV ] (driver port 41943)"
+        ))
 
     def test_freeform_window_offset_is_removed(self) -> None:
         xml = (
@@ -107,6 +115,58 @@ class TestAndroidLayer(unittest.TestCase):
         adb = AdbClient(serial="TEST1234", exec_fn=recorder)
         with self.assertRaises(ConfigNotRunError):
             apply_config(adb, "tab-landscape-kbd", is_avd_kbd=False)
+
+    # The Pixel Tablet's real `dumpsys input` (API 37, docked, no keyboard; trimmed) is in
+    # tests/data. Its framework `Device -1: Virtual` reports `KeyboardType: 2` and
+    # `IsVirtualDevice: false`, so neither field tells it from hardware: the id -1 (and its
+    # `Path: <virtual>`) does. The positive cases below are NOT captures: they follow the same real
+    # layout with a keyboard device added, in AOSP's wording for it.
+    PHONE_INPUT = (
+        "INPUT MANAGER (dumpsys input)\n\nInput Reader State (Nums of device: 3):\n"
+        "  Device -1: Virtual\n    Classes: KEYBOARD | ALPHAKEY | VIRTUAL\n    Path: <virtual>\n"
+        "    Keyboard Input Mapper:\n      KeyboardType: 2\n"
+        "  Device 2: gpio-keys\n    IsExternal: false\n    Keyboard Input Mapper:\n      KeyboardType: 1\n"
+        "  Device 3: Touchscreen\n    Touch Input Mapper:\n      Parameters:\n"
+    )
+    DOCKED_INPUT = PHONE_INPUT + (
+        "  Device 7: Google Pixel Tablet Keyboard\n    IsExternal: true\n    Keyboard Input Mapper:\n"
+        "      Parameters:\n      KeyboardType: 2\n"
+    )
+    AVD_INPUT = PHONE_INPUT + "  Device 4: qwerty2\n    IsExternal: false\n    Keyboard Input Mapper:\n      Keyboard Type: alphabetic\n"
+
+    def test_the_real_pixel_tablet_without_a_keyboard_reports_none(self) -> None:
+        real = (DATA_DIR / "pixeltablet_dumpsys_input.txt").read_text(encoding="utf-8")
+        self.assertIn("Device -1: Virtual", real)
+        self.assertRegex(real, r"Device -1: Virtual(?s:.*?)KeyboardType: 2")  # the trap: alphabetic and not IsVirtualDevice
+        self.assertEqual(physical_alphabetic_keyboards(real), [])
+        bare = FakeAdbExec(input_dump=real)
+        with self.assertRaises(ConfigNotRunError):
+            apply_config(AdbClient(serial="TEST1234", exec_fn=bare), "tab-landscape-kbd")
+
+    def test_a_keyboard_added_to_the_real_tablet_dump_is_found(self) -> None:
+        real = (DATA_DIR / "pixeltablet_dumpsys_input.txt").read_text(encoding="utf-8")
+        docked = real.replace("  Device 6: uinput-folio\n", "  Device 7: Pixel Tablet Keyboard\n    IsExternal: true\n    IsVirtualDevice: false\n    Sources: KEYBOARD\n    KeyboardType: 2\n  Device 6: uinput-folio\n", 1)
+        self.assertNotEqual(docked, real)
+        self.assertEqual(physical_alphabetic_keyboards(docked), ["Pixel Tablet Keyboard"])
+
+    def test_only_a_physical_alphabetic_keyboard_counts(self) -> None:
+        self.assertEqual(physical_alphabetic_keyboards(self.PHONE_INPUT), [])  # the virtual keyboard and the keys
+        self.assertEqual(physical_alphabetic_keyboards(self.DOCKED_INPUT), ["Google Pixel Tablet Keyboard"])
+        self.assertEqual(physical_alphabetic_keyboards(self.AVD_INPUT), ["qwerty2"])
+        self.assertEqual(physical_alphabetic_keyboards(""), [])
+
+    def test_keyboard_config_runs_where_the_device_reports_a_keyboard_and_is_not_run_otherwise(self) -> None:
+        self.addCleanup(setattr, android_configs, "ROTATION_POLL_S", android_configs.ROTATION_POLL_S)
+        android_configs.ROTATION_POLL_S = 0.0
+        docked = FakeAdbExec(landscape_on_rot=0, input_dump=self.DOCKED_INPUT)
+        apply_config(AdbClient(serial="TEST1234", exec_fn=docked), "tab-landscape-kbd")  # nothing passed: asked of the device
+        self.assertIn(["adb", "-s", "TEST1234", "shell", "dumpsys", "input"], docked.commands)
+        self.assertEqual(docked.cur_rotation, 0)
+        bare = FakeAdbExec(input_dump=self.PHONE_INPUT)
+        with self.assertRaises(ConfigNotRunError) as ctx:
+            apply_config(AdbClient(serial="TEST1234", exec_fn=bare), "tab-landscape-kbd")
+        self.assertIn("no physical keyboard", str(ctx.exception))
+        self.assertFalse([c for c in bare.commands if "wm" in c])  # refused before it changed a setting
 
     def test_android_runner_executes_segments_and_captures_checkpoints(self) -> None:
         run_dir = Path(tempfile.mkdtemp(prefix="pstlab-test-android-runner-"))  # per process

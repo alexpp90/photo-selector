@@ -43,7 +43,7 @@ import xml.etree.ElementTree as ET
 from abc import ABC, abstractmethod
 from contextlib import ExitStack, contextmanager
 from pathlib import Path
-from typing import Any, Callable, Dict, Iterator, List, Optional, Tuple
+from typing import Any, Callable, Dict, Iterable, Iterator, List, Optional, Tuple
 
 from ..android.adb import AdbClient
 from ..android.configs import ConfigNotRunError, resize_app_window, set_verified_rotation
@@ -56,6 +56,7 @@ from ..android.runner import (
     _maestro_failure_line,
     default_maestro_runner,
 )
+from ..android.system_bars import Rect, SystemBar, bars_from_dump, bars_from_insets
 from ..android.tree_android import foreground_packages, parse_uiautomator_xml
 from ..fixtures import generate_fixtures
 from ..fs_oracle import snapshot_directory
@@ -64,7 +65,7 @@ from ..linux.runner import preflight_linux, session_env
 from ..locks import device_lock, hub_lock_path, waiting_lock
 from ..model import Node, Tree
 from ..paths import ensure_android_lab_path, ensure_under, lab_tmp_root, repo_root
-from ..usability.driver import ANDROID_MODIFIER_CODES, android_keycode, parse_key
+from ..usability.driver import ANDROID_MODIFIER_CODES, android_keycode, home_packages, parse_key
 from .actions import Action, ScreenState
 from .discovery import SYSTEM_PICKER_MODE, classify_screen
 
@@ -85,6 +86,14 @@ class DriverExecutionError(DriverError):
     """Command failed, returned a non-zero exit code, or the action cannot be performed."""
 
 
+class ActionUnavailableError(DriverExecutionError):
+    """The device cannot perform the action at all: an environment limit, not the app's defect.
+
+    A docked Pixel Tablet locks the display rotation (2026-11-06: "rotate" was a major finding of
+    the exploratory run). The explorer stops offering the action and names it in the target's detail.
+    """
+
+
 class DriverSettlingError(DriverError):
     """UI state did not become idle after max retry attempts."""
 
@@ -94,7 +103,36 @@ class AppCrashedError(DriverError):
 
 
 class AppLeftError(DriverError):
-    """Another app (or the launcher, or a system window) is in front of the app under test."""
+    """Another app (or the launcher, or a system window) is in front of the app under test.
+
+    Carries what the driver saw of the window in front, so a finding can show it: `packages`
+    (every package its dump names), `top_task` (the `topResumedActivity` line) and `after`
+    (its tree and screenshot; the screenshot is empty when it could not be taken).
+    """
+
+    def __init__(
+        self, message: str, *, packages: Iterable[str] = (), top_task: str = "", after: Optional[ScreenState] = None
+    ) -> None:
+        super().__init__(message)
+        self.packages = frozenset(packages)
+        self.top_task = top_task
+        self.after = after
+
+
+class TargetUnderSystemBarError(DriverExecutionError):
+    """The centre of a tap's target lies under a system bar: the tap would reach the system, not the app.
+
+    The target is the app's defect (a control the user cannot tap), so the explorer reports it as a
+    finding instead of tapping. `in_scroll` says the target sits in a scrolling container, where
+    content passing under a bar is normal while it scrolls.
+    """
+
+    def __init__(self, message: str, *, target_id: Optional[str], point: Tuple[int, int], bar: SystemBar, in_scroll: bool) -> None:
+        super().__init__(message)
+        self.target_id = target_id
+        self.point = point
+        self.bar = bar
+        self.in_scroll = in_scroll
 
 
 def _parse_coord(val: Any, name: str) -> float:
@@ -205,6 +243,14 @@ class DeviceDriver(ABC):
     def read_app_log(self) -> List[str]:
         """The app's own log lines since the previous call."""
 
+    def home_packages(self) -> frozenset:
+        """Packages of the device's launcher; none for a target that has no launcher."""
+        return frozenset()
+
+    def default_browser_packages(self) -> frozenset:
+        """Package that opens a web link by default; none for a target with no such default."""
+        return frozenset()
+
     def settle(self, custom_settle_ms: Optional[int] = None) -> None:
         """Wait for UI transitions, layout passes, and animations to complete."""
         ms = custom_settle_ms if custom_settle_ms is not None else self.settle_ms
@@ -217,7 +263,6 @@ class DeviceDriver(ABC):
 # ==============================================================================
 
 _BOUNDS_ATTR = re.compile(r'bounds="\[(-?\d+),(-?\d+)\]\[(-?\d+),(-?\d+)\]"')
-_NAV_BAR = re.compile(r'resource-id="[^"]*navigationBarBackground"[^>]*?bounds="\[(-?\d+),(-?\d+)\]')
 PNG_MAGIC = b"\x89PNG\r\n\x1a\n"
 
 
@@ -300,6 +345,17 @@ class AndroidDeviceDriver(DeviceDriver):
         self._origin_px: Tuple[int, int] = (0, 0)
         self._window_px: Tuple[int, int] = (1080, 1920)
         self._safe_bottom_px: Optional[int] = None
+        # Screen-pixel rectangles taps must not reach: read with the window geometry they belong to
+        # (rotation moves the navigation bar to the side), kept until that geometry changes.
+        self._bars: List[SystemBar] = []
+        self._bars_key: Optional[Tuple[Any, ...]] = None
+        self._dump_bars: List[SystemBar] = []
+        self._insets: List[SystemBar] = []
+        self._insets_fresh = False
+        self._seen_bars: List[SystemBar] = []  # every inset bar of this window geometry, shown or not
+        self._stale: set = set()  # packages seen in front of the app: stopped at the next relaunch
+        self._home: Optional[frozenset] = None
+        self._browsers: Optional[frozenset] = None
         self._in_picker = False  # the system folder picker, not the app, is in front
         self._log_since: Optional[str] = None
         self._last_pid: Optional[int] = None
@@ -386,7 +442,10 @@ class AndroidDeviceDriver(DeviceDriver):
             raise DriverError(f"{flow} does not exist: cannot point {self.app_id} at {self.working_dir}")
         with self._adb_errors(f"cannot launch {self.app_id}", DriverError):
             # A share sheet or browser the app opened runs in a task of its own and survives the
-            # force-stop; Home takes it out of the foreground.
+            # force-stop, and Recents can bring it back (2026-11-05: a Chrome task left at step 12
+            # was in front again at step 34): stop the apps that were in front of ours, then
+            # Home takes whatever remains out of the foreground.
+            self._stop_stale_apps()
             self.adb.key("HOME")
             self.adb.force_stop(self.app_id)
             for picker in PICKER_PACKAGES:
@@ -405,6 +464,49 @@ class AndroidDeviceDriver(DeviceDriver):
         if not tree.nodes:
             raise DriverError(f"{self.app_id} shows an empty tree after launch")
         self._log_since = None
+
+    def _stop_stale_apps(self) -> None:
+        """Force-stop the apps that were in front of ours, unless they are the launcher or a persistent system process."""
+        stale, self._stale = sorted(self._stale - {self.app_id}), set()
+        if not stale:
+            return
+        keep = set(self.home_packages())
+        for package in stale:
+            if package not in keep and not self._persistent(package):
+                self.adb.force_stop(package)
+
+    def _persistent(self, package: str) -> bool:
+        """`dumpsys package` lists PERSISTENT among the flags of System UI and of `android` itself."""
+        try:
+            out = self.adb.run("shell", "dumpsys", "package", package)
+        except (subprocess.SubprocessError, OSError):
+            return True  # cannot tell: do not stop what may be part of the system
+        flags = re.search(r"^\s*flags=\[([^\]]*)\]", out, re.MULTILINE)
+        return bool(flags and "PERSISTENT" in flags.group(1).split())
+
+    def home_packages(self) -> frozenset:
+        """Package of the launcher (`resolve-activity` for the HOME intent), read once."""
+        if self._home is None:
+            with self._adb_errors("cannot read the launcher package", DriverError):
+                self._home = frozenset(home_packages(self.adb))
+        return self._home
+
+    def default_browser_packages(self) -> frozenset:
+        """Package that opens `https://example.com` by default, read once.
+
+        `resolve-activity --brief` prints the component last; with no default browser it is the
+        system chooser (`android`), which is not a browser and is left out.
+        """
+        if self._browsers is None:
+            with self._adb_errors("cannot read the default browser", DriverError):
+                out = self.adb.run(
+                    "shell", "cmd", "package", "resolve-activity", "--brief",
+                    "-a", "android.intent.action.VIEW", "-d", "https://example.com",
+                )
+            component = next((ln.strip() for ln in reversed(out.splitlines()) if "/" in ln and " " not in ln.strip()), "")
+            package = component.split("/")[0]
+            self._browsers = frozenset({package} - {"", "android"})
+        return self._browsers
 
     def restart_app(self) -> None:
         """Force-stop and relaunch the app on the lab folder."""
@@ -478,7 +580,14 @@ class AndroidDeviceDriver(DeviceDriver):
                 break
         else:
             self._require_app_process()
-            raise AppLeftError(f"{', '.join(sorted(front)) or 'an unknown window'} is in front of {self.app_id}")
+            assert xml is not None and tree is not None
+            self._stale.update(front - allowed)
+            raise AppLeftError(
+                f"{', '.join(sorted(front)) or 'an unknown window'} is in front of {self.app_id}",
+                packages=front,
+                top_task=self._top_task(),
+                after=self._window_state(tree, front),
+            )
         assert xml is not None and tree is not None
         scale = (self._density or 320) / 160.0
         window = next(
@@ -489,12 +598,48 @@ class AndroidDeviceDriver(DeviceDriver):
             x1, y1, x2, y2 = (int(window.group(i)) for i in range(1, 5))
             self._origin_px = (x1, y1)
             self._window_px = (x2 - x1, y2 - y1)
-        nav = _NAV_BAR.search(xml)
-        # Lowest y a gesture may touch: the top of the navigation bar, else 92 % of the window
+        rotation = re.search(r'<hierarchy[^>]*\brotation="(\d+)"', xml)
+        self._read_bars(xml, (rotation.group(1) if rotation else None, self._window_px, self._density))
+        # Without any navigation bar read, the lowest y a gesture may touch is 92 % of the window
         # (a tap on the bar is Home or Back, and leaves the app).
-        self._safe_bottom_px = int(nav.group(2)) if nav else self._origin_px[1] + int(self._window_px[1] * 0.92)
+        has_nav = any(bar.kind == "navigation" for bar in self._bars)
+        self._safe_bottom_px = None if has_nav else self._origin_px[1] + int(self._window_px[1] * 0.92)
         self._mark_focus(xml, tree)
         return tree
+
+    def _top_task(self) -> str:
+        """The `topResumedActivity` line of `dumpsys activity activities`, empty when it cannot be read."""
+        try:
+            out = self.adb.run("shell", "dumpsys", "activity", "activities", timeout=30)
+        except (subprocess.SubprocessError, OSError):
+            return ""
+        m = re.search(r"^.*(?:topResumedActivity|mResumedActivity)[=:].*$", out, re.MULTILINE)
+        return m.group(0).strip() if m else ""
+
+    def _window_state(self, tree: Tree, front: Iterable[str]) -> ScreenState:
+        """The window in front of the app as a state, for the evidence of a finding (best effort)."""
+        try:
+            png = self.adb.run_bytes("exec-out", "screencap", "-p", timeout=30)
+        except (subprocess.SubprocessError, OSError):
+            png = b""
+        return ScreenState(tree=tree, screenshot_bytes=png if png.startswith(PNG_MAGIC) else b"", screen_mode=", ".join(sorted(front)), fs_snapshot={})
+
+    def _read_bars(self, xml: str, key: Tuple[Any, ...]) -> None:
+        """System bars of the screen: the dump's own, plus the display's insets once per window geometry."""
+        self._dump_bars = bars_from_dump(xml)
+        self._insets_fresh = key != self._bars_key
+        if self._insets_fresh:
+            self._bars_key = key
+            self._seen_bars = []
+            self._insets = self._read_insets()
+        self._bars = list(dict.fromkeys([*self._dump_bars, *self._insets]))
+        self._seen_bars = list(dict.fromkeys([*self._seen_bars, *self._insets]))
+
+    def _read_insets(self) -> List[SystemBar]:
+        try:
+            return bars_from_insets(self.adb.run("shell", "dumpsys", "window", timeout=30))
+        except (subprocess.SubprocessError, OSError):
+            return []
 
     @staticmethod
     def _mark_focus(xml: str, tree: Tree) -> None:
@@ -550,11 +695,42 @@ class AndroidDeviceDriver(DeviceDriver):
         return lines
 
     # -- actions ------------------------------------------------------------------
-    def _px(self, x_dp: Any, y_dp: Any) -> Tuple[int, int]:
-        """Window-relative dp -> screen pixels: add the window origin, stay above the navigation bar."""
+    def _screen_point(self, x_dp: Any, y_dp: Any) -> Tuple[int, int]:
+        """Window-relative dp -> screen pixels: add the window origin."""
         scale = (self._density or 320) / 160.0
-        x = self._origin_px[0] + int(round(_parse_coord(x_dp, "x") * scale))
-        y = self._origin_px[1] + int(round(_parse_coord(y_dp, "y") * scale))
+        return (
+            self._origin_px[0] + int(round(_parse_coord(x_dp, "x") * scale)),
+            self._origin_px[1] + int(round(_parse_coord(y_dp, "y") * scale)),
+        )
+
+    def _bar_at(self, point: Tuple[int, int]) -> Optional[SystemBar]:
+        if not self._insets_fresh and any(b.contains(*point) for b in self._seen_bars):
+            # The insets are read once per window geometry, but an immersive screen hides the bars,
+            # and leaving it shows them, without changing it (2026-11-06, Frameduel's full-screen
+            # viewer on the Pixel Tablet: "Close fullscreen" refused under a status bar that was not
+            # shown). Where a bar has been, read them again.
+            self._insets, self._insets_fresh = self._read_insets(), True
+            self._bars = list(dict.fromkeys([*self._dump_bars, *self._insets]))
+            self._seen_bars = list(dict.fromkeys([*self._seen_bars, *self._insets]))
+        return next((b for b in self._bars if b.contains(*point)), None)
+
+    def _px(self, x_dp: Any, y_dp: Any) -> Tuple[int, int]:
+        """A gesture's point in screen pixels, moved out of every system bar (a swipe that starts or ends on one is the system's)."""
+        x, y = self._screen_point(x_dp, y_dp)
+        for _ in range(len(self._bars)):
+            bar = self._bar_at((x, y))
+            if bar is None:
+                break
+            left, top, right, bottom = bar.rect
+            s_left, s_top = self._origin_px
+            s_right, s_bottom = s_left + self._window_px[0], s_top + self._window_px[1]
+            exits = [
+                p for p in ((left - 2, y), (right + 1, y), (x, top - 2), (x, bottom + 1))
+                if s_left <= p[0] < s_right and s_top <= p[1] < s_bottom
+            ]  # the nearest way out that stays on the screen
+            if not exits:
+                break
+            x, y = min(exits, key=lambda p: abs(p[0] - x) + abs(p[1] - y))
         if self._safe_bottom_px is not None:
             y = min(y, self._safe_bottom_px - 2)
         return x, y
@@ -586,12 +762,37 @@ class AndroidDeviceDriver(DeviceDriver):
             raise DriverExecutionError(f"Incomplete tap coordinates in {action.params}")
         if x_dp is None:
             x_dp, y_dp = self._target_center(action.target_id)
-        x, y = self._px(x_dp, y_dp)
+        x, y = self._screen_point(x_dp, y_dp)
+        bar = self._bar_at((x, y))
+        if bar is not None:
+            raise self._under_bar(action, (x, y), bar)
+        if self._safe_bottom_px is not None:  # no bar was read: keep clear of where the navigation bar usually is
+            y = min(y, self._safe_bottom_px - 2)
         taps = 2 if action.params.get("double_tap") or action.params.get("count") == 2 else 1
         for i in range(taps):
             if i:
                 time.sleep(0.08)
             self.adb.run("shell", "input", "tap", str(x), str(y))
+
+    def _under_bar(self, action: Action, point: Tuple[int, int], bar: SystemBar) -> TargetUnderSystemBarError:
+        """The error for a tap whose point lies under `bar`; says whether the target scrolls."""
+        by_id = {n.id: n for n in self.last_state.tree.nodes} if self.last_state else {}
+        node = by_id.get(action.target_id or "")
+        in_scroll = False
+        cur = by_id.get(node.parent) if node and node.parent else None
+        seen: set = set()
+        while cur is not None and cur.id not in seen:
+            seen.add(cur.id)
+            if cur.scrollable:
+                in_scroll = True
+                break
+            cur = by_id.get(cur.parent) if cur.parent else None
+        left, top, right, bottom = bar.rect
+        return TargetUnderSystemBarError(
+            f"{action.summary()} not performed: its centre ({point[0]}, {point[1]}) px lies under the {bar.kind} bar "
+            f"[{left},{top}][{right},{bottom}]",
+            target_id=action.target_id, point=point, bar=bar, in_scroll=in_scroll,
+        )
 
     def _swipe(self, action: Action) -> None:
         params = action.params
@@ -669,7 +870,7 @@ class AndroidDeviceDriver(DeviceDriver):
         try:
             set_verified_rotation(self.adb, want)  # the settings it changes are restored by the orchestrator
         except ConfigNotRunError as exc:
-            raise DriverExecutionError(str(exc)) from exc
+            raise ActionUnavailableError(str(exc)) from exc
         time.sleep(ROTATION_SETTLE_S)
 
 

@@ -42,8 +42,10 @@ FOLDER_PICKER_IDS = frozenset({
     "sidebar_open_folder", "btn_open_folder", "btn_open", "card_folder", "card_sd",
 })
 
-# Ids that end in "Sheet" but are screens of their own, not a modal over another screen.
-SCREEN_LEVEL_SHEETS = frozenset({"phonesettingssheet"})
+# What Jackpix's Settings sheet really holds: it has no root tag of its own, every row and
+# section carries one of these (SettingsScreen.kt; `settings_button` and `settings_snackbar_host`
+# belong to the feed). The feed and the sheet never share a tree: the sheet covers the feed.
+JACKPIX_SETTINGS_PREFIXES = ("settings_row_", "settings_section_", "settings_pro_mode_")
 
 
 def normalize_product_name(product: str) -> str:
@@ -87,7 +89,7 @@ class ScreenInspectionResult:
     """Comprehensive screen inspection outcome including screen mode and candidate interactions."""
 
     product: str
-    screen_mode: str  # "landing", "viewer", "selector", "inspect", "empty", "dialog", "fullscreen", "settings", "duplicates", "statistics", "unknown"
+    screen_mode: str  # "landing", "viewer", "selector", "guide", "maximised", "inspect", "empty", "dialog", "fullscreen", "settings", "duplicates", "statistics", "unknown"
     active_modal: Optional[str] = None
     candidate_interactions: List[CandidateInteraction] = field(default_factory=list)
     interactive_nodes: List[Node] = field(default_factory=list)
@@ -137,9 +139,9 @@ def detect_active_modal(tree: Tree, rules: Dict[str, Any], by_id: Dict[str, Node
         if not node.visible:
             continue
         nid = node.id
-        is_pattern_modal = nid.lower() not in SCREEN_LEVEL_SHEETS and any(
-            fnmatch.fnmatchcase(nid.lower(), pat.lower()) for pat in modal_patterns
-        )
+        # A pattern names a container, never a control: "Shortcuts*" matched Frameduel's
+        # always-visible `shortcuts_button`, so every selector screen read as a dialog (2026-11-06).
+        is_pattern_modal = not node.interactive and any(fnmatch.fnmatchcase(nid.lower(), pat.lower()) for pat in modal_patterns)
         if (nid in overlay_ids and ("dialog" in nid.lower() or "sheet" in nid.lower() or "guide" in nid.lower() or "tutorial" in nid.lower())) or is_pattern_modal:
             if node.w > 0 and node.h > 0:
                 return nid
@@ -176,7 +178,7 @@ def identify_screen_mode(
             return "empty"
         if any(nid in node_ids for nid in ("selection_tab_favourites", "selection_tab_selection", "selection_title")):
             return "selection"
-        if "PhoneSettingsSheet" in node_ids or "settings_title" in node_ids:
+        if any(nid.startswith(JACKPIX_SETTINGS_PREFIXES) for nid in node_ids):
             return "settings"
         if any(nid in node_ids for nid in ("viewer.photo", "phone_top_bar", "viewer_bottom_bar", "btn_keep", "btn_discard")):
             return "viewer"
@@ -186,6 +188,11 @@ def identify_screen_mode(
             return "inspect"
         if "fullscreen_close" in node_ids or "zoom_navigator" in node_ids:
             return "fullscreen"
+        # Overlays above the selector: Back must close them, not leave the app (appleft.py).
+        if "selector_coach_overlay" in node_ids:
+            return "guide"
+        if "maximised_frame" in node_ids:
+            return "maximised"
         if any(nid in node_ids for nid in ("image_region", "selector.frame.current", "selector.frame.previous", "selector.frame.next", "move_button", "position_counter")):
             return "selector"
         if "sidebar_open_folder" in node_ids and not any("frame" in nid for nid in node_ids):
@@ -375,12 +382,12 @@ def enumerate_gestures(
     candidates: List[CandidateInteraction] = []
 
     # --- Jackpix Gestures ---
-    if norm_product == "phototok" and screen_mode in ("viewer", "unknown"):
-        photo_node = by_id.get("viewer.photo")
-        px = photo_node.x if photo_node else 0.0
-        py = photo_node.y if photo_node else 0.0
-        pw = photo_node.w if photo_node else win_w
-        ph = photo_node.h if photo_node else win_h
+    # Only where the feed is: its photo node. A tree without it is the Settings sheet, a dialog
+    # (a window of its own, whose size is not the screen's) or the landing, and a swipe aimed at
+    # the window's middle there scrolls a list or taps a row (2026-11-05: step 10 reset every folder).
+    photo_node = by_id.get("viewer.photo")
+    if norm_product == "phototok" and photo_node is not None and photo_node.visible and photo_node.w > 0 and photo_node.h > 0:
+        px, py, pw, ph = photo_node.x, photo_node.y, photo_node.w, photo_node.h
         cx = int(max(0.0, min(win_w, px + pw / 2.0)))
         cy = int(max(0.0, min(win_h, py + ph / 2.0)))
 
@@ -511,7 +518,7 @@ def enumerate_gestures(
         )
 
     # --- Frameduel Gestures ---
-    elif norm_product == "android-desktop" and screen_mode in ("selector", "viewer", "inspect", "three_up", "unknown"):
+    elif norm_product == "android-desktop" and screen_mode in ("selector", "maximised", "viewer", "inspect", "three_up", "unknown"):
         # 1. 1-over-2 Frame Taps
         if "selector.frame.previous" in by_id:
             fn = by_id["selector.frame.previous"]
@@ -548,8 +555,10 @@ def enumerate_gestures(
                     )
                 )
 
-        # 2. Horizontal Navigation Swipes across Image Region
-        img_node = by_id.get("image_region") or by_id.get("selector.frame.current")
+        # 2. Horizontal Navigation Swipes on the current frame: each frame row takes the drag
+        # (ThreeUpSelectorLayout `comparisonSwipeNavigation`), the gap between the rows does not,
+        # and the image region's centre lies in that gap at 1280x800 (2026-11-06, Pixel Tablet).
+        img_node = by_id.get("selector.frame.current") or by_id.get("image_region")
         if img_node and img_node.visible and img_node.w > 0 and img_node.h > 0:
             cx = int(max(0.0, min(win_w, img_node.x + img_node.w / 2.0)))
             cy = int(max(0.0, min(win_h, img_node.y + img_node.h / 2.0)))
@@ -759,7 +768,7 @@ def enumerate_keyboard_shortcuts(
         return candidates
 
     # Primary Viewport Shortcuts
-    if screen_mode in ("viewer", "selector", "inspect", "workspace", "three_up", "unknown"):
+    if screen_mode in ("viewer", "selector", "maximised", "inspect", "workspace", "three_up", "unknown"):
         # 1. Navigation (Arrows & Vim Keys)
         nav_keys = [
             ("Right", "Arrow Right (Next Photo)", 1.0),

@@ -38,6 +38,43 @@ class TestFsOracle(unittest.TestCase):
         self.assertEqual(len(findings), 1)
         self.assertEqual(findings[0].rule, "fs-unchanged")
 
+    def test_removals_allowed_tolerates_only_removals_of_that_many_photos(self) -> None:
+        def files(*names):
+            return {"files": [{"path": n, "size": 100} for n in names], "trash": []}
+
+        before = files("DSC_0001.JPG", "RAW/DSC_0001.ARW", "DSC_0002.JPG", "DSC_0003.JPG")
+        one = {"unchanged": True, "removals_allowed": 1}
+        # One photo's JPEG and RAW go: one pending delete landed.
+        self.assertEqual(evaluate_fs_oracle(files("DSC_0002.JPG", "DSC_0003.JPG"), one, initial_fs=before), [])
+        # Two photos go with one delete pending: a blocker.
+        two_gone = evaluate_fs_oracle(files("DSC_0003.JPG"), one, initial_fs=before)
+        self.assertEqual([f.rule for f in two_gone], ["fs-unchanged"])
+        # A file appearing is never a pending delete.
+        added = files("DSC_0002.JPG", "DSC_0003.JPG", "DSC_0004.JPG")
+        self.assertEqual(len(evaluate_fs_oracle(added, one, initial_fs=before)), 1)
+        # A size change is a removal plus an addition: still a blocker.
+        resized = {"files": before["files"][:3] + [{"path": "DSC_0003.JPG", "size": 7}], "trash": []}
+        self.assertEqual(len(evaluate_fs_oracle(resized, one, initial_fs=before)), 1)
+
+    def test_rewrites_allowed_tolerates_one_photo_written_in_place_or_a_sidecar(self) -> None:
+        # Frameduel writes a JPEG's rating into its XMP (2026-11-06, Pixel Tablet: "Tap 1 star").
+        def files(*entries):
+            return {"files": [{"path": p, "size": s} for p, s in entries], "trash": []}
+
+        before = files(("DSC_0009.JPG", 100), ("DSC_0010.JPG", 100), ("DSC_0011.ARW", 300))
+        rate = {"unchanged": True, "rewrites_allowed": 1}
+        rated = files(("DSC_0009.JPG", 140), ("DSC_0010.JPG", 100), ("DSC_0011.ARW", 300))
+        self.assertEqual(evaluate_fs_oracle(rated, rate, initial_fs=before), [])
+        sidecar = files(("DSC_0009.JPG", 100), ("DSC_0010.JPG", 100), ("DSC_0011.ARW", 300), ("DSC_0011.ARW.xmp", 9))
+        self.assertEqual(evaluate_fs_oracle(sidecar, rate, initial_fs=before), [])
+        two = files(("DSC_0009.JPG", 140), ("DSC_0010.JPG", 120), ("DSC_0011.ARW", 300))
+        self.assertEqual(len(evaluate_fs_oracle(two, rate, initial_fs=before)), 1)
+        gone = files(("DSC_0010.JPG", 100), ("DSC_0011.ARW", 300))
+        self.assertEqual(len(evaluate_fs_oracle(gone, rate, initial_fs=before)), 1)  # a rating deletes nothing
+        other = files(("DSC_0009.JPG", 100), ("DSC_0010.JPG", 100), ("DSC_0011.ARW", 300), ("notes.txt", 5))
+        self.assertEqual(len(evaluate_fs_oracle(other, rate, initial_fs=before)), 1)
+        self.assertEqual(len(evaluate_fs_oracle(rated, {"unchanged": True}, initial_fs=before)), 1)
+
     def test_present_absent_and_trashed(self) -> None:
         after_move = {
             "root": "PSTLab/burst-sharpness",

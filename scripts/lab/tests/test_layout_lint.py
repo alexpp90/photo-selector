@@ -16,6 +16,159 @@ from lab.model import Tree  # noqa: E402
 DATA_DIR = Path(__file__).resolve().parent / "data"
 
 
+def real(name: str) -> Tree:
+    """A tree captured on a dedicated device, 2026-11-05 (Pixel 4a Jackpix, Pixel Tablet Frameduel)."""
+    return Tree.from_dict(json.loads((DATA_DIR / name).read_text(encoding="utf-8")))
+
+
+def node(nid: str, bounds: list[float], *, parent: str | None = None, interactive: bool = True, name: str = "", text: str = "") -> dict:
+    return {"id": nid, "parent": parent, "role": "button" if interactive else "container", "name": name, "bounds": bounds,
+            "interactive": interactive, "visible": True, "overlay": False, "text": text, "clipped": None}
+
+
+def synthetic(*nodes: dict) -> Tree:
+    return Tree.from_dict({"platform": "android", "window": {"w": 1000, "h": 800, "scale": 2.0, "unit": "dp"}, "nodes": list(nodes)})
+
+
+class TestNestedControls(unittest.TestCase):
+    """One control is judged once: Jackpix's sheet drag handle is a tooltip anchor (#9, long-clickable,
+    32x28 dp) around its button (#10, 48x37.8 dp)."""
+
+    def test_the_real_drag_handle_is_reported_once_not_twice(self) -> None:
+        findings = lint(real("jackpix_settings_sheet.tree.json"), load_rules("phototok"), product="phototok")
+        self.assertEqual(sorted((f.rule, f.message) for f in findings), [
+            ("touch-target", "#10 is 48x38 dp (min 48 dp)"),
+            ("unnamed-control", "interactive control #10 has empty name and text"),
+        ])
+
+    def test_a_name_on_any_member_names_the_control(self) -> None:
+        tree = synthetic(
+            node("root", [0, 0, 1000, 800], interactive=False),
+            node("anchor", [100, 100, 32, 28], parent="root", name="Handle"),
+            node("button", [92, 90, 48, 38], parent="anchor"),
+        )
+        rules = {"min_target": 48}
+        self.assertEqual([f.rule for f in lint(tree, rules)], ["touch-target"])  # still too small, but named
+
+    def test_a_full_size_ancestor_does_not_swallow_a_small_child(self) -> None:
+        tree = synthetic(
+            node("root", [0, 0, 1000, 800], interactive=False),
+            node("card", [100, 100, 300, 100], parent="root", name="Card"),
+            node("wrap", [120, 120, 30, 30], parent="card", interactive=False),
+            node("tiny", [120, 120, 30, 30], parent="wrap", name="Tiny"),
+        )
+        # `tiny` is not inside a small interactive ancestor: it is judged alone, as before
+        self.assertEqual([(f.rule, f.message) for f in lint(tree, {"min_target": 48})], [("touch-target", "tiny is 30x30 dp (min 48 dp)")])
+
+    def test_two_small_unrelated_controls_stay_two_findings(self) -> None:
+        tree = synthetic(
+            node("root", [0, 0, 1000, 800], interactive=False),
+            node("a", [100, 100, 30, 30], parent="root", name="A"),
+            node("b", [300, 100, 30, 30], parent="root", name="B"),
+        )
+        self.assertEqual(len([f for f in lint(tree, {"min_target": 48}) if f.rule == "touch-target"]), 2)
+
+
+class TestDismissScrim(unittest.TestCase):
+    """A modal sheet's scrim lies under the sheet: Jackpix Settings in landscape on a Pixel 4a
+    (2026-11-06) exposes "Tabelle schließen" (#7, the whole window) beside the centred sheet."""
+
+    def test_the_real_landscape_sheet_has_no_overlap_with_its_scrim(self) -> None:
+        findings = lint(real("jackpix_settings_sheet_landscape.tree.json"), load_rules("phototok"), product="phototok")
+        self.assertEqual([f.message for f in findings if f.rule == "overlap-interactive"], [])
+
+    def test_a_full_window_control_drawn_on_top_still_overlaps(self) -> None:
+        sheet = node("sheet_button", [300, 200, 400, 100], parent="root", name="Row")
+        scrim = node("scrim", [0, 0, 1000, 800], parent="root", name="Close")
+        under = synthetic(node("root", [0, 0, 1000, 800], interactive=False), scrim, sheet)
+        over = synthetic(node("root", [0, 0, 1000, 800], interactive=False), sheet, scrim)
+        self.assertEqual([f.rule for f in lint(under, {}) if f.rule == "overlap-interactive"], [])
+        self.assertEqual([f.rule for f in lint(over, {}) if f.rule == "overlap-interactive"], ["overlap-interactive"])
+
+    def test_a_scrim_has_no_children_and_covers_most_of_the_window(self) -> None:
+        row = node("row", [300, 200, 400, 100], parent="root", name="Row")
+        big_card = node("card", [0, 0, 1000, 500], parent="root", name="Card")  # 62 % of the window
+        tree = synthetic(node("root", [0, 0, 1000, 800], interactive=False), big_card, row)
+        self.assertEqual([f.rule for f in lint(tree, {}) if f.rule == "overlap-interactive"], ["overlap-interactive"])
+
+
+class TestRepeatedIds(unittest.TestCase):
+    """Frameduel exports one `filmstrip_thumbnail` per frame: same id, distinct nodes."""
+
+    def test_the_real_filmstrip_edge_to_edge_is_not_an_overlap(self) -> None:
+        tree = real("frameduel_filmstrip_opened.tree.json")
+        thumbs = [n for n in tree.nodes if n.id == "filmstrip_thumbnail"]
+        self.assertGreater(len(thumbs), 3)
+        self.assertEqual([f for f in lint(tree, load_rules("android-desktop"), config="tab-landscape")], [])
+
+    def test_a_real_overlap_between_two_repeated_nodes_is_found_with_an_id_of_its_own(self) -> None:
+        tree = synthetic(
+            node("root", [0, 0, 1000, 800], interactive=False),
+            node("thumb", [0, 0, 60, 48], parent="root", name="1"),
+            node("thumb", [30, 0, 60, 48], parent="root", name="2"),  # overlaps the first by 30x48
+            node("thumb", [200, 0, 60, 48], parent="root", name="3"),
+            node("thumb", [230, 0, 60, 48], parent="root", name="4"),  # overlaps the third
+        )
+        found = [f for f in lint(tree, {"min_target": 48}) if f.rule == "overlap-interactive"]
+        self.assertEqual(len(found), 2)
+        self.assertEqual(len({f.id for f in found}), 2)  # not one id for the checkpoint
+        self.assertEqual(sorted(f.region for f in found), [[30, 0, 30, 48], [230, 0, 30, 48]])
+
+    def test_a_node_is_never_compared_with_itself(self) -> None:
+        tree = synthetic(node("root", [0, 0, 1000, 800], interactive=False), node("thumb", [0, 0, 60, 48], parent="root", name="1"),
+                         node("thumb", [60, 0, 60, 48], parent="root", name="2"))
+        self.assertEqual(lint(tree, {"min_target": 48}), [])
+
+    def test_unique_ids_keep_the_finding_id_they_had(self) -> None:
+        tree = synthetic(node("root", [0, 0, 1000, 800], interactive=False), node("a", [0, 0, 60, 48], parent="root", name="a"),
+                         node("b", [30, 0, 60, 48], parent="root", name="b"))
+        [f] = lint(tree, {"min_target": 48}, product="p", journey="j", checkpoint="c")
+        self.assertEqual(f.id, f.make_id("p", "j", "c", "overlap-interactive", ["a", "b"]))
+
+
+class TestControlCutByAnOverlappingNode(unittest.TestCase):
+    def test_the_real_pill_button_under_the_snackbar_is_not_too_short(self) -> None:
+        tree = real("frameduel_first_run_hint_under_snackbar.tree.json")
+        dismiss = next(n for n in tree.nodes if n.id == "first_run_hint_dismiss")
+        self.assertEqual((dismiss.w, dismiss.h), (56, 26))
+        self.assertEqual(lint(tree, load_rules("android-desktop"), config="tab-landscape"), [])
+
+    def test_the_same_size_with_nothing_covering_it_is_still_a_finding(self) -> None:
+        tree = real("frameduel_first_run_hint_under_snackbar.tree.json")
+        tree.nodes = [n for n in tree.nodes if n.id != "selector_snackbar"]
+        found = lint(tree, load_rules("android-desktop"), config="tab-landscape")
+        self.assertEqual([(f.rule, f.message) for f in found], [("touch-target", "first_run_hint_dismiss is 56x26 dp (min 48 dp)")])
+
+    def test_only_the_cut_axis_is_unknown(self) -> None:
+        # Cut at the top by `cover`, and 30 dp wide: the width is still real.
+        tree = synthetic(
+            node("root", [0, 0, 1000, 800], interactive=False),
+            node("cover", [0, 700, 400, 72], parent="root", interactive=False),
+            node("btn", [100, 772, 30, 26], parent="root", name="B"),
+            node("inner", [100, 750, 30, 48], parent="btn", interactive=False),
+        )
+        found = [(f.rule, f.message) for f in lint(tree, {"min_target": 48})]
+        self.assertEqual(found, [("touch-target", "btn is 30x26 dp (min 48 dp)")])
+        wide = synthetic(
+            node("root", [0, 0, 1000, 800], interactive=False),
+            node("cover", [0, 700, 400, 72], parent="root", interactive=False),
+            node("btn", [100, 772, 60, 26], parent="root", name="B"),
+            node("inner", [100, 750, 60, 48], parent="btn", interactive=False),
+        )
+        self.assertEqual(lint(wide, {"min_target": 48}), [])
+
+
+class TestAllowedOverlaps(unittest.TestCase):
+    def test_the_info_toggle_sits_on_the_maximised_frame_by_design(self) -> None:
+        tree = real("frameduel_maximised.tree.json")
+        expect = {"required": ["maximised_frame"]}
+        rules = load_rules("android-desktop")
+        self.assertEqual(lint(tree, rules, expect, config="tab-landscape"), [])
+        without = dict(rules, allowed_overlaps=[p for p in rules["allowed_overlaps"] if "maximised_info_toggle" not in p])
+        self.assertEqual([f.message.split(" by ")[0] for f in lint(tree, without, expect, config="tab-landscape")],
+                         ["maximised_frame overlaps maximised_info_toggle"])
+
+
 class TestLayoutLint(unittest.TestCase):
     def test_tree_ok_produces_zero_findings(self) -> None:
         tree = Tree.from_dict(json.loads((DATA_DIR / "tree_ok.json").read_text(encoding="utf-8")))

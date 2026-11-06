@@ -11,6 +11,7 @@ import re
 from dataclasses import dataclass, field
 from typing import Any, Dict, List, Optional, Set, Tuple
 
+from ..fs_oracle import photo_stem
 from .actions import Action, ScreenState
 
 # Standard UI node IDs representing abnormal runtime termination or errors
@@ -39,6 +40,8 @@ _NAV_KEYS: Dict[str, Tuple[Set[str], Set[str]]] = {
 }
 _NO_NAV_KEYS: Tuple[Set[str], Set[str]] = (set(), set())  # Jackpix handles no keys of its own
 _GUIDE_WORDS = {"coach", "tutorial", "onboarding", "guide"}
+_DELETE_DESCRIPTION = "Active photo deleted; feed count decreases by 1"
+_RATING_WORDS = {"star", "stars", "rating", "rate"}
 
 
 def read_counter(state: ScreenState) -> Optional[Tuple[int, Optional[int]]]:
@@ -82,6 +85,9 @@ class Expectation:
     fs_expect: Dict[str, Any] = field(default_factory=dict)
     required_ui_nodes: List[str] = field(default_factory=list)
     forbidden_ui_nodes: List[str] = field(default_factory=list)
+    # Claims the step makes but could not state, because the screen before showed no position:
+    # the verifier reports them as not checked, so the step never reads as a checked pass.
+    unverifiable: List[str] = field(default_factory=list)
 
     def __post_init__(self) -> None:
         # Standard error dialogs are forbidden after every interaction.
@@ -98,6 +104,7 @@ class Expectation:
             "fs_expect": dict(self.fs_expect),
             "required_ui_nodes": list(self.required_ui_nodes),
             "forbidden_ui_nodes": list(self.forbidden_ui_nodes),
+            "unverifiable": list(self.unverifiable),
         }
 
     @classmethod
@@ -110,6 +117,7 @@ class Expectation:
             fs_expect=dict(data.get("fs_expect", {})),
             required_ui_nodes=list(data.get("required_ui_nodes", [])),
             forbidden_ui_nodes=list(data.get("forbidden_ui_nodes", [])),
+            unverifiable=list(data.get("unverifiable", [])),
         )
 
 
@@ -118,6 +126,10 @@ class ExpectationRecorder:
 
     def __init__(self, product: str = "phototok") -> None:
         self.product = product
+        # Deletes that may still be pending (confirmed, not yet on disk) and the photos the last
+        # snapshot held: a pending delete may land on any later step (fs_oracle.photo_stem).
+        self._pending_deletes = 0
+        self._last_stems: Optional[Set[str]] = None
 
     def record(
         self,
@@ -128,6 +140,34 @@ class ExpectationRecorder:
         feed_count: Optional[int] = None,
     ) -> Expectation:
         """The expectation of `action`; the feed position comes from `before_state` unless given."""
+        stems = _snapshot_stems(before_state)
+        if stems is not None:
+            if self._last_stems is not None:
+                landed = len(self._last_stems - stems)
+                self._pending_deletes = max(0, self._pending_deletes - landed)
+            self._last_stems = stems
+        expectation = self._record(before_state, action, active_photo, feed_index, feed_count)
+        if self._pending_deletes and expectation.fs_expect.get("unchanged") is True:
+            expectation.fs_expect["removals_allowed"] = self._pending_deletes
+        if self._may_queue_delete(action, expectation):
+            self._pending_deletes += 1
+        return expectation
+
+    def _may_queue_delete(self, action: Action, expectation: Expectation) -> bool:
+        """A Jackpix horizontal swipe (its outcome is a setting) or any delete cull."""
+        if self.product == "phototok" and action.action_type.lower() == "swipe":
+            if str(action.params.get("direction", "")).lower() in ("left", "right"):
+                return True
+        return expectation.description.startswith(_DELETE_DESCRIPTION)
+
+    def _record(
+        self,
+        before_state: ScreenState,
+        action: Action,
+        active_photo: Optional[str],
+        feed_index: Optional[int],
+        feed_count: Optional[int],
+    ) -> Expectation:
         if feed_index is None and feed_count is None:
             counter = read_counter(before_state)
             if counter is not None:
@@ -165,11 +205,15 @@ class ExpectationRecorder:
         ):
             return self.record_navigation(before_state, action, feed_index, feed_count)
 
+        fs: Dict[str, Any] = {"unchanged": True}
+        if words & _RATING_WORDS:
+            # A rating is written into the photo (a JPEG's XMP) or its sidecar.
+            fs["rewrites_allowed"] = 1
         return Expectation(
             action=action,
             description=action.label or f"Execute {action.action_type}",
             expected_feed_count_delta=0,
-            fs_expect={"unchanged": True},
+            fs_expect=fs,
         )
 
     def record_navigation(
@@ -188,7 +232,11 @@ class ExpectationRecorder:
         direction = str(action.params.get("direction", "")).lower()
         words = _words(action.target_id, action.label) if action.action_type.lower() != "key" else set()
         prev_keys = _NAV_KEYS.get(self.product, _NO_NAV_KEYS)[0]
-        is_prev = direction in ("down", "left", "prev", "previous") or key in prev_keys or bool(words & {"prev", "previous"})
+        # A swipe moves the content with the finger: left brings the next photo, right or down
+        # the previous one (Frameduel's frames, Jackpix's pager). "Swipe Left (Next Photo)" was
+        # checked as a step back (2026-11-06, Pixel Tablet).
+        back_directions = ("down", "right") if action.action_type.lower() == "swipe" else ("down", "left", "prev", "previous")
+        is_prev = direction in back_directions or key in prev_keys or bool(words & {"prev", "previous"})
 
         delta: Optional[int]
         if feed_index is None:
@@ -209,6 +257,7 @@ class ExpectationRecorder:
             expected_index_delta=delta,
             expected_feed_count_delta=0,
             fs_expect={"unchanged": True},
+            unverifiable=["index"] if delta is None else [],
         )
 
     @staticmethod
@@ -240,7 +289,7 @@ class ExpectationRecorder:
         descriptions = {
             "move": "Active photo moved to Selection/; feed count decreases by 1",
             "copy": "Active photo copied to Selection/; feed count unchanged",
-            "delete": "Active photo deleted; feed count decreases by 1",
+            "delete": _DELETE_DESCRIPTION,
             "undo": "Restores the previously culled photo into the feed",
         }
         if kind not in descriptions:
@@ -261,6 +310,11 @@ class ExpectationRecorder:
         elif kind == "copy":
             index, count = 1, 0
             fs = {"present": [photo, f"Selection/{photo}"]}
+        elif kind == "delete" and self.product in _DEFERRED_DELETE_PRODUCTS:
+            # The photo leaves the feed now and the disk later (when the delete is committed):
+            # nothing is claimed of the files, and a feed count read from them is not checked.
+            index, count = 0, -1
+            fs = {"deferred_delete": True}
         elif kind == "delete":
             index, count = 0, -1
             fs = {"absent": [photo]}
@@ -282,6 +336,18 @@ class ExpectationRecorder:
 # check was proven against the live app. Android trashes through MediaStore (`.trashed-*` names,
 # no Trash list in the snapshot), so counts there would be wrong.
 _COUNTS_PRODUCTS = {"linux-desktop"}
+
+# Products whose delete stays undoable until it is committed (Jackpix's undo stack, Frameduel's
+# pending-delete stack): the file goes later, on another step (2026-11-06, Pixel Tablet: a confirmed
+# Frameduel delete read as a blocker because DSC_0012.JPG was still on disk).
+_DEFERRED_DELETE_PRODUCTS = {"phototok", "android-desktop"}
+
+
+def _snapshot_stems(state: ScreenState) -> Optional[Set[str]]:
+    snapshot = getattr(state, "fs_snapshot", None)
+    if not snapshot:
+        return None
+    return {photo_stem(str(entry["path"])) for entry in snapshot.get("files", [])}
 
 
 def feed_bundles(fs_snapshot: Optional[Dict[str, Any]]) -> Optional[Set[str]]:

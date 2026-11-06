@@ -30,6 +30,7 @@ from lab.explore.driver import (  # noqa: E402
     AppCrashedError,
     AppLeftError,
     DriverError,
+    TargetUnderSystemBarError,
     DriverExecutionError,
     DriverSettlingError,
     DriverTimeoutError,
@@ -41,6 +42,7 @@ from lab.locks import DeviceBusy, held_lock, hub_lock_path  # noqa: E402
 from lab.model import Tree  # noqa: E402
 from lab.paths import lab_tmp_root  # noqa: E402
 
+DATA_DIR = Path(__file__).resolve().parent / "data"
 APP = "com.phototok.lab"
 PNG = b"\x89PNG\r\n\x1a\n" + b"0" * 16
 
@@ -79,6 +81,14 @@ class FakeDevice:
         self.log = ""
         self.dump_answers: list[str] = []
         self.files = "1000 ./IMG_0001.JPG\n"
+        # What the device answers to the environment questions of `AndroidDeviceDriver`. The shapes
+        # are the ones the lab already replays from real devices (test_android_device_state.py:
+        # the Pixel 4a's HOME resolver and `topResumedActivity` line).
+        self.home = "priority=0 preferredOrder=0 match=0x108000 specificIndex=-1 isDefault=true\ncom.google.android.apps.nexuslauncher/.NexusLauncherActivity\n"
+        self.browser = (DATA_DIR / "pixel4a_resolve_browser.txt").read_text(encoding="utf-8")  # real, Pixel 4a
+        self.top_task = ""
+        self.insets = ""
+        self.package_flags: dict[str, str] = {}
 
     def __call__(self, cmd: list[str], timeout: int) -> subprocess.CompletedProcess[bytes]:
         assert cmd[:2] == ["adb", "-s"], cmd
@@ -100,14 +110,22 @@ class FakeDevice:
             out = (self.dump_answers.pop(0) if self.dump_answers else self.xml).encode()
         elif args[:2] == ("exec-out", "screencap"):
             out = PNG
+        elif args[:3] == ("shell", "cmd", "package") and "android.intent.category.HOME" in args:
+            out = self.home.encode()
+        elif args[:3] == ("shell", "cmd", "package") and "android.intent.action.VIEW" in args:
+            out = self.browser.encode()
         elif args[:3] == ("shell", "cmd", "package"):
             out = b"priority=0\n" + f"{APP}/.MainActivity\n".encode()
+        elif args[:3] == ("shell", "dumpsys", "package") and len(args) == 4:
+            out = f"Packages:\n  Package [{args[3]}] (abc):\n    flags=[ {self.package_flags.get(args[3], 'HAS_CODE ALLOW_CLEAR_USER_DATA')} ]\n".encode()
+        elif args == ("shell", "dumpsys", "activity", "activities"):
+            out = self.top_task.encode()
         elif args[:1] == ("logcat",):
             out = self.log.encode()
         elif args[:2] == ("shell", "cd") or (len(args) == 2 and args[0] == "shell" and "find ." in args[1]):
             out = self.files.encode()
         elif args[:3] == ("shell", "dumpsys", "window") and len(args) == 3:
-            out = b"mDreamingLockscreen=false\n"
+            out = b"mDreamingLockscreen=false\n" + self.insets.encode()
         elif args[:4] == ("shell", "dumpsys", "window", "displays"):
             out = b"init=1080x1920 320dpi cur=1080x1920\n"
         return subprocess.CompletedProcess(cmd, 0, out, b"")
@@ -375,13 +393,14 @@ class TestAndroidActions(AndroidCase):
         with self.assertRaises(DriverExecutionError):
             driver.execute_action(Action("tap", "nowhere"))
 
-    def test_taps_and_swipes_stay_above_the_navigation_bar(self) -> None:
+    def test_a_tap_on_the_navigation_bar_is_refused_and_a_swipe_is_kept_above_it(self) -> None:
         driver = self.ready(FakeDevice(xml=hierarchy(nav_top=1800)))
-        driver.execute_action(Action("tap", params={"x": 100.0, "y": 940.0}))  # 1880 px: on the bar
+        with self.assertRaises(TargetUnderSystemBarError) as ctx:
+            driver.execute_action(Action("tap", params={"x": 100.0, "y": 940.0}))  # 1880 px: on the bar
+        self.assertEqual((ctx.exception.point, ctx.exception.bar.kind), ((200, 1880), "navigation"))
+        self.assertEqual(self.device.commands("shell", "input", "tap"), [])  # the system never got the tap
         driver.execute_action(Action("swipe", params={"x1": 100.0, "y1": 500.0, "x2": 100.0, "y2": 950.0}))
-        tap = self.device.commands("shell", "input", "tap")[0]
         swipe = self.device.commands("shell", "input", "swipe")[0]
-        self.assertEqual(int(tap[-1]), 1798)
         self.assertEqual(int(swipe[-2]), 1798)
 
     def test_without_a_navigation_bar_node_92_percent_of_the_window_is_the_limit(self) -> None:
@@ -542,6 +561,129 @@ class RecordingXdotool:
 
     def sent(self, verb: str) -> list[list[str]]:
         return [c for c in self.commands if c[:2] == ["xdotool", verb]]
+
+
+# The Pixel 4a's landscape feed (J-TOK-02, 2340x1080 px at 440 dpi). Its 3-button navigation bar is
+# on the right edge, 132 px (48 dp) wide; the dump lists no bar node, so the insets say so. The
+# insets are the real `dumpsys window` lines of that device in landscape (trimmed).
+LANDSCAPE_INSETS = (DATA_DIR / "pixel4a_landscape_dumpsys_window_insets.txt").read_text(encoding="utf-8")
+
+
+class TestSystemBarsAndStaleApps(AndroidCase):
+    def landscape(self) -> AndroidDeviceDriver:
+        device = FakeDevice(xml=(DATA_DIR / "jackpix_feed_landscape_pixel4a.xml").read_text(encoding="utf-8"), density=440)
+        device.insets = LANDSCAPE_INSETS
+        return self.ready(device)
+
+    def test_the_settings_tap_that_hit_recents_is_refused(self) -> None:
+        # Steps 33 and 34 of the 2026-11-05 run tapped (810.9, 60.0) dp = (2230, 165) px: Recents.
+        driver = self.landscape()
+        with self.assertRaises(TargetUnderSystemBarError) as ctx:
+            driver.execute_action(Action("tap", "settings_button", params={"x": 810.9, "y": 60.0, "bounds": [786.91, 36.0, 48.0, 48.0]}))
+        self.assertEqual(ctx.exception.point, (2230, 165))
+        self.assertEqual(ctx.exception.bar.rect, (2208, 0, 2340, 1080))
+        self.assertFalse(ctx.exception.in_scroll)
+        self.assertEqual(self.device.commands("shell", "input", "tap"), [])
+
+    def test_a_tap_clear_of_the_bars_is_performed(self) -> None:
+        driver = self.landscape()
+        driver.execute_action(Action("tap", "landscape_settings_button", params={"x": 740.0, "y": 160.0}))  # the real gear, 2035 px
+        self.assertEqual(self.device.commands("shell", "input", "tap"), [("shell", "input", "tap", "2035", "440")])
+
+    def test_a_swipe_ending_on_the_bar_is_moved_off_it(self) -> None:
+        driver = self.landscape()
+        driver.execute_action(Action("swipe", params={"x1": 300.0, "y1": 200.0, "x2": 820.0, "y2": 200.0}))  # ends at 2255 px
+        swipe = self.device.commands("shell", "input", "swipe")[0]
+        self.assertEqual((int(swipe[3]), int(swipe[5])), (825, 2206))
+
+    def test_the_bars_follow_the_rotation(self) -> None:
+        # Portrait: the bars are in the dump (real Pixel 4a nodes) and the insets are read again once the geometry changes.
+        device = FakeDevice(xml=(DATA_DIR / "jackpix_feed_portrait_pixel4a.xml").read_text(encoding="utf-8"), density=440)
+        driver = self.ready(device)
+        self.assertIn(("navigation", (0, 2208, 1080, 2340)), [(b.kind, b.rect) for b in driver._bars])
+        device.xml = (DATA_DIR / "jackpix_feed_landscape_pixel4a.xml").read_text(encoding="utf-8")
+        device.insets = LANDSCAPE_INSETS
+        driver.capture_state()
+        self.assertEqual([(b.kind, b.rect) for b in driver._bars], [("status", (0, 0, 2340, 77)), ("navigation", (2208, 0, 2340, 1080))])
+
+    def test_an_immersive_screen_hides_the_cached_status_bar(self) -> None:
+        # Pixel Tablet, 2026-11-06: Frameduel's full-screen viewer hides the status bar without a
+        # new window geometry, and "Close fullscreen" at (64, 64) px was refused under it. The real
+        # insets of the selector (status bar shown) and of the viewer (hidden), trimmed.
+        shown = (DATA_DIR / "pixel_tablet_dumpsys_window_insets_shown.txt").read_text(encoding="utf-8")
+        hidden = (DATA_DIR / "pixel_tablet_dumpsys_window_insets_immersive.txt").read_text(encoding="utf-8")
+        close = node("close", "[32,32][96,96]", clickable=True)
+        xml = f'<?xml version="1.0"?><hierarchy rotation="0">{node("", "[0,0][2560,1600]", children=close)}</hierarchy>'
+        device = FakeDevice(xml=xml, density=320)
+        device.insets = shown
+        driver = self.ready(device)
+        self.assertIn(("status", (0, 0, 2560, 72)), [(b.kind, b.rect) for b in driver._bars])
+        device.insets = hidden
+        driver.capture_state()
+        driver.execute_action(Action("tap", "close", params={"x": 32.0, "y": 32.0}))
+        self.assertEqual(self.device.commands("shell", "input", "tap"), [("shell", "input", "tap", "64", "64")])
+        # Shown again: the tap is refused, as under any visible bar.
+        device.insets = shown
+        driver.capture_state()
+        with self.assertRaises(TargetUnderSystemBarError):
+            driver.execute_action(Action("tap", "close", params={"x": 32.0, "y": 32.0}))
+
+    def test_a_target_in_a_scroll_container_says_so(self) -> None:
+        # A row passing under the navigation bar while the list scrolls is not the app's defect.
+        scroller = node("", "[0,0][1080,1920]", package=APP).replace('scrollable="false"', 'scrollable="true"')
+        row = node("row", "[0,1700][1080,1900]", clickable=True)
+        inner = node("", "[0,0][1080,1920]", children=scroller.replace("</node>", row + "</node>"))
+        xml = f'<?xml version="1.0"?><hierarchy rotation="0">{inner}{node("android:id/navigationBarBackground", "[0,1800][1080,1920]", package="com.android.systemui")}</hierarchy>'
+        driver = self.ready(FakeDevice(xml=xml))
+        with self.assertRaises(TargetUnderSystemBarError) as ctx:
+            driver.execute_action(Action("tap", "row", params={"x": 270.0, "y": 925.0}))
+        self.assertTrue(ctx.exception.in_scroll)
+
+    def test_the_window_in_front_of_the_app_is_kept_for_the_finding(self) -> None:
+        device = FakeDevice(xml=hierarchy(package="com.android.chrome"), pid="4242")
+        device.top_task = "    topResumedActivity=ActivityRecord{db83cbe u0 com.android.chrome/org.chromium.chrome.browser.ChromeTabbedActivity t1747}\n"
+        driver = self.make_driver(device)
+        driver.setup()
+        with self.assertRaises(AppLeftError) as ctx:
+            driver.capture_state()
+        exc = ctx.exception
+        self.assertEqual(exc.packages, frozenset({"com.android.chrome"}))
+        self.assertIn("com.android.chrome/org.chromium.chrome.browser.ChromeTabbedActivity", exc.top_task)
+        self.assertEqual(exc.after.screenshot_bytes, PNG)
+        self.assertTrue(exc.after.tree.nodes)
+
+    def test_a_relaunch_stops_the_app_that_left_ours_in_front_but_not_the_launcher_or_system_ui(self) -> None:
+        device = FakeDevice()
+        device.package_flags["com.android.systemui"] = "SYSTEM HAS_CODE PERSISTENT"
+        driver = self.ready(device)
+        for front in ("com.android.chrome", "com.google.android.apps.nexuslauncher", "com.android.systemui"):
+            device.xml = hierarchy(package=front)
+            with self.assertRaises(AppLeftError):
+                driver.capture_state()
+        device.xml = hierarchy()
+        device.calls.clear()
+        driver.restart_app()
+        stops = self.device.commands("shell", "am", "force-stop")
+        self.assertIn(("shell", "am", "force-stop", "com.android.chrome"), stops)
+        self.assertNotIn(("shell", "am", "force-stop", "com.google.android.apps.nexuslauncher"), stops)
+        self.assertNotIn(("shell", "am", "force-stop", "com.android.systemui"), stops)
+        calls = self.device.calls
+        self.assertLess(calls.index(("shell", "am", "force-stop", "com.android.chrome")),
+                        calls.index(("shell", "input", "keyboard", "keyevent", "KEYCODE_HOME")))
+        # forgotten once stopped: the next relaunch does not stop it again
+        device.calls.clear()
+        driver.restart_app()
+        self.assertNotIn(("shell", "am", "force-stop", "com.android.chrome"), self.device.calls)
+
+    def test_launcher_and_default_browser_come_from_the_device(self) -> None:
+        driver = self.ready()
+        self.assertEqual(driver.home_packages(), frozenset({"com.google.android.apps.nexuslauncher"}))
+        self.assertEqual(driver.default_browser_packages(), frozenset({"com.android.chrome"}))
+
+    def test_with_no_default_browser_the_chooser_is_not_a_browser(self) -> None:
+        device = FakeDevice()
+        device.browser = "priority=0 preferredOrder=0 match=0x0 specificIndex=-1 isDefault=false\nandroid/com.android.internal.app.ResolverActivity\n"
+        self.assertEqual(self.ready(device).default_browser_packages(), frozenset())
 
 
 class TestLinuxCommands(unittest.TestCase):

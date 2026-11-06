@@ -25,19 +25,22 @@ from types import SimpleNamespace
 from unittest.mock import MagicMock, patch
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
-from _explore_fakes import ScriptedDriver, default_state  # noqa: E402
+from _explore_fakes import ScriptedDriver, default_state, png_bytes  # noqa: E402
 
 from lab import cli  # noqa: E402
 from lab.explore.discovery import SYSTEM_PICKER_MODE  # noqa: E402
-from lab.explore.actions import Action  # noqa: E402
+from lab.android.system_bars import SystemBar  # noqa: E402
+from lab.explore.actions import Action, ScreenState  # noqa: E402
 from lab.android.configs import SavedDeviceState  # noqa: E402
 from lab.explore import orchestrator as orch  # noqa: E402
 from lab.explore.ai_adapters import AIJudgeError, AIProvider, Judgement, PacketExportAdapter  # noqa: E402
 from lab.explore.driver import (  # noqa: E402
+    ActionUnavailableError,
     AppCrashedError,
     AppLeftError,
     DriverError,
     DriverExecutionError,
+    TargetUnderSystemBarError,
 )
 from lab.inventory import AndroidDevice, Inventory, MacHost  # noqa: E402
 from lab.locks import DeviceBusy, device_lock  # noqa: E402
@@ -352,6 +355,76 @@ class LoopTest(WorkerCase):
         self.assertEqual(summary.step_results[0].status, "pass")
         self.assertIn("restart", self.drivers[0].calls)
 
+    LAUNCHER = "com.google.android.apps.nexuslauncher"
+    CHROME = "com.android.chrome"
+
+    def left(self, package: str, **kw):
+        return AppLeftError(f"{package} is in front of com.phototok.lab", packages={package}, **kw)
+
+    def test_back_at_the_feed_root_to_the_launcher_is_expected_and_no_finding(self) -> None:
+        s = default_state()  # screen mode "viewer": the feed, nothing above it
+        with always_select(Action("back", label="System Back Navigation")):
+            summary = self.run_with({"captures": [s, self.left(self.LAUNCHER), s], "home": frozenset({self.LAUNCHER})})
+        self.assertEqual([f for f in summary.findings if f.rule == "app-left"], [])
+        self.assertEqual(summary.step_results[0].status, "pass")
+        self.assertEqual(summary.step_results[0].findings, [])
+        self.assertIn("restart", self.drivers[0].calls)  # still relaunched
+
+    def test_back_from_the_settings_sheet_to_the_launcher_stays_a_lead(self) -> None:
+        sheet = default_state()
+        sheet.screen_mode = "settings"
+        with always_select(Action("back", label="System Back Navigation")):
+            summary = self.run_with({"captures": [sheet, self.left(self.LAUNCHER), default_state()], "home": frozenset({self.LAUNCHER})})
+        [lead] = [f for f in summary.findings if f.rule == "app-left"]
+        self.assertEqual(lead.severity, "polish")
+
+    def test_back_that_lands_somewhere_else_than_the_launcher_stays_a_lead(self) -> None:
+        with always_select(Action("back", label="System Back Navigation")):
+            summary = self.run_with({"captures": [default_state(), self.left(self.CHROME), default_state()], "home": frozenset({self.LAUNCHER})})
+        self.assertEqual([f.rule for f in summary.findings], ["app-left"])
+
+    def test_a_tap_that_opens_the_default_browser_is_an_informational_outbound_link(self) -> None:
+        with always_select(Action("tap", target_id="#51", params={"x": 196.4, "y": 728.7}, label="Tap Impressum")):
+            summary = self.run_with({"captures": [default_state(), self.left(self.CHROME), default_state()], "browsers": frozenset({self.CHROME})})
+        [link] = summary.findings
+        self.assertEqual((link.rule, link.severity), ("outbound-link", "polish"))
+        self.assertIn("default browser (com.android.chrome)", link.message)
+
+    def test_a_tap_that_opens_another_app_is_still_a_minor_lead_whatever_its_label(self) -> None:
+        with always_select(Action("tap", target_id="#51", params={"x": 1.0, "y": 1.0}, label="Tap Impressum")):
+            summary = self.run_with({"captures": [default_state(), self.left("com.whatsapp"), default_state()], "browsers": frozenset({self.CHROME})})
+        [lead] = summary.findings
+        self.assertEqual((lead.rule, lead.severity), ("app-left", "minor"))
+
+    def test_a_lead_keeps_the_screens_and_the_top_task_line(self) -> None:
+        shot = png_bytes((200, 10, 10))
+        front = ScreenState(tree=default_state().tree, screenshot_bytes=shot, screen_mode=self.CHROME, fs_snapshot={})
+        top = "topResumedActivity=ActivityRecord{db83cbe u0 com.android.chrome/org.chromium.chrome.browser.ChromeTabbedActivity t1747}"
+        left = self.left(self.CHROME, top_task=top, after=front)
+        with always_select(Action("tap", target_id="#51", params={"x": 1.0, "y": 1.0}, label="Tap Impressum")):
+            summary = self.run_with({"captures": [default_state(), left, default_state()]})
+        [lead] = summary.findings
+        names = sorted(Path(e).name for e in lead.evidence)
+        self.assertEqual(names, ["step_01_after.png", "step_01_after_tree.json", "step_01_before.png", "step_01_before_tree.json", "step_01_top_task.txt"])
+        for e in lead.evidence:
+            self.assertTrue((self.run_dir / e).is_file(), e)
+        self.assertEqual((self.run_dir / [e for e in lead.evidence if e.endswith("after.png")][0]).read_bytes(), shot)
+        self.assertIn("ChromeTabbedActivity", (self.run_dir / [e for e in lead.evidence if e.endswith("top_task.txt")][0]).read_text(encoding="utf-8"))
+
+    def test_a_tap_under_a_system_bar_is_a_finding_about_the_app_and_is_not_offered_again(self) -> None:
+        bar = SystemBar("navigation", (2208, 0, 2340, 1080))
+        refused = TargetUnderSystemBarError("[tap] not performed: its centre lies under the navigation bar", target_id="btn_ok", point=(2230, 165), bar=bar, in_scroll=False)
+        scrolled = TargetUnderSystemBarError("under the bar", target_id="btn_ok", point=(10, 10), bar=bar, in_scroll=True)
+        with always_select(Action("tap", target_id="btn_ok", params={"x": 1.0, "y": 1.0}, label="Tap OK")):
+            summary = self.run_with({"actions": [refused, scrolled, None]})
+        first, second = summary.step_results[0], summary.step_results[1]
+        self.assertEqual((first.status, [(f.rule, f.severity) for f in first.findings]), ("error", [("under-system-bar", "minor")]))
+        self.assertEqual([(f.rule, f.severity) for f in second.findings], [("under-system-bar", "polish")])
+        self.assertTrue(first.findings[0].evidence)
+        self.assertNotIn("action-failed", [f.rule for f in summary.findings])
+        (worker,) = summary.worker_results
+        self.assertEqual(worker.status, "completed")  # not a run of steps the driver could not execute
+
     def test_a_streak_of_exits_ends_the_target(self) -> None:
         s = default_state()
         left = AppLeftError("android is in front of com.phototok.lab")
@@ -383,6 +456,22 @@ class LoopTest(WorkerCase):
         executed = [a.signature for a in self.drivers[0].executed]
         self.assertGreater(len(executed), 2)
         self.assertNotIn(executed[0], executed[1:])
+
+    def test_an_action_the_device_cannot_perform_is_a_note_not_a_finding(self) -> None:
+        # Pixel Tablet, 2026-11-06: docked, its rotation is locked; "rotate" was a major finding.
+        def first(candidates, screen_state=None):
+            return candidates[0].action
+
+        with patch("lab.explore.orchestrator.ActionSelector.select", side_effect=first):
+            summary = self.run_with({"actions": [ActionUnavailableError("display rotation is locked"), None]})
+        (worker,) = summary.worker_results
+        executed = [a.signature for a in self.drivers[0].executed]
+        self.assertNotIn(executed[0], executed[1:])
+        self.assertEqual(summary.findings, [])
+        self.assertEqual(worker.status, "completed")
+        self.assertIn("not available on this device", worker.error)
+        self.assertIn("display rotation is locked", worker.error)
+        self.assertEqual(worker.total_steps, len(executed) - 1)
 
     def test_the_after_screen_is_the_next_before_screen(self) -> None:
         summary = self.run_with()

@@ -291,11 +291,19 @@ Per device, one worker, in this order:
 A personal device is only touched with `--with-personal`, and not while the person uses it. When
 the app dies the run records a blocker (`crash`), restarts the app on the fixture and goes on; a
 second failure in a row ends that worker as `error`. Leaving the app is often what the action is
-for, so it is a lead, not a failure: Back that closes the app is a polish `app-left` (one per
-screen it left from: on the root screen that is normal, elsewhere it may be a defect), any other
-way out, such as Share or a link to the browser, a minor one. Either way the app is relaunched
-(after Home, since a share sheet outlives the app); three exits in a row end that worker as
-`error`. The system folder picker is never explored or linted: the
+for, so it is a lead, not a failure, and which lead is decided by machine facts (`lab/explore/appleft.py`):
+Back on the root screen (the product's own screen mode, nothing above it) that brings the device's
+launcher to the front is expected and no finding; a tap that brings the default browser to the
+front (resolved from the device, not from the control's label) is a polish `outbound-link`; Back
+from anywhere else is a polish `app-left`, any other way out, such as Share, a minor one. Each
+carries evidence: the screen before, the window that came to the front (screenshot and tree) and
+the `topResumedActivity` line. Either way the app is relaunched, after the apps that were in front
+of it are force-stopped (unless launcher or persistent system process) and Home (a share sheet or
+browser outlives the app and Recents can bring it back); three exits in a row end that worker as
+`error`. A tap whose target's centre lies under a system bar (status or navigation bar, read from
+the dump and the display's insets, any rotation) is not performed, since it would reach Recents or
+Back: it is an `under-system-bar` finding about the app (minor; polish for a row in a scrolling
+list), not offered again on that screen. The system folder picker is never explored or linted: the
 only step taken there is Back, which cancels it without granting a folder. Jackpix is offered no
 keyboard shortcuts (it has none), and an action the driver could not perform (rotation on a
 docked tablet) is recorded once and not offered again. `Ctrl+C` finishes the current step of each

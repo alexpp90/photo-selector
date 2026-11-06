@@ -80,6 +80,9 @@ INFRA_FAILURE_MARKERS = (
     "was requested, but it is not connected",
     "Unable to launch app",
     "UNAVAILABLE: io exception",
+    # Maestro's on-device driver did not come up, so no command of the flow ran (2026-11-05,
+    # Xperia XA2, J-TOK-02 landscape, step 04_double_tap_fit, three steps after a passing one).
+    "MaestroDriverStartupException",
 )
 
 
@@ -252,7 +255,7 @@ def run_android_journey(
     *,
     maestro_fn: MaestroFn | None = None,
     user_id: int = 0,
-    is_avd_kbd: bool = False,
+    is_avd_kbd: bool | None = None,
     root: Path | None = None,
     staging_root: Path | None = None,
     label: str | None = None,

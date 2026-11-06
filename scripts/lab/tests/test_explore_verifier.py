@@ -16,7 +16,7 @@ from _explore_fakes import default_state, make_state, node  # noqa: E402
 from lab.explore.actions import Action  # noqa: E402
 from lab.explore.ai_adapters import AIJudgeError, AIProvider, Judgement  # noqa: E402
 from lab.explore.discovery import SYSTEM_PICKER_MODE  # noqa: E402
-from lab.explore.expectations import Expectation  # noqa: E402
+from lab.explore.expectations import Expectation, ExpectationRecorder  # noqa: E402
 from lab.explore.verifier import verify_step  # noqa: E402
 from lab.model import Finding  # noqa: E402
 
@@ -140,6 +140,16 @@ class VerifierTest(unittest.TestCase):
         no_claim = self.verify(before=at(), after=at())
         self.assertEqual(no_claim.unchecked, [])
 
+    def test_navigation_recorded_without_a_position_is_reported_unchecked(self) -> None:
+        # 2026-11-05, Pixel 4a (explore run 2026-11-05-explore-tok): swipes on a screen without the
+        # counter were recorded "index not checked", yet the header said 0 passes with an unchecked
+        # claim, because the step carried no claim the verifier could leave open.
+        bare = make_state([node("viewer.photo", [0, 0, 400, 800], interactive=False)])
+        exp = ExpectationRecorder("phototok").record_navigation(bare, Action("swipe", target_id="viewer.photo", params={"direction": "up"}))
+        res = self.verify(before=bare, after=bare, exp=exp)
+        self.assertEqual(res.status, "pass")
+        self.assertEqual(res.unchecked, ["index"])
+
     def test_index_delta_from_the_apps_own_position(self) -> None:
         # Blitzlens: no counter node in the tree, the driver's position from state.json instead.
         def at(index: int, total: int):
@@ -206,6 +216,31 @@ class FeedCountSourceTest(VerifierTest):
         after = make_state(default_state().tree.nodes, files=["a.jpg", "b.jpg"])  # a dialog hides the counter
         res = self.verify(before=before, after=after, exp=expectation(expected_feed_count_delta=0))
         self.assertNotIn("unexpected-feed-count-delta", [f.rule for f in res.findings])
+
+    def test_counted_from_files_the_feed_may_shrink_by_the_pending_deletes(self) -> None:
+        # 2026-11-06, Pixel 4a: "Change folder" committed the delete confirmed a step before.
+        before = make_state(default_state().tree.nodes, files=["a.jpg", "b.jpg", "c.jpg"])
+        after = make_state(default_state().tree.nodes, files=["b.jpg", "c.jpg"])
+        rules = lambda exp: [f.rule for f in self.verify(before=before, after=after, exp=exp).findings]  # noqa: E731
+        pending = expectation(expected_feed_count_delta=0, fs_expect={"unchanged": True, "removals_allowed": 1})
+        self.assertNotIn("unexpected-feed-count-delta", rules(pending))
+        self.assertIn("unexpected-feed-count-delta", rules(expectation(expected_feed_count_delta=0)))
+        gone_two = make_state(default_state().tree.nodes, files=["c.jpg"])
+        res = self.verify(before=before, after=gone_two, exp=pending)
+        self.assertIn("unexpected-feed-count-delta", [f.rule for f in res.findings])
+
+
+    def test_a_deferred_delete_leaves_a_file_count_unchecked(self) -> None:
+        # 2026-11-06, Pixel Tablet: the delete dialog hid the counter, and the files cannot show a
+        # delete Frameduel commits later.
+        before = make_state(default_state().tree.nodes, files=["a.jpg", "b.jpg"])
+        after = make_state(default_state().tree.nodes, files=["a.jpg", "b.jpg"])
+        exp = expectation(expected_feed_count_delta=-1, fs_expect={"deferred_delete": True})
+        res = self.verify(before=before, after=after, exp=exp)
+        self.assertNotIn("unexpected-feed-count-delta", [f.rule for f in res.findings])
+        self.assertNotIn("fs-absent", [f.rule for f in res.findings])
+        self.assertIn("feed-count", res.unchecked)
+
 
 class LintConfigTest(VerifierTest):
     def test_the_lint_gets_the_config_without_the_device(self) -> None:

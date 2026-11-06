@@ -81,6 +81,18 @@ class NavigationTest(unittest.TestCase):
         back = rec.record(counter_state("5 / 24"), Action("key", params={"key": "Left"}))
         self.assertEqual(back.expected_index_delta, -1)
 
+    def test_a_swipe_moves_the_content_with_the_finger(self) -> None:
+        # Frameduel's frames and Jackpix's pager: left brings the next photo, right or down the
+        # previous one (2026-11-06: "Swipe Left (Next Photo)" was checked as a step back).
+        def delta(product: str, direction: str):
+            action = Action("swipe", target_id="selector.frame.current", params={"direction": direction})
+            return ExpectationRecorder(product).record(counter_state("3 / 24"), action).expected_index_delta
+
+        self.assertEqual(delta("android-desktop", "left"), 1)
+        self.assertEqual(delta("android-desktop", "right"), -1)
+        self.assertEqual(delta("phototok", "up"), 1)
+        self.assertEqual(delta("phototok", "down"), -1)
+
     def test_explicit_position_overrides_the_screen(self) -> None:
         exp = ExpectationRecorder("android-desktop").record(counter_state("3 / 24"), Action("key", params={"key": "Right"}), feed_index=23, feed_count=24)
         self.assertEqual(exp.expected_index_delta, 0)
@@ -91,6 +103,8 @@ class NavigationTest(unittest.TestCase):
         exp = ExpectationRecorder("linux-desktop").record(make_state([node("slot_current", [0, 0, 10, 10], interactive=False)]), Action("key", params={"key": "J"}))
         self.assertIsNone(exp.expected_index_delta)
         self.assertIn("index not checked", exp.description)
+        self.assertEqual(exp.unverifiable, ["index"])
+        self.assertEqual(Expectation.from_dict(exp.to_dict()).unverifiable, ["index"])
 
     def test_navigation_keys_are_the_ones_the_product_binds(self) -> None:
         def delta(product: str, key: str):
@@ -140,6 +154,52 @@ class NavigationTest(unittest.TestCase):
             self.assertIsNone(exp.expected_index_delta, label)
             self.assertEqual(exp.fs_expect, {"unchanged": True}, label)
         self.assertEqual(rec.record(counter_state("3 / 24"), Action("tap", target_id="btnNext")).expected_index_delta, 1)
+
+
+class PendingDeleteTest(unittest.TestCase):
+    """A delete confirmed on one step may reach the disk on a later one (2026-11-06, Pixel 4a)."""
+
+    def swipe(self, direction: str) -> Action:
+        return Action("swipe", target_id="viewer.photo", params={"direction": direction})
+
+    def test_after_a_jackpix_swipe_a_later_step_may_remove_one_photo(self) -> None:
+        rec = ExpectationRecorder("phototok")
+        state = counter_state("1 / 2", files=["a.jpg", "b.jpg"])
+        before = rec.record(state, Action("tap", target_id="reload_folder_button", label="Reload"))
+        self.assertEqual(before.fs_expect, {"unchanged": True})
+        rec.record(state, self.swipe("left"))
+        reload = rec.record(state, Action("tap", target_id="reload_folder_button", label="Reload"))
+        self.assertEqual(reload.fs_expect, {"unchanged": True, "removals_allowed": 1})
+
+    def test_the_allowance_is_spent_when_the_photo_disappears(self) -> None:
+        rec = ExpectationRecorder("phototok")
+        rec.record(counter_state("1 / 2", files=["a.jpg", "a.dng", "b.jpg"]), self.swipe("left"))
+        after = counter_state("1 / 1", files=["b.jpg"])
+        exp = rec.record(after, Action("tap", target_id="help_button", label="Help"))
+        self.assertEqual(exp.fs_expect, {"unchanged": True})
+
+    def test_a_vertical_swipe_queues_nothing(self) -> None:
+        rec = ExpectationRecorder("phototok")
+        state = counter_state("1 / 2")
+        rec.record(state, self.swipe("up"))
+        exp = rec.record(state, Action("tap", target_id="help_button", label="Help"))
+        self.assertEqual(exp.fs_expect, {"unchanged": True})
+
+    def test_a_delete_cull_counts_and_a_move_does_not(self) -> None:
+        state = CullTest().shown("b.jpg")
+        for key, allowed in (("Delete", 1), ("m", None)):
+            rec = ExpectationRecorder("android-desktop")
+            rec.record(state, Action("key", params={"key": key}))
+            exp = rec.record(state, Action("tap", target_id="help_button", label="Help"))
+            self.assertEqual(exp.fs_expect.get("removals_allowed"), allowed, key)
+
+
+class RatingTest(unittest.TestCase):
+    def test_a_rating_may_rewrite_one_photo(self) -> None:
+        exp = ExpectationRecorder("android-desktop").record(counter_state("2 / 10"), Action("tap", target_id="star_1", label="1 star"))
+        self.assertEqual(exp.fs_expect, {"unchanged": True, "rewrites_allowed": 1})
+        other = ExpectationRecorder("android-desktop").record(counter_state("2 / 10"), Action("tap", target_id="help_button", label="Help"))
+        self.assertEqual(other.fs_expect, {"unchanged": True})
 
 
 class CullTest(unittest.TestCase):
@@ -197,7 +257,9 @@ class CullTest(unittest.TestCase):
         rec = ExpectationRecorder("android-desktop")
         state = self.shown("a.jpg")
         delete = rec.record(state, Action("key", params={"key": "Delete"}))
-        self.assertEqual(delete.fs_expect, {"absent": ["a.jpg"]})  # Android snapshots list no Trash
+        # Frameduel keeps a confirmed delete undoable until it is committed: the file stays for now.
+        self.assertEqual(delete.fs_expect, {"deferred_delete": True})
+        self.assertEqual(delete.expected_feed_count_delta, -1)
         linux = ExpectationRecorder("linux-desktop").record(state, Action("key", params={"key": "Delete"}))
         self.assertEqual(linux.fs_expect, {"absent": ["a.jpg"], "trashed": ["a.jpg"]})
         copy = rec.record(state, Action("tap", target_id="btn_copy"))
