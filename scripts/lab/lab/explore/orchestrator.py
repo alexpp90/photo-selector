@@ -51,6 +51,7 @@ from .ai_adapters import AIProvider, create_ai_adapter
 from .appleft import EXPECTED, OUTBOUND_LINK, classify_app_left, top_task_package
 from .discovery import SYSTEM_PICKER_MODE, inspect_screen, load_discovery_rules, normalize_product_name
 from .driver import (
+    ActionUnavailableError,
     AndroidDeviceDriver,
     AppCrashedError,
     AppLeftError,
@@ -775,6 +776,7 @@ class ExploratoryOrchestrator:
         last_screen, last_action_sig = "unknown", ""
         min_step = self._min_step_s(driver)
         unexecutable: Set[Tuple[str, str]] = set()  # (screen, action) the driver could not perform: not offered again
+        unavailable: Dict[str, str] = {}  # action the device cannot perform on any screen -> why (an ENV note)
         left_streak = 0  # steps in a row that took the user out of the app
 
         def failed_step(status: str, finding: Finding, action: Action, expectation: Any, before: Any) -> None:
@@ -824,6 +826,7 @@ class ExploratoryOrchestrator:
                 candidates = [
                     c for c in inspect_screen(before.tree, target.product, rules).candidate_interactions
                     if (before.screen_mode or "", c.action.signature) not in unexecutable
+                    and c.action.signature not in unavailable
                 ]
                 action = selector.select(candidates, screen_state=before) if candidates else Action("back", label="No candidate interaction: back")
             expectation = recorder.record(before, action)
@@ -852,9 +855,14 @@ class ExploratoryOrchestrator:
                 failed_step(STATUS_ERROR, finding, action, expectation, before)
                 unexecutable.add((before.screen_mode or "", action.signature))
                 continue
+            except ActionUnavailableError as exc:
+                # The device, not the app: no step and no finding, but named in the target's detail.
+                unavailable[action.signature] = f"{action.summary()}: {exc}"
+                step -= 1
+                continue
             except DriverError as exc:
                 failed_step(STATUS_ERROR, self._driver_finding(target, checkpoint, exc, last_screen, last_action_sig, f"could not execute {action.summary()}"), action, expectation, before)
-                if action.action_type != "back":  # e.g. rotation on a docked tablet: once is the finding
+                if action.action_type != "back":
                     unexecutable.add((before.screen_mode or "", action.signature))
                 exec_failures += 1
                 if exec_failures >= MAX_EXEC_FAILURES:
@@ -929,7 +937,8 @@ class ExploratoryOrchestrator:
             findings.extend(result.findings)
             self._log_step(target_dir, result)
             app_failures = 0
-        return "completed", None, restarts
+        note = "; ".join(f"not available on this device: {why}" for why in unavailable.values())
+        return "completed", note or None, restarts
 
     def _log_step(self, target_dir: Path, result: StepResult) -> None:
         path = ensure_under(target_dir / "steps.jsonl", self.out_dir)  # type: ignore[arg-type]

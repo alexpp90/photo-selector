@@ -86,6 +86,14 @@ class DriverExecutionError(DriverError):
     """Command failed, returned a non-zero exit code, or the action cannot be performed."""
 
 
+class ActionUnavailableError(DriverExecutionError):
+    """The device cannot perform the action at all: an environment limit, not the app's defect.
+
+    A docked Pixel Tablet locks the display rotation (2026-11-06: "rotate" was a major finding of
+    the exploratory run). The explorer stops offering the action and names it in the target's detail.
+    """
+
+
 class DriverSettlingError(DriverError):
     """UI state did not become idle after max retry attempts."""
 
@@ -845,7 +853,7 @@ class AndroidDeviceDriver(DeviceDriver):
         try:
             set_verified_rotation(self.adb, want)  # the settings it changes are restored by the orchestrator
         except ConfigNotRunError as exc:
-            raise DriverExecutionError(str(exc)) from exc
+            raise ActionUnavailableError(str(exc)) from exc
         time.sleep(ROTATION_SETTLE_S)
 
 

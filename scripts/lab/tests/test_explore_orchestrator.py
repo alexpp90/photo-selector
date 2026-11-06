@@ -35,6 +35,7 @@ from lab.android.configs import SavedDeviceState  # noqa: E402
 from lab.explore import orchestrator as orch  # noqa: E402
 from lab.explore.ai_adapters import AIJudgeError, AIProvider, Judgement, PacketExportAdapter  # noqa: E402
 from lab.explore.driver import (  # noqa: E402
+    ActionUnavailableError,
     AppCrashedError,
     AppLeftError,
     DriverError,
@@ -455,6 +456,22 @@ class LoopTest(WorkerCase):
         executed = [a.signature for a in self.drivers[0].executed]
         self.assertGreater(len(executed), 2)
         self.assertNotIn(executed[0], executed[1:])
+
+    def test_an_action_the_device_cannot_perform_is_a_note_not_a_finding(self) -> None:
+        # Pixel Tablet, 2026-11-06: docked, its rotation is locked; "rotate" was a major finding.
+        def first(candidates, screen_state=None):
+            return candidates[0].action
+
+        with patch("lab.explore.orchestrator.ActionSelector.select", side_effect=first):
+            summary = self.run_with({"actions": [ActionUnavailableError("display rotation is locked"), None]})
+        (worker,) = summary.worker_results
+        executed = [a.signature for a in self.drivers[0].executed]
+        self.assertNotIn(executed[0], executed[1:])
+        self.assertEqual(summary.findings, [])
+        self.assertEqual(worker.status, "completed")
+        self.assertIn("not available on this device", worker.error)
+        self.assertIn("display rotation is locked", worker.error)
+        self.assertEqual(worker.total_steps, len(executed) - 1)
 
     def test_the_after_screen_is_the_next_before_screen(self) -> None:
         summary = self.run_with()
