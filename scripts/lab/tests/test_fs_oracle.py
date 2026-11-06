@@ -38,6 +38,24 @@ class TestFsOracle(unittest.TestCase):
         self.assertEqual(len(findings), 1)
         self.assertEqual(findings[0].rule, "fs-unchanged")
 
+    def test_removals_allowed_tolerates_only_removals_of_that_many_photos(self) -> None:
+        def files(*names):
+            return {"files": [{"path": n, "size": 100} for n in names], "trash": []}
+
+        before = files("DSC_0001.JPG", "RAW/DSC_0001.ARW", "DSC_0002.JPG", "DSC_0003.JPG")
+        one = {"unchanged": True, "removals_allowed": 1}
+        # One photo's JPEG and RAW go: one pending delete landed.
+        self.assertEqual(evaluate_fs_oracle(files("DSC_0002.JPG", "DSC_0003.JPG"), one, initial_fs=before), [])
+        # Two photos go with one delete pending: a blocker.
+        two_gone = evaluate_fs_oracle(files("DSC_0003.JPG"), one, initial_fs=before)
+        self.assertEqual([f.rule for f in two_gone], ["fs-unchanged"])
+        # A file appearing is never a pending delete.
+        added = files("DSC_0002.JPG", "DSC_0003.JPG", "DSC_0004.JPG")
+        self.assertEqual(len(evaluate_fs_oracle(added, one, initial_fs=before)), 1)
+        # A size change is a removal plus an addition: still a blocker.
+        resized = {"files": before["files"][:3] + [{"path": "DSC_0003.JPG", "size": 7}], "trash": []}
+        self.assertEqual(len(evaluate_fs_oracle(resized, one, initial_fs=before)), 1)
+
     def test_present_absent_and_trashed(self) -> None:
         after_move = {
             "root": "PSTLab/burst-sharpness",

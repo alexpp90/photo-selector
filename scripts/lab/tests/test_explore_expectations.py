@@ -144,6 +144,44 @@ class NavigationTest(unittest.TestCase):
         self.assertEqual(rec.record(counter_state("3 / 24"), Action("tap", target_id="btnNext")).expected_index_delta, 1)
 
 
+class PendingDeleteTest(unittest.TestCase):
+    """A delete confirmed on one step may reach the disk on a later one (2026-11-06, Pixel 4a)."""
+
+    def swipe(self, direction: str) -> Action:
+        return Action("swipe", target_id="viewer.photo", params={"direction": direction})
+
+    def test_after_a_jackpix_swipe_a_later_step_may_remove_one_photo(self) -> None:
+        rec = ExpectationRecorder("phototok")
+        state = counter_state("1 / 2", files=["a.jpg", "b.jpg"])
+        before = rec.record(state, Action("tap", target_id="reload_folder_button", label="Reload"))
+        self.assertEqual(before.fs_expect, {"unchanged": True})
+        rec.record(state, self.swipe("left"))
+        reload = rec.record(state, Action("tap", target_id="reload_folder_button", label="Reload"))
+        self.assertEqual(reload.fs_expect, {"unchanged": True, "removals_allowed": 1})
+
+    def test_the_allowance_is_spent_when_the_photo_disappears(self) -> None:
+        rec = ExpectationRecorder("phototok")
+        rec.record(counter_state("1 / 2", files=["a.jpg", "a.dng", "b.jpg"]), self.swipe("left"))
+        after = counter_state("1 / 1", files=["b.jpg"])
+        exp = rec.record(after, Action("tap", target_id="help_button", label="Help"))
+        self.assertEqual(exp.fs_expect, {"unchanged": True})
+
+    def test_a_vertical_swipe_queues_nothing(self) -> None:
+        rec = ExpectationRecorder("phototok")
+        state = counter_state("1 / 2")
+        rec.record(state, self.swipe("up"))
+        exp = rec.record(state, Action("tap", target_id="help_button", label="Help"))
+        self.assertEqual(exp.fs_expect, {"unchanged": True})
+
+    def test_a_delete_cull_counts_and_a_move_does_not(self) -> None:
+        state = CullTest().shown("b.jpg")
+        for key, allowed in (("Delete", 1), ("m", None)):
+            rec = ExpectationRecorder("android-desktop")
+            rec.record(state, Action("key", params={"key": key}))
+            exp = rec.record(state, Action("tap", target_id="help_button", label="Help"))
+            self.assertEqual(exp.fs_expect.get("removals_allowed"), allowed, key)
+
+
 class CullTest(unittest.TestCase):
     def shown(self, name: str):
         return counter_state("2 / 2", files=["a.jpg", "b.jpg"], extra=[node("exif_card", [0, 60, 200, 50], text=name, interactive=False)])

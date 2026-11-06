@@ -9,7 +9,7 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
 from lab.android.system_bars import SystemBar, bars_from_dump, bars_from_insets  # noqa: E402
-from lab.explore.appleft import EXPECTED, LEAD, OUTBOUND_LINK, classify_app_left  # noqa: E402
+from lab.explore.appleft import EXPECTED, LEAD, OUTBOUND_LINK, classify_app_left, top_task_package  # noqa: E402
 
 DATA_DIR = Path(__file__).resolve().parent / "data"
 
@@ -79,6 +79,23 @@ class TestAppLeftVerdict(unittest.TestCase):
         self.assertEqual(self.verdict("back", "viewer", self.LAUNCHER | self.CHROME), LEAD)
         self.assertEqual(self.verdict("back", "viewer", frozenset()), LEAD)  # nothing known about the window
         self.assertEqual(self.verdict("back", "viewer", self.LAUNCHER, "linux-desktop"), LEAD)  # no root modes known
+
+    def test_the_top_resumed_activity_decides_when_the_launcher_hosts_widgets(self) -> None:
+        # Pixel Tablet, 2026-11-06: the launcher's window named its widgets' apps too.
+        top = top_task_package(
+            "topResumedActivity=ActivityRecord{81126719 u0 com.google.android.apps.nexuslauncher/.NexusLauncherActivity t2}"
+        )
+        self.assertEqual(top, "com.google.android.apps.nexuslauncher")
+        widgets = self.LAUNCHER | {"com.google.android.deskclock", "com.google.android.keep"}
+        verdict = classify_app_left("back", "selector", "android-desktop", widgets, self.LAUNCHER, self.CHROME, top)
+        self.assertEqual(verdict.kind, EXPECTED)
+        self.assertEqual(classify_app_left("back", "selector", "android-desktop", widgets, self.LAUNCHER, self.CHROME).kind, LEAD)
+        # An overlay above the selector is no root: Back must close it (Frameduel's layout guide).
+        for mode in ("guide", "maximised", "fullscreen"):
+            self.assertEqual(
+                classify_app_left("back", mode, "android-desktop", widgets, self.LAUNCHER, self.CHROME, top).kind, LEAD, mode
+            )
+        self.assertEqual(top_task_package(""), None)
 
     def test_a_tap_that_brings_the_default_browser_is_an_outbound_link(self) -> None:
         self.assertEqual(self.verdict("tap", "settings", self.CHROME), OUTBOUND_LINK)

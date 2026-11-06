@@ -89,7 +89,7 @@ class ScreenInspectionResult:
     """Comprehensive screen inspection outcome including screen mode and candidate interactions."""
 
     product: str
-    screen_mode: str  # "landing", "viewer", "selector", "inspect", "empty", "dialog", "fullscreen", "settings", "duplicates", "statistics", "unknown"
+    screen_mode: str  # "landing", "viewer", "selector", "guide", "maximised", "inspect", "empty", "dialog", "fullscreen", "settings", "duplicates", "statistics", "unknown"
     active_modal: Optional[str] = None
     candidate_interactions: List[CandidateInteraction] = field(default_factory=list)
     interactive_nodes: List[Node] = field(default_factory=list)
@@ -186,6 +186,11 @@ def identify_screen_mode(
             return "inspect"
         if "fullscreen_close" in node_ids or "zoom_navigator" in node_ids:
             return "fullscreen"
+        # Overlays above the selector: Back must close them, not leave the app (appleft.py).
+        if "selector_coach_overlay" in node_ids:
+            return "guide"
+        if "maximised_frame" in node_ids:
+            return "maximised"
         if any(nid in node_ids for nid in ("image_region", "selector.frame.current", "selector.frame.previous", "selector.frame.next", "move_button", "position_counter")):
             return "selector"
         if "sidebar_open_folder" in node_ids and not any("frame" in nid for nid in node_ids):
@@ -511,7 +516,7 @@ def enumerate_gestures(
         )
 
     # --- Frameduel Gestures ---
-    elif norm_product == "android-desktop" and screen_mode in ("selector", "viewer", "inspect", "three_up", "unknown"):
+    elif norm_product == "android-desktop" and screen_mode in ("selector", "maximised", "viewer", "inspect", "three_up", "unknown"):
         # 1. 1-over-2 Frame Taps
         if "selector.frame.previous" in by_id:
             fn = by_id["selector.frame.previous"]
@@ -759,7 +764,7 @@ def enumerate_keyboard_shortcuts(
         return candidates
 
     # Primary Viewport Shortcuts
-    if screen_mode in ("viewer", "selector", "inspect", "workspace", "three_up", "unknown"):
+    if screen_mode in ("viewer", "selector", "maximised", "inspect", "workspace", "three_up", "unknown"):
         # 1. Navigation (Arrows & Vim Keys)
         nav_keys = [
             ("Right", "Arrow Right (Next Photo)", 1.0),

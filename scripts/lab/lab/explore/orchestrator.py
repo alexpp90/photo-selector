@@ -48,7 +48,7 @@ from ..model import Finding
 from ..paths import ensure_under, lab_tmp_root, new_run_dir, repo_root
 from .actions import Action, ScreenState
 from .ai_adapters import AIProvider, create_ai_adapter
-from .appleft import EXPECTED, OUTBOUND_LINK, classify_app_left
+from .appleft import EXPECTED, OUTBOUND_LINK, classify_app_left, top_task_package
 from .discovery import SYSTEM_PICKER_MODE, inspect_screen, load_discovery_rules, normalize_product_name
 from .driver import (
     AndroidDeviceDriver,
@@ -877,6 +877,7 @@ class ExploratoryOrchestrator:
                 verdict = classify_app_left(
                     action.action_type, before.screen_mode or "", normalize_product_name(target.product),
                     exc.packages, self._device_fact(driver.home_packages), self._device_fact(driver.default_browser_packages),
+                    top_task_package(exc.top_task),
                 )
                 left: List[Finding] = []
                 if verdict.kind != EXPECTED:

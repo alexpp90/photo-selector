@@ -11,6 +11,7 @@ import re
 from dataclasses import dataclass, field
 from typing import Any, Dict, List, Optional, Set, Tuple
 
+from ..fs_oracle import photo_stem
 from .actions import Action, ScreenState
 
 # Standard UI node IDs representing abnormal runtime termination or errors
@@ -39,6 +40,7 @@ _NAV_KEYS: Dict[str, Tuple[Set[str], Set[str]]] = {
 }
 _NO_NAV_KEYS: Tuple[Set[str], Set[str]] = (set(), set())  # Jackpix handles no keys of its own
 _GUIDE_WORDS = {"coach", "tutorial", "onboarding", "guide"}
+_DELETE_DESCRIPTION = "Active photo deleted; feed count decreases by 1"
 
 
 def read_counter(state: ScreenState) -> Optional[Tuple[int, Optional[int]]]:
@@ -123,6 +125,10 @@ class ExpectationRecorder:
 
     def __init__(self, product: str = "phototok") -> None:
         self.product = product
+        # Deletes that may still be pending (confirmed, not yet on disk) and the photos the last
+        # snapshot held: a pending delete may land on any later step (fs_oracle.photo_stem).
+        self._pending_deletes = 0
+        self._last_stems: Optional[Set[str]] = None
 
     def record(
         self,
@@ -133,6 +139,34 @@ class ExpectationRecorder:
         feed_count: Optional[int] = None,
     ) -> Expectation:
         """The expectation of `action`; the feed position comes from `before_state` unless given."""
+        stems = _snapshot_stems(before_state)
+        if stems is not None:
+            if self._last_stems is not None:
+                landed = len(self._last_stems - stems)
+                self._pending_deletes = max(0, self._pending_deletes - landed)
+            self._last_stems = stems
+        expectation = self._record(before_state, action, active_photo, feed_index, feed_count)
+        if self._pending_deletes and expectation.fs_expect.get("unchanged") is True:
+            expectation.fs_expect["removals_allowed"] = self._pending_deletes
+        if self._may_queue_delete(action, expectation):
+            self._pending_deletes += 1
+        return expectation
+
+    def _may_queue_delete(self, action: Action, expectation: Expectation) -> bool:
+        """A Jackpix horizontal swipe (its outcome is a setting) or any delete cull."""
+        if self.product == "phototok" and action.action_type.lower() == "swipe":
+            if str(action.params.get("direction", "")).lower() in ("left", "right"):
+                return True
+        return expectation.description.startswith(_DELETE_DESCRIPTION)
+
+    def _record(
+        self,
+        before_state: ScreenState,
+        action: Action,
+        active_photo: Optional[str],
+        feed_index: Optional[int],
+        feed_count: Optional[int],
+    ) -> Expectation:
         if feed_index is None and feed_count is None:
             counter = read_counter(before_state)
             if counter is not None:
@@ -246,7 +280,7 @@ class ExpectationRecorder:
         descriptions = {
             "move": "Active photo moved to Selection/; feed count decreases by 1",
             "copy": "Active photo copied to Selection/; feed count unchanged",
-            "delete": "Active photo deleted; feed count decreases by 1",
+            "delete": _DELETE_DESCRIPTION,
             "undo": "Restores the previously culled photo into the feed",
         }
         if kind not in descriptions:
@@ -288,6 +322,13 @@ class ExpectationRecorder:
 # check was proven against the live app. Android trashes through MediaStore (`.trashed-*` names,
 # no Trash list in the snapshot), so counts there would be wrong.
 _COUNTS_PRODUCTS = {"linux-desktop"}
+
+
+def _snapshot_stems(state: ScreenState) -> Optional[Set[str]]:
+    snapshot = getattr(state, "fs_snapshot", None)
+    if not snapshot:
+        return None
+    return {photo_stem(str(entry["path"])) for entry in snapshot.get("files", [])}
 
 
 def feed_bundles(fs_snapshot: Optional[Dict[str, Any]]) -> Optional[Set[str]]:

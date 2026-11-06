@@ -125,6 +125,19 @@ class TestLiveScreenInspection(unittest.TestCase):
         self.assertEqual(len(photo_nodes), 1)
         self.assertEqual(photo_nodes[0].id, "viewer.photo")
 
+    def test_frameduel_overlays_above_the_selector_have_their_own_mode(self) -> None:
+        # Back over them must close them, not leave the app (appleft.ROOT_SCREEN_MODES).
+        for tag, mode in (("selector_coach_overlay", "guide"), ("maximised_frame", "maximised")):
+            tree = make_synthetic_tree(screen_mode="three_up", window_w=1480, window_h=924)
+            tree.nodes.append(Node(id=tag, parent=None, role="container", name="", bounds=[0, 0, 1480, 924], interactive=False, visible=True))
+            self.assertEqual(inspect_screen(tree, "android-desktop").screen_mode, mode, tag)
+        maximised = make_synthetic_tree(screen_mode="three_up", window_w=1480, window_h=924)
+        maximised.nodes.append(Node(id="maximised_frame", parent=None, role="container", name="", bounds=[0, 0, 1480, 924], interactive=False, visible=True))
+        self.assertTrue(
+            any(c.action.action_type == "key" for c in inspect_screen(maximised, "android-desktop").candidate_interactions),
+            "the selector's shortcuts still apply to a maximised frame",
+        )
+
     def test_inspect_screen_detects_frameduel_three_up(self) -> None:
         tree = make_synthetic_tree(screen_mode="three_up", window_w=1480, window_h=924)
         res = inspect_screen(tree, "android-desktop")

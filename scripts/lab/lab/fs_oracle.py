@@ -42,6 +42,18 @@ def snapshot_directory(
     }
 
 
+def photo_stem(path: str) -> str:
+    """The photo a file belongs to: `DSC_0011` for `RAW/DSC_0011.ARW` and `DSC_0011.JPG.xmp`.
+
+    `removals_allowed: N` in an `unchanged` expectation lets the files of at most N photos
+    disappear, and nothing appear or change size. Apps that confirm a delete and commit it later
+    (Jackpix keeps it undoable until, among others, a reload or a folder change) remove the
+    file on an unrelated step: on 2026-11-06 Jackpix's reload committed a delete confirmed three
+    steps earlier, and "unchanged" reported it as a blocker.
+    """
+    return path.replace("\\", "/").rsplit("/", 1)[-1].split(".", 1)[0]
+
+
 def evaluate_fs_oracle(
     fs_data: dict[str, Any],
     expect: dict[str, Any] | str | None,
@@ -98,9 +110,12 @@ def evaluate_fs_oracle(
         else:
             cur_bag = Counter((str(e["path"]), int(e["size"])) for e in fs_data.get("files", []))
             init_bag = Counter((str(e["path"]), int(e["size"])) for e in initial_fs.get("files", []))
-            if cur_bag != init_bag:
-                missing = sorted(list((init_bag - cur_bag).elements()))
-                added = sorted(list((cur_bag - init_bag).elements()))
+            missing = sorted(list((init_bag - cur_bag).elements()))
+            added = sorted(list((cur_bag - init_bag).elements()))
+            allowed = int(expect_dict.get("removals_allowed", 0))
+            if missing and not added and len({photo_stem(p) for p, _ in missing}) <= allowed:
+                pass  # a delete the user confirmed earlier was committed (see photo_stem)
+            elif cur_bag != init_bag:
                 changed_paths = sorted({p for p, _ in missing} | {p for p, _ in added})
                 add_finding(
                     "fs-unchanged",
