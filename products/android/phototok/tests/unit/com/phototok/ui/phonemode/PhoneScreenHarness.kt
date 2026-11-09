@@ -93,6 +93,23 @@ class PhoneScreenHarness(
 
     /** Composes the screen (and registers the "app left" sentinel below every app handler). */
     fun launch(wrap: @Composable (@Composable () -> Unit) -> Unit = { it() }) {
+        prepare()
+        rule.setContent {
+            PhotoTokTheme {
+                wrap { Screen() }
+            }
+        }
+        rule.waitForIdle()
+    }
+
+    /** The screen under test, for a host that sets the content itself (the text-load matrix). */
+    @Composable
+    fun Screen() {
+        PhoneModeScreen(viewModel = viewModel, selectionViewModel = selectionViewModel)
+    }
+
+    /** Creates the view models and the "app left" sentinel, without composing anything. */
+    fun prepare() {
         val scope = CoroutineScope(SupervisorJob() + Dispatchers.Main.immediate)
         viewModel = PhoneModeViewModel(imageRepository, settingsRepository, scope)
         selectionViewModel = SelectionViewerViewModel(imageRepository, scope)
@@ -106,12 +123,6 @@ class PhoneScreenHarness(
                 },
             )
         }
-        rule.setContent {
-            PhotoTokTheme {
-                wrap { PhoneModeScreen(viewModel = viewModel, selectionViewModel = selectionViewModel) }
-            }
-        }
-        rule.waitForIdle()
     }
 
     /** Opens [folder] with [images] and waits until the feed shows them. */
