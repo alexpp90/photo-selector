@@ -32,7 +32,7 @@ The rule that prevents it:
 | flake8 `src/ tests/` | `desktop.yml:lint` | ✅ in the provisioned [Python environment](#python-gates-run-in-the-projects-own-environment) | **Gates the entire desktop pipeline.** A lint error fails the run before one test executes. |
 | pytest `-m "not visual"` | `desktop.yml:test` | ✅ everywhere | Same marker filter locally and in CI. CI and the mirror both pass `-o faulthandler_timeout=120` (also to the visual job), so a test that blocks in Tk or native code fails with every thread's stack instead of hanging. On Linux the runner renders it on its own Xvfb, as CI does — see [GUI gates run on Xvfb](#gui-gates-run-on-xvfb-not-your-screen). |
 | Coverage `--cov-fail-under=60` | `desktop.yml:test` (**Linux only**) | ✅ advisory everywhere | See [Coverage is Linux-authoritative](#coverage-is-linux-authoritative). |
-| Visual regression | `desktop.yml:visual` | ⚠️ Linux + Xvfb; baselines are runner-rendered | See [Visual regression](#visual-regression-linux-only). |
+| Visual regression | `desktop.yml:visual` | ⚠️ Linux + Xvfb on CI's `ubuntu-24.04` image; SKIPPED elsewhere (baselines are runner-rendered) | See [Visual regression](#visual-regression-linux-only). |
 | `testDebugUnitTest` | `android.yml:unit-tests` | ✅ needs JDK 17 + Android SDK | |
 | `assembleDebugAndroidTest` | `android.yml:unit-tests` | ✅ needs JDK 17 + Android SDK | Compiles `tests/instrumented/`. Nothing else does. |
 | `check_native_alignment.py` | `android.yml:unit-tests`, `android.yml:build` | ✅ needs JDK 17 + Android SDK (unit tests run everywhere via `scripts/tests`) | Inspects every `lib/{arm64-v8a,x86_64}/*.so` in `merged_native_libs/debug` and built APK/AAB archives and fails if any ELF `PT_LOAD` segment has `p_align < 16384` (Google Play 16 KB page-size mandate). For `.apk` files it also fails if a stored (uncompressed) `.so` does not start at a 16 KB-aligned zip offset (`zipalign -P 16`); bundles are exempt. The mirror builds and checks the debug APKs like the `build` job. |
@@ -92,6 +92,17 @@ PST_VENV_BIN=/path/to/env/bin ./scripts/run_tests.sh --python          # a machi
 `scripts/tests/test_run_tests_sh.py` proves it against a fake `PATH` that holds a pytest without
 `pytest-cov`.
 
+## Free disk space (mirror only)
+
+Gradle and SwiftPM fill several GB, and under ~5 GB a gate's `✘` is often *No space left on
+device* rather than code. Before the Android, Android-device and macOS Desktop sections the
+mirror checks the free space of the checkout's file system; under `PST_MIN_SPACE_GB` (default
+5) it records one failed gate, `free disk space for the <section> gates`, and skips that
+section. Any other failed gate re-reads the free space and, under the same floor, says the
+failure may be disk. CI runners have no such check; their disk is fresh per job. Gate output
+is never piped, so every tool keeps its terminal. `scripts/tests/test_run_tests_sh.py`
+(`RunTestsDiskSpaceTest`) covers both paths.
+
 ---
 
 ## Why each un-reproducible gate stays un-reproducible
@@ -139,12 +150,16 @@ runner image**. macOS and Windows font rasterisation differs enough to produce f
 so the tests are marked `linux_only` and the local runner reports them SKIPPED off Linux.
 
 Xvfb alone does not make them reproducible on every Linux box. A Debian 13 workstation
-renders the same widgets through a different font build than the pinned `ubuntu-24.04` image, which lands
-around 0.9 % of pixels — just over the 0.5 % `DEFAULT_THRESHOLD` in
-`tests/visual/conftest.py` — on text-heavy baselines. Diffs that size, concentrated on glyph
-edges, are the font stack and not a regression; `tests/visual/diffs/<name>_diff.png` shows
-which. Treat `desktop.yml:visual` as authoritative and re-render baselines only from a CI
-run.
+renders the same widgets through a different font build than the pinned `ubuntu-24.04` image:
+measured 2026-10-24, eight of nine tests differ by 0.9–3.9 % of pixels, all on glyphs and
+emoji, against the 0.5 % `DEFAULT_THRESHOLD` in `tests/visual/conftest.py`. That is the font
+stack, not a regression, so the local runner reports the gate `⊘ SKIPPED` on any host other
+than the image the visual job runs on (`BASELINE_HOST` in `scripts/visual_baseline_host.py`;
+its test checks the job's `runs-on`), naming both hosts.
+`PST_VISUAL_ANY_HOST=1 ./scripts/run_tests.sh` runs it anyway, and
+`tests/visual/diffs/<name>_diff.png` then shows where it differs. Treat `desktop.yml:visual`
+as authoritative and re-render baselines only from a CI run. When the job's `runs-on` image
+changes, update `BASELINE_HOST` in the same commit.
 
 ### macOS native Swift testing and Darwin runner isolation
 
