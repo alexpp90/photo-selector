@@ -157,59 +157,67 @@ private fun SemanticsNode.textLayouts(): List<TextLayoutResult> {
 }
 
 /**
- * Why [layout] does not show its whole text, or null.
+ * [layout]'s text laid out again the way the node drew it: same style, wrap, line limit and
+ * overflow, at the node's final width. The result the semantics action hands out is re-created
+ * from the *incoming* constraints of the last measure, not the size the node settled on, so its
+ * `didOverflowWidth` is true for every short label that fits ("Folder": paragraph 152 px, node
+ * 64 px) and its line count can follow whichever measure pass came last.
+ */
+fun relayout(layout: TextLayoutResult, fontSize: TextUnit? = null): TextLayoutResult {
+    val input = layout.layoutInput
+    return TextMeasurer(input.fontFamilyResolver, input.density, input.layoutDirection, cacheSize = 0).measure(
+        text = input.text,
+        style = if (fontSize == null) input.style else input.style.copy(fontSize = fontSize),
+        overflow = input.overflow,
+        softWrap = input.softWrap,
+        maxLines = input.maxLines,
+        placeholders = input.placeholders,
+        constraints = Constraints(maxWidth = layout.size.width),
+    )
+}
+
+/**
+ * Why the text of [semantic] (a node's semantics layout result) does not show whole, or null.
+ * Measured on [relayout] against the node's size.
  *
- * - Ellipsis and exceeded `maxLines` are read directly, and are allowed only for user data
- *   ([isData]: a file, folder or lens name can be any length); a word of the app's own chrome
- *   is never cut.
- * - Width is the widest line's glyph extent against the node, never `didOverflowWidth`: the
- *   result the semantics action re-creates lays the paragraph out at the incoming maximum width
- *   while the node shrank to the text's intrinsic width, so `didOverflowWidth` is true for every
- *   short label that fits ("Folder": paragraph 152 px, node 64 px, text 64 px).
- * - Height counts a line as lost when its baseline lies below the node: a line box taller than
- *   its node by the leading alone still shows its glyphs.
+ * - Ellipsis and exceeded `maxLines` are allowed only for user data ([isData]: a file, folder or
+ *   lens name can be any length); a word of the app's own chrome is never cut. [autoSizeMin]
+ *   is the smallest step of a step-based auto-sized text, which the semantics report at its
+ *   largest: there an ellipsis counts only if the smallest step is ellipsised too.
+ * - Width: the widest line's glyphs against the node.
+ * - Height: a line is lost when its baseline lies below the node; a line box taller than its
+ *   node by the leading alone still shows its glyphs.
  *
  * Overflows count beyond one pixel.
  */
 fun textOverflow(
-    layout: TextLayoutResult,
+    semantic: TextLayoutResult,
     isData: (String) -> Boolean = { false },
     autoSizeMin: TextUnit? = null,
 ): String? {
+    val layout = relayout(semantic)
+    val node = semantic.size
     val text = layout.layoutInput.text.text
-    val ellipsised = (0 until layout.lineCount).filter { layout.isLineEllipsized(it) }
-    if (autoSizeMin != null && ellipsised.isNotEmpty() && fitsAt(layout, autoSizeMin)) return null
-    val mp = layout.multiParagraph
+    var ellipsised = (0 until layout.lineCount).filter { layout.isLineEllipsized(it) }
+    var exceeded = layout.multiParagraph.didExceedMaxLines
+    if (autoSizeMin != null && (ellipsised.isNotEmpty() || exceeded)) {
+        val smallest = relayout(semantic, autoSizeMin)
+        ellipsised = (0 until smallest.lineCount).filter { smallest.isLineEllipsized(it) }
+        exceeded = smallest.multiParagraph.didExceedMaxLines
+    }
     val widest = (0 until layout.lineCount).maxOfOrNull { layout.getLineRight(it) - layout.getLineLeft(it) } ?: 0f
-    val overW = widest - layout.size.width
-    val lost = (0 until layout.lineCount).firstOrNull { layout.getLineBaseline(it) > layout.size.height + 1f }
+    val overW = widest - node.width
+    val lost = (0 until layout.lineCount).firstOrNull { layout.getLineBaseline(it) > node.height + 1f }
     val why = when {
         ellipsised.isNotEmpty() && !isData(text) -> "ellipsised on line ${ellipsised.first() + 1}"
-        mp.didExceedMaxLines && ellipsised.isEmpty() && !isData(text) ->
+        exceeded && ellipsised.isEmpty() && !isData(text) ->
             "cut after ${layout.layoutInput.maxLines} line(s) with no ellipsis"
         overW > 1f -> "${overW.roundToInt()} px wider than its node"
         lost != null -> "line ${lost + 1} of ${layout.lineCount} has its baseline below the node"
         else -> return null
     }
-    return "\"${text.take(60)}\" $why (lines=${layout.lineCount}, node ${layout.size}, " +
-        "text ${widest.roundToInt()}x${mp.height.roundToInt()} at ${layout.layoutInput.style.fontSize})"
-}
-
-/**
- * True when [layout]'s text fits its node on one line at [fontSize]. A step-based auto-sized
- * text reports its *maximum* size through the semantics action, so an ellipsis read there may
- * be one the auto-size step-down avoids; this measures the smallest step the way it is drawn.
- */
-private fun fitsAt(layout: TextLayoutResult, fontSize: TextUnit): Boolean {
-    val input = layout.layoutInput
-    val measured = TextMeasurer(input.fontFamilyResolver, input.density, input.layoutDirection).measure(
-        text = input.text,
-        style = input.style.copy(fontSize = fontSize),
-        overflow = TextOverflow.Ellipsis,
-        maxLines = 1,
-        constraints = Constraints(maxWidth = layout.size.width),
-    )
-    return !measured.isLineEllipsized(0) && !measured.didOverflowWidth
+    return "\"${text.take(60)}\" $why (lines=${layout.lineCount}, node $node, " +
+        "text ${widest.roundToInt()}x${layout.multiParagraph.height.roundToInt()} at ${layout.layoutInput.style.fontSize})"
 }
 
 /** The soft line breaks of [layout] that fall between two letters or digits. */
@@ -251,7 +259,7 @@ fun collectFitViolations(
         for (layout in node.textLayouts()) {
             val tag = node.config.getOrNull(SemanticsProperties.TestTag)
             textOverflow(layout, policy::isData, policy.autoSizeMin[tag])?.let { add(FitCheck.TEXT_OVERFLOW, node, it) }
-            midWordBreaks(layout).forEach { add(FitCheck.MID_WORD_BREAK, node, "breaks \"$it\"") }
+            midWordBreaks(relayout(layout)).forEach { add(FitCheck.MID_WORD_BREAK, node, "breaks \"$it\"") }
         }
         if (SemanticsProperties.Text in node.config && !node.insideScrollContainer()) {
             val unclipped = node.unclippedBounds()
@@ -321,34 +329,38 @@ data class SharedBounds(val first: Regex, val second: Regex, val requirement: St
 }
 
 /**
- * A ledgered defect the fit matrix reproduces: [matches] picks out its violations. A matrix test
- * fails on every violation no entry matches, and through [knownDefect] on every entry for its
- * screen that no longer reproduces.
+ * A ledgered defect the fit matrix reproduces. It belongs to the matrix tests named in [tests]
+ * (the `screen` each passes to [assertFitsExceptKnown]); within them [screen] narrows it to the
+ * screens/variants it occurs on, and [matches] picks out its violations.
  */
 data class KnownFitDefect(
     val id: String,
-    val screen: Regex,
+    val tests: Set<String>,
     val summary: String,
     /** Where the cause is, as `file:line` in product code. */
     val cause: String,
+    val screen: Regex = Regex(""),
     val matches: (FitViolation) -> Boolean,
-)
+) {
+    fun explains(test: String, v: FitViolation) = test in tests && screen.containsMatchIn(v.screen) && matches(v)
+}
 
 /**
- * Asserts [violations] hold nothing but the [known] defects, and that each known defect for
- * [screen] still reproduces (strict: a fixed defect fails here until its marker is removed).
+ * Asserts [violations] of the matrix test [test] hold nothing but its [known] defects, and that
+ * each of its known defects still reproduces (strict: a fixed defect fails here until its
+ * marker is removed).
  */
-fun assertFitsExceptKnown(screen: String, violations: List<FitViolation>, known: List<KnownFitDefect>) {
-    val unexplained = violations.filter { v -> known.none { it.matches(v) } }
+fun assertFitsExceptKnown(test: String, violations: List<FitViolation>, known: List<KnownFitDefect>) {
+    val unexplained = violations.filter { v -> known.none { it.explains(test, v) } }
     if (unexplained.isNotEmpty()) {
         val grouped = unexplained.groupBy { it.check to "${it.screen} ${it.node}" }.entries.joinToString("\n") { (k, list) ->
             "  ${k.first} ${k.second} at ${list.map { it.cell.label }.distinct().joinToString(",")}: ${list.first().detail}"
         }
-        throw AssertionError("${unexplained.size} fit violation(s) on $screen no known defect explains:\n$grouped")
+        throw AssertionError("${unexplained.size} fit violation(s) on $test no known defect explains:\n$grouped")
     }
-    for (defect in known.filter { it.screen.containsMatchIn(screen) }) {
+    for (defect in known.filter { test in it.tests }) {
         knownDefect(defect.id) {
-            val still = violations.filter(defect.matches)
+            val still = violations.filter { defect.explains(test, it) }
             if (still.isNotEmpty()) throw AssertionError("${defect.id}: ${defect.summary} (${still.size} violations)")
         }
     }

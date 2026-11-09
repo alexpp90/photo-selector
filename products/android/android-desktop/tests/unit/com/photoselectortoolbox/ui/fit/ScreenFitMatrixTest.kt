@@ -128,7 +128,7 @@ class ScreenFitMatrixTest {
         val v = matrix("selector") { cell ->
             SelectorScreen(windowSizeClass = cell.windowSizeClass, viewModel = vm)
         }
-        check("selector", v)
+        check(KnownFitDefects.SELECTOR_FILMSTRIP, v)
     }
 
     @Test
