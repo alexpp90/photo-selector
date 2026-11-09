@@ -10,7 +10,7 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
-from lab.paths import ensure_android_lab_path, ensure_under, repo_root  # noqa: E402
+from lab.paths import ensure_android_lab_path, ensure_under, lab_tmp_root, repo_root  # noqa: E402
 
 
 class TestPaths(unittest.TestCase):
@@ -32,8 +32,8 @@ class TestPaths(unittest.TestCase):
             ensure_under("/tmp/pstlab/../../etc/passwd", "/tmp/pstlab")
 
     def test_ensure_under_rejects_symlink_escape(self) -> None:
-        Path("/tmp/pstlab").mkdir(parents=True, exist_ok=True)
-        base = Path(tempfile.mkdtemp(prefix="test_symlink_guard-", dir="/tmp/pstlab"))  # per process
+        lab_tmp_root().mkdir(parents=True, exist_ok=True)
+        base = Path(tempfile.mkdtemp(prefix="test_symlink_guard-", dir=lab_tmp_root()))  # per process
         self.addCleanup(shutil.rmtree, base, True)
         link = base / "escape_link"
         try:
@@ -42,7 +42,7 @@ class TestPaths(unittest.TestCase):
             with tempfile.TemporaryDirectory() as outside_dir:
                 link.symlink_to(outside_dir)
                 with self.assertRaises(ValueError):
-                    ensure_under(link / "secret.txt", "/tmp/pstlab")
+                    ensure_under(link / "secret.txt", lab_tmp_root())
         finally:
             if link.exists() or link.is_symlink():
                 link.unlink()
@@ -63,6 +63,20 @@ class TestPaths(unittest.TestCase):
         ):
             with self.assertRaises(ValueError):
                 ensure_android_lab_path(bad)
+
+
+class TestScratchDirsUseTheResolver(unittest.TestCase):
+    """/tmp is shared between macOS accounts: a literal /tmp/pstlab scratch dir raises PermissionError there."""
+
+    def test_no_test_makes_a_scratch_dir_under_a_literal_tmp_pstlab(self) -> None:
+        offenders = []
+        for f in sorted(Path(__file__).parent.glob("test_*.py")):
+            if f.name == Path(__file__).name:
+                continue
+            for n, line in enumerate(f.read_text(encoding="utf-8").splitlines(), 1):
+                if ("mkdtemp" in line or "mkdir" in line) and '"/tmp/pstlab' in line:
+                    offenders.append(f"{f.name}:{n}")
+        self.assertEqual(offenders, [], "use lab.paths.lab_tmp_root() for scratch directories")
 
 
 if __name__ == "__main__":

@@ -16,7 +16,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
 from lab.cli import build_parser, main  # noqa: E402
 from lab.model import Node, Tree  # noqa: E402
-from lab.paths import repo_root  # noqa: E402
+from lab.paths import lab_tmp_root, repo_root  # noqa: E402
 from lab.usability import driver as drv  # noqa: E402
 from lab.usability.capture import SUPPORTED_PRODUCTS, load_scenarios, run_capture  # noqa: E402
 from lab.usability.driver import (  # noqa: E402
@@ -69,8 +69,8 @@ from lab.usability.report import (  # noqa: E402
 
 def _scratch(name: str) -> Path:
     """A private folder per run under the lab root; concurrent worktree runs must not collide."""
-    Path("/tmp/pstlab").mkdir(parents=True, exist_ok=True)
-    return Path(tempfile.mkdtemp(prefix=f"{name}_", dir="/tmp/pstlab"))
+    lab_tmp_root().mkdir(parents=True, exist_ok=True)
+    return Path(tempfile.mkdtemp(prefix=f"{name}_", dir=lab_tmp_root()))
 
 
 def _xml(*nodes: str, size: str = "[0,0][1080,1920]") -> str:
@@ -1351,7 +1351,7 @@ class TestMultiProductDrivers(unittest.TestCase):
         cmd, env = calls[0]
         self.assertEqual(cmd[cmd.index("--fixture") + 1], str(self.base / "fx"))
         self.assertEqual(cmd[cmd.index("--text-scaling") + 1], "1.5")
-        self.assertTrue(cmd[cmd.index("--lab-dir") + 1].startswith(str(drv.lab_tmp_root())))
+        self.assertTrue(cmd[cmd.index("--lab-dir") + 1].startswith(str(drv.lab_tmp_root().resolve())))  # /tmp -> /private/tmp on macOS
         self.assertIn(str(repo_root() / "products" / "linux-desktop" / "src"), env["PYTHONPATH"])
         self.assertTrue(env["PST_LAB_PYTHON"])
         script = (out / "session.script").read_text(encoding="utf-8").splitlines()
@@ -2689,7 +2689,7 @@ class TestFixtureRoll(unittest.TestCase):
         w = run_capture("linux", None, out, only=["U-LIN-03"], exec_fn=fake_exec)
         self.assertEqual(w["scenarios"][0]["status"], "broken")  # the fake wrote no checkpoint
         self.assertIn("was not written", w["scenarios"][0]["error"])
-        self.assertTrue(str(seen[0]).startswith(str(self.base / "lab")))
+        self.assertTrue(str(seen[0]).startswith(str((self.base / "lab").resolve())))
         self.assertFalse(seen[0].exists(), "the working copy is removed after the walk")
         from lab.usability.capture import master_roll
 

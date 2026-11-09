@@ -100,7 +100,8 @@ GIT_ENV = {
 
 class RunTestsPythonEnvironmentTest(unittest.TestCase):
     def setUp(self):
-        self.tmp = Path(tempfile.mkdtemp(prefix="pst-run-tests-"))
+        # resolve(): macOS /tmp is a symlink to /private/tmp, and git reports the physical path
+        self.tmp = Path(tempfile.mkdtemp(prefix="pst-run-tests-")).resolve()
         self.addCleanup(shutil.rmtree, self.tmp, ignore_errors=True)
         self.fakebin = self.tmp / "fakebin"
         self.log = self.tmp / "poetry.log"
