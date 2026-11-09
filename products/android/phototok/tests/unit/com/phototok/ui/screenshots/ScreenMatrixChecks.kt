@@ -55,6 +55,11 @@ fun List<SemanticsNode>.visibleContent(): List<SemanticsNode> = filter {
         it.boundsInWindow.width > 0.5f && it.boundsInWindow.height > 0.5f
 }
 
+/** Nodes with text or a click and a laid-out size, on screen or not. */
+fun List<SemanticsNode>.laidOutContent(): List<SemanticsNode> = filter {
+    (it.visibleText() != null || it.config.contains(SemanticsActions.OnClick)) && it.size.width > 0 && it.size.height > 0
+}
+
 /** True when the two rectangles share more than a one-pixel seam. */
 fun Rect.overlapsBeyondSeam(other: Rect, seam: Float = 1f): Boolean {
     val i = intersect(other)
@@ -86,8 +91,14 @@ fun SemanticsNode.unclippedBounds(): Rect = Rect(positionInWindow, androidx.comp
  * window and would hide exactly this defect; nodes wholly off screen (a pager's neighbour pages)
  * are not content the user sees.
  */
-fun outside(nodes: List<SemanticsNode>, screen: Rect, vertical: Boolean = true): List<String> =
-    nodes.visibleContent().mapNotNull {
+fun outside(
+    nodes: List<SemanticsNode>,
+    screen: Rect,
+    vertical: Boolean = true,
+    /** True for layers that have no off-screen pages: a control pushed wholly off screen is a defect there. */
+    includeWhollyOffscreen: Boolean = false,
+): List<String> =
+    (if (includeWhollyOffscreen) nodes.laidOutContent() else nodes.visibleContent()).mapNotNull {
         val b = it.unclippedBounds()
         val h = b.left < screen.left - 1f || b.right > screen.right + 1f
         val v = vertical && (b.top < screen.top - 1f || b.bottom > screen.bottom + 1f)

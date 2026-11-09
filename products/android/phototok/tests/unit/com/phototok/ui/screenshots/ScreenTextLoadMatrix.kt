@@ -158,7 +158,8 @@ abstract class ScreenTextLoadMatrix {
             assertTrue("[$cell] the info panel is shown", panel.isNotEmpty())
             broken.add(cell, brokenWords(panel + rule.nodesUnder("viewer_bottom_bar") + rule.nodesUnder("phone_top_bar")))
             targets.add(cell, smallTargets(barControls(), density))
-            off.add(cell, outside(barControls() + panel, screen))
+            off.add(cell, outside(barControls(), screen, includeWhollyOffscreen = true))
+            off.add(cell, outside(panel, screen))
             covered.add(cell, overlaps(panel.visibleContent(), barControls() + rule.nodesUnder("viewer.counter")))
             truncated.add(cell, clippedTexts(panel))
             val fileNames = PhoneScreenHarness.PHOTOS.map { it.fileName }.toSet()
@@ -174,20 +175,39 @@ abstract class ScreenTextLoadMatrix {
 
     @Test
     @Requirement("REQ-TOK-UX.05", "REQ-TOK-GESTURE.07")
-    fun controlsGuideOnTheFeed_fits() {
+    fun controlsGuideOnTheFeed_fits() = guideFits(firstRun = false)
+
+    /** F-TOK-002/-012: the first-run tutorial (the same overlay with its GOT IT button) at every size. */
+    @Test
+    @Requirement("REQ-TOK-UX.05", "REQ-TOK-GESTURE.08")
+    fun firstRunTutorialOnTheFeed_fits() = guideFits(firstRun = true)
+
+    private fun guideFits(firstRun: Boolean) {
+        if (firstRun) harness.gestureTutorialTs = 0L
         feed()
-        rule.runOnUiThread { harness.viewModel.showControlsGuide() }
+        if (firstRun) {
+            rule.waitUntil(5_000) { harness.viewModel.uiState.value.showGestureTutorial }
+        } else {
+            rule.runOnUiThread { harness.viewModel.showControlsGuide() }
+        }
         rule.waitForIdle()
-        val off = Findings("controls guide: callout off screen sideways")
+        // F-TOK-002/-012: the guide does not scroll, so a callout cut off at a small window is lost.
+        val off = Findings("controls guide (F-TOK-002): callout off screen")
         val unreadable = Findings("controls guide (F-TOK-029): callouts truncated or overlapping")
         walk { cell ->
-            rule.saveScreenshot("controls_guide_feed_$size", host.current)
+            rule.saveScreenshot((if (firstRun) "first_run_tutorial_" else "controls_guide_feed_") + size, host.current)
+            if (firstRun) {
+                val gotIt = rule.nodesUnder("gesture_tutorial_got_it")
+                assertTrue("[$cell] GOT IT is shown", gotIt.isNotEmpty())
+                off.add(cell, outside(gotIt, screen, includeWhollyOffscreen = true))
+                off.add(cell, smallTargets(gotIt, density))
+            }
             val callouts = rule.allNodes().filter { node ->
                 node.config.getOrNull(androidx.compose.ui.semantics.SemanticsProperties.TestTag)
                     ?.startsWith("guide_callout_") == true
             }
             assertTrue("[$cell] the guide shows callouts", callouts.size >= 6)
-            off.add(cell, outside(callouts.flatMap { c -> rule.allNodes().filter { it.isUnder(c.config[androidx.compose.ui.semantics.SemanticsProperties.TestTag]) } }, screen, vertical = false))
+            off.add(cell, outside(callouts.flatMap { c -> rule.allNodes().filter { it.isUnder(c.config[androidx.compose.ui.semantics.SemanticsProperties.TestTag]) } } + rule.nodesUnder("controls_guide").clickables(), screen, includeWhollyOffscreen = true))
             unreadable.add(cell, callouts.flatMap { c -> clippedTexts(rule.nodesUnder(c.config[androidx.compose.ui.semantics.SemanticsProperties.TestTag])) })
             unreadable.add(cell, callouts.flatMapIndexed { i, a -> overlaps(listOf(a), callouts.drop(i + 1)) })
             unreadable.add(cell, overlaps(callouts, barControls()))
@@ -213,7 +233,7 @@ abstract class ScreenTextLoadMatrix {
             val snackbar = rule.nodesUnder("feed_snackbar_host").visibleContent()
             assertTrue("[$cell] the snackbar is shown", snackbar.isNotEmpty())
             covered.add(cell, overlaps(snackbar, barControls()))
-            off.add(cell, outside(snackbar, screen))
+            off.add(cell, outside(rule.nodesUnder("feed_snackbar_host"), screen, includeWhollyOffscreen = true))
             clipped.add(cell, clippedTexts(rule.nodesUnder("feed_snackbar_host")))
             clipped.add(cell, brokenWords(rule.nodesUnder("feed_snackbar_host")))
         }
@@ -235,7 +255,7 @@ abstract class ScreenTextLoadMatrix {
             val card = rule.nodesUnder("first_run_hint")
             assertTrue("[$cell] the hint card is shown", card.isNotEmpty())
             covered.add(cell, overlaps(card.visibleContent(), barControls()))
-            off.add(cell, outside(card, screen))
+            off.add(cell, outside(card, screen, includeWhollyOffscreen = true))
             clipped.add(cell, clippedTexts(card))
             clipped.add(cell, brokenWords(card))
             targets.add(cell, smallTargets(card, density))
@@ -354,7 +374,7 @@ abstract class ScreenTextLoadMatrix {
             targets.add(cell, smallTargets(rule.allNodes(), density))
             clipped.add(cell, clippedTexts(rule.allNodes()))
             clipped.add(cell, brokenWords(rule.allNodes()))
-            off.add(cell, outside(rule.allNodes(), screen))
+            off.add(cell, outside(rule.allNodes(), screen, includeWhollyOffscreen = true))
         }
         listOf(targets, clipped, off).forEach { it.assertNone() }
     }
