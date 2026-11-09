@@ -97,6 +97,7 @@ class FitSelectorSettings(
         every { pendingDeleteJournal } returns MutableStateFlow<Set<String>>(emptySet())
         coEvery { markHintSeen(any()) } answers { val s = this@FitSelectorSettings.seenHints; s.value = s.value + firstArg<SelectorHint>() }
         coEvery { setHasSeenNavHint(any()) } answers { navHintSeenFlow.value = firstArg() }
+        coEvery { setHasSeenFullscreenGestureHint(any()) } answers { fullscreenHintSeenFlow.value = firstArg() }
     }
 }
 
