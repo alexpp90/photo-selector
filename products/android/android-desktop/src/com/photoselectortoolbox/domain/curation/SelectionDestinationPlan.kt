@@ -106,11 +106,12 @@ data class SelectionDestinationPlan(
         ): SelectionDestinationPlan {
             val custom = settings.customUri
             if (custom != null) {
+                val secondPass = openedFolder != null && isCustomParentOfOpenedSelection(custom, openedFolder, settings)
                 return SelectionDestinationPlan(
                     mode = DestinationMode.CUSTOM,
-                    rootUri = custom,
-                    folderName = settings.selectionName,
-                    isSecondPass = false,
+                    rootUri = if (secondPass) openedFolder.uri else custom,
+                    folderName = if (secondPass) settings.secondPassName else settings.selectionName,
+                    isSecondPass = secondPass,
                     sortsIntoRawAndJpeg = settings.sortingEnabled,
                     problem = if (customReachable) null else DestinationProblem.CUSTOM_FOLDER_UNREACHABLE,
                 )
@@ -123,6 +124,18 @@ data class SelectionDestinationPlan(
                 isSecondPass = secondPass,
                 sortsIntoRawAndJpeg = settings.sortingEnabled,
             )
+        }
+
+        private fun isCustomParentOfOpenedSelection(
+            customUri: String,
+            openedFolder: OpenedFolder,
+            settings: DestinationSettings,
+        ): Boolean {
+            if (!isSelectionFolder(openedFolder, settings)) return false
+            val normCustom = customUri.replace("%2F", "/").replace("%2f", "/").trimEnd('/')
+            val normOpened = openedFolder.uri.replace("%2F", "/").replace("%2f", "/").trimEnd('/')
+            val expectedChild = "$normCustom/${settings.selectionName}"
+            return normOpened.equals(expectedChild, ignoreCase = true) || normOpened.equals(normCustom, ignoreCase = true)
         }
 
         /** Whether [folder] is itself a Selection folder: by name (case-insensitively) or by its marker. */

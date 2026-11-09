@@ -291,8 +291,11 @@ class WindowGeometryRule(
             waitUntil("the display leaves the reference size", timeoutMillis = 5_000, fatal = false) {
                 (displayDp()?.first ?: 0) < REFERENCE_MIN_WIDTH_DP
             }
-            Thread.sleep(1_500)
+            Thread.sleep(200)
             repeat(4) {
+                if (naturalPortrait && (original.userRotation == "null" || original.userRotation == "-" || original.userRotation.isEmpty())) {
+                    shell("settings put system user_rotation 0")
+                }
                 putOrDelete("user_rotation", original.userRotation)
                 putOrDelete("accelerometer_rotation", original.accelerometerRotation)
                 waitUntil("the display returns to its previous size", timeoutMillis = 3_000, fatal = false) {

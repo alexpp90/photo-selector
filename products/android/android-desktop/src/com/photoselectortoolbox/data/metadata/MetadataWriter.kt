@@ -56,11 +56,12 @@ interface MetadataWriter {
 
 @Singleton
 class MetadataWriterImpl internal constructor(
-    private val validateJpegBounds: (File) -> Boolean
+    private val validateJpegBounds: (File) -> Boolean,
+    private val ioDispatcher: kotlinx.coroutines.CoroutineDispatcher = Dispatchers.IO,
 ) : MetadataWriter {
 
     @Inject
-    constructor() : this(Companion::defaultValidateJpegBounds)
+    constructor() : this(Companion::defaultValidateJpegBounds, Dispatchers.IO)
 
     companion object {
         private const val TAG = "MetadataWriter"
@@ -79,7 +80,7 @@ class MetadataWriterImpl internal constructor(
         uriMutexes.computeIfAbsent(key) { Mutex() }
 
     override suspend fun writeRating(context: Context, imageUri: Uri, rating: Int): Result<Unit> =
-        withContext(Dispatchers.IO) {
+        withContext(ioDispatcher) {
             val directFile = when {
                 imageUri.scheme == "file" -> imageUri.path?.let { File(it) }
                 imageUri.scheme == null && imageUri.path != null -> File(imageUri.path!!)
@@ -103,7 +104,7 @@ class MetadataWriterImpl internal constructor(
         }
 
     override suspend fun recoverInterruptedWrites(context: Context, folderUri: Uri): RatingRecovery =
-        withContext(Dispatchers.IO) {
+        withContext(ioDispatcher) {
             try {
                 SafRatingWriter(context, validateJpegBounds).recover(folderUri) { photoUri, block ->
                     mutexFor(photoUri.toString()).withLock { block() }
@@ -117,7 +118,7 @@ class MetadataWriterImpl internal constructor(
         }
 
     override suspend fun writeRating(imageFile: File, rating: Int): Result<Unit> =
-        withContext(Dispatchers.IO) {
+        withContext(ioDispatcher) {
             mutexFor(imageFile.absolutePath).withLock {
                 try {
                     if (!imageFile.exists()) {

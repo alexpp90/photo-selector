@@ -1,6 +1,7 @@
 package com.photoselectortoolbox.ui.statistics
 
 import android.net.Uri
+import com.photoselectortoolbox.ui.selector.SelectorSnackbarHost
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.layout.Arrangement
@@ -105,6 +106,12 @@ fun StatisticsScreen(
                 }
             }
         }
+        SelectorSnackbarHost(
+            message = uiState.error,
+            onUndo = null,
+            onDismiss = viewModel::clearError,
+            sidebarInset = 0.dp,
+        )
     }
 }
 

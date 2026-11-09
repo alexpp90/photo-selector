@@ -92,7 +92,7 @@ class PhotoBitmapDecoder @Inject constructor(
      * otherwise.
      */
     fun containerDimensions(uri: Uri, fileName: String): ImageDimensions {
-        if (!ImageFormats.isRaw(fileName)) return ImageDimensions.UNKNOWN
+        if (!ImageFormats.isRaw(fileName) && !ImageFormats.isTiff(fileName)) return ImageDimensions.UNKNOWN
         return try {
             context.contentResolver.openFileDescriptor(uri, "r")?.use { pfd ->
                 // The stream is not closed on purpose: the descriptor belongs to `pfd`.

@@ -1213,7 +1213,14 @@ class SelectorViewModel @Inject constructor(
 
     // ── Scanning, grouping, and the queue between them ───────────────────
 
-    fun startScan(forceCloudScan: Boolean = false) {
+    private var pendingScanConfig: com.photoselectortoolbox.domain.usecase.ScanConfig =
+        com.photoselectortoolbox.domain.usecase.ScanConfig()
+
+    fun startScan(
+        config: com.photoselectortoolbox.domain.usecase.ScanConfig = com.photoselectortoolbox.domain.usecase.ScanConfig(),
+        forceCloudScan: Boolean = false,
+    ) {
+        pendingScanConfig = config
         val state = _uiState.value
         if (state.images.isEmpty()) return
         if (!forceCloudScan && state.sourceKind.isCloudProvider) {
@@ -1225,7 +1232,7 @@ class SelectorViewModel @Inject constructor(
 
     fun confirmCloudScan() {
         _uiState.update { it.copy(showCloudScanConfirmation = false) }
-        startScan(forceCloudScan = true)
+        startScan(config = pendingScanConfig, forceCloudScan = true)
     }
 
     fun dismissCloudScanConfirmation() {
@@ -1312,7 +1319,7 @@ class SelectorViewModel @Inject constructor(
 
             var analysed = 0
             try {
-                scanImagesUseCase(images).collect { progress ->
+                scanImagesUseCase(images, pendingScanConfig).collect { progress ->
                     val fraction = if (progress.total > 0) {
                         progress.processed.toFloat() / progress.total.toFloat()
                     } else {
@@ -1599,6 +1606,8 @@ class SelectorViewModel @Inject constructor(
                 try {
                     if (!imageRepository.deleteImage(context, Uri.parse(uri))) {
                         failures += recoveredName(uri) to null
+                    } else {
+                        cacheRepository.forgetDeletedFile(uri)
                     }
                 } catch (e: CancellationException) {
                     throw e
@@ -2567,6 +2576,35 @@ class SelectorViewModel @Inject constructor(
         super.onCleared()
         commitAllPendingDeletions()
         cancelAllPrefetch()
+    }
+
+    suspend fun getTechniqueFacts(uris: List<String>): Map<String, List<com.photoselectortoolbox.data.cache.TechniqueFactEntity>> =
+        withContext(ioDispatcher) {
+            uris.chunked(ScoreDao.SQLITE_MAX_BIND_PARAMS).flatMap { chunk ->
+                chunk.flatMap { uri -> scoreDao.getTechniqueFactsForUri(uri) }
+            }.groupBy { it.uri }
+        }
+
+    suspend fun loadCompletedLessons(): Map<String, com.photoselectortoolbox.data.cache.LessonProgressEntity> =
+        withContext(ioDispatcher) {
+            scoreDao.getAllLessonProgress().associateBy { it.lessonId }
+        }
+
+    suspend fun saveLessonProgress(progress: com.photoselectortoolbox.data.cache.LessonProgressEntity) {
+        withContext(ioDispatcher) {
+            scoreDao.upsertLessonProgress(progress)
+        }
+    }
+
+    suspend fun loadActivePracticeGoal(): com.photoselectortoolbox.data.cache.PracticeGoalEntity? =
+        withContext(ioDispatcher) {
+            scoreDao.getAllPracticeGoals().firstOrNull()
+        }
+
+    suspend fun savePracticeGoal(goal: com.photoselectortoolbox.data.cache.PracticeGoalEntity) {
+        withContext(ioDispatcher) {
+            scoreDao.upsertPracticeGoal(goal)
+        }
     }
 
     companion object {

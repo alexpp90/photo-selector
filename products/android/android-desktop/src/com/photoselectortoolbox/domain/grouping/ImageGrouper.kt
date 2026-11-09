@@ -44,7 +44,8 @@ enum class GroupingLevel(
  * Ported from the desktop Python implementation with three grouping levels.
  */
 class ImageGrouper @Inject constructor(
-    @ApplicationContext private val context: Context
+    @ApplicationContext private val context: Context,
+    private val ioDispatcher: kotlinx.coroutines.CoroutineDispatcher = Dispatchers.IO,
 ) {
 
     private val bitmapDecoder = PhotoBitmapDecoder(context)
@@ -85,7 +86,7 @@ class ImageGrouper @Inject constructor(
     suspend fun groupImages(
         images: List<ImageItem>,
         level: GroupingLevel
-    ): List<List<ImageItem>> = withContext(Dispatchers.IO) {
+    ): List<List<ImageItem>> = withContext(ioDispatcher) {
         if (images.isEmpty()) return@withContext emptyList()
 
         // Clear per-run dHash cache to avoid stale entries

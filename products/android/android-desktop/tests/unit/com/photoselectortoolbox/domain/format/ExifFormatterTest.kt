@@ -13,6 +13,7 @@ class ExifFormatterTest {
     @Test
     fun `fractional exposures render as a fraction`() {
         assertEquals("1/250s", ExifFormatter.shutterSpeed(1.0 / 250.0))
+        assertEquals("1/250s", ExifFormatter.shutterSpeed(0.004000000000000001))
         assertEquals("1/8000s", ExifFormatter.shutterSpeed(1.0 / 8000.0))
     }
 

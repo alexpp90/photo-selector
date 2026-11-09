@@ -65,6 +65,7 @@ class ScanImagesUseCase @Inject constructor(
      */
     operator fun invoke(
         images: List<ImageItem>,
+        config: ScanConfig = ScanConfig(),
     ): Flow<ScanProgress> = channelFlow {
         val results = mutableMapOf<String, ScanResult>()
 
@@ -133,7 +134,7 @@ class ScanImagesUseCase @Inject constructor(
                     }
 
                     // Compute scores
-                    val scanResult = analyzeImage(image)
+                    val scanResult = analyzeImage(image, config)
                     if (scanResult != null) {
                         cacheResult(image, scanResult)
                     }
@@ -192,6 +193,7 @@ class ScanImagesUseCase @Inject constructor(
      */
     private suspend fun analyzeImage(
         image: ImageItem,
+        config: ScanConfig = ScanConfig(),
     ): ScanResult? = coroutineScope {
         val uri = Uri.parse(image.uri)
 
@@ -202,36 +204,43 @@ class ScanImagesUseCase @Inject constructor(
             ?: return@coroutineScope null
 
         try {
-            // Run sharpness and noise in parallel
-            val sharpnessDeferred = async(Dispatchers.Default) {
-                try {
-                    sharpnessAnalyzer.analyze(bitmap)
-                } catch (e: Exception) {
-                    null
+            // Run sharpness and noise in parallel if requested
+            val sharpnessDeferred = if (config.sharpness) {
+                async(Dispatchers.Default) {
+                    try {
+                        sharpnessAnalyzer.analyze(bitmap)
+                    } catch (e: Exception) {
+                        null
+                    }
                 }
-            }
+            } else null
 
-            val noiseDeferred = async(Dispatchers.Default) {
-                try {
-                    noiseAnalyzer.analyze(bitmap)
-                } catch (e: Exception) {
-                    null
+            val noiseDeferred = if (config.noise) {
+                async(Dispatchers.Default) {
+                    try {
+                        noiseAnalyzer.analyze(bitmap)
+                    } catch (e: Exception) {
+                        null
+                    }
                 }
-            }
+            } else null
 
             // Combined clipping analysis: single bitmap→Mat + grayscale conversion
-            val clippingDeferred = async(Dispatchers.Default) {
-                try {
-                    clippingAnalyzer.analyzeClipping(bitmap)
-                } catch (e: Exception) {
-                    null
+            val clippingDeferred = if (config.highlightClipping || config.shadowClipping) {
+                async(Dispatchers.Default) {
+                    try {
+                        clippingAnalyzer.analyzeClipping(bitmap)
+                    } catch (e: Exception) {
+                        null
+                    }
                 }
-            }
+            } else null
 
-            val clippingResult = clippingDeferred.await()
-            val sharpness = sharpnessDeferred.await()
-
-            val noise = noiseDeferred.await()
+            val clippingResult = clippingDeferred?.await()
+            val sharpness = sharpnessDeferred?.await()
+            val noise = noiseDeferred?.await()
+            val highlightClipping = if (config.highlightClipping) clippingResult?.first else null
+            val shadowClipping = if (config.shadowClipping) clippingResult?.second else null
 
             try {
                 val sampleW = bitmap.width.coerceIn(1, 64)
@@ -268,12 +277,12 @@ class ScanImagesUseCase @Inject constructor(
                     exif = image.exifData,
                     luma = luma,
                     rgbPixels = rgb,
-                    width = if (luma != null) sampleW else (image.imageWidth ?: 0),
-                    height = if (luma != null) sampleH else (image.imageHeight ?: 0),
+                    width = image.imageWidth ?: bitmap.width,
+                    height = image.imageHeight ?: bitmap.height,
                     sharpnessScore = sharpness,
                     noiseLevel = noise,
-                    highlightClipping = clippingResult?.first,
-                    shadowClipping = clippingResult?.second,
+                    highlightClipping = highlightClipping,
+                    shadowClipping = shadowClipping,
                     isRawOrHasRawCompanion = isRaw,
                 )
                 if (facts.isNotEmpty()) {
@@ -287,8 +296,8 @@ class ScanImagesUseCase @Inject constructor(
                 filePath = image.uri,
                 sharpnessScore = sharpness,
                 noiseLevel = noise,
-                highlightClipping = clippingResult?.first,
-                shadowClipping = clippingResult?.second,
+                highlightClipping = highlightClipping,
+                shadowClipping = shadowClipping,
                 aestheticScore = null
             )
         } finally {

@@ -166,5 +166,42 @@ class ScanImagesUseCaseTest {
         assertEquals(listOf(900, 900, 700), getScoresChunkSizes)
         assertEquals(listOf(900, 900, 700), updateAccessChunkSizes)
     }
+
+    @Test
+    fun scanConfigSkipsDisabledAnalyzers() = runBlocking {
+        val sharpnessAnalyzer = mockk<SharpnessAnalyzer>()
+        val noiseAnalyzer = mockk<NoiseAnalyzer>()
+        val clippingAnalyzer = mockk<ClippingAnalyzer>()
+        val scoreDao = mockk<ScoreDao>(relaxed = true)
+        val settingsRepository = mockk<SettingsRepository>()
+        val bitmapDecoder = mockk<com.photoselectortoolbox.data.source.PhotoBitmapDecoder>()
+        val mockBitmap = mockk<android.graphics.Bitmap>(relaxed = true)
+
+        every { bitmapDecoder.decodeForAnalysis(any(), any()) } returns mockBitmap
+        every { settingsRepository.analysisThreadCount } returns flowOf(1)
+        coEvery { scoreDao.getScores(any()) } returns emptyList()
+
+        val images = listOf(
+            ImageItem("content://media/external/images/media/1", "img1.jpg", 100L, 1000L, "image/jpeg")
+        )
+
+        val useCase = ScanImagesUseCase(
+            sharpnessAnalyzer, noiseAnalyzer, clippingAnalyzer,
+            scoreDao, settingsRepository, bitmapDecoder
+        )
+
+        val config = ScanConfig(sharpness = false, noise = false, highlightClipping = false, shadowClipping = false)
+        val progress = useCase(images, config).toList().last()
+        val result = progress.results["content://media/external/images/media/1"]
+        org.junit.Assert.assertNotNull(result)
+        org.junit.Assert.assertNull(result?.sharpnessScore)
+        org.junit.Assert.assertNull(result?.noiseLevel)
+        org.junit.Assert.assertNull(result?.highlightClipping)
+        org.junit.Assert.assertNull(result?.shadowClipping)
+
+        verify(exactly = 0) { sharpnessAnalyzer.analyze(any(), any()) }
+        verify(exactly = 0) { noiseAnalyzer.analyze(any()) }
+        verify(exactly = 0) { clippingAnalyzer.analyzeClipping(any()) }
+    }
 }
 

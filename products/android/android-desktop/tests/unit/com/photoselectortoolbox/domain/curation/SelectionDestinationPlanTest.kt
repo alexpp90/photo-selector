@@ -81,6 +81,25 @@ class SelectionDestinationPlanTest {
     }
 
     @Test
+    fun `a custom destination whose Selection subfolder is opened applies second pass`() {
+        val settings = DestinationSettings(
+            customDestinationUri = backup,
+            selectionFolderName = "Selection",
+            secondPassFolderName = "Final",
+        )
+        val openedSelection = OpenedFolder(
+            uri = "$backup%2FSelection",
+            name = "Selection",
+            hasSelectionMarker = true,
+        )
+        val plan = SelectionDestinationPlan.resolve(settings, openedSelection)
+        assertEquals(DestinationMode.CUSTOM, plan.mode)
+        assertEquals("$backup%2FSelection", plan.rootUri)
+        assertEquals("Final", plan.folderName)
+        assertTrue(plan.isSecondPass)
+    }
+
+    @Test
     fun `sorting only decides the RAW and JPEG subfolders`() {
         listOf(true, false).forEach { sorting ->
             val working = SelectionDestinationPlan.resolve(DestinationSettings(sortingEnabled = sorting), OpenedFolder(trip))

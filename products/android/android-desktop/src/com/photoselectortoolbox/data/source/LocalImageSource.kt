@@ -215,7 +215,23 @@ class LocalImageSourceImpl @Inject constructor(
             context.contentResolver.openInputStream(uri)?.use { stream ->
                 BitmapFactory.decodeStream(stream, null, opts)
             }
-            val dimensions = ImageDimensions.of(opts.outWidth, opts.outHeight)
+            val dimensions = if (opts.outWidth > 0 && opts.outHeight > 0) {
+                val orientation = runCatching {
+                    context.contentResolver.openInputStream(uri)?.use { s ->
+                        androidx.exifinterface.media.ExifInterface(s).getAttributeInt(
+                            androidx.exifinterface.media.ExifInterface.TAG_ORIENTATION,
+                            androidx.exifinterface.media.ExifInterface.ORIENTATION_NORMAL
+                        )
+                    }
+                }.getOrNull() ?: androidx.exifinterface.media.ExifInterface.ORIENTATION_NORMAL
+                if (orientation in 5..8) {
+                    ImageDimensions.of(opts.outHeight, opts.outWidth)
+                } else {
+                    ImageDimensions.of(opts.outWidth, opts.outHeight)
+                }
+            } else {
+                ImageDimensions.UNKNOWN
+            }
             if (dimensions != ImageDimensions.UNKNOWN) {
                 dimensions
             } else {

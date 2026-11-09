@@ -17,7 +17,7 @@ object ExifFormatter {
     /** `1/250s` for fractional exposures, `2.0s` for long ones. */
     fun shutterSpeed(speed: Double): String = when {
         speed <= 0.0 -> "—"
-        speed < 1.0 -> "1/${(1.0 / speed).toInt()}s"
+        speed < 1.0 -> "1/${kotlin.math.round(1.0 / speed).toInt()}s"
         else -> String.format(Locale.US, "%.1fs", speed)
     }
 

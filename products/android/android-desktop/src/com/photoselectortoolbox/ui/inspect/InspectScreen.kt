@@ -51,7 +51,9 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
+import kotlinx.coroutines.launch
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -220,6 +222,19 @@ fun InspectScreen(
 ) {
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
     val currentImage = uiState.currentImage
+    var factsByUri by remember { mutableStateOf<Map<String, List<TechniqueFactEntity>>>(emptyMap()) }
+    var completedLessons by remember { mutableStateOf<Map<String, LessonProgressEntity>>(emptyMap()) }
+    var activePracticeGoal by remember { mutableStateOf<PracticeGoalEntity?>(null) }
+    val scope = rememberCoroutineScope()
+
+    LaunchedEffect(uiState.images) {
+        val uris = uiState.images.map { it.uri }
+        if (uris.isNotEmpty()) {
+            factsByUri = viewModel.getTechniqueFacts(uris)
+        }
+        completedLessons = viewModel.loadCompletedLessons()
+        activePracticeGoal = viewModel.loadActivePracticeGoal()
+    }
 
     InspectScreenContent(
         currentImage = currentImage,
@@ -242,6 +257,17 @@ fun InspectScreen(
         ratingFilter = uiState.ratingFilter,
         onRatingFilterSelected = { filter -> viewModel.setRatingFilter(filter) },
         photoCoachEngine = photoCoachEngine,
+        factsByUri = factsByUri,
+        initialCompletedLessons = completedLessons,
+        initialActivePracticeGoal = activePracticeGoal,
+        onLessonCompleted = { progress ->
+            completedLessons = completedLessons + (progress.lessonId to progress)
+            scope.launch { viewModel.saveLessonProgress(progress) }
+        },
+        onSetPracticeGoal = { goal ->
+            activePracticeGoal = goal
+            scope.launch { viewModel.savePracticeGoal(goal) }
+        },
     )
 }
 
@@ -262,6 +288,10 @@ internal fun InspectScreenContent(
     photoCoachEngine: PhotoCoachEngine = remember { PhotoCoachEngineImpl() },
     compositionResult: CompositionResult? = null,
     factsByUri: Map<String, List<TechniqueFactEntity>> = emptyMap(),
+    initialCompletedLessons: Map<String, LessonProgressEntity> = emptyMap(),
+    initialActivePracticeGoal: PracticeGoalEntity? = null,
+    onLessonCompleted: (LessonProgressEntity) -> Unit = {},
+    onSetPracticeGoal: (PracticeGoalEntity) -> Unit = {},
 ) {
     val focusRequester = remember { FocusRequester() }
 
@@ -279,8 +309,8 @@ internal fun InspectScreenContent(
     var guessRevealedForUri by remember { mutableStateOf<String?>(null) }
     var whatIfCropActive by remember { mutableStateOf(false) }
     var selectedCropAspect by remember { mutableStateOf<CropAspectRatio?>(null) }
-    var completedLessons by remember { mutableStateOf<Map<String, LessonProgressEntity>>(emptyMap()) }
-    var activePracticeGoal by remember { mutableStateOf<PracticeGoalEntity?>(null) }
+    var completedLessons by remember(initialCompletedLessons) { mutableStateOf(initialCompletedLessons) }
+    var activePracticeGoal by remember(initialActivePracticeGoal) { mutableStateOf(initialActivePracticeGoal) }
 
     val isCompact = windowSizeClass.widthSizeClass == WindowWidthSizeClass.Compact
 
@@ -468,13 +498,16 @@ internal fun InspectScreenContent(
                         completedLessons = completedLessons,
                         onLessonCompleted = { progress ->
                             completedLessons = completedLessons + (progress.lessonId to progress)
+                            onLessonCompleted(progress)
                         },
                         onSetPracticeGoal = { lessonId ->
-                            activePracticeGoal = PracticeAndInsightsEngine.createPracticeGoal(
+                            val goal = PracticeAndInsightsEngine.createPracticeGoal(
                                 lessonId = lessonId,
                                 images = images,
                                 factsByUri = factsByUri,
                             )
+                            activePracticeGoal = goal
+                            onSetPracticeGoal(goal)
                             selectedTab = LearnTab.PRACTICE
                         },
                     )
@@ -490,11 +523,13 @@ internal fun InspectScreenContent(
                         factsByUri = factsByUri,
                         activePracticeGoal = activePracticeGoal,
                         onSelectLessonForGoal = { lessonId ->
-                            activePracticeGoal = PracticeAndInsightsEngine.createPracticeGoal(
+                            val goal = PracticeAndInsightsEngine.createPracticeGoal(
                                 lessonId = lessonId,
                                 images = images,
                                 factsByUri = factsByUri,
                             )
+                            activePracticeGoal = goal
+                            onSetPracticeGoal(goal)
                         },
                         onOpenLesson = { lessonId ->
                             selectedLessonId = lessonId

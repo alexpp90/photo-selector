@@ -1,6 +1,7 @@
 package com.photoselectortoolbox.ui.duplicates
 
 import com.photoselectortoolbox.ui.components.handCursor
+import com.photoselectortoolbox.ui.selector.SelectorSnackbarHost
 import android.net.Uri
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
@@ -248,6 +249,12 @@ fun DuplicatesScreen(
                 }
             }
         }
+        SelectorSnackbarHost(
+            message = uiState.error,
+            onUndo = null,
+            onDismiss = viewModel::clearError,
+            sidebarInset = 0.dp,
+        )
     }
 }
 

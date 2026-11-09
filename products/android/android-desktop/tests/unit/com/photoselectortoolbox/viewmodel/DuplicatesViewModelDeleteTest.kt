@@ -40,6 +40,7 @@ class DuplicatesViewModelDeleteTest {
     private val repository = mockk<ImageRepository>(relaxed = true)
     private val useCase = mockk<FindDuplicatesUseCase>()
     private val context = mockk<Context>(relaxed = true)
+    private val cacheRepository = mockk<com.photoselectortoolbox.data.repository.CacheRepository>(relaxed = true)
 
     private fun photo(name: String, vararg companions: String) = ImageItem(
         uri = "content://test/$name",
@@ -72,7 +73,7 @@ class DuplicatesViewModelDeleteTest {
     }
 
     private fun scanned(): DuplicatesViewModel {
-        val viewModel = DuplicatesViewModel(useCase, repository, context)
+        val viewModel = DuplicatesViewModel(useCase, repository, context, cacheRepository)
         viewModel.selectFolder(Uri.parse("content://test/folder"))
         viewModel.startScan()
         return viewModel
@@ -98,6 +99,8 @@ class DuplicatesViewModelDeleteTest {
         viewModel.deleteSelected()
 
         coVerify(exactly = 0) { repository.deleteBundle(any(), match { it.uri == a.uri }) }
+        coVerify(exactly = 1) { cacheRepository.forgetDeletedFile(b.uri) }
+        coVerify(exactly = 1) { cacheRepository.forgetDeletedFile(c.uri) }
         coVerify(exactly = 1) { repository.deleteBundle(any(), match { it.uri == b.uri }) }
         coVerify(exactly = 1) { repository.deleteBundle(any(), match { it.uri == c.uri }) }
     }

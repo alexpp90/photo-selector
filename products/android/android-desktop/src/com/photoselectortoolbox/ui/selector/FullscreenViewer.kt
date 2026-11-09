@@ -1,6 +1,7 @@
 package com.photoselectortoolbox.ui.selector
 
 import com.photoselectortoolbox.ui.components.handCursor
+import androidx.compose.ui.draw.clipToBounds
 import androidx.compose.ui.semantics.Role
 import android.app.Activity
 import android.net.Uri
@@ -139,6 +140,12 @@ import kotlin.math.abs
 import kotlin.math.roundToInt
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
+
+data class FullscreenViewport(
+    val scale: Float = 1f,
+    val normOffsetX: Float = 0f,
+    val normOffsetY: Float = 0f,
+)
 
 @OptIn(ExperimentalLayoutApi::class)
 @Composable
@@ -301,6 +308,7 @@ private fun FullscreenContent(
     var pagerScrollEnabled by remember { mutableStateOf(true) }
     var showOverlay by remember { mutableStateOf(true) }
     var zoomedIn by remember { mutableStateOf(false) }
+    var currentViewport by remember { mutableStateOf(FullscreenViewport()) }
 
     // The page on screen is the pager's, not a copy of it: a second variable
     // updated from a flow is one more thing that can be a frame behind.
@@ -504,6 +512,12 @@ private fun FullscreenContent(
                 onZoomChanged = { isZoomed ->
                     pagerScrollEnabled = !isZoomed
                     zoomedIn = isZoomed
+                    if (!isZoomed) {
+                        currentViewport = FullscreenViewport()
+                    }
+                },
+                onViewportChanged = { v ->
+                    currentViewport = v
                 },
                 onDismiss = onDismiss,
                 isGestureEnabled = pagerScrollEnabled, // only enable swipes when not zoomed
@@ -592,6 +606,7 @@ private fun FullscreenContent(
         if (zoomedIn) {
             ZoomNavigator(
                 image = currentImage,
+                viewport = currentViewport,
                 modifier = Modifier
                     .align(Alignment.BottomEnd)
                     .windowInsetsPadding(BottomSafeInsets)
@@ -783,16 +798,28 @@ private fun FullscreenActionButton(
 @Composable
 private fun ZoomNavigator(
     image: ImageItem?,
+    viewport: FullscreenViewport = FullscreenViewport(),
     modifier: Modifier = Modifier,
 ) {
     if (image == null) return
 
+    val navWidth = 104.dp
+    val navHeight = 78.dp
+    val safeScale = viewport.scale.coerceAtLeast(1f)
+    val outlineWidth = (navWidth / safeScale).coerceIn(16.dp, navWidth)
+    val outlineHeight = (navHeight / safeScale).coerceIn(12.dp, navHeight)
+    val maxOffsetX = (navWidth - outlineWidth) / 2
+    val maxOffsetY = (navHeight - outlineHeight) / 2
+    val outlineOffsetX = maxOffsetX * viewport.normOffsetX.coerceIn(-1f, 1f)
+    val outlineOffsetY = maxOffsetY * viewport.normOffsetY.coerceIn(-1f, 1f)
+
     Box(
         modifier = modifier
-            .width(104.dp)
-            .height(78.dp)
+            .width(navWidth)
+            .height(navHeight)
             .background(Zinc900.copy(alpha = 0.9f))
             .border(1.dp, Zinc700)
+            .clipToBounds()
             .testTag("zoom_navigator"),
         contentAlignment = Alignment.Center,
     ) {
@@ -805,9 +832,11 @@ private fun ZoomNavigator(
         Box(
             modifier = Modifier
                 .align(Alignment.Center)
-                .width(48.dp)
-                .height(36.dp)
-                .border(1.dp, BrandAccent),
+                .offset(x = outlineOffsetX, y = outlineOffsetY)
+                .width(outlineWidth)
+                .height(outlineHeight)
+                .border(1.dp, BrandAccent)
+                .testTag("zoom_navigator_outline"),
         )
     }
 }
@@ -891,6 +920,7 @@ private fun FullscreenImagePage(
     onZoomChanged: (Boolean) -> Unit,
     onDismiss: () -> Unit,
     isGestureEnabled: Boolean,
+    onViewportChanged: (FullscreenViewport) -> Unit = {},
 ) {
     var verticalDragOffset by remember { mutableFloatStateOf(0f) }
     var isZoomed by remember { mutableStateOf(false) }
@@ -940,6 +970,7 @@ private fun FullscreenImagePage(
                 isZoomed = zoomed
                 onZoomChanged(zoomed)
             },
+            onViewportChanged = onViewportChanged,
         )
     }
 }
@@ -963,6 +994,7 @@ private fun ZoomableImage(
     pixelHeight: Int,
     onTap: () -> Unit,
     onZoomChanged: (Boolean) -> Unit,
+    onViewportChanged: (FullscreenViewport) -> Unit = {},
 ) {
     var scale by remember { mutableFloatStateOf(1f) }
     var offset by remember { mutableStateOf(Offset.Zero) }
@@ -972,40 +1004,47 @@ private fun ZoomableImage(
         onZoomChanged(isZoomed)
     }
 
-    val transformState = rememberTransformableState { zoomChange, panChange, _ ->
-        val newScale = (scale * zoomChange).coerceIn(1f, MAX_ZOOM)
-        val newOffset = if (newScale > 1f) {
-            Offset(x = offset.x + panChange.x, y = offset.y + panChange.y)
-        } else {
-            Offset.Zero
-        }
-
-        scale = newScale
-        offset = newOffset
-        isZoomed = newScale > ZOOMED_THRESHOLD
-    }
-
     BoxWithConstraints(
-        modifier = Modifier.fillMaxSize(),
+        modifier = Modifier.fillMaxSize().clipToBounds(),
         contentAlignment = Alignment.Center,
     ) {
-        // ContentScale.Fit letterboxes, so the displayed size is whichever of
-        // the two constraints binds — the same "which axis binds" question the
-        // selector layout answers, one frame at a time.
+        val boxWidth = constraints.maxWidth.toFloat()
+        val boxHeight = constraints.maxHeight.toFloat()
+        val aspect = if (pixelWidth > 0 && pixelHeight > 0) pixelWidth.toFloat() / pixelHeight.toFloat() else 1f
+        val displayedWidth = minOf(boxWidth, boxHeight * aspect)
+        val displayedHeight = minOf(boxHeight, if (aspect > 0f) boxWidth / aspect else boxHeight)
+
         val oneToOneScale = remember(pixelWidth, pixelHeight, constraints) {
             if (pixelWidth <= 0 || pixelHeight <= 0) {
                 FALLBACK_ZOOM
             } else {
-                val boxWidth = constraints.maxWidth.toFloat()
-                val boxHeight = constraints.maxHeight.toFloat()
-                val aspect = pixelWidth.toFloat() / pixelHeight.toFloat()
-                val displayedWidth = minOf(boxWidth, boxHeight * aspect)
                 if (displayedWidth <= 0f) {
                     FALLBACK_ZOOM
                 } else {
                     (pixelWidth / displayedWidth).coerceIn(MIN_MEANINGFUL_ZOOM, MAX_ZOOM)
                 }
             }
+        }
+
+        val transformState = rememberTransformableState { zoomChange, panChange, _ ->
+            val newScale = (scale * zoomChange).coerceIn(1f, MAX_ZOOM)
+            val maxPanX = maxOf(0f, (displayedWidth * (newScale - 1f)) / 2f)
+            val maxPanY = maxOf(0f, (displayedHeight * (newScale - 1f)) / 2f)
+            val newOffset = if (newScale > 1f) {
+                Offset(
+                    x = (offset.x + panChange.x).coerceIn(-maxPanX, maxPanX),
+                    y = (offset.y + panChange.y).coerceIn(-maxPanY, maxPanY),
+                )
+            } else {
+                Offset.Zero
+            }
+
+            scale = newScale
+            offset = newOffset
+            isZoomed = newScale > ZOOMED_THRESHOLD
+            val normX = if (maxPanX > 0f) newOffset.x / maxPanX else 0f
+            val normY = if (maxPanY > 0f) newOffset.y / maxPanY else 0f
+            onViewportChanged(FullscreenViewport(newScale, normX, normY))
         }
 
         Box(
@@ -1019,10 +1058,12 @@ private fun ZoomableImage(
                                 scale = 1f
                                 offset = Offset.Zero
                                 isZoomed = false
+                                onViewportChanged(FullscreenViewport(1f, 0f, 0f))
                             } else {
                                 scale = oneToOneScale
                                 offset = Offset.Zero
-                                isZoomed = true
+                                isZoomed = oneToOneScale > ZOOMED_THRESHOLD
+                                onViewportChanged(FullscreenViewport(oneToOneScale, 0f, 0f))
                             }
                         },
                     )

@@ -1,5 +1,6 @@
 package com.photoselectortoolbox.ui.selector
 
+import com.photoselectortoolbox.domain.usecase.ScanConfig
 import com.photoselectortoolbox.ui.components.handCursor
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
@@ -40,15 +41,6 @@ import com.photoselectortoolbox.ui.theme.BrandOnAccent
 import com.photoselectortoolbox.ui.theme.StudioCard
 import com.photoselectortoolbox.ui.theme.StudioPanel
 
-/**
- * Configuration for which analyses to run during a scan.
- */
-data class ScanConfig(
-    val sharpness: Boolean = true,
-    val noise: Boolean = true,
-    val highlightClipping: Boolean = true,
-    val shadowClipping: Boolean = true,
-)
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable

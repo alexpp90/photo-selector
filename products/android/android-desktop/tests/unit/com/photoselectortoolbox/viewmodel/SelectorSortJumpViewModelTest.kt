@@ -127,7 +127,9 @@ class SelectorSortJumpViewModelTest {
             scoreDao = scoreDao,
             appScope = appScope,
             context = ApplicationProvider.getApplicationContext(),
-        )
+        ).apply {
+            ioDispatcher = testDispatcher
+        }
         viewModels.add(viewModel)
         viewModel.selectFolder(Uri.parse(FOLDER_URI))
         return viewModel

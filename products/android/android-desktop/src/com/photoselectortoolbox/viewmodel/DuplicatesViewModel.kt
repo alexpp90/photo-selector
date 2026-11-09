@@ -7,6 +7,7 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.photoselectortoolbox.data.model.DuplicateGroup
 import com.photoselectortoolbox.data.model.ImageItem
+import com.photoselectortoolbox.data.repository.CacheRepository
 import com.photoselectortoolbox.data.repository.ImageRepository
 import com.photoselectortoolbox.domain.usecase.FindDuplicatesUseCase
 import dagger.hilt.android.lifecycle.HiltViewModel
@@ -36,7 +37,8 @@ data class DuplicatesUiState(
 class DuplicatesViewModel @Inject constructor(
     private val findDuplicatesUseCase: FindDuplicatesUseCase,
     private val imageRepository: ImageRepository,
-    @ApplicationContext private val context: Context
+    @ApplicationContext private val context: Context,
+    private val cacheRepository: CacheRepository,
 ) : ViewModel() {
 
     private val _uiState = MutableStateFlow(DuplicatesUiState())
@@ -228,6 +230,7 @@ class DuplicatesViewModel @Inject constructor(
                     }
                     if (deleted) {
                         deletedCount++
+                        cacheRepository.forgetDeletedFile(uriString)
                     } else {
                         failedUris.add(uriString)
                     }
