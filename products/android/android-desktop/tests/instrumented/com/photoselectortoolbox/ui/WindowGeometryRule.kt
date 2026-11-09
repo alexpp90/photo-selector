@@ -1,7 +1,9 @@
 package com.photoselectortoolbox.ui
 
+import android.os.Looper
 import android.os.ParcelFileDescriptor
 import android.os.SystemClock
+import android.util.StringBuilderPrinter
 import androidx.test.platform.app.InstrumentationRegistry
 import org.junit.rules.TestRule
 import org.junit.runner.Description
@@ -54,12 +56,22 @@ class WindowGeometryRule(
     private val testTimeoutMillis: Long = TEST_TIMEOUT_MILLIS,
 ) : TestRule {
 
+    private val probe = BodyProbe()
+
+    /**
+     * Register as the class's innermost rule (`@get:Rule(order = <highest>) val bodyProbe: TestRule =
+     * geometryRule.bodyProbe`). It records whether the `@Before`, the test and the `@After` had
+     * finished when the bound ran out, and how, so a hang in a rule's teardown (the Compose rule's
+     * idle wait, Moto G77, 2026-11-09) is not mistaken for one in the test.
+     */
+    val bodyProbe: TestRule get() = probe
+
     override fun apply(base: Statement, description: Description): Statement {
         val wanted = description.getAnnotation(ExpandedWindow::class.java) != null ||
             description.testClass?.getAnnotation(ExpandedWindow::class.java) != null
         if (!wanted) {
             return object : Statement() {
-                override fun evaluate() = runBounded(base)
+                override fun evaluate() = runBounded(base, description)
             }
         }
         return object : Statement() {
@@ -69,7 +81,7 @@ class WindowGeometryRule(
                 var failure: Throwable? = null
                 try {
                     applyReference(saved)
-                    runBounded(base)
+                    runBounded(base, description)
                 } catch (t: Throwable) {
                     failure = t
                     // The failure's own message stays as it is (the matrix groups issues by it); the
@@ -97,9 +109,14 @@ class WindowGeometryRule(
      * call that never returns (a key injection waiting for a window or an IME, an idle wait, a shell
      * command) used to hold the instrumentation process until the matrix killed it ten minutes
      * later, leaving the device forced and no hint of where (Moto G77, 2026-11-05). Now the test
-     * fails, with the worker's stack, and the rule's `finally` restores the display.
+     * fails, and the rule's `finally` restores the display.
+     *
+     * The failure carries the worker's stack, how far the test body had got ([bodyProbe]), and the
+     * main thread's stack and looper queue: the worker is usually waiting *for* the main thread
+     * (`waitForIdleSync`), so the worker's stack alone names the wait and not its cause (M-9,
+     * 2026-11-09). Nothing here posts to the main thread.
      */
-    private fun runBounded(base: Statement) {
+    private fun runBounded(base: Statement, description: Description) {
         val outcome = AtomicReference<Throwable?>(null)
         val worker = Thread({
             try {
@@ -112,12 +129,25 @@ class WindowGeometryRule(
         worker.start()
         worker.join(testTimeoutMillis)
         if (worker.isAlive) {
-            val stack = worker.stackTrace
+            val stack = worker.stackTrace.toList()
+            val now = probe.now()
+            val body = probe.outcomeFor(description)
+            // Taken before the interrupt, so the main thread is seen as it was while the worker waited.
+            val main = mainThreadSnapshot()
             worker.interrupt()
-            throw AssertionError(
-                "the test did not finish within ${testTimeoutMillis / 1000} s; its thread was blocked at:\n" +
-                    stack.joinToString("\n") { "    at $it" } + "\n" + runCatching { describeDisplay() }.getOrDefault(""),
+            val failure = AssertionError(
+                BoundedRunReport.timeoutMessage(
+                    timeoutMillis = testTimeoutMillis,
+                    workerStack = stack,
+                    body = body,
+                    nowMillis = now,
+                    main = main,
+                    display = runCatching { describeDisplay() }.getOrDefault(""),
+                ),
             )
+            // The message carries the head of the body's own failure; the whole of it rides along.
+            if (body is BodyOutcome.Threw) failure.addSuppressed(body.error)
+            throw failure
         }
         outcome.get()?.let { throw it }
     }
@@ -505,6 +535,35 @@ class WindowGeometryRule(
             val settings = "user_rotation=" + shell("settings get system user_rotation").trim() +
                 " accelerometer_rotation=" + shell("settings get system accelerometer_rotation").trim()
             return "window manager: $lines; $settings"
+        }
+
+        /** How long [mainThreadSnapshot] waits for its own reader. */
+        private const val MAIN_SNAPSHOT_TIMEOUT_MILLIS = 5_000L
+
+        /**
+         * The main thread's stack and its looper's queue, read from a separate thread and bounded:
+         * `Looper.dump` takes only the queue's lock, which the main thread holds for an enqueue and
+         * never while it runs a message, so it does not wait for a busy main thread.
+         */
+        private fun mainThreadSnapshot(): MainThreadSnapshot {
+            val looper = Looper.getMainLooper()
+            val stack = AtomicReference<List<StackTraceElement>?>(null)
+            val dump = AtomicReference<String?>(null)
+            val reader = Thread({
+                stack.set(looper.thread.stackTrace.toList())
+                val text = StringBuilder()
+                looper.dump(StringBuilderPrinter(text), "")
+                dump.set(text.toString())
+            }, "frameduel-main-snapshot")
+            reader.isDaemon = true
+            reader.start()
+            reader.join(MAIN_SNAPSHOT_TIMEOUT_MILLIS)
+            val note = if (reader.isAlive) {
+                "(the main thread snapshot did not finish within ${MAIN_SNAPSHOT_TIMEOUT_MILLIS / 1000} s)"
+            } else {
+                null
+            }
+            return MainThreadSnapshot(stack.get(), dump.get(), note)
         }
 
         private fun waitUntil(

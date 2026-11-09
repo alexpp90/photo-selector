@@ -8,6 +8,7 @@ package com.photoselectortoolbox.ui
 // `SemanticsNodeInteraction`/`SemanticsNodeInteractionsProvider`, not extensions,
 // so they carry no import. Everything below is a genuine extension function.
 import androidx.compose.ui.test.assertCountEquals
+import androidx.compose.ui.test.ComposeTimeoutException
 import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.getUnclippedBoundsInRoot
 import androidx.compose.ui.test.hasAnyAncestor
@@ -52,6 +53,7 @@ import org.junit.Before
 import org.junit.Assert.assertTrue
 import org.junit.Rule
 import org.junit.Test
+import org.junit.rules.TestRule
 import org.junit.runner.RunWith
 
 @HiltAndroidTest
@@ -67,6 +69,10 @@ class SelectorScreenTest {
 
     @get:Rule(order = 2)
     val composeRule = createAndroidComposeRule<MainActivity>()
+
+    // Innermost: tells a hang in the Compose rule's teardown from one in the test (M-9, 2026-11-09).
+    @get:Rule(order = 3)
+    val bodyProbe: TestRule = geometryRule.bodyProbe
 
     @Inject
     lateinit var repository: ImageRepository
@@ -592,12 +598,15 @@ class SelectorScreenTest {
         // Expanded-only (the compact layout has its own keys); WindowGeometryRule makes the window expanded.
         requireExpandedLayout()
 
+        // The app's own focus claim must have landed before the key (see awaitKeyFocusOnTheSelector).
+        awaitKeyFocusOnTheSelector()
+
         // One key, through the window, like a keyboard: `sendKeyDownUpSync`
         // leaves touch mode. On a real Tab S11 Ultra the first press was spent on
         // Android's initial-focus pass and only the second one navigated.
         BoundedKeys.send(android.view.KeyEvent.KEYCODE_DPAD_RIGHT)
 
-        composeRule.waitUntil(timeoutMillis = 5000) { positionCounterShows("2 / 2") }
+        composeRule.waitUntil(timeoutMillis = 15000) { positionCounterShows("2 / 2") }
     }
 
     @ExpandedWindow
@@ -615,10 +624,39 @@ class SelectorScreenTest {
         }
         dismissGestureTutorialIfShown()
         composeRule.waitForIdle()
+        awaitKeyFocusOnTheSelector()
 
         BoundedKeys.send(android.view.KeyEvent.KEYCODE_DPAD_RIGHT)
 
-        composeRule.waitUntil(timeoutMillis = 5000) { positionCounterShows("2 / 2") }
+        composeRule.waitUntil(timeoutMillis = 15000) { positionCounterShows("2 / 2") }
+    }
+
+    private fun activityWindowHasFocus(): Boolean {
+        var focused = false
+        composeRule.activityRule.scenario.onActivity { focused = it.window.decorView.hasWindowFocus() }
+        return focused
+    }
+
+    /**
+     * Waits until the activity's window holds window focus and `selector_root` holds key focus,
+     * the state a person's first key press meets. A key sent earlier reaches a window nobody has
+     * focus in and is dropped: on an Xperia XA2 (API 37, 2026-11-09, M-8) SystemUI had restarted
+     * 5 s before the test and the window had not taken focus back when the key went out.
+     *
+     * This waits only; it never requests focus. The claim is the app's own (`SelectorScreen`,
+     * keyed on window focus), so a selector that cannot take focus (AD-11: no `focusable()` on the
+     * root, or a failed `requestFocus`) never reaches this state and the test fails here.
+     */
+    private fun awaitKeyFocusOnTheSelector() {
+        try {
+            composeRule.waitUntil(timeoutMillis = 15000) { activityWindowHasFocus() && selectorRootHasKeyFocus() }
+        } catch (e: ComposeTimeoutException) {
+            throw AssertionError(
+                "the selector is not ready for a key after 15 s: activity window focus=${activityWindowHasFocus()}, " +
+                    "selector_root key focus=${selectorRootHasKeyFocus()}",
+                e,
+            )
+        }
     }
 
     // ── System Back does what Escape does (device lab 2026-11-06) ─────────
