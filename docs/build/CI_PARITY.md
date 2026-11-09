@@ -92,6 +92,17 @@ PST_VENV_BIN=/path/to/env/bin ./scripts/run_tests.sh --python          # a machi
 `scripts/tests/test_run_tests_sh.py` proves it against a fake `PATH` that holds a pytest without
 `pytest-cov`.
 
+## Free disk space (mirror only)
+
+Gradle and SwiftPM fill several GB, and under ~5 GB a gate's `✘` is often *No space left on
+device* rather than code. Before the Android, Android-device and macOS Desktop sections the
+mirror checks the free space of the checkout's file system; under `PST_MIN_SPACE_GB` (default
+5) it records one failed gate, `free disk space for the <section> gates`, and skips that
+section. Any other failed gate re-reads the free space and, under the same floor, says the
+failure may be disk. CI runners have no such check; their disk is fresh per job. Gate output
+is never piped, so every tool keeps its terminal. `scripts/tests/test_run_tests_sh.py`
+(`RunTestsDiskSpaceTest`) covers both paths.
+
 ---
 
 ## Why each un-reproducible gate stays un-reproducible
