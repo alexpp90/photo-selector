@@ -205,7 +205,7 @@ def _find_best_threshold(unique_fls: List[float], max_buckets: int) -> float:
 
 def _format_focal_length_label(min_fl: float, max_fl: float) -> str:
     def fmt(v):
-        return f"{int(v)}" if v.is_integer() else f"{v:.1f}".rstrip("0").rstrip(".")
+        return f"{int(v)}" if float(v).is_integer() else f"{v:.1f}".rstrip("0").rstrip(".")
 
     if min_fl == max_fl:
         return f"{fmt(min_fl)} mm"
@@ -222,7 +222,7 @@ def _generate_exact_buckets(
     """Generates buckets with exact focal length values when no aggregation is needed."""
     result = []
     for fl in unique_fls:
-        label = f"{int(fl)} mm" if fl.is_integer() else f"{fl:.1f} mm"
+        label = f"{int(fl)} mm" if float(fl).is_integer() else f"{fl:.1f} mm"
         result.append((label, counts[fl], fl))
     return result
 
