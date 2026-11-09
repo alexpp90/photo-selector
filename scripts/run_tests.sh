@@ -223,7 +223,44 @@ gate() {
         pass "$name" "$ci_ref"
     else
         fail "$name" "$ci_ref"
+        disk_hint
     fi
+}
+
+# ── Disk space ────────────────────────────────────────────────────
+# Gradle and SwiftPM fill several GB; under ~5 GB a gate's ✘ is often "No space left on
+# device", not code, and at 0 B the agent's own shell stops working (2026-10-17).
+# PST_MIN_SPACE_GB (default 5) is the floor. The output is not piped through anything, so
+# gates keep their terminal; a failed gate instead re-reads the free space and says so.
+MIN_SPACE_GB="${PST_MIN_SPACE_GB:-5}"
+
+# LC_ALL=C: a de_DE locale prints "47,0", which awk then compares as text.
+free_gb() { df -kP "$ROOT_DIR" 2>/dev/null | LC_ALL=C awk 'NR==2 {printf "%.1f", $4 / 1048576}'; }
+
+below_floor() {  # below_floor <free GB> — true when under MIN_SPACE_GB
+    [ -n "$1" ] && LC_ALL=C awk -v f="$1" -v m="$MIN_SPACE_GB" 'BEGIN {exit !(f < m)}'
+}
+
+disk_hint() {
+    local free
+    free="$(free_gb)"
+    if below_floor "$free"; then
+        echo -e "${RED}    only $free GB free (< $MIN_SPACE_GB GB): this failure may be disk (No space left on device), not code — free space and rerun before debugging${NC}"
+    fi
+}
+
+# disk_preflight <label> <ci_ref> — before a section whose builds fill the disk: records a failed
+# gate and returns 1 (the caller skips the section) when free space is under the floor.
+disk_preflight() {
+    local free
+    free="$(free_gb)"
+    if below_floor "$free"; then
+        section "$1"
+        fail "free disk space for the $1 gates: $free GB < $MIN_SPACE_GB GB (PST_MIN_SPACE_GB)" "$2"
+        echo -e "${RED}    the $1 gates did not run: free space first (playbook-ship-change-via-pr step 8 removes merged worktrees)${NC}"
+        return 1
+    fi
+    return 0
 }
 
 # Like gate, but exit code 3 means "findings in report-only mode": shown as an advisory "!"
@@ -236,7 +273,7 @@ advisory_gate() {
     case "$rc" in
         0) pass "$name" "$ci_ref" ;;
         3) warn "$name (report-only findings)" "$ci_ref" ;;
-        *) fail "$name" "$ci_ref" ;;
+        *) fail "$name" "$ci_ref"; disk_hint ;;
     esac
 }
 
@@ -439,13 +476,20 @@ if $run_python; then
         # baselines are rendered under Xvfb, so macOS/Windows font metrics
         # produce false diffs. This gate is genuinely un-runnable off Linux —
         # it is reported as SKIPPED rather than silently omitted.
+        # On Linux they hold the CI image's font build too: any other distribution
+        # fails them on glyph edges alone, so scripts/visual_baseline_host.py
+        # reports such a host SKIPPED with its reason (PST_VISUAL_ANY_HOST=1 runs it).
         section "Visual regression"
+        visual_host_rc=0
+        visual_host_reason="$(python3 "$ROOT_DIR/scripts/visual_baseline_host.py")" || visual_host_rc=$?
         if $quick; then
             skip "visual tests" "" "--quick"
         elif [ "$(uname -s)" != "Linux" ]; then
             skip "visual tests" "" "linux_only — baselines are Xvfb-rendered; CI job 'Visual regression tests' covers this"
         elif [ ${#XVFB_PREFIX[@]} -eq 0 ] && [ -z "${DISPLAY:-}" ]; then
             skip "visual tests" "" "no Xvfb and no DISPLAY (apt install xvfb)"
+        elif [ "$visual_host_rc" -eq 3 ]; then
+            skip "visual tests" "" "$visual_host_reason"
         else
             gate "pytest tests/visual/ -m visual" "desktop.yml:visual" \
                 pyx pytest tests/visual/ --tb=short -q -o faulthandler_timeout=120 -m visual
@@ -473,7 +517,7 @@ elif ! $explicit_product; then
 fi
 
 # ── Android gates (mirror: android.yml `unit-tests`, `lint`) ──────
-if $run_android; then
+if $run_android && disk_preflight "Android" "android.yml"; then
     cd "$ROOT_DIR/products/android" || exit 1
 
     if [ ! -f "./gradlew" ]; then
@@ -547,7 +591,7 @@ fi
 # These require a real Android runtime. They are the ONLY gate that cannot be
 # satisfied without an emulator or device — see docs/build/CI_PARITY.md for why the
 # Compose semantics-tree assertions in them genuinely need one.
-if $run_android_device; then
+if $run_android_device && disk_preflight "Android device" "android.yml:instrumented-tests"; then
     section "Android instrumented tests (device/emulator)"
     # scripts/android_device_matrix.py builds the APKs once and runs both suites on every
     # configured test device at the same time (pst.testDevice.serial and .extraSerials in
@@ -578,7 +622,7 @@ if $run_android_device; then
 fi
 
 # ── macOS Desktop native Swift gates (mirror: macos.yml `swift-test`) ──
-if $run_macos; then
+if $run_macos && disk_preflight "macOS Desktop" "macos.yml:swift-test"; then
     section "macOS Desktop native Swift tests"
     if [ "$(uname -s)" != "Darwin" ]; then
         skip "swift test (macos-desktop)" "macos.yml:swift-test" "macOS native product requires Darwin runner" false
