@@ -7,6 +7,7 @@ import android.net.Uri
 import android.provider.DocumentsContract
 import android.util.Log
 import androidx.documentfile.provider.DocumentFile
+import androidx.exifinterface.media.ExifInterface
 import com.photoselector.core.model.ExifData
 import com.photoselector.core.preview.EmbeddedPreviewExtractor
 import com.photoselector.core.reader.AndroidExifReader
@@ -400,7 +401,16 @@ class LocalImageSourceImpl @Inject constructor(
             }
             val w = opts.outWidth.coerceAtLeast(0)
             val h = opts.outHeight.coerceAtLeast(0)
-            if (w > 0 && h > 0) Pair(w, h) else embeddedPreviewDimensions(uri)
+            if (w > 0 && h > 0) {
+                val orientation = try {
+                    context.contentResolver.openInputStream(uri)?.use { stream ->
+                        ExifInterface(stream).getAttributeInt(ExifInterface.TAG_ORIENTATION, ExifInterface.ORIENTATION_NORMAL)
+                    } ?: ExifInterface.ORIENTATION_NORMAL
+                } catch (e: Exception) {
+                    ExifInterface.ORIENTATION_NORMAL
+                }
+                if (orientation in 5..8) Pair(h, w) else Pair(w, h)
+            } else embeddedPreviewDimensions(uri)
         } catch (e: Exception) {
             Log.d(TAG, "Cannot read dimensions for $uri: ${e.message}")
             Pair(0, 0)

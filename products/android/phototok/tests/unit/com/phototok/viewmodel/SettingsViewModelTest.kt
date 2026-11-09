@@ -249,4 +249,21 @@ class SettingsViewModelTest {
         coVerify { settingsRepository.clearCache() }
         assertTrue(called)
     }
+
+    @Test
+    fun `collectionUri resets to null when sourceSettings emits null (JP-UI-2)`() = runTest {
+        val removableFlow = MutableStateFlow(com.phototok.data.model.SourceSettings.defaultFor(com.photoselector.core.storage.SourceKind.REMOVABLE).copy(collectionUri = "content://coll"))
+        every { settingsRepository.sourceSettingsFlow(com.photoselector.core.storage.SourceKind.REMOVABLE) } returns removableFlow
+
+        // recreate viewModel to subscribe to our mock
+        viewModel = SettingsViewModel(settingsRepository, imageRepository)
+        viewModel.selectSourceKindTab(com.photoselector.core.storage.SourceKind.REMOVABLE)
+        assertEquals("content://coll", viewModel.uiState.value.collectionUri)
+
+        // Reset to null
+        removableFlow.value = removableFlow.value.copy(collectionUri = null)
+        advanceUntilIdle()
+
+        org.junit.Assert.assertNull("collectionUri must reset to null when cleared", viewModel.uiState.value.collectionUri)
+    }
 }

@@ -38,6 +38,9 @@ import kotlinx.coroutines.flow.map
 
 internal val Context.dataStore: DataStore<Preferences> by preferencesDataStore(
     name = "phototok_settings",
+    corruptionHandler = androidx.datastore.core.handlers.ReplaceFileCorruptionHandler {
+        androidx.datastore.preferences.core.emptyPreferences()
+    },
     // Schema migration runs before the first read or write, so no reader sees an unmigrated store.
     produceMigrations = { SettingsRepository.dataStoreMigrations },
 )
@@ -547,22 +550,52 @@ class SettingsRepository @Inject constructor(
     }
 
     suspend fun setCollectionUri(kind: SourceKind, uri: String?) {
+        var previousUri: String? = null
+        var referencedAfter: Map<FolderAccessPurpose, Set<String>> = emptyMap()
         context.dataStore.edit { prefs ->
             val key = collectionUriKey(kind)
-            if (uri != null) prefs[key] = uri else prefs.remove(key)
-            if (kind == SourceKind.PHONE_LIBRARY) {
-                if (uri != null) prefs[KEY_COLLECTION_URI] = uri else prefs.remove(KEY_COLLECTION_URI)
+            previousUri = prefs[key]
+            if (uri != null) {
+                prefs[key] = uri
+                if (kind == SourceKind.PHONE_LIBRARY) prefs[KEY_COLLECTION_URI] = uri
+            } else {
+                prefs.remove(key)
+                if (kind == SourceKind.PHONE_LIBRARY) prefs.remove(KEY_COLLECTION_URI)
             }
+            referencedAfter = referencedUrisByPurpose(prefs)
+        }
+        folderAccessManager.syncReferences(referencedAfter)
+        if (uri != null) {
+            folderAccessManager.takeGrant(Uri.parse(uri), FolderAccessPurpose.SELECTION_TARGET)
+        }
+        val old = previousUri
+        if (old != null && old != uri) {
+            folderAccessManager.releaseIfUnreferenced(old, referencedAfter.values.flatten().toSet())
         }
     }
 
     suspend fun setLeftSwipeUri(kind: SourceKind, uri: String?) {
+        var previousUri: String? = null
+        var referencedAfter: Map<FolderAccessPurpose, Set<String>> = emptyMap()
         context.dataStore.edit { prefs ->
             val key = leftSwipeUriKey(kind)
-            if (uri != null) prefs[key] = uri else prefs.remove(key)
-            if (kind == SourceKind.PHONE_LIBRARY) {
-                if (uri != null) prefs[KEY_LEFT_SWIPE_URI] = uri else prefs.remove(KEY_LEFT_SWIPE_URI)
+            previousUri = prefs[key]
+            if (uri != null) {
+                prefs[key] = uri
+                if (kind == SourceKind.PHONE_LIBRARY) prefs[KEY_LEFT_SWIPE_URI] = uri
+            } else {
+                prefs.remove(key)
+                if (kind == SourceKind.PHONE_LIBRARY) prefs.remove(KEY_LEFT_SWIPE_URI)
             }
+            referencedAfter = referencedUrisByPurpose(prefs)
+        }
+        folderAccessManager.syncReferences(referencedAfter)
+        if (uri != null) {
+            folderAccessManager.takeGrant(Uri.parse(uri), FolderAccessPurpose.LEFT_SWIPE_TARGET)
+        }
+        val old = previousUri
+        if (old != null && old != uri) {
+            folderAccessManager.releaseIfUnreferenced(old, referencedAfter.values.flatten().toSet())
         }
     }
 
@@ -745,27 +778,7 @@ class SettingsRepository @Inject constructor(
     }
 
     suspend fun setPhoneCollectionUri(uri: String?) {
-        var previousUri: String? = null
-        var referencedAfter: Map<FolderAccessPurpose, Set<String>> = emptyMap()
-        context.dataStore.edit { prefs ->
-            previousUri = prefs[KEY_COLLECTION_URI]
-            if (uri != null) {
-                prefs[KEY_COLLECTION_URI] = uri
-                prefs[collectionUriKey(SourceKind.PHONE_LIBRARY)] = uri
-            } else {
-                prefs.remove(KEY_COLLECTION_URI)
-                prefs.remove(collectionUriKey(SourceKind.PHONE_LIBRARY))
-            }
-            referencedAfter = referencedUrisByPurpose(prefs)
-        }
-        folderAccessManager.syncReferences(referencedAfter)
-        if (uri != null) {
-            folderAccessManager.takeGrant(Uri.parse(uri), FolderAccessPurpose.SELECTION_TARGET)
-        }
-        val old = previousUri
-        if (old != null && old != uri) {
-            folderAccessManager.releaseIfUnreferenced(old, referencedAfter.values.flatten().toSet())
-        }
+        setCollectionUri(SourceKind.PHONE_LIBRARY, uri)
     }
 
     suspend fun setPhoneLeftSwipeAction(action: SwipeAction) {
@@ -776,27 +789,7 @@ class SettingsRepository @Inject constructor(
     }
 
     suspend fun setPhoneLeftSwipeUri(uri: String?) {
-        var previousUri: String? = null
-        var referencedAfter: Map<FolderAccessPurpose, Set<String>> = emptyMap()
-        context.dataStore.edit { prefs ->
-            previousUri = prefs[KEY_LEFT_SWIPE_URI]
-            if (uri != null) {
-                prefs[KEY_LEFT_SWIPE_URI] = uri
-                prefs[leftSwipeUriKey(SourceKind.PHONE_LIBRARY)] = uri
-            } else {
-                prefs.remove(KEY_LEFT_SWIPE_URI)
-                prefs.remove(leftSwipeUriKey(SourceKind.PHONE_LIBRARY))
-            }
-            referencedAfter = referencedUrisByPurpose(prefs)
-        }
-        folderAccessManager.syncReferences(referencedAfter)
-        if (uri != null) {
-            folderAccessManager.takeGrant(Uri.parse(uri), FolderAccessPurpose.LEFT_SWIPE_TARGET)
-        }
-        val old = previousUri
-        if (old != null && old != uri) {
-            folderAccessManager.releaseIfUnreferenced(old, referencedAfter.values.flatten().toSet())
-        }
+        setLeftSwipeUri(SourceKind.PHONE_LIBRARY, uri)
     }
 
     suspend fun setPhoneDirectDeleteConfirmEnabled(enabled: Boolean) {
@@ -956,9 +949,11 @@ class SettingsRepository @Inject constructor(
 
     internal fun referencedUrisByPurpose(prefs: Preferences): Map<FolderAccessPurpose, Set<String>> {
         val source = prefs[KEY_LAST_FOLDER_URI]?.let(::setOf).orEmpty()
-        // Gated (Casual) custom folders stay referenced: their grants wait for Pro's return.
-        val selection = listOfNotNull(prefs[KEY_COLLECTION_URI], prefs[KEY_CASUAL_CAMERA_TARGET_URI]).toSet()
-        val leftSwipe = prefs[KEY_LEFT_SWIPE_URI]?.let(::setOf).orEmpty()
+        // Gated (Casual) custom folders and per-source custom destinations stay referenced: their grants wait for return.
+        val perSourceSelection = SourceKind.entries.mapNotNull { prefs[collectionUriKey(it)] }
+        val selection = (listOfNotNull(prefs[KEY_COLLECTION_URI], prefs[KEY_CASUAL_CAMERA_TARGET_URI]) + perSourceSelection).toSet()
+        val perSourceLeftSwipe = SourceKind.entries.mapNotNull { prefs[leftSwipeUriKey(it)] }
+        val leftSwipe = (listOfNotNull(prefs[KEY_LEFT_SWIPE_URI]) + perSourceLeftSwipe).toSet()
         val recents = RecentPathCodec.decode(prefs[KEY_RECENT_PATHS])
             .mapTo(LinkedHashSet()) { it.uri }
         // Queued deletions still need the grant of the folder they live in (finding D-10).

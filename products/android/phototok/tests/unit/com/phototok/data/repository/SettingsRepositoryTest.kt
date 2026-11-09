@@ -308,5 +308,33 @@ class SettingsRepositoryTest {
         repoWithGrants.setPhoneCollectionUri("content://tree/new_collection")
         assertTrue(released.contains("content://tree/folder1"))
     }
+
+    @Test
+    fun `per-source collection and left swipe URIs are included in referencedUrisByPurpose (JP-D-20)`() = runTest {
+        repository.setSourceCollectionUri(com.photoselector.core.storage.SourceKind.REMOVABLE, "content://tree/sd_selection")
+        repository.setSourceLeftSwipeUri(com.photoselector.core.storage.SourceKind.CAMERA_MTP, "content://tree/mtp_left")
+
+        val prefs = context.dataStore.data.first()
+        val referenced = repository.referencedUrisByPurpose(prefs)
+
+        assertTrue(
+            "removable collection URI preserved in references",
+            referenced[com.photoselector.saf.FolderAccessPurpose.SELECTION_TARGET]?.contains("content://tree/sd_selection") == true
+        )
+        assertTrue(
+            "mtp left swipe URI preserved in references",
+            referenced[com.photoselector.saf.FolderAccessPurpose.LEFT_SWIPE_TARGET]?.contains("content://tree/mtp_left") == true
+        )
+    }
+
+    @Test
+    fun `corrupted preferences file recovers with empty preferences (JP-B-20)`() = runTest {
+        val prefsFile = java.io.File(context.filesDir, "datastore/phototok_settings.preferences_pb")
+        prefsFile.parentFile?.mkdirs()
+        prefsFile.writeBytes(byteArrayOf(0xFF.toByte(), 0xFE.toByte(), 0x00, 0x01))
+        // Reading preferences should not throw CorruptionException
+        val result = repository.proMode.first()
+        assertFalse(result)
+    }
 }
 

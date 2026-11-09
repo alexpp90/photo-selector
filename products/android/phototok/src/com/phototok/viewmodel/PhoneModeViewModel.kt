@@ -2296,11 +2296,19 @@ class PhoneModeViewModel @Inject constructor(
     fun applyRawJpegFilter(filter: FileTypeFilter) {
         _uiState.update { it.copy(showRawJpegSuggestion = false, firstRunHint = null) }
         viewModelScope.launch {
+            val kind = _uiState.value.sourceKind
             settingsRepository.markFirstRunHintSeen(FirstRunHint.RAW_JPEG_PAIRS)
             settingsRepository.markFirstRunHintSeen(FirstRunHint.FILTER_MISMATCH)
-            settingsRepository.setPhoneFileTypeFilter(filter)
-            if (filter == FileTypeFilter.ONE_PER_SHOT) {
-                settingsRepository.setPhoneMoveRelatedFiles(true)
+            if (kind == SourceKind.PHONE_LIBRARY) {
+                settingsRepository.setPhoneFileTypeFilter(filter)
+                if (filter == FileTypeFilter.ONE_PER_SHOT) {
+                    settingsRepository.setPhoneMoveRelatedFiles(true)
+                }
+            } else {
+                settingsRepository.setSourceFileTypeFilter(kind, filter)
+                if (filter == FileTypeFilter.ONE_PER_SHOT) {
+                    settingsRepository.setSourceMoveRelatedFiles(kind, true)
+                }
             }
         }
         showFeedback(
@@ -2318,8 +2326,13 @@ class PhoneModeViewModel @Inject constructor(
     fun enableMoveRelatedFiles() {
         _uiState.update { it.copy(showRawJpegSuggestion = false) }
         viewModelScope.launch {
+            val kind = _uiState.value.sourceKind
             settingsRepository.markFirstRunHintSeen(FirstRunHint.RAW_JPEG_PAIRS)
-            settingsRepository.setPhoneMoveRelatedFiles(true)
+            if (kind == SourceKind.PHONE_LIBRARY) {
+                settingsRepository.setPhoneMoveRelatedFiles(true)
+            } else {
+                settingsRepository.setSourceMoveRelatedFiles(kind, true)
+            }
         }
         showFeedback(UiText.of(R.string.snackbar_linked))
     }

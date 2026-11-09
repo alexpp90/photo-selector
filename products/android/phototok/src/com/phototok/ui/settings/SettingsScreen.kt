@@ -38,6 +38,7 @@ import androidx.compose.material.icons.filled.Sync
 import androidx.compose.material.icons.filled.Warning
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
+import com.photoselector.core.storage.SafTreeDisplayPath
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.OutlinedTextFieldDefaults
@@ -137,6 +138,9 @@ fun SettingsScreen(
                 title = stringResource(R.string.setting_title_selection_location),
                 defaultSubfolder = PhotoFolders.SELECTION,
                 isCustom = uiState.collectionUri != null,
+                customPath = uiState.collectionUri?.let {
+                    SafTreeDisplayPath.segments(it).joinToString(SafTreeDisplayPath.SEPARATOR)
+                },
                 onUseDefault = {
                     folderDialog = null
                     viewModel.updateCollectionUri(null)
@@ -151,6 +155,9 @@ fun SettingsScreen(
                 title = stringResource(R.string.setting_title_left_folder),
                 defaultSubfolder = PhotoFolders.LEFT_SWIPE,
                 isCustom = uiState.leftSwipeUri != null,
+                customPath = uiState.leftSwipeUri?.let {
+                    SafTreeDisplayPath.segments(it).joinToString(SafTreeDisplayPath.SEPARATOR)
+                },
                 onUseDefault = {
                     folderDialog = null
                     viewModel.updateLeftSwipeUri(null)
@@ -246,9 +253,11 @@ fun SettingsScreen(
                     row("selection_location") {
                         SettingsClickItem(
                             title = stringResource(R.string.setting_title_selection_location),
-                            summary = stringResource(
-                                if (uiState.collectionUri != null) R.string.setting_summary_custom else R.string.setting_summary_default,
-                            ),
+                            summary = if (uiState.collectionUri != null) {
+                                SafTreeDisplayPath.segments(uiState.collectionUri).joinToString(SafTreeDisplayPath.SEPARATOR)
+                            } else {
+                                stringResource(R.string.setting_summary_default)
+                            },
                             onClick = { folderDialog = FOLDER_DIALOG_SELECTION },
                             trailing = {
                                 if (uiState.collectionUri != null) {
@@ -484,9 +493,11 @@ fun SettingsScreen(
                         row("left_folder") {
                             SettingsClickItem(
                                 title = stringResource(R.string.setting_title_left_folder),
-                                summary = stringResource(
-                                    if (uiState.leftSwipeUri != null) R.string.setting_summary_custom else R.string.setting_summary_default,
-                                ),
+                                summary = if (uiState.leftSwipeUri != null) {
+                                    SafTreeDisplayPath.segments(uiState.leftSwipeUri).joinToString(SafTreeDisplayPath.SEPARATOR)
+                                } else {
+                                    stringResource(R.string.setting_summary_default)
+                                },
                                 onClick = { folderDialog = FOLDER_DIALOG_LEFT_SWIPE },
                                 trailing = {
                                     if (uiState.leftSwipeUri != null) {

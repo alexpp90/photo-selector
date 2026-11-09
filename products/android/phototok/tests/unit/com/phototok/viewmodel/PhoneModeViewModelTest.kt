@@ -794,6 +794,17 @@ class PhoneModeViewModelTest {
     }
 
     @Test
+    fun `applyRawJpegFilter uses active sourceKind instead of hardcoded phone (JP-UI-1)`() = runTest {
+        val viewModel = buildViewModel()
+        openFolder(sdTree, image("photo1.jpg", 10), image("photo1.raw", 10), viewModel = viewModel)
+        advanceUntilIdle()
+
+        viewModel.applyRawJpegFilter(com.phototok.domain.FileTypeFilter.RAW)
+
+        coVerify { settingsRepository.setSourceFileTypeFilter(com.photoselector.core.storage.SourceKind.REMOVABLE, com.phototok.domain.FileTypeFilter.RAW) }
+    }
+
+    @Test
     fun `enabling move related files updates settings and hides suggestion`() = runTest {
         phoneSettingsFlow.value = phoneSettingsFlow.value.copy(proMode = true)
         val viewModel = loadFolder(

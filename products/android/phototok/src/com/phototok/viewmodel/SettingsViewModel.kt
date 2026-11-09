@@ -133,8 +133,8 @@ class SettingsViewModel @Inject constructor(
                                 moveRelatedFiles = src.moveRelatedFiles,
                                 directDeleteConfirmEnabled = src.directDeleteConfirmEnabled,
                                 leftSwipeAction = src.leftSwipeAction,
-                                collectionUri = src.collectionFolderUri ?: state.collectionUri,
-                                leftSwipeUri = src.leftSwipeFolderUri ?: state.leftSwipeUri,
+                                collectionUri = src.collectionFolderUri,
+                                leftSwipeUri = src.leftSwipeFolderUri,
                             )
                         } else {
                             state.copy(sourceSettingsByKind = updatedMap)

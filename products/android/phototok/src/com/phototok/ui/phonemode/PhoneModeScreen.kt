@@ -195,6 +195,11 @@ fun PhoneModeScreen(
         enabled = isViewingSelection || selectionState.isOpening,
         onClose = selectionViewModel::close,
     )
+    // Back dismisses the controls guide overlay before falling back to leaving the app.
+    BackHandler(
+        enabled = uiState.showControlsGuide,
+        onBack = viewModel::hideControlsGuide,
+    )
     // Another folder in the feed closes a viewer opened (or still opening) for the previous one.
     LaunchedEffect(uiState.sourceFolderUri) {
         selectionViewModel.closeUnlessOpenedFor(uiState.sourceFolderUri)
