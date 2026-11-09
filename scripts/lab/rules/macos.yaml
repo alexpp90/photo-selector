@@ -14,3 +14,12 @@ frame_size:
     min_h: 250
     ids:
       - slot_current
+# Feedback after an action (scripts/lab/lab/feedback.py): Lensjet's action toast is tagged
+# `action_toast` (CullingHUDView, `SlotOverlayLayer`), drawn for 1.2 s. The lab's tree has frames
+# only, no text, so the oracle sees that a toast is up but not what it says.
+feedback:
+  surfaces: [action_toast]
+  text: false
+text_truncation:
+  allow_ids: []
+  allow_text: []

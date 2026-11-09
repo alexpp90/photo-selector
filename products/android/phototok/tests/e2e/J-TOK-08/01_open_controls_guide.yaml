@@ -1,0 +1,23 @@
+appId: com.phototok.lab
+---
+# Opens the controls guide from the feed's help button (portrait `help_button`, landscape
+# `landscape_help_button`). `_ensure_folder.yaml` dismissed the first-run guide, so this is the
+# user-opened one. Both buttons are app tags in the activity window; no text selector is needed.
+- runFlow:
+    when:
+      visible:
+        id: "help_button"
+    commands:
+      - tapOn:
+          id: "help_button"
+- runFlow:
+    when:
+      visible:
+        id: "landscape_help_button"
+    commands:
+      - tapOn:
+          id: "landscape_help_button"
+- extendedWaitUntil:
+    visible:
+      id: "controls_guide"
+    timeout: 8000

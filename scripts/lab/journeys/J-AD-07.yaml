@@ -1,0 +1,26 @@
+id: J-AD-07
+product: android-desktop
+title: System Back with the layout guide open closes the guide, not the app (F-FD-078)
+fixture: smoke
+configs: [tab-landscape, tab-native-landscape, dex-on-device, chromebook-window]
+fresh_install: false
+# NOT YET RUN ON HARDWARE (written 2026-11-09 without a device). F-FD-078 is fixed (#891), so
+# this is its device-level guard: the unit test SelectorScreenTest.systemBack_closesTheGuideNotTheApp
+# sends the same BACK key. If the app closes, `guide-closed` cannot be captured and the journey errors.
+steps:
+  - {maestro: products/android/android-desktop/tests/e2e/J-AD-07/01_open_layout_guide.yaml}
+  - {checkpoint: guide-open}
+  - {keys: [BACK]}
+  - {wait_ms: 800}
+  - {checkpoint: guide-closed}
+fs_expect:
+  guide-open:
+    unchanged: true
+  guide-closed:
+    unchanged: true
+layout_expect:
+  guide-open:
+    required: [selector_coach_overlay]
+  guide-closed:
+    required: [image_region]
+    forbidden: [selector_coach_overlay]

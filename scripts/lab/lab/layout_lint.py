@@ -1,13 +1,15 @@
-"""Layout lint rules R1-R8 on normalised checkpoint trees."""
+"""Layout lint rules R1-R11 on normalised checkpoint trees."""
 
 from __future__ import annotations
 
 import fnmatch
+import re
 from pathlib import Path
 from typing import Any
 
 import yaml
 
+from .feedback import MISSING, UNCHECKED, WRONG, check_feedback
 from .model import Finding, Node, Tree
 
 
@@ -110,6 +112,32 @@ def cut_by_scroll(node: Node, by_id: dict[str, Node], tol: float = 0.5) -> bool:
             return True
         cur = anc.parent
     return False
+
+
+_TRAILING_ELLIPSIS = re.compile(r"\S\s*(…|\.\.\.)\s*$")
+_WORD_BROKEN_BY_HYPHEN = re.compile(r"[^\W\d_]-[ \t]*\n[ \t]*[^\W\d_A-Z]")
+
+
+def text_truncation(text: str) -> str | None:
+    """Why `text` reads as cut short, or None.
+
+    Distinct from R7 (`clipped`, a platform flag): this one reads the words themselves. A text
+    that ends in an ellipsis was shortened to fit (`DSC_0042_long…`), and one broken inside a
+    word at a line end (`Verschie-\nben`) was too narrow for its longest word. Both are what the
+    maintainer sees at large text sizes. Strings that end in an ellipsis on purpose ("Loading…")
+    are allowed per product (rules `text_truncation.allow_text`/`allow_ids`).
+    """
+    if _TRAILING_ELLIPSIS.search(text):
+        return "ends in an ellipsis"
+    if _WORD_BROKEN_BY_HYPHEN.search(text):
+        return "is broken inside a word across lines"
+    return None
+
+
+def truncation_allowed(node: Node, text: str, cfg: dict[str, Any]) -> bool:
+    if any(fnmatch.fnmatchcase(node.id, str(g)) for g in cfg.get("allow_ids") or []):
+        return True
+    return any(re.search(str(rx), text) for rx in cfg.get("allow_text") or [])
 
 
 def named_ids(nodes: list[Node]) -> set[str]:
@@ -372,6 +400,18 @@ def lint(
                 alternatives,
             )
 
+    # R3b: forbidden-node-present (major): a node that must be gone, e.g. the guide after Back closed it
+    for bad_id in expect.get("forbidden", []):
+        shown = [n for n in active_nodes if n.id == str(bad_id)]
+        if shown:
+            add_finding(
+                "forbidden-node-present",
+                "major",
+                shown[0].bounds,
+                f"node {bad_id!r} must not be on screen at this checkpoint",
+                [str(bad_id)],
+            )
+
     # R1: overlap-interactive (major)
     interactive_nodes = [
         n
@@ -507,6 +547,31 @@ def lint(
                 f"text in {node.id} is clipped/ellipsized",
                 [ref(node)],
             )
+
+    # R10: truncated-text (minor): text shortened with an ellipsis or broken inside a word
+    trunc_cfg = rules.get("text_truncation") or {}
+    for node in active_nodes:
+        for text in dict.fromkeys(t for t in (node.text, node.name) if t and t.strip()):
+            why = text_truncation(text)
+            if why and not truncation_allowed(node, text, trunc_cfg):
+                add_finding(
+                    "truncated-text",
+                    "minor",
+                    node.bounds,
+                    f"text {text!r} in {node.id} {why}",
+                    [ref(node), text],
+                )
+
+    # R11: missing-feedback (major): the checkpoint after an action must show feedback that names it
+    fb = check_feedback(tree, rules, expect.get("expect_feedback"))
+    if fb is not None and fb.status != "ok":
+        rule, severity = {
+            MISSING: ("missing-feedback", "major"),
+            WRONG: ("wrong-feedback", "major"),
+            UNCHECKED: ("feedback-unchecked", "minor"),
+        }[fb.status]
+        wanted = " or ".join(fb.actions) or "any action"
+        add_finding(rule, severity, fb.region, f"after {wanted}: {fb.message}", [wanted])
 
     # R9: guidance-covers-control (major). Guidance is exempt from the overlap rules, so the
     # rules name the controls it must leave free (AD-4: the first-run pill sat on the Next

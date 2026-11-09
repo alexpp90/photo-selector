@@ -9,3 +9,18 @@ frame_ids:
   - viewer.photo
 ignore_ids: []
 frame_size: {}
+# Feedback after an action (scripts/lab/lab/feedback.py). Jackpix answers in the feed's snackbar
+# host (`PhoneModeScreen.kt: FeedSnackbarHost`, tag feed_snackbar_host; the Settings sheet has its
+# own host). The words are `snackbar_*` in res/values and res/values-de: the lab devices run
+# German and English. Undo has none: the restored photo is its feedback (no snackbar string).
+feedback:
+  surfaces: [feed_snackbar_host, settings_snackbar_host]
+  actions:
+    delete: [deleted, gelöscht]
+    copy: [copied, kopiert]
+    move: [moved, verschoben]
+    favourite: [favourite, favorit]
+# Strings that end in an ellipsis on purpose. None are known in Jackpix's res/values.
+text_truncation:
+  allow_ids: []
+  allow_text: []

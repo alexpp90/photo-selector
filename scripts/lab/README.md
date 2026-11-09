@@ -146,6 +146,24 @@ touch-expanded bounds; a control counts as named when it or a child carries a la
 cut at the top or bottom edge of a scroll container (`scrollable` in the dump) is not checked for
 height or name: uiautomator reports only its visible part and drops its off-screen children. A
 `layout_expect.required` entry may be a list: any one of those ids.
+`layout_expect.<checkpoint>.forbidden: [ids]` lists nodes that must be gone (the guide after Back
+closed it): `forbidden-node-present`.
+
+**Feedback oracle** (`lab/feedback.py`, rule `missing-feedback` / `wrong-feedback`): the
+checkpoint right after an action step declares `layout_expect.<checkpoint>.expect_feedback:` `true`
+(any feedback), an action (`delete`, `copy`, `move`, `favourite`) or a list of them, and the tree
+must show a feedback node whose text names it. Per product, `rules/<product>.yaml` has
+`feedback: {surfaces: [id globs], ignore_ids: [...], text: <bool>, actions: {<action>: [words in every
+shipped language]}}`. Jackpix: `feed_snackbar_host`; Frameduel: `selector_snackbar`; Lensjet:
+`action_toast` (frames only, so presence but not words); Blitzlens has no surface in its tree, so
+the claim is `feedback-unchecked` (minor), never a pass. The explore verifier records `expected_feedback`
+for a move, copy or delete and reports `missing-feedback` as minor until a real walk has replayed it.
+Capture inside the feedback's lifetime (a snackbar lasts seconds, Lensjet's toast 1.2 s).
+
+**Truncation lint** (rule `truncated-text`, minor): text or name that ends in "…" / "..." or breaks
+inside a word at a line end (`ver-\nschieben`). It reads the words, unlike R7 `clipped-text`, which
+reads the platform's flag. `text_truncation: {allow_ids: [globs], allow_text: [regexes]}` in the
+product's rules allows strings that end in an ellipsis on purpose.
 
 ## Host prerequisites
 
