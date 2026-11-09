@@ -45,9 +45,20 @@ updates:
 
   # Poetry projects (poetry.lock beside each pyproject.toml). Majors are decided by a person.
   - package-ecosystem: pip
-    directories:
-      - /products/desktop
-      - /products/linux-desktop
+    directory: /products/desktop
+    schedule:
+      interval: monthly
+    open-pull-requests-limit: 3
+    ignore:
+      - dependency-name: "*"
+        update-types: ["version-update:semver-major"]
+    groups:
+      python-dependencies:
+        patterns:
+          - "*"
+
+  - package-ecosystem: pip
+    directory: /products/linux-desktop
     schedule:
       interval: monthly
     open-pull-requests-limit: 3

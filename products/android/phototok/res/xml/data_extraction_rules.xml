@@ -3,10 +3,10 @@
     <cloud-backup>
         <!-- Exclude persisted SAF folder URI grants in DataStore from cloud backup -->
         <exclude domain="database" path="." />
-        <exclude domain="file" path="datastore" />
+        <exclude domain="file" path="." />
     </cloud-backup>
     <device-transfer>
         <exclude domain="database" path="." />
-        <exclude domain="file" path="datastore" />
+        <exclude domain="file" path="." />
     </device-transfer>
 </data-extraction-rules>

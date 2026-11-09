@@ -238,6 +238,23 @@ class RunTestsPythonEnvironmentTest(unittest.TestCase):
         self.assertIn(str(good / "bin"), out)
         self.assertNotIn("FOREIGN", self.marker())
 
+    def test_a_shared_clone_uses_the_origin_checkouts_provisioned_venv(self):
+        main = self.make_root("main")
+        clone_parent = self.tmp / "clone"
+        subprocess.run(["git", "init", "-q", "-b", "main", str(main)], check=True, env={**os.environ, **GIT_ENV})
+        subprocess.run(["git", "-C", str(main), "add", "-A"], check=True, env={**os.environ, **GIT_ENV})
+        subprocess.run(["git", "-C", str(main), "commit", "-q", "-m", "init"], check=True, env={**os.environ, **GIT_ENV})
+        subprocess.run(["git", "clone", "-q", "--shared", str(main), str(clone_parent)],
+                       check=True, env={**os.environ, **GIT_ENV})
+        empty = self.make_venv("venv-clone-empty", with_tools=False)
+        good = self.make_venv("venv-main", with_tools=True)
+        write_exe(empty / "bin" / "python", "#!/bin/sh\nif [ \"$1\" = \"-c\" ]; then echo pytest_cov; exit 1; fi\nexit 0\n")
+        result = self.run_script(clone_parent, "--python", venv=empty, main_root=main, main_venv=good)
+        out = result.stdout + result.stderr
+        self.assertIn("Python environment provisioned (products/desktop)", out)
+        self.assertIn(str(good / "bin"), out)
+        self.assertNotIn("FOREIGN", self.marker())
+
 
 if __name__ == "__main__":
     unittest.main()

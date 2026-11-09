@@ -63,6 +63,26 @@ class PerFileSafTransferTest : SafTransferContractTest(PER_FILE_POLICY) {
     }
 
     @Test
+    fun `a cancellation on member 2 does not drop member 1 result (AS-D-7)`() = runTest {
+        File(rootDir, "IMG_0040.JPG").writeText("first")
+        File(rootDir, "IMG_0040.CR3").writeText("second")
+        FakeSafDocumentsProvider.throwCancellationOnOpenMatching = "IMG_0040.CR3"
+
+        val results = engine.transferBundle(
+            storage,
+            listOf(documentUriFor("IMG_0040.JPG"), documentUriFor("IMG_0040.CR3")),
+            selection(), true, true,
+        )
+
+        assertTrue("member 1 landed and is reported so", results[0].success)
+        assertFalse(results[1].success)
+        assertEquals("Operation cancelled", results[1].error)
+        assertEquals("first", File(rootDir, "Selection/JPEG/IMG_0040.JPG").readText())
+        assertFalse("the moved source is gone", File(rootDir, "IMG_0040.JPG").exists())
+        assertTrue("the cancelled member source stays", File(rootDir, "IMG_0040.CR3").exists())
+    }
+
+    @Test
     fun `an unresolvable member fails alone and the others are transferred`() = runTest {
         File(rootDir, "IMG_0014.JPG").writeText("payload")
 

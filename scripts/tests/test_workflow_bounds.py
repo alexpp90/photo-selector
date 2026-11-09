@@ -223,7 +223,10 @@ class DependabotCoverageTest(unittest.TestCase):
         # Pillow carried ~60 advisories nobody was told about) nor .github/actions/*.
         text = DEPENDABOT.read_text(encoding="utf-8")
         blocks = re.split(r"(?m)^  - package-ecosystem: ", text)[1:]
-        by_ecosystem = {block.split()[0]: block for block in blocks}
+        by_ecosystem: dict[str, str] = {}
+        for block in blocks:
+            eco = block.split()[0]
+            by_ecosystem[eco] = by_ecosystem.get(eco, "") + "\n" + block
         for directory in ("/products/desktop", "/products/linux-desktop"):
             with self.subTest(directory=directory):
                 self.assertIn(directory, by_ecosystem["pip"])

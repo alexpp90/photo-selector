@@ -268,6 +268,13 @@ venv_bins_for() {
     if have git; then
         common_git="$(git -C "$project" rev-parse --path-format=absolute --git-common-dir 2>/dev/null || true)"
         common_root="${common_git%/.git}"
+        if [ "$common_root" = "$ROOT_DIR" ] || [ -z "$common_root" ]; then
+            local origin_dir
+            origin_dir="$(git -C "$project" config --get remote.origin.url 2>/dev/null || true)"
+            if [ -n "$origin_dir" ] && [ -d "$origin_dir" ] && [ "$origin_dir" != "$ROOT_DIR" ]; then
+                common_root="$origin_dir"
+            fi
+        fi
         rel="${project#"$ROOT_DIR"/}"
         if [ -n "$common_root" ] && [ "$common_root" != "$ROOT_DIR" ] && [ -f "$common_root/$rel/poetry.lock" ]; then
             venv="$(poetry --directory "$common_root/$rel" env info -p 2>/dev/null || true)"

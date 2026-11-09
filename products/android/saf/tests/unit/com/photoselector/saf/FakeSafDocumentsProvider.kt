@@ -36,6 +36,10 @@ class FakeSafDocumentsProvider : android.content.ContentProvider() {
         @Volatile
         var throwOnOpenMatching: String? = null
 
+        /** When set, opening a document whose id contains this text throws CancellationException (AS-D-7). */
+        @Volatile
+        var throwCancellationOnOpenMatching: String? = null
+
         @Volatile
         var autoRenameOnCreate: ((String) -> String)? = null
 
@@ -101,6 +105,7 @@ class FakeSafDocumentsProvider : android.content.ContentProvider() {
             failDeletes = false
             failDeletesMatching = null
             throwOnOpenMatching = null
+            throwCancellationOnOpenMatching = null
             opaqueFolderIds = false
             createDelayMs = 0L
             opaqueRegistry.clear()
@@ -322,6 +327,9 @@ class FakeSafDocumentsProvider : android.content.ContentProvider() {
 
     override fun openFile(uri: Uri, mode: String): ParcelFileDescriptor {
         val id = documentIdOf(uri)
+        if (throwCancellationOnOpenMatching?.let { id.contains(it) } == true) {
+            throw kotlinx.coroutines.CancellationException("Simulated cancellation for $id")
+        }
         if (throwOnOpenMatching?.let { id.contains(it) } == true) {
             throw IllegalStateException("Simulated provider failure for $id")
         }

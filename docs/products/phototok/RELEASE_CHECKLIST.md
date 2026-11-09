@@ -62,7 +62,6 @@ Because Jackpix requests zero permissions, has no network access, and processes 
 Store text promises behaviour, so every line must be true for the build being released. Before pasting, fact-check each feature line against the current code and remove anything that is no longer true.
 
 - **Title rule:** always the name with a descriptive subtitle. Play limit: **30 characters**.
-- **Disclaimer:** the non-affiliation sentence goes at the end of the full description (it does not fit the 80-character short description).
 
 ### English (United States) — en-US
 
@@ -76,17 +75,17 @@ Store text promises behaviour, so every line must be true for the build being re
 Jackpix turns sorting photos into a feed you flick through. Open your camera roll or any folder — on your phone, an SD card or a USB card reader — and swipe:
 
 • Swipe up/down to browse, newest first.
-• Swipe right to copy the photo into your "Selection" folder (or move it — your choice).
+• Swipe right to favourite a photo (or copy/move to Selection in Pro mode).
 • Swipe left to delete it. Changed your mind? One tap on Revert brings it back.
 
 Features
-• Starts right away: pick "Phone Camera" or any folder, no setup.
-• RAW + JPEG pairs: Jackpix offers to treat both files of a shot as one, so copy, move and delete apply to both.
-• Camera info: tap Info to see the photo's EXIF data.
+• Starts right away: pick "Camera" or any folder, no setup.
+• Two modes: Casual (quick favourites and decluttering) and Pro (cull to Selection folder, move or copy).
+• RAW + JPEG pairs: Jackpix treats companion files of a shot as one, so actions apply to both.
+• Camera info: in Pro mode, tap Info to see shutter speed, aperture, ISO and lens EXIF data.
 • Pinch or double-tap to zoom and check focus.
 • Recent folders and resume: pick up where you left off.
-• Configurable swipes: the left swipe can also copy or move to a folder of your choice.
-• Randomize order to rediscover old photos.
+• Configurable swipes and feed ordering.
 
 Private by design
 • No permissions, no internet access, no account.
@@ -106,17 +105,17 @@ Private by design
 Jackpix macht Fotos-Aussortieren zu einem Feed, durch den du wischst. Öffne deine Kamera-Galerie oder einen beliebigen Ordner — auf dem Handy, einer SD-Karte oder einem USB-Kartenleser — und wische:
 
 • Nach oben/unten wischen: blättern, neueste zuerst.
-• Nach rechts wischen: Foto in deinen Ordner „Selection“ kopieren (oder verschieben — du entscheidest).
+• Nach rechts wischen: Foto als Favorit markieren (oder im Pro-Modus nach „Selection“ kopieren/verschieben).
 • Nach links wischen: Foto löschen. Doch behalten? Ein Tipp auf „Rückgängig“ holt es zurück.
 
 Funktionen
 • Sofort startklar: „Kamera“ oder einen beliebigen Ordner wählen, keine Einrichtung.
-• RAW- + JPEG-Paare: Jackpix bietet an, beide Dateien einer Aufnahme als eine zu behandeln — Kopieren, Verschieben und Löschen gelten dann für beide.
-• Kamera-Infos: Tippe auf „Info“ für die EXIF-Daten des Fotos.
+• Zwei Modi: Casual (schnelle Favoriten und Aufräumen) und Pro (in Selection-Ordner kopieren/verschieben).
+• RAW- + JPEG-Paare: Jackpix behandelt Begleitdateien einer Aufnahme als Einheit — Aktionen gelten für beide.
+• Kamera-Infos: Im Pro-Modus „Info“ antippen für Belichtungszeit, Blende, ISO und Objektiv-EXIF-Daten.
 • Mit zwei Fingern oder Doppeltipp zoomen und die Schärfe prüfen.
 • Zuletzt verwendete Ordner und Fortsetzen: weitermachen, wo du aufgehört hast.
-• Wischgesten einstellbar: Links-Wischen kann auch in einen Ordner deiner Wahl kopieren oder verschieben.
-• Zufällige Reihenfolge, um alte Fotos wiederzuentdecken.
+• Einstellbare Wischgesten und Sortierung.
 
 Privatsphäre von Anfang an
 • Keine Berechtigungen, kein Internetzugriff, kein Konto.

@@ -707,7 +707,8 @@ class SafTransferEngine(
                         parentDocumentId = parentDocumentId,
                     )
                 } catch (e: CancellationException) {
-                    throw e
+                    Log.w(TAG, "Transfer cancelled for $sourceStr", e)
+                    FileOperationResult.failure(sourceStr, "Operation cancelled", parentDocumentId)
                 } catch (e: Exception) {
                     Log.e(TAG, "Failed to transfer $sourceStr", e)
                     FileOperationResult.failure(sourceStr, e.message, parentDocumentId)
