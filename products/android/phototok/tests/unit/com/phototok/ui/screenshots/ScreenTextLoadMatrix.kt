@@ -166,8 +166,7 @@ abstract class ScreenTextLoadMatrix {
             val dated = panel.mapNotNull { it.visibleText() }.any { it !in fileNames && it.contains("2026") }
             if (!dated) noDate.add(cell, listOf(panel.mapNotNull { it.visibleText() }.toString()))
         }
-        listOf(targets, off, covered, broken).forEach { it.assertNone() }
-        knownDefect("F-TOK-052", "the info panel truncates the file name and lens at font scale 2.0") { truncated.assertNone() }
+        listOf(targets, off, covered, broken, truncated).forEach { it.assertNone() }
         knownDefect("F-TOK-028", "the info panel shows no capture date") { noDate.assertNone() }
     }
 
