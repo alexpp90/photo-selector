@@ -500,7 +500,7 @@ fails the build on any finding. This section applies them to Jackpix.
 | Landing | *no tagline, no section labels* | — | folder name as a value · **Resume** / Start |
 | Landing: folder access lost | "Folder access lost" | — | Re-select |
 | Landing: empty folder | "«Folder»: no photos" | — | — |
-| Settings (first screen) | "Pro mode" (first, own card) · "Source folder" (value: folder name) · "Reload folder" · "Selection folder" · "RAW / JPEG folders" · "Selection location" (value: Custom/Default) · "Reset this folder" · "Reset all folders" · "Clear cache" · "Confirm delete" (warning "Deletes without asking") · "Milestones" · "Link RAW + JPEG" · "Privacy Policy" · "Legal Notice (Impressum)" (Casual shows only the rows listed in the Pro mode table of section 3) | — | — |
+| Settings (first screen) | "Pro mode" (first, own card) · "Source folder" (value: folder name) · "Reload folder" · "Selection folder" · "RAW / JPEG folders" · "Selection location" and "Left swipe folder" (value: "Default", or the chosen folder's path in the source badges' words, e.g. "Phone › DCIM › Keepers" / "Telefon › DCIM › Keepers", on one line with a middle ellipsis; the folder dialog shows it whole under "Choose folder") · "Reset this folder" · "Reset all folders" · "Clear cache" · "Confirm delete" (warning "Deletes without asking") · "Milestones" · "Link RAW + JPEG" · "Privacy Policy" · "Legal Notice (Impressum)" (Casual shows only the rows listed in the Pro mode table of section 3) | — | — |
 
 Hint cards auto-dismiss after 7 s. A card with an action stays for 12 s, so there is time to
 reach the button. A hint card appears only over the feed it explains, never over the landing, the

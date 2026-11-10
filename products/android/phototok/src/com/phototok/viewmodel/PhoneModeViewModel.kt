@@ -2293,14 +2293,31 @@ class PhoneModeViewModel @Inject constructor(
         }
     }
 
+    /**
+     * The source kind whose settings a choice made over the feed belongs to: the open folder's, so
+     * "Link RAW + JPEG" on an SD card acts on the card (it always wrote the phone's settings, JP-UI-1).
+     * A cloud folder follows the phone's settings and has no Settings tab of its own
+     * (`SettingsViewModel.showSourceKind`), so its choices go to the phone's.
+     */
+    private fun settingsKindOfOpenFolder(): SourceKind =
+        _uiState.value.sourceKind.let { if (it == SourceKind.CLOUD_OTHER) SourceKind.PHONE_LIBRARY else it }
+
     fun applyRawJpegFilter(filter: FileTypeFilter) {
+        val kind = settingsKindOfOpenFolder()
         _uiState.update { it.copy(showRawJpegSuggestion = false, firstRunHint = null) }
         viewModelScope.launch {
             settingsRepository.markFirstRunHintSeen(FirstRunHint.RAW_JPEG_PAIRS)
             settingsRepository.markFirstRunHintSeen(FirstRunHint.FILTER_MISMATCH)
-            settingsRepository.setPhoneFileTypeFilter(filter)
-            if (filter == FileTypeFilter.ONE_PER_SHOT) {
-                settingsRepository.setPhoneMoveRelatedFiles(true)
+            if (kind == SourceKind.PHONE_LIBRARY) {
+                settingsRepository.setPhoneFileTypeFilter(filter)
+                if (filter == FileTypeFilter.ONE_PER_SHOT) {
+                    settingsRepository.setPhoneMoveRelatedFiles(true)
+                }
+            } else {
+                settingsRepository.setSourceFileTypeFilter(kind, filter)
+                if (filter == FileTypeFilter.ONE_PER_SHOT) {
+                    settingsRepository.setSourceMoveRelatedFiles(kind, true)
+                }
             }
         }
         showFeedback(
@@ -2316,10 +2333,15 @@ class PhoneModeViewModel @Inject constructor(
     }
 
     fun enableMoveRelatedFiles() {
+        val kind = settingsKindOfOpenFolder()
         _uiState.update { it.copy(showRawJpegSuggestion = false) }
         viewModelScope.launch {
             settingsRepository.markFirstRunHintSeen(FirstRunHint.RAW_JPEG_PAIRS)
-            settingsRepository.setPhoneMoveRelatedFiles(true)
+            if (kind == SourceKind.PHONE_LIBRARY) {
+                settingsRepository.setPhoneMoveRelatedFiles(true)
+            } else {
+                settingsRepository.setSourceMoveRelatedFiles(kind, true)
+            }
         }
         showFeedback(UiText.of(R.string.snackbar_linked))
     }
