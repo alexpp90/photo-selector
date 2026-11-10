@@ -38,3 +38,18 @@ frame_size:
     min_h: 440
     ids:
       - image_region
+# Feedback after an action (scripts/lab/lab/feedback.py): Frameduel's one snackbar card,
+# `selector_snackbar` (SelectorActions.kt), also over the fullscreen viewer. Words:
+# `SelectionActionLabels.confirmation` ("Moved to Selection", "Copied to «Keepers › Selection»")
+# and the delete hint ("Deleted — undo …"). A rating's success has no snackbar (only a failed
+# write does), and undo's only when it had to rename or could not remove the copy.
+feedback:
+  surfaces: [selector_snackbar]
+  ignore_ids: [snackbar_undo]
+  actions:
+    delete: [Deleted]
+    copy: [Copied]
+    move: [Moved]
+text_truncation:
+  allow_ids: []
+  allow_text: []

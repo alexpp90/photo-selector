@@ -1,0 +1,36 @@
+id: J-TOK-07
+product: phototok
+title: Delete then undo shows feedback, at normal and large text (F-TOK missing-feedback class)
+fixture: smoke
+configs: [phone-large-text, phone-portrait]
+fresh_install: false
+# NOT YET RUN ON HARDWARE (written 2026-11-09 without a device). First real run: check that the
+# `deleted` capture still holds the snackbar (Short, about 4 s: the wait is 500 ms) and that the
+# German devices' "Foto gelöscht" matches `feedback.actions.delete` in rules/phototok.yaml.
+steps:
+  - {checkpoint: before}
+  - {maestro: products/android/phototok/tests/e2e/J-TOK-03/02_swipe_left_delete.yaml}
+  - {maestro: products/android/phototok/tests/e2e/J-TOK-03/03_confirm_delete.yaml}
+  - {wait_ms: 500}
+  - {checkpoint: deleted}
+  - {maestro: products/android/phototok/tests/e2e/J-TOK-03/04_revert_delete.yaml}
+  - {checkpoint: reverted}
+# The delete is deferred (PhoneModeViewModel.finalizePendingDelete): the file is still on disk
+# at both checkpoints, and Undo brings the photo back into the feed.
+bind:
+  before: {victim: viewer.photo}
+fs_expect:
+  before:
+    unchanged: true
+  deleted:
+    present: ["{victim}"]
+  reverted:
+    present: ["{victim}"]
+layout_expect:
+  before:
+    required: [viewer.photo]
+  deleted:
+    required: [viewer_revert_button]
+    expect_feedback: delete
+  reverted:
+    required: [viewer.photo]

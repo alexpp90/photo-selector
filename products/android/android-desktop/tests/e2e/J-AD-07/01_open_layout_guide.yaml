@@ -1,0 +1,9 @@
+appId: com.photoselectortoolbox.lab
+---
+# Opens the shortcuts and layout guide from the control block's button (expanded layouts).
+- tapOn:
+    id: "shortcuts_button"
+- extendedWaitUntil:
+    visible:
+      id: "selector_coach_overlay"
+    timeout: 8000
