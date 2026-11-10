@@ -329,7 +329,9 @@ Zinc-700 rule:
 └────────┘
 ```
 
-- Each item is a 72 dp-tall, 80 dp-wide target: 24 dp glyph over an 11 sp label, centred.
+- Each item is an 80 dp-wide target at least 72 dp tall: 24 dp glyph over an 11 sp label,
+  centred. 72 dp is a minimum, not a fixed height: at font scale 2.0 glyph and label need
+  more, and a fixed box squeezed the label onto the next item (usability panel 2026-11-10).
   The column scrolls vertically: its natural height is ~785 dp, so in any shorter window
   (DeX and ChromeOS open at 1024 × 768; the manifest allows 480 dp) Stats, Dupes and Setup
   were simply cut off. A 16 dp fade marks an edge only while there is more beyond it; the
@@ -761,7 +763,8 @@ One centred pill ("Tap either side to browse" · "Got it"), shown once, `hasSeen
 persisted. It sits over the Previous/Next pair it teaches about, lifted clear of the
 neighbours' maximise-badge band (`FrameGeometry.firstRunPillBottomInset`: badge inset + badge
 + 8 dp) — at the original 16 dp it sat squarely on the Next frame's badge, so the first tap a
-new user aimed at maximise dismissed the hint instead. "Got it" is a 56 × 48 dp target. It remains the
+new user aimed at maximise dismissed the hint instead. "Got it" is a target of at least 56 × 48 dp,
+wider when the word needs it (a fixed 56 dp cut it to "Got i" at font scale 2.0). It remains the
 only image-adjacent overlay besides the maximise badge.
 
 **What "only" restricts, precisely.** It restricts *placement*, not the existence of
@@ -933,6 +936,9 @@ what the user is looking at.
   never does is fall back to the image region.
 - Fires once, fades out after 9 s or on **Got it**, suppressed while §7.9 is open, and
   brought back by *Reset guidance* (§14).
+- Title and **Got it** are always drawn; where the flank is shorter than the card (font
+  scale 2.0), the message scrolls between them rather than being cut off with Got it below
+  the card.
 
 ### Do not
 

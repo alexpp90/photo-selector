@@ -30,6 +30,7 @@ import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.sizeIn
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
@@ -255,14 +256,17 @@ fun FirstRunNavigationHint(
             )
             // The node carrying the tag is the 48 x 48 dp box, not the 12 sp text
             // inside it: a lab measures the tagged node, and a hit target that is
-            // only 48 dp on an inner node reads as 34 dp tall (AD-17).
+            // only 48 dp on an inner node reads as 34 dp tall (AD-17). A minimum,
+            // not a fixed size: at font scale 2.0 a fixed 56 dp box cut the word
+            // to "Got i" (usability panel 2026-11-10, UI_TEXT: never truncate).
             Box(
                 modifier = Modifier
-                    .size(PillDismissHitSize)
+                    .sizeIn(minWidth = PillDismissHitSize.width, minHeight = PillDismissHitSize.height)
                     .clip(RoundedCornerShape(999.dp))
                     .pointerHoverIcon(PointerIcon.Hand)
                     .clickable(onClick = onDismiss, role = Role.Button)
-                    .testTag("first_run_hint_dismiss"),
+                    .testTag("first_run_hint_dismiss")
+                    .padding(horizontal = PillDismissPadding),
                 contentAlignment = Alignment.Center,
             ) {
                 Text(
@@ -280,6 +284,9 @@ fun FirstRunNavigationHint(
 
 /** The pill's "Got it" hit target (AD-17): at least 48 dp both ways, wider for the word. */
 private val PillDismissHitSize = DpSize(56.dp, 48.dp)
+
+/** Room either side of "Got it" inside its target, so the word never meets the target's edge. */
+private val PillDismissPadding = 8.dp
 
 // ── Undo snackbar ───────────────────────────────────────────────────────────
 
