@@ -292,6 +292,14 @@ def _cell(text: str, limit: int = 60) -> str:
     return text if len(text) <= limit else text[: limit - 3] + "..."
 
 
+def _evidence_line(run_dir: Any) -> str:
+    """What the run's `evidence/` folders hold: files, screenshots and size."""
+    files = [p for p in Path(run_dir).rglob("*") if p.is_file() and "evidence" in p.relative_to(run_dir).parts]
+    shots = sum(1 for p in files if p.suffix == ".png")
+    size_mb = sum(p.stat().st_size for p in files) / (1024 * 1024)
+    return f"- Evidence kept: {len(files)} files, {shots} screenshot{'s' if shots != 1 else ''}, {size_mb:.1f} MB"
+
+
 def render_markdown_report(summary: Any, deduped: List[AggregatedFinding]) -> str:
     """Report as Markdown: run facts, devices, findings by severity, every step."""
     duration = max(0.0, summary.end_time - summary.start_time)
@@ -308,6 +316,7 @@ def render_markdown_report(summary: Any, deduped: List[AggregatedFinding]) -> st
         f"- Steps: {summary.total_steps} ({summary.passed_steps} passed, {summary.failed_steps} failed or errored)",
         f"- Passed with a claim not checked: {getattr(summary, 'unchecked_passes', 0)} (no position or count on one side of the step)",
         f"- Unique findings: {len(open_findings)} open, {len(known)} known (triaged)",
+        _evidence_line(summary.run_dir),
         "",
         "Findings are leads, not verdicts: a person triages them before anything is filed.",
         "",

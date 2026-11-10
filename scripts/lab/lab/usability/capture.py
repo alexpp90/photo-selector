@@ -348,6 +348,11 @@ def _capture_android(spec: dict[str, Any], product: str, client: AdbClient, out:
         return walkthrough
 
 
+def _opens_with_launch(scenario: dict[str, Any]) -> bool:
+    steps = scenario.get("steps") or []
+    return bool(steps) and "launch" in steps[0]
+
+
 def _execute_scenarios(
     spec: dict[str, Any],
     product: str,
@@ -366,6 +371,11 @@ def _execute_scenarios(
         driver.out_dir = out_dir / scenario["id"]
         driver.screens = []
         driver._actions = []
+        # A scenario that builds on the last one's open dialog or snackbar judged the app by what the
+        # walk left behind (2026-10-24: "I'm afraid I lost a photo just by arriving"). `fresh_start`
+        # in the scenario file relaunches the app between scenarios.
+        if spec.get("fresh_start") and results and product in ANDROID_PRODUCTS and not _opens_with_launch(scenario):
+            driver.fresh_start()
         result = driver.run(scenario)
         results.append(result)
         if result["status"] != "pass" and product in ANDROID_PRODUCTS:

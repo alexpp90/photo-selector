@@ -4,7 +4,7 @@ Blitzlens – Photo Culling: a native GNOME photograph culling and selection app
 
 ## Overview
 
-Blitzlens is built with Python 3.12+, PyGObject, GTK4, Libadwaita, GExiv2, and vectorized NumPy, it provides SD-card ingestion, companion RAW+JPEG pairing, noise-corrected focus scoring, and tactile culling keyboard shortcuts adhering strictly to the GNOME Human Interface Guidelines (HIG).
+Blitzlens is built with Python 3.12+, PyGObject, GTK4, Libadwaita, GExiv2, and vectorized NumPy, it provides SD-card ingestion, companion RAW+JPEG pairing, noise-corrected focus scoring, and tactile culling keyboard shortcuts, built along the GNOME Human Interface Guidelines (HIG).
 
 ## Architecture
 

@@ -11,6 +11,7 @@ import shutil
 import subprocess
 import sys
 import tempfile
+import time
 import types
 import unittest
 from pathlib import Path
@@ -25,9 +26,11 @@ from lab.android.configs import ConfigNotRunError  # noqa: E402
 from lab.explore.actions import Action  # noqa: E402
 from lab.explore.discovery import SYSTEM_PICKER_MODE  # noqa: E402
 from lab.explore.expectations import read_counter  # noqa: E402
-from lab.explore.driver import (  # noqa: E402
+from lab.explore.drivers import (  # noqa: E402
+    DeviceDriver,
     AndroidDeviceDriver,
     AppCrashedError,
+    ActionUnavailableError,
     AppLeftError,
     DriverError,
     TargetUnderSystemBarError,
@@ -219,7 +222,7 @@ class TestAndroidSetupAndPrepare(AndroidCase):
         with self.assertRaises(DeviceBusy):
             twin.setup()
 
-    @patch("lab.explore.driver.generate_fixtures")
+    @patch("lab.explore.drivers.android.generate_fixtures")
     def test_prepare_readies_stages_and_launches_in_that_order(self, gen: Any) -> None:
         gen.side_effect = lambda name, out, **kw: (Path(out).mkdir(parents=True, exist_ok=True), (Path(out) / "a.JPG").write_bytes(b"x"))
         driver = self.make_driver()
@@ -243,7 +246,7 @@ class TestAndroidSetupAndPrepare(AndroidCase):
         self.assertIn(("shell", "am", "force-stop", APP), calls)
         self.assertFalse((driver.out_dir / "_fixture_stage").exists())
 
-    @patch("lab.explore.driver.generate_fixtures")
+    @patch("lab.explore.drivers.android.generate_fixtures")
     def test_prepare_fails_when_the_folder_cannot_be_opened(self, gen: Any) -> None:
         gen.side_effect = lambda name, out, **kw: Path(out).mkdir(parents=True, exist_ok=True)
         driver = self.make_driver(maestro_fn=lambda serial, flow, junit: 1)
@@ -252,7 +255,7 @@ class TestAndroidSetupAndPrepare(AndroidCase):
             driver.prepare()
         self.assertIn("_ensure_folder.yaml failed", str(ctx.exception))
 
-    @patch("lab.explore.driver.generate_fixtures")
+    @patch("lab.explore.drivers.android.generate_fixtures")
     def test_prepare_fails_when_the_app_is_not_in_front_afterwards(self, gen: Any) -> None:
         gen.side_effect = lambda name, out, **kw: Path(out).mkdir(parents=True, exist_ok=True)
         driver = self.make_driver(FakeDevice(xml=hierarchy(package="com.android.launcher3")))
@@ -329,7 +332,7 @@ class TestAndroidCapture(AndroidCase):
         device.dump_answers = ["ERROR: could not get idle state."] * 5
         driver = self.make_driver(device)
         driver.setup()
-        with patch("lab.explore.driver.time.sleep"):
+        with patch("time.sleep"):
             with self.assertRaises(DriverSettlingError):
                 driver.capture_state()
 
@@ -338,7 +341,7 @@ class TestAndroidCapture(AndroidCase):
         device.dump_answers = ['<hierarchy rotation="0"><node bounds="[0,0][10', hierarchy()]
         driver = self.make_driver(device)
         driver.setup()
-        with patch("lab.explore.driver.time.sleep"):
+        with patch("time.sleep"):
             self.assertTrue(driver.capture_state().tree.nodes)
 
     def test_a_screencap_that_is_not_a_png_is_an_error(self) -> None:
@@ -427,7 +430,7 @@ class TestAndroidActions(AndroidCase):
 
     def test_double_tap_taps_twice(self) -> None:
         driver = self.ready()
-        with patch("lab.explore.driver.time.sleep"):
+        with patch("time.sleep"):
             driver.execute_action(Action("tap", params={"x": 100.0, "y": 200.0, "double_tap": True, "count": 2}))
         self.assertEqual(len(self.device.commands("shell", "input", "tap")), 2)
 
@@ -492,7 +495,7 @@ class TestAndroidActions(AndroidCase):
     def test_back_and_background(self) -> None:
         driver = self.ready()
         driver.execute_action(Action("back"))
-        with patch("lab.explore.driver.time.sleep"):
+        with patch("time.sleep"):
             driver.execute_action(Action("background", params={"duration_s": 1.0}))
         self.assertIn(("shell", "input", "keyboard", "keyevent", "KEYCODE_BACK"), self.device.calls)
         self.assertIn(("shell", "input", "keyevent", "KEYCODE_HOME"), self.device.calls)
@@ -500,13 +503,13 @@ class TestAndroidActions(AndroidCase):
 
     def test_rotate_toggles_to_the_other_orientation_with_the_verified_helper(self) -> None:
         driver = self.ready()
-        with patch("lab.explore.driver.set_verified_rotation") as rotate, patch("lab.explore.driver.time.sleep"):
+        with patch("lab.explore.drivers.android.set_verified_rotation") as rotate, patch("time.sleep"):
             driver.execute_action(Action("rotate", params={"toggle": True}))  # the fake display is portrait
         rotate.assert_called_once_with(driver.adb, "landscape")
 
     def test_a_rotation_the_display_refuses_is_a_failed_step(self) -> None:
         driver = self.ready()
-        with patch("lab.explore.driver.set_verified_rotation", side_effect=ConfigNotRunError("locked at 1080x1920")):
+        with patch("lab.explore.drivers.android.set_verified_rotation", side_effect=ConfigNotRunError("locked at 1080x1920")):
             with self.assertRaises(DriverExecutionError):
                 driver.execute_action(Action("rotate", params={"toggle": True}))
 
@@ -519,10 +522,10 @@ class TestAndroidActions(AndroidCase):
         driver = self.ready()
         with self.assertRaises(DriverExecutionError):
             driver.execute_action(Action("resize", params={}))
-        with patch("lab.explore.driver.resize_app_window", side_effect=ConfigNotRunError("app is fullscreen")):
+        with patch("lab.explore.drivers.android.resize_app_window", side_effect=ConfigNotRunError("app is fullscreen")):
             with self.assertRaises(DriverExecutionError):
                 driver.execute_action(Action("resize", params={"width": 800, "height": 600}))
-        with patch("lab.explore.driver.resize_app_window") as resize:
+        with patch("lab.explore.drivers.android.resize_app_window") as resize:
             driver.execute_action(Action("resize", params={"width": 800, "height": 600}))
         resize.assert_called_once_with(driver.adb, APP, "800x600")
 
@@ -699,6 +702,22 @@ class TestLinuxCommands(unittest.TestCase):
         self.assertEqual(sent[:3], ["xdotool", "key", "--clearmodifiers"])
         return sent[3]
 
+    def test_restaging_replaces_the_working_folder_and_restarts_the_app(self) -> None:
+        work = self.tmp / "work"
+        work.mkdir()
+        (work / "left-over.JPG").write_bytes(b"x")  # what is left of a culled roll
+        with patch("lab.explore.drivers.linux.generate_fixtures",
+                   side_effect=lambda name, out, **kw: (Path(out).mkdir(parents=True, exist_ok=True), (Path(out) / "fresh.JPG").write_bytes(b"y"))) as gen, \
+                patch.object(LinuxDeviceDriver, "restart_app") as restart:
+            self.driver.restage_fixture()
+        self.assertEqual(sorted(p.name for p in work.iterdir()), ["fresh.JPG"])
+        gen.assert_called_once()
+        restart.assert_called_once()
+
+    def test_a_driver_without_a_fixture_to_put_back_says_so(self) -> None:
+        with self.assertRaises(ActionUnavailableError):
+            DeviceDriver.restage_fixture(MockDeviceDriver())
+
     def test_keys_become_x_keysyms(self) -> None:
         self.assertEqual(self.key("M"), "m")
         self.assertEqual(self.key("Space"), "space")
@@ -765,7 +784,7 @@ class TestLinuxCommands(unittest.TestCase):
         self.xdo.windows = {5: (1920, 1080), 9: (500, 480)}
         self.xdo.closes_on = {"Escape"}
         self.driver.last_state = types.SimpleNamespace(tree=Tree("linux", {"w": 490, "h": 470, "unit": "px"}))
-        with patch.object(LinuxDeviceDriver, "_send_wm_delete") as delete, patch("lab.explore.driver.time.sleep"):
+        with patch.object(LinuxDeviceDriver, "_send_wm_delete") as delete, patch("time.sleep"):
             self.driver.execute_action(Action("back"))
         self.assertIn(["xdotool", "windowfocus", "9"], self.xdo.commands)
         delete.assert_not_called()
@@ -773,7 +792,7 @@ class TestLinuxCommands(unittest.TestCase):
     def test_back_closes_a_dialog_that_ignores_escape_like_a_window_manager(self) -> None:
         self.xdo.windows = {5: (1920, 1080), 9: (500, 480)}  # the shortcuts window: a plain Adw.Window
         self.driver.last_state = types.SimpleNamespace(tree=Tree("linux", {"w": 490, "h": 470, "unit": "px"}))
-        with patch.object(LinuxDeviceDriver, "_send_wm_delete") as delete, patch("lab.explore.driver.time.sleep"):
+        with patch.object(LinuxDeviceDriver, "_send_wm_delete") as delete, patch("time.sleep"):
             self.driver.execute_action(Action("back"))
             self.driver.execute_action(Action("key", params={"key": "Escape"}))  # the same thing
         self.assertEqual([c.args for c in delete.call_args_list], [(9,), (9,)])
@@ -900,17 +919,6 @@ class TestLinuxCommands(unittest.TestCase):
         self.assertFalse(driver.lab_dir.exists())
         self.assertFalse(driver.out_dir.exists())
         driver.teardown()
-
-
-class TestMacOSRefusal(unittest.TestCase):
-    def test_every_step_refuses_with_the_reason(self) -> None:
-        driver = MacOSDeviceDriver(out_dir=Path("."))
-        for call in (driver.setup, driver.prepare, driver.capture_state, driver.restart_app, driver.read_app_log,
-                     lambda: driver.execute_action(Action("key", params={"key": "m"}))):
-            with self.assertRaises(DriverError) as ctx:
-                call()
-            self.assertEqual(str(ctx.exception), "Lensjet exploration needs a live-app driver; not implemented yet")
-        driver.teardown()  # nothing was started, nothing to refuse
 
 
 class TestMockDriver(unittest.TestCase):

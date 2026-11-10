@@ -37,6 +37,7 @@ fun FolderTargetDialog(
     title: String,
     defaultSubfolder: String,
     isCustom: Boolean,
+    customPath: String? = null,
     onUseDefault: () -> Unit,
     onChooseFolder: () -> Unit,
     onDismiss: () -> Unit,
@@ -63,7 +64,7 @@ fun FolderTargetDialog(
                 )
                 FolderTargetOption(
                     label = stringResource(R.string.action_choose_folder),
-                    detail = if (isCustom) stringResource(R.string.setting_summary_custom) else null,
+                    detail = if (isCustom) (customPath ?: stringResource(R.string.setting_summary_custom)) else null,
                     selected = isCustom,
                     onClick = onChooseFolder,
                     tag = "folder_target_choose",

@@ -14,6 +14,7 @@ would notice.
 | [`ANDROID_PLATFORM.md`](ANDROID_PLATFORM.md) | Frameduel + Jackpix | The Android baseline both apps obey: tech stack, EXIF extraction contract, storage and file access, project structure |
 | [`BRANDING.md`](BRANDING.md) | All products | Product names, icons, palettes and contrast numbers (reproduced by `assets/brand/generate.py --palette`) |
 | [`FEATURE_PARITY.md`](FEATURE_PARITY.md) | All products | The feature sync policy, the permanent exclusions, and cross-product feature mapping |
+| [`KEYBOARD.md`](KEYBOARD.md) | Frameduel, Lensjet, Blitzlens | The key map of the three desk apps as it is today, read from code, and the proposed aligned map |
 | [`FILE_OPERATIONS.md`](FILE_OPERATIONS.md) | All products | The non-destructive file operation contract: collision-free bundle naming, verified move before source removal, non-destructive undo, and partial failure reporting |
 | [`SUPPORTED_FORMATS.md`](SUPPORTED_FORMATS.md) | All products | The supported file-format contract, the real-camera test corpus, and how every product's format conformance tests keep it working |
 | [`UI_TEXT.md`](UI_TEXT.md) | All products (checked for Jackpix and Frameduel) | Icon-first controls, visible-text budgets per element in EN and DE, when a description is allowed, accessibility and localization rules, and the review checklist for UI text |

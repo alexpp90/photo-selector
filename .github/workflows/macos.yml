@@ -156,6 +156,7 @@ jobs:
     needs: build
     if: github.event_name == 'push' && (github.ref == 'refs/heads/main' || startsWith(github.ref, 'refs/tags/macos-desktop-v'))
     runs-on: ubuntu-24.04
+    # Measured: 0.1-0.2 min over 4 main runs (2026-11); 3x is under the 10-minute floor.
     timeout-minutes: 10
     permissions:
       contents: write
@@ -208,6 +209,7 @@ jobs:
     needs: release
     if: github.event_name == 'push' && (github.ref == 'refs/heads/main' || startsWith(github.ref, 'refs/tags/macos-desktop-v'))
     runs-on: ubuntu-24.04
+    # Measured: 0.1-0.2 min over 4 main runs (2026-11); 3x is under the 10-minute floor.
     timeout-minutes: 10
     permissions:
       contents: read
