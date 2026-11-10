@@ -1,6 +1,7 @@
 package com.phototok.ui.phonemode
 
 import com.phototok.domain.SwipeRightVerb
+import androidx.activity.compose.BackHandler
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.core.Animatable
 import androidx.compose.animation.core.LinearEasing
@@ -35,7 +36,6 @@ import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.automirrored.filled.ArrowForward
 import androidx.compose.material.icons.automirrored.filled.HelpOutline
 import androidx.compose.material.icons.filled.Check
-import androidx.compose.material.icons.filled.CollectionsBookmark
 import androidx.compose.material.icons.filled.FolderOpen
 import androidx.compose.material.icons.filled.KeyboardArrowDown
 import androidx.compose.material.icons.filled.KeyboardArrowUp
@@ -123,7 +123,17 @@ fun GestureTutorialOverlay(
      * callouts: it never labels a control that is not there.
      */
     cameraInfo: Boolean = true,
+    /**
+     * False for the first-run tutorial (step 1): only the swipes and Help are labelled; the bar
+     * callouts come with Help (REQ-TOK-GESTURE.08).
+     */
+    barCallouts: Boolean = true,
+    /** The Selection button's name, the same word the bar speaks and the viewer opens on. */
+    selectionLabel: String? = null,
 ) {
+    // System Back closes the guide (first-run tutorial or controls guide) and nothing else. It is
+    // composed after the Selection viewer's handler, so it is the innermost one while visible.
+    BackHandler(enabled = visible, onBack = onDismiss)
     AnimatedVisibility(
         visible = visible,
         enter = fadeIn(tween(400)),
@@ -138,7 +148,12 @@ fun GestureTutorialOverlay(
         CompositionLocalProvider(
             LocalDensity provides Density(density.density, minOf(density.fontScale, GUIDE_MAX_FONT_SCALE)),
         ) {
-        GuideBox(anchors = anchors, cameraInfo = cameraInfo) { geometry, compact ->
+        GuideBox(
+            anchors = anchors,
+            cameraInfo = cameraInfo,
+            barCallouts = barCallouts,
+            selectionLabel = selectionLabel,
+        ) { geometry, compact ->
             Column(
                 modifier = Modifier
                     .fillMaxSize()

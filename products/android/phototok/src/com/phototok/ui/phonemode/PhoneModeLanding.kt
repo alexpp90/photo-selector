@@ -68,6 +68,14 @@ import com.photoselector.core.storage.SourceKind
 import com.phototok.R
 import com.phototok.data.model.RecentPath
 import com.phototok.domain.UiText
+import com.phototok.domain.FileTypeFilter
+import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.semantics.liveRegion
+import androidx.compose.ui.semantics.LiveRegionMode
+import androidx.compose.material3.TextButton
+import androidx.compose.material.icons.filled.FilterList
+import androidx.compose.foundation.layout.sizeIn
+import androidx.compose.foundation.layout.FlowRow
 import com.phototok.ui.asString
 import com.phototok.ui.components.ProModeHelpDialog
 import com.phototok.ui.components.ProModeRow
@@ -98,6 +106,16 @@ fun PhoneModeLanding(
     onSelectRecentPath: (RecentPath) -> Unit = {},
     proMode: Boolean = false,
     onProModeChange: (Boolean) -> Unit = {},
+    /**
+     * Measured height of the top bar drawn over the landing, status bar included; 0 when there is
+     * none (previews, tests of the landing alone). The scroll viewport starts below it, so a card
+     * scrolled up is clipped at the bar instead of passing under its buttons (F-TOK-048).
+     */
+    topBarHeight: Dp = 0.dp,
+    /** The format filter that hides every photo of the folder (F-TOK-086), or null. */
+    hiddenByFilter: FileTypeFilter? = null,
+    /** Show all: turns the format filter off. */
+    onShowAll: () -> Unit = {},
 ) {
     var showProModeHelp by rememberSaveable { mutableStateOf(false) }
     if (showProModeHelp) ProModeHelpDialog(onDismiss = { showProModeHelp = false })
@@ -140,7 +158,7 @@ fun PhoneModeLanding(
         Column(
             modifier = Modifier
                 .fillMaxSize()
-                .statusBarsPadding()
+                .then(if (topBarHeight > 0.dp) Modifier.padding(top = topBarHeight) else Modifier.statusBarsPadding())
                 .navigationBarsPadding()
                 // Plus a display cutout: logo and cards keep one left edge with the top bar.
                 .horizontalSafeDrawingPadding()
@@ -329,6 +347,8 @@ fun PhoneModeLanding(
                 Surface(
                     modifier = Modifier
                         .fillMaxWidth()
+                        // Read out when it appears: the folder opened and nothing is shown.
+                        .semantics { liveRegion = LiveRegionMode.Polite }
                         .testTag("empty_folder_warning_card"),
                     shape = RoundedCornerShape(12.dp),
                     color = colors.errorContainer.copy(alpha = 0.85f),
@@ -338,7 +358,7 @@ fun PhoneModeLanding(
                         verticalAlignment = Alignment.CenterVertically,
                     ) {
                         Icon(
-                            imageVector = Icons.Default.Info,
+                            imageVector = if (hiddenByFilter != null) Icons.Default.FilterList else Icons.Default.Info,
                             contentDescription = null,
                             tint = colors.onErrorContainer,
                             modifier = Modifier.size(24.dp),
@@ -351,6 +371,9 @@ fun PhoneModeLanding(
                                 fontWeight = FontWeight.Bold,
                                 color = colors.onErrorContainer,
                             )
+                            if (hiddenByFilter != null) {
+                                HiddenByFilterActions(filter = hiddenByFilter, onShowAll = onShowAll)
+                            }
                         }
                     }
                 }
@@ -593,6 +616,54 @@ private fun RecentPathRow(
                 contentDescription = null,
                 tint = colors.onSurfaceVariant,
                 modifier = Modifier.size(18.dp).alpha(fade),
+            )
+        }
+    }
+}
+
+/**
+ * Under "N hidden by filter": the active filter as a chip and a Show all button (≥ 48 dp) that
+ * turns it off. Shown on every visit, not only as the one-off first-run hint (F-TOK-086).
+ */
+@Composable
+private fun HiddenByFilterActions(filter: FileTypeFilter, onShowAll: () -> Unit) {
+    val colors = MaterialTheme.colorScheme
+    FlowRow(
+        horizontalArrangement = Arrangement.spacedBy(8.dp),
+        verticalArrangement = Arrangement.Center,
+        itemVerticalAlignment = Alignment.CenterVertically,
+        modifier = Modifier.padding(top = 4.dp),
+    ) {
+        Surface(
+            shape = RoundedCornerShape(8.dp),
+            color = colors.surface.copy(alpha = 0.6f),
+            modifier = Modifier.testTag("empty_folder_filter_chip"),
+        ) {
+            Text(
+                text = stringResource(
+                    when (filter) {
+                        FileTypeFilter.RAW -> R.string.chip_raw_only
+                        FileTypeFilter.JPG -> R.string.chip_jpeg_only
+                        FileTypeFilter.ONE_PER_SHOT -> R.string.chip_pairs_merged
+                        FileTypeFilter.ALL -> R.string.chip_both
+                    },
+                ),
+                style = MaterialTheme.typography.labelLarge,
+                color = colors.onSurface,
+                modifier = Modifier.padding(horizontal = 10.dp, vertical = 6.dp),
+            )
+        }
+        TextButton(
+            onClick = onShowAll,
+            modifier = Modifier
+                .sizeIn(minWidth = 48.dp, minHeight = 48.dp)
+                .testTag("empty_folder_show_all"),
+        ) {
+            Text(
+                text = stringResource(R.string.action_show_all),
+                style = MaterialTheme.typography.labelLarge,
+                fontWeight = FontWeight.Bold,
+                color = colors.onErrorContainer,
             )
         }
     }

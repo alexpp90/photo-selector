@@ -15,6 +15,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 - **Copy** and **Move** into the Selection folder in the long-press menu (Move is not offered for a cloud folder, which cannot move).
 - TalkBack can cull: the swipe right and swipe left you configured are custom actions on the photo ("Copy to Selection", "Delete photo"), and a delete asks first like the swipe does. Before, copy, move and delete were reachable only by dragging the photo.
 - The favourite badge shows a filled star when the system has the favourite too, and an outlined star while it is only in Jackpix.
+- Pro mode Settings show where photos go: *Selection location* and *Left swipe folder* read as the folder's path ("Internal storage › Pictures › Picks › Selection", or "In source folder · Internal storage › DCIM › Camera › Selection") instead of "Default" or "Custom". A chosen folder whose access was lost, or that is gone or unplugged, says "Folder access lost" with **Re-select**.
+- The info panel shows when the photo was taken first ("Aug 15, 2026, 10:36 AM", German "15.08.2026, 10:36"), as the camera recorded it.
 
 ### Changed
 - Marking a favourite no longer shows "Marked as favourite": the star flash and the lit favourite badge already show it. Removing a favourite still says so.
@@ -23,6 +25,10 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 - Updating keeps your setup. Settings from every earlier version are carried over before the app first reads them, and an existing install that had changed a Pro setting, used camera info or an SD card starts in Pro mode, so nothing you set up disappears behind Casual mode.
 - Camera info and the (i) button exist only in Pro mode; the controls guide shows their callouts only there.
 - A favourite is recognised whichever folder you open the photo from (`DCIM` or `DCIM/Camera`, or the system's Images view). Existing favourites are kept.
+- The first-run tutorial teaches the swipes and points only at Help; Help shows the full guide with every bar button. Before, about fifteen labels came at once.
+- The Selection button is a stack of photos with a star, and it is named after where swipe right puts photos: "Favourites" when swipe right marks a favourite, else the Selection folder's name, in the bar, the controls guide and the viewer it opens alike.
+- The idle edge hints sit on the side the photo moves toward: the delete mark at the left edge, the swipe-right mark at the right edge.
+- Settings' reset rows say what they reset: "Reset seen photos" and "Reset all seen" (German "Gesehene zurücksetzen", "Alle Gesehenen zurücksetzen"); they never touched a folder's files.
 
 ### Fixed
 - A tip card ("Double-tap to reset", "Tap again to show overlays", "RAW only") no longer stays on screen after you leave the photos: Change folder, opening another folder or unplugging the card closes it, so it no longer covers the start screen's Pro mode switch and recent folders.
@@ -52,6 +58,11 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 - **Reload** now shows the newest photo as 1 of N. Before, once you had seen the newest photo, Reload landed behind all the photos you had not seen yet, so the position changed with every reload. Reload also no longer shows "No new photos".
 - Copying and moving are safer when a storage provider misbehaves: a photo whose size the provider does not report is never deleted after its copy (the move is reported as copied, with the original kept); a copy that could not be cleaned up after a failed transfer is reported instead of left unnoticed in the Selection; a photo that is already in the folder it would be filed into is left alone instead of being renamed to `-2`; leaving the screen while a move is under way no longer leaves a bundle half moved.
 - Swiping a photo into a camera folder with thousands of photos no longer asks the storage provider about every photo first, so queued swipes finish sooner.
+- System Back with the controls guide or the first-run tutorial open closes the guide and keeps you on your photo; before, it closed the app.
+- At large font sizes the start screen's cards no longer scroll under the top bar's buttons.
+- At large font sizes the info panel shows the whole file name instead of "IMG_202…00.JPG".
+- The snackbar's **Undo** is a full 48 dp button at large font sizes (it was 46.5 dp tall in German at font scale 2.0).
+- When the format filter hides every photo of a folder, the start screen says "12 hidden by filter" with the filter and **Show all**, on every visit, instead of claiming the folder has no photos.
 
 ## [0.6.0] - 2026-10-23
 

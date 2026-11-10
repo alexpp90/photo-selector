@@ -63,6 +63,9 @@ import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.photoselector.core.storage.SourceKind
+import com.phototok.domain.SwipeDestination
+import com.phototok.data.model.FolderLookup
+import com.photoselector.core.storage.SafTreeDisplayPath
 import com.phototok.R
 import com.phototok.domain.FeedOrderMode
 import com.phototok.domain.FileTypeFilter
@@ -89,6 +92,8 @@ fun SettingsScreen(
     var folderDialog by rememberSaveable { mutableStateOf<String?>(null) }
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
     LaunchedEffect(sourceKind) { sourceKind?.let(viewModel::showSourceKind) }
+    // A grant can be revoked or a card pulled while the sheet was closed: look again on open.
+    LaunchedEffect(Unit) { viewModel.refreshFolderLookups() }
     val context = LocalContext.current
     val colors = MaterialTheme.colorScheme
 
@@ -244,14 +249,21 @@ fun SettingsScreen(
                     }
 
                     row("selection_location") {
+                        val shown = destinationSummary(uiState.selectionDestination, uiState.folderLookups)
                         SettingsClickItem(
                             title = stringResource(R.string.setting_title_selection_location),
-                            summary = stringResource(
-                                if (uiState.collectionUri != null) R.string.setting_summary_custom else R.string.setting_summary_default,
-                            ),
+                            summary = shown.text,
+                            summaryIsError = shown.lost,
                             onClick = { folderDialog = FOLDER_DIALOG_SELECTION },
                             trailing = {
-                                if (uiState.collectionUri != null) {
+                                if (shown.lost) {
+                                    TextButton(
+                                        onClick = { selectionFolderPickerLauncher.launch(null) },
+                                        modifier = Modifier.testTag("settings_selection_reselect"),
+                                    ) {
+                                        Text(stringResource(R.string.action_reselect), color = colors.error)
+                                    }
+                                } else if (uiState.collectionUri != null) {
                                     TextButton(onClick = { viewModel.updateCollectionUri(null) }) {
                                         Text(stringResource(R.string.action_reset), color = colors.primary)
                                     }
@@ -482,14 +494,21 @@ fun SettingsScreen(
 
                     if (uiState.leftSwipeAction != SwipeAction.DELETE) {
                         row("left_folder") {
+                            val shown = destinationSummary(uiState.leftSwipeDestination, uiState.folderLookups)
                             SettingsClickItem(
                                 title = stringResource(R.string.setting_title_left_folder),
-                                summary = stringResource(
-                                    if (uiState.leftSwipeUri != null) R.string.setting_summary_custom else R.string.setting_summary_default,
-                                ),
+                                summary = shown.text,
+                                summaryIsError = shown.lost,
                                 onClick = { folderDialog = FOLDER_DIALOG_LEFT_SWIPE },
                                 trailing = {
-                                    if (uiState.leftSwipeUri != null) {
+                                    if (shown.lost) {
+                                        TextButton(
+                                            onClick = { leftSwipeFolderPickerLauncher.launch(null) },
+                                            modifier = Modifier.testTag("settings_left_folder_reselect"),
+                                        ) {
+                                            Text(stringResource(R.string.action_reselect), color = colors.error)
+                                        }
+                                    } else if (uiState.leftSwipeUri != null) {
                                         TextButton(onClick = { viewModel.updateLeftSwipeUri(null) }) {
                                             Text(stringResource(R.string.action_reset), color = colors.primary)
                                         }
@@ -644,3 +663,39 @@ private fun DividedRows(dividerColor: Color, build: SettingsRowsBuilder.() -> Un
 /** Which folder row's [FolderTargetDialog] is open (saved across rotation). */
 private const val FOLDER_DIALOG_SELECTION = "selection"
 private const val FOLDER_DIALOG_LEFT_SWIPE = "left_swipe"
+
+/** A destination row's summary: the path photos land in, or that the folder was lost. */
+internal data class DestinationSummary(val text: String, val lost: Boolean)
+
+/**
+ * The readable path of [destination] (REQ-TOK-FEATURE.23, `[USER 2026-11-04]`): a custom folder as
+ * its full path with the subfolder the files go into ("Internal storage › Pictures › Picks ›
+ * Selection"); the default as "In source folder · …" with the open folder's path, or "Selection
+ * inside the source folder" when no folder of this tab is open. A path is a value: it wraps and is
+ * never shortened (DESIGN.md §8).
+ */
+@Composable
+internal fun destinationSummary(destination: SwipeDestination, lookups: Map<String, FolderLookup>): DestinationSummary {
+    val tree = destination.treeUri
+    val lookup = tree?.let { lookups[it] }
+    if (destination.custom && lookup?.lost == true) {
+        return DestinationSummary(stringResource(R.string.setting_summary_folder_lost), lost = true)
+    }
+    if (tree == null) {
+        return DestinationSummary(stringResource(R.string.setting_summary_in_source_folder, destination.subfolder), lost = false)
+    }
+    val sdCard = stringResource(R.string.label_sd_card_id)
+    val labels = SafTreeDisplayPath.Labels(
+        internalStorage = stringResource(R.string.label_internal_storage),
+        documents = stringResource(R.string.label_documents),
+        removableVolume = { uuid -> String.format(sdCard, uuid) },
+        unknownFolder = stringResource(R.string.label_folder),
+    )
+    val path = (
+        SafTreeDisplayPath.segments(tree, lookup?.volumeLabel, lookup?.providerName, labels) + destination.subfolder
+        ).joinToString(SafTreeDisplayPath.SEPARATOR)
+    return DestinationSummary(
+        text = if (destination.custom) path else stringResource(R.string.setting_summary_in_source_path, path),
+        lost = false,
+    )
+}

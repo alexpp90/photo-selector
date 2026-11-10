@@ -97,6 +97,9 @@
     <string name="label_kind_camera">Kamera</string>
     <string name="label_kind_cloud">Cloud</string>
     <string name="label_folder">Ordner</string>
+    <string name="label_sd_card_id">SD-Karte %1$s</string>
+    <string name="label_documents">Dokumente</string>
+    <string name="label_internal_storage">Interner Speicher</string>
     <string name="label_not_connected">Nicht verbunden</string>
     <string name="label_seen_progress">%1$d / %2$d</string>
     <string name="label_page_counter">%1$d / %2$d</string>
@@ -213,6 +216,7 @@
     <string name="empty_no_favourites">Noch keine Favoriten</string>
     <string name="empty_selection">Auswahl ist leer</string>
     <string name="empty_folder">%1$s: keine Fotos</string>
+    <string name="empty_hidden_by_filter">%1$d durch Filter ausgeblendet</string>
     <string name="empty_card_cleared">Karte geleert</string>
 
     <!-- Einstellungen -->
@@ -225,8 +229,10 @@
     <string name="setting_summary_custom">Eigener</string>
     <string name="setting_summary_in_source_folder">Unterordner %1$s im Quellordner</string>
     <string name="setting_summary_default">Standard</string>
-    <string name="setting_title_reset_folder">Diesen Ordner zurücksetzen</string>
-    <string name="setting_title_reset_all">Alle Ordner zurücksetzen</string>
+    <string name="setting_summary_folder_lost">Ordnerzugriff verloren</string>
+    <string name="setting_summary_in_source_path">Im Quellordner · %1$s</string>
+    <string name="setting_title_reset_folder">Gesehene zurücksetzen</string>
+    <string name="setting_title_reset_all">Alle Gesehenen zurücksetzen</string>
     <string name="setting_title_clear_cache">Cache leeren</string>
     <string name="setting_summary_done">Fertig</string>
     <string name="setting_title_source_type">Quellentyp</string>

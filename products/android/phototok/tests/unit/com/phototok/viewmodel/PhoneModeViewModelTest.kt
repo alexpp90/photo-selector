@@ -26,6 +26,7 @@ import io.mockk.coVerifyOrder
 import io.mockk.every
 import io.mockk.just
 import io.mockk.mockk
+import io.mockk.clearMocks
 import io.mockk.mockkObject
 import io.mockk.unmockkObject
 import io.mockk.slot
@@ -857,6 +858,8 @@ class PhoneModeViewModelTest {
             image("photo1.jpg", 10),
             image("photo2.jpg", 20),
             image("photo3.jpg", 30),
+            // One RAW stays in the feed: a folder the filter hides entirely is the landing's to explain.
+            image("photo4.raw", 40),
         )
 
         val hint = viewModel.uiState.value.firstRunHint
@@ -880,6 +883,8 @@ class PhoneModeViewModelTest {
             image("photo1.jpg", 10),
             image("photo2.jpg", 20),
             image("photo3.jpg", 30),
+            // One RAW stays in the feed: a folder the filter hides entirely is the landing's to explain.
+            image("photo4.raw", 40),
         )
 
         assertNotNull(viewModel.uiState.value.firstRunHint)
@@ -1250,8 +1255,8 @@ class PhoneModeViewModelTest {
             proMode = true,
             fileTypeFilter = com.phototok.domain.FileTypeFilter.RAW,
         )
-        // Every photo is a JPEG: the RAW filter hides the whole folder and the hint explains it.
-        val viewModel = loadFolder(image("a.jpg", 1), image("b.jpg", 2), image("c.jpg", 3))
+        // Mostly JPEGs: the RAW filter hides most of the folder and the hint explains it.
+        val viewModel = loadFolder(image("a.jpg", 1), image("b.jpg", 2), image("c.jpg", 3), image("z.raw", 4))
         assertEquals(FirstRunHint.FILTER_MISMATCH, viewModel.uiState.value.firstRunHint?.hint)
 
         every { imageRepository.discoverImages(any()) } returns
@@ -1261,6 +1266,54 @@ class PhoneModeViewModelTest {
 
         assertEquals(2, viewModel.uiState.value.images.size)
         assertNull(viewModel.uiState.value.firstRunHint)
+    }
+
+    /**
+     * F-TOK-086: a folder the filter hides entirely is explained by the landing ("3 hidden by
+     * filter", Show all) on every visit; the one-off hint is neither shown nor used up there.
+     */
+    @Test
+    @Requirement("REQ-TOK-FEATURE.04", "REQ-TOK-GESTURE.05")
+    fun `a filter hiding every photo is told by the landing, every visit, and Show all lifts it`() = runTest {
+        phoneSettingsFlow.value = phoneSettingsFlow.value.copy(
+            proMode = true,
+            fileTypeFilter = com.phototok.domain.FileTypeFilter.RAW,
+        )
+        val viewModel = loadFolder(image("a.jpg", 1), image("b.jpg", 2), image("c.jpg", 3))
+        val state = viewModel.uiState.value
+        assertTrue(state.images.isEmpty())
+        assertEquals(com.phototok.domain.FileTypeFilter.RAW, state.filterHidingEveryPhoto)
+        assertEquals(UiText.of(R.string.empty_hidden_by_filter, 3), state.emptyFolderMessage)
+        assertNull("no one-off hint over the landing", state.firstRunHint)
+        coVerify(exactly = 0) { settingsRepository.markFirstRunHintSeen(FirstRunHint.FILTER_MISMATCH) }
+
+        // A second visit says the same.
+        viewModel.selectSourceFolder(Uri.parse("content://tree/photos"))
+        advanceUntilIdle()
+        assertEquals(UiText.of(R.string.empty_hidden_by_filter, 3), viewModel.uiState.value.emptyFolderMessage)
+
+        coEvery { settingsRepository.setPhoneFileTypeFilter(any()) } answers {
+            phoneSettingsFlow.value = phoneSettingsFlow.value.copy(fileTypeFilter = firstArg())
+        }
+        viewModel.showAllFormats()
+        advanceUntilIdle()
+        coVerify { settingsRepository.setPhoneFileTypeFilter(com.phototok.domain.FileTypeFilter.ALL) }
+        assertEquals(3, viewModel.uiState.value.images.size)
+        assertNull(viewModel.uiState.value.emptyFolderMessage)
+        assertNull(viewModel.uiState.value.filterHidingEveryPhoto)
+    }
+
+    @Test
+    @Requirement("REQ-TOK-FEATURE.04")
+    fun `a truly empty folder still says it has no photos`() = runTest {
+        phoneSettingsFlow.value = phoneSettingsFlow.value.copy(
+            proMode = true,
+            fileTypeFilter = com.phototok.domain.FileTypeFilter.RAW,
+        )
+        val viewModel = loadFolder()
+        val state = viewModel.uiState.value
+        assertNull(state.filterHidingEveryPhoto)
+        assertEquals(R.string.empty_folder, (state.emptyFolderMessage as UiText.Res).id)
     }
 
     @Test
@@ -2836,5 +2889,43 @@ class PhoneModeViewModelTest {
         assertFalse(viewModel.uiState.value.favourites.isFavourite(a.uri))
         viewModel.goBackToLanding()
         assertNull("nothing to send", viewModel.uiState.value.pendingIntentSenderRequest)
+    }
+
+    /**
+     * REQ-TOK-FEATURE.23 (`[USER 2026-11-04]`): the destination Settings shows is where a copy
+     * lands. The feed's copy and Settings' row take their tree and subfolder from one resolution,
+     * for a custom folder and for the default inside the source folder.
+     */
+    @Test
+    @Requirement("REQ-TOK-FEATURE.23")
+    fun `Settings shows the folder a swipe-right copy lands in`() = runTest {
+        val source = "content://com.android.externalstorage.documents/tree/primary%3ADCIM%2FCamera"
+        val custom = "content://com.android.externalstorage.documents/tree/primary%3APictures%2FPicks"
+        for (customUri in listOf(custom, null)) {
+            clearMocks(imageRepository, answers = false, recordedCalls = true, childMocks = false, verificationMarks = true, exclusionRules = false)
+            phoneSettingsFlow.value = phoneSettingsFlow.value.copy(proMode = true, collectionAction = CollectionAction.COPY)
+            collectionUriFlow.value = customUri
+            every { imageRepository.discoverImages(any()) } returns flowOf(listOf(image("a.jpg", 1)))
+            val viewModel = buildViewModel()
+            viewModel.selectSourceFolder(Uri.parse(source))
+            advanceUntilIdle()
+
+            viewModel.addToCollection()
+            advanceUntilIdle()
+            val dest = slot<Uri>()
+            val subfolder = slot<String>()
+            // A single photo (no companions) goes through the per-file copy.
+            coVerify { imageRepository.copyImageDetailed(any(), capture(dest), any(), capture(subfolder)) }
+
+            val shown = com.phototok.viewmodel.SettingsUiState(
+                collectionUri = customUri,
+                sourceFolderUri = source,
+                browsedSourceKind = com.photoselector.core.storage.SourceKind.PHONE_LIBRARY,
+                selectionFolderName = viewModel.uiState.value.selectionSubfolderName,
+            ).selectionDestination
+            assertEquals("tree for custom=$customUri", dest.captured.toString(), shown.treeUri)
+            assertEquals("subfolder for custom=$customUri", subfolder.captured, shown.subfolder)
+            assertEquals(customUri != null, shown.custom)
+        }
     }
 }

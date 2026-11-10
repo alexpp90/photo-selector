@@ -2,6 +2,7 @@ package com.phototok.data.repository
 
 import android.net.Uri
 import com.photoselector.core.model.ExifData
+import com.phototok.data.model.FolderLookup
 import com.phototok.data.model.ImageItem
 import com.phototok.data.source.FileOperationResult
 import com.phototok.data.source.SelectionListing
@@ -23,6 +24,9 @@ interface ImageRepository {
 
     /** Resolve a folder's display name, or null when unavailable. */
     suspend fun resolveFolderName(folderUri: Uri): String?
+
+    /** The folder's name, volume label and whether it is lost, for Settings to show its path. */
+    suspend fun describeFolder(folderUri: Uri): FolderLookup = FolderLookup()
 
     suspend fun getExifData(uri: Uri): ExifData?
 

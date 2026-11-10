@@ -107,7 +107,7 @@ Box(Modifier.fillMaxSize()) {
 The viewer bottom bar (`ViewerBottomBar`) shows 4 persistent, **icon-only** controls (REQ-TOK-UX.02):
 
 ```
-[FolderOpen]  [CollectionsBookmark]  [Share]       [Undo]
+[FolderOpen]  [SelectionStack]       [Share]       [Undo]
  Change folder     Selection          Share photo     Undo delete
 ```
 
@@ -180,7 +180,7 @@ The same `ProModeRow` is the first thing in the sheet, in its own card above Sto
 
 | Rows | Casual | Pro |
 |---|---|---|
-| Pro mode · Source folder · Reload folder · Reset this folder · Reset all folders · Clear cache · Confirm delete · Milestones · Reset tips · About | shown | shown |
+| Pro mode · Source folder · Reload folder · Reset seen photos · Reset all seen · Clear cache · Confirm delete · Milestones · Reset tips · About | shown | shown |
 | Selection folder (name) · RAW / JPEG folders · Selection location · Source type · Feed order · Camera info · Link RAW + JPEG · Format filter · Swipe right · Swipe left · Left swipe folder · the whole Recent folders section | hidden (stored values are kept, not acted on) | shown |
 
 The Source type chip for the phone is "Phone + cloud" (DE "Handy + Cloud"): cloud folders follow the phone's settings. A change made in Settings (Pro mode on/off) reports its snackbar from a `SnackbarHost` inside the sheet, because the sheet is its own window and would cover the screen's host. The host belongs to the sheet: closing the sheet drops its message, which never reappears when Settings is opened again (`SettingsSheetMessageTest`). In Casual the viewer has no (i) button, the logo is a plain logo (spoken "Jackpix") and the controls guide has no "Camera info" and no "Info" callout.
@@ -272,9 +272,10 @@ Add subtle left-pointing chevrons on the left edge during swipe:
 - Border: `outlineVariant.copy(alpha=0.3f)`, `RoundedCornerShape(12.dp)`
 - Padding: 16dp
 - Layout:
-  - Filename: `labelLarge`, `onSurface`, uppercase, 70% opacity, wide tracking
+  - Capture date first (EXIF `DateTimeOriginal`, the camera's wall clock in the user's locale: "Aug 15, 2026, 10:36 AM", DE "15.08.2026, 10:36"; `labelLarge`, `onSurface`), omitted when the file has none
+  - Filename: `labelLarge`, `onSurface`, as on disk, 70% opacity, wide tracking
   - Camera row: `camera` icon (16dp, `primary`) + EXIF string (`bodyMedium`, `onSurfaceVariant`)
-  - Lens row: `lens` icon (16dp, `tertiary`) + lens name (`labelMedium`, `onTertiaryContainer.copy(0.8f)`); up to two lines, so at font scale 2.0 the whole name shows (`ExifCardLensWrapTest`). The file name stays on one line and loses its middle, never its extension
+  - Lens row: `lens` icon (16dp, `tertiary`) + lens name (`labelMedium`, `onTertiaryContainer.copy(0.8f)`); up to two lines, so at font scale 2.0 the whole name shows (`ExifCardLensWrapTest`). The file name wraps too and is never shortened (`ExifCardFileNameAndDateTest`, usability panel 2026-10-24); the landscape panel's narrow column keeps it on one line with a middle ellipsis
 - Tappable: `active:scale-95` → add `clickable` with `Modifier.animateContentSize()` or toggle visibility
 
 ### Page counter (bottom-right)
@@ -333,9 +334,9 @@ Use `AnimatedVisibility` with fade for all overlay elements.
 
 ### Trash peek animation (idle state)
 
-**New** — subtle hint on the right edge when not swiping:
-- The configured swipe glyph and an arrow at `Alignment.CenterStart` / `CenterEnd`, on a `surfaceContainerLowest` 80 % pill, at 85 % opacity (40 % on a 40 % disc was too faint, review 2026-11-03)
-- Animated sliding left/right subtly (translateX oscillating between −4 and 12 dp); with animations removed (animator duration scale 0) they stand still
+**New** — subtle hints at both edges when not swiping, each on the side the photo moves toward:
+- Swipe left's glyph (delete, or the swipe-left folder) with an arrow pointing left at `Alignment.CenterStart`; swipe right's glyph with an arrow pointing right at `Alignment.CenterEnd` (usability panel 2026-10-24: the bin at the right edge sent people the wrong way). Each on a `surfaceContainerLowest` 80 % pill, at 85 % opacity (40 % on a 40 % disc was too faint, review 2026-11-03)
+- Each drifts toward its own edge (translateX oscillating over 16 dp); with animations removed (animator duration scale 0) they stand still
 - Only shows on first few images or when idle for >2 seconds
 
 ---
@@ -368,6 +369,12 @@ Use `AnimatedVisibility` with fade for all overlay elements.
 - Title: `titleLarge` (22sp, semibold), white
 - Description: `bodyMedium`, `onSurfaceVariant`
 - Staggered bounce animation delays: 0s, 0.5s, 1.0s per card
+
+### Two steps
+
+The first-run tutorial is step 1: it animates the swipes and labels only Help among the bar
+controls. Help opens the full controls guide with every bar callout (usability panel 2026-10-24:
+fifteen callouts at once, and nobody kept the swipes). System Back closes either one.
 
 ### "Got it" button
 
@@ -471,14 +478,15 @@ fails the build on any finding. This section applies them to Jackpix.
 | Pro mode row (landing, Settings) | "Pro mode" (DE "Profi-Modus") beside a `Tune` icon and a Switch | A mode switch whose icon alone cannot say what it switches; the one label of the row, no subtitle. |
 | Pro mode help dialog | title "Pro mode adds", three icon items "Camera info" · "Swipes & folders" · "RAW + JPEG", one button "Got it" (DE "Profi-Modus bietet" · "Kamera-Info" · "Wischen & Ordner" · "RAW + JPEG" · "Verstanden") | What a mode adds cannot be shown by a gesture; three icon-led words and no sentence. Centred, `widthIn(max = 460.dp)`, scrolls at large fonts; back and tap-outside dismiss. |
 | Delete dialog choice | "Don't ask" (DE "Nicht fragen") beside a checkbox | The only way to turn the prompt off from where it appears; a checkbox is meaningless without its words. |
+| Values: folder paths, file names, capture date | a destination path in a Settings summary ("In source folder · Internal storage › DCIM › Camera › Selection"), the file name and date in the info panel | A value is data, not wording: it is exempt from the word budget, wraps (a path after its " › " separators, a file name wherever it must) and is never shortened with an ellipsis (REQ-TOK-FEATURE.07, .23). |
 
 ### Reference wording (EN · DE)
 
 | Surface | Title | Body | Actions |
 |---|---|---|---|
-| Bottom bar | *icons only* | — | spoken/tooltip: "Change folder" · "Selection" · "Share photo" · "Undo last delete" (DE "Ordner wechseln" · "Auswahl" · "Foto teilen" · "Letztes Löschen rückgängig machen") |
+| Bottom bar | *icons only*; Selection is a stack of photos with a star (`SelectionStackIcon`) | — | spoken/tooltip: "Change folder" · the Selection place ("Favourites" when swipe right marks a favourite, else the Selection folder's name, e.g. "Selection") · "Share photo" · "Undo last delete" (DE "Ordner wechseln" · "Favoriten" / folder name · "Foto teilen" · "Letztes Löschen rückgängig machen") |
 | Top bar | *icons only* | — | spoken/tooltip: "Done with this card" · "Reload folder" · "Show/Hide controls guide" · "Show or hide camera info" (Pro only) · "Settings"; the logo is "Jackpix, shows or hides camera info" in Pro and a plain "Jackpix" in Casual |
-| Controls guide | callouts ("Camera info" and "Info" only in Pro mode, where those controls exist): "Camera info" · "Card done" · "Reload" · "Help" · "Info" · "Settings" · "Change folder" · "Selection" · "Share" · "Undo delete" · "Next" · "Previous" · "Hide overlays" · "Zoom" (DE "Kamera-Info" · "Karte fertig" · "Neu laden" · "Hilfe" · "Info" · "Einstellungen" · "Ordner" · "Auswahl" · "Teilen" · "Rückgängig" · "Weiter" · "Zurück" · "Anzeigen aus" · "Zoom") | swipe captions: Copy / Move / Delete with the configured folder name beneath (★ Favourites when the source kind favourites) | dismiss: ✓ icon ("Got it" spoken) |
+| Controls guide | first run (step 1): the swipes and the "Help" callout only; Help opens the full guide. Callouts ("Camera info" and "Info" only in Pro mode, where those controls exist): "Camera info" · "Card done" · "Reload" · "Help" · "Info" · "Settings" · "Change folder" · the Selection place (the bar button's name: "Favourites" or the folder name) · "Share" · "Undo delete" · "Next" · "Previous" · "Hide overlays" · "Zoom" (DE "Kamera-Info" · "Karte fertig" · "Neu laden" · "Hilfe" · "Info" · "Einstellungen" · "Ordner" · "Auswahl" · "Teilen" · "Rückgängig" · "Weiter" · "Zurück" · "Anzeigen aus" · "Zoom") | swipe captions: Copy / Move / Delete with the configured folder name beneath (★ Favourites when the source kind favourites) | dismiss: ✓ icon ("Got it" spoken) |
 | Selection viewer (`SelectionViewerTabs`) | two tabs when both lists have photos: `Star` "Favourites 3" · `Folder` "Selection 12" (DE "Favoriten 3"; the second is the configured folder name); with one list a single non-clickable title in the same form | — | opens on the list the swipe-right verb fills (★ → Favourites, Copy/Move → Selection); icon actions: Copy favourites · Share all |
 | New photos on reopen (`FolderResumeDialog`) | "1 new photo" / "N new photos" (DE "N neue Fotos") | — | **Show new** · Stay (DE **Neue zeigen** · Bleiben) |
 | No new photos | *no dialog* | — | explicit Reload goes to the latest photo either way, with no snackbar |
@@ -500,12 +508,15 @@ fails the build on any finding. This section applies them to Jackpix.
 | Landing | *no tagline, no section labels* | — | folder name as a value · **Resume** / Start |
 | Landing: folder access lost | "Folder access lost" | — | Re-select |
 | Landing: empty folder | "«Folder»: no photos" | — | — |
-| Settings (first screen) | "Pro mode" (first, own card) · "Source folder" (value: folder name) · "Reload folder" · "Selection folder" · "RAW / JPEG folders" · "Selection location" (value: Custom/Default) · "Reset this folder" · "Reset all folders" · "Clear cache" · "Confirm delete" (warning "Deletes without asking") · "Milestones" · "Link RAW + JPEG" · "Privacy Policy" · "Legal Notice (Impressum)" (Casual shows only the rows listed in the Pro mode table of section 3) | — | — |
+| Landing: filter hides every photo | "12 hidden by filter" (DE "12 durch Filter ausgeblendet") + the filter as a chip ("RAW only") | — | **Show all** (DE **Alle zeigen**) |
+| Settings: destination rows (Pro) | "Selection location" · "Left swipe folder" | value: the path photos land in — a custom folder's full path with its subfolder ("Internal storage › Pictures › Picks › Selection"), or "In source folder · …" with the open folder's path (DE "Im Quellordner · …"); a lost custom folder: "Folder access lost" (DE "Ordnerzugriff verloren") in the error colour with a warning glyph | Reset · Re-select (DE "Neu wählen") when lost |
+| Info panel (Pro) | — | capture date first ("Aug 15, 2026, 10:36 AM", DE "15.08.2026, 10:36"), then the file name, the exposure values and the lens | — |
+| Settings (first screen) | "Pro mode" (first, own card) · "Source folder" (value: folder name) · "Reload folder" · "Selection folder" · "RAW / JPEG folders" · "Selection location" (value: the path photos land in, see below) · "Reset seen photos" · "Reset all seen" · "Clear cache" · "Confirm delete" (warning "Deletes without asking") · "Milestones" · "Link RAW + JPEG" · "Privacy Policy" · "Legal Notice (Impressum)" (Casual shows only the rows listed in the Pro mode table of section 3) | — | — |
 
 Hint cards auto-dismiss after 7 s. A card with an action stays for 12 s, so there is time to
 reach the button. A hint card appears only over the feed it explains, never over the landing, the
 loading screen or the Selection viewer, and leaving the feed (Change folder, another folder, an
-unplugged card) drops it. The one exception is the filter-mismatch card over a folder whose every
-photo the format filter hides: that empty result is what it explains, and Show all is the way out. The pure `com.phototok.domain.FirstRunHintText` owns the hint wording,
+unplugged card) drops it. A folder whose every photo the format filter hides is explained by the
+landing itself ("12 hidden by filter", Show all) on every visit, so no hint card is drawn there. The pure `com.phototok.domain.FirstRunHintText` owns the hint wording,
 `FirstRunHintTextTest` enforces the length and no-Settings-sentence rules, and
 `StringResourcesTest` keeps EN and DE in step.

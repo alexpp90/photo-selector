@@ -5,6 +5,11 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.photoselector.core.storage.SourceKind
 import com.phototok.data.model.SourceSettings
+import kotlinx.coroutines.flow.map
+import kotlinx.coroutines.flow.distinctUntilChanged
+import com.phototok.domain.SwipeDestinations
+import com.phototok.domain.SwipeDestination
+import com.phototok.data.model.FolderLookup
 import com.phototok.data.repository.ImageRepository
 import com.phototok.data.repository.SeenRepository
 import com.phototok.data.repository.SettingsRepository
@@ -49,7 +54,30 @@ data class SettingsUiState(
     val sourceSettingsByKind: Map<SourceKind, SourceSettings> = emptyMap(),
     /** Pro mode on? In Casual the settings above are the Casual values and the Pro rows are hidden. */
     val proMode: Boolean = false,
-)
+    /** The kind of the folder being browsed, when Settings was opened over one. */
+    val browsedSourceKind: SourceKind? = null,
+    /** Name, volume label and lost state of the folders the rows below show, keyed by tree URI. */
+    val folderLookups: Map<String, FolderLookup> = emptyMap(),
+) {
+    /** The open folder, when it belongs to the tab shown: a default destination lives inside it. */
+    private val sourceOfTab: String?
+        get() = sourceFolderUri.takeIf { browsedSourceKind != null && browsedSourceKind.tabKind() == selectedSourceKind }
+
+    /** Where swipe right puts photos for this tab: the same resolution the feed copies with. */
+    val selectionDestination: SwipeDestination
+        get() = SwipeDestinations.selection(
+            collectionUri,
+            sourceOfTab,
+            sourceSettingsByKind[selectedSourceKind]?.selectionSubfolder ?: selectionFolderName,
+        )
+
+    /** Where a copy/move swipe left puts photos for this tab. */
+    val leftSwipeDestination: SwipeDestination
+        get() = SwipeDestinations.leftSwipe(leftSwipeUri, sourceOfTab)
+}
+
+/** Settings has no Cloud tab: a cloud folder uses the Phone + cloud tab. */
+internal fun SourceKind.tabKind(): SourceKind = if (this == SourceKind.CLOUD_OTHER) SourceKind.PHONE_LIBRARY else this
 
 @HiltViewModel
 class SettingsViewModel @Inject constructor(
@@ -185,6 +213,30 @@ class SettingsViewModel @Inject constructor(
                 _uiState.update { it.copy(sourceFolderUri = uri, sourceFolderName = name) }
             }
         }
+
+        // Look up every folder a destination row shows (once per URI): its readable path and
+        // whether its access was lost (REQ-TOK-FEATURE.23).
+        viewModelScope.launch {
+            _uiState
+                .map { listOfNotNull(it.collectionUri, it.leftSwipeUri, it.sourceFolderUri).toSet() }
+                .distinctUntilChanged()
+                .collect { uris -> lookUpFolders(uris) }
+        }
+    }
+
+    /** Re-reads the folders after the sheet reopens: a grant may have been revoked meanwhile. */
+    fun refreshFolderLookups() {
+        viewModelScope.launch {
+            val state = _uiState.value
+            lookUpFolders(listOfNotNull(state.collectionUri, state.leftSwipeUri, state.sourceFolderUri).toSet())
+        }
+    }
+
+    private suspend fun lookUpFolders(uris: Set<String>) {
+        for (uri in uris) {
+            val lookup = imageRepository.describeFolder(Uri.parse(uri))
+            _uiState.update { it.copy(folderLookups = it.folderLookups + (uri to lookup)) }
+        }
     }
 
     fun selectSourceKindTab(kind: SourceKind) {
@@ -212,7 +264,8 @@ class SettingsViewModel @Inject constructor(
      * has no tab of its own: it follows the phone's settings (`cloudInheritsPhone`).
      */
     fun showSourceKind(kind: SourceKind) {
-        selectSourceKindTab(if (kind == SourceKind.CLOUD_OTHER) SourceKind.PHONE_LIBRARY else kind)
+        _uiState.update { it.copy(browsedSourceKind = kind) }
+        selectSourceKindTab(kind.tabKind())
     }
 
     fun updateSelectionFolder(name: String) {

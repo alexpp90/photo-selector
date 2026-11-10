@@ -156,7 +156,12 @@ class SettingsFolderAndSourceTabTest {
         rule.onNodeWithTag("settings_row_left_folder").performScrollTo().performClick()
         rule.waitForIdle()
         val explanation = context.getString(R.string.setting_summary_in_source_folder, PhotoFolders.LEFT_SWIPE)
-        assertEquals(1, rule.onAllNodes(hasText(explanation), useUnmergedTree = true).fetchSemanticsNodes().size)
+        // The dialog explains the default; with no folder open the row's summary says the same (REQ-TOK-FEATURE.23).
+        assertEquals(
+            1,
+            rule.onAllNodes(hasText(explanation) and hasAnyAncestor(hasTestTag("folder_target_dialog")), useUnmergedTree = true)
+                .fetchSemanticsNodes().size,
+        )
 
         rule.onNodeWithTag("folder_target_cancel").performClick()
         rule.waitForIdle()

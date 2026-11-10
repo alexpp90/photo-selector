@@ -9,6 +9,8 @@ import androidx.compose.ui.graphics.luminance
 import androidx.compose.ui.test.hasTestTag
 import androidx.compose.ui.test.junit4.createAndroidComposeRule
 import androidx.compose.ui.test.onFirst
+import com.photoselector.core.Requirement
+import androidx.compose.ui.test.onRoot
 import androidx.test.core.app.ApplicationProvider
 import com.phototok.data.model.ImageItem
 import com.phototok.ui.theme.DarkColorScheme
@@ -93,6 +95,33 @@ class SwipeCueColorsTest {
         rule.mainClock.advanceTimeBy(700)
         val later = rule.onAllNodes(hasTestTag("viewer.peek_right")).onFirst().fetchSemanticsNode().positionInRoot.x
         return first to later
+    }
+
+    /**
+     * Each edge hint sits on the side the photo moves toward (usability panel 2026-10-24): the
+     * delete mark at the left edge, the swipe-right target at the right edge.
+     */
+    @Test
+    @Requirement("REQ-TOK-GESTURE.06")
+    fun eachEdgeHintSitsOnTheSideItsSwipeGoes() {
+        rule.setContent {
+            PhotoTokTheme {
+                PhoneModeViewer(
+                    images = listOf(photo),
+                    currentIndex = 0,
+                    portraitSectionStart = -1,
+                    onNavigate = {},
+                    onAddToCollection = {},
+                    onRequestDelete = {},
+                )
+            }
+        }
+        rule.waitForIdle()
+        val width = rule.onRoot().fetchSemanticsNode().size.width
+        val left = rule.onAllNodes(hasTestTag("viewer.peek_left")).onFirst().fetchSemanticsNode().boundsInRoot
+        val right = rule.onAllNodes(hasTestTag("viewer.peek_right")).onFirst().fetchSemanticsNode().boundsInRoot
+        assertTrue("the delete hint is at the left edge: $left of $width", left.center.x < width / 2f)
+        assertTrue("the swipe-right hint is at the right edge: $right of $width", right.center.x > width / 2f)
     }
 
     @Test

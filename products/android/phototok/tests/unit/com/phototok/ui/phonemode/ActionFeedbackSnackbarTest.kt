@@ -2,13 +2,14 @@ package com.phototok.ui.phonemode
 
 import android.app.Application
 import androidx.activity.ComponentActivity
-import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.test.hasText
+import androidx.compose.ui.unit.dp
+import androidx.compose.ui.test.hasTestTag
 import androidx.compose.ui.test.junit4.createAndroidComposeRule
 import androidx.compose.ui.test.onFirst
 import androidx.compose.ui.test.performClick
@@ -53,7 +54,8 @@ class ActionFeedbackSnackbarTest {
                     onShown = { shown++; feedback = null },
                     onUndoDelete = onUndo,
                 )
-                SnackbarHost(hostState)
+                // The feed's own host, as the screen draws it.
+                FeedSnackbarHost(hostState = hostState, bottomBarHeight = 0.dp)
             }
         }
         return { shown }
@@ -73,6 +75,22 @@ class ActionFeedbackSnackbarTest {
         rule.onAllNodes(hasText(undo)).onFirst().performClick()
         rule.waitUntil(5_000) { undone == 1 }
         assertEquals(1, undone)
+    }
+
+    /** Undo stays a 48 dp target with its whole word, German at font scale 2.0 (REQ-TOK-UX.02). */
+    @Test
+    @Config(qualifiers = "de-w360dp-h640dp-xhdpi", fontScale = 2.0f)
+    @Requirement("REQ-TOK-FEATURE.18", "REQ-TOK-UX.02")
+    fun undoIsA48dpTarget_germanFontScale2() {
+        host(ActionFeedback(UiText.of(R.string.snackbar_photo_deleted), offersUndoDelete = true)) {}
+        val undo = res.getString(R.string.snackbar_action_undo)
+        assertEquals("Rückgängig", undo)
+        rule.waitUntil(5_000) { rule.onAllNodes(hasText(undo), useUnmergedTree = true).fetchSemanticsNodes().isNotEmpty() }
+        val button = rule.onAllNodes(hasTestTag("feed_snackbar_action")).fetchSemanticsNodes().single()
+        assertTrue("the tagged node is the clickable one", button.config.contains(androidx.compose.ui.semantics.SemanticsActions.OnClick))
+        val density = button.layoutInfo.density.density
+        assertTrue("Undo is ${button.size.width / density} dp wide", button.size.width / density >= 47.5f)
+        assertTrue("Undo is ${button.size.height / density} dp tall", button.size.height / density >= 47.5f)
     }
 
     @Test

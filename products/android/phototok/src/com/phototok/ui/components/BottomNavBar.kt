@@ -12,7 +12,6 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.CollectionsBookmark
 import androidx.compose.material.icons.filled.FolderOpen
 import androidx.compose.material.icons.automirrored.filled.Undo
 import androidx.compose.material.icons.filled.Share
@@ -53,6 +52,8 @@ fun ViewerBottomBar(
     modifier: Modifier = Modifier,
     /** Registers the bar and its buttons for the controls guide's callouts. */
     anchors: ControlsGuideAnchors? = null,
+    /** The Selection button's name: the place swipe right fills (`SelectionPlace`). */
+    selectionName: String? = null,
 ) {
     val colors = MaterialTheme.colorScheme
     val metrics = PhoneModeChromeMetrics
@@ -83,8 +84,8 @@ fun ViewerBottomBar(
         )
         // Middle: Jump to selection folder
         ActionButton(
-            icon = Icons.Default.CollectionsBookmark,
-            name = stringResource(R.string.cd_selection),
+            icon = SelectionStackIcon,
+            name = selectionName ?: stringResource(R.string.cd_selection),
             isActive = false,
             enabled = true,
             onClick = onJumpToSelection,

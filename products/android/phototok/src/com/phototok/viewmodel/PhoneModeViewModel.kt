@@ -44,6 +44,7 @@ import com.phototok.domain.PhotoFolders
 import com.phototok.domain.ProModePolicy
 import com.phototok.domain.RelatedFiles
 import com.phototok.domain.SwipeAction
+import com.phototok.domain.SwipeDestinations
 import com.phototok.domain.SwipeRightVerb
 import com.phototok.domain.FavouritesSnapshot
 import com.phototok.domain.UiText
@@ -185,6 +186,30 @@ data class PhoneModeUiState(
 
     /** Delete all is offered once the scan has finished: a count taken mid-scan would be too small. */
     val cardClearReady: Boolean get() = !isDiscovering && !isLoading && allImages.isNotEmpty()
+
+    /**
+     * The format filter that hides every photo of the open folder, or null. The landing then says
+     * how many it hides and offers Show all, on every visit (F-TOK-086), instead of "no photos".
+     */
+    val filterHidingEveryPhoto: FileTypeFilter?
+        get() = fileTypeFilter.takeIf {
+            it != FileTypeFilter.ALL && !isLoading && images.isEmpty() && allImages.isNotEmpty()
+        }
+}
+
+/**
+ * The landing's message for an empty feed: null when the feed shows photos; "N hidden by filter"
+ * when the folder has photos the format [filter] hides; else "«folder»: no photos".
+ */
+internal fun emptyFeedMessage(
+    shown: List<ImageItem>,
+    all: List<ImageItem>,
+    filter: FileTypeFilter,
+    folderName: String,
+): UiText? = when {
+    shown.isNotEmpty() -> null
+    all.isNotEmpty() && filter != FileTypeFilter.ALL -> UiText.of(R.string.empty_hidden_by_filter, all.size)
+    else -> UiText.of(R.string.empty_folder, folderName.ifEmpty { PhotoFolders.SELECTION })
 }
 
 /** Ask the UI to let the user grant the phone's camera folder (the picker opens at [initialUri]). */
@@ -953,10 +978,7 @@ class PhoneModeViewModel @Inject constructor(
                 settingsRepository.setFolderScanInfo(folderUri.toString(), updatedScan)
             }
 
-            val emptyMsg = if (sorted.images.isEmpty()) {
-                val fName = current.sourceFolderName.ifEmpty { PhotoFolders.SELECTION }
-                UiText.of(R.string.empty_folder, fName)
-            } else null
+            val emptyMsg = emptyFeedMessage(sorted.images, current.allImages, config.fileTypeFilter, current.sourceFolderName)
 
             val seenCount = seenRepository.countSeen(sorted.images, folderUri.toString())
             if (sorted.images.isNotEmpty()) {
@@ -1156,6 +1178,8 @@ class PhoneModeViewModel @Inject constructor(
                     images = sorted.images,
                     portraitSectionStart = sorted.portraitSectionStart,
                     currentIndex = newIndex,
+                    // Show all (or another filter) reveals photos; a filter hiding them all says so.
+                    emptyFolderMessage = emptyFeedMessage(sorted.images, it.allImages, it.fileTypeFilter, it.sourceFolderName),
                 )
             }
             loadExifForCurrent()
@@ -1469,10 +1493,9 @@ class PhoneModeViewModel @Inject constructor(
         if (hadPending) showFeedback(UiText.of(R.string.snackbar_not_copied))
     }
 
-    private fun resolveCollectionTargetUri(state: PhoneModeUiState): String? {
-        if (state.collectionFolderUri != null) return state.collectionFolderUri
-        return state.sourceFolderUri
-    }
+    /** The tree swipe right copies into; Settings shows the same resolution (REQ-TOK-FEATURE.23). */
+    private fun resolveCollectionTargetUri(state: PhoneModeUiState): String? =
+        SwipeDestinations.selection(state.collectionFolderUri, state.sourceFolderUri, state.selectionSubfolderName).treeUri
 
     /** Name of the Selection destination for feedback: the configured folder, else the default. */
     private fun collectionDestination(state: PhoneModeUiState): UiText =
@@ -1514,10 +1537,11 @@ class PhoneModeViewModel @Inject constructor(
         if (state.images.isNotEmpty()) {
             onCardDwelled(state.images[state.currentIndex])
         }
+        val destination = SwipeDestinations.leftSwipe(state.leftSwipeFolderUri, state.sourceFolderUri)
         copyOrMoveCurrent(
-            targetUri = state.leftSwipeFolderUri ?: state.sourceFolderUri,
+            targetUri = destination.treeUri,
             isCopy = state.leftSwipeAction == SwipeAction.COPY || state.isCloudSource,
-            subfolderName = PhotoFolders.LEFT_SWIPE,
+            subfolderName = destination.subfolder,
             destination = UiText.raw(state.leftSwipeFolderName.ifBlank { PhotoFolders.LEFT_SWIPE }),
         )
     }
@@ -2315,6 +2339,23 @@ class PhoneModeViewModel @Inject constructor(
         )
     }
 
+    /**
+     * Show all on the landing when the format filter hides every photo of the folder (F-TOK-086):
+     * turns the filter of the open source kind off, so the feed fills on the spot.
+     */
+    fun showAllFormats() {
+        val kind = _uiState.value.sourceKind
+        _uiState.update { it.copy(firstRunHint = null) }
+        viewModelScope.launch {
+            if (kind == SourceKind.PHONE_LIBRARY) {
+                settingsRepository.setPhoneFileTypeFilter(FileTypeFilter.ALL)
+            } else {
+                settingsRepository.setSourceFileTypeFilter(kind, FileTypeFilter.ALL)
+            }
+        }
+        showFeedback(UiText.of(R.string.snackbar_filter_all))
+    }
+
     fun enableMoveRelatedFiles() {
         _uiState.update { it.copy(showRawJpegSuggestion = false) }
         viewModelScope.launch {
@@ -2335,6 +2376,8 @@ class PhoneModeViewModel @Inject constructor(
         if (FirstRunHint.FILTER_MISMATCH.key in state.seenFirstRunHints) return
         if (state.fileTypeFilter == FileTypeFilter.ALL || state.fileTypeFilter == FileTypeFilter.ONE_PER_SHOT) return
         if (state.allImages.isEmpty()) return
+        // The filter hides the whole folder: the landing says so with its own Show all, every time.
+        if (state.images.isEmpty()) return
 
         if (RelatedFiles.hasFilterMismatch(state.allImages, state.fileTypeFilter)) {
             val title = FirstRunHintText.title(
