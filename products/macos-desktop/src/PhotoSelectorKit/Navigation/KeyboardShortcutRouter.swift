@@ -24,6 +24,8 @@ public protocol KeyEventRepresentable {
     var charactersIgnoringModifiers: String? { get }
     var keyCode: UInt16 { get }
     var specialKey: NSEvent.SpecialKey? { get }
+    /// True for an auto-repeat of a held key (destructive keys act once).
+    var isARepeat: Bool { get }
 }
 
 @MainActor
@@ -48,6 +50,7 @@ public struct SyntheticKeyEvent: KeyEventRepresentable {
     public var charactersIgnoringModifiers: String?
     public var keyCode: UInt16
     public var specialKey: NSEvent.SpecialKey?
+    public var isARepeat: Bool
 
     public init(
         keyCode: UInt16,
@@ -55,6 +58,7 @@ public struct SyntheticKeyEvent: KeyEventRepresentable {
         modifierFlags: NSEvent.ModifierFlags = [],
         specialKey: NSEvent.SpecialKey? = nil,
         isTextInputActive: Bool = false,
+        isARepeat: Bool = false,
         window: (any SheetContextInspectable)? = nil
     ) {
         self.keyCode = keyCode
@@ -62,6 +66,7 @@ public struct SyntheticKeyEvent: KeyEventRepresentable {
         self.modifierFlags = modifierFlags
         self.specialKey = specialKey
         self.isTextInputActive = isTextInputActive
+        self.isARepeat = isARepeat
         self.sheetContextInspectableWindow = window
     }
 }
@@ -197,8 +202,9 @@ public final class KeyboardShortcutRouter: ObservableObject {
             return true
         }
 
+        // Destructive keys are one-shot: a held key acts once, its auto-repeats are consumed.
         if isDelete {
-            viewModel.cullCurrentPhoto(action: .trash)
+            if !event.isARepeat { viewModel.cullCurrentPhoto(action: .trash) }
             return true
         }
 
@@ -227,10 +233,10 @@ public final class KeyboardShortcutRouter: ObservableObject {
         // 3. Single-Character Action Shortcuts (M, C, F, I, S, G, J, K, H, L, ?, /)
         switch characters {
         case "m":
-            viewModel.cullCurrentPhoto(action: .move)
+            if !event.isARepeat { viewModel.cullCurrentPhoto(action: .move) }
             return true
         case "c":
-            viewModel.cullCurrentPhoto(action: .copy)
+            if !event.isARepeat { viewModel.cullCurrentPhoto(action: .copy) }
             return true
         case "j", "l": // Vim Down / Right -> Next
             viewModel.navigateToNext()
@@ -238,7 +244,7 @@ public final class KeyboardShortcutRouter: ObservableObject {
         case "k", "h": // Vim Up / Left -> Previous
             viewModel.navigateToPrevious()
             return true
-        case "f":
+        case "t", "f": // T filmstrip; F stays as an alias for one release (becomes full screen next)
             MotionPolicy.animate(.spring(response: 0.28, dampingFraction: 0.82)) {
                 viewModel.isFilmstripVisible.toggle()
             }

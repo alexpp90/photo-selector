@@ -79,13 +79,6 @@ public struct AppCommands: Commands {
             }
             .disabled(viewModel.photos.isEmpty)
 
-            Button("Go to Photo…") {
-                viewModel.presentGoToPhoto()
-            }
-            .keyboardShortcut("g", modifiers: [])
-            .disabled(viewModel.photos.isEmpty)
-
-            Divider()
 
             Button("Cycle Comparison Slot") {
                 viewModel.advanceComparisonSlotFocus()
@@ -117,10 +110,11 @@ public struct AppCommands: Commands {
             }
             .keyboardShortcut(.space, modifiers: [])
 
-            Button("Toggle Linked Pan") {
+            // S still links the pan for one release (router); the menu item has its own chord.
+            Button("Link Pan") {
                 viewModel.toggleZoomSync()
             }
-            .keyboardShortcut("s", modifiers: [])
+            .keyboardShortcut("p", modifiers: [.option, .command])
 
             Divider()
 
@@ -129,7 +123,7 @@ public struct AppCommands: Commands {
                     viewModel.isFilmstripVisible.toggle()
                 }
             }
-            .keyboardShortcut("f", modifiers: [])
+            .keyboardShortcut("t", modifiers: [])
 
             Button("Toggle Info HUD") {
                 MotionPolicy.animate(.easeInOut(duration: 0.18)) {
@@ -137,6 +131,14 @@ public struct AppCommands: Commands {
                 }
             }
             .keyboardShortcut("i", modifiers: [])
+        }
+
+        CommandMenu("Go") {
+            Button("Go to Photo…") {
+                viewModel.presentGoToPhoto()
+            }
+            .keyboardShortcut("g", modifiers: [])
+            .disabled(viewModel.photos.isEmpty)
         }
 
         CommandMenu("Tools") {

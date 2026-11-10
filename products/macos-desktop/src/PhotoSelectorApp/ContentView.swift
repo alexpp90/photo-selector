@@ -149,19 +149,19 @@ public struct ContentView: View {
             viewModel.navigateToNext()
             return .handled
         }
-        .onKeyPress(characters: CharacterSet(charactersIn: "mM")) { _ in
+        .onKeyPress(characters: CharacterSet(charactersIn: "mM"), phases: .down) { _ in
             viewModel.cullCurrentPhoto(action: .move)
             return .handled
         }
-        .onKeyPress(characters: CharacterSet(charactersIn: "cC")) { _ in
+        .onKeyPress(characters: CharacterSet(charactersIn: "cC"), phases: .down) { _ in
             viewModel.cullCurrentPhoto(action: .copy)
             return .handled
         }
-        .onKeyPress(.delete) {
+        .onKeyPress(.delete, phases: .down) { _ in
             viewModel.cullCurrentPhoto(action: .trash)
             return .handled
         }
-        .onKeyPress(.deleteForward) {
+        .onKeyPress(.deleteForward, phases: .down) { _ in
             viewModel.cullCurrentPhoto(action: .trash)
             return .handled
         }
@@ -188,7 +188,7 @@ public struct ContentView: View {
             viewModel.advanceComparisonSlotFocus()
             return .handled
         }
-        .onKeyPress(characters: CharacterSet(charactersIn: "fF\\")) { _ in
+        .onKeyPress(characters: CharacterSet(charactersIn: "fFtT\\")) { _ in
             MotionPolicy.animate(.spring(response: 0.28, dampingFraction: 0.82)) {
                 viewModel.isFilmstripVisible.toggle()
             }
