@@ -39,6 +39,21 @@ def changes(before: set[str] | None, directory: Path) -> list[str]:
 REAL_RUNS_DIR = default_runs_dir()
 BEFORE = snapshot(REAL_RUNS_DIR)
 
+# The shared lab scratch root (hub and device locks live there). A real run of the lab writes
+# `panel-*`, `linux_*`, `usability-*` and lock files into it, so only the names a test leaves
+# are compared. Measured 2026-11-10: 196 folders of these kinds.
+SHARED_TMP_ROOT = Path("/tmp/pstlab")
+LEFTOVER_PATTERNS = ("tmp*", "explore-mock-*", "test_*", "smoke_*", "mock_run_*", "pstlab-*", "ai_explore_*")
+
+
+def leftovers(directory: Path) -> set[str]:
+    if not directory.is_dir():
+        return set()
+    return {p.name for pattern in LEFTOVER_PATTERNS for p in directory.glob(pattern)}
+
+
+TMP_BEFORE = leftovers(SHARED_TMP_ROOT)
+
 
 class TestRealRunsDirIsUntouched(unittest.TestCase):
     def test_no_test_wrote_into_the_real_runs_directory(self) -> None:
@@ -46,6 +61,21 @@ class TestRealRunsDirIsUntouched(unittest.TestCase):
             changes(BEFORE, REAL_RUNS_DIR), [],
             f"a test created runs under {REAL_RUNS_DIR}: give it its own temp dir (out_dir=...)",
         )
+
+    def test_no_test_left_a_folder_in_the_shared_lab_tmp_root(self) -> None:
+        new = sorted(leftovers(SHARED_TMP_ROOT) - TMP_BEFORE)
+        self.assertEqual(new, [], f"a test created folders in {SHARED_TMP_ROOT}: use lab_tmp_root() (the sandbox) or a TemporaryDirectory")
+
+    def test_the_leftover_check_sees_a_folder_and_ignores_lock_files(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            (root / "android-hub.lock").write_text("")
+            (root / "device-X.lock").write_text("")
+            (root / "panel-2026-11-10-x").mkdir()
+            self.assertEqual(leftovers(root), set())
+            (root / "explore-mock-linux-abc").mkdir()
+            (root / "tmpab12").mkdir()
+            self.assertEqual(leftovers(root), {"explore-mock-linux-abc", "tmpab12"})
 
     def test_the_check_sees_a_new_run(self) -> None:
         # Red-capable: the same comparison on a fake repository whose runs directory a "test" fills.

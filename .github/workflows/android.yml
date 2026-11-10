@@ -609,7 +609,8 @@ jobs:
     needs: [build, instrumented-tests, detect-changes]
     if: github.event_name == 'push' && (github.ref == 'refs/heads/main' || startsWith(github.ref, 'refs/tags/phototok-v') || startsWith(github.ref, 'refs/tags/android-desktop-v')) && (needs.detect-changes.outputs.toolbox == 'true' || needs.detect-changes.outputs.phototok == 'true')
     runs-on: ubuntu-24.04
-    timeout-minutes: 15
+    # Measured: 0.5-1.4 min over 20 main runs (2026-11); 3x is under the 10-minute floor.
+    timeout-minutes: 10
 
     steps:
       - name: Download Frameduel AAB

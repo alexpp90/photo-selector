@@ -179,6 +179,12 @@ product's rules allows strings that end in an ellipsis on purpose.
 Debian's `/usr/bin/python3` with PyGObject for the Linux Desktop app (override with
 `PST_LAB_PYTHON`). PyYAML and Pillow are optional; built-in fallbacks are used without them.
 
+After the tool list, `preflight` prints a read-only readiness table per inventory device: transport
+(USB / Wi-Fi / mDNS), awake, keyguard, `stay_on_while_plugged_in`, foreground package, `wm size` and
+`wm density` overrides, the device-lock holder, and whether the Mac has a GUI session. It sends only
+`dumpsys`, `settings get` and `wm` reads. Personal devices are read only with `--with-personal`;
+`--no-devices` prints the tool list alone.
+
 ## Other commands
 
 ```bash
@@ -262,10 +268,13 @@ private/lab/usability/run_panel.sh private/lab-runs/<run-id>
 `lab.py explore` explores the live app for a fixed time: it reads the screen, picks one of the
 interactions the screen offers (seeded, so a run can be repeated), records what that interaction
 should do, performs it, and checks the screen that follows. It drives **Jackpix** (`phototok`),
-**Frameduel** (`android-desktop`) and **Blitzlens** (`linux-desktop`). **Lensjet** (`macos-desktop`)
-is refused: its test hook runs a whole scenario per launch, so there is no live app to drive, and
-the driver says `Lensjet exploration needs a live-app driver; not implemented yet` (exit 2). The
-legacy Desktop is excluded.
+**Frameduel** (`android-desktop`), **Blitzlens** (`linux-desktop`) and **Lensjet**
+(`macos-desktop`). Lensjet is driven on the Mac itself (`lab.py explore --product macos-desktop`
+there; elsewhere it exits 2 saying so): the driver holds the test-hook build open with
+`--ui-live <control dir>` and sends one command per file (`cmd-N.json`: a key with its modifiers, a
+click on a registered frame, a uniquely named checkpoint), the protocol described in
+`lab/explore/drivers/macos.py`. The build must support `--ui-live`; one that does not exits at
+launch and the run says so. The legacy Desktop is excluded.
 
 A step is **pass** only when it was performed and every check that applies to it ran and found
 nothing blocking. A step that could not be checked (no app log, no filesystem snapshot, an AI
@@ -361,8 +370,8 @@ Everything the run writes is inside the run directory; nothing is appended to a 
   report.md, report.html   findings by severity (leads, not verdicts), devices table, every step; thumbnails link to the evidence
   findings.json         deduplicated findings with occurrences, devices, steps and first/last trace
   <product>/<device>/<config>/
-    run.json, steps.jsonl      the target's summary and one line per step
-    evidence/                  before/after screenshots and trees of the steps that have findings
+    run.json, steps.jsonl      the target's summary and one line per step (a `{"restage": n, ...}` line where an emptied feed got its fixture back)
+    evidence/                  before/after trees of every step; screenshots of steps with findings and of every 10th step (size in report.md)
     packets/step_NN/           review packets (packet and the live AI providers)
 ```
 

@@ -59,6 +59,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
@@ -137,6 +138,7 @@ fun SettingsScreen(
                 title = stringResource(R.string.setting_title_selection_location),
                 defaultSubfolder = PhotoFolders.SELECTION,
                 isCustom = uiState.collectionUri != null,
+                customPath = uiState.collectionUri?.let { folderDisplayPath(it, uiState.collectionFolderName) },
                 onUseDefault = {
                     folderDialog = null
                     viewModel.updateCollectionUri(null)
@@ -151,6 +153,7 @@ fun SettingsScreen(
                 title = stringResource(R.string.setting_title_left_folder),
                 defaultSubfolder = PhotoFolders.LEFT_SWIPE,
                 isCustom = uiState.leftSwipeUri != null,
+                customPath = uiState.leftSwipeUri?.let { folderDisplayPath(it, uiState.leftSwipeFolderName) },
                 onUseDefault = {
                     folderDialog = null
                     viewModel.updateLeftSwipeUri(null)
@@ -246,9 +249,11 @@ fun SettingsScreen(
                     row("selection_location") {
                         SettingsClickItem(
                             title = stringResource(R.string.setting_title_selection_location),
-                            summary = stringResource(
-                                if (uiState.collectionUri != null) R.string.setting_summary_custom else R.string.setting_summary_default,
-                            ),
+                            summary = uiState.collectionUri?.let { folderDisplayPath(it, uiState.collectionFolderName) }
+                                ?: stringResource(R.string.setting_summary_default),
+                            // A long path keeps its volume and its folder: "Telefon › … › Keepers".
+                            summaryMaxLines = 1,
+                            summaryOverflow = TextOverflow.MiddleEllipsis,
                             onClick = { folderDialog = FOLDER_DIALOG_SELECTION },
                             trailing = {
                                 if (uiState.collectionUri != null) {
@@ -484,9 +489,10 @@ fun SettingsScreen(
                         row("left_folder") {
                             SettingsClickItem(
                                 title = stringResource(R.string.setting_title_left_folder),
-                                summary = stringResource(
-                                    if (uiState.leftSwipeUri != null) R.string.setting_summary_custom else R.string.setting_summary_default,
-                                ),
+                                summary = uiState.leftSwipeUri?.let { folderDisplayPath(it, uiState.leftSwipeFolderName) }
+                                    ?: stringResource(R.string.setting_summary_default),
+                                summaryMaxLines = 1,
+                                summaryOverflow = TextOverflow.MiddleEllipsis,
                                 onClick = { folderDialog = FOLDER_DIALOG_LEFT_SWIPE },
                                 trailing = {
                                     if (uiState.leftSwipeUri != null) {

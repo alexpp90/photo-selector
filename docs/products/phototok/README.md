@@ -5,7 +5,7 @@ Formerly Photo-Tok.
 <div align="center">
   <img src="../../../assets/brand/jackpix/jackpix.svg" alt="Jackpix icon" width="120" />
 
-  **A lightweight, gesture-first, portrait photo curation app designed for sub-second time-to-first-swipe on Android phones.**
+  **A lightweight, gesture-first, portrait photo curation app for Android phones, built so you can start swiping as soon as a folder opens.**
 
   [![Android: 8.0+](https://img.shields.io/badge/Android-8.0%2B%20(API%2026--36)-3DDC84?logo=android&logoColor=white)](https://developer.android.com/)
   [![Kotlin](https://img.shields.io/badge/Kotlin-2.0%2B-7F52FF?logo=kotlin&logoColor=white)](https://kotlinlang.org/)
@@ -37,7 +37,7 @@ Captured on a Pixel 4a (en, font scale 1.0) with the lab's synthetic trip roll (
 
 **Jackpix** (`products/android/phototok/`, package `com.phototok`) is the phone-first photo culling application in this repository. It turns a familiar, effortless full-screen vertical swipe feed into a photography triage workflow.
 
-While the desktop and tablet products emphasize multi-up comparative culling and computational quality scores (OpenCV / Accelerate), **Jackpix deliberately omits heavy analysis libraries to optimize for a single metric: time-to-first-swipe.** Even folders containing thousands of high-resolution photos become navigable within a fraction of a second.
+While the desktop and tablet products emphasize multi-up comparative culling and computational quality scores (OpenCV / Accelerate), **Jackpix deliberately omits heavy analysis libraries to optimize for a single metric: time-to-first-swipe.** A folder is read progressively: the first 24 photos can be swiped while the rest of a folder of thousands is still being found.
 
 ---
 

@@ -12,6 +12,23 @@ from lab.model import Finding, Node, Tree  # noqa: E402
 from lab.schema import validate  # noqa: E402
 
 
+class TestNodeFocused(unittest.TestCase):
+    def base(self, **extra: object) -> dict:
+        return {"id": "a", "parent": None, "role": "input", "name": "", "bounds": [0, 0, 10, 10],
+                "interactive": True, "visible": True, **extra}
+
+    def test_focused_defaults_to_false_and_round_trips(self) -> None:
+        self.assertFalse(Node.from_dict(self.base()).focused)
+        node = Node.from_dict(self.base(focused=True))
+        self.assertTrue(node.focused)
+        self.assertTrue(Node.from_dict(node.to_dict()).focused)
+
+    def test_the_tree_schema_accepts_focused(self) -> None:
+        tree = Tree.from_dict({"platform": "android", "window": {"w": 10, "h": 10, "scale": 1, "unit": "dp"},
+                               "nodes": [self.base(focused=True)]})
+        validate(tree.to_dict(), "tree")
+
+
 class TestModel(unittest.TestCase):
     def test_finding_id_deterministic_and_rounds_region_to_10(self) -> None:
         id1 = Finding.make_id(

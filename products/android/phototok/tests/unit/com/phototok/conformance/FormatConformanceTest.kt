@@ -343,7 +343,7 @@ class FormatConformanceTest {
             .precision(Precision.INEXACT)
             .memoryCachePolicy(CachePolicy.DISABLED)
             .build()
-        val result = runBlocking { loader.execute(request) }
+        val result = runBlocking { kotlinx.coroutines.withTimeout(15_000L) { loader.execute(request) } }
         val drawable = when (result) {
             is SuccessResult -> result.drawable
             is ErrorResult -> throw AssertionError("decode failed: ${result.throwable}")
