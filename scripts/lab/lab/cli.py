@@ -633,6 +633,7 @@ def _usability(args: argparse.Namespace) -> int:
             GeminiExplorationAgent,
             MockExplorationAgent,
             load_charter,
+            opening_steps,
             run_exploration,
         )
 
@@ -669,7 +670,8 @@ def _usability(args: argparse.Namespace) -> int:
         try:
             with session:
                 if driver_mode != "mock":
-                    driver._step({"launch": {}})  # type: ignore[attr-defined]
+                    for opening in opening_steps(spec):  # a defined start, not wherever the app resumes
+                        driver._step(opening)  # type: ignore[attr-defined]
                 result = run_exploration(driver=driver, charter=charter, step_budget=args.budget, agent=agent, out_dir=out)
         except DeviceBusy as exc:
             print(f"device {serial} is busy: {exc}", file=sys.stderr)

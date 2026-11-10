@@ -1,8 +1,10 @@
 # Frameduel (Android Desktop) usability scenarios — reviewed by persona panel.
 #
 # Covers large-screen tablet & DeX workflows (UC-4, UC-5, UC-6, UC-13, UC-16).
-# Scenarios execute in order sharing session state.
+# Scenarios execute in order sharing the app's settings and folder grant; `fresh_start` relaunches
+# the app before each scenario after the first (no snackbar or dialog of the last one survives).
 product: android-desktop
+fresh_start: true
 app_id: com.photoselectortoolbox.lab
 # Walked in this orientation, verified on the display; the original rotation is restored after.
 orientation: landscape
@@ -85,8 +87,9 @@ scenarios:
         intent: See thumbnail strip along bottom
         expected: Tap the details toggle to hide the photo details
       # Details are on by default (SettingsRepository `?: true`), so this tap hides them; the
-      # 2026-11-09 panel was told it would show them.
-      - tap: {id: details_toggle, label: Hide photo details}
+      # 2026-11-09 panel was told it would show them. The toggle's description names its state
+      # ("Hide photo details" while they are on), so the tap only happens when they are on.
+      - optional_tap: {id: details_toggle, desc: Hide photo details, label: Hide photo details}
       - screen: details-overlay-visible
         intent: See the frames without the details cards
         expected: Dismiss details toggle or proceed
@@ -116,8 +119,8 @@ scenarios:
     steps:
       - screen: learn-composition-start
         intent: Turn on composition guides to check subject balance
-        expected: Tap 'Thirds' in top guide bar
-      - tap: {id: toggle_thirds, label: Thirds}
+        expected: The Thirds grid is on from the start (it is a Learn default); read it on the photo
+      # No tap: the Thirds button exposes no state in the tree, and a tap on the default turns the grid off.
       - screen: learn-thirds-active
         intent: Check alignment with Rule of Thirds grid
         expected: Tap 'Phi' for Golden Ratio grid
