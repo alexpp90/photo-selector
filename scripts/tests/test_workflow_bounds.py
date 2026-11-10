@@ -106,6 +106,30 @@ class WorkflowBoundsTest(unittest.TestCase):
             with self.subTest(workflow=path.name):
                 self.assertEqual(jobs_without_timeout(path.read_text(encoding="utf-8")), [])
 
+    # Tag-only or publishing jobs: a bound that is too low kills a publish halfway, so each cites
+    # where it comes from. NOT_MEASURED jobs run only on a product's release tag; re-set them
+    # from the first real tag run (3x its duration, at least 10 minutes).
+    PUBLISH_JOBS = {
+        "desktop.yml": ["release", "update-homebrew-taps"],
+        "macos.yml": ["release", "update-homebrew-taps"],
+        "android.yml": ["publish-play"],
+        "linux.yml": ["publish-apt", "github-release"],
+    }
+
+    def test_publish_job_bounds_cite_a_measurement(self):
+        for name, jobs in self.PUBLISH_JOBS.items():
+            lines = (WORKFLOWS / name).read_text(encoding="utf-8").splitlines()
+            for job in jobs:
+                with self.subTest(workflow=name, job=job):
+                    start = lines.index(f"  {job}:")
+                    end = next((i for i in range(start + 1, len(lines)) if JOB_RE.match(lines[i])),
+                               len(lines))
+                    bound = next(i for i in range(start, end)
+                                 if re.match(r"^    timeout-minutes:\s*\d+", lines[i]))
+                    self.assertRegex(lines[bound - 1].strip(), r"^# (Not m|M)easured:")
+                    minutes = int(lines[bound].split(":")[1])
+                    self.assertGreaterEqual(minutes, 10)
+
     def test_parser_reads_folded_run_blocks(self):
         text = "steps:\n  - run: >-\n      poetry run pytest\n      -q\n  # pytest in a comment\n  - run: echo\n"
         self.assertEqual(run_commands(text), ["poetry run pytest -q", "echo"])
