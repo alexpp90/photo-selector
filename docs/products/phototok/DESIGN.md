@@ -183,7 +183,7 @@ The same `ProModeRow` is the first thing in the sheet, in its own card above Sto
 | Pro mode · Source folder · Reload folder · Reset this folder · Reset all folders · Clear cache · Confirm delete · Milestones · Reset tips · About | shown | shown |
 | Selection folder (name) · RAW / JPEG folders · Selection location · Source type · Feed order · Camera info · Link RAW + JPEG · Format filter · Swipe right · Swipe left · Left swipe folder · the whole Recent folders section | hidden (stored values are kept, not acted on) | shown |
 
-The Source type chip for the phone is "Phone + cloud" (DE "Handy + Cloud"): cloud folders follow the phone's settings. A change made in Settings (Pro mode on/off) reports its snackbar from a `SnackbarHost` inside the sheet, because the sheet is its own window and would cover the screen's host. In Casual the viewer has no (i) button, the logo is a plain logo (spoken "Jackpix") and the controls guide has no "Camera info" and no "Info" callout.
+The Source type chip for the phone is "Phone + cloud" (DE "Handy + Cloud"): cloud folders follow the phone's settings. A change made in Settings (Pro mode on/off) reports its snackbar from a `SnackbarHost` inside the sheet, because the sheet is its own window and would cover the screen's host. The host belongs to the sheet: closing the sheet drops its message, which never reappears when Settings is opened again (`SettingsSheetMessageTest`). In Casual the viewer has no (i) button, the logo is a plain logo (spoken "Jackpix") and the controls guide has no "Camera info" and no "Info" callout.
 
 ### Settings moved from Landing to Settings
 
@@ -274,7 +274,7 @@ Add subtle left-pointing chevrons on the left edge during swipe:
 - Layout:
   - Filename: `labelLarge`, `onSurface`, uppercase, 70% opacity, wide tracking
   - Camera row: `camera` icon (16dp, `primary`) + EXIF string (`bodyMedium`, `onSurfaceVariant`)
-  - Lens row: `lens` icon (16dp, `tertiary`) + lens name (`labelMedium`, `onTertiaryContainer.copy(0.8f)`)
+  - Lens row: `lens` icon (16dp, `tertiary`) + lens name (`labelMedium`, `onTertiaryContainer.copy(0.8f)`); up to two lines, so at font scale 2.0 the whole name shows (`ExifCardLensWrapTest`). The file name stays on one line and loses its middle, never its extension
 - Tappable: `active:scale-95` → add `clickable` with `Modifier.animateContentSize()` or toggle visibility
 
 ### Page counter (bottom-right)

@@ -7,6 +7,8 @@ import androidx.compose.animation.fadeOut
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -103,7 +105,21 @@ fun SelectorHintCard(
                 fontWeight = FontWeight.Medium,
                 color = Zinc50,
             )
-            Text(text = current.message, fontSize = 11.sp, color = Zinc400)
+            // The message is the only part that may run long, so it is the weighted
+            // child: the title and Got it are measured first and always drawn, and
+            // the message scrolls in what is left. Unweighted, at font scale 2.0 the
+            // message took the flank's whole height, was cut mid-word and pushed
+            // Got it off the card (usability panel 2026-11-10; UI_TEXT: scroll,
+            // never truncate). fill = false keeps a short card its own height.
+            Text(
+                text = current.message,
+                fontSize = 11.sp,
+                color = Zinc400,
+                modifier = Modifier
+                    .weight(1f, fill = false)
+                    .verticalScroll(rememberScrollState())
+                    .testTag("selector_hint_message"),
+            )
             Text(
                 text = "Got it",
                 fontSize = 12.sp,

@@ -48,7 +48,7 @@ scenarios:
         expected: Compare current top frame with neighbours and press Right arrow
       - key: Right
       - screen: selector-burst
-        intent: Frame is sharper than previous, move it to Selection
+        intent: This frame is worth keeping, move it to Selection
         expected: Press M to move to Selection
       - key: M
       - screen: after-move
@@ -83,10 +83,12 @@ scenarios:
       - tap: {id: filmstrip_toggle, label: Show the filmstrip}
       - screen: filmstrip-visible
         intent: See thumbnail strip along bottom
-        expected: Tap details toggle to inspect metadata
-      - tap: {id: details_toggle, label: Show photo details}
+        expected: Tap the details toggle to hide the photo details
+      # Details are on by default (SettingsRepository `?: true`), so this tap hides them; the
+      # 2026-11-09 panel was told it would show them.
+      - tap: {id: details_toggle, label: Hide photo details}
       - screen: details-overlay-visible
-        intent: View EXIF exposure and rating overlay
+        intent: See the frames without the details cards
         expected: Dismiss details toggle or proceed
 
   - id: U-AD-03
@@ -130,8 +132,8 @@ scenarios:
       - tap: {id: toggle_spiral_flip, label: Flip Spiral}
       - screen: learn-spiral-flipped
         intent: See re-oriented spiral focal eye on subject
-        expected: Tap 'Return to Culling' or press L to exit
-      - tap: {id: back_to_cull_button, label: Return to Culling}
+        expected: Tap the back arrow at the top left, or press L, to return to culling
+      - tap: {id: back_to_cull_button, label: the back arrow}
 
   - id: U-AD-05
     title: Learn Workstation — Lessons & Scene Comparator

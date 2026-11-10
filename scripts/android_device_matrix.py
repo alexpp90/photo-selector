@@ -34,6 +34,7 @@ Subcommands::
     python3 scripts/android_device_matrix.py devices            # what a run would cover, lock state
     python3 scripts/android_device_matrix.py run                # full run on every attached device
     python3 scripts/android_device_matrix.py run --only-open-issues   # re-run just the open issues
+    python3 scripts/android_device_matrix.py run --changed      # only the suites the diff vs origin/main affects
     python3 scripts/android_device_matrix.py report             # print the latest report
     python3 scripts/android_device_matrix.py issues [--brief]   # the open-issue ledger
 """
@@ -50,7 +51,7 @@ import sys
 import threading
 import time
 from dataclasses import asdict, dataclass, field
-from datetime import datetime
+from datetime import datetime, timedelta
 from pathlib import Path
 from typing import Callable, Dict, Iterable, List, Optional, Sequence, Set, Tuple
 
@@ -69,7 +70,7 @@ SCHEMA = 1
 RESOLVED_KEEP = 100
 MAX_RESUMES = 5
 
-Runner = Callable[[Sequence[str]], Tuple[int, str]]
+Runner = Callable[..., Tuple[int, str]]   # (cmd, timeout=120)
 
 
 @dataclass(frozen=True)
@@ -89,10 +90,87 @@ class Module:
 
 
 # applicationId per module; test_android_device_matrix.py checks it against build.gradle.kts.
+KEYGUARD_STEP = "keyguard disabled"
+
+
+def prepare_notes(failed: Sequence[str], outputs: Dict[str, str], keyguard_showing: Optional[bool]) -> str:
+    """The report note for a device prepared as a test device.
+
+    ``locksettings set-disabled true`` is refused on a device with a secure lock screen (PIN,
+    pattern, password), which adb cannot remove. That is a property of the phone, not a failed
+    run: when the lock screen is not showing after the wake-up (read back, not assumed), the
+    device is usable and the report says the lock stays and the screen is kept awake. A lock
+    screen that *is* showing keeps the step in the failure list; ``_wait_unlocked`` then decides
+    whether the suites can run. Every other failed step stays a failure.
+    """
+    others = [n for n in failed if n != KEYGUARD_STEP]
+    keyguard_failed = KEYGUARD_STEP in failed
+    soft = keyguard_failed and keyguard_showing is not True
+    problems = others + ([KEYGUARD_STEP] if keyguard_failed and not soft else [])
+    note = "prepared as a test device" + (f" (failed: {', '.join(problems)})" if problems else "")
+    if soft:
+        detail = (outputs.get(KEYGUARD_STEP) or "").strip().splitlines()
+        note += ("; screen lock not removable over adb (probably a PIN, pattern or password; "
+                 "it was not showing at the start of the run, screen kept awake)"
+                 + (f" [{detail[-1][:120]}]" if detail else ""))
+    return note
+
+
 MODULES: Dict[str, Module] = {
     "android-desktop": Module("android-desktop", "com.photoselectortoolbox"),
     "phototok": Module("phototok", "com.phototok"),
 }
+
+# --changed: which suites a set of changed paths can affect. Paths outside both lists cannot
+# change what runs on a device (docs, other products, CI) and select nothing; anything *inside*
+# the Android build that is not one product's own directory selects both.
+SHARED_RUNNER_FILES = ("scripts/android_device_matrix.py", "scripts/android_test_device.py")
+ANDROID_PREFIX = "products/android/"
+
+
+def classify_changed(paths: Iterable[str]) -> Tuple[List[str], Dict[str, List[str]]]:
+    """Which suites a change can affect: ``(module names in MODULES order, why)``.
+
+    ``why`` maps each selected module to the paths that selected it. Pure: no git, no I/O.
+    A product directory selects that product; ``core/``, ``saf/``, Gradle build files, ``gradle/``,
+    the version catalog, the runner scripts and any other path under ``products/android/``
+    select both. Markdown files and paths outside Android select nothing.
+    """
+    why: Dict[str, List[str]] = {name: [] for name in MODULES}
+    for raw in paths:
+        path = raw.strip().replace("\\", "/")
+        if not path:
+            continue
+        own = next((n for n in MODULES if path.startswith(f"{ANDROID_PREFIX}{n}/")), None)
+        if path.endswith(".md") and (own or not path.startswith(ANDROID_PREFIX)):
+            continue            # documentation of one product, or of anything else
+        if own:
+            why[own].append(path)
+        elif path.startswith(ANDROID_PREFIX) or path in SHARED_RUNNER_FILES:
+            for name in MODULES:
+                why[name].append(path)
+    selected = [n for n in MODULES if why[n]]
+    return selected, {n: why[n] for n in selected}
+
+
+def changed_paths(base: Optional[str], runner: Callable[[Sequence[str]], Tuple[int, str]] = None) -> Tuple[Optional[str], List[str], str]:
+    """``(resolved base, changed paths, error)``: ``git diff --name-only BASE`` (commits since
+    BASE plus staged and unstaged edits) and untracked files. BASE defaults to the merge-base
+    with ``origin/main``. A non-empty error means the scope could not be determined."""
+    runner = runner or run
+    git = ["git", "-C", str(REPO_ROOT)]
+    if not base:
+        code, out = runner([*git, "merge-base", "HEAD", "origin/main"])
+        if code != 0 or not out.strip():
+            return None, [], f"no merge-base with origin/main ({out.strip() or code})"
+        base = out.strip()
+    code, diff = runner([*git, "diff", "--name-only", base])
+    if code != 0:
+        return base, [], f"git diff {base} failed: {diff.strip()}"
+    code, new = runner([*git, "ls-files", "--others", "--exclude-standard"])
+    if code != 0:
+        return base, [], f"git ls-files failed: {new.strip()}"
+    return base, sorted({line for line in (diff + "\n" + new).splitlines() if line.strip()}), ""
 
 
 def run(cmd: Sequence[str], timeout: int = 120) -> Tuple[int, str]:
@@ -328,6 +406,7 @@ class TestResult:
     stack: str = ""
     retry: str = ""        # "" (not retried) | passed | failed
     hung: bool = False     # the matrix killed the instrumentation: no output for the test timeout
+    attempt_log: str = ""  # file name of the logcat kept for the failing first attempt, before the retry ran
 
     @property
     def key(self) -> str:
@@ -575,9 +654,11 @@ class DeviceWorker:
         self.build_ok = build_ok
         self.stop = stop
         self.restore = restore
+        self.prepare_outputs: Dict[str, str] = {}
         self.runner = runner
         self.sleep: Callable[[float], None] = time.sleep   # tests replace it
         self.result = DeviceRun(device)
+        self.attempt_starts: Dict[str, datetime] = {}   # "Class#test" -> host time its first attempt started
         self.installed: List[str] = []   # packages absent before this run — the only ones it removes
         self.modules: List[Module] = []   # products installed and tested on this device
 
@@ -629,11 +710,13 @@ class DeviceWorker:
             if self.d.designated or self.d.kind == "emulator":
                 self._record_fixed_rotation()   # before anything runs: PREPARE_STEPS have no baseline for it
                 failed_steps = self._prepare()
-                self.result.notes.append("prepared as a test device"
-                                         + (f" (failed: {', '.join(failed_steps)})" if failed_steps else ""))
             else:
+                failed_steps = None
                 self._apply_temp_settings()
             self.adb("shell", "input keyevent KEYCODE_WAKEUP && wm dismiss-keyguard")
+            if failed_steps is not None:   # read back after the wake-up, not before it
+                self.result.notes.append(prepare_notes(failed_steps, self.prepare_outputs,
+                                                       atd.keyguard_showing(self.d.serial, self.runner)))
             self.result.setup_seconds = round(time.monotonic() - t0, 1)
             if not self._wait_build():
                 return
@@ -663,7 +746,9 @@ class DeviceWorker:
             ok = code == 0 and "Exception" not in out and "Error" not in out
             if not ok:
                 failed.append(name)
-            self.progress.event(self.d.label, f"prepare {'✓' if ok else '✗'} {name}")
+                self.prepare_outputs[name] = out
+            self.progress.event(self.d.label, f"prepare {'✓' if ok else '✗'} {name}"
+                                + ("" if ok else f" (exit {code}: {out.strip()[-200:] or 'no output'})"))
         self.progress.event(self.d.label, f"adb {'root' if root else 'shell (no root)'}")
         return failed
 
@@ -908,6 +993,7 @@ class DeviceWorker:
                 total = (total_hint or numtests or 0)
                 self.phase(f"{module.name} {base_done + (current or 0)}/{total}", show=False)
                 self.progress.event(self.d.label, f"start {cls}#{name}")
+                self.attempt_starts[f"{cls}#{name}"] = datetime.now()
             elif isinstance(event, TestResult):
                 self._report(event, retry)
                 if not retry:
@@ -942,6 +1028,8 @@ class DeviceWorker:
         failed = [r for r in mrun.results if r.status == "failed"]
         if not failed or self.opts.retries < 1 or self.stop.is_set():
             return
+        for r in failed:
+            self._capture_attempt_log(module, r)   # before the retry: it must not be the only log left
         self.phase(f"{module.name} retrying {len(failed)} failure(s)")
         names = list(dict.fromkeys(f"{r.cls}#{r.name}" for r in failed))
         parser, _ = self._instrument(module, component, ["-e", "class", ",".join(names)], log_path, mrun, retry=True)
@@ -962,10 +1050,29 @@ class DeviceWorker:
                      if r.status == "failed" and not r.recovered)
         self.progress.tally(self.d.label, failed)
 
+    def _capture_attempt_log(self, module: Module, result: TestResult, attempt: int = 1) -> None:
+        """Keep the device log of one failing (or hung) attempt, from that test's start (device clock,
+        ``logcat -d -T``; the log is never cleared: other tools read it). Without a start time it
+        falls back to the last 4000 lines."""
+        started = self.attempt_starts.get(f"{result.cls}#{result.name}")
+        window = ["-t", "4000"]
+        if started is not None:
+            code, out = self.adb("shell", "date '+%m-%d %H:%M:%S'")
+            try:
+                device_now = datetime.strptime(f"{started.year} {out.strip()}", "%Y %m-%d %H:%M:%S")
+                device_start = started + (device_now - datetime.now().replace(microsecond=0)) - timedelta(seconds=2)
+                window = ["-T", device_start.strftime("%m-%d %H:%M:%S.000")]
+            except ValueError:
+                pass
+        code, out = self.runner(["adb", "-s", self.d.serial, "logcat", "-d", *window], 60)
+        name = f"logcat-{module.name}-{safe_name(f'{result.cls.rsplit(chr(46), 1)[-1]}#{result.name}')}-attempt{attempt}.txt"
+        (self.dir / name).write_text(out if code == 0 else f"logcat failed: {out}", encoding="utf-8")
+        result.attempt_log = name
+
     def _capture_logcat(self, module: Module) -> None:
-        code, out = run(["adb", "-s", self.d.serial, "logcat", "-d", "-t", "4000"], timeout=60)
+        code, out = self.runner(["adb", "-s", self.d.serial, "logcat", "-d", "-t", "4000"], 60)
         (self.dir / f"logcat-{module.name}.txt").write_text(out if code == 0 else f"logcat failed: {out}", encoding="utf-8")
-        code, out = run(["adb", "-s", self.d.serial, "logcat", "-d", "-b", "crash"], timeout=60)
+        code, out = self.runner(["adb", "-s", self.d.serial, "logcat", "-d", "-b", "crash"], 60)
         if code == 0 and out.strip():
             (self.dir / f"logcat-crash-{module.name}.txt").write_text(out, encoding="utf-8")
 
@@ -1527,7 +1634,11 @@ def render_report(meta: Dict[str, object], runs: Sequence[DeviceRun],
             lines += ["", "Failure:", ""] + [f"    {m or '(no message)'}" for m in messages[:3]]
             if any(COMPOSE_NO_HIERARCHY in m for m in messages):
                 lines += ["", "_No Compose hierarchy usually means the screen was locked or off during the test._"]
-            lines += ["", f"Logs: {', '.join(safe_name(d) + '/' for d in devices)} (instrument-*.txt, logcat-*.txt)", ""]
+            lines += ["", f"Logs: {', '.join(safe_name(d) + '/' for d in devices)} (instrument-*.txt, logcat-*.txt)"]
+            attempts = [f"{safe_name(label)}/{r.attempt_log}" for label, r in cluster["hits"] if r.attempt_log]
+            if attempts:
+                lines += ["", "Failing-attempt logs (kept before the retry): " + ", ".join(dict.fromkeys(attempts))]
+            lines.append("")
 
     timed = sorted(((r.seconds, dr.device.label, r.key) for dr, r in all_results if r.status != "skipped"), reverse=True)
     if timed:
@@ -1605,6 +1716,34 @@ def cmd_run(args: argparse.Namespace) -> int:
     ledger_path = root / LEDGER_NAME
     ledger = load_ledger(ledger_path)
     modules = [MODULES[m] for m in (args.module or MODULES)]
+    changed_scope = ""
+    scope_detail: Dict[str, object] = {"mode": "all suites"}
+    if args.changed is not None:
+        if args.module:
+            print("--module given: it wins, --changed is ignored")
+        elif args.only_open_issues:
+            print("--only-open-issues given: it selects its own tests, --changed is ignored")
+        else:
+            base, paths, error = changed_paths(args.changed or None)
+            if error:
+                print(f"--changed: {error}; running every suite")
+                scope_detail = {"mode": "all suites", "changed_error": error}
+            else:
+                selected, why = classify_changed(paths)
+                skipped = {n: "no change under products/android/%s/ or in shared code" % n for n in MODULES if n not in selected}
+                scope_detail = {"mode": "changed", "base": base, "modules": selected, "skipped": skipped,
+                                "files": {n: w[:10] for n, w in why.items()}}
+                if not selected:
+                    print(f"--changed {str(base)[:10]}: no Android change in {len(paths)} changed file(s); "
+                          f"nothing to run")
+                    if args.gate_lines:
+                        Path(args.gate_lines).write_text("skip\t-\tinstrumented tests\tno Android change\n",
+                                                         encoding="utf-8")
+                    return 0
+                modules = [MODULES[n] for n in selected]
+                changed_scope = (f"changed since {str(base)[:10]}: " + "; ".join(
+                    f"{n} ({len(why[n])} file(s), e.g. {why[n][0]})" for n in selected)
+                    + ("; skipped " + "; ".join(f"{n} ({r})" for n, r in skipped.items()) if skipped else ""))
     only: Dict[str, List[str]] = {}
     if args.only_open_issues:
         only = {m: tests for m, tests in open_issue_filter(ledger).items() if m in {x.name for x in modules}}
@@ -1616,6 +1755,8 @@ def cmd_run(args: argparse.Namespace) -> int:
     devices, note = discover(only=args.serial, configured=args.configured, no_personal=args.no_personal)
     scope = ("open issues only: " + ", ".join(f"{m} ({len(t)})" for m, t in only.items())) if only \
         else "full suites: " + ", ".join(m.name for m in modules)
+    if changed_scope:
+        scope = changed_scope
     scope += f"; devices: {note or 'every attached device'}"
     print(f"Android device run {run_id} — {len(devices)} device(s); {scope}")
     print(f"  run directory: {run_dir}")
@@ -1678,7 +1819,7 @@ def cmd_run(args: argparse.Namespace) -> int:
     meta = {"run_id": run_id, "started_at": datetime.fromtimestamp(time.time() - (time.monotonic() - started_wall))
             .strftime("%Y-%m-%d %H:%M:%S"), "wall_seconds": round(time.monotonic() - started_wall, 1),
             "build_seconds": build_state["seconds"], "no_build": bool(args.no_build), "tree": tree_state(),
-            "scope": scope + (" (interrupted)" if stop.is_set() else ""), "run_dir": str(run_dir),
+            "scope": scope + (" (interrupted)" if stop.is_set() else ""), "scope_detail": scope_detail, "run_dir": str(run_dir),
             "ledger": str(ledger_path)}
     if not stop.is_set():
         ledger_path.write_text(json.dumps(ledger, indent=2), encoding="utf-8")
@@ -1761,6 +1902,10 @@ def main(argv: Optional[List[str]] = None) -> int:
         if name == "run":
             p.add_argument("--module", action="append", choices=sorted(MODULES), help="limit to one product (repeatable)")
             p.add_argument("--only-open-issues", action="store_true", help="run only the tests open in the issue ledger")
+            p.add_argument("--changed", nargs="?", const="", default=None, metavar="BASE",
+                           help="run only the suites the changes since BASE can affect (default BASE: merge-base "
+                                "with origin/main; commits, working tree and untracked files). Without it every "
+                                "suite runs. --module and --only-open-issues win over it")
             p.add_argument("--no-build", action="store_true", help="use the APKs already built")
             p.add_argument("--retries", type=int, default=1, help="re-runs of each failed test, to tell flaky from broken")
             p.add_argument("--test-timeout", type=float, default=600, help="seconds without output before a test counts as hung")

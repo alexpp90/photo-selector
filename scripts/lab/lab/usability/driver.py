@@ -133,10 +133,27 @@ def home_packages(adb: AdbClient) -> set[str]:
     return {ln.split("/")[0].strip() for ln in out.splitlines() if "/" in ln}
 
 
+_INSTRUMENTED_PACKAGE = re.compile(r"ActiveInstrumentation\{\S+ \{?([\w.]+)/")
+
+
+def running_instrumentation(adb: AdbClient) -> list[str]:
+    """Test packages whose instrumentation is active now, from the activity manager.
+
+    A `*.test` process alone proves nothing: Android keeps a finished test's process cached
+    (2026-11-10: `com.phototok.test` from a matrix run two hours earlier, state `cch-rec`, made
+    the capture refuse three idle devices). Only the `Active instrumentation:` block counts.
+    """
+    out = adb.run("shell", "dumpsys", "activity", "processes")
+    if "Active instrumentation:" not in out:
+        return []
+    block = out.split("Active instrumentation:", 1)[1]
+    names = sorted(set(_INSTRUMENTED_PACKAGE.findall(block)))
+    return names or ["unknown test package"]
+
+
 def check_device_free(adb: AdbClient, app_id: str) -> None:
     """Refuse a device on which instrumentation runs or a foreign app is in front."""
-    procs = adb.run("shell", "ps", "-A", "-o", "NAME")
-    tests = sorted({ln.strip() for ln in procs.splitlines() if ln.strip().endswith(".test")})
+    tests = running_instrumentation(adb)
     if tests:
         raise DeviceBusy(f"instrumented tests are running ({', '.join(tests)}); wait until they finish")
     top = foreground_package(adb)

@@ -12,3 +12,12 @@ frame_size:
     min_h: 240
     ids:
       - slot_current
+# Feedback after an action (scripts/lab/lab/feedback.py): Blitzlens answers in an Adw.Toast
+# (`window.py: show_toast`), which the lab's tree does not contain (`lab_hooks.py` exports only
+# widgets with a custom name, and the toast's label has none). Until it is named there is no
+# surface to look at: an `expect_feedback` on Linux reports `feedback-unchecked`, never a pass.
+feedback:
+  surfaces: []
+text_truncation:
+  allow_ids: []
+  allow_text: []

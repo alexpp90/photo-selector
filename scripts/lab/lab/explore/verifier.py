@@ -16,6 +16,7 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Tuple
 
+from ..feedback import MISSING, UNCHECKED, WRONG, check_feedback
 from ..fs_oracle import evaluate_fs_oracle
 from ..layout_lint import lint, load_rules
 from ..model import Finding
@@ -209,6 +210,9 @@ class InteractionVerifier:
             findings += self.verify_filesystem(expectation, before_state, after_state, screen_sig, action_sig, checkpoint, evidence)
         delta_findings, not_checked = self.verify_deltas(expectation, before_state, after_state, screen_sig, action_sig, checkpoint, evidence)
         findings += delta_findings
+        feedback_findings, feedback_unchecked = self.verify_feedback(expectation, after_state, screen_sig, action_sig, checkpoint, evidence)
+        findings += feedback_findings
+        not_checked = list(not_checked) + feedback_unchecked
         findings += self.verify_layout(after_state, after_state.screen_mode or "unknown", checkpoint, evidence)
 
         ai_findings, ai_packet, ai_error = self.verify_ai(
@@ -383,6 +387,30 @@ class InteractionVerifier:
         # could not state (2026-11-05, Pixel 4a: 4 of 34 swipes, reported as checked passes).
         unchecked += [claim for claim in expectation.unverifiable if claim not in unchecked]
         return findings, unchecked
+
+    def verify_feedback(self, expectation: Expectation, after_state: ScreenState, screen_sig: str, action_sig: str, checkpoint: str, evidence: List[str]) -> Tuple[List[Finding], List[str]]:
+        """A move, copy or delete must leave feedback naming it (`lab/feedback.py`).
+
+        Minor until the rule has been replayed over a real walk (*Oracle changes are replayed*): a
+        capture taken after the toast's lifetime reads as "no feedback". A product whose tree
+        shows no feedback surface lands in `unchecked` with the claim, never as a pass.
+        """
+        if not expectation.expected_feedback or after_state.screen_mode == SYSTEM_PICKER_MODE:
+            return [], []
+        result = check_feedback(after_state.tree, self.rules, expectation.expected_feedback)
+        if result is None or result.status == "ok":
+            return [], []
+        if result.status == UNCHECKED:
+            return [], [f"feedback after {expectation.expected_feedback}: {result.message}"]
+        rule = "missing-feedback" if result.status == MISSING else "wrong-feedback"
+        return [
+            self._finding(
+                source="flow", rule=rule, severity=SEVERITY_MINOR,
+                message=f"after {expectation.expected_feedback}: {result.message}",
+                screen_sig=screen_sig, action_sig=action_sig, subject=expectation.expected_feedback,
+                checkpoint=checkpoint, evidence=evidence, region=result.region,
+            )
+        ], []
 
     def verify_layout(self, after_state: ScreenState, screen_sig: str, checkpoint: str, evidence: List[str]) -> List[Finding]:
         """Layout rules R1-R8 on the screen the action led to.

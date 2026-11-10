@@ -22,6 +22,7 @@ from pathlib import Path
 from typing import Any
 
 from ..paths import ensure_under, repo_root
+from .textload import icons_cell
 
 VERDICTS = ("good", "ok", "bad")
 SEVERITIES = ("blocker", "major", "minor")
@@ -171,7 +172,7 @@ def text_load_table(variants: dict[str, tuple[Path, dict[str, Any]]]) -> tuple[s
                 cells.append("—")
                 continue
             mark = " ✘" if c["verdict"] == "over" and not r["system_screen"] else ""
-            cells.append(f"{c['words']} · {c['labelled_icons']} · {c['wordy_controls']}{mark}")
+            cells.append(f"{c['words']} · {icons_cell(c['labelled_icons'])} · {c['wordy_controls']}{mark}")
             if c["verdict"] == "over" and not r["system_screen"]:
                 over = True
                 for f in c["flagged"]:

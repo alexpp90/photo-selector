@@ -17,6 +17,7 @@ import androidx.compose.runtime.derivedStateOf
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
@@ -78,7 +79,15 @@ import com.photoselectortoolbox.ui.theme.Zinc700
  */
 val SidebarWidth = 88.dp
 
-/** Height of one sidebar item — comfortably above the 48 dp minimum. */
+/**
+ * Least height of one sidebar item — comfortably above the 48 dp minimum.
+ *
+ * A minimum, not a fixed height: at font scale 2.0 the glyph and its word need more
+ * than 72 dp, and a fixed box squeezed the word into what the glyph left (42 of
+ * 52 dp), so it ran onto the next item and each glyph sat nearer the word of the
+ * item above than its own (usability panel 2026-11-10). The column scrolls, so a
+ * taller item costs nothing but scrolling.
+ */
 private val SidebarItemHeight = 72.dp
 
 /**
@@ -304,7 +313,7 @@ private fun SidebarItem(
     Column(
         modifier = modifier
             .width(80.dp)
-            .height(SidebarItemHeight)
+            .heightIn(min = SidebarItemHeight)
             .padding(vertical = 2.dp)
             .clip(RoundedCornerShape(8.dp))
             .background(background)
@@ -362,7 +371,7 @@ private fun BusyItem(
     Column(
         modifier = Modifier
             .width(80.dp)
-            .height(SidebarItemHeight)
+            .heightIn(min = SidebarItemHeight)
             .padding(vertical = 2.dp)
             .clip(RoundedCornerShape(8.dp))
             .background(BrandAccentTonal)

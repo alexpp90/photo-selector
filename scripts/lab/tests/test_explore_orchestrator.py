@@ -70,7 +70,7 @@ class LabTmpCase(unittest.TestCase):
     def setUp(self) -> None:
         tmp = tempfile.TemporaryDirectory()
         self.addCleanup(tmp.cleanup)
-        self.root = Path(tmp.name)
+        self.root = Path(tmp.name).resolve()  # /tmp is a symlink on macOS
         self.lab_tmp = self.root / "lab-tmp"
         self.run_dir = self.root / "run"
         env = patch.dict(os.environ, {"PST_LAB_TMP": str(self.lab_tmp)})

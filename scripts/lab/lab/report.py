@@ -99,6 +99,10 @@ def _collect_timings(run_dir: Path) -> list[dict[str, Any]]:
             else:
                 product, config, journey = "unknown", "default", "manual"
             tdata = json.loads(tfile.read_text(encoding="utf-8"))
+            if not isinstance(tdata, dict) or ("t_ms" not in tdata and "step_ms" not in tdata):
+                # Lensjet's `<stem>.timing.json` holds app metrics (first_photo_drawn_ms, …), not
+                # checkpoint step times; as a row it read "01_opened.timing | 0 | 0" (2026-11-09).
+                continue
             rows.append(
                 {
                     "product": product,

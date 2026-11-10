@@ -98,9 +98,12 @@ GIT_ENV = {
 }
 
 
-class RunTestsPythonEnvironmentTest(unittest.TestCase):
+class _MirrorHarness(unittest.TestCase):
+    """The throw-away repository, fake PATH and stubs; holds no tests."""
+
     def setUp(self):
-        self.tmp = Path(tempfile.mkdtemp(prefix="pst-run-tests-"))
+        # resolve(): macOS /tmp is a symlink to /private/tmp, and git reports the physical path
+        self.tmp = Path(tempfile.mkdtemp(prefix="pst-run-tests-")).resolve()
         self.addCleanup(shutil.rmtree, self.tmp, ignore_errors=True)
         self.fakebin = self.tmp / "fakebin"
         self.log = self.tmp / "poetry.log"
@@ -155,6 +158,8 @@ class RunTestsPythonEnvironmentTest(unittest.TestCase):
     def poetry_calls(self) -> list[str]:
         return self.log.read_text(encoding="utf-8").splitlines() if self.log.exists() else []
 
+
+class RunTestsPythonEnvironmentTest(_MirrorHarness):
     # ── the failure is loud, names the remedy, and never touches a foreign tool ─────────────
 
     def test_an_empty_venv_fails_with_the_install_command_and_runs_no_foreign_pytest(self):
@@ -237,6 +242,49 @@ class RunTestsPythonEnvironmentTest(unittest.TestCase):
         self.assertIn("Python environment provisioned (products/desktop)", out)
         self.assertIn(str(good / "bin"), out)
         self.assertNotIn("FOREIGN", self.marker())
+
+
+class RunTestsDiskSpaceTest(_MirrorHarness):
+    """Under PST_MIN_SPACE_GB the disk-filling sections do not start, and a failed gate says the
+    failure may be disk. Gate output is never piped, so every gate keeps its terminal."""
+
+    def make_android_root(self) -> Path:
+        root = self.make_root()
+        write_exe(root / "products" / "android" / "gradlew", '#!/bin/sh\necho "GRADLEW $*" >> "$STUB_MARK"\nexit 0\n')
+        return root
+
+    def failing_venv(self) -> Path:
+        venv = self.make_venv("venv-failing", with_tools=True)
+        write_exe(venv / "bin" / "pytest", "#!/bin/sh\nexit 1\n")
+        return venv
+
+    def test_low_disk_skips_the_android_gates_with_one_named_failure(self):
+        root = self.make_android_root()
+        result = self.run_script(root, "--android", extra_env={"PST_MIN_SPACE_GB": "100000"})
+        out = result.stdout + result.stderr
+        self.assertEqual(result.returncode, 1, out)
+        self.assertIn("free disk space for the Android gates", out)
+        self.assertIn("< 100000 GB (PST_MIN_SPACE_GB)", out)
+        self.assertNotIn("GRADLEW", self.marker(), "Gradle ran below the disk floor")
+
+    def test_enough_disk_runs_the_android_gates(self):
+        root = self.make_android_root()
+        result = self.run_script(root, "--android", extra_env={"PST_MIN_SPACE_GB": "0"})
+        out = result.stdout + result.stderr
+        self.assertNotIn("free disk space for the Android gates", out)
+        self.assertIn("GRADLEW", self.marker(), out)
+
+    def test_a_failed_gate_below_the_floor_names_disk_as_a_possible_cause(self):
+        result = self.run_script(self.make_root(), "--python", venv=self.failing_venv(),
+                                 extra_env={"PST_MIN_SPACE_GB": "100000"})
+        self.assertIn("this failure may be disk (No space left on device), not code", result.stdout + result.stderr)
+
+    def test_a_failed_gate_with_enough_disk_does_not_blame_the_disk(self):
+        result = self.run_script(self.make_root(), "--python", venv=self.failing_venv(),
+                                 extra_env={"PST_MIN_SPACE_GB": "0"})
+        out = result.stdout + result.stderr
+        self.assertIn("✘", out)
+        self.assertNotIn("may be disk", out)
 
 
 if __name__ == "__main__":

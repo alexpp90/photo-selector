@@ -1,0 +1,26 @@
+id: J-TOK-08
+product: phototok
+title: System Back with the controls guide open closes the guide, not the app (F-TOK-085)
+fixture: smoke
+configs: [phone-portrait, phone-landscape]
+fresh_install: false
+# NOT YET RUN ON HARDWARE (written 2026-11-09 without a device). While F-TOK-085 is open this
+# journey is meant to fail: Back closes the app, the `guide-closed` checkpoint cannot be taken
+# (another window in front) and the journey ends `error`. It turns green when the defect is fixed.
+steps:
+  - {maestro: products/android/phototok/tests/e2e/J-TOK-08/01_open_controls_guide.yaml}
+  - {checkpoint: guide-open}
+  - {keys: [BACK]}
+  - {wait_ms: 800}
+  - {checkpoint: guide-closed}
+fs_expect:
+  guide-open:
+    unchanged: true
+  guide-closed:
+    unchanged: true
+layout_expect:
+  guide-open:
+    required: [controls_guide]
+  guide-closed:
+    required: [viewer.photo]
+    forbidden: [controls_guide]

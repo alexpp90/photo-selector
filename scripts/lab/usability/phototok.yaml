@@ -90,13 +90,15 @@ scenarios:
         expected: Swipe up
 
   - id: U-TOK-03
-    title: Look closer — when was it taken, is it sharp?
-    goal: Find out when this photo was taken and with what settings, then check whether it is sharp.
+    title: Look closer — how was it taken, is it sharp?
+    goal: Find out which camera settings this photo was taken with, then check whether it is sharp.
+    # No mode shows the capture date (EXIF card: ISO, shutter, aperture, focal length, lens), so the
+    # 2026-11-09 goal "when was it taken" asked for something the app does not offer.
     use_case: "UC-1, UC-3"
     steps:
       - optional_tap: {id: first_run_hint_dismiss, label: GOT IT}
       - screen: photo-before-info
-        intent: See when and how this photo was taken
+        intent: See how this photo was taken
         expected: Camera info is a Pro mode feature, so there is no (i) button yet. Open Settings (the gear icon)
       # The (i) button exists only in Pro mode. Pro mode is the first row of Settings; the first time
       # it comes on it also turns camera info on.

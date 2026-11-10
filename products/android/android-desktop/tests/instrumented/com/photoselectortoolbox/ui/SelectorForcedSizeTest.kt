@@ -59,6 +59,7 @@ import androidx.test.platform.app.InstrumentationRegistry
 import org.junit.Assert.assertTrue
 import org.junit.Rule
 import org.junit.Test
+import org.junit.rules.TestRule
 import org.junit.runner.RunWith
 import kotlin.math.abs
 import kotlin.math.roundToInt
@@ -84,6 +85,10 @@ class SelectorForcedSizeTest {
 
     @get:Rule(order = 1)
     val composeRule = createComposeRule()
+
+    // Innermost: tells a hang in the Compose rule's teardown from one in the test (M-9, 2026-11-09).
+    @get:Rule(order = 2)
+    val bodyProbe: TestRule = geometryRule.bodyProbe
 
     private fun image(n: Int) = ImageItem(
         uri = "content://test/forced/image$n.jpg",

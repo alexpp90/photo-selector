@@ -1,0 +1,31 @@
+id: J-AD-08
+product: android-desktop
+title: Fullscreen filing says what it did, then undo (F-FD-074 class)
+fixture: smoke
+configs: [tab-landscape, tab-native-landscape, dex-on-device, chromebook-window]
+fresh_install: false
+# NOT YET RUN ON HARDWARE (written 2026-11-09 without a device). Files to the default Selection
+# folder: a custom destination (F-FD-074's flash) needs the destination picker, which no flow
+# drives yet (backlog). Keys only: F opens fullscreen, M files the shown frame (FullscreenViewer
+# key handling), Escape closes it, Ctrl+Z undoes the move so the next journey starts whole.
+steps:
+  - {wait_ms: 500}
+  - {keys: [F]}
+  - {wait_ms: 800}
+  - {checkpoint: fullscreen}
+  - {keys: [M]}
+  - {wait_ms: 500}
+  - {checkpoint: filed}
+  - {keys: [ESCAPE]}
+  - {wait_ms: 500}
+  - {keys: [[CTRL_LEFT, Z]]}
+  - {wait_ms: 800}
+  - {checkpoint: after-undo}
+layout_expect:
+  fullscreen:
+    required: [fullscreen_root]
+  filed:
+    required: [fullscreen_root]
+    expect_feedback: move
+  after-undo:
+    required: [image_region]

@@ -88,6 +88,9 @@ class Expectation:
     # Claims the step makes but could not state, because the screen before showed no position:
     # the verifier reports them as not checked, so the step never reads as a checked pass.
     unverifiable: List[str] = field(default_factory=list)
+    # The culling action (move, copy, delete) whose feedback the next screen must show
+    # (`lab/feedback.py`): a snackbar or toast naming it. None: no claim.
+    expected_feedback: Optional[str] = None
 
     def __post_init__(self) -> None:
         # Standard error dialogs are forbidden after every interaction.
@@ -105,6 +108,7 @@ class Expectation:
             "required_ui_nodes": list(self.required_ui_nodes),
             "forbidden_ui_nodes": list(self.forbidden_ui_nodes),
             "unverifiable": list(self.unverifiable),
+            **({"expected_feedback": self.expected_feedback} if self.expected_feedback else {}),
         }
 
     @classmethod
@@ -118,6 +122,7 @@ class Expectation:
             required_ui_nodes=list(data.get("required_ui_nodes", [])),
             forbidden_ui_nodes=list(data.get("forbidden_ui_nodes", [])),
             unverifiable=list(data.get("unverifiable", [])),
+            expected_feedback=data.get("expected_feedback"),
         )
 
 
@@ -283,7 +288,23 @@ class ExpectationRecorder:
         active_photo: Optional[str] = None,
         cull_action: Optional[str] = None,
     ) -> Expectation:
-        """Move, copy, delete or undo. Without a photo bound to the action, nothing is expected of the files."""
+        """Move, copy, delete or undo. Without a photo bound to the action, nothing is expected of the files.
+
+        A move, copy or delete also expects feedback naming it on the next screen.
+        """
+        expectation = self._record_cull_files(before_state, action, active_photo, cull_action)
+        kind = (cull_action or "move").lower()
+        if kind in ("move", "copy", "delete"):
+            expectation.expected_feedback = kind
+        return expectation
+
+    def _record_cull_files(
+        self,
+        before_state: ScreenState,
+        action: Action,
+        active_photo: Optional[str] = None,
+        cull_action: Optional[str] = None,
+    ) -> Expectation:
         kind = (cull_action or "move").lower()
         photo = active_photo or self._extract_active_photo(before_state)
         descriptions = {

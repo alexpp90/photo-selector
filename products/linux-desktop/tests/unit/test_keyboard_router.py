@@ -353,3 +353,38 @@ def test_the_empty_state_has_no_tagline_and_builds_its_pills_from_the_table():
     assert "Optical RAW & JPEG Triage" not in labels
     for _k, _s, keys, meaning in EMPTY_STATE_HINTS:
         assert f"{keys} {meaning}" in labels
+
+
+def test_folder_load_moves_focus_off_the_header_button_so_space_zooms(tmp_path):
+    """Regression (J-LIN-02): focus stayed on Open, so Space re-opened the picker, not 1:1."""
+    import pytest
+
+    from photo_selector_linux.ui import window as window_module
+
+    if isinstance(window_module.Gtk, MagicMock) or not window_module.HAS_GI:
+        pytest.skip("needs real Gtk (xvfb-run)")
+    from gi.repository import Gtk
+
+    from photo_selector_linux.core.models import CandidatePhoto
+
+    win = window_module.MainWindow()
+    win.present()
+    win.btn_open.set_action_name(None)  # no Gtk.Application here: the action would disable it
+    win.btn_open.set_sensitive(True)
+    win.set_focus(win.btn_open)
+    assert win.get_focus() is win.btn_open
+    win.viewmodel.current_folder = tmp_path
+    win.viewmodel.candidates = [CandidatePhoto(primary_path=tmp_path / "a.JPG")]
+    win._on_viewmodel_state_changed(win.viewmodel)
+
+    focus = win.get_focus()
+    assert not isinstance(focus, Gtk.Button)
+    assert focus is win.canvas_view
+    win.router.on_toggle_zoom = MagicMock()
+    win.router.engine.target = win.router
+    assert win.router._on_key_pressed(None, 0x20, 0, 0) is window_module.Gdk.EVENT_STOP
+    win.router.on_toggle_zoom.assert_called_once()
+    # A button the user Tab-focused deliberately still gets Space.
+    win.set_focus(win.btn_open)
+    assert win.router._on_key_pressed(None, 0x20, 0, 0) is window_module.Gdk.EVENT_PROPAGATE
+    win.destroy()

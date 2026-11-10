@@ -106,7 +106,7 @@ def _device_facts(
     else:
         try:  # "Debian GNU/Linux 13 (trixie)", not the kernel release a reviewer cannot place
             facts["os"] = platform.freedesktop_os_release().get("PRETTY_NAME") or platform.system()
-        except OSError:
+        except (OSError, AttributeError):  # AttributeError: Python < 3.10 (macOS CLT 3.9)
             facts["os"] = f"{platform.system()} {platform.release()}"
     return facts
 
