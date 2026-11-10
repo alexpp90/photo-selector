@@ -33,8 +33,16 @@ from photo_selector_linux.core.models import (
     QualityScores,
     SharpnessCategory,
 )
+from photo_selector_linux.core.goto import resolve_goto
 from photo_selector_linux.core.scanner import DirectoryScanner, natural_sort_key
-from photo_selector_linux.core.settings import SettingsStore
+from photo_selector_linux.core.settings import (
+    ORDER_LOWEST_SHARPNESS,
+    ORDER_NAME,
+    ORDER_NEWEST,
+    ORDER_OLDEST,
+    PERSISTED_ORDERS,
+    SettingsStore,
+)
 from photo_selector_linux.core.statistics import record_decision_log
 
 
@@ -51,6 +59,9 @@ ScoreRunner = Callable[
 
 
 logger = logging.getLogger(__name__)
+
+
+ORDERS = (ORDER_NEWEST, ORDER_OLDEST, ORDER_NAME, ORDER_LOWEST_SHARPNESS)
 
 
 def run_inline(job: Job, done: JobDone) -> None:
@@ -167,7 +178,11 @@ class CullingWorkspaceViewModel:
         self.stop_sharpness_threshold: Optional[float] = (
             settings.stop_sharpness_threshold if settings else None
         )
-        self.sort_order: str = "natural"
+        #: Without a settings store (tests, headless use) the order is the file-name order.
+        self.sort_order: str = settings.view_order if settings else ORDER_NAME
+        #: False until the user moves, culls, jumps or the folder opens on a requested photo:
+        #: while False, every re-order of an arriving batch lands on the first photo of the order.
+        self._user_navigated: bool = False
         self.decision_log_path: Optional[Path] = decision_log_path
 
         self.selected_count: int = 0
@@ -365,20 +380,28 @@ class CullingWorkspaceViewModel:
                 self._notify(f"Reached sharpness threshold ({self.stop_sharpness_threshold:.1f})")
 
     def set_sort_order(self, order: str) -> None:
-        """Set candidate ordering ('natural' or 'lowest_sharpness_first') and re-sort (U-34)."""
-        if order not in ("natural", "lowest_sharpness_first"):
+        """Set the view order and start at its first photo (U-34, R-LINUX-CULL-02).
+
+        ``newest`` / ``oldest`` / ``natural`` (file name) are remembered for the next folder and
+        the next start; ``lowest_sharpness_first`` is a triage view for this session only.
+        """
+        if order not in ORDERS:
             return
         if order == self.sort_order and self.scoring_confirmation_pending:
             self._scoring_confirmed = True  # chosen again on a remote folder: that is the consent
         self.sort_order = order
         self._apply_sort_order()
         self.current_index = 0
+        self._user_navigated = False
         self._check_stop_sharpness_threshold()
-        if order == "lowest_sharpness_first":
+        if order == ORDER_LOWEST_SHARPNESS:
             self._scoring_anchor = self.current_photo
             self._begin_scoring_pass()
         else:
             self._cancel_scoring_pass()
+            if self.settings is not None and order in PERSISTED_ORDERS and self.settings.view_order != order:
+                self.settings.update(view_order=order)  # notifies: _on_settings_changed refreshes
+                return
         self._notify_state_changed()
 
     @property
@@ -402,7 +425,7 @@ class CullingWorkspaceViewModel:
         Photos already scored by viewing are skipped. A remote/cloud folder is read in full only
         after the user chooses the order a second time (U-31).
         """
-        if self.sort_order != "lowest_sharpness_first" or self.score_runner is None:
+        if self.sort_order != ORDER_LOWEST_SHARPNESS or self.score_runner is None:
             return
         todo = [
             c for c in self.candidates
@@ -471,12 +494,21 @@ class CullingWorkspaceViewModel:
         self._notify_state_changed()
 
     def _apply_sort_order(self) -> None:
-        if self.sort_order == "lowest_sharpness_first":
+        if self.sort_order == ORDER_LOWEST_SHARPNESS:
             self.candidates.sort(
                 key=lambda c: (
                     (0, float(c.scores.sharpness), natural_sort_key(c.filename))
                     if c.scores is not None
                     else (1, float("inf"), natural_sort_key(c.filename))
+                )
+            )
+        elif self.sort_order in (ORDER_NEWEST, ORDER_OLDEST):
+            sign = -1.0 if self.sort_order == ORDER_NEWEST else 1.0
+            self.candidates.sort(
+                key=lambda c: (
+                    sign * c.modified_at,
+                    natural_sort_key(str(c.primary_path.parent)),
+                    natural_sort_key(c.filename),
                 )
             )
         else:
@@ -486,6 +518,53 @@ class CullingWorkspaceViewModel:
                     natural_sort_key(c.filename),
                 )
             )
+
+    def _add_scanned(self, batch: List[CandidatePhoto]) -> None:
+        """Take a scan batch in; the list stays in the active order, the photo on screen stays.
+
+        File-name order is what the scanner emits, so a batch is appended. The other orders need
+        the whole folder, which a progressive scan only has at the end: each batch is merged into
+        the active order, the photo the user is looking at is followed by identity, and until the
+        user has moved the view stays on the first photo of the order (the newest, for "newest
+        first"). Undo positions are not stored indices that could go stale (see ``_reinsert``).
+        """
+        shown = self.current_photo
+        self.candidates.extend(batch)
+        if self.sort_order == ORDER_NAME:
+            return
+        self._apply_sort_order()
+        if self._user_navigated and shown is not None:
+            idx = self._index_of(shown)
+            if idx is not None:
+                self.current_index = idx
+        else:
+            self.current_index = 0
+
+    def _reinsert(self, photo: CandidatePhoto, orig_idx: int) -> int:
+        """Put an undone photo back where the active order wants it; return its index.
+
+        ``orig_idx`` is where it was when it was removed. The order or the list may have changed
+        since (another order chosen, more of the folder scanned), so the position is only the
+        starting point; sorting puts the photo where its key says, and its identity is followed.
+        """
+        self.candidates.insert(min(orig_idx, len(self.candidates)), photo)
+        self._apply_sort_order()
+        return self._index_of(photo) or 0
+
+    def find_photo(self, text: str) -> Optional[int]:
+        """Index the "Go to photo" text points at (a position or a file name), or None."""
+        return resolve_goto(text, [c.filename for c in self.candidates])
+
+    def go_to_photo(self, text: str) -> bool:
+        """Show the photo ``text`` points at; False (and nothing changes) when none matches."""
+        idx = self.find_photo(text)
+        if idx is None:
+            return False
+        self.current_index = idx
+        self._user_navigated = True
+        self._check_stop_sharpness_threshold()
+        self._notify_state_changed()
+        return True
 
     def set_comparison_mode(self, mode: int) -> None:
         """Switch comparison mode (1: 1-Up, 2: 2-Up, 3: 3-Up Focus Mode)."""
@@ -497,6 +576,7 @@ class CullingWorkspaceViewModel:
         """Navigate to the next candidate photo."""
         if self.current_index < len(self.candidates) - 1:
             self.current_index += 1
+            self._user_navigated = True
             self._check_stop_sharpness_threshold()
             self._notify_state_changed()
 
@@ -504,6 +584,7 @@ class CullingWorkspaceViewModel:
         """Navigate to the previous candidate photo."""
         if self.current_index > 0:
             self.current_index -= 1
+            self._user_navigated = True
             self._notify_state_changed()
 
     def _index_of(self, photo: CandidatePhoto) -> Optional[int]:
@@ -517,6 +598,7 @@ class CullingWorkspaceViewModel:
         idx = self._index_of(photo)
         if idx is None:
             return self.current_index
+        self._user_navigated = True
         self.candidates.pop(idx)
         if idx < self.current_index:
             self.current_index -= 1
@@ -534,9 +616,7 @@ class CullingWorkspaceViewModel:
         if action.kind == "move":
             self.selected_count = max(0, self.selected_count - 1)
             if self._index_of(photo) is None:
-                insert_pos = min(action.orig_idx, len(self.candidates))
-                self.candidates.insert(insert_pos, photo)
-                self.current_index = insert_pos
+                self.current_index = self._reinsert(photo, action.orig_idx)
         elif action.kind == "copy":
             self.selected_count = max(0, self.selected_count - 1)
             self.copied_count = max(0, self.copied_count - 1)
@@ -546,9 +626,7 @@ class CullingWorkspaceViewModel:
         elif action.kind == "trash":
             self.trashed_count = max(0, self.trashed_count - 1)
             if self._index_of(photo) is None:
-                insert_pos = min(action.orig_idx, len(self.candidates))
-                self.candidates.insert(insert_pos, photo)
-                self.current_index = insert_pos
+                self.current_index = self._reinsert(photo, action.orig_idx)
 
     def _stack_for(self, action: _QueuedAction) -> List[Tuple[CullingRecord, CandidatePhoto, int]]:
         """The undo stack of the workspace ``action`` belongs to: the live one, or — when the folder
@@ -768,9 +846,7 @@ class CullingWorkspaceViewModel:
             if rec is not None and action.generation == self._folder_generation:
                 if rec.action_type in (CullingActionType.MOVE, CullingActionType.TRASH):
                     if self._index_of(action.photo) is None:
-                        insert_pos = min(action.orig_idx, len(self.candidates))
-                        self.candidates.insert(insert_pos, action.photo)
-                        self.current_index = insert_pos
+                        self.current_index = self._reinsert(action.photo, action.orig_idx)
                         if rec.action_type == CullingActionType.MOVE:
                             self.selected_count = max(0, self.selected_count - 1)
                         else:
@@ -976,6 +1052,7 @@ class CullingWorkspaceViewModel:
         self._cancel_scoring_pass()
         self._scoring_confirmed = False
         self._select_name = select.name if select is not None else None
+        self._user_navigated = False
         self._folder_generation += 1
         generation = self._folder_generation
         scanner = self._make_scanner()
@@ -1039,9 +1116,7 @@ class CullingWorkspaceViewModel:
         ):
             if generation != self._folder_generation:
                 return
-            self.candidates.extend(batch)
-            if self.sort_order == "lowest_sharpness_first":
-                self._apply_sort_order()
+            self._add_scanned(batch)
             self._select_requested_photo()
             notified_any = True
             self._notify_state_changed()
@@ -1081,9 +1156,7 @@ class CullingWorkspaceViewModel:
     def _on_scan_batch(self, generation: int, batch: List[CandidatePhoto]) -> bool:
         if generation != self._folder_generation:
             return False
-        self.candidates.extend(batch)
-        if self.sort_order == "lowest_sharpness_first":
-            self._apply_sort_order()
+        self._add_scanned(batch)
         self._select_requested_photo()
         self._notify_state_changed()
         return False
@@ -1100,6 +1173,7 @@ class CullingWorkspaceViewModel:
             ):
                 self.current_index = idx
                 self._select_name = None
+                self._user_navigated = True  # opened on this photo: later batches keep it on screen
                 return
 
     def _on_scan_complete(self, generation: int) -> bool:

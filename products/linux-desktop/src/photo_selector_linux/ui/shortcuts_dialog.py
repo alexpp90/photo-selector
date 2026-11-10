@@ -23,6 +23,7 @@ SHORTCUTS = [
     ("Navigation", [
         ("Previous Photo", "Left Arrow / H / K"),
         ("Next Photo", "Right Arrow / L / J"),
+        ("Go to Photo", "G"),
     ]),
     ("Culling Actions", [
         ("Keep (move to Selection)", "M"),
@@ -37,7 +38,7 @@ SHORTCUTS = [
         ("1:1 Pixel Zoom Toggle", "Space"),
         ("Reset Zoom", "Escape"),
         ("Toggle Metadata HUD", "I"),
-        ("Lowest Sharpness First / Natural Order", "B"),
+        ("Lowest Sharpness First / Back to the Usual Order", "B"),
     ]),
     ("Application", [
         ("Open Folder", "Ctrl+O"),
@@ -45,6 +46,7 @@ SHORTCUTS = [
         ("Library Statistics", "Ctrl+L"),
         ("Preferences", "Ctrl+,"),
         ("Keyboard Shortcuts", "? or Ctrl+?"),
+        ("Close This Window", "Escape / Ctrl+W"),
     ]),
 ]
 

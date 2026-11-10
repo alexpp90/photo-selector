@@ -75,7 +75,9 @@ def ui(tmp_path):
     for number in (1, 2, 3):
         Image.new("RGB", (240, 160), "red").save(root / f"DSC_000{number}.JPG")
     (root / "DSC_0001.xmp").write_text("<x/>")
-    win = MainWindow(settings=SettingsStore(path=tmp_path / "settings.json", auto_load=False))
+    settings = SettingsStore(path=tmp_path / "settings.json", auto_load=False)
+    settings.view_order = "natural"  # the test names the first photo; newest first is the app default
+    win = MainWindow(settings=settings)
     win.viewmodel.file_manager = FileCullingManager(trash_dir=tmp_path / "Trash")
     win.viewmodel.load_directory(root)
     assert probe.pump(until=lambda: len(win.viewmodel.candidates) == 3 and not win.viewmodel.is_scanning)

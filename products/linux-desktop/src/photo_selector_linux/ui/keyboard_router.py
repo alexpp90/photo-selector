@@ -5,7 +5,7 @@ Adheres to:
 - R-LINUX-KEY-02: Navigation Hotkeys (←, →, H, L, J, K)
 - R-LINUX-KEY-03: Culling Hotkeys (M, C, Delete, Backspace)
 - R-LINUX-KEY-04: Comparison Mode Switchers (1, 2, 3)
-- R-LINUX-KEY-05: Inspection Hotkeys (Space, Esc, I, B; Tab stays focus traversal)
+- R-LINUX-KEY-05: Inspection Hotkeys (Space, Esc, I, B, G; Tab stays focus traversal)
 - R-LINUX-KEY-06: System & Utility Hotkeys (Ctrl+Z, Ctrl+O, etc.)
 - R-LINUX-KEY-07: Editable Text Entry Exception
 """
@@ -62,6 +62,7 @@ class KeyboardRouterEngine:
     KEY_B = 0x0062
     KEY_C = 0x0063
     KEY_D = 0x0064
+    KEY_G = 0x0067
     KEY_H = 0x0068
     KEY_I = 0x0069
     KEY_J = 0x006A
@@ -194,6 +195,9 @@ class KeyboardRouterEngine:
         elif norm_key == self.KEY_I:
             self.target.on_toggle_hud()
             return True
+        elif norm_key == self.KEY_G:
+            self.target.on_goto_photo()
+            return True
         elif norm_key == self.KEY_QUESTION:
             self.target.on_shortcuts()
             return True
@@ -286,6 +290,10 @@ class KeyboardRouter:
     def on_reset_zoom(self) -> None:
         if hasattr(self.window, "canvas_view") and hasattr(self.window.canvas_view, "reset_zoom"):
             self.window.canvas_view.reset_zoom()
+
+    def on_goto_photo(self) -> None:
+        if hasattr(self.window, "show_goto_dialog"):
+            self.window.show_goto_dialog()
 
     def on_toggle_hud(self) -> None:
         if hasattr(self.window, "canvas_view") and hasattr(self.window.canvas_view, "toggle_hud"):

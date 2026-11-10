@@ -23,6 +23,15 @@ from photo_selector_linux.core.destination import (
 
 logger = logging.getLogger(__name__)
 
+#: The orders the photos can be viewed in, and the ones that persist. "natural" is file-name
+#: order; "lowest_sharpness_first" needs a scoring pass over the folder, so it is a per-session
+#: triage view and never the order a folder opens in.
+ORDER_NEWEST = "newest"
+ORDER_OLDEST = "oldest"
+ORDER_NAME = "natural"
+ORDER_LOWEST_SHARPNESS = "lowest_sharpness_first"
+PERSISTED_ORDERS = (ORDER_NEWEST, ORDER_OLDEST, ORDER_NAME)
+
 
 def default_settings_path() -> Path:
     """Return ``$XDG_CONFIG_HOME/photo-selector-linux/settings.json`` (or ``~/.config/...``)."""
@@ -53,9 +62,13 @@ class SettingsStore:
         #: The custom folder. Kept when the user switches back to the working folder.
         self.external_destination_folder: Optional[str] = None
         self.stop_sharpness_threshold: Optional[float] = None
+        #: The order a folder opens in. New installs open newest first; an install that has a
+        #: settings file without this key keeps the file-name order it always had.
+        self.view_order: str = ORDER_NEWEST
         self._callbacks: List[Callable[[SettingsStore], None]] = []
 
         if auto_load and self.config_path.is_file():
+            self.view_order = ORDER_NAME  # a file written before the order was stored
             self._load_from_disk()
 
     def connect(self, callback: Callable[[SettingsStore], None]) -> None:
@@ -85,6 +98,7 @@ class SettingsStore:
             "destination_mode": self.destination_mode,
             "external_destination_folder": self.external_destination_folder,
             "stop_sharpness_threshold": self.stop_sharpness_threshold,
+            "view_order": self.view_order,
         }
 
     def _apply_dict(self, data: Dict[str, Any]) -> None:
@@ -120,6 +134,8 @@ class SettingsStore:
             self.destination_mode = mode if mode in MODES else MODE_WORKING
         if self.destination_mode == MODE_CUSTOM and not self.external_destination_folder:
             self.destination_mode = MODE_WORKING
+        if data.get("view_order") in PERSISTED_ORDERS:
+            self.view_order = data["view_order"]
         if "stop_sharpness_threshold" in data:
             val = data["stop_sharpness_threshold"]
             if val is None or val == "":
