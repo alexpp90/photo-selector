@@ -189,7 +189,7 @@ class SelectorOverlayClearanceTest {
         "selector_snackbar covers #first_run_hint_dismiss", "first_run_hint covers #snackbar_undo",
     )
 
-    /** NEW-FD-8: an overlay on a frame's maximise badge. */
+    /** F-FD-087: an overlay on a frame's maximise badge. */
     private fun coversBadge(f: String) = f.endsWith("covers #maximise_badge")
 
     @Test
@@ -206,9 +206,9 @@ class SelectorOverlayClearanceTest {
             val pill = report(findings, ::isPillSnackbar)
             assertTrue("the snackbar sits on the first-run pill:\n$pill", pill.isEmpty())
         }
-        // NEW-FD-8: at 1024 x 720 at font scale 2.0 and 720 x 560 at 1.0 the snackbar and the pill
+        // F-FD-087: at 1024 x 720 at font scale 2.0 and 720 x 560 at 1.0 the snackbar and the pill
         // cover the Next frame's maximise badge (REQ-AND-LAYOUT.17: the pill clears every badge).
-        knownDefect("NEW-FD-8") {
+        knownDefect("F-FD-087") {
             val badge = report(findings, ::coversBadge)
             assertTrue("an overlay covers a maximise badge:\n$badge", badge.isEmpty())
         }

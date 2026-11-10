@@ -3,8 +3,8 @@ package com.photoselectortoolbox.ui.fit
 /**
  * The defects the font-scale x window-size matrix reproduces on `main` today. Each entry is a
  * strict known failure: [assertFitsExceptKnown] fails the day one stops reproducing, so the
- * entry is removed together with the fix. Ids `F-FD-…` are ledger rows; `NEW-FD-…` are findings
- * this matrix made that have no ledger row yet.
+ * entry is removed together with the fix. Each id is a findings-history row;
+ * F-FD-080 to F-FD-087 are the ones this matrix found on 2026-11-09.
  */
 object KnownFitDefects {
 
@@ -35,7 +35,7 @@ object KnownFitDefects {
     )
 
     val lessonPreviewCut = KnownFitDefect(
-        id = "NEW-FD-1",
+        id = "F-FD-080",
         tests = setOf(INSPECT),
         screen = Regex("^inspect/learn_tab_(lessons|practice)/"),
         summary = "Lesson rows cut the \"Try this\" prompt after two lines with no ellipsis, mid-sentence, " +
@@ -46,7 +46,7 @@ object KnownFitDefects {
     )
 
     val blurRiskBadge = KnownFitDefect(
-        id = "NEW-FD-2",
+        id = "F-FD-081",
         tests = setOf(INSPECT),
         summary = "The Photo Coach blur-risk label and the \"Hotkeys 0–5, X\" caption break mid-word " +
             "(\"Lo/w Blur Risk\", \"Hotkey/s\") at font scale 2.0",
@@ -59,7 +59,7 @@ object KnownFitDefects {
     )
 
     val compactActionRow = KnownFitDefect(
-        id = "NEW-FD-3",
+        id = "F-FD-082",
         tests = setOf(SELECTOR, SELECTOR_FILMSTRIP),
         summary = "Compact (< 600 dp) selector: Copy / Move / Delete break mid-word (\"Mov/e\", \"Dele/te\") and " +
             "their key caps are squeezed to 0 px at 360 dp; the Fullscreen button is 40 dp (REQ-AND-INPUT.04)",
@@ -76,7 +76,7 @@ object KnownFitDefects {
     )
 
     val selectorChromeAtLargeFont = KnownFitDefect(
-        id = "NEW-FD-4",
+        id = "F-FD-083",
         tests = setOf(SELECTOR, SELECTOR_FILMSTRIP),
         summary = "Three-up selector at font scale 1.3-2.0: the Sort chip word, the position counter, the \"Not scanned\" readout " +
             "exposure tokens and the lens line are cut, lose their line or break mid-word (\"scanne/d\")",
@@ -94,7 +94,7 @@ object KnownFitDefects {
     )
 
     val actionWordsAtLargeFont = KnownFitDefect(
-        id = "NEW-FD-5",
+        id = "F-FD-084",
         tests = setOf(SELECTOR, SELECTOR_FILMSTRIP),
         summary = "Control block at font scale 1.3-2.0: \"Delete\" ellipsises even at the 9 sp step " +
             "(1024 x 720, 720 x 560, 600 x 480; 1280 x 800 with the filmstrip) and the key cap loses its line " +
@@ -105,7 +105,7 @@ object KnownFitDefects {
     )
 
     val filmstripSqueezed = KnownFitDefect(
-        id = "NEW-FD-6",
+        id = "F-FD-085",
         tests = setOf(SELECTOR_FILMSTRIP),
         summary = "At 1024 x 720 with the filmstrip on, the strip is narrowed to 6 dp instead of being dropped: " +
             "thumbnails 6 dp wide, the range label broken a letter per line (REQ-AND-LAYOUT.14)",
@@ -115,7 +115,7 @@ object KnownFitDefects {
     )
 
     val narrowScreensAtLargeFont = KnownFitDefect(
-        id = "NEW-FD-7",
+        id = "F-FD-086",
         tests = setOf("statistics", "settings", "duplicates/found"),
         summary = "Compact 360 dp window at font scale 2.0: Statistics, Settings and Duplicates break words " +
             "(\"Image/s\", \"35m/m\", \"explanati/ons\", \"s/elected\")",
