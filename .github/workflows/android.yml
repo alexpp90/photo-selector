@@ -126,7 +126,7 @@ jobs:
 
       - name: Run unit tests
         working-directory: products/android
-        run: ./gradlew testDebugUnitTest --stacktrace
+        run: ./gradlew testDebugUnitTest --continue --stacktrace
 
       # `testDebugUnitTest` and `lintDebug` never compile `src/androidTest`, so
       # a typo there used to survive every cheap job and only blow up inside the

@@ -261,22 +261,29 @@ def classify(name: str, ci: str) -> str:
 
 
 def parse_results(text: str) -> List[Dict[str, Any]]:
-    """Parse run_tests.sh's results file: STATUS|name|detail-or-ci|ci|unrunnable."""
+    """Parse run_tests.sh's results file: STATUS|name|detail-or-ci|ci|unrunnable[|duration_s].
+
+    The sixth field (the gate's wall seconds) is optional: older lines have none, and a SKIP's is
+    empty; both give ``duration_s`` None. A FAIL's third field is its detail ("exit 1 disk") unless
+    it merely repeats the CI reference, as it did before details were recorded.
+    """
     gates = []
     for line in text.splitlines():
         if not line.strip():
             continue
         parts = line.split("|")
-        parts += [""] * (5 - len(parts))
-        status, name, third, fourth, fifth = parts[:5]
+        parts += [""] * (6 - len(parts))
+        status, name, third, fourth, fifth, sixth = parts[:6]
         if status not in STATUS_ICON:
             continue
         if status == "SKIP":
             detail, ci, unrunnable = third, fourth, fifth != "false"
         else:
-            detail, ci, unrunnable = "", fourth or third, False
+            ci, unrunnable = fourth or third, False
+            detail = third if status == "FAIL" and third != ci else ""
         gates.append({"status": status, "name": name, "detail": detail, "ci": ci,
-                      "unrunnable": unrunnable, "group": classify(name, ci)})
+                      "unrunnable": unrunnable, "group": classify(name, ci),
+                      "duration_s": int(sixth) if sixth.strip().isdigit() else None})
     return gates
 
 
@@ -551,6 +558,11 @@ def _gate_cell(gate: Dict[str, Any]) -> str:
     text = f"{STATUS_ICON[gate['status']]} {gate['name']}"
     if gate["status"] == "SKIP" and gate["detail"]:
         text += f" ({gate['detail']})"
+    elif gate["status"] != "SKIP":
+        extra = [x for x in (gate["detail"] if gate["status"] == "FAIL" else "",
+                             "" if gate.get("duration_s") is None else f"{gate['duration_s']} s") if x]
+        if extra:
+            text += f" ({', '.join(extra)})"
     return text.replace("|", "/")
 
 
@@ -809,6 +821,64 @@ def cmd_write(args: argparse.Namespace) -> int:
     return 0
 
 
+def median(values: List[int]) -> float:
+    ordered = sorted(values)
+    mid = len(ordered) // 2
+    return float(ordered[mid]) if len(ordered) % 2 else (ordered[mid - 1] + ordered[mid]) / 2
+
+
+def _num(value: float) -> str:
+    return str(int(value)) if float(value).is_integer() else f"{value:.1f}"
+
+
+def timings_report(records: List[Dict[str, Any]]) -> str:
+    """Per gate name: runs with a duration, median and max seconds, FAIL count; slowest median first.
+
+    Records written before per-gate durations existed (no ``duration_s`` on their gates) count as
+    records but contribute no run to any gate.
+    """
+    durations: Dict[str, List[int]] = {}
+    fails: Dict[str, int] = {}
+    timed = 0
+    for rec in records:
+        had = False
+        for g in rec.get("gates", []):
+            if g.get("status") == "FAIL":
+                fails[g["name"]] = fails.get(g["name"], 0) + 1
+            if g.get("duration_s") is not None:
+                durations.setdefault(g["name"], []).append(int(g["duration_s"]))
+                had = True
+        timed += had
+    lines = [f"{len(records)} record(s), {timed} with gate durations "
+             f"(older records carry none and are not counted per gate)", ""]
+    rows = sorted(durations.items(), key=lambda kv: (-median(kv[1]), kv[0]))
+    width = max([len(n) for n, _ in rows] + [4])
+    lines.append(f"{'gate':<{width}}  {'runs':>5}  {'median_s':>8}  {'max_s':>6}  {'fails':>5}")
+    for name, vals in rows:
+        lines.append(f"{name:<{width}}  {len(vals):>5}  {_num(median(vals)):>8}  {max(vals):>6}  {fails.get(name, 0):>5}")
+    return "\n".join(lines)
+
+
+def cmd_timings(args: argparse.Namespace) -> int:
+    if args.dir:
+        records = []
+        for path in Path(args.dir).glob("*.json"):
+            try:
+                records.append(json.loads(path.read_text(encoding="utf-8")))
+            except (OSError, ValueError):
+                continue
+        records.sort(key=lambda r: r.get("recorded_at", ""))
+    else:
+        records = load_records(repo_root(args.root))
+    if args.machine:
+        records = [r for r in records if machine_slug(r.get("machine", {})) == args.machine
+                   or r.get("machine", {}).get("slug") == args.machine]
+    if args.last:
+        records = records[-args.last:]
+    print(timings_report(records))
+    return 0
+
+
 def records_for_here(root: Path, allow_stale: bool) -> Tuple[str, List[Dict[str, Any]], bool]:
     slug = machine_slug(scrub_machine(machine_info(), private_tokens(root)))
     mine = [r for r in load_records(root) if r.get("machine", {}).get("slug") == slug]
@@ -932,6 +1002,12 @@ def main(argv: Optional[List[str]] = None) -> int:
     w.add_argument("--exit-code", type=int, default=0)
     w.add_argument("--started", type=int, default=0, help="start time, epoch seconds")
     w.set_defaults(func=cmd_write)
+
+    t = sub.add_parser("timings", help="per-gate wall time over the saved records")
+    t.add_argument("--dir", help="records directory (default: .git/pst-verification of the common git dir)")
+    t.add_argument("--last", type=int, help="only the newest N records")
+    t.add_argument("--machine", help="only records of this machine slug")
+    t.set_defaults(func=cmd_timings)
 
     for name, func, text in (("render", cmd_render, "print this machine's PR block"),
                              ("pr", cmd_pr, "add/replace this machine's block in the PR description")):

@@ -12,6 +12,8 @@
 # cannot satisfy before pushing, which turns the PR into a push-and-pray loop.
 # When you add a gate to a workflow, add it here in the same commit.
 #
+# Android lint (advisory, cannot fail CI) runs on --all and with PST_ANDROID_LINT=1 only.
+#
 # Usage:
 #   ./scripts/run_tests.sh                  # auto-detects changed products (mirrors CI paths: filters)
 #   ./scripts/run_tests.sh --python         # Python gates only (flake8 + pytest + coverage)
@@ -22,7 +24,12 @@
 #                                           # No device attached is a skip, not a failure (also with --strict)
 #   ./scripts/run_tests.sh --macos          # macOS Desktop native Swift gates (Darwin only)
 #   ./scripts/run_tests.sh --linux          # Linux Desktop native gates (Python/GTK4 + Debian packaging)
-#   ./scripts/run_tests.sh --all            # all products unconditionally (without the device suite)
+#   ./scripts/run_tests.sh --all            # all products unconditionally (without the device suite),
+#                                           # plus the lab tooling tests and Android lint
+#   ./scripts/run_tests.sh --lab            # the lab tooling tests (local-only, ~90 s). Otherwise they
+#                                           # run on --all, a pristine tree, or a change under scripts/lab/,
+#                                           # products/*/tests/e2e/, scripts/android_device_matrix.py,
+#                                           # scripts/run_tests.sh or the workflows
 #   ./scripts/run_tests.sh --strict         # treat unrunnable SKIPPED gates as failures
 #   ./scripts/run_tests.sh --quick          # tests only, no lint/coverage (inner-loop use)
 #
@@ -92,6 +99,8 @@ run_android_device=false
 run_macos=false
 run_linux=false
 explicit_product=false
+run_lab=false
+all_mode=false
 strict=false
 quick=false
 
@@ -102,9 +111,12 @@ for arg in "$@"; do
         --android-device) run_android_device=true; explicit_product=true ;;
         --macos)          run_macos=true; explicit_product=true ;;
         --linux)          run_linux=true; explicit_product=true ;;
+        --lab)            run_lab=true; explicit_product=true ;;
         --strict)         strict=true ;;
         --quick)          quick=true ;;
         --all)
+            run_lab=true
+            all_mode=true
             run_python=true
             run_android=true
             run_macos=true
@@ -112,7 +124,7 @@ for arg in "$@"; do
             explicit_product=true
             ;;
         -h|--help)
-            sed -n '2,38p' "$0" | sed 's/^# \{0,1\}//'
+            sed -n '2,45p' "$0" | sed 's/^# \{0,1\}//'
             exit 0
             ;;
         *)
@@ -148,6 +160,7 @@ if ! $explicit_product; then
             run_macos=true
         fi
         run_linux=true
+        run_lab=true
     else
         has_desktop=false
         has_android=false
@@ -168,7 +181,16 @@ if ! $explicit_product; then
             esac
         done
 
+        # The lab tooling tests (local-only) follow the lab's own files, the device matrix that
+        # imports its device lock, and this script; a cross-cutting change runs them too.
+        for f in "${CHANGED_FILES[@]}"; do
+            case "$f" in
+                scripts/lab/*|products/*/tests/e2e/*|scripts/android_device_matrix.py) run_lab=true ;;
+            esac
+        done
+
         if $has_cross; then
+            run_lab=true
             run_python=true
             run_android=true
             if [ "$(uname -s)" = "Darwin" ]; then run_macos=true; fi
@@ -193,12 +215,20 @@ trap 'rm -f "$RESULTS_FILE"' EXIT
 # gate, whether it actually ran. A gate that silently did not run is the
 # failure mode this script exists to prevent.
 
-# Line format: STATUS|name|detail|ci_ref|unrunnable — read by the summary below and by
-# scripts/verification_record.py. For PASS/FAIL/WARN the detail column repeats the ci_ref.
-record() { printf '%s|%s|%s|%s|%s\n' "$1" "$2" "$3" "${4:-$3}" "${5:-}" >> "$RESULTS_FILE"; }
+# Line format: STATUS|name|detail|ci_ref|unrunnable|duration_s — read by the summary below and by
+# scripts/verification_record.py. For PASS/WARN the detail column repeats the ci_ref; a FAIL's
+# detail is its exit code (plus "disk" when disk_hint fired). duration_s is the gate's own wall
+# time in whole seconds, empty for a SKIP. A gate sets GATE_SECS just before it reports, and
+# record() consumes it, so the 6th field never leaks into the next gate. ($SECONDS, not
+# EPOCHREALTIME: macOS ships bash 3.2.)
+GATE_SECS=""
+record() {
+    printf '%s|%s|%s|%s|%s|%s\n' "$1" "$2" "$3" "${4:-$3}" "${5:-}" "$GATE_SECS" >> "$RESULTS_FILE"
+    GATE_SECS=""
+}
 
 pass() { record PASS "$1" "$2"; echo -e "${GREEN}  ✔ $1${NC}"; }
-fail() { record FAIL "$1" "$2"; echo -e "${RED}  ✘ $1${NC}"; EXIT_CODE=1; }
+fail() { record FAIL "$1" "${3:-$2}" "$2"; echo -e "${RED}  ✘ $1${NC}"; EXIT_CODE=1; }  # fail <name> <ci_ref> [detail]
 warn() { record WARN "$1" "$2"; echo -e "${YELLOW}  ! $1${NC}"; }
 skip() {
     local name="$1"
@@ -219,10 +249,13 @@ section() { echo -e "\n${BLUE}━━━ $1 ━━━${NC}"; }
 gate() {
     local name="$1"; shift
     local ci_ref="$1"; shift
-    if "$@"; then
+    local rc=0 t0="$SECONDS"
+    "$@" || rc=$?
+    GATE_SECS=$((SECONDS - t0))
+    if [ "$rc" -eq 0 ]; then
         pass "$name" "$ci_ref"
     else
-        fail "$name" "$ci_ref"
+        fail "$name" "$ci_ref" "$(fail_detail "$rc")"
         disk_hint
     fi
 }
@@ -239,6 +272,14 @@ free_gb() { df -kP "$ROOT_DIR" 2>/dev/null | LC_ALL=C awk 'NR==2 {printf "%.1f",
 
 below_floor() {  # below_floor <free GB> — true when under MIN_SPACE_GB
     [ -n "$1" ] && LC_ALL=C awk -v f="$1" -v m="$MIN_SPACE_GB" 'BEGIN {exit !(f < m)}'
+}
+
+# The detail a failed gate records: its exit code, plus "disk" when free space is under the floor.
+# The gate's output is not captured (it keeps the terminal), so this is all the record can say.
+fail_detail() {
+    local detail="exit $1"
+    below_floor "$(free_gb)" && detail="$detail disk"
+    printf '%s' "$detail"
 }
 
 disk_hint() {
@@ -268,12 +309,13 @@ disk_preflight() {
 advisory_gate() {
     local name="$1"; shift
     local ci_ref="$1"; shift
-    local rc=0
+    local rc=0 t0="$SECONDS"
     "$@" || rc=$?
+    GATE_SECS=$((SECONDS - t0))
     case "$rc" in
         0) pass "$name" "$ci_ref" ;;
         3) warn "$name (report-only findings)" "$ci_ref" ;;
-        *) fail "$name" "$ci_ref"; disk_hint ;;
+        *) fail "$name" "$ci_ref" "$(fail_detail "$rc")"; disk_hint ;;
     esac
 }
 
@@ -403,9 +445,17 @@ fi
 # Like py(), but on its own X server. Use for any gate that renders widgets.
 # The ${arr[@]+...} guard keeps an empty prefix expandable under `set -u` on
 # macOS's bash 3.2, where a bare "${empty[@]}" aborts the script.
+#
+# On a Wayland session GTK4 prefers WAYLAND_DISPLAY over the Xvfb DISPLAY and would open the
+# test windows on the real desktop; under Xvfb the command therefore runs with WAYLAND_DISPLAY
+# unset and GDK_BACKEND=x11. PST_SHOW_GUI=1 leaves the environment alone.
 pyx() {
     py_resolve "$@"
-    ${XVFB_PREFIX[@]+"${XVFB_PREFIX[@]}"} "${PY_ARGV[@]}"
+    if [ ${#XVFB_PREFIX[@]} -gt 0 ] && [ "${PST_SHOW_GUI:-0}" != "1" ]; then
+        env -u WAYLAND_DISPLAY GDK_BACKEND=x11 "${XVFB_PREFIX[@]}" "${PY_ARGV[@]}"
+    else
+        ${XVFB_PREFIX[@]+"${XVFB_PREFIX[@]}"} "${PY_ARGV[@]}"
+    fi
 }
 
 # ── Format corpus (mirror: .github/actions/format-corpus, used by every product test job) ──
@@ -528,7 +578,7 @@ if $run_android && disk_preflight "Android" "android.yml"; then
 
         section "Android unit tests (JVM)"
         gate "gradlew testDebugUnitTest" "android.yml:unit-tests" \
-            ./gradlew testDebugUnitTest --stacktrace
+            ./gradlew testDebugUnitTest --continue --stacktrace
 
         # ── androidTest compilation ───────────────────────────────
         # THIS IS THE GATE THAT USED TO ONLY EXIST IN CI.
@@ -576,10 +626,21 @@ if $run_android && disk_preflight "Android" "android.yml"; then
         section "Android lint (advisory)"
         if $quick; then
             skip "android lint" "" "--quick"
-        elif ./gradlew :core:lintDebug :saf:lintDebug :android-desktop:lintDebug :phototok:lintDebug --continue --stacktrace; then
-            pass "gradlew lintDebug (advisory)" "android.yml:lint"
+        elif ! $all_mode && [ "${PST_ANDROID_LINT:-0}" != "1" ]; then
+            # It cannot fail anything (CI continue-on-error, abortOnError = false) and costs
+            # over a minute, so only --all and PST_ANDROID_LINT=1 spend it.
+            skip "gradlew lintDebug (advisory)" "android.yml:lint" \
+                "CI runs it as continue-on-error; PST_ANDROID_LINT=1 runs it here" false
         else
-            warn "gradlew lintDebug (advisory — does not fail CI)" "android.yml:lint"
+            lint_rc=0
+            lint_t0="$SECONDS"
+            ./gradlew :core:lintDebug :saf:lintDebug :android-desktop:lintDebug :phototok:lintDebug --continue --stacktrace || lint_rc=$?
+            GATE_SECS=$((SECONDS - lint_t0))
+            if [ "$lint_rc" -eq 0 ]; then
+                pass "gradlew lintDebug (advisory)" "android.yml:lint"
+            else
+                warn "gradlew lintDebug (advisory — does not fail CI)" "android.yml:lint"
+            fi
         fi
     fi
 elif ! $explicit_product; then
@@ -605,12 +666,14 @@ if $run_android_device && disk_preflight "Android device" "android.yml:instrumen
     # is reported. Only a device with an expanded window (a tablet) runs them.
     INSTRUMENTED_CI_REF="android.yml:instrumented-tests (partial — compact window)"
     GATE_LINES="$(mktemp)"
+    matrix_t0="$SECONDS"
     python3 "$ROOT_DIR/scripts/android_device_matrix.py" run --configured --gate-lines "$GATE_LINES"
+    matrix_secs=$((SECONDS - matrix_t0))  # the devices run at once: every device gate shares the wall time
     TESTED_SERIALS=""
     while IFS=$'\t' read -r verdict serial gate reason; do
         case "$verdict" in
-            pass) pass "$gate" "$INSTRUMENTED_CI_REF" ;;
-            fail) fail "$gate" "$INSTRUMENTED_CI_REF" ;;
+            pass) GATE_SECS="$matrix_secs"; pass "$gate" "$INSTRUMENTED_CI_REF" ;;
+            fail) GATE_SECS="$matrix_secs"; fail "$gate" "$INSTRUMENTED_CI_REF" "device suite failed" ;;
             skip) skip "$gate" "" "$reason" false; continue ;;
             *) continue ;;
         esac
@@ -662,14 +725,17 @@ if $run_macos && disk_preflight "macOS Desktop" "macos.yml:swift-test"; then
         if $quick; then
             skip "macOS UI smoke test" "local-only" "--quick skips the GUI smoke test" false
         else
+            smoke_t0="$SECONDS"
             "$ROOT_DIR/products/macos-desktop/scripts/ui_smoke_test.sh"
             smoke_status=$?
+            GATE_SECS=$((SECONDS - smoke_t0))
             if [ "$smoke_status" -eq 0 ]; then
                 pass "macOS UI smoke test (running app)" "local-only"
             elif [ "$smoke_status" -eq 3 ]; then
+                GATE_SECS=""
                 skip "macOS UI smoke test" "local-only" "no GUI (Aqua) session — log in to the desktop to run it"
             else
-                fail "macOS UI smoke test (running app)" "local-only"
+                fail "macOS UI smoke test (running app)" "local-only" "exit $smoke_status"
             fi
         fi
     fi
@@ -776,8 +842,15 @@ if have python3; then
         python3 scripts/check_ui_text_budget.py --warn-exit-code 3
     gate "format corpus tooling tests" "repo-hygiene.yml:hygiene" \
         python3 -m unittest discover -s scripts/tests -q
-    gate "lab tooling tests" "local-only" \
-        python3 -m unittest discover -s scripts/lab/tests -q
+    # Local-only and slow (~90 s): runs when the change touches the lab (see CHANGED_FILES above),
+    # on --all, --lab and a pristine tree.
+    if $run_lab; then
+        gate "lab tooling tests" "local-only" \
+            python3 -m unittest discover -s scripts/lab/tests -q
+    else
+        skip "lab tooling tests" "local-only" \
+            "no change under scripts/lab/ (local-only gate; --all runs it)" false
+    fi
 else
     skip "readme parity" "" "python3 not found"
     skip "no private-overlay material tracked" "" "python3 not found"
@@ -834,13 +907,15 @@ fi
 # ── Summary ───────────────────────────────────────────────────────
 echo ""
 echo -e "${BLUE}━━━ Summary (gate → CI equivalent) ━━━${NC}"
-while IFS='|' read -r status name ci_ref _ci _unrunnable; do
+while IFS='|' read -r status name detail ci _unrunnable secs; do
     [ -z "${status:-}" ] && continue
+    took=""
+    [ -n "${secs:-}" ] && took=" (${secs} s)"
     case "$status" in
-        PASS) printf "${GREEN}  ✔ %-52s${NC} ${DIM}%s${NC}\n" "$name" "$ci_ref" ;;
-        FAIL) printf "${RED}  ✘ %-52s${NC} ${DIM}%s${NC}\n" "$name" "$ci_ref" ;;
-        WARN) printf "${YELLOW}  ! %-52s${NC} ${DIM}%s${NC}\n" "$name" "$ci_ref" ;;
-        SKIP) printf "${YELLOW}  ⊘ %-52s${NC} ${DIM}%s${NC}\n" "$name" "$ci_ref" ;;
+        PASS) printf "${GREEN}  ✔ %-52s${NC} ${DIM}%s%s${NC}\n" "$name" "$ci" "$took" ;;
+        FAIL) printf "${RED}  ✘ %-52s${NC} ${DIM}%s%s${NC}\n" "$name" "$ci" "$took" ;;
+        WARN) printf "${YELLOW}  ! %-52s${NC} ${DIM}%s%s${NC}\n" "$name" "$ci" "$took" ;;
+        SKIP) printf "${YELLOW}  ⊘ %-52s${NC} ${DIM}%s${NC}\n" "$name" "$detail" ;;
     esac
 done < "$RESULTS_FILE"
 
