@@ -173,7 +173,7 @@ if ! $explicit_product; then
                 # macos.yml:update-homebrew-taps runs the legacy updater on the Lensjet cask.
                 products/desktop/scripts/update_formula.py) has_desktop=true; has_macos=true ;;
                 products/desktop/*|*.spec) has_desktop=true ;;
-                products/android/*|scripts/check_native_alignment.py) has_android=true ;;
+                products/android/*|scripts/check_native_alignment.py|scripts/android_licenses.py) has_android=true ;;
                 products/macos-desktop/*) has_macos=true ;;
                 # linux.yml:test reads the APT key fingerprint from INSTALL.md (test_packaging.py).
                 products/linux-desktop/*|docs/products/linux-desktop/INSTALL.md) has_linux=true ;;
@@ -600,6 +600,13 @@ if $run_android && disk_preflight "Android" "android.yml"; then
             python3 "$ROOT_DIR/scripts/check_native_alignment.py" \
                 "$ROOT_DIR/products/android/android-desktop/build/intermediates/merged_native_libs/debug" \
                 "$ROOT_DIR/products/android/phototok/build/intermediates/merged_native_libs/debug"
+
+        # Each app bundles the licence notices of its release classpath (Settings, "Licences"); a
+        # dependency without an entry in products/android/licenses/components.json, or a stale
+        # res/raw/third_party_notices.txt, fails here and in android.yml:unit-tests.
+        section "Android third-party licence notices"
+        gate "android_licenses.py check (release classpaths)" "android.yml:unit-tests" \
+            python3 "$ROOT_DIR/scripts/android_licenses.py" check
 
         # android.yml:build packages the debug APKs and checks them too: ELF alignment plus the
         # zip-entry alignment of the stored .so files (finding Q-6) — only an APK has the latter.

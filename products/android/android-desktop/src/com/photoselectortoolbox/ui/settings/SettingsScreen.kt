@@ -431,6 +431,10 @@ fun SettingsScreen(
                 },
                 icon = Icons.Default.Gavel,
             )
+
+            HorizontalDivider(color = Zinc700.copy(alpha = 0.5f))
+
+            LicencesRow()
         }
 
         Spacer(modifier = Modifier.height(24.dp))

@@ -36,6 +36,7 @@ The rule that prevents it:
 | `testDebugUnitTest --continue` | `android.yml:unit-tests` | ✅ needs JDK 17 + Android SDK | `--continue` in CI and the mirror: a failing module no longer stops Gradle before the other module's tests run, so one run reports every module's failures. Pass/fail is unchanged. |
 | `assembleDebugAndroidTest` | `android.yml:unit-tests` | ✅ needs JDK 17 + Android SDK | Compiles `tests/instrumented/`. Nothing else does. |
 | `check_native_alignment.py` | `android.yml:unit-tests`, `android.yml:build` | ✅ needs JDK 17 + Android SDK (unit tests run everywhere via `scripts/tests`) | Inspects every `lib/{arm64-v8a,x86_64}/*.so` in `merged_native_libs/debug` and built APK/AAB archives and fails if any ELF `PT_LOAD` segment has `p_align < 16384` (Google Play 16 KB page-size mandate). For `.apk` files it also fails if a stored (uncompressed) `.so` does not start at a 16 KB-aligned zip offset (`zipalign -P 16`); bundles are exempt. The mirror builds and checks the debug APKs like the `build` job. |
+| `android_licenses.py check` | `android.yml:unit-tests` | ✅ needs JDK 17 + Android SDK | Each Android app bundles the licence notices of its release classpath (`res/raw/third_party_notices.txt`, shown in Settings). Fails when a runtime dependency of either app has no entry in `products/android/licenses/components.json`, when an entry matches no dependency, or when a committed notice file differs from what its classpath needs (`python3 scripts/android_licenses.py generate`). The text carries no versions, so a dependency bump does not stale it. |
 | `lintDebug` | `android.yml:lint` | ✅ advisory; opt-in locally | All four modules (`:core`, `:saf`, `:android-desktop`, `:phototok`). Non-blocking in both places, on purpose (CI `continue-on-error`, `abortOnError = false`), so it can never fail a run and costs over a minute: the mirror runs it on `--all` and with `PST_ANDROID_LINT=1`, otherwise reports it SKIPPED (not unrunnable, so `--strict` is unaffected). |
 | `assembleLab` (R8-minified) | `android.yml:minified-build` | ✅ needs JDK 17 + Android SDK | Builds `:android-desktop` and `:phototok` as `lab` (`initWith(release)`: R8 minify + resource shrinking, debug signing, no secrets), so a missing `-keep` rule fails before the merge instead of in `android.yml:build` on `main`. Skipped under `--quick`. |
 | `connectedDebugAndroidTest` (**partial — compact window**) | `android.yml:instrumented-tests` | ❌ **needs emulator/device** | **A green CI job is partial evidence:** CI's emulator has a compact window, and 28 expanded-layout checks in `:android-desktop` (`if (isCompactLayout()) return`, e.g. `SelectorScreenTest`) pass vacuously there; `SelectorForcedSizeTest` forces expanded sizes for part of it. Only a device with an expanded window (a tablet) runs them: use `--android-device` on one before a release. The mirror labels the gate `(partial — compact window)`. Local: on demand only (`--android-device`, before a release), on every configured test device at once (`scripts/android_device_matrix.py run --configured`: `pst.testDevice.serial` + `.extraSerials`, or the only attached device), each under its device lock, one gate per device; no device, or a device busy or locked after the wait, is a non-blocking `⊘ SKIPPED`, also under `--strict`. See [Instrumented tests](#instrumented-tests-genuinely-need-a-device). |
@@ -222,7 +223,7 @@ filters so that pull requests touching only Android do not execute Desktop or ma
 and vice versa. `run_tests.sh` mirrors this locally: unless `--all` or an explicit product
 flag (`--python`, `--android`, `--macos`, `--linux`) is given, it inspects git status and
 branch diffs against `main` (changes to `.github/`, `run_tests.sh` or the format contract under
-`testdata/formats/` count for every product; `scripts/check_native_alignment.py` counts for
+`testdata/formats/` count for every product; `scripts/check_native_alignment.py` and `scripts/android_licenses.py` count for
 Android, the legacy `products/desktop/scripts/update_formula.py` for Desktop and Lensjet,
 whose cask job runs it, and `docs/products/linux-desktop/INSTALL.md` for Blitzlens, whose
 packaging test reads the APT key fingerprint from it — the same as the workflows' `paths:`).
@@ -277,7 +278,7 @@ persisted SAF folder grant) carries `@LabDeviceOnly` (`products/android/phototok
 `instrumented-tests` job and `--android-device` included, because the instrumentation runner
 reports an `assumeTrue` skip there as a failure. Run such a test on the lab device with
 `adb shell am instrument -w -e class <Test> com.phototok.test/androidx.test.runner.AndroidJUnitRunner`
-after the app holds the grant (`tests/e2e/_pick_work_folder.yaml`).
+after the app holds the grant (`tests/e2e/_pick_work_folder.yaml`). A lab-only test whose state a freshly installed device lacks says *not run: <what is missing>* with an assumption, which the device matrix reports as skipped with that reason (`MediaStoreFavouritesTest` without its folder grant: every uninstall, which Gradle does after each connected run, drops it); it never fails for a missing grant.
 
 To run them locally:
 

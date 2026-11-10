@@ -20,6 +20,7 @@ on:
       - 'products/android/**'
       - '.github/workflows/android.yml'
       - 'scripts/check_native_alignment.py'
+      - 'scripts/android_licenses.py'
       - 'testdata/formats/**'
       - 'scripts/fetch_format_corpus.py'
       - '.github/actions/format-corpus/**'
@@ -29,6 +30,7 @@ on:
       - 'products/android/**'
       - '.github/workflows/android.yml'
       - 'scripts/check_native_alignment.py'
+      - 'scripts/android_licenses.py'
       - 'testdata/formats/**'
       - 'scripts/fetch_format_corpus.py'
       - '.github/actions/format-corpus/**'
@@ -144,6 +146,11 @@ jobs:
           python3 scripts/check_native_alignment.py \
             products/android/android-desktop/build/intermediates/merged_native_libs/debug \
             products/android/phototok/build/intermediates/merged_native_libs/debug
+
+      # Both apps bundle the licence notices of their release classpath. A library with no
+      # entry in products/android/licenses/components.json, or a stale notice file, fails here.
+      - name: Third-party licence notices
+        run: python3 scripts/android_licenses.py check
 
       - name: Upload unit test report
         if: always()

@@ -615,6 +615,10 @@ fun SettingsScreen(
                 },
                 icon = Icons.Default.Gavel,
             )
+
+            HorizontalDivider(color = colors.outlineVariant.copy(alpha = 0.2f))
+
+            LicencesRow()
         }
 
         Spacer(modifier = Modifier.height(24.dp))
