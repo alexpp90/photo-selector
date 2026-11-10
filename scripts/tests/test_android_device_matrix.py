@@ -118,6 +118,17 @@ class ParserTest(unittest.TestCase):
         self.assertTrue(self.parser.finished)
         self.assertEqual(self.parser.failure, "")
 
+    def test_a_lab_test_without_its_grant_is_a_skip_that_keeps_the_reason(self):
+        # MediaStoreFavouritesTest says `not run: no persisted ... grant` with an assumption; the
+        # runner reports status -4, which the matrix shows as skipped (Gradle never runs it).
+        stack = ("INSTRUMENTATION_STATUS: stack=org.junit.AssumptionViolatedException: not run: no persisted, "
+                 "writable primary-storage tree grant for com.phototok\n\tat org.junit.Assume.assumeTrue\n")
+        feed(self.parser, status("com.phototok.data.source.MediaStoreFavouritesTest", "aTree", 1)
+             + status("com.phototok.data.source.MediaStoreFavouritesTest", "aTree", -4, extra=stack))
+        result = self.parser.results[0]
+        self.assertEqual(result.status, "skipped")
+        self.assertIn("not run: no persisted", result.message)
+
     def test_process_crash_fails_the_running_test(self):
         out = (status("com.x.FooTest", "a", 1) + "INSTRUMENTATION_RESULT: shortMsg=Process crashed.\n"
                + "INSTRUMENTATION_CODE: 0\n")
