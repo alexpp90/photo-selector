@@ -29,6 +29,7 @@ from .configs import (
     set_verified_rotation,
     window_mode_mismatch,
 )
+from .start_state import app_already_ready, dump_text
 from .tree_android import foreground_packages, parse_uiautomator_xml
 
 
@@ -43,6 +44,8 @@ SHADE_SETTLE_S = 1.0
 ROTATION_SETTLE_S = 1.5
 REMOTE_WORK_DIR = "/sdcard/PSTLab/work"
 REMOTE_WORK_ROOT = "PSTLab/work"
+# The photo the lab puts into a `stage_dirs` directory it had to create, and takes out again.
+STAGED_PHOTO_NAME = "PSTLab_staged.jpg"
 # Per-product flow (products/android/<product>/tests/e2e/) that makes sure the app has the
 # work folder open before a journey that does not start from a fresh install.
 ENSURE_FOLDER_FLOW = "_ensure_folder.yaml"
@@ -289,6 +292,9 @@ def run_android_journey(
     findings: list[Finding] = []
     result_status = "pass"
     broken_reason: str | None = None
+    ensure_skipped = False
+    # (directory, directories created) per `stage_dirs` entry the lab had to create.
+    staged: list[tuple[str, list[str]]] = []
 
     # A journey that needs device state the lab must not create (the camera roll, outside
     # /sdcard/PSTLab) is not run on a device without it, rather than reported as broken.
@@ -322,6 +328,15 @@ def run_android_journey(
         adb.rm_rf(remote_fixture)
         adb.push_dir(local_stage, remote_fixture)
 
+        # A directory the journey needs outside /sdcard/PSTLab (the camera roll) is created with one
+        # fixture photo for the journey and removed in the `finally` below; on a device that has
+        # it (a phone whose camera has taken photos) nothing is touched.
+        for stage in manifest.get("stage_dirs", []):
+            photo = next(iter(sorted(local_stage.glob("*.[jJ][pP][gG]"))), None)
+            if photo is None:
+                raise RuntimeError(f"fixture set {fixture_set!r} has no JPEG to stage into {stage}")
+            staged.append((str(stage), adb.stage_dir(str(stage), photo, STAGED_PHOTO_NAME)))
+
         initial_files = adb.list_files(remote_fixture)
         initial_fs = {"root": REMOTE_WORK_ROOT, "files": initial_files, "trash": []}
         (out_dir / "00_initial.fs.json").write_text(
@@ -345,7 +360,12 @@ def run_android_journey(
         ensure_flow = r / "products" / "android" / product / "tests" / "e2e" / ENSURE_FOLDER_FLOW
         if not manifest.get("fresh_install") and ensure_flow.is_file():
             junit_out = out_dir / "maestro_00_ensure_folder.xml"
-            if m_fn(adb.serial, ensure_flow, junit_out) != 0:
+            # One Maestro start-up is ~10 s and the flow's optional waits another 7-30 s: skip it
+            # when the launched app already shows the screen it would bring it to (start_state.py).
+            probe = out_dir / "00_start_probe.xml"
+            if app_already_ready(product, app_id, lambda: dump_text(adb, probe)):
+                ensure_skipped = True
+            elif m_fn(adb.serial, ensure_flow, junit_out) != 0:
                 result_status = "flow-broken"
                 broken_reason = f"{ENSURE_FOLDER_FLOW}: {_maestro_failure_line(junit_out.with_suffix('.log'))}"
 
@@ -558,7 +578,13 @@ def run_android_journey(
         }
         if broken_reason:
             res_obj["reason"] = broken_reason
+        if ensure_skipped:
+            res_obj["ensure_folder"] = "skipped: the launched app already showed the work folder"
         (out_dir / "result.json").write_text(json.dumps(res_obj, indent=2), encoding="utf-8")
         return result_status, findings
     finally:
-        reset_config(adb, saved_state)
+        try:
+            for stage, created in reversed(staged):
+                adb.unstage_dir(stage, STAGED_PHOTO_NAME, created)
+        finally:
+            reset_config(adb, saved_state)

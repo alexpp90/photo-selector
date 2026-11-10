@@ -14,6 +14,7 @@ import os
 import shutil
 import stat
 import subprocess
+import sys
 import tempfile
 import unittest
 from pathlib import Path
@@ -159,6 +160,25 @@ class _MirrorHarness(unittest.TestCase):
         return self.log.read_text(encoding="utf-8").splitlines() if self.log.exists() else []
 
 
+    def results_of(self, root, *args, **kw):
+        """Run the script with a python3 shim for `verification_record.py write`, capturing --results."""
+        keep = self.tmp / "kept-results.txt"
+        write_exe(self.fakebin / "python3", f"""#!/bin/sh
+case "$*" in
+  *verification_record.py*write*)
+    while [ $# -gt 0 ]; do [ "$1" = "--results" ] && cp "$2" "{keep}"; shift; done
+    exit 0 ;;
+esac
+exec {sys.executable} "$@"
+""")
+        env = dict(kw.pop("extra_env", {}) or {})
+        env["PST_NO_RECORD"] = "0"
+        result = self.run_script(root, *args, extra_env=env, **kw)
+        lines = keep.read_text(encoding="utf-8").splitlines() if keep.exists() else []
+        return result, [ln.split("|") for ln in lines]
+
+
+
 class RunTestsPythonEnvironmentTest(_MirrorHarness):
     # ── the failure is loud, names the remedy, and never touches a foreign tool ─────────────
 
@@ -285,6 +305,128 @@ class RunTestsDiskSpaceTest(_MirrorHarness):
         out = result.stdout + result.stderr
         self.assertIn("✘", out)
         self.assertNotIn("may be disk", out)
+
+
+class RunTestsTimingAndIsolationTest(_MirrorHarness):
+    """Per-gate wall time and failure detail in the results file, `--continue` on the unit gate,
+    and a Wayland-proof GUI display."""
+
+    def android_root(self, exit_code=0):
+        root = self.make_root()
+        write_exe(root / "products" / "android" / "gradlew",
+                  f'#!/bin/sh\necho "GRADLEW $*" >> "$STUB_MARK"\nexit {exit_code}\n')
+        return root
+
+    def test_every_gate_line_carries_a_duration_and_skips_do_not(self):
+        root = self.android_root()
+        result, rows = self.results_of(root, "--android", "--quick", extra_env={"PST_MIN_SPACE_GB": "0"})
+        gradle = [r for r in rows if r[0] == "PASS" and r[1].startswith("gradlew")]
+        self.assertTrue(gradle, result.stdout + result.stderr)
+        for r in gradle:
+            self.assertEqual(len(r), 6, r)
+            self.assertTrue(r[5].isdigit(), r)
+        for r in rows:
+            if r[0] == "SKIP":
+                self.assertEqual(r[5:] or [""], [""], r)
+
+    def test_summary_shows_the_seconds(self):
+        result = self.run_script(self.android_root(), "--android", "--quick", extra_env={"PST_MIN_SPACE_GB": "0"})
+        self.assertRegex(result.stdout, r"✔ gradlew assembleDebug\s.*\(\d+ s\)")
+
+    def test_a_failed_gate_records_its_exit_code(self):
+        root = self.android_root(exit_code=7)
+        _, rows = self.results_of(root, "--android", "--quick", extra_env={"PST_MIN_SPACE_GB": "0"})
+        fails = [r for r in rows if r[0] == "FAIL" and r[1].startswith("gradlew")]
+        self.assertTrue(fails)
+        self.assertEqual(fails[0][2], "exit 7")
+        self.assertEqual(fails[0][3], "android.yml:unit-tests")
+
+    def test_a_failed_gate_below_the_disk_floor_records_disk(self):
+        # the Android preflight would stop its section first, so use the Python gate (no preflight)
+        venv = self.make_venv("venv-failing", with_tools=True)
+        write_exe(venv / "bin" / "pytest", "#!/bin/sh\nexit 1\n")
+        _, rows = self.results_of(self.make_root(), "--python", venv=venv, extra_env={"PST_MIN_SPACE_GB": "100000"})
+        fails = [r for r in rows if r[0] == "FAIL" and r[1].startswith("pytest")]
+        self.assertTrue(fails, rows)
+        self.assertEqual(fails[0][2], "exit 1 disk")
+
+    def test_unit_gate_continues_past_a_failing_module_locally_and_in_ci(self):
+        self.assertIn("./gradlew testDebugUnitTest --continue --stacktrace", SCRIPT.read_text(encoding="utf-8"))
+        workflow = (REPO / ".github" / "workflows" / "android.yml").read_text(encoding="utf-8")
+        self.assertIn("run: ./gradlew testDebugUnitTest --continue --stacktrace", workflow)
+
+    def run_gui_probe(self, *, show_gui, wayland="wayland-0"):
+        root = self.make_root()
+        venv = self.make_venv("venv-probe", with_tools=True)
+        write_exe(venv / "bin" / "pytest",
+                  '#!/bin/sh\necho "ENV WAYLAND=${WAYLAND_DISPLAY-unset} BACKEND=${GDK_BACKEND-unset}" >> "$STUB_MARK"\nexit 0\n')
+        extra = {"WAYLAND_DISPLAY": wayland, "PST_MIN_SPACE_GB": "0"}
+        extra["PST_SHOW_GUI"] = "1" if show_gui else ""
+        self.run_script(root, "--python", "--quick", venv=venv, extra_env=extra)
+        return self.marker()
+
+    def test_gui_gates_unset_wayland_and_force_x11_under_xvfb(self):
+        mark = self.run_gui_probe(show_gui=False)
+        self.assertIn("ENV WAYLAND=unset BACKEND=x11", mark)
+
+    def test_pst_show_gui_keeps_the_ambient_display(self):
+        mark = self.run_gui_probe(show_gui=True)
+        self.assertIn("ENV WAYLAND=wayland-0 ", mark)
+
+
+class RunTestsScopedLocalGatesTest(_MirrorHarness):
+    """The lab tooling tests and Android lint (neither is a CI gate) are skipped unless asked for."""
+
+    def lab_root(self):
+        root = self.make_root()
+        write_exe(root / "products" / "android" / "gradlew", '#!/bin/sh\necho "GRADLEW $*" >> "$STUB_MARK"\nexit 0\n')
+        (root / "scripts" / "lab" / "tests").mkdir(parents=True)
+        (root / "scripts" / "lab" / "tests" / "test_x.py").write_text(
+            "import unittest\nclass T(unittest.TestCase):\n    def test_x(self):\n        pass\n", encoding="utf-8")
+        return root
+
+    def rows(self, root, *args, **kw):
+        _, rows = self.results_of(root, *args, **kw)
+        return {r[1]: r for r in rows}
+
+    def test_lab_tests_are_skipped_with_the_named_reason_under_an_explicit_product(self):
+        row = self.rows(self.lab_root(), "--python", "--quick", venv=self.make_venv("v", with_tools=True))["lab tooling tests"]
+        self.assertEqual(row[0], "SKIP")
+        self.assertIn("no change under scripts/lab/ (local-only gate; --all runs it)", row[2])
+        self.assertEqual(row[3:5], ["local-only", "false"])
+
+    def test_the_lab_flag_forces_the_lab_tests(self):
+        self.assertEqual(self.rows(self.lab_root(), "--lab")["lab tooling tests"][0], "PASS")
+
+    def test_all_runs_the_lab_tests_and_lint(self):
+        rows = self.rows(self.lab_root(), "--all", "--quick", venv=self.make_venv("v", with_tools=True),
+                         extra_env={"PST_MIN_SPACE_GB": "0"})
+        self.assertEqual(rows["lab tooling tests"][0], "PASS")
+
+    def test_lint_is_skipped_unless_all_or_opted_in(self):
+        root = self.lab_root()
+        env = {"PST_MIN_SPACE_GB": "0"}
+        row = self.rows(root, "--android", extra_env=env)["gradlew lintDebug (advisory)"]
+        self.assertEqual(row[0], "SKIP")
+        self.assertIn("PST_ANDROID_LINT=1 runs it here", row[2])
+        self.assertEqual(row[4], "false")
+        self.assertNotIn("lintDebug", self.marker())
+        row = self.rows(root, "--android", extra_env={**env, "PST_ANDROID_LINT": "1"})["gradlew lintDebug (advisory)"]
+        self.assertEqual(row[0], "PASS")
+        self.assertIn("lintDebug", self.marker())
+
+    def test_a_change_under_the_lab_selects_the_lab_tests(self):
+        root = self.lab_root()
+        env = dict(GIT_ENV)
+        git = lambda *a: subprocess.run(["git", *a], cwd=root, env={**os.environ, **env}, check=True, capture_output=True)  # noqa: E731
+        git("init", "-q", "-b", "main")
+        git("add", "-A")
+        git("commit", "-q", "-m", "base")
+        (root / "docs").mkdir()
+        (root / "docs" / "x.md").write_text("x", encoding="utf-8")
+        self.assertEqual(self.rows(root)["lab tooling tests"][0], "SKIP", "an unrelated change")
+        (root / "scripts" / "lab" / "lab.py").write_text("x = 1\n", encoding="utf-8")
+        self.assertEqual(self.rows(root)["lab tooling tests"][0], "PASS")
 
 
 if __name__ == "__main__":

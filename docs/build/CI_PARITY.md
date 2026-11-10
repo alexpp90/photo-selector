@@ -33,10 +33,10 @@ The rule that prevents it:
 | pytest `-m "not visual"` | `desktop.yml:test` | ✅ everywhere | Same marker filter locally and in CI. CI and the mirror both pass `-o faulthandler_timeout=120` (also to the visual job), so a test that blocks in Tk or native code fails with every thread's stack instead of hanging. On Linux the runner renders it on its own Xvfb, as CI does — see [GUI gates run on Xvfb](#gui-gates-run-on-xvfb-not-your-screen). |
 | Coverage `--cov-fail-under=60` | `desktop.yml:test` (**Linux only**) | ✅ advisory everywhere | See [Coverage is Linux-authoritative](#coverage-is-linux-authoritative). |
 | Visual regression | `desktop.yml:visual` | ⚠️ Linux + Xvfb on CI's `ubuntu-24.04` image; SKIPPED elsewhere (baselines are runner-rendered) | See [Visual regression](#visual-regression-linux-only). |
-| `testDebugUnitTest` | `android.yml:unit-tests` | ✅ needs JDK 17 + Android SDK | |
+| `testDebugUnitTest --continue` | `android.yml:unit-tests` | ✅ needs JDK 17 + Android SDK | `--continue` in CI and the mirror: a failing module no longer stops Gradle before the other module's tests run, so one run reports every module's failures. Pass/fail is unchanged. |
 | `assembleDebugAndroidTest` | `android.yml:unit-tests` | ✅ needs JDK 17 + Android SDK | Compiles `tests/instrumented/`. Nothing else does. |
 | `check_native_alignment.py` | `android.yml:unit-tests`, `android.yml:build` | ✅ needs JDK 17 + Android SDK (unit tests run everywhere via `scripts/tests`) | Inspects every `lib/{arm64-v8a,x86_64}/*.so` in `merged_native_libs/debug` and built APK/AAB archives and fails if any ELF `PT_LOAD` segment has `p_align < 16384` (Google Play 16 KB page-size mandate). For `.apk` files it also fails if a stored (uncompressed) `.so` does not start at a 16 KB-aligned zip offset (`zipalign -P 16`); bundles are exempt. The mirror builds and checks the debug APKs like the `build` job. |
-| `lintDebug` | `android.yml:lint` | ✅ advisory | All four modules (`:core`, `:saf`, `:android-desktop`, `:phototok`). Non-blocking in both places, on purpose. |
+| `lintDebug` | `android.yml:lint` | ✅ advisory; opt-in locally | All four modules (`:core`, `:saf`, `:android-desktop`, `:phototok`). Non-blocking in both places, on purpose (CI `continue-on-error`, `abortOnError = false`), so it can never fail a run and costs over a minute: the mirror runs it on `--all` and with `PST_ANDROID_LINT=1`, otherwise reports it SKIPPED (not unrunnable, so `--strict` is unaffected). |
 | `assembleLab` (R8-minified) | `android.yml:minified-build` | ✅ needs JDK 17 + Android SDK | Builds `:android-desktop` and `:phototok` as `lab` (`initWith(release)`: R8 minify + resource shrinking, debug signing, no secrets), so a missing `-keep` rule fails before the merge instead of in `android.yml:build` on `main`. Skipped under `--quick`. |
 | `connectedDebugAndroidTest` (**partial — compact window**) | `android.yml:instrumented-tests` | ❌ **needs emulator/device** | **A green CI job is partial evidence:** CI's emulator has a compact window, and 28 expanded-layout checks in `:android-desktop` (`if (isCompactLayout()) return`, e.g. `SelectorScreenTest`) pass vacuously there; `SelectorForcedSizeTest` forces expanded sizes for part of it. Only a device with an expanded window (a tablet) runs them: use `--android-device` on one before a release. The mirror labels the gate `(partial — compact window)`. Local: on demand only (`--android-device`, before a release), on every configured test device at once (`scripts/android_device_matrix.py run --configured`: `pst.testDevice.serial` + `.extraSerials`, or the only attached device), each under its device lock, one gate per device; no device, or a device busy or locked after the wait, is a non-blocking `⊘ SKIPPED`, also under `--strict`. See [Instrumented tests](#instrumented-tests-genuinely-need-a-device). |
 | `swift test (macos-desktop)` | `macos.yml:swift-test` | ⚠️ Darwin only | Native Swift 6 suite covering PhotoSelectorKit & App (release SLA benchmark included). Runs on the pinned `macos-26` image in CI. |
@@ -60,7 +60,7 @@ The rule that prevents it:
 | `fetch_format_corpus.py --validate` + `scripts/tests` | `repo-hygiene.yml:hygiene` | ✅ everywhere | The format contract is well-formed: every required format has a sample with ground-truth EXIF, extensions are unique, committed bitmap fixtures match their pinned SHA-256; unit tests for the fetcher (mirror fallback, hash verification), for `verification_record.py`, `release.py`, `android_test_device.py` and `android_device_matrix.py`. |
 | PR verification record (`verification_record.py check`) | `pr-verification.yml:record` | ⚠️ PR description only — advisory | Compares the verification blocks in the PR description (written by `scripts/verification_record.py pr` from the record every `run_tests.sh` run saves) with the PR head tree and the products the PR touches; annotates missing, stale or partial verification and never fails. Not a `run_tests.sh` gate: it judges the PR description, which exists only on GitHub. Local equivalent: `python3 scripts/verification_record.py check --body-file <description.md> --base origin/main`. Its unit tests run in `scripts/tests` above. See [CONTRIBUTING.md § Verification record](../../CONTRIBUTING.md#verification-record). |
 | CLA signature check | `cla.yml:cla` | ❌ GitHub only | Asks a first-time contributor to sign the CLA on the pull request and records it on the `cla-signatures` branch. Not a code gate and not a `run_tests.sh` gate: it depends on the PR's author and comments, which exist only on GitHub. |
-| `lab tooling tests` (`scripts/lab/tests`) | — (local-only) | ✅ everywhere (needs Pillow + PyYAML) | Local-only unit tests (`python3 -m unittest discover -s scripts/lab/tests -q`) covering the device lab's schemas, fixture generator, layout lint, file-system/timing/log oracles, runners, and report builder without touching devices or a GUI. |
+| `lab tooling tests` (`scripts/lab/tests`) | — (local-only) | ✅ everywhere (needs Pillow + PyYAML) | Runs (~90 s) on `--all`, `--lab`, a pristine tree, or a change under `scripts/lab/`, `products/*/tests/e2e/`, `scripts/android_device_matrix.py` (it imports the lab's device lock), `scripts/run_tests.sh` or the workflows; otherwise reported SKIPPED (not unrunnable). Local-only unit tests (`python3 -m unittest discover -s scripts/lab/tests -q`) covering the device lab's schemas, fixture generator, layout lint, file-system/timing/log oracles, runners, and report builder without touching devices or a GUI. |
 | Device lab (`scripts/lab/lab.py`) | — (not a CI gate) | ⚠️ local, on demand, opt-in | Local, on demand, not a CI gate; opt-in; see [`scripts/lab/README.md`](../../scripts/lab/README.md). |
 | Private overlay gates (`link_overlay.py --check`, `sync_framework.py --check`, `validate_framework.py`, `gen_gemini_settings.py --check`, `verify_requirements_traceability.py --check --strict`, the brand name guard `check_brand_names.py` (run only when the overlay has it), framework tests) | private repo `framework.yml` | ⚠️ maintainer checkout only | Run by `run_tests.sh` when `private/` is checked out; `⊘ SKIPPED` (not a risk) in a public clone. The private repository's CI checks out this repository and runs the same gates. |
 
@@ -124,6 +124,15 @@ run the full suite and still fail on any real test failure.
 genuine coverage regression is worth catching early. If it fails locally on
 macOS but the Linux CI number is fine, trust Linux.
 
+### Per-gate timing
+
+Every gate that runs a command records its own wall seconds as the sixth field of its results
+line, and the closing summary prints them (`(24 s)`). A failed gate records its exit code (plus
+`disk` when free space is under the floor). The seconds are saved in the verification record and
+shown in the PR block; `python3 scripts/verification_record.py timings [--last N] [--machine SLUG]`
+ranks the gates of the saved records by median seconds. Records saved before this carry no
+per-gate duration and are not counted per gate.
+
 ### GUI gates run on Xvfb, not your screen
 
 Every gate that renders a widget — the Tk suites in `products/desktop/` and the GTK suite in
@@ -138,6 +147,10 @@ the live font stack and DPI, so a desktop session rendering Cantarell 11 at 96 d
 about the code. Running on a private X server also honours the standing rule that a local
 test run never opens a window on the developer's screen
 (`ai/rules/engineering-invariants.md`).
+
+On a Wayland session GTK4 prefers `WAYLAND_DISPLAY` to the Xvfb `DISPLAY` and would open the
+test windows on the real desktop, so under Xvfb `pyx` runs the command with `WAYLAND_DISPLAY`
+unset and `GDK_BACKEND=x11`. `PST_SHOW_GUI=1` leaves the environment alone (windows on your screen).
 
 Off Linux there is no Xvfb: `pyx` degrades to a plain call, and the macOS conftest keeps
 windows off-screen by its own means (see
@@ -226,7 +239,7 @@ when a workflow's push and pull-request filters differ.
 `android.yml:detect-changes` decides which Android products a change touches: a change under
 one product's directory builds that product, and a change under a shared module
 (`products/android/core/**`, `products/android/saf/**`) or the shared Gradle files builds both.
-`testDebugUnitTest` runs every module's unit tests, `:core` and `:saf` included. Locally
+`testDebugUnitTest --continue` runs every module's unit tests, `:core` and `:saf` included, and keeps going past a failing module (without it Gradle stopped at the first one and the other module reported nothing). Locally
 every path under `products/android/` selects the Android gates, so the mirror needs no
 per-module list.
 

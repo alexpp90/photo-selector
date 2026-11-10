@@ -64,6 +64,89 @@ class ParseResultsTest(unittest.TestCase):
         self.assertEqual(gates[0]["group"], "macos")
 
 
+class GateDurationTest(unittest.TestCase):
+    def test_sixth_field_is_the_gate_duration(self):
+        gates = vr.parse_results("\n".join([
+            "PASS|a|ci:x|ci:x||24",
+            "FAIL|b|exit 1 disk|ci:y||0",
+            "SKIP|c|why|ci:z|false|",
+        ]))
+        self.assertEqual([g["duration_s"] for g in gates], [24, 0, None])
+        self.assertEqual(gates[1]["detail"], "exit 1 disk")
+        self.assertEqual(gates[1]["ci"], "ci:y")
+
+    def test_five_and_three_field_lines_have_no_duration(self):
+        gates = vr.parse_results("PASS|a|ci:x|ci:x|\nPASS|b|ci:y\nFAIL|c|ci:z|ci:z|")
+        self.assertEqual([g["duration_s"] for g in gates], [None, None, None])
+        self.assertEqual(gates[2]["detail"], "")
+
+    def test_garbage_duration_is_none(self):
+        self.assertIsNone(vr.parse_results("PASS|a|ci:x|ci:x||abc")[0]["duration_s"])
+
+    def test_render_shows_seconds_per_gate_and_old_records_render_unchanged(self):
+        gates = vr.parse_results("PASS|gradlew assembleDebug|android.yml:build|android.yml:build||24\n"
+                                 "PASS|readme parity|repo-hygiene.yml:hygiene|repo-hygiene.yml:hygiene|")
+        block = vr.render_block([record(gates)])
+        self.assertIn("gradlew assembleDebug (24 s)", block)
+        self.assertIn("✔ readme parity |", block)
+        self.assertNotIn("readme parity (", block)
+
+    def test_render_shows_the_failure_detail(self):
+        gates = vr.parse_results("FAIL|flake8|exit 1|desktop.yml:lint||3")
+        self.assertIn("flake8 (exit 1, 3 s)", vr.render_block([record(gates)]))
+
+
+class TimingsTest(unittest.TestCase):
+    def setUp(self):
+        self.dir = Path(tempfile.mkdtemp(prefix="pst-timings-"))
+        self.addCleanup(__import__("shutil").rmtree, self.dir, ignore_errors=True)
+
+    def put(self, name, gates, at, **machine):
+        rec = record(gates, at=at, **machine)
+        (self.dir / f"{name}.json").write_text(json.dumps(rec), encoding="utf-8")
+
+    def timings(self, *extra):
+        out = io.StringIO()
+        with redirect_stdout(out):
+            rc = vr.main(["timings", "--dir", str(self.dir), *extra])
+        self.assertEqual(rc, 0)
+        return out.getvalue()
+
+    def test_median_max_and_fail_count_sorted_by_median(self):
+        def g(name, secs, status="PASS"):
+            x = gate(status, name, "repo", ci="c")
+            x["duration_s"] = secs
+            return x
+        self.put("a", [g("slow", 100), g("fast", 1)], "2026-11-01T00:00:00Z")
+        self.put("b", [g("slow", 300, "FAIL"), g("fast", 3)], "2026-11-02T00:00:00Z")
+        self.put("c", [g("slow", 200), gate("PASS", "old", "repo", ci="c")], "2026-11-03T00:00:00Z")
+        out = self.timings().splitlines()
+        rows = [ln for ln in out if ln.startswith(("slow", "fast", "old"))]
+        self.assertEqual([r.split()[0] for r in rows], ["slow", "fast"], out)
+        self.assertEqual(rows[0].split(), ["slow", "3", "200", "300", "1"])
+        self.assertEqual(rows[1].split(), ["fast", "2", "2", "3", "0"])
+
+    def test_last_limits_the_runs_and_machine_filters(self):
+        def g(secs):
+            x = gate("PASS", "only", "repo", ci="c")
+            x["duration_s"] = secs
+            return x
+        self.put("a", [g(10)], "2026-11-01T00:00:00Z", model="Alpha")
+        self.put("b", [g(20)], "2026-11-02T00:00:00Z", model="Beta")
+        self.put("c", [g(40)], "2026-11-03T00:00:00Z", model="Beta")
+        row = [ln for ln in self.timings("--last", "2").splitlines() if ln.startswith("only")][0]
+        self.assertEqual(row.split(), ["only", "2", "30", "40", "0"])
+        slug = vr.machine_slug(record([])["machine"] | {"model": "Alpha"})
+        row = [ln for ln in self.timings("--machine", slug).splitlines() if ln.startswith("only")][0]
+        self.assertEqual(row.split(), ["only", "1", "10", "10", "0"])
+
+    def test_records_without_durations_are_counted_and_reported(self):
+        self.put("a", [gate("PASS", "old", "repo", ci="c")], "2026-11-01T00:00:00Z")
+        out = self.timings()
+        self.assertIn("1 record(s)", out)
+        self.assertIn("0 with gate durations", out)
+
+
 class StatusTest(unittest.TestCase):
     def test_group_statuses(self):
         s = vr.statuses(vr.parse_results(RESULTS))

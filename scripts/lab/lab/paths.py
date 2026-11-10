@@ -47,6 +47,19 @@ def ensure_android_lab_path(remote_path: str) -> str:
     return cleaned
 
 
+# The only places outside /sdcard/PSTLab the lab may create (and, afterwards, remove) a directory
+# on a device, for a journey that declares it under `stage_dirs` (J-TOK-06: the camera roll).
+STAGEABLE_ANDROID_DIRS = ("/sdcard/DCIM/Camera",)
+
+
+def ensure_android_stage_path(remote_dir: str) -> str:
+    """Verify `remote_dir` is exactly one of `STAGEABLE_ANDROID_DIRS` (no children, no traversal)."""
+    cleaned = remote_dir.strip().rstrip("/")
+    if cleaned not in STAGEABLE_ANDROID_DIRS:
+        raise ValueError(f"refusing to stage {remote_dir!r}: not one of {STAGEABLE_ANDROID_DIRS}")
+    return cleaned
+
+
 def lab_tmp_root() -> Path:
     """Scratch root for generated fixtures and private sessions: `/tmp/pstlab` by default.
 
@@ -66,18 +79,22 @@ def lab_tmp_root() -> Path:
     return Path(f"/tmp/pstlab-{os.getuid()}")
 
 
+def default_runs_dir(root: Path | None = None) -> Path:
+    """Where `runs_dir` would put lab runs, without creating anything."""
+    r = root or repo_root()
+    if (r / "private").is_dir():
+        return r / "private" / "lab-runs"
+    return Path(tempfile.gettempdir()) / "lab-runs"
+
+
 def runs_dir(root: Path | None = None) -> Path:
     """Return the directory where lab runs live (`private/lab-runs` or `/tmp/lab-runs`)."""
     r = root or repo_root()
-    priv = r / "private"
-    if priv.is_dir():
-        target = priv / "lab-runs"
-        target.mkdir(parents=True, exist_ok=True)
-        return target
-    print("[lab] warning: private/ not present; writing runs under /tmp/lab-runs", file=sys.stderr)
-    fallback = Path(tempfile.gettempdir()) / "lab-runs"
-    fallback.mkdir(parents=True, exist_ok=True)
-    return fallback
+    if not (r / "private").is_dir():
+        print("[lab] warning: private/ not present; writing runs under /tmp/lab-runs", file=sys.stderr)
+    target = default_runs_dir(r)
+    target.mkdir(parents=True, exist_ok=True)
+    return target
 
 
 def new_run_dir(sha: str, root: Path | None = None, now: datetime | None = None, label: str = "") -> Path:

@@ -8,7 +8,7 @@ import time
 from pathlib import Path
 from typing import Callable
 
-from ..paths import ensure_android_lab_path
+from ..paths import ensure_android_lab_path, ensure_android_stage_path
 
 
 # uiautomator writes its dump to a device file; it lives in the lab root (never the user's
@@ -258,6 +258,40 @@ class AdbClient:
     def dir_exists(self, remote_dir: str) -> bool:
         """Whether `remote_dir` is a directory on the device. Read-only, so any path is allowed."""
         return self.run("shell", f"test -d '{remote_dir}' && echo yes || echo no").strip() == "yes"
+
+    def stage_dir(self, remote_dir: str, local_file: Path | str, name: str) -> list[str]:
+        """Make `remote_dir` exist for a journey, with `local_file` in it as `name`.
+
+        Only the directories of `STAGEABLE_ANDROID_DIRS`. Returns the directories this call
+        created, innermost first (the parent too, when it was missing). An existing directory
+        (a phone whose camera has taken photos) gets no file and is left as it is: `[]`.
+        """
+        guarded = ensure_android_stage_path(remote_dir)
+        if self.dir_exists(guarded):
+            return []
+        created = [guarded]
+        parent = guarded.rsplit("/", 1)[0]
+        if parent and not self.dir_exists(parent):
+            created.append(parent)
+        try:
+            self.run("shell", "mkdir", "-p", guarded)
+            self.run("push", str(local_file), f"{guarded}/{name}", timeout=120)
+        except Exception:
+            self.unstage_dir(guarded, name, created)  # a half-staged directory is lab litter
+            raise
+        return created
+
+    def unstage_dir(self, remote_dir: str, name: str, created: list[str]) -> None:
+        """Undo `stage_dir`: remove the staged file, then the directories it created.
+
+        `rmdir`, never `rm -r`: a directory that gained anything else in the meantime stays.
+        """
+        guarded = ensure_android_stage_path(remote_dir)
+        if not created:
+            return
+        self.run("shell", "rm", "-f", f"{guarded}/{name}")
+        for d in created:
+            self.run("shell", "rmdir", d)
 
     def logcat_clear(self) -> str:
         return self.run("logcat", "-c")
