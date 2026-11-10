@@ -128,6 +128,11 @@ class SelectorSortJumpViewModelTest {
             appScope = appScope,
             context = ApplicationProvider.getApplicationContext(),
         )
+        // The score restore (`withContext(ioDispatcher)` on viewModelScope) and the dimension
+        // backfill ran on Dispatchers.IO and resumed on Main from an IO thread, which raced
+        // `resetMain` in the teardown: "Dispatchers.Main is used concurrently with setting it"
+        // (TestMainDispatcher.kt:72, CI run 41781784118). On the test dispatcher nothing leaves it.
+        viewModel.ioDispatcher = testDispatcher
         viewModels.add(viewModel)
         viewModel.selectFolder(Uri.parse(FOLDER_URI))
         return viewModel

@@ -133,7 +133,7 @@ class SelectorBackTest {
             scoreDao = mockk<ScoreDao>(relaxed = true) { coEvery { getScore(any()) } returns null },
             appScope = appScope,
             context = ApplicationProvider.getApplicationContext(),
-        )
+        ).also { it.ioDispatcher = testDispatcher }
         viewModel.selectFolder(Uri.parse("content://test/folder"))
         discovery.trySend(listOf(photo("A.JPG", 3_000), photo("B.JPG", 2_000), photo("C.JPG", 1_000)))
         discovery.close()
