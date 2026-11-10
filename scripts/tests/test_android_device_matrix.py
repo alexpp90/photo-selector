@@ -8,6 +8,7 @@ import sys
 import tempfile
 import threading
 import unittest
+from datetime import datetime
 
 SCRIPTS_DIR = Path(__file__).resolve().parents[1]
 if str(SCRIPTS_DIR) not in sys.path:
@@ -1044,6 +1045,60 @@ class DisplayAfterDisconnectTest(unittest.TestCase):
         self.assertIn(adm.DISCONNECTED, mrun.problems)
         self.assertEqual(adm.read_display("S1", dev), PHONE_ORIGINALS)
         self.assertTrue(any("after the device reconnected" in n for n in worker.result.notes), worker.result.notes)
+
+
+class FailingAttemptLogTest(unittest.TestCase):
+    """Run 20261109-225923: the log was read once, after the retry, so the failing attempt was gone."""
+
+    def test_the_failing_attempt_is_captured_before_the_retry_and_named_in_the_report(self):
+        order = []
+        passes = [status("p.C", "flaky", 1, 1, 1) + status("p.C", "flaky", -2, 1, 1, "INSTRUMENTATION_STATUS: stack=boom\n")
+                  + "INSTRUMENTATION_CODE: -1\n",
+                  status("p.C", "flaky", 1, 1, 1) + status("p.C", "flaky", 0, 1, 1) + "INSTRUMENTATION_CODE: -1\n"]
+
+        def fake_stream(cmd, on_line, idle_timeout, stop):
+            order.append("retry" if len(passes) == 1 else "first")
+            for line in passes.pop(0).splitlines():
+                on_line(line)
+            return ""
+
+        class Dev(FakeDisplayDevice):
+            def __call__(self, cmd, timeout=120):
+                if cmd[3:5] == ["shell", "date '+%m-%d %H:%M:%S'"]:
+                    self.calls.append(list(cmd))
+                    return 0, datetime.now().strftime("%m-%d %H:%M:%S") + "\n"
+                if cmd[3:5] == ["logcat", "-d"]:
+                    self.calls.append(list(cmd))
+                    order.append("logcat -d " + " ".join(cmd[5:]))
+                    return 0, "11-09 23:11:18.393  100  100 E Tag: failing attempt\n"
+                if cmd[3:5] == ["shell", "pm list instrumentation"]:
+                    return 0, "instrumentation:com.photoselectortoolbox.test/x.Runner (target=com.photoselectortoolbox)"
+                return super().__call__(cmd, timeout)
+
+        original = adm.stream_command
+        adm.stream_command = fake_stream
+        try:
+            with tempfile.TemporaryDirectory() as tmp:
+                worker, _ = display_worker(Dev(), tmp)
+                worker.opts.retries = 1
+                mrun = worker._run_module(adm.MODULES["android-desktop"])
+                kept = sorted(p.name for p in worker.dir.glob("logcat-*attempt*"))
+                self.assertEqual(kept, ["logcat-android-desktop-C_flaky-attempt1.txt"])
+                self.assertIn("failing attempt", (worker.dir / kept[0]).read_text(encoding="utf-8"))
+        finally:
+            adm.stream_command = original
+        self.assertEqual(order[0], "first")
+        self.assertTrue(order[1].startswith("logcat -d -T "), order)
+        self.assertRegex(order[1], r"-T \d\d-\d\d \d\d:\d\d:\d\d\.\d{3}$")
+        self.assertEqual(order[2], "retry")   # captured BEFORE the retry ran
+        self.assertTrue(mrun.results[0].flaky)
+        dr = adm.DeviceRun(adm.Device("S1", "S1", "Moto G77", "usb", label="Moto G77"), status="ran")
+        dr.modules.append(mrun)
+        ledger = adm.empty_ledger()
+        verdicts = adm.update_ledger(ledger, [dr], "r1")
+        meta = {"run_id": "r1", "started_at": "now", "wall_seconds": 1.0, "build_seconds": 1.0, "tree": "main @ abc",
+                "scope": "full", "run_dir": "/tmp/x", "ledger": "/tmp/issues.json"}
+        self.assertIn("Moto_G77/logcat-android-desktop-C_flaky-attempt1.txt", adm.render_report(meta, [dr], verdicts, ledger))
 
 
 class DisplayAtCleanupTest(unittest.TestCase):

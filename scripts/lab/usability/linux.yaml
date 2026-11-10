@@ -43,7 +43,11 @@ scenarios:
       - wait_ms: 1500
       - screen: after-keep
         intent: Check that the keeper was filed and the counts changed
-        expected: Press Delete to send a blurry shot to the Trash
+        expected: Press Right (or L) to step to the blurry shot shown as next, then Delete to send it to the Trash
+      # M advanced to the next shot (064001, acceptable); the blurry 064002 is NEXT. Without this
+      # Right, Delete binned 064001 and the 2026-11-09 panel read it as "trashed the wrong photo".
+      - key: Right
+      - wait_ms: 1500
       - key: Delete
       - wait_ms: 1500
       - screen: after-trash
@@ -57,7 +61,7 @@ scenarios:
       - key: C
       - wait_ms: 1500
       - screen: after-copy
-        intent: Check the copy was made and the photo is still in the folder
+        intent: The copy is made and the photo stays in the folder; carry on with the next photo
         expected: Press Right (or L) to carry on with the next photo
 
   - id: U-LIN-02
@@ -122,7 +126,7 @@ scenarios:
       - key: Right
       - wait_ms: 1500
       - screen: next-in-sweep
-        intent: Carry on through the sweep
+        intent: Done with the sweep; go back to shooting order
         expected: Press B again to return to shooting order
       - key: B
       - wait_ms: 1500

@@ -140,11 +140,13 @@ class FakeAdb:
 
     serial = "FAKE"
 
-    def __init__(self, screens: list[str], top: str = "com.phototok.lab", procs: str = "NAME\ninit\n") -> None:
+    def __init__(self, screens: list[str], top: str = "com.phototok.lab", procs: str = "NAME\ninit\n",
+                 activity_processes: str = "ACTIVITY MANAGER RUNNING PROCESSES\n") -> None:
         self.screens = list(screens)
         self.inputs: list[tuple[str, ...]] = []
         self.top = top
         self.procs = procs
+        self.activity_processes = activity_processes
 
     def _current(self) -> str:
         return self.screens[0] if len(self.screens) == 1 else self.screens.pop(0)
@@ -156,6 +158,8 @@ class FakeAdb:
         if args[:2] == ("shell", "input"):
             self.inputs.append(args[2:])
             return ""
+        if args[:4] == ("shell", "dumpsys", "activity", "processes"):
+            return self.activity_processes
         if args[:3] == ("shell", "dumpsys", "activity"):
             return f"  topResumedActivity=ActivityRecord{{1 u0 {self.top}/.Main t1}}\n"
         if "resolve-activity" in args:
@@ -402,11 +406,28 @@ class TestDriver(unittest.TestCase):
         self.assertIn("taken over", result["error"])
 
     def test_device_free_check(self) -> None:
-        with self.assertRaises(drv.DeviceBusy):
-            drv.check_device_free(FakeAdb([_xml()], procs="NAME\ncom.photoselectortoolbox.test\n"), "com.phototok.lab")  # type: ignore[arg-type]
+        active = (
+            "  Active instrumentation:\n"
+            "    Instrumentation #0: ActiveInstrumentation{8d1c2f {com.photoselectortoolbox.test/"
+            "com.photoselectortoolbox.HiltTestRunner} running}\n"
+        )
+        with self.assertRaises(drv.DeviceBusy) as ctx:
+            drv.check_device_free(FakeAdb([_xml()], activity_processes=active), "com.phototok.lab")  # type: ignore[arg-type]
+        self.assertIn("com.photoselectortoolbox.test", str(ctx.exception))
         with self.assertRaises(drv.DeviceBusy):
             drv.check_device_free(FakeAdb([_xml()], top="com.whatsapp"), "com.phototok.lab")  # type: ignore[arg-type]
         drv.check_device_free(FakeAdb([_xml()], top="com.android.launcher3"), "com.phototok.lab")  # type: ignore[arg-type]
+
+    def test_a_cached_test_process_without_active_instrumentation_is_not_busy(self) -> None:
+        # 2026-11-10: Android kept `com.phototok.test` cached for hours after a matrix run
+        # (`cch-rec`, no instrumentation); the old `ps` check refused three idle devices.
+        cached = (
+            "  *APP* UID 11158 ProcessRecord{b86c87e 5421:com.phototok.test/u0a1158}\n"
+            "    Proc # 3: cch+10 b/ /CRE  ----  t: 0 5421:com.phototok.test/u0a1158 (cch-rec)\n"
+        )
+        adb = FakeAdb([_xml()], top="com.android.launcher3", procs="NAME\ncom.phototok.test\n",
+                      activity_processes=cached)
+        drv.check_device_free(adb, "com.phototok.lab")  # type: ignore[arg-type]
 
     def test_device_lock_is_exclusive_and_names_its_holder(self) -> None:
         with drv.device_lock("SER1", "walk A", lock_dir=self.base) as path:
@@ -2347,6 +2368,16 @@ class TestTextLoad(unittest.TestCase):
         delete = _node(text="Delete", clickable=True, bounds="[700,1100][900,1200]")
         tl = analyse(_xml(icon_only, delete))
         self.assertEqual((tl["labelled_icons"], tl["wordy_controls"], tl["verdict"]), (0, 0, "ok"))
+
+    def test_desktop_trees_report_labelled_icons_as_not_measured(self) -> None:
+        # Desktop trees carry no icon facts; a 0 read as measured (2026-11-09 Lensjet panel).
+        from lab.usability.textload import analyse_tree, icons_cell
+
+        tree = {"window": {"w": 1440, "h": 900}, "nodes": [
+            {"id": "trash", "role": "button", "text": "Move to Trash", "bounds": [700, 820, 160, 40]}]}
+        tl = analyse_tree(tree)
+        self.assertIsNone(tl["labelled_icons"])
+        self.assertEqual((icons_cell(tl["labelled_icons"]), icons_cell(3)), ("n/a", "3"))
 
     def test_wordy_button_and_settings_row_budgets(self) -> None:
         from lab.usability.textload import analyse

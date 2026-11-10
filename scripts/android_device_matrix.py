@@ -50,7 +50,7 @@ import sys
 import threading
 import time
 from dataclasses import asdict, dataclass, field
-from datetime import datetime
+from datetime import datetime, timedelta
 from pathlib import Path
 from typing import Callable, Dict, Iterable, List, Optional, Sequence, Set, Tuple
 
@@ -69,7 +69,7 @@ SCHEMA = 1
 RESOLVED_KEEP = 100
 MAX_RESUMES = 5
 
-Runner = Callable[[Sequence[str]], Tuple[int, str]]
+Runner = Callable[..., Tuple[int, str]]   # (cmd, timeout=120)
 
 
 @dataclass(frozen=True)
@@ -328,6 +328,7 @@ class TestResult:
     stack: str = ""
     retry: str = ""        # "" (not retried) | passed | failed
     hung: bool = False     # the matrix killed the instrumentation: no output for the test timeout
+    attempt_log: str = ""  # file name of the logcat kept for the failing first attempt, before the retry ran
 
     @property
     def key(self) -> str:
@@ -578,6 +579,7 @@ class DeviceWorker:
         self.runner = runner
         self.sleep: Callable[[float], None] = time.sleep   # tests replace it
         self.result = DeviceRun(device)
+        self.attempt_starts: Dict[str, datetime] = {}   # "Class#test" -> host time its first attempt started
         self.installed: List[str] = []   # packages absent before this run — the only ones it removes
         self.modules: List[Module] = []   # products installed and tested on this device
 
@@ -908,6 +910,7 @@ class DeviceWorker:
                 total = (total_hint or numtests or 0)
                 self.phase(f"{module.name} {base_done + (current or 0)}/{total}", show=False)
                 self.progress.event(self.d.label, f"start {cls}#{name}")
+                self.attempt_starts[f"{cls}#{name}"] = datetime.now()
             elif isinstance(event, TestResult):
                 self._report(event, retry)
                 if not retry:
@@ -942,6 +945,8 @@ class DeviceWorker:
         failed = [r for r in mrun.results if r.status == "failed"]
         if not failed or self.opts.retries < 1 or self.stop.is_set():
             return
+        for r in failed:
+            self._capture_attempt_log(module, r)   # before the retry: it must not be the only log left
         self.phase(f"{module.name} retrying {len(failed)} failure(s)")
         names = list(dict.fromkeys(f"{r.cls}#{r.name}" for r in failed))
         parser, _ = self._instrument(module, component, ["-e", "class", ",".join(names)], log_path, mrun, retry=True)
@@ -962,10 +967,29 @@ class DeviceWorker:
                      if r.status == "failed" and not r.recovered)
         self.progress.tally(self.d.label, failed)
 
+    def _capture_attempt_log(self, module: Module, result: TestResult, attempt: int = 1) -> None:
+        """Keep the device log of one failing (or hung) attempt, from that test's start (device clock,
+        ``logcat -d -T``; the log is never cleared: other tools read it). Without a start time it
+        falls back to the last 4000 lines."""
+        started = self.attempt_starts.get(f"{result.cls}#{result.name}")
+        window = ["-t", "4000"]
+        if started is not None:
+            code, out = self.adb("shell", "date '+%m-%d %H:%M:%S'")
+            try:
+                device_now = datetime.strptime(f"{started.year} {out.strip()}", "%Y %m-%d %H:%M:%S")
+                device_start = started + (device_now - datetime.now().replace(microsecond=0)) - timedelta(seconds=2)
+                window = ["-T", device_start.strftime("%m-%d %H:%M:%S.000")]
+            except ValueError:
+                pass
+        code, out = self.runner(["adb", "-s", self.d.serial, "logcat", "-d", *window], 60)
+        name = f"logcat-{module.name}-{safe_name(f'{result.cls.rsplit(chr(46), 1)[-1]}#{result.name}')}-attempt{attempt}.txt"
+        (self.dir / name).write_text(out if code == 0 else f"logcat failed: {out}", encoding="utf-8")
+        result.attempt_log = name
+
     def _capture_logcat(self, module: Module) -> None:
-        code, out = run(["adb", "-s", self.d.serial, "logcat", "-d", "-t", "4000"], timeout=60)
+        code, out = self.runner(["adb", "-s", self.d.serial, "logcat", "-d", "-t", "4000"], 60)
         (self.dir / f"logcat-{module.name}.txt").write_text(out if code == 0 else f"logcat failed: {out}", encoding="utf-8")
-        code, out = run(["adb", "-s", self.d.serial, "logcat", "-d", "-b", "crash"], timeout=60)
+        code, out = self.runner(["adb", "-s", self.d.serial, "logcat", "-d", "-b", "crash"], 60)
         if code == 0 and out.strip():
             (self.dir / f"logcat-crash-{module.name}.txt").write_text(out, encoding="utf-8")
 
@@ -1527,7 +1551,11 @@ def render_report(meta: Dict[str, object], runs: Sequence[DeviceRun],
             lines += ["", "Failure:", ""] + [f"    {m or '(no message)'}" for m in messages[:3]]
             if any(COMPOSE_NO_HIERARCHY in m for m in messages):
                 lines += ["", "_No Compose hierarchy usually means the screen was locked or off during the test._"]
-            lines += ["", f"Logs: {', '.join(safe_name(d) + '/' for d in devices)} (instrument-*.txt, logcat-*.txt)", ""]
+            lines += ["", f"Logs: {', '.join(safe_name(d) + '/' for d in devices)} (instrument-*.txt, logcat-*.txt)"]
+            attempts = [f"{safe_name(label)}/{r.attempt_log}" for label, r in cluster["hits"] if r.attempt_log]
+            if attempts:
+                lines += ["", "Failing-attempt logs (kept before the retry): " + ", ".join(dict.fromkeys(attempts))]
+            lines.append("")
 
     timed = sorted(((r.seconds, dr.device.label, r.key) for dr, r in all_results if r.status != "skipped"), reverse=True)
     if timed:

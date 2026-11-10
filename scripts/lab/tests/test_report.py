@@ -94,5 +94,24 @@ class TestReport(unittest.TestCase):
         self.assertNotIn("https://", html_text)
 
 
+    def test_timing_trend_lists_checkpoint_times_only(self) -> None:
+        (self.run_dir / "run.json").write_text(json.dumps({"commit": "abc1234", "journeys": []}), encoding="utf-8")
+        lin = self.run_dir / "linux" / "fhd" / "J-LIN-01"
+        mac = self.run_dir / "macos" / "w1440" / "J-MAC-01"
+        lin.mkdir(parents=True)
+        mac.mkdir(parents=True)
+        (lin / "01_opened.timing.json").write_text(
+            json.dumps({"checkpoint": "opened", "t_ms": 2533, "step_ms": 2533}), encoding="utf-8"
+        )
+        # Lensjet writes app metrics under the same file name; they are not checkpoint step times.
+        (mac / "01_opened.timing.json").write_text(
+            json.dumps({"first_photo_drawn_ms": 251.3, "first_ai_score_ms": 706.9}), encoding="utf-8"
+        )
+        md_path, _ = generate_report(self.run_dir)
+        md = md_path.read_text(encoding="utf-8")
+        self.assertIn("| linux | fhd | J-LIN-01 | opened | 2533 | 2533 |", md)
+        self.assertNotIn("01_opened.timing", md)
+        self.assertNotIn("| macos |", md)
+
 if __name__ == "__main__":
     unittest.main()
