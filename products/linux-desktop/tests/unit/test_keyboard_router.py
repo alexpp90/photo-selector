@@ -392,8 +392,10 @@ def test_folder_load_moves_focus_off_the_header_button_so_space_zooms(tmp_path):
 # ── A held destructive key acts once (KEY_ALIGNMENT.md, highest risk) ─────────────────────────────
 
 
-@pytest.mark.parametrize("keyval,handler", [(0x6D, "on_cull_move"), (0x63, "on_cull_copy"),
-                                             (0xFFFF, "on_cull_trash"), (0xFF08, "on_cull_trash")])
+@pytest.mark.parametrize(
+    "keyval,handler",
+    [(0x6D, "on_cull_move"), (0x63, "on_cull_copy"), (0xFFFF, "on_cull_trash"), (0xFF08, "on_cull_trash")],
+)
 def test_a_repeated_destructive_key_is_consumed_without_acting(keyval, handler):
     target = MagicMock()
     engine = KeyboardRouterEngine(handler_target=target)
