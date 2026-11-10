@@ -127,25 +127,20 @@ def test_inspection_hotkeys():
     assert engine.dispatch(keyval=0xFF1B, state=0) is True
     target.on_reset_zoom.assert_called_once()
 
-    # Tab (0xff09)
+    # Tab (0xff09) is focus traversal: never consumed
     target.reset_mock()
-    assert engine.dispatch(keyval=0xFF09, state=0) is True
-    target.on_cycle_slot.assert_called_once()
+    assert engine.dispatch(keyval=0xFF09, state=0) is False
 
     # I / i (0x69)
     target.reset_mock()
     assert engine.dispatch(keyval=0x69, state=0) is True
     target.on_toggle_hud.assert_called_once()
 
-    # F / f (0x66)
-    target.reset_mock()
-    assert engine.dispatch(keyval=0x66, state=0) is True
-    target.on_toggle_filmstrip.assert_called_once()
-
-    # S / s (0x73)
-    target.reset_mock()
-    assert engine.dispatch(keyval=0x73, state=0) is True
-    target.on_toggle_sync_lock.assert_called_once()
+    # F and S were listed once for a filmstrip and a sync lock that do not exist: not bound
+    for keyval in (0x66, 0x73):
+        target.reset_mock()
+        assert engine.dispatch(keyval=keyval, state=0) is False
+        assert not target.mock_calls
 
 
 def test_utility_hotkeys():

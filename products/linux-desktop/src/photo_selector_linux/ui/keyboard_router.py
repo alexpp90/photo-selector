@@ -5,7 +5,7 @@ Adheres to:
 - R-LINUX-KEY-02: Navigation Hotkeys (←, →, H, L, J, K)
 - R-LINUX-KEY-03: Culling Hotkeys (M, C, Delete, Backspace)
 - R-LINUX-KEY-04: Comparison Mode Switchers (1, 2, 3)
-- R-LINUX-KEY-05: Inspection Hotkeys (Space, Esc, Tab, I, F, S, B)
+- R-LINUX-KEY-05: Inspection Hotkeys (Space, Esc, I, B; Tab stays focus traversal)
 - R-LINUX-KEY-06: System & Utility Hotkeys (Ctrl+Z, Ctrl+O, etc.)
 - R-LINUX-KEY-07: Editable Text Entry Exception
 """
@@ -62,7 +62,6 @@ class KeyboardRouterEngine:
     KEY_B = 0x0062
     KEY_C = 0x0063
     KEY_D = 0x0064
-    KEY_F = 0x0066
     KEY_H = 0x0068
     KEY_I = 0x0069
     KEY_J = 0x006A
@@ -70,7 +69,6 @@ class KeyboardRouterEngine:
     KEY_L = 0x006C
     KEY_M = 0x006D
     KEY_O = 0x006F
-    KEY_S = 0x0073
     KEY_Z = 0x007A
 
     # Modifier constants
@@ -193,18 +191,8 @@ class KeyboardRouterEngine:
         elif norm_key == self.KEY_ESCAPE:
             self.target.on_reset_zoom()
             return True
-        elif norm_key == self.KEY_TAB:
-            # Only a handler that really cycled slots consumes Tab; otherwise focus traversal
-            # (header, action bar, menu) keeps working.
-            return bool(self.target.on_cycle_slot())
         elif norm_key == self.KEY_I:
             self.target.on_toggle_hud()
-            return True
-        elif norm_key == self.KEY_F:
-            self.target.on_toggle_filmstrip()
-            return True
-        elif norm_key == self.KEY_S:
-            self.target.on_toggle_sync_lock()
             return True
         elif norm_key == self.KEY_QUESTION:
             self.target.on_shortcuts()
@@ -299,9 +287,6 @@ class KeyboardRouter:
         if hasattr(self.window, "canvas_view") and hasattr(self.window.canvas_view, "reset_zoom"):
             self.window.canvas_view.reset_zoom()
 
-    def on_cycle_slot(self) -> bool:
-        return False  # no slot cycling yet: Tab keeps moving the keyboard focus
-
     def on_toggle_hud(self) -> None:
         if hasattr(self.window, "canvas_view") and hasattr(self.window.canvas_view, "toggle_hud"):
             self.window.canvas_view.toggle_hud()
@@ -315,8 +300,3 @@ class KeyboardRouter:
                 else "lowest_sharpness_first"
             )
 
-    def on_toggle_filmstrip(self) -> None:
-        pass
-
-    def on_toggle_sync_lock(self) -> None:
-        pass

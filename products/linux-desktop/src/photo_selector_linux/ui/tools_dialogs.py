@@ -22,7 +22,7 @@ from typing import Callable, List, Optional
 from photo_selector_linux.core.duplicate_finder import DuplicateCluster, find_duplicates
 from photo_selector_linux.core.statistics import LibraryStatistics, calculate_library_statistics
 from photo_selector_linux.ui.file_worker import run_inline
-from photo_selector_linux.ui.secondary_window import install_chrome
+from photo_selector_linux.ui.secondary_window import install_chrome, show_scrollbar, size_window
 
 REMOTE_NOTICE = "Remote / Cloud folder detected. Confirm before scanning all files."
 SCAN_LABEL = "Scan for Duplicates"
@@ -47,8 +47,8 @@ class DuplicateFinderDialog(Adw.Window if HAS_GI else object):
         self.scan_button_label: str = SCAN_LABEL
         if HAS_GI:
             super().__init__()
-            self.set_title("Duplicate Finder")
-            self.set_default_size(700, 520)
+            self.set_title("Duplicates")
+            size_window(self, 700, 520, transient_for)
             if transient_for:
                 self.set_transient_for(transient_for)
             self._toolbar = install_chrome(self)
@@ -87,6 +87,7 @@ class DuplicateFinderDialog(Adw.Window if HAS_GI else object):
 
         # Scrolled results list
         self.scrolled = Gtk.ScrolledWindow()
+        show_scrollbar(self.scrolled)
         self.scrolled.set_vexpand(True)
         self.scrolled.set_hexpand(True)
         self.results_box = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=8)
@@ -207,7 +208,7 @@ class LibraryStatisticsDialog(Adw.Window if HAS_GI else object):
         if HAS_GI:
             super().__init__()
             self.set_title("Library Statistics")
-            self.set_default_size(680, 560)
+            size_window(self, 680, 560, transient_for)
             if transient_for:
                 self.set_transient_for(transient_for)
             self._toolbar = install_chrome(self)
@@ -261,6 +262,7 @@ class LibraryStatisticsDialog(Adw.Window if HAS_GI else object):
             return
 
         scrolled = Gtk.ScrolledWindow()
+        show_scrollbar(scrolled)
         box = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=16)
         box.set_margin_top(16)
         box.set_margin_bottom(16)

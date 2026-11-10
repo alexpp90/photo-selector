@@ -861,7 +861,6 @@ class FileCullingManager:
         return (
             _HAVE_GIO
             and self._trash_dir is None
-            and "XDG_DATA_HOME" not in os.environ
             and self._mount_root_for_fn is None
             and self._dev_of_fn is None
         )
