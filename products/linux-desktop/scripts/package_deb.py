@@ -408,8 +408,7 @@ def build_deb_native(
     # (drwxrwxr-x) and mkdtemp's 0700 for the root. Pin them, as the pure-Python builder does.
     for root, dirs, _files in os.walk(staging_root):
         for name in dirs:
-            if name != "DEBIAN":
-                os.chmod(Path(root) / name, 0o755)
+            os.chmod(Path(root) / name, 0o755)
     os.chmod(staging_root, 0o755)
 
     # -Zxz: recent dpkg defaults to zstd, which Python's tarfile (generate_apt_repo.py,

@@ -23,14 +23,23 @@ def _real_gtk_usable() -> bool:
     ):
         return False
     try:
-        import gi  # noqa: F401
-    except ImportError:
+        import gi
+        gi.require_version("Gtk", "4.0")
+        gi.require_version("Adw", "1")
+        from gi.repository import Adw, Gtk, Gdk
+
+        if not Gtk.init_check():
+            return False
+        if Gdk.Display.get_default() is None:
+            return False
+        Adw.init()
+    except Exception:
         return False
     return True
 
 
 # Without a usable GTK, inject comprehensive test stubs
-if "gi" not in sys.modules and not _real_gtk_usable():
+if not _real_gtk_usable():
     def mock_require_version(namespace, version):
         if namespace in ("GExiv2", "GdkPixbuf"):
             raise ValueError(f"Namespace {namespace} not available")
@@ -89,6 +98,12 @@ if "gi" not in sys.modules and not _real_gtk_usable():
         def set_tooltip_text(self, *args, **kwargs):
             pass
 
+        def add_action(self, *args, **kwargs):
+            pass
+
+        def lookup_action(self, *args, **kwargs):
+            return MagicMock()
+
         def set_focus_on_click(self, *args, **kwargs):
             pass
 
@@ -131,6 +146,12 @@ if "gi" not in sys.modules and not _real_gtk_usable():
             pass
 
         def set_ellipsize(self, *args, **kwargs):
+            pass
+
+        def set_wrap(self, *args, **kwargs):
+            pass
+
+        def set_justify(self, *args, **kwargs):
             pass
 
         def set_max_width_chars(self, *args, **kwargs):
@@ -283,6 +304,7 @@ if "gi" not in sys.modules and not _real_gtk_usable():
     mock_gtk.Align.START = 1
     mock_gtk.Align.END = 2
     mock_gtk.Align.CENTER = 3
+    mock_gtk.Justification.CENTER = 2
     mock_gtk.PropagationPhase.CAPTURE = 1
     mock_gtk.PropagationPhase.BUBBLE = 2
     mock_gtk.STYLE_PROVIDER_PRIORITY_APPLICATION = 600

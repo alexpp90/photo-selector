@@ -254,7 +254,7 @@ class PreferencesDialog(Adw.PreferencesWindow if HAS_GI else object):
         group_thresh.set_title("Focus Sharpness Thresholds")
 
         self.row_blurry_cutoff = Adw.ActionRow()
-        self.row_blurry_cutoff.set_title(f"Blurry Threshold (< {self.settings.blurry_threshold:.1f})")
+        self.row_blurry_cutoff.set_title(f"Blurry Threshold (&lt; {self.settings.blurry_threshold:.1f})")
         self.scale_blurry = Gtk.Scale.new_with_range(Gtk.Orientation.HORIZONTAL, 10.0, 50.0, 1.0)
         self.scale_blurry.set_value(self.settings.blurry_threshold)
         self.scale_blurry.set_hexpand(True)
@@ -280,7 +280,7 @@ class PreferencesDialog(Adw.PreferencesWindow if HAS_GI else object):
         page_cache.set_icon_name("system-run-symbolic")
 
         group_cache = Adw.PreferencesGroup()
-        group_cache.set_title("Memory & Prefetch")
+        group_cache.set_title("Memory &amp; Prefetch")
 
         self.row_cache_limit = Adw.ActionRow()
         self.row_cache_limit.set_title("In-Memory LRU Cache Ceiling (MB)")
@@ -467,7 +467,7 @@ class PreferencesDialog(Adw.PreferencesWindow if HAS_GI else object):
         self.settings.update(blurry_threshold=float(value))
         if HAS_GI and self.row_blurry_cutoff is not None:
             self.row_blurry_cutoff.set_title(
-                f"Blurry Threshold (< {self.settings.blurry_threshold:.1f})"
+                f"Blurry Threshold (&lt; {self.settings.blurry_threshold:.1f})"
             )
 
     def set_sharp_threshold(self, value: float) -> None:

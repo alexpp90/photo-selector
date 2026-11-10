@@ -256,7 +256,10 @@ def _load_image_array(path_or_image: Any) -> Optional[np.ndarray]:
             if rgb is None:
                 return None
             w, h = rgb.size
-            if w < 10 or h < 10:
+            if max(w, h) > 2048:
+                ratio = 2048.0 / max(w, h)
+                rgb = rgb.resize((max(16, int(w * ratio)), max(16, int(h * ratio))))
+            elif w < 10 or h < 10:
                 rgb = rgb.resize((max(16, w), max(16, h)))
             return np.asarray(rgb, dtype=np.uint8)
         except Exception:
