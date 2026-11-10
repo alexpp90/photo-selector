@@ -25,7 +25,7 @@ from types import SimpleNamespace
 from unittest.mock import MagicMock, patch
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
-from _explore_fakes import ScriptedDriver, default_state, png_bytes  # noqa: E402
+from _explore_fakes import ScriptedDriver, default_state, png_bytes, with_position  # noqa: E402
 
 from lab import cli  # noqa: E402
 from lab.explore.discovery import SYSTEM_PICKER_MODE  # noqa: E402
@@ -34,7 +34,7 @@ from lab.explore.actions import Action, ScreenState  # noqa: E402
 from lab.android.configs import SavedDeviceState  # noqa: E402
 from lab.explore import orchestrator as orch  # noqa: E402
 from lab.explore.ai_adapters import AIJudgeError, AIProvider, Judgement, PacketExportAdapter  # noqa: E402
-from lab.explore.driver import (  # noqa: E402
+from lab.explore.drivers import (  # noqa: E402
     ActionUnavailableError,
     AppCrashedError,
     AppLeftError,
@@ -326,6 +326,38 @@ class LoopTest(WorkerCase):
         self.assertIn("cannot capture the screen at step 1", worker.error)
         self.assertNotIn("restart", self.drivers[0].calls)
         self.assertEqual(summary.status, "error")
+
+    def test_an_empty_feed_is_restaged_and_the_restage_is_recorded(self) -> None:
+        full = with_position(default_state(), 3, 12)
+        empty = with_position(default_state(), 0, 0)
+        script = {"captures": [full] + [empty] * 40, "restaged_state": full}
+        self.drivers = []
+
+        def factory(target, out_dir):
+            d = ScriptedDriver(out_dir, serial=target.device_id, captures=script["captures"])
+            d.restaged_state = script["restaged_state"]
+            self.drivers.append(d)
+            return d
+
+        summary = self.make(driver="mock", device="mock-device", duration=0.6, driver_factory=factory).run()
+        driver = self.drivers[0]
+        self.assertGreaterEqual(driver.calls.count("restage"), 1)
+        # The feed is empty for a few steps at most before the fixture comes back.
+        first = driver.calls.index("restage")
+        self.assertLessEqual(driver.calls[:first].count("capture"), 1 + orch.EMPTY_FEED_RESTAGE_STEPS)
+        lines = [json.loads(x) for x in (self.run_dir / "phototok" / "mock-device" / "default" / "steps.jsonl").read_text(encoding="utf-8").splitlines()]
+        restages = [x for x in lines if "restage" in x]
+        self.assertEqual(len(restages), driver.calls.count("restage"))
+        self.assertEqual(restages[0]["restage"], 1)
+        self.assertEqual(len(lines) - len(restages), summary.total_steps)
+
+    def test_a_driver_that_cannot_restage_is_asked_once_and_the_run_goes_on(self) -> None:
+        empty = with_position(default_state(), 0, 0)
+        summary = self.run_with({"captures": [empty], "can_restage": False})
+        (worker,) = summary.worker_results
+        self.assertEqual(worker.status, "completed")
+        self.assertIn("cannot re-stage", worker.error or "")
+        self.assertEqual(self.drivers[0].calls.count("restage"), 1)
 
     def test_leaving_the_app_is_a_deduplicated_lead_and_the_app_is_restarted(self) -> None:
         s = default_state()
@@ -747,12 +779,18 @@ class CliTest(LabTmpCase):
         self.assertEqual(code, 2)
         self.assertIn("--with-personal", err)
 
-    def test_lensjet_is_refused_with_the_drivers_message(self) -> None:
+    def test_lensjet_off_the_mac_is_refused_with_the_drivers_message(self) -> None:
         for personal in (False, True):  # the refusal comes before the personal-device check
             inv = Inventory(mac=MacHost(host="mac.local", personal=personal))
-            code, _, err = self.run_cli("--product", "lensjet", "--duration", "1s", "--out", str(self.run_dir), inventory=inv)
+            with patch("lab.explore.orchestrator.sys.platform", "linux"):
+                code, _, err = self.run_cli("--product", "lensjet", "--duration", "1s", "--out", str(self.run_dir), inventory=inv)
             self.assertEqual(code, 2)
-            self.assertIn("needs a live-app driver; not implemented yet", err)
+            self.assertIn("Lensjet exploration runs on the Mac itself", err)
+
+    def test_lensjet_on_the_mac_is_one_local_target_with_the_macos_driver(self) -> None:
+        with patch("lab.explore.orchestrator.sys.platform", "darwin"):
+            (target,) = self.make("macos-desktop").resolve_targets()
+        self.assertEqual((target.target_type, target.driver_type), ("macos", "live"))
 
     def test_bad_arguments_exit_2(self) -> None:
         for argv in (["--product", "phototok", "--duration", "soon"], ["--product", "linux", "--device", "x", "--duration", "1s"], ["--product", "phototok", "--config", "nope", "--driver", "auto"]):

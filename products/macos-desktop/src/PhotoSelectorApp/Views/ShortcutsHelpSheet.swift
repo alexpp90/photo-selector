@@ -49,9 +49,11 @@ public struct ShortcutsHelpSheet: View {
                         icon: "arrow.left.and.right",
                         color: .blue,
                         items: [
-                            ("← / K", "Previous Photo", "Navigates to the preceding candidate photograph"),
-                            ("→ / J", "Next Photo", "Navigates to the subsequent candidate photograph"),
+                            ("← ↑ / K", "Previous Photo", "Navigates to the preceding candidate photograph"),
+                            ("→ ↓ / J", "Next Photo", "Navigates to the subsequent candidate photograph"),
                             ("Tab", "Cycle Comparison Slot", "Switches active focus slot between primary and candidate comparison panes"),
+                            ("G", "Go to Photo", "Type a position number or part of a file name"),
+                            ("H / L", "Previous / Next (going away)", "Old aliases of the arrow keys, removed after the next release"),
                             ("Click Photo", "Select Slot", "Click any comparison pane directly to make it the active photo")
                         ]
                     )
@@ -67,8 +69,8 @@ public struct ShortcutsHelpSheet: View {
                             ("3", "3-Up Focus Mode", "Current photo full-width on top; previous bottom-left, next bottom-right"),
                             ("Space", "100% Zoom (1:1)", "Toggles 1:1 pixel crop magnification to check critical focus"),
                             ("Esc", "Exit Zoom", "Leaves any zoom (100% or pinch) back to Fit — or click the Fit pill"),
-                            ("S", "Link Pan", "Links panning across comparison slots (zoom level is always shared)"),
-                            ("F", "Toggle Filmstrip", "Shows or hides the bottom thumbnail scrubber strip"),
+                            ("⌥⌘P", "Link Pan", "Links panning across comparison slots (S until next release; zoom level is always shared)"),
+                            ("T", "Toggle Filmstrip", "Shows or hides the bottom thumbnail scrubber strip (F until next release; F becomes full screen)"),
                             ("I", "Toggle Info Overlay", "Shows or hides floating EXIF metadata and quality scores")
                         ]
                     )

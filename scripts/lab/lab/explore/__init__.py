@@ -26,7 +26,7 @@ from .discovery import (
     load_discovery_rules,
     normalize_product_name,
 )
-from .driver import (
+from .drivers import (
     AndroidDeviceDriver,
     AppCrashedError,
     AppLeftError,

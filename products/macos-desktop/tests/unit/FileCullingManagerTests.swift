@@ -594,5 +594,34 @@ struct FileCullingManagerTests {
         #expect(FileManager.default.fileExists(atPath: moveMarker.path))
         #expect(FileManager.default.fileExists(atPath: copyMarker.path))
     }
-}
 
+    /// A file manager whose `copyItem` loses the race: another writer occupies the destination name
+    /// first, and the copy then fails with "file exists" (EEXIST).
+    private final class RacingFileManager: FileManager, @unchecked Sendable {
+        let foreignContent = Data("FOREIGN".utf8)
+        override func copyItem(at srcURL: URL, to dstURL: URL) throws {
+            try foreignContent.write(to: dstURL)
+            throw NSError(domain: NSCocoaErrorDomain, code: NSFileWriteFileExistsError,
+                          userInfo: [NSUnderlyingErrorKey: NSError(domain: NSPOSIXErrorDomain, code: Int(EEXIST))])
+        }
+    }
+
+    @Test("Copy cleanup never deletes a file another writer put on the destination name")
+    func testCopyNeverDeletesAFileThatAppearedAtTheDestinationName() throws {
+        let root = FileManager.default.temporaryDirectory
+            .appendingPathComponent("eexist_\(UUID().uuidString)", isDirectory: true)
+        try FileManager.default.createDirectory(at: root, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: root) }
+        let photo = root.appendingPathComponent("IMG_0001.JPG")
+        try Data("PHOTO".utf8).write(to: photo)
+
+        let racing = RacingFileManager()
+        let manager = FileCullingManager(fileManager: racing)
+        #expect(throws: FileCullingError.self) {
+            _ = try manager.copyToSelection(photoURL: photo, rootURL: root)
+        }
+        let occupied = root.appendingPathComponent("Selection/IMG_0001.JPG")
+        #expect(try Data(contentsOf: occupied) == racing.foreignContent)
+        #expect(FileManager.default.fileExists(atPath: photo.path))
+    }
+}

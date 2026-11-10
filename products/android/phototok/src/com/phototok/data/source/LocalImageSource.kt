@@ -7,6 +7,7 @@ import android.net.Uri
 import android.provider.DocumentsContract
 import android.util.Log
 import androidx.documentfile.provider.DocumentFile
+import androidx.exifinterface.media.ExifInterface
 import com.photoselector.core.model.ExifData
 import com.photoselector.core.preview.EmbeddedPreviewExtractor
 import com.photoselector.core.reader.AndroidExifReader
@@ -67,6 +68,10 @@ class LocalImageSourceImpl @Inject constructor(
     enum class SelectionSubfolder { RAW, JPEG, ROOT }
 
     companion object {
+        /** Stored bounds as displayed: EXIF orientations 5-8 rotate the image by 90 degrees. */
+        internal fun displayedDimensions(width: Int, height: Int, exifOrientation: Int): Pair<Int, Int> =
+            if (exifOrientation in 5..8) Pair(height, width) else Pair(width, height)
+
         private const val TAG = "LocalImageSource"
         /**
          * Dropped into every output folder: the sibling app skips marked folders, and a card is
@@ -388,6 +393,16 @@ class LocalImageSourceImpl @Inject constructor(
 
     // ── Internals ─────────────────────────────────────────────────────────
 
+    private fun readExifOrientation(uri: Uri): Int = try {
+        context.contentResolver.openInputStream(uri)?.use { stream ->
+            ExifInterface(stream).getAttributeInt(ExifInterface.TAG_ORIENTATION, ExifInterface.ORIENTATION_NORMAL)
+        } ?: ExifInterface.ORIENTATION_NORMAL
+    } catch (e: CancellationException) {
+        throw e
+    } catch (_: Exception) {
+        ExifInterface.ORIENTATION_NORMAL
+    }
+
     /**
      * Read width and height from image header only (no pixel decode).
      * Returns (0, 0) if the dimensions cannot be determined.
@@ -400,7 +415,11 @@ class LocalImageSourceImpl @Inject constructor(
             }
             val w = opts.outWidth.coerceAtLeast(0)
             val h = opts.outHeight.coerceAtLeast(0)
-            if (w > 0 && h > 0) Pair(w, h) else embeddedPreviewDimensions(uri)
+            if (w > 0 && h > 0) {
+                // BitmapFactory ignores EXIF; the viewer (Coil) applies it, so the dimensions that
+                // classify portrait/landscape must be the displayed ones. Second header-only read.
+                displayedDimensions(w, h, readExifOrientation(uri))
+            } else embeddedPreviewDimensions(uri)
         } catch (e: Exception) {
             Log.d(TAG, "Cannot read dimensions for $uri: ${e.message}")
             Pair(0, 0)

@@ -35,10 +35,26 @@ final class AppDelegate: NSObject, NSApplicationDelegate, ObservableObject {
     /// skip the migration to stay hermetic.
     let viewModel: CullingWorkspaceViewModel = {
         let arguments = ProcessInfo.processInfo.arguments
-        let isTestMode = arguments.contains { ["--ui-self-test", "--ui-scenario", "--screenshot"].contains($0) }
+        let isTestMode = arguments.contains { ["--ui-self-test", "--ui-scenario", "--screenshot", "--ui-live"].contains($0) }
         if !isTestMode {
+            // Pin the file-name order for an install that predates the sort menu BEFORE the
+            // migration marker is written (the marker is how an existing install is recognised).
+            SettingsMigration.pinSortOrderForExistingInstall()
             SettingsMigration.migrateIfNeeded()
         }
+        #if PST_TEST_HOOKS
+        if isTestMode {
+            // A lab run touches only its own defaults and its own trash folder (never the
+            // account's ~/.Trash or settings).
+            let options = LaunchOptions(arguments: arguments)
+            let parent = options.artifactsDir
+                ?? FileManager.default.temporaryDirectory
+                    .appendingPathComponent("lensjet-lab-\(UUID().uuidString)", isDirectory: true)
+            let session = HermeticLabSession(trashParent: parent)
+            HermeticLabSession.current = session
+            return session.makeViewModel()
+        }
+        #endif
         return CullingWorkspaceViewModel()
     }()
     let launchOptions = LaunchOptions(arguments: ProcessInfo.processInfo.arguments)
@@ -89,8 +105,20 @@ final class AppDelegate: NSObject, NSApplicationDelegate, ObservableObject {
             selfTest = runner
             Task { @MainActor in
                 let passed = await runner.run()
+                HermeticLabSession.current?.cleanup()
                 NSApp.terminate(passed ? 0 : 1)
                 exit(passed ? 0 : 1)
+            }
+        } else if let controlDir = launchOptions.liveControlDir {
+            if let folder = launchOptions.openFolder {
+                viewModel.loadFolder(at: folder)
+            }
+            let artifactsDir = launchOptions.artifactsDir
+                ?? controlDir.appendingPathComponent("artifacts", isDirectory: true)
+            Task { @MainActor in
+                let code = await UIScenarioRunner.runLive(viewModel: viewModel, controlDir: controlDir, artifactsDir: artifactsDir)
+                HermeticLabSession.current?.cleanup()
+                exit(code)
             }
         } else if let scenarioURL = launchOptions.scenarioURL {
             if let folder = launchOptions.openFolder {
@@ -105,6 +133,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, ObservableObject {
                     scenarioURL: scenarioURL,
                     artifactsDir: artifactsDir
                 )
+                HermeticLabSession.current?.cleanup()
                 NSApp.terminate(nil)
                 exit(code)
             }
@@ -153,7 +182,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate, ObservableObject {
         let isBackgroundTest = !Self.isGUIRequested
             && (ProcessInfo.processInfo.arguments.contains("--ui-self-test")
                 || ProcessInfo.processInfo.arguments.contains("--screenshot")
-                || ProcessInfo.processInfo.arguments.contains("--ui-scenario"))
+                || ProcessInfo.processInfo.arguments.contains("--ui-scenario")
+                || ProcessInfo.processInfo.arguments.contains("--ui-live"))
         if isBackgroundTest {
             window.alphaValue = 0.0
             window.setFrame(NSRect(x: -20000, y: -20000, width: 1280, height: 840), display: false)
@@ -170,7 +200,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate, ObservableObject {
 /// `--screenshot <path>` snapshots the workspace after loading;
 /// `--ui-self-test <folder> [--report <json>] [--expect-count N] [--external-key-wait S]`
 /// runs the in-app UI self-test and exits 0 (pass) or 1 (fail);
-/// `--ui-scenario <scenario.json> [--artifacts <dir>]` runs a declarative UI scenario.
+/// `--ui-scenario <scenario.json> [--artifacts <dir>]` runs a declarative UI scenario;
+/// `--ui-live <dir> [--artifacts <dir>]` keeps the app open and runs one `cmd-<n>.json` step at a time.
 struct LaunchOptions {
     var openFolder: URL?
     var selfTestFolder: URL?
@@ -180,10 +211,12 @@ struct LaunchOptions {
     var expectedCount: Int?
     var externalKeyWait: TimeInterval = 0
     var screenshotURL: URL?
+    /// `--ui-live <dir>`: hold the app open and execute the commands of that folder.
+    var liveControlDir: URL?
 
     /// True when the command line asks for one of the UI test modes.
     var requestsTestHooks: Bool {
-        selfTestFolder != nil || screenshotURL != nil || scenarioURL != nil
+        selfTestFolder != nil || screenshotURL != nil || scenarioURL != nil || liveControlDir != nil
     }
 
     init(arguments: [String]) {
@@ -198,6 +231,8 @@ struct LaunchOptions {
                 selfTestFolder = iterator.next().map { URL(fileURLWithPath: $0, isDirectory: true) }
             case "--ui-scenario":
                 scenarioURL = iterator.next().map { URL(fileURLWithPath: $0) }
+            case "--ui-live":
+                liveControlDir = iterator.next().map { URL(fileURLWithPath: $0, isDirectory: true) }
             case "--artifacts":
                 artifactsDir = iterator.next().map { URL(fileURLWithPath: $0, isDirectory: true) }
             case "--report":

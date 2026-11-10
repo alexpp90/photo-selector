@@ -156,7 +156,9 @@ public final class LibraryStatisticsEngine: Sendable {
             topAestheticPhotos: Array(topAesthetic),
             focalLengthSharpness: focalLengthSharpness,
             apertureSharpness: apertureSharpness,
-            shutterSpeedSharpness: shutterSpeedSharpness
+            shutterSpeedSharpness: shutterSpeedSharpness,
+            sharpnessScoredCount: sharpnessCount,
+            aestheticScoredCount: aestheticCount
         )
     }
 

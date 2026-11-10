@@ -244,6 +244,39 @@ def cut_by_overlap(node: Node, nodes: list[Node], by_id: dict[str, Node]) -> tup
     return width_cut, height_cut
 
 
+def covering_overlay(
+    node: Node, nodes: list[Node], by_id: dict[str, Node], is_cover: Any
+) -> tuple[Node, bool, bool] | None:
+    """`(cover, width_cut, height_cut)`: an overlay drawn over `node` ends exactly on its edge.
+
+    uiautomator reports a control that lies partly under an overlay with only its uncovered
+    bounds, and the hidden part has no node to read (2026-10-26, Jackpix: the viewer's 48 dp
+    bottom-bar buttons read 72x26 dp, a landing row 361x25 dp; both begin exactly where the
+    snackbar host ends, y=770.91 dp). `cut_by_overlap` needs a descendant reaching past the edge;
+    here nothing does, so the evidence is the cover itself: an overlay (`is_cover`: the overlay
+    ids and the feedback surfaces of the rules), later in tree order (drawn over `node`, not
+    related to it), whose far edge meets `node`'s edge on that axis and which spans `node`
+    across it. The cut axis is then unknown, not too small. A control of the same size with no
+    such overlay next to it stays a `touch-target`.
+    """
+    tol = TOUCH_TOLERANCE
+    position = next((i for i, n in enumerate(nodes) if n is node), None)
+    if position is None:
+        return None
+    for o in nodes[position + 1:]:
+        if o.w <= 0 or o.h <= 0 or not is_cover(o):
+            continue
+        if is_ancestor(o.id, node, by_id) or is_ancestor(node.id, o, by_id):
+            continue
+        across_x = min(o.x + o.w, node.x + node.w) - max(o.x, node.x) > tol
+        across_y = min(o.y + o.h, node.y + node.h) - max(o.y, node.y) > tol
+        height_cut = across_x and (abs(o.y + o.h - node.y) <= tol or abs(o.y - (node.y + node.h)) <= tol)
+        width_cut = across_y and (abs(o.x + o.w - node.x) <= tol or abs(o.x - (node.x + node.w)) <= tol)
+        if width_cut or height_cut:
+            return o, width_cut, height_cut
+    return None
+
+
 def _contains(outer: Node, inner: Node, tol: float = TOUCH_TOLERANCE) -> bool:
     return (
         outer.x <= inner.x + tol
@@ -327,6 +360,7 @@ def lint(
     for extra_frame in expect.get("frames", []):
         frame_ids.add(str(extra_frame))
     ignore_ids = {str(x) for x in rules.get("ignore_ids", [])}
+    surface_globs = [str(x) for x in (rules.get("feedback") or {}).get("surfaces") or []]
     allowed_pairs = [list(p) for p in rules.get("allowed_overlaps", [])]
 
     by_id: dict[str, Node] = {n.id: n for n in tree.nodes}
@@ -354,6 +388,12 @@ def lint(
     ]
 
     findings: list[Finding] = []
+
+    def is_cover(n: Node) -> bool:
+        """An overlay, or a feedback surface (snackbar host) of the product's rules."""
+        return is_overlay_or_descendant(n, overlay_ids, by_id) or any(
+            fnmatch.fnmatchcase(n.id, g) for g in surface_globs
+        )
 
     def add_finding(
         rule: str,
@@ -510,7 +550,22 @@ def lint(
                 too_short = not cut and ctrl_h < min_target - TOUCH_TOLERANCE
                 if too_narrow or too_short:
                     w_cut, h_cut = cut_by_overlap(node, active_nodes, by_id)
-                    too_narrow, too_short = too_narrow and not w_cut, too_short and not h_cut
+                    if (too_narrow and w_cut) or (too_short and h_cut):
+                        too_narrow, too_short = too_narrow and not w_cut, too_short and not h_cut
+                    else:
+                        found = covering_overlay(node, tree.nodes, by_id, is_cover)
+                        if found is not None:
+                            cover, w_cover, h_cover = found
+                            if (too_narrow and w_cover) or (too_short and h_cover):
+                                add_finding(
+                                    "occluded",
+                                    "minor",
+                                    list(ctrl),
+                                    f"{node.id} is partly under {cover.id}: only {ctrl_w:.0f}x{ctrl_h:.0f} {unit} "
+                                    f"of it is visible, so its size cannot be judged",
+                                    [ref(node), ref(cover)],
+                                )
+                            too_narrow, too_short = too_narrow and not w_cover, too_short and not h_cover
                 if too_narrow or too_short:
                     parent_node = by_id.get(node.parent) if node.parent else None
                     parent_covers = (

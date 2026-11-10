@@ -116,6 +116,11 @@ scenarios:
         intent: Go back to the whole photo
         expected: Double-tap again
       - double_tap: {}
+      # Hand the app on as a fresh install has it: Pro mode (and with it camera info) is off again, so
+      # the scenarios after this one do not show camera info "on by default" (2026-10-24 panel premise).
+      - tap: {id: settings_button, label: the gear icon}
+      - set_state: {id: settings_pro_mode_toggle, on: false, label: Pro mode}
+      - back: {}
 
   - id: U-TOK-04
     title: Review the keepers, look at the settings

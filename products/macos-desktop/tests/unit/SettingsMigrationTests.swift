@@ -46,7 +46,7 @@ struct SettingsMigrationTests {
 
         #expect(copied == AppSettingsKeys.all.count)
         #expect(Set(AppSettingsKeys.all).count == AppSettingsKeys.all.count)
-        #expect(AppSettingsKeys.all.count == 11)
+        #expect(AppSettingsKeys.all.count == 13)
         for key in AppSettingsKeys.all {
             #expect(new.string(forKey: key) == "value-\(key)")
         }
@@ -106,5 +106,87 @@ struct SettingsMigrationTests {
     @Test("The legacy domain is the pre-rename bundle id")
     func legacyDomainConstant() {
         #expect(SettingsMigration.legacyDomain == "com.photoselectortoolbox.macos")
+    }
+
+    // MARK: - Sort order default (new install vs. update)
+
+    @Test("A new install opens newest first and nothing is written")
+    func newInstallOpensNewestFirst() {
+        let (old, oldName) = makeSuite("old")
+        let (new, newName) = makeSuite("new")
+        defer { old.removePersistentDomain(forName: oldName); new.removePersistentDomain(forName: newName) }
+
+        #expect(SettingsMigration.pinSortOrderForExistingInstall(in: new, legacy: old) == false)
+        #expect(new.object(forKey: AppSettingsKeys.sortOrder) == nil)
+        #expect(new.workspaceSortOrder == .newestFirst)
+    }
+
+    @Test("An install that predates the sort menu keeps the file-name order")
+    func existingInstallKeepsFileNameOrder() {
+        for trigger in ["marker", "own key", "legacy key"] {
+            let (old, oldName) = makeSuite("old")
+            let (new, newName) = makeSuite("new")
+            defer { old.removePersistentDomain(forName: oldName); new.removePersistentDomain(forName: newName) }
+            switch trigger {
+            case "marker": new.set(true, forKey: SettingsMigration.doneMarkerKey)
+            case "own key": new.set(false, forKey: AppSettingsKeys.autoAdvance)
+            default: old.set("Picks", forKey: AppSettingsKeys.cullingDestinationFolderName)
+            }
+            #expect(SettingsMigration.pinSortOrderForExistingInstall(in: new, legacy: old), "\(trigger)")
+            #expect(new.workspaceSortOrder == .fileName, "\(trigger)")
+            // Idempotent, and a later choice is never undone.
+            new.workspaceSortOrder = .oldestFirst
+            #expect(SettingsMigration.pinSortOrderForExistingInstall(in: new, legacy: old) == false)
+            #expect(new.workspaceSortOrder == .oldestFirst)
+        }
+    }
+
+    @Test("The first name of the file-name order (natural) still reads")
+    func naturalReadsAsFileName() {
+        let (new, newName) = makeSuite("new")
+        defer { new.removePersistentDomain(forName: newName) }
+        new.set("natural", forKey: AppSettingsKeys.sortOrder)
+        #expect(new.workspaceSortOrder == .fileName)
+        new.set("garbage", forKey: AppSettingsKeys.sortOrder)
+        #expect(new.workspaceSortOrder == .newestFirst)
+    }
+
+    @Test("Upgrade from the oldest shipped settings: every key keeps its effect")
+    func upgradeKeepsEveryShippedSetting() {
+        let (old, oldName) = makeSuite("old")
+        let (new, newName) = makeSuite("new")
+        defer { old.removePersistentDomain(forName: oldName); new.removePersistentDomain(forName: newName) }
+
+        // The keys of the first Lensjet release, all set to non-default values in the old domain.
+        old.set("Picks", forKey: "cullingDestinationFolderName")
+        old.set("/Volumes/SSD/Picks", forKey: "externalCullingDestinationURL")
+        old.set(false, forKey: "autoAdvance")
+        old.set(20.0, forKey: "sharpnessBlurryThreshold")
+        old.set(60.0, forKey: "sharpnessAcceptableThreshold")
+        old.set(5.0, forKey: "aestheticThreshold")
+        old.set(false, forKey: "aestheticScoringEnabled")
+        old.set(1024, forKey: "thumbnailCacheLimitMB")
+        old.set(4, forKey: "preloadWindowBefore")
+        old.set(8, forKey: "preloadWindowAfter")
+
+        // The order the app runs them in at launch.
+        SettingsMigration.pinSortOrderForExistingInstall(in: new, legacy: old)
+        SettingsMigration.migrateIfNeeded(into: new, from: old)
+
+        #expect(new.cullingDestinationFolderName == "Picks")
+        #expect(new.externalCullingDestinationURL?.path == "/Volumes/SSD/Picks")
+        // A store with a custom folder but no mode reads as custom: photos keep going where they went.
+        #expect(new.cullingDestinationMode == .customFolder)
+        #expect(new.autoAdvance == false)
+        #expect(new.sharpnessBlurryThreshold == 20.0)
+        #expect(new.sharpnessAcceptableThreshold == 60.0)
+        #expect(new.aestheticThreshold == 5.0)
+        #expect(new.aestheticScoringEnabled == false)
+        #expect(new.thumbnailCacheLimitMB == 1024)
+        #expect(new.preloadWindowBefore == 4)
+        #expect(new.preloadWindowAfter == 8)
+        // New settings: the order the user always had, and the stop threshold off.
+        #expect(new.workspaceSortOrder == .fileName)
+        #expect(new.sharpnessStopThreshold == 0)
     }
 }

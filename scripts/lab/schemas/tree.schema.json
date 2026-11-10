@@ -53,7 +53,8 @@
           "overlay": {"type": "boolean"},
           "text": {"type": "string"},
           "clipped": {"type": ["boolean", "null"]},
-          "scrollable": {"type": "boolean"}
+          "scrollable": {"type": "boolean"},
+          "focused": {"type": "boolean"}
         }
       }
     }

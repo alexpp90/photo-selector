@@ -94,7 +94,9 @@ public enum ChromeDensity: Int, CaseIterable, Sendable {
     public var tallyUsesWords: Bool { self == .full }
 
     /// Spoken / tooltip form of the tally, independent of density.
-    public static func tallyAccessibilityText(selected: Int, trashed: Int, remaining: Int) -> String {
-        "\(selected) selected, \(trashed) trashed, \(remaining) remaining"
+    /// "Copied" appears only once something was copied, so the tally keeps its width until then.
+    public static func tallyAccessibilityText(selected: Int, trashed: Int, remaining: Int, copied: Int = 0) -> String {
+        let copiedPart = copied > 0 ? "\(copied) copied, " : ""
+        return "\(selected) selected, \(copiedPart)\(trashed) trashed, \(remaining) remaining"
     }
 }

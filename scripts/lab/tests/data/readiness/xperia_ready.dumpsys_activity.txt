@@ -1,0 +1,1 @@
+    topResumedActivity=ActivityRecord{184266415 u0 com.phototok.lab/com.phototok.MainActivity t3262}

@@ -18,7 +18,7 @@ sys.path.insert(0, str(LAB_DIR))
 from PIL import Image  # noqa: E402
 
 from lab.explore.actions import Action, ScreenState  # noqa: E402
-from lab.explore.driver import DeviceDriver  # noqa: E402
+from lab.explore.drivers import ActionUnavailableError, DeviceDriver  # noqa: E402
 from lab.model import Node, Tree  # noqa: E402
 
 
@@ -46,6 +46,12 @@ def make_state(
                 nodes if nodes is not None else [node("root", [0, 0, 1080, 1920], interactive=False)])
     fs: Dict[str, Any] = {"root": "work", "files": [{"path": f, "size": 10} for f in (files or ["a.jpg", "b.jpg"])], "trash": []}
     return ScreenState(tree=tree, screenshot_bytes=png_bytes(color), screen_mode=mode, fs_snapshot=fs, logs=logs or [])
+
+
+def with_position(state: ScreenState, index: int, total: int) -> ScreenState:
+    """`state` with the app's own position (Blitzlens writes it; 0 of 0 is an empty feed)."""
+    state.position = (index, total)
+    return state
 
 
 def default_state() -> ScreenState:
@@ -77,6 +83,7 @@ class ScriptedDriver(DeviceDriver):
         calls: Optional[List[str]] = None,
         home: frozenset = frozenset(),
         browsers: frozenset = frozenset(),
+        can_restage: bool = True,
     ) -> None:
         super().__init__("phototok", "com.phototok.lab", out_dir / "work", out_dir, settle_ms)
         self.captures = list(captures if captures is not None else [default_state()])
@@ -91,6 +98,8 @@ class ScriptedDriver(DeviceDriver):
         self.serial = serial
         self.capture_count = 0
         self.home, self.browsers = home, browsers
+        self.can_restage = can_restage
+        self.restaged_state: Optional[ScreenState] = None
 
     def home_packages(self) -> frozenset:
         return self.home
@@ -132,6 +141,13 @@ class ScriptedDriver(DeviceDriver):
 
     def restart_app(self) -> None:
         self.calls.append("restart")
+
+    def restage_fixture(self) -> None:
+        """A driver that can put the fixture back: the feed is full again on the next capture."""
+        self.calls.append("restage")
+        if not self.can_restage:
+            raise ActionUnavailableError("this fake driver keeps no fixture to put back")
+        self.captures = [self.restaged_state or default_state()]
 
     def read_app_log(self) -> List[str]:
         self.calls.append("read_log")
