@@ -8,7 +8,10 @@ import os
 import sys
 from unittest.mock import MagicMock
 
+from _display_env import keep_gui_off_real_desktop
+
 os.environ.setdefault("ADW_DISABLE_PORTAL", "1")
+keep_gui_off_real_desktop(os.environ)
 
 
 def _real_gtk_usable() -> bool:
