@@ -36,11 +36,14 @@ import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.map
 
+/** An unreadable settings file starts over empty instead of crashing every launch (JP-B-20). */
+internal fun settingsCorruptionHandler() = androidx.datastore.core.handlers.ReplaceFileCorruptionHandler<Preferences> {
+    androidx.datastore.preferences.core.emptyPreferences()
+}
+
 internal val Context.dataStore: DataStore<Preferences> by preferencesDataStore(
     name = "phototok_settings",
-    corruptionHandler = androidx.datastore.core.handlers.ReplaceFileCorruptionHandler {
-        androidx.datastore.preferences.core.emptyPreferences()
-    },
+    corruptionHandler = settingsCorruptionHandler(),
     // Schema migration runs before the first read or write, so no reader sees an unmigrated store.
     produceMigrations = { SettingsRepository.dataStoreMigrations },
 )
@@ -554,7 +557,7 @@ class SettingsRepository @Inject constructor(
         var referencedAfter: Map<FolderAccessPurpose, Set<String>> = emptyMap()
         context.dataStore.edit { prefs ->
             val key = collectionUriKey(kind)
-            previousUri = prefs[key]
+            previousUri = prefs[key] ?: if (kind == SourceKind.PHONE_LIBRARY) prefs[KEY_COLLECTION_URI] else null
             if (uri != null) {
                 prefs[key] = uri
                 if (kind == SourceKind.PHONE_LIBRARY) prefs[KEY_COLLECTION_URI] = uri
@@ -579,7 +582,7 @@ class SettingsRepository @Inject constructor(
         var referencedAfter: Map<FolderAccessPurpose, Set<String>> = emptyMap()
         context.dataStore.edit { prefs ->
             val key = leftSwipeUriKey(kind)
-            previousUri = prefs[key]
+            previousUri = prefs[key] ?: if (kind == SourceKind.PHONE_LIBRARY) prefs[KEY_LEFT_SWIPE_URI] else null
             if (uri != null) {
                 prefs[key] = uri
                 if (kind == SourceKind.PHONE_LIBRARY) prefs[KEY_LEFT_SWIPE_URI] = uri

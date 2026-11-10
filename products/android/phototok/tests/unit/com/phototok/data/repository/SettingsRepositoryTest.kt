@@ -328,13 +328,19 @@ class SettingsRepositoryTest {
     }
 
     @Test
-    fun `corrupted preferences file recovers with empty preferences (JP-B-20)`() = runTest {
-        val prefsFile = java.io.File(context.filesDir, "datastore/phototok_settings.preferences_pb")
-        prefsFile.parentFile?.mkdirs()
-        prefsFile.writeBytes(byteArrayOf(0xFF.toByte(), 0xFE.toByte(), 0x00, 0x01))
-        // Reading preferences should not throw CorruptionException
-        val result = repository.proMode.first()
-        assertFalse(result)
+    fun `a corrupted preferences file recovers empty and stays writable (JP-B-20)`() = runTest {
+        val file = java.io.File(context.cacheDir, "corrupt-${System.nanoTime()}/phototok_settings.preferences_pb")
+        file.parentFile!!.mkdirs()
+        file.writeBytes(byteArrayOf(0xFF.toByte(), 0xFE.toByte(), 0x00, 0x01, 0x7F))
+        // Same handler the production store uses, on a fresh store over the broken file.
+        val store = androidx.datastore.preferences.core.PreferenceDataStoreFactory.create(
+            corruptionHandler = settingsCorruptionHandler(),
+            scope = backgroundScope,
+            produceFile = { file },
+        )
+        assertTrue(store.data.first().asMap().isEmpty())
+        val key = androidx.datastore.preferences.core.booleanPreferencesKey("k")
+        store.edit { it[key] = true }
+        assertTrue(store.data.first()[key] == true)
     }
 }
-

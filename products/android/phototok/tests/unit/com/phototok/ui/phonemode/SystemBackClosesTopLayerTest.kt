@@ -114,7 +114,7 @@ class SystemBackClosesTopLayerTest {
         assertBackClosesIt("RAW + JPEG suggestion", { screen.viewModel.uiState.value.showRawJpegSuggestion })
     }
 
-    /** F-TOK-085: open. The guide is drawn in the activity window and no BackHandler closes it. */
+    /** F-TOK-085, fixed: the guide is drawn in the activity window, and a BackHandler closes it. */
     @Test
     @Requirement("REQ-TOK-GESTURE.07")
     fun controlsGuide() {
@@ -122,12 +122,13 @@ class SystemBackClosesTopLayerTest {
         rule.runOnUiThread { screen.viewModel.showControlsGuide() }
         rule.waitForIdle()
         assertTrue("the guide opened", screen.viewModel.uiState.value.showControlsGuide)
-        knownDefect("F-TOK-085", "System Back over the controls guide closes the app") {
-            assertBackClosesIt("controls guide", { screen.viewModel.uiState.value.showControlsGuide })
-        }
+        assertBackClosesIt("controls guide", { screen.viewModel.uiState.value.showControlsGuide })
     }
 
-    /** F-TOK-085 (same cause): the first-run tutorial is the same overlay. */
+    /**
+     * F-TOK-085, still open for the first-run tutorial: it is the same overlay, but only the guide
+     * opened from the info button has a BackHandler.
+     */
     @Test
     @Requirement("REQ-TOK-GESTURE.08")
     fun firstRunTutorial() {

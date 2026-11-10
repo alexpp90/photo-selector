@@ -2293,10 +2293,19 @@ class PhoneModeViewModel @Inject constructor(
         }
     }
 
+    /**
+     * The source kind whose settings a choice made over the feed belongs to: the open folder's, so
+     * "Link RAW + JPEG" on an SD card acts on the card (it always wrote the phone's settings, JP-UI-1).
+     * A cloud folder follows the phone's settings and has no Settings tab of its own
+     * (`SettingsViewModel.showSourceKind`), so its choices go to the phone's.
+     */
+    private fun settingsKindOfOpenFolder(): SourceKind =
+        _uiState.value.sourceKind.let { if (it == SourceKind.CLOUD_OTHER) SourceKind.PHONE_LIBRARY else it }
+
     fun applyRawJpegFilter(filter: FileTypeFilter) {
+        val kind = settingsKindOfOpenFolder()
         _uiState.update { it.copy(showRawJpegSuggestion = false, firstRunHint = null) }
         viewModelScope.launch {
-            val kind = _uiState.value.sourceKind
             settingsRepository.markFirstRunHintSeen(FirstRunHint.RAW_JPEG_PAIRS)
             settingsRepository.markFirstRunHintSeen(FirstRunHint.FILTER_MISMATCH)
             if (kind == SourceKind.PHONE_LIBRARY) {
@@ -2324,9 +2333,9 @@ class PhoneModeViewModel @Inject constructor(
     }
 
     fun enableMoveRelatedFiles() {
+        val kind = settingsKindOfOpenFolder()
         _uiState.update { it.copy(showRawJpegSuggestion = false) }
         viewModelScope.launch {
-            val kind = _uiState.value.sourceKind
             settingsRepository.markFirstRunHintSeen(FirstRunHint.RAW_JPEG_PAIRS)
             if (kind == SourceKind.PHONE_LIBRARY) {
                 settingsRepository.setPhoneMoveRelatedFiles(true)

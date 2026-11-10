@@ -793,15 +793,55 @@ class PhoneModeViewModelTest {
         coVerify { settingsRepository.markFirstRunHintSeen(FirstRunHint.RAW_JPEG_PAIRS) }
     }
 
+    // JP-UI-1: a choice made over the feed belongs to the open folder's source kind, as in Settings.
+
     @Test
-    fun `applyRawJpegFilter uses active sourceKind instead of hardcoded phone (JP-UI-1)`() = runTest {
+    fun `one photo per shot chosen over an SD card is stored for the card, not for the phone`() = runTest {
         val viewModel = buildViewModel()
         openFolder(sdTree, image("photo1.jpg", 10), image("photo1.raw", 10), viewModel = viewModel)
         advanceUntilIdle()
 
-        viewModel.applyRawJpegFilter(com.phototok.domain.FileTypeFilter.RAW)
+        viewModel.applyRawJpegFilter(com.phototok.domain.FileTypeFilter.ONE_PER_SHOT)
 
-        coVerify { settingsRepository.setSourceFileTypeFilter(com.photoselector.core.storage.SourceKind.REMOVABLE, com.phototok.domain.FileTypeFilter.RAW) }
+        coVerify { settingsRepository.setSourceFileTypeFilter(SourceKind.REMOVABLE, com.phototok.domain.FileTypeFilter.ONE_PER_SHOT) }
+        coVerify { settingsRepository.setSourceMoveRelatedFiles(SourceKind.REMOVABLE, true) }
+        coVerify(exactly = 0) { settingsRepository.setPhoneFileTypeFilter(any()) }
+        coVerify(exactly = 0) { settingsRepository.setPhoneMoveRelatedFiles(any()) }
+    }
+
+    @Test
+    fun `linking RAW and JPEG over a camera is stored for the camera, not for the phone`() = runTest {
+        val viewModel = buildViewModel()
+        openFolder(
+            "content://com.android.mtp.documents/tree/65537",
+            image("photo1.jpg", 10),
+            image("photo1.raw", 10),
+            viewModel = viewModel,
+        )
+        advanceUntilIdle()
+
+        viewModel.enableMoveRelatedFiles()
+
+        coVerify { settingsRepository.setSourceMoveRelatedFiles(SourceKind.CAMERA_MTP, true) }
+        coVerify(exactly = 0) { settingsRepository.setPhoneMoveRelatedFiles(any()) }
+    }
+
+    @Test
+    fun `a filter chosen over a cloud folder goes to the phone settings it follows`() = runTest {
+        val viewModel = buildViewModel()
+        openFolder(
+            "content://com.google.android.apps.docs.storage/tree/acc%3D1%3Bdoc%3Dabc",
+            image("photo1.jpg", 10),
+            image("photo1.raw", 10),
+            viewModel = viewModel,
+        )
+        advanceUntilIdle()
+        assertEquals(SourceKind.CLOUD_OTHER, viewModel.uiState.value.sourceKind)
+
+        viewModel.applyRawJpegFilter(com.phototok.domain.FileTypeFilter.JPG)
+
+        coVerify { settingsRepository.setPhoneFileTypeFilter(com.phototok.domain.FileTypeFilter.JPG) }
+        coVerify(exactly = 0) { settingsRepository.setSourceFileTypeFilter(SourceKind.CLOUD_OTHER, any()) }
     }
 
     @Test

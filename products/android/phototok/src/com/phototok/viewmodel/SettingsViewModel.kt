@@ -20,7 +20,10 @@ import javax.inject.Inject
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.flow.distinctUntilChanged
+import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 
@@ -37,6 +40,13 @@ data class SettingsUiState(
     val collectionUri: String? = null,
     val leftSwipeAction: SwipeAction = SwipeAction.DEFAULT,
     val leftSwipeUri: String? = null,
+    /**
+     * The names the providers report for [collectionUri] and [leftSwipeUri], null until resolved or
+     * when they report none. Only the display path of a provider with opaque ids (cloud, camera) needs
+     * them; the external-storage path is read from the URI itself.
+     */
+    val collectionFolderName: String? = null,
+    val leftSwipeFolderName: String? = null,
     val fileTypeFilter: FileTypeFilter = FileTypeFilter.DEFAULT,
     val showExifOverlay: Boolean = false,
     val moveRelatedFiles: Boolean = false,
@@ -176,6 +186,21 @@ class SettingsViewModel @Inject constructor(
             }
         }
 
+        // The custom folders' provider names, resolved off the state update; a tab switch or a new
+        // folder cancels a lookup still running for the previous one.
+        viewModelScope.launch {
+            _uiState.map { it.collectionUri }.distinctUntilChanged().collectLatest { uri ->
+                val name = uri?.let { providerFolderName(it) }
+                _uiState.update { if (it.collectionUri == uri) it.copy(collectionFolderName = name) else it }
+            }
+        }
+        viewModelScope.launch {
+            _uiState.map { it.leftSwipeUri }.distinctUntilChanged().collectLatest { uri ->
+                val name = uri?.let { providerFolderName(it) }
+                _uiState.update { if (it.leftSwipeUri == uri) it.copy(leftSwipeFolderName = name) else it }
+            }
+        }
+
         viewModelScope.launch {
             settingsRepository.lastFolderUri.collect { uri ->
                 val name = if (uri != null) {
@@ -186,6 +211,9 @@ class SettingsViewModel @Inject constructor(
             }
         }
     }
+
+    private suspend fun providerFolderName(uri: String): String? =
+        imageRepository.resolveFolderName(Uri.parse(uri))?.takeIf { it.isNotBlank() }
 
     fun selectSourceKindTab(kind: SourceKind) {
         _uiState.update { state ->
