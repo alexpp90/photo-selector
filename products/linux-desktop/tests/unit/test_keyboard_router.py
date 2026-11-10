@@ -10,9 +10,10 @@ Adheres to:
 - R-LINUX-KEY-07: Editable Text Entry Exception
 """
 
+import pytest
 from unittest.mock import MagicMock
 
-from photo_selector_linux.ui.keyboard_router import KeyboardRouterEngine
+from photo_selector_linux.ui.keyboard_router import KeyboardRouter, KeyboardRouterEngine
 
 
 def test_root_key_capture_and_modifier_masking():
@@ -136,11 +137,14 @@ def test_inspection_hotkeys():
     assert engine.dispatch(keyval=0x69, state=0) is True
     target.on_toggle_hud.assert_called_once()
 
-    # F and S were listed once for a filmstrip and a sync lock that do not exist: not bound
-    for keyval in (0x66, 0x73):
+    # F and F11: full screen; S: the View order menu (docs/shared/KEYBOARD.md)
+    for keyval in (0x66, 0xFFC8):
         target.reset_mock()
-        assert engine.dispatch(keyval=keyval, state=0) is False
-        assert not target.mock_calls
+        assert engine.dispatch(keyval=keyval, state=0) is True
+        target.on_toggle_fullscreen.assert_called_once()
+    target.reset_mock()
+    assert engine.dispatch(keyval=0x73, state=0) is True
+    target.on_show_view_order.assert_called_once()
 
 
 def test_utility_hotkeys():
@@ -383,3 +387,42 @@ def test_folder_load_moves_focus_off_the_header_button_so_space_zooms(tmp_path):
     win.set_focus(win.btn_open)
     assert win.router._on_key_pressed(None, 0x20, 0, 0) is window_module.Gdk.EVENT_PROPAGATE
     win.destroy()
+
+
+# ── A held destructive key acts once (KEY_ALIGNMENT.md, highest risk) ─────────────────────────────
+
+
+@pytest.mark.parametrize("keyval,handler", [(0x6D, "on_cull_move"), (0x63, "on_cull_copy"),
+                                             (0xFFFF, "on_cull_trash"), (0xFF08, "on_cull_trash")])
+def test_a_repeated_destructive_key_is_consumed_without_acting(keyval, handler):
+    target = MagicMock()
+    engine = KeyboardRouterEngine(handler_target=target)
+    assert engine.dispatch(keyval=keyval, state=0) is True
+    getattr(target, handler).assert_called_once()
+    assert engine.dispatch(keyval=keyval, state=0, is_repeat=True) is True
+    getattr(target, handler).assert_called_once()  # the auto-repeat did nothing more
+
+
+def test_arrows_keep_repeating():
+    target = MagicMock()
+    engine = KeyboardRouterEngine(handler_target=target)
+    for _ in range(3):
+        assert engine.dispatch(keyval=0xFF53, state=0, is_repeat=True) is True
+    assert target.on_nav_next.call_count == 3
+
+
+def test_the_router_treats_a_press_without_a_release_as_a_repeat():
+    """GTK 4 gives no repeat flag: the router tracks the keys that are held."""
+    viewmodel = MagicMock()
+    router = KeyboardRouter(window=MagicMock(get_focus=lambda: None), viewmodel=viewmodel)
+    for _ in range(5):  # Delete held down
+        router._on_key_pressed(None, 0xFFFF, 119, 0)
+    assert viewmodel.cull_trash.call_count == 1
+    router._on_key_released(None, 0xFFFF, 119, 0)
+    router._on_key_pressed(None, 0xFFFF, 119, 0)  # pressed again after release
+    assert viewmodel.cull_trash.call_count == 2
+    router._on_focus_out(None)  # a release lost with the focus must not block the key for ever
+    router._on_key_pressed(None, 0xFFFF, 119, 0)
+    router._on_focus_out(None)
+    router._on_key_pressed(None, 0xFFFF, 119, 0)
+    assert viewmodel.cull_trash.call_count == 4

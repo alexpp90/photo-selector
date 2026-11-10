@@ -190,7 +190,8 @@ class MainWindow(Adw.ApplicationWindow if HAS_GI else object):
         self.header_bar.set_title_widget(title_box)
 
         # Menu Button (Primary Menu)
-        menu_button = Gtk.MenuButton()
+        menu_button = self.menu_button = Gtk.MenuButton()
+        menu_button.set_name("btn_main_menu")
         menu_button.set_icon_name("open-menu-symbolic")
         menu_button.set_tooltip_text("Main Menu")
         menu = Gio.Menu()
@@ -259,6 +260,24 @@ class MainWindow(Adw.ApplicationWindow if HAS_GI else object):
             self.set_view_order(self.settings.view_order)
         else:
             self.set_view_order("lowest_sharpness_first")
+
+    def toggle_fullscreen(self) -> None:
+        """F / F11."""
+        if self.is_fullscreen():
+            self.unfullscreen()
+        else:
+            self.fullscreen()
+
+    def exit_fullscreen(self) -> bool:
+        """Escape, after zoom: leave full screen; False when the window was not in it."""
+        if not self.is_fullscreen():
+            return False
+        self.unfullscreen()
+        return True
+
+    def show_view_order_menu(self) -> None:
+        """S: open the main menu, whose first section is the View order choice."""
+        self.menu_button.popup()
 
     def show_goto_dialog(self) -> None:
         """G: jump to a photo by its position or file name."""

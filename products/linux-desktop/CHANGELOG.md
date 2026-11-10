@@ -17,8 +17,9 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 - A screen reader announces queued, undone and finished operations and finished folder loads, and the Undo button's spoken name says which action it would undo and how many are available.
 
 ### Changed
+- Keys follow the shared desk-app map (`docs/shared/KEYBOARD.md`): `F` and `F11` toggle full screen (`Escape` leaves zoom first, then full screen), `S` opens the View order menu. `H` and `L` (navigation) and `B` (sharpness sweep) still work for this release and are marked in the `?` sheet as going away; use `K`/`J` and the View order menu.
 - `B` returns from lowest sharpness first to the order the folder opens in (newest first by default), not always to file-name order.
-- `F` (filmstrip) and `S` (sync lock) are no longer listed or bound: neither feature exists. `Tab` stays keyboard focus traversal.
+- The unused filmstrip and sync-lock handlers are gone. `Tab` stays keyboard focus traversal.
 - The Duplicate Finder window is titled "Duplicates".
 - Settings written by a newer version keep their extra keys when this version saves.
 - Move and Copy no longer recreate a custom destination folder that has disappeared (for example an unplugged drive); they report the problem and leave the photo where it is. An existing custom destination is read as the Custom folder choice.
@@ -28,6 +29,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 - Counters, badges, captions and the info card follow the system text size; before, they stayed the same size at 150 % text.
 
 ### Fixed
+- Holding `M`, `C`, `Delete` or `Backspace` acts once; before, each auto-repeat moved, copied or trashed the next photo too.
 - Preferences titles that contain `<` or `&` ("Blurry Threshold (< 35.0)", "Memory & Prefetch") are shown as written; before, GTK parsed them as markup and could show them empty.
 - A custom `XDG_DATA_HOME` (Nix, containers) no longer switches Trash from the desktop's Trash (GIO) to the app's own implementation.
 - The lab's artifact folder in `/tmp` is refused when it is a symlink or belongs to another user.

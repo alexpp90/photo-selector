@@ -267,3 +267,34 @@ def test_g_opens_the_dialog_enter_goes_and_a_miss_says_no_match(tmp_path: Path, 
     dialog.entry.emit("activate")
     assert win.viewmodel.current_photo.filename == "DSC_0005.JPG"
     win.destroy()
+
+
+@needs_gtk
+def test_f_toggles_full_screen_and_escape_leaves_zoom_before_full_screen(tmp_path: Path):
+    win = _window(tmp_path)
+    win.present()
+    calls = []
+    win.is_fullscreen = lambda: bool(calls) and calls[-1] == "fullscreen"
+    win.fullscreen = lambda: calls.append("fullscreen")
+    win.unfullscreen = lambda: calls.append("unfullscreen")
+    engine = win.router.engine
+    assert engine.dispatch(0x66, 0) is True  # F
+    assert calls == ["fullscreen"]
+    win.canvas_view.is_1to1_zoom = True
+    engine.dispatch(0xFF1B, 0)  # Escape: zoom first
+    assert not win.canvas_view.is_1to1_zoom and calls == ["fullscreen"]
+    engine.dispatch(0xFF1B, 0)  # Escape again: full screen
+    assert calls == ["fullscreen", "unfullscreen"]
+    engine.dispatch(0xFFC8, 0)  # F11 enters again
+    assert calls[-1] == "fullscreen"
+    win.destroy()
+
+
+@needs_gtk
+def test_s_opens_the_main_menu_with_the_view_order(tmp_path: Path):
+    win = _window(tmp_path)
+    opened = []
+    win.menu_button.popup = lambda: opened.append(True)
+    assert win.router.engine.dispatch(0x73, 0) is True
+    assert opened == [True]
+    win.destroy()

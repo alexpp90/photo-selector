@@ -112,7 +112,7 @@ KEYS = [
     ("M", 0x6D, 0), ("C", 0x63, 0), ("Delete", 0xFFFF, 0), ("Backspace", 0xFF08, 0),
     ("Left", 0xFF51, 0), ("Right", 0xFF53, 0), ("H", 0x68, 0), ("J", 0x6A, 0), ("K", 0x6B, 0), ("L", 0x6C, 0),
     ("1", 0x31, 0), ("2", 0x32, 0), ("3", 0x33, 0),
-    ("Space", 0x20, 0), ("Escape", 0xFF1B, 0), ("I", 0x69, 0), ("B", 0x62, 0), ("G", 0x67, 0), ("?", 0x3F, 0),
+    ("Space", 0x20, 0), ("Escape", 0xFF1B, 0), ("I", 0x69, 0), ("B", 0x62, 0), ("G", 0x67, 0), ("F", 0x66, 0), ("F11", 0xFFC8, 0), ("S", 0x73, 0), ("?", 0x3F, 0),
     ("Ctrl+Z", 0x7A, 4), ("Ctrl+O", 0x6F, 4), ("Ctrl+D", 0x64, 4), ("Ctrl+L", 0x6C, 4), ("Ctrl+,", 0x2C, 4),
 ]
 
@@ -130,11 +130,10 @@ def test_a_key_the_router_consumes_has_an_effect(name, keyval, state):
     assert window.mock_calls or viewmodel.mock_calls, f"{name} is consumed but nothing happens"
 
 
-def test_tab_f_and_s_are_not_bound():
-    """R-LINUX-KEY-05 lists Space, Escape, I and B: Tab is focus traversal, F and S have no feature."""
+def test_tab_is_not_bound():
+    """Tab is focus traversal: never captured (R-LINUX-KEY-05)."""
     router = KeyboardRouter(window=MagicMock(), viewmodel=MagicMock())
-    for keyval in (KeyboardRouterEngine.KEY_TAB, 0x66, 0x73):
-        assert router.engine.dispatch(keyval, 0) is False
+    assert router.engine.dispatch(KeyboardRouterEngine.KEY_TAB, 0) is False
 
 
 @pytest.mark.skipif(STUBBED, reason="needs real Gtk/Adw under a display server")
