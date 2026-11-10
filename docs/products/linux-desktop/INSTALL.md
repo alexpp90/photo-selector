@@ -1,6 +1,6 @@
 # Blitzlens — Installation Guide for Debian 13 (Trixie)
 
-This guide provides step-by-step instructions for installing and updating **Blitzlens** (package `photo-selector-linux`) on Debian 13 (Trixie) and compatible GNOME environments using our official APT repository or standalone packages.
+This guide provides step-by-step instructions for installing and updating **Blitzlens** (package `photo-selector-linux`) on Debian 13 (Trixie) using our official APT repository (its only suite is `trixie`) or standalone packages.
 
 ---
 

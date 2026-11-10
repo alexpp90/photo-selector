@@ -1,0 +1,4 @@
+  mCurrentFocus=Window{ef78812 u0 com.phototok.lab/com.phototok.MainActivity}
+  mFocusedApp=ActivityRecord{184266415 u0 com.phototok.lab/com.phototok.MainActivity t3262}
+    mShowingDream=false mDreamingLockscreen=false
+    isKeyguardShowing=false

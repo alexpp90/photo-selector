@@ -693,7 +693,7 @@ _MODIFIER_PARAM = {"command": "cmd", "control": "ctrl", "shift": "shift", "optio
 def has_focused_input(tree: Tree) -> bool:
     """A text input holds the keyboard focus (nodes of a tree without focus data never do)."""
     return any(
-        node.role == "input" and node.visible and getattr(node, "focused", False) for node in tree.nodes
+        node.role == "input" and node.visible and node.focused for node in tree.nodes
     )
 
 

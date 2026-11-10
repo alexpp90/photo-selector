@@ -290,5 +290,49 @@ class LocalImageSourceDiscoveryTest {
             source.discoverImages(treeUri, setOf("Keepers")).toList().last().map { it.fileName },
         )
     }
-}
 
+    // ── Displayed dimensions (EXIF orientation) ───────────────────────────
+
+    private fun jpegWithOrientation(width: Int, height: Int, orientation: Int): ByteArray {
+        val file = java.io.File.createTempFile("orient", ".jpg")
+        try {
+            java.io.FileOutputStream(file).use {
+                android.graphics.Bitmap.createBitmap(width, height, android.graphics.Bitmap.Config.ARGB_8888)
+                    .compress(android.graphics.Bitmap.CompressFormat.JPEG, 80, it)
+            }
+            androidx.exifinterface.media.ExifInterface(file.absolutePath).apply {
+                setAttribute(androidx.exifinterface.media.ExifInterface.TAG_ORIENTATION, orientation.toString())
+                saveAttributes()
+            }
+            return file.readBytes()
+        } finally {
+            file.delete()
+        }
+    }
+
+    private fun dimensionsOf(bytes: ByteArray): Pair<Int, Int> {
+        val uri = Uri.parse("content://$AUTHORITY/photo")
+        every { contentResolver.openInputStream(uri) } answers { java.io.ByteArrayInputStream(bytes) }
+        return kotlinx.coroutines.runBlocking { source.getImageDimensions(uri) }
+    }
+
+    @Test
+    fun `a photo stored landscape but rotated by EXIF reports portrait dimensions`() {
+        assertEquals(Pair(20, 40), dimensionsOf(jpegWithOrientation(40, 20, 6)))
+        assertEquals(Pair(20, 40), dimensionsOf(jpegWithOrientation(40, 20, 8)))
+    }
+
+    @Test
+    fun `an upright or 180 degree photo keeps its stored dimensions`() {
+        assertEquals(Pair(40, 20), dimensionsOf(jpegWithOrientation(40, 20, 1)))
+        assertEquals(Pair(40, 20), dimensionsOf(jpegWithOrientation(40, 20, 3)))
+    }
+
+    @Test
+    fun `displayedDimensions swaps exactly for orientations 5 to 8`() {
+        for (o in 0..9) {
+            val expected = if (o in 5..8) Pair(2, 1) else Pair(1, 2)
+            assertEquals("orientation $o", expected, LocalImageSourceImpl.displayedDimensions(1, 2, o))
+        }
+    }
+}

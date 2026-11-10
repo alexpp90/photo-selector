@@ -1,6 +1,9 @@
 package com.phototok.viewmodel
 
+import android.net.Uri
+import com.photoselector.core.storage.SourceKind
 import com.phototok.data.model.PhoneSettings
+import com.phototok.data.model.SourceSettings
 import com.phototok.data.repository.ImageRepository
 import com.phototok.data.repository.SettingsRepository
 import com.phototok.domain.CollectionAction
@@ -14,6 +17,7 @@ import kotlinx.coroutines.test.*
 import org.junit.After
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
+import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Before
 import org.junit.Test
@@ -248,5 +252,50 @@ class SettingsViewModelTest {
 
         coVerify { settingsRepository.clearCache() }
         assertTrue(called)
+    }
+
+    /** JP-UI-2: clearing a card's custom folder used to keep showing the old one ("Reset" did nothing visible). */
+    @Test
+    fun `clearing a source's custom folders shows Default again, not the previous folders`() = runTest {
+        val removableFlow = MutableStateFlow(
+            SourceSettings.defaultFor(SourceKind.REMOVABLE).copy(collectionUri = CARD_KEEPERS, leftSwipeUri = CARD_REJECTS),
+        )
+        every { settingsRepository.sourceSettingsFlow(SourceKind.REMOVABLE) } returns removableFlow
+        viewModel = SettingsViewModel(settingsRepository, imageRepository)
+        viewModel.selectSourceKindTab(SourceKind.REMOVABLE)
+        assertEquals(CARD_KEEPERS, viewModel.uiState.value.collectionUri)
+        assertEquals(CARD_REJECTS, viewModel.uiState.value.leftSwipeUri)
+
+        removableFlow.value = removableFlow.value.copy(collectionUri = null, leftSwipeUri = null)
+        advanceUntilIdle()
+
+        assertNull("Selection location cleared", viewModel.uiState.value.collectionUri)
+        assertNull("Left swipe folder cleared", viewModel.uiState.value.leftSwipeUri)
+    }
+
+    @Test
+    fun `a custom folder's provider name is resolved for its path, and follows the tab`() = runTest {
+        val cloud = "content://com.google.android.apps.docs.storage/tree/acc%3D1%3Bdoc%3Dencoded%3Dxyz"
+        coEvery { imageRepository.resolveFolderName(Uri.parse(cloud)) } returns "Keepers"
+        coEvery { imageRepository.resolveFolderName(Uri.parse(CARD_REJECTS)) } returns "Rejects"
+        every { settingsRepository.sourceSettingsFlow(SourceKind.REMOVABLE) } returns MutableStateFlow(
+            SourceSettings.defaultFor(SourceKind.REMOVABLE).copy(collectionUri = cloud, leftSwipeUri = CARD_REJECTS),
+        )
+        viewModel = SettingsViewModel(settingsRepository, imageRepository)
+
+        viewModel.selectSourceKindTab(SourceKind.REMOVABLE)
+        advanceUntilIdle()
+        assertEquals("Keepers", viewModel.uiState.value.collectionFolderName)
+        assertEquals("Rejects", viewModel.uiState.value.leftSwipeFolderName)
+
+        viewModel.selectSourceKindTab(SourceKind.CAMERA_MTP)
+        advanceUntilIdle()
+        assertNull("no name of another tab's folder", viewModel.uiState.value.collectionFolderName)
+        assertNull(viewModel.uiState.value.leftSwipeFolderName)
+    }
+
+    private companion object {
+        const val CARD_KEEPERS = "content://com.android.externalstorage.documents/tree/1A2B-3C4D%3AKeepers"
+        const val CARD_REJECTS = "content://com.android.externalstorage.documents/tree/1A2B-3C4D%3ARejects"
     }
 }

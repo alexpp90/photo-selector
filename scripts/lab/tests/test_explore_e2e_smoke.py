@@ -24,13 +24,13 @@ sys.path.insert(0, str(LAB_DIR))
 
 from lab.explore.actions import Action  # noqa: E402
 from lab.explore.discovery import inspect_screen  # noqa: E402
-from lab.explore.driver import (  # noqa: E402
+from lab.explore.drivers import (  # noqa: E402
     AndroidDeviceDriver,
     AppCrashedError,
     DriverExecutionError,
     LinuxDeviceDriver,
-    _parse_coord,
 )
+from lab.explore.drivers.base import _parse_coord  # noqa: E402
 from lab.explore.selector import ActionSelector  # noqa: E402
 from lab.linux.runner import lab_python  # noqa: E402
 from lab.model import Node, Tree  # noqa: E402

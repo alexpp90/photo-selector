@@ -195,6 +195,13 @@ fun PhoneModeScreen(
         enabled = isViewingSelection || selectionState.isOpening,
         onClose = selectionViewModel::close,
     )
+    // System Back closes the controls guide, which is drawn in the activity window, not the app
+    // (F-TOK-085). Composed after the viewer's handler, so a guide over the viewer closes first. The
+    // first-run tutorial, the same overlay, has no handler yet (`SystemBackClosesTopLayerTest`).
+    BackHandler(
+        enabled = uiState.showControlsGuide,
+        onBack = viewModel::hideControlsGuide,
+    )
     // Another folder in the feed closes a viewer opened (or still opening) for the previous one.
     LaunchedEffect(uiState.sourceFolderUri) {
         selectionViewModel.closeUnlessOpenedFor(uiState.sourceFolderUri)

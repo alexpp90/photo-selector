@@ -52,10 +52,86 @@ step in Play Console before ticking it.
 
 - [ ] **Create the app:** package `com.photoselectortoolbox`, default language English (United States), *App*, *Free*, category **Photography**.
 - [ ] Verify GitHub Pages serves `privacy-policy.html` and `impressum.html` with HTTP 200 (the four legal URLs and the site root answered 200 on 2026-11-03).
-- [ ] Paste the Privacy Policy URL into **Play Console → Policy and programs → App content → Privacy policy**.
+- [ ] Paste the Privacy Policy URL into **Play Console → Monitor and improve → Policy and programs → App content → Privacy policy** (Start declaration).
 - [ ] Submit the Data Safety form using the table in §2 above.
 - [ ] The first signed `.aab` was uploaded manually to the **Internal testing** track; automated publishing runs with `TOOLBOX_GP_SERVICE_ACCOUNT_JSON`.
 - [ ] **App content → Content rating:** complete the IARC questionnaire (utility app, no user-generated content). **Target audience:** 13+, not directed at children.
 - [ ] **Closed testing gate (mandatory for personal accounts created after 13 Nov 2023):** a closed test with at least 12 testers opted in for 14 consecutive days, then **Dashboard → Apply for production**. Re-check [Google's requirements](https://support.google.com/googleplay/android-developer/answer/14151465) before starting.
 - [ ] **Android developer verification (regional enforcement since 2026-09-30, global in 2027):** in Play Console → Home, check that the package `com.photoselectortoolbox` is registered.
 - [ ] **Off-Play APKs:** the GitHub Releases and Obtainium APKs are signed with the **upload key**, not the Play app-signing key. Register the upload-key certificate for `com.photoselectortoolbox` as an off-Play key in Play Console before the 2027 global rollout.
+
+> Tester counts and the gate are Google policy and change — re-check
+> [App testing requirements for new personal developer accounts](https://support.google.com/googleplay/android-developer/answer/14151465)
+> before starting the closed test.
+
+- [ ] **Device targeting:** whether phones are excluded from the Play listing (device catalog) is an open maintainer decision; set it in **Monitor and improve → Reach and devices → Device catalog** once decided. The catalog excludes individual device models or applies RAM / system-on-chip rules; it has no form-factor switch for phones, so excluding phones may need a manifest-level filter instead.
+
+---
+
+## 5. Store Listing (draft)
+
+Store text promises behaviour, so every line must be true for the build being released. Before pasting, fact-check each feature line against the current code and remove anything that is no longer true. The draft was checked against `origin/main` on 2026-11-10.
+
+- **Title rule:** always the name with a descriptive subtitle. Play limit: **30 characters**.
+- **Disclaimer:** the non-affiliation sentence goes at the end of the full description.
+- **Language:** English (United States) only. Add a German (de-DE) listing only once the app has a German interface; a German listing for an English-only app promises what the app does not do.
+
+### English (United States) — en-US
+
+**App name** (≤ 30): `Frameduel – Photo Culling Desk` (30)
+
+**Short description** (≤ 80):
+> Cull photos on a tablet or DeX: compare frames, keep the best, delete the rest.
+
+**Full description** (≤ 4000):
+```text
+Frameduel is a culling desk for large screens: tablets, Samsung DeX and Chromebooks. Open a folder of photos — from the device, an SD card or a card reader — and go through it three frames at a time: the current photo on top, the previous and next beside each other below, all the same size, so you compare like with like.
+
+• M moves the photo to your Selection folder, C copies it, Del deletes it. A RAW, its JPEG, its edits and its .xmp sidecar travel together.
+• Undo: Ctrl+Z steps back through your last moves and deletes.
+• 1, 2 or 3 shows one frame full size; F opens fullscreen.
+• Works by touch, mouse and keyboard.
+
+Features
+• Quality scores on the device: a scan rates sharpness, noise and blown highlights or blocked shadows, so the soft frame of a burst stands out.
+• Burst grouping keeps similar frames together.
+• Sort newest first, oldest first, by file name, or blurriest first after a scan.
+• Go to photo by its number, a date or its file name.
+• Star ratings and a reject flag.
+• Learn: technique and composition notes on your own photos.
+• Statistics: EXIF charts of the folder (focal lengths, apertures, ISO, shutter speeds).
+• Duplicates: finds byte-identical copies and never lets you delete the last one.
+• Camera RAW from Sony, Canon (incl. CR3), Nikon, Fujifilm, Panasonic, OM System, Pentax, Samsung and DNG, plus JPEG, HEIC, PNG, TIFF and WebP.
+
+Private by design
+• No permissions, no internet access, no account.
+• No ads, no analytics, no tracking. Your photos never leave your device.
+• Free and open source (MIT). English interface.
+
+Frameduel is not affiliated with Samsung, Google or any camera maker; brand names only describe compatibility.
+```
+
+---
+
+## 6. Store Graphics & Screenshots
+
+- [ ] **App icon:** 512 × 512 px, 32-bit PNG with alpha, at most 1024 KB — the lavender Frameduel icon (`assets/brand/frameduel/frameduel-play-512.png`).
+- [ ] **Feature graphic:** 1024 × 500 px, JPEG or 24-bit PNG (no alpha).
+- [ ] **Tablet screenshots (7-inch and 10-inch):** at least 4 per device type, at most 8; 16:9 landscape (the selector) or 9:16 portrait; each side between 1,080 and 7,680 px, JPEG or 24-bit PNG. Render on a 16:9 canvas (e.g. 1920 × 1080 or 2560 × 1440 px), not at the 16:10 reference geometry (1480 × 924 dp) and not by cropping a capture.
+- [ ] **Chromebook screenshots:** at least 4, same rules as tablets (16:9 landscape).
+- [ ] **Phone screenshots:** only if phones stay in the device catalog (§4); then 2–8, sides between 320 and 3,840 px, the long side at most twice the short side.
+- [ ] Screenshots show the **current** UI of the release build, contain **no people** (sample photos included), and no earlier name or palette.
+
+> Asset specs are Google policy and change. Checked 2026-11-10 against
+> [Add preview assets to showcase your app](https://support.google.com/googleplay/android-developer/answer/9866151);
+> that page gives 3,840 px as the general maximum and 7,680 px for large screens — keep large-screen
+> captures at or below 3,840 px to satisfy both. Re-check before producing them.
+
+---
+
+## 7. Ongoing Obligations (after launch)
+
+- Keep the privacy policy, the Data Safety answers (§2) and the store listing (§5) in sync with app behaviour — any new permission, endpoint or SDK changes all three in the same change. The merged manifest stays permission-free (`LegalLinksTest`).
+- **Target API:** Play requires staying within one year of the latest Android release; re-check `targetSdk` when a new Android version ships.
+- **16 KB page size:** every new native library (OpenCV today) must keep `p_align >= 16384` (`scripts/check_native_alignment.py`).
+- **Monetisation** (ads, in-app purchases, paid tier) ends the non-trader status (§3) and invalidates the "no internet, no permissions" claims — review the legal consequences before the first line of code.
