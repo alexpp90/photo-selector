@@ -566,7 +566,8 @@ elif ! $explicit_product; then
     skip "Python gates" "desktop.yml" "no changes under products/desktop/ (use --python or --all to force)" false
 fi
 
-# ── Android gates (mirror: android.yml `unit-tests`, `lint`) ──────
+# ── Android gates (mirror: android.yml `unit-tests`, `build` (debug APKs), `minified-build`, `lint`) ──
+# `build` starts beside the emulator job; only `publish-release` and `publish-play` wait for it.
 if $run_android && disk_preflight "Android" "android.yml"; then
     cd "$ROOT_DIR/products/android" || exit 1
 

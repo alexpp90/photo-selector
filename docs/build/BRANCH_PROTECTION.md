@@ -174,7 +174,7 @@ only what passed. This replaces the manual "run the mirror on `main` after a bat
 | `cla.yml` | `cla` runs on `pull_request_target` and needs the PR (the CLA assistant comments on it). It cannot run on a merge group, but a required check must report there too. Add `merge_group:` and a job of the same name that only succeeds when `github.event_name == 'merge_group'` (the CLA was already checked on the PR), or drop `cla` from the required checks |
 | the Stage 2 gate workflow(s) | add `merge_group:`; the paths filter must compare the merge group with `main` (`base: ${{ github.event.merge_group.base_ref }}` or the equivalent for `dorny/paths-filter`), check this before relying on it |
 | `pr-verification.yml` | nothing: it is not required, and it judges the PR description, which a merge group does not have |
-| `android.yml` `build` / `publish-play`, release jobs in the other workflows | none of them may run for `merge_group` (they publish). Their `if:` conditions check `push` / tags today; keep it that way |
+| `android.yml` `build` / `publish-release` / `publish-play`, release jobs in the other workflows | none of them may run for `merge_group` (they publish). Their `if:` conditions check `push` / tags today; keep it that way |
 
 Then add the merge-queue rule:
 
