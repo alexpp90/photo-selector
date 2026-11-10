@@ -62,6 +62,31 @@ public struct AppCommands: Commands {
             .keyboardShortcut("]", modifiers: .command)
             .disabled(viewModel.photos.isEmpty)
 
+            Divider()
+
+            // Checkmark on the active order (inline picker). The choice is persisted.
+            Menu("Sort By") {
+                Picker("Sort By", selection: Binding(
+                    get: { viewModel.sortOrder },
+                    set: { viewModel.setSortOrder($0) }
+                )) {
+                    ForEach(WorkspaceSortOrder.allCases) { order in
+                        Text(order.title).tag(order)
+                    }
+                }
+                .pickerStyle(.inline)
+                .labelsHidden()
+            }
+            .disabled(viewModel.photos.isEmpty)
+
+            Button("Go to Photo…") {
+                viewModel.presentGoToPhoto()
+            }
+            .keyboardShortcut("g", modifiers: [])
+            .disabled(viewModel.photos.isEmpty)
+
+            Divider()
+
             Button("Cycle Comparison Slot") {
                 viewModel.advanceComparisonSlotFocus()
             }
@@ -100,14 +125,14 @@ public struct AppCommands: Commands {
             Divider()
 
             Button("Toggle Filmstrip") {
-                withAnimation(.spring(response: 0.28, dampingFraction: 0.82)) {
+                MotionPolicy.animate(.spring(response: 0.28, dampingFraction: 0.82)) {
                     viewModel.isFilmstripVisible.toggle()
                 }
             }
             .keyboardShortcut("f", modifiers: [])
 
             Button("Toggle Info HUD") {
-                withAnimation(.easeInOut(duration: 0.18)) {
+                MotionPolicy.animate(.easeInOut(duration: 0.18)) {
                     viewModel.isInfoHUDVisible.toggle()
                 }
             }

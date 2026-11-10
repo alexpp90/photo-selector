@@ -339,6 +339,8 @@ public struct ComparisonSlotPane: View {
 
                     StatusBadge(status: photo.status)
 
+                    CompanionChipsView(photo: photo)
+
                     Spacer(minLength: 4)
 
                     scoreBadges
@@ -349,7 +351,7 @@ public struct ComparisonSlotPane: View {
                 .uiTestFrame(role.accessibilityIdentifier + "_header")
 
                 ZoomableImageViewport(
-                    image: imageState.photoID == photo.id ? imageState.image : nil,
+                    image: (imageState.photoID == photo.id ? imageState.image : nil) ?? RecentPreviewMemory.shared.image(for: photo.id),
                     photoURL: photo.url,
                     zoomState: zoomState,
                     panOffset: panBinding,
@@ -423,6 +425,10 @@ public struct ComparisonSlotPane: View {
                     .font(.system(size: 9, weight: .semibold))
                     .foregroundStyle(Color.white.opacity(0.9))
             }
+            .help(ScoreLabels.sharpnessTooltip(scores))
+            .accessibilityElement(children: .ignore)
+            .accessibilityLabel(ScoreLabels.sharpnessSpoken(scores))
+            .uiTestFrame(role.accessibilityIdentifier + "_sharpness")
             .padding(.horizontal, 7)
             .padding(.vertical, 3)
             .background(Color.black.opacity(0.75))
@@ -445,6 +451,10 @@ public struct ComparisonSlotPane: View {
                 .padding(.vertical, 3)
                 .background(Color.black.opacity(0.75))
                 .clipShape(Capsule())
+                .help(ScoreLabels.aestheticsTooltip(aesthetic))
+                .accessibilityElement(children: .ignore)
+                .accessibilityLabel(ScoreLabels.aestheticsSpoken(aesthetic))
+                .uiTestFrame(role.accessibilityIdentifier + "_aesthetics")
             }
         } else {
             HStack(spacing: 3) {

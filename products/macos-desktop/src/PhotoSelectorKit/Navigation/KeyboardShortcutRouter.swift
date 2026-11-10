@@ -66,6 +66,18 @@ public struct SyntheticKeyEvent: KeyEventRepresentable {
     }
 }
 
+/// Animation that honours System Settings > Accessibility > Display > Reduce motion: with it on the
+/// change is applied at once (REQ-MAC-A11Y.01). Lives in this adapter file because it reads AppKit.
+public enum MotionPolicy {
+    public static var reduceMotion: Bool { NSWorkspace.shared.accessibilityDisplayShouldReduceMotion }
+
+    /// `withAnimation(animation, body)`, or `body()` alone under Reduce Motion.
+    @MainActor
+    public static func animate(_ animation: Animation, _ body: () -> Void) {
+        if reduceMotion { body() } else { withAnimation(animation, body) }
+    }
+}
+
 /// Dedicated window-level keyboard event interceptor.
 /// Uses `NSEvent.addLocalMonitorForEvents(matching: .keyDown)` to capture navigation
 /// and culling hotkeys (←, →, ↑, ↓, M, C, Delete, Space, 1, 2, 3, Tab, ⌘Z, J, K) before SwiftUI focus
@@ -212,7 +224,7 @@ public final class KeyboardShortcutRouter: ObservableObject {
             break
         }
 
-        // 3. Single-Character Action Shortcuts (M, C, F, I, S, J, K, H, L, ?, /)
+        // 3. Single-Character Action Shortcuts (M, C, F, I, S, G, J, K, H, L, ?, /)
         switch characters {
         case "m":
             viewModel.cullCurrentPhoto(action: .move)
@@ -227,17 +239,20 @@ public final class KeyboardShortcutRouter: ObservableObject {
             viewModel.navigateToPrevious()
             return true
         case "f":
-            withAnimation(.spring(response: 0.28, dampingFraction: 0.82)) {
+            MotionPolicy.animate(.spring(response: 0.28, dampingFraction: 0.82)) {
                 viewModel.isFilmstripVisible.toggle()
             }
             return true
         case "i":
-            withAnimation(.easeInOut(duration: 0.18)) {
+            MotionPolicy.animate(.easeInOut(duration: 0.18)) {
                 viewModel.isInfoHUDVisible.toggle()
             }
             return true
         case "s":
             viewModel.toggleZoomSync()
+            return true
+        case "g": // Go to Photo (number or file name)
+            viewModel.presentGoToPhoto()
             return true
         case "?", "/":
             viewModel.presentShortcutsHelp()

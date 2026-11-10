@@ -28,7 +28,7 @@ for target in "$@"; do
     # literals are strings that exist only inside `#if PST_TEST_HOOKS` code (checked by diffing
     # `strings` of a hooks build against a release build, 2026-10-21). `--ui-scenario` and friends
     # are NOT listed: a release build keeps them on purpose, to refuse them with exit 64.
-    hook_pattern='UIScenarioRunner|UITestDriver|UISelfTestRunner|UISelfTestHooks'
+    hook_pattern='UIScenarioRunner|UITestDriver|UISelfTestRunner|UISelfTestHooks|HermeticLabSession|HermeticLabTrashService'
     hook_pattern+='|scenario-artifacts|layout\.boundary_slot_retains_frame|slot_next at last photo='
     if strings -a "$binary" | grep -E -q "$hook_pattern"; then
         echo "✘ $binary: contains UI test hooks (built with PST_TEST_HOOKS?)" >&2

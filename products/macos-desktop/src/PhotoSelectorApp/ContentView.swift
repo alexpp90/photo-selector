@@ -189,19 +189,23 @@ public struct ContentView: View {
             return .handled
         }
         .onKeyPress(characters: CharacterSet(charactersIn: "fF\\")) { _ in
-            withAnimation(.spring(response: 0.28, dampingFraction: 0.82)) {
+            MotionPolicy.animate(.spring(response: 0.28, dampingFraction: 0.82)) {
                 viewModel.isFilmstripVisible.toggle()
             }
             return .handled
         }
         .onKeyPress(characters: CharacterSet(charactersIn: "iI")) { _ in
-            withAnimation(.easeInOut(duration: 0.18)) {
+            MotionPolicy.animate(.easeInOut(duration: 0.18)) {
                 viewModel.isInfoHUDVisible.toggle()
             }
             return .handled
         }
         .onKeyPress(characters: CharacterSet(charactersIn: "sS")) { _ in
             viewModel.toggleZoomSync()
+            return .handled
+        }
+        .onKeyPress(characters: CharacterSet(charactersIn: "gG")) { _ in
+            viewModel.presentGoToPhoto()
             return .handled
         }
         .onKeyPress(characters: CharacterSet(charactersIn: "?/")) { _ in
@@ -224,6 +228,15 @@ public struct ContentView: View {
         }
         .sheet(isPresented: $viewModel.isShortcutsHelpPresented) {
             ShortcutsHelpSheet()
+        }
+        .sheet(isPresented: $viewModel.isGoToPhotoPresented) {
+            GoToPhotoSheet(viewModel: viewModel)
+        }
+        // VoiceOver hears what a sighted user reads in the toast (REQ-MAC-A11Y.01).
+        .onChange(of: viewModel.currentToast) { _, toast in
+            if let toast {
+                AccessibilityNotification.Announcement(toast.title).post()
+            }
         }
         .sheet(isPresented: $viewModel.isDuplicateFinderPresented) {
             DuplicateFinderView(
@@ -317,6 +330,53 @@ public struct ContentView: View {
                 .background(Color.accentColor.opacity(0.15))
                 .clipShape(Capsule())
                 .help("Scanning… (\(viewModel.photos.count) photos)")
+            }
+
+            // Scoring pass over the whole library (lowest sharpness first, Library Statistics)
+            if let progress = viewModel.scoringProgress {
+                HStack(spacing: 6) {
+                    ProgressView()
+                        .controlSize(.small)
+                    if density != .minimal {
+                        Text(density == .full ? "Scoring \(progress.text)" : progress.text)
+                            .font(.system(size: 11, weight: .semibold).monospacedDigit())
+                            .foregroundStyle(Color.accentColor)
+                            .lineLimit(1)
+                            .fixedSize()
+                    }
+                }
+                .padding(.horizontal, 8)
+                .padding(.vertical, 4)
+                .background(Color.accentColor.opacity(0.15))
+                .clipShape(Capsule())
+                .accessibilityElement(children: .ignore)
+                .accessibilityLabel("Scoring photos, \(progress.done) of \(progress.total)")
+                .help("Scoring sharpness: \(progress.text)")
+                .uiTestFrame("scoring_progress")
+            }
+
+            // Active sort order, shown only when it is not the default (glyph + word, never colour alone)
+            if viewModel.sortOrder != WorkspaceSortOrder.defaultOrder {
+                HStack(spacing: 5) {
+                    Image(systemName: viewModel.sortOrder.symbol)
+                        .font(.system(size: 11, weight: .bold))
+                    if density == .full {
+                        Text(viewModel.sortOrder.title)
+                            .font(.system(size: 11, weight: .semibold))
+                            .lineLimit(1)
+                            .fixedSize()
+                    }
+                }
+                .foregroundStyle(Color.white)
+                .padding(.horizontal, 8)
+                .padding(.vertical, 4)
+                .frame(minHeight: Self.minTarget - 4)
+                .background(Color.white.opacity(0.12))
+                .clipShape(Capsule())
+                .accessibilityElement(children: .ignore)
+                .accessibilityLabel("Sorted by \(viewModel.sortOrder.title)")
+                .help("Sorted by \(viewModel.sortOrder.title) (View > Sort By)")
+                .uiTestFrame("sort_indicator")
             }
 
             Spacer(minLength: 8)
@@ -424,7 +484,7 @@ public struct ContentView: View {
                 .help(viewModel.zoomState.isZoomed ? "Return to Fit (Space or Esc)" : "Zoom to 1:1 (100% pixel-to-pixel, Space)")
 
                 Button(action: {
-                    withAnimation(.spring(response: 0.28, dampingFraction: 0.82)) {
+                    MotionPolicy.animate(.spring(response: 0.28, dampingFraction: 0.82)) {
                         viewModel.isFilmstripVisible.toggle()
                     }
                 }) {
@@ -440,7 +500,7 @@ public struct ContentView: View {
                 .help("Toggle Filmstrip (F)")
 
                 Button(action: {
-                    withAnimation(.easeInOut(duration: 0.18)) {
+                    MotionPolicy.animate(.easeInOut(duration: 0.18)) {
                         viewModel.isInfoHUDVisible.toggle()
                     }
                 }) {

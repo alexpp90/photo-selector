@@ -12,8 +12,20 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 - macOS asks for access to Desktop, Documents, Downloads, removable and network volumes with an explanation ("Lensjet shows the photos in the folders you open and moves, copies or trashes the ones you cull.").
 - The README and the Homebrew cask now say how to open Lensjet the first time: it is not notarized by Apple yet, so macOS blocks a downloaded copy until you click **Open Anyway** in System Settings → Privacy & Security (or run `xattr -dr com.apple.quarantine /Applications/Lensjet.app`).
 
+- **View > Sort By**: Newest First, Oldest First, File Name and Lowest Sharpness First, with a checkmark on the active order. The choice is kept. A new install opens newest first; an install that already existed keeps the file-name order it had. A non-default order shows as a small chip in the toolbar. Lowest Sharpness First scores every photo in the background first (the toolbar shows "Scoring 12 / 17"), then orders the list; **Settings → Scoring → Stop at sharpness** (0 = off) toasts when you reach a photo at or above that sharpness.
+- **Go to Photo** (`G`, View menu): type a number (the position in "Photo 12 of 240") or part of a file name; the sheet shows the file name it will land on, and "No match" when there is none.
+- A photo that travels with a RAW, JPEG, XMP sidecar or edit shows **chips** (`JPG`, `XMP`, …) beside its file type, and Move, Copy, Trash and Undo of such a set say how many files moved: "Moved 3 files", "Copied 3 files", "Trashed 3 files", "Restored 3 files".
+- The bottom tally shows **Copied N** once you have copied something, and Undo takes it off again.
+- Each score shows its scale: "Sharpness 59.6 / 100" and "Aesthetics 8.4 / 10" in the info panel, a tooltip on the badges saying what they measure and where the bands are, and a spoken label that says "aesthetics score", never a star rating.
+- Library Statistics scores the whole library in the background while it is open ("12 / 17 scored", with a progress bar), so the sharpness figures and the distribution cover every photo; closing the sheet stops the pass.
+- Toasts are read out by VoiceOver.
+- Stepping backwards through a shoot now prefetches the frames behind you (the prefetch window leans the way you browse, same size).
+
 ### Fixed
 
+- After Undo, the restored photo appears at once from memory instead of as a black pane with a spinner; the spinner only appears after 300 ms.
+- A custom destination folder placed inside the folder you are culling no longer lets the photos you filed there come back as candidates.
+- A Copy that loses a race for its destination file name no longer deletes the file that other writer put there.
 - A build whose code signing fails now stops instead of packaging an unsigned app.
 - The README no longer promises "zero data loss" or shows a pre-rebrand screenshot caption, and its test command is the CI one (`./scripts/run_tests.sh --macos`).
 

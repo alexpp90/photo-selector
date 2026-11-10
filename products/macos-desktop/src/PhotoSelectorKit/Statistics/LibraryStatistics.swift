@@ -22,6 +22,10 @@ public struct LibraryStatistics: Sendable, Equatable {
     public let averageAesthetic: Double?
     public let focusDistribution: [SharpnessCategory: Int]
     public let utilityPhotoCount: Int
+    /// How many photos the sharpness figures and the distribution are based on (of `totalPhotoCount`).
+    public let sharpnessScoredCount: Int
+    /// How many photos the aesthetics average is based on.
+    public let aestheticScoredCount: Int
 
     // 5. Leaderboard / Top 5
     public let topSharpestPhotos: [PhotoItem]
@@ -50,7 +54,9 @@ public struct LibraryStatistics: Sendable, Equatable {
         topAestheticPhotos: [PhotoItem],
         focalLengthSharpness: [String: Double] = [:],
         apertureSharpness: [String: Double] = [:],
-        shutterSpeedSharpness: [String: Double] = [:]
+        shutterSpeedSharpness: [String: Double] = [:],
+        sharpnessScoredCount: Int = 0,
+        aestheticScoredCount: Int = 0
     ) {
         self.totalPhotoCount = totalPhotoCount
         self.candidateCount = candidateCount
@@ -70,6 +76,8 @@ public struct LibraryStatistics: Sendable, Equatable {
         self.focalLengthSharpness = focalLengthSharpness
         self.apertureSharpness = apertureSharpness
         self.shutterSpeedSharpness = shutterSpeedSharpness
+        self.sharpnessScoredCount = sharpnessScoredCount
+        self.aestheticScoredCount = aestheticScoredCount
     }
 
     /// Empty baseline representation for uninitialized or cleared libraries.
@@ -108,6 +116,12 @@ public struct LibraryStatistics: Sendable, Equatable {
     public var formattedTrashedSavings: String {
         ByteCountFormatter.string(fromByteCount: trashedStorageBytes, countStyle: .file)
     }
+
+    /// "17 / 17 scored": what the sharpness figures and the distribution are based on.
+    public var sharpnessCoverageText: String { "\(sharpnessScoredCount) / \(totalPhotoCount) scored" }
+
+    /// True when every photo has a sharpness score, so the figures describe the whole library.
+    public var isSharpnessComplete: Bool { totalPhotoCount > 0 && sharpnessScoredCount == totalPhotoCount }
 
     /// Progress percentage of photos inspected/culled (selected + copied + trashed) vs total.
     public var cullingProgressPercentage: Double {
