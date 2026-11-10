@@ -24,6 +24,8 @@ def build_parser() -> argparse.ArgumentParser:
     # preflight (C-00, C-32)
     p_pre = sub.add_parser("preflight", help="Check host and device toolchains for lab execution")
     p_pre.add_argument("--product", default=None, choices=["android-desktop", "phototok", "macos", "linux"])
+    p_pre.add_argument("--with-personal", action="store_true", help="also read the personal devices (default: skipped)")
+    p_pre.add_argument("--no-devices", action="store_true", help="tool check only, do not read the devices")
 
     # fixtures (C-02)
     p_fix = sub.add_parser("fixtures", help="Generate deterministic synthetic fixture sets")
@@ -282,6 +284,15 @@ def main(argv: list[str] | None = None) -> int:
             "swift": shutil.which("swift") or "missing",
         }
         print(json.dumps(tools, indent=2))
+        if not args.no_devices:
+            from . import readiness
+            from .inventory import load_inventory
+
+            inv = load_inventory()
+            if inv.android or inv.mac:
+                print("\nDevice readiness (read-only):")
+                rows = readiness.collect(inv, with_personal=bool(args.with_personal))
+                print(readiness.render(rows))
         return 0
 
     if args.subcommand == "devices":
