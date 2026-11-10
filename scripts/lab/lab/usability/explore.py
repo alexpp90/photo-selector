@@ -152,6 +152,20 @@ class ExplorationCharter:
         )
 
 
+def opening_steps(spec: dict[str, Any]) -> list[dict[str, Any]]:
+    """What an exploration does first: the scenario file's first scenario without its screen captures.
+
+    Every exploration then starts on the same screen and photo (2026-10-24: a run resumed on the
+    last photo of the previous captures and ended `dead_end` after two steps). The first scenario
+    of a walk is the product's first launch (`launch: {clear: true}`, the folder grant), the same
+    start the panel walks.
+    """
+    scenarios = spec.get("scenarios") or []
+    if not scenarios:
+        return [{"launch": {}}]
+    return [dict(step) for step in scenarios[0].get("steps", []) if "screen" not in step]
+
+
 def load_charter(
     path_or_id: str | Path | dict[str, Any] | ExplorationCharter, product: str = "phototok"
 ) -> ExplorationCharter:

@@ -574,7 +574,7 @@ class TestPanelAndReport(unittest.TestCase):
 class TestScenarioFile(unittest.TestCase):
     STEP_KEYS = {
         "screen", "launch", "tap", "long_press", "optional_tap", "double_tap", "swipe", "scroll_to",
-        "wait_for", "back", "background", "wait_ms", "key",
+        "wait_for", "back", "background", "wait_ms", "key", "set_state",
     }
 
     PRODUCT_SPECS = {

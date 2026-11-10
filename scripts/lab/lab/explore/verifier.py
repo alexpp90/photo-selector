@@ -35,6 +35,8 @@ SEVERITY_MAJOR = "major"
 SEVERITY_MINOR = "minor"
 SEVERITY_POLISH = "polish"
 
+# A passing step keeps its screenshots only when its number is a multiple of this (trees are always kept).
+SCREENSHOT_EVERY = 10
 STATUS_PASS = "pass"
 STATUS_FAIL = "fail"
 STATUS_ERROR = "error"
@@ -224,8 +226,12 @@ class InteractionVerifier:
             unchecked.append(ai_error)
         findings += unchecked
 
-        if findings:
-            self._write_evidence(evidence, before_state, after_state)  # only steps with findings keep their files
+        # Every step keeps both trees; the screenshots (0.5-1.5 MB each on a phone) only where a
+        # finding points at them, and every SCREENSHOT_EVERY-th step so a triager can spot-check.
+        self._write_evidence(
+            evidence, before_state, after_state,
+            screenshots=bool(findings) or step_index % SCREENSHOT_EVERY == 0,
+        )
         if any(f.severity in (SEVERITY_BLOCKER, SEVERITY_MAJOR) for f in findings):
             status = STATUS_FAIL
         elif unchecked:
@@ -479,7 +485,7 @@ class InteractionVerifier:
     # ------------------------------------------------------------------ evidence
 
     def _evidence_files(self, step_index: int, before_state: ScreenState, after_state: ScreenState) -> List[str]:
-        """Paths, relative to the run directory, of the files `_write_evidence` writes for this step."""
+        """Paths, relative to the run directory, of the files `_write_evidence` writes for a step with a finding."""
         if self.evidence_dir is None or self.run_dir is None:
             return []
         base = ensure_under(self.evidence_dir, self.run_dir).relative_to(self.run_dir.resolve())
@@ -491,12 +497,16 @@ class InteractionVerifier:
             names.append(f"{stem}_tree.json")
         return [str(base / n) for n in names]
 
-    def _write_evidence(self, evidence: List[str], before_state: ScreenState, after_state: ScreenState) -> None:
-        """Write the step's screenshots and trees (`evidence` lists them, run-relative)."""
+    def _write_evidence(
+        self, evidence: List[str], before_state: ScreenState, after_state: ScreenState, *, screenshots: bool = True
+    ) -> None:
+        """Write the step's trees, and its screenshots when `screenshots` (`evidence` lists them, run-relative)."""
         if not evidence or self.run_dir is None:
             return
         for rel in evidence:
             path = ensure_under(self.run_dir / rel, self.run_dir)
+            if path.suffix == ".png" and not screenshots:
+                continue
             path.parent.mkdir(parents=True, exist_ok=True)
             state = before_state if "_before" in path.name else after_state
             if path.suffix == ".png":
