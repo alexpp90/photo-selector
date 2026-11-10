@@ -171,7 +171,8 @@ def analyse_tree(tree: dict[str, Any], locale: str = "en") -> dict[str, Any]:
 
     The same criterion as `analyse`: a control's visible words against the action budget, a
     full-width control as a settings row, and the words on screen. Icons are not identified in
-    the desktop trees, so `labelled_icons` stays 0 there.
+    the desktop trees, so `labelled_icons` is None there (shown as "n/a"): a 0 read as measured,
+    and the 2026-11-09 Lensjet moderator ruled the meter wrong against the screenshots.
     """
     lang = _language(locale)
     b = budgets()
@@ -213,7 +214,7 @@ def analyse_tree(tree: dict[str, Any], locale: str = "en") -> dict[str, Any]:
         "controls_with_text": sum(1 for c in controls if c["texts"]),
         "control_words": sum(c["words"] for c in controls),
         "max_control_words": max((c["words"] for c in controls), default=0),
-        "labelled_icons": 0,
+        "labelled_icons": None,
         "wordy_controls": sum(1 for c in controls if "wordy" in c["flags"]),
         "screen_words": screen_words,
         "text_heavy": heavy,
@@ -221,3 +222,8 @@ def analyse_tree(tree: dict[str, Any], locale: str = "en") -> dict[str, Any]:
         + ([{"id": "(screen)", "texts": [f"{screen_words} words to read"], "flags": ["text-heavy"]}] if heavy else []),
         "verdict": "over" if flagged or heavy else "ok",
     }
+
+
+def icons_cell(value: Any) -> str:
+    """A text-load cell's labelled-icon count; None (desktop trees carry no icons) is "n/a"."""
+    return "n/a" if value is None else str(value)

@@ -11,6 +11,7 @@ from pathlib import Path
 from typing import Any
 
 from ..paths import ensure_under, repo_root
+from .textload import icons_cell
 from .panel import expected_screen_keys, moderator_input, text_load_rows
 
 _UC_HEADING = re.compile(r"^## (UC-\d+) — (.+?)\s*$", re.M)
@@ -687,7 +688,7 @@ def render_html(
                     continue
                 flagged = "".join(f"<li>{_e(' / '.join(f['texts']))} <span class='muted'>{_e(', '.join(f['flags']))}</span></li>" for f in c["flagged"][:6])
                 cls = "bad" if c["verdict"] == "over" and not r["system_screen"] else "good"
-                cells.append(f"<td><span class='pill {cls}'>{c['words']} · {c['labelled_icons']} · {c['wordy_controls']}</span><ul>{flagged}</ul></td>")
+                cells.append(f"<td><span class='pill {cls}'>{c['words']} · {icons_cell(c['labelled_icons'])} · {c['wordy_controls']}</span><ul>{flagged}</ul></td>")
             parts.append(f"<tr><td>{_e(r['screen'])}{' (system)' if r['system_screen'] else ''}</td>{''.join(cells)}</tr>")
         parts.append("</table></div>")
 

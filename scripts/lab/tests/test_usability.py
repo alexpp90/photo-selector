@@ -2369,6 +2369,16 @@ class TestTextLoad(unittest.TestCase):
         tl = analyse(_xml(icon_only, delete))
         self.assertEqual((tl["labelled_icons"], tl["wordy_controls"], tl["verdict"]), (0, 0, "ok"))
 
+    def test_desktop_trees_report_labelled_icons_as_not_measured(self) -> None:
+        # Desktop trees carry no icon facts; a 0 read as measured (2026-11-09 Lensjet panel).
+        from lab.usability.textload import analyse_tree, icons_cell
+
+        tree = {"window": {"w": 1440, "h": 900}, "nodes": [
+            {"id": "trash", "role": "button", "text": "Move to Trash", "bounds": [700, 820, 160, 40]}]}
+        tl = analyse_tree(tree)
+        self.assertIsNone(tl["labelled_icons"])
+        self.assertEqual((icons_cell(tl["labelled_icons"]), icons_cell(3)), ("n/a", "3"))
+
     def test_wordy_button_and_settings_row_budgets(self) -> None:
         from lab.usability.textload import analyse
 
