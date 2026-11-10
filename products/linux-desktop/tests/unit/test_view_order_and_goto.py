@@ -13,7 +13,6 @@ from pathlib import Path
 import pytest
 
 from photo_selector_linux.core.goto import resolve_goto
-from photo_selector_linux.core.models import CandidatePhoto
 from photo_selector_linux.core.scanner import DirectoryScanner
 from photo_selector_linux.core.settings import SettingsStore
 from photo_selector_linux.viewmodels.culling_workspace import CullingWorkspaceViewModel

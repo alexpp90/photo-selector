@@ -307,4 +307,3 @@ class KeyboardRouter:
                 "natural" if self.viewmodel.sort_order == "lowest_sharpness_first"
                 else "lowest_sharpness_first"
             )
-
