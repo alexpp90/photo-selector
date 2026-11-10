@@ -178,7 +178,7 @@ def test_every_message_is_within_its_budget(where, severity, text, request):
         request.applymarker(
             pytest.mark.xfail(
                 strict=True,
-                reason=f"NEW (no ledger id yet): {_element_of(severity)} budget of UI_TEXT.md exceeded by "
+                reason=f"F-BL-053: {_element_of(severity)} budget of UI_TEXT.md exceeded by "
                 f"{text!r} ({', '.join(over)}); {where}",
             )
         )
