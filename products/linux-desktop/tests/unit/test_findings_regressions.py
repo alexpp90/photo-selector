@@ -203,3 +203,69 @@ def test_preferences_titles_show_the_literal_lt_and_ampersand(tmp_path):
         assert "Memory & Prefetch" in texts
     finally:
         dialog.destroy()
+
+
+# ── F-BL sweep of `except Exception: pass`: a failing observer is logged, not swallowed ───────
+
+
+def test_a_failing_settings_observer_is_logged_and_the_others_still_run(tmp_path, caplog):
+    from photo_selector_linux.core.settings import SettingsStore
+
+    store = SettingsStore(path=tmp_path / "s.json", auto_load=False)
+    seen = []
+
+    def broken(_store):
+        raise RuntimeError("observer bug")
+
+    store.connect(broken)
+    store.connect(lambda _store: seen.append(True))
+    with caplog.at_level("ERROR"):
+        store.update(auto_advance=False)
+    assert seen == [True]
+    assert any("observer bug" in (r.exc_text or "") for r in caplog.records)
+
+
+def test_a_failing_view_model_callback_is_logged_and_the_others_still_run(caplog):
+    from photo_selector_linux.viewmodels.culling_workspace import CullingWorkspaceViewModel
+
+    vm = CullingWorkspaceViewModel()
+    got = []
+
+    def broken(*_args):
+        raise RuntimeError("view bug")
+
+    vm.connect("state-changed", broken)
+    vm.connect("state-changed", lambda _vm: got.append("state"))
+    vm.connect("notification", broken)
+    vm.connect("notification", lambda _vm, message: got.append(message))
+    with caplog.at_level("ERROR"):
+        vm._notify_state_changed()
+        vm._notify("hello")
+    assert got == ["state", "hello"]
+    assert sum("view bug" in (r.exc_text or "") for r in caplog.records) == 2
+
+
+def test_a_leftover_trash_info_file_after_a_restore_is_logged(tmp_path, monkeypatch, caplog):
+    manager = FileCullingManager(trash_dir=tmp_path / "Trash")
+    trash_files = tmp_path / "Trash" / "files"
+    trash_info = tmp_path / "Trash" / "info"
+    trash_files.mkdir(parents=True)
+    trash_info.mkdir()
+    photo = tmp_path / "a.jpg"
+    photo.write_bytes(b"x")
+    from photo_selector_linux.core.models import CandidatePhoto
+
+    candidate = CandidatePhoto(primary_path=photo)
+    record = manager.trash_candidate(candidate)
+    real_unlink = Path.unlink
+
+    def refuse_info(self, *args, **kwargs):
+        if self.suffix == ".trashinfo":
+            raise OSError("read-only info")
+        return real_unlink(self, *args, **kwargs)
+
+    monkeypatch.setattr(Path, "unlink", refuse_info)
+    with caplog.at_level("WARNING"):
+        manager.undo_culling(record)
+    assert photo.exists()
+    assert any("could not remove its Trash info file" in r.getMessage() for r in caplog.records)

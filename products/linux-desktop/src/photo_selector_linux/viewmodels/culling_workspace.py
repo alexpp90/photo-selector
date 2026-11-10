@@ -9,6 +9,8 @@ Adheres to:
 
 from __future__ import annotations
 
+import logging
+
 from dataclasses import dataclass
 import os
 from pathlib import Path
@@ -46,6 +48,9 @@ ScoreRunner = Callable[
     [List[CandidatePhoto], Callable[[CandidatePhoto, Optional[QualityScores]], None]],
     Callable[[], None],
 ]
+
+
+logger = logging.getLogger(__name__)
 
 
 def run_inline(job: Job, done: JobDone) -> None:
@@ -330,7 +335,8 @@ class CullingWorkspaceViewModel:
             try:
                 cb(self)
             except Exception:
-                pass
+                # One failing view must not stop the others from refreshing.
+                logger.exception("State callback %r failed", cb)
 
     def _notify(self, message: str, severity: str = "info") -> None:
         """Deliver a message to notification callbacks (signature ``(vm, message)``).
@@ -346,7 +352,8 @@ class CullingWorkspaceViewModel:
             try:
                 cb(self, message)
             except Exception:
-                pass
+                # One failing listener must not swallow the message for the others.
+                logger.exception("Notification callback %r failed", cb)
 
     def _check_stop_sharpness_threshold(self) -> None:
         """Notify when navigating/advancing onto a photo at or above the stop threshold (U-34)."""

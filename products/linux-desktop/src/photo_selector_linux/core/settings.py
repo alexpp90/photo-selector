@@ -68,7 +68,8 @@ class SettingsStore:
             try:
                 cb(self)
             except Exception:
-                pass
+                # An observer that fails must not stop the others or the save, but it is a bug.
+                logger.exception("Settings observer %r failed", cb)
 
     @staticmethod
     def _sanitize_folder_name(value: Any) -> str:

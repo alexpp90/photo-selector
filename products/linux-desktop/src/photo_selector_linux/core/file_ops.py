@@ -463,12 +463,15 @@ class FileCullingManager:
                 try:
                     dst_file.unlink()
                 except Exception:
-                    pass
+                    # best-effort: this cleanup runs while the original error is re-raised below,
+                    # which is what the caller sees; a stuck orphan cannot change the outcome.
+                    logger.warning("Could not remove the partial Trash copy %s", dst_file, exc_info=True)
             if info_file.exists():
                 try:
                     info_file.unlink()
                 except Exception:
-                    pass
+                    # best-effort: as above, the original error is re-raised.
+                    logger.warning("Could not remove the Trash info file %s", info_file, exc_info=True)
             raise
 
         return dst_file, info_file
@@ -550,7 +553,8 @@ class FileCullingManager:
             try:
                 info_file.unlink()
             except Exception:
-                pass
+                # The photo is back; a leftover .trashinfo only shows a ghost entry in the Trash.
+                logger.warning("Restored %s but could not remove its Trash info file", dst, exc_info=True)
 
     def _relink_restored(self, candidate: CandidatePhoto) -> None:
         """Point the candidate at its restored files.

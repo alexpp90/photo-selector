@@ -263,6 +263,7 @@ def heif_decoder_available() -> bool:
 
         return True
     except Exception:
+        # best-effort: pillow_heif is an optional decoder; without it the GdkPixbuf loaders are asked.
         pass
     GdkPixbuf = _gdkpixbuf()
     if GdkPixbuf is None:
@@ -274,6 +275,8 @@ def heif_decoder_available() -> bool:
             if names & {"heif", "heic", "image/heif", "image/heic"}:
                 return True
     except Exception:
+        # best-effort: a loader list that cannot be read answers "no HEIF decoder", which makes
+        # the viewer say "Cannot display" rather than hide the file.
         pass
     return False
 
@@ -286,6 +289,7 @@ def _pil_from_encoded(data: bytes):
         img.load()
         return img
     except Exception:
+        # best-effort: Pillow cannot read this format; the HEIF opener and GdkPixbuf are tried next.
         pass
     try:
         import pillow_heif  # type: ignore[import-not-found]
@@ -295,6 +299,8 @@ def _pil_from_encoded(data: bytes):
         img.load()
         return img
     except Exception:
+        # best-effort: no HEIF support here either; GdkPixbuf is the last resort and a failure
+        # there is reported by the caller as "Cannot display <name>".
         pass
     # GdkPixbuf loaders cover what Pillow lacks on Debian (heif-gdk-pixbuf).
     GdkPixbuf = _gdkpixbuf()
