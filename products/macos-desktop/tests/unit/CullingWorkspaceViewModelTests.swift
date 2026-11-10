@@ -167,9 +167,21 @@ struct CullingWorkspaceViewModelTests {
     @Test("Optimistic Culling: Status updates instantly with toasts (< 1ms)")
     @MainActor
     func testOptimisticCullingStatusAndToasts() {
-        let vm = CullingWorkspaceViewModel()
-        let sample = createSamplePhotos(count: 5)
-        vm.setPhotos(sample)
+        let suiteName = "com.photoselector.tests.toasts.\(UUID().uuidString)"
+        let defaults = UserDefaults(suiteName: suiteName)!
+        defer { defaults.removePersistentDomain(forName: suiteName) }
+        // Own temporary folder with real files, never a fixed /tmp path.
+        let root = FileManager.default.temporaryDirectory
+            .appendingPathComponent("toasts_\(UUID().uuidString)", isDirectory: true)
+        try? FileManager.default.createDirectory(at: root, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: root) }
+        let sample: [PhotoItem] = (0..<5).map { i in
+            let url = root.appendingPathComponent("sample_\(i).jpg")
+            try? Data("x".utf8).write(to: url)
+            return PhotoItem(id: UUID(), url: url, status: .candidate)
+        }
+        let vm = CullingWorkspaceViewModel(userDefaults: defaults)
+        vm.setPhotos(sample, rootURL: root)
         vm.autoAdvance = false // Keep selection in place to verify status
 
         // Move to Selection
