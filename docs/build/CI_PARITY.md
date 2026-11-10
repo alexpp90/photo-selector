@@ -223,8 +223,8 @@ and vice versa. `run_tests.sh` mirrors this locally: unless `--all` or an explic
 flag (`--python`, `--android`, `--macos`, `--linux`) is given, it inspects git status and
 branch diffs against `main` (changes to `.github/`, `run_tests.sh` or the format contract under
 `testdata/formats/` count for every product; `scripts/check_native_alignment.py` counts for
-Android, the legacy `products/desktop/scripts/update_formula.py` for Desktop and Lensjet,
-whose cask job runs it, and `docs/products/linux-desktop/INSTALL.md` for Blitzlens, whose
+Android, the legacy `products/desktop/scripts/update_formula.py` for Desktop (Lensjet's cask
+job no longer runs it), and `docs/products/linux-desktop/INSTALL.md` for Blitzlens, whose
 packaging test reads the APT key fingerprint from it — the same as the workflows' `paths:`).
 If only one product has modifications, gates for untouched
 products are reported as skipped due to path filtering rather than executing redundant suites.
