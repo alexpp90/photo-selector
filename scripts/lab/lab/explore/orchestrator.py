@@ -419,9 +419,11 @@ class ExploratoryOrchestrator:
         if self.product == "linux-desktop":
             return [TargetConfig(self.product, "xvfb", "default", app_id="app.alpatix.Blitzlens", target_type="linux")]
 
-        # Lensjet has no live-app driver: refused before the personal-device check, so this is
-        # the reason a person sees.
-        raise ValueError(MacOSDeviceDriver.REFUSAL)
+        # Lensjet is driven through the app's own control folder, so the run happens on the Mac.
+        # Refused elsewhere before the personal-device check, so this is the reason a person sees.
+        if sys.platform != "darwin":
+            raise ValueError(MacOSDeviceDriver.NOT_ON_A_MAC)
+        return [TargetConfig(self.product, "this-mac", "default", app_id="app.alpatix.lensjet", target_type="macos")]
 
     def _resolve_android(self, app_id: str) -> List[TargetConfig]:
         inventory = self.inventory

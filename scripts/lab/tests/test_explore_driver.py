@@ -27,6 +27,7 @@ from lab.explore.actions import Action  # noqa: E402
 from lab.explore.discovery import SYSTEM_PICKER_MODE  # noqa: E402
 from lab.explore.expectations import read_counter  # noqa: E402
 from lab.explore.drivers import (  # noqa: E402
+    DeviceDriver,
     AndroidDeviceDriver,
     AppCrashedError,
     ActionUnavailableError,
@@ -715,7 +716,7 @@ class TestLinuxCommands(unittest.TestCase):
 
     def test_a_driver_without_a_fixture_to_put_back_says_so(self) -> None:
         with self.assertRaises(ActionUnavailableError):
-            MacOSDeviceDriver().restage_fixture()
+            DeviceDriver.restage_fixture(MockDeviceDriver())
 
     def test_keys_become_x_keysyms(self) -> None:
         self.assertEqual(self.key("M"), "m")
@@ -918,17 +919,6 @@ class TestLinuxCommands(unittest.TestCase):
         self.assertFalse(driver.lab_dir.exists())
         self.assertFalse(driver.out_dir.exists())
         driver.teardown()
-
-
-class TestMacOSRefusal(unittest.TestCase):
-    def test_every_step_refuses_with_the_reason(self) -> None:
-        driver = MacOSDeviceDriver(out_dir=Path("."))
-        for call in (driver.setup, driver.prepare, driver.capture_state, driver.restart_app, driver.read_app_log,
-                     lambda: driver.execute_action(Action("key", params={"key": "m"}))):
-            with self.assertRaises(DriverError) as ctx:
-                call()
-            self.assertEqual(str(ctx.exception), "Lensjet exploration needs a live-app driver; not implemented yet")
-        driver.teardown()  # nothing was started, nothing to refuse
 
 
 class TestMockDriver(unittest.TestCase):

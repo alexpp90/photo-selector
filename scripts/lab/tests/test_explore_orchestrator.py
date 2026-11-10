@@ -779,12 +779,18 @@ class CliTest(LabTmpCase):
         self.assertEqual(code, 2)
         self.assertIn("--with-personal", err)
 
-    def test_lensjet_is_refused_with_the_drivers_message(self) -> None:
+    def test_lensjet_off_the_mac_is_refused_with_the_drivers_message(self) -> None:
         for personal in (False, True):  # the refusal comes before the personal-device check
             inv = Inventory(mac=MacHost(host="mac.local", personal=personal))
-            code, _, err = self.run_cli("--product", "lensjet", "--duration", "1s", "--out", str(self.run_dir), inventory=inv)
+            with patch("lab.explore.orchestrator.sys.platform", "linux"):
+                code, _, err = self.run_cli("--product", "lensjet", "--duration", "1s", "--out", str(self.run_dir), inventory=inv)
             self.assertEqual(code, 2)
-            self.assertIn("needs a live-app driver; not implemented yet", err)
+            self.assertIn("Lensjet exploration runs on the Mac itself", err)
+
+    def test_lensjet_on_the_mac_is_one_local_target_with_the_macos_driver(self) -> None:
+        with patch("lab.explore.orchestrator.sys.platform", "darwin"):
+            (target,) = self.make("macos-desktop").resolve_targets()
+        self.assertEqual((target.target_type, target.driver_type), ("macos", "live"))
 
     def test_bad_arguments_exit_2(self) -> None:
         for argv in (["--product", "phototok", "--duration", "soon"], ["--product", "linux", "--device", "x", "--duration", "1s"], ["--product", "phototok", "--config", "nope", "--driver", "auto"]):
