@@ -73,6 +73,7 @@ Every public document below is a link; `docs/README.md` is the index, and a test
 | `shared/` | [`README.md`](shared/README.md) | What is shared, what is deliberately not, and the admission rule |
 | | [`ANDROID_PLATFORM.md`](shared/ANDROID_PLATFORM.md) | Android baseline both Android products obey (EXIF, storage, stack) |
 | | [`FEATURE_PARITY.md`](shared/FEATURE_PARITY.md) | Feature sync policy, permanent exclusions, cross-product mapping |
+| | [`KEYBOARD.md`](shared/KEYBOARD.md) | The key map of Frameduel, Lensjet and Blitzlens today, and the proposed aligned map |
 | | [`FILE_OPERATIONS.md`](shared/FILE_OPERATIONS.md) | The non-destructive Move / Copy / Trash / Undo contract and its messages |
 | | [`SUPPORTED_FORMATS.md`](shared/SUPPORTED_FORMATS.md) | The supported-format contract read by every product's tests |
 | | [`UI_TEXT.md`](shared/UI_TEXT.md) | Icon-first UI text rules and EN/DE text budgets |
@@ -104,6 +105,7 @@ enough to build, test and contribute.
 | Jackpix visuals | `products/phototok/DESIGN.md` |
 | Something both Android products must obey | `shared/ANDROID_PLATFORM.md` |
 | Whether a feature crosses products | `shared/FEATURE_PARITY.md` |
+| What a key does in each desk app | `shared/KEYBOARD.md` |
 | A CI gate | `build/CI_PARITY.md` **and** `scripts/run_tests.sh` **and** the workflow, in one commit |
 | A release, a version number, a changelog | `build/RELEASING.md` and the product's `CHANGELOG.md` |
 | Signing, secrets, store publishing | `build/ANDROID_SIGNING_SETUP.md` [private], the product's `RELEASE_CHECKLIST.md` |
