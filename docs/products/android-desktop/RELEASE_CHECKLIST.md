@@ -52,7 +52,7 @@ step in Play Console before ticking it.
 
 - [ ] **Create the app:** package `com.photoselectortoolbox`, default language English (United States), *App*, *Free*, category **Photography**.
 - [ ] Verify GitHub Pages serves `privacy-policy.html` and `impressum.html` with HTTP 200 (the four legal URLs and the site root answered 200 on 2026-11-03).
-- [ ] Paste the Privacy Policy URL into **Play Console → Policy and programs → App content → Privacy policy**.
+- [ ] Paste the Privacy Policy URL into **Play Console → Monitor and improve → Policy and programs → App content → Privacy policy** (Start declaration).
 - [ ] Submit the Data Safety form using the table in §2 above.
 - [ ] The first signed `.aab` was uploaded manually to the **Internal testing** track; automated publishing runs with `TOOLBOX_GP_SERVICE_ACCOUNT_JSON`.
 - [ ] **App content → Content rating:** complete the IARC questionnaire (utility app, no user-generated content). **Target audience:** 13+, not directed at children.
@@ -64,7 +64,7 @@ step in Play Console before ticking it.
 > [App testing requirements for new personal developer accounts](https://support.google.com/googleplay/android-developer/answer/14151465)
 > before starting the closed test.
 
-- [ ] **Device targeting:** whether phones are excluded from the Play listing (device catalog) is an open maintainer decision; set it in **Release → Device catalog** once decided.
+- [ ] **Device targeting:** whether phones are excluded from the Play listing (device catalog) is an open maintainer decision; set it in **Monitor and improve → Reach and devices → Device catalog** once decided. The catalog excludes individual device models or applies RAM / system-on-chip rules; it has no form-factor switch for phones, so excluding phones may need a manifest-level filter instead.
 
 ---
 
@@ -73,6 +73,7 @@ step in Play Console before ticking it.
 Store text promises behaviour, so every line must be true for the build being released. Before pasting, fact-check each feature line against the current code and remove anything that is no longer true. The draft was checked against `origin/main` on 2026-11-10.
 
 - **Title rule:** always the name with a descriptive subtitle. Play limit: **30 characters**.
+- **Disclaimer:** the non-affiliation sentence goes at the end of the full description.
 - **Language:** English (United States) only. Add a German (de-DE) listing only once the app has a German interface; a German listing for an English-only app promises what the app does not do.
 
 ### English (United States) — en-US
@@ -106,15 +107,17 @@ Private by design
 • No permissions, no internet access, no account.
 • No ads, no analytics, no tracking. Your photos never leave your device.
 • Free and open source (MIT). English interface.
+
+Frameduel is not affiliated with Samsung, Google or any camera maker; brand names only describe compatibility.
 ```
 
 ---
 
 ## 6. Store Graphics & Screenshots
 
-- [ ] **App icon:** 512 × 512 px, 32-bit PNG with alpha, at most 1024 KB — the lavender Frameduel glyph (`assets/brand/`).
+- [ ] **App icon:** 512 × 512 px, 32-bit PNG with alpha, at most 1024 KB — the lavender Frameduel icon (`assets/brand/frameduel/frameduel-play-512.png`).
 - [ ] **Feature graphic:** 1024 × 500 px, JPEG or 24-bit PNG (no alpha).
-- [ ] **Tablet screenshots (7-inch and 10-inch):** at least 4 per device type, at most 8; 16:9 landscape (the selector) or 9:16 portrait; each side between 1,080 and 7,680 px, JPEG or 24-bit PNG. Render at the reference geometry (1480 × 924 dp, Galaxy Tab S11 Ultra landscape) rather than cropping a capture.
+- [ ] **Tablet screenshots (7-inch and 10-inch):** at least 4 per device type, at most 8; 16:9 landscape (the selector) or 9:16 portrait; each side between 1,080 and 7,680 px, JPEG or 24-bit PNG. Render on a 16:9 canvas (e.g. 1920 × 1080 or 2560 × 1440 px), not at the 16:10 reference geometry (1480 × 924 dp) and not by cropping a capture.
 - [ ] **Chromebook screenshots:** at least 4, same rules as tablets (16:9 landscape).
 - [ ] **Phone screenshots:** only if phones stay in the device catalog (§4); then 2–8, sides between 320 and 3,840 px, the long side at most twice the short side.
 - [ ] Screenshots show the **current** UI of the release build, contain **no people** (sample photos included), and no earlier name or palette.

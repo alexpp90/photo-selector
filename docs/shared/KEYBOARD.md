@@ -106,17 +106,19 @@ Behaviour that is not a key but belongs to the map:
 | `L` | open Learn (Frameduel only; reserved elsewhere) | keep | **retire** "next" after one release | **retire** "next" after one release |
 | `M` / `C` | move / copy to Selection | keep | keep | keep |
 | `Delete` / `Backspace` | delete (Trash on desktop) | keep | keep | keep |
+| held `Delete`, `M`, `C` | act once per press (principle 5) | keep (`ONE_SHOT_KEYS`) | **add** a repeat guard | **add** a repeat guard |
 | Ctrl/⌘ `Z` | undo | keep | keep | keep |
-| `1` `2` `3` | view number (see recorded reason) | keep: maximise previous / current / next | keep: 1-Up / 2-Up / 3-Up | keep: 1-Up / 2-Up / 3-Up |
+| `1` `2` `3` | view number (see recorded reason) | keep: enlarge the left / middle / right frame | keep: 1-Up / 2-Up / 3-Up | keep: 1-Up / 2-Up / 3-Up |
 | `0`–`5`, `X` | rating, reject (where an app rates) | keep, Learn only | reserved | reserved |
 | `Space` | toggle 100 % zoom | reserved | keep | keep |
 | `Esc` | back out one layer | keep | keep | keep |
-| `Tab` | cycle the comparison slot, else focus traversal | focus traversal | keep | focus traversal until slots can cycle |
-| `F` | **full screen** | keep (fullscreen viewer) | **change**: toggle window full screen (as ⌃⌘F); filmstrip moves to `T` | **change**: toggle window full screen; drop the dead filmstrip binding |
-| `T` | **toggle the filmstrip** | **add** (`toggleFilmstrip` exists, no key) | **add**, `F` keeps the filmstrip one release | reserved (no filmstrip) |
+| `Tab` | Lensjet: cycle the comparison slot; elsewhere focus traversal | focus traversal | keep | focus traversal (never captured) |
+| `F` | **full screen** | keep (fullscreen viewer) | **change in the release after next**: this release adds `T` and `F` stays the filmstrip (sheet: "Filmstrip T (F until next release)"); then `F` toggles window full screen (as ⌃⌘F) | **change now** (a no-op today): toggles window full screen, `F11` too; `Esc` leaves full screen after it has left zoom |
+| `T` | **toggle the filmstrip** | **add** (`toggleFilmstrip` exists, no key) | **add**; `F` keeps the filmstrip for one release | reserved (no filmstrip) |
 | `I` | **toggle the info overlay** | **change**: toggles the readout block (`toggleDetails` exists, no key); in fullscreen it keeps pinning the info panel; Learn keeps `L` | keep | keep |
 | `S` | **choose the sort order** (opens the choice) | keep | reserved until Lensjet has a sort UI (open backlog entry), then `S` | **change**: `S` opens the View order choice; `B` stays one release |
-| `P` | **link pan across slots** | reserved | **change**: moves from `S`; `S` keeps linked pan one release | reserved (no sync lock); drop the dead `S` binding |
+| `P` | reserved for Pick (photo-tool convention) | reserved | reserved | reserved |
+| ⌥⌘ `P` | link pan across slots (Lensjet only) | — | **add** as View → Link Pan; `S` keeps linked pan one release | — (no sync lock); drop the dead `S` binding |
 | `G` | **go to photo** | keep | `G` when go-to lands, not ⌘`L` | `G` when go-to lands, not Ctrl+`L` |
 | `?` | shortcut sheet / guide | keep (`/` too) | keep (`/`, ⌘`/` too) | keep (Ctrl+`?` too) |
 | Ctrl/⌘ `O` | open folder | **add** (folder picker) | keep | keep |
@@ -126,9 +128,10 @@ Behaviour that is not a key but belongs to the map:
 | ⌘ `[` / ⌘ `]` | previous / next | — | keep (macOS idiom) | — |
 | ⇧⌘ `A` | auto-advance on/off | — | keep (Lensjet-only setting) | — |
 | Ctrl/⌘ `Q` | quit | — (Android) | system | keep (GNOME idiom) |
+| Ctrl/⌘ `W` | close a secondary window or sheet | — | keep (system) | keep |
 
-Rows in **bold** resolve the conflicts of part 1: `F`, `S`, `L`, `I`. `T` and `P` are new
-homes for the two Lensjet features that lose their letters. Frameduel's Ctrl chords are lower
+Rows in **bold** resolve the conflicts of part 1: `F`, `S`, `L`, `I`. `T` and ⌥⌘`P` are the new
+homes for the two Lensjet features that lose their letters; bare `P` stays free for Pick. Frameduel's Ctrl chords are lower
 priority than the conflicts and can ship separately.
 
 ### Recorded reasons for keys that stay different
@@ -146,18 +149,19 @@ priority than the conflicts and can ship separately.
   which has no system Trash, while the desktop apps move to the system Trash. Same key, same
   intent.
 
-### Open questions for the UX review
+### UX review (2026-11-10, `@shared-ux-agent`)
 
-1. `L`: keep it for Frameduel's Learn and retire `H`/`L` navigation on the Mac and Linux
-   (proposed), or keep `H`/`J`/`K`/`L` navigation everywhere and give Learn another key?
-   `J`/`K` alone are the common "next / previous" pair; `L` is not shown in Lensjet's sheet today.
-2. `F`: full screen (proposed, the stronger convention) or filmstrip? On Lensjet this moves a
-   documented key; on Frameduel the alternative would move a key shown on a button.
-3. `P` for linked pan: free in all three apps, but `P` means "pick" in some photo tools. If a
-   pick flag is ever planned, linked pan needs another letter.
-4. `1`: should Frameduel's `1` maximise the current frame (the analogue of 1-Up) instead of
-   the left one?
-5. Should Blitzlens' `S` open the View order menu (proposed) or keep toggling, as `B` does today?
+1. `L`: Frameduel's Learn keeps `L`; `H`/`L` navigation on the Mac and Linux retires after one
+   release (`L` is not in Lensjet's sheet today). `J`/`K` stay, as documented secondary keys.
+2. `F`: full screen — on Lensjet in two steps (above), on Blitzlens at once.
+3. `P`: not for linked pan. `P` means Pick in Lightroom, Photo Mechanic and Bridge, and Frameduel's
+   Learn already uses Lightroom-style `X` and `0`–`5`; linked pan gets ⌥⌘`P` on Lensjet only.
+4. `1` on Frameduel stays positional (left / middle / right): making it "current" would leave `2`
+   and `3` meaningless and lose the enlarge-previous / next comparison.
+5. Blitzlens `S` opens the View order menu; `B` is an alias for one release, then dropped.
+6. Principle 5 is a row of its own: held `Delete`/`M`/`C` on Lensjet and Blitzlens repeat today
+   (code reading) — the highest-risk item; arrows keep repeating.
+7. Blitzlens does not capture `Tab`: capturing it at the window traps keyboard-only users.
 
 ### Done when (per app, in its own change)
 
