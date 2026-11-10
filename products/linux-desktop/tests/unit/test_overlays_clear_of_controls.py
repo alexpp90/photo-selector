@@ -79,7 +79,10 @@ def _covered(overlay, win):
     assert box is not None
     candidates = [win.action_bar, win.header_bar] + probe.interactive_widgets(win)
     focus = win.get_focus()
-    if focus is not None:
+    # After a folder loads the photo canvas takes the focus (so Space and the arrows work at
+    # once). Overlays float over the photo by design, so the canvas is no control to keep clear;
+    # a focused control inside it is still checked through interactive_widgets.
+    if focus is not None and focus is not win.canvas_view:
         candidates.append(focus)
     found = []
     for widget in candidates:
@@ -153,7 +156,7 @@ def test_the_check_goes_red_when_the_action_bar_sits_inside_the_toast_overlay(tm
 
 @pytest.mark.xfail(
     strict=True,
-    reason="NEW (no ledger id yet): at the smallest window the 1-Up HUD (73 px) is taller than the "
+    reason="F-BL-052: at the smallest window the 1-Up HUD (73 px) is taller than the "
     "canvas (86 px minus its 30 px image slot) and is cut off at the top; ui/canvas.py _attach_hud "
     "overlays it on the image area, ui/info_hud.py anchors it START/END without a height limit",
 )
