@@ -161,39 +161,47 @@ private fun ScanConfigContent(
         Spacer(modifier = Modifier.height(4.dp))
 
         AnalysisCheckbox(
-            label = "Sharpness",
-            description = "Detect focus quality via Laplacian variance",
+            label = ScanSheetText.FOCUS,
             checked = config.sharpness,
             onCheckedChange = { onConfigChange(config.copy(sharpness = it)) },
         )
 
         AnalysisCheckbox(
-            label = "Noise Level",
-            description = "Estimate sensor noise via median absolute deviation",
+            label = ScanSheetText.NOISE,
             checked = config.noise,
             onCheckedChange = { onConfigChange(config.copy(noise = it)) },
         )
 
         AnalysisCheckbox(
-            label = "Highlight Clipping",
-            description = "Detect overexposed (blown-out) areas",
+            label = ScanSheetText.HIGHLIGHTS,
             checked = config.highlightClipping,
             onCheckedChange = { onConfigChange(config.copy(highlightClipping = it)) },
         )
 
         AnalysisCheckbox(
-            label = "Shadow Clipping",
-            description = "Detect underexposed (crushed black) areas",
+            label = ScanSheetText.SHADOWS,
             checked = config.shadowClipping,
             onCheckedChange = { onConfigChange(config.copy(shadowClipping = it)) },
         )
     }
 }
 
+/**
+ * The scan sheet's rows say what each check finds, never how (usability panel 2026-10-24: "Detect
+ * focus quality via Laplacian variance" read as data, not explanation). One short label each, no
+ * method subtitle (`ai/rules/ui-text.md`: do not explain).
+ */
+internal object ScanSheetText {
+    const val FOCUS = "Focus quality"
+    const val NOISE = "Noise level"
+    const val HIGHLIGHTS = "Highlight clipping"
+    const val SHADOWS = "Shadow clipping"
+    val all = listOf(FOCUS, NOISE, HIGHLIGHTS, SHADOWS)
+}
+
 @Composable
 private fun AnalysisCheckbox(
     label: String,
-    description: String,
     checked: Boolean,
     onCheckedChange: (Boolean) -> Unit,
 ) {
@@ -221,17 +229,10 @@ private fun AnalysisCheckbox(
 
         Spacer(modifier = Modifier.width(12.dp))
 
-        Column {
-            Text(
-                text = label,
-                style = MaterialTheme.typography.bodyMedium,
-                color = MaterialTheme.colorScheme.onSurface,
-            )
-            Text(
-                text = description,
-                style = MaterialTheme.typography.labelSmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-            )
-        }
+        Text(
+            text = label,
+            style = MaterialTheme.typography.bodyMedium,
+            color = MaterialTheme.colorScheme.onSurface,
+        )
     }
 }

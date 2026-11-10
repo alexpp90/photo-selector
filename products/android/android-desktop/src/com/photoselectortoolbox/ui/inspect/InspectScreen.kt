@@ -1,3 +1,5 @@
+@file:OptIn(androidx.compose.foundation.layout.ExperimentalLayoutApi::class)
+
 package com.photoselectortoolbox.ui.inspect
 
 import androidx.compose.foundation.Canvas
@@ -5,7 +7,11 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.focusable
+import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.BoxWithConstraints
+import androidx.compose.foundation.layout.FlowRow
+import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
@@ -112,6 +118,8 @@ import com.photoselectortoolbox.ui.selector.RatingFilterSelector
 import com.photoselectortoolbox.ui.components.MinTouchTarget
 import com.photoselectortoolbox.ui.components.TouchTarget
 import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.semantics
 import com.photoselectortoolbox.ui.theme.HintText
 import com.photoselectortoolbox.ui.theme.BrandAccent
 import com.photoselectortoolbox.ui.theme.BrandAccentDeep
@@ -661,12 +669,7 @@ private fun InspectControlBar(
     val isDiagonalsActive = activeGuides.any { it is CompositionGuideType.BaroqueSinister }
     val isHorizonActive = activeGuides.any { it is CompositionGuideType.CrosshairHorizon }
 
-    val spiralOrientationLabel = when (spiralOrientation) {
-        SpiralOrientation.TOP_LEFT -> "TL"
-        SpiralOrientation.TOP_RIGHT -> "TR"
-        SpiralOrientation.BOTTOM_RIGHT -> "BR"
-        SpiralOrientation.BOTTOM_LEFT -> "BL"
-    }
+    val flipSpiralDescription = LearnText.flipSpiralDescription(spiralOrientation)
 
     Surface(
         color = Zinc900,
@@ -675,9 +678,12 @@ private fun InspectControlBar(
             .fillMaxWidth()
             .border(1.dp, Zinc800, RoundedCornerShape(0.dp)),
     ) {
+        // Scrolls rather than squeezes: at font scale 2.0 (and below 1024 dp at 1.0) the seven
+        // toggles did not fit, and each word was set a letter per line ("Hori/zon", F-FD-051).
         Row(
             modifier = Modifier
                 .fillMaxWidth()
+                .horizontalScroll(rememberScrollState())
                 .padding(horizontal = 8.dp, vertical = 6.dp),
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.spacedBy(6.dp),
@@ -700,11 +706,13 @@ private fun InspectControlBar(
                 text = "Guides:",
                 style = MaterialTheme.typography.labelSmall,
                 color = HintText,
+                maxLines = 1,
+                softWrap = false,
                 modifier = Modifier.padding(end = 2.dp),
             )
 
             GuideToggleButton(
-                label = "Thirds",
+                label = LearnText.GUIDE_THIRDS,
                 icon = Icons.Default.Grid3x3,
                 active = isThirdsActive,
                 onClick = onToggleThirds,
@@ -712,7 +720,7 @@ private fun InspectControlBar(
             )
 
             GuideToggleButton(
-                label = "Phi",
+                label = LearnText.GUIDE_GOLDEN_RATIO,
                 icon = Icons.Default.Grid4x4,
                 active = isGoldenActive,
                 onClick = onToggleGoldenRatio,
@@ -720,31 +728,37 @@ private fun InspectControlBar(
             )
 
             GuideToggleButton(
-                label = "Spiral",
+                label = LearnText.GUIDE_SPIRAL,
                 icon = Icons.AutoMirrored.Filled.RotateRight,
                 active = isSpiralActive,
                 onClick = onToggleSpiral,
                 testTag = "toggle_spiral",
             )
 
-            TouchTarget(onClick = onFlipSpiral, testTag = "toggle_spiral_flip") {
+            TouchTarget(
+                onClick = onFlipSpiral,
+                testTag = "toggle_spiral_flip",
+                modifier = Modifier.semantics { contentDescription = flipSpiralDescription },
+            ) {
                 Surface(
                     shape = RoundedCornerShape(6.dp),
                     color = if (isSpiralActive) Zinc800 else Zinc900,
                     border = androidx.compose.foundation.BorderStroke(1.dp, if (isSpiralActive) BrandAccentDeep else Zinc700),
                 ) {
                     Text(
-                        text = "Flip ($spiralOrientationLabel)",
+                        text = LearnText.GUIDE_FLIP_SPIRAL,
                         style = MaterialTheme.typography.labelSmall,
                         color = if (isSpiralActive) Color.White else Zinc400,
                         fontWeight = FontWeight.Medium,
+                        maxLines = 1,
+                        softWrap = false,
                         modifier = Modifier.padding(horizontal = 8.dp, vertical = 6.dp),
                     )
                 }
             }
 
             GuideToggleButton(
-                label = "Diagonals",
+                label = LearnText.GUIDE_DIAGONALS,
                 icon = Icons.Default.Timeline,
                 active = isDiagonalsActive,
                 onClick = onToggleDiagonals,
@@ -752,14 +766,12 @@ private fun InspectControlBar(
             )
 
             GuideToggleButton(
-                label = "Horizon",
+                label = LearnText.GUIDE_HORIZON,
                 icon = Icons.Default.Tune,
                 active = isHorizonActive,
                 onClick = onToggleHorizon,
                 testTag = "toggle_horizon",
             )
-
-            Spacer(modifier = Modifier.weight(1f))
         }
     }
 }
@@ -799,6 +811,8 @@ private fun GuideToggleButton(
                 style = MaterialTheme.typography.labelSmall,
                 color = if (active) Color.White else Zinc400,
                 fontWeight = if (active) FontWeight.SemiBold else FontWeight.Normal,
+                maxLines = 1,
+                softWrap = false,
             )
         }
     }
@@ -812,18 +826,25 @@ private fun LearnTabSelector(
     selectedTab: LearnTab,
     onSelectTab: (LearnTab) -> Unit,
 ) {
+    // Four equal tabs where their words fit; where they do not (font scale 2.0, a narrow
+    // window) each tab is as wide as its word and the row scrolls, so a tab label never wraps
+    // ("Lesson/s", F-FD-051).
+    BoxWithConstraints(modifier = Modifier.fillMaxWidth()) {
+    val gap = 6.dp
+    val quarter = (maxWidth - gap * (LearnTab.entries.size - 1)) / LearnTab.entries.size
     Row(
         modifier = Modifier
             .fillMaxWidth()
+            .horizontalScroll(rememberScrollState())
             .testTag("learn_tab_bar"),
-        horizontalArrangement = Arrangement.spacedBy(6.dp),
+        horizontalArrangement = Arrangement.spacedBy(gap),
     ) {
         LearnTab.entries.forEach { tab ->
             val active = tab == selectedTab
             TouchTarget(
                 onClick = { onSelectTab(tab) },
                 testTag = tab.tag,
-                modifier = Modifier.weight(1f),
+                modifier = Modifier.widthIn(min = quarter),
                 role = Role.Tab,
                 shape = RoundedCornerShape(8.dp),
             ) {
@@ -834,7 +855,7 @@ private fun LearnTabSelector(
                     modifier = Modifier.fillMaxWidth(),
                 ) {
                     Box(
-                        modifier = Modifier.padding(vertical = 8.dp),
+                        modifier = Modifier.padding(horizontal = 10.dp, vertical = 8.dp),
                         contentAlignment = Alignment.Center,
                     ) {
                         Text(
@@ -842,11 +863,14 @@ private fun LearnTabSelector(
                             style = MaterialTheme.typography.labelSmall,
                             color = if (active) Color.White else Zinc400,
                             fontWeight = if (active) FontWeight.Bold else FontWeight.Medium,
+                            maxLines = 1,
+                            softWrap = false,
                         )
                     }
                 }
             }
         }
+    }
     }
 }
 
@@ -1516,25 +1540,29 @@ private fun PhotoCoachCard(
             }
 
             val risk = coachReport.cameraShakeRisk
-            val riskPct = (risk * 100).toInt()
-            val (riskLabel, riskColor) = when {
-                risk >= 0.7f -> "High Blur Risk ($riskPct%)" to ScoreBad
-                risk >= 0.3f -> "Moderate Blur Risk ($riskPct%)" to ScoreWarn
-                else -> "Low Blur Risk ($riskPct%)" to ScoreGood
+            val riskLabel = LearnText.blurRisk(risk)
+            val riskColor = when {
+                risk >= 0.7f -> ScoreBad
+                risk >= 0.3f -> ScoreWarn
+                else -> ScoreGood
             }
 
-            Row(
+            // A flow, not a SpaceBetween row: at font scale 2.0 the two unweighted texts
+            // squeezed each other and the badge broke mid-word ("Lo/w", F-FD-081). Here the
+            // badge drops below the label when both do not fit, and wraps only between words.
+            FlowRow(
                 modifier = Modifier
                     .fillMaxWidth()
                     .testTag("camera_shake_badge")
                     .testTag("camera_shake_risk"),
-                verticalAlignment = Alignment.CenterVertically,
                 horizontalArrangement = Arrangement.SpaceBetween,
+                verticalArrangement = Arrangement.spacedBy(4.dp),
             ) {
                 Text(
-                    text = "Hand-Holding Guideline:",
+                    text = "Hand-holding",
                     style = MaterialTheme.typography.bodySmall,
                     color = Zinc400,
+                    modifier = Modifier.align(Alignment.CenterVertically),
                 )
                 Surface(
                     shape = RoundedCornerShape(4.dp),
@@ -1551,28 +1579,23 @@ private fun PhotoCoachCard(
                 }
             }
 
-            val safeSpeed = coachReport.safeShutterSpeed
-            val actualSpeed = currentImage.exifData?.shutterSpeed
-            val safeSpeedFormatted = safeSpeed?.let { ExifFormatter.shutterSpeed(it) } ?: "—"
-            val actualSpeedFormatted = actualSpeed?.let { ExifFormatter.shutterSpeed(it) } ?: "—"
-
-            Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .testTag("shutter_speed_comparison"),
-                verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.SpaceBetween,
-            ) {
+            // One sentence with both speeds in it, not "1/f_eff Guideline: 1/50s (Actual: 1/60s)".
+            LearnText.shutterLine(coachReport.safeShutterSpeed, currentImage.exifData?.shutterSpeed)?.let { line ->
                 Text(
-                    text = "1/f_eff Guideline:",
-                    style = MaterialTheme.typography.bodySmall,
-                    color = Zinc400,
-                )
-                Text(
-                    text = "$safeSpeedFormatted (Actual: $actualSpeedFormatted)",
+                    text = line,
                     style = MaterialTheme.typography.bodySmall,
                     fontWeight = FontWeight.Medium,
                     color = Color.White,
+                    modifier = Modifier.fillMaxWidth().testTag("shutter_speed_comparison"),
+                )
+            }
+
+            LearnText.noiseRemark(currentImage.scanResult?.noiseLevel, currentImage.exifData?.iso)?.let { remark ->
+                Text(
+                    text = remark,
+                    style = MaterialTheme.typography.bodySmall,
+                    color = ScoreWarn,
+                    modifier = Modifier.fillMaxWidth().testTag("coach_noise_remark"),
                 )
             }
 
@@ -1813,21 +1836,25 @@ private fun InspectRatingCard(
                 .padding(14.dp),
             verticalArrangement = Arrangement.spacedBy(8.dp),
         ) {
-            Row(
+            // A flow, so at font scale 2.0 the caption moves under the title instead of
+            // breaking mid-word ("Hotkey/s", F-FD-081).
+            FlowRow(
                 modifier = Modifier.fillMaxWidth(),
-                verticalAlignment = Alignment.CenterVertically,
                 horizontalArrangement = Arrangement.SpaceBetween,
+                verticalArrangement = Arrangement.spacedBy(2.dp),
             ) {
                 Text(
                     text = "Rating & Evaluation",
                     style = MaterialTheme.typography.titleSmall,
                     fontWeight = FontWeight.Bold,
                     color = Color.White,
+                    modifier = Modifier.align(Alignment.CenterVertically),
                 )
                 Text(
                     text = "Hotkeys 0–5, X",
                     style = MaterialTheme.typography.labelSmall,
                     color = HintText,
+                    modifier = Modifier.align(Alignment.CenterVertically),
                 )
             }
 
