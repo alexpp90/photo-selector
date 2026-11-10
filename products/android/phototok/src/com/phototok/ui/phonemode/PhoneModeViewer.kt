@@ -1201,35 +1201,58 @@ private fun ImagePage(
         // card (large font scale) shrinks instead of running under the counter ─────────
         val exifForRow = if (showExifOverlay) image.exifData else null
         if (bottomHudAlpha > 0f && (exifForRow != null || showPageCounter)) {
-            Row(
+            ViewerBottomHudRow(
+                exif = exifForRow,
+                fileName = image.fileName,
+                showPageCounter = showPageCounter,
+                pageIndex = pageIndex,
+                totalCount = totalCount,
+                isDiscovering = isDiscovering,
                 modifier = Modifier
                     .align(Alignment.BottomCenter)
-                    .fillMaxWidth()
                     .navigationBarsPadding()
-                    .padding(start = 16.dp, end = 16.dp, bottom = 100.dp)
+                    .padding(bottom = 100.dp)
                     .graphicsLayer { alpha = bottomHudAlpha },
-                horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = Alignment.Bottom,
-            ) {
-                if (exifForRow != null) {
-                    ExifOverlay(
-                        exif = exifForRow,
-                        fileName = image.fileName,
-                        modifier = Modifier
-                            .weight(1f, fill = false)
-                            .padding(end = 8.dp),
-                    )
-                } else {
-                    Spacer(modifier = Modifier.width(0.dp))
-                }
-                if (showPageCounter) {
-                    PageCounterPill(
-                        pageIndex = pageIndex,
-                        total = totalCount,
-                        isDiscovering = isDiscovering,
-                    )
-                }
-            }
+            )
+        }
+    }
+}
+
+/** The portrait bottom HUD: the EXIF card at the start and the page counter at the end. */
+@Composable
+internal fun ViewerBottomHudRow(
+    exif: ExifData?,
+    fileName: String,
+    showPageCounter: Boolean,
+    pageIndex: Int,
+    totalCount: Int,
+    isDiscovering: Boolean,
+    modifier: Modifier = Modifier,
+) {
+    Row(
+        modifier = modifier
+            .fillMaxWidth()
+            .padding(horizontal = 16.dp),
+        horizontalArrangement = Arrangement.SpaceBetween,
+        verticalAlignment = Alignment.Bottom,
+    ) {
+        if (exif != null) {
+            ExifOverlay(
+                exif = exif,
+                fileName = fileName,
+                modifier = Modifier
+                    .weight(1f, fill = false)
+                    .padding(end = 8.dp),
+            )
+        } else {
+            Spacer(modifier = Modifier.width(0.dp))
+        }
+        if (showPageCounter) {
+            PageCounterPill(
+                pageIndex = pageIndex,
+                total = totalCount,
+                isDiscovering = isDiscovering,
+            )
         }
     }
 }
@@ -1357,7 +1380,9 @@ internal fun ExifOverlay(
                         text = exif.lens,
                         style = MaterialTheme.typography.labelMedium,
                         color = colors.onSurfaceVariant.copy(alpha = 0.7f),
-                        maxLines = 1,
+                        // Wraps at large font scales instead of losing the aperture (lab
+                        // 2026-11-10, "PSTLab 35mm F1…" at 2.0), like the landscape panel.
+                        maxLines = 2,
                         overflow = TextOverflow.Ellipsis,
                     )
                 }

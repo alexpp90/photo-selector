@@ -15,6 +15,7 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.BoxScope
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.ColumnScope
 import androidx.compose.foundation.layout.Row
@@ -117,6 +118,7 @@ import com.phototok.R
 import com.phototok.data.model.ImageItem
 import com.phototok.domain.FileTypeFilter
 import com.phototok.domain.PhotoFolders
+import com.phototok.domain.UiText
 import com.phototok.ui.components.NameTooltip
 import com.phototok.ui.components.ViewerBottomBar
 import com.phototok.ui.resolve
@@ -177,8 +179,6 @@ fun PhoneModeScreen(
 
     var showSettingsSheet by remember { mutableStateOf(false) }
     var showClearAllCardConfirm by remember { mutableStateOf(false) }
-    val sheetSnackbarHostState = remember { SnackbarHostState() }
-    val sheetScope = rememberCoroutineScope()
 
     // Swipe left: the ViewModel decides between copy/move, a delete and its confirmation.
     val performDeleteSwipe: () -> Unit = viewModel::onSwipeLeft
@@ -358,46 +358,22 @@ fun PhoneModeScreen(
     }
 
     // Settings bottom sheet
-    if (showSettingsSheet) {
-        SettingsSheet(onDismissRequest = { showSettingsSheet = false }) {
-            // The sheet is its own window and covers the screen's snackbar host, so the messages
-            // Settings raises (Pro mode on/off) are shown by a host inside the sheet.
-            Box(
-                modifier = Modifier
-                    .fillMaxSize()
-                    // The sheet is its own window: export its test tags to the lab flows as well.
-                    .semantics { testTagsAsResourceId = BuildConfig.EXPOSE_TEST_TAGS },
-            ) {
-                SettingsScreen(
-                    sourceKind = uiState.sourceKind.takeIf { uiState.sourceFolderUri != null },
-                    onChangeSourceFolder = {
-                        showSettingsSheet = false
-                        folderPickerLauncher.launch(null)
-                    },
-                    onReloadFolder = {
-                        showSettingsSheet = false
-                        viewModel.reloadSourceFolder()
-                    },
-                    onFeedback = { message ->
-                        sheetScope.launch {
-                            sheetSnackbarHostState.currentSnackbarData?.dismiss()
-                            sheetSnackbarHostState.showSnackbar(
-                                message = message.resolve(context),
-                                duration = SnackbarDuration.Short,
-                            )
-                        }
-                    },
-                )
-                SnackbarHost(
-                    hostState = sheetSnackbarHostState,
-                    modifier = Modifier
-                        .align(Alignment.BottomCenter)
-                        .navigationBarsPadding()
-                        .padding(bottom = 16.dp)
-                        .testTag("settings_snackbar_host"),
-                )
-            }
-        }
+    SettingsSheetHost(
+        visible = showSettingsSheet,
+        onDismissRequest = { showSettingsSheet = false },
+    ) { showMessage ->
+        SettingsScreen(
+            sourceKind = uiState.sourceKind.takeIf { uiState.sourceFolderUri != null },
+            onChangeSourceFolder = {
+                showSettingsSheet = false
+                folderPickerLauncher.launch(null)
+            },
+            onReloadFolder = {
+                showSettingsSheet = false
+                viewModel.reloadSourceFolder()
+            },
+            onFeedback = showMessage,
+        )
     }
 
     val configuration = LocalConfiguration.current
@@ -711,6 +687,51 @@ fun PhoneModeScreen(
  * (device lab 2026-11-05). Never `size(48.dp)`/`widthIn(min = 48.dp)` here: the Surface passes
  * min constraints on and stretches the pill.
  */
+/**
+ * The Settings sheet with the snackbar host for the messages Settings raises (Pro mode on/off).
+ * The sheet is its own window and covers the screen's snackbar host, so the messages need a host
+ * inside it. The host's state and scope belong to the sheet: a message never outlives its sheet.
+ * Held by the screen, a message shown as the sheet closed waited there, because a snackbar's
+ * timeout only runs while its host is on screen, and came back when Settings was opened again
+ * (usability lab 2026-11-10: "Camera info on" minutes after Pro mode was switched on).
+ */
+@OptIn(ExperimentalMaterial3Api::class, ExperimentalComposeUiApi::class)
+@Composable
+internal fun SettingsSheetHost(
+    visible: Boolean,
+    onDismissRequest: () -> Unit,
+    content: @Composable BoxScope.(showMessage: (UiText) -> Unit) -> Unit,
+) {
+    if (!visible) return
+    SettingsSheet(onDismissRequest = onDismissRequest) {
+        val hostState = remember { SnackbarHostState() }
+        val scope = rememberCoroutineScope()
+        val context = LocalContext.current
+        val showMessage: (UiText) -> Unit = { message ->
+            scope.launch {
+                hostState.currentSnackbarData?.dismiss()
+                hostState.showSnackbar(message = message.resolve(context), duration = SnackbarDuration.Short)
+            }
+        }
+        Box(
+            modifier = Modifier
+                .fillMaxSize()
+                // The sheet is its own window: export its test tags to the lab flows as well.
+                .semantics { testTagsAsResourceId = BuildConfig.EXPOSE_TEST_TAGS },
+        ) {
+            content(showMessage)
+            SnackbarHost(
+                hostState = hostState,
+                modifier = Modifier
+                    .align(Alignment.BottomCenter)
+                    .navigationBarsPadding()
+                    .padding(bottom = 16.dp)
+                    .testTag("settings_snackbar_host"),
+            )
+        }
+    }
+}
+
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 internal fun SettingsSheet(
