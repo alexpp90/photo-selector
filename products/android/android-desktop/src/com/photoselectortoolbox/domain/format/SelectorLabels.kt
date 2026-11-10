@@ -69,9 +69,14 @@ object SelectorLabels {
     /** The sidebar line while Group Similar Series is rebuilding the bursts. */
     const val GROUPING = "Grouping"
 
-    /** Snackbar text after a delete, pluralised. */
-    fun deletedMessage(count: Int): String =
-        if (count == 1) "1 image deleted" else "$count images deleted"
+    /**
+     * Snackbar text after a delete. It counts **files**, and only when a frame took more than
+     * one with it (a RAW+JPEG pair, a sidecar): the position counter counts photos and falls by
+     * one per deleted frame, so "1 image deleted" beside a count that fell by one, while two
+     * files went, was read as the count falling by two (usability panel 2026-10-24).
+     */
+    fun deletedMessage(fileCount: Int): String =
+        if (fileCount <= 1) "Deleted" else "Deleted $fileCount files"
 
     /**
      * Body text for the one-time per-folder delete confirmation dialog.
@@ -174,6 +179,23 @@ object SelectorLabels {
 
     /** The sort chip, spoken: the order now in force, then what the chip does. */
     fun sortChipDescription(orderLabel: String): String = "Sort order: $orderLabel. Change"
+
+    /**
+     * Why Blurriest first is greyed out until a scan has run, on the menu item itself
+     * (usability panel 2026-10-24: the item was disabled with no reason given).
+     */
+    const val SORT_NEEDS_SCAN = "Scan first"
+
+    /**
+     * The view toggles' one-word labels under their glyphs, in the order the control block draws
+     * them: photo details, filmstrip, the values on Previous and Next, the guide. One word each,
+     * none naming another's thing (`docs/products/android-desktop/DESIGN.md` § Control block).
+     */
+    const val TOGGLE_INFO = "Info"
+    const val TOGGLE_STRIP = "Strip"
+    const val TOGGLE_OVERLAY = "Overlay"
+    const val TOGGLE_KEYS = "Keys"
+    val VIEW_TOGGLE_LABELS = listOf(TOGGLE_INFO, TOGGLE_STRIP, TOGGLE_OVERLAY, TOGGLE_KEYS)
 
     /** The overflow item that opens the dialog; `G` is its key hint. */
     const val GO_TO_PHOTO_MENU = "Go to photo…"

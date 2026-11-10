@@ -27,7 +27,11 @@ import androidx.compose.ui.semantics.semantics
 import com.photoselectortoolbox.ui.components.ScoreChipRow
 import com.photoselectortoolbox.ui.theme.StudioCanvas
 import com.photoselectortoolbox.ui.theme.Zinc50
+import androidx.compose.animation.core.animateDpAsState
+import androidx.compose.animation.core.tween
 import androidx.compose.runtime.Composable
+import androidx.compose.ui.layout.boundsInRoot
+import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.testTag
@@ -130,6 +134,11 @@ fun ThreeUpSelectorLayout(
      * (measured), while 72 dp of width there is free.
      */
     filmstrip: @Composable () -> Unit = {},
+    /**
+     * The confirmation card's measured top in root pixels while one is shown: the first-run
+     * pill then sits [PillAboveSnackbarGap] above it instead of under it.
+     */
+    snackbarTopInRoot: Float? = null,
 ) {
     val bestSets = bestMetricSets(
         listOf(previous?.scanResult, current?.scanResult, next?.scanResult)
@@ -169,7 +178,13 @@ fun ThreeUpSelectorLayout(
             return@Row
         }
 
-        BoxWithConstraints(modifier = Modifier.weight(1f).fillMaxSize()) {
+        var regionBottomInRoot by remember { mutableFloatStateOf(Float.NaN) }
+        BoxWithConstraints(
+            modifier = Modifier
+                .weight(1f)
+                .fillMaxSize()
+                .onGloballyPositioned { regionBottomInRoot = it.boundsInRoot().bottom },
+        ) {
             val activeImage = current ?: previous ?: next
             val aspect = activeImage?.aspectRatio?.let { raw ->
                 if (raw < 1f) 1f / raw else raw
@@ -353,13 +368,22 @@ fun ThreeUpSelectorLayout(
             }
 
             // The only overlay allowed near a photograph besides the values,
-            // and only once ever.
+            // and only once ever. While a confirmation card is up, the pill stacks above the
+            // card's measured top rather than sitting under it (it read "Iap either side").
+            val density = LocalDensity.current
+            val baseInset = FrameGeometry.firstRunPillBottomInset(maxHeight, frameSize.height)
+            val aboveSnackbar = snackbarTopInRoot
+                ?.takeIf { !regionBottomInRoot.isNaN() }
+                ?.let { top -> with(density) { (regionBottomInRoot - top).toDp() } + PillAboveSnackbarGap }
+            val pillInset by animateDpAsState(
+                targetValue = maxOf(baseInset, aboveSnackbar ?: 0.dp),
+                animationSpec = tween(150),
+                label = "firstRunPillInset",
+            )
             FirstRunNavigationHint(
                 visible = showFirstRunHint,
                 onDismiss = onDismissFirstRunHint,
-                modifier = Modifier.align(Alignment.BottomCenter).padding(
-                    bottom = FrameGeometry.firstRunPillBottomInset(maxHeight, frameSize.height),
-                ),
+                modifier = Modifier.align(Alignment.BottomCenter).padding(bottom = pillInset),
             )
         }
     }
@@ -736,3 +760,6 @@ private fun MaximisedInfoToggle(
         )
     }
 }
+
+/** Space between the confirmation card's top and the first-run pill stacked above it. */
+internal val PillAboveSnackbarGap: Dp = 8.dp

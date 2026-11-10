@@ -298,4 +298,44 @@ class ControlBlockFitTest {
         val snug = FrameGeometry.firstRunPillBottomInset(regionHeight = 800.dp, frameHeight = 396.dp)
         assertTrue(tall > snug)
     }
+
+    // ── Measured content (F-FD-084) ─────────────────────────────────────
+
+    private fun measure(width: Int, height: Int, word: Int = 40, wordH: Int = 16, key: Int = 24, keyH: Int = 14) =
+        ControlBlockFit.ButtonMeasure(
+            width = width, height = height, icon = 20, gap = 4,
+            wordWidth = word, wordHeight = wordH, keyWidth = key, keyHeight = keyH,
+        )
+
+    @Test
+    @Requirement("REQ-AND-LAYOUT.07")
+    fun `with room the button draws what its cell width picked`() {
+        val inline = ControlBlockFit.buttonContent(ControlBlockFit.ButtonStyle.INLINE, measure(200, 40))
+        assertEquals(ControlBlockFit.ButtonContent(icon = true, key = ControlBlockFit.KeyPlacement.BESIDE), inline)
+        val full = ControlBlockFit.buttonContent(null, measure(140, 68))
+        assertEquals(ControlBlockFit.ButtonContent(icon = true, key = ControlBlockFit.KeyPlacement.BESIDE), full)
+    }
+
+    @Test
+    @Requirement("REQ-AND-LAYOUT.07")
+    fun `the glyph goes before the key cap, and the key cap only when nothing else fits`() {
+        // At font scale 2.0 in a 48 dp button: word over key cap is too tall, side by side fits.
+        val big = measure(width = 120, height = 40, word = 70, wordH = 24, key = 40, keyH = 22)
+        assertEquals(
+            ControlBlockFit.ButtonContent(icon = false, key = ControlBlockFit.KeyPlacement.BESIDE),
+            ControlBlockFit.buttonContent(ControlBlockFit.ButtonStyle.STACKED_WITH_ICON, big),
+        )
+        // Narrower still: the word alone, never cut.
+        val narrow = big.copy(width = 80)
+        assertEquals(
+            ControlBlockFit.ButtonContent(icon = false, key = ControlBlockFit.KeyPlacement.NONE),
+            ControlBlockFit.buttonContent(ControlBlockFit.ButtonStyle.STACKED, narrow),
+        )
+        // FULL at 2.0: the glyph on top no longer fits with the word and key cap; they stay.
+        val full = measure(width = 120, height = 50, word = 70, wordH = 30, key = 40, keyH = 24)
+        assertEquals(
+            ControlBlockFit.ButtonContent(icon = false, key = ControlBlockFit.KeyPlacement.BESIDE),
+            ControlBlockFit.buttonContent(null, full),
+        )
+    }
 }

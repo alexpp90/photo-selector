@@ -131,6 +131,20 @@ class SelectorTourTest {
     }
 
     @Test
+    fun `the controls callout claims nothing a narrow chip does not show and names G and S`() {
+        val controls = SelectorTour.callouts(FilingAction.COPY, detailsVisible = true, filmstripVisible = true)
+            .single { it.region == TourRegion.CONTROLS }
+        // Below 160 dp per cell the Go and Sort chips drop their key caps, and at large font scales
+        // the action buttons may too: the body must not say every control carries its key.
+        assertEquals("Keys below", controls.body)
+        assertFalse(controls.body, controls.body.contains("carries"))
+        val words = Regex("\\p{L}+").findAll(controls.body).count()
+        assertTrue("guide_ budget is 2 words, 14 chars: \"${controls.body}\"", words <= 2 && controls.body.length <= 14)
+        val inputs = controls.rows.map { it.input }
+        assertTrue(inputs.toString(), "G" in inputs && "S" in inputs)
+    }
+
+    @Test
     fun `the filing keys are worded from the configured action`() {
         everyConfiguration.forEach { action ->
             val row = SelectorTour

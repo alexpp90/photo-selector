@@ -55,9 +55,10 @@ class SelectorLabelsTest {
     }
 
     @Test
-    fun `delete message is pluralised`() {
-        assertEquals("1 image deleted", SelectorLabels.deletedMessage(1))
-        assertEquals("4 images deleted", SelectorLabels.deletedMessage(4))
+    fun `the delete message counts files only when a frame took several`() {
+        assertEquals("Deleted", SelectorLabels.deletedMessage(1))
+        assertEquals("Deleted 2 files", SelectorLabels.deletedMessage(2))
+        assertEquals("Deleted 3 files", SelectorLabels.deletedMessage(3))
     }
 
     @Test

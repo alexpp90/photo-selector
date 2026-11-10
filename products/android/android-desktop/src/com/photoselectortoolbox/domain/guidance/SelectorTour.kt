@@ -108,6 +108,9 @@ data class LegendRow(
  */
 object SelectorTour {
 
+    /** The controls callout's body (`guide_` budget: 2 words, 14 characters). */
+    const val CONTROLS_BODY = "Keys below"
+
     /** Shortcuts the user can be shown by pointing at the control they drive. */
     private val SHORTCUTS_WITH_A_CONTROL = setOf(
         SelectorShortcut.FILE_PRIMARY,
@@ -188,8 +191,11 @@ object SelectorTour {
             TourCallout(
                 region = TourRegion.CONTROLS,
                 title = "Acts on the centre frame",
-                body = "Every one of these carries its word and its key. " +
-                    "Nothing here is a gesture.",
+                // True at every width: narrow chips drop their key caps (the Go and Sort chips
+                // below 160 dp per cell, the action buttons at large font scales), so the body no
+                // longer claims every control carries its key; the rows below name each key, G
+                // and S included.
+                body = CONTROLS_BODY,
                 rows = SelectorGestures.selectorShortcutRows(
                     filingAction,
                     SHORTCUTS_WITH_A_CONTROL,

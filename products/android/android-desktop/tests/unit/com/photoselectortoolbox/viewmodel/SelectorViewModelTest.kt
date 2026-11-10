@@ -207,6 +207,10 @@ class SelectorViewModelTest {
             appScope = appScope,
             context = ApplicationProvider.getApplicationContext(),
         )
+        // IO hops on the test dispatcher: on Dispatchers.IO a hop resumes on Main from another
+        // thread and can race `resetMain` in the teardown ("Dispatchers.Main is used concurrently
+        // with setting it", SelectorSortJumpViewModelTest, CI run 41781784118).
+        viewModel.ioDispatcher = testDispatcher
         viewModels.add(viewModel)
         return viewModel
     }
@@ -688,10 +692,54 @@ class SelectorViewModelTest {
 
         val state = viewModel.uiState.value
         assertEquals(listOf("b", "c"), state.images.map { it.fileName })
-        assertEquals("1 image deleted", state.snackbarMessage)
+        assertEquals("Deleted", state.snackbarMessage)
         assertNotNull(state.pendingDeletion)
         assertTrue(state.undoOperation is UndoableOperation.RevertPendingDelete)
         coVerify(exactly = 0) { imageRepository.deleteImage(any(), any()) }
+    }
+
+    /**
+     * Usability panel 2026-10-24: after one delete the counter was read as falling by two
+     * ("1 / 14" to "1 / 12") while the card said "1 image deleted". The counter is
+     * `images.size`, one per photo; a RAW+JPEG+XMP frame is one photo and three files, so the
+     * card now counts the files and the counter falls by exactly one, in either order.
+     */
+    @Test
+    fun `deleting a frame with companions lowers the count by one and names the files`() = runTest {
+        val stacked = image("b.jpg").copy(
+            companions = listOf(
+                CompanionFile(uri = "content://test/folder/b.arw", fileName = "b.arw"),
+                CompanionFile(uri = "content://test/folder/b.xmp", fileName = "b.xmp"),
+            ),
+        )
+        val viewModel = loadFolder(image("a.jpg"), stacked, image("c.jpg"), image("d.jpg"))
+        val before = viewModel.uiState.value.images.size
+        viewModel.navigateToImage(viewModel.uiState.value.images.indexOfFirst { it.fileName == "b.jpg" })
+
+        viewModel.deleteCurrentImage()
+
+        val state = viewModel.uiState.value
+        assertEquals(before - 1, state.images.size)
+        assertEquals("Deleted 3 files", state.snackbarMessage)
+        assertEquals(3, state.pendingDeletion?.uris?.size)
+
+        // A plain frame: one file, one photo, and the card does not count.
+        viewModel.deleteCurrentImage()
+        assertEquals(before - 2, viewModel.uiState.value.images.size)
+        assertEquals("Deleted", viewModel.uiState.value.snackbarMessage)
+    }
+
+    @Test
+    fun `in blurriest-first a delete lowers the count by exactly one`() = runTest {
+        val viewModel = loadFolder(image("a"), image("b"), image("c"), image("d"))
+        viewModel.toggleSortWorstFirst()
+        val before = viewModel.uiState.value.images.size
+
+        viewModel.deleteCurrentImage()
+        assertEquals(before - 1, viewModel.uiState.value.images.size)
+        viewModel.navigateNext()
+        viewModel.deleteCurrentImage()
+        assertEquals(before - 2, viewModel.uiState.value.images.size)
     }
 
     @Test

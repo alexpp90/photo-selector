@@ -198,14 +198,10 @@ class SelectorOverlayClearanceTest {
         assertTrue("the filing hint card is drawn at 1480 x 924", cardsSeen.any { it.widthDp == 1480 })
         val others = report(findings) { !isPillSnackbar(it) && !coversBadge(it) }
         assertTrue("overlays cover controls:\n$others", others.isEmpty())
-        // F-FD-047: the undo snackbar is drawn on top of the browse pill (lab 2026-10-24, Pixel
-        // Tablet); here at every size and font scale. Cause: SelectorActions.kt:408 (the card a
-        // fixed 96 dp above the bottom) and FrameGeometry.kt:160 (the pill lifted only past the
-        // badge band), neither aware of the other.
-        knownDefect("F-FD-047") {
-            val pill = report(findings, ::isPillSnackbar)
-            assertTrue("the snackbar sits on the first-run pill:\n$pill", pill.isEmpty())
-        }
+        // F-FD-047 (fixed 2026-11-10): the undo snackbar was drawn on top of the browse pill (lab
+        // 2026-10-24, Pixel Tablet). The pill now stacks 8 dp above the card's measured top.
+        val pill = report(findings, ::isPillSnackbar)
+        assertTrue("the snackbar sits on the first-run pill:\n$pill", pill.isEmpty())
         // F-FD-087: at 1024 x 720 at font scale 2.0 and 720 x 560 at 1.0 the snackbar and the pill
         // cover the Next frame's maximise badge (REQ-AND-LAYOUT.17: the pill clears every badge).
         knownDefect("F-FD-087") {

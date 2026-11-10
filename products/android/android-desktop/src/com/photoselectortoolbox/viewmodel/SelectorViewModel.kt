@@ -1482,7 +1482,7 @@ class SelectorViewModel @Inject constructor(
                 undoHistory = pushResult.history,
                 sessionDeletedCount = current.sessionDeletedCount + pending.slots.size,
             ).withSnackbar(
-                SelectorLabels.deletedMessage(pending.slots.size),
+                SelectorLabels.deletedMessage(pending.uris.size),
                 SnackbarLifetime.DELETE,
                 undoAvailable = true,
             )
