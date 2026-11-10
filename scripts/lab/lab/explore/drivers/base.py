@@ -202,6 +202,13 @@ class DeviceDriver(ABC):
     def read_app_log(self) -> List[str]:
         """The app's own log lines since the previous call."""
 
+    def restage_fixture(self) -> None:
+        """Put the lab fixture back and start the app on it again (an emptied feed has nothing left to explore).
+
+        A driver that cannot raises `ActionUnavailableError`; the run goes on without it.
+        """
+        raise ActionUnavailableError(f"the {self.product} driver cannot re-stage the fixture")
+
     def home_packages(self) -> frozenset:
         """Packages of the device's launcher; none for a target that has no launcher."""
         return frozenset()

@@ -234,6 +234,20 @@ class LinuxDeviceDriver(DeviceDriver):
         if not self._wait_for_window().nodes:
             raise DriverError(f"{self.app_id} shows a tree with no nodes after restart")
 
+    def restage_fixture(self) -> None:
+        """Replace the working folder with a fresh copy of the fixture and start the app on it.
+
+        A run that culls the feed empty explored the empty-state screen for the rest of its time
+        (2026-10-26: 324 of 684 checkpoints with `total: 0`). Only the folder the lab made is
+        emptied (`ensure_under` the lab root); the app's Trash lives in the session's XDG dir and
+        is cleared with it.
+        """
+        work = ensure_under(self.working_dir, lab_tmp_root())
+        shutil.rmtree(work, ignore_errors=True)
+        shutil.rmtree(ensure_under(self.lab_dir / "xdg-data" / "Trash", lab_tmp_root()), ignore_errors=True)
+        generate_fixtures(self.fixture_set, work, root=repo_root())
+        self.restart_app()
+
     # -- commands -----------------------------------------------------------------
     def _run(self, cmd: List[str], timeout: float = 10.0) -> Any:
         if self.exec_fn is not None:

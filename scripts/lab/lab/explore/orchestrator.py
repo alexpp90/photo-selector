@@ -63,7 +63,7 @@ from .drivers import (
     MockDeviceDriver,
     TargetUnderSystemBarError,
 )
-from .expectations import ExpectationRecorder
+from .expectations import ExpectationRecorder, feed_is_empty
 from .reporter import compute_root_signature
 from .selector import ActionSelector
 from .verifier import (
@@ -87,6 +87,7 @@ RESTORE_POLL_S = 0.5
 # can take minutes, and a toast, snackbar or notification may have come or gone meanwhile.
 REUSE_SCREEN_S = 3.0
 MAX_LEFT_STREAK = 3
+EMPTY_FEED_RESTAGE_STEPS = 3  # steps in a row on an empty feed before the fixture is put back
 MAX_EXEC_FAILURES = 3  # steps in a row the driver may fail to execute before the target ends
 AI_STEP_RESERVE_S = 20.0  # a step is not started when an AI judge could not finish within the time box
 PRODUCTS = ("phototok", "android-desktop", "macos-desktop", "linux-desktop")
@@ -778,6 +779,8 @@ class ExploratoryOrchestrator:
         unexecutable: Set[Tuple[str, str]] = set()  # (screen, action) the driver could not perform: not offered again
         unavailable: Dict[str, str] = {}  # action the device cannot perform on any screen -> why (an ENV note)
         left_streak = 0  # steps in a row that took the user out of the app
+        empty_streak = 0  # steps in a row that began on an empty feed
+        restages = 0
 
         def failed_step(status: str, finding: Finding, action: Action, expectation: Any, before: Any) -> None:
             result = StepResult(step, action, expectation, status, [finding], before, before, config_label=target.config_label)
@@ -820,6 +823,23 @@ class ExploratoryOrchestrator:
                     return "error", err, restarts
                 continue
 
+            empty_streak = empty_streak + 1 if feed_is_empty(before) else 0
+            if empty_streak >= EMPTY_FEED_RESTAGE_STEPS and "restage" not in unavailable:
+                # Every cull is a no-op on an empty feed: put the fixture back instead of exploring
+                # the empty-state screen for the rest of the time box (2026-10-26: half of two runs).
+                try:
+                    driver.restage_fixture()
+                except ActionUnavailableError as exc:
+                    unavailable["restage"] = f"the feed was empty for {empty_streak} steps and the driver cannot re-stage it ({exc})"
+                except DriverError as exc:
+                    return "error", f"the fixture could not be re-staged after {empty_streak} empty steps: {exc}", restarts
+                else:
+                    restages += 1
+                    self._log_restage(target_dir, restages, step, empty_streak)
+                    empty_streak = 0
+                    next_before = None
+                    step -= 1
+                    continue
             if before.screen_mode == SYSTEM_PICKER_MODE:
                 action = Action("back", label="Leave the system folder picker")
             else:
@@ -939,6 +959,12 @@ class ExploratoryOrchestrator:
             app_failures = 0
         note = "; ".join(f"not available on this device: {why}" for why in unavailable.values())
         return "completed", note or None, restarts
+
+    def _log_restage(self, target_dir: Path, number: int, before_step: int, empty_steps: int) -> None:
+        """A line in `steps.jsonl` (no `step` key) so the step counts around a re-stage stay explainable."""
+        path = ensure_under(target_dir / "steps.jsonl", self.out_dir)  # type: ignore[arg-type]
+        with path.open("a", encoding="utf-8") as fh:
+            fh.write(json.dumps({"restage": number, "before_step": before_step, "empty_steps": empty_steps}) + "\n")
 
     def _log_step(self, target_dir: Path, result: StepResult) -> None:
         path = ensure_under(target_dir / "steps.jsonl", self.out_dir)  # type: ignore[arg-type]

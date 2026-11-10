@@ -29,6 +29,7 @@ from lab.explore.expectations import read_counter  # noqa: E402
 from lab.explore.drivers import (  # noqa: E402
     AndroidDeviceDriver,
     AppCrashedError,
+    ActionUnavailableError,
     AppLeftError,
     DriverError,
     TargetUnderSystemBarError,
@@ -699,6 +700,22 @@ class TestLinuxCommands(unittest.TestCase):
         sent = self.xdo.sent("key")[-1]
         self.assertEqual(sent[:3], ["xdotool", "key", "--clearmodifiers"])
         return sent[3]
+
+    def test_restaging_replaces_the_working_folder_and_restarts_the_app(self) -> None:
+        work = self.tmp / "work"
+        work.mkdir()
+        (work / "left-over.JPG").write_bytes(b"x")  # what is left of a culled roll
+        with patch("lab.explore.drivers.linux.generate_fixtures",
+                   side_effect=lambda name, out, **kw: (Path(out).mkdir(parents=True, exist_ok=True), (Path(out) / "fresh.JPG").write_bytes(b"y"))) as gen, \
+                patch.object(LinuxDeviceDriver, "restart_app") as restart:
+            self.driver.restage_fixture()
+        self.assertEqual(sorted(p.name for p in work.iterdir()), ["fresh.JPG"])
+        gen.assert_called_once()
+        restart.assert_called_once()
+
+    def test_a_driver_without_a_fixture_to_put_back_says_so(self) -> None:
+        with self.assertRaises(ActionUnavailableError):
+            MacOSDeviceDriver().restage_fixture()
 
     def test_keys_become_x_keysyms(self) -> None:
         self.assertEqual(self.key("M"), "m")

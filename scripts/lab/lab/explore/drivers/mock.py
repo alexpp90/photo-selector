@@ -81,6 +81,13 @@ class MockDeviceDriver(DeviceDriver):
         self.screen_mode = self._home_mode()
         self.current_index = 0
 
+    def restage_fixture(self) -> None:
+        self.selected_photos.clear()
+        self.deleted_photos.clear()
+        self.undo_stack.clear()
+        self.restaged = getattr(self, "restaged", 0) + 1
+        self.restart_app()
+
     def read_app_log(self) -> List[str]:
         lines, self.pending_log = self.pending_log, []
         return lines

@@ -130,6 +130,15 @@ class ReportTest(unittest.TestCase):
             self.assertFalse(hasattr(reporter, gone), gone)
         self.assertNotIn("date_stage", reporter.generate_explore_report.__code__.co_varnames)
 
+    def test_the_report_states_how_much_evidence_the_run_kept(self) -> None:
+        ev = self.run_dir / "phototok" / "pixel" / "phone" / "evidence"
+        ev.mkdir(parents=True)
+        (ev / "step_10_after.png").write_bytes(b"x" * 1024)
+        (ev / "step_10_after_tree.json").write_text("{}")
+        (ev / "step_11_after_tree.json").write_text("{}")
+        md = reporter.generate_explore_report(make_summary(self.run_dir, [], [step(1)]))["report_md"].read_text(encoding="utf-8")
+        self.assertIn("- Evidence kept: 3 files, 1 screenshot, 0.0 MB", md)
+
     def test_known_findings_are_listed_but_not_open(self) -> None:
         known, new = finding(fid="a" * 12), finding("crash", "blocker", fid="b" * 12)
         reporter.generate_explore_report(make_summary(self.run_dir, [known, new]), known_ids={"a" * 12})

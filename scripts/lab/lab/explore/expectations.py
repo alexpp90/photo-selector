@@ -65,6 +65,12 @@ def read_counter(state: ScreenState) -> Optional[Tuple[int, Optional[int]]]:
     return None
 
 
+def feed_is_empty(state: ScreenState) -> bool:
+    """True when the app's own counter says the feed holds no photo (0 of 0)."""
+    counter = read_counter(state)
+    return counter is not None and counter[1] == 0
+
+
 def _words(*texts: Optional[str]) -> Set[str]:
     """Lower-case words of ids and labels: `btn_discard`, `moveToSelection` and "Move to" split alike."""
     words: Set[str] = set()
