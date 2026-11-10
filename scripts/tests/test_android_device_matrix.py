@@ -14,8 +14,11 @@ from datetime import datetime
 SCRIPTS_DIR = Path(__file__).resolve().parents[1]
 if str(SCRIPTS_DIR) not in sys.path:
     sys.path.insert(0, str(SCRIPTS_DIR))
+if str(Path(__file__).resolve().parent) not in sys.path:   # fake_phone.py
+    sys.path.insert(0, str(Path(__file__).resolve().parent))
 
 import android_device_matrix as adm  # noqa: E402
+from fake_phone import FakePhone  # noqa: E402
 
 LISTING = """List of devices attached
 13171JEC200817         device usb:1-2.1 product:sunfish model:Pixel_4a device:sunfish transport_id:1058
@@ -1102,6 +1105,33 @@ class FailingAttemptLogTest(unittest.TestCase):
         self.assertIn("Moto_G77/logcat-android-desktop-C_flaky-attempt1.txt", adm.render_report(meta, [dr], verdicts, ledger))
 
 
+class CaptureLogcatTest(unittest.TestCase):
+    """_capture_logcat goes through the worker's runner, so a fake covers it."""
+
+    def test_logcat_and_the_crash_buffer_are_read_through_the_runner(self):
+        seen = []
+
+        def runner(cmd, timeout=120):
+            seen.append(list(cmd[3:]))
+            if "crash" in cmd:
+                return 0, "F AndroidRuntime: FATAL EXCEPTION\n"
+            return 0, "I Tag: line\n"
+
+        with tempfile.TemporaryDirectory() as tmp:
+            worker, _ = display_worker(runner, tmp)
+            worker._capture_logcat(adm.MODULES["android-desktop"])
+            self.assertIn("I Tag: line", (worker.dir / "logcat-android-desktop.txt").read_text(encoding="utf-8"))
+            self.assertIn("FATAL EXCEPTION", (worker.dir / "logcat-crash-android-desktop.txt").read_text(encoding="utf-8"))
+        self.assertEqual(seen, [["logcat", "-d", "-t", "4000"], ["logcat", "-d", "-b", "crash"]])
+
+    def test_a_failing_logcat_is_recorded_not_raised(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            worker, _ = display_worker(lambda cmd, timeout=120: (1, "error: device offline"), tmp)
+            worker._capture_logcat(adm.MODULES["android-desktop"])
+            self.assertIn("logcat failed", (worker.dir / "logcat-android-desktop.txt").read_text(encoding="utf-8"))
+            self.assertFalse((worker.dir / "logcat-crash-android-desktop.txt").exists())
+
+
 class DisplayAtCleanupTest(unittest.TestCase):
     def test_designated_cleanup_resets_the_display_even_when_nothing_else_ran(self):
         with tempfile.TemporaryDirectory() as tmp:
@@ -1285,6 +1315,17 @@ class PrepareKeyguardTest(unittest.TestCase):
         self.assertIn("prepare ✗ keyguard disabled (exit 255: Error: cannot disable with credential)", log)
         self.assertEqual(worker.prepare_outputs["keyguard disabled"], "Error: cannot disable with credential")
         self.assertIn("✗ keyguard disabled", PIXEL_4A_PROGRESS)   # the shape the real log had
+
+    def test_a_step_that_exits_0_without_effect_is_named_by_the_read_back(self):
+        phone = FakePhone(stuck={"settings put system font_scale 1.0"})
+        with tempfile.TemporaryDirectory() as tmp:
+            worker = worker_with(phone, tmp)
+            worker.sleep = lambda seconds: None
+            failed = worker._prepare()
+            log = (Path(tmp) / "p.log").read_text(encoding="utf-8")
+        self.assertEqual(failed, ["default font scale"])
+        self.assertIn("prepare ✗ default font scale", log)
+        self.assertIn("font_scale", log)
 
     def test_a_refused_keyguard_step_on_an_unlocked_screen_is_a_note_not_a_failure(self):
         note = adm.prepare_notes(["keyguard disabled"], {"keyguard disabled": "Error: x"}, False)

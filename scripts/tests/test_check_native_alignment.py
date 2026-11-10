@@ -160,7 +160,9 @@ class CheckNativeAlignmentTests(unittest.TestCase):
             self.assertEqual(len(reports_aab), 2)
             with contextlib.redirect_stderr(io.StringIO()):
                 self.assertEqual(cna.main([str(aab_path)]), 1)
-            self.assertEqual(cna.main([str(apk_path)]), 0)
+            with contextlib.redirect_stdout(io.StringIO()) as out:
+                self.assertEqual(cna.main([str(apk_path)]), 0)
+            self.assertIn("16 KB native alignment verified", out.getvalue())
 
     def test_directory_target_inspects_merged_native_libs(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
@@ -172,7 +174,9 @@ class CheckNativeAlignmentTests(unittest.TestCase):
             (arm64_dir / "libc++_shared.so").write_bytes(_make_elf64_le([16384]))
             (x86_dir / "libc++_shared.so").write_bytes(_make_elf64_le([4096]))
 
-            self.assertEqual(cna.main([str(root)]), 0)
+            with contextlib.redirect_stdout(io.StringIO()) as out:
+                self.assertEqual(cna.main([str(root)]), 0)
+            self.assertIn("16 KB native alignment verified", out.getvalue())
 
 
 if __name__ == "__main__":
