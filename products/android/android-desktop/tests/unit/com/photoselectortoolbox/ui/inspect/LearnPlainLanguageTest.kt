@@ -1,6 +1,7 @@
 package com.photoselectortoolbox.ui.inspect
 
 import androidx.activity.ComponentActivity
+import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.SemanticsNode
 import androidx.compose.ui.semantics.SemanticsProperties
 import androidx.compose.ui.semantics.getOrNull
@@ -104,6 +105,38 @@ class LearnPlainLanguageTest {
         // The guide bar names what each guide is.
         assertTrue(seen.contains(LearnText.GUIDE_GOLDEN_RATIO))
         assertTrue(seen.contains(LearnText.GUIDE_FLIP_SPIRAL))
+    }
+
+    /**
+     * The guide toggles (Thirds, Golden ratio, Spiral, Diagonals, Horizon) said their state by
+     * colour alone and to a screen reader not at all (lab 2026-11-10): each is a switch that
+     * says whether it is on.
+     */
+    @Test
+    fun `every guide toggle tells a screen reader whether it is on`() {
+        val photo = fitPhoto("a.jpg", 1).copy(exifData = fitExif)
+        rule.setContent {
+            PhotoSelectorToolboxTheme {
+                InspectScreenContent(
+                    currentImage = photo, images = listOf(photo), currentIndex = 0,
+                    windowSizeClass = WindowSizeClass.calculateFromSize(DpSize(1480.dp, 924.dp)),
+                    onNavigateToSelector = {}, onSelectImage = {}, onPrevious = {}, onNext = {},
+                    onSetRating = { _, _ -> },
+                )
+            }
+        }
+        rule.waitForIdle()
+        for (tag in listOf("toggle_thirds", "toggle_golden_ratio", "toggle_spiral", "toggle_diagonals", "toggle_horizon")) {
+            val before = rule.onNodeWithTag(tag, useUnmergedTree = true).fetchSemanticsNode().config
+            assertEquals("$tag role", Role.Switch, before.getOrNull(SemanticsProperties.Role))
+            val state = before.getOrNull(SemanticsProperties.ToggleableState)
+            assertTrue("$tag exposes no on/off state", state != null)
+            rule.onNodeWithTag(tag, useUnmergedTree = true).performClick()
+            rule.waitForIdle()
+            val after = rule.onNodeWithTag(tag, useUnmergedTree = true).fetchSemanticsNode().config
+                .getOrNull(SemanticsProperties.ToggleableState)
+            assertTrue("$tag state did not change on a tap ($state -> $after)", after != state)
+        }
     }
 
     @Test

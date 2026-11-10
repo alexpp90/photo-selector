@@ -513,7 +513,7 @@ column took a 4:3 frame from 1176 × 784 to 868 × 578 on a 1280 × 800 window, 
   hidden, "Hide photo info" / "Show photo info", `Role.Switch`), 6 dp left of the 48 dp restore
   badge. It flips the same persisted `details_visible` as the three-up ⓘ toggle, which is not on
   screen here. Off, nothing but the restore badge and this switch lies on the photograph. There is
-  no keyboard shortcut for it (`I` is Inspect).
+  `I` flips it too (the info key of every desk app, `docs/shared/KEYBOARD.md`).
 
 The panel and the chips take no pointer input, so a swipe that starts on them still navigates, a
 tap on them is a tap on the photograph (leave maximised), and only the switch and the badge are
@@ -1051,7 +1051,7 @@ sized to its content, never a bar across it.
 | `Esc` | Exit fullscreen |
 | `← / →` | Previous / next image |
 | `M` / `C` / `Del` | Move / copy / delete the current frame |
-| `I` | Pin / unpin the info panel (in the selector `I` still opens Inspect) |
+| `I` | Pin / unpin the info panel (in the selector `I` shows or hides the frame's values) |
 
 `M` and `C` show the centre check mark, whose accessibility label is the sentence the
 confirmation card shows ("Moved to Selection"), for the key exactly as for the button. The
@@ -1456,14 +1456,16 @@ Shortcuts work in both the standard and fullscreen views.
 
 | Key | Action |
 |---|---|
-| `←` / `→` | Previous / next image |
+| `←` / `→`, `K` / `J` | Previous / next image (`J` / `K` as on Lensjet and Blitzlens) |
 | `Delete` / `Backspace` | Delete (with confirmation) |
 | `M` | Move to Selection |
 | `C` | Copy to Selection |
 | `F` | Enter fullscreen |
 | `Esc` | Exit fullscreen / leave maximised / close sheet, menu or the guide. System **Back** does the same, one layer per press, topmost first; only at the bare selector does Back leave the app |
-| `I` | In fullscreen: pin / unpin the info panel (in the selector: Inspect) |
-| `1` / `2` / `3` | Maximise Previous / Current / Next in place (§7.3) |
+| `I` | Show / hide this frame's values (the Info toggle); in fullscreen: pin / unpin the info panel |
+| `T` | Show / hide the filmstrip (the Strip toggle) |
+| `L` | Open Learn; in Learn `L` or `Esc` returns (`I` opened and left Learn until 2026-11-10) |
+| `1` / `2` / `3` | Enlarge the left / middle / right frame in place (§7.3) |
 | `G` | Open **Go to photo**: one field (focused on open, label "Number, name or date"), a number 1…N as the counter shows it, part of a file name, or a date (`12.10.2026`, `12.10.26`, `2026-10-12`, `12.10.`), `Enter` / **Go** jumps, `Esc` / **Cancel** closes. A 48 dp calendar button inside the field ("Pick a date") swaps a Material 3 date picker into the same dialog — limited to days that have photos, opening on the day of the photo on screen (else the newest day) — and picking a day jumps at once and closes; it is disabled when no photo has a known date, and scrolls inside the dialog in a 600 × 480 window. The line under the field is, by what is typed: nothing → the days the folder spans (`3 Oct 2026 – 12 Oct 2026`); a position, a name or a date → the file it lands on and when it was taken; a day without photos → that plus "No photos on 13 Oct 2026 — showing 14 Oct 2026" in the neutral colour (Go jumps to the nearest day; it is not an error). An empty or out-of-range number says "Enter 1–N" only after **Go**, and a date still being typed is not "No match" until **Go** |
 | `S` | Open the **Sort** menu (the Sort chip's dropdown, §7.5): Newest first, Oldest first, File name, Blurriest first. It opens only; it never cycles the order. While it is open the selector's other keys are suppressed (`Esc` closes it) |
 | `Ctrl+Z` / `Cmd+Z` | Undo the latest delete or move (20 deep), also in fullscreen |

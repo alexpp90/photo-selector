@@ -119,7 +119,10 @@ class SelectorTourTest {
         // Sort), so they are explained in the controls callout, beside the chips.
         assertEquals(
             setOf(
+                SelectorShortcut.NEXT_PREVIOUS.input,
                 SelectorShortcut.MAXIMISE.input,
+                SelectorShortcut.LEARN.input,
+                SelectorShortcut.UNDO.input,
                 SelectorShortcut.ESCAPE.input,
                 SelectorShortcut.SHORTCUTS.input,
             ),
@@ -128,6 +131,9 @@ class SelectorTourTest {
         val controls = callouts.getValue(TourRegion.CONTROLS).rows.map { it.input }
         assertTrue(controls.toString(), SelectorShortcut.GO_TO.input in controls)
         assertTrue(controls.toString(), SelectorShortcut.SORT.input in controls)
+        // I and T drive the Info and Strip view toggles in the control block.
+        assertTrue(controls.toString(), SelectorShortcut.DETAILS.input in controls)
+        assertTrue(controls.toString(), SelectorShortcut.FILMSTRIP.input in controls)
     }
 
     @Test

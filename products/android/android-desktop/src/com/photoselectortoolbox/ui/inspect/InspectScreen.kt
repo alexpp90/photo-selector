@@ -120,6 +120,8 @@ import com.photoselectortoolbox.ui.components.TouchTarget
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.semantics.toggleableState
+import androidx.compose.ui.state.ToggleableState
 import com.photoselectortoolbox.ui.theme.HintText
 import com.photoselectortoolbox.ui.theme.BrandAccent
 import com.photoselectortoolbox.ui.theme.BrandAccentDeep
@@ -160,7 +162,8 @@ fun cycleSpiralOrientation(current: SpiralOrientation): SpiralOrientation = when
  * Pure hardware keyboard hotkey handler for the Learn workstation (`U-21`).
  *
  * Mappings:
- * - `L`, `I`, `Escape`: Return to Culling view (`onNavigateToSelector`).
+ * - `L`, `Escape`: Return to Culling view (`onNavigateToSelector`). `I` is the info block in the
+ *   selector (docs/shared/KEYBOARD.md) and does nothing here.
  * - `Left Arrow`: Navigate to previous image.
  * - `Right Arrow`: Navigate to next image.
  * - `0`–`5` (and NumPad equivalents): Set rating (0 = clear/unrated, 1..5 = stars).
@@ -174,7 +177,7 @@ internal fun handleInspectKey(
     onSetRating: (Int) -> Unit,
 ): Boolean {
     return when (key) {
-        Key.L, Key.I, Key.Escape -> {
+        Key.L, Key.Escape -> {
             onNavigateToSelector()
             true
         }
@@ -697,7 +700,7 @@ private fun InspectControlBar(
             ) {
                 Icon(
                     imageVector = Icons.AutoMirrored.Filled.ArrowBack,
-                    contentDescription = "Return to Culling (L / I / Escape)",
+                    contentDescription = "Return to Culling (L / Escape)",
                     tint = Zinc400,
                 )
             }
@@ -785,10 +788,12 @@ private fun GuideToggleButton(
     testTag: String,
     modifier: Modifier = Modifier,
 ) {
+    // A switch that says whether it is on, not a button whose state is colour alone.
     TouchTarget(
         onClick = onClick,
         testTag = testTag,
-        modifier = modifier,
+        modifier = modifier.semantics { toggleableState = ToggleableState(active) },
+        role = Role.Switch,
     ) {
     Surface(
         shape = RoundedCornerShape(6.dp),

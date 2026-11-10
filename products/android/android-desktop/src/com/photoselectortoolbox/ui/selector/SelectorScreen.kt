@@ -844,12 +844,17 @@ internal fun handleSelectorKey(
     if (isHeldOneShotKey(key, repeat)) return true
 
     return when (key) {
-        Key.L, Key.I -> {
+        // The desk-app key table (docs/shared/KEYBOARD.md): L opens Learn on Frameduel only;
+        // I is the info (readout) block and T the filmstrip in every desk app, so I no longer
+        // opens Learn; J / K step like the arrows, as on Lensjet and Blitzlens.
+        Key.L -> {
             onNavigate?.invoke(Screen.Inspect)
             true
         }
-        Key.DirectionLeft -> { onPrevious(); true }
-        Key.DirectionRight -> { onNext(); true }
+        Key.I -> { actions.onToggleDetails(); true }
+        Key.T -> { actions.onToggleFilmstrip(); true }
+        Key.DirectionLeft, Key.K -> { onPrevious(); true }
+        Key.DirectionRight, Key.J -> { onNext(); true }
         Key.M -> { actions.onMove(); true }
         Key.C -> { actions.onCopy(); true }
         Key.Delete, Key.Backspace -> { actions.onDelete(); true }

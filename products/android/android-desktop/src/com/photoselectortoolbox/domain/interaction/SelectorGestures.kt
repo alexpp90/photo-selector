@@ -220,12 +220,17 @@ enum class FrameGesture(
 enum class SelectorShortcut(val input: String) {
     PREVIOUS("←"),
     NEXT("→"),
+    NEXT_PREVIOUS("J / K"),
     FILE_PRIMARY("C / M"),
     DELETE("Del"),
     FULLSCREEN("F"),
+    DETAILS("I"),
+    FILMSTRIP("T"),
     MAXIMISE("1 / 2 / 3"),
     GO_TO("G"),
     SORT("S"),
+    LEARN("L"),
+    UNDO("Ctrl+Z"),
     ESCAPE("Esc"),
     SHORTCUTS("?");
 
@@ -235,14 +240,19 @@ enum class SelectorShortcut(val input: String) {
     ): String = when (this) {
         PREVIOUS -> "previous image"
         NEXT -> "next image"
+        NEXT_PREVIOUS -> "next / previous image"
         FILE_PRIMARY ->
             "${filingAction.phraseFor(selectionFolderName)} · " +
                 filingAction.other.phraseFor(selectionFolderName)
         DELETE -> "delete, with confirmation"
         FULLSCREEN -> "open fullscreen"
-        MAXIMISE -> "maximise previous / current / next"
+        DETAILS -> "show or hide this frame's values"
+        FILMSTRIP -> "show or hide the filmstrip"
+        MAXIMISE -> "enlarge left / middle / right frame"
         GO_TO -> "go to photo"
         SORT -> "choose the sort order"
+        LEARN -> "open Learn"
+        UNDO -> "undo the last delete or move"
         ESCAPE -> "leave fullscreen or maximised, close a sheet"
         SHORTCUTS -> "show this guide"
     }

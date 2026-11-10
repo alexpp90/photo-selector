@@ -86,7 +86,7 @@ class InspectScreenTest {
     }
 
     @Test
-    fun `handleInspectKey returns to culling on Key I`() {
+    fun `handleInspectKey leaves Key I alone, it is the selector's info key`() {
         var navigated = false
         val handled = handleInspectKey(
             key = Key.I,
@@ -95,8 +95,8 @@ class InspectScreenTest {
             onNext = {},
             onSetRating = {},
         )
-        assertTrue(handled)
-        assertTrue(navigated)
+        assertFalse(handled)
+        assertFalse(navigated)
     }
 
     @Test
@@ -195,7 +195,7 @@ class InspectScreenTest {
     // ── 3. Selector Screen Routing to Inspect via Hotkeys ─────────────────────
 
     @Test
-    fun `handleSelectorKey routes Key L and Key I to Inspect`() {
+    fun `handleSelectorKey routes Key L, not Key I, to Inspect`() {
         var targetScreen: Screen? = null
         val dummyActions = SelectorActions(
             onMove = {},
@@ -225,8 +225,9 @@ class InspectScreenTest {
         assertTrue(handledL)
         assertEquals(Screen.Inspect, targetScreen)
 
+        // I is the info (readout) toggle in every desk app now (docs/shared/KEYBOARD.md).
         targetScreen = null
-        val handledI = handleSelectorKey(
+        handleSelectorKey(
             key = Key.I,
             sheetOpen = false,
             contextMenuOpen = false,
@@ -240,8 +241,7 @@ class InspectScreenTest {
             onCloseOverlays = {},
             onNavigate = { targetScreen = it },
         )
-        assertTrue(handledI)
-        assertEquals(Screen.Inspect, targetScreen)
+        assertEquals(null, targetScreen)
     }
 
     @Test
@@ -475,11 +475,7 @@ class InspectScreenTest {
         pressKey(Key.L)
         assertEquals(Screen.PhotoSelector, currentScreen)
 
-        // 4. Press 'I' -> Navigates to Inspect
-        pressKey(Key.I)
-        assertEquals(Screen.Inspect, currentScreen)
-
-        // 5. Press 'I' again -> Returns to Culling
+        // 4. 'I' is the info toggle now (docs/shared/KEYBOARD.md): it changes no screen
         pressKey(Key.I)
         assertEquals(Screen.PhotoSelector, currentScreen)
 
@@ -493,7 +489,7 @@ class InspectScreenTest {
     }
 
     @Test
-    fun `handleSelectorKey routing during maximised frame routes L and I to Inspect`() {
+    fun `handleSelectorKey routing during maximised frame routes L to Inspect`() {
         var targetScreen: Screen? = null
         val dummyActions = SelectorActions(
             onMove = {}, onCopy = {}, onDelete = {}, onFullscreen = {},
@@ -534,8 +530,9 @@ class InspectScreenTest {
             onCloseOverlays = {},
             onNavigate = { targetScreen = it },
         )
+        // 'I' toggles the details in the maximised frame too; it opens no screen.
         assertTrue(handledI)
-        assertEquals(Screen.Inspect, targetScreen)
+        assertEquals(null, targetScreen)
     }
 
     @Test
