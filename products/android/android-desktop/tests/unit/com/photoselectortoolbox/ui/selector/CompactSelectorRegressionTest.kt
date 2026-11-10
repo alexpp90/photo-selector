@@ -20,6 +20,8 @@ import com.photoselectortoolbox.ui.fit.FitCell
 import com.photoselectortoolbox.ui.fit.FitSelectorSettings
 import com.photoselectortoolbox.ui.fit.fitPhoto
 import com.photoselectortoolbox.ui.fit.fitSelectorViewModel
+import com.photoselectortoolbox.ui.fit.installNoImageLoader
+import com.photoselectortoolbox.ui.fit.removeNoImageLoader
 import com.photoselectortoolbox.ui.fit.tagExists
 import com.photoselectortoolbox.ui.theme.PhotoSelectorToolboxTheme
 import com.photoselectortoolbox.viewmodel.SelectorUiState
@@ -36,6 +38,7 @@ import org.junit.After
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
+import org.junit.Before
 import org.junit.Rule
 import org.junit.Test
 import org.junit.runner.RunWith
@@ -66,8 +69,14 @@ class CompactSelectorRegressionTest {
     private val appScope = CoroutineScope(dispatcher)
     private var viewModel: SelectorViewModel? = null
 
+    @Before
+    fun setUp() {
+        installNoImageLoader(ApplicationProvider.getApplicationContext())
+    }
+
     @After
     fun tearDown() {
+        removeNoImageLoader()
         viewModel?.viewModelScope?.cancel()
         appScope.cancel()
         Dispatchers.resetMain()

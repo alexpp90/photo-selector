@@ -1,5 +1,7 @@
 package com.photoselectortoolbox.ui.selector
 
+import com.photoselectortoolbox.ui.fit.removeNoImageLoader
+import com.photoselectortoolbox.ui.fit.installNoImageLoader
 import android.view.KeyEvent
 import androidx.activity.ComponentActivity
 import androidx.compose.ui.input.key.Key
@@ -79,11 +81,13 @@ class SelectorActionFeedbackTest {
 
     @Before
     fun setUp() {
+        installNoImageLoader(ApplicationProvider.getApplicationContext())
         Dispatchers.setMain(dispatcher)
     }
 
     @After
     fun tearDown() {
+        removeNoImageLoader()
         if (this::viewModel.isInitialized) viewModel.viewModelScope.cancel()
         appScope.cancel()
         Dispatchers.resetMain()

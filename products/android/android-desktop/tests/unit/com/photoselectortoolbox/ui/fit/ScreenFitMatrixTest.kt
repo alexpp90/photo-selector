@@ -90,11 +90,13 @@ class ScreenFitMatrixTest {
 
     @Before
     fun setUp() {
+        installNoImageLoader(ApplicationProvider.getApplicationContext())
         Dispatchers.setMain(dispatcher)
     }
 
     @After
     fun tearDown() {
+        removeNoImageLoader()
         viewModels.forEach { it.viewModelScope.cancel() }
         appScope.cancel()
         Dispatchers.resetMain()

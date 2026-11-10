@@ -1,6 +1,16 @@
 package com.photoselectortoolbox.ui.fit
 
 import android.content.Context
+import coil.Coil
+import coil.ImageLoader
+import coil.ComponentRegistry
+import coil.disk.DiskCache
+import coil.memory.MemoryCache
+import coil.request.DefaultRequestOptions
+import coil.request.Disposable
+import coil.request.ErrorResult
+import coil.request.ImageRequest
+import coil.request.ImageResult
 import android.net.Uri
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
@@ -33,9 +43,50 @@ import io.mockk.coEvery
 import io.mockk.every
 import io.mockk.mockk
 import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.CompletableDeferred
+import kotlinx.coroutines.Deferred
 import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.receiveAsFlow
+
+/**
+ * Replaces Coil's process-wide loader with one that answers every request at once with an error,
+ * on the calling thread, and starts no coroutine, dispatcher or system callback of its own. These
+ * tests read layout, not pixels. The real loader, decoding on a worker while a test Main
+ * dispatcher is installed, completed requests off the main thread ("removeObserver must be
+ * called on the main thread"), and a real `ImageLoader.Builder` loader built in a test left
+ * state behind that hung `FormatConformanceTest` later in the same JVM. Undo with
+ * [removeNoImageLoader].
+ */
+@Suppress("UNUSED_PARAMETER")
+fun installNoImageLoader(context: Context) = Coil.setImageLoader(NoImageLoader)
+
+private object NoImageLoader : ImageLoader {
+    override val defaults = DefaultRequestOptions()
+    override val components = ComponentRegistry()
+    override val memoryCache: MemoryCache? = null
+    override val diskCache: DiskCache? = null
+
+    private fun fail(request: ImageRequest) =
+        ErrorResult(null, request, IllegalStateException("no decoding in layout tests"))
+
+    override fun enqueue(request: ImageRequest): Disposable {
+        val result = fail(request)
+        return object : Disposable {
+            override val job: Deferred<ImageResult> = CompletableDeferred(result)
+            override val isDisposed: Boolean = true
+            override fun dispose() = Unit
+        }
+    }
+
+    override suspend fun execute(request: ImageRequest): ImageResult = fail(request)
+
+    override fun shutdown() = Unit
+
+    override fun newBuilder(): ImageLoader.Builder = throw UnsupportedOperationException("test loader")
+}
+
+fun removeNoImageLoader() = Coil.reset()
 
 /** A photo as the selector lists it; landscape 3:2 unless told otherwise. */
 fun fitPhoto(name: String, modified: Long, width: Int = 1500, height: Int = 1000) = ImageItem(
