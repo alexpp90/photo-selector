@@ -89,6 +89,12 @@ if "gi" not in sys.modules and not _real_gtk_usable():
         def set_tooltip_text(self, *args, **kwargs):
             pass
 
+        def set_focusable(self, *args, **kwargs):
+            pass
+
+        def grab_focus(self, *args, **kwargs):
+            return True
+
         def set_focus_on_click(self, *args, **kwargs):
             pass
 

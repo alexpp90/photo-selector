@@ -44,6 +44,7 @@ class MainWindow(Adw.ApplicationWindow if HAS_GI else object):
         self.settings: SettingsStore = settings or SettingsStore()
         self._close_when_idle = False
         self._close_forced = False
+        self._focused_folder = None
         if HAS_GI:
             super().__init__(application=application, **kwargs)
             self.set_default_size(1440, 900)
@@ -273,6 +274,13 @@ class MainWindow(Adw.ApplicationWindow if HAS_GI else object):
         if self._close_when_idle and vm.queued_count == 0:
             self._close_when_idle = False
             self.close()
+
+        # Once per folder, when its first photos are shown: focus moves from the header button
+        # (Open) to the viewport, so Space toggles Fit / 1:1 instead of re-opening the picker.
+        # Tab still reaches the buttons and Space/Enter then press them (R-LINUX-UI-08).
+        if total > 0 and vm.current_folder != self._focused_folder:
+            self._focused_folder = vm.current_folder
+            self.canvas_view.grab_focus()
 
         mode = vm.comparison_mode
         self._syncing_modes = True  # the toggles follow the view model; do not echo it back

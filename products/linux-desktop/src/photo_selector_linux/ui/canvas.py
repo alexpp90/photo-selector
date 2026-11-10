@@ -77,6 +77,9 @@ class CanvasView(Gtk.Box if HAS_GI else object):
 
         if HAS_GI:
             super().__init__(orientation=Gtk.Orientation.VERTICAL)
+            # The viewport takes keyboard focus once a folder is shown, so header buttons do not
+            # hold it and swallow Space (R-LINUX-UI-08).
+            self.set_focusable(True)
             self.set_hexpand(True)
             self.set_vexpand(True)
             self.add_css_class("studio-dark-surface")

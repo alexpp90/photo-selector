@@ -346,3 +346,37 @@ def test_run_on_thread_keeps_the_main_loop_free():
         GLib.source_remove(timer)
     assert delivered == [("hashes", None)]
     assert len(ticks) >= 15, f"main loop ran {len(ticks)} ticks while the job slept"
+
+
+def test_library_statistics_rows_use_the_singular_for_one():
+    """Real dialog: one photo reads "1 photo" and "1 file", never "1 photos" (usability panel)."""
+    from photo_selector_linux.ui import tools_dialogs
+
+    if isinstance(tools_dialogs.Adw, MagicMock) or not tools_dialogs.HAS_GI:
+        pytest.skip("needs real Libadwaita (xvfb-run)")
+    from types import SimpleNamespace
+
+    photo = CandidatePhoto(
+        primary_path=Path("/tmp/a.jpg"),
+        exif=ExposureMetadata(focal_length=28.0, aperture=2.8, shutter_speed=0.002),
+        scores=QualityScores(sharpness=58.9, noise=1.0, highlight_clipping=0.0, shadow_clipping=0.0),
+    )
+    dialog = tools_dialogs.LibraryStatisticsDialog(viewmodel=SimpleNamespace(candidates=[photo]))
+    subtitles: list[str] = []
+
+    def walk(widget):
+        get = getattr(widget, "get_subtitle", None)
+        if callable(get):
+            subtitles.append(get() or "")
+            # Titles such as "< f/2.0" are text: markup parsing fails and the row loses its title.
+            assert widget.get_use_markup() is False
+        child = widget.get_first_child()
+        while child is not None:
+            walk(child)
+            child = child.get_next_sibling()
+
+    walk(dialog)
+    text = "\n".join(subtitles)
+    assert "1 photo ·" in text and "1 file (" in text
+    assert "1 photos" not in text and "1 files" not in text
+    assert tools_dialogs._count(2, "photo") == "2 photos"

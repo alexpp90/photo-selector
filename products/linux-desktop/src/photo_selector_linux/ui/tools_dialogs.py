@@ -186,6 +186,11 @@ class DuplicateFinderDialog(Adw.Window if HAS_GI else object):
             self.results_box.append(row)
 
 
+def _count(n: int, noun: str) -> str:
+    """Singular for one: the statistics rows must not read "1 photos"."""
+    return f"{n} {noun}" if n == 1 else f"{n} {noun}s"
+
+
 class LibraryStatisticsDialog(Adw.Window if HAS_GI else object):
     """Dialog rendering optical EXIF and culling statistics distributions."""
 
@@ -270,17 +275,20 @@ class LibraryStatisticsDialog(Adw.Window if HAS_GI else object):
         summary_group.set_title("Library Summary")
 
         row_total = Adw.ActionRow()
+        row_total.set_use_markup(False)
         row_total.set_title("Total Photographs")
         row_total.set_subtitle(str(stats.total_photo_count))
         summary_group.add(row_total)
 
         row_storage = Adw.ActionRow()
+        row_storage.set_use_markup(False)
         row_storage.set_title("Total Storage")
         row_storage.set_subtitle(f"{stats.total_storage_bytes / (1024 * 1024):.1f} MB")
         summary_group.add(row_storage)
 
         if stats.average_sharpness is not None:
             row_sharp = Adw.ActionRow()
+            row_sharp.set_use_markup(False)
             row_sharp.set_title("Average Sharpness Score")
             row_sharp.set_subtitle(f"{stats.average_sharpness:.1f} / 100.0")
             summary_group.add(row_sharp)
@@ -292,8 +300,9 @@ class LibraryStatisticsDialog(Adw.Window if HAS_GI else object):
         fmt_group.set_title("File Formats")
         for fmt in stats.format_statistics:
             row = Adw.ActionRow()
+            row.set_use_markup(False)  # buckets such as "< f/2.0" are text, not markup
             row.set_title(fmt.canonical_name)
-            row.set_subtitle(f"{fmt.count} files ({fmt.percentage_of_total:.1f}%)")
+            row.set_subtitle(f"{_count(fmt.count, 'file')} ({fmt.percentage_of_total:.1f}%)")
             fmt_group.add(row)
         box.append(fmt_group)
 
@@ -303,10 +312,11 @@ class LibraryStatisticsDialog(Adw.Window if HAS_GI else object):
         for bucket, count in stats.focal_length_histogram.items():
             if count > 0:
                 mean_sharp = stats.sharpness_by_focal_length.get(bucket)
-                subtitle = f"{count} photos"
+                subtitle = _count(count, "photo")
                 if mean_sharp is not None:
                     subtitle += f" · Avg sharpness {mean_sharp:.1f}"
                 row = Adw.ActionRow()
+                row.set_use_markup(False)
                 row.set_title(bucket)
                 row.set_subtitle(subtitle)
                 fl_group.add(row)
@@ -319,8 +329,9 @@ class LibraryStatisticsDialog(Adw.Window if HAS_GI else object):
             for bucket, mean_sharp in stats.sharpness_by_aperture.items():
                 count = stats.aperture_histogram.get(bucket, 0)
                 row = Adw.ActionRow()
+                row.set_use_markup(False)
                 row.set_title(bucket)
-                row.set_subtitle(f"{count} photos · Avg sharpness {mean_sharp:.1f}")
+                row.set_subtitle(f"{_count(count, 'photo')} · Avg sharpness {mean_sharp:.1f}")
                 ap_group.add(row)
             box.append(ap_group)
 
@@ -331,8 +342,9 @@ class LibraryStatisticsDialog(Adw.Window if HAS_GI else object):
             for bucket, mean_sharp in stats.sharpness_by_shutter_speed.items():
                 count = stats.shutter_speed_histogram.get(bucket, 0)
                 row = Adw.ActionRow()
+                row.set_use_markup(False)
                 row.set_title(bucket)
-                row.set_subtitle(f"{count} photos · Avg sharpness {mean_sharp:.1f}")
+                row.set_subtitle(f"{_count(count, 'photo')} · Avg sharpness {mean_sharp:.1f}")
                 ss_group.add(row)
             box.append(ss_group)
 
