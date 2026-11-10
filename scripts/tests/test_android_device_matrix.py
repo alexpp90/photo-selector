@@ -8,6 +8,7 @@ import sys
 import tempfile
 import threading
 import unittest
+from unittest import mock
 from datetime import datetime
 
 SCRIPTS_DIR = Path(__file__).resolve().parents[1]
@@ -1134,6 +1135,177 @@ class DisplayAtCleanupTest(unittest.TestCase):
             worker._cleanup()
             self.assertEqual(book.peek("S1"), PHONE_ORIGINALS)
             self.assertIn("settings restore failed", worker.result.notes[0])
+
+# ── --changed: which suites a diff can affect ────────────────────────────────
+
+class ClassifyChangedTest(unittest.TestCase):
+    def modules(self, *paths):
+        return adm.classify_changed(paths)[0]
+
+    def test_a_product_directory_selects_that_product_only(self):
+        self.assertEqual(self.modules("products/android/phototok/src/a/B.kt"), ["phototok"])
+        self.assertEqual(self.modules("products/android/android-desktop/tests/instrumented/T.kt"), ["android-desktop"])
+
+    def test_both_products_in_one_diff_select_both(self):
+        self.assertEqual(self.modules("products/android/phototok/src/A.kt",
+                                      "products/android/android-desktop/src/B.kt"), ["android-desktop", "phototok"])
+
+    def test_shared_code_build_files_and_the_runner_select_both(self):
+        for path in ("products/android/core/src/Exif.kt", "products/android/saf/src/Copy.kt",
+                     "products/android/build.gradle.kts", "products/android/settings.gradle.kts",
+                     "products/android/gradle.properties", "products/android/gradle/libs.versions.toml",
+                     "products/android/gradle/wrapper/gradle-wrapper.properties",
+                     "products/android/something/unknown.bin",
+                     "scripts/android_device_matrix.py", "scripts/android_test_device.py"):
+            with self.subTest(path=path):
+                self.assertEqual(self.modules(path), ["android-desktop", "phototok"])
+
+    def test_nothing_android_selects_nothing(self):
+        self.assertEqual(self.modules("docs/README.md", "products/linux-desktop/src/x.py", ".github/workflows/ci.yml",
+                                      "products/android/phototok/README.md", "scripts/tests/test_android_device_matrix.py"), [])
+        self.assertEqual(self.modules(), [])
+
+    def test_a_product_name_prefix_is_not_a_product_directory(self):
+        # "phototok-extras" is not "phototok/": unclassifiable under products/android/ means both.
+        self.assertEqual(self.modules("products/android/phototok-extras/x.kt"), ["android-desktop", "phototok"])
+
+    def test_why_names_the_paths_that_selected_each_module(self):
+        _, why = adm.classify_changed(["products/android/phototok/src/A.kt", "docs/x.txt"])
+        self.assertEqual(why, {"phototok": ["products/android/phototok/src/A.kt"]})
+
+
+class ChangedPathsTest(unittest.TestCase):
+    @staticmethod
+    def runner(outputs):
+        calls = []
+
+        def run(cmd, timeout=120):
+            calls.append(list(cmd))
+            for key, out in outputs.items():
+                if key in cmd:
+                    return out
+            return 0, ""
+        run.calls = calls
+        return run
+
+    def test_default_base_is_the_merge_base_and_untracked_files_count(self):
+        r = self.runner({"merge-base": (0, "abc123\n"), "diff": (0, "products/android/phototok/src/A.kt\n"),
+                         "ls-files": (0, "products/android/saf/New.kt\n")})
+        base, paths, error = adm.changed_paths(None, r)
+        self.assertEqual((base, error), ("abc123", ""))
+        self.assertEqual(paths, ["products/android/phototok/src/A.kt", "products/android/saf/New.kt"])
+        self.assertIn(["git", "-C", str(adm.REPO_ROOT), "diff", "--name-only", "abc123"], r.calls)
+
+    def test_an_explicit_base_skips_the_merge_base(self):
+        r = self.runner({})
+        self.assertEqual(adm.changed_paths("HEAD~2", r), ("HEAD~2", [], ""))
+        self.assertFalse(any("merge-base" in c for c in r.calls))
+
+    def test_no_merge_base_is_an_error_not_an_empty_scope(self):
+        base, paths, error = adm.changed_paths(None, self.runner({"merge-base": (128, "fatal: no origin/main")}))
+        self.assertIsNone(base)
+        self.assertIn("no merge-base", error)
+
+
+class ChangedRunTest(unittest.TestCase):
+    """cmd_run's scoping, stopped before any device is touched."""
+
+    def run_with(self, argv, paths=("docs/a.txt",), error=""):
+        import argparse
+        import io
+        from contextlib import redirect_stdout
+        out = io.StringIO()
+        with tempfile.TemporaryDirectory() as tmp, \
+                mock.patch.object(adm, "runs_root", return_value=Path(tmp)), \
+                mock.patch.object(adm, "changed_paths", return_value=("abcdef1234567", list(paths), error)), \
+                mock.patch.object(adm, "discover", return_value=([], "none")) as discover, redirect_stdout(out):
+            args = argparse.Namespace(module=None, only_open_issues=False, changed=None, serial=None, configured=False,
+                                      no_personal=True, gate_lines=None, no_build=True)
+            for key, value in argv.items():
+                setattr(args, key, value)
+            code = adm.cmd_run(args)
+        return code, out.getvalue(), discover
+
+    def test_no_android_change_runs_nothing_and_exits_zero(self):
+        code, out, discover = self.run_with({"changed": ""})
+        self.assertEqual(code, 0)
+        self.assertIn("no Android change", out)
+        discover.assert_not_called()
+
+    def test_a_phototok_change_scopes_the_run_and_names_the_skipped_suite(self):
+        code, out, _ = self.run_with({"changed": ""}, paths=["products/android/phototok/src/A.kt"])
+        self.assertEqual(code, 2)   # no devices in this fake
+        self.assertIn("changed since abcdef1234: phototok (1 file(s), e.g. products/android/phototok/src/A.kt)", out)
+        self.assertIn("skipped android-desktop (no change under products/android/android-desktop/", out)
+
+    def test_without_the_flag_every_suite_runs(self):
+        _, out, _ = self.run_with({"changed": None}, paths=["products/android/phototok/src/A.kt"])
+        self.assertIn("full suites: android-desktop, phototok", out)
+
+    def test_explicit_module_wins(self):
+        _, out, _ = self.run_with({"changed": "", "module": ["android-desktop"]}, paths=["products/android/phototok/src/A.kt"])
+        self.assertIn("--module given: it wins", out)
+        self.assertIn("full suites: android-desktop;", out)
+
+    def test_open_issues_win_over_changed(self):
+        code, out, _ = self.run_with({"changed": "", "only_open_issues": True})
+        self.assertIn("--only-open-issues given", out)
+
+    def test_an_undeterminable_scope_runs_everything(self):
+        _, out, _ = self.run_with({"changed": ""}, error="no merge-base with origin/main (128)")
+        self.assertIn("running every suite", out)
+        self.assertIn("full suites: android-desktop, phototok", out)
+
+
+# ── The keyguard step on a device with a screen lock ─────────────────────────
+
+# The 11-10 02:27 run's progress.log, Pixel 4a (verbatim lines; the adb output of the failing
+# step was not logged then, hence the empty output below — the step's code or text is unknown).
+PIXEL_4A_PROGRESS = """02:27:00 Pixel 4a: prepare ✓ screen-off timeout at maximum
+02:27:01 Pixel 4a: prepare ✗ keyguard disabled
+02:27:01 Pixel 4a: prepare ✓ fixed portrait rotation
+"""
+
+
+class PrepareKeyguardTest(unittest.TestCase):
+    @staticmethod
+    def prepare_runner(code=255, out=""):
+        def run(cmd, timeout=120):
+            if cmd[-1] == "locksettings set-disabled true":
+                return code, out
+            return 0, ""
+        return run
+
+    def test_prepare_logs_which_step_failed_and_what_adb_said(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            worker = worker_with(self.prepare_runner(255, "Error: cannot disable with credential"), tmp)
+            failed = worker._prepare()
+            log = (Path(tmp) / "p.log").read_text(encoding="utf-8")
+        self.assertEqual(failed, ["keyguard disabled"])
+        self.assertIn("prepare ✗ keyguard disabled (exit 255: Error: cannot disable with credential)", log)
+        self.assertEqual(worker.prepare_outputs["keyguard disabled"], "Error: cannot disable with credential")
+        self.assertIn("✗ keyguard disabled", PIXEL_4A_PROGRESS)   # the shape the real log had
+
+    def test_a_refused_keyguard_step_on_an_unlocked_screen_is_a_note_not_a_failure(self):
+        note = adm.prepare_notes(["keyguard disabled"], {"keyguard disabled": "Error: x"}, False)
+        self.assertNotIn("failed", note)
+        self.assertIn("screen lock not removable over adb", note)
+        self.assertIn("screen kept awake", note)
+
+    def test_unknown_lock_state_after_the_wake_up_is_not_a_failure_either(self):
+        self.assertNotIn("failed", adm.prepare_notes(["keyguard disabled"], {}, None))
+
+    def test_a_lock_screen_that_is_showing_stays_a_failure(self):
+        self.assertEqual(adm.prepare_notes(["keyguard disabled"], {}, True),
+                         "prepared as a test device (failed: keyguard disabled)")
+
+    def test_other_failed_steps_stay_failures_next_to_the_keyguard_note(self):
+        note = adm.prepare_notes(["light theme", "keyguard disabled"], {}, False)
+        self.assertTrue(note.startswith("prepared as a test device (failed: light theme);"))
+
+    def test_nothing_failed(self):
+        self.assertEqual(adm.prepare_notes([], {}, False), "prepared as a test device")
+
 
 
 if __name__ == "__main__":
