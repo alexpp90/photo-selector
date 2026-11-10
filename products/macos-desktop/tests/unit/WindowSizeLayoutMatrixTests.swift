@@ -68,17 +68,17 @@ struct WindowSizeLayoutMatrixTests {
                 let layout = MetadataPanelLayout(canvas: canvas, aspectRatio: aspect, isPanelVisible: true)
                 let bounds = CGRect(origin: .zero, size: canvas)
                 let label = "\(canvas) aspect \(String(describing: aspect))"
-                #expect(layout.placement != .hidden, label)
+                #expect(layout.placement != .hidden, "\(label)")
                 #expect(!overlap(layout.image, layout.panel), "panel covers the photo at \(label)")
-                #expect(bounds.contains(layout.image) && bounds.contains(layout.panel), label)
+                #expect(bounds.contains(layout.image) && bounds.contains(layout.panel), "\(label)")
                 // They tile the canvas exactly: no gap that a toast could be placed over unnoticed.
-                #expect(layout.image.union(layout.panel) == bounds, label)
+                #expect(layout.image.union(layout.panel) == bounds, "\(label)")
                 #expect(layout.image.width * layout.image.height + layout.panel.width * layout.panel.height
-                            == canvas.width * canvas.height, label)
+                            == canvas.width * canvas.height, "\(label)")
                 // The EXIF rows stay legible: the panel keeps its two text rows / its column.
                 switch layout.placement {
-                case .bottomStrip: #expect(layout.panel.height >= 48, label)
-                case .sideColumn: #expect(layout.panel.width >= 200, label)
+                case .bottomStrip: #expect(layout.panel.height >= 48, "\(label)")
+                case .sideColumn: #expect(layout.panel.width >= 200, "\(label)")
                 case .hidden: break
                 }
                 // The photo keeps nearly all of the area it would have without a panel.

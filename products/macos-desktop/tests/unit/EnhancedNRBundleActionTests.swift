@@ -2,17 +2,6 @@ import Testing
 import Foundation
 @testable import PhotoSelectorKit
 
-/// Trash stand-in inside the test's own directory (never the real Trash).
-private struct DirectoryTrashService: TrashService {
-    let directory: URL
-    func trash(_ url: URL) throws -> URL {
-        try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
-        let destination = directory.appendingPathComponent(url.lastPathComponent)
-        try FileManager.default.moveItem(at: url, to: destination)
-        return destination
-    }
-}
-
 /// F-LJ-015: a photo's `-Enhanced-NR` derivative stayed behind when the shot was moved, copied or
 /// trashed. `CompanionGroupingTableTests` pins the discovery; this pins the actions and their Undo
 /// end to end, for every action, so a derivative that is found but not carried fails here.
@@ -43,7 +32,7 @@ struct EnhancedNRBundleActionTests {
         defer { try? FileManager.default.removeItem(at: root) }
         let trash = root.appendingPathComponent(".trash", isDirectory: true)
         let selection = root.appendingPathComponent("Selection", isDirectory: true)
-        let actor = AsyncCullingActor(trashService: DirectoryTrashService(directory: trash))
+        let actor = AsyncCullingActor(trashService: DirectoryTrashService(trashDirectory: trash))
         let job = CullingJob(photoID: UUID(), actionType: action, primaryURL: root.appendingPathComponent("IMG_0003.CR3"), rootURL: root)
 
         let record = try #require(try await actor.enqueue(job))

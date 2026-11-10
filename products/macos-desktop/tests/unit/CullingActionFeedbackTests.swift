@@ -69,7 +69,7 @@ struct CullingActionFeedbackTests {
         }
     }
 
-    private func makeEnv(custom useCustom: Bool, files: [String] = ["A0.JPG", "A1.JPG", "A2.JPG"], fileManager: FileManager = .default) throws -> Env {
+    private func makeEnv(custom useCustom: Bool, files: [String] = ["A0.JPG", "A1.JPG", "A2.JPG"], makeActor: (@Sendable () -> AsyncCullingActor)? = nil) throws -> Env {
         let base = FileManager.default.temporaryDirectory.standardizedFileURL.resolvingSymlinksInPath()
         let root = base.appendingPathComponent("Feedback_\(UUID().uuidString)", isDirectory: true)
         try FileManager.default.createDirectory(at: root, withIntermediateDirectories: true)
@@ -95,10 +95,10 @@ struct CullingActionFeedbackTests {
         }
 
         let actor: AsyncCullingActor
-        if fileManager === FileManager.default {
-            actor = AsyncCullingActor(trashService: FolderTrashService(directory: root.appendingPathComponent(".trash", isDirectory: true)))
+        if let makeActor {
+            actor = makeActor()
         } else {
-            actor = AsyncCullingActor(cullingManager: FileCullingManager(fileManager: fileManager), fileManager: fileManager)
+            actor = AsyncCullingActor(trashService: FolderTrashService(directory: root.appendingPathComponent(".trash", isDirectory: true)))
         }
         let vm = CullingWorkspaceViewModel(cullingActor: actor, userDefaults: defaults)
         vm.setPhotos(items, rootURL: root)
@@ -207,8 +207,10 @@ struct CullingActionFeedbackTests {
 
     @Test("REQ-MAC-CULL.04 F-LJ-027: a bundle move whose rollback fails says which photo's files stayed in which folder")
     func rollbackFailureNamesPhotoAndFolder() async throws {
-        let fm = StrandingFileManager(failing: "R0.JPG", unrestorable: "R0.CR3")
-        let env = try makeEnv(custom: false, files: ["R0.CR3", "R0.JPG"], fileManager: fm)
+        let env = try makeEnv(custom: false, files: ["R0.CR3", "R0.JPG"]) {
+            let fm = StrandingFileManager(failing: "R0.JPG", unrestorable: "R0.CR3")
+            return AsyncCullingActor(cullingManager: FileCullingManager(fileManager: fm), fileManager: fm)
+        }
         defer { env.cleanUp() }
         let photo = try #require(env.items.first)
         #expect(photo.filename == "R0.CR3")
