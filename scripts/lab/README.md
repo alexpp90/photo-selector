@@ -67,8 +67,15 @@ install.
   `products/android/<product>/tests/e2e/_ensure_folder.yaml` grants that folder if the app has
   none and brings the app to a photo.
 - **Device preconditions.** A journey that needs device state the lab must not create lists it
-  as `requires_dirs` (J-TOK-06 needs `/sdcard/DCIM/Camera`). A device without one of those
-  directories reports the journey *not run*, never broken; the check only reads.
+  as `requires_dirs`; a device without one reports the journey *not run*, never broken (the check
+  only reads). A directory the lab may create itself is listed as `stage_dirs` instead
+  (J-TOK-06: `/sdcard/DCIM/Camera`, the only stageable path, `lab/paths.py`): where it is missing
+  the lab creates it with one fixture photo (`PSTLab_staged.jpg`) for that journey and removes
+  both, and the parent it had to create, afterwards; where it exists nothing is touched.
+- **Launch check.** After launching the app the lab dumps the UI tree and skips
+  `_ensure_folder.yaml` (about 10 s of Maestro start-up plus its waits) when the app already shows
+  the workspace or feed with no dialog, guide or landing page for 4 s (`lab/android/start_state.py`);
+  anything else runs the flow as before. The journey's `result.json` says `ensure_folder: skipped`.
 - **Locale.** Picker flows use `android:id/button1`, not button text, so devices in any
   language work.
 - **Rotation.** A docked Pixel Tablet ignores rotation requests; its portrait configs are
