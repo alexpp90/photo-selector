@@ -22,6 +22,7 @@ import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.unit.dp
 import com.photoselectortoolbox.R
+import com.photoselectortoolbox.ui.components.handCursor
 
 /**
  * The Settings row that opens the third-party licence notices of what this build bundles
@@ -60,7 +61,7 @@ fun LicencesDialog(onDismiss: () -> Unit) {
             }
         },
         confirmButton = {
-            TextButton(onClick = onDismiss, modifier = Modifier.testTag("licences_close")) {
+            TextButton(onClick = onDismiss, modifier = Modifier.handCursor().testTag("licences_close")) {
                 Text("Close")
             }
         },
