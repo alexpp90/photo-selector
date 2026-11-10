@@ -55,9 +55,11 @@ Start Blitzlens with a folder (`photo-selector-linux ~/Pictures/2026`) or let th
 | `Space` | Toggle 100% 1:1 actual-pixel zoom in 1-Up mode |
 | `Escape` | Reset zoom to fit / dismiss |
 | `I` | Toggle floating optical metadata & quality score HUD |
-| `B` | Toggle view order: lowest sharpness first / natural order (also main menu → View order). Choosing lowest sharpness first scores every photo of the folder in the background (on a cloud folder, choose it a second time to confirm), then sorts them |
+| `B` | Toggle lowest sharpness first / the order the folder opens in. The main menu → View order offers Newest first (default), Oldest first, File name and Lowest sharpness first; the choice is remembered (except the sharpness sweep). Choosing lowest sharpness first scores every photo of the folder in the background (on a cloud folder, choose it a second time to confirm), then sorts them; Preferences > Scoring > Stop at sharpness stops the sweep at a score |
+| `G` | Go to photo: a position ("Photo N of M") or part of a file name |
 | `Ctrl+Z` | Undo last culling operation (atomic reversal); every folder keeps its own undo history, including an operation that finished while you switched folders |
 | `Ctrl+O` | Open folder / SD card directory |
+| `Escape` / `Ctrl+W` | In Statistics, Duplicates, Shortcuts and Preferences: close the window |
 | `Tab` | Move the keyboard focus through the header and action bar (`Space` presses the focused button) |
 | `Ctrl+D` | Open Duplicate Finder |
 | `Ctrl+L` | Open Library Statistics |

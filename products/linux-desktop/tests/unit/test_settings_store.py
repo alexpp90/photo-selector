@@ -39,3 +39,51 @@ def test_a_damaged_file_is_logged_and_kept(tmp_path: Path, caplog):
     assert store.selection_folder_name == "Selection"  # defaults apply
     assert "settings" in caplog.text.lower() and str(path) in caplog.text
     assert (tmp_path / "settings.json.corrupt").read_text() == '{"selection_folder_name": "Keepers"'
+
+
+# ── Updates never destroy the user's setup (audit 2026-10-24) ────────────────────────────────────
+
+
+def test_settings_of_the_first_release_survive_the_upgrade_unchanged(tmp_path):
+    """Every key 0.2.0 wrote, set to a non-default value, reads back with the same effect."""
+    import json
+
+    from photo_selector_linux.core.settings import SettingsStore
+
+    path = tmp_path / "settings.json"
+    shipped = {
+        "selection_folder_name": "Picks",
+        "auto_advance": False,
+        "blurry_threshold": 20.0,
+        "sharp_threshold": 80.0,
+        "cache_limit_mb": 1024.0,
+        "external_destination_folder": str(tmp_path),
+        "stop_sharpness_threshold": 55.0,
+    }
+    path.write_text(json.dumps(shipped), encoding="utf-8")
+    store = SettingsStore(path=path)
+    assert store.selection_folder_name == "Picks"
+    assert store.auto_advance is False
+    assert (store.blurry_threshold, store.sharp_threshold) == (20.0, 80.0)
+    assert store.cache_limit_mb == 1024.0
+    assert store.external_destination_folder == str(tmp_path)
+    assert store.destination_mode == "custom"  # a stored folder was in use before the choice existed
+    assert store.stop_sharpness_threshold == 55.0
+    assert store.view_order == "natural"  # the order they always had; new installs get newest first
+    store.update(auto_advance=False)
+    again = json.loads(path.read_text(encoding="utf-8"))
+    assert all(again[key] == value for key, value in shipped.items())
+
+
+def test_keys_a_newer_version_wrote_are_kept_when_this_one_saves(tmp_path):
+    import json
+
+    from photo_selector_linux.core.settings import SettingsStore
+
+    path = tmp_path / "settings.json"
+    path.write_text(json.dumps({"auto_advance": False, "future_option": {"a": 1}}), encoding="utf-8")
+    store = SettingsStore(path=path)
+    store.update(cache_limit_mb=256.0)
+    saved = json.loads(path.read_text(encoding="utf-8"))
+    assert saved["future_option"] == {"a": 1}
+    assert saved["cache_limit_mb"] == 256.0 and saved["auto_advance"] is False

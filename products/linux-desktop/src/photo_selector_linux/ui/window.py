@@ -329,9 +329,12 @@ class MainWindow(Adw.ApplicationWindow if HAS_GI else object):
             return
         severity = getattr(vm, "last_notification_severity", "info")
         if severity == "status":
-            return
+            return  # the action bar shows and announces it
         # Files left in an unexpected place: the toast stays until the user dismisses it.
         self.show_toast(message, persistent=severity == "stranded")
+        if severity == "info":
+            # "Loaded N photographs" and the like: errors are announced by the action bar.
+            self.action_bar._announce(message)
 
     def show_toast(self, message: str, persistent: bool = False) -> None:
         """Show one toast at a time: the previous one is dismissed, never queued."""

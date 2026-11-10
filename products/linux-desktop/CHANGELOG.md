@@ -10,7 +10,17 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 - Preferences > Culling Destination: choose **Working folder** (Selection inside the folder you cull, as before) or a **Custom folder**, and see the full path your photos will go to, updated as you open another folder. A custom folder that is gone or not writable is shown as a warning.
 - **Lowest sharpness first** is in the main menu (View order) and on the **B** key, next to the natural order; the menu shows which one is active.
 
+- **Newest first** is the default view order for new installs, with **Oldest first**, **File name** and **Lowest sharpness first** in the main menu (View order). The choice is remembered; an install that already has settings keeps the file-name order it had. While the folder is still being scanned, the photo on screen stays on screen, and an untouched session shows the newest photo so far. A sort icon beside "Photo N of M" shows any order other than the default.
+- **Go to photo** (`G`): type a photo's position ("Photo N of M") or part of its file name; the dialog names the target as you type, Enter goes, Escape cancels.
+- Preferences > Scoring has **Stop at sharpness** (0 = off): with lowest sharpness first, the sweep stops at the first photo at or above that score.
+- Escape and Ctrl+W close Library Statistics, Duplicates, Keyboard Shortcuts and Preferences, and the focus returns to the main window. Their scroll areas show a scrollbar, and they are never taller than 90 % of the main window.
+- A screen reader announces queued, undone and finished operations and finished folder loads, and the Undo button's spoken name says which action it would undo and how many are available.
+
 ### Changed
+- `B` returns from lowest sharpness first to the order the folder opens in (newest first by default), not always to file-name order.
+- `F` (filmstrip) and `S` (sync lock) are no longer listed or bound: neither feature exists. `Tab` stays keyboard focus traversal.
+- The Duplicate Finder window is titled "Duplicates".
+- Settings written by a newer version keep their extra keys when this version saves.
 - Move and Copy no longer recreate a custom destination folder that has disappeared (for example an unplugged drive); they report the problem and leave the photo where it is. An existing custom destination is read as the Custom folder choice.
 - The empty start screen lost its tagline, and its key hints are generated from the same key table the app uses.
 - The action buttons read **Keep**, **Copy**, **Trash** and **Undo**; the keys moved into the tooltips and the `?` shortcut sheet. The tooltip of **Undo** names the action it would undo.
@@ -18,6 +28,10 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 - Counters, badges, captions and the info card follow the system text size; before, they stayed the same size at 150 % text.
 
 ### Fixed
+- Preferences titles that contain `<` or `&` ("Blurry Threshold (< 35.0)", "Memory & Prefetch") are shown as written; before, GTK parsed them as markup and could show them empty.
+- A custom `XDG_DATA_HOME` (Nix, containers) no longer switches Trash from the desktop's Trash (GIO) to the app's own implementation.
+- The lab's artifact folder in `/tmp` is refused when it is a symlink or belongs to another user.
+- Errors in observers and callbacks that were silently dropped are logged.
 - After a Move, Copy or Trash the action bar says what happened: the photo's name (shortened in the middle when long), where it went (Selection or Trash) and how many companion files went along, for example `Moved IMG_…_064000 + 2 to Selection/`. The line no longer shifts the centred buttons.
 - The action bar follows the window width without a permanent frame callback, so an idle window no longer redraws every frame.
 - The `.deb` is now really reproducible: the package on the GitHub release and the one in the APT repository are the same file (same checksum). Before, two builds of the same version differed in the build time stored in the archive, so the repository and the release carried different bytes.

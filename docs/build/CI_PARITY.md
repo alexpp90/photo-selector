@@ -152,6 +152,14 @@ On a Wayland session GTK4 prefers `WAYLAND_DISPLAY` to the Xvfb `DISPLAY` and wo
 test windows on the real desktop, so under Xvfb `pyx` runs the command with `WAYLAND_DISPLAY`
 unset and `GDK_BACKEND=x11`. `PST_SHOW_GUI=1` leaves the environment alone (windows on your screen).
 
+A bare `pytest` of `products/linux-desktop` (no `pyx`) gets the same protection from
+`tests/conftest.py` (`_display_env.keep_gui_off_real_desktop`): with `WAYLAND_DISPLAY` set the
+session's `DISPLAY` (its Xwayland, also the real desktop) is dropped as well, so the tests run
+against the stubs; run them under `xvfb-run` with `WAYLAND_DISPLAY` unset to exercise real GTK.
+The lab's `tests/e2e/session.sh` unsets `WAYLAND_DISPLAY` and forces `GDK_BACKEND=x11` on its own Xvfb.
+`conftest.py` also points `XDG_CONFIG_HOME` / `XDG_DATA_HOME` at a throwaway directory, so a test
+that builds a window without a settings path never touches the user's real settings.
+
 Off Linux there is no Xvfb: `pyx` degrades to a plain call, and the macOS conftest keeps
 windows off-screen by its own means (see
 [Headless & background GUI execution](#headless--background-gui-execution-on-macos-all-products)).

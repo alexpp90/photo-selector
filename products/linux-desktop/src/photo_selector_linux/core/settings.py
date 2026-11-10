@@ -65,6 +65,9 @@ class SettingsStore:
         #: The order a folder opens in. New installs open newest first; an install that has a
         #: settings file without this key keeps the file-name order it always had.
         self.view_order: str = ORDER_NEWEST
+        #: Keys this version does not know (written by a newer one): kept and written back, so
+        #: going back and forth between versions never loses a setting.
+        self._unknown: Dict[str, Any] = {}
         self._callbacks: List[Callable[[SettingsStore], None]] = []
 
         if auto_load and self.config_path.is_file():
@@ -90,6 +93,7 @@ class SettingsStore:
 
     def to_dict(self) -> Dict[str, Any]:
         return {
+            **self._unknown,
             "selection_folder_name": self.selection_folder_name,
             "auto_advance": self.auto_advance,
             "blurry_threshold": self.blurry_threshold,
@@ -162,6 +166,8 @@ class SettingsStore:
             return self
         if isinstance(raw, dict):
             self._apply_dict(raw)
+            known = set(self.to_dict()) - set(self._unknown)
+            self._unknown = {k: v for k, v in raw.items() if k not in known}
         return self
 
     @classmethod
