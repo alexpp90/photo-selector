@@ -24,9 +24,9 @@
 
 ## 🌟 The Apps at a Glance
 
-**Jackpix**, **Frameduel**, **Lensjet** and **Blitzlens** are privacy-first, high-velocity photo culling and metadata analysis apps for professional photographers, enthusiasts, and creators. Whether sorting on the go on your phone, reviewing burst sequences on a tablet, or performing intensive multi-thousand RAW triage at your desktop workstation, each app is built natively for its platform. The original multi-platform Python app, **Photo Selector Toolbox (Legacy)**, stays here as an archived reference.
+**Jackpix**, **Frameduel**, **Lensjet** and **Blitzlens** are photo culling apps for photographers: go through a shoot, keep the frames worth keeping in a Selection folder, and delete the rest. Jackpix is for swiping through photos on the phone, Frameduel compares neighbouring frames on a tablet, in Samsung DeX or on a Chromebook, and Lensjet and Blitzlens triage large RAW folders on the Mac and on GNOME. Each app is built natively for its platform. The original multi-platform Python app, **Photo Selector Toolbox (Legacy)**, stays here as an archived reference.
 
-> 🔒 **100% Private & Strictly Offline:** Your photos never leave your device. All EXIF parsing, duplicate detection, and optical/aesthetic quality scoring (including Apple Vision on the Neural Engine) execute strictly on-device. Zero cloud uploads, zero telemetry, and no account required.
+> 🔒 **Private and offline:** Jackpix, Frameduel, Lensjet and Blitzlens open no network connection of their own: no account, no telemetry, no upload. EXIF reading, duplicate detection and quality scoring (Lensjet's Apple Vision score included) run on your device. A folder you open on a cloud drive stays there; the apps reach it through the system's own file access. The one exception is the archived legacy Desktop: its optional Ollama scoring sends images to the Ollama server you configure (localhost by default).
 
 ---
 
@@ -39,39 +39,18 @@ The repository ships **five products** (four active native solutions alongside t
 | 📱 **Jackpix** | `products/android/phototok/` | Kotlin, Compose, DataStore | Phones of every size | Gesture-first vertical swipe feed | [docs](docs/products/phototok/README.md) |
 | 🖥️ **Frameduel** (Android Desktop) | `products/android/android-desktop/` | Kotlin, Compose, Room, OpenCV | Samsung DeX, tablets ($\ge 840$dp) | 1-over-2 three-frame layout, sidebar & controls | [docs](docs/products/android-desktop/README.md) |
 | 🍎 **Lensjet** (macOS Desktop) | `products/macos-desktop/` | Swift 6, SwiftUI, Vision, Accelerate | macOS 14+ / 15+ Apple Silicon & Intel | Maximized preview (>85%), Apple Vision aesthetics | [docs](docs/products/macos-desktop/README.md) |
-| 🐧 **Blitzlens** (Linux Desktop) | `products/linux-desktop/` | Python 3.12+, GTK4, Libadwaita | Debian 13 (Trixie), GNOME 46+ | Libadwaita dark studio, 1/2/3-Up canvas, NumPy (<2ms) | [docs](docs/products/linux-desktop/README.md) |
+| 🐧 **Blitzlens** (Linux Desktop) | `products/linux-desktop/` | Python 3.12+, GTK4, Libadwaita | Debian 13 (Trixie), GNOME 46+ | Libadwaita dark studio, 1/2/3-Up canvas, NumPy scoring | [docs](docs/products/linux-desktop/README.md) |
 | 📦 **Photo Selector Toolbox (Legacy)** | `products/desktop/src/` | Python 3.12+, Tkinter | macOS, Windows, Linux | Split view, menu/hotkeys (archived reference) | [docs](docs/products/desktop/README.md) |
 | *(shared library)* | `products/android/core/` | Kotlin | — | EXIF model + readers used by both Android products | [docs](docs/shared/README.md) |
 | *(shared library)* | `products/android/saf/` | Kotlin | — | SAF copy/move engine + folder grants used by both Android products | [docs](docs/shared/README.md) |
 
 Naming matters here — "the Android app" is ambiguous. Canonical names, slugs, and package mappings are defined in [`docs/GLOSSARY.md`](docs/GLOSSARY.md); names, icons and colours in [`docs/shared/BRANDING.md`](docs/shared/BRANDING.md).
 
-### Repository Map
-
-All product code lives under `products/`, one directory per product, sharing the same shape:
-`src/` for sources, `tests/` for tests, its own build configuration, and its own `README.md`.
-Everything else at the repository root is genuinely cross-product.
-
-```
-products/
-  android/                   Gradle build root for both Android products
-    phototok/                  Jackpix (Phone)        — src/ tests/ res/ AndroidManifest.xml
-    android-desktop/           Frameduel (DeX)        — src/ tests/ res/ AndroidManifest.xml
-    core/                      :core — EXIF model + readers, shared by both Android products
-    saf/                       :saf — SAF file operations, shared by both Android products
-  macos-desktop/             Lensjet (macOS)        — src/ tests/ Package.swift
-  linux-desktop/             Blitzlens (GNOME)      — src/ tests/ debian/ scripts/ pyproject.toml
-  desktop/                   Archived Legacy Desktop— src/ tests/ benchmarks/ scripts/ pyproject.toml
-docs/                        Product documentation, per product -> docs/README.md
-scripts/                     Cross-product tooling — run_tests.sh (local CI mirror)
-assets/                      Screenshots, banner; brand/ holds icon masters, palette and generator
-```
-
 ---
 
 ## 📱 1. Jackpix (Phone)
 
-A lightweight, touch-optimized portrait client designed for lightning-fast, single-handed photo curation on your phone.
+A touch-first portrait app for sorting your photos one-handed on the phone.
 
 <div align="center">
   <img src="assets/phototok_02_viewer.png" alt="Jackpix Mobile Culling Interface" width="360" style="border-radius: 12px; box-shadow: 0 4px 20px rgba(0,0,0,0.3); margin-bottom: 12px;" />
@@ -80,7 +59,7 @@ A lightweight, touch-optimized portrait client designed for lightning-fast, sing
 
 ### Key Features
 * **Casual or Pro, One Switch:** Out of the box Jackpix is set up for fast swiping with nothing to configure — ★ favourites on the phone, SD-card keepers copied into the phone's camera folder (`DCIM/Camera/Jackpix`), RAW + JPEG kept together, no camera info. The **Pro mode** switch on the start screen (and at the top of Settings) turns on camera info and unlocks swipe actions, folders, feed order, format filters and per-source profiles; switching it off pauses those settings without erasing them. Settings survive app updates.
-* **Full-Screen Vertical Swipe Feed:** Browse local collections seamlessly via Jetpack Compose native `VerticalPager` with background prefetching and progressive SAF loading (sub-second time-to-first-swipe).
+* **Full-Screen Vertical Swipe Feed:** Browse local collections seamlessly via Jetpack Compose native `VerticalPager` with background prefetching and progressive loading: you can swipe once the first 24 photos are found, while the rest of the folder is still being read.
 * **Tactile Culling Swipes:**
   * **Swipe-Right to Keep:** Mark a ★ favourite, or (Pro) copy or move the photo to your `Selection/` folder, with an animated lime confirmation glow.
   * **Swipe-Left to Discard or Route:** Configurable action (permanent Delete after confirmation, Copy, or Move to a secondary folder) with progressive card tilt ($2^\circ$) and non-blocking **Undo** (a "Photo deleted · Undo" snackbar and the bar's `Undo` arrow) across scrolls.
@@ -104,9 +83,9 @@ Built specifically for large-screen tablets (≥ 840 dp) and desktop environment
 </div>
 
 ### Key Features
-* **1-over-2 Three-Frame Layout:** Height-optimized comparison architecture allocating maximum display area to the Current frame, flanked by named metric readouts to the left and primary action buttons to the right, with Previous and Next frames centered as a pair beneath.
-* **Zero-Area-Cost Columnar Chrome:** 88dp labeled left sidebar and 72dp vertical filmstrip running top-to-bottom in horizontal display slack, preserving 100% of vertical photo height without adding top or bottom bars.
-* **On-Device Optical Scoring:** Real-time Center Sharpness (OpenCV Laplacian variance on center 50% ROI), MAD noise floor estimation, highlight/shadow clipping histograms.
+* **1-over-2 Three-Frame Layout:** Three frames of the same size, so a comparison is fair: the current frame on top, its named readouts on the left and the action buttons on the right, and the previous and next frames side by side beneath it.
+* **No Bars Above or Below the Photos:** An 88 dp labelled sidebar on the left and a 72 dp filmstrip column sit in the spare width, so the frames get the whole height of the window.
+* **On-Device Quality Scores:** A Scan (from the sidebar) scores the folder's photos on the device: sharpness of the central half of the frame (OpenCV Laplacian variance), noise, and highlight and shadow clipping. Scores are kept in a local cache.
 * **Star Ratings & Composition Feedback:** 1–5 star rating controls, reject tags, and composition heuristics persisted in a local Room SQLite database with a 10,000-image MRU cache. Ratings are written back to the photo too: embedded XMP for JPEG (while it is rewritten, a `.frameduel-backup` copy of the original sits beside it, and an interrupted write is restored the next time the folder opens), an `.xmp` sidecar for RAW and TIFF; for other formats (PNG, HEIC, WebP) the rating stays in the app and you are told so.
 * **Desktop Ergonomics:** Mouse pointer hover states (`PointerIcon.Hand`), physical keyboard shortcuts (`←`/`→`, `M`, `C`, `Del`, `1`/`2`/`3`, `G`, `S`, `Esc`; `I` pins the info panel in fullscreen; system Back closes the top layer like `Esc` and leaves the app only at the bare selector), and drag-and-drop folder import from Android file managers. Every control is a ≥ 48 dp touch target, and in small Chromebook or DeX windows the action buttons restack their word and key cap instead of truncating them.
 * **Sort and Go To:** A folder opens newest first. Right of the current photo, a Sort button (or `S`, or the overflow menu) switches to oldest first, file name or blurriest first (after a scan), and the choice is kept. The position counter beside it (or `G`) jumps straight to a photo by its number, a date (`12.10.2026`, `2026-10-12` or `12.10.`, or a calendar picker limited to days with photos; a day without photos goes to the nearest one) or its file name. In very small windows the two buttons give way to the counter, the keys and the overflow menu.
@@ -120,7 +99,7 @@ Built specifically for large-screen tablets (≥ 840 dp) and desktop environment
 
 ## 🍎 3. Lensjet — Native macOS Desktop (Swift & SwiftUI)
 
-A high-performance native macOS photo selection and comparison culling suite built with Swift 6 and SwiftUI, engineered for high-throughput SD-card ingestion and instant triage.
+A native macOS photo culling app built with Swift 6 and SwiftUI, for going through an SD card or a large RAW folder and comparing frames side by side.
 
 <div align="center">
   <img src="assets/macos_desktop_screenshot.png" alt="Lensjet Culling Workspace" width="750" style="border-radius: 10px; box-shadow: 0 4px 20px rgba(0,0,0,0.3); margin-bottom: 12px;" />
@@ -129,9 +108,9 @@ A high-performance native macOS photo selection and comparison culling suite bui
 
 ### Key Features
 * **Pure Native Apple Vision Aesthetics:** On-device aesthetic scoring via `VNCalculateImageAestheticsScoresRequest` utilizing Apple Neural Engine hardware with zero Python or external network dependencies.
-* **Hardware-Accelerated Focus Metric:** Sub-millisecond 2D Laplacian variance computation via Apple Accelerate (`vImageConvolve_PlanarF` + `vDSP`), processing >1,500 images/second per thread with noise-floor subtraction.
+* **Hardware-Accelerated Focus Metric:** Laplacian variance with noise-floor subtraction on Apple Accelerate (`vImageConvolve_PlanarF` + `vDSP`); the benchmark test holds it under 5 ms for a 512 × 512 preview.
 * **Maximized Viewport Canvas:** Borderless comparison layouts (1-Up with 1:1 pixel zoom on `Space`, 2-Up side-by-side, and Focus 3-Up sliding triplet) allocating >85% of window area to photo previews.
-* **Zero-Latency Keyboard Navigation:** Window-level `NSEvent` interceptor routing arrow keys, `M` (Move to `Selection/`), `C` (Copy), `Delete` (System Trash), and `⌘Z` (Instant Undo) with zero AppKit focus lag.
+* **Keyboard First:** A window-level `NSEvent` monitor takes the keys before any button can, so arrow keys, `M` (Move to `Selection/`), `C` (Copy), `Delete` (Trash) and `⌘Z` (Undo) act even while a button has focus. All keys: [`docs/shared/KEYBOARD.md`](docs/shared/KEYBOARD.md).
 * **Actor-Isolated Transactional Culling:** Serial FIFO disk mutations on `AsyncCullingActor` that never overwrite a file (a name clash gets a `-2` suffix), keep an undo record for Move, Copy and Trash, and pair companion files automatically (RAW+JPEG, XMP sidecars).
 * **macOS Design Standards:** Studio dark theme, configuration housed in standard macOS Settings (`⌘,`), secondary utilities housed under the Menu Bar `Tools` menu, and a toolbar and action bar that collapse to short labels and icons (with tooltips) in narrow windows instead of wrapping.
 
@@ -139,7 +118,7 @@ A high-performance native macOS photo selection and comparison culling suite bui
 
 ## 🐧 4. Blitzlens — Linux Desktop (GNOME 46+ & Libadwaita)
 
-A native GNOME photograph culling and selection suite targeting Debian 13 (Trixie) and modern Linux desktop environments adhering strictly to GNOME Human Interface Guidelines (HIG).
+A native GNOME photo culling app for Debian 13 (Trixie), built with GTK4 and Libadwaita along the GNOME Human Interface Guidelines.
 
 <div align="center">
   <img src="assets/brand/blitzlens/blitzlens.svg" alt="Blitzlens icon" width="96" style="margin-bottom: 10px;" />
@@ -150,7 +129,7 @@ A native GNOME photograph culling and selection suite targeting Debian 13 (Trixi
 
 ### Key Features
 * **Neutral Dark Workspace:** Built with Python 3.12+, PyGObject, GTK4, and Libadwaita on colour-neutral grey surfaces (`#141414` / `#181818` / `#1C1C1C`); selection and focus follow the GNOME accent setting, and the fixed keeper / acceptable / cull colours carry only their meaning.
-* **Vectorized NumPy Focus Engine & Goodness HUD:** 2D discrete Laplacian convolution with 3x3 Gaussian smoothing and strided Median Absolute Deviation (MAD) noise floor subtraction (<2.0 ms compute latency), paired with a glassmorphic HUD (`I`) displaying a normalized sharpness goodness meter, semantic quality badges (`Sharp` / `Acceptable` / `Blurry`), and `RAW+JPG` / `XMP` companion pills.
+* **Vectorized NumPy Focus Engine & Goodness HUD:** Laplacian variance with 3x3 Gaussian smoothing and the sensor noise floor subtracted, computed with NumPy, paired with a glassmorphic HUD (`I`) displaying a normalized sharpness goodness meter, semantic quality badges (`Sharp` / `Acceptable` / `Blurry`), and `RAW+JPG` / `XMP` companion pills.
 * **Responsive Canvas Viewports:** Seamlessly switch between 1-Up (1:1 actual-pixel zoom toggle on `Space`), 2-Up side-by-side comparison (`CHAMPION` / `CHALLENGER`), and 3-Up Focus Mode (one-over-two: `ACTIVE` on top, `PREVIOUS` / `NEXT` below) with boundary slot indicators. Move, Copy, Trash and Undo outcomes show in the bottom action bar, never over its buttons.
 * **Every Camera Format & Google Drive:** Displays, reads EXIF from and scores Sony, Canon (incl. CR3), Nikon, Fujifilm, Panasonic, OM System, Pentax, Samsung and DNG RAW files plus JPEG, HEIC, PNG, TIFF and WebP, proven against real camera files ([supported formats](docs/shared/SUPPORTED_FORMATS.md)). RAWs display through their embedded camera preview (phone DNGs through LibRaw), decoded in the background; folders on Google Drive (GNOME Online Accounts) open like local folders with their real file names, and Move, Copy, Trash and Undo work there too (trashed Drive files go to the local GNOME Trash, so Undo can bring them back). File operations run in the background, so the window stays responsive during a Drive upload, and 1:1 zoom on a RAW shows full sensor resolution.
 * **Semantic Action Bar:** Bottom `Gtk.ActionBar` with semantic status counter pills (`Selected`, `Trashed`, `Remaining`), tactile `Move (M)`, `Copy (C)`, `Trash (Del)` via FreeDesktop Trash (`Gio.File.trash()`), and atomic reversal (`Ctrl+Z`).
@@ -179,15 +158,38 @@ The original multi-platform desktop culling application built with Python and Tk
 | Feature | Jackpix (Phone) | Frameduel (Tablet/DeX) | Lensjet (macOS) | Blitzlens (GTK4/Adw) | Legacy Desktop (Py/Tk) | Notes |
 | :--- | :---: | :---: | :---: | :---: | :---: | :--- |
 | **Review Layouts** | Vertical Pager | 1-over-2 Three-Frame | 1-Up / 2-Up / 3-Up | 1-Up / 2-Up / 3-Up | Standard / Focus | Jackpix is gesture-first; the desktop apps provide multi-frame comparison. |
-| **Center Sharpness Score** | ❌ Omitted | ✅ (OpenCV) | ✅ (vImage + vDSP) | ✅ (NumPy Laplacian) | ✅ (OpenCV/NumPy) | 50% ROI Laplacian variance; omitted on Jackpix for sub-second launch. |
-| **Laplacian Noise (MAD)** | ❌ Omitted | ✅ (MAD) | ✅ (vImage MAD) | ✅ (NumPy MAD) | ✅ (MAD) | Median Absolute Deviation sensor noise floor subtraction. |
+| **Center Sharpness Score** | ❌ Omitted | ✅ (OpenCV) | ✅ (vImage + vDSP) | ✅ (NumPy Laplacian) | ✅ (OpenCV/NumPy) | 50% ROI Laplacian variance; Jackpix computes no scores. |
+| **Laplacian Noise (MAD)** | ❌ Omitted | ✅ (MAD) | ✅ (vImage MAD) | ✅ (NumPy MAD) | ✅ (MAD) | Noise estimated by median absolute deviation; Lensjet, Blitzlens and the legacy Desktop subtract it from sharpness, Frameduel does not. |
 | **Highlights/Shadows Clipping** | ❌ Omitted | ✅ (Histograms) | ✅ (vImage Hist) | ✅ (NumPy Hist) | ✅ (Histograms) | Hardware histogram thresholds $\ge 254$ and $\le 2$. |
 | **Aesthetic Scoring** | ❌ Excluded | ❌ Excluded | ✅ (Apple Vision ANE) | ❌ Excluded | ✅ (Local Ollama) | Lensjet uses the Apple Neural Engine; Frameduel scores technical quality only. |
 | **Star Ratings (1–5)** | ❌ Omitted | ✅ (Room) | ❌ Omitted | ❌ Omitted | ❌ Omitted | Rating, reject, and composition tracking in Room DB. |
-| **Score Caching** | ❌ Lightweight | ✅ (Room DB) | ❌ (Memory LRU) | ❌ (Memory LRU) | ✅ (SQLite) | Desktops rely on sub-2ms compute & memory LRU; Android uses Room. |
+| **Score Caching** | ❌ Lightweight | ✅ (Room DB) | ❌ (Memory LRU) | ❌ (Memory LRU) | ✅ (SQLite) | Lensjet and Blitzlens keep scores in memory; Frameduel caches them in Room, the legacy Desktop in SQLite. |
 | **Duplicate Detection** | ❌ Omitted | ✅ (Room DB) | ✅ (CryptoKit SHA) | ✅ (Streaming SHA) | ✅ (SHA-256) | Two-stage size pre-filtering and SHA-256 duplicate finder. |
-| **Tactile Keyboard Shortcuts** | ❌ Touch-first | ✅ (DeX / Physical) | ✅ (Zero-latency NSEvent)| ✅ (GTK Capture) | ✅ (Tkinter Events) | Full hotkey routing (`←`/`→`, `M`, `C`, `Del`, `Undo`). |
-| **100% Offline Privacy** | ✅ (SAF Only) | ✅ (Zero Permissions) | ✅ (Strictly Local) | ✅ (Strictly Local) | ✅ (Local) | Zero telemetry, zero cloud dependencies, strict privacy guarantee. The legacy Desktop's optional Ollama aesthetic engine sends images to the Ollama server URL you configure (localhost by default). |
+| **Tactile Keyboard Shortcuts** | ❌ Touch-first | ✅ (DeX / Physical) | ✅ (NSEvent monitor)| ✅ (GTK Capture) | ✅ (Tkinter Events) | `←`/`→`, `M`, `C`, `Del` and undo agree across the apps; the per-app keys are in [`KEYBOARD.md`](docs/shared/KEYBOARD.md). |
+| **100% Offline Privacy** | ✅ (SAF Only) | ✅ (Zero Permissions) | ✅ (Strictly Local) | ✅ (Strictly Local) | ◐ (optional Ollama server) | Zero telemetry, zero cloud dependencies, strict privacy guarantee. The legacy Desktop's optional Ollama aesthetic engine sends images to the Ollama server URL you configure (localhost by default). |
+
+---
+
+## 🗂️ Repository Map
+
+All product code lives under `products/`, one directory per product, sharing the same shape:
+`src/` for sources, `tests/` for tests, its own build configuration, and its own `README.md`.
+Everything else at the repository root is genuinely cross-product.
+
+```
+products/
+  android/                   Gradle build root for both Android products
+    phototok/                  Jackpix (Phone)        — src/ tests/ res/ AndroidManifest.xml
+    android-desktop/           Frameduel (DeX)        — src/ tests/ res/ AndroidManifest.xml
+    core/                      :core — EXIF model + readers, shared by both Android products
+    saf/                       :saf — SAF file operations, shared by both Android products
+  macos-desktop/             Lensjet (macOS)        — src/ tests/ Package.swift
+  linux-desktop/             Blitzlens (GNOME)      — src/ tests/ debian/ scripts/ pyproject.toml
+  desktop/                   Archived Legacy Desktop— src/ tests/ benchmarks/ scripts/ pyproject.toml
+docs/                        Product documentation, per product -> docs/README.md
+scripts/                     Cross-product tooling — run_tests.sh (local CI mirror)
+assets/                      Screenshots, banner; brand/ holds icon masters, palette and generator
+```
 
 ---
 
