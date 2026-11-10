@@ -11,6 +11,7 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
 from lab.fixtures import _resolve_corpus_samples, generate_fixtures  # noqa: E402
+from lab.paths import lab_tmp_root  # noqa: E402
 from PIL import Image, ImageFilter, ImageStat  # noqa: E402
 
 
@@ -18,9 +19,9 @@ class TestFixtures(unittest.TestCase):
     def setUp(self) -> None:
         # A private folder per run: every worktree's run_tests.sh runs these tests, and a fixed
         # /tmp/pstlab path let two concurrent runs delete each other's half-written fixtures.
-        Path("/tmp/pstlab").mkdir(parents=True, exist_ok=True)
-        self.dir_a = Path(tempfile.mkdtemp(prefix="test_fixtures_a_", dir="/tmp/pstlab"))
-        self.dir_b = Path(tempfile.mkdtemp(prefix="test_fixtures_b_", dir="/tmp/pstlab"))
+        lab_tmp_root().mkdir(parents=True, exist_ok=True)
+        self.dir_a = Path(tempfile.mkdtemp(prefix="test_fixtures_a_", dir=lab_tmp_root()))
+        self.dir_b = Path(tempfile.mkdtemp(prefix="test_fixtures_b_", dir=lab_tmp_root()))
 
     def tearDown(self) -> None:
         for d in (self.dir_a, self.dir_b):

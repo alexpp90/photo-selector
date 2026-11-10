@@ -56,19 +56,29 @@ class CommandLineTest(unittest.TestCase):
         setup.assert_not_called()
         run.assert_not_called()
 
-    def test_dry_run_prints_the_commands_and_touches_nothing(self):
+    def dry_run_text(self, system: str) -> str:
         out = io.StringIO()
         with mock.patch.object(build, "setup_exiftool") as setup, \
                 mock.patch.object(build.subprocess, "run") as run, \
                 mock.patch.object(build, "generate_notices") as notices, \
+                mock.patch.object(build.platform, "system", return_value=system), \
                 contextlib.redirect_stdout(out):
             build.main(["--dry-run"])
         setup.assert_not_called()
         run.assert_not_called()
         notices.assert_not_called()
-        text = out.getvalue()
+        return out.getvalue()
+
+    def test_dry_run_prints_the_commands_and_touches_nothing(self):
+        for system in ("Linux", "Windows"):
+            text = self.dry_run_text(system)
+            self.assertEqual(text.count("Running: poetry run pyinstaller"), 2, system)
+            self.assertIn("--splash", text, system)  # the GUI command carries the splash screen
+
+    def test_dry_run_on_macos_has_no_splash(self):
+        text = self.dry_run_text("Darwin")
         self.assertEqual(text.count("Running: poetry run pyinstaller"), 2)
-        self.assertIn("--splash", text)  # the GUI command carries the splash screen
+        self.assertNotIn("--splash", text)  # PyInstaller does not support --splash on macOS
 
     def test_a_plain_run_still_builds_both_targets(self):
         """CI calls `python scripts/build.py` with no arguments."""

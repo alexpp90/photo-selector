@@ -26,7 +26,7 @@ class AiTestCase(unittest.TestCase):
     def setUp(self) -> None:
         tmp = tempfile.TemporaryDirectory()
         self.addCleanup(tmp.cleanup)
-        self.run_dir = Path(tmp.name) / "run"
+        self.run_dir = Path(tmp.name).resolve() / "run"
         self.run_dir.mkdir()
         tmp_lab = Path(tmp.name) / "lab-tmp"
         env = patch.dict(os.environ, {"PST_LAB_TMP": str(tmp_lab)})
