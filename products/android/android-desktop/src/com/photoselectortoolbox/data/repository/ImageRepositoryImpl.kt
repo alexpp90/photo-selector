@@ -27,6 +27,8 @@ import com.photoselectortoolbox.data.model.ImageDimensions
 import com.photoselectortoolbox.data.model.ImageItem
 import com.photoselectortoolbox.data.source.LocalImageSource
 import com.photoselectortoolbox.domain.curation.DestinationSettings
+import com.photoselectortoolbox.domain.curation.FileIdentity
+import com.photoselectortoolbox.domain.curation.FolderKey
 import com.photoselectortoolbox.domain.curation.OpenedFolder
 import com.photoselectortoolbox.domain.curation.SelectionDestinationPlan
 import com.photoselectortoolbox.domain.format.ImageFormats
@@ -215,12 +217,20 @@ class ImageRepositoryImpl @Inject constructor(
             val exists = folder != null && runCatching { folder.exists() && folder.isDirectory }.getOrDefault(false)
             val name = if (exists) runCatching { folder?.name }.getOrNull() else null
             val canWrite = exists && runCatching { folder?.canWrite() == true }.getOrDefault(false)
-            val hasMarker = exists && folder != null && try {
-                hasChildNamed(context, folder.uri, SELECTION_MARKER_FILE_NAME)
-            } catch (e: Exception) {
-                Log.w(TAG, "Could not list $uriString for the Selection marker", e)
-                false
+            val children = if (exists && folder != null) {
+                try {
+                    listChildren(context, folder.uri)
+                } catch (e: CancellationException) {
+                    throw e
+                } catch (e: Exception) {
+                    Log.w(TAG, "Could not list $uriString for the Selection marker", e)
+                    emptyList()
+                }
+            } else {
+                emptyList()
             }
+            val hasMarker = children.any { it.name == SELECTION_MARKER_FILE_NAME }
+            val authority = folderUri.authority
             val volumeLabel = SafTreeDisplayPath.removableVolumeId(uriString)?.let { volumeId ->
                 ExternalStorageDetector(context).detectExternalVolumes()
                     .firstOrNull { it.uuid.equals(volumeId, ignoreCase = true) }
@@ -238,6 +248,12 @@ class ImageRepositoryImpl @Inject constructor(
                 exists = exists,
                 canWrite = canWrite,
                 hasSelectionMarker = hasMarker,
+                key = folderKeyOf(folderUri),
+                childFolders = if (authority == null) {
+                    emptyMap()
+                } else {
+                    children.filter { it.isDirectory }.associate { it.name to FolderKey(authority, it.documentId) }
+                },
             )
         }
 
@@ -274,6 +290,34 @@ class ImageRepositoryImpl @Inject constructor(
 
     override suspend fun deleteImage(context: Context, uri: Uri): Boolean =
         engine.delete(SafStorage.of(context), uri)
+
+    /**
+     * One query for both columns of the document. A query that fails or finds no row reads as
+     * null, which the caller treats as "cannot be read" and reports; cancellation propagates.
+     */
+    override suspend fun documentIdentity(context: Context, uri: Uri): FileIdentity? =
+        withContext(ioDispatcher) {
+            try {
+                context.contentResolver.query(
+                    uri,
+                    arrayOf(DocumentsContract.Document.COLUMN_SIZE, DocumentsContract.Document.COLUMN_LAST_MODIFIED),
+                    null,
+                    null,
+                    null,
+                )?.use { cursor ->
+                    if (!cursor.moveToFirst()) return@use null
+                    FileIdentity(
+                        size = if (cursor.isNull(0)) 0L else cursor.getLong(0),
+                        lastModified = if (cursor.isNull(1)) 0L else cursor.getLong(1),
+                    )
+                }
+            } catch (e: CancellationException) {
+                throw e
+            } catch (e: Exception) {
+                Log.w(TAG, "Could not read the identity of $uri", e)
+                null
+            }
+        }
 
     override suspend fun deleteBundle(context: Context, item: ImageItem): Boolean =
         withContext(ioDispatcher) {
@@ -431,7 +475,13 @@ class ImageRepositoryImpl @Inject constructor(
     ): SelectionDestination {
         val settings = destinationSettings(sorting)
         val opened = destFolderUri.toString()
-        val plan = SelectionDestinationPlan.resolve(settings, OpenedFolder(uri = opened))
+        val plan = SelectionDestinationPlan.resolve(
+            settings = settings,
+            openedFolder = OpenedFolder(uri = opened, key = folderKeyOf(destFolderUri)),
+            customSelectionKey = settings.customUri?.let { custom ->
+                withContext(ioDispatcher) { customSelectionKey(context, Uri.parse(custom), settings.selectionName) }
+            },
+        )
         return SelectionDestination(
             rootUri = plan.rootUri?.let(Uri::parse) ?: destFolderUri,
             folderName = plan.folderName,
@@ -487,19 +537,59 @@ class ImageRepositoryImpl @Inject constructor(
      * [childName]: one `ContentResolver.query` over its children, display names only —
      * never `DocumentFile.findFile`, which costs a binder call per child.
      */
-    private fun hasChildNamed(context: Context, directoryUri: Uri, childName: String): Boolean {
-        val resolver = context.contentResolver
-        val childrenUri = DocumentsContract.buildChildDocumentsUriUsingTree(
-            directoryUri,
-            DocumentsContract.getDocumentId(directoryUri),
+    private fun hasChildNamed(context: Context, directoryUri: Uri, childName: String): Boolean =
+        listChildren(context, directoryUri).any { it.name == childName }
+
+    private data class Child(val name: String, val documentId: String, val isDirectory: Boolean)
+
+    /** The children of [directoryUri] (a tree or a document inside one): one children query. */
+    private fun listChildren(context: Context, directoryUri: Uri): List<Child> {
+        val documentId = folderKeyOf(directoryUri)?.documentId
+            ?: throw IllegalArgumentException("Not a folder of a document tree: $directoryUri")
+        val childrenUri = DocumentsContract.buildChildDocumentsUriUsingTree(directoryUri, documentId)
+        val projection = arrayOf(
+            DocumentsContract.Document.COLUMN_DOCUMENT_ID,
+            DocumentsContract.Document.COLUMN_DISPLAY_NAME,
+            DocumentsContract.Document.COLUMN_MIME_TYPE,
         )
-        resolver.query(childrenUri, arrayOf(DocumentsContract.Document.COLUMN_DISPLAY_NAME), null, null, null)
-            ?.use { cursor ->
-                while (cursor.moveToNext()) {
-                    if (cursor.getString(0) == childName) return true
-                }
+        val children = mutableListOf<Child>()
+        context.contentResolver.query(childrenUri, projection, null, null, null)?.use { cursor ->
+            while (cursor.moveToNext()) {
+                val id = cursor.getString(0) ?: continue
+                val name = cursor.getString(1) ?: continue
+                children += Child(name, id, cursor.getString(2) == DocumentsContract.Document.MIME_TYPE_DIR)
             }
-        return false
+        }
+        return children
+    }
+
+    /**
+     * The provider key of the folder [uri] names: its document id when it is a document inside
+     * a tree, else the tree's own. Null for a URI that names neither.
+     */
+    private fun folderKeyOf(uri: Uri): FolderKey? {
+        val authority = uri.authority ?: return null
+        val documentId = runCatching { DocumentsContract.getDocumentId(uri) }.getOrNull()
+            ?: runCatching { DocumentsContract.getTreeDocumentId(uri) }.getOrNull()
+            ?: return null
+        return FolderKey(authority, documentId)
+    }
+
+    /**
+     * The key of the existing `<custom>/<selectionName>` folder, or null when there is none or
+     * the custom folder cannot be listed (the transfer then targets it as before and reports
+     * its own failure). Exact name, as the engine finds the folder it files into.
+     */
+    private fun customSelectionKey(context: Context, customUri: Uri, selectionName: String): FolderKey? {
+        val authority = customUri.authority ?: return null
+        return try {
+            listChildren(context, customUri)
+                .firstOrNull { it.isDirectory && it.name == selectionName }
+                ?.let { FolderKey(authority, it.documentId) }
+        } catch (e: Exception) {
+            Log.w(TAG, "Could not list the custom destination $customUri", e)
+            null
+        }
     }
 
     override suspend fun resolveDimensions(

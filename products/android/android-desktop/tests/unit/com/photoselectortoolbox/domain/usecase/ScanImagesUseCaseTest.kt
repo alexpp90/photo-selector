@@ -11,9 +11,12 @@ import io.mockk.coEvery
 import io.mockk.every
 import io.mockk.mockk
 import io.mockk.verify
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.flow.toList
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.runBlocking
+import kotlinx.coroutines.test.advanceUntilIdle
 import org.junit.Assert.assertEquals
 import org.junit.Test
 import org.junit.runner.RunWith
@@ -76,7 +79,7 @@ class ScanImagesUseCaseTest {
 
         val useCase = ScanImagesUseCase(
             sharpnessAnalyzer, noiseAnalyzer, clippingAnalyzer,
-            scoreDao, settingsRepository, bitmapDecoder
+            scoreDao, settingsRepository, bitmapDecoder, Dispatchers.IO, Dispatchers.Default,
         )
 
         val progress = useCase(images).toList().last()
@@ -103,7 +106,7 @@ class ScanImagesUseCaseTest {
             val settings = mockk<SettingsRepository> { every { analysisThreadCount } returns flowOf(1) }
             val useCase = ScanImagesUseCase(
                 mockk(relaxed = true), mockk(relaxed = true), mockk(relaxed = true),
-                dao, settings, mockk(relaxed = true),
+                dao, settings, mockk(relaxed = true), Dispatchers.IO, Dispatchers.Default,
             )
 
             useCase(emptyList()).toList()
@@ -122,7 +125,6 @@ class ScanImagesUseCaseTest {
         val sharpnessAnalyzer = mockk<SharpnessAnalyzer>(relaxed = true)
         val noiseAnalyzer = mockk<NoiseAnalyzer>(relaxed = true)
         val clippingAnalyzer = mockk<ClippingAnalyzer>(relaxed = true)
-        val scoreDao = mockk<ScoreDao>()
         val settingsRepository = mockk<SettingsRepository> {
             every { analysisThreadCount } returns flowOf(4)
         }
@@ -131,13 +133,8 @@ class ScanImagesUseCaseTest {
         val images = (1..2500).map { idx ->
             ImageItem("content://test/img_$idx.jpg", "img_$idx.jpg", 100L, 1000L, "image/jpeg")
         }
-        val getScoresChunkSizes = java.util.Collections.synchronizedList(mutableListOf<Int>())
-        val updateAccessChunkSizes = java.util.Collections.synchronizedList(mutableListOf<Int>())
-
-        coEvery { scoreDao.getScores(any()) } answers {
-            val chunk = firstArg<List<String>>()
-            getScoresChunkSizes.add(chunk.size)
-            chunk.map { uri ->
+        val scoreDao = com.photoselectortoolbox.data.cache.RecordingScoreDao(
+            scoreFor = { uri ->
                 ScoreEntity(
                     filePath = uri,
                     fileSize = 100L,
@@ -147,24 +144,43 @@ class ScanImagesUseCaseTest {
                     highlightClipping = 0.0,
                     shadowClipping = 0.0,
                 )
-            }
-        }
-        coEvery { scoreDao.updateAccessTimes(any(), any()) } answers {
-            val chunk = firstArg<List<String>>()
-            updateAccessChunkSizes.add(chunk.size)
-        }
-        coEvery { scoreDao.getCount() } returns 2500
-        coEvery { scoreDao.deleteTechniqueFactsWithoutScore() } returns Unit
+            },
+        )
 
         val useCase = ScanImagesUseCase(
             sharpnessAnalyzer, noiseAnalyzer, clippingAnalyzer,
-            scoreDao, settingsRepository, bitmapDecoder
+            scoreDao, settingsRepository, bitmapDecoder, Dispatchers.IO, Dispatchers.Default,
         )
 
         val progress = useCase(images).toList().last()
         assertEquals(2500, progress.results.size)
-        assertEquals(listOf(900, 900, 700), getScoresChunkSizes)
-        assertEquals(listOf(900, 900, 700), updateAccessChunkSizes)
+        assertEquals(listOf(900, 900, 700), scoreDao.scoreBatches.map { it.size })
+        assertEquals(listOf(900, 900, 700), scoreDao.accessBatches.map { it.size })
+    }
+
+    // Invariant "cancellation is not an error": a cancelled analysis is not cached as a photo without a score.
+    @OptIn(kotlinx.coroutines.ExperimentalCoroutinesApi::class)
+    @Test
+    fun `a cancelled analysis is rethrown, never cached as an empty score`() = kotlinx.coroutines.test.runTest {
+        val dispatcher = kotlinx.coroutines.test.StandardTestDispatcher(testScheduler)
+        val sharpnessAnalyzer = mockk<SharpnessAnalyzer>()
+        val scoreDao = mockk<ScoreDao>(relaxed = true)
+        val bitmapDecoder = mockk<com.photoselectortoolbox.data.source.PhotoBitmapDecoder>()
+        every { bitmapDecoder.decodeForAnalysis(any(), any()) } returns mockk<android.graphics.Bitmap>(relaxed = true)
+        every { sharpnessAnalyzer.analyze(any(), any()) } throws kotlinx.coroutines.CancellationException("scan cancelled")
+        coEvery { scoreDao.getScores(any()) } returns emptyList()
+        val settingsRepository = mockk<SettingsRepository> { every { analysisThreadCount } returns flowOf(1) }
+        val useCase = ScanImagesUseCase(
+            sharpnessAnalyzer, mockk<NoiseAnalyzer>(relaxed = true), mockk<ClippingAnalyzer>(relaxed = true),
+            scoreDao, settingsRepository, bitmapDecoder, dispatcher, dispatcher,
+        )
+
+        val collecting = launch(dispatcher) {
+            useCase(listOf(ImageItem("content://test/a.jpg", "a.jpg", 100L, 1000L, "image/jpeg"))).collect {}
+        }
+        advanceUntilIdle()
+        collecting.cancel()
+
+        io.mockk.coVerify(exactly = 0) { scoreDao.insertOrUpdate(any()) }
     }
 }
-

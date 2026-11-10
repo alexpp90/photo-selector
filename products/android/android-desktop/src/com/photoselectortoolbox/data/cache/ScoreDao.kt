@@ -10,8 +10,9 @@ interface ScoreDao {
     @Query("SELECT * FROM scores_cache WHERE filePath = :filePath LIMIT 1")
     suspend fun getScore(filePath: String): ScoreEntity?
 
+    /** One `IN (:filePaths)` statement: at most [SQLITE_MAX_BIND_PARAMS] paths. Callers use [getScores]. */
     @Query("SELECT * FROM scores_cache WHERE filePath IN (:filePaths)")
-    suspend fun getScores(filePaths: List<String>): List<ScoreEntity>
+    suspend fun getScoresBatch(filePaths: List<String>): List<ScoreEntity>
 
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun insertOrUpdate(score: ScoreEntity)
@@ -33,8 +34,9 @@ interface ScoreDao {
     @Query("UPDATE scores_cache SET lastAccessTime = :time WHERE filePath = :filePath")
     suspend fun updateAccessTime(filePath: String, time: Long)
 
+    /** One `IN (:filePaths)` statement: at most [SQLITE_MAX_BIND_PARAMS] paths. Callers use [updateAccessTimes]. */
     @Query("UPDATE scores_cache SET lastAccessTime = :time WHERE filePath IN (:filePaths)")
-    suspend fun updateAccessTimes(filePaths: List<String>, time: Long)
+    suspend fun updateAccessTimesBatch(filePaths: List<String>, time: Long)
 
     @Query("UPDATE scores_cache SET rating = :rating WHERE filePath = :filePath")
     suspend fun updateRating(filePath: String, rating: Int)
@@ -54,48 +56,28 @@ interface ScoreDao {
     @Query("SELECT * FROM user_ratings WHERE uri = :uri LIMIT 1")
     suspend fun getUserRating(uri: String): UserRatingEntity?
 
+    /** One `IN (:uris)` statement: at most [SQLITE_MAX_BIND_PARAMS] URIs. Callers use [getUserRatings]. */
     @Query("SELECT * FROM user_ratings WHERE uri IN (:uris)")
-    suspend fun getUserRatings(uris: List<String>): List<UserRatingEntity>
+    suspend fun getUserRatingsBatch(uris: List<String>): List<UserRatingEntity>
 
-    /**
-     * Chunked wrapper for [getScores] so no single SQLite `IN (:filePaths)`
-     * statement binds more than [chunkSize] variables (`SQLITE_MAX_VARIABLE_NUMBER = 999`
-     * on older Android builds).
-     */
-    suspend fun getScoresChunked(
-        filePaths: List<String>,
-        chunkSize: Int = SQLITE_MAX_BIND_PARAMS,
-    ): List<ScoreEntity> {
-        if (filePaths.isEmpty()) return emptyList()
-        return filePaths.chunked(chunkSize).flatMap { chunk -> getScores(chunk) }
+    // ── Any number of keys (FD-Q-13) ─────────────────────────────────────
+    //
+    // The public entry points for a list of keys: each splits it so no single SQLite
+    // statement binds more than SQLITE_MAX_BIND_PARAMS variables (`SQLITE_MAX_VARIABLE_NUMBER`
+    // is 999 on older Android builds). The raw `IN (:list)` queries are the `*Batch` methods.
+
+    /** The cached scores of [filePaths], any number of them. */
+    suspend fun getScores(filePaths: List<String>): List<ScoreEntity> =
+        filePaths.chunked(SQLITE_MAX_BIND_PARAMS).flatMap { chunk -> getScoresBatch(chunk) }
+
+    /** Mark [filePaths], any number of them, as used at [time] (MRU pruning). */
+    suspend fun updateAccessTimes(filePaths: List<String>, time: Long) {
+        filePaths.chunked(SQLITE_MAX_BIND_PARAMS).forEach { chunk -> updateAccessTimesBatch(chunk, time) }
     }
 
-    /**
-     * Chunked wrapper for [updateAccessTimes] so no single `IN (:filePaths)`
-     * update binds more than [chunkSize] variables (`time` takes 1 variable).
-     */
-    suspend fun updateAccessTimesChunked(
-        filePaths: List<String>,
-        time: Long,
-        chunkSize: Int = SQLITE_MAX_BIND_PARAMS,
-    ) {
-        if (filePaths.isEmpty()) return
-        filePaths.chunked(chunkSize).forEach { chunk ->
-            updateAccessTimes(chunk, time)
-        }
-    }
-
-    /**
-     * Chunked wrapper for [getUserRatings] so no single `IN (:uris)` query
-     * binds more than [chunkSize] variables.
-     */
-    suspend fun getUserRatingsChunked(
-        uris: List<String>,
-        chunkSize: Int = SQLITE_MAX_BIND_PARAMS,
-    ): List<UserRatingEntity> {
-        if (uris.isEmpty()) return emptyList()
-        return uris.chunked(chunkSize).flatMap { chunk -> getUserRatings(chunk) }
-    }
+    /** The user ratings of [uris], any number of them. */
+    suspend fun getUserRatings(uris: List<String>): List<UserRatingEntity> =
+        uris.chunked(SQLITE_MAX_BIND_PARAMS).flatMap { chunk -> getUserRatingsBatch(chunk) }
 
     companion object {
         const val SQLITE_MAX_BIND_PARAMS = 900

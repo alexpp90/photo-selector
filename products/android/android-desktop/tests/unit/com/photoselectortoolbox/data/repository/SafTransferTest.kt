@@ -481,6 +481,27 @@ class SafTransferTest {
         assertTrue(File(rootDir, "Culled/Best/IMG_0003.JPG").exists())
     }
 
+    // REQ-AND-WORKFLOW.02: custom destination X with X/Selection open (finding 2026-11-04).
+    @Test
+    fun `a move with the custom destination's own Selection folder open goes into Final, never renamed in place`() = runTest {
+        File(rootDir, "Keepers/Selection").mkdirs()
+        File(rootDir, "Keepers/Selection/IMG_0005.JPG").writeText("kept once")
+        val repo = repositoryWith(settingsWith(customDestination = treeUriOf("Keepers").toString()))
+
+        val result = repo.moveImage(
+            context,
+            documentUriFor("Keepers/Selection/IMG_0005.JPG"),
+            treeUriOf("Keepers/Selection"),
+            sorting = false,
+        )
+
+        assertTrue(result.success)
+        assertEquals("kept once", File(rootDir, "Keepers/Selection/Final/IMG_0005.JPG").readText())
+        assertFalse(File(rootDir, "Keepers/Selection/IMG_0005.JPG").exists())
+        assertFalse(File(rootDir, "Keepers/Selection/IMG_0005-2.JPG").exists())
+        assertFalse(File(rootDir, "Keepers/Selection/Selection").exists())
+    }
+
     // REQ-AND-PLATFORM.06: a custom Selection destination wins and is never a second pass.
     @Test
     fun `a custom Selection destination receives the Selection folder`() = runTest {
@@ -823,11 +844,14 @@ class SafTransferTest {
         File(rootDir, "Trip").mkdirs()
         File(rootDir, "Trip/Selection").mkdirs()
         File(rootDir, "Keepers").mkdirs()
+        File(rootDir, "Keepers/Selection").mkdirs()
         val cases = listOf(
             Case("working folder, sorted", opened = "Trip", custom = null, sorting = true),
             Case("working folder, flat", opened = "Trip", custom = null, sorting = false),
             Case("second pass", opened = "Trip/Selection", custom = null, sorting = false),
             Case("custom folder", opened = "Trip", custom = "Keepers", sorting = true),
+            // Custom X with X/Selection open (finding 2026-11-04): a second pass inside it.
+            Case("custom folder, its Selection open", opened = "Keepers/Selection", custom = "Keepers", sorting = false),
         )
         cases.forEachIndexed { i, case ->
             val name = "IMG_10$i.JPG"
@@ -848,11 +872,14 @@ class SafTransferTest {
             assertTrue(case.label, result.success)
 
             // The preview's path below the root folder (the fake provider names the root by its folder name).
-            val previewRoot = (case.custom ?: case.opened).substringAfterLast('/')
+            val root = if (state.preview.isSecondPass) case.opened else case.custom ?: case.opened
+            val previewRoot = root.substringAfterLast('/')
             val segments = state.preview.segments!!
             assertEquals(case.label, previewRoot, segments.dropLast(1).last())
-            val landed = File(rootDir, "${case.custom ?: case.opened}/${segments.last()}" + if (state.preview.sortsIntoRawAndJpeg) "/JPEG" else "")
+            val landed = File(rootDir, "$root/${segments.last()}" + if (state.preview.sortsIntoRawAndJpeg) "/JPEG" else "")
             assertEquals(case.label, case.label, File(landed, name).readText())
+            // Never renamed in place beside its original.
+            assertFalse(case.label, File(rootDir, "${case.opened}/${name.substringBeforeLast('.')}-2.JPG").exists())
         }
     }
 }

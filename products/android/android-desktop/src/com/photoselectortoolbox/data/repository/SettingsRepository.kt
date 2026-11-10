@@ -3,6 +3,7 @@ package com.photoselectortoolbox.data.repository
 import android.content.Context
 import android.net.Uri
 import androidx.datastore.core.DataStore
+import androidx.datastore.preferences.core.MutablePreferences
 import androidx.datastore.preferences.core.Preferences
 import androidx.datastore.preferences.core.booleanPreferencesKey
 import androidx.datastore.preferences.core.edit
@@ -14,6 +15,8 @@ import androidx.datastore.preferences.preferencesDataStore
 import com.photoselector.saf.FolderAccessManager
 import com.photoselector.saf.FolderAccessPurpose
 import com.photoselectortoolbox.domain.curation.DestinationMode
+import com.photoselectortoolbox.domain.curation.FileIdentity
+import com.photoselectortoolbox.domain.curation.PendingDeleteJournal
 import com.photoselectortoolbox.domain.grouping.GroupingLevel
 import com.photoselectortoolbox.domain.guidance.SelectorHint
 import com.photoselectortoolbox.domain.interaction.FilingAction
@@ -25,7 +28,11 @@ import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.map
 
-private val Context.dataStore: DataStore<Preferences> by preferencesDataStore(
+/**
+ * The settings store, one per process. Internal so tests can write what an earlier version left
+ * on a device (the upgrade test) and clear the process-wide singleton between test classes.
+ */
+internal val Context.dataStore: DataStore<Preferences> by preferencesDataStore(
     name = "photo_selector_settings"
 )
 
@@ -79,6 +86,13 @@ class SettingsRepository @Inject constructor(
          * so a killed process can offer recovery on next startup (PRP WP-11 / U-05).
          */
         private val KEY_PENDING_DELETE_JOURNAL = stringSetPreferencesKey("pending_delete_journal")
+
+        /**
+         * Beside [KEY_PENDING_DELETE_JOURNAL]: the identity (size, last-modified) of each journalled
+         * file, encoded by [PendingDeleteJournal.encode]. A journal URI without an entry here (one
+         * an earlier version wrote) is unverifiable and never deleted by "Delete now".
+         */
+        private val KEY_PENDING_DELETE_IDENTITIES = stringSetPreferencesKey("pending_delete_identities")
         private val KEY_SECONDARY_SELECTION_FOLDER_NAME = stringPreferencesKey("secondary_selection_folder_name")
         private val KEY_CUSTOM_SELECTION_DESTINATION_URI = stringPreferencesKey("custom_selection_destination_uri")
         private val KEY_TV_DISPLAY_SCALE_ENABLED = booleanPreferencesKey("tv_display_scale_enabled")
@@ -572,6 +586,14 @@ class SettingsRepository @Inject constructor(
         prefs[KEY_PENDING_DELETE_JOURNAL] ?: emptySet()
     }
 
+    /**
+     * The identity recorded for each journalled URI when it was deleted (finding 2026-11-05).
+     * A URI of [pendingDeleteJournal] missing here has none and is unverifiable.
+     */
+    val pendingDeleteIdentities: Flow<Map<String, FileIdentity>> = context.dataStore.data.map { prefs ->
+        PendingDeleteJournal.identities(prefs[KEY_PENDING_DELETE_IDENTITIES].orEmpty())
+    }
+
     suspend fun setPendingDeleteJournal(uris: Set<String>) {
         context.dataStore.edit { prefs ->
             if (uris.isEmpty()) {
@@ -579,14 +601,28 @@ class SettingsRepository @Inject constructor(
             } else {
                 prefs[KEY_PENDING_DELETE_JOURNAL] = uris
             }
+            retainIdentities(prefs, uris)
         }
     }
 
-    suspend fun addPendingDeletes(uris: Collection<String>) {
+    /**
+     * Journal [uris] as deleted but not yet committed, each with the [identities] it had when it
+     * was deleted. A URI with no identity is journalled anyway (the grant and the recovery prompt
+     * still need it) and is unverifiable on recovery.
+     */
+    suspend fun addPendingDeletes(
+        uris: Collection<String>,
+        identities: Map<String, FileIdentity> = emptyMap(),
+    ) {
         if (uris.isEmpty()) return
         context.dataStore.edit { prefs ->
             val current = prefs[KEY_PENDING_DELETE_JOURNAL] ?: emptySet()
             prefs[KEY_PENDING_DELETE_JOURNAL] = current + uris
+            // A URI journalled again replaces what was recorded for it, an identity included.
+            val added = uris.toSet()
+            val recorded = PendingDeleteJournal.identities(prefs[KEY_PENDING_DELETE_IDENTITIES].orEmpty()) -
+                added + identities.filterKeys { it in added }
+            putIdentities(prefs, recorded)
         }
     }
 
@@ -600,7 +636,21 @@ class SettingsRepository @Inject constructor(
             } else {
                 prefs[KEY_PENDING_DELETE_JOURNAL] = updated
             }
+            retainIdentities(prefs, updated)
         }
+    }
+
+    /** Store [identities] as the whole identity half of the journal. */
+    private fun putIdentities(prefs: MutablePreferences, identities: Map<String, FileIdentity>) {
+        val entries = identities.map { (uri, identity) -> PendingDeleteJournal.encode(uri, identity) }.toSet()
+        if (entries.isEmpty()) prefs.remove(KEY_PENDING_DELETE_IDENTITIES)
+        else prefs[KEY_PENDING_DELETE_IDENTITIES] = entries
+    }
+
+    /** Drop the identities of every URI no longer in the journal ([journal]). */
+    private fun retainIdentities(prefs: MutablePreferences, journal: Set<String>) {
+        val stored = PendingDeleteJournal.identities(prefs[KEY_PENDING_DELETE_IDENTITIES].orEmpty())
+        putIdentities(prefs, stored.filterKeys { it in journal })
     }
 
     // ── Multi-pass culling, portable culling station, and TV display scale (U-32, U-33, U-36) ──

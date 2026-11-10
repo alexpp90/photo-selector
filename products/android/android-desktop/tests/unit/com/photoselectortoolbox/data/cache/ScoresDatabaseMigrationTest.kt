@@ -697,14 +697,14 @@ class ScoresDatabaseMigrationTest {
                 dao.upsertUserRating(UserRatingEntity(uri = uri, rating = (idx % 5) + 1, updatedAt = 500L))
             }
 
-            val scores = dao.getScoresChunked(uris)
+            val scores = dao.getScores(uris)
             assertEquals(2500, scores.size)
 
-            dao.updateAccessTimesChunked(uris, time = 9999L)
+            dao.updateAccessTimes(uris, time = 9999L)
             assertEquals(9999L, dao.getScore(uris.first())?.lastAccessTime)
             assertEquals(9999L, dao.getScore(uris.last())?.lastAccessTime)
 
-            val ratings = dao.getUserRatingsChunked(uris)
+            val ratings = dao.getUserRatings(uris)
             assertEquals(2500, ratings.size)
         } finally {
             db.close()
