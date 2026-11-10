@@ -34,7 +34,7 @@ from lab.explore.actions import Action, ScreenState  # noqa: E402
 from lab.android.configs import SavedDeviceState  # noqa: E402
 from lab.explore import orchestrator as orch  # noqa: E402
 from lab.explore.ai_adapters import AIJudgeError, AIProvider, Judgement, PacketExportAdapter  # noqa: E402
-from lab.explore.driver import (  # noqa: E402
+from lab.explore.drivers import (  # noqa: E402
     ActionUnavailableError,
     AppCrashedError,
     AppLeftError,

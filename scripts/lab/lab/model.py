@@ -23,6 +23,8 @@ class Node:
     clipped: bool | None = None
     # The node scrolls its content (Android `scrollable`); its children may be cut at its edges.
     scrollable: bool = False
+    # The node has the keyboard focus (Android `focused`, read for text inputs by the explore driver).
+    focused: bool = False
 
     @property
     def x(self) -> float:
@@ -54,6 +56,7 @@ class Node:
             text=str(data.get("text", "")),
             clipped=data.get("clipped"),
             scrollable=bool(data.get("scrollable", False)),
+            focused=bool(data.get("focused", False)),
         )
 
     def to_dict(self) -> dict[str, Any]:
@@ -72,6 +75,7 @@ class Node:
             "text": self.text,
             "clipped": self.clipped,
             "scrollable": self.scrollable,
+            "focused": self.focused,
         }
 
 

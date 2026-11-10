@@ -50,7 +50,7 @@ from .actions import Action, ScreenState
 from .ai_adapters import AIProvider, create_ai_adapter
 from .appleft import EXPECTED, OUTBOUND_LINK, classify_app_left, top_task_package
 from .discovery import SYSTEM_PICKER_MODE, inspect_screen, load_discovery_rules, normalize_product_name
-from .driver import (
+from .drivers import (
     ActionUnavailableError,
     AndroidDeviceDriver,
     AppCrashedError,

@@ -158,6 +158,47 @@ class TestControlCutByAnOverlappingNode(unittest.TestCase):
         self.assertEqual(lint(wide, {"min_target": 48}), [])
 
 
+class TestControlUnderAnOverlayWithoutAReachingChild(unittest.TestCase):
+    """Jackpix 2026-10-26 (explore step 52, Pixel 4a): the 48 dp bottom-bar buttons read 72x26 dp
+    because the snackbar host [0, 698.91, 392.73, 72] covers their top; nothing inside them reaches
+    past the cut edge, so `cut_by_overlap` has no evidence."""
+
+    RULES = {"min_target": 48, "feedback": {"surfaces": ["feed_snackbar_host"]}}
+
+    def tree(self, *, cover_id: str = "feed_snackbar_host") -> Tree:
+        return synthetic(
+            node("root", [0, 0, 392.73, 800], interactive=False),
+            node("bar_button", [100, 770.91, 72, 26], parent="root", name="Delete"),
+            node(cover_id, [0, 698.91, 392.73, 72], parent="root", interactive=False),
+        )
+
+    def test_the_button_under_the_snackbar_host_is_occluded_not_too_short(self) -> None:
+        found = [(f.rule, f.message) for f in lint(self.tree(), self.RULES)]
+        self.assertEqual(found, [(
+            "occluded",
+            "bar_button is partly under feed_snackbar_host: only 72x26 dp of it is visible, so its size cannot be judged",
+        )])
+
+    def test_the_finding_names_the_cover_in_its_id(self) -> None:
+        [f] = lint(self.tree(), self.RULES, product="p", journey="j", checkpoint="c")
+        self.assertEqual(f.id, f.make_id("p", "j", "c", "occluded", ["bar_button", "feed_snackbar_host"]))
+
+    def test_a_26_dp_control_with_nothing_over_it_is_still_a_touch_target_finding(self) -> None:
+        tree = self.tree()
+        tree.nodes = [n for n in tree.nodes if n.id != "feed_snackbar_host"]
+        self.assertEqual([(f.rule, f.message) for f in lint(tree, self.RULES)],
+                         [("touch-target", "bar_button is 72x26 dp (min 48 dp)")])
+
+    def test_a_node_that_is_no_overlay_beside_the_control_does_not_excuse_it(self) -> None:
+        found = [f.rule for f in lint(self.tree(cover_id="plain_header"), self.RULES)]
+        self.assertEqual(found, ["touch-target"])
+
+    def test_a_cover_drawn_before_the_control_is_not_over_it(self) -> None:
+        tree = self.tree()
+        tree.nodes = [tree.nodes[0], tree.nodes[2], tree.nodes[1]]
+        self.assertEqual([f.rule for f in lint(tree, self.RULES)], ["touch-target"])
+
+
 class TestAllowedOverlaps(unittest.TestCase):
     def test_the_info_toggle_sits_on_the_maximised_frame_by_design(self) -> None:
         tree = real("frameduel_maximised.tree.json")

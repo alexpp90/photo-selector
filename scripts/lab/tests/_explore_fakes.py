@@ -18,7 +18,7 @@ sys.path.insert(0, str(LAB_DIR))
 from PIL import Image  # noqa: E402
 
 from lab.explore.actions import Action, ScreenState  # noqa: E402
-from lab.explore.driver import DeviceDriver  # noqa: E402
+from lab.explore.drivers import DeviceDriver  # noqa: E402
 from lab.model import Node, Tree  # noqa: E402
 
 
