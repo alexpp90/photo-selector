@@ -95,6 +95,29 @@ enum UITestDriver {
             ?? NSApp.windows.first
     }
 
+    static var guiRequested: Bool {
+        guard let value = ProcessInfo.processInfo.environment["PST_SHOW_GUI"] else { return false }
+        return value != "0" && !value.isEmpty
+    }
+
+    /// An ordinary app window other than the workspace, i.e. the Settings window: what the user
+    /// looks at after `⌘,`, so a checkpoint must capture it instead of the workspace behind it.
+    static var auxiliaryWindow: NSWindow? {
+        let workspace = workspaceWindow
+        return NSApp.windows.first {
+            $0 !== workspace && $0.canBecomeKey && !$0.isSheet && $0.contentView != nil
+                && $0.frame.width >= 300 && $0.isVisible
+        }
+    }
+
+    /// Keeps a window the run opened off the user's screen (self-tests never take the screen).
+    static func parkIfBackground(_ window: NSWindow?) {
+        guard let window, !guiRequested else { return }
+        window.alphaValue = 0.0
+        window.setFrame(NSRect(x: -20000, y: -19000, width: window.frame.width, height: window.frame.height), display: false)
+        window.orderBack(nil)
+    }
+
     static func postKey(_ key: Key, modifiers: NSEvent.ModifierFlags = []) {
         guard let window = workspaceWindow else { return }
         let flags = key.baseModifiers.union(modifiers)

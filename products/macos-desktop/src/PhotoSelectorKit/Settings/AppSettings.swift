@@ -8,12 +8,17 @@ public enum AppSettingsKeys {
     /// `CullingDestinationMode` raw value. Absent in stores written before the choice existed.
     public static let cullingDestinationMode = "cullingDestinationMode"
     public static let autoAdvance = "autoAdvance"
+    /// `WorkspaceSortOrder` raw value. Absent on a new install (newest first); an existing install
+    /// is pinned to `fileName` once by `SettingsMigration.pinSortOrderForExistingInstall`.
+    public static let sortOrder = "sortOrder"
 
     // MARK: - Scoring & Aesthetics
     public static let sharpnessBlurryThreshold = "sharpnessBlurryThreshold"
     public static let sharpnessAcceptableThreshold = "sharpnessAcceptableThreshold"
     public static let aestheticThreshold = "aestheticThreshold"
     public static let aestheticScoringEnabled = "aestheticScoringEnabled"
+    /// "Stop at sharpness" for lowest-sharpness-first culling, 0...100, 0 = off.
+    public static let sharpnessStopThreshold = "sharpnessStopThreshold"
 
     // MARK: - Cache & Performance
     public static let thumbnailCacheLimitMB = "thumbnailCacheLimitMB"
@@ -27,10 +32,12 @@ public enum AppSettingsKeys {
         externalCullingDestinationURL,
         cullingDestinationMode,
         autoAdvance,
+        sortOrder,
         sharpnessBlurryThreshold,
         sharpnessAcceptableThreshold,
         aestheticThreshold,
         aestheticScoringEnabled,
+        sharpnessStopThreshold,
         thumbnailCacheLimitMB,
         preloadWindowBefore,
         preloadWindowAfter
@@ -50,6 +57,8 @@ public struct AppSettingsDefaults {
     /// Apple Vision aesthetic (AI) scoring runs lazily after the photo is on screen; users can
     /// switch it off entirely, in which case the Vision request is never issued.
     public static let aestheticScoringEnabled: Bool = true
+    /// 0 = the stop threshold is off.
+    public static let sharpnessStopThreshold: Double = 0
 
     // Cache & Performance Defaults
     public static let thumbnailCacheLimitMB: Int = 512
@@ -115,6 +124,21 @@ public extension UserDefaults {
         set {
             set(newValue, forKey: AppSettingsKeys.autoAdvance)
         }
+    }
+
+    /// The order the candidate list opens in; newest first when nothing is stored.
+    var workspaceSortOrder: WorkspaceSortOrder {
+        get { WorkspaceSortOrder(storedRaw: string(forKey: AppSettingsKeys.sortOrder)) ?? .defaultOrder }
+        set { set(newValue.rawValue, forKey: AppSettingsKeys.sortOrder) }
+    }
+
+    /// "Stop at sharpness", 0...100; 0 means off.
+    var sharpnessStopThreshold: Double {
+        get {
+            let val = object(forKey: AppSettingsKeys.sharpnessStopThreshold) as? Double
+            return min(100, max(0, val ?? AppSettingsDefaults.sharpnessStopThreshold))
+        }
+        set { set(min(100, max(0, newValue)), forKey: AppSettingsKeys.sharpnessStopThreshold) }
     }
 
     var sharpnessBlurryThreshold: Double {
@@ -192,6 +216,8 @@ public extension UserDefaults {
         removeObject(forKey: AppSettingsKeys.externalCullingDestinationURL)
         removeObject(forKey: AppSettingsKeys.cullingDestinationMode)
         removeObject(forKey: AppSettingsKeys.autoAdvance)
+        removeObject(forKey: AppSettingsKeys.sortOrder)
+        removeObject(forKey: AppSettingsKeys.sharpnessStopThreshold)
         removeObject(forKey: AppSettingsKeys.sharpnessBlurryThreshold)
         removeObject(forKey: AppSettingsKeys.sharpnessAcceptableThreshold)
         removeObject(forKey: AppSettingsKeys.aestheticThreshold)

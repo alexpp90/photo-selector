@@ -223,8 +223,31 @@ struct ScoringSettingsTab: View {
     @AppStorage(AppSettingsKeys.aestheticThreshold)
     private var aestheticThreshold: Double = AppSettingsDefaults.aestheticThreshold
 
+    @AppStorage(AppSettingsKeys.sharpnessStopThreshold)
+    private var sharpnessStopThreshold: Double = AppSettingsDefaults.sharpnessStopThreshold
+
     var body: some View {
         Form {
+            Section("Lowest Sharpness First") {
+                VStack(alignment: .leading, spacing: 10) {
+                    HStack {
+                        Text("Stop at sharpness:")
+                        Spacer()
+                        Text(sharpnessStopThreshold <= 0 ? "Off" : "\(Int(sharpnessStopThreshold)) / 100")
+                            .monospacedDigit()
+                            .foregroundStyle(.secondary)
+                            .accessibilityIdentifier("stop_threshold_value")
+                    }
+                    Slider(value: $sharpnessStopThreshold, in: 0.0...100.0, step: 1.0)
+                        .accessibilityLabel("Stop at sharpness")
+                        .accessibilityValue(sharpnessStopThreshold <= 0 ? "Off" : "\(Int(sharpnessStopThreshold)) out of 100")
+                        .help("0 turns it off. While culling in View > Sort By > Lowest Sharpness First, a toast tells you when you reach a photo at or above this sharpness.")
+                }
+                Text("0 = off. Used with View > Sort By > Lowest Sharpness First.")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+            }
+
             Section("Sharpness & Focus Thresholds (Accelerate)") {
                 VStack(alignment: .leading, spacing: 10) {
                     HStack {

@@ -74,6 +74,7 @@ struct PhotoInfoPanelView: View {
                 .padding(.vertical, 2)
                 .background(Color.accentColor.opacity(0.18))
                 .clipShape(Capsule())
+            CompanionChipsView(photo: photo)
             StatusBadge(status: photo.status)
         }
     }
@@ -130,13 +131,17 @@ struct PhotoInfoPanelView: View {
                     Image(systemName: focusIcon(for: scores.focusCategory))
                         .font(.system(size: 11, weight: .bold))
                         .foregroundStyle(focusColor(for: scores.focusCategory))
-                    Text("Focus \(String(format: "%.1f", scores.sharpness))")
+                    Text(ScoreLabels.sharpness(scores.sharpness))
                         .font(.system(size: 11, weight: .bold).monospacedDigit())
                         .foregroundStyle(Self.primary)
                     Text("[\(scores.focusCategory.rawValue)]")
                         .font(.system(size: 10, weight: .medium))
                         .foregroundStyle(focusColor(for: scores.focusCategory))
                 }
+                .help(ScoreLabels.sharpnessTooltip(scores))
+                .accessibilityElement(children: .ignore)
+                .accessibilityLabel(ScoreLabels.sharpnessSpoken(scores))
+                .uiTestFrame("info_sharpness")
                 if scores.highlightClipping > 5.0 {
                     Text("Blown \(Int(scores.highlightClipping))%")
                         .font(.system(size: 10, weight: .bold))
@@ -166,7 +171,7 @@ struct PhotoInfoPanelView: View {
                 Image(systemName: "star.fill")
                     .font(.system(size: 10))
                     .foregroundStyle(Color.lensjetRating)
-                Text(String(format: "%.1f", aesthetic))
+                Text(ScoreLabels.aesthetics(aesthetic))
                     .font(.system(size: 11, weight: .semibold).monospacedDigit())
                     .foregroundStyle(Self.primary)
                 if photo.scores?.isUtility == true {
@@ -175,6 +180,10 @@ struct PhotoInfoPanelView: View {
                         .foregroundStyle(Color.cyan)
                 }
             }
+            .help(ScoreLabels.aestheticsTooltip(aesthetic))
+            .accessibilityElement(children: .ignore)
+            .accessibilityLabel(ScoreLabels.aestheticsSpoken(aesthetic))
+            .uiTestFrame("info_aesthetics")
         } else if aestheticsEnabled {
             HStack(spacing: 4) {
                 Image(systemName: "star")
