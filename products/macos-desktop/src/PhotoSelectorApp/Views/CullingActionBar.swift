@@ -120,6 +120,7 @@ public struct CullingActionBar: View {
     private func tally(_ density: ChromeDensity) -> some View {
         let selected = viewModel.selectedCount
         let trashed = viewModel.trashedCount
+        let copied = viewModel.copiedCount
         let remaining = max(0, viewModel.photos.count - selected - trashed)
         let green = Color.lensjetMove
         let red = Color.lensjetTrash
@@ -137,6 +138,24 @@ public struct CullingActionBar: View {
 
             Text("·")
                 .foregroundStyle(Color.white.opacity(0.35))
+
+            // Copied photos leave a lasting trace here (hidden until the first copy, so the tally
+            // keeps its width until then). Own glyph and colour; an undo takes it off again.
+            if copied > 0 {
+                HStack(spacing: 5) {
+                    Image(systemName: "doc.on.doc.fill")
+                        .foregroundStyle(Color.lensjetCopy)
+                        .font(.system(size: 11))
+                    Text(density.tallyUsesWords ? "\(copied) Copied" : "\(copied)")
+                        .font(.system(size: 11, weight: .bold))
+                        .foregroundStyle(Color.white)
+                        .lineLimit(1)
+                        .fixedSize()
+                }
+
+                Text("·")
+                    .foregroundStyle(Color.white.opacity(0.35))
+            }
 
             HStack(spacing: 5) {
                 Image(systemName: "trash.fill")
@@ -174,8 +193,8 @@ public struct CullingActionBar: View {
                 .stroke(Color.white.opacity(0.12), lineWidth: 0.5)
         )
         .accessibilityElement(children: .ignore)
-        .accessibilityLabel(ChromeDensity.tallyAccessibilityText(selected: selected, trashed: trashed, remaining: remaining))
-        .help(ChromeDensity.tallyAccessibilityText(selected: selected, trashed: trashed, remaining: remaining))
+        .accessibilityLabel(ChromeDensity.tallyAccessibilityText(selected: selected, trashed: trashed, remaining: remaining, copied: copied))
+        .help(ChromeDensity.tallyAccessibilityText(selected: selected, trashed: trashed, remaining: remaining, copied: copied))
         .uiTestFrame("dock_tally")
     }
 }

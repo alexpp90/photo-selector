@@ -164,4 +164,81 @@ struct KeyboardShortcutRouterTests {
         #expect(handledCmdZ == true)
         #expect(vm.photos[0].status == .candidate)
     }
+
+    // MARK: - Desk-app key alignment (KEYBOARD.md)
+
+    private func suite() -> (UserDefaults, () -> Void) {
+        let name = "com.photoselector.tests.keys.\(UUID().uuidString)"
+        let d = UserDefaults(suiteName: name)!
+        return (d, { d.removePersistentDomain(forName: name) })
+    }
+
+    @Test("A held Delete, M or C acts once: auto-repeat events are consumed and do nothing")
+    func heldDestructiveKeysAreOneShot() {
+        let (defaults, cleanup) = suite(); defer { cleanup() }
+        let root = FileManager.default.temporaryDirectory.appendingPathComponent("held_\(UUID().uuidString)", isDirectory: true)
+        try? FileManager.default.createDirectory(at: root, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: root) }
+        let items: [PhotoItem] = (0..<4).map { i in
+            let url = root.appendingPathComponent("H\(i).jpg"); try? Data("x".utf8).write(to: url)
+            return PhotoItem(url: url)
+        }
+        let router = KeyboardShortcutRouter()
+        let vm = CullingWorkspaceViewModel(userDefaults: defaults)
+        vm.setPhotos(items, rootURL: root)
+        vm.autoAdvance = true
+        for (code, chars) in [(UInt16(46), "m"), (UInt16(8), "c"), (UInt16(51), "\u{7F}")] {
+            let first = SyntheticKeyEvent(keyCode: code, characters: chars)
+            #expect(router.handleKeyEvent(first, viewModel: vm))
+        }
+        #expect(vm.photos.filter { $0.status != .candidate }.count == 3)
+        let before = vm.photos.map(\.status)
+        for (code, chars) in [(UInt16(46), "m"), (UInt16(8), "c"), (UInt16(51), "\u{7F}")] {
+            let repeated = SyntheticKeyEvent(keyCode: code, characters: chars, isARepeat: true)
+            #expect(router.handleKeyEvent(repeated, viewModel: vm), "the repeat is consumed so it cannot leak to a button")
+        }
+        #expect(vm.photos.map(\.status) == before, "a held key must not cull the next photos")
+    }
+
+    @Test("Arrows keep repeating")
+    func arrowsRepeat() {
+        let router = KeyboardShortcutRouter()
+        let vm = CullingWorkspaceViewModel()
+        vm.setPhotos(createTestPhotos(count: 5))
+        _ = router.handleKeyEvent(SyntheticKeyEvent(keyCode: 124, specialKey: .rightArrow, isARepeat: true), viewModel: vm)
+        _ = router.handleKeyEvent(SyntheticKeyEvent(keyCode: 124, specialKey: .rightArrow, isARepeat: true), viewModel: vm)
+        #expect(vm.currentIndex == 2)
+    }
+
+    @Test("T toggles the filmstrip, F stays as a one-release alias, G opens Go to Photo")
+    func filmstripAndGoKeys() {
+        let router = KeyboardShortcutRouter()
+        let vm = CullingWorkspaceViewModel()
+        vm.setPhotos(createTestPhotos(count: 3))
+        #expect(vm.isFilmstripVisible)
+        #expect(router.handleKeyEvent(SyntheticKeyEvent(keyCode: 17, characters: "t"), viewModel: vm))
+        #expect(!vm.isFilmstripVisible)
+        #expect(router.handleKeyEvent(SyntheticKeyEvent(keyCode: 3, characters: "f"), viewModel: vm))
+        #expect(vm.isFilmstripVisible)
+        #expect(router.handleKeyEvent(SyntheticKeyEvent(keyCode: 5, characters: "g"), viewModel: vm))
+        #expect(vm.isGoToPhotoPresented)
+        // S (linked pan) and H / L (navigation) stay for one release.
+        let pan = vm.isZoomSynced
+        #expect(router.handleKeyEvent(SyntheticKeyEvent(keyCode: 1, characters: "s"), viewModel: vm))
+        #expect(vm.isZoomSynced != pan)
+        vm.isGoToPhotoPresented = false
+        #expect(router.handleKeyEvent(SyntheticKeyEvent(keyCode: 37, characters: "l"), viewModel: vm))
+        #expect(vm.currentIndex == 1)
+        #expect(router.handleKeyEvent(SyntheticKeyEvent(keyCode: 4, characters: "h"), viewModel: vm))
+        #expect(vm.currentIndex == 0)
+    }
+
+    @Test("Link Pan is ⌥⌘P and the router leaves it to the menu")
+    func linkPanChord() {
+        let router = KeyboardShortcutRouter()
+        let vm = CullingWorkspaceViewModel()
+        vm.setPhotos(createTestPhotos(count: 3))
+        let handled = router.handleKeyEvent(SyntheticKeyEvent(keyCode: 35, characters: "p", modifierFlags: [.command, .option]), viewModel: vm)
+        #expect(!handled)
+    }
 }

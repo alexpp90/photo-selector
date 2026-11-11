@@ -76,10 +76,49 @@ final class UISelfTestRunner {
         await tripletLayoutChecks()
         await chromeAndOverlayChecks()
         await zoomChecks()
+        await hermeticChecks()
         if externalKeyWait > 0 {
             await externalKeyCheck()
         }
         return finish()
+    }
+
+    // MARK: - Hermetic lab run
+
+    /// A lab run must not touch the account: its trash is its own folder and its settings its own
+    /// suite. Presses Delete on the first photo (restored with Undo afterwards) and changes the
+    /// sort order, then proves `~/.Trash` and the standard defaults did not move.
+    private func hermeticChecks() async {
+        guard let session = HermeticLabSession.current else {
+            record("lab.hermetic_session", false, "no hermetic session: the run would write to the real ~/.Trash and defaults")
+            return
+        }
+        let fm = FileManager.default
+        let accountTrash = fm.homeDirectoryForCurrentUser.appendingPathComponent(".Trash")
+        let trashBefore = Set((try? fm.contentsOfDirectory(atPath: accountTrash.path)) ?? [])
+        let standardOrderBefore = UserDefaults.standard.string(forKey: AppSettingsKeys.sortOrder)
+
+        viewModel.selectPhoto(at: 0)
+        let target = viewModel.photos[0].url
+        viewModel.cullCurrentPhoto(action: .trash)
+        let landed = await waitUntil(timeout: 5) {
+            !fm.fileExists(atPath: target.path)
+                && ((try? fm.contentsOfDirectory(atPath: session.trashDirectory.path))?.contains(target.lastPathComponent) == true)
+        }
+        record("lab.delete_goes_to_run_trash", landed, "\(target.lastPathComponent) in \(session.trashDirectory.path)")
+        let trashAfter = Set((try? fm.contentsOfDirectory(atPath: accountTrash.path)) ?? [])
+        record("lab.account_trash_unchanged", trashAfter == trashBefore, "~/.Trash entries \(trashBefore.count) -> \(trashAfter.count)")
+
+        viewModel.undoLastAction()
+        let restored = await waitUntil(timeout: 5) { fm.fileExists(atPath: target.path) }
+        record("lab.undo_restores_from_run_trash", restored, "\(target.lastPathComponent) back in the fixture folder")
+
+        viewModel.setSortOrder(.oldestFirst)
+        record("lab.settings_stay_in_run_suite",
+               session.defaults.workspaceSortOrder == .oldestFirst
+                   && UserDefaults.standard.string(forKey: AppSettingsKeys.sortOrder) == standardOrderBefore,
+               "run suite=\(session.defaults.workspaceSortOrder.rawValue), standard unchanged")
+        viewModel.setSortOrder(.fileName)
     }
 
     // MARK: - 1. Activation

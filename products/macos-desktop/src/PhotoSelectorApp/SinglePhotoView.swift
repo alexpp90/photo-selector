@@ -45,7 +45,7 @@ public struct SinglePhotoView: View {
 
     public var body: some View {
         GeometryReader { geometry in
-            let shown = state.photoID == photo.id ? state.image : nil
+            let shown = (state.photoID == photo.id ? state.image : nil) ?? RecentPreviewMemory.shared.image(for: photo.id)
             let aspect = shown.flatMap { $0.height > 0 ? CGFloat($0.width) / CGFloat($0.height) : nil }
             let layout = MetadataPanelLayout(
                 canvas: geometry.size,
