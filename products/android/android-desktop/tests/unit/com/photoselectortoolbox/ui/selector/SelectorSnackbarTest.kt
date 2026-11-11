@@ -9,6 +9,9 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.test.assertHasClickAction
+import androidx.compose.ui.unit.Density
 import androidx.compose.ui.semantics.LiveRegionMode
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.SemanticsProperties
@@ -24,10 +27,13 @@ import io.mockk.every
 import io.mockk.mockk
 import io.mockk.verify
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertTrue
+import kotlin.math.roundToInt
 import org.junit.Rule
 import org.junit.Test
 import org.junit.runner.RunWith
 import org.robolectric.annotation.Config
+import org.robolectric.annotation.GraphicsMode
 
 /**
  * What the confirmation card does with time: a move or copy just goes away, a
@@ -83,6 +89,34 @@ class SelectorSnackbarTest {
         assertEquals(1, state.dismissed)
     }
 
+    /**
+     * UNDO restores files, so REQ-AND-INPUT.04's 48 dp floor holds for it: measured on the tagged
+     * node, which is the clickable, in whole pixels, at font scale 1.0 and 2.0 (NATIVE graphics,
+     * so the text really grows). Seen red with the button's `defaultMinSize` removed.
+     */
+    @Test
+    @GraphicsMode(GraphicsMode.Mode.NATIVE)
+    @Requirement("REQ-AND-INPUT.04", "REQ-AND-LAYOUT.21")
+    fun `UNDO is a 48 dp button at font scale 1_0 and 2_0`() {
+        var fontScale by mutableStateOf(1f)
+        rule.setContent {
+            val base = LocalDensity.current
+            CompositionLocalProvider(LocalDensity provides Density(base.density, fontScale)) {
+                SelectorSnackbar(message = "Deleted", onUndo = {}, onDismiss = {}, sequence = 1, lifetime = SnackbarLifetime.DELETE)
+            }
+        }
+        for (scale in listOf(1f, 2f)) {
+            fontScale = scale
+            rule.waitForIdle()
+            val node = rule.onNodeWithTag("snackbar_undo", useUnmergedTree = true)
+            node.assertHasClickAction()
+            val bounds = node.fetchSemanticsNode().boundsInRoot
+            val min = (48 * rule.density.density).roundToInt()
+            assertTrue("UNDO ${bounds.width} px wide at font scale $scale, under $min", bounds.width.roundToInt() >= min)
+            assertTrue("UNDO ${bounds.height} px tall at font scale $scale, under $min", bounds.height.roundToInt() >= min)
+        }
+    }
+
     @Test
     fun `a copy's card leaves after 3 seconds`() {
         val state = State().apply { message = "Copied to Selection"; sequence = 1; lifetime = SnackbarLifetime.COPY }
@@ -97,7 +131,7 @@ class SelectorSnackbarTest {
 
     @Test
     fun `a delete's card promises no deadline - no line, UNDO, and it leaves like a move's`() {
-        val state = State().apply { message = "1 image deleted"; sequence = 1; lifetime = SnackbarLifetime.DELETE }
+        val state = State().apply { message = "Deleted"; sequence = 1; lifetime = SnackbarLifetime.DELETE }
         host(state, withUndo = true)
 
         // Nothing is committed when the card leaves (FD-D-1): Ctrl+Z works until the folder is left.

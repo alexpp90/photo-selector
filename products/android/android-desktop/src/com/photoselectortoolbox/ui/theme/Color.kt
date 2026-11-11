@@ -97,6 +97,13 @@ val WarningAmber = Color(0xFFF59E0B)
 /** Small hint text: key caps, "No image", "Not scanned", ranges, captions. */
 val HintText = Zinc400
 
+/**
+ * The fill of a hovered control that carries text (worded buttons, locator chips, view toggles).
+ * [StudioBorderActive] put the key caps at 3.5:1 and Delete's red word at 3.3:1 under the pointer;
+ * on this fill every text token of those controls stays at 4.5:1 or more (ContrastTokensTest).
+ */
+val HoverFill = Color(0xFF313131)
+
 /** Fill of a destructive button (Delete): white on it is 4.83:1; [ErrorRed] gave 3.76:1. */
 val DestructiveFill = Color(0xFFDC2626)
 

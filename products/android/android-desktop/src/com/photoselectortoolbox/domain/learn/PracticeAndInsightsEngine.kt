@@ -68,7 +68,7 @@ object PracticeAndInsightsEngine {
                     PatternInsight(
                         id = "insight_telephoto_shutter",
                         title = "Telephoto Hand-Holding Pattern",
-                        observation = "$pct% of your telephoto shots ($slowBelowGuideline of ${telephotoPhotos.size} at ≥85mm 35mm-eq) were taken slower than 1/f_eff with reduced sharpness.",
+                        observation = "$pct% of your telephoto shots ($slowBelowGuideline of ${telephotoPhotos.size} at ≥85mm 35mm-eq) were taken slower than the hand-holding speed and came out less sharp.",
                         sampleSize = telephotoPhotos.size,
                         recommendedLessonId = "motion.reciprocal_rule",
                     )

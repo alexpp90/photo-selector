@@ -4,7 +4,9 @@ package com.photoselectortoolbox.ui.fit
  * The defects the font-scale x window-size matrix reproduces on `main` today. Each entry is a
  * strict known failure: [assertFitsExceptKnown] fails the day one stops reproducing, so the
  * entry is removed together with the fix. Each id is a findings-history row;
- * F-FD-080 to F-FD-087 are the ones this matrix found on 2026-11-09.
+ * F-FD-080 to F-FD-087 are the ones this matrix found on 2026-11-09. F-FD-051 (Learn tabs and
+ * guide toggles), F-FD-081 (coach blur-risk badge) and F-FD-084 (action word and key cap) were
+ * fixed on 2026-11-10 and their markers removed.
  */
 object KnownFitDefects {
 
@@ -15,25 +17,6 @@ object KnownFitDefects {
 
     private fun FitViolation.on(vararg checks: FitCheck) = check in checks
 
-    /** F-FD-051 — Learn tabs wrap mid-word, guide toggles set their word a letter per line. */
-    val learnTabsAndGuideToggles = KnownFitDefect(
-        id = "F-FD-051",
-        tests = setOf(INSPECT),
-        summary = "Learn tabs break mid-word (\"Lesson/s\") and the composition-guide toggles squeeze " +
-            "their word to a letter per line and under 48 dp, at font scale 2.0 and in narrow windows",
-        cause = "products/android/android-desktop/src/com/photoselectortoolbox/ui/inspect/InspectScreen.kt:821 " +
-            "(four weight(1f) tabs with an unbounded Text) and :768 (GuideToggleButton, one Row of seven " +
-            "toggles with no wrap or step-down)",
-        matches = { v ->
-            val tab = v.node in setOf("\"Explore\"", "\"Lessons\"", "\"Compare\"", "\"Practice\"")
-            val guide = v.node in setOf(
-                "\"Thirds\"", "\"Phi\"", "\"Spiral\"", "\"Flip (TL)\"", "\"Diagonals\"", "\"Horizon\"",
-            ) || v.node.startsWith("#toggle_")
-            (tab && v.on(FitCheck.MID_WORD_BREAK, FitCheck.TEXT_OVERFLOW)) ||
-                (guide && v.on(FitCheck.MID_WORD_BREAK, FitCheck.TEXT_OVERFLOW, FitCheck.SMALL_TARGET))
-        },
-    )
-
     val lessonPreviewCut = KnownFitDefect(
         id = "F-FD-080",
         tests = setOf(INSPECT),
@@ -43,19 +26,6 @@ object KnownFitDefects {
         cause = "products/android/android-desktop/src/com/photoselectortoolbox/ui/inspect/InspectScreen.kt:1285 " +
             "(maxLines = 2, default TextOverflow.Clip)",
         matches = { v -> v.on(FitCheck.TEXT_OVERFLOW) && "with no ellipsis" in v.detail },
-    )
-
-    val blurRiskBadge = KnownFitDefect(
-        id = "F-FD-081",
-        tests = setOf(INSPECT),
-        summary = "The Photo Coach blur-risk label and the \"Hotkeys 0–5, X\" caption break mid-word " +
-            "(\"Lo/w Blur Risk\", \"Hotkey/s\") at font scale 2.0",
-        cause = "products/android/android-desktop/src/com/photoselectortoolbox/ui/inspect/InspectScreen.kt:1523 " +
-            "(SpaceBetween Row of two unweighted Texts) and :1828",
-        matches = { v ->
-            (v.node.contains("Blur Risk") || v.node.contains("Hotkeys")) &&
-                v.on(FitCheck.MID_WORD_BREAK, FitCheck.TEXT_OVERFLOW)
-        },
     )
 
     val compactActionRow = KnownFitDefect(
@@ -93,17 +63,6 @@ object KnownFitDefects {
         },
     )
 
-    val actionWordsAtLargeFont = KnownFitDefect(
-        id = "F-FD-084",
-        tests = setOf(SELECTOR, SELECTOR_FILMSTRIP),
-        summary = "Control block at font scale 1.3-2.0: \"Delete\" ellipsises even at the 9 sp step " +
-            "(1024 x 720, 720 x 560, 600 x 480; 1280 x 800 with the filmstrip) and the key cap loses its line " +
-            "at 2.0 (REQ-AND-LAYOUT.07: the word steps down before it could ellipsise, the key cap is never shortened)",
-        cause = "products/android/android-desktop/src/com/photoselectortoolbox/ui/selector/SelectorControlBlock.kt:562 " +
-            "(StepBased 13-9 sp word in a cell priced for font scale 1.0) and :572 (key cap, 10 sp, softWrap false)",
-        matches = { v -> v.node in setOf("#action_word", "#action_key") && v.on(FitCheck.TEXT_OVERFLOW) },
-    )
-
     val filmstripSqueezed = KnownFitDefect(
         id = "F-FD-085",
         tests = setOf(SELECTOR_FILMSTRIP),
@@ -125,8 +84,8 @@ object KnownFitDefects {
     )
 
     val all = listOf(
-        learnTabsAndGuideToggles, lessonPreviewCut, blurRiskBadge,
+        lessonPreviewCut,
         compactActionRow, selectorChromeAtLargeFont,
-        actionWordsAtLargeFont, filmstripSqueezed, narrowScreensAtLargeFont,
+        filmstripSqueezed, narrowScreensAtLargeFont,
     )
 }

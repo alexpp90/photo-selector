@@ -54,7 +54,7 @@ import com.photoselectortoolbox.domain.session.SelectorSortOrder
 import com.photoselectortoolbox.ui.components.handCursor
 import com.photoselectortoolbox.ui.theme.HintText
 import com.photoselectortoolbox.ui.theme.StudioBorder
-import com.photoselectortoolbox.ui.theme.StudioBorderActive
+import com.photoselectortoolbox.ui.theme.HoverFill
 import com.photoselectortoolbox.ui.theme.StudioCard
 import com.photoselectortoolbox.ui.theme.Zinc400
 import com.photoselectortoolbox.ui.theme.Zinc50
@@ -103,11 +103,14 @@ internal fun SortMenuItems(
     onSelect: (SortChoice) -> Unit,
 ) {
     SortChoice.entries.forEach { choice ->
+        val enabled = choice != SortChoice.BLURRIEST_FIRST || blurriestEnabled
         SortMenuItem(
             label = choice.menuLabel,
             selected = choice == selected,
             tag = choice.tag,
-            enabled = choice != SortChoice.BLURRIEST_FIRST || blurriestEnabled,
+            enabled = enabled,
+            // Blurriest first needs sharpness scores; greyed out, it says so instead of nothing.
+            reason = SelectorLabels.SORT_NEEDS_SCAN.takeIf { !enabled },
             onClick = { onSelect(choice) },
         )
     }
@@ -126,9 +129,23 @@ internal fun SortMenuItem(
     tag: String,
     onClick: () -> Unit,
     enabled: Boolean = true,
+    /** Why the entry is disabled, shown at its end; null when it is enabled. */
+    reason: String? = null,
 ) {
     DropdownMenuItem(
         text = { Text(label) },
+        trailingIcon = reason?.let {
+            {
+                Text(
+                    text = it,
+                    fontSize = 11.sp,
+                    color = HintText,
+                    maxLines = 1,
+                    softWrap = false,
+                    modifier = Modifier.testTag("${tag}_reason"),
+                )
+            }
+        },
         leadingIcon = {
             if (selected) {
                 Icon(Icons.Default.Check, contentDescription = null)
@@ -261,7 +278,7 @@ private fun LocatorChip(
     val interactionSource = remember { MutableInteractionSource() }
     val hovered by interactionSource.collectIsHoveredAsState()
     val background by animateColorAsState(
-        targetValue = if (hovered) StudioBorderActive else StudioCard,
+        targetValue = if (hovered) HoverFill else StudioCard,
         animationSpec = tween(150),
         label = "locatorChipBackground",
     )

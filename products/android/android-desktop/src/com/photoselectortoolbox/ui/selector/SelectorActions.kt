@@ -13,7 +13,9 @@ import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
+import androidx.compose.foundation.LocalIndication
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.indication
 import androidx.compose.foundation.hoverable
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.interaction.collectIsHoveredAsState
@@ -25,7 +27,6 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.defaultMinSize
-import androidx.compose.foundation.layout.wrapContentSize
 import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
@@ -47,6 +48,10 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.SideEffect
+import androidx.compose.ui.layout.boundsInRoot
+import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
@@ -71,7 +76,10 @@ import com.photoselectortoolbox.domain.curation.SnackbarLifetime
 import com.photoselectortoolbox.domain.format.SelectionActionLabels
 import com.photoselectortoolbox.domain.interaction.FilingAction
 import com.photoselectortoolbox.ui.theme.HintText
+import com.photoselectortoolbox.ui.theme.BrandAccent
 import com.photoselectortoolbox.ui.theme.BrandAccentText
+import com.photoselectortoolbox.ui.theme.BrandOnAccent
+import com.photoselectortoolbox.ui.components.handCursor
 import com.photoselectortoolbox.ui.theme.ScoreBad
 import com.photoselectortoolbox.ui.theme.StudioBorder
 import com.photoselectortoolbox.ui.theme.StudioCard
@@ -352,22 +360,50 @@ fun SelectorSnackbar(
                 modifier = Modifier.weight(1f, fill = false),
             )
             if (onUndo != null) {
-                Text(
-                    text = "UNDO",
-                    fontSize = 12.sp,
-                    fontWeight = FontWeight.Medium,
-                    color = BrandAccentText,
-                    modifier = Modifier
-                        .testTag("snackbar_undo")
-                        // A 48 dp hit target around the 12 sp word (AD-17).
-                        .defaultMinSize(minWidth = 48.dp, minHeight = 48.dp)
-                        .pointerHoverIcon(PointerIcon.Hand)
-                        .clickable(role = Role.Button) { onUndo(); latestOnDismiss() }
-                        .wrapContentSize(Alignment.Center),
-                )
+                SnackbarUndoButton(onClick = { onUndo(); latestOnDismiss() })
             }
         }
     }
+    }
+}
+
+/**
+ * The card's UNDO: a filled button, so it reads as the one thing on the card to press
+ * (usability panel 2026-10-24: a bare word was not found as a control).
+ *
+ * The tagged node `snackbar_undo` is the clickable and at least 48 x 48 dp (AD-17,
+ * REQ-AND-INPUT.04); the filled chip is drawn inside it and carries the ripple. The label is
+ * `BrandOnAccent` on `BrandAccent`, the primary pair (`ContrastTokensTest`).
+ */
+@Composable
+private fun SnackbarUndoButton(onClick: () -> Unit) {
+    val interactionSource = remember { MutableInteractionSource() }
+    Box(
+        modifier = Modifier
+            .testTag("snackbar_undo")
+            .defaultMinSize(minWidth = 48.dp, minHeight = 48.dp)
+            .handCursor()
+            .clickable(
+                interactionSource = interactionSource,
+                indication = null,
+                role = Role.Button,
+                onClick = onClick,
+            ),
+        contentAlignment = Alignment.Center,
+    ) {
+        Text(
+            text = "UNDO",
+            fontSize = 12.sp,
+            fontWeight = FontWeight.SemiBold,
+            color = BrandOnAccent,
+            maxLines = 1,
+            softWrap = false,
+            modifier = Modifier
+                .clip(RoundedCornerShape(6.dp))
+                .background(BrandAccent)
+                .indication(interactionSource, LocalIndication.current)
+                .padding(horizontal = 12.dp, vertical = 6.dp),
+        )
     }
 }
 
@@ -408,7 +444,14 @@ fun SelectorSnackbarHost(
     modifier: Modifier = Modifier,
     sequence: Long = 0L,
     lifetime: SnackbarLifetime = SnackbarLifetime.NOTICE,
+    /**
+     * The card's measured top edge in root pixels, or null while no card is shown. The
+     * first-run pill stacks above it rather than being covered (usability panel 2026-10-24).
+     */
+    onCardTop: (Float?) -> Unit = {},
 ) {
+    val latestOnCardTop by rememberUpdatedState(onCardTop)
+    if (message == null) SideEffect { latestOnCardTop(null) }
     Box(
         modifier = modifier
             .fillMaxSize()
@@ -421,6 +464,7 @@ fun SelectorSnackbarHost(
             onDismiss = onDismiss,
             sequence = sequence,
             lifetime = lifetime,
+            modifier = Modifier.onGloballyPositioned { latestOnCardTop(it.boundsInRoot().top) },
         )
     }
 }

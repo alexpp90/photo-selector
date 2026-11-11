@@ -134,7 +134,7 @@ class SelectorScreenLocatorTest {
             scoreDao = mockk<ScoreDao>(relaxed = true) { coEvery { getScore(any()) } returns null },
             appScope = appScope,
             context = ApplicationProvider.getApplicationContext(),
-        )
+        ).also { it.ioDispatcher = testDispatcher }
         viewModel.zoneId = { zone }
         viewModel.selectFolder(Uri.parse("content://test/folder"))
         // Newest first: D (14 Oct), C (12 Oct), B (12 Oct), A (3 Oct).

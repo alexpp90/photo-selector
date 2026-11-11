@@ -213,16 +213,24 @@ class WindowGeometryRule(
         return match.groupValues[1].toInt() + match.groupValues[2].toInt()
     }
 
-    /** The cutout once two readings 200 ms apart agree (at most six readings). */
+    /**
+     * The cutout once two readings about 100 ms apart agree, within a 3 s budget. A cutout that
+     * never settles fails the rule with the last reading, rather than forcing a size computed from a
+     * value that was still moving.
+     */
     private fun settledCutoutPx(): Int {
+        val deadline = SystemClock.elapsedRealtime() + CUTOUT_SETTLE_BUDGET_MILLIS
         var last = horizontalCutoutPx()
-        repeat(5) {
-            Thread.sleep(200)
+        while (true) {
+            SystemClock.sleep(CUTOUT_POLL_MILLIS)
             val now = horizontalCutoutPx()
             if (now == last) return now
+            check(SystemClock.elapsedRealtime() <= deadline) {
+                "The display cutout did not settle within ${CUTOUT_SETTLE_BUDGET_MILLIS / 1000} s " +
+                    "(last two readings $last px, then $now px)\n${describeDisplay()}"
+            }
             last = now
         }
-        return last
     }
 
     /**
@@ -468,6 +476,10 @@ class WindowGeometryRule(
 
         /** A Pixel 4a needs three rounds, one more to land exactly; the cutout of any panel stops growing by five. */
         private const val MAX_CUTOUT_ROUNDS = 8
+
+        /** How long the cutout may take to settle after a forced size, and how often it is read. */
+        private const val CUTOUT_SETTLE_BUDGET_MILLIS = 3_000L
+        private const val CUTOUT_POLL_MILLIS = 100L
 
         /** The system setting that holds the original display state while it is forced ([DisplayRecord]). */
         private const val RECORD_KEY = "frameduel_test_display_original"

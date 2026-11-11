@@ -156,6 +156,8 @@ fun FullscreenViewer(
     showGestureHint: Boolean = false,
     onGestureHintSeen: () -> Unit = {},
     selectionFolderName: String = FilingAction.DEFAULT_SELECTION_FOLDER,
+    /** The custom destination's folder name, when one is set; the flash names it as the card does. */
+    customDestinationName: String? = null,
     infoPinned: Boolean = false,
     onToggleInfoPinned: () -> Unit = {},
     snackbarMessage: String? = null,
@@ -209,6 +211,7 @@ fun FullscreenViewer(
             showGestureHint = showGestureHint,
             onGestureHintSeen = onGestureHintSeen,
             selectionFolderName = selectionFolderName,
+            customDestinationName = customDestinationName,
             infoPinned = infoPinned,
             onToggleInfoPinned = onToggleInfoPinned,
             snackbarMessage = snackbarMessage,
@@ -284,6 +287,7 @@ private fun FullscreenContent(
     showGestureHint: Boolean,
     onGestureHintSeen: () -> Unit,
     selectionFolderName: String,
+    customDestinationName: String?,
     infoPinned: Boolean,
     onToggleInfoPinned: () -> Unit,
     snackbarMessage: String?,
@@ -402,8 +406,9 @@ private fun FullscreenContent(
         } else {
             onCopyToSelection(currentPageIndex)
         }
-        // What the flash says is what was done, whichever route got here.
-        flashLabel = SelectionActionLabels.confirmation(action, selectionFolderName)
+        // What the flash says is what was done, whichever route got here, in the confirmation
+        // card's own words: the same call, the custom destination included.
+        flashLabel = SelectionActionLabels.confirmation(action, selectionFolderName, customDestinationName)
         showCollectionFlash = true
         flashNonce++
     }
@@ -633,7 +638,7 @@ private fun FullscreenContent(
                     imageVector = Icons.Default.Check,
                     contentDescription = flashLabel,
                     tint = Color.White,
-                    modifier = Modifier.size(44.dp),
+                    modifier = Modifier.size(44.dp).testTag("fullscreen_collection_flash"),
                 )
             }
         }

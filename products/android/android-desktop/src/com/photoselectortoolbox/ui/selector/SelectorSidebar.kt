@@ -42,6 +42,8 @@ import androidx.compose.ui.input.pointer.PointerIcon
 import androidx.compose.ui.input.pointer.pointerHoverIcon
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.liveRegion
+import androidx.compose.ui.semantics.LiveRegionMode
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.style.TextAlign
@@ -174,6 +176,7 @@ fun SelectorSidebar(
             queuedWork == SelectorWork.SCAN -> BusyItem(
                 statusText = SelectorLabels.QUEUED,
                 description = "Scan queued until grouping finishes. Tap to cancel it.",
+                announce = true,
                 onCancel = onCancelQueued,
                 testTag = "cancel_queued_scan",
                 statusTestTag = "queued_scan",
@@ -200,6 +203,7 @@ fun SelectorSidebar(
             queuedWork == SelectorWork.GROUPING -> BusyItem(
                 statusText = SelectorLabels.QUEUED,
                 description = "Grouping queued until the scan finishes. Tap to cancel it.",
+                announce = true,
                 onCancel = onCancelQueued,
                 testTag = "cancel_queued_grouping",
                 statusTestTag = "queued_grouping",
@@ -367,6 +371,11 @@ private fun BusyItem(
     onCancel: () -> Unit,
     testTag: String,
     statusTestTag: String,
+    /**
+     * A polite live region, so a screen reader hears that the request is waiting (the state changes
+     * without a focus move). Not for the scan counter, which changes on every photo.
+     */
+    announce: Boolean = false,
 ) {
     Column(
         modifier = Modifier
@@ -377,7 +386,10 @@ private fun BusyItem(
             .background(BrandAccentTonal)
             .pointerHoverIcon(PointerIcon.Hand)
             .clickable(onClick = onCancel, role = Role.Button)
-            .semantics { contentDescription = description }
+            .semantics {
+                contentDescription = description
+                if (announce) liveRegion = LiveRegionMode.Polite
+            }
             .testTag(testTag)
             .padding(horizontal = 4.dp),
         horizontalAlignment = Alignment.CenterHorizontally,

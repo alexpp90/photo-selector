@@ -15,6 +15,11 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ### Changed
 
+- After a delete the card says "Deleted", or "Deleted 3 files" when the photo took its RAW or sidecar with it; the photo count beside the frames falls by one per photo. The card's UNDO is a filled button.
+- The four view toggles under the action buttons carry a one-word label (Info, Strip, Overlay, Keys) where it fits, and show whether they are on by a filled or outlined button; a screen reader hears each as a switch that is on or off.
+- Learn and the scan sheet speak plainly: "Fast enough to hand-hold: 1/60s beats the 1/50s minimum" instead of "1/f_eff Guideline", "Golden ratio" and "Flip spiral" instead of "Phi" and "Flip (TL)", a "Grainy at ISO 3200" remark when noise is high, and scan options named for what they find ("Focus quality", "Noise level") without the method.
+- Blurriest first, greyed out before a scan, says "Scan first".
+- Keys match Lensjet and Blitzlens: `T` shows or hides the filmstrip, `I` shows or hides the current frame's values (it used to open Learn; `L` still does, and in Learn `L` or `Esc` returns), and `J` / `K` step to the next / previous photo. The guide lists them, and calls `1` / `2` / `3` "enlarge left / middle / right frame". Learn's guide buttons (Thirds, Golden ratio, …) tell a screen reader whether they are on.
 - Hint text (key names under the buttons, "No image", "Not scanned", the filmstrip range, the Learn captions) and the Delete buttons are readable on the dark surfaces (contrast 4.5:1 or better); before, some were at 2:1 to 3.8:1.
 - Every control shows the hand cursor under a mouse or trackpad, in Settings, Duplicates and the dialogs too. Error messages are short sentences; the technical detail goes to the log.
 - Image analysis now works on a copy of at most 2048 pixels on the long edge for every photo, which uses less memory and makes sharpness comparable across cameras. Scores from earlier versions are recalculated the next time you scan; ratings are kept.
@@ -22,6 +27,13 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ### Fixed
 
+- At the largest system font the action buttons keep "Delete" and the other words whole: a button that is too small drops its icon first and its key name last (the key stays in the spoken label and in the guide). Learn's tabs and guide buttons scroll instead of breaking words ("Lesson/s", "Hori/zon"), and the Photo Coach's blur badge and the rating card's key caption move to the next line instead of breaking.
+- The first-run "Tap either side to browse" pill no longer sits under the undo card; it moves above it.
+- Moving or copying in fullscreen into a custom destination flashes that folder's name, as the card does, instead of "Selection".
+- On a second pass (culling inside a Selection folder) the confirmation, the filing hint and the fullscreen flash name the folder the photo goes to ("Moved to Final") instead of "Selection".
+- The layout guide no longer claims that every control shows its key; the narrow Go and Sort chips do not.
+- Under a mouse pointer, the key names and the red Delete word on the buttons stay readable (4.5:1); the hover colour put them at 3.5:1 and 3.3:1.
+- A screen reader announces that a scan or grouping is queued behind the other.
 - "Delete now" in the "uncompleted deletions" prompt after a restart deletes a photo only if the file is still the one you deleted (same size and date). A different photo that took its name in the meantime (restarted camera numbering, a refilled folder) is kept, and the message names it. So is an entry saved by an earlier version, which has no size and date to check.
 - With a custom destination set and that destination's Selection folder open, Copy and Move file into `Final` inside it, as they do in any Selection folder, and Settings shows that path. Before, a Move renamed each photo in place (`IMG_0001-2.JPG`).
 - Learn draws the leading lines and the visual weight of the photo shown, computed when you open it and kept for next time. Before, the analysis existed but nothing ran it.

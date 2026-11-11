@@ -1,5 +1,6 @@
 package com.photoselectortoolbox.ui.selector
 
+import com.photoselectortoolbox.domain.format.SelectionActionLabels
 import com.photoselector.core.Requirement
 import android.view.KeyEvent
 import androidx.compose.material3.windowsizeclass.ExperimentalMaterial3WindowSizeClassApi
@@ -95,6 +96,7 @@ class FullscreenViewerTest {
         var lifetime by mutableStateOf(SnackbarLifetime.NOTICE)
         var dismissed = 0
         var undos = 0
+        var customDestination: String? = null
         val moved = mutableListOf<String>()
         val copied = mutableListOf<String>()
         /** Every page the viewer reported to the ViewModel. */
@@ -122,6 +124,7 @@ class FullscreenViewerTest {
                 onPageSelected = { harness.reported += it; harness.index = it },
                 fullscreenButtonsEnabled = true,
                 filingAction = filing,
+                customDestinationName = harness.customDestination,
                 infoPinned = harness.pinned,
                 onToggleInfoPinned = {
                     harness.pinToggles++
@@ -491,6 +494,34 @@ class FullscreenViewerTest {
         )
     }
 
+    /**
+     * REQ-AND-THEME.04: the flash says the confirmation card's sentence. Into a custom folder the
+     * card names it ("Moved to «Keepers › Selection»"), and the flash used to say "Moved to
+     * Selection" because it built its own label from the folder name alone.
+     */
+    @Test
+    fun `the flash says what the selector's confirmation says for a custom destination`() {
+        open { customDestination = "Keepers" }
+        press(KeyEvent.KEYCODE_M)
+        val expected = SelectionActionLabels.confirmation(FilingAction.MOVE, FilingAction.DEFAULT_SELECTION_FOLDER, "Keepers")
+        assertTrue(expected, expected.contains("Keepers"))
+        val flash = rule.onAllNodesWithTag("fullscreen_collection_flash", useUnmergedTree = true)
+            .fetchSemanticsNodes().single()
+        assertEquals(listOf(expected), flash.config[SemanticsProperties.ContentDescription])
+    }
+
+    @Test
+    fun `the flash for the working folder is the selector's confirmation`() {
+        open()
+        press(KeyEvent.KEYCODE_M)
+        val flash = rule.onAllNodesWithTag("fullscreen_collection_flash", useUnmergedTree = true)
+            .fetchSemanticsNodes().single()
+        assertEquals(
+            listOf(SelectionActionLabels.confirmation(FilingAction.MOVE, FilingAction.DEFAULT_SELECTION_FOLDER, null)),
+            flash.config[SemanticsProperties.ContentDescription],
+        )
+    }
+
     @Test
     fun `the C key flashes what a copy says, whatever the filing action is`() {
         open()
@@ -517,7 +548,7 @@ class FullscreenViewerTest {
     @Test
     fun `a delete's card in fullscreen shows with no draining line`() {
         open {
-            message = "1 image deleted"
+            message = "Deleted"
             sequence = 1
             lifetime = SnackbarLifetime.DELETE
         }

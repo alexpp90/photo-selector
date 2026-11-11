@@ -183,6 +183,72 @@ object ControlBlockFit {
         }
     }
 
+    /** Where a worded button puts its key cap, if anywhere. */
+    enum class KeyPlacement { BESIDE, BELOW, NONE }
+
+    /** What a worded button draws: its glyph or not, and where its key cap goes. */
+    data class ButtonContent(val icon: Boolean, val key: KeyPlacement)
+
+    /**
+     * A worded button's content box and its parts, measured in pixels at the font scale in force:
+     * the word at its smallest auto-size step (it only grows from there), the key cap, the glyph and
+     * the gap between parts.
+     */
+    data class ButtonMeasure(
+        val width: Int,
+        val height: Int,
+        val icon: Int,
+        val gap: Int,
+        val wordWidth: Int,
+        val wordHeight: Int,
+        val keyWidth: Int,
+        val keyHeight: Int,
+    )
+
+    /**
+     * What a worded button can draw in the box it has, chosen from measured text (F-FD-084: at
+     * font scale 2.0 "Delete" ellipsised and its key cap overflowed, because the arrangement was
+     * chosen from the cell width alone, priced at font scale 1.0).
+     *
+     * The ladder starts at the arrangement the cell width affords ([preferred]; null is the FULL
+     * 80 dp button, glyph on top) and steps down until one fits both ways. **The word is never
+     * cut.** The glyph goes first, because the word already says what the glyph shows; the key cap
+     * goes only when not even the word over its key cap fits, and stays in the spoken label and in
+     * the guide's controls callout (REQ-AND-LAYOUT.07).
+     */
+    fun buttonContent(preferred: ButtonStyle?, m: ButtonMeasure): ButtonContent {
+        val beside = m.wordWidth + m.gap + m.keyWidth
+        val below = maxOf(m.wordWidth, m.keyWidth)
+        val lineBeside = maxOf(m.wordHeight, m.keyHeight)
+        val lineBelow = m.wordHeight + m.keyHeight
+        fun fits(w: Int, h: Int) = w <= m.width && h <= m.height
+
+        val full = listOf(
+            ButtonContent(icon = true, KeyPlacement.BESIDE) to
+                fits(maxOf(m.icon, beside), m.icon + m.gap + lineBeside),
+            ButtonContent(icon = false, KeyPlacement.BESIDE) to fits(beside, lineBeside),
+            ButtonContent(icon = false, KeyPlacement.BELOW) to fits(below, lineBelow),
+            ButtonContent(icon = true, KeyPlacement.NONE) to
+                fits(maxOf(m.icon, m.wordWidth), m.icon + m.gap + m.wordHeight),
+        )
+        val compact = listOf(
+            ButtonStyle.INLINE to (ButtonContent(icon = true, KeyPlacement.BESIDE) to
+                fits(m.icon + m.gap + beside, maxOf(m.icon, lineBeside))),
+            ButtonStyle.STACKED_WITH_ICON to (ButtonContent(icon = true, KeyPlacement.BELOW) to
+                fits(m.icon + m.gap + below, maxOf(m.icon, lineBelow))),
+            ButtonStyle.STACKED to (ButtonContent(icon = false, KeyPlacement.BELOW) to fits(below, lineBelow)),
+            null to (ButtonContent(icon = false, KeyPlacement.BESIDE) to fits(beside, lineBeside)),
+            null to (ButtonContent(icon = true, KeyPlacement.NONE) to
+                fits(m.icon + m.gap + m.wordWidth, maxOf(m.icon, m.wordHeight))),
+        )
+        val ladder = if (preferred == null) {
+            full
+        } else {
+            compact.drop(compact.indexOfFirst { it.first == preferred }.coerceAtLeast(0)).map { it.second }
+        }
+        return ladder.firstOrNull { it.second }?.first ?: ButtonContent(icon = false, KeyPlacement.NONE)
+    }
+
     /** Counter line height at [fontScale]. Linear scaling over-prices large scales, which is the safe side. */
     fun counterHeight(fontScale: Float): Dp = (CounterLineHeightSp * fontScale).dp
 

@@ -54,6 +54,31 @@ class ContrastTokensTest {
         assertTrue("below 4.5:1: $failures", failures.isEmpty())
     }
 
+    /**
+     * The focused and hovered states of the controls that carry key caps (backlog 2026-10-21,
+     * UX-AD-2): under the pointer the old fill put the key cap at 3.5:1 and Delete's word at 3.3:1.
+     * Keyboard focus draws Material's 10 % state layer over the card; computed by hand, Delete's red
+     * word stays at 4.50:1 under it, the key caps at 4.8:1 (too close to pin as a token pair).
+     */
+    @Test
+    @Requirement("REQ-AND-THEME.02")
+    fun `every text a hovered control carries reads at 4_5 to 1 on the hover fill`() {
+        val onHover = mapOf(
+            "HintText" to HintText, "Zinc400" to Zinc400, "Zinc50" to Zinc50,
+            "ScoreBad" to ScoreBad, "ScoreGood" to ScoreGood, "BrandAccentText" to BrandAccentText,
+        )
+        val failures = onHover.mapNotNull { (name, text) ->
+            val ratio = contrast(text, HoverFill)
+            "$name on HoverFill = ${"%.2f".format(ratio)}".takeIf { ratio < 4.5 }
+        }
+        assertTrue("below 4.5:1: $failures", failures.isEmpty())
+    }
+
+    @Test
+    fun `the snackbar's filled UNDO reads at 4_5 to 1`() {
+        assertTrue(contrast(BrandOnAccent, BrandAccent) >= 4.5)
+    }
+
     @Test
     fun `a destructive button reads at 4_5 to 1`() {
         assertTrue(contrast(OnDestructiveFill, DestructiveFill) >= 4.5)

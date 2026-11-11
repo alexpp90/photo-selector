@@ -42,6 +42,8 @@ import com.photoselectortoolbox.viewmodel.SelectorViewModel
 import io.mockk.coEvery
 import io.mockk.every
 import io.mockk.mockk
+import kotlin.coroutines.ContinuationInterceptor
+import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.Deferred
@@ -175,6 +177,9 @@ fun fitSelectorViewModel(
         appScope = appScope,
         context = context,
     )
+    // Room and IO hops stay on the test's dispatcher: on Dispatchers.IO they resume on Main from
+    // another thread, which raced `resetMain` in the teardown (SelectorSortJumpViewModelTest flake).
+    viewModel.ioDispatcher = appScope.coroutineContext[ContinuationInterceptor] as CoroutineDispatcher
     if (openFolder) {
         viewModel.selectFolder(Uri.parse("content://test/folder"))
         discovery.trySend(photos)

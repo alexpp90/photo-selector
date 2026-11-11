@@ -6,6 +6,7 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.hoverable
+import androidx.compose.foundation.selection.toggleable
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.interaction.collectIsHoveredAsState
 import androidx.compose.foundation.layout.Arrangement
@@ -55,13 +56,15 @@ import androidx.compose.ui.input.pointer.pointerHoverIcon
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.semantics.Role
 import com.photoselectortoolbox.ui.components.TouchTarget
+import com.photoselectortoolbox.ui.components.handCursor
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.foundation.text.BasicText
-import androidx.compose.foundation.text.TextAutoSize
 import androidx.compose.ui.text.TextStyle
+import androidx.compose.ui.text.rememberTextMeasurer
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.unit.Dp
+import androidx.compose.ui.unit.TextUnit
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.photoselectortoolbox.domain.format.ActionLabel
@@ -78,7 +81,7 @@ import com.photoselectortoolbox.ui.theme.BrandAccentTonal
 import com.photoselectortoolbox.ui.theme.ScoreBad
 import com.photoselectortoolbox.ui.theme.ScoreGood
 import com.photoselectortoolbox.ui.theme.StudioBorder
-import com.photoselectortoolbox.ui.theme.StudioBorderActive
+import com.photoselectortoolbox.ui.theme.HoverFill
 import com.photoselectortoolbox.ui.theme.StudioCard
 import com.photoselectortoolbox.ui.theme.Zinc400
 import com.photoselectortoolbox.ui.theme.Zinc50
@@ -239,86 +242,94 @@ fun SelectorControlBlock(
                     counter(Modifier.fillMaxWidth())
                 }
 
-                Row(horizontalArrangement = Arrangement.spacedBy(gap)) {
-                    labels.forEach { label ->
-                        FilingButton(
-                            label = label,
-                            style = buttonStyle,
-                            onClick = if (label.action == FilingAction.MOVE) {
-                                actions.onMove
-                            } else {
-                                actions.onCopy
-                            },
-                            modifier = Modifier
-                                .weight(1f)
-                                .testTag(
-                                    if (label.action == FilingAction.MOVE) {
-                                        "move_button_expanded"
-                                    } else {
-                                        "copy_button_expanded"
-                                    }
-                                ),
+                // Where the block scrolls anyway and a half-width cell cannot hold the
+                // longest word at its smallest step (600 x 480 at font scale 2.0), the
+                // buttons stand one per row: the scroll pays for it, and no word is cut.
+                val single = scrolling && !wordsFitHalfCells(
+                    words = labels.map { it.verb } + listOf("Delete", "Full", "Prev", "Next"),
+                    cellWidth = ControlBlockFit.cellWidth(innerWidth) - 6.dp,
+                )
+                val style = if (single) ControlBlockFit.buttonStyle(innerWidth * 2 + gap) else buttonStyle
+                val (first, second) = labels
+                ButtonPair(
+                    single = single,
+                    gap = gap,
+                    first = { m -> FilingTagged(first, style, actions, m) },
+                    second = { m -> FilingTagged(second, style, actions, m) },
+                )
+
+                // Delete is diagonally opposite the configured filing button, not
+                // beside it. The two most-used controls on this screen are "file
+                // this" and "destroy this", and they should not be neighbours.
+                ButtonPair(
+                    single = single,
+                    gap = gap,
+                    first = { m ->
+                        WordedButton(
+                            icon = Icons.Default.Delete,
+                            word = "Delete",
+                            keyHint = "Del",
+                            description = "Delete, shortcut Delete or Backspace",
+                            style = style,
+                            contentColor = ScoreBad,
+                            outlined = true,
+                            onClick = actions.onDelete,
+                            modifier = m.testTag("delete_button_expanded"),
                         )
-                    }
-                }
+                    },
+                    second = { m ->
+                        WordedButton(
+                            icon = Icons.Default.Fullscreen,
+                            word = "Full",
+                            keyHint = "F",
+                            description = "Open fullscreen, shortcut F",
+                            style = style,
+                            onClick = actions.onFullscreen,
+                            modifier = m.testTag("fullscreen_button"),
+                        )
+                    },
+                )
 
-                Row(horizontalArrangement = Arrangement.spacedBy(gap)) {
-                    // Delete is diagonally opposite the configured filing button, not
-                    // beside it. The two most-used controls on this screen are "file
-                    // this" and "destroy this", and they should not be neighbours.
-                    WordedButton(
-                        icon = Icons.Default.Delete,
-                        word = "Delete",
-                        keyHint = "Del",
-                        description = "Delete, shortcut Delete or Backspace",
-                        style = buttonStyle,
-                        contentColor = ScoreBad,
-                        outlined = true,
-                        onClick = actions.onDelete,
-                        modifier = Modifier.weight(1f).testTag("delete_button_expanded"),
-                    )
-                    WordedButton(
-                        icon = Icons.Default.Fullscreen,
-                        word = "Full",
-                        keyHint = "F",
-                        description = "Open fullscreen, shortcut F",
-                        style = buttonStyle,
-                        onClick = actions.onFullscreen,
-                        modifier = Modifier.weight(1f).testTag("fullscreen_button"),
-                    )
-                }
+                ButtonPair(
+                    single = single,
+                    gap = gap,
+                    first = { m ->
+                        WordedButton(
+                            icon = Icons.AutoMirrored.Filled.ArrowBack,
+                            word = "Prev",
+                            keyHint = "←",
+                            description = "Previous image, shortcut left arrow",
+                            style = style,
+                            enabled = canGoPrevious,
+                            onClick = onNavigatePrevious,
+                            modifier = m.testTag("rail_previous"),
+                        )
+                    },
+                    second = { m ->
+                        WordedButton(
+                            icon = Icons.AutoMirrored.Filled.ArrowForward,
+                            word = "Next",
+                            keyHint = "→",
+                            description = "Next image, shortcut right arrow",
+                            style = style,
+                            enabled = canGoNext,
+                            onClick = onNavigateNext,
+                            modifier = m.testTag("rail_next"),
+                        )
+                    },
+                )
 
-                Row(horizontalArrangement = Arrangement.spacedBy(gap)) {
-                    WordedButton(
-                        icon = Icons.AutoMirrored.Filled.ArrowBack,
-                        word = "Prev",
-                        keyHint = "←",
-                        description = "Previous image, shortcut left arrow",
-                        style = buttonStyle,
-                        enabled = canGoPrevious,
-                        onClick = onNavigatePrevious,
-                        modifier = Modifier.weight(1f).testTag("rail_previous"),
-                    )
-                    WordedButton(
-                        icon = Icons.AutoMirrored.Filled.ArrowForward,
-                        word = "Next",
-                        keyHint = "→",
-                        description = "Next image, shortcut right arrow",
-                        style = buttonStyle,
-                        enabled = canGoNext,
-                        onClick = onNavigateNext,
-                        modifier = Modifier.weight(1f).testTag("rail_next"),
-                    )
-                }
-
-                // View controls. Icon-only is acceptable here and only here: none of
-                // these four changes a file, so a mis-tap costs a glance, not a photo.
+                // View controls: none of these four changes a file, so a mis-tap costs a
+                // glance, not a photo. Each carries a one-word label where the slot holds it.
+                val showToggleLabels = toggleLabelsFit(SelectorLabels.VIEW_TOGGLE_LABELS)
+                fun toggleLabel(word: String) = word.takeIf { showToggleLabels }
                 val toggles: List<@Composable () -> Unit> = listOf(
                     {
                         ViewToggle(
                             icon = Icons.Outlined.Info,
-                            description = if (detailsVisible) "Hide photo details" else "Show photo details",
+                            description = "Photo details",
                             active = detailsVisible,
+                            label = toggleLabel(SelectorLabels.TOGGLE_INFO),
                             onClick = actions.onToggleDetails,
                             modifier = Modifier.testTag("details_toggle"),
                         )
@@ -326,8 +337,9 @@ fun SelectorControlBlock(
                     {
                         ViewToggle(
                             icon = Icons.Default.ViewCarousel,
-                            description = if (filmstripVisible) "Hide the filmstrip" else "Show the filmstrip",
+                            description = "Filmstrip",
                             active = filmstripVisible,
+                            label = toggleLabel(SelectorLabels.TOGGLE_STRIP),
                             onClick = actions.onToggleFilmstrip,
                             modifier = Modifier.testTag("filmstrip_toggle"),
                         )
@@ -339,12 +351,9 @@ fun SelectorControlBlock(
                             } else {
                                 Icons.Default.VisibilityOff
                             },
-                            description = if (overlayValuesVisible) {
-                                "Hide the values on Previous and Next"
-                            } else {
-                                "Show the values on Previous and Next"
-                            },
+                            description = "Values on Previous and Next",
                             active = overlayValuesVisible,
+                            label = toggleLabel(SelectorLabels.TOGGLE_OVERLAY),
                             onClick = actions.onToggleOverlayValues,
                             modifier = Modifier.testTag("overlay_values_toggle"),
                         )
@@ -353,6 +362,7 @@ fun SelectorControlBlock(
                         ViewToggle(
                             icon = Icons.Default.Keyboard,
                             description = "Shortcuts and layout guide",
+                            label = toggleLabel(SelectorLabels.TOGGLE_KEYS),
                             onClick = actions.onShowShortcuts,
                             modifier = Modifier.testTag("shortcuts_button"),
                         )
@@ -460,6 +470,52 @@ fun RatingFilterSelector(
     }
 }
 
+/** Two controls side by side, or one per row when [single]; [content] gets the modifier that sizes it. */
+@Composable
+private fun ButtonPair(
+    single: Boolean,
+    gap: Dp,
+    first: @Composable (Modifier) -> Unit,
+    second: @Composable (Modifier) -> Unit,
+) {
+    if (single) {
+        Column(verticalArrangement = Arrangement.spacedBy(gap)) {
+            first(Modifier.fillMaxWidth())
+            second(Modifier.fillMaxWidth())
+        }
+    } else {
+        Row(horizontalArrangement = Arrangement.spacedBy(gap)) {
+            first(Modifier.weight(1f))
+            second(Modifier.weight(1f))
+        }
+    }
+}
+
+/** Whether every word fits a half-width cell at its smallest step and the font scale in force. */
+@Composable
+private fun wordsFitHalfCells(words: List<String>, cellWidth: Dp): Boolean {
+    val measurer = rememberTextMeasurer()
+    val density = LocalDensity.current
+    val limit = with(density) { cellWidth.roundToPx() }
+    return words.all { word ->
+        measurer.measure(word, TextStyle(fontSize = WordMinSize), maxLines = 1, softWrap = false).size.width + TextSlackPx <= limit
+    }
+}
+
+/** A [FilingButton] with the tag of its action. */
+@Composable
+private fun FilingTagged(
+    label: ActionLabel,
+    style: ControlBlockFit.ButtonStyle?,
+    actions: SelectorActions,
+    modifier: Modifier,
+) = FilingButton(
+    label = label,
+    style = style,
+    onClick = if (label.action == FilingAction.MOVE) actions.onMove else actions.onCopy,
+    modifier = modifier.testTag(if (label.action == FilingAction.MOVE) "move_button_expanded" else "copy_button_expanded"),
+)
+
 /** A filing control, worded from the setting and tinted by whether it is primary. */
 @Composable
 private fun FilingButton(
@@ -520,7 +576,7 @@ private fun WordedButton(
         targetValue = when {
             !enabled -> Color.Transparent
             filled -> BrandAccentTonal
-            hovered -> StudioBorderActive
+            hovered -> HoverFill
             else -> StudioCard
         },
         animationSpec = tween(150),
@@ -556,25 +612,29 @@ private fun WordedButton(
         )
     val formattedKey = if (keyHint.startsWith("[")) keyHint else "[$keyHint]"
     val keyColor = if (enabled) HintText else Zinc700
+    val wordStyle = TextStyle(fontSize = 13.sp, color = resolvedContent)
+    val keyStyle = TextStyle(fontSize = 10.sp, fontFamily = FontFamily.Monospace, color = keyColor)
+    val measurer = rememberTextMeasurer()
 
     // The word shrinks (13 sp down to 9 sp) before it ever ellipsizes: at 960 x 600
-    // the 13 sp word read "Dele…", and a destructive control must say what it does.
-    val wordText: @Composable (Modifier) -> Unit = { m ->
+    // the 13 sp word read "Dele…", and a destructive control must say what it does. The size
+    // is the largest step whose line fits both the width and the height the word is left,
+    // measured below: an auto-size that stepped by width alone let a 13 sp word overflow a
+    // 48 dp button's height at font scale 2.0.
+    val wordText: @Composable (Modifier, TextUnit) -> Unit = { m, size ->
         BasicText(
             text = word,
-            style = TextStyle(fontSize = 13.sp, color = resolvedContent),
+            style = wordStyle.copy(fontSize = size),
             maxLines = 1,
+            softWrap = false,
             overflow = TextOverflow.Ellipsis,
-            autoSize = TextAutoSize.StepBased(minFontSize = 9.sp, maxFontSize = 13.sp),
             modifier = m.testTag("action_word"),
         )
     }
     val keyText: @Composable () -> Unit = {
         Text(
             text = formattedKey,
-            fontSize = 10.sp,
-            fontFamily = FontFamily.Monospace,
-            color = keyColor,
+            style = keyStyle,
             maxLines = 1,
             softWrap = false,
             modifier = Modifier.testTag("action_key"),
@@ -589,62 +649,106 @@ private fun WordedButton(
         )
     }
 
-    when (style) {
-        ControlBlockFit.ButtonStyle.INLINE -> Row(
-            modifier = container,
-            horizontalArrangement = Arrangement.spacedBy(4.dp, Alignment.CenterHorizontally),
-            verticalAlignment = Alignment.CenterVertically,
-        ) {
-            glyph(20.dp)
-            wordText(Modifier.weight(1f, fill = false))
-            keyText()
+    BoxWithConstraints(modifier = container, contentAlignment = Alignment.Center) {
+        // Which parts fit is measured, not assumed from the cell width: at font scale 2.0 the
+        // arrangement priced at 1.0 cut "Delete" and pushed its key cap out of the button.
+        val glyphSize = when (style) {
+            null -> 22.dp
+            ControlBlockFit.ButtonStyle.INLINE -> 20.dp
+            else -> 18.dp
         }
-        ControlBlockFit.ButtonStyle.STACKED_WITH_ICON -> Row(
-            modifier = container,
-            horizontalArrangement = Arrangement.spacedBy(3.dp, Alignment.CenterHorizontally),
-            verticalAlignment = Alignment.CenterVertically,
-        ) {
-            glyph(18.dp)
-            Column(
-                modifier = Modifier.weight(1f, fill = false),
-                horizontalAlignment = Alignment.CenterHorizontally,
-            ) {
-                wordText(Modifier)
-                keyText()
+        val gap = if (style == null) 5.dp else 4.dp
+        val density = LocalDensity.current
+        val wordMin = measurer.measure(word, wordStyle.copy(fontSize = WordMinSize), maxLines = 1, softWrap = false)
+        val key = measurer.measure(formattedKey, keyStyle, maxLines = 1, softWrap = false)
+        val iconPx = with(density) { glyphSize.roundToPx() }
+        val gapPx = with(density) { gap.roundToPx() }
+        val content = ControlBlockFit.buttonContent(
+            preferred = style,
+            m = ControlBlockFit.ButtonMeasure(
+                width = constraints.maxWidth,
+                height = constraints.maxHeight,
+                icon = iconPx,
+                gap = gapPx,
+                // A pixel of slack per text: layout places each part on fractional
+                // positions, and a word measured exactly as wide as its slot ellipsised.
+                wordWidth = wordMin.size.width + TextSlackPx,
+                wordHeight = wordMin.size.height,
+                keyWidth = key.size.width + TextSlackPx,
+                keyHeight = key.size.height,
+            ),
+        )
+        // The box the word's line is left once the glyph (beside it in COMPACT, above it in FULL)
+        // and the key cap (beside or under it) are paid; the word takes the largest step that fits it.
+        val besideKey = content.key == ControlBlockFit.KeyPlacement.BESIDE
+        val belowKey = content.key == ControlBlockFit.KeyPlacement.BELOW
+        val wordWidthPx = constraints.maxWidth -
+            (if (style != null && content.icon) iconPx + gapPx else 0) -
+            (if (besideKey) gapPx + key.size.width else 0)
+        val wordHeightPx = constraints.maxHeight -
+            (if (style == null && content.icon) iconPx + gapPx else 0) -
+            (if (belowKey) key.size.height else 0)
+        val wordSize = WordSizeSteps.firstOrNull { size ->
+            val line = measurer.measure(word, wordStyle.copy(fontSize = size), maxLines = 1, softWrap = false).size
+            line.width + TextSlackPx <= wordWidthPx && line.height <= wordHeightPx
+        } ?: WordMinSize
+        val words: @Composable () -> Unit = {
+            when (content.key) {
+                ControlBlockFit.KeyPlacement.BESIDE -> Row(
+                    horizontalArrangement = Arrangement.spacedBy(gap),
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    wordText(Modifier.weight(1f, fill = false), wordSize)
+                    keyText()
+                }
+                ControlBlockFit.KeyPlacement.BELOW -> Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                    wordText(Modifier, wordSize)
+                    keyText()
+                }
+                ControlBlockFit.KeyPlacement.NONE -> wordText(Modifier, wordSize)
             }
         }
-        ControlBlockFit.ButtonStyle.STACKED -> Column(
-            modifier = container,
-            horizontalAlignment = Alignment.CenterHorizontally,
-            verticalArrangement = Arrangement.Center,
-        ) {
-            wordText(Modifier)
-            keyText()
-        }
-        null -> Column(
-            modifier = container,
-            horizontalAlignment = Alignment.CenterHorizontally,
-            verticalArrangement = Arrangement.Center,
-        ) {
-            glyph(22.dp)
+        if (style == null) {
+            Column(
+                horizontalAlignment = Alignment.CenterHorizontally,
+                verticalArrangement = Arrangement.spacedBy(gap, Alignment.CenterVertically),
+            ) {
+                if (content.icon) glyph(glyphSize)
+                words()
+            }
+        } else {
             Row(
-                modifier = Modifier.padding(top = 5.dp),
-                horizontalArrangement = Arrangement.spacedBy(5.dp),
+                horizontalArrangement = Arrangement.spacedBy(gap, Alignment.CenterHorizontally),
                 verticalAlignment = Alignment.CenterVertically,
             ) {
-                Text(text = word, fontSize = 13.sp, color = resolvedContent, modifier = Modifier.testTag("action_word"))
-                keyText()
+                if (content.icon) glyph(glyphSize)
+                words()
             }
         }
     }
 }
 
+/** The smallest step the action word takes before it may ellipsise (REQ-AND-LAYOUT.07). */
+private val WordMinSize = 9.sp
+
+/** Pixels of slack per measured text in [ControlBlockFit.buttonContent] and the word's size. */
+private const val TextSlackPx = 2
+
+/** The word's sizes, largest first, from which the one whose line fits the button is taken. */
+private val WordSizeSteps = listOf(13f, 12.5f, 12f, 11.5f, 11f, 10.5f, 10f, 9.5f, 9f).map { it.sp }
+
 /**
- * A view control — no file changes hands, so the glyph carries it.
+ * A view control — no file changes hands, so the glyph carries it, with a one-word label under
+ * it where the slot holds the word at the font scale in force (DESIGN.md § Control block: the
+ * one exception to icon-only bar items; the usability panel of 2026-10-24 could not tell what
+ * the four bare glyphs toggled).
  *
- * The control is always a 48 x 48 dp square (AD-17), and the node that carries the
- * caller's test tag is that square, so a measurement of the tag is a measurement of
- * the hit target. The 36 dp hover chip and 20 dp glyph inside it are only visual.
+ * The control is always a 48 x 48 dp square (AD-17), and the node that carries the caller's
+ * test tag is that square, so a measurement of the tag is a measurement of the hit target.
+ *
+ * A toggle ([active] non-null) says its state three ways: filled with the accent glyph when on,
+ * outlined with a grey glyph when off (never by colour alone), and to a screen reader as a
+ * switch that is on or off. [active] null is a plain button (the guide).
  */
 @Composable
 private fun ViewToggle(
@@ -652,34 +756,86 @@ private fun ViewToggle(
     description: String,
     onClick: () -> Unit,
     modifier: Modifier = Modifier,
-    active: Boolean = false,
+    active: Boolean? = null,
+    label: String? = null,
 ) {
     val interactionSource = remember { MutableInteractionSource() }
     val hovered by interactionSource.collectIsHoveredAsState()
+    val on = active == true
+    val shape = RoundedCornerShape(8.dp)
 
+    val interaction = if (active != null) {
+        Modifier.toggleable(value = active, role = Role.Switch, onValueChange = { onClick() })
+    } else {
+        Modifier.clickable(onClick = onClick, role = Role.Button)
+    }
     Box(
         modifier = modifier
             .size(ControlBlockFit.ToggleHitSize)
-            .clip(RoundedCornerShape(8.dp))
+            .clip(shape)
             .hoverable(interactionSource)
-            .pointerHoverIcon(PointerIcon.Hand)
-            .clickable(onClick = onClick, role = Role.Button)
+            .handCursor()
+            .then(interaction)
             .semantics { contentDescription = description },
         contentAlignment = Alignment.Center,
     ) {
-        Box(
+        Column(
             modifier = Modifier
-                .size(ControlBlockFit.ToggleVisualSize)
-                .clip(RoundedCornerShape(8.dp))
-                .background(if (hovered) StudioBorderActive else Color.Transparent),
-            contentAlignment = Alignment.Center,
+                .size(
+                    width = ControlBlockFit.ToggleVisualSize + 8.dp,
+                    height = if (label != null) ControlBlockFit.ToggleHitSize - 4.dp else ControlBlockFit.ToggleVisualSize,
+                )
+                .clip(shape)
+                .background(
+                    when {
+                        on -> BrandAccentTonal
+                        hovered -> HoverFill
+                        else -> Color.Transparent
+                    }
+                )
+                .then(
+                    if (active != null) Modifier.border(1.dp, if (on) BrandAccent else StudioBorder, shape) else Modifier
+                ),
+            horizontalAlignment = Alignment.CenterHorizontally,
+            verticalArrangement = Arrangement.Center,
         ) {
             Icon(
                 imageVector = icon,
                 contentDescription = null,
                 modifier = Modifier.size(20.dp),
-                tint = if (active) BrandAccent else Zinc400,
+                tint = if (on) BrandAccent else Zinc400,
             )
+            if (label != null) {
+                Text(
+                    text = label,
+                    style = ToggleLabelStyle,
+                    color = if (on) BrandAccentText else Zinc400,
+                    maxLines = 1,
+                    softWrap = false,
+                    modifier = Modifier.testTag("toggle_label"),
+                )
+            }
+        }
+    }
+}
+
+/** The view toggles' one-word labels: small, because the slot is a 48 dp square. */
+private val ToggleLabelStyle = TextStyle(fontSize = 9.sp, lineHeight = 11.sp)
+
+/**
+ * Whether every view toggle's label fits under its glyph in the 48 x 48 dp slot at the font
+ * scale in force; otherwise all four are glyph-only (the spoken label still names each).
+ */
+@Composable
+private fun toggleLabelsFit(labels: List<String>): Boolean {
+    val measurer = rememberTextMeasurer()
+    val density = LocalDensity.current
+    return with(density) {
+        val maxWidth = (ControlBlockFit.ToggleVisualSize + 8.dp - 4.dp).roundToPx()
+        val maxHeight = (ControlBlockFit.ToggleHitSize - 4.dp - 20.dp).roundToPx()
+        labels.all { label ->
+            val size = measurer.measure(label, ToggleLabelStyle, maxLines = 1, softWrap = false).size
+            size.width <= maxWidth && size.height <= maxHeight
         }
     }
 }

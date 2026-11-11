@@ -33,7 +33,6 @@ import com.photoselectortoolbox.ui.fit.FitSelectorSettings
 import com.photoselectortoolbox.ui.fit.fitImageRepository
 import com.photoselectortoolbox.ui.fit.fitPhoto
 import com.photoselectortoolbox.ui.fit.fitSelectorViewModel
-import com.photoselectortoolbox.ui.fit.knownDefect
 import com.photoselectortoolbox.ui.fit.tagExists
 import com.photoselectortoolbox.ui.theme.PhotoSelectorToolboxTheme
 import com.photoselectortoolbox.viewmodel.SelectorViewModel
@@ -158,7 +157,7 @@ class SelectorActionFeedbackTest {
         val cases = listOf(
             Case(Key.C, "Copied to Selection", undo = false),
             Case(Key.M, "Moved to Selection", undo = true),
-            Case(Key.Delete, "1 image deleted", undo = true),
+            Case(Key.Delete, "Deleted", undo = true),
         )
         for (case in cases) {
             press(case.key)
@@ -230,18 +229,16 @@ class SelectorActionFeedbackTest {
         rule.waitForIdle()
         val item = rule.onAllNodesWithTag("sort_blurriest_first", useUnmergedTree = true).onFirst().fetchSemanticsNode()
         assertTrue("disabled before a scan (REQ-AND-WORKFLOW.03)", SemanticsProperties.Disabled in item.config)
-        // F-FD-049: the item is greyed out with no reason (backlog 2026-10-24: "say why the sort
-        // is disabled before a scan"). Cause: LocatorRow.kt:110, enabled = false and nothing else.
-        knownDefect("F-FD-049") {
-            val words = rule.onAllNodes(
-                hasAnyAncestor(hasTestTag("sort_blurriest_first")) or hasTestTag("sort_blurriest_first"),
-                useUnmergedTree = true,
-            ).fetchSemanticsNodes().flatMap {
-                (it.config.getOrNull(SemanticsProperties.Text).orEmpty().map { t -> t.text }) +
-                    it.config.getOrNull(SemanticsProperties.ContentDescription).orEmpty()
-            }.joinToString(" ")
-            assertTrue("\"$words\" gives no reason", words.contains("scan", ignoreCase = true))
-        }
+        // F-FD-049 (fixed 2026-11-10): the item was greyed out with no reason; it now ends in
+        // "Scan first".
+        val words = rule.onAllNodes(
+            hasAnyAncestor(hasTestTag("sort_blurriest_first")) or hasTestTag("sort_blurriest_first"),
+            useUnmergedTree = true,
+        ).fetchSemanticsNodes().flatMap {
+            (it.config.getOrNull(SemanticsProperties.Text).orEmpty().map { t -> t.text }) +
+                it.config.getOrNull(SemanticsProperties.ContentDescription).orEmpty()
+        }.joinToString(" ")
+        assertTrue("\"$words\" gives no reason", words.contains("scan", ignoreCase = true))
     }
 
     // ── Filing inside the fullscreen viewer ─────────────────────────────────
@@ -276,11 +273,8 @@ class SelectorActionFeedbackTest {
         pressInViewer(KeyEvent.KEYCODE_C)
         val said = viewModel.uiState.value.snackbarMessage
         assertEquals("the snackbar names the custom folder", "Copied to «Keepers › Selection»", said)
-        // F-FD-074: the flash says "Copied to Selection", not the folder the photo went to.
-        // Cause: FullscreenViewer.kt:406 calls SelectionActionLabels.confirmation(action,
-        // selectionFolderName) without the custom folder, and SelectorScreen.kt:418 passes none.
-        knownDefect("F-FD-074") {
-            assertTrue("the flash names «Keepers › Selection»", flashSays("Copied to «Keepers › Selection»"))
-        }
+        // F-FD-074 (fixed 2026-11-10): the flash said "Copied to Selection", not the folder the
+        // photo went to; it now uses the same SelectionActionLabels.confirmation call as the card.
+        assertTrue("the flash names «Keepers › Selection»", flashSays("Copied to «Keepers › Selection»"))
     }
 }

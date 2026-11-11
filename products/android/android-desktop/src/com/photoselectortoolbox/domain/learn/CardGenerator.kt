@@ -387,7 +387,7 @@ object CardGenerator {
                         title = "Sharp Below the Hand-Holding Guideline",
                         whatHappened = "You achieved crisp detail (${sharpness.toInt()}) at ${ExifFormatter.shutterSpeed(shutter)}, slower than the 1/${effectiveFocal.toInt()}s guideline.",
                         whyItMatters = "Steady bracing or optical stabilization let you use a slower shutter and keep ISO lower.",
-                        tryNextTime = "Take a 2–3 frame burst when shooting below 1/f_eff so at least one frame catches the steadiest moment.",
+                        tryNextTime = "Take a 2–3 frame burst when shooting slower than the hand-holding speed so at least one frame catches the steadiest moment.",
                         lessonId = "motion.reciprocal_rule",
                         priority = 1.24,
                     )
@@ -435,7 +435,7 @@ object CardGenerator {
             "The horizon line has a noticeable tilt",
             "Warm golden-hour light shapes the scene",
             "Broad non-specular highlights are clipped",
-            "Shutter speed was slower than the 1/f_eff hand-holding guideline",
+            "Shutter speed was slower than the hand-holding speed for this lens",
             "Strong bilateral symmetry anchors the frame",
         )
         val correctOption = primaryCard.title

@@ -51,6 +51,7 @@ import kotlinx.coroutines.runBlocking
 import org.junit.After
 import org.junit.Before
 import org.junit.Assert.assertTrue
+import kotlin.math.roundToInt
 import org.junit.Rule
 import org.junit.Test
 import org.junit.rules.TestRule
@@ -1530,8 +1531,14 @@ class SelectorScreenTest {
                 .fetchSemanticsNodes().isNotEmpty()
         }
         val inSnackbar = hasAnyAncestor(hasTestTag("selector_snackbar"))
-        composeRule.onAllNodes(hasText("1 image deleted") and inSnackbar, useUnmergedTree = true)
+        composeRule.onAllNodes(hasText("Deleted", substring = true) and inSnackbar, useUnmergedTree = true)
             .onFirst().assertExists()
+        // UNDO restores files: the tagged node is the clickable and at least 48 dp both ways
+        // (REQ-AND-INPUT.04), compared in whole pixels.
+        val undo = composeRule.onAllNodesWithTag("snackbar_undo", useUnmergedTree = true)
+            .onFirst().fetchSemanticsNode().boundsInRoot
+        val minPx = (48 * composeRule.density.density).roundToInt()
+        assertTrue("UNDO is ${undo.width} x ${undo.height} px, under $minPx", undo.width.roundToInt() >= minPx && undo.height.roundToInt() >= minPx)
         // A delete's undo lasts until the folder is left, so no card draws a deadline (FD-D-1).
         composeRule.onAllNodesWithTag("snackbar_countdown", useUnmergedTree = true)
             .assertCountEquals(0)

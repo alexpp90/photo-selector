@@ -119,7 +119,10 @@ class SelectorTourTest {
         // Sort), so they are explained in the controls callout, beside the chips.
         assertEquals(
             setOf(
+                SelectorShortcut.NEXT_PREVIOUS.input,
                 SelectorShortcut.MAXIMISE.input,
+                SelectorShortcut.LEARN.input,
+                SelectorShortcut.UNDO.input,
                 SelectorShortcut.ESCAPE.input,
                 SelectorShortcut.SHORTCUTS.input,
             ),
@@ -128,6 +131,23 @@ class SelectorTourTest {
         val controls = callouts.getValue(TourRegion.CONTROLS).rows.map { it.input }
         assertTrue(controls.toString(), SelectorShortcut.GO_TO.input in controls)
         assertTrue(controls.toString(), SelectorShortcut.SORT.input in controls)
+        // I and T drive the Info and Strip view toggles in the control block.
+        assertTrue(controls.toString(), SelectorShortcut.DETAILS.input in controls)
+        assertTrue(controls.toString(), SelectorShortcut.FILMSTRIP.input in controls)
+    }
+
+    @Test
+    fun `the controls callout claims nothing a narrow chip does not show and names G and S`() {
+        val controls = SelectorTour.callouts(FilingAction.COPY, detailsVisible = true, filmstripVisible = true)
+            .single { it.region == TourRegion.CONTROLS }
+        // Below 160 dp per cell the Go and Sort chips drop their key caps, and at large font scales
+        // the action buttons may too: the body must not say every control carries its key.
+        assertEquals("Keys below", controls.body)
+        assertFalse(controls.body, controls.body.contains("carries"))
+        val words = Regex("\\p{L}+").findAll(controls.body).count()
+        assertTrue("guide_ budget is 2 words, 14 chars: \"${controls.body}\"", words <= 2 && controls.body.length <= 14)
+        val inputs = controls.rows.map { it.input }
+        assertTrue(inputs.toString(), "G" in inputs && "S" in inputs)
     }
 
     @Test

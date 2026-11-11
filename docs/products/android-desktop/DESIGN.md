@@ -513,7 +513,7 @@ column took a 4:3 frame from 1176 × 784 to 868 × 578 on a 1280 × 800 window, 
   hidden, "Hide photo info" / "Show photo info", `Role.Switch`), 6 dp left of the 48 dp restore
   badge. It flips the same persisted `details_visible` as the three-up ⓘ toggle, which is not on
   screen here. Off, nothing but the restore badge and this switch lies on the photograph. There is
-  no keyboard shortcut for it (`I` is Inspect).
+  `I` flips it too (the info key of every desk app, `docs/shared/KEYBOARD.md`).
 
 The panel and the chips take no pointer input, so a swipe that starts on them still navigates, a
 tap on them is a tap on the photograph (leave maximised), and only the switch and the badge are
@@ -661,9 +661,17 @@ of ~158 dp (~118 dp with the strip on) carries its word comfortably:
   sits diagonally opposite the primary filing button, not adjacent to it.
 - Previous / Next occupy the bottom row, furthest from Delete, and are duplicated by tapping
   a neighbour frame, swiping the image region, and the arrow keys.
-- Beneath the grid, a 48 dp icon row of view controls — readout panel, filmstrip, overlay
-  visibility, shortcut sheet. Icon-only is acceptable *only here*, because none of them
-  changes a file; each carries a tooltip and a full `contentDescription`.
+- Beneath the grid, a 48 dp row of view controls — photo details, filmstrip, the values on
+  Previous and Next, the layout guide. None of them changes a file, so the glyph leads; each
+  carries a **one-word label under its glyph — Info, Strip, Overlay, Keys**
+  (`SelectorLabels.VIEW_TOGGLE_LABELS`) — wherever all four words fit their 48 × 48 dp slot at
+  the font scale in force (measured; above that they are glyph-only, the spoken label still names
+  each). This is the one documented exception to "no visible label next to an icon"
+  (`docs/shared/UI_TEXT.md`): the usability panel of 2026-10-24 could not tell what four bare
+  glyphs toggled. The three toggles say their state three ways — **on** is filled
+  (`BrandAccentTonal`, accent outline and glyph), **off** is outlined with a grey glyph, and a
+  screen reader hears a switch that is on or off (`Role.Switch`) — never by colour alone. The
+  guide button is a plain button.
 - The **locator row** closes the block (`[USER 2026-11-04]`: Sort order and Go to photo were
   only in the overflow menu, a key and a tap on the counter, and the user did not find them;
   "I think right of the current image might be good. There is still space"). It is two chips
@@ -675,7 +683,8 @@ of ~158 dp (~118 dp with the strip on) carries its word comfortably:
   tap opens **Go to photo** (spoken "Go to photo, 127 of 842", key `G`). The **Sort chip**
   shows the order in force and opens the same radio group as the overflow menu in a dropdown
   anchored to it (spoken "Sort order: Newest first. Change", key `S`): ✓ on the active entry,
-  `Role.RadioButton`, **Blurriest first** disabled until the folder has scores.
+  `Role.RadioButton`, **Blurriest first** disabled until the folder has scores, and then it
+  says why at its end: **Scan first** (`SelectorLabels.SORT_NEEDS_SCAN`).
   - Each chip is a **48 dp slot, half the row wide, and that slot is the clickable and the
     node that carries the tag** (`go_chip`, `sort_chip`); the chip is drawn 40 dp tall inside
     it (1 dp `StudioBorder` outline on `StudioCard`, 8 dp radius, no shadow), the ripple on the
@@ -728,10 +737,16 @@ the rung changes, the frame does not (`SelectorForcedSizeTest`).
 
 Every view toggle is a 48 × 48 dp target at every size (AD-17): four in a row from 192 dp of
 inner width, a 2 × 2 grid below it, with the counter beside the toggles where it fits and on
-its own line above them where it does not (counter-alone rungs only). COMPACT keeps every word
-and every key cap, never ellipsized (AD-16b): the button is icon, word and key cap on one line
-from a 100 dp cell, the word over the key cap beside the icon from 64 dp, and word over key cap
-without the icon below that, and the word steps down from 13 sp to 9 sp before it could be cut.
+its own line above them where it does not (counter-alone rungs only). COMPACT keeps every word,
+never ellipsized (AD-16b): the button is icon, word and key cap on one line from a 100 dp cell, the
+word over the key cap beside the icon from 64 dp, and word over key cap without the icon below
+that, and the word steps down from 13 sp to 9 sp before it could be cut. **What fits is measured
+at the font scale in force** (`ControlBlockFit.buttonContent`, F-FD-084): the cell width picks the
+first rung, and when the measured word and key cap do not fit it both ways, the button steps down
+— the glyph goes first, then word and key cap side by side on one line, and only when not even
+that fits does the key cap drop (it stays in the spoken label and in the guide's controls
+callout). The word itself is never cut: it takes the largest step from 13 sp to 9 sp whose line fits, and where the block scrolls anyway and a half-width cell cannot hold the longest word even at 9 sp (600 × 480 at font scale 2.0) the buttons stand one per row. FULL does the same with its glyph on top. At font scale
+1.0 the measured rungs are the width rungs above.
 At 720 × 560 the flank is 150 dp, so the block is a 2 × 2 grid with stacked buttons and no
 locator row; at 600 × 480 it scrolls. Below COMPACT the block scrolls with the counter first,
 so nothing is ever clipped silently.
@@ -1036,7 +1051,7 @@ sized to its content, never a bar across it.
 | `Esc` | Exit fullscreen |
 | `← / →` | Previous / next image |
 | `M` / `C` / `Del` | Move / copy / delete the current frame |
-| `I` | Pin / unpin the info panel (in the selector `I` still opens Inspect) |
+| `I` | Pin / unpin the info panel (in the selector `I` shows or hides the frame's values) |
 
 `M` and `C` show the centre check mark, whose accessibility label is the sentence the
 confirmation card shows ("Moved to Selection"), for the key exactly as for the button. The
@@ -1086,15 +1101,16 @@ the user can still see the photos. On Compact, a bottom sheet. Zinc-800 surface,
 
 **Title:** `Scan Configuration`
 
-**Section — Analysis Types.** Material 3 switches, each with a name and a one-line
-plain-language explanation:
+**Section — Analysis Types.** Material 3 checkboxes, each with a short name that says what
+the check finds, never how (`ScanSheetText`; the usability panel of 2026-10-24 read "via
+Laplacian variance" as data, not explanation), and no subtitle:
 
-| Switch | Explanation |
-|---|---|
-| Sharpness | Detect focus quality via Laplacian variance |
-| Noise Level | Estimate sensor noise via median absolute deviation |
-| Highlight Clipping | Detect overexposed (blown-out) areas |
-| Shadow Clipping | Detect underexposed (crushed black) areas |
+| Checkbox |
+|---|
+| Focus quality |
+| Noise level |
+| Highlight clipping |
+| Shadow clipping |
 
 **Estimated duration line**, updating live with the selected options:
 *"842 images · about 3 min · 612 already cached and will be skipped."*
@@ -1376,9 +1392,11 @@ Produce these as a design-system page, dark theme, neutral grey / lavender.
 9. **Filmstrip thumbnail** — resting, current, and in-burst states, 60 dp wide (40 dp tall
    landscape, 80 dp portrait), with the leading-edge burst marker and the sharpness dot.
 10. **Snackbar with Undo** — `Moved to «folder»` (≈ 4 s, Undo, no line) / `Copied to «folder»`
-    (≈ 3 s, no action, no line) / `1 image deleted` (30 s, Undo, thin countdown line — the only
-    card whose time is a real deadline). Scan-complete and rating notices ≈ 4 s, errors ≈ 7 s,
-    neither with a line. Durations are stretched to the platform's accessibility timeout, and
+    (≈ 3 s, no action, no line) / `Deleted`, or `Deleted 3 files` when the photo took companions
+    with it (≈ 4 s, Undo, no line: no card has a deadline). **UNDO is a filled button**
+    (`BrandOnAccent` on `BrandAccent`, 7.2:1) drawn inside its ≥ 48 × 48 dp target. While the
+    first-run pill is up, it stacks 8 dp above the card's measured top instead of under it.
+    Scan-complete and rating notices ≈ 4 s, errors ≈ 7 s, neither with a line. Durations are stretched to the platform's accessibility timeout, and
     the card is also drawn inside the fullscreen viewer. «folder» is the configured
     Selection folder name, so mock the longest name the setting allows, not just `Selection`.
 11. **Empty-state card** — icon, title, one-line body, primary + secondary button.
@@ -1407,17 +1425,21 @@ Produce these as a design-system page, dark theme, neutral grey / lavender.
   content (4.83:1; `#EF4444` gave 3.76:1) and destructive text on the dark surfaces is
   `DestructiveText` (= `ScoreBad`, which is also the scheme's `error`/`onError` pair).
   `ContrastTokensTest` pins every text token against every surface, and a source scan keeps
-  Zinc-500/600/700 out of `Text` calls. Disabled controls are exempt and stay dim.
+  Zinc-500/600/700 out of `Text` calls. Disabled controls are exempt and stay dim. A hovered
+  control that carries text (worded buttons, locator chips, view toggles) fills with `HoverFill`
+  `#313131`, on which its key caps and Delete's red word stay at 4.5:1 or more
+  (`StudioBorderActive` put them at 3.5:1 and 3.3:1).
 - **Announcements.** The confirmation card after a move, copy or delete is a polite live region
   (re-created per message, so an identical second message is announced again); UNDO and the
   custom buttons carry the button role.
 - **Direction is not colour-only.** Score direction is conveyed by bar length *and* the
   written direction hint, not by the emerald/amber/red tint alone.
-- **Icon-only controls** need a visible tooltip on hover and a full accessibility label
-  carrying name, value and direction — e.g. *"Sharpness 512.3, higher is better."*
+- **Icon-only controls** need a full accessibility label carrying name, value and direction —
+  e.g. *"Sharpness 512.3, higher is better."*
 - **A control that changes a file is never icon-only.** Move, Copy/Keep and Delete carry a
   permanent visible word at every breakpoint, in every layout, including the compact one.
-  Icon-only is permitted only for view controls, which cannot lose a photograph.
+  Icon-only is permitted only for view controls, which cannot lose a photograph; in the control
+  block those carry a one-word label where it fits (§7.5).
 - **Focus rings.** 2 dp lavender accent with a 2 dp offset, visible on every interactive element,
   for keyboard and DeX navigation.
 - **Touch targets.** Minimum 48 dp for every interactive element, everywhere, at every
@@ -1434,14 +1456,16 @@ Shortcuts work in both the standard and fullscreen views.
 
 | Key | Action |
 |---|---|
-| `←` / `→` | Previous / next image |
+| `←` / `→`, `K` / `J` | Previous / next image (`J` / `K` as on Lensjet and Blitzlens) |
 | `Delete` / `Backspace` | Delete (with confirmation) |
 | `M` | Move to Selection |
 | `C` | Copy to Selection |
 | `F` | Enter fullscreen |
 | `Esc` | Exit fullscreen / leave maximised / close sheet, menu or the guide. System **Back** does the same, one layer per press, topmost first; only at the bare selector does Back leave the app |
-| `I` | In fullscreen: pin / unpin the info panel (in the selector: Inspect) |
-| `1` / `2` / `3` | Maximise Previous / Current / Next in place (§7.3) |
+| `I` | Show / hide this frame's values (the Info toggle); in fullscreen: pin / unpin the info panel |
+| `T` | Show / hide the filmstrip (the Strip toggle) |
+| `L` | Open Learn; in Learn `L` or `Esc` returns (`I` opened and left Learn until 2026-11-10) |
+| `1` / `2` / `3` | Enlarge the left / middle / right frame in place (§7.3) |
 | `G` | Open **Go to photo**: one field (focused on open, label "Number, name or date"), a number 1…N as the counter shows it, part of a file name, or a date (`12.10.2026`, `12.10.26`, `2026-10-12`, `12.10.`), `Enter` / **Go** jumps, `Esc` / **Cancel** closes. A 48 dp calendar button inside the field ("Pick a date") swaps a Material 3 date picker into the same dialog — limited to days that have photos, opening on the day of the photo on screen (else the newest day) — and picking a day jumps at once and closes; it is disabled when no photo has a known date, and scrolls inside the dialog in a 600 × 480 window. The line under the field is, by what is typed: nothing → the days the folder spans (`3 Oct 2026 – 12 Oct 2026`); a position, a name or a date → the file it lands on and when it was taken; a day without photos → that plus "No photos on 13 Oct 2026 — showing 14 Oct 2026" in the neutral colour (Go jumps to the nearest day; it is not an error). An empty or out-of-range number says "Enter 1–N" only after **Go**, and a date still being typed is not "No match" until **Go** |
 | `S` | Open the **Sort** menu (the Sort chip's dropdown, §7.5): Newest first, Oldest first, File name, Blurriest first. It opens only; it never cycles the order. While it is open the selector's other keys are suppressed (`Esc` closes it) |
 | `Ctrl+Z` / `Cmd+Z` | Undo the latest delete or move (20 deep), also in fullscreen |

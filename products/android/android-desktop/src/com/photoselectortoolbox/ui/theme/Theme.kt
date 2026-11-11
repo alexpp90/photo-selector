@@ -72,6 +72,9 @@ fun PhotoSelectorToolboxTheme(
     }
 
     val currentDensity = LocalDensity.current
+    // Rebuilt for the TV scale. This keeps Android 14's non-linear font scaling: a plain
+    // `Density` converts sp through `FontScaleConverterFactory` from scale 1.03 up, the same
+    // table as the platform's `Density(Context)` (pinned by `ThemeDensityTest`).
     val effectiveDensity = Density(
         density = currentDensity.density,
         fontScale = computeEffectiveFontScale(currentDensity.fontScale, tvDisplayScaleEnabled),

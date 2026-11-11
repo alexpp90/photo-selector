@@ -119,6 +119,8 @@ fun SelectorScreen(
     var showJump by remember { mutableStateOf(false) }
     var showSortMenu by remember { mutableStateOf(false) }
     var contextMenuAt by remember { mutableStateOf<Offset?>(null) }
+    // The confirmation card's measured top, so the first-run pill can stack above it.
+    var snackbarTop by remember { mutableStateOf<Float?>(null) }
     var lastPointerPosition by remember { mutableStateOf(Offset.Zero) }
 
     val isExpanded = windowSizeClass.widthSizeClass == WindowWidthSizeClass.Expanded
@@ -415,7 +417,8 @@ fun SelectorScreen(
             filingAction = uiState.filingAction,
             showGestureHint = !uiState.hasSeenFullscreenHint,
             onGestureHintSeen = viewModel::markFullscreenHintSeen,
-            selectionFolderName = uiState.selectionFolderName,
+            selectionFolderName = uiState.filingFolderName,
+            customDestinationName = uiState.customDestinationName,
             infoPinned = uiState.fullscreenInfoPinned,
             onToggleInfoPinned = viewModel::toggleFullscreenInfoPinned,
             // The card is hosted in the main window, and fullscreen is a second
@@ -625,6 +628,7 @@ fun SelectorScreen(
                                     }
                                 },
                                 sort = sortControl,
+                                snackbarTopInRoot = snackbarTop,
                                 // Passed as a slot and drawn as a vertical column
                                 // at the outer edge of the control flank. It
                                 // used to span the bottom of the window, which
@@ -684,6 +688,7 @@ fun SelectorScreen(
             sidebarInset = if (useExpandedLayout) SidebarWidth else 0.dp,
             sequence = uiState.snackbarSequence,
             lifetime = uiState.snackbarLifetime,
+            onCardTop = { snackbarTop = it },
         )
 
         // Last in the Box, so it is above every piece of chrome it labels —
@@ -839,12 +844,17 @@ internal fun handleSelectorKey(
     if (isHeldOneShotKey(key, repeat)) return true
 
     return when (key) {
-        Key.L, Key.I -> {
+        // The desk-app key table (docs/shared/KEYBOARD.md): L opens Learn on Frameduel only;
+        // I is the info (readout) block and T the filmstrip in every desk app, so I no longer
+        // opens Learn; J / K step like the arrows, as on Lensjet and Blitzlens.
+        Key.L -> {
             onNavigate?.invoke(Screen.Inspect)
             true
         }
-        Key.DirectionLeft -> { onPrevious(); true }
-        Key.DirectionRight -> { onNext(); true }
+        Key.I -> { actions.onToggleDetails(); true }
+        Key.T -> { actions.onToggleFilmstrip(); true }
+        Key.DirectionLeft, Key.K -> { onPrevious(); true }
+        Key.DirectionRight, Key.J -> { onNext(); true }
         Key.M -> { actions.onMove(); true }
         Key.C -> { actions.onCopy(); true }
         Key.Delete, Key.Backspace -> { actions.onDelete(); true }
