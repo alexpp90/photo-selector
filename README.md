@@ -292,7 +292,7 @@ Standalone archives are available on [GitHub Releases](https://github.com/alexpp
 ## 🛠️ Run from Source
 
 ### 📱 Android Setup (Jackpix & Frameduel)
-1. Open `products/android` in a current **Android Studio**: it must support the Android Gradle Plugin version pinned in `products/android/gradle/libs.versions.toml` (`agp`, currently 9.4), which older releases such as Ladybug cannot open.
+1. Open `products/android` in a current **Android Studio**: it must support the Android Gradle Plugin version pinned in `products/android/gradle/libs.versions.toml` (`agp`), which older releases such as Ladybug cannot open.
 2. Ensure JDK 17 and Android SDK 37 (`compileSdk`) are configured.
 3. Build the debug binaries:
    ```bash

@@ -68,6 +68,7 @@ Start Blitzlens with a folder (`photo-selector-linux ~/Pictures/2026`) or let th
 | `Ctrl+D` | Open Duplicate Finder |
 | `Ctrl+L` | Open Library Statistics |
 | `Ctrl+,` | Open Preferences |
+| `?` / `Ctrl+?` | Open the keyboard shortcuts sheet |
 
 ## Installation (Debian 13 Trixie)
 
