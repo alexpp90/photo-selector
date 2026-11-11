@@ -25,7 +25,7 @@ interface ImageRepository {
     /** Resolve a folder's display name, or null when unavailable. */
     suspend fun resolveFolderName(folderUri: Uri): String?
 
-    /** The folder's name, volume label and whether it is lost, for Settings to show its path. */
+    /** Whether a custom destination folder is lost (grant revoked, deleted, unmounted), for Settings. */
     suspend fun describeFolder(folderUri: Uri): FolderLookup = FolderLookup()
 
     suspend fun getExifData(uri: Uri): ExifData?

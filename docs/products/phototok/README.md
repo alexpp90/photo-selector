@@ -5,7 +5,7 @@ Formerly Photo-Tok.
 <div align="center">
   <img src="../../../assets/brand/jackpix/jackpix.svg" alt="Jackpix icon" width="120" />
 
-  **A lightweight, gesture-first, portrait photo curation app designed for sub-second time-to-first-swipe on Android phones.**
+  **A lightweight, gesture-first, portrait photo curation app for Android phones, built so you can start swiping as soon as a folder opens.**
 
   [![Android: 8.0+](https://img.shields.io/badge/Android-8.0%2B%20(API%2026--36)-3DDC84?logo=android&logoColor=white)](https://developer.android.com/)
   [![Kotlin](https://img.shields.io/badge/Kotlin-2.0%2B-7F52FF?logo=kotlin&logoColor=white)](https://kotlinlang.org/)
@@ -37,7 +37,7 @@ Captured on a Pixel 4a (en, font scale 1.0) with the lab's synthetic trip roll (
 
 **Jackpix** (`products/android/phototok/`, package `com.phototok`) is the phone-first photo culling application in this repository. It turns a familiar, effortless full-screen vertical swipe feed into a photography triage workflow.
 
-While the desktop and tablet products emphasize multi-up comparative culling and computational quality scores (OpenCV / Accelerate), **Jackpix deliberately omits heavy analysis libraries to optimize for a single metric: time-to-first-swipe.** Even folders containing thousands of high-resolution photos become navigable within a fraction of a second.
+While the desktop and tablet products emphasize multi-up comparative culling and computational quality scores (OpenCV / Accelerate), **Jackpix deliberately omits heavy analysis libraries to optimize for a single metric: time-to-first-swipe.** A folder is read progressively: the first 24 photos can be swiped while the rest of a folder of thousands is still being found.
 
 ---
 
@@ -50,7 +50,7 @@ While the desktop and tablet products emphasize multi-up comparative culling and
 
 ### 2. Casual and Pro Mode
 *   **Casual (default):** made for swiping fast with no setup. Swipe right marks a ★ favourite on the phone; on an SD card or camera it copies the photo into the phone's camera folder, subfolder `Jackpix` (the first time, the system picker asks for access to `DCIM/Camera`). RAW + JPEG pairs show as one photo and always travel together; no camera info; Settings shows only the basics (source folder, reload, reset, clear cache, delete confirmation, milestones, tips, legal).
-*   **Pro:** the **Pro mode** switch below the three sources on the start screen (its help button lists what it adds) and at the top of Settings. The first switch-on turns camera info on and shows 5 recent folders; Settings then also shows source profiles (Phone + cloud / SD card / Camera), feed order, format filter, RAW + JPEG linking, swipe actions and folders, the Selection folder and its location (shown as the path photos land in — the chosen folder's, or "In source folder · …" — with a warning and Re-select when a chosen folder's access was lost), RAW/JPEG subfolders and recent folders. Switching Pro off pauses these settings without erasing them — switching it back on restores them exactly.
+*   **Pro:** the **Pro mode** switch below the three sources on the start screen (its help button lists what it adds) and at the top of Settings. The first switch-on turns camera info on and shows 5 recent folders; Settings then also shows source profiles (Phone + cloud / SD card / Camera), feed order, format filter, RAW + JPEG linking, swipe actions and folders, the Selection folder and its location (shown as a path — the chosen folder's, or "In source folder · …" — with a warning and Re-select when a chosen folder's access was lost), RAW/JPEG subfolders and recent folders. Switching Pro off pauses these settings without erasing them — switching it back on restores them exactly.
 *   **Updates keep your setup:** settings are migrated at startup (schema 3). An existing install that had customised a Pro setting, used camera info or used an SD card starts in Pro, so nothing changes after the update.
 
 ### 3. Tactile Culling Gestures

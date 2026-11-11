@@ -91,6 +91,19 @@ jobs:
           sudo apt-get -o Acquire::Retries=3 install -y libglib2.0-dev libgirepository1.0-dev libcairo2-dev gir1.2-gtk-4.0 gir1.2-adw-1 gir1.2-gexiv2-0.10 python3-gi python3-gi-cairo pkg-config xvfb libraw-bin heif-gdk-pixbuf libheif-plugin-libde265 appstream desktop-file-utils
           sudo apt-get -o Acquire::Retries=3 install -y libgirepository-2.0-dev || true
 
+      # pip and Poetry downloads, one cache per Python version. Linux Desktop has no lock file,
+      # so the key is pyproject.toml; a cache miss only costs the download. Not a gate.
+      - name: Cache pip and Poetry downloads
+        uses: actions/cache@v6
+        with:
+          path: |
+            ~/.cache/pip
+            ~/.cache/pypoetry/cache
+            ~/.cache/pypoetry/artifacts
+          key: linux-pip-${{ runner.os }}-py${{ matrix.python }}-${{ hashFiles('products/linux-desktop/pyproject.toml') }}
+          restore-keys: |
+            linux-pip-${{ runner.os }}-py${{ matrix.python }}-
+
       - name: Install dependencies
         run: |
           pip install poetry
@@ -151,6 +164,7 @@ jobs:
     needs: [lint, test, package]
     if: startsWith(github.ref, 'refs/tags/linux-desktop-v')
     runs-on: ubuntu-24.04
+    # Not measured: only a linux-desktop-v* tag runs it and none has run since the job was bounded; re-set from the first tag run (3x its duration, at least 10).
     timeout-minutes: 15
     permissions:
       contents: read
@@ -228,6 +242,7 @@ jobs:
     needs: [lint, test, package]
     if: startsWith(github.ref, 'refs/tags/linux-desktop-v')
     runs-on: ubuntu-24.04
+    # Not measured: only a linux-desktop-v* tag runs it and none has run since the job was bounded; re-set from the first tag run (3x its duration, at least 10).
     timeout-minutes: 10
     permissions:
       contents: write

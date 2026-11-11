@@ -31,6 +31,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 
 /**
@@ -96,6 +97,8 @@ fun SettingsClickItem(
     trailing: @Composable (() -> Unit)? = null,
     /** The summary reports a problem (a folder whose access was lost): error colour and a warning glyph. */
     summaryIsError: Boolean = false,
+    summaryMaxLines: Int = Int.MAX_VALUE,
+    summaryOverflow: TextOverflow = TextOverflow.Clip,
 ) {
     val colors = MaterialTheme.colorScheme
 
@@ -127,6 +130,8 @@ fun SettingsClickItem(
                         text = summary,
                         style = MaterialTheme.typography.labelMedium,
                         color = if (summaryIsError) colors.error else colors.onSurfaceVariant,
+                        maxLines = summaryMaxLines,
+                        overflow = summaryOverflow,
                     )
                 }
             }

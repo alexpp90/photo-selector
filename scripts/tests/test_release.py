@@ -4,12 +4,15 @@ from __future__ import annotations
 
 import datetime as dt
 import json
+import io
 import os
 from pathlib import Path
+import shutil
 import subprocess
 import sys
 import tempfile
 import unittest
+from contextlib import redirect_stderr, redirect_stdout
 from unittest import mock
 
 SCRIPTS_DIR = Path(__file__).resolve().parents[1]
@@ -110,6 +113,23 @@ class Repo:
 
     def tag(self, name: str) -> None:
         self.git("tag", "-a", name, "-m", name)
+
+
+class GitHelperTest(unittest.TestCase):
+    def test_a_failure_reported_on_stdout_names_it(self):
+        failed = subprocess.CompletedProcess(["git"], 1, stdout="rejected: would clobber\n",
+                                             stderr="")
+        with mock.patch.object(rel.subprocess, "run", return_value=failed):
+            with self.assertRaises(rel.ReleaseError) as ctx:
+                rel.git("fetch")
+        self.assertIn("would clobber", str(ctx.exception))
+
+    def test_a_failure_with_no_output_still_has_a_reason(self):
+        failed = subprocess.CompletedProcess(["git"], 3, stdout="", stderr="")
+        with mock.patch.object(rel.subprocess, "run", return_value=failed):
+            with self.assertRaises(rel.ReleaseError) as ctx:
+                rel.git("fetch")
+        self.assertIn("exit status 3", str(ctx.exception))
 
 
 class VersionTest(unittest.TestCase):
@@ -313,9 +333,57 @@ class PrepareTest(RepoTestCase):
         self.repo.commit("fix(phototok): a", {"products/android/phototok/src/A.kt": "a"})
         path = self.root / "products/android/phototok/CHANGELOG.md"
         path.write_text(path.read_text() + "\n### Fixed\n- Crash on empty folders.\n")
-        rel.prepare(rel.BY_SLUG["phototok"], self.root, today=dt.date(2026, 10, 17), ref="HEAD")
+        with redirect_stderr(io.StringIO()):
+            rel.prepare(rel.BY_SLUG["phototok"], self.root, today=dt.date(2026, 10, 17),
+                        ref="HEAD")
         self.assertEqual(rel.changelog_section(path.read_text(), "0.5.1"),
                          "### Fixed\n- Crash on empty folders.")
+
+    def _three_prs(self):
+        self.repo.tag("phototok-v0.5.0")
+        for n, title in ((7, "feat(phototok): pinch to compare"), (8, "fix(phototok): crash"),
+                         (9, "fix(phototok): zoom")):
+            self.repo.merge_pr(n, title, {f"products/android/phototok/src/F{n}.kt": "a"})
+
+    def test_a_partly_filled_section_names_the_prs_it_does_not_mention(self):
+        self._three_prs()
+        path = self.root / "products/android/phototok/CHANGELOG.md"
+        path.write_text(path.read_text() + "\n### Added\n- Compare gesture (#7).\n")
+        err = io.StringIO()
+        with redirect_stderr(err):
+            rel.prepare(rel.BY_SLUG["phototok"], self.root, today=dt.date(2026, 10, 17),
+                        ref="HEAD")
+        self.assertIn("#8", err.getvalue())
+        self.assertIn("#9", err.getvalue())
+        self.assertNotIn("#7", err.getvalue())
+
+    def test_an_empty_section_drafts_everything_without_a_warning(self):
+        self._three_prs()
+        err = io.StringIO()
+        with redirect_stderr(err):
+            rel.prepare(rel.BY_SLUG["phototok"], self.root, today=dt.date(2026, 10, 17),
+                        ref="HEAD")
+        self.assertEqual(err.getvalue(), "")
+        log = (self.root / "products/android/phototok/CHANGELOG.md").read_text()
+        self.assertIn("(#9)", rel.changelog_section(log, "0.6.0"))
+
+    def test_status_of_one_product_warns_about_the_same_prs(self):
+        self._three_prs()
+        path = self.root / "products/android/phototok/CHANGELOG.md"
+        path.write_text(path.read_text() + "\n### Added\n- Compare gesture (#7).\n")
+        self.repo.commit("docs: changelog")
+        real = rel.status
+        out = io.StringIO()
+        with mock.patch.object(rel, "REPO_ROOT", self.root), \
+                mock.patch.object(rel, "status", lambda p, ref=None: real(p, self.root, ref)), \
+                redirect_stdout(out):
+            rel.cmd_status(mock.Mock(product="phototok", ref="HEAD", json=False, brief=False,
+                                     verbose=False))
+        self.assertIn("not mentioned in [Unreleased]", out.getvalue())
+        printed = out.getvalue().split("not mentioned in [Unreleased]")[1]
+        self.assertIn("(#8)", printed)
+        self.assertIn("(#9)", printed)
+        self.assertNotIn("(#7)", printed)
 
     def test_linux_gets_a_debian_changelog_entry(self):
         self.repo.commit("feat(linux): a", {"products/linux-desktop/src/photo_selector_linux/a.py": "a"})
@@ -364,11 +432,17 @@ class PrepareTest(RepoTestCase):
 
 
 class TagTest(RepoTestCase):
-    def _release_commit(self):
+    def _release_commit(self, left_in_unreleased: str = ""):
         self.repo.tag("macos-desktop-v0.0.9")
         self.repo.commit("feat(macos): a", {"products/macos-desktop/src/A.swift": "a"})
         rel.prepare(rel.BY_SLUG["macos-desktop"], self.root, today=dt.date(2026, 10, 17),
                     ref="HEAD")
+        if left_in_unreleased:
+            path = self.root / rel.BY_SLUG["macos-desktop"].changelog
+            text = path.read_text(encoding="utf-8")
+            path.write_text(text.replace("## [Unreleased]\n",
+                                         f"## [Unreleased]\n\n{left_in_unreleased}\n", 1),
+                            encoding="utf-8")
         head = self.repo.commit("release(macos-desktop): 0.1.0")
         self.repo.git("update-ref", "refs/remotes/origin/main", head)
 
@@ -418,6 +492,68 @@ class TagTest(RepoTestCase):
         with self.assertRaises(rel.ReleaseError) as ctx:
             rel.tag(rel.BY_SLUG["macos-desktop"], self.root, fetch=False)
         self.assertIn("not on origin/main", str(ctx.exception))
+
+    def test_refuses_text_left_under_unreleased(self):
+        self._release_commit(left_in_unreleased="- Forgotten line.")
+        self._record("PASS")
+        with self.assertRaises(rel.ReleaseError) as ctx:
+            rel.tag(rel.BY_SLUG["macos-desktop"], self.root, fetch=False)
+        message = str(ctx.exception)
+        self.assertIn("Lensjet", message)
+        self.assertIn("Forgotten line", message)
+        self.assertIn("[Unreleased]", message)
+
+    def test_an_empty_unreleased_section_passes(self):
+        self._release_commit()
+        self._record("PASS")
+        self.assertEqual(rel.tag(rel.BY_SLUG["macos-desktop"], self.root, fetch=False),
+                         "macos-desktop-v0.1.0")
+
+    def _with_remote(self) -> Path:
+        """origin is a bare clone of the release commit; returns its path."""
+        bare = Path(self._tmp.name + "-origin.git")
+        self.addCleanup(shutil.rmtree, bare, ignore_errors=True)
+        subprocess.run(["git", "clone", "-q", "--bare", str(self.root), str(bare)], check=True)
+        self.repo.git("remote", "add", "origin", str(bare))
+        self.repo.git("fetch", "-q", "origin")
+        return bare
+
+    def test_a_moved_nightly_tag_does_not_stop_the_fetch(self):
+        self._release_commit()
+        first = self.repo.git("rev-parse", "HEAD~1").strip()
+        head = self.repo.git("rev-parse", "HEAD").strip()
+        self.repo.git("tag", "nightly", first)
+        self.repo.git("tag", "nightly-android", first)
+        bare = self._with_remote()
+        subprocess.run(["git", "-C", str(bare), "tag", "-f", "nightly", head], check=True,
+                       capture_output=True)
+        subprocess.run(["git", "-C", str(bare), "tag", "-f", "nightly-android", head],
+                       check=True, capture_output=True)
+        name = rel.tag(rel.BY_SLUG["macos-desktop"], self.root, accept_untested="test")
+        self.assertEqual(name, "macos-desktop-v0.1.0")
+        self.assertEqual(self.repo.git("rev-parse", "nightly^{commit}").strip(), head)
+
+    def test_a_release_tag_that_exists_remotely_is_still_refused(self):
+        self._release_commit()
+        bare = self._with_remote()
+        subprocess.run(["git", "-C", str(bare), "tag", "macos-desktop-v0.1.0", "HEAD"],
+                       check=True, capture_output=True)
+        with self.assertRaises(rel.ReleaseError) as ctx:
+            rel.tag(rel.BY_SLUG["macos-desktop"], self.root, accept_untested="test")
+        self.assertIn("already released", str(ctx.exception))
+
+    def test_a_release_tag_moved_remotely_is_never_overwritten_locally(self):
+        self._release_commit()
+        first = self.repo.git("rev-parse", "HEAD~1").strip()
+        head = self.repo.git("rev-parse", "HEAD").strip()
+        self.repo.git("tag", "macos-desktop-v0.0.5", first)
+        bare = self._with_remote()
+        subprocess.run(["git", "-C", str(bare), "tag", "-f", "macos-desktop-v0.0.5", head],
+                       check=True, capture_output=True)
+        with self.assertRaises(rel.ReleaseError):
+            rel.tag(rel.BY_SLUG["macos-desktop"], self.root, accept_untested="test")
+        self.assertEqual(self.repo.git("rev-parse", "macos-desktop-v0.0.5^{commit}").strip(),
+                         first)
 
     def test_verify_tag_rejects_a_mismatch(self):
         with self.assertRaises(rel.ReleaseError) as ctx:

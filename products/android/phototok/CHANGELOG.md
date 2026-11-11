@@ -15,7 +15,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 - **Copy** and **Move** into the Selection folder in the long-press menu (Move is not offered for a cloud folder, which cannot move).
 - TalkBack can cull: the swipe right and swipe left you configured are custom actions on the photo ("Copy to Selection", "Delete photo"), and a delete asks first like the swipe does. Before, copy, move and delete were reachable only by dragging the photo.
 - The favourite badge shows a filled star when the system has the favourite too, and an outlined star while it is only in Jackpix.
-- Pro mode Settings show where photos go: *Selection location* and *Left swipe folder* read as the folder's path ("Internal storage › Pictures › Picks › Selection", or "In source folder · Internal storage › DCIM › Camera › Selection") instead of "Default" or "Custom". A chosen folder whose access was lost, or that is gone or unplugged, says "Folder access lost" with **Re-select**.
+- Pro mode Settings show where photos go: *Selection location* and *Left swipe folder* read as the chosen folder's path ("Phone › Pictures › Keepers", German "Telefon › …"; a long one fits one line and the folder dialog shows it whole), or "In source folder · Phone › DCIM › Camera" for the default, instead of "Default" or "Custom". A chosen folder whose access was lost, or that is gone or unplugged, says "Folder access lost" with **Re-select**.
 - The info panel shows when the photo was taken first ("Aug 15, 2026, 10:36 AM", German "15.08.2026, 10:36"), as the camera recorded it.
 
 ### Changed

@@ -196,7 +196,11 @@ def bump(version: Version, level: str) -> Version:
 def git(*args: str, root: Path = REPO_ROOT, check: bool = True) -> str:
     out = subprocess.run(["git", "-C", str(root), *args], capture_output=True, text=True)
     if check and out.returncode != 0:
-        raise ReleaseError(f"git {' '.join(args)} failed: {out.stderr.strip()}")
+        # The reason is on stderr, but some failures only say it on stdout (an empty reason
+        # stopped the 0.6.0 tag on 2026-10-23); never raise without one.
+        reason = (out.stderr.strip() or out.stdout.strip()
+                  or f"exit status {out.returncode}, no output")
+        raise ReleaseError(f"git {' '.join(args)} failed: {reason}")
     return out.stdout if out.returncode == 0 else ""
 
 
@@ -527,6 +531,9 @@ def cmd_status(args: argparse.Namespace) -> int:
                         print(f"        - {e.label()}{mark}")
     if args.product:
         r = results[0]
+        notes = unreleased_body(read_file(REPO_ROOT, r.product.changelog, r.ref))
+        if notes:
+            warn_undescribed(r, notes, f"[Unreleased] of {r.product.changelog}", file=sys.stdout)
         print(f"\n  Tests: ./scripts/run_tests.sh {r.product.run_tests}")
         if r.due:
             print(f"  Next:  python3 scripts/release.py prepare {r.product.slug}")
@@ -604,6 +611,32 @@ def close_unreleased(text: str, version: Version, date: dt.date, drafted: str) -
     return text[:m.start()] + section + text[m.end():].lstrip("\n")
 
 
+def unreleased_body(text: Optional[str]) -> str:
+    """The text under `## [Unreleased]`, stripped ("" when empty or the heading is missing)."""
+    m = UNRELEASED_RE.search(text or "")
+    return m.group("body").strip() if m else ""
+
+
+def undescribed(s: Status, notes: str) -> List[Entry]:
+    """The feature and fix entries whose PR number (or short sha) `notes` never mentions: a
+    partly filled changelog section keeps its own text, so these would ship undescribed."""
+    def mentioned(e: Entry) -> bool:
+        ref = f"#{e.pr}" if e.pr else e.sha[:7]
+        return re.search(re.escape(ref) + r"(?!\w)", notes) is not None
+    return [e for e in s.features + s.fixes if not mentioned(e)]
+
+
+def warn_undescribed(s: Status, notes: str, where: str, file=None) -> None:
+    missing = undescribed(s, notes)
+    if not missing:
+        return
+    print(f"! {len(missing)} feature/fix PR(s) since {s.last_tag or 'the start'} are not "
+          f"mentioned in {where} (a maintenance PR may rightly have no line):",
+          file=file or sys.stderr)
+    for e in missing:
+        print(f"    - {e.label()}", file=file or sys.stderr)
+
+
 def changelog_section(text: str, version: str) -> Optional[str]:
     m = re.search(rf"^## \[{re.escape(version)}\][^\n]*\n(?P<body>.*?)(?=^## \[|\Z)", text,
                   re.M | re.S)
@@ -669,6 +702,8 @@ def prepare(product: Product, root: Path = REPO_ROOT, version: Optional[Version]
         log = close_unreleased(log, version, today, draft_notes(s))
         log_path.write_text(log, encoding="utf-8")
         changed.append(product.changelog)
+    warn_undescribed(s, changelog_section(log, fmt(version)) or "",
+                     f"the {fmt(version)} section of {product.changelog}")
 
     if product.slug == "linux-desktop":
         deb = root / "products/linux-desktop/debian/changelog"
@@ -724,6 +759,11 @@ def verification(product: Product, root: Path) -> Tuple[str, List[str]]:
 def tag(product: Product, root: Path = REPO_ROOT, remote: str = "origin", fetch: bool = True,
         accept_untested: Optional[str] = None, push: bool = False) -> str:
     if fetch:
+        # Moving tags (nightly, nightly-android, nightly-macos-desktop) are rewritten by CI on
+        # every push to main: fetch them with force. A release tag <product>-v<semver> is
+        # fetched without it, so a rewritten one fails loudly instead of being overwritten.
+        git("fetch", "--quiet", "--force", remote, "main",
+            "+refs/tags/nightly*:refs/tags/nightly*", root=root)
         git("fetch", "--quiet", "--tags", remote, "main", root=root)
     if git("status", "--porcelain", "--untracked-files=no", root=root).strip():
         raise ReleaseError("the working tree has uncommitted changes")
@@ -748,6 +788,14 @@ def tag(product: Product, root: Path = REPO_ROOT, remote: str = "origin", fetch:
         if log_path.is_file() else None
     if not notes:
         raise ReleaseError(f"{product.changelog} has no section for {fmt(s.in_tree)}")
+
+    left = unreleased_body(log_path.read_text(encoding="utf-8"))
+    if left:
+        raise ReleaseError(
+            f"{product.name}: {product.changelog} has text under '## [Unreleased]' at the "
+            f"tagged commit, starting \"{left.splitlines()[0]}\". It would ship as unreleased "
+            f"forever: move it into the {fmt(s.in_tree)} section (or drop it) in a PR, merge it, "
+            f"then tag again.")
 
     result, skipped = verification(product, root)
     if result == "passed":

@@ -37,9 +37,10 @@ import org.robolectric.annotation.GraphicsMode
 
 /**
  * REQ-TOK-FEATURE.23 (`[USER 2026-11-04]`, "I do not understand where the pictures go"): the
- * Selection and swipe-left folder rows show where photos land as a readable path — the custom
+ * Selection and swipe-left folder rows show where photos go as a readable path — the custom
  * folder's, or "In source folder · …" with the open folder's — and say when a custom folder's
- * access was lost, with Re-select. 360 dp, font scale 2.0, English and German.
+ * access was lost, with Re-select. 360 dp, font scale 2.0, English and German. The one-line policy
+ * for a long path is `SettingsFolderPathTextLoadTest`'s.
  */
 @RunWith(RobolectricTestRunner::class)
 @GraphicsMode(GraphicsMode.Mode.NATIVE)
@@ -98,19 +99,19 @@ class SettingsDestinationPathTest {
         }
     }
 
-    private fun internal() = context.getString(R.string.label_internal_storage)
+    private fun phone() = context.getString(R.string.label_kind_phone)
 
     private fun checkDefaultAndCustom() {
         host()
         val sep = com.photoselector.core.storage.SafTreeDisplayPath.SEPARATOR
-        // Default: the open folder's path and the Selection subfolder inside it.
+        // Default: the open folder's path, in the source badges' words.
         awaitRowText(
             "selection_location",
-            context.getString(R.string.setting_summary_in_source_path, listOf(internal(), "DCIM", "Camera", "Selection").joinToString(sep)),
+            context.getString(R.string.setting_summary_in_source_path, listOf(phone(), "DCIM", "Camera").joinToString(sep)),
         )
-        // Custom: the chosen folder's full path, with the subfolder the files go into.
+        // Custom: the chosen folder's path, which replaces "In source folder".
         runBlocking { repository.setPhoneCollectionUri(picks) }
-        awaitRowText("selection_location", listOf(internal(), "Pictures", "Picks", "Selection").joinToString(sep))
+        awaitRowText("selection_location", listOf(phone(), "Pictures", "Picks").joinToString(sep))
     }
 
     @Test
@@ -123,7 +124,7 @@ class SettingsDestinationPathTest {
     @Config(qualifiers = "de-w360dp-h640dp-xhdpi")
     @Requirement("REQ-TOK-FEATURE.23")
     fun german_defaultAndCustomPaths() {
-        assertTrue(internal() == "Interner Speicher")
+        assertTrue(phone() == "Telefon")
         checkDefaultAndCustom()
     }
 

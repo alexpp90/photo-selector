@@ -200,6 +200,8 @@ fun PhoneModeScreen(
         enabled = isViewingSelection || selectionState.isOpening,
         onClose = selectionViewModel::close,
     )
+    // System Back over the controls guide or the first-run tutorial: GestureTutorialOverlay owns its
+    // BackHandler, composed after this one, so a guide over the viewer closes first (F-TOK-085).
     // Another folder in the feed closes a viewer opened (or still opening) for the previous one.
     LaunchedEffect(uiState.sourceFolderUri) {
         selectionViewModel.closeUnlessOpenedFor(uiState.sourceFolderUri)

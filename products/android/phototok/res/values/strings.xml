@@ -101,9 +101,6 @@
     <string name="label_kind_camera">Camera</string>
     <string name="label_kind_cloud">Cloud</string>
     <string name="label_folder">Folder</string>
-    <string name="label_sd_card_id">SD card %1$s</string>
-    <string name="label_documents">Documents</string>
-    <string name="label_internal_storage">Internal storage</string>
     <string name="label_not_connected">Not connected</string>
     <string name="label_seen_progress">%1$d / %2$d</string>
     <string name="label_page_counter">%1$d / %2$d</string>

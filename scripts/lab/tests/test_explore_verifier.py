@@ -57,11 +57,19 @@ class VerifierTest(unittest.TestCase):
             evidence_dir=self.run_dir / "evidence", packet_dir=self.run_dir / "packets" / f"step_{step:02d}", **kw,
         )
 
-    def test_a_clean_step_passes_and_keeps_no_files(self) -> None:
+    def test_a_clean_step_passes_keeps_both_trees_and_no_screenshot(self) -> None:
         res = self.verify()
         self.assertEqual((res.status, res.findings), ("pass", []))
         self.assertTrue(res.passed)
         self.assertEqual(list(self.run_dir.rglob("*.png")), [])
+        self.assertEqual(sorted(p.name for p in self.run_dir.rglob("*.json")), ["step_01_after_tree.json", "step_01_before_tree.json"])
+
+    def test_every_tenth_clean_step_keeps_its_screenshots_too(self) -> None:
+        for step in (9, 10, 11, 20):
+            self.verify(step=step)
+        kept = sorted(p.name for p in self.run_dir.rglob("*.png"))
+        self.assertEqual(kept, ["step_10_after.png", "step_10_before.png", "step_20_after.png", "step_20_before.png"])
+        self.assertEqual(len(list(self.run_dir.rglob("*_tree.json"))), 8)
 
     def test_crash_in_the_app_log_fails_with_a_step_independent_id(self) -> None:
         lines = ["I ok", "E AndroidRuntime: FATAL EXCEPTION: main"]
