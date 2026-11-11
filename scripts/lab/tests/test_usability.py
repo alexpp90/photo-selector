@@ -636,6 +636,31 @@ class TestScenarioFile(unittest.TestCase):
     def test_linux_scenarios_are_complete(self) -> None:
         self._assert_scenario_spec("linux")
 
+    def test_frameduel_steps_match_only_labels_the_app_still_exposes(self) -> None:
+        """A step that finds a control by `text` or `desc` needs that string in the app's code.
+
+        2026-11-11: the view toggles became switches named "Filmstrip" / "Photo details" while the
+        walk still tapped "Show the filmstrip" / "Hide photo details", which a label match misses.
+        """
+        sources = "\n".join(
+            f.read_text(encoding="utf-8", errors="replace")
+            for f in sorted((repo_root() / "products" / "android" / "android-desktop").rglob("*"))
+            if f.suffix in {".kt", ".xml"} and f.is_file()
+        )
+        self.assertIn("Filmstrip", sources)  # the sources were found
+        stale = []
+        for scenario in load_scenarios("android-desktop", repo_root())["scenarios"]:
+            for step in scenario["steps"]:
+                for key in ("tap", "long_press", "optional_tap", "set_state", "wait_for", "scroll_to"):
+                    target = step.get(key)
+                    if not isinstance(target, dict) or target.get("scroll"):  # `scroll`: the system picker's folder names
+                        continue
+                    for field in ("text", "desc"):
+                        value = target.get(field)
+                        if value and f'"{value}"' not in sources and f">{value}<" not in sources:
+                            stale.append(f"{scenario['id']}: {key} {field}={value!r}")
+        self.assertEqual(stale, [], "labels the Frameduel code does not contain")
+
     def test_system_ui_is_tapped_by_resource_id_not_by_its_text(self) -> None:
         """The picker's "Use this folder" reads "Diesen Ordner verwenden" on a German phone (the
         Pixel 4a): a text selector broke every Jackpix walk there. Its buttons are android:id/button1."""

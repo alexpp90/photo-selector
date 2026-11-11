@@ -712,7 +712,7 @@ class AiWiringTest(WorkerCase):
         self.assertLessEqual(max(judge.timeouts), 1.0)
 
     def test_a_failing_judge_is_an_error_finding_and_a_failed_run(self) -> None:
-        summary = self.run_ai(FakeJudge(AIJudgeError("claude exited with 1")), duration=0.5)
+        summary = self.run_ai(FakeJudge(AIJudgeError("the stub judge failed on purpose")), duration=0.5)
         self.assertGreater(summary.total_steps, 0)
         self.assertTrue(all(s.status == "error" for s in summary.step_results))
         self.assertEqual({f.rule for f in summary.findings}, {"ai-judge-error"})

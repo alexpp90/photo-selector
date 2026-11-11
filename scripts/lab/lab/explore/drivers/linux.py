@@ -29,6 +29,10 @@ from .base import AppCrashedError, DeviceDriver, DriverError, DriverExecutionErr
 # Linux (Blitzlens in a private Xvfb + D-Bus session)
 # ==============================================================================
 
+class MissingScreenshotError(DriverError):
+    """A checkpoint whose screenshot the app could not take."""
+
+
 class LinuxDeviceDriver(DeviceDriver):
     """Blitzlens in its own Xvfb display and private D-Bus, driven with xdotool and `lab-checkpoint`.
 
@@ -280,7 +284,22 @@ class LinuxDeviceDriver(DeviceDriver):
 
     # -- observation --------------------------------------------------------------
     def capture_state(self) -> ScreenState:
-        """Ask the app for a checkpoint (`lab-checkpoint` over the private bus) and read what it wrote."""
+        """Ask the app for a checkpoint (`lab-checkpoint` over the private bus) and read what it wrote.
+
+        The app writes the screenshot best effort: a snapshot that fails (a busy host) leaves a
+        checkpoint without a picture. That is asked for again, up to `SCREENSHOT_ATTEMPTS` times,
+        before it is reported (a real session failed once at load average 20-30, alone 13/13).
+        """
+        for attempt in range(1, self.SCREENSHOT_ATTEMPTS + 1):
+            try:
+                return self._capture_once()
+            except MissingScreenshotError:
+                if attempt == self.SCREENSHOT_ATTEMPTS:
+                    raise
+
+    SCREENSHOT_ATTEMPTS = 3
+
+    def _capture_once(self) -> ScreenState:
         self._require_app_alive()
         self._captures += 1
         name = f"s{self._captures}"
@@ -300,7 +319,7 @@ class LinuxDeviceDriver(DeviceDriver):
         stem = timing[0].name[: -len(".timing.json")]
         png_path, tree_path = self.artifacts_dir / f"{stem}.png", self.artifacts_dir / f"{stem}.tree.json"
         if not png_path.is_file() or png_path.stat().st_size == 0:
-            raise DriverError(f"checkpoint {stem} has no screenshot")
+            raise MissingScreenshotError(f"checkpoint {stem} has no screenshot")
         try:
             tree = Tree.from_dict(json.loads(tree_path.read_text(encoding="utf-8")))
         except (OSError, ValueError, KeyError) as exc:
