@@ -78,14 +78,44 @@ public final class DirectoryScanner: DirectoryScanning, @unchecked Sendable {
         return names
     }
 
-    /// Returns `true` when `directory` is an excluded Selection folder either by name or because
-    /// it contains the `.photoselector-selection` marker file.
+    /// The resolved destination folders that lie inside `root` and must not be scanned: the
+    /// Selection folder Move/Copy writes to and, in custom mode, the custom base folder, even
+    /// when the custom folder carries a name other than the Selection name (a photo filed there
+    /// must not come back as a candidate).
+    public func excludedFolderPaths(inside root: URL) -> Set<String> {
+        let rootPath = Self.canonicalPath(root)
+        let destination = CullingDestinationResolver.resolve(
+            defaults: userDefaults, openFolderURL: root, fileManager: fileManager
+        )
+        var paths = Set<String>()
+        for url in [destination.selectionFolderURL, destination.mode == .customFolder ? destination.baseFolderURL : nil] {
+            guard let url else { continue }
+            let path = Self.canonicalPath(url)
+            if path != rootPath, path.hasPrefix(rootPath == "/" ? "/" : rootPath + "/") {
+                paths.insert(path)
+            }
+        }
+        return paths
+    }
+
+    private static func canonicalPath(_ url: URL) -> String {
+        var path = url.standardizedFileURL.resolvingSymlinksInPath().path
+        if path.count > 1, path.hasSuffix("/") { path.removeLast() }
+        return path
+    }
+
+    /// Returns `true` when `directory` is an excluded Selection folder by name, by the
+    /// `.photoselector-selection` marker file, or because it is one of `excludedPaths`.
     public static func isExcludedSubdirectory(
         _ directory: URL,
         excludedNames: Set<String>,
+        excludedPaths: Set<String> = [],
         fileManager: FileManager = .default
     ) -> Bool {
         if excludedNames.contains(directory.lastPathComponent.lowercased()) {
+            return true
+        }
+        if !excludedPaths.isEmpty, excludedPaths.contains(canonicalPath(directory)) {
             return true
         }
         let markerPath = directory.appendingPathComponent(selectionMarkerFilename).path
@@ -105,8 +135,9 @@ public final class DirectoryScanner: DirectoryScanning, @unchecked Sendable {
         firstBatchSize: Int
     ) -> AsyncStream<[PhotoItem]> {
         let excluded = excludedFolderNames()
+        let excludedPaths = excludedFolderPaths(inside: directoryURL)
         return AsyncStream { continuation in
-            let task = Task.detached(priority: .userInitiated) { [self, excluded] in
+            let task = Task.detached(priority: .userInitiated) { [self, excluded, excludedPaths] in
                 var batcher = ScanBatcher(firstBatchSize: firstBatchSize, batchSize: batchSize)
                 let root = directoryURL.standardizedFileURL.resolvingSymlinksInPath()
 
@@ -121,7 +152,7 @@ public final class DirectoryScanner: DirectoryScanning, @unchecked Sendable {
 
                     for primary in primaries {
                         if Task.isCancelled { break }
-                        if let ready = batcher.append(PhotoItem(url: primary, status: .candidate)) {
+                        if let ready = batcher.append(PhotoItem(url: primary, status: .candidate, modificationDate: listing.modificationDates[primary])) {
                             continuation.yield(ready)
                         }
                     }
@@ -132,7 +163,7 @@ public final class DirectoryScanner: DirectoryScanning, @unchecked Sendable {
 
                     if recursive {
                         let subdirectories = listing.directories
-                            .filter { !Self.isExcludedSubdirectory($0, excludedNames: excluded, fileManager: self.fileManager) }
+                            .filter { !Self.isExcludedSubdirectory($0, excludedNames: excluded, excludedPaths: excludedPaths, fileManager: self.fileManager) }
                             .sorted { Self.naturalOrder($0.lastPathComponent, $1.lastPathComponent) }
                         // Push in reverse so the naturally-first subfolder is visited first.
                         pending.append(contentsOf: subdirectories.reversed())
@@ -173,11 +204,13 @@ public final class DirectoryScanner: DirectoryScanning, @unchecked Sendable {
     struct DirectoryListing {
         var files: [URL] = []
         var directories: [URL] = []
+        /// Modification date per file, prefetched with the listing.
+        var modificationDates: [URL: Date] = [:]
     }
 
     /// Lists one directory with prefetched resource values (one syscall batch per folder).
     static func list(directory: URL, fileManager: FileManager) -> DirectoryListing {
-        let keys: [URLResourceKey] = [.isDirectoryKey, .isRegularFileKey, .isSymbolicLinkKey]
+        let keys: [URLResourceKey] = [.isDirectoryKey, .isRegularFileKey, .isSymbolicLinkKey, .contentModificationDateKey]
         guard let entries = try? fileManager.contentsOfDirectory(
             at: directory,
             includingPropertiesForKeys: keys,
@@ -194,6 +227,7 @@ public final class DirectoryScanner: DirectoryScanning, @unchecked Sendable {
                 listing.directories.append(entry)
             } else if values.isRegularFile == true {
                 listing.files.append(entry)
+                if let date = values.contentModificationDate { listing.modificationDates[entry] = date }
             } else if values.isSymbolicLink == true {
                 // Rare: a symlinked file. Resolve once; symlinked folders are not followed
                 // (avoids cycles, matches FileManager.enumerator semantics).

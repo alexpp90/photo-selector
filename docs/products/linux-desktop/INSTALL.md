@@ -1,6 +1,6 @@
 # Blitzlens — Installation Guide for Debian 13 (Trixie)
 
-This guide provides step-by-step instructions for installing and updating **Blitzlens** (package `photo-selector-linux`) on Debian 13 (Trixie) and compatible GNOME environments using our official APT repository or standalone packages.
+This guide provides step-by-step instructions for installing and updating **Blitzlens** (package `photo-selector-linux`) on Debian 13 (Trixie) using our official APT repository (its only suite is `trixie`) or standalone packages.
 
 ---
 
@@ -137,12 +137,13 @@ apt show photo-selector-linux
 Expected output:
 ```
 Package: photo-selector-linux
-Version: 0.2.0
+Version: 0.2.0-1
 Section: graphics
 Priority: optional
 Architecture: all
-Maintainer: Alexander Patz <alexander.patz@example.com>
+Maintainer: Alexander Patz <alexpp90@users.noreply.github.com>
 Depends: python3 (>= 3.12), python3-gi, gir1.2-gtk-4.0, gir1.2-adw-1, gir1.2-gexiv2-0.10, gir1.2-gdkpixbuf-2.0, libraw-bin, python3-numpy, python3-pil
+Recommends: heif-gdk-pixbuf, libheif-plugin-libde265
 Description: native GNOME photograph culling and selection suite
  ...
 ```

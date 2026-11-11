@@ -225,4 +225,32 @@ struct DirectoryScannerTests {
         #expect(items.first?.filename == "CANDIDATE.JPG")
         #expect(!items.contains(where: { $0.filename == "KEEPER.JPG" }))
     }
+
+    @Test("A custom destination folder inside the culled folder is not discovered, whatever its name")
+    func testCustomDestinationInsideRootIsExcluded() async throws {
+        let root = try createTempDir(prefix: "CustomInsideRoot")
+        defer { try? FileManager.default.removeItem(at: root) }
+        try Data("c".utf8).write(to: root.appendingPathComponent("CANDIDATE.JPG"))
+
+        // Custom base folder under a name that is neither a built-in nor the Selection name, and
+        // without any marker file of its own.
+        let custom = root.appendingPathComponent("Filed Here", isDirectory: true)
+        try FileManager.default.createDirectory(at: custom, withIntermediateDirectories: true)
+        try Data("f".utf8).write(to: custom.appendingPathComponent("FILED.JPG"))
+
+        let suiteName = "com.photoselector.tests.custominside.\(UUID().uuidString)"
+        let defaults = UserDefaults(suiteName: suiteName)!
+        defer { defaults.removePersistentDomain(forName: suiteName) }
+        defaults.cullingDestinationMode = .customFolder
+        defaults.externalCullingDestinationURL = custom
+
+        let items = try await DirectoryScanner(userDefaults: defaults).scanDirectory(at: root, recursive: true)
+        #expect(items.map(\.filename) == ["CANDIDATE.JPG"])
+
+        // Control: without the custom setting the same folder is scanned.
+        let plain = UserDefaults(suiteName: suiteName + ".plain")!
+        defer { plain.removePersistentDomain(forName: suiteName + ".plain") }
+        let all = try await DirectoryScanner(userDefaults: plain).scanDirectory(at: root, recursive: true)
+        #expect(Set(all.map(\.filename)) == ["CANDIDATE.JPG", "FILED.JPG"])
+    }
 }

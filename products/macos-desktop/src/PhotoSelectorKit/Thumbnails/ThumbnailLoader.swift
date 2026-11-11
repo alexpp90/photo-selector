@@ -46,8 +46,32 @@ public enum ThumbnailDecodeStrategy: Equatable, Sendable {
 
 /// Actor-isolated asynchronous image thumbnail decoder and prefetcher.
 /// Guarantees automatic EXIF orientation normalization, fast ImageIO sub-sampling,
-/// and an asymmetric prefetch window [i-2 ... i+3] with cooperative task cancellation.
+/// and an asymmetric, direction-aware prefetch window ([i-2 ... i+3] while moving forward,
+/// [i-3 ... i+2] while moving backward) with cooperative task cancellation.
 public actor ThumbnailLoader {
+
+    /// The way the user is browsing; the prefetch window leans the same way (REQ-MAC-NAV direction rule).
+    public enum BrowseDirection: Sendable, Equatable {
+        case forward
+        case backward
+    }
+
+    /// The indices to keep decoded around `currentIndex`. Forward browsing keeps `windowBefore`
+    /// frames behind and `windowAfter` ahead; backward browsing mirrors the two so the window
+    /// keeps its size but leans toward the frames about to be shown.
+    public static func prefetchRange(
+        count: Int,
+        currentIndex: Int,
+        windowBefore: Int,
+        windowAfter: Int,
+        direction: BrowseDirection
+    ) -> ClosedRange<Int>? {
+        guard count > 0, (0..<count).contains(currentIndex) else { return nil }
+        let before = max(0, min(windowBefore, 5))
+        let after = max(1, min(windowAfter, 10))
+        let (back, ahead) = direction == .forward ? (before, after) : (after, before)
+        return max(0, currentIndex - back)...min(count - 1, currentIndex + ahead)
+    }
 
     public static let shared = ThumbnailLoader()
 
@@ -162,23 +186,21 @@ public actor ThumbnailLoader {
     // MARK: - Prefetch Sliding Window [i-2 ... i+3]
 
     /// Updates the prefetch sliding window around the current index.
-    /// Cancels obsolete decode tasks outside [i-2 ... i+3] and launches
+    /// Cancels obsolete decode tasks outside the window and launches
     /// background prefetch tasks at .utility priority for upcoming items.
     public func updatePrefetchWindow(
         items: [PhotoItem],
         currentIndex: Int,
         windowBefore: Int = 2,
         windowAfter: Int = 4,
+        direction: BrowseDirection = .forward,
         maxPixelSize: Int = ThumbnailTier.preview.rawValue
     ) {
-        guard !items.isEmpty, items.indices.contains(currentIndex) else { return }
-
-        let clampedBefore = max(0, min(windowBefore, 5))
-        let clampedAfter = max(1, min(windowAfter, 10))
-
-        let startIndex = max(0, currentIndex - clampedBefore)
-        let endIndex = min(items.count - 1, currentIndex + clampedAfter)
-        let windowIndices = Set(startIndex...endIndex)
+        guard let range = Self.prefetchRange(
+            count: items.count, currentIndex: currentIndex,
+            windowBefore: windowBefore, windowAfter: windowAfter, direction: direction
+        ) else { return }
+        let windowIndices = Set(range)
 
         var neededKeys = Set<ThumbnailCacheKey>()
         for idx in windowIndices {

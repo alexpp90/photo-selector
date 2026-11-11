@@ -308,5 +308,39 @@ class SettingsRepositoryTest {
         repoWithGrants.setPhoneCollectionUri("content://tree/new_collection")
         assertTrue(released.contains("content://tree/folder1"))
     }
-}
 
+    @Test
+    fun `per-source collection and left swipe URIs are included in referencedUrisByPurpose (JP-D-20)`() = runTest {
+        repository.setSourceCollectionUri(com.photoselector.core.storage.SourceKind.REMOVABLE, "content://tree/sd_selection")
+        repository.setSourceLeftSwipeUri(com.photoselector.core.storage.SourceKind.CAMERA_MTP, "content://tree/mtp_left")
+
+        val prefs = context.dataStore.data.first()
+        val referenced = repository.referencedUrisByPurpose(prefs)
+
+        assertTrue(
+            "removable collection URI preserved in references",
+            referenced[com.photoselector.saf.FolderAccessPurpose.SELECTION_TARGET]?.contains("content://tree/sd_selection") == true
+        )
+        assertTrue(
+            "mtp left swipe URI preserved in references",
+            referenced[com.photoselector.saf.FolderAccessPurpose.LEFT_SWIPE_TARGET]?.contains("content://tree/mtp_left") == true
+        )
+    }
+
+    @Test
+    fun `a corrupted preferences file recovers empty and stays writable (JP-B-20)`() = runTest {
+        val file = java.io.File(context.cacheDir, "corrupt-${System.nanoTime()}/phototok_settings.preferences_pb")
+        file.parentFile!!.mkdirs()
+        file.writeBytes(byteArrayOf(0xFF.toByte(), 0xFE.toByte(), 0x00, 0x01, 0x7F))
+        // Same handler the production store uses, on a fresh store over the broken file.
+        val store = androidx.datastore.preferences.core.PreferenceDataStoreFactory.create(
+            corruptionHandler = settingsCorruptionHandler(),
+            scope = backgroundScope,
+            produceFile = { file },
+        )
+        assertTrue(store.data.first().asMap().isEmpty())
+        val key = androidx.datastore.preferences.core.booleanPreferencesKey("k")
+        store.edit { it[key] = true }
+        assertTrue(store.data.first()[key] == true)
+    }
+}

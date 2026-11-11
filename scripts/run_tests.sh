@@ -170,8 +170,7 @@ if ! $explicit_product; then
 
         for f in "${CHANGED_FILES[@]}"; do
             case "$f" in
-                # macos.yml:update-homebrew-taps runs the legacy updater on the Lensjet cask.
-                products/desktop/scripts/update_formula.py) has_desktop=true; has_macos=true ;;
+                products/desktop/scripts/update_formula.py) has_desktop=true ;;
                 products/desktop/*|*.spec) has_desktop=true ;;
                 products/android/*|scripts/check_native_alignment.py) has_android=true ;;
                 products/macos-desktop/*) has_macos=true ;;
@@ -883,6 +882,8 @@ if [ -d "$ROOT_DIR/private/.git" ] || [ -f "$ROOT_DIR/private/.git" ]; then
             gate "brand name guard" "framework.yml:framework" \
                 python3 private/scripts/check_brand_names.py
         fi
+        gate "findings history summary" "framework.yml:framework" \
+            python3 private/scripts/findings_history.py --check
         # Every requirement names its enforcement; a [USER …] requirement without one fails,
         # any other unenforced requirement is reported (check_requirement_enforcement.py).
         advisory_gate "requirement enforcement named" "framework.yml:framework" \

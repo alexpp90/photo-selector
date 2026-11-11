@@ -4,7 +4,7 @@ Blitzlens – Photo Culling: a native GNOME photograph culling and selection app
 
 ## Overview
 
-Blitzlens is built with Python 3.12+, PyGObject, GTK4, Libadwaita, GExiv2, and vectorized NumPy, it provides SD-card ingestion, companion RAW+JPEG pairing, noise-corrected focus scoring, and tactile culling keyboard shortcuts adhering strictly to the GNOME Human Interface Guidelines (HIG).
+Blitzlens is built with Python 3.12+, PyGObject, GTK4, Libadwaita, GExiv2, and vectorized NumPy, it provides SD-card ingestion, companion RAW+JPEG pairing, noise-corrected focus scoring, and tactile culling keyboard shortcuts, built along the GNOME Human Interface Guidelines (HIG).
 
 ## Architecture
 
@@ -44,20 +44,26 @@ Start Blitzlens with a folder (`photo-selector-linux ~/Pictures/2026`) or let th
 
 ## Keyboard Shortcuts
 
+`M`, `C`, `Delete` and `Backspace` act once per press: holding the key does not repeat the action. Arrows keep repeating.
+
 | Shortcut | Action |
 |---|---|
-| `←` / `H` / `K` | Previous photograph |
-| `→` / `L` / `J` | Next photograph |
+| `←` / `K` (`H` until the next release) | Previous photograph |
+| `→` / `J` (`L` until the next release) | Next photograph |
 | `M` | Move photo and companions to `Selection/` and auto-advance |
 | `C` | Copy photo and companions to `Selection/` and auto-advance |
 | `Delete` / `Backspace` | Move photo and companions to FreeDesktop Trash and auto-advance |
 | `1` / `2` / `3` | Switch comparison modes (1-Up, 2-Up, 3-Up Focus Mode) |
 | `Space` | Toggle 100% 1:1 actual-pixel zoom in 1-Up mode |
-| `Escape` | Reset zoom to fit / dismiss |
+| `F` / `F11` | Toggle full screen |
+| `S` | Open the View order menu (Newest first, Oldest first, File name, Lowest sharpness first) |
+| `Escape` | Reset zoom to fit; then leave full screen |
 | `I` | Toggle floating optical metadata & quality score HUD |
-| `B` | Toggle view order: lowest sharpness first / natural order (also main menu → View order). Choosing lowest sharpness first scores every photo of the folder in the background (on a cloud folder, choose it a second time to confirm), then sorts them |
+| `B` (until the next release) | Toggle lowest sharpness first / the order the folder opens in. The main menu → View order offers Newest first (default), Oldest first, File name and Lowest sharpness first; the choice is remembered (except the sharpness sweep). Choosing lowest sharpness first scores every photo of the folder in the background (on a cloud folder, choose it a second time to confirm), then sorts them; Preferences > Scoring > Stop at sharpness stops the sweep at a score |
+| `G` | Go to photo: a position ("Photo N of M") or part of a file name |
 | `Ctrl+Z` | Undo last culling operation (atomic reversal); every folder keeps its own undo history, including an operation that finished while you switched folders |
 | `Ctrl+O` | Open folder / SD card directory |
+| `Escape` / `Ctrl+W` | In Statistics, Duplicates, Shortcuts and Preferences: close the window |
 | `Tab` | Move the keyboard focus through the header and action bar (`Space` presses the focused button) |
 | `Ctrl+D` | Open Duplicate Finder |
 | `Ctrl+L` | Open Library Statistics |

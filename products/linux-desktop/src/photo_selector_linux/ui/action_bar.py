@@ -6,6 +6,8 @@ Adheres to:
 
 from __future__ import annotations
 
+import logging
+
 try:
     import gi
     gi.require_version("Gtk", "4.0")
@@ -16,6 +18,8 @@ except (ImportError, ValueError):
     HAS_GI = False
     Gtk = None
     GLib = None
+
+logger = logging.getLogger(__name__)
 
 OUTCOME_SECONDS = 4
 MESSAGE_MAX_CHARS = 48
@@ -56,6 +60,9 @@ class ActionBarView(Gtk.ActionBar if HAS_GI else object):
         self.undo_label_text: str = "Undo"
         self.undo_tooltip_text: str = "Nothing to undo (Ctrl+Z)"
         self.undo_sensitive: bool = False
+        #: What a screen reader says for the Undo button: the next undo and how many there are.
+        self.undo_accessible_label: str = "Undo, nothing to undo"
+        self._announced_queue: str = ""
         # While a file operation runs: what it does and how many are queued; buttons stay active so rapid keys queue.
         self.busy_text: str = ""
         self.queue_label_text: str = ""
@@ -101,7 +108,24 @@ class ActionBarView(Gtk.ActionBar if HAS_GI else object):
                 self._status_timer = GLib.timeout_add_seconds(
                     OUTCOME_SECONDS, self._expire_outcome, generation
                 )
+        self._announce(message)
         self._update_state()
+
+    def _announce(self, text: str) -> None:
+        """Tell assistive technology about a change that moves no focus (GTK 4.14+; else silent).
+
+        The outcome text is on screen for 4 s only, and a toast is not announced by itself on
+        every toolkit version, so a screen reader user would otherwise never learn that a Move
+        was queued, an Undo ran or a scan finished.
+        """
+        announce = getattr(self, "announce", None)
+        priority = getattr(getattr(Gtk, "AccessibleAnnouncementPriority", None), "MEDIUM", None)
+        if not (HAS_GI and callable(announce) and priority is not None and text):
+            return
+        try:
+            announce(text, priority)
+        except Exception:
+            logger.debug("Accessible announcement failed", exc_info=True)
 
     def _expire_outcome(self, generation: int | None = None) -> bool:
         if generation is not None and generation != self._status_generation:
@@ -256,12 +280,17 @@ class ActionBarView(Gtk.ActionBar if HAS_GI else object):
         self.undo_label_text = "Undo"
         if undo_depth > 0:
             record, photo, _idx = self.viewmodel.undo_stack[-1]
+            self.undo_accessible_label = f"Undo {record.action_type.value}, {undo_depth} available"
             self.undo_tooltip_text = (
                 f"Undo {record.action_type.value} of {photo.filename} (Ctrl+Z)"
                 + (f", {undo_depth} in all" if undo_depth > 1 else "")
             )
         else:
             self.undo_tooltip_text = "Nothing to undo (Ctrl+Z)"
+            self.undo_accessible_label = "Undo, nothing to undo"
+        if self.queue_label_text and self.queue_label_text != self._announced_queue:
+            self._announce(self.queue_label_text)
+        self._announced_queue = self.queue_label_text
 
         if not HAS_GI:
             return
@@ -289,3 +318,4 @@ class ActionBarView(Gtk.ActionBar if HAS_GI else object):
             self.busy_spinner.stop()
         self.btn_undo.set_label(self.undo_label_text)
         self.btn_undo.set_tooltip_text(self.undo_tooltip_text)
+        self.btn_undo.update_property([Gtk.AccessibleProperty.LABEL], [self.undo_accessible_label])

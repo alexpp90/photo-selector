@@ -18,6 +18,54 @@ final class UIScenarioRunner {
         return await runner.execute()
     }
 
+    /// `--ui-live <control dir>`: keeps the app open and executes one `cmd-<seq>.json` per step,
+    /// answering with `done-<seq>.json` (protocol: `UILiveCommand`, scripts/lab/lab/explore/drivers/macos.py).
+    /// Runs until the lab ends the process.
+    static func runLive(viewModel: CullingWorkspaceViewModel, controlDir: URL, artifactsDir: URL) async -> Int32 {
+        let runner = UIScenarioRunner(viewModel: viewModel, scenarioURL: controlDir, artifactsDir: artifactsDir)
+        return await runner.executeLive(controlDir: controlDir)
+    }
+
+    private func executeLive(controlDir: URL) async -> Int32 {
+        UITestFrameRegistry.shared.isEnabled = true
+        let fm = FileManager.default
+        do {
+            try fm.createDirectory(at: artifactsDir, withIntermediateDirectories: true)
+            try fm.createDirectory(at: controlDir, withIntermediateDirectories: true)
+        } catch {
+            fputs("UIScenarioRunner: cannot create live folders: \(error)\n", stderr)
+            return 2
+        }
+        let gotWindow = await UITestDriver.waitUntil(timeout: 10.0) { UITestDriver.workspaceWindow != nil }
+        guard gotWindow else {
+            fputs("UIScenarioRunner: workspaceWindow never appeared\n", stderr)
+            return 1
+        }
+        func write(_ data: Data, as name: String) {
+            let tmp = controlDir.appendingPathComponent(".\(name).tmp")
+            try? data.write(to: tmp)
+            _ = try? fm.replaceItemAt(controlDir.appendingPathComponent(name), withItemAt: tmp)
+        }
+        write(Data("{\"ready\":true}".utf8), as: "ready.json")
+        var next = 1
+        while true {
+            let cmdURL = controlDir.appendingPathComponent("cmd-\(next).json")
+            guard let data = try? Data(contentsOf: cmdURL) else {
+                await UITestDriver.settle(0.05)
+                continue
+            }
+            let seq = next
+            next += 1
+            do {
+                let command = try UILiveCommand.parse(data)
+                let ok = await runStep(command.step, index: command.seq)
+                write(UILiveCommand.answer(ok: ok, error: ok ? nil : "step \(command.step.action) failed"), as: "done-\(seq).json")
+            } catch {
+                write(UILiveCommand.answer(ok: false, error: "unreadable command: \(error)"), as: "done-\(seq).json")
+            }
+        }
+    }
+
     private let viewModel: CullingWorkspaceViewModel
     private let scenarioURL: URL
     private let artifactsDir: URL
@@ -102,6 +150,12 @@ final class UIScenarioRunner {
             }
             let mods = UITestDriver.modifiers(from: step.modifiers)
             if key.code == UITestDriver.Key.escape.code && mods.isEmpty {
+                // Escape closes the Settings window when that is what is open.
+                if let aux = UITestDriver.auxiliaryWindow {
+                    aux.close()
+                    await UITestDriver.settle(0.25)
+                    return true
+                }
                 if viewModel.isShortcutsHelpPresented || viewModel.isDuplicateFinderPresented || viewModel.isLibraryStatisticsPresented {
                     viewModel.isShortcutsHelpPresented = false
                     viewModel.isDuplicateFinderPresented = false
@@ -115,6 +169,10 @@ final class UIScenarioRunner {
             }
             if key.code == UITestDriver.Key.comma.code && mods.contains(.command) {
                 _ = NSApp.sendAction(Selector(("showSettingsWindow:")), to: nil, from: nil)
+                await UITestDriver.settle(0.4)
+                UITestDriver.parkIfBackground(UITestDriver.auxiliaryWindow)
+                await UITestDriver.settle(0.25)
+                return true
             }
             UITestDriver.postKey(key, modifiers: mods)
             await UITestDriver.settle(0.25)
@@ -162,7 +220,9 @@ final class UIScenarioRunner {
         let timingURL = artifactsDir.appendingPathComponent("\(stem).timing.json")
 
         do {
-            try UITestDriver.captureWindowPNG(window, to: pngURL)
+            // What the user is looking at: the Settings window when it is open, else the workspace
+            // with any attached sheet composited in.
+            try UITestDriver.captureWindowPNG(UITestDriver.auxiliaryWindow ?? window, to: pngURL)
             try writeTreeJSON(window: window, to: treeURL)
             try writeStateJSON(to: stateURL)
             try writeFSJSON(to: fsURL)
@@ -275,7 +335,8 @@ final class UIScenarioRunner {
         let payload: [String: Any] = [
             "root": canonicalRoot.lastPathComponent,
             "files": files,
-            "trash": [] as [[String: Any]]
+            // What this run trashed (its own folder, never the account's ~/.Trash).
+            "trash": HermeticLabSession.current?.trashedFiles() ?? [] as [[String: Any]]
         ]
         let data = try JSONSerialization.data(withJSONObject: payload, options: [.prettyPrinted, .sortedKeys])
         try data.write(to: url, options: .atomic)

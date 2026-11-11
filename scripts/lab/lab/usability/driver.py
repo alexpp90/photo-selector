@@ -106,6 +106,9 @@ class BaseDriver:
     def _capture(self, step: dict[str, Any]) -> None:
         raise NotImplementedError
 
+    def fresh_start(self) -> None:
+        """Start the next scenario from a relaunched app (only the Android driver has an app session to relaunch)."""
+
     def close(self) -> None:
         pass
 
@@ -169,10 +172,26 @@ class UiNode:
     desc: str
     bounds: tuple[int, int, int, int]
     clickable: bool
+    package: str = ""
+    checked: bool = False
+    selected: bool = False
+
+    @property
+    def on(self) -> bool:
+        """A toggle's state as the tree reports it: Compose switches say `checked`, filter chips `selected`."""
+        return self.checked or self.selected
 
     @property
     def center(self) -> tuple[int, int]:
         return ((self.bounds[0] + self.bounds[2]) // 2, (self.bounds[1] + self.bounds[3]) // 2)
+
+
+PICKER_PACKAGES = ("com.google.android.documentsui", "com.android.documentsui")
+
+
+def _screen_signature(nodes: list["UiNode"]) -> tuple[Any, ...]:
+    """What a person would call "the same screen": the ids, texts and places of the nodes."""
+    return tuple((n.res_id, n.text, n.desc, n.bounds) for n in nodes)
 
 
 _BOUNDS = re.compile(r"\[(-?\d+),(-?\d+)\]\[(-?\d+),(-?\d+)\]")
@@ -195,6 +214,9 @@ def parse_nodes(xml_text: str) -> list[UiNode]:
                 desc=el.get("content-desc", ""),
                 bounds=b,
                 clickable=el.get("clickable") == "true",
+                package=el.get("package", ""),
+                checked=el.get("checked") == "true",
+                selected=el.get("selected") == "true",
             )
         )
     return nodes
@@ -339,10 +361,12 @@ class ScenarioDriver(BaseDriver):
     """Execute one scenario on an Android device; writes `<out_dir>/<NN>_<screen>.{png,xml,json}`."""
 
     def __init__(
-        self, adb: AdbClient, app_id: str, out_dir: Path, *, settle_ms: int = 900, app_locale: str | None = None
+        self, adb: AdbClient, app_id: str, out_dir: Path, *, settle_ms: int = 900, app_locale: str | None = None,
+        maestro_fn: Any | None = None,
     ) -> None:
         super().__init__(app_id, out_dir, settle_ms=settle_ms)
         self.adb = adb
+        self._maestro_fn = maestro_fn  # (serial, flow file, junit file) -> exit code; Maestro's own runner by default
         self.app_locale = app_locale
         self.size = (1080, 1920)
         self._allowed: set[str] | None = None
@@ -454,8 +478,19 @@ class ScenarioDriver(BaseDriver):
             x, y = node.center
             if "tap" in step:
                 self._input("tap", str(x), str(y))
+                if node.package in PICKER_PACKAGES:
+                    self._confirm_picker_tap(node, target)
             else:
                 self._input("swipe", str(x), str(y), str(x), str(y), "900")
+        elif "set_state" in step:
+            want = step["set_state"]
+            node = self._locate(want, timeout_ms=int(want.get("timeout_ms", 6000)))
+            # Set a state, never flip a toggle whose state was not read from the tree.
+            if node.on != bool(want["on"]):
+                self._input("tap", *map(str, node.center))
+                action = f"Tapped {describe_target(want)}"
+            else:
+                action = None
         elif "optional_tap" in step:
             node = find_node(self.nodes(), step["optional_tap"])
             if node is None:
@@ -488,6 +523,49 @@ class ScenarioDriver(BaseDriver):
         if action:
             self._actions.append(action)
         time.sleep(float(step.get("settle_ms", 450)) / 1000.0)
+
+    def fresh_start(self) -> None:
+        """Relaunch the app: no snackbar or dialog of the last scenario survives, the folder grant and settings do."""
+        self.adb.force_stop(self.app_id)
+        self.adb.start(self.app_id)
+        time.sleep(self.settle_ms / 1000.0)
+
+    def _confirm_picker_tap(self, node: UiNode, target: dict[str, Any]) -> None:
+        """DocumentsUI on the API 30 reference AVD ignores `adb shell input tap`: the picker row stays.
+
+        2026-10-24, `reference_tab_api30`: every `input` form (tap, touchscreen, swipe as a press,
+        motionevent) left "PSTLab" unopened, while Maestro's injection opened it at once. When the
+        picker looks the same after the tap, the same target is tapped through a one-step Maestro
+        flow; a screen that changed is left alone.
+        """
+        before = _screen_signature(self.nodes())
+        time.sleep(0.8)
+        after_nodes = self.nodes()
+        if _screen_signature(after_nodes) != before or find_node(after_nodes, target) is None:
+            return
+        self._maestro_tap(target)
+
+    def _maestro_tap(self, target: dict[str, Any]) -> None:
+        text = target.get("text")
+        selector = (
+            f"    text: {json.dumps(text[0] if isinstance(text, list) else text)}" if text is not None
+            else f"    id: {json.dumps(str(target.get('id', '')))}"
+        )
+        if text is None and "id" not in target:
+            raise StepFailed(f"the picker did not react to a tap and {target} has no text or id to tap with Maestro")
+        flow_dir = Path(tempfile.mkdtemp(prefix="picker-tap-", dir=lab_tmp_root()))
+        try:
+            flow = flow_dir / "tap.yaml"
+            flow.write_text(f"appId: {PICKER_PACKAGES[0]}\n---\n- tapOn:\n{selector}\n", encoding="utf-8")
+            if self._maestro_fn is None:
+                from ..android.runner import default_maestro_runner
+
+                self._maestro_fn = default_maestro_runner
+            rc = self._maestro_fn(self.adb.serial, flow, flow_dir / "tap.xml")
+        finally:
+            shutil.rmtree(flow_dir, ignore_errors=True)
+        if rc != 0:
+            raise StepFailed(f"the picker ignored the tap and Maestro could not tap {target} either (exit {rc})")
 
     def _capture(self, step: dict[str, Any]) -> None:
         time.sleep(self.settle_ms / 1000.0)

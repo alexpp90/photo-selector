@@ -42,7 +42,7 @@ Because Jackpix requests zero permissions, has no network access, and processes 
 - [x] Personal developer account registered (2026-07).
 - [ ] **Create the app:** name per §5, default language English (United States), *App*, *Free*, category **Photography**. Add the German (de-DE) listing as a translation.
 - [ ] Verify GitHub Pages is enabled and serves `privacy-policy.html` and `impressum.html` with HTTP 200.
-- [ ] Paste the Privacy Policy URL into **Play Console → Policy and programs → App content → Privacy policy**.
+- [ ] Paste the Privacy Policy URL into **Play Console → Monitor and improve → Policy and programs → App content → Privacy policy**.
 - [ ] Submit the Data Safety form using the table in §2 above.
 - [ ] Upload the first signed release `.aab` manually to the **Internal testing** track to initialize the `com.phototok` package in Play Console, then enable automated GitHub Actions publishing via `PHOTOTOK_GP_SERVICE_ACCOUNT_JSON`.
 - [ ] **App content → Content rating:** complete the IARC questionnaire (utility app, no user-generated content, no violence/nudity). **Target audience:** 13+, not directed at children.

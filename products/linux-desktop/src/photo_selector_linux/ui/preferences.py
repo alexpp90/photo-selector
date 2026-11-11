@@ -15,11 +15,11 @@ try:
     import gi
     gi.require_version("Gtk", "4.0")
     gi.require_version("Adw", "1")
-    from gi.repository import Gtk, Adw, Gio
+    from gi.repository import Gtk, Adw, Gio, GLib
     HAS_GI = True
 except (ImportError, ValueError):
     HAS_GI = False
-    Gtk = Adw = Gio = None
+    Gtk = Adw = Gio = GLib = None
 
 from photo_selector_linux.core.destination import (
     MODE_CUSTOM,
@@ -30,6 +30,19 @@ from photo_selector_linux.core.destination import (
     resolve_destination,
 )
 from photo_selector_linux.core.settings import SettingsStore
+from photo_selector_linux.ui.secondary_window import install_close_shortcuts, size_window
+
+#: Tooltip of the stop-threshold row: what the number does and what 0 means.
+STOP_SHARPNESS_TOOLTIP = (
+    "When sorting by lowest sharpness first, stop at the first photo at or above this score. "
+    "0 turns it off."
+)
+
+
+def markup_safe(text: str) -> str:
+    """``text`` as an Adw title shows it literally: titles are parsed as Pango markup."""
+    return GLib.markup_escape_text(text) if HAS_GI else text
+
 
 #: Receives the chosen folder, or ``None`` when the picker was cancelled.
 FolderChosen = Callable[[Optional[Path]], None]
@@ -79,6 +92,7 @@ class PreferencesDialog(Adw.PreferencesWindow if HAS_GI else object):
         self.row_blurry_cutoff = None
         self.row_sharp_cutoff = None
         self.row_cache_limit = None
+        self.row_stop_sharpness = None
         self.scale_blurry = None
         self.scale_sharp = None
         self.scale_cache = None
@@ -86,7 +100,8 @@ class PreferencesDialog(Adw.PreferencesWindow if HAS_GI else object):
         if HAS_GI:
             super().__init__(**kwargs)
             self.set_title("Preferences")
-            self.set_default_size(560, 480)
+            size_window(self, 560, 480, kwargs.get("transient_for"))
+            install_close_shortcuts(self)
             self._build_pages()
             self.connect("close-request", self._on_close_request)
         else:
@@ -254,7 +269,7 @@ class PreferencesDialog(Adw.PreferencesWindow if HAS_GI else object):
         group_thresh.set_title("Focus Sharpness Thresholds")
 
         self.row_blurry_cutoff = Adw.ActionRow()
-        self.row_blurry_cutoff.set_title(f"Blurry Threshold (< {self.settings.blurry_threshold:.1f})")
+        self.row_blurry_cutoff.set_title(markup_safe(f"Blurry Threshold (< {self.settings.blurry_threshold:.1f})"))
         self.scale_blurry = Gtk.Scale.new_with_range(Gtk.Orientation.HORIZONTAL, 10.0, 50.0, 1.0)
         self.scale_blurry.set_value(self.settings.blurry_threshold)
         self.scale_blurry.set_hexpand(True)
@@ -263,13 +278,21 @@ class PreferencesDialog(Adw.PreferencesWindow if HAS_GI else object):
         group_thresh.add(self.row_blurry_cutoff)
 
         self.row_sharp_cutoff = Adw.ActionRow()
-        self.row_sharp_cutoff.set_title(f"Sharp Threshold (≥ {self.settings.sharp_threshold:.1f})")
+        self.row_sharp_cutoff.set_title(markup_safe(f"Sharp Threshold (≥ {self.settings.sharp_threshold:.1f})"))
         self.scale_sharp = Gtk.Scale.new_with_range(Gtk.Orientation.HORIZONTAL, 50.0, 90.0, 1.0)
         self.scale_sharp.set_value(self.settings.sharp_threshold)
         self.scale_sharp.set_hexpand(True)
         self.scale_sharp.connect("value-changed", self._on_sharp_changed)
         self.row_sharp_cutoff.add_suffix(self.scale_sharp)
         group_thresh.add(self.row_sharp_cutoff)
+
+        # The sweep stop (UC-13): 0 = off, else the sharpness at which "lowest sharpness first" stops.
+        self.row_stop_sharpness = Adw.SpinRow.new_with_range(0.0, 100.0, 1.0)
+        self.row_stop_sharpness.set_title("Stop at sharpness")
+        self.row_stop_sharpness.set_tooltip_text(STOP_SHARPNESS_TOOLTIP)
+        self.row_stop_sharpness.set_value(self.settings.stop_sharpness_threshold or 0.0)
+        self.row_stop_sharpness.connect("notify::value", self._on_stop_sharpness_changed)
+        group_thresh.add(self.row_stop_sharpness)
 
         page_score.add(group_thresh)
         self.add(page_score)
@@ -280,7 +303,7 @@ class PreferencesDialog(Adw.PreferencesWindow if HAS_GI else object):
         page_cache.set_icon_name("system-run-symbolic")
 
         group_cache = Adw.PreferencesGroup()
-        group_cache.set_title("Memory & Prefetch")
+        group_cache.set_title(markup_safe("Memory & Prefetch"))
 
         self.row_cache_limit = Adw.ActionRow()
         self.row_cache_limit.set_title("In-Memory LRU Cache Ceiling (MB)")
@@ -437,6 +460,11 @@ class PreferencesDialog(Adw.PreferencesWindow if HAS_GI else object):
             return
         self.set_sharp_threshold(float(scale.get_value()))
 
+    def _on_stop_sharpness_changed(self, row, *_args) -> None:
+        if self._syncing:
+            return
+        self.set_stop_sharpness_threshold(float(row.get_value()))
+
     def _on_cache_changed(self, scale, *_args) -> None:
         if self._syncing:
             return
@@ -467,15 +495,23 @@ class PreferencesDialog(Adw.PreferencesWindow if HAS_GI else object):
         self.settings.update(blurry_threshold=float(value))
         if HAS_GI and self.row_blurry_cutoff is not None:
             self.row_blurry_cutoff.set_title(
-                f"Blurry Threshold (< {self.settings.blurry_threshold:.1f})"
+                markup_safe(f"Blurry Threshold (< {self.settings.blurry_threshold:.1f})")
             )
 
     def set_sharp_threshold(self, value: float) -> None:
         self.settings.update(sharp_threshold=float(value))
         if HAS_GI and self.row_sharp_cutoff is not None:
             self.row_sharp_cutoff.set_title(
-                f"Sharp Threshold (≥ {self.settings.sharp_threshold:.1f})"
+                markup_safe(f"Sharp Threshold (≥ {self.settings.sharp_threshold:.1f})")
             )
+
+    def set_stop_sharpness_threshold(self, value: float) -> None:
+        """0 (or less) turns the stop off; anything else is the score the sweep stops at."""
+        self.settings.update(stop_sharpness_threshold=float(value) if value > 0 else None)
+        if HAS_GI and self.row_stop_sharpness is not None:
+            shown = self.settings.stop_sharpness_threshold or 0.0
+            if self.row_stop_sharpness.get_value() != shown:
+                self._write_back(lambda: self.row_stop_sharpness.set_value(shown))
 
     def set_cache_limit_mb(self, value: float) -> None:
         self.settings.update(cache_limit_mb=float(value))
