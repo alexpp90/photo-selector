@@ -298,3 +298,16 @@ def test_s_opens_the_main_menu_with_the_view_order(tmp_path: Path):
     assert win.router.engine.dispatch(0x73, 0) is True
     assert opened == [True]
     win.destroy()
+
+
+def test_equal_modification_times_fall_back_to_the_file_name(tmp_path: Path):
+    folder = tmp_path / "same"
+    folder.mkdir()
+    for name in ("DSC_0010.JPG", "DSC_0002.JPG", "DSC_0001.JPG"):
+        path = folder / name
+        path.write_bytes(b"x")
+        os.utime(path, (1_700_000_000, 1_700_000_000))
+    for order in ("newest", "oldest"):
+        vm = _vm(tmp_path, order=order)
+        vm.load_directory(folder)
+        assert _names(vm) == ["DSC_0001.JPG", "DSC_0002.JPG", "DSC_0010.JPG"], order
