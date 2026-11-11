@@ -17,8 +17,11 @@ from unittest import mock
 SCRIPTS_DIR = Path(__file__).resolve().parents[1]
 if str(SCRIPTS_DIR) not in sys.path:
     sys.path.insert(0, str(SCRIPTS_DIR))
+if str(Path(__file__).resolve().parent) not in sys.path:   # fake_phone.py
+    sys.path.insert(0, str(Path(__file__).resolve().parent))
 
 import android_test_device as atd  # noqa: E402
+from fake_phone import FakePhone  # noqa: E402
 
 LISTING = """List of devices attached
 CQ30012CMV             device usb:1-4 product:H3113 model:H3113
@@ -191,6 +194,83 @@ class PrepareTest(unittest.TestCase):
         self.assertFalse(atd.ensure_root("S", runner))
         with redirect_stdout(io.StringIO()):
             self.assertEqual(atd.prepare("S", runner), 0)
+
+
+class PrepareReadBackTest(unittest.TestCase):
+    """A step that exits 0 proves nothing: the state it should produce is read back."""
+
+    def test_a_clean_phone_passes_every_read_back(self):
+        out = io.StringIO()
+        with redirect_stdout(out):
+            self.assertEqual(atd.prepare("S", FakePhone(), sleep=lambda s: None), 0)
+        self.assertNotIn("✗", out.getvalue())
+
+    def test_a_step_that_exits_0_without_changing_state_is_named(self):
+        phone = FakePhone(stuck={"svc power stayon true", "wm size reset"})
+        out = io.StringIO()
+        with redirect_stdout(out):
+            failures = atd.prepare("S", phone, sleep=lambda s: None)
+        self.assertEqual(failures, 2)
+        self.assertIn("✗ screen stays on while powered", out.getvalue())
+        self.assertIn("✗ default display size and density", out.getvalue())
+        self.assertIn("stay_on_while_plugged_in", out.getvalue())
+
+    def test_every_step_with_a_read_back_is_one_the_device_can_answer(self):
+        names = {name for name, _ in atd.PREPARE_STEPS}
+        self.assertLessEqual(set(atd.PREPARE_READBACKS), names)
+        self.assertGreaterEqual(len(atd.PREPARE_READBACKS), 9)
+
+    def test_an_effect_that_shows_late_is_polled_for(self):
+        phone = FakePhone()
+        reads = []
+        real = phone._one
+
+        def lagging(command):
+            if command == "wm size":
+                reads.append(command)
+                if len(reads) < 3:
+                    return 0, "Physical size: 1080x1920\nOverride size: 1080x1920\n"
+            return real(command)
+
+        phone._one = lagging
+        with redirect_stdout(io.StringIO()):
+            self.assertEqual(atd.prepare("S", phone, sleep=lambda s: None), 0)
+        self.assertGreaterEqual(len(reads), 3)
+
+    def test_an_unreadable_state_is_not_a_failure(self):
+        # a read-back that prints nothing says nothing about the step: it is not a mismatch
+        def runner(cmd, timeout=120):
+            return (0, "0") if cmd[-2:] == ["id", "-u"] else (0, "")
+
+        with redirect_stdout(io.StringIO()):
+            self.assertEqual(atd.prepare("S", runner, sleep=lambda s: None), 0)
+
+
+class PrepareKeyguardNoteTest(unittest.TestCase):
+    """prepare words a refused keyguard step exactly like the device matrix (one function)."""
+
+    def test_a_refused_step_with_the_lock_screen_not_showing_is_a_note(self):
+        out = io.StringIO()
+        with redirect_stdout(out):
+            failures = atd.prepare("S", FakePhone(secure_lock=True), sleep=lambda s: None)
+        self.assertEqual(failures, 0)
+        text = out.getvalue()
+        self.assertNotIn("(failed: keyguard disabled)", text)
+        self.assertIn(atd.prepare_notes(["keyguard disabled"], {"keyguard disabled": "x"}, False).split("; ", 1)[1][:40], text)
+        self.assertIn("exit 255", text)                       # adb's exit code and text are printed
+        self.assertIn("cannot disable the lock screen", text)
+
+    def test_a_refused_step_with_the_lock_screen_showing_is_a_failure(self):
+        out = io.StringIO()
+        with redirect_stdout(out):
+            failures = atd.prepare("S", FakePhone(secure_lock=True, keyguard_showing=True), sleep=lambda s: None)
+        self.assertGreaterEqual(failures, 1)
+        self.assertIn("lock screen still showing", out.getvalue())
+
+    def test_the_matrix_uses_the_same_function(self):
+        import android_device_matrix as adm
+        self.assertIs(adm.prepare_notes, atd.prepare_notes)
+        self.assertEqual(adm.KEYGUARD_STEP, atd.KEYGUARD_STEP)
 
 
 class KeyguardTest(unittest.TestCase):
