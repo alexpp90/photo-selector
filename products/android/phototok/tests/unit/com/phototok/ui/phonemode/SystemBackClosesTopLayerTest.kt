@@ -12,7 +12,6 @@ import com.phototok.data.model.ImageItem
 import com.phototok.data.repository.ImageRepository
 import com.phototok.domain.FileTypeFilter
 import com.phototok.domain.FirstRunHint
-import com.phototok.knownDefect
 import com.phototok.ui.theme.PhotoTokTheme
 import com.phototok.viewmodel.ReloadPrompt
 import org.junit.Assert.assertEquals
@@ -114,7 +113,7 @@ class SystemBackClosesTopLayerTest {
         assertBackClosesIt("RAW + JPEG suggestion", { screen.viewModel.uiState.value.showRawJpegSuggestion })
     }
 
-    /** F-TOK-085, fixed: the guide is drawn in the activity window, and a BackHandler closes it. */
+    /** F-TOK-085 (fixed): the guide is drawn in the activity window; its own BackHandler closes it. */
     @Test
     @Requirement("REQ-TOK-GESTURE.07")
     fun controlsGuide() {
@@ -123,21 +122,19 @@ class SystemBackClosesTopLayerTest {
         rule.waitForIdle()
         assertTrue("the guide opened", screen.viewModel.uiState.value.showControlsGuide)
         assertBackClosesIt("controls guide", { screen.viewModel.uiState.value.showControlsGuide })
+        // One Back closed only the guide: the next one reaches the activity again.
+        screen.pressSystemBack()
+        assertEquals("a second Back is not consumed by the closed guide", 1, screen.backPressesThatLeftTheApp)
     }
 
-    /**
-     * F-TOK-085, still open for the first-run tutorial: it is the same overlay, but only the guide
-     * opened from the info button has a BackHandler.
-     */
+    /** F-TOK-085 (fixed, same cause): the first-run tutorial is the same overlay. */
     @Test
     @Requirement("REQ-TOK-GESTURE.08")
     fun firstRunTutorial() {
         screen.gestureTutorialTs = 0L
         feed()
         rule.waitUntil(5_000) { screen.viewModel.uiState.value.showGestureTutorial }
-        knownDefect("F-TOK-085", "System Back over the first-run tutorial closes the app") {
-            assertBackClosesIt("first-run tutorial", { screen.viewModel.uiState.value.showGestureTutorial })
-        }
+        assertBackClosesIt("first-run tutorial", { screen.viewModel.uiState.value.showGestureTutorial })
     }
 
     /** With no layer over the feed, Back is not swallowed by an invisible handler. */

@@ -18,7 +18,6 @@ import com.phototok.domain.SwipeAction
 import com.phototok.domain.SwipeRightVerb
 import com.phototok.domain.UiText
 import com.phototok.en
-import com.phototok.knownDefect
 import io.mockk.coEvery
 import io.mockk.every
 import io.mockk.mockk
@@ -351,8 +350,8 @@ class ActionFeedbackClassTest {
     }
 
     /**
-     * F-TOK-086: when the file-type filter hides every photo of a folder, the landing must not say
-     * the folder has no photos (backlog 2026-11-06). Open: the landing reads "«DCIM»: no photos".
+     * F-TOK-086 (fixed): when the file-type filter hides every photo of a folder, the landing does
+     * not say the folder has no photos (backlog 2026-11-06); it says "N hidden by filter".
      */
     @Test
     @Requirement("REQ-TOK-FEATURE.04")
@@ -365,12 +364,12 @@ class ActionFeedbackClassTest {
         assertTrue("the RAW filter hides every JPEG", state.images.isEmpty())
         val message = state.emptyFolderMessage
         assertNotNull("an empty result says something", message)
-        knownDefect("F-TOK-086", "the landing says 'no photos' when the filter hides them") {
-            val plainEmpty = UiText.of(R.string.empty_folder, state.sourceFolderName)
-            assertNotEquals("the landing claims the folder is empty", plainEmpty, message)
-            for (text in listOf(message!!.en(), message.de())) {
-                assertTrue("'$text' does not name the hidden count", text.contains(state.allImages.size.toString()))
-            }
+        val plainEmpty = UiText.of(R.string.empty_folder, state.sourceFolderName)
+        assertNotEquals("the landing claims the folder is empty", plainEmpty, message)
+        for (text in listOf(message!!.en(), message.de())) {
+            assertTrue("'$text' does not name the hidden count", text.contains(state.allImages.size.toString()))
         }
+        assertNotEquals("EN and DE differ", message.en(), message.de())
+        assertEquals("the landing names the filter", FileTypeFilter.RAW, state.filterHidingEveryPhoto)
     }
 }

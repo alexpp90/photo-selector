@@ -25,6 +25,11 @@ import java.io.File
 import java.nio.file.Files
 import kotlin.math.abs
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withTimeoutOrNull
+import kotlinx.coroutines.cancel
+import kotlinx.coroutines.async
+import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.last
 import kotlinx.coroutines.runBlocking
@@ -118,6 +123,29 @@ class FormatConformanceTest {
         /** A high-density phone screen's long edge — what the pager requests. */
         private const val DISPLAY_REQUEST_PX = 2048
 
+        /**
+         * Longest a sample's decode may take before it counts as hung. A decode takes well under
+         * a second here; 2 of 4 full unit runs on the T14 (2026-11-05) instead sat for > 10 min in
+         * `loader.execute` with every Coil worker idle (backlog 2026-11-05).
+         */
+        internal const val DISPLAY_TIMEOUT_MS = 60_000L
+
+        /**
+         * Runs [block] off the test thread and waits at most [timeoutMs] for it. A hung request
+         * becomes an [AssertionError] naming [what], instead of blocking the Gradle run: the wait
+         * is on `await`, which is cancellable even when the request itself is not.
+         */
+        internal fun <T> awaitBounded(what: String, timeoutMs: Long, block: suspend () -> T): T {
+            val scope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
+            val work = scope.async { block() }
+            try {
+                return runBlocking { withTimeoutOrNull(timeoutMs) { work.await() } }
+                    ?: throw AssertionError("$what did not finish within ${timeoutMs / 1000.0} s (hung)")
+            } finally {
+                scope.cancel()
+            }
+        }
+
         private val manifest: Manifest by lazy { loadManifest() }
 
         private val tempDirs = mutableListOf<File>()
@@ -205,6 +233,30 @@ class FormatConformanceTest {
     @After
     fun tearDown() {
         Dispatchers.resetMain()
+    }
+
+    // ── Hang guard ────────────────────────────────────────────────────────
+
+    /** A decode that never finishes fails fast and names the sample, instead of hanging the run. */
+    @Test
+    fun `a hung decode fails with the sample's name instead of hanging`() {
+        val started = System.nanoTime()
+        val error = try {
+            awaitBounded("decode of heif-sample", timeoutMs = 300) {
+                // Not cancellable: the guard must not depend on the request honouring cancellation.
+                kotlinx.coroutines.withContext(kotlinx.coroutines.NonCancellable) {
+                    kotlinx.coroutines.delay(5_000)
+                }
+            }
+            null
+        } catch (e: AssertionError) {
+            e
+        }
+        val elapsedMs = (System.nanoTime() - started) / 1_000_000
+        assertTrue("the hang was not reported", error != null)
+        assertTrue("the report names the sample: ${error!!.message}", error.message!!.contains("heif-sample"))
+        assertTrue("the guard waited $elapsedMs ms", elapsedMs < 3_000)
+        assertEquals("a finished decode passes its result through", 42, awaitBounded("x", 1_000) { 42 })
     }
 
     // ── Contract ──────────────────────────────────────────────────────────
@@ -343,7 +395,7 @@ class FormatConformanceTest {
             .precision(Precision.INEXACT)
             .memoryCachePolicy(CachePolicy.DISABLED)
             .build()
-        val result = runBlocking { kotlinx.coroutines.withTimeout(15_000L) { loader.execute(request) } }
+        val result = awaitBounded("decode of ${sample.id}", DISPLAY_TIMEOUT_MS) { loader.execute(request) }
         val drawable = when (result) {
             is SuccessResult -> result.drawable
             is ErrorResult -> throw AssertionError("decode failed: ${result.throwable}")

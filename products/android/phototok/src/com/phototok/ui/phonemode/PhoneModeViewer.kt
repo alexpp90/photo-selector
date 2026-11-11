@@ -109,6 +109,7 @@ import coil.request.Disposable
 import coil.request.ImageRequest
 import com.photoselector.core.model.ExifData
 import com.phototok.data.model.ImageItem
+import com.phototok.domain.CaptureDate
 import com.phototok.domain.CollectionAction
 import com.phototok.domain.FavouritesSnapshot
 import com.phototok.domain.FirstRunHint
@@ -1049,13 +1050,54 @@ private fun ImagePage(
                 ),
                 label = "keep-peek-offset", // ui-text: ignore animation debug label
             )
-            // Remove animations: the hints stand still at their resting place.
+            // Each hint drifts toward its own edge. Remove animations: they stand still.
             val trashPeekOffset = if (cueMotion) trashPeekOffsetAnimated else 0f
             val keepPeekOffset = if (cueMotion) keepPeekOffsetAnimated else 0f
+
+            // Each mark sits on the side the photo moves toward (usability panel 2026-10-24: the bin at
+            // the right edge, with delete a swipe left, sent two personas the wrong way): delete (or
+            // the left-swipe folder) at the left edge, the swipe-right target at the right edge.
+            val icon = leftSwipeIcon(leftSwipeAction)
+            val color = cues.leftAccent
+            val contentDesc = stringResource(
+                R.string.cd_peek_left,
+                SwipeLabels.leftDescription(leftSwipeAction, leftSwipeFolderName).asString(),
+            )
 
             Row(
                 modifier = Modifier
                     .align(Alignment.CenterStart)
+                    .offset(x = trashPeekOffset.dp)
+                    .graphicsLayer { alpha = hudAlpha * PEEK_ALPHA }
+                    .clip(RoundedCornerShape(24.dp))
+                    .background(cues.cueScrim)
+                    .testTag("viewer.peek_left"),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(4.dp)
+            ) {
+                Box(
+                    modifier = Modifier
+                        .size(48.dp),
+                    contentAlignment = Alignment.Center,
+                ) {
+                    Icon(
+                        imageVector = icon,
+                        contentDescription = contentDesc,
+                        tint = color,
+                        modifier = Modifier.size(20.dp),
+                    )
+                }
+                Icon(
+                    imageVector = Icons.AutoMirrored.Filled.ArrowBack,
+                    contentDescription = null,
+                    tint = color,
+                    modifier = Modifier.size(16.dp),
+                )
+            }
+
+            Row(
+                modifier = Modifier
+                    .align(Alignment.CenterEnd)
                     .offset(x = keepPeekOffset.dp)
                     .graphicsLayer { alpha = hudAlpha * PEEK_ALPHA }
                     .clip(RoundedCornerShape(24.dp))
@@ -1064,6 +1106,12 @@ private fun ImagePage(
                 verticalAlignment = Alignment.CenterVertically,
                 horizontalArrangement = Arrangement.spacedBy(4.dp)
             ) {
+                Icon(
+                    imageVector = Icons.AutoMirrored.Filled.ArrowForward,
+                    contentDescription = null,
+                    tint = cues.rightAccent,
+                    modifier = Modifier.size(16.dp),
+                )
                 Box(
                     modifier = Modifier
                         .size(48.dp),
@@ -1076,50 +1124,6 @@ private fun ImagePage(
                             SwipeLabels.rightDescription(swipeRightVerb, collectionFolderName).asString(),
                         ),
                         tint = cues.rightAccent,
-                        modifier = Modifier.size(20.dp),
-                    )
-                }
-                Icon(
-                    imageVector = Icons.AutoMirrored.Filled.ArrowForward,
-                    contentDescription = null,
-                    tint = cues.rightAccent,
-                    modifier = Modifier.size(16.dp),
-                )
-            }
-
-            val icon = leftSwipeIcon(leftSwipeAction)
-            val color = cues.leftAccent
-            val contentDesc = stringResource(
-                R.string.cd_peek_left,
-                SwipeLabels.leftDescription(leftSwipeAction, leftSwipeFolderName).asString(),
-            )
-
-            Row(
-                modifier = Modifier
-                    .align(Alignment.CenterEnd)
-                    .offset(x = trashPeekOffset.dp)
-                    .graphicsLayer { alpha = hudAlpha * PEEK_ALPHA }
-                    .clip(RoundedCornerShape(24.dp))
-                    .background(cues.cueScrim)
-                    .testTag("viewer.peek_left"),
-                verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.spacedBy(4.dp)
-            ) {
-                Icon(
-                    imageVector = Icons.AutoMirrored.Filled.ArrowBack,
-                    contentDescription = null,
-                    tint = color,
-                    modifier = Modifier.size(16.dp),
-                )
-                Box(
-                    modifier = Modifier
-                        .size(48.dp),
-                    contentAlignment = Alignment.Center,
-                ) {
-                    Icon(
-                        imageVector = icon,
-                        contentDescription = contentDesc,
-                        tint = color,
                         modifier = Modifier.size(20.dp),
                     )
                 }
@@ -1296,6 +1300,13 @@ internal fun PageCounterPill(
 
 // ── Glassmorphic EXIF overlay ────────────────────────────────────────────
 
+/** EXIF `DateTimeOriginal` formatted for the current locale, or null when the photo has none. */
+@Composable
+internal fun rememberCaptureDate(dateTimeOriginal: String?): String? {
+    val locale = androidx.compose.ui.platform.LocalConfiguration.current.locales[0]
+    return remember(dateTimeOriginal, locale) { CaptureDate.format(dateTimeOriginal, locale) }
+}
+
 @Composable
 internal fun ExifOverlay(
     exif: ExifData,
@@ -1311,7 +1322,8 @@ internal fun ExifOverlay(
         exif.aperture?.let { add("f/%.1f".format(java.util.Locale.US, it)) }
         exif.focalLength?.let { add("${it.toInt()}mm") }
     }
-    if (items.isEmpty() && exif.lens == "Unknown") return
+    val captureDate = rememberCaptureDate(exif.dateTimeOriginal)
+    if (items.isEmpty() && exif.lens == "Unknown" && captureDate == null) return
 
     val colors = MaterialTheme.colorScheme
 
@@ -1328,14 +1340,23 @@ internal fun ExifOverlay(
             modifier = Modifier.padding(12.dp),
             verticalArrangement = Arrangement.spacedBy(4.dp),
         ) {
+            // When it was taken, first: the camera's wall clock in the user's locale (F-TOK-028).
+            if (captureDate != null) {
+                Text(
+                    text = captureDate,
+                    style = MaterialTheme.typography.labelLarge,
+                    color = colors.onSurface,
+                    modifier = Modifier.testTag("viewer.info.date"),
+                )
+            }
             Text(
                 // The name as it is on disk: upper-casing misstated names such as dsc_0001.arw.
                 text = fileName,
                 style = MaterialTheme.typography.labelLarge.copy(letterSpacing = 1.sp),
                 color = colors.onSurface.copy(alpha = 0.7f),
-                // One line; a long name loses its middle, never its extension (font scale 2.0).
-                maxLines = 1,
-                overflow = TextOverflow.MiddleEllipsis,
+                // Wraps at large font scales; never loses its middle (REQ-TOK-UX.05, lab 2026-10-24
+                // "IMG_202…00.JPG" at 2.0). A file name is a value, not words: it may break anywhere.
+                modifier = Modifier.testTag("viewer.info.file_name"),
             )
 
             if (items.isNotEmpty()) {

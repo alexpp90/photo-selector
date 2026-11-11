@@ -9,6 +9,7 @@ import android.util.Log
 import androidx.documentfile.provider.DocumentFile
 import androidx.exifinterface.media.ExifInterface
 import com.photoselector.core.model.ExifData
+import com.phototok.data.model.FolderLookup
 import com.photoselector.core.preview.EmbeddedPreviewExtractor
 import com.photoselector.core.reader.AndroidExifReader
 import com.photoselector.core.reader.MediaStoreReader
@@ -266,6 +267,33 @@ class LocalImageSourceImpl @Inject constructor(
             } catch (_: Exception) {
                 null
             }
+        }
+
+    override suspend fun describeFolder(folderUri: Uri): FolderLookup =
+        withContext(ioDispatcher) {
+            val tree = folderUri.toString()
+            val granted = try {
+                val wanted = FolderAccessManager.canonicalUri(tree)
+                context.contentResolver.persistedUriPermissions.any {
+                    it.isWritePermission && FolderAccessManager.canonicalUri(it.uri.toString()) == wanted
+                }
+            } catch (e: SecurityException) {
+                Log.w(TAG, "Cannot read the persisted grants", e)
+                false
+            }
+            val doc = try {
+                DocumentFile.fromTreeUri(context, folderUri)
+            } catch (e: IllegalArgumentException) {
+                Log.w(TAG, "Not a tree: $tree", e)
+                null
+            }
+            // DocumentFile throws SecurityException for a revoked tree and returns false for a gone one.
+            val exists = try {
+                doc != null && doc.exists() && doc.isDirectory
+            } catch (e: SecurityException) {
+                false
+            }
+            FolderLookup(lost = !granted || !exists)
         }
 
     override suspend fun getExifData(uri: Uri): ExifData? {

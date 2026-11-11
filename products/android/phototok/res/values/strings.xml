@@ -220,6 +220,7 @@
     <string name="empty_no_favourites">No favourites yet</string>
     <string name="empty_selection">Selection is empty</string>
     <string name="empty_folder">%1$s: no photos</string>
+    <string name="empty_hidden_by_filter">%1$d hidden by filter</string>
     <string name="empty_card_cleared">Card cleared</string>
 
     <!-- Settings -->
@@ -232,8 +233,10 @@
     <string name="setting_summary_custom">Custom</string>
     <string name="setting_summary_in_source_folder">%1$s inside the source folder</string>
     <string name="setting_summary_default">Default</string>
-    <string name="setting_title_reset_folder">Reset this folder</string>
-    <string name="setting_title_reset_all">Reset all folders</string>
+    <string name="setting_summary_folder_lost">Folder access lost</string>
+    <string name="setting_summary_in_source_path">In source folder · %1$s</string>
+    <string name="setting_title_reset_folder">Reset seen photos</string>
+    <string name="setting_title_reset_all">Reset all seen</string>
     <string name="setting_title_clear_cache">Clear cache</string>
     <string name="setting_summary_done">Done</string>
     <string name="setting_title_source_type">Source type</string>

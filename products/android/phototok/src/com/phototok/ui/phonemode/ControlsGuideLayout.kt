@@ -15,7 +15,6 @@ import androidx.compose.foundation.layout.navigationBars
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.statusBars
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.CollectionsBookmark
 import androidx.compose.material.icons.filled.FolderOpen
 import androidx.compose.material.icons.automirrored.filled.Undo
 import androidx.compose.material.icons.filled.Share
@@ -46,6 +45,7 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.Constraints
 import androidx.compose.ui.unit.dp
 import com.phototok.R
+import com.phototok.ui.components.SelectionStackIcon
 import com.phototok.ui.phonemode.ControlsGuideSolver.Box as GBox
 import com.phototok.ui.phonemode.ControlsGuideSolver.Size as GSize
 import kotlin.math.max
@@ -136,6 +136,14 @@ private fun nominalMetrics() = with(PhoneModeChromeMetrics) {
 internal fun GuideBox(
     anchors: ControlsGuideAnchors?,
     cameraInfo: Boolean = true,
+    /**
+     * False for the first-run tutorial, step 1 of the guide: only the swipes and the Help button
+     * that opens the full guide are labelled; the bar callouts wait for Help (usability panel
+     * 2026-10-24: fifteen callouts at once and no persona kept the swipes).
+     */
+    barCallouts: Boolean = true,
+    /** The Selection button's name, the place swipe right fills ("Favourites", or the folder). */
+    selectionLabel: String? = null,
     content: @Composable (geometry: GuideGeometry, compact: Boolean) -> Unit,
 ) {
     var origin by remember { mutableStateOf(Offset.Zero) }
@@ -174,7 +182,13 @@ internal fun GuideBox(
             bottomInset = bottomInset.value,
             cameraInfo = cameraInfo,
         )
-        GuideLayout(geometry = geometry, compact = compact, density = density.density) {
+        GuideLayout(
+            geometry = geometry,
+            compact = compact,
+            density = density.density,
+            barCallouts = barCallouts,
+            selectionLabel = selectionLabel,
+        ) {
             content(geometry, compact)
         }
     }
@@ -213,16 +227,21 @@ private fun GuideLayout(
     geometry: GuideGeometry,
     compact: Boolean,
     density: Float,
+    barCallouts: Boolean = true,
+    selectionLabel: String? = null,
     content: @Composable () -> Unit,
 ) {
     val a = geometry.anchors
     val landscape = geometry.landscape
+    // Step 1 (first run) labels Help alone among the bar controls: it opens the full guide. The
+    // bar outlines stay in [a], so the swipe stage still keeps clear of the bars.
+    fun shown(id: GuideAnchor) = id in a && (barCallouts || id == GuideAnchor.HELP)
 
-    val topIcons = if (landscape) emptyList() else TOP_ICONS.filter { it in a }
-    val logoTop = !landscape && GuideAnchor.LOGO in a
-    val bottoms = if (landscape) emptyList() else BOTTOM_BUTTONS.filter { it in a }
-    val leftSide = if (landscape) LEFT_PANEL_BUTTONS.filter { it in a } else emptyList()
-    val rightSide = if (landscape) RIGHT_PANEL_BUTTONS.filter { it in a } else emptyList()
+    val topIcons = if (landscape) emptyList() else TOP_ICONS.filter(::shown)
+    val logoTop = !landscape && shown(GuideAnchor.LOGO)
+    val bottoms = if (landscape) emptyList() else BOTTOM_BUTTONS.filter(::shown)
+    val leftSide = if (landscape) LEFT_PANEL_BUTTONS.filter(::shown) else emptyList()
+    val rightSide = if (landscape) RIGHT_PANEL_BUTTONS.filter(::shown) else emptyList()
 
     val labelled: List<GuideAnchor> =
         topIcons + (if (logoTop) listOf(GuideAnchor.LOGO) else emptyList()) + bottoms + leftSide + rightSide
@@ -234,6 +253,7 @@ private fun GuideLayout(
                 CoachMark(
                     id = id,
                     compact = compact,
+                    label = if (id == GuideAnchor.SELECTION) selectionLabel else null,
                     align = when {
                         landscape && id in rightSet -> Align.END
                         landscape || id == GuideAnchor.LOGO -> Align.START
@@ -281,7 +301,8 @@ private fun GuideLayout(
         if (!landscape) {
             // ── Top bar ──────────────────────────────────────────────
             val iconBoxes = topIcons.associateWith { a.getValue(it) }
-            val logoBox = a[GuideAnchor.LOGO]
+            // Step 1 does not label the logo: it is not measured, so it is not planned either.
+            val logoBox = if (logoTop) a[GuideAnchor.LOGO] else null
             val barBottom = a[GuideAnchor.TOP_BAR]?.bottom
                 ?: (iconBoxes.values.map { it.bottom } + listOfNotNull(logoBox?.bottom)).maxOrNull()
             var topOccupied = 0f
@@ -361,6 +382,8 @@ private fun GuideLayout(
 private fun CoachMark(
     id: GuideAnchor,
     compact: Boolean,
+    /** Overrides the spec's label (the Selection button follows the configured verb). */
+    label: String? = null,
     align: Align,
     modifier: Modifier = Modifier,
 ) {
@@ -387,7 +410,7 @@ private fun CoachMark(
                 )
             }
             Text(
-                text = stringResource(spec.label),
+                text = label ?: stringResource(spec.label),
                 style = MaterialTheme.typography.labelMedium,
                 color = Color.White,
                 fontWeight = FontWeight.SemiBold,
@@ -411,7 +434,7 @@ private fun coachMarkSpec(id: GuideAnchor): CoachMarkSpec = when (id) {
     GuideAnchor.INFO -> CoachMarkSpec(R.string.guide_info)
     GuideAnchor.SETTINGS -> CoachMarkSpec(R.string.guide_settings)
     GuideAnchor.SOURCES -> CoachMarkSpec(R.string.guide_sources, Icons.Default.FolderOpen)
-    GuideAnchor.SELECTION -> CoachMarkSpec(R.string.guide_selection, Icons.Default.CollectionsBookmark)
+    GuideAnchor.SELECTION -> CoachMarkSpec(R.string.guide_selection, SelectionStackIcon)
     GuideAnchor.SHARE -> CoachMarkSpec(R.string.guide_share, Icons.Default.Share)
     GuideAnchor.REVERT -> CoachMarkSpec(R.string.guide_revert, Icons.AutoMirrored.Filled.Undo)
     else -> CoachMarkSpec(R.string.guide_help)

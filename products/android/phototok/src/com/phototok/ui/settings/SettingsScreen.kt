@@ -64,6 +64,8 @@ import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.photoselector.core.storage.SourceKind
+import com.phototok.domain.SwipeDestination
+import com.phototok.data.model.FolderLookup
 import com.phototok.R
 import com.phototok.domain.FeedOrderMode
 import com.phototok.domain.FileTypeFilter
@@ -90,6 +92,8 @@ fun SettingsScreen(
     var folderDialog by rememberSaveable { mutableStateOf<String?>(null) }
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
     LaunchedEffect(sourceKind) { sourceKind?.let(viewModel::showSourceKind) }
+    // A grant can be revoked or a card pulled while the sheet was closed: look again on open.
+    LaunchedEffect(Unit) { viewModel.refreshFolderLookups() }
     val context = LocalContext.current
     val colors = MaterialTheme.colorScheme
 
@@ -247,16 +251,24 @@ fun SettingsScreen(
                     }
 
                     row("selection_location") {
+                        val shown = destinationSummary(uiState.selectionDestination, uiState.folderLookups, uiState.collectionFolderName, uiState.sourceFolderName)
                         SettingsClickItem(
                             title = stringResource(R.string.setting_title_selection_location),
-                            summary = uiState.collectionUri?.let { folderDisplayPath(it, uiState.collectionFolderName) }
-                                ?: stringResource(R.string.setting_summary_default),
-                            // A long path keeps its volume and its folder: "Telefon › … › Keepers".
-                            summaryMaxLines = 1,
-                            summaryOverflow = TextOverflow.MiddleEllipsis,
+                            summary = shown.text,
+                            summaryIsError = shown.lost,
+                            // A long path keeps its volume and its folder: "Telefon › … › Keepers"; the dialog shows it whole.
+                            summaryMaxLines = if (shown.isPath) 1 else Int.MAX_VALUE,
+                            summaryOverflow = if (shown.isPath) TextOverflow.MiddleEllipsis else TextOverflow.Clip,
                             onClick = { folderDialog = FOLDER_DIALOG_SELECTION },
                             trailing = {
-                                if (uiState.collectionUri != null) {
+                                if (shown.lost) {
+                                    TextButton(
+                                        onClick = { selectionFolderPickerLauncher.launch(null) },
+                                        modifier = Modifier.testTag("settings_selection_reselect"),
+                                    ) {
+                                        Text(stringResource(R.string.action_reselect), color = colors.error)
+                                    }
+                                } else if (uiState.collectionUri != null) {
                                     TextButton(onClick = { viewModel.updateCollectionUri(null) }) {
                                         Text(stringResource(R.string.action_reset), color = colors.primary)
                                     }
@@ -487,15 +499,24 @@ fun SettingsScreen(
 
                     if (uiState.leftSwipeAction != SwipeAction.DELETE) {
                         row("left_folder") {
+                            val shown = destinationSummary(uiState.leftSwipeDestination, uiState.folderLookups, uiState.leftSwipeFolderName, uiState.sourceFolderName)
                             SettingsClickItem(
                                 title = stringResource(R.string.setting_title_left_folder),
-                                summary = uiState.leftSwipeUri?.let { folderDisplayPath(it, uiState.leftSwipeFolderName) }
-                                    ?: stringResource(R.string.setting_summary_default),
-                                summaryMaxLines = 1,
-                                summaryOverflow = TextOverflow.MiddleEllipsis,
+                                summary = shown.text,
+                                summaryIsError = shown.lost,
+                                // A long path keeps its volume and its folder: "Telefon › … › Keepers"; the dialog shows it whole.
+                                summaryMaxLines = if (shown.isPath) 1 else Int.MAX_VALUE,
+                                summaryOverflow = if (shown.isPath) TextOverflow.MiddleEllipsis else TextOverflow.Clip,
                                 onClick = { folderDialog = FOLDER_DIALOG_LEFT_SWIPE },
                                 trailing = {
-                                    if (uiState.leftSwipeUri != null) {
+                                    if (shown.lost) {
+                                        TextButton(
+                                            onClick = { leftSwipeFolderPickerLauncher.launch(null) },
+                                            modifier = Modifier.testTag("settings_left_folder_reselect"),
+                                        ) {
+                                            Text(stringResource(R.string.action_reselect), color = colors.error)
+                                        }
+                                    } else if (uiState.leftSwipeUri != null) {
                                         TextButton(onClick = { viewModel.updateLeftSwipeUri(null) }) {
                                             Text(stringResource(R.string.action_reset), color = colors.primary)
                                         }
@@ -654,3 +675,37 @@ private fun DividedRows(dividerColor: Color, build: SettingsRowsBuilder.() -> Un
 /** Which folder row's [FolderTargetDialog] is open (saved across rotation). */
 private const val FOLDER_DIALOG_SELECTION = "selection"
 private const val FOLDER_DIALOG_LEFT_SWIPE = "left_swipe"
+
+/** A destination row's summary: where photos go, or that the folder was lost. */
+internal data class DestinationSummary(
+    val text: String,
+    val lost: Boolean,
+    /** A path keeps one line (middle ellipsis; the dialog shows it whole); wording wraps. */
+    val isPath: Boolean = false,
+)
+
+/**
+ * Where [destination] puts photos (REQ-TOK-FEATURE.23, `[USER 2026-11-04]`), as a path in the source
+ * badges' words ([folderDisplayPath]): a custom folder as its path ("Telefon › DCIM › Keepers"); the
+ * default as "In source folder · …" with the open folder's path, or "Selection inside the source
+ * folder" when no folder of this tab is open. A custom folder whose access was lost says so.
+ * [customName] and [sourceName] are the providers' names for the two folders (opaque ids).
+ */
+@Composable
+internal fun destinationSummary(
+    destination: SwipeDestination,
+    lookups: Map<String, FolderLookup>,
+    customName: String?,
+    sourceName: String?,
+): DestinationSummary {
+    val tree = destination.treeUri
+        ?: return DestinationSummary(stringResource(R.string.setting_summary_in_source_folder, destination.subfolder), lost = false)
+    if (destination.custom) {
+        if (lookups[tree]?.lost == true) {
+            return DestinationSummary(stringResource(R.string.setting_summary_folder_lost), lost = true)
+        }
+        return DestinationSummary(folderDisplayPath(tree, customName), lost = false, isPath = true)
+    }
+    val path = folderDisplayPath(tree, sourceName?.takeIf { it.isNotBlank() })
+    return DestinationSummary(stringResource(R.string.setting_summary_in_source_path, path), lost = false, isPath = true)
+}

@@ -5,6 +5,7 @@ import androidx.activity.ComponentActivity
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
+import androidx.compose.ui.semantics.getOrNull
 import androidx.compose.ui.test.assertCountEquals
 import androidx.compose.ui.test.hasTestTag
 import androidx.compose.ui.test.junit4.createAndroidComposeRule
@@ -58,7 +59,6 @@ class ScreenFirstRunHintTest {
                 ScreenFirstRunHint(
                     hint = zoomHint,
                     feedShown = feedShown,
-                    filterHidesWholeFolder = false,
                     onDismiss = {},
                 )
             }
@@ -79,7 +79,23 @@ class ScreenFirstRunHintTest {
                 ScreenFirstRunHint(
                     hint = mismatchHint,
                     feedShown = false,
-                    filterHidesWholeFolder = false,
+                    onDismiss = {},
+                )
+            }
+        }
+
+        hintCards().assertCountEquals(0)
+    }
+
+    /** F-TOK-086: the landing explains a folder the filter hides entirely; no hint is drawn over it. */
+    @Test
+    @Requirement("REQ-TOK-GESTURE.05")
+    fun `the filter-mismatch hint is not drawn over a folder the filter hides entirely`() {
+        rule.setContent {
+            PhotoTokTheme {
+                ScreenFirstRunHint(
+                    hint = mismatchHint,
+                    feedShown = false,
                     onDismiss = {},
                 )
             }
@@ -89,33 +105,28 @@ class ScreenFirstRunHintTest {
     }
 
     @Test
-    @Requirement("REQ-TOK-GESTURE.05")
-    fun `the filter-mismatch hint stays over a folder the filter hides entirely`() {
-        rule.setContent {
-            PhotoTokTheme {
-                ScreenFirstRunHint(
-                    hint = mismatchHint,
-                    feedShown = false,
-                    filterHidesWholeFolder = true,
-                    onDismiss = {},
-                )
-            }
+    fun `a hint is drawn only over the feed`() {
+        FirstRunHint.entries.forEach { hint ->
+            assertTrue(hint.name, firstRunHintFitsScreen(hint, feedShown = true))
+            assertFalse(hint.name, firstRunHintFitsScreen(hint, feedShown = false))
         }
-
-        hintCards().assertCountEquals(1)
+        assertFalse(firstRunHintFitsScreen(null, feedShown = true))
     }
 
+    /** TalkBack reads a hint as it appears (screen-reader audit 2026-11-10): a polite live region. */
     @Test
-    fun `only the filter-mismatch hint explains an empty filtered folder`() {
-        FirstRunHint.entries.forEach { hint ->
-            assertTrue(hint.name, firstRunHintFitsScreen(hint, feedShown = true, filterHidesWholeFolder = false))
-            assertFalse(hint.name, firstRunHintFitsScreen(hint, feedShown = false, filterHidesWholeFolder = false))
-            assertTrue(
-                hint.name,
-                firstRunHintFitsScreen(hint, feedShown = false, filterHidesWholeFolder = true) ==
-                    (hint == FirstRunHint.FILTER_MISMATCH),
-            )
+    @Requirement("REQ-TOK-GESTURE.05")
+    fun `the hint card is a polite live region`() {
+        rule.setContent {
+            PhotoTokTheme {
+                ScreenFirstRunHint(hint = zoomHint, feedShown = true, onDismiss = {})
+            }
         }
-        assertFalse(firstRunHintFitsScreen(null, feedShown = true, filterHidesWholeFolder = true))
+        val node = hintCards().fetchSemanticsNodes().single()
+        assertTrue(
+            "first_run_hint has no live region",
+            node.config.getOrNull(androidx.compose.ui.semantics.SemanticsProperties.LiveRegion) ==
+                androidx.compose.ui.semantics.LiveRegionMode.Polite,
+        )
     }
 }

@@ -27,8 +27,8 @@ import org.robolectric.annotation.GraphicsMode
 /**
  * The portrait camera-info card shows the whole lens name at font scale 2.0: it wraps rather than
  * ending in an ellipsis (REQ-TOK-UX.05). Usability lab 2026-11-10, Pixel 4a at 2.0: the lens line
- * read "PSTLab 35mm F1…." and lost its aperture. The file name keeps its middle ellipsis, which
- * never cuts the extension (`ExifPanelFileNameTest`).
+ * read "PSTLab 35mm F1…." and lost its aperture. The file name wraps too
+ * (`ExifCardFileNameAndDateTest`).
  */
 @RunWith(RobolectricTestRunner::class)
 @GraphicsMode(GraphicsMode.Mode.NATIVE)

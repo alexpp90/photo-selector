@@ -50,6 +50,9 @@ import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.semantics.liveRegion
+import androidx.compose.ui.semantics.LiveRegionMode
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import com.phototok.domain.FirstRunHint
@@ -124,6 +127,8 @@ fun FirstRunHintCard(
             modifier = Modifier
                 .fillMaxWidth()
                 .padding(horizontal = 16.dp)
+                // TalkBack reads the hint when it appears; it explains what the user just did.
+                .semantics { liveRegion = LiveRegionMode.Polite }
                 .testTag("first_run_hint"),
             shape = RoundedCornerShape(16.dp),
             color = colors.surfaceContainerHigh.copy(alpha = 0.97f),
@@ -222,22 +227,16 @@ fun FirstRunHintCard(
  *
  * Every hint explains the feed, so it is drawn only over the feed: never over the landing, the
  * loading screen or the Selection viewer (lab 2026-11-06: the double-tap hint covered the
- * landing's Pro-mode and recent-folder rows after "Change folder"). The one exception is the
- * filter-mismatch hint over the empty result of a folder whose every photo the format filter
- * hides: that empty screen is what it explains, and its Show all is the way out.
+ * landing's Pro-mode and recent-folder rows after "Change folder"). A folder whose every photo the
+ * format filter hides is explained by the landing itself ("N hidden by filter", Show all), on
+ * every visit (F-TOK-086), so no hint is drawn there either.
  *
  * @param feedShown the feed (portrait or landscape) is on screen.
- * @param filterHidesWholeFolder the folder has photos but the format filter hides all of them.
  */
 internal fun firstRunHintFitsScreen(
     hint: FirstRunHint?,
     feedShown: Boolean,
-    filterHidesWholeFolder: Boolean,
-): Boolean = when {
-    hint == null -> false
-    feedShown -> true
-    else -> hint == FirstRunHint.FILTER_MISMATCH && filterHidesWholeFolder
-}
+): Boolean = hint != null && feedShown
 
 /**
  * The [FirstRunHintCard] slot of the phone screen: composes the card only while
@@ -247,12 +246,11 @@ internal fun firstRunHintFitsScreen(
 internal fun ScreenFirstRunHint(
     hint: FirstRunHintUi?,
     feedShown: Boolean,
-    filterHidesWholeFolder: Boolean,
     onDismiss: () -> Unit,
     modifier: Modifier = Modifier,
     onOpenSettings: (() -> Unit)? = null,
 ) {
-    if (!firstRunHintFitsScreen(hint?.hint, feedShown, filterHidesWholeFolder)) return
+    if (!firstRunHintFitsScreen(hint?.hint, feedShown)) return
     FirstRunHintCard(
         hint = hint,
         onDismiss = onDismiss,

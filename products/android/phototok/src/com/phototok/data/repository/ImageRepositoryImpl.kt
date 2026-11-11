@@ -3,6 +3,7 @@ package com.phototok.data.repository
 import android.net.Uri
 import android.util.Log
 import com.photoselector.core.model.ExifData
+import com.phototok.data.model.FolderLookup
 import com.phototok.data.model.ImageItem
 import com.phototok.data.source.FileOperationResult
 import com.phototok.data.source.ImageSourceResolver
@@ -41,6 +42,9 @@ class ImageRepositoryImpl @Inject constructor(
 
     override suspend fun resolveFolderName(folderUri: Uri): String? =
         resolver.sourceFor(folderUri).resolveFolderName(folderUri)
+
+    override suspend fun describeFolder(folderUri: Uri): FolderLookup =
+        resolver.sourceFor(folderUri).describeFolder(folderUri)
 
     override suspend fun getExifData(uri: Uri): ExifData? =
         resolver.sourceFor(uri).getExifData(uri)

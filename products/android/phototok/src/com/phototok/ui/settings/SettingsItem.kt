@@ -1,5 +1,7 @@
 package com.phototok.ui.settings
 
+import androidx.compose.material.icons.filled.Warning
+import androidx.compose.material.icons.Icons
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.selection.toggleable
@@ -93,6 +95,8 @@ fun SettingsClickItem(
     onClick: () -> Unit,
     icon: ImageVector? = null,
     trailing: @Composable (() -> Unit)? = null,
+    /** The summary reports a problem (a folder whose access was lost): error colour and a warning glyph. */
+    summaryIsError: Boolean = false,
     summaryMaxLines: Int = Int.MAX_VALUE,
     summaryOverflow: TextOverflow = TextOverflow.Clip,
 ) {
@@ -113,13 +117,23 @@ fun SettingsClickItem(
             )
             if (summary != null) {
                 Spacer(modifier = Modifier.height(2.dp))
-                Text(
-                    text = summary,
-                    style = MaterialTheme.typography.labelMedium,
-                    color = colors.onSurfaceVariant,
-                    maxLines = summaryMaxLines,
-                    overflow = summaryOverflow,
-                )
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    if (summaryIsError) {
+                        Icon(
+                            imageVector = Icons.Default.Warning,
+                            contentDescription = null,
+                            modifier = Modifier.size(16.dp).padding(end = 4.dp),
+                            tint = colors.error,
+                        )
+                    }
+                    Text(
+                        text = summary,
+                        style = MaterialTheme.typography.labelMedium,
+                        color = if (summaryIsError) colors.error else colors.onSurfaceVariant,
+                        maxLines = summaryMaxLines,
+                        overflow = summaryOverflow,
+                    )
+                }
             }
         }
 

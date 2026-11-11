@@ -156,7 +156,10 @@ abstract class ScreenTextLoadMatrix {
             // The pager composes the neighbouring pages too: only the panel on screen counts.
             val panel = rule.nodesUnder("viewer.info").onScreen(screen)
             assertTrue("[$cell] the info panel is shown", panel.isNotEmpty())
-            broken.add(cell, brokenWords(panel + rule.nodesUnder("viewer_bottom_bar") + rule.nodesUnder("phone_top_bar")))
+            // The file name is a value, not words: it wraps wherever it must, never ellipsised
+            // (REQ-TOK-UX.05); `truncated` below still checks it is shown whole.
+            val words = panel.filterNot { it.isUnder("viewer.info.file_name") }
+            broken.add(cell, brokenWords(words + rule.nodesUnder("viewer_bottom_bar") + rule.nodesUnder("phone_top_bar")))
             targets.add(cell, smallTargets(barControls(), density))
             off.add(cell, outside(barControls(), screen, includeWhollyOffscreen = true))
             off.add(cell, outside(panel, screen))
@@ -166,8 +169,7 @@ abstract class ScreenTextLoadMatrix {
             val dated = panel.mapNotNull { it.visibleText() }.any { it !in fileNames && it.contains("2026") }
             if (!dated) noDate.add(cell, listOf(panel.mapNotNull { it.visibleText() }.toString()))
         }
-        listOf(targets, off, covered, broken, truncated).forEach { it.assertNone() }
-        knownDefect("F-TOK-028", "the info panel shows no capture date") { noDate.assertNone() }
+        listOf(targets, off, covered, broken, truncated, noDate).forEach { it.assertNone() }
     }
 
     // ── Controls guide over the real bars ───────────────────────────────────
@@ -205,7 +207,13 @@ abstract class ScreenTextLoadMatrix {
                 node.config.getOrNull(androidx.compose.ui.semantics.SemanticsProperties.TestTag)
                     ?.startsWith("guide_callout_") == true
             }
-            assertTrue("[$cell] the guide shows callouts", callouts.size >= 6)
+            if (firstRun) {
+                // Step 1 teaches the swipes; of the bars it labels only Help, which opens the rest.
+                val names = callouts.map { it.config[androidx.compose.ui.semantics.SemanticsProperties.TestTag] }
+                assertTrue("[$cell] first run labels only Help among the bars: $names", names == listOf("guide_callout_HELP"))
+            } else {
+                assertTrue("[$cell] the guide shows callouts", callouts.size >= 6)
+            }
             off.add(cell, outside(callouts.flatMap { c -> rule.allNodes().filter { it.isUnder(c.config[androidx.compose.ui.semantics.SemanticsProperties.TestTag]) } } + rule.nodesUnder("controls_guide").clickables(), screen, includeWhollyOffscreen = true))
             unreadable.add(cell, callouts.flatMap { c -> clippedTexts(rule.nodesUnder(c.config[androidx.compose.ui.semantics.SemanticsProperties.TestTag])) })
             unreadable.add(cell, callouts.flatMapIndexed { i, a -> overlaps(listOf(a), callouts.drop(i + 1)) })
@@ -264,7 +272,7 @@ abstract class ScreenTextLoadMatrix {
 
     // ── Landing ─────────────────────────────────────────────────────────────
 
-    /** F-TOK-048: the landing scrolls under the top bar at font scale 2.0. */
+    /** F-TOK-048 (fixed): the landing scrolled under the top bar at font scale 2.0. */
     @Test
     @Requirement("REQ-TOK-UX.05", "REQ-TOK-FEATURE.03")
     fun landingUnderTheTopBar() {
@@ -296,7 +304,7 @@ abstract class ScreenTextLoadMatrix {
             under.add("$cell scrolled", landingContent().filter { it.boundsInWindow.overlapsBeyondSeam(bar!!) }.map { "'${it.label()}' ${it.boundsInWindow}" })
         }
         targets.assertNone()
-        knownDefect("F-TOK-048", "landing cards scroll under the top bar") { under.assertNone() }
+        under.assertNone()
     }
 
     @Test

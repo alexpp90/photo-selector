@@ -42,7 +42,6 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.automirrored.filled.HelpOutline
-import androidx.compose.material.icons.filled.CollectionsBookmark
 import androidx.compose.material.icons.filled.ContentCopy
 import androidx.compose.material.icons.filled.Folder
 import androidx.compose.material.icons.filled.FolderOpen
@@ -70,6 +69,9 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.SnackbarDuration
 import androidx.compose.material3.SnackbarHost
+import androidx.compose.material3.ButtonDefaults
+import androidx.compose.material3.SnackbarDefaults
+import androidx.compose.material3.Snackbar
 import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.SnackbarResult
 import androidx.compose.material3.Surface
@@ -118,9 +120,12 @@ import com.phototok.R
 import com.phototok.data.model.ImageItem
 import com.phototok.domain.FileTypeFilter
 import com.phototok.domain.PhotoFolders
+import com.phototok.ui.components.SelectionStackIcon
+import com.phototok.domain.SelectionPlace
 import com.phototok.domain.UiText
 import com.phototok.ui.components.NameTooltip
 import com.phototok.ui.components.ViewerBottomBar
+import com.phototok.ui.asString
 import com.phototok.ui.resolve
 import com.phototok.ui.settings.SettingsScreen
 import com.phototok.viewmodel.ActionFeedback
@@ -195,13 +200,8 @@ fun PhoneModeScreen(
         enabled = isViewingSelection || selectionState.isOpening,
         onClose = selectionViewModel::close,
     )
-    // System Back closes the controls guide, which is drawn in the activity window, not the app
-    // (F-TOK-085). Composed after the viewer's handler, so a guide over the viewer closes first. The
-    // first-run tutorial, the same overlay, has no handler yet (`SystemBackClosesTopLayerTest`).
-    BackHandler(
-        enabled = uiState.showControlsGuide,
-        onBack = viewModel::hideControlsGuide,
-    )
+    // System Back over the controls guide or the first-run tutorial: GestureTutorialOverlay owns its
+    // BackHandler, composed after this one, so a guide over the viewer closes first (F-TOK-085).
     // Another folder in the feed closes a viewer opened (or still opening) for the previous one.
     LaunchedEffect(uiState.sourceFolderUri) {
         selectionViewModel.closeUnlessOpenedFor(uiState.sourceFolderUri)
@@ -388,10 +388,14 @@ fun PhoneModeScreen(
     // The viewer bottom bar's measured height (navigation-bar inset included): the snackbar sits
     // above it, so it never covers the bar's 48 dp targets (3-button navigation, review JP-UX-2).
     var bottomBarHeightPx by remember { mutableIntStateOf(0) }
+    // The top bar's measured height (status bar included): the landing scrolls below it.
+    var topBarHeightPx by remember { mutableIntStateOf(0) }
 
     // Measured positions of the real controls, shared by the bars and the controls guide.
     val guideAnchors = remember { ControlsGuideAnchors() }
     val guideUp = uiState.showGestureTutorial || uiState.showControlsGuide
+    // One name for the Selection button, its guide callout and the viewer tab it opens on.
+    val selectionPlaceName = SelectionPlace.name(uiState.swipeRightVerb, uiState.collectionLabel).asString()
 
     Box(modifier = Modifier.fillMaxSize()) {
         // ── Read-only Selection / Favourites viewer ─────────────────────────
@@ -426,6 +430,7 @@ fun PhoneModeScreen(
             ) {
                 // Left Side Panel: Navigation
                 LandscapeLeftPanel(
+                    selectionName = selectionPlaceName,
                     canRevert = uiState.canRevert,
                     helpOpen = guideUp,
                     anchors = guideAnchors,
@@ -566,6 +571,9 @@ fun PhoneModeScreen(
                     onSelectRecentPath = { viewModel.selectRecentPath(it) },
                     proMode = uiState.proMode,
                     onProModeChange = viewModel::setProMode,
+                    topBarHeight = with(LocalDensity.current) { topBarHeightPx.toDp() },
+                    hiddenByFilter = uiState.filterHidingEveryPhoto,
+                    onShowAll = viewModel::showAllFormats,
                 )
             }
         }
@@ -575,6 +583,9 @@ fun PhoneModeScreen(
             GestureTutorialOverlay(
                 visible = uiState.showGestureTutorial,
                 onDismiss = viewModel::dismissGestureTutorial,
+                // Step 1: the swipes, and Help that opens the full guide (REQ-TOK-GESTURE.08).
+                barCallouts = false,
+                selectionLabel = selectionPlaceName,
                 leftSwipeAction = uiState.leftSwipeAction,
                 collectionAction = uiState.collectionAction,
                 leftSwipeFolderName = uiState.leftSwipeFolderName,
@@ -589,6 +600,7 @@ fun PhoneModeScreen(
         GestureTutorialOverlay(
             visible = uiState.showControlsGuide,
             onDismiss = viewModel::hideControlsGuide,
+            selectionLabel = selectionPlaceName,
             leftSwipeAction = uiState.leftSwipeAction,
             collectionAction = uiState.collectionAction,
             leftSwipeFolderName = uiState.leftSwipeFolderName,
@@ -613,8 +625,6 @@ fun PhoneModeScreen(
                 ScreenFirstRunHint(
                     hint = uiState.firstRunHint,
                     feedShown = isViewing && !isViewingSelection,
-                    filterHidesWholeFolder = !isViewing && !isViewingSelection &&
-                        !uiState.isLoading && uiState.allImages.isNotEmpty(),
                     onDismiss = viewModel::dismissFirstRunHint,
                     onOpenSettings = { showSettingsSheet = true },
                     modifier = Modifier
@@ -654,7 +664,9 @@ fun PhoneModeScreen(
                     }
                 },
                 onSettings = { showSettingsSheet = true },
-                modifier = Modifier.align(Alignment.TopCenter),
+                modifier = Modifier
+                    .align(Alignment.TopCenter)
+                    .onSizeChanged { topBarHeightPx = it.height },
                 anchors = guideAnchors,
                 cameraInfoEnabled = uiState.proMode,
             )
@@ -671,6 +683,7 @@ fun PhoneModeScreen(
                         .align(Alignment.BottomCenter)
                         .onSizeChanged { bottomBarHeightPx = it.height },
                     anchors = guideAnchors,
+                    selectionName = selectionPlaceName,
                 )
             }
         }
@@ -810,7 +823,29 @@ internal fun FeedSnackbarHost(
                 },
             )
             .testTag("feed_snackbar_host"),
-    )
+    ) { data ->
+        // The action is a real 48 dp target on its own node: M3's default action button is 40 dp
+        // and reaches 48 dp only through touch slop (46.5 dp for "Rückgängig" at font scale 2.0).
+        val actionLabel = data.visuals.actionLabel
+        Snackbar(
+            action = actionLabel?.let { label ->
+                {
+                    TextButton(
+                        onClick = { data.performAction() },
+                        colors = ButtonDefaults.textButtonColors(contentColor = SnackbarDefaults.actionColor),
+                        modifier = Modifier
+                            .heightIn(min = 48.dp)
+                            .widthIn(min = 48.dp)
+                            .testTag("feed_snackbar_action"),
+                    ) {
+                        Text(label)
+                    }
+                }
+            },
+        ) {
+            Text(data.visuals.message)
+        }
+    }
 }
 
 /**
@@ -884,6 +919,8 @@ internal fun LandscapeRightPanel(
  */
 @Composable
 internal fun LandscapeLeftPanel(
+    /** The Selection button's name (`SelectionPlace`); the `cd_selection` default for tests. */
+    selectionName: String? = null,
     canRevert: Boolean,
     helpOpen: Boolean,
     anchors: ControlsGuideAnchors?,
@@ -959,8 +996,8 @@ internal fun LandscapeLeftPanel(
                 modifier = Modifier.guideAnchor(anchors, GuideAnchor.SOURCES).testTag("landscape_sources_button"),
             )
             SidePanelButton(
-                icon = Icons.Default.CollectionsBookmark,
-                name = stringResource(R.string.cd_selection),
+                icon = SelectionStackIcon,
+                name = selectionName ?: stringResource(R.string.cd_selection),
                 isActive = false,
                 enabled = true,
                 onClick = onSelection,
@@ -1420,6 +1457,14 @@ internal fun ExifSidebarPanel(
             modifier = Modifier.padding(10.dp),
             verticalArrangement = Arrangement.spacedBy(6.dp),
         ) {
+            rememberCaptureDate(exif.dateTimeOriginal)?.let { captureDate ->
+                Text(
+                    text = captureDate,
+                    style = MaterialTheme.typography.labelMedium,
+                    color = colors.onSurface,
+                    modifier = Modifier.testTag("landscape.exif_panel.date"),
+                )
+            }
             Text(
                 // The name as it is on disk; a long one loses its middle, never its extension.
                 text = fileName,

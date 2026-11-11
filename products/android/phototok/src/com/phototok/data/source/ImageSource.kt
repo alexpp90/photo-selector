@@ -2,6 +2,7 @@ package com.phototok.data.source
 
 import android.net.Uri
 import com.photoselector.core.model.ExifData
+import com.phototok.data.model.FolderLookup
 import com.phototok.data.model.ImageItem
 import kotlinx.coroutines.flow.Flow
 
@@ -47,6 +48,9 @@ interface ImageSource {
 
     /** Resolve a folder's display name, or null when unavailable. */
     suspend fun resolveFolderName(folderUri: Uri): String?
+
+    /** Whether a custom destination folder is lost (grant revoked, deleted, unmounted), for Settings. */
+    suspend fun describeFolder(folderUri: Uri): FolderLookup = FolderLookup()
 
     suspend fun getExifData(uri: Uri): ExifData?
 
