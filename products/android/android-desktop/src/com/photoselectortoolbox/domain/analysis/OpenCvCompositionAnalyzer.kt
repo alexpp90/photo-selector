@@ -1,10 +1,10 @@
 package com.photoselectortoolbox.domain.analysis
 
 import android.graphics.Bitmap
+import com.photoselectortoolbox.di.DefaultDispatcher
 import com.photoselectortoolbox.domain.model.CompositionResult
 import com.photoselectortoolbox.domain.model.DetectedLine
 import kotlinx.coroutines.CoroutineDispatcher
-import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import org.opencv.android.Utils
 import org.opencv.core.Core
@@ -24,16 +24,17 @@ import kotlin.math.min
 import kotlin.math.sin
 
 /**
- * OpenCV-powered photographic composition analyzer.
+ * OpenCV-powered photographic composition analyzer, run on demand by Learn
+ * ([com.photoselectortoolbox.domain.usecase.AnalyzeCompositionUseCase]).
  *
- * Operates on [Dispatchers.Default] to prevent UI thread blockage.
+ * Operates on the injected CPU dispatcher (`@DefaultDispatcher`) to prevent UI thread blockage.
  * Computes:
  * 1. Leading perspective lines via Canny edge detection and probabilistic Hough transform.
  * 2. Visual mass centroid using Sobel gradient magnitude spatial moments.
  * 3. 3x3 grid mass density distribution.
  */
 class OpenCvCompositionAnalyzer @Inject constructor(
-    private val dispatcher: CoroutineDispatcher = Dispatchers.Default
+    @DefaultDispatcher private val dispatcher: CoroutineDispatcher,
 ) : CompositionAnalyzer {
 
     companion object {

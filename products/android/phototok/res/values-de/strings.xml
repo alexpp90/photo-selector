@@ -247,6 +247,7 @@
     <string name="setting_title_source_code">Quellcode</string>
     <string name="setting_title_privacy">Datenschutzerklärung</string>
     <string name="setting_title_legal">Impressum</string>
+    <string name="setting_title_licences">Open-Source-Lizenzen</string>
     <string name="chip_phone_cloud">Handy + Cloud</string>
     <string name="chip_sd_card">SD-Karte</string>
     <string name="chip_camera">Kamera</string>

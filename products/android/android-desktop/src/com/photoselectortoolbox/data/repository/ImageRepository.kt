@@ -7,6 +7,7 @@ import com.photoselector.saf.FolderAccessManager
 import com.photoselectortoolbox.data.model.FolderDescription
 import com.photoselectortoolbox.data.model.ImageDimensions
 import com.photoselectortoolbox.data.model.ImageItem
+import com.photoselectortoolbox.domain.curation.FileIdentity
 import kotlinx.coroutines.flow.Flow
 
 /**
@@ -64,6 +65,13 @@ interface ImageRepository {
     suspend fun getExifData(context: Context, uri: Uri): ExifData?
 
     suspend fun deleteImage(context: Context, uri: Uri): Boolean
+
+    /**
+     * The size and last-modified time the provider reports for the document at [uri] now, or
+     * null when it cannot be read (gone, or no access). The pending-delete journal records this
+     * when a delete is queued and compares it before a recovered delete runs (REQ-AND-LAYOUT.23).
+     */
+    suspend fun documentIdentity(context: Context, uri: Uri): FileIdentity?
 
     /**
      * Whether a delete of [uri] is recoverable rather than final.

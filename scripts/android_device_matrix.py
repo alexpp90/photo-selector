@@ -89,33 +89,12 @@ class Module:
         return (app[0] if app else None), (test[0] if test else None)
 
 
+# One wording for a refused keyguard step, shared with `android_test_device.py prepare`.
+KEYGUARD_STEP = atd.KEYGUARD_STEP
+prepare_notes = atd.prepare_notes
+
+
 # applicationId per module; test_android_device_matrix.py checks it against build.gradle.kts.
-KEYGUARD_STEP = "keyguard disabled"
-
-
-def prepare_notes(failed: Sequence[str], outputs: Dict[str, str], keyguard_showing: Optional[bool]) -> str:
-    """The report note for a device prepared as a test device.
-
-    ``locksettings set-disabled true`` is refused on a device with a secure lock screen (PIN,
-    pattern, password), which adb cannot remove. That is a property of the phone, not a failed
-    run: when the lock screen is not showing after the wake-up (read back, not assumed), the
-    device is usable and the report says the lock stays and the screen is kept awake. A lock
-    screen that *is* showing keeps the step in the failure list; ``_wait_unlocked`` then decides
-    whether the suites can run. Every other failed step stays a failure.
-    """
-    others = [n for n in failed if n != KEYGUARD_STEP]
-    keyguard_failed = KEYGUARD_STEP in failed
-    soft = keyguard_failed and keyguard_showing is not True
-    problems = others + ([KEYGUARD_STEP] if keyguard_failed and not soft else [])
-    note = "prepared as a test device" + (f" (failed: {', '.join(problems)})" if problems else "")
-    if soft:
-        detail = (outputs.get(KEYGUARD_STEP) or "").strip().splitlines()
-        note += ("; screen lock not removable over adb (probably a PIN, pattern or password; "
-                 "it was not showing at the start of the run, screen kept awake)"
-                 + (f" [{detail[-1][:120]}]" if detail else ""))
-    return note
-
-
 MODULES: Dict[str, Module] = {
     "android-desktop": Module("android-desktop", "com.photoselectortoolbox"),
     "phototok": Module("phototok", "com.phototok"),
@@ -742,13 +721,12 @@ class DeviceWorker:
         root = atd.ensure_root(self.d.serial, self.runner)
         failed = []
         for name, command in atd.PREPARE_STEPS:
-            code, out = self.adb("shell", command)
-            ok = code == 0 and "Exception" not in out and "Error" not in out
-            if not ok:
+            outcome = atd.run_step(self.d.serial, name, command, self.runner, self.sleep)
+            if not outcome.ok:
                 failed.append(name)
-                self.prepare_outputs[name] = out
-            self.progress.event(self.d.label, f"prepare {'✓' if ok else '✗'} {name}"
-                                + ("" if ok else f" (exit {code}: {out.strip()[-200:] or 'no output'})"))
+                self.prepare_outputs[name] = outcome.out
+            self.progress.event(self.d.label, f"prepare {'✓' if outcome.ok else '✗'} {name}"
+                                + ("" if outcome.ok else f" ({outcome.detail})"))
         self.progress.event(self.d.label, f"adb {'root' if root else 'shell (no root)'}")
         return failed
 

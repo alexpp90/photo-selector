@@ -8,6 +8,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ### Added
 
+- Settings lists the open-source licences of what Frameduel bundles (**Open-source licences**, below the Impressum), offline, including OpenCV and the libraries built into it. Before, the app passed on no licence text for them.
 - A screen reader announces the result of a move, copy or delete, and UNDO is a button for it.
 - An open folder with no supported photos says so ("<folder> holds no supported photos.") instead of asking for a folder; while a folder is still opening a progress ring shows.
 - Statistics and Duplicates open the folder you have open in Cull instead of asking for one again.
@@ -33,6 +34,11 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 - The layout guide no longer claims that every control shows its key; the narrow Go and Sort chips do not.
 - Under a mouse pointer, the key names and the red Delete word on the buttons stay readable (4.5:1); the hover colour put them at 3.5:1 and 3.3:1.
 - A screen reader announces that a scan or grouping is queued behind the other.
+- "Delete now" in the "uncompleted deletions" prompt after a restart deletes a photo only if the file is still the one you deleted (same size and date). A different photo that took its name in the meantime (restarted camera numbering, a refilled folder) is kept, and the message names it. So is an entry saved by an earlier version, which has no size and date to check.
+- With a custom destination set and that destination's Selection folder open, Copy and Move file into `Final` inside it, as they do in any Selection folder, and Settings shows that path. Before, a Move renamed each photo in place (`IMG_0001-2.JPG`).
+- Learn draws the leading lines and the visual weight of the photo shown, computed when you open it and kept for next time. Before, the analysis existed but nothing ran it.
+- When another app creates a rating sidecar or a JPEG's backup copy under the same name at the same moment, Frameduel leaves that file alone and reports the rating as not written. Before, it could write over that file or delete it.
+- A scan that is stopped no longer stores photos it did not finish as having no sharpness, noise or clipping score.
 - Settings: each Grouping Level and Filing Action choice is one control with its name, so a screen reader reads "Time & Filename, radio button, not selected" instead of an unnamed radio button, and tapping anywhere on the row selects it.
 - System Back closes the layout guide, a maximised frame or the context menu, one layer per press, like `Esc`; it used to close the whole app. `Esc` also closes the guide when it opened by itself at first launch.
 - The analysis cache keeps its limit of 10,000 photos after every scan, not only when Settings is opened, and Learn's stored facts are removed with the photo's scores.

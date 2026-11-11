@@ -34,12 +34,14 @@ import org.junit.runner.RunWith
  * - MediaProvider refuses the `.../file/<id>` URI `getMediaUri` returns, so the gateway converts it.
  *
  * Needs Android 11. The tree test is [LabDeviceOnly]: it needs a persisted grant on a writable
- * primary-storage folder, so connected Gradle runs and CI leave it out. Without the grant it
- * fails with "no persisted, writable primary-storage tree grant": a lab device must hold one, for
- * the installed debug build (`com.phototok`). Grant it once per device with the lab's
+ * primary-storage folder, so connected Gradle runs and CI leave it out (they would count the skip
+ * below as a failure). The grant belongs to the installed debug build (`com.phototok`) and every
+ * uninstall drops it, which Gradle does after each connected run. A device without it is not a
+ * failing device: the test is *not run* ("not run: no persisted ... grant", an assumption the
+ * device matrix reports as skipped, with that reason). Grant it once per lab device with the lab's
  * `tests/e2e/_ensure_folder.yaml` (appId `com.phototok`, folder `PSTLab/work`) and keep the debug
- * build installed, as `playbook-run-android-device-matrix` describes. It writes one small photo
- * into that folder and deletes it afterwards.
+ * build installed, as `playbook-run-android-device-matrix` describes; never on a personal device.
+ * It writes one small photo into that folder and deletes it afterwards.
  */
 @RunWith(AndroidJUnit4::class)
 @SdkSuppress(minSdkVersion = Build.VERSION_CODES.R) // not an Assume: Gradle's runner counts that as a failure
@@ -91,8 +93,11 @@ class MediaStoreFavouritesTest {
             it.isWritePermission && it.uri.authority == "com.android.externalstorage.documents" &&
                 DocumentsContract.getTreeDocumentId(it.uri).startsWith("primary:")
         }?.uri
-        // Lab state, not a reason to skip: the lab device must have a granted folder (@LabDeviceOnly).
-        assertNotNull("no persisted, writable primary-storage tree grant: pick a folder in the app once", tree)
+        // Not a failure: a freshly (re)installed device holds no grant until the lab's folder flow
+        // ran. @LabDeviceOnly keeps Gradle's connected runner, which counts an assumption as a
+        // failure, away from this test; `am instrument` and the device matrix report a skip.
+        assumeTrue("not run: no persisted, writable primary-storage tree grant for ${context.packageName}; " +
+            "grant a folder once with tests/e2e/_ensure_folder.yaml", tree != null)
         val parent = DocumentsContract.buildDocumentUriUsingTree(tree!!, DocumentsContract.getTreeDocumentId(tree))
         val document = DocumentsContract.createDocument(context.contentResolver, parent, "image/jpeg", testName())
         assertNotNull("could not create a photo in $tree", document)

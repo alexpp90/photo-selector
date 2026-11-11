@@ -80,16 +80,19 @@ data class DestinationUiState(
             openedFolder: FolderDescription?,
         ): DestinationUiState {
             val opened = openedFolder?.let {
-                OpenedFolder(uri = it.uri, name = it.name, hasSelectionMarker = it.hasSelectionMarker)
+                OpenedFolder(uri = it.uri, name = it.name, hasSelectionMarker = it.hasSelectionMarker, key = it.key)
             }
             val plan = SelectionDestinationPlan.resolve(
                 settings = settings,
                 openedFolder = opened,
                 customReachable = customFolder?.isReachable ?: true,
+                customSelectionKey = customFolder?.childFolders?.get(settings.selectionName),
             )
-            val rootPath = when (plan.mode) {
-                DestinationMode.CUSTOM -> customFolder?.displayPath
-                DestinationMode.WORKING_FOLDER -> openedFolder?.displayPath
+            // A custom destination whose Selection folder is the open one files inside it (second pass).
+            val rootPath = if (plan.mode == DestinationMode.CUSTOM && !plan.isSecondPass) {
+                customFolder?.displayPath
+            } else {
+                openedFolder?.displayPath
             }
             return DestinationUiState(
                 mode = plan.mode,

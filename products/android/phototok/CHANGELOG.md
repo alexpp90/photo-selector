@@ -7,6 +7,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 ## [Unreleased]
 
 ### Added
+- Settings lists the open-source licences of what Jackpix bundles (**Open-source licences**, below the Impressum), offline. Before, the app passed on no licence text for AndroidX, Hilt, Coil and the other libraries it ships.
 - **Casual and Pro mode.** A new install starts in Casual mode: swipe fast with nothing to set up. Swipe right marks a ★ favourite on the phone, RAW + JPEG pairs show as one photo, there is no camera info, and Settings shows only the basics. The **Pro mode** switch below the three sources on the start screen (its help button lists what it adds) and at the top of Settings brings back camera info, swipe actions, folders, the Selection folder, feed order, format filter, RAW + JPEG linking and source profiles. Switching Pro off pauses these settings without erasing them; switching it back on restores them exactly.
 - Casual mode on an SD card or camera: swipe right copies the photo (with its RAW or JPEG twin) into the phone's camera folder, subfolder `Jackpix`. The first time, the system picker asks for access to `DCIM/Camera`; if you cancel, the photo stays on the card and the app says "Not copied". Pro mode keeps the card's own `Selection` folder.
 - The delete confirmation has a **Don't ask** checkbox: tick it and confirm to stop the prompt (the Settings row turns it back on). Cancel never turns it off. The confirmation stays on by default in both modes.

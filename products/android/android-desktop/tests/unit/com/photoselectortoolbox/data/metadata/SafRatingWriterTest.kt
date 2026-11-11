@@ -70,12 +70,19 @@ class SafRatingWriterTest {
             /** A provider without "wt": the truncating open of this file name fails before touching it. */
             @Volatile var rejectTruncateOf: String? = null
             @Volatile var renameCreatedTo: ((String) -> String)? = null
+            /**
+             * Runs with the file a create is about to make, before it is made: another writer
+             * taking the name between the app's listing and its create (EEXIST race). A provider
+             * that then hands back the existing document, as this one does, must not get it
+             * overwritten or deleted.
+             */
+            @Volatile var beforeCreate: ((File) -> Unit)? = null
             @Volatile var supportFindDocumentPath = false
             val findPathCalls = java.util.concurrent.atomic.AtomicInteger(0)
 
             fun reset(root: File) {
                 rootDir = root; ids.clear(); files.clear(); counter = 0; opens.clear()
-                failReadOf = null; dieAfterTruncateOf = null; renameCreatedTo = null
+                failReadOf = null; dieAfterTruncateOf = null; renameCreatedTo = null; beforeCreate = null
                 goneAfterTruncate = false; dead = false; rejectTruncateOf = null
                 supportFindDocumentPath = false; findPathCalls.set(0)
             }
@@ -134,6 +141,7 @@ class SafRatingWriterTest {
                     val parent = fileFor(docId(requireNotNull(uri)))
                     val requested = requireNotNull(extras!!.getString(Document.COLUMN_DISPLAY_NAME))
                     val target = File(parent, renameCreatedTo?.invoke(requested) ?: requested)
+                    beforeCreate?.invoke(target)
                     target.createNewFile()
                     Bundle().apply {
                         putParcelable("uri", DocumentsContract.buildDocumentUriUsingTree(uri, idFor(target)))
@@ -352,6 +360,39 @@ class SafRatingWriterTest {
 
         assertTrue(result.isFailure)
         assertEquals(listOf("IMG_10.ARW"), root.list()!!.toList())
+    }
+
+    // EEXIST cleanup (backlog 2026-10-22): the clean-up deletes only what this write created.
+    @Test
+    fun `a sidecar name another writer takes before the create is neither overwritten nor deleted`() = runTest {
+        val raw = file("IMG_11.ARW")
+        val foreign = "<x:xmpmeta>written by another app</x:xmpmeta>".toByteArray()
+        RatingProvider.beforeCreate = { target -> if (target.name == "IMG_11.ARW.xmp") target.writeBytes(foreign) }
+
+        val result = writer.writeRating(context, uriOf(raw), 3)
+
+        assertTrue(result.isFailure)
+        val sidecar = File(root, "IMG_11.ARW.xmp")
+        assertTrue("the other writer's sidecar must survive", sidecar.exists())
+        assertTrue(foreign.contentEquals(sidecar.readBytes()))
+        assertTrue(writesTo("IMG_11.ARW.xmp").isEmpty())
+    }
+
+    @Test
+    fun `a backup name another writer takes before the create is neither overwritten nor deleted, and the photo is untouched`() = runTest {
+        val jpg = jpeg("p/race.jpg")
+        val before = jpg.readBytes()
+        val foreign = byteArrayOf(42, 42, 42)
+        RatingProvider.beforeCreate = { target -> if (target.name == "race.jpg.frameduel-backup") target.writeBytes(foreign) }
+
+        val result = writer.writeRating(context, uriOf(jpg), 4)
+
+        assertTrue(result.isFailure)
+        val backup = File(jpg.parentFile, "race.jpg.frameduel-backup")
+        assertTrue("the other writer's file must survive", backup.exists())
+        assertTrue(foreign.contentEquals(backup.readBytes()))
+        assertTrue(before.contentEquals(jpg.readBytes()))
+        assertTrue(writesTo("race.jpg").isEmpty())
     }
 
     @Test

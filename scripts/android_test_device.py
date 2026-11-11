@@ -50,12 +50,14 @@ from __future__ import annotations
 import argparse
 import fcntl
 import os
+import re
 import shutil
 import signal
 import subprocess
 import sys
 import tempfile
 import time
+from dataclasses import dataclass
 from pathlib import Path
 from typing import Callable, Dict, List, Optional, Sequence, Tuple
 
@@ -239,18 +241,114 @@ def keyguard_showing(serial: str, runner: Runner = run) -> Optional[bool]:
     return False if "isKeyguardShowing=false" in out else None
 
 
-def prepare(serial: str, runner: Runner = run) -> int:
-    """Apply PREPARE_STEPS; return the number of steps that failed."""
+# What each step must have produced, read back with a separate command after the step (agent rule:
+# "a device setup step's exit status does not prove its effect"). Per step: (read command, regex
+# the whole trimmed output must match). The keyguard step is judged by `keyguard_showing` and
+# `prepare_notes`, not here. A read-back that prints nothing or fails says nothing about the step
+# and is not a mismatch; one that prints a different value is.
+PREPARE_READBACKS: Dict[str, List[Tuple[str, str]]] = {
+    "animations off": [(f"settings get global {key}", r"0(\.0+)?") for key in
+                       ("window_animation_scale", "transition_animation_scale", "animator_duration_scale")],
+    "screen stays on while powered": [("settings get global stay_on_while_plugged_in", r"[1-9]\d*")],
+    "screen-off timeout at maximum": [("settings get system screen_off_timeout", r"2147483647")],
+    "fixed portrait rotation": [("settings get system accelerometer_rotation", r"0"),
+                                ("settings get system user_rotation", r"0")],
+    "default display size and density": [("wm size", r"(?!.*Override size).*"),
+                                         ("wm density", r"(?!.*Override density).*")],
+    "default font scale": [("settings get system font_scale", r"1(\.0+)?")],
+    "light theme": [("cmd uimode night", r".*:\s*no")],
+    "no verifier prompt on adb installs": [("settings get global verifier_verify_adb_installs", r"0"),
+                                           ("settings get global package_verifier_enable", r"0")],
+    "low fixed brightness": [("settings get system screen_brightness_mode", r"0"),
+                             ("settings get system screen_brightness", r"40")],
+    "screen awake and unlocked": [("dumpsys power | grep mWakefulness=", r".*mWakefulness=Awake.*")],
+}
+READ_BACK_ATTEMPTS = 6      # the window manager and the settings provider apply some changes late
+READ_BACK_DELAY = 0.5
+
+
+def read_back(serial: str, name: str, runner: Runner = run, sleep: Callable[[float], None] = time.sleep) -> Optional[str]:
+    """None when the state the step should have produced shows (or cannot be read); else what differs."""
+    for command, pattern in PREPARE_READBACKS.get(name, []):
+        for attempt in range(READ_BACK_ATTEMPTS):
+            code, out = runner(["adb", "-s", serial, "shell", command])
+            shown = out.strip()
+            if code != 0 or not shown or re.fullmatch(pattern, shown, re.DOTALL):
+                break
+            if attempt == READ_BACK_ATTEMPTS - 1:
+                first = shown.splitlines()[-1][:100]
+                return f"read back `{command}`: {first!r}, expected /{pattern}/"
+            sleep(READ_BACK_DELAY)
+    return None
+
+
+@dataclass
+class StepOutcome:
+    ok: bool
+    code: int
+    out: str          # what adb printed for the step itself
+    detail: str       # the exit code and text (or the read-back mismatch) of a failed step; "" when ok
+
+
+def run_step(serial: str, name: str, command: str, runner: Runner = run,
+             sleep: Callable[[float], None] = time.sleep) -> StepOutcome:
+    """One PREPARE_STEPS entry: its exit status and text, then the read-back of its effect."""
+    code, out = runner(["adb", "-s", serial, "shell", command])
+    if code != 0 or "Exception" in out or "Error" in out:
+        return StepOutcome(False, code, out, f"exit {code}: {out.strip()[-200:] or 'no output'}")
+    mismatch = read_back(serial, name, runner, sleep)
+    if mismatch:
+        return StepOutcome(False, code, out, f"exit {code} but the effect is missing; {mismatch}")
+    return StepOutcome(True, code, out, "")
+
+
+KEYGUARD_STEP = "keyguard disabled"
+
+
+def prepare_notes(failed: Sequence[str], outputs: Dict[str, str], keyguard_showing: Optional[bool]) -> str:
+    """The note for a device prepared as a test device (the one wording both tools use).
+
+    ``locksettings set-disabled true`` is refused on a device with a secure lock screen (PIN,
+    pattern, password), which adb cannot remove. That is a property of the phone, not a failed
+    run: when the lock screen is not showing after the wake-up (read back, not assumed), the
+    device is usable and the note says the lock stays and the screen is kept awake. A lock
+    screen that *is* showing keeps the step in the failure list; the device matrix's
+    ``_wait_unlocked`` then decides whether the suites can run. Every other failed step stays a
+    failure.
+    """
+    others = [n for n in failed if n != KEYGUARD_STEP]
+    keyguard_failed = KEYGUARD_STEP in failed
+    soft = keyguard_failed and keyguard_showing is not True
+    problems = others + ([KEYGUARD_STEP] if keyguard_failed and not soft else [])
+    note = "prepared as a test device" + (f" (failed: {', '.join(problems)})" if problems else "")
+    if soft:
+        detail = (outputs.get(KEYGUARD_STEP) or "").strip().splitlines()
+        note += ("; screen lock not removable over adb (probably a PIN, pattern or password; "
+                 "it was not showing at the start of the run, screen kept awake)"
+                 + (f" [{detail[-1][:120]}]" if detail else ""))
+    return note
+
+
+def prepare(serial: str, runner: Runner = run, sleep: Callable[[float], None] = time.sleep) -> int:
+    """Apply PREPARE_STEPS; return the number of failures (a refused keyguard step on a phone whose
+    lock screen is not showing is a note, not a failure — ``prepare_notes``)."""
     root = ensure_root(serial, runner)
     print(f"  device {serial}: adb {'root' if root else 'shell (no root)'}")
-    failures = 0
+    failed: List[str] = []
+    outputs: Dict[str, str] = {}
     for name, command in PREPARE_STEPS:
-        code, out = runner(["adb", "-s", serial, "shell", command])
-        ok = code == 0 and "Exception" not in out and "Error" not in out
-        failures += 0 if ok else 1
-        print(f"  {'✓' if ok else '✗'} {name}" + ("" if ok else f" — {out.splitlines()[-1] if out else code}"))
-    if keyguard_showing(serial, runner):
-        failures += 1
+        outcome = run_step(serial, name, command, runner, sleep)
+        if not outcome.ok:
+            failed.append(name)
+            outputs[name] = outcome.out
+        print(f"  {'✓' if outcome.ok else '✗'} {name}" + ("" if outcome.ok else f" ({outcome.detail})"))
+    showing = keyguard_showing(serial, runner)
+    note = prepare_notes(failed, outputs, showing)
+    print(f"  {note}")
+    failures = len([n for n in failed if n != KEYGUARD_STEP or showing is True])
+    if showing:
+        if KEYGUARD_STEP not in failed:
+            failures += 1
         print("  ✗ lock screen still showing — a secure screen lock (PIN, pattern, password) "
               "cannot be removed over adb; remove it on the device or unlock it")
     return failures

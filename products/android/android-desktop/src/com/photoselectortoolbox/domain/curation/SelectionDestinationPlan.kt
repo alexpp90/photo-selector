@@ -48,14 +48,25 @@ data class DestinationSettings(
 }
 
 /**
+ * A folder as its provider names it: the content authority and the provider-issued document
+ * id. Two URIs of different trees (`X` picked as one tree, `X/Selection` as another) name the
+ * same folder when their keys are equal. Compared whole, never split or parsed.
+ */
+data class FolderKey(val authority: String, val documentId: String)
+
+/**
  * The folder being culled, as far as the destination cares: its URI, and whether it is
  * itself a Selection folder (its name is the Selection name, or it holds the
  * `.photoselector-selection` marker), which makes this a second pass (`U-32`).
+ *
+ * @property key the folder's [FolderKey], when known: tells whether it is the Selection folder
+ *   inside the custom destination.
  */
 data class OpenedFolder(
     val uri: String,
     val name: String? = null,
     val hasSelectionMarker: Boolean = false,
+    val key: FolderKey? = null,
 )
 
 /** Why a resolved destination will not take files as it stands. */
@@ -91,21 +102,36 @@ data class SelectionDestinationPlan(
         /**
          * The destination for [settings] while [openedFolder] is open (null: none).
          *
-         * - **Custom**: `<custom>/<Selection name>`, whatever folder is open — never a
-         *   second pass, because the custom folder is not the folder being culled.
+         * - **Custom**: `<custom>/<Selection name>`, whatever folder is open — except when the
+         *   open folder *is* that Selection folder ([customSelectionKey] equals the opened
+         *   folder's key): filing there would rename each photo in place, so it is a second
+         *   pass as in Working folder mode, `<opened>/<second-pass name>` (finding 2026-11-04).
          * - **Working folder**: `<opened>/<Selection name>`; when the opened folder is
          *   itself a Selection folder (second pass, `U-32`), `<opened>/<second-pass name>`.
          *
          * [customReachable] is what Settings knows about the custom folder (grant present
          * and the tree resolves); the file operation does not ask and passes the default.
+         * [customSelectionKey] is the key of the existing `<custom>/<Selection name>` folder,
+         * null when it does not exist or could not be listed.
          */
         fun resolve(
             settings: DestinationSettings,
             openedFolder: OpenedFolder?,
             customReachable: Boolean = true,
+            customSelectionKey: FolderKey? = null,
         ): SelectionDestinationPlan {
             val custom = settings.customUri
             if (custom != null) {
+                if (openedFolder != null && customSelectionKey != null && openedFolder.key == customSelectionKey) {
+                    return SelectionDestinationPlan(
+                        mode = DestinationMode.CUSTOM,
+                        rootUri = openedFolder.uri,
+                        folderName = settings.secondPassName,
+                        isSecondPass = true,
+                        sortsIntoRawAndJpeg = settings.sortingEnabled,
+                        problem = if (customReachable) null else DestinationProblem.CUSTOM_FOLDER_UNREACHABLE,
+                    )
+                }
                 return SelectionDestinationPlan(
                     mode = DestinationMode.CUSTOM,
                     rootUri = custom,

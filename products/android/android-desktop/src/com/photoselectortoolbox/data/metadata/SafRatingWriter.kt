@@ -86,6 +86,7 @@ internal class SafRatingWriter(
             ?: throw RatingWriteException("Could not open the folder to create $sidecarName")
         val created = folder.createFile("application/octet-stream", sidecarName)
             ?: throw RatingWriteException("Could not create $sidecarName")
+        requireCreatedEmpty(created.uri, sidecarName, "it was left unchanged")
         try {
             // The provider may rename on collision or add an extension; a sidecar with another name is no sidecar.
             if (created.name != sidecarName) {
@@ -178,6 +179,7 @@ internal class SafRatingWriter(
             ?: throw RatingWriteException("Could not open the folder to create $backupName; the photo was left unchanged")
         val created = folder.createFile("application/octet-stream", backupName)
             ?: throw RatingWriteException("Could not create $backupName; the photo was left unchanged")
+        requireCreatedEmpty(created.uri, backupName, "it and the photo were left unchanged")
         try {
             if (created.name != backupName) {
                 throw RatingWriteException("The storage provider named the backup '${created.name}' instead of '$backupName'; the photo was left unchanged")
@@ -276,6 +278,25 @@ internal class SafRatingWriter(
             false
         } finally {
             probe.delete()
+        }
+    }
+
+    /**
+     * A document this write just created is empty. One that is not was put at that name by another
+     * writer between the listing and the create, and a provider that hands back the existing
+     * document instead of a new one gave us theirs (EEXIST, backlog 2026-10-22): it is neither
+     * written nor deleted, and the write fails. A size the provider does not report reads as empty.
+     */
+    private fun requireCreatedEmpty(uri: Uri, name: String, outcome: String) {
+        val size = try {
+            resolver.query(uri, arrayOf(Document.COLUMN_SIZE), null, null, null)?.use { cursor ->
+                if (cursor.moveToFirst() && !cursor.isNull(0)) cursor.getLong(0) else null
+            }
+        } catch (e: Exception) {
+            throw RatingWriteException("Could not check the new $name; $outcome", e)
+        }
+        if (size != null && size > 0L) {
+            throw RatingWriteException("$name appeared in the folder while it was being created; $outcome")
         }
     }
 

@@ -135,6 +135,7 @@ import com.photoselectortoolbox.ui.theme.Zinc700
 import com.photoselectortoolbox.ui.theme.Zinc800
 import com.photoselectortoolbox.ui.theme.Zinc900
 import com.photoselectortoolbox.ui.theme.Zinc950
+import com.photoselectortoolbox.viewmodel.LearnCompositionViewModel
 import com.photoselectortoolbox.viewmodel.SelectorViewModel
 import java.text.SimpleDateFormat
 import java.util.Date
@@ -228,9 +229,13 @@ fun InspectScreen(
     onNavigate: (Screen) -> Unit = {},
     viewModel: SelectorViewModel = hiltViewModel(),
     photoCoachEngine: PhotoCoachEngine = remember { PhotoCoachEngineImpl() },
+    compositionViewModel: LearnCompositionViewModel = hiltViewModel(),
 ) {
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
     val currentImage = uiState.currentImage
+    // The composition analysis runs in the view model, for the photo shown (B-AD-4).
+    LaunchedEffect(currentImage?.uri) { compositionViewModel.show(currentImage) }
+    val composition by compositionViewModel.composition.collectAsStateWithLifecycle()
 
     InspectScreenContent(
         currentImage = currentImage,
@@ -253,6 +258,7 @@ fun InspectScreen(
         ratingFilter = uiState.ratingFilter,
         onRatingFilterSelected = { filter -> viewModel.setRatingFilter(filter) },
         photoCoachEngine = photoCoachEngine,
+        compositionResult = composition.resultFor(currentImage?.uri),
     )
 }
 

@@ -1,5 +1,7 @@
 package com.photoselectortoolbox.data.model
 
+import com.photoselectortoolbox.domain.curation.FolderKey
+
 /**
  * What Settings may show about a folder, as the storage layer found it just now
  * (`ImageRepository.describeFolder`). Nothing here is an operation: [displayPath] is a
@@ -13,6 +15,9 @@ package com.photoselectortoolbox.data.model
  * @property canWrite whether the provider reports the directory as writable.
  * @property hasSelectionMarker whether it holds the `.photoselector-selection` marker, i.e. is itself
  *   a Selection folder (`U-32`).
+ * @property key the folder's own provider key, or null when the URI names none.
+ * @property childFolders its sub-folders by display name, from the same children query as the
+ *   marker: tells whether the opened folder is the Selection folder of a custom destination.
  */
 data class FolderDescription(
     val uri: String,
@@ -22,6 +27,8 @@ data class FolderDescription(
     val exists: Boolean = false,
     val canWrite: Boolean = false,
     val hasSelectionMarker: Boolean = false,
+    val key: FolderKey? = null,
+    val childFolders: Map<String, FolderKey> = emptyMap(),
 ) {
     /** How the folder stands as a destination for Copy and Move. */
     val reachability: FolderReachability

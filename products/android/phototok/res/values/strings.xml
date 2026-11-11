@@ -254,6 +254,7 @@
     <string name="setting_title_source_code">Source code</string>
     <string name="setting_title_privacy">Privacy Policy</string>
     <string name="setting_title_legal">Legal Notice (Impressum)</string>
+    <string name="setting_title_licences">Open-source licences</string>
     <string name="chip_phone_cloud">Phone + cloud</string>
     <string name="chip_sd_card">SD card</string>
     <string name="chip_camera">Camera</string>

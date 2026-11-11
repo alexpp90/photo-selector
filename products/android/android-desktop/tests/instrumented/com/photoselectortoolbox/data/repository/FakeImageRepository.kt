@@ -6,6 +6,7 @@ import com.photoselector.core.model.ExifData
 import com.photoselectortoolbox.data.model.FolderDescription
 import com.photoselectortoolbox.data.model.ImageDimensions
 import com.photoselectortoolbox.data.model.ImageItem
+import com.photoselectortoolbox.domain.curation.FileIdentity
 import javax.inject.Inject
 import javax.inject.Singleton
 import kotlinx.coroutines.flow.Flow
@@ -73,6 +74,10 @@ class FakeImageRepository @Inject constructor() : ImageRepository {
         imagesFlow.value = current.filter { it.uri != uri.toString() }
         return true
     }
+
+    /** The identity of a listed image, from its size and date; null once it is gone. */
+    override suspend fun documentIdentity(context: Context, uri: Uri): FileIdentity? =
+        imagesFlow.value.find { it.uri == uri.toString() }?.let { FileIdentity(it.fileSize, it.lastModified) }
 
     var canTrashResult: Boolean = false
 

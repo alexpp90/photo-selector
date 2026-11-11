@@ -2,8 +2,8 @@ name: Android CI
 
 # Single pipeline for the Android solutions: tests always run; packaging,
 # signing, and publishing only happen on pushes to main or on a product
-# release tag (and manual dispatch). Builds depend on tests via `needs:` — no
-# cross-workflow polling gate needed.
+# release tag (and manual dispatch). Builds depend on the JVM tests via `needs:`, and
+# the publishing jobs also on the emulator job — no cross-workflow polling gate needed.
 #
 # Each Android product is released on its own (docs/build/RELEASING.md):
 #   phototok-vX.Y.Z         builds, signs and publishes only Jackpix
@@ -20,6 +20,7 @@ on:
       - 'products/android/**'
       - '.github/workflows/android.yml'
       - 'scripts/check_native_alignment.py'
+      - 'scripts/android_licenses.py'
       - 'testdata/formats/**'
       - 'scripts/fetch_format_corpus.py'
       - '.github/actions/format-corpus/**'
@@ -29,6 +30,7 @@ on:
       - 'products/android/**'
       - '.github/workflows/android.yml'
       - 'scripts/check_native_alignment.py'
+      - 'scripts/android_licenses.py'
       - 'testdata/formats/**'
       - 'scripts/fetch_format_corpus.py'
       - '.github/actions/format-corpus/**'
@@ -144,6 +146,11 @@ jobs:
           python3 scripts/check_native_alignment.py \
             products/android/android-desktop/build/intermediates/merged_native_libs/debug \
             products/android/phototok/build/intermediates/merged_native_libs/debug
+
+      # Both apps bundle the licence notices of their release classpath. A library with no
+      # entry in products/android/licenses/components.json, or a stale notice file, fails here.
+      - name: Third-party licence notices
+        run: python3 scripts/android_licenses.py check
 
       - name: Upload unit test report
         if: always()
@@ -284,16 +291,20 @@ jobs:
 
   # ── Build & sign (main / tags / manual dispatch only) ───────────
   #
-  # NOTE on workflow_dispatch: the job runs, but every signing/publishing step
-  # below is gated on `github.event_name == 'push'`, so a manual dispatch
-  # produces the debug APK only — it never signs, uploads to Firebase, or
-  # publishes to Play. That is intentional (manual runs are for smoke-checking
+  # NOTE on workflow_dispatch: the job runs, but every signing step below is gated
+  # on `github.event_name == 'push'` and the publishing jobs only run on a push, so
+  # a manual dispatch produces the debug APK only — it never signs, uploads to
+  # Firebase, or publishes to Play. That is intentional (manual runs are for smoke-checking
   # the build, not for shipping). The conditions used to also carry
   # `|| github.event_name == 'workflow_dispatch'` *inside* the push guard,
   # which could never evaluate true and only made the intent unreadable.
   build:
     name: Build Android
-    needs: [unit-tests, instrumented-tests, detect-changes]
+    # Starts beside the emulator job, not after it: only publishing needs a green emulator run, so
+    # the Firebase, GitHub-release and nightly-tag steps live in `publish-release` and Play in
+    # `publish-play`, both of which `need` `instrumented-tests`. Run 42906683522 spent 581 s on the
+    # emulator and then 480 s on the build, in series.
+    needs: [unit-tests, detect-changes]
     if: github.event_name == 'workflow_dispatch' || (github.event_name == 'push' && (github.ref == 'refs/heads/main' || startsWith(github.ref, 'refs/tags/phototok-v') || startsWith(github.ref, 'refs/tags/android-desktop-v')))
     runs-on: ubuntu-24.04
     timeout-minutes: 30
@@ -481,11 +492,57 @@ jobs:
           path: products/android/release-assets/phototok-android-release.apk
           if-no-files-found: error
 
+      - name: Upload release AAB
+        if: github.event_name == 'push' && needs.detect-changes.outputs.toolbox == 'true'
+        uses: actions/upload-artifact@v7
+        with:
+          name: photo-selector-toolbox-android-release-aab
+          path: products/android/release-assets/photo-selector-toolbox-android-release.aab
+          if-no-files-found: error
+
+      - name: Upload Jackpix release AAB
+        if: github.event_name == 'push' && needs.detect-changes.outputs.phototok == 'true'
+        uses: actions/upload-artifact@v7
+        with:
+          name: phototok-android-release-aab
+          path: products/android/release-assets/phototok-android-release.aab
+          if-no-files-found: error
+
+  # ── Publish (main / tags only; waits for the emulator) ──────────
+  # Firebase, the rolling nightly release and a product release's GitHub release. These are the
+  # steps that must not run when the emulator suite is red; the artifacts they ship were built
+  # by `build`, which ran beside the emulator job.
+  publish-release:
+    name: Publish releases (GitHub, Firebase)
+    needs: [build, instrumented-tests, detect-changes]
+    if: github.event_name == 'push' && (github.ref == 'refs/heads/main' || startsWith(github.ref, 'refs/tags/phototok-v') || startsWith(github.ref, 'refs/tags/android-desktop-v')) && (needs.detect-changes.outputs.toolbox == 'true' || needs.detect-changes.outputs.phototok == 'true')
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    permissions:
+      contents: write
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v7
+
+      # Tag releases: the product, version and display name for the release title.
+      - name: Verify release tag
+        if: startsWith(github.ref, 'refs/tags/')
+        id: verify
+        run: python3 scripts/release.py verify-tag "$GITHUB_REF_NAME"
+
+      # Only the modules `build` built have artifacts, so the pattern matches only those.
+      - name: Download release APKs and AABs
+        uses: actions/download-artifact@v8
+        with:
+          pattern: '*-android-release*'
+          merge-multiple: true
+          path: products/android/release-assets
+
       # Each app lives in its own Firebase project with its own service-account credential.
       - name: Upload Frameduel to Firebase App Distribution
         if: github.event_name == 'push' && github.ref == 'refs/heads/main' && needs.detect-changes.outputs.toolbox == 'true'
         # Tester distribution is a convenience and must not block the Play Store
-        # release that runs later in this job. The "groups" alias below must exist
+        # release (`publish-play`, which runs beside this job). The "groups" alias below must exist
         # in the Firebase project, otherwise distribution 404s.
         continue-on-error: true
         uses: wzieba/Firebase-Distribution-Github-Action@bd494989dd4bec0343f78adee87fe66e48279ad6 # v1
@@ -508,22 +565,6 @@ jobs:
           # Must match a tester-group ALIAS created in the Firebase Console.
           groups: ${{ vars.PHOTOTOK_FIREBASE_TESTER_GROUP || 'testers' }}
           file: products/android/release-assets/phototok-android-release.apk
-
-      - name: Upload release AAB
-        if: github.event_name == 'push' && needs.detect-changes.outputs.toolbox == 'true'
-        uses: actions/upload-artifact@v7
-        with:
-          name: photo-selector-toolbox-android-release-aab
-          path: products/android/release-assets/photo-selector-toolbox-android-release.aab
-          if-no-files-found: error
-
-      - name: Upload Jackpix release AAB
-        if: github.event_name == 'push' && needs.detect-changes.outputs.phototok == 'true'
-        uses: actions/upload-artifact@v7
-        with:
-          name: phototok-android-release-aab
-          path: products/android/release-assets/phototok-android-release.aab
-          if-no-files-found: error
 
       - name: Move nightly tag to this commit
         # softprops/action-gh-release never moves an existing tag, so without this the Nightly
@@ -565,7 +606,7 @@ jobs:
 
   publish-play:
     name: Publish to Google Play
-    needs: [build, detect-changes]
+    needs: [build, instrumented-tests, detect-changes]
     if: github.event_name == 'push' && (github.ref == 'refs/heads/main' || startsWith(github.ref, 'refs/tags/phototok-v') || startsWith(github.ref, 'refs/tags/android-desktop-v')) && (needs.detect-changes.outputs.toolbox == 'true' || needs.detect-changes.outputs.phototok == 'true')
     runs-on: ubuntu-24.04
     # Measured: 0.5-1.4 min over 20 main runs (2026-11); 3x is under the 10-minute floor.
