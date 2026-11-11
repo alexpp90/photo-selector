@@ -48,7 +48,7 @@ public struct FilmstripView: View {
             )
             .onChange(of: currentIndex) { _, newIndex in
                 if photos.indices.contains(newIndex) {
-                    withAnimation(.easeInOut(duration: 0.2)) {
+                    MotionPolicy.animate(.easeInOut(duration: 0.2)) {
                         proxy.scrollTo(photos[newIndex].id, anchor: .center)
                     }
                 }

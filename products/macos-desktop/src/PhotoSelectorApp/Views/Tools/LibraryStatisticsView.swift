@@ -82,6 +82,15 @@ public struct LibraryStatisticsView: View {
         .preferredColorScheme(.dark)
         .onAppear {
             statsViewModel.refresh(from: workspaceViewModel.photos)
+            // Score the whole library in the background so the figures cover all of it; closing
+            // the sheet cancels the pass.
+            workspaceViewModel.startLibraryScoring()
+        }
+        .onDisappear {
+            workspaceViewModel.cancelLibraryScoring()
+        }
+        .onChange(of: workspaceViewModel.scoringProgress) { _, _ in
+            statsViewModel.refresh(from: workspaceViewModel.photos)
         }
     }
 
@@ -247,12 +256,14 @@ public struct LibraryStatisticsView: View {
             Text("Quality Distribution")
                 .font(.system(size: 13, weight: .semibold))
 
+            coverageRow
+
             HStack(spacing: 20) {
                 VStack(spacing: 4) {
                     Text(statsViewModel.statistics.averageSharpness.map { String(format: "%.1f", $0) } ?? "–")
                         .font(.system(size: 24, weight: .bold, design: .rounded))
                         .foregroundStyle(Color.green)
-                    Text("Avg Sharpness")
+                    Text("Avg Sharpness / 100")
                         .font(.system(size: 11))
                         .foregroundStyle(.secondary)
                 }
@@ -269,7 +280,7 @@ public struct LibraryStatisticsView: View {
                         Text(statsViewModel.statistics.averageAesthetic.map { String(format: "%.1f", $0) } ?? "–")
                             .font(.system(size: 24, weight: .bold, design: .rounded))
                     }
-                    Text("Avg Aesthetics")
+                    Text("Avg Aesthetics / 10")
                         .font(.system(size: 11))
                         .foregroundStyle(.secondary)
                 }
@@ -288,6 +299,33 @@ public struct LibraryStatisticsView: View {
         .padding(14)
         .background(Color(NSColor.controlBackgroundColor))
         .clipShape(RoundedRectangle(cornerRadius: 10))
+    }
+
+    /// What the sharpness figures are based on, and a determinate bar while the background pass runs.
+    private var coverageRow: some View {
+        let stats = statsViewModel.statistics
+        return VStack(alignment: .leading, spacing: 4) {
+            HStack(spacing: 6) {
+                if let progress = workspaceViewModel.scoringProgress {
+                    ProgressView(value: Double(progress.done), total: Double(max(1, progress.total)))
+                        .progressViewStyle(.linear)
+                        .frame(maxWidth: 120)
+                        .accessibilityLabel("Scoring photos")
+                        .accessibilityValue(progress.text)
+                }
+                Text(stats.sharpnessCoverageText)
+                    .font(.system(size: 11, weight: .semibold).monospacedDigit())
+                    .foregroundStyle(stats.isSharpnessComplete ? Color.lensjetTextSecondary : Color.orange)
+                    .accessibilityIdentifier("stats_coverage")
+                    .uiTestFrame("stats_coverage")
+            }
+            if stats.aestheticScoredCount < stats.totalPhotoCount, stats.totalPhotoCount > 0 {
+                Text("Aesthetics: \(stats.aestheticScoredCount) / \(stats.totalPhotoCount) viewed")
+                    .font(.system(size: 10))
+                    .foregroundStyle(Color.lensjetTextSecondary)
+            }
+        }
+        .accessibilityElement(children: .combine)
     }
 
     private func focusCategoryRow(category: SharpnessCategory, count: Int, color: Color) -> some View {

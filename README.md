@@ -112,6 +112,7 @@ A native macOS photo culling app built with Swift 6 and SwiftUI, for going throu
 * **Maximized Viewport Canvas:** Borderless comparison layouts (1-Up with 1:1 pixel zoom on `Space`, 2-Up side-by-side, and Focus 3-Up sliding triplet) allocating >85% of window area to photo previews.
 * **Keyboard First:** A window-level `NSEvent` monitor takes the keys before any button can, so arrow keys, `M` (Move to `Selection/`), `C` (Copy), `Delete` (Trash) and `⌘Z` (Undo) act even while a button has focus. All keys: [`docs/shared/KEYBOARD.md`](docs/shared/KEYBOARD.md).
 * **Actor-Isolated Transactional Culling:** Serial FIFO disk mutations on `AsyncCullingActor` that never overwrite a file (a name clash gets a `-2` suffix), keep an undo record for Move, Copy and Trash, and pair companion files automatically (RAW+JPEG, XMP sidecars).
+* **Sort, jump and the whole set:** `View > Sort By` (Newest First, Oldest First, File Name, Lowest Sharpness First), `G` to go to a photo by number or name, chips and "Moved 3 files" toasts for a RAW + JPEG + XMP set, a Copied count in the bottom tally, and scores shown with their scale ("Sharpness 59.6 / 100").
 * **macOS Design Standards:** Studio dark theme, configuration housed in standard macOS Settings (`⌘,`), secondary utilities housed under the Menu Bar `Tools` menu, and a toolbar and action bar that collapse to short labels and icons (with tooltips) in narrow windows instead of wrapping.
 
 ---

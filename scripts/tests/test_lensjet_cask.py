@@ -80,6 +80,47 @@ class LensjetCaskTest(unittest.TestCase):
         self.assertEqual(out.count("caveats"), 1)
         self.assertIn('caveats "hand written"', out)
 
+    def test_version_and_sha256_are_rewritten_without_the_legacy_updater(self):
+        out = cask.set_version_and_hash(STABLE, version="0.3.1", sha256="ab" * 32)
+        self.assertIn('  version "0.3.1"\n', out)
+        self.assertIn(f'  sha256 "{"ab" * 32}" # macos_sha256\n', out)
+        self.assertNotIn("7e596e12db08", out)
+        self.assertNotIn('version "0.2.0"', out)
+        # Everything else is byte for byte what it was.
+        self.assertEqual(out.replace('0.3.1', '0.2.0').replace("ab" * 32, "7e596e12db088f93133fd438cb6093eec457cf44e454b4113ea05156b6075f4e"), STABLE)
+
+    def test_nightly_has_a_hash_but_no_numeric_version(self):
+        nightly = STABLE.replace('version "0.2.0"', "version :latest")
+        out = cask.set_version_and_hash(nightly, version=None, sha256="cd" * 32)
+        self.assertIn("version :latest", out)
+        self.assertIn(f'sha256 "{"cd" * 32}" # macos_sha256', out)
+
+    def test_a_marker_that_is_gone_is_an_error_not_a_stale_hash(self):
+        no_marker = STABLE.replace(" # macos_sha256", "")
+        with self.assertRaises(cask.MarkerMissing):
+            cask.set_version_and_hash(no_marker, version="0.3.1", sha256="ab" * 32)
+        no_version = STABLE.replace('version "0.2.0"', "")
+        with self.assertRaises(cask.MarkerMissing):
+            cask.set_version_and_hash(no_version, version="0.3.1", sha256="ab" * 32)
+
+    def test_command_line_applies_version_hash_and_rebrand_in_one_call(self):
+        import tempfile
+        with tempfile.TemporaryDirectory() as tmp:
+            path = Path(tmp) / "cask.rb"
+            path.write_text(STABLE, encoding="utf-8")
+            self.assertEqual(cask.main([str(path), "--version", "0.3.1", "--sha256", "ab" * 32]), 0)
+            out = path.read_text(encoding="utf-8")
+            self.assertIn('version "0.3.1"', out)
+            self.assertIn('app "Lensjet.app"', out)
+            self.assertIn("caveats <<~EOS", out)
+            self.assertEqual(cask.main([str(path), "--version", "0.3.1", "--sha256", "ab" * 32]), 0)
+            self.assertEqual(path.read_text(encoding="utf-8"), out)
+
+    def test_macos_workflow_calls_nothing_under_the_legacy_product(self):
+        workflow = (Path(__file__).resolve().parents[2] / ".github" / "workflows" / "macos.yml").read_text(encoding="utf-8")
+        self.assertNotIn("products/desktop/", workflow)
+        self.assertIn("products/macos-desktop/scripts/lensjet_cask.py", workflow)
+
     def test_rewrite_is_idempotent(self):
         once = cask.rebrand(STABLE, nightly=False)
         self.assertEqual(cask.rebrand(once, nightly=False), once)

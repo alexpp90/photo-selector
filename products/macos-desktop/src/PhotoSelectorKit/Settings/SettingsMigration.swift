@@ -14,6 +14,32 @@ public enum SettingsMigration {
     /// Set in the current defaults once the migration has run.
     public static let doneMarkerKey = "lensjetSettingsMigrationDone"
 
+    /// Set once the sort order of an existing install has been pinned (or found not to need it).
+    public static let sortPinnedMarkerKey = "lensjetSortOrderPinned"
+
+    /// A new install opens newest first; an install that predates the sort menu keeps the file-name
+    /// order it always had ("Updates must not destroy the user's experience"). An install is an
+    /// existing one when this code has run before (the migration marker is set), or the defaults or
+    /// the pre-rename domain already hold a Lensjet setting. Runs once, writes nothing for a
+    /// new install, and never overrides a stored order.
+    /// - Returns: true when the file-name order was pinned.
+    @discardableResult
+    public static func pinSortOrderForExistingInstall(
+        in defaults: UserDefaults = .standard,
+        legacy: UserDefaults? = nil
+    ) -> Bool {
+        if defaults.bool(forKey: sortPinnedMarkerKey) { return false }
+        defer { defaults.set(true, forKey: sortPinnedMarkerKey) }
+        guard defaults.object(forKey: AppSettingsKeys.sortOrder) == nil else { return false }
+        let legacySource = legacy ?? UserDefaults(suiteName: legacyDomain)
+        let existing = defaults.bool(forKey: doneMarkerKey)
+            || AppSettingsKeys.all.contains { defaults.object(forKey: $0) != nil }
+            || (legacySource.map { source in AppSettingsKeys.all.contains { source.object(forKey: $0) != nil } } ?? false)
+        guard existing else { return false }
+        defaults.workspaceSortOrder = .fileName
+        return true
+    }
+
     /// Copies missing keys from `legacy` into `defaults`, once.
     /// - Parameters:
     ///   - defaults: destination (the app's standard defaults).

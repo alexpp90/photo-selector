@@ -227,22 +227,20 @@ struct CullingActionFeedbackTests {
 
     // MARK: - Open rows, strict known failures
 
-    @Test("REQ-MAC-CULL.05 F-LJ-031: a RAW + JPEG + sidecar bundle is named as a bundle in the feedback (open)")
+    @Test("REQ-MAC-CULL.05 F-LJ-031: a RAW + JPEG + sidecar bundle is counted as a bundle in the feedback")
     func bundleIsNamedInFeedback() async throws {
         let env = try makeEnv(custom: false, files: ["B0.CR3", "B0.JPG", "B0.xmp", "B1.JPG"])
         defer { env.cleanUp() }
         #expect(env.items[0].filename == "B0.CR3")
 
         env.vm.cullCurrentPhoto(action: .move)
-        let texts = await toastTexts(env.vm, budget: 1.5)
+        let texts = await toastTexts(env.vm, budget: 5) { $0.contains { $0.hasPrefix("Moved 3 files") } }
 
-        await withKnownIssue("F-LJ-031: toasts name the primary file only; no screen says that three files moved together (CullingWorkspaceViewModel.swift: toastTitle / subtitle: photo.filename)") {
-            #expect(texts.contains { $0.contains("+2") || $0.localizedCaseInsensitiveContains("related") || $0.contains("3 files") },
-                    "no feedback mentions the two companions; saw \(texts)")
-        }
+        #expect(texts.contains { $0.hasPrefix("Moved 3 files") }, "the toast must count the three files that moved together; saw \(texts)")
+        #expect(!texts.contains { $0.contains("B0.JPG") || $0.contains("B0.xmp") }, "companion names stay out of the toast; saw \(texts)")
     }
 
-    @Test("REQ-MAC-CULL.03 F-LJ-033: a Copy leaves a lasting count in the bottom bar tally (open)")
+    @Test("REQ-MAC-CULL.03 F-LJ-033: a Copy leaves a lasting count in the bottom bar tally")
     func copyLeavesALastingCount() async throws {
         let env = try makeEnv(custom: false)
         defer { env.cleanUp() }
@@ -251,9 +249,13 @@ struct CullingActionFeedbackTests {
         #expect(await waitUntil { env.vm.cardCullSummary.inFlightCount == 0 })
         #expect(env.vm.photos[0].status == .copied)
 
-        // The bar's "N Selected" reads `selectedCount` (CullingActionBar.swift: viewModel.selectedCount).
-        await withKnownIssue("F-LJ-033: selectedCount ignores .copied, so after a Copy the bar shows 0 Selected; only the 1.2 s toast remains (CullingWorkspaceViewModel.swift: selectedCount)") {
-            #expect(env.vm.selectedCount == 1)
-        }
+        // The tally reads `copiedCount` (CullingActionBar.swift) and keeps Selected out of it.
+        #expect(env.vm.copiedCount == 1)
+        #expect(env.vm.selectedCount == 0)
+        #expect(ChromeDensity.tallyAccessibilityText(selected: env.vm.selectedCount, trashed: env.vm.trashedCount,
+                                                      remaining: 0, copied: env.vm.copiedCount).contains("1 copied"))
+        // An undo of the copy takes it off the tally again.
+        env.vm.undoLastAction()
+        #expect(env.vm.copiedCount == 0)
     }
 }

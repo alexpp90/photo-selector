@@ -24,6 +24,8 @@ public protocol KeyEventRepresentable {
     var charactersIgnoringModifiers: String? { get }
     var keyCode: UInt16 { get }
     var specialKey: NSEvent.SpecialKey? { get }
+    /// True for an auto-repeat of a held key (destructive keys act once).
+    var isARepeat: Bool { get }
 }
 
 @MainActor
@@ -48,6 +50,7 @@ public struct SyntheticKeyEvent: KeyEventRepresentable {
     public var charactersIgnoringModifiers: String?
     public var keyCode: UInt16
     public var specialKey: NSEvent.SpecialKey?
+    public var isARepeat: Bool
 
     public init(
         keyCode: UInt16,
@@ -55,6 +58,7 @@ public struct SyntheticKeyEvent: KeyEventRepresentable {
         modifierFlags: NSEvent.ModifierFlags = [],
         specialKey: NSEvent.SpecialKey? = nil,
         isTextInputActive: Bool = false,
+        isARepeat: Bool = false,
         window: (any SheetContextInspectable)? = nil
     ) {
         self.keyCode = keyCode
@@ -62,7 +66,20 @@ public struct SyntheticKeyEvent: KeyEventRepresentable {
         self.modifierFlags = modifierFlags
         self.specialKey = specialKey
         self.isTextInputActive = isTextInputActive
+        self.isARepeat = isARepeat
         self.sheetContextInspectableWindow = window
+    }
+}
+
+/// Animation that honours System Settings > Accessibility > Display > Reduce motion: with it on the
+/// change is applied at once (REQ-MAC-A11Y.01). Lives in this adapter file because it reads AppKit.
+public enum MotionPolicy {
+    public static var reduceMotion: Bool { NSWorkspace.shared.accessibilityDisplayShouldReduceMotion }
+
+    /// `withAnimation(animation, body)`, or `body()` alone under Reduce Motion.
+    @MainActor
+    public static func animate(_ animation: Animation, _ body: () -> Void) {
+        if reduceMotion { body() } else { withAnimation(animation, body) }
     }
 }
 
@@ -185,8 +202,9 @@ public final class KeyboardShortcutRouter: ObservableObject {
             return true
         }
 
+        // Destructive keys are one-shot: a held key acts once, its auto-repeats are consumed.
         if isDelete {
-            viewModel.cullCurrentPhoto(action: .trash)
+            if !event.isARepeat { viewModel.cullCurrentPhoto(action: .trash) }
             return true
         }
 
@@ -212,13 +230,13 @@ public final class KeyboardShortcutRouter: ObservableObject {
             break
         }
 
-        // 3. Single-Character Action Shortcuts (M, C, F, I, S, J, K, H, L, ?, /)
+        // 3. Single-Character Action Shortcuts (M, C, F, I, S, G, J, K, H, L, ?, /)
         switch characters {
         case "m":
-            viewModel.cullCurrentPhoto(action: .move)
+            if !event.isARepeat { viewModel.cullCurrentPhoto(action: .move) }
             return true
         case "c":
-            viewModel.cullCurrentPhoto(action: .copy)
+            if !event.isARepeat { viewModel.cullCurrentPhoto(action: .copy) }
             return true
         case "j", "l": // Vim Down / Right -> Next
             viewModel.navigateToNext()
@@ -226,18 +244,21 @@ public final class KeyboardShortcutRouter: ObservableObject {
         case "k", "h": // Vim Up / Left -> Previous
             viewModel.navigateToPrevious()
             return true
-        case "f":
-            withAnimation(.spring(response: 0.28, dampingFraction: 0.82)) {
+        case "t", "f": // T filmstrip; F stays as an alias for one release (becomes full screen next)
+            MotionPolicy.animate(.spring(response: 0.28, dampingFraction: 0.82)) {
                 viewModel.isFilmstripVisible.toggle()
             }
             return true
         case "i":
-            withAnimation(.easeInOut(duration: 0.18)) {
+            MotionPolicy.animate(.easeInOut(duration: 0.18)) {
                 viewModel.isInfoHUDVisible.toggle()
             }
             return true
         case "s":
             viewModel.toggleZoomSync()
+            return true
+        case "g": // Go to Photo (number or file name)
+            viewModel.presentGoToPhoto()
             return true
         case "?", "/":
             viewModel.presentShortcutsHelp()
