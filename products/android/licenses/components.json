@@ -1,43 +1,266 @@
 {
   "_about": "Third-party components of the two Android apps' release classpaths. scripts/android_licenses.py fails when a runtime dependency matches no entry, and generates each app's res/raw/third_party_notices.txt from this file. 'match' is a list of fnmatch patterns on 'group:artifact'; the first matching entry wins. Texts of the licences are the files named under 'licenses'.",
   "licenses": {
-    "Apache-2.0": {"name": "Apache License, Version 2.0", "url": "https://www.apache.org/licenses/LICENSE-2.0", "file": "Apache-2.0.txt"},
-    "BSD-3-Clause": {"name": "BSD 3-Clause License", "url": "https://opensource.org/licenses/BSD-3-Clause", "file": "BSD-3-Clause.txt"}
+    "Apache-2.0": {
+      "name": "Apache License, Version 2.0",
+      "url": "https://www.apache.org/licenses/LICENSE-2.0",
+      "file": "Apache-2.0.txt"
+    },
+    "BSD-3-Clause": {
+      "name": "BSD 3-Clause License",
+      "url": "https://opensource.org/licenses/BSD-3-Clause",
+      "file": "BSD-3-Clause.txt"
+    },
+    "libpng": {
+      "name": "libpng License (PNG Reference Library License)",
+      "url": "",
+      "file": "libpng.txt"
+    },
+    "libjpeg-turbo": {
+      "name": "libjpeg-turbo licences (IJG and Modified BSD)",
+      "url": "",
+      "file": "libjpeg-turbo.txt"
+    },
+    "libtiff": {
+      "name": "libtiff License",
+      "url": "",
+      "file": "libtiff.txt"
+    },
+    "libwebp": {
+      "name": "libwebp BSD 3-Clause License",
+      "url": "",
+      "file": "libwebp.txt"
+    },
+    "openjpeg": {
+      "name": "OpenJPEG BSD 2-Clause License",
+      "url": "",
+      "file": "openjpeg.txt"
+    },
+    "zlib": {
+      "name": "zlib License",
+      "url": "",
+      "file": "zlib.txt"
+    },
+    "OpenCV-BSD-3-Clause": {
+      "name": "OpenCV (Carotene) BSD 3-Clause License",
+      "url": "",
+      "file": "OpenCV-BSD-3-Clause.txt"
+    },
+    "LLVM-Exception": {
+      "name": "LLVM Exceptions to the Apache 2.0 License",
+      "url": "",
+      "file": "LLVM-Exception.txt"
+    }
   },
   "components": [
-    {"id": "protobuf", "name": "Protocol Buffers (inside AndroidX DataStore)", "owner": "Google Inc.", "license": "BSD-3-Clause",
-     "url": "https://github.com/protocolbuffers/protobuf", "match": ["androidx.datastore:datastore-preferences-external-protobuf"]},
-    {"id": "androidx", "name": "AndroidX, Jetpack Compose and Material icons", "owner": "The Android Open Source Project", "license": "Apache-2.0",
-     "url": "https://developer.android.com/jetpack/androidx", "match": ["androidx.*"]},
-    {"id": "accompanist", "name": "Accompanist", "owner": "Google LLC", "license": "Apache-2.0",
-     "url": "https://github.com/google/accompanist", "match": ["com.google.accompanist:*"]},
-    {"id": "dagger", "name": "Dagger and Hilt", "owner": "Google LLC", "license": "Apache-2.0",
-     "url": "https://github.com/google/dagger", "match": ["com.google.dagger:*"]},
-    {"id": "inject", "name": "javax.inject and Jakarta Inject", "owner": "The JSR-330 expert group and the Jakarta EE Project", "license": "Apache-2.0",
-     "url": "https://github.com/eclipse-ee4j/injection-api", "match": ["javax.inject:*", "jakarta.inject:*"]},
-    {"id": "guava", "name": "Guava ListenableFuture and JSR-305 annotations", "owner": "Google LLC and the JSR-305 contributors", "license": "Apache-2.0",
-     "url": "https://github.com/google/guava", "match": ["com.google.guava:*", "com.google.code.findbugs:*"]},
-    {"id": "coil", "name": "Coil", "owner": "Coil Contributors", "license": "Apache-2.0",
-     "url": "https://github.com/coil-kt/coil", "match": ["io.coil-kt:*"]},
-    {"id": "square", "name": "OkHttp and Okio", "owner": "Square, Inc.", "license": "Apache-2.0",
-     "url": "https://square.github.io/okhttp/", "match": ["com.squareup.*"]},
-    {"id": "kotlin", "name": "Kotlin standard library, kotlinx.coroutines and JetBrains annotations", "owner": "JetBrains s.r.o. and Kotlin contributors", "license": "Apache-2.0",
-     "url": "https://kotlinlang.org", "match": ["org.jetbrains.kotlin:*", "org.jetbrains.kotlinx:*", "org.jetbrains:*"]},
-    {"id": "jspecify", "name": "JSpecify annotations", "owner": "The JSpecify authors", "license": "Apache-2.0",
-     "url": "https://jspecify.dev", "match": ["org.jspecify:*"]},
-    {"id": "vico", "name": "Vico charts", "owner": "Patryk Goworowski and Patrick Michalik", "license": "Apache-2.0",
-     "url": "https://github.com/patrykandpatrick/vico", "match": ["com.patrykandpatrick.vico:*"]},
-    {"id": "opencv", "name": "OpenCV", "owner": "OpenCV team", "license": "Apache-2.0",
-     "url": "https://opencv.org", "match": ["org.opencv:*"]}
+    {
+      "id": "protobuf",
+      "name": "Protocol Buffers (inside AndroidX DataStore)",
+      "owner": "Google Inc.",
+      "license": "BSD-3-Clause",
+      "url": "https://github.com/protocolbuffers/protobuf",
+      "match": [
+        "androidx.datastore:datastore-preferences-external-protobuf"
+      ]
+    },
+    {
+      "id": "androidx",
+      "name": "AndroidX, Jetpack Compose and Material icons",
+      "owner": "The Android Open Source Project",
+      "license": "Apache-2.0",
+      "url": "https://developer.android.com/jetpack/androidx",
+      "match": [
+        "androidx.*"
+      ]
+    },
+    {
+      "id": "accompanist",
+      "name": "Accompanist",
+      "owner": "Google LLC",
+      "license": "Apache-2.0",
+      "url": "https://github.com/google/accompanist",
+      "match": [
+        "com.google.accompanist:*"
+      ]
+    },
+    {
+      "id": "dagger",
+      "name": "Dagger and Hilt",
+      "owner": "Google LLC",
+      "license": "Apache-2.0",
+      "url": "https://github.com/google/dagger",
+      "match": [
+        "com.google.dagger:*"
+      ]
+    },
+    {
+      "id": "inject",
+      "name": "javax.inject and Jakarta Inject",
+      "owner": "The JSR-330 expert group and the Jakarta EE Project",
+      "license": "Apache-2.0",
+      "url": "https://github.com/eclipse-ee4j/injection-api",
+      "match": [
+        "javax.inject:*",
+        "jakarta.inject:*"
+      ]
+    },
+    {
+      "id": "guava",
+      "name": "Guava ListenableFuture and JSR-305 annotations",
+      "owner": "Google LLC and the JSR-305 contributors",
+      "license": "Apache-2.0",
+      "url": "https://github.com/google/guava",
+      "match": [
+        "com.google.guava:*",
+        "com.google.code.findbugs:*"
+      ]
+    },
+    {
+      "id": "coil",
+      "name": "Coil",
+      "owner": "Coil Contributors",
+      "license": "Apache-2.0",
+      "url": "https://github.com/coil-kt/coil",
+      "match": [
+        "io.coil-kt:*"
+      ]
+    },
+    {
+      "id": "square",
+      "name": "OkHttp and Okio",
+      "owner": "Square, Inc.",
+      "license": "Apache-2.0",
+      "url": "https://square.github.io/okhttp/",
+      "match": [
+        "com.squareup.*"
+      ]
+    },
+    {
+      "id": "kotlin",
+      "name": "Kotlin standard library, kotlinx.coroutines and JetBrains annotations",
+      "owner": "JetBrains s.r.o. and Kotlin contributors",
+      "license": "Apache-2.0",
+      "url": "https://kotlinlang.org",
+      "match": [
+        "org.jetbrains.kotlin:*",
+        "org.jetbrains.kotlinx:*",
+        "org.jetbrains:*"
+      ]
+    },
+    {
+      "id": "jspecify",
+      "name": "JSpecify annotations",
+      "owner": "The JSpecify authors",
+      "license": "Apache-2.0",
+      "url": "https://jspecify.dev",
+      "match": [
+        "org.jspecify:*"
+      ]
+    },
+    {
+      "id": "vico",
+      "name": "Vico charts",
+      "owner": "Patryk Goworowski and Patrick Michalik",
+      "license": "Apache-2.0",
+      "url": "https://github.com/patrykandpatrick/vico",
+      "match": [
+        "com.patrykandpatrick.vico:*"
+      ]
+    },
+    {
+      "id": "opencv",
+      "name": "OpenCV",
+      "owner": "OpenCV team",
+      "license": "Apache-2.0",
+      "url": "https://opencv.org",
+      "match": [
+        "org.opencv:*"
+      ]
+    }
   ],
   "bundled": [
-    {"in": "org.opencv:opencv", "name": "libpng", "license": "libpng License", "url": "http://www.libpng.org/pub/png/src/libpng-LICENSE.txt"},
-    {"in": "org.opencv:opencv", "name": "libjpeg-turbo", "license": "IJG, BSD 3-Clause and zlib licences", "url": "https://github.com/libjpeg-turbo/libjpeg-turbo/blob/main/LICENSE.md"},
-    {"in": "org.opencv:opencv", "name": "libtiff", "license": "libtiff License", "url": "https://libtiff.gitlab.io/libtiff/project/license.html"},
-    {"in": "org.opencv:opencv", "name": "libwebp", "license": "BSD 3-Clause License", "url": "https://chromium.googlesource.com/webm/libwebp/+/refs/heads/main/COPYING"},
-    {"in": "org.opencv:opencv", "name": "OpenJPEG", "license": "BSD 2-Clause License", "url": "https://github.com/uclouvain/openjpeg/blob/master/LICENSE"},
-    {"in": "org.opencv:opencv", "name": "Protocol Buffers", "license": "BSD 3-Clause License", "url": "https://github.com/protocolbuffers/protobuf/blob/main/LICENSE"},
-    {"in": "org.opencv:opencv", "name": "KleidiCV and Carotene (Arm optimised kernels)", "license": "Apache License, Version 2.0", "url": "https://github.com/opencv/opencv/tree/5.x/3rdparty"},
-    {"in": "org.opencv:opencv", "name": "LLVM libc++ (libc++_shared.so from the Android NDK)", "license": "Apache License 2.0 with LLVM Exceptions", "url": "https://libcxx.llvm.org/"}
+    {
+      "in": "org.opencv:opencv",
+      "name": "libpng",
+      "license": "libpng License",
+      "url": "http://www.libpng.org/pub/png/src/libpng-LICENSE.txt",
+      "texts": [
+        "libpng"
+      ]
+    },
+    {
+      "in": "org.opencv:opencv",
+      "name": "libjpeg-turbo",
+      "license": "IJG and Modified BSD 3-Clause licences (zlib-licensed SIMD code)",
+      "url": "https://github.com/libjpeg-turbo/libjpeg-turbo/blob/main/LICENSE.md",
+      "texts": [
+        "libjpeg-turbo"
+      ]
+    },
+    {
+      "in": "org.opencv:opencv",
+      "name": "libtiff",
+      "license": "libtiff License",
+      "url": "https://libtiff.gitlab.io/libtiff/project/license.html",
+      "texts": [
+        "libtiff"
+      ]
+    },
+    {
+      "in": "org.opencv:opencv",
+      "name": "libwebp",
+      "license": "BSD 3-Clause License",
+      "url": "https://chromium.googlesource.com/webm/libwebp/+/refs/heads/main/COPYING",
+      "texts": [
+        "libwebp"
+      ]
+    },
+    {
+      "in": "org.opencv:opencv",
+      "name": "OpenJPEG",
+      "license": "BSD 2-Clause License",
+      "url": "https://github.com/uclouvain/openjpeg/blob/master/LICENSE",
+      "texts": [
+        "openjpeg"
+      ]
+    },
+    {
+      "in": "org.opencv:opencv",
+      "name": "Protocol Buffers",
+      "license": "BSD 3-Clause License",
+      "url": "https://github.com/protocolbuffers/protobuf/blob/main/LICENSE",
+      "texts": [
+        "BSD-3-Clause"
+      ]
+    },
+    {
+      "in": "org.opencv:opencv",
+      "name": "KleidiCV and Carotene (Arm optimised kernels)",
+      "license": "Apache License 2.0 (KleidiCV, Arm) and 3-clause BSD (Carotene, NVIDIA)",
+      "url": "https://github.com/opencv/opencv/tree/5.x/3rdparty",
+      "texts": [
+        "Apache-2.0",
+        "OpenCV-BSD-3-Clause"
+      ]
+    },
+    {
+      "in": "org.opencv:opencv",
+      "name": "LLVM libc++ (libc++_shared.so from the Android NDK)",
+      "license": "Apache License 2.0 with LLVM Exceptions",
+      "url": "https://libcxx.llvm.org/",
+      "texts": [
+        "Apache-2.0",
+        "LLVM-Exception"
+      ]
+    },
+    {
+      "in": "org.opencv:opencv",
+      "name": "zlib",
+      "license": "zlib License",
+      "url": "https://zlib.net",
+      "texts": [
+        "zlib"
+      ]
+    }
   ]
 }

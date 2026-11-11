@@ -112,6 +112,39 @@ class RenderTest(unittest.TestCase):
         self.assertIn("https://www.libpng.org", text)
 
 
+class BundledLicenseTextTest(unittest.TestCase):
+    """A bundled native library's licence text must be in the notice, not only named."""
+
+    def data(self):
+        return {"licenses": {"Apache-2.0": {"name": "Apache", "url": "", "file": "Apache-2.0.txt"}},
+                "components": [{"id": "ocv", "name": "OpenCV", "owner": "OpenCV team", "license": "Apache-2.0",
+                                "url": "https://opencv.org", "match": ["org.opencv:*"]}],
+                "bundled": [{"in": "org.opencv:opencv", "name": "libpng", "license": "libpng License",
+                             "url": "https://x"}]}
+
+    def test_check_fails_when_a_bundled_library_names_no_text(self):
+        problems = al.missing_bundled_texts(self.data())
+        self.assertEqual(len(problems), 1)
+        self.assertIn("libpng", problems[0])
+
+    def test_check_fails_when_the_named_text_file_is_missing(self):
+        data = self.data()
+        data["bundled"][0]["texts"] = ["libpng"]
+        data["licenses"]["libpng"] = {"name": "libpng", "url": "", "file": "does-not-exist.txt"}
+        self.assertTrue(al.missing_bundled_texts(data))
+        self.assertTrue(al.check({"phototok": {"org.opencv:opencv": "5"}, "android-desktop": {}}, data))
+
+    def test_render_reproduces_the_text_of_each_bundled_library(self):
+        data = self.data()
+        data["bundled"][0]["texts"] = ["libpng"]
+        data["licenses"]["libpng"] = {"name": "libpng", "url": "", "file": "libpng.txt"}
+        text = al.render("Frameduel", data, {"org.opencv:opencv": "5"}, {"Apache-2.0": "APACHE", "libpng": "LIBPNG TEXT"})
+        self.assertIn("LIBPNG TEXT", text)
+
+    def test_every_shipped_bundled_library_has_its_text_committed(self):
+        self.assertEqual(al.missing_bundled_texts(al.load_components()), [])
+
+
 class CommittedFilesTest(unittest.TestCase):
     """The shipped data: every entry names a licence with a text, every notice file is generated."""
 
