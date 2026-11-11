@@ -272,14 +272,16 @@ class DirectoryScanner:
 
                 primary, companions = self._resolve_primary_and_companions(group, names)
                 try:
-                    file_size = primary.stat().st_size
+                    primary_stat = primary.stat()
+                    file_size, modified_at = primary_stat.st_size, primary_stat.st_mtime
                 except OSError:
-                    file_size = 0
+                    file_size, modified_at = 0, 0.0
 
                 candidate = CandidatePhoto(
                     primary_path=primary,
                     companion_paths=companions,
                     _file_size=file_size,
+                    modified_at=modified_at,
                     display_names={p: names[p] for p in group if names.get(p, p.name) != p.name},
                 )
 

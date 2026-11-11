@@ -37,8 +37,14 @@ struct AdversarialM3CullingStressTests {
             photoItems.append(PhotoItem(id: UUID(), url: url, status: .candidate))
         }
 
+        // Own defaults suite: a developer's stored custom destination must not put the cull
+        // path into custom mode (an extra filesystem probe per cull).
+        let suiteName = "com.photoselector.tests.rapidfire.\(UUID().uuidString)"
+        let defaults = UserDefaults(suiteName: suiteName)!
+        defer { defaults.removePersistentDomain(forName: suiteName) }
         let vm = CullingWorkspaceViewModel(
-            cullingActor: AsyncCullingActor(trashService: DirectoryTrashService(rootDirectory: root))
+            cullingActor: AsyncCullingActor(trashService: DirectoryTrashService(rootDirectory: root)),
+            userDefaults: defaults
         )
         vm.setPhotos(photoItems, rootURL: root)
         vm.autoAdvance = true

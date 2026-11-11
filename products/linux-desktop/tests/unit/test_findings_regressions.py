@@ -79,11 +79,6 @@ def test_trash_takes_the_enhanced_nr_derivatives_along(tmp_path, derivatives):
 # ── F-BL-027: XDG_DATA_HOME must not switch off the GIO trash ────────────────
 
 
-@pytest.mark.xfail(
-    strict=True,
-    reason="F-BL-027: file_ops.py FileCullingManager._use_gio() returns False whenever XDG_DATA_HOME "
-    "is set (a test seam keyed on the environment); a custom data dir loses the GIO trash",
-)
 def test_a_custom_xdg_data_home_still_trashes_through_gio(tmp_path, monkeypatch):
     photo = tmp_path / "a.jpg"
     photo.write_bytes(b"x")
@@ -117,23 +112,15 @@ KEYS = [
     ("M", 0x6D, 0), ("C", 0x63, 0), ("Delete", 0xFFFF, 0), ("Backspace", 0xFF08, 0),
     ("Left", 0xFF51, 0), ("Right", 0xFF53, 0), ("H", 0x68, 0), ("J", 0x6A, 0), ("K", 0x6B, 0), ("L", 0x6C, 0),
     ("1", 0x31, 0), ("2", 0x32, 0), ("3", 0x33, 0),
-    ("Space", 0x20, 0), ("Escape", 0xFF1B, 0), ("I", 0x69, 0), ("B", 0x62, 0), ("?", 0x3F, 0),
-    ("F", 0x66, 0), ("S", 0x73, 0),
+    ("Space", 0x20, 0), ("Escape", 0xFF1B, 0), ("I", 0x69, 0), ("B", 0x62, 0), ("G", 0x67, 0),
+    ("F", 0x66, 0), ("F11", 0xFFC8, 0), ("S", 0x73, 0), ("?", 0x3F, 0),
     ("Ctrl+Z", 0x7A, 4), ("Ctrl+O", 0x6F, 4), ("Ctrl+D", 0x64, 4), ("Ctrl+L", 0x6C, 4), ("Ctrl+,", 0x2C, 4),
 ]
-SILENT = {
-    "F": "F-BL-035: KeyboardRouter.on_toggle_filmstrip is a `pass` stub (ui/keyboard_router.py) yet the engine "
-    "consumes F and R-LINUX-KEY-05 lists it",
-    "S": "F-BL-035: KeyboardRouter.on_toggle_sync_lock is a `pass` stub (ui/keyboard_router.py) yet the engine "
-    "consumes S and R-LINUX-KEY-05 lists it",
-}
 
 
 @pytest.mark.parametrize("name,keyval,state", KEYS, ids=[k[0] for k in KEYS])
-def test_a_key_the_router_consumes_has_an_effect(name, keyval, state, request):
+def test_a_key_the_router_consumes_has_an_effect(name, keyval, state):
     """Consumed means handled: the key must reach the window or the view model, not an empty stub."""
-    if name in SILENT:
-        request.applymarker(pytest.mark.xfail(strict=True, reason=SILENT[name]))
     window = MagicMock()
     viewmodel = MagicMock()
     viewmodel.sort_order = "natural"
@@ -144,38 +131,28 @@ def test_a_key_the_router_consumes_has_an_effect(name, keyval, state, request):
     assert window.mock_calls or viewmodel.mock_calls, f"{name} is consumed but nothing happens"
 
 
-def test_tab_is_not_consumed_while_nothing_cycles():
-    """Tab keeps moving the keyboard focus (R-LINUX-KEY-05): an unhandled Tab must not be swallowed."""
+def test_tab_is_not_bound():
+    """Tab is focus traversal: never captured (R-LINUX-KEY-05)."""
     router = KeyboardRouter(window=MagicMock(), viewmodel=MagicMock())
-    assert router.on_cycle_slot() is False
     assert router.engine.dispatch(KeyboardRouterEngine.KEY_TAB, 0) is False
 
 
 @pytest.mark.skipif(STUBBED, reason="needs real Gtk/Adw under a display server")
-@pytest.mark.xfail(
-    strict=True,
-    reason="F-BL-035: no Preferences widget sets stop_sharpness_threshold (UC-13 step 4 is marked done); "
-    "ui/preferences.py has only the blurry, sharp and cache sliders",
-)
 def test_a_preferences_control_sets_the_sweep_stop_threshold(tmp_path):
-    import gtk_layout_probe as probe
-    from gi.repository import Adw, Gtk
+    from gi.repository import Adw
     from photo_selector_linux.core.settings import SettingsStore
 
     Adw.init()
     settings = SettingsStore(path=tmp_path / "settings.json", auto_load=False)
     dialog = preferences_module.PreferencesDialog(settings=settings)
     try:
-        for widget in probe.walk(dialog):
-            if isinstance(widget, Gtk.Scale):
-                adjustment = widget.get_adjustment()
-                widget.set_value(adjustment.get_lower())
-                probe.pump(0.05)
-                widget.set_value(adjustment.get_upper())
-                probe.pump(0.05)
-            elif isinstance(widget, Gtk.SpinButton):
-                widget.set_value(widget.get_adjustment().get_upper())
-        assert settings.stop_sharpness_threshold is not None
+        row = dialog.row_stop_sharpness
+        assert row.get_title() == "Stop at sharpness"
+        assert row.get_value() == 0.0  # off
+        row.set_value(80.0)
+        assert settings.stop_sharpness_threshold == 80.0
+        row.set_value(0.0)
+        assert settings.stop_sharpness_threshold is None
     finally:
         dialog.destroy()
 
@@ -184,11 +161,6 @@ def test_a_preferences_control_sets_the_sweep_stop_threshold(tmp_path):
 
 
 @pytest.mark.skipif(STUBBED, reason="needs real Gtk/Adw under a display server")
-@pytest.mark.xfail(
-    strict=True,
-    reason="F-BL-051: ui/preferences.py sets 'Blurry Threshold (< 35.0)' on an AdwActionRow and "
-    "'Memory & Prefetch' on an AdwPreferencesGroup without escaping; both are parsed as markup",
-)
 def test_preferences_titles_are_valid_markup_or_not_markup(tmp_path):
     import gtk_layout_probe as probe
     from gi.repository import Adw, GLib, Pango
@@ -199,9 +171,9 @@ def test_preferences_titles_are_valid_markup_or_not_markup(tmp_path):
     bad = []
     try:
         for widget in probe.walk(dialog):
-            if isinstance(widget, Adw.PreferencesGroup):
-                markup = True
-            elif isinstance(widget, Adw.PreferencesRow) and hasattr(widget, "get_use_markup"):
+            # A group's get_title() returns the text after parsing, so groups are covered by the
+            # rendered-label test below; rows keep the raw title.
+            if isinstance(widget, Adw.PreferencesRow) and hasattr(widget, "get_use_markup"):
                 markup = widget.get_use_markup()
             else:
                 continue
@@ -214,3 +186,88 @@ def test_preferences_titles_are_valid_markup_or_not_markup(tmp_path):
     finally:
         dialog.destroy()
     assert not bad, f"titles that are not valid markup: {bad}"
+
+
+@pytest.mark.skipif(STUBBED, reason="needs real Gtk/Adw under a display server")
+def test_preferences_titles_show_the_literal_lt_and_ampersand(tmp_path):
+    """The rendered text, not the property: "Blurry Threshold (< 35.0)" and "Memory & Prefetch"."""
+    import gtk_layout_probe as probe
+    from gi.repository import Adw, Gtk
+    from photo_selector_linux.core.settings import SettingsStore
+
+    Adw.init()
+    dialog = preferences_module.PreferencesDialog(settings=SettingsStore(path=tmp_path / "s.json", auto_load=False))
+    try:
+        dialog.present()
+        probe.pump(0.3)
+        texts = [w.get_text() for w in probe.walk(dialog) if isinstance(w, Gtk.Label)]
+        assert "Blurry Threshold (< 35.0)" in texts
+        assert "Memory & Prefetch" in texts
+    finally:
+        dialog.destroy()
+
+
+# ── F-BL sweep of `except Exception: pass`: a failing observer is logged, not swallowed ───────
+
+
+def test_a_failing_settings_observer_is_logged_and_the_others_still_run(tmp_path, caplog):
+    from photo_selector_linux.core.settings import SettingsStore
+
+    store = SettingsStore(path=tmp_path / "s.json", auto_load=False)
+    seen = []
+
+    def broken(_store):
+        raise RuntimeError("observer bug")
+
+    store.connect(broken)
+    store.connect(lambda _store: seen.append(True))
+    with caplog.at_level("ERROR"):
+        store.update(auto_advance=False)
+    assert seen == [True]
+    assert any("observer bug" in (r.exc_text or "") for r in caplog.records)
+
+
+def test_a_failing_view_model_callback_is_logged_and_the_others_still_run(caplog):
+    from photo_selector_linux.viewmodels.culling_workspace import CullingWorkspaceViewModel
+
+    vm = CullingWorkspaceViewModel()
+    got = []
+
+    def broken(*_args):
+        raise RuntimeError("view bug")
+
+    vm.connect("state-changed", broken)
+    vm.connect("state-changed", lambda _vm: got.append("state"))
+    vm.connect("notification", broken)
+    vm.connect("notification", lambda _vm, message: got.append(message))
+    with caplog.at_level("ERROR"):
+        vm._notify_state_changed()
+        vm._notify("hello")
+    assert got == ["state", "hello"]
+    assert sum("view bug" in (r.exc_text or "") for r in caplog.records) == 2
+
+
+def test_a_leftover_trash_info_file_after_a_restore_is_logged(tmp_path, monkeypatch, caplog):
+    manager = FileCullingManager(trash_dir=tmp_path / "Trash")
+    trash_files = tmp_path / "Trash" / "files"
+    trash_info = tmp_path / "Trash" / "info"
+    trash_files.mkdir(parents=True)
+    trash_info.mkdir()
+    photo = tmp_path / "a.jpg"
+    photo.write_bytes(b"x")
+    from photo_selector_linux.core.models import CandidatePhoto
+
+    candidate = CandidatePhoto(primary_path=photo)
+    record = manager.trash_candidate(candidate)
+    real_unlink = Path.unlink
+
+    def refuse_info(self, *args, **kwargs):
+        if self.suffix == ".trashinfo":
+            raise OSError("read-only info")
+        return real_unlink(self, *args, **kwargs)
+
+    monkeypatch.setattr(Path, "unlink", refuse_info)
+    with caplog.at_level("WARNING"):
+        manager.undo_culling(record)
+    assert photo.exists()
+    assert any("could not remove its Trash info file" in r.getMessage() for r in caplog.records)

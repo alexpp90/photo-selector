@@ -112,6 +112,7 @@ A native macOS photo culling app built with Swift 6 and SwiftUI, for going throu
 * **Maximized Viewport Canvas:** Borderless comparison layouts (1-Up with 1:1 pixel zoom on `Space`, 2-Up side-by-side, and Focus 3-Up sliding triplet) allocating >85% of window area to photo previews.
 * **Keyboard First:** A window-level `NSEvent` monitor takes the keys before any button can, so arrow keys, `M` (Move to `Selection/`), `C` (Copy), `Delete` (Trash) and `⌘Z` (Undo) act even while a button has focus. All keys: [`docs/shared/KEYBOARD.md`](docs/shared/KEYBOARD.md).
 * **Actor-Isolated Transactional Culling:** Serial FIFO disk mutations on `AsyncCullingActor` that never overwrite a file (a name clash gets a `-2` suffix), keep an undo record for Move, Copy and Trash, and pair companion files automatically (RAW+JPEG, XMP sidecars).
+* **Sort, jump and the whole set:** `View > Sort By` (Newest First, Oldest First, File Name, Lowest Sharpness First), `G` to go to a photo by number or name, chips and "Moved 3 files" toasts for a RAW + JPEG + XMP set, a Copied count in the bottom tally, and scores shown with their scale ("Sharpness 59.6 / 100").
 * **macOS Design Standards:** Studio dark theme, configuration housed in standard macOS Settings (`⌘,`), secondary utilities housed under the Menu Bar `Tools` menu, and a toolbar and action bar that collapse to short labels and icons (with tooltips) in narrow windows instead of wrapping.
 
 ---
@@ -124,7 +125,7 @@ A native GNOME photo culling app for Debian 13 (Trixie), built with GTK4 and Lib
   <img src="assets/brand/blitzlens/blitzlens.svg" alt="Blitzlens icon" width="96" style="margin-bottom: 10px;" />
   <br />
   <img src="assets/linux_desktop_screenshot.png" alt="Blitzlens Culling Workspace" width="750" style="border-radius: 10px; box-shadow: 0 4px 20px rgba(0,0,0,0.3); margin-bottom: 12px;" />
-  <p><em>Native GNOME 46 / Libadwaita workspace on neutral grey surfaces with segmented comparison controls, glassmorphic optical HUD with sharpness goodness bar, and semantic bottom action bar</em></p>
+  <p><em>Native GNOME / Libadwaita workspace on neutral grey surfaces in 1-Up mode: the comparison switcher, the "Photo 2 of 5" counter, the optical HUD with its sharpness bar over the photo, and the bottom action bar with Keep, Copy, Trash and Undo. Captured from the app (GTK 4.18 / Libadwaita 1.7, 1440 x 900 window, software rendering) with the unmodified build of this branch, over a freshly started session.</em></p>
 </div>
 
 ### Key Features
@@ -132,7 +133,8 @@ A native GNOME photo culling app for Debian 13 (Trixie), built with GTK4 and Lib
 * **Vectorized NumPy Focus Engine & Goodness HUD:** Laplacian variance with 3x3 Gaussian smoothing and the sensor noise floor subtracted, computed with NumPy, paired with a glassmorphic HUD (`I`) displaying a normalized sharpness goodness meter, semantic quality badges (`Sharp` / `Acceptable` / `Blurry`), and `RAW+JPG` / `XMP` companion pills.
 * **Responsive Canvas Viewports:** Seamlessly switch between 1-Up (1:1 actual-pixel zoom toggle on `Space`), 2-Up side-by-side comparison (`CHAMPION` / `CHALLENGER`), and 3-Up Focus Mode (one-over-two: `ACTIVE` on top, `PREVIOUS` / `NEXT` below) with boundary slot indicators. Move, Copy, Trash and Undo outcomes show in the bottom action bar, never over its buttons.
 * **Every Camera Format & Google Drive:** Displays, reads EXIF from and scores Sony, Canon (incl. CR3), Nikon, Fujifilm, Panasonic, OM System, Pentax, Samsung and DNG RAW files plus JPEG, HEIC, PNG, TIFF and WebP, proven against real camera files ([supported formats](docs/shared/SUPPORTED_FORMATS.md)). RAWs display through their embedded camera preview (phone DNGs through LibRaw), decoded in the background; folders on Google Drive (GNOME Online Accounts) open like local folders with their real file names, and Move, Copy, Trash and Undo work there too (trashed Drive files go to the local GNOME Trash, so Undo can bring them back). File operations run in the background, so the window stays responsive during a Drive upload, and 1:1 zoom on a RAW shows full sensor resolution.
-* **Semantic Action Bar:** Bottom `Gtk.ActionBar` with semantic status counter pills (`Selected`, `Trashed`, `Remaining`), tactile `Move (M)`, `Copy (C)`, `Trash (Del)` via FreeDesktop Trash (`Gio.File.trash()`), and atomic reversal (`Ctrl+Z`).
+* **Semantic Action Bar:** Bottom `Gtk.ActionBar` with semantic status counter pills (`Selected`, `Trashed`, `Remaining`), tactile **Keep** (moves to `Selection/`, key `M`), **Copy** (`C`) and **Trash** (`Delete`, FreeDesktop Trash via `Gio.File.trash()`), and atomic reversal (**Undo**, `Ctrl+Z`); the keys are in the tooltips and the `?` sheet.
+* **View Order & Go to Photo:** Folders open newest first; the main menu switches to oldest first, file name or lowest sharpness first (`B`; scores the whole folder, optional stop threshold in Preferences) and the choice is remembered. `G` jumps to a photo by its position or part of its file name.
 * **Debian 13 APT Distribution:** Packaged as a native Debian `.deb` with GNOME HIG squircle SVG/PNG icons and AppStream branding, in a signed APT repository ([alexpp90/apt](https://github.com/alexpp90/apt)) for seamless updates.
 
 ---

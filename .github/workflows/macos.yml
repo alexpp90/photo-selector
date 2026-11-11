@@ -14,7 +14,6 @@ on:
     paths:
       - 'products/macos-desktop/**'
       - '.github/workflows/macos.yml'
-      - 'products/desktop/scripts/update_formula.py'
       - 'testdata/formats/**'
       - 'scripts/fetch_format_corpus.py'
       - '.github/actions/format-corpus/**'
@@ -23,7 +22,6 @@ on:
     paths:
       - 'products/macos-desktop/**'
       - '.github/workflows/macos.yml'
-      - 'products/desktop/scripts/update_formula.py'
       - 'testdata/formats/**'
       - 'scripts/fetch_format_corpus.py'
       - '.github/actions/format-corpus/**'
@@ -258,7 +256,7 @@ jobs:
           fi
           git config --global user.name "github-actions[bot]"
           git config --global user.email "github-actions[bot]@users.noreply.github.com"
-          UPDATER="$GITHUB_WORKSPACE/products/desktop/scripts/update_formula.py"
+          CASK_TOOL="$GITHUB_WORKSPACE/products/macos-desktop/scripts/lensjet_cask.py"
 
           update_and_push() {
             TAP_DIR="$(mktemp -d)"
@@ -266,26 +264,22 @@ jobs:
             cd "${TAP_DIR}"
             if [ "${GH_REF}" = "refs/heads/main" ]; then
               CASK=Casks/photo-selector-toolbox@nightly.rb
-              python3 "$UPDATER" --file "$CASK" \
-                --macos-sha256 "${MACOS_SHA256}"
+              CASK_ARGS=(--nightly --sha256 "${MACOS_SHA256}")
               COMMIT_MSG="Update nightly native macOS cask hash"
             else
               # macos-desktop-v1.2.3 -> 1.2.3 (the release job's verify-tag already proved
               # it equals products/macos-desktop/VERSION)
               VERSION="${GH_REF_NAME##*-v}"
               CASK=Casks/photo-selector-toolbox.rb
-              python3 "$UPDATER" --file "$CASK" \
-                --version-val "${VERSION}" \
-                --macos-sha256 "${MACOS_SHA256}"
+              CASK_ARGS=(--version "${VERSION}" --sha256 "${MACOS_SHA256}")
               COMMIT_MSG="Update native macOS cask to ${VERSION}"
             fi
             # Since 0.2.0 the zip holds Lensjet.app, the stable cask downloads from the product
             # tag macos-desktop-v<version>, and name/desc/zap follow the new name and bundle id.
             # Only the cask this run points at the new zip is rewritten, so the other keeps
-            # installing. Tested in scripts/tests/test_lensjet_cask.py.
-            NIGHTLY_FLAG=""
-            [ "${GH_REF}" = "refs/heads/main" ] && NIGHTLY_FLAG="--nightly"
-            python3 "$GITHUB_WORKSPACE/products/macos-desktop/scripts/lensjet_cask.py" "$CASK" $NIGHTLY_FLAG
+            # installing. The same script writes the version and hash (it replaced the legacy
+            # Desktop updater); tested in scripts/tests/test_lensjet_cask.py.
+            python3 "$CASK_TOOL" "$CASK" "${CASK_ARGS[@]}"
             git add Casks/
             git diff --cached --quiet || git commit -m "${COMMIT_MSG}"
             git push origin HEAD

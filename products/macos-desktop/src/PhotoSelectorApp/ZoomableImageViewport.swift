@@ -118,6 +118,7 @@ final class ProgressivePhotoState: ObservableObject {
             guard !Task.isCancelled, photoID == id else { return }
             image = progressive.image
             tier = progressive.tier
+            if progressive.tier == .preview { RecentPreviewMemory.shared.store(progressive.image, for: id) }
             DisplayTelemetry.shared.markDisplayed(photoID: id, tier: progressive.tier)
             if progressive.tier == .preview { preview = progressive.image }
         }
@@ -158,6 +159,9 @@ final class ZoomableViewportState: ObservableObject {
     @Published var dragOrigin: CGSize?
     @Published var originalPixelSize: CGSize?
     @Published var fullResolutionImage: CGImage?
+    /// The spinner appears only after 300 ms without an image, so a photo that is a cache hit
+    /// away never flashes a spinner over a black pane.
+    @Published var showsSpinner = false
 }
 
 /// Image viewport with fit / honest-100 % / pinch zoom and clamped panning.
@@ -201,11 +205,17 @@ struct ZoomableImageViewport: View {
                         .scaleEffect(scale)
                         .offset(ZoomGeometry.clampedPan(panOffset, scale: scale, fittedSize: fitted, viewport: viewportSize))
                         .allowsHitTesting(false)
-                } else {
+                } else if viewport.showsSpinner {
                     ProgressView()
                         .scaleEffect(1.1)
                         .tint(.secondary)
                 }
+            }
+            .task(id: image == nil) {
+                viewport.showsSpinner = false
+                guard image == nil else { return }
+                try? await Task.sleep(nanoseconds: 300_000_000)
+                if !Task.isCancelled { viewport.showsSpinner = true }
             }
             .frame(width: viewportSize.width, height: viewportSize.height)
             .clipped()

@@ -19,7 +19,9 @@ import re
 import sys
 import tarfile
 from pathlib import Path
-from typing import Dict, Tuple
+from typing import Dict, List, Tuple
+
+from package_deb import ICON_FILES
 
 
 class VerificationFailure(Exception):
@@ -175,6 +177,61 @@ def parse_deb_archive(deb_path: Path) -> Dict[str, bytes]:
     return members
 
 
+def _strip_dot(name: str) -> str:
+    return name[2:] if name.startswith("./") else name
+
+
+def _verify_md5sums(deb_name: str, data_tar: tarfile.TarFile, md5sums_text: str) -> None:
+    """Every ``md5sums`` line must equal the digest of the file it names, and name a file."""
+    files = {_strip_dot(m.name): m for m in data_tar.getmembers() if m.isfile()}
+    listed = set()
+    for line in md5sums_text.splitlines():
+        if not line.strip():
+            continue
+        digest, _, rel = line.partition("  ")
+        rel = rel.strip()
+        member = files.get(rel)
+        if member is None:
+            raise VerificationFailure(f"{deb_name}: md5sums names {rel!r}, which data.tar does not contain")
+        extracted = data_tar.extractfile(member)
+        actual = hashlib.md5(extracted.read() if extracted else b"").hexdigest()  # nosec - dpkg's format
+        if actual != digest.strip():
+            raise VerificationFailure(f"{deb_name}: md5sums line for {rel} is {digest.strip()}, file is {actual}")
+        listed.add(rel)
+    unlisted = sorted(set(files) - listed)
+    if unlisted:
+        raise VerificationFailure(f"{deb_name}: md5sums does not list {unlisted[0]}")
+
+
+def _verify_icons(deb_name: str, data_names: List[str]) -> None:
+    """The five hicolor icons ``package_deb.ICON_FILES`` names must be in data.tar."""
+    present = {_strip_dot(n) for n in data_names}
+    for rel in ICON_FILES:
+        if f"usr/share/icons/hicolor/{rel}" not in present:
+            raise VerificationFailure(f"{deb_name}: data.tar missing icon usr/share/icons/hicolor/{rel}")
+
+
+def _verify_metainfo_release(
+    deb_name: str, data_tar: tarfile.TarFile, data_names: List[str], control_text: str
+) -> None:
+    """The newest ``<release>`` of the AppStream file equals the package's upstream version."""
+    meta_name = next((n for n in data_names if n.endswith(".metainfo.xml")), None)
+    extracted = data_tar.extractfile(meta_name) if meta_name else None
+    if extracted is None:
+        return
+    match = re.search(r"<release\s[^>]*version=[\"']([^\"']+)[\"']", extracted.read().decode("utf-8"))
+    if not match:
+        raise VerificationFailure(f"{deb_name}: metainfo has no <release>")
+    version = re.search(r"^Version:\s*(\S+)", control_text, re.MULTILINE)
+    if version is None:
+        return
+    upstream = re.sub(r"-[^-]*$", "", re.sub(r"^\d+:", "", version.group(1)))
+    if match.group(1) != upstream:
+        raise VerificationFailure(
+            f"{deb_name}: metainfo's newest release is {match.group(1)} but the package version is {upstream}"
+        )
+
+
 def verify_deb_archive(deb_path: Path) -> None:
     deb_path = Path(deb_path)
     if not deb_path.is_file():
@@ -193,6 +250,10 @@ def verify_deb_archive(deb_path: Path) -> None:
             raise VerificationFailure(f"{deb_path.name}: control.tar does not contain control file")
         if "./md5sums" not in names and "md5sums" not in names:
             raise VerificationFailure(f"{deb_path.name}: control.tar does not contain md5sums file")
+        md5_member = tar.extractfile("./md5sums" if "./md5sums" in names else "md5sums")
+        md5sums_text = md5_member.read().decode("utf-8") if md5_member else ""
+        control_member = tar.extractfile("./control" if "./control" in names else "control")
+        control_text = control_member.read().decode("utf-8") if control_member else ""
 
     # Verify data.tar.gz
     data_keys = [k for k in members.keys() if k.startswith("data.tar")]
@@ -221,6 +282,10 @@ def verify_deb_archive(deb_path: Path) -> None:
             if "usr/bin/photo-selector-linux" in ti.name:
                 if (ti.mode & 0o111) == 0:
                     raise VerificationFailure(f"{deb_path.name}: launcher is not executable (mode {oct(ti.mode)})")
+
+        _verify_md5sums(deb_path.name, tar, md5sums_text)
+        _verify_icons(deb_path.name, names)
+        _verify_metainfo_release(deb_path.name, tar, names, control_text)
 
     log_pass(f".deb archive container validity verified ({deb_path.name})")
 

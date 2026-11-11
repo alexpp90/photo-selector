@@ -438,8 +438,10 @@ public final class FileCullingManager: @unchecked Sendable {
                 copiedURLs.append(item.destination)
                 copiedDestinations.append(item.destination)
             } catch {
-                if fileManager.fileExists(atPath: item.destination.path) {
-                    // Clean up partial destination file created by this failed copy operation itself
+                // Clean up a partial destination file created by this failed copy itself, but never
+                // a file that another writer put on the wanted name between name resolution and the
+                // create: that is what a "file exists" failure means, and it is not ours to delete.
+                if !Self.isFileExistsError(error), fileManager.fileExists(atPath: item.destination.path) {
                     try? fileManager.removeItem(at: item.destination)
                 }
                 for createdDestination in copiedDestinations.reversed() {
@@ -457,6 +459,17 @@ public final class FileCullingManager: @unchecked Sendable {
         }
 
         return copiedURLs
+    }
+
+    /// True when `error` says the destination name was already taken (`EEXIST` / Cocoa "file exists").
+    static func isFileExistsError(_ error: Error) -> Bool {
+        let ns = error as NSError
+        if ns.domain == NSCocoaErrorDomain, ns.code == NSFileWriteFileExistsError { return true }
+        if ns.domain == NSPOSIXErrorDomain, ns.code == Int(EEXIST) { return true }
+        if let underlying = ns.userInfo[NSUnderlyingErrorKey] as? NSError, underlying !== ns {
+            return isFileExistsError(underlying)
+        }
+        return false
     }
 
     // MARK: - Move to Trash

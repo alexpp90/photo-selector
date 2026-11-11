@@ -5,7 +5,7 @@ Adheres to:
 - R-LINUX-KEY-02: Navigation Hotkeys (←, →, H, L, J, K)
 - R-LINUX-KEY-03: Culling Hotkeys (M, C, Delete, Backspace)
 - R-LINUX-KEY-04: Comparison Mode Switchers (1, 2, 3)
-- R-LINUX-KEY-05: Inspection Hotkeys (Space, Esc, Tab, I, F, S, B)
+- R-LINUX-KEY-05: Inspection Hotkeys (Space, Esc, I, B, G; Tab stays focus traversal)
 - R-LINUX-KEY-06: System & Utility Hotkeys (Ctrl+Z, Ctrl+O, etc.)
 - R-LINUX-KEY-07: Editable Text Entry Exception
 """
@@ -49,6 +49,7 @@ class KeyboardRouterEngine:
     KEY_TAB = 0xFF09
     KEY_QUESTION = 0x003F
     KEY_COMMA = 0x002C
+    KEY_F11 = 0xFFC8
 
     KEY_0 = 0x0030
     KEY_1 = 0x0031
@@ -63,6 +64,7 @@ class KeyboardRouterEngine:
     KEY_C = 0x0063
     KEY_D = 0x0064
     KEY_F = 0x0066
+    KEY_G = 0x0067
     KEY_H = 0x0068
     KEY_I = 0x0069
     KEY_J = 0x006A
@@ -93,6 +95,9 @@ class KeyboardRouterEngine:
         | META_MASK
     )
 
+    #: Keys that act once per press, never once per auto-repeat.
+    ONE_SHOT_KEYS = frozenset({KEY_M, KEY_C, KEY_DELETE, KEY_BACKSPACE})
+
     def __init__(self, handler_target: Any):
         self.target = handler_target
 
@@ -114,11 +119,14 @@ class KeyboardRouterEngine:
         state: int,
         is_text_editing: bool = False,
         focus_on_button: bool = False,
+        is_repeat: bool = False,
     ) -> bool:
         """Dispatch keypress to target handler.
 
         Returns True if handled, False otherwise. ``focus_on_button``: keyboard focus sits on a
-        button, which Space must be able to press.
+        button, which Space must be able to press. ``is_repeat``: the key is held and GTK is
+        auto-repeating it; Move, Copy and Trash are one-shot (a held Delete must not trash the
+        next photo too) and are consumed without acting, arrows keep repeating.
         """
         if is_text_editing:
             return False  # Editable text entry exception (R-LINUX-KEY-07)
@@ -154,7 +162,9 @@ class KeyboardRouterEngine:
         if has_ctrl or has_alt_or_super:
             return False
 
-        # 2. Single-Key Culling Actions (R-LINUX-KEY-03)
+        # 2. Single-Key Culling Actions (R-LINUX-KEY-03), one-shot
+        if is_repeat and norm_key in self.ONE_SHOT_KEYS:
+            return True
         if norm_key == self.KEY_M:
             self.target.on_cull_move()
             return True
@@ -193,18 +203,17 @@ class KeyboardRouterEngine:
         elif norm_key == self.KEY_ESCAPE:
             self.target.on_reset_zoom()
             return True
-        elif norm_key == self.KEY_TAB:
-            # Only a handler that really cycled slots consumes Tab; otherwise focus traversal
-            # (header, action bar, menu) keeps working.
-            return bool(self.target.on_cycle_slot())
         elif norm_key == self.KEY_I:
             self.target.on_toggle_hud()
             return True
-        elif norm_key == self.KEY_F:
-            self.target.on_toggle_filmstrip()
+        elif norm_key in (self.KEY_F, self.KEY_F11):
+            self.target.on_toggle_fullscreen()
             return True
         elif norm_key == self.KEY_S:
-            self.target.on_toggle_sync_lock()
+            self.target.on_show_view_order()
+            return True
+        elif norm_key == self.KEY_G:
+            self.target.on_goto_photo()
             return True
         elif norm_key == self.KEY_QUESTION:
             self.target.on_shortcuts()
@@ -223,6 +232,9 @@ class KeyboardRouter:
         self.window = window
         self.viewmodel = viewmodel
         self.engine = KeyboardRouterEngine(handler_target=self)
+        #: Hardware keycodes pressed and not yet released. GTK 4 has no auto-repeat flag, so a
+        #: press of a key that is already down is a repeat.
+        self._held: set = set()
 
     def attach(self, window: Any) -> None:
         """Attach key controller in CAPTURE phase to root window."""
@@ -231,7 +243,10 @@ class KeyboardRouter:
         controller = Gtk.EventControllerKey.new()
         controller.set_propagation_phase(Gtk.PropagationPhase.CAPTURE)
         controller.connect("key-pressed", self._on_key_pressed)
+        controller.connect("key-released", self._on_key_released)
         window.add_controller(controller)
+        # Releases that happen while another window is active never arrive here.
+        window.connect("notify::is-active", lambda _w, _p: self._on_focus_out(None))
 
     def _on_key_pressed(self, controller, keyval, keycode, state) -> bool:
         focus_widget = self.window.get_focus() if hasattr(self.window, "get_focus") else None
@@ -244,10 +259,20 @@ class KeyboardRouter:
         focus_on_button = focus_widget is not None and isinstance(
             focus_widget, (Gtk.Button, Gtk.MenuButton, Gtk.CheckButton, Gtk.Switch)
         )
+        is_repeat = keycode in self._held
+        self._held.add(keycode)
         handled = self.engine.dispatch(
-            keyval, int(state), is_text_editing=is_text_editing, focus_on_button=focus_on_button
+            keyval, int(state), is_text_editing=is_text_editing, focus_on_button=focus_on_button,
+            is_repeat=is_repeat,
         )
         return Gdk.EVENT_STOP if handled else Gdk.EVENT_PROPAGATE
+
+    def _on_key_released(self, controller, keyval, keycode, state) -> None:
+        self._held.discard(keycode)
+
+    def _on_focus_out(self, controller) -> None:
+        """A release that happens while another window has the focus never arrives: forget all."""
+        self._held.clear()
 
     # Delegated actions
     def on_undo(self) -> None:
@@ -296,11 +321,28 @@ class KeyboardRouter:
             self.window.canvas_view.toggle_zoom()
 
     def on_reset_zoom(self) -> None:
-        if hasattr(self.window, "canvas_view") and hasattr(self.window.canvas_view, "reset_zoom"):
-            self.window.canvas_view.reset_zoom()
+        """Escape: leave 1:1 zoom first, then full screen."""
+        canvas = getattr(self.window, "canvas_view", None)
+        if canvas is not None and getattr(canvas, "is_1to1_zoom", False) is True:
+            canvas.reset_zoom()
+            return
+        leave = getattr(self.window, "exit_fullscreen", None)
+        if callable(leave) and leave() is True:
+            return
+        if canvas is not None and hasattr(canvas, "reset_zoom"):
+            canvas.reset_zoom()
 
-    def on_cycle_slot(self) -> bool:
-        return False  # no slot cycling yet: Tab keeps moving the keyboard focus
+    def on_toggle_fullscreen(self) -> None:
+        if hasattr(self.window, "toggle_fullscreen"):
+            self.window.toggle_fullscreen()
+
+    def on_show_view_order(self) -> None:
+        if hasattr(self.window, "show_view_order_menu"):
+            self.window.show_view_order_menu()
+
+    def on_goto_photo(self) -> None:
+        if hasattr(self.window, "show_goto_dialog"):
+            self.window.show_goto_dialog()
 
     def on_toggle_hud(self) -> None:
         if hasattr(self.window, "canvas_view") and hasattr(self.window.canvas_view, "toggle_hud"):
@@ -314,9 +356,3 @@ class KeyboardRouter:
                 "natural" if self.viewmodel.sort_order == "lowest_sharpness_first"
                 else "lowest_sharpness_first"
             )
-
-    def on_toggle_filmstrip(self) -> None:
-        pass
-
-    def on_toggle_sync_lock(self) -> None:
-        pass

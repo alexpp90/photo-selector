@@ -1,8 +1,11 @@
 #!/usr/bin/env python3
 """Bring a Lensjet cask in alexpp90/homebrew-tap up to date with what Lensjet ships.
 
-`macos.yml:update-homebrew-taps` runs the legacy `update_formula.py` for the version and hash,
-then this script for everything Lensjet changed since the cask was written:
+`macos.yml:update-homebrew-taps` runs this script alone (it no longer calls anything under
+`products/desktop/`). With `--version` and `--sha256` it first writes the release's version and
+the zip's hash into the cask, and fails loudly when the cask has no line for a requested value
+(a renamed marker in the tap must not leave a stale hash behind a green run). Then, always, it
+brings the cask up to date with what Lensjet changed since the cask was written:
 
 - the zip holds `Lensjet.app` (was `PhotoSelector.app`);
 - the stable cask downloads from the product's own tag `macos-desktop-v<version>` (was `v<version>`,
@@ -14,8 +17,8 @@ then this script for everything Lensjet changed since the cask was written:
   and not notarized, so Gatekeeper refuses the first launch until the user allows it (finding
   SET-R-2/LJ-R-1; the block goes when Lensjet is notarized).
 
-Idempotent: a cask that is already right is left byte for byte. The cask token, `version`,
-`sha256`, `conflicts_with` and `depends_on` are never touched.
+Idempotent: a cask that is already right is left byte for byte. The cask token,
+`conflicts_with` and `depends_on` are never touched, and `version`/`sha256` only when asked for.
 """
 
 from __future__ import annotations
@@ -38,6 +41,34 @@ CAVEATS = """  caveats <<~EOS
   EOS
 
 """
+
+
+class MarkerMissing(Exception):
+    """A value was requested but the cask has no line to put it on."""
+
+
+def set_version_and_hash(text: str, version: str | None, sha256: str | None) -> str:
+    """The cask text with `version "<version>"` and the `# macos_sha256` hash line rewritten.
+
+    A value that is None is left alone (the nightly cask has `version :latest`). A requested
+    value with no matching line raises `MarkerMissing`.
+    """
+    found: set[str] = set()
+    lines = []
+    for line in text.split("\n"):
+        indent = line[:len(line) - len(line.lstrip())]
+        if version and line.strip().startswith("version "):
+            line = f'{indent}version "{version}"'
+            found.add("version")
+        elif sha256 and "# macos_sha256" in line:
+            line = f'{indent}sha256 "{sha256}" # macos_sha256'
+            found.add("sha256")
+        lines.append(line)
+    missing = [name for name, value in (("version", version), ("sha256", sha256))
+               if value and name not in found]
+    if missing:
+        raise MarkerMissing("no line to update for " + ", ".join(missing))
+    return "\n".join(lines)
 
 
 def rebrand(text: str, nightly: bool) -> str:
@@ -73,9 +104,15 @@ def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description=__doc__.splitlines()[0])
     parser.add_argument("cask", type=Path, help="path to the cask file, rewritten in place")
     parser.add_argument("--nightly", action="store_true", help="the @nightly cask")
+    parser.add_argument("--version", help="release version to write, e.g. 0.3.1 (stable cask only)")
+    parser.add_argument("--sha256", help="SHA-256 of the release zip")
     args = parser.parse_args(argv)
     old = args.cask.read_text(encoding="utf-8")
-    new = rebrand(old, args.nightly)
+    try:
+        new = rebrand(set_version_and_hash(old, args.version, args.sha256), args.nightly)
+    except MarkerMissing as exc:
+        print(f"Error: {args.cask}: {exc}; file left unchanged.", file=sys.stderr)
+        return 1
     if new != old:
         args.cask.write_text(new, encoding="utf-8")
     return 0

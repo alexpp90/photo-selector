@@ -65,10 +65,76 @@ public struct ToastMessage: Identifiable, Equatable, Sendable {
     }
 }
 
-/// Sort order for the culling workspace candidate list (UC-13).
-public enum WorkspaceSortOrder: String, CaseIterable, Sendable {
-    case natural
+/// Order of the culling workspace candidate list (View > Sort By, REQ-MAC-CULL.06 / .07).
+public enum WorkspaceSortOrder: String, CaseIterable, Identifiable, Sendable {
+    case newestFirst
+    case oldestFirst
+    case fileName
     case lowestSharpnessFirst
+
+    public var id: String { rawValue }
+
+    /// The order a new install opens with.
+    public static let defaultOrder: WorkspaceSortOrder = .newestFirst
+
+    /// Natural file-name order (the order of every release before the sort menu existed).
+    public static var natural: WorkspaceSortOrder { .fileName }
+
+    /// Menu title (macOS title case).
+    public var title: String {
+        switch self {
+        case .newestFirst: return "Newest First"
+        case .oldestFirst: return "Oldest First"
+        case .fileName: return "File Name"
+        case .lowestSharpnessFirst: return "Lowest Sharpness First"
+        }
+    }
+
+    /// Symbol of the non-default indicator.
+    public var symbol: String {
+        switch self {
+        case .newestFirst: return "arrow.down.to.line"
+        case .oldestFirst: return "arrow.up.to.line"
+        case .fileName: return "textformat.abc"
+        case .lowestSharpnessFirst: return "scope"
+        }
+    }
+
+    /// Reads a stored raw value; `natural` (the first name of file-name order) still reads.
+    public init?(storedRaw: String?) {
+        guard let storedRaw else { return nil }
+        if storedRaw == "natural" { self = .fileName; return }
+        self.init(rawValue: storedRaw)
+    }
+}
+
+/// Orders `photos` in place for a sort order that does not depend on scores. Stable apart from the
+/// tie-break: equal or missing dates fall back to the natural file-name order.
+enum PhotoOrdering {
+    static func byName(_ lhs: PhotoItem, _ rhs: PhotoItem) -> Bool {
+        let cmp = lhs.filename.localizedStandardCompare(rhs.filename)
+        if cmp != .orderedSame { return cmp == .orderedAscending }
+        return lhs.url.path.localizedStandardCompare(rhs.url.path) == .orderedAscending
+    }
+
+    static func byDate(newestFirst: Bool) -> (PhotoItem, PhotoItem) -> Bool {
+        { lhs, rhs in
+            switch (lhs.modificationDate, rhs.modificationDate) {
+            case let (l?, r?) where l != r: return newestFirst ? l > r : l < r
+            case (_?, nil): return true      // dated photos before undated ones
+            case (nil, _?): return false
+            default: return byName(lhs, rhs)
+            }
+        }
+    }
+}
+
+/// How far the background scoring pass has come ("12 / 17").
+public struct ScoringProgress: Equatable, Sendable {
+    public let done: Int
+    public let total: Int
+    public init(done: Int, total: Int) { self.done = done; self.total = total }
+    public var text: String { "\(done) / \(total)" }
 }
 
 /// Pending permanent-delete confirmation published when a cloud provider refuses Trash (UC-17).
@@ -125,6 +191,7 @@ public final class CullingWorkspaceViewModel: ObservableObject {
     @Published public private(set) var photos: [PhotoItem] = []
     @Published public var currentIndex: Int = 0 {
         didSet {
+            if currentIndex != oldValue { browseDirection = currentIndex < oldValue ? .backward : .forward }
             syncSlotsToCurrentIndex()
             prefetchAroundCurrentIndex()
         }
@@ -156,8 +223,12 @@ public final class CullingWorkspaceViewModel: ObservableObject {
     @Published public private(set) var pendingPermanentDelete: PendingPermanentDeleteConfirmation? = nil
 
     // MARK: - Sort & Sharpness Stop Threshold (U-34)
-    @Published public var sortOrder: WorkspaceSortOrder = .natural
+    @Published public var sortOrder: WorkspaceSortOrder = .defaultOrder
+    /// Overrides the persisted "Stop at sharpness" setting when set (tests); nil reads the setting.
     @Published public var sharpnessStopThreshold: Double? = nil
+    /// Progress of the background scoring pass over the whole library (nil when none runs).
+    @Published public private(set) var scoringProgress: ScoringProgress? = nil
+    @Published public var isGoToPhotoPresented: Bool = false
 
     // MARK: - Local Decision Log (U-35)
     @Published public private(set) var decisionLog: [CullingDecisionLogEntry] = []
@@ -180,6 +251,10 @@ public final class CullingWorkspaceViewModel: ObservableObject {
 
     public var trashedCount: Int {
         photos.filter { $0.status == .trashed }.count
+    }
+
+    public var copiedCount: Int {
+        photos.filter { $0.status == .copied }.count
     }
 
     public var canUndo: Bool {
@@ -278,29 +353,44 @@ public final class CullingWorkspaceViewModel: ObservableObject {
         )
     }
 
-    /// Applies the specified candidate sort order (`natural` or `lowestSharpnessFirst`, UC-13).
+    /// The user's entry point of View > Sort By: persists the order and applies it. Lowest sharpness
+    /// first needs a score for every photo, so the unscored ones are scored in the background
+    /// first (progress in `scoringProgress`) and the list is ordered when that finishes.
+    public func setSortOrder(_ order: WorkspaceSortOrder) {
+        userDefaults.workspaceSortOrder = order
+        if order == .lowestSharpnessFirst, photos.contains(where: { $0.scores == nil }) {
+            sortOrder = order
+            sortAfterScoring = true
+            startLibraryScoring()
+        } else {
+            sortAfterScoring = false
+            applySortOrder(order)
+        }
+    }
+
+    /// Applies the candidate order to the list now and returns to its first photo (UC-13).
     public func applySortOrder(_ order: WorkspaceSortOrder) {
         sortOrder = order
         guard !photos.isEmpty else { return }
         switch order {
-        case .natural:
-            photos.sort {
-                let cmp = $0.filename.localizedStandardCompare($1.filename)
-                if cmp != .orderedSame { return cmp == .orderedAscending }
-                return $0.url.path.localizedStandardCompare($1.url.path) == .orderedAscending
-            }
+        case .fileName:
+            photos.sort(by: PhotoOrdering.byName)
+        case .newestFirst:
+            photos.sort(by: PhotoOrdering.byDate(newestFirst: true))
+        case .oldestFirst:
+            photos.sort(by: PhotoOrdering.byDate(newestFirst: false))
         case .lowestSharpnessFirst:
             photos.sort { lhs, rhs in
                 switch (lhs.scores?.focusScore, rhs.scores?.focusScore) {
                 case let (lScore?, rScore?):
                     if lScore != rScore { return lScore < rScore }
-                    return lhs.filename.localizedStandardCompare(rhs.filename) == .orderedAscending
+                    return PhotoOrdering.byName(lhs, rhs)
                 case (_?, nil):
                     return true
                 case (nil, _?):
                     return false
                 case (nil, nil):
-                    return lhs.filename.localizedStandardCompare(rhs.filename) == .orderedAscending
+                    return PhotoOrdering.byName(lhs, rhs)
                 }
             }
         }
@@ -309,6 +399,112 @@ public final class CullingWorkspaceViewModel: ObservableObject {
         setupSlotsForMode(comparisonMode)
         prefetchAroundCurrentIndex()
         checkSharpnessStopThresholdOnAdvance()
+    }
+
+    /// Re-orders once the progressive scan has settled (newest/oldest first need the whole folder;
+    /// the batches arrive in scan order). The photo on screen stays on screen by identity once
+    /// the user has navigated; an untouched session lands on the first photo of the new order.
+    func reorderAfterScan() {
+        // File-name order is the scan order (folder by folder), exactly what installs that predate
+        // the sort menu always had; only the date orders need the whole folder.
+        guard sortOrder == .newestFirst || sortOrder == .oldestFirst, photos.count > 1 else { return }
+        let keepID = userHasNavigated ? currentPhoto?.id : nil
+        let comparator = PhotoOrdering.byDate(newestFirst: sortOrder == .newestFirst)
+        guard !photos.isSorted(by: comparator) else { return }
+        photos.sort(by: comparator)
+        if let keepID, let index = photos.firstIndex(where: { $0.id == keepID }) {
+            currentIndex = index
+        } else {
+            currentIndex = 0
+        }
+        activeSlotIndex = 0
+        setupSlotsForMode(comparisonMode)
+        prefetchAroundCurrentIndex()
+    }
+
+    // MARK: - Library scoring pass
+
+    /// Scores every photo that has no sharpness score yet, off the main actor, publishing in
+    /// batches; `scoringProgress` is "done / total". Used by Library Statistics (figures for the
+    /// whole library) and by lowest-sharpness-first. Decodes the same 2048 px preview the viewport
+    /// scores, and caches nothing, so memory stays bounded however large the library is.
+    public func startLibraryScoring() {
+        libraryScoringTask?.cancel()
+        let total = photos.count
+        let targets: [(UUID, URL)] = photos.filter { $0.scores == nil }.map { ($0.id, $0.url) }
+        guard !targets.isEmpty else {
+            scoringProgress = nil
+            finishScoringIfNeeded()
+            return
+        }
+        scoringProgress = ScoringProgress(done: total - targets.count, total: total)
+        libraryScoringTask = Task.detached(priority: .utility) { [weak self] in
+            var batch: [(UUID, QualityScores)] = []
+            var handled = 0
+            for (id, url) in targets {
+                if Task.isCancelled { return }
+                if let image = ThumbnailLoader.decodeThumbnail(from: url, maxPixelSize: ThumbnailTier.preview.rawValue) {
+                    batch.append((id, QualityScoringService.scoreTechnical(cgImage: image)))
+                }
+                handled += 1
+                if handled % 8 == 0 {
+                    let flush = batch
+                    batch.removeAll(keepingCapacity: true)
+                    await self?.applyScoreBatch(flush, handled: handled)
+                }
+            }
+            if Task.isCancelled { return }
+            await self?.applyScoreBatch(batch, handled: handled, finished: true)
+        }
+    }
+
+    /// Stops the scoring pass (Library Statistics closed) unless a sort is waiting for it.
+    public func cancelLibraryScoring() {
+        guard !sortAfterScoring else { return }
+        libraryScoringTask?.cancel()
+        libraryScoringTask = nil
+        scoringProgress = nil
+    }
+
+    private func applyScoreBatch(_ batch: [(UUID, QualityScores)], handled: Int, finished: Bool = false) {
+        if !batch.isEmpty {
+            let updates = Dictionary(batch, uniquingKeysWith: { first, _ in first })
+            var updated = photos
+            for index in updated.indices where updated[index].scores == nil {
+                if let scores = updates[updated[index].id] { updated[index].scores = scores }
+            }
+            photos = updated
+        }
+        let total = photos.count
+        let remaining = photos.filter { $0.scores == nil }.count
+        if finished {
+            scoringProgress = nil
+            libraryScoringTask = nil
+            finishScoringIfNeeded()
+        } else {
+            scoringProgress = ScoringProgress(done: total - remaining, total: total)
+        }
+    }
+
+    private func finishScoringIfNeeded() {
+        guard sortAfterScoring else { return }
+        sortAfterScoring = false
+        applySortOrder(.lowestSharpnessFirst)
+    }
+
+    // MARK: - Go to Photo
+
+    public func presentGoToPhoto() {
+        guard !photos.isEmpty else { return }
+        isGoToPhotoPresented = true
+    }
+
+    /// Jumps to the photo `query` names (see `GoToPhotoResolver`). Returns false when nothing matches.
+    @discardableResult
+    public func goToPhoto(matching query: String) -> Bool {
+        guard case .index(let index) = GoToPhotoResolver.resolve(query: query, photos: photos) else { return false }
+        selectPhoto(at: index)
+        return true
     }
 
     /// Synchronizes file deletion from secondary tools into the active culling candidate list.
@@ -419,6 +615,11 @@ public final class CullingWorkspaceViewModel: ObservableObject {
     var parkedUndoFolderCount: Int { parkedUndoStacks.count }
     private var inFlightJobIDs: Set<UUID> = []
     private var toastDismissTask: Task<Void, Never>?
+    private var libraryScoringTask: Task<Void, Never>?
+    private var sortAfterScoring = false
+    /// True once the user moved to another photo since the folder opened (decides where the
+    /// settle re-order leaves the view).
+    private var userHasNavigated = false
     private var scanTask: Task<Void, Never>?
     private var metadataTask: Task<Void, Never>?
 
@@ -472,6 +673,7 @@ public final class CullingWorkspaceViewModel: ObservableObject {
         self.userDefaults = userDefaults
         self.cloudInspector = cloudInspector
         self.autoAdvance = userDefaults.autoAdvance
+        self.sortOrder = userDefaults.workspaceSortOrder
     }
 
     // MARK: - Folder Loading & Ingestion
@@ -526,6 +728,11 @@ public final class CullingWorkspaceViewModel: ObservableObject {
         self.pendingPermanentDelete = nil
         self.decisionLog.removeAll()
         self.inFlightJobIDs.removeAll()
+        libraryScoringTask?.cancel()
+        libraryScoringTask = nil
+        scoringProgress = nil
+        sortAfterScoring = false
+        userHasNavigated = false
         self.photos = []
         self.currentIndex = 0
         self.activeSlotIndex = 0
@@ -559,6 +766,7 @@ public final class CullingWorkspaceViewModel: ObservableObject {
                 }
             }
             guard let self, !Task.isCancelled else { return }
+            self.reorderAfterScan()
             self.isLoading = false
             if !self.isRemoteFolder {
                 self.startMetadataEnrichment()
@@ -651,6 +859,7 @@ public final class CullingWorkspaceViewModel: ObservableObject {
         switch comparisonMode {
         case .single, .triplet:
             if currentIndex < photos.count - 1 {
+                userHasNavigated = true
                 currentIndex += 1
                 checkSharpnessStopThresholdOnAdvance()
             }
@@ -664,6 +873,7 @@ public final class CullingWorkspaceViewModel: ObservableObject {
         switch comparisonMode {
         case .single, .triplet:
             if currentIndex > 0 {
+                userHasNavigated = true
                 currentIndex -= 1
             }
         case .sideBySide:
@@ -673,6 +883,7 @@ public final class CullingWorkspaceViewModel: ObservableObject {
 
     public func selectPhoto(at index: Int) {
         guard photos.indices.contains(index) else { return }
+        if index != currentIndex { userHasNavigated = true }
         switch comparisonMode {
         case .single, .triplet:
             currentIndex = index
@@ -891,18 +1102,23 @@ public final class CullingWorkspaceViewModel: ObservableObject {
                 await MainActor.run {
                     self?.inFlightJobIDs.remove(job.id)
                     let stillHere = self?.isCurrentFolder(jobFolderKey) ?? false
-                    if stillHere, let title = CullingFeedback.transferTitle(
-                        action: action,
-                        destinationFolder: destinationFolder,
-                        originalPrimaryURL: record.originalPrimaryURL,
-                        destinationURLs: record.affectedURLs
-                    ) {
-                        self?.showToast(
-                            icon: action == .move ? "checkmark.circle.fill" : "doc.on.doc.fill",
-                            title: title,
-                            subtitle: photo.filename,
-                            actionType: action
-                        )
+                    if stillHere {
+                        // A collision-renamed file says so; otherwise a photo that took companions
+                        // with it (RAW + JPEG + XMP) says how many files moved, copied or were trashed.
+                        let title = CullingFeedback.transferTitle(
+                            action: action,
+                            destinationFolder: destinationFolder,
+                            originalPrimaryURL: record.originalPrimaryURL,
+                            destinationURLs: record.affectedURLs
+                        ) ?? CullingFeedback.fileCountTitle(action: action, fileCount: record.affectedURLs.count)
+                        if let title {
+                            self?.showToast(
+                                icon: action == .trash ? "trash.fill" : (action == .move ? "checkmark.circle.fill" : "doc.on.doc.fill"),
+                                title: title,
+                                subtitle: photo.filename,
+                                actionType: action
+                            )
+                        }
                     }
                     self?.mutateUndoStack(for: jobFolderKey) { stack in
                         if let idx = stack.firstIndex(where: { $0.jobID == record.jobID }) {
@@ -1056,7 +1272,7 @@ public final class CullingWorkspaceViewModel: ObservableObject {
                 if let title = CullingFeedback.restoredTitle(
                     originalPrimaryURL: record.originalPrimaryURL,
                     restoredURLs: restored
-                ) {
+                ) ?? CullingFeedback.restoredCountTitle(fileCount: restored.count) {
                     await MainActor.run {
                         self?.showToast(
                             icon: "arrow.uturn.backward.circle.fill",
@@ -1090,8 +1306,9 @@ public final class CullingWorkspaceViewModel: ObservableObject {
     // MARK: - Private Helpers
 
     private func checkSharpnessStopThresholdOnAdvance() {
+        let stored = userDefaults.sharpnessStopThreshold
         guard sortOrder == .lowestSharpnessFirst,
-              let threshold = sharpnessStopThreshold,
+              let threshold = sharpnessStopThreshold ?? (stored > 0 ? stored : nil),
               let score = currentPhoto?.scores?.focusScore,
               score >= threshold else {
             return
@@ -1248,10 +1465,14 @@ public final class CullingWorkspaceViewModel: ObservableObject {
         }
     }
 
+    /// The last navigation direction; the prefetch window leans the same way.
+    public private(set) var browseDirection: ThumbnailLoader.BrowseDirection = .forward
+
     private func prefetchAroundCurrentIndex() {
         guard !photos.isEmpty else { return }
         let windowBefore = isRemoteFolder ? 0 : max(1, min(userDefaults.preloadWindowBefore, 5))
         let windowAfter = prefetchRadius
+        let direction = browseDirection
         Task { [weak self, thumbnailLoader] in
             guard let self else { return }
             await thumbnailLoader.updatePrefetchWindow(
@@ -1259,6 +1480,7 @@ public final class CullingWorkspaceViewModel: ObservableObject {
                 currentIndex: self.currentIndex,
                 windowBefore: windowBefore,
                 windowAfter: windowAfter,
+                direction: direction,
                 maxPixelSize: ThumbnailTier.preview.rawValue
             )
         }
@@ -1289,5 +1511,14 @@ public final class CullingWorkspaceViewModel: ObservableObject {
                 currentToast = nil
             }
         }
+    }
+}
+
+extension Array {
+    /// True when no element should come before the one preceding it under `areInIncreasingOrder`.
+    fileprivate func isSorted(by areInIncreasingOrder: (Element, Element) -> Bool) -> Bool {
+        guard count > 1 else { return true }
+        for i in 1..<count where areInIncreasingOrder(self[i], self[i - 1]) { return false }
+        return true
     }
 }

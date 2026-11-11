@@ -84,6 +84,7 @@ def test_preferences_dialog_wires_controls_and_removes_bind_companions_toggle(tm
 def test_settings_propagate_to_workspace_scanner_cache_and_hud(tmp_path: Path):
     """Verify SettingsStore live-updates CullingWorkspaceViewModel, scanner exclusions, cache ceiling, and HUD."""
     store = SettingsStore(path=tmp_path / "settings.json")
+    store.view_order = "natural"  # this test is about the scan's exclusions, not the order
     file_mgr = MagicMock()
     vm = CullingWorkspaceViewModel(file_manager=file_mgr, settings=store)
     loader = PhotoTextureLoader(max_mb=store.cache_limit_mb)

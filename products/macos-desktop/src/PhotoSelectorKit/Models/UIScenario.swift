@@ -272,3 +272,23 @@ public enum UIScenarioValidationError: Error, Equatable, LocalizedError {
         }
     }
 }
+
+
+/// One command of the live-control folder (`--ui-live <dir>`): the lab writes `cmd-<seq>.json`
+/// holding `{"seq": 3, "step": {"key": "m", "modifiers": ["command"]}}` (or a `click` / `checkpoint`
+/// step, the vocabulary of a scenario file) and the app answers with `done-<seq>.json`.
+public struct UILiveCommand: Decodable, Equatable, Sendable {
+    public let seq: Int
+    public let step: UIScenarioStep
+
+    public static func parse(_ data: Data) throws -> UILiveCommand {
+        try JSONDecoder().decode(UILiveCommand.self, from: data)
+    }
+
+    /// The answer file content: `{"ok": true}` or `{"ok": false, "error": "..."}`.
+    public static func answer(ok: Bool, error: String? = nil) -> Data {
+        var payload: [String: Any] = ["ok": ok]
+        if let error { payload["error"] = error }
+        return (try? JSONSerialization.data(withJSONObject: payload, options: [.sortedKeys])) ?? Data("{\"ok\":false}".utf8)
+    }
+}

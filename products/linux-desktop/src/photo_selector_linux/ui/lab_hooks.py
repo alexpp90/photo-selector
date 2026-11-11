@@ -16,6 +16,7 @@ from __future__ import annotations
 import json
 import os
 import re
+import stat
 import tempfile
 import time
 from pathlib import Path
@@ -178,6 +179,21 @@ def frontmost_window(main: Any, toplevels: List[Any]) -> Any:
     return over[-1] if over else main
 
 
+def ensure_private_directory(path: Path) -> None:
+    """Create ``path`` (owner-only) or accept it only if it already is the user's own directory.
+
+    ``mkdir(exist_ok=True)`` accepts whatever sits there, so another user's directory or a
+    symlink planted at the predictable ``/tmp`` fallback name would receive the screenshots and
+    state of the app. Refused: a symlink, a non-directory, a directory owned by someone else.
+    """
+    path.mkdir(mode=0o700, parents=True, exist_ok=True)
+    info = path.lstat()  # lstat: a symlink is judged as itself, not by its target
+    if stat.S_ISLNK(info.st_mode) or not stat.S_ISDIR(info.st_mode):
+        raise PermissionError(f"Refusing lab artifact path {path}: not a plain directory")
+    if info.st_uid != os.getuid():
+        raise PermissionError(f"Refusing lab artifact directory {path}: owned by another user")
+
+
 class LabCheckpointRecorder:
     """Stateful checkpoint recorder attached to an application instance when PST_LAB=1."""
 
@@ -187,6 +203,7 @@ class LabCheckpointRecorder:
         self._start_t = self._clock()
         self._last_t = self._start_t
         self._counter = 0
+        self._text_counter = 0
 
     @property
     def artifacts_dir(self) -> Path:
@@ -248,7 +265,7 @@ class LabCheckpointRecorder:
         self._last_t = now
 
         out_dir = self.artifacts_dir
-        out_dir.mkdir(mode=0o700, parents=True, exist_ok=True)
+        ensure_private_directory(out_dir)
         stem = format_checkpoint_stem(self._counter, name)
 
         png_path = out_dir / f"{stem}.png"
@@ -305,6 +322,7 @@ class LabCheckpointRecorder:
                         if png_path.exists() and png_path.stat().st_size > 0:
                             return
             except Exception:
+                # best-effort: lab-only capture; what cannot be captured is left out of the checkpoint.
                 pass
 
     def _extract_window_tree(self, window: Any) -> Dict[str, Any]:
@@ -318,8 +336,70 @@ class LabCheckpointRecorder:
         scale = float(scale_fn() or 1.0)
 
         records: List[Dict[str, Any]] = []
+        self._text_counter = 0
         self._walk_widget(window, root_window=window, parent_custom_id=None, out=records)
         return build_tree_from_records(records, win_w, win_h, scale)
+
+    @staticmethod
+    def _widget_bounds(widget: Any, root_window: Any) -> List[float]:
+        bounds = [0.0, 0.0, 0.0, 0.0]
+        compute_bounds = getattr(widget, "compute_bounds", None)
+        if callable(compute_bounds):
+            try:
+                res = compute_bounds(root_window)
+                if isinstance(res, tuple) and len(res) == 2:
+                    ok, rect = res
+                    if ok and rect is not None:
+                        bounds = [
+                            float(rect.get_x()),
+                            float(rect.get_y()),
+                            float(rect.get_width()),
+                            float(rect.get_height()),
+                        ]
+            except Exception:
+                # best-effort: lab-only capture; what cannot be captured is left out of the checkpoint.
+                pass
+        return bounds
+
+    def _export_dialog_text(
+        self, widget: Any, type_name: str, widget_name: str, root_window: Any, parent_id: Optional[str],
+        out: List[Dict[str, Any]],
+    ) -> None:
+        """Record an unnamed visible label of a dialog as a ``text`` node (``dialog_text_N``).
+
+        Dialogs (statistics, duplicates, shortcuts, preferences) build their rows from unnamed
+        labels, so their checkpoints listed no node although the screenshot showed ~35 words
+        (U-LIN-03). The main window is left alone: its texts are measured through the named
+        widgets, and its finding counts must not shift. The ids never start with ``slot_``.
+        """
+        if type_name != "GtkLabel" or (widget_name and widget_name != type_name):
+            return
+        if Gtk is not None and isinstance(root_window, Gtk.ApplicationWindow):
+            return  # the main window
+        mapped = getattr(widget, "get_mapped", None)
+        if callable(mapped) and not mapped():
+            return
+        get_text = getattr(widget, "get_text", None)
+        text = str(get_text() or "") if callable(get_text) else ""
+        if not text.strip():
+            return
+        self._text_counter += 1
+        node_id = f"dialog_text_{self._text_counter}"
+        out.append(
+            {
+                "id": node_id,
+                "parent": parent_id,
+                "type_name": type_name,
+                "role": "text",
+                "name": text,
+                "bounds": self._widget_bounds(widget, root_window),
+                "interactive": False,
+                "visible": True,
+                "overlay": False,
+                "text": text,
+                "clipped": None,
+            }
+        )
 
     def _walk_widget(
         self,
@@ -337,22 +417,7 @@ class LabCheckpointRecorder:
 
         current_parent_id = parent_custom_id
         if widget is not root_window and is_custom_widget_name(widget_name, type_name):
-            bounds = [0.0, 0.0, 0.0, 0.0]
-            compute_bounds = getattr(widget, "compute_bounds", None)
-            if callable(compute_bounds):
-                try:
-                    res = compute_bounds(root_window)
-                    if isinstance(res, tuple) and len(res) == 2:
-                        ok, rect = res
-                        if ok and rect is not None:
-                            bounds = [
-                                float(rect.get_x()),
-                                float(rect.get_y()),
-                                float(rect.get_width()),
-                                float(rect.get_height()),
-                            ]
-                except Exception:
-                    pass
+            bounds = self._widget_bounds(widget, root_window)
 
             role = infer_widget_role(type_name, widget_name)
             text_val = ""
@@ -363,6 +428,7 @@ class LabCheckpointRecorder:
                     if lbl:
                         text_val = str(lbl)
                 except Exception:
+                    # best-effort: lab-only capture; what cannot be captured is left out of the checkpoint.
                     pass
 
             tooltip_val = ""
@@ -373,6 +439,7 @@ class LabCheckpointRecorder:
                     if tt:
                         tooltip_val = str(tt)
                 except Exception:
+                    # best-effort: lab-only capture; what cannot be captured is left out of the checkpoint.
                     pass
 
             clipped: Optional[bool] = None
@@ -383,6 +450,7 @@ class LabCheckpointRecorder:
                     if layout is not None and hasattr(layout, "is_ellipsized"):
                         clipped = bool(layout.is_ellipsized())
                 except Exception:
+                    # best-effort: lab-only capture; what cannot be captured is left out of the checkpoint.
                     pass
 
             visible = True
@@ -391,6 +459,7 @@ class LabCheckpointRecorder:
                 try:
                     visible = bool(get_mapped())
                 except Exception:
+                    # best-effort: lab-only capture; what cannot be captured is left out of the checkpoint.
                     pass
 
             display_name = text_val or tooltip_val or widget_name
@@ -410,6 +479,8 @@ class LabCheckpointRecorder:
                 }
             )
             current_parent_id = widget_name
+        elif widget is not root_window:
+            self._export_dialog_text(widget, type_name, widget_name, root_window, parent_custom_id, out)
 
         get_first_child = getattr(widget, "get_first_child", None)
         if callable(get_first_child):

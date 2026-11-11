@@ -101,3 +101,54 @@ def test_mode_switcher_is_a_toggle_group_that_does_not_echo():
     assert calls == [3]
     assert [b.get_active() for b in buttons] == [False, False, True]
     assert not any(b.get_focus_on_click() for b in buttons)
+
+
+# ── Screen reader: Undo's name and announcements for changes that move no focus ─────────────────
+
+
+def test_undo_has_an_accessible_name_that_names_the_next_undo_and_the_count():
+    from unittest.mock import MagicMock
+
+    from photo_selector_linux.core.models import CullingActionType
+    from photo_selector_linux.ui.action_bar import ActionBarView
+
+    vm = MagicMock()
+    vm.selected_count = vm.trashed_count = vm.remaining_count = 0
+    vm.is_busy = False
+    vm.busy_message = None
+    vm.queue_status_label = None
+    vm.undo_stack = []
+    bar = ActionBarView(vm)
+    assert bar.undo_accessible_label == "Undo, nothing to undo"
+
+    record = MagicMock()
+    record.action_type = CullingActionType.MOVE
+    photo = MagicMock()
+    photo.filename = "a.jpg"
+    vm.undo_stack = [(record, photo, 0), (record, photo, 1)]
+    bar._update_state()
+    assert bar.undo_accessible_label == "Undo move, 2 available"
+
+
+def test_outcomes_and_a_growing_queue_are_announced_once(monkeypatch):
+    from unittest.mock import MagicMock
+
+    from photo_selector_linux.ui import action_bar as action_bar_module
+    from photo_selector_linux.ui.action_bar import ActionBarView
+
+    spoken = []
+    vm = MagicMock()
+    vm.selected_count = vm.trashed_count = vm.remaining_count = 3
+    vm.is_busy = False
+    vm.busy_message = None
+    vm.queue_status_label = None
+    vm.undo_stack = []
+    vm.last_notification_severity = "status"
+    monkeypatch.setattr(action_bar_module.ActionBarView, "_announce", lambda self, text: spoken.append(text))
+    bar = ActionBarView(vm)
+
+    bar.show_outcome("Undid move for IMG_1.JPG")
+    vm.queue_status_label = "2 queued"
+    bar._update_state()
+    bar._update_state()  # unchanged: said once
+    assert spoken == ["Undid move for IMG_1.JPG", "2 queued"]
