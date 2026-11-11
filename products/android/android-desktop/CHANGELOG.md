@@ -29,6 +29,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 - At the largest system font the action buttons keep "Delete" and the other words whole: a button that is too small drops its icon first and its key name last (the key stays in the spoken label and in the guide). Learn's tabs and guide buttons scroll instead of breaking words ("Lesson/s", "Hori/zon"), and the Photo Coach's blur badge and the rating card's key caption move to the next line instead of breaking.
 - The first-run "Tap either side to browse" pill no longer sits under the undo card; it moves above it.
 - Moving or copying in fullscreen into a custom destination flashes that folder's name, as the card does, instead of "Selection".
+- On a second pass (culling inside a Selection folder) the confirmation, the filing hint and the fullscreen flash name the folder the photo goes to ("Moved to Final") instead of "Selection".
 - The layout guide no longer claims that every control shows its key; the narrow Go and Sort chips do not.
 - Under a mouse pointer, the key names and the red Delete word on the buttons stay readable (4.5:1); the hover colour put them at 3.5:1 and 3.3:1.
 - A screen reader announces that a scan or grouping is queued behind the other.

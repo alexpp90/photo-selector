@@ -417,7 +417,7 @@ fun SelectorScreen(
             filingAction = uiState.filingAction,
             showGestureHint = !uiState.hasSeenFullscreenHint,
             onGestureHintSeen = viewModel::markFullscreenHintSeen,
-            selectionFolderName = uiState.selectionFolderName,
+            selectionFolderName = uiState.filingFolderName,
             customDestinationName = uiState.customDestinationName,
             infoPinned = uiState.fullscreenInfoPinned,
             onToggleInfoPinned = viewModel::toggleFullscreenInfoPinned,

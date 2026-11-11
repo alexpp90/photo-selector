@@ -1,5 +1,8 @@
 package com.photoselectortoolbox.viewmodel
 
+import com.photoselectortoolbox.domain.curation.SelectionDestinationPlan
+import com.photoselectortoolbox.domain.curation.OpenedFolder
+import com.photoselectortoolbox.domain.curation.DestinationSettings
 import android.content.Context
 import android.net.Uri
 import android.util.Log
@@ -229,6 +232,11 @@ data class SelectorUiState(
     /** The destination folder name, so the filing hint can name it (persisted). */
     val selectionFolderName: String = FilingAction.DEFAULT_SELECTION_FOLDER,
     /**
+     * The second-pass folder name (`Final`) while the open folder is itself a Selection folder
+     * and no custom destination is set (`U-32`, [SelectionDestinationPlan]); null otherwise.
+     */
+    val secondPassFolderName: String? = null,
+    /**
      * The name of the custom destination folder when Copy and Move file into one
      * (`[USER 2026-11-04]`), else null. The confirmation and the filing hint name it.
      */
@@ -367,6 +375,13 @@ data class SelectorUiState(
      * Built here rather than in the composable so no default verb, folder name
      * or key can be hard-coded next to a `Text`.
      */
+    /**
+     * The folder a Copy or Move from here lands in, by name: the second-pass folder on a second
+     * pass, else the Selection folder. Every confirmation, hint and flash names this one.
+     */
+    val filingFolderName: String
+        get() = secondPassFolderName?.takeIf { customDestinationName == null } ?: selectionFolderName
+
     val pendingHintText: SelectorHintUi?
         get() = pendingHint?.let { hint ->
             // The filing card explains what *just happened*, so it takes the verb
@@ -378,11 +393,11 @@ data class SelectorUiState(
             }
             SelectorHintUi(
                 hint = hint,
-                title = SelectorHintText.title(hint, verb, selectionFolderName, customDestinationName),
+                title = SelectorHintText.title(hint, verb, filingFolderName, customDestinationName),
                 message = SelectorHintText.message(
                     hint = hint,
                     filingAction = verb,
-                    selectionFolderName = selectionFolderName,
+                    selectionFolderName = filingFolderName,
                     sortingEnabled = sortingEnabled,
                     customFolderName = customDestinationName,
                 ),
@@ -760,7 +775,8 @@ class SelectorViewModel @Inject constructor(
                 return@launch
             }
 
-            _uiState.update { it.copy(folderName = folderName, missingGrantPrompt = false) }
+            _uiState.update { it.copy(folderName = folderName, missingGrantPrompt = false, secondPassFolderName = null) }
+            resolveSecondPass(uri)
 
             settingsRepository.setLastFolderUri(uri.toString())
             recoverInterruptedRatingWrites(uri)
@@ -777,6 +793,33 @@ class SelectorViewModel @Inject constructor(
                     settingsRepository.setLastFolderUri(null)
                 }
             }
+        }
+    }
+
+    /**
+     * Whether [folderUri] is itself a Selection folder (by name or marker), so a Copy or Move from
+     * it lands in the second-pass folder (`Final`) and the confirmation must say so; the same
+     * predicate the file operation and the Settings preview use ([SelectionDestinationPlan]).
+     * A lookup that fails leaves the Selection name (the sentence the transfer used before).
+     */
+    private fun resolveSecondPass(folderUri: Uri) {
+        val folder = folderUri.toString()
+        viewModelScope.launch {
+            val name = try {
+                val described = imageRepository.describeFolder(context, folderUri)
+                val settings = DestinationSettings(
+                    selectionFolderName = settingsRepository.selectionFolderName.first(),
+                    secondPassFolderName = settingsRepository.secondarySelectionFolderName.first(),
+                )
+                val opened = OpenedFolder(uri = folder, name = described.name, hasSelectionMarker = described.hasSelectionMarker)
+                settings.secondPassName.takeIf { SelectionDestinationPlan.isSelectionFolder(opened, settings) }
+            } catch (e: CancellationException) {
+                throw e
+            } catch (e: Exception) {
+                Log.w("SelectorViewModel", "Could not tell whether $folder is a Selection folder", e)
+                null
+            }
+            _uiState.update { if (it.folderUri != folder) it else it.copy(secondPassFolderName = name) }
         }
     }
 
@@ -1686,7 +1729,7 @@ class SelectorViewModel @Inject constructor(
                     } else {
                         FilingAction.COPY
                     },
-                    selectionFolderName = state.selectionFolderName,
+                    selectionFolderName = state.filingFolderName,
                     customFolderName = state.customDestinationName,
                 ),
                 // A move's undo never expires and a copy has none, so neither is a
@@ -1777,7 +1820,7 @@ class SelectorViewModel @Inject constructor(
                         it.withSnackbar(
                             SelectionActionLabels.suffixedConfirmation(
                                 action = if (action == CurationAction.MOVE) FilingAction.MOVE else FilingAction.COPY,
-                                selectionFolderName = it.selectionFolderName,
+                                selectionFolderName = it.filingFolderName,
                                 resultName = resultName,
                                 relatedCount = (result.destinationUris.size - 1).coerceAtLeast(0),
                                 customFolderName = it.customDestinationName,
@@ -1790,7 +1833,7 @@ class SelectorViewModel @Inject constructor(
             } else if (result?.partial == true) {
                 if (stillOpen()) {
                     rollbackFiling(edit.action, edit.slots)
-                    val folder = FilingAction.selectionFolderOrDefault(_uiState.value.selectionFolderName)
+                    val folder = FilingAction.selectionFolderOrDefault(_uiState.value.filingFolderName)
                     reportError(result.error ?: "Copied to $folder — original could not be removed")
                 }
                 // The rating belongs to the photograph: a verified copy starts with it exactly as a
@@ -2053,7 +2096,7 @@ class SelectorViewModel @Inject constructor(
                 reportError(
                     SelectionActionLabels.undoPartialMessage(
                         fileName = name,
-                        selectionFolderName = FilingAction.selectionFolderOrDefault(_uiState.value.selectionFolderName),
+                        selectionFolderName = FilingAction.selectionFolderOrDefault(_uiState.value.filingFolderName),
                     )
                 )
             }

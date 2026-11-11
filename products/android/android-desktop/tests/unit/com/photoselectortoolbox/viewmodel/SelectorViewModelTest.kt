@@ -364,6 +364,45 @@ class SelectorViewModelTest {
         assertFalse(hint.message, hint.message.contains("inside the shoot folder"))
     }
 
+    /**
+     * Second pass (`U-32`): opened on a Selection folder, a Copy or Move lands in the second-pass
+     * folder (`Final`), and the confirmation and the filing hint say so. They said "Selection",
+     * because `SelectionActionLabels.confirmation` was handed the Selection name whatever folder
+     * was open (coordinator note, backlog sweep 2026-11-10).
+     */
+    @Test
+    fun `on a second pass the confirmation names the second-pass folder`() = runTest {
+        every { settingsRepository.secondarySelectionFolderName } returns MutableStateFlow("Final")
+        coEvery { imageRepository.describeFolder(any(), any()) } returns FolderDescription(
+            uri = FOLDER_URI, displayPath = listOf("Internal storage", "DCIM", "Selection"), name = "Selection",
+            hasPersistedGrant = true, exists = true, canWrite = true, hasSelectionMarker = true,
+        )
+        coEvery { imageRepository.moveImage(any(), any(), any(), any()) } returns
+            FileOperationResult.success("content://test/folder/a", "content://test/folder/Final/a")
+
+        val viewModel = loadFolder(image("a"), image("b"))
+        viewModel.moveToSelection()
+
+        assertEquals("Moved to Final", viewModel.uiState.value.snackbarMessage)
+        assertEquals("Moved to Final", viewModel.uiState.value.pendingHintText!!.title)
+    }
+
+    @Test
+    fun `a folder that is not a Selection folder keeps the Selection name`() = runTest {
+        every { settingsRepository.secondarySelectionFolderName } returns MutableStateFlow("Final")
+        coEvery { imageRepository.describeFolder(any(), any()) } returns FolderDescription(
+            uri = FOLDER_URI, displayPath = listOf("DCIM", "Trip"), name = "Trip",
+            hasPersistedGrant = true, exists = true, canWrite = true,
+        )
+        coEvery { imageRepository.moveImage(any(), any(), any(), any()) } returns
+            FileOperationResult.success("content://test/folder/a", "content://test/sel/a")
+
+        val viewModel = loadFolder(image("a"), image("b"))
+        viewModel.moveToSelection()
+
+        assertEquals("Moved to Selection", viewModel.uiState.value.snackbarMessage)
+    }
+
     @Test
     fun `back on the working folder the confirmation is the plain sentence again`() = runTest {
         val keepers = "content://com.android.externalstorage.documents/tree/primary%3APictures%2FKeepers"
