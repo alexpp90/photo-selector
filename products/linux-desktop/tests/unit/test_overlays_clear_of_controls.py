@@ -171,3 +171,30 @@ def test_the_hud_is_not_cut_off_at_the_smallest_window(tmp_path, folder):
     finally:
         win.destroy()
         probe.pump(0.1)
+
+
+@pytest.mark.parametrize("mode", [1, 2, 3])
+def test_the_photo_has_the_same_size_with_the_info_hud_on_and_off(tmp_path, folder, mode):
+    """Checked 2026-11-10 (cross-product entry of 2026-11-03): metadata is an overlay, so it never
+    takes image space; the HUD toggle (I) changes nothing about where the photo is drawn."""
+    win = _window(tmp_path, folder, mode)
+    probe.show_at(win, (1366, 768))
+    probe.pump(0.5)
+
+    def photo_boxes():
+        return {
+            w.get_name(): probe.bounds(w, win)
+            for w in probe.walk(win)
+            if w.get_name().endswith("_image") and w.get_mapped()
+        }
+
+    canvas = win.canvas_view
+    if not canvas.hud_enabled:
+        canvas.toggle_hud()
+    probe.pump(0.3)
+    with_hud = photo_boxes()
+    canvas.toggle_hud()
+    probe.pump(0.3)
+    without_hud = photo_boxes()
+    win.destroy()
+    assert with_hud and with_hud == without_hud

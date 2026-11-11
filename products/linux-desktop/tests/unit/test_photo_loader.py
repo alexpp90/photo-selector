@@ -133,3 +133,21 @@ def test_a_request_after_clear_is_not_swallowed_by_a_stale_pending_entry(monkeyp
     loader.shutdown()
     # Only the new request is answered; the stale delivery of the old one is ignored.
     assert delivered == ["new"]
+
+
+def test_a_failing_texture_callback_is_logged_and_the_next_one_still_runs(caplog):
+    loader = photo_loader.PhotoTextureLoader(workers=1)
+    key = (Path("/f/a.jpg"), photo_loader.FIT_MAX_EDGE)
+    got = []
+
+    def broken(_texture):
+        raise RuntimeError("callback bug")
+
+    loader._pending[key] = [broken, got.append]
+    try:
+        with caplog.at_level("ERROR"):
+            loader._deliver(key, None)
+    finally:
+        loader.shutdown()
+    assert got == [None]
+    assert any("callback bug" in (r.exc_text or "") for r in caplog.records)

@@ -7,6 +7,7 @@ Adheres to:
 
 from __future__ import annotations
 
+import hashlib
 import io
 import subprocess
 import sys
@@ -21,6 +22,7 @@ SCRIPTS_DIR = PRODUCT_DIR / "scripts"
 if str(SCRIPTS_DIR) not in sys.path:
     sys.path.insert(0, str(SCRIPTS_DIR))
 
+from package_deb import ICON_FILES  # noqa: E402
 from verify_package import (  # noqa: E402
     VerificationFailure,
     deb_version_sort_key,
@@ -30,9 +32,40 @@ from verify_package import (  # noqa: E402
 )
 
 
-def _create_mock_deb(path: Path, version: str = "0.2.0-1") -> Path:
-    """Create a minimal valid .deb ar archive container for testing."""
+def _create_mock_deb(
+    path: Path,
+    version: str = "0.2.0-1",
+    *,
+    bad_md5_for: str | None = None,
+    omit_icon: str | None = None,
+    release: str | None = None,
+) -> Path:
+    """Create a minimal valid .deb ar archive container for testing.
+
+    The data members, their ``md5sums`` and the icons are consistent unless a keyword says
+    otherwise: ``bad_md5_for`` writes a wrong digest for that file, ``omit_icon`` leaves one
+    ``ICON_FILES`` entry out, ``release`` sets the metainfo's newest release.
+    """
     deb_binary = b"2.0\n"
+    upstream = version.rsplit("-", 1)[0]
+
+    data_members = {
+        "usr/bin/photo-selector-linux": (b"#!/bin/sh\nexec python3 -m photo_selector_linux \"$@\"\n", 0o755),
+        "usr/share/applications/app.alpatix.Blitzlens.desktop": (
+            b"[Desktop Entry]\nName=Blitzlens\nType=Application\n", 0o644),
+        "usr/share/metainfo/app.alpatix.Blitzlens.metainfo.xml": (
+            (
+                '<?xml version="1.0" encoding="UTF-8"?>\n<component><releases>'
+                f'<release version="{release or upstream}" date="2026-10-22"/>'
+                "</releases></component>\n"
+            ).encode("utf-8"),
+            0o644,
+        ),
+        "usr/lib/python3/dist-packages/photo_selector_linux/__init__.py": (b"__version__ = '0.2.0'\n", 0o644),
+    }
+    for rel in ICON_FILES:
+        if rel != omit_icon:
+            data_members[f"usr/share/icons/hicolor/{rel}"] = (b"icon:" + rel.encode(), 0o644)
 
     # Create control.tar.gz
     ctrl_buf = io.BytesIO()
@@ -48,7 +81,13 @@ def _create_mock_deb(path: Path, version: str = "0.2.0-1") -> Path:
         ti_ctrl.size = len(ctrl_content)
         tar.addfile(ti_ctrl, io.BytesIO(ctrl_content))
 
-        md5_content = b"d41d8cd98f00b204e9800998ecf8427e  usr/bin/photo-selector-linux\n"
+        lines = []
+        for name, (content, _mode) in data_members.items():
+            digest = hashlib.md5(content).hexdigest()
+            if name == bad_md5_for:
+                digest = "0" * 32
+            lines.append(f"{digest}  {name}\n")
+        md5_content = "".join(lines).encode("utf-8")
         ti_md5 = tarfile.TarInfo(name="./md5sums")
         ti_md5.size = len(md5_content)
         tar.addfile(ti_md5, io.BytesIO(md5_content))
@@ -57,26 +96,11 @@ def _create_mock_deb(path: Path, version: str = "0.2.0-1") -> Path:
     # Create data.tar.gz
     data_buf = io.BytesIO()
     with tarfile.open(fileobj=data_buf, mode="w:gz") as tar:
-        launcher = b"#!/bin/sh\nexec python3 -m photo_selector_linux \"$@\"\n"
-        ti_bin = tarfile.TarInfo(name="./usr/bin/photo-selector-linux")
-        ti_bin.size = len(launcher)
-        ti_bin.mode = 0o755
-        tar.addfile(ti_bin, io.BytesIO(launcher))
-
-        desktop = b"[Desktop Entry]\nName=Blitzlens\nType=Application\n"
-        ti_desk = tarfile.TarInfo(name="./usr/share/applications/app.alpatix.Blitzlens.desktop")
-        ti_desk.size = len(desktop)
-        tar.addfile(ti_desk, io.BytesIO(desktop))
-
-        meta = b"<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n<component/>\n"
-        ti_meta = tarfile.TarInfo(name="./usr/share/metainfo/app.alpatix.Blitzlens.metainfo.xml")
-        ti_meta.size = len(meta)
-        tar.addfile(ti_meta, io.BytesIO(meta))
-
-        init_py = b"__version__ = '0.2.0'\n"
-        ti_lib = tarfile.TarInfo(name="./usr/lib/python3/dist-packages/photo_selector_linux/__init__.py")
-        ti_lib.size = len(init_py)
-        tar.addfile(ti_lib, io.BytesIO(init_py))
+        for name, (content, mode) in data_members.items():
+            info = tarfile.TarInfo(name=f"./{name}")
+            info.size = len(content)
+            info.mode = mode
+            tar.addfile(info, io.BytesIO(content))
     data_tar = data_buf.getvalue()
 
     # Construct ar archive
@@ -234,6 +258,24 @@ class TestVerifyDebArchive(unittest.TestCase):
         _create_mock_deb(deb_path, "0.2.0-1")
         # Should pass without exception
         verify_deb_archive(deb_path)
+
+    def test_a_wrong_md5_line_fails(self):
+        deb_path = self.base_dir / "wrong-md5.deb"
+        _create_mock_deb(deb_path, bad_md5_for="usr/bin/photo-selector-linux")
+        with self.assertRaisesRegex(VerificationFailure, "md5sums line for usr/bin/photo-selector-linux"):
+            verify_deb_archive(deb_path)
+
+    def test_a_missing_icon_fails(self):
+        deb_path = self.base_dir / "no-icon.deb"
+        _create_mock_deb(deb_path, omit_icon=ICON_FILES[2])
+        with self.assertRaisesRegex(VerificationFailure, "missing icon"):
+            verify_deb_archive(deb_path)
+
+    def test_a_metainfo_release_that_differs_from_the_package_version_fails(self):
+        deb_path = self.base_dir / "wrong-release.deb"
+        _create_mock_deb(deb_path, "0.2.0-1", release="0.1.0")
+        with self.assertRaisesRegex(VerificationFailure, "newest release is 0.1.0"):
+            verify_deb_archive(deb_path)
 
     def test_verify_nonexistent_deb_raises(self):
         missing_deb = self.base_dir / "nonexistent.deb"

@@ -103,6 +103,11 @@ scenarios:
       - screen: library-statistics
         intent: Read how many photos there are, which formats and lenses, and how sharp they are
         expected: The statistics window lists the summary, formats, focal lengths and sharpness by aperture and shutter speed
+      - key: Escape
+      - wait_ms: 500
+      - screen: workspace-after-statistics
+        intent: Leave the statistics and carry on culling
+        expected: Escape closes the statistics window and the workspace shows the photo again
 
   - id: U-LIN-04
     title: Sweep out the blurriest photos first

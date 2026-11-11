@@ -181,13 +181,17 @@ def test_custom_mode_never_exists_without_a_folder(tmp_path: Path):
 def _card(tmp_path: Path):
     card = tmp_path / "card"
     card.mkdir()
-    for name in ("IMG_0001.JPG", "IMG_0002.JPG"):
+    for number, name in enumerate(("IMG_0001.JPG", "IMG_0002.JPG")):
         (card / name).write_bytes(name.encode())
+        # CI's filesystem keeps the creation order in the mtime; a laptop's may not. Newest first
+        # (the default order) would then show IMG_0002 first, so the order is chosen explicitly.
+        os.utime(card / name, (1_700_000_000 + number, 1_700_000_000 + number))
     return card
 
 
 def _vm(tmp_path: Path, **settings_kwargs):
     store = SettingsStore(path=tmp_path / "settings.json")
+    store.view_order = "natural"  # these tests act on the first photo, IMG_0001
     if settings_kwargs:
         store.update(**settings_kwargs)
     return CullingWorkspaceViewModel(settings=store), store

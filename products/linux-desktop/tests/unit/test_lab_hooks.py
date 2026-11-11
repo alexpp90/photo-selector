@@ -6,6 +6,8 @@ import json
 from pathlib import Path
 from types import SimpleNamespace
 
+import pytest
+
 from photo_selector_linux.ui.lab_hooks import (
     LabCheckpointRecorder,
     build_tree_from_records,
@@ -335,3 +337,80 @@ def test_frontmost_window_is_the_newest_visible_window_over_the_main_one() -> No
     assert frontmost_window(main, [main, stats, hidden, other]) is stats
     newer = dialog(True, main)
     assert frontmost_window(main, [stats, main, newer]) is newer
+
+
+def test_a_symlinked_artifact_directory_is_refused(tmp_path: Path) -> None:
+    from photo_selector_linux.ui.lab_hooks import ensure_private_directory
+
+    target = tmp_path / "elsewhere"
+    target.mkdir()
+    link = tmp_path / "pstlab-artifacts-1000"
+    link.symlink_to(target)
+    with pytest.raises(PermissionError, match="not a plain directory"):
+        ensure_private_directory(link)
+    recorder = LabCheckpointRecorder(artifacts_dir=link)
+    with pytest.raises(PermissionError):
+        recorder.record_checkpoint(None, "opened")
+    assert not any(target.iterdir()), "nothing may be written through the planted link"
+
+
+def test_a_foreign_owned_artifact_directory_is_refused(tmp_path: Path, monkeypatch) -> None:
+    import os
+
+    from photo_selector_linux.ui.lab_hooks import ensure_private_directory
+
+    directory = tmp_path / "pstlab-artifacts-1000"
+    directory.mkdir()
+    monkeypatch.setattr(os, "getuid", lambda: os.stat(directory).st_uid + 1)
+    with pytest.raises(PermissionError, match="owned by another user"):
+        ensure_private_directory(directory)
+
+
+def test_an_own_plain_directory_is_accepted(tmp_path: Path) -> None:
+    from photo_selector_linux.ui.lab_hooks import ensure_private_directory
+
+    ensure_private_directory(tmp_path / "new" / "dir")
+    ensure_private_directory(tmp_path / "new" / "dir")  # again: exists, still ours
+
+
+def _real_gtk():
+    from photo_selector_linux.ui import lab_hooks
+
+    return None if (lab_hooks.Gtk is None or "Mock" in type(lab_hooks.Gtk).__name__) else lab_hooks.Gtk
+
+
+@pytest.mark.skipif(_real_gtk() is None, reason="needs real Gtk under a display server")
+def test_a_dialogs_visible_texts_are_exported_but_the_main_windows_unnamed_labels_are_not(tmp_path: Path) -> None:
+    """U-LIN-03: the statistics checkpoint had 0 nodes for ~35 words on screen."""
+    from gi.repository import Adw, GLib
+
+    from photo_selector_linux.ui.tools_dialogs import LibraryStatisticsDialog
+    from photo_selector_linux.viewmodels.culling_workspace import CullingWorkspaceViewModel
+
+    Adw.init()
+    dialog = LibraryStatisticsDialog(viewmodel=CullingWorkspaceViewModel())
+    dialog.present()
+    context = GLib.MainContext.default()
+    for _ in range(50):
+        context.iteration(False)
+    tree = LabCheckpointRecorder(artifacts_dir=tmp_path)._extract_window_tree(dialog)
+    texts = [n["text"] for n in tree["nodes"] if n["role"] == "text"]
+    assert "Library Summary" in texts and "Total Photographs" in texts
+    assert all(n["id"].startswith("dialog_text_") for n in tree["nodes"] if n["role"] == "text")
+    dialog.destroy()
+
+
+@pytest.mark.skipif(_real_gtk() is None, reason="needs real Gtk under a display server")
+def test_the_main_windows_unnamed_labels_stay_out_of_the_tree(tmp_path: Path) -> None:
+    from gi.repository import Adw, GLib, Gtk
+
+    Adw.init()
+    window = Adw.ApplicationWindow()
+    window.set_content(Gtk.Label(label="0 Selected"))
+    window.present()
+    context = GLib.MainContext.default()
+    for _ in range(50):
+        context.iteration(False)
+    tree = LabCheckpointRecorder(artifacts_dir=tmp_path)._extract_window_tree(window)
+    assert [n for n in tree["nodes"] if n["role"] == "text"] == []
+    window.destroy()

@@ -29,9 +29,13 @@ from photo_selector_linux.viewmodels.culling_workspace import CullingWorkspaceVi
 
 # Menu label -> view model sort order (R-LINUX-CULL-02).
 VIEW_ORDER_LABELS = {
-    "Natural order": "natural",
+    "Newest first": "newest",
+    "Oldest first": "oldest",
+    "File name": "natural",
     "Lowest sharpness first": "lowest_sharpness_first",
 }
+#: The order a new install opens in; the order indicator is shown for any other.
+DEFAULT_VIEW_ORDER = "newest"
 VIEW_ORDER_TITLES = {order: label for label, order in VIEW_ORDER_LABELS.items()}
 
 
@@ -169,6 +173,14 @@ class MainWindow(Adw.ApplicationWindow if HAS_GI else object):
         self.lbl_counter.add_css_class("photo-counter-pill")
         title_box.append(self.lbl_counter)
 
+        # Which order the photos are in, only when it is not the default. The slot is always
+        # allocated (opacity, not visibility), so the buttons beside it never move when it appears.
+        self.img_order = Gtk.Image.new_from_icon_name("view-sort-ascending-symbolic")
+        self.img_order.set_name("order_indicator")
+        self.img_order.set_opacity(0.0)
+        self.img_order.set_can_target(False)
+        title_box.append(self.img_order)
+
         # Queue status pill (U-08)
         self.lbl_queue = Gtk.Label(label="")
         self.lbl_queue.add_css_class("photo-counter-pill")
@@ -178,7 +190,8 @@ class MainWindow(Adw.ApplicationWindow if HAS_GI else object):
         self.header_bar.set_title_widget(title_box)
 
         # Menu Button (Primary Menu)
-        menu_button = Gtk.MenuButton()
+        menu_button = self.menu_button = Gtk.MenuButton()
+        menu_button.set_name("btn_main_menu")
         menu_button.set_icon_name("open-menu-symbolic")
         menu_button.set_tooltip_text("Main Menu")
         menu = Gio.Menu()
@@ -230,12 +243,49 @@ class MainWindow(Adw.ApplicationWindow if HAS_GI else object):
             self.show_toast(f"Order: {VIEW_ORDER_TITLES[order]}")
         self.viewmodel.set_sort_order(order)
 
+    def _show_order_indicator(self, order: str) -> None:
+        """A sort icon beside the "Photo N of M" pill when the order is not the default."""
+        shown = order != DEFAULT_VIEW_ORDER
+        title = VIEW_ORDER_TITLES.get(order, order)
+        self.img_order.set_opacity(1.0 if shown else 0.0)
+        self.img_order.set_can_target(shown)
+        self.img_order.set_tooltip_text(f"Order: {title}" if shown else None)
+        self.img_order.update_property(
+            [Gtk.AccessibleProperty.LABEL], [f"Order: {title}" if shown else ""]
+        )
+
     def toggle_view_order(self) -> None:
-        """B: natural order <-> lowest sharpness first."""
+        """B: lowest sharpness first <-> the order the folder opens in (newest first, by default)."""
         if self.viewmodel.sort_order == "lowest_sharpness_first" and not self.viewmodel.scoring_confirmation_pending:
-            self.set_view_order("natural")
+            self.set_view_order(self.settings.view_order)
         else:
             self.set_view_order("lowest_sharpness_first")
+
+    def toggle_fullscreen(self) -> None:
+        """F / F11."""
+        if self.is_fullscreen():
+            self.unfullscreen()
+        else:
+            self.fullscreen()
+
+    def exit_fullscreen(self) -> bool:
+        """Escape, after zoom: leave full screen; False when the window was not in it."""
+        if not self.is_fullscreen():
+            return False
+        self.unfullscreen()
+        return True
+
+    def show_view_order_menu(self) -> None:
+        """S: open the main menu, whose first section is the View order choice."""
+        self.menu_button.popup()
+
+    def show_goto_dialog(self) -> None:
+        """G: jump to a photo by its position or file name."""
+        if not HAS_GI or self.viewmodel.candidate_count == 0:
+            return
+        from photo_selector_linux.ui.goto_dialog import GoToPhotoDialog
+
+        GoToPhotoDialog(self.viewmodel).present(self)
 
     def _attach_keyboard_router(self) -> None:
         self.router = KeyboardRouter(window=self, viewmodel=self.viewmodel)
@@ -270,6 +320,7 @@ class MainWindow(Adw.ApplicationWindow if HAS_GI else object):
         action = getattr(self, "_view_order_action", None)
         if action is not None:
             action.set_state(GLib.Variant.new_string(vm.sort_order))
+        self._show_order_indicator(vm.sort_order)
 
         if self._close_when_idle and vm.queued_count == 0:
             self._close_when_idle = False
@@ -297,9 +348,12 @@ class MainWindow(Adw.ApplicationWindow if HAS_GI else object):
             return
         severity = getattr(vm, "last_notification_severity", "info")
         if severity == "status":
-            return
+            return  # the action bar shows and announces it
         # Files left in an unexpected place: the toast stays until the user dismisses it.
         self.show_toast(message, persistent=severity == "stranded")
+        if severity == "info":
+            # "Loaded N photographs" and the like: errors are announced by the action bar.
+            self.action_bar._announce(message)
 
     def show_toast(self, message: str, persistent: bool = False) -> None:
         """Show one toast at a time: the previous one is dismissed, never queued."""

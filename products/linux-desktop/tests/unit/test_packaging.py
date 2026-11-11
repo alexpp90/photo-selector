@@ -682,3 +682,12 @@ def test_native_and_pure_python_builders_list_the_same_files(tmp_path):
         out = subprocess.run(["dpkg-deb", "-c", str(tmp_path / deb)], check=True, capture_output=True, text=True).stdout
         listings[mode] = sorted((f[0], f[1], f[2], f[5]) for f in (line.split() for line in out.splitlines()))
     assert listings["python"] == listings["native"]
+
+
+def test_the_install_guide_shows_the_maintainer_line_the_package_has():
+    """INSTALL.md printed a personal name with an example.com address the package never had."""
+    control = (get_product_root() / "debian" / "control").read_text(encoding="utf-8")
+    package_line = next(line for line in control.splitlines() if line.startswith("Maintainer:"))
+    install = (get_repo_root() / "docs/products/linux-desktop/INSTALL.md").read_text(encoding="utf-8")
+    assert package_line in install.splitlines()
+    assert "example.com" not in install

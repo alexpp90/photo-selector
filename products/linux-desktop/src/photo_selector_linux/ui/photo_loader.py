@@ -11,6 +11,8 @@ Adheres to:
 
 from __future__ import annotations
 
+import logging
+
 import threading
 from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
@@ -37,6 +39,8 @@ from photo_selector_linux.core.image_source import (
 )
 from photo_selector_linux.core.metadata import read_metadata
 from photo_selector_linux.core.scoring import compute_quality_scores
+
+logger = logging.getLogger(__name__)
 
 # Longest edge decoded for fit-to-window display (covers 4K panels); 1:1 zoom decodes full size.
 FIT_MAX_EDGE: int = 3840
@@ -315,5 +319,6 @@ class PhotoTextureLoader:
             try:
                 callback(texture)
             except Exception:
-                pass
+                # One failing requester must not starve the others of their texture.
+                logger.exception("Photo texture callback failed")
         return False
