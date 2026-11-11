@@ -47,7 +47,7 @@ Android Desktop's carries a `scanResult` field that Jackpix has no concept of.
 
 The desktop products (Lensjet, Blitzlens, the legacy Desktop) share no code with the Android products — only the data *contract*.
 Lensjet's and Blitzlens' EXIF models and `com.photoselector.core.model.ExifData` must describe
-the same fields; changing one is a cross-product change. The archived legacy Desktop is the one
+the same fields; changing one is a cross-product change. The capture settings added to `ExifData` on 2026-11-11 (exposure program to drone gimbal pitch, see `ANDROID_PLATFORM.md` §1) are the one deliberate exception: only Frameduel's Learn uses them, and Lensjet and Blitzlens have no learning feature, so they are recorded in [`FEATURE_PARITY.md`](FEATURE_PARITY.md) and not ported. The archived legacy Desktop is the one
 exception: its `core/models.py` `ExifData` has no camera make/model, and it is frozen, so the
 gap is recorded in [`FEATURE_PARITY.md`](FEATURE_PARITY.md) and not closed.
 
