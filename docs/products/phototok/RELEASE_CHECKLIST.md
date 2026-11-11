@@ -41,7 +41,7 @@ Because Jackpix requests zero permissions, has no network access, and processes 
 
 - [x] Personal developer account registered (2026-07).
 - [ ] **Create the app:** name per §5, default language English (United States), *App*, *Free*, category **Photography**. Add the German (de-DE) listing as a translation.
-- [ ] Verify GitHub Pages is enabled and serves `privacy-policy.html` and `impressum.html` with HTTP 200.
+- [x] Verify GitHub Pages is enabled and serves `privacy-policy.html` and `impressum.html` with HTTP 200 (both answered 200 on 2026-11-12, byte-identical to the tracked files).
 - [ ] Paste the Privacy Policy URL into **Play Console → Monitor and improve → Policy and programs → App content → Privacy policy**.
 - [ ] Submit the Data Safety form using the table in §2 above.
 - [ ] Upload the first signed release `.aab` manually to the **Internal testing** track to initialize the `com.phototok` package in Play Console, then enable automated GitHub Actions publishing via `PHOTOTOK_GP_SERVICE_ACCOUNT_JSON`.
@@ -77,7 +77,7 @@ Jackpix turns sorting photos into a feed you flick through. Open your camera rol
 
 • Swipe up/down to browse, newest first.
 • Swipe right to copy the photo into your "Selection" folder (or move it — your choice).
-• Swipe left to delete it. Changed your mind? One tap on Revert brings it back.
+• Swipe left to delete it. Changed your mind? Undo brings back your latest deletes.
 
 Features
 • Starts right away: pick "Phone Camera" or any folder, no setup.
