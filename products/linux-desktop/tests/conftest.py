@@ -4,11 +4,24 @@ Tests never need a visible display: without PyGObject (macOS Poetry venv) or wit
 server they run against the stubs below; Linux CI runs the real GTK under ``xvfb-run``.
 """
 
+import atexit
 import os
+import shutil
 import sys
+import tempfile
 from unittest.mock import MagicMock
 
+from _display_env import keep_gui_off_real_desktop
+
 os.environ.setdefault("ADW_DISABLE_PORTAL", "1")
+keep_gui_off_real_desktop(os.environ)
+
+# A test that builds a window or store without a path must never read or write the user's real
+# settings (the view order is persisted now) or decision log: point XDG at a throwaway tree.
+_XDG_SANDBOX = tempfile.mkdtemp(prefix="blitzlens-tests-xdg-")
+os.environ["XDG_CONFIG_HOME"] = os.path.join(_XDG_SANDBOX, "config")
+os.environ["XDG_DATA_HOME"] = os.path.join(_XDG_SANDBOX, "data")
+atexit.register(shutil.rmtree, _XDG_SANDBOX, ignore_errors=True)
 
 
 def _real_gtk_usable() -> bool:

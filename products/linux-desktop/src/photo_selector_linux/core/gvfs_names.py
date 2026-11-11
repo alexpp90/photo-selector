@@ -14,6 +14,8 @@ Adheres to:
 
 from __future__ import annotations
 
+import logging
+
 import os
 from pathlib import Path
 from typing import Dict, List, Optional, Protocol, Sequence, Tuple
@@ -25,6 +27,8 @@ try:
 except (ImportError, ValueError):
     HAS_GIO = False
     Gio = None
+
+logger = logging.getLogger(__name__)
 
 _ATTRIBUTES = "standard::name,standard::display-name"
 
@@ -206,7 +210,9 @@ def is_remote_filesystem(
                 if isinstance(is_rem, bool) and is_rem:
                     return True
         except Exception:
-            pass
+            # best-effort: the mount table above is the primary signal; without GIO's answer the
+            # folder is treated as local, and the first real file error says otherwise.
+            logger.debug("GIO filesystem query failed for %s", path, exc_info=True)
 
     return False
 

@@ -8,6 +8,8 @@ Adheres to:
 
 from __future__ import annotations
 
+import logging
+
 import io
 import math
 from pathlib import Path
@@ -34,6 +36,8 @@ try:
     _HAVE_GEXIV2 = True
 except Exception:
     _HAVE_GEXIV2 = False
+
+logger = logging.getLogger(__name__)
 
 _HAVE_PIL = False
 try:
@@ -219,7 +223,9 @@ def read_metadata_pil(path: Path, data: Optional[bytes] = None) -> Optional[Expo
                     if ifd:
                         exif_dict.update(ifd.items())
                 except Exception:
-                    pass
+                    # best-effort: one unreadable IFD (a damaged MakerNote) leaves the tags of the
+                    # others; the fields it would have set stay empty.
+                    logger.debug("Unreadable EXIF IFD skipped", exc_info=True)
     except Exception:
         return None
 
@@ -265,7 +271,8 @@ def read_metadata_pil(path: Path, data: Optional[bytes] = None) -> Optional[Expo
             if val_int > 0:
                 iso = val_int
         except Exception:
-            pass
+            # best-effort: an ISO that is not a number stays unset (shown as missing).
+            logger.debug("Unparsable ISO value %r", iso_candidate)
 
     # 4. Focal Length
     fl_val = exif_dict.get(0x920A)  # FocalLength

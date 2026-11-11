@@ -178,6 +178,9 @@ class CandidatePhoto:
     scores: Optional[QualityScores] = None
     status: PhotoStatus = PhotoStatus.CANDIDATE
     _file_size: Optional[int] = field(default=None, repr=False)
+    #: Modification time (epoch seconds) of the primary file, read with its size while scanning;
+    #: what "newest first" and "oldest first" order by. 0.0 when it could not be read.
+    modified_at: float = field(default=0.0, repr=False)
     # Human-readable names for paths whose on-disk name differs, e.g. Google Drive mounted
     # through GVFS exposes files under opaque IDs ("1aW85w…") without an extension.
     display_names: Dict[Path, str] = field(default_factory=dict, repr=False)

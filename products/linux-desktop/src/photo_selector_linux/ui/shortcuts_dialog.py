@@ -16,13 +16,14 @@ except (ImportError, ValueError):
     HAS_GI = False
     Gtk = Adw = None
 
-from photo_selector_linux.ui.secondary_window import install_chrome
+from photo_selector_linux.ui.secondary_window import install_chrome, show_scrollbar, size_window
 
 
 SHORTCUTS = [
     ("Navigation", [
-        ("Previous Photo", "Left Arrow / H / K"),
-        ("Next Photo", "Right Arrow / L / J"),
+        ("Previous Photo (H goes away next release)", "Left Arrow / K / H"),
+        ("Next Photo (L goes away next release)", "Right Arrow / J / L"),
+        ("Go to Photo", "G"),
     ]),
     ("Culling Actions", [
         ("Keep (move to Selection)", "M"),
@@ -35,9 +36,11 @@ SHORTCUTS = [
         ("2-Up (Side-by-Side)", "2"),
         ("3-Up (Focus Triplet)", "3"),
         ("1:1 Pixel Zoom Toggle", "Space"),
-        ("Reset Zoom", "Escape"),
+        ("Reset Zoom, then Leave Full Screen", "Escape"),
         ("Toggle Metadata HUD", "I"),
-        ("Lowest Sharpness First / Natural Order", "B"),
+        ("View Order Menu (Newest, Oldest, File Name, Lowest Sharpness)", "S"),
+        ("Full Screen", "F / F11"),
+        ("Lowest Sharpness First, and Back (B goes away next release)", "B"),
     ]),
     ("Application", [
         ("Open Folder", "Ctrl+O"),
@@ -45,6 +48,7 @@ SHORTCUTS = [
         ("Library Statistics", "Ctrl+L"),
         ("Preferences", "Ctrl+,"),
         ("Keyboard Shortcuts", "? or Ctrl+?"),
+        ("Close This Window", "Escape / Ctrl+W"),
     ]),
 ]
 
@@ -56,7 +60,7 @@ class ShortcutsDialog(Adw.Window if HAS_GI else object):
         if HAS_GI:
             super().__init__()
             self.set_title("Keyboard Shortcuts")
-            self.set_default_size(500, 480)
+            size_window(self, 500, 480, transient_for)
             if transient_for:
                 self.set_transient_for(transient_for)
             self._toolbar = install_chrome(self)
@@ -67,6 +71,7 @@ class ShortcutsDialog(Adw.Window if HAS_GI else object):
             return
 
         scrolled = Gtk.ScrolledWindow()
+        show_scrollbar(scrolled)
         box = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=16)
         box.set_margin_top(16)
         box.set_margin_bottom(16)

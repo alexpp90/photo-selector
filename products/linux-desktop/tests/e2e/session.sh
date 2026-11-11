@@ -74,6 +74,7 @@ else
 fi
 
 export DISPLAY=":${DISPLAY_NUM}"
+unset WAYLAND_DISPLAY
 export GDK_BACKEND=x11
 export GDK_SCALE="${SCALE}"
 export XDG_DATA_HOME="${LAB_DIR}/xdg-data"
