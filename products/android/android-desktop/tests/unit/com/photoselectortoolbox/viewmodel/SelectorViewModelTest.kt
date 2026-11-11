@@ -19,6 +19,7 @@ import com.photoselectortoolbox.data.repository.ImageRepository
 import com.photoselectortoolbox.data.repository.SettingsRepository
 import androidx.compose.ui.input.key.Key
 import com.photoselectortoolbox.domain.curation.DeferredDeletion
+import com.photoselectortoolbox.domain.curation.FileIdentity
 import com.photoselectortoolbox.domain.curation.SnackbarLifetime
 import com.photoselectortoolbox.domain.curation.UndoableOperation
 import com.photoselectortoolbox.domain.grouping.GroupingLevel
@@ -101,6 +102,10 @@ class SelectorViewModelTest {
     private val selectionFolderNameFlow = MutableStateFlow(FilingAction.DEFAULT_SELECTION_FOLDER)
     private val customDestinationFlow = MutableStateFlow<String?>(null)
     private val pendingDeleteJournalFlow = MutableStateFlow<Set<String>>(emptySet())
+    private val pendingDeleteIdentitiesFlow = MutableStateFlow<Map<String, FileIdentity>>(emptyMap())
+
+    /** What the provider reports for every file unless a test says otherwise. */
+    private val unchanged = FileIdentity(size = 1, lastModified = 1)
 
     /** Discovery batches, pushed by the test to imitate progressive enumeration. */
     private val discovery = MutableSharedFlow<List<ImageItem>>(replay = 1)
@@ -127,6 +132,7 @@ class SelectorViewModelTest {
         every { selectionFolderName } returns selectionFolderNameFlow
         every { customSelectionDestinationUri } returns customDestinationFlow
         every { pendingDeleteJournal } returns pendingDeleteJournalFlow
+        every { pendingDeleteIdentities } returns pendingDeleteIdentitiesFlow
     }
 
     private val imageRepository: ImageRepository = mockk(relaxed = true) {
@@ -136,6 +142,7 @@ class SelectorViewModelTest {
         coEvery { getExifData(any(), any()) } returns null
         coEvery { resolveDimensions(any(), any()) } returns emptyMap<String, ImageDimensions>()
         coEvery { deleteImage(any(), any()) } returns true
+        coEvery { documentIdentity(any(), any()) } returns unchanged
         coEvery { moveBundle(any(), any(), any(), any()) } coAnswers {
             val ctx = firstArg<android.content.Context>()
             val item = secondArg<ImageItem>()
@@ -1587,7 +1594,7 @@ class SelectorViewModelTest {
     fun `a commit that overtakes a slow journal add still leaves the journal empty`() = runTest {
         val journal = mutableSetOf<String>()
         val addGate = CompletableDeferred<Unit>()
-        coEvery { settingsRepository.addPendingDeletes(any()) } coAnswers {
+        coEvery { settingsRepository.addPendingDeletes(any(), any()) } coAnswers {
             addGate.await()
             journal += firstArg<Collection<String>>()
         }
@@ -1608,6 +1615,7 @@ class SelectorViewModelTest {
     fun `non-empty pendingDeleteJournal on startup exposes prompt and confirm or keep clears journal`() = runTest {
         val orphanUri = "content://test/folder/orphan.jpg"
         pendingDeleteJournalFlow.value = setOf(orphanUri)
+        pendingDeleteIdentitiesFlow.value = mapOf(orphanUri to unchanged)
 
         // Case 1: Confirming deletes the journaled URI and clears the journal.
         val vmConfirm = buildViewModel()
@@ -1640,6 +1648,7 @@ class SelectorViewModelTest {
         val bad = "content://test/folder/bad.jpg"
         val good = "content://test/folder/good.jpg"
         pendingDeleteJournalFlow.value = setOf(bad, good)
+        pendingDeleteIdentitiesFlow.value = mapOf(bad to unchanged, good to unchanged)
         coEvery { imageRepository.deleteImage(any(), Uri.parse(bad)) } returns false
 
         val viewModel = buildViewModel()
@@ -1655,6 +1664,7 @@ class SelectorViewModelTest {
     fun `a throwing recovery delete is reported to the user`() = runTest {
         val bad = "content://test/folder/bad.jpg"
         pendingDeleteJournalFlow.value = setOf(bad)
+        pendingDeleteIdentitiesFlow.value = mapOf(bad to unchanged)
         coEvery { imageRepository.deleteImage(any(), Uri.parse(bad)) } throws SecurityException("read-only card")
 
         val viewModel = buildViewModel()
@@ -1664,6 +1674,57 @@ class SelectorViewModelTest {
         assertTrue(message?.contains("bad.jpg") == true)
         // The exception's own text goes to the log, not to the photographer (FD-UX-4).
         assertTrue(message?.contains("read-only card") == false)
+    }
+
+    @Test
+    fun `a delete is journalled with the identity the provider reports for each of its files`() = runTest {
+        val recorded = mutableMapOf<String, FileIdentity>()
+        coEvery { settingsRepository.addPendingDeletes(any(), any()) } coAnswers {
+            recorded += secondArg<Map<String, FileIdentity>>()
+        }
+        coEvery { imageRepository.documentIdentity(any(), Uri.parse("content://test/folder/a.jpg")) } returns
+            FileIdentity(size = 4096, lastModified = 77)
+        val viewModel = loadFolder(image("a.jpg"), image("b.jpg"))
+
+        viewModel.deleteCurrentImage()
+
+        coVerify(exactly = 1) { settingsRepository.addPendingDeletes(listOf("content://test/folder/a.jpg"), any()) }
+        assertEquals(mapOf("content://test/folder/a.jpg" to FileIdentity(4096, 77)), recorded)
+    }
+
+    @Test
+    fun `Delete now keeps a recovered file that is no longer the one that was deleted`() = runTest {
+        val changed = "content://test/folder/IMG_0001.JPG"
+        val same = "content://test/folder/IMG_0002.JPG"
+        pendingDeleteJournalFlow.value = setOf(changed, same)
+        pendingDeleteIdentitiesFlow.value = mapOf(changed to unchanged, same to unchanged)
+        // The camera restarted its numbering: another photo now has the first one's path.
+        coEvery { imageRepository.documentIdentity(any(), Uri.parse(changed)) } returns FileIdentity(9000, 5)
+
+        val viewModel = buildViewModel()
+        viewModel.confirmUncompletedDeletions()
+
+        coVerify(exactly = 0) { imageRepository.deleteImage(any(), Uri.parse(changed)) }
+        coVerify(exactly = 1) { imageRepository.deleteImage(any(), Uri.parse(same)) }
+        coVerify(exactly = 0) { cacheRepository.forgetDeletedFile(changed) }
+        coVerify(exactly = 1) { cacheRepository.forgetDeletedFile(same) }
+        coVerify(exactly = 1) { settingsRepository.removePendingDeletes(listOf(changed, same)) }
+        val message = viewModel.uiState.value.snackbarMessage.orEmpty()
+        assertTrue(message, message.startsWith("Kept IMG_0001.JPG"))
+    }
+
+    @Test
+    fun `Delete now deletes nothing for a journal entry recorded without an identity`() = runTest {
+        val legacy = "content://test/folder/IMG_0003.JPG"
+        pendingDeleteJournalFlow.value = setOf(legacy)
+        pendingDeleteIdentitiesFlow.value = emptyMap()
+
+        val viewModel = buildViewModel()
+        viewModel.confirmUncompletedDeletions()
+
+        coVerify(exactly = 0) { imageRepository.deleteImage(any(), any()) }
+        coVerify(exactly = 1) { settingsRepository.removePendingDeletes(listOf(legacy)) }
+        assertTrue(viewModel.uiState.value.snackbarMessage.orEmpty().startsWith("Kept IMG_0003.JPG"))
     }
 
     @Test

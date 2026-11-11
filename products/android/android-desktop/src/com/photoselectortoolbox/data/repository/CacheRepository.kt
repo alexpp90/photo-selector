@@ -35,7 +35,6 @@ interface CacheRepository {
 }
 
 private const val DEFAULT_CACHE_LIMIT = ScoreDao.MRU_LIMIT
-internal const val SQLITE_BIND_CHUNK_SIZE = ScoreDao.SQLITE_MAX_BIND_PARAMS
 
 @Singleton
 class CacheRepositoryImpl @Inject constructor(
@@ -52,16 +51,12 @@ class CacheRepositoryImpl @Inject constructor(
 
     override suspend fun getCachedScores(filePaths: List<String>): List<ScoreEntity> {
         if (filePaths.isEmpty()) return emptyList()
-        return filePaths.chunked(SQLITE_BIND_CHUNK_SIZE).flatMap { chunk ->
-            scoreDao.getScores(chunk)
-        }
+        return scoreDao.getScores(filePaths)
     }
 
     override suspend fun updateAccessTimes(filePaths: List<String>, time: Long) {
         if (filePaths.isEmpty()) return
-        filePaths.chunked(SQLITE_BIND_CHUNK_SIZE).forEach { chunk ->
-            scoreDao.updateAccessTimes(chunk, time)
-        }
+        scoreDao.updateAccessTimes(filePaths, time)
     }
 
     override suspend fun cacheScore(score: ScoreEntity) {
@@ -126,10 +121,8 @@ class CacheRepositoryImpl @Inject constructor(
     override suspend fun getRatings(uris: List<String>): Map<String, Int> {
         if (uris.isEmpty()) return emptyMap()
         val result = mutableMapOf<String, Int>()
-        uris.chunked(SQLITE_BIND_CHUNK_SIZE).forEach { chunk ->
-            scoreDao.getUserRatings(chunk).forEach { entity ->
-                result[entity.uri] = entity.rating
-            }
+        scoreDao.getUserRatings(uris).forEach { entity ->
+            result[entity.uri] = entity.rating
         }
         return result
     }

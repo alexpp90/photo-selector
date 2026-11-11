@@ -1,6 +1,7 @@
 package com.photoselectortoolbox.domain.usecase
 
 import android.net.Uri
+import android.util.Log
 import com.photoselectortoolbox.data.cache.ScoreDao
 import com.photoselectortoolbox.data.cache.ScoreEntity
 import com.photoselectortoolbox.data.model.ImageItem
@@ -10,8 +11,11 @@ import com.photoselectortoolbox.data.source.PhotoBitmapDecoder
 import com.photoselectortoolbox.domain.analysis.ClippingAnalyzer
 import com.photoselectortoolbox.domain.analysis.NoiseAnalyzer
 import com.photoselectortoolbox.domain.analysis.SharpnessAnalyzer
+import com.photoselectortoolbox.di.DefaultDispatcher
+import com.photoselectortoolbox.di.IoDispatcher
 import javax.inject.Inject
-import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.async
 import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.coroutineScope
@@ -51,9 +55,15 @@ class ScanImagesUseCase @Inject constructor(
     private val scoreDao: ScoreDao,
     private val settingsRepository: SettingsRepository,
     private val bitmapDecoder: PhotoBitmapDecoder,
+    @IoDispatcher private val ioDispatcher: CoroutineDispatcher,
+    @DefaultDispatcher private val defaultDispatcher: CoroutineDispatcher,
     private val techniqueFactDetector: com.photoselectortoolbox.domain.learn.TechniqueFactDetector =
         com.photoselectortoolbox.domain.learn.TechniqueFactDetector(),
 ) {
+
+    private companion object {
+        const val TAG = "ScanImagesUseCase"
+    }
 
     /**
      * Scan a list of images, emitting progress updates as a Flow.
@@ -74,12 +84,9 @@ class ScanImagesUseCase @Inject constructor(
         val threadCount = settingsRepository.analysisThreadCount.first()
         val semaphore = Semaphore(threadCount)
 
-        // Bulk load cache in <= 900-variable chunks to respect SQLite bind limits
+        // Bulk load the cache (the DAO splits the list at the SQLite bind limit)
         val imageUris = images.map { it.uri }
-        val cachedScores = imageUris
-            .chunked(ScoreDao.SQLITE_MAX_BIND_PARAMS)
-            .flatMap { chunk -> scoreDao.getScores(chunk) }
-            .associateBy { it.filePath }
+        val cachedScores = scoreDao.getScores(imageUris).associateBy { it.filePath }
 
         // Find which images have valid cache hits and update their access times
         val currentTime = System.currentTimeMillis()
@@ -107,12 +114,8 @@ class ScanImagesUseCase @Inject constructor(
 
         // Bulk update access times in background
         if (urisToUpdate.isNotEmpty()) {
-            launch(Dispatchers.IO) {
-                // SQLite has a limit of 999 variables per query (SQLITE_MAX_VARIABLE_NUMBER)
-                // Chunk the updates to avoid SQLiteException: too many SQL variables
-                urisToUpdate.chunked(ScoreDao.SQLITE_MAX_BIND_PARAMS).forEach { chunk ->
-                    scoreDao.updateAccessTimes(chunk, currentTime)
-                }
+            launch(ioDispatcher) {
+                scoreDao.updateAccessTimes(urisToUpdate, currentTime)
             }
         }
 
@@ -121,7 +124,7 @@ class ScanImagesUseCase @Inject constructor(
 
         // Launch concurrent image analysis jobs
         for ((index, image) in images.withIndex()) {
-            launch(Dispatchers.IO) {
+            launch(ioDispatcher) {
                 semaphore.withPermit {
                     ensureActive()
 
@@ -166,7 +169,7 @@ class ScanImagesUseCase @Inject constructor(
             progressChannel.close()
             pruneCache()
         }
-    }.flowOn(Dispatchers.IO)
+    }.flowOn(ioDispatcher)
 
     /**
      * Keeps the cache at its MRU limit after every scan (REQ-AND-CACHE.02, FD-P-12): the limit used
@@ -177,10 +180,10 @@ class ScanImagesUseCase @Inject constructor(
         try {
             if (scoreDao.getCount() > ScoreDao.MRU_LIMIT) scoreDao.pruneToMru(ScoreDao.MRU_LIMIT)
             scoreDao.deleteTechniqueFactsWithoutScore()
-        } catch (e: kotlinx.coroutines.CancellationException) {
+        } catch (e: CancellationException) {
             throw e
         } catch (e: Exception) {
-            android.util.Log.w("ScanImagesUseCase", "Could not prune the analysis cache", e)
+            Log.w(TAG, "Could not prune the analysis cache", e)
         }
     }
 
@@ -203,27 +206,39 @@ class ScanImagesUseCase @Inject constructor(
 
         try {
             // Run sharpness and noise in parallel
-            val sharpnessDeferred = async(Dispatchers.Default) {
+            val sharpnessDeferred = async(defaultDispatcher) {
                 try {
                     sharpnessAnalyzer.analyze(bitmap)
+                } catch (e: CancellationException) {
+                    throw e
                 } catch (e: Exception) {
+                    // The metric stays empty for this photo; the others are still computed.
+                    Log.w(TAG, "sharpness analysis failed for ${image.uri}", e)
                     null
                 }
             }
 
-            val noiseDeferred = async(Dispatchers.Default) {
+            val noiseDeferred = async(defaultDispatcher) {
                 try {
                     noiseAnalyzer.analyze(bitmap)
+                } catch (e: CancellationException) {
+                    throw e
                 } catch (e: Exception) {
+                    // The metric stays empty for this photo; the others are still computed.
+                    Log.w(TAG, "noise analysis failed for ${image.uri}", e)
                     null
                 }
             }
 
             // Combined clipping analysis: single bitmap→Mat + grayscale conversion
-            val clippingDeferred = async(Dispatchers.Default) {
+            val clippingDeferred = async(defaultDispatcher) {
                 try {
                     clippingAnalyzer.analyzeClipping(bitmap)
+                } catch (e: CancellationException) {
+                    throw e
                 } catch (e: Exception) {
+                    // The metric stays empty for this photo; the others are still computed.
+                    Log.w(TAG, "clipping analysis failed for ${image.uri}", e)
                     null
                 }
             }
@@ -279,8 +294,11 @@ class ScanImagesUseCase @Inject constructor(
                 if (facts.isNotEmpty()) {
                     scoreDao.upsertTechniqueFacts(facts)
                 }
-            } catch (_: Exception) {
-                // Non-critical: technique facts can be recomputed on demand
+            } catch (e: CancellationException) {
+                throw e
+            } catch (e: Exception) {
+                // Non-critical: technique facts are recomputed by the next scan of this photo.
+                Log.w(TAG, "Technique facts not stored for ${image.uri}", e)
             }
 
             ScanResult(
@@ -314,8 +332,11 @@ class ScanImagesUseCase @Inject constructor(
                     rating = image.rating
                 )
             )
+        } catch (e: CancellationException) {
+            throw e
         } catch (e: Exception) {
-            // Cache failures are non-critical; swallow silently
+            // Non-critical: the result is still shown; the photo is analysed again next time.
+            Log.w(TAG, "Could not cache the scores of ${image.uri}", e)
         }
     }
 }

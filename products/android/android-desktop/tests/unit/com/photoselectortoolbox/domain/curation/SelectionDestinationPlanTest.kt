@@ -81,6 +81,59 @@ class SelectionDestinationPlanTest {
     }
 
     @Test
+    fun `a custom folder whose Selection folder is the open one is a second pass inside it`() {
+        // Custom destination X, open folder X/Selection (picked as its own tree): filing into
+        // X/Selection would be the folder being culled, a rename in place (finding 2026-11-04).
+        val authority = "com.android.externalstorage.documents"
+        val selectionOfX = FolderKey(authority, "primary:Pictures/Keepers/Selection")
+        val openedSelection = "$backup%2FSelection"
+        val settings = DestinationSettings(customDestinationUri = backup)
+
+        val plan = SelectionDestinationPlan.resolve(
+            settings,
+            OpenedFolder(openedSelection, name = "Selection", key = selectionOfX),
+            customSelectionKey = selectionOfX,
+        )
+
+        assertEquals(DestinationMode.CUSTOM, plan.mode)
+        assertEquals(openedSelection, plan.rootUri)
+        assertEquals("Final", plan.folderName)
+        assertTrue(plan.isSecondPass)
+
+        // Another folder open, or no Selection folder in X yet: X/Selection as before.
+        val other = SelectionDestinationPlan.resolve(
+            settings,
+            OpenedFolder(trip, key = FolderKey(authority, "primary:DCIM/Trip")),
+            customSelectionKey = selectionOfX,
+        )
+        val noneYet = SelectionDestinationPlan.resolve(
+            settings,
+            OpenedFolder(openedSelection, name = "Selection", key = selectionOfX),
+            customSelectionKey = null,
+        )
+        listOf(other, noneYet).forEach {
+            assertEquals(backup, it.rootUri)
+            assertEquals("Selection", it.folderName)
+            assertFalse(it.isSecondPass)
+        }
+    }
+
+    @Test
+    fun `the Settings preview of a custom folder whose Selection is open names the second-pass folder`() {
+        val authority = "com.android.externalstorage.documents"
+        val selectionOfX = FolderKey(authority, "primary:Pictures/Keepers/Selection")
+        val state = DestinationUiState.of(
+            DestinationSettings(customDestinationUri = backup),
+            customFolder = described(backup, listOf("Internal storage", "Pictures", "Keepers"))
+                .copy(childFolders = mapOf("Selection" to selectionOfX)),
+            openedFolder = described("$backup%2FSelection", listOf("Internal storage", "Pictures", "Keepers", "Selection"))
+                .copy(key = selectionOfX),
+        )
+        assertEquals(listOf("Internal storage", "Pictures", "Keepers", "Selection", "Final"), state.preview.segments)
+        assertTrue(state.preview.isSecondPass)
+    }
+
+    @Test
     fun `sorting only decides the RAW and JPEG subfolders`() {
         listOf(true, false).forEach { sorting ->
             val working = SelectionDestinationPlan.resolve(DestinationSettings(sortingEnabled = sorting), OpenedFolder(trip))

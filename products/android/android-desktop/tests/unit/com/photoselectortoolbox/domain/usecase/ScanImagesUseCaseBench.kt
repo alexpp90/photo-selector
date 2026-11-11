@@ -13,6 +13,7 @@ import io.mockk.coEvery
 import io.mockk.every
 import io.mockk.mockk
 import kotlin.system.measureTimeMillis
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.flow.toList
 import kotlinx.coroutines.runBlocking
@@ -32,7 +33,7 @@ class ScanImagesUseCaseBench {
 
         val useCase = ScanImagesUseCase(
             sharpnessAnalyzer, noiseAnalyzer, clippingAnalyzer,
-            scoreDao, settingsRepository, PhotoBitmapDecoder(context)
+            scoreDao, settingsRepository, PhotoBitmapDecoder(context), Dispatchers.IO, Dispatchers.Default,
         )
 
         val imageCount = 500

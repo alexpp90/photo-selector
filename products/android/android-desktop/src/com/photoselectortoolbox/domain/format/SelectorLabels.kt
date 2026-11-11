@@ -115,6 +115,20 @@ object SelectorLabels {
             "$count deletions were not completed — delete now / keep"
         }
 
+    /**
+     * After "Delete now": recovered photos that were kept because the file now at their place is
+     * not, or cannot be shown to be, the one that was deleted (REQ-AND-LAYOUT.23). At most three
+     * names, then the count.
+     */
+    fun recoveryKeptMessage(names: List<String>): String {
+        val shown = names.take(3).joinToString() + if (names.size > 3) ", …" else ""
+        return if (names.size == 1) {
+            "Kept $shown — not the photo you deleted, or not confirmed"
+        } else {
+            "Kept ${names.size} photos — not the ones you deleted, or not confirmed: $shown"
+        }
+    }
+
     /** Snackbar text after a scan finishes. */
     fun scanCompleteMessage(count: Int): String = "Scan complete · $count images analysed"
 

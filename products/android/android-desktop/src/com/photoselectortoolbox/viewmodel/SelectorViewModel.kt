@@ -20,6 +20,7 @@ import com.photoselectortoolbox.data.metadata.MetadataWriterImpl
 import com.photoselectortoolbox.domain.model.PhotoItem
 import com.photoselectortoolbox.domain.model.RatingFilter
 import com.photoselectortoolbox.data.model.ImageDimensions
+import com.photoselectortoolbox.data.model.CompanionFile
 import com.photoselectortoolbox.data.model.ImageItem
 import com.photoselectortoolbox.data.repository.FileOperationResult
 import com.photoselectortoolbox.data.model.ScanResult
@@ -29,9 +30,11 @@ import com.photoselectortoolbox.data.repository.SettingsRepository
 import com.photoselectortoolbox.di.ApplicationScope
 import com.photoselectortoolbox.domain.curation.CurationAction
 import com.photoselectortoolbox.domain.curation.DeferredDeletion
+import com.photoselectortoolbox.domain.curation.FileIdentity
 import com.photoselectortoolbox.domain.curation.ImageSlot
 import com.photoselectortoolbox.domain.curation.OptimisticEdits
 import com.photoselectortoolbox.domain.curation.ParkedUndo
+import com.photoselectortoolbox.domain.curation.PendingDeleteJournal
 import com.photoselectortoolbox.domain.curation.PendingDeletion
 import com.photoselectortoolbox.domain.curation.SelectorListState
 import com.photoselectortoolbox.domain.curation.SnackbarLifetime
@@ -73,6 +76,9 @@ import kotlinx.coroutines.CoroutineStart
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
+import kotlinx.coroutines.async
+import kotlinx.coroutines.awaitAll
+import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -430,10 +436,34 @@ class SelectorViewModel @Inject constructor(
      */
     private val journalMutex = Mutex()
 
-    private fun journalAdd(uris: List<String>) {
+    /**
+     * Journal [files] with the identity each has now, read from the provider (finding 2026-11-05):
+     * a later "Delete now" deletes only a file that still has it. The listing's size and date are
+     * the fallback when the provider cannot be asked; with neither, the entry is unverifiable.
+     */
+    private fun journalAdd(files: List<CompanionFile>) {
         appScope.launch(start = CoroutineStart.UNDISPATCHED) {
-            journalMutex.withLock { settingsRepository.addPendingDeletes(uris) }
+            journalMutex.withLock {
+                val identities = coroutineScope {
+                    files.map { file ->
+                        async {
+                            file.uri to (readIdentity(file.uri) ?: FileIdentity(file.fileSize, file.lastModified))
+                        }
+                    }.awaitAll()
+                }.filter { (_, identity) -> identity.isKnown }.toMap()
+                settingsRepository.addPendingDeletes(files.map { it.uri }, identities)
+            }
         }
+    }
+
+    /** The identity of [uri] now, or null when it cannot be read (logged; the caller decides). */
+    private suspend fun readIdentity(uri: String): FileIdentity? = try {
+        imageRepository.documentIdentity(context, Uri.parse(uri))
+    } catch (e: CancellationException) {
+        throw e
+    } catch (e: Exception) {
+        Log.w("SelectorViewModel", "Could not read the identity of $uri", e)
+        null
     }
 
     private suspend fun journalRemove(uris: List<String>) {
@@ -1490,7 +1520,7 @@ class SelectorViewModel @Inject constructor(
         onFrameChanged()
         raiseHint(SelectorHint.DELETE_UNDO)
 
-        journalAdd(pending.uris)
+        journalAdd(pending.slots.flatMap { it.deletedFiles })
 
         evictedPendings.forEach { evicted ->
             commitPendingDeletion(evicted, state.folderUri)
@@ -1586,42 +1616,71 @@ class SelectorViewModel @Inject constructor(
 
     /**
      * Complete uncommitted deletions recovered from a previous killed session.
+     *
+     * Only a file that still has the identity journalled with it is deleted
+     * ([PendingDeleteJournal]): another photo now at the same URI, or an entry journalled with no
+     * identity (by an earlier version), is kept and named in the message (REQ-AND-LAYOUT.23).
      */
     fun confirmUncompletedDeletions() {
         val prompt = _uiState.value.uncompletedDeletionsPrompt ?: return
-        _uiState.update { state ->
-            val edit = OptimisticEdits.apply(state.listState, CurationAction.DELETE, prompt.uris)
-            state.withList(edit.state).copy(uncompletedDeletionsPrompt = null)
-        }
+        _uiState.update { it.copy(uncompletedDeletionsPrompt = null) }
         appScope.launch {
-            val failures = mutableListOf<Pair<String, String?>>()
-            prompt.uris.forEach { uri ->
-                try {
-                    if (!imageRepository.deleteImage(context, Uri.parse(uri))) {
-                        failures += recoveredName(uri) to null
-                    }
+            val recorded = settingsRepository.pendingDeleteIdentities.first()
+            val current = coroutineScope {
+                prompt.uris
+                    .filter { PendingDeleteJournal.needsCurrentIdentity(recorded[it]) }
+                    .map { uri -> async { uri to readIdentity(uri) } }
+                    .awaitAll()
+                    .toMap()
+            }
+            val recovery = PendingDeleteJournal.classify(prompt.uris, recorded, current)
+            if (recovery.toDelete.isNotEmpty()) {
+                _uiState.update { state ->
+                    state.withList(OptimisticEdits.apply(state.listState, CurationAction.DELETE, recovery.toDelete).state)
+                }
+            }
+            val failures = recovery.missing.map(::recoveredName).toMutableList()
+            recovery.toDelete.forEach { uri ->
+                val deleted = try {
+                    imageRepository.deleteImage(context, Uri.parse(uri))
                 } catch (e: CancellationException) {
                     throw e
                 } catch (e: Exception) {
                     Log.e("SelectorViewModel", "Recovery delete failed for $uri", e)
-                    failures += recoveredName(uri) to null
+                    false
+                }
+                if (!deleted) {
+                    failures += recoveredName(uri)
+                    return@forEach
+                }
+                // As for a committed delete (FD-D-14): a new photo at this path must not inherit them.
+                try {
+                    cacheRepository.forgetDeletedFile(uri)
+                } catch (e: CancellationException) {
+                    throw e
+                } catch (e: Exception) {
+                    Log.e("SelectorViewModel", "Could not drop the cached data of deleted $uri", e)
                 }
             }
             // Drop only the recovered entries: the journal may already hold deletions of
             // the current session, which a wholesale clear would erase (D-9).
             journalRemove(prompt.uris)
-            if (failures.isNotEmpty()) {
-                val names = failures.joinToString { it.first }
-                val reason = failures.firstNotNullOfOrNull { it.second }
-                reportError(
-                    if (failures.size == prompt.uris.size && failures.size == 1) {
-                        "Could not delete $names" + (reason?.let { ": $it" } ?: "")
-                    } else {
-                        "Could not delete ${failures.size} of ${prompt.uris.size} recovered photos: $names" +
-                            (reason?.let { " ($it)" } ?: "")
-                    }
-                )
+            val messages = buildList {
+                if (failures.isNotEmpty()) {
+                    val names = failures.joinToString()
+                    add(
+                        if (failures.size == prompt.uris.size && failures.size == 1) {
+                            "Could not delete $names"
+                        } else {
+                            "Could not delete ${failures.size} of ${prompt.uris.size} recovered photos: $names"
+                        }
+                    )
+                }
+                if (recovery.kept.isNotEmpty()) {
+                    add(SelectorLabels.recoveryKeptMessage(recovery.kept.map(::recoveredName)))
+                }
             }
+            if (messages.isNotEmpty()) reportError(messages.joinToString(" · "))
         }
     }
 
@@ -2471,13 +2530,7 @@ class SelectorViewModel @Inject constructor(
                 if (fromRepo.isNotEmpty()) {
                     fromRepo
                 } else {
-                    buildMap {
-                        uris.chunked(900).forEach { chunk ->
-                            scoreDao.getUserRatings(chunk).forEach { entity ->
-                                put(entity.uri, entity.rating)
-                            }
-                        }
-                    }
+                    scoreDao.getUserRatings(uris).associate { entity -> entity.uri to entity.rating }
                 }
             } catch (e: CancellationException) {
                 throw e
