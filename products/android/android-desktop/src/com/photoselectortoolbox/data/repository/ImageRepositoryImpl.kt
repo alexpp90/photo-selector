@@ -31,6 +31,7 @@ import com.photoselectortoolbox.domain.curation.FileIdentity
 import com.photoselectortoolbox.domain.curation.FolderKey
 import com.photoselectortoolbox.domain.curation.OpenedFolder
 import com.photoselectortoolbox.domain.curation.SelectionDestinationPlan
+import com.photoselectortoolbox.domain.format.DestinationLabels
 import com.photoselectortoolbox.domain.format.ImageFormats
 import javax.inject.Inject
 import javax.inject.Singleton
@@ -242,6 +243,7 @@ class ImageRepositoryImpl @Inject constructor(
                     treeUri = uriString,
                     volumeLabel = volumeLabel,
                     providerTreeName = name,
+                    labels = DestinationLabels.PATH_LABELS,
                 ),
                 name = name,
                 hasPersistedGrant = hasGrant,

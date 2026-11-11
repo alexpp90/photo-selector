@@ -1,5 +1,6 @@
 package com.photoselectortoolbox.domain.format
 
+import com.photoselector.core.storage.SafTreeDisplayPath
 import com.photoselectortoolbox.data.model.FolderReachability
 import com.photoselectortoolbox.domain.curation.DestinationMode
 import com.photoselectortoolbox.domain.curation.DestinationPreview
@@ -21,6 +22,18 @@ object DestinationLabels {
     /** The separator `SafTreeDisplayPath` joins a path with, and the end of a sorted destination. */
     const val SEPARATOR = " › "
     const val RAW_JPEG_SUFFIX = "RAW · JPEG"
+
+    /**
+     * The words `SafTreeDisplayPath` builds a folder's path from. Frameduel is English-only
+     * (`ai/rules/ui-text.md`); the shared module has no default words, so this is the one place
+     * they live.
+     */
+    val PATH_LABELS = SafTreeDisplayPath.Labels(
+        internalStorage = "Internal storage",
+        documents = "Documents",
+        removableVolume = { uuid -> "SD card ($uuid)" },
+        unknownFolder = "Folder",
+    )
 
     /** Shown in place of a path for a custom folder that will not take files. */
     const val FOLDER_UNAVAILABLE = "Folder unavailable"
