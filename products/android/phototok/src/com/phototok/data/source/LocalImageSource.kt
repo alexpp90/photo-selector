@@ -216,11 +216,13 @@ class LocalImageSourceImpl @Inject constructor(
 
         val images = mutableListOf<ImageItem>()
         var nextEmitAt = if (shuffleFirstBatch) Int.MAX_VALUE else FIRST_BATCH_SIZE
+        var videos = 0
 
         walkImages(
             treeUri = folderUri,
             startDocumentId = rootDocumentId,
             extraExcludedFolderNames = excludedFolderNames,
+            onVideo = { videos++ },
             onFirstDirectoryComplete = if (shuffleFirstBatch) {
                 {
                     if (images.isNotEmpty()) {
@@ -239,9 +241,16 @@ class LocalImageSourceImpl @Inject constructor(
             }
         }
 
+        // Before the final snapshot: its collector reads the count once discovery ends.
+        skippedVideos[folderUri.toString()] = videos
         // Final snapshot — also the only emission for folders smaller than a batch.
         emit(images.toList())
     }.flowOn(ioDispatcher)
+
+    /** Videos per folder that the last discovery skipped (an empty folder says so). */
+    private val skippedVideos = java.util.concurrent.ConcurrentHashMap<String, Int>()
+
+    override fun skippedVideoCount(folderUri: Uri): Int = skippedVideos[folderUri.toString()] ?: 0
 
     override suspend fun prepareSourceFolder(folderUri: Uri): String? =
         withContext(ioDispatcher) {
@@ -525,6 +534,7 @@ class LocalImageSourceImpl @Inject constructor(
         startDocumentId: String,
         extraExcludedFolderNames: Set<String> = emptySet(),
         onFirstDirectoryComplete: (suspend () -> Unit)? = null,
+        onVideo: () -> Unit = {},
         onImage: suspend (ImageItem) -> Unit,
     ) {
         val excludedLower = if (extraExcludedFolderNames.isEmpty()) {
@@ -589,7 +599,10 @@ class LocalImageSourceImpl @Inject constructor(
 
                     if (name.startsWith(".")) continue
                     val isSidecar = CompanionFiles.isSidecar(name)
-                    if (!isSidecar && !PhotoExtensions.isSupported(name)) continue
+                    if (!isSidecar && !PhotoExtensions.isSupported(name)) {
+                        if (PhotoExtensions.isVideo(name, mimeType)) onVideo()
+                        continue
+                    }
 
                     val parentUriString = DocumentsContract
                         .buildDocumentUriUsingTree(treeUri, parentId)

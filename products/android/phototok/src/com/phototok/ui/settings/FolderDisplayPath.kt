@@ -6,7 +6,7 @@ import com.photoselector.core.storage.SafTreeDisplayPath
 import com.phototok.R
 
 /**
- * A custom destination folder as the path a person recognises, for display only: "Telefon › DCIM ›
+ * A custom destination folder as the path a person recognises, for display only: "Handy › DCIM ›
  * Keepers", "SD / USB › DCIM › Keepers". The volumes are named in Jackpix's own words, the ones its
  * source badges use, so the path is German in a German UI (REQ-TOK-UX.05); the folders are the
  * folders' own names. A provider with opaque ids (cloud, camera) reads as [providerName], the name it

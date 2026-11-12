@@ -27,6 +27,7 @@ import androidx.compose.material.icons.automirrored.filled.ArrowForward
 import androidx.compose.material.icons.automirrored.filled.Undo
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Delete
+import androidx.compose.material.icons.filled.FileDownload
 import androidx.compose.material.icons.filled.FilterList
 import androidx.compose.material.icons.filled.Style
 import androidx.compose.material.icons.filled.SwapVert
@@ -269,4 +270,5 @@ private fun iconFor(hint: FirstRunHint): ImageVector = when (hint) {
     FirstRunHint.REVERT -> Icons.AutoMirrored.Filled.Undo
     FirstRunHint.RAW_JPEG_PAIRS -> Icons.Default.Style
     FirstRunHint.FILTER_MISMATCH -> Icons.Default.FilterList
+    FirstRunHint.CARD_IMPORT -> Icons.Default.FileDownload
 }

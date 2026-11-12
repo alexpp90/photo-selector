@@ -24,6 +24,7 @@ import io.mockk.coEvery
 import io.mockk.coVerify
 import io.mockk.coVerifyOrder
 import io.mockk.every
+import io.mockk.verify
 import io.mockk.just
 import io.mockk.mockk
 import io.mockk.clearMocks
@@ -317,7 +318,61 @@ class PhoneModeViewModelTest {
 
         assertFalse(viewModel.uiState.value.confirmDeleteRequested)
         assertNotNull(viewModel.uiState.value.pendingDelete)
-        coVerify(exactly = 1) { settingsRepository.setPhoneDirectDeleteConfirmEnabled(false) }
+        coVerify(exactly = 1) { settingsRepository.setSourceDirectDeleteConfirmEnabled(SourceKind.PHONE_LIBRARY, false) }
+    }
+
+    @Test
+    fun `Don't ask on an SD card turns the prompt off for the card, not for the phone`() = runTest {
+        perSourceSettings(removable = SourceSettings(swipeLeftVerb = SwipeAction.DELETE, directDeleteConfirmEnabled = true))
+        val viewModel = buildViewModel()
+        openFolder(sdTree, image("a.jpg", 20), image("b.jpg", 10), viewModel = viewModel)
+        advanceUntilIdle()
+        viewModel.onSwipeLeft()
+        assertTrue(viewModel.uiState.value.confirmDeleteRequested)
+
+        viewModel.confirmDelete(dontAskAgain = true)
+        advanceUntilIdle()
+
+        coVerify(exactly = 1) { settingsRepository.setSourceDirectDeleteConfirmEnabled(SourceKind.REMOVABLE, false) }
+        coVerify(exactly = 0) { settingsRepository.setSourceDirectDeleteConfirmEnabled(SourceKind.PHONE_LIBRARY, any()) }
+        coVerify(exactly = 0) { settingsRepository.setPhoneDirectDeleteConfirmEnabled(any()) }
+    }
+
+    @Test
+    fun `after Pro off turned a move into a delete, the first delete asks although Don't ask is saved`() = runTest {
+        every { settingsRepository.shouldAskDeleteOnce() } returns true
+        perSourceSettings(removable = SourceSettings(swipeLeftVerb = SwipeAction.DELETE, directDeleteConfirmEnabled = false))
+        val viewModel = buildViewModel()
+        openFolder(sdTree, image("a.jpg", 20), image("b.jpg", 10), viewModel = viewModel)
+        advanceUntilIdle()
+
+        viewModel.onSwipeLeft()
+
+        val state = viewModel.uiState.value
+        assertTrue("the dialog is shown before anything is deleted", state.confirmDeleteRequested)
+        assertNull(state.pendingDelete)
+        assertEquals(2, state.images.size)
+        viewModel.cancelDelete()
+        verify(exactly = 1) { settingsRepository.clearAskDeleteOnce() }
+    }
+
+    @Test
+    fun `the landing's Pro switch names the last-used source and offers Undo when its swipes change`() = runTest {
+        val message = UiText.of(R.string.snackbar_pro_off_left_delete)
+        coEvery { settingsRepository.setProMode(false, any()) } returns message
+        perSourceSettings(removable = SourceSettings(swipeLeftVerb = SwipeAction.MOVE))
+        val viewModel = buildViewModel()
+        openFolder(sdTree, image("a.jpg", 20), viewModel = viewModel)
+        advanceUntilIdle()
+        viewModel.goBackToLanding()
+
+        viewModel.setProMode(false)
+        advanceUntilIdle()
+
+        coVerify { settingsRepository.setProMode(false, SourceKind.REMOVABLE) }
+        val feedback = viewModel.uiState.value.lastActionFeedback
+        assertEquals(message, feedback?.message)
+        assertTrue("the snackbar offers Undo", feedback?.offersUndoProOff == true)
     }
 
     @Test
@@ -330,7 +385,7 @@ class PhoneModeViewModelTest {
         assertFalse(viewModel.uiState.value.confirmDeleteRequested)
         assertNull(viewModel.uiState.value.pendingDelete)
         assertEquals(2, viewModel.uiState.value.images.size)
-        coVerify(exactly = 0) { settingsRepository.setPhoneDirectDeleteConfirmEnabled(any()) }
+        coVerify(exactly = 0) { settingsRepository.setSourceDirectDeleteConfirmEnabled(any(), any()) }
     }
 
     @Test
@@ -2459,7 +2514,7 @@ class PhoneModeViewModelTest {
 
     @Test
     fun `what was copied off a card is still counted after the process was killed`() = runTest {
-        perSourceSettings(removable = SourceSettings(swipeRightVerb = SwipeRightVerb.COPY))
+        perSourceSettings(removable = SourceSettings(swipeRightVerb = SwipeRightVerb.COPY, collectionUri = phoneTree))
         val dir = java.nio.file.Files.createTempDirectory("journal_vm").toFile()
         try {
             val file = java.io.File(dir, "card_transfer_journal.tsv")
@@ -2484,6 +2539,20 @@ class PhoneModeViewModelTest {
         } finally {
             dir.deleteRecursively()
         }
+    }
+
+    @Test
+    fun `a Pro copy into the card's own Selection folder is not counted as copied off the card`() = runTest {
+        perSourceSettings(removable = SourceSettings(swipeRightVerb = SwipeRightVerb.COPY))
+        val viewModel = viewModelWithJournal(com.phototok.domain.CardTransferJournal())
+        openFolder(sdTree, image("a.jpg", 20), image("b.jpg", 10), viewModel = viewModel)
+        advanceUntilIdle()
+        viewModel.addToCollection()
+        advanceUntilIdle()
+        coVerify { imageRepository.copyImageDetailed(any(), Uri.parse(sdTree), any(), PhotoFolders.SELECTION) }
+
+        viewModel.openCardDoneSheet()
+        assertEquals(0, viewModel.uiState.value.cardCopiedCount)
     }
 
     private fun favouriteMoveSetup(move: Boolean, result: (Uri) -> FileOperationResult): Triple<PhoneModeViewModel, com.phototok.data.repository.FavouritesRepository, ImageItem> {
@@ -2978,5 +3047,43 @@ class PhoneModeViewModelTest {
             assertEquals("subfolder for custom=$customUri", subfolder.captured, shown.subfolder)
             assertEquals(customUri != null, shown.custom)
         }
+    }
+
+    @Test
+    fun `returning to the landing shows this session's figures, and opening a folder starts a new session`() = runTest {
+        val viewModel = viewModelWithJournal(com.phototok.domain.CardTransferJournal())
+        openFolder(phoneTree, image("a.jpg", 20), image("b.jpg", 10), viewModel = viewModel)
+        advanceUntilIdle()
+        viewModel.addToCollection()
+        advanceUntilIdle()
+        viewModel.goBackToLanding()
+
+        val state = viewModel.uiState.value
+        assertTrue(state.showSessionStats)
+        val line = com.phototok.domain.LandingStats.line(state.celebrationsEnabled, state.showSessionStats, state.feedStatsBaseline, state.cullingStats)
+        assertTrue("session line: $line", line?.isSession == true)
+        assertTrue(line!!.figures.reviewed >= 1)
+        assertEquals(1, line.figures.selected)
+        assertNull(
+            "Milestones off: no line",
+            com.phototok.domain.LandingStats.line(false, state.showSessionStats, state.feedStatsBaseline, state.cullingStats),
+        )
+
+        openFolder(phoneTree, image("c.jpg", 5), viewModel = viewModel)
+        advanceUntilIdle()
+        assertFalse("tapping a source ends the session line", viewModel.uiState.value.showSessionStats)
+    }
+
+    @Test
+    fun `a folder with no photos but videos reports the videos it hides`() = runTest {
+        every { imageRepository.skippedVideoCount(any()) } returns 2
+        val viewModel = buildViewModel()
+        openFolder(phoneTree, viewModel = viewModel)
+        advanceUntilIdle()
+        assertEquals(2, viewModel.uiState.value.hiddenVideoCount)
+
+        openFolder(phoneTree, image("a.jpg", 20), viewModel = viewModel)
+        advanceUntilIdle()
+        assertEquals("a folder with photos says nothing about videos", 0, viewModel.uiState.value.hiddenVideoCount)
     }
 }

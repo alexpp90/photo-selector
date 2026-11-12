@@ -353,13 +353,7 @@ class SettingsViewModel @Inject constructor(
 
     fun updateDirectDeleteConfirm(enabled: Boolean) {
         val kind = _uiState.value.selectedSourceKind
-        viewModelScope.launch {
-            if (kind == SourceKind.PHONE_LIBRARY) {
-                settingsRepository.setPhoneDirectDeleteConfirmEnabled(enabled)
-            } else {
-                settingsRepository.setSourceDirectDeleteConfirmEnabled(kind, enabled)
-            }
-        }
+        viewModelScope.launch { settingsRepository.setSourceDirectDeleteConfirmEnabled(kind, enabled) }
     }
 
     fun updateSortByOrientation(enabled: Boolean) {
@@ -458,16 +452,12 @@ class SettingsViewModel @Inject constructor(
      * visible change (null when the mode did not change); `PhoneModeViewModel.setProMode` is the
      * same action with the snackbar already wired.
      */
-    fun setProMode(enabled: Boolean, onMessage: (UiText?) -> Unit = {}) {
-        viewModelScope.launch { onMessage(settingsRepository.setProMode(enabled)) }
+    fun setProMode(enabled: Boolean, openKind: SourceKind? = null, onMessage: (UiText?) -> Unit = {}) {
+        viewModelScope.launch { onMessage(settingsRepository.setProMode(enabled, openKind)) }
     }
 
     fun updateCelebrationsEnabled(enabled: Boolean) {
         viewModelScope.launch { settingsRepository.setCelebrationsEnabled(enabled) }
-    }
-
-    fun updateCloudInheritsPhone(enabled: Boolean) {
-        viewModelScope.launch { settingsRepository.setCloudInheritsPhone(enabled) }
     }
 
     /** Reset seen history for the currently active source folder (`U-15`). */

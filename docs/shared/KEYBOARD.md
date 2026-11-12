@@ -13,7 +13,8 @@ This file has two parts:
    and the maintainer has accepted it; each app then aligns in its own change, together with its
    shortcut sheet, README, requirements and key-map test.
 
-Read against `origin/main` `cd160305` (2026-11-10). Paths below are relative to:
+Read against `origin/main` `cd160305` (2026-11-10); the Lensjet column was re-read at `bedfa7f9`
+(2026-11-12). Paths below are relative to:
 
 - Frameduel: `products/android/android-desktop/src/com/photoselectortoolbox/`
 - Lensjet: `products/macos-desktop/src/`
@@ -50,6 +51,7 @@ Main culling view, no modifier unless the key says so. `—` means the key is no
 | Ctrl/⌘ `,` | — | Settings (the SwiftUI `Settings` scene, `PhotoSelectorApp/PhotoSelectorApp.swift:19`) | Preferences (`:145`) | ◐ Frameduel unbound |
 | ⌘ `[` / ⌘ `]` | — | previous / next (`:146-151`) | — | Lensjet only (macOS Go-menu idiom) |
 | ⇧⌘ `A` | — | toggle Auto-Advance (`AppCommands.swift`; the same stored setting as Settings) | — | Lensjet only |
+| ⌥⌘ `P` | — | toggle linked pan (menu `AppCommands.swift:114-117`) | — | Lensjet only |
 | `T` | — | toggle the filmstrip (`KeyboardShortcutRouter.swift:247`) | — | Lensjet only (Blitzlens has no filmstrip) |
 | ⇧⌘ `R` / ⌘ `Y` | — | Show in Finder / Quick Look for the photo on screen (File menu, `AppCommands.swift`) | — | Lensjet only |
 | Ctrl/⌘ `Q` | — (Android) | quit (system) | quit (`ui/application.py:89`) | platform |
@@ -65,9 +67,9 @@ Behaviour that is not a key but belongs to the map:
 
 | Rule | Frameduel | Lensjet | Blitzlens |
 |---|---|---|---|
-| A held `Delete`, `M` or `C` acts once, not once per auto-repeat | ✅ `ONE_SHOT_KEYS` (`SelectorScreen.kt:795-798`; fullscreen `FullscreenViewer.kt:464`) | ❌ code reading: `handleKeyEvent` never looks at `isARepeat` | ❌ code reading: `dispatch` has no repeat input; GTK repeats `key-pressed` |
-| Letters ignore Caps Lock and Num Lock | ✅ Compose `Key` | ✅ `charactersIgnoringModifiers.lowercased()` (`:126`) | ✅ `normalize_keyval`, `clean_modifiers` (`:102-110`) |
-| Keys yield to a focused text field | ✅ dialogs own their keys (`ui/selector/GoToPhotoDialog.kt:161-176`) | ✅ `isTextInputActive` (`:115`) | ✅ `is_text_editing` (`:123-124`) |
+| A held `Delete`, `M` or `C` acts once, not once per auto-repeat | ✅ `ONE_SHOT_KEYS` (`SelectorScreen.kt:795-798`; fullscreen `FullscreenViewer.kt:464`) | ✅ `isARepeat` consumed without acting (`KeyboardShortcutRouter.swift:205-209`, `:235-240`) | ❌ code reading: `dispatch` has no repeat input; GTK repeats `key-pressed` |
+| Letters ignore Caps Lock and Num Lock | ✅ Compose `Key` | ✅ `charactersIgnoringModifiers?.lowercased()` (`:143`) | ✅ `normalize_keyval`, `clean_modifiers` (`:102-110`) |
+| Keys yield to a focused text field | ✅ dialogs own their keys (`ui/selector/GoToPhotoDialog.kt:161-176`) | ✅ `isTextInputActive` (`:132-134`) | ✅ `is_text_editing` (`:123-124`) |
 
 ### What the sheets say against the code
 

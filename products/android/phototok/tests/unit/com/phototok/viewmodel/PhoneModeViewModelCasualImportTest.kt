@@ -333,7 +333,7 @@ class PhoneModeViewModelCasualImportTest {
     @Test
     fun `switching pro mode shows the snackbar the repository names`() = runTest {
         val message = UiText.of(R.string.snackbar_pro_paused)
-        coEvery { settingsRepository.setProMode(false) } returns message
+        coEvery { settingsRepository.setProMode(false, any()) } returns message
         val viewModel = loadCard(image("a.jpg", 1))
 
         viewModel.setProMode(false)
@@ -350,5 +350,35 @@ class PhoneModeViewModelCasualImportTest {
         phoneSettingsFlow.value = PhoneSettings(proMode = true)
 
         assertTrue(viewModel.uiState.value.proMode)
+    }
+
+    @Test
+    fun `the first card opened in Casual says once that swipe right saves on the phone`() = runTest {
+        val viewModel = loadCard(image("a.jpg", 1))
+
+        val hint = viewModel.uiState.value.firstRunHint
+        assertEquals(com.phototok.domain.FirstRunHint.CARD_IMPORT, hint?.hint)
+        assertEquals(UiText.of(R.string.hint_title_swipe_right_copy, UiText.raw(PhotoFolders.CASUAL_IMPORT)), hint?.title)
+        assertEquals(UiText.of(R.string.hint_body_card_import), hint?.message)
+        coVerify(exactly = 1) { settingsRepository.markFirstRunHintSeen(com.phototok.domain.FirstRunHint.CARD_IMPORT) }
+
+        // The install remembers it: the next card opens without the cue.
+        phoneSettingsFlow.value = PhoneSettings(seenFirstRunHints = setOf("card_import"))
+        viewModel.dismissFirstRunHint()
+        viewModel.selectSourceFolder(sdFolder)
+        advanceUntilIdle()
+        assertNull(viewModel.uiState.value.firstRunHint)
+        coVerify(exactly = 1) { settingsRepository.markFirstRunHintSeen(com.phototok.domain.FirstRunHint.CARD_IMPORT) }
+    }
+
+    @Test
+    fun `a card in Pro gets no card import cue`() = runTest {
+        phoneSettingsFlow.value = PhoneSettings(proMode = true)
+        sourceSettings.value = com.phototok.data.model.SourceSettings.defaultFor(SourceKind.REMOVABLE)
+        val viewModel = loadCard(image("a.jpg", 1))
+        advanceUntilIdle()
+
+        assertEquals("the feed is open", 1, viewModel.uiState.value.images.size)
+        assertNull(viewModel.uiState.value.firstRunHint)
     }
 }

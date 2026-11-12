@@ -133,7 +133,7 @@ class SettingsFolderPathTextLoadTest {
         awaitStored { runBlocking { repository.phoneCollectionUri.first() } == uri }
         host()
 
-        val path = "Telefon › Pictures › Keepers"
+        val path = "Handy › Pictures › Keepers"
         assertEquals(1, rule.onAllNodes(inRow(path), useUnmergedTree = true).fetchSemanticsNodes().size)
         assertTrue(
             "no English volume name in a German UI",

@@ -347,7 +347,6 @@ class LandscapeTopBarInsetsTest {
                     collectionFolderName = "Selection",
                     isLoading = false,
                     onSelectSource = {},
-                    onSelectCollection = {},
                     onStart = {},
                 )
                 TopBar(showControls = false)
