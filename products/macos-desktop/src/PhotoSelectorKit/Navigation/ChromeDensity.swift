@@ -9,7 +9,7 @@ import Foundation
 /// and SwiftUI picks the first that fits; this type owns every label string so the forms are
 /// unit-testable and identical in the toolbar, the dock and the accessibility labels.
 public enum ChromeDensity: Int, CaseIterable, Sendable {
-    /// Everything: "Focus 3-Up (3)", "Photo 3 of 120", "Move to Selection", "2 Selected · …".
+    /// Everything: "3-Up (3)", "Photo 3 of 120", "Move to Selection", "2 Selected · …".
     case full
     /// Short labels: "3-Up", "3 / 120", "Move", icon + number tally.
     case compact
@@ -21,8 +21,7 @@ public enum ChromeDensity: Int, CaseIterable, Sendable {
     /// Mode switcher label; `nil` means icon-only.
     public func modeLabel(shortcut: Int) -> String? {
         switch self {
-        case .full: return shortcut == 3 ? "Focus 3-Up" : "\(shortcut)-Up"
-        case .compact: return "\(shortcut)-Up"
+        case .full, .compact: return Self.modeName(shortcut: shortcut)
         case .minimal: return nil
         }
     }
@@ -32,8 +31,16 @@ public enum ChromeDensity: Int, CaseIterable, Sendable {
 
     /// Full accessibility / tooltip name of a mode button, independent of density.
     public static func modeAccessibilityName(shortcut: Int) -> String {
-        let name = shortcut == 3 ? "Focus 3-Up" : "\(shortcut)-Up"
-        return "\(name) view (shortcut \(shortcut))"
+        "\(modeName(shortcut: shortcut)) view (shortcut \(shortcut))"
+    }
+
+    /// "1-Up", "2-Up", "3-Up": the same name in the toolbar, the menu, the sheet and the tooltips.
+    public static func modeName(shortcut: Int) -> String {
+        switch shortcut {
+        case 1: return LensjetCommand.singleUp.name()
+        case 2: return LensjetCommand.twoUp.name()
+        default: return LensjetCommand.threeUp.name()
+        }
     }
 
     /// Position counter: "Photo 3 of 120" (full) or "3 / 120".
@@ -62,29 +69,27 @@ public enum ChromeDensity: Int, CaseIterable, Sendable {
     public enum DockAction: Sendable, CaseIterable {
         case move, copy, trash, undo
 
-        public var fullTitle: String {
+        public var command: LensjetCommand {
             switch self {
-            case .move: return "Move to Selection"
-            case .copy: return "Copy to Selection"
-            case .trash: return "Move to Trash"
-            case .undo: return "Undo"
+            case .move: return .move
+            case .copy: return .copy
+            case .trash: return .trash
+            case .undo: return .undo
             }
         }
 
-        public var shortTitle: String {
-            switch self {
-            case .move: return "Move"
-            case .copy: return "Copy"
-            case .trash: return "Trash"
-            case .undo: return "Undo"
-            }
-        }
+        public var fullTitle: String { command.name() }
+
+        /// The full title with the configured destination folder name ("Move to Keepers").
+        public func fullTitle(destination: String) -> String { command.name(destination: destination) }
+
+        public var shortTitle: String { command.shortName }
     }
 
     /// Dock button title; `nil` means icon + shortcut badge only.
-    public func dockTitle(_ action: DockAction) -> String? {
+    public func dockTitle(_ action: DockAction, destination: String = AppSettingsDefaults.cullingDestinationFolderName) -> String? {
         switch self {
-        case .full: return action.fullTitle
+        case .full: return action.fullTitle(destination: destination)
         case .compact: return action.shortTitle
         case .minimal: return nil
         }

@@ -162,10 +162,15 @@ final class AppDelegate: NSObject, NSApplicationDelegate, ObservableObject {
             }
         } else if let folder = launchOptions.openFolder {
             viewModel.loadFolder(at: folder)
+        } else {
+            viewModel.resumeLastFolder()
         }
         #else
         if let folder = launchOptions.openFolder {
             viewModel.loadFolder(at: folder)
+        } else {
+            // No dialog: the last folder reopens at the photo that was on screen, if it still exists.
+            viewModel.resumeLastFolder()
         }
         #endif
     }

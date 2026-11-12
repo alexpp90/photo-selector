@@ -86,7 +86,7 @@ public struct DuplicateFinderView: View {
                 .foregroundStyle(Color.accentColor)
 
             VStack(alignment: .leading, spacing: 2) {
-                Text("Duplicate Finder")
+                Text(LensjetCommand.findDuplicates.name())
                     .font(.system(size: 14, weight: .semibold))
                     .foregroundStyle(.white)
 
@@ -443,11 +443,11 @@ private struct DuplicateCardView: View {
 
                 if let scores = entry.scores {
                     HStack(spacing: 6) {
-                        Text("Focus: \(String(format: "%.1f", scores.sharpness))")
+                        Text("Sharpness: \(ScoreLabels.sharpnessNumber(scores.sharpness))")
                             .font(.system(size: 10, weight: .medium))
                             .foregroundStyle(scores.sharpness >= 70 ? .green : (scores.sharpness >= 35 ? .orange : .red))
                         if let aesthetic = scores.aesthetic {
-                            Text("Aesthetic: \(String(format: "%.1f", aesthetic))")
+                            Text("Aesthetics: \(ScoreLabels.number(aesthetic))")
                                 .font(.system(size: 10, weight: .medium))
                                 .foregroundStyle(.cyan)
                         }

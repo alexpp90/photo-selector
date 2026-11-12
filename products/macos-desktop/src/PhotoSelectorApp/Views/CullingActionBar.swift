@@ -43,10 +43,11 @@ public struct CullingActionBar: View {
                 fillColor: Color.lensjetMoveFill,
                 accentColor: Color.lensjetMove,
                 isEnabled: !viewModel.photos.isEmpty,
+                destination: viewModel.destinationName,
                 perform: { viewModel.cullCurrentPhoto(action: .move) }
             )
             .uiTestFrame("dock_move")
-            .help("Move active photo and companion RAW/XMP files to Selection folder (Press M)")
+            .help(LensjetCommand.move.tooltip(destination: viewModel.destinationName))
 
             // MARK: - 2. Copy to Selection (C)
             ObsidianDockButton(
@@ -57,10 +58,11 @@ public struct CullingActionBar: View {
                 fillColor: Color.lensjetCopyFill,
                 accentColor: Color.lensjetCopy,
                 isEnabled: !viewModel.photos.isEmpty,
+                destination: viewModel.destinationName,
                 perform: { viewModel.cullCurrentPhoto(action: .copy) }
             )
             .uiTestFrame("dock_copy")
-            .help("Copy active photo and companion files to Selection folder (Press C)")
+            .help(LensjetCommand.copy.tooltip(destination: viewModel.destinationName))
 
             // MARK: - 3. Move to Trash (⌫)
             ObsidianDockButton(
@@ -75,7 +77,7 @@ public struct CullingActionBar: View {
                 perform: { viewModel.cullCurrentPhoto(action: .trash) }
             )
             .uiTestFrame("dock_trash")
-            .help("Move active photo and companion files to macOS Trash (Press Delete)")
+            .help(LensjetCommand.trash.tooltip())
 
             Divider()
                 .frame(height: 22)
@@ -93,9 +95,11 @@ public struct CullingActionBar: View {
                 perform: { viewModel.undoLastAction() }
             )
             .uiTestFrame("dock_undo")
-            .help("Undo the last move, copy, or trash action (⌘Z)")
+            .help(LensjetCommand.undo.tooltip())
 
             Spacer(minLength: 8)
+
+            if density == .full { destinationButton }
 
             tally(density)
 
@@ -110,12 +114,46 @@ public struct CullingActionBar: View {
             }
             .buttonStyle(.plain)
             .focusable(false)
-            .accessibilityLabel("Keyboard Shortcuts")
-            .help("Show Keyboard Shortcuts & Guide (?)")
+            .accessibilityLabel(LensjetCommand.keyboardShortcuts.name())
+            .help(LensjetCommand.keyboardShortcuts.tooltip())
         }
     }
 
-    // MARK: - Live Triage Counters HUD
+    // MARK: - Where the files go
+
+    /// "folder glyph + path", full density only (below it the path is in the tally's tooltip). One
+    /// click shows the folder in Finder (REQ-MAC-SETTINGS.02: the same text as Settings).
+    @ViewBuilder
+    private var destinationButton: some View {
+        if let path = viewModel.destinationPathText, let url = viewModel.resolvedDestination.selectionFolderURL {
+            Button(action: { FinderReveal.revealFolder(url) }) {
+                HStack(spacing: 5) {
+                    Image(systemName: "folder")
+                        .font(.system(size: 11))
+                    Text(path)
+                        .font(.system(size: 11, design: .monospaced))
+                        .lineLimit(1)
+                        .truncationMode(.middle)
+                        .frame(width: 170, alignment: .leading)
+                }
+                .foregroundStyle(Color.white.opacity(0.75))
+                .frame(minHeight: 24)
+            }
+            .buttonStyle(.plain)
+            .focusable(false)
+            .accessibilityLabel("\(viewModel.destinationName) folder, \(path). \(LensjetCommand.showInFinder.name())")
+            .help("\(path)\n\(LensjetCommand.showInFinder.name())")
+            .uiTestFrame("dock_destination")
+        }
+    }
+
+    private func tallyHelp(selected: Int, trashed: Int, remaining: Int, copied: Int) -> String {
+        let counts = ChromeDensity.tallyAccessibilityText(selected: selected, trashed: trashed, remaining: remaining, copied: copied)
+        guard let path = viewModel.destinationPathText else { return counts }
+        return "\(counts)\n\(viewModel.destinationName) folder: \(path)"
+    }
+
+    // MARK: - Live Triage Counters
 
     private func tally(_ density: ChromeDensity) -> some View {
         let selected = viewModel.selectedCount
@@ -194,7 +232,7 @@ public struct CullingActionBar: View {
         )
         .accessibilityElement(children: .ignore)
         .accessibilityLabel(ChromeDensity.tallyAccessibilityText(selected: selected, trashed: trashed, remaining: remaining, copied: copied))
-        .help(ChromeDensity.tallyAccessibilityText(selected: selected, trashed: trashed, remaining: remaining, copied: copied))
+        .help(tallyHelp(selected: selected, trashed: trashed, remaining: remaining, copied: copied))
         .uiTestFrame("dock_tally")
     }
 }
@@ -220,6 +258,7 @@ private struct ObsidianDockButton: View {
     let accentColor: Color
     var isDestructive: Bool = false
     var isEnabled: Bool = true
+    var destination: String = AppSettingsDefaults.cullingDestinationFolderName
     let perform: () -> Void
 
     var body: some View {
@@ -229,7 +268,7 @@ private struct ObsidianDockButton: View {
                     .font(.system(size: 13, weight: .bold))
                     .foregroundStyle(accentColor)
 
-                if let title = density.dockTitle(action) {
+                if let title = density.dockTitle(action, destination: destination) {
                     Text(title)
                         .font(.system(size: 12, weight: .bold))
                         .foregroundStyle(Color.white)
@@ -261,6 +300,6 @@ private struct ObsidianDockButton: View {
         .focusable(false)
         .disabled(!isEnabled)
         .opacity(isEnabled ? 1.0 : 0.45)
-        .accessibilityLabel(action.fullTitle)
+        .accessibilityLabel(action.fullTitle(destination: destination))
     }
 }

@@ -14,6 +14,7 @@ public final class CullingWorkspaceViewModel: ObservableObject {
             if currentIndex != oldValue { browseDirection = currentIndex < oldValue ? .backward : .forward }
             syncSlotsToCurrentIndex()
             prefetchAroundCurrentIndex()
+            rememberCurrentPhoto()
         }
     }
     @Published public var comparisonSlotIndices: [Int] = [0]
@@ -51,6 +52,10 @@ public final class CullingWorkspaceViewModel: ObservableObject {
     @Published public var isDuplicateFinderPresented: Bool = false
     @Published public var isLibraryStatisticsPresented: Bool = false
     @Published public var isShortcutsHelpPresented: Bool = false
+    /// File > Open Recent (newest first, at most ten); see `CullingWorkspaceViewModel+Session.swift`.
+    @Published public internal(set) var recentFolders: [URL] = []
+    /// The end-of-cull card or notice was dismissed (Esc, navigation); the next decision clears it.
+    @Published var endStateDismissed = false
 
     // MARK: - Cloud / File Provider State (U-29)
     @Published public private(set) var isRemoteFolder: Bool = false
@@ -105,6 +110,9 @@ public final class CullingWorkspaceViewModel: ObservableObject {
     public var canUndo: Bool {
         !undoStack.isEmpty
     }
+
+    /// The action the next Undo takes back (names the Edit menu item).
+    public var lastUndoRecord: CullingExecutionRecord? { undoStack.last }
 
     /// Effective forward prefetch radius: 1 ahead on remote/cloud folders (UC-17),
     /// or user-configured `preloadWindowAfter` on local folders.
@@ -455,7 +463,7 @@ public final class CullingWorkspaceViewModel: ObservableObject {
     private let thumbnailLoader: ThumbnailLoader
     private let thumbnailCache: ThumbnailCache
     private let cullingActor: AsyncCullingActor
-    private let userDefaults: UserDefaults
+    let userDefaults: UserDefaults
     private let cloudInspector: CloudResourceInspecting
     private var undoStack: [CullingExecutionRecord] = []
     /// Undo stacks of folders that are no longer open, keyed by standardized root URL. A finished
@@ -520,13 +528,13 @@ public final class CullingWorkspaceViewModel: ObservableObject {
 
     /// Test hook: number of folders with a parked undo stack.
     var parkedUndoFolderCount: Int { parkedUndoStacks.count }
-    private var inFlightJobIDs: Set<UUID> = []
+    @Published private var inFlightJobIDs: Set<UUID> = []
     private var toastDismissTask: Task<Void, Never>?
     private var libraryScoringTask: Task<Void, Never>?
     private var sortAfterScoring = false
     /// True once the user moved to another photo since the folder opened (decides where the
     /// settle re-order leaves the view).
-    private var userHasNavigated = false
+    var userHasNavigated = false
     private var scanTask: Task<Void, Never>?
     private var metadataTask: Task<Void, Never>?
 
@@ -595,6 +603,7 @@ public final class CullingWorkspaceViewModel: ObservableObject {
             }
         }
         self.sortOrder = userDefaults.workspaceSortOrder
+        self.recentFolders = RecentFolders(defaults: userDefaults).folders
     }
 
     // MARK: - Folder Loading & Ingestion
@@ -642,6 +651,7 @@ public final class CullingWorkspaceViewModel: ObservableObject {
             restoreUndoStack(for: newKey)
         }
         self.rootDirectoryURL = url
+        noteFolderOpened(url)
         let remote = cloudInspector.isRemoteOrCloudFolder(url)
         self.isRemoteFolder = remote
         self.cloudBadgeText = remote ? "Cloud Folder" : nil
@@ -690,6 +700,7 @@ public final class CullingWorkspaceViewModel: ObservableObject {
             }
             guard let self, !Task.isCancelled else { return }
             self.reorderAfterScan()
+            self.restoreRememberedPhoto()
             self.isLoading = false
             if !self.isRemoteFolder {
                 self.startMetadataEnrichment()
@@ -1011,6 +1022,7 @@ public final class CullingWorkspaceViewModel: ObservableObject {
                 navigateToNext()
             }
         }
+        endStateDismissed = false  // a decision brings the end card / notice back (navigation above dismissed it)
 
         // 4. Background Serial Execution on AsyncCullingActor
         let job = CullingJob(
@@ -1268,7 +1280,8 @@ public final class CullingWorkspaceViewModel: ObservableObject {
     /// Drops a persistent banner (Esc or the next navigation key). Returns whether one was showing.
     @discardableResult
     public func dismissStickyToast() -> Bool {
-        guard currentToast?.isPersistent == true else { return false }
+        let hadEndState = dismissEndState()
+        guard currentToast?.isPersistent == true else { return hadEndState }
         toastDismissTask?.cancel()
         currentToast = nil
         return true

@@ -423,7 +423,7 @@ public struct ComparisonSlotPane: View {
                 Circle()
                     .fill(focusColor(for: scores.category(in: bands)))
                     .frame(width: 6, height: 6)
-                Text("\(String(format: "%.1f", scores.sharpness))")
+                Text(ScoreLabels.sharpnessNumber(scores.sharpness))
                     .font(.system(size: 10, weight: .bold).monospacedDigit())
                     .foregroundStyle(Color.white)
                 Text(scores.category(in: bands).rawValue)

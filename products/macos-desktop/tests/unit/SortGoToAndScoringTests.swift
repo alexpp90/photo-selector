@@ -376,13 +376,13 @@ struct SortGoToAndScoringTests {
     @Test("Each score carries its scale, and the aesthetic value is never spoken as a star rating")
     func scoreScales() {
         let scores = QualityScores(sharpness: 59.6, noise: 0, highlightClipping: 0, shadowClipping: 0, aesthetic: 8.4)
-        #expect(ScoreLabels.sharpnessBadge(scores) == "59.6 Acceptable")
-        #expect(ScoreLabels.sharpness(59.6) == "Sharpness 59.6 / 100")
+        #expect(ScoreLabels.sharpnessBadge(scores) == "60 Acceptable")
+        #expect(ScoreLabels.sharpness(59.6) == "Sharpness 60 / 100")
         #expect(ScoreLabels.aesthetics(8.4) == "Aesthetics 8.4 / 10")
         #expect(ScoreLabels.sharpnessTooltip(scores).contains("Blurry below 35, sharp from 70"))
         #expect(ScoreLabels.sharpnessTooltip(scores, bands: SharpnessBands(blurryBelow: 20, sharpFrom: 60)).contains("Blurry below 20, sharp from 60"))
         #expect(ScoreLabels.aestheticsTooltip(8.4).contains("Not a star rating"))
-        #expect(ScoreLabels.sharpnessSpoken(scores) == "Sharpness 59.6 out of 100, Acceptable")
+        #expect(ScoreLabels.sharpnessSpoken(scores) == "Sharpness 60 out of 100, Acceptable, edge detail of the whole frame")
         #expect(ScoreLabels.aestheticsSpoken(8.4) == "Aesthetics score 8.4 out of 10, not a star rating")
     }
 

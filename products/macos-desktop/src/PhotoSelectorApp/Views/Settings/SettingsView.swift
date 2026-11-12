@@ -28,7 +28,7 @@ public struct SettingsView: View {
 
             ScoringSettingsTab()
                 .tabItem {
-                    Label("Scoring & Aesthetics", systemImage: "wand.and.stars")
+                    Label(LensjetWords.scoresSettingsTab, systemImage: "wand.and.stars")
                 }
                 .tag(Tab.scoring)
 
@@ -207,7 +207,7 @@ private struct PathText: View {
     }
 }
 
-// MARK: - Tab 2: Scoring & Aesthetics
+// MARK: - Tab 2: Scores (Sharpness and Aesthetics)
 struct ScoringSettingsTab: View {
     @AppStorage(AppSettingsKeys.sharpnessBlurryThreshold)
     private var sharpnessBlurryThreshold: Double = AppSettingsDefaults.sharpnessBlurryThreshold

@@ -138,10 +138,10 @@ struct ControlsDoWhatTheySayTests {
         #expect(bands == SharpnessBands(blurryBelow: 50, sharpFrom: 80))
 
         let scores = QualityScores(sharpness: 45, noise: 0, highlightClipping: 0, shadowClipping: 0)
-        #expect(ScoreLabels.sharpnessBadge(scores, bands: bands) == "45.0 Blurry")
+        #expect(ScoreLabels.sharpnessBadge(scores, bands: bands) == "45 Blurry")
         #expect(ScoreLabels.sharpnessTooltip(scores, bands: bands).contains("Blurry below 50, sharp from 80"))
-        #expect(ScoreLabels.sharpnessSpoken(scores, bands: bands).hasSuffix("Blurry"))
-        #expect(ScoreLabels.sharpnessBadge(scores) == "45.0 Acceptable")
+        #expect(ScoreLabels.sharpnessSpoken(scores, bands: bands).contains("Blurry"))
+        #expect(ScoreLabels.sharpnessBadge(scores) == "45 Acceptable")
 
         let items = photos(2, scores: [45, 75])
         let stats = LibraryStatisticsEngine.calculate(from: items, bands: bands)

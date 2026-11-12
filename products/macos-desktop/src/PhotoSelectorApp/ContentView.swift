@@ -92,6 +92,8 @@ public struct ContentView: View {
                             .frame(maxWidth: .infinity, maxHeight: .infinity)
                         }
                         .frame(maxWidth: .infinity, maxHeight: .infinity)
+                        // The end of the cull sits over the preview, never over the dock below it.
+                        .overlay { CullEndOverlay(viewModel: viewModel) }
 
                         // MARK: - 3. Prominent Culling Action Bar
                         CullingActionBar(viewModel: viewModel)
@@ -226,7 +228,7 @@ public struct ContentView: View {
             return .ignored
         }
         .sheet(isPresented: $viewModel.isShortcutsHelpPresented) {
-            ShortcutsHelpSheet()
+            ShortcutsHelpSheet(destination: viewModel.destinationName)
         }
         .sheet(isPresented: $viewModel.isGoToPhotoPresented) {
             GoToPhotoSheet(viewModel: viewModel)
@@ -321,7 +323,7 @@ public struct ContentView: View {
             .buttonStyle(.bordered)
             .focusable(false)
             .accessibilityLabel("Open Folder")
-            .help("Open photo folder or SD card (⌘O)")
+            .help(LensjetCommand.openFolder.tooltip())
 
             // Current Directory / Volume Name
             if let rootURL = viewModel.rootDirectoryURL, density.showsFolderName {
@@ -448,8 +450,8 @@ public struct ContentView: View {
                 .focusable(false)
                 .disabled(viewModel.photos.isEmpty || viewModel.currentIndex == 0)
                 .uiTestFrame("toolbar_previous")
-                .accessibilityLabel("Previous photo")
-                .help("Navigate to previous photo (Left Arrow)")
+                .accessibilityLabel(LensjetCommand.previousPhoto.name())
+                .help("\(LensjetCommand.previousPhoto.name()) (\u{2190})")
 
                 if !viewModel.photos.isEmpty {
                     Text(density.positionText(index: viewModel.currentIndex + 1, total: viewModel.photos.count))
@@ -477,8 +479,8 @@ public struct ContentView: View {
                 .focusable(false)
                 .disabled(viewModel.photos.isEmpty || viewModel.currentIndex >= viewModel.photos.count - 1)
                 .uiTestFrame("toolbar_next")
-                .accessibilityLabel("Next photo")
-                .help("Navigate to next photo (Right Arrow)")
+                .accessibilityLabel(LensjetCommand.nextPhoto.name())
+                .help("\(LensjetCommand.nextPhoto.name()) (\u{2192})")
             }
 
             Divider()
@@ -513,8 +515,8 @@ public struct ContentView: View {
                     .buttonStyle(.bordered)
                     .focusable(false)
                     .uiTestFrame("toolbar_pan_link")
-                    .accessibilityLabel(viewModel.isZoomSynced ? "Pan Linked" : "Pan Free")
-                    .help(viewModel.isZoomSynced ? "Synchronized Pan Active (Press S)" : "Independent Pan Active (Press S)")
+                    .accessibilityLabel(viewModel.isZoomSynced ? "Link Pan on" : "Link Pan off")
+                    .help("\(LensjetCommand.linkPan.tooltip()), \(viewModel.isZoomSynced ? "on" : "off")")
                 }
 
                 Button(action: { viewModel.toggleZoom() }) {
@@ -533,8 +535,8 @@ public struct ContentView: View {
                 .buttonStyle(.bordered)
                 .focusable(false)
                 .uiTestFrame("toolbar_zoom")
-                .accessibilityLabel(viewModel.zoomState.isZoomed ? "Return to Fit" : "Zoom to 1:1")
-                .help(viewModel.zoomState.isZoomed ? "Return to Fit (Space or Esc)" : "Zoom to 1:1 (100% pixel-to-pixel, Space)")
+                .accessibilityLabel(viewModel.zoomState.isZoomed ? "Fit" : LensjetCommand.zoom100.name())
+                .help(viewModel.zoomState.isZoomed ? "Fit (Space or Esc)" : LensjetCommand.zoom100.tooltip())
 
                 Button(action: {
                     MotionPolicy.animate(.spring(response: 0.28, dampingFraction: 0.82)) {
@@ -549,8 +551,8 @@ public struct ContentView: View {
                 }
                 .buttonStyle(.bordered)
                 .focusable(false)
-                .accessibilityLabel("Toggle Filmstrip")
-                .help("Toggle Filmstrip (T)")
+                .accessibilityLabel(LensjetCommand.filmstripMenuTitle(isShown: viewModel.isFilmstripVisible))
+                .help(LensjetCommand.filmstrip.tooltip())
 
                 Button(action: {
                     MotionPolicy.animate(.easeInOut(duration: 0.18)) {
@@ -565,8 +567,8 @@ public struct ContentView: View {
                 }
                 .buttonStyle(.bordered)
                 .focusable(false)
-                .accessibilityLabel("Toggle EXIF and Scores")
-                .help("Toggle EXIF & Scores HUD (I)")
+                .accessibilityLabel(LensjetCommand.infoMenuTitle(isShown: viewModel.isInfoHUDVisible))
+                .help(LensjetCommand.info.tooltip())
 
                 Button(action: { viewModel.presentShortcutsHelp() }) {
                     Image(systemName: "questionmark")
@@ -579,8 +581,8 @@ public struct ContentView: View {
                 .buttonStyle(.borderedProminent)
                 .tint(Color.accentColor)
                 .focusable(false)
-                .accessibilityLabel("Keyboard Shortcuts")
-                .help("Keyboard Shortcuts & Culling Guide (?)")
+                .accessibilityLabel(LensjetCommand.keyboardShortcuts.name())
+                .help(LensjetCommand.keyboardShortcuts.tooltip())
             }
         }
     }

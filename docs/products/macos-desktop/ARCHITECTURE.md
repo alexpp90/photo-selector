@@ -18,7 +18,7 @@ The macOS Desktop application is designed for extreme throughput, responsiveness
 2. **Strict Layer Separation**: Headless domain logic resides in `PhotoSelectorKit`; presentation, windowing, and SwiftUI scenes reside in `PhotoSelectorApp`. `PhotoSelectorKit` must never depend on `PhotoSelectorApp`.
 3. **Swift 6 Strict Concurrency**: All models are immutable `Sendable` value types. Mutable state and I/O are actor-isolated (`AsyncCullingActor`, `ThumbnailLoader`, `ThumbnailCache`, `VisionAestheticsService`). UI bindings and view models are isolated to `@MainActor`.
 4. **Zero-Latency Interaction (< 1.0 ms UI Thread Budget)**: All file mutations, disk reads, decodes, and quality scoring passes execute on cooperative background tasks or dedicated actors. User keyboard gestures dispatch optimistic UI updates immediately, accompanied by background queue processing and non-blocking transactional rollback capabilities.
-5. **Maximized Viewport Canvas**: Visual chrome is minimized. Over 85% of window area is allocated to photo previews across 1-Up, 2-Up (Challenger vs Champion), and 3-Up (Sliding Triplet) comparison modes. All secondary configuration is offloaded to the native macOS Settings scene (`⌘,`), and secondary tools (Duplicate Finder, Library Statistics) live in the macOS Menu Bar `Tools` menu.
+5. **Maximized Viewport Canvas**: Visual chrome is minimized. Over 85% of window area is allocated to photo previews across 1-Up, 2-Up (Challenger vs Champion), and 3-Up (Sliding Triplet) comparison modes. All secondary configuration is offloaded to the native macOS Settings scene (`⌘,`), and secondary tools (Find Duplicates, Statistics) live in the macOS Menu Bar `Tools` menu.
 
 ---
 

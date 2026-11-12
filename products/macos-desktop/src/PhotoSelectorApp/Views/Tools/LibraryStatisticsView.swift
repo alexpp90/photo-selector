@@ -122,7 +122,7 @@ public struct LibraryStatisticsView: View {
                 .foregroundStyle(Color.accentColor)
 
             VStack(alignment: .leading, spacing: 2) {
-                Text("Library Statistics")
+                Text(LensjetCommand.statistics.name())
                     .font(.system(size: 16, weight: .bold))
                 if let root = workspaceViewModel.rootDirectoryURL {
                     Text(root.lastPathComponent)
@@ -280,7 +280,7 @@ public struct LibraryStatisticsView: View {
 
             HStack(spacing: 20) {
                 VStack(spacing: 4) {
-                    Text(statsViewModel.statistics.averageSharpness.map { String(format: "%.1f", $0) } ?? "–")
+                    Text(statsViewModel.statistics.averageSharpness.map { ScoreLabels.sharpnessNumber($0) } ?? "–")
                         .font(.system(size: 24, weight: .bold, design: .rounded))
                         .foregroundStyle(Color.green)
                     Text("Avg Sharpness / 100")
@@ -414,7 +414,7 @@ public struct LibraryStatisticsView: View {
     // MARK: - Footer
     private var footerBar: some View {
         HStack {
-            Text("Photographic Analysis Engine · Apple Vision & Accelerate")
+            Text("Scores are computed on this Mac")
                 .font(.system(size: 11))
                 .foregroundStyle(.secondary)
             Spacer()
@@ -496,7 +496,7 @@ struct LeaderboardRow: View {
                     Image(systemName: "checkmark.circle.fill")
                         .foregroundStyle(Color.green)
                         .font(.system(size: 11))
-                    Text(String(format: "%.1f", sharpness))
+                    Text(ScoreLabels.sharpnessNumber(sharpness))
                         .font(.system(size: 12, weight: .bold).monospacedDigit())
                 }
             } else if mode == .aesthetics, let aesthetic = photo.scores?.aesthetic {
