@@ -312,6 +312,7 @@ def _bundle_vm(kind: str, names, trashed: bool = False):
     vm = CullingWorkspaceViewModel(file_manager=manager)
     vm.candidates = [photo, other]
     vm.current_folder = Path("/tmp/d")
+    vm._destination_said_generation = vm._folder_generation  # these test the plain outcome, not the first one
     messages = []
     vm.connect("notification", lambda _vm, message: messages.append(message))
     return vm, messages

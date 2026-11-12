@@ -125,6 +125,7 @@ class MainWindow(Adw.ApplicationWindow if HAS_GI else object):
 
         # Bottom Action Bar
         self.action_bar = ActionBarView(viewmodel=self.viewmodel)
+        self.action_bar.on_open_selection = self.show_selection_in_files
         self.toolbar_view.add_bottom_bar(self.action_bar)
 
     def _build_header_bar(self) -> None:

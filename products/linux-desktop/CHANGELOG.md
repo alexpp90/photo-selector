@@ -7,6 +7,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 ## [Unreleased]
 
 ### Added
+- The first Move or Copy after you open a folder says where the photos went, in full ("Moved to ~/Pictures/Lisbon/Selection/"); later ones keep the short form. The **Selected** counter is now a button that opens the Selection folder in the file manager.
 - The start card remembers: the last five folders are listed under **Open Folder…** (a folder that is gone is dimmed and says "Missing"), a folder dropped on the window opens, and the folder dialog starts in the folder you opened last. Settings written by 0.2.0 load unchanged.
 - The canvas says where you are. With no photo to show it draws one card per state: **start** ("Drop a folder" and an **Open Folder…** button), **reading** (a spinner and "Reading <folder>" the moment you choose it, instead of "No folder loaded"), **nothing to cull** ("No photos", or "Can't read folder") and **done**. The window announces "Done. 10 selected, 1 trashed." to screen readers.
 - **Done** screen after the last decision: how many photos were selected and trashed, the full path of the Selection folder (selectable), **Show in Files** and **Open Folder…**, and **Safe to format** when the photos came from a removable card, the Selection is on another volume and nothing is queued; if the Selection sits on the card itself it says "Selection is on this card" and gives no verdict.

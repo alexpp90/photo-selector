@@ -48,8 +48,9 @@ ENTRY_PATHS = {
 }
 #: action -> (text that must be in the outcome, ...): the file (with its companion) and the place.
 EXPECTED = {
-    "move": ("Moved DSC_0001.JPG + 1", "Selection/"),
-    "copy": ("Copied DSC_0001.JPG + 1", "Selection/"),
+    # The first Move or Copy of an opened folder says where, in full (plan 1.6): no file name then.
+    "move": ("Moved to ", "Selection/"),
+    "copy": ("Copied to ", "Selection/"),
     "trash": ("Moved DSC_0001.JPG + 1", "Trash"),
 }
 
@@ -176,6 +177,7 @@ def test_the_matrix_covers_every_action_button_of_the_bar(ui):
     """A new action button must get a row: every button of the bar is named in the table."""
     win, _root = ui
     in_table = {target for kind, target in list(ENTRY_PATHS.values()) if kind == "button"} | {"btn_undo"}
+    in_table |= {"btn_selected"}  # the pill opens the Selection folder: test_the_selected_pill_opens_the_selection_folder
     buttons = {
         w.get_name()
         for w in probe.walk(win.action_bar)
@@ -217,3 +219,17 @@ def test_the_caption_repeats_neither_name_nor_score_while_the_info_card_is_on(ui
     assert canvas._active_footer.get_opacity() == 1.0
     canvas.toggle_hud()
     assert canvas._active_footer.get_opacity() == 0.0
+
+
+def test_the_selected_pill_opens_the_selection_folder(ui):
+    """Plan 1.6: the pill is a button, named for what it opens; it is dead until something is selected."""
+    win, _root = ui
+    opened = []
+    win.action_bar.on_open_selection = lambda: opened.append(1)
+    button = win.action_bar.btn_selected
+    assert button.get_tooltip_text() == "Open Selection"
+    assert not button.get_sensitive()
+    _trigger(win, ENTRY_PATHS["copy-button"])
+    assert probe.pump(until=button.get_sensitive)
+    button.emit("clicked")
+    assert opened == [1]

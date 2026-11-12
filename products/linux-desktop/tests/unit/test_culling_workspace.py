@@ -1090,7 +1090,7 @@ def test_collision_suffixed_move_says_which_name_it_got():
 
     vm.cull_move()
 
-    assert messages == ["Moved to Selection/ as a-2.jpg (+1 related)"]
+    assert messages == ["Moved to /tmp/test_dir/Selection/ as a-2.jpg (+1 related)"]  # the first transfer: full path
 
 
 def test_collision_suffixed_copy_says_which_name_it_got():
@@ -1099,13 +1099,14 @@ def test_collision_suffixed_copy_says_which_name_it_got():
 
     vm.cull_copy()
 
-    assert messages == ["Copied to Selection/ as a-2.jpg"]
+    assert messages == ["Copied to /tmp/test_dir/Selection/ as a-2.jpg"]
 
 
 def test_transfer_without_collision_keeps_the_plain_message():
     sel = Path("/tmp/test_dir/Selection")
     vm, _photo, messages = _vm_with_record("move", [(Path("/tmp/test_dir/a.jpg"), sel / "a.jpg")])
 
+    vm._destination_said_generation = vm._folder_generation  # not the first transfer of this folder
     vm.cull_move()
 
     assert messages == ["Moved a.jpg to Selection/"]
