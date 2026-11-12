@@ -117,6 +117,9 @@ import com.phototok.domain.SeenStore
 import com.phototok.domain.SwipeAction
 import com.phototok.ui.components.SwipeActionIcons
 import com.phototok.R
+import com.phototok.domain.PhotoFolders
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.clearAndSetSemantics
 import com.phototok.domain.SwipeLabels
 import com.phototok.ui.asString
 import com.phototok.domain.SwipeRightVerb
@@ -348,8 +351,13 @@ fun PhoneModeViewer(
     val detailsLabel = stringResource(R.string.action_details)
     val currentIsFavourite = currentImage?.let { favourites.isFavourite(it.uri) } == true
     val favouriteLabel = stringResource(if (currentIsFavourite) R.string.action_unfavourite else R.string.action_favourite)
-    val copyLabel = stringResource(R.string.action_copy)
-    val moveLabel = stringResource(R.string.action_move)
+    // The menu names where the photo goes: `Jackpix` on the phone for a Casual card, else the
+    // Selection subfolder the copy writes into (never "Favourites": a copy is not a favourite).
+    val menuFolder = collectionFolderName.ifBlank { PhotoFolders.SELECTION }
+    val copyLabel = stringResource(R.string.label_copy_to, menuFolder)
+    val moveLabel = stringResource(R.string.label_move_to, menuFolder)
+    val copySpoken = stringResource(R.string.cd_copy_to, menuFolder)
+    val moveSpoken = stringResource(R.string.cd_move_to, menuFolder)
 
     // The swipe actions, shared by the drag gesture and the accessibility actions so both take
     // the same path (the delete confirmation included). They read the newest callbacks: the drag
@@ -506,7 +514,7 @@ fun PhoneModeViewer(
                 }
                 if (onCopyToSelection != null) {
                     DropdownMenuItem(
-                        text = { Text(copyLabel) },
+                        text = { Text(copyLabel, modifier = Modifier.clearAndSetSemantics { contentDescription = copySpoken }) },
                         leadingIcon = { Icon(SwipeActionIcons.right(SwipeRightVerb.COPY), contentDescription = null) },
                         onClick = {
                             showLongPressMenu = false
@@ -517,7 +525,7 @@ fun PhoneModeViewer(
                 }
                 if (onMoveToSelection != null) {
                     DropdownMenuItem(
-                        text = { Text(moveLabel) },
+                        text = { Text(moveLabel, modifier = Modifier.clearAndSetSemantics { contentDescription = moveSpoken }) },
                         leadingIcon = { Icon(SwipeActionIcons.right(SwipeRightVerb.MOVE), contentDescription = null) },
                         onClick = {
                             showLongPressMenu = false

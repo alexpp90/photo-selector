@@ -14,6 +14,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 - **Go to photo** (`G`): type a photo's position ("Photo N of M") or part of its file name; the dialog names the target as you type, Enter goes, Escape cancels.
 - Preferences > Scoring has **Stop at sharpness** (0 = off): with lowest sharpness first, the sweep stops at the first photo at or above that score.
 - Escape and Ctrl+W close Library Statistics, Duplicates, Keyboard Shortcuts and Preferences, and the focus returns to the main window. Their scroll areas show a scrollbar, and they are never taller than 90 % of the main window.
+- GNOME Software and other software centres show a screenshot of Blitzlens (the README capture).
 - A screen reader announces queued, undone and finished operations and finished folder loads, and the Undo button's spoken name says which action it would undo and how many are available.
 
 ### Changed

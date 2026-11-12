@@ -391,7 +391,6 @@ class PhoneModeScreenDialogTest {
                 collectionFolderName = "Selection",
                 isLoading = false,
                 onSelectSource = {},
-                onSelectCollection = {},
                 onStart = {},
                 proMode = on,
                 onProModeChange = { on = it; pro = it },
@@ -421,7 +420,6 @@ class PhoneModeScreenDialogTest {
                 missingGrantPrompt = true,
                 onReselectFolder = { pickFolderClicked = true },
                 onSelectSource = {},
-                onSelectCollection = {},
                 onStart = {},
             )
         }

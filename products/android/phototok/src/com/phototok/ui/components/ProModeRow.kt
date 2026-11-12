@@ -31,6 +31,9 @@ import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.clearAndSetSemantics
+import androidx.compose.material.icons.filled.SdCard
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.testTag
@@ -139,6 +142,13 @@ fun ProModeHelpDialog(onDismiss: () -> Unit) {
                 ProModeHelpItem(Icons.Default.CameraAlt, stringResource(R.string.label_pro_camera_info))
                 ProModeHelpItem(Icons.Default.SwipeRight, stringResource(R.string.label_pro_swipes_folders))
                 ProModeHelpItem(Icons.Default.PhotoLibrary, stringResource(R.string.label_raw_jpeg_pair))
+                // In Casual a card's keepers are copied to the phone; in Pro they stay on the card.
+                ProModeHelpItem(
+                    Icons.Default.SdCard,
+                    stringResource(R.string.label_pro_card_selection),
+                    spoken = stringResource(R.string.cd_pro_card_selection),
+                    modifier = Modifier.testTag("pro_mode_help_card_selection"),
+                )
             }
         },
         confirmButton = {
@@ -151,10 +161,12 @@ fun ProModeHelpDialog(onDismiss: () -> Unit) {
 }
 
 @Composable
-private fun ProModeHelpItem(icon: ImageVector, label: String) {
+private fun ProModeHelpItem(icon: ImageVector, label: String, spoken: String? = null, modifier: Modifier = Modifier) {
     val colors = MaterialTheme.colorScheme
     Row(
-        modifier = Modifier.fillMaxWidth(),
+        modifier = modifier
+            .fillMaxWidth()
+            .then(if (spoken != null) Modifier.clearAndSetSemantics { contentDescription = spoken } else Modifier),
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(12.dp),
     ) {

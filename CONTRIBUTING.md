@@ -72,9 +72,12 @@ poetry run flake8 src tests
 ## Android Development (Kotlin)
 
 ### Prerequisites
-- Android Studio Ladybug (or newer)
-- JDK 17
-- Android SDK 36
+- A current Android Studio that supports the Android Gradle Plugin pinned as `agp` in
+  `products/android/gradle/libs.versions.toml` (older releases such as Ladybug cannot open the project)
+- JDK 17 (`JavaVersion.VERSION_17` in both modules' `build.gradle.kts`)
+- Android SDK 37 (`compileSdk = 37`)
+
+The root [README](README.md#-run-from-source) keeps the same list for every product.
 
 ### Getting Started
 1. Open the `products/android/` directory in Android Studio.
