@@ -26,7 +26,7 @@ SHORTCUTS = [
         ("Go to Photo", "G"),
     ]),
     ("Culling Actions", [
-        ("Keep (move to Selection)", "M"),
+        ("Move to Selection", "M"),
         ("Copy to Selection", "C"),
         ("Trash", "Delete / Backspace"),
         ("Undo Action", "Ctrl+Z"),

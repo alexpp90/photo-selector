@@ -23,6 +23,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 - A screen reader announces queued, undone and finished operations and finished folder loads, and the Undo button's spoken name says which action it would undo and how many are available.
 
 ### Changed
+- The Keep button is now **Move to Selection**, with an icon (icon only in the narrowest windows); the shortcut sheet and the key hints say the same. [USER 2026-11-12] decision #27.
 - The info card says what the score is: the chip reads "Sharpness: 40.0" (its colour still carries the band) and its tooltip, like the bar's, says "Sharpness of the centre of the frame. Compare frames of one burst, not different scenes." The lowest-sharpness sweep starts with "Scoring N photos, centre of frame…".
 - One vocabulary on screen: folder, photo, **Sharpness** (was "Focus" on the info card and in Preferences), **Selection**, **Find Duplicates** and **Statistics** (were "Duplicate Finder", "Cryptographic Duplicate Finder (SHA-256)" and "Library Statistics"). 2-Up and 3-Up name their slots ACTIVE, PREVIOUS and NEXT (2-Up no longer says CHAMPION and CHALLENGER).
 - The main menu no longer types its own shortcut hints ("(Ctrl+D)", "(B)"); GTK draws the accelerators. It gains **Info** and **Go to Photo…** rows.

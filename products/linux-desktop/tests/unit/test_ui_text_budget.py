@@ -53,6 +53,8 @@ def words(text: str) -> int:
 def violations(element: str, text: str):
     max_words, max_chars = limits(element)
     found = []
+    if element == "action" and text in ACTION_BUDGET_EXCEPTIONS:
+        return found
     if words(text) > max_words:
         found.append(f"{words(text)} words (max {max_words})")
     if len(text) > max_chars:
@@ -60,6 +62,12 @@ def violations(element: str, text: str):
     if element in BUDGET["no_sentence_punctuation"] and SENTENCE_END.search(text):
         found.append("sentence punctuation")
     return found
+
+
+#: [USER 2026-11-12] decision #27 wins over the two-word action budget for this one string
+#: (docs/shared/UI_TEXT.md: an exception is written down in the product's design guide; here and
+#: in R-LINUX-UI-10). Nothing else is exempt.
+ACTION_BUDGET_EXCEPTIONS = {"Move to Selection"}
 
 
 # ── the shared table is the one this test reads ──────────────────────────────
@@ -204,7 +212,7 @@ def main_window(tmp_path):
 
 
 def test_action_buttons_the_view_switcher_and_counters_are_within_budget(main_window):
-    from gi.repository import Gtk
+    from gi.repository import Adw, Gtk
 
     win, probe = main_window
     checked = []
@@ -225,13 +233,15 @@ def test_action_buttons_the_view_switcher_and_counters_are_within_budget(main_wi
             element = "label"
         else:
             continue
-        text = widget.get_label() or ""
-        checked.append((element, text))
+        text = widget.get_label()
+        if text is None and isinstance(widget.get_child(), Adw.ButtonContent):
+            text = widget.get_child().get_label()  # the icon button of decision #27
+        checked.append((element, text or ""))
     problems = [f"{element}: {text!r} {', '.join(violations(element, text))}"
                 for element, text in checked if violations(element, text)]
     assert not problems, "\n".join(problems)
     labels = {text for _e, text in checked}
-    assert {"Keep", "Copy", "Trash", "Undo", "1-Up", "2-Up", "3-Up", "0 Selected", "Photo 0 of 0"} <= labels, checked
+    assert {"Move to Selection", "Copy", "Trash", "Undo", "1-Up", "2-Up", "3-Up", "0 Selected", "Photo 0 of 0"} <= labels, checked
 
 
 def test_the_budget_check_goes_red_on_a_planted_long_label():
@@ -240,3 +250,5 @@ def test_the_budget_check_goes_red_on_a_planted_long_label():
     assert violations("chip", "Single photo view") != []
     assert violations("action", "Keep.") == ["sentence punctuation"]
     assert violations("action", "Keep") == []
+    assert violations("action", "Move to Selection") == []  # the one exception, decision #27
+    assert violations("action", "Move to Selection folder") != []

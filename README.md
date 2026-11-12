@@ -126,7 +126,7 @@ A native GNOME photo culling app for Debian 13 (Trixie), built with GTK4 and Lib
   <img src="assets/brand/blitzlens/blitzlens.svg" alt="Blitzlens icon" width="96" style="margin-bottom: 10px;" />
   <br />
   <img src="assets/linux_desktop_screenshot.png" alt="Blitzlens Culling Workspace" width="750" style="border-radius: 10px; box-shadow: 0 4px 20px rgba(0,0,0,0.3); margin-bottom: 12px;" />
-  <p><em>Native GNOME / Libadwaita workspace on neutral grey surfaces in 1-Up mode: the comparison switcher, the "Photo 2 of 5" counter, the optical HUD with its sharpness bar over the photo, and the bottom action bar with Keep, Copy, Trash and Undo. Captured from the app (GTK 4.18 / Libadwaita 1.7, 1440 x 900 window, software rendering) with the unmodified build of this branch, over a freshly started session.</em></p>
+  <p><em>Native GNOME / Libadwaita workspace on neutral grey surfaces in 1-Up mode: the comparison switcher, the "Photo 2 of 5" counter, the optical HUD with its sharpness bar over the photo, and the bottom action bar with Move to Selection, Copy, Trash and Undo. Captured from the app (GTK 4.18 / Libadwaita 1.7, 1440 x 900 window, software rendering) with the unmodified build of this branch, over a freshly started session.</em></p>
 </div>
 
 ### Key Features

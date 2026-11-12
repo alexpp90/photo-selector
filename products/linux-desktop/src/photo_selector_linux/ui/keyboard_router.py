@@ -29,7 +29,7 @@ except (ImportError, ValueError):
 EMPTY_STATE_HINTS = (
     (0x6F, 4, "Ctrl+O", "Open folder"),
     (0x31, 0, "1 2 3", "Views"),
-    (0x6D, 0, "M C Del", "Keep, copy, trash"),
+    (0x6D, 0, "M C Del", "Move, copy, trash"),
     (0x69, 0, "I", "Info"),
 )
 
