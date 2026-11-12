@@ -27,7 +27,7 @@ public final class CullingWorkspaceViewModel: ObservableObject {
     @Published public var zoomState: ZoomState = .fit
     @Published public var isZoomSynced: Bool = true
     @Published public var isFilmstripVisible: Bool = true
-    @Published public var isInfoHUDVisible: Bool = true
+    @Published public var isInfoVisible: Bool = true
     /// After-cull advance. The stored key is the single source: setting it here (menu) persists it,
     /// and a change made elsewhere (Settings) is pulled in by `observeStoredAutoAdvance`.
     @Published public var autoAdvance: Bool = true
@@ -640,7 +640,7 @@ public final class CullingWorkspaceViewModel: ObservableObject {
     }
 
     /// Resolves EXIF for every photo still missing it, off the main actor, publishing in
-    /// batches (one array assignment per batch) so Library Statistics and the HUD fill in
+    /// batches (one array assignment per batch) so Library Statistics and the Info panel fill in
     /// without per-photo re-render storms. Cancelled on folder change.
     private func startMetadataEnrichment() {
         metadataTask?.cancel()
@@ -948,7 +948,7 @@ public final class CullingWorkspaceViewModel: ObservableObject {
         )
         decisionLog.append(logEntry)
 
-        // 2. Immediate Toast HUD
+        // 2. Immediate toast
         showToast(
             icon: toastIcon,
             title: toastTitle,
@@ -998,7 +998,7 @@ public final class CullingWorkspaceViewModel: ObservableObject {
             do {
                 guard let record = try await cullingActor.enqueue(job) else {
                     await MainActor.run {
-                        self?.inFlightJobIDs.remove(job.id)
+                        _ = self?.inFlightJobIDs.remove(job.id)
                     }
                     return
                 }
@@ -1045,7 +1045,7 @@ public final class CullingWorkspaceViewModel: ObservableObject {
                 }
             } catch is CancellationError {
                 await MainActor.run {
-                    self?.inFlightJobIDs.remove(job.id)
+                    _ = self?.inFlightJobIDs.remove(job.id)
                 }
             } catch let error as FileCullingError {
                 let partialMoveRecord: CullingExecutionRecord?

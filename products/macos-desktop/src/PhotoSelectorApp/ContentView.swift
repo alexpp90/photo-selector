@@ -51,7 +51,7 @@ public struct ContentView: View {
                                     if let photo = viewModel.currentPhoto {
                                         SinglePhotoView(
                                             photo: photo,
-                                            isHUDVisible: viewModel.isInfoHUDVisible,
+                                            isInfoVisible: viewModel.isInfoVisible,
                                             zoomState: viewModel.zoomState,
                                             onToggleZoom: { viewModel.toggleZoom() },
                                             toast: viewModel.currentToast,
@@ -74,7 +74,7 @@ public struct ContentView: View {
                                         photos: viewModel.comparisonSlotPhotos,
                                         activeSlotIndex: viewModel.activeSlotIndex,
                                         isZoomSynced: viewModel.isZoomSynced,
-                                        isHUDVisible: viewModel.isInfoHUDVisible,
+                                        isInfoVisible: viewModel.isInfoVisible,
                                         zoomState: viewModel.zoomState,
                                         onSelectSlot: { idx in viewModel.setActiveSlot(idx) },
                                         onToggleZoom: { viewModel.toggleZoom() },
@@ -204,7 +204,7 @@ public struct ContentView: View {
         }
         .onKeyPress(characters: CharacterSet(charactersIn: "iI")) { _ in
             MotionPolicy.animate(.easeInOut(duration: 0.18)) {
-                viewModel.isInfoHUDVisible.toggle()
+                viewModel.isInfoVisible.toggle()
             }
             return .handled
         }
@@ -546,10 +546,10 @@ public struct ContentView: View {
 
                 Button(action: {
                     MotionPolicy.animate(.easeInOut(duration: 0.18)) {
-                        viewModel.isInfoHUDVisible.toggle()
+                        viewModel.isInfoVisible.toggle()
                     }
                 }) {
-                    Image(systemName: viewModel.isInfoHUDVisible ? "info.circle.fill" : "info.circle")
+                    Image(systemName: viewModel.isInfoVisible ? "info.circle.fill" : "info.circle")
                         .font(.system(size: 12))
                         .padding(.horizontal, 6)
                         .padding(.vertical, 4)
@@ -557,7 +557,7 @@ public struct ContentView: View {
                 }
                 .buttonStyle(.bordered)
                 .focusable(false)
-                .accessibilityLabel(LensjetCommand.infoMenuTitle(isShown: viewModel.isInfoHUDVisible))
+                .accessibilityLabel(LensjetCommand.infoMenuTitle(isShown: viewModel.isInfoVisible))
                 .help(LensjetCommand.info.tooltip())
 
                 // Activity (the decisions) and Statistics: icon-only, tooltip and spoken label name them.

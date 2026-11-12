@@ -144,9 +144,9 @@ public struct AppCommands: Commands {
             }
             .keyboardShortcut("t", modifiers: [])
 
-            Button(LensjetCommand.infoMenuTitle(isShown: viewModel.isInfoHUDVisible)) {
+            Button(LensjetCommand.infoMenuTitle(isShown: viewModel.isInfoVisible)) {
                 MotionPolicy.animate(.easeInOut(duration: 0.18)) {
-                    viewModel.isInfoHUDVisible.toggle()
+                    viewModel.isInfoVisible.toggle()
                 }
             }
             .keyboardShortcut("i", modifiers: [])

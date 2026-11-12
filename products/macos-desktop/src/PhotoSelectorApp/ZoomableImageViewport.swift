@@ -118,7 +118,9 @@ final class ProgressivePhotoState: ObservableObject {
             guard !Task.isCancelled, photoID == id else { return }
             image = progressive.image
             tier = progressive.tier
-            if progressive.tier == .preview { RecentPreviewMemory.shared.store(progressive.image, for: id) }
+            // Every tier is kept (a higher one replaces a lower one): a photo decided before its preview
+            // arrived still has a picture to show when Undo brings it back.
+            RecentPreviewMemory.shared.store(progressive.image, for: id, rank: progressive.tier.rawValue)
             DisplayTelemetry.shared.markDisplayed(photoID: id, tier: progressive.tier)
             if progressive.tier == .preview { preview = progressive.image }
         }

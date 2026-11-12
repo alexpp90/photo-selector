@@ -255,7 +255,7 @@ public final class KeyboardShortcutRouter: ObservableObject {
             return true
         case "i":
             MotionPolicy.animate(.easeInOut(duration: 0.18)) {
-                viewModel.isInfoHUDVisible.toggle()
+                viewModel.isInfoVisible.toggle()
             }
             return true
         case "s":
