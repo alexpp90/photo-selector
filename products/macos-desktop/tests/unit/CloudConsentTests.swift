@@ -2,9 +2,10 @@ import Testing
 import Foundation
 @testable import PhotoSelectorKit
 
-/// REQ-MAC-CLOUD.01: nothing reads (so downloads) every photo of a cloud folder, and no permanent
-/// delete runs, before the user said yes; a refused Trash never shows "Moved to Trash".
-@Suite("Cloud folders: consent before a full pass")
+/// REQ-MAC-CLOUD.01 ([USER 2026-11-12] decision #26): a cloud folder refuses every full pass (it
+/// would download each photo) and Delete (there is no Trash to take it back from), with a one-line
+/// reason; nothing is read or deleted, and a refused Trash never shows "Moved to Trash".
+@Suite("Cloud folders: full passes and Delete are refused")
 struct CloudConsentTests {
     private func makeDir() throws -> URL {
         let dir = FileManager.default.temporaryDirectory.standardizedFileURL.resolvingSymlinksInPath()
@@ -14,118 +15,107 @@ struct CloudConsentTests {
     }
 
     @MainActor
-    private func cloudViewModel(dir: URL, count: Int, size: Int64 = 1_000_000) -> CullingWorkspaceViewModel {
+    private func cloudViewModel(dir: URL, count: Int) -> CullingWorkspaceViewModel {
         let urls = (0..<count).map { dir.appendingPathComponent("IMG_\($0).JPG") }
-        let inspector = FakeCloudFolderInspector(
-            remoteFolders: [dir], onlineOnlyURLs: Set(urls),
-            fileSizes: Dictionary(uniqueKeysWithValues: urls.map { ($0, size) }), treatAllAsRemote: true)
         let name = "com.photoselector.tests.cloudconsent.\(UUID().uuidString)"
-        let vm = CullingWorkspaceViewModel(userDefaults: UserDefaults(suiteName: name)!, cloudInspector: inspector)
+        let vm = CullingWorkspaceViewModel(
+            userDefaults: UserDefaults(suiteName: name)!,
+            cloudInspector: FakeCloudFolderInspector(remoteFolders: [dir], treatAllAsRemote: true))
         vm.setPhotos(urls.map { PhotoItem(url: $0) }, rootURL: dir)
         return vm
     }
 
-    @Test("Library Statistics on a cloud folder asks first and decodes nothing before the answer")
+    @Test("Library Statistics on a cloud folder starts no pass and shows the one-line reason")
     @MainActor
-    func statisticsAsksBeforeScoring() async throws {
+    func statisticsRefused() throws {
         let dir = try makeDir(); defer { try? FileManager.default.removeItem(at: dir) }
         let vm = cloudViewModel(dir: dir, count: 3)
+        #expect(vm.fullPassRefusal == "Cloud folder: would download every photo")
         vm.startLibraryScoring() // what LibraryStatisticsView does on appear
-        #expect(vm.scoringProgress == nil, "no pass started")
-        let pending = try #require(vm.pendingDownloadConfirmation)
-        #expect(pending.purpose == .statistics)
-        #expect(pending.estimatedBytes == 3_000_000)
-
-        vm.declineDownloadAll()
-        #expect(vm.pendingDownloadConfirmation == nil)
-        #expect(vm.scoringProgress == nil)
-
-        vm.startLibraryScoring()
-        vm.confirmDownloadAll()
-        #expect(vm.pendingDownloadConfirmation == nil)
-        #expect(vm.scoringProgress != nil, "the pass runs once the user said yes")
-        vm.cancelLibraryScoring()
+        #expect(vm.scoringProgress == nil, "no pass started, so nothing decoded or downloaded")
     }
 
-    @Test("Lowest Sharpness First on a cloud folder asks first and Cancel keeps the order")
+    @Test("Lowest Sharpness First on a cloud folder is refused and the order stays")
     @MainActor
-    func sortAsksBeforeScoring() throws {
+    func sortRefused() throws {
         let dir = try makeDir(); defer { try? FileManager.default.removeItem(at: dir) }
         let vm = cloudViewModel(dir: dir, count: 2)
         let before = vm.sortOrder
         vm.setSortOrder(.lowestSharpnessFirst)
         #expect(vm.scoringProgress == nil)
         #expect(vm.sortOrder == before)
-        guard case .lowestSharpnessSort(let previous)? = vm.pendingDownloadConfirmation?.purpose else {
-            Issue.record("expected the download question"); return
-        }
-        #expect(previous == before)
-        vm.declineDownloadAll()
-        #expect(vm.sortOrder == before)
-        #expect(vm.pendingDownloadConfirmation == nil)
+        #expect(vm.currentToast?.title == CloudRefusal.fullPassLine)
+        #expect(vm.userDefaults.workspaceSortOrder == before, "the refused order is not stored")
     }
 
-    @Test("A local folder is unaffected: no question, the pass starts")
+    @Test("A local folder is unaffected: no refusal, the pass starts")
     @MainActor
     func localFolderScoresWithoutAsking() throws {
         let dir = try makeDir(); defer { try? FileManager.default.removeItem(at: dir) }
         let name = "com.photoselector.tests.cloudconsent.local.\(UUID().uuidString)"
         let vm = CullingWorkspaceViewModel(userDefaults: UserDefaults(suiteName: name)!)
         vm.setPhotos([PhotoItem(url: dir.appendingPathComponent("a.jpg"))], rootURL: dir)
+        #expect(vm.fullPassRefusal == nil)
         vm.startLibraryScoring()
-        #expect(vm.pendingDownloadConfirmation == nil)
+        #expect(vm.scoringProgress != nil)
         vm.cancelLibraryScoring()
     }
 
-    @Test("A refused Trash never shows \"Moved to Trash\"")
+    @Test("Delete on a cloud folder deletes nothing, logs nothing, offers no Undo and never says \"Moved to Trash\"")
     @MainActor
-    func refusedTrashShowsNoFalseToast() async throws {
+    func deleteRefused() async throws {
         let dir = try makeDir(); defer { try? FileManager.default.removeItem(at: dir) }
         let raw = dir.appendingPathComponent("IMG_1.CR3")
         try Data("x".utf8).write(to: raw)
         let vm = CullingWorkspaceViewModel(
-            cullingActor: AsyncCullingActor(trashService: RefusingCloudTrashService()),
+            cullingActor: AsyncCullingActor(),
             cloudInspector: FakeCloudFolderInspector(remoteFolders: [dir], treatAllAsRemote: true))
         vm.autoAdvance = false
         vm.setPhotos([PhotoItem(url: raw)], rootURL: dir)
-        var titles: [String] = []
         vm.cullCurrentPhoto(action: .trash)
-        titles.append(vm.currentToast?.title ?? "")
-        for _ in 0..<40 {
-            if let t = vm.currentToast?.title { titles.append(t) }
-            if vm.pendingPermanentDelete != nil { break }
-            try await Task.sleep(nanoseconds: 25_000_000)
-        }
-        #expect(vm.pendingPermanentDelete != nil)
-        #expect(!titles.contains("Moved to Trash"))
-        #expect(vm.pendingPermanentDelete?.message == "No Trash here. Syncs to all devices.")
+        #expect(vm.cloudBanner == "No Trash in cloud folders. Nothing deleted.")
+        #expect(vm.currentToast == nil, "no \"Moved to Trash\"")
+        #expect(vm.photos[0].status == .candidate)
+        #expect(vm.canUndo == false)
+        #expect(vm.decisionLog.isEmpty)
+        try await Task.sleep(nanoseconds: 150_000_000)
+        #expect(FileManager.default.fileExists(atPath: raw.path), "the file is untouched")
+        #expect(vm.currentToast == nil)
     }
 
-    @Test("A permanent delete that fails says so and keeps the photo")
+    @Test("Move and Copy still work on a cloud folder (only Delete is refused)")
     @MainActor
-    func failedPermanentDeleteSurfaces() async throws {
-        let dir = try makeDir()
-        defer {
-            try? FileManager.default.setAttributes([.posixPermissions: 0o755], ofItemAtPath: dir.path)
-            try? FileManager.default.removeItem(at: dir)
-        }
-        let raw = dir.appendingPathComponent("IMG_2.CR3")
-        try Data("x".utf8).write(to: raw)
-        let vm = CullingWorkspaceViewModel(
-            cullingActor: AsyncCullingActor(trashService: RefusingCloudTrashService()),
-            cloudInspector: FakeCloudFolderInspector(remoteFolders: [dir], treatAllAsRemote: true))
+    func moveStillWorks() throws {
+        let dir = try makeDir(); defer { try? FileManager.default.removeItem(at: dir) }
+        let vm = cloudViewModel(dir: dir, count: 1)
         vm.autoAdvance = false
-        vm.setPhotos([PhotoItem(url: raw)], rootURL: dir)
-        vm.cullCurrentPhoto(action: .trash)
-        for _ in 0..<40 where vm.pendingPermanentDelete == nil { try await Task.sleep(nanoseconds: 25_000_000) }
-        #expect(vm.pendingPermanentDelete != nil)
+        vm.cullCurrentPhoto(action: .copy)
+        #expect(vm.cloudBanner == nil)
+        #expect(vm.photos[0].status == .copied)
+    }
 
-        // The folder becomes read-only, so removing the file fails.
-        try FileManager.default.setAttributes([.posixPermissions: 0o555], ofItemAtPath: dir.path)
-        vm.confirmPermanentDelete()
-        #expect(vm.photos[0].status == .candidate, "the photo is not marked deleted")
-        #expect(vm.currentToast?.title == "Couldn't delete IMG_2.CR3")
-        #expect(vm.currentToast?.subtitle?.isEmpty == false, "the system's reason is shown")
-        #expect(FileManager.default.fileExists(atPath: raw.path))
+    @Test("The Duplicate Finder's hash pass on a cloud folder reads nothing and says why")
+    @MainActor
+    func duplicateFinderRefused() throws {
+        let dir = try makeDir(); defer { try? FileManager.default.removeItem(at: dir) }
+        try Data("same".utf8).write(to: dir.appendingPathComponent("a.jpg"))
+        try Data("same".utf8).write(to: dir.appendingPathComponent("b.jpg"))
+        let vm = DuplicateFinderViewModel(
+            targetDirectoryURL: dir,
+            cloudInspector: FakeCloudFolderInspector(remoteFolders: [dir], treatAllAsRemote: true))
+        vm.startScan()
+        #expect(vm.scanState == .refusedCloud("Cloud folder: would download every photo"))
+        #expect(vm.isScanning == false)
+        #expect(vm.duplicateGroups.isEmpty)
+    }
+
+    @Test("The Duplicate Finder still scans a local folder")
+    @MainActor
+    func duplicateFinderLocalScans() async throws {
+        let dir = try makeDir(); defer { try? FileManager.default.removeItem(at: dir) }
+        let vm = DuplicateFinderViewModel(targetDirectoryURL: dir, cloudInspector: FakeCloudFolderInspector())
+        vm.startScan()
+        for _ in 0..<80 where vm.isScanning { try await Task.sleep(nanoseconds: 25_000_000) }
+        #expect(vm.scanState == .empty)
     }
 }

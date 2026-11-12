@@ -18,7 +18,7 @@ public final class RecentPreviewMemory: @unchecked Sendable {
     private let countLimit: Int
     private let byteLimit: Int
     private let lock = NSLock()               // guards `entries` and `order`
-    private var entries: [UUID: (image: CGImage, bytes: Int)] = [:]
+    private var entries: [UUID: (image: CGImage, bytes: Int, rank: Int)] = [:]
     private var order: [UUID] = []            // least recently used first
 
     public init(countLimit: Int = RecentPreviewMemory.defaultCountLimit,
@@ -27,10 +27,14 @@ public final class RecentPreviewMemory: @unchecked Sendable {
         self.byteLimit = max(1, byteLimit)
     }
 
-    public func store(_ image: CGImage, for id: UUID) {
+    /// Keeps `image` for `id`. A lower `rank` (a smaller tier, decoded first) never replaces a higher
+    /// one, so a photo decided before its full preview arrived still comes back from Undo with the
+    /// small picture on screen at once instead of a black pane; the default rank always wins.
+    public func store(_ image: CGImage, for id: UUID, rank: Int = Int.max) {
         lock.lock(); defer { lock.unlock() }
+        if let existing = entries[id], existing.rank > rank { return }
         let bytes = image.width * image.height * 4
-        entries[id] = (image, bytes)
+        entries[id] = (image, bytes, rank)
         order.removeAll { $0 == id }
         order.append(id)
         evictLocked()

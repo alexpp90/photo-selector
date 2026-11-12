@@ -217,12 +217,14 @@ Install Lensjet via the Homebrew tap:
 
 ```bash
 # Install directly in a single command
-brew install --cask alexpp90/tap/photo-selector-toolbox
+brew install --cask alexpp90/tap/lensjet
 
 # Or tap first, then install:
 brew tap alexpp90/tap
-brew install --cask photo-selector-toolbox
+brew install --cask lensjet
 ```
+
+Installed Lensjet earlier as `photo-selector-toolbox`? That cask no longer updates (the token now belongs to the legacy Desktop's formula). Reinstall once: `brew uninstall --cask photo-selector-toolbox && brew install --cask lensjet`. Your settings stay.
 
 #### Standalone ZIP
 Download the pre-compiled `photo-selector-macos-apple-silicon.zip` (the file name is historical: the app inside is a universal build for Apple Silicon and Intel Macs) from the latest [Lensjet release](https://github.com/alexpp90/photo-selector/releases?q=macos-desktop-v&expanded=true), unpack it, and drag `Lensjet.app` into `/Applications`.
