@@ -40,6 +40,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ### Fixed
 
+- A portrait photo from a camera (stored on its side with an EXIF orientation) gets a portrait frame instead of a landscape one.
+- An exposure time stored a hair under its fraction reads as that fraction ("1/250s"), not one step slower ("1/249s").
 - A folder you open in Dupes or Stats keeps its access while you work there. Before, opening another folder in Cull, or restarting the app, could take the access away, and the next Dupes delete failed with a permission error.
 - A star filter picked in Learn no longer limits Cull, which shows no filter: Cull's arrows, filmstrip, burst marks and Go to photo always cover every photo of the folder, and Learn keeps its filter.
 - Reopening the last folder while the app is rebuilt in a running process (a window resize on DeX, a rotation) can no longer crash at start: the photo-data cache it clears existed only after the reopen began.
