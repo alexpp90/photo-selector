@@ -68,11 +68,7 @@ Undoing a file operation must never overwrite or delete a pre-existing file.
   exact destination replica(s) created by that Copy operation (using the recorded destination paths,
   including any `-N` suffix assigned at copy time). Original source files are never touched. On
   Android Desktop, Copy is deliberately not undoable because the original file was never removed.
-- **A copied photo is decided** ([USER 2026-11-12] decision #29; every desk app). After Copy the photo
-  is marked, counted once under Selected, no longer counted as Remaining (Selected + Trashed + Remaining
-  is the number of photos), and a later Move or Copy on it files nothing a second time (it says
-  "Already copied"). A later Trash wins: it counts as Trashed, no longer as Selected, and Undo
-  restores the Copied state. Undo of the Copy makes the photo open again.
+- **A copied photo is decided** — see §5.
 - **Move and Trash undo.** Undoing a Move or Trash operation restores the bundle to its recorded
   original directory:
   - If every original path in the bundle is free, the bundle is restored under its original names.
@@ -133,6 +129,9 @@ files nothing twice.**
   second file, or says the photo is already there. It never writes a `-2` copy beside the first.
   The collision suffix of §1 is for a different file that happens to have the same name, not for
   the same photo filed a second time.
+
+- **Trash wins.** A later Trash of a copied photo counts it as Trashed, no longer as Selected;
+  Undo of that Trash restores the copied state. Undo of the Copy itself makes the photo open again.
 
 Each product implements this rule in its own code and proves it with a file-system test: Copy
 then Move leaves exactly one file per bundle member in the Selection.
