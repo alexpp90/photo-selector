@@ -10,7 +10,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 - Opening the Selection folder itself no longer files photos into `Selection/Selection/` (where they vanished from the list): Move and Copy say "This is the Selection folder" and do nothing; Trash and Undo still work, and Settings shows the same sentence.
 - Settings that did nothing now work or are gone: the **Blurry below** and **Sharp above** sliders change every Sharpness badge, tooltip, filmstrip dot and the Statistics counts (with a Reset); the aesthetic threshold slider is removed; **Auto-Advance** in the Culling menu and in Settings is one setting; **Tab** switches photo in 2-Up only and is left alone in 1-Up and 3-Up; a copied photo no longer counts as Remaining; the **Stop at sharpness** notice stays on the photo until your next key; Undo is greyed out in the menu when there is nothing to undo; the filmstrip tooltip names its key, `T`.
-- Cloud folders: a **Cloud** badge in the toolbar; Library Statistics and Lowest Sharpness First ask "Download all photos?" before reading every photo; permanent delete asks "Delete permanently?"; a refused Trash no longer says "Moved to Trash" and a failed delete says why.
+- Cloud folders: a **Cloud** badge in the toolbar. Library Statistics' scoring, Lowest Sharpness First and the Duplicate Finder's hash pass would download every photo, so they are refused with "Cloud folder: would download every photo" and read nothing; Delete is refused with "No Trash in cloud folders. Nothing deleted." (a banner, nothing is deleted, no Undo entry, never "Moved to Trash"). Move and Copy work as before.
 
 ### Added
 

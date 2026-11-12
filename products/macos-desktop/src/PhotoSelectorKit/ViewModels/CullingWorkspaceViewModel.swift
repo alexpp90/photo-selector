@@ -62,12 +62,9 @@ public final class CullingWorkspaceViewModel: ObservableObject {
     // MARK: - Cloud / File Provider State (U-29)
     @Published public private(set) var isRemoteFolder: Bool = false
     @Published public private(set) var cloudBadgeText: String? = nil
-    @Published public private(set) var requiresFullPassConfirmation: Bool = false
-    @Published public private(set) var pendingPermanentDelete: PendingPermanentDeleteConfirmation? = nil
-    /// Set instead of starting a scoring pass on a cloud folder; the view asks "Download all photos?".
-    @Published public private(set) var pendingDownloadConfirmation: PendingDownloadConfirmation? = nil
-    /// The user agreed, for this folder, to read every photo (reset when a folder opens).
-    private var fullPassConsented = false
+    /// The one-line reason a refused Delete shows (REQ-MAC-CLOUD.01); nil when none is showing.
+    @Published public internal(set) var cloudBanner: String? = nil
+    var cloudBannerTask: Task<Void, Never>?
 
     // MARK: - Sort & Sharpness Stop Threshold (U-34)
     @Published public var sortOrder: WorkspaceSortOrder = .defaultOrder
@@ -122,76 +119,6 @@ public final class CullingWorkspaceViewModel: ObservableObject {
         isRemoteFolder ? 1 : max(2, min(userDefaults.preloadWindowAfter, 10))
     }
 
-    /// Estimated bytes that a full-folder metadata/statistics/duplicate pass would download
-    /// on a remote/cloud folder (UC-17).
-    public var estimatedFullPassDownloadBytes: Int64 {
-        guard isRemoteFolder else { return 0 }
-        let onlineOnly = photos.map(\.url).filter { cloudInspector.isOnlineOnlyItem($0) }
-        if !onlineOnly.isEmpty {
-            return cloudInspector.estimatedDownloadBytes(for: onlineOnly)
-        }
-        let uncached = photos.filter { $0.exif == nil || $0.scores == nil }.map(\.url)
-        return cloudInspector.estimatedDownloadBytes(for: uncached)
-    }
-
-    /// Confirms and starts the full-folder metadata pass on a remote/cloud folder after user consent.
-    public func confirmAndRunFullPass() {
-        requiresFullPassConfirmation = false
-        fullPassConsented = true
-        startMetadataEnrichment()
-    }
-
-    /// "Download" in the "Download all photos?" question: runs the scoring pass that was held back.
-    public func confirmDownloadAll() {
-        guard let pending = pendingDownloadConfirmation else { return }
-        pendingDownloadConfirmation = nil
-        fullPassConsented = true
-        switch pending.purpose {
-        case .statistics: startLibraryScoring()
-        case .lowestSharpnessSort: setSortOrder(.lowestSharpnessFirst)
-        }
-    }
-
-    /// "Cancel": nothing downloads; Statistics opens on what is already scored, the sort stays as it was.
-    public func declineDownloadAll() {
-        pendingDownloadConfirmation = nil
-    }
-
-    /// Executes a pending permanent deletion after the user confirms that Trash is unavailable.
-    public func confirmPermanentDelete() {
-        guard let pending = pendingPermanentDelete else { return }
-        pendingPermanentDelete = nil
-        var failure: (url: URL, error: Error)?
-        for url in pending.urls {
-            if FileManager.default.fileExists(atPath: url.path) {
-                do { try FileManager.default.removeItem(at: url) } catch { failure = failure ?? (url, error) }
-            }
-        }
-        // A caught error surfaces: the photo is not marked deleted, and the system's reason is shown.
-        if let failure {
-            showToast(
-                icon: "exclamationmark.triangle.fill",
-                title: "Couldn't delete \(failure.url.lastPathComponent)",
-                subtitle: failure.error.localizedDescription
-            )
-            return
-        }
-        if let index = photos.firstIndex(where: { $0.id == pending.photoID }) {
-            photos[index].status = .trashed
-        }
-        showToast(
-            icon: "trash.slash.fill",
-            title: "Deleted Permanently",
-            subtitle: "No Undo",
-            actionType: .trash
-        )
-    }
-
-    /// Cancels a pending permanent-delete confirmation without deleting any files.
-    public func cancelPermanentDelete() {
-        pendingPermanentDelete = nil
-    }
-
     /// Summary of SD card culling completion, in-flight transfers, and format safety (UC-10).
     public var cardCullSummary: CardCullSummary {
         let kept = photos.filter { $0.status == .selected || $0.status == .copied }.count
@@ -239,11 +166,9 @@ public final class CullingWorkspaceViewModel: ObservableObject {
     /// first needs a score for every photo, so the unscored ones are scored in the background
     /// first (progress in `scoringProgress`) and the list is ordered when that finishes.
     public func setSortOrder(_ order: WorkspaceSortOrder) {
-        if order == .lowestSharpnessFirst, photos.contains(where: { $0.scores == nil }),
-           isRemoteFolder, !fullPassConsented {
-            // Scoring a cloud folder downloads all of it: ask first, and keep the current order.
-            pendingDownloadConfirmation = PendingDownloadConfirmation(
-                purpose: .lowestSharpnessSort(previous: sortOrder), estimatedBytes: estimatedFullPassDownloadBytes)
+        if order == .lowestSharpnessFirst, photos.contains(where: { $0.scores == nil }), isRemoteFolder {
+            // Scoring a cloud folder downloads all of it: refused with the reason; the order stays.
+            showToast(icon: "icloud.slash", title: CloudRefusal.fullPassLine, subtitle: nil)
             return
         }
         userDefaults.workspaceSortOrder = order
@@ -326,14 +251,10 @@ public final class CullingWorkspaceViewModel: ObservableObject {
             finishScoringIfNeeded()
             return
         }
-        // On a cloud folder this decodes, and so downloads, every online-only photo: only after
-        // the user said yes (REQ-MAC-CLOUD.01). The view asks; nothing is read until it answers.
-        if isRemoteFolder, !fullPassConsented {
+        // On a cloud folder this would decode, and so download, every online-only photo: refused
+        // (REQ-MAC-CLOUD.01); the Statistics sheet shows `fullPassRefusal` in place of the progress.
+        if isRemoteFolder {
             scoringProgress = nil
-            if pendingDownloadConfirmation == nil {
-                pendingDownloadConfirmation = PendingDownloadConfirmation(
-                    purpose: .statistics, estimatedBytes: estimatedFullPassDownloadBytes)
-            }
             return
         }
         scoringProgress = ScoringProgress(done: total - targets.count, total: total)
@@ -657,10 +578,7 @@ public final class CullingWorkspaceViewModel: ObservableObject {
         let remote = cloudInspector.isRemoteOrCloudFolder(url)
         self.isRemoteFolder = remote
         self.cloudBadgeText = remote ? "Cloud Folder" : nil
-        self.requiresFullPassConfirmation = remote
-        self.fullPassConsented = false
-        self.pendingDownloadConfirmation = nil
-        self.pendingPermanentDelete = nil
+        self.cloudBanner = nil
         self.decisionLog.removeAll()
         self.inFlightJobIDs.removeAll()
         libraryScoringTask?.cancel()
@@ -777,10 +695,7 @@ public final class CullingWorkspaceViewModel: ObservableObject {
         let remote = rootURL.map { cloudInspector.isRemoteOrCloudFolder($0) } ?? false
         self.isRemoteFolder = remote
         self.cloudBadgeText = remote ? "Cloud Folder" : nil
-        self.requiresFullPassConfirmation = remote && items.contains(where: { $0.exif == nil || $0.scores == nil || cloudInspector.isOnlineOnlyItem($0.url) })
-        self.pendingPermanentDelete = nil
-        self.fullPassConsented = false
-        self.pendingDownloadConfirmation = nil
+        self.cloudBanner = nil
         self.decisionLog.removeAll()
         self.inFlightJobIDs.removeAll()
         self.photos = items
@@ -939,6 +854,12 @@ public final class CullingWorkspaceViewModel: ObservableObject {
         guard let sourceRootURL = rootDirectoryURL ?? photo.url.deletingLastPathComponent() as URL? else {
             return
         }
+        // No Trash in a cloud folder (REQ-MAC-CLOUD.01): nothing is deleted, nothing is logged, and
+        // there is no "Moved to Trash"; the reason shows for a moment.
+        if action == .trash, isRemoteFolder {
+            showCloudBanner(CloudRefusal.deleteBanner)
+            return
+        }
         // The same resolution the Settings text shows (CullingDestinationResolver). A custom folder
         // that is gone or unwritable refuses the Move/Copy: it must never silently create that path
         // (an unplugged SSD's mount point would otherwise be recreated on the system volume).
@@ -1005,16 +926,13 @@ public final class CullingWorkspaceViewModel: ObservableObject {
         )
         decisionLog.append(logEntry)
 
-        // 2. Immediate Toast HUD. Not for a Trash on a cloud folder: the provider may refuse it, and a
-        // "Moved to Trash" that then reverts is false; the confirmation or the result says it.
-        if !(action == .trash && isRemoteFolder) {
-            showToast(
-                icon: toastIcon,
-                title: toastTitle,
-                subtitle: photo.filename,
-                actionType: action
-            )
-        }
+        // 2. Immediate Toast HUD
+        showToast(
+            icon: toastIcon,
+            title: toastTitle,
+            subtitle: photo.filename,
+            actionType: action
+        )
 
         // 3. Auto-Advance (Slides candidate sequence forward)
         if autoAdvance {
@@ -1068,8 +986,7 @@ public final class CullingWorkspaceViewModel: ObservableObject {
                             originalPrimaryURL: record.originalPrimaryURL,
                             destinationURLs: record.affectedURLs
                         ) ?? CullingFeedback.fileCountTitle(action: action, fileCount: record.affectedURLs.count)
-                        let remoteTrash = action == .trash && (self?.isRemoteFolder ?? false)
-                        if let title = title ?? (remoteTrash ? "Moved to Trash" : nil) {
+                        if let title {
                             self?.showToast(
                                 icon: action == .trash ? "trash.fill" : (action == .move ? "checkmark.circle.fill" : "doc.on.doc.fill"),
                                 title: title,
@@ -1296,26 +1213,6 @@ public final class CullingWorkspaceViewModel: ObservableObject {
         previousStatus: PhotoStatus,
         error: Error
     ) {
-        if action == .trash && isRemoteFolder {
-            if let idx = photos.firstIndex(where: { $0.id == photo.id }) {
-                photos[idx].status = previousStatus
-            } else if photos.indices.contains(photoIndex) {
-                photos[photoIndex].status = previousStatus
-            }
-            let companions = FileCullingManager().findCompanionFiles(for: photo.url)
-            let isShared = cloudInspector.isSharedItem(photo.url)
-                || (rootDirectoryURL.map { cloudInspector.isSharedItem($0) } ?? false)
-            let message = isShared
-                ? "No Trash here. Deleting permanently removes it for everyone sharing this folder."
-                : "No Trash here. Syncs to all devices."
-            pendingPermanentDelete = PendingPermanentDeleteConfirmation(
-                photoID: photo.id,
-                urls: companions,
-                isShared: isShared,
-                message: message
-            )
-            return
-        }
         rollback(photoIndex: photoIndex, previousStatus: previousStatus, error: error)
     }
 

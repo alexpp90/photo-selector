@@ -108,6 +108,8 @@ public enum DuplicateScanState: Equatable {
     case completed
     case empty
     case error(String)
+    /// The folder is a cloud folder: hashing reads every file, so nothing is read (REQ-MAC-CLOUD.01).
+    case refusedCloud(String)
 }
 
 /// MainActor ViewModel orchestrating duplicate scanning, quick resolution, and companion-safe trashing.
@@ -126,6 +128,7 @@ public final class DuplicateFinderViewModel: ObservableObject {
 
     // MARK: - Dependencies & Callbacks
     private let cullingManager: FileCullingManager
+    private let cloudInspector: CloudResourceInspecting
     private var scanTask: Task<Void, Never>?
     private var knownPhotos: [URL: PhotoItem] = [:]
     public var onPhotoTrashed: ((URL) -> Void)?
@@ -170,11 +173,13 @@ public final class DuplicateFinderViewModel: ObservableObject {
         targetDirectoryURL: URL? = nil,
         photos: [PhotoItem] = [],
         cullingManager: FileCullingManager = FileCullingManager(),
+        cloudInspector: CloudResourceInspecting = SystemCloudFolderInspector(),
         onPhotoTrashed: ((URL) -> Void)? = nil,
         trashHandler: (@MainActor (URL) async throws -> Void)? = nil
     ) {
         self.targetDirectoryURL = targetDirectoryURL
         self.cullingManager = cullingManager
+        self.cloudInspector = cloudInspector
         self.onPhotoTrashed = onPhotoTrashed
         self.trashHandler = trashHandler
         var dict: [URL: PhotoItem] = [:]
@@ -224,6 +229,14 @@ public final class DuplicateFinderViewModel: ObservableObject {
         }
 
         self.targetDirectoryURL = scanURL
+        // The hash pass reads every file, which downloads a whole cloud folder: refused, nothing read.
+        if cloudInspector.isRemoteOrCloudFolder(scanURL) {
+            self.isScanning = false
+            self.duplicateGroups = []
+            self.selectedGroupID = nil
+            self.scanState = .refusedCloud(CloudRefusal.fullPassLine)
+            return
+        }
         self.isScanning = true
         self.scanState = .scanning(phase: "Analyzing file sizes and discovering duplicates...")
         self.duplicateGroups = []

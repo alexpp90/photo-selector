@@ -94,6 +94,9 @@ public struct ContentView: View {
                         .frame(maxWidth: .infinity, maxHeight: .infinity)
                         // The end of the cull sits over the preview, never over the dock below it.
                         .overlay { CullEndOverlay(viewModel: viewModel) }
+                        .overlay(alignment: .top) {
+                            if let banner = viewModel.cloudBanner { CloudBannerView(text: banner) }
+                        }
 
                         // MARK: - 3. Prominent Culling Action Bar
                         CullingActionBar(viewModel: viewModel)
@@ -233,6 +236,9 @@ public struct ContentView: View {
         .sheet(isPresented: $viewModel.isGoToPhotoPresented) {
             GoToPhotoSheet(viewModel: viewModel)
         }
+        .onChange(of: viewModel.cloudBanner) { _, banner in
+            if let banner { AccessibilityNotification.Announcement(banner).post() }
+        }
         // VoiceOver hears what a sighted user reads in the toast (REQ-MAC-A11Y.01).
         .onChange(of: viewModel.currentToast) { _, toast in
             if let toast {
@@ -251,36 +257,6 @@ public struct ContentView: View {
         }
         .sheet(isPresented: $viewModel.isLibraryStatisticsPresented) {
             LibraryStatisticsView(workspaceViewModel: viewModel)
-        }
-        // Cloud folders: nothing reads every photo, and nothing is deleted for good, without a yes.
-        .alert(
-            "Download all photos?",
-            isPresented: Binding(
-                get: {
-                    if case .lowestSharpnessSort = viewModel.pendingDownloadConfirmation?.purpose { return true }
-                    return false
-                },
-                set: { if !$0 { viewModel.declineDownloadAll() } }
-            ),
-            presenting: viewModel.pendingDownloadConfirmation
-        ) { _ in
-            Button("Download") { viewModel.confirmDownloadAll() }
-            Button("Cancel", role: .cancel) { viewModel.declineDownloadAll() }
-        } message: { pending in
-            Text("About \(ByteCountFormatter.string(fromByteCount: pending.estimatedBytes, countStyle: .file)) will download.")
-        }
-        .alert(
-            "Delete permanently?",
-            isPresented: Binding(
-                get: { viewModel.pendingPermanentDelete != nil },
-                set: { if !$0 { viewModel.cancelPermanentDelete() } }
-            ),
-            presenting: viewModel.pendingPermanentDelete
-        ) { _ in
-            Button("Delete", role: .destructive) { viewModel.confirmPermanentDelete() }
-            Button("Cancel", role: .cancel) { viewModel.cancelPermanentDelete() }
-        } message: { pending in
-            Text(pending.message)
         }
     }
 
