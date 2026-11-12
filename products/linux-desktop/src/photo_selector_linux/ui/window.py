@@ -26,6 +26,7 @@ from photo_selector_linux.ui.canvas import CanvasView
 from photo_selector_linux.ui.canvas_states import announcement
 from photo_selector_linux.ui.file_worker import FileOperationWorker, schedule_on_main_loop
 from photo_selector_linux.ui.keyboard_router import KeyboardRouter
+from photo_selector_linux.ui.order_panel import build_order_popover, sweep_tooltip
 from photo_selector_linux.ui.styling import APP_BRAND_NAME, APP_ICON_NAME
 from photo_selector_linux.viewmodels.culling_workspace import CullingWorkspaceViewModel
 
@@ -41,6 +42,8 @@ VIEW_ORDER_LABELS = {
 #: The order a new install opens in; the order indicator is shown for any other.
 DEFAULT_VIEW_ORDER = "newest"
 VIEW_ORDER_TITLES = {order: label for label, order in VIEW_ORDER_LABELS.items()}
+#: CSS class on the canvas while a folder is dragged over the window (plan 1.3).
+DROP_ACTIVE_CLASS = "drop-target-active"
 #: The always-visible word beside "Photo N of M" (plan 1.7).
 VIEW_ORDER_WORDS = {"newest": "Newest", "oldest": "Oldest", "natural": "Name", "lowest_sharpness_first": "Blurry"}
 
@@ -193,6 +196,11 @@ class MainWindow(Adw.ApplicationWindow if HAS_GI else object):
         self.btn_order.set_focus_on_click(False)
         order_content = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=4)
         order_content.append(Gtk.Image.new_from_icon_name("view-sort-ascending-symbolic"))
+        # Turns while the sharpness sweep scores photos (plan 1.7); hidden otherwise.
+        self.order_spinner = Gtk.Spinner()
+        self.order_spinner.set_name("order_spinner")
+        self.order_spinner.set_visible(False)
+        order_content.append(self.order_spinner)
         self.lbl_order = Gtk.Label(label=VIEW_ORDER_WORDS[DEFAULT_VIEW_ORDER])
         order_content.append(self.lbl_order)
         self.btn_order.set_child(order_content)
@@ -213,7 +221,9 @@ class MainWindow(Adw.ApplicationWindow if HAS_GI else object):
             item.set_action_and_target_value("win.view_order", GLib.Variant.new_string(target))
             section_order.append_item(item)
         menu.append_section("Order", section_order)
-        self.btn_order.set_menu_model(section_order)  # the same radio group, one tap from the counter
+        # The same radio group one tap from the counter, with "Stop at sharpness" below it.
+        popover, self.spin_stop_at = build_order_popover(section_order, self.settings)
+        self.btn_order.set_popover(popover)
 
         # Accelerators are drawn by GTK from ``set_accels_for_action``, never typed into a label.
         section_view = Gio.Menu()
@@ -285,7 +295,15 @@ class MainWindow(Adw.ApplicationWindow if HAS_GI else object):
         """The order in use, in a word, beside "Photo N of M": a button that opens the order menu."""
         title = VIEW_ORDER_TITLES.get(order, order)
         self.lbl_order.set_label(VIEW_ORDER_WORDS.get(order, title))
-        self.btn_order.set_tooltip_text(f"Order: {title} (S)")
+        scoring = bool(getattr(self.viewmodel, "is_scoring", False))
+        if scoring:
+            done, total = self.viewmodel.scoring_progress
+            self.order_spinner.start()
+            self.btn_order.set_tooltip_text(f"Order: {title} (S). {sweep_tooltip(done, total)}")
+        else:
+            self.order_spinner.stop()
+            self.btn_order.set_tooltip_text(f"Order: {title} (S)")
+        self.order_spinner.set_visible(scoring)
         self.btn_order.update_property([Gtk.AccessibleProperty.LABEL], [f"Order: {title}. Change"])
 
     def toggle_view_order(self) -> None:
@@ -464,9 +482,20 @@ class MainWindow(Adw.ApplicationWindow if HAS_GI else object):
         """A folder dropped on the window opens (a file opens its folder)."""
         target = Gtk.DropTarget.new(Gio.File, Gdk.DragAction.COPY)
         target.connect("drop", self._on_folder_dropped)
+        target.connect("enter", self._on_drop_enter)
+        target.connect("leave", self._on_drop_leave)
         self.add_controller(target)
 
+    def _on_drop_enter(self, _target, _x, _y):
+        """A drag is over the window: outline the canvas so the user sees it will take the folder."""
+        self.canvas_view.add_css_class(DROP_ACTIVE_CLASS)
+        return Gdk.DragAction.COPY
+
+    def _on_drop_leave(self, _target) -> None:
+        self.canvas_view.remove_css_class(DROP_ACTIVE_CLASS)
+
     def _on_folder_dropped(self, _target, value, _x, _y) -> bool:
+        self.canvas_view.remove_css_class(DROP_ACTIVE_CLASS)
         path = value.get_path() if value is not None else None
         if not path:
             return False

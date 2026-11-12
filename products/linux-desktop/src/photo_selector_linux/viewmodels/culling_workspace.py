@@ -27,7 +27,7 @@ from photo_selector_linux.core.destination import (
 )
 from photo_selector_linux.core.file_ops import FileCullingManager
 from photo_selector_linux.core.gvfs_names import is_remote_filesystem
-from photo_selector_linux.core.volumes import VERDICT_SAFE, format_verdict
+from photo_selector_linux.core.volumes import VERDICT_SAFE, format_verdict, selection_stays_on_card
 from photo_selector_linux.core.models import (
     CandidatePhoto,
     CullingActionType,
@@ -99,6 +99,8 @@ MESSAGE_NAME_CHARS = 16
 
 #: Longest destination path a first-transfer message shows whole (the bar's slot is bounded, LIN-7).
 MESSAGE_PATH_CHARS = 34
+#: Appended to the first transfer message when the Selection is on the card being culled (plan 1.6).
+ON_CARD_NOTE = " · on card"
 
 
 def shorten_middle(name: str, limit: int = MESSAGE_NAME_CHARS) -> str:
@@ -444,6 +446,11 @@ class CullingWorkspaceViewModel:
     @property
     def is_scoring(self) -> bool:
         return bool(self._scoring_inflight)
+
+    @property
+    def scoring_progress(self) -> Tuple[int, int]:
+        """Photos scored so far and photos this sweep must score (for the order button's tooltip)."""
+        return self._scoring_done, self._scoring_total
 
     def _cancel_scoring_pass(self) -> None:
         """Stop the background pass: folder switch, back to natural order."""
@@ -919,8 +926,13 @@ class CullingWorkspaceViewModel:
             return None
         self._destination_said_generation = action.generation
         shown = display_path(Path(action.folder) / action.selection_folder) + "/"
+        # [USER 2026-11-12] plan 1.6: a Selection on the card being culled says so, in the same line.
+        on_card = selection_stays_on_card(Path(action.folder), self.resolve_destination().path)
+        limit = MESSAGE_PATH_CHARS - (len(ON_CARD_NOTE) if on_card else 0)
         # A long path keeps its start and its end (the folder and the Selection) in the bounded slot.
-        return shown if len(shown) <= MESSAGE_PATH_CHARS else f"{shown[:10]}…{shown[-(MESSAGE_PATH_CHARS - 11):]}"
+        if len(shown) > limit:
+            shown = f"{shown[:10]}…{shown[-(limit - 11):]}"
+        return shown + ON_CARD_NOTE if on_card else shown
 
     @staticmethod
     def _transfer_message(verb: str, action: "_QueuedAction", result: Any, place: Optional[str] = None) -> str:

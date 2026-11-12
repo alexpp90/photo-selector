@@ -230,7 +230,7 @@ def test_the_menu_offers_the_four_orders_and_the_word_beside_the_counter_names_t
     for order, word in (("natural", "Name"), ("lowest_sharpness_first", "Blurry"), ("newest", "Newest")):
         win.lookup_action("view_order").activate(GLib.Variant.new_string(order))
         assert win.lbl_order.get_label() == word
-    assert win.btn_order.get_menu_model() is not None
+    assert win.btn_order.get_popover() is not None  # the radio group plus "Stop at sharpness"
     win.destroy()
 
 

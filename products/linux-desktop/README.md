@@ -59,7 +59,7 @@ Start Blitzlens with a folder (`photo-selector-linux ~/Pictures/2026`) or let th
 | `S` | Open the View order menu (Newest first, Oldest first, File name, Lowest sharpness first) |
 | `Escape` | Reset zoom to fit; then leave full screen |
 | `I` | Toggle floating optical metadata & quality score HUD |
-| `B` (until the next release) | Toggle lowest sharpness first / the order the folder opens in. The main menu → View order offers Newest first (default), Oldest first, File name and Lowest sharpness first; the choice is remembered (except the sharpness sweep). Choosing lowest sharpness first scores every photo of the folder in the background (on a cloud folder, choose it a second time to confirm), then sorts them; Preferences > Scoring > Stop at sharpness stops the sweep at a score |
+| `B` (until the next release) | Toggle lowest sharpness first / the order the folder opens in. The main menu → View order offers Newest first (default), Oldest first, File name and Lowest sharpness first; the choice is remembered (except the sharpness sweep). Choosing lowest sharpness first scores every photo of the folder in the background (on a cloud folder, choose it a second time to confirm), then sorts them; the order button's panel (beside the photo counter) has Stop at sharpness, which stops the sweep at a score |
 | `G` | Go to photo: a position ("Photo N of M") or part of a file name |
 | `Ctrl+Z` | Undo last culling operation (atomic reversal); every folder keeps its own undo history, including an operation that finished while you switched folders |
 | `Ctrl+O` | Open folder |

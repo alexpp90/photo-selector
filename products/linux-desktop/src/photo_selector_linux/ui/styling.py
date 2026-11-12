@@ -399,4 +399,10 @@ window, .studio-dark-surface {
     font-size: 75%;
     font-weight: 600;
 }
+
+/* A folder is being dragged over the window (plan 1.3): the canvas says it will take it. */
+.drop-target-active {
+    outline: 2px dashed #2EC27E;
+    outline-offset: -8px;
+}
 """

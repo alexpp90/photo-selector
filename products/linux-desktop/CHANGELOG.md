@@ -17,7 +17,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 - **Newest first** is the default view order for new installs, with **Oldest first**, **File name** and **Lowest sharpness first** in the main menu (View order). The choice is remembered; an install that already has settings keeps the file-name order it had. While the folder is still being scanned, the photo on screen stays on screen, and an untouched session shows the newest photo so far.
 - **Go to photo** (`G`): type a photo's position ("Photo N of M") or part of its file name; the dialog names the target as you type, Enter goes, Escape cancels.
-- Preferences > Scoring has **Stop at sharpness** (0 = off): with lowest sharpness first, the sweep stops at the first photo at or above that score.
+- **Stop at sharpness** (0 = off) is in the order button's panel next to the four orders (it left Preferences > Scoring; the stored value is kept): with lowest sharpness first, the sweep stops at the first photo at or above that score. A spinner turns on the order button while the sweep scores photos.
+- A folder dragged over the window outlines the canvas. The first Move or Copy of a folder adds " · on card" when the Selection is on the card you are culling.
 - Escape and Ctrl+W close Library Statistics, Duplicates, Keyboard Shortcuts and Preferences, and the focus returns to the main window. Their scroll areas show a scrollbar, and they are never taller than 90 % of the main window.
 - GNOME Software and other software centres show a screenshot of Blitzlens (the README capture).
 - A screen reader announces queued, undone and finished operations and finished folder loads, and the Undo button's spoken name says which action it would undo and how many are available.
