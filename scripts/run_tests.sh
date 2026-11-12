@@ -27,7 +27,7 @@
 #   ./scripts/run_tests.sh --all            # all products unconditionally (without the device suite),
 #                                           # plus the lab tooling tests and Android lint
 #   ./scripts/run_tests.sh --lab            # the lab tooling tests (local-only, ~90 s). Otherwise they
-#                                           # run on --all, a pristine tree, or a change under scripts/lab/,
+#                                           # run on --all, with no git to ask, or a change under scripts/lab/,
 #                                           # products/*/tests/e2e/, scripts/android_device_matrix.py,
 #                                           # scripts/run_tests.sh or the workflows
 #   ./scripts/run_tests.sh --strict         # treat unrunnable SKIPPED gates as failures
@@ -40,6 +40,9 @@
 # Every run ends by saving a verification record (machine, toolchains, gates, tested tree) in
 # .git/pst-verification/; `python3 scripts/verification_record.py pr` puts it into the PR
 # description. PST_NO_RECORD=1 skips it; PST_EXECUTOR="<agent or person>" names who ran it.
+#
+# PST_GATE_TIMEOUT=<seconds> bounds every gate (default 1800); a gate past it is killed and
+# reported "✘ … timed out after Ns", as CI's timeout-minutes cuts a hung job.
 #
 # Exit codes: 0 all attempted gates passed; 1 a gate failed; 2 --strict and a gate was skipped.
 #
@@ -137,7 +140,9 @@ done
 # If no product was explicitly requested, mirror CI paths: filters via git change detection
 if ! $explicit_product; then
     CHANGED_FILES=()
+    DIFF_KNOWN=false   # true when git could tell us the diff: an empty one then means "no public change"
     if have git && [ -e "$ROOT_DIR/.git" ]; then
+        DIFF_KNOWN=true
         BASE_COMMIT=""
         if git rev-parse --verify origin/main &>/dev/null; then
             BASE_COMMIT="$(git merge-base HEAD origin/main 2>/dev/null || true)"
@@ -152,8 +157,12 @@ if ! $explicit_product; then
         while IFS= read -r f; do [ -n "$f" ] && CHANGED_FILES+=("$f"); done < <(git ls-files --others --exclude-standard "$ROOT_DIR" 2>/dev/null || true)
     fi
 
-    if [ ${#CHANGED_FILES[@]} -eq 0 ]; then
-        # Pristine working tree: test all products by default
+    if [ ${#CHANGED_FILES[@]} -eq 0 ] && $DIFF_KNOWN; then
+        # No public diff against the merge base (a framework-only or private-only task): only
+        # the repository-hygiene and private-overlay gates, which always run. Never a Gradle build.
+        :
+    elif [ ${#CHANGED_FILES[@]} -eq 0 ]; then
+        # No git to ask (an archive, a copy): test all products by default
         run_python=true
         run_android=true
         if [ "$(uname -s)" = "Darwin" ]; then
@@ -176,6 +185,14 @@ if ! $explicit_product; then
                 products/macos-desktop/*) has_macos=true ;;
                 # linux.yml:test reads the APT key fingerprint from INSTALL.md (test_packaging.py).
                 products/linux-desktop/*|docs/products/linux-desktop/INSTALL.md) has_linux=true ;;
+                # A product's own workflow selects that product's gates; the three repository
+                # workflows (hygiene, PR record, CLA) select none, since the hygiene gates always run.
+                .github/workflows/desktop.yml) has_desktop=true ;;
+                .github/workflows/android.yml) has_android=true ;;
+                .github/workflows/macos.yml) has_macos=true ;;
+                .github/workflows/linux.yml) has_linux=true ;;
+                .github/workflows/repo-hygiene.yml|.github/workflows/pr-verification.yml|.github/workflows/cla.yml) ;;
+                # Cross-cutting: the corpus action, the mirror itself and the corpus feed every product.
                 .github/workflows/*|.github/actions/*|scripts/run_tests.sh|testdata/formats/*|scripts/fetch_format_corpus.py) has_cross=true ;;
             esac
         done
@@ -184,7 +201,7 @@ if ! $explicit_product; then
         # imports its device lock, and this script; a cross-cutting change runs them too.
         for f in "${CHANGED_FILES[@]}"; do
             case "$f" in
-                scripts/lab/*|products/*/tests/e2e/*|scripts/android_device_matrix.py) run_lab=true ;;
+                scripts/lab/*|products/*/tests/e2e/*|scripts/android_device_matrix.py|.github/workflows/*) run_lab=true ;;
             esac
         done
 
@@ -227,7 +244,14 @@ record() {
 }
 
 pass() { record PASS "$1" "$2"; echo -e "${GREEN}  ✔ $1${NC}"; }
-fail() { record FAIL "$1" "${3:-$2}" "$2"; echo -e "${RED}  ✘ $1${NC}"; EXIT_CODE=1; }  # fail <name> <ci_ref> [detail]
+fail() {  # fail <name> <ci_ref> [detail]
+    record FAIL "$1" "${3:-$2}" "$2"
+    case "${3:-}" in
+        timed\ out*) echo -e "${RED}  ✘ $1 — ${3}${NC}" ;;
+        *) echo -e "${RED}  ✘ $1${NC}" ;;
+    esac
+    EXIT_CODE=1
+}  # fail <name> <ci_ref> [detail]
 warn() { record WARN "$1" "$2"; echo -e "${YELLOW}  ! $1${NC}"; }
 skip() {
     local name="$1"
@@ -249,7 +273,7 @@ gate() {
     local name="$1"; shift
     local ci_ref="$1"; shift
     local rc=0 t0="$SECONDS"
-    "$@" || rc=$?
+    run_bounded "$@" || rc=$?
     GATE_SECS=$((SECONDS - t0))
     if [ "$rc" -eq 0 ]; then
         pass "$name" "$ci_ref"
@@ -273,9 +297,45 @@ below_floor() {  # below_floor <free GB> — true when under MIN_SPACE_GB
     [ -n "$1" ] && LC_ALL=C awk -v f="$1" -v m="$MIN_SPACE_GB" 'BEGIN {exit !(f < m)}'
 }
 
+# ── Time bound ────────────────────────────────────────────────────
+# CI cuts every job at its timeout-minutes; a local gate that hangs (a Gradle test did, 18 h,
+# 2026-11-11) would otherwise be found only by someone reading the log's mtime. Every gate runs
+# under PST_GATE_TIMEOUT seconds (default 1800 = 30 min, above the longest CI job but the
+# 45-minute emulator one, which is not a local gate) and is reported ✘ "timed out after Ns".
+# Pure bash (macOS has no timeout(1) and the commands are shell functions): the command runs
+# in its own process group, a watchdog polls once a second and kills the group.
+GATE_TIMED_OUT=false
+run_bounded() {
+    local limit="${PST_GATE_TIMEOUT:-1800}" pid wd rc flag
+    GATE_TIMED_OUT=false
+    flag="$(mktemp)"; : > "$flag"
+    set -m
+    "$@" &
+    pid=$!
+    set +m
+    (
+        n=0
+        while [ "$n" -lt "$limit" ] && kill -0 "$pid" 2>/dev/null; do sleep 1; n=$((n + 1)); done
+        if kill -0 "$pid" 2>/dev/null; then
+            echo timeout > "$flag"
+            kill -TERM -- "-$pid" 2>/dev/null
+            sleep 5
+            kill -KILL -- "-$pid" 2>/dev/null
+        fi
+    ) &
+    wd=$!
+    rc=0
+    wait "$pid" || rc=$?
+    kill "$wd" 2>/dev/null; wait "$wd" 2>/dev/null
+    if [ -s "$flag" ]; then GATE_TIMED_OUT=true; rc=124; fi
+    rm -f "$flag"
+    return "$rc"
+}
+
 # The detail a failed gate records: its exit code, plus "disk" when free space is under the floor.
 # The gate's output is not captured (it keeps the terminal), so this is all the record can say.
 fail_detail() {
+    if $GATE_TIMED_OUT; then printf 'timed out after %ss' "${PST_GATE_TIMEOUT:-1800}"; return; fi
     local detail="exit $1"
     below_floor "$(free_gb)" && detail="$detail disk"
     printf '%s' "$detail"
@@ -309,7 +369,7 @@ advisory_gate() {
     local name="$1"; shift
     local ci_ref="$1"; shift
     local rc=0 t0="$SECONDS"
-    "$@" || rc=$?
+    run_bounded "$@" || rc=$?
     GATE_SECS=$((SECONDS - t0))
     case "$rc" in
         0) pass "$name" "$ci_ref" ;;
@@ -777,7 +837,7 @@ if $run_linux; then
                 skip "flake8 (linux-desktop)" "linux.yml:lint" "--quick"
             else
                 gate "flake8 (products/linux-desktop)" "linux.yml:lint" \
-                    py flake8 src/ tests/ --count --show-source --statistics --max-line-length=120 --extend-ignore=E203,W503
+                    py flake8 src/ tests/ --count --show-source --statistics
             fi
         fi
 
@@ -850,7 +910,7 @@ if have python3; then
     gate "format corpus tooling tests" "repo-hygiene.yml:hygiene" \
         python3 -m unittest discover -s scripts/tests -q
     # Local-only and slow (~90 s): runs when the change touches the lab (see CHANGED_FILES above),
-    # on --all, --lab and a pristine tree.
+    # on --all, --lab, a tree git cannot diff, and a change it names.
     if $run_lab; then
         gate "lab tooling tests" "local-only" \
             python3 -m unittest discover -s scripts/lab/tests -q

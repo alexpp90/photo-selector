@@ -23,6 +23,46 @@ The rule that prevents it:
 ./scripts/run_tests.sh --strict   # non-zero exit if any unrunnable gate had to be skipped
 ```
 
+### What a bare run selects
+
+`./scripts/run_tests.sh` with no flag asks git for the diff against the merge base with
+`origin/main` (committed, staged, unstaged and untracked files) and picks the product gates from
+the paths, as each workflow's `paths:` filter does:
+
+| Diff | Selected |
+|---|---|
+| empty (nothing changed in the public tree, e.g. a framework-only task) | no product gate; the repository-hygiene and private-overlay gates, which always run |
+| no git to ask (an archive, a copy) | every product (the macOS gates on Darwin only) and the lab tests |
+| `products/<p>/…` | that product's gates |
+| `.github/workflows/{desktop,android,macos,linux}.yml` | that product's gates (and the lab tests) |
+| `.github/workflows/{repo-hygiene,pr-verification,cla}.yml` | no product gate (hygiene always runs); the lab tests |
+| `.github/actions/`, `scripts/run_tests.sh`, `testdata/formats/`, `scripts/fetch_format_corpus.py` | every product and the lab tests: these feed all of them |
+
+`--all` or an explicit product flag overrides the selection.
+
+### Local time bound
+
+CI cuts every job at its `timeout-minutes`. The mirror bounds every gate too:
+`PST_GATE_TIMEOUT` seconds (default 1800, 30 min, which covers the longest local gate, the
+Android unit tests at `android.yml` 20 to 25 min). A gate past it is killed (its process group)
+and reported `✘ <gate> — timed out after Ns`, so a hang (a Gradle test hung for 18 h on
+2026-11-11) ends the run. Raise it for a slow machine, lower it to probe.
+
+### Size ceilings
+
+`scripts/tests/test_file_size_ceilings.py` (inside the `format corpus tooling tests` gate, so it
+runs in `repo-hygiene.yml` and locally) fails when one of the five hot files (the Jackpix and
+Frameduel view models, `InspectScreen.kt`, Lensjet's `CullingWorkspaceViewModel.swift`,
+Blitzlens' `file_ops.py`) grows past the explicit line count in the test. A split lowers the
+number in its own commit; nothing raises it without a reviewed reason.
+
+### Merging `docs/shared/FEATURE_PARITY.md`
+
+Each product PR edits its own cell of rows shared by all products, which conflicts on the whole
+line. `.gitattributes` names the file for a cell-wise merge driver; register it once per clone
+with `python3 scripts/md_table_merge.py install` (worktrees share the clone's config). A cell
+changed on both sides still conflicts. Tested in `scripts/tests/test_md_table_merge.py`.
+
 ---
 
 ## Gate matrix
@@ -61,7 +101,7 @@ The rule that prevents it:
 | `fetch_format_corpus.py --validate` + `scripts/tests` | `repo-hygiene.yml:hygiene` | ✅ everywhere | The format contract is well-formed: every required format has a sample with ground-truth EXIF, extensions are unique, committed bitmap fixtures match their pinned SHA-256; unit tests for the fetcher (mirror fallback, hash verification), for `verification_record.py`, `release.py`, `android_test_device.py` and `android_device_matrix.py`. |
 | PR verification record (`verification_record.py check`) | `pr-verification.yml:record` | ⚠️ PR description only — advisory | Compares the verification blocks in the PR description (written by `scripts/verification_record.py pr` from the record every `run_tests.sh` run saves) with the PR head tree and the products the PR touches; annotates missing, stale or partial verification and never fails. Not a `run_tests.sh` gate: it judges the PR description, which exists only on GitHub. Local equivalent: `python3 scripts/verification_record.py check --body-file <description.md> --base origin/main`. Its unit tests run in `scripts/tests` above. See [CONTRIBUTING.md § Verification record](../../CONTRIBUTING.md#verification-record). |
 | CLA signature check | `cla.yml:cla` | ❌ GitHub only | Asks a first-time contributor to sign the CLA on the pull request and records it on the `cla-signatures` branch. Not a code gate and not a `run_tests.sh` gate: it depends on the PR's author and comments, which exist only on GitHub. |
-| `lab tooling tests` (`scripts/lab/tests`) | — (local-only) | ✅ everywhere (needs Pillow + PyYAML) | Runs (~90 s) on `--all`, `--lab`, a pristine tree, or a change under `scripts/lab/`, `products/*/tests/e2e/`, `scripts/android_device_matrix.py` (it imports the lab's device lock), `scripts/run_tests.sh` or the workflows; otherwise reported SKIPPED (not unrunnable). Local-only unit tests (`python3 -m unittest discover -s scripts/lab/tests -q`) covering the device lab's schemas, fixture generator, layout lint, file-system/timing/log oracles, runners, and report builder without touching devices or a GUI. |
+| `lab tooling tests` (`scripts/lab/tests`) | — (local-only) | ✅ everywhere (needs Pillow + PyYAML) | Runs (~90 s) on `--all`, `--lab`, a tree git cannot diff, or a change under `scripts/lab/`, `products/*/tests/e2e/`, `scripts/android_device_matrix.py` (it imports the lab's device lock), `scripts/run_tests.sh` or the workflows; otherwise reported SKIPPED (not unrunnable). Local-only unit tests (`python3 -m unittest discover -s scripts/lab/tests -q`) covering the device lab's schemas, fixture generator, layout lint, file-system/timing/log oracles, runners, and report builder without touching devices or a GUI. |
 | Device lab (`scripts/lab/lab.py`) | — (not a CI gate) | ⚠️ local, on demand, opt-in | Local, on demand, not a CI gate; opt-in; see [`scripts/lab/README.md`](../../scripts/lab/README.md). |
 | Private overlay gates (`link_overlay.py --check`, `sync_framework.py --check`, `validate_framework.py`, `gen_gemini_settings.py --check`, `verify_requirements_traceability.py --check --strict`, the brand name guard `check_brand_names.py` (run only when the overlay has it), `findings_history.py --check` (the generated summary counts of the findings history), framework tests) | private repo `framework.yml` | ⚠️ maintainer checkout only | Run by `run_tests.sh` when `private/` is checked out; `⊘ SKIPPED` (not a risk) in a public clone. The private repository's CI checks out this repository and runs the same gates. |
 

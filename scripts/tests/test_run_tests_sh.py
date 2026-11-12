@@ -16,6 +16,7 @@ import stat
 import subprocess
 import sys
 import tempfile
+import time
 import unittest
 from pathlib import Path
 
@@ -427,6 +428,80 @@ class RunTestsScopedLocalGatesTest(_MirrorHarness):
         self.assertEqual(self.rows(root)["lab tooling tests"][0], "SKIP", "an unrelated change")
         (root / "scripts" / "lab" / "lab.py").write_text("x = 1\n", encoding="utf-8")
         self.assertEqual(self.rows(root)["lab tooling tests"][0], "PASS")
+
+
+class RunTestsSelectionAndBoundTest(_MirrorHarness):
+    """Which gates a bare run selects (CI_PARITY.md), and the local time bound."""
+
+    def git_root(self):
+        root = self.make_root()
+        write_exe(root / "products" / "android" / "gradlew", '#!/bin/sh\necho "GRADLEW $*" >> "$STUB_MARK"\nexit 0\n')
+        (root / "scripts" / "lab" / "tests").mkdir(parents=True)
+        (root / "scripts" / "lab" / "tests" / "test_x.py").write_text(
+            "import unittest\nclass T(unittest.TestCase):\n    def test_x(self):\n        pass\n", encoding="utf-8")
+        (root / ".github" / "workflows").mkdir(parents=True)
+        for wf in ("android.yml", "repo-hygiene.yml"):
+            (root / ".github" / "workflows" / wf).write_text("a: 1\n", encoding="utf-8")
+        self.git = lambda *a: subprocess.run(["git", *a], cwd=root, env={**os.environ, **GIT_ENV}, check=True,  # noqa: E731
+                                              capture_output=True)
+        self.git("init", "-q", "-b", "main")
+        self.git("add", "-A")
+        self.git("commit", "-q", "-m", "base")
+        return root
+
+    def rows(self, root, *args, **kw):
+        _, rows = self.results_of(root, *args, extra_env={"PST_MIN_SPACE_GB": "0"}, **kw)
+        return {r[1]: r for r in rows}
+
+    def test_an_empty_public_diff_runs_no_product_gate(self):
+        rows = self.rows(self.git_root())
+        for gate in ("Android gates", "Python gates", "Linux Desktop gates"):
+            self.assertEqual(rows[gate][0], "SKIP", gate)
+        self.assertEqual(rows["lab tooling tests"][0], "SKIP")
+        self.assertNotIn("GRADLEW", self.marker())
+
+    def test_a_workflow_of_the_repository_selects_no_product(self):
+        root = self.git_root()
+        (root / ".github" / "workflows" / "repo-hygiene.yml").write_text("a: 2\n", encoding="utf-8")
+        rows = self.rows(root)
+        self.assertEqual(rows["Android gates"][0], "SKIP")
+        self.assertEqual(rows["lab tooling tests"][0], "PASS")
+
+    def test_a_product_workflow_selects_only_that_product(self):
+        root = self.git_root()
+        (root / ".github" / "workflows" / "android.yml").write_text("a: 2\n", encoding="utf-8")
+        rows = self.rows(root)
+        self.assertNotIn("Android gates", rows)
+        self.assertEqual(rows["Python gates"][0], "SKIP")
+        self.assertIn("GRADLEW", self.marker())
+
+    def test_the_mirror_itself_selects_every_product(self):
+        root = self.git_root()
+        (root / "scripts" / "run_tests.sh").write_text(
+            (root / "scripts" / "run_tests.sh").read_text(encoding="utf-8") + "\n# touched\n", encoding="utf-8")
+        rows = self.rows(root)
+        self.assertNotIn("Android gates", rows)
+        self.assertNotIn("Python gates", rows)
+
+    def test_the_device_matrix_selects_the_lab_tooling_tests(self):
+        root = self.git_root()
+        (root / "scripts" / "android_device_matrix.py").write_text("x = 1\n", encoding="utf-8")
+        self.assertEqual(self.rows(root)["lab tooling tests"][0], "PASS")
+
+    def test_a_gate_past_its_bound_is_killed_and_reported_timed_out(self):
+        root = self.make_root()
+        (root / "scripts" / "lab" / "tests").mkdir(parents=True)
+        (root / "scripts" / "lab" / "tests" / "test_x.py").write_text(
+            "import time, unittest\nclass T(unittest.TestCase):\n    def test_x(self):\n        time.sleep(60)\n",
+            encoding="utf-8")
+        t0 = time.monotonic()
+        result, rows = self.results_of(root, "--lab", extra_env={"PST_GATE_TIMEOUT": "2"})
+        self.assertLess(time.monotonic() - t0, 40)
+        row = {r[1]: r for r in rows}["lab tooling tests"]
+        self.assertEqual(row[0], "FAIL")
+        self.assertIn("timed out after 2s", row[2])
+        self.assertIn("✘ lab tooling tests — timed out after 2s", result.stdout)
+        self.assertNotEqual(result.returncode, 0)
 
 
 if __name__ == "__main__":

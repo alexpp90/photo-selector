@@ -1,0 +1,4 @@
+# One row per feature, one cell per product: parallel product PRs edit different cells of one line.
+# Cell-wise merge; registered per clone with `python3 scripts/md_table_merge.py install`
+# (without it git falls back to its default text merge).
+docs/shared/FEATURE_PARITY.md merge=mdtable

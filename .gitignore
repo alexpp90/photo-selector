@@ -84,3 +84,7 @@ products/android/.kotlin/
 /.sync_mode
 # One-shot migration payload (removed after use)
 /.migration
+
+# Blitzlens: PyGObject, Pillow and numpy come from apt (system-site-packages), so a lock would pin
+# versions the venv never uses; CI and the mirror resolve fresh. Legacy Desktop tracks its own lock.
+products/linux-desktop/poetry.lock
