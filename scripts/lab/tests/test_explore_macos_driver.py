@@ -76,7 +76,12 @@ class FakeApp:
                     (self.artifacts / f"{stem}.tree.json").write_text(TREE)
                     (self.artifacts / f"{stem}.state.json").write_text(json.dumps({"current_index": 2, "total": 9}))
                 refused = "bogus" in json.dumps(step)
-                done.write_text(json.dumps({"ok": False, "error": "unknown control"} if refused else {"ok": True}))
+                answer = json.dumps({"ok": False, "error": "unknown control"} if refused else {"ok": True})
+                # Like the app's own writer: the file exists empty before it has its content, so a
+                # reader that polls for the file meets an empty answer (a flake under load, 2026-11-11).
+                done.write_text("")
+                time.sleep(0.03)
+                done.write_text(answer)
             time.sleep(0.01)
 
 

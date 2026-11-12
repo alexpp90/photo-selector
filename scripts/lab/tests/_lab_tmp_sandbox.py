@@ -17,6 +17,7 @@ import tempfile
 from pathlib import Path
 
 _SANDBOX: Path | None = None
+JUDGE_CLIS = ("claude", "gemini")
 
 
 def install() -> Path:
@@ -24,9 +25,29 @@ def install() -> Path:
     if _SANDBOX is None:
         _SANDBOX = Path(tempfile.mkdtemp(prefix="pstlab-test-", dir="/tmp"))
         os.environ["PST_LAB_TMP"] = str(_SANDBOX)
+        # Every `tempfile.mkdtemp()` / `TemporaryDirectory()` without `dir=` lands in the sandbox too
+        # (2026-11-11: `pstlab-rawtxt-*`, `pstlab-packet-*` ... were left in /tmp).
+        scratch = _SANDBOX / "scratch"
+        scratch.mkdir()
+        tempfile.tempdir = str(scratch)
+        # No test may start a real judge CLI: `claude` / `gemini` on PATH are tripwires that
+        # record the call and fail (a test that wants a judge passes a fake provider).
+        bin_dir = _SANDBOX / "judge-bin"
+        bin_dir.mkdir()
+        for cli in JUDGE_CLIS:
+            stub = bin_dir / cli
+            stub.write_text(f'#!/bin/sh\necho "{cli}" >> "{bin_dir}/CALLED"\necho "a test reached the real {cli} CLI" >&2\nexit 97\n')
+            stub.chmod(0o755)
+        os.environ["PATH"] = f"{bin_dir}{os.pathsep}{os.environ.get('PATH', '')}"
         atexit.register(shutil.rmtree, _SANDBOX, ignore_errors=True)
     return _SANDBOX
 
 
 def sandbox() -> Path | None:
     return _SANDBOX
+
+
+def judge_calls() -> list[str]:
+    """The judge CLIs a test started (always empty in a clean run)."""
+    marker = _SANDBOX / "judge-bin" / "CALLED" if _SANDBOX else None
+    return marker.read_text().split() if marker and marker.is_file() else []

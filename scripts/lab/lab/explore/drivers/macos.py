@@ -182,16 +182,20 @@ class MacOSDeviceDriver(DeviceDriver):
         tmp.rename(self.control_dir / f"cmd-{seq}.json")  # the app never reads a half-written command
         done = self.control_dir / f"done-{seq}.json"
         deadline = time.monotonic() + self.command_timeout_s
-        while not done.is_file():
+        unreadable = ""
+        while True:
+            if done.is_file():
+                try:
+                    return json.loads(done.read_text(encoding="utf-8"))
+                except ValueError as exc:  # created but not written yet: wait, the writer is not atomic
+                    unreadable = str(exc)
             if self._proc.poll() is not None:
                 raise AppCrashedError(f"{self.app_id} exited ({self._proc.poll()}) during {step}")
             if time.monotonic() > deadline:
+                if unreadable:
+                    raise DriverError(f"unreadable answer {done.name}: {unreadable}")
                 raise DriverTimeoutError(f"no answer to {step} within {self.command_timeout_s:.0f}s")
             time.sleep(self.poll_s)
-        try:
-            return json.loads(done.read_text(encoding="utf-8"))
-        except ValueError as exc:
-            raise DriverError(f"unreadable answer {done.name}: {exc}") from exc
 
     # -- capture ------------------------------------------------------------------
     def capture_state(self) -> ScreenState:
