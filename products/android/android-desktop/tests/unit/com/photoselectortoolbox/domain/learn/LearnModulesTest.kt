@@ -225,6 +225,136 @@ class LearnModulesTest {
         assertEquals(sharp.uri, scene.primaryPhoto.uri)
     }
 
+    // --- REQ-AND-LEARN.03, [USER 2026-11-12] decision #17: which frames Compare pairs ---
+
+    private fun frame(
+        name: String,
+        minute: Double = 0.0,
+        sharpness: Double? = 50.0,
+        highlights: Double? = 0.2,
+        shadows: Double? = 0.2,
+        noise: Double? = 0.4,
+        focal: Double? = 50.0,
+        group: Int? = null,
+        captured: String? = null,
+    ) = ImageItem(
+        uri = "content://test/$name.jpg",
+        fileName = "$name.JPG",
+        fileSize = 1000L,
+        lastModified = 1_700_000_000_000L + (minute * 60_000).toLong(),
+        mimeType = "image/jpeg",
+        exifData = ExifData(
+            shutterSpeed = 1.0 / 250.0,
+            aperture = 4.0,
+            iso = 200,
+            focalLength35mm = focal,
+            dateTimeOriginal = captured,
+        ),
+        scanResult = ScanResult(
+            filePath = "content://test/$name.jpg",
+            sharpnessScore = sharpness,
+            noiseLevel = noise,
+            highlightClipping = highlights,
+            shadowClipping = shadows,
+        ),
+        groupId = group,
+    )
+
+    @Test
+    fun `Compare pairs frames up to 10 minutes apart and not beyond`() {
+        val inside = SceneComparator.findComparableScenes(listOf(frame("a", 0.0, 100.0), frame("b", 10.0, 40.0)))
+        assertEquals(1, inside.size)
+        assertEquals("content://test/a.jpg", inside.single().primaryPhoto.uri)
+
+        val outside = SceneComparator.findComparableScenes(listOf(frame("a", 0.0, 100.0), frame("b", 10.1, 40.0)))
+        assertTrue("10 min 6 s apart is not one scene", outside.isEmpty())
+    }
+
+    @Test
+    fun `Compare reads the capture time before the file time`() {
+        // Files copied at the same minute, shot an hour apart: not one scene.
+        val a = frame("a", 0.0, 100.0, captured = "2026:06:01 10:00:00")
+        val b = frame("b", 0.0, 40.0, captured = "2026:06:01 11:00:00")
+        assertTrue(SceneComparator.findComparableScenes(listOf(a, b)).isEmpty())
+    }
+
+    @Test
+    fun `Compare needs the focal lengths within 25 percent where both have one`() {
+        // 50 vs 66 mm: 16 of 66 = 24 %.
+        assertEquals(1, SceneComparator.findComparableScenes(listOf(frame("a", focal = 50.0), frame("b", 1.0, 20.0, focal = 66.0))).size)
+        // 50 vs 70 mm: 20 of 70 = 29 %.
+        assertTrue(SceneComparator.findComparableScenes(listOf(frame("a", focal = 50.0), frame("b", 1.0, 20.0, focal = 70.0))).isEmpty())
+        // One frame without a focal length: the time decides alone.
+        assertEquals(1, SceneComparator.findComparableScenes(listOf(frame("a", focal = 50.0), frame("b", 1.0, 20.0, focal = null))).size)
+    }
+
+    @Test
+    fun `a phone folder at one focal length is not paired by its focal length alone`() {
+        // The old "or": every 26 mm frame of a day paired. Hours apart, nothing pairs.
+        val day = (0 until 6).map { frame("p$it", minute = it * 90.0, sharpness = if (it % 2 == 0) 100.0 else 20.0, focal = 26.0) }
+        assertTrue(SceneComparator.findComparableScenes(day).isEmpty())
+    }
+
+    @Test
+    fun `sharpness pairs from 40 percent of the higher score`() {
+        // 100 vs 60: 40 % of 100.
+        assertEquals(1, SceneComparator.findComparableScenes(listOf(frame("a", sharpness = 100.0), frame("b", 1.0, 60.0))).size)
+        // 100 vs 61: 39 %.
+        assertTrue(SceneComparator.findComparableScenes(listOf(frame("a", sharpness = 100.0), frame("b", 1.0, 61.0))).isEmpty())
+    }
+
+    @Test
+    fun `clipping and noise pair at twice the other with the larger at least 1`() {
+        // Highlights 2.0 vs 1.0 %: 2x, larger >= 1 %. The less clipped frame leads.
+        val clipped = SceneComparator.findComparableScenes(
+            listOf(frame("a", highlights = 2.0), frame("b", 1.0, highlights = 1.0)),
+        ).single()
+        assertEquals("content://test/b.jpg", clipped.primaryPhoto.uri)
+        assertTrue(clipped.differenceBullets.first().startsWith("Highlight clipping"))
+        // 0.8 vs 0.3 %: more than 2x but the larger is under 1 %.
+        assertTrue(SceneComparator.findComparableScenes(listOf(frame("a", highlights = 0.8), frame("b", 1.0, highlights = 0.3))).isEmpty())
+        // 3.0 vs 1.6 %: over 1 % but under 2x.
+        assertTrue(SceneComparator.findComparableScenes(listOf(frame("a", highlights = 3.0), frame("b", 1.0, highlights = 1.6))).isEmpty())
+        // Shadows 1.0 vs 0.0 %: a zero beside a measured 1 % is a difference.
+        assertEquals(1, SceneComparator.findComparableScenes(listOf(frame("a", shadows = 1.0), frame("b", 1.0, shadows = 0.0))).size)
+        // Noise 1.0 vs 0.5: pairs; 0.9 vs 0.3: the larger is under 1.0.
+        assertEquals(1, SceneComparator.findComparableScenes(listOf(frame("a", noise = 1.0), frame("b", 1.0, noise = 0.5))).size)
+        assertTrue(SceneComparator.findComparableScenes(listOf(frame("a", noise = 0.9), frame("b", 1.0, noise = 0.3))).isEmpty())
+    }
+
+    @Test
+    fun `burst peers pair whatever their times and focal lengths`() {
+        val a = frame("a", 0.0, 100.0, focal = 24.0, group = 7)
+        val b = frame("b", 45.0, 30.0, focal = 70.0, group = 7)
+        assertEquals(1, SceneComparator.findComparableScenes(listOf(a, b)).size)
+    }
+
+    @Test
+    fun `no pair without a measured difference, whatever the EXIF says, and no filler`() {
+        val a = frame("a")
+        val b = frame("b", 1.0).let { it.copy(exifData = it.exifData!!.copy(shutterSpeed = 1.0 / 30.0, iso = 3200, aperture = 1.8)) }
+        assertTrue("EXIF-only differences are not a pair", SceneComparator.findComparableScenes(listOf(a, b)).isEmpty())
+        // And no whole-folder fallback: two unrelated frames hours apart are not compared.
+        assertTrue(SceneComparator.findComparableScenes(listOf(frame("x", 0.0, 100.0), frame("y", 300.0, 10.0))).isEmpty())
+
+        val paired = SceneComparator.findComparableScenes(listOf(frame("s", sharpness = 100.0), frame("t", 1.0, 20.0))).single()
+        assertTrue(paired.differenceBullets.none { "similar camera settings" in it || "micro-expressions" in it })
+        assertEquals(listOf("Measured sharpness: 100 on s.JPG vs 20 on t.JPG."), paired.differenceBullets)
+    }
+
+    // backlog 2026-11-12: Learn's Compare treated a missing sharpness as 0.0
+    @Test
+    fun `a frame without a sharpness value is not paired on sharpness`() {
+        val measured = frame("a", sharpness = 64.0)
+        val unmeasured = frame("b", 1.0, sharpness = null)
+        assertTrue(SceneComparator.findComparableScenes(listOf(measured, unmeasured)).isEmpty())
+        // Its other measurements still count, and the explanation names no sharpness.
+        val clipped = frame("c", 2.0, sharpness = null, highlights = 4.0)
+        val scene = SceneComparator.findComparableScenes(listOf(measured, clipped)).single()
+        assertEquals("content://test/a.jpg", scene.primaryPhoto.uri)
+        assertTrue(scene.differenceBullets.none { it.startsWith("Measured sharpness") })
+    }
+
     // --- U-28: PracticeAndInsightsEngine ---
 
     @Test
