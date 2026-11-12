@@ -42,6 +42,7 @@ import com.phototok.domain.PendingDeleteLogic
 import com.phototok.domain.PhoneFeedOrdering
 import com.phototok.domain.PhotoFolders
 import com.phototok.domain.ProModePolicy
+import com.phototok.domain.SwipeRightOutcome
 import com.phototok.domain.RelatedFiles
 import com.phototok.domain.SwipeAction
 import com.phototok.domain.SwipeDestinations
@@ -142,6 +143,12 @@ data class PhoneModeUiState(
     /** Milestone celebration banner text (`U-19`). */
     val celebrationBanner: UiText? = null,
     val celebrationsEnabled: Boolean = true,
+    /** The stats when the open folder was opened, and whether the landing shows that session (T1.4). */
+    val feedStatsBaseline: CullingStats? = null,
+    val showSessionStats: Boolean = false,
+    /** What swipe right does per source, for the landing cues; and videos skipped by an empty folder. */
+    val sourceOutcomes: Map<SourceKind, SwipeRightOutcome> = emptyMap(),
+    val hiddenVideoCount: Int = 0,
     /** "Done with this card" sheet state (`U-14c`). */
     val showCardDoneSheet: Boolean = false,
     val cardCopiedCount: Int = 0,
@@ -243,6 +250,8 @@ data class ActionFeedback(
     val id: Long = System.nanoTime(),
     /** The snackbar offers Undo, which restores the last deletion ([PhoneModeViewModel.revertDelete]). */
     val offersUndoDelete: Boolean = false,
+    /** The snackbar offers Undo, which turns Pro mode back on (the swipes it changed). */
+    val offersUndoProOff: Boolean = false,
 )
 
 /** A one-time explanation, resolved against the user's current settings. */
@@ -516,6 +525,7 @@ class PhoneModeViewModel @Inject constructor(
                             recentPaths = s.recentPaths,
                             seenFirstRunHints = s.seenFirstRunHints,
                             proMode = s.proMode,
+                            sourceOutcomes = SwipeRightOutcome.perKind(s),
                         )
                     } else {
                         state.copy(
@@ -525,6 +535,7 @@ class PhoneModeViewModel @Inject constructor(
                             recentPathsCount = s.recentPathsCount,
                             recentPaths = s.recentPaths,
                             seenFirstRunHints = s.seenFirstRunHints,
+                            sourceOutcomes = SwipeRightOutcome.perKind(s),
                         )
                     }
                 }
@@ -748,7 +759,9 @@ class PhoneModeViewModel @Inject constructor(
         systemIndexJob?.cancel()
         publishedUris.clear()
         dimensionsResolved.clear()
-        _uiState.update { it.copy(emptyFolderMessage = null, missingGrantPrompt = false) }
+        _uiState.update {
+            it.copy(emptyFolderMessage = null, missingGrantPrompt = false, feedStatsBaseline = it.cullingStats, showSessionStats = false)
+        }
 
         val kind = classifyUri(uri, _uiState.value.mountedVolumes)
         val volUuid = SourceKindClassifier.extractRemovableUuid(uri)
@@ -999,8 +1012,10 @@ class PhoneModeViewModel @Inject constructor(
                     isDiscovering = false,
                     reloadPrompt = promptToSet,
                     emptyFolderMessage = emptyMsg,
+                    hiddenVideoCount = if (current.allImages.isEmpty()) imageRepository.skippedVideoCount(folderUri) else 0,
                 )
             }
+            if (_uiState.value.importToPhoneCamera) maybeShowFirstRunHint(FirstRunHint.CARD_IMPORT)
             loadExifForCurrent()
             maybeShowRawJpegSuggestion()
             maybeShowFilterMismatchHint()
@@ -1104,26 +1119,6 @@ class PhoneModeViewModel @Inject constructor(
             if (idx >= 0) return idx
         }
         return currentIndex.coerceIn(0, size - 1)
-    }
-
-    fun selectCollectionFolder(uri: Uri) {
-        viewModelScope.launch {
-            settingsRepository.setPhoneCollectionUri(uri.toString())
-            val name = resolveFolderName(uri.toString())
-            _uiState.update {
-                it.copy(collectionFolderUri = uri.toString(), collectionFolderName = name)
-            }
-        }
-    }
-
-    fun selectLeftSwipeFolder(uri: Uri) {
-        viewModelScope.launch {
-            settingsRepository.setPhoneLeftSwipeUri(uri.toString())
-            val name = resolveFolderName(uri.toString())
-            _uiState.update {
-                it.copy(leftSwipeFolderUri = uri.toString(), leftSwipeFolderName = name)
-            }
-        }
     }
 
     // ── Sorting ───────────────────────────────────────────────────────────
@@ -1512,7 +1507,7 @@ class PhoneModeViewModel @Inject constructor(
             return
         }
         if (state.images.getOrNull(state.currentIndex) == null) return
-        if (state.directDeleteConfirmEnabled) {
+        if (state.directDeleteConfirmEnabled || settingsRepository.shouldAskDeleteOnce()) {
             _uiState.update { it.copy(confirmDeleteRequested = true) }
         } else {
             requestDelete()
@@ -1522,6 +1517,7 @@ class PhoneModeViewModel @Inject constructor(
     /** Delete in the confirmation dialog; [dontAskAgain] is its "Don't ask" checkbox. */
     fun confirmDelete(dontAskAgain: Boolean) {
         _uiState.update { it.copy(confirmDeleteRequested = false) }
+        settingsRepository.clearAskDeleteOnce()
         if (dontAskAgain) updateDirectDeleteConfirm(false)
         requestDelete()
     }
@@ -1529,6 +1525,7 @@ class PhoneModeViewModel @Inject constructor(
     /** Cancel in the confirmation dialog: nothing is deleted and the setting is unchanged. */
     fun cancelDelete() {
         _uiState.update { it.copy(confirmDeleteRequested = false) }
+        settingsRepository.clearAskDeleteOnce()
     }
 
     /** Swipe left (copy/move mode): copy or move the current photo to the custom folder. */
@@ -1626,19 +1623,14 @@ class PhoneModeViewModel @Inject constructor(
                                 // The primary file got a collision suffix: say which name it became.
                                 CopyMoveFeedback.renamedName(img.fileName, result.destinationUri)?.let { renamedTo = it }
                             }
-                            if (state.sourceKind == SourceKind.REMOVABLE ||
-                                state.sourceKind == SourceKind.CAMERA_MTP
-                            ) {
-                                cardTransferJournal.recordCopy(
-                                    sourceUri = img.uri,
-                                    sourceFolderUri = state.sourceFolderUri ?: "",
-                                )
-                            }
+                            val dest = result.destinationUri ?: targetUri
+                            cardTransferJournal.recordTransfer(state.sourceKind, img.uri, state.sourceFolderUri, dest)
                         }
                         result.partial -> {
                             partial++
                             // The verified copy exists and the original stays: both are the photo.
                             result.destinationUri?.let { dest -> copiedFiles += img.uri to dest }
+                            cardTransferJournal.recordTransfer(state.sourceKind, img.uri, state.sourceFolderUri, result.destinationUri)
                         }
                         else -> failed++
                     }
@@ -2199,19 +2191,23 @@ class PhoneModeViewModel @Inject constructor(
     }
 
     /**
-     * Switch Pro mode on or off (landing toggle and Settings row). The snackbar names the visible
-     * change ("Pro settings paused", "Camera info on", "Pro settings restored").
+     * Switch Pro mode on or off (landing toggle). The snackbar names the visible change, the swipes
+     * of the last-used source first ("Pro off: left deletes", with Undo; REQ-TOK-FEATURE.20).
      */
     fun setProMode(enabled: Boolean) {
+        val state = _uiState.value
+        val kind = state.sourceKind.takeIf { state.sourceFolderUri != null } ?: state.recentPaths.firstOrNull()?.kind
         viewModelScope.launch {
-            settingsRepository.setProMode(enabled)?.let { showFeedback(it) }
+            val message = settingsRepository.setProMode(enabled, kind) ?: return@launch
+            val undo = message in ProModePolicy.SWIPE_CHANGE_MESSAGES
+            _uiState.update { it.copy(lastActionFeedback = ActionFeedback(message, offersUndoProOff = undo)) }
         }
     }
 
+    /** The delete dialog's "Don't ask" acts on the open folder's source kind (REQ-TOK-GESTURE.03). */
     fun updateDirectDeleteConfirm(enabled: Boolean) {
-        viewModelScope.launch {
-            settingsRepository.setPhoneDirectDeleteConfirmEnabled(enabled)
-        }
+        val kind = settingsKindOfOpenFolder()
+        viewModelScope.launch { settingsRepository.setSourceDirectDeleteConfirmEnabled(kind, enabled) }
     }
 
     fun clearFeedback() {
@@ -2575,6 +2571,7 @@ class PhoneModeViewModel @Inject constructor(
                 isDiscovering = false,
                 reloadPrompt = null,
                 showCardDoneSheet = false,
+                showSessionStats = true,
                 // Every first-run hint explains the feed the user just left (REQ-TOK-GESTURE.05).
                 // It was marked seen when shown, so dropping it is what its own dismiss does.
                 firstRunHint = null,

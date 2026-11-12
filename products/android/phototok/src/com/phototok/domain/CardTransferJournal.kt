@@ -1,6 +1,8 @@
 package com.phototok.domain
 
+import com.photoselector.core.storage.SourceKind
 import java.io.File
+import java.net.URLDecoder
 
 /**
  * Journal of what was copied off a removable card or camera (`filesDir/card_transfer_journal.tsv`,
@@ -29,6 +31,20 @@ class CardTransferJournal(
     @Synchronized
     fun copiedCountForFolder(cardSourceKey: String): Int =
         copiedBySource[cardSourceKey]?.size ?: 0
+
+    /**
+     * Record a successful copy or move of [sourceUri] out of the open folder [sourceFolderUri] of
+     * kind [kind] into [destinationUri] (the created document, else the destination tree). Only a
+     * card or camera source counts, and only when the destination is on another volume: a copy
+     * into `<card>/Selection` stays on the card and is lost with it. A move off the card counts
+     * as well: the photo is safe on the other volume.
+     */
+    fun recordTransfer(kind: SourceKind, sourceUri: String, sourceFolderUri: String?, destinationUri: String?) {
+        if (kind != SourceKind.REMOVABLE && kind != SourceKind.CAMERA_MTP) return
+        val folder = sourceFolderUri ?: return
+        if (destinationUri == null || !CardVolumes.isOffCard(folder, destinationUri)) return
+        recordCopy(sourceUri, folder)
+    }
 
     /** Record that [sourceUri] of the card folder [sourceFolderUri] was copied out. */
     @Synchronized
@@ -83,5 +99,42 @@ class CardTransferJournal(
             }
         } catch (_: java.io.IOException) {
         }
+    }
+}
+
+/**
+ * Which storage volume a SAF URI lives on, from its string alone (no Android): the provider
+ * authority plus, for document ids of the form `<volume>:<path>` (the external-storage provider:
+ * `primary:DCIM`, `1A2B-3C4D:DCIM`), the volume part. A provider whose ids carry no volume (MTP:
+ * numeric ids) is one volume per authority.
+ */
+object CardVolumes {
+
+    fun volumeOf(uri: String): String? {
+        val rest = uri.substringAfter("://", missingDelimiterValue = "")
+        if (rest.isEmpty()) return null
+        val segments = rest.split('/')
+        val authority = segments.first()
+        val docAt = segments.indexOf("document")
+        val treeAt = segments.indexOf("tree")
+        val rawId = when {
+            docAt >= 0 && docAt + 1 < segments.size -> segments[docAt + 1]
+            treeAt >= 0 && treeAt + 1 < segments.size -> segments[treeAt + 1]
+            else -> return authority
+        }
+        val id = try {
+            URLDecoder.decode(rawId, "UTF-8")
+        } catch (_: IllegalArgumentException) {
+            rawId // A malformed escape: the raw id still carries the volume before ':'.
+        }
+        val colon = id.indexOf(':')
+        return if (colon > 0) "$authority|${id.substring(0, colon)}" else authority
+    }
+
+    /** True when [destinationUri] is on another volume than the card folder [cardFolderUri]. */
+    fun isOffCard(cardFolderUri: String, destinationUri: String): Boolean {
+        val card = volumeOf(cardFolderUri) ?: return false
+        val dest = volumeOf(destinationUri) ?: return false
+        return card != dest
     }
 }

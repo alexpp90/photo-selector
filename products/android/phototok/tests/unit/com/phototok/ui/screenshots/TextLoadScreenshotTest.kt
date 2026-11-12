@@ -416,7 +416,6 @@ class TextLoadScreenshotTest {
                 collectionFolderName = "Selection",
                 isLoading = false,
                 onSelectSource = {},
-                onSelectCollection = {},
                 onStart = {},
             )
         },
@@ -440,7 +439,6 @@ class TextLoadScreenshotTest {
                 collectionFolderName = "Selection",
                 isLoading = false,
                 onSelectSource = {},
-                onSelectCollection = {},
                 onStart = {},
                 proMode = true,
             )

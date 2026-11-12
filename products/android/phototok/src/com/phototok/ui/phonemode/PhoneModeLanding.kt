@@ -66,6 +66,9 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.photoselector.core.storage.SourceKind
 import com.phototok.R
+import androidx.compose.ui.res.pluralStringResource
+import com.phototok.domain.SwipeRightOutcome
+import com.phototok.domain.LandingStatsLine
 import com.phototok.data.model.RecentPath
 import com.phototok.domain.UiText
 import com.phototok.domain.FileTypeFilter
@@ -96,7 +99,6 @@ fun PhoneModeLanding(
     onSelectCamera: () -> Unit = {},
     onSelectSdCard: ((Uri?) -> Unit) -> Unit = { launchPicker -> launchPicker(null) },
     onSelectSource: (Uri) -> Unit,
-    onSelectCollection: (Uri) -> Unit,
     onStart: () -> Unit,
     recentPaths: List<RecentPath> = emptyList(),
     recentPathsEnabled: Boolean = true,
@@ -116,6 +118,12 @@ fun PhoneModeLanding(
     hiddenByFilter: FileTypeFilter? = null,
     /** Show all: turns the format filter off. */
     onShowAll: () -> Unit = {},
+    /** The session or lifetime stats line under the app name, or null (Milestones off, nothing yet). */
+    stats: LandingStatsLine? = null,
+    /** What swipe right does per source kind: a glyph on each source card and recent row. */
+    sourceOutcomes: Map<SourceKind, SwipeRightOutcome> = emptyMap(),
+    /** Videos the open, photo-less folder holds: the empty card says they are hidden. */
+    hiddenVideoCount: Int = 0,
 ) {
     var showProModeHelp by rememberSaveable { mutableStateOf(false) }
     if (showProModeHelp) ProModeHelpDialog(onDismiss = { showProModeHelp = false })
@@ -180,6 +188,10 @@ fun PhoneModeLanding(
                 style = MaterialTheme.typography.headlineMedium,
                 color = colors.onSurface,
             )
+            if (stats != null) {
+                Spacer(modifier = Modifier.height(8.dp))
+                LandingStatsStrip(stats)
+            }
 
             if (showPhotoFan) {
                 Spacer(modifier = Modifier.height(24.dp))
@@ -247,6 +259,8 @@ fun PhoneModeLanding(
                 label = stringResource(R.string.title_source_camera),
                 isActive = false,
                 onClick = onSelectCamera,
+                outcome = sourceOutcomes[SourceKind.PHONE_LIBRARY],
+                outcomeTag = "landing_phone_camera_outcome",
                 modifier = Modifier
                     .fillMaxWidth()
                     .testTag("landing_phone_camera_card"),
@@ -258,6 +272,8 @@ fun PhoneModeLanding(
                 icon = Icons.Default.SdCard,
                 label = stringResource(R.string.title_source_sd),
                 isActive = false,
+                outcome = sourceOutcomes[SourceKind.REMOVABLE],
+                outcomeTag = "landing_sd_card_outcome",
                 onClick = { onSelectSdCard { seedUri -> sourcePickerLauncher.launch(seedUri) } },
                 modifier = Modifier
                     .fillMaxWidth()
@@ -270,6 +286,8 @@ fun PhoneModeLanding(
                 icon = Icons.Default.FolderOpen,
                 label = stringResource(R.string.title_source_folder),
                 isActive = hasSourceFolder,
+                outcome = sourceOutcomes[SourceKind.CLOUD_OTHER],
+                outcomeTag = "landing_custom_folder_outcome",
                 onClick = { sourcePickerLauncher.launch(null) },
                 modifier = Modifier
                     .fillMaxWidth()
@@ -373,6 +391,13 @@ fun PhoneModeLanding(
                             )
                             if (hiddenByFilter != null) {
                                 HiddenByFilterActions(filter = hiddenByFilter, onShowAll = onShowAll)
+                            } else if (hiddenVideoCount > 0) {
+                                Text(
+                                    text = pluralStringResource(R.plurals.empty_videos_hidden, hiddenVideoCount, hiddenVideoCount),
+                                    style = MaterialTheme.typography.bodyMedium,
+                                    color = colors.onErrorContainer,
+                                    modifier = Modifier.testTag("empty_folder_videos_hidden"),
+                                )
                             }
                         }
                     }
@@ -404,6 +429,7 @@ fun PhoneModeLanding(
                         }
                         RecentPathRow(
                             recent = recent,
+                            outcome = sourceOutcomes[recent.kind],
                             isUnmounted = isUnmounted,
                             progressText = progressText,
                             onClick = { onSelectRecentPath(recent) },
@@ -478,6 +504,8 @@ private fun SourceCard(
     isActive: Boolean,
     onClick: () -> Unit,
     modifier: Modifier = Modifier,
+    outcome: SwipeRightOutcome? = null,
+    outcomeTag: String = "",
 ) {
     val colors = MaterialTheme.colorScheme
     val borderColor = if (isActive) colors.primary else colors.outlineVariant
@@ -523,6 +551,8 @@ private fun SourceCard(
                     color = colors.onSurface,
                 )
             }
+            // What swipe right does here, before the first swipe (★, to the phone, to a folder).
+            if (outcome != null) SwipeRightOutcomeGlyph(outcome, tag = outcomeTag)
             Icon(
                 imageVector = Icons.AutoMirrored.Filled.ArrowForward,
                 contentDescription = null,
@@ -547,6 +577,7 @@ private fun sourceKindBadgeLabel(kind: SourceKind): String = stringResource(
 @Composable
 private fun RecentPathRow(
     recent: RecentPath,
+    outcome: SwipeRightOutcome? = null,
     isUnmounted: Boolean = false,
     progressText: String? = null,
     onClick: () -> Unit,
@@ -604,12 +635,18 @@ private fun RecentPathRow(
                 color = colors.surfaceContainerHighest,
                 modifier = Modifier.alpha(fade),
             ) {
-                Text(
-                    text = sourceKindBadgeLabel(recent.kind),
-                    style = MaterialTheme.typography.labelSmall,
-                    color = colors.onSurfaceVariant,
+                Row(
                     modifier = Modifier.padding(horizontal = 8.dp, vertical = 3.dp),
-                )
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(4.dp),
+                ) {
+                    if (outcome != null) SwipeRightOutcomeGlyph(outcome, tag = "landing_recent_outcome")
+                    Text(
+                        text = sourceKindBadgeLabel(recent.kind),
+                        style = MaterialTheme.typography.labelSmall,
+                        color = colors.onSurfaceVariant,
+                    )
+                }
             }
             Icon(
                 imageVector = Icons.AutoMirrored.Filled.ArrowForward,

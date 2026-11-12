@@ -7,6 +7,12 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 ## [Unreleased]
 
 ### Added
+- The "Done with this card" sheet now shows how many of the card's photos are safe on the phone or another drive ("N copied"; "0 copied" with a warning sign when none are). A copy into the card's own Selection folder stays on the card and no longer counts, and the Delete all warning reads "Photos never copied are lost."
+- Switching Pro mode off says what the swipes of the folder you were using do now ("Pro off: left deletes", "Pro off: right ★", "Pro off: right → phone"), with **Undo**; when a left swipe that moved or copied becomes a delete, the next delete asks once even with "Don't ask" saved.
+- The start screen shows what swipe right does per source before your first swipe (a star on the phone, a download arrow on an SD card that copies to the phone, a folder in Pro), on the source rows and the recent folders. The first SD card or camera opened in Casual says once that swiped photos are saved on this phone, and the Pro mode help lists "Card Selection".
+- The start screen shows your totals (photos reviewed, kept, space freed) and, when you come back from a folder, that session's figures. Off with Milestones.
+- A folder with videos and no photos says how many videos it hides: Jackpix shows photos, not videos.
+- The long-press **Copy** and **Move** name their folder ("Copy · Selection", "Move · Jackpix").
 - Settings lists the open-source licences of what Jackpix bundles (**Open-source licences**, below the Impressum), offline. Before, the app passed on no licence text for AndroidX, Hilt, Coil and the other libraries it ships.
 - **Casual and Pro mode.** A new install starts in Casual mode: swipe fast with nothing to set up. Swipe right marks a ★ favourite on the phone, RAW + JPEG pairs show as one photo, there is no camera info, and Settings shows only the basics. The **Pro mode** switch below the three sources on the start screen (its help button lists what it adds) and at the top of Settings brings back camera info, swipe actions, folders, the Selection folder, feed order, format filter, RAW + JPEG linking and source profiles. Switching Pro off pauses these settings without erasing them; switching it back on restores them exactly.
 - Casual mode on an SD card or camera: swipe right copies the photo (with its RAW or JPEG twin) into the phone's camera folder, subfolder `Jackpix`. The first time, the system picker asks for access to `DCIM/Camera`; if you cancel, the photo stays on the card and the app says "Not copied". Pro mode keeps the card's own `Selection` folder.
@@ -20,6 +26,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 - The info panel shows when the photo was taken first ("Aug 15, 2026, 10:36 AM", German "15.08.2026, 10:36"), as the camera recorded it.
 
 ### Changed
+- The start screen's "Camera" source is now **Phone photos** ("Handyfotos"): "Camera" means only a camera connected by USB. German calls the phone "Handy" everywhere, path labels included.
+- Confirm delete is per source: "Don't ask" on an SD card no longer turns the question off for the phone. An existing choice still applies to every source until you change it for one.
 - Marking a favourite no longer shows "Marked as favourite": the star flash and the lit favourite badge already show it. Removing a favourite still says so.
 - The swipe indicators use the app's lime instead of a green, with a dark glyph on the lime disc and their label on a dark pill, so they are readable on any photo (white on the green was about 2.3:1). The idle edge hints are clearly visible on a dark pill, and they stand still when animations are turned off.
 - After a delete a "Photo deleted" snackbar offers **Undo**, and the bar's undo-delete button is a back arrow instead of a bin with an arrow, which people read as a second delete.
@@ -32,6 +40,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 - Settings' reset rows say what they reset: "Reset seen photos" and "Reset all seen" (German "Gesehene zurücksetzen", "Alle Gesehenen zurücksetzen"); they never touched a folder's files.
 
 ### Fixed
+- A sideways drag across a Settings row (such as "Reset all seen", which asks nothing) no longer acts as a tap.
 - A tip card ("Double-tap to reset", "Tap again to show overlays", "RAW only") no longer stays on screen after you leave the photos: Change folder, opening another folder or unplugging the card closes it, so it no longer covers the start screen's Pro mode switch and recent folders.
 - A stray `.photoselector-selection` marker file no longer hides a whole folder from the feed; the app's own output folders (Selection, Favourites, the Jackpix import folder and a Selection folder name you typed in Pro mode) are skipped by name.
 - Swiping in big folders is smoother: marking a photo as seen and the review statistics are written in the background, the "seen" counter no longer re-checks the whole folder on every swipe, and folders with many photos no longer re-check them all for each batch while opening. The statistics file is now written safely (a kill mid-write can no longer reset the lifetime totals).

@@ -445,16 +445,31 @@ class SettingsRepository @Inject constructor(
      * applied in one DataStore edit, so readers never see a half-switched state. Stored Pro values
      * are never rewritten or erased.
      *
+     * [openKind] is the source that is open or was last used: the message then says what its
+     * swipes do now, and a left swipe that turns into a delete asks once ([shouldAskDeleteOnce]).
+     *
      * @return the snackbar message naming the visible change, or null when the mode did not change.
      */
-    suspend fun setProMode(enabled: Boolean): UiText? {
+    suspend fun setProMode(enabled: Boolean, openKind: SourceKind? = null): UiText? {
         var message: UiText? = null
         context.dataStore.edit { prefs ->
+            val settingsKind = openKind?.let { kind ->
+                val inherits = prefs[KEY_CLOUD_INHERITS_PHONE] ?: true
+                if (kind == SourceKind.CLOUD_OTHER && inherits) SourceKind.PHONE_LIBRARY else kind
+            }
+            val stored = settingsKind?.let { storedSourceSettingsOf(prefs, it) }
             val transition = ProModePolicy.transition(
                 currentlyPro = proModeOf(prefs),
                 targetPro = enabled,
                 everEnabled = prefs[KEY_PRO_MODE_EVER_ENABLED] ?: false,
+                stored = stored,
+                kind = settingsKind,
             )
+            if (transition.proMode) {
+                askDeleteOnce = false
+            } else if (proModeOf(prefs) && ProModePolicy.leftTurnsIntoDelete(stored, settingsKind)) {
+                askDeleteOnce = true
+            }
             prefs[KEY_PRO_MODE] = transition.proMode
             transition.writes.forEach { write ->
                 when (write) {
@@ -466,6 +481,18 @@ class SettingsRepository @Inject constructor(
             message = transition.message
         }
         return message
+    }
+
+    /** Set while the first delete after "Pro off" turned a copy or move into a delete is due; not persisted. */
+    @Volatile
+    private var askDeleteOnce = false
+
+    /** The next left-swipe delete asks even with "Don't ask" saved (see [setProMode]). */
+    fun shouldAskDeleteOnce(): Boolean = askDeleteOnce
+
+    /** The delete dialog that [shouldAskDeleteOnce] asked for was answered. */
+    fun clearAskDeleteOnce() {
+        askDeleteOnce = false
     }
 
     /** The folder tree granted for the Casual SD/camera import (the phone's camera folder), if any. */
@@ -497,12 +524,6 @@ class SettingsRepository @Inject constructor(
     suspend fun setCelebrationsEnabled(enabled: Boolean) {
         context.dataStore.edit { prefs ->
             prefs[KEY_CELEBRATIONS_ENABLED] = enabled
-        }
-    }
-
-    suspend fun setCloudInheritsPhone(inherits: Boolean) {
-        context.dataStore.edit { prefs ->
-            prefs[KEY_CLOUD_INHERITS_PHONE] = inherits
         }
     }
 
@@ -623,8 +644,31 @@ class SettingsRepository @Inject constructor(
     suspend fun setSourceLeftSwipeUri(kind: SourceKind, uri: String?) =
         setLeftSwipeUri(kind, uri)
 
-    suspend fun setSourceDirectDeleteConfirmEnabled(kind: SourceKind, enabled: Boolean) =
-        setPhoneDirectDeleteConfirmEnabled(enabled)
+    /**
+     * Confirm delete is per source (REQ-TOK-GESTURE.03): the choice is stored under [kind]'s own key,
+     * which [storedSourceSettingsOf] reads before the flat key. The phone also writes the flat key
+     * (read by the phone-slot flows and by every source without a choice of its own); before it
+     * changes, each other source without its own key keeps the value it had, so a phone choice
+     * never changes an SD card or camera. A cloud folder follows the phone's settings.
+     */
+    suspend fun setSourceDirectDeleteConfirmEnabled(kind: SourceKind, enabled: Boolean) {
+        context.dataStore.edit { prefs ->
+            val target = if (kind == SourceKind.CLOUD_OTHER && (prefs[KEY_CLOUD_INHERITS_PHONE] ?: true)) {
+                SourceKind.PHONE_LIBRARY
+            } else {
+                kind
+            }
+            if (target == SourceKind.PHONE_LIBRARY) {
+                SourceKind.entries.filter { it != SourceKind.PHONE_LIBRARY }.forEach { other ->
+                    if (prefs[directDeleteConfirmKey(other)] == null) {
+                        prefs[directDeleteConfirmKey(other)] = storedSourceSettingsOf(prefs, other).directDeleteConfirmEnabled
+                    }
+                }
+                prefs[KEY_DIRECT_DELETE_CONFIRM] = enabled
+            }
+            prefs[directDeleteConfirmKey(target)] = enabled
+        }
+    }
 
     suspend fun removeFolderSeenProgress(folderUri: String) {
         context.dataStore.edit { prefs ->
@@ -795,9 +839,8 @@ class SettingsRepository @Inject constructor(
         setLeftSwipeUri(SourceKind.PHONE_LIBRARY, uri)
     }
 
-    suspend fun setPhoneDirectDeleteConfirmEnabled(enabled: Boolean) {
-        context.dataStore.edit { prefs -> prefs[KEY_DIRECT_DELETE_CONFIRM] = enabled }
-    }
+    suspend fun setPhoneDirectDeleteConfirmEnabled(enabled: Boolean) =
+        setSourceDirectDeleteConfirmEnabled(SourceKind.PHONE_LIBRARY, enabled)
 
     suspend fun setPhoneSortByOrientation(enabled: Boolean) {
         context.dataStore.edit { prefs ->

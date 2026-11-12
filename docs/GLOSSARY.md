@@ -53,7 +53,7 @@ the app name, build configuration keeps the identifier.
 | Release asset names `phototok-android-release.*`, `photo-selector-toolbox-android-release.*`, `photo-selector-macos-*.zip` | release workflows | download links and update tools |
 | Tags `phototok-v*`, `android-desktop-v*`, `macos-desktop-v*`, `linux-desktop-v*` | releases | release history and `scripts/release.py` |
 | Folder `PhotoTok_LeftSwipe`, legacy `PhotoTok_Selection` exclusion | Jackpix, every product's scanner | user files already on disk |
-| Marker file `.photoselector-selection` | Frameduel, Lensjet, Blitzlens (the legacy Desktop does not write or read it) | Selection folders users already have |
+| Marker file `.photoselector-selection` | Jackpix (writes it when its Selection folder is resolved, never lists it as a photo), Frameduel, Lensjet, Blitzlens (the legacy Desktop does not write or read it) | Selection folders users already have |
 | Debian package `photo-selector-linux`, settings `~/.config/photo-selector-linux/`, APT Origin/Label | Blitzlens | installed systems keep updating; settings kept |
 | Homebrew cask token | `alexpp90/homebrew-tap` | installed casks keep updating |
 | Gradle modules, Swift targets, Python packages, folder names | code | internal |

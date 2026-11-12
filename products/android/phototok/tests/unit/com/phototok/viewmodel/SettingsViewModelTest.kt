@@ -102,7 +102,7 @@ class SettingsViewModelTest {
         coEvery { settingsRepository.setPhoneMoveRelatedFiles(any()) } just Runs
         coEvery { settingsRepository.setPhoneRecentPathsEnabled(any()) } just Runs
         coEvery { settingsRepository.setPhoneRecentPathsCount(any()) } just Runs
-        coEvery { settingsRepository.setPhoneDirectDeleteConfirmEnabled(any()) } just Runs
+        coEvery { settingsRepository.setSourceDirectDeleteConfirmEnabled(any(), any()) } just Runs
 
         viewModel.updateMoveRelatedFiles(true)
         coVerify { settingsRepository.setPhoneMoveRelatedFiles(true) }
@@ -114,7 +114,7 @@ class SettingsViewModelTest {
         coVerify { settingsRepository.setPhoneRecentPathsCount(5) }
 
         viewModel.updateDirectDeleteConfirm(false)
-        coVerify { settingsRepository.setPhoneDirectDeleteConfirmEnabled(false) }
+        coVerify { settingsRepository.setSourceDirectDeleteConfirmEnabled(SourceKind.PHONE_LIBRARY, false) }
 
         viewModel.updateLeftSwipeAction(SwipeAction.COPY)
         coVerify { settingsRepository.setPhoneLeftSwipeAction(SwipeAction.COPY) }

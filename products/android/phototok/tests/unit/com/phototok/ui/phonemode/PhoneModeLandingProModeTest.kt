@@ -60,7 +60,6 @@ class PhoneModeLandingProModeTest {
                         collectionFolderName = "Selection",
                         isLoading = false,
                         onSelectSource = {},
-                        onSelectCollection = {},
                         onStart = {},
                         proMode = pro,
                         onProModeChange = { changes += it; pro = it },

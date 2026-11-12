@@ -37,6 +37,9 @@ class ImageRepositoryImpl @Inject constructor(
             shuffleFirstBatch = shuffleFirstBatch,
         )
 
+    override fun skippedVideoCount(folderUri: Uri): Int =
+        resolver.sourceFor(folderUri).skippedVideoCount(folderUri)
+
     override suspend fun prepareSourceFolder(folderUri: Uri): String? =
         resolver.sourceFor(folderUri).prepareSourceFolder(folderUri)
 
