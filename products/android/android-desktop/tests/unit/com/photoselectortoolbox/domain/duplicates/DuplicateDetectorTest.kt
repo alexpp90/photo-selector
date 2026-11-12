@@ -9,6 +9,7 @@ import java.io.ByteArrayInputStream
 import java.io.IOException
 import java.io.InputStream
 import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.cancelAndJoin
 import kotlinx.coroutines.flow.toList
 import kotlinx.coroutines.launch
@@ -34,7 +35,7 @@ class DuplicateDetectorTest {
         context = mockk(relaxed = true)
         contentResolver = mockk(relaxed = true)
         every { context.contentResolver } returns contentResolver
-        detector = DuplicateDetector()
+        detector = DuplicateDetector(Dispatchers.IO)
     }
 
     @Test

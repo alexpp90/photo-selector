@@ -130,8 +130,26 @@ def _shortcuts(tmp_path, folder):
     return ShortcutsDialog()
 
 
+def _main_state(state):
+    """The canvas cards (plan 1.1, 1.2): reading and done, at every scale and size."""
+
+    def factory(tmp_path, folder):
+        win = MainWindow(settings=_settings(tmp_path))
+        vm = win.viewmodel
+        vm.current_folder, vm.current_folder_name = folder, folder.name
+        vm.is_scanning = state == "reading"
+        if state == "done":
+            vm.selected_count, vm.trashed_count = 10, 1
+        vm._notify_state_changed()
+        return win
+
+    return factory
+
+
 SCREENS = {
     "main-empty": _main_empty,
+    "main-reading": _main_state("reading"),
+    "main-done": _main_state("done"),
     "main-1up": _main_mode(1),
     "main-2up": _main_mode(2),
     "main-3up": _main_mode(3),
@@ -189,11 +207,56 @@ def test_the_about_dialog_fits_at_every_scale(tmp_path):
                 probe.show_at(win, size)
                 win.show_about()
                 probe.pump(0.6)
-                failures.extend(f"about x{scale} at {size or 'minimum'}: {f}" for f in probe.layout_findings(win))
+                # The dialog is a modal layer over the window: what lies behind it (the start card's
+                # button) is not on the same layer, so the check reads the dialog itself.
+                dialog = win.get_visible_dialog()
+                assert dialog is not None, "the About dialog must be showing"
+                failures.extend(
+                    f"about x{scale} at {size or 'minimum'}: {f}"
+                    for f in probe.layout_findings(dialog, root=win)
+                )
             finally:
                 win.destroy()
                 probe.pump(0.1)
     assert not failures, "\n".join(sorted(set(failures)))
+
+
+def test_the_go_to_dialog_and_the_order_button_fit_at_every_scale(tmp_path):
+    """BL test gap: the order button beside "Photo N of M" and the Go to photo dialog (added in #915)."""
+    failures = []
+    folder = tmp_path / "shoot"
+    folder.mkdir()
+    for number in range(4):
+        (folder / f"IMG_000{number}.JPG").write_bytes(b"x")
+    for scale in SCALES:
+        probe.set_text_scale(scale)
+        for size in SIZES:
+            win = _loaded_main(tmp_path, folder, 1)
+            try:
+                probe.show_at(win, size)
+                probe.pump(0.3)
+                order = win.btn_order
+                assert order.get_mapped() and win.lbl_order.get_label() in ("Newest", "Oldest", "Name", "Blurry")
+                failures.extend(f"order x{scale} at {size or 'minimum'}: {f}" for f in probe.layout_findings(win))
+                win.show_goto_dialog()
+                probe.pump(0.6)
+                dialog = win.get_visible_dialog()
+                assert dialog is not None, "the Go to photo dialog must be showing"
+                failures.extend(
+                    f"goto x{scale} at {size or 'minimum'}: {f}"
+                    for f in probe.layout_findings(dialog, root=win)
+                )
+            finally:
+                win.destroy()
+                probe.pump(0.1)
+    assert not failures, "\n".join(sorted(set(failures)))
+
+
+def test_no_stylesheet_rule_sets_a_font_size_in_pixels():
+    """Text follows the GNOME text-scaling factor: sizes are relative (%), never a fixed px."""
+    import re
+
+    assert not re.findall(r"font-size\s*:\s*[0-9.]+px", styling.STUDIO_DARK_CSS)
 
 
 def test_the_scale_really_reaches_the_widgets():

@@ -39,7 +39,7 @@ class TestPaths(unittest.TestCase):
         try:
             if link.exists() or link.is_symlink():
                 link.unlink()
-            with tempfile.TemporaryDirectory() as outside_dir:
+            with tempfile.TemporaryDirectory(dir="/var/tmp") as outside_dir:  # outside the sandbox, which holds the default temp dir
                 link.symlink_to(outside_dir)
                 with self.assertRaises(ValueError):
                     ensure_under(link / "secret.txt", lab_tmp_root())

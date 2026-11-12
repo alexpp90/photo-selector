@@ -575,10 +575,14 @@ class LoopTest(WorkerCase):
         self.assertEqual(set(spy.call_args.kwargs), {"before_state", "after_state"})
 
     def test_the_seed_makes_the_run_reproducible(self) -> None:
+        # The run is bounded by wall time, so under load one run takes fewer steps than the
+        # other: compare the steps both runs took, never the counts.
         a = [s.action for s in self.run_with(duration=0.2, seed=7).step_results[:5]]
         shutil_rmtree(self.run_dir)
         b = [s.action for s in self.run_with(duration=0.2, seed=7).step_results[:5]]
-        self.assertEqual(a, b)
+        n = min(len(a), len(b))
+        self.assertGreaterEqual(n, 1, "neither run took a step")
+        self.assertEqual(a[:n], b[:n])
 
     def test_everything_stays_in_the_run_directory(self) -> None:
         self.run_with()
@@ -712,7 +716,7 @@ class AiWiringTest(WorkerCase):
         self.assertLessEqual(max(judge.timeouts), 1.0)
 
     def test_a_failing_judge_is_an_error_finding_and_a_failed_run(self) -> None:
-        summary = self.run_ai(FakeJudge(AIJudgeError("claude exited with 1")), duration=0.5)
+        summary = self.run_ai(FakeJudge(AIJudgeError("the stub judge failed on purpose")), duration=0.5)
         self.assertGreater(summary.total_steps, 0)
         self.assertTrue(all(s.status == "error" for s in summary.step_results))
         self.assertEqual({f.rule for f in summary.findings}, {"ai-judge-error"})

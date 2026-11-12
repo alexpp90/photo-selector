@@ -1050,7 +1050,7 @@ class SelectorViewModelTest {
         val exif = ExifData(iso = 800, aperture = 4.0)
         coEvery { imageRepository.getExifData(any(), any()) } returns exif
         val progress = MutableSharedFlow<ScanProgress>(replay = 1)
-        every { scanImagesUseCase(any()) } returns progress
+        every { scanImagesUseCase(any(), any()) } returns progress
 
         val viewModel = loadFolder(image("a"))
         assertEquals(exif, viewModel.uiState.value.currentImage?.exifData)
@@ -1073,6 +1073,28 @@ class SelectorViewModelTest {
         val current = viewModel.uiState.value.currentImage
         assertEquals("the scan rolled EXIF back", exif, current?.exifData)
         assertEquals(70.0, current?.scanResult?.sharpnessScore!!, 0.01)
+    }
+
+    @Test
+    fun `the Scan sheet's measurements reach the scan`() = runTest {
+        every { scanImagesUseCase(any(), any()) } returns MutableSharedFlow()
+        val viewModel = loadFolder(image("a"))
+        val noNoise = com.photoselectortoolbox.domain.scoring.ScanMeasures(noise = false)
+
+        viewModel.startScan(noNoise)
+
+        io.mockk.verify(exactly = 1) { scanImagesUseCase(any(), noNoise) }
+    }
+
+    @Test
+    fun `nothing ticked starts no scan`() = runTest {
+        every { scanImagesUseCase(any(), any()) } returns MutableSharedFlow()
+        val viewModel = loadFolder(image("a"))
+
+        viewModel.startScan(com.photoselectortoolbox.domain.scoring.ScanMeasures(false, false, false, false))
+
+        assertFalse(viewModel.uiState.value.isScanRunning)
+        io.mockk.verify(exactly = 0) { scanImagesUseCase(any(), any()) }
     }
 
     // ── Persisted SAF grant lifecycle ────────────────────────────────────
@@ -1777,6 +1799,37 @@ class SelectorViewModelTest {
 
         coVerify(exactly = 1) { settingsRepository.addPendingDeletes(listOf("content://test/folder/a.jpg"), any()) }
         assertEquals(mapOf("content://test/folder/a.jpg" to FileIdentity(4096, 77)), recorded)
+    }
+
+    @Test
+    fun `an in-session commit keeps another photo that is now at a deleted URI`() = runTest {
+        coEvery { settingsRepository.addPendingDeletes(any(), any()) } coAnswers {
+            pendingDeleteIdentitiesFlow.value = pendingDeleteIdentitiesFlow.value + secondArg<Map<String, FileIdentity>>()
+        }
+        val viewModel = loadFolder(image("a.jpg"), image("b.jpg"))
+        viewModel.deleteCurrentImage()
+        // Before the folder is left, a refilled card puts another photo at the same path.
+        coEvery { imageRepository.documentIdentity(any(), Uri.parse("content://test/folder/a.jpg")) } returns
+            FileIdentity(size = 9000, lastModified = 5)
+
+        viewModel.selectFolder(Uri.parse(OTHER_FOLDER_URI))
+
+        coVerify(exactly = 0) { imageRepository.deleteImage(any(), Uri.parse("content://test/folder/a.jpg")) }
+        coVerify(exactly = 0) { cacheRepository.forgetDeletedFile("content://test/folder/a.jpg") }
+        coVerify(exactly = 1) { settingsRepository.removePendingDeletes(listOf("content://test/folder/a.jpg")) }
+    }
+
+    @Test
+    fun `an in-session commit still deletes a file whose identity is unchanged`() = runTest {
+        coEvery { settingsRepository.addPendingDeletes(any(), any()) } coAnswers {
+            pendingDeleteIdentitiesFlow.value = pendingDeleteIdentitiesFlow.value + secondArg<Map<String, FileIdentity>>()
+        }
+        val viewModel = loadFolder(image("a.jpg"), image("b.jpg"))
+        viewModel.deleteCurrentImage()
+
+        viewModel.selectFolder(Uri.parse(OTHER_FOLDER_URI))
+
+        coVerify(exactly = 1) { imageRepository.deleteImage(any(), Uri.parse("content://test/folder/a.jpg")) }
     }
 
     @Test

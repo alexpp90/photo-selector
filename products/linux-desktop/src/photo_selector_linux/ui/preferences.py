@@ -249,7 +249,7 @@ class PreferencesDialog(Adw.PreferencesWindow if HAS_GI else object):
 
         self.row_auto_advance = Adw.SwitchRow()
         self.row_auto_advance.set_title("Auto-Advance on Culling")
-        self.row_auto_advance.set_subtitle("Move to next candidate after Move, Copy, or Trash")
+        self.row_auto_advance.set_subtitle("Move to next photo after Move, Copy, or Trash")
         self.row_auto_advance.set_active(self.settings.auto_advance)
         self.row_auto_advance.connect(
             "notify::active",
@@ -266,7 +266,7 @@ class PreferencesDialog(Adw.PreferencesWindow if HAS_GI else object):
         page_score.set_icon_name("image-filter-symbolic")
 
         group_thresh = Adw.PreferencesGroup()
-        group_thresh.set_title("Focus Sharpness Thresholds")
+        group_thresh.set_title("Sharpness Thresholds")
 
         self.row_blurry_cutoff = Adw.ActionRow()
         self.row_blurry_cutoff.set_title(markup_safe(f"Blurry Threshold (< {self.settings.blurry_threshold:.1f})"))

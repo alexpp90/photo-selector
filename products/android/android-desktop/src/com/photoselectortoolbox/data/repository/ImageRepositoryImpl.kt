@@ -26,18 +26,19 @@ import com.photoselectortoolbox.data.model.FolderDescription
 import com.photoselectortoolbox.data.model.ImageDimensions
 import com.photoselectortoolbox.data.model.ImageItem
 import com.photoselectortoolbox.data.source.LocalImageSource
+import com.photoselectortoolbox.di.IoDispatcher
 import com.photoselectortoolbox.domain.curation.DestinationSettings
 import com.photoselectortoolbox.domain.curation.FileIdentity
 import com.photoselectortoolbox.domain.curation.FolderKey
 import com.photoselectortoolbox.domain.curation.OpenedFolder
 import com.photoselectortoolbox.domain.curation.SelectionDestinationPlan
+import com.photoselectortoolbox.domain.curation.TransferSpace
 import com.photoselectortoolbox.domain.format.DestinationLabels
 import com.photoselectortoolbox.domain.format.ImageFormats
 import javax.inject.Inject
 import javax.inject.Singleton
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineDispatcher
-import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.firstOrNull
@@ -51,6 +52,7 @@ class ImageRepositoryImpl @Inject constructor(
     private val mediaStoreReader: MediaStoreReader,
     private val settingsRepository: SettingsRepository,
     private val folderAccessManager: FolderAccessManager,
+    @IoDispatcher ioDispatcher: CoroutineDispatcher,
 ) : ImageRepository {
 
     constructor(
@@ -58,12 +60,14 @@ class ImageRepositoryImpl @Inject constructor(
         androidExifReader: AndroidExifReader,
         mediaStoreReader: MediaStoreReader,
         settingsRepository: SettingsRepository,
+        ioDispatcher: CoroutineDispatcher,
     ) : this(
         localImageSource = localImageSource,
         androidExifReader = androidExifReader,
         mediaStoreReader = mediaStoreReader,
         settingsRepository = settingsRepository,
         folderAccessManager = FolderAccessManager(),
+        ioDispatcher = ioDispatcher,
     )
 
     companion object {
@@ -154,11 +158,15 @@ class ImageRepositoryImpl @Inject constructor(
     internal val engine = SafTransferEngine(SUBFOLDER_RULE, TRANSFER_POLICY)
 
     /** Dispatcher for the repository's own I/O; setting it also sets the engine's (tests). */
-    internal var ioDispatcher: CoroutineDispatcher = Dispatchers.IO
+    internal var ioDispatcher: CoroutineDispatcher = ioDispatcher
         set(value) {
             field = value
             engine.ioDispatcher = value
         }
+
+    init {
+        engine.ioDispatcher = ioDispatcher
+    }
 
     /**
      * Persist the grant, then confirm the folder resolves and still exists.
@@ -389,6 +397,7 @@ class ImageRepositoryImpl @Inject constructor(
             sorting = sorting,
             isMove = isMove,
             parentDocumentId = item.parentDocumentId,
+            neededBytes = item.allFiles.sumOf { it.fileSize.coerceAtLeast(0L) },
         )
         return engine.aggregateBundleResults(
             primarySourceUri = item.uri,
@@ -444,6 +453,8 @@ class ImageRepositoryImpl @Inject constructor(
         sorting: Boolean,
         isMove: Boolean,
         parentDocumentId: String? = null,
+        /** The bundle's size from the listing, checked against the destination's free space; null: no check. */
+        neededBytes: Long? = null,
     ): List<FileOperationResult> {
         if (sourceUris.isEmpty()) return emptyList()
         val destination = try {
@@ -454,6 +465,16 @@ class ImageRepositoryImpl @Inject constructor(
             Log.e(TAG, "Failed to transfer bundle: $sourceUris", e)
             return sourceUris.map { FileOperationResult.failure(it.toString(), e.message, parentDocumentId) }
         }
+        if (neededBytes != null && neededBytes > 0L) {
+            val (source, target) = withContext(ioDispatcher) {
+                volumeOf(context, sourceUris.first()) to volumeOf(context, destination.rootUri)
+            }
+            if (TransferSpace.refuses(neededBytes, source, target, isMove)) {
+                val message = TransferSpace.refusalMessage(neededBytes, target?.availableBytes ?: 0L, isMove)
+                Log.w(TAG, "$message (${destination.rootUri})")
+                return sourceUris.map { FileOperationResult.failure(it.toString(), message, parentDocumentId) }
+            }
+        }
         return engine.transferBundle(
             storage = SafStorage.of(context),
             sourceUris = sourceUris,
@@ -462,6 +483,43 @@ class ImageRepositoryImpl @Inject constructor(
             isMove = isMove,
             parentDocumentId = parentDocumentId,
         )
+    }
+
+    /**
+     * The provider root [uri] lives on and the free space it reports, from one query of the
+     * provider's roots. Null when the provider cannot be asked or the root is not found: the
+     * transfer then goes ahead unchecked, as it always did.
+     */
+    private fun volumeOf(context: Context, uri: Uri): TransferSpace.Volume? {
+        val authority = uri.authority ?: return null
+        return try {
+            val documentId = if (DocumentsContract.isDocumentUri(context, uri)) {
+                DocumentsContract.getDocumentId(uri)
+            } else {
+                DocumentsContract.getTreeDocumentId(uri)
+            }
+            val roots = mutableMapOf<String, Long?>()
+            context.contentResolver.query(
+                DocumentsContract.buildRootsUri(authority),
+                arrayOf(DocumentsContract.Root.COLUMN_DOCUMENT_ID, DocumentsContract.Root.COLUMN_AVAILABLE_BYTES),
+                null,
+                null,
+                null,
+            )?.use { cursor ->
+                while (cursor.moveToNext()) {
+                    val rootDoc = cursor.getString(0) ?: continue
+                    roots[rootDoc] = if (cursor.isNull(1)) null else cursor.getLong(1)
+                }
+            }
+            val root = TransferSpace.rootFor(documentId, roots.keys) ?: return null
+            TransferSpace.Volume(authority, root, roots[root])
+        } catch (e: CancellationException) {
+            throw e
+        } catch (e: Exception) {
+            // Best effort: a provider that cannot report its roots is not refused (see refuses()).
+            Log.w(TAG, "Could not read the free space for $uri", e)
+            null
+        }
     }
 
     /**

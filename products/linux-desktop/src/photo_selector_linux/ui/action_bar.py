@@ -7,6 +7,7 @@ Adheres to:
 from __future__ import annotations
 
 import logging
+from typing import Callable, Optional
 
 try:
     import gi
@@ -52,6 +53,8 @@ class ActionBarView(Gtk.ActionBar if HAS_GI else object):
     def __init__(self, viewmodel):
         self.viewmodel = viewmodel
         self.selected_label_text: str = "0 Selected"
+        #: Called by the Selected pill; the window wires it to Show in Files.
+        self.on_open_selection: Optional[Callable[[], None]] = None
         self.trashed_label_text: str = "0 Trashed"
         self.remaining_label_text: str = "0 Remaining"
         self.selected_css_class: str = "status-counter-badge"
@@ -156,7 +159,18 @@ class ActionBarView(Gtk.ActionBar if HAS_GI else object):
         self.lbl_remaining = Gtk.Label(label=self.remaining_label_text)
         self.lbl_remaining.add_css_class(self.remaining_css_class)
 
-        self.counter_box.append(self.lbl_selected)
+        # The Selected pill opens the Selection folder (plan 1.6): a flat button around the label.
+        self.btn_selected = Gtk.Button()
+        self.btn_selected.set_name("btn_selected")
+        self.btn_selected.add_css_class("flat")
+        self.btn_selected.set_child(self.lbl_selected)
+        self.btn_selected.set_focus_on_click(False)
+        self.btn_selected.set_tooltip_text("Open Selection")
+        self.btn_selected.update_property(
+            [Gtk.AccessibleProperty.LABEL], ["Selected, open Selection folder"]
+        )
+        self.btn_selected.connect("clicked", self._on_selected_clicked)
+        self.counter_box.append(self.btn_selected)
         self.counter_box.append(self.lbl_trashed)
         self.counter_box.append(self.lbl_remaining)
         self.pack_start(self.counter_box)
@@ -257,6 +271,10 @@ class ActionBarView(Gtk.ActionBar if HAS_GI else object):
     def _on_state_changed(self, vm) -> None:
         self._update_state()
 
+    def _on_selected_clicked(self, _button) -> None:
+        if self.on_open_selection is not None:
+            self.on_open_selection()
+
     def _update_state(self) -> None:
         sel = self.viewmodel.selected_count
         trs = self.viewmodel.trashed_count
@@ -296,6 +314,7 @@ class ActionBarView(Gtk.ActionBar if HAS_GI else object):
             return
 
         self.lbl_selected.set_label(self.selected_label_text)
+        self.btn_selected.set_sensitive(self.viewmodel.selected_count > 0)
         self.lbl_selected.set_css_classes([self.selected_css_class])
         self.lbl_trashed.set_label(self.trashed_label_text)
         self.lbl_trashed.set_css_classes([self.trashed_css_class])

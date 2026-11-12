@@ -160,7 +160,7 @@ def test_the_harvest_finds_the_messages_the_product_shows():
     texts = [t for _w, _s, t in MESSAGES]
     assert len(MESSAGES) >= 20, texts
     assert any(t.endswith(" to Trash") for t in texts)
-    assert any(t.endswith(" to Selection1/") for t in texts)
+    assert any(t.endswith(" to Selection1") for t in texts)  # "... to {place}", place ends in "/"
     assert any(s == "error" for _w, s, _t in MESSAGES)
     assert any(s == "stranded" for _w, s, _t in MESSAGES)
     assert any(s == "toast" for _w, s, _t in MESSAGES)

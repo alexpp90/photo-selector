@@ -702,6 +702,43 @@ class TestLinuxCommands(unittest.TestCase):
         self.assertEqual(sent[:3], ["xdotool", "key", "--clearmodifiers"])
         return sent[3]
 
+    def _checkpointing_app(self, pictures: list[bool]) -> None:
+        """An app answering `lab-checkpoint`; `pictures` says per request whether it managed a screenshot."""
+        art = self.driver.artifacts_dir
+        art.mkdir(parents=True, exist_ok=True)
+        base = self.xdo
+        requests: list[str] = []
+
+        def exec_fn(cmd, env):
+            if cmd[:2] == ["gapplication", "action"]:
+                name = cmd[-1].strip("'")
+                stem = f"{len(requests) + 1:02d}_{name}"
+                if pictures[len(requests)]:
+                    (art / f"{stem}.png").write_bytes(b"\x89PNG\r\n")
+                (art / f"{stem}.tree.json").write_text(json.dumps({"platform": "linux", "window": {"w": 9, "h": 9}, "nodes": [
+                    {"id": "b", "parent": None, "role": "button", "name": "", "bounds": [0, 0, 5, 5], "interactive": True, "visible": True}]}))
+                (art / f"{stem}.state.json").write_text(json.dumps({"current_index": 0, "total": 1}))
+                (art / f"{stem}.timing.json").write_text("{}")
+                requests.append(name)
+                return subprocess.CompletedProcess(cmd, 0, "", "")
+            return base(cmd, env)
+
+        self.driver.exec_fn = exec_fn
+        self.driver._app_proc = types.SimpleNamespace(poll=lambda: None)
+        self.requests = requests
+
+    def test_a_checkpoint_the_app_could_not_photograph_is_asked_for_again(self) -> None:
+        self._checkpointing_app([False, True])  # a busy host: the first snapshot fails
+        state = self.driver.capture_state()
+        self.assertTrue(state.screenshot_bytes.startswith(b"\x89PNG"))
+        self.assertEqual(self.requests, ["s1", "s2"])
+
+    def test_a_checkpoint_that_never_gets_a_picture_is_reported(self) -> None:
+        self._checkpointing_app([False] * 5)
+        with self.assertRaises(DriverError):
+            self.driver.capture_state()
+        self.assertEqual(len(self.requests), LinuxDeviceDriver.SCREENSHOT_ATTEMPTS)
+
     def test_restaging_replaces_the_working_folder_and_restarts_the_app(self) -> None:
         work = self.tmp / "work"
         work.mkdir()

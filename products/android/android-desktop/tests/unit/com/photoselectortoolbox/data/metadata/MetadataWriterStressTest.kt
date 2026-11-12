@@ -31,7 +31,7 @@ class MetadataWriterStressTest {
     @get:Rule
     val tempFolder = TemporaryFolder()
 
-    private val writer = MetadataWriterImpl()
+    private val writer = MetadataWriterImpl(Dispatchers.IO)
     private val reader = AndroidExifReader()
 
     // -------------------------------------------------------------
