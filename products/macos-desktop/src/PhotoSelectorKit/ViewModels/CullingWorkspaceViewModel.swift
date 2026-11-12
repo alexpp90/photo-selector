@@ -47,7 +47,9 @@ public final class CullingWorkspaceViewModel: ObservableObject {
     }
     @Published public var isDropTargeted: Bool = false
     @Published public var currentToast: ToastMessage?
-    @Published public private(set) var rootDirectoryURL: URL?
+    @Published public private(set) var rootDirectoryURL: URL? { didSet { workingDestinationCache = nil } }
+    /// The working-folder destination of the opened folder, resolved once (see `cachedDestination`).
+    var workingDestinationCache: (key: String, resolved: ResolvedCullingDestination)?
     @Published public private(set) var isLoading: Bool = false
     @Published public var isDuplicateFinderPresented: Bool = false
     @Published public var isLibraryStatisticsPresented: Bool = false
@@ -940,7 +942,7 @@ public final class CullingWorkspaceViewModel: ObservableObject {
         // The same resolution the Settings text shows (CullingDestinationResolver). A custom folder
         // that is gone or unwritable refuses the Move/Copy: it must never silently create that path
         // (an unplugged SSD's mount point would otherwise be recreated on the system volume).
-        let destination = CullingDestinationResolver.resolve(defaults: userDefaults, openFolderURL: sourceRootURL)
+        let destination = cachedDestination(openFolderURL: sourceRootURL)
         let effectiveRootURL: URL
         if action == .move || action == .copy {
             if destination.problem == .openedFolderIsSelection {

@@ -124,3 +124,33 @@ struct OpenedSelectionFolderTests {
         #expect(resolved.isUsable)
     }
 }
+
+@Suite("The Selection-folder guard is computed once per folder and name")
+struct SelectionGuardCacheTests {
+    @Test("A changed Selection name recomputes; the cull path reuses the answer otherwise")
+    @MainActor
+    func renameRecomputes() throws {
+        let suite = "com.photoselector.tests.guardcache.\(UUID().uuidString)"
+        let defaults = UserDefaults(suiteName: suite)!
+        defer { defaults.removePersistentDomain(forName: suite) }
+        let parent = FileManager.default.temporaryDirectory.standardizedFileURL.resolvingSymlinksInPath()
+            .appendingPathComponent("GuardCache_\(UUID().uuidString)", isDirectory: true)
+        let opened = parent.appendingPathComponent("Keepers", isDirectory: true)
+        try FileManager.default.createDirectory(at: opened, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: parent) }
+        let vm = CullingWorkspaceViewModel(userDefaults: defaults)
+        vm.setPhotos([], rootURL: opened)
+
+        #expect(vm.cachedDestination(openFolderURL: opened).problem == nil)  // name "Selection": not a Selection folder
+        #expect(vm.workingDestinationCache != nil)
+        // The marker appears on disk: the cached answer is reused, no new probe.
+        FileManager.default.createFile(atPath: opened.appendingPathComponent(DirectoryScanner.selectionMarkerFilename).path, contents: Data())
+        #expect(vm.cachedDestination(openFolderURL: opened).problem == nil)
+        // The destination name changes to the opened folder's name: recomputed, now refused.
+        defaults.cullingDestinationFolderName = "Keepers"
+        #expect(vm.cachedDestination(openFolderURL: opened).problem == .openedFolderIsSelection)
+        // Reopening the folder drops the cache.
+        vm.setPhotos([], rootURL: opened)
+        #expect(vm.workingDestinationCache == nil)
+    }
+}

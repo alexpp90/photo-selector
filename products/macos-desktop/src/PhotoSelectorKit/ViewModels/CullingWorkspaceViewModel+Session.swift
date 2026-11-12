@@ -17,6 +17,23 @@ extension CullingWorkspaceViewModel {
         CullingDestinationResolver.resolve(defaults: userDefaults, openFolderURL: rootDirectoryURL)
     }
 
+    /// The destination for a cull. The "opened folder is a Selection folder" test touches the disk
+    /// (symlink resolution, marker file), which the per-cull path must not do (rapid-fire SLA), so
+    /// the working-folder answer is computed once per opened folder and Selection name and reused;
+    /// a changed Settings name changes the key and recomputes. A custom folder is probed live on
+    /// every cull: an unplugged volume must refuse at once.
+    func cachedDestination(openFolderURL: URL) -> ResolvedCullingDestination {
+        guard userDefaults.cullingDestinationMode == .workingFolder else {
+            return CullingDestinationResolver.resolve(defaults: userDefaults, openFolderURL: openFolderURL)
+        }
+        let name = AppSettings.sanitizeDestinationFolderName(userDefaults.cullingDestinationFolderName)
+        let key = "\(openFolderURL.path)|\(name)"
+        if let cache = workingDestinationCache, cache.key == key { return cache.resolved }
+        let resolved = CullingDestinationResolver.resolve(defaults: userDefaults, openFolderURL: openFolderURL)
+        workingDestinationCache = (key, resolved)
+        return resolved
+    }
+
     /// The same path text Settings shows (REQ-MAC-SETTINGS.02), `~`-abbreviated; nil with no folder open.
     public var destinationPathText: String? {
         CullingDestinationResolver.summary(of: resolvedDestination).selectionPathText
