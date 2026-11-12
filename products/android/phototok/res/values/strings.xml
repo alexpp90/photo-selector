@@ -36,6 +36,7 @@
     <string name="cd_swipe_favourite">Mark as favourite</string>
     <string name="cd_favourite_in_system">Also a system favourite</string>
     <string name="cd_favourite_only_here">Only in Jackpix</string>
+    <string name="cd_open_favourites">Open Favourites</string>
     <string name="cd_swipe_copy">Copy to %1$s</string>
     <string name="cd_swipe_move">Move to %1$s</string>
     <string name="cd_swipe_delete">Delete photo</string>
@@ -44,8 +45,8 @@
     <string name="guide_camera_info">Camera info</string>
     <string name="guide_card_done">Card done</string>
     <string name="guide_reload">Reload</string>
-    <string name="guide_help">Help</string>
     <string name="guide_surprise">Surprise me</string>
+    <string name="guide_help">Help</string>
     <string name="guide_info">Info</string>
     <string name="guide_settings">Settings</string>
     <string name="guide_sources">Change folder</string>
@@ -171,8 +172,8 @@
     <string name="hint_title_filter_raw">RAW only</string>
     <string name="hint_title_filter_jpeg">JPEG only</string>
     <string name="hint_title_filter_active">Filter active</string>
-    <string name="hint_body_filter_mostly_jpeg">Most photos here are JPEG.</string>
     <string name="hint_title_surprise">Unseen photos first</string>
+    <string name="hint_body_filter_mostly_jpeg">Most photos here are JPEG.</string>
     <string name="hint_body_filter_mostly_raw">Most photos here are RAW.</string>
     <string name="hint_body_filter_hidden">Some photos are hidden.</string>
 
@@ -196,8 +197,8 @@
     <string name="snackbar_not_copied">Not copied</string>
     <string name="snackbar_card_disconnected">Card disconnected</string>
     <string name="snackbar_safe_to_unplug">Safe to unplug</string>
-    <string name="snackbar_rejects_deleted">Rejects deleted</string>
     <string name="snackbar_all_seen">All seen</string>
+    <string name="snackbar_rejects_deleted">Rejects deleted</string>
     <string name="snackbar_deleted_count">%1$d deleted</string>
     <string name="snackbar_photo_deleted">Photo deleted</string>
     <string name="snackbar_not_deleted">%1$d not deleted</string>

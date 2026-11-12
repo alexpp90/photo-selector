@@ -7,6 +7,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 ## [Unreleased]
 
 ### Added
+- Tap the ★ Favourite chip on a photo to open your Favourites.
 - **Surprise me** in Casual: on a phone or cloud folder, the shuffle icon in the top bar deals the folder once with the photos you have not seen yet first, to rediscover old photos. Tap it again, or open the folder again, and it is newest first. SD cards and cameras keep their order.
 - Deleted phone photos go to Android's Trash (Android 11 and later), where your gallery app can restore them for about 30 days. When you leave the folder, Android asks once for the whole batch; declining keeps the photos ("N not deleted", **Retry**). The delete confirmation says per source what happens: "Move to Trash?" on the phone, "Delete permanently?" on an SD card, USB, camera or cloud folder, which have no trash.
 - The "Done with this card" sheet now shows how many of the card's photos are safe on the phone or another drive ("N copied"; "0 copied" with a warning sign when none are). A copy into the card's own Selection folder stays on the card and no longer counts, and the Delete all warning reads "Photos never copied are lost."

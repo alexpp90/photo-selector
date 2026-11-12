@@ -162,7 +162,7 @@ fun PhoneModeScreen(
     val colors = MaterialTheme.colorScheme
     val context = LocalContext.current
 
-    val openSelectionViewer = {
+    val openSelectionViewerOn: (SelectionViewerTab) -> Unit = { tab ->
         viewModel.finalizePendingDelete()
         selectionViewModel.openWithFavourites(
             targetFolderUri = uiState.collectionFolderUri ?: uiState.sourceFolderUri,
@@ -175,6 +175,10 @@ fun PhoneModeScreen(
         )
         viewModel.onSelectionViewerOpened()
     }
+    // Open where the user's swipe right puts photos: ★ -> Favourites, copy/move -> Selection.
+    val openSelectionViewer = { openSelectionViewerOn(SelectionViewerLogic.preferredTab(uiState.swipeRightVerb)) }
+    // The lit ★ chip on a photo opens the Favourites list, whatever swipe right fills.
+    val openFavourites = { openSelectionViewerOn(SelectionViewerTab.FAVOURITES) }
 
     // The bar's Share button and the long-press menu take the same path.
     val shareCurrentPhoto = {
@@ -455,6 +459,7 @@ fun PhoneModeScreen(
                             viewModel.buildCurrentOpenWithIntent()?.let { context.startActivity(it) }
                         },
                         onToggleFavourite = viewModel::toggleCurrentFavourite,
+                        onOpenFavourites = openFavourites,
                         onCopyToSelection = viewModel::copyCurrentToSelection,
                         // A cloud provider cannot move; the ViewModel would copy instead.
                         onMoveToSelection = if (uiState.isCloudSource) null else viewModel::moveCurrentToSelection,
@@ -477,13 +482,13 @@ fun PhoneModeScreen(
                     onReload = { viewModel.reloadSourceFolder() },
                     onInfo = { viewModel.toggleExifOverlay() },
                     onSettings = { showSettingsSheet = true },
+                    surpriseMe = uiState.surpriseMeShown,
+                    onSurpriseMe = viewModel::toggleSurpriseMe,
                 )
             }
         } else {
             // ── Portrait: viewer / loading / landing ────────────────────────
             if (isViewing) {
-                    surpriseMe = uiState.surpriseMeShown,
-                    onSurpriseMe = viewModel::toggleSurpriseMe,
                 PhoneModeViewer(
                     images = uiState.images,
                     currentIndex = uiState.currentIndex,
@@ -511,6 +516,7 @@ fun PhoneModeScreen(
                         viewModel.buildCurrentOpenWithIntent()?.let { context.startActivity(it) }
                     },
                     onToggleFavourite = viewModel::toggleCurrentFavourite,
+                    onOpenFavourites = openFavourites,
                     onCopyToSelection = viewModel::copyCurrentToSelection,
                     // A cloud provider cannot move; the ViewModel would copy instead.
                     onMoveToSelection = if (uiState.isCloudSource) null else viewModel::moveCurrentToSelection,
@@ -656,14 +662,14 @@ fun PhoneModeScreen(
                     .onSizeChanged { topBarHeightPx = it.height },
                 anchors = guideAnchors,
                 cameraInfoEnabled = uiState.proMode,
+                surpriseMe = uiState.surpriseMeShown,
+                onSurpriseMe = viewModel::toggleSurpriseMe,
             )
 
             // ── Bottom action bar ────────────────────────────────────
             if (isViewing) {
                 ViewerBottomBar(
                     canRevert = uiState.canRevert,
-                surpriseMe = uiState.surpriseMeShown,
-                onSurpriseMe = viewModel::toggleSurpriseMe,
                     onRevert = { viewModel.revertDelete() },
                     onJumpToSelection = openSelectionViewer,
                     onShare = shareCurrentPhoto,
@@ -871,14 +877,14 @@ internal fun LandscapeRightPanel(
     onReload: () -> Unit,
     onInfo: () -> Unit,
     onSettings: () -> Unit,
+    surpriseMe: Boolean? = null,
+    onSurpriseMe: () -> Unit = {},
 ) {
     val colors = MaterialTheme.colorScheme
     Column(
         modifier = Modifier
             .fillMaxHeight()
             .background(colors.surfaceContainerLowest.copy(alpha = 0.8f))
-    surpriseMe: Boolean? = null,
-    onSurpriseMe: () -> Unit = {},
             .guideAnchor(anchors, GuideAnchor.RIGHT_PANEL)
             .windowInsetsPadding(
                 WindowInsets.safeDrawing.only(
@@ -899,14 +905,14 @@ internal fun LandscapeRightPanel(
             onReload = onReload,
             onInfo = onInfo,
             onSettings = onSettings,
+            surpriseMe = surpriseMe,
+            onSurpriseMe = onSurpriseMe,
         )
 
         val exif = currentImage?.exifData
         if (exifOn && exif != null) {
             ExifSidebarPanel(
                 exif = exif,
-            surpriseMe = surpriseMe,
-            onSurpriseMe = onSurpriseMe,
                 fileName = currentImage.fileName,
                 modifier = Modifier.weight(1f, fill = false)
             )
@@ -1054,27 +1060,21 @@ internal fun LandscapeRightButtons(
     onSettings: () -> Unit,
     /** Camera info is Pro only: in Casual there is no Info button. */
     cameraInfoEnabled: Boolean = true,
+    /** Casual "surprise me" (phone, cloud): null where it is not offered. */
+    surpriseMe: Boolean? = null,
+    onSurpriseMe: () -> Unit = {},
 ) {
     Column(horizontalAlignment = Alignment.CenterHorizontally) {
         TopBarIconButton(
             icon = Icons.Default.Sync,
             name = stringResource(R.string.cd_reload),
             tint = tint,
-    /** Casual "surprise me" (phone, cloud): null where it is not offered. */
-    surpriseMe: Boolean? = null,
-    onSurpriseMe: () -> Unit = {},
             onClick = onReload,
             modifier = Modifier
                 .size(PhoneModeChromeMetrics.TOP_BAR_BUTTON_SIZE)
                 .guideAnchor(anchors, GuideAnchor.RELOAD)
                 .testTag("landscape_reload_folder_button"),
         )
-        if (cameraInfoEnabled) {
-            TopBarIconButton(
-                icon = Icons.Default.Info,
-                name = stringResource(PhoneModeTopBarDescriptions.INFO),
-                tint = if (exifOn) MaterialTheme.colorScheme.primary else tint,
-                onClick = onInfo,
         if (surpriseMe != null) {
             SurpriseMeButton(
                 on = surpriseMe,
@@ -1086,6 +1086,12 @@ internal fun LandscapeRightButtons(
                     .testTag("landscape_surprise_me_button"),
             )
         }
+        if (cameraInfoEnabled) {
+            TopBarIconButton(
+                icon = Icons.Default.Info,
+                name = stringResource(PhoneModeTopBarDescriptions.INFO),
+                tint = if (exifOn) MaterialTheme.colorScheme.primary else tint,
+                onClick = onInfo,
                 modifier = Modifier
                     .size(PhoneModeChromeMetrics.TOP_BAR_BUTTON_SIZE)
                     .guideAnchor(anchors, GuideAnchor.INFO)
