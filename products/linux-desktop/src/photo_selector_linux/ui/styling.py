@@ -56,16 +56,13 @@ def compute_sharpness_goodness(sharpness_score: float) -> float:
 
 
 def get_slot_role_label(comparison_mode: int, slot_offset: int, is_active: bool = False) -> str:
-    """Return the contextual role badge label for a viewport slot."""
-    if comparison_mode == 3:
-        if slot_offset < 0:
-            return "PREVIOUS"
-        if slot_offset == 0 or is_active:
-            return "ACTIVE"
-        return "NEXT"
-    if comparison_mode == 2:
-        return "CHAMPION" if (slot_offset == 0 or is_active) else "CHALLENGER"
-    return "ACTIVE"
+    """Return the contextual role badge label for a viewport slot.
+
+    One vocabulary in both compare views: ACTIVE, PREVIOUS, NEXT. There is no winner-stays rule.
+    """
+    if comparison_mode == 1 or slot_offset == 0 or is_active:
+        return "ACTIVE"
+    return "PREVIOUS" if slot_offset < 0 else "NEXT"
 
 
 def format_companion_badges(

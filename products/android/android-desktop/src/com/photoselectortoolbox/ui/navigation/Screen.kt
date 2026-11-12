@@ -53,7 +53,7 @@ sealed class Screen(
 
     data object Settings : Screen(
         route = "settings",
-        meaning = "Where frames go, bursts, fullscreen, cache, about.",
+        meaning = "Where frames go, bursts, threads, fullscreen, cache.",
         icon = Icons.Default.Settings,
         label = "Setup",
     )

@@ -30,6 +30,7 @@ ORDER_NEWEST = "newest"
 ORDER_OLDEST = "oldest"
 ORDER_NAME = "natural"
 ORDER_LOWEST_SHARPNESS = "lowest_sharpness_first"
+RECENT_FOLDERS_MAX = 5
 PERSISTED_ORDERS = (ORDER_NEWEST, ORDER_OLDEST, ORDER_NAME)
 
 
@@ -65,6 +66,9 @@ class SettingsStore:
         #: The order a folder opens in. New installs open newest first; an install that has a
         #: settings file without this key keeps the file-name order it always had.
         self.view_order: str = ORDER_NEWEST
+        #: The folders opened last, newest first (at most ``RECENT_FOLDERS_MAX``). The start card
+        #: lists them and the folder dialog starts in the first. Absent in settings of 0.2.0.
+        self.recent_folders: List[str] = []
         #: Keys this version does not know (written by a newer one): kept and written back, so
         #: going back and forth between versions never loses a setting.
         self._unknown: Dict[str, Any] = {}
@@ -103,6 +107,7 @@ class SettingsStore:
             "external_destination_folder": self.external_destination_folder,
             "stop_sharpness_threshold": self.stop_sharpness_threshold,
             "view_order": self.view_order,
+            "recent_folders": list(self.recent_folders),
         }
 
     def _apply_dict(self, data: Dict[str, Any]) -> None:
@@ -138,6 +143,12 @@ class SettingsStore:
             self.destination_mode = mode if mode in MODES else MODE_WORKING
         if self.destination_mode == MODE_CUSTOM and not self.external_destination_folder:
             self.destination_mode = MODE_WORKING
+        if isinstance(data.get("recent_folders"), list):
+            seen: List[str] = []
+            for entry in data["recent_folders"]:
+                if isinstance(entry, str) and entry.strip() and entry not in seen:
+                    seen.append(entry)
+            self.recent_folders = seen[:RECENT_FOLDERS_MAX]
         if data.get("view_order") in PERSISTED_ORDERS:
             self.view_order = data["view_order"]
         if "stop_sharpness_threshold" in data:
@@ -196,6 +207,11 @@ class SettingsStore:
                 temp.unlink()
             except OSError:
                 pass
+
+    def remember_folder(self, folder: Path) -> None:
+        """Put ``folder`` first in the recent folders (once, at most five) and save."""
+        entry = str(folder)
+        self.update(recent_folders=[entry] + [f for f in self.recent_folders if f != entry])
 
     def update(self, **kwargs: Any) -> None:
         """Update one or more settings, persist to disk, and notify observers."""

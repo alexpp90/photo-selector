@@ -15,7 +15,10 @@ parity on large screens.
   leading lines and visual weight of the photo shown; star ratings, a reject flag and a star
   filter that limits Learn only (Cull always shows every photo).
 - **Stats** and **Dupes** — EXIF charts of the open folder and a finder for byte-identical
-  copies (it never lets you delete the last copy of a photo). **Setup** holds the settings.
+  copies (it never lets you delete the last copy of a photo). A delete there is held like one in
+  Cull: UNDO brings the copies back until you leave Dupes. **Setup** holds the settings.
+- **Scan** — choose which measurements run (focus, noise, highlight and shadow clipping); an
+  unticked one is not computed and shows no value.
 - A Room-backed score cache; ratings are written into the photo (embedded in a JPEG, an `.xmp`
   sidecar beside RAW and TIFF).
 - Interface language: English only for now.

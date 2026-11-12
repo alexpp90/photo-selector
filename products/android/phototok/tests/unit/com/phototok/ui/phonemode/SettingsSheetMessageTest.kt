@@ -49,7 +49,7 @@ class SettingsSheetMessageTest {
         var show: ((UiText) -> Unit)? = null
         rule.setContent {
             PhotoTokTheme {
-                SettingsSheetHost(visible = visible, onDismissRequest = { visible = false }) { showMessage ->
+                SettingsSheetHost(visible = visible, onDismissRequest = { visible = false }) { showMessage, _ ->
                     show = showMessage
                     Text("settings") // ui-text: ignore test fixture
                 }

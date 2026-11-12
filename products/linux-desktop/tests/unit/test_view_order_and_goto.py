@@ -215,20 +215,22 @@ def _window(tmp_path: Path, order: str = "newest"):
 
 
 @needs_gtk
-def test_the_menu_offers_the_four_orders_and_the_indicator_shows_only_a_non_default_one(tmp_path: Path):
+def test_the_menu_offers_the_four_orders_and_the_word_beside_the_counter_names_the_one_in_use(tmp_path: Path):
     from gi.repository import GLib
 
     from photo_selector_linux.ui.window import VIEW_ORDER_LABELS
 
     assert list(VIEW_ORDER_LABELS) == ["Newest first", "Oldest first", "File name", "Lowest sharpness first"]
     win = _window(tmp_path)
-    assert win.img_order.get_opacity() == 0.0 and not win.img_order.get_can_target()
+    assert win.lbl_order.get_label() == "Newest"  # the order in use is always in view (plan 1.7)
     win.lookup_action("view_order").activate(GLib.Variant.new_string("oldest"))
     assert win.viewmodel.sort_order == "oldest"
-    assert win.img_order.get_opacity() == 1.0
-    assert win.img_order.get_tooltip_text() == "Order: Oldest first"
-    win.lookup_action("view_order").activate(GLib.Variant.new_string("newest"))
-    assert win.img_order.get_opacity() == 0.0
+    assert win.lbl_order.get_label() == "Oldest"
+    assert win.btn_order.get_tooltip_text() == "Order: Oldest first (S)"
+    for order, word in (("natural", "Name"), ("lowest_sharpness_first", "Blurry"), ("newest", "Newest")):
+        win.lookup_action("view_order").activate(GLib.Variant.new_string(order))
+        assert win.lbl_order.get_label() == word
+    assert win.btn_order.get_menu_model() is not None
     win.destroy()
 
 
@@ -291,10 +293,10 @@ def test_f_toggles_full_screen_and_escape_leaves_zoom_before_full_screen(tmp_pat
 
 
 @needs_gtk
-def test_s_opens_the_main_menu_with_the_view_order(tmp_path: Path):
+def test_s_opens_the_order_menu(tmp_path: Path):
     win = _window(tmp_path)
     opened = []
-    win.menu_button.popup = lambda: opened.append(True)
+    win.btn_order.popup = lambda: opened.append(True)
     assert win.router.engine.dispatch(0x73, 0) is True
     assert opened == [True]
     win.destroy()
@@ -311,3 +313,29 @@ def test_equal_modification_times_fall_back_to_the_file_name(tmp_path: Path):
         vm = _vm(tmp_path, order=order)
         vm.load_directory(folder)
         assert _names(vm) == ["DSC_0001.JPG", "DSC_0002.JPG", "DSC_0010.JPG"], order
+
+
+@needs_gtk
+def test_full_screen_hides_no_chrome_so_every_toggle_stays_reachable(tmp_path: Path):
+    """Backlog 2026-11-11 (full-screen modes): Blitzlens's full screen is the window manager's; it
+    hides no container. Every control that governs something drawn there (the info card's key and
+    the order, zoom and full-screen keys) stays on the surface or on its key in that mode."""
+    win = _window(tmp_path)
+    win.present()
+    calls = []
+    win.is_fullscreen = lambda: bool(calls) and calls[-1] == "fullscreen"
+    win.fullscreen = lambda: calls.append("fullscreen")
+    win.unfullscreen = lambda: calls.append("unfullscreen")
+    engine = win.router.engine
+    assert engine.dispatch(0x66, 0) is True  # F: into full screen
+    assert calls == ["fullscreen"]
+    chrome = [win.header_bar, win.action_bar, win.btn_order, win.btn_mode_1, win.menu_button]
+    assert all(w.get_visible() for w in chrome), "full screen must not hide the header or the action bar"
+    shown = win.canvas_view.hud_enabled
+    assert engine.dispatch(0x69, 0) is True  # I: the info card, still on its key
+    assert win.canvas_view.hud_enabled is (not shown)
+    assert engine.dispatch(0x20, 0) is True  # Space: zoom, still on its key
+    assert win.canvas_view.is_1to1_zoom
+    assert engine.dispatch(0xFF1B, 0) is True and not win.canvas_view.is_1to1_zoom
+    assert engine.dispatch(0x66, 0) is True and calls[-1] == "unfullscreen"  # F: out again
+    win.destroy()

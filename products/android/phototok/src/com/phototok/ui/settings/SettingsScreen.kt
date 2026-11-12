@@ -73,6 +73,7 @@ import com.phototok.domain.LegalLinks
 import com.phototok.domain.SwipeAction
 import com.phototok.domain.PhotoFolders
 import com.phototok.domain.SwipeRightVerb
+import com.phototok.domain.ProModePolicy
 import com.phototok.domain.UiText
 import com.phototok.ui.components.ProModeHelpDialog
 import com.phototok.ui.components.ProModeRow
@@ -85,6 +86,8 @@ fun SettingsScreen(
     onReloadFolder: (() -> Unit)? = null,
     /** A message to show after a change (Pro mode on/off); the host shows it above the sheet. */
     onFeedback: (UiText) -> Unit = {},
+    /** A message whose snackbar offers Undo ("Pro off: left deletes"). */
+    onUndoableFeedback: (UiText, () -> Unit) -> Unit = { message, _ -> onFeedback(message) },
     /** The kind of the folder being browsed: Settings opens on its tab, so a change acts on it. */
     sourceKind: SourceKind? = null,
 ) {
@@ -130,7 +133,16 @@ fun SettingsScreen(
         // ── Pro mode: its own card at the very top, shown in both modes ────────
         ProModeRow(
             proMode = pro,
-            onProModeChange = { viewModel.setProMode(it) { message -> message?.let(onFeedback) } },
+            onProModeChange = { enabled ->
+                viewModel.setProMode(enabled, sourceKind) { message ->
+                    when {
+                        message == null -> Unit
+                        message in ProModePolicy.SWIPE_CHANGE_MESSAGES ->
+                            onUndoableFeedback(message) { viewModel.setProMode(true, sourceKind) }
+                        else -> onFeedback(message)
+                    }
+                }
+            },
             onHelp = { showProModeHelp = true },
             toggleTag = "settings_pro_mode_toggle",
             helpTag = "settings_pro_mode_help",
@@ -256,7 +268,7 @@ fun SettingsScreen(
                             title = stringResource(R.string.setting_title_selection_location),
                             summary = shown.text,
                             summaryIsError = shown.lost,
-                            // A long path keeps its volume and its folder: "Telefon › … › Keepers"; the dialog shows it whole.
+                            // A long path keeps its volume and its folder: "Handy › … › Keepers"; the dialog shows it whole.
                             summaryMaxLines = if (shown.isPath) 1 else Int.MAX_VALUE,
                             summaryOverflow = if (shown.isPath) TextOverflow.MiddleEllipsis else TextOverflow.Clip,
                             onClick = { folderDialog = FOLDER_DIALOG_SELECTION },
@@ -504,7 +516,7 @@ fun SettingsScreen(
                                 title = stringResource(R.string.setting_title_left_folder),
                                 summary = shown.text,
                                 summaryIsError = shown.lost,
-                                // A long path keeps its volume and its folder: "Telefon › … › Keepers"; the dialog shows it whole.
+                                // A long path keeps its volume and its folder: "Handy › … › Keepers"; the dialog shows it whole.
                                 summaryMaxLines = if (shown.isPath) 1 else Int.MAX_VALUE,
                                 summaryOverflow = if (shown.isPath) TextOverflow.MiddleEllipsis else TextOverflow.Clip,
                                 onClick = { folderDialog = FOLDER_DIALOG_LEFT_SWIPE },
@@ -686,7 +698,7 @@ internal data class DestinationSummary(
 
 /**
  * Where [destination] puts photos (REQ-TOK-FEATURE.23, `[USER 2026-11-04]`), as a path in the source
- * badges' words ([folderDisplayPath]): a custom folder as its path ("Telefon › DCIM › Keepers"); the
+ * badges' words ([folderDisplayPath]): a custom folder as its path ("Handy › DCIM › Keepers"); the
  * default as "In source folder · …" with the open folder's path, or "Selection inside the source
  * folder" when no folder of this tab is open. A custom folder whose access was lost says so.
  * [customName] and [sourceName] are the providers' names for the two folders (opaque ids).

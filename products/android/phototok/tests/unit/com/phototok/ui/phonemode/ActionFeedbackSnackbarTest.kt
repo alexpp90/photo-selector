@@ -42,7 +42,7 @@ class ActionFeedbackSnackbarTest {
 
     private val res get() = InstrumentationRegistry.getInstrumentation().targetContext.resources
 
-    private fun host(initial: ActionFeedback, onUndo: () -> Unit): () -> Int {
+    private fun host(initial: ActionFeedback, onUndoProOff: () -> Unit = {}, onUndo: () -> Unit): () -> Int {
         var shown = 0
         rule.setContent {
             PhotoTokTheme {
@@ -53,6 +53,7 @@ class ActionFeedbackSnackbarTest {
                     hostState = hostState,
                     onShown = { shown++; feedback = null },
                     onUndoDelete = onUndo,
+                    onUndoProOff = onUndoProOff,
                 )
                 // The feed's own host, as the screen draws it.
                 FeedSnackbarHost(hostState = hostState, bottomBarHeight = 0.dp)
@@ -106,5 +107,23 @@ class ActionFeedbackSnackbarTest {
         )
         rule.mainClock.advanceTimeBy(10_000)
         rule.waitUntil(5_000) { shown() == 1 }
+    }
+
+    @Test
+    @Requirement("REQ-TOK-FEATURE.20")
+    fun undoOnTheProOffSnackbarTurnsProBackOn_notADeleteRestore() {
+        var proBackOn = 0
+        host(
+            ActionFeedback(UiText.of(R.string.snackbar_pro_off_left_delete), offersUndoProOff = true),
+            onUndoProOff = { proBackOn++ },
+        ) { error("not a delete") }
+        val undo = res.getString(R.string.snackbar_action_undo)
+        rule.waitUntil(5_000) { rule.onAllNodes(hasText(undo), useUnmergedTree = true).fetchSemanticsNodes().isNotEmpty() }
+        assertTrue(
+            rule.onAllNodes(hasText(res.getString(R.string.snackbar_pro_off_left_delete)), useUnmergedTree = true)
+                .fetchSemanticsNodes().isNotEmpty(),
+        )
+        rule.onAllNodes(hasText(undo)).onFirst().performClick()
+        rule.waitUntil(5_000) { proBackOn == 1 }
     }
 }

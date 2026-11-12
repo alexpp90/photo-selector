@@ -2,8 +2,8 @@
 Version=1.5
 Type=Application
 Name=Blitzlens
-GenericName=Photograph Culling
-Comment=Cull, compare and select photographs, with RAW and JPEG pairing and focus scoring
+GenericName=Photo Culling
+Comment=Cull, compare and select photos, with RAW and JPEG pairing and sharpness scoring
 Exec=photo-selector-linux %F
 Icon=app.alpatix.Blitzlens
 Terminal=false

@@ -8,6 +8,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ### Added
 
+- Before a copy, or a move to another card or drive, Frameduel checks that the destination has room and, if not, refuses with "Not enough space: needs 48 MB, 12 MB free. Nothing was copied." instead of failing halfway. Destinations that do not report their free space are not checked.
 - Settings lists the open-source licences of what Frameduel bundles (**Open-source licences**, below the Impressum), offline, including OpenCV and the libraries built into it. Before, the app passed on no licence text for them.
 - A screen reader announces the result of a move, copy or delete, and UNDO is a button for it.
 - An open folder with no supported photos says so ("<folder> holds no supported photos.") instead of asking for a folder; while a folder is still opening a progress ring shows.
@@ -22,6 +23,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 - Each screen has one name everywhere — Cull, Learn, Stats, Dupes, Setup — on the sidebar, the side rail and the bottom bar and for a screen reader (the rail said Selector, Statistics, Duplicates and Settings, and Learn said "Return to Culling"; it now says "Back to Cull"). The burst feature is **Bursts** in Setup too. The guide's More and Setup lines name what is there.
 - Copy moves on to the next frame, as Move and Delete do, and a photo you copied carries a small copy mark on its frame and its filmstrip tile for the rest of the session. Copying it again writes nothing and says "Already copied" (before, it made a second file, `-2`).
+- Deleting duplicates no longer removes the files at once: the copies leave the list, "Deleted N files" offers UNDO, and the files go when you leave Duplicates, pick another folder or scan again. A copy that is no longer the file you deleted (another photo now has its name) is kept and named.
+- The scan sheet's measurement checkboxes now decide what is computed: an unticked one is skipped and shows no value, and a later scan computes only what a photo still lacks. Before, every scan ran all four. The Setup description no longer promises a measurement choice.
 - After a delete the card says "Deleted", or "Deleted 3 files" when the photo took its RAW or sidecar with it; the photo count beside the frames falls by one per photo. The card's UNDO is a filled button.
 - The four view toggles under the action buttons carry a one-word label (Info, Strip, Overlay, Keys) where it fits, and show whether they are on by a filled or outlined button; a screen reader hears each as a switch that is on or off.
 - Learn and the scan sheet speak plainly: "Fast enough to hand-hold: 1/60s beats the 1/50s minimum" instead of "1/f_eff Guideline", "Golden ratio" and "Flip spiral" instead of "Phi" and "Flip (TL)", a "Grainy at ISO 3200" remark when noise is high, and scan options named for what they find ("Focus quality", "Noise level") without the method.
@@ -36,6 +39,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 - A star filter picked in Learn no longer limits Cull, which shows no filter: Cull's arrows, filmstrip, burst marks and Go to photo always cover every photo of the folder, and Learn keeps its filter.
 - Reopening the last folder while the app is rebuilt in a running process (a window resize on DeX, a rotation) can no longer crash at start: the photo-data cache it clears existed only after the reopen began.
+- Leaving a folder no longer deletes a file that another photo replaced under the same name since you deleted it (a refilled card); it is kept and named, as after a restart.
 - At the largest system font the action buttons keep "Delete" and the other words whole: a button that is too small drops its icon first and its key name last (the key stays in the spoken label and in the guide). Learn's tabs and guide buttons scroll instead of breaking words ("Lesson/s", "Hori/zon"), and the Photo Coach's blur badge and the rating card's key caption move to the next line instead of breaking.
 - The first-run "Tap either side to browse" pill no longer sits under the undo card; it moves above it.
 - Moving or copying in fullscreen into a custom destination flashes that folder's name, as the card does, instead of "Selection".

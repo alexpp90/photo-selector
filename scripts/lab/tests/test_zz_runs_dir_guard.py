@@ -55,6 +55,14 @@ def leftovers(directory: Path) -> set[str]:
 TMP_BEFORE = leftovers(SHARED_TMP_ROOT)
 
 
+def stray_in_tmp() -> set[str]:
+    """`pstlab-*` folders straight in /tmp that are not some test run's own sandbox (that holds `judge-bin`)."""
+    return {p.name for p in Path("/tmp").glob("pstlab-*") if not (p / "judge-bin").is_dir()}
+
+
+TMP_DIRECT_BEFORE = stray_in_tmp()
+
+
 class TestRealRunsDirIsUntouched(unittest.TestCase):
     def test_no_test_wrote_into_the_real_runs_directory(self) -> None:
         self.assertEqual(
@@ -65,6 +73,15 @@ class TestRealRunsDirIsUntouched(unittest.TestCase):
     def test_no_test_left_a_folder_in_the_shared_lab_tmp_root(self) -> None:
         new = sorted(leftovers(SHARED_TMP_ROOT) - TMP_BEFORE)
         self.assertEqual(new, [], f"a test created folders in {SHARED_TMP_ROOT}: use lab_tmp_root() (the sandbox) or a TemporaryDirectory")
+
+    def test_no_test_started_a_real_judge_cli(self) -> None:
+        import _lab_tmp_sandbox
+
+        self.assertEqual(_lab_tmp_sandbox.judge_calls(), [], "a test reached the real claude/gemini CLI: pass a fake provider")
+
+    def test_no_test_left_a_pstlab_folder_directly_in_tmp(self) -> None:
+        new = sorted(stray_in_tmp() - TMP_DIRECT_BEFORE)
+        self.assertEqual(new, [], "a test created pstlab-* folders in /tmp: use lab_tmp_root() or a TemporaryDirectory")
 
     def test_the_leftover_check_sees_a_folder_and_ignores_lock_files(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:

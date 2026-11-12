@@ -82,14 +82,13 @@ scenarios:
       - screen: touch-after-move
         intent: Check undo notification and toggle candidate filmstrip
         expected: Tap filmstrip toggle button
-      - tap: {id: filmstrip_toggle, label: Show the filmstrip}
+      - set_state: {id: filmstrip_toggle, on: true, label: Filmstrip}
       - screen: filmstrip-visible
         intent: See thumbnail strip along bottom
         expected: Tap the details toggle to hide the photo details
-      # Details are on by default (SettingsRepository `?: true`), so this tap hides them; the
-      # 2026-11-09 panel was told it would show them. The toggle's description names its state
-      # ("Hide photo details" while they are on), so the tap only happens when they are on.
-      - optional_tap: {id: details_toggle, desc: Hide photo details, label: Hide photo details}
+      # Details are on by default (SettingsRepository `?: true`); the toggle is a switch whose
+      # checked state is read from the tree, so this sets it off whatever it was, never flips blind.
+      - set_state: {id: details_toggle, on: false, label: Photo details}
       - screen: details-overlay-visible
         intent: See the frames without the details cards
         expected: Dismiss details toggle or proceed

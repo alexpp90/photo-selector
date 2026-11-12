@@ -31,6 +31,7 @@ import com.photoselectortoolbox.ui.statistics.StatisticsScreen
 import com.photoselectortoolbox.viewmodel.DuplicatesViewModel
 import com.photoselectortoolbox.viewmodel.SettingsViewModel
 import com.photoselectortoolbox.viewmodel.StatisticsViewModel
+import com.photoselectortoolbox.data.repository.HeldDeleteCommitter
 import io.mockk.coEvery
 import io.mockk.every
 import io.mockk.mockk
@@ -252,7 +253,8 @@ class ScreenFitMatrixTest {
         val finder: FindDuplicatesUseCase = mockk {
             every { this@mockk.invoke(any()) } returns flowOf(DuplicateDetectionProgress(3, 3, listOf(group)))
         }
-        return DuplicatesViewModel(finder, images, context).also {
+        val held = HeldDeleteCommitter(images, mockk(relaxed = true), mockk(relaxed = true), context)
+        return DuplicatesViewModel(finder, images, held, appScope, context).also {
             if (open) it.selectFolder(Uri.parse("content://test/folder"))
             if (scanned) {
                 it.startScan()

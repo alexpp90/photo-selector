@@ -14,6 +14,7 @@ import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.aspectRatio
+import androidx.compose.foundation.layout.defaultMinSize
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
@@ -48,6 +49,7 @@ import androidx.compose.material3.TextButton
 import androidx.compose.material3.windowsizeclass.WindowSizeClass
 import androidx.compose.material3.windowsizeclass.WindowWidthSizeClass
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -59,6 +61,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.input.pointer.PointerIcon
+import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.input.pointer.pointerHoverIcon
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.contentDescription
@@ -68,6 +71,7 @@ import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import coil.compose.AsyncImage
 import com.photoselectortoolbox.data.model.DuplicateGroup
+import com.photoselectortoolbox.domain.format.DuplicateLabels
 import com.photoselectortoolbox.ui.components.EmptyStateCard
 import com.photoselectortoolbox.ui.components.SeedFolderEffect
 import com.photoselectortoolbox.ui.components.ProgressIndicatorBar
@@ -90,6 +94,8 @@ fun DuplicatesScreen(
 ) {
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
     SeedFolderEffect(seedFolderUri, uiState.folderUri) { viewModel.selectFolder(it) }
+    // Leaving Dupes (another tab keeps this ViewModel alive) puts the held deletes on disk.
+    DisposableEffect(viewModel) { onDispose { viewModel.onScreenLeft() } }
 
     val folderPickerLauncher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.OpenDocumentTree(),
@@ -102,11 +108,8 @@ fun DuplicatesScreen(
     if (showDeleteConfirmation) {
         AlertDialog(
             onDismissRequest = { showDeleteConfirmation = false },
-            title = { Text("Delete selected files") },
-            text = {
-                val count = uiState.selectedForDeletion.size
-                Text("Permanently delete $count ${if (count == 1) "file" else "files"}? This cannot be undone.")
-            },
+            title = { Text(DuplicateLabels.confirmTitle(uiState.selectedForDeletion.size)) },
+            text = { Text(DuplicateLabels.CONFIRM_BODY) },
             confirmButton = {
                 Button(
                     modifier = Modifier.handCursor(),
@@ -133,7 +136,8 @@ fun DuplicatesScreen(
         )
     }
 
-    Box(modifier = Modifier.fillMaxSize()) {
+    Column(modifier = Modifier.fillMaxSize()) {
+    Box(modifier = Modifier.fillMaxWidth().weight(1f)) {
         when {
             uiState.folderUri == null -> {
                 EmptyStateCard(
@@ -249,7 +253,45 @@ fun DuplicatesScreen(
             }
         }
     }
+        if (uiState.undoableDeleteCount > 0) {
+            HeldDeleteBar(count = uiState.undoableDeleteCount, onUndo = viewModel::undoDelete)
+        }
+    }
 }
+
+/** The held Dupes delete and its undo (REQ-AND-ALGO.05); shown until the screen or folder is left. */
+@Composable
+internal fun HeldDeleteBar(count: Int, onUndo: () -> Unit) {
+    Surface(modifier = Modifier.fillMaxWidth(), color = Zinc800) {
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 16.dp, vertical = 4.dp),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            Text(
+                text = DuplicateLabels.deletedMessage(count),
+                style = MaterialTheme.typography.bodyMedium,
+                color = MaterialTheme.colorScheme.onSurface,
+                modifier = Modifier.weight(1f),
+            )
+            Button(
+                onClick = onUndo,
+                modifier = Modifier
+                    .handCursor()
+                    .defaultMinSize(minWidth = 48.dp, minHeight = 48.dp)
+                    .semantics { contentDescription = DuplicateLabels.UNDO_DESCRIPTION }
+                    .testTag(HELD_DELETE_UNDO_TAG),
+                colors = ButtonDefaults.buttonColors(containerColor = BrandAccent, contentColor = BrandOnAccent),
+                shape = RoundedCornerShape(6.dp),
+            ) {
+                Text(DuplicateLabels.UNDO)
+            }
+        }
+    }
+}
+
+internal const val HELD_DELETE_UNDO_TAG = "dupes_held_delete_undo"
 
 @Composable
 private fun InstructionCard(

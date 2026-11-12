@@ -102,7 +102,7 @@ class ScreenTest {
     @Test
     fun `the More and Setup meanings name what exists`() {
         assertEquals("Undo, open folder, scan, sort, go to, guide.", SidebarAction.MORE.meaning)
-        assertEquals("Where frames go, bursts, fullscreen, cache, about.", Screen.Settings.meaning)
+        assertEquals("Where frames go, bursts, threads, fullscreen, cache.", Screen.Settings.meaning)
         assertFalse(Screen.Settings.meaning.contains("measurement"))
         assertFalse(SidebarAction.MORE.meaning.contains("settings"))
     }

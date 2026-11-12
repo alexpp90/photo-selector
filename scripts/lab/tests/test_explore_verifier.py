@@ -199,11 +199,11 @@ class VerifierTest(unittest.TestCase):
         self.assertEqual([c.timeout_s for c in provider.contexts], [7.5, 120])
 
     def test_a_failed_ai_judge_is_an_error_with_a_finding_never_a_pass(self) -> None:
-        res = self.verify(ai_provider=FakeProvider(error=AIJudgeError("claude exited with 1")))
+        res = self.verify(ai_provider=FakeProvider(error=AIJudgeError("the stub judge failed on purpose")))
         self.assertEqual(res.status, "error")
         (err,) = res.findings
         self.assertEqual((err.rule, err.severity, err.source), ("ai-judge-error", "minor", "ai-explorer"))
-        self.assertIn("claude exited with 1", err.message)
+        self.assertIn("the stub judge failed on purpose", err.message)
         self.assertFalse(res.passed)
 
     def test_a_blocking_finding_outranks_an_unchecked_oracle(self) -> None:

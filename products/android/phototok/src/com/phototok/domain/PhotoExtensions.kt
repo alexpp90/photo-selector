@@ -32,6 +32,14 @@ object PhotoExtensions {
     /** Every extension discovery puts into the feed. */
     val SUPPORTED: Set<String> = RAW + JPEG + TIFF + OTHER_BITMAP
 
+    /**
+     * Video files. Never in the feed: Jackpix shows photos only. Discovery counts them so an
+     * otherwise empty folder can say "3 videos hidden" (REQ-TOK-FEATURE.04).
+     */
+    val VIDEO = setOf(
+        "mp4", "m4v", "mov", "3gp", "3g2", "mkv", "webm", "avi", "mts", "m2ts", "mpg", "mpeg", "wmv",
+    )
+
     const val XMP = "xmp"
 
     /** Lowercased extension of [fileName], or "" when there is none. */
@@ -43,6 +51,10 @@ object PhotoExtensions {
     fun isJpeg(fileName: String): Boolean = extensionOf(fileName) in JPEG
 
     fun isTiff(fileName: String): Boolean = extensionOf(fileName) in TIFF
+
+    /** A video by extension or by its provider's MIME type (`video/…`). */
+    fun isVideo(fileName: String, mimeType: String? = null): Boolean =
+        extensionOf(fileName) in VIDEO || mimeType?.startsWith("video/") == true
 
     /** True when discovery should include [fileName] in the feed (case-insensitive). */
     fun isSupported(fileName: String): Boolean = extensionOf(fileName) in SUPPORTED

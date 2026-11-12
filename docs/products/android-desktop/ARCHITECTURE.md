@@ -141,19 +141,29 @@ This is the **primary target**. The layout mirrors the desktop app's capability 
 
 ### 6.2 Keyboard Shortcuts (DeX / Hardware Keyboard)
 
-When a hardware keyboard is detected, the same shortcuts as desktop apply:
+With a hardware keyboard, the selector handles these keys (`ui/selector/SelectorScreen.kt:826-890`,
+checked 2026-11-12); the desk-app map they align with is [`KEYBOARD.md`](../../shared/KEYBOARD.md):
 
 | Key | Action |
 |-----|--------|
-| ← / → | Previous / Next image |
+| ← / → or K / J | Previous / Next image |
 | Delete / Backspace | Delete (with confirmation) |
-| M | Move to Selection (a held key acts once) |
+| M | Move to Selection |
 | C | Copy to Selection |
-| Ctrl+Z / Cmd+Z | Undo the latest delete or move (also in fullscreen) |
-| Escape | Exit fullscreen / leave maximised / close sheet, menu or guide (system Back does the same, via `BackHandler`) |
-| I | Fullscreen: pin / unpin the info panel |
-| F | Enter fullscreen viewer |
-| Space | Toggle Focus/comparison mode (tablet only) |
+| Ctrl+Z / Meta+Z | Undo the latest delete or move (also in fullscreen) |
+| 1 / 2 / 3 | Maximise the previous / current / next frame |
+| F | Enter the fullscreen viewer |
+| I | Show or hide the readout (info) block |
+| T | Show or hide the filmstrip |
+| L | Open Learn |
+| G | Go to photo (number or name) |
+| S | Open the Sort menu (it never changes the order by itself) |
+| ? (the `/` key) | Open the shortcuts guide |
+| Escape | Close the top layer: sheet, context menu, fullscreen viewer or maximised frame (system Back does the same, via `BackHandler`) |
+
+A held `Delete`, `Backspace`, `M` or `C` acts once (`ONE_SHOT_KEYS`, `SelectorScreen.kt:800`). The
+fullscreen viewer has its own keys (`ui/selector/FullscreenViewer.kt:461-484`): Escape, Delete /
+Backspace, M, C, I (pin the info panel), ← / → and Ctrl/Meta+Z.
 
 ## 7. Android-Specific UX Deviations from Desktop
 
