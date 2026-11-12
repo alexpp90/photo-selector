@@ -8,7 +8,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ### Added
 
-- Settings lists the open-source licences of what Frameduel bundles (**Open-source licences**, below the Impressum), offline, including OpenCV and the libraries built into it. Before, the app passed on no licence text for them.
+- Settings lists the open-source licences of what Frameduel bundles (**Open-source licences**, below the Impressum), offline, including OpenCV and the libraries built into it. The licence text of each library built into OpenCV is reproduced there (libpng, libjpeg-turbo, libtiff, libwebp, OpenJPEG, Protocol Buffers, KleidiCV, Carotene, Intel IPP, MLAS, Intel ITT, cpufeatures, the Rubik and WenQuanYi fonts, oneTBB, FlatBuffers, libc++), as those licences require. Before, the app passed on no licence text for them.
 - A screen reader announces the result of a move, copy or delete, and UNDO is a button for it.
 - An open folder with no supported photos says so ("<folder> holds no supported photos.") instead of asking for a folder; while a folder is still opening a progress ring shows.
 - Statistics and Duplicates open the folder you have open in Cull instead of asking for one again.

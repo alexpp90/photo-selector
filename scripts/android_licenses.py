@@ -98,7 +98,12 @@ def render(app_name: str, data: dict, coords: Dict[str, str], texts: Dict[str, s
         if bundled:
             out.append("  Libraries built into it:")
             for item in bundled:
-                out += [f"  - {item['name']}: {item['license']}", f"    {item['url']}"]
+                out.append(f"  - {item['name']}: {item['license']}")
+                if item.get("owner"):
+                    out.append(f"    {item['owner']}")
+                if item.get("notice"):
+                    out.append(f"    {item['notice']}")
+                out.append(f"    {item['url']}")
             out.append("")
     names = {c["license"] for c in used}
     for item in bundled_used(data, coords):
