@@ -266,7 +266,7 @@ def test_info_hud_goodness_and_metric_omission():
     assert hud.exif_text == "1/500s · f/2.8 · ISO 400 · 85mm"
     assert hud.camera_text == "Sony ILCE-7RM5 · FE 85mm F1.4 GM"
     assert hud.score_visible is True
-    assert hud.score_badge_text == "Sharpness: 90.0 (Sharp)"
+    assert hud.score_badge_text == "Sharpness: 90.0"
     assert hud.score_css_class == "score-badge-sharp"
     assert hud.meter_css_class == "sharpness-meter-sharp"
     assert hud.sharpness_meter.get_css_classes() == ["sharpness-meter-track", "sharpness-meter-sharp"]
@@ -289,7 +289,7 @@ def test_info_hud_goodness_and_metric_omission():
     )
     hud.update_photo(cand_acc)
     assert hud.camera_text == "Canon EOS R5 · RF 50mm F1.2 L USM"
-    assert hud.score_badge_text == "Sharpness: 52.0 (Acceptable)"
+    assert hud.score_badge_text == "Sharpness: 52.0"
     assert hud.score_css_class == "score-badge-acceptable"
     assert hud.meter_css_class == "sharpness-meter-acceptable"
     assert hud.sharpness_meter.get_css_classes() == ["sharpness-meter-track", "sharpness-meter-acceptable"]
@@ -320,7 +320,7 @@ def test_info_hud_goodness_and_metric_omission():
     )
     hud.update_photo(cand_soft)
     assert hud.score_visible is True
-    assert hud.score_badge_text == "Sharpness: 18.4 (Blurry)"
+    assert hud.score_badge_text == "Sharpness: 18.4"
     assert hud.score_css_class == "score-badge-blurry"
     assert hud.meter_css_class == "sharpness-meter-blurry"
     assert hud.sharpness_meter.get_css_classes() == ["sharpness-meter-track", "sharpness-meter-blurry"]

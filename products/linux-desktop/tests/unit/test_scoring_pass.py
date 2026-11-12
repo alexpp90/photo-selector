@@ -65,7 +65,7 @@ def test_choosing_the_order_scores_every_unscored_photo_and_sorts_the_folder(tmp
 
     vm.set_sort_order(LOWEST)
     assert [len(b) for b in runner.batches] == [48], "the two photos scored by viewing are not scored again"
-    assert vm.is_scoring and messages == ["Scoring 48 photos…"]
+    assert vm.is_scoring and messages == ["Scoring 48 photos, centre of frame…"]
 
     runner.deliver()
 

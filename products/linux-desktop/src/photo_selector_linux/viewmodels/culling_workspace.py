@@ -479,7 +479,7 @@ class CullingWorkspaceViewModel:
         for photo in todo:
             self._scoring_inflight[photo.id] = photo
         self._scoring_total += len(todo)
-        self._notify(f"Scoring {len(todo)} photos…")
+        self._notify(f"Scoring {len(todo)} photos, centre of frame…")
 
         def on_scored(photo: CandidatePhoto, scores: Optional[QualityScores]) -> None:
             self._on_photo_scored(generation, photo, scores)
