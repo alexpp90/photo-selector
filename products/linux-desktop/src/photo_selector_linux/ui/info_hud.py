@@ -18,6 +18,7 @@ except (ImportError, ValueError):
     HAS_GI = False
     Gtk = None
 
+from photo_selector_linux.core.bursts import burst_spoken, burst_text
 from photo_selector_linux.core.models import CandidatePhoto
 from photo_selector_linux.ui.sharp_outline import area_text
 from photo_selector_linux.ui.styling import (
@@ -33,6 +34,8 @@ SCORE_TOOLTIP = (
 )
 
 
+BURST_ICON = "view-continuous-symbolic"
+BURST_ICON_FALLBACK = "view-list-symbolic"
 COPIED_ICON = "edit-copy-symbolic"
 COPIED_TEXT = "Copied to Selection"
 
@@ -56,6 +59,7 @@ class InfoHUD(Gtk.Box if HAS_GI else object):
         self.is_hud_visible: bool = False
         self._current_photo: Optional[CandidatePhoto] = None
         self.filename_text: str = ""
+        self.burst_text: str = ""
         self.is_copied: bool = False
         self.companion_badges: List[Tuple[str, str]] = []
         self.exif_text: str = ""
@@ -87,6 +91,19 @@ class InfoHUD(Gtk.Box if HAS_GI else object):
     def _build_ui(self) -> None:
         if not HAS_GI:
             return
+
+        # First row, only inside a burst (decision #31): "3 of 10", spoken "Burst, photo 3 of 10".
+        self.burst_row = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=6)
+        self.burst_row.set_name("info_burst")
+        self.burst_row.set_halign(Gtk.Align.START)
+        self.burst_icon = Gtk.Image.new_from_icon_name(self._burst_icon_name())
+        self.burst_icon.set_pixel_size(16)
+        self.burst_row.append(self.burst_icon)
+        self.lbl_burst = Gtk.Label(label="")
+        self.lbl_burst.add_css_class("optical-strip-secondary")
+        self.burst_row.append(self.lbl_burst)
+        self.burst_row.set_visible(False)
+        self.append(self.burst_row)
 
         # Top row: Filename + Companion Badges (RAW+JPG, XMP)
         self.header_row = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=8)
@@ -148,6 +165,19 @@ class InfoHUD(Gtk.Box if HAS_GI else object):
 
         self.append(self.score_box)
 
+    @staticmethod
+    def _burst_icon_name() -> str:
+        """``view-continuous-symbolic`` where the icon theme has it, else ``view-list-symbolic``."""
+        try:
+            from gi.repository import Gdk
+            display = Gdk.Display.get_default()
+            theme = Gtk.IconTheme.get_for_display(display) if display is not None else None
+            if theme is not None and not theme.has_icon(BURST_ICON):
+                return BURST_ICON_FALLBACK
+        except Exception:  # noqa: BLE001 - an icon lookup never stops the card from building
+            pass
+        return BURST_ICON
+
     def set_hud_enabled(self, enabled: bool) -> None:
         """Enable or disable HUD visibility while preserving underlying photo state."""
         self.hud_enabled = bool(enabled)
@@ -164,6 +194,7 @@ class InfoHUD(Gtk.Box if HAS_GI else object):
         if not photo:
             self.is_hud_visible = False
             self.filename_text = ""
+            self.burst_text = ""
             self.is_copied = False
             self.companion_badges = []
             self.exif_text = ""
@@ -181,6 +212,10 @@ class InfoHUD(Gtk.Box if HAS_GI else object):
 
         self.is_hud_visible = bool(self.hud_enabled)
         self.filename_text = photo.filename
+        cue = getattr(self.viewmodel, "burst_cue", None)
+        cue = cue(photo) if callable(cue) else None
+        spoken = burst_spoken(*cue) if isinstance(cue, tuple) else ""
+        self.burst_text = burst_text(*cue) if isinstance(cue, tuple) else ""
         self.is_copied = bool(photo.copied)
         self.companion_badges = get_candidate_companion_badges(photo)
 
@@ -241,6 +276,11 @@ class InfoHUD(Gtk.Box if HAS_GI else object):
 
         self.set_visible(self.is_hud_visible)
         self.lbl_filename.set_label(self.filename_text)
+        self.lbl_burst.set_label(self.burst_text)
+        self.burst_row.set_visible(bool(self.burst_text))
+        if self.burst_text:
+            self.burst_row.set_tooltip_text(spoken)
+            self.lbl_burst.update_property([Gtk.AccessibleProperty.LABEL], [spoken])
         self.copied_mark.set_visible(bool(photo.copied))
 
         while child := self.companion_box.get_first_child():

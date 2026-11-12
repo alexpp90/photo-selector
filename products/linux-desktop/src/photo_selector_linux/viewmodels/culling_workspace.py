@@ -36,6 +36,7 @@ from photo_selector_linux.core.models import (
     SharpnessCategory,
 )
 from photo_selector_linux.core.goto import resolve_goto
+from photo_selector_linux.core.bursts import burst_positions
 from photo_selector_linux.viewmodels.capture_pass import CapturePass, order_basis
 from photo_selector_linux.viewmodels.outcome_text import companion_count, outcome_texts
 from photo_selector_linux.core.scanner import DirectoryScanner, natural_sort_key
@@ -218,6 +219,8 @@ class CullingWorkspaceViewModel:
         self._scoring_since_resort: int = 0
         self._scoring_anchor: Optional[CandidatePhoto] = None
         self._cancel_scoring: Optional[Callable[[], None]] = None
+        self._burst_key: Optional[Tuple[int, int, int]] = None
+        self._burst_cues: Dict[str, Tuple[int, int]] = {}
         self._capture = CapturePass(self._on_capture_progress, self._on_capture_done)
 
         self._queue: List[_QueuedAction] = []
@@ -452,6 +455,14 @@ class CullingWorkspaceViewModel:
     @capture_runner.setter
     def capture_runner(self, runner) -> None:
         self._capture.runner = runner
+
+    def burst_cue(self, photo: CandidatePhoto) -> Optional[Tuple[int, int]]:
+        """``(position, size)`` of ``photo`` in its burst, or None (decision #31; ``core/bursts.py``)."""
+        key = (self._folder_generation, len(self.candidates), sum(1 for c in self.candidates if c.exif is not None))
+        if key != self._burst_key:
+            self._burst_key = key
+            self._burst_cues = burst_positions(self.candidates)
+        return self._burst_cues.get(photo.id)
 
     @property
     def order_basis(self) -> str:
