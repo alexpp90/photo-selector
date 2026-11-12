@@ -87,6 +87,17 @@ In addition to the table:
 
 ## Localization
 
+**Which apps are translated** (maintainer decision 2026-11-12):
+
+| App | Languages |
+|---|---|
+| Jackpix | English and German (`res/values/`, `res/values-de/`) |
+| Frameduel | English today; **German is planned** for its Play listing — its strings move to resources and get `values-de` |
+| Lensjet, Blitzlens | **English only, by decision** — they ship through Homebrew and APT, with no German store audience. The String Catalog and gettext rules below do not apply to them; their visible text stays English literals |
+| Desktop (legacy, archived) | English only |
+
+The rules below apply to every app that is translated or is being translated.
+
 - **Every user-visible string is a resource** (Android `res/values/strings.xml`; macOS String
   Catalog; Linux gettext). No literal in UI code.
 - **Plurals** use plural resources (`<plurals>`), never `"$n photo" + "s"`. Where a number can
@@ -117,5 +128,5 @@ In addition to the table:
 | Product | Where the rule is applied | Check |
 |---|---|---|
 | Jackpix | `docs/products/phototok/DESIGN.md` § 8 *Copy & messaging* | `scripts/check_ui_text_budget.py --product phototok`: fails on any finding (`mode: fail` in `scripts/ui_text_budget.json`, since Jackpix's strings became resources with 0 findings) |
-| Frameduel (Android Desktop) | its `DESIGN.md` (labels on the 2×3 action block are allowed: large screens, keyboard hints; currently English-only, with resource extraction and German `values-de` tracked as a separate work package) | reports only |
-| Lensjet (macOS Desktop), Blitzlens (Linux Desktop), Desktop (legacy) | their design docs | not yet covered by the script |
+| Frameduel (Android Desktop) | its `DESIGN.md` (labels on the 2×3 action block are allowed: large screens, keyboard hints; English-only today, German planned: resource extraction and `values-de`, decision 2026-11-12) | reports only, until its strings are resources; then `mode: fail` |
+| Lensjet (macOS Desktop), Blitzlens (Linux Desktop), Desktop (legacy) | their design docs (English only, by decision 2026-11-12) | not yet covered by the script |
