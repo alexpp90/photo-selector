@@ -105,6 +105,20 @@ def build_parser() -> argparse.ArgumentParser:
         help="Skip assembleLab: reuse the last lab build of this tree (installed where a device has "
         "another); refuses when products/android changed since that build",
     )
+    p_run.add_argument(
+        "--smoke",
+        action="store_true",
+        help="E2E smoke campaign: one config per device; every journey of the products changed since "
+        "--since (all products without it), one baseline journey of the others. The full pass stays "
+        "the default, for release campaigns",
+    )
+    p_run.add_argument(
+        "--since",
+        default=None,
+        metavar="REF",
+        help="With --smoke: a git ref; products whose files changed since it (working tree included) "
+        "run every journey",
+    )
 
     # devices
     p_dev = sub.add_parser("devices", help="Show the device inventory and which devices are reachable now")
@@ -129,6 +143,13 @@ def build_parser() -> argparse.ArgumentParser:
     p_ucap.add_argument("--scenario", action="append", default=None, help="Only this scenario ID (repeatable)")
     p_ucap.add_argument("--locale", default=None, help="App language for this walk, e.g. de-DE (per-app locale, restored after)")
     p_ucap.add_argument("--font-scale", type=float, default=None, help="System font scale for this walk, e.g. 2.0 (restored after)")
+    p_udev = sub.add_parser(
+        "usability-devices",
+        help="Walk order of the devices for a product's usability scenarios (first and second device; the Moto G77 leads when attached)",
+    )
+    p_udev.add_argument("--product", required=True, choices=["phototok", "android-desktop"])
+    p_udev.add_argument("--with-personal", action="store_true", help="Also list personal devices")
+    p_udev.add_argument("--count", type=int, default=2, help="How many devices walk (default 2: first and second)")
     p_upan = sub.add_parser("usability-panel", help="Build the persona and moderator packets for a captured run")
     p_upan.add_argument("run_dir")
     p_upan.add_argument("--variant", action="append", default=[], help="Another capture of the same walk (other locale / font scale); repeatable")
@@ -455,6 +476,19 @@ def main(argv: list[str] | None = None) -> int:
     if args.subcommand == "run":
         from .orchestrate import ALL_PRODUCTS, run_lab
 
+        if args.since and not args.smoke:
+            print("error: --since belongs to --smoke", file=sys.stderr)
+            return 2
+        smoke = None
+        if args.smoke:
+            from .paths import repo_root
+            from .smoke import SmokeError, SmokePlan, changed_products
+
+            try:
+                smoke = SmokePlan(changed=changed_products(args.since, repo_root()) if args.since else None)
+            except SmokeError as exc:
+                print(f"error: {exc}", file=sys.stderr)
+                return 2
         if args.all:
             products = list(ALL_PRODUCTS)
         elif args.product:
@@ -471,6 +505,7 @@ def main(argv: list[str] | None = None) -> int:
             with_personal=bool(args.with_personal),
             only_devices=args.device,
             build=not bool(args.no_build),
+            smoke=smoke,
         )
         return 0
 
@@ -568,6 +603,23 @@ def _known_finding_ids() -> set[str]:
 
 
 def _usability(args: argparse.Namespace) -> int:
+    if args.subcommand == "usability-devices":
+        from . import inventory
+        from .walkphones import walk_devices
+
+        inv = inventory.load_inventory()
+        walks, not_run = walk_devices(
+            inv, args.product, with_personal=bool(args.with_personal), count=int(args.count),
+            resolve=inventory.resolve_android_device,
+        )
+        for w in walks:
+            print(f"{w.ordinal:<7}{w.device.name:<16}{w.serial}")
+        for dev, reason in not_run:
+            print(f"not-run {dev.name:<16}{reason}")
+        if not walks:
+            print(f"no reachable device walks {args.product}", file=sys.stderr)
+        return 0 if walks else 1
+
     if args.subcommand == "usability-capture":
         import os
         import subprocess
