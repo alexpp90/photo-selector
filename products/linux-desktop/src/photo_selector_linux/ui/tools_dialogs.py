@@ -16,10 +16,9 @@ except (ImportError, ValueError):
     HAS_GI = False
     Gtk = Adw = GLib = None
 
-from typing import Callable, List, Optional
+from typing import Optional
 
 from photo_selector_linux.core.statistics import LibraryStatistics, calculate_library_statistics
-from photo_selector_linux.ui.file_worker import run_inline
 from photo_selector_linux.ui.secondary_window import install_chrome, show_scrollbar, size_window
 
 REMOTE_NOTICE = "Remote / Cloud folder detected. Confirm before scanning all files."

@@ -218,6 +218,7 @@ class CullingWorkspaceViewModel:
         self._scoring_inflight: Dict[str, CandidatePhoto] = {}
         self._scoring_total: int = 0
         self._scoring_done: int = 0
+        self._scoring_new: int = 0  # photos given a score by this sweep ("Scored N more")
         self._scoring_since_resort: int = 0
         self._scoring_anchor: Optional[CandidatePhoto] = None
         self._cancel_scoring: Optional[Callable[[], None]] = None
@@ -451,7 +452,7 @@ class CullingWorkspaceViewModel:
         if cancel is not None:
             cancel()
         self._scoring_inflight = {}
-        self._scoring_total = self._scoring_done = self._scoring_since_resort = 0
+        self._scoring_total = self._scoring_done = self._scoring_since_resort = self._scoring_new = 0
         self.scoring_confirmation_pending = False
         self._scoring_anchor = None
 
@@ -499,6 +500,7 @@ class CullingWorkspaceViewModel:
         self._scoring_since_resort += 1
         if scores is not None and photo.scores is None:
             photo.scores = scores
+            self._scoring_new += 1
         if not self._scoring_inflight:
             self._finish_scoring_pass()
         elif self._scoring_since_resort >= (10 if self._scoring_total <= 200 else 50):
@@ -518,15 +520,15 @@ class CullingWorkspaceViewModel:
     def _finish_scoring_pass(self) -> None:
         if self.is_scanning:
             return  # photos still arriving; the scan's completion starts the next pass
-        total = self._scoring_total
+        total = self._scoring_new
         self._resort_keeping_view()
         self._cancel_scoring = None
-        self._scoring_total = self._scoring_done = 0
+        self._scoring_total = self._scoring_done = self._scoring_new = 0
         anchor, self._scoring_anchor = self._scoring_anchor, None
         if anchor is not None and self.current_photo is anchor:
             self.current_index = 0  # not navigated meanwhile: start the sweep at the lowest
-        if total:
-            self._notify(f"Scored {total} photos, lowest sharpness first")
+        if total:  # [USER 2026-11-12] decision #33 (4): the outcome line, nothing at 0
+            self._notify(f"Scored {total} more", "status")
         self._notify_state_changed()
 
     def _apply_sort_order(self) -> None:

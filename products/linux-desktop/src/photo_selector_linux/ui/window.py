@@ -24,7 +24,7 @@ from photo_selector_linux.core.settings import SettingsStore
 from photo_selector_linux.ui.action_bar import ActionBarView
 from photo_selector_linux.ui.canvas import CanvasView
 from photo_selector_linux.ui.canvas_states import announcement
-from photo_selector_linux.ui.file_worker import FileOperationWorker, run_on_thread, schedule_on_main_loop
+from photo_selector_linux.ui.file_worker import FileOperationWorker, schedule_on_main_loop
 from photo_selector_linux.ui.keyboard_router import KeyboardRouter
 from photo_selector_linux.ui.styling import APP_BRAND_NAME, APP_ICON_NAME
 from photo_selector_linux.viewmodels.culling_workspace import CullingWorkspaceViewModel
@@ -233,6 +233,19 @@ class MainWindow(Adw.ApplicationWindow if HAS_GI else object):
 
         menu_button.set_menu_model(menu)
         self.header_bar.pack_end(menu_button)
+
+        # Statistics has its own button (decision #33 (5)), left of the primary menu. The action is
+        # ``app.statistics`` (also Ctrl+L and a menu row); the brief's "win.statistics" does not exist.
+        self.btn_statistics = Gtk.Button()
+        self.btn_statistics.set_name("btn_statistics")
+        icon_theme = Gtk.IconTheme.get_for_display(Gdk.Display.get_default()) if Gdk.Display.get_default() else None
+        has = icon_theme is not None and icon_theme.has_icon("utilities-system-monitor-symbolic")
+        self.btn_statistics.set_icon_name("utilities-system-monitor-symbolic" if has else "view-list-symbolic")
+        self.btn_statistics.set_tooltip_text("Statistics (Ctrl+L)")
+        self.btn_statistics.update_property([Gtk.AccessibleProperty.LABEL], ["Statistics"])
+        self.btn_statistics.set_action_name("app.statistics")
+        self.btn_statistics.set_focus_on_click(False)
+        self.header_bar.pack_end(self.btn_statistics)
 
         # Radio action behind the menu items and the B shortcut (R-LINUX-CULL-02).
         self._view_order_action = Gio.SimpleAction.new_stateful(

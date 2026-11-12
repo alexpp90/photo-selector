@@ -183,3 +183,24 @@ def test_outcomes_and_a_growing_queue_are_announced_once(monkeypatch):
     bar._update_state()
     bar._update_state()  # unchanged: said once
     assert spoken == ["Undid move for IMG_1.JPG", "2 queued"]
+
+
+@pytest.mark.skipif(STUBBED, reason="needs real Gtk")
+def test_statistics_has_a_header_button_left_of_the_primary_menu():
+    """[USER 2026-11-12] decision #33 (5): a visible entry point, name and tooltip, action app.statistics."""
+    from photo_selector_linux.ui.window import MainWindow
+
+    win = MainWindow()
+    button = win.btn_statistics
+    assert button.get_action_name() == "app.statistics"
+    assert button.get_tooltip_text() == "Statistics (Ctrl+L)"
+    assert button.get_icon_name() in ("utilities-system-monitor-symbolic", "view-list-symbolic")
+    assert button.get_parent() is win.menu_button.get_parent()
+    siblings = []
+    child = button.get_parent().get_first_child()
+    while child is not None:
+        siblings.append(child)
+        child = child.get_next_sibling()
+    # pack_end: the first packed child is the rightmost, so the button (packed after) is to its left
+    assert abs(siblings.index(button) - siblings.index(win.menu_button)) == 1
+    win.destroy()

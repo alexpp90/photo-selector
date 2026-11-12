@@ -37,6 +37,12 @@ from photo_selector_linux.ui.styling import (
 )
 
 
+ROLE_GLYPHS = {
+    "PREVIOUS": ("go-previous-symbolic", "Previous photo"),
+    "NEXT": ("go-next-symbolic", "Next photo"),
+}
+
+
 class CanvasView(Gtk.Box if HAS_GI else object):
     """Responsive culling canvas managing image viewports and comparison modes."""
 
@@ -533,9 +539,7 @@ class CanvasView(Gtk.Box if HAS_GI else object):
             badge_box.append(build_copied_glyph())
 
         if self.viewmodel.comparison_mode != 1:  # in 1-Up the only photo is the active one: no pill
-            role_pill = Gtk.Label(label=desc["role"])
-            role_pill.add_css_class("active-pill" if is_active else "slot-role-pill")
-            badge_box.append(role_pill)
+            badge_box.append(self._role_pill(desc["role"], is_active))
 
         if allow_1to1:
             zoom_pill = Gtk.Label(label="1:1 PIXEL ZOOM")
@@ -603,6 +607,25 @@ class CanvasView(Gtk.Box if HAS_GI else object):
         )
 
         return frame
+
+    @staticmethod
+    def _role_pill(role: str, is_active: bool):
+        """ACTIVE is a word; PREVIOUS and NEXT are arrows, never the letters P/N that read as keys.
+
+        [USER 2026-11-12] decision #33 (3): the glyph is ``go-previous-symbolic`` / ``go-next-symbolic``
+        with the spoken name "Previous photo" / "Next photo".
+        """
+        if is_active or role not in ROLE_GLYPHS:
+            pill = Gtk.Label(label=role)
+            pill.add_css_class("active-pill" if is_active else "slot-role-pill")
+            return pill
+        icon, spoken = ROLE_GLYPHS[role]
+        pill = Gtk.Image.new_from_icon_name(icon)
+        pill.set_pixel_size(16)
+        pill.add_css_class("slot-role-pill")
+        pill.set_tooltip_text(spoken)
+        pill.update_property([Gtk.AccessibleProperty.LABEL], [spoken])
+        return pill
 
     @staticmethod
     def _append_score_badge(footer_box, candidate) -> None:

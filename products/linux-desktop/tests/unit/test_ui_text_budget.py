@@ -241,7 +241,8 @@ def test_action_buttons_the_view_switcher_and_counters_are_within_budget(main_wi
                 for element, text in checked if violations(element, text)]
     assert not problems, "\n".join(problems)
     labels = {text for _e, text in checked}
-    assert {"Move to Selection", "Copy", "Trash", "Undo", "1-Up", "2-Up", "3-Up", "0 Selected", "Photo 0 of 0"} <= labels, checked
+    expected = {"Move to Selection", "Copy", "Trash", "Undo", "1-Up", "2-Up", "3-Up", "0 Selected", "Photo 0 of 0"}
+    assert expected <= labels, checked
 
 
 def test_the_budget_check_goes_red_on_a_planted_long_label():

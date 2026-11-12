@@ -245,7 +245,6 @@ def test_remote_confirmation_controls_exist_in_the_real_dialogs(tmp_path: Path):
     assert not stats.awaiting_remote_confirmation and stats.stats is not None
 
 
-
 def test_run_on_thread_keeps_the_main_loop_free():
     import time
 
