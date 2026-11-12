@@ -536,6 +536,69 @@ class SelectorViewModelTest {
         }
     }
 
+    /**
+     * Backlog 2026-11-12 (done counts): a failed undo puts the move back on screen and on the
+     * stack, so the Done card's moved count and kept files go back with it; the retry takes them
+     * back once.
+     */
+    @Test
+    fun `a failed undo of a move keeps the move counted`() = runTest {
+        val moved = "content://test/sel/a"
+        coEvery { imageRepository.moveImage(any(), any(), any(), any()) } returns
+            FileOperationResult.success("content://test/folder/a", moved)
+        coEvery { imageRepository.undoMoveBundle(any(), any(), any(), any(), any()) } returnsMany listOf(
+            FileOperationResult.failure("content://test/sel/a", "provider hiccup"),
+            FileOperationResult.success(moved, "content://test/folder/a"),
+        )
+        val viewModel = loadFolder(image("a"), image("b"))
+        viewModel.moveToSelection()
+        assertEquals(1, viewModel.uiState.value.sessionMovedCount)
+
+        viewModel.undoLastOperation()
+        assertEquals("the move failed to go back, so it still counts", 1, viewModel.uiState.value.sessionMovedCount)
+        assertTrue(viewModel.uiState.value.sessionKeptFiles.containsKey("a"))
+
+        viewModel.undoLastOperation()
+        assertEquals(0, viewModel.uiState.value.sessionMovedCount)
+        assertTrue(!viewModel.uiState.value.sessionKeptFiles.containsKey("a"))
+    }
+
+    /**
+     * Backlog 2026-11-12 (done counts): a commit that kept one file (another photo is at its URI
+     * now) and failed another said only the second, replacing the first; and the photo that came
+     * back still counted as deleted. Committed while the folder is open: the 21st delete evicts
+     * the oldest from the 20-deep stack.
+     */
+    @Test
+    fun `a mixed commit says what it kept and what failed, and a photo that came back is not counted`() = runTest {
+        coEvery { settingsRepository.addPendingDeletes(any(), any()) } coAnswers {
+            pendingDeleteIdentitiesFlow.value = pendingDeleteIdentitiesFlow.value + secondArg<Map<String, FileIdentity>>()
+        }
+        val bundle = image("a.jpg").copy(
+            companions = listOf(
+                CompanionFile(uri = "content://test/folder/a.arw", fileName = "a.arw"),
+                CompanionFile(uri = "content://test/folder/a.xmp", fileName = "a.xmp"),
+            ),
+        )
+        val others = (1..21).map { image("p$it.jpg") }
+        val viewModel = loadFolder(bundle, *others.toTypedArray())
+        viewModel.navigateToImage(viewModel.uiState.value.images.indexOfFirst { it.fileName == "a.jpg" })
+        viewModel.deleteCurrentImage()
+        // Before it is committed, another photo appears at a.jpg's path, and a.xmp cannot be deleted.
+        coEvery { imageRepository.documentIdentity(any(), Uri.parse("content://test/folder/a.jpg")) } returns
+            FileIdentity(size = 9000, lastModified = 5)
+        coEvery { imageRepository.deleteImage(any(), Uri.parse("content://test/folder/a.xmp")) } returns false
+
+        repeat(20) { viewModel.deleteCurrentImage() }
+
+        val state = viewModel.uiState.value
+        val message = state.snackbarMessage.orEmpty()
+        assertTrue("the kept file is not named: $message", message.contains("Kept a.jpg"))
+        assertTrue("the failure is not named: $message", message.contains("Deleted 1 of 3 files of a.jpg"))
+        assertTrue("a.jpg came back", state.images.any { it.fileName == "a.jpg" })
+        assertEquals("21 deletes, one came back", 20, state.sessionDeletedCount)
+    }
+
     @Test
     fun `a failed undo of a move stays on the stack so it can be retried`() = runTest {
         val moved = "content://test/sel/a"

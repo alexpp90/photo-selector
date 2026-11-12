@@ -39,6 +39,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ### Fixed
 
+- The Done card counts right after a failed undo (the photo stays moved and counted) and after a delete that could not be carried out (the photo is back and no longer counted as deleted). A delete that kept one file and failed on another says both instead of only the second.
 - A sideways drag that ends on a Setup row (Reset Guidance, a switch, a choice) no longer counts as a tap and changes nothing; a tap still acts.
 
 - A star filter picked in Learn no longer limits Cull, which shows no filter: Cull's arrows, filmstrip, burst marks and Go to photo always cover every photo of the folder, and Learn keeps its filter.
