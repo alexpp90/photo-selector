@@ -60,6 +60,7 @@
     <string name="action_choose_folder">Ordner wählen</string>
     <string name="action_close">Schließen</string>
     <string name="action_delete">Löschen</string>
+    <string name="action_trash">Papierkorb</string>
     <string name="action_delete_all">Alle löschen</string>
     <string name="action_delete_all_count">Alle löschen (%1$d)</string>
     <string name="action_delete_rejects">Aussortierte löschen</string>
@@ -127,7 +128,8 @@
 
     <!-- Dialoge -->
     <string name="dialog_title_direct_delete">Endgültig löschen?</string>
-    <string name="dialog_body_no_trash">Dieser Ort hat keinen Papierkorb.</string>
+    <string name="dialog_title_trash">In den Papierkorb?</string>
+    <string name="dialog_body_trash_split">%1$d Papierkorb · %2$d endgültig</string>
     <string name="dialog_title_pro_mode">Profi-Modus bietet</string>
     <string name="dialog_title_card_done">Karte fertig</string>
     <string name="label_card_copied">%1$d kopiert</string>
@@ -187,6 +189,8 @@
     <string name="snackbar_rejects_deleted">Aussortierte gelöscht</string>
     <string name="snackbar_deleted_count">%1$d gelöscht</string>
     <string name="snackbar_photo_deleted">Foto gelöscht</string>
+    <string name="snackbar_not_deleted">%1$d nicht gelöscht</string>
+    <string name="snackbar_action_retry">Erneut</string>
     <string name="snackbar_action_undo">Rückgängig</string>
     <string name="snackbar_pairs_merged">Paare gebündelt</string>
     <string name="snackbar_filter_raw">Nur RAW</string>

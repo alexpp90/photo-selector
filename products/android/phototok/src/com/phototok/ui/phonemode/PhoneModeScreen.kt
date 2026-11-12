@@ -36,7 +36,6 @@ import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.layout.windowInsetsPadding
-import androidx.compose.foundation.selection.toggleable
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
@@ -60,7 +59,6 @@ import androidx.compose.material.icons.filled.Sync
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.BottomSheetDefaults
 import androidx.compose.material3.Button
-import androidx.compose.material3.Checkbox
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.FilterChip
 import androidx.compose.material3.Icon
@@ -85,7 +83,6 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
-import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.setValue
@@ -135,6 +132,7 @@ import com.phototok.viewmodel.ReloadPrompt
 import com.phototok.viewmodel.SelectionViewerLogic
 import com.phototok.viewmodel.SelectionViewerTab
 import com.phototok.viewmodel.SelectionViewerViewModel
+import com.phototok.viewmodel.SystemTrashViewModel
 import com.phototok.viewmodel.canRevert
 import com.phototok.viewmodel.rawCompanionUris
 import com.phototok.viewmodel.unmountedRecentUris
@@ -155,6 +153,7 @@ internal fun SelectionViewerBackHandler(enabled: Boolean, onClose: () -> Unit) {
 fun PhoneModeScreen(
     viewModel: PhoneModeViewModel = hiltViewModel(),
     selectionViewModel: SelectionViewerViewModel = hiltViewModel(),
+    trashViewModel: SystemTrashViewModel = hiltViewModel(),
 ) {
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
     val selectionState by selectionViewModel.uiState.collectAsStateWithLifecycle()
@@ -283,8 +282,12 @@ fun PhoneModeScreen(
         DirectDeleteDialog(
             onConfirm = viewModel::confirmDelete,
             onDismiss = viewModel::cancelDelete,
+            split = uiState.confirmDeleteSplit,
         )
     }
+
+    // The system bin's consent for finalised phone deletes, and "N not deleted" after a decline.
+    SystemTrashHost(viewModel = trashViewModel, hostState = snackbarHostState)
 
     // U-14c: "Done with this card" sheet
     if (uiState.showCardDoneSheet) {
@@ -1078,69 +1081,6 @@ internal fun LandscapeRightButtons(
                 .testTag("landscape_settings_button"),
         )
     }
-}
-
-/**
- * Confirmation before a left-swipe delete in a location without a trash.
- *
- * The title carries the consequence and the body the one reason. A "Don't ask" checkbox, applied
- * with Delete, turns this prompt off for good (the same setting as Settings > Confirm delete), so
- * there is no sentence pointing at Settings (REQ-TOK-GESTURE.03). Revert still works after
- * confirming, so the dialog does not claim the delete is immediate.
- *
- * @param onConfirm Delete was chosen; the argument is whether "Don't ask" was ticked.
- */
-@Composable
-fun DirectDeleteDialog(
-    onConfirm: (dontAskAgain: Boolean) -> Unit,
-    onDismiss: () -> Unit,
-) {
-    val colors = MaterialTheme.colorScheme
-    var dontAsk by rememberSaveable { mutableStateOf(false) }
-    AlertDialog(
-        onDismissRequest = onDismiss,
-        modifier = Modifier.testTag("direct_delete_dialog"),
-        title = { Text(stringResource(R.string.dialog_title_direct_delete), color = colors.error) },
-        text = {
-            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                Text(stringResource(R.string.dialog_body_no_trash))
-                Row(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .heightIn(min = 48.dp)
-                        .toggleable(value = dontAsk, role = Role.Checkbox, onValueChange = { dontAsk = it })
-                        .testTag("direct_delete_dont_ask"),
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.spacedBy(4.dp),
-                ) {
-                    // The row is the target; the box only draws the state.
-                    Checkbox(checked = dontAsk, onCheckedChange = null)
-                    Text(
-                        text = stringResource(R.string.label_dont_ask),
-                        style = MaterialTheme.typography.bodyMedium,
-                        color = colors.onSurfaceVariant,
-                    )
-                }
-            }
-        },
-        confirmButton = {
-            TextButton(
-                onClick = { onConfirm(dontAsk) },
-                modifier = Modifier.testTag("direct_delete_confirm_button"),
-            ) {
-                Text(stringResource(R.string.action_delete), color = colors.error)
-            }
-        },
-        dismissButton = {
-            TextButton(
-                onClick = onDismiss,
-                modifier = Modifier.testTag("direct_delete_cancel_button"),
-            ) {
-                Text(stringResource(R.string.action_cancel))
-            }
-        },
-        containerColor = colors.surfaceContainerHigh,
-    )
 }
 
 /**

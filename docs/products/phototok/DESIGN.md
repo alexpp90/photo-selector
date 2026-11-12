@@ -438,7 +438,7 @@ fails the build on any finding. This section applies them to Jackpix.
 3. **The title carries the message.** A dialog title states the fact or the question in ≤ 5 words;
    a hint headline states one rule in ≤ 6. Use a number instead of a sentence: "3 new photos".
 4. **Body text only for data loss, storage access, first run or an error that needs a decision**,
-   then one line ("This location has no trash."). Settings rows have a title and at most a value
+   then one line ("1 to Trash · 1 permanent"). Settings rows have a title and at most a value
    (folder name) or a data-loss warning; no subtitle explains a row. Landing cards, guide callouts
    and chips have no description line.
 5. **Buttons name the outcome** in ≤ 2 words ("Show new", "Stay", "Link both", "Don't change"),
@@ -491,7 +491,8 @@ fails the build on any finding. This section applies them to Jackpix.
 | New photos on reopen (`FolderResumeDialog`) | "1 new photo" / "N new photos" (DE "N neue Fotos") | — | **Show new** · Stay (DE **Neue zeigen** · Bleiben) |
 | No new photos | *no dialog* | — | explicit Reload goes to the latest photo either way, with no snackbar |
 | RAW + JPEG pairs (`RawJpegSuggestionDialog`) | "RAW + JPEG pairs" | — | **Merge pairs** (subline "Swipes act on both files") · Link both · *Show only*: RAW · JPEG · Don't change (DE **Paare bündeln** · Beide verknüpfen · Nur zeigen: RAW · JPEG · Nicht ändern) |
-| Direct delete (`DirectDeleteDialog`) | "Delete permanently?" (DE "Endgültig löschen?") | "This location has no trash." + checkbox row "Don't ask" (DE "Nicht fragen"), applied with Delete | Cancel · **Delete** |
+| Direct delete (`DirectDeleteDialog`), per source ([USER 2026-11-12] decision #13) | phone photo MediaStore indexes: `Delete` glyph, "Move to Trash?" (DE "In den Papierkorb?"); no bin (SD card, USB, cloud, unindexed file): `DeleteForever` glyph in the error colour, "Delete permanently?" (DE "Endgültig löschen?"); a phone photo whose companion has no bin: `DeleteForever`, "Delete all N files?" | mixed only: "N to Trash · M permanent" (DE "N Papierkorb · M endgültig"); always the checkbox row "Don't ask" (DE "Nicht fragen"), applied with the confirm button. A dialog without a bin never names one | Cancel · **Trash** (DE **Papierkorb**) / **Delete** (DE **Löschen**); neither has default focus |
+| System bin consent (Android 11+, phone photos) | the system's own dialog, once per finalisation (leaving the folder, opening the Selection viewer, closing the app — then shown at the next start) | — | declined: snackbar "N not deleted" (DE "N nicht gelöscht"), action **Retry** (DE **Erneut**), long; the photos stay and return to the feed. Never "Keep" |
 | Pro mode (landing, Settings) | row label "Pro mode" (DE "Profi-Modus"); help dialog title "Pro mode adds" (DE "Profi-Modus bietet") | items: Camera info · Swipes & folders · RAW + JPEG | **Got it** (DE **Verstanden**) |
 | Source type chip (Settings, Pro) | "Phone + cloud" (DE "Handy + Cloud") · "SD card" · "Camera" | — | — |
 | Hint: filter mismatch | "RAW only" / "JPEG only" | "Most photos here are JPEG." | Show all ✕ |

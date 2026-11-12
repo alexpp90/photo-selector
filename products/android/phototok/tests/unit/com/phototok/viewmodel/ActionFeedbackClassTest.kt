@@ -299,18 +299,22 @@ class ActionFeedbackClassTest {
 
     /**
      * F-TOK-018: the delete flow told three stories (the dialog "no trash", then "moved to trash",
-     * then Undo). The snackbar after a delete must not claim a bin the dialog just denied.
+     * then Undo). The snackbar after a delete must not claim a bin, because the same snackbar follows
+     * a delete with and without one; only the dialog of a bin source names the bin, and the dialog
+     * without one never does ([USER 2026-11-12] decision #13).
      */
     @Test
     @Requirement("REQ-TOK-GESTURE.03")
     fun theDeleteSnackbarDoesNotClaimATrash() {
-        val dialog = UiText.of(R.string.dialog_body_no_trash)
+        val bin = UiText.of(R.string.dialog_title_trash)
+        val permanent = UiText.of(R.string.dialog_title_direct_delete)
         val snackbar = UiText.of(R.string.snackbar_photo_deleted)
-        for ((lang, pair) in listOf("en" to (dialog.en() to snackbar.en()), "de" to (dialog.de() to snackbar.de()))) {
-            val (dialogText, snackText) = pair
-            val trashWords = listOf("trash", "bin", "papierkorb")
-            assertTrue("[$lang] the dialog '$dialogText' is the one that speaks of a trash", trashWords.any { dialogText.lowercase().contains(it) })
-            assertTrue("[$lang] the snackbar '$snackText' claims a trash", trashWords.none { snackText.lowercase().contains(it) })
+        val trashWords = listOf("trash", "bin", "papierkorb")
+        for (lang in listOf("en", "de")) {
+            fun text(t: UiText) = (if (lang == "en") t.en() else t.de()).lowercase()
+            assertTrue("[$lang] '${text(bin)}' names the bin", trashWords.any { text(bin).contains(it) })
+            assertTrue("[$lang] '${text(permanent)}' claims a bin", trashWords.none { text(permanent).contains(it) })
+            assertTrue("[$lang] '${text(snackbar)}' claims a bin", trashWords.none { text(snackbar).contains(it) })
         }
     }
 
