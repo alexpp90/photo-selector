@@ -20,7 +20,6 @@ import com.photoselectortoolbox.data.cache.ScoreDao
 import java.io.File
 import com.photoselectortoolbox.data.metadata.MetadataWriter
 import com.photoselectortoolbox.data.metadata.MetadataWriterImpl
-import com.photoselectortoolbox.domain.model.PhotoItem
 import com.photoselectortoolbox.domain.model.RatingFilter
 import com.photoselectortoolbox.data.model.ImageDimensions
 import com.photoselectortoolbox.data.model.CompanionFile
@@ -37,7 +36,6 @@ import com.photoselectortoolbox.domain.curation.DeferredDeletion
 import com.photoselectortoolbox.domain.curation.FileIdentity
 import com.photoselectortoolbox.domain.curation.ImageSlot
 import com.photoselectortoolbox.domain.curation.OptimisticEdits
-import com.photoselectortoolbox.domain.curation.ParkedUndo
 import com.photoselectortoolbox.domain.curation.PendingDeleteJournal
 import com.photoselectortoolbox.domain.curation.PendingDeletion
 import com.photoselectortoolbox.domain.curation.SelectorListState
@@ -51,7 +49,6 @@ import com.photoselectortoolbox.domain.format.SelectorLabels
 import com.photoselectortoolbox.domain.grouping.GroupingLevel
 import com.photoselectortoolbox.domain.guidance.SelectorGuidance
 import com.photoselectortoolbox.domain.guidance.SelectorHint
-import com.photoselectortoolbox.domain.guidance.SelectorHintText
 import com.photoselectortoolbox.domain.grouping.ImageGrouper
 import com.photoselectortoolbox.domain.format.SelectionActionLabels
 import com.photoselectortoolbox.domain.interaction.FilingAction
@@ -1447,7 +1444,7 @@ class SelectorViewModel @Inject constructor(
         val before = _uiState.value.listState
         val currentItem = before.images.getOrNull(before.currentIndex) ?: return
         val sourceUri = currentItem.uri
-        if (action == CurationAction.COPY && sourceUri in state.sessionCopiedUris) {
+        if (sourceUri in state.sessionCopiedUris) { // filed once: no second Copy, no Move after it (decision #29)
             _uiState.update { it.withSnackbar(SelectorLabels.ALREADY_COPIED, SnackbarLifetime.COPY) }
             return
         }
