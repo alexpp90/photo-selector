@@ -10,12 +10,14 @@ public struct DuplicateFinderView: View {
     public init(
         targetDirectoryURL: URL? = nil,
         photos: [PhotoItem] = [],
-        onPhotoTrashed: ((URL) -> Void)? = nil
+        onPhotoTrashed: ((URL) -> Void)? = nil,
+        trashHandler: (@MainActor (URL) async throws -> Void)? = nil
     ) {
         _viewModel = StateObject(wrappedValue: DuplicateFinderViewModel(
             targetDirectoryURL: targetDirectoryURL,
             photos: photos,
-            onPhotoTrashed: onPhotoTrashed
+            onPhotoTrashed: onPhotoTrashed,
+            trashHandler: trashHandler
         ))
     }
 
@@ -204,7 +206,7 @@ public struct DuplicateFinderView: View {
                 .font(.system(size: 18, weight: .semibold))
                 .foregroundStyle(.white)
 
-            Text("Scan an SD card or photo folder to find identical photos\nmatching by cryptographic SHA256 checksum.")
+            Text("Finds identical files.")
                 .font(.system(size: 13))
                 .foregroundStyle(.secondary)
                 .multilineTextAlignment(.center)

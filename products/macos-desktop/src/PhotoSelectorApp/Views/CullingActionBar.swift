@@ -121,7 +121,7 @@ public struct CullingActionBar: View {
         let selected = viewModel.selectedCount
         let trashed = viewModel.trashedCount
         let copied = viewModel.copiedCount
-        let remaining = max(0, viewModel.photos.count - selected - trashed)
+        let remaining = viewModel.remainingCount
         let green = Color.lensjetMove
         let red = Color.lensjetTrash
         return HStack(spacing: 8) {

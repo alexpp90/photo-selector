@@ -141,10 +141,8 @@ struct GeneralSettingsTab: View {
             }
 
             Section("Navigation & Culling") {
-                Toggle("Auto-advance after culling action", isOn: $autoAdvance)
-                Text("Automatically steps to the next photo when pressing Move (M), Copy (C), or Trash (Delete).")
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
+                Toggle("Auto-Advance", isOn: $autoAdvance)
+                    .help("Steps to the next photo after Move, Copy or Trash. Also in the Culling menu.")
             }
         }
         .formStyle(.grouped)
@@ -220,9 +218,6 @@ struct ScoringSettingsTab: View {
     @AppStorage(AppSettingsKeys.aestheticScoringEnabled)
     private var aestheticScoringEnabled: Bool = AppSettingsDefaults.aestheticScoringEnabled
 
-    @AppStorage(AppSettingsKeys.aestheticThreshold)
-    private var aestheticThreshold: Double = AppSettingsDefaults.aestheticThreshold
-
     @AppStorage(AppSettingsKeys.sharpnessStopThreshold)
     private var sharpnessStopThreshold: Double = AppSettingsDefaults.sharpnessStopThreshold
 
@@ -241,55 +236,51 @@ struct ScoringSettingsTab: View {
                     Slider(value: $sharpnessStopThreshold, in: 0.0...100.0, step: 1.0)
                         .accessibilityLabel("Stop at sharpness")
                         .accessibilityValue(sharpnessStopThreshold <= 0 ? "Off" : "\(Int(sharpnessStopThreshold)) out of 100")
-                        .help("0 turns it off. While culling in View > Sort By > Lowest Sharpness First, a toast tells you when you reach a photo at or above this sharpness.")
+                        .help("0 turns it off. While culling in View > Sort By > Lowest Sharpness First, a banner stays on the photo until your next key when you reach a photo at or above this sharpness.")
                 }
-                Text("0 = off. Used with View > Sort By > Lowest Sharpness First.")
+                Text("0 = off. Shows a banner at this Sharpness, with View > Sort By > Lowest Sharpness First.")
                     .font(.caption)
                     .foregroundStyle(.secondary)
             }
 
-            Section("Sharpness & Focus Thresholds (Accelerate)") {
+            Section("Sharpness bands") {
                 VStack(alignment: .leading, spacing: 10) {
                     HStack {
-                        Text("Blurry / Soft Threshold:")
+                        Text("Blurry below")
                         Spacer()
-                        Text(String(format: "%.1f", sharpnessBlurryThreshold))
+                        Text("\(Int(sharpnessBlurryThreshold))")
                             .monospacedDigit()
                             .foregroundStyle(.orange)
                     }
                     Slider(value: $sharpnessBlurryThreshold, in: 10.0...50.0, step: 1.0)
+                        .accessibilityLabel("Blurry below")
+                        .accessibilityValue("\(Int(sharpnessBlurryThreshold)) out of 100")
 
                     HStack {
-                        Text("Acceptable / Sharp Threshold:")
+                        Text("Sharp above")
                         Spacer()
-                        Text(String(format: "%.1f", sharpnessAcceptableThreshold))
+                        Text("\(Int(sharpnessAcceptableThreshold))")
                             .monospacedDigit()
                             .foregroundStyle(.green)
                     }
                     Slider(value: $sharpnessAcceptableThreshold, in: 50.0...95.0, step: 1.0)
+                        .accessibilityLabel("Sharp above")
+                        .accessibilityValue("\(Int(sharpnessAcceptableThreshold)) out of 100")
                 }
-                Text("Photos with variance below \(Int(sharpnessBlurryThreshold)) are flagged blurry; above \(Int(sharpnessAcceptableThreshold)) are categorized pin-sharp.")
+                Text("Below \(Int(sharpnessBlurryThreshold)): Blurry. Above \(Int(sharpnessAcceptableThreshold)): Sharp.")
                     .font(.caption)
                     .foregroundStyle(.secondary)
+                Button("Reset") {
+                    sharpnessBlurryThreshold = AppSettingsDefaults.sharpnessBlurryThreshold
+                    sharpnessAcceptableThreshold = AppSettingsDefaults.sharpnessAcceptableThreshold
+                }
+                .disabled(sharpnessBlurryThreshold == AppSettingsDefaults.sharpnessBlurryThreshold
+                          && sharpnessAcceptableThreshold == AppSettingsDefaults.sharpnessAcceptableThreshold)
             }
 
-            Section("Apple Vision Aesthetics") {
-                Toggle("Compute AI aesthetic score", isOn: $aestheticScoringEnabled)
-                Text("Runs after the photo and its EXIF are already on screen, so it never delays browsing. Turn it off to skip the Vision request entirely; focus and exposure scores are unaffected.")
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
-                VStack(alignment: .leading, spacing: 10) {
-                    HStack {
-                        Text("Minimum Aesthetic Quality Threshold:")
-                        Spacer()
-                        Text(String(format: "%.1f / 10.0", aestheticThreshold))
-                            .monospacedDigit()
-                            .foregroundStyle(.yellow)
-                    }
-                    Slider(value: $aestheticThreshold, in: 0.0...9.0, step: 0.5)
-                        .disabled(!aestheticScoringEnabled)
-                }
-                Text("Evaluates visual composition and appeal using Apple Vision VNCalculateImageAestheticsScoresRequest.")
+            Section("Aesthetics") {
+                Toggle("Aesthetics", isOn: $aestheticScoringEnabled)
+                Text("Runs in the background.")
                     .font(.caption)
                     .foregroundStyle(.secondary)
             }

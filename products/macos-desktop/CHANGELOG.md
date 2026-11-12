@@ -6,6 +6,12 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ## [Unreleased]
 
+### Fixed
+
+- Opening the Selection folder itself no longer files photos into `Selection/Selection/` (where they vanished from the list): Move and Copy say "This is the Selection folder" and do nothing; Trash and Undo still work, and Settings shows the same sentence.
+- Settings that did nothing now work or are gone: the **Blurry below** and **Sharp above** sliders change every Sharpness badge, tooltip, filmstrip dot and the Statistics counts (with a Reset); the aesthetic threshold slider is removed; **Auto-Advance** in the Culling menu and in Settings is one setting; **Tab** switches photo in 2-Up only and is left alone in 1-Up and 3-Up; a copied photo no longer counts as Remaining; the **Stop at sharpness** notice stays on the photo until your next key; Undo is greyed out in the menu when there is nothing to undo; the filmstrip tooltip names its key, `T`.
+- Cloud folders: a **Cloud** badge in the toolbar; Library Statistics and Lowest Sharpness First ask "Download all photos?" before reading every photo; permanent delete asks "Delete permanently?"; a refused Trash no longer says "Moved to Trash" and a failed delete says why.
+
 ### Added
 
 - Settings → General → Culling Destination now shows where Move and Copy put your photos. Choose **Working folder** (the Selection folder inside the folder you are culling, as before) or **Custom folder** (pick a folder, for example on an SSD), and read the full destination path right below, such as `~/Pictures/Trip/Selection/`. With no folder open it says so. A custom folder that is gone or not writable shows a warning, and Move and Copy refuse instead of creating it. If you already used a custom destination, it stays selected.

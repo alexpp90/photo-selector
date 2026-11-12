@@ -256,6 +256,11 @@ public struct ComparisonSlotPane: View {
     public let photo: PhotoItem
     public let role: SlotRole
     public let isActive: Bool
+    @AppStorage(AppSettingsKeys.sharpnessBlurryThreshold)
+    private var blurryBelow: Double = AppSettingsDefaults.sharpnessBlurryThreshold
+    @AppStorage(AppSettingsKeys.sharpnessAcceptableThreshold)
+    private var sharpFrom: Double = AppSettingsDefaults.sharpnessAcceptableThreshold
+    private var bands: SharpnessBands { SharpnessBands(blurryBelow: blurryBelow, sharpFrom: sharpFrom) }
     public let isZoomSynced: Bool
     @ObservedObject public var sharedState: ComparisonSharedState
     public let isHUDVisible: Bool
@@ -416,18 +421,18 @@ public struct ComparisonSlotPane: View {
         if let scores = photo.scores {
             HStack(spacing: 4) {
                 Circle()
-                    .fill(focusColor(for: scores.focusCategory))
+                    .fill(focusColor(for: scores.category(in: bands)))
                     .frame(width: 6, height: 6)
                 Text("\(String(format: "%.1f", scores.sharpness))")
                     .font(.system(size: 10, weight: .bold).monospacedDigit())
                     .foregroundStyle(Color.white)
-                Text(scores.focusCategory.rawValue)
+                Text(scores.category(in: bands).rawValue)
                     .font(.system(size: 9, weight: .semibold))
                     .foregroundStyle(Color.white.opacity(0.9))
             }
-            .help(ScoreLabels.sharpnessTooltip(scores))
+            .help(ScoreLabels.sharpnessTooltip(scores, bands: bands))
             .accessibilityElement(children: .ignore)
-            .accessibilityLabel(ScoreLabels.sharpnessSpoken(scores))
+            .accessibilityLabel(ScoreLabels.sharpnessSpoken(scores, bands: bands))
             .uiTestFrame(role.accessibilityIdentifier + "_sharpness")
             .padding(.horizontal, 7)
             .padding(.vertical, 3)
@@ -435,7 +440,7 @@ public struct ComparisonSlotPane: View {
             .clipShape(Capsule())
             .overlay(
                 Capsule()
-                    .stroke(focusColor(for: scores.focusCategory).opacity(0.6), lineWidth: 1)
+                    .stroke(focusColor(for: scores.category(in: bands)).opacity(0.6), lineWidth: 1)
             )
 
             if let aesthetic = scores.aesthetic {

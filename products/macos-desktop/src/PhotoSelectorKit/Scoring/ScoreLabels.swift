@@ -10,8 +10,8 @@ public enum ScoreLabels {
     public static func number(_ value: Double) -> String { String(format: "%.1f", value) }
 
     /// Slot badge: compact, the value and the band word ("59.6 Acceptable").
-    public static func sharpnessBadge(_ scores: QualityScores) -> String {
-        "\(number(scores.sharpness)) \(scores.focusCategory.rawValue)"
+    public static func sharpnessBadge(_ scores: QualityScores, bands: SharpnessBands = .standard) -> String {
+        "\(number(scores.sharpness)) \(scores.category(in: bands).rawValue)"
     }
 
     /// Info panel and tooltip: "Sharpness 59.6 / 100".
@@ -27,10 +27,8 @@ public enum ScoreLabels {
     }
 
     /// Tooltip of the sharpness badge.
-    public static func sharpnessTooltip(_ scores: QualityScores,
-                                        blurryBelow: Double = AppSettingsDefaults.sharpnessBlurryThreshold,
-                                        sharpFrom: Double = AppSettingsDefaults.sharpnessAcceptableThreshold) -> String {
-        "\(sharpness(scores.sharpness)) · \(scores.focusCategory.rawValue). Edge detail of the frame; \(bands(blurryBelow: blurryBelow, sharpFrom: sharpFrom))."
+    public static func sharpnessTooltip(_ scores: QualityScores, bands: SharpnessBands = .standard) -> String {
+        "\(sharpness(scores.sharpness)) · \(scores.category(in: bands).rawValue). Edge detail of the frame; \(Self.bands(blurryBelow: bands.blurryBelow, sharpFrom: bands.sharpFrom))."
     }
 
     /// Tooltip of the aesthetics badge.
@@ -39,8 +37,8 @@ public enum ScoreLabels {
     }
 
     /// VoiceOver: a full sentence, and "aesthetics score" so it is never heard as a star rating.
-    public static func sharpnessSpoken(_ scores: QualityScores) -> String {
-        "Sharpness \(number(scores.sharpness)) out of 100, \(scores.focusCategory.rawValue)"
+    public static func sharpnessSpoken(_ scores: QualityScores, bands: SharpnessBands = .standard) -> String {
+        "Sharpness \(number(scores.sharpness)) out of 100, \(scores.category(in: bands).rawValue)"
     }
 
     public static func aestheticsSpoken(_ value: Double) -> String {

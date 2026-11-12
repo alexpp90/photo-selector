@@ -235,7 +235,7 @@ struct SortGoToAndScoringTests {
         vm.applySortOrder(.lowestSharpnessFirst)
         #expect(vm.currentToast == nil)
         vm.navigateToNext(); vm.navigateToNext()
-        #expect(vm.currentToast?.title == "Sharpness threshold reached (60+)")
+        #expect(vm.currentToast?.title == "Sharpness 60 reached")
         defaults.sharpnessStopThreshold = 0
         #expect(defaults.sharpnessStopThreshold == 0)
     }
@@ -380,7 +380,7 @@ struct SortGoToAndScoringTests {
         #expect(ScoreLabels.sharpness(59.6) == "Sharpness 59.6 / 100")
         #expect(ScoreLabels.aesthetics(8.4) == "Aesthetics 8.4 / 10")
         #expect(ScoreLabels.sharpnessTooltip(scores).contains("Blurry below 35, sharp from 70"))
-        #expect(ScoreLabels.sharpnessTooltip(scores, blurryBelow: 20, sharpFrom: 60).contains("Blurry below 20, sharp from 60"))
+        #expect(ScoreLabels.sharpnessTooltip(scores, bands: SharpnessBands(blurryBelow: 20, sharpFrom: 60)).contains("Blurry below 20, sharp from 60"))
         #expect(ScoreLabels.aestheticsTooltip(8.4).contains("Not a star rating"))
         #expect(ScoreLabels.sharpnessSpoken(scores) == "Sharpness 59.6 out of 100, Acceptable")
         #expect(ScoreLabels.aestheticsSpoken(8.4) == "Aesthetics score 8.4 out of 10, not a star rating")

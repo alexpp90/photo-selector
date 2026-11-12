@@ -160,7 +160,7 @@ The original multi-platform desktop culling application built with Python and Tk
 | Feature | Jackpix (Phone) | Frameduel (Tablet/DeX) | Lensjet (macOS) | Blitzlens (GTK4/Adw) | Legacy Desktop (Py/Tk) | Notes |
 | :--- | :---: | :---: | :---: | :---: | :---: | :--- |
 | **Review Layouts** | Vertical Pager | 1-over-2 Three-Frame | 1-Up / 2-Up / 3-Up | 1-Up / 2-Up / 3-Up | Standard / Focus | Jackpix is gesture-first; the desktop apps provide multi-frame comparison. |
-| **Center Sharpness Score** | ❌ Omitted | ✅ (OpenCV) | ✅ (vImage + vDSP) | ✅ (NumPy Laplacian) | ✅ (OpenCV/NumPy) | 50% ROI Laplacian variance; Jackpix computes no scores. |
+| **Center Sharpness Score** | ❌ Omitted | ✅ (OpenCV) | ✅ whole frame (vImage + vDSP) | ✅ (NumPy Laplacian) | ✅ (OpenCV/NumPy) | 50% ROI Laplacian variance; Jackpix computes no scores. |
 | **Laplacian Noise (MAD)** | ❌ Omitted | ✅ (MAD) | ✅ (vImage MAD) | ✅ (NumPy MAD) | ✅ (MAD) | Noise estimated by median absolute deviation; Lensjet, Blitzlens and the legacy Desktop subtract it from sharpness, Frameduel does not. |
 | **Highlights/Shadows Clipping** | ❌ Omitted | ✅ (Histograms) | ✅ (vImage Hist) | ✅ (NumPy Hist) | ✅ (Histograms) | Hardware histogram thresholds $\ge 254$ and $\le 2$. |
 | **Aesthetic Scoring** | ❌ Excluded | ❌ Excluded | ✅ (Apple Vision ANE) | ❌ Excluded | ✅ (Local Ollama) | Lensjet uses the Apple Neural Engine; Frameduel scores technical quality only. |

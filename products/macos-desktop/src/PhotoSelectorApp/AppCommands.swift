@@ -42,10 +42,14 @@ public struct AppCommands: Commands {
                 viewModel.undoLastAction()
             }
             .keyboardShortcut("z", modifiers: .command)
+            .disabled(!viewModel.canUndo)
 
             Divider()
 
-            Toggle("Auto-Advance After Culling", isOn: $viewModel.autoAdvance)
+            Toggle("Auto-Advance", isOn: Binding(
+                get: { viewModel.autoAdvance },
+                set: { viewModel.setAutoAdvance($0) }
+            ))
                 .keyboardShortcut("a", modifiers: [.shift, .command])
         }
 
@@ -80,11 +84,11 @@ public struct AppCommands: Commands {
             .disabled(viewModel.photos.isEmpty)
 
 
-            Button("Cycle Comparison Slot") {
+            Button("Switch Photo") {
                 viewModel.advanceComparisonSlotFocus()
             }
             .keyboardShortcut(.tab, modifiers: [])
-            .disabled(viewModel.comparisonMode == .single)
+            .disabled(!viewModel.canSwitchPhoto)
 
             Divider()
 

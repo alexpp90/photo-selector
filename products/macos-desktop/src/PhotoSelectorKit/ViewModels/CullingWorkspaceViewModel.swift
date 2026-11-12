@@ -2,186 +2,6 @@ import SwiftUI
 import AppKit
 import Foundation
 
-/// Layout mode for the culling workspace preview canvas.
-public enum ComparisonMode: Int, CaseIterable, Identifiable, Sendable {
-    case single = 1
-    case sideBySide = 2
-    case triplet = 3
-
-    public var id: Int { rawValue }
-
-    public var title: String {
-        switch self {
-        case .single: return "1-Up"
-        case .sideBySide: return "2-Up"
-        case .triplet: return "3-Up"
-        }
-    }
-
-    public var systemImage: String {
-        switch self {
-        case .single: return "rectangle.fill"
-        case .sideBySide: return "rectangle.split.2x1.fill"
-        case .triplet: return "rectangle.split.1x2.fill"
-        }
-    }
-}
-
-/// Zoom presentation state for canvas previews.
-public enum ZoomState: Sendable, Equatable {
-    /// Whole photograph fitted to its viewport.
-    case fit
-    /// True 100 %: one image pixel per screen pixel (computed from the original dimensions).
-    case oneToOne
-    /// Free trackpad pinch magnification, relative to Fit (always > 1).
-    case magnified(Double)
-
-    public var isZoomed: Bool { self != .fit }
-
-    /// Pinch magnifications at or below this factor snap back to Fit.
-    public static let snapToFitThreshold: Double = 1.02
-}
-
-/// Transient feedback toast notification message.
-public struct ToastMessage: Identifiable, Equatable, Sendable {
-    public let id: UUID
-    public let icon: String
-    public let title: String
-    public let subtitle: String?
-    public let actionType: CullingActionType?
-
-    public init(
-        id: UUID = UUID(),
-        icon: String,
-        title: String,
-        subtitle: String? = nil,
-        actionType: CullingActionType? = nil
-    ) {
-        self.id = id
-        self.icon = icon
-        self.title = title
-        self.subtitle = subtitle
-        self.actionType = actionType
-    }
-}
-
-/// Order of the culling workspace candidate list (View > Sort By, REQ-MAC-CULL.06 / .07).
-public enum WorkspaceSortOrder: String, CaseIterable, Identifiable, Sendable {
-    case newestFirst
-    case oldestFirst
-    case fileName
-    case lowestSharpnessFirst
-
-    public var id: String { rawValue }
-
-    /// The order a new install opens with.
-    public static let defaultOrder: WorkspaceSortOrder = .newestFirst
-
-    /// Natural file-name order (the order of every release before the sort menu existed).
-    public static var natural: WorkspaceSortOrder { .fileName }
-
-    /// Menu title (macOS title case).
-    public var title: String {
-        switch self {
-        case .newestFirst: return "Newest First"
-        case .oldestFirst: return "Oldest First"
-        case .fileName: return "File Name"
-        case .lowestSharpnessFirst: return "Lowest Sharpness First"
-        }
-    }
-
-    /// Symbol of the non-default indicator.
-    public var symbol: String {
-        switch self {
-        case .newestFirst: return "arrow.down.to.line"
-        case .oldestFirst: return "arrow.up.to.line"
-        case .fileName: return "textformat.abc"
-        case .lowestSharpnessFirst: return "scope"
-        }
-    }
-
-    /// Reads a stored raw value; `natural` (the first name of file-name order) still reads.
-    public init?(storedRaw: String?) {
-        guard let storedRaw else { return nil }
-        if storedRaw == "natural" { self = .fileName; return }
-        self.init(rawValue: storedRaw)
-    }
-}
-
-/// Orders `photos` in place for a sort order that does not depend on scores. Stable apart from the
-/// tie-break: equal or missing dates fall back to the natural file-name order.
-enum PhotoOrdering {
-    static func byName(_ lhs: PhotoItem, _ rhs: PhotoItem) -> Bool {
-        let cmp = lhs.filename.localizedStandardCompare(rhs.filename)
-        if cmp != .orderedSame { return cmp == .orderedAscending }
-        return lhs.url.path.localizedStandardCompare(rhs.url.path) == .orderedAscending
-    }
-
-    static func byDate(newestFirst: Bool) -> (PhotoItem, PhotoItem) -> Bool {
-        { lhs, rhs in
-            switch (lhs.modificationDate, rhs.modificationDate) {
-            case let (l?, r?) where l != r: return newestFirst ? l > r : l < r
-            case (_?, nil): return true      // dated photos before undated ones
-            case (nil, _?): return false
-            default: return byName(lhs, rhs)
-            }
-        }
-    }
-}
-
-/// How far the background scoring pass has come ("12 / 17").
-public struct ScoringProgress: Equatable, Sendable {
-    public let done: Int
-    public let total: Int
-    public init(done: Int, total: Int) { self.done = done; self.total = total }
-    public var text: String { "\(done) / \(total)" }
-}
-
-/// Pending permanent-delete confirmation published when a cloud provider refuses Trash (UC-17).
-public struct PendingPermanentDeleteConfirmation: Sendable, Equatable, Identifiable {
-    public var id: UUID { photoID }
-    public let photoID: UUID
-    public let urls: [URL]
-    public let isShared: Bool
-    public let message: String
-
-    public init(photoID: UUID, urls: [URL], isShared: Bool, message: String) {
-        self.photoID = photoID
-        self.urls = urls
-        self.isShared = isShared
-        self.message = message
-    }
-}
-
-/// Summary of SD card culling and transfer completion state (UC-10).
-public struct CardCullSummary: Sendable, Equatable {
-    public let keptCount: Int
-    public let trashedCount: Int
-    public let undecidedCount: Int
-    public let inFlightCount: Int
-    public let keepersOnCard: Bool
-    public let isSafeToFormat: Bool
-    public let summaryText: String
-
-    public init(
-        keptCount: Int,
-        trashedCount: Int,
-        undecidedCount: Int,
-        inFlightCount: Int,
-        keepersOnCard: Bool,
-        isSafeToFormat: Bool,
-        summaryText: String
-    ) {
-        self.keptCount = keptCount
-        self.trashedCount = trashedCount
-        self.undecidedCount = undecidedCount
-        self.inFlightCount = inFlightCount
-        self.keepersOnCard = keepersOnCard
-        self.isSafeToFormat = isSafeToFormat
-        self.summaryText = summaryText
-    }
-}
-
 /// MainActor state machine managing photos, navigation, comparison slots,
 /// zoom/pan sync, optimistic status mutations (<1ms), auto-advance, and keyboard routing.
 @MainActor
@@ -207,7 +27,23 @@ public final class CullingWorkspaceViewModel: ObservableObject {
     @Published public var isZoomSynced: Bool = true
     @Published public var isFilmstripVisible: Bool = true
     @Published public var isInfoHUDVisible: Bool = true
+    /// After-cull advance. The stored key is the single source: setting it here (menu) persists it,
+    /// and a change made elsewhere (Settings) is pulled in by `observeStoredAutoAdvance`.
     @Published public var autoAdvance: Bool = true
+    private var lastStoredAutoAdvance = true
+
+    /// The Culling menu toggle: sets the live value and persists it (Settings follows via `@AppStorage`).
+    public func setAutoAdvance(_ value: Bool) {
+        autoAdvance = value
+        lastStoredAutoAdvance = value
+        userDefaults.autoAdvance = value
+    }
+    // Removed in deinit; written once in init on the main actor, never mutated after.
+    private nonisolated(unsafe) var autoAdvanceObserver: NSObjectProtocol?
+
+    deinit {
+        if let observer = autoAdvanceObserver { NotificationCenter.default.removeObserver(observer) }
+    }
     @Published public var isDropTargeted: Bool = false
     @Published public var currentToast: ToastMessage?
     @Published public private(set) var rootDirectoryURL: URL?
@@ -221,6 +57,10 @@ public final class CullingWorkspaceViewModel: ObservableObject {
     @Published public private(set) var cloudBadgeText: String? = nil
     @Published public private(set) var requiresFullPassConfirmation: Bool = false
     @Published public private(set) var pendingPermanentDelete: PendingPermanentDeleteConfirmation? = nil
+    /// Set instead of starting a scoring pass on a cloud folder; the view asks "Download all photos?".
+    @Published public private(set) var pendingDownloadConfirmation: PendingDownloadConfirmation? = nil
+    /// The user agreed, for this folder, to read every photo (reset when a folder opens).
+    private var fullPassConsented = false
 
     // MARK: - Sort & Sharpness Stop Threshold (U-34)
     @Published public var sortOrder: WorkspaceSortOrder = .defaultOrder
@@ -257,6 +97,11 @@ public final class CullingWorkspaceViewModel: ObservableObject {
         photos.filter { $0.status == .copied }.count
     }
 
+    /// Photos still undecided: a copied photo is decided, so it is not "Remaining".
+    public var remainingCount: Int {
+        max(0, photos.count - selectedCount - copiedCount - trashedCount)
+    }
+
     public var canUndo: Bool {
         !undoStack.isEmpty
     }
@@ -282,17 +127,44 @@ public final class CullingWorkspaceViewModel: ObservableObject {
     /// Confirms and starts the full-folder metadata pass on a remote/cloud folder after user consent.
     public func confirmAndRunFullPass() {
         requiresFullPassConfirmation = false
+        fullPassConsented = true
         startMetadataEnrichment()
+    }
+
+    /// "Download" in the "Download all photos?" question: runs the scoring pass that was held back.
+    public func confirmDownloadAll() {
+        guard let pending = pendingDownloadConfirmation else { return }
+        pendingDownloadConfirmation = nil
+        fullPassConsented = true
+        switch pending.purpose {
+        case .statistics: startLibraryScoring()
+        case .lowestSharpnessSort: setSortOrder(.lowestSharpnessFirst)
+        }
+    }
+
+    /// "Cancel": nothing downloads; Statistics opens on what is already scored, the sort stays as it was.
+    public func declineDownloadAll() {
+        pendingDownloadConfirmation = nil
     }
 
     /// Executes a pending permanent deletion after the user confirms that Trash is unavailable.
     public func confirmPermanentDelete() {
         guard let pending = pendingPermanentDelete else { return }
         pendingPermanentDelete = nil
+        var failure: (url: URL, error: Error)?
         for url in pending.urls {
             if FileManager.default.fileExists(atPath: url.path) {
-                try? FileManager.default.removeItem(at: url)
+                do { try FileManager.default.removeItem(at: url) } catch { failure = failure ?? (url, error) }
             }
+        }
+        // A caught error surfaces: the photo is not marked deleted, and the system's reason is shown.
+        if let failure {
+            showToast(
+                icon: "exclamationmark.triangle.fill",
+                title: "Couldn't delete \(failure.url.lastPathComponent)",
+                subtitle: failure.error.localizedDescription
+            )
+            return
         }
         if let index = photos.firstIndex(where: { $0.id == pending.photoID }) {
             photos[index].status = .trashed
@@ -300,7 +172,7 @@ public final class CullingWorkspaceViewModel: ObservableObject {
         showToast(
             icon: "trash.slash.fill",
             title: "Deleted Permanently",
-            subtitle: "Cannot be undone",
+            subtitle: "No Undo",
             actionType: .trash
         )
     }
@@ -357,6 +229,13 @@ public final class CullingWorkspaceViewModel: ObservableObject {
     /// first needs a score for every photo, so the unscored ones are scored in the background
     /// first (progress in `scoringProgress`) and the list is ordered when that finishes.
     public func setSortOrder(_ order: WorkspaceSortOrder) {
+        if order == .lowestSharpnessFirst, photos.contains(where: { $0.scores == nil }),
+           isRemoteFolder, !fullPassConsented {
+            // Scoring a cloud folder downloads all of it: ask first, and keep the current order.
+            pendingDownloadConfirmation = PendingDownloadConfirmation(
+                purpose: .lowestSharpnessSort(previous: sortOrder), estimatedBytes: estimatedFullPassDownloadBytes)
+            return
+        }
         userDefaults.workspaceSortOrder = order
         if order == .lowestSharpnessFirst, photos.contains(where: { $0.scores == nil }) {
             sortOrder = order
@@ -437,6 +316,16 @@ public final class CullingWorkspaceViewModel: ObservableObject {
             finishScoringIfNeeded()
             return
         }
+        // On a cloud folder this decodes, and so downloads, every online-only photo: only after
+        // the user said yes (REQ-MAC-CLOUD.01). The view asks; nothing is read until it answers.
+        if isRemoteFolder, !fullPassConsented {
+            scoringProgress = nil
+            if pendingDownloadConfirmation == nil {
+                pendingDownloadConfirmation = PendingDownloadConfirmation(
+                    purpose: .statistics, estimatedBytes: estimatedFullPassDownloadBytes)
+            }
+            return
+        }
         scoringProgress = ScoringProgress(done: total - targets.count, total: total)
         libraryScoringTask = Task.detached(priority: .utility) { [weak self] in
             var batch: [(UUID, QualityScores)] = []
@@ -508,6 +397,24 @@ public final class CullingWorkspaceViewModel: ObservableObject {
     }
 
     /// Synchronizes file deletion from secondary tools into the active culling candidate list.
+    /// Duplicate Finder's trash: the same actor, companions and undo stack as a cull, so Undo
+    /// (`⌘Z`) in the workspace brings the file and its companions back.
+    public func trashDuplicate(at url: URL) async throws {
+        let canonical = url.standardizedFileURL.resolvingSymlinksInPath()
+        let index = photos.firstIndex { $0.url == url || $0.url.standardizedFileURL.resolvingSymlinksInPath() == canonical }
+        let previous = index.map { photos[$0].status } ?? .candidate
+        let job = CullingJob(
+            photoID: index.map { photos[$0].id } ?? UUID(), actionType: .trash, primaryURL: url,
+            rootURL: rootDirectoryURL ?? url.deletingLastPathComponent(),
+            destinationFolderName: userDefaults.cullingDestinationFolderName)
+        guard let record = try await cullingActor.enqueue(job) else { return }
+        undoStack.append(CullingExecutionRecord(
+            jobID: record.jobID, photoID: record.photoID, actionType: record.actionType,
+            originalPrimaryURL: record.originalPrimaryURL, affectedURLs: record.affectedURLs,
+            trashedPairs: record.trashedPairs, previousStatus: previous, timestamp: record.timestamp))
+        markPhotoAsTrashed(url: url)
+    }
+
     public func markPhotoAsTrashed(url: URL) {
         let canonical = url.standardizedFileURL.resolvingSymlinksInPath()
         let normPath = Self.normalizedPathString(url)
@@ -673,6 +580,20 @@ public final class CullingWorkspaceViewModel: ObservableObject {
         self.userDefaults = userDefaults
         self.cloudInspector = cloudInspector
         self.autoAdvance = userDefaults.autoAdvance
+        self.lastStoredAutoAdvance = userDefaults.autoAdvance
+        self.autoAdvanceObserver = NotificationCenter.default.addObserver(
+            forName: UserDefaults.didChangeNotification, object: userDefaults, queue: .main
+        ) { [weak self] _ in
+            MainActor.assumeIsolated {
+                guard let self else { return }
+                // Only a change of the stored value (Settings) moves the live one.
+                let stored = self.userDefaults.autoAdvance
+                if stored != self.lastStoredAutoAdvance {
+                    self.lastStoredAutoAdvance = stored
+                    self.autoAdvance = stored
+                }
+            }
+        }
         self.sortOrder = userDefaults.workspaceSortOrder
     }
 
@@ -725,6 +646,8 @@ public final class CullingWorkspaceViewModel: ObservableObject {
         self.isRemoteFolder = remote
         self.cloudBadgeText = remote ? "Cloud Folder" : nil
         self.requiresFullPassConfirmation = remote
+        self.fullPassConsented = false
+        self.pendingDownloadConfirmation = nil
         self.pendingPermanentDelete = nil
         self.decisionLog.removeAll()
         self.inFlightJobIDs.removeAll()
@@ -843,6 +766,8 @@ public final class CullingWorkspaceViewModel: ObservableObject {
         self.cloudBadgeText = remote ? "Cloud Folder" : nil
         self.requiresFullPassConfirmation = remote && items.contains(where: { $0.exif == nil || $0.scores == nil || cloudInspector.isOnlineOnlyItem($0.url) })
         self.pendingPermanentDelete = nil
+        self.fullPassConsented = false
+        self.pendingDownloadConfirmation = nil
         self.decisionLog.removeAll()
         self.inFlightJobIDs.removeAll()
         self.photos = items
@@ -855,6 +780,7 @@ public final class CullingWorkspaceViewModel: ObservableObject {
     // MARK: - Navigation
 
     public func navigateToNext() {
+        dismissStickyToast()
         guard !photos.isEmpty else { return }
         switch comparisonMode {
         case .single, .triplet:
@@ -869,6 +795,7 @@ public final class CullingWorkspaceViewModel: ObservableObject {
     }
 
     public func navigateToPrevious() {
+        dismissStickyToast()
         guard !photos.isEmpty else { return }
         switch comparisonMode {
         case .single, .triplet:
@@ -882,6 +809,7 @@ public final class CullingWorkspaceViewModel: ObservableObject {
     }
 
     public func selectPhoto(at index: Int) {
+        dismissStickyToast()
         guard photos.indices.contains(index) else { return }
         if index != currentIndex { userHasNavigated = true }
         switch comparisonMode {
@@ -906,14 +834,18 @@ public final class CullingWorkspaceViewModel: ObservableObject {
         )
     }
 
-    public func advanceComparisonSlotFocus() {
-        switch comparisonMode {
-        case .single:
-            navigateToNext()
-        case .sideBySide, .triplet:
-            activeSlotIndex = (activeSlotIndex + 1) % max(1, comparisonSlotIndices.count)
-        }
+    /// Tab / View > Switch Photo: switches the active photo in 2-Up only. In 1-Up and 3-Up there is
+    /// no second slot to switch to (3-Up's slots never read `activeSlotIndex`), so nothing happens and
+    /// the caller leaves the key unconsumed. Returns whether it acted.
+    @discardableResult
+    public func advanceComparisonSlotFocus() -> Bool {
+        guard comparisonMode == .sideBySide else { return false }
+        activeSlotIndex = (activeSlotIndex + 1) % max(1, comparisonSlotIndices.count)
+        return true
     }
+
+    /// Whether View > Switch Photo (Tab) does anything now.
+    public var canSwitchPhoto: Bool { comparisonMode == .sideBySide }
 
     public func setActiveSlot(_ index: Int) {
         guard index >= 0, index < comparisonMode.rawValue else { return }
@@ -1000,6 +932,14 @@ public final class CullingWorkspaceViewModel: ObservableObject {
         let destination = CullingDestinationResolver.resolve(defaults: userDefaults, openFolderURL: sourceRootURL)
         let effectiveRootURL: URL
         if action == .move || action == .copy {
+            if destination.problem == .openedFolderIsSelection {
+                showToast(
+                    icon: "exclamationmark.triangle.fill",
+                    title: "This is the Selection folder",
+                    subtitle: "Move and Copy are off here"
+                )
+                return
+            }
             guard destination.isUsable, let base = destination.baseFolderURL else {
                 showToast(
                     icon: "exclamationmark.triangle.fill",
@@ -1052,13 +992,16 @@ public final class CullingWorkspaceViewModel: ObservableObject {
         )
         decisionLog.append(logEntry)
 
-        // 2. Immediate Toast HUD
-        showToast(
-            icon: toastIcon,
-            title: toastTitle,
-            subtitle: photo.filename,
-            actionType: action
-        )
+        // 2. Immediate Toast HUD. Not for a Trash on a cloud folder: the provider may refuse it, and a
+        // "Moved to Trash" that then reverts is false; the confirmation or the result says it.
+        if !(action == .trash && isRemoteFolder) {
+            showToast(
+                icon: toastIcon,
+                title: toastTitle,
+                subtitle: photo.filename,
+                actionType: action
+            )
+        }
 
         // 3. Auto-Advance (Slides candidate sequence forward)
         if autoAdvance {
@@ -1111,7 +1054,8 @@ public final class CullingWorkspaceViewModel: ObservableObject {
                             originalPrimaryURL: record.originalPrimaryURL,
                             destinationURLs: record.affectedURLs
                         ) ?? CullingFeedback.fileCountTitle(action: action, fileCount: record.affectedURLs.count)
-                        if let title {
+                        let remoteTrash = action == .trash && (self?.isRemoteFolder ?? false)
+                        if let title = title ?? (remoteTrash ? "Moved to Trash" : nil) {
                             self?.showToast(
                                 icon: action == .trash ? "trash.fill" : (action == .move ? "checkmark.circle.fill" : "doc.on.doc.fill"),
                                 title: title,
@@ -1315,9 +1259,19 @@ public final class CullingWorkspaceViewModel: ObservableObject {
         }
         showToast(
             icon: "scope",
-            title: "Sharpness threshold reached (\(Int(threshold))+)",
-            subtitle: currentPhoto?.filename
+            title: "Sharpness \(Int(threshold)) reached",
+            subtitle: currentPhoto?.filename,
+            isPersistent: true
         )
+    }
+
+    /// Drops a persistent banner (Esc or the next navigation key). Returns whether one was showing.
+    @discardableResult
+    public func dismissStickyToast() -> Bool {
+        guard currentToast?.isPersistent == true else { return false }
+        toastDismissTask?.cancel()
+        currentToast = nil
+        return true
     }
 
     private func handleCullingFailure(
@@ -1337,8 +1291,8 @@ public final class CullingWorkspaceViewModel: ObservableObject {
             let isShared = cloudInspector.isSharedItem(photo.url)
                 || (rootDirectoryURL.map { cloudInspector.isSharedItem($0) } ?? false)
             let message = isShared
-                ? "This item is in a shared folder — deleting it permanently removes it for everyone sharing this folder."
-                : "Cloud provider does not support Trash — delete permanently without Undo?"
+                ? "No Trash here. Deleting permanently removes it for everyone sharing this folder."
+                : "No Trash here. Syncs to all devices."
             pendingPermanentDelete = PendingPermanentDeleteConfirmation(
                 photoID: photo.id,
                 urls: companions,
@@ -1501,10 +1455,13 @@ public final class CullingWorkspaceViewModel: ObservableObject {
         icon: String,
         title: String,
         subtitle: String?,
-        actionType: CullingActionType? = nil
+        actionType: CullingActionType? = nil,
+        isPersistent: Bool = false
     ) {
         toastDismissTask?.cancel()
-        currentToast = ToastMessage(icon: icon, title: title, subtitle: subtitle, actionType: actionType)
+        currentToast = ToastMessage(
+            icon: icon, title: title, subtitle: subtitle, actionType: actionType, isPersistent: isPersistent)
+        if isPersistent { return }
         toastDismissTask = Task {
             try? await Task.sleep(nanoseconds: 1_200_000_000) // 1.2 seconds
             if !Task.isCancelled {

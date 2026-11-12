@@ -51,7 +51,7 @@ public struct ShortcutsHelpSheet: View {
                         items: [
                             ("← ↑ / K", "Previous Photo", "Navigates to the preceding candidate photograph"),
                             ("→ ↓ / J", "Next Photo", "Navigates to the subsequent candidate photograph"),
-                            ("Tab", "Cycle Comparison Slot", "Switches active focus slot between primary and candidate comparison panes"),
+                            ("Tab", "Switch Photo", "In 2-Up, steps through undecided photos in the active pane; 1-Up and 3-Up leave Tab alone"),
                             ("G", "Go to Photo", "Type a position number or part of a file name"),
                             ("H / L", "Previous / Next (going away)", "Old aliases of the arrow keys, removed after the next release"),
                             ("Click Photo", "Select Slot", "Click any comparison pane directly to make it the active photo")
@@ -82,7 +82,7 @@ public struct ShortcutsHelpSheet: View {
                         color: .purple,
                         items: [
                             ("⌘O", "Open Folder / SD Card", "Selects a new photo directory or mounted camera card"),
-                            ("⌘D", "Duplicate Finder", "Detects bitwise identical images using SHA-256 cryptographic hashing"),
+                            ("⌘D", "Duplicate Finder", "Finds identical files."),
                             ("⌘L", "Library Statistics", "Displays focal length, aperture, ISO, and shutter speed histograms"),
                             ("⌘,", "Settings", "Opens macOS Preferences to configure destination folder and thresholds")
                         ]
