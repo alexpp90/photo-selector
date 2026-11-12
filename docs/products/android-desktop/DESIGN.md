@@ -1095,7 +1095,7 @@ to its own bounds; a swipe there steps only while it is not zoomed.
 | `I` | Pin / unpin the info panel (in the selector `I` shows or hides the frame's values) |
 
 `M` and `C` show the centre check mark, whose accessibility label is the sentence the
-confirmation card shows ("Moved to Selection"), for the key exactly as for the button. The
+confirmation card shows ("Moved IMG_0001 +2 · Selection"), for the key exactly as for the button. The
 confirmation card (§7, "Action feedback") is drawn inside this window too: fullscreen is a
 second window above the selector, and the card hosted in the selector would be hidden behind it.
 
@@ -1295,8 +1295,8 @@ RAW and JPEG folders                                      (●)
   above its path, with **Choose** beside it. Copy and Move do not fall back to another folder:
   they fail visibly. The folders are described again whenever Settings resumes, so a permission
   revoked while the app was away shows here, not at the next failed Copy.
-- A filing confirmation names a custom destination too — `Moved to «Keepers › Selection»` — while
-  the button keeps the bare verb (REQ-AND-LAYOUT.08).
+- A filing confirmation names a custom destination too — `Moved IMG_0001 · «Keepers › Selection»` —
+  while the button keeps the bare verb (REQ-AND-LAYOUT.08).
 
 ### Analysis
 
@@ -1432,8 +1432,13 @@ Produce these as a design-system page, dark theme, neutral grey / lavender.
    the bottom-left chips (§7.3).
 9. **Filmstrip thumbnail** — resting, current, and in-burst states, 60 dp wide (40 dp tall
    landscape, 80 dp portrait), with the leading-edge burst marker and the sharpness dot.
-10. **Snackbar with Undo** — `Moved to «folder»` (≈ 4 s, Undo, no line) / `Copied to «folder»`
-    (≈ 3 s, no action, no line) / `Deleted`, or `Deleted 3 files` when the photo took companions
+10. **Snackbar with Undo** — `Moved IMG_0001 · «folder»`, or `Moved IMG_0001 +2 · «folder»` when the
+    photo took two companions with it (≈ 4 s, Undo, no line) / `Copied IMG_0001 · «folder»`
+    (≈ 3 s, no action, no line) — spoken "Moved IMG_0001.JPG and 2 companion files to «folder»";
+    the word *companion* is spoken only, and a stem longer than 24 characters is shortened in the
+    middle so `+N` and the folder are never cut (`CompanionConfirmation`, maintainer decision
+    2026-11-12). The delete dialog's title is `Delete IMG_0001 +2?` with "Also deletes JPG, XMP"
+    above its body where the delete takes companions, "Delete image" otherwise / `Deleted`, or `Deleted 3 files` when the photo took companions
     with it (≈ 4 s, Undo, no line: no card has a deadline). **UNDO is a filled button**
     (`BrandOnAccent` on `BrandAccent`, 7.2:1) drawn inside its ≥ 48 × 48 dp target. While the
     first-run pill is up, it stacks 8 dp above the card's measured top instead of under it.

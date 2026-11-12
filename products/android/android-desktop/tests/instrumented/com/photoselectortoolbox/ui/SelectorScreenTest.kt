@@ -829,6 +829,16 @@ class SelectorScreenTest {
         composeRule.onAllNodesWithText("No Folder Selected", ignoreCase = true).assertCountEquals(0)
     }
 
+    /**
+     * The confirmation card's line for [verb]: "Moved IMG_0001 · Selection" ([USER 2026-11-12]
+     * decision #33 (1)). Scoped to the card, because the one-time filing hint card still says
+     * "Moved to Selection".
+     */
+    private fun cardLine(verb: String) =
+        hasText("$verb ", substring = true, ignoreCase = true) and
+            hasText("· Selection", substring = true, ignoreCase = true) and
+            hasAnyAncestor(hasTestTag("selector_snackbar"))
+
     private fun toolsMenuShown(): Boolean =
         composeRule.onAllNodesWithTag("tools_menu", useUnmergedTree = true).fetchSemanticsNodes().isNotEmpty()
 
@@ -1069,8 +1079,7 @@ class SelectorScreenTest {
 
         composeRule.waitUntil(timeoutMillis = 10000) {
             composeRule.onAllNodes(
-                hasText("Moved to Selection", ignoreCase = true) and
-                    hasAnyAncestor(hasTestTag("selector_snackbar")),
+                cardLine("Moved"),
                 useUnmergedTree = true,
             ).fetchSemanticsNodes().isNotEmpty()
         }
@@ -1172,14 +1181,14 @@ class SelectorScreenTest {
 
         try {
             composeRule.waitUntil(timeoutMillis = 15000) {
-                composeRule.onAllNodesWithText("Copied to Selection", ignoreCase = true)
+                composeRule.onAllNodes(cardLine("Copied"), useUnmergedTree = true)
                     .fetchSemanticsNodes().isNotEmpty()
             }
         } catch (e: Exception) {
             try { composeRule.onRoot().printToLog("SelectorScreenTest_Copy") } catch (_: Exception) {}
             throw e
         }
-        composeRule.onNodeWithText("Copied to Selection", ignoreCase = true).assertIsDisplayed()
+        composeRule.onAllNodes(cardLine("Copied"), useUnmergedTree = true).onFirst().assertIsDisplayed()
 
         // Move straight away, as a photographer would, rather than waiting for the
         // copy card to leave (3 s now; it was the whole 30 s undo window when this
@@ -1196,22 +1205,19 @@ class SelectorScreenTest {
 
         try {
             composeRule.waitUntil(timeoutMillis = 15000) {
-                composeRule.onAllNodesWithText("Moved to Selection", ignoreCase = true)
+                composeRule.onAllNodes(cardLine("Moved"), useUnmergedTree = true)
                     .fetchSemanticsNodes().isNotEmpty()
             }
         } catch (e: Exception) {
             try { composeRule.onRoot().printToLog("SelectorScreenTest_Move") } catch (_: Exception) {}
             throw e
         }
-        composeRule.onNodeWithText("Moved to Selection", ignoreCase = true).assertIsDisplayed()
+        composeRule.onAllNodes(cardLine("Moved"), useUnmergedTree = true).onFirst().assertIsDisplayed()
         // One confirmation at a time: the move's replaced the copy's. Scoped to the
         // snackbar, because the one-time filing hint card repeats the sentence.
         assertTrue(
             "the copy snackbar is still showing beside the move's",
-            composeRule.onAllNodes(
-                hasText("Copied to Selection", ignoreCase = true) and
-                    hasAnyAncestor(hasTestTag("selector_snackbar")),
-            ).fetchSemanticsNodes().isEmpty(),
+            composeRule.onAllNodes(cardLine("Copied"), useUnmergedTree = true).fetchSemanticsNodes().isEmpty(),
         )
     }
 
@@ -1657,7 +1663,7 @@ class SelectorScreenTest {
             .onFirst().performClick()
 
         composeRule.waitUntil(timeoutMillis = 15000) {
-            composeRule.onAllNodesWithText("Copied to Selection", ignoreCase = true)
+            composeRule.onAllNodes(cardLine("Copied"), useUnmergedTree = true)
                 .fetchSemanticsNodes().isNotEmpty()
         }
         composeRule.onAllNodesWithTag("snackbar_undo", useUnmergedTree = true).assertCountEquals(0)

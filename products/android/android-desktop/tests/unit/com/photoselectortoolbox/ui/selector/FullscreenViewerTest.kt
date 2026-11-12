@@ -1,6 +1,5 @@
 package com.photoselectortoolbox.ui.selector
 
-import com.photoselectortoolbox.domain.format.SelectionActionLabels
 import com.photoselector.core.Requirement
 import android.view.KeyEvent
 import androidx.compose.material3.windowsizeclass.ExperimentalMaterial3WindowSizeClassApi
@@ -28,6 +27,7 @@ import com.photoselectortoolbox.domain.curation.DeferredDeletion
 import com.photoselectortoolbox.domain.curation.SelectorListState
 import com.photoselectortoolbox.domain.curation.SnackbarLifetime
 import com.photoselectortoolbox.domain.interaction.FilingAction
+import com.photoselectortoolbox.viewmodel.CompanionConfirmation
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNotNull
@@ -489,21 +489,24 @@ class FullscreenViewerTest {
         open()
         press(KeyEvent.KEYCODE_M)
         assertNotNull(
-            rule.onAllNodes(hasContentDescription("Moved to Selection"), useUnmergedTree = true)
+            rule.onAllNodes(hasContentDescription("Moved a · Selection"), useUnmergedTree = true)
                 .fetchSemanticsNodes().firstOrNull(),
         )
     }
 
     /**
      * REQ-AND-THEME.04: the flash says the confirmation card's sentence. Into a custom folder the
-     * card names it ("Moved to «Keepers › Selection»"), and the flash used to say "Moved to
-     * Selection" because it built its own label from the folder name alone.
+     * card names it ("Moved a · «Keepers › Selection»"), and the flash used to say "Moved to
+     * Selection" because it built its own label from the folder name alone. Both come from
+     * `CompanionConfirmation` ([USER 2026-11-12] decision #33 (1)).
      */
     @Test
     fun `the flash says what the selector's confirmation says for a custom destination`() {
         open { customDestination = "Keepers" }
         press(KeyEvent.KEYCODE_M)
-        val expected = SelectionActionLabels.confirmation(FilingAction.MOVE, FilingAction.DEFAULT_SELECTION_FOLDER, "Keepers")
+        val expected = CompanionConfirmation.filed(
+            FilingAction.MOVE, five[0], CompanionConfirmation.destinationName(FilingAction.DEFAULT_SELECTION_FOLDER, "Keepers"),
+        ).visible
         assertTrue(expected, expected.contains("Keepers"))
         val flash = rule.onAllNodesWithTag("fullscreen_collection_flash", useUnmergedTree = true)
             .fetchSemanticsNodes().single()
@@ -517,7 +520,7 @@ class FullscreenViewerTest {
         val flash = rule.onAllNodesWithTag("fullscreen_collection_flash", useUnmergedTree = true)
             .fetchSemanticsNodes().single()
         assertEquals(
-            listOf(SelectionActionLabels.confirmation(FilingAction.MOVE, FilingAction.DEFAULT_SELECTION_FOLDER, null)),
+            listOf("Moved a · Selection"),
             flash.config[SemanticsProperties.ContentDescription],
         )
     }
@@ -527,7 +530,7 @@ class FullscreenViewerTest {
         open()
         press(KeyEvent.KEYCODE_C)
         assertNotNull(
-            rule.onAllNodes(hasContentDescription("Copied to Selection"), useUnmergedTree = true)
+            rule.onAllNodes(hasContentDescription("Copied a · Selection"), useUnmergedTree = true)
                 .fetchSemanticsNodes().firstOrNull(),
         )
     }

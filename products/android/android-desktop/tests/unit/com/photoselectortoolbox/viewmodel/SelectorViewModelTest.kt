@@ -326,7 +326,7 @@ class SelectorViewModelTest {
         assertEquals(listOf("b", "c"), viewModel.uiState.value.images.map { it.fileName })
         assertEquals("b", viewModel.uiState.value.currentImage?.fileName)
         assertFalse("no spinner for a filing action", viewModel.uiState.value.isLoading)
-        assertEquals("Moved to Selection", viewModel.uiState.value.snackbarMessage)
+        assertEquals("Moved a · Selection", viewModel.uiState.value.snackbarMessage)
 
         transfer.complete(FileOperationResult.success("content://test/folder/a", "content://test/sel/a"))
         assertEquals(listOf("b", "c"), viewModel.uiState.value.images.map { it.fileName })
@@ -346,7 +346,7 @@ class SelectorViewModelTest {
         val viewModel = loadFolder(image("a"), image("b"))
         viewModel.moveToSelection()
 
-        assertEquals("Moved to Picks", viewModel.uiState.value.snackbarMessage)
+        assertEquals("Moved a · Picks", viewModel.uiState.value.snackbarMessage)
     }
 
     @Test
@@ -365,7 +365,7 @@ class SelectorViewModelTest {
         val viewModel = loadFolder(image("a"), image("b"))
         viewModel.moveToSelection()
 
-        assertEquals("Moved to «Keepers › Selection»", viewModel.uiState.value.snackbarMessage)
+        assertEquals("Moved a · «Keepers › Selection»", viewModel.uiState.value.snackbarMessage)
         val hint = viewModel.uiState.value.pendingHintText
         assertEquals("Moved to «Keepers › Selection»", hint!!.title)
         assertFalse(hint.message, hint.message.contains("inside the shoot folder"))
@@ -390,7 +390,7 @@ class SelectorViewModelTest {
         val viewModel = loadFolder(image("a"), image("b"))
         viewModel.moveToSelection()
 
-        assertEquals("Moved to Final", viewModel.uiState.value.snackbarMessage)
+        assertEquals("Moved a · Final", viewModel.uiState.value.snackbarMessage)
         assertEquals("Moved to Final", viewModel.uiState.value.pendingHintText!!.title)
     }
 
@@ -407,7 +407,7 @@ class SelectorViewModelTest {
         val viewModel = loadFolder(image("a"), image("b"))
         viewModel.moveToSelection()
 
-        assertEquals("Moved to Selection", viewModel.uiState.value.snackbarMessage)
+        assertEquals("Moved a · Selection", viewModel.uiState.value.snackbarMessage)
     }
 
     @Test
@@ -425,7 +425,7 @@ class SelectorViewModelTest {
 
         viewModel.moveToSelection()
 
-        assertEquals("Moved to Selection", viewModel.uiState.value.snackbarMessage)
+        assertEquals("Moved a · Selection", viewModel.uiState.value.snackbarMessage)
     }
 
     @Test
@@ -439,7 +439,7 @@ class SelectorViewModelTest {
         viewModel.copyToSelection()
 
         assertEquals(listOf("a", "b"), viewModel.uiState.value.images.map { it.fileName })
-        assertEquals("Copied to Selection", viewModel.uiState.value.snackbarMessage)
+        assertEquals("Copied a · Selection", viewModel.uiState.value.snackbarMessage)
         transfer.complete(FileOperationResult.success("content://test/folder/a", "content://test/sel/a"))
     }
 
@@ -682,7 +682,7 @@ class SelectorViewModelTest {
         assertTrue(hint!!.title, hint.title.startsWith("Moved to"))
         assertTrue(hint.message, hint.message.contains("C copies instead"))
         // And the snackbar beside it says the same verb.
-        assertTrue(viewModel.uiState.value.snackbarMessage!!.startsWith("Moved to"))
+        assertTrue(viewModel.uiState.value.snackbarMessage!!.startsWith("Moved "))
     }
 
     @Test
@@ -773,6 +773,44 @@ class SelectorViewModelTest {
         viewModel.deleteCurrentImage()
         assertEquals(before - 2, viewModel.uiState.value.images.size)
         assertEquals("Deleted", viewModel.uiState.value.snackbarMessage)
+    }
+
+    /**
+     * [USER 2026-11-12] decision #33 (1): the card names the photo, its companions and where they
+     * went, and a screen reader hears the files spelled out. A copy says "Copied".
+     */
+    @Test
+    fun `the filing card names the companions and the destination, on screen and spoken`() = runTest {
+        val stacked = image("DSC_0003.jpg").copy(
+            companions = listOf(
+                CompanionFile(uri = "content://test/folder/DSC_0003.arw", fileName = "DSC_0003.arw"),
+                CompanionFile(uri = "content://test/folder/DSC_0003.xmp", fileName = "DSC_0003.xmp"),
+            ),
+        )
+        coEvery { imageRepository.moveImage(any(), any(), any(), any()) } coAnswers {
+            val source = secondArg<Uri>()
+            FileOperationResult.success(source.toString(), "content://test/sel/${source.lastPathSegment}")
+        }
+        coEvery { imageRepository.copyImage(any(), any(), any(), any()) } coAnswers {
+            val source = secondArg<Uri>()
+            FileOperationResult.success(source.toString(), "content://test/sel/${source.lastPathSegment}")
+        }
+        val viewModel = loadFolder(stacked, image("b.jpg"), image("c.jpg"))
+
+        viewModel.moveToSelection()
+        assertEquals("Moved DSC_0003 +2 · Selection", viewModel.uiState.value.snackbarMessage)
+        assertEquals(
+            "Moved DSC_0003.jpg and 2 companion files to Selection",
+            viewModel.uiState.value.snackbarSpoken,
+        )
+
+        viewModel.copyToSelection()
+        assertEquals("Copied b · Selection", viewModel.uiState.value.snackbarMessage)
+        assertEquals("Copied b.jpg to Selection", viewModel.uiState.value.snackbarSpoken)
+
+        // Any other card carries no spoken override of its own.
+        viewModel.deleteCurrentImage()
+        assertEquals(null, viewModel.uiState.value.snackbarSpoken)
     }
 
     @Test
@@ -993,13 +1031,15 @@ class SelectorViewModelTest {
     @Test
     fun `two consecutive identical moves are two messages with distinct sequence numbers`() = runTest {
         // The snackbar's timer used to be keyed on the text, and the second "Moved
-        // to Selection" is the same text: it inherited the first one's clock.
+        // a · Selection" is the same text: it inherited the first one's clock. The card names
+        // the photo, so the two photos share a name (a second card from another folder level).
         coEvery { imageRepository.moveImage(any(), any(), any(), any()) } coAnswers {
             val source = secondArg<Uri>()
             FileOperationResult.success(source.toString(), "content://test/sel/${source.lastPathSegment}")
         }
 
-        val viewModel = loadFolder(image("a"), image("b"), image("c"))
+        val twin = image("a").let { it.copy(uri = it.uri.replace("/folder/", "/folder/b/")) }
+        val viewModel = loadFolder(image("a"), twin, image("c"))
         viewModel.moveToSelection()
         val first = viewModel.uiState.value
         viewModel.moveToSelection()
@@ -1291,7 +1331,7 @@ class SelectorViewModelTest {
         val viewModel = loadFolder(item, image("b.jpg"))
         viewModel.moveToSelection()
 
-        assertEquals("Moved to Selection", viewModel.uiState.value.snackbarMessage)
+        assertEquals("Moved IMG_0002 · Selection", viewModel.uiState.value.snackbarMessage)
     }
 
     @Test
