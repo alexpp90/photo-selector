@@ -176,7 +176,9 @@ class ActionBarView(Gtk.ActionBar if HAS_GI else object):
         self.btn_selected.add_css_class("flat")
         self.btn_selected.set_child(self.lbl_selected)
         self.btn_selected.set_focus_on_click(False)
-        self.btn_selected.set_tooltip_text("Open Selection")
+        self.btn_selected.set_tooltip_text("Photos moved or copied to Selection. Click to open it.")
+        self.lbl_trashed.set_tooltip_text("Photos moved to Trash")
+        self.lbl_remaining.set_tooltip_text("Photos not decided yet")
         self.btn_selected.update_property(
             [Gtk.AccessibleProperty.LABEL], ["Selected, open Selection folder"]
         )

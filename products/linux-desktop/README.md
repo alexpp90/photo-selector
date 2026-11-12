@@ -40,7 +40,7 @@ Start Blitzlens with a folder (`photo-selector-linux ~/Pictures/2026`) or let th
 
 - The interface is English only; there is no translation.
 - The app makes no network connections and sends no telemetry.
-- Move and Trash change files: Move relocates a photo and its companions into `Selection/`, Trash sends them to the FreeDesktop Trash. Both can be undone with `Ctrl+Z`; Copy leaves the originals untouched. If a failed Move or Copy cannot undo its own steps, the app names the files that stayed in `Selection/` and `Ctrl+Z` puts them back.
+- Move and Trash change files: Move relocates a photo and its companions into `Selection/`, Trash sends them to the FreeDesktop Trash. Both can be undone with `Ctrl+Z`; Copy leaves the originals untouched; a copied photo is marked, counted once under Selected and not under Remaining, and a later Move or Copy on it files nothing twice. If a failed Move or Copy cannot undo its own steps, the app names the files that stayed in `Selection/` and `Ctrl+Z` puts them back.
 
 ## Keyboard Shortcuts
 

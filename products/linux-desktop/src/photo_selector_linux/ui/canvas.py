@@ -23,7 +23,7 @@ except (ImportError, ValueError):
     Gtk = None
 
 from photo_selector_linux.ui.boundary_slot import BoundarySlotPane
-from photo_selector_linux.ui.info_hud import InfoHUD
+from photo_selector_linux.ui.info_hud import InfoHUD, build_copied_glyph
 from photo_selector_linux.ui.canvas_states import build_state_hero, state_key
 from photo_selector_linux.ui.layout import (
     Rect,
@@ -302,7 +302,7 @@ class CanvasView(Gtk.Box if HAS_GI else object):
         count = len(candidates)
         self.rendered_slots = []
 
-        if count == 0:
+        if count == 0 or self.viewmodel.canvas_state != "photos":
             self.hud.update_photo(None)
             if HAS_GI:
                 key = state_key(self.viewmodel)
@@ -528,6 +528,9 @@ class CanvasView(Gtk.Box if HAS_GI else object):
         # Header badge row (Role pill + 1:1 Zoom pill + Companion badges)
         badge_box = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=6)
         badge_box.set_halign(Gtk.Align.CENTER)
+
+        if candidate.copied and self.viewmodel.comparison_mode != 1:  # the 1-Up card carries it
+            badge_box.append(build_copied_glyph())
 
         if self.viewmodel.comparison_mode != 1:  # in 1-Up the only photo is the active one: no pill
             role_pill = Gtk.Label(label=desc["role"])

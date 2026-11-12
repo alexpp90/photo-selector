@@ -283,7 +283,8 @@ class CullingWorkspaceViewModel:
 
     @property
     def remaining_count(self) -> int:
-        return len(self.candidates)
+        """Photos still to decide: a copied photo stays in the list but is decided (decision #29)."""
+        return sum(1 for candidate in self.candidates if not candidate.copied)
 
     @property
     def queued_count(self) -> int:
@@ -337,8 +338,10 @@ class CullingWorkspaceViewModel:
         """Which of the canvas's states applies: ``start``, ``reading``, ``unreadable``, ``empty``,
         ``done`` or ``photos`` (plan 1.1). Each has its own text; the done screen is the only one
         that follows a decision."""
-        if self.candidates:
+        if self.candidates and (self.remaining_count > 0 or self.selected_count + self.trashed_count == 0):
             return "photos"
+        if self.candidates:
+            return "done"  # only copied photos are left: every photo is decided
         if self.current_folder is None:
             return "start"
         if self.scan_failed:
@@ -653,13 +656,21 @@ class CullingWorkspaceViewModel:
         elif action.kind == "copy":
             self.selected_count = max(0, self.selected_count - 1)
             self.copied_count = max(0, self.copied_count - 1)
+            photo.copied = False
             idx = self._index_of(photo)
             if idx is not None:
                 self.current_index = idx
         elif action.kind == "trash":
             self.trashed_count = max(0, self.trashed_count - 1)
+            self._restore_copied_counts(photo)
             if self._index_of(photo) is None:
                 self.current_index = self._reinsert(photo, action.orig_idx)
+
+    def _restore_copied_counts(self, photo: CandidatePhoto) -> None:
+        """A trashed photo that had been copied is Selected again once the Trash is rolled back."""
+        if photo.copied:
+            self.selected_count += 1
+            self.copied_count += 1
 
     def _stack_for(self, action: _QueuedAction) -> List[Tuple[CullingRecord, CandidatePhoto, int]]:
         """The undo stack of the workspace ``action`` belongs to: the live one, or — when the folder
@@ -887,10 +898,12 @@ class CullingWorkspaceViewModel:
                             self.selected_count = max(0, self.selected_count - 1)
                         else:
                             self.trashed_count = max(0, self.trashed_count - 1)
+                            self._restore_copied_counts(action.photo)
                 elif rec.action_type == CullingActionType.COPY and not rec.stranded:
                     # A partial copy (stray replicas) already gave its optimistic counts back.
                     self.selected_count = max(0, self.selected_count - 1)
                     self.copied_count = max(0, self.copied_count - 1)
+                    action.photo.copied = False
                 restored_as = self._restored_suffixed_name(action.photo, rec)
                 if restored_as is not None:
                     self._notify(f"Restored as {shorten_middle(restored_as)} (original name was in use)", "status")
@@ -936,11 +949,21 @@ class CullingWorkspaceViewModel:
         restored = photo.primary_path.name
         return restored if restored != original else None
 
+    def _already_copied(self, photo: CandidatePhoto) -> bool:
+        """Move or Copy on a photo already copied files nothing twice: say so and step on."""
+        self._notify("Already copied", "status")
+        if self.auto_advance and self.current_photo is photo and self.current_index < len(self.candidates) - 1:
+            self.current_index += 1
+            self._notify_state_changed()
+        return False
+
     def cull_move(self) -> bool:
         """Queue moving active candidate and companions to Selection/ with optimistic advance."""
         photo, folder = self.current_photo, self.current_folder
         if not photo or not folder:
             return False
+        if photo.copied:
+            return self._already_copied(photo)
         destination = self.resolve_destination()
         if not destination.ok or destination.root is None:
             self._notify(
@@ -971,6 +994,8 @@ class CullingWorkspaceViewModel:
         photo, folder = self.current_photo, self.current_folder
         if not photo or not folder:
             return False
+        if photo.copied:
+            return self._already_copied(photo)
         destination = self.resolve_destination()
         if not destination.ok or destination.root is None:
             self._notify(
@@ -983,6 +1008,7 @@ class CullingWorkspaceViewModel:
         orig_idx = idx if idx is not None else self.current_index
         self.copied_count += 1
         self.selected_count += 1
+        photo.copied = True
         if self.auto_advance and self.current_photo is photo and self.current_index < len(self.candidates) - 1:
             self.current_index += 1
             self._check_stop_sharpness_threshold()
@@ -1008,6 +1034,9 @@ class CullingWorkspaceViewModel:
         folder = self.current_folder or photo.primary_path.parent
         orig_idx = self._remove(photo)
         self.trashed_count += 1
+        if photo.copied:  # the latest decision wins: Trashed, no longer Selected
+            self.selected_count = max(0, self.selected_count - 1)
+            self.copied_count = max(0, self.copied_count - 1)
         self._check_stop_sharpness_threshold()
 
         action = _QueuedAction(

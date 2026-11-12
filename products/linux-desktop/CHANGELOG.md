@@ -26,6 +26,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 - The Duplicate Finder (`Ctrl+D`, "Find Duplicates" in the menu) and the unused local decision log: neither is part of a cull. Library Statistics stays. [USER 2026-11-12] decision #28.
 
 ### Changed
+- A copied photo is decided: it is marked with a copy glyph, counted once under Selected, no longer under Remaining, and Move or Copy on it says "Already copied" instead of filing a second `-2` file. The counters have tooltips. [USER 2026-11-12] decision #29.
 - The Keep button is now **Move to Selection**, with an icon (icon only in the narrowest windows); the shortcut sheet and the key hints say the same. [USER 2026-11-12] decision #27.
 - The info card says what the score is: the chip reads "Sharpness: 40.0" (its colour still carries the band) and its tooltip, like the bar's, says "Sharpness of the centre of the frame. Compare frames of one burst, not different scenes." The lowest-sharpness sweep starts with "Scoring N photos, centre of frame…".
 - One vocabulary on screen: folder, photo, **Sharpness** (was "Focus" on the info card and in Preferences), **Selection**, **Find Duplicates** and **Statistics** (were "Duplicate Finder", "Cryptographic Duplicate Finder (SHA-256)" and "Library Statistics"). 2-Up and 3-Up name their slots ACTIVE, PREVIOUS and NEXT (2-Up no longer says CHAMPION and CHALLENGER).
