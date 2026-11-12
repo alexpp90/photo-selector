@@ -1,5 +1,7 @@
 package com.phototok.domain
 
+import com.photoselector.core.format.RawExtensions
+
 /**
  * Single source of truth for photographic file-extension sets.
  *
@@ -11,13 +13,8 @@ package com.phototok.domain
  */
 object PhotoExtensions {
 
-    /** Camera RAW formats. Classified as RAW for companion pairing and the RAW filter. */
-    val RAW = setOf(
-        "arw", "cr2", "cr3", "nef", "nrw", "orf", "raf", "rw2",
-        "pef", "srw", "dng", "raw", "3fr", "ari", "bay", "cap",
-        "iiq", "eip", "erf", "fff", "mef", "mdc", "mos", "mrw",
-        "obm", "ptx", "pxn", "rwl", "rwz", "sr2", "srf", "x3f",
-    )
+    /** Camera RAW formats (the table both Android apps share, `:core` [RawExtensions]). Classified as RAW for companion pairing and the RAW filter. */
+    val RAW: Set<String> = RawExtensions.ALL
 
     val JPEG = setOf("jpg", "jpeg")
 
