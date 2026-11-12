@@ -14,6 +14,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 - A photo you already copied is decided: a second Copy says "Already copied" and a Move after a Copy says "Already in Selection", so nothing is filed twice (no `-2` file beside the first); the tally still adds up.
 
+- **Aesthetics scoring is off for a new install** (nothing acts on the score). An install that already ran with it keeps it on; switch it in Settings → Scoring.
+
 ### Added
 
 - **A cull has a beginning and an end.** Lensjet reopens the last folder at launch, on the photo that was on screen (found by its file, so a re-sort or photos moved away do not change it; a photo that is gone opens the first one), and **File → Open Recent** lists the last ten folders. The dock shows where Move and Copy put photos (the same path Settings shows) next to the tally, and one click shows it in Finder. When no photo is undecided a **Done** card appears over the preview (never over the dock) with Selected, Copied and Trashed, the destination, **Show in Finder** and **Open Selection**; on the last photo with photos left a "N Remaining" notice offers **Show first**. Esc, a navigation key or Undo dismisses it. On a removable card the card says **Safe to format** only when every file under the folder is accounted for, and "N other files left" otherwise.

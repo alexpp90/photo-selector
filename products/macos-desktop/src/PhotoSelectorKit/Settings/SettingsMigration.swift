@@ -17,6 +17,38 @@ public enum SettingsMigration {
     /// Set once the sort order of an existing install has been pinned (or found not to need it).
     public static let sortPinnedMarkerKey = "lensjetSortOrderPinned"
 
+    /// Set once the aesthetics setting of an existing install has been pinned (or found not to need it).
+    public static let aestheticsPinnedMarkerKey = "lensjetAestheticsPinned"
+
+    /// This code has run before (the migration marker is set), or the defaults or the pre-rename
+    /// domain already hold a Lensjet setting.
+    static func isExistingInstall(_ defaults: UserDefaults, legacy: UserDefaults? = nil) -> Bool {
+        let legacySource = legacy ?? UserDefaults(suiteName: legacyDomain)
+        return defaults.bool(forKey: doneMarkerKey)
+            || AppSettingsKeys.all.contains { defaults.object(forKey: $0) != nil }
+            || (legacySource.map { source in AppSettingsKeys.all.contains { source.object(forKey: $0) != nil } } ?? false)
+    }
+
+    /// Aesthetics scoring is off for a new install ([USER 2026-11-12] decision #21); an install that
+    /// predates that default ran with it on, so it keeps it on unless the user stored a choice, here
+    /// or in the pre-rename domain (`migrateIfNeeded` copies that one). Runs once, before
+    /// `migrateIfNeeded`, writes nothing for a new install and never overrides a stored value.
+    /// - Returns: true when the existing install's "on" was pinned.
+    @discardableResult
+    public static func pinAestheticsForExistingInstall(
+        in defaults: UserDefaults = .standard,
+        legacy: UserDefaults? = nil
+    ) -> Bool {
+        if defaults.bool(forKey: aestheticsPinnedMarkerKey) { return false }
+        defer { defaults.set(true, forKey: aestheticsPinnedMarkerKey) }
+        guard defaults.object(forKey: AppSettingsKeys.aestheticScoringEnabled) == nil else { return false }
+        let legacySource = legacy ?? UserDefaults(suiteName: legacyDomain)
+        guard legacySource?.object(forKey: AppSettingsKeys.aestheticScoringEnabled) == nil else { return false }
+        guard isExistingInstall(defaults, legacy: legacy) else { return false }
+        defaults.aestheticScoringEnabled = true
+        return true
+    }
+
     /// A new install opens newest first; an install that predates the sort menu keeps the file-name
     /// order it always had ("Updates must not destroy the user's experience"). An install is an
     /// existing one when this code has run before (the migration marker is set), or the defaults or
@@ -31,11 +63,7 @@ public enum SettingsMigration {
         if defaults.bool(forKey: sortPinnedMarkerKey) { return false }
         defer { defaults.set(true, forKey: sortPinnedMarkerKey) }
         guard defaults.object(forKey: AppSettingsKeys.sortOrder) == nil else { return false }
-        let legacySource = legacy ?? UserDefaults(suiteName: legacyDomain)
-        let existing = defaults.bool(forKey: doneMarkerKey)
-            || AppSettingsKeys.all.contains { defaults.object(forKey: $0) != nil }
-            || (legacySource.map { source in AppSettingsKeys.all.contains { source.object(forKey: $0) != nil } } ?? false)
-        guard existing else { return false }
+        guard isExistingInstall(defaults, legacy: legacy) else { return false }
         defaults.workspaceSortOrder = .fileName
         return true
     }

@@ -54,9 +54,11 @@ public struct AppSettingsDefaults {
     public static let sharpnessBlurryThreshold: Double = 35.0
     public static let sharpnessAcceptableThreshold: Double = 70.0
     public static let aestheticThreshold: Double = 0.0
-    /// Apple Vision aesthetic (AI) scoring runs lazily after the photo is on screen; users can
-    /// switch it off entirely, in which case the Vision request is never issued.
-    public static let aestheticScoringEnabled: Bool = true
+    /// Apple Vision aesthetic (AI) scoring runs lazily after the photo is on screen. Off for a new
+    /// install ([USER 2026-11-12] decision #21: nothing acts on the score); an existing install keeps
+    /// the "on" it ran with (`SettingsMigration.pinAestheticsForExistingInstall`). While it is off the
+    /// Vision request is never issued.
+    public static let aestheticScoringEnabled: Bool = false
     /// 0 = the stop threshold is off.
     public static let sharpnessStopThreshold: Double = 0
 
