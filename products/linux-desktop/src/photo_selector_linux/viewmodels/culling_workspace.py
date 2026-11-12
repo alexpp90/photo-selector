@@ -45,7 +45,6 @@ from photo_selector_linux.core.settings import (
     PERSISTED_ORDERS,
     SettingsStore,
 )
-from photo_selector_linux.core.statistics import record_decision_log
 
 
 # A file operation, and what to do with its (result, error) once it finished.
@@ -146,7 +145,6 @@ class CullingWorkspaceViewModel:
         score_runner: Optional[ScoreRunner] = None,
         auto_advance: Optional[bool] = None,
         external_destination_root: Optional[Path] = None,
-        decision_log_path: Optional[Path] = None,
     ):
         self.candidates: List[CandidatePhoto] = []
         self.current_index: int = 0
@@ -191,7 +189,6 @@ class CullingWorkspaceViewModel:
         #: False until the user moves, culls, jumps or the folder opens on a requested photo:
         #: while False, every re-order of an arriving batch lands on the first photo of the order.
         self._user_navigated: bool = False
-        self.decision_log_path: Optional[Path] = decision_log_path
 
         self.selected_count: int = 0
         self.copied_count: int = 0
@@ -849,9 +846,6 @@ class CullingWorkspaceViewModel:
             action.status = "done"
             if isinstance(result, CullingRecord):
                 self._replace_undo_record(action, result)
-
-            if self.decision_log_path is not None:
-                record_decision_log(action.kind, action.photo, self.decision_log_path)
 
             if action.generation == self._folder_generation:
                 if action.kind in ("move", "copy"):

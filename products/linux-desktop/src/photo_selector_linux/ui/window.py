@@ -222,7 +222,6 @@ class MainWindow(Adw.ApplicationWindow if HAS_GI else object):
         menu.append_section(None, section_view)
 
         section_tools = Gio.Menu()
-        section_tools.append("Find Duplicates", "app.duplicate_finder")
         section_tools.append("Statistics", "app.statistics")
         menu.append_section(None, section_tools)
 
@@ -460,11 +459,6 @@ class MainWindow(Adw.ApplicationWindow if HAS_GI else object):
             return False
         self.open_directory(Path(path))
         return True
-
-    def show_duplicate_finder(self) -> None:
-        from photo_selector_linux.ui.tools_dialogs import DuplicateFinderDialog
-        dlg = DuplicateFinderDialog(transient_for=self, viewmodel=self.viewmodel, dispatcher=run_on_thread)
-        dlg.present()
 
     def show_library_statistics(self) -> None:
         from photo_selector_linux.ui.tools_dialogs import LibraryStatisticsDialog

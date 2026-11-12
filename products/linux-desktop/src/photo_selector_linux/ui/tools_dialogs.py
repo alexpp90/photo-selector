@@ -1,7 +1,6 @@
-"""Secondary tool dialogs: Duplicate Finder and Library Statistics.
+"""Secondary tool dialog: Library Statistics.
 
 Adheres to:
-- R-LINUX-TOOLS-01: Streaming Cryptographic Duplicate Finder Dialog
 - R-LINUX-TOOLS-02: Library Statistics Dialog with Optical Histograms
 """
 
@@ -19,172 +18,12 @@ except (ImportError, ValueError):
 
 from typing import Callable, List, Optional
 
-from photo_selector_linux.core.duplicate_finder import DuplicateCluster, find_duplicates
 from photo_selector_linux.core.statistics import LibraryStatistics, calculate_library_statistics
 from photo_selector_linux.ui.file_worker import run_inline
 from photo_selector_linux.ui.secondary_window import install_chrome, show_scrollbar, size_window
 
 REMOTE_NOTICE = "Remote / Cloud folder detected. Confirm before scanning all files."
-SCAN_LABEL = "Scan for Duplicates"
 CONFIRM_LABEL = "Scan anyway"
-
-
-class DuplicateFinderDialog(Adw.Window if HAS_GI else object):
-    """Dialog for cryptographic duplicate detection and safe file deduplication."""
-
-    def __init__(
-        self,
-        transient_for=None,
-        viewmodel=None,
-        dispatcher: Optional[Callable] = None,
-    ):
-        self.viewmodel = viewmodel
-        self._dispatcher = dispatcher or run_inline
-        self.clusters: List[DuplicateCluster] = []
-        self.status_text: str = "Ready to scan the open folder."
-        self.awaiting_remote_confirmation: bool = False
-        self.remote_confirmed: bool = False
-        self.scan_button_label: str = SCAN_LABEL
-        if HAS_GI:
-            super().__init__()
-            self.set_title("Duplicates")
-            size_window(self, 700, 520, transient_for)
-            if transient_for:
-                self.set_transient_for(transient_for)
-            self._toolbar = install_chrome(self)
-            self._build_ui()
-
-    @property
-    def needs_remote_confirmation(self) -> bool:
-        return bool(
-            self.viewmodel
-            and getattr(self.viewmodel, "is_remote_folder", False)
-            and not self.remote_confirmed
-        )
-
-    def _build_ui(self) -> None:
-        if not HAS_GI:
-            return
-
-        box = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=12)
-        box.set_margin_top(16)
-        box.set_margin_bottom(16)
-        box.set_margin_start(16)
-        box.set_margin_end(16)
-
-        header = Gtk.Label(label="Find Duplicates")
-        header.add_css_class("title-2")
-        box.append(header)
-
-        self.lbl_status = Gtk.Label(label=self.status_text)
-        self.lbl_status.add_css_class("dim-label")
-        box.append(self.lbl_status)
-
-        self.btn_scan = Gtk.Button(label=SCAN_LABEL)
-        self.btn_scan.add_css_class("suggested-action")
-        self.btn_scan.connect("clicked", self._on_scan_clicked)
-        box.append(self.btn_scan)
-
-        # Scrolled results list
-        self.scrolled = Gtk.ScrolledWindow()
-        show_scrollbar(self.scrolled)
-        self.scrolled.set_vexpand(True)
-        self.scrolled.set_hexpand(True)
-        self.results_box = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=8)
-        self.scrolled.set_child(self.results_box)
-        box.append(self.scrolled)
-
-        self._toolbar.set_content(box)
-
-    def _set_status(self, text: str) -> None:
-        self.status_text = text
-        if HAS_GI and hasattr(self, "lbl_status"):
-            self.lbl_status.set_label(text)
-
-    def _set_scan_enabled(self, enabled: bool) -> None:
-        if HAS_GI and hasattr(self, "btn_scan"):
-            self.btn_scan.set_sensitive(enabled)
-
-    def _set_scan_label(self, label: str) -> None:
-        self.scan_button_label = label
-        if HAS_GI and hasattr(self, "btn_scan"):
-            self.btn_scan.set_label(label)
-
-    def confirm_remote_scan(self) -> None:
-        """Confirm full-folder duplicate pass over a remote/cloud mount (U-31)."""
-        self.remote_confirmed = True
-        self.awaiting_remote_confirmation = False
-        self._on_scan_clicked(None)
-
-    def _on_scan_clicked(self, btn) -> None:
-        if btn is not None and self.awaiting_remote_confirmation:
-            # The button read "Scan anyway": this click is the confirmation (U-31).
-            self.confirm_remote_scan()
-            return
-        if not self.viewmodel or not self.viewmodel.candidates:
-            self._set_status("No photos loaded to scan.")
-            return
-
-        if self.needs_remote_confirmation:
-            self.awaiting_remote_confirmation = True
-            self._set_status(REMOTE_NOTICE)
-            self._set_scan_label(CONFIRM_LABEL)
-            return
-
-        self.awaiting_remote_confirmation = False
-        self._set_scan_label(SCAN_LABEL)
-        self._set_status("Scanning files...")
-        candidates_snapshot = list(self.viewmodel.candidates)
-
-        def job():
-            return find_duplicates(candidates_snapshot)
-
-        self._set_scan_enabled(False)
-
-        def done(clusters, error):
-            self._set_scan_enabled(True)
-            if error is not None:
-                self._set_status(f"Error scanning files: {error}")
-                return
-            self._render_clusters(clusters or [])
-
-        self._dispatcher(job, done)
-
-    def _render_clusters(self, clusters: List[DuplicateCluster]) -> None:
-        self.clusters = list(clusters)
-        if HAS_GI and hasattr(self, "results_box"):
-            while child := self.results_box.get_first_child():
-                self.results_box.remove(child)
-
-        if not clusters:
-            self._set_status("No duplicate photos found.")
-            return
-
-        total_wasted = sum(c.wasted_bytes for c in clusters)
-        mb_wasted = total_wasted / (1024 * 1024)
-        self._set_status(
-            f"Found {len(clusters)} duplicate clusters ({mb_wasted:.1f} MB potential space savings)."
-        )
-
-        if not HAS_GI or not hasattr(self, "results_box"):
-            return
-
-        for c in clusters:
-            row = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=4)
-            size_kb = c.file_size / 1024
-            title = Gtk.Label(
-                label=f"SHA-256: {c.hash[:16]}... ({len(c.file_paths)} copies, {size_kb:.1f} KB each)"
-            )
-            title.set_halign(Gtk.Align.START)
-            row.append(title)
-
-            for p in c.file_paths:
-                p_lbl = Gtk.Label(label=f"  • {p.name} ({p.parent.name}/)")
-                p_lbl.set_halign(Gtk.Align.START)
-                p_lbl.add_css_class("dim-label")
-                row.append(p_lbl)
-
-            self.results_box.append(row)
 
 
 def _count(n: int, noun: str) -> str:

@@ -44,7 +44,6 @@ SHORTCUTS = [
     ]),
     ("Application", [
         ("Open Folder", "Ctrl+O"),
-        ("Find Duplicates", "Ctrl+D"),
         ("Statistics", "Ctrl+L"),
         ("Preferences", "Ctrl+,"),
         ("Keyboard Shortcuts", "? or Ctrl+?"),

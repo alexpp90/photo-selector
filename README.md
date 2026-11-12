@@ -167,7 +167,7 @@ The original multi-platform desktop culling application built with Python and Tk
 | **Aesthetic Scoring** | ❌ Excluded | ❌ Excluded | ✅ (Apple Vision ANE) | ❌ Excluded | ✅ (Local Ollama) | Lensjet uses the Apple Neural Engine; Frameduel scores technical quality only. |
 | **Star Ratings (1–5)** | ❌ Omitted | ✅ (Room) | ❌ Omitted | ❌ Omitted | ❌ Omitted | Rating, reject, and composition tracking in Room DB. |
 | **Score Caching** | ❌ Lightweight | ✅ (Room DB) | ❌ (Memory LRU) | ❌ (Memory LRU) | ✅ (SQLite) | Lensjet and Blitzlens keep scores in memory; Frameduel caches them in Room, the legacy Desktop in SQLite. |
-| **Duplicate Detection** | ❌ Omitted | ✅ (Room DB) | ✅ (CryptoKit SHA) | ✅ (Streaming SHA) | ✅ (SHA-256) | Two-stage size pre-filtering and SHA-256 duplicate finder. |
+| **Duplicate Detection** | ❌ Omitted | ✅ (Room DB) | ✅ (CryptoKit SHA) | ❌ Removed | ✅ (SHA-256) | Two-stage size pre-filtering and SHA-256 duplicate finder; Blitzlens dropped it on purpose. |
 | **Tactile Keyboard Shortcuts** | ❌ Touch-first | ✅ (DeX / Physical) | ✅ (NSEvent monitor)| ✅ (GTK Capture) | ✅ (Tkinter Events) | `←`/`→`, `M`, `C`, `Del` and undo agree across the apps; the per-app keys are in [`KEYBOARD.md`](docs/shared/KEYBOARD.md). |
 | **100% Offline Privacy** | ✅ (SAF Only) | ✅ (Zero Permissions) | ✅ (Strictly Local) | ✅ (Strictly Local) | ◐ (optional Ollama server) | Zero telemetry, zero cloud dependencies, strict privacy guarantee. The legacy Desktop's optional Ollama aesthetic engine sends images to the Ollama server URL you configure (localhost by default). |
 

@@ -22,6 +22,9 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 - GNOME Software and other software centres show a screenshot of Blitzlens (the README capture).
 - A screen reader announces queued, undone and finished operations and finished folder loads, and the Undo button's spoken name says which action it would undo and how many are available.
 
+### Removed
+- The Duplicate Finder (`Ctrl+D`, "Find Duplicates" in the menu) and the unused local decision log: neither is part of a cull. Library Statistics stays. [USER 2026-11-12] decision #28.
+
 ### Changed
 - The Keep button is now **Move to Selection**, with an icon (icon only in the narrowest windows); the shortcut sheet and the key hints say the same. [USER 2026-11-12] decision #27.
 - The info card says what the score is: the chip reads "Sharpness: 40.0" (its colour still carries the band) and its tooltip, like the bar's, says "Sharpness of the centre of the frame. Compare frames of one burst, not different scenes." The lowest-sharpness sweep starts with "Scoring N photos, centre of frame…".

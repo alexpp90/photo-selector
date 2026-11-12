@@ -19,7 +19,6 @@ The codebase enforces strict separation of concerns:
   - `gvfs_names`: Google Drive and other GVFS cloud mounts (GNOME Online Accounts) open like local folders — real file names are resolved through GIO, since Drive lists files under opaque IDs. Move, Copy, Trash and Undo work there too; Trash keeps the file in the local GNOME Trash (under its real name) so it can be undone.
   - `file_ops`: Transactional file relocations with Two-Phase Staged Transactions for cross-mount moves, safe copy-undo preserving original source media, and FreeDesktop Trash integration (`Gio.File.trash()`).
   - `scoring`: Pure NumPy sharpness scoring engine utilizing 2D discrete Laplacian convolution, 3x3 Gaussian smoothing, center 50% ROI cropping, and strided Median Absolute Deviation (MAD) sensor noise compensation.
-  - `duplicate_finder`: Two-stage duplicate detection using byte size pre-filtering and chunked 64 KB streaming SHA-256 hashing.
   - `statistics`: Linear single-pass $O(N)$ folder metadata aggregator.
 - `photo_selector_linux.ui`:
   - `application`: `Adw.Application` lifecycle controller with the `app.alpatix.Blitzlens` application id, icon registration, About dialog and CSS provider injection.
@@ -40,7 +39,7 @@ Start Blitzlens with a folder (`photo-selector-linux ~/Pictures/2026`) or let th
 ## Scope and privacy
 
 - The interface is English only; there is no translation.
-- The app makes no network connections and sends no telemetry. The optional local decision log stays on disk.
+- The app makes no network connections and sends no telemetry.
 - Move and Trash change files: Move relocates a photo and its companions into `Selection/`, Trash sends them to the FreeDesktop Trash. Both can be undone with `Ctrl+Z`; Copy leaves the originals untouched. If a failed Move or Copy cannot undo its own steps, the app names the files that stayed in `Selection/` and `Ctrl+Z` puts them back.
 
 ## Keyboard Shortcuts
@@ -64,9 +63,8 @@ Start Blitzlens with a folder (`photo-selector-linux ~/Pictures/2026`) or let th
 | `G` | Go to photo: a position ("Photo N of M") or part of a file name |
 | `Ctrl+Z` | Undo last culling operation (atomic reversal); every folder keeps its own undo history, including an operation that finished while you switched folders |
 | `Ctrl+O` | Open folder |
-| `Escape` / `Ctrl+W` | In Statistics, Duplicates, Shortcuts and Preferences: close the window |
+| `Escape` / `Ctrl+W` | In Statistics, Shortcuts and Preferences: close the window |
 | `Tab` | Move the keyboard focus through the header and action bar (`Space` presses the focused button) |
-| `Ctrl+D` | Find Duplicates |
 | `Ctrl+L` | Statistics |
 | `Ctrl+,` | Open Preferences |
 | `?` / `Ctrl+?` | Open the keyboard shortcuts sheet |
