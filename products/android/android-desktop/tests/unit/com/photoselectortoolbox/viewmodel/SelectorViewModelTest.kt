@@ -1050,7 +1050,7 @@ class SelectorViewModelTest {
         val exif = ExifData(iso = 800, aperture = 4.0)
         coEvery { imageRepository.getExifData(any(), any()) } returns exif
         val progress = MutableSharedFlow<ScanProgress>(replay = 1)
-        every { scanImagesUseCase(any()) } returns progress
+        every { scanImagesUseCase(any(), any()) } returns progress
 
         val viewModel = loadFolder(image("a"))
         assertEquals(exif, viewModel.uiState.value.currentImage?.exifData)
@@ -1073,6 +1073,28 @@ class SelectorViewModelTest {
         val current = viewModel.uiState.value.currentImage
         assertEquals("the scan rolled EXIF back", exif, current?.exifData)
         assertEquals(70.0, current?.scanResult?.sharpnessScore!!, 0.01)
+    }
+
+    @Test
+    fun `the Scan sheet's measurements reach the scan`() = runTest {
+        every { scanImagesUseCase(any(), any()) } returns MutableSharedFlow()
+        val viewModel = loadFolder(image("a"))
+        val noNoise = com.photoselectortoolbox.domain.scoring.ScanMeasures(noise = false)
+
+        viewModel.startScan(noNoise)
+
+        io.mockk.verify(exactly = 1) { scanImagesUseCase(any(), noNoise) }
+    }
+
+    @Test
+    fun `nothing ticked starts no scan`() = runTest {
+        every { scanImagesUseCase(any(), any()) } returns MutableSharedFlow()
+        val viewModel = loadFolder(image("a"))
+
+        viewModel.startScan(com.photoselectortoolbox.domain.scoring.ScanMeasures(false, false, false, false))
+
+        assertFalse(viewModel.uiState.value.isScanRunning)
+        io.mockk.verify(exactly = 0) { scanImagesUseCase(any(), any()) }
     }
 
     // ── Persisted SAF grant lifecycle ────────────────────────────────────

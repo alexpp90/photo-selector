@@ -7,6 +7,7 @@ import com.photoselectortoolbox.data.repository.SettingsRepository
 import com.photoselectortoolbox.domain.analysis.ClippingAnalyzer
 import com.photoselectortoolbox.domain.analysis.NoiseAnalyzer
 import com.photoselectortoolbox.domain.analysis.SharpnessAnalyzer
+import com.photoselectortoolbox.domain.scoring.ScanMeasures
 import io.mockk.coEvery
 import io.mockk.every
 import io.mockk.mockk
@@ -182,5 +183,88 @@ class ScanImagesUseCaseTest {
         collecting.cancel()
 
         io.mockk.coVerify(exactly = 0) { scoreDao.insertOrUpdate(any()) }
+    }
+
+    // ── The Scan sheet's measurements (REQ-AND-ALGO.07) ──────────────
+
+    private val photo = ImageItem("content://test/m.jpg", "m.jpg", 100L, 1000L, "image/jpeg")
+
+    private class Rig(cached: List<ScoreEntity> = emptyList()) {
+        val sharpness = mockk<SharpnessAnalyzer> { every { analyze(any(), any()) } returns 42.0 }
+        val noise = mockk<NoiseAnalyzer> { every { analyze(any()) } returns 3.0 }
+        val clipping = mockk<ClippingAnalyzer> { every { analyzeClipping(any()) } returns Pair(1.5, 2.5) }
+        val dao = mockk<ScoreDao>(relaxed = true) { coEvery { getScores(any()) } returns cached }
+        val stored = mutableListOf<ScoreEntity>()
+        val decoder = mockk<com.photoselectortoolbox.data.source.PhotoBitmapDecoder> {
+            every { decodeForAnalysis(any(), any()) } returns mockk<android.graphics.Bitmap>(relaxed = true)
+        }
+        val useCase = ScanImagesUseCase(
+            sharpness, noise, clipping, dao,
+            mockk<SettingsRepository> { every { analysisThreadCount } returns flowOf(1) },
+            decoder, Dispatchers.IO, Dispatchers.Default,
+        )
+
+        init {
+            coEvery { dao.insertOrUpdate(any()) } answers { stored += firstArg<ScoreEntity>() }
+        }
+    }
+
+    @Test
+    fun `an unticked measurement is not computed and stays empty`() = runBlocking {
+        val rig = Rig()
+
+        val result = rig.useCase(listOf(photo), ScanMeasures(noise = false, highlightClipping = false))
+            .toList().last().results.getValue(photo.uri)
+
+        verify(exactly = 0) { rig.noise.analyze(any()) }
+        verify(exactly = 1) { rig.sharpness.analyze(any(), any()) }
+        assertEquals(42.0, result.sharpnessScore)
+        assertEquals(null, result.noiseLevel)
+        // One histogram pass gives both clipping figures; only the ticked one is kept.
+        assertEquals(null, result.highlightClipping)
+        assertEquals(2.5, result.shadowClipping)
+        assertEquals(null, rig.stored.single().noiseLevel)
+    }
+
+    @Test
+    fun `with both clipping rows unticked the clipping pass does not run`() = runBlocking {
+        val rig = Rig()
+
+        rig.useCase(listOf(photo), ScanMeasures(highlightClipping = false, shadowClipping = false)).toList()
+
+        verify(exactly = 0) { rig.clipping.analyzeClipping(any()) }
+    }
+
+    @Test
+    fun `a later scan computes only what the cached row lacks and keeps the rest`() = runBlocking {
+        val cached = ScoreEntity(
+            filePath = photo.uri, fileSize = 100L, lastModified = 1000L,
+            sharpnessScore = 77.0, noiseLevel = null, highlightClipping = 0.5, shadowClipping = 0.25,
+        )
+        val rig = Rig(listOf(cached))
+
+        val result = rig.useCase(listOf(photo), ScanMeasures.ALL).toList().last().results.getValue(photo.uri)
+
+        verify(exactly = 0) { rig.sharpness.analyze(any(), any()) }
+        verify(exactly = 0) { rig.clipping.analyzeClipping(any()) }
+        verify(exactly = 1) { rig.noise.analyze(any()) }
+        assertEquals(77.0, result.sharpnessScore)
+        assertEquals(3.0, result.noiseLevel)
+        assertEquals(0.5, result.highlightClipping)
+        assertEquals(77.0, rig.stored.single().sharpnessScore)
+        assertEquals(3.0, rig.stored.single().noiseLevel)
+    }
+
+    @Test
+    fun `a cached row with an unticked measurement missing is a full cache hit`() = runBlocking {
+        val cached = ScoreEntity(
+            filePath = photo.uri, fileSize = 100L, lastModified = 1000L,
+            sharpnessScore = 77.0, noiseLevel = null, highlightClipping = 0.5, shadowClipping = 0.25,
+        )
+        val rig = Rig(listOf(cached))
+
+        rig.useCase(listOf(photo), ScanMeasures(noise = false)).toList()
+
+        verify(exactly = 0) { rig.decoder.decodeForAnalysis(any(), any()) }
     }
 }

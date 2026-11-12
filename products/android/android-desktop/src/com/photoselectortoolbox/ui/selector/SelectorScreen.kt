@@ -385,9 +385,9 @@ fun SelectorScreen(
 
     if (showScanConfig) {
         ScanConfigSheet(
-            onStartScan = { _ ->
+            onStartScan = { config ->
                 showScanConfig = false
-                viewModel.startScan()
+                viewModel.startScan(config.measures)
             },
             onDismiss = { showScanConfig = false },
             isExpanded = useExpandedLayout,

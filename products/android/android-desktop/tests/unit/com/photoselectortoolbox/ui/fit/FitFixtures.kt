@@ -165,12 +165,13 @@ fun fitSelectorViewModel(
     photos: List<ImageItem> = listOf(fitPhoto("A.JPG", 3_000), fitPhoto("B.JPG", 2_000), fitPhoto("C.JPG", 1_000)),
     openFolder: Boolean = true,
     imageRepository: ImageRepository = fitImageRepository(),
+    scanImagesUseCase: ScanImagesUseCase = mockk(relaxed = true),
 ): SelectorViewModel {
     val discovery = Channel<List<ImageItem>>(Channel.UNLIMITED)
     every { imageRepository.discoverImages(any()) } returns discovery.receiveAsFlow()
     val viewModel = SelectorViewModel(
         imageRepository = imageRepository,
-        scanImagesUseCase = mockk<ScanImagesUseCase>(relaxed = true),
+        scanImagesUseCase = scanImagesUseCase,
         cacheRepository = mockk<CacheRepository>(relaxed = true),
         settingsRepository = settings.repository,
         scoreDao = mockk<ScoreDao>(relaxed = true) { coEvery { getScore(any()) } returns null },
