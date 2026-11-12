@@ -36,6 +36,7 @@ from photo_selector_linux.core.models import (
     SharpnessCategory,
 )
 from photo_selector_linux.core.goto import resolve_goto
+from photo_selector_linux.viewmodels.capture_pass import CapturePass, order_basis
 from photo_selector_linux.viewmodels.outcome_text import companion_count, outcome_texts
 from photo_selector_linux.core.scanner import DirectoryScanner, natural_sort_key
 from photo_selector_linux.core.settings import (
@@ -217,6 +218,7 @@ class CullingWorkspaceViewModel:
         self._scoring_since_resort: int = 0
         self._scoring_anchor: Optional[CandidatePhoto] = None
         self._cancel_scoring: Optional[Callable[[], None]] = None
+        self._capture = CapturePass(self._on_capture_progress, self._on_capture_done)
 
         self._queue: List[_QueuedAction] = []
         self._running_action: Optional[_QueuedAction] = None
@@ -429,15 +431,46 @@ class CullingWorkspaceViewModel:
         self.current_index = 0
         self._user_navigated = False
         self._check_stop_sharpness_threshold()
+        if order in (ORDER_NEWEST, ORDER_OLDEST):
+            self._capture.start(self.candidates, self.is_remote_folder, user_requested=True)
         if order == ORDER_LOWEST_SHARPNESS:
             self._scoring_anchor = self.current_photo
             self._begin_scoring_pass()
         else:
             self._cancel_scoring_pass()
+            if order not in (ORDER_NEWEST, ORDER_OLDEST):
+                self._capture.cancel()
             if self.settings is not None and order in PERSISTED_ORDERS and self.settings.view_order != order:
                 self.settings.update(view_order=order)  # notifies: _on_settings_changed refreshes
                 return
         self._notify_state_changed()
+
+    @property
+    def capture_runner(self):
+        return self._capture.runner
+
+    @capture_runner.setter
+    def capture_runner(self, runner) -> None:
+        self._capture.runner = runner
+
+    @property
+    def order_basis(self) -> str:
+        """What the time orders go by: "capture time", "file time", a mix, or "reading capture times"."""
+        return order_basis(self.candidates, self._capture.reading)
+
+    def _begin_capture_pass(self) -> None:
+        """After a scan: read capture times for the time orders (a cloud folder waits to be asked)."""
+        if self.sort_order in (ORDER_NEWEST, ORDER_OLDEST):
+            if self._capture.start(self.candidates, self.is_remote_folder, user_requested=False):
+                self._notify_state_changed()
+
+    def _on_capture_progress(self) -> None:
+        if self.sort_order in (ORDER_NEWEST, ORDER_OLDEST):
+            self._resort_keeping_view()
+        self._notify_state_changed()
+
+    def _on_capture_done(self) -> None:
+        self._on_capture_progress()
 
     @property
     def is_scoring(self) -> bool:
@@ -547,7 +580,7 @@ class CullingWorkspaceViewModel:
             sign = -1.0 if self.sort_order == ORDER_NEWEST else 1.0
             self.candidates.sort(
                 key=lambda c: (
-                    sign * c.modified_at,
+                    sign * c.order_time,
                     natural_sort_key(str(c.primary_path.parent)),
                     natural_sort_key(c.filename),
                 )
@@ -1142,6 +1175,7 @@ class CullingWorkspaceViewModel:
         """
         previous_folder = self.current_folder
         self._cancel_scoring_pass()
+        self._capture.cancel(forget=True)
         self._scoring_confirmed = False
         self._select_name = select.name if select is not None else None
         self._user_navigated = False
@@ -1224,6 +1258,7 @@ class CullingWorkspaceViewModel:
         if not notified_any:
             self._notify_state_changed()
         self._begin_scoring_pass()
+        self._begin_capture_pass()
 
     @staticmethod
     def _describe_folder(scanner: DirectoryScanner, folder: Path) -> Tuple[bool, str]:
@@ -1280,4 +1315,5 @@ class CullingWorkspaceViewModel:
         self._notify(f"Loaded {len(self.candidates)} photos from {self.current_folder_name}")
         self._notify_state_changed()
         self._begin_scoring_pass()
+        self._begin_capture_pass()
         return False

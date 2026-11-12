@@ -12,8 +12,9 @@ import logging
 
 import io
 import math
+import time
 from pathlib import Path
-from typing import Any, Iterable, Optional
+from typing import Any, Iterable, Optional, Tuple
 
 from photo_selector_linux.core.models import ExposureMetadata
 
@@ -92,6 +93,7 @@ _ISO_TAGS = (
 _EXPOSURE_TIME_TAGS = ("Exif.Photo.ExposureTime", "Exif.Image.ExposureTime")
 _FNUMBER_TAGS = ("Exif.Photo.FNumber", "Exif.Image.FNumber")
 _FOCAL_LENGTH_TAGS = ("Exif.Photo.FocalLength", "Exif.Image.FocalLength")
+_CAPTURE_DATE_TAGS = ("Exif.Photo.DateTimeOriginal", "Exif.Photo.DateTimeDigitized")
 _LENS_TAGS = ("Exif.Photo.LensModel", "Exif.Canon.LensModel", "Exif.NikonLd3.LensIDNumber")
 
 
@@ -111,6 +113,22 @@ def _tag_string(meta: Any, tag: str) -> Optional[str]:
         return None
     val = str(val).replace("\x00", "").strip()
     return val or None
+
+
+def parse_capture_time(date_text: Optional[str], subsec_text: Optional[str] = None) -> Tuple[Optional[float], bool]:
+    """``(epoch seconds, has_subsecond)`` of an EXIF ``YYYY:MM:DD HH:MM:SS`` stamp and its
+    ``SubSecTime`` digits ("05" is 0.05 s). The stamp has no time zone: it is read as local time,
+    the same clock the file times are in. ``(None, False)`` for anything unreadable."""
+    if not date_text:
+        return None, False
+    try:
+        stamp = time.mktime(time.strptime(date_text.strip()[:19], "%Y:%m:%d %H:%M:%S"))
+    except (ValueError, OverflowError, OSError):
+        return None, False
+    digits = "".join(ch for ch in (subsec_text or "") if ch.isdigit())
+    if not digits:
+        return stamp, False
+    return stamp + int(digits) / (10 ** len(digits)), True
 
 
 def _first_float(meta: Any, tags: Iterable[str]) -> Optional[float]:
@@ -186,6 +204,9 @@ def metadata_from_gexiv2(meta: Any) -> ExposureMetadata:
             aperture = 2.0 ** (av / 2.0)
             is_fallback = True
 
+    captured_at, subsecond = parse_capture_time(
+        _text_from(meta, _CAPTURE_DATE_TAGS), _tag_string(meta, "Exif.Photo.SubSecTimeOriginal")
+    )
     return ExposureMetadata(
         shutter_speed=shutter_speed,
         aperture=aperture,
@@ -195,6 +216,8 @@ def metadata_from_gexiv2(meta: Any) -> ExposureMetadata:
         camera_make=_text_from(meta, ("Exif.Image.Make",)),
         camera_model=_text_from(meta, ("Exif.Image.Model",)),
         is_fallback=is_fallback,
+        captured_at=captured_at,
+        captured_subsecond=subsecond,
     )
 
 
@@ -292,6 +315,12 @@ def read_metadata_pil(path: Path, data: Optional[bytes] = None) -> Optional[Expo
     if model_val and isinstance(model_val, str) and model_val.strip().lower() != "unknown":
         camera_model = model_val.strip()
 
+    date_val = exif_dict.get(0x9003) or exif_dict.get(0x9004)  # DateTimeOriginal, DateTimeDigitized
+    subsec_val = exif_dict.get(0x9291)  # SubSecTimeOriginal
+    captured_at, subsecond = parse_capture_time(
+        date_val if isinstance(date_val, str) else None,
+        str(subsec_val) if subsec_val is not None else None,
+    )
     return ExposureMetadata(
         shutter_speed=shutter_speed,
         aperture=aperture,
@@ -301,6 +330,8 @@ def read_metadata_pil(path: Path, data: Optional[bytes] = None) -> Optional[Expo
         camera_make=camera_make,
         camera_model=camera_model,
         is_fallback=is_fallback,
+        captured_at=captured_at,
+        captured_subsecond=subsecond,
     )
 
 

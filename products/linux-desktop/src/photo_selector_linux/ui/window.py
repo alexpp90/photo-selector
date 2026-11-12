@@ -123,6 +123,7 @@ class MainWindow(Adw.ApplicationWindow if HAS_GI else object):
         loader = getattr(self.canvas_view, "loader", None)
         if loader is not None:
             self.viewmodel.score_runner = loader.run_scoring_pass
+            self.viewmodel.capture_runner = loader.run_capture_pass
         # The toast overlay wraps only the canvas so a toast can never cover the action bar (LIN-7).
         self.toast_overlay = Adw.ToastOverlay()
         self.toast_overlay.set_child(self.canvas_view)
@@ -215,11 +216,9 @@ class MainWindow(Adw.ApplicationWindow if HAS_GI else object):
         menu_button.set_tooltip_text("Main Menu")
         menu = Gio.Menu()
 
-        section_order = Gio.Menu()
-        for label, target in VIEW_ORDER_LABELS.items():
-            item = Gio.MenuItem.new(label, None)
-            item.set_action_and_target_value("win.view_order", GLib.Variant.new_string(target))
-            section_order.append_item(item)
+        section_order = self._order_section = Gio.Menu()
+        self._order_menu_basis = None
+        self._fill_order_section("file time")
         menu.append_section("Order", section_order)
         # The same radio group one tap from the counter, with "Stop at sharpness" below it.
         popover, self.spin_stop_at = build_order_popover(section_order, self.settings)
@@ -271,6 +270,20 @@ class MainWindow(Adw.ApplicationWindow if HAS_GI else object):
             action.connect("activate", lambda _a, _p, fn=handler: fn())
             self.add_action(action)
 
+    def _fill_order_section(self, basis: str) -> None:
+        """The order radio group. The two time orders say what they go by (plan 2.2): the menu row
+        reads "Newest first · capture time" or "… · file time"."""
+        if basis == self._order_menu_basis:
+            return
+        self._order_menu_basis = basis
+        section = self._order_section
+        section.remove_all()
+        for label, target in VIEW_ORDER_LABELS.items():
+            shown = f"{label} · {basis}" if target in ("newest", "oldest") else label
+            item = Gio.MenuItem.new(shown, None)
+            item.set_action_and_target_value("win.view_order", GLib.Variant.new_string(target))
+            section.append_item(item)
+
     def _toggle_info(self) -> None:
         self.canvas_view.toggle_hud()
 
@@ -296,14 +309,22 @@ class MainWindow(Adw.ApplicationWindow if HAS_GI else object):
         title = VIEW_ORDER_TITLES.get(order, order)
         self.lbl_order.set_label(VIEW_ORDER_WORDS.get(order, title))
         scoring = bool(getattr(self.viewmodel, "is_scoring", False))
+        basis = self.viewmodel.order_basis
+        reading = basis.startswith("reading")
+        by = f", by {basis}" if order in ("newest", "oldest") else ""
         if scoring:
             done, total = self.viewmodel.scoring_progress
+            tooltip = f"Order: {title} (S). {sweep_tooltip(done, total)}"
+        else:
+            tooltip = f"Order: {title}{by} (S)"
+        self.btn_order.set_tooltip_text(tooltip)
+        busy = scoring or (reading and order in ("newest", "oldest"))
+        if busy:
             self.order_spinner.start()
-            self.btn_order.set_tooltip_text(f"Order: {title} (S). {sweep_tooltip(done, total)}")
         else:
             self.order_spinner.stop()
-            self.btn_order.set_tooltip_text(f"Order: {title} (S)")
-        self.order_spinner.set_visible(scoring)
+        self.order_spinner.set_visible(busy)
+        self._fill_order_section(basis)
         self.btn_order.update_property([Gtk.AccessibleProperty.LABEL], [f"Order: {title}. Change"])
 
     def toggle_view_order(self) -> None:

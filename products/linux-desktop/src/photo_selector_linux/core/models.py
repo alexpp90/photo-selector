@@ -69,6 +69,11 @@ class ExposureMetadata:
     camera_make: Optional[str] = None
     camera_model: Optional[str] = None
     is_fallback: bool = False
+    #: When the shutter fired, in epoch seconds (the camera clock's wall time read as local time;
+    #: ``DateTimeOriginal`` plus ``SubSecTimeOriginal``). None when the file carries none.
+    captured_at: Optional[float] = None
+    #: True when ``captured_at`` has a sub-second part; False means whole seconds only.
+    captured_subsecond: bool = False
 
     @property
     def formatted_shutter_speed(self) -> Optional[str]:
@@ -191,6 +196,17 @@ class CandidatePhoto:
     def name_of(self, path: Path) -> str:
         """User-facing filename of one of this candidate's files."""
         return self.display_names.get(path, path.name)
+
+    @property
+    def capture_time(self) -> Optional[float]:
+        """When the shutter fired (EXIF), or None until the metadata is read or when the file has none."""
+        return self.exif.captured_at if self.exif is not None else None
+
+    @property
+    def order_time(self) -> float:
+        """What "newest first" and "oldest first" order by: the capture time, else the file time."""
+        captured = self.capture_time
+        return captured if captured is not None else self.modified_at
 
     @property
     def path(self) -> Path:

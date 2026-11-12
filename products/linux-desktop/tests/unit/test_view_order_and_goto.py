@@ -226,7 +226,7 @@ def test_the_menu_offers_the_four_orders_and_the_word_beside_the_counter_names_t
     win.lookup_action("view_order").activate(GLib.Variant.new_string("oldest"))
     assert win.viewmodel.sort_order == "oldest"
     assert win.lbl_order.get_label() == "Oldest"
-    assert win.btn_order.get_tooltip_text() == "Order: Oldest first (S)"
+    assert win.btn_order.get_tooltip_text() == "Order: Oldest first, by file time (S)"
     for order, word in (("natural", "Name"), ("lowest_sharpness_first", "Blurry"), ("newest", "Newest")):
         win.lookup_action("view_order").activate(GLib.Variant.new_string(order))
         assert win.lbl_order.get_label() == word
