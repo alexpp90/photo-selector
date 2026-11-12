@@ -889,7 +889,12 @@ class SelectorScreenTest {
             composeRule.onAllNodesWithTag("selector_root", useUnmergedTree = true).fetchSemanticsNodes().isEmpty()
         }
 
-        androidx.test.platform.app.InstrumentationRegistry.getInstrumentation().setInTouchMode(false)
+        // A keyboard user is out of touch mode, and only then is a rail item focusable. A real Tab
+        // gets there as a keyboard does (the window consumes the first navigation key to leave
+        // touch mode). `Instrumentation.setInTouchMode(false)` did not: on API 30 the window learns
+        // the new mode only with its next input event, so Compose stayed in touch mode and the
+        // request below was refused (CI, PR #933).
+        pressKey(android.view.KeyEvent.KEYCODE_TAB)
         composeRule.onAllNodesWithTag("nav_tools", useUnmergedTree = true).onFirst().requestFocus()
         composeRule.waitUntil(timeoutMillis = 5000) {
             composeRule.onAllNodes(hasTestTag("nav_tools") and isFocused(), useUnmergedTree = true)
