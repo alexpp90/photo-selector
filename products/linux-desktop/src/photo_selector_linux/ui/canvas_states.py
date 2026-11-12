@@ -63,17 +63,25 @@ def announcement(vm) -> str:
     return text + (" Safe to format." if summary["verdict"] == VERDICT_SAFE else "")
 
 
+def recent_folders(vm) -> List[Path]:
+    """The recent folders the start card lists (at most five), newest first."""
+    settings = getattr(vm, "settings", None)
+    return [Path(f) for f in getattr(settings, "recent_folders", [])] if settings is not None else []
+
+
 def state_key(vm) -> Tuple:
     """Changes exactly when the hero must be rebuilt."""
     texts = state_texts(vm)
     return (vm.canvas_state, texts["title"], texts["line"], tuple(texts.get("cells", ())),
-            str(texts.get("path")), texts.get("verdict_text"))
+            str(texts.get("path")), texts.get("verdict_text"),
+            tuple(str(p) for p in recent_folders(vm)) if vm.canvas_state == "start" else ())
 
 
 def build_state_hero(
     vm,
     on_open_folder: Optional[Callable[[], None]] = None,
     on_show_in_files: Optional[Callable[[], None]] = None,
+    on_open_recent: Optional[Callable[[Path], None]] = None,
 ):
     """The hero widget for the current state."""
     state = vm.canvas_state
@@ -119,7 +127,39 @@ def build_state_hero(
             pill.add_css_class("hotkey-hint-pill")
             hints_row.append(pill)
         hero.append(hints_row)
+        if on_open_recent is not None:
+            _append_recent(hero, recent_folders(vm), on_open_recent)
     return hero
+
+
+def _append_recent(hero, folders: List[Path], on_open_recent: Callable[[Path], None]) -> None:
+    """Up to five recent folders: name, parent path dimmed; a folder that is gone says "Missing"."""
+    if not folders:
+        return
+    box = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=2)
+    box.set_name("recent_folders")
+    for folder in folders:
+        exists = folder.is_dir()
+        row = Gtk.Button()
+        row.add_css_class("flat")
+        row.set_sensitive(exists)
+        row.set_tooltip_text(str(folder))
+        row.update_property([Gtk.AccessibleProperty.LABEL], [f"Recent folder: {folder.name}"])
+        line = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=8)
+        line.append(Gtk.Image.new_from_icon_name("folder-symbolic"))
+        name = Gtk.Label(label=folder.name or str(folder))
+        name.set_ellipsize(2)
+        name.set_max_width_chars(24)
+        line.append(name)
+        detail = Gtk.Label(label="Missing" if not exists else display_path(folder.parent))
+        detail.add_css_class("dim-label")
+        detail.set_ellipsize(2)
+        detail.set_max_width_chars(32)
+        line.append(detail)
+        row.set_child(line)
+        row.connect("clicked", lambda _b, f=folder: on_open_recent(f))
+        box.append(row)
+    hero.append(box)
 
 
 def _open_button(callback: Callable[[], None], suggested: bool):

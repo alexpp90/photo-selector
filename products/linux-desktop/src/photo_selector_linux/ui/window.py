@@ -27,9 +27,9 @@ from photo_selector_linux.ui.canvas_states import announcement
 from photo_selector_linux.ui.file_worker import FileOperationWorker, run_on_thread, schedule_on_main_loop
 from photo_selector_linux.ui.keyboard_router import KeyboardRouter
 from photo_selector_linux.ui.styling import APP_BRAND_NAME, APP_ICON_NAME
+from photo_selector_linux.viewmodels.culling_workspace import CullingWorkspaceViewModel
 
 logger = logging.getLogger(__name__)
-from photo_selector_linux.viewmodels.culling_workspace import CullingWorkspaceViewModel
 
 # Menu label -> view model sort order (R-LINUX-CULL-02).
 VIEW_ORDER_LABELS = {
@@ -111,7 +111,10 @@ class MainWindow(Adw.ApplicationWindow if HAS_GI else object):
 
         # Main Canvas View
         self.canvas_view = CanvasView(viewmodel=self.viewmodel)
-        self.canvas_view.set_state_card_actions(self.show_open_folder_dialog, self.show_selection_in_files)
+        self.canvas_view.set_state_card_actions(
+            self.show_open_folder_dialog, self.show_selection_in_files, self.open_directory
+        )
+        self._attach_folder_drop_target()
         loader = getattr(self.canvas_view, "loader", None)
         if loader is not None:
             self.viewmodel.score_runner = loader.run_scoring_pass
@@ -407,6 +410,9 @@ class MainWindow(Adw.ApplicationWindow if HAS_GI else object):
             return
         dialog = Gtk.FileDialog()
         dialog.set_title("Open Folder")
+        recent = self.settings.recent_folders if self.settings is not None else []
+        if recent and Path(recent[0]).is_dir():
+            dialog.set_initial_folder(Gio.File.new_for_path(recent[0]))
         dialog.select_folder(self, None, self._on_folder_dialog_finish)
 
     def _on_folder_dialog_finish(self, dialog, result) -> None:
@@ -434,6 +440,21 @@ class MainWindow(Adw.ApplicationWindow if HAS_GI else object):
             self.viewmodel.load_directory(path.parent, select=path)
         else:
             self.viewmodel.load_directory(path)
+        if self.settings is not None:
+            self.settings.remember_folder(path.parent if path.is_file() else path)
+
+    def _attach_folder_drop_target(self) -> None:
+        """A folder dropped on the window opens (a file opens its folder)."""
+        target = Gtk.DropTarget.new(Gio.File, Gdk.DragAction.COPY)
+        target.connect("drop", self._on_folder_dropped)
+        self.add_controller(target)
+
+    def _on_folder_dropped(self, _target, value, _x, _y) -> bool:
+        path = value.get_path() if value is not None else None
+        if not path:
+            return False
+        self.open_directory(Path(path))
+        return True
 
     def show_duplicate_finder(self) -> None:
         from photo_selector_linux.ui.tools_dialogs import DuplicateFinderDialog

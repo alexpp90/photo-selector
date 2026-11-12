@@ -58,6 +58,7 @@ class CanvasView(Gtk.Box if HAS_GI else object):
         #: The window wires these; the state cards call them (Open Folder…, Show in Files).
         self.open_folder_callback: Optional[Callable[[], None]] = None
         self.show_in_files_callback: Optional[Callable[[], None]] = None
+        self.open_recent_callback: Optional[Callable[[Any], None]] = None
         self._hero_key: Optional[Tuple] = None
         self._active_image_area = None
         initial_max_mb = getattr(viewmodel, "cache_limit_mb", 512.0)
@@ -485,10 +486,11 @@ class CanvasView(Gtk.Box if HAS_GI else object):
 
         self._attach_hud()
 
-    def set_state_card_actions(self, open_folder, show_in_files) -> None:
+    def set_state_card_actions(self, open_folder, show_in_files, open_recent=None) -> None:
         """Wire the buttons of the state cards and redraw a card that was built without them."""
         self.open_folder_callback = open_folder
         self.show_in_files_callback = show_in_files
+        self.open_recent_callback = open_recent
         self._hero_key = None
         if not self.viewmodel.candidates:
             self._render_view()
@@ -499,6 +501,7 @@ class CanvasView(Gtk.Box if HAS_GI else object):
             self.viewmodel,
             on_open_folder=self.open_folder_callback,
             on_show_in_files=self.show_in_files_callback,
+            on_open_recent=self.open_recent_callback,
         )
 
     def _create_photo_slot(
