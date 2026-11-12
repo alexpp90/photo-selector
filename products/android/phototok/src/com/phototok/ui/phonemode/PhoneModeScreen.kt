@@ -291,7 +291,17 @@ fun PhoneModeScreen(
     }
 
     // The system bin's consent for finalised phone deletes, and "N not deleted" after a decline.
-    SystemTrashHost(viewModel = trashViewModel, hostState = snackbarHostState)
+    val trashState by trashViewModel.state.collectAsStateWithLifecycle()
+    SystemTrashHost(
+        request = trashState.request,
+        notice = trashState.notice,
+        hostState = snackbarHostState,
+        onLaunched = trashViewModel::onLaunched,
+        launch = null,
+        onResult = trashViewModel::onResult,
+        onRetry = trashViewModel::retry,
+        onNoticeShown = trashViewModel::clearNotice,
+    )
 
     // U-14c: "Done with this card" sheet
     if (uiState.showCardDoneSheet) {

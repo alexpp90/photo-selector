@@ -60,7 +60,7 @@ class SystemTrashHostTest {
                 val state by repo.state.collectAsState()
                 val hostState = remember { SnackbarHostState() }
                 Box(Modifier.fillMaxSize()) {
-                    SystemTrashRequests(
+                    SystemTrashHost(
                         request = state.request,
                         notice = state.notice,
                         hostState = hostState,

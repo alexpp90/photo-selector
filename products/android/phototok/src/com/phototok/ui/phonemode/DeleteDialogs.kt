@@ -38,12 +38,10 @@ import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.unit.dp
-import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.phototok.R
 import com.phototok.data.repository.SystemTrashRequest
 import com.phototok.data.repository.TrashNotice
 import com.phototok.domain.DeleteSplit
-import com.phototok.viewmodel.SystemTrashViewModel
 
 /**
  * Direct Delete Confirmation (REQ-TOK-GESTURE.03), shown before a swipe-left delete while the
@@ -140,31 +138,13 @@ fun DirectDeleteDialog(
 
 /**
  * Launches the system bin's consent requests ([USER 2026-11-12] decision #13) from this Activity
- * and shows "N not deleted" with Retry after a decline. The requests are held by a singleton, so a
- * batch finalised while no Activity was shown is launched as soon as one is (it collects only while
- * started).
+ * and shows "N not deleted" with Retry after a decline. The requests are held by a singleton
+ * (`SystemTrashRepository`), so a batch finalised while no Activity was shown is launched as soon as
+ * one collects it (only while started). [launch] replaces the system launcher in tests; null uses
+ * `StartIntentSenderForResult`.
  */
 @Composable
-internal fun SystemTrashHost(viewModel: SystemTrashViewModel, hostState: SnackbarHostState) {
-    val state by viewModel.state.collectAsStateWithLifecycle()
-    SystemTrashRequests(
-        request = state.request,
-        notice = state.notice,
-        hostState = hostState,
-        onLaunched = viewModel::onLaunched,
-        launch = null,
-        onResult = viewModel::onResult,
-        onRetry = viewModel::retry,
-        onNoticeShown = viewModel::clearNotice,
-    )
-}
-
-/**
- * The stateless part of [SystemTrashHost]. [launch] replaces the system launcher in tests; null
- * uses `StartIntentSenderForResult`.
- */
-@Composable
-internal fun SystemTrashRequests(
+internal fun SystemTrashHost(
     request: SystemTrashRequest?,
     notice: TrashNotice?,
     hostState: SnackbarHostState,
