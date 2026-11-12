@@ -36,6 +36,7 @@ from photo_selector_linux.core.models import (
     SharpnessCategory,
 )
 from photo_selector_linux.core.goto import resolve_goto
+from photo_selector_linux.viewmodels.outcome_text import companion_count, outcome_texts
 from photo_selector_linux.core.scanner import DirectoryScanner, natural_sort_key
 from photo_selector_linux.core.settings import (
     ORDER_LOWEST_SHARPNESS,
@@ -117,14 +118,6 @@ def shorten_middle(name: str, limit: int = MESSAGE_NAME_CHARS) -> str:
     if len(stem) <= limit:
         return stem
     return f"{stem[:4]}…{stem[-7:]}"
-
-
-def _name_with_companions(photo: CandidatePhoto, result: Any) -> str:
-    """``name`` or ``name + N`` for the N companion files that went along with the primary."""
-    pairs = list(getattr(result, "affected_paths", None) or [])
-    companions = len(pairs) - 1 if pairs else len(photo.all_paths) - 1
-    name = shorten_middle(photo.filename)
-    return f"{name} + {companions}" if companions > 0 else name
 
 
 class CullingWorkspaceViewModel:
@@ -232,6 +225,7 @@ class CullingWorkspaceViewModel:
 
         self._state_callbacks: List[Callable[[CullingWorkspaceViewModel], None]] = []
         self.last_notification_severity: str = "info"
+        self.last_notification_spoken: Optional[str] = None
         self._notification_callbacks: List[Callable[[CullingWorkspaceViewModel, str], None]] = []
 
         if self.settings is not None:
@@ -392,7 +386,7 @@ class CullingWorkspaceViewModel:
                 # One failing view must not stop the others from refreshing.
                 logger.exception("State callback %r failed", cb)
 
-    def _notify(self, message: str, severity: str = "info") -> None:
+    def _notify(self, message: str, severity: str = "info", spoken: Optional[str] = None) -> None:
         """Deliver a message to notification callbacks (signature ``(vm, message)``).
 
         ``severity`` is stored in ``last_notification_severity`` before the callbacks run:
@@ -402,6 +396,8 @@ class CullingWorkspaceViewModel:
         ``"info"`` = everything else (toast only).
         """
         self.last_notification_severity = severity
+        #: What a screen reader says when it differs from ``message`` (companions in words).
+        self.last_notification_spoken = spoken
         for cb in self._notification_callbacks:
             try:
                 cb(self, message)
@@ -870,13 +866,14 @@ class CullingWorkspaceViewModel:
             if action.generation == self._folder_generation:
                 if action.kind in ("move", "copy"):
                     verb = "Moved" if action.kind == "move" else "Copied"
-                    self._notify(
-                        self._transfer_message(verb, action, result, self._first_transfer_place(action)), "status"
-                    )
+                    first = self._first_transfer_place(action)
+                    visible, spoken = self._transfer_message(verb, action, result, first)
+                    self._notify(visible, "status", spoken=spoken)
                 elif action.kind == "trash":
-                    self._notify(
-                        f"Moved {_name_with_companions(action.photo, result)} to Trash", "status"
+                    visible, spoken = outcome_texts(
+                        "Moved", action.photo, companion_count(action.photo, result), "Trash"
                     )
+                    self._notify(visible, "status", spoken=spoken)
 
         elif action.kind == "undo":
             target = action.target_action
@@ -919,9 +916,9 @@ class CullingWorkspaceViewModel:
                 else:
                     self._notify(f"Undid {rec.action_type.value} for {shorten_middle(action.photo.filename)}", "status")
 
-    def _first_transfer_place(self, action: "_QueuedAction") -> Optional[str]:
-        """The full destination, for the first Move or Copy of an opened folder only (plan 1.6);
-        later outcomes keep the short ``Selection/``."""
+    def _first_transfer_place(self, action: "_QueuedAction") -> Optional[Tuple[str, bool]]:
+        """The full destination and whether it is on the card being culled, for the first Move or
+        Copy of an opened folder only (plan 1.6); later outcomes name the folder."""
         if self._destination_said_generation == action.generation:
             return None
         self._destination_said_generation = action.generation
@@ -932,27 +929,29 @@ class CullingWorkspaceViewModel:
         # A long path keeps its start and its end (the folder and the Selection) in the bounded slot.
         if len(shown) > limit:
             shown = f"{shown[:10]}…{shown[-(limit - 11):]}"
-        return shown + ON_CARD_NOTE if on_card else shown
+        return (shown + ON_CARD_NOTE if on_card else shown), on_card
 
     @staticmethod
-    def _transfer_message(verb: str, action: "_QueuedAction", result: Any, place: Optional[str] = None) -> str:
-        """Feedback for a finished Move/Copy (docs/shared/FILE_OPERATIONS.md, feedback templates).
+    def _transfer_message(
+        verb: str, action: "_QueuedAction", result: Any, first: Optional[Tuple[str, bool]] = None
+    ) -> Tuple[str, str]:
+        """``(visible, spoken)`` for a finished Move/Copy (``outcome_text``; docs/shared/FILE_OPERATIONS.md).
 
-        A collision-suffixed bundle says which name it got ("Moved to Selection/ as a-2.jpg (+1
-        related)"); a plain transfer keeps the short "Moved a.jpg to Selection/".
+        A collision-suffixed bundle says which name it got ("Moved as a-2 +1 · Selection").
         """
         photo = action.photo
-        first = place is not None
-        place = place or f"{action.selection_folder}/"
         pairs = list(getattr(result, "affected_paths", None) or [])
         primary_dst = next((dst for src, dst in pairs if src == photo.primary_path), None)
-        if primary_dst is not None and primary_dst.name != photo.name_of(photo.primary_path):
-            related = len(pairs) - 1
-            suffix = f" (+{related} related)" if related > 0 else ""
-            return f"{verb} to {place} as {shorten_middle(primary_dst.name)}{suffix}"
-        if first:  # "Moved to ~/Pictures/Lisbon/Selection/": where, in full; the tooltip has no more to add
-            return f"{verb} to {place}"
-        return f"{verb} {_name_with_companions(photo, result)} to {place}"
+        new_name = (
+            primary_dst.name
+            if primary_dst is not None and primary_dst.name != photo.name_of(photo.primary_path)
+            else None
+        )
+        return outcome_texts(
+            verb, photo, companion_count(photo, result), action.selection_folder,
+            first_place=first[0] if first else None, new_name=new_name,
+            on_card=bool(first and first[1]),
+        )
 
     @staticmethod
     def _restored_suffixed_name(photo: CandidatePhoto, record: CullingRecord) -> Optional[str]:

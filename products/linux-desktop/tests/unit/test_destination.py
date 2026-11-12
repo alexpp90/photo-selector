@@ -475,9 +475,9 @@ def test_the_first_move_of_a_folder_names_the_full_destination_once(tmp_path: Pa
     )
     vm.load_directory(card)
     assert vm.cull_copy() and vm.cull_copy()
-    assert notes[0].startswith("Copied to ") and notes[0].endswith("Selection/")
-    assert len(notes[0]) <= len("Copied to ") + 34  # bounded: the bar's slot is not wider
-    assert notes[1].startswith("Copied IMG_000") and notes[1].endswith("to Selection/")
+    assert notes[0].startswith("Copied · ") and notes[0].endswith("Selection/")
+    assert len(notes[0]) <= len("Copied · ") + 34  # bounded: the bar's slot is not wider
+    assert notes[1].startswith("Copied IMG_000") and notes[1].endswith(" · Selection")
     vm.load_directory(card)
     assert vm.cull_copy()
-    assert notes[-1].startswith("Copied to ") or "as IMG_" in notes[-1]
+    assert notes[-1].startswith("Copied · ") or "as IMG_" in notes[-1]

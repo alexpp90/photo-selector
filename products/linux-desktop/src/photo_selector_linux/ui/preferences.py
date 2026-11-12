@@ -32,6 +32,7 @@ from photo_selector_linux.core.destination import (
 from photo_selector_linux.core.settings import SettingsStore
 from photo_selector_linux.ui.secondary_window import install_close_shortcuts, size_window
 
+
 def markup_safe(text: str) -> str:
     """``text`` as an Adw title shows it literally: titles are parsed as Pango markup."""
     return GLib.markup_escape_text(text) if HAS_GI else text

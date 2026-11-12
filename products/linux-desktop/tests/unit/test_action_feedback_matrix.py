@@ -49,9 +49,10 @@ ENTRY_PATHS = {
 #: action -> (text that must be in the outcome, ...): the file (with its companion) and the place.
 EXPECTED = {
     # The first Move or Copy of an opened folder says where, in full (plan 1.6): no file name then.
-    "move": ("Moved to ", "Selection/"),
-    "copy": ("Copied to ", "Selection/"),
-    "trash": ("Moved DSC_0001.JPG + 1", "Trash"),
+    # Decision #33 (1): "+N" names the companions, " · " the destination.
+    "move": ("Moved +1 · ", "Selection/"),
+    "copy": ("Copied +1 · ", "Selection/"),
+    "trash": ("Moved DSC_0001 +1 · Trash", "Trash"),
 }
 
 

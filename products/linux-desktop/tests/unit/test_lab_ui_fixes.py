@@ -329,18 +329,18 @@ def test_shorten_middle_keeps_the_distinguishing_end():
 def test_move_message_names_file_destination_and_companion_count():
     vm, messages = _bundle_vm("move", ["IMG_20260814_064000.JPG", "IMG_20260814_064000.xmp"])
     vm.cull_move()
-    assert messages == ["Moved IMG_…_064000 + 2 to Selection/"]
+    assert messages == ["Moved IMG_…_064000 +2 · Selection"]
 
 
 def test_delete_after_move_shows_the_trash_message_not_the_move_message():
     vm, messages = _bundle_vm("move", ["IMG_20260814_064000.JPG"])
     bar = ActionBarView(viewmodel=vm)
     vm.cull_move()
-    assert bar.status_text == "Moved IMG_…_064000 + 1 to Selection/"
+    assert bar.status_text == "Moved IMG_…_064000 +1 · Selection"
     trash = vm.file_manager.trash_candidate.return_value
     trash.affected_paths = [(vm.candidates[0].primary_path, Path("/tmp/trash/x"))]
     vm.cull_trash()
-    assert bar.status_text == "Moved IMG_…_064001 to Trash"
+    assert bar.status_text == "Moved IMG_…_064001 · Trash"
 
 
 def test_a_new_action_clears_the_previous_outcome_while_it_runs():
@@ -399,7 +399,7 @@ def test_message_fits_unclipped_and_buttons_do_not_move(width, studio_css):
     bar._on_surface_layout(None, 1600, 60)  # a resize between two widths
     layout()
     before = layout()
-    text = "Moved IMG_…_064000 + 2 to Selection/"
+    text = "Moved IMG_…_064000 +2 · Selection"
     vm._notify(text, "status")
     after = layout()
     assert before["btn_move"] == after["btn_move"]

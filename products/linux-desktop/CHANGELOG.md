@@ -27,6 +27,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 - The Duplicate Finder (`Ctrl+D`, "Find Duplicates" in the menu) and the unused local decision log: neither is part of a cull. Library Statistics stays. [USER 2026-11-12] decision #28.
 
 ### Changed
+- Move, Copy and Trash confirmations name the companions and the destination: "Moved IMG_0001 +2 · Selection" (a screen reader says "Moved IMG_0001.CR3 and 2 companion files to Selection"). [USER 2026-11-12] decision #33.
 - Statistics has a button in the header bar (left of the main menu). The PREVIOUS and NEXT tiles of 2-Up and 3-Up show arrows instead of words. The lowest-sharpness sweep ends with "Scored N more" in the action bar. [USER 2026-11-12] decision #33.
 - A copied photo is decided: it is marked with a copy glyph, counted once under Selected, no longer under Remaining, and Move or Copy on it says "Already copied" instead of filing a second `-2` file. The counters have tooltips. [USER 2026-11-12] decision #29.
 - The Keep button is now **Move to Selection**, with an icon (icon only in the narrowest windows); the shortcut sheet and the key hints say the same. [USER 2026-11-12] decision #27.
