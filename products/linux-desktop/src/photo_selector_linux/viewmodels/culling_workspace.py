@@ -26,6 +26,7 @@ from photo_selector_linux.core.destination import (
 )
 from photo_selector_linux.core.file_ops import FileCullingManager
 from photo_selector_linux.core.gvfs_names import is_remote_filesystem
+from photo_selector_linux.core.volumes import VERDICT_SAFE, format_verdict
 from photo_selector_linux.core.models import (
     CandidatePhoto,
     CullingActionType,
@@ -149,6 +150,7 @@ class CullingWorkspaceViewModel:
         self.current_folder_name: str = ""
         self.is_remote_folder: bool = False
         self.is_scanning: bool = False
+        self.scan_failed: bool = False
 
         self.settings: Optional[SettingsStore] = settings
         self.selection_folder_name: str = settings.selection_folder_name if settings else "Selection"
@@ -307,14 +309,42 @@ class CullingWorkspaceViewModel:
         return None
 
     def card_summary(self) -> Dict[str, Any]:
-        """Return ingest/culling tally summary and whether the source card is safe to format (U-33)."""
+        """Tally of the cull and the "safe to format" verdict (U-33, plan 1.2).
+
+        The verdict follows ``core.volumes.format_verdict``: the source must be a removable volume
+        and the Selection on another one; a Selection on the card itself is reported, not blessed.
+        """
+        destination = self.resolve_destination()
+        verdict = format_verdict(
+            self.current_folder, destination.path, self.queued_count, self.remaining_count,
+            self.is_remote_folder,
+        )
         return {
             "kept": self.selected_count,
             "trashed": self.trashed_count,
             "remaining": self.remaining_count,
             "queued": self.queued_count,
-            "safe_to_format": self.queued_count == 0 and self.remaining_count == 0,
+            "selection_path": destination.path,
+            "verdict": verdict,
+            "safe_to_format": verdict == VERDICT_SAFE,
         }
+
+    @property
+    def canvas_state(self) -> str:
+        """Which of the canvas's states applies: ``start``, ``reading``, ``unreadable``, ``empty``,
+        ``done`` or ``photos`` (plan 1.1). Each has its own text; the done screen is the only one
+        that follows a decision."""
+        if self.candidates:
+            return "photos"
+        if self.current_folder is None:
+            return "start"
+        if self.scan_failed:
+            return "unreadable"
+        if self.is_scanning:
+            return "reading"
+        if self.selected_count + self.trashed_count > 0:
+            return "done"
+        return "empty"
 
     def connect(self, signal: str, callback: Callable) -> None:
         """Register callbacks for state changes or notifications."""
@@ -1083,6 +1113,7 @@ class CullingWorkspaceViewModel:
         self.copied_count = 0
         self.trashed_count = 0
         self.is_scanning = True
+        self.scan_failed = False
 
         if threaded:
             requested = folder
@@ -1109,6 +1140,9 @@ class CullingWorkspaceViewModel:
                 daemon=True,
             )
             self._scan_thread = thread
+            # The window already names the folder and shows "Reading <folder>" before the first
+            # photo arrives, instead of "No folder loaded".
+            self._notify_state_changed()
             thread.start()
             return
 
@@ -1154,6 +1188,7 @@ class CullingWorkspaceViewModel:
         if generation != self._folder_generation:
             return False
         self.is_scanning = False
+        self.scan_failed = True
         self._notify(f"Could not read {self.current_folder_name}: {reason}", severity="error")
         self._notify_state_changed()
         return False

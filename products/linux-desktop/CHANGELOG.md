@@ -7,6 +7,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 ## [Unreleased]
 
 ### Added
+- The canvas says where you are. With no photo to show it draws one card per state: **start** ("Drop a folder" and an **Open Folder…** button), **reading** (a spinner and "Reading <folder>" the moment you choose it, instead of "No folder loaded"), **nothing to cull** ("No photos", or "Can't read folder") and **done**. The window announces "Done. 10 selected, 1 trashed." to screen readers.
+- **Done** screen after the last decision: how many photos were selected and trashed, the full path of the Selection folder (selectable), **Show in Files** and **Open Folder…**, and **Safe to format** when the photos came from a removable card, the Selection is on another volume and nothing is queued; if the Selection sits on the card itself it says "Selection is on this card" and gives no verdict.
 - Preferences > Culling Destination: choose **Working folder** (Selection inside the folder you cull, as before) or a **Custom folder**, and see the full path your photos will go to, updated as you open another folder. A custom folder that is gone or not writable is shown as a warning.
 - **Lowest sharpness first** is in the main menu (View order) and on the **B** key, next to the natural order; the menu shows which one is active.
 

@@ -7,6 +7,7 @@ Adheres to:
 
 from __future__ import annotations
 
+import logging
 from pathlib import Path
 
 try:
@@ -22,9 +23,12 @@ except (ImportError, ValueError):
 from photo_selector_linux.core.settings import SettingsStore
 from photo_selector_linux.ui.action_bar import ActionBarView
 from photo_selector_linux.ui.canvas import CanvasView
+from photo_selector_linux.ui.canvas_states import announcement
 from photo_selector_linux.ui.file_worker import FileOperationWorker, run_on_thread, schedule_on_main_loop
 from photo_selector_linux.ui.keyboard_router import KeyboardRouter
 from photo_selector_linux.ui.styling import APP_BRAND_NAME, APP_ICON_NAME
+
+logger = logging.getLogger(__name__)
 from photo_selector_linux.viewmodels.culling_workspace import CullingWorkspaceViewModel
 
 # Menu label -> view model sort order (R-LINUX-CULL-02).
@@ -47,6 +51,7 @@ class MainWindow(Adw.ApplicationWindow if HAS_GI else object):
         self.icon_name: str = APP_ICON_NAME
         self.settings: SettingsStore = settings or SettingsStore()
         self._close_when_idle = False
+        self._last_canvas_state = "start"
         self._close_forced = False
         self._focused_folder = None
         if HAS_GI:
@@ -106,6 +111,7 @@ class MainWindow(Adw.ApplicationWindow if HAS_GI else object):
 
         # Main Canvas View
         self.canvas_view = CanvasView(viewmodel=self.viewmodel)
+        self.canvas_view.set_state_card_actions(self.show_open_folder_dialog, self.show_selection_in_files)
         loader = getattr(self.canvas_view, "loader", None)
         if loader is not None:
             self.viewmodel.score_runner = loader.run_scoring_pass
@@ -326,6 +332,14 @@ class MainWindow(Adw.ApplicationWindow if HAS_GI else object):
             action.set_state(GLib.Variant.new_string(vm.sort_order))
         self._show_order_indicator(vm.sort_order)
 
+        state = vm.canvas_state
+        if state != self._last_canvas_state:
+            if state == "done":
+                self.action_bar._announce(announcement(vm))
+            elif state == "reading":
+                self.action_bar._announce(f"Reading {vm.current_folder_name}")
+            self._last_canvas_state = state
+
         if self._close_when_idle and vm.queued_count == 0:
             self._close_when_idle = False
             self.close()
@@ -369,6 +383,24 @@ class MainWindow(Adw.ApplicationWindow if HAS_GI else object):
         toast.set_timeout(0 if persistent else 3)
         self._toast = toast
         self.toast_overlay.add_toast(toast)
+
+    def show_selection_in_files(self) -> None:
+        """Show in Files: open the folder the keepers went to in the file manager."""
+        path = self.viewmodel.resolve_destination().path
+        if path is None or not HAS_GI:
+            return
+        if not path.exists():
+            self.show_toast("The Selection folder is not there.")
+            return
+        launcher = Gtk.FileLauncher.new(Gio.File.new_for_path(str(path)))
+        launcher.launch(self, None, self._on_files_launched)
+
+    def _on_files_launched(self, launcher, result) -> None:
+        try:
+            launcher.launch_finish(result)
+        except GLib.Error as e:
+            logger.warning("Show in Files failed: %s", e.message)
+            self.show_toast("Can't open the file manager.")
 
     def show_open_folder_dialog(self) -> None:
         if not HAS_GI:

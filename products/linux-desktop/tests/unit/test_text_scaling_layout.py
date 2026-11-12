@@ -189,7 +189,14 @@ def test_the_about_dialog_fits_at_every_scale(tmp_path):
                 probe.show_at(win, size)
                 win.show_about()
                 probe.pump(0.6)
-                failures.extend(f"about x{scale} at {size or 'minimum'}: {f}" for f in probe.layout_findings(win))
+                # The dialog is a modal layer over the window: what lies behind it (the start card's
+                # button) is not on the same layer, so the check reads the dialog itself.
+                dialog = win.get_visible_dialog()
+                assert dialog is not None, "the About dialog must be showing"
+                failures.extend(
+                    f"about x{scale} at {size or 'minimum'}: {f}"
+                    for f in probe.layout_findings(dialog, root=win)
+                )
             finally:
                 win.destroy()
                 probe.pump(0.1)
