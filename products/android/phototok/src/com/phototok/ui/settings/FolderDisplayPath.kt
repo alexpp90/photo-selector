@@ -17,6 +17,7 @@ internal fun folderDisplayPath(uri: String, providerName: String?): String {
     val removable = stringResource(R.string.label_kind_sd)
     val labels = SafTreeDisplayPath.Labels(
         internalStorage = stringResource(R.string.label_kind_phone),
+        documents = stringResource(R.string.label_documents),
         removableVolume = { _ -> removable },
         unknownFolder = stringResource(R.string.label_folder),
     )

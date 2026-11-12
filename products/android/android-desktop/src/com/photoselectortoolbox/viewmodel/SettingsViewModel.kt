@@ -15,6 +15,7 @@ import com.photoselectortoolbox.domain.curation.DestinationPreview
 import com.photoselectortoolbox.domain.curation.DestinationSettings
 import com.photoselectortoolbox.domain.curation.OpenedFolder
 import com.photoselectortoolbox.domain.curation.SelectionDestinationPlan
+import com.photoselectortoolbox.domain.format.DestinationLabels
 import com.photoselectortoolbox.domain.grouping.GroupingLevel
 import com.photoselectortoolbox.domain.interaction.FilingAction
 import dagger.hilt.android.lifecycle.HiltViewModel
@@ -198,7 +199,7 @@ class SettingsViewModel @Inject constructor(
         Log.w(TAG, "Could not describe $uri", e)
         FolderDescription(
             uri = uri,
-            displayPath = SafTreeDisplayPath.segments(uri),
+            displayPath = SafTreeDisplayPath.segments(uri, labels = DestinationLabels.PATH_LABELS),
         )
     }
 

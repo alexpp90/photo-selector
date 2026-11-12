@@ -1,5 +1,7 @@
 package com.photoselectortoolbox.domain.format
 
+import com.photoselector.core.format.RawExtensions
+
 /**
  * The one list of file formats Android Desktop knows — discovery, RAW/JPEG
  * sorting into the Selection, rating write-back and the decode path all ask
@@ -12,17 +14,10 @@ package com.photoselectortoolbox.domain.format
 object ImageFormats {
 
     /**
-     * Camera RAW containers. The contract's required and recognized RAW tiers,
-     * plus further vendor formats that are discovered and sorted as RAW.
+     * Camera RAW containers: the table both Android apps share (`:core` [RawExtensions]) — the
+     * contract's required and recognized RAW tiers plus further vendor formats.
      */
-    val RAW_EXTENSIONS: Set<String> = setOf(
-        // required
-        "arw", "cr2", "cr3", "nef", "nrw", "raf", "rw2", "orf", "pef", "dng", "srw",
-        // recognized
-        "3fr", "fff", "iiq", "rwl", "raw", "sr2", "srf", "mrw", "x3f", "erf", "mef", "mos",
-        // further vendor RAWs
-        "ari", "bay", "cap", "eip", "mdc", "obm", "ptx", "pxn", "rwz",
-    )
+    val RAW_EXTENSIONS: Set<String> = RawExtensions.ALL
 
     val JPEG_EXTENSIONS: Set<String> = setOf("jpg", "jpeg")
 

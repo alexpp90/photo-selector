@@ -25,15 +25,17 @@ object SafTreeDisplayPath {
     /**
      * The words the path is built from, so each product keeps its own copy and language.
      * [removableVolume] renders a volume with no known label from its uuid.
+     *
+     * There are no default words on purpose: a product that forgot to pass its own would show
+     * English in another language, and the UI-text budget cannot see a string that is not a
+     * resource. Every caller passes labels it owns.
      */
     data class Labels(
-        val internalStorage: String = "Internal storage",
-        val documents: String = "Documents",
-        val removableVolume: (uuid: String) -> String = { uuid -> "SD card ($uuid)" },
-        val unknownFolder: String = "Folder",
+        val internalStorage: String,
+        val documents: String,
+        val removableVolume: (uuid: String) -> String,
+        val unknownFolder: String,
     )
-
-    private val DEFAULT_LABELS = Labels()
 
     /**
      * The segments of [treeUri], outermost first; never empty.
@@ -47,7 +49,7 @@ object SafTreeDisplayPath {
         treeUri: String?,
         volumeLabel: String? = null,
         providerTreeName: String? = null,
-        labels: Labels = DEFAULT_LABELS,
+        labels: Labels,
     ): List<String> {
         val providerName = providerTreeName?.trim()?.takeIf { it.isNotEmpty() }
         val fallback = listOf(providerName ?: labels.unknownFolder)
@@ -83,7 +85,7 @@ object SafTreeDisplayPath {
         treeUri: String?,
         volumeLabel: String? = null,
         providerTreeName: String? = null,
-        labels: Labels = DEFAULT_LABELS,
+        labels: Labels,
     ): String = segments(treeUri, volumeLabel, providerTreeName, labels).joinToString(SEPARATOR)
 
     /**
