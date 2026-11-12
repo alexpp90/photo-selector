@@ -887,6 +887,12 @@ public final class CullingWorkspaceViewModel: ObservableObject {
             effectiveRootURL = sourceRootURL
         }
 
+        // A photo already in the Selection is decided: nothing is filed a second time.
+        if let notice = RepeatFiling.notice(action: action, status: photo.status, destinationFolder: destination.folderName) {
+            showToast(icon: "doc.on.doc.fill", title: notice.title, subtitle: notice.subtitle)
+            return
+        }
+
         let previousStatus = photo.status
 
         // 1. Instant Optimistic State Mutation (< 1.0ms)
