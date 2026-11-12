@@ -9,7 +9,7 @@ from photo_selector_linux import __version__
 def main(argv=None) -> int:
     parser = argparse.ArgumentParser(
         prog="photo-selector-linux",
-        description="Native GNOME photograph culling suite for Debian 13 / Linux.",
+        description="Native GNOME photo culling app for Debian 13 / Linux.",
     )
     parser.add_argument("--version", action="version", version=f"%(prog)s {__version__}")
     parser.add_argument(
@@ -17,7 +17,7 @@ def main(argv=None) -> int:
         nargs="*",
         type=str,
         metavar="path",
-        help="Folder or SD card directory to open; photos given by a file manager open their folder.",
+        help="Folder to open; photos given by a file manager open their folder.",
     )
 
     args = parser.parse_args(argv)

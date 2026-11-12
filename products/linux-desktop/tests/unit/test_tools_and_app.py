@@ -178,12 +178,15 @@ def test_external_destination_card_summary_and_decision_log(tmp_path: Path):
     vm.cull_move()
     assert (ext_dest / "Selection" / "IMG_0001.JPG").exists()
     summary = vm.card_summary()
+    # A folder under tmp_path is no card: the tally is right, and no verdict is given.
     assert summary == {
         "kept": 1,
         "trashed": 0,
         "remaining": 0,
         "queued": 0,
-        "safe_to_format": True,
+        "selection_path": ext_dest / "Selection",
+        "verdict": "none",
+        "safe_to_format": False,
     }
 
     lines = log_path.read_text(encoding="utf-8").strip().splitlines()

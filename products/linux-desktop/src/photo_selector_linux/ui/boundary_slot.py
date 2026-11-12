@@ -17,13 +17,13 @@ except (ImportError, ValueError):
 
 
 class BoundarySlotPane(Gtk.Box if HAS_GI else object):
-    """Placeholder card rendered in 3-Up Focus Mode outer slots at album boundaries."""
+    """Placeholder card rendered in 3-Up Focus Mode outer slots at folder boundaries."""
 
     def __init__(self, slot_type: str = "first"):
         """Initialize boundary card.
 
         Args:
-            slot_type: 'first' for album start, 'last' for album end.
+            slot_type: 'first' for folder start, 'last' for folder end.
         """
         self.slot_type = slot_type
         if HAS_GI:
@@ -41,12 +41,12 @@ class BoundarySlotPane(Gtk.Box if HAS_GI else object):
 
         if slot_type == "first":
             icon_name = "go-first-symbolic"
-            title = "First Photograph"
-            subtitle = "You are at the start of the album"
+            title = "First Photo"
+            subtitle = "You are at the start of the folder"
         else:
             icon_name = "go-last-symbolic"
-            title = "Last Photograph"
-            subtitle = "All photographs reviewed"
+            title = "Last Photo"
+            subtitle = "All photos reviewed"
 
         icon = Gtk.Image.new_from_icon_name(icon_name)
         icon.set_pixel_size(48)
