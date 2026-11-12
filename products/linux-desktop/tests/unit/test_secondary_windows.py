@@ -1,4 +1,4 @@
-"""Duplicate Finder, Library Statistics and Shortcuts have a header bar and close on Escape (BL-UX-2)."""
+"""Library Statistics and Shortcuts have a header bar and close on Escape (BL-UX-2)."""
 
 import time
 from unittest.mock import MagicMock
@@ -17,7 +17,6 @@ def _windows():
     from photo_selector_linux.ui.preferences import PreferencesDialog
 
     return [
-        tools_dialogs.DuplicateFinderDialog(),
         tools_dialogs.LibraryStatisticsDialog(),
         shortcuts_dialog.ShortcutsDialog(),
         PreferencesDialog(settings=SettingsStore(auto_load=False)),
@@ -28,7 +27,7 @@ def _windows():
 def test_every_secondary_window_has_a_header_bar():
     from gi.repository import Adw
 
-    for window in _windows()[:3]:  # Preferences is an AdwPreferencesWindow: its header is built in
+    for window in _windows()[:2]:  # Preferences is an AdwPreferencesWindow: its header is built in
         toolbar = window.get_content()
         assert isinstance(toolbar, Adw.ToolbarView), type(window).__name__
         assert toolbar.get_content() is not None, f"{type(window).__name__} is blank"
