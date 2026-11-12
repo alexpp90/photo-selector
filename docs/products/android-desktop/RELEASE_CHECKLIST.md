@@ -64,7 +64,11 @@ step in Play Console before ticking it.
 > [App testing requirements for new personal developer accounts](https://support.google.com/googleplay/android-developer/answer/14151465)
 > before starting the closed test.
 
-- [ ] **Device targeting:** whether phones are excluded from the Play listing (device catalog) is an open maintainer decision; set it in **Monitor and improve → Reach and devices → Device catalog** once decided. The catalog excludes individual device models or applies RAM / system-on-chip rules; it has no form-factor switch for phones, so excluding phones may need a manifest-level filter instead.
+- [ ] **Device targeting — tablets, ChromeOS and DeX-capable devices only** (maintainer decision 2026-11-12; phone owners are pointed to Jackpix). Phones are excluded **by screen size**, not by device model. Before the first production rollout, in **Monitor and improve → Reach and devices → Device catalog**:
+  - Check that the release build's manifest carries the screen-size filter (`<supports-screens android:smallScreens="false" android:normalScreens="false" android:largeScreens="true" android:xlargeScreens="true" />`). Google Play filters on `<supports-screens>`; the device catalog itself has no screen-size or form-factor rule (its rules are RAM and system-on-chip, plus excluding single device models — checked 2026-11-12 against [View and restrict your app's compatible devices](https://support.google.com/googleplay/android-developer/answer/1286017) and [Filters on Google Play](https://developer.android.com/google/play/filters)). **Today the manifest has no such element**, so every phone is still offered the app.
+  - DeX phones: the console cannot re-admit a device the manifest filters out, so with the screen-size filter DeX phones are excluded too; the decision accepts that ("keep DeX phones if the console allows it" — it does not). Revisit if Play adds a form-factor or desktop-mode rule.
+  - Open the *Excluded* tab and confirm that phones are listed with the reason "screen size" and that tablets (the Galaxy Tab S11 Ultra reference device) and Chromebooks are under *Supported*; tick only then.
+  - Phone screenshots are then not needed (§6).
 
 ---
 
@@ -74,6 +78,7 @@ Store text promises behaviour, so every line must be true for the build being re
 
 - **Title rule:** always the name with a descriptive subtitle. Play limit: **30 characters**.
 - **Disclaimer:** the non-affiliation sentence goes at the end of the full description.
+- **First line:** the full description opens by saying the app is built for large screens (decision 2026-11-12: tablets, ChromeOS and DeX only, §4).
 - **Language:** English (United States) only. Add a German (de-DE) listing only once the app has a German interface; a German listing for an English-only app promises what the app does not do.
 
 ### English (United States) — en-US
@@ -85,7 +90,7 @@ Store text promises behaviour, so every line must be true for the build being re
 
 **Full description** (≤ 4000):
 ```text
-Frameduel is a culling desk for large screens: tablets, Samsung DeX and Chromebooks. Open a folder of photos — from the device, an SD card or a card reader — and go through it three frames at a time: the current photo on top, the previous and next beside each other below, all the same size, so you compare like with like.
+Frameduel is a culling desk built for large screens: tablets, Samsung DeX and Chromebooks. Open a folder of photos — from the device, an SD card or a card reader — and go through it three frames at a time: the current photo on top, the previous and next beside each other below, all the same size, so you compare like with like.
 
 • M moves the photo to your Selection folder, C copies it, Del deletes it. A RAW, its JPEG, its edits and its .xmp sidecar travel together.
 • Undo: Ctrl+Z steps back through your last moves and deletes.
