@@ -11,6 +11,8 @@ import com.photoselectortoolbox.data.source.PhotoBitmapDecoder
 import com.photoselectortoolbox.domain.analysis.ClippingAnalyzer
 import com.photoselectortoolbox.domain.analysis.NoiseAnalyzer
 import com.photoselectortoolbox.domain.analysis.SharpnessAnalyzer
+import com.photoselectortoolbox.domain.scoring.ScanMeasures
+import com.photoselectortoolbox.domain.scoring.filledFrom
 import com.photoselectortoolbox.di.DefaultDispatcher
 import com.photoselectortoolbox.di.IoDispatcher
 import javax.inject.Inject
@@ -39,8 +41,8 @@ data class ScanProgress(
 )
 
 /**
- * Orchestrates running all analysis tools (sharpness, noise, clipping)
- * on a list of images. Checks cache before computing, caches results after,
+ * Orchestrates running the chosen analysis tools (sharpness, noise, clipping;
+ * [ScanMeasures]) on a list of images. Checks cache before computing, caches results after,
  * and runs analysis in parallel using coroutines with semaphore-gated concurrency.
  *
  * Optimizations applied:
@@ -71,10 +73,14 @@ class ScanImagesUseCase @Inject constructor(
      * Multiple images are analyzed concurrently.
      *
      * @param images The images to scan.
+     * @param measures The measurements to compute (the Scan sheet's rows). An unticked one is not
+     *   computed; a photo whose cached row lacks a ticked one has only that one computed, and the
+     *   cached values are kept.
      * @return Flow emitting scan progress with accumulated results.
      */
     operator fun invoke(
         images: List<ImageItem>,
+        measures: ScanMeasures = ScanMeasures.ALL,
     ): Flow<ScanProgress> = channelFlow {
         val results = mutableMapOf<String, ScanResult>()
 
@@ -91,6 +97,8 @@ class ScanImagesUseCase @Inject constructor(
         // Find which images have valid cache hits and update their access times
         val currentTime = System.currentTimeMillis()
         val validCacheHits = mutableMapOf<String, ScanResult>()
+        // A valid row that lacks a ticked measurement: only the missing ones are computed.
+        val partialHits = mutableMapOf<String, ScanResult>()
         val urisToUpdate = mutableListOf<String>()
 
         for (image in images) {
@@ -101,7 +109,7 @@ class ScanImagesUseCase @Inject constructor(
                 continue
             }
 
-            validCacheHits[image.uri] = ScanResult(
+            val cachedResult = ScanResult(
                 filePath = image.uri,
                 sharpnessScore = cached.sharpnessScore,
                 noiseLevel = cached.noiseLevel,
@@ -109,6 +117,11 @@ class ScanImagesUseCase @Inject constructor(
                 shadowClipping = cached.shadowClipping,
                 aestheticScore = cached.aestheticScore
             )
+            if (measures.missingFrom(cachedResult).any) {
+                partialHits[image.uri] = cachedResult
+            } else {
+                validCacheHits[image.uri] = cachedResult
+            }
             urisToUpdate.add(image.uri)
         }
 
@@ -135,9 +148,15 @@ class ScanImagesUseCase @Inject constructor(
                         return@withPermit
                     }
 
-                    // Compute scores
-                    val scanResult = analyzeImage(image)
-                    if (scanResult != null) {
+                    // Compute what is ticked and not cached yet, and keep what was cached.
+                    val partial = partialHits[image.uri]
+                    val computed = analyzeImage(image, partial?.let(measures::missingFrom) ?: measures, known = partial)
+                    val scanResult = if (partial != null) {
+                        computed?.let { partial.filledFrom(it) } ?: partial
+                    } else {
+                        computed
+                    }
+                    if (computed != null && scanResult != null) {
                         cacheResult(image, scanResult)
                     }
                     progressChannel.send(index to (image.fileName to scanResult))
@@ -195,6 +214,8 @@ class ScanImagesUseCase @Inject constructor(
      */
     private suspend fun analyzeImage(
         image: ImageItem,
+        measures: ScanMeasures,
+        known: ScanResult? = null,
     ): ScanResult? = coroutineScope {
         val uri = Uri.parse(image.uri)
 
@@ -207,6 +228,7 @@ class ScanImagesUseCase @Inject constructor(
         try {
             // Run sharpness and noise in parallel
             val sharpnessDeferred = async(defaultDispatcher) {
+                if (!measures.sharpness) return@async null
                 try {
                     sharpnessAnalyzer.analyze(bitmap)
                 } catch (e: CancellationException) {
@@ -219,6 +241,7 @@ class ScanImagesUseCase @Inject constructor(
             }
 
             val noiseDeferred = async(defaultDispatcher) {
+                if (!measures.noise) return@async null
                 try {
                     noiseAnalyzer.analyze(bitmap)
                 } catch (e: CancellationException) {
@@ -232,6 +255,7 @@ class ScanImagesUseCase @Inject constructor(
 
             // Combined clipping analysis: single bitmap→Mat + grayscale conversion
             val clippingDeferred = async(defaultDispatcher) {
+                if (!measures.clipping) return@async null
                 try {
                     clippingAnalyzer.analyzeClipping(bitmap)
                 } catch (e: CancellationException) {
@@ -243,10 +267,15 @@ class ScanImagesUseCase @Inject constructor(
                 }
             }
 
-            val clippingResult = clippingDeferred.await()
+            val clippingPass = clippingDeferred.await()
             val sharpness = sharpnessDeferred.await()
 
             val noise = noiseDeferred.await()
+
+            // One histogram pass gives both; an unticked half is not kept.
+            val clippingResult = clippingPass?.let { (highlights, shadows) ->
+                (if (measures.highlightClipping) highlights else null) to (if (measures.shadowClipping) shadows else null)
+            }
 
             try {
                 val sampleW = bitmap.width.coerceIn(1, 64)
@@ -285,10 +314,11 @@ class ScanImagesUseCase @Inject constructor(
                     rgbPixels = rgb,
                     width = if (luma != null) sampleW else (image.imageWidth ?: 0),
                     height = if (luma != null) sampleH else (image.imageHeight ?: 0),
-                    sharpnessScore = sharpness,
-                    noiseLevel = noise,
-                    highlightClipping = clippingResult?.first,
-                    shadowClipping = clippingResult?.second,
+                    // The cached values of a photo scanned only for what it lacked count too.
+                    sharpnessScore = sharpness ?: known?.sharpnessScore,
+                    noiseLevel = noise ?: known?.noiseLevel,
+                    highlightClipping = clippingResult?.first ?: known?.highlightClipping,
+                    shadowClipping = clippingResult?.second ?: known?.shadowClipping,
                     isRawOrHasRawCompanion = isRaw,
                 )
                 if (facts.isNotEmpty()) {

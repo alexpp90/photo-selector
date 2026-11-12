@@ -28,7 +28,7 @@ class MetadataWriterTest {
     @get:Rule
     val tempFolder = TemporaryFolder()
 
-    private val writer = MetadataWriterImpl()
+    private val writer = MetadataWriterImpl(Dispatchers.IO)
     private val reader = AndroidExifReader()
 
     @Test
@@ -218,7 +218,7 @@ class MetadataWriterTest {
         val jpegFile = createSampleJpeg("protected_photo.jpg", timestamp = "2026:10:17 09:00:00")
         val originalBytes = jpegFile.readBytes()
 
-        val failingValidatorWriter = MetadataWriterImpl(validateJpegBounds = { false })
+        val failingValidatorWriter = MetadataWriterImpl(validateJpegBounds = { false }, ioDispatcher = Dispatchers.IO)
         val result = failingValidatorWriter.writeRating(jpegFile, 5)
         assertTrue(result.isFailure)
 

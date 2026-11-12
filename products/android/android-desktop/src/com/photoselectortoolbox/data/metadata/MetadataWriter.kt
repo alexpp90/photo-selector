@@ -5,8 +5,8 @@ import android.graphics.BitmapFactory
 import android.net.Uri
 import android.util.Log
 import androidx.exifinterface.media.ExifInterface
+import com.photoselectortoolbox.di.IoDispatcher
 import kotlinx.coroutines.CancellationException
-import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.withContext
@@ -18,6 +18,7 @@ import java.nio.file.StandardCopyOption
 import java.util.concurrent.ConcurrentHashMap
 import javax.inject.Inject
 import javax.inject.Singleton
+import kotlinx.coroutines.CoroutineDispatcher
 
 /**
  * Non-destructive metadata write-back engine for ratings (REQ-AND-RATING.01). [RatingFormats]
@@ -56,11 +57,12 @@ interface MetadataWriter {
 
 @Singleton
 class MetadataWriterImpl internal constructor(
-    private val validateJpegBounds: (File) -> Boolean
+    private val validateJpegBounds: (File) -> Boolean,
+    private val ioDispatcher: CoroutineDispatcher,
 ) : MetadataWriter {
 
     @Inject
-    constructor() : this(Companion::defaultValidateJpegBounds)
+    constructor(@IoDispatcher ioDispatcher: CoroutineDispatcher) : this(Companion::defaultValidateJpegBounds, ioDispatcher)
 
     companion object {
         private const val TAG = "MetadataWriter"
@@ -79,7 +81,7 @@ class MetadataWriterImpl internal constructor(
         uriMutexes.computeIfAbsent(key) { Mutex() }
 
     override suspend fun writeRating(context: Context, imageUri: Uri, rating: Int): Result<Unit> =
-        withContext(Dispatchers.IO) {
+        withContext(ioDispatcher) {
             val directFile = when {
                 imageUri.scheme == "file" -> imageUri.path?.let { File(it) }
                 imageUri.scheme == null && imageUri.path != null -> File(imageUri.path!!)
@@ -103,7 +105,7 @@ class MetadataWriterImpl internal constructor(
         }
 
     override suspend fun recoverInterruptedWrites(context: Context, folderUri: Uri): RatingRecovery =
-        withContext(Dispatchers.IO) {
+        withContext(ioDispatcher) {
             try {
                 SafRatingWriter(context, validateJpegBounds).recover(folderUri) { photoUri, block ->
                     mutexFor(photoUri.toString()).withLock { block() }
@@ -117,7 +119,7 @@ class MetadataWriterImpl internal constructor(
         }
 
     override suspend fun writeRating(imageFile: File, rating: Int): Result<Unit> =
-        withContext(Dispatchers.IO) {
+        withContext(ioDispatcher) {
             mutexFor(imageFile.absolutePath).withLock {
                 try {
                     if (!imageFile.exists()) {

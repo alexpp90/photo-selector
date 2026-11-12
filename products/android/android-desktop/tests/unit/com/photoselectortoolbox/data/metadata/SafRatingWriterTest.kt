@@ -22,6 +22,7 @@ import java.io.FileNotFoundException
 import java.io.IOException
 import java.util.concurrent.CopyOnWriteArrayList
 import java.util.concurrent.ConcurrentHashMap
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.test.runTest
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
@@ -194,7 +195,7 @@ class SafRatingWriterTest {
     private lateinit var root: File
     private val context: Context get() = RuntimeEnvironment.getApplication()
     private val treeUri: Uri = DocumentsContract.buildTreeDocumentUri(RatingProvider.AUTHORITY, RatingProvider.ROOT_ID)
-    private val writer = MetadataWriterImpl()
+    private val writer = MetadataWriterImpl(Dispatchers.IO)
 
     @Before
     fun setUp() {
@@ -448,7 +449,7 @@ class SafRatingWriterTest {
 
         // Next session: the storage is back, a fresh writer opens the folder.
         RatingProvider.dead = false
-        val recovery = MetadataWriterImpl().recoverInterruptedWrites(context, treeUri)
+        val recovery = MetadataWriterImpl(Dispatchers.IO).recoverInterruptedWrites(context, treeUri)
 
         assertEquals(listOf("DSC_1.jpg"), recovery.restored)
         assertTrue(recovery.kept.isEmpty())
@@ -543,7 +544,7 @@ class SafRatingWriterTest {
         val jpg = jpeg("shot2.jpg")
         val before = jpg.readBytes()
 
-        val result = MetadataWriterImpl(validateJpegBounds = { false }).writeRating(context, uriOf(jpg), 4)
+        val result = MetadataWriterImpl(validateJpegBounds = { false }, ioDispatcher = Dispatchers.IO).writeRating(context, uriOf(jpg), 4)
 
         assertTrue(result.isFailure)
         assertTrue(before.contentEquals(jpg.readBytes()))

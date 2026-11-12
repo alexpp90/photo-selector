@@ -41,6 +41,7 @@ import com.photoselectortoolbox.domain.curation.PendingDeleteJournal
 import com.photoselectortoolbox.domain.curation.PendingDeletion
 import com.photoselectortoolbox.domain.curation.SelectorListState
 import com.photoselectortoolbox.domain.curation.SnackbarLifetime
+import com.photoselectortoolbox.domain.curation.TransferSpace
 import com.photoselectortoolbox.domain.curation.UndoParking
 import com.photoselectortoolbox.domain.curation.UndoRestore
 import com.photoselectortoolbox.domain.curation.UndoPolicy
@@ -53,6 +54,7 @@ import com.photoselectortoolbox.domain.guidance.SelectorHintText
 import com.photoselectortoolbox.domain.grouping.ImageGrouper
 import com.photoselectortoolbox.domain.format.SelectionActionLabels
 import com.photoselectortoolbox.domain.interaction.FilingAction
+import com.photoselectortoolbox.domain.scoring.ScanMeasures
 import com.photoselectortoolbox.domain.session.JumpPreview
 import com.photoselectortoolbox.domain.session.JumpResolution
 import com.photoselectortoolbox.domain.session.PhotoDates
@@ -425,7 +427,8 @@ class SelectorViewModel @Inject constructor(
     private val cacheRepository: CacheRepository,
     private val settingsRepository: SettingsRepository,
     private val scoreDao: ScoreDao,
-    private val metadataWriter: MetadataWriter = MetadataWriterImpl(),
+    // Hilt injects the writer; the default is for tests, like `ioDispatcher` below.
+    private val metadataWriter: MetadataWriter = MetadataWriterImpl(ioDispatcher = Dispatchers.IO),
     @ApplicationScope private val appScope: CoroutineScope,
     @ApplicationContext private val context: Context
 ) : ViewModel() {
@@ -496,6 +499,9 @@ class SelectorViewModel @Inject constructor(
     // same trap recorded against Jackpix's feed loader in
     // `ai/memory/code_health.md`.
 
+    /** The measurements of the latest scan request, read when the queued scan starts. */
+    private var pendingScanMeasures: ScanMeasures = ScanMeasures.ALL
+
     private var discoveryJob: Job? = null
     private var visibleDimensionsJob: Job? = null
     private var backfillDimensionsJob: Job? = null
@@ -540,7 +546,7 @@ class SelectorViewModel @Inject constructor(
     private var workQueue = WorkQueueState()
     private var pendingGroupingLevel: GroupingLevel = GroupingLevel.TIME_FILENAME
 
-    private val imageGrouper = ImageGrouper(context)
+    private val imageGrouper = ImageGrouper(context, ioDispatcher)
 
     init {
         // While the undo history holds entries, the folder they operate on keeps its SAF grant even
@@ -1286,9 +1292,14 @@ class SelectorViewModel @Inject constructor(
 
     // ── Scanning, grouping, and the queue between them ───────────────────
 
-    fun startScan(forceCloudScan: Boolean = false) {
+    /**
+     * Scan the folder for the ticked [measures] (the Scan sheet, REQ-AND-ALGO.07). The choice
+     * holds for this request, the cloud confirmation in between included.
+     */
+    fun startScan(measures: ScanMeasures = ScanMeasures.ALL, forceCloudScan: Boolean = false) {
         val state = _uiState.value
-        if (state.images.isEmpty()) return
+        if (state.images.isEmpty() || !measures.any) return
+        pendingScanMeasures = measures
         if (!forceCloudScan && state.sourceKind.isCloudProvider) {
             _uiState.update { it.copy(showCloudScanConfirmation = true) }
             return
@@ -1298,7 +1309,7 @@ class SelectorViewModel @Inject constructor(
 
     fun confirmCloudScan() {
         _uiState.update { it.copy(showCloudScanConfirmation = false) }
-        startScan(forceCloudScan = true)
+        startScan(pendingScanMeasures, forceCloudScan = true)
     }
 
     fun dismissCloudScanConfirmation() {
@@ -1385,7 +1396,7 @@ class SelectorViewModel @Inject constructor(
 
             var analysed = 0
             try {
-                scanImagesUseCase(images).collect { progress ->
+                scanImagesUseCase(images, pendingScanMeasures).collect { progress ->
                     val fraction = if (progress.total > 0) {
                         progress.processed.toFloat() / progress.total.toFloat()
                     } else {
@@ -1610,7 +1621,19 @@ class SelectorViewModel @Inject constructor(
         appScope.launch {
             val failed = mutableSetOf<String>()
             val deleted = mutableListOf<String>()
+            val kept = mutableListOf<String>()
+            // Under the journal lock: the add of this delete has written its identities by then.
+            val recorded = journalMutex.withLock { settingsRepository.pendingDeleteIdentities.first() }
             pending.uris.forEach { uri ->
+                // Another photo at a deleted URI (a refilled card) is kept, as on recovery.
+                val known = recorded[uri]
+                if (PendingDeleteJournal.needsCurrentIdentity(known) &&
+                    PendingDeleteJournal.keepsInSession(known, readIdentity(uri))
+                ) {
+                    kept += uri
+                    failed += uri
+                    return@forEach
+                }
                 val ok = try {
                     imageRepository.deleteImage(context, Uri.parse(uri))
                 } catch (e: CancellationException) {
@@ -1637,6 +1660,8 @@ class SelectorViewModel @Inject constructor(
             if (failed.isEmpty()) return@launch
             val stillOpen = originFolderUri != null && _uiState.value.folderUri == originFolderUri
             if (!stillOpen) return@launch
+            if (kept.isNotEmpty()) reportError(SelectorLabels.recoveryKeptMessage(kept.map(::recoveredName)))
+            if (kept.size == failed.size) return@launch
             val firstName = pending.slots.firstOrNull()?.image?.fileName ?: "image"
             if (deleted.isEmpty()) {
                 _uiState.update { state ->
@@ -1928,7 +1953,8 @@ class SelectorViewModel @Inject constructor(
                 rollbackFiling(edit.action, edit.slots)
                 val verb = if (action == CurationAction.COPY) "Copy" else "Move"
                 Log.w("SelectorViewModel", "$verb failed: ${result?.error}")
-                reportError("$verb failed")
+                // A refusal for lack of space says what it needs; other causes stay in the log (FD-UX-4).
+                reportError(result?.error?.takeIf(TransferSpace::isRefusal) ?: "$verb failed")
             }
         }
     }

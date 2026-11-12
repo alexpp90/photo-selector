@@ -5,19 +5,31 @@ import android.net.Uri
 import android.util.Log
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.photoselectortoolbox.data.model.CompanionFile
 import com.photoselectortoolbox.data.model.DuplicateGroup
 import com.photoselectortoolbox.data.model.ImageItem
+import com.photoselectortoolbox.data.repository.HeldDeleteCommitter
 import com.photoselectortoolbox.data.repository.ImageRepository
+import com.photoselectortoolbox.di.ApplicationScope
+import com.photoselectortoolbox.domain.curation.FileIdentity
+import com.photoselectortoolbox.domain.curation.HeldDuplicateDelete
+import com.photoselectortoolbox.domain.curation.HeldDuplicateDeletes
+import com.photoselectortoolbox.domain.format.DuplicateLabels
 import com.photoselectortoolbox.domain.usecase.FindDuplicatesUseCase
 import dagger.hilt.android.lifecycle.HiltViewModel
 import dagger.hilt.android.qualifiers.ApplicationContext
 import javax.inject.Inject
 import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.CoroutineStart
+import kotlinx.coroutines.Deferred
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.update
+import kotlinx.coroutines.async
+import kotlinx.coroutines.joinAll
 import kotlinx.coroutines.launch
 
 data class DuplicatesUiState(
@@ -30,12 +42,20 @@ data class DuplicatesUiState(
     val selectedForDeletion: Set<String> = emptySet(),
     val error: String? = null,
     val missingGrantPrompt: Boolean = false,
+    /**
+     * Copies deleted by the latest delete still held back, or 0 when nothing can be undone. A Dupes
+     * delete is held like a cull delete (REQ-AND-ALGO.05): the files leave the disk when the
+     * screen or the folder is left.
+     */
+    val undoableDeleteCount: Int = 0,
 )
 
 @HiltViewModel
 class DuplicatesViewModel @Inject constructor(
     private val findDuplicatesUseCase: FindDuplicatesUseCase,
     private val imageRepository: ImageRepository,
+    private val heldDeletes: HeldDeleteCommitter,
+    @ApplicationScope private val appScope: CoroutineScope,
     @ApplicationContext private val context: Context
 ) : ViewModel() {
 
@@ -50,8 +70,19 @@ class DuplicatesViewModel @Inject constructor(
      */
     private var scanned: Map<String, ImageItem> = emptyMap()
 
+    /** A held delete and its journal write, which records the identity each file had. */
+    private class Held(val delete: HeldDuplicateDelete, val identities: Deferred<Map<String, FileIdentity>>)
+
+    /** The held deletes, newest last ([HeldDuplicateDeletes]). Main-thread state, like [_uiState]. */
+    private var held: List<Held> = emptyList()
+
+    /** The commits started so far: a scan waits for them, so it never lists a copy being deleted. */
+    private val commits = mutableListOf<Job>()
+
     fun selectFolder(uri: Uri) {
         scanJob?.cancel()
+        // Another folder (or the same one again) is a new list: what was held is deleted now.
+        commitHeldDeletes()
         viewModelScope.launch {
             val folderName = imageRepository.openFolder(context, uri)
             if (folderName == null) {
@@ -85,6 +116,8 @@ class DuplicatesViewModel @Inject constructor(
         val folderUri = _uiState.value.folderUri ?: return
 
         scanJob?.cancel()
+        // A new scan lists what is on disk, so the held copies must be gone first.
+        commitHeldDeletes()
         scanJob = viewModelScope.launch {
             _uiState.update {
                 it.copy(
@@ -98,6 +131,7 @@ class DuplicatesViewModel @Inject constructor(
             }
 
             try {
+                awaitCommits()
                 val uri = Uri.parse(folderUri)
                 // The whole folder, not the first progressive batch — a
                 // duplicate set found in 24 of 842 photographs is not a
@@ -202,71 +236,113 @@ class DuplicatesViewModel @Inject constructor(
         }
     }
 
+    /**
+     * Take the ticked copies out of the duplicate list and hold their deletion (REQ-AND-ALGO.05):
+     * nothing leaves the disk until the screen or the folder is left, and [undoDelete] puts them
+     * back. Each copy takes its sidecars and companions with it (FD-B-5), and the journal records
+     * every file so a killed app offers the deletion again instead of losing or forgetting it.
+     */
     fun deleteSelected() {
         // Whatever the screen allowed, at least one copy of each photograph survives.
-        val selected = keepingOneCopyPerGroup(_uiState.value.selectedForDeletion)
+        val state = _uiState.value
+        val selected = keepingOneCopyPerGroup(state.selectedForDeletion)
         if (selected.isEmpty()) return
 
-        viewModelScope.launch {
+        val files: List<CompanionFile> = selected.flatMap { uri ->
+            scanned[uri]?.allFiles ?: listOf(CompanionFile(uri, Uri.parse(uri).lastPathSegment ?: uri))
+        }.distinctBy { it.uri }
+        val delete = HeldDuplicateDelete(
+            files = files,
+            copies = selected.size,
+            groupsBefore = state.duplicateGroups,
+            selectionBefore = state.selectedForDeletion,
+        )
+        // UNDISPATCHED: the journal lock is taken before this returns, so an undo or a commit
+        // that follows at once waits for the entries to be written.
+        val identities = appScope.async(start = CoroutineStart.UNDISPATCHED) { heldDeletes.hold(files) }
+        val overflow = HeldDuplicateDeletes.push(held.map { it.delete }, delete).second.size
+        val evicted = held.take(overflow)
+        held = held.drop(overflow) + Held(delete, identities)
+        evicted.forEach(::commit)
+
+        _uiState.update {
+            it.copy(
+                duplicateGroups = HeldDuplicateDeletes.remainingGroups(it.duplicateGroups, selected),
+                selectedForDeletion = emptySet(),
+                // The held-delete bar says it; the status line would say it twice.
+                statusText = "",
+                undoableDeleteCount = selected.size,
+                error = null,
+            )
+        }
+    }
+
+    /** Put the copies of the latest held delete back, as the list was before it; nothing touched the disk. */
+    fun undoDelete() {
+        val last = held.lastOrNull() ?: return
+        held = held.dropLast(1)
+        appScope.launch {
+            journalled(last)
+            heldDeletes.release(last.delete.files.map { it.uri })
+        }
+        val next = held.lastOrNull()
+        _uiState.update {
+            it.copy(
+                duplicateGroups = last.delete.groupsBefore,
+                selectedForDeletion = last.delete.selectionBefore,
+                undoableDeleteCount = next?.delete?.copies ?: 0,
+            )
+        }
+    }
+
+    /** The Dupes screen was left: every held delete goes to disk now. */
+    fun onScreenLeft() = commitHeldDeletes()
+
+    override fun onCleared() {
+        // appScope, not viewModelScope: the deletion must finish after the screen is gone.
+        commitHeldDeletes()
+        super.onCleared()
+    }
+
+    /** Wait for every commit started so far: a scan must not list copies about to be deleted. */
+    internal suspend fun awaitCommits() {
+        commits.toList().joinAll()
+    }
+
+    private fun commitHeldDeletes() {
+        if (held.isEmpty()) return
+        val all = held
+        held = emptyList()
+        _uiState.update { it.copy(undoableDeleteCount = 0) }
+        all.forEach(::commit)
+    }
+
+    /**
+     * The identities [h]'s journal write recorded, once it has finished. A write that failed was
+     * logged; the delete then goes ahead as an unjournalled one (no identity to check), as before.
+     */
+    private suspend fun journalled(h: Held): Map<String, FileIdentity> = try {
+        h.identities.await()
+    } catch (e: CancellationException) {
+        throw e
+    } catch (e: Exception) {
+        Log.e("DuplicatesViewModel", "Could not journal a held delete", e)
+        emptyMap()
+    }
+
+    private fun commit(h: Held) {
+        val job = appScope.launch {
+            val outcome = heldDeletes.commit(h.delete.files.map { it.uri }, journalled(h))
+            val notDeleted = outcome.failed + outcome.kept
+            if (notDeleted.isEmpty()) return@launch
+            val names = notDeleted.joinToString { Uri.parse(it).lastPathSegment?.substringAfterLast('/') ?: it }
+            Log.w("DuplicatesViewModel", "Held delete left ${notDeleted.size} files: $names")
             _uiState.update {
-                it.copy(
-                    isScanning = true,
-                    statusText = "Deleting ${selected.size} files..."
-                )
-            }
-
-            var deletedCount = 0
-            val failedUris = mutableListOf<String>()
-
-            for (uriString in selected) {
-                try {
-                    val item = scanned[uriString]
-                    val deleted = if (item != null) {
-                        imageRepository.deleteBundle(context, item)
-                    } else {
-                        imageRepository.deleteImage(context, Uri.parse(uriString))
-                    }
-                    if (deleted) {
-                        deletedCount++
-                    } else {
-                        failedUris.add(uriString)
-                    }
-                } catch (e: CancellationException) {
-                    throw e
-                } catch (e: Exception) {
-                    Log.e("DuplicatesViewModel", "Delete failed for $uriString", e)
-                    failedUris.add(uriString)
-                }
-            }
-
-            // Remove deleted files from duplicate groups
-            val updatedGroups = _uiState.value.duplicateGroups.mapNotNull { group ->
-                val remainingFiles = group.files.filter { it !in selected || it in failedUris }
-                if (remainingFiles.size > 1) {
-                    group.copy(files = remainingFiles)
-                } else {
-                    null // Group no longer has duplicates
-                }
-            }
-
-            _uiState.update {
-                it.copy(
-                    isScanning = false,
-                    duplicateGroups = updatedGroups,
-                    selectedForDeletion = failedUris.toSet(),
-                    statusText = if (failedUris.isEmpty()) {
-                        "Deleted $deletedCount files"
-                    } else {
-                        "Deleted $deletedCount files, ${failedUris.size} failed"
-                    },
-                    error = if (failedUris.isNotEmpty()) {
-                        "Failed to delete ${failedUris.size} files"
-                    } else {
-                        null
-                    }
-                )
+                it.copy(error = DuplicateLabels.notDeletedMessage(notDeleted.size, h.delete.files.size, names))
             }
         }
+        commits.removeAll { it.isCompleted }
+        commits += job
     }
 
     /** [selected] less, for every group that would lose all its copies, the first copy. */

@@ -3,12 +3,13 @@ package com.photoselectortoolbox.domain.duplicates
 import android.content.Context
 import android.net.Uri
 import com.photoselectortoolbox.data.model.DuplicateGroup
+import com.photoselectortoolbox.di.IoDispatcher
 import java.security.DigestInputStream
 import java.security.MessageDigest
 import javax.inject.Inject
 import kotlin.coroutines.coroutineContext
 import kotlinx.coroutines.CancellationException
-import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.ensureActive
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.flow
@@ -29,7 +30,9 @@ data class DuplicateDetectionProgress(
  * SHA-256 hashes for files with matching sizes. Same optimization strategy
  * as the desktop version: only hash files when multiple share the same size.
  */
-class DuplicateDetector @Inject constructor() {
+class DuplicateDetector @Inject constructor(
+    @IoDispatcher private val ioDispatcher: CoroutineDispatcher,
+) {
 
     companion object {
         private const val HASH_ALGORITHM = "SHA-256"
@@ -46,7 +49,7 @@ class DuplicateDetector @Inject constructor() {
     suspend fun findDuplicates(
         uris: List<Pair<Uri, Long>>,
         context: Context
-    ): List<DuplicateGroup> = withContext(Dispatchers.IO) {
+    ): List<DuplicateGroup> = withContext(ioDispatcher) {
         val sizeGroups = groupBySize(uris)
         val duplicateGroups = mutableListOf<DuplicateGroup>()
 
@@ -107,7 +110,7 @@ class DuplicateDetector @Inject constructor() {
                 groups = duplicateGroups.toList()
             )
         )
-    }.flowOn(Dispatchers.IO)
+    }.flowOn(ioDispatcher)
 
     /**
      * Group URIs by file size. Only groups with 2+ files are potential duplicates.
@@ -148,7 +151,7 @@ class DuplicateDetector @Inject constructor() {
      * Returns null if the file cannot be read.
      */
     private suspend fun computeHash(uri: Uri, context: Context): String? =
-        withContext(Dispatchers.IO) {
+        withContext(ioDispatcher) {
             try {
                 val digest = MessageDigest.getInstance(HASH_ALGORITHM)
                 // A stream that does not open is an unreadable file, not an empty one: hashing
