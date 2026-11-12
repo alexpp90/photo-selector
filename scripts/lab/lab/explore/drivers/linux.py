@@ -207,14 +207,19 @@ class LinuxDeviceDriver(DeviceDriver):
             self._app_log.close()
             self._app_log = None
 
-    @staticmethod
-    def _stop(proc: subprocess.Popen[Any], wait_s: float) -> None:
+    # After SIGKILL the process is gone for certain; the wait only reaps it, and on a host at four
+    # times its CPU count that took more than the 2-3 s that were allowed (2026-11-12: Xvfb and the
+    # app were left running at load 35-44, so the cleanup tests failed).
+    KILL_WAIT_S = 20.0
+
+    @classmethod
+    def _stop(cls, proc: subprocess.Popen[Any], wait_s: float) -> None:
         proc.terminate()
         try:
             proc.wait(timeout=wait_s)
         except subprocess.TimeoutExpired:
             proc.kill()
-            proc.wait(timeout=wait_s)
+            proc.wait(timeout=max(wait_s, cls.KILL_WAIT_S))
 
     def teardown(self) -> None:
         """Stop the app, the bus and the display; remove the session directory."""

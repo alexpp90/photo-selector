@@ -188,6 +188,44 @@ class TestLinuxSessionCleanup(unittest.TestCase):
         self.assertFalse(driver.lab_dir.exists())
 
 
+class TestStopWaitsForAKilledProcess(unittest.TestCase):
+    """SIGKILL is certain, so the wait after it is a long reap, not the 2-3 s of a polite stop."""
+
+    class Slow:
+        def __init__(self) -> None:
+            self.waits: List[float] = []
+            self.killed = False
+
+        def terminate(self) -> None:
+            pass
+
+        def kill(self) -> None:
+            self.killed = True
+
+        def wait(self, timeout: float) -> int:
+            self.waits.append(timeout)
+            if not self.killed or timeout < 10:  # a loaded host reaps late: only a long wait succeeds
+                raise subprocess.TimeoutExpired("x", timeout)
+            return -9
+
+    def test_the_wait_after_the_kill_outlasts_the_one_after_the_terminate(self) -> None:
+        proc = self.Slow()
+        LinuxDeviceDriver._stop(proc, 2)  # type: ignore[arg-type]
+        self.assertTrue(proc.killed)
+        self.assertEqual(proc.waits[0], 2)
+        self.assertGreaterEqual(proc.waits[1], 10)
+
+    def test_a_process_that_ignores_sigterm_is_killed_for_real(self) -> None:
+        proc = subprocess.Popen([sys.executable, "-c",
+                                 "import signal, time; signal.signal(signal.SIGTERM, signal.SIG_IGN); print('up', flush=True); time.sleep(60)"],
+                                stdout=subprocess.PIPE)
+        self.addCleanup(proc.kill)
+        self.assertEqual(proc.stdout.readline().strip(), b"up")  # type: ignore[union-attr]
+        LinuxDeviceDriver._stop(proc, 0.3)
+        self.assertIsNotNone(proc.poll())
+        proc.stdout.close()  # type: ignore[union-attr]
+
+
 class TestHostileTrees(unittest.TestCase):
     """Trees a broken app or a bad dump can produce must not break discovery or selection."""
 
