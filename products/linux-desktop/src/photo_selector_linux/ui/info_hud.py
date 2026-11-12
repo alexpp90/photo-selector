@@ -19,6 +19,7 @@ except (ImportError, ValueError):
     Gtk = None
 
 from photo_selector_linux.core.models import CandidatePhoto
+from photo_selector_linux.ui.sharp_outline import area_text
 from photo_selector_linux.ui.styling import (
     compute_sharpness_goodness,
     get_candidate_companion_badges,
@@ -26,7 +27,10 @@ from photo_selector_linux.ui.styling import (
 
 
 #: What the score is (plan 2.3a): the colour of the chip carries the band, the number the measure.
-SCORE_TOOLTIP = "Sharpness of the centre of the frame. Compare frames of one burst, not different scenes."
+SCORE_TOOLTIP = (
+    "Sharpness of the centre of the frame. Compare frames of one burst, not different scenes. "
+    "The sharpest of nine areas is named below and outlined on the photo."
+)
 
 
 COPIED_ICON = "edit-copy-symbolic"
@@ -61,6 +65,7 @@ class InfoHUD(Gtk.Box if HAS_GI else object):
         self.score_css_class: str = ""
         self.meter_css_class: str = ""
         self.clipping_text: str = ""
+        self.sharp_area_text: str = ""
         self.sharpness_goodness: Optional[float] = None
 
         if HAS_GI:
@@ -130,6 +135,12 @@ class InfoHUD(Gtk.Box if HAS_GI else object):
         score_row.append(self.lbl_clipping)
         self.score_box.append(score_row)
 
+        self.lbl_sharp_area = Gtk.Label(label="")
+        self.lbl_sharp_area.set_name("info_sharp_area")
+        self.lbl_sharp_area.set_halign(Gtk.Align.START)
+        self.lbl_sharp_area.add_css_class("optical-strip-secondary")
+        self.score_box.append(self.lbl_sharp_area)
+
         self.sharpness_meter = Gtk.ProgressBar()
         self.sharpness_meter.add_css_class("sharpness-meter-track")
         self.sharpness_meter.set_hexpand(True)
@@ -162,6 +173,7 @@ class InfoHUD(Gtk.Box if HAS_GI else object):
             self.score_css_class = ""
             self.meter_css_class = ""
             self.clipping_text = ""
+            self.sharp_area_text = ""
             self.sharpness_goodness = None
             if HAS_GI:
                 self.set_visible(False)
@@ -213,7 +225,10 @@ class InfoHUD(Gtk.Box if HAS_GI else object):
                 f"SH: {photo.scores.formatted_shadow_clipping}"
             )
             self.sharpness_goodness = compute_sharpness_goodness(photo.scores.sharpness)
+            cell = photo.scores.sharpest_cell
+            self.sharp_area_text = area_text(cell) if cell is not None else ""
         else:
+            self.sharp_area_text = ""
             self.score_visible = False
             self.score_badge_text = ""
             self.score_css_class = ""
@@ -248,6 +263,8 @@ class InfoHUD(Gtk.Box if HAS_GI else object):
             self.sharpness_meter.set_tooltip_text(SCORE_TOOLTIP)
             self.lbl_score_badge.set_css_classes([self.score_css_class])
             self.lbl_clipping.set_label(self.clipping_text)
+            self.lbl_sharp_area.set_label(self.sharp_area_text)
+            self.lbl_sharp_area.set_visible(bool(self.sharp_area_text))
             self.sharpness_meter.set_css_classes(["sharpness-meter-track", self.meter_css_class])
             self.sharpness_meter.set_fraction(self.sharpness_goodness)
         else:

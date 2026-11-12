@@ -31,6 +31,9 @@ from photo_selector_linux.ui.layout import (
     three_up_geometry,
 )
 from photo_selector_linux.ui.pan import PanGroup
+from photo_selector_linux.ui.sharp_outline import HAS_GI as HAS_OUTLINE, cell_focus, sharpest_of
+if HAS_OUTLINE:
+    from photo_selector_linux.ui.sharp_outline import SharpAreaOutline
 from photo_selector_linux.ui.photo_loader import PhotoTextureLoader
 from photo_selector_linux.ui.styling import (
     get_candidate_companion_badges,
@@ -57,6 +60,8 @@ class CanvasView(Gtk.Box if HAS_GI else object):
         self.last_three_up_geometry: Optional[Tuple[Rect, Rect, Rect]] = None
         self.three_up_layout_rects: Dict[str, Rect] = {}
         self.pan_group = PanGroup()
+        self._slot_photos: Dict[str, Any] = {}
+        self._sharp_pills: Dict[str, Any] = {}
         self._neighbour_1to1_offset: Optional[int] = None
         self._last_index: int = getattr(viewmodel, "current_index", 0)
         self._last_mode: int = getattr(viewmodel, "comparison_mode", 1)
@@ -135,6 +140,11 @@ class CanvasView(Gtk.Box if HAS_GI else object):
     def toggle_zoom(self) -> None:
         """Toggle 100% 1:1 pixel zoom across 1-Up, 2-Up, and 3-Up modes (Space) (R-LINUX-UI-08)."""
         self.is_1to1_zoom = not self.is_1to1_zoom
+        if self.is_1to1_zoom:
+            # 100 % opens on the sharpest area the score found, else the centre (plan 2.1, 2.3b).
+            photo = self.viewmodel.current_photo
+            cell = photo.scores.sharpest_cell if photo is not None and photo.scores is not None else None
+            self.pan_group.focus = cell_focus(cell) if cell is not None else None
         if not self.is_1to1_zoom:
             self._neighbour_1to1_offset = None
             self.pan_group.reset()
@@ -216,6 +226,9 @@ class CanvasView(Gtk.Box if HAS_GI else object):
     def _apply_footer_visibility(self) -> None:
         """The info card names the file and its score; the active caption says it only while the
         card is off (one place per fact)."""
+        outline = getattr(self, "_active_outline", None)
+        if outline is not None and self.viewmodel.current_photo is not None:
+            self._sync_outline(outline, self.viewmodel.current_photo)
         footer = getattr(self, "_active_footer", None)
         if footer is not None:
             # Opacity, not visibility: the photo keeps the same size with the card on and off.
@@ -427,6 +440,7 @@ class CanvasView(Gtk.Box if HAS_GI else object):
 
         # Clear existing GTK slot children
         self.pan_group.clear()
+        self._slot_photos, self._sharp_pills = {}, {}
         self._detach_hud()
         while child := self.slots_box.get_first_child():
             self.slots_box.remove(child)
@@ -569,6 +583,17 @@ class CanvasView(Gtk.Box if HAS_GI else object):
             comp_pill.add_css_class(badge_css)
             badge_box.append(comp_pill)
 
+        # "Sharpest" marks the sharpest of the frames on screen (plan 2.3c); shown once scores are in.
+        if self.viewmodel.comparison_mode != 1:
+            sharp_pill = Gtk.Label(label="Sharpest")
+            sharp_pill.set_name(f"{slot_name}_sharpest")
+            sharp_pill.add_css_class("sharpest-pill")
+            sharp_pill.set_tooltip_text("Sharpest area of the photos on screen")
+            sharp_pill.set_visible(False)
+            badge_box.append(sharp_pill)
+            self._sharp_pills[candidate.id] = sharp_pill
+        self._slot_photos[candidate.id] = candidate
+
         frame.append(badge_box)
 
         # Image view — decoded off the main loop (RAW via its embedded preview)
@@ -590,6 +615,11 @@ class CanvasView(Gtk.Box if HAS_GI else object):
         status.set_size_request(32, 32)
         status.start()
         image_area.add_overlay(status)
+        outline = None
+        if is_active and not allow_1to1 and HAS_OUTLINE:
+            outline = SharpAreaOutline()
+            image_area.add_overlay(outline)
+            self._active_outline = outline
 
         if allow_1to1:
             scrolled = Gtk.ScrolledWindow()
@@ -623,7 +653,9 @@ class CanvasView(Gtk.Box if HAS_GI else object):
 
         self.loader.request(
             candidate,
-            lambda texture: self._on_texture_ready(candidate, picture, image_area, status, footer_box, texture),
+            lambda texture: self._on_texture_ready(
+                candidate, picture, image_area, status, footer_box, texture, outline
+            ),
             full_size=allow_1to1,
         )
 
@@ -669,7 +701,21 @@ class CanvasView(Gtk.Box if HAS_GI else object):
         footer_box.append(score_pill)
         footer_box.add_css_class("has-score-badge")
 
-    def _on_texture_ready(self, candidate, picture, image_area, status, footer_box, texture) -> None:
+    def _sync_outline(self, outline, candidate) -> None:
+        """The outline of the sharpest area shows with the info card, once the photo has a grid."""
+        if outline is None:
+            return
+        scores = candidate.scores
+        cell = scores.sharpest_cell if scores is not None else None
+        outline.set_area(cell)
+        outline.set_visible(self.hud_enabled and cell is not None)
+
+    def _refresh_sharpest_marks(self) -> None:
+        winner = sharpest_of(list(self._slot_photos.values()))
+        for photo_id, pill in self._sharp_pills.items():
+            pill.set_visible(winner is not None and winner.id == photo_id)
+
+    def _on_texture_ready(self, candidate, picture, image_area, status, footer_box, texture, outline=None) -> None:
         status.stop()
         image_area.remove_overlay(status)
         if texture is not None:
@@ -681,6 +727,10 @@ class CanvasView(Gtk.Box if HAS_GI else object):
             unavailable.set_valign(Gtk.Align.CENTER)
             image_area.add_overlay(unavailable)
         self._append_score_badge(footer_box, candidate)
+        if texture is not None and outline is not None and texture.get_height() > 0:
+            outline.set_area(None, texture.get_width() / texture.get_height())
+        self._sync_outline(outline, candidate)
+        self._refresh_sharpest_marks()
         # EXIF and scores come with the first decode; refresh the HUD once they are known.
         if candidate is self.viewmodel.current_photo:
             self.hud.update_photo(candidate)

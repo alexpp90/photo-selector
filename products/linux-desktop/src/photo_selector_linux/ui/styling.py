@@ -400,6 +400,17 @@ window, .studio-dark-surface {
     font-weight: 600;
 }
 
+/* The sharpest of the frames on screen (plan 2.3c). */
+.sharpest-pill {
+    background-color: #1C1C1C;
+    border: 1px solid #2EC27E;
+    color: #2EC27E;
+    border-radius: 6px;
+    padding: 2px 8px;
+    font-size: 75%;
+    font-weight: 700;
+}
+
 /* A folder is being dragged over the window (plan 1.3): the canvas says it will take it. */
 .drop-target-active {
     outline: 2px dashed #2EC27E;

@@ -146,6 +146,9 @@ class QualityScores:
     category_override: Optional[SharpnessCategory] = field(default=None, repr=False, compare=False)
     blurry_threshold: float = field(default=35.0, repr=False, compare=False)
     sharp_threshold: float = field(default=70.0, repr=False, compare=False)
+    #: Sharpness of the 3 x 3 areas of the photo, row by row (``scoring.evaluate_focus_grid``);
+    #: None for scores made before the grid existed. ``sharpness`` itself is the centre's.
+    grid: Optional[Tuple[float, ...]] = field(default=None, repr=False, compare=False)
     focus_category: SharpnessCategory = field(init=False)
 
     def __post_init__(self):
@@ -155,6 +158,18 @@ class QualityScores:
             sharp_threshold=self.sharp_threshold,
         )
         object.__setattr__(self, "focus_category", cat)
+
+    @property
+    def sharpest_cell(self) -> Optional[int]:
+        """Index (0..8, row by row) of the sharpest area; the first wins a tie; None without a grid."""
+        if not self.grid:
+            return None
+        return max(range(len(self.grid)), key=lambda i: (self.grid[i], -i))
+
+    @property
+    def sharpest_area_score(self) -> float:
+        """The best area's score, or the headline sharpness when there is no grid."""
+        return max(self.grid) if self.grid else self.sharpness
 
     @property
     def formatted_sharpness(self) -> str:
