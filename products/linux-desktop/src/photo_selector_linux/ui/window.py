@@ -41,6 +41,8 @@ VIEW_ORDER_LABELS = {
 #: The order a new install opens in; the order indicator is shown for any other.
 DEFAULT_VIEW_ORDER = "newest"
 VIEW_ORDER_TITLES = {order: label for label, order in VIEW_ORDER_LABELS.items()}
+#: The always-visible word beside "Photo N of M" (plan 1.7).
+VIEW_ORDER_WORDS = {"newest": "Newest", "oldest": "Oldest", "natural": "Name", "lowest_sharpness_first": "Blurry"}
 
 
 class MainWindow(Adw.ApplicationWindow if HAS_GI else object):
@@ -185,11 +187,16 @@ class MainWindow(Adw.ApplicationWindow if HAS_GI else object):
 
         # Which order the photos are in, only when it is not the default. The slot is always
         # allocated (opacity, not visibility), so the buttons beside it never move when it appears.
-        self.img_order = Gtk.Image.new_from_icon_name("view-sort-ascending-symbolic")
-        self.img_order.set_name("order_indicator")
-        self.img_order.set_opacity(0.0)
-        self.img_order.set_can_target(False)
-        title_box.append(self.img_order)
+        self.btn_order = Gtk.MenuButton()
+        self.btn_order.set_name("order_indicator")
+        self.btn_order.add_css_class("flat")
+        self.btn_order.set_focus_on_click(False)
+        order_content = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=4)
+        order_content.append(Gtk.Image.new_from_icon_name("view-sort-ascending-symbolic"))
+        self.lbl_order = Gtk.Label(label=VIEW_ORDER_WORDS[DEFAULT_VIEW_ORDER])
+        order_content.append(self.lbl_order)
+        self.btn_order.set_child(order_content)
+        title_box.append(self.btn_order)
 
         self.header_bar.set_title_widget(title_box)
 
@@ -206,6 +213,7 @@ class MainWindow(Adw.ApplicationWindow if HAS_GI else object):
             item.set_action_and_target_value("win.view_order", GLib.Variant.new_string(target))
             section_order.append_item(item)
         menu.append_section("Order", section_order)
+        self.btn_order.set_menu_model(section_order)  # the same radio group, one tap from the counter
 
         # Accelerators are drawn by GTK from ``set_accels_for_action``, never typed into a label.
         section_view = Gio.Menu()
@@ -262,15 +270,11 @@ class MainWindow(Adw.ApplicationWindow if HAS_GI else object):
         self.viewmodel.set_sort_order(order)
 
     def _show_order_indicator(self, order: str) -> None:
-        """A sort icon beside the "Photo N of M" pill when the order is not the default."""
-        shown = order != DEFAULT_VIEW_ORDER
+        """The order in use, in a word, beside "Photo N of M": a button that opens the order menu."""
         title = VIEW_ORDER_TITLES.get(order, order)
-        self.img_order.set_opacity(1.0 if shown else 0.0)
-        self.img_order.set_can_target(shown)
-        self.img_order.set_tooltip_text(f"Order: {title}" if shown else None)
-        self.img_order.update_property(
-            [Gtk.AccessibleProperty.LABEL], [f"Order: {title}" if shown else ""]
-        )
+        self.lbl_order.set_label(VIEW_ORDER_WORDS.get(order, title))
+        self.btn_order.set_tooltip_text(f"Order: {title} (S)")
+        self.btn_order.update_property([Gtk.AccessibleProperty.LABEL], [f"Order: {title}. Change"])
 
     def toggle_view_order(self) -> None:
         """B: lowest sharpness first <-> the order the folder opens in (newest first, by default)."""
@@ -294,8 +298,8 @@ class MainWindow(Adw.ApplicationWindow if HAS_GI else object):
         return True
 
     def show_view_order_menu(self) -> None:
-        """S: open the main menu, whose first section is the View order choice."""
-        self.menu_button.popup()
+        """S: open the order menu (the radio group of Newest / Oldest / Name / Blurry)."""
+        self.btn_order.popup()
 
     def show_goto_dialog(self) -> None:
         """G: jump to a photo by its position or file name."""

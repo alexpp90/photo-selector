@@ -7,6 +7,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 ## [Unreleased]
 
 ### Added
+- The order in use is always visible beside "Photo N of M" (Newest, Oldest, Name or Blurry) as a button that opens the order menu; `S` opens it too.
 - The first Move or Copy after you open a folder says where the photos went, in full ("Moved to ~/Pictures/Lisbon/Selection/"); later ones keep the short form. The **Selected** counter is now a button that opens the Selection folder in the file manager.
 - The start card remembers: the last five folders are listed under **Open Folder…** (a folder that is gone is dimmed and says "Missing"), a folder dropped on the window opens, and the folder dialog starts in the folder you opened last. Settings written by 0.2.0 load unchanged.
 - The canvas says where you are. With no photo to show it draws one card per state: **start** ("Drop a folder" and an **Open Folder…** button), **reading** (a spinner and "Reading <folder>" the moment you choose it, instead of "No folder loaded"), **nothing to cull** ("No photos", or "Can't read folder") and **done**. The window announces "Done. 10 selected, 1 trashed." to screen readers.
@@ -14,7 +15,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 - Preferences > Culling Destination: choose **Working folder** (Selection inside the folder you cull, as before) or a **Custom folder**, and see the full path your photos will go to, updated as you open another folder. A custom folder that is gone or not writable is shown as a warning.
 - **Lowest sharpness first** is in the main menu (View order) and on the **B** key, next to the natural order; the menu shows which one is active.
 
-- **Newest first** is the default view order for new installs, with **Oldest first**, **File name** and **Lowest sharpness first** in the main menu (View order). The choice is remembered; an install that already has settings keeps the file-name order it had. While the folder is still being scanned, the photo on screen stays on screen, and an untouched session shows the newest photo so far. A sort icon beside "Photo N of M" shows any order other than the default.
+- **Newest first** is the default view order for new installs, with **Oldest first**, **File name** and **Lowest sharpness first** in the main menu (View order). The choice is remembered; an install that already has settings keeps the file-name order it had. While the folder is still being scanned, the photo on screen stays on screen, and an untouched session shows the newest photo so far.
 - **Go to photo** (`G`): type a photo's position ("Photo N of M") or part of its file name; the dialog names the target as you type, Enter goes, Escape cancels.
 - Preferences > Scoring has **Stop at sharpness** (0 = off): with lowest sharpness first, the sweep stops at the first photo at or above that score.
 - Escape and Ctrl+W close Library Statistics, Duplicates, Keyboard Shortcuts and Preferences, and the focus returns to the main window. Their scroll areas show a scrollbar, and they are never taller than 90 % of the main window.
