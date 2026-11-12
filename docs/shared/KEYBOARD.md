@@ -13,8 +13,8 @@ This file has two parts:
    and the maintainer has accepted it; each app then aligns in its own change, together with its
    shortcut sheet, README, requirements and key-map test.
 
-Read against `origin/main` `cd160305` (2026-11-10); the Lensjet column was re-read at `bedfa7f9`
-(2026-11-12). Paths below are relative to:
+Read against `origin/main` `f77b060a` (2026-11-12): all three columns and every line reference.
+Paths below are relative to:
 
 - Frameduel: `products/android/android-desktop/src/com/photoselectortoolbox/`
 - Lensjet: `products/macos-desktop/src/`
@@ -27,40 +27,44 @@ Main culling view, no modifier unless the key says so. `—` means the key is no
 
 | Key | Frameduel (selector) | Lensjet (workspace) | Blitzlens (workspace) | Same meaning? |
 |---|---|---|---|---|
-| `←` / `→` | previous / next (`ui/selector/SelectorScreen.kt:846-847`) | previous / next; `↑` / `↓` too (`PhotoSelectorKit/Navigation/KeyboardShortcutRouter.swift:178-186`) | previous / next (`ui/keyboard_router.py:169-174`) | ✅ |
-| `H` / `K` | — | previous (`KeyboardShortcutRouter.swift:226`) | previous (`keyboard_router.py:169`) | ◐ Frameduel unbound |
-| `J` | — | next (`:223`) | next (`:172`) | ◐ Frameduel unbound |
-| `L` | **opens Learn** (`SelectorScreen.kt:842-845`) | **next photo** (`:223`) | **next photo** (`:172`) | ❌ |
-| `M` | move to Selection; also in fullscreen (`SelectorScreen.kt:848`, `ui/selector/FullscreenViewer.kt:470`) | move to Selection (`:217`, menu `PhotoSelectorApp/AppCommands.swift:24`) | move to Selection (`:158`) | ✅ |
-| `C` | copy to Selection (`:849`) | copy to Selection (`:220`) | copy to Selection (`:161`) | ✅ |
-| `Delete` / `Backspace` | delete, with confirmation (`:850`) | move to Trash (`:188`) | move to Trash (`:164`) | ✅ same intent |
-| Ctrl/⌘ `Z` | undo (`:831-835`; fullscreen `FullscreenViewer.kt:456`) | undo (`:148`); Edit menu item "Undo Move of IMG_0001.CR3", greyed out when there is nothing to undo (`AppCommands.swift`); a text field keeps its own undo | undo (`:133`) | ✅ |
-| `1` `2` `3` | **maximise the previous / current / next frame** (`:854-856`) | **1-Up / 2-Up / 3-Up layout** (`:202-210`) | **1-Up / 2-Up / 3-Up layout** (`:177-185`) | ❌ different model |
-| `Space` | fit ↔ 100 % on a maximised frame and in fullscreen; nothing in three-up (`handleSelectorKey`, `ui/selector/PhotoZoom.kt`, `FullscreenViewer.kt`) | toggle 100 % zoom (`:194`) | toggle 100 % zoom; presses a focused button instead (`:188-192`) | ◐ Frameduel unbound |
-| `Shift` + arrows | while zoomed, pan 20 % of the view (maximised: `←` / `→`; fullscreen: all four); unzoomed they step like the arrows | — | — | — |
-| `Esc` | close the top layer: sheet, context menu, zoom, fullscreen, maximised frame (`closeTopLayer`; in fullscreen the zoom before the viewer) | closes one layer, in order: the sharpness banner or the end card, then zoom back to Fit; consumed only when one is open (`KeyboardShortcutRouter.swift:217-219`) | reset zoom (`:193`) | ✅ "back out one layer" |
-| `Tab` | — (focus traversal) | **Switch Photo, 2-Up only**: steps through undecided photos; in 1-Up and 3-Up the key is not consumed and the View-menu item is disabled (`KeyboardShortcutRouter.swift:215`, `AppCommands.swift`) | not consumed: focus traversal (`:196-199`, `on_cycle_slot` returns `False` at `:302`) | ◐ |
-| `F` | **open the fullscreen viewer** (`:851`) | ✅ 2026-11-12 (decision #24): **clean view**: full screen that hides the toolbar, dock and filmstrip, same state as `⌃⌘F` (`KeyboardShortcutRouter`, View ▸ Clean View); `T` is the filmstrip key | **dispatched, does nothing**: `on_toggle_filmstrip` is `pass` (`:203`, `:318-319`); Blitzlens has no filmstrip | ❌ |
-| `I` | **opens Learn** (`:842`); in fullscreen pins the info panel (`FullscreenViewer.kt:472`) | toggle Info (menu "Show Info" / "Hide Info", `:252`) | toggle the info HUD (`:200`) | ❌ in the selector |
-| `S` | **opens the Sort menu**, never cycles (`:866-875`) | **toggle linked pan** (`:257`); the menu item is Link Pan, `⌥⌘P` (`AppCommands.swift`) | **dispatched, does nothing**: `on_toggle_sync_lock` is `pass` (`:206`, `:321-322`) | ❌ |
-| `B` | — | — | toggles the view order lowest sharpness first / natural (`:212`) | Blitzlens only |
-| `G` | Go to photo (`:858-865`) | Go to Photo… (`:260`, Go menu `AppCommands.swift`) | — (no go-to) | Frameduel only |
-| `?` | the guide; bound as `Key.Slash`, so `/` too (`:857`) | shortcuts sheet; `/` too (`:242`); ⌘`/` in the Help menu (`AppCommands.swift:133`) | shortcuts window (`:209`); Ctrl+`?` (`:148`) | ✅ |
-| Ctrl/⌘ `O` | — | open folder (`:151`); File > Open Recent lists the last ten, and the last folder reopens at launch at the photo that was on screen | open folder (`:136`) | ◐ Frameduel unbound |
-| Ctrl/⌘ `D` | — | Find Duplicates (`:154`, Tools menu) | Duplicate Finder (`:139`) | ◐ Frameduel unbound |
-| Ctrl/⌘ `L` | — | Statistics (`:157`, Tools menu) | Library Statistics (`:142`) | ◐ Frameduel unbound |
-| Ctrl/⌘ `,` | — | Settings (the SwiftUI `Settings` scene, `PhotoSelectorApp/PhotoSelectorApp.swift:19`) | Preferences (`:145`) | ◐ Frameduel unbound |
-| ⌘ `[` / ⌘ `]` | — | previous / next (`:146-151`) | — | Lensjet only (macOS Go-menu idiom) |
-| ⇧⌘ `A` | — | toggle Auto-Advance (`AppCommands.swift`; the same stored setting as Settings) | — | Lensjet only |
-| ⌥⌘ `P` | — | toggle linked pan (menu `AppCommands.swift:114-117`) | — | Lensjet only |
-| `T` | — | toggle the filmstrip (`KeyboardShortcutRouter.swift:247`) | — | Lensjet only (Blitzlens has no filmstrip) |
+| `←` / `→` | previous / next (`ui/selector/SelectorScreen.kt:877-878`) | previous / next; `↑` / `↓` too (`PhotoSelectorKit/Navigation/KeyboardShortcutRouter.swift:175-202`) | previous / next (`ui/keyboard_router.py:179-184`) | ✅ |
+| `K` | previous (`SelectorScreen.kt:877`) | previous (`KeyboardShortcutRouter.swift:244`) | previous (`keyboard_router.py:179`) | ✅ |
+| `J` | next (`SelectorScreen.kt:878`) | next (`:241`) | next (`:182`) | ✅ |
+| `H` | — | previous, going away after one release (`:244`) | previous, going away after one release (`:179`) | ◐ Frameduel unbound |
+| `L` | **opens Learn** (`SelectorScreen.kt:871-874`) | **next photo**, going away after one release (`:241`) | **next photo**, going away after one release (`:182`) | ❌ |
+| `M` | move to Selection; also in fullscreen (`SelectorScreen.kt:879`, `ui/selector/FullscreenViewer.kt:500`) | move to Selection (`:235`, menu `PhotoSelectorApp/AppCommands.swift`) | move to Selection (`:168`) | ✅ |
+| `C` | copy to Selection (`SelectorScreen.kt:880`) | copy to Selection (`:238`) | copy to Selection (`:171`) | ✅ |
+| `Delete` / `Backspace` | delete, with confirmation (`SelectorScreen.kt:881`) | move to Trash (`:205-208`) | move to Trash (`:174`) | ✅ same intent |
+| Ctrl/⌘ `Z` | undo (`SelectorScreen.kt:843-849`; fullscreen `FullscreenViewer.kt:473`) | undo (`:148`); Edit menu item "Undo Move of IMG_0001.CR3", greyed out when there is nothing to undo (`AppCommands.swift`); a text field keeps its own undo | undo (`:141`) | ✅ |
+| `1` `2` `3` | **maximise the previous / current / next frame** (`SelectorScreen.kt:885-887`) | **1-Up / 2-Up / 3-Up layout** (`:220-228`) | **1-Up / 2-Up / 3-Up layout**, keypad too (`:187-195`) | ❌ different model |
+| `Space` | fit ↔ 100 % on a maximised frame and in fullscreen; nothing in three-up (`SelectorScreen.kt:860-867`, `FullscreenViewer.kt:498`) | toggle 100 % zoom (`:212`) | toggle 100 % zoom; presses a focused button instead (`:198-202`) | ✅ where a single photo is shown |
+| `Shift` + arrows | while zoomed, pan 20 % of the view (maximised: `←` / `→`, `SelectorScreen.kt:853-857`; fullscreen: all four, `FullscreenViewer.kt:483-493`); unzoomed they step like the arrows | — | — | Frameduel only |
+| `Esc` | close the top layer: sheet, context menu, zoom, fullscreen, maximised frame (`SelectorScreen.kt:833-839`; in fullscreen the zoom before the viewer, `FullscreenViewer.kt:497`) | closes one layer, in order: the sharpness banner or the end card, then zoom back to Fit; consumed only when one is open (`:217-219`) | leaves 1:1 zoom first, then full screen (`:203`, `on_reset_zoom` `:323-333`) | ✅ "back out one layer" |
+| `Tab` | — (focus traversal) | **Switch Photo, 2-Up only**: steps through undecided photos; in 1-Up and 3-Up the key is not consumed and the View-menu item is disabled (`:215-216`, `AppCommands.swift`) | not consumed: focus traversal (`dispatch` has no `Tab` branch) | ◐ |
+| `F` | **open the fullscreen viewer** (`SelectorScreen.kt:882`) | ✅ 2026-11-12 (decision #24): **clean view**: full screen that hides the toolbar, dock and filmstrip, same state as `⌃⌘F` (`KeyboardShortcutRouter`, View ▸ Clean View); `T` is the filmstrip key | **window full screen**, `F11` too (`:209-211`) | ◐ Frameduel opens its fullscreen viewer |
+| `I` | **toggle the info (readout) block** (`SelectorScreen.kt:875`); in fullscreen pins the info panel (`FullscreenViewer.kt:502`) | toggle Info (menu "Show Info" / "Hide Info", `:252-256`) | toggle the info HUD (`:206`) | ✅ |
+| `T` | toggle the filmstrip (`SelectorScreen.kt:876`) | toggle the filmstrip (`:247`) | — (no filmstrip) | ✅ where there is a filmstrip |
+| `S` | **opens the Sort menu**, never cycles (`SelectorScreen.kt:899-906`) | **toggle linked pan** (`:257-259`); the menu item is Link Pan, `⌥⌘P` (`AppCommands.swift`) | **opens the View order menu** (Newest, Oldest, File Name, Lowest Sharpness) (`:212`) | ◐ Lensjet differs |
+| `B` | — | — | toggles the view order lowest sharpness first / natural, going away after one release (`:221`) | Blitzlens only |
+| `G` | Go to photo (`SelectorScreen.kt:889-896`) | Go to Photo… (`:260`, Go menu `AppCommands.swift`) | Go to Photo (`:215`) | ✅ |
+| `?` | the guide; bound as `Key.Slash`, so `/` too (`SelectorScreen.kt:888`) | shortcuts sheet; `/` too (`:263`); ⌘`/` in the Help menu (`AppCommands.swift`) | shortcuts sheet (`:218`); Ctrl+`?` (`:156`) | ✅ |
+| Ctrl/⌘ `O` | — | open folder (`:151`); File > Open Recent lists the last ten, and the last folder reopens at launch at the photo that was on screen | open folder (`:144`) | ◐ Frameduel unbound |
+| Ctrl/⌘ `D` | — | Find Duplicates (`:154`, Tools menu) | Duplicate Finder (`:147`) | ◐ Frameduel unbound |
+| Ctrl/⌘ `L` | — | Statistics (`:157`, Tools menu) | Library Statistics (`:150`) | ◐ Frameduel unbound |
+| Ctrl/⌘ `,` | — | Settings (the SwiftUI `Settings` scene, `PhotoSelectorApp/PhotoSelectorApp.swift:19`) | Preferences (`:153`) | ◐ Frameduel unbound |
+| ⌘ `[` / ⌘ `]` | — | previous / next (`:163-168`) | — | Lensjet only (macOS Go-menu idiom) |
+| ⇧⌘ `A` | — | toggle Auto-Advance (`AppCommands.swift:85-89`; the same stored setting as Settings) | — | Lensjet only |
+| ⌥⌘ `P` | — | toggle linked pan (menu `AppCommands.swift:137`) | — | Lensjet only |
 | ⇧⌘ `R` / ⌘ `Y` | — | Show in Finder / Quick Look for the photo on screen (File menu, `AppCommands.swift`) | — | Lensjet only |
 | Ctrl/⌘ `Q` | — (Android) | quit (system) | quit (`ui/application.py:89`) | platform |
 
+Frameduel binds no Ctrl/Meta chord but `Z` (`SelectorScreen.kt:843-849`: any other chord is not
+consumed).
+
 Other screens of Frameduel, scoped to that screen:
 
-- **Learn** (`ui/inspect/InspectScreen.kt:168-208`): `L`, `I`, `Esc` back to the selector;
-  `←` / `→`; `0`–`5` set the rating (0 clears); `X` rejects.
+- **Learn** (`handleInspectKey`, `ui/inspect/InspectScreen.kt:173-221`): `L` and `Esc` back to the
+  selector (`I` no longer does); `←` / `→`; `0`–`5` set the rating (0 clears, keypad too); `X` rejects.
 - **Fullscreen viewer** (`ui/selector/FullscreenViewer.kt`): `Esc` (the zoom first, then the viewer),
   `Delete`/`Backspace`, `M`, `C`, `I` (pin info panel), `←` / `→` (keep the zoom and the pan),
   `Space` (fit ↔ 100 %), `Shift` + arrows (pan while zoomed), Ctrl/Meta `Z`; the mouse wheel zooms
@@ -70,17 +74,18 @@ Behaviour that is not a key but belongs to the map:
 
 | Rule | Frameduel | Lensjet | Blitzlens |
 |---|---|---|---|
-| A held `Delete`, `M` or `C` acts once, not once per auto-repeat | ✅ `ONE_SHOT_KEYS` (`SelectorScreen.kt:795-798`; fullscreen `FullscreenViewer.kt:464`) | ✅ `isARepeat` consumed without acting (`KeyboardShortcutRouter.swift:205-209`, `:235-240`) | ❌ code reading: `dispatch` has no repeat input; GTK repeats `key-pressed` |
-| Letters ignore Caps Lock and Num Lock | ✅ Compose `Key` | ✅ `charactersIgnoringModifiers?.lowercased()` (`:143`) | ✅ `normalize_keyval`, `clean_modifiers` (`:102-110`) |
-| Keys yield to a focused text field | ✅ dialogs own their keys (`ui/selector/GoToPhotoDialog.kt:161-176`) | ✅ `isTextInputActive` (`:132-134`) | ✅ `is_text_editing` (`:123-124`) |
+| A held `Delete`, `M` or `C` acts once, not once per auto-repeat | ✅ `ONE_SHOT_KEYS` (`SelectorScreen.kt:797-806`; fullscreen `FullscreenViewer.kt:480-483`) | ✅ `isARepeat` consumed without acting (`KeyboardShortcutRouter.swift:205-208`, `:235-240`) | ✅ `ONE_SHOT_KEYS` with `is_repeat` (`keyboard_router.py:98-99`, `:166-167`); GTK 4 has no repeat flag, so a press of a key already held counts as a repeat (`_held`, `:235-271`) |
+| Letters ignore Caps Lock and Num Lock | ✅ Compose `Key` | ✅ `charactersIgnoringModifiers?.lowercased()` (`:143`) | ✅ `normalize_keyval`, `clean_modifiers` (`:134-135`) |
+| Keys yield to a focused text field | ✅ dialogs own their keys (`ui/selector/GoToPhotoDialog.kt:161-176`) | ✅ `isTextInputActive` (`:132-134`) | ✅ `is_text_editing` (`:131-132`) |
 
 ### What the sheets say against the code
 
 - Lensjet's help sheet now lists `← ↑ / K`, `→ ↓ / J` and the going-away `H` / `L`; every row's name and key is read from the Kit's `LensjetCommand` table (`PhotoSelectorKit/Navigation/LensjetNames.swift`), which a test compares with `AppCommands.swift`.
-- Frameduel's guide (`domain/interaction/SelectorGestures.kt:220-230`) does not list `L`, `I` (Learn) or Ctrl `Z`.
-- Blitzlens' sheet and README rightly leave out `F` and `S`, but its requirements and
-  [`FEATURE_PARITY.md`](FEATURE_PARITY.md) §2.2 describe them as working (filmstrip, sync lock):
-  a dispatch-only unit test is all that backs them.
+- Frameduel's guide lists every selector key from one table, `SelectorShortcut`
+  (`domain/interaction/SelectorGestures.kt:221-240`: `J / K`, `I`, `T`, `L`, `Ctrl+Z` among them);
+  a test asserts that the guide and `handleSelectorKey` agree.
+- Blitzlens' sheet (`ui/shortcuts_dialog.py:26-48`) lists `G`, `S` (View Order Menu), `F / F11`
+  (Full Screen) and `B` with its one-release note — the same as the handler.
 - The open backlog briefs for Go to photo in Lensjet and Blitzlens suggest ⌘`L` / Ctrl+`L`.
   Both apps already use that chord for Library Statistics; Go to photo takes `G` (below).
 
@@ -108,28 +113,28 @@ Behaviour that is not a key but belongs to the map:
 | Key | Meaning | Frameduel | Lensjet | Blitzlens |
 |---|---|---|---|---|
 | `←` / `→` | previous / next photo | keep | keep (`↑`/`↓` keep as Lensjet extras) | keep |
-| `J` / `K` | next / previous photo | **add** | keep | keep |
+| `J` / `K` | next / previous photo | done | keep | keep |
 | `H` | — (retired) | — | **retire** after one release | **retire** after one release |
 | `L` | open Learn (Frameduel only; reserved elsewhere) | keep | **retire** "next" after one release | **retire** "next" after one release |
 | `M` / `C` | move / copy to Selection | keep | keep | keep |
 | `Delete` / `Backspace` | delete (Trash on desktop) | keep | keep | keep |
-| held `Delete`, `M`, `C` | act once per press (principle 5) | keep (`ONE_SHOT_KEYS`) | **add** a repeat guard | **add** a repeat guard |
+| held `Delete`, `M`, `C` | act once per press (principle 5) | keep (`ONE_SHOT_KEYS`) | done (`isARepeat`) | done (`_held`) |
 | Ctrl/⌘ `Z` | undo | keep | keep | keep |
 | `1` `2` `3` | view number (see recorded reason) | keep: enlarge the left / middle / right frame | keep: 1-Up / 2-Up / 3-Up | keep: 1-Up / 2-Up / 3-Up |
 | `0`–`5`, `X` | rating, reject (where an app rates) | keep, Learn only | reserved | reserved |
 | `Space` | toggle 100 % zoom | done 2026-11-12: maximised frame and fullscreen | keep | keep |
 | `Esc` | back out one layer | keep | keep | keep |
 | `Tab` | Lensjet: cycle the comparison slot; elsewhere focus traversal | focus traversal | keep | focus traversal (never captured) |
-| `F` | **full screen** | keep (fullscreen viewer) | ✅ done 2026-11-12 (decision #24): `F` toggles window full screen (as ⌃⌘F) and hides the toolbar, dock and filmstrip; `Esc` leaves it after zoom and banner | **change now** (a no-op today): toggles window full screen, `F11` too; `Esc` leaves full screen after it has left zoom |
-| `T` | **toggle the filmstrip** | **add** (`toggleFilmstrip` exists, no key) | **add**; `F` keeps the filmstrip for one release | reserved (no filmstrip) |
-| `I` | **toggle the info overlay** | **change**: toggles the readout block (`toggleDetails` exists, no key); in fullscreen it keeps pinning the info panel; Learn keeps `L` | keep | keep |
-| `S` | **choose the sort order** (opens the choice) | keep | reserved until Lensjet has a sort UI (open backlog entry), then `S` | **change**: `S` opens the View order choice; `B` stays one release |
+| `F` | **full screen** | keep (fullscreen viewer) | done 2026-11-12 (decision #24): `F` toggles window full screen (as ⌃⌘F) and hides the toolbar, dock and filmstrip; `Esc` leaves it after zoom and banner | done: toggles window full screen, `F11` too; `Esc` leaves full screen after it has left zoom |
+| `T` | **toggle the filmstrip** | done | done | reserved (no filmstrip) |
+| `I` | **toggle the info overlay** | done: toggles the readout block; in fullscreen it keeps pinning the info panel; Learn keeps `L` | keep | keep |
+| `S` | **choose the sort order** (opens the choice) | keep | reserved until Lensjet has a sort UI (open backlog entry), then `S` | done: `S` opens the View order choice; `B` stays one release |
 | `P` | reserved for Pick (photo-tool convention) | reserved | reserved | reserved |
-| ⌥⌘ `P` | link pan across slots (Lensjet only) | — | **add** as View → Link Pan; `S` keeps linked pan one release | — (no sync lock); drop the dead `S` binding |
-| `G` | **go to photo** | keep | `G` when go-to lands, not ⌘`L` | `G` when go-to lands, not Ctrl+`L` |
+| ⌥⌘ `P` | link pan across slots (Lensjet only) | — | done (View → Link Pan); `S` keeps linked pan one release | — (no sync lock); done: `S` is the View order |
+| `G` | **go to photo** | keep | done (`G`) | done (`G`) |
 | `?` | shortcut sheet / guide | keep (`/` too) | keep (`/`, ⌘`/` too) | keep (Ctrl+`?` too) |
 | Ctrl/⌘ `O` | open folder | **add** (folder picker) | keep | keep |
-| Ctrl/⌘ `D` | Duplicate Finder | **add** (Duplicates screen) | keep | keep |
+| Ctrl/⌘ `D` | Duplicate Finder | **add** (Duplicates screen) | keep | **remove** with the Duplicate Finder (maintainer decision 2026-11-12) |
 | Ctrl/⌘ `L` | Library Statistics | **add** (Statistics screen) | keep | keep |
 | Ctrl/⌘ `,` | settings / preferences | **add** (Settings screen) | keep | keep |
 | ⌘ `[` / ⌘ `]` | previous / next | — | keep (macOS idiom) | — |
@@ -166,8 +171,9 @@ priority than the conflicts and can ship separately.
 4. `1` on Frameduel stays positional (left / middle / right): making it "current" would leave `2`
    and `3` meaningless and lose the enlarge-previous / next comparison.
 5. Blitzlens `S` opens the View order menu; `B` is an alias for one release, then dropped.
-6. Principle 5 is a row of its own: held `Delete`/`M`/`C` on Lensjet and Blitzlens repeat today
-   (code reading) — the highest-risk item; arrows keep repeating.
+6. Principle 5 is a row of its own: held `Delete`/`M`/`C` on Lensjet and Blitzlens repeated on
+   2026-11-10 (code reading) — the highest-risk item; arrows keep repeating. Done since in both
+   (part 1, behaviour table).
 7. Blitzlens does not capture `Tab`: capturing it at the window traps keyboard-only users.
 
 ### Done when (per app, in its own change)

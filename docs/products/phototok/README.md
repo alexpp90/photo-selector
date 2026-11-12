@@ -22,7 +22,7 @@ Formerly Photo-Tok.
 | 1. Start Screen & Pro Mode | 2. Viewer & Swipe Hints |
 | :---: | :---: |
 | <img src="../../../assets/phototok_01_landing.png" alt="Jackpix Landing Screen" width="320" style="border-radius: 12px; box-shadow: 0 4px 15px rgba(0,0,0,0.3);" /> | <img src="../../../assets/phototok_02_viewer.png" alt="Jackpix Culling Viewer" width="320" style="border-radius: 12px; box-shadow: 0 4px 15px rgba(0,0,0,0.3);" /> |
-| *Phone photos, SD card / USB and folder or cloud sources, the photo fan, and the Pro mode switch.* | *Full-screen photo, the idle swipe hints (★ right, delete left), the page counter and the icon-only bar.* |
+| *Phone photos, SD card / USB and folder or cloud sources, the photo fan, and the Pro mode switch. Captured 2026-11-04, when the first card still read "Camera"; it reads "Phone photos" now.* | *Full-screen photo, the idle swipe hints (★ right, delete left), the page counter and the icon-only bar.* |
 
 | 3. Controls Guide | 4. Settings (Pro mode) |
 | :---: | :---: |
