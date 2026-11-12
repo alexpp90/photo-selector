@@ -41,7 +41,7 @@ class DuplicateFinderDialog(Adw.Window if HAS_GI else object):
         self.viewmodel = viewmodel
         self._dispatcher = dispatcher or run_inline
         self.clusters: List[DuplicateCluster] = []
-        self.status_text: str = "Ready to scan loaded library."
+        self.status_text: str = "Ready to scan the open folder."
         self.awaiting_remote_confirmation: bool = False
         self.remote_confirmed: bool = False
         self.scan_button_label: str = SCAN_LABEL
@@ -72,7 +72,7 @@ class DuplicateFinderDialog(Adw.Window if HAS_GI else object):
         box.set_margin_start(16)
         box.set_margin_end(16)
 
-        header = Gtk.Label(label="Cryptographic Duplicate Finder (SHA-256)")
+        header = Gtk.Label(label="Find Duplicates")
         header.add_css_class("title-2")
         box.append(header)
 
@@ -122,7 +122,7 @@ class DuplicateFinderDialog(Adw.Window if HAS_GI else object):
             self.confirm_remote_scan()
             return
         if not self.viewmodel or not self.viewmodel.candidates:
-            self._set_status("No photographs loaded to scan.")
+            self._set_status("No photos loaded to scan.")
             return
 
         if self.needs_remote_confirmation:
@@ -157,7 +157,7 @@ class DuplicateFinderDialog(Adw.Window if HAS_GI else object):
                 self.results_box.remove(child)
 
         if not clusters:
-            self._set_status("No duplicate photographs detected.")
+            self._set_status("No duplicate photos found.")
             return
 
         total_wasted = sum(c.wasted_bytes for c in clusters)
@@ -207,7 +207,7 @@ class LibraryStatisticsDialog(Adw.Window if HAS_GI else object):
         self.stats: Optional[LibraryStatistics] = None
         if HAS_GI:
             super().__init__()
-            self.set_title("Library Statistics")
+            self.set_title("Statistics")
             size_window(self, 680, 560, transient_for)
             if transient_for:
                 self.set_transient_for(transient_for)
@@ -274,11 +274,11 @@ class LibraryStatisticsDialog(Adw.Window if HAS_GI else object):
 
         # 1. Summary Card
         summary_group = Adw.PreferencesGroup()
-        summary_group.set_title("Library Summary")
+        summary_group.set_title("Summary")
 
         row_total = Adw.ActionRow()
         row_total.set_use_markup(False)
-        row_total.set_title("Total Photographs")
+        row_total.set_title("Total Photos")
         row_total.set_subtitle(str(stats.total_photo_count))
         summary_group.add(row_total)
 

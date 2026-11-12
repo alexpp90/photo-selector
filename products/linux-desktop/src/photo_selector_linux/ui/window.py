@@ -154,7 +154,7 @@ class MainWindow(Adw.ApplicationWindow if HAS_GI else object):
         for mode, button, tip in (
             (1, self.btn_mode_1, "Single photo (1)"),
             (2, self.btn_mode_2, "Two photos side by side (2)"),
-            (3, self.btn_mode_3, "Focus 3-Up (3)"),
+            (3, self.btn_mode_3, "Three photos: one over two (3)"),
         ):
             button.set_name(f"btn_mode_{mode}")
             button.set_tooltip_text(tip)
@@ -181,12 +181,6 @@ class MainWindow(Adw.ApplicationWindow if HAS_GI else object):
         self.img_order.set_can_target(False)
         title_box.append(self.img_order)
 
-        # Queue status pill (U-08)
-        self.lbl_queue = Gtk.Label(label="")
-        self.lbl_queue.add_css_class("photo-counter-pill")
-        self.lbl_queue.set_visible(False)
-        title_box.append(self.lbl_queue)
-
         self.header_bar.set_title_widget(title_box)
 
         # Menu Button (Primary Menu)
@@ -201,16 +195,22 @@ class MainWindow(Adw.ApplicationWindow if HAS_GI else object):
             item = Gio.MenuItem.new(label, None)
             item.set_action_and_target_value("win.view_order", GLib.Variant.new_string(target))
             section_order.append_item(item)
-        menu.append_section("View order (B)", section_order)
+        menu.append_section("Order", section_order)
+
+        # Accelerators are drawn by GTK from ``set_accels_for_action``, never typed into a label.
+        section_view = Gio.Menu()
+        section_view.append("Info", "win.toggle_info")
+        section_view.append("Go to Photo…", "win.goto_photo")
+        menu.append_section(None, section_view)
 
         section_tools = Gio.Menu()
-        section_tools.append("Duplicate Finder (Ctrl+D)", "app.duplicate_finder")
-        section_tools.append("Library Statistics (Ctrl+L)", "app.statistics")
+        section_tools.append("Find Duplicates", "app.duplicate_finder")
+        section_tools.append("Statistics", "app.statistics")
         menu.append_section(None, section_tools)
 
         section_app = Gio.Menu()
-        section_app.append("Preferences (Ctrl+,)", "app.preferences")
-        section_app.append("Keyboard Shortcuts (Ctrl+?)", "app.shortcuts")
+        section_app.append("Preferences", "app.preferences")
+        section_app.append("Keyboard Shortcuts", "app.shortcuts")
         section_app.append("About Blitzlens", "app.about")
         menu.append_section(None, section_app)
 
@@ -225,6 +225,14 @@ class MainWindow(Adw.ApplicationWindow if HAS_GI else object):
         )
         self._view_order_action.connect("activate", self._on_view_order_action)
         self.add_action(self._view_order_action)
+        # The keys I and G stay with the keyboard router; the menu rows only run the same methods.
+        for name, handler in (("toggle_info", self._toggle_info), ("goto_photo", self.show_goto_dialog)):
+            action = Gio.SimpleAction.new(name, None)
+            action.connect("activate", lambda _a, _p, fn=handler: fn())
+            self.add_action(action)
+
+    def _toggle_info(self) -> None:
+        self.canvas_view.toggle_hud()
 
     def _on_mode_toggled(self, button, mode: int) -> None:
         if self._syncing_modes or not button.get_active():
@@ -313,10 +321,6 @@ class MainWindow(Adw.ApplicationWindow if HAS_GI else object):
         self.lbl_remote_badge.set_label(remote_label or "")
         self.lbl_remote_badge.set_visible(bool(remote_label))
 
-        queue_label = getattr(vm, "queue_status_label", None)
-        self.lbl_queue.set_label(queue_label or "")
-        self.lbl_queue.set_visible(bool(queue_label))
-
         action = getattr(self, "_view_order_action", None)
         if action is not None:
             action.set_state(GLib.Variant.new_string(vm.sort_order))
@@ -343,16 +347,18 @@ class MainWindow(Adw.ApplicationWindow if HAS_GI else object):
             self._syncing_modes = False
 
     def _on_viewmodel_notification(self, vm, message: str) -> None:
-        """Cull/undo outcomes live in the action bar; load info and errors also get a toast."""
+        """Cull/undo outcomes and errors live in the action bar; load info gets a toast."""
         if not HAS_GI:
             return
         severity = getattr(vm, "last_notification_severity", "info")
         if severity == "status":
             return  # the action bar shows and announces it
+        if severity == "error":
+            return  # one sentence, in the action bar, never a second copy over the photo
         # Files left in an unexpected place: the toast stays until the user dismisses it.
         self.show_toast(message, persistent=severity == "stranded")
         if severity == "info":
-            # "Loaded N photographs" and the like: errors are announced by the action bar.
+            # "Loaded N photos" and the like: errors are announced by the action bar.
             self.action_bar._announce(message)
 
     def show_toast(self, message: str, persistent: bool = False) -> None:
@@ -368,7 +374,7 @@ class MainWindow(Adw.ApplicationWindow if HAS_GI else object):
         if not HAS_GI:
             return
         dialog = Gtk.FileDialog()
-        dialog.set_title("Select Folder with Photographs")
+        dialog.set_title("Open Folder")
         dialog.select_folder(self, None, self._on_folder_dialog_finish)
 
     def _on_folder_dialog_finish(self, dialog, result) -> None:

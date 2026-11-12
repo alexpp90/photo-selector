@@ -17,6 +17,11 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 - A screen reader announces queued, undone and finished operations and finished folder loads, and the Undo button's spoken name says which action it would undo and how many are available.
 
 ### Changed
+- One vocabulary on screen: folder, photo, **Sharpness** (was "Focus" on the info card and in Preferences), **Selection**, **Find Duplicates** and **Statistics** (were "Duplicate Finder", "Cryptographic Duplicate Finder (SHA-256)" and "Library Statistics"). 2-Up and 3-Up name their slots ACTIVE, PREVIOUS and NEXT (2-Up no longer says CHAMPION and CHALLENGER).
+- The main menu no longer types its own shortcut hints ("(Ctrl+D)", "(B)"); GTK draws the accelerators. It gains **Info** and **Go to Photo…** rows.
+- A refused Trash reads "Can't use Trash here. Nothing moved." once, in the action bar, with the technical reason in the log only; a failure is no longer repeated as a toast over the photo.
+- The second "N queued" pill in the header, the "ACTIVE" pill in 1-Up and the caption's file name and score while the info card (`I`) is on are gone: each fact is shown once.
+- The README, the AppStream description and the desktop entry no longer promise "SD-card ingestion" or "two or three side by side", and say what the score measures (the centre of the frame, for comparing frames of one burst).
 - Move and Copy in an opened **Selection folder** are refused with a reason ("This is a Selection folder. Open its parent folder to keep photos.") instead of filing into a second `Selection/Selection/` the scan hides. Trash and Undo work as before.
 - Keys follow the shared desk-app map (`docs/shared/KEYBOARD.md`): `F` and `F11` toggle full screen (`Escape` leaves zoom first, then full screen), `S` opens the View order menu. `H` and `L` (navigation) and `B` (sharpness sweep) still work for this release and are marked in the `?` sheet as going away; use `K`/`J` and the View order menu.
 - `B` returns from lowest sharpness first to the order the folder opens in (newest first by default), not always to file-name order.

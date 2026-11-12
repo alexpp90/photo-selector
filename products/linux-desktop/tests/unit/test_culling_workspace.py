@@ -174,12 +174,12 @@ def test_canvas_area_allocation():
     canvas.reset_zoom()
     assert canvas.is_1to1_zoom is False
 
-    # 2-Up mode (CHAMPION vs CHALLENGER)
+    # 2-Up mode (ACTIVE and NEXT)
     vm.set_comparison_mode(2)
     assert len(canvas.rendered_slots) == 2
-    assert canvas.rendered_slots[0]["role"] == "CHAMPION"
+    assert canvas.rendered_slots[0]["role"] == "ACTIVE"
     assert canvas.rendered_slots[0]["is_active"] is True
-    assert canvas.rendered_slots[1]["role"] == "CHALLENGER"
+    assert canvas.rendered_slots[1]["role"] == "NEXT"
     assert canvas.rendered_slots[1]["is_active"] is False
 
     # 3-Up mode at index 0: left boundary card + ACTIVE + NEXT
@@ -266,7 +266,7 @@ def test_info_hud_goodness_and_metric_omission():
     assert hud.exif_text == "1/500s · f/2.8 · ISO 400 · 85mm"
     assert hud.camera_text == "Sony ILCE-7RM5 · FE 85mm F1.4 GM"
     assert hud.score_visible is True
-    assert hud.score_badge_text == "Focus: 90.0 (Sharp)"
+    assert hud.score_badge_text == "Sharpness: 90.0 (Sharp)"
     assert hud.score_css_class == "score-badge-sharp"
     assert hud.meter_css_class == "sharpness-meter-sharp"
     assert hud.sharpness_meter.get_css_classes() == ["sharpness-meter-track", "sharpness-meter-sharp"]
@@ -289,7 +289,7 @@ def test_info_hud_goodness_and_metric_omission():
     )
     hud.update_photo(cand_acc)
     assert hud.camera_text == "Canon EOS R5 · RF 50mm F1.2 L USM"
-    assert hud.score_badge_text == "Focus: 52.0 (Acceptable)"
+    assert hud.score_badge_text == "Sharpness: 52.0 (Acceptable)"
     assert hud.score_css_class == "score-badge-acceptable"
     assert hud.meter_css_class == "sharpness-meter-acceptable"
     assert hud.sharpness_meter.get_css_classes() == ["sharpness-meter-track", "sharpness-meter-acceptable"]
@@ -320,7 +320,7 @@ def test_info_hud_goodness_and_metric_omission():
     )
     hud.update_photo(cand_soft)
     assert hud.score_visible is True
-    assert hud.score_badge_text == "Focus: 18.4 (Blurry)"
+    assert hud.score_badge_text == "Sharpness: 18.4 (Blurry)"
     assert hud.score_css_class == "score-badge-blurry"
     assert hud.meter_css_class == "sharpness-meter-blurry"
     assert hud.sharpness_meter.get_css_classes() == ["sharpness-meter-track", "sharpness-meter-blurry"]
@@ -400,8 +400,8 @@ def test_styling_helper_edge_cases():
     assert compute_sharpness_goodness(500.0) == pytest.approx(1.0)
 
     assert get_slot_role_label(1, 0) == "ACTIVE"
-    assert get_slot_role_label(2, 0, is_active=True) == "CHAMPION"
-    assert get_slot_role_label(2, 1, is_active=False) == "CHALLENGER"
+    assert get_slot_role_label(2, 0, is_active=True) == "ACTIVE"
+    assert get_slot_role_label(2, 1, is_active=False) == "NEXT"
     assert get_slot_role_label(3, -1, is_active=False) == "PREVIOUS"
     assert get_slot_role_label(3, 0, is_active=True) == "ACTIVE"
     assert get_slot_role_label(3, 1, is_active=False) == "NEXT"
@@ -467,11 +467,11 @@ def test_boundary_slot_conditions():
     vm.candidates = [make_candidate(f"img_{i}.jpg") for i in range(5)]
     vm.current_index = 0
 
-    # At start: index 0 (Left slot shows First Photograph boundary card)
+    # At start: index 0 (Left slot shows First Photo boundary card)
     assert vm.current_index == 0
 
     vm.current_index = 4
-    # At end: index N-1 (Right slot shows Last Photograph boundary card)
+    # At end: index N-1 (Right slot shows Last Photo boundary card)
     assert vm.current_index == len(vm.candidates) - 1
 
 
@@ -1125,3 +1125,26 @@ def test_undo_that_had_to_suffix_says_so():
 
     assert vm.undo() is True
     assert messages == ["Restored as a-2.jpg (original name was in use)"]
+
+
+def test_a_refused_trash_reads_as_one_plain_sentence_and_the_reason_goes_to_the_log(caplog):
+    """Plan 0.4: no g-io text on screen; the photo stays; the technical reason is logged."""
+    from photo_selector_linux.core.file_ops import FileCullingError
+
+    manager = MagicMock()
+    manager.trash_candidate.side_effect = FileCullingError(
+        "FreeDesktop trash failed, rolled back: g-io-error-quark: Trash across mount points"
+    )
+    vm = CullingWorkspaceViewModel(file_manager=manager)
+    vm.candidates = [make_candidate("a.jpg"), make_candidate("b.jpg")]
+    vm.current_folder = Path("/tmp/test_dir")
+    messages = []
+    vm.connect("notification", lambda _vm, message: messages.append((message, vm.last_notification_severity)))
+
+    with caplog.at_level("WARNING"):
+        vm.cull_trash()
+
+    assert messages == [("Can't use Trash here. Nothing moved.", "error")]
+    assert "g-io" not in messages[0][0]
+    assert "g-io-error-quark" in caplog.text
+    assert [c.filename for c in vm.candidates] == ["a.jpg", "b.jpg"]

@@ -34,7 +34,7 @@ SHORTCUTS = [
     ("View Modes", [
         ("1-Up (Single View)", "1"),
         ("2-Up (Side-by-Side)", "2"),
-        ("3-Up (Focus Triplet)", "3"),
+        ("3-Up", "3"),
         ("1:1 Pixel Zoom Toggle", "Space"),
         ("Reset Zoom, then Leave Full Screen", "Escape"),
         ("Toggle Metadata HUD", "I"),
@@ -44,8 +44,8 @@ SHORTCUTS = [
     ]),
     ("Application", [
         ("Open Folder", "Ctrl+O"),
-        ("Duplicate Finder", "Ctrl+D"),
-        ("Library Statistics", "Ctrl+L"),
+        ("Find Duplicates", "Ctrl+D"),
+        ("Statistics", "Ctrl+L"),
         ("Preferences", "Ctrl+,"),
         ("Keyboard Shortcuts", "? or Ctrl+?"),
         ("Close This Window", "Escape / Ctrl+W"),

@@ -181,7 +181,7 @@ class InfoHUD(Gtk.Box if HAS_GI else object):
                 ).value
             else:
                 category = photo.scores.focus_category.value
-            self.score_badge_text = f"Focus: {photo.scores.formatted_sharpness} ({category.capitalize()})"
+            self.score_badge_text = f"Sharpness: {photo.scores.formatted_sharpness} ({category.capitalize()})"
             self.score_css_class = f"score-badge-{category}"
             self.meter_css_class = f"sharpness-meter-{category}"
             self.clipping_text = (

@@ -65,14 +65,14 @@ def test_choosing_the_order_scores_every_unscored_photo_and_sorts_the_folder(tmp
 
     vm.set_sort_order(LOWEST)
     assert [len(b) for b in runner.batches] == [48], "the two photos scored by viewing are not scored again"
-    assert vm.is_scoring and messages == ["Scoring 48 photographs…"]
+    assert vm.is_scoring and messages == ["Scoring 48 photos…"]
 
     runner.deliver()
 
     assert not vm.is_scoring
     expected = sorted(range(50), key=lambda i: (float(i) % 97, i))
     assert _names(vm) == [f"IMG_{i:04d}.JPG" for i in expected]
-    assert messages[-1] == "Scored 48 photographs, lowest sharpness first"
+    assert messages[-1] == "Scored 48 photos, lowest sharpness first"
 
 
 def test_the_photo_on_screen_stays_on_screen_while_scores_arrive(tmp_path):

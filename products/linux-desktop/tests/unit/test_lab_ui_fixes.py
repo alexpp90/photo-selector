@@ -34,11 +34,11 @@ def test_severity_is_stored_before_callbacks_run():
     vm.connect("notification", lambda v, m: seen.append((m, v.last_notification_severity)))
     vm._notify("Moved a.jpg to Selection/", "status")
     vm._notify("Could not move a.jpg: boom", "error")
-    vm._notify("Loaded 3 photographs from x")
+    vm._notify("Loaded 3 photos from x")
     assert seen == [
         ("Moved a.jpg to Selection/", "status"),
         ("Could not move a.jpg: boom", "error"),
-        ("Loaded 3 photographs from x", "info"),
+        ("Loaded 3 photos from x", "info"),
     ]
 
 
@@ -83,7 +83,7 @@ def test_busy_text_takes_precedence_over_outcome():
 def test_info_messages_do_not_touch_the_action_bar():
     vm = CullingWorkspaceViewModel()
     bar = ActionBarView(viewmodel=vm)
-    vm._notify("Loaded 3 photographs from x")
+    vm._notify("Loaded 3 photos from x")
     assert bar.status_text == ""
 
 
@@ -109,7 +109,7 @@ class _Toast:
         self.dismissed = True
 
 
-def test_status_outcomes_make_no_toast_but_errors_and_info_do(monkeypatch):
+def test_only_info_makes_a_toast_status_and_errors_live_in_the_action_bar(monkeypatch):
     toasts = []
     win = window_module.MainWindow()
     monkeypatch.setattr(window_module, "Adw", SimpleNamespace(Toast=SimpleNamespace(new=_Toast)))
@@ -120,8 +120,8 @@ def test_status_outcomes_make_no_toast_but_errors_and_info_do(monkeypatch):
     vm._notify("Moved a.jpg to Selection/", "status")
     assert toasts == []
     vm._notify("Could not move a.jpg: boom", "error")
-    vm._notify("Loaded 3 photographs from x")
-    assert [t.message for t in toasts] == ["Could not move a.jpg: boom", "Loaded 3 photographs from x"]
+    vm._notify("Loaded 3 photos from x")
+    assert [t.message for t in toasts] == ["Loaded 3 photos from x"]
 
 
 def test_new_toast_dismisses_the_previous_one(monkeypatch):
@@ -460,4 +460,6 @@ def test_a_stranded_toast_stays_until_dismissed():
     win.viewmodel._notify("Move interrupted — some files of a.jpg stayed in Selection/", "stranded")
     assert win._toast.get_timeout() == 0
     win.viewmodel._notify("Could not move a.jpg: boom", "error")
+    assert win._toast.get_timeout() == 0  # an error is said in the action bar; the toast stays
+    win.viewmodel._notify("Loaded 3 photos from x")
     assert win._toast.get_timeout() == 3

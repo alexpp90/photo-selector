@@ -443,7 +443,7 @@ class CullingWorkspaceViewModel:
         for photo in todo:
             self._scoring_inflight[photo.id] = photo
         self._scoring_total += len(todo)
-        self._notify(f"Scoring {len(todo)} photographs…")
+        self._notify(f"Scoring {len(todo)} photos…")
 
         def on_scored(photo: CandidatePhoto, scores: Optional[QualityScores]) -> None:
             self._on_photo_scored(generation, photo, scores)
@@ -490,7 +490,7 @@ class CullingWorkspaceViewModel:
         if anchor is not None and self.current_photo is anchor:
             self.current_index = 0  # not navigated meanwhile: start the sweep at the lowest
         if total:
-            self._notify(f"Scored {total} photographs, lowest sharpness first")
+            self._notify(f"Scored {total} photos, lowest sharpness first")
         self._notify_state_changed()
 
     def _apply_sort_order(self) -> None:
@@ -802,6 +802,11 @@ class CullingWorkspaceViewModel:
                     prefix = f"Could not copy {action.photo.filename}"
                 else:
                     prefix = f"Could not move {action.photo.filename} to Trash"
+                    if "trash failed, rolled back" in str(error):
+                        # The g-io reason belongs in the log; the user gets one plain sentence.
+                        logger.warning("%s: %s", prefix, error)
+                        self._notify("Can't use Trash here. Nothing moved.", "error")
+                        return
                 self._notify(f"{prefix}: {error}", "error")
                 return
 
@@ -1124,7 +1129,7 @@ class CullingWorkspaceViewModel:
         if generation != self._folder_generation:
             return
         self.is_scanning = False
-        self._notify(f"Loaded {len(self.candidates)} photographs from {self.current_folder_name}")
+        self._notify(f"Loaded {len(self.candidates)} photos from {self.current_folder_name}")
         if not notified_any:
             self._notify_state_changed()
         self._begin_scoring_pass()
@@ -1180,7 +1185,7 @@ class CullingWorkspaceViewModel:
         if generation != self._folder_generation:
             return False
         self.is_scanning = False
-        self._notify(f"Loaded {len(self.candidates)} photographs from {self.current_folder_name}")
+        self._notify(f"Loaded {len(self.candidates)} photos from {self.current_folder_name}")
         self._notify_state_changed()
         self._begin_scoring_pass()
         return False

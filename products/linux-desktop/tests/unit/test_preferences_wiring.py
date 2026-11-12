@@ -139,4 +139,4 @@ def test_settings_propagate_to_workspace_scanner_cache_and_hud(tmp_path: Path):
         sharp_threshold=store.sharp_threshold,
     )
     canvas._render_view()
-    assert canvas.hud.score_badge_text == "Focus: 40.0 (Blurry)"
+    assert canvas.hud.score_badge_text == "Sharpness: 40.0 (Blurry)"

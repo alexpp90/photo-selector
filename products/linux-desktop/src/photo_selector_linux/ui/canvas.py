@@ -185,6 +185,15 @@ class CanvasView(Gtk.Box if HAS_GI else object):
         self.hud_enabled = not self.hud_enabled
         if hasattr(self, "hud"):
             self.hud.set_hud_enabled(self.hud_enabled)
+        self._apply_footer_visibility()
+
+    def _apply_footer_visibility(self) -> None:
+        """The info card names the file and its score; the active caption says it only while the
+        card is off (one place per fact)."""
+        footer = getattr(self, "_active_footer", None)
+        if footer is not None:
+            # Opacity, not visibility: the photo keeps the same size with the card on and off.
+            footer.set_opacity(0.0 if self.hud_enabled else 1.0)
 
     def _on_state_changed(self, vm) -> None:
         if self.loader is not None:
@@ -483,7 +492,7 @@ class CanvasView(Gtk.Box if HAS_GI else object):
         title.add_css_class("empty-state-title")
         hero.append(title)
 
-        prompt = Gtk.Label(label="No photographs loaded. Press Ctrl+O to open a directory or SD card.")
+        prompt = Gtk.Label(label="No photos loaded. Press Ctrl+O to open a folder.")
         prompt.add_css_class("optical-strip-secondary")
         hero.append(prompt)
 
@@ -522,9 +531,10 @@ class CanvasView(Gtk.Box if HAS_GI else object):
         badge_box = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=6)
         badge_box.set_halign(Gtk.Align.CENTER)
 
-        role_pill = Gtk.Label(label=desc["role"])
-        role_pill.add_css_class("active-pill" if is_active else "slot-role-pill")
-        badge_box.append(role_pill)
+        if self.viewmodel.comparison_mode != 1:  # in 1-Up the only photo is the active one: no pill
+            role_pill = Gtk.Label(label=desc["role"])
+            role_pill.add_css_class("active-pill" if is_active else "slot-role-pill")
+            badge_box.append(role_pill)
 
         if allow_1to1:
             zoom_pill = Gtk.Label(label="1:1 PIXEL ZOOM")
@@ -581,6 +591,9 @@ class CanvasView(Gtk.Box if HAS_GI else object):
 
         self._append_score_badge(footer_box, candidate)
         frame.append(footer_box)
+        if is_active:
+            self._active_footer = footer_box
+            self._apply_footer_visibility()
 
         self.loader.request(
             candidate,
