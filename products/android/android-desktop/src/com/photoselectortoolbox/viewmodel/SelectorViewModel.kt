@@ -25,6 +25,7 @@ import com.photoselectortoolbox.domain.model.RatingFilter
 import com.photoselectortoolbox.data.model.ImageDimensions
 import com.photoselectortoolbox.data.model.CompanionFile
 import com.photoselectortoolbox.data.model.ImageItem
+import com.photoselectortoolbox.data.model.KeptFiles
 import com.photoselectortoolbox.data.repository.FileOperationResult
 import com.photoselectortoolbox.data.model.ScanResult
 import com.photoselectortoolbox.data.repository.CacheRepository
@@ -1523,7 +1524,7 @@ class SelectorViewModel @Inject constructor(
                         },
                         sessionKeptFileNames = current.sessionKeptFileNames + currentItem.fileName,
                         sessionCopiedUris = current.sessionCopiedUris + listOfNotNull(sourceUri.takeIf { action == CurationAction.COPY }),
-                        sessionKeptFiles = current.sessionKeptFiles + currentItem.allFiles.associate { it.fileName to it.fileSize },
+                        sessionKeptFiles = current.sessionKeptFiles + KeptFiles.of(currentItem.allFiles, result.destinationUris),
                     )
                 }
                 val undo = UndoPolicy.forFiling(
@@ -1732,7 +1733,7 @@ class SelectorViewModel @Inject constructor(
                     it.withRestored(OptimisticEdits.restore(it.listState, operation.slots)).copy(
                         undoHistory = remainingHistory,
                         sessionMovedCount = (it.sessionMovedCount - 1).coerceAtLeast(0),
-                        sessionKeptFiles = it.sessionKeptFiles - operation.slots.flatMap { slot -> slot.image.allFiles.map { f -> f.fileName } }.toSet(),
+                        sessionKeptFiles = it.sessionKeptFiles - KeptFiles.keysOf(operation.destinationUris),
                         snackbarUndoAvailable = false,
                         snackbarMessage = null,
                     )

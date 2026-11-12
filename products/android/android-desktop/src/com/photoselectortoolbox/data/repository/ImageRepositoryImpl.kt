@@ -111,11 +111,14 @@ class ImageRepositoryImpl @Inject constructor(
         /**
          * Verify, before an OTG SD card is formatted (`U-33`), that every kept *file* of a culling
          * session — each bundle member, RAW twin and sidecar included, mapped to its source size —
-         * is at the destination under exactly its name with exactly that byte size.
+         * is at the destination as exactly the document its transfer wrote, with exactly that byte
+         * size. Both maps share their keys: [com.photoselectortoolbox.data.model.KeptFiles] records the document id each transfer
+         * wrote, and the listing ([SelectionFolderState.filesByDocumentId]) is by document id, so
+         * a same-named file elsewhere in the Selection never stands in for a missing copy.
          *
          * No stem fallback (FD-C-11): a kept `DSC0001.ARW` is not verified by a `DSC0001.JPG`
-         * that did arrive. A source of unknown (≤ 0) size cannot be verified. Not called by any UI
-         * yet; the requirement says so until one does.
+         * that did arrive. A source of unknown (≤ 0) size cannot be verified. Read by the Done
+         * card ([com.photoselectortoolbox.viewmodel.DoneSelection]).
          */
         internal fun verifySafeToFormat(
             keptFiles: Map<String, Long>,
@@ -674,7 +677,7 @@ class ImageRepositoryImpl @Inject constructor(
             SelectionFolderState(
                 uri = uri.toString(),
                 name = name,
-                filesWithSizes = filesWithSizes(context, uri, depth = 1),
+                filesByDocumentId = filesWithSizes(context, uri, depth = 1),
                 onSourceVolume = if (source == null || target == null) {
                     null
                 } else {
@@ -689,7 +692,7 @@ class ImageRepositoryImpl @Inject constructor(
         null
     }
 
-    /** Files under [directoryUri] by name with their provider-reported size, [depth] levels of subfolders down. */
+    /** Files under [directoryUri] by document id with their provider-reported size, [depth] levels of subfolders down. */
     private fun filesWithSizes(context: Context, directoryUri: Uri, depth: Int): Map<String, Long> {
         val documentId = folderKeyOf(directoryUri)?.documentId ?: return emptyMap()
         val childrenUri = DocumentsContract.buildChildDocumentsUriUsingTree(directoryUri, documentId)
@@ -704,12 +707,11 @@ class ImageRepositoryImpl @Inject constructor(
         context.contentResolver.query(childrenUri, projection, null, null, null)?.use { cursor ->
             while (cursor.moveToNext()) {
                 val id = cursor.getString(0) ?: continue
-                val name = cursor.getString(1) ?: continue
                 if (cursor.getString(2) == DocumentsContract.Document.MIME_TYPE_DIR) {
                     folders += DocumentsContract.buildDocumentUriUsingTree(directoryUri, id)
                 } else {
                     // An unknown size is -1: it never verifies a kept file.
-                    files[name] = if (cursor.isNull(3)) -1L else cursor.getLong(3)
+                    files[id] = if (cursor.isNull(3)) -1L else cursor.getLong(3)
                 }
             }
         }
