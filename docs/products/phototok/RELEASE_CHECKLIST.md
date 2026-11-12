@@ -62,14 +62,15 @@ Because Jackpix requests zero permissions, has no network access, and processes 
 Store text promises behaviour, so every line must be true for the build being released. Before pasting, fact-check each feature line against the current code and remove anything that is no longer true.
 
 - **Title rule:** always the name with a descriptive subtitle. Play limit: **30 characters**.
+- **No freed-storage or duplicate claims** (decision 2026-11-12): the title names what people search for ("photo cleaner"), but no line promises freed space, a storage figure or duplicate detection — Jackpix has none. The short description carries what the other cleaners lack: RAW + JPEG, SD card, offline, no permissions.
 - **Disclaimer:** the non-affiliation sentence goes at the end of the full description (it does not fit the 80-character short description).
 
 ### English (United States) — en-US
 
-**App name** (≤ 30): `Jackpix – Swipe & Tidy Photos` (29)
+**App name** (≤ 30): `Jackpix – Swipe Photo Cleaner` (29)
 
 **Short description** (≤ 80):
-> Swipe through your photos, keep the best, delete the rest. 100% offline.
+> Swipe to keep or delete photos. RAW + JPEG, SD card. Offline, no permissions.
 
 **Full description** (≤ 4000):
 ```text
@@ -97,10 +98,10 @@ Private by design
 
 ### German (Germany) — de-DE
 
-**App-Name** (≤ 30): `Jackpix – Swipe & Tidy Photos` (29; same as English for now)
+**App-Name** (≤ 30): `Jackpix – Swipe Photo Cleaner` (29; same as English for now)
 
 **Kurzbeschreibung** (≤ 80):
-> Fotos durchwischen, die besten behalten, den Rest löschen. 100 % offline.
+> Fotos per Wisch sortieren. RAW + JPEG, SD-Karte. Offline, ohne Berechtigungen.
 
 **Vollständige Beschreibung** (≤ 4000):
 ```text
