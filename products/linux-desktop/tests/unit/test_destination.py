@@ -469,7 +469,10 @@ def test_the_first_move_of_a_folder_names_the_full_destination_once(tmp_path: Pa
     card = _card(tmp_path)
     vm, _store = _vm(tmp_path)
     notes = []
-    vm.connect("notification", lambda _vm, msg: notes.append(msg) if vm.last_notification_severity == "status" else None)
+    vm.connect(
+        "notification",
+        lambda _vm, msg: notes.append(msg) if vm.last_notification_severity == "status" else None,
+    )
     vm.load_directory(card)
     assert vm.cull_copy() and vm.cull_copy()
     assert notes[0].startswith("Copied to ") and notes[0].endswith("Selection/")

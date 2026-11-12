@@ -177,7 +177,7 @@ def test_the_matrix_covers_every_action_button_of_the_bar(ui):
     """A new action button must get a row: every button of the bar is named in the table."""
     win, _root = ui
     in_table = {target for kind, target in list(ENTRY_PATHS.values()) if kind == "button"} | {"btn_undo"}
-    in_table |= {"btn_selected"}  # the pill opens the Selection folder: test_the_selected_pill_opens_the_selection_folder
+    in_table |= {"btn_selected"}  # its row: test_the_selected_pill_opens_the_selection_folder
     buttons = {
         w.get_name()
         for w in probe.walk(win.action_bar)

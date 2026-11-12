@@ -21,7 +21,7 @@ _IDS = itertools.count()  # a bus owns one object per id: every test gets its ow
 
 
 def _app_id() -> str:
-    return f"app.alpatix.BlitzlensTest{next(_IDS)}"
+    return f"org.example.BlitzlensTest{next(_IDS)}"
 
 
 ACTIONS = {
