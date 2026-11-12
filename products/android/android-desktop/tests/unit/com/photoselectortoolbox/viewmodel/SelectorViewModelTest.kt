@@ -1780,6 +1780,37 @@ class SelectorViewModelTest {
     }
 
     @Test
+    fun `an in-session commit keeps another photo that is now at a deleted URI`() = runTest {
+        coEvery { settingsRepository.addPendingDeletes(any(), any()) } coAnswers {
+            pendingDeleteIdentitiesFlow.value = pendingDeleteIdentitiesFlow.value + secondArg<Map<String, FileIdentity>>()
+        }
+        val viewModel = loadFolder(image("a.jpg"), image("b.jpg"))
+        viewModel.deleteCurrentImage()
+        // Before the folder is left, a refilled card puts another photo at the same path.
+        coEvery { imageRepository.documentIdentity(any(), Uri.parse("content://test/folder/a.jpg")) } returns
+            FileIdentity(size = 9000, lastModified = 5)
+
+        viewModel.selectFolder(Uri.parse(OTHER_FOLDER_URI))
+
+        coVerify(exactly = 0) { imageRepository.deleteImage(any(), Uri.parse("content://test/folder/a.jpg")) }
+        coVerify(exactly = 0) { cacheRepository.forgetDeletedFile("content://test/folder/a.jpg") }
+        coVerify(exactly = 1) { settingsRepository.removePendingDeletes(listOf("content://test/folder/a.jpg")) }
+    }
+
+    @Test
+    fun `an in-session commit still deletes a file whose identity is unchanged`() = runTest {
+        coEvery { settingsRepository.addPendingDeletes(any(), any()) } coAnswers {
+            pendingDeleteIdentitiesFlow.value = pendingDeleteIdentitiesFlow.value + secondArg<Map<String, FileIdentity>>()
+        }
+        val viewModel = loadFolder(image("a.jpg"), image("b.jpg"))
+        viewModel.deleteCurrentImage()
+
+        viewModel.selectFolder(Uri.parse(OTHER_FOLDER_URI))
+
+        coVerify(exactly = 1) { imageRepository.deleteImage(any(), Uri.parse("content://test/folder/a.jpg")) }
+    }
+
+    @Test
     fun `Delete now keeps a recovered file that is no longer the one that was deleted`() = runTest {
         val changed = "content://test/folder/IMG_0001.JPG"
         val same = "content://test/folder/IMG_0002.JPG"

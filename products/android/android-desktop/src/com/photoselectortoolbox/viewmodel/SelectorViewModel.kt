@@ -1610,7 +1610,19 @@ class SelectorViewModel @Inject constructor(
         appScope.launch {
             val failed = mutableSetOf<String>()
             val deleted = mutableListOf<String>()
+            val kept = mutableListOf<String>()
+            // Under the journal lock: the add of this delete has written its identities by then.
+            val recorded = journalMutex.withLock { settingsRepository.pendingDeleteIdentities.first() }
             pending.uris.forEach { uri ->
+                // Another photo at a deleted URI (a refilled card) is kept, as on recovery.
+                val known = recorded[uri]
+                if (PendingDeleteJournal.needsCurrentIdentity(known) &&
+                    PendingDeleteJournal.keepsInSession(known, readIdentity(uri))
+                ) {
+                    kept += uri
+                    failed += uri
+                    return@forEach
+                }
                 val ok = try {
                     imageRepository.deleteImage(context, Uri.parse(uri))
                 } catch (e: CancellationException) {
@@ -1637,6 +1649,8 @@ class SelectorViewModel @Inject constructor(
             if (failed.isEmpty()) return@launch
             val stillOpen = originFolderUri != null && _uiState.value.folderUri == originFolderUri
             if (!stillOpen) return@launch
+            if (kept.isNotEmpty()) reportError(SelectorLabels.recoveryKeptMessage(kept.map(::recoveredName)))
+            if (kept.size == failed.size) return@launch
             val firstName = pending.slots.firstOrNull()?.image?.fileName ?: "image"
             if (deleted.isEmpty()) {
                 _uiState.update { state ->
