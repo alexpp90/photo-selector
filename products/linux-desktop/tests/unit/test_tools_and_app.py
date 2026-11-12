@@ -1,14 +1,12 @@
 """Unit tests for tools dialogs, application controller, remote mount awareness (U-31), and U-32..U-35 features.
 
 Adheres to:
-- R-LINUX-TOOLS-01: Streaming Cryptographic Duplicate Finder Dialog
 - R-LINUX-TOOLS-02: Library Statistics Dialog with Optical & Sharpness Histograms
 - R-LINUX-UI-01: PhotoSelectorApplication Action Wiring
 - R-LINUX-META-05 / U-32: .photoselector-selection Marker File Exclusion
 - R-LINUX-META-07 / U-31: Remote & FUSE Mount Awareness
 """
 
-import json
 from pathlib import Path
 from unittest.mock import MagicMock
 
@@ -30,7 +28,6 @@ from photo_selector_linux.core.statistics import (
 )
 from photo_selector_linux.ui.application import PhotoSelectorApplication
 from photo_selector_linux.ui.tools_dialogs import (
-    DuplicateFinderDialog,
     LibraryStatisticsDialog,
 )
 from photo_selector_linux.ui.window import MainWindow
@@ -56,47 +53,6 @@ def test_is_remote_filesystem_detects_gvfs_and_mountinfo(tmp_path: Path):
     local_folder.mkdir()
     local_mountinfo = "25 1 259:2 / / rw,relatime - ext4 /dev/nvme0n1p2 rw\n"
     assert is_remote_filesystem(local_folder, mountinfo_text=local_mountinfo, roots=()) is False
-
-
-def test_duplicate_finder_dialog_background_worker_and_remote_confirmation(tmp_path: Path):
-    """Verify DuplicateFinderDialog requires confirmation on remote folders and dispatches scan to worker (U-31)."""
-    f1 = tmp_path / "dup1.jpg"
-    f2 = tmp_path / "dup2.jpg"
-    f3 = tmp_path / "unique.jpg"
-    f1.write_bytes(b"identical-image-payload")
-    f2.write_bytes(b"identical-image-payload")
-    f3.write_bytes(b"different-image-payload")
-
-    vm = CullingWorkspaceViewModel()
-    vm.candidates = [
-        CandidatePhoto(primary_path=f1),
-        CandidatePhoto(primary_path=f2),
-        CandidatePhoto(primary_path=f3),
-    ]
-    vm.is_remote_folder = True
-
-    dispatched_jobs = []
-
-    def tracking_dispatcher(job, done):
-        dispatched_jobs.append(job)
-        done(job(), None)
-
-    dlg = DuplicateFinderDialog(viewmodel=vm, dispatcher=tracking_dispatcher)
-    assert dlg.needs_remote_confirmation is True
-
-    # Clicking scan on a remote folder prompts for confirmation first without running the full pass
-    dlg._on_scan_clicked(None)
-    assert dlg.awaiting_remote_confirmation is True
-    assert len(dispatched_jobs) == 0
-    assert "Remote / Cloud" in dlg.status_text
-
-    # Confirming remote scan runs the worker and populates duplicate clusters
-    dlg.confirm_remote_scan()
-    assert dlg.awaiting_remote_confirmation is False
-    assert len(dispatched_jobs) == 1
-    assert len(dlg.clusters) == 1
-    assert len(dlg.clusters[0].file_paths) == 2
-    assert "Found 1 duplicate clusters" in dlg.status_text
 
 
 def test_library_statistics_dialog_and_exif_sharpness_breakdown():
@@ -157,11 +113,29 @@ def test_selection_marker_file_written_and_excluded_by_scanner(tmp_path: Path):
     assert [c.filename for c in scanned] == ["DSC_0001.JPG"]
 
 
-def test_external_destination_card_summary_and_decision_log(tmp_path: Path):
-    """Verify external destination root, card_summary() safe-to-format check, and JSONL decision log (U-33, U-35)."""
+def test_the_duplicate_finder_and_the_decision_log_are_gone():
+    """[USER 2026-11-12] decision #28: no Duplicate Finder module, dialog, action, key or menu row; no decision log."""
+    import importlib.util
+    import inspect
+
+    from photo_selector_linux.core import statistics
+    from photo_selector_linux.ui import application, keyboard_router, shortcuts_dialog, tools_dialogs, window
+
+    assert importlib.util.find_spec("photo_selector_linux.core.duplicate_finder") is None
+    assert not hasattr(tools_dialogs, "DuplicateFinderDialog")
+    assert not hasattr(window.MainWindow, "show_duplicate_finder")
+    assert not hasattr(application.PhotoSelectorApplication, "_on_action_duplicate_finder")
+    assert not hasattr(keyboard_router.KeyboardRouter, "on_duplicate_finder")
+    assert "duplicate" not in inspect.getsource(window).lower()
+    assert "Ctrl+D" not in str(shortcuts_dialog.SHORTCUTS)
+    assert not hasattr(statistics, "record_decision_log")
+    assert "decision_log_path" not in inspect.signature(CullingWorkspaceViewModel).parameters
+
+
+def test_external_destination_card_summary(tmp_path: Path):
+    """Verify external destination root, card_summary() safe-to-format check (U-33)."""
     card = tmp_path / "sd_card"
     ext_dest = tmp_path / "ssd_backup"
-    log_path = tmp_path / "decisions.jsonl"
     card.mkdir()
     ext_dest.mkdir()
 
@@ -170,7 +144,6 @@ def test_external_destination_card_summary_and_decision_log(tmp_path: Path):
 
     vm = CullingWorkspaceViewModel(
         external_destination_root=ext_dest,
-        decision_log_path=log_path,
     )
     vm.load_directory(card)
     assert vm.card_summary()["safe_to_format"] is False
@@ -189,11 +162,7 @@ def test_external_destination_card_summary_and_decision_log(tmp_path: Path):
         "safe_to_format": False,
     }
 
-    lines = log_path.read_text(encoding="utf-8").strip().splitlines()
-    assert len(lines) == 1
-    entry = json.loads(lines[0])
-    assert entry["action"] == "move"
-    assert entry["filename"] == "IMG_0001.JPG"
+    assert not (tmp_path / "decisions.jsonl").exists()  # no decision log is written anywhere
 
 
 def test_lowest_sharpness_first_sort_and_stop_threshold(tmp_path: Path):
@@ -234,7 +203,6 @@ def test_application_actions_and_window_dialogs(tmp_path: Path):
     win.show_open_folder_dialog = MagicMock()
     win.show_preferences = MagicMock()
     win.show_shortcuts_guide = MagicMock()
-    win.show_duplicate_finder = MagicMock()
     win.show_library_statistics = MagicMock()
 
     app._on_action_open_folder(None, None)
@@ -245,9 +213,6 @@ def test_application_actions_and_window_dialogs(tmp_path: Path):
 
     app._on_action_shortcuts(None, None)
     win.show_shortcuts_guide.assert_called_once()
-
-    app._on_action_duplicate_finder(None, None)
-    win.show_duplicate_finder.assert_called_once()
 
     app._on_action_statistics(None, None)
     win.show_library_statistics.assert_called_once()
@@ -266,25 +231,6 @@ def _remote_vm(tmp_path: Path):
     return vm
 
 
-def test_duplicate_finder_second_click_on_a_remote_folder_scans(tmp_path: Path):
-    """The button turns into "Scan anyway"; clicking it again runs the scan instead of repeating the notice."""
-    ran = []
-    dlg = DuplicateFinderDialog(
-        viewmodel=_remote_vm(tmp_path),
-        dispatcher=lambda job, done: (ran.append(1), done(job(), None)),
-    )
-    button = object()  # what GTK passes to the "clicked" handler
-
-    dlg._on_scan_clicked(button)
-    assert dlg.awaiting_remote_confirmation and ran == []
-    assert dlg.scan_button_label == "Scan anyway"
-
-    dlg._on_scan_clicked(button)
-    assert ran == [1] and not dlg.awaiting_remote_confirmation
-    assert len(dlg.clusters) == 1
-    assert dlg.scan_button_label == "Scan for Duplicates"
-
-
 def test_remote_confirmation_controls_exist_in_the_real_dialogs(tmp_path: Path):
     from photo_selector_linux.ui import tools_dialogs
 
@@ -297,33 +243,6 @@ def test_remote_confirmation_controls_exist_in_the_real_dialogs(tmp_path: Path):
     assert stats.btn_confirm.get_label() == "Scan anyway"
     stats.btn_confirm.emit("clicked")
     assert not stats.awaiting_remote_confirmation and stats.stats is not None
-
-    ran = []
-    dlg = DuplicateFinderDialog(
-        viewmodel=vm, dispatcher=lambda job, done: (ran.append(1), done(job(), None))
-    )
-    dlg.btn_scan.emit("clicked")
-    assert dlg.btn_scan.get_label() == "Scan anyway" and ran == []
-    dlg.btn_scan.emit("clicked")
-    assert ran == [1] and dlg.btn_scan.get_label() == "Scan for Duplicates"
-
-
-def test_window_scans_for_duplicates_off_the_main_thread(tmp_path: Path, monkeypatch):
-    from photo_selector_linux.ui import file_worker, tools_dialogs
-    from photo_selector_linux.ui.window import MainWindow
-
-    seen = {}
-
-    class Recorder:
-        def __init__(self, **kwargs):
-            seen.update(kwargs)
-
-        def present(self):
-            pass
-
-    monkeypatch.setattr(tools_dialogs, "DuplicateFinderDialog", Recorder)
-    MainWindow().show_duplicate_finder()
-    assert seen["dispatcher"] is file_worker.run_on_thread
 
 
 def test_run_on_thread_keeps_the_main_loop_free():

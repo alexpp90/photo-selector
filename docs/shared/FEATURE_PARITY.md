@@ -114,7 +114,7 @@ Every desktop feature proposal or modification is classified into one of four di
     *   **Visual Atmosphere**: Studio dark palette highlighting photo colors. macOS uses `.preferredColorScheme(.dark)` with system vibrancy; Linux uses `AdwStyleManager` with dark palette surfaces (`#141414`, `#1C1C1C`, `#3A3A3A`) and high-contrast typography (`#FFFFFF` headings, `#D9D9D9` metadata).
     *   **Window Chrome**: macOS uses native AppKit title bar and toolbar items; Linux uses standard `AdwHeaderBar` with view switcher and window buttons.
     *   **Settings Window**: macOS houses settings in the standard Settings scene (`⌘,`); Linux presents a modal `AdwPreferencesWindow` (`Ctrl+,`) using standard `AdwPreferencesGroup` and `AdwActionRow` widgets.
-    *   **Secondary Utilities**: macOS exposes Duplicate Finder (`⌘D`) and Library Statistics (`⌘L`) under the Menu Bar "Tools" menu; Linux exposes them via the GNOME Primary Menu button (`AdwMenuButton`) and global accelerators (`Ctrl+D`, `Ctrl+L`).
+    *   **Secondary Utilities**: macOS exposes Duplicate Finder (`⌘D`) and Library Statistics (`⌘L`) under the Menu Bar "Tools" menu; Linux has no Duplicate Finder ([USER 2026-11-12] decision #28) and exposes Library Statistics via the GNOME Primary Menu button (`AdwMenuButton`) and `Ctrl+L`.
 
 *   **Tier 3: Platform-Exclusive Capabilities (Documented Exclusions)**
     Features leveraging platform-exclusive hardware or system runtime frameworks:
@@ -171,8 +171,8 @@ When triggered, the agent must present the user with a structured assessment:
 | **Aesthetic Scoring (AI)** | Native Apple Vision (`VNCalculateImageAestheticsScores`) | Omitted (No native OS neural engine runtime) | Tier 3 | ❌ macOS-Exclusive Capability |
 | **Window Chrome & Palette** | Studio Dark `.preferredColorScheme(.dark)` | Studio Dark Libadwaita (`#141414`, `#1C1C1C`) | Tier 2 | ✅ Platform HIG Idiomatic |
 | **Settings Presentation** | macOS Settings Scene (`⌘,`) | `AdwPreferencesWindow` (`Ctrl+,`) | Tier 2 | ✅ Platform HIG Idiomatic |
-| **Secondary Tools Access** | macOS Menu Bar "Tools" (`⌘D`, `⌘L`) | GNOME Primary Menu / Shortcuts (`Ctrl+D`, `Ctrl+L`) | Tier 2 | ✅ Platform HIG Idiomatic |
-| **Duplicate Finder** | CryptoKit streaming SHA-256 | Streaming SHA-256 duplicate engine | Tier 2 | ✅ Platform HIG Idiomatic |
+| **Secondary Tools Access** | macOS Menu Bar "Tools" (`⌘D`, `⌘L`) | GNOME Primary Menu / Shortcuts (`Ctrl+L`; no Duplicate Finder) | Tier 2 | ✅ Platform HIG Idiomatic |
+| **Duplicate Finder** | CryptoKit streaming SHA-256 | None: removed ([USER 2026-11-12] decision #28) | Tier 2 | ◐ Deliberate gap |
 | **Library Statistics** | SwiftUI EXIF distribution charts | Libadwaita EXIF distribution charts | Tier 2 | ✅ Platform HIG Idiomatic |
 | **Distribution Pipeline** | Homebrew Tap `alexpp90/homebrew-tap` (`Cask` & `Formula`) | Debian 13 APT Repository `alexpp90/apt` (`.deb`) | Tier 2 | ✅ Platform Native Distribution |
 
@@ -195,10 +195,10 @@ The full matrix covers all five products in the repository:
 | **Noise Analysis (MAD)** | ✅ Full (MAD) | ✅ Full (vImage MAD) | ✅ Full (NumPy MAD) | ✅ Full (MAD) | ❌ Omitted | Median Absolute Deviation sensor noise floor |
 | **Highlight & Shadow Clipping** | ✅ Full (Grayscale) | ✅ Full (vImage 256-bin) | ✅ Full (NumPy 256-bin) | ✅ Full | ❌ Omitted | Thresholds $\ge 254$ (blown) and $\le 2$ (crushed) |
 | **Library Statistics** | ✅ Full (Matplotlib) | ✅ Full (SwiftUI Charts) | ✅ Full (Libadwaita Charts) | ✅ Full (Vico) | ✅ Simplified (culling counters only) | Optical EXIF distribution histograms; Jackpix shows only bytes freed, photos reviewed and keepers (`CullingStats`) |
-| **Duplicate Finder** | ✅ Full (SHA-256) | ✅ Full (CryptoKit SHA-256) | ✅ Full (Streaming SHA-256) | ✅ Full | ❌ Omitted | Streaming chunked hashing with size pre-filter |
+| **Duplicate Finder** | ✅ Full (SHA-256) | ✅ Full (CryptoKit SHA-256) | ❌ Removed (decision #28) | ✅ Full | ❌ Omitted | Streaming chunked hashing with size pre-filter |
 | **Move / Copy to Selection** | ✅ Full | ✅ Full (AsyncCullingActor) | ✅ Full (GIO Async) | ✅ Full (SAF) | ✅ Full (SAF) | Atomic companion syncing with rollback safety |
 | **Companion Pairing (RAW/JPEG/XMP)** | ✅ Full | ✅ Full (ImageMetadataReader) | ✅ Full (GExiv2 Reader) | ✅ Full | ✅ Full | Automated companion grouping and culling |
-| **Image Grouping (Similarity)** | ✅ Full (dHash) | ⚠️ Exact duplicates only (SHA-256 clusters) | ⚠️ Exact duplicates only (SHA-256 clusters) | ✅ Full | ❌ Omitted (RAW+JPEG siblings are grouped, nothing else) | Burst and similarity grouping; Lensjet and Blitzlens cluster byte-identical files only (see Duplicate Finder) |
+| **Image Grouping (Similarity)** | ✅ Full (dHash) | ⚠️ Exact duplicates only (SHA-256 clusters) | ❌ Omitted (Duplicate Finder removed, decision #28) | ✅ Full | ❌ Omitted (RAW+JPEG siblings are grouped, nothing else) | Burst and similarity grouping; Lensjet clusters byte-identical files only (see Duplicate Finder) |
 | **Persistent Score Cache** | ✅ SQLite MRU | ❌ (In-Memory LRU) | ❌ (In-Memory LRU) | ✅ Room DB | ❌ (Lightweight) | Desktops rely on sub-2ms compute & memory LRU |
 | **Apple Vision Aesthetics** | ✅ (PyObjC Bridge) | ✅ (Pure Native ANE) | ❌ Excluded (Tier 3) | ❌ Excluded | ❌ Excluded | On-device Neural Engine via Apple Vision |
 | **Local AI (Ollama VLM)** | ✅ Full | ❌ Excluded (Tier 3) | ❌ Excluded (Tier 3/4) | ❌ Excluded | ❌ Excluded | Excluded from native apps to prevent runtime bloat |

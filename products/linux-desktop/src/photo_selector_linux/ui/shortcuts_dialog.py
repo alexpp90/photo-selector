@@ -26,7 +26,7 @@ SHORTCUTS = [
         ("Go to Photo", "G"),
     ]),
     ("Culling Actions", [
-        ("Keep (move to Selection)", "M"),
+        ("Move to Selection", "M"),
         ("Copy to Selection", "C"),
         ("Trash", "Delete / Backspace"),
         ("Undo Action", "Ctrl+Z"),
@@ -44,7 +44,6 @@ SHORTCUTS = [
     ]),
     ("Application", [
         ("Open Folder", "Ctrl+O"),
-        ("Find Duplicates", "Ctrl+D"),
         ("Statistics", "Ctrl+L"),
         ("Preferences", "Ctrl+,"),
         ("Keyboard Shortcuts", "? or Ctrl+?"),

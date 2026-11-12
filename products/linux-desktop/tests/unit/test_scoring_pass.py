@@ -72,7 +72,7 @@ def test_choosing_the_order_scores_every_unscored_photo_and_sorts_the_folder(tmp
     assert not vm.is_scoring
     expected = sorted(range(50), key=lambda i: (float(i) % 97, i))
     assert _names(vm) == [f"IMG_{i:04d}.JPG" for i in expected]
-    assert messages[-1] == "Scored 48 photos, lowest sharpness first"
+    assert messages[-1] == "Scored 48 more"
 
 
 def test_the_photo_on_screen_stays_on_screen_while_scores_arrive(tmp_path):
@@ -187,3 +187,32 @@ def test_window_wires_the_loader_pass_and_it_scores_real_images(tmp_path):
 
     assert all(c.scores is not None for c in vm.candidates)
     assert vm.candidates[0].filename == "IMG_0002.jpg", "the blurry photo sorts first"
+
+
+def _sweep_messages(tmp_path, count, scored=()):
+    vm, runner = _vm(tmp_path, count=count, scored=scored)
+    seen = []
+    vm.connect("notification", lambda _vm, m: seen.append((m, vm.last_notification_severity)))
+    vm.set_sort_order(LOWEST)
+    runner.deliver()
+    return [item for item in seen if item[0].startswith("Scored")]
+
+
+def test_the_sweep_says_how_many_more_it_scored_in_the_outcome_line(tmp_path):
+    """[USER 2026-11-12] decision #33 (4): "Scored N more", "Scored 1 more", nothing at 0."""
+    assert _sweep_messages(tmp_path, 15, scored=(0, 1)) == [("Scored 13 more", "status")]
+    assert _sweep_messages(tmp_path, 3, scored=(0, 1)) == [("Scored 1 more", "status")]
+    assert _sweep_messages(tmp_path, 3, scored=(0, 1, 2)) == []
+
+
+def test_the_action_bar_shows_and_announces_scored_more_once(tmp_path):
+    from photo_selector_linux.ui.action_bar import ActionBarView
+
+    vm, runner = _vm(tmp_path, count=15)
+    bar = ActionBarView(viewmodel=vm)
+    spoken = []
+    bar._announce = spoken.append
+    vm.set_sort_order(LOWEST)
+    runner.deliver()
+    assert bar.status_text == "Scored 15 more"
+    assert spoken.count("Scored 15 more") == 1
