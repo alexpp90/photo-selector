@@ -6,12 +6,14 @@ The tablet / Samsung DeX / Chromebook product: a comparison workspace that appro
 parity on large screens.
 
 - **Cull** — three equal frames, one over two, the current one centred, with EXIF and the lens
-  beside each; quality scoring with OpenCV (sharpness, exposure), burst grouping, star ratings and
-  a reject flag, sort orders and Go to photo. `M` moves, `C` copies and `Del` deletes with its
-  companions (RAW, JPEG, `-Edit`, `.xmp`) into the Selection folder; `Ctrl+Z` steps back through the
-  last 20 deletes and moves, also in fullscreen.
+  beside each; quality scoring with OpenCV (sharpness, exposure), burst grouping, sort orders and
+  Go to photo. `M` moves, `C` copies and `Del` deletes with its companions (RAW, JPEG, `-Edit`,
+  `.xmp`) into the Selection folder; `Ctrl+Z`, or **Undo** in the More menu, steps back through
+  the last 20 deletes and moves, also in fullscreen. In a window narrower than 600 dp the More
+  button at the end of the action row keeps Open folder, Scan, Sort, Go to photo and Undo.
 - **Learn** — technique and composition of your own photos, from the scan's facts, with the
-  leading lines and visual weight of the photo shown.
+  leading lines and visual weight of the photo shown; star ratings, a reject flag and a star
+  filter that limits Learn only (Cull always shows every photo).
 - **Statistics** and **Duplicates** — EXIF charts of the open folder and a finder for byte-identical
   copies (it never lets you delete the last copy of a photo).
 - A Room-backed score cache; ratings are written into the photo (embedded in a JPEG, an `.xmp`

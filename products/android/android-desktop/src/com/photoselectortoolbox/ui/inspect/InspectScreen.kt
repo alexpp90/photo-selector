@@ -252,8 +252,8 @@ fun InspectScreen(
                 }
             }
         },
-        onPrevious = { viewModel.navigatePrevious() },
-        onNext = { viewModel.navigateNext() },
+        onPrevious = { viewModel.navigatePreviousInLearn() },
+        onNext = { viewModel.navigateNextInLearn() },
         onSetRating = { item, rating -> viewModel.setRating(item, rating) },
         ratingFilter = uiState.ratingFilter,
         onRatingFilterSelected = { filter -> viewModel.setRatingFilter(filter) },

@@ -81,17 +81,16 @@ object SelectorLabels {
     /**
      * Body text for the one-time per-folder delete confirmation dialog.
      *
-     * Never says "cannot be undone" while UNDO / Ctrl+Z is offered; states the
-     * 20-step undo history and folder-commit boundary honestly, and appends a
-     * cloud-sync warning when [isCloudProvider] is true (`U-30`).
+     * Never says "cannot be undone" while UNDO is offered; states the folder-commit
+     * boundary honestly without naming a key (touch has the More menu's Undo, backlog
+     * 2026-11-11), and appends a cloud-sync warning when [isCloudProvider] is true (`U-30`).
      */
     fun deleteConfirmationMessage(
         fileName: String,
         isCloudProvider: Boolean = false,
         providerLabel: String? = null,
     ): String {
-        val base = "Delete \"$fileName\"? Deletions in this folder are permanent once committed. " +
-            "You can undo up to 20 actions with Ctrl+Z $DELETE_UNDO_SCOPE."
+        val base = "Delete \"$fileName\"? Undo works $DELETE_UNDO_SCOPE, then it is permanent."
         return if (isCloudProvider) {
             val provider = providerLabel?.takeIf { it.isNotBlank() } ?: "a cloud provider"
             "$base Warning: This folder is backed by $provider — deleting here may permanently remove the photo across all synced devices."
@@ -213,6 +212,12 @@ object SelectorLabels {
 
     /** The overflow item that opens the dialog; `G` is its key hint. */
     const val GO_TO_PHOTO_MENU = "Go to photo…"
+
+    /** The More menu's first row: one step back through the undo history (`Ctrl+Z`). */
+    const val UNDO_MENU = "Undo"
+
+    /** What a screen reader hears for the Undo row. */
+    fun undoMenuSpoken(steps: Int): String = "Undo last action, $steps available"
 
     /** Dialog title, button words and the counter's spoken click label. */
     const val GO_TO_PHOTO = "Go to photo"

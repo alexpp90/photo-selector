@@ -12,6 +12,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 - A screen reader announces the result of a move, copy or delete, and UNDO is a button for it.
 - An open folder with no supported photos says so ("<folder> holds no supported photos.") instead of asking for a folder; while a folder is still opening a progress ring shows.
 - Statistics and Duplicates open the folder you have open in Cull instead of asking for one again.
+- **Undo** is the first row of the More menu, with the number of steps left: touch and mouse undo all of the last 20 moves and deletes, as `Ctrl+Z` does, after the card has gone. The delete dialog no longer names a key ("Undo works until you leave the folder, then it is permanent.").
+- Below 600 dp (a narrow split-screen pane or DeX window) a More button at the end of the action row opens the same menu as the sidebar: Undo, Open folder, Scan images, the sort order, Go to photo and Clear scores.
 
 ### Changed
 
@@ -27,6 +29,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ### Fixed
 
+- A star filter picked in Learn no longer limits Cull, which shows no filter: Cull's arrows, filmstrip, burst marks and Go to photo always cover every photo of the folder, and Learn keeps its filter.
 - Reopening the last folder while the app is rebuilt in a running process (a window resize on DeX, a rotation) can no longer crash at start: the photo-data cache it clears existed only after the reopen began.
 - At the largest system font the action buttons keep "Delete" and the other words whole: a button that is too small drops its icon first and its key name last (the key stays in the spoken label and in the guide). Learn's tabs and guide buttons scroll instead of breaking words ("Lesson/s", "Hori/zon"), and the Photo Coach's blur badge and the rating card's key caption move to the next line instead of breaking.
 - The first-run "Tap either side to browse" pill no longer sits under the undo card; it moves above it.

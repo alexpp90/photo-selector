@@ -31,10 +31,8 @@ import androidx.compose.material.icons.filled.PhotoCamera
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.DropdownMenu
-import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.FilledTonalButton
-import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
@@ -65,7 +63,6 @@ import androidx.compose.ui.input.key.type
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalWindowInfo
 import androidx.compose.ui.platform.testTag
-import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.dp
 import androidx.activity.compose.BackHandler
@@ -73,7 +70,6 @@ import androidx.compose.ui.window.Popup
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.photoselectortoolbox.domain.format.SelectorLabels
-import com.photoselectortoolbox.domain.interaction.SelectorShortcut
 import com.photoselectortoolbox.domain.model.RatingFilter
 import com.photoselectortoolbox.domain.session.SelectorSortOrder
 import com.photoselectortoolbox.ui.components.EmptyStateCard
@@ -258,6 +254,23 @@ fun SelectorScreen(
         onGoToPhoto = openJump,
     )
 
+    // One More menu for both layouts (REQ-AND-LAYOUT.02): the sidebar's in wide windows, the
+    // compact action row's below 600 dp.
+    val moreMenu = SelectorMoreMenu(
+        undoSteps = uiState.undoHistory.size,
+        hasImages = uiState.images.isNotEmpty(),
+        canScan = !uiState.isScanRunning,
+        hasAnyScores = uiState.hasAnyScores,
+        sortChoice = sortChoice,
+        onUndo = viewModel::undoLastOperation,
+        onScan = { showScanConfig = true },
+        onOpenFolder = { folderPickerLauncher.launch(null) },
+        onSort = selectSortChoice,
+        onGoToPhoto = openJump,
+        onClearScores = viewModel::clearScores,
+        onShowGuide = openGuide.takeIf { useExpandedLayout },
+    )
+
     // Errors already reached the snackbar through the ViewModel; the sticky
     // field is cleared so the same failure does not re-announce itself.
     LaunchedEffect(uiState.error) {
@@ -319,7 +332,8 @@ fun SelectorScreen(
     if (jumpOpen) {
         GoToPhotoDialog(
             images = uiState.images,
-            ratingFilter = uiState.ratingFilter,
+            // Learn's rating filter does not reach the cull (REQ-AND-RATING.01).
+            ratingFilter = RatingFilter.All,
             dates = viewModel.photoDates(),
             pickerStartDay = viewModel.pickerStartDay(),
             preview = viewModel::previewJump,
@@ -524,43 +538,7 @@ fun SelectorScreen(
                             expanded = showMenu,
                             onDismissRequest = { showMenu = false },
                         ) {
-                            DropdownMenuItem(
-                                modifier = Modifier.handCursor(),
-                                text = { Text("Scan images") },
-                                onClick = { showMenu = false; showScanConfig = true },
-                                enabled = uiState.images.isNotEmpty() && !uiState.isScanRunning,
-                            )
-                            DropdownMenuItem(
-                                modifier = Modifier.handCursor(),
-                                text = { Text("Open folder") },
-                                onClick = { showMenu = false; folderPickerLauncher.launch(null) },
-                            )
-                            HorizontalDivider()
-                            // The same radio group the Sort chip opens (one list, two doors).
-                            SortMenuItems(
-                                selected = sortChoice,
-                                blurriestEnabled = uiState.hasAnyScores,
-                                onSelect = { choice -> showMenu = false; selectSortChoice(choice) },
-                            )
-                            HorizontalDivider()
-                            DropdownMenuItem(
-                                text = { Text(SelectorLabels.GO_TO_PHOTO_MENU) },
-                                trailingIcon = { KeyCap(SelectorShortcut.GO_TO.input) },
-                                onClick = { showMenu = false; openJump() },
-                                enabled = uiState.images.isNotEmpty(),
-                                modifier = Modifier.testTag("menu_go_to_photo").handCursor(),
-                            )
-                            DropdownMenuItem(
-                                modifier = Modifier.handCursor(),
-                                text = { Text("Clear scores") },
-                                onClick = { showMenu = false; viewModel.clearScores() },
-                                enabled = uiState.hasAnyScores,
-                            )
-                            DropdownMenuItem(
-                                modifier = Modifier.handCursor(),
-                                text = { Text("Shortcuts and guide") },
-                                onClick = { showMenu = false; openGuide() },
-                            )
+                            SelectorMoreMenuItems(moreMenu, onDismiss = { showMenu = false })
                         }
                     },
                 )
@@ -618,8 +596,6 @@ fun SelectorScreen(
                                 // explanations of it at once is neither.
                                 pendingHint = uiState.pendingHintText.takeIf { !guideOpen },
                                 onDismissHint = viewModel::dismissHint,
-                                ratingFilter = uiState.ratingFilter,
-                                onRatingFilterSelected = viewModel::setRatingFilter,
                                 onSetRating = { rating ->
                                     if (uiState.maximisedFrame != null) {
                                         viewModel.setRatingForMaximised(rating)
@@ -637,25 +613,15 @@ fun SelectorScreen(
                                 // The maximised state does not draw the flanks
                                 // at all, so the strip disappears there without
                                 // a second condition.
+                                // Every photo of the folder: Learn's rating filter does not
+                                // reach the cull (REQ-AND-RATING.01).
                                 filmstrip = {
                                     CandidateStrip(
-                                        images = uiState.filteredImages,
-                                        currentIndex = uiState.filteredIndex,
+                                        images = uiState.images,
+                                        currentIndex = uiState.currentIndex,
                                         selectedUri = uiState.currentImage?.uri,
-                                        onImageSelected = { filteredIdx ->
-                                            val targetImage = uiState.filteredImages.getOrNull(filteredIdx)
-                                            if (targetImage != null) {
-                                                val globalIdx = uiState.images.indexOfFirst { it.uri == targetImage.uri }
-                                                if (globalIdx >= 0) {
-                                                    viewModel.navigateToImage(globalIdx)
-                                                }
-                                            }
-                                        },
-                                        groups = if (uiState.groupingEnabled && uiState.ratingFilter == RatingFilter.All) {
-                                            uiState.groups
-                                        } else {
-                                            null
-                                        },
+                                        onImageSelected = viewModel::navigateToImage,
+                                        groups = uiState.groups.takeIf { uiState.groupingEnabled },
                                         modifier = Modifier.fillMaxHeight(),
                                     )
                                 },
@@ -670,6 +636,7 @@ fun SelectorScreen(
                                 onDelete = actions.onDelete,
                                 showGestureHint = !uiState.hasSeenFullscreenHint,
                                 onDismissGestureHint = viewModel::markFullscreenHintSeen,
+                                moreMenu = moreMenu,
                             )
                         }
                     }
@@ -887,17 +854,6 @@ internal fun handleSelectorKey(
     }
 }
 
-
-/** A mono key cap, the key hint shown at the end of a menu row. */
-@Composable
-private fun KeyCap(key: String) {
-    Text(
-        text = key,
-        style = MaterialTheme.typography.labelMedium,
-        fontFamily = FontFamily.Monospace,
-        color = MaterialTheme.colorScheme.onSurfaceVariant,
-    )
-}
 
 /**
  * The aspect ratio the frame solver is currently using, landscape-normalised.

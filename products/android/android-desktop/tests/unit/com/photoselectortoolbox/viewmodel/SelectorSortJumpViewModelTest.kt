@@ -451,21 +451,22 @@ class SelectorSortJumpViewModelTest {
     }
 
     @Test
-    fun `a photo the rating filter hides is shown by resetting the filter to All`() = runTest {
+    fun `Go to in the cull reaches a photo Learn's filter hides and leaves Learn's filter alone`() = runTest {
         val viewModel = openSettled(
             image("IMG_1", 1_000, rating = 5),
             image("IMG_2", 2_000, rating = 0),
             image("IMG_3", 3_000, rating = 5),
         )
         viewModel.setRatingFilter(RatingFilter.ExactRating(5))
-        // Newest first: IMG_3 (5★), IMG_2 (hidden), IMG_1 (5★). Number 2 is the hidden one.
+        // Newest first: IMG_3 (5★), IMG_2 (hidden in Learn), IMG_1 (5★). Number 2 is IMG_2.
 
+        assertEquals("IMG_2", viewModel.previewJump("2").fileName)
         val result = viewModel.jumpToPhoto("2")
 
-        assertEquals(JumpResolution.Resolved(index = 1, hiddenByFilter = true), result)
+        // Go-to is a cull control and the filter is Learn's (REQ-AND-RATING.01): nothing is hidden.
+        assertEquals(JumpResolution.Resolved(index = 1, hiddenByFilter = false), result)
         assertEquals("IMG_2", viewModel.current())
-        assertEquals(RatingFilter.All, viewModel.uiState.value.ratingFilter)
-        assertEquals(RatingFilter.All, viewModel.ratingFilter.value)
+        assertEquals(RatingFilter.ExactRating(5), viewModel.uiState.value.ratingFilter)
     }
 
     @Test
@@ -563,27 +564,28 @@ class SelectorSortJumpViewModelTest {
     }
 
     @Test
-    fun `the picker entry goes to the day, and a hidden photo resets the filter`() = runTest {
+    fun `the picker entry goes to the day and leaves Learn's filter alone`() = runTest {
         val viewModel = openTrip()
         viewModel.setRatingFilter(RatingFilter.ExactRating(5))
 
         val result = viewModel.jumpToDate(LocalDate.of(2026, 10, 14))
 
-        assertTrue(result!!.hiddenByFilter)
+        // Go-to is a cull control; the filter is Learn's (REQ-AND-RATING.01).
+        assertFalse(result!!.hiddenByFilter)
         assertEquals("D_1014.JPG", viewModel.current())
-        assertEquals(RatingFilter.All, viewModel.uiState.value.ratingFilter)
+        assertEquals(RatingFilter.ExactRating(5), viewModel.uiState.value.ratingFilter)
     }
 
     @Test
-    fun `within the day a photo the filter shows is preferred, keeping the filter`() = runTest {
+    fun `within the day the first photo in the order is the target, whatever Learn's filter`() = runTest {
         val viewModel = openTrip()
         viewModel.setSortOrder(SelectorSortOrder.OLDEST_FIRST)
         viewModel.setRatingFilter(RatingFilter.ExactRating(5))
 
         viewModel.jumpToDate(LocalDate.of(2026, 10, 12))
 
-        // Oldest first the morning photo comes first, but only the evening one passes the filter.
-        assertEquals("C_1012_evening.JPG", viewModel.current())
+        // Oldest first the morning photo comes first; Learn's filter does not reach the cull.
+        assertEquals("B_1012_morning.JPG", viewModel.current())
         assertEquals(RatingFilter.ExactRating(5), viewModel.uiState.value.ratingFilter)
     }
 

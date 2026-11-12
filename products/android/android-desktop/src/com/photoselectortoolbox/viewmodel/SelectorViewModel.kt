@@ -249,7 +249,7 @@ data class SelectorUiState(
     val customDestinationName: String? = null,
     /** Whether RAW and JPEG are filed into subfolders (persisted). */
     val sortingEnabled: Boolean = true,
-    /** Active rating filter driving the filmstrip and navigation order. */
+    /** Learn's rating filter: its filmstrip and stepping. Cull ignores it (REQ-AND-RATING.01). */
     val ratingFilter: RatingFilter = RatingFilter.All,
     /** True when the folder's persisted SAF grant was revoked or the folder was moved/deleted. */
     val missingGrantPrompt: Boolean = false,
@@ -320,7 +320,7 @@ data class SelectorUiState(
     val pendingDeletions: List<PendingDeletion>
         get() = undoHistory.filterIsInstance<UndoableOperation.RevertPendingDelete>().map { it.pending }
 
-    /** The active images adhering to the rating filter. */
+    /** The photos Learn's rating filter shows (Learn's filmstrip; Cull always uses [images]). */
     val filteredImages: List<ImageItem>
         get() = if (ratingFilter is RatingFilter.All) {
             images
@@ -542,10 +542,7 @@ class SelectorViewModel @Inject constructor(
 
     private val imageGrouper = ImageGrouper(context)
 
-    // Declared before `init` on purpose: `init` reopens the last folder, and with a warm DataStore
-    // and an immediate main dispatcher that runs `selectFolder` → `resetSession` inside the
-    // constructor. A property declared further down is still null then (backlog 2026-11-11,
-    // `SelectorViewModelInitOrderTest`). Kotlin initialises properties and `init` in source order.
+    // Above `init`, which may reopen the last folder inside the constructor (SelectorViewModelInitOrderTest).
 
     private val loadedExifCache = object : LinkedHashMap<String, ExifData>(64, 0.75f, true) {
         override fun removeEldestEntry(eldest: MutableMap.MutableEntry<String, ExifData>?): Boolean {
@@ -1076,15 +1073,15 @@ class SelectorViewModel @Inject constructor(
 
     /**
      * Go to the photo the "Go to photo" input names (number or file name), in the
-     * list as it is ordered now. A photo the rating filter hides is shown anyway —
-     * the photographer asked for it — by resetting the filter to All.
+     * list as it is ordered now. Go-to is a Cull control, and the rating filter is
+     * Learn's: every photo of the folder is a target, and the filter stays as it is.
      *
      * Returns what the input resolved to, so the dialog can say why it did not move.
      */
     fun jumpToPhoto(input: String): JumpResolution {
         val state = _uiState.value
         val zone = zoneId()
-        val resolution = PhotoJump.resolve(input, state.images, state.ratingFilter, zone, LocalDate.now(clock.withZone(zone)))
+        val resolution = PhotoJump.resolve(input, state.images, RatingFilter.All, zone, LocalDate.now(clock.withZone(zone)))
         goTo(resolution)
         return resolution
     }
@@ -1093,11 +1090,11 @@ class SelectorViewModel @Inject constructor(
      * Go to the first photo of [date] in the list as it is ordered now — the date
      * picker's entry. A day without photos lands on the nearest day that has one
      * ([JumpResolution.Resolved.date] says which); null when no photo has a known time
-     * (nothing moves). A photo the rating filter hides is shown, resetting the filter.
+     * (nothing moves). Like [jumpToPhoto] it ignores Learn's rating filter.
      */
     fun jumpToDate(date: LocalDate): JumpResolution.Resolved? {
         val state = _uiState.value
-        val resolution = PhotoJump.resolveDate(date, state.images, state.ratingFilter, zoneId())
+        val resolution = PhotoJump.resolveDate(date, state.images, RatingFilter.All, zoneId())
         resolution?.let(::goTo)
         return resolution
     }
@@ -1110,7 +1107,7 @@ class SelectorViewModel @Inject constructor(
     fun previewJump(input: String): JumpPreview {
         val state = _uiState.value
         val zone = zoneId()
-        return PhotoJump.preview(input, state.images, state.ratingFilter, zone, LocalDate.now(clock.withZone(zone)))
+        return PhotoJump.preview(input, state.images, RatingFilter.All, zone, LocalDate.now(clock.withZone(zone)))
     }
 
     /**
@@ -1137,12 +1134,15 @@ class SelectorViewModel @Inject constructor(
     }
 
     private fun goTo(resolution: JumpResolution) {
-        if (resolution is JumpResolution.Resolved) {
-            if (resolution.hiddenByFilter) setRatingFilter(RatingFilter.All)
-            navigateToImage(resolution.index)
-        }
+        if (resolution is JumpResolution.Resolved) navigateToImage(resolution.index)
     }
 
+    /**
+     * Learn's rating filter (`RatingFilterSelector`, the only control that sets it). It
+     * limits Learn — its filmstrip and [navigateNextInLearn] / [navigatePreviousInLearn] —
+     * and nothing in Cull: Cull draws no filter and always steps through every photo
+     * (REQ-AND-RATING.01). Reset when a folder is opened.
+     */
     fun setRatingFilter(filter: RatingFilter) {
         photographerHasActed = true
         _ratingFilter.value = filter
@@ -1150,62 +1150,26 @@ class SelectorViewModel @Inject constructor(
         adjustCurrentIndexForFilter(filter)
     }
 
-    private fun adjustCurrentIndexForFilter(filter: RatingFilter) {
-        val state = _uiState.value
-        val current = state.currentImage ?: return
-        if (filter.matches(current.rating)) return
+    private fun adjustCurrentIndexForFilter(filter: RatingFilter) =
+        stepTo(SelectorStepping.nearestMatching(_uiState.value, filter))
 
-        val matchingIndices = state.images.indices.filter { filter.matches(state.images[it].rating) }
-        if (matchingIndices.isNotEmpty()) {
-            val closest = matchingIndices.minByOrNull { kotlin.math.abs(it - state.currentIndex) } ?: matchingIndices.first()
-            _uiState.update { it.copy(currentIndex = closest) }
-            onFrameChanged()
-        }
+    fun navigateToImage(index: Int) = stepTo(index.takeIf { it in _uiState.value.images.indices })
+
+    private fun stepTo(index: Int?) {
+        if (index == null) return
+        _uiState.update { it.copy(currentIndex = index) }
+        onFrameChanged()
     }
 
-    fun navigateToImage(index: Int) {
-        val images = _uiState.value.images
-        if (index in images.indices) {
-            _uiState.update { it.copy(currentIndex = index) }
-            onFrameChanged()
-        }
-    }
+    /** Cull's next / previous photo: every photo of the folder, whatever Learn's filter says. */
+    fun navigateNext() = stepTo(SelectorStepping.next(_uiState.value, RatingFilter.All))
 
-    fun navigateNext() {
-        val state = _uiState.value
-        if (state.ratingFilter is RatingFilter.All) {
-            if (state.currentIndex < state.images.size - 1) {
-                _uiState.update { it.copy(currentIndex = state.currentIndex + 1) }
-                onFrameChanged()
-            }
-        } else {
-            val nextIndex = state.images.indices
-                .filter { it > state.currentIndex && state.ratingFilter.matches(state.images[it].rating) }
-                .firstOrNull()
-            if (nextIndex != null) {
-                _uiState.update { it.copy(currentIndex = nextIndex) }
-                onFrameChanged()
-            }
-        }
-    }
+    fun navigatePrevious() = stepTo(SelectorStepping.previous(_uiState.value, RatingFilter.All))
 
-    fun navigatePrevious() {
-        val state = _uiState.value
-        if (state.ratingFilter is RatingFilter.All) {
-            if (state.currentIndex > 0) {
-                _uiState.update { it.copy(currentIndex = state.currentIndex - 1) }
-                onFrameChanged()
-            }
-        } else {
-            val prevIndex = state.images.indices
-                .filter { it < state.currentIndex && state.ratingFilter.matches(state.images[it].rating) }
-                .lastOrNull()
-            if (prevIndex != null) {
-                _uiState.update { it.copy(currentIndex = prevIndex) }
-                onFrameChanged()
-            }
-        }
-    }
+    /** Learn's next / previous photo: the next one its rating filter shows. */
+    fun navigateNextInLearn() = stepTo(SelectorStepping.next(_uiState.value, _uiState.value.ratingFilter))
+
+    fun navigatePreviousInLearn() = stepTo(SelectorStepping.previous(_uiState.value, _uiState.value.ratingFilter))
 
     /**
      * Sets user star rating (1..5, -1 for reject, 0 for unrated).

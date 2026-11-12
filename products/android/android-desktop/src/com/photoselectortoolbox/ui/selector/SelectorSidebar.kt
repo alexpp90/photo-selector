@@ -241,6 +241,7 @@ fun SelectorSidebar(
                 label = SidebarAction.MORE.label,
                 description = SidebarAction.MORE.description,
                 onClick = onShowMenu,
+                modifier = Modifier.testTag("sidebar_more"),
             )
             overflowContent()
         }
