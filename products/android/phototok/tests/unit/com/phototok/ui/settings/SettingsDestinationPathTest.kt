@@ -124,7 +124,7 @@ class SettingsDestinationPathTest {
     @Config(qualifiers = "de-w360dp-h640dp-xhdpi")
     @Requirement("REQ-TOK-FEATURE.23")
     fun german_defaultAndCustomPaths() {
-        assertTrue(phone() == "Telefon")
+        assertTrue(phone() == "Handy")
         checkDefaultAndCustom()
     }
 

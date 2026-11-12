@@ -58,7 +58,6 @@ class LandingHiddenByFilterTest {
                         isLoading = false,
                         emptyFolderMessage = message,
                         onSelectSource = {},
-                        onSelectCollection = {},
                         onStart = {},
                         hiddenByFilter = hiddenBy,
                         onShowAll = { showAll++ },

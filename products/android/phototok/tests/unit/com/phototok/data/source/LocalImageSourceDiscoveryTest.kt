@@ -176,6 +176,23 @@ class LocalImageSourceDiscoveryTest {
     }
 
     @Test
+    fun `videos are not in the feed, and the discovery counts the ones it skipped`() = runTest {
+        tree = mapOf(
+            ROOT to photos(3) + listOf(
+                Row("v1", "clip.mp4", "video/mp4"),
+                Row("v2", "MOV_0001.MOV", "video/quicktime"),
+                Row("v3", "odd.bin", "video/x-matroska"), // a video by its MIME type alone
+                Row("n", "notes.txt", "text/plain"),
+            ),
+        )
+
+        val images = source.discoverImages(treeUri).toList().last()
+
+        assertEquals(3, images.size)
+        assertEquals(3, source.skippedVideoCount(treeUri))
+    }
+
+    @Test
     fun `the Casual card import folder is never re-ingested by the Camera source`() = runTest {
         // DCIM/Camera/Jackpix holds the copies a Casual swipe right made from an SD card.
         tree = mapOf(

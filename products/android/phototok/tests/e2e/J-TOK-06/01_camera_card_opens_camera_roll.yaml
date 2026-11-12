@@ -1,4 +1,4 @@
-# REQ-TOK-FEATURE.03: without a grant yet, "Phone Camera" opens the system folder picker already
+# REQ-TOK-FEATURE.03: without a grant yet, "Phone photos" (formerly "Camera") opens the system folder picker already
 # inside DCIM/Camera. A bare tree URI as the picker's initial location is ignored by DocumentsUI,
 # which then reopens wherever it was last used (Google Drive on an S25 Ultra, 2026-10-20); only a
 # document URI lands in the folder. The journey never confirms the picker: it grants nothing and

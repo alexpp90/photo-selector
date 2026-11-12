@@ -323,7 +323,6 @@ abstract class ScreenTextLoadMatrix {
                 collectionFolderName = "Selection",
                 isLoading = false,
                 onSelectSource = {},
-                onSelectCollection = {},
                 onStart = {},
                 recentPaths = recents,
                 recentPathsCount = 3,

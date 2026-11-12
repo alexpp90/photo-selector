@@ -33,6 +33,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import com.phototok.ui.components.tapOnlyClickable
 
 /**
  * A settings row is a title and, at most, a [summary] that is a value (a folder name, a count) or a
@@ -105,7 +106,8 @@ fun SettingsClickItem(
     Row(
         modifier = Modifier
             .fillMaxWidth()
-            .clickable(onClick = onClick)
+            // A tap only: a sideways drag that ends on "Reset all seen" must not reset anything.
+            .tapOnlyClickable(onClick = onClick)
             .padding(horizontal = 16.dp, vertical = 14.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
