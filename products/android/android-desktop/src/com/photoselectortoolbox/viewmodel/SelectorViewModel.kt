@@ -56,7 +56,6 @@ import com.photoselectortoolbox.domain.interaction.FilingAction
 import com.photoselectortoolbox.domain.session.JumpPreview
 import com.photoselectortoolbox.domain.session.JumpResolution
 import com.photoselectortoolbox.domain.session.PhotoDates
-import com.photoselectortoolbox.domain.session.PhotoJump
 import com.photoselectortoolbox.domain.session.ProgressiveMerge
 import com.photoselectortoolbox.domain.session.ScoreMerge
 import com.photoselectortoolbox.domain.session.SelectorReorder
@@ -271,6 +270,8 @@ data class SelectorUiState(
     val sessionCopiedCount: Int = 0,
     val sessionDeletedCount: Int = 0,
     val sessionKeptFileNames: Set<String> = emptySet(),
+    /** Photos copied in this session, by URI: the copied mark, and a second Copy is a no-op. */
+    val sessionCopiedUris: Set<String> = emptySet(),
 ) {
     /** Whether worst-first triage has reached or passed the configured sharpness stop-line (`U-34`). */
     val hasReachedSharpnessThreshold: Boolean
@@ -537,20 +538,21 @@ class SelectorViewModel @Inject constructor(
      */
     private var photographerHasActed = false
 
+    /** The reopened folder's stored place (photo URI, v0.4.0 index), applied once at settle. */
+    private var storedPlace: Pair<String?, Int>? = null
+
     private var workQueue = WorkQueueState()
     private var pendingGroupingLevel: GroupingLevel = GroupingLevel.TIME_FILENAME
 
     private val imageGrouper = ImageGrouper(context)
 
-    // Above `init`, which may reopen the last folder inside the constructor (SelectorViewModelInitOrderTest).
+    // Above `init`, which may reopen the last folder inside the constructor (SelectorViewModelRelaunchTest).
 
     private val loadedExifCache = object : LinkedHashMap<String, ExifData>(64, 0.75f, true) {
         override fun removeEldestEntry(eldest: MutableMap.MutableEntry<String, ExifData>?): Boolean {
             return size > MAX_EXIF_CACHE_SIZE
         }
     }
-
-    private var photoDatesCache: Triple<List<ImageItem>, ZoneId, PhotoDates>? = null
 
     /**
      * The clock "today" comes from (a `12.10.` without a year, a two-digit year) and the
@@ -559,6 +561,8 @@ class SelectorViewModel @Inject constructor(
      */
     internal var clock: Clock = Clock.systemDefaultZone()
     internal var zoneId: () -> ZoneId = { ZoneId.systemDefault() }
+
+    private val jumps = SelectorJumps(clock = { clock }, zone = { zoneId() })
 
     init {
         // While the undo history holds entries, the folder they operate on keeps its SAF grant even
@@ -693,6 +697,14 @@ class SelectorViewModel @Inject constructor(
             }
         }
 
+        // The place in the folder, by photo, once the photographer has moved (FolderPlace).
+        viewModelScope.launch {
+            _uiState.map { it.folderUri to it.currentImage?.uri }.distinctUntilChanged().collectLatest { (folder, photo) ->
+                delay(FolderPlace.SAVE_DEBOUNCE_MILLIS)
+                if (folder != null && photo != null && photographerHasActed) settingsRepository.setFolderLastPhoto(folder, photo)
+            }
+        }
+
         viewModelScope.launch {
             settingsRepository.reconcilePersistedGrants()
             settingsRepository.lastFolderUri.collect { uri ->
@@ -744,6 +756,7 @@ class SelectorViewModel @Inject constructor(
         loadedExifCache.clear()
         workQueue = SelectorWorkQueue.reset()
         photographerHasActed = false
+        storedPlace = null
         _ratingFilter.value = RatingFilter.All
         _uiState.update {
             parkUndoHistory(it).copy(
@@ -766,6 +779,7 @@ class SelectorViewModel @Inject constructor(
                 sessionCopiedCount = 0,
                 sessionDeletedCount = 0,
                 sessionKeptFileNames = emptySet(),
+                sessionCopiedUris = emptySet(),
             )
         }
     }
@@ -827,6 +841,7 @@ class SelectorViewModel @Inject constructor(
             resolveSecondPass(uri)
 
             settingsRepository.setLastFolderUri(uri.toString())
+            storedPlace = settingsRepository.getFolderLastPhoto(uri.toString()) to settingsRepository.getFolderLastPosition(uri.toString())
             recoverInterruptedRatingWrites(uri)
 
             collectDiscovery(uri, "images") { e ->
@@ -1004,7 +1019,11 @@ class SelectorViewModel @Inject constructor(
             val reordered = SelectorReorder.atSettle(state.listState, state.sortOrder, photographerHasActed)
             if (reordered.changed) settled.withList(reordered.state) else settled
         }
-        if (_uiState.value.images !== before) refreshAfterListChange()
+        // Resume where this folder was left, unless the photographer has moved since it opened.
+        val resume = storedPlace?.takeIf { !photographerHasActed }?.let { (photo, index) -> FolderPlace.resumeIndex(_uiState.value.images, photo, index) }
+        storedPlace = null
+        if (resume != null) _uiState.update { it.copy(currentIndex = resume) }
+        if (_uiState.value.images !== before || resume != null) refreshAfterListChange()
     }
 
     /** The order picked in the overflow menu: leaves worst-first, keeps the frame on screen, persists. */
@@ -1072,66 +1091,20 @@ class SelectorViewModel @Inject constructor(
     // ── Navigation & Rating Filtering ────────────────────────────────────
 
     /**
-     * Go to the photo the "Go to photo" input names (number or file name), in the
-     * list as it is ordered now. Go-to is a Cull control, and the rating filter is
-     * Learn's: every photo of the folder is a target, and the filter stays as it is.
-     *
-     * Returns what the input resolved to, so the dialog can say why it did not move.
+     * *Go to photo* (REQ-AND-WORKFLOW.07): a number, name or date, the date picker's day, the
+     * dialog's preview, the picker's days and its first month ([SelectorJumps]). Go-to ignores
+     * Learn's rating filter. A jump returns what the input resolved to, so the dialog can say
+     * why it did not move.
      */
-    fun jumpToPhoto(input: String): JumpResolution {
-        val state = _uiState.value
-        val zone = zoneId()
-        val resolution = PhotoJump.resolve(input, state.images, RatingFilter.All, zone, LocalDate.now(clock.withZone(zone)))
-        goTo(resolution)
-        return resolution
-    }
+    fun jumpToPhoto(input: String): JumpResolution = jumps.resolve(input, _uiState.value).also(::goTo)
 
-    /**
-     * Go to the first photo of [date] in the list as it is ordered now — the date
-     * picker's entry. A day without photos lands on the nearest day that has one
-     * ([JumpResolution.Resolved.date] says which); null when no photo has a known time
-     * (nothing moves). Like [jumpToPhoto] it ignores Learn's rating filter.
-     */
-    fun jumpToDate(date: LocalDate): JumpResolution.Resolved? {
-        val state = _uiState.value
-        val resolution = PhotoJump.resolveDate(date, state.images, RatingFilter.All, zoneId())
-        resolution?.let(::goTo)
-        return resolution
-    }
+    fun jumpToDate(date: LocalDate): JumpResolution.Resolved? = jumps.resolveDate(date, _uiState.value)?.also(::goTo)
 
-    /**
-     * What "Go to photo" would do with [input], without doing it: the resolution plus
-     * the target's file name and time, for the dialog's supporting line. Uses the same
-     * zone and today as [jumpToPhoto], so the preview and the jump agree.
-     */
-    fun previewJump(input: String): JumpPreview {
-        val state = _uiState.value
-        val zone = zoneId()
-        return PhotoJump.preview(input, state.images, RatingFilter.All, zone, LocalDate.now(clock.withZone(zone)))
-    }
+    fun previewJump(input: String): JumpPreview = jumps.preview(input, _uiState.value)
 
-    /**
-     * The days the list has photos on, for a date picker limited to them
-     * (`SelectableDates`). Recomputed only when the list changes (cached by identity).
-     */
-    fun photoDates(): PhotoDates {
-        val images = _uiState.value.images
-        val zone = zoneId()
-        photoDatesCache?.let { (cachedImages, cachedZone, dates) ->
-            if (cachedImages === images && cachedZone == zone) return dates
-        }
-        return PhotoDates.of(images, zone).also { photoDatesCache = Triple(images, zone, it) }
-    }
+    fun photoDates(): PhotoDates = jumps.dates(_uiState.value.images)
 
-    /**
-     * The month the date picker opens on: the day of the photo on screen, else the last day
-     * with photos (the newest), else null when no photo has a known time.
-     */
-    fun pickerStartDay(): LocalDate? {
-        val state = _uiState.value
-        val zone = zoneId()
-        return state.currentImage?.let { PhotoJump.dayOf(it, zone) } ?: photoDates().last
-    }
+    fun pickerStartDay(): LocalDate? = jumps.pickerStartDay(_uiState.value)
 
     private fun goTo(resolution: JumpResolution) {
         if (resolution is JumpResolution.Resolved) navigateToImage(resolution.index)
@@ -1162,7 +1135,8 @@ class SelectorViewModel @Inject constructor(
     }
 
     /** Cull's next / previous photo: every photo of the folder, whatever Learn's filter says. */
-    fun navigateNext() = stepTo(SelectorStepping.next(_uiState.value, RatingFilter.All))
+    fun navigateNext() = SelectorStepping.next(_uiState.value, RatingFilter.All)?.let(::stepTo)
+        ?: _uiState.update { if (it.images.isEmpty()) it else it.withSnackbar(SelectorLabels.LAST_PHOTO, SnackbarLifetime.NOTICE) }
 
     fun navigatePrevious() = stepTo(SelectorStepping.previous(_uiState.value, RatingFilter.All))
 
@@ -1744,10 +1718,14 @@ class SelectorViewModel @Inject constructor(
         val before = _uiState.value.listState
         val currentItem = before.images.getOrNull(before.currentIndex) ?: return
         val sourceUri = currentItem.uri
+        if (action == CurationAction.COPY && sourceUri in state.sessionCopiedUris) {
+            _uiState.update { it.withSnackbar(SelectorLabels.ALREADY_COPIED, SnackbarLifetime.COPY) }
+            return
+        }
         val edit = OptimisticEdits.applyToCurrent(before, action)
 
         _uiState.update {
-            it.withList(edit.state).copy(
+            it.withList(if (action == CurationAction.COPY) SelectorStepping.afterCopy(edit.state) else edit.state).copy(
                 performedFilingAction = if (action == CurationAction.MOVE) {
                     FilingAction.MOVE
                 } else {
@@ -1816,6 +1794,7 @@ class SelectorViewModel @Inject constructor(
                             current.sessionCopiedCount
                         },
                         sessionKeptFileNames = current.sessionKeptFileNames + currentItem.fileName,
+                        sessionCopiedUris = current.sessionCopiedUris + listOfNotNull(sourceUri.takeIf { action == CurationAction.COPY }),
                     )
                 }
                 val undo = UndoPolicy.forFiling(
@@ -1959,6 +1938,7 @@ class SelectorViewModel @Inject constructor(
                 _uiState.update {
                     it.withRestored(DeferredDeletion.revert(it.listState, operation.pending)).copy(
                         undoHistory = remainingHistory,
+                        sessionDeletedCount = (it.sessionDeletedCount - operation.pending.slots.size).coerceAtLeast(0),
                         snackbarUndoAvailable = false,
                         snackbarMessage = null,
                     )
@@ -1974,6 +1954,7 @@ class SelectorViewModel @Inject constructor(
                 _uiState.update {
                     it.withRestored(OptimisticEdits.restore(it.listState, operation.slots)).copy(
                         undoHistory = remainingHistory,
+                        sessionDeletedCount = (it.sessionDeletedCount - operation.slots.size).coerceAtLeast(0),
                         snackbarUndoAvailable = false,
                         snackbarMessage = null,
                     )
@@ -2020,6 +2001,7 @@ class SelectorViewModel @Inject constructor(
                 _uiState.update {
                     it.withRestored(OptimisticEdits.restore(it.listState, operation.slots)).copy(
                         undoHistory = remainingHistory,
+                        sessionMovedCount = (it.sessionMovedCount - 1).coerceAtLeast(0),
                         snackbarUndoAvailable = false,
                         snackbarMessage = null,
                     )

@@ -13,10 +13,15 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 - An open folder with no supported photos says so ("<folder> holds no supported photos.") instead of asking for a folder; while a folder is still opening a progress ring shows.
 - Statistics and Duplicates open the folder you have open in Cull instead of asking for one again.
 - **Undo** is the first row of the More menu, with the number of steps left: touch and mouse undo all of the last 20 moves and deletes, as `Ctrl+Z` does, after the card has gone. The delete dialog no longer names a key ("Undo works until you leave the folder, then it is permanent.").
+- A 100 % check without touching the screen: `Space` toggles fit and 100 % in fullscreen and on an enlarged frame (`1` / `2` / `3`), the mouse wheel zooms at the pointer in fullscreen, and a drag or `Shift` + arrows pans while zoomed. `←` / `→` keep the zoom and the pan, and `Esc` leaves the zoom first. A pill shows the zoom ("100 %").
+- When you have moved or deleted every photo of a folder, Cull says **Done** with how many were moved, copied and deleted and where the kept ones went, instead of "No photos found". Next on the last photo says "Last photo".
+- A folder reopens at the photo you left it on — after a restart too, when Android had closed the app — instead of at photo 1. If that photo is gone it starts at photo 1.
 - Below 600 dp (a narrow split-screen pane or DeX window) a More button at the end of the action row opens the same menu as the sidebar: Undo, Open folder, Scan images, the sort order, Go to photo and Clear scores.
 
 ### Changed
 
+- Each screen has one name everywhere — Cull, Learn, Stats, Dupes, Setup — on the sidebar, the side rail and the bottom bar and for a screen reader (the rail said Selector, Statistics, Duplicates and Settings, and Learn said "Return to Culling"; it now says "Back to Cull"). The burst feature is **Bursts** in Setup too. The guide's More and Setup lines name what is there.
+- Copy moves on to the next frame, as Move and Delete do, and a photo you copied carries a small copy mark on its frame and its filmstrip tile for the rest of the session. Copying it again writes nothing and says "Already copied" (before, it made a second file, `-2`).
 - After a delete the card says "Deleted", or "Deleted 3 files" when the photo took its RAW or sidecar with it; the photo count beside the frames falls by one per photo. The card's UNDO is a filled button.
 - The four view toggles under the action buttons carry a one-word label (Info, Strip, Overlay, Keys) where it fits, and show whether they are on by a filled or outlined button; a screen reader hears each as a switch that is on or off.
 - Learn and the scan sheet speak plainly: "Fast enough to hand-hold: 1/60s beats the 1/50s minimum" instead of "1/f_eff Guideline", "Golden ratio" and "Flip spiral" instead of "Phi" and "Flip (TL)", a "Grainy at ISO 3200" remark when noise is high, and scan options named for what they find ("Focus quality", "Noise level") without the method.

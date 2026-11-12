@@ -100,6 +100,11 @@ import androidx.compose.ui.input.key.type
 import androidx.compose.ui.input.pointer.PointerIcon
 import androidx.compose.ui.input.pointer.pointerHoverIcon
 import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.input.pointer.PointerEventType
+import androidx.compose.ui.layout.onSizeChanged
+import androidx.compose.ui.draw.clipToBounds
+import androidx.compose.ui.input.key.isShiftPressed
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalView
 import androidx.compose.ui.platform.LocalWindowInfo
@@ -165,6 +170,8 @@ fun FullscreenViewer(
     snackbarLifetime: SnackbarLifetime = SnackbarLifetime.NOTICE,
     onUndo: (() -> Unit)? = null,
     onDismissSnackbar: () -> Unit = {},
+    /** The viewer's one zoom (a parameter so a test can read it; production takes the default). */
+    zoom: PhotoZoom = remember { PhotoZoom() },
 ) {
     val isExpanded = windowSizeClass.widthSizeClass != WindowWidthSizeClass.Compact
 
@@ -219,6 +226,7 @@ fun FullscreenViewer(
             snackbarLifetime = snackbarLifetime,
             onUndo = onUndo,
             onDismissSnackbar = onDismissSnackbar,
+            zoom = zoom,
         )
     }
 }
@@ -295,6 +303,7 @@ private fun FullscreenContent(
     snackbarLifetime: SnackbarLifetime,
     onUndo: (() -> Unit)?,
     onDismissSnackbar: () -> Unit,
+    zoom: PhotoZoom,
 ) {
     val pagerState = rememberPagerState(
         initialPage = initialIndex,
@@ -302,9 +311,11 @@ private fun FullscreenContent(
     )
 
     val coroutineScope = rememberCoroutineScope()
-    var pagerScrollEnabled by remember { mutableStateOf(true) }
     var showOverlay by remember { mutableStateOf(true) }
-    var zoomedIn by remember { mutableStateOf(false) }
+    // One zoom for the viewer, not one per page: `←` / `→` at 100 % keep the zoom and the pan
+    // (backlog 2026-11-11). While zoomed the pager does not scroll; the arrows still page.
+    val zoomedIn = zoom.isZoomed
+    val pagerScrollEnabled = !zoomedIn
 
     // The page on screen is the pager's, not a copy of it: a second variable
     // updated from a flow is one more thing that can be a frame behind.
@@ -448,6 +459,7 @@ private fun FullscreenContent(
             // exactly the judgement the viewer exists to support.
             .background(Zinc950)
             .testTag("fullscreen_root")
+            .onSizeChanged { zoom.viewport = it }
             .focusRequester(focusRequester)
             .focusable()
             // Preview, so these keys are decided before whatever descendant holds
@@ -469,8 +481,21 @@ private fun FullscreenContent(
                 if (isHeldOneShotKey(event.key, event.nativeKeyEvent.repeatCount > 0)) {
                     return@onPreviewKeyEvent true
                 }
+                // Shift+arrows pan the zoomed photo by 20 % of the window; unzoomed they page.
+                if (event.isShiftPressed) {
+                    val panned = when (event.key) {
+                        Key.DirectionLeft -> zoom.panStep(-1, 0)
+                        Key.DirectionRight -> zoom.panStep(1, 0)
+                        Key.DirectionUp -> zoom.panStep(0, -1)
+                        Key.DirectionDown -> zoom.panStep(0, 1)
+                        else -> false
+                    }
+                    if (panned) return@onPreviewKeyEvent true
+                }
                 when (event.key) {
-                    Key.Escape -> { onDismiss(); true }
+                    // One layer per press: the zoom first, then the viewer.
+                    Key.Escape -> { if (zoom.isZoomed) zoom.reset() else onDismiss(); true }
+                    Key.Spacebar -> { zoom.toggle(); true }
                     Key.Delete, Key.Backspace -> { onDelete(currentPageIndex); true }
                     Key.M -> { fileCurrent(FilingAction.MOVE); true }
                     Key.C -> { fileCurrent(FilingAction.COPY); true }
@@ -506,10 +531,8 @@ private fun FullscreenContent(
                         interactionCount++
                     }
                 },
-                onZoomChanged = { isZoomed ->
-                    pagerScrollEnabled = !isZoomed
-                    zoomedIn = isZoomed
-                },
+                zoom = zoom,
+                isCurrent = page == pagerState.currentPage,
                 onDismiss = onDismiss,
                 isGestureEnabled = pagerScrollEnabled, // only enable swipes when not zoomed
             )
@@ -595,13 +618,17 @@ private fun FullscreenContent(
         // Navigator: only meaningful while zoomed, when the visible part of the
         // frame is no longer the whole frame.
         if (zoomedIn) {
-            ZoomNavigator(
-                image = currentImage,
+            Column(
+                horizontalAlignment = Alignment.End,
+                verticalArrangement = Arrangement.spacedBy(8.dp),
                 modifier = Modifier
                     .align(Alignment.BottomEnd)
                     .windowInsetsPadding(BottomSafeInsets)
                     .padding(16.dp),
-            )
+            ) {
+                ZoomPill(percent = zoom.percent)
+                ZoomNavigator(image = currentImage)
+            }
         }
 
         if (showGestureHint) {
@@ -893,12 +920,13 @@ private fun FullscreenGestureHint(
 private fun FullscreenImagePage(
     image: ImageItem,
     onTap: () -> Unit,
-    onZoomChanged: (Boolean) -> Unit,
+    zoom: PhotoZoom,
+    isCurrent: Boolean,
     onDismiss: () -> Unit,
     isGestureEnabled: Boolean,
 ) {
     var verticalDragOffset by remember { mutableFloatStateOf(0f) }
-    var isZoomed by remember { mutableStateOf(false) }
+    val isZoomed = zoom.isZoomed
     val dismissThreshold = 220f
 
     Box(
@@ -941,10 +969,8 @@ private fun FullscreenImagePage(
             pixelWidth = image.imageWidth,
             pixelHeight = image.imageHeight,
             onTap = { onTap() },
-            onZoomChanged = { zoomed ->
-                isZoomed = zoomed
-                onZoomChanged(zoomed)
-            },
+            zoom = zoom,
+            isCurrent = isCurrent,
         )
     }
 }
@@ -967,27 +993,11 @@ private fun ZoomableImage(
     pixelWidth: Int,
     pixelHeight: Int,
     onTap: () -> Unit,
-    onZoomChanged: (Boolean) -> Unit,
+    zoom: PhotoZoom,
+    isCurrent: Boolean,
 ) {
-    var scale by remember { mutableFloatStateOf(1f) }
-    var offset by remember { mutableStateOf(Offset.Zero) }
-    var isZoomed by remember { mutableStateOf(false) }
-
-    LaunchedEffect(isZoomed) {
-        onZoomChanged(isZoomed)
-    }
-
     val transformState = rememberTransformableState { zoomChange, panChange, _ ->
-        val newScale = (scale * zoomChange).coerceIn(1f, MAX_ZOOM)
-        val newOffset = if (newScale > 1f) {
-            Offset(x = offset.x + panChange.x, y = offset.y + panChange.y)
-        } else {
-            Offset.Zero
-        }
-
-        scale = newScale
-        offset = newOffset
-        isZoomed = newScale > ZOOMED_THRESHOLD
+        zoom.transform(zoomChange, panChange)
     }
 
     BoxWithConstraints(
@@ -998,41 +1008,42 @@ private fun ZoomableImage(
         // the two constraints binds — the same "which axis binds" question the
         // selector layout answers, one frame at a time.
         val oneToOneScale = remember(pixelWidth, pixelHeight, constraints) {
-            if (pixelWidth <= 0 || pixelHeight <= 0) {
-                FALLBACK_ZOOM
-            } else {
-                val boxWidth = constraints.maxWidth.toFloat()
-                val boxHeight = constraints.maxHeight.toFloat()
-                val aspect = pixelWidth.toFloat() / pixelHeight.toFloat()
-                val displayedWidth = minOf(boxWidth, boxHeight * aspect)
-                if (displayedWidth <= 0f) {
-                    FALLBACK_ZOOM
-                } else {
-                    (pixelWidth / displayedWidth).coerceIn(MIN_MEANINGFUL_ZOOM, MAX_ZOOM)
-                }
-            }
+            PhotoZoom.oneToOneScale(pixelWidth, pixelHeight, constraints.maxWidth.toFloat(), constraints.maxHeight.toFloat())
         }
+        // The photo on screen says what 100 % is for it; `Space` and the pill read it.
+        LaunchedEffect(isCurrent, oneToOneScale) { if (isCurrent) zoom.oneToOne = oneToOneScale }
+        val centre = Offset(constraints.maxWidth / 2f, constraints.maxHeight / 2f)
 
         Box(
             modifier = Modifier
                 .fillMaxSize()
+                .clipToBounds()
                 .pointerInput(oneToOneScale) {
                     detectTapGestures(
-                        onTap = { if (!isZoomed) onTap() },
+                        onTap = { if (!zoom.isZoomed) onTap() },
                         onDoubleTap = {
-                            if (isZoomed) {
-                                scale = 1f
-                                offset = Offset.Zero
-                                isZoomed = false
-                            } else {
-                                scale = oneToOneScale
-                                offset = Offset.Zero
-                                isZoomed = true
-                            }
+                            zoom.oneToOne = oneToOneScale
+                            zoom.toggle()
                         },
                     )
                 }
-                .transformable(state = transformState, enabled = scale > 1f),
+                // The wheel zooms at the pointer, 1.25× a notch (plain or with Ctrl). Keyed on the
+                // centre, so a resized window does not zoom about the old one.
+                .pointerInput(centre) {
+                    awaitPointerEventScope {
+                        while (true) {
+                            val event = awaitPointerEvent()
+                            if (event.type != PointerEventType.Scroll) continue
+                            val change = event.changes.firstOrNull() ?: continue
+                            val notches = change.scrollDelta.y
+                            if (notches == 0f) continue
+                            val factor = if (notches < 0f) PhotoZoom.WHEEL_STEP else 1f / PhotoZoom.WHEEL_STEP
+                            zoom.zoomAt(factor, change.position - centre)
+                            change.consume()
+                        }
+                    }
+                }
+                .transformable(state = transformState, enabled = zoom.isZoomed),
             contentAlignment = Alignment.Center,
         ) {
             val parsedUri = remember(imageUri) { Uri.parse(imageUri) }
@@ -1043,10 +1054,10 @@ private fun ZoomableImage(
                     .fillMaxSize()
                     .testTag("fullscreen_image")
                     .graphicsLayer {
-                        scaleX = scale
-                        scaleY = scale
-                        translationX = offset.x
-                        translationY = offset.y
+                        scaleX = zoom.scale
+                        scaleY = zoom.scale
+                        translationX = zoom.offset.x
+                        translationY = zoom.offset.y
                     },
                 contentScale = ContentScale.Fit,
             )
@@ -1054,17 +1065,19 @@ private fun ZoomableImage(
     }
 }
 
-/** Beyond this the pager stops scrolling and the navigator thumbnail appears. */
-private const val ZOOMED_THRESHOLD = 1.05f
+/** How far in the photo is, as a share of 1:1, while zoomed ("100 %"). */
+@Composable
+private fun ZoomPill(percent: Int) {
+    Box(
+        modifier = Modifier
+            .clip(RoundedCornerShape(12.dp))
+            .background(Zinc900.copy(alpha = 0.9f))
+            .border(1.dp, Zinc700, RoundedCornerShape(12.dp))
+            .padding(horizontal = 10.dp, vertical = 4.dp)
+            .semantics { contentDescription = "Zoom $percent percent" }
+            .testTag("zoom_pill"),
+    ) {
+        Text(text = "$percent %", style = MaterialTheme.typography.labelMedium, color = Zinc50)
+    }
+}
 
-/** Hard ceiling on magnification, pinch or double-tap. */
-private const val MAX_ZOOM = 8f
-
-/**
- * A frame already displayed at or above 1:1 would double-tap to no visible
- * change, which reads as a broken control. Give it something to do.
- */
-private const val MIN_MEANINGFUL_ZOOM = 1.6f
-
-/** Used when the frame's pixel dimensions were never read. */
-private const val FALLBACK_ZOOM = 2.5f

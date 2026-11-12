@@ -53,6 +53,12 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.foundation.gestures.detectDragGestures
+import androidx.compose.ui.draw.clipToBounds
+import kotlin.math.roundToInt
+import androidx.compose.ui.unit.IntSize
 import androidx.compose.ui.platform.LocalDensity
 import com.photoselectortoolbox.domain.model.RatingFilter
 import com.photoselectortoolbox.ui.components.StarRatingBar
@@ -106,6 +112,8 @@ fun ThreeUpSelectorLayout(
     overlayValuesVisible: Boolean,
     maximisedFrame: SelectorFrame?,
     actions: SelectorActions,
+    /** The maximised frame's zoom (`Space`, `Shift`+arrows, drag), owned by the screen's key handler. */
+    maximisedZoom: PhotoZoom = remember { PhotoZoom() },
     onNavigatePrevious: () -> Unit,
     onNavigateNext: () -> Unit,
     onMaximise: (SelectorFrame) -> Unit,
@@ -121,6 +129,8 @@ fun ThreeUpSelectorLayout(
     ratingFilter: RatingFilter = RatingFilter.All,
     onRatingFilterSelected: (RatingFilter) -> Unit = {},
     onSetRating: (Int) -> Unit = {},
+    /** What the copied mark says for a photo copied in this session; null draws no mark. */
+    copiedMark: (ImageItem) -> String? = { null },
     /** The Sort chip in the control block's locator row, and its menu. */
     sort: SortControl = SortControl(),
     /**
@@ -173,6 +183,12 @@ fun ThreeUpSelectorLayout(
                 canGoNext = next != null,
                 onNavigatePrevious = onNavigatePrevious,
                 onNavigateNext = onNavigateNext,
+                copiedLabel = when (maximisedFrame) {
+                    SelectorFrame.PREVIOUS -> previous
+                    SelectorFrame.CURRENT -> current
+                    SelectorFrame.NEXT -> next
+                }?.let(copiedMark),
+                zoom = maximisedZoom,
                 modifier = Modifier.weight(1f),
             )
             return@Row
@@ -257,6 +273,7 @@ fun ThreeUpSelectorLayout(
                         isCurrent = true,
                         emptyLabel = "No image",
                         badgeAlignment = Alignment.BottomEnd,
+                        copiedLabel = current?.let(copiedMark),
                         onClick = actions.onFullscreen,
                         onLongClick = onLongPressFrame,
                         onMaximise = { onMaximise(SelectorFrame.CURRENT) },
@@ -349,6 +366,7 @@ fun ThreeUpSelectorLayout(
                         onLongClick = onLongPressFrame,
                         onMaximise = { onMaximise(SelectorFrame.PREVIOUS) },
                         testTag = "column_previous",
+                        copiedLabel = previous?.let(copiedMark),
                     )
                     NeighbourFrame(
                         frame = SelectorFrame.NEXT,
@@ -363,6 +381,7 @@ fun ThreeUpSelectorLayout(
                         onLongClick = onLongPressFrame,
                         onMaximise = { onMaximise(SelectorFrame.NEXT) },
                         testTag = "column_next",
+                        copiedLabel = next?.let(copiedMark),
                     )
                 }
             }
@@ -445,6 +464,7 @@ private fun NeighbourFrame(
     onLongClick: () -> Unit,
     onMaximise: () -> Unit,
     testTag: String,
+    copiedLabel: String? = null,
 ) {
     // A frame too small to carry the overlay without being covered by it shows
     // the photograph and nothing else (AD-16).
@@ -465,6 +485,7 @@ private fun NeighbourFrame(
                 // right edge belongs to the value overlay, and two controls
                 // must never share bounds.
                 badgeAlignment = Alignment.BottomStart,
+                copiedLabel = copiedLabel,
                 onClick = onClick,
                 onLongClick = onLongClick,
                 onMaximise = onMaximise,
@@ -555,6 +576,8 @@ private fun FrameTile(
     testTag: String,
     modifier: Modifier = Modifier,
     outerTestTag: String? = null,
+    /** Spoken text of the copied mark when this photo was copied in this session. */
+    copiedLabel: String? = null,
 ) {
     Box(
         modifier = modifier.then(
@@ -575,6 +598,15 @@ private fun FrameTile(
             MaximiseBadge(
                 onClick = onMaximise,
                 modifier = Modifier.align(badgeAlignment).padding(MaximiseBadgeInset),
+            )
+        }
+        // Top-start: both badges sit at the bottom and the neighbours' values at the end.
+        if (image != null && copiedLabel != null) {
+            CopiedMark(
+                size = CopiedMarkFrameSize,
+                spoken = copiedLabel,
+                testTag = "copied_mark",
+                modifier = Modifier.align(Alignment.TopStart).padding(MaximiseBadgeInset),
             )
         }
     }
@@ -615,6 +647,8 @@ private fun MaximisedFrame(
     canGoNext: Boolean = false,
     onNavigatePrevious: () -> Unit = {},
     onNavigateNext: () -> Unit = {},
+    copiedLabel: String? = null,
+    zoom: PhotoZoom = remember { PhotoZoom() },
     modifier: Modifier = Modifier,
 ) {
     BoxWithConstraints(modifier = modifier.fillMaxSize()) {
@@ -647,26 +681,51 @@ private fun MaximisedFrame(
             }
         }
 
+        // 100 % on the maximised frame: one image pixel per device pixel at this frame size.
+        val density = LocalDensity.current
+        LaunchedEffect(image?.uri, size) {
+            val w = with(density) { size.width.toPx() }
+            val h = with(density) { size.height.toPx() }
+            zoom.oneToOne = PhotoZoom.oneToOneScale(image?.imageWidth ?: 0, image?.imageHeight ?: 0, w, h)
+            zoom.viewport = IntSize(w.roundToInt(), h.roundToInt())
+        }
+        val zoomed = zoom.isZoomed
         Box(
             modifier = Modifier
                 .align(Alignment.Center)
+                // Zoomed, a swipe pans the photo instead of stepping (the arrows still step).
                 .comparisonSwipeNavigation(
-                    canGoPrevious = canGoPrevious,
-                    canGoNext = canGoNext,
+                    canGoPrevious = canGoPrevious && !zoomed,
+                    canGoNext = canGoNext && !zoomed,
                     onNavigatePrevious = onNavigatePrevious,
                     onNavigateNext = onNavigateNext,
                 ),
         ) {
-            ImageTile(
-                image = image,
-                isCurrent = frame == SelectorFrame.CURRENT,
-                onClick = onExit,
-                onLongClick = onLongPress,
-                emptyLabel = "No image",
+            Box(
                 modifier = Modifier
                     .size(size)
-                    .testTag("maximised_frame"),
-            )
+                    .clipToBounds()
+                    .pointerInput(zoomed) {
+                        if (zoomed) detectDragGestures { change, drag -> change.consume(); zoom.panBy(drag) }
+                    },
+            ) {
+                ImageTile(
+                    image = image,
+                    isCurrent = frame == SelectorFrame.CURRENT,
+                    onClick = onExit,
+                    onLongClick = onLongPress,
+                    emptyLabel = "No image",
+                    modifier = Modifier
+                        .size(size)
+                        .graphicsLayer {
+                            scaleX = zoom.scale
+                            scaleY = zoom.scale
+                            translationX = zoom.offset.x
+                            translationY = zoom.offset.y
+                        }
+                        .testTag("maximised_frame"),
+                )
+            }
 
             if (detailsVisible && image != null) {
                 PhotoInfoPanel(
@@ -711,6 +770,15 @@ private fun MaximisedFrame(
                 onClick = onExit,
                 modifier = Modifier.align(Alignment.BottomEnd).padding(MaximiseBadgeInset),
             )
+            // Top-end: the info panel holds top-start here, the toggle and badge the bottom.
+            if (image != null && copiedLabel != null) {
+                CopiedMark(
+                    size = CopiedMarkFrameSize,
+                    spoken = copiedLabel,
+                    testTag = "copied_mark",
+                    modifier = Modifier.align(Alignment.TopEnd).padding(MaximisedOverlayInset),
+                )
+            }
         }
     }
 }

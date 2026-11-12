@@ -213,6 +213,15 @@ object SelectorLabels {
     /** The overflow item that opens the dialog; `G` is its key hint. */
     const val GO_TO_PHOTO_MENU = "Go to photo…"
 
+    /** Next on the last frame of the folder: every photo has been seen. */
+    const val LAST_PHOTO = "Last photo"
+
+    /** A second Copy of a frame copied in this session: nothing is written (no "-2" twin). */
+    const val ALREADY_COPIED = "Already copied"
+
+    /** What a screen reader hears for the copied mark on a frame and its filmstrip tile. */
+    fun copiedMarkSpoken(folderName: String): String = "Copied to $folderName"
+
     /** The More menu's first row: one step back through the undo history (`Ctrl+Z`). */
     const val UNDO_MENU = "Undo"
 

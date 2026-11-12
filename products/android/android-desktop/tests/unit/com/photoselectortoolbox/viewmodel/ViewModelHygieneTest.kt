@@ -47,7 +47,7 @@ class ViewModelHygieneTest {
     /**
      * Kotlin runs property initialisers and `init` in source order, so a property below `init` is
      * still null while `init` runs — and `init` reopens the last folder, synchronously when the
-     * store is warm (backlog 2026-11-11, `SelectorViewModelInitOrderTest`).
+     * store is warm (backlog 2026-11-11, `SelectorViewModelRelaunchTest`).
      */
     @Test
     fun `no class property is declared below init`() {

@@ -123,6 +123,8 @@ class SelectorTourTest {
                 SelectorShortcut.MAXIMISE.input,
                 SelectorShortcut.LEARN.input,
                 SelectorShortcut.UNDO.input,
+                SelectorShortcut.ZOOM.input,
+                SelectorShortcut.PAN.input,
                 SelectorShortcut.ESCAPE.input,
                 SelectorShortcut.SHORTCUTS.input,
             ),

@@ -212,9 +212,9 @@ fun SelectorSidebar(
                 icon = Icons.Default.BurstMode,
                 label = SidebarAction.BURSTS.label,
                 description = if (groupingEnabled) {
-                    "Group Similar Series, on"
+                    "Bursts, on"
                 } else {
-                    "Group Similar Series, off"
+                    "Bursts, off"
                 },
                 active = groupingEnabled,
                 enabled = hasImages,

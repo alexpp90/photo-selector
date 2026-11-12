@@ -163,7 +163,7 @@ fun cycleSpiralOrientation(current: SpiralOrientation): SpiralOrientation = when
  * Pure hardware keyboard hotkey handler for the Learn workstation (`U-21`).
  *
  * Mappings:
- * - `L`, `Escape`: Return to Culling view (`onNavigateToSelector`). `I` is the info block in the
+ * - `L`, `Escape`: back to Cull (`onNavigateToSelector`). `I` is the info block in the
  *   selector (docs/shared/KEYBOARD.md) and does nothing here.
  * - `Left Arrow`: Navigate to previous image.
  * - `Right Arrow`: Navigate to next image.
@@ -323,8 +323,8 @@ internal fun InspectScreenContent(
             EmptyStateCard(
                 icon = Icons.Default.CenterFocusStrong,
                 title = "No Photos to Inspect",
-                description = "Choose a shoot folder in Culling to evaluate composition, exposure technique, and coaching guidance.",
-                actionLabel = "Return to Culling",
+                description = "Choose a shoot folder in Cull to evaluate composition, exposure technique, and coaching guidance.",
+                actionLabel = "Back to Cull",
                 onAction = onNavigateToSelector,
                 modifier = Modifier
                     .align(Alignment.Center)
@@ -706,7 +706,7 @@ private fun InspectControlBar(
             ) {
                 Icon(
                     imageVector = Icons.AutoMirrored.Filled.ArrowBack,
-                    contentDescription = "Return to Culling (L / Escape)",
+                    contentDescription = "Back to Cull (L / Escape)",
                     tint = Zinc400,
                 )
             }

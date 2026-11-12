@@ -149,7 +149,7 @@ fun SettingsScreen(
         // --- Analysis Section ---
         SettingsSection(title = "Analysis") {
             SettingsToggleItem(
-                title = "Group Similar Series",
+                title = "Bursts",
                 description = "Group photos shot in close succession",
                 checked = uiState.groupingEnabled,
                 onCheckedChange = { viewModel.updateGroupingEnabled(it) },

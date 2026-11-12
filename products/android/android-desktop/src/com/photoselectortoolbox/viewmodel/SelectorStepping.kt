@@ -1,5 +1,6 @@
 package com.photoselectortoolbox.viewmodel
 
+import com.photoselectortoolbox.domain.curation.SelectorListState
 import com.photoselectortoolbox.domain.model.RatingFilter
 import kotlin.math.abs
 
@@ -8,6 +9,13 @@ import kotlin.math.abs
  * Learn steps with its own rating filter (REQ-AND-RATING.01). Null means the step goes nowhere.
  */
 internal object SelectorStepping {
+
+    /**
+     * A copy, like a move, moves the photographer on: the copied frame becomes the left
+     * "previous" frame, still there to compare against (backlog 2026-11-11). The last frame stays.
+     */
+    fun afterCopy(list: SelectorListState): SelectorListState =
+        list.copy(currentIndex = (list.currentIndex + 1).coerceAtMost((list.images.size - 1).coerceAtLeast(0)))
 
     fun next(state: SelectorUiState, filter: RatingFilter): Int? =
         ((state.currentIndex + 1) until state.images.size).firstOrNull { filter.matches(state.images[it].rating) }

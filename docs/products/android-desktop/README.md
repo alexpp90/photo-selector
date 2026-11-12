@@ -14,8 +14,8 @@ parity on large screens.
 - **Learn** — technique and composition of your own photos, from the scan's facts, with the
   leading lines and visual weight of the photo shown; star ratings, a reject flag and a star
   filter that limits Learn only (Cull always shows every photo).
-- **Statistics** and **Duplicates** — EXIF charts of the open folder and a finder for byte-identical
-  copies (it never lets you delete the last copy of a photo).
+- **Stats** and **Dupes** — EXIF charts of the open folder and a finder for byte-identical
+  copies (it never lets you delete the last copy of a photo). **Setup** holds the settings.
 - A Room-backed score cache; ratings are written into the photo (embedded in a JPEG, an `.xmp`
   sidecar beside RAW and TIFF).
 - Interface language: English only for now.

@@ -556,17 +556,26 @@ class SettingsRepository @Inject constructor(
     // ── Per-folder last position ─────────────────────────────────────────
 
     /**
-     * Persist the last viewed image index for a given folder URI.
-     * Key is derived by hashing the URI to keep preference keys short.
+     * The photo on screen when [folderUri] was last culled, by URI — an index shifts after every
+     * move or delete and under another sort order (backlog 2026-11-11). Written debounced by
+     * `SelectorViewModel` once the photographer moves; read when the folder is reopened.
      */
-    suspend fun setFolderLastPosition(folderUri: String, index: Int) {
-        val key = intPreferencesKey("folder_pos_${folderUri.hashCode()}")
-        context.dataStore.edit { prefs ->
-            prefs[key] = index
-        }
+    suspend fun setFolderLastPhoto(folderUri: String, photoUri: String) {
+        val key = stringPreferencesKey("folder_photo_${folderUri.hashCode()}")
+        context.dataStore.edit { prefs -> prefs[key] = photoUri }
     }
 
-    /** Retrieve the last viewed position for a folder. Returns 0 if none stored. */
+    /** The photo [setFolderLastPhoto] stored for [folderUri], or null. */
+    suspend fun getFolderLastPhoto(folderUri: String): String? {
+        val key = stringPreferencesKey("folder_photo_${folderUri.hashCode()}")
+        return context.dataStore.data.map { prefs -> prefs[key] }.first()
+    }
+
+    /**
+     * The index v0.3.0 / v0.4.0 stored per folder (`folder_pos_<hash>`); nothing writes it any
+     * more. Read only as the resume point of a folder that has no [getFolderLastPhoto] yet, so an
+     * upgrade keeps that place. Returns 0 if none stored.
+     */
     suspend fun getFolderLastPosition(folderUri: String): Int {
         val key = intPreferencesKey("folder_pos_${folderUri.hashCode()}")
         return context.dataStore.data.map { prefs -> prefs[key] ?: 0 }.first()

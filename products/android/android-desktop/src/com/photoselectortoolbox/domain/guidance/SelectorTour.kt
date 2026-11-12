@@ -165,7 +165,7 @@ object SelectorTour {
             TourCallout(
                 region = TourRegion.SIDEBAR_SCREENS,
                 title = "The screens",
-                body = "Your place in the folder is kept when you come back.",
+                body = "Place saved per folder.",
                 legend = screenLegend,
             )
         )

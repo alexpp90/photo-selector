@@ -35,8 +35,9 @@ Main culling view, no modifier unless the key says so. `—` means the key is no
 | `Delete` / `Backspace` | delete, with confirmation (`:850`) | move to Trash (`:188`) | move to Trash (`:164`) | ✅ same intent |
 | Ctrl/⌘ `Z` | undo (`:831-835`; fullscreen `FullscreenViewer.kt:456`) | undo (`:131`) | undo (`:133`) | ✅ |
 | `1` `2` `3` | **maximise the previous / current / next frame** (`:854-856`) | **1-Up / 2-Up / 3-Up layout** (`:202-210`) | **1-Up / 2-Up / 3-Up layout** (`:177-185`) | ❌ different model |
-| `Space` | — | toggle 100 % zoom (`:194`) | toggle 100 % zoom; presses a focused button instead (`:188-192`) | ◐ Frameduel unbound |
-| `Esc` | close the top layer: sheet, context menu, fullscreen, maximised frame (`:821-827`) | leave zoom, consumed only when zoomed (`:200`) | reset zoom (`:193`) | ✅ "back out one layer" |
+| `Space` | fit ↔ 100 % on a maximised frame and in fullscreen; nothing in three-up (`handleSelectorKey`, `ui/selector/PhotoZoom.kt`, `FullscreenViewer.kt`) | toggle 100 % zoom (`:194`) | toggle 100 % zoom; presses a focused button instead (`:188-192`) | ✅ |
+| `Shift` + arrows | while zoomed, pan 20 % of the view (maximised: `←` / `→`; fullscreen: all four); unzoomed they step like the arrows | — | — | — |
+| `Esc` | close the top layer: sheet, context menu, zoom, fullscreen, maximised frame (`closeTopLayer`; in fullscreen the zoom before the viewer) | leave zoom, consumed only when zoomed (`:200`) | reset zoom (`:193`) | ✅ "back out one layer" |
 | `Tab` | — (focus traversal) | cycle the comparison slot (`:197`) | not consumed: focus traversal (`:196-199`, `on_cycle_slot` returns `False` at `:302`) | ◐ |
 | `F` | **open the fullscreen viewer** (`:851`) | **toggle the filmstrip** (`:229`, menu `AppCommands.swift:107`) | **dispatched, does nothing**: `on_toggle_filmstrip` is `pass` (`:203`, `:318-319`); Blitzlens has no filmstrip | ❌ |
 | `I` | **opens Learn** (`:842`); in fullscreen pins the info panel (`FullscreenViewer.kt:472`) | toggle the info HUD (`:234`) | toggle the info HUD (`:200`) | ❌ in the selector |
@@ -56,8 +57,10 @@ Other screens of Frameduel, scoped to that screen:
 
 - **Learn** (`ui/inspect/InspectScreen.kt:168-208`): `L`, `I`, `Esc` back to the selector;
   `←` / `→`; `0`–`5` set the rating (0 clears); `X` rejects.
-- **Fullscreen viewer** (`ui/selector/FullscreenViewer.kt:455-480`): `Esc`, `Delete`/`Backspace`,
-  `M`, `C`, `I` (pin info panel), `←` / `→`, Ctrl/Meta `Z`.
+- **Fullscreen viewer** (`ui/selector/FullscreenViewer.kt`): `Esc` (the zoom first, then the viewer),
+  `Delete`/`Backspace`, `M`, `C`, `I` (pin info panel), `←` / `→` (keep the zoom and the pan),
+  `Space` (fit ↔ 100 %), `Shift` + arrows (pan while zoomed), Ctrl/Meta `Z`; the mouse wheel zooms
+  at the pointer, 1.25× a notch, and a drag pans while zoomed.
 
 Behaviour that is not a key but belongs to the map:
 
@@ -110,7 +113,7 @@ Behaviour that is not a key but belongs to the map:
 | Ctrl/⌘ `Z` | undo | keep | keep | keep |
 | `1` `2` `3` | view number (see recorded reason) | keep: enlarge the left / middle / right frame | keep: 1-Up / 2-Up / 3-Up | keep: 1-Up / 2-Up / 3-Up |
 | `0`–`5`, `X` | rating, reject (where an app rates) | keep, Learn only | reserved | reserved |
-| `Space` | toggle 100 % zoom | reserved | keep | keep |
+| `Space` | toggle 100 % zoom | done 2026-11-12: maximised frame and fullscreen | keep | keep |
 | `Esc` | back out one layer | keep | keep | keep |
 | `Tab` | Lensjet: cycle the comparison slot; elsewhere focus traversal | focus traversal | keep | focus traversal (never captured) |
 | `F` | **full screen** | keep (fullscreen viewer) | **change in the release after next**: this release adds `T` and `F` stays the filmstrip (sheet: "Filmstrip T (F until next release)"); then `F` toggles window full screen (as ⌃⌘F) | **change now** (a no-op today): toggles window full screen, `F11` too; `Esc` leaves full screen after it has left zoom |
