@@ -5,6 +5,8 @@ import PhotoSelectorKit
 /// tactile embedded hotkey badges, and real-time triage counters.
 public struct CullingActionBar: View {
     @ObservedObject public var viewModel: CullingWorkspaceViewModel
+    @AppStorage(AppSettingsKeys.rejectsDestination) private var rejectsRaw: String = RejectsDestination.trash.rawValue
+    private var rejects: RejectsDestination { RejectsDestination(storedRaw: rejectsRaw) }
 
     public init(viewModel: CullingWorkspaceViewModel) {
         self.viewModel = viewModel
@@ -68,16 +70,17 @@ public struct CullingActionBar: View {
             ObsidianDockButton(
                 action: .trash,
                 density: density,
-                icon: "trash.fill",
+                icon: rejects.symbol,
                 shortcut: "⌫",
                 fillColor: Color.lensjetTrashFill,
                 accentColor: Color.lensjetTrash,
                 isDestructive: true,
                 isEnabled: !viewModel.photos.isEmpty,
+                rejects: rejects,
                 perform: { viewModel.cullCurrentPhoto(action: .trash) }
             )
             .uiTestFrame("dock_trash")
-            .help(LensjetCommand.trash.tooltip())
+            .help(LensjetCommand.trash.tooltip(rejects: rejects))
 
             Divider()
                 .frame(height: 22)
@@ -259,6 +262,7 @@ private struct ObsidianDockButton: View {
     var isDestructive: Bool = false
     var isEnabled: Bool = true
     var destination: String = AppSettingsDefaults.cullingDestinationFolderName
+    var rejects: RejectsDestination = .trash
     let perform: () -> Void
 
     var body: some View {
@@ -268,7 +272,7 @@ private struct ObsidianDockButton: View {
                     .font(.system(size: 13, weight: .bold))
                     .foregroundStyle(accentColor)
 
-                if let title = density.dockTitle(action, destination: destination) {
+                if let title = density.dockTitle(action, destination: destination, rejects: rejects) {
                     Text(title)
                         .font(.system(size: 12, weight: .bold))
                         .foregroundStyle(Color.white)
@@ -300,6 +304,6 @@ private struct ObsidianDockButton: View {
         .focusable(false)
         .disabled(!isEnabled)
         .opacity(isEnabled ? 1.0 : 0.45)
-        .accessibilityLabel(action.fullTitle(destination: destination))
+        .accessibilityLabel(action.fullTitle(destination: destination, rejects: rejects))
     }
 }

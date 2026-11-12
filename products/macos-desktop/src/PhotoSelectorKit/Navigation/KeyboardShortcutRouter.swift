@@ -155,7 +155,7 @@ public final class KeyboardShortcutRouter: ObservableObject {
                 viewModel.presentDuplicateFinder()
                 return true
             case "l":
-                viewModel.presentLibraryStatistics()
+                if event.modifierFlags.contains(.shift) { viewModel.presentActivity() } else { viewModel.presentLibraryStatistics() }
                 return true
             case "?", "/":
                 viewModel.presentShortcutsHelp()
@@ -216,7 +216,8 @@ public final class KeyboardShortcutRouter: ObservableObject {
             return viewModel.advanceComparisonSlotFocus()
         case 53: // Escape -> dismiss the sharpness banner, else leave any zoom back to Fit
             if viewModel.dismissStickyToast() { return true }
-            return viewModel.resetZoomToFit()
+            if viewModel.resetZoomToFit() { return true }
+            return viewModel.exitCleanView()
         case 18: // Number 1 -> 1-Up Single
             viewModel.setComparisonMode(.single)
             return true
@@ -244,10 +245,13 @@ public final class KeyboardShortcutRouter: ObservableObject {
         case "k", "h": // Vim Up / Left -> Previous
             viewModel.navigateToPrevious()
             return true
-        case "t", "f": // T filmstrip; F stays as an alias for one release (becomes full screen next)
+        case "t": // T filmstrip
             MotionPolicy.animate(.spring(response: 0.28, dampingFraction: 0.82)) {
                 viewModel.isFilmstripVisible.toggle()
             }
+            return true
+        case "f": // F: clean view (full screen without the toolbar, dock and filmstrip), decision #24
+            viewModel.toggleCleanView()
             return true
         case "i":
             MotionPolicy.animate(.easeInOut(duration: 0.18)) {

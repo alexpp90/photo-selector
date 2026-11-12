@@ -480,10 +480,14 @@ public final class FileCullingManager: @unchecked Sendable {
     /// using non-overwriting `moveItem` (with collision-free suffixing if the original path
     /// became occupied). If any rollback itself fails, throws `.partialTrashRollbackFailed`
     /// carrying the remaining trashed pairs so the caller preserves the undo entry.
-    public func moveToTrashWithPairs(photoURL: URL) throws -> [TrashedFilePair] {
+    public func moveToTrashWithPairs(photoURL: URL, rejectsFolder: URL? = nil) throws -> [TrashedFilePair] {
         guard fileManager.fileExists(atPath: photoURL.path) else {
             throw FileCullingError.fileNotFound(photoURL)
         }
+        // A reject goes into the Rejected folder when the user chose that; the undo is the same.
+        let trashService: any TrashService = rejectsFolder.map {
+            RejectedFolderService(folder: $0, fileManager: fileManager)
+        } ?? self.trashService
 
         let targets = findCompanionFiles(for: photoURL)
         let primaryStem = photoURL.deletingPathExtension().lastPathComponent

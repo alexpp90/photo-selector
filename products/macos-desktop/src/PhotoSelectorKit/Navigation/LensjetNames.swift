@@ -15,9 +15,16 @@ public enum LensjetCommand: CaseIterable, Sendable {
     case singleUp, twoUp, threeUp
     case zoom100, linkPan, filmstrip, info, sortBy
     case findDuplicates, statistics, keyboardShortcuts
+    /// Activity: the list of decisions ([USER 2026-11-12] decision #23). Clean View: full screen that
+    /// hides the toolbar, the dock and the filmstrip (decision #24).
+    case activity, cleanView
 
     /// The name in menus, the shortcut sheet and the long form of a tooltip.
-    public func name(destination: String = AppSettingsDefaults.cullingDestinationFolderName) -> String {
+    /// `rejects` says where Delete goes (Settings → Rejects): "Move to Trash" or "Move to Rejected".
+    public func name(
+        destination: String = AppSettingsDefaults.cullingDestinationFolderName,
+        rejects: RejectsDestination = .trash
+    ) -> String {
         switch self {
         case .openFolder: return "Open Folder\u{2026}"
         case .openRecent: return "Open Recent"
@@ -25,7 +32,7 @@ public enum LensjetCommand: CaseIterable, Sendable {
         case .quickLook: return "Quick Look"
         case .move: return "Move to \(destination)"
         case .copy: return "Copy to \(destination)"
-        case .trash: return "Move to Trash"
+        case .trash: return rejects.commandName
         case .undo: return "Undo"
         case .autoAdvance: return "Auto-Advance"
         case .previousPhoto: return "Previous Photo"
@@ -43,15 +50,20 @@ public enum LensjetCommand: CaseIterable, Sendable {
         case .findDuplicates: return "Find Duplicates"
         case .statistics: return "Statistics"
         case .keyboardShortcuts: return "Keyboard Shortcuts"
+        case .activity: return "Activity"
+        case .cleanView: return "Clean View"
         }
     }
 
     /// The short form of the dock and the compact toolbar; equals `name` where one form is enough.
-    public var shortName: String {
+    public var shortName: String { shortName(rejects: .trash) }
+
+    /// The short form with the Delete destination of the setting.
+    public func shortName(rejects: RejectsDestination) -> String {
         switch self {
         case .move: return "Move"
         case .copy: return "Copy"
-        case .trash: return "Trash"
+        case .trash: return rejects.shortName
         default: return name()
         }
     }
@@ -81,14 +93,19 @@ public enum LensjetCommand: CaseIterable, Sendable {
         case .findDuplicates: return "\u{2318}D"
         case .statistics: return "\u{2318}L"
         case .keyboardShortcuts: return "\u{2318}/"
+        case .activity: return "\u{21E7}\u{2318}L"
+        case .cleanView: return "F"
         case .openRecent, .sortBy: return nil
         }
     }
 
     /// A tooltip: the name, then the key in brackets.
-    public func tooltip(destination: String = AppSettingsDefaults.cullingDestinationFolderName) -> String {
-        guard let key else { return name(destination: destination) }
-        return "\(name(destination: destination)) (\(key))"
+    public func tooltip(
+        destination: String = AppSettingsDefaults.cullingDestinationFolderName,
+        rejects: RejectsDestination = .trash
+    ) -> String {
+        guard let key else { return name(destination: destination, rejects: rejects) }
+        return "\(name(destination: destination, rejects: rejects)) (\(key))"
     }
 
     /// Menu title of Info, which is a toggle: "Show Info" / "Hide Info".
@@ -97,12 +114,12 @@ public enum LensjetCommand: CaseIterable, Sendable {
     public static func filmstripMenuTitle(isShown: Bool) -> String { isShown ? "Hide Filmstrip" : "Show Filmstrip" }
 
     /// Edit menu: "Undo Move of IMG_0001.CR3"; plain "Undo" when there is nothing to undo.
-    public static func undoMenuTitle(action: CullingActionType?, filename: String?) -> String {
+    public static func undoMenuTitle(action: CullingActionType?, filename: String?, rejected: Bool = false) -> String {
         guard let action, let filename else { return "Undo" }
         switch action {
         case .move: return "Undo Move of \(filename)"
         case .copy: return "Undo Copy of \(filename)"
-        case .trash: return "Undo Trash of \(filename)"
+        case .trash: return rejected ? "Undo Reject of \(filename)" : "Undo Trash of \(filename)"
         }
     }
 }
@@ -147,8 +164,8 @@ public enum LensjetMenu: String, CaseIterable, Sendable {
         case .file: return [.openFolder, .openRecent, .showInFinder, .quickLook]
         case .edit: return [.undo]
         case .culling: return [.move, .copy, .trash, .autoAdvance]
-        case .view: return [.singleUp, .twoUp, .threeUp, .sortBy, .zoom100, .linkPan, .filmstrip, .info, .switchPhoto]
-        case .go: return [.previousPhoto, .nextPhoto, .goToPhoto]
+        case .view: return [.singleUp, .twoUp, .threeUp, .sortBy, .zoom100, .linkPan, .filmstrip, .info, .cleanView, .switchPhoto]
+        case .go: return [.previousPhoto, .nextPhoto, .goToPhoto, .activity]
         case .tools: return [.findDuplicates, .statistics]
         case .help: return [.keyboardShortcuts]
         }

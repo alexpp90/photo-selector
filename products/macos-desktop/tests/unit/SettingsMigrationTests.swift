@@ -46,7 +46,7 @@ struct SettingsMigrationTests {
 
         #expect(copied == AppSettingsKeys.all.count)
         #expect(Set(AppSettingsKeys.all).count == AppSettingsKeys.all.count)
-        #expect(AppSettingsKeys.all.count == 13)
+        #expect(AppSettingsKeys.all.count == 14)
         for key in AppSettingsKeys.all {
             #expect(new.string(forKey: key) == "value-\(key)")
         }

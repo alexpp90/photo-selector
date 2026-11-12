@@ -54,6 +54,15 @@ public final class CullingWorkspaceViewModel: ObservableObject {
     @Published public var isDuplicateFinderPresented: Bool = false
     @Published public var isLibraryStatisticsPresented: Bool = false
     @Published public var isShortcutsHelpPresented: Bool = false
+    @Published public var isActivityPresented: Bool = false
+    /// The window is full screen: the toolbar, dock and filmstrip are hidden (clean view, decision #24).
+    @Published public internal(set) var isFullScreen: Bool = false
+    @Published public internal(set) var cleanPill: CleanPill? = nil
+    var cleanPillTask: Task<Void, Never>?
+    /// Toggles the window's full screen; replaced in tests.
+    var fullScreenToggler: () -> Void = {
+        (NSApp.keyWindow ?? NSApp.windows.first)?.toggleFullScreen(nil)
+    }
     /// File > Open Recent (newest first, at most ten); see `CullingWorkspaceViewModel+Session.swift`.
     @Published public internal(set) var recentFolders: [URL] = []
     /// The end-of-cull card or notice was dismissed (Esc, navigation); the next decision clears it.
@@ -454,6 +463,8 @@ public final class CullingWorkspaceViewModel: ObservableObject {
     @Published private var inFlightJobIDs: Set<UUID> = []
     private var toastDismissTask: Task<Void, Never>?
     private var libraryScoringTask: Task<Void, Never>?
+    /// Jobs whose Delete went to the Rejected folder (names the Undo menu item).
+    var rejectJobIDs: Set<UUID> = []
     private var sortAfterScoring = false
     /// True once the user moved to another photo since the folder opened (decides where the
     /// settle re-order leaves the view).
@@ -901,6 +912,8 @@ public final class CullingWorkspaceViewModel: ObservableObject {
         let toastIcon: String
 
         let destinationFolder = destination.folderName
+        let rejects = userDefaults.rejectsDestination
+        let jobID = UUID()
 
         switch action {
         case .move:
@@ -913,8 +926,8 @@ public final class CullingWorkspaceViewModel: ObservableObject {
             toastIcon = "doc.on.doc.fill"
         case .trash:
             newStatus = .trashed
-            toastTitle = "Moved to Trash"
-            toastIcon = "trash.fill"
+            toastTitle = rejects.toastTitle
+            toastIcon = rejects.symbol
         }
 
         photos[targetIndex].status = newStatus
@@ -928,7 +941,10 @@ public final class CullingWorkspaceViewModel: ObservableObject {
             iso: photo.exif?.iso.map { Int($0) },
             shutterSpeed: photo.exif?.shutterSpeed,
             aperture: photo.exif?.aperture,
-            focalLength: photo.exif?.focalLength
+            focalLength: photo.exif?.focalLength,
+            photoID: photo.id,
+            jobID: jobID,
+            destination: action == .trash ? (rejects == .rejectedFolder ? RejectsDestination.folderName : "Trash") : destinationFolder
         )
         decisionLog.append(logEntry)
 
@@ -937,8 +953,10 @@ public final class CullingWorkspaceViewModel: ObservableObject {
             icon: toastIcon,
             title: toastTitle,
             subtitle: photo.filename,
-            actionType: action
+            actionType: action,
+            spoken: action == .trash ? nil : "\(action == .move ? "Moved" : "Copied") \(photo.filename) to \(destinationFolder)"
         )
+        showCleanPill(verb: action == .move ? "Moved" : (action == .copy ? "Copied" : rejects.pastVerb), symbol: toastIcon)
 
         // 3. Auto-Advance (Slides candidate sequence forward)
         if autoAdvance {
@@ -952,12 +970,16 @@ public final class CullingWorkspaceViewModel: ObservableObject {
 
         // 4. Background Serial Execution on AsyncCullingActor
         let job = CullingJob(
+            id: jobID,
             photoID: photo.id,
             actionType: action,
             primaryURL: photo.url,
             rootURL: effectiveRootURL,
-            destinationFolderName: destinationFolder
+            destinationFolderName: destinationFolder,
+            rejectsFolder: action == .trash && rejects == .rejectedFolder
+                ? sourceRootURL.appendingPathComponent(RejectsDestination.folderName, isDirectory: true) : nil
         )
+        if job.rejectsFolder != nil { rejectJobIDs.insert(job.id) }
 
         // Optimistic undo record: affectedURLs is empty because no destination files exist yet
         let optimisticRecord = CullingExecutionRecord(
@@ -991,13 +1013,18 @@ public final class CullingWorkspaceViewModel: ObservableObject {
                             destinationFolder: destinationFolder,
                             originalPrimaryURL: record.originalPrimaryURL,
                             destinationURLs: record.affectedURLs
-                        ) ?? CullingFeedback.fileCountTitle(action: action, fileCount: record.affectedURLs.count)
-                        if let title {
+                        )
+                        let companion = CullingFeedback.companionTitle(
+                            action: action, originalPrimaryURL: record.originalPrimaryURL,
+                            fileCount: record.affectedURLs.count,
+                            destination: action == .trash ? nil : destinationFolder, rejects: rejects)
+                        if let shown = title ?? companion?.title {
                             self?.showToast(
-                                icon: action == .trash ? "trash.fill" : (action == .move ? "checkmark.circle.fill" : "doc.on.doc.fill"),
-                                title: title,
+                                icon: action == .trash ? rejects.symbol : (action == .move ? "checkmark.circle.fill" : "doc.on.doc.fill"),
+                                title: shown,
                                 subtitle: photo.filename,
-                                actionType: action
+                                actionType: action,
+                                spoken: title == nil ? companion?.spoken : nil
                             )
                         }
                     }
@@ -1132,6 +1159,7 @@ public final class CullingWorkspaceViewModel: ObservableObject {
     public func undoLastAction() {
         guard let record = undoStack.popLast() else { return }
         let undoFolderKey = Self.folderKey(rootDirectoryURL)
+        decisionLog.removeAll { $0.jobID == record.jobID }
 
         // Find photo in list
         if let index = photos.firstIndex(where: { $0.id == record.photoID }) {
@@ -1369,16 +1397,18 @@ public final class CullingWorkspaceViewModel: ObservableObject {
         NSSound.beep()
     }
 
-    private func showToast(
+    func showToast(
         icon: String,
         title: String,
         subtitle: String?,
         actionType: CullingActionType? = nil,
-        isPersistent: Bool = false
+        isPersistent: Bool = false,
+        spoken: String? = nil
     ) {
         toastDismissTask?.cancel()
         currentToast = ToastMessage(
-            icon: icon, title: title, subtitle: subtitle, actionType: actionType, isPersistent: isPersistent)
+            icon: icon, title: title, subtitle: subtitle, actionType: actionType, isPersistent: isPersistent,
+            spoken: spoken)
         if isPersistent { return }
         toastDismissTask = Task {
             try? await Task.sleep(nanoseconds: 1_200_000_000) // 1.2 seconds

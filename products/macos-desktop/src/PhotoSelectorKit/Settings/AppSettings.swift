@@ -11,6 +11,8 @@ public enum AppSettingsKeys {
     /// `WorkspaceSortOrder` raw value. Absent on a new install (newest first); an existing install
     /// is pinned to `fileName` once by `SettingsMigration.pinSortOrderForExistingInstall`.
     public static let sortOrder = "sortOrder"
+    /// `RejectsDestination` raw value: where Delete puts a reject. Absent = the Trash.
+    public static let rejectsDestination = "rejectsDestination"
 
     // MARK: - Scoring & Aesthetics
     public static let sharpnessBlurryThreshold = "sharpnessBlurryThreshold"
@@ -33,6 +35,7 @@ public enum AppSettingsKeys {
         cullingDestinationMode,
         autoAdvance,
         sortOrder,
+        rejectsDestination,
         sharpnessBlurryThreshold,
         sharpnessAcceptableThreshold,
         aestheticThreshold,
@@ -219,6 +222,7 @@ public extension UserDefaults {
         removeObject(forKey: AppSettingsKeys.cullingDestinationMode)
         removeObject(forKey: AppSettingsKeys.autoAdvance)
         removeObject(forKey: AppSettingsKeys.sortOrder)
+        removeObject(forKey: AppSettingsKeys.rejectsDestination)
         removeObject(forKey: AppSettingsKeys.sharpnessStopThreshold)
         removeObject(forKey: AppSettingsKeys.sharpnessBlurryThreshold)
         removeObject(forKey: AppSettingsKeys.sharpnessAcceptableThreshold)

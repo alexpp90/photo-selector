@@ -52,6 +52,8 @@ public struct ToastMessage: Identifiable, Equatable, Sendable {
     /// A banner that stays until the user's next navigation key or Esc (the "Stop at sharpness"
     /// notice), instead of fading after 1.2 s.
     public let isPersistent: Bool
+    /// What VoiceOver reads when it differs from the title ("Moved IMG_0001.CR3 and 2 companion files to Selection").
+    public let spoken: String?
 
     public init(
         id: UUID = UUID(),
@@ -59,8 +61,10 @@ public struct ToastMessage: Identifiable, Equatable, Sendable {
         title: String,
         subtitle: String? = nil,
         actionType: CullingActionType? = nil,
-        isPersistent: Bool = false
+        isPersistent: Bool = false,
+        spoken: String? = nil
     ) {
+        self.spoken = spoken
         self.isPersistent = isPersistent
         self.id = id
         self.icon = icon
