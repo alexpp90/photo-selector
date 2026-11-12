@@ -39,6 +39,9 @@ interface ImageSource {
         shuffleFirstBatch: Boolean = false,
     ): Flow<List<ImageItem>>
 
+    /** Videos the last discovery of [folderUri] skipped (the feed shows photos only); 0 when unknown. */
+    fun skippedVideoCount(folderUri: Uri): Int = 0
+
     /**
      * Prepare a folder for use as the swipe source: persist access permissions
      * where applicable and verify it exists. Returns the display name, or null

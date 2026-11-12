@@ -4,6 +4,7 @@ import com.photoselector.core.Requirement
 import java.io.File
 import javax.xml.parsers.DocumentBuilderFactory
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertNotEquals
 import org.junit.Assert.assertTrue
 import org.junit.Test
 import org.w3c.dom.Element
@@ -92,5 +93,17 @@ class StringResourcesTest {
                 !Regex("@(string|plurals)/$name\\b").containsMatchIn(sources)
         }
         assertEquals("unused string resources", emptyList<String>(), unused)
+    }
+
+    @Test
+    @Requirement("REQ-TOK-FEATURE.03", "REQ-TOK-UX.03")
+    fun `the landing's phone card and a camera on USB have different names in both languages`() {
+        for ((lang, strings) in listOf("en" to en, "de" to de)) {
+            val card = strings.getValue("title_source_camera").textContent
+            for (camera in listOf("label_kind_camera", "chip_camera")) {
+                assertNotEquals("$lang: the landing card is named like $camera", strings.getValue(camera).textContent, card)
+            }
+        }
+        assertEquals("one German word for the phone", de.getValue("label_kind_phone").textContent, de.getValue("chip_phone_cloud").textContent.substringBefore(" "))
     }
 }

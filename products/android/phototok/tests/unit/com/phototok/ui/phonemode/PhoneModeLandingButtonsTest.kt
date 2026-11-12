@@ -43,7 +43,6 @@ class PhoneModeLandingButtonsTest {
                     missingGrantPrompt = missingGrant,
                     onReselectFolder = {},
                     onSelectSource = {},
-                    onSelectCollection = {},
                     onStart = {},
                     recentPaths = listOf(RecentPath("content://tree/card", "Card")),
                     unmountedRecentUris = setOf("content://tree/card"),

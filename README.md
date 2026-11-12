@@ -59,6 +59,7 @@ A touch-first portrait app for sorting your photos one-handed on the phone.
 
 ### Key Features
 * **Casual or Pro, One Switch:** Out of the box Jackpix is set up for fast swiping with nothing to configure — ★ favourites on the phone, SD-card keepers copied into the phone's camera folder (`DCIM/Camera/Jackpix`), RAW + JPEG kept together, no camera info. The **Pro mode** switch on the start screen (and at the top of Settings) turns on camera info and unlocks swipe actions, folders, feed order, format filters and per-source profiles; switching it off pauses those settings without erasing them. Settings survive app updates.
+* **See What Swipe Right Does, and What You Did:** Each source on the start screen (Phone photos, SD card / USB, Folder or cloud) shows a small glyph for its swipe right (★, copy to the phone, or a folder); the start screen shows your totals and, back from a folder, that session's photos reviewed, kept and space freed; the "Done with this card" sheet counts the photos copied off the card. Jackpix shows photos, not videos.
 * **Full-Screen Vertical Swipe Feed:** Browse local collections seamlessly via Jetpack Compose native `VerticalPager` with background prefetching and progressive loading: you can swipe once the first 24 photos are found, while the rest of the folder is still being read.
 * **Tactile Culling Swipes:**
   * **Swipe-Right to Keep:** Mark a ★ favourite, or (Pro) copy or move the photo to your `Selection/` folder, with an animated lime confirmation glow.
