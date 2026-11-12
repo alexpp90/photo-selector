@@ -427,7 +427,8 @@ class SelectorViewModel @Inject constructor(
     private val cacheRepository: CacheRepository,
     private val settingsRepository: SettingsRepository,
     private val scoreDao: ScoreDao,
-    private val metadataWriter: MetadataWriter = MetadataWriterImpl(Dispatchers.IO),
+    // Hilt injects the writer; the default is for tests, like `ioDispatcher` below.
+    private val metadataWriter: MetadataWriter = MetadataWriterImpl(ioDispatcher = Dispatchers.IO),
     @ApplicationScope private val appScope: CoroutineScope,
     @ApplicationContext private val context: Context
 ) : ViewModel() {
