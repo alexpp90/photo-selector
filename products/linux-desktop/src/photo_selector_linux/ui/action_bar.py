@@ -19,6 +19,11 @@ except (ImportError, ValueError):
     HAS_GI = False
     Gtk = None
     GLib = None
+try:
+    gi.require_version("Adw", "1")
+    from gi.repository import Adw
+except (ImportError, ValueError, NameError):
+    Adw = None
 
 logger = logging.getLogger(__name__)
 
@@ -27,6 +32,12 @@ MESSAGE_MAX_CHARS = 48
 # Pixels the end side of the bar needs besides the message and the Undo button (box spacing and
 # the bar's padding); measured, then rounded up.
 END_SIDE_SLACK = 24
+#: [USER 2026-11-12] decision #27: the button reads "Move to Selection" with an icon. Below this
+#: window width only the icon stays (name and tooltip keep the words); the words are never shortened.
+MOVE_LABEL = "Move to Selection"
+MOVE_ICON = "send-to-symbolic"
+MOVE_ICON_FALLBACK = "go-next-symbolic"
+MOVE_LABEL_MIN_WIDTH = 760
 
 
 class _CappedLabel(Gtk.Label if HAS_GI else object):
@@ -165,7 +176,9 @@ class ActionBarView(Gtk.ActionBar if HAS_GI else object):
         self.btn_selected.add_css_class("flat")
         self.btn_selected.set_child(self.lbl_selected)
         self.btn_selected.set_focus_on_click(False)
-        self.btn_selected.set_tooltip_text("Open Selection")
+        self.btn_selected.set_tooltip_text("Photos moved or copied to Selection. Click to open it.")
+        self.lbl_trashed.set_tooltip_text("Photos moved to Trash")
+        self.lbl_remaining.set_tooltip_text("Photos not decided yet")
         self.btn_selected.update_property(
             [Gtk.AccessibleProperty.LABEL], ["Selected, open Selection folder"]
         )
@@ -197,11 +210,18 @@ class ActionBarView(Gtk.ActionBar if HAS_GI else object):
         # Center: Tactile Action Buttons
         center_box = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=12)
 
-        self.btn_move = Gtk.Button(label="Keep")
+        self.btn_move = Gtk.Button()
         self.btn_move.set_name("btn_move")
         self.btn_move.add_css_class("action-btn-move")
         self.btn_move.add_css_class("suggested-action")
-        self.btn_move.set_tooltip_text("Move photo & companions to Selection/ (M)")
+        self.move_content = None
+        if Adw is not None and hasattr(Adw, "ButtonContent"):
+            self.move_content = Adw.ButtonContent(icon_name=self._move_icon_name(), label=MOVE_LABEL)
+            self.btn_move.set_child(self.move_content)
+        else:
+            self.btn_move.set_label(MOVE_LABEL)
+        self.btn_move.update_property([Gtk.AccessibleProperty.LABEL], [MOVE_LABEL])
+        self.btn_move.set_tooltip_text("Move to Selection (M)")
         self.btn_move.connect("clicked", lambda b: self.viewmodel.cull_move())
         center_box.append(self.btn_move)
 
@@ -238,6 +258,25 @@ class ActionBarView(Gtk.ActionBar if HAS_GI else object):
         self.busy_box.set_visible(False)
         self.pack_end(self.busy_box)
 
+    @staticmethod
+    def _move_icon_name() -> str:
+        """``send-to-symbolic`` where the icon theme has it, else ``go-next-symbolic``."""
+        try:
+            from gi.repository import Gdk
+            display = Gdk.Display.get_default()
+            theme = Gtk.IconTheme.get_for_display(display) if display is not None else None
+            if theme is not None and not theme.has_icon(MOVE_ICON):
+                return MOVE_ICON_FALLBACK
+        except Exception:  # noqa: BLE001 - an icon lookup never stops the bar from building
+            logger.debug("Icon theme lookup failed", exc_info=True)
+        return MOVE_ICON
+
+    def move_label_text(self) -> str:
+        """The words on the Move button; empty while only its icon is shown."""
+        if self.move_content is not None:
+            return self.move_content.get_label() or ""
+        return self.btn_move.get_label() or ""
+
     def _message_cap(self) -> int | None:
         """Pixels the message may take: the room beside the centred buttons minus the Undo button.
 
@@ -267,6 +306,12 @@ class ActionBarView(Gtk.ActionBar if HAS_GI else object):
         if width != self._surface_width:
             self._surface_width = width
             self.lbl_busy.queue_resize()
+            self._fit_move_label(width)
+
+    def _fit_move_label(self, width: int) -> None:
+        """Narrowest windows keep the icon, the name and the tooltip; the words are never cut."""
+        if self.move_content is not None and width > 0:
+            self.move_content.set_label(MOVE_LABEL if width >= MOVE_LABEL_MIN_WIDTH else "")
 
     def _on_state_changed(self, vm) -> None:
         self._update_state()

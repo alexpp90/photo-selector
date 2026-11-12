@@ -15,6 +15,9 @@ public struct CullingJob: Sendable, Identifiable {
     public let primaryURL: URL
     public let rootURL: URL?
     public let destinationFolderName: String
+    /// Set when Delete is to put the photo in this folder (the Rejected folder of the culled
+    /// folder) instead of the macOS Trash ([USER 2026-11-12] decision #20). Only read for `.trash`.
+    public let rejectsFolder: URL?
     public let timestamp: Date
 
     public init(
@@ -24,6 +27,7 @@ public struct CullingJob: Sendable, Identifiable {
         primaryURL: URL,
         rootURL: URL?,
         destinationFolderName: String = AppSettingsDefaults.cullingDestinationFolderName,
+        rejectsFolder: URL? = nil,
         timestamp: Date = Date()
     ) {
         self.id = id
@@ -32,6 +36,7 @@ public struct CullingJob: Sendable, Identifiable {
         self.primaryURL = primaryURL
         self.rootURL = rootURL
         self.destinationFolderName = destinationFolderName
+        self.rejectsFolder = rejectsFolder
         self.timestamp = timestamp
     }
 }
@@ -382,7 +387,7 @@ public actor AsyncCullingActor {
 
         case .trash:
             do {
-                let pairs = try cullingManager.moveToTrashWithPairs(photoURL: job.primaryURL)
+                let pairs = try cullingManager.moveToTrashWithPairs(photoURL: job.primaryURL, rejectsFolder: job.rejectsFolder)
                 trashedPairs = pairs
                 affectedURLs = pairs.map(\.trashedURL)
             } catch let FileCullingError.partialTrashRollbackFailed(url, reason, remainingPairs) {

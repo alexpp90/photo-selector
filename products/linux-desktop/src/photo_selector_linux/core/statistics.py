@@ -8,9 +8,6 @@ Adheres to:
 from __future__ import annotations
 
 from dataclasses import dataclass, field
-from datetime import datetime, timezone
-import json
-import os
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Tuple
 
@@ -304,38 +301,3 @@ def calculate_library_statistics(photos: List[Any]) -> LibraryStatistics:
         sharpness_by_aperture=sharpness_by_ap,
         sharpness_by_shutter_speed=sharpness_by_ss,
     )
-
-
-def default_decision_log_path() -> Path:
-    """Return ``$XDG_DATA_HOME/photo-selector-linux/decisions.jsonl``."""
-    xdg_data = os.environ.get("XDG_DATA_HOME")
-    base = Path(xdg_data) if xdg_data else (Path.home() / ".local" / "share")
-    return base / "photo-selector-linux" / "decisions.jsonl"
-
-
-def record_decision_log(
-    action: str,
-    photo: Any,
-    log_path: Optional[Path] = None,
-) -> Optional[Path]:
-    """Append a local culling decision entry (move/copy/trash) to a JSONL file (U-35)."""
-    target = Path(log_path) if log_path is not None else default_decision_log_path()
-    scores = getattr(photo, "scores", None)
-    exif = getattr(photo, "exif", None)
-    entry: Dict[str, Any] = {
-        "timestamp": datetime.now(timezone.utc).isoformat(),
-        "action": str(action).lower(),
-        "filename": getattr(photo, "filename", str(getattr(photo, "primary_path", ""))),
-        "sharpness": round(float(scores.sharpness), 1) if scores is not None else None,
-        "focal_length": getattr(exif, "focal_length", None) if exif is not None else None,
-        "aperture": getattr(exif, "aperture", None) if exif is not None else None,
-        "iso": getattr(exif, "iso", None) if exif is not None else None,
-        "shutter_speed": getattr(exif, "shutter_speed", None) if exif is not None else None,
-    }
-    try:
-        target.parent.mkdir(parents=True, exist_ok=True)
-        with open(target, "a", encoding="utf-8") as f:
-            f.write(json.dumps(entry, sort_keys=True) + "\n")
-        return target
-    except OSError:
-        return None

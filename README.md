@@ -126,7 +126,7 @@ A native GNOME photo culling app for Debian 13 (Trixie), built with GTK4 and Lib
   <img src="assets/brand/blitzlens/blitzlens.svg" alt="Blitzlens icon" width="96" style="margin-bottom: 10px;" />
   <br />
   <img src="assets/linux_desktop_screenshot.png" alt="Blitzlens Culling Workspace" width="750" style="border-radius: 10px; box-shadow: 0 4px 20px rgba(0,0,0,0.3); margin-bottom: 12px;" />
-  <p><em>Native GNOME / Libadwaita workspace on neutral grey surfaces in 1-Up mode: the comparison switcher, the "Photo 2 of 5" counter, the optical HUD with its sharpness bar over the photo, and the bottom action bar with Keep, Copy, Trash and Undo. Captured from the app (GTK 4.18 / Libadwaita 1.7, 1440 x 900 window, software rendering) with the unmodified build of this branch, over a freshly started session.</em></p>
+  <p><em>Native GNOME / Libadwaita workspace on neutral grey surfaces in 1-Up mode: the comparison switcher, the "Photo 2 of 5" counter, the optical HUD with its sharpness bar over the photo, and the bottom action bar with Move to Selection, Copy, Trash and Undo. Captured from the app (GTK 4.18 / Libadwaita 1.7, 1440 x 900 window, software rendering) with the unmodified build of this branch, over a freshly started session.</em></p>
 </div>
 
 ### Key Features
@@ -167,7 +167,7 @@ The original multi-platform desktop culling application built with Python and Tk
 | **Aesthetic Scoring** | ❌ Excluded | ❌ Excluded | ✅ (Apple Vision ANE) | ❌ Excluded | ✅ (Local Ollama) | Lensjet uses the Apple Neural Engine; Frameduel scores technical quality only. |
 | **Star Ratings (1–5)** | ❌ Omitted | ✅ (Room) | ❌ Omitted | ❌ Omitted | ❌ Omitted | Rating, reject, and composition tracking in Room DB. |
 | **Score Caching** | ❌ Lightweight | ✅ (Room DB) | ❌ (Memory LRU) | ❌ (Memory LRU) | ✅ (SQLite) | Lensjet and Blitzlens keep scores in memory; Frameduel caches them in Room, the legacy Desktop in SQLite. |
-| **Duplicate Detection** | ❌ Omitted | ✅ (Room DB) | ✅ (CryptoKit SHA) | ✅ (Streaming SHA) | ✅ (SHA-256) | Two-stage size pre-filtering and SHA-256 duplicate finder. |
+| **Duplicate Detection** | ❌ Omitted | ✅ (Room DB) | ✅ (CryptoKit SHA) | ❌ Removed | ✅ (SHA-256) | Two-stage size pre-filtering and SHA-256 duplicate finder; Blitzlens dropped it on purpose. |
 | **Tactile Keyboard Shortcuts** | ❌ Touch-first | ✅ (DeX / Physical) | ✅ (NSEvent monitor)| ✅ (GTK Capture) | ✅ (Tkinter Events) | `←`/`→`, `M`, `C`, `Del` and undo agree across the apps; the per-app keys are in [`KEYBOARD.md`](docs/shared/KEYBOARD.md). |
 | **100% Offline Privacy** | ✅ (SAF Only) | ✅ (Zero Permissions) | ✅ (Strictly Local) | ✅ (Strictly Local) | ◐ (optional Ollama server) | Zero telemetry, zero cloud dependencies, strict privacy guarantee. The legacy Desktop's optional Ollama aesthetic engine sends images to the Ollama server URL you configure (localhost by default). |
 
@@ -217,12 +217,14 @@ Install Lensjet via the Homebrew tap:
 
 ```bash
 # Install directly in a single command
-brew install --cask alexpp90/tap/photo-selector-toolbox
+brew install --cask alexpp90/tap/lensjet
 
 # Or tap first, then install:
 brew tap alexpp90/tap
-brew install --cask photo-selector-toolbox
+brew install --cask lensjet
 ```
+
+Installed Lensjet earlier as `photo-selector-toolbox`? That cask no longer updates (the token now belongs to the legacy Desktop's formula). Reinstall once: `brew uninstall --cask photo-selector-toolbox && brew install --cask lensjet`. Your settings stay.
 
 #### Standalone ZIP
 Download the pre-compiled `photo-selector-macos-apple-silicon.zip` (the file name is historical: the app inside is a universal build for Apple Silicon and Intel Macs) from the latest [Lensjet release](https://github.com/alexpp90/photo-selector/releases?q=macos-desktop-v&expanded=true), unpack it, and drag `Lensjet.app` into `/Applications`.

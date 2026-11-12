@@ -11,6 +11,8 @@ public enum AppSettingsKeys {
     /// `WorkspaceSortOrder` raw value. Absent on a new install (newest first); an existing install
     /// is pinned to `fileName` once by `SettingsMigration.pinSortOrderForExistingInstall`.
     public static let sortOrder = "sortOrder"
+    /// `RejectsDestination` raw value: where Delete puts a reject. Absent = the Trash.
+    public static let rejectsDestination = "rejectsDestination"
 
     // MARK: - Scoring & Aesthetics
     public static let sharpnessBlurryThreshold = "sharpnessBlurryThreshold"
@@ -33,6 +35,7 @@ public enum AppSettingsKeys {
         cullingDestinationMode,
         autoAdvance,
         sortOrder,
+        rejectsDestination,
         sharpnessBlurryThreshold,
         sharpnessAcceptableThreshold,
         aestheticThreshold,
@@ -54,9 +57,11 @@ public struct AppSettingsDefaults {
     public static let sharpnessBlurryThreshold: Double = 35.0
     public static let sharpnessAcceptableThreshold: Double = 70.0
     public static let aestheticThreshold: Double = 0.0
-    /// Apple Vision aesthetic (AI) scoring runs lazily after the photo is on screen; users can
-    /// switch it off entirely, in which case the Vision request is never issued.
-    public static let aestheticScoringEnabled: Bool = true
+    /// Apple Vision aesthetic (AI) scoring runs lazily after the photo is on screen. Off for a new
+    /// install ([USER 2026-11-12] decision #21: nothing acts on the score); an existing install keeps
+    /// the "on" it ran with (`SettingsMigration.pinAestheticsForExistingInstall`). While it is off the
+    /// Vision request is never issued.
+    public static let aestheticScoringEnabled: Bool = false
     /// 0 = the stop threshold is off.
     public static let sharpnessStopThreshold: Double = 0
 
@@ -217,6 +222,7 @@ public extension UserDefaults {
         removeObject(forKey: AppSettingsKeys.cullingDestinationMode)
         removeObject(forKey: AppSettingsKeys.autoAdvance)
         removeObject(forKey: AppSettingsKeys.sortOrder)
+        removeObject(forKey: AppSettingsKeys.rejectsDestination)
         removeObject(forKey: AppSettingsKeys.sharpnessStopThreshold)
         removeObject(forKey: AppSettingsKeys.sharpnessBlurryThreshold)
         removeObject(forKey: AppSettingsKeys.sharpnessAcceptableThreshold)
