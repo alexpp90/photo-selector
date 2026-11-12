@@ -43,6 +43,7 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -566,7 +567,10 @@ fun SelectorScreen(
                             destination = DoneSummary.destinationOf(
                                 uiState.folderName, uiState.filingFolderName, uiState.customDestinationName,
                             ).takeIf { uiState.sessionKeptCount > 0 },
+                            safeToFormat = uiState.safeToFormatLine,
                         ),
+                        onOpenSelection = viewModel::openSelection.takeIf { uiState.doneSelection != null },
+                        onDone = viewModel::lookUpSelection,
                     )
                 } else {
                     // Tagged because the height budget is the thing this screen
@@ -733,6 +737,9 @@ internal fun EmptySelectorState(
     folderName: String,
     onOpenFolder: () -> Unit,
     done: DoneSummary? = null,
+    onOpenSelection: (() -> Unit)? = null,
+    /** Run when the Done card appears and whenever its counts change: looks up the Selection. */
+    onDone: () -> Unit = {},
 ) {
     Box(
         modifier = Modifier.fillMaxSize(),
@@ -763,10 +770,12 @@ internal fun EmptySelectorState(
                 onAction = onOpenFolder,
                 modifier = Modifier.testTag("empty_folder_card"),
             )
-            SelectorEmptyKind.DONE -> DoneCard(
-                summary = done ?: DoneSummary(0, 0, 0, null),
-                onOpenFolder = onOpenFolder,
-            )
+            SelectorEmptyKind.DONE -> {
+                val summary = done ?: DoneSummary(0, 0, 0, null)
+                val latestOnDone by rememberUpdatedState(onDone)
+                LaunchedEffect(summary.moved, summary.copied, summary.deleted) { latestOnDone() }
+                DoneCard(summary = summary, onOpenFolder = onOpenFolder, onOpenSelection = onOpenSelection)
+            }
             SelectorEmptyKind.NO_FOLDER -> EmptyStateCard(
                 icon = Icons.Default.PhotoCamera,
                 title = "Select a Folder",

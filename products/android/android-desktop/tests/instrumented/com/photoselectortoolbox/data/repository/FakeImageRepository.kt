@@ -172,4 +172,9 @@ class FakeImageRepository @Inject constructor() : ImageRepository {
         val img = imagesFlow.value.find { it.uri == uri }
         if (img != null) ImageDimensions.of(img.imageWidth, img.imageHeight) else ImageDimensions.UNKNOWN
     }
+
+    override suspend fun selectionFolder(
+        context: android.content.Context,
+        folderUri: android.net.Uri,
+    ): com.photoselectortoolbox.data.model.SelectionFolderState? = null
 }

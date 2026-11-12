@@ -15,7 +15,10 @@ import androidx.compose.material.icons.automirrored.filled.DriveFileMove
 import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material.icons.filled.ContentCopy
 import androidx.compose.material.icons.filled.Delete
+import androidx.compose.material.icons.filled.Warning
 import androidx.compose.material3.Button
+import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
@@ -36,6 +39,7 @@ import androidx.compose.ui.unit.dp
 import com.photoselectortoolbox.domain.format.DestinationLabels
 import com.photoselectortoolbox.ui.components.handCursor
 import com.photoselectortoolbox.ui.theme.ScoreGood
+import com.photoselectortoolbox.viewmodel.SafeToFormatLine
 
 /**
  * What a session did to the open folder, for the card shown once it is empty (backlog
@@ -47,12 +51,24 @@ data class DoneSummary(
     val deleted: Int,
     /** The Selection folder the kept photos went to, as a path; null when nothing was kept. */
     val destination: String?,
+    /** Whether the card may be formatted (REQ-AND-WORKFLOW.02); null draws no line. */
+    val safeToFormat: SafeToFormatLine? = null,
 ) {
     val any: Boolean get() = moved + copied + deleted > 0
 
-    /** The one sentence a screen reader hears, e.g. "Done. 12 moved, 3 copied, 4 deleted." */
+    /** The words of the safe-to-format line, or null. */
+    val safeToFormatText: String?
+        get() = when (val line = safeToFormat) {
+            SafeToFormatLine.Safe -> "Safe to format"
+            is SafeToFormatLine.Missing -> "${line.count} missing"
+            SafeToFormatLine.Checking -> "Checking"
+            null -> null
+        }
+
+    /** The one sentence a screen reader hears, e.g. "Done. 12 moved, 3 copied, 4 deleted. Safe to format." */
     val spoken: String
-        get() = "Done. " + cells.joinToString(", ") { (_, count, word) -> "$count ${word.lowercase()}" } + "."
+        get() = "Done. " + cells.joinToString(", ") { (_, count, word) -> "$count ${word.lowercase()}" } + "." +
+            (safeToFormatText?.let { " $it." } ?: "")
 
     /** Count cells drawn, zeros left out. */
     internal val cells: List<Triple<ImageVector, Int, String>>
@@ -79,7 +95,13 @@ data class DoneSummary(
  * destination, and Open Folder. Announced once, politely, as one sentence.
  */
 @Composable
-internal fun DoneCard(summary: DoneSummary, onOpenFolder: () -> Unit, modifier: Modifier = Modifier) {
+internal fun DoneCard(
+    summary: DoneSummary,
+    onOpenFolder: () -> Unit,
+    modifier: Modifier = Modifier,
+    /** *Open Selection* — the Selection folder as the working folder; null while it is not found. */
+    onOpenSelection: (() -> Unit)? = null,
+) {
     Surface(
         modifier = modifier.widthIn(max = 520.dp).padding(24.dp).testTag("done_card"),
         shape = RoundedCornerShape(16.dp),
@@ -126,10 +148,37 @@ internal fun DoneCard(summary: DoneSummary, onOpenFolder: () -> Unit, modifier: 
                         modifier = Modifier.fillMaxWidth().testTag("done_destination"),
                     )
                 }
+                summary.safeToFormatText?.let { words ->
+                    Spacer(Modifier.height(12.dp))
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(8.dp),
+                        modifier = Modifier.testTag("done_safe_to_format"),
+                    ) {
+                        when (summary.safeToFormat) {
+                            SafeToFormatLine.Checking -> CircularProgressIndicator(modifier = Modifier.size(18.dp), strokeWidth = 2.dp)
+                            SafeToFormatLine.Safe -> Icon(Icons.Filled.CheckCircle, contentDescription = null, tint = ScoreGood, modifier = Modifier.size(20.dp))
+                            else -> Icon(Icons.Filled.Warning, contentDescription = null, tint = MaterialTheme.colorScheme.error, modifier = Modifier.size(20.dp))
+                        }
+                        Text(words, style = MaterialTheme.typography.titleSmall, color = MaterialTheme.colorScheme.onSurface)
+                    }
+                }
             }
             Spacer(Modifier.height(24.dp))
-            Button(onClick = onOpenFolder, modifier = Modifier.handCursor().testTag("done_open_folder")) {
-                Text("Open Folder")
+            Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                // The second pass is the next step once the cull is done; another folder is the other.
+                if (onOpenSelection != null) {
+                    Button(onClick = onOpenSelection, modifier = Modifier.handCursor().testTag("done_open_selection")) {
+                        Text("Open Selection")
+                    }
+                    OutlinedButton(onClick = onOpenFolder, modifier = Modifier.handCursor().testTag("done_open_folder")) {
+                        Text("Open Folder")
+                    }
+                } else {
+                    Button(onClick = onOpenFolder, modifier = Modifier.handCursor().testTag("done_open_folder")) {
+                        Text("Open Folder")
+                    }
+                }
             }
         }
     }

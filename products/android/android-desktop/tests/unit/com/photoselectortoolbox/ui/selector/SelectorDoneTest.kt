@@ -1,6 +1,14 @@
 package com.photoselectortoolbox.ui.selector
 
 import androidx.activity.ComponentActivity
+import org.robolectric.Shadows.shadowOf
+import androidx.compose.ui.test.performClick
+import androidx.compose.ui.test.hasTestTag
+import androidx.compose.ui.test.hasAnyAncestor
+import kotlinx.coroutines.flow.flowOf
+import io.mockk.every
+import com.photoselectortoolbox.data.model.SelectionFolderState
+import android.net.Uri
 import androidx.compose.ui.input.key.Key
 import androidx.compose.ui.semantics.SemanticsProperties
 import androidx.compose.ui.semantics.getOrNull
@@ -164,5 +172,82 @@ class SelectorDoneTest {
         assertEquals("P2.JPG", viewModel.uiState.value.currentImage?.fileName)
         assertTrue(viewModel.uiState.value.snackbarSequence > before)
         assertEquals(SelectorLabels.LAST_PHOTO, viewModel.uiState.value.snackbarMessage)
+    }
+
+    // ── Open Selection and safe to format (REQ-AND-WORKFLOW.02) ────────────────────────────────
+
+    private val card = "content://com.android.externalstorage.documents/tree/1234-5678%3ADCIM"
+    private val selection = "$card/document/1234-5678%3ADCIM%2FSelection"
+
+    /** A card culled into a Selection the repository reports with [files]; returns the repository. */
+    private fun hostCard(files: Map<String, Long>, onSourceVolume: Boolean?, folder: String = card) {
+        val photos = listOf(fitPhoto("P1.JPG", 2_000), fitPhoto("P2.JPG", 1_000))
+        val repo = fitImageRepository().also { r ->
+            coEvery { r.moveBundle(any(), any(), any(), any()) } answers {
+                val item = secondArg<ImageItem>()
+                FileOperationResult.success(item.uri, "content://test/sel/${item.fileName}")
+            }
+            coEvery { r.selectionFolder(any(), any()) } returns
+                SelectionFolderState(uri = selection, name = "Selection", filesWithSizes = files, onSourceVolume = onSourceVolume)
+        }
+        viewModel = fitSelectorViewModel(
+            ApplicationProvider.getApplicationContext(), appScope,
+            FitSelectorSettings(filingAction = FilingAction.MOVE), photos, openFolder = false, imageRepository = repo,
+        )
+        every { repo.discoverImages(any()) } returns flowOf(photos)
+        viewModel.selectFolder(Uri.parse(folder))
+        val cell = FitCell(1280, 800, 1f)
+        rule.setContent {
+            PhotoSelectorToolboxTheme { SelectorScreen(windowSizeClass = cell.windowSizeClass, viewModel = viewModel) }
+        }
+        rule.waitUntil(5_000) { viewModel.uiState.value.images.size == 2 && !viewModel.uiState.value.isEnumerating }
+        press(Key.M)
+        press(Key.M)
+        rule.waitUntil(5_000) { rule.tagExists("done_card") }
+        rule.waitUntil(5_000) { !viewModel.uiState.value.doneSelectionChecking }
+        rule.waitForIdle()
+    }
+
+    private fun safeLine(): String? = rule.onAllNodes(
+        hasAnyAncestor(hasTestTag("done_safe_to_format")) and hasText("", substring = true),
+        useUnmergedTree = true,
+    ).fetchSemanticsNodes().firstOrNull()?.config?.getOrNull(SemanticsProperties.Text)?.joinToString()
+
+    @Test
+    fun `a card whose kept files are all in a Selection on another volume is safe to format`() {
+        hostCard(mapOf("P1.JPG" to 1L, "P2.JPG" to 1L), onSourceVolume = false)
+
+        assertEquals("Safe to format", safeLine())
+        assertEquals("Done. 2 moved. Safe to format.", spokenSummary())
+    }
+
+    @Test
+    fun `a kept file missing from the Selection says how many and gives no verdict`() {
+        hostCard(mapOf("P1.JPG" to 1L), onSourceVolume = false)
+
+        assertEquals("1 missing", safeLine())
+    }
+
+    @Test
+    fun `a Selection on the card itself, or phone storage, draws no line`() {
+        hostCard(mapOf("P1.JPG" to 1L, "P2.JPG" to 1L), onSourceVolume = true)
+        assertFalse(rule.tagExists("done_safe_to_format"))
+    }
+
+    @Test
+    fun `phone storage draws no line`() {
+        hostCard(mapOf("P1.JPG" to 1L, "P2.JPG" to 1L), onSourceVolume = false, folder = "content://test/folder")
+        assertFalse(rule.tagExists("done_safe_to_format"))
+    }
+
+    @Test
+    fun `Open Selection opens the Selection folder as the working folder, without the picker`() {
+        hostCard(mapOf("P1.JPG" to 1L, "P2.JPG" to 1L), onSourceVolume = false)
+
+        rule.onNodeWithTag("done_open_selection", useUnmergedTree = true).performClick()
+        rule.waitForIdle()
+
+        assertEquals(selection, viewModel.uiState.value.folderUri)
+        assertEquals(null, shadowOf(rule.activity).nextStartedActivityForResult)
     }
 }

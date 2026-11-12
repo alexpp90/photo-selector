@@ -134,8 +134,8 @@ class SelectorViewModelRelaunchTest {
             mediaStoreReader = MediaStoreReader(),
             settingsRepository = settings,
             folderAccessManager = FolderAccessManager(NoGrants()),
+            ioDispatcher = testDispatcher,
         )
-        repository.ioDispatcher = testDispatcher
     }
 
     @After

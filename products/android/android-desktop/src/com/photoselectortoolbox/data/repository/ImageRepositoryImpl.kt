@@ -25,6 +25,7 @@ import com.photoselector.saf.SelectionSubfolderRule
 import com.photoselectortoolbox.data.model.FolderDescription
 import com.photoselectortoolbox.data.model.ImageDimensions
 import com.photoselectortoolbox.data.model.ImageItem
+import com.photoselectortoolbox.data.model.SelectionFolderState
 import com.photoselectortoolbox.data.source.LocalImageSource
 import com.photoselectortoolbox.di.IoDispatcher
 import com.photoselectortoolbox.domain.curation.DestinationSettings
@@ -648,6 +649,70 @@ class ImageRepositoryImpl @Inject constructor(
             Log.w(TAG, "Could not list the custom destination $customUri", e)
             null
         }
+    }
+
+    /**
+     * The Selection folder of a transfer from [folderUri], resolved by the transfer's own
+     * [selectionDestination] and found by listing the destination root for its exact name — a
+     * document id is never taken apart. Its files are listed with their sizes, one level of
+     * subfolders included (`RAW/`, `JPEG/`), each folder in one children query. A lookup that
+     * fails is logged and reads as "no Selection folder": the Done card then offers neither
+     * *Open Selection* nor a safe-to-format verdict, which is the safe answer.
+     */
+    override suspend fun selectionFolder(context: Context, folderUri: Uri): SelectionFolderState? = try {
+        val destination = selectionDestination(context, folderUri, sorting = false)
+        withContext(ioDispatcher) {
+            val root = DocumentFile.fromTreeUri(context, destination.rootUri)
+            val name = root?.let(destination.folderNameIn) ?: destination.folderName
+            val folder = listChildren(context, destination.rootUri).firstOrNull { it.isDirectory && it.name == name }
+                ?: return@withContext null
+            val uri = DocumentsContract.buildDocumentUriUsingTree(destination.rootUri, folder.documentId)
+            val source = volumeOf(context, folderUri)
+            val target = volumeOf(context, uri)
+            SelectionFolderState(
+                uri = uri.toString(),
+                name = name,
+                filesWithSizes = filesWithSizes(context, uri, depth = 1),
+                onSourceVolume = if (source == null || target == null) {
+                    null
+                } else {
+                    source.authority == target.authority && source.rootDocumentId == target.rootDocumentId
+                },
+            )
+        }
+    } catch (e: CancellationException) {
+        throw e
+    } catch (e: Exception) {
+        Log.w(TAG, "Could not look up the Selection folder of $folderUri", e)
+        null
+    }
+
+    /** Files under [directoryUri] by name with their provider-reported size, [depth] levels of subfolders down. */
+    private fun filesWithSizes(context: Context, directoryUri: Uri, depth: Int): Map<String, Long> {
+        val documentId = folderKeyOf(directoryUri)?.documentId ?: return emptyMap()
+        val childrenUri = DocumentsContract.buildChildDocumentsUriUsingTree(directoryUri, documentId)
+        val projection = arrayOf(
+            DocumentsContract.Document.COLUMN_DOCUMENT_ID,
+            DocumentsContract.Document.COLUMN_DISPLAY_NAME,
+            DocumentsContract.Document.COLUMN_MIME_TYPE,
+            DocumentsContract.Document.COLUMN_SIZE,
+        )
+        val files = mutableMapOf<String, Long>()
+        val folders = mutableListOf<Uri>()
+        context.contentResolver.query(childrenUri, projection, null, null, null)?.use { cursor ->
+            while (cursor.moveToNext()) {
+                val id = cursor.getString(0) ?: continue
+                val name = cursor.getString(1) ?: continue
+                if (cursor.getString(2) == DocumentsContract.Document.MIME_TYPE_DIR) {
+                    folders += DocumentsContract.buildDocumentUriUsingTree(directoryUri, id)
+                } else {
+                    // An unknown size is -1: it never verifies a kept file.
+                    files[name] = if (cursor.isNull(3)) -1L else cursor.getLong(3)
+                }
+            }
+        }
+        if (depth > 0) folders.forEach { files.putAll(filesWithSizes(context, it, depth - 1)) }
+        return files
     }
 
     override suspend fun resolveDimensions(
