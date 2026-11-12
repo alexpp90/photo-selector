@@ -140,9 +140,28 @@ class FormatConformanceTest {
             val work = scope.async { block() }
             try {
                 return runBlocking { withTimeoutOrNull(timeoutMs) { work.await() } }
-                    ?: throw AssertionError("$what did not finish within ${timeoutMs / 1000.0} s (hung)")
+                    ?: throw AssertionError("$what did not finish within ${timeoutMs / 1000.0} s (hung)\n${hangReport()}")
             } finally {
                 scope.cancel()
+            }
+        }
+
+        /**
+         * What a recurrence needs to name its cause (the hang never reproduced on demand): the
+         * dispatcher `Dispatchers.Main` resolves to — Coil starts every request on
+         * `Dispatchers.Main.immediate`, and on Robolectric's own main looper that request waits for
+         * the test thread, which is blocked here — and the stacks of the threads that run Coil or
+         * coroutine code, plus the waiting thread's.
+         */
+        internal fun hangReport(): String = buildString {
+            append("Dispatchers.Main = ").append(Dispatchers.Main).append('\n')
+            val waiting = Thread.currentThread()
+            for ((thread, stack) in Thread.getAllStackTraces()) {
+                val relevant = thread == waiting ||
+                    stack.any { it.className.startsWith("coil.") || it.className.startsWith("kotlinx.coroutines.") }
+                if (!relevant) continue
+                append("thread \"").append(thread.name).append("\" ").append(thread.state).append('\n')
+                stack.take(12).forEach { append("    at ").append(it).append('\n') }
             }
         }
 
@@ -255,6 +274,8 @@ class FormatConformanceTest {
         val elapsedMs = (System.nanoTime() - started) / 1_000_000
         assertTrue("the hang was not reported", error != null)
         assertTrue("the report names the sample: ${error!!.message}", error.message!!.contains("heif-sample"))
+        assertTrue("the report names the Main dispatcher: ${error.message}", error.message!!.contains("Dispatchers.Main = "))
+        assertTrue("the report has the waiting thread's stack", error.message!!.contains("thread \"${Thread.currentThread().name}\""))
         assertTrue("the guard waited $elapsedMs ms", elapsedMs < 3_000)
         assertEquals("a finished decode passes its result through", 42, awaitBounded("x", 1_000) { 42 })
     }

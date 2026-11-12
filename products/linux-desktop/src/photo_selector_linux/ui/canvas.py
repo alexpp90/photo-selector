@@ -11,7 +11,7 @@ Adheres to:
 
 from __future__ import annotations
 
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Any, Callable, Dict, List, Optional, Tuple
 
 try:
     import gi
@@ -24,7 +24,7 @@ except (ImportError, ValueError):
 
 from photo_selector_linux.ui.boundary_slot import BoundarySlotPane
 from photo_selector_linux.ui.info_hud import InfoHUD
-from photo_selector_linux.ui.keyboard_router import EMPTY_STATE_HINTS
+from photo_selector_linux.ui.canvas_states import build_state_hero, state_key
 from photo_selector_linux.ui.layout import (
     Rect,
     can_fit_1to1_development,
@@ -32,8 +32,6 @@ from photo_selector_linux.ui.layout import (
 )
 from photo_selector_linux.ui.photo_loader import PhotoTextureLoader
 from photo_selector_linux.ui.styling import (
-    APP_BRAND_NAME,
-    APP_ICON_NAME,
     get_candidate_companion_badges,
     get_slot_role_label,
 )
@@ -57,6 +55,11 @@ class CanvasView(Gtk.Box if HAS_GI else object):
         self._last_mode: int = getattr(viewmodel, "comparison_mode", 1)
         self.last_prefetch_indices: List[int] = []
         self.hud = InfoHUD(viewmodel=self.viewmodel)
+        #: The window wires these; the state cards call them (Open Folder…, Show in Files).
+        self.open_folder_callback: Optional[Callable[[], None]] = None
+        self.show_in_files_callback: Optional[Callable[[], None]] = None
+        self.open_recent_callback: Optional[Callable[[Any], None]] = None
+        self._hero_key: Optional[Tuple] = None
         self._active_image_area = None
         initial_max_mb = getattr(viewmodel, "cache_limit_mb", 512.0)
         initial_blurry = getattr(viewmodel, "blurry_threshold", 35.0)
@@ -185,6 +188,15 @@ class CanvasView(Gtk.Box if HAS_GI else object):
         self.hud_enabled = not self.hud_enabled
         if hasattr(self, "hud"):
             self.hud.set_hud_enabled(self.hud_enabled)
+        self._apply_footer_visibility()
+
+    def _apply_footer_visibility(self) -> None:
+        """The info card names the file and its score; the active caption says it only while the
+        card is off (one place per fact)."""
+        footer = getattr(self, "_active_footer", None)
+        if footer is not None:
+            # Opacity, not visibility: the photo keeps the same size with the card on and off.
+            footer.set_opacity(0.0 if self.hud_enabled else 1.0)
 
     def _on_state_changed(self, vm) -> None:
         if self.loader is not None:
@@ -293,11 +305,16 @@ class CanvasView(Gtk.Box if HAS_GI else object):
         if count == 0:
             self.hud.update_photo(None)
             if HAS_GI:
+                key = state_key(self.viewmodel)
+                if key == self._hero_key and self.slots_box.get_first_child() is not None:
+                    return  # nothing about the state changed: keep the card (and its spinner) as is
+                self._hero_key = key
                 self._detach_hud()
                 while child := self.slots_box.get_first_child():
                     self.slots_box.remove(child)
                 self.slots_box.append(self._create_empty_state())
             return
+        self._hero_key = None
 
         self.hud.update_photo(candidates[idx])
 
@@ -469,33 +486,23 @@ class CanvasView(Gtk.Box if HAS_GI else object):
 
         self._attach_hud()
 
+    def set_state_card_actions(self, open_folder, show_in_files, open_recent=None) -> None:
+        """Wire the buttons of the state cards and redraw a card that was built without them."""
+        self.open_folder_callback = open_folder
+        self.show_in_files_callback = show_in_files
+        self.open_recent_callback = open_recent
+        self._hero_key = None
+        if not self.viewmodel.candidates:
+            self._render_view()
+
     def _create_empty_state(self):
-        hero = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=12)
-        hero.set_halign(Gtk.Align.CENTER)
-        hero.set_valign(Gtk.Align.CENTER)
-        hero.add_css_class("empty-state-hero")
-
-        icon = Gtk.Image.new_from_icon_name(APP_ICON_NAME)
-        icon.set_pixel_size(72)
-        hero.append(icon)
-
-        title = Gtk.Label(label=APP_BRAND_NAME)
-        title.add_css_class("empty-state-title")
-        hero.append(title)
-
-        prompt = Gtk.Label(label="No photographs loaded. Press Ctrl+O to open a directory or SD card.")
-        prompt.add_css_class("optical-strip-secondary")
-        hero.append(prompt)
-
-        hints_row = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=8)
-        hints_row.set_halign(Gtk.Align.CENTER)
-        for _keyval, _state, keys, meaning in EMPTY_STATE_HINTS:
-            pill = Gtk.Label(label=f"{keys} {meaning}")
-            pill.add_css_class("hotkey-hint-pill")
-            hints_row.append(pill)
-        hero.append(hints_row)
-
-        return hero
+        """The hero of the current state (start, reading, nothing to cull, done)."""
+        return build_state_hero(
+            self.viewmodel,
+            on_open_folder=self.open_folder_callback,
+            on_show_in_files=self.show_in_files_callback,
+            on_open_recent=self.open_recent_callback,
+        )
 
     def _create_photo_slot(
         self,
@@ -522,9 +529,10 @@ class CanvasView(Gtk.Box if HAS_GI else object):
         badge_box = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=6)
         badge_box.set_halign(Gtk.Align.CENTER)
 
-        role_pill = Gtk.Label(label=desc["role"])
-        role_pill.add_css_class("active-pill" if is_active else "slot-role-pill")
-        badge_box.append(role_pill)
+        if self.viewmodel.comparison_mode != 1:  # in 1-Up the only photo is the active one: no pill
+            role_pill = Gtk.Label(label=desc["role"])
+            role_pill.add_css_class("active-pill" if is_active else "slot-role-pill")
+            badge_box.append(role_pill)
 
         if allow_1to1:
             zoom_pill = Gtk.Label(label="1:1 PIXEL ZOOM")
@@ -581,6 +589,9 @@ class CanvasView(Gtk.Box if HAS_GI else object):
 
         self._append_score_badge(footer_box, candidate)
         frame.append(footer_box)
+        if is_active:
+            self._active_footer = footer_box
+            self._apply_footer_visibility()
 
         self.loader.request(
             candidate,

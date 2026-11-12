@@ -27,6 +27,23 @@ class TestLabTmpSandbox(unittest.TestCase):
         self.assertTrue(str(SANDBOX).startswith("/tmp/pstlab"))
         self.assertTrue(SANDBOX.is_dir())
 
+    def test_plain_temp_folders_land_in_the_sandbox(self) -> None:
+        import tempfile
+
+        with tempfile.TemporaryDirectory(prefix="pstlab-probe-") as tmp:
+            self.assertTrue(str(Path(tmp).resolve()).startswith(str(SANDBOX.resolve())))
+
+    def test_the_judge_clis_are_tripwires_under_test(self) -> None:
+        import shutil
+        import subprocess
+
+        for cli in _lab_tmp_sandbox.JUDGE_CLIS:
+            self.assertTrue((shutil.which(cli) or "").startswith(str(SANDBOX)), cli)
+        run = subprocess.run(["claude", "-p", "x"], capture_output=True, text=True, check=False)
+        self.assertEqual(run.returncode, 97)
+        self.assertEqual(_lab_tmp_sandbox.judge_calls(), ["claude"])
+        (SANDBOX / "judge-bin" / "CALLED").unlink()  # this probe is the only call allowed
+
     def test_install_is_idempotent(self) -> None:
         self.assertEqual(_lab_tmp_sandbox.install(), SANDBOX)
 

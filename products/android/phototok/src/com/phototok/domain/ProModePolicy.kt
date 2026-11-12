@@ -111,15 +111,28 @@ object ProModePolicy {
 
     /**
      * The transition from [currentlyPro] to [targetPro]. [everEnabled] is `pro_mode_ever_enabled`.
+     * [stored] are the stored settings of [kind], the source that is open or was last used (null
+     * when there is none).
      *
-     * - Pro to Casual: nothing is rewritten, the Pro values are gated. "Pro settings paused".
+     * - Pro to Casual: nothing is rewritten, the Pro values are gated. The message says what the
+     *   swipes of [kind] do now when that changes ([swipeChangeMessage]), else "Pro settings paused".
      * - Casual to Pro, first time: camera info on and five recent folders. "Camera info on".
      * - Casual to Pro, later: the stored values apply again. "Pro settings restored".
      * - No change: no writes, no message.
      */
-    fun transition(currentlyPro: Boolean, targetPro: Boolean, everEnabled: Boolean): Transition = when {
+    fun transition(
+        currentlyPro: Boolean,
+        targetPro: Boolean,
+        everEnabled: Boolean,
+        stored: SourceSettings? = null,
+        kind: SourceKind? = null,
+    ): Transition = when {
         currentlyPro == targetPro -> Transition(targetPro, emptyList(), null)
-        !targetPro -> Transition(false, emptyList(), UiText.of(R.string.snackbar_pro_paused))
+        !targetPro -> Transition(
+            proMode = false,
+            writes = emptyList(),
+            message = swipeChangeMessage(stored, kind) ?: UiText.of(R.string.snackbar_pro_paused),
+        )
         !everEnabled -> Transition(
             proMode = true,
             writes = listOf(
@@ -130,6 +143,41 @@ object ProModePolicy {
             message = UiText.of(R.string.snackbar_pro_camera_info_on),
         )
         else -> Transition(true, emptyList(), UiText.of(R.string.snackbar_pro_restored))
+    }
+
+    /** The messages that say a swipe of the open source changed; their snackbar offers Undo. */
+    val SWIPE_CHANGE_MESSAGES: Set<UiText> = setOf(
+        UiText.of(R.string.snackbar_pro_off_left_delete),
+        UiText.of(R.string.snackbar_pro_off_right_favourite),
+        UiText.of(R.string.snackbar_pro_off_right_phone),
+    )
+
+    /**
+     * Does switching Pro off turn the left swipe of [kind] from a copy or move into a delete? Then
+     * the first delete after the switch asks, even with "Don't ask" saved (REQ-TOK-FEATURE.20).
+     */
+    fun leftTurnsIntoDelete(stored: SourceSettings?, kind: SourceKind?): Boolean {
+        if (stored == null || kind == null) return false
+        return stored.swipeLeftVerb != SwipeAction.DELETE &&
+            casualSourceSettings(kind).swipeLeftVerb == SwipeAction.DELETE
+    }
+
+    /**
+     * What the swipes of [kind] do after Pro is switched off, when that differs from [stored]:
+     * "Pro off: left deletes" first (it loses photos), else the new swipe right ("★" on the phone
+     * and cloud, "→ phone" from a card). Null when no swipe changes.
+     */
+    fun swipeChangeMessage(stored: SourceSettings?, kind: SourceKind?): UiText? {
+        if (stored == null || kind == null) return null
+        if (leftTurnsIntoDelete(stored, kind)) return UiText.of(R.string.snackbar_pro_off_left_delete)
+        val casual = casualSourceSettings(kind)
+        return when {
+            // A Pro card never imports to the phone: its keepers stay on the card or go to a folder.
+            casual.importToPhoneCamera -> UiText.of(R.string.snackbar_pro_off_right_phone)
+            casual.swipeRightVerb == SwipeRightVerb.FAVOURITE && stored.swipeRightVerb != SwipeRightVerb.FAVOURITE ->
+                UiText.of(R.string.snackbar_pro_off_right_favourite)
+            else -> null
+        }
     }
 
     // ── Migration decision ────────────────────────────────────────────────

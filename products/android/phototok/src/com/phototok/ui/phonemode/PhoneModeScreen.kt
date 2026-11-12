@@ -117,6 +117,7 @@ import com.photoselector.core.model.ExifData
 import com.photoselector.core.storage.SourceKind
 import com.phototok.BuildConfig
 import com.phototok.R
+import com.phototok.domain.LandingStats
 import com.phototok.data.model.ImageItem
 import com.phototok.domain.FileTypeFilter
 import com.phototok.domain.PhotoFolders
@@ -255,6 +256,7 @@ fun PhoneModeScreen(
         hostState = snackbarHostState,
         onShown = viewModel::clearFeedback,
         onUndoDelete = viewModel::revertDelete,
+        onUndoProOff = { viewModel.setProMode(true) },
     )
 
     // Selection-viewer feedback snackbar
@@ -286,46 +288,18 @@ fun PhoneModeScreen(
 
     // U-14c: "Done with this card" sheet
     if (uiState.showCardDoneSheet) {
-        AlertDialog(
-            onDismissRequest = { viewModel.dismissCardDoneSheet() },
-            title = { Text(stringResource(R.string.dialog_title_card_done)) },
-            text = {
-                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                    Button(
-                        onClick = { viewModel.keepAllFilesOnCard() },
-                        modifier = Modifier.fillMaxWidth(),
-                    ) {
-                        Text(stringResource(R.string.action_keep_all))
-                    }
-                    if (uiState.undoStack.isNotEmpty() || uiState.pendingDelete != null) {
-                        TextButton(
-                            onClick = { viewModel.deleteQueuedRejectsOnCard() },
-                            modifier = Modifier.fillMaxWidth(),
-                        ) {
-                            Text(stringResource(R.string.action_delete_rejects))
-                        }
-                    }
-                    TextButton(
-                        onClick = {
-                            viewModel.dismissCardDoneSheet()
-                            showClearAllCardConfirm = true
-                        },
-                        enabled = uiState.cardClearReady,
-                        modifier = Modifier.fillMaxWidth(),
-                    ) {
-                        Text(
-                            stringResource(R.string.action_delete_all_count, uiState.cardClearFileCount),
-                            color = if (uiState.cardClearReady) colors.error else colors.onSurfaceVariant,
-                        )
-                    }
-                }
+        CardDoneDialog(
+            copiedCount = uiState.cardCopiedCount,
+            showDeleteRejects = uiState.undoStack.isNotEmpty() || uiState.pendingDelete != null,
+            clearReady = uiState.cardClearReady,
+            clearFileCount = uiState.cardClearFileCount,
+            onKeepAll = viewModel::keepAllFilesOnCard,
+            onDeleteRejects = viewModel::deleteQueuedRejectsOnCard,
+            onDeleteAll = {
+                viewModel.dismissCardDoneSheet()
+                showClearAllCardConfirm = true
             },
-            confirmButton = {},
-            dismissButton = {
-                TextButton(onClick = { viewModel.dismissCardDoneSheet() }) {
-                    Text(stringResource(R.string.action_cancel))
-                }
-            },
+            onDismiss = viewModel::dismissCardDoneSheet,
         )
     }
 
@@ -368,7 +342,7 @@ fun PhoneModeScreen(
     SettingsSheetHost(
         visible = showSettingsSheet,
         onDismissRequest = { showSettingsSheet = false },
-    ) { showMessage ->
+    ) { showMessage, showWithUndo ->
         SettingsScreen(
             sourceKind = uiState.sourceKind.takeIf { uiState.sourceFolderUri != null },
             onChangeSourceFolder = {
@@ -380,6 +354,7 @@ fun PhoneModeScreen(
                 viewModel.reloadSourceFolder()
             },
             onFeedback = showMessage,
+            onUndoableFeedback = showWithUndo,
         )
     }
 
@@ -557,7 +532,6 @@ fun PhoneModeScreen(
                         viewModel.selectSdCardFolder(launchPicker)
                     },
                     onSelectSource = { viewModel.selectSourceFolder(it) },
-                    onSelectCollection = { viewModel.selectCollectionFolder(it) },
                     onStart = {
                         uiState.sourceFolderUri?.let {
                             viewModel.selectSourceFolder(Uri.parse(it))
@@ -574,6 +548,14 @@ fun PhoneModeScreen(
                     topBarHeight = with(LocalDensity.current) { topBarHeightPx.toDp() },
                     hiddenByFilter = uiState.filterHidingEveryPhoto,
                     onShowAll = viewModel::showAllFormats,
+                    stats = LandingStats.line(
+                        milestonesEnabled = uiState.celebrationsEnabled,
+                        showSession = uiState.showSessionStats,
+                        baseline = uiState.feedStatsBaseline,
+                        now = uiState.cullingStats,
+                    ),
+                    sourceOutcomes = uiState.sourceOutcomes,
+                    hiddenVideoCount = uiState.hiddenVideoCount,
                 )
             }
         }
@@ -720,7 +702,7 @@ fun PhoneModeScreen(
 internal fun SettingsSheetHost(
     visible: Boolean,
     onDismissRequest: () -> Unit,
-    content: @Composable BoxScope.(showMessage: (UiText) -> Unit) -> Unit,
+    content: @Composable BoxScope.(showMessage: (UiText) -> Unit, showWithUndo: (UiText, () -> Unit) -> Unit) -> Unit,
 ) {
     if (!visible) return
     SettingsSheet(onDismissRequest = onDismissRequest) {
@@ -733,13 +715,25 @@ internal fun SettingsSheetHost(
                 hostState.showSnackbar(message = message.resolve(context), duration = SnackbarDuration.Short)
             }
         }
+        // A change of what the swipes do ("Pro off: left deletes") stays longer and offers Undo.
+        val showWithUndo: (UiText, () -> Unit) -> Unit = { message, onUndo ->
+            scope.launch {
+                hostState.currentSnackbarData?.dismiss()
+                val result = hostState.showSnackbar(
+                    message = message.resolve(context),
+                    actionLabel = context.getString(R.string.snackbar_action_undo),
+                    duration = SnackbarDuration.Long,
+                )
+                if (result == SnackbarResult.ActionPerformed) onUndo()
+            }
+        }
         Box(
             modifier = Modifier
                 .fillMaxSize()
                 // The sheet is its own window: export its test tags to the lab flows as well.
                 .semantics { testTagsAsResourceId = BuildConfig.EXPOSE_TEST_TAGS },
         ) {
-            content(showMessage)
+            content(showMessage, showWithUndo)
             SnackbarHost(
                 hostState = hostState,
                 modifier = Modifier
@@ -784,20 +778,24 @@ internal fun ActionFeedbackSnackbar(
     hostState: SnackbarHostState,
     onShown: () -> Unit,
     onUndoDelete: () -> Unit,
+    onUndoProOff: () -> Unit = {},
 ) {
     val context = LocalContext.current
     val currentOnShown by rememberUpdatedState(onShown)
     val currentOnUndoDelete by rememberUpdatedState(onUndoDelete)
+    val currentOnUndoProOff by rememberUpdatedState(onUndoProOff)
     LaunchedEffect(feedback) {
         val fb = feedback ?: return@LaunchedEffect
         val result = hostState.showSnackbar(
             message = fb.message.resolve(context),
-            actionLabel = if (fb.offersUndoDelete) context.getString(R.string.snackbar_action_undo) else null,
-            duration = SnackbarDuration.Short,
+            actionLabel = if (fb.offersUndoDelete || fb.offersUndoProOff) context.getString(R.string.snackbar_action_undo) else null,
+            // What the swipes do changed: long enough to read and undo.
+            duration = if (fb.offersUndoProOff) SnackbarDuration.Long else SnackbarDuration.Short,
         )
         // No suspension between the two: clearing restarts this effect only at the next frame.
         currentOnShown()
         if (result == SnackbarResult.ActionPerformed && fb.offersUndoDelete) currentOnUndoDelete()
+        if (result == SnackbarResult.ActionPerformed && fb.offersUndoProOff) currentOnUndoProOff()
     }
 }
 

@@ -52,7 +52,6 @@ class PhoneModeLandingLayoutTest {
                             collectionFolderName = "Selection",
                             isLoading = false,
                             onSelectSource = {},
-                            onSelectCollection = {},
                             onStart = {},
                         )
                     }

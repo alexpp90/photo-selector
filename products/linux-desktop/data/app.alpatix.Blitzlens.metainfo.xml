@@ -4,16 +4,18 @@
   <metadata_license>CC0-1.0</metadata_license>
   <project_license>MIT</project_license>
   <name>Blitzlens</name>
-  <summary>Cull, compare and select photographs, with RAW and JPEG pairing</summary>
+  <summary>Cull, compare and select photos, with RAW and JPEG pairing</summary>
   <description>
     <p>
       Blitzlens is a GNOME / Libadwaita application for going through a folder
-      or memory card of photographs quickly: step through them one at a time or
-      compare two or three side by side, and decide which to keep.
+      of photos quickly: step through them one at a time, compare two side by
+      side, or see the current photo above its previous and next, and decide
+      which to keep.
     </p>
     <p>
       It pairs RAW and JPEG files and their XMP sidecars so they move together,
-      shows camera metadata and a focus sharpness score for each photograph, and
+      shows camera metadata and a sharpness score for each photo (measured at the
+      centre of the frame, to compare frames of one burst), and
       offers Move and Copy to a Selection folder and Trash, each with Undo.
       It works offline and sends no data over the network.
     </p>
@@ -21,6 +23,12 @@
   <url type="homepage">https://github.com/alexpp90/photo-selector</url>
   <url type="bugtracker">https://github.com/alexpp90/photo-selector/issues</url>
   <url type="vcs-browser">https://github.com/alexpp90/photo-selector</url>
+  <screenshots>
+    <screenshot type="default">
+      <caption>One photo at a time, with its sharpness and the Keep, Copy, Trash and Undo bar</caption>
+      <image type="source" width="1430" height="890">https://raw.githubusercontent.com/alexpp90/photo-selector/main/assets/linux_desktop_screenshot.png</image>
+    </screenshot>
+  </screenshots>
   <releases>
     <release version="0.2.0" date="2026-10-22"/>
     <release version="0.1.0" date="2026-10-10"/>

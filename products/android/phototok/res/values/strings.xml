@@ -88,12 +88,14 @@
     <string name="action_details">Details</string>
     <string name="action_favourite">Favourite</string>
     <string name="action_unfavourite">Remove favourite</string>
-    <string name="action_copy">Copy</string>
-    <string name="action_move">Move</string>
+    <string name="label_copy_to">Copy · %1$s</string>
+    <string name="label_move_to">Move · %1$s</string>
+    <string name="cd_copy_to">Copy to %1$s</string>
+    <string name="cd_move_to">Move to %1$s</string>
 
     <!-- Labels and chips -->
     <string name="label_show_only">Show only</string>
-    <string name="title_source_camera">Camera</string>
+    <string name="title_source_camera">Phone photos</string>
     <string name="title_source_sd">SD card / USB</string>
     <string name="title_source_folder">Folder or cloud</string>
     <string name="label_kind_phone">Phone</string>
@@ -132,7 +134,9 @@
     <string name="dialog_body_no_trash">This location has no trash.</string>
     <string name="dialog_title_pro_mode">Pro mode adds</string>
     <string name="dialog_title_card_done">Card done</string>
-    <string name="dialog_body_card_loss">Photos not copied off the card are lost.</string>
+    <string name="label_card_copied">%1$d copied</string>
+    <string name="cd_card_copied">%1$d copied off the card</string>
+    <string name="dialog_body_card_loss">Photos never copied are lost.</string>
     <plurals name="dialog_title_delete_all">
         <item quantity="one">Delete 1 file?</item>
         <item quantity="other">Delete all %1$d files?</item>
@@ -178,6 +182,9 @@
     <string name="snackbar_pro_paused">Pro settings paused</string>
     <string name="snackbar_pro_camera_info_on">Camera info on</string>
     <string name="snackbar_pro_restored">Pro settings restored</string>
+    <string name="snackbar_pro_off_left_delete">Pro off: left deletes</string>
+    <string name="snackbar_pro_off_right_favourite">Pro off: right ★</string>
+    <string name="snackbar_pro_off_right_phone">Pro off: right → phone</string>
     <string name="snackbar_not_copied">Not copied</string>
     <string name="snackbar_card_disconnected">Card disconnected</string>
     <string name="snackbar_safe_to_unplug">Safe to unplug</string>
@@ -272,4 +279,17 @@
     <string name="chip_copy">Copy</string>
     <string name="chip_move">Move</string>
     <string name="chip_delete">Delete</string>
+    <string name="label_pro_card_selection">Card Selection</string>
+    <string name="cd_pro_card_selection">In Pro, card keepers stay on the card</string>
+    <string name="hint_body_card_import">Saved on this phone</string>
+    <string name="cd_swipe_right_outcome_favourite">Swipe right: favourite</string>
+    <string name="cd_swipe_right_outcome_phone">Swipe right: copy to phone</string>
+    <string name="cd_swipe_right_outcome_copy">Swipe right: copy to %1$s</string>
+    <string name="cd_swipe_right_outcome_move">Swipe right: move to %1$s</string>
+    <string name="cd_landing_stats_session">This session: %1$d reviewed, %2$d selected, %3$s freed</string>
+    <string name="cd_landing_stats_total">Total: %1$d reviewed, %2$d selected, %3$s freed</string>
+    <plurals name="empty_videos_hidden">
+        <item quantity="one">%1$d video hidden</item>
+        <item quantity="other">%1$d videos hidden</item>
+    </plurals>
 </resources>

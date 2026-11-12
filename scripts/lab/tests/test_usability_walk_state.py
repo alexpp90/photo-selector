@@ -157,8 +157,11 @@ class TestWalkSteps(unittest.TestCase):
     def test_frameduel_steps_no_longer_toggle_a_state_the_app_defaults_to(self) -> None:
         steps = [s for sc in load_scenarios("android-desktop", repo_root())["scenarios"] for s in sc["steps"]]
         self.assertNotIn({"id": "toggle_thirds", "label": "Thirds"}, [s.get("tap") for s in steps])
-        details = [s for s in steps if "optional_tap" in s and s["optional_tap"].get("id") == "details_toggle"]
-        self.assertEqual([s["optional_tap"]["desc"] for s in details], ["Hide photo details"])
+        # The details toggle is a switch that is on by default: the walk sets it off from the tree's
+        # checked state, it never taps blind (a tap would show what the panel was told is hidden).
+        details = [s["set_state"] for s in steps if s.get("set_state", {}).get("id") == "details_toggle"]
+        self.assertEqual([d["on"] for d in details], [False])
+        self.assertFalse([s for s in steps if s.get("optional_tap", {}).get("id") == "details_toggle"])
 
     def test_jackpix_hands_pro_mode_back_off_after_u_tok_03(self) -> None:
         sc = next(s for s in load_scenarios("phototok", repo_root())["scenarios"] if s["id"] == "U-TOK-03")
