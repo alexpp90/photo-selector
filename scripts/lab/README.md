@@ -17,6 +17,25 @@ python3 scripts/lab/lab.py run --all --with-personal
 # One product / journey / config / device
 python3 scripts/lab/lab.py run --product android-desktop --journey J-AD-02 --config tab-landscape --device pixel-tablet
 python3 scripts/lab/lab.py run --product phototok --no-build        # reuse this tree's last .lab build
+
+# Routine campaign: the E2E smoke (the full pass above stays for release campaigns)
+python3 scripts/lab/lab.py run --all --smoke --since origin/main
+```
+
+`--smoke` runs **one config per device** (its reference config: `phone-portrait`, `tab-landscape`,
+`chromebook-window`; a journey that does not offer it runs in the first config the device
+allows), **every journey of each product changed since `--since <ref>`** (committed and uncommitted
+changes; `:core` and `:saf` change both Android products; `scripts/lab/` changes none), and **one
+baseline journey** (`SMOKE-*`, else the first) of every other product. Without `--since` every
+product counts as changed. `--since` without `--smoke` is refused; an unknown ref exits 2. The Mac
+still runs every macOS journey in one trigger (`agent_run.sh` ignores the lists). The preferred
+phone, the Moto G77 (`inventory.PREFERRED_PHONE_SERIAL`), is the first device of every phone run when it is in
+the run; an unreachable one is a named *not run*, the rest keep the inventory order.
+
+```bash
+# Who walks a product's usability scenarios, in order (first and second device; Moto G77 first):
+python3 scripts/lab/lab.py usability-devices --product phototok      # prints: first <name> <adb serial> ...
+python3 scripts/lab/lab.py usability-capture --product phototok --serial <adb serial of the first / second line>
 ```
 
 `--no-build` skips Gradle, not the check: the last build writes `lab-build.json` next to each

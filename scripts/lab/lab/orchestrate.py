@@ -32,6 +32,7 @@ from .macos.runner import default_app_binary, run_macos_journey
 from .model import Finding
 from .paths import ensure_under, new_run_dir, repo_root
 from .report import generate_report
+from .smoke import SmokePlan
 
 ALL_PRODUCTS = ["android-desktop", "phototok", "macos", "linux"]
 
@@ -90,6 +91,13 @@ def load_journeys_for_product(
     return journeys
 
 
+def _configs_of(journey: dict[str, Any], smoke: SmokePlan | None, device: AndroidDevice | None) -> list[str]:
+    """The configs a journey runs in: all of them, or the smoke pass's one for this device."""
+    if smoke is None:
+        return [str(c) for c in journey.get("configs", [])]
+    return smoke.configs(journey, device)
+
+
 def _record_not_run(
     run_dir: Path,
     product: str,
@@ -97,11 +105,12 @@ def _record_not_run(
     config_filter: str | None,
     reason: str,
     device: AndroidDevice | None = None,
+    smoke: SmokePlan | None = None,
 ) -> list[dict[str, Any]]:
     records: list[dict[str, Any]] = []
     for j in journeys:
         jid = str(j["id"])
-        for base_cfg in j.get("configs", []):
+        for base_cfg in _configs_of(j, smoke, device):
             if config_filter and base_cfg != config_filter:
                 continue
             if device is not None and not device.allows_config(base_cfg):
@@ -157,6 +166,7 @@ def _run_android_product(
     lock_dir: Path | None = None,
     device_wait_s: float = DEVICE_WAIT_S,
     apk_fn: Callable[..., tuple[bool, str | None]] = ensure_current_lab_apk,
+    smoke: SmokePlan | None = None,
 ) -> tuple[list[dict[str, Any]], list[Finding], dict[str, Any]]:
     """Run every journey of one Android product on each selected, reachable device.
 
@@ -171,7 +181,7 @@ def _run_android_product(
         skipped_personal = [d.name for d in inventory.android if d.runs(product) and d.personal]
         if skipped_personal and not only_devices:
             reason += f" (personal devices skipped: {', '.join(skipped_personal)}; add --with-personal)"
-        records.extend(_record_not_run(run_dir, product, journeys, config_filter, reason))
+        records.extend(_record_not_run(run_dir, product, journeys, config_filter, reason, smoke=smoke))
         return records, findings, {"status": "not-run", "reason": reason, "devices": {}}
 
     dev_meta: dict[str, Any] = {}
@@ -181,7 +191,7 @@ def _run_android_product(
                 dev, product, journeys, config_filter, run_dir, held,
                 build=build, build_state=build_state, resolve_fn=resolve_fn, journey_fn=journey_fn,
                 lock_dir=lock_dir, device_wait_s=device_wait_s, apk_fn=apk_fn,
-                records=records, findings=findings, dev_meta=dev_meta,
+                records=records, findings=findings, dev_meta=dev_meta, smoke=smoke,
             )
 
     ran = [n for n, m in dev_meta.items() if m["status"] == "ran"]
@@ -209,6 +219,7 @@ def _run_android_device(
     records: list[dict[str, Any]],
     findings: list[Finding],
     dev_meta: dict[str, Any],
+    smoke: SmokePlan | None = None,
 ) -> None:
     """One device's part of `_run_android_product`; locks taken go on `held`."""
     ok, reason = resolve_fn(dev)
@@ -258,14 +269,14 @@ def _run_android_device(
         if saved is not None:
             _safe_reset(adb, saved)
         dev_meta[dev.name] = {"status": "not-run", "reason": reason, "model": dev.model}
-        records.extend(_record_not_run(run_dir, product, journeys, config_filter, reason or "unreachable", dev))
+        records.extend(_record_not_run(run_dir, product, journeys, config_filter, reason or "unreachable", dev, smoke))
         return
 
     dev_meta[dev.name] = {"status": "ran", "model": dev.model, "adb": dev.adb_serial}
     try:
         for j in journeys:
             jid = str(j["id"])
-            for cfg_name in j.get("configs", []):
+            for cfg_name in _configs_of(j, smoke, dev):
                 if config_filter and cfg_name != config_filter:
                     continue
                 if not dev.allows_config(cfg_name):
@@ -346,6 +357,7 @@ def run_lab(
     lock_dir: Path | None = None,
     hub_wait_s: float = HUB_WAIT_S,
     device_wait_s: float = DEVICE_WAIT_S,
+    smoke: SmokePlan | None = None,
 ) -> Path:
     """Orchestrate a lab run across the requested products and generate report.html.
 
@@ -358,7 +370,7 @@ def run_lab(
         return _run_lab(
             products, journey_filter, config_filter, out_dir, installed, devices_inventory,
             preflight_overrides, runner_overrides, with_personal, only_devices, build,
-            held=held, lock_dir=lock_dir, hub_wait_s=hub_wait_s, device_wait_s=device_wait_s,
+            held=held, lock_dir=lock_dir, hub_wait_s=hub_wait_s, device_wait_s=device_wait_s, smoke=smoke,
         )
 
 
@@ -379,6 +391,7 @@ def _run_lab(
     lock_dir: Path | None,
     hub_wait_s: float,
     device_wait_s: float,
+    smoke: SmokePlan | None = None,
 ) -> Path:
     now = dt.datetime.now(dt.timezone.utc)
     commit = get_git_commit()
@@ -419,6 +432,9 @@ def _run_lab(
         configs_map = load_configs_for_product(product)
         if not journeys:
             continue
+        if smoke is not None:
+            journeys = smoke.journeys(product, journeys)
+            _say(f"{product}: {smoke.describe()}; journeys: {', '.join(str(j['id']) for j in journeys)}")
 
         if preflight_overrides and product in preflight_overrides:
             ok, reason = preflight_overrides[product]
@@ -437,6 +453,7 @@ def _run_lab(
                 build_state=build_state,
                 lock_dir=lock_dir,
                 device_wait_s=device_wait_s,
+                smoke=smoke,
             )
             journey_records.extend(records)
             all_findings.extend(a_findings)
@@ -471,14 +488,14 @@ def _run_lab(
         if not ok:
             products_meta[product] = {"status": "not-run", "reason": reason or "preflight failed"}
             journey_records.extend(
-                _record_not_run(run_dir, product, journeys, config_filter, reason or "preflight failed")
+                _record_not_run(run_dir, product, journeys, config_filter, reason or "preflight failed", smoke=smoke)
             )
             continue
 
         products_meta[product] = {"status": "ran"}
         for j in journeys:
             jid = str(j["id"])
-            for cfg_name in j.get("configs", []):
+            for cfg_name in _configs_of(j, smoke, None):
                 if config_filter and cfg_name != config_filter:
                     continue
                 cfg_spec = configs_map.get(cfg_name, {})

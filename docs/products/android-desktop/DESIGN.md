@@ -1036,7 +1036,7 @@ The reasoning worth keeping, all of it now folded into §7:
 | No folder | Centred card: camera icon, **"Select a folder"**, *"Select a folder to start reviewing and culling your photos."*, primary `[Open folder]`. There is no second source: SAF already mounts Drive, OneDrive and the rest as directories. |
 | Folder open, unscanned | Frames visible; the readout block shows one dashed **"Not scanned"** row and the neighbour overlays are suppressed entirely; the sidebar's Scan item emphasised. |
 | Scanning | Sidebar counter plus the 2 dp determinate line; scores populate progressively, no blocker. |
-| Folder empty | Centred card: **"No photos here"** with `[Open folder]`. |
+| Folder empty | Centred card: folder icon, **"No photos found"**, *"«folder» holds no supported photos."* (*"This folder holds no supported photos."* when the name is unknown), `[Open Folder]` (`SelectorScreen.kt`, `SelectorEmptyKind.EMPTY_FOLDER`). |
 | Folder done (this session filed or deleted every photo) | Centred **Done** card: a ✓ in `ScoreGood` and "Done"; one cell per non-zero count — glyph, number, one word (Moved, Copied, Deleted); the Selection path when something was kept; `[Open folder]`. One polite announcement ("Done. 12 moved, 3 deleted."). Gone on Undo or a folder open. Next on the last frame shows the card "Last photo". |
 
 ---

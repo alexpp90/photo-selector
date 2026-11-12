@@ -105,7 +105,7 @@ A native macOS photo culling app built with Swift 6 and SwiftUI, for going throu
 
 <div align="center">
   <img src="assets/macos_desktop_screenshot.png" alt="Lensjet Culling Workspace" width="750" style="border-radius: 10px; box-shadow: 0 4px 20px rgba(0,0,0,0.3); margin-bottom: 12px;" />
-  <p><em>Lensjet culling workspace: 1-Up canvas, action bar and filmstrip</em></p>
+  <p><em>Lensjet culling workspace: 1-Up canvas, action bar and filmstrip, captured in October 2026 on a test pattern. The app has changed since: the info panel no longer covers the photo (it takes a strip below or a column beside it), and scores carry their scale ("Sharpness 60 / 100", "Aesthetics 8.4 / 10") instead of "Focus: 24.5 [Blurry]". A new capture needs a GUI session on a Mac.</em></p>
 </div>
 
 ### Key Features
