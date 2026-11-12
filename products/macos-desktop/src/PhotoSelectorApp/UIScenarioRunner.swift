@@ -286,7 +286,7 @@ final class UIScenarioRunner {
             guard viewModel.photos.indices.contains(viewModel.currentIndex) else { return nil }
             return viewModel.photos[viewModel.currentIndex].url.lastPathComponent
         }()
-        let remaining = max(0, viewModel.photos.count - viewModel.selectedCount - viewModel.trashedCount)
+        let remaining = viewModel.remainingCount
         let payload: [String: Any] = [
             "photoCount": viewModel.photos.count,
             "currentIndex": viewModel.currentIndex,
@@ -295,8 +295,10 @@ final class UIScenarioRunner {
             "zoomState": String(describing: viewModel.zoomState),
             "selectedCount": viewModel.selectedCount,
             "trashedCount": viewModel.trashedCount,
+            "copiedCount": viewModel.copiedCount,
             "tally": [
                 "selected": viewModel.selectedCount,
+                "copied": viewModel.copiedCount,
                 "trashed": viewModel.trashedCount,
                 "remaining": remaining
             ]

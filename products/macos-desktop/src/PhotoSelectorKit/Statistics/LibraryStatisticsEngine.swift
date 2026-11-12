@@ -16,7 +16,7 @@ public final class LibraryStatisticsEngine: Sendable {
     }
 
     /// Calculates library statistics synchronously from an in-memory array of PhotoItems.
-    public static func calculate(from photos: [PhotoItem]) -> LibraryStatistics {
+    public static func calculate(from photos: [PhotoItem], bands: SharpnessBands = .standard) -> LibraryStatistics {
         guard !photos.isEmpty else { return .empty }
 
         var candidateCount = 0
@@ -71,7 +71,7 @@ public final class LibraryStatisticsEngine: Sendable {
             if let scores = item.scores {
                 totalSharpness += scores.sharpness
                 sharpnessCount += 1
-                focusCounts[scores.focusCategory, default: 0] += 1
+                focusCounts[scores.category(in: bands), default: 0] += 1
 
                 if let aesthetic = scores.aesthetic {
                     totalAesthetic += aesthetic
@@ -163,9 +163,9 @@ public final class LibraryStatisticsEngine: Sendable {
     }
 
     /// Asynchronous computation offloaded to a detached background task.
-    public static func calculateAsync(from photos: [PhotoItem]) async -> LibraryStatistics {
+    public static func calculateAsync(from photos: [PhotoItem], bands: SharpnessBands = .standard) async -> LibraryStatistics {
         await Task.detached(priority: .userInitiated) {
-            calculate(from: photos)
+            calculate(from: photos, bands: bands)
         }.value
     }
 }

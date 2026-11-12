@@ -17,10 +17,10 @@ public final class LibraryStatisticsViewModel: ObservableObject {
 
     public init() {}
 
-    public func refresh(from photos: [PhotoItem]) {
+    public func refresh(from photos: [PhotoItem], bands: SharpnessBands = .stored()) {
         self.isCalculating = true
         Task { [weak self] in
-            let stats = await LibraryStatisticsEngine.calculateAsync(from: photos)
+            let stats = await LibraryStatisticsEngine.calculateAsync(from: photos, bands: bands)
             await MainActor.run {
                 self?.statistics = stats
                 self?.isCalculating = false
@@ -35,6 +35,11 @@ public struct LibraryStatisticsView: View {
     @ObservedObject public var workspaceViewModel: CullingWorkspaceViewModel
     @StateObject private var statsViewModel = LibraryStatisticsViewModel()
     @Environment(\.dismiss) private var dismiss
+    @AppStorage(AppSettingsKeys.sharpnessBlurryThreshold)
+    private var blurryBelow: Double = AppSettingsDefaults.sharpnessBlurryThreshold
+    @AppStorage(AppSettingsKeys.sharpnessAcceptableThreshold)
+    private var sharpFrom: Double = AppSettingsDefaults.sharpnessAcceptableThreshold
+    private var bands: SharpnessBands { SharpnessBands(blurryBelow: blurryBelow, sharpFrom: sharpFrom) }
 
     public init(workspaceViewModel: CullingWorkspaceViewModel) {
         self.workspaceViewModel = workspaceViewModel
@@ -81,16 +86,31 @@ public struct LibraryStatisticsView: View {
         .background(Color(NSColor.windowBackgroundColor))
         .preferredColorScheme(.dark)
         .onAppear {
-            statsViewModel.refresh(from: workspaceViewModel.photos)
+            statsViewModel.refresh(from: workspaceViewModel.photos, bands: bands)
             // Score the whole library in the background so the figures cover all of it; closing
             // the sheet cancels the pass.
             workspaceViewModel.startLibraryScoring()
         }
         .onDisappear {
             workspaceViewModel.cancelLibraryScoring()
+        }        .alert(
+            "Download all photos?",
+            isPresented: Binding(
+                get: { workspaceViewModel.pendingDownloadConfirmation?.purpose == .statistics },
+                set: { if !$0 { workspaceViewModel.declineDownloadAll() } }
+            ),
+            presenting: workspaceViewModel.pendingDownloadConfirmation
+        ) { _ in
+            Button("Download") { workspaceViewModel.confirmDownloadAll() }
+            Button("Cancel", role: .cancel) { workspaceViewModel.declineDownloadAll() }
+        } message: { pending in
+            Text("About \(ByteCountFormatter.string(fromByteCount: pending.estimatedBytes, countStyle: .file)) will download.")
         }
         .onChange(of: workspaceViewModel.scoringProgress) { _, _ in
-            statsViewModel.refresh(from: workspaceViewModel.photos)
+            statsViewModel.refresh(from: workspaceViewModel.photos, bands: bands)
+        }
+        .onChange(of: bands) { _, _ in
+            statsViewModel.refresh(from: workspaceViewModel.photos, bands: bands)
         }
     }
 
@@ -102,7 +122,7 @@ public struct LibraryStatisticsView: View {
                 .foregroundStyle(Color.accentColor)
 
             VStack(alignment: .leading, spacing: 2) {
-                Text("Library Statistics")
+                Text(LensjetCommand.statistics.name())
                     .font(.system(size: 16, weight: .bold))
                 if let root = workspaceViewModel.rootDirectoryURL {
                     Text(root.lastPathComponent)
@@ -260,7 +280,7 @@ public struct LibraryStatisticsView: View {
 
             HStack(spacing: 20) {
                 VStack(spacing: 4) {
-                    Text(statsViewModel.statistics.averageSharpness.map { String(format: "%.1f", $0) } ?? "–")
+                    Text(statsViewModel.statistics.averageSharpness.map { ScoreLabels.sharpnessNumber($0) } ?? "–")
                         .font(.system(size: 24, weight: .bold, design: .rounded))
                         .foregroundStyle(Color.green)
                     Text("Avg Sharpness / 100")
@@ -394,7 +414,7 @@ public struct LibraryStatisticsView: View {
     // MARK: - Footer
     private var footerBar: some View {
         HStack {
-            Text("Photographic Analysis Engine · Apple Vision & Accelerate")
+            Text("Scores are computed on this Mac")
                 .font(.system(size: 11))
                 .foregroundStyle(.secondary)
             Spacer()
@@ -476,7 +496,7 @@ struct LeaderboardRow: View {
                     Image(systemName: "checkmark.circle.fill")
                         .foregroundStyle(Color.green)
                         .font(.system(size: 11))
-                    Text(String(format: "%.1f", sharpness))
+                    Text(ScoreLabels.sharpnessNumber(sharpness))
                         .font(.system(size: 12, weight: .bold).monospacedDigit())
                 }
             } else if mode == .aesthetics, let aesthetic = photo.scores?.aesthetic {

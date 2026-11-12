@@ -66,7 +66,7 @@ The product is partitioned into two clean SPM targets following the repository's
 - **Maximized Viewport**: Borderless 1-Up, 2-Up (King of the Hill), and 3-Up (Sliding Triplet) comparison views allocating >85% of window area to photos without margin clutter.
 - **Keyboard First**: Arrow keys (`←`/`→`), Vim keys (`h`/`l` or `j`/`k`), `M` (Move to `Selection/`), `C` (Copy to `Selection/`), and `Delete` (Trash) with optimistic UI status updates and atomic undo (`⌘Z`).
 - **Pure Native Apple Intelligence**: On-device aesthetic evaluation via `VNCalculateImageAestheticsScoresRequest` utilizing Apple Neural Engine hardware, and Laplacian focus variance via Apple Accelerate (`vImageConvolve_PlanarF` + `vDSP`). 100% offline, zero cloud, zero Python/Ollama dependencies.
-- **Decluttered Interface**: No persistent parameter sliders or configuration panels in the culling workspace; configuration lives in the native macOS Settings scene (`⌘,`), and secondary tools (Duplicate Finder, Library Statistics) reside in the menu bar under "Tools".
+- **Decluttered Interface**: No persistent parameter sliders or configuration panels in the culling workspace; configuration lives in the native macOS Settings scene (`⌘,`), and secondary tools (Find Duplicates, Statistics) reside in the menu bar under "Tools".
 
 ## Relationship to the Other Products
 

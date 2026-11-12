@@ -71,6 +71,11 @@ public struct FilmstripThumbnailTile: View {
     public let onTap: () -> Void
 
     @StateObject private var state = FilmstripTileState()
+    @AppStorage(AppSettingsKeys.sharpnessBlurryThreshold)
+    private var blurryBelow: Double = AppSettingsDefaults.sharpnessBlurryThreshold
+    @AppStorage(AppSettingsKeys.sharpnessAcceptableThreshold)
+    private var sharpFrom: Double = AppSettingsDefaults.sharpnessAcceptableThreshold
+    private var bands: SharpnessBands { SharpnessBands(blurryBelow: blurryBelow, sharpFrom: sharpFrom) }
 
     private var tileWidth: CGFloat {
         if let cgImage = state.thumbnailImage, cgImage.height > 0 {
@@ -115,7 +120,7 @@ public struct FilmstripThumbnailTile: View {
                         HStack {
                             Spacer()
                             Circle()
-                                .fill(sharpnessColor(for: scores.focusCategory))
+                                .fill(sharpnessColor(for: scores.category(in: bands)))
                                 .frame(width: 6, height: 6)
                                 .padding(4)
                         }
