@@ -184,6 +184,9 @@ class CandidatePhoto:
     # Human-readable names for paths whose on-disk name differs, e.g. Google Drive mounted
     # through GVFS exposes files under opaque IDs ("1aW85w…") without an extension.
     display_names: Dict[Path, str] = field(default_factory=dict, repr=False)
+    #: Copied to Selection/ and so decided (``[USER 2026-11-12]`` decision #29): the photo stays in
+    #: the list, counts once under Selected, is not Remaining, and Move/Copy file nothing again.
+    copied: bool = field(default=False, repr=False, compare=False)
 
     def name_of(self, path: Path) -> str:
         """User-facing filename of one of this candidate's files."""

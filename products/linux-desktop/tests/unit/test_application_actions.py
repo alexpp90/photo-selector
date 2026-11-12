@@ -29,7 +29,6 @@ ACTIONS = {
     "preferences": ("show_preferences", ["<Control>comma"]),
     "about": ("show_about", []),
     "shortcuts": ("show_shortcuts_guide", ["<Control>question", "question"]),
-    "duplicate_finder": ("show_duplicate_finder", ["<Control>d"]),
     "statistics": ("show_library_statistics", ["<Control>l"]),
 }
 
