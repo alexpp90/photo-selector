@@ -84,7 +84,6 @@ class PhotoSelectorApplication(Adw.Application if HAS_GI else object):
             ("preferences", self._on_action_preferences, ["<Control>comma"]),
             ("about", self._on_action_about, []),
             ("shortcuts", self._on_action_shortcuts, ["<Control>question", "question"]),
-            ("duplicate_finder", self._on_action_duplicate_finder, ["<Control>d"]),
             ("statistics", self._on_action_statistics, ["<Control>l"]),
             ("quit", lambda a, p: self.quit(), ["<Control>q"]),
         ]
@@ -124,10 +123,6 @@ class PhotoSelectorApplication(Adw.Application if HAS_GI else object):
     def _on_action_shortcuts(self, action, param) -> None:
         if self.window:
             self.window.show_shortcuts_guide()
-
-    def _on_action_duplicate_finder(self, action, param) -> None:
-        if self.window:
-            self.window.show_duplicate_finder()
 
     def _on_action_statistics(self, action, param) -> None:
         if self.window:

@@ -241,7 +241,7 @@ final class UISelfTestRunner {
         viewModel.setComparisonMode(.single)
         viewModel.selectPhoto(at: 0)
         _ = viewModel.resetZoomToFit()
-        viewModel.isInfoHUDVisible = true
+        viewModel.isInfoVisible = true
         let registry = UITestFrameRegistry.shared
         await waitUntil(timeout: 3) { registry.frame("single_image_viewport") != nil && registry.frame("single_info_panel") != nil }
         guard let image = registry.frame("single_image_viewport"), let panel = registry.frame("single_info_panel") else {
@@ -270,12 +270,12 @@ final class UISelfTestRunner {
         record("layout.single_panel_stable_while_zoomed", zoomedPanel == panel && zoomedImage == image, "panel and viewport keep their rectangles while zoomed")
         _ = viewModel.resetZoomToFit()
 
-        viewModel.isInfoHUDVisible = false
+        viewModel.isInfoVisible = false
         await waitUntil(timeout: 2) { registry.frame("single_info_panel") == nil }
         let reclaimed = registry.frame("single_image_viewport")
         record("layout.single_hud_off_reclaims_space", registry.frame("single_info_panel") == nil && (reclaimed.map { $0.width * $0.height > image.width * image.height } ?? false),
                "viewport after hiding the panel: \(String(describing: reclaimed))")
-        viewModel.isInfoHUDVisible = true
+        viewModel.isInfoVisible = true
         await settle()
     }
 
@@ -404,7 +404,7 @@ final class UISelfTestRunner {
         ]
         let modes: [(String, ComparisonMode)] = [("1up", .single), ("2up", .sideBySide), ("3up", .triplet)]
         let registry = UITestFrameRegistry.shared
-        viewModel.isInfoHUDVisible = true
+        viewModel.isInfoVisible = true
         _ = viewModel.resetZoomToFit()
         viewModel.selectPhoto(at: 1)
 

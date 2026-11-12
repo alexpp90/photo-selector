@@ -46,7 +46,7 @@ struct SettingsMigrationTests {
 
         #expect(copied == AppSettingsKeys.all.count)
         #expect(Set(AppSettingsKeys.all).count == AppSettingsKeys.all.count)
-        #expect(AppSettingsKeys.all.count == 13)
+        #expect(AppSettingsKeys.all.count == 14)
         for key in AppSettingsKeys.all {
             #expect(new.string(forKey: key) == "value-\(key)")
         }
@@ -188,5 +188,83 @@ struct SettingsMigrationTests {
         // New settings: the order the user always had, and the stop threshold off.
         #expect(new.workspaceSortOrder == .fileName)
         #expect(new.sharpnessStopThreshold == 0)
+    }
+
+    // MARK: - Aesthetics scoring is off for a new install and stays on for an existing one
+    // ([USER 2026-11-12] decision #21). Each earlier schema is a store a released version wrote.
+
+    @Test("A new install: aesthetics off, nothing written but the marker")
+    func newInstallAestheticsOff() {
+        let (old, oldName) = makeSuite("old")
+        let (new, newName) = makeSuite("new")
+        defer { old.removePersistentDomain(forName: oldName); new.removePersistentDomain(forName: newName) }
+        #expect(SettingsMigration.pinAestheticsForExistingInstall(in: new, legacy: old) == false)
+        SettingsMigration.migrateIfNeeded(into: new, from: old)
+        #expect(new.aestheticScoringEnabled == false)
+        #expect(new.object(forKey: AppSettingsKeys.aestheticScoringEnabled) == nil)
+    }
+
+    @Test("Earlier schema A: the first Lensjet release (marker only, no stored scoring key) keeps aesthetics on")
+    func markerOnlyKeepsOn() {
+        let (old, oldName) = makeSuite("old")
+        let (new, newName) = makeSuite("new")
+        defer { old.removePersistentDomain(forName: oldName); new.removePersistentDomain(forName: newName) }
+        new.set(true, forKey: SettingsMigration.doneMarkerKey)
+        #expect(SettingsMigration.pinAestheticsForExistingInstall(in: new, legacy: old) == true)
+        #expect(new.aestheticScoringEnabled == true)
+    }
+
+    @Test("Earlier schema B: another setting stored, scoring key never touched, keeps aesthetics on")
+    func otherKeyKeepsOn() {
+        let (old, oldName) = makeSuite("old")
+        let (new, newName) = makeSuite("new")
+        defer { old.removePersistentDomain(forName: oldName); new.removePersistentDomain(forName: newName) }
+        new.set(false, forKey: AppSettingsKeys.autoAdvance)
+        SettingsMigration.pinAestheticsForExistingInstall(in: new, legacy: old)
+        #expect(new.aestheticScoringEnabled == true)
+    }
+
+    @Test("Earlier schema C: the pre-rename domain holds settings but no scoring key: on")
+    func legacyDomainWithoutKeyKeepsOn() {
+        let (old, oldName) = makeSuite("old")
+        let (new, newName) = makeSuite("new")
+        defer { old.removePersistentDomain(forName: oldName); new.removePersistentDomain(forName: newName) }
+        old.set(7, forKey: AppSettingsKeys.preloadWindowAfter)
+        SettingsMigration.pinAestheticsForExistingInstall(in: new, legacy: old)
+        SettingsMigration.migrateIfNeeded(into: new, from: old)
+        #expect(new.aestheticScoringEnabled == true)
+    }
+
+    @Test("A stored choice is honoured, here and in the pre-rename domain, in the launch order")
+    func storedChoiceHonoured() {
+        let (old, oldName) = makeSuite("old")
+        let (new, newName) = makeSuite("new")
+        let (old2, old2Name) = makeSuite("old2")
+        let (new2, new2Name) = makeSuite("new2")
+        defer {
+            for (d, n) in [(old, oldName), (new, newName), (old2, old2Name), (new2, new2Name)] { d.removePersistentDomain(forName: n) }
+        }
+        new.set(true, forKey: SettingsMigration.doneMarkerKey)
+        new.set(false, forKey: AppSettingsKeys.aestheticScoringEnabled)
+        SettingsMigration.pinAestheticsForExistingInstall(in: new, legacy: old)
+        #expect(new.aestheticScoringEnabled == false)
+
+        old2.set(false, forKey: AppSettingsKeys.aestheticScoringEnabled)
+        SettingsMigration.pinSortOrderForExistingInstall(in: new2, legacy: old2)
+        SettingsMigration.pinAestheticsForExistingInstall(in: new2, legacy: old2)
+        SettingsMigration.migrateIfNeeded(into: new2, from: old2)
+        #expect(new2.aestheticScoringEnabled == false, "the pre-rename stored off is not overwritten by the pin")
+    }
+
+    @Test("The pin runs once: a later switch-off is not undone")
+    func pinRunsOnce() {
+        let (old, oldName) = makeSuite("old")
+        let (new, newName) = makeSuite("new")
+        defer { old.removePersistentDomain(forName: oldName); new.removePersistentDomain(forName: newName) }
+        new.set(true, forKey: SettingsMigration.doneMarkerKey)
+        SettingsMigration.pinAestheticsForExistingInstall(in: new, legacy: old)
+        new.removeObject(forKey: AppSettingsKeys.aestheticScoringEnabled)
+        #expect(SettingsMigration.pinAestheticsForExistingInstall(in: new, legacy: old) == false)
+        #expect(new.aestheticScoringEnabled == false)
     }
 }

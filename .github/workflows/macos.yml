@@ -307,15 +307,19 @@ jobs:
             git clone --depth 1 "https://x-access-token:${HOMEBREW_TAP_TOKEN}@github.com/alexpp90/homebrew-tap.git" "${TAP_DIR}"
             cd "${TAP_DIR}"
             if [ "${GH_REF}" = "refs/heads/main" ]; then
-              CASK=Casks/photo-selector-toolbox@nightly.rb
+              CASK=Casks/lensjet@nightly.rb
+              OLD_CASK=Casks/photo-selector-toolbox@nightly.rb
               CASK_ARGS=(--nightly --sha256 "${MACOS_SHA256}")
+              OLD_ARGS=(--nightly --legacy-notice)
               COMMIT_MSG="Update nightly native macOS cask hash"
             else
               # macos-desktop-v1.2.3 -> 1.2.3 (the release job's verify-tag already proved
               # it equals products/macos-desktop/VERSION)
               VERSION="${GH_REF_NAME##*-v}"
-              CASK=Casks/photo-selector-toolbox.rb
+              CASK=Casks/lensjet.rb
+              OLD_CASK=Casks/photo-selector-toolbox.rb
               CASK_ARGS=(--version "${VERSION}" --sha256 "${MACOS_SHA256}")
+              OLD_ARGS=(--legacy-notice)
               COMMIT_MSG="Update native macOS cask to ${VERSION}"
             fi
             # Since 0.2.0 the zip holds Lensjet.app, the stable cask downloads from the product
@@ -323,7 +327,16 @@ jobs:
             # Only the cask this run points at the new zip is rewritten, so the other keeps
             # installing. The same script writes the version and hash (it replaced the legacy
             # Desktop updater); tested in scripts/tests/test_lensjet_cask.py.
+            # The token is `lensjet` (decision 2026-11-12 #4). The first run after the rename starts the
+            # new cask as a copy of the old one (the script renames the token inside); the old token's
+            # cask stays for installed users, stops updating and says where Lensjet went.
+            if [ ! -f "$CASK" ] && [ -f "$OLD_CASK" ]; then
+              cp "$OLD_CASK" "$CASK"
+            fi
             python3 "$CASK_TOOL" "$CASK" "${CASK_ARGS[@]}"
+            if [ -f "$OLD_CASK" ]; then
+              python3 "$CASK_TOOL" "$OLD_CASK" "${OLD_ARGS[@]}"
+            fi
             git add Casks/
             git diff --cached --quiet || git commit -m "${COMMIT_MSG}"
             git push origin HEAD

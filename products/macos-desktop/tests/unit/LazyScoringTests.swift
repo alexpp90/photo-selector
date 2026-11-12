@@ -90,17 +90,17 @@ struct LazyScoringTests {
         #expect(merged.aesthetic == 8.2 && merged.isUtility)
     }
 
-    @Test("Setting persists field-level: default ON, toggling OFF keeps unrelated keys, reset restores ON")
+    @Test("Setting persists field-level: default OFF, toggling ON keeps unrelated keys, reset restores OFF")
     func settingPersistence() {
         let suite = "test.lazyscoring.\(UUID().uuidString)"
         let defaults = UserDefaults(suiteName: suite)!
         defer { defaults.removePersistentDomain(forName: suite) }
-        #expect(defaults.aestheticScoringEnabled == true)
-        defaults.cullingDestinationFolderName = "Keepers"
-        defaults.aestheticScoringEnabled = false
         #expect(defaults.aestheticScoringEnabled == false)
+        defaults.cullingDestinationFolderName = "Keepers"
+        defaults.aestheticScoringEnabled = true
+        #expect(defaults.aestheticScoringEnabled == true)
         #expect(defaults.cullingDestinationFolderName == "Keepers")
         defaults.resetAppSettingsToDefaults()
-        #expect(defaults.aestheticScoringEnabled == true)
+        #expect(defaults.aestheticScoringEnabled == false)
     }
 }

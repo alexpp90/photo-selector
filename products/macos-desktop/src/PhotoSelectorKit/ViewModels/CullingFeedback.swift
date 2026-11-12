@@ -22,18 +22,40 @@ public enum CullingFeedback {
         return "\(verb) to \(destinationFolder) as \(primary.lastPathComponent)\(suffix)"
     }
 
-    /// "Moved 3 files" / "Copied 3 files" / "Trashed 3 files": the count of everything that travelled
-    /// with the photo. `nil` for a single file, which keeps the plain toast. Neither the companions'
-    /// names nor the destination path are in it (REQ-MAC-FILES.05, fits the toast slot).
-    public static func fileCountTitle(action: CullingActionType, fileCount: Int) -> String? {
+    /// The confirmation of a photo that took companions along ([USER 2026-11-12] decision #33, item 1):
+    /// "Moved IMG_0001 +2 · Selection" (the visible form: file name without extension, "+N" companions,
+    /// the destination) and the spoken form "Moved IMG_0001.CR3 and 2 companion files to Selection".
+    /// `nil` for a single file, which keeps the plain toast. A long name is cut in the middle so "+N" and
+    /// the destination are never cut. `destination` is nil for a Trash, which has no folder name.
+    public static func companionTitle(
+        action: CullingActionType,
+        originalPrimaryURL: URL,
+        fileCount: Int,
+        destination: String?,
+        rejects: RejectsDestination = .trash
+    ) -> (title: String, spoken: String)? {
         guard fileCount > 1 else { return nil }
         let verb: String
         switch action {
         case .move: verb = "Moved"
         case .copy: verb = "Copied"
-        case .trash: verb = "Trashed"
+        case .trash: verb = rejects.pastVerb
         }
-        return "\(verb) \(fileCount) files"
+        let companions = fileCount - 1
+        let stem = middleEllipsis(originalPrimaryURL.deletingPathExtension().lastPathComponent, limit: 24)
+        let to = destination.map { " \u{00B7} \($0)" } ?? ""
+        let spokenTo = destination.map { " to \($0)" } ?? ""
+        return (
+            "\(verb) \(stem) +\(companions)\(to)",
+            "\(verb) \(originalPrimaryURL.lastPathComponent) and \(companions) companion file\(companions == 1 ? "" : "s")\(spokenTo)"
+        )
+    }
+
+    static func middleEllipsis(_ text: String, limit: Int) -> String {
+        guard text.count > limit else { return text }
+        let head = (limit - 1) / 2 + (limit - 1) % 2
+        let tail = (limit - 1) / 2
+        return String(text.prefix(head)) + "\u{2026}" + String(text.suffix(tail))
     }
 
     /// "Restored 3 files" after an undo; `nil` for a single file.

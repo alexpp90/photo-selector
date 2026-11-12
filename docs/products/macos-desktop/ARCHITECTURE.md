@@ -71,14 +71,14 @@ products/macos-desktop/
 
     PhotoSelectorApp/                    Native SwiftUI Application Executable
       PhotoSelectorApp.swift             @main App struct, AppDelegate (activation policy, --open / --ui-self-test), scenes
-      ContentView.swift                  Primary culling workspace canvas, top bar, HUD, filmstrip
+      ContentView.swift                  Primary culling workspace canvas, top bar, Info panel, filmstrip
       ComparisonView.swift               2-Up and Focus 3-Up (one-over-two) multi-pane comparison view
       SinglePhotoView.swift              1-Up preview renderer
       ZoomableImageViewport.swift        Progressive image state, fit/100 %/pinch viewport, Fit exit pill
       UISelfTestRunner.swift             In-app UI self-test (keys, layout frames, clicks while zoomed, timings)
       UITestFrameRegistry.swift          Test-only rendered-frame registry (`uiTestFrame` modifier)
       FilmstripView.swift                Collapsible bottom thumbnail scrubber track
-      CullingHUDView.swift               Floating action toast overlay
+      ActionToastView.swift               Floating action toast overlay
       EmptyDropTargetView.swift          Drag-and-drop ingestion placeholder
       AppCommands.swift                  macOS Menu Bar commands (Tools menu, Shortcuts, Settings)
       Views/

@@ -93,18 +93,6 @@ public struct LibraryStatisticsView: View {
         }
         .onDisappear {
             workspaceViewModel.cancelLibraryScoring()
-        }        .alert(
-            "Download all photos?",
-            isPresented: Binding(
-                get: { workspaceViewModel.pendingDownloadConfirmation?.purpose == .statistics },
-                set: { if !$0 { workspaceViewModel.declineDownloadAll() } }
-            ),
-            presenting: workspaceViewModel.pendingDownloadConfirmation
-        ) { _ in
-            Button("Download") { workspaceViewModel.confirmDownloadAll() }
-            Button("Cancel", role: .cancel) { workspaceViewModel.declineDownloadAll() }
-        } message: { pending in
-            Text("About \(ByteCountFormatter.string(fromByteCount: pending.estimatedBytes, countStyle: .file)) will download.")
         }
         .onChange(of: workspaceViewModel.scoringProgress) { _, _ in
             statsViewModel.refresh(from: workspaceViewModel.photos, bands: bands)
@@ -325,6 +313,13 @@ public struct LibraryStatisticsView: View {
     private var coverageRow: some View {
         let stats = statsViewModel.statistics
         return VStack(alignment: .leading, spacing: 4) {
+            if let refusal = workspaceViewModel.fullPassRefusal, stats.sharpnessScoredCount < stats.totalPhotoCount {
+                // A cloud folder is not scored in full: the line takes the place of the progress bar.
+                Label(refusal, systemImage: "icloud.slash")
+                    .font(.system(size: 11, weight: .semibold))
+                    .foregroundStyle(Color.lensjetTextSecondary)
+                    .accessibilityIdentifier("stats_cloud_refusal")
+            }
             HStack(spacing: 6) {
                 if let progress = workspaceViewModel.scoringProgress {
                     ProgressView(value: Double(progress.done), total: Double(max(1, progress.total)))

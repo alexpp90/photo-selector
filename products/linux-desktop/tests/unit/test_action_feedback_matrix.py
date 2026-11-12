@@ -193,6 +193,12 @@ def _label_texts(win):
     return [w.get_text() for w in probe.walk(win) if isinstance(w, Gtk.Label) and w.get_mapped()]
 
 
+def _image_names(win):
+    from gi.repository import Gtk as _Gtk
+
+    return [w.get_tooltip_text() for w in probe.walk(win) if isinstance(w, _Gtk.Image) and w.get_mapped()]
+
+
 def test_the_queue_count_lives_in_the_action_bar_not_in_the_header(ui):
     win, _root = ui
     assert not hasattr(win, "lbl_queue"), "the header has no second 'N queued' pill"
@@ -207,7 +213,9 @@ def test_one_up_has_no_active_pill_and_two_up_names_active_and_next(ui):
     win.viewmodel.set_comparison_mode(2)
     probe.pump(seconds=0.3)
     texts = _label_texts(win)
-    assert "ACTIVE" in texts and "NEXT" in texts and "CHAMPION" not in texts
+    assert "ACTIVE" in texts and "CHAMPION" not in texts
+    assert "NEXT" not in texts and "PREVIOUS" not in texts  # arrows, decision #33 (3)
+    assert "Next photo" in _image_names(win)
 
 
 def test_the_caption_repeats_neither_name_nor_score_while_the_info_card_is_on(ui):
@@ -227,9 +235,24 @@ def test_the_selected_pill_opens_the_selection_folder(ui):
     opened = []
     win.action_bar.on_open_selection = lambda: opened.append(1)
     button = win.action_bar.btn_selected
-    assert button.get_tooltip_text() == "Open Selection"
+    assert button.get_tooltip_text() == "Photos moved or copied to Selection. Click to open it."
     assert not button.get_sensitive()
     _trigger(win, ENTRY_PATHS["copy-button"])
     assert probe.pump(until=button.get_sensitive)
     button.emit("clicked")
     assert opened == [1]
+
+
+def test_previous_and_next_are_arrows_that_do_not_read_as_a_key(ui):
+    """[USER 2026-11-12] decision #33 (3): no text on the PREVIOUS and NEXT tiles, a spoken name instead."""
+    from gi.repository import Gtk
+
+    win, _root = ui
+    win.viewmodel.set_comparison_mode(3)
+    win.viewmodel.current_index = 1
+    win.viewmodel._notify_state_changed()
+    probe.pump(seconds=0.3)
+    pills = [w for w in probe.walk(win) if isinstance(w, Gtk.Image) and w.has_css_class("slot-role-pill")]
+    assert sorted(p.get_icon_name() for p in pills) == ["go-next-symbolic", "go-previous-symbolic"]
+    assert sorted(p.get_tooltip_text() for p in pills) == ["Next photo", "Previous photo"]
+    assert not [t for t in _label_texts(win) if t in ("PREVIOUS", "NEXT", "K", "P")]

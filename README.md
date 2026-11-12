@@ -63,10 +63,10 @@ A touch-first portrait app for sorting your photos one-handed on the phone.
 * **Full-Screen Vertical Swipe Feed:** Browse local collections seamlessly via Jetpack Compose native `VerticalPager` with background prefetching and progressive loading: you can swipe once the first 24 photos are found, while the rest of the folder is still being read.
 * **Tactile Culling Swipes:**
   * **Swipe-Right to Keep:** Mark a ★ favourite, or (Pro) copy or move the photo to your `Selection/` folder, with an animated lime confirmation glow.
-  * **Swipe-Left to Discard or Route:** Configurable action (permanent Delete after confirmation, Copy, or Move to a secondary folder) with progressive card tilt ($2^\circ$) and non-blocking **Undo** (a "Photo deleted · Undo" snackbar and the bar's `Undo` arrow) across scrolls.
-* **Newest Photo First, Preloaded Ahead:** Phone, cloud, SD card and camera folders all start with the newest photo as `1/N`; Pro mode can sort by file name, shuffle or orientation instead. Photos ahead of you in the direction you scroll are preloaded.
+  * **Swipe-Left to Discard or Route:** Configurable action (Delete after confirmation — phone photos go to Android's Trash on Android 11+ after one system prompt when you leave the folder, SD card, USB and cloud files are deleted permanently — Copy, or Move to a secondary folder) with progressive card tilt ($2^\circ$) and non-blocking **Undo** (a "Photo deleted · Undo" snackbar and the bar's `Undo` arrow) across scrolls.
+* **Newest Photo First, Preloaded Ahead:** Phone, cloud, SD card and camera folders all start with the newest photo as `1/N`; Pro mode can sort by file name, shuffle or orientation instead, and in Casual a **surprise me** icon deals a phone or cloud folder once with the unseen photos first. Photos ahead of you in the direction you scroll are preloaded.
 * **Session Resume, Reload & New Photos Prompt:** Reopening a folder resumes where you left off; only when newer photos exist does a short "N new photos" dialog offer **Show new** or **Stay**. The **Reload** button rescans the folder and jumps to its latest photo (position 1 in newest-first order), no dialog.
-* **Share & Selection Viewer:** A **Share** button in the icon-only bottom bar shares the current photo while you scroll. The Selection button opens your Favourites and the Selection folder with photo counts, starting on the list your swipe right fills; the two tabs appear only when both have photos.
+* **Share & Selection Viewer:** A **Share** button in the icon-only bottom bar shares the current photo while you scroll. The Selection button opens your Favourites and the Selection folder with photo counts, starting on the list your swipe right fills (the ★ chip on a photo opens Favourites); the two tabs appear only when both have photos.
 * **Favourites in Other Apps:** On Android 11 and later a Jackpix favourite also sets Android's own favourite flag for photos on the phone and indexed SD cards (in batches, no permission and no dialog), and favourites set in other apps show in Jackpix; a filled star on the badge means the system has it too.
 * **Fluid Zoom & Pan:** Pinch-to-zoom (up to $6\times$) and double-tap to 2.5x zoom with single-finger panning; gestures automatically disable paging conflicts while zoomed.
 * **One-Tap Glassmorphic HUD:** Single tap toggles the translucent camera metadata panel (Pro mode: shutter, aperture, ISO, focal length, lens) and icon-only navigation controls (long-press for the name) for unobstructed viewing.
@@ -127,7 +127,7 @@ A native GNOME photo culling app for Debian 13 (Trixie), built with GTK4 and Lib
   <img src="assets/brand/blitzlens/blitzlens.svg" alt="Blitzlens icon" width="96" style="margin-bottom: 10px;" />
   <br />
   <img src="assets/linux_desktop_screenshot.png" alt="Blitzlens Culling Workspace" width="750" style="border-radius: 10px; box-shadow: 0 4px 20px rgba(0,0,0,0.3); margin-bottom: 12px;" />
-  <p><em>Native GNOME / Libadwaita workspace on neutral grey surfaces in 1-Up mode: the comparison switcher, the "Photo 2 of 5" counter, the optical HUD with its sharpness bar over the photo, and the bottom action bar with Keep, Copy, Trash and Undo. Captured from the app (GTK 4.18 / Libadwaita 1.7, 1440 x 900 window, software rendering) with the unmodified build of this branch, over a freshly started session.</em></p>
+  <p><em>Native GNOME / Libadwaita workspace on neutral grey surfaces in 1-Up mode: the comparison switcher, the "Photo 2 of 5" counter, the optical HUD with its sharpness bar over the photo, and the bottom action bar with Move to Selection, Copy, Trash and Undo. Captured from the app (GTK 4.18 / Libadwaita 1.7, 1440 x 900 window, software rendering) with the unmodified build of this branch, over a freshly started session.</em></p>
 </div>
 
 ### Key Features
@@ -168,7 +168,7 @@ The original multi-platform desktop culling application built with Python and Tk
 | **Aesthetic Scoring** | ❌ Excluded | ❌ Excluded | ✅ (Apple Vision ANE) | ❌ Excluded | ✅ (Local Ollama) | Lensjet uses the Apple Neural Engine; Frameduel scores technical quality only. |
 | **Star Ratings (1–5)** | ❌ Omitted | ✅ (Room) | ❌ Omitted | ❌ Omitted | ❌ Omitted | Rating, reject, and composition tracking in Room DB. |
 | **Score Caching** | ❌ Lightweight | ✅ (Room DB) | ❌ (Memory LRU) | ❌ (Memory LRU) | ✅ (SQLite) | Lensjet and Blitzlens keep scores in memory; Frameduel caches them in Room, the legacy Desktop in SQLite. |
-| **Duplicate Detection** | ❌ Omitted | ✅ (Room DB) | ✅ (CryptoKit SHA) | ✅ (Streaming SHA) | ✅ (SHA-256) | Two-stage size pre-filtering and SHA-256 duplicate finder. |
+| **Duplicate Detection** | ❌ Omitted | ✅ (Room DB) | ✅ (CryptoKit SHA) | ❌ Removed | ✅ (SHA-256) | Two-stage size pre-filtering and SHA-256 duplicate finder; Blitzlens dropped it on purpose. |
 | **Tactile Keyboard Shortcuts** | ❌ Touch-first | ✅ (DeX / Physical) | ✅ (NSEvent monitor)| ✅ (GTK Capture) | ✅ (Tkinter Events) | `←`/`→`, `M`, `C`, `Del` and undo agree across the apps; the per-app keys are in [`KEYBOARD.md`](docs/shared/KEYBOARD.md). |
 | **100% Offline Privacy** | ✅ (SAF Only) | ✅ (Zero Permissions) | ✅ (Strictly Local) | ✅ (Strictly Local) | ◐ (optional Ollama server) | Zero telemetry, zero cloud dependencies, strict privacy guarantee. The legacy Desktop's optional Ollama aesthetic engine sends images to the Ollama server URL you configure (localhost by default). |
 
@@ -218,12 +218,14 @@ Install Lensjet via the Homebrew tap:
 
 ```bash
 # Install directly in a single command
-brew install --cask alexpp90/tap/photo-selector-toolbox
+brew install --cask alexpp90/tap/lensjet
 
 # Or tap first, then install:
 brew tap alexpp90/tap
-brew install --cask photo-selector-toolbox
+brew install --cask lensjet
 ```
+
+Installed Lensjet earlier as `photo-selector-toolbox`? That cask no longer updates (the token now belongs to the legacy Desktop's formula). Reinstall once: `brew uninstall --cask photo-selector-toolbox && brew install --cask lensjet`. Your settings stay.
 
 #### Standalone ZIP
 Download the pre-compiled `photo-selector-macos-apple-silicon.zip` (the file name is historical: the app inside is a universal build for Apple Silicon and Intel Macs) from the latest [Lensjet release](https://github.com/alexpp90/photo-selector/releases?q=macos-desktop-v&expanded=true), unpack it, and drag `Lensjet.app` into `/Applications`.

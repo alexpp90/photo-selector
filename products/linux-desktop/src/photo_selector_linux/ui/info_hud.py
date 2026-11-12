@@ -29,6 +29,20 @@ from photo_selector_linux.ui.styling import (
 SCORE_TOOLTIP = "Sharpness of the centre of the frame. Compare frames of one burst, not different scenes."
 
 
+COPIED_ICON = "edit-copy-symbolic"
+COPIED_TEXT = "Copied to Selection"
+
+
+def build_copied_glyph():
+    """The mark of a copied (decided) photo: ``edit-copy-symbolic`` 16 px, spoken "Copied to Selection"."""
+    glyph = Gtk.Image.new_from_icon_name(COPIED_ICON)
+    glyph.set_pixel_size(16)
+    glyph.set_name("copied_mark")
+    glyph.set_tooltip_text(COPIED_TEXT)
+    glyph.update_property([Gtk.AccessibleProperty.LABEL], [COPIED_TEXT])
+    return glyph
+
+
 class InfoHUD(Gtk.Box if HAS_GI else object):
     """Floating translucent card displaying optical EXIF strip and quality metrics."""
 
@@ -38,6 +52,7 @@ class InfoHUD(Gtk.Box if HAS_GI else object):
         self.is_hud_visible: bool = False
         self._current_photo: Optional[CandidatePhoto] = None
         self.filename_text: str = ""
+        self.is_copied: bool = False
         self.companion_badges: List[Tuple[str, str]] = []
         self.exif_text: str = ""
         self.camera_text: str = ""
@@ -78,6 +93,9 @@ class InfoHUD(Gtk.Box if HAS_GI else object):
         self.lbl_filename.set_max_width_chars(36)
         self.lbl_filename.add_css_class("optical-strip-primary")
         self.header_row.append(self.lbl_filename)
+        self.copied_mark = build_copied_glyph()
+        self.copied_mark.set_visible(False)
+        self.header_row.append(self.copied_mark)
 
         self.companion_box = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=4)
         self.header_row.append(self.companion_box)
@@ -135,6 +153,7 @@ class InfoHUD(Gtk.Box if HAS_GI else object):
         if not photo:
             self.is_hud_visible = False
             self.filename_text = ""
+            self.is_copied = False
             self.companion_badges = []
             self.exif_text = ""
             self.camera_text = ""
@@ -150,6 +169,7 @@ class InfoHUD(Gtk.Box if HAS_GI else object):
 
         self.is_hud_visible = bool(self.hud_enabled)
         self.filename_text = photo.filename
+        self.is_copied = bool(photo.copied)
         self.companion_badges = get_candidate_companion_badges(photo)
 
         # Optical EXIF Summary (Zero-Placeholder Invariant R-LINUX-META-03)
@@ -206,6 +226,7 @@ class InfoHUD(Gtk.Box if HAS_GI else object):
 
         self.set_visible(self.is_hud_visible)
         self.lbl_filename.set_label(self.filename_text)
+        self.copied_mark.set_visible(bool(photo.copied))
 
         while child := self.companion_box.get_first_child():
             self.companion_box.remove(child)

@@ -201,6 +201,7 @@ private object MiddleKey
 private val TOP_ICONS = listOf(
     GuideAnchor.DONE_WITH_CARD,
     GuideAnchor.RELOAD,
+    GuideAnchor.SURPRISE,
     GuideAnchor.HELP,
     GuideAnchor.INFO,
     GuideAnchor.SETTINGS,
@@ -214,7 +215,7 @@ private val LEFT_PANEL_BUTTONS = listOf(
     GuideAnchor.REVERT,
     GuideAnchor.HELP,
 )
-private val RIGHT_PANEL_BUTTONS = listOf(GuideAnchor.RELOAD, GuideAnchor.INFO, GuideAnchor.SETTINGS)
+private val RIGHT_PANEL_BUTTONS = listOf(GuideAnchor.RELOAD, GuideAnchor.SURPRISE, GuideAnchor.INFO, GuideAnchor.SETTINGS)
 
 private enum class Align { CENTER, START, END }
 
@@ -430,6 +431,7 @@ private fun coachMarkSpec(id: GuideAnchor): CoachMarkSpec = when (id) {
     GuideAnchor.LOGO -> CoachMarkSpec(R.string.guide_camera_info)
     GuideAnchor.DONE_WITH_CARD -> CoachMarkSpec(R.string.guide_card_done)
     GuideAnchor.RELOAD -> CoachMarkSpec(R.string.guide_reload)
+    GuideAnchor.SURPRISE -> CoachMarkSpec(R.string.guide_surprise)
     GuideAnchor.HELP -> CoachMarkSpec(R.string.guide_help)
     GuideAnchor.INFO -> CoachMarkSpec(R.string.guide_info)
     GuideAnchor.SETTINGS -> CoachMarkSpec(R.string.guide_settings)

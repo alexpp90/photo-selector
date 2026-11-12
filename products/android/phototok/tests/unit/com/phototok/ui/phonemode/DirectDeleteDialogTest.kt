@@ -11,7 +11,20 @@ import androidx.compose.ui.test.assertIsOn
 import androidx.compose.ui.test.junit4.createAndroidComposeRule
 import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.performClick
+import androidx.compose.ui.test.assertCountEquals
+import androidx.compose.ui.test.assertIsNotFocused
+import androidx.compose.ui.test.hasAnyAncestor
+import androidx.compose.ui.test.hasAnyDescendant
+import androidx.compose.ui.test.hasTestTag
+import androidx.compose.ui.test.hasText
+import androidx.compose.ui.test.onAllNodesWithTag
+import androidx.compose.ui.test.onAllNodesWithText
+import androidx.compose.ui.test.onFirst
+import com.photoselector.core.Requirement
+import com.phototok.R
+import com.phototok.domain.DeleteSplit
 import com.phototok.ui.theme.PhotoTokTheme
+import org.junit.Assert.assertFalse
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
 import org.junit.Rule
@@ -33,11 +46,56 @@ class DirectDeleteDialogTest {
     private val confirmed = mutableListOf<Boolean>()
     private var dismissed = 0
 
-    private fun host() {
+    private fun host(split: DeleteSplit = DeleteSplit.permanentOnly(1)) {
         rule.setContent {
-            PhotoTokTheme { DirectDeleteDialog(onConfirm = { confirmed += it }, onDismiss = { dismissed++ }) }
+            PhotoTokTheme { DirectDeleteDialog(onConfirm = { confirmed += it }, onDismiss = { dismissed++ }, split = split) }
         }
         rule.waitForIdle()
+    }
+
+    private fun str(id: Int, vararg args: Any) = rule.activity.getString(id, *args)
+
+    private fun allText(): String = rule.onAllNodes(hasAnyAncestor(hasTestTag("direct_delete_dialog")) or hasTestTag("direct_delete_dialog"), useUnmergedTree = true)
+        .fetchSemanticsNodes()
+        .flatMap { it.config.getOrElseNullable(SemanticsProperties.Text) { null }.orEmpty().map { t -> t.text } }
+        .joinToString(" | ")
+
+    /** A phone photo in MediaStore: "Move to Trash?", the Trash button, the bin glyph ([USER 2026-11-12] decision #13). */
+    @Test
+    @Requirement("REQ-TOK-GESTURE.03")
+    fun binSource_saysTrash() {
+        host(DeleteSplit(bin = 2, permanent = 0))
+        rule.onAllNodesWithText(str(R.string.dialog_title_trash)).onFirst().assertExists()
+        rule.onAllNodesWithText(str(R.string.dialog_title_direct_delete)).assertCountEquals(0)
+        rule.onNodeWithTag("direct_delete_confirm_button", useUnmergedTree = true)
+            .assert(hasAnyDescendant(hasText(str(R.string.action_trash))))
+        rule.onAllNodesWithTag("direct_delete_icon_bin", useUnmergedTree = true).onFirst().assertExists()
+        rule.onNodeWithTag("direct_delete_confirm_button").assertIsNotFocused()
+    }
+
+    /** SD card, USB, cloud: "Delete permanently?" and no word of a bin anywhere in the dialog. */
+    @Test
+    @Requirement("REQ-TOK-GESTURE.03")
+    fun noBinSource_neverClaimsATrash() {
+        host(DeleteSplit.permanentOnly(3))
+        rule.onAllNodesWithText(str(R.string.dialog_title_direct_delete)).onFirst().assertExists()
+        rule.onAllNodesWithTag("direct_delete_icon_permanent", useUnmergedTree = true).onFirst().assertExists()
+        val text = allText().lowercase()
+        for (word in listOf("trash", "bin", str(R.string.action_trash).lowercase())) {
+            assertFalse("'$word' in a dialog without a bin: $text", Regex("\\b$word\\b").containsMatchIn(text))
+        }
+        rule.onNodeWithTag("direct_delete_confirm_button").assertIsNotFocused()
+    }
+
+    /** A phone photo with a companion MediaStore has no bin for: the count title and both counts. */
+    @Test
+    @Requirement("REQ-TOK-GESTURE.03")
+    fun mixedBatch_countsAddUp() {
+        host(DeleteSplit(bin = 2, permanent = 1))
+        val title = rule.activity.resources.getQuantityString(R.plurals.dialog_title_delete_all, 3, 3)
+        rule.onAllNodesWithText(title).onFirst().assertExists()
+        rule.onAllNodesWithText(str(R.string.dialog_body_trash_split, 2, 1)).onFirst().assertExists()
+        rule.onAllNodesWithTag("direct_delete_icon_permanent", useUnmergedTree = true).onFirst().assertExists()
     }
 
     @Test
