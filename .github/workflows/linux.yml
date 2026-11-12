@@ -58,7 +58,7 @@ jobs:
         run: pip install flake8
 
       - name: Run flake8
-        run: flake8 src/ tests/ --max-line-length=120 --extend-ignore=E203,W503
+        run: flake8 src/ tests/
 
   # ── Headless Unit Tests (Mirror: scripts/run_tests.sh `linux.yml:test`) ──
   test:
