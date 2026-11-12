@@ -104,6 +104,9 @@ class NavigationTest {
             return
         }
 
+        // Dupes sits behind Tools ([USER 2026-11-12] decision #18).
+        composeRule.onNodeWithTag("nav_tools").performClick()
+        composeRule.waitForIdle()
         composeRule.onNodeWithTag("nav_duplicates").performClick()
 
         composeRule.waitForIdle()

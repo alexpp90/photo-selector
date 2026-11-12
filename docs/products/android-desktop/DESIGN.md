@@ -202,19 +202,35 @@ metric added without a glyph must fail to compile, not render blank.
 
 ## 5. Information architecture
 
-Four top-level destinations, reached from a persistent **NavigationRail** on the left edge
-(Expanded and Medium) or a **BottomNavigation** bar (Compact).
+One culling desk with tools beside it (maintainer decision 2026-11-12): four cells, reached from
+the sidebar (the cull, Expanded and Medium), a **NavigationRail** on the left edge (the other
+screens, Expanded and Medium) or a **BottomNavigation** bar (Compact), in this order
+(`NavEntry.all`):
 
-| # | Destination | Purpose | Share of session |
+| # | Cell | Purpose | Share of session |
 |---|---|---|---|
 | 1 | **Cull** | The culling workspace. Default destination. | ~95% |
 | 2 | **Stats** | EXIF distribution charts for the loaded folder. | small |
-| 3 | **Dupes** | Byte-identical file finder (SHA-256) with batch delete. | small |
+| 3 | **Tools** | Opens a menu with **Learn** (labelled *Beta*) and **Dupes**. | small |
 | 4 | **Setup** | Where photos go, analysis, display, cache, about. | rare |
 
-Each screen has one name on every surface — the sidebar, the rail, the bottom bar, the guide and
-spoken text: Cull, Learn, Stats, Dupes, Setup (`Screen.label`). The burst feature is **Bursts**
-everywhere, the Setup switch included.
+**Tools** (`Icons.Filled.Handyman`, tag `nav_tools`, spoken "Tools. Opens Learn and Dupes.")
+opens a `DropdownMenu` right of its cell — level with the cell's top, or with its bottom where
+the window has no room below — with two 48 dp rows tagged `nav_inspect` and `nav_duplicates`:
+Learn, with its glyph and a *Beta* chip (spoken "Learn, beta"), and Dupes (byte-identical file
+finder, SHA-256, with batch delete). Arrows move between the rows, Enter opens one, `Esc` closes
+the menu; a keyboard user who opened it with Enter is back on Tools (on the cull the selector's
+root takes the keys back, AD-11). While Learn or Dupes is open, the Tools cell shows the active
+treatment and is spoken "Tools, Learn selected". `L` still opens Learn directly; the digit keys
+keep their per-screen meanings (`1`/`2`/`3` enlarge a frame in Cull, `0`–`5` rate in Learn).
+
+Learn carries the **Beta** chip (tonal `BrandAccentTonal` plate, `BrandAccentText` word) in the
+Tools menu and at the start of its own control bar, beside the way back to Cull. It goes when
+Compare shows both frames and Learn's progress is stored.
+
+Each screen has one name on every surface — the sidebar, the rail, the bottom bar, the Tools
+menu, the guide and spoken text: Cull, Learn, Stats, Dupes, Setup (`Screen.label`). The burst
+feature is **Bursts** everywhere, the Setup switch included.
 
 ### Session-level actions
 
@@ -340,7 +356,7 @@ Zinc-700 rule:
 ├────────┤
 │ Cull   │  ← zone B: app screens (was the NavigationRail)
 │ Stats  │
-│ Dupes  │
+│ Tools ▸│  ← opens Learn (Beta) and Dupes, right of the cell (§5)
 │ Setup  │
 └────────┘
 ```

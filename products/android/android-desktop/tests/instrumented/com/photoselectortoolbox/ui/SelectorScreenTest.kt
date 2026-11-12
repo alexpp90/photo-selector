@@ -28,6 +28,7 @@ import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.performTextInput
 import androidx.compose.ui.test.performTouchInput
 import androidx.compose.ui.test.printToLog
+import androidx.compose.ui.test.requestFocus
 import androidx.compose.ui.test.swipeLeft
 import androidx.compose.ui.unit.dp
 import androidx.test.ext.junit.runners.AndroidJUnit4
@@ -723,6 +724,11 @@ class SelectorScreenTest {
     fun systemBack_fromLearnReturnsToTheSelector() {
         loadTwoImages()
         requireExpandedLayout()
+        // Learn and Dupes sit behind Tools ([USER 2026-11-12] decision #18).
+        composeRule.onAllNodesWithTag("nav_tools", useUnmergedTree = true).onFirst().performClick()
+        composeRule.waitUntil(timeoutMillis = 5000) {
+            composeRule.onAllNodesWithTag("nav_inspect", useUnmergedTree = true).fetchSemanticsNodes().isNotEmpty()
+        }
         composeRule.onAllNodesWithTag("nav_inspect", useUnmergedTree = true).onFirst().performClick()
         composeRule.waitUntil(timeoutMillis = 15000) {
             composeRule.onAllNodesWithTag("inspect_screen", useUnmergedTree = true)
@@ -809,6 +815,11 @@ class SelectorScreenTest {
         loadTwoImages()
         requireExpandedLayout()
 
+        // Learn and Dupes sit behind Tools ([USER 2026-11-12] decision #18).
+        composeRule.onAllNodesWithTag("nav_tools", useUnmergedTree = true).onFirst().performClick()
+        composeRule.waitUntil(timeoutMillis = 5000) {
+            composeRule.onAllNodesWithTag("nav_duplicates", useUnmergedTree = true).fetchSemanticsNodes().isNotEmpty()
+        }
         composeRule.onAllNodesWithTag("nav_duplicates", useUnmergedTree = true).onFirst().performClick()
 
         // Not "No Folder Selected": the folder open in Cull is open here (FD-UX-3).
@@ -816,6 +827,72 @@ class SelectorScreenTest {
             composeRule.onAllNodesWithText("Start Scan", ignoreCase = true).fetchSemanticsNodes().isNotEmpty()
         }
         composeRule.onAllNodesWithText("No Folder Selected", ignoreCase = true).assertCountEquals(0)
+    }
+
+    private fun toolsMenuShown(): Boolean =
+        composeRule.onAllNodesWithTag("tools_menu", useUnmergedTree = true).fetchSemanticsNodes().isNotEmpty()
+
+    /**
+     * The Tools menu by keyboard ([USER 2026-11-12] decision #18): arrows move between Learn and
+     * Dupes, Enter opens the focused row, and `Esc` closes the menu with the selector still
+     * taking the keys (its root reclaims focus when the window gets it back, AD-11).
+     */
+    @ExpandedWindow
+    @Test
+    fun toolsMenu_arrowsAndEnterOpenDupes_escClosesAndTheSelectorKeepsItsKeys() {
+        loadTwoImages()
+        requireExpandedLayout()
+
+        composeRule.onAllNodesWithTag("nav_tools", useUnmergedTree = true).onFirst().performClick()
+        composeRule.waitUntil(timeoutMillis = 5000) { toolsMenuShown() }
+        pressKey(android.view.KeyEvent.KEYCODE_ESCAPE)
+        composeRule.waitUntil(timeoutMillis = 5000) { !toolsMenuShown() }
+        composeRule.waitUntil(timeoutMillis = 5000) { selectorRootHasKeyFocus() }
+        pressKey(android.view.KeyEvent.KEYCODE_DPAD_RIGHT)
+        composeRule.waitUntil(timeoutMillis = 5000) { positionCounterShows("2 / 2") }
+
+        composeRule.onAllNodesWithTag("nav_tools", useUnmergedTree = true).onFirst().performClick()
+        composeRule.waitUntil(timeoutMillis = 5000) { toolsMenuShown() }
+        pressKey(android.view.KeyEvent.KEYCODE_DPAD_DOWN)
+        pressKey(android.view.KeyEvent.KEYCODE_DPAD_DOWN)
+        composeRule.waitUntil(timeoutMillis = 5000) {
+            composeRule.onAllNodes(hasTestTag("nav_duplicates") and isFocused(), useUnmergedTree = true)
+                .fetchSemanticsNodes().isNotEmpty()
+        }
+        pressKey(android.view.KeyEvent.KEYCODE_ENTER)
+        composeRule.waitUntil(timeoutMillis = 15000) {
+            composeRule.onAllNodesWithText("Start Scan", ignoreCase = true).fetchSemanticsNodes().isNotEmpty()
+        }
+    }
+
+    /**
+     * On a screen with the rail, a keyboard user who opened Tools with Enter is back on Tools
+     * after `Esc` ([USER 2026-11-12] decision #18, UX notes F-18).
+     */
+    @ExpandedWindow
+    @Test
+    fun toolsMenu_onTheRail_escReturnsFocusToTools() {
+        loadTwoImages()
+        requireExpandedLayout()
+        composeRule.onAllNodesWithTag("nav_statistics", useUnmergedTree = true).onFirst().performClick()
+        composeRule.waitUntil(timeoutMillis = 15000) {
+            composeRule.onAllNodesWithTag("selector_root", useUnmergedTree = true).fetchSemanticsNodes().isEmpty()
+        }
+
+        androidx.test.platform.app.InstrumentationRegistry.getInstrumentation().setInTouchMode(false)
+        composeRule.onAllNodesWithTag("nav_tools", useUnmergedTree = true).onFirst().requestFocus()
+        composeRule.waitUntil(timeoutMillis = 5000) {
+            composeRule.onAllNodes(hasTestTag("nav_tools") and isFocused(), useUnmergedTree = true)
+                .fetchSemanticsNodes().isNotEmpty()
+        }
+        pressKey(android.view.KeyEvent.KEYCODE_ENTER)
+        composeRule.waitUntil(timeoutMillis = 5000) { toolsMenuShown() }
+        pressKey(android.view.KeyEvent.KEYCODE_ESCAPE)
+        composeRule.waitUntil(timeoutMillis = 5000) { !toolsMenuShown() }
+        composeRule.waitUntil(timeoutMillis = 5000) {
+            composeRule.onAllNodes(hasTestTag("nav_tools") and isFocused(), useUnmergedTree = true)
+                .fetchSemanticsNodes().isNotEmpty()
+        }
     }
 
     @ExpandedWindow

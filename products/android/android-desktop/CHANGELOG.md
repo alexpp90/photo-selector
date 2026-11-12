@@ -21,6 +21,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ### Changed
 
+- The sidebar, the side rail and the bottom bar hold Cull, Stats, Tools and Setup. **Tools** opens a menu with Learn and Dupes (arrows, Enter and `Esc` work in it); `L` still opens Learn. Learn is labelled **Beta** until its Compare tab shows both frames and its progress is kept.
 - Each screen has one name everywhere — Cull, Learn, Stats, Dupes, Setup — on the sidebar, the side rail and the bottom bar and for a screen reader (the rail said Selector, Statistics, Duplicates and Settings, and Learn said "Return to Culling"; it now says "Back to Cull"). The burst feature is **Bursts** in Setup too. The guide's More and Setup lines name what is there.
 - Copy moves on to the next frame, as Move and Delete do, and a photo you copied carries a small copy mark on its frame and its filmstrip tile for the rest of the session. Copying it again writes nothing and says "Already copied" (before, it made a second file, `-2`).
 - Deleting duplicates no longer removes the files at once: the copies leave the list, "Deleted N files" offers UNDO, and the files go when you leave Duplicates, pick another folder or scan again. A copy that is no longer the file you deleted (another photo now has its name) is kept and named.
