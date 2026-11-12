@@ -10,9 +10,7 @@ import com.photoselector.core.storage.ExternalVolume
 import com.photoselector.core.storage.SourceKind
 import com.photoselector.core.storage.SourceKindClassifier
 import com.phototok.data.model.ImageItem
-import com.phototok.data.model.PhoneSettings
 import com.phototok.data.model.RecentPath
-import com.phototok.data.model.SourceSettings
 import com.phototok.data.repository.FavouriteSyncRequest
 import com.phototok.data.repository.FavouritesRepository
 import com.phototok.data.repository.ImageRepository
@@ -24,17 +22,11 @@ import com.phototok.data.share.ShareIntentBuilder
 import com.phototok.data.source.VolumeMonitor
 import com.phototok.di.ApplicationScope
 import com.phototok.domain.CardTransferJournal
-import com.phototok.domain.CollectionAction
-import com.phototok.domain.FeedOrderMode
 import com.phototok.domain.FileTypeFilter
 import com.phototok.domain.FirstRunHint
 import com.phototok.domain.FirstRunHintText
-import com.phototok.domain.PhotoFolders
 import com.phototok.domain.ProModePolicy
-import com.phototok.domain.SwipeRightOutcome
 import com.phototok.domain.RelatedFiles
-import com.phototok.domain.SwipeAction
-import com.phototok.domain.SwipeRightVerb
 import com.phototok.domain.UiText
 import dagger.hilt.android.lifecycle.HiltViewModel
 import javax.inject.Inject
@@ -93,8 +85,8 @@ class PhoneModeViewModel @Inject constructor(
             override fun flushSystemFavourites() = this@PhoneModeViewModel.flushSystemFavourites()
             override fun cancelSystemIndex() { systemIndexJob?.cancel() }
             override fun indexFeedFromSystem() = this@PhoneModeViewModel.indexFeedFromSystem()
-            override fun observeSourceSettingsForKind(kind: SourceKind) = this@PhoneModeViewModel.observeSourceSettingsForKind(kind)
-            override suspend fun resolveActiveFeedConfig() = this@PhoneModeViewModel.resolveActiveFeedConfig()
+            override fun observeSourceSettingsForKind(kind: SourceKind) = settings.observeSourceSettingsForKind(kind)
+            override suspend fun resolveActiveFeedConfig() = settings.resolveActiveFeedConfig()
             override fun checkGestureTutorial() = this@PhoneModeViewModel.checkGestureTutorial()
             override fun maybeShowFirstRunHint(hint: FirstRunHint) = this@PhoneModeViewModel.maybeShowFirstRunHint(hint)
             override fun maybeShowRawJpegSuggestion() = this@PhoneModeViewModel.maybeShowRawJpegSuggestion()
@@ -116,14 +108,23 @@ class PhoneModeViewModel @Inject constructor(
         systemTrash = systemTrash,
         host = object : TransferUndoHolder.Host {
             override var cloudMoveCoercedNoticeShown: Boolean
-                get() = this@PhoneModeViewModel.cloudMoveCoercedNoticeShown
-                set(value) { this@PhoneModeViewModel.cloudMoveCoercedNoticeShown = value }
+                get() = settings.cloudMoveCoercedNoticeShown
+                set(value) { settings.cloudMoveCoercedNoticeShown = value }
             override fun afterFavouriteChange(items: List<ImageItem>) = this@PhoneModeViewModel.afterFavouriteChange(items)
-            override fun updateDirectDeleteConfirm(enabled: Boolean) = this@PhoneModeViewModel.updateDirectDeleteConfirm(enabled)
+            override fun updateDirectDeleteConfirm(enabled: Boolean) = settings.updateDirectDeleteConfirm(enabled)
         },
     )
 
-    private var sourceSettingsJob: Job? = null
+    /** The open source's settings and destinations, the landing's source pickers, Pro mode. */
+    private val settings: SourceSettingsHolder = SourceSettingsHolder(
+        _uiState = _uiState,
+        viewModelScope = viewModelScope,
+        feed = feed,
+        transfer = transfer,
+        imageRepository = imageRepository,
+        settingsRepository = settingsRepository,
+    )
+
     private var systemIndexJob: Job? = null
 
     /** The favourite request the UI is showing or about to show; one at a time. */
@@ -131,12 +132,6 @@ class PhoneModeViewModel @Inject constructor(
 
     /** Queue size when the user last declined; a full queue flushes only once it grew past it. */
     private var favouriteFlushFloor = 0
-
-    /** Whether a per-SourceKind SourceSettings emission has arrived. */
-    private var hasSourceSettingsEmission = false
-
-    /** Whether the one-time cloud MOVE->COPY notice has been shown in this session. */
-    private var cloudMoveCoercedNoticeShown = false
 
     companion object {
         private const val ONE_WEEK_MS = 7L * 24 * 60 * 60 * 1000
@@ -175,7 +170,7 @@ class PhoneModeViewModel @Inject constructor(
     }
 
     init {
-        observeSettings()
+        settings.observeSettings()
         observeRepositories()
         feed.restoreLastFolders()
     }
@@ -259,265 +254,6 @@ class PhoneModeViewModel @Inject constructor(
     fun cancelClearCardConfirmation() = transfer.cancelClearCardConfirmation()
     fun confirmClearEntireCard() = transfer.confirmClearEntireCard()
 
-    // ── Settings observation ──────────────────────────────────────────────
-
-    private fun observeSettings() {
-        // One typed flow for all simple settings: a single state update per
-        // DataStore emission, no positional casts.
-        viewModelScope.launch {
-            var previous: PhoneSettings? = null
-            settingsRepository.phoneSettings.collect { s ->
-                val derivedOrder = FeedOrderMode.fromLegacyFlags(s.sortByOrientation, s.randomizeOrder)
-                val derivedVerb = SwipeRightVerb.fromCollectionAction(s.collectionAction)
-                _uiState.update { state ->
-                    if (!hasSourceSettingsEmission || state.sourceKind == SourceKind.PHONE_LIBRARY) {
-                        state.copy(
-                            collectionAction = s.collectionAction,
-                            swipeRightVerb = if (hasSourceSettingsEmission) state.swipeRightVerb else derivedVerb,
-                            feedOrder = if (hasSourceSettingsEmission) state.feedOrder else derivedOrder,
-                            directDeleteConfirmEnabled = s.directDeleteConfirmEnabled,
-                            sortByOrientation = s.sortByOrientation,
-                            randomizeOrder = s.randomizeOrder,
-                            fileTypeFilter = s.fileTypeFilter,
-                            leftSwipeAction = s.leftSwipeAction,
-                            showExifOverlay = s.showExifOverlay,
-                            moveRelatedFiles = s.moveRelatedFiles,
-                            recentPathsEnabled = s.recentPathsEnabled,
-                            recentPathsCount = s.recentPathsCount,
-                            recentPaths = s.recentPaths,
-                            seenFirstRunHints = s.seenFirstRunHints,
-                            proMode = s.proMode,
-                            sourceOutcomes = SwipeRightOutcome.perKind(s),
-                        )
-                    } else {
-                        state.copy(
-                            proMode = s.proMode,
-                            showExifOverlay = s.showExifOverlay,
-                            recentPathsEnabled = s.recentPathsEnabled,
-                            recentPathsCount = s.recentPathsCount,
-                            recentPaths = s.recentPaths,
-                            seenFirstRunHints = s.seenFirstRunHints,
-                            sourceOutcomes = SwipeRightOutcome.perKind(s),
-                        )
-                    }
-                }
-                val prev = previous
-                previous = s
-                if (prev != null && (!hasSourceSettingsEmission || _uiState.value.sourceKind == SourceKind.PHONE_LIBRARY)) {
-                    if (s.fileTypeFilter != prev.fileTypeFilter &&
-                        _uiState.value.allImages.isNotEmpty()
-                    ) {
-                        feed.refilterAndSort()
-                    } else if ((s.sortByOrientation != prev.sortByOrientation ||
-                            s.randomizeOrder != prev.randomizeOrder) &&
-                        _uiState.value.images.isNotEmpty()
-                    ) {
-                        feed.resortImages()
-                    }
-                }
-            }
-        }
-        // URI settings resolve display names via the repository (I/O) — kept separate.
-        viewModelScope.launch {
-            settingsRepository.phoneCollectionUri.collect { uri ->
-                val name = resolveFolderName(uri)
-                _uiState.update {
-                    // The phone's folder belongs to the phone source: another source (and a Casual
-                    // card import, which has its own target) keeps the destinations its own settings give.
-                    if (it.importToPhoneCamera || ownedByOtherSource(it)) it
-                    else it.copy(collectionFolderUri = uri, collectionFolderName = name)
-                }
-            }
-        }
-        viewModelScope.launch {
-            settingsRepository.phoneLeftSwipeUri.collect { uri ->
-                val name = resolveFolderName(uri)
-                _uiState.update {
-                    if (ownedByOtherSource(it)) it
-                    else it.copy(leftSwipeFolderUri = uri, leftSwipeFolderName = name)
-                }
-            }
-        }
-        observeSourceSettingsForKind(SourceKind.PHONE_LIBRARY)
-    }
-
-    /** True once the per-source settings are live and the open source is not the phone's own. */
-    private fun ownedByOtherSource(state: PhoneModeUiState): Boolean =
-        hasSourceSettingsEmission && state.sourceKind != SourceKind.PHONE_LIBRARY
-
-    private fun observeSourceSettingsForKind(kind: SourceKind) {
-        sourceSettingsJob?.cancel()
-        sourceSettingsJob = viewModelScope.launch {
-            var previous: SourceSettings? = null
-            settingsRepository.sourceSettingsFlow(kind).collect { src ->
-                hasSourceSettingsEmission = true
-                val isCloud = kind == SourceKind.CLOUD_OTHER
-                val effectiveVerb = if (isCloud && src.swipeRightVerb == SwipeRightVerb.MOVE) {
-                    SwipeRightVerb.COPY
-                } else {
-                    src.swipeRightVerb
-                }
-                val effectiveCollectionAction = if (isCloud && src.collectionAction == CollectionAction.MOVE) {
-                    CollectionAction.COPY
-                } else {
-                    src.collectionAction
-                }
-                val effectiveLeftSwipe = if (isCloud && src.leftSwipeAction == SwipeAction.MOVE) {
-                    SwipeAction.COPY
-                } else {
-                    src.leftSwipeAction
-                }
-
-                // Destinations belong to the source kind that is open: a source without a folder of
-                // its own uses its own default (the source folder, name `Selection`), never the
-                // previous source's folder. Names are resolved here, outside the state update.
-                val collectionUri = if (src.importToPhoneCamera) transfer.cameraImportTarget else src.collectionFolderUri
-                val collectionName = if (src.importToPhoneCamera) {
-                    src.selectionSubfolder
-                } else {
-                    resolveFolderName(collectionUri)
-                }
-                val leftSwipeUri = src.leftSwipeFolderUri
-                val leftSwipeName = resolveFolderName(leftSwipeUri)
-
-                _uiState.update { state ->
-                    state.copy(
-                        swipeRightVerb = effectiveVerb,
-                        collectionAction = effectiveCollectionAction,
-                        feedOrder = src.feedOrder,
-                        sortByOrientation = src.sortByOrientation,
-                        randomizeOrder = src.randomizeOrder,
-                        fileTypeFilter = src.fileTypeFilter,
-                        moveRelatedFiles = src.moveRelatedFiles,
-                        directDeleteConfirmEnabled = src.directDeleteConfirmEnabled,
-                        leftSwipeAction = effectiveLeftSwipe,
-                        collectionFolderUri = collectionUri,
-                        collectionFolderName = collectionName,
-                        leftSwipeFolderUri = leftSwipeUri,
-                        leftSwipeFolderName = leftSwipeName,
-                        importToPhoneCamera = src.importToPhoneCamera,
-                        selectionSubfolderName = src.selectionSubfolder,
-                    )
-                }
-                if (src.importToPhoneCamera) transfer.refreshCameraImportTarget()
-
-                if (isCloud && !cloudMoveCoercedNoticeShown &&
-                    (src.swipeRightVerb == SwipeRightVerb.MOVE || src.leftSwipeAction == SwipeAction.MOVE)
-                ) {
-                    cloudMoveCoercedNoticeShown = true
-                    showFeedback(UiText.of(R.string.snackbar_cloud_copy_only))
-                }
-
-                val prev = previous
-                previous = src
-                if (prev != null) {
-                    if (src.fileTypeFilter != prev.fileTypeFilter &&
-                        _uiState.value.allImages.isNotEmpty()
-                    ) {
-                        feed.refilterAndSort()
-                    } else if (src.feedOrder != prev.feedOrder &&
-                        _uiState.value.images.isNotEmpty()
-                    ) {
-                        feed.resortImages()
-                    }
-                }
-            }
-        }
-    }
-
-    private suspend fun resolveFolderName(uri: String?): String {
-        if (uri == null) return ""
-        val parsed = Uri.parse(uri)
-        return imageRepository.resolveFolderName(parsed) ?: PhotoFolders.nameFromDocumentId(parsed.lastPathSegment)
-    }
-
-    /** Toggle the EXIF stats overlay (driven by tapping the Jackpix logo). */
-    fun toggleExifOverlay() {
-        // Camera info is a Pro feature: in Casual the logo toggle is not offered and never acts.
-        if (!_uiState.value.proMode) return
-        viewModelScope.launch {
-            settingsRepository.setPhoneShowExifOverlay(!_uiState.value.showExifOverlay)
-        }
-    }
-
-    /** Re-open a previously used source folder from the recents list. */
-    fun selectRecentPath(path: RecentPath) {
-        if (!VolumeMonitor.isRecentPathMounted(path, _uiState.value.mountedVolumes)) {
-            showFeedback(UiText.of(R.string.error_not_connected, path.displayName), isError = true)
-            return
-        }
-        feed.selectSourceFolder(Uri.parse(path.uri))
-    }
-
-    /**
-     * Quick-start for default phone camera roll.
-     * If permission is already granted, opens immediately;
-     * otherwise calls [onLaunchPicker] with the camera folder's document URI, so the picker
-     * opens on DCIM/Camera instead of wherever it was last used.
-     */
-    fun selectCameraFolder(onLaunchPicker: (Uri) -> Unit) {
-        val cameraTreeUri = DocumentsContract.buildTreeDocumentUri(
-            EXTERNAL_STORAGE_AUTHORITY,
-            CAMERA_DOCUMENT_ID,
-        )
-        viewModelScope.launch {
-            val name = imageRepository.prepareSourceFolder(cameraTreeUri)
-            if (name != null) {
-                feed.selectSourceFolder(cameraTreeUri)
-            } else {
-                onLaunchPicker(pickerInitialUri(CAMERA_DOCUMENT_ID))
-            }
-        }
-    }
-
-    /**
-     * Quick-start for a mounted removable volume (`SD Card / USB Reader` card on landing, `U-09` / `U-14a`).
-     */
-    fun selectRemovableVolume(volume: ExternalVolume?, onLaunchPicker: (Uri?) -> Unit) {
-        val uuid = volume?.uuid
-        if (uuid.isNullOrBlank()) {
-            onLaunchPicker(null)
-            return
-        }
-        val dcimDocumentId = "$uuid:DCIM"
-        val dcimTreeUri = DocumentsContract.buildTreeDocumentUri(EXTERNAL_STORAGE_AUTHORITY, dcimDocumentId)
-        viewModelScope.launch {
-            val name = imageRepository.prepareSourceFolder(dcimTreeUri)
-            if (name != null) {
-                feed.selectSourceFolder(dcimTreeUri)
-            } else {
-                onLaunchPicker(pickerInitialUri(dcimDocumentId))
-            }
-        }
-    }
-
-    /**
-     * Quick-start for the first mounted removable volume (`SD Card / USB Reader` card on landing).
-     */
-    fun selectSdCardFolder(onLaunchPicker: (Uri?) -> Unit) {
-        val vol = _uiState.value.mountedVolumes.firstOrNull { it.isRemovable }
-        selectRemovableVolume(vol, onLaunchPicker)
-    }
-
-    private suspend fun resolveActiveFeedConfig(): ActiveFeedConfig {
-        val state = _uiState.value
-        if (hasSourceSettingsEmission) {
-            return ActiveFeedConfig(
-                fileTypeFilter = state.fileTypeFilter,
-                feedOrder = state.feedOrder,
-                sortByOrientation = state.sortByOrientation,
-                randomizeOrder = state.randomizeOrder,
-            )
-        }
-        val phone = settingsRepository.phoneSettings.first()
-        return ActiveFeedConfig(
-            fileTypeFilter = phone.fileTypeFilter,
-            feedOrder = FeedOrderMode.fromLegacyFlags(phone.sortByOrientation, phone.randomizeOrder),
-            sortByOrientation = phone.sortByOrientation,
-            randomizeOrder = phone.randomizeOrder,
-        )
-    }
-
     /** Toggle in-place favourite status on the current photo (`U-13`, `U-17`). */
     fun toggleCurrentFavourite() {
         val state = _uiState.value
@@ -561,6 +297,20 @@ class PhoneModeViewModel @Inject constructor(
         )
         return ShareIntentBuilder.buildOpenWithChooser(target)
     }
+
+    // ── Source and settings ([SourceSettingsHolder]) ──
+
+    fun selectRecentPath(path: RecentPath) = settings.selectRecentPath(path)
+    fun selectCameraFolder(onLaunchPicker: (Uri) -> Unit) = settings.selectCameraFolder(onLaunchPicker)
+    fun selectRemovableVolume(volume: ExternalVolume?, onLaunchPicker: (Uri?) -> Unit) =
+        settings.selectRemovableVolume(volume, onLaunchPicker)
+    fun selectSdCardFolder(onLaunchPicker: (Uri?) -> Unit) = settings.selectSdCardFolder(onLaunchPicker)
+    fun toggleExifOverlay() = settings.toggleExifOverlay()
+    fun setProMode(enabled: Boolean) = settings.setProMode(enabled)
+    fun updateDirectDeleteConfirm(enabled: Boolean) = settings.updateDirectDeleteConfirm(enabled)
+    fun applyRawJpegFilter(filter: FileTypeFilter) = settings.applyRawJpegFilter(filter)
+    fun showAllFormats() = settings.showAllFormats()
+    fun enableMoveRelatedFiles() = settings.enableMoveRelatedFiles()
 
     // ── System favourites (MediaStore IS_FAVORITE, `U-17`) ───────────────────
 
@@ -644,26 +394,6 @@ class PhoneModeViewModel @Inject constructor(
     /** Opening the Selection viewer is a flush point: the user is looking at their favourites. */
     fun onSelectionViewerOpened() {
         flushSystemFavourites()
-    }
-
-    /**
-     * Switch Pro mode on or off (landing toggle). The snackbar names the visible change, the swipes
-     * of the last-used source first ("Pro off: left deletes", with Undo; REQ-TOK-FEATURE.20).
-     */
-    fun setProMode(enabled: Boolean) {
-        val state = _uiState.value
-        val kind = state.sourceKind.takeIf { state.sourceFolderUri != null } ?: state.recentPaths.firstOrNull()?.kind
-        viewModelScope.launch {
-            val message = settingsRepository.setProMode(enabled, kind) ?: return@launch
-            val undo = message in ProModePolicy.SWIPE_CHANGE_MESSAGES
-            _uiState.update { it.copy(lastActionFeedback = ActionFeedback(message, offersUndoProOff = undo)) }
-        }
-    }
-
-    /** The delete dialog's "Don't ask" acts on the open folder's source kind (REQ-TOK-GESTURE.03). */
-    fun updateDirectDeleteConfirm(enabled: Boolean) {
-        val kind = settingsKindOfOpenFolder()
-        viewModelScope.launch { settingsRepository.setSourceDirectDeleteConfirmEnabled(kind, enabled) }
     }
 
     fun clearFeedback() {
@@ -769,76 +499,6 @@ class PhoneModeViewModel @Inject constructor(
         }
     }
 
-    /**
-     * The source kind whose settings a choice made over the feed belongs to: the open folder's, so
-     * "Link RAW + JPEG" on an SD card acts on the card (it always wrote the phone's settings, JP-UI-1).
-     * A cloud folder follows the phone's settings and has no Settings tab of its own
-     * (`SettingsViewModel.showSourceKind`), so its choices go to the phone's.
-     */
-    private fun settingsKindOfOpenFolder(): SourceKind =
-        _uiState.value.sourceKind.let { if (it == SourceKind.CLOUD_OTHER) SourceKind.PHONE_LIBRARY else it }
-
-    fun applyRawJpegFilter(filter: FileTypeFilter) {
-        val kind = settingsKindOfOpenFolder()
-        _uiState.update { it.copy(showRawJpegSuggestion = false, firstRunHint = null) }
-        viewModelScope.launch {
-            settingsRepository.markFirstRunHintSeen(FirstRunHint.RAW_JPEG_PAIRS)
-            settingsRepository.markFirstRunHintSeen(FirstRunHint.FILTER_MISMATCH)
-            if (kind == SourceKind.PHONE_LIBRARY) {
-                settingsRepository.setPhoneFileTypeFilter(filter)
-                if (filter == FileTypeFilter.ONE_PER_SHOT) {
-                    settingsRepository.setPhoneMoveRelatedFiles(true)
-                }
-            } else {
-                settingsRepository.setSourceFileTypeFilter(kind, filter)
-                if (filter == FileTypeFilter.ONE_PER_SHOT) {
-                    settingsRepository.setSourceMoveRelatedFiles(kind, true)
-                }
-            }
-        }
-        showFeedback(
-            UiText.of(
-                when (filter) {
-                    FileTypeFilter.ONE_PER_SHOT -> R.string.snackbar_pairs_merged
-                    FileTypeFilter.RAW -> R.string.snackbar_filter_raw
-                    FileTypeFilter.JPG -> R.string.snackbar_filter_jpeg
-                    FileTypeFilter.ALL -> R.string.snackbar_filter_all
-                },
-            ),
-        )
-    }
-
-    /**
-     * Show all on the landing when the format filter hides every photo of the folder (F-TOK-086):
-     * turns the filter of the open source kind off, so the feed fills on the spot.
-     */
-    fun showAllFormats() {
-        val kind = _uiState.value.sourceKind
-        _uiState.update { it.copy(firstRunHint = null) }
-        viewModelScope.launch {
-            if (kind == SourceKind.PHONE_LIBRARY) {
-                settingsRepository.setPhoneFileTypeFilter(FileTypeFilter.ALL)
-            } else {
-                settingsRepository.setSourceFileTypeFilter(kind, FileTypeFilter.ALL)
-            }
-        }
-        showFeedback(UiText.of(R.string.snackbar_filter_all))
-    }
-
-    fun enableMoveRelatedFiles() {
-        val kind = settingsKindOfOpenFolder()
-        _uiState.update { it.copy(showRawJpegSuggestion = false) }
-        viewModelScope.launch {
-            settingsRepository.markFirstRunHintSeen(FirstRunHint.RAW_JPEG_PAIRS)
-            if (kind == SourceKind.PHONE_LIBRARY) {
-                settingsRepository.setPhoneMoveRelatedFiles(true)
-            } else {
-                settingsRepository.setSourceMoveRelatedFiles(kind, true)
-            }
-        }
-        showFeedback(UiText.of(R.string.snackbar_linked))
-    }
-
     // ── Filter mismatch hint ─────────────────────────────────────────────
 
     fun maybeShowFilterMismatchHint() {
@@ -870,7 +530,7 @@ class PhoneModeViewModel @Inject constructor(
                         title = title,
                         message = message,
                         actionLabel = UiText.of(R.string.action_show_all),
-                        onAction = { applyRawJpegFilter(FileTypeFilter.ALL) },
+                        onAction = { settings.applyRawJpegFilter(FileTypeFilter.ALL) },
                     ),
                 )
             }

@@ -19,7 +19,7 @@ REPO = Path(__file__).resolve().parents[2]
 P = "products"
 
 CEILINGS = {
-    f"{P}/android/phototok/src/com/phototok/viewmodel/PhoneModeViewModel.kt": 891,
+    f"{P}/android/phototok/src/com/phototok/viewmodel/PhoneModeViewModel.kt": 551,
     f"{P}/android/android-desktop/src/com/photoselectortoolbox/viewmodel/SelectorViewModel.kt": 2385,
     f"{P}/android/android-desktop/src/com/photoselectortoolbox/ui/inspect/InspectScreen.kt": 2008,
     f"{P}/macos-desktop/src/PhotoSelectorKit/ViewModels/CullingWorkspaceViewModel.swift": 1496,
