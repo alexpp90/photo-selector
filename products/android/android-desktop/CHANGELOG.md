@@ -8,6 +8,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ### Added
 
+- Before a copy, or a move to another card or drive, Frameduel checks that the destination has room and, if not, refuses with "Not enough space: needs 48 MB, 12 MB free. Nothing was copied." instead of failing halfway. Destinations that do not report their free space are not checked.
 - Settings lists the open-source licences of what Frameduel bundles (**Open-source licences**, below the Impressum), offline, including OpenCV and the libraries built into it. Before, the app passed on no licence text for them.
 - A screen reader announces the result of a move, copy or delete, and UNDO is a button for it.
 - An open folder with no supported photos says so ("<folder> holds no supported photos.") instead of asking for a folder; while a folder is still opening a progress ring shows.

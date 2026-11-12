@@ -13,6 +13,7 @@ import android.provider.DocumentsProvider
 import android.webkit.MimeTypeMap
 import com.photoselector.core.reader.AndroidExifReader
 import com.photoselector.core.reader.MediaStoreReader
+import com.photoselectortoolbox.domain.curation.TransferSpace
 import com.photoselectortoolbox.data.model.CompanionFile
 import com.photoselectortoolbox.data.model.ImageItem
 import com.photoselectortoolbox.data.source.LocalImageSource
@@ -91,6 +92,10 @@ class SafTransferTest {
             @Volatile
             var reportedSizeOverride: ((File) -> Long?)? = null
 
+            /** Free space the provider's root reports (`Root.COLUMN_AVAILABLE_BYTES`); null: not reported. */
+            @Volatile
+            var availableBytes: Long? = null
+
             /** Milliseconds each file creation takes, to widen race windows in concurrency tests. */
             @Volatile
             var createDelayMs: Long = 0L
@@ -127,6 +132,7 @@ class SafTransferTest {
                 opaqueRegistry.clear()
                 autoRenameOnCreate = null
                 reportedSizeOverride = null
+                availableBytes = null
                 moveDocumentCalls.set(0)
                 childrenQueryCalls.set(0)
             }
@@ -197,6 +203,20 @@ class SafTransferTest {
             selectionArgs: Array<out String>?,
             sortOrder: String?,
         ): Cursor {
+            if (uri.pathSegments == listOf("root")) {
+                // The provider's roots: one, whose document is the tree root.
+                val rootCols = projection ?: arrayOf(DocumentsContract.Root.COLUMN_ROOT_ID, DocumentsContract.Root.COLUMN_DOCUMENT_ID)
+                return MatrixCursor(rootCols).apply {
+                    addRow(rootCols.map { col ->
+                        when (col) {
+                            DocumentsContract.Root.COLUMN_ROOT_ID -> ROOT_ID
+                            DocumentsContract.Root.COLUMN_DOCUMENT_ID -> ROOT_ID
+                            DocumentsContract.Root.COLUMN_AVAILABLE_BYTES -> availableBytes
+                            else -> null
+                        }
+                    }.toTypedArray<Any?>())
+                }
+            }
             val cols = projection ?: arrayOf(
                 Document.COLUMN_DOCUMENT_ID,
                 Document.COLUMN_DISPLAY_NAME,
@@ -742,6 +762,46 @@ class SafTransferTest {
         assertTrue(File(rootDir, "Selection/JPEG/DSC_0003.JPG").exists())
         assertTrue(File(rootDir, "Selection/RAW/DSC_0003.xmp").exists())
         assertTrue(File(rootDir, "Selection/RAW/DSC_0003-Edit.JPG").exists())
+    }
+
+    // REQ-AND-WORKFLOW.02: the destination's free space is checked before anything is written.
+    @Test
+    fun `a copy that does not fit the destination is refused and writes nothing`() = runTest {
+        val item = labItem("DSC_0003")
+        val needed = item.allFiles.sumOf { it.fileSize }
+        assertTrue("the fixture has sizes", needed > 0)
+        FakeSafDocumentsProvider.availableBytes = needed - 1
+
+        val result = repository.copyBundle(context, item, treeUri, sorting = true)
+
+        assertFalse(result.success)
+        assertTrue(result.error.orEmpty(), TransferSpace.isRefusal(result.error))
+        assertTrue(result.error.orEmpty(), result.error.orEmpty().endsWith("Nothing was copied."))
+        val written = File(rootDir, "Selection").walkTopDown().filter { it.isFile }.toList()
+        assertEquals("no partial copy", emptyList<File>(), written.filter { it.name != ".photoselector-selection" })
+        for (n in listOf("DSC_0003.JPG", "DSC_0003.ARW", "DSC_0003.xmp", "DSC_0003-Edit.JPG")) {
+            assertTrue("$n source must stay", File(rootDir, n).exists())
+        }
+    }
+
+    @Test
+    fun `a copy that fits goes ahead, and a provider that reports no space is not refused`() = runTest {
+        val item = labItem("DSC_0003")
+        FakeSafDocumentsProvider.availableBytes = item.allFiles.sumOf { it.fileSize }
+        assertTrue(repository.copyBundle(context, item, treeUri, sorting = true).success)
+
+        FakeSafDocumentsProvider.availableBytes = null
+        assertTrue(repository.copyBundle(context, labItem("DSC_0002"), treeUri, sorting = true).success)
+    }
+
+    @Test
+    fun `a move on the same volume needs no free space`() = runTest {
+        FakeSafDocumentsProvider.availableBytes = 0
+
+        val result = repository.moveBundle(context, labItem("DSC_0002"), treeUri, sorting = true)
+
+        assertTrue(result.error.orEmpty(), result.success)
+        assertTrue(File(rootDir, "Selection/RAW/DSC_0002.ARW").exists())
     }
 
     // REQ-AND-PLATFORM.06 (AD-6)

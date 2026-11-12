@@ -41,6 +41,7 @@ import com.photoselectortoolbox.domain.curation.PendingDeleteJournal
 import com.photoselectortoolbox.domain.curation.PendingDeletion
 import com.photoselectortoolbox.domain.curation.SelectorListState
 import com.photoselectortoolbox.domain.curation.SnackbarLifetime
+import com.photoselectortoolbox.domain.curation.TransferSpace
 import com.photoselectortoolbox.domain.curation.UndoParking
 import com.photoselectortoolbox.domain.curation.UndoRestore
 import com.photoselectortoolbox.domain.curation.UndoPolicy
@@ -1942,7 +1943,8 @@ class SelectorViewModel @Inject constructor(
                 rollbackFiling(edit.action, edit.slots)
                 val verb = if (action == CurationAction.COPY) "Copy" else "Move"
                 Log.w("SelectorViewModel", "$verb failed: ${result?.error}")
-                reportError("$verb failed")
+                // A refusal for lack of space says what it needs; other causes stay in the log (FD-UX-4).
+                reportError(result?.error?.takeIf(TransferSpace::isRefusal) ?: "$verb failed")
             }
         }
     }
