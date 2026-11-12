@@ -58,7 +58,7 @@ sealed class Screen(
 
     data object Settings : Screen(
         route = "settings",
-        meaning = "Which measurements run, where filed frames go, how many threads.",
+        meaning = "Grouping, threads, where filed frames go.",
         icon = Icons.Default.Settings,
         label = "Settings",
         shortLabel = "Setup",

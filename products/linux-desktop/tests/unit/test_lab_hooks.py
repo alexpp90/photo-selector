@@ -395,7 +395,7 @@ def test_a_dialogs_visible_texts_are_exported_but_the_main_windows_unnamed_label
         context.iteration(False)
     tree = LabCheckpointRecorder(artifacts_dir=tmp_path)._extract_window_tree(dialog)
     texts = [n["text"] for n in tree["nodes"] if n["role"] == "text"]
-    assert "Library Summary" in texts and "Total Photographs" in texts
+    assert "Summary" in texts and "Total Photos" in texts
     assert all(n["id"].startswith("dialog_text_") for n in tree["nodes"] if n["role"] == "text")
     dialog.destroy()
 

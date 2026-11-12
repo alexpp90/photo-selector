@@ -89,6 +89,20 @@ class ScoreMergeTest {
     }
 
     @Test
+    fun `a measurement the shown score lacks is filled in and the others stay`() {
+        // The first scan had noise unticked; the second measured it (REQ-AND-ALGO.07).
+        val existing = image("a", score = score(90.0))
+
+        val merged = ScoreMerge.apply(
+            listOf(existing),
+            mapOf("content://test/a" to ScanResult("content://test/a", sharpnessScore = 10.0, noiseLevel = 4.0)),
+        )
+
+        assertEquals(90.0, merged.single().scanResult?.sharpnessScore)
+        assertEquals(4.0, merged.single().scanResult?.noiseLevel)
+    }
+
+    @Test
     fun `images the pass knew nothing about are untouched`() {
         // Batches append while a scan runs, and frames get filed away.
         val merged = ScoreMerge.apply(

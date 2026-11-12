@@ -5,11 +5,12 @@ import android.graphics.BitmapFactory
 import android.net.Uri
 import com.photoselectortoolbox.data.model.ImageItem
 import com.photoselectortoolbox.data.source.PhotoBitmapDecoder
+import com.photoselectortoolbox.di.IoDispatcher
 import com.photoselectortoolbox.domain.format.ImageFormats
 import dagger.hilt.android.qualifiers.ApplicationContext
 import javax.inject.Inject
 import kotlin.math.abs
-import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.ensureActive
 import kotlinx.coroutines.withContext
 
@@ -44,7 +45,8 @@ enum class GroupingLevel(
  * Ported from the desktop Python implementation with three grouping levels.
  */
 class ImageGrouper @Inject constructor(
-    @ApplicationContext private val context: Context
+    @ApplicationContext private val context: Context,
+    @IoDispatcher private val ioDispatcher: CoroutineDispatcher,
 ) {
 
     private val bitmapDecoder = PhotoBitmapDecoder(context)
@@ -85,7 +87,7 @@ class ImageGrouper @Inject constructor(
     suspend fun groupImages(
         images: List<ImageItem>,
         level: GroupingLevel
-    ): List<List<ImageItem>> = withContext(Dispatchers.IO) {
+    ): List<List<ImageItem>> = withContext(ioDispatcher) {
         if (images.isEmpty()) return@withContext emptyList()
 
         // Clear per-run dHash cache to avoid stale entries

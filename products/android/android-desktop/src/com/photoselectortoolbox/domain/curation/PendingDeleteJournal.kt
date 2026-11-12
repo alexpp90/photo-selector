@@ -82,6 +82,16 @@ object PendingDeleteJournal {
         else -> Verdict.CHANGED
     }
 
+    /**
+     * Whether an in-session commit keeps the file at a URI instead of deleting it (sweep follow-up
+     * 2026-11-11). The URI was listed in this session, so a file the provider cannot describe is
+     * deleted as it always was, and one that cannot be read is left to the delete to report; only
+     * a file whose recorded identity is known and differs from what is there now is another photo
+     * and is kept.
+     */
+    fun keepsInSession(recorded: FileIdentity?, current: FileIdentity?): Boolean =
+        recorded != null && recorded.isKnown && current != null && !recorded.matches(current)
+
     /** Whether the current identity of a URI is needed at all: not for an entry that is unverifiable anyway. */
     fun needsCurrentIdentity(recorded: FileIdentity?): Boolean = recorded != null && recorded.isKnown
 

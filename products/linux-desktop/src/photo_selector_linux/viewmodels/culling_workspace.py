@@ -22,10 +22,12 @@ from photo_selector_linux.core.destination import (
     MODE_WORKING,
     DestinationResolution,
     describe_destination,
+    display_path,
     resolve_destination,
 )
 from photo_selector_linux.core.file_ops import FileCullingManager
 from photo_selector_linux.core.gvfs_names import is_remote_filesystem
+from photo_selector_linux.core.volumes import VERDICT_SAFE, format_verdict
 from photo_selector_linux.core.models import (
     CandidatePhoto,
     CullingActionType,
@@ -96,6 +98,10 @@ class _QueuedAction:
 MESSAGE_NAME_CHARS = 16
 
 
+#: Longest destination path a first-transfer message shows whole (the bar's slot is bounded, LIN-7).
+MESSAGE_PATH_CHARS = 34
+
+
 def shorten_middle(name: str, limit: int = MESSAGE_NAME_CHARS) -> str:
     """Shorten a long file name in the middle so its distinguishing end stays visible.
 
@@ -149,6 +155,8 @@ class CullingWorkspaceViewModel:
         self.current_folder_name: str = ""
         self.is_remote_folder: bool = False
         self.is_scanning: bool = False
+        self.scan_failed: bool = False
+        self._destination_said_generation: Optional[int] = None
 
         self.settings: Optional[SettingsStore] = settings
         self.selection_folder_name: str = settings.selection_folder_name if settings else "Selection"
@@ -307,14 +315,42 @@ class CullingWorkspaceViewModel:
         return None
 
     def card_summary(self) -> Dict[str, Any]:
-        """Return ingest/culling tally summary and whether the source card is safe to format (U-33)."""
+        """Tally of the cull and the "safe to format" verdict (U-33, plan 1.2).
+
+        The verdict follows ``core.volumes.format_verdict``: the source must be a removable volume
+        and the Selection on another one; a Selection on the card itself is reported, not blessed.
+        """
+        destination = self.resolve_destination()
+        verdict = format_verdict(
+            self.current_folder, destination.path, self.queued_count, self.remaining_count,
+            self.is_remote_folder,
+        )
         return {
             "kept": self.selected_count,
             "trashed": self.trashed_count,
             "remaining": self.remaining_count,
             "queued": self.queued_count,
-            "safe_to_format": self.queued_count == 0 and self.remaining_count == 0,
+            "selection_path": destination.path,
+            "verdict": verdict,
+            "safe_to_format": verdict == VERDICT_SAFE,
         }
+
+    @property
+    def canvas_state(self) -> str:
+        """Which of the canvas's states applies: ``start``, ``reading``, ``unreadable``, ``empty``,
+        ``done`` or ``photos`` (plan 1.1). Each has its own text; the done screen is the only one
+        that follows a decision."""
+        if self.candidates:
+            return "photos"
+        if self.current_folder is None:
+            return "start"
+        if self.scan_failed:
+            return "unreadable"
+        if self.is_scanning:
+            return "reading"
+        if self.selected_count + self.trashed_count > 0:
+            return "done"
+        return "empty"
 
     def connect(self, signal: str, callback: Callable) -> None:
         """Register callbacks for state changes or notifications."""
@@ -443,7 +479,7 @@ class CullingWorkspaceViewModel:
         for photo in todo:
             self._scoring_inflight[photo.id] = photo
         self._scoring_total += len(todo)
-        self._notify(f"Scoring {len(todo)} photographs…")
+        self._notify(f"Scoring {len(todo)} photos, centre of frame…")
 
         def on_scored(photo: CandidatePhoto, scores: Optional[QualityScores]) -> None:
             self._on_photo_scored(generation, photo, scores)
@@ -490,7 +526,7 @@ class CullingWorkspaceViewModel:
         if anchor is not None and self.current_photo is anchor:
             self.current_index = 0  # not navigated meanwhile: start the sweep at the lowest
         if total:
-            self._notify(f"Scored {total} photographs, lowest sharpness first")
+            self._notify(f"Scored {total} photos, lowest sharpness first")
         self._notify_state_changed()
 
     def _apply_sort_order(self) -> None:
@@ -802,6 +838,11 @@ class CullingWorkspaceViewModel:
                     prefix = f"Could not copy {action.photo.filename}"
                 else:
                     prefix = f"Could not move {action.photo.filename} to Trash"
+                    if "trash failed, rolled back" in str(error):
+                        # The g-io reason belongs in the log; the user gets one plain sentence.
+                        logger.warning("%s: %s", prefix, error)
+                        self._notify("Can't use Trash here. Nothing moved.", "error")
+                        return
                 self._notify(f"{prefix}: {error}", "error")
                 return
 
@@ -813,10 +854,11 @@ class CullingWorkspaceViewModel:
                 record_decision_log(action.kind, action.photo, self.decision_log_path)
 
             if action.generation == self._folder_generation:
-                if action.kind == "move":
-                    self._notify(self._transfer_message("Moved", action, result), "status")
-                elif action.kind == "copy":
-                    self._notify(self._transfer_message("Copied", action, result), "status")
+                if action.kind in ("move", "copy"):
+                    verb = "Moved" if action.kind == "move" else "Copied"
+                    self._notify(
+                        self._transfer_message(verb, action, result, self._first_transfer_place(action)), "status"
+                    )
                 elif action.kind == "trash":
                     self._notify(
                         f"Moved {_name_with_companions(action.photo, result)} to Trash", "status"
@@ -861,21 +903,35 @@ class CullingWorkspaceViewModel:
                 else:
                     self._notify(f"Undid {rec.action_type.value} for {shorten_middle(action.photo.filename)}", "status")
 
+    def _first_transfer_place(self, action: "_QueuedAction") -> Optional[str]:
+        """The full destination, for the first Move or Copy of an opened folder only (plan 1.6);
+        later outcomes keep the short ``Selection/``."""
+        if self._destination_said_generation == action.generation:
+            return None
+        self._destination_said_generation = action.generation
+        shown = display_path(Path(action.folder) / action.selection_folder) + "/"
+        # A long path keeps its start and its end (the folder and the Selection) in the bounded slot.
+        return shown if len(shown) <= MESSAGE_PATH_CHARS else f"{shown[:10]}…{shown[-(MESSAGE_PATH_CHARS - 11):]}"
+
     @staticmethod
-    def _transfer_message(verb: str, action: "_QueuedAction", result: Any) -> str:
+    def _transfer_message(verb: str, action: "_QueuedAction", result: Any, place: Optional[str] = None) -> str:
         """Feedback for a finished Move/Copy (docs/shared/FILE_OPERATIONS.md, feedback templates).
 
         A collision-suffixed bundle says which name it got ("Moved to Selection/ as a-2.jpg (+1
         related)"); a plain transfer keeps the short "Moved a.jpg to Selection/".
         """
         photo = action.photo
+        first = place is not None
+        place = place or f"{action.selection_folder}/"
         pairs = list(getattr(result, "affected_paths", None) or [])
         primary_dst = next((dst for src, dst in pairs if src == photo.primary_path), None)
         if primary_dst is not None and primary_dst.name != photo.name_of(photo.primary_path):
             related = len(pairs) - 1
             suffix = f" (+{related} related)" if related > 0 else ""
-            return f"{verb} to {action.selection_folder}/ as {shorten_middle(primary_dst.name)}{suffix}"
-        return f"{verb} {_name_with_companions(photo, result)} to {action.selection_folder}/"
+            return f"{verb} to {place} as {shorten_middle(primary_dst.name)}{suffix}"
+        if first:  # "Moved to ~/Pictures/Lisbon/Selection/": where, in full; the tooltip has no more to add
+            return f"{verb} to {place}"
+        return f"{verb} {_name_with_companions(photo, result)} to {place}"
 
     @staticmethod
     def _restored_suffixed_name(photo: CandidatePhoto, record: CullingRecord) -> Optional[str]:
@@ -1078,6 +1134,7 @@ class CullingWorkspaceViewModel:
         self.copied_count = 0
         self.trashed_count = 0
         self.is_scanning = True
+        self.scan_failed = False
 
         if threaded:
             requested = folder
@@ -1104,6 +1161,9 @@ class CullingWorkspaceViewModel:
                 daemon=True,
             )
             self._scan_thread = thread
+            # The window already names the folder and shows "Reading <folder>" before the first
+            # photo arrives, instead of "No folder loaded".
+            self._notify_state_changed()
             thread.start()
             return
 
@@ -1124,7 +1184,7 @@ class CullingWorkspaceViewModel:
         if generation != self._folder_generation:
             return
         self.is_scanning = False
-        self._notify(f"Loaded {len(self.candidates)} photographs from {self.current_folder_name}")
+        self._notify(f"Loaded {len(self.candidates)} photos from {self.current_folder_name}")
         if not notified_any:
             self._notify_state_changed()
         self._begin_scoring_pass()
@@ -1149,6 +1209,7 @@ class CullingWorkspaceViewModel:
         if generation != self._folder_generation:
             return False
         self.is_scanning = False
+        self.scan_failed = True
         self._notify(f"Could not read {self.current_folder_name}: {reason}", severity="error")
         self._notify_state_changed()
         return False
@@ -1180,7 +1241,7 @@ class CullingWorkspaceViewModel:
         if generation != self._folder_generation:
             return False
         self.is_scanning = False
-        self._notify(f"Loaded {len(self.candidates)} photographs from {self.current_folder_name}")
+        self._notify(f"Loaded {len(self.candidates)} photos from {self.current_folder_name}")
         self._notify_state_changed()
         self._begin_scoring_pass()
         return False

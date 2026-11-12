@@ -13,7 +13,10 @@ parity on large screens.
 - **Learn** — technique and composition of your own photos, from the scan's facts, with the
   leading lines and visual weight of the photo shown.
 - **Statistics** and **Duplicates** — EXIF charts of the open folder and a finder for byte-identical
-  copies (it never lets you delete the last copy of a photo).
+  copies (it never lets you delete the last copy of a photo). A delete there is held like one in
+  Cull: UNDO brings the copies back until you leave Duplicates.
+- **Scan** — choose which measurements run (focus, noise, highlight and shadow clipping); an
+  unticked one is not computed and shows no value.
 - A Room-backed score cache; ratings are written into the photo (embedded in a JPEG, an `.xmp`
   sidecar beside RAW and TIFF).
 - Interface language: English only for now.

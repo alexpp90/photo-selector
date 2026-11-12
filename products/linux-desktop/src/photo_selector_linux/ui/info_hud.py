@@ -25,6 +25,10 @@ from photo_selector_linux.ui.styling import (
 )
 
 
+#: What the score is (plan 2.3a): the colour of the chip carries the band, the number the measure.
+SCORE_TOOLTIP = "Sharpness of the centre of the frame. Compare frames of one burst, not different scenes."
+
+
 class InfoHUD(Gtk.Box if HAS_GI else object):
     """Floating translucent card displaying optical EXIF strip and quality metrics."""
 
@@ -181,7 +185,7 @@ class InfoHUD(Gtk.Box if HAS_GI else object):
                 ).value
             else:
                 category = photo.scores.focus_category.value
-            self.score_badge_text = f"Focus: {photo.scores.formatted_sharpness} ({category.capitalize()})"
+            self.score_badge_text = f"Sharpness: {photo.scores.formatted_sharpness}"
             self.score_css_class = f"score-badge-{category}"
             self.meter_css_class = f"sharpness-meter-{category}"
             self.clipping_text = (
@@ -219,6 +223,8 @@ class InfoHUD(Gtk.Box if HAS_GI else object):
         if self.score_visible and self.sharpness_goodness is not None:
             self.score_box.set_visible(True)
             self.lbl_score_badge.set_label(self.score_badge_text)
+            self.lbl_score_badge.set_tooltip_text(SCORE_TOOLTIP)
+            self.sharpness_meter.set_tooltip_text(SCORE_TOOLTIP)
             self.lbl_score_badge.set_css_classes([self.score_css_class])
             self.lbl_clipping.set_label(self.clipping_text)
             self.sharpness_meter.set_css_classes(["sharpness-meter-track", self.meter_css_class])

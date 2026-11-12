@@ -2,6 +2,7 @@ package com.photoselectortoolbox.domain.session
 
 import com.photoselectortoolbox.data.model.ImageItem
 import com.photoselectortoolbox.data.model.ScanResult
+import com.photoselectortoolbox.domain.scoring.filledFrom
 
 /**
  * Folding computed scores back into a list that did not stand still.
@@ -34,9 +35,11 @@ object ScoreMerge {
     /**
      * Apply [scores] to [images] by URI, writing only [ImageItem.scanResult].
      *
-     * An image that already has a score keeps it: a scan in flight and a cache
-     * restore can both land on the same photograph, and the one already on
-     * screen is the one the photographer has seen.
+     * An image that already has a score keeps every value it has: a scan in
+     * flight and a cache restore can both land on the same photograph, and the
+     * one already on screen is the one the photographer has seen. Only a
+     * measurement it has no value for is filled in — the one a later scan
+     * measured after an earlier scan left it unticked (REQ-AND-ALGO.07).
      */
     fun apply(
         images: List<ImageItem>,
@@ -44,9 +47,10 @@ object ScoreMerge {
     ): List<ImageItem> {
         if (scores.isEmpty()) return images
         return images.map { image ->
-            if (image.scanResult != null) return@map image
             val score = scores[image.uri] ?: return@map image
-            image.copy(scanResult = score)
+            val existing = image.scanResult ?: return@map image.copy(scanResult = score)
+            val filled = existing.filledFrom(score)
+            if (filled == existing) image else image.copy(scanResult = filled)
         }
     }
 

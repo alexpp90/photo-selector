@@ -21,6 +21,9 @@ PROBLEM_UNSET = "unset"
 PROBLEM_MISSING = "missing"
 PROBLEM_NOT_A_FOLDER = "not_a_folder"
 PROBLEM_NOT_WRITABLE = "not_writable"
+PROBLEM_IS_SELECTION = "is_selection"
+
+SELECTION_MARKER_FILENAME = ".photoselector-selection"
 
 
 def selection_subfolder_name(value: Any) -> str:
@@ -30,6 +33,20 @@ def selection_subfolder_name(value: Any) -> str:
     cleaned = value.strip().rstrip("/\\").strip()
     name = Path(cleaned).name.strip() if cleaned else ""
     return name if name else DEFAULT_SELECTION_NAME
+
+
+def is_selection_folder(folder: Optional[Path], selection_name: Any = None) -> bool:
+    """True when ``folder`` is itself a Selection folder: it carries the marker file the app writes,
+    or it has the Selection name. Filing into it would nest ``Selection/Selection/``, which the
+    scan excludes, so the keeper would seem to vanish."""
+    if folder is None:
+        return False
+    try:
+        if (folder / SELECTION_MARKER_FILENAME).exists():
+            return True
+    except OSError:
+        pass
+    return folder.name == selection_subfolder_name(selection_name)
 
 
 @dataclass(frozen=True)
@@ -88,6 +105,8 @@ def resolve_destination(
         mode = MODE_WORKING
         problem = None
         root = working
+    if problem is None and root is not None and is_selection_folder(root, name):
+        problem = PROBLEM_IS_SELECTION
     return DestinationResolution(
         mode=mode,
         selection_name=name,
@@ -128,11 +147,15 @@ def _problem_text(problem: str, shown: str) -> str:
         return f"Not found: {shown}"
     if problem == PROBLEM_NOT_A_FOLDER:
         return f"Not a folder: {shown}"
+    if problem == PROBLEM_IS_SELECTION:
+        return "This is a Selection folder. Open its parent folder to keep photos."
     return f"Not writable: {shown}"
 
 
 def describe_destination(resolution: DestinationResolution, home: Optional[Path] = None) -> str:
     """The line Settings shows for "where photos go now", from the same resolution Move/Copy use."""
+    if resolution.problem == PROBLEM_IS_SELECTION and resolution.root is not None:
+        return _problem_text(resolution.problem, "")
     if resolution.problem is not None:
         return describe_custom_folder(resolution, home)
     if resolution.path is None:

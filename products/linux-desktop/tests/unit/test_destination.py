@@ -461,3 +461,23 @@ def test_real_widgets_warning_icon_shows_only_for_a_problem(tmp_path: Path):
     dlg.refresh_destination()
     assert not dlg.icon_destination_warning.get_visible()
     assert not dlg.row_destination.has_css_class("error")
+
+
+def test_the_first_move_of_a_folder_names_the_full_destination_once(tmp_path: Path):
+    """Plan 1.6: the first outcome of an opened folder says where the files went, in full; the next
+    ones keep the short ``Selection/``; a new folder says it again."""
+    card = _card(tmp_path)
+    vm, _store = _vm(tmp_path)
+    notes = []
+    vm.connect(
+        "notification",
+        lambda _vm, msg: notes.append(msg) if vm.last_notification_severity == "status" else None,
+    )
+    vm.load_directory(card)
+    assert vm.cull_copy() and vm.cull_copy()
+    assert notes[0].startswith("Copied to ") and notes[0].endswith("Selection/")
+    assert len(notes[0]) <= len("Copied to ") + 34  # bounded: the bar's slot is not wider
+    assert notes[1].startswith("Copied IMG_000") and notes[1].endswith("to Selection/")
+    vm.load_directory(card)
+    assert vm.cull_copy()
+    assert notes[-1].startswith("Copied to ") or "as IMG_" in notes[-1]

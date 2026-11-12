@@ -7,10 +7,15 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 ## [Unreleased]
 
 ### Added
+- The order in use is always visible beside "Photo N of M" (Newest, Oldest, Name or Blurry) as a button that opens the order menu; `S` opens it too.
+- The first Move or Copy after you open a folder says where the photos went, in full ("Moved to ~/Pictures/Lisbon/Selection/"); later ones keep the short form. The **Selected** counter is now a button that opens the Selection folder in the file manager.
+- The start card remembers: the last five folders are listed under **Open Folder…** (a folder that is gone is dimmed and says "Missing"), a folder dropped on the window opens, and the folder dialog starts in the folder you opened last. Settings written by 0.2.0 load unchanged.
+- The canvas says where you are. With no photo to show it draws one card per state: **start** ("Drop a folder" and an **Open Folder…** button), **reading** (a spinner and "Reading <folder>" the moment you choose it, instead of "No folder loaded"), **nothing to cull** ("No photos", or "Can't read folder") and **done**. The window announces "Done. 10 selected, 1 trashed." to screen readers.
+- **Done** screen after the last decision: how many photos were selected and trashed, the full path of the Selection folder (selectable), **Show in Files** and **Open Folder…**, and **Safe to format** when the photos came from a removable card, the Selection is on another volume and nothing is queued; if the Selection sits on the card itself it says "Selection is on this card" and gives no verdict.
 - Preferences > Culling Destination: choose **Working folder** (Selection inside the folder you cull, as before) or a **Custom folder**, and see the full path your photos will go to, updated as you open another folder. A custom folder that is gone or not writable is shown as a warning.
 - **Lowest sharpness first** is in the main menu (View order) and on the **B** key, next to the natural order; the menu shows which one is active.
 
-- **Newest first** is the default view order for new installs, with **Oldest first**, **File name** and **Lowest sharpness first** in the main menu (View order). The choice is remembered; an install that already has settings keeps the file-name order it had. While the folder is still being scanned, the photo on screen stays on screen, and an untouched session shows the newest photo so far. A sort icon beside "Photo N of M" shows any order other than the default.
+- **Newest first** is the default view order for new installs, with **Oldest first**, **File name** and **Lowest sharpness first** in the main menu (View order). The choice is remembered; an install that already has settings keeps the file-name order it had. While the folder is still being scanned, the photo on screen stays on screen, and an untouched session shows the newest photo so far.
 - **Go to photo** (`G`): type a photo's position ("Photo N of M") or part of its file name; the dialog names the target as you type, Enter goes, Escape cancels.
 - Preferences > Scoring has **Stop at sharpness** (0 = off): with lowest sharpness first, the sweep stops at the first photo at or above that score.
 - Escape and Ctrl+W close Library Statistics, Duplicates, Keyboard Shortcuts and Preferences, and the focus returns to the main window. Their scroll areas show a scrollbar, and they are never taller than 90 % of the main window.
@@ -18,6 +23,13 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 - A screen reader announces queued, undone and finished operations and finished folder loads, and the Undo button's spoken name says which action it would undo and how many are available.
 
 ### Changed
+- The info card says what the score is: the chip reads "Sharpness: 40.0" (its colour still carries the band) and its tooltip, like the bar's, says "Sharpness of the centre of the frame. Compare frames of one burst, not different scenes." The lowest-sharpness sweep starts with "Scoring N photos, centre of frame…".
+- One vocabulary on screen: folder, photo, **Sharpness** (was "Focus" on the info card and in Preferences), **Selection**, **Find Duplicates** and **Statistics** (were "Duplicate Finder", "Cryptographic Duplicate Finder (SHA-256)" and "Library Statistics"). 2-Up and 3-Up name their slots ACTIVE, PREVIOUS and NEXT (2-Up no longer says CHAMPION and CHALLENGER).
+- The main menu no longer types its own shortcut hints ("(Ctrl+D)", "(B)"); GTK draws the accelerators. It gains **Info** and **Go to Photo…** rows.
+- A refused Trash reads "Can't use Trash here. Nothing moved." once, in the action bar, with the technical reason in the log only; a failure is no longer repeated as a toast over the photo.
+- The second "N queued" pill in the header, the "ACTIVE" pill in 1-Up and the caption's file name and score while the info card (`I`) is on are gone: each fact is shown once.
+- The README, the AppStream description and the desktop entry no longer promise "SD-card ingestion" or "two or three side by side", and say what the score measures (the centre of the frame, for comparing frames of one burst).
+- Move and Copy in an opened **Selection folder** are refused with a reason ("This is a Selection folder. Open its parent folder to keep photos.") instead of filing into a second `Selection/Selection/` the scan hides. Trash and Undo work as before.
 - Keys follow the shared desk-app map (`docs/shared/KEYBOARD.md`): `F` and `F11` toggle full screen (`Escape` leaves zoom first, then full screen), `S` opens the View order menu. `H` and `L` (navigation) and `B` (sharpness sweep) still work for this release and are marked in the `?` sheet as going away; use `K`/`J` and the View order menu.
 - `B` returns from lowest sharpness first to the order the folder opens in (newest first by default), not always to file-name order.
 - The unused filmstrip and sync-lock handlers are gone. `Tab` stays keyboard focus traversal.

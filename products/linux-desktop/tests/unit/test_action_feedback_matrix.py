@@ -3,7 +3,7 @@
 One table: action x entry path (button, hotkey). Each row runs the action against real files in
 a scratch folder through the real window, its real worker thread and the real main loop, and then
 reads what the user can see: the status text in the action bar, mapped, not ellipsized, naming the
-file and where it went. Errors additionally show one toast naming the cause.
+file and where it went. An error is said once, in the bar, and raises no toast over the photo.
 
 Blitzlens has no star rating and no separate compare/keep step: "Keep" is the Move button
 (M); compare is the 1-Up/2-Up/3-Up switcher, whose feedback is the pressed state (last table).
@@ -48,8 +48,9 @@ ENTRY_PATHS = {
 }
 #: action -> (text that must be in the outcome, ...): the file (with its companion) and the place.
 EXPECTED = {
-    "move": ("Moved DSC_0001.JPG + 1", "Selection/"),
-    "copy": ("Copied DSC_0001.JPG + 1", "Selection/"),
+    # The first Move or Copy of an opened folder says where, in full (plan 1.6): no file name then.
+    "move": ("Moved to ", "Selection/"),
+    "copy": ("Copied to ", "Selection/"),
     "trash": ("Moved DSC_0001.JPG + 1", "Trash"),
 }
 
@@ -98,7 +99,7 @@ def _trigger(win, how):
 
 def _visible_outcome(win, prefix, whole=True):
     """The status text once it starts with ``prefix``: it must also be on screen (whole, or
-    ellipsized with the full text in the tooltip and, for errors, in the toast)."""
+    ellipsized with the full text in the tooltip)."""
     bar = win.action_bar
     assert probe.pump(until=lambda: bar.status_text.startswith(prefix)), (
         f"no outcome starting {prefix!r}; the bar says {bar.status_text!r}"
@@ -139,7 +140,7 @@ def test_undo_shows_what_was_undone(first, undo_path, ui):
 
 
 @pytest.mark.parametrize("path", ["move-button", "move-key-m", "copy-button", "copy-key-c"])
-def test_a_refused_action_says_why_in_the_bar_and_in_a_toast(path, ui, tmp_path):
+def test_a_refused_action_says_why_once_in_the_bar_and_raises_no_toast(path, ui, tmp_path):
     win, root = ui
     win.viewmodel.destination_mode = "custom"
     win.viewmodel.external_destination_root = tmp_path / "no-such-folder"
@@ -152,7 +153,8 @@ def test_a_refused_action_says_why_in_the_bar_and_in_a_toast(path, ui, tmp_path)
         toast = next((w for w in probe.walk(win) if type(w).__name__ == "AdwToastWidget" and w.get_mapped()), None)
         return [w.get_text() for w in probe.walk(toast) if isinstance(w, Gtk.Label)] if toast else []
 
-    assert probe.pump(until=lambda: any(text in t for t in toast_texts())), toast_texts()
+    probe.pump(seconds=0.6)  # a toast, if one were raised, would be mapped by now
+    assert not any(text in t for t in toast_texts()), "the failure must not be said a second time as a toast"
 
 
 @pytest.mark.parametrize(
@@ -175,9 +177,59 @@ def test_the_matrix_covers_every_action_button_of_the_bar(ui):
     """A new action button must get a row: every button of the bar is named in the table."""
     win, _root = ui
     in_table = {target for kind, target in list(ENTRY_PATHS.values()) if kind == "button"} | {"btn_undo"}
+    in_table |= {"btn_selected"}  # its row: test_the_selected_pill_opens_the_selection_folder
     buttons = {
         w.get_name()
         for w in probe.walk(win.action_bar)
         if isinstance(w, Gtk.Button) and w.get_name().startswith("btn_")
     }
     assert buttons == in_table, f"action buttons without a feedback row: {sorted(buttons - in_table)}"
+
+
+# ── Plan 0.5: a fact is shown in one place ───────────────────────────────────────────────────
+
+
+def _label_texts(win):
+    return [w.get_text() for w in probe.walk(win) if isinstance(w, Gtk.Label) and w.get_mapped()]
+
+
+def test_the_queue_count_lives_in_the_action_bar_not_in_the_header(ui):
+    win, _root = ui
+    assert not hasattr(win, "lbl_queue"), "the header has no second 'N queued' pill"
+    assert hasattr(win.action_bar, "lbl_queue")
+
+
+def test_one_up_has_no_active_pill_and_two_up_names_active_and_next(ui):
+    win, _root = ui
+    win.viewmodel.set_comparison_mode(1)
+    probe.pump(seconds=0.3)
+    assert "ACTIVE" not in _label_texts(win)
+    win.viewmodel.set_comparison_mode(2)
+    probe.pump(seconds=0.3)
+    texts = _label_texts(win)
+    assert "ACTIVE" in texts and "NEXT" in texts and "CHAMPION" not in texts
+
+
+def test_the_caption_repeats_neither_name_nor_score_while_the_info_card_is_on(ui):
+    win, _root = ui
+    canvas = win.canvas_view
+    probe.pump(seconds=0.3)
+    assert canvas.hud_enabled and canvas._active_footer.get_opacity() == 0.0
+    canvas.toggle_hud()  # I: card off, so the caption names the photo
+    assert canvas._active_footer.get_opacity() == 1.0
+    canvas.toggle_hud()
+    assert canvas._active_footer.get_opacity() == 0.0
+
+
+def test_the_selected_pill_opens_the_selection_folder(ui):
+    """Plan 1.6: the pill is a button, named for what it opens; it is dead until something is selected."""
+    win, _root = ui
+    opened = []
+    win.action_bar.on_open_selection = lambda: opened.append(1)
+    button = win.action_bar.btn_selected
+    assert button.get_tooltip_text() == "Open Selection"
+    assert not button.get_sensitive()
+    _trigger(win, ENTRY_PATHS["copy-button"])
+    assert probe.pump(until=button.get_sensitive)
+    button.emit("clicked")
+    assert opened == [1]
