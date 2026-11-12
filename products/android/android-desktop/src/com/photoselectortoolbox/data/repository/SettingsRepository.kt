@@ -277,6 +277,26 @@ class SettingsRepository @Inject constructor(
         }
     }
 
+    /**
+     * The folder [tool] has open, a durable grant holder like the cull's (REQ-AND-PLATFORM.06):
+     * the grant stays through reference syncs and the startup reconcile while the screen uses
+     * it. The folder it had open before is released unless another holder still references it.
+     */
+    suspend fun setToolFolderUri(tool: ToolFolder, uri: String) {
+        var previousUri: String? = null
+        var referencedAfter: Map<FolderAccessPurpose, Set<String>> = emptyMap()
+        context.dataStore.edit { prefs ->
+            previousUri = prefs[tool.key]
+            prefs[tool.key] = uri
+            referencedAfter = referencedUrisByPurpose(prefs)
+        }
+        folderAccessManager.syncReferences(referencedAfter)
+        val old = previousUri
+        if (old != null && old != uri) {
+            folderAccessManager.releaseIfUnreferenced(old, referencedAfter.values.flatten().toSet())
+        }
+    }
+
     suspend fun setAnalysisThreadCount(count: Int) {
         context.dataStore.edit { prefs ->
             prefs[KEY_ANALYSIS_THREAD_COUNT] = count.coerceIn(1, 4)
@@ -517,10 +537,10 @@ class SettingsRepository @Inject constructor(
     }
 
     internal fun referencedUrisByPurpose(prefs: Preferences): Map<FolderAccessPurpose, Set<String>> {
-        val source = prefs[KEY_LAST_FOLDER_URI]
-            ?.takeUnless { it.startsWith(RETIRED_DRIVE_SCHEME) }
-            ?.let(::setOf)
-            .orEmpty()
+        // The cull's folder and the folder each tool screen (Dupes, Stats) has open.
+        val source = (listOfNotNull(prefs[KEY_LAST_FOLDER_URI]) + ToolFolder.entries.mapNotNull { prefs[it.key] })
+            .filterNot { it.startsWith(RETIRED_DRIVE_SCHEME) }
+            .toSet()
         // The custom destination Copy and Move read, and the legacy key Settings wrote before
         // it existed (left in place, so a grant taken then is not dropped by an upgrade).
         val selection = listOfNotNull(prefs[KEY_CUSTOM_SELECTION_DESTINATION_URI], prefs[KEY_PHONE_COLLECTION_URI])
