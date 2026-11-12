@@ -207,15 +207,19 @@ Four top-level destinations, reached from a persistent **NavigationRail** on the
 
 | # | Destination | Purpose | Share of session |
 |---|---|---|---|
-| 1 | **Selector** | The culling workspace. Default destination. | ~95% |
-| 2 | **Statistics** | EXIF distribution charts for the loaded folder. | small |
-| 3 | **Duplicates** | Byte-identical file finder (SHA-256) with batch delete. | small |
-| 4 | **Settings** | Where photos go, analysis, display, cache, about. | rare |
+| 1 | **Cull** | The culling workspace. Default destination. | ~95% |
+| 2 | **Stats** | EXIF distribution charts for the loaded folder. | small |
+| 3 | **Dupes** | Byte-identical file finder (SHA-256) with batch delete. | small |
+| 4 | **Setup** | Where photos go, analysis, display, cache, about. | rare |
+
+Each screen has one name on every surface — the sidebar, the rail, the bottom bar, the guide and
+spoken text: Cull, Learn, Stats, Dupes, Setup (`Screen.label`). The burst feature is **Bursts**
+everywhere, the Setup switch included.
 
 ### Session-level actions
 
 Open Folder (system folder picker) · Scan Images · Cancel Scan ·
-Clear Scores · Group Similar Series · Score legend.
+Clear Scores · Bursts · Score legend.
 
 ### Per-image actions
 
@@ -223,8 +227,20 @@ Move to Selection · Copy to Selection · Delete · Open Fullscreen.
 
 "Selection" is a destination subfolder — default name `Selection`, configurable — created
 inside the source folder. A delete and a move are undoable for as long as they stay on the
-20-deep stack (`Ctrl+Z`, or the card's UNDO), which is until the folder is left; their cards
-leave after about 4 seconds and draw no countdown, because nothing has a deadline.
+20-deep stack (`Ctrl+Z`, the card's UNDO, or **Undo** — the first row of the More menu, with
+`Ctrl+Z` and the steps left at its end, disabled at 0), which is until the folder is left; their
+cards leave after about 4 seconds and draw no countdown, because nothing has a deadline.
+
+Move, Copy and Delete each advance to the next frame. A photo copied in this session carries the
+**copied mark**: a filled copy glyph in `ScoreGood` on a dark plate, 28 dp at the top-start corner
+of its frame (top-end when maximised, where the info panel is) and 16 dp at the top-start of its
+filmstrip tile; never a control, never over a badge or a value overlay. A second Copy of it
+writes nothing and the card says "Already copied".
+
+The More menu is one list in every layout: the sidebar's More (Expanded, Medium) and, on
+Compact, a 48 dp `MoreVert` button at the end of the action row, after Delete and off the photo.
+Rows: Undo · Open folder · Scan images · the Sort radio group · Go to photo… · Clear scores ·
+Shortcuts and guide (not on Compact, which has no guide).
 
 ### Persistent state the design must reflect
 
@@ -1005,6 +1021,7 @@ The reasoning worth keeping, all of it now folded into §7:
 | Folder open, unscanned | Frames visible; the readout block shows one dashed **"Not scanned"** row and the neighbour overlays are suppressed entirely; the sidebar's Scan item emphasised. |
 | Scanning | Sidebar counter plus the 2 dp determinate line; scores populate progressively, no blocker. |
 | Folder empty | Centred card: **"No photos here"** with `[Open folder]`. |
+| Folder done (this session filed or deleted every photo) | Centred **Done** card: a ✓ in `ScoreGood` and "Done"; one cell per non-zero count — glyph, number, one word (Moved, Copied, Deleted); the Selection path when something was kept; `[Open folder]`. One polite announcement ("Done. 12 moved, 3 deleted."). Gone on Undo or a folder open. Next on the last frame shows the card "Last photo". |
 
 ---
 
@@ -1048,6 +1065,14 @@ sized to its content, never a bar across it.
 | Double-tap | Toggle fit ↔ 100% |
 | Horizontal swipe | Previous / next image |
 | Swipe down | Dismiss |
+
+**Keyboard and pointer zoom** (one zoom for the viewer, kept across pages): `Space` toggles
+fit ↔ 100 %; the mouse wheel zooms at the pointer, 1.25× a notch; a drag or `Shift` + arrows
+(20 % of the window a press) pans while zoomed; `←` / `→` keep the zoom and the pan; `Esc`
+leaves the zoom before the viewer. While zoomed, bottom-right, a pill with the zoom as a share
+of 1:1 (`100 %`, Zinc-900 at 90 %, 1 dp Zinc-700 outline) sits above the navigator thumbnail.
+The maximised frame (§7.3) takes `Space`, a drag and `Shift` + `←` / `→` the same way, clipped
+to its own bounds; a swipe there steps only while it is not zoomed.
 | `Esc` | Exit fullscreen |
 | `← / →` | Previous / next image |
 | `M` / `C` / `Del` | Move / copy / delete the current frame |

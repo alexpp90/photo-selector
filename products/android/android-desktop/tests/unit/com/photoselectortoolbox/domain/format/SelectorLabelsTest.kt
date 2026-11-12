@@ -86,10 +86,11 @@ class SelectorLabelsTest {
     }
 
     @Test
-    fun `delete confirmation message states permanent commit and 20-step Ctrl+Z undo`() {
+    fun `delete confirmation message states the folder-commit boundary and names no key`() {
         val msg = SelectorLabels.deleteConfirmationMessage("DSC001.JPG")
+        // Touch has the More menu's Undo, so the dialog promises nothing only a keyboard can do.
         assertEquals(
-            "Delete \"DSC001.JPG\"? Deletions in this folder are permanent once committed. You can undo up to 20 actions with Ctrl+Z until you leave the folder.",
+            "Delete \"DSC001.JPG\"? Undo works until you leave the folder, then it is permanent.",
             msg,
         )
     }

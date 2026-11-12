@@ -34,7 +34,7 @@ enum class SidebarAction(
     ),
     BURSTS(
         label = "Bursts",
-        description = "Group Similar Series, on/off",
+        description = "Bursts, on/off",
         meaning = "Mark frames shot seconds apart as one series.",
     ),
     LEGEND(
@@ -45,6 +45,6 @@ enum class SidebarAction(
     MORE(
         label = "More",
         description = "More options",
-        meaning = "The rest — open a folder, rescan, settings.",
+        meaning = "Undo, open folder, scan, sort, go to, guide.",
     ),
 }

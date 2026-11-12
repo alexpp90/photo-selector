@@ -231,6 +231,8 @@ enum class SelectorShortcut(val input: String) {
     SORT("S"),
     LEARN("L"),
     UNDO("Ctrl+Z"),
+    ZOOM("Space"),
+    PAN("Shift ← →"),
     ESCAPE("Esc"),
     SHORTCUTS("?");
 
@@ -253,7 +255,9 @@ enum class SelectorShortcut(val input: String) {
         SORT -> "choose the sort order"
         LEARN -> "open Learn"
         UNDO -> "undo the last delete or move"
-        ESCAPE -> "leave fullscreen or maximised, close a sheet"
+        ZOOM -> "fit or 100 % (enlarged frame, fullscreen)"
+        PAN -> "pan while zoomed"
+        ESCAPE -> "leave the zoom, fullscreen or maximised; close a sheet"
         SHORTCUTS -> "show this guide"
     }
 }

@@ -194,6 +194,7 @@ fun fitImageRepository(): ImageRepository = mockk(relaxed = true) {
     every { canTrash(any()) } returns true
     coEvery { getExifData(any(), any()) } returns fitExif
     coEvery { resolveDimensions(any(), any()) } returns emptyMap<String, ImageDimensions>()
+    coEvery { selectionFolder(any(), any()) } returns null
 }
 
 /**

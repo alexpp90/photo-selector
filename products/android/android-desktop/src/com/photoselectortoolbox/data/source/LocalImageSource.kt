@@ -231,9 +231,18 @@ class LocalImageSourceImpl @Inject constructor(
         }
     }
 
-    /** The tree document id of a `content://…/tree/<id>` URI, or null. */
+    /**
+     * The document id of the folder [treeUri] names: the document of a `…/tree/<t>/document/<d>`
+     * URI (a folder inside a granted tree, as *Open Selection* opens it), else the tree's own of
+     * a `…/tree/<t>` URI; null for neither.
+     */
     private fun treeDocumentIdOf(treeUri: Uri): String? = try {
-        DocumentsContract.getTreeDocumentId(treeUri)
+        val segments = treeUri.pathSegments
+        if (segments.size >= 4 && segments[0] == "tree" && segments[2] == "document") {
+            DocumentsContract.getDocumentId(treeUri)
+        } else {
+            DocumentsContract.getTreeDocumentId(treeUri)
+        }
     } catch (e: Exception) {
         Log.w(TAG, "Not a tree URI: $treeUri", e)
         null

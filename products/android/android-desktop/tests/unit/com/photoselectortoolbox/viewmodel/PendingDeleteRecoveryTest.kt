@@ -194,8 +194,8 @@ class PendingDeleteRecoveryTest {
      */
     private suspend fun deleteNowAfterRestart(expectMessage: Boolean): String? {
         // The relaunch is tested without reopening the last folder: that path is not under test
-        // here, and with this warm in-process DataStore it reopens the folder inside the
-        // constructor (see the hand-back note on SelectorViewModel's init order).
+        // here (with this warm in-process DataStore it reopens the folder inside the
+        // constructor; `SelectorViewModelRelaunchTest` covers it).
         settings.setLastFolderUri(null)
         val viewModel = newViewModel()
         viewModel.uiState.first { it.uncompletedDeletionsPrompt != null }

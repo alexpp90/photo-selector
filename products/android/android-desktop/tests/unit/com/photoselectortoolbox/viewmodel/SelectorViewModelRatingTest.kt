@@ -255,13 +255,13 @@ class SelectorViewModelRatingTest {
         assertEquals(1, state.filteredPosition)
 
         // Then navigateNext steps to next matching (c.jpg)
-        viewModel.navigateNext()
+        viewModel.navigateNextInLearn()
         assertEquals("c.jpg", viewModel.uiState.value.currentImage?.fileName)
         assertEquals(2, viewModel.uiState.value.filteredPosition)
     }
 
     @Test
-    fun `navigateNext and navigatePrevious step strictly through filtered images`() = runTest {
+    fun `Learn steps strictly through the photos its filter shows`() = runTest {
         val viewModel = loadFolder(
             image("img0.jpg", rating = 5),
             image("img1.jpg", rating = 1),
@@ -277,23 +277,23 @@ class SelectorViewModelRatingTest {
         assertEquals("img0.jpg", viewModel.uiState.value.currentImage?.fileName)
 
         // Navigate next -> should skip img1.jpg and go directly to img2.jpg
-        viewModel.navigateNext()
+        viewModel.navigateNextInLearn()
         assertEquals("img2.jpg", viewModel.uiState.value.currentImage?.fileName)
 
         // Navigate next -> should skip img3.jpg and go to img4.jpg
-        viewModel.navigateNext()
+        viewModel.navigateNextInLearn()
         assertEquals("img4.jpg", viewModel.uiState.value.currentImage?.fileName)
 
         // End of list: navigate next should remain at img4.jpg
-        viewModel.navigateNext()
+        viewModel.navigateNextInLearn()
         assertEquals("img4.jpg", viewModel.uiState.value.currentImage?.fileName)
 
         // Navigate previous -> should go back to img2.jpg
-        viewModel.navigatePrevious()
+        viewModel.navigatePreviousInLearn()
         assertEquals("img2.jpg", viewModel.uiState.value.currentImage?.fileName)
 
         // Navigate previous -> should go back to img0.jpg
-        viewModel.navigatePrevious()
+        viewModel.navigatePreviousInLearn()
         assertEquals("img0.jpg", viewModel.uiState.value.currentImage?.fileName)
     }
 

@@ -47,6 +47,8 @@ import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.receiveAsFlow
 import kotlinx.coroutines.test.UnconfinedTestDispatcher
+import com.photoselectortoolbox.ui.fit.installNoImageLoader
+import com.photoselectortoolbox.ui.fit.removeNoImageLoader
 import kotlinx.coroutines.test.resetMain
 import kotlinx.coroutines.test.setMain
 import org.junit.After
@@ -124,6 +126,9 @@ class SelectorScreenLocatorTest {
 
     @Before
     fun setUp() {
+        // No decoding: a real Coil request completes off the main thread under setMain and
+        // failed these tests under load (backlog 2026-11-11, Coil removeObserver flake).
+        installNoImageLoader(ApplicationProvider.getApplicationContext())
         Dispatchers.setMain(testDispatcher)
         every { imageRepository.discoverImages(any()) } returns discovery.receiveAsFlow()
         viewModel = SelectorViewModel(
@@ -160,6 +165,7 @@ class SelectorScreenLocatorTest {
 
     @After
     fun tearDown() {
+        removeNoImageLoader()
         appScope.cancel()
         viewModel.viewModelScope.cancel()
         Dispatchers.resetMain()

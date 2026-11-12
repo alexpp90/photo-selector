@@ -126,13 +126,12 @@ object SelectionActionLabels {
     }
 
     /**
-     * Whether the frame advances after this action.
-     *
-     * A moved frame is finished with; a copied one may still be worth comparing
-     * against its neighbours. That asymmetry is the culling loop, so it is
-     * stated here rather than rediscovered at each call site.
+     * Whether the frame advances after this action: both do (backlog 2026-11-11). One key per
+     * decision is the culling loop; a copied frame becomes the Previous frame, still there to
+     * compare, and carries the copied mark (`SelectorStepping.afterCopy`).
      */
-    fun advancesAfter(action: FilingAction): Boolean = action == FilingAction.MOVE
+    @Suppress("UNUSED_PARAMETER")
+    fun advancesAfter(action: FilingAction): Boolean = true
 
     private fun labelFor(
         action: FilingAction,

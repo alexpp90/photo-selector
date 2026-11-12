@@ -182,8 +182,8 @@ class RatingNavigationStressTest {
         }
 
         // Navigation should be no-ops
-        viewModel.navigateNext()
-        viewModel.navigatePrevious()
+        viewModel.navigateNextInLearn()
+        viewModel.navigatePreviousInLearn()
         viewModel.navigateToImage(0)
         viewModel.navigateToImage(5)
 
@@ -212,9 +212,9 @@ class RatingNavigationStressTest {
         assertEquals(0, state.currentIndex)
 
         // Navigating when no matches exist should be a safe no-op
-        viewModel.navigateNext()
+        viewModel.navigateNextInLearn()
         assertEquals(0, viewModel.uiState.value.currentIndex)
-        viewModel.navigatePrevious()
+        viewModel.navigatePreviousInLearn()
         assertEquals(0, viewModel.uiState.value.currentIndex)
 
         // User rates the current image to 5 stars
@@ -298,36 +298,36 @@ class RatingNavigationStressTest {
         assertEquals(1, viewModel.uiState.value.filteredPosition)
 
         // Leap to m4.jpg
-        viewModel.navigateNext()
+        viewModel.navigateNextInLearn()
         assertEquals(4, viewModel.uiState.value.currentIndex)
         assertEquals("m4.jpg", viewModel.uiState.value.currentImage?.fileName)
         assertEquals(2, viewModel.uiState.value.filteredPosition)
 
         // Leap to m6.jpg
-        viewModel.navigateNext()
+        viewModel.navigateNextInLearn()
         assertEquals(6, viewModel.uiState.value.currentIndex)
         assertEquals("m6.jpg", viewModel.uiState.value.currentImage?.fileName)
         assertEquals(3, viewModel.uiState.value.filteredPosition)
 
         // End of list: navigateNext stays at m6.jpg
-        viewModel.navigateNext()
+        viewModel.navigateNextInLearn()
         assertEquals(6, viewModel.uiState.value.currentIndex)
         assertEquals(3, viewModel.uiState.value.filteredPosition)
 
         // Leap back to m4.jpg
-        viewModel.navigatePrevious()
+        viewModel.navigatePreviousInLearn()
         assertEquals(4, viewModel.uiState.value.currentIndex)
         assertEquals("m4.jpg", viewModel.uiState.value.currentImage?.fileName)
         assertEquals(2, viewModel.uiState.value.filteredPosition)
 
         // Leap back to m0.jpg
-        viewModel.navigatePrevious()
+        viewModel.navigatePreviousInLearn()
         assertEquals(0, viewModel.uiState.value.currentIndex)
         assertEquals("m0.jpg", viewModel.uiState.value.currentImage?.fileName)
         assertEquals(1, viewModel.uiState.value.filteredPosition)
 
         // Start of list: navigatePrevious stays at m0.jpg
-        viewModel.navigatePrevious()
+        viewModel.navigatePreviousInLearn()
         assertEquals(0, viewModel.uiState.value.currentIndex)
         assertEquals(1, viewModel.uiState.value.filteredPosition)
     }
