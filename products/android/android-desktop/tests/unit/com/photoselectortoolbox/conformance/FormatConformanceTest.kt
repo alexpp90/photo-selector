@@ -135,6 +135,38 @@ class FormatConformanceTest {
         assertFalse(ImageFormats.isSupported("README"))
     }
 
+    // ── Hang guard ────────────────────────────────────────────────────────
+
+    @Test
+    fun `a hung display call fails within its bound and names the sample`() {
+        val started = System.nanoTime()
+        val error = try {
+            BoundedCall.run("display of cr3-canon", timeoutMs = 300) { kotlinx.coroutines.awaitCancellation() }
+            null
+        } catch (e: AssertionError) {
+            e
+        }
+        val elapsedMs = (System.nanoTime() - started) / 1_000_000
+
+        assertTrue("the hang was not reported", error != null)
+        assertTrue(error!!.message, error.message!!.startsWith("display of cr3-canon did not finish"))
+        assertTrue("took $elapsedMs ms", elapsedMs < 10_000)
+    }
+
+    @Test
+    fun `a call that ignores cancellation still releases the test thread`() {
+        val error = try {
+            // Blocking, not suspending: what a native decode that never returns looks like.
+            BoundedCall.run("display of arw-sony", timeoutMs = 300) { while (true) Thread.sleep(50) }
+            null
+        } catch (e: AssertionError) {
+            e
+        }
+
+        assertTrue(error?.message.orEmpty(), error?.message.orEmpty().contains("display of arw-sony"))
+        assertTrue(error?.message.orEmpty(), error?.message.orEmpty().contains("Call thread: "))
+    }
+
     // ── b./c. Samples ─────────────────────────────────────────────────────
 
     @Test
@@ -202,7 +234,9 @@ class FormatConformanceTest {
             } else {
                 val uri = Uri.parse(targetFile.uri)
                 row[Cap.DISPLAY] = capture {
-                    val result = runBlocking {
+                    // Off the Robolectric main thread and bounded: a hung decode fails naming the
+                    // sample instead of holding the whole unit run (backlog 2026-11-11).
+                    val result = BoundedCall.run("display of ${s.id}", BoundedCall.DISPLAY_TIMEOUT_MS) {
                         loader.execute(ImageRequest.Builder(context).data(targetFile.uri).size(1024).build())
                     }
                     val bmp = ((result as? SuccessResult)?.drawable as? BitmapDrawable)?.bitmap
