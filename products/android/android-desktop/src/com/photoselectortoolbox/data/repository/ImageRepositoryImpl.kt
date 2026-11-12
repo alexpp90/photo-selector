@@ -26,6 +26,7 @@ import com.photoselectortoolbox.data.model.FolderDescription
 import com.photoselectortoolbox.data.model.ImageDimensions
 import com.photoselectortoolbox.data.model.ImageItem
 import com.photoselectortoolbox.data.source.LocalImageSource
+import com.photoselectortoolbox.di.IoDispatcher
 import com.photoselectortoolbox.domain.curation.DestinationSettings
 import com.photoselectortoolbox.domain.curation.FileIdentity
 import com.photoselectortoolbox.domain.curation.FolderKey
@@ -36,7 +37,6 @@ import javax.inject.Inject
 import javax.inject.Singleton
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineDispatcher
-import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.firstOrNull
@@ -50,6 +50,7 @@ class ImageRepositoryImpl @Inject constructor(
     private val mediaStoreReader: MediaStoreReader,
     private val settingsRepository: SettingsRepository,
     private val folderAccessManager: FolderAccessManager,
+    @IoDispatcher ioDispatcher: CoroutineDispatcher,
 ) : ImageRepository {
 
     constructor(
@@ -57,12 +58,14 @@ class ImageRepositoryImpl @Inject constructor(
         androidExifReader: AndroidExifReader,
         mediaStoreReader: MediaStoreReader,
         settingsRepository: SettingsRepository,
+        ioDispatcher: CoroutineDispatcher,
     ) : this(
         localImageSource = localImageSource,
         androidExifReader = androidExifReader,
         mediaStoreReader = mediaStoreReader,
         settingsRepository = settingsRepository,
         folderAccessManager = FolderAccessManager(),
+        ioDispatcher = ioDispatcher,
     )
 
     companion object {
@@ -153,11 +156,15 @@ class ImageRepositoryImpl @Inject constructor(
     internal val engine = SafTransferEngine(SUBFOLDER_RULE, TRANSFER_POLICY)
 
     /** Dispatcher for the repository's own I/O; setting it also sets the engine's (tests). */
-    internal var ioDispatcher: CoroutineDispatcher = Dispatchers.IO
+    internal var ioDispatcher: CoroutineDispatcher = ioDispatcher
         set(value) {
             field = value
             engine.ioDispatcher = value
         }
+
+    init {
+        engine.ioDispatcher = ioDispatcher
+    }
 
     /**
      * Persist the grant, then confirm the folder resolves and still exists.

@@ -2,6 +2,7 @@ package com.photoselectortoolbox.domain.grouping
 
 import android.content.Context
 import io.mockk.mockk
+import kotlinx.coroutines.Dispatchers
 import org.junit.Assert.*
 import org.junit.Test
 import org.junit.runner.RunWith
@@ -17,7 +18,7 @@ import org.robolectric.annotation.Config
 class ImageGrouperTest {
 
     private val context: Context = mockk(relaxed = true)
-    private val grouper = ImageGrouper(context)
+    private val grouper = ImageGrouper(context, Dispatchers.IO)
 
     // --- extractNamePrefix tests ---
 

@@ -8,12 +8,19 @@ import org.junit.Test
  * The use cases keep the two coroutine rules the view models keep (`ViewModelHygieneTest`),
  * read from their sources (backlog 2026-10-22, FD-Q-12):
  * - a catch-all rethrows cancellation first (invariant "cancellation is not an error");
- * - no literal `Dispatchers.*`: the dispatchers are injected (`di/CoroutineModule`).
+ * - no literal `Dispatchers.*`: the dispatchers are injected (`di/CoroutineModule`). This rule
+ *   covers the whole data and domain layers (`data/`, `domain/`; sweep follow-up 2026-11-11), so
+ *   a test can hand every repository, source, writer and detector a `TestDispatcher`.
  */
 class UseCaseHygieneTest {
 
     private fun sources() =
         File("src/com/photoselectortoolbox/domain/usecase").listFiles { f -> f.extension == "kt" }!!.toList()
+
+    /** Every Kotlin source of the data and domain layers. */
+    private fun layerSources() = listOf("data", "domain").flatMap { layer ->
+        File("src/com/photoselectortoolbox/$layer").walkTopDown().filter { it.isFile && it.extension == "kt" }.toList()
+    }
 
     private fun lineOf(source: String, index: Int) = source.substring(0, index).count { it == '\n' } + 1
 
@@ -36,9 +43,10 @@ class UseCaseHygieneTest {
     }
 
     @Test
-    fun `no use case names a literal dispatcher`() {
+    fun `no data or domain class names a literal dispatcher`() {
+        assertTrue(layerSources().any { it.name == "MetadataWriter.kt" })
         val bad = mutableListOf<String>()
-        sources().forEach { file ->
+        layerSources().forEach { file ->
             file.readLines().forEachIndexed { i, line ->
                 val code = line.trimStart()
                 if (Regex("""\bDispatchers\.(IO|Default|Main|Unconfined)\b""").containsMatchIn(line) &&

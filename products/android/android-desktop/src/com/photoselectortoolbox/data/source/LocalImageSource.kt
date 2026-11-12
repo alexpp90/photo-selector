@@ -9,12 +9,13 @@ import android.util.Log
 import com.photoselectortoolbox.data.model.CompanionFile
 import com.photoselectortoolbox.data.model.ImageDimensions
 import com.photoselectortoolbox.data.model.ImageItem
+import com.photoselectortoolbox.di.IoDispatcher
 import com.photoselectortoolbox.domain.format.ImageFormats
 import dagger.hilt.android.qualifiers.ApplicationContext
 import javax.inject.Inject
 import javax.inject.Singleton
 import kotlin.coroutines.coroutineContext
-import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.ensureActive
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.flow
@@ -43,7 +44,8 @@ interface LocalImageSource {
 
 @Singleton
 class LocalImageSourceImpl @Inject constructor(
-    @ApplicationContext private val context: Context
+    @ApplicationContext private val context: Context,
+    @IoDispatcher private val ioDispatcher: CoroutineDispatcher,
 ) : LocalImageSource {
 
     private val bitmapDecoder = PhotoBitmapDecoder(context)
@@ -182,11 +184,11 @@ class LocalImageSourceImpl @Inject constructor(
         // Final snapshot — always emitted, so a consumer that only reads the
         // last value (statistics, duplicates) still sees the complete folder.
         emit(published.toList())
-    }.flowOn(Dispatchers.IO)
+    }.flowOn(ioDispatcher)
 
     override suspend fun resolveDimensions(
         uris: Collection<String>
-    ): Map<String, ImageDimensions> = withContext(Dispatchers.IO) {
+    ): Map<String, ImageDimensions> = withContext(ioDispatcher) {
         val resolved = LinkedHashMap<String, ImageDimensions>(uris.size)
         for (uri in uris) {
             coroutineContext.ensureActive()

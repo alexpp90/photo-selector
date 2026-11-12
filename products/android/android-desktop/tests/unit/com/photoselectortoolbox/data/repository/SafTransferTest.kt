@@ -376,8 +376,8 @@ class SafTransferTest {
             androidExifReader = AndroidExifReader(),
             mediaStoreReader = MediaStoreReader(),
             settingsRepository = settingsRepository,
+            ioDispatcher = UnconfinedTestDispatcher(),
         )
-        repository.ioDispatcher = UnconfinedTestDispatcher()
     }
 
     @After
@@ -432,7 +432,8 @@ class SafTransferTest {
         androidExifReader = AndroidExifReader(),
         mediaStoreReader = MediaStoreReader(),
         settingsRepository = settings,
-    ).also { it.ioDispatcher = UnconfinedTestDispatcher() }
+        ioDispatcher = UnconfinedTestDispatcher(),
+    )
 
     private fun treeUriOf(relativePath: String): Uri = DocumentsContract.buildTreeDocumentUri(
         FakeSafDocumentsProvider.AUTHORITY,

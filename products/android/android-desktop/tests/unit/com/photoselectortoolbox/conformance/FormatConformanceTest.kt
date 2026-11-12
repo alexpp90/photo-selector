@@ -159,7 +159,8 @@ class FormatConformanceTest {
         val loader = PhotoImageLoader.build(context)
         val decoder = PhotoBitmapDecoder(context)
         val repository = ImageRepositoryImpl(
-            LocalImageSourceImpl(context), AndroidExifReader(), MediaStoreReader(), mockk(relaxed = true),
+            LocalImageSourceImpl(context, Dispatchers.IO), AndroidExifReader(), MediaStoreReader(), mockk(relaxed = true),
+            Dispatchers.IO,
         )
         val sampleJpeg = File(FormatManifest.repoRoot, "testdata/formats/bitmaps/sample.jpg")
 
@@ -176,7 +177,7 @@ class FormatConformanceTest {
 
             val row = linkedMapOf<Cap, List<String>>()
             val discovered: List<ImageItem> = try {
-                runBlocking { LocalImageSourceImpl(context).discoverImages(treeUri).last() }
+                runBlocking { LocalImageSourceImpl(context, Dispatchers.IO).discoverImages(treeUri).last() }
             } catch (t: Throwable) {
                 emptyList()
             }

@@ -425,7 +425,7 @@ class SelectorViewModel @Inject constructor(
     private val cacheRepository: CacheRepository,
     private val settingsRepository: SettingsRepository,
     private val scoreDao: ScoreDao,
-    private val metadataWriter: MetadataWriter = MetadataWriterImpl(),
+    private val metadataWriter: MetadataWriter = MetadataWriterImpl(Dispatchers.IO),
     @ApplicationScope private val appScope: CoroutineScope,
     @ApplicationContext private val context: Context
 ) : ViewModel() {
@@ -540,7 +540,7 @@ class SelectorViewModel @Inject constructor(
     private var workQueue = WorkQueueState()
     private var pendingGroupingLevel: GroupingLevel = GroupingLevel.TIME_FILENAME
 
-    private val imageGrouper = ImageGrouper(context)
+    private val imageGrouper = ImageGrouper(context, ioDispatcher)
 
     init {
         // While the undo history holds entries, the folder they operate on keeps its SAF grant even
