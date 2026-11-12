@@ -23,6 +23,16 @@ PRODUCT_WORKFLOWS = {"desktop.yml": "desktop", "android.yml": "android", "macos.
 ALL_FLAGS = set(PRODUCT_WORKFLOWS.values())
 
 
+def changes_filter_paths(text: str) -> list[str]:
+    """The pull-request path list: ``relevant:`` of the ``changes`` job's paths-filter.
+
+    ``on.pull_request.paths`` would leave a required check pending on a PR the filter skips, so
+    the list moved into the ``changes`` job (``test_required_checks.py``).
+    """
+    match = re.search(r"(?m)^          filters: \|\n            relevant:\n((?:              - .*\n)+)", text)
+    return [m.group(1) for m in re.finditer(r"- '?([^'\n]+)'?", match.group(1))] if match else []
+
+
 def trigger_paths(text: str, event: str) -> list[str]:
     """The ``paths:`` list of ``on.<event>`` ("" entries never occur)."""
     paths: list[str] = []
@@ -111,12 +121,13 @@ class CiMirrorTest(unittest.TestCase):
         selected = set().union(*(flags for _, flags in self.arms))
         self.assertTrue(ALL_FLAGS | {"cross"} <= selected, selected)
 
-    def test_push_and_pull_request_filters_are_identical(self):
+    def test_push_filter_and_pull_request_changes_filter_are_identical(self):
         for name in PRODUCT_WORKFLOWS:
             text = (WORKFLOWS / name).read_text(encoding="utf-8")
             with self.subTest(workflow=name):
-                self.assertEqual(trigger_paths(text, "push"), trigger_paths(text, "pull_request"))
+                self.assertEqual(trigger_paths(text, "push"), changes_filter_paths(text))
                 self.assertTrue(trigger_paths(text, "push"))
+                self.assertEqual(trigger_paths(text, "pull_request"), [], "pull_request must not carry paths:")
 
     def test_every_workflow_path_selects_its_product_in_the_mirror(self):
         for name, flag in PRODUCT_WORKFLOWS.items():

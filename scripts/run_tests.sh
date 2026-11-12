@@ -138,6 +138,8 @@ for arg in "$@"; do
 done
 
 # If no product was explicitly requested, mirror CI paths: filters via git change detection
+# (CI applies the same lists in each workflow's `changes` job on pull requests, and its always-running
+# `gate` job is the required check; neither is a gate to mirror. docs/build/CI_PARITY.md, "Required checks".)
 if ! $explicit_product; then
     CHANGED_FILES=()
     DIFF_KNOWN=false   # true when git could tell us the diff: an empty one then means "no public change"
