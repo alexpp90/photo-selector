@@ -27,6 +27,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ### Fixed
 
+- Reopening the last folder while the app is rebuilt in a running process (a window resize on DeX, a rotation) can no longer crash at start: the photo-data cache it clears existed only after the reopen began.
 - At the largest system font the action buttons keep "Delete" and the other words whole: a button that is too small drops its icon first and its key name last (the key stays in the spoken label and in the guide). Learn's tabs and guide buttons scroll instead of breaking words ("Lesson/s", "Hori/zon"), and the Photo Coach's blur badge and the rating card's key caption move to the next line instead of breaking.
 - The first-run "Tap either side to browse" pill no longer sits under the undo card; it moves above it.
 - Moving or copying in fullscreen into a custom destination flashes that folder's name, as the card does, instead of "Selection".

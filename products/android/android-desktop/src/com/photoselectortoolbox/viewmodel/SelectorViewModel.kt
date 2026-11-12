@@ -542,6 +542,27 @@ class SelectorViewModel @Inject constructor(
 
     private val imageGrouper = ImageGrouper(context)
 
+    // Declared before `init` on purpose: `init` reopens the last folder, and with a warm DataStore
+    // and an immediate main dispatcher that runs `selectFolder` → `resetSession` inside the
+    // constructor. A property declared further down is still null then (backlog 2026-11-11,
+    // `SelectorViewModelInitOrderTest`). Kotlin initialises properties and `init` in source order.
+
+    private val loadedExifCache = object : LinkedHashMap<String, ExifData>(64, 0.75f, true) {
+        override fun removeEldestEntry(eldest: MutableMap.MutableEntry<String, ExifData>?): Boolean {
+            return size > MAX_EXIF_CACHE_SIZE
+        }
+    }
+
+    private var photoDatesCache: Triple<List<ImageItem>, ZoneId, PhotoDates>? = null
+
+    /**
+     * The clock "today" comes from (a `12.10.` without a year, a two-digit year) and the
+     * zone photo times are read in — the device's, read at each jump so a zone change
+     * takes effect. Overridable in tests.
+     */
+    internal var clock: Clock = Clock.systemDefaultZone()
+    internal var zoneId: () -> ZoneId = { ZoneId.systemDefault() }
+
     init {
         // While the undo history holds entries, the folder they operate on keeps its SAF grant even
         // if the user opens another folder (finding D-10).
@@ -1114,16 +1135,6 @@ class SelectorViewModel @Inject constructor(
         val zone = zoneId()
         return state.currentImage?.let { PhotoJump.dayOf(it, zone) } ?: photoDates().last
     }
-
-    private var photoDatesCache: Triple<List<ImageItem>, ZoneId, PhotoDates>? = null
-
-    /**
-     * The clock "today" comes from (a `12.10.` without a year, a two-digit year) and the
-     * zone photo times are read in — the device's, read at each jump so a zone change
-     * takes effect. Overridable in tests.
-     */
-    internal var clock: Clock = Clock.systemDefaultZone()
-    internal var zoneId: () -> ZoneId = { ZoneId.systemDefault() }
 
     private fun goTo(resolution: JumpResolution) {
         if (resolution is JumpResolution.Resolved) {
@@ -2346,12 +2357,6 @@ class SelectorViewModel @Inject constructor(
     }
 
     // ── EXIF, dimensions, prefetch ───────────────────────────────────────
-
-    private val loadedExifCache = object : LinkedHashMap<String, ExifData>(64, 0.75f, true) {
-        override fun removeEldestEntry(eldest: MutableMap.MutableEntry<String, ExifData>?): Boolean {
-            return size > MAX_EXIF_CACHE_SIZE
-        }
-    }
 
     private fun loadMetadataForActiveRange() {
         val state = _uiState.value
