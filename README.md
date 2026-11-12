@@ -107,13 +107,12 @@ A native macOS photo culling app built with Swift 6 and SwiftUI, for going throu
 </div>
 
 ### Key Features
-* **Pure Native Apple Vision Aesthetics:** On-device aesthetic scoring via `VNCalculateImageAestheticsScoresRequest` utilizing Apple Neural Engine hardware with zero Python or external network dependencies.
-* **Hardware-Accelerated Focus Metric:** Laplacian variance with noise-floor subtraction on Apple Accelerate (`vImageConvolve_PlanarF` + `vDSP`); the benchmark test holds it under 5 ms for a 512 × 512 preview.
-* **Maximized Viewport Canvas:** Borderless comparison layouts (1-Up with 1:1 pixel zoom on `Space`, 2-Up side-by-side, and Focus 3-Up sliding triplet) allocating >85% of window area to photo previews.
-* **Keyboard First:** A window-level `NSEvent` monitor takes the keys before any button can, so arrow keys, `M` (Move to `Selection/`), `C` (Copy), `Delete` (Trash) and `⌘Z` (Undo) act even while a button has focus. All keys: [`docs/shared/KEYBOARD.md`](docs/shared/KEYBOARD.md).
-* **Actor-Isolated Transactional Culling:** Serial FIFO disk mutations on `AsyncCullingActor` that never overwrite a file (a name clash gets a `-2` suffix), keep an undo record for Move, Copy and Trash, and pair companion files automatically (RAW+JPEG, XMP sidecars).
-* **Sort, jump and the whole set:** `View > Sort By` (Newest First, Oldest First, File Name, Lowest Sharpness First), `G` to go to a photo by number or name, chips and "Moved 3 files" toasts for a RAW + JPEG + XMP set, a Copied count in the bottom tally, and scores shown with their scale ("Sharpness 59.6 / 100").
-* **macOS Design Standards:** Studio dark theme, configuration housed in standard macOS Settings (`⌘,`), secondary utilities housed under the Menu Bar `Tools` menu, and a toolbar and action bar that collapse to short labels and icons (with tooltips) in narrow windows instead of wrapping.
+* **Step through a shoot from the keyboard:** one photo at a time, or two or three side by side (`1` / `2` / `3`), with `Space` for 100 % zoom and `G` to jump to a photo by number or name. A window-level key monitor takes the keys before any button can, so the arrows, `M`, `C`, `Delete` and `⌘Z` act even while a button has focus; a held key acts once. All keys: [`docs/shared/KEYBOARD.md`](docs/shared/KEYBOARD.md).
+* **File keepers with everything that belongs to them:** `M` moves and `C` copies a photo into `Selection/`, `Delete` sends it to the Trash, each with its RAW or JPEG twin, XMP sidecar and edits; chips show the set and the message says how many files went ("Moved 3 files"). Nothing is overwritten: a name clash gets a `-2` suffix.
+* **Undo:** `⌘Z` reverses the last Move, Copy or Trash, and every folder keeps its own undo history, including an operation that finished while you switched folders.
+* **Sort, and see where you are:** `View > Sort By` (Newest First, Oldest First, File Name, Lowest Sharpness First, with an optional stop in Settings), a bottom tally with a Copied count, and scores shown with their scale ("Sharpness 59.6 / 100").
+* **Built on the Mac's own frameworks:** sharpness is a Laplacian variance with noise-floor subtraction on Apple Accelerate (`vImageConvolve_PlanarF` + `vDSP`, under 5 ms for a 512 × 512 preview in the benchmark test); the optional aesthetic score is Apple Vision's `VNCalculateImageAestheticsScoresRequest`, on the device; file operations run one at a time on a background actor (`AsyncCullingActor`). No network, no Python.
+* **macOS Design Standards:** Studio dark theme, Settings in the standard Settings window (`⌘,`), Duplicate Finder and Library Statistics in the `Tools` menu, borderless layouts that give the photos more than 85 % of the window, and a toolbar and action bar that collapse to short labels and icons (with tooltips) in narrow windows instead of wrapping.
 
 ---
 
@@ -293,7 +292,7 @@ Standalone archives are available on [GitHub Releases](https://github.com/alexpp
 ## 🛠️ Run from Source
 
 ### 📱 Android Setup (Jackpix & Frameduel)
-1. Open `products/android` in a current **Android Studio**: it must support the Android Gradle Plugin version pinned in `products/android/gradle/libs.versions.toml` (`agp`, currently 9.4), which older releases such as Ladybug cannot open.
+1. Open `products/android` in a current **Android Studio**: it must support the Android Gradle Plugin version pinned in `products/android/gradle/libs.versions.toml` (`agp`), which older releases such as Ladybug cannot open.
 2. Ensure JDK 17 and Android SDK 37 (`compileSdk`) are configured.
 3. Build the debug binaries:
    ```bash
