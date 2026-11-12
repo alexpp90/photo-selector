@@ -45,6 +45,7 @@ import com.phototok.domain.PhoneFeedOrdering
 import com.phototok.domain.PhotoFolders
 import com.phototok.domain.ProModePolicy
 import com.phototok.domain.SwipeRightOutcome
+import com.phototok.domain.SurpriseMe
 import com.phototok.domain.RelatedFiles
 import com.phototok.domain.SwipeAction
 import com.phototok.domain.SwipeDestinations
@@ -110,6 +111,8 @@ data class PhoneModeUiState(
     val confirmDeleteSplit: DeleteSplit = DeleteSplit.permanentOnly(1),
     val sortByOrientation: Boolean = false,
     val randomizeOrder: Boolean = false,
+    /** Casual "surprise me" dealt this folder unseen-first and shuffled; every open resets it. */
+    val surpriseMe: Boolean = false,
     val fileTypeFilter: FileTypeFilter = FileTypeFilter.DEFAULT,
     /** Index where portrait section starts (-1 = no split). */
     val portraitSectionStart: Int = -1,
@@ -889,6 +892,7 @@ class PhoneModeViewModel @Inject constructor(
         publishedUris.clear()
         dimensionsResolved.clear()
         userHasNavigated = false
+        _uiState.update { it.copy(surpriseMe = false) } // every open and Reload starts newest first
         val config = resolveActiveFeedConfig()
         newestFirstReorderAllowed = targetUriToKeep == null
         unseenFirstOrdering = !jumpToLatest
@@ -1138,6 +1142,21 @@ class PhoneModeViewModel @Inject constructor(
             mode = config.feedOrder,
             seenUris = seenUris,
         )
+    }
+
+    /** Casual "surprise me" ([USER 2026-11-12] decision #14): unseen photos first, shuffled, this visit only. */
+    fun toggleSurpriseMe() {
+        val s = _uiState.value
+        if (s.surpriseMeShown == null) return
+        val on = !s.surpriseMe
+        finalizePendingDelete() // a new order invalidates the undo slots, as every re-sort does
+        val images = _uiState.value.images
+        val seen = seenRepository.filterSeenUris(images, s.sourceFolderUri)
+        val dealt = PhoneFeedOrdering.order(images, SurpriseMe.order(on, s.feedOrder), seenUris = seen)
+        _uiState.update { it.copy(images = dealt.images, portraitSectionStart = dealt.portraitSectionStart, currentIndex = 0, surpriseMe = on) }
+        loadExifForCurrent()
+        if (on && seen.containsAll(images.map { it.uri })) showFeedback(UiText.of(R.string.snackbar_all_seen))
+        if (on) maybeShowFirstRunHint(FirstRunHint.SURPRISE)
     }
 
     private fun resortImages() {

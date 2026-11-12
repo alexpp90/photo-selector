@@ -134,6 +134,7 @@ import com.phototok.viewmodel.SelectionViewerTab
 import com.phototok.viewmodel.SelectionViewerViewModel
 import com.phototok.viewmodel.SystemTrashViewModel
 import com.phototok.viewmodel.canRevert
+import com.phototok.viewmodel.surpriseMeShown
 import com.phototok.viewmodel.rawCompanionUris
 import com.phototok.viewmodel.unmountedRecentUris
 import kotlinx.coroutines.launch
@@ -167,8 +168,7 @@ fun PhoneModeScreen(
             targetFolderUri = uiState.collectionFolderUri ?: uiState.sourceFolderUri,
             sourceImages = uiState.images,
             favourites = uiState.favourites,
-            // Open where the user's swipe right puts photos: ★ -> Favourites, copy/move -> Selection.
-            preferredTab = SelectionViewerLogic.preferredTab(uiState.swipeRightVerb),
+            preferredTab = tab,
             // `Jackpix` for a Casual card import, else the configured Selection folder.
             selectionSubfolder = uiState.selectionSubfolderName,
             feed = uiState.sourceFolderUri,
@@ -482,6 +482,8 @@ fun PhoneModeScreen(
         } else {
             // ── Portrait: viewer / loading / landing ────────────────────────
             if (isViewing) {
+                    surpriseMe = uiState.surpriseMeShown,
+                    onSurpriseMe = viewModel::toggleSurpriseMe,
                 PhoneModeViewer(
                     images = uiState.images,
                     currentIndex = uiState.currentIndex,
@@ -660,6 +662,8 @@ fun PhoneModeScreen(
             if (isViewing) {
                 ViewerBottomBar(
                     canRevert = uiState.canRevert,
+                surpriseMe = uiState.surpriseMeShown,
+                onSurpriseMe = viewModel::toggleSurpriseMe,
                     onRevert = { viewModel.revertDelete() },
                     onJumpToSelection = openSelectionViewer,
                     onShare = shareCurrentPhoto,
@@ -873,6 +877,8 @@ internal fun LandscapeRightPanel(
         modifier = Modifier
             .fillMaxHeight()
             .background(colors.surfaceContainerLowest.copy(alpha = 0.8f))
+    surpriseMe: Boolean? = null,
+    onSurpriseMe: () -> Unit = {},
             .guideAnchor(anchors, GuideAnchor.RIGHT_PANEL)
             .windowInsetsPadding(
                 WindowInsets.safeDrawing.only(
@@ -899,6 +905,8 @@ internal fun LandscapeRightPanel(
         if (exifOn && exif != null) {
             ExifSidebarPanel(
                 exif = exif,
+            surpriseMe = surpriseMe,
+            onSurpriseMe = onSurpriseMe,
                 fileName = currentImage.fileName,
                 modifier = Modifier.weight(1f, fill = false)
             )
@@ -1052,6 +1060,9 @@ internal fun LandscapeRightButtons(
             icon = Icons.Default.Sync,
             name = stringResource(R.string.cd_reload),
             tint = tint,
+    /** Casual "surprise me" (phone, cloud): null where it is not offered. */
+    surpriseMe: Boolean? = null,
+    onSurpriseMe: () -> Unit = {},
             onClick = onReload,
             modifier = Modifier
                 .size(PhoneModeChromeMetrics.TOP_BAR_BUTTON_SIZE)
@@ -1064,6 +1075,17 @@ internal fun LandscapeRightButtons(
                 name = stringResource(PhoneModeTopBarDescriptions.INFO),
                 tint = if (exifOn) MaterialTheme.colorScheme.primary else tint,
                 onClick = onInfo,
+        if (surpriseMe != null) {
+            SurpriseMeButton(
+                on = surpriseMe,
+                tint = tint,
+                onToggle = onSurpriseMe,
+                modifier = Modifier
+                    .size(PhoneModeChromeMetrics.TOP_BAR_BUTTON_SIZE)
+                    .guideAnchor(anchors, GuideAnchor.SURPRISE)
+                    .testTag("landscape_surprise_me_button"),
+            )
+        }
                 modifier = Modifier
                     .size(PhoneModeChromeMetrics.TOP_BAR_BUTTON_SIZE)
                     .guideAnchor(anchors, GuideAnchor.INFO)

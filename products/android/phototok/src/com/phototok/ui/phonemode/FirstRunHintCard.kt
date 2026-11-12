@@ -29,6 +29,7 @@ import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.FileDownload
 import androidx.compose.material.icons.filled.FilterList
+import androidx.compose.material.icons.filled.Shuffle
 import androidx.compose.material.icons.filled.Style
 import androidx.compose.material.icons.filled.SwapVert
 import androidx.compose.material.icons.filled.TouchApp
@@ -271,4 +272,5 @@ private fun iconFor(hint: FirstRunHint): ImageVector = when (hint) {
     FirstRunHint.RAW_JPEG_PAIRS -> Icons.Default.Style
     FirstRunHint.FILTER_MISMATCH -> Icons.Default.FilterList
     FirstRunHint.CARD_IMPORT -> Icons.Default.FileDownload
+    FirstRunHint.SURPRISE -> Icons.Default.Shuffle
 }

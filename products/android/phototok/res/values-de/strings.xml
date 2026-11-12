@@ -10,6 +10,9 @@
     <string name="cd_help_hide">Hilfe schließen</string>
     <string name="cd_card_done">Mit dieser Karte fertig</string>
     <string name="cd_reload">Ordner neu laden</string>
+    <string name="cd_surprise_me">Überrasch mich</string>
+    <string name="cd_state_on">An</string>
+    <string name="cd_state_off">Aus</string>
     <string name="cd_settings">Einstellungen</string>
     <string name="cd_sources">Ordner wechseln</string>
     <string name="cd_selection">Auswahl</string>
@@ -38,6 +41,7 @@
     <string name="guide_card_done">Karte fertig</string>
     <string name="guide_reload">Neu laden</string>
     <string name="guide_help">Hilfe</string>
+    <string name="guide_surprise">Überrasch mich</string>
     <string name="guide_info">Info</string>
     <string name="guide_settings">Optionen</string>
     <string name="guide_sources">Ordner</string>
@@ -163,6 +167,7 @@
     <string name="hint_title_filter_jpeg">Nur JPEG</string>
     <string name="hint_title_filter_active">Filter aktiv</string>
     <string name="hint_body_filter_mostly_jpeg">Hier sind die meisten Fotos JPEG.</string>
+    <string name="hint_title_surprise">Ungesehenes zuerst</string>
     <string name="hint_body_filter_mostly_raw">Hier sind die meisten Fotos RAW.</string>
     <string name="hint_body_filter_hidden">Einige Fotos sind ausgeblendet.</string>
 
@@ -187,6 +192,7 @@
     <string name="snackbar_card_disconnected">Karte getrennt</string>
     <string name="snackbar_safe_to_unplug">Sicher entfernbar</string>
     <string name="snackbar_rejects_deleted">Aussortierte gelöscht</string>
+    <string name="snackbar_all_seen">Alles gesehen</string>
     <string name="snackbar_deleted_count">%1$d gelöscht</string>
     <string name="snackbar_photo_deleted">Foto gelöscht</string>
     <string name="snackbar_not_deleted">%1$d nicht gelöscht</string>
