@@ -21,7 +21,7 @@ parity on large screens.
   unticked one is not computed and shows no value.
 - A Room-backed score cache; ratings are written into the photo (embedded in a JPEG, an `.xmp`
   sidecar beside RAW and TIFF).
-- Interface language: English only for now.
+- Interface language: English today; German is planned (maintainer decision 2026-11-12).
 
 | | |
 |---|---|

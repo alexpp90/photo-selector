@@ -10,7 +10,7 @@ Desktop keeps its old name and icon.
 
 | Product (code) | App name | Store / long title | Formerly |
 |---|---|---|---|
-| PhotoTok `products/android/phototok/` | **Jackpix** | Jackpix – Swipe & Tidy Photos | Photo-Tok |
+| PhotoTok `products/android/phototok/` | **Jackpix** | Jackpix – Swipe Photo Cleaner | Photo-Tok |
 | Android Desktop `products/android/android-desktop/` | **Frameduel** | Frameduel – Photo Culling Desk | PhotoSelector Studio |
 | macOS Desktop `products/macos-desktop/` | **Lensjet** | Lensjet – Mac Photo Culling | PhotoSelector Studio |
 | Linux Desktop `products/linux-desktop/` | **Blitzlens** | Blitzlens – Photo Culling | Photo Selector |
@@ -22,6 +22,9 @@ Rules for text:
   "macOS Desktop" and "Linux Desktop" stay as platform descriptors next to the name
   ("Frameduel, the Android Desktop app"), never instead of it.
 - German store titles are the English titles for now.
+- Jackpix's title says "Photo Cleaner" because that is what people search for on Play
+  (maintainer decision 2026-11-12). Its store text promises no freed storage and no duplicate
+  detection: Jackpix measures no freed space and finds no duplicates.
 - No tagline or slogan, in the app or in its docs: Jackpix's landing shows the logo and the name
   only (maintainer decision 2026-10-21; the former "SWIPE. SELECT. SNAP." is retired).
 - Each product's README and CHANGELOG say "formerly …" once. The old names stay in code
