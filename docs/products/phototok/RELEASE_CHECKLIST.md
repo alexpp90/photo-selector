@@ -41,7 +41,7 @@ Because Jackpix requests zero permissions, has no network access, and processes 
 
 - [x] Personal developer account registered (2026-07).
 - [ ] **Create the app:** name per §5, default language English (United States), *App*, *Free*, category **Photography**. Add the German (de-DE) listing as a translation.
-- [ ] Verify GitHub Pages is enabled and serves `privacy-policy.html` and `impressum.html` with HTTP 200.
+- [x] Verify GitHub Pages is enabled and serves `privacy-policy.html` and `impressum.html` with HTTP 200 (both answered 200 on 2026-11-12, byte-identical to the tracked files).
 - [ ] Paste the Privacy Policy URL into **Play Console → Monitor and improve → Policy and programs → App content → Privacy policy**.
 - [ ] Submit the Data Safety form using the table in §2 above.
 - [ ] Upload the first signed release `.aab` manually to the **Internal testing** track to initialize the `com.phototok` package in Play Console, then enable automated GitHub Actions publishing via `PHOTOTOK_GP_SERVICE_ACCOUNT_JSON`.
@@ -77,10 +77,11 @@ Jackpix turns sorting photos into a feed you flick through. Open your camera rol
 
 • Swipe up/down to browse, newest first.
 • Swipe right to copy the photo into your "Selection" folder (or move it — your choice).
-• Swipe left to delete it. Changed your mind? One tap on Revert brings it back.
+• Swipe left to delete it. Changed your mind? Undo brings back your latest deletes.
 
 Features
-• Starts right away: pick "Phone Camera" or any folder, no setup.
+• Starts right away: pick "Phone photos" or any folder, no setup.
+• Photos only: videos are not shown and stay untouched.
 • RAW + JPEG pairs: Jackpix offers to treat both files of a shot as one, so copy, move and delete apply to both.
 • Camera info: tap Info to see the photo's EXIF data.
 • Pinch or double-tap to zoom and check focus.
@@ -110,7 +111,8 @@ Jackpix macht Fotos-Aussortieren zu einem Feed, durch den du wischst. Öffne dei
 • Nach links wischen: Foto löschen. Doch behalten? Ein Tipp auf „Rückgängig“ holt es zurück.
 
 Funktionen
-• Sofort startklar: „Kamera“ oder einen beliebigen Ordner wählen, keine Einrichtung.
+• Sofort startklar: „Handyfotos“ oder einen beliebigen Ordner wählen, keine Einrichtung.
+• Nur Fotos: Videos werden nicht gezeigt und bleiben unberührt.
 • RAW- + JPEG-Paare: Jackpix bietet an, beide Dateien einer Aufnahme als eine zu behandeln — Kopieren, Verschieben und Löschen gelten dann für beide.
 • Kamera-Infos: Tippe auf „Info“ für die EXIF-Daten des Fotos.
 • Mit zwei Fingern oder Doppeltipp zoomen und die Schärfe prüfen.
@@ -124,7 +126,7 @@ Privatsphäre von Anfang an
 • Kostenlos und Open Source (MIT). Die App-Oberfläche gibt es auf Englisch und Deutsch.
 ```
 
-> The German text quotes the labels of `res/values-de/strings.xml` („Kamera“, „Rückgängig“, „Info“); the folder „Selection“ is the literal folder name the app creates. Keep it in step with that file.
+> The German text quotes the labels of `res/values-de/strings.xml` („Handyfotos“, „Rückgängig“, „Info“); the folder „Selection“ is the literal folder name the app creates. Keep it in step with that file.
 
 ---
 

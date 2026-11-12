@@ -308,7 +308,7 @@ abstract class ScreenTextLoadMatrix {
     }
 
     @Test
-    @Requirement("REQ-TOK-UX.05", "REQ-TOK-FEATURE.12")
+    @Requirement("REQ-TOK-UX.05", "REQ-TOK-FEATURE.12", "REQ-TOK-FEATURE.25")
     fun landingWithRecentFolders_fits() {
         val recents = RECENTS
         val targets = Findings("landing: targets under 48 dp")
@@ -323,7 +323,6 @@ abstract class ScreenTextLoadMatrix {
                 collectionFolderName = "Selection",
                 isLoading = false,
                 onSelectSource = {},
-                onSelectCollection = {},
                 onStart = {},
                 recentPaths = recents,
                 recentPathsCount = 3,

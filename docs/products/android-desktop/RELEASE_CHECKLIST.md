@@ -51,7 +51,7 @@ succeed for `com.photoselectortoolbox`, so the first manual upload has been done
 step in Play Console before ticking it.
 
 - [ ] **Create the app:** package `com.photoselectortoolbox`, default language English (United States), *App*, *Free*, category **Photography**.
-- [ ] Verify GitHub Pages serves `privacy-policy.html` and `impressum.html` with HTTP 200 (the four legal URLs and the site root answered 200 on 2026-11-03).
+- [x] Verify GitHub Pages serves `privacy-policy.html` and `impressum.html` with HTTP 200 (the four legal URLs and the site root answered 200 on 2026-11-03; both pages again on 2026-11-12, byte-identical to the tracked files).
 - [ ] Paste the Privacy Policy URL into **Play Console → Monitor and improve → Policy and programs → App content → Privacy policy** (Start declaration).
 - [ ] Submit the Data Safety form using the table in §2 above.
 - [ ] The first signed `.aab` was uploaded manually to the **Internal testing** track; automated publishing runs with `TOOLBOX_GP_SERVICE_ACCOUNT_JSON`.

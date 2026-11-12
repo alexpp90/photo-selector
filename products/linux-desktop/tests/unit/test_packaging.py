@@ -452,6 +452,22 @@ def test_metainfo_release_readiness():
     assert root.find("content_rating").findall("content_attribute")
 
 
+def test_metainfo_screenshot_is_the_readme_capture():
+    """The software centre shows the same capture the README does, at its real size (H-BL-3)."""
+    import struct
+    import xml.etree.ElementTree as ET
+
+    root = ET.parse(get_product_root() / "data" / "app.alpatix.Blitzlens.metainfo.xml").getroot()
+    image = root.find("screenshots/screenshot[@type='default']/image")
+    prefix = "https://raw.githubusercontent.com/alexpp90/photo-selector/main/"
+    assert image is not None and image.text.startswith(prefix)
+    asset = get_repo_root() / image.text[len(prefix):]
+    assert asset.is_file(), asset
+    assert image.text[len(prefix):] in (get_repo_root() / "README.md").read_text(encoding="utf-8")
+    width, height = struct.unpack(">II", asset.read_bytes()[16:24])
+    assert (image.get("width"), image.get("height")) == (str(width), str(height))
+
+
 def test_user_facing_text_has_no_internal_design_names():
     data = get_product_root() / "data"
     for f in (data / "app.alpatix.Blitzlens.metainfo.xml", data / "app.alpatix.Blitzlens.desktop"):

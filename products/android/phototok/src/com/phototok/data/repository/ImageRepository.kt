@@ -16,6 +16,9 @@ interface ImageRepository {
         shuffleFirstBatch: Boolean = false,
     ): Flow<List<ImageItem>>
 
+    /** Videos the last discovery of [folderUri] skipped: Jackpix shows photos only (REQ-TOK-FEATURE.04). */
+    fun skippedVideoCount(folderUri: Uri): Int
+
     /**
      * Prepare a folder for use as the swipe source (persist permission, verify
      * access). Returns the display name, or null when the folder is inaccessible.

@@ -21,6 +21,12 @@
   <url type="homepage">https://github.com/alexpp90/photo-selector</url>
   <url type="bugtracker">https://github.com/alexpp90/photo-selector/issues</url>
   <url type="vcs-browser">https://github.com/alexpp90/photo-selector</url>
+  <screenshots>
+    <screenshot type="default">
+      <caption>One photo at a time, with its sharpness and the Keep, Copy, Trash and Undo bar</caption>
+      <image type="source" width="1430" height="890">https://raw.githubusercontent.com/alexpp90/photo-selector/main/assets/linux_desktop_screenshot.png</image>
+    </screenshot>
+  </screenshots>
   <releases>
     <release version="0.2.0" date="2026-10-22"/>
     <release version="0.1.0" date="2026-10-10"/>

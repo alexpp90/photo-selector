@@ -38,7 +38,13 @@ enum class FirstRunHint(val key: String) {
     RAW_JPEG_PAIRS("raw_jpeg_pairs"),
 
     /** Active file filter hides the majority of photos in the folder. */
-    FILTER_MISMATCH("filter_mismatch");
+    FILTER_MISMATCH("filter_mismatch"),
+
+    /**
+     * The first SD card or camera opened in Casual: swipe right copies onto the phone, not ★ in
+     * place as on the phone (REQ-TOK-FEATURE.21). Once per install; "Reset tips" brings it back.
+     */
+    CARD_IMPORT("card_import");
 
     companion object {
         fun fromKey(key: String?): FirstRunHint? = entries.firstOrNull { it.key == key }
@@ -102,6 +108,7 @@ object FirstRunHintText {
         FirstRunHint.DOUBLE_TAP_ZOOM -> UiText.of(R.string.hint_title_double_tap_zoom)
         FirstRunHint.REVERT -> UiText.of(R.string.hint_title_revert)
         FirstRunHint.RAW_JPEG_PAIRS -> UiText.of(R.string.hint_title_raw_jpeg_pairs)
+        FirstRunHint.CARD_IMPORT -> UiText.of(R.string.hint_title_swipe_right_copy, UiText.raw(PhotoFolders.CASUAL_IMPORT))
         FirstRunHint.FILTER_MISMATCH -> when (fileTypeFilter) {
             FileTypeFilter.RAW -> UiText.of(R.string.hint_title_filter_raw)
             FileTypeFilter.JPG -> UiText.of(R.string.hint_title_filter_jpeg)
@@ -117,6 +124,7 @@ object FirstRunHintText {
         fileTypeFilter: FileTypeFilter = FileTypeFilter.DEFAULT,
     ): UiText? = when (hint) {
         FirstRunHint.RAW_JPEG_PAIRS -> UiText.of(R.string.hint_body_raw_jpeg_pairs)
+        FirstRunHint.CARD_IMPORT -> UiText.of(R.string.hint_body_card_import)
         FirstRunHint.FILTER_MISMATCH -> when (fileTypeFilter) {
             FileTypeFilter.RAW -> UiText.of(R.string.hint_body_filter_mostly_jpeg)
             FileTypeFilter.JPG -> UiText.of(R.string.hint_body_filter_mostly_raw)
