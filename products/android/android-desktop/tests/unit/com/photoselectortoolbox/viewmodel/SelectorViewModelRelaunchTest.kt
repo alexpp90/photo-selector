@@ -180,7 +180,7 @@ class SelectorViewModelRelaunchTest {
 
         val viewModel = newViewModel()
 
-        val opened = withTimeout(10_000) { viewModel.uiState.first { it.images.isNotEmpty() } }
+        val opened = inRealTime { viewModel.uiState.first { it.images.isNotEmpty() } }
         assertEquals(treeUri.toString(), opened.folderUri)
         assertEquals(listOf("IMG_0001.JPG"), opened.images.map { it.fileName })
     }
