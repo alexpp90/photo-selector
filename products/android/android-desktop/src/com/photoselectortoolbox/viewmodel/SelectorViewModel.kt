@@ -1013,17 +1013,20 @@ class SelectorViewModel @Inject constructor(
      */
     private fun settleOrder() {
         val before = _uiState.value.images
+        // Resume where this folder was left, unless the photographer has moved since it opened —
+        // in the same update as the settle, so no one sees the settled folder on frame 1 first.
+        val place = storedPlace?.takeIf { !photographerHasActed }
+        storedPlace = null
+        var resumed = false
         _uiState.update { state ->
             val settled = state.copy(isLoading = false, isEnumerating = false)
-            if (state.sortWorstFirst) return@update settled
             val reordered = SelectorReorder.atSettle(state.listState, state.sortOrder, photographerHasActed)
-            if (reordered.changed) settled.withList(reordered.state) else settled
+            val ordered = if (!state.sortWorstFirst && reordered.changed) settled.withList(reordered.state) else settled
+            val resume = place?.let { (photo, index) -> FolderPlace.resumeIndex(ordered.images, photo, index) }
+            resumed = resume != null
+            if (resume != null) ordered.copy(currentIndex = resume) else ordered
         }
-        // Resume where this folder was left, unless the photographer has moved since it opened.
-        val resume = storedPlace?.takeIf { !photographerHasActed }?.let { (photo, index) -> FolderPlace.resumeIndex(_uiState.value.images, photo, index) }
-        storedPlace = null
-        if (resume != null) _uiState.update { it.copy(currentIndex = resume) }
-        if (_uiState.value.images !== before || resume != null) refreshAfterListChange()
+        if (_uiState.value.images !== before || resumed) refreshAfterListChange()
     }
 
     /** The order picked in the overflow menu: leaves worst-first, keeps the frame on screen, persists. */

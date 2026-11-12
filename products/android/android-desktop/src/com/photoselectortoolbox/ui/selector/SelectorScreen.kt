@@ -501,13 +501,6 @@ fun SelectorScreen(
                                 onGoToPhoto = openJump,
                                 onSortMenu = openSortMenu,
                                 onCloseOverlays = closeTopLayer,
-                                onSetRating = { rating ->
-                                    if (uiState.maximisedFrame != null) {
-                                        viewModel.setRatingForMaximised(rating)
-                                    } else {
-                                        viewModel.setRatingForCurrent(rating)
-                                    }
-                                },
                                 onNavigate = onNavigate,
                                 ctrlOrMetaPressed = event.isCtrlPressed || event.isMetaPressed,
                                 onUndo = viewModel::undoLastOperation,
@@ -817,7 +810,6 @@ internal fun handleSelectorKey(
     onCloseOverlays: () -> Unit,
     onGoToPhoto: (() -> Unit)? = null,
     onSortMenu: (() -> Unit)? = null,
-    onSetRating: ((Int) -> Unit)? = null,
     onNavigate: ((Screen) -> Unit)? = null,
     ctrlOrMetaPressed: Boolean = false,
     onUndo: (() -> Unit)? = null,
