@@ -71,7 +71,7 @@
     <li>
       <strong>Local Score Cache &amp; Preferences (Room &amp; DataStore):</strong>
       Calculated image quality scores, detected technique facts, and star ratings are cached locally in an internal SQLite (Room) database so folders re-open quickly, and user preferences are stored in Android Jetpack DataStore.
-      A star rating you give is also written into the photo's XMP metadata (JPEG) or into an XMP sidecar file next to the photo (RAW, TIFF), in the folder you chose, so other apps and anyone you share the file with can read it.
+      A star rating you give is also written into an XMP sidecar file next to the photo (RAW, TIFF), in the folder you chose, so other apps and anyone you share the file with can read it. It is written into a JPEG's own XMP metadata only while <strong>Write ratings into photos</strong> is on in Settings; that setting is off on a new install, and an installation that already wrote ratings into JPEGs before it existed keeps it on.
       You can clear the local score cache at any time in <strong>Settings &rarr; Cache &rarr; Clear Cache</strong>.
       Cloud auto-backup of the local score database and SAF folder grants is disabled so local file URIs and metadata are never uploaded to cloud backup services.
     </li>
@@ -126,7 +126,7 @@
     <li>
       <strong>Lokaler Bewertungs-Cache &amp; Einstellungen (Room &amp; DataStore):</strong>
       Berechnete Qualitätswerte, erkannte Aufnahmetechnik-Merkmale und Sternebewertungen werden lokal in einer internen SQLite-Datenbank (Room) zwischengespeichert; Einstellungen liegen lokal im Jetpack DataStore. Sie können den Analyse-Cache jederzeit in den App-Einstellungen (<strong>Settings &rarr; Cache &rarr; Clear Cache</strong>) löschen. Ein Cloud-Auto-Backup dieser Datenbanken ist deaktiviert.
-      Eine von Ihnen vergebene Sternebewertung wird zusätzlich in die XMP-Metadaten des Fotos (JPEG) bzw. in eine XMP-Sidecar-Datei neben dem Foto (RAW, TIFF) im von Ihnen gewählten Ordner geschrieben; andere Apps und alle, denen Sie die Datei weitergeben, können sie dadurch lesen.
+      Eine von Ihnen vergebene Sternebewertung wird zusätzlich in eine XMP-Sidecar-Datei neben dem Foto (RAW, TIFF) im von Ihnen gewählten Ordner geschrieben; andere Apps und alle, denen Sie die Datei weitergeben, können sie dadurch lesen. In die XMP-Metadaten eines JPEG selbst wird sie nur geschrieben, solange in den Einstellungen <strong>Bewertungen in Fotos schreiben</strong> eingeschaltet ist; bei einer Neuinstallation ist das aus, und eine Installation, die schon vor dieser Einstellung Bewertungen in JPEGs geschrieben hat, behält sie eingeschaltet.
     </li>
   </ul>
 

@@ -21,6 +21,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ### Changed
 
+- A star rating no longer changes a JPEG unless you ask for it: embedding the rating in the photo is the setting **Write ratings into photos**, off on a new install. If you already used Frameduel it stays on, so nothing changes for you. RAW and TIFF ratings still go to an `.xmp` sidecar, which never changes the photo; with the setting off a JPEG rating is kept in the app.
 - Each screen has one name everywhere — Cull, Learn, Stats, Dupes, Setup — on the sidebar, the side rail and the bottom bar and for a screen reader (the rail said Selector, Statistics, Duplicates and Settings, and Learn said "Return to Culling"; it now says "Back to Cull"). The burst feature is **Bursts** in Setup too. The guide's More and Setup lines name what is there.
 - Copy moves on to the next frame, as Move and Delete do, and a photo you copied carries a small copy mark on its frame and its filmstrip tile for the rest of the session. Copying it again writes nothing and says "Already copied" (before, it made a second file, `-2`).
 - Deleting duplicates no longer removes the files at once: the copies leave the list, "Deleted N files" offers UNDO, and the files go when you leave Duplicates, pick another folder or scan again. A copy that is no longer the file you deleted (another photo now has its name) is kept and named.

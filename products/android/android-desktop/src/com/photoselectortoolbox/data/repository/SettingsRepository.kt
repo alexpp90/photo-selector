@@ -33,7 +33,8 @@ import kotlinx.coroutines.flow.map
  * on a device (the upgrade test) and clear the process-wide singleton between test classes.
  */
 internal val Context.dataStore: DataStore<Preferences> by preferencesDataStore(
-    name = "photo_selector_settings"
+    name = "photo_selector_settings",
+    produceMigrations = { SETTINGS_MIGRATIONS },
 )
 
 @Singleton
@@ -102,6 +103,12 @@ class SettingsRepository @Inject constructor(
         const val DEFAULT_SORTING_ENABLED = true
         const val DEFAULT_GROUPING_ENABLED = false
         const val DEFAULT_TV_DISPLAY_SCALE_ENABLED = false
+
+        /**
+         * Off for a new install (`[USER 2026-11-12]` decision #16): a rating does not change the
+         * photo unless asked to. An earlier install keeps writing ([WriteRatingsIntoPhotosMigration]).
+         */
+        const val DEFAULT_WRITE_RATINGS_INTO_PHOTOS = false
         const val TV_DISPLAY_SCALE_FACTOR = 1.25f
 
         /**
@@ -139,6 +146,19 @@ class SettingsRepository @Inject constructor(
                 ?.let(SelectorSortOrder::fromStoredName)
                 ?: DEFAULT_SELECTOR_SORT_ORDER
         val DEFAULT_ANALYSIS_THREAD_COUNT = Runtime.getRuntime().availableProcessors().coerceIn(1, 4)
+    }
+
+    /**
+     * Whether a star rating is embedded in a JPEG (REQ-AND-RATING.01). RAW and TIFF ratings go to
+     * an `.xmp` sidecar whatever this says, because a sidecar never changes the photo. Read by
+     * the rating writer ([com.photoselectortoolbox.data.metadata.MetadataWriterImpl]).
+     */
+    val writeRatingsIntoPhotos: Flow<Boolean> = context.dataStore.data.map { prefs ->
+        prefs[WriteRatingsIntoPhotosMigration.KEY] ?: DEFAULT_WRITE_RATINGS_INTO_PHOTOS
+    }
+
+    suspend fun setWriteRatingsIntoPhotos(enabled: Boolean) {
+        context.dataStore.edit { prefs -> prefs[WriteRatingsIntoPhotosMigration.KEY] = enabled }
     }
 
     val selectionFolderName: Flow<String> = context.dataStore.data.map { prefs ->
