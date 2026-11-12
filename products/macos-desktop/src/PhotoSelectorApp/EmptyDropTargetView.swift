@@ -1,4 +1,5 @@
 import SwiftUI
+import PhotoSelectorKit
 
 /// Empty state view presented when no photo directory or SD card is opened.
 /// Features a native drop target and an Open Folder button.
@@ -34,17 +35,13 @@ public struct EmptyDropTargetView: View {
             .animation(.spring(response: 0.3, dampingFraction: 0.7), value: isTargeted)
 
             VStack(spacing: 10) {
-                Text(isTargeted ? "Drop Folder to Ingest" : "Drop SD Card or Photo Folder")
+                Text(isTargeted ? LensjetWords.dropToOpen : LensjetWords.dropFolder)
                     .font(.system(size: 22, weight: .bold, design: .rounded))
                     .foregroundStyle(Color.white)
 
-                Text("RAW (CR3, ARW, NEF, DNG, RAF, RW2), JPEG, HEIC supported")
+                Text(LensjetWords.supportedFormats)
                     .font(.system(size: 13, weight: .medium))
                     .foregroundStyle(Color.lensjetTextSecondary)
-
-                Text("High-speed triage, 3-image burst comparison, and zero-latency culling")
-                    .font(.system(size: 12, weight: .regular))
-                    .foregroundStyle(Color.lensjetTextMuted)
             }
 
             Button(action: onOpenFolder) {

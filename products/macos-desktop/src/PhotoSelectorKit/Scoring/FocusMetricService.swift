@@ -49,6 +49,34 @@ public final class FocusMetricService: Sendable {
     // Effective kernel sum of squares: sum( (G * L)^2 ) = 0.40625
     private static let compoundNoiseVarianceFactor = 0.40625
 
+    // MARK: - Scoring size
+
+    /// The long edge, in pixels, the score is computed at: the 2,048 px preview tier the viewport
+    /// and the library pass decode. A larger image is scaled down to it first, so the same photo
+    /// does not land on two sides of the Blurry / Sharp bands because it was decoded at two sizes.
+    /// Smaller images (an embedded RAW preview) are scored as they are, not enlarged.
+    public static let scoringLongEdge = 2048
+
+    /// Pixel size an image of `width` x `height` is scored at (never enlarged).
+    public static func scoringSize(width: Int, height: Int) -> (width: Int, height: Int) {
+        let longEdge = max(width, height)
+        guard longEdge > scoringLongEdge, width > 0, height > 0 else { return (width, height) }
+        let scale = Double(scoringLongEdge) / Double(longEdge)
+        return (max(3, Int((Double(width) * scale).rounded())), max(3, Int((Double(height) * scale).rounded())))
+    }
+
+    private static func scaledForScoring(_ image: CGImage) -> CGImage? {
+        let size = scoringSize(width: image.width, height: image.height)
+        guard size.width != image.width || size.height != image.height else { return image }
+        guard let context = CGContext(
+            data: nil, width: size.width, height: size.height, bitsPerComponent: 8, bytesPerRow: 0,
+            space: CGColorSpaceCreateDeviceGray(), bitmapInfo: CGImageAlphaInfo.none.rawValue
+        ) else { return nil }
+        context.interpolationQuality = .high
+        context.draw(image, in: CGRect(x: 0, y: 0, width: size.width, height: size.height))
+        return context.makeImage()
+    }
+
     // MARK: - Asynchronous Public API
 
     /// Evaluates focus and sharpness asynchronously on a cooperative background thread.
@@ -84,7 +112,8 @@ public final class FocusMetricService: Sendable {
             guard let cropped = cgImage.cropping(to: cropRect) else { return nil }
             targetImage = cropped
         } else {
-            targetImage = cgImage
+            guard let scaled = scaledForScoring(cgImage) else { return nil }
+            targetImage = scaled
         }
 
         let width = targetImage.width

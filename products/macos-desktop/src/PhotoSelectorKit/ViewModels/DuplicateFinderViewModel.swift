@@ -129,6 +129,9 @@ public final class DuplicateFinderViewModel: ObservableObject {
     private var scanTask: Task<Void, Never>?
     private var knownPhotos: [URL: PhotoItem] = [:]
     public var onPhotoTrashed: ((URL) -> Void)?
+    /// When set, a duplicate is trashed through it (the workspace's culling actor and undo stack)
+    /// instead of directly, so the workspace's Undo brings the file back.
+    public var trashHandler: (@MainActor (URL) async throws -> Void)?
 
     // MARK: - Computed Properties
     public var selectedGroup: DuplicateGroupModel? {
@@ -167,11 +170,13 @@ public final class DuplicateFinderViewModel: ObservableObject {
         targetDirectoryURL: URL? = nil,
         photos: [PhotoItem] = [],
         cullingManager: FileCullingManager = FileCullingManager(),
-        onPhotoTrashed: ((URL) -> Void)? = nil
+        onPhotoTrashed: ((URL) -> Void)? = nil,
+        trashHandler: (@MainActor (URL) async throws -> Void)? = nil
     ) {
         self.targetDirectoryURL = targetDirectoryURL
         self.cullingManager = cullingManager
         self.onPhotoTrashed = onPhotoTrashed
+        self.trashHandler = trashHandler
         var dict: [URL: PhotoItem] = [:]
         for photo in photos {
             dict[photo.url] = photo
@@ -376,6 +381,18 @@ public final class DuplicateFinderViewModel: ObservableObject {
 
     // MARK: - Trashing Actions
     public func trashSingleEntry(entry: DuplicateFileEntry, in groupID: String) {
+        if let handler = trashHandler {
+            Task { @MainActor in
+                do {
+                    try await handler(entry.url)
+                    markTrashed(entry.url, in: groupID)
+                    showToast("Moved \(entry.filename) to Trash. Undo with \u{2318}Z")
+                } catch {
+                    showToast("Failed to trash file: \(error.localizedDescription)")
+                }
+            }
+            return
+        }
         do {
             _ = try cullingManager.moveToTrash(photoURL: entry.url)
             onPhotoTrashed?(entry.url)
@@ -392,7 +409,36 @@ public final class DuplicateFinderViewModel: ObservableObject {
         }
     }
 
+    private func markTrashed(_ url: URL, in groupID: String) {
+        guard let g = duplicateGroups.firstIndex(where: { $0.id == groupID }),
+              let e = duplicateGroups[g].entries.firstIndex(where: { $0.url == url }) else { return }
+        duplicateGroups[g].entries[e].status = .trashed
+        duplicateGroups[g].entries[e].isMarkedForTrash = false
+    }
+
+    /// The batch through `trashHandler`: each file is its own undo step.
+    private func trashMarkedThroughHandler(_ handler: @escaping @MainActor (URL) async throws -> Void) async {
+        var count = 0
+        var errors = 0
+        let marked = duplicateGroups.flatMap { group in
+            group.entries.filter { $0.isMarkedForTrash && $0.status != .trashed }.map { (group.id, $0.url) }
+        }
+        for (groupID, url) in marked {
+            do { try await handler(url); markTrashed(url, in: groupID); count += 1 } catch { errors += 1 }
+        }
+        duplicateGroups.removeAll { $0.entries.filter { $0.status != .trashed }.count <= 1 }
+        if let sel = selectedGroupID, !duplicateGroups.contains(where: { $0.id == sel }) {
+            selectedGroupID = duplicateGroups.first?.id
+        }
+        showToast(errors > 0 ? "Trashed \(count) files with \(errors) errors"
+                             : "Moved \(count) duplicate files to Trash. Undo with \u{2318}Z")
+    }
+
     public func trashMarkedDuplicates() {
+        if let handler = trashHandler {
+            Task { @MainActor in await trashMarkedThroughHandler(handler) }
+            return
+        }
         var count = 0
         var errors: [String] = []
 

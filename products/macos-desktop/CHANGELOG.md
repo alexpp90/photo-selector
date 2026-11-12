@@ -6,8 +6,16 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ## [Unreleased]
 
+### Fixed
+
+- Opening the Selection folder itself no longer files photos into `Selection/Selection/` (where they vanished from the list): Move and Copy say "This is the Selection folder" and do nothing; Trash and Undo still work, and Settings shows the same sentence.
+- Settings that did nothing now work or are gone: the **Blurry below** and **Sharp above** sliders change every Sharpness badge, tooltip, filmstrip dot and the Statistics counts (with a Reset); the aesthetic threshold slider is removed; **Auto-Advance** in the Culling menu and in Settings is one setting; **Tab** switches photo in 2-Up only and is left alone in 1-Up and 3-Up; a copied photo no longer counts as Remaining; the **Stop at sharpness** notice stays on the photo until your next key; Undo is greyed out in the menu when there is nothing to undo; the filmstrip tooltip names its key, `T`.
+- Cloud folders: a **Cloud** badge in the toolbar; Library Statistics and Lowest Sharpness First ask "Download all photos?" before reading every photo; permanent delete asks "Delete permanently?"; a refused Trash no longer says "Moved to Trash" and a failed delete says why.
+
 ### Added
 
+- **A cull has a beginning and an end.** Lensjet reopens the last folder at launch, on the photo that was on screen (found by its file, so a re-sort or photos moved away do not change it; a photo that is gone opens the first one), and **File → Open Recent** lists the last ten folders. The dock shows where Move and Copy put photos (the same path Settings shows) next to the tally, and one click shows it in Finder. When no photo is undecided a **Done** card appears over the preview (never over the dock) with Selected, Copied and Trashed, the destination, **Show in Finder** and **Open Selection**; on the last photo with photos left a "N Remaining" notice offers **Show first**. Esc, a navigation key or Undo dismisses it. On a removable card the card says **Safe to format** only when every file under the folder is accounted for, and "N other files left" otherwise.
+- **Menus where a Mac user looks.** Edit → **Undo Move of IMG_0001.CR3** (greyed out when empty; text fields keep their own undo), Go → Previous Photo / Next Photo / Go to Photo…, File → **Show in Finder** (⇧⌘R) and **Quick Look** (⌘Y), and the view commands (1-Up, 2-Up, 3-Up, Sort By, Zoom 100%, Link Pan, Filmstrip, Info, Switch Photo) are in the one system View menu.
 - Settings → General → Culling Destination now shows where Move and Copy put your photos. Choose **Working folder** (the Selection folder inside the folder you are culling, as before) or **Custom folder** (pick a folder, for example on an SSD), and read the full destination path right below, such as `~/Pictures/Trip/Selection/`. With no folder open it says so. A custom folder that is gone or not writable shows a warning, and Move and Copy refuse instead of creating it. If you already used a custom destination, it stays selected.
 - macOS asks for access to Desktop, Documents, Downloads, removable and network volumes with an explanation ("Lensjet shows the photos in the folders you open and moves, copies or trashes the ones you cull.").
 - The README and the Homebrew cask now say how to open Lensjet the first time: it is not notarized by Apple yet, so macOS blocks a downloaded copy until you click **Open Anyway** in System Settings → Privacy & Security (or run `xattr -dr com.apple.quarantine /Applications/Lensjet.app`).
@@ -23,6 +31,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ### Changed
 
+- **One name per thing.** "Focus 3-Up", "Focus View" and "3-Up Focus Mode" are now **3-Up** everywhere; **Info** (menu "Show Info" / "Hide Info") replaces "Info HUD" and "Info Overlay"; **Find Duplicates** and **Statistics** replace "Duplicate Finder" and "Library Statistics"; Move and Copy name the Selection folder you chose ("Move to Keepers") in the dock, tooltips and menu. The empty state says "Drop a folder" ("Drop to open" while you drag) and the jargon lines are gone. Settings calls its tab **Scores**. The shortcut sheet's Statistics row says what the sheet shows (counts, progress, file formats, Sharpness and Aesthetics scores).
+- **Sharpness reads as a measurement, not a verdict:** it shows as a whole number ("Sharpness 60 / 100"), and its tooltip and spoken label say "edge detail of the whole frame". A frame larger than 2,048 px is scored at 2,048 px, the size the viewer and the library pass decode.
 - Keys, aligned with the other desktop apps: **`T`** toggles the filmstrip and **Link Pan** is **⌥⌘P** (View menu). **Announced:** `F` (filmstrip), `S` (linked pan) and `H` / `L` (navigation) still work for this release and are marked as going away in the shortcut sheet (`?`); `F` becomes window full screen in the next release.
 
 ### Fixed

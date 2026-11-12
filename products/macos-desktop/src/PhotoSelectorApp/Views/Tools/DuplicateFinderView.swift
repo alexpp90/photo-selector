@@ -10,12 +10,14 @@ public struct DuplicateFinderView: View {
     public init(
         targetDirectoryURL: URL? = nil,
         photos: [PhotoItem] = [],
-        onPhotoTrashed: ((URL) -> Void)? = nil
+        onPhotoTrashed: ((URL) -> Void)? = nil,
+        trashHandler: (@MainActor (URL) async throws -> Void)? = nil
     ) {
         _viewModel = StateObject(wrappedValue: DuplicateFinderViewModel(
             targetDirectoryURL: targetDirectoryURL,
             photos: photos,
-            onPhotoTrashed: onPhotoTrashed
+            onPhotoTrashed: onPhotoTrashed,
+            trashHandler: trashHandler
         ))
     }
 
@@ -84,7 +86,7 @@ public struct DuplicateFinderView: View {
                 .foregroundStyle(Color.accentColor)
 
             VStack(alignment: .leading, spacing: 2) {
-                Text("Duplicate Finder")
+                Text(LensjetCommand.findDuplicates.name())
                     .font(.system(size: 14, weight: .semibold))
                     .foregroundStyle(.white)
 
@@ -204,7 +206,7 @@ public struct DuplicateFinderView: View {
                 .font(.system(size: 18, weight: .semibold))
                 .foregroundStyle(.white)
 
-            Text("Scan an SD card or photo folder to find identical photos\nmatching by cryptographic SHA256 checksum.")
+            Text("Finds identical files.")
                 .font(.system(size: 13))
                 .foregroundStyle(.secondary)
                 .multilineTextAlignment(.center)
@@ -441,11 +443,11 @@ private struct DuplicateCardView: View {
 
                 if let scores = entry.scores {
                     HStack(spacing: 6) {
-                        Text("Focus: \(String(format: "%.1f", scores.sharpness))")
+                        Text("Sharpness: \(ScoreLabels.sharpnessNumber(scores.sharpness))")
                             .font(.system(size: 10, weight: .medium))
                             .foregroundStyle(scores.sharpness >= 70 ? .green : (scores.sharpness >= 35 ? .orange : .red))
                         if let aesthetic = scores.aesthetic {
-                            Text("Aesthetic: \(String(format: "%.1f", aesthetic))")
+                            Text("Aesthetics: \(ScoreLabels.number(aesthetic))")
                                 .font(.system(size: 10, weight: .medium))
                                 .foregroundStyle(.cyan)
                         }
