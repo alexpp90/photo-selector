@@ -30,6 +30,7 @@ from photo_selector_linux.ui.layout import (
     can_fit_1to1_development,
     three_up_geometry,
 )
+from photo_selector_linux.ui.pan import PanGroup
 from photo_selector_linux.ui.photo_loader import PhotoTextureLoader
 from photo_selector_linux.ui.styling import (
     get_candidate_companion_badges,
@@ -55,7 +56,7 @@ class CanvasView(Gtk.Box if HAS_GI else object):
         self.viewport_height: int = 810
         self.last_three_up_geometry: Optional[Tuple[Rect, Rect, Rect]] = None
         self.three_up_layout_rects: Dict[str, Rect] = {}
-        self.linked_pan: Tuple[float, float] = (0.5, 0.5)
+        self.pan_group = PanGroup()
         self._neighbour_1to1_offset: Optional[int] = None
         self._last_index: int = getattr(viewmodel, "current_index", 0)
         self._last_mode: int = getattr(viewmodel, "comparison_mode", 1)
@@ -112,15 +113,31 @@ class CanvasView(Gtk.Box if HAS_GI else object):
         self._prefetch_neighbours()
 
     @property
+    def linked_pan(self) -> Tuple[float, float]:
+        """The shared 100 % position, 0..1 of each pane's scroll range (``ui/pan.py``)."""
+        return self.pan_group.pan
+
+    @linked_pan.setter
+    def linked_pan(self, value: Tuple[float, float]) -> None:
+        self.pan_group.pan = (float(value[0]), float(value[1]))
+
+    @property
     def pan_offset(self) -> Tuple[float, float]:
         return self.linked_pan
+
+    def pan_by(self, dx: int, dy: int) -> bool:
+        """Shift+arrows (plan 2.1): move the 100 % view by 20 % of the viewport, all panes together.
+        False when the view is not zoomed, so the key navigates instead."""
+        if not self.is_1to1_zoom:
+            return False
+        return self.pan_group.step(dx, dy)
 
     def toggle_zoom(self) -> None:
         """Toggle 100% 1:1 pixel zoom across 1-Up, 2-Up, and 3-Up modes (Space) (R-LINUX-UI-08)."""
         self.is_1to1_zoom = not self.is_1to1_zoom
         if not self.is_1to1_zoom:
             self._neighbour_1to1_offset = None
-            self.linked_pan = (0.5, 0.5)
+            self.pan_group.reset()
             if self.loader is not None:
                 self.loader.evict_full_resolution()
         self._render_view()
@@ -130,7 +147,7 @@ class CanvasView(Gtk.Box if HAS_GI else object):
         if self.is_1to1_zoom:
             self.is_1to1_zoom = False
             self._neighbour_1to1_offset = None
-            self.linked_pan = (0.5, 0.5)
+            self.pan_group.reset()
             if self.loader is not None:
                 self.loader.evict_full_resolution()
             self._render_view()
@@ -139,7 +156,7 @@ class CanvasView(Gtk.Box if HAS_GI else object):
         """Synchronize normalized (0.0..1.0) pan offsets across panes in 1:1 mode (U-07b)."""
         cx = max(0.0, min(1.0, float(pan_x)))
         cy = max(0.0, min(1.0, float(pan_y)))
-        self.linked_pan = (cx, cy)
+        self.pan_group.set_pan(cx, cy)
         for slot in self.rendered_slots:
             if slot.get("type") == "photo":
                 slot["pan_offset"] = self.linked_pan
@@ -409,6 +426,7 @@ class CanvasView(Gtk.Box if HAS_GI else object):
             return
 
         # Clear existing GTK slot children
+        self.pan_group.clear()
         self._detach_hud()
         while child := self.slots_box.get_first_child():
             self.slots_box.remove(child)
@@ -580,6 +598,7 @@ class CanvasView(Gtk.Box if HAS_GI else object):
             picture.set_can_shrink(False)
             scrolled.set_child(picture)
             image_area.set_child(scrolled)
+            self.pan_group.add(scrolled, is_active)
         else:
             image_area.set_child(picture)
         frame.append(image_area)
@@ -596,6 +615,8 @@ class CanvasView(Gtk.Box if HAS_GI else object):
 
         self._append_score_badge(footer_box, candidate)
         frame.append(footer_box)
+        if slot_offset != 0:
+            self._make_frame_clickable(frame, slot_offset)
         if is_active:
             self._active_footer = footer_box
             self._apply_footer_visibility()
@@ -607,6 +628,16 @@ class CanvasView(Gtk.Box if HAS_GI else object):
         )
 
         return frame
+
+    def _make_frame_clickable(self, frame, slot_offset: int) -> None:
+        """Click a neighbour to make it the active photo (plan 2.6)."""
+        click = Gtk.GestureClick()
+        click.connect(
+            "released",
+            lambda _g, _n, _x, _y: self.viewmodel.nav_previous() if slot_offset < 0 else self.viewmodel.nav_next(),
+        )
+        frame.add_controller(click)
+        frame.set_cursor_from_name("pointer")
 
     @staticmethod
     def _role_pill(role: str, is_active: bool):
