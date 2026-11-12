@@ -313,3 +313,29 @@ def test_equal_modification_times_fall_back_to_the_file_name(tmp_path: Path):
         vm = _vm(tmp_path, order=order)
         vm.load_directory(folder)
         assert _names(vm) == ["DSC_0001.JPG", "DSC_0002.JPG", "DSC_0010.JPG"], order
+
+
+@needs_gtk
+def test_full_screen_hides_no_chrome_so_every_toggle_stays_reachable(tmp_path: Path):
+    """Backlog 2026-11-11 (full-screen modes): Blitzlens's full screen is the window manager's; it
+    hides no container. Every control that governs something drawn there (the info card's key and
+    the order, zoom and full-screen keys) stays on the surface or on its key in that mode."""
+    win = _window(tmp_path)
+    win.present()
+    calls = []
+    win.is_fullscreen = lambda: bool(calls) and calls[-1] == "fullscreen"
+    win.fullscreen = lambda: calls.append("fullscreen")
+    win.unfullscreen = lambda: calls.append("unfullscreen")
+    engine = win.router.engine
+    assert engine.dispatch(0x66, 0) is True  # F: into full screen
+    assert calls == ["fullscreen"]
+    chrome = [win.header_bar, win.action_bar, win.btn_order, win.btn_mode_1, win.menu_button]
+    assert all(w.get_visible() for w in chrome), "full screen must not hide the header or the action bar"
+    shown = win.canvas_view.hud_enabled
+    assert engine.dispatch(0x69, 0) is True  # I: the info card, still on its key
+    assert win.canvas_view.hud_enabled is (not shown)
+    assert engine.dispatch(0x20, 0) is True  # Space: zoom, still on its key
+    assert win.canvas_view.is_1to1_zoom
+    assert engine.dispatch(0xFF1B, 0) is True and not win.canvas_view.is_1to1_zoom
+    assert engine.dispatch(0x66, 0) is True and calls[-1] == "unfullscreen"  # F: out again
+    win.destroy()
