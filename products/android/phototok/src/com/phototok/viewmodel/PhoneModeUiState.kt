@@ -22,6 +22,8 @@ import com.phototok.domain.SwipeAction
 import com.phototok.domain.SwipeRightOutcome
 import com.phototok.domain.SwipeRightVerb
 import com.phototok.domain.UiText
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.update
 
 data class PhoneModeUiState(
     val images: List<ImageItem> = emptyList(),
@@ -214,6 +216,11 @@ data class ActionFeedback(
     /** The snackbar offers Undo, which turns Pro mode back on (the swipes it changed). */
     val offersUndoProOff: Boolean = false,
 )
+
+/** Show [message] in the feed's snackbar: the one way every holder of the feed reports. */
+internal fun MutableStateFlow<PhoneModeUiState>.showFeedback(message: UiText, isError: Boolean = false) {
+    update { it.copy(lastActionFeedback = ActionFeedback(message = message, isError = isError)) }
+}
 
 /** A one-time explanation, resolved against the user's current settings. */
 data class FirstRunHintUi(
