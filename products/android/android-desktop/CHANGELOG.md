@@ -39,6 +39,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ### Fixed
 
+- A sideways drag that ends on a Setup row (Reset Guidance, a switch, a choice) no longer counts as a tap and changes nothing; a tap still acts.
+
 - A star filter picked in Learn no longer limits Cull, which shows no filter: Cull's arrows, filmstrip, burst marks and Go to photo always cover every photo of the folder, and Learn keeps its filter.
 - Reopening the last folder while the app is rebuilt in a running process (a window resize on DeX, a rotation) can no longer crash at start: the photo-data cache it clears existed only after the reopen began.
 - Leaving a folder no longer deletes a file that another photo replaced under the same name since you deleted it (a refilled card); it is kept and named, as after a restart.
