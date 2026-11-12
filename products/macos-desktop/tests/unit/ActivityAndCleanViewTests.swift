@@ -167,4 +167,26 @@ struct ActivityAndCleanViewTests {
         #expect(LensjetCommand.filmstrip.key == "T")
         #expect(LensjetMenu.view.commands.contains(.cleanView))
     }
+
+    @Test("Every toggle the clean view hides still has a key, and the key flips it there")
+    func hiddenTogglesKeepAKey() {
+        // The toolbar, dock and filmstrip hold these toggles: filmstrip, info, link pan, zoom, auto-advance, the 1/2/3 layouts.
+        for command in [LensjetCommand.filmstrip, .info, .linkPan, .zoom100, .autoAdvance, .singleUp, .twoUp, .threeUp, .statistics, .activity] {
+            #expect(command.key != nil, "\(command) lost its key")
+        }
+        let vm = makeVM(count: 3)
+        let router = KeyboardShortcutRouter()
+        vm.setFullScreen(true)
+        vm.setComparisonMode(.sideBySide)
+        let pan = vm.isZoomSynced
+        #expect(router.handleKeyEvent(SyntheticKeyEvent(keyCode: 1, characters: "s"), viewModel: vm))
+        #expect(vm.isZoomSynced != pan, "link pan flips in clean view")
+        let info = vm.isInfoVisible
+        #expect(router.handleKeyEvent(SyntheticKeyEvent(keyCode: 34, characters: "i"), viewModel: vm))
+        #expect(vm.isInfoVisible != info)
+        #expect(router.handleKeyEvent(SyntheticKeyEvent(keyCode: 49, characters: " "), viewModel: vm))
+        #expect(vm.zoomState.isZoomed, "Space zooms in clean view")
+        #expect(router.handleKeyEvent(SyntheticKeyEvent(keyCode: 44, characters: "?"), viewModel: vm))
+        #expect(vm.isShortcutsHelpPresented)
+    }
 }
