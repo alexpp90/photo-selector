@@ -98,11 +98,41 @@ def render(app_name: str, data: dict, coords: Dict[str, str], texts: Dict[str, s
         if bundled:
             out.append("  Libraries built into it:")
             for item in bundled:
-                out += [f"  - {item['name']}: {item['license']}", f"    {item['url']}"]
+                out.append(f"  - {item['name']}: {item['license']}")
+                if item.get("owner"):
+                    out.append(f"    {item['owner']}")
+                if item.get("notice"):
+                    out.append(f"    {item['notice']}")
+                out.append(f"    {item['url']}")
             out.append("")
-    for name in sorted({c["license"] for c in used}):
+    names = {c["license"] for c in used}
+    for item in bundled_used(data, coords):
+        names.update(item.get("texts", []))
+    for name in sorted(names):
         out += ["=" * 78, data["licenses"][name]["name"], "=" * 78, "", texts[name], ""]
     return "\n".join(out).rstrip("\n") + "\n"
+
+
+def bundled_used(data: dict, coords: Dict[str, str]) -> List[dict]:
+    """Native libraries built into a component this app bundles."""
+    return [b for b in data.get("bundled", []) if b["in"] in coords]
+
+
+def missing_bundled_texts(data: dict) -> List[str]:
+    """Bundled libraries whose licence text is not committed (BSD, zlib and libpng-style
+    licences require the text in a binary distribution)."""
+    problems: List[str] = []
+    for item in data.get("bundled", []):
+        texts = item.get("texts") or []
+        if not texts:
+            problems.append(f"bundled library '{item['name']}' names no licence text ('texts'): its licence "
+                            "requires the text in the distribution")
+        for key in texts:
+            lic = data["licenses"].get(key)
+            if lic is None or not (LICENSES_DIR / lic["file"]).is_file():
+                problems.append(f"bundled library '{item['name']}' needs the licence text '{key}', which is not "
+                                f"committed under {LICENSES_DIR.relative_to(REPO_ROOT)}")
+    return problems
 
 
 def gradle_classpath(module: str) -> Dict[str, str]:
@@ -119,7 +149,9 @@ def classpaths(overrides: Dict[str, str]) -> Dict[str, Dict[str, str]]:
 
 
 def check(paths: Dict[str, Dict[str, str]], data: dict, notice_files: Dict[str, Path] = NOTICE_FILES) -> List[str]:
-    problems: List[str] = []
+    problems: List[str] = missing_bundled_texts(data)
+    if problems:
+        return problems
     texts = licence_texts(data)
     seen: set = set()
     for module, coords in paths.items():

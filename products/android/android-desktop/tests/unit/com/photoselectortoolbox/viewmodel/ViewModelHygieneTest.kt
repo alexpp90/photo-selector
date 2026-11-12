@@ -5,11 +5,12 @@ import org.junit.Assert.assertTrue
 import org.junit.Test
 
 /**
- * Three rules the view models keep, read from their sources because each is a property of every
+ * Four rules the view models keep, read from their sources because each is a property of every
  * line of the file and not of one behaviour (FD-Q-2, FD-UX-4):
  * - a catch-all around a suspending call rethrows cancellation first;
  * - no literal `Dispatchers.IO` at a call: the dispatcher is the injected `ioDispatcher`;
- * - no message shown to the photographer carries an exception's own text.
+ * - no message shown to the photographer carries an exception's own text;
+ * - no class property below `init`, which may run the folder reopen synchronously.
  */
 class ViewModelHygieneTest {
 
@@ -41,6 +42,24 @@ class ViewModelHygieneTest {
             }
         }
         assertTrue("literal Dispatchers.IO: $bad", bad.isEmpty())
+    }
+
+    /**
+     * Kotlin runs property initialisers and `init` in source order, so a property below `init` is
+     * still null while `init` runs — and `init` reopens the last folder, synchronously when the
+     * store is warm (backlog 2026-11-11, `SelectorViewModelRelaunchTest`).
+     */
+    @Test
+    fun `no class property is declared below init`() {
+        val bad = mutableListOf<String>()
+        val property = Regex("""^    (private |internal |protected |override |lateinit )*(val|var) """)
+        sources().forEach { file ->
+            val lines = file.readLines()
+            val init = lines.indexOfFirst { it.startsWith("    init {") }
+            if (init < 0) return@forEach
+            lines.forEachIndexed { i, line -> if (i > init && property.containsMatchIn(line)) bad += "${file.name}:${i + 1}" }
+        }
+        assertTrue("property declared below init (null while init runs): $bad", bad.isEmpty())
     }
 
     @Test

@@ -21,6 +21,7 @@ import org.robolectric.RobolectricTestRunner
 import org.robolectric.RuntimeEnvironment
 import org.robolectric.annotation.Config
 import java.io.File
+import kotlinx.coroutines.Dispatchers
 
 @RunWith(RobolectricTestRunner::class)
 @Config(sdk = [34], application = Application::class)
@@ -188,7 +189,7 @@ class CompanionGroupingTest {
 
         DirectoryDocumentsProvider.root = rootDir
 
-        val discovered = LocalImageSourceImpl(context).discoverImages(treeUri).last()
+        val discovered = LocalImageSourceImpl(context, Dispatchers.IO).discoverImages(treeUri).last()
 
         // Must discover 3 ImageItems:
         // 1. IMG_0001.CR3 (from Day1)

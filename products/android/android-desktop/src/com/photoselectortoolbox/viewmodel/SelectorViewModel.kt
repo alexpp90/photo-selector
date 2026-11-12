@@ -41,6 +41,7 @@ import com.photoselectortoolbox.domain.curation.PendingDeleteJournal
 import com.photoselectortoolbox.domain.curation.PendingDeletion
 import com.photoselectortoolbox.domain.curation.SelectorListState
 import com.photoselectortoolbox.domain.curation.SnackbarLifetime
+import com.photoselectortoolbox.domain.curation.TransferSpace
 import com.photoselectortoolbox.domain.curation.UndoParking
 import com.photoselectortoolbox.domain.curation.UndoRestore
 import com.photoselectortoolbox.domain.curation.UndoPolicy
@@ -53,10 +54,10 @@ import com.photoselectortoolbox.domain.guidance.SelectorHintText
 import com.photoselectortoolbox.domain.grouping.ImageGrouper
 import com.photoselectortoolbox.domain.format.SelectionActionLabels
 import com.photoselectortoolbox.domain.interaction.FilingAction
+import com.photoselectortoolbox.domain.scoring.ScanMeasures
 import com.photoselectortoolbox.domain.session.JumpPreview
 import com.photoselectortoolbox.domain.session.JumpResolution
 import com.photoselectortoolbox.domain.session.PhotoDates
-import com.photoselectortoolbox.domain.session.PhotoJump
 import com.photoselectortoolbox.domain.session.ProgressiveMerge
 import com.photoselectortoolbox.domain.session.ScoreMerge
 import com.photoselectortoolbox.domain.session.SelectorReorder
@@ -98,326 +99,6 @@ import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.withContext
 
-/**
- * Which of the three frames on screen a control refers to.
- *
- * Named rather than passed as an index because "1" and "the previous frame" are
- * different things: the index shifts every time the user advances, and every
- * bug in this area has come from an index that outlived the mutation it was
- * read before.
- */
-enum class SelectorFrame { PREVIOUS, CURRENT, NEXT }
-
-val SourceKind.isCloudProvider: Boolean
-    get() = this == SourceKind.CLOUD_OTHER
-
-val SourceKind.providerLabel: String
-    get() = when (this) {
-        SourceKind.PHONE_LIBRARY -> "local storage"
-        SourceKind.REMOVABLE -> "removable storage"
-        SourceKind.CAMERA_MTP -> "camera (MTP)"
-        SourceKind.CLOUD_OTHER -> "cloud storage"
-    }
-
-/**
- * Recovery prompt raised on startup when uncommitted pending deletions from a
- * previous killed session are found in the durable journal (PRP WP-11 / U-05).
- */
-data class UncompletedDeletionsPrompt(
-    val uris: List<String>,
-    val count: Int = uris.size,
-    val message: String = SelectorLabels.uncompletedDeletionsMessage(count),
-)
-
-data class SelectorUiState(
-    val images: List<ImageItem> = emptyList(),
-    val currentIndex: Int = 0,
-    val isLoading: Boolean = false,
-    /**
-     * Whether folder enumeration is still producing photographs.
-     *
-     * Distinct from [isLoading], which covers only the wait for the *first*
-     * batch. Discovery streams, so the folder keeps growing behind a fully
-     * usable screen; this is what puts the `+` on `127 / 842+`.
-     */
-    val isEnumerating: Boolean = false,
-    val isScanRunning: Boolean = false,
-    /** Whether Group Similar Series is currently rebuilding the bursts. */
-    val isGroupingRunning: Boolean = false,
-    /**
-     * The pass that has been asked for and is waiting for the running one.
-     *
-     * Never a disabled control: the sidebar shows this as a queued state with a
-     * Cancel, per `ai/memory/palette.md` (2026-07-24).
-     */
-    val queuedWork: SelectorWork? = null,
-    val scanProgress: Float = 0f,
-    val scanStatusText: String = "",
-    val folderUri: String? = null,
-    val folderName: String = "",
-    val error: String? = null,
-    /**
-     * The snackbar line, owned here rather than in the composable so it survives
-     * recomposition and always matches the operation [undoOperation] describes.
-     */
-    val snackbarMessage: String? = null,
-    /**
-     * Which message this is, counted up on every one shown.
-     *
-     * The snackbar's timer is keyed on this, not on the text: two consecutive
-     * moves produce the same sentence, and a timer keyed on the sentence never
-     * restarted for the second one.
-     */
-    val snackbarSequence: Long = 0L,
-    /** How long [snackbarMessage] stays and whether that is a real deadline. */
-    val snackbarLifetime: SnackbarLifetime = SnackbarLifetime.NOTICE,
-    /**
-     * Unified undo stack (newest first, up to [UndoPolicy.MAX_UNDO_HISTORY] = 20).
-     *
-     * Holds both deferred deletions ([UndoableOperation.RevertPendingDelete]) and
-     * completed moves ([UndoableOperation.ReverseMove]) in LIFO order.
-     */
-    val undoHistory: List<UndoableOperation> = emptyList(),
-    /**
-     * Durable undo records of folders left behind (finished moves, trashed deletes),
-     * restored into [undoHistory] when their folder is selected again.
-     */
-    val parkedUndo: ParkedUndo = ParkedUndo(),
-    /**
-     * Whether the currently visible snackbar represents the top of [undoHistory]
-     * and should offer an inline UNDO button.
-     */
-    val snackbarUndoAvailable: Boolean = false,
-    /**
-     * Recovery prompt when uncommitted deletions from a killed session are found
-     * in the durable pending-delete journal.
-     */
-    val uncompletedDeletionsPrompt: UncompletedDeletionsPrompt? = null,
-    val showDeleteConfirmation: Boolean = false,
-    val groupingEnabled: Boolean = false,
-    val groups: List<List<Int>> = emptyList(),
-    val fullscreenButtonsEnabled: Boolean = true,
-    /** Whether the fullscreen top bar (name, position, EXIF) stays up instead of fading (persisted). */
-    val fullscreenInfoPinned: Boolean = false,
-    /** Which of Copy and Move is the emphasised filing control (persisted). */
-    val filingAction: FilingAction = FilingAction.DEFAULT,
-    /** Whether the one-time on-image nav arrows have already been shown. */
-    val hasSeenNavHint: Boolean = false,
-    /** Whether the filmstrip along the bottom edge is shown (persisted). */
-    val filmstripVisible: Boolean = true,
-    /** Whether the readout block beside the current frame is shown (persisted). */
-    val detailsVisible: Boolean = true,
-    /** Whether Previous and Next carry their value overlay (persisted). */
-    val overlayValuesVisible: Boolean = true,
-    /**
-     * Which frame, if any, is currently filling the image region.
-     *
-     * Null is the normal three-up state. Maximise is transient view state, not
-     * a preference: it is a thing you do to look closer at one frame, and it
-     * should not survive a relaunch the way a layout choice would.
-     */
-    val maximisedFrame: SelectorFrame? = null,
-    /** Whether the one-time fullscreen gesture hint has already been dismissed. */
-    val hasSeenFullscreenHint: Boolean = false,
-    /** Every one-time explanation the photographer has already dismissed. */
-    val seenHints: Set<SelectorHint> = emptySet(),
-    /**
-     * The explanation waiting to be shown, if any.
-     *
-     * Raised by the action whose *effect* is invisible — filing, deferred
-     * deletion, maximise — and cleared when it is dismissed or auto-dismissed.
-     * `SelectorGuidance` decides; this field only carries the answer.
-     */
-    val pendingHint: SelectorHint? = null,
-    /**
-     * The verb of the filing the [pendingHint] explains, which is not always the
-     * configured one: press `M` with Copy configured and the card must say
-     * "Moved", not "Copied" (AD-5). Null until something is filed.
-     */
-    val performedFilingAction: FilingAction? = null,
-    /** The destination folder name, so the filing hint can name it (persisted). */
-    val selectionFolderName: String = FilingAction.DEFAULT_SELECTION_FOLDER,
-    /**
-     * The second-pass folder name (`Final`) while the open folder is itself a Selection folder
-     * and no custom destination is set (`U-32`, [SelectionDestinationPlan]); null otherwise.
-     */
-    val secondPassFolderName: String? = null,
-    /**
-     * The name of the custom destination folder when Copy and Move file into one
-     * (`[USER 2026-11-04]`), else null. The confirmation and the filing hint name it.
-     */
-    val customDestinationName: String? = null,
-    /** Whether RAW and JPEG are filed into subfolders (persisted). */
-    val sortingEnabled: Boolean = true,
-    /** Active rating filter driving the filmstrip and navigation order. */
-    val ratingFilter: RatingFilter = RatingFilter.All,
-    /** True when the folder's persisted SAF grant was revoked or the folder was moved/deleted. */
-    val missingGrantPrompt: Boolean = false,
-    /** Storage provider classification for the opened folder (`U-30`). */
-    val sourceKind: SourceKind = SourceKind.PHONE_LIBRARY,
-    /** Whether a full cloud scan confirmation prompt is pending (`U-30`). */
-    val showCloudScanConfirmation: Boolean = false,
-    /** Whether images are sorted ascending by sharpness for worst-first reject triage (`U-34`). */
-    val sortWorstFirst: Boolean = false,
-    /**
-     * The persisted order the folder is shown in (`selector_sort_order`). Worst-first
-     * triage is a session view over it: leaving triage returns to this order.
-     */
-    val sortOrder: SelectorSortOrder = SelectorSortOrder.DEFAULT,
-    /** Optional sharpness stop-line threshold for worst-first reject triage (`U-34`). */
-    val sharpnessStopThreshold: Double? = null,
-    /** Session decision log counters (`U-33`, `U-35`). */
-    val sessionMovedCount: Int = 0,
-    val sessionCopiedCount: Int = 0,
-    val sessionDeletedCount: Int = 0,
-    val sessionKeptFileNames: Set<String> = emptySet(),
-) {
-    /** Whether worst-first triage has reached or passed the configured sharpness stop-line (`U-34`). */
-    val hasReachedSharpnessThreshold: Boolean
-        get() {
-            if (!sortWorstFirst) return false
-            val threshold = sharpnessStopThreshold ?: return false
-            val score = currentImage?.scanResult?.sharpnessScore ?: return false
-            return score >= threshold
-        }
-
-    /** Total photos kept (moved + copied) in the current culling session (`U-33`, `U-35`). */
-    val sessionKeptCount: Int
-        get() = sessionMovedCount + sessionCopiedCount
-    /**
-     * What, if anything, the snackbar's UNDO would actually reverse.
-     *
-     * Null means no UNDO is drawn on the snackbar (e.g. for Copy, Scan complete,
-     * Error, or after the snackbar is dismissed), while [undoHistory] remains
-     * available to `Ctrl+Z`.
-     */
-    val undoOperation: UndoableOperation?
-        get() = if (snackbarUndoAvailable) undoHistory.firstOrNull() else null
-
-    /**
-     * This state showing a new snackbar message.
-     *
-     * The one way a message is raised, so the three facts that belong to it —
-     * the sequence number its timer is keyed on, how long it stays, and whether
-     * UNDO is offered — are always decided together (REQ-AND-LAYOUT.21).
-     */
-    fun withSnackbar(
-        message: String,
-        lifetime: SnackbarLifetime,
-        undoAvailable: Boolean = false,
-    ): SelectorUiState = copy(
-        snackbarMessage = message,
-        snackbarSequence = snackbarSequence + 1,
-        snackbarLifetime = lifetime,
-        snackbarUndoAvailable = undoAvailable,
-    )
-
-    /** The most recent deletion removed from the list but not yet committed to disk. */
-    val pendingDeletion: PendingDeletion?
-        get() = undoHistory.filterIsInstance<UndoableOperation.RevertPendingDelete>().firstOrNull()?.pending
-
-    /** All deletions currently held in [undoHistory] and not yet committed to disk. */
-    val pendingDeletions: List<PendingDeletion>
-        get() = undoHistory.filterIsInstance<UndoableOperation.RevertPendingDelete>().map { it.pending }
-
-    /** The active images adhering to the rating filter. */
-    val filteredImages: List<ImageItem>
-        get() = if (ratingFilter is RatingFilter.All) {
-            images
-        } else {
-            images.filter { ratingFilter.matches(it.rating) }
-        }
-
-    /** Position within filtered collection (1-based), or 0 if none. */
-    val filteredPosition: Int
-        get() {
-            val curr = currentImage ?: return 0
-            val idx = filteredImages.indexOfFirst { it.uri == curr.uri }
-            return if (idx >= 0) idx + 1 else 0
-        }
-
-    /** [filteredPosition] as a 0-based index into [filteredImages] (what list widgets take), or 0 if none. */
-    val filteredIndex: Int
-        get() = (filteredPosition - 1).coerceAtLeast(0)
-
-    /** The frame being judged, or null when no folder is loaded. */
-    val currentImage: ImageItem?
-        get() = images.getOrNull(currentIndex)
-
-    /** The frame before the current one, or null at the start of the folder. */
-    val previousImage: ImageItem?
-        get() = images.getOrNull(currentIndex - 1)
-
-    /** The frame after the current one, or null at the end of the folder. */
-    val nextImage: ImageItem?
-        get() = images.getOrNull(currentIndex + 1)
-
-    /** Human-readable position, 1-based, as shown in the app bar and rails. */
-    val position: Int
-        get() = if (images.isEmpty()) 0 else currentIndex + 1
-
-    /** True once at least one frame carries scores, which is what reveals the legend. */
-    val hasAnyScores: Boolean
-        get() = images.any { it.scanResult != null }
-
-    /** The list and the index as one value, for the pure `domain/curation` logic. */
-    val listState: SelectorListState
-        get() = SelectorListState(images, currentIndex)
-
-    /**
-     * Whether the coach-mark guide opens by itself, this being a first launch.
-     *
-     * Derived rather than stored: it is a function of the persisted hint set and
-     * whether there is anything on screen to label, and a second copy of it
-     * would be one more thing to keep in step with *Reset guidance*.
-     */
-    val showIntroTour: Boolean
-        get() = SelectorGuidance.shouldShowTour(seenHints, images.isNotEmpty())
-
-    /**
-     * The pending explanation with its wording resolved from the current
-     * settings, ready for the card to draw.
-     *
-     * Built here rather than in the composable so no default verb, folder name
-     * or key can be hard-coded next to a `Text`.
-     */
-    /**
-     * The folder a Copy or Move from here lands in, by name: the second-pass folder on a second
-     * pass, else the Selection folder. Every confirmation, hint and flash names this one.
-     */
-    val filingFolderName: String
-        get() = secondPassFolderName?.takeIf { customDestinationName == null } ?: selectionFolderName
-
-    val pendingHintText: SelectorHintUi?
-        get() = pendingHint?.let { hint ->
-            // The filing card explains what *just happened*, so it takes the verb
-            // that was performed; every other card is not about a verb.
-            val verb = if (hint == SelectorHint.FILING) {
-                performedFilingAction ?: filingAction
-            } else {
-                filingAction
-            }
-            SelectorHintUi(
-                hint = hint,
-                title = SelectorHintText.title(hint, verb, filingFolderName, customDestinationName),
-                message = SelectorHintText.message(
-                    hint = hint,
-                    filingAction = verb,
-                    selectionFolderName = filingFolderName,
-                    sortingEnabled = sortingEnabled,
-                    customFolderName = customDestinationName,
-                ),
-            )
-        }
-}
-
-/** One resolved explanation: which hint it is, and the words for it. */
-data class SelectorHintUi(
-    val hint: SelectorHint,
-    val title: String,
-    val message: String,
-)
-
 @HiltViewModel
 class SelectorViewModel @Inject constructor(
     private val imageRepository: ImageRepository,
@@ -425,7 +106,8 @@ class SelectorViewModel @Inject constructor(
     private val cacheRepository: CacheRepository,
     private val settingsRepository: SettingsRepository,
     private val scoreDao: ScoreDao,
-    private val metadataWriter: MetadataWriter = MetadataWriterImpl(),
+    // Hilt injects the writer; the default is for tests, like `ioDispatcher` below.
+    private val metadataWriter: MetadataWriter = MetadataWriterImpl(ioDispatcher = Dispatchers.IO),
     @ApplicationScope private val appScope: CoroutineScope,
     @ApplicationContext private val context: Context
 ) : ViewModel() {
@@ -496,6 +178,9 @@ class SelectorViewModel @Inject constructor(
     // same trap recorded against Jackpix's feed loader in
     // `ai/memory/code_health.md`.
 
+    /** The measurements of the latest scan request, read when the queued scan starts. */
+    private var pendingScanMeasures: ScanMeasures = ScanMeasures.ALL
+
     private var discoveryJob: Job? = null
     private var visibleDimensionsJob: Job? = null
     private var backfillDimensionsJob: Job? = null
@@ -537,10 +222,31 @@ class SelectorViewModel @Inject constructor(
      */
     private var photographerHasActed = false
 
+    /** The reopened folder's stored place (photo URI, v0.4.0 index), applied once at settle. */
+    private var storedPlace: Pair<String?, Int>? = null
+
     private var workQueue = WorkQueueState()
     private var pendingGroupingLevel: GroupingLevel = GroupingLevel.TIME_FILENAME
 
-    private val imageGrouper = ImageGrouper(context)
+    private val imageGrouper = ImageGrouper(context, ioDispatcher)
+
+    // Above `init`, which may reopen the last folder inside the constructor (SelectorViewModelRelaunchTest).
+
+    private val loadedExifCache = object : LinkedHashMap<String, ExifData>(64, 0.75f, true) {
+        override fun removeEldestEntry(eldest: MutableMap.MutableEntry<String, ExifData>?): Boolean {
+            return size > MAX_EXIF_CACHE_SIZE
+        }
+    }
+
+    /**
+     * The clock "today" comes from (a `12.10.` without a year, a two-digit year) and the
+     * zone photo times are read in — the device's, read at each jump so a zone change
+     * takes effect. Overridable in tests.
+     */
+    internal var clock: Clock = Clock.systemDefaultZone()
+    internal var zoneId: () -> ZoneId = { ZoneId.systemDefault() }
+
+    private val jumps = SelectorJumps(clock = { clock }, zone = { zoneId() })
 
     init {
         // While the undo history holds entries, the folder they operate on keeps its SAF grant even
@@ -675,6 +381,14 @@ class SelectorViewModel @Inject constructor(
             }
         }
 
+        // The place in the folder, by photo, once the photographer has moved (FolderPlace).
+        viewModelScope.launch {
+            _uiState.map { it.folderUri to it.currentImage?.uri }.distinctUntilChanged().collectLatest { (folder, photo) ->
+                delay(FolderPlace.SAVE_DEBOUNCE_MILLIS)
+                if (folder != null && photo != null && photographerHasActed) settingsRepository.setFolderLastPhoto(folder, photo)
+            }
+        }
+
         viewModelScope.launch {
             settingsRepository.reconcilePersistedGrants()
             settingsRepository.lastFolderUri.collect { uri ->
@@ -726,6 +440,7 @@ class SelectorViewModel @Inject constructor(
         loadedExifCache.clear()
         workQueue = SelectorWorkQueue.reset()
         photographerHasActed = false
+        storedPlace = null
         _ratingFilter.value = RatingFilter.All
         _uiState.update {
             parkUndoHistory(it).copy(
@@ -748,6 +463,10 @@ class SelectorViewModel @Inject constructor(
                 sessionCopiedCount = 0,
                 sessionDeletedCount = 0,
                 sessionKeptFileNames = emptySet(),
+                sessionCopiedUris = emptySet(),
+                sessionKeptFiles = emptyMap(),
+                doneSelection = null,
+                doneSelectionChecking = false,
             )
         }
     }
@@ -809,6 +528,7 @@ class SelectorViewModel @Inject constructor(
             resolveSecondPass(uri)
 
             settingsRepository.setLastFolderUri(uri.toString())
+            storedPlace = settingsRepository.getFolderLastPhoto(uri.toString()) to settingsRepository.getFolderLastPosition(uri.toString())
             recoverInterruptedRatingWrites(uri)
 
             collectDiscovery(uri, "images") { e ->
@@ -980,13 +700,20 @@ class SelectorViewModel @Inject constructor(
      */
     private fun settleOrder() {
         val before = _uiState.value.images
+        // Resume where this folder was left, unless the photographer has moved since it opened —
+        // in the same update as the settle, so no one sees the settled folder on frame 1 first.
+        val place = storedPlace?.takeIf { !photographerHasActed }
+        storedPlace = null
+        var resumed = false
         _uiState.update { state ->
             val settled = state.copy(isLoading = false, isEnumerating = false)
-            if (state.sortWorstFirst) return@update settled
             val reordered = SelectorReorder.atSettle(state.listState, state.sortOrder, photographerHasActed)
-            if (reordered.changed) settled.withList(reordered.state) else settled
+            val ordered = if (!state.sortWorstFirst && reordered.changed) settled.withList(reordered.state) else settled
+            val resume = place?.let { (photo, index) -> FolderPlace.resumeIndex(ordered.images, photo, index) }
+            resumed = resume != null
+            if (resume != null) ordered.copy(currentIndex = resume) else ordered
         }
-        if (_uiState.value.images !== before) refreshAfterListChange()
+        if (_uiState.value.images !== before || resumed) refreshAfterListChange()
     }
 
     /** The order picked in the overflow menu: leaves worst-first, keeps the frame on screen, persists. */
@@ -1054,82 +781,48 @@ class SelectorViewModel @Inject constructor(
     // ── Navigation & Rating Filtering ────────────────────────────────────
 
     /**
-     * Go to the photo the "Go to photo" input names (number or file name), in the
-     * list as it is ordered now. A photo the rating filter hides is shown anyway —
-     * the photographer asked for it — by resetting the filter to All.
-     *
-     * Returns what the input resolved to, so the dialog can say why it did not move.
+     * *Go to photo* (REQ-AND-WORKFLOW.07): a number, name or date, the date picker's day, the
+     * dialog's preview, the picker's days and its first month ([SelectorJumps]). Go-to ignores
+     * Learn's rating filter. A jump returns what the input resolved to, so the dialog can say
+     * why it did not move.
      */
-    fun jumpToPhoto(input: String): JumpResolution {
-        val state = _uiState.value
-        val zone = zoneId()
-        val resolution = PhotoJump.resolve(input, state.images, state.ratingFilter, zone, LocalDate.now(clock.withZone(zone)))
-        goTo(resolution)
-        return resolution
-    }
+    fun jumpToPhoto(input: String): JumpResolution = jumps.resolve(input, _uiState.value).also(::goTo)
 
-    /**
-     * Go to the first photo of [date] in the list as it is ordered now — the date
-     * picker's entry. A day without photos lands on the nearest day that has one
-     * ([JumpResolution.Resolved.date] says which); null when no photo has a known time
-     * (nothing moves). A photo the rating filter hides is shown, resetting the filter.
-     */
-    fun jumpToDate(date: LocalDate): JumpResolution.Resolved? {
-        val state = _uiState.value
-        val resolution = PhotoJump.resolveDate(date, state.images, state.ratingFilter, zoneId())
-        resolution?.let(::goTo)
-        return resolution
-    }
+    fun jumpToDate(date: LocalDate): JumpResolution.Resolved? = jumps.resolveDate(date, _uiState.value)?.also(::goTo)
 
-    /**
-     * What "Go to photo" would do with [input], without doing it: the resolution plus
-     * the target's file name and time, for the dialog's supporting line. Uses the same
-     * zone and today as [jumpToPhoto], so the preview and the jump agree.
-     */
-    fun previewJump(input: String): JumpPreview {
-        val state = _uiState.value
-        val zone = zoneId()
-        return PhotoJump.preview(input, state.images, state.ratingFilter, zone, LocalDate.now(clock.withZone(zone)))
-    }
+    fun previewJump(input: String): JumpPreview = jumps.preview(input, _uiState.value)
 
-    /**
-     * The days the list has photos on, for a date picker limited to them
-     * (`SelectableDates`). Recomputed only when the list changes (cached by identity).
-     */
-    fun photoDates(): PhotoDates {
-        val images = _uiState.value.images
-        val zone = zoneId()
-        photoDatesCache?.let { (cachedImages, cachedZone, dates) ->
-            if (cachedImages === images && cachedZone == zone) return dates
-        }
-        return PhotoDates.of(images, zone).also { photoDatesCache = Triple(images, zone, it) }
-    }
+    fun photoDates(): PhotoDates = jumps.dates(_uiState.value.images)
 
-    /**
-     * The month the date picker opens on: the day of the photo on screen, else the last day
-     * with photos (the newest), else null when no photo has a known time.
-     */
-    fun pickerStartDay(): LocalDate? {
-        val state = _uiState.value
-        val zone = zoneId()
-        return state.currentImage?.let { PhotoJump.dayOf(it, zone) } ?: photoDates().last
-    }
-
-    private var photoDatesCache: Triple<List<ImageItem>, ZoneId, PhotoDates>? = null
-
-    /**
-     * The clock "today" comes from (a `12.10.` without a year, a two-digit year) and the
-     * zone photo times are read in — the device's, read at each jump so a zone change
-     * takes effect. Overridable in tests.
-     */
-    internal var clock: Clock = Clock.systemDefaultZone()
-    internal var zoneId: () -> ZoneId = { ZoneId.systemDefault() }
+    fun pickerStartDay(): LocalDate? = jumps.pickerStartDay(_uiState.value)
 
     private fun goTo(resolution: JumpResolution) {
-        if (resolution is JumpResolution.Resolved) {
-            if (resolution.hiddenByFilter) setRatingFilter(RatingFilter.All)
-            navigateToImage(resolution.index)
+        if (resolution is JumpResolution.Resolved) navigateToImage(resolution.index)
+    }
+
+    /**
+     * Learn's rating filter (`RatingFilterSelector`, the only control that sets it). It
+     * limits Learn — its filmstrip and [navigateNextInLearn] / [navigatePreviousInLearn] —
+     * and nothing in Cull: Cull draws no filter and always steps through every photo
+     * (REQ-AND-RATING.01). Reset when a folder is opened.
+     */
+    /**
+     * Look up the Selection folder for the Done card: whether *Open Selection* can be offered
+     * and what the safe-to-format line says (REQ-AND-WORKFLOW.02). A result for a folder left
+     * meanwhile is dropped.
+     */
+    fun lookUpSelection() {
+        val folder = _uiState.value.folderUri ?: return
+        _uiState.update { it.copy(doneSelectionChecking = true) }
+        viewModelScope.launch {
+            val found = withContext(ioDispatcher) { imageRepository.selectionFolder(context, Uri.parse(folder)) }
+            _uiState.update { if (it.folderUri != folder) it else it.copy(doneSelection = found, doneSelectionChecking = false) }
         }
+    }
+
+    /** *Open Selection*: the Selection folder becomes the working folder, for a second pass (REQ-AND-WORKFLOW.01). */
+    fun openSelection() {
+        _uiState.value.doneSelection?.let { selectFolder(Uri.parse(it.uri)) }
     }
 
     fun setRatingFilter(filter: RatingFilter) {
@@ -1139,62 +832,27 @@ class SelectorViewModel @Inject constructor(
         adjustCurrentIndexForFilter(filter)
     }
 
-    private fun adjustCurrentIndexForFilter(filter: RatingFilter) {
-        val state = _uiState.value
-        val current = state.currentImage ?: return
-        if (filter.matches(current.rating)) return
+    private fun adjustCurrentIndexForFilter(filter: RatingFilter) =
+        stepTo(SelectorStepping.nearestMatching(_uiState.value, filter))
 
-        val matchingIndices = state.images.indices.filter { filter.matches(state.images[it].rating) }
-        if (matchingIndices.isNotEmpty()) {
-            val closest = matchingIndices.minByOrNull { kotlin.math.abs(it - state.currentIndex) } ?: matchingIndices.first()
-            _uiState.update { it.copy(currentIndex = closest) }
-            onFrameChanged()
-        }
+    fun navigateToImage(index: Int) = stepTo(index.takeIf { it in _uiState.value.images.indices })
+
+    private fun stepTo(index: Int?) {
+        if (index == null) return
+        _uiState.update { it.copy(currentIndex = index) }
+        onFrameChanged()
     }
 
-    fun navigateToImage(index: Int) {
-        val images = _uiState.value.images
-        if (index in images.indices) {
-            _uiState.update { it.copy(currentIndex = index) }
-            onFrameChanged()
-        }
-    }
+    /** Cull's next / previous photo: every photo of the folder, whatever Learn's filter says. */
+    fun navigateNext() = SelectorStepping.next(_uiState.value, RatingFilter.All)?.let(::stepTo)
+        ?: _uiState.update { if (it.images.isEmpty()) it else it.withSnackbar(SelectorLabels.LAST_PHOTO, SnackbarLifetime.NOTICE) }
 
-    fun navigateNext() {
-        val state = _uiState.value
-        if (state.ratingFilter is RatingFilter.All) {
-            if (state.currentIndex < state.images.size - 1) {
-                _uiState.update { it.copy(currentIndex = state.currentIndex + 1) }
-                onFrameChanged()
-            }
-        } else {
-            val nextIndex = state.images.indices
-                .filter { it > state.currentIndex && state.ratingFilter.matches(state.images[it].rating) }
-                .firstOrNull()
-            if (nextIndex != null) {
-                _uiState.update { it.copy(currentIndex = nextIndex) }
-                onFrameChanged()
-            }
-        }
-    }
+    fun navigatePrevious() = stepTo(SelectorStepping.previous(_uiState.value, RatingFilter.All))
 
-    fun navigatePrevious() {
-        val state = _uiState.value
-        if (state.ratingFilter is RatingFilter.All) {
-            if (state.currentIndex > 0) {
-                _uiState.update { it.copy(currentIndex = state.currentIndex - 1) }
-                onFrameChanged()
-            }
-        } else {
-            val prevIndex = state.images.indices
-                .filter { it < state.currentIndex && state.ratingFilter.matches(state.images[it].rating) }
-                .lastOrNull()
-            if (prevIndex != null) {
-                _uiState.update { it.copy(currentIndex = prevIndex) }
-                onFrameChanged()
-            }
-        }
-    }
+    /** Learn's next / previous photo: the next one its rating filter shows. */
+    fun navigateNextInLearn() = stepTo(SelectorStepping.next(_uiState.value, _uiState.value.ratingFilter))
+
+    fun navigatePreviousInLearn() = stepTo(SelectorStepping.previous(_uiState.value, _uiState.value.ratingFilter))
 
     /**
      * Sets user star rating (1..5, -1 for reject, 0 for unrated).
@@ -1286,9 +944,14 @@ class SelectorViewModel @Inject constructor(
 
     // ── Scanning, grouping, and the queue between them ───────────────────
 
-    fun startScan(forceCloudScan: Boolean = false) {
+    /**
+     * Scan the folder for the ticked [measures] (the Scan sheet, REQ-AND-ALGO.07). The choice
+     * holds for this request, the cloud confirmation in between included.
+     */
+    fun startScan(measures: ScanMeasures = ScanMeasures.ALL, forceCloudScan: Boolean = false) {
         val state = _uiState.value
-        if (state.images.isEmpty()) return
+        if (state.images.isEmpty() || !measures.any) return
+        pendingScanMeasures = measures
         if (!forceCloudScan && state.sourceKind.isCloudProvider) {
             _uiState.update { it.copy(showCloudScanConfirmation = true) }
             return
@@ -1298,7 +961,7 @@ class SelectorViewModel @Inject constructor(
 
     fun confirmCloudScan() {
         _uiState.update { it.copy(showCloudScanConfirmation = false) }
-        startScan(forceCloudScan = true)
+        startScan(pendingScanMeasures, forceCloudScan = true)
     }
 
     fun dismissCloudScanConfirmation() {
@@ -1385,7 +1048,7 @@ class SelectorViewModel @Inject constructor(
 
             var analysed = 0
             try {
-                scanImagesUseCase(images).collect { progress ->
+                scanImagesUseCase(images, pendingScanMeasures).collect { progress ->
                     val fraction = if (progress.total > 0) {
                         progress.processed.toFloat() / progress.total.toFloat()
                     } else {
@@ -1610,7 +1273,19 @@ class SelectorViewModel @Inject constructor(
         appScope.launch {
             val failed = mutableSetOf<String>()
             val deleted = mutableListOf<String>()
+            val kept = mutableListOf<String>()
+            // Under the journal lock: the add of this delete has written its identities by then.
+            val recorded = journalMutex.withLock { settingsRepository.pendingDeleteIdentities.first() }
             pending.uris.forEach { uri ->
+                // Another photo at a deleted URI (a refilled card) is kept, as on recovery.
+                val known = recorded[uri]
+                if (PendingDeleteJournal.needsCurrentIdentity(known) &&
+                    PendingDeleteJournal.keepsInSession(known, readIdentity(uri))
+                ) {
+                    kept += uri
+                    failed += uri
+                    return@forEach
+                }
                 val ok = try {
                     imageRepository.deleteImage(context, Uri.parse(uri))
                 } catch (e: CancellationException) {
@@ -1637,6 +1312,8 @@ class SelectorViewModel @Inject constructor(
             if (failed.isEmpty()) return@launch
             val stillOpen = originFolderUri != null && _uiState.value.folderUri == originFolderUri
             if (!stillOpen) return@launch
+            if (kept.isNotEmpty()) reportError(SelectorLabels.recoveryKeptMessage(kept.map(::recoveredName)))
+            if (kept.size == failed.size) return@launch
             val firstName = pending.slots.firstOrNull()?.image?.fileName ?: "image"
             if (deleted.isEmpty()) {
                 _uiState.update { state ->
@@ -1769,10 +1446,14 @@ class SelectorViewModel @Inject constructor(
         val before = _uiState.value.listState
         val currentItem = before.images.getOrNull(before.currentIndex) ?: return
         val sourceUri = currentItem.uri
+        if (action == CurationAction.COPY && sourceUri in state.sessionCopiedUris) {
+            _uiState.update { it.withSnackbar(SelectorLabels.ALREADY_COPIED, SnackbarLifetime.COPY) }
+            return
+        }
         val edit = OptimisticEdits.applyToCurrent(before, action)
 
         _uiState.update {
-            it.withList(edit.state).copy(
+            it.withList(if (action == CurationAction.COPY) SelectorStepping.afterCopy(edit.state) else edit.state).copy(
                 performedFilingAction = if (action == CurationAction.MOVE) {
                     FilingAction.MOVE
                 } else {
@@ -1841,6 +1522,8 @@ class SelectorViewModel @Inject constructor(
                             current.sessionCopiedCount
                         },
                         sessionKeptFileNames = current.sessionKeptFileNames + currentItem.fileName,
+                        sessionCopiedUris = current.sessionCopiedUris + listOfNotNull(sourceUri.takeIf { action == CurationAction.COPY }),
+                        sessionKeptFiles = current.sessionKeptFiles + currentItem.allFiles.associate { it.fileName to it.fileSize },
                     )
                 }
                 val undo = UndoPolicy.forFiling(
@@ -1928,7 +1611,8 @@ class SelectorViewModel @Inject constructor(
                 rollbackFiling(edit.action, edit.slots)
                 val verb = if (action == CurationAction.COPY) "Copy" else "Move"
                 Log.w("SelectorViewModel", "$verb failed: ${result?.error}")
-                reportError("$verb failed")
+                // A refusal for lack of space says what it needs; other causes stay in the log (FD-UX-4).
+                reportError(result?.error?.takeIf(TransferSpace::isRefusal) ?: "$verb failed")
             }
         }
     }
@@ -1984,6 +1668,7 @@ class SelectorViewModel @Inject constructor(
                 _uiState.update {
                     it.withRestored(DeferredDeletion.revert(it.listState, operation.pending)).copy(
                         undoHistory = remainingHistory,
+                        sessionDeletedCount = (it.sessionDeletedCount - operation.pending.slots.size).coerceAtLeast(0),
                         snackbarUndoAvailable = false,
                         snackbarMessage = null,
                     )
@@ -1999,6 +1684,7 @@ class SelectorViewModel @Inject constructor(
                 _uiState.update {
                     it.withRestored(OptimisticEdits.restore(it.listState, operation.slots)).copy(
                         undoHistory = remainingHistory,
+                        sessionDeletedCount = (it.sessionDeletedCount - operation.slots.size).coerceAtLeast(0),
                         snackbarUndoAvailable = false,
                         snackbarMessage = null,
                     )
@@ -2045,6 +1731,8 @@ class SelectorViewModel @Inject constructor(
                 _uiState.update {
                     it.withRestored(OptimisticEdits.restore(it.listState, operation.slots)).copy(
                         undoHistory = remainingHistory,
+                        sessionMovedCount = (it.sessionMovedCount - 1).coerceAtLeast(0),
+                        sessionKeptFiles = it.sessionKeptFiles - operation.slots.flatMap { slot -> slot.image.allFiles.map { f -> f.fileName } }.toSet(),
                         snackbarUndoAvailable = false,
                         snackbarMessage = null,
                     )
@@ -2346,12 +2034,6 @@ class SelectorViewModel @Inject constructor(
     }
 
     // ── EXIF, dimensions, prefetch ───────────────────────────────────────
-
-    private val loadedExifCache = object : LinkedHashMap<String, ExifData>(64, 0.75f, true) {
-        override fun removeEldestEntry(eldest: MutableMap.MutableEntry<String, ExifData>?): Boolean {
-            return size > MAX_EXIF_CACHE_SIZE
-        }
-    }
 
     private fun loadMetadataForActiveRange() {
         val state = _uiState.value

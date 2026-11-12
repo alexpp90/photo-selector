@@ -92,6 +92,8 @@ public struct ContentView: View {
                             .frame(maxWidth: .infinity, maxHeight: .infinity)
                         }
                         .frame(maxWidth: .infinity, maxHeight: .infinity)
+                        // The end of the cull sits over the preview, never over the dock below it.
+                        .overlay { CullEndOverlay(viewModel: viewModel) }
 
                         // MARK: - 3. Prominent Culling Action Bar
                         CullingActionBar(viewModel: viewModel)
@@ -170,7 +172,7 @@ public struct ContentView: View {
             return .handled
         }
         .onKeyPress(.escape) {
-            viewModel.resetZoomToFit() ? .handled : .ignored
+            (viewModel.dismissStickyToast() || viewModel.resetZoomToFit()) ? .handled : .ignored
         }
         .onKeyPress(characters: CharacterSet(charactersIn: "1")) { _ in
             viewModel.setComparisonMode(.single)
@@ -185,8 +187,7 @@ public struct ContentView: View {
             return .handled
         }
         .onKeyPress(.tab) {
-            viewModel.advanceComparisonSlotFocus()
-            return .handled
+            viewModel.advanceComparisonSlotFocus() ? .handled : .ignored
         }
         .onKeyPress(characters: CharacterSet(charactersIn: "fFtT\\")) { _ in
             MotionPolicy.animate(.spring(response: 0.28, dampingFraction: 0.82)) {
@@ -227,7 +228,7 @@ public struct ContentView: View {
             return .ignored
         }
         .sheet(isPresented: $viewModel.isShortcutsHelpPresented) {
-            ShortcutsHelpSheet()
+            ShortcutsHelpSheet(destination: viewModel.destinationName)
         }
         .sheet(isPresented: $viewModel.isGoToPhotoPresented) {
             GoToPhotoSheet(viewModel: viewModel)
@@ -244,11 +245,42 @@ public struct ContentView: View {
                 photos: viewModel.photos,
                 onPhotoTrashed: { trashedURL in
                     viewModel.markPhotoAsTrashed(url: trashedURL)
-                }
+                },
+                trashHandler: { url in try await viewModel.trashDuplicate(at: url) }
             )
         }
         .sheet(isPresented: $viewModel.isLibraryStatisticsPresented) {
             LibraryStatisticsView(workspaceViewModel: viewModel)
+        }
+        // Cloud folders: nothing reads every photo, and nothing is deleted for good, without a yes.
+        .alert(
+            "Download all photos?",
+            isPresented: Binding(
+                get: {
+                    if case .lowestSharpnessSort = viewModel.pendingDownloadConfirmation?.purpose { return true }
+                    return false
+                },
+                set: { if !$0 { viewModel.declineDownloadAll() } }
+            ),
+            presenting: viewModel.pendingDownloadConfirmation
+        ) { _ in
+            Button("Download") { viewModel.confirmDownloadAll() }
+            Button("Cancel", role: .cancel) { viewModel.declineDownloadAll() }
+        } message: { pending in
+            Text("About \(ByteCountFormatter.string(fromByteCount: pending.estimatedBytes, countStyle: .file)) will download.")
+        }
+        .alert(
+            "Delete permanently?",
+            isPresented: Binding(
+                get: { viewModel.pendingPermanentDelete != nil },
+                set: { if !$0 { viewModel.cancelPermanentDelete() } }
+            ),
+            presenting: viewModel.pendingPermanentDelete
+        ) { _ in
+            Button("Delete", role: .destructive) { viewModel.confirmPermanentDelete() }
+            Button("Cancel", role: .cancel) { viewModel.cancelPermanentDelete() }
+        } message: { pending in
+            Text(pending.message)
         }
     }
 
@@ -291,7 +323,7 @@ public struct ContentView: View {
             .buttonStyle(.bordered)
             .focusable(false)
             .accessibilityLabel("Open Folder")
-            .help("Open photo folder or SD card (⌘O)")
+            .help(LensjetCommand.openFolder.tooltip())
 
             // Current Directory / Volume Name
             if let rootURL = viewModel.rootDirectoryURL, density.showsFolderName {
@@ -310,6 +342,29 @@ public struct ContentView: View {
                 .background(Color.white.opacity(0.12))
                 .clipShape(RoundedRectangle(cornerRadius: 5))
                 .help(rootURL.path)
+            }
+
+            // Cloud folder: photos download when needed (REQ-MAC-CLOUD.01); icon-only at minimal density.
+            if viewModel.cloudBadgeText != nil {
+                HStack(spacing: 4) {
+                    Image(systemName: "icloud")
+                        .font(.system(size: 12))
+                    if density != .minimal {
+                        Text("Cloud")
+                            .font(.system(size: 11, weight: .semibold))
+                            .lineLimit(1)
+                            .fixedSize()
+                    }
+                }
+                .foregroundStyle(Color.lensjetTextSecondary)
+                .padding(.horizontal, 7)
+                .padding(.vertical, 4)
+                .background(Color.white.opacity(0.08))
+                .clipShape(Capsule())
+                .accessibilityElement(children: .ignore)
+                .accessibilityLabel("Cloud folder, photos download when needed")
+                .help("Cloud folder: photos download when needed")
+                .uiTestFrame("toolbar_cloud_badge")
             }
 
             // Active Ingestion Scanning Pill
@@ -395,8 +450,8 @@ public struct ContentView: View {
                 .focusable(false)
                 .disabled(viewModel.photos.isEmpty || viewModel.currentIndex == 0)
                 .uiTestFrame("toolbar_previous")
-                .accessibilityLabel("Previous photo")
-                .help("Navigate to previous photo (Left Arrow)")
+                .accessibilityLabel(LensjetCommand.previousPhoto.name())
+                .help("\(LensjetCommand.previousPhoto.name()) (\u{2190})")
 
                 if !viewModel.photos.isEmpty {
                     Text(density.positionText(index: viewModel.currentIndex + 1, total: viewModel.photos.count))
@@ -424,8 +479,8 @@ public struct ContentView: View {
                 .focusable(false)
                 .disabled(viewModel.photos.isEmpty || viewModel.currentIndex >= viewModel.photos.count - 1)
                 .uiTestFrame("toolbar_next")
-                .accessibilityLabel("Next photo")
-                .help("Navigate to next photo (Right Arrow)")
+                .accessibilityLabel(LensjetCommand.nextPhoto.name())
+                .help("\(LensjetCommand.nextPhoto.name()) (\u{2192})")
             }
 
             Divider()
@@ -460,8 +515,8 @@ public struct ContentView: View {
                     .buttonStyle(.bordered)
                     .focusable(false)
                     .uiTestFrame("toolbar_pan_link")
-                    .accessibilityLabel(viewModel.isZoomSynced ? "Pan Linked" : "Pan Free")
-                    .help(viewModel.isZoomSynced ? "Synchronized Pan Active (Press S)" : "Independent Pan Active (Press S)")
+                    .accessibilityLabel(viewModel.isZoomSynced ? "Link Pan on" : "Link Pan off")
+                    .help("\(LensjetCommand.linkPan.tooltip()), \(viewModel.isZoomSynced ? "on" : "off")")
                 }
 
                 Button(action: { viewModel.toggleZoom() }) {
@@ -480,8 +535,8 @@ public struct ContentView: View {
                 .buttonStyle(.bordered)
                 .focusable(false)
                 .uiTestFrame("toolbar_zoom")
-                .accessibilityLabel(viewModel.zoomState.isZoomed ? "Return to Fit" : "Zoom to 1:1")
-                .help(viewModel.zoomState.isZoomed ? "Return to Fit (Space or Esc)" : "Zoom to 1:1 (100% pixel-to-pixel, Space)")
+                .accessibilityLabel(viewModel.zoomState.isZoomed ? "Fit" : LensjetCommand.zoom100.name())
+                .help(viewModel.zoomState.isZoomed ? "Fit (Space or Esc)" : LensjetCommand.zoom100.tooltip())
 
                 Button(action: {
                     MotionPolicy.animate(.spring(response: 0.28, dampingFraction: 0.82)) {
@@ -496,8 +551,8 @@ public struct ContentView: View {
                 }
                 .buttonStyle(.bordered)
                 .focusable(false)
-                .accessibilityLabel("Toggle Filmstrip")
-                .help("Toggle Filmstrip (F)")
+                .accessibilityLabel(LensjetCommand.filmstripMenuTitle(isShown: viewModel.isFilmstripVisible))
+                .help(LensjetCommand.filmstrip.tooltip())
 
                 Button(action: {
                     MotionPolicy.animate(.easeInOut(duration: 0.18)) {
@@ -512,8 +567,8 @@ public struct ContentView: View {
                 }
                 .buttonStyle(.bordered)
                 .focusable(false)
-                .accessibilityLabel("Toggle EXIF and Scores")
-                .help("Toggle EXIF & Scores HUD (I)")
+                .accessibilityLabel(LensjetCommand.infoMenuTitle(isShown: viewModel.isInfoHUDVisible))
+                .help(LensjetCommand.info.tooltip())
 
                 Button(action: { viewModel.presentShortcutsHelp() }) {
                     Image(systemName: "questionmark")
@@ -526,8 +581,8 @@ public struct ContentView: View {
                 .buttonStyle(.borderedProminent)
                 .tint(Color.accentColor)
                 .focusable(false)
-                .accessibilityLabel("Keyboard Shortcuts")
-                .help("Keyboard Shortcuts & Culling Guide (?)")
+                .accessibilityLabel(LensjetCommand.keyboardShortcuts.name())
+                .help(LensjetCommand.keyboardShortcuts.tooltip())
             }
         }
     }

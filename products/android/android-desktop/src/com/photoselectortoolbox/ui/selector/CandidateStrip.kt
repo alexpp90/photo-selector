@@ -115,6 +115,9 @@ fun CandidateStrip(
     modifier: Modifier = Modifier,
     groups: List<List<Int>>? = null,
     selectedUri: String? = null,
+    /** Photos copied in this session (the copied mark) and the folder they went to. */
+    copiedUris: Set<String> = emptySet(),
+    copiedFolderName: String = "",
 ) {
     val listState = rememberLazyListState()
 
@@ -209,6 +212,7 @@ fun CandidateStrip(
                         inCurrentBurst = group != null && group == currentGroup,
                         position = index + 1,
                         total = images.size,
+                        copiedTo = copiedFolderName.takeIf { image.uri in copiedUris },
                         onClick = { onImageSelected(index) },
                         modifier = Modifier.padding(
                             top = if (startsNewBurst) BurstGap else 0.dp,
@@ -248,6 +252,7 @@ private fun CandidateThumbnail(
     total: Int,
     onClick: () -> Unit,
     modifier: Modifier = Modifier,
+    copiedTo: String? = null,
 ) {
     val shape = RoundedCornerShape(3.dp)
     val height = if (image.isLandscape) LandscapeThumbnailHeight else PortraitThumbnailHeight
@@ -262,7 +267,8 @@ private fun CandidateThumbnail(
             .clickable(interactionSource = interactionSource, indication = null, onClick = onClick)
             .semantics {
                 contentDescription = "${image.fileName}, $position of $total" +
-                    if (image.rating != 0) ", rated ${image.rating}" else ""
+                    (if (image.rating != 0) ", rated ${image.rating}" else "") +
+                    (copiedTo?.let { ", " + SelectorLabels.copiedMarkSpoken(it).replaceFirstChar(Char::lowercase) } ?: "")
             }
             .testTag("filmstrip_thumbnail"),
         contentAlignment = Alignment.CenterEnd,
@@ -290,6 +296,14 @@ private fun CandidateThumbnail(
                 modifier = Modifier.matchParentSize(),
                 contentScale = ContentScale.Crop,
             )
+            if (copiedTo != null) {
+                CopiedMark(
+                    size = CopiedMarkTileSize,
+                    spoken = null,
+                    testTag = "filmstrip_copied_mark",
+                    modifier = Modifier.align(Alignment.TopStart).padding(2.dp),
+                )
+            }
 
             // Compact star rating badge (bottom start) staying strictly within 60dp thumbnail bounds
             if (image.rating != 0) {

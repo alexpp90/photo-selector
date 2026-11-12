@@ -11,28 +11,41 @@ class SafTreeDisplayPathTest {
 
     private val storage = "content://com.android.externalstorage.documents"
 
+    // The module has no default words; this test speaks English like Frameduel does.
+    private val english = SafTreeDisplayPath.Labels(
+        internalStorage = "Internal storage",
+        documents = "Documents",
+        removableVolume = { "SD card ($it)" },
+        unknownFolder = "Folder",
+    )
+
+    private fun segments(treeUri: String?, volumeLabel: String? = null, providerTreeName: String? = null) =
+        SafTreeDisplayPath.segments(treeUri, volumeLabel, providerTreeName, english)
+
+    private fun format(treeUri: String?) = SafTreeDisplayPath.format(treeUri, labels = english)
+
     @Test
     fun `internal storage reads as Internal storage and the folders below it`() {
         assertEquals(
             listOf("Internal storage", "DCIM", "Trip"),
-            SafTreeDisplayPath.segments("$storage/tree/primary%3ADCIM%2FTrip"),
+            segments("$storage/tree/primary%3ADCIM%2FTrip"),
         )
         assertEquals(
             "Internal storage › DCIM › Trip",
-            SafTreeDisplayPath.format("$storage/tree/primary%3ADCIM%2FTrip"),
+            format("$storage/tree/primary%3ADCIM%2FTrip"),
         )
     }
 
     @Test
     fun `the root of internal storage is just Internal storage`() {
-        assertEquals(listOf("Internal storage"), SafTreeDisplayPath.segments("$storage/tree/primary%3A"))
+        assertEquals(listOf("Internal storage"), segments("$storage/tree/primary%3A"))
     }
 
     @Test
     fun `the home root is the Documents folder of internal storage`() {
         assertEquals(
             listOf("Internal storage", "Documents", "Scans"),
-            SafTreeDisplayPath.segments("$storage/tree/home%3AScans"),
+            segments("$storage/tree/home%3AScans"),
         )
     }
 
@@ -40,7 +53,7 @@ class SafTreeDisplayPathTest {
     fun `a folder inside a tree reads by its document id`() {
         assertEquals(
             listOf("Internal storage", "DCIM", "Trip", "Selection"),
-            SafTreeDisplayPath.segments(
+            segments(
                 "$storage/tree/primary%3ADCIM%2FTrip/document/primary%3ADCIM%2FTrip%2FSelection",
             ),
         )
@@ -50,7 +63,7 @@ class SafTreeDisplayPathTest {
     fun `a removable volume reads with the label the caller supplies`() {
         assertEquals(
             listOf("SanDisk SD", "Pictures"),
-            SafTreeDisplayPath.segments("$storage/tree/1234-ABCD%3APictures", volumeLabel = "SanDisk SD"),
+            segments("$storage/tree/1234-ABCD%3APictures", volumeLabel = "SanDisk SD"),
         )
     }
 
@@ -58,12 +71,12 @@ class SafTreeDisplayPathTest {
     fun `a removable volume without a label reads as SD card with its uuid`() {
         assertEquals(
             listOf("SD card (1234-ABCD)", "Pictures"),
-            SafTreeDisplayPath.segments("$storage/tree/1234-ABCD%3APictures"),
+            segments("$storage/tree/1234-ABCD%3APictures"),
         )
         // A blank label is no label.
         assertEquals(
             listOf("SD card (1234-ABCD)"),
-            SafTreeDisplayPath.segments("$storage/tree/1234-ABCD%3A", volumeLabel = "  "),
+            segments("$storage/tree/1234-ABCD%3A", volumeLabel = "  "),
         )
     }
 
@@ -81,7 +94,7 @@ class SafTreeDisplayPathTest {
     fun `another provider reads as the tree name it reports`() {
         assertEquals(
             listOf("Holiday 2026"),
-            SafTreeDisplayPath.segments(
+            segments(
                 "content://com.google.android.apps.docs.storage/tree/acc%3D1%3Bdoc%3Dencoded%3D0xAB",
                 providerTreeName = "Holiday 2026",
             ),
@@ -92,13 +105,13 @@ class SafTreeDisplayPathTest {
     fun `another provider without a name reads as the last segment of its id`() {
         assertEquals(
             listOf("Camera"),
-            SafTreeDisplayPath.segments(
+            segments(
                 "content://com.android.providers.downloads.documents/tree/raw%3A%2Fstorage%2Femulated%2F0%2FDownload%2FCamera",
             ),
         )
         assertEquals(
             listOf("downloads"),
-            SafTreeDisplayPath.segments("content://com.android.providers.downloads.documents/tree/downloads"),
+            segments("content://com.android.providers.downloads.documents/tree/downloads"),
         )
     }
 
@@ -106,11 +119,11 @@ class SafTreeDisplayPathTest {
     fun `a plus in a folder name stays a plus and spaces decode`() {
         assertEquals(
             listOf("Internal storage", "DCIM", "Trip + Friends", "Day 1"),
-            SafTreeDisplayPath.segments("$storage/tree/primary%3ADCIM%2FTrip%20%2B%20Friends%2FDay%201"),
+            segments("$storage/tree/primary%3ADCIM%2FTrip%20%2B%20Friends%2FDay%201"),
         )
         assertEquals(
             listOf("Internal storage", "A+B"),
-            SafTreeDisplayPath.segments("$storage/tree/primary%3AA+B"),
+            segments("$storage/tree/primary%3AA+B"),
         )
     }
 
@@ -118,7 +131,7 @@ class SafTreeDisplayPathTest {
     fun `non-ASCII names decode as UTF-8`() {
         assertEquals(
             listOf("Internal storage", "Fotos", "Größe"),
-            SafTreeDisplayPath.segments("$storage/tree/primary%3AFotos%2FGr%C3%B6%C3%9Fe"),
+            segments("$storage/tree/primary%3AFotos%2FGr%C3%B6%C3%9Fe"),
         )
     }
 
@@ -137,18 +150,18 @@ class SafTreeDisplayPathTest {
             "content://com.android.externalstorage.documents/tree/primary%ZZ",
             "content://other.provider/tree/%2F%2F",
         ).forEach { input ->
-            val segments = SafTreeDisplayPath.segments(input)
+            val segments = segments(input)
             assertTrue("empty for $input", segments.isNotEmpty())
             assertTrue("blank segment for $input: $segments", segments.none { it.isBlank() })
         }
-        assertEquals(listOf("Folder"), SafTreeDisplayPath.segments("not a uri"))
-        assertEquals(listOf("Folder"), SafTreeDisplayPath.segments(null))
+        assertEquals(listOf("Folder"), segments("not a uri"))
+        assertEquals(listOf("Folder"), segments(null))
         // A name the caller supplies is the better fallback.
-        assertEquals(listOf("Trip"), SafTreeDisplayPath.segments("garbage", providerTreeName = "Trip"))
+        assertEquals(listOf("Trip"), segments("garbage", providerTreeName = "Trip"))
         // A malformed escape is kept as written rather than failing.
         assertEquals(
             listOf("Internal storage", "100%ZZ"),
-            SafTreeDisplayPath.segments("$storage/tree/primary%3A100%ZZ"),
+            segments("$storage/tree/primary%3A100%ZZ"),
         )
     }
 
@@ -156,6 +169,7 @@ class SafTreeDisplayPathTest {
     fun `labels are the caller's, so each product keeps its own words`() {
         val german = SafTreeDisplayPath.Labels(
             internalStorage = "Interner Speicher",
+            documents = "Dokumente",
             removableVolume = { "SD-Karte ($it)" },
             unknownFolder = "Ordner",
         )

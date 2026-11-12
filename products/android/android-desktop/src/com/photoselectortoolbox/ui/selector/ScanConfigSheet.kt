@@ -35,20 +35,25 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.unit.dp
+import com.photoselectortoolbox.domain.scoring.ScanMeasures
 import com.photoselectortoolbox.ui.theme.BrandAccent
 import com.photoselectortoolbox.ui.theme.BrandOnAccent
 import com.photoselectortoolbox.ui.theme.StudioCard
 import com.photoselectortoolbox.ui.theme.StudioPanel
 
 /**
- * Configuration for which analyses to run during a scan.
+ * Configuration for which analyses to run during a scan: the sheet's four rows. [measures] is what
+ * the scan computes (REQ-AND-ALGO.07); an unticked row is not computed.
  */
 data class ScanConfig(
     val sharpness: Boolean = true,
     val noise: Boolean = true,
     val highlightClipping: Boolean = true,
     val shadowClipping: Boolean = true,
-)
+) {
+    val measures: ScanMeasures
+        get() = ScanMeasures(sharpness, noise, highlightClipping, shadowClipping)
+}
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable

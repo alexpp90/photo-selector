@@ -90,14 +90,10 @@ struct CullingWorkspaceViewModelTests {
         #expect(vm.comparisonSlotIndices == [0, 1, 2])
         #expect(vm.comparisonSlotPhotos.count == 3)
 
-        // Slot cycling
+        // Tab does nothing in 3-Up: the three frames have no active slot to switch.
         #expect(vm.activeSlotIndex == 0)
-        vm.advanceComparisonSlotFocus()
-        #expect(vm.activeSlotIndex == 1)
-        vm.advanceComparisonSlotFocus()
-        #expect(vm.activeSlotIndex == 2)
-        vm.advanceComparisonSlotFocus()
-        #expect(vm.activeSlotIndex == 0) // Wraps around
+        #expect(vm.advanceComparisonSlotFocus() == false)
+        #expect(vm.activeSlotIndex == 0)
     }
 
     @Test("King of the Hill pairwise replacement in comparison mode")
@@ -355,7 +351,8 @@ struct CullingWorkspaceViewModelTests {
         // Advance to 82.0 -> reaches >= 70 threshold, shows toast!
         vm.navigateToNext()
         #expect(vm.currentIndex == 2)
-        #expect(vm.currentToast?.title == "Sharpness threshold reached (70+)")
+        #expect(vm.currentToast?.title == "Sharpness 70 reached")
+        #expect(vm.currentToast?.isPersistent == true)
 
         // Restore natural order
         vm.applySortOrder(.natural)

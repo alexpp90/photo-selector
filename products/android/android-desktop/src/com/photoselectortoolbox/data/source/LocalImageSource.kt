@@ -9,12 +9,13 @@ import android.util.Log
 import com.photoselectortoolbox.data.model.CompanionFile
 import com.photoselectortoolbox.data.model.ImageDimensions
 import com.photoselectortoolbox.data.model.ImageItem
+import com.photoselectortoolbox.di.IoDispatcher
 import com.photoselectortoolbox.domain.format.ImageFormats
 import dagger.hilt.android.qualifiers.ApplicationContext
 import javax.inject.Inject
 import javax.inject.Singleton
 import kotlin.coroutines.coroutineContext
-import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.ensureActive
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.flow
@@ -43,7 +44,8 @@ interface LocalImageSource {
 
 @Singleton
 class LocalImageSourceImpl @Inject constructor(
-    @ApplicationContext private val context: Context
+    @ApplicationContext private val context: Context,
+    @IoDispatcher private val ioDispatcher: CoroutineDispatcher,
 ) : LocalImageSource {
 
     private val bitmapDecoder = PhotoBitmapDecoder(context)
@@ -182,11 +184,11 @@ class LocalImageSourceImpl @Inject constructor(
         // Final snapshot — always emitted, so a consumer that only reads the
         // last value (statistics, duplicates) still sees the complete folder.
         emit(published.toList())
-    }.flowOn(Dispatchers.IO)
+    }.flowOn(ioDispatcher)
 
     override suspend fun resolveDimensions(
         uris: Collection<String>
-    ): Map<String, ImageDimensions> = withContext(Dispatchers.IO) {
+    ): Map<String, ImageDimensions> = withContext(ioDispatcher) {
         val resolved = LinkedHashMap<String, ImageDimensions>(uris.size)
         for (uri in uris) {
             coroutineContext.ensureActive()
@@ -229,9 +231,18 @@ class LocalImageSourceImpl @Inject constructor(
         }
     }
 
-    /** The tree document id of a `content://…/tree/<id>` URI, or null. */
+    /**
+     * The document id of the folder [treeUri] names: the document of a `…/tree/<t>/document/<d>`
+     * URI (a folder inside a granted tree, as *Open Selection* opens it), else the tree's own of
+     * a `…/tree/<t>` URI; null for neither.
+     */
     private fun treeDocumentIdOf(treeUri: Uri): String? = try {
-        DocumentsContract.getTreeDocumentId(treeUri)
+        val segments = treeUri.pathSegments
+        if (segments.size >= 4 && segments[0] == "tree" && segments[2] == "document") {
+            DocumentsContract.getDocumentId(treeUri)
+        } else {
+            DocumentsContract.getTreeDocumentId(treeUri)
+        }
     } catch (e: Exception) {
         Log.w(TAG, "Not a tree URI: $treeUri", e)
         null

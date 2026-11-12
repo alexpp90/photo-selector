@@ -212,10 +212,10 @@ public final class KeyboardShortcutRouter: ObservableObject {
         case 49: // Spacebar -> Toggle 100% Zoom
             viewModel.toggleZoom()
             return true
-        case 48: // Tab -> Advance / Next
-            viewModel.advanceComparisonSlotFocus()
-            return true
-        case 53: // Escape -> Leave any zoom (100 % or pinch) back to Fit
+        case 48: // Tab -> Switch Photo; only 2-Up has a second photo, elsewhere the key is not consumed
+            return viewModel.advanceComparisonSlotFocus()
+        case 53: // Escape -> dismiss the sharpness banner, else leave any zoom back to Fit
+            if viewModel.dismissStickyToast() { return true }
             return viewModel.resetZoomToFit()
         case 18: // Number 1 -> 1-Up Single
             viewModel.setComparisonMode(.single)

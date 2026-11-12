@@ -8,12 +8,12 @@ struct ChromeDensityTests {
     @Test("Mode labels: full keeps shortcut hint, compact drops it, minimal is icon-only")
     func modeLabels() {
         #expect(ChromeDensity.full.modeLabel(shortcut: 1) == "1-Up")
-        #expect(ChromeDensity.full.modeLabel(shortcut: 3) == "Focus 3-Up")
+        #expect(ChromeDensity.full.modeLabel(shortcut: 3) == "3-Up")
         #expect(ChromeDensity.full.showsModeShortcut)
         #expect(ChromeDensity.compact.modeLabel(shortcut: 3) == "3-Up")
         #expect(!ChromeDensity.compact.showsModeShortcut)
         #expect(ChromeDensity.minimal.modeLabel(shortcut: 2) == nil)
-        #expect(ChromeDensity.modeAccessibilityName(shortcut: 3) == "Focus 3-Up view (shortcut 3)")
+        #expect(ChromeDensity.modeAccessibilityName(shortcut: 3) == "3-Up view (shortcut 3)")
     }
 
     @Test("Position counter shortens below full")

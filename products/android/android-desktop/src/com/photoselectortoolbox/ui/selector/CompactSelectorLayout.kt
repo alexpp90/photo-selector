@@ -27,6 +27,8 @@ import androidx.compose.material.icons.automirrored.filled.DriveFileMove
 import androidx.compose.material.icons.filled.ContentCopy
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Fullscreen
+import androidx.compose.material.icons.filled.MoreVert
+import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
@@ -96,6 +98,8 @@ fun CompactSelectorLayout(
     onDelete: () -> Unit,
     showGestureHint: Boolean = !uiState.hasSeenFullscreenHint,
     onDismissGestureHint: () -> Unit = {},
+    /** The More menu the sidebar carries in wide windows; null draws no More button. */
+    moreMenu: SelectorMoreMenu? = null,
 ) {
     val pagerState = rememberPagerState(
         initialPage = uiState.currentIndex,
@@ -264,6 +268,26 @@ fun CompactSelectorLayout(
                         .weight(1f)
                         .testTag("delete_button_compact"),
                 )
+
+                // Below 600 dp there is no sidebar: Folder, Scan, Sort, Go to and Undo live
+                // here, at the end of the action row and off the photo (REQ-AND-LAYOUT.02).
+                if (moreMenu != null) {
+                    var menuOpen by remember { mutableStateOf(false) }
+                    Box {
+                        IconButton(
+                            onClick = { menuOpen = true },
+                            modifier = Modifier
+                                .size(48.dp)
+                                .testTag("compact_more_button")
+                                .handCursor(),
+                        ) {
+                            Icon(Icons.Default.MoreVert, contentDescription = "More")
+                        }
+                        DropdownMenu(expanded = menuOpen, onDismissRequest = { menuOpen = false }) {
+                            SelectorMoreMenuItems(moreMenu, onDismiss = { menuOpen = false })
+                        }
+                    }
+                }
             }
         }
 

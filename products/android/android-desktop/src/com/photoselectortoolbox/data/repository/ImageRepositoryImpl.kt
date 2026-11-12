@@ -25,18 +25,21 @@ import com.photoselector.saf.SelectionSubfolderRule
 import com.photoselectortoolbox.data.model.FolderDescription
 import com.photoselectortoolbox.data.model.ImageDimensions
 import com.photoselectortoolbox.data.model.ImageItem
+import com.photoselectortoolbox.data.model.SelectionFolderState
 import com.photoselectortoolbox.data.source.LocalImageSource
+import com.photoselectortoolbox.di.IoDispatcher
 import com.photoselectortoolbox.domain.curation.DestinationSettings
 import com.photoselectortoolbox.domain.curation.FileIdentity
 import com.photoselectortoolbox.domain.curation.FolderKey
 import com.photoselectortoolbox.domain.curation.OpenedFolder
 import com.photoselectortoolbox.domain.curation.SelectionDestinationPlan
+import com.photoselectortoolbox.domain.curation.TransferSpace
+import com.photoselectortoolbox.domain.format.DestinationLabels
 import com.photoselectortoolbox.domain.format.ImageFormats
 import javax.inject.Inject
 import javax.inject.Singleton
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineDispatcher
-import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.firstOrNull
@@ -50,6 +53,7 @@ class ImageRepositoryImpl @Inject constructor(
     private val mediaStoreReader: MediaStoreReader,
     private val settingsRepository: SettingsRepository,
     private val folderAccessManager: FolderAccessManager,
+    @IoDispatcher ioDispatcher: CoroutineDispatcher,
 ) : ImageRepository {
 
     constructor(
@@ -57,12 +61,14 @@ class ImageRepositoryImpl @Inject constructor(
         androidExifReader: AndroidExifReader,
         mediaStoreReader: MediaStoreReader,
         settingsRepository: SettingsRepository,
+        ioDispatcher: CoroutineDispatcher,
     ) : this(
         localImageSource = localImageSource,
         androidExifReader = androidExifReader,
         mediaStoreReader = mediaStoreReader,
         settingsRepository = settingsRepository,
         folderAccessManager = FolderAccessManager(),
+        ioDispatcher = ioDispatcher,
     )
 
     companion object {
@@ -153,11 +159,15 @@ class ImageRepositoryImpl @Inject constructor(
     internal val engine = SafTransferEngine(SUBFOLDER_RULE, TRANSFER_POLICY)
 
     /** Dispatcher for the repository's own I/O; setting it also sets the engine's (tests). */
-    internal var ioDispatcher: CoroutineDispatcher = Dispatchers.IO
+    internal var ioDispatcher: CoroutineDispatcher = ioDispatcher
         set(value) {
             field = value
             engine.ioDispatcher = value
         }
+
+    init {
+        engine.ioDispatcher = ioDispatcher
+    }
 
     /**
      * Persist the grant, then confirm the folder resolves and still exists.
@@ -242,6 +252,7 @@ class ImageRepositoryImpl @Inject constructor(
                     treeUri = uriString,
                     volumeLabel = volumeLabel,
                     providerTreeName = name,
+                    labels = DestinationLabels.PATH_LABELS,
                 ),
                 name = name,
                 hasPersistedGrant = hasGrant,
@@ -387,6 +398,7 @@ class ImageRepositoryImpl @Inject constructor(
             sorting = sorting,
             isMove = isMove,
             parentDocumentId = item.parentDocumentId,
+            neededBytes = item.allFiles.sumOf { it.fileSize.coerceAtLeast(0L) },
         )
         return engine.aggregateBundleResults(
             primarySourceUri = item.uri,
@@ -442,6 +454,8 @@ class ImageRepositoryImpl @Inject constructor(
         sorting: Boolean,
         isMove: Boolean,
         parentDocumentId: String? = null,
+        /** The bundle's size from the listing, checked against the destination's free space; null: no check. */
+        neededBytes: Long? = null,
     ): List<FileOperationResult> {
         if (sourceUris.isEmpty()) return emptyList()
         val destination = try {
@@ -452,6 +466,16 @@ class ImageRepositoryImpl @Inject constructor(
             Log.e(TAG, "Failed to transfer bundle: $sourceUris", e)
             return sourceUris.map { FileOperationResult.failure(it.toString(), e.message, parentDocumentId) }
         }
+        if (neededBytes != null && neededBytes > 0L) {
+            val (source, target) = withContext(ioDispatcher) {
+                volumeOf(context, sourceUris.first()) to volumeOf(context, destination.rootUri)
+            }
+            if (TransferSpace.refuses(neededBytes, source, target, isMove)) {
+                val message = TransferSpace.refusalMessage(neededBytes, target?.availableBytes ?: 0L, isMove)
+                Log.w(TAG, "$message (${destination.rootUri})")
+                return sourceUris.map { FileOperationResult.failure(it.toString(), message, parentDocumentId) }
+            }
+        }
         return engine.transferBundle(
             storage = SafStorage.of(context),
             sourceUris = sourceUris,
@@ -460,6 +484,43 @@ class ImageRepositoryImpl @Inject constructor(
             isMove = isMove,
             parentDocumentId = parentDocumentId,
         )
+    }
+
+    /**
+     * The provider root [uri] lives on and the free space it reports, from one query of the
+     * provider's roots. Null when the provider cannot be asked or the root is not found: the
+     * transfer then goes ahead unchecked, as it always did.
+     */
+    private fun volumeOf(context: Context, uri: Uri): TransferSpace.Volume? {
+        val authority = uri.authority ?: return null
+        return try {
+            val documentId = if (DocumentsContract.isDocumentUri(context, uri)) {
+                DocumentsContract.getDocumentId(uri)
+            } else {
+                DocumentsContract.getTreeDocumentId(uri)
+            }
+            val roots = mutableMapOf<String, Long?>()
+            context.contentResolver.query(
+                DocumentsContract.buildRootsUri(authority),
+                arrayOf(DocumentsContract.Root.COLUMN_DOCUMENT_ID, DocumentsContract.Root.COLUMN_AVAILABLE_BYTES),
+                null,
+                null,
+                null,
+            )?.use { cursor ->
+                while (cursor.moveToNext()) {
+                    val rootDoc = cursor.getString(0) ?: continue
+                    roots[rootDoc] = if (cursor.isNull(1)) null else cursor.getLong(1)
+                }
+            }
+            val root = TransferSpace.rootFor(documentId, roots.keys) ?: return null
+            TransferSpace.Volume(authority, root, roots[root])
+        } catch (e: CancellationException) {
+            throw e
+        } catch (e: Exception) {
+            // Best effort: a provider that cannot report its roots is not refused (see refuses()).
+            Log.w(TAG, "Could not read the free space for $uri", e)
+            null
+        }
     }
 
     /**
@@ -590,6 +651,70 @@ class ImageRepositoryImpl @Inject constructor(
             Log.w(TAG, "Could not list the custom destination $customUri", e)
             null
         }
+    }
+
+    /**
+     * The Selection folder of a transfer from [folderUri], resolved by the transfer's own
+     * [selectionDestination] and found by listing the destination root for its exact name — a
+     * document id is never taken apart. Its files are listed with their sizes, one level of
+     * subfolders included (`RAW/`, `JPEG/`), each folder in one children query. A lookup that
+     * fails is logged and reads as "no Selection folder": the Done card then offers neither
+     * *Open Selection* nor a safe-to-format verdict, which is the safe answer.
+     */
+    override suspend fun selectionFolder(context: Context, folderUri: Uri): SelectionFolderState? = try {
+        val destination = selectionDestination(context, folderUri, sorting = false)
+        withContext(ioDispatcher) {
+            val root = DocumentFile.fromTreeUri(context, destination.rootUri)
+            val name = root?.let(destination.folderNameIn) ?: destination.folderName
+            val folder = listChildren(context, destination.rootUri).firstOrNull { it.isDirectory && it.name == name }
+                ?: return@withContext null
+            val uri = DocumentsContract.buildDocumentUriUsingTree(destination.rootUri, folder.documentId)
+            val source = volumeOf(context, folderUri)
+            val target = volumeOf(context, uri)
+            SelectionFolderState(
+                uri = uri.toString(),
+                name = name,
+                filesWithSizes = filesWithSizes(context, uri, depth = 1),
+                onSourceVolume = if (source == null || target == null) {
+                    null
+                } else {
+                    source.authority == target.authority && source.rootDocumentId == target.rootDocumentId
+                },
+            )
+        }
+    } catch (e: CancellationException) {
+        throw e
+    } catch (e: Exception) {
+        Log.w(TAG, "Could not look up the Selection folder of $folderUri", e)
+        null
+    }
+
+    /** Files under [directoryUri] by name with their provider-reported size, [depth] levels of subfolders down. */
+    private fun filesWithSizes(context: Context, directoryUri: Uri, depth: Int): Map<String, Long> {
+        val documentId = folderKeyOf(directoryUri)?.documentId ?: return emptyMap()
+        val childrenUri = DocumentsContract.buildChildDocumentsUriUsingTree(directoryUri, documentId)
+        val projection = arrayOf(
+            DocumentsContract.Document.COLUMN_DOCUMENT_ID,
+            DocumentsContract.Document.COLUMN_DISPLAY_NAME,
+            DocumentsContract.Document.COLUMN_MIME_TYPE,
+            DocumentsContract.Document.COLUMN_SIZE,
+        )
+        val files = mutableMapOf<String, Long>()
+        val folders = mutableListOf<Uri>()
+        context.contentResolver.query(childrenUri, projection, null, null, null)?.use { cursor ->
+            while (cursor.moveToNext()) {
+                val id = cursor.getString(0) ?: continue
+                val name = cursor.getString(1) ?: continue
+                if (cursor.getString(2) == DocumentsContract.Document.MIME_TYPE_DIR) {
+                    folders += DocumentsContract.buildDocumentUriUsingTree(directoryUri, id)
+                } else {
+                    // An unknown size is -1: it never verifies a kept file.
+                    files[name] = if (cursor.isNull(3)) -1L else cursor.getLong(3)
+                }
+            }
+        }
+        if (depth > 0) folders.forEach { files.putAll(filesWithSizes(context, it, depth - 1)) }
+        return files
     }
 
     override suspend fun resolveDimensions(

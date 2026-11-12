@@ -20,7 +20,12 @@ import org.robolectric.annotation.Config
 /**
  * Every exported schema (`schemas/…/N.json`, the databases real installs have) is created
  * exactly as Room created it, seeded, and opened by the current [ScoresDatabase] with its
- * migrations. The user's ratings survive every path; cached scores are invalidated at v8 so the
+ * migrations. There is no `5.json` or `6.json` because no build ever had those versions
+ * (checked 2026-11-12): `git log -G "version = [0-9]+," -- '*ScoresDatabase.kt'` shows the version
+ * going 4 → 7 in one commit, `16d66d43` (2026-10-17), which added `MIGRATION_4_5`, `MIGRATION_5_6`
+ * and `MIGRATION_6_7` together, and every tag (`android-desktop-v0.6.0`, `-v0.7.0`, the nightlies)
+ * has version 7 or 8. A version-4 install takes the three steps in one open, which the v4 case
+ * here covers. The user's ratings survive every path; cached scores are invalidated at v8 so the
  * next scan recomputes them at the capped analysis size (FD-P-11, FD-Q-13).
  */
 @RunWith(RobolectricTestRunner::class)

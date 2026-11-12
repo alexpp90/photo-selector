@@ -43,6 +43,8 @@ import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.receiveAsFlow
 import kotlinx.coroutines.test.UnconfinedTestDispatcher
+import com.photoselectortoolbox.ui.fit.installNoImageLoader
+import com.photoselectortoolbox.ui.fit.removeNoImageLoader
 import kotlinx.coroutines.test.resetMain
 import kotlinx.coroutines.test.setMain
 import org.junit.After
@@ -122,6 +124,9 @@ class SelectorBackTest {
 
     /** Hosts the real selector at 1280 x 800 dp; [guideSeen] false is a first launch. */
     private fun host(guideSeen: Boolean = true) {
+        // No decoding: a real Coil request completes off the main thread under setMain and
+        // failed these tests under load (backlog 2026-11-11, Coil removeObserver flake).
+        installNoImageLoader(ApplicationProvider.getApplicationContext())
         Dispatchers.setMain(testDispatcher)
         if (!guideSeen) seenHintsFlow.value = emptySet()
         every { imageRepository.discoverImages(any()) } returns discovery.receiveAsFlow()
@@ -150,6 +155,7 @@ class SelectorBackTest {
 
     @After
     fun tearDown() {
+        removeNoImageLoader()
         appScope.cancel()
         if (this::viewModel.isInitialized) viewModel.viewModelScope.cancel()
         Dispatchers.resetMain()

@@ -1,10 +1,22 @@
 import SwiftUI
+import PhotoSelectorKit
 
 /// Elegant cheat-sheet modal displaying keyboard shortcuts and workflow guide.
 public struct ShortcutsHelpSheet: View {
     @Environment(\.dismiss) private var dismiss
 
-    public init() {}
+    /// The configured Selection folder name, so the sheet says "Keepers" where the user renamed it.
+    private let destination: String
+
+    public init(destination: String = AppSettingsDefaults.cullingDestinationFolderName) {
+        self.destination = destination
+    }
+
+    /// One row, its name and key from the Kit's table (`LensjetCommand`).
+    private func row(_ command: LensjetCommand, _ description: String, key: String? = nil, name: String? = nil)
+        -> (shortcut: String, action: String, description: String) {
+        (key ?? command.key ?? "", name ?? command.name(destination: destination), description)
+    }
 
     public var body: some View {
         VStack(spacing: 0) {
@@ -14,7 +26,7 @@ public struct ShortcutsHelpSheet: View {
                     .font(.system(size: 20))
                     .foregroundStyle(Color.accentColor)
 
-                Text("Keyboard Shortcuts & Culling Guide")
+                Text(LensjetCommand.keyboardShortcuts.name())
                     .font(.system(size: 16, weight: .bold))
 
                 Spacer()
@@ -36,10 +48,11 @@ public struct ShortcutsHelpSheet: View {
                         icon: "arrow.right.doc.fill",
                         color: .green,
                         items: [
-                            ("M", "Move to Selection", "Moves active photo and all companion RAW/XMP files to Selection folder"),
-                            ("C", "Copy to Selection", "Copies active photo and companions to Selection folder, preserving originals"),
-                            ("Delete / ⌫", "Move to Trash", "Moves active photo and companion files to macOS Trash"),
-                            ("⌘Z", "Undo", "Instantly rolls back the last move, copy, or trash action")
+                            row(.move, "Moves the photo and its companion RAW/XMP files to the \(destination) folder"),
+                            row(.copy, "Copies the photo and its companions to the \(destination) folder; the originals stay"),
+                            row(.trash, "Moves the photo and its companions to the macOS Trash", key: "Delete / \u{232B}"),
+                            row(.undo, "Takes back the last move, copy or trash"),
+                            row(.autoAdvance, "Steps to the next photo after Move, Copy or Trash")
                         ]
                     )
 
@@ -49,42 +62,44 @@ public struct ShortcutsHelpSheet: View {
                         icon: "arrow.left.and.right",
                         color: .blue,
                         items: [
-                            ("← ↑ / K", "Previous Photo", "Navigates to the preceding candidate photograph"),
-                            ("→ ↓ / J", "Next Photo", "Navigates to the subsequent candidate photograph"),
-                            ("Tab", "Cycle Comparison Slot", "Switches active focus slot between primary and candidate comparison panes"),
-                            ("G", "Go to Photo", "Type a position number or part of a file name"),
+                            row(.previousPhoto, "Goes to the photo before", key: "\u{2190} \u{2191} / K"),
+                            row(.nextPhoto, "Goes to the photo after", key: "\u{2192} \u{2193} / J"),
+                            row(.switchPhoto, "Steps through undecided photos (2-Up only)"),
+                            row(.goToPhoto, "Type a position number or part of a file name"),
                             ("H / L", "Previous / Next (going away)", "Old aliases of the arrow keys, removed after the next release"),
-                            ("Click Photo", "Select Slot", "Click any comparison pane directly to make it the active photo")
+                            ("Click Photo", "Select Photo", "Click a photo in 2-Up or 3-Up to make it the current one")
                         ]
                     )
 
                     // View Modes Section
                     sectionView(
-                        title: "Comparison & View Modes",
+                        title: "Views",
                         icon: "rectangle.split.2x1.fill",
                         color: .orange,
                         items: [
-                            ("1", "1-Up Single View", "Displays active photo filling the maximum screen area"),
-                            ("2", "2-Up Side-by-Side", "Compares two photographs side-by-side (50/50 split)"),
-                            ("3", "3-Up Focus Mode", "Current photo full-width on top; previous bottom-left, next bottom-right"),
-                            ("Space", "100% Zoom (1:1)", "Toggles 1:1 pixel crop magnification to check critical focus"),
-                            ("Esc", "Exit Zoom", "Leaves any zoom (100% or pinch) back to Fit — or click the Fit pill"),
-                            ("⌥⌘P", "Link Pan", "Links panning across comparison slots (S until next release; zoom level is always shared)"),
-                            ("T", "Toggle Filmstrip", "Shows or hides the bottom thumbnail scrubber strip (F until next release; F becomes full screen)"),
-                            ("I", "Toggle Info Overlay", "Shows or hides floating EXIF metadata and quality scores")
+                            row(.singleUp, "One photo, as large as the window allows"),
+                            row(.twoUp, "Two photos side by side"),
+                            row(.threeUp, "Current photo full-width on top; previous bottom-left, next bottom-right"),
+                            row(.zoom100, "Shows one pixel per pixel to check sharpness"),
+                            ("Esc", "Fit", "Leaves any zoom (100% or pinch) back to Fit, or click the Fit pill"),
+                            row(.linkPan, "Pans all photos together (S until next release; zoom is always shared)"),
+                            row(.filmstrip, "Shows or hides the thumbnail strip (F until next release; F becomes full screen)"),
+                            row(.info, "Shows or hides EXIF and the Sharpness and Aesthetics scores", key: "I", name: LensjetCommand.infoMenuTitle(isShown: true))
                         ]
                     )
 
                     // Secondary Tools Section
                     sectionView(
-                        title: "Tools & Preferences",
+                        title: "Files & Tools",
                         icon: "wrench.and.screwdriver.fill",
                         color: .purple,
                         items: [
-                            ("⌘O", "Open Folder / SD Card", "Selects a new photo directory or mounted camera card"),
-                            ("⌘D", "Duplicate Finder", "Detects bitwise identical images using SHA-256 cryptographic hashing"),
-                            ("⌘L", "Library Statistics", "Displays focal length, aperture, ISO, and shutter speed histograms"),
-                            ("⌘,", "Settings", "Opens macOS Preferences to configure destination folder and thresholds")
+                            row(.openFolder, "Opens a photo folder or a camera card"),
+                            row(.showInFinder, "Shows the photo in Finder"),
+                            row(.quickLook, "Previews the photo with Quick Look"),
+                            row(.findDuplicates, LensjetWords.findDuplicatesCaption),
+                            row(.statistics, LensjetWords.statisticsCaption),
+                            ("\u{2318},", "Settings", "Destination folder, Sharpness bands and cache")
                         ]
                     )
                 }

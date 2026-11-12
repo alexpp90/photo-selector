@@ -7,6 +7,7 @@ import com.photoselector.saf.FolderAccessManager
 import com.photoselectortoolbox.data.model.FolderDescription
 import com.photoselectortoolbox.data.model.ImageDimensions
 import com.photoselectortoolbox.data.model.ImageItem
+import com.photoselectortoolbox.data.model.SelectionFolderState
 import com.photoselectortoolbox.domain.curation.FileIdentity
 import kotlinx.coroutines.flow.Flow
 
@@ -176,6 +177,13 @@ interface ImageRepository {
         context: Context,
         item: ImageItem,
     ): Boolean
+
+    /**
+     * The Selection folder a Copy or Move from [folderUri] files into — resolved exactly as a
+     * transfer resolves it (custom destination, second pass) — with its files and sizes and
+     * whether it shares the source's volume. Null when it does not exist yet or cannot be read.
+     */
+    suspend fun selectionFolder(context: Context, folderUri: Uri): SelectionFolderState?
 
     /**
      * Header-only dimensions for a set of images, keyed by URI string.

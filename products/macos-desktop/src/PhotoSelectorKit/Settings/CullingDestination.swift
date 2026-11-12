@@ -26,10 +26,15 @@ public enum CustomFolderProblem: Equatable, Sendable {
     case notADirectory
     /// The folder exists but the app may not write into it.
     case notWritable
+    /// The folder the destination would land in is the opened folder itself, which is a Selection
+    /// folder (by name or by its marker): Move would nest `Selection/Selection/`, a folder the scan
+    /// hides, so the photo would vanish from the list.
+    case openedFolderIsSelection
 
     /// Warning shown in Settings and in the toast of a refused Move/Copy.
     public var message: String {
         switch self {
+        case .openedFolderIsSelection: return "This is the Selection folder. Move and Copy are off here; Trash and Undo work."
         case .missing: return "Folder not found. Move and Copy are off until you choose another."
         case .notADirectory: return "Not a folder. Move and Copy are off until you choose another."
         case .notWritable: return "Not writable. Move and Copy are off until you choose another."
@@ -95,14 +100,33 @@ public enum CullingDestinationResolver {
                 folderName: name,
                 baseFolderURL: custom,
                 problem: problem(of: custom, fileManager: fileManager)
+                    ?? (landsInOpenedSelection(base: custom, name: name, openFolderURL: openFolderURL, fileManager: fileManager)
+                        ? .openedFolderIsSelection : nil)
             )
         }
         return ResolvedCullingDestination(
             mode: .workingFolder,
             folderName: name,
             baseFolderURL: openFolderURL,
-            problem: nil
+            problem: openFolderURL.flatMap {
+                landsInOpenedSelection(base: $0, name: name, openFolderURL: $0, fileManager: fileManager)
+            } == true ? .openedFolderIsSelection : nil
         )
+    }
+
+    /// True when filing into `<base>/<name>/` would put photos into, or beside, the opened Selection
+    /// folder: the destination is the opened folder itself, or `base` is the opened folder and that
+    /// folder is a Selection folder (named `name`, or carrying the scanner's marker file).
+    static func landsInOpenedSelection(
+        base: URL, name: String, openFolderURL: URL?, fileManager: FileManager
+    ) -> Bool {
+        guard let open = openFolderURL else { return false }
+        func identity(_ url: URL) -> String { url.standardizedFileURL.resolvingSymlinksInPath().path }
+        if identity(selectionFolder(in: base, named: name)) == identity(open) { return true }
+        guard identity(base) == identity(open) else { return false }
+        if open.lastPathComponent.caseInsensitiveCompare(name) == .orderedSame { return true }
+        return fileManager.fileExists(
+            atPath: open.appendingPathComponent(DirectoryScanner.selectionMarkerFilename).path)
     }
 
     /// Resolves from the persisted settings.
@@ -140,6 +164,11 @@ public enum CullingDestinationResolver {
 
     /// What Settings shows under the Working folder / Custom folder choice.
     public static func summary(of destination: ResolvedCullingDestination, home: String = NSHomeDirectory()) -> CullingDestinationSummary {
+        if destination.problem == .openedFolderIsSelection, destination.mode == .workingFolder {
+            return CullingDestinationSummary(
+                selectionPathText: nil, customFolderPathText: nil, placeholderText: nil,
+                warningText: destination.problem?.message)
+        }
         let selectionText = destination.selectionFolderURL.map { abbreviated($0.standardizedFileURL.path, home: home) + "/" }
         switch destination.mode {
         case .workingFolder:

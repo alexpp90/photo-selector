@@ -156,11 +156,10 @@ class SelectionActionLabelsTest {
     }
 
     @Test
-    fun `move advances and copy does not`() {
-        // The asymmetry is the culling loop: a moved frame is finished with, a
-        // copied one may still be worth comparing against its neighbours.
+    fun `move and copy both advance`() {
+        // One key per decision (backlog 2026-11-11); the copied frame stays beside as Previous.
         assertTrue(SelectionActionLabels.advancesAfter(FilingAction.MOVE))
-        assertFalse(SelectionActionLabels.advancesAfter(FilingAction.COPY))
+        assertTrue(SelectionActionLabels.advancesAfter(FilingAction.COPY))
     }
 
     @Test

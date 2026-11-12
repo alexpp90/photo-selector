@@ -6,6 +6,7 @@ import android.os.ParcelFileDescriptor
 import android.util.Log
 import androidx.exifinterface.media.ExifInterface
 import com.photoselector.core.model.ExifData
+import com.photoselector.core.model.LensSpecification
 import com.photoselector.core.preview.Cr3Metadata
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
@@ -24,6 +25,11 @@ class AndroidExifReader @Inject constructor() : ExifReaderStrategy {
 
     companion object {
         private const val TAG = "AndroidExifReader"
+
+        // DJI writes the gimbal pitch as an attribute or an element of its own namespace.
+        private val DRONE_GIMBAL_PITCH = Regex(
+            "drone-dji:GimbalPitchDegree\\s*(?:=\\s*[\"']|>\\s*)(-?\\d+(?:\\.\\d+)?)",
+        )
 
         private val SUPPORTED_MIME_TYPES = setOf(
             "image/jpeg",
@@ -150,6 +156,17 @@ class AndroidExifReader @Inject constructor() : ExifReaderStrategy {
         val offsetTimeOriginal: String? = null,
         val focalPlaneXResolution: Double? = null,
         val focalPlaneResolutionUnit: Int? = null,
+        val exposureProgram: Int? = null,
+        val exposureMode: Int? = null,
+        val exposureCompensationEv: Double? = null,
+        val meteringMode: Int? = null,
+        val flash: Int? = null,
+        val whiteBalance: Int? = null,
+        val digitalZoomRatio: Double? = null,
+        val lensSpecification: LensSpecification? = null,
+        val customRendered: Int? = null,
+        val sceneCaptureType: Int? = null,
+        val gimbalPitchDegrees: Double? = null,
     )
 
     private fun buildExifData(v: RawValues, rating: Int): ExifData {
@@ -176,6 +193,17 @@ class AndroidExifReader @Inject constructor() : ExifReaderStrategy {
             offsetTimeOriginal = v.offsetTimeOriginal.clean(),
             focalPlaneXResolution = v.focalPlaneXResolution?.takeIf { it > 0.0 && it.isFinite() },
             focalPlaneResolutionUnit = v.focalPlaneResolutionUnit?.takeIf { it > 0 },
+            exposureProgram = v.exposureProgram,
+            exposureMode = v.exposureMode,
+            exposureCompensationEv = v.exposureCompensationEv?.takeIf { it.isFinite() },
+            meteringMode = v.meteringMode,
+            flash = v.flash,
+            whiteBalance = v.whiteBalance,
+            digitalZoomRatio = v.digitalZoomRatio?.takeIf { it.isFinite() },
+            lensSpecification = v.lensSpecification,
+            customRendered = v.customRendered,
+            sceneCaptureType = v.sceneCaptureType,
+            gimbalPitchDegrees = v.gimbalPitchDegrees?.takeIf { it.isFinite() },
         )
     }
 
@@ -243,6 +271,10 @@ class AndroidExifReader @Inject constructor() : ExifReaderStrategy {
         pfd: ParcelFileDescriptor? = null
     ): ExifData {
         fun int(tag: String): Int? = exif.getAttributeInt(tag, 0).takeIf { it > 0 }
+        // Absent is not zero: 0 is a real value for the capture settings.
+        fun rawInt(tag: String): Int? =
+            if (exif.getAttribute(tag) == null) null else exif.getAttributeInt(tag, Int.MIN_VALUE).takeIf { it != Int.MIN_VALUE }
+        val xmp = exif.getAttribute(ExifInterface.TAG_XMP)
         val latLong = exif.latLong
         val gpsLat = (latLong?.getOrNull(0)?.takeIf { it in -90.0..90.0 })
             ?: parseExifGpsCoordinate(
@@ -289,8 +321,19 @@ class AndroidExifReader @Inject constructor() : ExifReaderStrategy {
             offsetTimeOriginal = exif.getAttribute(ExifInterface.TAG_OFFSET_TIME_ORIGINAL),
             focalPlaneXResolution = fpXRes,
             focalPlaneResolutionUnit = int(ExifInterface.TAG_FOCAL_PLANE_RESOLUTION_UNIT),
+            exposureProgram = rawInt(ExifInterface.TAG_EXPOSURE_PROGRAM),
+            exposureMode = rawInt(ExifInterface.TAG_EXPOSURE_MODE),
+            exposureCompensationEv = parseRationalValue(exif.getAttribute(ExifInterface.TAG_EXPOSURE_BIAS_VALUE)),
+            meteringMode = rawInt(ExifInterface.TAG_METERING_MODE),
+            flash = rawInt(ExifInterface.TAG_FLASH),
+            whiteBalance = rawInt(ExifInterface.TAG_WHITE_BALANCE),
+            digitalZoomRatio = parseRationalValue(exif.getAttribute(ExifInterface.TAG_DIGITAL_ZOOM_RATIO)),
+            lensSpecification = parseLensSpecification(exif.getAttribute(ExifInterface.TAG_LENS_SPECIFICATION)),
+            customRendered = rawInt(ExifInterface.TAG_CUSTOM_RENDERED),
+            sceneCaptureType = rawInt(ExifInterface.TAG_SCENE_CAPTURE_TYPE),
+            gimbalPitchDegrees = DRONE_GIMBAL_PITCH.find(xmp.orEmpty())?.groupValues?.get(1)?.toDoubleOrNull(),
         )
-        return buildExifData(values, extractRating(exif, file, pfd))
+        return buildExifData(values, extractRating(exif, file, pfd, xmp))
     }
 
     private fun parseExifGpsCoordinate(dmsAttr: String?, refAttr: String?, limit: Double): Double? {
@@ -330,7 +373,8 @@ class AndroidExifReader @Inject constructor() : ExifReaderStrategy {
     private fun extractRating(
         exif: ExifInterface,
         file: File?,
-        pfd: ParcelFileDescriptor?
+        pfd: ParcelFileDescriptor?,
+        xmp: String?,
     ): Int {
         // 1. Companion sidecar (takes absolute precedence as user intent over embedded camera metadata)
         if (file != null) {
@@ -339,7 +383,6 @@ class AndroidExifReader @Inject constructor() : ExifReaderStrategy {
         }
 
         // 2. Embedded XMP packet (TAG_XMP)
-        val xmp = exif.getAttribute(ExifInterface.TAG_XMP)
         if (!xmp.isNullOrBlank()) {
             val xmpRating = XmpRatingParser.parseRating(xmp)
             if (xmpRating != null && xmpRating != 0) return xmpRating
@@ -412,6 +455,13 @@ class AndroidExifReader @Inject constructor() : ExifReaderStrategy {
                 null
             }
         }
+    }
+
+    /** Four rationals in one attribute: `24/1,70/1,28/10,40/10`; `0/0` (unknown) is null. */
+    private fun parseLensSpecification(value: String?): LensSpecification? {
+        val parts = value?.split(",")?.map { parseRationalValue(it.trim())?.takeIf { v -> v > 0.0 && v.isFinite() } }
+        if (parts == null || parts.size != 4 || parts.all { it == null }) return null
+        return LensSpecification(parts[0], parts[1], parts[2], parts[3])
     }
 
     private fun parseRationalValue(value: String?): Double? {

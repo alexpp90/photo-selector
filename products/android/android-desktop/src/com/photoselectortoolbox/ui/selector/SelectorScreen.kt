@@ -31,10 +31,8 @@ import androidx.compose.material.icons.filled.PhotoCamera
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.DropdownMenu
-import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.FilledTonalButton
-import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
@@ -45,6 +43,7 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -58,6 +57,7 @@ import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.input.key.Key
 import androidx.compose.ui.input.key.KeyEventType
 import androidx.compose.ui.input.key.isCtrlPressed
+import androidx.compose.ui.input.key.isShiftPressed
 import androidx.compose.ui.input.key.isMetaPressed
 import androidx.compose.ui.input.key.key
 import androidx.compose.ui.input.key.onPreviewKeyEvent
@@ -65,7 +65,6 @@ import androidx.compose.ui.input.key.type
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalWindowInfo
 import androidx.compose.ui.platform.testTag
-import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.dp
 import androidx.activity.compose.BackHandler
@@ -73,7 +72,6 @@ import androidx.compose.ui.window.Popup
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.photoselectortoolbox.domain.format.SelectorLabels
-import com.photoselectortoolbox.domain.interaction.SelectorShortcut
 import com.photoselectortoolbox.domain.model.RatingFilter
 import com.photoselectortoolbox.domain.session.SelectorSortOrder
 import com.photoselectortoolbox.ui.components.EmptyStateCard
@@ -107,6 +105,8 @@ fun SelectorScreen(
     currentRoute: String? = null,
     onNavigate: (Screen) -> Unit = {},
     viewModel: SelectorViewModel = hiltViewModel(),
+    /** The maximised frame's zoom (a parameter so a test can read it; production takes the default). */
+    maximisedZoom: PhotoZoom = remember { PhotoZoom() },
 ) {
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
     val context = LocalContext.current
@@ -122,6 +122,8 @@ fun SelectorScreen(
     // The confirmation card's measured top, so the first-run pill can stack above it.
     var snackbarTop by remember { mutableStateOf<Float?>(null) }
     var lastPointerPosition by remember { mutableStateOf(Offset.Zero) }
+    // The maximised frame's zoom: kept while stepping, dropped when the frame is restored.
+    LaunchedEffect(uiState.maximisedFrame == null) { if (uiState.maximisedFrame == null) maximisedZoom.reset() }
 
     val isExpanded = windowSizeClass.widthSizeClass == WindowWidthSizeClass.Expanded
     val isMedium = windowSizeClass.widthSizeClass == WindowWidthSizeClass.Medium
@@ -204,7 +206,7 @@ fun SelectorScreen(
             guideOpen -> dismissGuide()
             uiState.showDeleteConfirmation -> viewModel.dismissDeleteConfirmation()
             uiState.uncompletedDeletionsPrompt != null -> viewModel.keepUncompletedDeletions()
-            uiState.maximisedFrame != null -> viewModel.clearMaximised()
+            uiState.maximisedFrame != null -> if (maximisedZoom.isZoomed) maximisedZoom.reset() else viewModel.clearMaximised()
         }
     }
 
@@ -238,9 +240,9 @@ fun SelectorScreen(
         contract = ActivityResultContracts.OpenDocumentTree()
     ) { uri: Uri? -> uri?.let { viewModel.selectFolder(it) } }
 
-    // Move and Delete advance to the next frame; Copy stays put. That asymmetry
-    // is the culling loop: a moved or deleted frame is finished with, a copied
-    // one may still be compared against its neighbours.
+    // Move, Copy and Delete all advance to the next frame: one key per decision. A copied
+    // frame becomes the left "previous" frame, still there to compare against, and carries
+    // the copied mark (backlog 2026-11-11; the advance is in the ViewModel).
     //
     // The confirmation wording no longer lives here. The message and its UNDO
     // are one fact about one operation, so they are decided together in the
@@ -256,6 +258,23 @@ fun SelectorScreen(
         onToggleOverlayValues = viewModel::toggleOverlayValues,
         onShowShortcuts = openGuide,
         onGoToPhoto = openJump,
+    )
+
+    // One More menu for both layouts (REQ-AND-LAYOUT.02): the sidebar's in wide windows, the
+    // compact action row's below 600 dp.
+    val moreMenu = SelectorMoreMenu(
+        undoSteps = uiState.undoHistory.size,
+        hasImages = uiState.images.isNotEmpty(),
+        canScan = !uiState.isScanRunning,
+        hasAnyScores = uiState.hasAnyScores,
+        sortChoice = sortChoice,
+        onUndo = viewModel::undoLastOperation,
+        onScan = { showScanConfig = true },
+        onOpenFolder = { folderPickerLauncher.launch(null) },
+        onSort = selectSortChoice,
+        onGoToPhoto = openJump,
+        onClearScores = viewModel::clearScores,
+        onShowGuide = openGuide.takeIf { useExpandedLayout },
     )
 
     // Errors already reached the snackbar through the ViewModel; the sticky
@@ -275,8 +294,10 @@ fun SelectorScreen(
     // (before this, nothing had asked for focus yet and Esc went nowhere).
     val windowOverlayOpen = showScanConfig || showFullscreen || jumpOpen || sortMenuOpen || contextMenuAt != null ||
         uiState.showDeleteConfirmation || uiState.uncompletedDeletionsPrompt != null
-    LaunchedEffect(uiState.images.isNotEmpty(), windowFocused, windowOverlayOpen) {
-        if (uiState.images.isNotEmpty() && windowFocused && !windowOverlayOpen) {
+    // Keys stay live while there is something to undo, so Ctrl+Z works on the Done card too.
+    val keysLive = uiState.images.isNotEmpty() || uiState.undoHistory.isNotEmpty()
+    LaunchedEffect(keysLive, windowFocused, windowOverlayOpen) {
+        if (keysLive && windowFocused && !windowOverlayOpen) {
             try {
                 focusRequester.requestFocus()
             } catch (e: IllegalStateException) {
@@ -319,7 +340,8 @@ fun SelectorScreen(
     if (jumpOpen) {
         GoToPhotoDialog(
             images = uiState.images,
-            ratingFilter = uiState.ratingFilter,
+            // Learn's rating filter does not reach the cull (REQ-AND-RATING.01).
+            ratingFilter = RatingFilter.All,
             dates = viewModel.photoDates(),
             pickerStartDay = viewModel.pickerStartDay(),
             preview = viewModel::previewJump,
@@ -385,9 +407,9 @@ fun SelectorScreen(
 
     if (showScanConfig) {
         ScanConfigSheet(
-            onStartScan = { _ ->
+            onStartScan = { config ->
                 showScanConfig = false
-                viewModel.startScan()
+                viewModel.startScan(config.measures)
             },
             onDismiss = { showScanConfig = false },
             isExpanded = useExpandedLayout,
@@ -452,7 +474,7 @@ fun SelectorScreen(
             .trackPointerPosition { lastPointerPosition = it }
             .testTag("selector_root")
             .then(
-                if (uiState.images.isNotEmpty()) {
+                if (keysLive) {
                     Modifier
                         // A focus *target*, not just a requester: without
                         // `focusable()` the requester had nothing to focus, the call
@@ -480,16 +502,12 @@ fun SelectorScreen(
                                 onGoToPhoto = openJump,
                                 onSortMenu = openSortMenu,
                                 onCloseOverlays = closeTopLayer,
-                                onSetRating = { rating ->
-                                    if (uiState.maximisedFrame != null) {
-                                        viewModel.setRatingForMaximised(rating)
-                                    } else {
-                                        viewModel.setRatingForCurrent(rating)
-                                    }
-                                },
                                 onNavigate = onNavigate,
                                 ctrlOrMetaPressed = event.isCtrlPressed || event.isMetaPressed,
                                 onUndo = viewModel::undoLastOperation,
+                                onZoomToggle = maximisedZoom::toggle,
+                                onPanStep = { dx -> maximisedZoom.panStep(dx, 0) },
+                                shiftPressed = event.isShiftPressed,
                             )
                         }
                 } else {
@@ -524,43 +542,7 @@ fun SelectorScreen(
                             expanded = showMenu,
                             onDismissRequest = { showMenu = false },
                         ) {
-                            DropdownMenuItem(
-                                modifier = Modifier.handCursor(),
-                                text = { Text("Scan images") },
-                                onClick = { showMenu = false; showScanConfig = true },
-                                enabled = uiState.images.isNotEmpty() && !uiState.isScanRunning,
-                            )
-                            DropdownMenuItem(
-                                modifier = Modifier.handCursor(),
-                                text = { Text("Open folder") },
-                                onClick = { showMenu = false; folderPickerLauncher.launch(null) },
-                            )
-                            HorizontalDivider()
-                            // The same radio group the Sort chip opens (one list, two doors).
-                            SortMenuItems(
-                                selected = sortChoice,
-                                blurriestEnabled = uiState.hasAnyScores,
-                                onSelect = { choice -> showMenu = false; selectSortChoice(choice) },
-                            )
-                            HorizontalDivider()
-                            DropdownMenuItem(
-                                text = { Text(SelectorLabels.GO_TO_PHOTO_MENU) },
-                                trailingIcon = { KeyCap(SelectorShortcut.GO_TO.input) },
-                                onClick = { showMenu = false; openJump() },
-                                enabled = uiState.images.isNotEmpty(),
-                                modifier = Modifier.testTag("menu_go_to_photo").handCursor(),
-                            )
-                            DropdownMenuItem(
-                                modifier = Modifier.handCursor(),
-                                text = { Text("Clear scores") },
-                                onClick = { showMenu = false; viewModel.clearScores() },
-                                enabled = uiState.hasAnyScores,
-                            )
-                            DropdownMenuItem(
-                                modifier = Modifier.handCursor(),
-                                text = { Text("Shortcuts and guide") },
-                                onClick = { showMenu = false; openGuide() },
-                            )
+                            SelectorMoreMenuItems(moreMenu, onDismiss = { showMenu = false })
                         }
                     },
                 )
@@ -574,9 +556,21 @@ fun SelectorScreen(
                             missingGrantPrompt = uiState.missingGrantPrompt,
                             isLoading = uiState.isLoading,
                             isEnumerating = uiState.isEnumerating,
+                            sessionActions = uiState.sessionMovedCount + uiState.sessionCopiedCount + uiState.sessionDeletedCount,
                         ),
                         folderName = uiState.folderName,
                         onOpenFolder = { folderPickerLauncher.launch(null) },
+                        done = DoneSummary(
+                            moved = uiState.sessionMovedCount,
+                            copied = uiState.sessionCopiedCount,
+                            deleted = uiState.sessionDeletedCount,
+                            destination = DoneSummary.destinationOf(
+                                uiState.folderName, uiState.filingFolderName, uiState.customDestinationName,
+                            ).takeIf { uiState.sessionKeptCount > 0 },
+                            safeToFormat = uiState.safeToFormatLine,
+                        ),
+                        onOpenSelection = viewModel::openSelection.takeIf { uiState.doneSelection != null },
+                        onDone = viewModel::lookUpSelection,
                     )
                 } else {
                     // Tagged because the height budget is the thing this screen
@@ -605,6 +599,7 @@ fun SelectorScreen(
                                 filmstripVisible = uiState.filmstripVisible,
                                 overlayValuesVisible = uiState.overlayValuesVisible,
                                 maximisedFrame = uiState.maximisedFrame,
+                                maximisedZoom = maximisedZoom,
                                 actions = actions,
                                 onNavigatePrevious = viewModel::navigatePrevious,
                                 onNavigateNext = viewModel::navigateNext,
@@ -618,8 +613,10 @@ fun SelectorScreen(
                                 // explanations of it at once is neither.
                                 pendingHint = uiState.pendingHintText.takeIf { !guideOpen },
                                 onDismissHint = viewModel::dismissHint,
-                                ratingFilter = uiState.ratingFilter,
-                                onRatingFilterSelected = viewModel::setRatingFilter,
+                                copiedMark = { image ->
+                                    SelectorLabels.copiedMarkSpoken(uiState.filingFolderName)
+                                        .takeIf { image.uri in uiState.sessionCopiedUris }
+                                },
                                 onSetRating = { rating ->
                                     if (uiState.maximisedFrame != null) {
                                         viewModel.setRatingForMaximised(rating)
@@ -637,25 +634,17 @@ fun SelectorScreen(
                                 // The maximised state does not draw the flanks
                                 // at all, so the strip disappears there without
                                 // a second condition.
+                                // Every photo of the folder: Learn's rating filter does not
+                                // reach the cull (REQ-AND-RATING.01).
                                 filmstrip = {
                                     CandidateStrip(
-                                        images = uiState.filteredImages,
-                                        currentIndex = uiState.filteredIndex,
+                                        images = uiState.images,
+                                        currentIndex = uiState.currentIndex,
                                         selectedUri = uiState.currentImage?.uri,
-                                        onImageSelected = { filteredIdx ->
-                                            val targetImage = uiState.filteredImages.getOrNull(filteredIdx)
-                                            if (targetImage != null) {
-                                                val globalIdx = uiState.images.indexOfFirst { it.uri == targetImage.uri }
-                                                if (globalIdx >= 0) {
-                                                    viewModel.navigateToImage(globalIdx)
-                                                }
-                                            }
-                                        },
-                                        groups = if (uiState.groupingEnabled && uiState.ratingFilter == RatingFilter.All) {
-                                            uiState.groups
-                                        } else {
-                                            null
-                                        },
+                                        onImageSelected = viewModel::navigateToImage,
+                                        groups = uiState.groups.takeIf { uiState.groupingEnabled },
+                                        copiedUris = uiState.sessionCopiedUris,
+                                        copiedFolderName = uiState.filingFolderName,
                                         modifier = Modifier.fillMaxHeight(),
                                     )
                                 },
@@ -670,6 +659,7 @@ fun SelectorScreen(
                                 onDelete = actions.onDelete,
                                 showGestureHint = !uiState.hasSeenFullscreenHint,
                                 onDismissGestureHint = viewModel::markFullscreenHintSeen,
+                                moreMenu = moreMenu,
                             )
                         }
                     }
@@ -720,21 +710,24 @@ fun SelectorScreen(
 }
 
 /** Which card the selector shows in place of the frames. */
-internal enum class SelectorEmptyKind { NO_FOLDER, MISSING_GRANT, OPENING, EMPTY_FOLDER }
+internal enum class SelectorEmptyKind { NO_FOLDER, MISSING_GRANT, OPENING, EMPTY_FOLDER, DONE }
 
 /**
  * An open folder with nothing to show is not "no folder": while it is still being read the screen
- * waits, and once read it says the folder holds no photos (FD-UX-5).
+ * waits, and once read it says the folder holds no photos (FD-UX-5) — unless this session emptied
+ * it by filing and deleting, which is the end of the cull ([sessionActions] > 0, backlog 2026-11-11).
  */
 internal fun selectorEmptyKind(
     folderUri: String?,
     missingGrantPrompt: Boolean,
     isLoading: Boolean,
     isEnumerating: Boolean,
+    sessionActions: Int = 0,
 ): SelectorEmptyKind = when {
     missingGrantPrompt -> SelectorEmptyKind.MISSING_GRANT
     folderUri == null -> SelectorEmptyKind.NO_FOLDER
     isLoading || isEnumerating -> SelectorEmptyKind.OPENING
+    sessionActions > 0 -> SelectorEmptyKind.DONE
     else -> SelectorEmptyKind.EMPTY_FOLDER
 }
 
@@ -743,6 +736,10 @@ internal fun EmptySelectorState(
     kind: SelectorEmptyKind,
     folderName: String,
     onOpenFolder: () -> Unit,
+    done: DoneSummary? = null,
+    onOpenSelection: (() -> Unit)? = null,
+    /** Run when the Done card appears and whenever its counts change: looks up the Selection. */
+    onDone: () -> Unit = {},
 ) {
     Box(
         modifier = Modifier.fillMaxSize(),
@@ -773,6 +770,12 @@ internal fun EmptySelectorState(
                 onAction = onOpenFolder,
                 modifier = Modifier.testTag("empty_folder_card"),
             )
+            SelectorEmptyKind.DONE -> {
+                val summary = done ?: DoneSummary(0, 0, 0, null)
+                val latestOnDone by rememberUpdatedState(onDone)
+                LaunchedEffect(summary.moved, summary.copied, summary.deleted) { latestOnDone() }
+                DoneCard(summary = summary, onOpenFolder = onOpenFolder, onOpenSelection = onOpenSelection)
+            }
             SelectorEmptyKind.NO_FOLDER -> EmptyStateCard(
                 icon = Icons.Default.PhotoCamera,
                 title = "Select a Folder",
@@ -816,12 +819,16 @@ internal fun handleSelectorKey(
     onCloseOverlays: () -> Unit,
     onGoToPhoto: (() -> Unit)? = null,
     onSortMenu: (() -> Unit)? = null,
-    onSetRating: ((Int) -> Unit)? = null,
     onNavigate: ((Screen) -> Unit)? = null,
     ctrlOrMetaPressed: Boolean = false,
     onUndo: (() -> Unit)? = null,
     /** The key event is an auto-repeat of a held key ([isHeldOneShotKey]). */
     repeat: Boolean = false,
+    /** `Space` on a maximised frame: fit ↔ 100 %. */
+    onZoomToggle: (() -> Unit)? = null,
+    /** `Shift`+`←`/`→` on a maximised frame: pan; false when it is not zoomed (the key steps). */
+    onPanStep: ((Int) -> Boolean)? = null,
+    shiftPressed: Boolean = false,
 ): Boolean {
     if (key == Key.Escape) {
         if (sheetOpen || contextMenuOpen || fullscreenOpen || maximised) {
@@ -843,7 +850,21 @@ internal fun handleSelectorKey(
 
     if (isHeldOneShotKey(key, repeat)) return true
 
+    if (shiftPressed && maximised && (key == Key.DirectionLeft || key == Key.DirectionRight) &&
+        onPanStep?.invoke(if (key == Key.DirectionLeft) -1 else 1) == true
+    ) {
+        return true
+    }
+
     return when (key) {
+        Key.Spacebar -> {
+            if (maximised && onZoomToggle != null) {
+                onZoomToggle()
+                true
+            } else {
+                false
+            }
+        }
         // The desk-app key table (docs/shared/KEYBOARD.md): L opens Learn on Frameduel only;
         // I is the info (readout) block and T the filmstrip in every desk app, so I no longer
         // opens Learn; J / K step like the arrows, as on Lensjet and Blitzlens.
@@ -887,17 +908,6 @@ internal fun handleSelectorKey(
     }
 }
 
-
-/** A mono key cap, the key hint shown at the end of a menu row. */
-@Composable
-private fun KeyCap(key: String) {
-    Text(
-        text = key,
-        style = MaterialTheme.typography.labelMedium,
-        fontFamily = FontFamily.Monospace,
-        color = MaterialTheme.colorScheme.onSurfaceVariant,
-    )
-}
 
 /**
  * The aspect ratio the frame solver is currently using, landscape-normalised.

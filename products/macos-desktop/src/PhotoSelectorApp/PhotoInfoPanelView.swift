@@ -12,6 +12,11 @@ struct PhotoInfoPanelView: View {
     let photo: PhotoItem
     let placement: MetadataPanelLayout.Placement
     let aestheticsEnabled: Bool
+    @AppStorage(AppSettingsKeys.sharpnessBlurryThreshold)
+    private var blurryBelow: Double = AppSettingsDefaults.sharpnessBlurryThreshold
+    @AppStorage(AppSettingsKeys.sharpnessAcceptableThreshold)
+    private var sharpFrom: Double = AppSettingsDefaults.sharpnessAcceptableThreshold
+    private var bands: SharpnessBands { SharpnessBands(blurryBelow: blurryBelow, sharpFrom: sharpFrom) }
 
     private static let primary = Color.white
     private static let secondary = Color.lensjetTextSecondary
@@ -128,19 +133,19 @@ struct PhotoInfoPanelView: View {
         layout {
             if let scores = photo.scores {
                 HStack(spacing: 4) {
-                    Image(systemName: focusIcon(for: scores.focusCategory))
+                    Image(systemName: focusIcon(for: scores.category(in: bands)))
                         .font(.system(size: 11, weight: .bold))
-                        .foregroundStyle(focusColor(for: scores.focusCategory))
+                        .foregroundStyle(focusColor(for: scores.category(in: bands)))
                     Text(ScoreLabels.sharpness(scores.sharpness))
                         .font(.system(size: 11, weight: .bold).monospacedDigit())
                         .foregroundStyle(Self.primary)
-                    Text("[\(scores.focusCategory.rawValue)]")
+                    Text("[\(scores.category(in: bands).rawValue)]")
                         .font(.system(size: 10, weight: .medium))
-                        .foregroundStyle(focusColor(for: scores.focusCategory))
+                        .foregroundStyle(focusColor(for: scores.category(in: bands)))
                 }
-                .help(ScoreLabels.sharpnessTooltip(scores))
+                .help(ScoreLabels.sharpnessTooltip(scores, bands: bands))
                 .accessibilityElement(children: .ignore)
-                .accessibilityLabel(ScoreLabels.sharpnessSpoken(scores))
+                .accessibilityLabel(ScoreLabels.sharpnessSpoken(scores, bands: bands))
                 .uiTestFrame("info_sharpness")
                 if scores.highlightClipping > 5.0 {
                     Text("Blown \(Int(scores.highlightClipping))%")
