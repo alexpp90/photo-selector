@@ -15,6 +15,8 @@ enum class GuideAnchor {
     LOGO,
     DONE_WITH_CARD,
     RELOAD,
+    /** Casual "surprise me", phone and cloud only ([USER 2026-11-12] decision #14). */
+    SURPRISE,
     HELP,
     INFO,
     SETTINGS,

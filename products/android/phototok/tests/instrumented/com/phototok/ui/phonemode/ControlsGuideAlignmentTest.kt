@@ -39,6 +39,7 @@ class ControlsGuideAlignmentTest {
 
     private val topControls = mapOf(
         GuideAnchor.RELOAD to "reload_folder_button",
+        GuideAnchor.SURPRISE to "surprise_me_button",
         GuideAnchor.HELP to "help_button",
         GuideAnchor.INFO to "info_exif_button",
         GuideAnchor.SETTINGS to "settings_button",
@@ -52,7 +53,14 @@ class ControlsGuideAlignmentTest {
         GuideAnchor.REVERT to "viewer_revert_button",
     )
 
-    private fun host(widthDp: Int, heightDp: Int, sd: Boolean, fontScale: Float = 1f, cameraInfo: Boolean = true) {
+    private fun host(
+        widthDp: Int,
+        heightDp: Int,
+        sd: Boolean,
+        fontScale: Float = 1f,
+        cameraInfo: Boolean = true,
+        surprise: Boolean = false,
+    ) {
         composeTestRule.setContent {
             val anchors = remember { ControlsGuideAnchors() }
             val base = LocalDensity.current
@@ -72,6 +80,7 @@ class ControlsGuideAlignmentTest {
                         modifier = Modifier.align(Alignment.TopCenter),
                         anchors = anchors,
                         cameraInfoEnabled = cameraInfo,
+                        surpriseMe = if (surprise) false else null,
                     )
                     ViewerBottomBar(
                         canRevert = true,
@@ -103,8 +112,15 @@ class ControlsGuideAlignmentTest {
         composeTestRule.onAllNodes(hasTestTag(tag), useUnmergedTree = true)
             .fetchSemanticsNodes().isNotEmpty()
 
-    private fun check(widthDp: Int, heightDp: Int, sd: Boolean, fontScale: Float = 1f, cameraInfo: Boolean = true) {
-        host(widthDp, heightDp, sd, fontScale, cameraInfo)
+    private fun check(
+        widthDp: Int,
+        heightDp: Int,
+        sd: Boolean,
+        fontScale: Float = 1f,
+        cameraInfo: Boolean = true,
+        surprise: Boolean = false,
+    ) {
+        host(widthDp, heightDp, sd, fontScale, cameraInfo, surprise)
         val density = composeTestRule.density.density
         val tolerance = 12f * density
 
@@ -181,6 +197,20 @@ class ControlsGuideAlignmentTest {
         check(320, 480, sd = false, cameraInfo = false)
         assertFalse(exists("guide_callout_INFO"))
         assertFalse(exists("guide_callout_LOGO"))
+    }
+
+    // Casual on the phone or in the cloud: "surprise me" between Reload and Help ([USER 2026-11-12]
+    // decision #14), labelled where it is.
+    @Test
+    fun casual393x851_surpriseMeIsLabelled() {
+        check(393, 851, sd = false, cameraInfo = false, surprise = true)
+        assertTrue(exists("guide_callout_SURPRISE"))
+    }
+
+    @Test
+    fun casual320x480_surpriseMeIsLabelled_atFontScale2() {
+        check(320, 480, sd = false, fontScale = 2f, cameraInfo = false, surprise = true)
+        assertTrue(exists("guide_callout_SURPRISE"))
     }
 
     @Test

@@ -7,6 +7,9 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 ## [Unreleased]
 
 ### Added
+- Tap the ★ Favourite chip on a photo to open your Favourites.
+- **Surprise me** in Casual: on a phone or cloud folder, the shuffle icon in the top bar deals the folder once with the photos you have not seen yet first, to rediscover old photos. Tap it again, or open the folder again, and it is newest first. SD cards and cameras keep their order.
+- Deleted phone photos go to Android's Trash (Android 11 and later), where a gallery or files app that shows Android's trash can restore them for about 30 days. When you leave the folder, Android asks once for the whole batch; declining keeps the photos ("N not deleted", **Retry**). The delete confirmation says per source what happens: "Move to Trash?" on the phone, "Delete permanently?" on an SD card, USB, camera or cloud folder, which have no trash.
 - The "Done with this card" sheet now shows how many of the card's photos are safe on the phone or another drive ("N copied"; "0 copied" with a warning sign when none are). A copy into the card's own Selection folder stays on the card and no longer counts, and the Delete all warning reads "Photos never copied are lost."
 - Switching Pro mode off says what the swipes of the folder you were using do now ("Pro off: left deletes", "Pro off: right ★", "Pro off: right → phone"), with **Undo**; when a left swipe that moved or copied becomes a delete, the next delete asks once even with "Don't ask" saved.
 - The start screen shows what swipe right does per source before your first swipe (a star on the phone, a download arrow on an SD card that copies to the phone, a folder in Pro), on the source rows and the recent folders. The first SD card or camera opened in Casual says once that swiped photos are saved on this phone, and the Pro mode help lists "Card Selection".

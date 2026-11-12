@@ -61,8 +61,9 @@ class PhoneModeScreenDialogTest {
             )
         }
 
-        composeTestRule.onNodeWithText(str(R.string.dialog_title_direct_delete)).assertIsDisplayed()
-        composeTestRule.onNodeWithText(str(R.string.dialog_body_no_trash)).assertIsDisplayed()
+        // Without a bin the title says it ([USER 2026-11-12] decision #13); there is no body line.
+        composeTestRule.onAllNodesWithText(str(R.string.dialog_title_direct_delete)).onFirst().assertIsDisplayed()
+        composeTestRule.onAllNodesWithText(str(R.string.dialog_title_trash)).assertCountEquals(0)
         // "Don't ask" replaces the old "Turn off this prompt in Settings." line.
         composeTestRule.onNodeWithTag("direct_delete_dont_ask").assertIsDisplayed()
         composeTestRule.onNodeWithText(str(R.string.label_dont_ask)).assertIsDisplayed()

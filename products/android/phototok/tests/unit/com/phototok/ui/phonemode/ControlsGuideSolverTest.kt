@@ -190,6 +190,27 @@ class ControlsGuideSolverTest {
         assertTrue(plans.none { it.id == GuideAnchor.INFO || it.id == GuideAnchor.LOGO })
     }
 
+    /** Casual "surprise me" ([USER 2026-11-12] decision #14): between Reload and Help, every callout clear. */
+    @Test
+    fun casual_surprise_sits_between_reload_and_help_and_every_top_callout_fits() {
+        val icons = listOf(GuideAnchor.RELOAD, GuideAnchor.SURPRISE, GuideAnchor.HELP, GuideAnchor.SETTINGS)
+        for (width in listOf(320f, 360f, 393f)) for (natural in listOf(60f, 120f, 400f)) {
+            val a = ControlsGuideSolver.nominalPortrait(width, 800f, 24f, 24f, false, hasCameraInfo = false, hasSurprise = true)
+            val r = a.getValue(GuideAnchor.RELOAD).centerX
+            val s = a.getValue(GuideAnchor.SURPRISE).centerX
+            val h = a.getValue(GuideAnchor.HELP).centerX
+            assertTrue("w=$width order", r < s && s < h)
+            val plans = ControlsGuideSolver.planTop(width, icons.associateWith { a.getValue(it) })
+            val sizes = plans.associate { it.id to sizeFor(it.maxWidth, natural) }
+            val placed = ControlsGuideSolver.placeTop(a.getValue(GuideAnchor.TOP_BAR).bottom, plans, sizes, null, null, null)
+            assertEquals("w=$width natural=$natural all four labelled", icons.toSet(), placed.map { it.id }.toSet())
+            assertNoOverlapsAndLeadersClear(placed, width)
+        }
+        val land = ControlsGuideSolver.nominalLandscape(800f, 360f, hasCameraInfo = false, hasSurprise = true)
+        assertTrue(land.getValue(GuideAnchor.RELOAD).bottom <= land.getValue(GuideAnchor.SURPRISE).top + 0.01f)
+        assertTrue(land.getValue(GuideAnchor.SURPRISE).bottom <= land.getValue(GuideAnchor.SETTINGS).top + 0.01f)
+    }
+
     @Test
     fun casual_landscape_has_no_logo_or_info_anchor_but_keeps_the_other_buttons() {
         val pro = ControlsGuideSolver.nominalLandscape(800f, 360f)
