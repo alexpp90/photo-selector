@@ -44,7 +44,13 @@ enum class FirstRunHint(val key: String) {
      * The first SD card or camera opened in Casual: swipe right copies onto the phone, not ★ in
      * place as on the phone (REQ-TOK-FEATURE.21). Once per install; "Reset tips" brings it back.
      */
-    CARD_IMPORT("card_import");
+    CARD_IMPORT("card_import"),
+
+    /**
+     * The first "surprise me" in Casual ([USER 2026-11-12] decision #14): the shuffle's rule, unseen
+     * photos first, is not visible in the result. Once per install; "Reset tips" brings it back.
+     */
+    SURPRISE("surprise");
 
     companion object {
         fun fromKey(key: String?): FirstRunHint? = entries.firstOrNull { it.key == key }
@@ -109,6 +115,7 @@ object FirstRunHintText {
         FirstRunHint.REVERT -> UiText.of(R.string.hint_title_revert)
         FirstRunHint.RAW_JPEG_PAIRS -> UiText.of(R.string.hint_title_raw_jpeg_pairs)
         FirstRunHint.CARD_IMPORT -> UiText.of(R.string.hint_title_swipe_right_copy, UiText.raw(PhotoFolders.CASUAL_IMPORT))
+        FirstRunHint.SURPRISE -> UiText.of(R.string.hint_title_surprise)
         FirstRunHint.FILTER_MISMATCH -> when (fileTypeFilter) {
             FileTypeFilter.RAW -> UiText.of(R.string.hint_title_filter_raw)
             FileTypeFilter.JPG -> UiText.of(R.string.hint_title_filter_jpeg)
@@ -139,6 +146,7 @@ object FirstRunHintText {
         FirstRunHint.TAP_HUD,
         FirstRunHint.DOUBLE_TAP_ZOOM,
         FirstRunHint.REVERT,
+        FirstRunHint.SURPRISE,
         -> null
     }
 

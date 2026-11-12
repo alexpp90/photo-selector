@@ -23,6 +23,7 @@ import com.phototok.data.repository.ImageRepository
 import com.phototok.data.repository.SeenRepository
 import com.phototok.data.repository.SettingsRepository
 import com.phototok.data.repository.StatsRepository
+import com.phototok.data.repository.SystemTrashRepository
 import com.phototok.data.share.ShareIntentBuilder
 import com.phototok.data.source.VolumeMonitor
 import com.phototok.di.ApplicationScope
@@ -30,6 +31,7 @@ import com.phototok.domain.CardTransferJournal
 import com.phototok.domain.CollectionAction
 import com.phototok.domain.CompanionFiles
 import com.phototok.domain.CopyMoveFeedback
+import com.phototok.domain.DeleteSplit
 import com.phototok.domain.FeedOrderMode
 import com.phototok.domain.FileTypeFilter
 import com.phototok.domain.FirstRunHint
@@ -43,6 +45,7 @@ import com.phototok.domain.PhoneFeedOrdering
 import com.phototok.domain.PhotoFolders
 import com.phototok.domain.ProModePolicy
 import com.phototok.domain.SwipeRightOutcome
+import com.phototok.domain.SurpriseMe
 import com.phototok.domain.RelatedFiles
 import com.phototok.domain.SwipeAction
 import com.phototok.domain.SwipeDestinations
@@ -104,8 +107,12 @@ data class PhoneModeUiState(
     val directDeleteConfirmEnabled: Boolean = true,
     /** A swipe-left delete waits for the Direct Delete Confirmation dialog (REQ-TOK-GESTURE.03). */
     val confirmDeleteRequested: Boolean = false,
+    /** What that dialog says: how many of the photo's files go to the system bin, how many for good. */
+    val confirmDeleteSplit: DeleteSplit = DeleteSplit.permanentOnly(1),
     val sortByOrientation: Boolean = false,
     val randomizeOrder: Boolean = false,
+    /** Casual "surprise me" dealt this folder unseen-first and shuffled; every open resets it. */
+    val surpriseMe: Boolean = false,
     val fileTypeFilter: FileTypeFilter = FileTypeFilter.DEFAULT,
     /** Index where portrait section starts (-1 = no split). */
     val portraitSectionStart: Int = -1,
@@ -274,6 +281,7 @@ class PhoneModeViewModel @Inject constructor(
     private val statsRepository: StatsRepository,
     private val volumeMonitor: VolumeMonitor,
     private val cardTransferJournal: CardTransferJournal = CardTransferJournal(),
+    private val systemTrash: SystemTrashRepository = SystemTrashRepository(),
 ) : ViewModel() {
 
     constructor(
@@ -437,6 +445,8 @@ class PhoneModeViewModel @Inject constructor(
                 _uiState.update { it.copy(favourites = favs) }
             }
         }
+        // Photos that reached the system bin (a Retry's too) leave the feed if it still shows them.
+        viewModelScope.launch { systemTrash.trashed.collect { dropFromFeed(it) } }
         viewModelScope.launch {
             statsRepository.stats.collect { stats ->
                 _uiState.update { it.copy(cullingStats = stats) }
@@ -882,6 +892,7 @@ class PhoneModeViewModel @Inject constructor(
         publishedUris.clear()
         dimensionsResolved.clear()
         userHasNavigated = false
+        _uiState.update { it.copy(surpriseMe = false) } // every open and Reload starts newest first
         val config = resolveActiveFeedConfig()
         newestFirstReorderAllowed = targetUriToKeep == null
         unseenFirstOrdering = !jumpToLatest
@@ -1131,6 +1142,21 @@ class PhoneModeViewModel @Inject constructor(
             mode = config.feedOrder,
             seenUris = seenUris,
         )
+    }
+
+    /** Casual "surprise me" ([USER 2026-11-12] decision #14): unseen photos first, shuffled, this visit only. */
+    fun toggleSurpriseMe() {
+        val s = _uiState.value
+        if (s.surpriseMeShown == null) return
+        val on = !s.surpriseMe
+        finalizePendingDelete() // a new order invalidates the undo slots, as every re-sort does
+        val images = _uiState.value.images
+        val seen = seenRepository.filterSeenUris(images, s.sourceFolderUri)
+        val dealt = PhoneFeedOrdering.order(images, SurpriseMe.order(on, s.feedOrder), seenUris = seen)
+        _uiState.update { it.copy(images = dealt.images, portraitSectionStart = dealt.portraitSectionStart, currentIndex = 0, surpriseMe = on) }
+        loadExifForCurrent()
+        if (on && seen.containsAll(images.map { it.uri })) showFeedback(UiText.of(R.string.snackbar_all_seen))
+        if (on) maybeShowFirstRunHint(FirstRunHint.SURPRISE)
     }
 
     private fun resortImages() {
@@ -1506,9 +1532,14 @@ class PhoneModeViewModel @Inject constructor(
             performLeftSwipeCopyOrMove()
             return
         }
-        if (state.images.getOrNull(state.currentIndex) == null) return
+        val image = state.images.getOrNull(state.currentIndex) ?: return
         if (state.directDeleteConfirmEnabled || settingsRepository.shouldAskDeleteOnce()) {
-            _uiState.update { it.copy(confirmDeleteRequested = true) }
+            // The dialog says whether this photo's files go to the system bin or for good.
+            val files = listOf(image) + if (state.moveRelatedFiles) RelatedFiles.deleteBundleOf(state.allImages, image) else emptyList()
+            viewModelScope.launch {
+                val split = systemTrash.split(files.map { it.uri }, state.sourceKind)
+                _uiState.update { it.copy(confirmDeleteRequested = true, confirmDeleteSplit = split) }
+            }
         } else {
             requestDelete()
         }
@@ -1748,7 +1779,7 @@ class PhoneModeViewModel @Inject constructor(
 
         // If the bounded stack overflowed (51st item), finalize the evicted oldest entry on disk.
         pushResult.evictedOldest?.let { evicted ->
-            finalizePendingEntriesOnDisk(listOf(evicted), state.sourceFolderUri, state.sourceKind)
+            finalizePendingEntriesOnDisk(listOf(evicted), state.sourceFolderUri, state.sourceKind, release = false)
         }
 
         val allQueuedUris = PendingDeleteLogic.allTargetUris(pushResult.updatedStack)
@@ -1795,7 +1826,8 @@ class PhoneModeViewModel @Inject constructor(
         } else {
             listOfNotNull(state.pendingDelete)
         }
-        if (entries.isEmpty()) return
+        // Nothing queued: an evicted delete still waiting for the bin goes out now.
+        if (entries.isEmpty()) return systemTrash.release()
 
         val folderAtDelete = state.sourceFolderUri
         val kindAtDelete = state.sourceKind
@@ -1809,6 +1841,7 @@ class PhoneModeViewModel @Inject constructor(
         entries: List<PendingDeleteLogic.Pending>,
         folderAtDelete: String?,
         kindAtDelete: SourceKind,
+        release: Boolean = true,
     ) {
         // Registered synchronously, before the caller's state change can drop the folder's pin.
         if (folderAtDelete != null) {
@@ -1817,7 +1850,7 @@ class PhoneModeViewModel @Inject constructor(
         }
         appScope.launch {
             try {
-                runPendingDeletes(entries, folderAtDelete, kindAtDelete)
+                runPendingDeletes(entries, folderAtDelete, kindAtDelete, release)
             } finally {
                 // The deletions are over: unpin first, or the release below would be refused.
                 withContext(NonCancellable) {
@@ -1836,87 +1869,43 @@ class PhoneModeViewModel @Inject constructor(
         entries: List<PendingDeleteLogic.Pending>,
         folderAtDelete: String?,
         kindAtDelete: SourceKind,
+        release: Boolean,
     ) {
-        run {
-            // Only these entries leave the journal: others may have been queued meanwhile.
-            settingsRepository.removePersistedPendingDeleteUris(
-                entries.flatMap { p -> (listOf(p.image) + p.related).map { it.uri } },
+        // Only these entries leave the journal: others may have been queued meanwhile.
+        settingsRepository.removePersistedPendingDeleteUris(
+            entries.flatMap { p -> (listOf(p.image) + p.related).map { it.uri } },
+        )
+        // Phone photos wait here for the system bin's consent; the rest is deleted for good.
+        val outcome = PendingDeleteCommit(imageRepository, systemTrash).commit(entries, kindAtDelete, release)
+        if (outcome.restore.isNotEmpty() && _uiState.value.sourceFolderUri == folderAtDelete) {
+            outcome.restore.forEach(::restoreToFeed)
+            loadExifForCurrent()
+        }
+        // A rescan that started while the unlinks ran may have listed these files again.
+        if (outcome.gone.isNotEmpty()) dropFromFeed(outcome.gone)
+        if (outcome.permanentCount > 0) {
+            val milestone = statsRepository.recordCommittedDelete(
+                kind = kindAtDelete,
+                bytesFreed = outcome.permanentBytes,
+                fileCount = outcome.permanentCount,
+                celebrationsEnabled = _uiState.value.celebrationsEnabled,
             )
-            // Process from oldest to newest
-            val orderedEntries = entries
-            val allSucceededUris = mutableSetOf<String>()
-            val allFailedItems = mutableListOf<ImageItem>()
-            var totalBytesFreed = 0L
-
-            for (pending in orderedEntries) {
-                val targets = listOf(pending.image) + pending.related
-                val succeededUris = mutableSetOf<String>()
-                val failedForEntry = mutableListOf<ImageItem>()
-
-                for (img in targets) {
-                    try {
-                        val deleted = imageRepository.deleteImage(Uri.parse(img.uri))
-                        if (deleted) {
-                            succeededUris.add(img.uri)
-                            allSucceededUris.add(img.uri)
-                            totalBytesFreed += img.fileSize
-                        } else {
-                            Log.e(TAG, "Failed to delete file on disk: ${img.uri}")
-                            failedForEntry.add(img)
-                            allFailedItems.add(img)
-                        }
-                    } catch (e: CancellationException) {
-                        throw e
-                    } catch (e: Exception) {
-                        Log.e(TAG, "Error deleting file: ${img.uri}", e)
-                        failedForEntry.add(img)
-                        allFailedItems.add(img)
-                    }
-                }
-
-                if (failedForEntry.isNotEmpty() && _uiState.value.sourceFolderUri == folderAtDelete) {
-                    val failedSlots = OptimisticFeed.slotsLeftBehind(pending.slots, goneUris = succeededUris)
-                    restoreToFeed(failedSlots)
-                    loadExifForCurrent()
-                }
-            }
-
-            if (allSucceededUris.isNotEmpty()) {
-                // A rescan that started while the unlinks ran may have listed these files again.
-                dropFromFeed(allSucceededUris)
-                val milestone = statsRepository.recordCommittedDelete(
-                    kind = kindAtDelete,
-                    bytesFreed = totalBytesFreed,
-                    fileCount = allSucceededUris.size,
-                    celebrationsEnabled = _uiState.value.celebrationsEnabled,
+            _uiState.update { state ->
+                state.copy(
+                    cardDeletedCount = state.cardDeletedCount + outcome.permanentCount,
+                    celebrationBanner = milestone?.message ?: state.celebrationBanner,
                 )
-                _uiState.update { state ->
-                    state.copy(
-                        cardDeletedCount = state.cardDeletedCount + allSucceededUris.size,
-                        celebrationBanner = milestone?.message ?: state.celebrationBanner,
-                    )
-                }
             }
-
-            if (allFailedItems.isNotEmpty()) {
-                val errorMsg = if (allSucceededUris.isEmpty()) {
-                    UiText.of(R.string.error_delete_one, allFailedItems.first().fileName)
-                } else {
-                    UiText.of(
-                        R.string.error_delete_some,
-                        allSucceededUris.size,
-                        allSucceededUris.size + allFailedItems.size,
-                    )
-                }
-                _uiState.update {
-                    it.copy(
-                        lastActionFeedback = ActionFeedback(
-                            message = errorMsg,
-                            isError = true,
-                        )
-                    )
-                }
+        }
+        val failed = outcome.failed
+        if (failed.isNotEmpty()) {
+            val done = outcome.gone.size
+            val errorMsg = if (done == 0) {
+                UiText.of(R.string.error_delete_one, failed.first().fileName)
+            } else {
+                UiText.of(R.string.error_delete_some, done, done + failed.size)
             }
+            _uiState.update { it.copy(lastActionFeedback = ActionFeedback(message = errorMsg, isError = true)) }
         }
     }
 

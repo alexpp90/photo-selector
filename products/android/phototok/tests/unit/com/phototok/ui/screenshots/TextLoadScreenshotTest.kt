@@ -17,6 +17,7 @@ import com.phototok.data.model.PhoneSettings
 import com.phototok.data.repository.ImageRepository
 import com.phototok.data.repository.SettingsRepository
 import com.phototok.domain.CollectionAction
+import com.phototok.domain.DeleteSplit
 import com.phototok.domain.FirstRunHint
 import com.phototok.domain.SwipeAction
 import com.phototok.domain.UiText
@@ -249,6 +250,25 @@ class TextLoadScreenshotTest {
         content = { DirectDeleteDialog(onConfirm = {}, onDismiss = {}) },
         checks = { variant ->
             // Cancel, Delete and the "Don't ask" choice (each a 48 dp target).
+            assertHasClickableControls("direct_delete_dialog", 3)
+            assertTouchTargets(variant, "direct_delete_dialog")
+            assertNoTextOverflow(variant, "direct_delete_dialog")
+            assertInsideScreen(variant, "direct_delete_dialog")
+        },
+    )
+
+    /** The bin ([USER 2026-11-12] decision #13): "Move to Trash?", same targets, nothing cut off. */
+    @Test
+    fun directDeleteDialog_bin_fits() = deleteDialogFits("direct_delete_dialog_bin", DeleteSplit(bin = 1, permanent = 0))
+
+    /** A photo whose companion has no bin: the count title and "1 to Trash · 1 permanent". */
+    @Test
+    fun directDeleteDialog_mixed_fits() = deleteDialogFits("direct_delete_dialog_mixed", DeleteSplit(bin = 2, permanent = 1))
+
+    private fun deleteDialogFits(surface: String, split: DeleteSplit) = everyVariant(
+        surface = surface,
+        content = { DirectDeleteDialog(onConfirm = {}, onDismiss = {}, split = split) },
+        checks = { variant ->
             assertHasClickableControls("direct_delete_dialog", 3)
             assertTouchTargets(variant, "direct_delete_dialog")
             assertNoTextOverflow(variant, "direct_delete_dialog")
