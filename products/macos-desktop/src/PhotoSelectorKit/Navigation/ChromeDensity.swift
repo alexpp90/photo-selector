@@ -81,16 +81,24 @@ public enum ChromeDensity: Int, CaseIterable, Sendable {
         public var fullTitle: String { command.name() }
 
         /// The full title with the configured destination folder name ("Move to Keepers").
-        public func fullTitle(destination: String) -> String { command.name(destination: destination) }
+        public func fullTitle(destination: String, rejects: RejectsDestination = .trash) -> String {
+            command.name(destination: destination, rejects: rejects)
+        }
 
         public var shortTitle: String { command.shortName }
+
+        public func shortTitle(rejects: RejectsDestination) -> String { command.shortName(rejects: rejects) }
     }
 
     /// Dock button title; `nil` means icon + shortcut badge only.
-    public func dockTitle(_ action: DockAction, destination: String = AppSettingsDefaults.cullingDestinationFolderName) -> String? {
+    public func dockTitle(
+        _ action: DockAction,
+        destination: String = AppSettingsDefaults.cullingDestinationFolderName,
+        rejects: RejectsDestination = .trash
+    ) -> String? {
         switch self {
-        case .full: return action.fullTitle(destination: destination)
-        case .compact: return action.shortTitle
+        case .full: return action.fullTitle(destination: destination, rejects: rejects)
+        case .compact: return action.shortTitle(rejects: rejects)
         case .minimal: return nil
         }
     }

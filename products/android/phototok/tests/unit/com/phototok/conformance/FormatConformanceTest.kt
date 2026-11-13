@@ -28,6 +28,7 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withTimeoutOrNull
 import kotlinx.coroutines.cancel
 import kotlinx.coroutines.async
+import kotlinx.coroutines.android.asCoroutineDispatcher
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.ExperimentalCoroutinesApi
@@ -280,6 +281,32 @@ class FormatConformanceTest {
         assertEquals("a finished decode passes its result through", 42, awaitBounded("x", 1_000) { 42 })
     }
 
+    /**
+     * The cause of the hang, reproduced on purpose: Coil's interceptor on the paused main looper
+     * (what a frozen `DEFAULT_REQUEST_OPTIONS` hands every request) never finishes a decode while
+     * the test thread waits; the bounded wait reports it. The display check's own request does
+     * not depend on that default.
+     */
+    @Test
+    fun `a decode resumed on the paused main looper hangs, and the display request never uses it`() {
+        val dir = newTempDir("main-looper")
+        link(File(manifest.repoRoot, "testdata/formats/bitmaps/sample.jpg"), "IMG_1.jpg", dir)
+        val uri = Uri.parse(discover(dir).single().uri)
+        val frozen = android.os.Handler(android.os.Looper.getMainLooper()).asCoroutineDispatcher().immediate
+        val onMainLooper = displayRequest(uri).newBuilder().interceptorDispatcher(frozen).build()
+        val error = try {
+            awaitBounded("decode of jpeg-sample", timeoutMs = 2_000) { loader.execute(onMainLooper) }
+            null
+        } catch (e: AssertionError) {
+            e
+        }
+        assertTrue("the main-looper decode was expected to hang", error?.message?.contains("hung") == true)
+
+        assertEquals(Dispatchers.IO, displayRequest(uri).interceptorDispatcher)
+        val result = awaitBounded("decode of jpeg-sample", DISPLAY_TIMEOUT_MS) { loader.execute(displayRequest(uri)) }
+        assertTrue("decoded: $result", result is SuccessResult)
+    }
+
     // ── Contract ──────────────────────────────────────────────────────────
 
     @Test
@@ -408,14 +435,7 @@ class FormatConformanceTest {
      * SAF document `Uri`, executed by the app's loader at a phone-screen size.
      */
     private fun checkDisplay(sample: Sample, uri: Uri) {
-        val request = ImageRequest.Builder(context)
-            .data(uri)
-            .size(DISPLAY_REQUEST_PX)
-            // Never let Coil upscale a small decode to the requested size: the
-            // check is about the pixels the source really yields.
-            .precision(Precision.INEXACT)
-            .memoryCachePolicy(CachePolicy.DISABLED)
-            .build()
+        val request = displayRequest(uri)
         val result = awaitBounded("decode of ${sample.id}", DISPLAY_TIMEOUT_MS) { loader.execute(request) }
         val drawable = when (result) {
             is SuccessResult -> result.drawable
@@ -434,6 +454,25 @@ class FormatConformanceTest {
             if (w <= 0 || h <= 0) throw AssertionError("no header dimensions ($w x $h)")
         }
     }
+
+    /**
+     * The feed's request for [uri]. Its interceptor dispatcher is pinned: Coil's default is
+     * `Dispatchers.Main.immediate` as it was when `coil.util.-Requests.DEFAULT_REQUEST_OPTIONS`
+     * was initialised, once per Robolectric sandbox. When an earlier test class of the same
+     * sandbox (any screen test that shows a photo) touched Coil while `Dispatchers.Main` was the
+     * real main looper, the default stays that looper's dispatcher, the decode resumes there, and
+     * the looper is paused while this thread waits: the run hung in 2 of 4 full runs, depending on
+     * which classes ran first in the JVM (backlog 2026-11-05).
+     */
+    private fun displayRequest(uri: Uri): ImageRequest = ImageRequest.Builder(context)
+        .data(uri)
+        .size(DISPLAY_REQUEST_PX)
+        // Never let Coil upscale a small decode to the requested size: the
+        // check is about the pixels the source really yields.
+        .precision(Precision.INEXACT)
+        .memoryCachePolicy(CachePolicy.DISABLED)
+        .interceptorDispatcher(Dispatchers.IO)
+        .build()
 
     private fun checkExif(sample: Sample, uri: Uri) {
         val source = LocalImageSourceImpl(context, AndroidExifReader(), MediaStoreReader())

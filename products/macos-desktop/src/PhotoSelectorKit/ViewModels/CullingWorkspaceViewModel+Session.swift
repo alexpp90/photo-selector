@@ -59,7 +59,8 @@ extension CullingWorkspaceViewModel {
     /// "Undo Move of IMG_0001.CR3"; plain "Undo" when empty (the item is disabled then).
     public var undoMenuTitle: String {
         LensjetCommand.undoMenuTitle(
-            action: lastUndoRecord?.actionType, filename: lastUndoRecord?.originalPrimaryURL.lastPathComponent)
+            action: lastUndoRecord?.actionType, filename: lastUndoRecord?.originalPrimaryURL.lastPathComponent,
+            rejected: lastUndoRecord.map { rejectJobIDs.contains($0.jobID) } ?? false)
     }
 
     // MARK: Recent folders and resume

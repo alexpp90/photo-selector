@@ -9,6 +9,7 @@ import PhotoSelectorKit
 /// `LensjetCommand` table; `MenuStructure` lists the same placement for the tests.
 public struct AppCommands: Commands {
     @ObservedObject public var viewModel: CullingWorkspaceViewModel
+    @AppStorage(AppSettingsKeys.rejectsDestination) private var rejectsRaw: String = RejectsDestination.trash.rawValue
 
     public init(viewModel: CullingWorkspaceViewModel) {
         self.viewModel = viewModel
@@ -74,7 +75,7 @@ public struct AppCommands: Commands {
             .keyboardShortcut("c", modifiers: [])
             .disabled(!viewModel.hasActivePhoto)
 
-            Button(LensjetCommand.trash.name()) {
+            Button(LensjetCommand.trash.name(rejects: RejectsDestination(storedRaw: rejectsRaw))) {
                 viewModel.cullCurrentPhoto(action: .trash)
             }
             .keyboardShortcut(.delete, modifiers: [])
@@ -143,12 +144,18 @@ public struct AppCommands: Commands {
             }
             .keyboardShortcut("t", modifiers: [])
 
-            Button(LensjetCommand.infoMenuTitle(isShown: viewModel.isInfoHUDVisible)) {
+            Button(LensjetCommand.infoMenuTitle(isShown: viewModel.isInfoVisible)) {
                 MotionPolicy.animate(.easeInOut(duration: 0.18)) {
-                    viewModel.isInfoHUDVisible.toggle()
+                    viewModel.isInfoVisible.toggle()
                 }
             }
             .keyboardShortcut("i", modifiers: [])
+
+            Button(LensjetCommand.cleanView.name()) {
+                viewModel.toggleCleanView()
+            }
+            .keyboardShortcut("f", modifiers: [])
+            .disabled(viewModel.photos.isEmpty)
 
             // Tab acts in 2-Up only; elsewhere the item is disabled and the key is not consumed.
             Button(LensjetCommand.switchPhoto.name()) {
@@ -180,6 +187,12 @@ public struct AppCommands: Commands {
                 viewModel.presentGoToPhoto()
             }
             .keyboardShortcut("g", modifiers: [])
+            .disabled(viewModel.photos.isEmpty)
+
+            Button(LensjetCommand.activity.name()) {
+                viewModel.presentActivity()
+            }
+            .keyboardShortcut("l", modifiers: [.shift, .command])
             .disabled(viewModel.photos.isEmpty)
         }
 

@@ -234,9 +234,9 @@ struct CullingActionFeedbackTests {
         #expect(env.items[0].filename == "B0.CR3")
 
         env.vm.cullCurrentPhoto(action: .move)
-        let texts = await toastTexts(env.vm, budget: 5) { $0.contains { $0.hasPrefix("Moved 3 files") } }
+        let texts = await toastTexts(env.vm, budget: 5) { $0.contains { $0.hasPrefix("Moved B0 +2") } }
 
-        #expect(texts.contains { $0.hasPrefix("Moved 3 files") }, "the toast must count the three files that moved together; saw \(texts)")
+        #expect(texts.contains { $0.hasPrefix("Moved B0 +2 \u{00B7} Selection") }, "the toast must count the companions and name the destination; saw \(texts)")
         #expect(!texts.contains { $0.contains("B0.JPG") || $0.contains("B0.xmp") }, "companion names stay out of the toast; saw \(texts)")
     }
 

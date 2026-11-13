@@ -7,7 +7,7 @@ This checklist is the **single source of truth** for Google Play release readine
 ## 1. Architecture & Privacy Invariants (Repo-Side)
 
 - [x] **100% Local On-Device SAF Architecture:** Jackpix accesses user photos exclusively via Android Storage Access Framework (`Intent.ACTION_OPEN_DOCUMENT_TREE`). No cloud backend, no Google Drive OAuth, and no WebView Picker are used.
-- [x] **Zero Runtime Permissions & Zero Package Queries:** `products/android/phototok/AndroidManifest.xml` declares zero `<uses-permission>` and zero `<queries>` entries (no `INTERNET`, no `READ_MEDIA_IMAGES`, no `READ_EXTERNAL_STORAGE`). System Share / Open With (`Intent.createChooser`) and Android 11+ `MediaStore` favourite/trash/delete requests (`createFavoriteRequest`, `createTrashRequest`, `createDeleteRequest`) run through system-mediated `IntentSender` requests without storage permissions (favourite requests are granted by MediaProvider without a dialog; trash/delete requests show the system confirmation and are not wired yet).
+- [x] **Zero Runtime Permissions & Zero Package Queries:** `products/android/phototok/AndroidManifest.xml` declares zero `<uses-permission>` and zero `<queries>` entries (no `INTERNET`, no `READ_MEDIA_IMAGES`, no `READ_EXTERNAL_STORAGE`). System Share / Open With (`Intent.createChooser`) and Android 11+ `MediaStore` favourite/trash/delete requests (`createFavoriteRequest`, `createTrashRequest`, `createDeleteRequest`) run through system-mediated `IntentSender` requests without storage permissions (favourite requests are granted by MediaProvider without a dialog; trash requests show the system confirmation, one per batch of at most 500 — finalised phone-storage deletes, Android 11+; `createDeleteRequest` is not used).
 - [x] **Cloud Auto-Backup Hardened:** `AndroidManifest.xml` configures `android:allowBackup="false"`, `android:dataExtractionRules="@xml/data_extraction_rules"`, and `android:fullBackupContent="@xml/backup_rules"` so persisted SAF URI grants, local favourites/pending-delete journals, seen-photo fingerprints (`seen_photos.log`), and local culling statistics in app-private storage are never silently uploaded to cloud backup. The real guard is `allowBackup="false"`: the two rule files exclude only `datastore`, so if backup is ever enabled they must first list every file store under `files/` (`favourites_store.json`, `seen_photos.log`, `culling_stats.json`, `card_transfer_journal.tsv`).
 - [x] **Target & Compile SDK:** `targetSdk = 36` (meets Google Play August 31, 2026 API 36 requirement) and `compileSdk = 37` in `products/android/phototok/build.gradle.kts`.
 - [x] **Hosted Legal Documents Present in Repo:**
@@ -62,14 +62,15 @@ Because Jackpix requests zero permissions, has no network access, and processes 
 Store text promises behaviour, so every line must be true for the build being released. Before pasting, fact-check each feature line against the current code and remove anything that is no longer true.
 
 - **Title rule:** always the name with a descriptive subtitle. Play limit: **30 characters**.
+- **No freed-storage or duplicate claims** (decision 2026-11-12): the title names what people search for ("photo cleaner"), but no line promises freed space, a storage figure or duplicate detection — Jackpix has none. The short description carries what the other cleaners lack: RAW + JPEG, SD card, offline, no permissions.
 - **Disclaimer:** the non-affiliation sentence goes at the end of the full description (it does not fit the 80-character short description).
 
 ### English (United States) — en-US
 
-**App name** (≤ 30): `Jackpix – Swipe & Tidy Photos` (29)
+**App name** (≤ 30): `Jackpix – Swipe Photo Cleaner` (29)
 
 **Short description** (≤ 80):
-> Swipe through your photos, keep the best, delete the rest. 100% offline.
+> Swipe to keep or delete photos. RAW + JPEG, SD card. Offline, no permissions.
 
 **Full description** (≤ 4000):
 ```text
@@ -97,10 +98,10 @@ Private by design
 
 ### German (Germany) — de-DE
 
-**App-Name** (≤ 30): `Jackpix – Swipe & Tidy Photos` (29; same as English for now)
+**App-Name** (≤ 30): `Jackpix – Swipe Photo Cleaner` (29; same as English for now)
 
 **Kurzbeschreibung** (≤ 80):
-> Fotos durchwischen, die besten behalten, den Rest löschen. 100 % offline.
+> Fotos per Wisch sortieren. RAW + JPEG, SD-Karte. Offline, ohne Berechtigungen.
 
 **Vollständige Beschreibung** (≤ 4000):
 ```text

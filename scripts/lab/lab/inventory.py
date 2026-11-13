@@ -150,6 +150,22 @@ def load_inventory(path: Path | None = None) -> Inventory:
     return parse_inventory(data if isinstance(data, dict) else {})
 
 
+# The phone with the larger screen and the newer Android: first device of a phone run and the
+# first Jackpix walk phone whenever it is attached (maintainer decision 39, 2026-11-12). Matched by
+# hardware serial or by inventory name (`moto-g77` / `moto_g77`); the rest keeps the inventory order.
+PREFERRED_PHONE_SERIAL = "ZY22MQCBL6"
+PREFERRED_PHONE_NAMES = frozenset({"moto-g77", "moto_g77"})
+
+
+def is_preferred_phone(dev: AndroidDevice) -> bool:
+    return dev.role == "phone" and (dev.serial == PREFERRED_PHONE_SERIAL or dev.name.lower() in PREFERRED_PHONE_NAMES)
+
+
+def order_by_preference(devices: list[AndroidDevice]) -> list[AndroidDevice]:
+    """`devices` with the preferred phone first; every other device keeps its place (stable)."""
+    return sorted(devices, key=lambda d: 0 if is_preferred_phone(d) else 1)
+
+
 def select_android_devices(
     inv: Inventory,
     product: str,
@@ -168,7 +184,7 @@ def select_android_devices(
         elif dev.personal and not with_personal:
             continue
         chosen.append(dev)
-    return chosen
+    return order_by_preference(chosen)
 
 
 # `_adb-tls-connect._tcp` is Android 11+ wireless debugging (name `adb-<serial>-<suffix>`);

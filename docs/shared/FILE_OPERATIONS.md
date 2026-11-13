@@ -68,6 +68,7 @@ Undoing a file operation must never overwrite or delete a pre-existing file.
   exact destination replica(s) created by that Copy operation (using the recorded destination paths,
   including any `-N` suffix assigned at copy time). Original source files are never touched. On
   Android Desktop, Copy is deliberately not undoable because the original file was never removed.
+- **A copied photo is decided** — see §5.
 - **Move and Trash undo.** Undoing a Move or Trash operation restores the bundle to its recorded
   original directory:
   - If every original path in the bundle is free, the bundle is restored under its original names.
@@ -109,6 +110,31 @@ outcome rather than claiming full success or destroying verified data to force a
   through separate provider calls (Android SAF), any companion that fails leaves its source intact
   and is reported in a partial-failure summary (`Moved K of N … (M failed)`), while successfully
   moved members remain at the destination.
+
+### 5. A copied photo is decided (desk apps)
+
+Applies to the three desk apps — **Frameduel, Lensjet and Blitzlens** (maintainer decision
+2026-11-12). Jackpix and the archived legacy Desktop are not covered by this rule.
+
+**A copied photo is decided: marked, counted once, leaves Remaining; a later Move or Keep of it
+files nothing twice.**
+
+- **Marked.** After a Copy into the Selection the photo shows that it was copied, in each
+  product's own way.
+- **Counted once.** Session counts (decided, selected) count the photo once, whatever is done to
+  it afterwards.
+- **Leaves Remaining.** A copied photo is no longer among the photos still to decide.
+- **Files nothing twice.** A later Move or Keep of a copied photo leaves exactly **one** copy of
+  its bundle in the destination folder: the product moves the original away without writing a
+  second file, or says the photo is already there. It never writes a `-2` copy beside the first.
+  The collision suffix of §1 is for a different file that happens to have the same name, not for
+  the same photo filed a second time.
+
+- **Trash wins.** A later Trash of a copied photo counts it as Trashed, no longer as Selected;
+  Undo of that Trash restores the copied state. Undo of the Copy itself makes the photo open again.
+
+Each product implements this rule in its own code and proves it with a file-system test: Copy
+then Move leaves exactly one file per bundle member in the Selection.
 
 ## User-facing feedback templates
 

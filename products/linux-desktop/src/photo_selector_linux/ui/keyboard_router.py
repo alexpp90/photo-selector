@@ -29,7 +29,7 @@ except (ImportError, ValueError):
 EMPTY_STATE_HINTS = (
     (0x6F, 4, "Ctrl+O", "Open folder"),
     (0x31, 0, "1 2 3", "Views"),
-    (0x6D, 0, "M C Del", "Keep, copy, trash"),
+    (0x6D, 0, "M C Del", "Move, copy, trash"),
     (0x69, 0, "I", "Info"),
 )
 
@@ -143,9 +143,6 @@ class KeyboardRouterEngine:
                 return True
             elif norm_key == self.KEY_O:
                 self.target.on_open_folder()
-                return True
-            elif norm_key == self.KEY_D:
-                self.target.on_duplicate_finder()
                 return True
             elif norm_key == self.KEY_L:
                 self.target.on_statistics()
@@ -281,10 +278,6 @@ class KeyboardRouter:
     def on_open_folder(self) -> None:
         if hasattr(self.window, "show_open_folder_dialog"):
             self.window.show_open_folder_dialog()
-
-    def on_duplicate_finder(self) -> None:
-        if hasattr(self.window, "show_duplicate_finder"):
-            self.window.show_duplicate_finder()
 
     def on_statistics(self) -> None:
         if hasattr(self.window, "show_library_statistics"):
