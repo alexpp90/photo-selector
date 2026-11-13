@@ -51,6 +51,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ### Fixed
 
+- With Bursts on, Learn's Compare pairs two frames of one burst even when you zoomed between them, and the shoot summary judges a frame of a burst against the burst's best. Before, Learn never saw the bursts the cull marks.
 - The Done card counts each photo once, under what you did last: a photo you copied and then deleted counts as deleted, not as copied and deleted, and undoing the delete counts it as copied again.
 - Dupes and Stats show their errors: "Keep one copy" when you tick the last copy of a photo, "Scan failed", "Could not delete …" and "Analysis failed" appear as a card, as in Cull; before, these screens said nothing.
 - Zoomed in fullscreen or on a maximised frame, panning stops at the photo's edge; dragging, pinching, the wheel or `Shift`+arrows could push the photo off the screen. The navigator thumbnail's outline now shows the part of the photo you see, instead of a fixed box.

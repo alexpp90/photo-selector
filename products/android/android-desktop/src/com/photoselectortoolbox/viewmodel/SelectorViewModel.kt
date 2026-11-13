@@ -51,6 +51,7 @@ import com.photoselectortoolbox.domain.grouping.GroupingLevel
 import com.photoselectortoolbox.domain.guidance.SelectorGuidance
 import com.photoselectortoolbox.domain.guidance.SelectorHint
 import com.photoselectortoolbox.domain.grouping.ImageGrouper
+import com.photoselectortoolbox.domain.grouping.BurstIds
 import com.photoselectortoolbox.domain.format.SelectionActionLabels
 import com.photoselectortoolbox.domain.interaction.FilingAction
 import com.photoselectortoolbox.domain.scoring.ScanMeasures
@@ -1092,7 +1093,7 @@ class SelectorViewModel @Inject constructor(
                 }
                 // With the scores just merged and the bursts: the debrief's sharp-frames count reads both.
                 val scanned = images.mapTo(HashSet()) { it.uri }
-                if (completed != null) updateShootSummary?.let { it(completed, _uiState.value.images.filter { p -> p.uri in scanned }) }
+                if (completed != null) updateShootSummary?.let { it(completed, _uiState.value.let { st -> BurstIds.tag(st.images, st.groups) }.filter { p -> p.uri in scanned }) }
             } catch (e: CancellationException) {
                 throw e
             } catch (e: Exception) {

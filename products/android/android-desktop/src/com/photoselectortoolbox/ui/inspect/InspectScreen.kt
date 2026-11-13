@@ -136,6 +136,7 @@ import com.photoselectortoolbox.ui.theme.Zinc950
 import com.photoselectortoolbox.viewmodel.LearnCompositionViewModel
 import com.photoselectortoolbox.viewmodel.LearnViewModel
 import com.photoselectortoolbox.domain.learn.ExploreFacts
+import com.photoselectortoolbox.domain.grouping.BurstIds
 import com.photoselectortoolbox.domain.learn.LearnState
 import com.photoselectortoolbox.viewmodel.SelectorViewModel
 import java.text.SimpleDateFormat
@@ -247,9 +248,14 @@ fun InspectScreen(
     LaunchedEffect(currentImage?.uri) { compositionViewModel.show(currentImage) }
     val composition by compositionViewModel.composition.collectAsStateWithLifecycle()
 
+    // The bursts on the photos, so Compare's burst rule sees them (the grouper gives index lists).
+    val learnImages = remember(uiState.images, uiState.groups, uiState.filteredImages) {
+        val tagged = BurstIds.tag(uiState.images, uiState.groups).associateBy { it.uri }
+        uiState.filteredImages.map { tagged[it.uri] ?: it }
+    }
     InspectScreenContent(
         currentImage = currentImage,
-        images = uiState.filteredImages,
+        images = learnImages,
         currentIndex = uiState.filteredPosition.let { if (it > 0) it - 1 else uiState.currentIndex },
         windowSizeClass = windowSizeClass,
         onNavigateToSelector = { onNavigate(Screen.PhotoSelector) },
@@ -1393,86 +1399,6 @@ private fun CoachingTipItem(
                 modifier = Modifier.testTag("tip_recommendation"),
             )
         }
-    }
-}
-
-// ── EXIF Technical Readout ────────────────────────────────────────────────────
-
-@Composable
-private fun ExifTechnicalReadoutCard(
-    currentImage: ImageItem,
-    modifier: Modifier = Modifier,
-) {
-    val exif = currentImage.exifData
-    val rows = ExifFormatter.detailRows(exif)
-
-    val formattedDate = remember(currentImage.lastModified) {
-        if (currentImage.lastModified > 0) {
-            SimpleDateFormat("yyyy-MM-dd HH:mm", Locale.US).format(Date(currentImage.lastModified))
-        } else {
-            "Unknown"
-        }
-    }
-
-    Card(
-        shape = RoundedCornerShape(12.dp),
-        colors = CardDefaults.cardColors(containerColor = Zinc900),
-        border = androidx.compose.foundation.BorderStroke(1.dp, Zinc800),
-        modifier = modifier
-            .fillMaxWidth()
-            .testTag("exif_readout"),
-    ) {
-        Column(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(14.dp),
-            verticalArrangement = Arrangement.spacedBy(8.dp),
-        ) {
-            Row(
-                verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.spacedBy(8.dp),
-            ) {
-                Icon(
-                    imageVector = Icons.Default.CameraAlt,
-                    contentDescription = null,
-                    tint = BrandAccent,
-                    modifier = Modifier.size(18.dp),
-                )
-                Text(
-                    text = "EXIF Technical Readout",
-                    style = MaterialTheme.typography.titleSmall,
-                    fontWeight = FontWeight.Bold,
-                    color = Color.White,
-                )
-            }
-
-            for ((label, value) in rows) {
-                ReadoutRow(label = label, value = value)
-            }
-
-            ReadoutRow(label = "Dimensions", value = "${currentImage.imageWidth} × ${currentImage.imageHeight}")
-            ReadoutRow(label = "Timestamp", value = formattedDate)
-        }
-    }
-}
-
-@Composable
-private fun ReadoutRow(label: String, value: String) {
-    Row(
-        modifier = Modifier.fillMaxWidth(),
-        horizontalArrangement = Arrangement.SpaceBetween,
-    ) {
-        Text(
-            text = label,
-            style = MaterialTheme.typography.bodySmall,
-            color = Zinc400,
-        )
-        Text(
-            text = value,
-            style = MaterialTheme.typography.bodySmall,
-            color = Color.White,
-            fontWeight = FontWeight.Medium,
-        )
     }
 }
 
