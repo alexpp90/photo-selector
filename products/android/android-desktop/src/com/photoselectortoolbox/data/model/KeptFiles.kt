@@ -37,9 +37,15 @@ object KeptFiles {
         }
     }
 
-    /** The keys of [destinationUris], to forget the files a move undo took back out. */
-    fun keysOf(destinationUris: List<String>, documentIdOf: (String) -> String? = ::documentIdOf): Set<String> =
-        destinationUris.mapNotNull(documentIdOf).toSet()
+    /**
+     * The keys [of] recorded for the same transfer, to forget the files a move undo took back out:
+     * the same derivation both ways, so an unrecorded member is forgotten too.
+     */
+    fun keysOf(
+        files: List<CompanionFile>,
+        destinationUris: List<String>,
+        documentIdOf: (String) -> String? = ::documentIdOf,
+    ): Set<String> = of(files, destinationUris, documentIdOf).keys
 
     /** The provider's document id of a document URI, or null when [uri] is not one. */
     fun documentIdOf(uri: String): String? = try {

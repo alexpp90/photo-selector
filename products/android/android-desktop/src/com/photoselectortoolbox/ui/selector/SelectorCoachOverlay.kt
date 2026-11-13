@@ -50,7 +50,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.photoselectortoolbox.domain.guidance.SelectorHint
 import com.photoselectortoolbox.domain.guidance.LegendRow
-import com.photoselectortoolbox.ui.navigation.Screen
+import com.photoselectortoolbox.ui.navigation.NavEntry
 import com.photoselectortoolbox.domain.guidance.SelectorHintText
 import com.photoselectortoolbox.domain.guidance.SelectorTour
 import com.photoselectortoolbox.domain.guidance.TourCallout
@@ -134,9 +134,7 @@ fun SelectorCoachOverlay(
                 filingAction = filingAction,
                 detailsVisible = detailsVisible,
                 filmstripVisible = filmstripVisible,
-                screenLegend = Screen.all.map { screen ->
-                    LegendRow(label = screen.label, meaning = screen.meaning)
-                },
+                screenLegend = screenLegend(),
             )
         }
         val items = callouts
@@ -544,3 +542,10 @@ private fun KeyRow(row: GestureRow, compact: Boolean) {
         )
     }
 }
+
+/**
+ * The guide's rows for the sidebar's lower half, one per cell and in its order: Cull leads, and
+ * Learn and Dupes are named under Tools ([USER 2026-11-12] decision #18).
+ */
+internal fun screenLegend(): List<LegendRow> =
+    NavEntry.all.map { entry -> LegendRow(label = entry.label, meaning = entry.meaning) }

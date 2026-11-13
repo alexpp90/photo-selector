@@ -46,7 +46,7 @@ import androidx.test.ext.junit.runners.AndroidJUnit4
 import com.photoselector.core.model.ExifData
 import com.photoselectortoolbox.data.model.ImageItem
 import com.photoselectortoolbox.domain.interaction.FilingAction
-import com.photoselectortoolbox.ui.navigation.Screen
+import com.photoselectortoolbox.ui.navigation.NavEntry
 import com.photoselectortoolbox.ui.selector.SelectorActions
 import com.photoselectortoolbox.ui.selector.SelectorSidebar
 import com.photoselectortoolbox.ui.selector.SelectorSnackbarHost
@@ -307,8 +307,8 @@ class SelectorForcedSizeTest {
     @Test
     fun everyDestinationIsReachableAt1024x480() {
         if (!host(1024, 480)) return
-        Screen.all.forEach { screen ->
-            val tag = "nav_${screen.route}"
+        NavEntry.all.forEach { entry ->
+            val tag = entry.testTag
             composeRule.onAllNodesWithTag(tag, useUnmergedTree = true).onFirst().performScrollTo()
             composeRule.onAllNodesWithTag(tag, useUnmergedTree = true).onFirst().assertIsDisplayed()
         }
@@ -773,7 +773,7 @@ class SelectorForcedSizeTest {
             filingAction = FilingAction.COPY,
             detailsVisible = true,
             filmstripVisible = false,
-            screenLegend = Screen.all.map { LegendRow(it.label, it.meaning) },
+            screenLegend = NavEntry.all.map { LegendRow(it.label, it.meaning) },
         )
         expected.forEach { callout ->
             assertTrue(

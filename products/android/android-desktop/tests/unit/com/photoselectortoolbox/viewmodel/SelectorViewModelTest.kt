@@ -326,7 +326,7 @@ class SelectorViewModelTest {
         assertEquals(listOf("b", "c"), viewModel.uiState.value.images.map { it.fileName })
         assertEquals("b", viewModel.uiState.value.currentImage?.fileName)
         assertFalse("no spinner for a filing action", viewModel.uiState.value.isLoading)
-        assertEquals("Moved to Selection", viewModel.uiState.value.snackbarMessage)
+        assertEquals("Moved a · Selection", viewModel.uiState.value.snackbarMessage)
 
         transfer.complete(FileOperationResult.success("content://test/folder/a", "content://test/sel/a"))
         assertEquals(listOf("b", "c"), viewModel.uiState.value.images.map { it.fileName })
@@ -346,7 +346,7 @@ class SelectorViewModelTest {
         val viewModel = loadFolder(image("a"), image("b"))
         viewModel.moveToSelection()
 
-        assertEquals("Moved to Picks", viewModel.uiState.value.snackbarMessage)
+        assertEquals("Moved a · Picks", viewModel.uiState.value.snackbarMessage)
     }
 
     @Test
@@ -365,7 +365,7 @@ class SelectorViewModelTest {
         val viewModel = loadFolder(image("a"), image("b"))
         viewModel.moveToSelection()
 
-        assertEquals("Moved to «Keepers › Selection»", viewModel.uiState.value.snackbarMessage)
+        assertEquals("Moved a · «Keepers › Selection»", viewModel.uiState.value.snackbarMessage)
         val hint = viewModel.uiState.value.pendingHintText
         assertEquals("Moved to «Keepers › Selection»", hint!!.title)
         assertFalse(hint.message, hint.message.contains("inside the shoot folder"))
@@ -390,7 +390,7 @@ class SelectorViewModelTest {
         val viewModel = loadFolder(image("a"), image("b"))
         viewModel.moveToSelection()
 
-        assertEquals("Moved to Final", viewModel.uiState.value.snackbarMessage)
+        assertEquals("Moved a · Final", viewModel.uiState.value.snackbarMessage)
         assertEquals("Moved to Final", viewModel.uiState.value.pendingHintText!!.title)
     }
 
@@ -407,7 +407,7 @@ class SelectorViewModelTest {
         val viewModel = loadFolder(image("a"), image("b"))
         viewModel.moveToSelection()
 
-        assertEquals("Moved to Selection", viewModel.uiState.value.snackbarMessage)
+        assertEquals("Moved a · Selection", viewModel.uiState.value.snackbarMessage)
     }
 
     @Test
@@ -425,7 +425,7 @@ class SelectorViewModelTest {
 
         viewModel.moveToSelection()
 
-        assertEquals("Moved to Selection", viewModel.uiState.value.snackbarMessage)
+        assertEquals("Moved a · Selection", viewModel.uiState.value.snackbarMessage)
     }
 
     @Test
@@ -439,7 +439,7 @@ class SelectorViewModelTest {
         viewModel.copyToSelection()
 
         assertEquals(listOf("a", "b"), viewModel.uiState.value.images.map { it.fileName })
-        assertEquals("Copied to Selection", viewModel.uiState.value.snackbarMessage)
+        assertEquals("Copied a · Selection", viewModel.uiState.value.snackbarMessage)
         transfer.complete(FileOperationResult.success("content://test/folder/a", "content://test/sel/a"))
     }
 
@@ -534,6 +534,92 @@ class SelectorViewModelTest {
         coVerify(exactly = 1) {
             imageRepository.undoMoveBundle(any(), listOf("content://test/sel/a"), Uri.parse(FOLDER_URI), any(), any())
         }
+    }
+
+    /**
+     * Backlog 2026-11-12 (done counts): a failed undo puts the move back on screen and on the
+     * stack, so the Done card's moved count and kept files go back with it; the retry takes them
+     * back once.
+     */
+    @Test
+    fun `a failed undo of a move keeps the move counted`() = runTest {
+        // A document URI, as a provider hands out: kept files are keyed by its document id.
+        val moved = "content://test.docs/tree/root/document/root%2FSelection%2Fa"
+        val keptAs = "root/Selection/a"
+        coEvery { imageRepository.moveImage(any(), any(), any(), any()) } returns
+            FileOperationResult.success("content://test/folder/a", moved)
+        coEvery { imageRepository.undoMoveBundle(any(), any(), any(), any(), any()) } returnsMany listOf(
+            FileOperationResult.failure(moved, "provider hiccup"),
+            FileOperationResult.success(moved, "content://test/folder/a"),
+        )
+        val viewModel = loadFolder(image("a"), image("b"))
+        viewModel.moveToSelection()
+        assertEquals(1, viewModel.uiState.value.sessionMovedCount)
+
+        viewModel.undoLastOperation()
+        assertEquals("the move failed to go back, so it still counts", 1, viewModel.uiState.value.sessionMovedCount)
+        assertEquals(setOf(keptAs), viewModel.uiState.value.sessionKeptFiles.keys)
+
+        viewModel.undoLastOperation()
+        assertEquals(0, viewModel.uiState.value.sessionMovedCount)
+        assertTrue(viewModel.uiState.value.sessionKeptFiles.isEmpty())
+    }
+
+    /**
+     * Safe to format (REQ-AND-WORKFLOW.02): a moved file whose destination the transfer did not
+     * report as a document is recorded as unverifiable; undoing the move forgets it again, or the
+     * Done card would count a photo that went back as missing.
+     */
+    @Test
+    fun `an undone move leaves no kept file behind, whatever its destination looked like`() = runTest {
+        coEvery { imageRepository.moveImage(any(), any(), any(), any()) } returns
+            FileOperationResult.success("content://test/folder/a", "content://test/sel/a")
+        coEvery { imageRepository.undoMoveBundle(any(), any(), any(), any(), any()) } returns
+            FileOperationResult.success("content://test/sel/a", "content://test/folder/a")
+        val viewModel = loadFolder(image("a"), image("b"))
+        viewModel.moveToSelection()
+        assertEquals(1, viewModel.uiState.value.sessionKeptFiles.size)
+
+        viewModel.undoLastOperation()
+
+        assertEquals(0, viewModel.uiState.value.sessionMovedCount)
+        assertTrue(viewModel.uiState.value.sessionKeptFiles.isEmpty())
+    }
+
+    /**
+     * Backlog 2026-11-12 (done counts): a commit that kept one file (another photo is at its URI
+     * now) and failed another said only the second, replacing the first; and the photo that came
+     * back still counted as deleted. Committed while the folder is open: the 21st delete evicts
+     * the oldest from the 20-deep stack.
+     */
+    @Test
+    fun `a mixed commit says what it kept and what failed, and a photo that came back is not counted`() = runTest {
+        coEvery { settingsRepository.addPendingDeletes(any(), any()) } coAnswers {
+            pendingDeleteIdentitiesFlow.value = pendingDeleteIdentitiesFlow.value + secondArg<Map<String, FileIdentity>>()
+        }
+        val bundle = image("a.jpg").copy(
+            companions = listOf(
+                CompanionFile(uri = "content://test/folder/a.arw", fileName = "a.arw"),
+                CompanionFile(uri = "content://test/folder/a.xmp", fileName = "a.xmp"),
+            ),
+        )
+        val others = (1..21).map { image("p$it.jpg") }
+        val viewModel = loadFolder(bundle, *others.toTypedArray())
+        viewModel.navigateToImage(viewModel.uiState.value.images.indexOfFirst { it.fileName == "a.jpg" })
+        viewModel.deleteCurrentImage()
+        // Before it is committed, another photo appears at a.jpg's path, and a.xmp cannot be deleted.
+        coEvery { imageRepository.documentIdentity(any(), Uri.parse("content://test/folder/a.jpg")) } returns
+            FileIdentity(size = 9000, lastModified = 5)
+        coEvery { imageRepository.deleteImage(any(), Uri.parse("content://test/folder/a.xmp")) } returns false
+
+        repeat(20) { viewModel.deleteCurrentImage() }
+
+        val state = viewModel.uiState.value
+        val message = state.snackbarMessage.orEmpty()
+        assertTrue("the kept file is not named: $message", message.contains("Kept a.jpg"))
+        assertTrue("the failure is not named: $message", message.contains("Deleted 1 of 3 files of a.jpg"))
+        assertTrue("a.jpg came back", state.images.any { it.fileName == "a.jpg" })
+        assertEquals("21 deletes, one came back", 20, state.sessionDeletedCount)
     }
 
     @Test
@@ -682,7 +768,7 @@ class SelectorViewModelTest {
         assertTrue(hint!!.title, hint.title.startsWith("Moved to"))
         assertTrue(hint.message, hint.message.contains("C copies instead"))
         // And the snackbar beside it says the same verb.
-        assertTrue(viewModel.uiState.value.snackbarMessage!!.startsWith("Moved to"))
+        assertTrue(viewModel.uiState.value.snackbarMessage!!.startsWith("Moved "))
     }
 
     @Test
@@ -773,6 +859,44 @@ class SelectorViewModelTest {
         viewModel.deleteCurrentImage()
         assertEquals(before - 2, viewModel.uiState.value.images.size)
         assertEquals("Deleted", viewModel.uiState.value.snackbarMessage)
+    }
+
+    /**
+     * [USER 2026-11-12] decision #33 (1): the card names the photo, its companions and where they
+     * went, and a screen reader hears the files spelled out. A copy says "Copied".
+     */
+    @Test
+    fun `the filing card names the companions and the destination, on screen and spoken`() = runTest {
+        val stacked = image("DSC_0003.jpg").copy(
+            companions = listOf(
+                CompanionFile(uri = "content://test/folder/DSC_0003.arw", fileName = "DSC_0003.arw"),
+                CompanionFile(uri = "content://test/folder/DSC_0003.xmp", fileName = "DSC_0003.xmp"),
+            ),
+        )
+        coEvery { imageRepository.moveImage(any(), any(), any(), any()) } coAnswers {
+            val source = secondArg<Uri>()
+            FileOperationResult.success(source.toString(), "content://test/sel/${source.lastPathSegment}")
+        }
+        coEvery { imageRepository.copyImage(any(), any(), any(), any()) } coAnswers {
+            val source = secondArg<Uri>()
+            FileOperationResult.success(source.toString(), "content://test/sel/${source.lastPathSegment}")
+        }
+        val viewModel = loadFolder(stacked, image("b.jpg"), image("c.jpg"))
+
+        viewModel.moveToSelection()
+        assertEquals("Moved DSC_0003 +2 · Selection", viewModel.uiState.value.snackbarMessage)
+        assertEquals(
+            "Moved DSC_0003.jpg and 2 companion files to Selection",
+            viewModel.uiState.value.snackbarSpoken,
+        )
+
+        viewModel.copyToSelection()
+        assertEquals("Copied b · Selection", viewModel.uiState.value.snackbarMessage)
+        assertEquals("Copied b.jpg to Selection", viewModel.uiState.value.snackbarSpoken)
+
+        // Any other card carries no spoken override of its own.
+        viewModel.deleteCurrentImage()
+        assertEquals(null, viewModel.uiState.value.snackbarSpoken)
     }
 
     @Test
@@ -993,13 +1117,15 @@ class SelectorViewModelTest {
     @Test
     fun `two consecutive identical moves are two messages with distinct sequence numbers`() = runTest {
         // The snackbar's timer used to be keyed on the text, and the second "Moved
-        // to Selection" is the same text: it inherited the first one's clock.
+        // a · Selection" is the same text: it inherited the first one's clock. The card names
+        // the photo, so the two photos share a name (a second card from another folder level).
         coEvery { imageRepository.moveImage(any(), any(), any(), any()) } coAnswers {
             val source = secondArg<Uri>()
             FileOperationResult.success(source.toString(), "content://test/sel/${source.lastPathSegment}")
         }
 
-        val viewModel = loadFolder(image("a"), image("b"), image("c"))
+        val twin = image("a").let { it.copy(uri = it.uri.replace("/folder/", "/folder/b/")) }
+        val viewModel = loadFolder(image("a"), twin, image("c"))
         viewModel.moveToSelection()
         val first = viewModel.uiState.value
         viewModel.moveToSelection()
@@ -1291,7 +1417,7 @@ class SelectorViewModelTest {
         val viewModel = loadFolder(item, image("b.jpg"))
         viewModel.moveToSelection()
 
-        assertEquals("Moved to Selection", viewModel.uiState.value.snackbarMessage)
+        assertEquals("Moved IMG_0002 · Selection", viewModel.uiState.value.snackbarMessage)
     }
 
     @Test
