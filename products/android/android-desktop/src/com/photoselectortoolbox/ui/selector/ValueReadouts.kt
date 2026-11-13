@@ -44,6 +44,8 @@ import androidx.compose.ui.unit.sp
 import com.photoselectortoolbox.data.model.ImageItem
 import com.photoselectortoolbox.domain.format.ExifFormatter
 import com.photoselectortoolbox.domain.scoring.ScoreMetric
+import androidx.compose.foundation.layout.Spacer
+import com.photoselectortoolbox.domain.scoring.BurstRank
 import com.photoselectortoolbox.domain.scoring.ScoreMetricIcon
 import com.photoselectortoolbox.ui.theme.HintText
 import com.photoselectortoolbox.ui.theme.BrandAccent
@@ -100,6 +102,8 @@ fun CurrentFrameReadout(
     modifier: Modifier = Modifier,
     folderName: String? = null,
     burstLabel: String? = null,
+    /** The current frame's sharpness as its place in its burst; null keeps the figure. */
+    sharpnessRank: BurstRank? = null,
 ) {
     Column(
         modifier = modifier.padding(horizontal = 10.dp).testTag("current_readout"),
@@ -184,6 +188,7 @@ fun CurrentFrameReadout(
                 metric = metric,
                 value = value,
                 isBest = metric in bestMetrics,
+                rank = sharpnessRank.takeIf { metric == ScoreMetric.SHARPNESS },
             )
         }
     }
@@ -195,14 +200,18 @@ private fun NamedMetricRow(
     metric: ScoreMetric,
     value: Double,
     isBest: Boolean,
+    /** A burst frame's sharpness rank: shown in place of the figure, which stays spoken. */
+    rank: BurstRank? = null,
 ) {
-    val goodness = metric.goodness(value)
+    // Ranked, the bar is the place in the burst, not a verdict on an absolute scale.
+    val goodness = rank?.let(SharpnessRankText::goodness) ?: metric.goodness(value)
 
     Column(
         modifier = Modifier
             .fillMaxWidth()
             .semantics {
-                contentDescription = metric.accessibilityLabel(value, isBest)
+                contentDescription = rank?.let { SharpnessRankText.spoken(it, value, isBest) }
+                    ?: metric.accessibilityLabel(value, isBest)
             },
         verticalArrangement = Arrangement.spacedBy(3.dp),
     ) {
@@ -223,10 +232,15 @@ private fun NamedMetricRow(
                 color = Zinc400,
                 maxLines = 1,
                 overflow = TextOverflow.Ellipsis,
-                modifier = Modifier.weight(1f),
+                modifier = Modifier.weight(1f, fill = false),
             )
+            // Where the figure is measured, as a word (the sharpness score is the centre's).
+            metric.areaLabel?.let { area ->
+                Text(text = area, fontSize = 11.sp, color = HintText, maxLines = 1)
+            }
+            Spacer(modifier = Modifier.weight(1f))
             Text(
-                text = metric.format(value),
+                text = rank?.let(SharpnessRankText::visible) ?: metric.format(value),
                 fontSize = 12.5.sp,
                 fontFamily = FontFamily.Monospace,
                 color = Zinc50,

@@ -222,7 +222,7 @@ object SelectorTour {
                     region = TourRegion.FILMSTRIP,
                     title = "The whole folder",
                     body = "Every frame in order, top to bottom. The dot is its " +
-                        "sharpness; bursts are marked when Bursts is on.",
+                        "centre sharpness; bursts are marked when Bursts is on.",
                 )
             )
         }

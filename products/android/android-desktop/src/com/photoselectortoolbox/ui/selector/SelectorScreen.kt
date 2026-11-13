@@ -599,6 +599,10 @@ fun SelectorScreen(
                                 folderName = uiState.folderName,
                                 burstLabel = burstLabelFor(uiState.groups, uiState.currentIndex)
                                     .takeIf { uiState.groupingEnabled },
+                                sharpnessRank = remember(uiState.groups, uiState.images, uiState.currentIndex, uiState.groupingEnabled) {
+                                    burstSharpnessRank(uiState.groups, uiState.images, uiState.currentIndex)
+                                        .takeIf { uiState.groupingEnabled }
+                                },
                                 detailsVisible = uiState.detailsVisible,
                                 filmstripVisible = uiState.filmstripVisible,
                                 overlayValuesVisible = uiState.overlayValuesVisible,

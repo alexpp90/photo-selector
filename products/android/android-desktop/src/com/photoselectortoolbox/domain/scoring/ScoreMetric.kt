@@ -41,17 +41,29 @@ enum class ScoreMetric(
     private val worstValue: Double,
     /** Raw value that maps to goodness 1 for this metric. */
     private val bestValue: Double,
+    /**
+     * Where in the frame the value is measured, spoken after the name ("Sharpness at the centre
+     * of the frame"); null when the whole frame is.
+     */
+    val measuredArea: String? = null,
+    /** The same, as the one-word qualifier the readout row shows beside the name. */
+    val areaLabel: String? = null,
 ) {
     SHARPNESS(
         shortLabel = "Sharp",
         displayName = "Sharpness",
-        description = "Edge contrast in the sharpest part of the frame. Low values usually mean " +
+        // `SharpnessAnalyzer` crops the middle 50 % and keeps its crispest block: the figure is
+        // the centre's, and it compares frames of one burst, not a folder (backlog 2026-11-12).
+        description = "Edge contrast at the crispest spot in the centre of the frame; compare " +
+            "frames of one burst, an off-centre subject is not measured. Low values usually mean " +
             "motion blur or a missed focus.",
         icon = ScoreMetricIcon.FOCUS,
         direction = ScoreDirection.HIGHER_IS_BETTER,
         format = "%.1f",
         worstValue = 5.0,
         bestValue = 100.0,
+        measuredArea = "the centre of the frame",
+        areaLabel = "centre",
     ),
     NOISE(
         shortLabel = "Noise",
@@ -132,9 +144,13 @@ enum class ScoreMetric(
      * from the bar, which a screen-reader user does not.
      */
     fun accessibilityLabel(value: Double, isBestOfVisible: Boolean = false): String {
-        val base = "$displayName ${format(value)}, ${direction.hint}"
+        val base = "$spokenName ${format(value)}, ${direction.hint}"
         return if (isBestOfVisible) "$base, best of the three visible frames" else base
     }
+
+    /** The name as spoken, with the area measured: "Sharpness at the centre of the frame". */
+    val spokenName: String
+        get() = measuredArea?.let { "$displayName at $it" } ?: displayName
 
     companion object {
         /** Metrics that actually have a value in [result], in display order. */

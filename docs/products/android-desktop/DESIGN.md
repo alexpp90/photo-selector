@@ -312,10 +312,19 @@ Produced by a scan. Any subset may be absent — an image may have no scores at 
 
 | Chip label | Full name | Format | Direction | Description (shown in legend) |
 |---|---|---|---|---|
-| `Sharp` | Sharpness | `%.1f` | higher is better | Edge contrast in the sharpest part of the frame. Low values usually mean motion blur or a missed focus. |
+| `Sharp` | Sharpness | `%.1f` | higher is better | Edge contrast at the crispest spot in the centre of the frame; compare frames of one burst, an off-centre subject is not measured. Low values usually mean motion blur or a missed focus. |
 | `Noise` | Noise | `%.1f` | lower is better | Estimated sensor noise in flat areas of the image. Rises with high ISO. |
 | `Highl` | Highlight clipping | `%.1f%%` | lower is better | Share of pixels blown out to pure white — detail that cannot be recovered. |
 | `Shad` | Shadow clipping | `%.1f%%` | lower is better | Share of pixels crushed to pure black — detail that cannot be recovered. |
+
+**Where it is measured.** The sharpness score is the centre's (the analyser crops the middle half),
+so every text about it says so: the readout row carries the word *centre* beside the name (Zinc-400
+hint text, its own text node), and the spoken name is "Sharpness at the centre of the frame".
+
+**Place in the burst.** With Bursts on, the current frame's readout shows a burst frame's sharpness
+as its place in the burst — `2nd of 3` in the value's slot, the figure kept in the spoken label — and
+the row's bar is that place (full for the sharpest, the floor for the softest), not the absolute
+scale. A frame in no burst keeps the figure. The rank never hides, orders or pre-selects a photo.
 
 **Rendering rule.** A score chip is **icon + short label + value**. The label may be dropped
 only on thumbnail overlays where space genuinely does not exist — and there the accessibility
