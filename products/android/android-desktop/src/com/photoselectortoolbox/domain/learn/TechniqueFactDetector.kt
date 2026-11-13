@@ -153,9 +153,10 @@ class TechniqueFactDetector(
         /**
          * The version every stored fact row carries. 2: the scan reads a photo's EXIF itself and
          * stores the debrief's fact set ([ScanFacts]); rows of version 1, written without EXIF
-         * for nearly every photo, are replaced by the next scan of their folder (SD-1a).
+         * for nearly every photo, are replaced by the next scan of their folder (SD-1a). 3: the
+         * camera's class, who chose the exposure, the exposure program and bias (SD-2b).
          */
-        const val DETECTOR_VERSION = 2
+        const val DETECTOR_VERSION = 3
 
         private val POWER_POINTS = listOf(
             Pair(1.0 / 3.0, 1.0 / 3.0),
@@ -616,6 +617,19 @@ class TechniqueFactDetector(
         }
     }
 
+    /** EXIF ExposureProgram as a fact value; 0 (not defined) and unknown codes give none. */
+    private fun exposureProgramOf(code: Int?): String? = when (code) {
+        1 -> "manual"
+        2 -> "program"
+        3 -> "aperture_priority"
+        4 -> "shutter_priority"
+        5 -> "creative"
+        6 -> "action"
+        7 -> "portrait"
+        8 -> "landscape"
+        else -> null
+    }
+
     fun detectFacts(
         exif: ExifData?,
         luma: FloatArray? = null,
@@ -658,7 +672,19 @@ class TechniqueFactDetector(
                 )
             )
         }
-        val phoneSensor = PhotoCoachEngineImpl.isPhoneSensor(exif, cropFactor)
+        // The camera's class decides which advice fits it (SD-2b, C2); a phone's sensor follows it.
+        val profile = CameraProfiler.profile(exif, opticsWidth)
+        if (profile.cameraClass != CameraClass.UNKNOWN) {
+            facts.add(TechniqueFact(ScanFacts.CAMERA_CLASS, profile.cameraClass.key, profile.confidence))
+        }
+        if (profile.decidedBy != DecidedBy.UNKNOWN) {
+            facts.add(TechniqueFact(ScanFacts.DECIDED_BY, profile.decidedBy.key, 0.9))
+        }
+        exposureProgramOf(exif?.exposureProgram)?.let { facts.add(TechniqueFact("intent.exposure_program", it, 0.95)) }
+        exif?.exposureCompensationEv?.takeIf { it.isFinite() && kotlin.math.abs(it) > 0.05 }?.let { ev ->
+            facts.add(TechniqueFact("intent.exposure_bias", if (ev > 0) "positive_ev" else "negative_ev", 0.95))
+        }
+        val phoneSensor = profile.cameraClass == CameraClass.PHONE
         if (phoneSensor) {
             facts.add(
                 TechniqueFact(

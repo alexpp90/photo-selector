@@ -34,6 +34,10 @@ object ScanFacts {
     const val CAMERA_MAKE = "camera.make"
     const val CAMERA_MODEL = "camera.model"
 
+    /** The camera's class by [CameraProfiler] and who chose the exposure (SD-2b). */
+    const val CAMERA_CLASS = "camera.class"
+    const val DECIDED_BY = "camera.decided_by"
+
     /** The detector kinds the scan keeps; [TechniqueFactDetector.detectFacts] runs only these. */
     val STORED_KINDS: Set<String> = setOf(
         "optics.crop_factor",
@@ -43,6 +47,10 @@ object ScanFacts {
         "exposure.clipping",
         "composition.horizon",
         "composition.subject_placement",
+        CAMERA_CLASS,
+        DECIDED_BY,
+        "intent.exposure_program",
+        "intent.exposure_bias",
     )
 
     /** Every kind a stored set can hold. */

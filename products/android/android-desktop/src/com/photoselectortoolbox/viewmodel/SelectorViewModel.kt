@@ -1090,7 +1090,9 @@ class SelectorViewModel @Inject constructor(
                         lastCompletedScan = completed ?: it.lastCompletedScan,
                     ).withSnackbar(SelectorLabels.scanCompleteMessage(analysed), SnackbarLifetime.NOTICE)
                 }
-                if (completed != null) updateShootSummary?.let { summarise -> summarise(completed, images) }
+                // With the scores just merged and the bursts: the debrief's sharp-frames count reads both.
+                val scanned = images.mapTo(HashSet()) { it.uri }
+                if (completed != null) updateShootSummary?.let { it(completed, _uiState.value.images.filter { p -> p.uri in scanned }) }
             } catch (e: CancellationException) {
                 throw e
             } catch (e: Exception) {

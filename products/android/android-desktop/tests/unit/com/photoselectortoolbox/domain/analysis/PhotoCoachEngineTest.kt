@@ -13,6 +13,15 @@ import org.junit.Test
 @Requirement("REQ-AND-COACH.01")
 class PhotoCoachEngineTest {
 
+    private companion object {
+        /**
+         * A camera whose class is known (SD-2b): exposure-compensation and aperture advice is given
+         * only to a camera that has those controls; an unknown camera gets image-based remarks.
+         */
+        val FULL_FRAME = ExifData(make = "SONY", model = "ILCE-7M4", focalLength = 50.0, focalLength35mm = 50.0)
+    }
+
+
     private val engine = PhotoCoachEngineImpl()
 
     @Test
@@ -46,7 +55,7 @@ class PhotoCoachEngineTest {
         // 100mm 35mm-eq focal length -> safe shutter speed = 1/100s (0.01s).
         // Actual shutter speed = 1/10s (0.1s) -> 10x slower than safe shutter speed.
         // Sharpness is low (18.0 < 20.0 critical threshold).
-        val exif = ExifData(
+        val exif = ExifData(make = "SONY", model = "ILCE-7M4", focalLength = 100.0,
             shutterSpeed = 0.1,
             focalLength35mm = 100.0,
             aperture = 4.0,
@@ -144,7 +153,7 @@ class PhotoCoachEngineTest {
 
     @Test
     fun highIso_elevatedNoise_isoNoiseWarning() {
-        val exif = ExifData(
+        val exif = ExifData(make = "SONY", model = "ILCE-7M4", focalLength = 50.0, focalLength35mm = 50.0,
             iso = 3200,
             aperture = 4.0,
             shutterSpeed = 0.005
@@ -205,7 +214,7 @@ class PhotoCoachEngineTest {
             shadowClipping = 0.2
         )
 
-        val report = engine.evaluate(null, scan)
+        val report = engine.evaluate(FULL_FRAME, scan)
 
         assertEquals(-0.7, report.recommendedEvCompensation!!, 0.01)
         val expTip = report.tips.find { it.category == "Exposure" && it.title.contains("Blown Highlights") }
@@ -235,7 +244,7 @@ class PhotoCoachEngineTest {
             shadowClipping = 7.2 // 7.2% crushed shadows
         )
 
-        val report = engine.evaluate(null, scan)
+        val report = engine.evaluate(FULL_FRAME, scan)
 
         assertEquals(0.7, report.recommendedEvCompensation!!, 0.01)
         val expTip = report.tips.find { it.category == "Exposure" && it.title.contains("Crushed Shadows") }
@@ -252,7 +261,7 @@ class PhotoCoachEngineTest {
             shadowClipping = 8.0
         )
 
-        val report = engine.evaluate(null, scan)
+        val report = engine.evaluate(FULL_FRAME, scan)
 
         // Cannot fix both with a single exposure offset
         assertNull(report.recommendedEvCompensation)
@@ -264,7 +273,7 @@ class PhotoCoachEngineTest {
 
     @Test
     fun diffractionWarning_f22() {
-        val exif = ExifData(aperture = 22.0)
+        val exif = ExifData(make = "SONY", model = "ILCE-7M4", focalLength = 50.0, focalLength35mm = 50.0, aperture = 22.0)
         val scan = ScanResult(filePath = "test.jpg")
 
         val report = engine.evaluate(exif, scan)
@@ -277,7 +286,7 @@ class PhotoCoachEngineTest {
 
     @Test
     fun diffractionInfo_f16() {
-        val exif = ExifData(aperture = 16.0)
+        val exif = ExifData(make = "SONY", model = "ILCE-7M4", focalLength = 50.0, focalLength35mm = 50.0, aperture = 16.0)
 
         val report = engine.evaluate(exif, null)
 
@@ -288,7 +297,7 @@ class PhotoCoachEngineTest {
 
     @Test
     fun wideOpenSoftnessTip_f14_lowSharpness() {
-        val exif = ExifData(aperture = 1.4)
+        val exif = ExifData(make = "SONY", model = "ILCE-7M4", focalLength = 50.0, focalLength35mm = 50.0, aperture = 1.4)
         val scan = ScanResult(
             filePath = "test.jpg",
             sharpnessScore = 28.0 // soft image
@@ -451,13 +460,13 @@ class PhotoCoachEngineTest {
     @Test
     fun cropScaledDiffraction_apsC_triggersAtF11AndF16() {
         // APS-C C = 1.5: f/11 * 1.5 = 16.5 (>= 16.0 INFO), f/16 * 1.5 = 24.0 (>= 22.0 WARNING)
-        val exifF11 = ExifData(focalLength = 35.0, focalLength35mm = 52.5, aperture = 11.0)
+        val exifF11 = ExifData(make = "SONY", model = "ILCE-7M4", focalLength = 35.0, focalLength35mm = 52.5, aperture = 11.0)
         val reportF11 = engine.evaluate(exifF11, null)
         val tipF11 = reportF11.tips.find { it.category == "Optics" && it.title.contains("Diffraction") }
         assertNotNull(tipF11)
         assertEquals(TipSeverity.INFO, tipF11!!.severity)
 
-        val exifF16 = ExifData(focalLength = 35.0, focalLength35mm = 52.5, aperture = 16.0)
+        val exifF16 = ExifData(make = "SONY", model = "ILCE-7M4", focalLength = 35.0, focalLength35mm = 52.5, aperture = 16.0)
         val reportF16 = engine.evaluate(exifF16, null)
         val tipF16 = reportF16.tips.find { it.category == "Optics" && it.title.contains("Diffraction") }
         assertNotNull(tipF16)

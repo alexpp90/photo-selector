@@ -48,6 +48,7 @@ object CardGenerator {
         exif: ExifData? = null,
         scanResult: ScanResult? = null,
         isRawOrHasRawCompanion: Boolean = false,
+        profile: CameraProfile = CameraProfiler.profile(exif),
     ): CardGenerationResult {
         val facts = entities.map {
             TechniqueFact(
@@ -62,6 +63,7 @@ object CardGenerator {
             exif = exif,
             scanResult = scanResult,
             isRawOrHasRawCompanion = isRawOrHasRawCompanion,
+            profile = profile,
         )
     }
 
@@ -70,7 +72,11 @@ object CardGenerator {
         exif: ExifData? = null,
         scanResult: ScanResult? = null,
         isRawOrHasRawCompanion: Boolean = false,
+        /** The camera's profile: a "try next time" names only a control it has (SD-2b, C2). */
+        profile: CameraProfile = CameraProfiler.profile(exif),
     ): CardGenerationResult {
+        fun advice(finding: CoachFinding, safeShutter: String? = null, ev: String? = null) =
+            AdviceCatalog.coach(finding, profile, safeShutter, ev).orEmpty()
         val eligibleFacts = facts.filter { it.confidence >= MIN_CONFIDENCE }
         val didWellCandidates = mutableListOf<LearnCard>()
         val tryNextCandidates = mutableListOf<LearnCard>()
@@ -97,7 +103,7 @@ object CardGenerator {
                             title = "Atmospheric Blue Hour Timing",
                             whatHappened = "This frame was captured during civil twilight (-6° to -0.8° solar elevation).",
                             whyItMatters = "During blue hour, ambient sky luminance balances naturally with artificial city or interior lights.",
-                            tryNextTime = "Brace the camera or use a tripod at base ISO during blue hour to keep twilight gradients noise-free.",
+                            tryNextTime = advice(CoachFinding.BLUE_HOUR),
                             lessonId = "light.golden_hour",
                             priority = fact.confidence * 1.30,
                         )
@@ -126,7 +132,7 @@ object CardGenerator {
                             title = "Straighten the Horizon Line",
                             whatHappened = "The detected horizon line tilts noticeably across the frame.",
                             whyItMatters = "Unintentional horizon tilt distracts from the subject and makes scenes feel off-balance.",
-                            tryNextTime = "Enable your viewfinder electronic level or align the horizon with a grid line before pressing the shutter.",
+                            tryNextTime = advice(CoachFinding.TILTED_HORIZON),
                             lessonId = "composition.horizon",
                             overlayType = "horizon",
                             geometryJson = fact.geometryJson,
@@ -232,7 +238,7 @@ object CardGenerator {
                             title = "Simplify the Background",
                             whatHappened = "High edge density around the edges competes with the center of interest.",
                             whyItMatters = "Busy backgrounds pull the viewer's eye away from the main subject.",
-                            tryNextTime = "Change your camera angle, move closer, or open the aperture to simplify competing background elements.",
+                            tryNextTime = advice(CoachFinding.BUSY_BACKGROUND),
                             lessonId = "composition.simplicity",
                             priority = fact.confidence * 1.20,
                         )
@@ -280,7 +286,7 @@ object CardGenerator {
                                 "Deep, controlled shadows with selective highlights create a dramatic low-key mood."
                             },
                             whyItMatters = "Deliberate high-key or low-key exposure conveys mood far more effectively than an average middle-gray meter reading.",
-                            tryNextTime = "Use exposure compensation (+/- EV) so the camera's meter doesn't pull intentional tones back to middle gray.",
+                            tryNextTime = advice(CoachFinding.TONAL_KEY),
                             lessonId = "light.tonal_key",
                             priority = fact.confidence * 1.18,
                         )
@@ -299,7 +305,7 @@ object CardGenerator {
                             } else {
                                 "In 8-bit JPEGs, clipped highlight regions lose all texture and cannot be recovered in post-processing."
                             },
-                            tryNextTime = "Dial in -0.7 EV exposure compensation or meter on the brightest important highlight.",
+                            tryNextTime = advice(CoachFinding.HIGHLIGHTS_CLIPPED, ev = "-0.7"),
                             lessonId = "exposure.histogram_clipping",
                             priority = fact.confidence * 1.50,
                         )
@@ -311,7 +317,7 @@ object CardGenerator {
                             title = "Lift Blocked Shadow Detail",
                             whatHappened = "Over 5% of the frame's shadow regions clipped to pure black.",
                             whyItMatters = "Crushed shadows lose texture and introduce color noise when lifted aggressively in post.",
-                            tryNextTime = "Add +0.7 EV exposure compensation or introduce fill light for dark foreground subjects.",
+                            tryNextTime = advice(CoachFinding.SHADOWS_CLIPPED, ev = "+0.7"),
                             lessonId = "exposure.histogram_clipping",
                             priority = fact.confidence * 1.25,
                         )
@@ -326,7 +332,7 @@ object CardGenerator {
                             title = "Fast Action-Freezing Shutter",
                             whatHappened = "A fast shutter speed (${exif?.shutterSpeed?.let { ExifFormatter.shutterSpeed(it) } ?: "≤ 1/1000s"}) froze motion crisply.",
                             whyItMatters = "High shutter speeds capture split-second gestures, water droplets, or wildlife without motion blur.",
-                            tryNextTime = "Pair fast shutter speeds with continuous autofocus (AF-C) when tracking moving subjects.",
+                            tryNextTime = advice(CoachFinding.ACTION_FREEZE),
                             lessonId = "motion.shutter_intent",
                             priority = fact.confidence * 1.15,
                         )
@@ -338,7 +344,7 @@ object CardGenerator {
                             title = "Creative Long Exposure",
                             whatHappened = "A slow shutter speed (${exif?.shutterSpeed?.let { ExifFormatter.shutterSpeed(it) } ?: "≥ 0.5s"}) recorded movement over time.",
                             whyItMatters = "Long exposures turn moving water, clouds, or light trails into smooth, painterly streaks.",
-                            tryNextTime = "Use a 2-second self-timer or remote release on a tripod so pressing the shutter doesn't vibrate the camera.",
+                            tryNextTime = advice(CoachFinding.LONG_EXPOSURE),
                             lessonId = "motion.shutter_intent",
                             priority = fact.confidence * 1.18,
                         )
@@ -352,7 +358,7 @@ object CardGenerator {
                         title = "Deliberate Exposure Control",
                         whatHappened = "You controlled exposure settings deliberately to preserve scene tones.",
                         whyItMatters = "Reflective meters aim for 18% middle gray; deliberate exposure control keeps snow white, shadows deep, and highlights safe.",
-                        tryNextTime = "Check the live histogram in your viewfinder when dialing in EV compensation.",
+                        tryNextTime = advice(CoachFinding.EXPOSURE_BIAS),
                         lessonId = "exposure.ev_metering",
                         priority = fact.confidence * 1.12,
                     )
@@ -364,7 +370,9 @@ object CardGenerator {
         val effectiveFocal = PhotoCoachEngineImpl.computeEffectiveFocalLength(exif)
         val shutter = exif?.shutterSpeed
         val sharpness = scanResult?.sharpnessScore
-        if (effectiveFocal != null && shutter != null && shutter > 0.0) {
+        // Drones fly on a gimbal and action cams stabilise electronically: no hand-holding card.
+        val handHeld = profile.cameraClass != CameraClass.DRONE && profile.cameraClass != CameraClass.ACTION
+        if (handHeld && effectiveFocal != null && shutter != null && shutter > 0.0) {
             val safeSpeed = 1.0 / effectiveFocal
             if (shutter > safeSpeed * 1.05 && sharpness != null && sharpness < 38.0) {
                 tryNextCandidates.add(
@@ -374,7 +382,7 @@ object CardGenerator {
                         title = "Use Faster Shutter for ${ExifFormatter.focalLength(effectiveFocal)} (35mm-eq)",
                         whatHappened = "Shutter speed (${ExifFormatter.shutterSpeed(shutter)}) was slower than the 1/${effectiveFocal.toInt()}s hand-holding guideline and sharpness is low (${sharpness.toInt()}).",
                         whyItMatters = "Longer effective focal lengths magnify angular hand movement, requiring proportionally faster shutter speeds.",
-                        tryNextTime = "Aim for at least ${ExifFormatter.shutterSpeed(safeSpeed)}, widen the aperture, or raise ISO.",
+                        tryNextTime = advice(CoachFinding.SLOW_AND_SOFT, safeShutter = ExifFormatter.shutterSpeed(safeSpeed)),
                         lessonId = "motion.reciprocal_rule",
                         priority = 1.55,
                     )
