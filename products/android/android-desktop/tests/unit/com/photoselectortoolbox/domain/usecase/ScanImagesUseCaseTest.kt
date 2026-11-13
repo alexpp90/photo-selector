@@ -185,6 +185,32 @@ class ScanImagesUseCaseTest {
         io.mockk.coVerify(exactly = 0) { scoreDao.insertOrUpdate(any()) }
     }
 
+    // [USER 2026-11-12] decision #19 (plan D-5): the scan computes no technique facts
+    @Test
+    fun `a scan computes and stores no technique facts`() = runBlocking {
+        val bitmap = mockk<android.graphics.Bitmap>(relaxed = true) {
+            every { width } returns 640
+            every { height } returns 480
+        }
+        val rig = Rig()
+        every { rig.decoder.decodeForAnalysis(any(), any()) } returns bitmap
+        val shot = photo.copy(
+            exifData = com.photoselector.core.model.ExifData(
+                shutterSpeed = 1.0 / 8.0,
+                focalLength35mm = 300.0,
+                iso = 12800,
+                dateTimeOriginal = "2026:06:21 21:25:00",
+            ),
+        )
+
+        val result = rig.useCase(listOf(shot)).toList().last().results.getValue(shot.uri)
+
+        assertEquals(42.0, result.sharpnessScore)
+        // No pixel sampling for facts, and nothing written to technique_facts.
+        verify(exactly = 0) { bitmap.getPixel(any(), any()) }
+        io.mockk.coVerify(exactly = 0) { rig.dao.upsertTechniqueFacts(any()) }
+    }
+
     // ── The Scan sheet's measurements (REQ-AND-ALGO.07) ──────────────
 
     private val photo = ImageItem("content://test/m.jpg", "m.jpg", 100L, 1000L, "image/jpeg")

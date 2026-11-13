@@ -428,6 +428,27 @@ class SafRatingWriterTest {
         assertEquals(listOf("shot.jpg"), jpg.parentFile!!.list()!!.toList())
     }
 
+    // [USER 2026-11-12] decision #16: Write ratings into photos off
+    @Test
+    fun `with Write ratings into photos off a JPEG document is never opened for writing`() = runTest {
+        val jpg = jpeg("p/shot.jpg")
+        val before = jpg.readBytes()
+        val off = MetadataWriterImpl({ MetadataWriterImpl.defaultValidateJpegBounds(it) }, Dispatchers.IO, embedIntoPhotos = { false })
+
+        val result = off.writeRating(context, uriOf(jpg), 4)
+
+        assertTrue(result.exceptionOrNull()?.message, result.isSuccess)
+        assertTrue(before.contentEquals(jpg.readBytes()))
+        assertTrue(writesTo("shot.jpg").isEmpty())
+        assertTrue("no backup is made", RatingProvider.opens.none { it.first == "shot.jpg.frameduel-backup" })
+        assertEquals(listOf("shot.jpg"), jpg.parentFile!!.list()!!.toList())
+
+        // A RAW beside it still gets its sidecar: a sidecar never changes the photo.
+        val raw = file("p/IMG_9.ARW", byteArrayOf(9, 8, 7))
+        assertTrue(off.writeRating(context, uriOf(raw), 2).isSuccess)
+        assertTrue(File(raw.parentFile, "IMG_9.ARW.xmp").readText().contains("<xmp:Rating>2</xmp:Rating>"))
+    }
+
     // ── FD-D-11: a JPEG write that dies half way is recoverable, and recovered at the next open ──
 
     @Test

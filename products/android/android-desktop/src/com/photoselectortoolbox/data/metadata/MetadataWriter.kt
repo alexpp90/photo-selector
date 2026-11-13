@@ -5,8 +5,10 @@ import android.graphics.BitmapFactory
 import android.net.Uri
 import android.util.Log
 import androidx.exifinterface.media.ExifInterface
+import com.photoselectortoolbox.data.repository.SettingsRepository
 import com.photoselectortoolbox.di.IoDispatcher
 import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.withContext
@@ -24,7 +26,9 @@ import kotlinx.coroutines.CoroutineDispatcher
  * Non-destructive metadata write-back engine for ratings (REQ-AND-RATING.01). [RatingFormats]
  * decides per format, for file paths and SAF documents alike:
  *
- * - JPEG: updates the embedded XMP via [ExifInterface] on a temporary copy, verifies the copy's
+ * - JPEG, only while *Write ratings into photos* is on ([SettingsRepository.writeRatingsIntoPhotos],
+ *   `[USER 2026-11-12]` decision #16; off, the photo is left as it is and the write succeeds with
+ *   nothing written — the rating stays in the app): updates the embedded XMP via [ExifInterface] on a temporary copy, verifies the copy's
  *   image bounds decode via [BitmapFactory], and only then replaces the original (atomically for
  *   files; for SAF documents behind a verified backup document, see [SafRatingWriter] and
  *   [RatingBackups]). A failed step fails the write — it never turns into a sidecar.
@@ -59,10 +63,20 @@ interface MetadataWriter {
 class MetadataWriterImpl internal constructor(
     private val validateJpegBounds: (File) -> Boolean,
     private val ioDispatcher: CoroutineDispatcher,
+    /** Whether a rating may be embedded in a JPEG; read before every JPEG write. */
+    private val embedIntoPhotos: suspend () -> Boolean,
 ) : MetadataWriter {
 
+    /** The writer the app is built with: embedding follows the user's setting. */
     @Inject
-    constructor(@IoDispatcher ioDispatcher: CoroutineDispatcher) : this(Companion::defaultValidateJpegBounds, ioDispatcher)
+    constructor(@IoDispatcher ioDispatcher: CoroutineDispatcher, settingsRepository: SettingsRepository) :
+        this(Companion::defaultValidateJpegBounds, ioDispatcher, { settingsRepository.writeRatingsIntoPhotos.first() })
+
+    /** For tests of the writing itself: embedding on, as on every install before the setting. */
+    internal constructor(ioDispatcher: CoroutineDispatcher) : this(Companion::defaultValidateJpegBounds, ioDispatcher, { true })
+
+    internal constructor(validateJpegBounds: (File) -> Boolean, ioDispatcher: CoroutineDispatcher) :
+        this(validateJpegBounds, ioDispatcher, { true })
 
     companion object {
         private const val TAG = "MetadataWriter"
@@ -93,7 +107,7 @@ class MetadataWriterImpl internal constructor(
 
             mutexFor(imageUri.toString()).withLock {
                 try {
-                    SafRatingWriter(context, validateJpegBounds).write(imageUri, rating)
+                    SafRatingWriter(context, validateJpegBounds).write(imageUri, rating, embedIntoPhoto = embedIntoPhotos())
                     Result.success(Unit)
                 } catch (e: CancellationException) {
                     throw e
@@ -130,7 +144,8 @@ class MetadataWriterImpl internal constructor(
 
                     when (RatingFormats.strategyFor(imageFile.name)) {
                         RatingStrategy.SIDECAR -> writeSidecarRating(imageFile, rating)
-                        RatingStrategy.EMBEDDED_XMP -> writeJpegRating(imageFile, rating)
+                        // Off: the photo is not touched, and that is not a failure.
+                        RatingStrategy.EMBEDDED_XMP -> if (embedIntoPhotos()) writeJpegRating(imageFile, rating)
                         RatingStrategy.UNSUPPORTED -> throw RatingWriteException(
                             RatingFormats.unsupportedMessage(imageFile.name)
                         )

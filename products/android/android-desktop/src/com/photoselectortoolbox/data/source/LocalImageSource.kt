@@ -6,6 +6,7 @@ import android.graphics.BitmapFactory
 import android.net.Uri
 import android.provider.DocumentsContract
 import android.util.Log
+import androidx.exifinterface.media.ExifInterface
 import com.photoselectortoolbox.data.model.CompanionFile
 import com.photoselectortoolbox.data.model.ImageDimensions
 import com.photoselectortoolbox.data.model.ImageItem
@@ -219,7 +220,9 @@ class LocalImageSourceImpl @Inject constructor(
             }
             val dimensions = ImageDimensions.of(opts.outWidth, opts.outHeight)
             if (dimensions != ImageDimensions.UNKNOWN) {
-                dimensions
+                // The header is the stored pixels; a photo turned by its EXIF orientation (a camera's
+                // portrait) is shown, and framed, the other way round (full review 2026-11-09).
+                if (exifTurnsSideways(uri)) ImageDimensions.of(opts.outHeight, opts.outWidth) else dimensions
             } else {
                 // No platform codec (CR3 has none anywhere): size it from the
                 // embedded preview's frame header — still header-only reads.
@@ -229,6 +232,20 @@ class LocalImageSourceImpl @Inject constructor(
             Log.d(TAG, "Cannot read dimensions for $uri: ${e.message}")
             ImageDimensions.UNKNOWN
         }
+    }
+
+    /**
+     * Whether [uri]'s EXIF orientation turns it by 90° or 270° (orientations 5 to 8). A second
+     * header read, on this background resolver only; a file without EXIF, or one that cannot be
+     * read, is shown as stored, which is what the header says.
+     */
+    private fun exifTurnsSideways(uri: Uri): Boolean = try {
+        context.contentResolver.openInputStream(uri)?.use { stream ->
+            ExifInterface(stream).getAttributeInt(ExifInterface.TAG_ORIENTATION, ExifInterface.ORIENTATION_NORMAL) in 5..8
+        } ?: false
+    } catch (e: Exception) {
+        Log.d(TAG, "No EXIF orientation for $uri: ${e.message}")
+        false
     }
 
     /**

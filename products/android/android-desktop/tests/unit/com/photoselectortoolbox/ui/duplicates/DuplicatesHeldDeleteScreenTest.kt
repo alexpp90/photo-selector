@@ -91,7 +91,7 @@ class DuplicatesHeldDeleteScreenTest {
                 flowOf(DuplicateDetectionProgress(2, 2, listOf(DuplicateGroup("h", listOf(a.uri, b.uri)))))
         }
         val held = HeldDeleteCommitter(repository, mockk(relaxed = true), mockk(relaxed = true), context)
-        return DuplicatesViewModel(finder, repository, held, appScope, context).apply {
+        return DuplicatesViewModel(finder, repository, held, appScope, context, mockk(relaxed = true)).apply {
             selectFolder(Uri.parse("content://test/folder"))
             startScan()
             toggleSelection(b.uri)

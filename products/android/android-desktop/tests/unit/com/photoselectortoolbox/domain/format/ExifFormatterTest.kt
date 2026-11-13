@@ -14,6 +14,9 @@ class ExifFormatterTest {
     fun `fractional exposures render as a fraction`() {
         assertEquals("1/250s", ExifFormatter.shutterSpeed(1.0 / 250.0))
         assertEquals("1/8000s", ExifFormatter.shutterSpeed(1.0 / 8000.0))
+        // A value a hair under the fraction rounds to it, never down a step (full review 2026-11-09).
+        assertEquals("1/250s", ExifFormatter.shutterSpeed(0.004000000000000001))
+        assertEquals("1/60s", ExifFormatter.shutterSpeed(0.01667))
     }
 
     @Test

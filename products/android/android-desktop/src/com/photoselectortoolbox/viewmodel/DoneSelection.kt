@@ -16,7 +16,8 @@ sealed interface SafeToFormatLine {
  * removable source (REQ-AND-SOURCE.01) whose Selection is on another volume; anything else —
  * phone storage, a cloud folder, a Selection on the card itself, an unknown volume, nothing kept —
  * draws no line, because no verdict would be true there. The verdict is
- * [ImageRepositoryImpl.verifySafeToFormat]: every kept file under its exact name with its size.
+ * [ImageRepositoryImpl.verifySafeToFormat]: every kept file as the document its transfer wrote,
+ * with its size ([com.photoselectortoolbox.data.model.KeptFiles]).
  */
 internal object DoneSelection {
 
@@ -29,7 +30,7 @@ internal object DoneSelection {
         if (sourceKind != SourceKind.REMOVABLE || keptFiles.isEmpty()) return null
         if (checking) return SafeToFormatLine.Checking
         if (selection == null || selection.onSourceVolume != false) return null
-        val verdict = ImageRepositoryImpl.verifySafeToFormat(keptFiles, selection.filesWithSizes)
+        val verdict = ImageRepositoryImpl.verifySafeToFormat(keptFiles, selection.filesByDocumentId)
         return if (verdict.isSafe) SafeToFormatLine.Safe else SafeToFormatLine.Missing(verdict.missingOrMismatchedFiles.size)
     }
 }
