@@ -7,6 +7,11 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 ## [Unreleased]
 
 ### Added
+- The info card shows an existing star rating (from the sidecar's `xmp:Rating`, the file's XMP or its EXIF rating) as five small stars under the file name; a rejected photo shows an unavailable glyph. Blitzlens only reads it and writes nothing. [USER 2026-11-12] decision #32.
+- **Shift+Arrows** pan the 1:1 view by a fifth of the viewport, and the panes of 2-Up and 3-Up move together; the view opens on the sharpest area (or the centre) and keeps its place from photo to photo. Click a neighbour to make it the active photo.
+- A 3 × 3 sharpness grid: the info card names the sharpest area ("Sharpest area: lower left"), an outline marks it on the photo, and in 2-Up and 3-Up the frame with the sharpest area carries a "Sharpest" pill. The headline score and its thresholds are unchanged.
+- A burst cue on the info card: "3 of 10" when neighbours are less than a second apart. Display only.
+- Newest first and Oldest first go by the capture time in the file's EXIF (the file time when it has none); the order button and the menu say which. A folder copied without its file times opens in shooting order.
 - The order in use is always visible beside "Photo N of M" (Newest, Oldest, Name or Blurry) as a button that opens the order menu; `S` opens it too.
 - The first Move or Copy after you open a folder says where the photos went, in full ("Moved to ~/Pictures/Lisbon/Selection/"); later ones keep the short form. The **Selected** counter is now a button that opens the Selection folder in the file manager.
 - The start card remembers: the last five folders are listed under **Open Folder…** (a folder that is gone is dimmed and says "Missing"), a folder dropped on the window opens, and the folder dialog starts in the folder you opened last. Settings written by 0.2.0 load unchanged.
@@ -27,6 +32,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 - The Duplicate Finder (`Ctrl+D`, "Find Duplicates" in the menu) and the unused local decision log: neither is part of a cull. Library Statistics stays. [USER 2026-11-12] decision #28.
 
 ### Changed
+- 3-Up: the layout solver sets the split from the window and the photo's shape, and a missing first or last photo draws nothing (no placeholder card). A lone neighbour keeps the usual frame size, centred. [USER 2026-11-12] decision #30.
 - Move, Copy and Trash confirmations name the companions and the destination: "Moved IMG_0001 +2 · Selection" (a screen reader says "Moved IMG_0001.CR3 and 2 companion files to Selection"). [USER 2026-11-12] decision #33.
 - Statistics has a button in the header bar (left of the main menu). The PREVIOUS and NEXT tiles of 2-Up and 3-Up show arrows instead of words. The lowest-sharpness sweep ends with "Scored N more" in the action bar. [USER 2026-11-12] decision #33.
 - A copied photo is decided: it is marked with a copy glyph, counted once under Selected, no longer under Remaining, and Move or Copy on it says "Already copied" instead of filing a second `-2` file. The counters have tooltips. [USER 2026-11-12] decision #29.
@@ -50,6 +56,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 - Counters, badges, captions and the info card follow the system text size; before, they stayed the same size at 150 % text.
 
 ### Fixed
+- The `.deb` builder no longer fails for a packager whose umask is 077 (the control directory is pinned to 0755). [USER 2026-11-12] decision #35.
 - Holding `M`, `C`, `Delete` or `Backspace` acts once; before, each auto-repeat moved, copied or trashed the next photo too.
 - Preferences titles that contain `<` or `&` ("Blurry Threshold (< 35.0)", "Memory & Prefetch") are shown as written; before, GTK parsed them as markup and could show them empty.
 - A custom `XDG_DATA_HOME` (Nix, containers) no longer switches Trash from the desktop's Trash (GIO) to the app's own implementation.

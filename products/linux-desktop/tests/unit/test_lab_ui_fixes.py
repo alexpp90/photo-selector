@@ -225,29 +225,18 @@ def _walk(widget):
         yield from _walk(child)
 
 
-def _grid_cells(grid):
-    """name -> (column, row, width, height) of every grid child."""
-    if STUBBED:
-        return {c.get_name(): (col, row, w, h) for c, col, row, w, h in grid.attached}
-    return {c.get_name(): tuple(grid.query_child(c)) for c in _children(grid)}
-
-
 def _named(canvas, name):
     return [w for w in _walk(canvas.slots_box) if w.get_name() == name]
 
 
-def test_3up_is_a_60_40_grid_without_fixed_size_request(fake_gtk):
+@pytest.mark.skipif(STUBBED, reason="needs the real GTK 4 widgets (xvfb-run)")
+def test_3up_frames_follow_the_solver_without_fixed_size_request():
+    """Decision #30: the panel, not a 60/40 grid; no frame has a size request and the lab ids stay."""
     _vm, canvas = _canvas(3)
-    grid = _children(canvas.slots_box)[0]
-    assert _grid_cells(grid) == {
-        "slot_current": (0, 0, 2, 3),
-        "slot_previous": (0, 3, 1, 2),
-        "slot_next": (1, 3, 1, 2),
-    }
-    assert grid.get_row_homogeneous() if not STUBBED else True
-    top = next(w for w in _children(grid) if w.get_name() == "slot_current") if not STUBBED else None
-    if top is not None:
-        assert top.get_size_request() == (-1, -1)
+    panel = _children(canvas.slots_box)[0]
+    assert panel.get_name() == "three_up_panel"
+    assert {c.get_name() for c in _children(panel)} == {"slot_current", "slot_previous", "slot_next"}
+    assert all(c.get_size_request() == (-1, -1) for c in _children(panel))
 
 
 @pytest.mark.parametrize("mode", [1, 2, 3])

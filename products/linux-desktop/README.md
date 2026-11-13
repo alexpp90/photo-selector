@@ -23,7 +23,7 @@ The codebase enforces strict separation of concerns:
 - `photo_selector_linux.ui`:
   - `application`: `Adw.Application` lifecycle controller with the `app.alpatix.Blitzlens` application id, icon registration, About dialog and CSS provider injection.
   - `window`: `Adw.ApplicationWindow` with `.studio-headerbar` (`Adw.HeaderBar`), segmented view switcher, and toast notifications for errors and "Loaded N photos" (one at a time; the toast overlay wraps only the canvas so it never covers the action bar).
-  - `canvas`: Maximized viewport (>85% area) supporting 1-Up (1:1 actual-pixel zoom toggle on `Space`), 2-Up side-by-side comparison, and 3-Up (one-over-two: the active photo on a 60 % top band, previous and next below at 40 %), with contextual slot role pills (`ACTIVE`, `CHAMPION`/`CHALLENGER`, `PREVIOUS`/`ACTIVE`/`NEXT`), companion badges (`RAW+JPG`, `XMP`), and an empty-state hero card.
+  - `canvas`: Maximized viewport (>85% area) supporting 1-Up (1:1 actual-pixel zoom toggle on `Space`), 2-Up side-by-side comparison, and 3-Up (one-over-two: the active photo on top, previous and next below, the split chosen for the window and the photo's shape; a missing first or last photo draws nothing), with contextual slot role pills (`ACTIVE`, `CHAMPION`/`CHALLENGER`, `PREVIOUS`/`ACTIVE`/`NEXT`), companion badges (`RAW+JPG`, `XMP`), and an empty-state hero card.
   - `info_hud`: Glassmorphic optical metadata HUD (`InfoHUD`), anchored bottom-left inside the active preview pane (clicks pass through), with companion badges, camera/lens model line, normalized sharpness goodness meter bar, semantic quality badges (`Sharp` / `Acceptable` / `Blurry`), and strict Metric Omission Rule compliance.
   - `canvas_states`: the canvas with no photo: start, reading, nothing to cull and the done screen (counts, full Selection path, Show in Files, and "Safe to format" from `core/volumes.py`, which looks at whether the source is a removable volume and the Selection is on another one).
 - `boundary_slot`: `BoundarySlotPane` indicators for start/end folder bounds (`First Photo` / `Last Photo`).
@@ -55,6 +55,7 @@ Start Blitzlens with a folder (`photo-selector-linux ~/Pictures/2026`) or let th
 | `Delete` / `Backspace` | Move photo and companions to FreeDesktop Trash and auto-advance |
 | `1` / `2` / `3` | Switch comparison modes (1-Up, 2-Up, 3-Up) |
 | `Space` | Toggle 100% 1:1 actual-pixel zoom in 1-Up mode |
+| `Shift` + arrows | Pan the 1:1 view by a fifth of the viewport, all panes together (unzoomed, Shift+Left/Right navigate) |
 | `F` / `F11` | Toggle full screen |
 | `S` | Open the View order menu (Newest first, Oldest first, File name, Lowest sharpness first) |
 | `Escape` | Reset zoom to fit; then leave full screen |

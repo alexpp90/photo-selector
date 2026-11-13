@@ -38,6 +38,7 @@ from photo_selector_linux.core.image_source import (
     read_full_resolution_source,
 )
 from photo_selector_linux.core.metadata import read_metadata
+from photo_selector_linux.core.rating import read_sidecar_rating
 from photo_selector_linux.core.scoring import compute_quality_scores
 
 logger = logging.getLogger(__name__)
@@ -321,6 +322,9 @@ class PhotoTextureLoader:
             data = path.read_bytes() if is_gvfs_fuse_path(path) else None
             if candidate.exif is None:
                 candidate.exif = read_metadata(path, data)
+            if not candidate.sidecar_checked:  # decision #32: shown on the info card, never written
+                candidate.sidecar_rating = read_sidecar_rating(candidate.sidecar_path)
+                candidate.sidecar_checked = True
             if max_edge is None:  # 1:1 zoom: full sensor resolution for RAW
                 source = read_full_resolution_source(path, candidate.filename, data)
             else:

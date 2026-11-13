@@ -17,6 +17,7 @@ from pathlib import Path
 from typing import Any, Iterable, Optional, Tuple
 
 from photo_selector_linux.core.models import ExposureMetadata
+from photo_selector_linux.core.rating import clamp_rating, parse_xmp_rating
 
 _HAVE_GEXIV2 = False
 try:
@@ -93,6 +94,7 @@ _ISO_TAGS = (
 _EXPOSURE_TIME_TAGS = ("Exif.Photo.ExposureTime", "Exif.Image.ExposureTime")
 _FNUMBER_TAGS = ("Exif.Photo.FNumber", "Exif.Image.FNumber")
 _FOCAL_LENGTH_TAGS = ("Exif.Photo.FocalLength", "Exif.Image.FocalLength")
+_RATING_TAGS = ("Xmp.xmp.Rating", "Exif.Image.Rating")
 _CAPTURE_DATE_TAGS = ("Exif.Photo.DateTimeOriginal", "Exif.Photo.DateTimeDigitized")
 _LENS_TAGS = ("Exif.Photo.LensModel", "Exif.Canon.LensModel", "Exif.NikonLd3.LensIDNumber")
 
@@ -218,6 +220,7 @@ def metadata_from_gexiv2(meta: Any) -> ExposureMetadata:
         is_fallback=is_fallback,
         captured_at=captured_at,
         captured_subsecond=subsecond,
+        rating=next((r for r in (clamp_rating(_tag_string(meta, t)) for t in _RATING_TAGS) if r is not None), None),
     )
 
 
@@ -229,8 +232,14 @@ def read_metadata_pil(path: Path, data: Optional[bytes] = None) -> Optional[Expo
     try:
         with Image.open(io.BytesIO(data) if data is not None else path) as img:
             exif_raw = img.getexif()
+            info = getattr(img, "info", None)
+            xmp_raw = (info.get("xmp") or info.get("XML:com.adobe.xmp")) if isinstance(info, dict) else None
+            xmp_rating = parse_xmp_rating(
+                xmp_raw.decode("utf-8", "replace") if isinstance(xmp_raw, bytes)
+                else xmp_raw if isinstance(xmp_raw, str) else None
+            )
             if not exif_raw:
-                return ExposureMetadata()
+                return ExposureMetadata(rating=xmp_rating)
 
             # Merge IFD sub-dictionaries
             exif_dict = dict(exif_raw.items())
@@ -332,6 +341,7 @@ def read_metadata_pil(path: Path, data: Optional[bytes] = None) -> Optional[Expo
         is_fallback=is_fallback,
         captured_at=captured_at,
         captured_subsecond=subsecond,
+        rating=xmp_rating if xmp_rating is not None else clamp_rating(exif_dict.get(0x4746)),
     )
 
 

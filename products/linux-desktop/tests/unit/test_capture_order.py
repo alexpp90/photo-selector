@@ -131,7 +131,7 @@ def test_the_order_says_what_it_goes_by(tmp_path: Path):
     win.viewmodel.load_directory(folder)
     deadline = time.monotonic() + 5
     context = GLib.MainContext.default()
-    while win.viewmodel.is_scanning and time.monotonic() < deadline:
+    while (win.viewmodel.is_scanning or win.viewmodel.order_basis != "capture time") and time.monotonic() < deadline:
         context.iteration(False)
     win._on_viewmodel_state_changed(win.viewmodel)
     assert win.btn_order.get_tooltip_text() == "Order: Newest first, by capture time (S)"

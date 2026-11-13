@@ -49,11 +49,14 @@ def test_the_headline_score_is_still_the_centre_and_the_old_scores_have_no_grid(
     assert scoring.evaluate_focus_grid(np.zeros((8, 8, 3), dtype=np.uint8)) is None  # too small to divide
 
 
-def test_a_tie_goes_to_the_first_cell():
-    scores = QualityScores(
-        sharpness=1.0, noise=0.0, highlight_clipping=0.0, shadow_clipping=0.0, grid=(5.0,) * 9
-    )
-    assert scores.sharpest_cell == 0
+def test_a_flat_or_evenly_sharp_photo_points_nowhere_and_a_tie_goes_to_the_first_cell():
+    def make(grid):
+        return QualityScores(sharpness=1.0, noise=0.0, highlight_clipping=0.0, shadow_clipping=0.0, grid=grid)
+
+    assert make((0.0,) * 9).sharpest_cell is None  # flat: no area stands out
+    assert make((70.0,) * 9).sharpest_cell is None  # sharp everywhere: nothing to point at
+    assert make((0.0, 60.0, 0.0, 0.0, 0.0, 0.0, 0.0, 60.0, 0.0)).sharpest_cell == 1  # first of a tie
+    assert make((0.0,) * 8 + (4.0,)).sharpest_cell is None  # inside the margin
 
 
 def test_the_card_names_the_area_in_plain_words():
@@ -90,6 +93,7 @@ def window(tmp_path):
 
     import gtk_layout_probe as probe
     from photo_selector_linux.core.settings import SettingsStore
+    probe.set_text_scale(1.0)  # an earlier test may have left another scale
 
     root = tmp_path / "shoot"
     root.mkdir()

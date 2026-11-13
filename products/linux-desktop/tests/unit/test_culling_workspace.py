@@ -182,12 +182,9 @@ def test_canvas_area_allocation():
     assert canvas.rendered_slots[1]["role"] == "NEXT"
     assert canvas.rendered_slots[1]["is_active"] is False
 
-    # 3-Up mode at index 0: left boundary card + ACTIVE + NEXT
+    # 3-Up mode at index 0: ACTIVE + NEXT; the missing first card is not drawn (decision #30)
     vm.set_comparison_mode(3)
-    assert len(canvas.rendered_slots) == 3
-    assert canvas.rendered_slots[0] == {"type": "boundary", "slot_type": "first"}
-    assert canvas.rendered_slots[1]["role"] == "ACTIVE"
-    assert canvas.rendered_slots[2]["role"] == "NEXT"
+    assert [s["role"] for s in canvas.rendered_slots] == ["ACTIVE", "NEXT"]
 
     # 3-Up mode at middle index 1: PREVIOUS + ACTIVE + NEXT
     vm.nav_next()
@@ -196,12 +193,10 @@ def test_canvas_area_allocation():
     # Right slot (DSC_0003.JPG + DSC_0003-Edit.JPG) has no RAW file, so no false RAW+JPG badge
     assert canvas.rendered_slots[2]["badges"] == []
 
-    # 3-Up mode at last index 2: PREVIOUS + ACTIVE + right boundary card
+    # 3-Up mode at last index 2: PREVIOUS + ACTIVE; the missing last card is not drawn
     vm.nav_next()
     assert vm.current_index == 2
-    assert canvas.rendered_slots[0]["role"] == "PREVIOUS"
-    assert canvas.rendered_slots[1]["role"] == "ACTIVE"
-    assert canvas.rendered_slots[2] == {"type": "boundary", "slot_type": "last"}
+    assert [s["role"] for s in canvas.rendered_slots] == ["PREVIOUS", "ACTIVE"]
 
 
 def test_info_hud_goodness_and_metric_omission():

@@ -19,6 +19,7 @@ except (ImportError, ValueError):
     Gtk = None
 
 from photo_selector_linux.core.bursts import burst_spoken, burst_text
+from photo_selector_linux.core.rating import REJECTED, spoken as rating_spoken, stars
 from photo_selector_linux.core.models import CandidatePhoto
 from photo_selector_linux.ui.sharp_outline import area_text
 from photo_selector_linux.ui.styling import (
@@ -34,6 +35,10 @@ SCORE_TOOLTIP = (
 )
 
 
+STAR_ICON = "starred-symbolic"
+NO_STAR_ICON = "non-starred-symbolic"
+REJECTED_ICON = "action-unavailable-symbolic"
+RATING_TOOLTIP = "Rating from the file"
 BURST_ICON = "view-continuous-symbolic"
 BURST_ICON_FALLBACK = "view-list-symbolic"
 COPIED_ICON = "edit-copy-symbolic"
@@ -60,6 +65,7 @@ class InfoHUD(Gtk.Box if HAS_GI else object):
         self._current_photo: Optional[CandidatePhoto] = None
         self.filename_text: str = ""
         self.burst_text: str = ""
+        self.rating_text: str = ""
         self.is_copied: bool = False
         self.companion_badges: List[Tuple[str, str]] = []
         self.exif_text: str = ""
@@ -123,6 +129,16 @@ class InfoHUD(Gtk.Box if HAS_GI else object):
         self.header_row.append(self.companion_box)
         self.append(self.header_row)
 
+        # The rating the file already carries (decision #32): five 14 px stars, read-only, not
+        # focusable; shown only for 1..5, a rejected photo shows the unavailable glyph.
+        self.rating_row = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=2)
+        self.rating_row.set_name("info_rating")
+        self.rating_row.set_halign(Gtk.Align.START)
+        self.rating_row.set_focusable(False)
+        self.rating_row.set_tooltip_text(RATING_TOOLTIP)
+        self.rating_row.set_visible(False)
+        self.append(self.rating_row)
+
         # Optical EXIF strip (1/250s · f/8.0 · ISO 100 · 24mm)
         self.lbl_exif = Gtk.Label(label="")
         self.lbl_exif.set_halign(Gtk.Align.START)
@@ -178,6 +194,25 @@ class InfoHUD(Gtk.Box if HAS_GI else object):
             pass
         return BURST_ICON
 
+    def _show_rating(self, rating) -> None:
+        """Stars for 1..5, the unavailable glyph for a rejected photo, no row otherwise."""
+        while child := self.rating_row.get_first_child():
+            self.rating_row.remove(child)
+        filled = stars(rating)
+        if rating == REJECTED:
+            icons = [REJECTED_ICON]
+        elif filled:
+            icons = [STAR_ICON] * filled + [NO_STAR_ICON] * (5 - filled)
+        else:
+            icons = []
+        for name in icons:
+            image = Gtk.Image.new_from_icon_name(name)
+            image.set_pixel_size(14)
+            self.rating_row.append(image)
+        self.rating_row.set_visible(bool(icons))
+        if icons:
+            self.rating_row.update_property([Gtk.AccessibleProperty.LABEL], [self.rating_text])
+
     def set_hud_enabled(self, enabled: bool) -> None:
         """Enable or disable HUD visibility while preserving underlying photo state."""
         self.hud_enabled = bool(enabled)
@@ -195,6 +230,7 @@ class InfoHUD(Gtk.Box if HAS_GI else object):
             self.is_hud_visible = False
             self.filename_text = ""
             self.burst_text = ""
+            self.rating_text = ""
             self.is_copied = False
             self.companion_badges = []
             self.exif_text = ""
@@ -216,6 +252,7 @@ class InfoHUD(Gtk.Box if HAS_GI else object):
         cue = cue(photo) if callable(cue) else None
         spoken = burst_spoken(*cue) if isinstance(cue, tuple) else ""
         self.burst_text = burst_text(*cue) if isinstance(cue, tuple) else ""
+        self.rating_text = rating_spoken(photo.rating)
         self.is_copied = bool(photo.copied)
         self.companion_badges = get_candidate_companion_badges(photo)
 
@@ -276,6 +313,7 @@ class InfoHUD(Gtk.Box if HAS_GI else object):
 
         self.set_visible(self.is_hud_visible)
         self.lbl_filename.set_label(self.filename_text)
+        self._show_rating(photo.rating)
         self.lbl_burst.set_label(self.burst_text)
         self.burst_row.set_visible(bool(self.burst_text))
         if self.burst_text:

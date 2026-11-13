@@ -27,10 +27,12 @@ from photo_selector_linux.ui.info_hud import InfoHUD, build_copied_glyph
 from photo_selector_linux.ui.canvas_states import build_state_hero, state_key
 from photo_selector_linux.ui.layout import (
     Rect,
+    FRAME_CHROME,
     can_fit_1to1_development,
-    three_up_geometry,
+    three_up_plan,
 )
 from photo_selector_linux.ui.pan import PanGroup
+from photo_selector_linux.ui.three_up_panel import ThreeUpPanel
 from photo_selector_linux.ui.sharp_outline import HAS_GI as HAS_OUTLINE, cell_focus, sharpest_of
 if HAS_OUTLINE:
     from photo_selector_linux.ui.sharp_outline import SharpAreaOutline
@@ -57,9 +59,12 @@ class CanvasView(Gtk.Box if HAS_GI else object):
         self.rendered_slots: List[Dict[str, Any]] = []
         self.viewport_width: int = 1440
         self.viewport_height: int = 810
-        self.last_three_up_geometry: Optional[Tuple[Rect, Rect, Rect]] = None
+        self.last_three_up_geometry: Optional[Tuple[Rect, Optional[Rect], Optional[Rect]]] = None
         self.three_up_layout_rects: Dict[str, Rect] = {}
         self.pan_group = PanGroup()
+        #: Width / height of the active photo once known; the 3-Up split follows it.
+        self._active_aspect: float = 1.5
+        self.three_up_panel = None
         self._slot_photos: Dict[str, Any] = {}
         self._sharp_pills: Dict[str, Any] = {}
         self._neighbour_1to1_offset: Optional[int] = None
@@ -385,10 +390,12 @@ class CanvasView(Gtk.Box if HAS_GI else object):
             else:
                 self.rendered_slots.append({"type": "boundary", "slot_type": "last"})
         elif mode == 3:
-            top_rect, bl_rect, br_rect = three_up_geometry(
-                self.viewport_width,
-                self.viewport_height,
+            plan = three_up_plan(
+                self.viewport_width, self.viewport_height, self._active_aspect, int(idx > 0) + int(idx < count - 1)
             )
+            top_rect = plan.top_picture
+            bl_rect = plan.neighbour_pictures[0] if idx > 0 else None
+            br_rect = plan.neighbour_pictures[-1] if idx < count - 1 else None
             self.last_three_up_geometry = (top_rect, bl_rect, br_rect)
             self.three_up_layout_rects = {
                 "top": top_rect,
@@ -407,8 +414,6 @@ class CanvasView(Gtk.Box if HAS_GI else object):
                         rect=bl_rect,
                     )
                 )
-            else:
-                self.rendered_slots.append({"type": "boundary", "slot_type": "first"})
 
             self.rendered_slots.append(
                 self._build_slot_descriptor(
@@ -432,8 +437,7 @@ class CanvasView(Gtk.Box if HAS_GI else object):
                         rect=br_rect,
                     )
                 )
-            else:
-                self.rendered_slots.append({"type": "boundary", "slot_type": "last"})
+            # A missing first or last photo has no slot: nothing is drawn for it (decision #30).
 
         if not HAS_GI:
             return
@@ -477,50 +481,36 @@ class CanvasView(Gtk.Box if HAS_GI else object):
                 self.slots_box.append(end_slot)
 
         elif mode == 3:
-            # One-over-two layout (UD-4): a 60/40 split of the real canvas height. The grid has
-            # five homogeneous rows; the active photo spans 2 columns x 3 rows, each neighbour
-            # 1 column x 2 rows. No fixed size request, so the split follows the window.
-            three_up_grid = Gtk.Grid()
-            three_up_grid.set_row_spacing(12)
-            three_up_grid.set_column_spacing(12)
-            three_up_grid.set_row_homogeneous(True)
-            three_up_grid.set_column_homogeneous(True)
-            three_up_grid.set_hexpand(True)
-            three_up_grid.set_vexpand(True)
-
+            # One over two (UD-4, decision #30): the solver (``layout.three_up_plan``) sets the split
+            # from the real canvas size; a missing first or last photo has no frame at all.
             top_slot = self._create_photo_slot(
                 candidates[idx],
                 is_active=True,
                 slot_offset=0,
                 allow_1to1=self.is_1to1_zoom,
             )
-            three_up_grid.attach(top_slot, 0, 0, 2, 3)
-
+            neighbour_slots = []
             if idx > 0:
-                left_slot = self._create_photo_slot(
+                neighbour_slots.append(self._create_photo_slot(
                     candidates[idx - 1],
                     is_active=False,
                     slot_offset=-1,
                     allow_1to1=self.is_1to1_zoom and self._neighbour_1to1_offset == -1,
-                )
-            else:
-                left_slot = BoundarySlotPane(slot_type="first")
-                left_slot.set_name("slot_previous")
-            three_up_grid.attach(left_slot, 0, 3, 1, 2)
-
+                ))
             if idx < count - 1:
-                right_slot = self._create_photo_slot(
+                neighbour_slots.append(self._create_photo_slot(
                     candidates[idx + 1],
                     is_active=False,
                     slot_offset=1,
                     allow_1to1=self.is_1to1_zoom and self._neighbour_1to1_offset == 1,
-                )
-            else:
-                right_slot = BoundarySlotPane(slot_type="last")
-                right_slot.set_name("slot_next")
-            three_up_grid.attach(right_slot, 1, 3, 1, 2)
-
-            self.slots_box.append(three_up_grid)
+                ))
+            panel = ThreeUpPanel()
+            panel.set_name("three_up_panel")
+            panel.set_aspect(self._active_aspect)
+            panel.top_floor = self._active_frame_floor
+            panel.set_frames(top_slot, neighbour_slots)
+            self.three_up_panel = panel
+            self.slots_box.append(panel)
 
         self._attach_hud()
 
@@ -701,6 +691,12 @@ class CanvasView(Gtk.Box if HAS_GI else object):
         footer_box.append(score_pill)
         footer_box.add_css_class("has-score-badge")
 
+    def _active_frame_floor(self) -> int:
+        """The least height the active frame needs for the info card inside it (3-Up's smallest window)."""
+        if not self.hud_enabled or not self.hud.get_visible():
+            return 0
+        return self.hud.measure(Gtk.Orientation.VERTICAL, -1).natural + FRAME_CHROME + 16
+
     def _sync_outline(self, outline, candidate) -> None:
         """The outline of the sharpest area shows with the info card, once the photo has a grid."""
         if outline is None:
@@ -729,8 +725,13 @@ class CanvasView(Gtk.Box if HAS_GI else object):
         self._append_score_badge(footer_box, candidate)
         if texture is not None and outline is not None and texture.get_height() > 0:
             outline.set_area(None, texture.get_width() / texture.get_height())
+            self._active_aspect = texture.get_width() / texture.get_height()
+            if self.three_up_panel is not None and self.viewmodel.comparison_mode == 3:
+                self.three_up_panel.set_aspect(self._active_aspect)
         self._sync_outline(outline, candidate)
         self._refresh_sharpest_marks()
         # EXIF and scores come with the first decode; refresh the HUD once they are known.
         if candidate is self.viewmodel.current_photo:
             self.hud.update_photo(candidate)
+            if self.three_up_panel is not None and self.viewmodel.comparison_mode == 3:
+                self.three_up_panel.queue_resize()  # the card grew (score, sharpest area, burst)
