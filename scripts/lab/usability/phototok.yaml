@@ -43,11 +43,14 @@ scenarios:
         intent: Confirm this is the right folder
         expected: Tap 'Use this folder'
       - tap: {id: button1, label: Use this folder}
+      # Android 16 (Moto G77) opens the folder straight after 'Use this folder', with no Allow
+      # dialog: the screen and the tap happen only when the dialog shows (2026-11-13 lab run).
       - screen: picker-allow
         system: true
+        when: {id: button1, timeout_ms: 4000}
         intent: Let the app see this folder
         expected: Tap 'Allow'
-      - tap: {id: button1, label: Allow}
+      - optional_tap: {id: button1, label: Allow}
       - wait_for: {id: gesture_tutorial_got_it, timeout_ms: 15000}
       - screen: guide
         intent: Learn just enough to start
@@ -69,8 +72,9 @@ scenarios:
       - swipe: left
       - screen: delete-confirm
         intent: Make sure the blurry photo goes away
-        expected: Tap 'Delete'
-      - tap: {text: [Delete, Löschen], label: Delete}
+        expected: Tap 'Trash' (or 'Delete' where Android has no bin)
+      # Since #932 a phone with a system bin asks "Move to Trash?" with a Trash button.
+      - tap: {text: [Trash, Papierkorb, Delete, Löschen], label: Trash}
       - screen: after-delete
         intent: "Hmm — that was the only shot of that moment. Undo it"
         expected: Tap 'Revert' in the bottom bar
@@ -79,7 +83,7 @@ scenarios:
         intent: Check the photo is back, then delete it after all
         expected: Swipe left, then confirm
       - swipe: left
-      - tap: {text: [Delete, Löschen], label: Delete, timeout_ms: 4000}
+      - tap: {text: [Trash, Papierkorb, Delete, Löschen], label: Trash, timeout_ms: 4000}
       - optional_tap: {id: first_run_hint_dismiss, label: GOT IT}
       - screen: good-photo
         intent: This one is lovely — keep it
@@ -131,6 +135,14 @@ scenarios:
         intent: See the photos I kept
         expected: Tap 'Selection' in the bottom bar
       - tap: {id: viewer_selection_button, label: Selection}
+      # Leaving the feed finalises the deletes of U-TOK-02/03: where Android has a bin it asks for
+      # consent in its own dialog (MediaStore trash request, #932).
+      - screen: bin-consent
+        system: true
+        when: {id: button1, timeout_ms: 4000}
+        intent: Let the deleted photos go to the bin
+        expected: Tap 'Allow'
+      - optional_tap: {id: button1, label: Allow}
       - screen: selection
         intent: Go back to culling
         expected: Press Back or the close control
