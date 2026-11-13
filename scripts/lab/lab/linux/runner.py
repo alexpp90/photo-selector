@@ -24,6 +24,11 @@ from ..paths import ensure_under, lab_tmp_root, repo_root
 FS_AWAIT_TIMEOUT_MS = 10_000
 FS_SETTLE_BUDGET_MS = 2_000
 
+# The view orders Blitzlens persists (`core/settings.py`, PERSISTED_ORDERS). A fresh profile opens
+# "newest" first, by EXIF capture time; a journey that names files by number needs "natural"
+# (file-name order) and says so with `linux_settings: {view_order: natural}`.
+LINUX_VIEW_ORDERS = ("natural", "newest", "oldest")
+
 
 def _finding(rule: str, severity: str, message: str, *, product: str, config: str, journey: str,
              checkpoint: str, evidence: list[str]) -> Finding:
@@ -76,6 +81,26 @@ def preflight_linux() -> tuple[bool, str | None]:
         if shutil.which(binary) is None:
             return False, f"Missing required binary '{binary}' (install xvfb xdotool dbus-x11)"
     return True, None
+
+
+def seed_linux_settings(xdg_config: Path, linux_settings: dict[str, Any] | None) -> Path | None:
+    """Write the journey's `linux_settings` as the app's settings file in the run's private config.
+
+    Each run starts with an empty `XDG_CONFIG_HOME`, so the app takes its new-install defaults
+    (newest first since plan 2.2). The file goes where `default_settings_path()` reads it:
+    `$XDG_CONFIG_HOME/photo-selector-linux/settings.json`. Nothing is written without settings.
+    """
+    if not linux_settings:
+        return None
+    if not isinstance(linux_settings, dict):
+        raise ValueError(f"linux_settings must be a mapping, got {type(linux_settings).__name__}")
+    order = linux_settings.get("view_order")
+    if order is not None and order not in LINUX_VIEW_ORDERS:
+        raise ValueError(f"linux_settings.view_order {order!r} is not one of {LINUX_VIEW_ORDERS}")
+    path = xdg_config / "photo-selector-linux" / "settings.json"
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(json.dumps(linux_settings, indent=2, sort_keys=True) + "\n", encoding="utf-8")
+    return path
 
 
 def build_journey_commands(journey_manifest: dict[str, Any], out_dir: Path) -> list[str]:
@@ -171,6 +196,9 @@ def run_linux_journey(
     xdg_config = lab_work / "xdg-config"
     xdg_data.mkdir(parents=True, exist_ok=True)
     xdg_config.mkdir(parents=True, exist_ok=True)
+    seeded = seed_linux_settings(xdg_config, journey_manifest.get("linux_settings"))
+    if seeded is not None:
+        shutil.copy2(seeded, j_dir / "seeded_settings.json")
     trash_files = xdg_data / "Trash" / "files"
 
     initial_fs = snapshot_directory(work_fixture, fbase, trash_dir=trash_files)

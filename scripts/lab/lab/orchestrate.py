@@ -74,8 +74,12 @@ def load_configs_for_product(product: str) -> dict[str, dict[str, Any]]:
 
 def load_journeys_for_product(
     product: str,
-    journey_filter: str | None = None,
+    journey_filter: str | list[str] | None = None,
 ) -> list[dict[str, Any]]:
+    # Each `--journey` is an ID or a prefix; repeated, a journey runs when it matches any of them
+    # (2026-11-13: a plain store kept only the last one, so `--journey J-LIN-01 --journey
+    # J-LIN-03` ran J-LIN-03 alone).
+    wanted = [journey_filter] if isinstance(journey_filter, str) else list(journey_filter or [])
     journeys: list[dict[str, Any]] = []
     j_dir = repo_root() / "scripts" / "lab" / "journeys"
     if not j_dir.is_dir():
@@ -85,7 +89,7 @@ def load_journeys_for_product(
         if not isinstance(data, dict) or data.get("product") != product:
             continue
         jid = str(data.get("id", ""))
-        if journey_filter and jid != journey_filter and not jid.startswith(journey_filter):
+        if wanted and not any(jid == w or jid.startswith(w) for w in wanted):
             continue
         journeys.append(data)
     return journeys
@@ -344,7 +348,7 @@ def _write_error_result(j_dir: Path, err: str) -> None:
 
 def run_lab(
     products: list[str],
-    journey_filter: str | None = None,
+    journey_filter: str | list[str] | None = None,
     config_filter: str | None = None,
     out_dir: Path | None = None,
     installed: bool = False,
@@ -376,7 +380,7 @@ def run_lab(
 
 def _run_lab(
     products: list[str],
-    journey_filter: str | None,
+    journey_filter: str | list[str] | None,
     config_filter: str | None,
     out_dir: Path | None,
     installed: bool,

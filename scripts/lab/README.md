@@ -17,6 +17,7 @@ python3 scripts/lab/lab.py run --all --with-personal
 # One product / journey / config / device
 python3 scripts/lab/lab.py run --product android-desktop --journey J-AD-02 --config tab-landscape --device pixel-tablet
 python3 scripts/lab/lab.py run --product phototok --no-build        # reuse this tree's last .lab build
+python3 scripts/lab/lab.py run --product linux --journey J-LIN-01 --journey J-LIN-03  # repeat --journey for several
 
 # Routine campaign: the E2E smoke (the full pass above stays for release campaigns)
 python3 scripts/lab/lab.py run --all --smoke --since origin/main
@@ -161,6 +162,15 @@ checkpoint's own snapshot. A file operation that lands after more than 2 s is re
 `fs-settle-slow`. The window fills the screen of the config; text scaling reaches GTK through
 `gtk-font-name` in the session's `settings.ini` (GTK on X11 ignores `gtk-xft-dpi` without an
 XSETTINGS manager). There is no `dark` config: the app is always dark.
+
+Each run starts with an empty `XDG_CONFIG_HOME`, so the app takes its new-install defaults —
+newest first, by capture time. A journey that names files by number pins the order it needs with
+`linux_settings: {view_order: natural}` (file-name order; also `newest`, `oldest`); the runner
+writes it as `photo-selector-linux/settings.json` in the run's private config before launch and
+keeps a copy as `seeded_settings.json` beside the checkpoints. In 3-Up a missing neighbour draws
+nothing (decision #32), so photo 1 has no `slot_previous`.
+The app runs with `HOME` in the lab directory, on the fixture's file system: GIO trashes into
+`$XDG_DATA_HOME/Trash` only for files on the device of `$HOME`, and refuses `/tmp` otherwise.
 
 ## Layout rules
 
