@@ -215,7 +215,7 @@ class StatisticsViewModel @Inject constructor(
                     }
 
                     exif.aperture?.let { aperture ->
-                        val label = "f/%.1f".format(java.util.Locale.US, aperture)
+                        val label = "f/%.1f".format(java.util.Locale.US, aperture) // ui-text: ignore (a unit, the same in every language)
                         apertures[label] = (apertures[label] ?: 0) + 1
                     }
 
@@ -225,7 +225,7 @@ class StatisticsViewModel @Inject constructor(
                     }
 
                     exif.focalLength?.let { focal ->
-                        val label = "${focal.toInt()}mm"
+                        val label = "${focal.toInt()}mm" // ui-text: ignore (a unit, the same in every language)
                         focalLengths[label] = (focalLengths[label] ?: 0) + 1
                     }
 

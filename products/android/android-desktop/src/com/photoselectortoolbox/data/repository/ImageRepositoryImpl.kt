@@ -129,7 +129,7 @@ class ImageRepositoryImpl @Inject constructor(
                     isSafe = false,
                     verifiedCount = 0,
                     missingOrMismatchedFiles = emptyList(),
-                    summaryMessage = "No kept photos recorded in this session yet.",
+                    summaryMessage = "No kept photos recorded in this session yet.", // ui-text: ignore (log and verification text, not shown; the view model words what the user reads)
                 )
             }
             val missing = mutableListOf<String>()
@@ -144,9 +144,9 @@ class ImageRepositoryImpl @Inject constructor(
             }
             val safe = missing.isEmpty() && verified == keptFiles.size
             val msg = if (safe) {
-                "Safe to format SD card: all $verified kept file(s) verified on destination storage."
+                "Safe to format SD card: all $verified kept file(s) verified on destination storage." // ui-text: ignore (log and verification text, not shown; the view model words what the user reads)
             } else {
-                "Do NOT format SD card: ${missing.size} of ${keptFiles.size} kept file(s) missing or of another size (${missing.take(3).joinToString()})."
+                "Do NOT format SD card: ${missing.size} of ${keptFiles.size} kept file(s) missing or of another size (${missing.take(3).joinToString()})." // ui-text: ignore (log and verification text, not shown; the view model words what the user reads)
             }
             return SafeToFormatVerification(
                 isSafe = safe,
@@ -357,7 +357,7 @@ class ImageRepositoryImpl @Inject constructor(
             destFolderUri = destFolderUri,
             sorting = sorting,
             isMove = true,
-        ).firstOrNull() ?: FileOperationResult.failure(sourceUri.toString(), "Move failed")
+        ).firstOrNull() ?: FileOperationResult.failure(sourceUri.toString(), "Move failed") // ui-text: ignore (log and verification text, not shown; the view model words what the user reads)
 
     override suspend fun copyImage(
         context: Context,
@@ -371,7 +371,7 @@ class ImageRepositoryImpl @Inject constructor(
             destFolderUri = destFolderUri,
             sorting = sorting,
             isMove = false,
-        ).firstOrNull() ?: FileOperationResult.failure(sourceUri.toString(), "Copy failed")
+        ).firstOrNull() ?: FileOperationResult.failure(sourceUri.toString(), "Copy failed") // ui-text: ignore (log and verification text, not shown; the view model words what the user reads)
 
     override suspend fun moveBundle(
         context: Context,

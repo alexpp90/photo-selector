@@ -1,5 +1,10 @@
 package com.photoselectortoolbox.domain.learn
 
+import com.photoselectortoolbox.R
+import com.photoselectortoolbox.domain.text.UiText
+import com.photoselectortoolbox.domain.text.raw
+import com.photoselectortoolbox.domain.text.text
+
 import com.photoselectortoolbox.data.cache.PracticeGoalEntity
 import com.photoselectortoolbox.data.cache.TechniqueFactEntity
 import com.photoselectortoolbox.data.model.ImageItem
@@ -17,8 +22,8 @@ data class PatternInsight(
 
 data class PracticeGoalStatus(
     val goal: PracticeGoalEntity,
-    val lessonTitle: String,
-    val tryThisPrompt: String,
+    val lessonTitle: UiText,
+    val tryThisPrompt: UiText,
     val baselineRate: Double,
     val recentRate: Double?,
     val recentSampleSize: Int,
@@ -67,8 +72,8 @@ object PracticeAndInsightsEngine {
                 insights.add(
                     PatternInsight(
                         id = "insight_telephoto_shutter",
-                        title = "Telephoto Hand-Holding Pattern",
-                        observation = "$pct% of your telephoto shots ($slowBelowGuideline of ${telephotoPhotos.size} at ≥85mm 35mm-eq) were taken slower than the hand-holding speed and came out less sharp.",
+                        title = "Telephoto Hand-Holding Pattern", // ui-text: ignore (no screen shows the pattern insights)
+                        observation = "$pct% of your telephoto shots ($slowBelowGuideline of ${telephotoPhotos.size} at ≥85mm 35mm-eq) were taken slower than the hand-holding speed and came out less sharp.", // ui-text: ignore (no screen shows the pattern insights)
                         sampleSize = telephotoPhotos.size,
                         recommendedLessonId = "motion.reciprocal_rule",
                     )
@@ -87,8 +92,8 @@ object PracticeAndInsightsEngine {
                 insights.add(
                     PatternInsight(
                         id = "insight_horizon_tilt",
-                        title = "Horizon Leveling Habit",
-                        observation = "$pct% of your outdoor horizon scenes ($tiltedCount of ${horizonFacts.size}) have a measurable horizon tilt (> 0.5°).",
+                        title = "Horizon Leveling Habit", // ui-text: ignore (no screen shows the pattern insights)
+                        observation = "$pct% of your outdoor horizon scenes ($tiltedCount of ${horizonFacts.size}) have a measurable horizon tilt (> 0.5°).", // ui-text: ignore (no screen shows the pattern insights)
                         sampleSize = horizonFacts.size,
                         recommendedLessonId = "composition.horizon",
                     )
@@ -100,8 +105,8 @@ object PracticeAndInsightsEngine {
                     insights.add(
                         PatternInsight(
                             id = "insight_horizon_steady",
-                            title = "Consistent Level Horizons",
-                            observation = "$levelPct% of your horizon scenes ($levelCount of ${horizonFacts.size}) are level within 0.5°.",
+                            title = "Consistent Level Horizons", // ui-text: ignore (no screen shows the pattern insights)
+                            observation = "$levelPct% of your horizon scenes ($levelCount of ${horizonFacts.size}) are level within 0.5°.", // ui-text: ignore (no screen shows the pattern insights)
                             sampleSize = horizonFacts.size,
                             recommendedLessonId = "composition.horizon",
                         )
@@ -123,8 +128,8 @@ object PracticeAndInsightsEngine {
                 insights.add(
                     PatternInsight(
                         id = "insight_highlight_clipping",
-                        title = "Highlight Headroom Pattern",
-                        observation = "$pct% of your analyzed frames ($clippedCount of ${clippingFacts.size}) show non-specular highlight clipping.",
+                        title = "Highlight Headroom Pattern", // ui-text: ignore (no screen shows the pattern insights)
+                        observation = "$pct% of your analyzed frames ($clippedCount of ${clippingFacts.size}) show non-specular highlight clipping.", // ui-text: ignore (no screen shows the pattern insights)
                         sampleSize = clippingFacts.size,
                         recommendedLessonId = "exposure.histogram_clipping",
                     )
@@ -142,8 +147,8 @@ object PracticeAndInsightsEngine {
             insights.add(
                 PatternInsight(
                     id = "insight_subject_placement",
-                    title = "Rule-of-Thirds Alignment Rate",
-                    observation = "$pct% of your subject-detected photos ($thirdsCount of ${placementFacts.size}) align the subject near a Rule-of-Thirds intersection.",
+                    title = "Rule-of-Thirds Alignment Rate", // ui-text: ignore (no screen shows the pattern insights)
+                    observation = "$pct% of your subject-detected photos ($thirdsCount of ${placementFacts.size}) align the subject near a Rule-of-Thirds intersection.", // ui-text: ignore (no screen shows the pattern insights)
                     sampleSize = placementFacts.size,
                     recommendedLessonId = "composition.rule_of_thirds",
                 )
@@ -188,8 +193,8 @@ object PracticeAndInsightsEngine {
         factsByUri: Map<String, List<TechniqueFactEntity>>,
     ): PracticeGoalStatus {
         val lesson = LessonCatalog.getById(goal.lessonId)
-        val title = lesson?.title ?: goal.lessonId
-        val prompt = lesson?.tryThisPrompt ?: "Practice this technique on your next shoot."
+        val title = lesson?.title ?: raw(goal.lessonId)
+        val prompt = lesson?.tryThisPrompt ?: text(R.string.learn_practice_try_on_next_shoot)
 
         // When the photo was taken, by its stored capture time; the file date only for a photo
         // without one (a copy or an edit keeps the capture time and changes the file date; SD-1b).

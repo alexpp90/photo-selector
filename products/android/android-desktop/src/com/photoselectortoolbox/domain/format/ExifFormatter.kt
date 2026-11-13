@@ -2,6 +2,10 @@ package com.photoselectortoolbox.domain.format
 
 import com.photoselector.core.model.ExifData
 import java.util.Locale
+import com.photoselectortoolbox.domain.text.text
+import com.photoselectortoolbox.domain.text.raw
+import com.photoselectortoolbox.domain.text.UiText
+import com.photoselectortoolbox.R
 
 /**
  * Turns EXIF values into the strings the selector shows.
@@ -100,15 +104,18 @@ object ExifFormatter {
      * "Unknown": in the panel, "we could not read the lens" is information the
      * photographer wants, not clutter.
      */
-    fun detailRows(exif: ExifData?): List<Pair<String, String>> {
+    fun detailRows(exif: ExifData?): List<Pair<UiText, UiText>> {
         if (exif == null) return emptyList()
+        val unknown = text(R.string.label_unknown)
+        fun value(v: String?): UiText = v?.let(::raw) ?: unknown
         return listOf(
-            "Shutter Speed" to (exif.shutterSpeed?.let { shutterSpeed(it) } ?: UNKNOWN),
-            "Aperture" to (exif.aperture?.let { aperture(it) } ?: UNKNOWN),
-            "Focal Length" to (exif.focalLength?.let { focalLength(it) } ?: UNKNOWN),
-            "35mm Equiv." to (exif.focalLength35mm?.let { focalLength(it) } ?: UNKNOWN),
-            "ISO" to (exif.iso?.toString() ?: UNKNOWN),
-            "Lens" to exif.lens,
+            text(R.string.label_exif_shutter_speed) to value(exif.shutterSpeed?.let { shutterSpeed(it) }),
+            text(R.string.label_exif_aperture) to value(exif.aperture?.let { aperture(it) }),
+            text(R.string.label_exif_focal_length) to value(exif.focalLength?.let { focalLength(it) }),
+            text(R.string.label_exif_focal_35mm) to value(exif.focalLength35mm?.let { focalLength(it) }),
+            text(R.string.label_exif_iso) to value(exif.iso?.toString()),
+            // The model's own "Unknown" for a file without a lens tag reads as the UI's word.
+            text(R.string.label_exif_lens) to (if (exif.lens == UNKNOWN) unknown else raw(exif.lens)),
         )
     }
 

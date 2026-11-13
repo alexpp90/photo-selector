@@ -132,7 +132,7 @@ internal class SafRatingWriter(
         val updated = (
             XmpSidecarWriter.injectOrUpdateRating(text, rating)
                 ?: throw RatingWriteException(
-                    "The existing ${entry.name} has content the rating cannot be merged into; it was left unchanged",
+                    "The existing ${entry.name} has content the rating cannot be merged into; it was left unchanged", // ui-text: ignore (log text; RatingWriteException.reason is what the user reads)
                     reason = RatingFormats.unmergeableReason(entry.name),
                 )
             ).toByteArray(Charsets.UTF_8)
@@ -154,7 +154,7 @@ internal class SafRatingWriter(
         val backupName = RatingBackups.backupNameFor(name)
         if (listing.any { it.name == backupName }) {
             throw RatingWriteException(
-                "$backupName from an earlier interrupted write is still beside $name; reopen the folder to recover it",
+                "$backupName from an earlier interrupted write is still beside $name; reopen the folder to recover it", // ui-text: ignore (log text; RatingWriteException.reason is what the user reads)
                 reason = text(R.string.error_rating_backup_still_beside, backupName, name),
             )
         }
@@ -171,7 +171,7 @@ internal class SafRatingWriter(
             val currentXmp = exif.getAttribute(ExifInterface.TAG_XMP)
             val updatedXmp = XmpSidecarWriter.injectOrUpdateRating(currentXmp, rating)
                 ?: throw RatingWriteException(
-                    "The XMP inside $name has content the rating cannot be merged into; it was left unchanged",
+                    "The XMP inside $name has content the rating cannot be merged into; it was left unchanged", // ui-text: ignore (log text; RatingWriteException.reason is what the user reads)
                     reason = RatingFormats.unmergeableReason(name),
                 )
             exif.setAttribute(ExifInterface.TAG_XMP, updatedXmp)

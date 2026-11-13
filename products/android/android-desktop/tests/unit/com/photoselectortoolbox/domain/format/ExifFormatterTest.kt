@@ -7,6 +7,7 @@ import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
+import com.photoselectortoolbox.testing.en
 
 class ExifFormatterTest {
 
@@ -78,13 +79,13 @@ class ExifFormatterTest {
     @Test
     fun `detail rows keep every field and label the unknowns`() {
         val rows = ExifFormatter.detailRows(ExifData(iso = 200))
-        val map = rows.toMap()
+        val map = rows.associate { (k, v) -> k.en() to v.en() }
         assertEquals(6, rows.size)
         assertEquals("200", map["ISO"])
-        assertEquals(ExifFormatter.UNKNOWN, map["Aperture"])
+        assertEquals("Unknown", map["Aperture"])
         // "Unknown" is a legitimate value in the panel: not knowing the lens is
         // information the photographer wants, not a field to hide.
-        assertEquals(ExifFormatter.UNKNOWN, map["Lens"])
+        assertEquals("Unknown", map["Lens"])
     }
 
     @Test

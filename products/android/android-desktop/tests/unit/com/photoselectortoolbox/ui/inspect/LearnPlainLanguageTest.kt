@@ -34,6 +34,7 @@ import org.junit.Test
 import org.junit.runner.RunWith
 import org.robolectric.annotation.Config
 import com.photoselectortoolbox.testing.str
+import com.photoselectortoolbox.testing.en
 
 /**
  * The Learn screen and the scan sheet speak photography, not algorithms (usability panel
@@ -104,8 +105,8 @@ class LearnPlainLanguageTest {
         val bad = seen.distinct().mapNotNull { text -> offending(text).takeIf { it.isNotEmpty() }?.let { "\"$text\" ($it)" } }
         assertTrue("jargon on the Learn screen: $bad", bad.isEmpty())
         // The guide bar names what each guide is.
-        assertTrue(seen.contains(LearnText.GUIDE_GOLDEN_RATIO))
-        assertTrue(seen.contains(LearnText.GUIDE_FLIP_SPIRAL))
+        assertTrue(seen.contains(LearnText.GUIDE_GOLDEN_RATIO.en()))
+        assertTrue(seen.contains(LearnText.GUIDE_FLIP_SPIRAL.en()))
     }
 
     /**
@@ -151,29 +152,29 @@ class LearnPlainLanguageTest {
     fun `the shutter line is one sentence with both speeds`() {
         assertEquals(
             "Fast enough to hand-hold: 1/60s beats the 1/50s minimum",
-            LearnText.shutterLine(safeSeconds = 1.0 / 50, actualSeconds = 1.0 / 60),
+            LearnText.shutterLine(safeSeconds = 1.0 / 50, actualSeconds = 1.0 / 60)?.en(),
         )
         assertEquals(
             "Slower than hand-holding allows: 1/20s, minimum 1/50s",
-            LearnText.shutterLine(safeSeconds = 1.0 / 50, actualSeconds = 1.0 / 20),
+            LearnText.shutterLine(safeSeconds = 1.0 / 50, actualSeconds = 1.0 / 20)?.en(),
         )
-        assertEquals("Slowest speed to hand-hold: 1/50s", LearnText.shutterLine(1.0 / 50, null))
-        assertNull(LearnText.shutterLine(null, 1.0 / 60))
+        assertEquals("Slowest speed to hand-hold: 1/50s", LearnText.shutterLine(1.0 / 50, null)?.en())
+        assertNull(LearnText.shutterLine(null, 1.0 / 60)?.en())
     }
 
     @Test
     fun `the coach remarks on noise only when it is high`() {
-        assertEquals("Grainy at ISO 3200", LearnText.noiseRemark(noiseLevel = 6.5, iso = 3200))
-        assertEquals("Grainy", LearnText.noiseRemark(noiseLevel = 6.5, iso = null))
-        assertNull(LearnText.noiseRemark(noiseLevel = 0.5, iso = 100))
-        assertNull(LearnText.noiseRemark(noiseLevel = null, iso = 3200))
+        assertEquals("Grainy at ISO 3200", LearnText.noiseRemark(noiseLevel = 6.5, iso = 3200)?.en())
+        assertEquals("Grainy", LearnText.noiseRemark(noiseLevel = 6.5, iso = null)?.en())
+        assertNull(LearnText.noiseRemark(noiseLevel = 0.5, iso = 100)?.en())
+        assertNull(LearnText.noiseRemark(noiseLevel = null, iso = 3200)?.en())
     }
 
     @Test
     fun `the spiral flip is named in words and says where it turns`() {
-        assertEquals("Flip spiral, now turning to the top left", LearnText.flipSpiralDescription(SpiralOrientation.TOP_LEFT))
-        SpiralOrientation.entries.forEach { assertTrue(offending(LearnText.flipSpiralDescription(it)).isEmpty()) }
-        assertEquals("Low blur risk (12%)", LearnText.blurRisk(0.12f))
-        assertEquals("High blur risk (80%)", LearnText.blurRisk(0.8f))
+        assertEquals("Flip spiral, now turning to the top left", LearnText.flipSpiralDescription(SpiralOrientation.TOP_LEFT).en())
+        SpiralOrientation.entries.forEach { assertTrue(offending(LearnText.flipSpiralDescription(it).en()).isEmpty()) }
+        assertEquals("Low blur risk (12%)", LearnText.blurRisk(0.12f).en())
+        assertEquals("High blur risk (80%)", LearnText.blurRisk(0.8f).en())
     }
 }

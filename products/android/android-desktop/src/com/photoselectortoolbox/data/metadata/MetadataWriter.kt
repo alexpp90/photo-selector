@@ -172,7 +172,7 @@ class MetadataWriterImpl internal constructor(
             val currentXmp = exif.getAttribute(ExifInterface.TAG_XMP)
             val updatedXmp = XmpSidecarWriter.injectOrUpdateRating(currentXmp, rating)
                 ?: throw RatingWriteException(
-                    "The XMP inside ${imageFile.name} has content the rating cannot be merged into; it was left unchanged",
+                    "The XMP inside ${imageFile.name} has content the rating cannot be merged into; it was left unchanged", // ui-text: ignore (XMP and log text; RatingWriteException.reason is what the user reads)
                     reason = RatingFormats.unmergeableReason(imageFile.name),
                 )
 
@@ -212,13 +212,13 @@ class MetadataWriterImpl internal constructor(
 
         if (!XmpSidecarWriter.canUpdateInPlace(existingContent)) {
             throw RatingWriteException(
-                "${targetSidecar.name} has XMP content the rating cannot be merged into; it was left unchanged",
+                "${targetSidecar.name} has XMP content the rating cannot be merged into; it was left unchanged", // ui-text: ignore (XMP and log text; RatingWriteException.reason is what the user reads)
                 reason = RatingFormats.unmergeableReason(targetSidecar.name),
             )
         }
         val updatedContent = XmpSidecarWriter.injectOrUpdateRating(existingContent, rating)
             ?: throw RatingWriteException(
-                "${targetSidecar.name} has XMP content the rating cannot be merged into; it was left unchanged",
+                "${targetSidecar.name} has XMP content the rating cannot be merged into; it was left unchanged", // ui-text: ignore (XMP and log text; RatingWriteException.reason is what the user reads)
                 reason = RatingFormats.unmergeableReason(targetSidecar.name),
             )
         val tempSidecar = File(parent, ".${targetSidecar.name}.tmp.${System.nanoTime()}")
@@ -270,10 +270,10 @@ object XmpSidecarWriter {
 
     fun createXmpPacket(rating: Int): String {
         return buildString {
-            append("<?xpacket begin=\"\" id=\"W5M0MpCehiHzreSzNTczkc9d\"?>\n")
+            append("<?xpacket begin=\"\" id=\"W5M0MpCehiHzreSzNTczkc9d\"?>\n") // ui-text: ignore (XMP and log text; RatingWriteException.reason is what the user reads)
             append("<x:xmpmeta xmlns:x=\"adobe:ns:meta/\">\n")
-            append("  <rdf:RDF xmlns:rdf=\"http://www.w3.org/1999/02/22-rdf-syntax-ns#\">\n")
-            append("    <rdf:Description rdf:about=\"\" xmlns:xmp=\"$XMP_NS\">\n")
+            append("  <rdf:RDF xmlns:rdf=\"http://www.w3.org/1999/02/22-rdf-syntax-ns#\">\n") // ui-text: ignore (XMP and log text; RatingWriteException.reason is what the user reads)
+            append("    <rdf:Description rdf:about=\"\" xmlns:xmp=\"$XMP_NS\">\n") // ui-text: ignore (XMP and log text; RatingWriteException.reason is what the user reads)
             append("      <xmp:Rating>$rating</xmp:Rating>\n")
             append("    </rdf:Description>\n")
             append("  </rdf:RDF>\n")
@@ -324,7 +324,7 @@ object XmpSidecarWriter {
         val ratingElement = if (declared != null) {
             "<$declared:Rating>$rating</$declared:Rating>"
         } else {
-            "<xmp:Rating xmlns:xmp=\"$XMP_NS\">$rating</xmp:Rating>"
+            "<xmp:Rating xmlns:xmp=\"$XMP_NS\">$rating</xmp:Rating>" // ui-text: ignore (XMP and log text; RatingWriteException.reason is what the user reads)
         }
         if (startTag.endsWith("/")) {
             // Self-closing <rdf:Description … />: open it up around the rating.

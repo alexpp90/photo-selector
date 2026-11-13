@@ -9,6 +9,7 @@ import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNotNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
+import com.photoselectortoolbox.testing.en
 
 class LearnModulesTest {
 
@@ -121,7 +122,7 @@ class LearnModulesTest {
         val result = CardGenerator.generateFromEntities(entities)
         assertEquals(2, result.didWellCards.size)
         assertNotNull(result.tryNextCard)
-        assertTrue(result.tryNextCard!!.title.contains("Horizon"))
+        assertTrue(result.tryNextCard!!.title.en().contains("Horizon"))
         assertEquals(3, result.guessFirstChallenge.options.size)
     }
 
