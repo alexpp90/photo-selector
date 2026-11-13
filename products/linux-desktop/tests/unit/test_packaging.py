@@ -27,6 +27,16 @@ def get_product_root() -> Path:
     return Path(__file__).resolve().parents[2]
 
 
+def current_version() -> str:
+    """The product's version as the release machinery bumps it (`src/photo_selector_linux/__init__.py`).
+
+    The packaging verifier checks the .deb's version against the metainfo's newest release, so a test
+    that builds a package under a fixed number breaks on every release bump (0.3.0, 2026-11-13).
+    """
+    text = (get_product_root() / "src" / "photo_selector_linux" / "__init__.py").read_text(encoding="utf-8")
+    return re.search(r'__version__ = "([^"]+)"', text).group(1)
+
+
 def get_repo_root() -> Path:
     """Return repository root directory."""
     return get_product_root().parents[1]
@@ -191,14 +201,14 @@ def test_package_deb_native_builder(tmp_path):
         str(packager_script),
         "--product-dir", str(product_dir),
         "--output-dir", str(out_dir),
-        "--version", "0.2.0",
-        "--output-filename", "test-package-native_0.2.0_all.deb",
+        "--version", current_version(),
+        "--output-filename", f"test-package-native_{current_version()}_all.deb",
         "--mode", "native"
     ]
     res = subprocess.run(cmd, capture_output=True, text=True)
     assert res.returncode == 0, f"package_deb.py failed:\n{res.stderr}"
 
-    deb_path = out_dir / "test-package-native_0.2.0_all.deb"
+    deb_path = out_dir / f"test-package-native_{current_version()}_all.deb"
     assert deb_path.is_file(), f"Output package not created at {deb_path}"
 
     verify_script_dir = product_dir / "scripts"
@@ -226,14 +236,14 @@ def test_package_deb_builder(tmp_path):
         "--output-dir",
         str(out_dir),
         "--version",
-        "0.2.0",
+        current_version(),
         "--output-filename",
-        "test-package_0.2.0_all.deb",
+        f"test-package_{current_version()}_all.deb",
     ]
     res = subprocess.run(cmd, capture_output=True, text=True)
     assert res.returncode == 0, f"package_deb.py failed:\n{res.stderr}"
 
-    deb_path = out_dir / "test-package_0.2.0_all.deb"
+    deb_path = out_dir / f"test-package_{current_version()}_all.deb"
     assert deb_path.is_file(), f"Output package not created at {deb_path}"
     assert deb_path.stat().st_size > 1024, "Package size suspiciously small"
 
@@ -545,7 +555,7 @@ def test_archive_mtimes_equal_the_top_changelog_entry_and_md5sums_are_sorted(tmp
     (tmp_path / "stage").mkdir()
     with pytest.MonkeyPatch.context() as mp:
         mp.setattr(package_deb.os, "walk", reversed_walk)
-        package_deb.build_deb_pure_python(product_dir, tmp_path / "stage", deb, "0.2.0")
+        package_deb.build_deb_pure_python(product_dir, tmp_path / "stage", deb, current_version())
     data = deb.read_bytes()
     # ar members: parse header mtimes
     pos, mtimes, control = 8, [], None
@@ -597,7 +607,7 @@ def test_two_builds_a_thousand_seconds_apart_are_byte_identical(tmp_path, monkey
         stage = tmp_path / f"stage{n}"
         stage.mkdir()
         deb = tmp_path / f"p{n}.deb"
-        package_deb.build_deb_pure_python(product_dir, stage, deb, "0.2.0")
+        package_deb.build_deb_pure_python(product_dir, stage, deb, current_version())
         digests.append(hashlib.sha256(deb.read_bytes()).hexdigest())
         clock["now"] += 1000
 
@@ -609,7 +619,7 @@ def test_gzip_headers_carry_the_changelog_date_not_the_build_time(tmp_path):
     stage = tmp_path / "stage"
     stage.mkdir()
     deb = tmp_path / "p.deb"
-    package_deb.build_deb_pure_python(get_product_root(), stage, deb, "0.2.0")
+    package_deb.build_deb_pure_python(get_product_root(), stage, deb, current_version())
     data = deb.read_bytes()
     pos = 8
     found = 0
@@ -640,8 +650,8 @@ def test_package_debian_deb_option_publishes_the_given_bytes(tmp_path):
     product_dir = get_product_root()
     stage = tmp_path / "stage"
     stage.mkdir()
-    prebuilt = tmp_path / "photo-selector-linux_0.2.0-1_all.deb"
-    package_deb.build_deb_pure_python(product_dir, stage, prebuilt, "0.2.0-1")
+    prebuilt = tmp_path / f"photo-selector-linux_{current_version()}-1_all.deb"
+    package_deb.build_deb_pure_python(product_dir, stage, prebuilt, f"{current_version()}-1")
     apt = tmp_path / "apt"
 
     result = subprocess.run(
@@ -692,7 +702,7 @@ def test_native_and_pure_python_builders_list_the_same_files(tmp_path):
         deb = f"{mode}.deb"
         subprocess.run(
             [sys.executable, str(script), "--product-dir", str(product_dir), "--output-dir", str(tmp_path),
-             "--version", "0.2.0", "--output-filename", deb, "--mode", mode],
+             "--version", current_version(), "--output-filename", deb, "--mode", mode],
             check=True, capture_output=True, text=True, timeout=120,
         )
         out = subprocess.run(["dpkg-deb", "-c", str(tmp_path / deb)], check=True, capture_output=True, text=True).stdout
@@ -719,7 +729,7 @@ def test_the_native_builder_pins_the_control_directory_under_a_strict_umask(tmp_
     cmd = [
         sys.executable, str(product_dir / "scripts" / "package_deb.py"),
         "--product-dir", str(product_dir), "--output-dir", str(out_dir),
-        "--version", "0.2.0", "--output-filename", "strict_0.2.0_all.deb", "--mode", "native",
+        "--version", current_version(), "--output-filename", f"strict_{current_version()}_all.deb", "--mode", "native",
     ]
     previous = os.umask(0o077)
     try:
@@ -727,4 +737,4 @@ def test_the_native_builder_pins_the_control_directory_under_a_strict_umask(tmp_
     finally:
         os.umask(previous)
     assert res.returncode == 0, f"package_deb.py failed under umask 077:\n{res.stderr}"
-    assert (out_dir / "strict_0.2.0_all.deb").is_file()
+    assert (out_dir / f"strict_{current_version()}_all.deb").is_file()
