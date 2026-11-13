@@ -71,6 +71,10 @@ data class DebriefGroup(
     val decidedBy: DecidedBy = DecidedBy.UNKNOWN,
     /** The "Next time" lines for [focus], from [AdviceCatalog]; empty without a focus. */
     val advice: List<String> = emptyList(),
+    /** The group's photos (not stored: the debrief screen's worked pair and filter read them). */
+    val photoUris: List<String> = emptyList(),
+    /** Per metric, the photos that count against it ("Show 28"); not stored. */
+    val problemUris: Map<DebriefMetric, List<String>> = emptyMap(),
 )
 
 /**
@@ -156,7 +160,14 @@ object ShootDebriefEngine {
                 slowSoftShare = slowSoftShare(shots),
             )
         }.orEmpty()
-        return DebriefGroup(cameraClass, shots.size, names, times.minOrNull(), times.maxOrNull(), metrics, focus, decidedBy, advice)
+        val problems = metrics.associate { count ->
+            count.metric to shots.filter { matches(count.metric, it, bursts) == false }.map { it.photo.uri }
+        }
+        return DebriefGroup(
+            cameraClass, shots.size, names, times.minOrNull(), times.maxOrNull(), metrics, focus, decidedBy, advice,
+            photoUris = shots.map { it.photo.uri },
+            problemUris = problems,
+        )
     }
 
     /**

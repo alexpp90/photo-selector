@@ -156,16 +156,43 @@ object SceneComparator {
     }
 
     /** The strongest difference measured on both frames that passes its threshold, or null. */
-    internal fun measuredDifference(a: ImageItem, b: ImageItem): Difference? {
+    internal fun measuredDifference(a: ImageItem, b: ImageItem): Difference? = differences(a, b).maxByOrNull { it.strength }
+
+    /** Every difference measured on both frames that passes its threshold. */
+    private fun differences(a: ImageItem, b: ImageItem): List<Difference> {
         val sa = a.scanResult
         val sb = b.scanResult
-        val candidates = listOfNotNull(
+        return listOfNotNull(
             relative(Metric.SHARPNESS, a, b, sa?.sharpnessScore, sb?.sharpnessScore),
             ratio(Metric.HIGHLIGHT_CLIPPING, a, b, sa?.highlightClipping, sb?.highlightClipping, MIN_CLIPPING_PERCENT),
             ratio(Metric.SHADOW_CLIPPING, a, b, sa?.shadowClipping, sb?.shadowClipping, MIN_CLIPPING_PERCENT),
             ratio(Metric.NOISE, a, b, sa?.noiseLevel, sb?.noiseLevel, MIN_NOISE),
         )
-        return candidates.maxByOrNull { it.strength }
+    }
+
+    /**
+     * The debrief's worked pair from [images] (one camera group, shoot debrief SD-5): two frames of
+     * one scene, by the same rules as [findComparableScenes], with the largest measured difference
+     * in [preferred] — the metric the group's "Next time" line is about — else the largest of any
+     * metric. Null when nothing measured differs: no pair is made up.
+     */
+    fun workedPair(images: List<ImageItem>, preferred: Metric?): Difference? {
+        var best: Difference? = null
+        var bestPreferred: Difference? = null
+        clusters(images).forEach { cluster ->
+            val ordered = if (cluster.isBurst) cluster.photos else cluster.photos.sortedBy { timeOf(it) }
+            for (i in ordered.indices) {
+                for (j in (i + 1)..min(ordered.lastIndex, i + MAX_NEIGHBOURS)) {
+                    if (!cluster.isBurst && !sameScene(ordered[i], ordered[j])) continue
+                    val found = differences(ordered[i], ordered[j])
+                    found.maxByOrNull { it.strength }?.let { if (best == null || it.strength > best!!.strength) best = it }
+                    found.firstOrNull { it.metric == preferred }?.let {
+                        if (bestPreferred == null || it.strength > bestPreferred!!.strength) bestPreferred = it
+                    }
+                }
+            }
+        }
+        return bestPreferred ?: best
     }
 
     /** Sharpness: the difference is at least [MIN_SHARPNESS_REL_DIFF] of the higher score. */

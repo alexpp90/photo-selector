@@ -11,6 +11,7 @@ import androidx.compose.ui.test.junit4.createAndroidComposeRule
 import androidx.compose.ui.test.onAllNodesWithTag
 import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.performClick
+import androidx.compose.ui.test.performScrollTo
 import androidx.compose.ui.unit.DpSize
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.ViewModel
@@ -118,9 +119,15 @@ class BurstsReachLearnTest {
     }
 
     @Test
-    fun `Compare pairs the frames of a burst whatever their focal lengths`() {
+    fun `the worked pair is two frames of a burst whatever their focal lengths`() {
         val selector = cull(zoomBurst)
-        val learn = LearnViewModel(InMemoryLearnRepository()).also { viewModels += it }
+        val repo = InMemoryLearnRepository()
+        zoomBurst.forEach { p ->
+            repo.facts[p.uri] = listOf(ScanFacts.MARKER to "1", ScanFacts.CAMERA_CLASS to CameraClass.INTERCHANGEABLE.key).map { (k, v) ->
+                TechniqueFactEntity(p.uri, k, v, 0.9, null, p.fileSize, p.lastModified, TechniqueFactDetector.DETECTOR_VERSION)
+            }
+        }
+        val learn = LearnViewModel(repo).also { viewModels += it }
         val composition = LearnCompositionViewModel(mockk(relaxed = true)).also { viewModels += it }
         rule.setContent {
             InspectScreen(
@@ -130,13 +137,16 @@ class BurstsReachLearnTest {
                 learnViewModel = learn,
             )
         }
-        rule.onNodeWithTag(LearnTab.COMPARE.tag).performClick()
+        rule.onNodeWithTag(LearnTab.DEBRIEF.tag).performClick()
+        rule.waitForIdle()
+        rule.onNodeWithTag("debrief_open_pair").performScrollTo().performClick()
         rule.waitForIdle()
 
-        assertEquals("no 'No measured difference'", 0, rule.onAllNodesWithTag("compare_empty", useUnmergedTree = true).fetchSemanticsNodes().size)
-        val better = rule.onNodeWithTag("compare_frame_better", useUnmergedTree = true).fetchSemanticsNode().config
-            .getOrNull(SemanticsProperties.ContentDescription).orEmpty().joinToString()
-        assertTrue(better, better.contains("DSC_0001.JPG"))
+        val spoken = listOf("debrief_pair_a", "debrief_pair_b").map { tag ->
+            rule.onNodeWithTag(tag, useUnmergedTree = true).fetchSemanticsNode().config
+                .getOrNull(SemanticsProperties.ContentDescription).orEmpty().joinToString()
+        }
+        assertEquals(listOf("Photo A, 1/250s", "Photo B, 1/250s"), spoken)
     }
 
     @Test

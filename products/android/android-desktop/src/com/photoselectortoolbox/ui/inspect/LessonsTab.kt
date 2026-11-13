@@ -54,7 +54,6 @@ internal fun LessonsTabContent(
     factsByUri: Map<String, List<TechniqueFactEntity>>,
     completedLessons: Map<String, LessonProgressEntity>,
     onLessonCompleted: (LessonProgressEntity) -> Unit,
-    onSetPracticeGoal: (String) -> Unit,
 ) {
     val activeLesson: MicroLesson? = selectedLessonId?.let { LessonCatalog.getById(it) }
     if (activeLesson != null) {
@@ -161,27 +160,6 @@ internal fun LessonsTabContent(
                                     .semantics { liveRegion = LiveRegionMode.Polite },
                             )
                         }
-                    }
-                }
-
-                TouchTarget(
-                    onClick = { onSetPracticeGoal(activeLesson.id) },
-                    testTag = "set_practice_goal_button",
-                    modifier = Modifier.fillMaxWidth(),
-                    shape = RoundedCornerShape(8.dp),
-                ) {
-                    Surface(
-                        shape = RoundedCornerShape(8.dp),
-                        color = BrandAccentDeep,
-                        modifier = Modifier.fillMaxWidth(),
-                    ) {
-                        Text(
-                            text = "Practice this next shoot",
-                            style = MaterialTheme.typography.labelMedium,
-                            fontWeight = FontWeight.Bold,
-                            color = Color.White,
-                            modifier = Modifier.padding(10.dp),
-                        )
                     }
                 }
             }

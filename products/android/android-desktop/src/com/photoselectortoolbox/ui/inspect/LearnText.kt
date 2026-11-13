@@ -3,6 +3,10 @@ package com.photoselectortoolbox.ui.inspect
 import com.photoselectortoolbox.domain.model.SpiralOrientation
 import com.photoselectortoolbox.domain.format.ExifFormatter
 import com.photoselectortoolbox.domain.scoring.ScoreMetric
+import com.photoselectortoolbox.data.model.ScanResult
+import com.photoselectortoolbox.domain.learn.SceneComparator
+import com.photoselectortoolbox.domain.learn.DebriefMetric
+import com.photoselectortoolbox.domain.learn.CameraClass
 
 /**
  * The plain-language words of the Learn screen's Photo Coach and guide bar, kept out of the
@@ -76,4 +80,66 @@ object LearnText {
     /** What a quiz answer says under its question: the result in a word, then the explanation. */
     fun quizFeedback(correct: Boolean, explanation: String): String =
         (if (correct) "Right. " else "Not quite. ") + explanation
+
+    // ── Debrief (shoot debrief SD-4, SD-5) ──
+
+    /** A camera class in words, for the chip and its menu. */
+    fun cameraClass(c: CameraClass): String = when (c) {
+        CameraClass.PHONE -> "Phone"
+        CameraClass.COMPACT -> "Compact"
+        CameraClass.INTERCHANGEABLE -> "Interchangeable lens"
+        CameraClass.DRONE -> "Drone"
+        CameraClass.ACTION -> "Action cam"
+        CameraClass.UNKNOWN -> "Unknown camera"
+    }
+
+    /** The chip's spoken name: what it says and what it does. */
+    fun cameraChipSpoken(c: CameraClass): String =
+        "Shot with ${cameraClass(c).lowercase()}, change"
+
+    fun metric(m: DebriefMetric): String = when (m) {
+        DebriefMetric.HIGHLIGHTS_KEPT -> "Highlights kept"
+        DebriefMetric.LEVEL_HORIZON -> "Level horizon"
+        DebriefMetric.SUBJECT_OFF_EDGE -> "Subject off the edge"
+        DebriefMetric.HAND_HOLD -> "Fast enough to hand-hold"
+        DebriefMetric.SHARP_FRAMES -> "Not clearly soft"
+    }
+
+    /** The lesson a focus links to. */
+    fun lessonFor(m: DebriefMetric): String = when (m) {
+        DebriefMetric.HIGHLIGHTS_KEPT -> "exposure.histogram_clipping"
+        DebriefMetric.LEVEL_HORIZON -> "composition.horizon"
+        DebriefMetric.SUBJECT_OFF_EDGE -> "composition.rule_of_thirds"
+        DebriefMetric.HAND_HOLD,
+        DebriefMetric.SHARP_FRAMES -> "motion.reciprocal_rule"
+    }
+
+    fun photos(n: Int): String = if (n == 1) "1 photo" else "$n photos"
+
+    /** A metric row as one spoken phrase: label, value, previous value. */
+    fun metricSpoken(label: String, matching: Int, total: Int, before: Int?): String =
+        "$label, $matching of $total" + (before?.let { ", before $it percent" } ?: "")
+
+    const val NOT_SCANNED = "Scan this folder to see how the shoot went."
+    const val NO_CAMERA_DATA = "No camera data"
+
+    fun partial(scanned: Int, total: Int): String = "$scanned of $total photos scanned"
+
+    /** The worked pair's question, from the measurement that tells the frames apart. */
+    fun pairQuestion(m: SceneComparator.Metric): String = when (m) {
+        SceneComparator.Metric.SHARPNESS -> "Which is sharper?"
+        SceneComparator.Metric.HIGHLIGHT_CLIPPING -> "Which kept the bright areas?"
+        SceneComparator.Metric.SHADOW_CLIPPING -> "Which kept the shadows?"
+        SceneComparator.Metric.NOISE -> "Which is less grainy?"
+    }
+
+    /** The label drawn on a frame of the worked pair once revealed: the measured value in words. */
+    fun pairValue(m: SceneComparator.Metric, scan: ScanResult?): String = when (m) {
+        SceneComparator.Metric.SHARPNESS -> "Sharpness ${scan?.sharpnessScore?.toInt() ?: "?"}"
+        SceneComparator.Metric.HIGHLIGHT_CLIPPING ->
+            String.format(java.util.Locale.US, "Bright areas lost %.1f %%", scan?.highlightClipping ?: 0.0)
+        SceneComparator.Metric.SHADOW_CLIPPING ->
+            String.format(java.util.Locale.US, "Shadows lost %.1f %%", scan?.shadowClipping ?: 0.0)
+        SceneComparator.Metric.NOISE -> String.format(java.util.Locale.US, "Grain %.1f", scan?.noiseLevel ?: 0.0)
+    }
 }

@@ -65,6 +65,8 @@ Other screens of Frameduel, scoped to that screen:
 
 - **Learn** (`handleInspectKey`, `ui/inspect/InspectScreen.kt:173-221`): `L` and `Esc` back to the
   selector (`I` no longer does); `←` / `→`; `0`–`5` set the rating (0 clears, keypad too); `X` rejects.
+  In the debrief's worked pair (`handlePairKey`, `ui/inspect/DebriefPairView.kt`) `A` / `B` choose a
+  frame, `Esc` closes the pair, and `0`–`5` and `X` do nothing (the photo they rate is not shown).
 - **Fullscreen viewer** (`ui/selector/FullscreenViewer.kt`): `Esc` (the zoom first, then the viewer),
   `Delete`/`Backspace`, `M`, `C`, `I` (pin info panel), `←` / `→` (keep the zoom and the pan),
   `Space` (fit ↔ 100 %), `Shift` + arrows (pan while zoomed), Ctrl/Meta `Z`; the mouse wheel zooms

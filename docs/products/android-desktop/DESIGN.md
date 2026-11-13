@@ -228,14 +228,34 @@ Learn carried a **Beta** chip until Compare showed both frames and Learn's progr
 (decision #18's exit condition); both hold since 2026-11-13, so neither the Tools menu nor
 Learn's control bar shows it. The control bar starts with the way back to Cull.
 
-**Learn · Compare** (`[USER 2026-11-12]` decision #17). On the Compare tab the canvas holds the
-pair side by side at equal size, the frame that is better on the deciding measurement first (a
-*Better* chip — a word, never colour alone — and the file name under each, spoken "Better frame,
-«name»" / "Other frame, «name»"). The side panel lists one card per scene (title, "Why one worked
-better:" and the measured differences); a card is a radio row that picks the pair the canvas shows,
-the first scene by default. The composition guides are not offered on Compare — the control bar
-keeps only the way back. With no pair of one scene that differs measurably, the
-canvas says *No measured difference* and the side panel lists nothing.
+**Learn · Debrief** (shoot debrief SD-4, SD-5). Learn has three tabs, **Debrief**, **Photo** (the
+photo on screen, formerly Explore) and **Lessons**; Compare and Practice folded into the debrief.
+The first entry to Learn after a scan ran to its end opens on Debrief; every other entry opens on
+the tab last used. The debrief's cards sit inside the existing side panel (400 dp wide; the 290 dp
+bottom strip in the compact layout, where they scroll), so the photo keeps its size beside them.
+One card per camera class (`debrief_group_<class>`), most photos first, unknown last; with three
+or more classes only the largest starts open and the others are heading rows with an expand
+control. Heading: the camera chip (`debrief_camera_chip`, a 48 dp control naming the class, spoken
+"Shot with phone, change", which opens the list of classes and keeps the choice per camera), and
+under it the camera names and the photo count. Up to three counts (`debrief_metric_<kind>`): the
+label and "104 of 132", a 6 dp bar that never carries the value alone, and "Before: 71 %" when the
+class has a previous shoot — a plain figure, no arrow, colour or adjective; each count is one
+spoken phrase ("Level horizon, 15 of 25, before 75 percent"). The focus (`debrief_focus`): one
+"Next time: …" line from the advice catalog, then *Show 28* with a filter glyph (the filmstrip shows
+the photos behind the number; *Show all* again), *Lesson*, *Track* (the focus becomes the one
+practice goal; a later shoot of the class shows "Goal: 78 % (was 61 %)") and *Worked pair*. A
+partial scan says "n of m photos scanned"; a folder not scanned says one sentence and offers
+*Scan*; a folder without camera data says "No camera data" once.
+
+The **worked pair** replaces the photo in the canvas (the only view that does; the guides are hidden
+while it shows): the question first ("Which is sharper?", "Which kept the bright areas?"), then the
+two frames as A and B in shooting order (`debrief_pair_a`, `debrief_pair_b`; a radio group, each a
+≥ 48 dp target spoken "Photo A, 1/250s · f/4.0 · ISO 200"), side by side, one over the other in a
+canvas narrower than 560 dp (to confirm on a device). Tap or `A` / `B` chooses, *Show me* reveals
+without a guess. After it both frames stay, each with its settings under it and the measured value
+on it as a label (the better one says "Better"), and up to three sentences explain it (a polite live
+region that takes the focus), worded by who chose the exposure. The guess is neither scored nor
+stored. `0`–`5` and `X` do nothing while it shows; `Esc` closes it.
 
 Each screen has one name on every surface — the sidebar, the rail, the bottom bar, the Tools
 menu, the guide and spoken text: Cull, Learn, Stats, Dupes, Setup (`Screen.label`). The burst
