@@ -42,6 +42,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ### Fixed
 
+- Dupes and Stats show their errors: "Keep one copy" when you tick the last copy of a photo, "Scan failed", "Could not delete …" and "Analysis failed" appear as a card, as in Cull; before, these screens said nothing.
 - Zoomed in fullscreen or on a maximised frame, panning stops at the photo's edge; dragging, pinching, the wheel or `Shift`+arrows could push the photo off the screen. The navigator thumbnail's outline now shows the part of the photo you see, instead of a fixed box.
 - A portrait photo from a camera (stored on its side with an EXIF orientation) gets a portrait frame instead of a landscape one.
 - An exposure time stored a hair under its fraction reads as that fraction ("1/250s"), not one step slower ("1/249s").

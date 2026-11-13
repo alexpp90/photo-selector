@@ -1,6 +1,7 @@
 package com.photoselectortoolbox.ui.statistics
 
 import android.net.Uri
+import com.photoselectortoolbox.ui.components.ToolErrorSnackbar
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.layout.Arrangement
@@ -105,6 +106,12 @@ fun StatisticsScreen(
                 }
             }
         }
+        ToolErrorSnackbar(
+            message = uiState.error,
+            sequence = uiState.errorSequence,
+            onDismiss = viewModel::clearError,
+            suppressed = uiState.missingGrantPrompt,
+        )
     }
 }
 

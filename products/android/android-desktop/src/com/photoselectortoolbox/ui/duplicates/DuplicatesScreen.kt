@@ -1,6 +1,7 @@
 package com.photoselectortoolbox.ui.duplicates
 
 import com.photoselectortoolbox.ui.components.handCursor
+import com.photoselectortoolbox.ui.components.ToolErrorSnackbar
 import android.net.Uri
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
@@ -252,6 +253,12 @@ fun DuplicatesScreen(
                 }
             }
         }
+        ToolErrorSnackbar(
+            message = uiState.error,
+            sequence = uiState.errorSequence,
+            onDismiss = viewModel::clearError,
+            suppressed = uiState.missingGrantPrompt,
+        )
     }
         if (uiState.undoableDeleteCount > 0) {
             HeldDeleteBar(count = uiState.undoableDeleteCount, onUndo = viewModel::undoDelete)
