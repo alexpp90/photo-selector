@@ -225,29 +225,18 @@ def _walk(widget):
         yield from _walk(child)
 
 
-def _grid_cells(grid):
-    """name -> (column, row, width, height) of every grid child."""
-    if STUBBED:
-        return {c.get_name(): (col, row, w, h) for c, col, row, w, h in grid.attached}
-    return {c.get_name(): tuple(grid.query_child(c)) for c in _children(grid)}
-
-
 def _named(canvas, name):
     return [w for w in _walk(canvas.slots_box) if w.get_name() == name]
 
 
-def test_3up_is_a_60_40_grid_without_fixed_size_request(fake_gtk):
+@pytest.mark.skipif(STUBBED, reason="needs the real GTK 4 widgets (xvfb-run)")
+def test_3up_frames_follow_the_solver_without_fixed_size_request():
+    """Decision #30: the panel, not a 60/40 grid; no frame has a size request and the lab ids stay."""
     _vm, canvas = _canvas(3)
-    grid = _children(canvas.slots_box)[0]
-    assert _grid_cells(grid) == {
-        "slot_current": (0, 0, 2, 3),
-        "slot_previous": (0, 3, 1, 2),
-        "slot_next": (1, 3, 1, 2),
-    }
-    assert grid.get_row_homogeneous() if not STUBBED else True
-    top = next(w for w in _children(grid) if w.get_name() == "slot_current") if not STUBBED else None
-    if top is not None:
-        assert top.get_size_request() == (-1, -1)
+    panel = _children(canvas.slots_box)[0]
+    assert panel.get_name() == "three_up_panel"
+    assert {c.get_name() for c in _children(panel)} == {"slot_current", "slot_previous", "slot_next"}
+    assert all(c.get_size_request() == (-1, -1) for c in _children(panel))
 
 
 @pytest.mark.parametrize("mode", [1, 2, 3])
@@ -329,18 +318,18 @@ def test_shorten_middle_keeps_the_distinguishing_end():
 def test_move_message_names_file_destination_and_companion_count():
     vm, messages = _bundle_vm("move", ["IMG_20260814_064000.JPG", "IMG_20260814_064000.xmp"])
     vm.cull_move()
-    assert messages == ["Moved IMG_…_064000 + 2 to Selection/"]
+    assert messages == ["Moved IMG_…_064000 +2 · Selection"]
 
 
 def test_delete_after_move_shows_the_trash_message_not_the_move_message():
     vm, messages = _bundle_vm("move", ["IMG_20260814_064000.JPG"])
     bar = ActionBarView(viewmodel=vm)
     vm.cull_move()
-    assert bar.status_text == "Moved IMG_…_064000 + 1 to Selection/"
+    assert bar.status_text == "Moved IMG_…_064000 +1 · Selection"
     trash = vm.file_manager.trash_candidate.return_value
     trash.affected_paths = [(vm.candidates[0].primary_path, Path("/tmp/trash/x"))]
     vm.cull_trash()
-    assert bar.status_text == "Moved IMG_…_064001 to Trash"
+    assert bar.status_text == "Moved IMG_…_064001 · Trash"
 
 
 def test_a_new_action_clears_the_previous_outcome_while_it_runs():
@@ -399,7 +388,7 @@ def test_message_fits_unclipped_and_buttons_do_not_move(width, studio_css):
     bar._on_surface_layout(None, 1600, 60)  # a resize between two widths
     layout()
     before = layout()
-    text = "Moved IMG_…_064000 + 2 to Selection/"
+    text = "Moved IMG_…_064000 +2 · Selection"
     vm._notify(text, "status")
     after = layout()
     assert before["btn_move"] == after["btn_move"]

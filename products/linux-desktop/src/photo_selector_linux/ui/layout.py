@@ -107,6 +107,109 @@ def three_up_geometry(
     return top_rect, bl_rect, br_rect
 
 
+#: Pixels a photo frame spends on things that are not the picture: the badge row above it and the
+#: file name row below it, with the frame's spacing. Measured on the real widgets
+#: (``test_three_up_solver.py``), rounded up.
+FRAME_CHROME: int = 64
+#: The widest gap between two frames of the 3-Up view (R-LINUX-UI-03 measures it).
+THREE_UP_GAP: int = 8
+#: A neighbour's picture area is at most this share of the active one (0.64 = 80 % of its width and
+#: height, so the view stays "one over two") and at least ``NEIGHBOUR_MIN_SHARE`` of it.
+NEIGHBOUR_MAX_SHARE: float = 0.64
+NEIGHBOUR_MIN_SHARE: float = 0.25
+
+
+@dataclass(frozen=True)
+class ThreeUpPlan:
+    """Where the frames of the 3-Up view go, and the picture each one shows (canvas coordinates).
+
+    ``neighbours`` are the frames of the photos that exist, left to right (previous, next); a missing
+    first or last photo has no frame at all. ``pictures`` are the fitted picture rects inside the
+    frames, ``top_picture`` first.
+    """
+
+    top: Rect
+    neighbours: Tuple[Rect, ...]
+    top_picture: Rect
+    neighbour_pictures: Tuple[Rect, ...]
+
+    @property
+    def picture_area(self) -> int:
+        return self.top_picture.width * self.top_picture.height + sum(
+            r.width * r.height for r in self.neighbour_pictures
+        )
+
+
+def _picture_in(frame: Rect, aspect: float, chrome: int) -> Rect:
+    """The picture a frame shows: its inside minus the chrome rows, the photo fitted and centred."""
+    inner = Rect(frame.x, frame.y + chrome // 2, frame.width, max(1, frame.height - chrome))
+    return fit_aspect_rect(inner, aspect)
+
+
+def _area(rect: Rect) -> int:
+    return rect.width * rect.height
+
+
+def three_up_plan(
+    width: int,
+    height: int,
+    aspect: float = 1.5,
+    neighbours: int = 2,
+    gap: int = THREE_UP_GAP,
+    chrome: int = FRAME_CHROME,
+    min_top: int = 1,
+    min_low: int = 1,
+) -> ThreeUpPlan:
+    """Solve the 3-Up view for a canvas of ``width`` x ``height``: one active photo over
+    ``neighbours`` (0, 1 or 2) equal frames (decision #30, [USER 2026-11-12]).
+
+    The split is the one with the largest total picture area where a neighbour's picture is
+    between ``NEIGHBOUR_MIN_SHARE`` and ``NEIGHBOUR_MAX_SHARE`` of the active one. With no
+    neighbour the active photo takes the whole canvas. With one, the neighbour keeps the
+    two-neighbour frame, centred: the solver found no split that makes both remaining pictures
+    larger (the neighbour's height limits it, not its width), so the missing card's space goes to
+    the active photo only when there is no neighbour at all. ``min_top`` / ``min_low`` are the
+    frames' minimum heights, which win over the split.
+    """
+    w, h = max(2, int(width)), max(2, int(height))
+    gap = max(0, min(int(gap), min(w, h) // 4))
+    aspect = aspect if aspect > 0 else 1.5
+    if neighbours <= 0:
+        top = Rect(0, 0, w, h)
+        return ThreeUpPlan(top, (), _picture_in(top, aspect, chrome), ())
+
+    frame_w = max(1, (w - gap) // 2)
+    lo = chrome + 20
+    best = None  # (total, top_height)
+    for top_h in range(lo, max(lo + 1, h - gap - lo)):
+        top = Rect(0, 0, w, top_h)
+        low = Rect(0, top_h + gap, frame_w, h - top_h - gap)
+        top_area, low_area = _area(_picture_in(top, aspect, chrome)), _area(_picture_in(low, aspect, chrome))
+        if low_area > NEIGHBOUR_MAX_SHARE * top_area or low_area < NEIGHBOUR_MIN_SHARE * top_area:
+            continue
+        total = top_area + 2 * low_area
+        if best is None or total > best[0]:
+            best = (total, top_h)
+    top_h = best[1] if best is not None else max(1, int(round(h * 0.6)))
+    # A frame is never given less than its minimum height (a window at its smallest size).
+    top_h = max(min_top, min(top_h, h - gap - max(1, min_low)))
+
+    top = Rect(0, 0, w, top_h)
+    low_y, low_h = top_h + gap, max(1, h - top_h - gap)
+    if neighbours == 1:
+        # The lone neighbour keeps the two-neighbour frame, centred. A wider frame was tried
+        # (the neighbour's height, not its width, limits its picture) and gains nothing.
+        low = Rect((w - frame_w) // 2, low_y, frame_w, low_h)
+        return ThreeUpPlan(top, (low,), _picture_in(top, aspect, chrome), (_picture_in(low, aspect, chrome),))
+
+    left = Rect(0, low_y, frame_w, low_h)
+    right = Rect(w - frame_w, low_y, frame_w, low_h)
+    return ThreeUpPlan(
+        top, (left, right), _picture_in(top, aspect, chrome),
+        (_picture_in(left, aspect, chrome), _picture_in(right, aspect, chrome)),
+    )
+
+
 def can_fit_1to1_development(
     width: int = 6000,
     height: int = 4000,

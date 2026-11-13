@@ -36,6 +36,7 @@ SHORTCUTS = [
         ("2-Up (Side-by-Side)", "2"),
         ("3-Up", "3"),
         ("1:1 Pixel Zoom Toggle", "Space"),
+        ("Pan the 1:1 View", "Shift+Arrows"),
         ("Reset Zoom, then Leave Full Screen", "Escape"),
         ("Toggle Metadata HUD", "I"),
         ("View Order Menu (Newest, Oldest, File Name, Lowest Sharpness)", "S"),

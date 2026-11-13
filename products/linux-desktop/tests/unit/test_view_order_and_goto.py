@@ -226,11 +226,11 @@ def test_the_menu_offers_the_four_orders_and_the_word_beside_the_counter_names_t
     win.lookup_action("view_order").activate(GLib.Variant.new_string("oldest"))
     assert win.viewmodel.sort_order == "oldest"
     assert win.lbl_order.get_label() == "Oldest"
-    assert win.btn_order.get_tooltip_text() == "Order: Oldest first (S)"
+    assert win.btn_order.get_tooltip_text() == "Order: Oldest first, by file time (S)"
     for order, word in (("natural", "Name"), ("lowest_sharpness_first", "Blurry"), ("newest", "Newest")):
         win.lookup_action("view_order").activate(GLib.Variant.new_string(order))
         assert win.lbl_order.get_label() == word
-    assert win.btn_order.get_menu_model() is not None
+    assert win.btn_order.get_popover() is not None  # the radio group plus "Stop at sharpness"
     win.destroy()
 
 
@@ -336,6 +336,11 @@ def test_full_screen_hides_no_chrome_so_every_toggle_stays_reachable(tmp_path: P
     assert win.canvas_view.hud_enabled is (not shown)
     assert engine.dispatch(0x20, 0) is True  # Space: zoom, still on its key
     assert win.canvas_view.is_1to1_zoom
+    pans = []
+    win.canvas_view.pan_by = lambda dx, dy: pans.append((dx, dy)) or True
+    assert engine.dispatch(0xFF53, 1) is True and pans == [(1, 0)]  # Shift+Right: the pan key works in it too
+    assert win.spin_stop_at is not None and win.btn_order.get_visible()  # "Stop at" lives in the order panel
+    del win.canvas_view.pan_by
     assert engine.dispatch(0xFF1B, 0) is True and not win.canvas_view.is_1to1_zoom
     assert engine.dispatch(0x66, 0) is True and calls[-1] == "unfullscreen"  # F: out again
     win.destroy()

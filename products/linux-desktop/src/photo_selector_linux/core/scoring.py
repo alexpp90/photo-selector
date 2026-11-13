@@ -188,6 +188,32 @@ def evaluate_focus_score(
     }
 
 
+GRID: int = 3
+
+
+def evaluate_focus_grid(image: np.ndarray) -> Optional[Tuple[float, ...]]:
+    """Sharpness of each of the 3 x 3 areas of the photo, row by row (plan 2.3b).
+
+    Every area is scored like the centre (same Laplacian, same noise floor), on cells of one size
+    so the workspace is reused. ``None`` for an image too small to divide. The headline score and
+    the thresholds are not derived from this.
+    """
+    if image is None or image.ndim < 2:
+        return None
+    cell_h, cell_w = image.shape[0] // GRID, image.shape[1] // GRID
+    if cell_h < 5 or cell_w < 5:
+        return None
+    scores = []
+    for row in range(GRID):
+        for col in range(GRID):
+            cell = image[row * cell_h:(row + 1) * cell_h, col * cell_w:(col + 1) * cell_w]
+            result = evaluate_focus_score(cell, crop_to_center=False)
+            if result is None:
+                return None
+            scores.append(result["score"])
+    return tuple(scores)
+
+
 def evaluate_exposure_clipping(
     image: np.ndarray,
     highlight_min: int = 254,
@@ -287,6 +313,7 @@ def compute_quality_scores(
     )
 
     return QualityScores(
+        grid=evaluate_focus_grid(arr),
         sharpness=focus["score"],
         noise=focus["noise_sigma"],
         highlight_clipping=clipping["highlight_clipping"],

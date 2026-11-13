@@ -38,6 +38,7 @@ from photo_selector_linux.core.image_source import (
     read_full_resolution_source,
 )
 from photo_selector_linux.core.metadata import read_metadata
+from photo_selector_linux.core.rating import read_sidecar_rating
 from photo_selector_linux.core.scoring import compute_quality_scores
 
 logger = logging.getLogger(__name__)
@@ -147,6 +148,8 @@ class PhotoTextureLoader:
         self._pool = ThreadPoolExecutor(max_workers=workers, thread_name_prefix="photo-decode")
         # The whole-folder scoring pass has its own workers: viewing a photo never waits for it.
         self._score_pool = ThreadPoolExecutor(max_workers=workers, thread_name_prefix="photo-score")
+        # Capture times are header reads, so they have a pool of their own and never queue behind scoring.
+        self._meta_pool = ThreadPoolExecutor(max_workers=workers, thread_name_prefix="photo-meta")
         self._pending: Dict[Tuple[Path, Optional[int]], List[TextureCallback]] = {}
         # Queued decodes of the folder that was left are cancelled by ``clear()``; ``_generation``
         # also keeps a decode that was already running from filling the next folder's cache.
@@ -255,6 +258,40 @@ class PhotoTextureLoader:
 
         return cancel
 
+    def run_capture_pass(self, candidates, on_read) -> Callable[[], None]:
+        """Read the EXIF of ``candidates`` in the background (capture time, plan 2.2);
+        ``on_read(candidate, metadata)`` runs on the main loop (``None`` when unreadable).
+        Like the scoring pass it never writes the candidate. Returns the cancel function."""
+        cancelled = threading.Event()
+
+        def work(candidate) -> None:
+            if cancelled.is_set():
+                return
+            path = candidate.primary_path
+            try:
+                data = path.read_bytes() if is_gvfs_fuse_path(path) else None
+                meta = read_metadata(path, data)
+            except Exception:
+                meta = None
+            if cancelled.is_set() or GLib is None:
+                return
+
+            def deliver() -> bool:
+                if not cancelled.is_set():
+                    on_read(candidate, meta)
+                return False
+
+            GLib.idle_add(deliver, priority=GLib.PRIORITY_DEFAULT)
+
+        futures = [self._meta_pool.submit(work, candidate) for candidate in candidates]
+
+        def cancel() -> None:
+            cancelled.set()
+            for future in futures:
+                future.cancel()
+
+        return cancel
+
     def _score_candidate(self, candidate):
         path = candidate.primary_path
         try:
@@ -274,6 +311,7 @@ class PhotoTextureLoader:
     def shutdown(self) -> None:
         self._pool.shutdown(wait=False, cancel_futures=True)
         self._score_pool.shutdown(wait=False, cancel_futures=True)
+        self._meta_pool.shutdown(wait=False, cancel_futures=True)
         self._cache.clear()
 
     def _work(self, key, candidate, generation: Optional[int] = None) -> None:
@@ -284,6 +322,9 @@ class PhotoTextureLoader:
             data = path.read_bytes() if is_gvfs_fuse_path(path) else None
             if candidate.exif is None:
                 candidate.exif = read_metadata(path, data)
+            if not candidate.sidecar_checked:  # decision #32: shown on the info card, never written
+                candidate.sidecar_rating = read_sidecar_rating(candidate.sidecar_path)
+                candidate.sidecar_checked = True
             if max_edge is None:  # 1:1 zoom: full sensor resolution for RAW
                 source = read_full_resolution_source(path, candidate.filename, data)
             else:
