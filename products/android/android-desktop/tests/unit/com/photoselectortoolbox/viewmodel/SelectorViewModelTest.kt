@@ -543,11 +543,13 @@ class SelectorViewModelTest {
      */
     @Test
     fun `a failed undo of a move keeps the move counted`() = runTest {
-        val moved = "content://test/sel/a"
+        // A document URI, as a provider hands out: kept files are keyed by its document id.
+        val moved = "content://test.docs/tree/root/document/root%2FSelection%2Fa"
+        val keptAs = "root/Selection/a"
         coEvery { imageRepository.moveImage(any(), any(), any(), any()) } returns
             FileOperationResult.success("content://test/folder/a", moved)
         coEvery { imageRepository.undoMoveBundle(any(), any(), any(), any(), any()) } returnsMany listOf(
-            FileOperationResult.failure("content://test/sel/a", "provider hiccup"),
+            FileOperationResult.failure(moved, "provider hiccup"),
             FileOperationResult.success(moved, "content://test/folder/a"),
         )
         val viewModel = loadFolder(image("a"), image("b"))
@@ -556,11 +558,32 @@ class SelectorViewModelTest {
 
         viewModel.undoLastOperation()
         assertEquals("the move failed to go back, so it still counts", 1, viewModel.uiState.value.sessionMovedCount)
-        assertTrue(viewModel.uiState.value.sessionKeptFiles.containsKey("a"))
+        assertEquals(setOf(keptAs), viewModel.uiState.value.sessionKeptFiles.keys)
 
         viewModel.undoLastOperation()
         assertEquals(0, viewModel.uiState.value.sessionMovedCount)
-        assertTrue(!viewModel.uiState.value.sessionKeptFiles.containsKey("a"))
+        assertTrue(viewModel.uiState.value.sessionKeptFiles.isEmpty())
+    }
+
+    /**
+     * Safe to format (REQ-AND-WORKFLOW.02): a moved file whose destination the transfer did not
+     * report as a document is recorded as unverifiable; undoing the move forgets it again, or the
+     * Done card would count a photo that went back as missing.
+     */
+    @Test
+    fun `an undone move leaves no kept file behind, whatever its destination looked like`() = runTest {
+        coEvery { imageRepository.moveImage(any(), any(), any(), any()) } returns
+            FileOperationResult.success("content://test/folder/a", "content://test/sel/a")
+        coEvery { imageRepository.undoMoveBundle(any(), any(), any(), any(), any()) } returns
+            FileOperationResult.success("content://test/sel/a", "content://test/folder/a")
+        val viewModel = loadFolder(image("a"), image("b"))
+        viewModel.moveToSelection()
+        assertEquals(1, viewModel.uiState.value.sessionKeptFiles.size)
+
+        viewModel.undoLastOperation()
+
+        assertEquals(0, viewModel.uiState.value.sessionMovedCount)
+        assertTrue(viewModel.uiState.value.sessionKeptFiles.isEmpty())
     }
 
     /**

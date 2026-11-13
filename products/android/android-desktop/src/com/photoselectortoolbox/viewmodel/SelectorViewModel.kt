@@ -1717,7 +1717,7 @@ class SelectorViewModel @Inject constructor(
                     it.withRestored(OptimisticEdits.restore(it.listState, operation.slots)).copy(
                         undoHistory = remainingHistory,
                         sessionMovedCount = (it.sessionMovedCount - 1).coerceAtLeast(0),
-                        sessionKeptFiles = it.sessionKeptFiles - KeptFiles.keysOf(operation.destinationUris),
+                        sessionKeptFiles = it.sessionKeptFiles - KeptFiles.keysOf(operation.slots.flatMap { s -> s.image.allFiles }, operation.destinationUris),
                         snackbarUndoAvailable = false,
                         snackbarMessage = null,
                     )
@@ -1847,8 +1847,8 @@ class SelectorViewModel @Inject constructor(
                     current.withList(reapplied.state).copy(
                         undoHistory = UndoPolicy.push(current.undoHistory, operation).history,
                         sessionMovedCount = current.sessionMovedCount + 1,
-                        sessionKeptFiles = current.sessionKeptFiles +
-                            operation.slots.flatMap { it.image.allFiles }.associate { it.fileName to it.fileSize },
+                        // Keyed as the transfer recorded them (KeptFiles), so the retry forgets them again.
+                        sessionKeptFiles = current.sessionKeptFiles + KeptFiles.of(operation.slots.flatMap { it.image.allFiles }, operation.destinationUris),
                     )
                 }
                 if (stillOpen()) reportError("Could not move the image back")
