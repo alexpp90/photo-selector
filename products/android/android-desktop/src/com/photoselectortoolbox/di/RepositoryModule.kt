@@ -4,6 +4,8 @@ import com.photoselectortoolbox.data.repository.CacheRepository
 import com.photoselectortoolbox.data.repository.CacheRepositoryImpl
 import com.photoselectortoolbox.data.repository.ImageRepository
 import com.photoselectortoolbox.data.repository.ImageRepositoryImpl
+import com.photoselectortoolbox.data.repository.LearnRepository
+import com.photoselectortoolbox.data.repository.LearnRepositoryImpl
 import com.photoselectortoolbox.data.repository.RepositoryExifReader
 import com.photoselectortoolbox.data.source.LocalImageSource
 import com.photoselectortoolbox.data.source.LocalImageSourceImpl
@@ -41,4 +43,10 @@ abstract class RepositoryModule {
     abstract fun bindPhotoExifReader(
         impl: RepositoryExifReader
     ): PhotoExifReader
+
+    @Binds
+    @Singleton
+    abstract fun bindLearnRepository(
+        impl: LearnRepositoryImpl
+    ): LearnRepository
 }

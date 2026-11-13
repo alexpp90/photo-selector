@@ -155,4 +155,14 @@ interface ScoreDao {
 
     @Query("DELETE FROM practice_goals WHERE lessonId = :lessonId")
     suspend fun deletePracticeGoal(lessonId: String)
+
+    @Query("DELETE FROM practice_goals")
+    suspend fun deleteAllPracticeGoals()
+
+    /** [goal] as the one practice goal: the others go, in one transaction (shoot debrief SD-1b). */
+    @Transaction
+    suspend fun replacePracticeGoal(goal: PracticeGoalEntity) {
+        deleteAllPracticeGoals()
+        upsertPracticeGoal(goal)
+    }
 }
