@@ -192,3 +192,114 @@ class TestExplorationStart(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class FolderGrantAllowIsOptionalTest(unittest.TestCase):
+    """Android 16 opens a picked folder with no separate Allow dialog (Moto G77, 2026-11-13): a walk
+    that taps Allow unconditionally breaks at its first scenario on that phone."""
+
+    def test_every_walk_taps_allow_only_when_the_dialog_shows(self) -> None:
+        for product in ("phototok", "android-desktop"):
+            for scenario in load_scenarios(product)["scenarios"]:
+                steps = scenario.get("steps") or []
+                for i, step in enumerate(steps):
+                    target = step.get("tap") or {}
+                    self.assertFalse(
+                        target.get("label") == "Allow",
+                        f"{product} {scenario.get('id')}: step {i} taps Allow unconditionally",
+                    )
+                    if step.get("screen") == "picker-allow":
+                        self.assertIn("when", step, f"{product} {scenario.get('id')}: picker-allow without when:")
+
+
+class JackpixDeleteConfirmFollowsTheBinTest(unittest.TestCase):
+    """Since #932 Jackpix asks "Move to Trash?" with a Trash button where Android has a bin; a walk that
+    taps only Delete|Löschen breaks there (U-TOK-02, Moto G77, 2026-11-13)."""
+
+    def test_every_delete_confirm_tap_also_matches_trash(self) -> None:
+        for scenario in load_scenarios("phototok")["scenarios"]:
+            for step in scenario.get("steps") or []:
+                target = step.get("tap") or step.get("optional_tap") or {}
+                texts = target.get("text")
+                if isinstance(texts, list) and "Delete" in texts:
+                    self.assertTrue(
+                        {"Trash", "Papierkorb"} <= set(texts),
+                        f"{scenario.get('id')}: {texts} misses the bin's Trash/Papierkorb",
+                    )
+
+
+class BinConsentIsASystemScreenTest(unittest.TestCase):
+    """MediaProvider's trash consent dialog is a screen the app opens on purpose; the walk must answer it,
+    not report the device as taken over (U-TOK-04, Moto G77, 2026-11-13)."""
+
+    def test_media_provider_is_allowed_in_front(self) -> None:
+        self.assertIn("com.google.android.providers.media.module", drv.SYSTEM_PACKAGES)
+        self.assertIn("com.android.providers.media.module", drv.SYSTEM_PACKAGES)
+
+    def test_u_tok_04_answers_the_bin_consent_after_opening_selection(self) -> None:
+        scenario = next(s for s in load_scenarios("phototok")["scenarios"] if s["id"] == "U-TOK-04")
+        steps = scenario["steps"]
+        i = next(n for n, s in enumerate(steps) if (s.get("tap") or {}).get("id") == "viewer_selection_button")
+        self.assertEqual(steps[i + 1].get("screen"), "bin-consent")
+        self.assertIn("when", steps[i + 1])
+        self.assertEqual((steps[i + 2].get("optional_tap") or {}).get("id"), "button1")
+
+
+class FrameduelWalkTapsInBothLanguagesTest(unittest.TestCase):
+    """Since #943 Frameduel follows the device language; the lab tablet runs German. A walk step that taps
+    an app string by its English text alone breaks there at the first step."""
+
+    @staticmethod
+    def _strings(folder: str) -> dict[str, str]:
+        import xml.etree.ElementTree as ET
+
+        res = repo_root() / "products" / "android" / "android-desktop" / "res" / folder / "strings.xml"
+        return {e.get("name"): (e.text or "") for e in ET.parse(res).getroot().iter("string")}
+
+    def test_every_app_text_tap_lists_the_german_string_too(self) -> None:
+        en, de = self._strings("values"), self._strings("values-de")
+        by_text = {v: k for k, v in en.items()}
+        for scenario in load_scenarios("android-desktop")["scenarios"]:
+            for step in scenario.get("steps") or []:
+                target = step.get("tap") or step.get("optional_tap") or {}
+                for field in ("text", "desc"):
+                    texts = target.get(field)
+                    texts = texts if isinstance(texts, list) else [texts] if texts else []
+                    self._check(texts, by_text, de, scenario.get("id"))
+
+    def _check(self, texts: list, by_text: dict, de: dict, scenario_id: Any) -> None:
+                for text in texts:
+                    key = by_text.get(text)
+                    if key and key in de:
+                        self.assertIn(de[key], texts, f"{scenario_id}: '{text}' without '{de[key]}'")
+
+
+class FrameduelWalkAnswersHeldDeletesTest(unittest.TestCase):
+    """U-AD-01 deletes; the next launch asks "Uncompleted deletions" in a Dialog window and every later
+    scenario broke on its first tag (Pixel Tablet, German, 2026-11-13)."""
+
+    def test_every_scenario_after_the_first_keeps_held_deletes_first(self) -> None:
+        scenarios = load_scenarios("android-desktop")["scenarios"]
+        for scenario in scenarios[1:]:
+            steps = scenario.get("steps") or []
+            self.assertEqual(steps[0].get("screen"), "pending-deletions", scenario.get("id"))
+            self.assertIn("Offene Löschungen", steps[0]["when"]["text"])
+            self.assertEqual(steps[1].get("optional_tap", {}).get("text"), ["Keep", "Behalten"])
+
+
+class FrameduelLearnWalksOpenTheirTabTest(unittest.TestCase):
+    """Learn opens on the Debrief tab (#942) and each scenario relaunches onto the culling desk (#933):
+    a scenario that uses a control of the Photo tab must open Learn and that tab first (U-AD-04 broke on
+    toggle_golden_ratio, Pixel Tablet, 2026-11-13)."""
+
+    PHOTO_TAB_CONTROLS = {"toggle_thirds", "toggle_golden_ratio", "toggle_spiral", "toggle_spiral_flip"}
+
+    def test_photo_tab_controls_come_after_opening_the_photo_tab(self) -> None:
+        for scenario in load_scenarios("android-desktop")["scenarios"]:
+            opened = False
+            for step in scenario.get("steps") or []:
+                target = step.get("tap") or step.get("optional_tap") or step.get("wait_for") or {}
+                if (step.get("tap") or {}).get("id") == "learn_tab_explore":
+                    opened = True
+                if target.get("id") in self.PHOTO_TAB_CONTROLS:
+                    self.assertTrue(opened, f"{scenario.get('id')}: {target.get('id')} before the Photo tab")

@@ -657,8 +657,10 @@ class TestScenarioFile(unittest.TestCase):
                         continue
                     for field in ("text", "desc"):
                         value = target.get(field)
-                        if value and f'"{value}"' not in sources and f">{value}<" not in sources:
-                            stale.append(f"{scenario['id']}: {key} {field}={value!r}")
+                        # A list names the label in every language the app ships (#943: German).
+                        for one in value if isinstance(value, list) else [value] if value else []:
+                            if f'"{one}"' not in sources and f">{one}<" not in sources:
+                                stale.append(f"{scenario['id']}: {key} {field}={one!r}")
         self.assertEqual(stale, [], "labels the Frameduel code does not contain")
 
     def test_system_ui_is_tapped_by_resource_id_not_by_its_text(self) -> None:

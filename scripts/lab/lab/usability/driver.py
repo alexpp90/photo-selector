@@ -120,7 +120,17 @@ class StepFailed(RuntimeError):
 _TOP = re.compile(r"(?:topResumedActivity|mResumedActivity)[=:]\s*\S+\s+\S+\s+([\w.]+)/")
 # Packages a walkthrough may legitimately show besides the app: the system folder picker and
 # its permission dialog, and the launcher after Back or Home.
-SYSTEM_PACKAGES = ("com.android.documentsui", "com.google.android.documentsui", "android", "com.android.systemui")
+# System screens an app opens on purpose: the folder picker, and MediaProvider's consent dialog behind
+# MediaStore.createTrashRequest / createDeleteRequest (Jackpix's bin since #932; Moto G77, 2026-11-13).
+SYSTEM_PACKAGES = (
+    "com.android.documentsui",
+    "com.google.android.documentsui",
+    "android",
+    "com.android.systemui",
+    "com.google.android.providers.media.module",
+    "com.android.providers.media.module",
+    "com.android.providers.media",
+)
 
 
 def foreground_package(adb: AdbClient) -> str | None:

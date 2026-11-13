@@ -21,7 +21,7 @@ scenarios:
       - screen: welcome
         intent: Understand how to start culling my trip photos
         expected: Tap 'Open Folder' button or press Ctrl+O
-      - tap: {text: Open Folder}
+      - tap: {text: [Open Folder, Ordner öffnen], label: Open Folder}
       - screen: picker
         system: true
         intent: Locate the trip folder
@@ -33,11 +33,14 @@ scenarios:
         intent: Confirm selection of usability-trip
         expected: Tap 'Use this folder'
       - tap: {id: button1, label: Use this folder}
+      # Android 16 (Moto G77) opens the folder straight after 'Use this folder', with no Allow
+      # dialog: the screen and the tap happen only when the dialog shows (2026-11-13 lab run).
       - screen: picker-allow
         system: true
+        when: {id: button1, timeout_ms: 4000}
         intent: Grant folder storage permission
         expected: Tap 'Allow'
-      - tap: {id: button1, label: Allow}
+      - optional_tap: {id: button1, label: Allow}
       # The first visit shows the six-page screen guide over everything (SelectorCoachOverlay).
       - screen: screen-guide
         when: {id: coach_overlay_skip, timeout_ms: 15000}
@@ -61,7 +64,7 @@ scenarios:
         intent: Confirm deletion of blurry frame
         expected: Tap 'Delete' in confirmation dialog
       # A dialog is its own window and exports no test tags: its button by its text.
-      - tap: {text: Delete, label: Delete}
+      - tap: {text: [Delete, Löschen], label: Delete}
       - screen: after-delete
         intent: Check that next candidate advances automatically
         expected: Press Right arrow to inspect next series
@@ -71,6 +74,13 @@ scenarios:
     goal: Cull weekend photos on the couch with tablet in hand, using touch targets and filmstrip.
     use_case: UC-5
     steps:
+      # A delete of an earlier scenario leaves held deletes; the relaunch asks about them in its own
+      # Dialog window (text only, no tags reach it). Keep them, so the fixture stays whole.
+      - screen: pending-deletions
+        when: {text: [Uncompleted deletions, Offene Löschungen], timeout_ms: 4000}
+        intent: Decide what happens to the photos I deleted last time
+        expected: Tap 'Keep'
+      - optional_tap: {text: [Keep, Behalten], label: Keep}
       - screen: touch-selector
         intent: Compare frames comfortably using touch
         expected: Tap 'Next' (rail_next) button
@@ -98,11 +108,20 @@ scenarios:
     goal: Open the Learn workstation to understand exposure technique and read Photo Coach guidance.
     use_case: UC-6
     steps:
+      # A delete of an earlier scenario leaves held deletes; the relaunch asks about them in its own
+      # Dialog window (text only, no tags reach it). Keep them, so the fixture stays whole.
+      - screen: pending-deletions
+        when: {text: [Uncompleted deletions, Offene Löschungen], timeout_ms: 4000}
+        intent: Decide what happens to the photos I deleted last time
+        expected: Tap 'Keep'
+      - optional_tap: {text: [Keep, Behalten], label: Keep}
       - screen: before-learn
         intent: Open Learn workstation for selected photo
         expected: Press L or tap 'Learn' in sidebar
       - key: L
       - wait_for: {id: learn_tab_explore, timeout_ms: 6000}
+      # Learn opens on the Debrief tab since #942; the Photo Coach is on the Photo tab.
+      - tap: {id: learn_tab_explore, label: Photo}
       - screen: learn-explore
         intent: Read exposure feedback and technical facts
         expected: Read Photo Coach advice and scroll down
@@ -116,6 +135,19 @@ scenarios:
     goal: Evaluate framing using Rule of Thirds and Golden Spiral overlays, then inspect suggested crop.
     use_case: UC-6
     steps:
+      # A delete of an earlier scenario leaves held deletes; the relaunch asks about them in its own
+      # Dialog window (text only, no tags reach it). Keep them, so the fixture stays whole.
+      - screen: pending-deletions
+        when: {text: [Uncompleted deletions, Offene Löschungen], timeout_ms: 4000}
+        intent: Decide what happens to the photos I deleted last time
+        expected: Tap 'Keep'
+      - optional_tap: {text: [Keep, Behalten], label: Keep}
+      # Each scenario relaunches onto the culling desk (#933); open Learn and its Photo tab, where
+      # the composition guides are (Learn opens on the Debrief tab since #942).
+      - key: L
+      - wait_for: {id: learn_tab_explore, timeout_ms: 6000}
+      - tap: {id: learn_tab_explore, label: Photo}
+      - wait_for: {id: toggle_golden_ratio, timeout_ms: 6000}
       - screen: learn-composition-start
         intent: Turn on composition guides to check subject balance
         expected: The Thirds grid is on from the start (it is a Learn default); read it on the photo
@@ -142,6 +174,13 @@ scenarios:
     goal: Browse interactive photography lessons, read the shoot debrief and open a worked pair.
     use_case: UC-6
     steps:
+      # A delete of an earlier scenario leaves held deletes; the relaunch asks about them in its own
+      # Dialog window (text only, no tags reach it). Keep them, so the fixture stays whole.
+      - screen: pending-deletions
+        when: {text: [Uncompleted deletions, Offene Löschungen], timeout_ms: 4000}
+        intent: Decide what happens to the photos I deleted last time
+        expected: Tap 'Keep'
+      - optional_tap: {text: [Keep, Behalten], label: Keep}
       - key: L
       - wait_for: {id: learn_tab_lessons, timeout_ms: 6000}
       - tap: {id: learn_tab_lessons, label: Lessons}
@@ -149,6 +188,17 @@ scenarios:
         intent: Select a photography technique micro-lesson
         expected: Tap a lesson card or switch to the Debrief tab
       - tap: {id: learn_tab_debrief, label: Debrief}
+      # The debrief needs the folder's scan; this walk scans only in U-AD-06, so start it here with
+      # the debrief's own Scan button when it offers one (it scans in place).
+      - screen: debrief-not-scanned
+        when: {id: debrief_scan, timeout_ms: 4000}
+        intent: See what this shoot taught me
+        expected: Tap 'Scan' to analyse the photos
+      - optional_tap: {id: debrief_scan, label: Scan}
+      - wait_for: {id: debrief_open_pair, timeout_ms: 120000}
+      - screen: learn-debrief
+        intent: Read the shoot debrief
+        expected: Tap 'Worked pair' on a card
       - tap: {id: debrief_open_pair, label: Worked pair}
       - screen: learn-compare-view
         intent: Answer which of two frames of one scene is better, then see why
@@ -160,28 +210,35 @@ scenarios:
     goal: Triage the shoot by sorting blurriest photos first to quickly eliminate technical misses.
     use_case: UC-13
     steps:
+      # A delete of an earlier scenario leaves held deletes; the relaunch asks about them in its own
+      # Dialog window (text only, no tags reach it). Keep them, so the fixture stays whole.
+      - screen: pending-deletions
+        when: {text: [Uncompleted deletions, Offene Löschungen], timeout_ms: 4000}
+        intent: Decide what happens to the photos I deleted last time
+        expected: Tap 'Keep'
+      - optional_tap: {text: [Keep, Behalten], label: Keep}
       - screen: selector-before-menu
         intent: Open sidebar menu to change sort order
         expected: Tap menu button
-      - tap: {desc: More options, label: Menu}
+      - tap: {id: sidebar_more, label: Menu}
       - screen: overflow-menu
         intent: Select worst-first sharpness sort
         expected: Tap 'Scan images' first (the sort is greyed out until the photos are scanned), then 'Blurriest first'
       # The sort and "Clear scores" stay disabled until the photos are scanned.
-      - tap: {text: Scan images}
+      - tap: {text: [Scan images, Bilder scannen], label: Scan images}
       - screen: scan-configuration
         intent: Get the photos analysed so I can sort by sharpness
         expected: Keep the analysis types and tap 'Start Scan'
-      - tap: {text: Start Scan}
+      - tap: {text: [Start Scan, Scan starten], label: Start Scan}
       - wait_ms: 15000
-      - tap: {desc: More options, label: Menu}
-      - tap: {text: Blurriest first}
+      - tap: {id: sidebar_more, label: Menu}
+      - tap: {text: [Blurriest first, Unschärfste zuerst], label: Blurriest first}
       - screen: worst-first-active
         intent: Review blurriest photo at front of triage queue
         expected: Press Delete to trash out-of-focus frame
       - key: Delete
       # A dialog is its own window and exports no test tags: its button by its text.
-      - tap: {text: Delete, label: Delete}
+      - tap: {text: [Delete, Löschen], label: Delete}
       - screen: worst-first-next
         intent: Confirm triage advances to next blurriest frame
         expected: Continue sweep until stop threshold
