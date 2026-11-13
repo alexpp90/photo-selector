@@ -125,6 +125,9 @@ class ScanStoresFactsTest {
         assertEquals("1.50", facts.getValue("optics.crop_factor").value)
         assertEquals("300.0", facts.getValue("optics.effective_focal_length").value)
         assertEquals("action_freeze", facts.getValue("intent.shutter").value)
+        assertEquals("Nikon", facts.getValue(ScanFacts.CAMERA_MAKE).value)
+        assertEquals("Z 50", facts.getValue(ScanFacts.CAMERA_MODEL).value)
+        assertEquals(1.0 / 2000.0, facts.getValue(ScanFacts.EXPOSURE_TIME).value.toDouble(), 1e-12)
         assertTrue(facts.getValue("light.hour").value in setOf("golden_hour", "blue_hour", "day", "night"))
         // The class is kept; the solar elevation, which with the time narrows down the place, is not.
         assertNull(facts.getValue("light.hour").geometryJson)

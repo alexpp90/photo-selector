@@ -45,6 +45,12 @@ class LearnSessionTest {
         override suspend fun practiceGoal() = goal
         override suspend fun setPracticeGoal(goal: PracticeGoalEntity) { this.goal = goal }
         override suspend fun clearPracticeGoal() { goal = null }
+        override suspend fun cameraOverrides(): Map<CameraId, CameraClass> = emptyMap()
+        override suspend fun setCameraOverride(camera: CameraId, cameraClass: CameraClass) = Unit
+        override suspend fun saveShoot(folderUri: String, groups: List<DebriefGroup>, partial: Boolean, nowEpochMs: Long) = Unit
+        override suspend fun shootOf(folderUri: String): List<ShootSummary> = emptyList()
+        override suspend fun historyCounts() = LearnHistoryCounts(0, progress.size, if (goal == null) 0 else 1)
+        override suspend fun resetHistory() { progress.clear(); goal = null }
     }
 
     private fun photos(folder: String) = (1..3).map { ImageItem("$folder/$it.jpg", "$it.jpg", 1L, 1L, "image/jpeg") }

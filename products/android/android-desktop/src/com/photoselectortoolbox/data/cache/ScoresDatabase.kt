@@ -12,12 +12,16 @@ import androidx.sqlite.db.SupportSQLiteDatabase
         TechniqueFactEntity::class,
         LessonProgressEntity::class,
         PracticeGoalEntity::class,
+        ShootSummaryEntity::class,
+        CameraOverrideEntity::class,
     ],
-    version = 8,
+    version = 9,
     exportSchema = true
 )
 abstract class ScoresDatabase : RoomDatabase() {
     abstract fun scoreDao(): ScoreDao
+
+    abstract fun learnDao(): LearnDao
 
     companion object {
         /**
@@ -117,6 +121,24 @@ abstract class ScoresDatabase : RoomDatabase() {
             }
         }
 
+        /**
+         * v8 → v9: Learn's history (shoot debrief SD-3) — `shoot_summaries` and
+         * `camera_overrides`. Adds two tables and changes no other.
+         */
+        val MIGRATION_8_9 = object : Migration(8, 9) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL(
+                    "CREATE TABLE IF NOT EXISTS `shoot_summaries` (`folderKey` TEXT NOT NULL, `cameraClass` TEXT NOT NULL, `cameraNames` TEXT NOT NULL, `firstCaptureTime` INTEGER, `lastCaptureTime` INTEGER, `photoCount` INTEGER NOT NULL, `metricsJson` TEXT NOT NULL, `detectorVersion` INTEGER NOT NULL, `partial` INTEGER NOT NULL, `updatedAt` INTEGER NOT NULL, PRIMARY KEY(`folderKey`, `cameraClass`))"
+                )
+                db.execSQL(
+                    "CREATE INDEX IF NOT EXISTS `idx_shoot_summaries_class_time` ON `shoot_summaries` (`cameraClass`, `lastCaptureTime`)"
+                )
+                db.execSQL(
+                    "CREATE TABLE IF NOT EXISTS `camera_overrides` (`make` TEXT NOT NULL, `model` TEXT NOT NULL, `cameraClass` TEXT NOT NULL, PRIMARY KEY(`make`, `model`))"
+                )
+            }
+        }
+
         val MIGRATIONS = arrayOf(
             MIGRATION_1_2,
             MIGRATION_2_3,
@@ -125,6 +147,7 @@ abstract class ScoresDatabase : RoomDatabase() {
             MIGRATION_5_6,
             MIGRATION_6_7,
             MIGRATION_7_8,
+            MIGRATION_8_9,
         )
     }
 }

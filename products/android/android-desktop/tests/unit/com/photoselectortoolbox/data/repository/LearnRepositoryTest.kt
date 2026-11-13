@@ -39,7 +39,7 @@ class LearnRepositoryTest {
     fun setUp() {
         val context = ApplicationProvider.getApplicationContext<Context>()
         db = Room.inMemoryDatabaseBuilder(context, ScoresDatabase::class.java).allowMainThreadQueries().build()
-        repository = LearnRepositoryImpl(db.scoreDao(), Dispatchers.IO)
+        repository = LearnRepositoryImpl(db.scoreDao(), db.learnDao(), Dispatchers.IO)
     }
 
     @After
@@ -74,7 +74,7 @@ class LearnRepositoryTest {
         repository.setPracticeGoal(PracticeGoalEntity("composition.horizon", 10L, 0.4, 25))
         repository.setPracticeGoal(PracticeGoalEntity("exposure.histogram_clipping", 20L, 0.7, 30))
 
-        val reopened = LearnRepositoryImpl(db.scoreDao(), Dispatchers.IO)
+        val reopened = LearnRepositoryImpl(db.scoreDao(), db.learnDao(), Dispatchers.IO)
 
         assertEquals(setOf("composition.horizon"), reopened.lessonProgress().keys)
         assertEquals("exposure.histogram_clipping", reopened.practiceGoal()?.lessonId)

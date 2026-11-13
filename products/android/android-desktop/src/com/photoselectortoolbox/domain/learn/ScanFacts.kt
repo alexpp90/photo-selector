@@ -27,6 +27,13 @@ object ScanFacts {
     /** When the photo was taken, epoch milliseconds ([CaptureTime.instant]). */
     const val CAPTURE_TIME = "capture.time"
 
+    /** The exposure time in seconds, for the debrief's hand-holding count (SD-3). */
+    const val EXPOSURE_TIME = "exposure.time"
+
+    /** The camera's EXIF `Make` and `Model` as written: the debrief's camera names and overrides (SD-3). */
+    const val CAMERA_MAKE = "camera.make"
+    const val CAMERA_MODEL = "camera.model"
+
     /** The detector kinds the scan keeps; [TechniqueFactDetector.detectFacts] runs only these. */
     val STORED_KINDS: Set<String> = setOf(
         "optics.crop_factor",
@@ -39,7 +46,7 @@ object ScanFacts {
     )
 
     /** Every kind a stored set can hold. */
-    val ALL_KINDS: Set<String> = STORED_KINDS + MARKER + CAPTURE_TIME
+    val ALL_KINDS: Set<String> = STORED_KINDS + setOf(MARKER, CAPTURE_TIME, EXPOSURE_TIME, CAMERA_MAKE, CAMERA_MODEL)
 
     /** Confidence of a capture time read with the camera's own offset, and of one in the device's zone. */
     private const val WITH_OFFSET = 0.95
@@ -64,6 +71,11 @@ object ScanFacts {
             val ownOffset = CaptureTime.offset(exif?.offsetTimeOriginal) != null
             facts += TechniqueFact(CAPTURE_TIME, epochMs.toString(), if (ownOffset) WITH_OFFSET else IN_DEVICE_ZONE)
         }
+        exif?.shutterSpeed?.takeIf { it.isFinite() && it > 0.0 }?.let { seconds ->
+            facts += TechniqueFact(EXPOSURE_TIME, seconds.toString(), 1.0)
+        }
+        exif?.make?.trim()?.takeIf { it.isNotEmpty() }?.let { facts += TechniqueFact(CAMERA_MAKE, it, 1.0) }
+        exif?.model?.trim()?.takeIf { it.isNotEmpty() }?.let { facts += TechniqueFact(CAMERA_MODEL, it, 1.0) }
         facts += TechniqueFact(MARKER, "1", 1.0)
         return facts.map { fact ->
             TechniqueFactEntity(
