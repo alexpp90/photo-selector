@@ -143,6 +143,12 @@ public struct CullingDecisionLogEntry: Sendable, Codable, Equatable, Identifiabl
     public let shutterSpeed: Double?
     public let aperture: Double?
     public let focalLength: Double?
+    /// The photo and the culling job this decision belongs to (the Activity list selects the photo,
+    /// and Undo takes the entry back out). Absent in entries made before the list existed.
+    public let photoID: UUID?
+    public let jobID: UUID?
+    /// Where the photo went: the Selection folder name, "Trash" or "Rejected".
+    public let destination: String?
 
     public init(
         id: UUID = UUID(),
@@ -153,9 +159,15 @@ public struct CullingDecisionLogEntry: Sendable, Codable, Equatable, Identifiabl
         iso: Int? = nil,
         shutterSpeed: Double? = nil,
         aperture: Double? = nil,
-        focalLength: Double? = nil
+        focalLength: Double? = nil,
+        photoID: UUID? = nil,
+        jobID: UUID? = nil,
+        destination: String? = nil
     ) {
         self.id = id
+        self.photoID = photoID
+        self.jobID = jobID
+        self.destination = destination
         self.timestamp = timestamp
         self.filename = filename
         self.action = action

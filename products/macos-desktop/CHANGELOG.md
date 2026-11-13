@@ -10,9 +10,23 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 - Opening the Selection folder itself no longer files photos into `Selection/Selection/` (where they vanished from the list): Move and Copy say "This is the Selection folder" and do nothing; Trash and Undo still work, and Settings shows the same sentence.
 - Settings that did nothing now work or are gone: the **Blurry below** and **Sharp above** sliders change every Sharpness badge, tooltip, filmstrip dot and the Statistics counts (with a Reset); the aesthetic threshold slider is removed; **Auto-Advance** in the Culling menu and in Settings is one setting; **Tab** switches photo in 2-Up only and is left alone in 1-Up and 3-Up; a copied photo no longer counts as Remaining; the **Stop at sharpness** notice stays on the photo until your next key; Undo is greyed out in the menu when there is nothing to undo; the filmstrip tooltip names its key, `T`.
-- Cloud folders: a **Cloud** badge in the toolbar; Library Statistics and Lowest Sharpness First ask "Download all photos?" before reading every photo; permanent delete asks "Delete permanently?"; a refused Trash no longer says "Moved to Trash" and a failed delete says why.
+- Cloud folders: a **Cloud** badge in the toolbar. Library Statistics' scoring, Lowest Sharpness First and the Duplicate Finder's hash pass would download every photo, so they are refused with "Cloud folder: would download every photo" and read nothing; Delete is refused with "No Trash in cloud folders. Nothing deleted." (a banner, nothing is deleted, no Undo entry, never "Moved to Trash"). Move and Copy work as before.
+
+- A photo you already copied is decided: a second Copy says "Already copied" and a Move after a Copy says "Already in Selection", so nothing is filed twice (no `-2` file beside the first); the tally still adds up.
+
+- **Aesthetics scoring is off for a new install** (nothing acts on the score). An install that already ran with it keeps it on; switch it in Settings → Scoring.
+
+- Move, Copy and Trash of a photo with companions name the photo, the companions and the destination: "Moved IMG_0001 +2 · Selection" (VoiceOver: "Moved IMG_0001.CR3 and 2 companion files to Selection"), instead of "Moved 3 files".
+
+- Homebrew: Lensjet's cask token is now `lensjet` (`brew install --cask alexpp90/tap/lensjet`, `brew search lensjet` finds it). The old `photo-selector-toolbox` cask stops updating and says to reinstall once; its caveat and the new cask's carry the Gatekeeper note.
 
 ### Added
+
+- **Activity**: a toolbar button and Go ▸ Activity (`⇧⌘L`) list your last decisions (moved, copied, deleted; newest first, up to 100) with the destination and how long ago; click one to jump to the photo. Undo takes it off the list.
+- **Statistics** has a toolbar button (before, only `⌘L` and the Tools menu opened it).
+- **Clean view on `F`**: full screen without the toolbar, dock and filmstrip. Every key keeps working, each decision flashes "Moved · 41" (what you did and how many are left), and `Esc` leaves. `T` is the filmstrip key; `F` no longer toggles it.
+
+- **Settings → Rejects**: choose where Delete puts a reject, the Trash (default) or a `Rejected` folder inside the folder you are culling. With Rejected/ the Delete key, menu item, dock and toast say "Move to Rejected", Undo moves the photo back, and Rejected/ is skipped by scans and Find Duplicates.
 
 - **A cull has a beginning and an end.** Lensjet reopens the last folder at launch, on the photo that was on screen (found by its file, so a re-sort or photos moved away do not change it; a photo that is gone opens the first one), and **File → Open Recent** lists the last ten folders. The dock shows where Move and Copy put photos (the same path Settings shows) next to the tally, and one click shows it in Finder. When no photo is undecided a **Done** card appears over the preview (never over the dock) with Selected, Copied and Trashed, the destination, **Show in Finder** and **Open Selection**; on the last photo with photos left a "N Remaining" notice offers **Show first**. Esc, a navigation key or Undo dismisses it. On a removable card the card says **Safe to format** only when every file under the folder is accounted for, and "N other files left" otherwise.
 - **Menus where a Mac user looks.** Edit → **Undo Move of IMG_0001.CR3** (greyed out when empty; text fields keep their own undo), Go → Previous Photo / Next Photo / Go to Photo…, File → **Show in Finder** (⇧⌘R) and **Quick Look** (⌘Y), and the view commands (1-Up, 2-Up, 3-Up, Sort By, Zoom 100%, Link Pan, Filmstrip, Info, Switch Photo) are in the one system View menu.

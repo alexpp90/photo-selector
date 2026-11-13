@@ -264,10 +264,47 @@ in-app checks. Without a logged-in GUI session (SSH, headless CI) the gate is `â
 It is local-only: GitHub's macOS runners have no reliable foreground session. `--quick`
 skips it.
 
+### Required checks (branch protection of `main`)
+
+`main` is protected by a ruleset: **required status checks** with **"require branches to be up to
+date before merging"** (strict policy), no required approvals, no force pushes, no deletion. A merge
+queue was the first choice, but GitHub refuses one on a user-owned repository (`POST /rulesets` with a
+`merge_queue` rule answers 422 "Invalid rule", 2026-11-12); revisit it if the repository moves to an
+organisation. [USER 2026-11-12] decision #8 (fallback B).
+
+A required check that never reports blocks a pull request forever, and a workflow-level `paths:` filter
+on `pull_request` makes exactly that happen. So the four product workflows have no `paths:` on
+`pull_request`: a `changes` job applies the same list (`dorny/paths-filter`), every job waits for it, and
+a final `gate` job (`if: always()`) fails when a job it waits for failed or was cancelled and passes when
+they were skipped as irrelevant. A skipped job never counts as a failure, so only the `gate` is required.
+
+| Required check (job name) | Workflow | Judges |
+|---|---|---|
+| `Desktop CI gate` | `desktop.yml` | lint, tests (3 OS), visual regression of the legacy Desktop |
+| `Android CI gate` | `android.yml` | unit tests, lint, minified build, instrumented tests |
+| `macOS Desktop CI gate` | `macos.yml` | Lensjet's Swift tests |
+| `Linux Desktop CI gate` | `linux.yml` | Blitzlens lint, tests (2 Pythons), Debian packaging |
+| `README parity & private-path guard` | `repo-hygiene.yml` | README parity, private-path guard, doc links, `scripts/tests` (runs on every PR) |
+
+Not required: `Verification record (advisory)` (never fails by design) and `CLA` (an external bot that
+reports through a comment). `scripts/tests/test_required_checks.py` fails when a workflow loses its gate,
+renames it, lets a job start without `changes`, or a publish job loses its `concurrency:` group, and when
+this table misses a name. The ruleset itself is a repository setting (`gh api`), not a file.
+
+**Publishing is serialised per store** (job-level `concurrency:` with `cancel-in-progress: false`):
+`publish-google-play`, `publish-android-release` (Firebase, GitHub release, nightly tag),
+`publish-desktop-release`, `publish-homebrew-tap-desktop`, `publish-macos-release`,
+`publish-homebrew-tap-macos`, `publish-apt`, `publish-linux-release`. Five Android main runs publishing to
+Google Play at once failed with "This edit has expired" (2026-11-10). GitHub keeps one *pending* job per
+group and replaces an older pending job by a newer one, so in a burst the middle publishes are dropped
+(shown as cancelled) and the newest runs; re-run a dropped publish from the Actions tab when its module
+changed in that commit only.
+
 ### Automatic path filtering (selective product gates)
 
 The four product workflows (`desktop.yml`, `android.yml`, `macos.yml`, `linux.yml`) configure `paths:`
-filters so that pull requests touching only Android do not execute Desktop or macOS CI,
+filters on `push`, and the same list in their `changes` job on `pull_request` (see "Required checks"
+below), so that pull requests touching only Android do not execute Desktop or macOS CI,
 and vice versa. `run_tests.sh` mirrors this locally: unless `--all` or an explicit product
 flag (`--python`, `--android`, `--macos`, `--linux`) is given, it inspects git status and
 branch diffs against `main` (changes to `.github/`, `run_tests.sh` or the format contract under
@@ -283,7 +320,7 @@ rebuild it, publish its nightly or rewrite its Homebrew hashes.
 `scripts/tests/test_ci_mirror.py` (part of `scripts/tests`, run by `repo-hygiene.yml` and the
 mirror) parses both sides and fails when a workflow path does not select its product in
 `run_tests.sh`, when a product arm of `run_tests.sh` is missing from its workflow's filter, or
-when a workflow's push and pull-request filters differ.
+when a workflow's push filter and its `changes` job's list differ, or `on.pull_request` carries a `paths:` key.
 
 `android.yml:detect-changes` decides which Android products a change touches: a change under
 one product's directory builds that product, and a change under a shared module

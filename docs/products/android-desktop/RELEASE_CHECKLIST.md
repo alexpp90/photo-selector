@@ -103,9 +103,8 @@ Features
 • Sort newest first, oldest first, by file name, or blurriest first after a scan.
 • Go to photo by its number, a date or its file name.
 • Star ratings and a reject flag.
-• Learn: technique and composition notes on your own photos.
 • Statistics: EXIF charts of the folder (focal lengths, apertures, ISO, shutter speeds).
-• Duplicates: finds byte-identical copies and never lets you delete the last one.
+• Tools beside the cull: Duplicates finds byte-identical copies and never lets you delete the last one; Learn (beta) gives technique and composition notes on your own photos.
 • Camera RAW from Sony, Canon (incl. CR3), Nikon, Fujifilm, Panasonic, OM System, Pentax, Samsung and DNG, plus JPEG, HEIC, PNG, TIFF and WebP.
 
 Private by design

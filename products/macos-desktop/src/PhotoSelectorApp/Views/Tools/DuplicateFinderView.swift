@@ -37,6 +37,8 @@ public struct DuplicateFinderView: View {
                     emptyView
                 case .error(let msg):
                     errorView(message: msg)
+                case .refusedCloud(let line):
+                    refusedCloudView(line: line)
                 case .completed:
                     completedView
                 }
@@ -260,6 +262,24 @@ public struct DuplicateFinderView: View {
             }
             .buttonStyle(.bordered)
             .controlSize(.regular)
+        }
+    }
+
+    // MARK: - Cloud folder (nothing is hashed)
+    private func refusedCloudView(line: String) -> some View {
+        VStack(spacing: 16) {
+            Image(systemName: "icloud.slash")
+                .font(.system(size: 48))
+                .foregroundStyle(Color.lensjetTextSecondary)
+
+            Text(line)
+                .font(.system(size: 13, weight: .medium))
+                .foregroundStyle(.white)
+
+            Button(action: selectFolder) {
+                Label("Scan Another Folder...", systemImage: "folder")
+            }
+            .buttonStyle(.bordered)
         }
     }
 

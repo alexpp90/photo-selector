@@ -87,7 +87,8 @@ Built specifically for large-screen tablets (≥ 840 dp) and desktop environment
 * **1-over-2 Three-Frame Layout:** Three frames of the same size, so a comparison is fair: the current frame on top, its named readouts on the left and the action buttons on the right, and the previous and next frames side by side beneath it.
 * **No Bars Above or Below the Photos:** An 88 dp labelled sidebar on the left and a 72 dp filmstrip column sit in the spare width, so the frames get the whole height of the window.
 * **On-Device Quality Scores:** A Scan (from the sidebar) scores the folder's photos on the device: sharpness of the central half of the frame (OpenCV Laplacian variance), noise, and highlight and shadow clipping; untick a measurement in the scan sheet and it is not computed. Scores are kept in a local cache.
-* **Star Ratings & Composition Feedback:** 1–5 star rating controls, reject tags, and composition heuristics persisted in a local Room SQLite database with a 10,000-image MRU cache. Ratings are written back to the photo too: embedded XMP for JPEG (while it is rewritten, a `.frameduel-backup` copy of the original sits beside it, and an interrupted write is restored the next time the folder opens), an `.xmp` sidecar for RAW and TIFF; for other formats (PNG, HEIC, WebP) the rating stays in the app and you are told so.
+* **Tools beside the Cull:** The sidebar holds Cull, Stats, Tools and Setup; Tools opens Learn (labelled Beta) and the duplicate finder (Dupes).
+* **Star Ratings & Composition Feedback (Learn, Beta):** 1–5 star rating controls, reject tags, and composition heuristics persisted in a local Room SQLite database with a 10,000-image MRU cache. Ratings are written back to the photo too: embedded XMP for JPEG (while it is rewritten, a `.frameduel-backup` copy of the original sits beside it, and an interrupted write is restored the next time the folder opens), an `.xmp` sidecar for RAW and TIFF; for other formats (PNG, HEIC, WebP) the rating stays in the app and you are told so.
 * **Desktop Ergonomics:** Mouse pointer hover states (`PointerIcon.Hand`), physical keyboard shortcuts (`←`/`→` or `K`/`J`, `M`, `C`, `Del`, `1`/`2`/`3`, `Space` 100 % zoom on an enlarged frame and in fullscreen, `Shift`+arrows to pan, `G`, `S`, `T` filmstrip, `I` values, `L` Learn, `Esc`; the mouse wheel zooms in fullscreen; `I` pins the info panel in fullscreen; system Back closes the top layer like `Esc` and leaves the app only at the bare selector), and drag-and-drop folder import from Android file managers. Every control is a ≥ 48 dp touch target, and in small Chromebook or DeX windows or at the largest system font the action buttons restack their word and key cap — dropping the icon first and the key name last — instead of truncating the word.
 * **Sort and Go To:** A folder opens newest first, and a folder you return to (after a restart too) opens at the photo you left it on. Right of the current photo, a Sort button (or `S`, or the overflow menu) switches to oldest first, file name or blurriest first (after a scan), and the choice is kept. The position counter beside it (or `G`) jumps straight to a photo by its number, a date (`12.10.2026`, `2026-10-12` or `12.10.`, or a calendar picker limited to days with photos; a day without photos goes to the nearest one) or its file name. In very small windows the two buttons give way to the counter, the keys and the overflow menu; below 600 dp a More button at the end of the action row opens the same menu (Open folder, Scan, Sort, Go to photo, Undo).
 * **Where Photos Go:** Settings says where a move or copy lands: the Selection folder inside the folder you are culling (Working folder) or one you pick (Custom folder; with its own Selection folder open, into `Final` inside it, as in any Selection folder), with the full path shown, a warning when a custom folder lost its permission, and the folder named in the confirmation. Before a copy, or a move to another card or drive, it checks that the destination has room and refuses with the space it needs instead of failing halfway.
@@ -126,7 +127,7 @@ A native GNOME photo culling app for Debian 13 (Trixie), built with GTK4 and Lib
   <img src="assets/brand/blitzlens/blitzlens.svg" alt="Blitzlens icon" width="96" style="margin-bottom: 10px;" />
   <br />
   <img src="assets/linux_desktop_screenshot.png" alt="Blitzlens Culling Workspace" width="750" style="border-radius: 10px; box-shadow: 0 4px 20px rgba(0,0,0,0.3); margin-bottom: 12px;" />
-  <p><em>Native GNOME / Libadwaita workspace on neutral grey surfaces in 1-Up mode: the comparison switcher, the "Photo 2 of 5" counter, the optical HUD with its sharpness bar over the photo, and the bottom action bar with Keep, Copy, Trash and Undo. Captured from the app (GTK 4.18 / Libadwaita 1.7, 1440 x 900 window, software rendering) with the unmodified build of this branch, over a freshly started session.</em></p>
+  <p><em>Native GNOME / Libadwaita workspace on neutral grey surfaces in 1-Up mode: the comparison switcher, the "Photo 2 of 5" counter, the optical HUD with its sharpness bar over the photo, and the bottom action bar with Move to Selection, Copy, Trash and Undo. Captured from the app (GTK 4.18 / Libadwaita 1.7, 1440 x 900 window, software rendering) with the unmodified build of this branch, over a freshly started session.</em></p>
 </div>
 
 ### Key Features
@@ -167,7 +168,7 @@ The original multi-platform desktop culling application built with Python and Tk
 | **Aesthetic Scoring** | ❌ Excluded | ❌ Excluded | ✅ (Apple Vision ANE) | ❌ Excluded | ✅ (Local Ollama) | Lensjet uses the Apple Neural Engine; Frameduel scores technical quality only. |
 | **Star Ratings (1–5)** | ❌ Omitted | ✅ (Room) | ❌ Omitted | ❌ Omitted | ❌ Omitted | Rating, reject, and composition tracking in Room DB. |
 | **Score Caching** | ❌ Lightweight | ✅ (Room DB) | ❌ (Memory LRU) | ❌ (Memory LRU) | ✅ (SQLite) | Lensjet and Blitzlens keep scores in memory; Frameduel caches them in Room, the legacy Desktop in SQLite. |
-| **Duplicate Detection** | ❌ Omitted | ✅ (Room DB) | ✅ (CryptoKit SHA) | ✅ (Streaming SHA) | ✅ (SHA-256) | Two-stage size pre-filtering and SHA-256 duplicate finder. |
+| **Duplicate Detection** | ❌ Omitted | ✅ (Room DB) | ✅ (CryptoKit SHA) | ❌ Removed | ✅ (SHA-256) | Two-stage size pre-filtering and SHA-256 duplicate finder; Blitzlens dropped it on purpose. |
 | **Tactile Keyboard Shortcuts** | ❌ Touch-first | ✅ (DeX / Physical) | ✅ (NSEvent monitor)| ✅ (GTK Capture) | ✅ (Tkinter Events) | `←`/`→`, `M`, `C`, `Del` and undo agree across the apps; the per-app keys are in [`KEYBOARD.md`](docs/shared/KEYBOARD.md). |
 | **100% Offline Privacy** | ✅ (SAF Only) | ✅ (Zero Permissions) | ✅ (Strictly Local) | ✅ (Strictly Local) | ◐ (optional Ollama server) | Zero telemetry, zero cloud dependencies, strict privacy guarantee. The legacy Desktop's optional Ollama aesthetic engine sends images to the Ollama server URL you configure (localhost by default). |
 
@@ -217,12 +218,14 @@ Install Lensjet via the Homebrew tap:
 
 ```bash
 # Install directly in a single command
-brew install --cask alexpp90/tap/photo-selector-toolbox
+brew install --cask alexpp90/tap/lensjet
 
 # Or tap first, then install:
 brew tap alexpp90/tap
-brew install --cask photo-selector-toolbox
+brew install --cask lensjet
 ```
+
+Installed Lensjet earlier as `photo-selector-toolbox`? That cask no longer updates (the token now belongs to the legacy Desktop's formula). Reinstall once: `brew uninstall --cask photo-selector-toolbox && brew install --cask lensjet`. Your settings stay.
 
 #### Standalone ZIP
 Download the pre-compiled `photo-selector-macos-apple-silicon.zip` (the file name is historical: the app inside is a universal build for Apple Silicon and Intel Macs) from the latest [Lensjet release](https://github.com/alexpp90/photo-selector/releases?q=macos-desktop-v&expanded=true), unpack it, and drag `Lensjet.app` into `/Applications`.

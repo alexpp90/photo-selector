@@ -1,5 +1,6 @@
 package com.photoselectortoolbox.ui.settings
 
+import com.photoselectortoolbox.ui.components.dragDoesNotClick
 import com.photoselectortoolbox.ui.components.handCursor
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Column
@@ -51,6 +52,8 @@ fun SettingsToggleItem(
         modifier = Modifier
             .fillMaxWidth()
             .pointerHoverIcon(PointerIcon.Hand)
+            // A sideways drag that ends here does not flip the switch.
+            .dragDoesNotClick()
             .toggleable(
                 value = checked,
                 onValueChange = onCheckedChange,
@@ -119,6 +122,8 @@ fun SettingsClickItem(
                 if (onClick != null) {
                     Modifier
                         .pointerHoverIcon(PointerIcon.Hand)
+                        // A drag that ends on the row does not act (Reset Guidance acts without asking).
+                        .dragDoesNotClick()
                         .clickable(onClick = onClick, role = Role.Button)
                 } else {
                     Modifier
@@ -212,6 +217,7 @@ internal fun SettingsRadioRow(
         modifier = Modifier
             .fillMaxWidth()
             .heightIn(min = 48.dp)
+            .dragDoesNotClick()
             .selectable(selected = selected, role = Role.RadioButton, onClick = onSelect)
             .pointerHoverIcon(PointerIcon.Hand)
             .semantics(mergeDescendants = true) {}

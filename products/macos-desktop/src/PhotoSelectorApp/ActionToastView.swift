@@ -2,7 +2,7 @@ import SwiftUI
 import PhotoSelectorKit
 
 /// Transient confirmation toast overlay providing immediate visual feedback for actions.
-public struct CullingHUDView: View {
+public struct ActionToastView: View {
     public let toast: ToastMessage
 
     public init(toast: ToastMessage) {
@@ -73,7 +73,7 @@ struct SlotOverlayLayer: View {
             }
             Spacer(minLength: 0)
             if let toast {
-                CullingHUDView(toast: toast)
+                ActionToastView(toast: toast)
                     .uiTestFrame("action_toast")
                     .allowsHitTesting(false)
                     .transition(.asymmetric(

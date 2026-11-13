@@ -21,6 +21,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ### Changed
 
+- A move or copy confirms with the photo and where it went, "Moved IMG_0001 · Selection", and counts the files that went with it: "Moved IMG_0001 +2 · Selection" (a screen reader hears "and 2 companion files"). The fullscreen flash says the same. The delete dialog of a photo with companions reads "Delete IMG_0001 +2?" and names their kinds ("Also deletes JPG, XMP").
+- The sidebar, the side rail and the bottom bar hold Cull, Stats, Tools and Setup. **Tools** opens a menu with Learn and Dupes (arrows, Enter and `Esc` work in it); `L` still opens Learn. Learn is labelled **Beta** until its Compare tab shows both frames and its progress is kept.
 - Each screen has one name everywhere — Cull, Learn, Stats, Dupes, Setup — on the sidebar, the side rail and the bottom bar and for a screen reader (the rail said Selector, Statistics, Duplicates and Settings, and Learn said "Return to Culling"; it now says "Back to Cull"). The burst feature is **Bursts** in Setup too. The guide's More and Setup lines name what is there.
 - Copy moves on to the next frame, as Move and Delete do, and a photo you copied carries a small copy mark on its frame and its filmstrip tile for the rest of the session. Copying it again writes nothing and says "Already copied" (before, it made a second file, `-2`).
 - Deleting duplicates no longer removes the files at once: the copies leave the list, "Deleted N files" offers UNDO, and the files go when you leave Duplicates, pick another folder or scan again. A copy that is no longer the file you deleted (another photo now has its name) is kept and named.
@@ -36,6 +38,9 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 - The check behind "safe to format" now requires every kept file, RAW and sidecar included, at the destination with its exact name and size.
 
 ### Fixed
+
+- The Done card counts right after a failed undo (the photo stays moved and counted) and after a delete that could not be carried out (the photo is back and no longer counted as deleted). A delete that kept one file and failed on another says both instead of only the second.
+- A sideways drag that ends on a Setup row (Reset Guidance, a switch, a choice) no longer counts as a tap and changes nothing; a tap still acts.
 
 - A star filter picked in Learn no longer limits Cull, which shows no filter: Cull's arrows, filmstrip, burst marks and Go to photo always cover every photo of the folder, and Learn keeps its filter.
 - Reopening the last folder while the app is rebuilt in a running process (a window resize on DeX, a rotation) can no longer crash at start: the photo-data cache it clears existed only after the reopen began.

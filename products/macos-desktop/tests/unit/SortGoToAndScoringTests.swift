@@ -327,11 +327,16 @@ struct SortGoToAndScoringTests {
         #expect(CompanionSet.kinds(primary: raw, companions: [raw]).isEmpty)
         #expect(CompanionSet.summary([]) == nil)
 
-        #expect(CullingFeedback.fileCountTitle(action: .move, fileCount: 3) == "Moved 3 files")
-        #expect(CullingFeedback.fileCountTitle(action: .copy, fileCount: 3) == "Copied 3 files")
-        #expect(CullingFeedback.fileCountTitle(action: .trash, fileCount: 3) == "Trashed 3 files")
+        let cr3 = URL(fileURLWithPath: "/shoot/IMG_0001.CR3")
+        #expect(CullingFeedback.companionTitle(action: .move, originalPrimaryURL: cr3, fileCount: 3, destination: "Selection")?.title == "Moved IMG_0001 +2 \u{00B7} Selection")
+        #expect(CullingFeedback.companionTitle(action: .move, originalPrimaryURL: cr3, fileCount: 3, destination: "Selection")?.spoken == "Moved IMG_0001.CR3 and 2 companion files to Selection")
+        #expect(CullingFeedback.companionTitle(action: .copy, originalPrimaryURL: cr3, fileCount: 2, destination: "Selection")?.spoken == "Copied IMG_0001.CR3 and 1 companion file to Selection")
+        #expect(CullingFeedback.companionTitle(action: .trash, originalPrimaryURL: cr3, fileCount: 3, destination: nil)?.title == "Trashed IMG_0001 +2")
         #expect(CullingFeedback.restoredCountTitle(fileCount: 3) == "Restored 3 files")
-        #expect(CullingFeedback.fileCountTitle(action: .move, fileCount: 1) == nil, "a single file keeps today's text")
+        #expect(CullingFeedback.companionTitle(action: .move, originalPrimaryURL: cr3, fileCount: 1, destination: "Selection") == nil, "a single file keeps today's text")
+        let long = URL(fileURLWithPath: "/shoot/" + String(repeating: "A", count: 40) + ".CR3")
+        let cut = CullingFeedback.companionTitle(action: .move, originalPrimaryURL: long, fileCount: 3, destination: "Selection")?.title ?? ""
+        #expect(cut.hasSuffix(" +2 \u{00B7} Selection") && cut.contains("\u{2026}"), "a 40-character name is cut, +N and the destination are not")
         #expect(CullingFeedback.restoredCountTitle(fileCount: 1) == nil)
     }
 
@@ -356,16 +361,16 @@ struct SortGoToAndScoringTests {
             action()
             return await waitUntil { vm.currentToast?.title == title }
         }
-        #expect(await toast(after: { vm.cullCurrentPhoto(action: .move) }, equals: "Moved 3 files"))
+        #expect(await toast(after: { vm.cullCurrentPhoto(action: .move) }, equals: "Moved A +2 \u{00B7} Selection"))
         for ext in ["DNG", "jpg", "xmp"] { #expect(FileManager.default.fileExists(atPath: root.appendingPathComponent("Selection/A.\(ext)").path)) }
         vm.selectPhoto(at: 1)
-        #expect(await toast(after: { vm.cullCurrentPhoto(action: .copy) }, equals: "Copied 3 files"))
+        #expect(await toast(after: { vm.cullCurrentPhoto(action: .copy) }, equals: "Copied B +2 \u{00B7} Selection"))
         for ext in ["DNG", "jpg", "xmp"] {
             #expect(FileManager.default.fileExists(atPath: root.appendingPathComponent("Selection/B.\(ext)").path))
             #expect(FileManager.default.fileExists(atPath: root.appendingPathComponent("B.\(ext)").path))
         }
         vm.selectPhoto(at: 2)
-        #expect(await toast(after: { vm.cullCurrentPhoto(action: .trash) }, equals: "Trashed 3 files"))
+        #expect(await toast(after: { vm.cullCurrentPhoto(action: .trash) }, equals: "Trashed C +2"))
         #expect(await waitUntil { !FileManager.default.fileExists(atPath: root.appendingPathComponent("C.jpg").path) })
         #expect(await toast(after: { vm.undoLastAction() }, equals: "Restored 3 files"))
         for ext in ["DNG", "jpg", "xmp"] { #expect(FileManager.default.fileExists(atPath: root.appendingPathComponent("C.\(ext)").path)) }

@@ -41,6 +41,7 @@ import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.unit.dp
 import com.photoselectortoolbox.domain.curation.DestinationMode
 import com.photoselectortoolbox.domain.format.DestinationLabels
+import com.photoselectortoolbox.ui.components.dragDoesNotClick
 import com.photoselectortoolbox.ui.components.handCursor
 import com.photoselectortoolbox.ui.theme.BrandAccent
 import com.photoselectortoolbox.ui.theme.ScoreBad
@@ -214,6 +215,7 @@ private fun DestinationRadioRow(
             modifier = Modifier
                 .weight(1f)
                 .heightIn(min = 48.dp)
+                .dragDoesNotClick()
                 .selectable(selected = selected, role = Role.RadioButton, onClick = onSelect)
                 .pointerHoverIcon(PointerIcon.Hand)
                 .semantics(mergeDescendants = true) {}
