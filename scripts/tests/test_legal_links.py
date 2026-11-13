@@ -91,7 +91,7 @@ class PolicyDisclosureTest(unittest.TestCase):
         english, german = self.sections("android-desktop")
         self.assertIn("XMP", english)
         self.assertIn("XMP", german)
-        self.assertIn("Cache &rarr; Clear Cache", german)
+        self.assertIn("Cache &rarr; Cache leeren", german)
 
 
 if __name__ == "__main__":
