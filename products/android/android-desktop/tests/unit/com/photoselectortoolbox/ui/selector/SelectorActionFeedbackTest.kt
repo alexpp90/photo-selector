@@ -55,6 +55,7 @@ import org.junit.Test
 import org.junit.runner.RunWith
 import org.robolectric.annotation.Config
 import org.robolectric.shadows.ShadowDialog
+import com.photoselectortoolbox.testing.en
 
 /**
  * Every action the photographer takes on the selector answers on screen, naming what happened
@@ -219,7 +220,7 @@ class SelectorActionFeedbackTest {
             rule.waitForIdle()
             val chip = rule.onNodeWithTag("sort_chip_word", useUnmergedTree = true).fetchSemanticsNode()
                 .config.getOrNull(SemanticsProperties.Text)?.joinToString(" ")
-            assertTrue("after ${choice.tag} the chip reads \"$chip\"", chip == choice.menuLabel || chip == choice.chipWord)
+            assertTrue("after ${choice.tag} the chip reads \"$chip\"", chip == choice.menuLabel.en() || chip == choice.chipWord.en())
         }
     }
 
@@ -276,7 +277,7 @@ class SelectorActionFeedbackTest {
         host(customDestination = true)
         press(Key.F)
         pressInViewer(KeyEvent.KEYCODE_C)
-        val said = viewModel.uiState.value.snackbarMessage
+        val said = viewModel.uiState.value.snackbarMessage?.en()
         assertTrue("the snackbar names the custom folder: $said", said.orEmpty().endsWith("· «Keepers › Selection»"))
         // F-FD-074 (fixed 2026-11-10): the flash said "Copied to Selection", not the folder the
         // photo went to; it now uses the card's formatter (`CompanionConfirmation`).

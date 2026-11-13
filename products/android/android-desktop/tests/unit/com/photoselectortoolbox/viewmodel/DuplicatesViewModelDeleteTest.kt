@@ -34,6 +34,7 @@ import org.junit.Test
 import org.junit.runner.RunWith
 import org.robolectric.RobolectricTestRunner
 import org.robolectric.annotation.Config
+import com.photoselectortoolbox.testing.en
 
 /**
  * A Dupes delete is held like a cull delete (REQ-AND-ALGO.05): the copies leave the list at once
@@ -217,6 +218,6 @@ class DuplicatesViewModelDeleteTest {
 
         assertTrue(b.uri !in deletedUris)
         assertTrue(bSidecar in deletedUris)
-        assertTrue(viewModel.uiState.value.error.orEmpty().contains("b.jpg"))
+        assertTrue(viewModel.uiState.value.error?.en().orEmpty().contains("b.jpg"))
     }
 }

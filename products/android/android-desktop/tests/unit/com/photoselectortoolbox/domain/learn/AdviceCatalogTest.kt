@@ -4,6 +4,7 @@ import com.photoselector.core.Requirement
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
 import org.junit.Test
+import com.photoselectortoolbox.testing.en
 
 /**
  * Advice fits the camera (C2, shoot debrief SD-2b): for every camera class and every finding, no
@@ -46,7 +47,7 @@ class AdviceCatalogTest {
                 DecidedBy.entries.flatMap { by ->
                     listOf(false, true).flatMap { raw ->
                         listOf(null, 0.1, 0.9).flatMap { share ->
-                            AdviceCatalog.focus(metric, c, by, raw, share).flatMap { violations(c, it, "$metric") }
+                            AdviceCatalog.focus(metric, c, by, raw, share).flatMap { violations(c, it.en(), "$metric") }
                         }
                     }
                 }
@@ -60,7 +61,7 @@ class AdviceCatalogTest {
         val bad = CameraClass.entries.flatMap { c ->
             CoachFinding.entries.flatMap { finding ->
                 DecidedBy.entries.mapNotNull { by -> AdviceCatalog.coach(finding, profile(c, by), "1/250s", "-0.7") }
-                    .flatMap { violations(c, it, "$finding") }
+                    .flatMap { violations(c, it.en(), "$finding") }
             }
         }
         assertEquals(emptyList<String>(), bad.distinct())
@@ -70,7 +71,7 @@ class AdviceCatalogTest {
     fun `a debrief line is at most twelve words`() {
         val long = CameraClass.entries.flatMap { c ->
             DebriefMetric.entries.flatMap { m -> DecidedBy.entries.flatMap { by -> AdviceCatalog.focus(m, c, by) } }
-        }.filter { it.split(' ').size > 12 }
+        }.map { it.en() }.filter { it.split(' ').size > 12 }
         assertEquals(emptyList<String>(), long)
     }
 
@@ -85,8 +86,8 @@ class AdviceCatalogTest {
 
     @Test
     fun `the wording follows who chose the exposure`() {
-        val mine = AdviceCatalog.focus(DebriefMetric.HAND_HOLD, CameraClass.INTERCHANGEABLE, DecidedBy.PHOTOGRAPHER).first()
-        val its = AdviceCatalog.focus(DebriefMetric.HAND_HOLD, CameraClass.INTERCHANGEABLE, DecidedBy.CAMERA).first()
+        val mine = AdviceCatalog.focus(DebriefMetric.HAND_HOLD, CameraClass.INTERCHANGEABLE, DecidedBy.PHOTOGRAPHER).first().en()
+        val its = AdviceCatalog.focus(DebriefMetric.HAND_HOLD, CameraClass.INTERCHANGEABLE, DecidedBy.CAMERA).first().en()
         assertTrue(mine, mine.startsWith("You chose"))
         assertTrue(its, its.startsWith("The camera chose"))
         val gotAway = AdviceCatalog.focus(DebriefMetric.HAND_HOLD, CameraClass.COMPACT, DecidedBy.PHOTOGRAPHER, slowSoftShare = 0.1)

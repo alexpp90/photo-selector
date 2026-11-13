@@ -12,6 +12,10 @@ import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import com.photoselector.core.model.ExifData
+import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.res.pluralStringResource
+import com.photoselectortoolbox.R
+import com.photoselectortoolbox.ui.text.asString
 
 @OptIn(ExperimentalLayoutApi::class)
 @Composable
@@ -29,7 +33,7 @@ fun MetadataPanel(
             verticalArrangement = Arrangement.spacedBy(4.dp),
         ) {
             exifData.iso?.let { iso ->
-                MetadataValue(value = "ISO $iso")
+                MetadataValue(value = "ISO $iso") // ui-text: ignore (a unit, the same in every language)
             }
             exifData.shutterSpeed?.let { speed ->
                 MetadataValue(value = formatShutterSpeed(speed))
@@ -47,22 +51,22 @@ fun MetadataPanel(
             verticalArrangement = Arrangement.spacedBy(8.dp),
         ) {
             exifData.iso?.let { iso ->
-                MetadataRow(label = "ISO", value = iso.toString())
+                MetadataRow(label = stringResource(R.string.label_exif_iso), value = iso.toString())
             }
             exifData.shutterSpeed?.let { speed ->
-                MetadataRow(label = "Shutter Speed", value = formatShutterSpeed(speed))
+                MetadataRow(label = stringResource(R.string.label_exif_shutter_speed), value = formatShutterSpeed(speed))
             }
             exifData.aperture?.let { aperture ->
-                MetadataRow(label = "Aperture", value = "f/%.1f".format(java.util.Locale.US, aperture))
+                MetadataRow(label = stringResource(R.string.label_exif_aperture), value = "f/%.1f".format(java.util.Locale.US, aperture))
             }
             exifData.focalLength?.let { focal ->
-                MetadataRow(label = "Focal Length", value = "${focal.toInt()}mm")
+                MetadataRow(label = stringResource(R.string.label_exif_focal_length), value = "${focal.toInt()}mm")
             }
             exifData.focalLength35mm?.let { focal35 ->
-                MetadataRow(label = "35mm Equiv.", value = "${focal35.toInt()}mm")
+                MetadataRow(label = stringResource(R.string.label_exif_focal_35mm), value = "${focal35.toInt()}mm")
             }
             if (exifData.lens != "Unknown") {
-                MetadataRow(label = "Lens", value = exifData.lens)
+                MetadataRow(label = stringResource(R.string.label_exif_lens), value = exifData.lens)
             }
         }
     }

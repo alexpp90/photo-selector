@@ -1,5 +1,10 @@
 package com.photoselectortoolbox.domain.guidance
 
+import androidx.annotation.StringRes
+import com.photoselectortoolbox.R
+import com.photoselectortoolbox.domain.text.UiText
+import com.photoselectortoolbox.domain.text.text
+
 /**
  * The session actions in the upper half of the sidebar, as data.
  *
@@ -18,33 +23,23 @@ package com.photoselectortoolbox.domain.guidance
  * one does not build.
  */
 enum class SidebarAction(
-    val label: String,
-    val description: String,
-    val meaning: String,
+    @StringRes private val labelRes: Int,
+    @StringRes private val descriptionRes: Int,
+    @StringRes private val meaningRes: Int,
 ) {
-    FOLDER(
-        label = "Folder",
-        description = "Open a folder",
-        meaning = "Pick the shoot to cull. Sub-folders are included.",
-    ),
-    SCAN(
-        label = "Scan",
-        description = "Scan images for quality scores",
-        meaning = "Measure every frame, so the numbers beside the picture have something to say.",
-    ),
-    BURSTS(
-        label = "Bursts",
-        description = "Bursts, on/off",
-        meaning = "Mark frames shot seconds apart as one series.",
-    ),
-    LEGEND(
-        label = "Legend",
-        description = "What everything on this screen means",
-        meaning = "This guide: every icon named where it sits.",
-    ),
-    MORE(
-        label = "More",
-        description = "More options",
-        meaning = "Undo, open folder, scan, sort, go to, guide.",
-    ),
+    FOLDER(R.string.label_sidebar_folder, R.string.cd_sidebar_folder, R.string.hint_body_sidebar_folder),
+    SCAN(R.string.label_sidebar_scan, R.string.cd_sidebar_scan, R.string.hint_body_sidebar_scan),
+    BURSTS(R.string.label_sidebar_bursts, R.string.cd_sidebar_bursts, R.string.hint_body_sidebar_bursts),
+    LEGEND(R.string.label_sidebar_legend, R.string.cd_sidebar_legend, R.string.hint_body_sidebar_legend),
+    MORE(R.string.label_sidebar_more, R.string.cd_sidebar_more, R.string.hint_body_sidebar_more),
+    ;
+
+    /** The word under the glyph. */
+    val label: UiText get() = text(labelRes)
+
+    /** What a screen reader says for the item. */
+    val description: UiText get() = text(descriptionRes)
+
+    /** The guide's line beside it: what the control does. */
+    val meaning: UiText get() = text(meaningRes)
 }

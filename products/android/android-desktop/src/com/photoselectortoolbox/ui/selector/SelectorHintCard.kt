@@ -39,6 +39,9 @@ import com.photoselectortoolbox.ui.theme.StudioPanel
 import com.photoselectortoolbox.ui.theme.Zinc400
 import com.photoselectortoolbox.ui.theme.Zinc50
 import com.photoselectortoolbox.viewmodel.SelectorHintUi
+import androidx.compose.ui.res.stringResource
+import com.photoselectortoolbox.R
+import com.photoselectortoolbox.ui.text.asString
 
 /** How long an explanation stays up before it fades on its own. */
 private const val AUTO_DISMISS_MILLIS = 9_000L
@@ -87,6 +90,9 @@ fun SelectorHintCard(
         modifier = modifier,
     ) {
         val current = last ?: return@AnimatedVisibility
+        val title = current.title.asString()
+        val message = current.message.asString()
+        val spoken = "$title. $message"
 
         Column(
             modifier = Modifier
@@ -95,12 +101,12 @@ fun SelectorHintCard(
                 .background(StudioPanel)
                 .border(1.dp, StudioBorder, RoundedCornerShape(10.dp))
                 .padding(12.dp)
-                .semantics { contentDescription = "${current.title}. ${current.message}" }
+                .semantics { contentDescription = spoken }
                 .testTag("selector_hint_card"),
             verticalArrangement = Arrangement.spacedBy(4.dp),
         ) {
             Text(
-                text = current.title,
+                text = title,
                 fontSize = 13.sp,
                 fontWeight = FontWeight.Medium,
                 color = Zinc50,
@@ -112,7 +118,7 @@ fun SelectorHintCard(
             // Got it off the card (usability panel 2026-11-10; UI_TEXT: scroll,
             // never truncate). fill = false keeps a short card its own height.
             Text(
-                text = current.message,
+                text = message,
                 fontSize = 11.sp,
                 color = Zinc400,
                 modifier = Modifier
@@ -121,7 +127,7 @@ fun SelectorHintCard(
                     .testTag("selector_hint_message"),
             )
             Text(
-                text = "Got it",
+                text = stringResource(R.string.action_got_it),
                 fontSize = 12.sp,
                 fontWeight = FontWeight.Medium,
                 color = BrandAccentText,

@@ -8,12 +8,13 @@ appId: com.photoselectortoolbox.lab
 - tapOn:
     id: "delete_button_(expanded|compact)"
 # The confirm dialog is its own window, so its test tag is not exported as a resource id;
-# while it is open the hierarchy holds only the dialog, so its "Delete" button is unambiguous.
+# while it is open the hierarchy holds only the dialog, so its "Delete" button is unambiguous
+# (English or German: the lab devices run German, values-de since decision #34).
 - extendedWaitUntil:
     visible:
-      text: "Delete"
+      text: "Delete|Löschen"
     timeout: 4000
     optional: true
 - tapOn:
-    text: "Delete"
+    text: "Delete|Löschen"
     optional: true

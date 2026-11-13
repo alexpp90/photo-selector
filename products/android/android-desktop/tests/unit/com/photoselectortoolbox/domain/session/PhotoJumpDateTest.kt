@@ -14,6 +14,7 @@ import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
+import com.photoselectortoolbox.testing.en
 
 /**
  * "Go to photo" by date (`[USER 2026-11-04]` "It would also be convenient to be able to
@@ -307,11 +308,11 @@ class PhotoJumpDateTest {
         val preview = PhotoJump.preview("12.10.2026", images, zone = berlin, today = today)
         assertEquals("C_1012_1800.JPG", preview.fileName)
         assertEquals(LocalDateTime.of(2026, 10, 12, 18, 0), preview.takenAt)
-        assertEquals("C_1012_1800.JPG · 12 Oct 2026, 18:00", SelectorLabels.goToPhotoPreview(preview.fileName!!, preview.takenAt))
+        assertEquals("C_1012_1800.JPG · 12 Oct 2026, 18:00", SelectorLabels.goToPhotoPreview(preview.fileName!!, preview.takenAt).en())
         // A photo without a known time previews by name alone.
         val unknown = PhotoJump.preview("E_unknown", images, zone = berlin, today = today)
         assertNull(unknown.takenAt)
-        assertEquals("E_unknown.JPG", SelectorLabels.goToPhotoPreview(unknown.fileName!!, unknown.takenAt))
+        assertEquals("E_unknown.JPG", SelectorLabels.goToPhotoPreview(unknown.fileName!!, unknown.takenAt).en())
         // Nothing to land on: no file.
         assertNull(PhotoJump.preview("nothing", images, zone = berlin, today = today).fileName)
     }
@@ -320,7 +321,7 @@ class PhotoJumpDateTest {
     fun `the nearest-day message names both days`() {
         assertEquals(
             "No photos on 13 Oct 2026 — showing 14 Oct 2026",
-            SelectorLabels.goToPhotoNearestDay(DateJump(LocalDate.of(2026, 10, 13), LocalDate.of(2026, 10, 14))),
+            SelectorLabels.goToPhotoNearestDay(DateJump(LocalDate.of(2026, 10, 13), LocalDate.of(2026, 10, 14)))?.en(),
         )
         assertNull(SelectorLabels.goToPhotoNearestDay(DateJump(LocalDate.of(2026, 10, 14), LocalDate.of(2026, 10, 14))))
     }

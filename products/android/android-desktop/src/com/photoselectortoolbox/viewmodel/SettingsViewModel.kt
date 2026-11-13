@@ -208,7 +208,7 @@ class SettingsViewModel @Inject constructor(
         Log.w(TAG, "Could not describe $uri", e)
         FolderDescription(
             uri = uri,
-            displayPath = SafTreeDisplayPath.segments(uri, labels = DestinationLabels.PATH_LABELS),
+            displayPath = SafTreeDisplayPath.segments(uri, labels = DestinationLabels.pathLabels(context)),
         )
     }
 

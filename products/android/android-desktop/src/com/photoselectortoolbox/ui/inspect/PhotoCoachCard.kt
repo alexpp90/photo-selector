@@ -39,6 +39,9 @@ import com.photoselectortoolbox.ui.theme.Zinc400
 import com.photoselectortoolbox.ui.theme.Zinc800
 import com.photoselectortoolbox.ui.theme.Zinc900
 import com.photoselectortoolbox.ui.theme.Zinc950
+import androidx.compose.ui.res.stringResource
+import com.photoselectortoolbox.R
+import com.photoselectortoolbox.ui.text.asString
 
 // ── Photo Coach Card (U-20: Hand-Holding Guideline wording, no 'shake') ───────
 
@@ -74,7 +77,7 @@ internal fun PhotoCoachCard(
                     modifier = Modifier.size(20.dp),
                 )
                 Text(
-                    text = "Photo Coach",
+                    text = stringResource(R.string.title_photo_coach),
                     style = MaterialTheme.typography.titleSmall,
                     fontWeight = FontWeight.Bold,
                     color = Color.White,
@@ -101,7 +104,7 @@ internal fun PhotoCoachCard(
                 verticalArrangement = Arrangement.spacedBy(4.dp),
             ) {
                 Text(
-                    text = "Hand-holding",
+                    text = stringResource(R.string.label_hand_holding),
                     style = MaterialTheme.typography.bodySmall,
                     color = Zinc400,
                     modifier = Modifier.align(Alignment.CenterVertically),
@@ -112,7 +115,7 @@ internal fun PhotoCoachCard(
                     border = androidx.compose.foundation.BorderStroke(1.dp, riskColor.copy(alpha = 0.6f)),
                 ) {
                     Text(
-                        text = riskLabel,
+                        text = riskLabel.asString(),
                         style = MaterialTheme.typography.labelSmall,
                         color = riskColor,
                         fontWeight = FontWeight.SemiBold,
@@ -124,7 +127,7 @@ internal fun PhotoCoachCard(
             // One sentence with both speeds in it, not "1/f_eff Guideline: 1/50s (Actual: 1/60s)".
             LearnText.shutterLine(coachReport.safeShutterSpeed, currentImage.exifData?.shutterSpeed)?.let { line ->
                 Text(
-                    text = line,
+                    text = line.asString(),
                     style = MaterialTheme.typography.bodySmall,
                     fontWeight = FontWeight.Medium,
                     color = Color.White,
@@ -134,7 +137,7 @@ internal fun PhotoCoachCard(
 
             LearnText.noiseRemark(currentImage.scanResult?.noiseLevel, currentImage.exifData?.iso)?.let { remark ->
                 Text(
-                    text = remark,
+                    text = remark.asString(),
                     style = MaterialTheme.typography.bodySmall,
                     color = ScoreWarn,
                     modifier = Modifier.fillMaxWidth().testTag("coach_noise_remark"),
@@ -151,7 +154,7 @@ internal fun PhotoCoachCard(
                     horizontalArrangement = Arrangement.SpaceBetween,
                 ) {
                     Text(
-                        text = "Suggested EV Correction:",
+                        text = stringResource(R.string.label_suggested_ev),
                         style = MaterialTheme.typography.bodySmall,
                         color = Zinc400,
                     )
@@ -161,7 +164,7 @@ internal fun PhotoCoachCard(
                         border = androidx.compose.foundation.BorderStroke(1.dp, ScoreWarn.copy(alpha = 0.5f)),
                     ) {
                         Text(
-                            text = "$evFormatted EV",
+                            text = stringResource(R.string.label_ev_value, evFormatted),
                             style = MaterialTheme.typography.labelSmall,
                             color = ScoreWarn,
                             fontWeight = FontWeight.Bold,
@@ -172,7 +175,7 @@ internal fun PhotoCoachCard(
             }
 
             Text(
-                text = "Technique Guidance:",
+                text = stringResource(R.string.label_technique_guidance),
                 style = MaterialTheme.typography.labelMedium,
                 fontWeight = FontWeight.SemiBold,
                 color = Zinc400,
@@ -186,7 +189,7 @@ internal fun PhotoCoachCard(
             ) {
                 if (coachReport.tips.isEmpty()) {
                     Text(
-                        text = "Clean capture: exposure parameters and sharpness are within optimal thresholds.",
+                        text = stringResource(R.string.learn_clean_capture),
                         style = MaterialTheme.typography.bodySmall,
                         color = HintText,
                     )
@@ -231,7 +234,7 @@ private fun CoachingTipItem(
                 horizontalArrangement = Arrangement.SpaceBetween,
             ) {
                 Text(
-                    text = tip.title,
+                    text = tip.title.asString(),
                     style = MaterialTheme.typography.labelMedium,
                     fontWeight = FontWeight.Bold,
                     color = Color.White,
@@ -257,14 +260,14 @@ private fun CoachingTipItem(
             }
 
             Text(
-                text = tip.description,
+                text = tip.description.asString(),
                 style = MaterialTheme.typography.bodySmall,
                 color = Zinc400,
                 modifier = Modifier.testTag("tip_description"),
             )
 
             Text(
-                text = "💡 ${tip.recommendation}",
+                text = "💡 ${tip.recommendation.asString()}",
                 style = MaterialTheme.typography.bodySmall,
                 color = Zinc200,
                 fontWeight = FontWeight.Medium,

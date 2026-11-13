@@ -7,6 +7,7 @@ import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
 import org.junit.Test
+import com.photoselectortoolbox.testing.en
 
 /**
  * The explanations say what happened to the file, under whichever configuration
@@ -29,8 +30,8 @@ class SelectorHintTextTest {
         everyConfiguration.forEach { action ->
             SelectorHint.entries.forEach { hint ->
                 val text = (
-                    SelectorHintText.title(hint, action) + " " +
-                        SelectorHintText.message(hint, action, "Selection", true)
+                    SelectorHintText.title(hint, action).en() + " " +
+                        SelectorHintText.message(hint, action, "Selection", true).en()
                     ).lowercase()
 
                 banned.forEach { word ->
@@ -45,8 +46,8 @@ class SelectorHintTextTest {
 
     @Test
     fun `the filing explanation names the configured verb, not the other one`() {
-        assertEquals("Moved to Selection", SelectorHintText.title(SelectorHint.FILING, FilingAction.MOVE))
-        assertEquals("Copied to Selection", SelectorHintText.title(SelectorHint.FILING, FilingAction.COPY))
+        assertEquals("Moved to Selection", SelectorHintText.title(SelectorHint.FILING, FilingAction.MOVE).en())
+        assertEquals("Copied to Selection", SelectorHintText.title(SelectorHint.FILING, FilingAction.COPY).en())
     }
 
     @Test
@@ -61,7 +62,7 @@ class SelectorHintTextTest {
             )
         }
 
-        assertEquals("Moved to Picks", SelectorHintText.title(SelectorHint.FILING, FilingAction.MOVE, "Picks"))
+        assertEquals("Moved to Picks", SelectorHintText.title(SelectorHint.FILING, FilingAction.MOVE, "Picks").en())
     }
 
     @Test
@@ -73,7 +74,7 @@ class SelectorHintTextTest {
             filingAction = FilingAction.MOVE,
             selectionFolderName = "Picks",
             sortingEnabled = true,
-        )
+        ).en()
 
         assertTrue(message, message.contains("\"Picks\""))
         assertFalse(message, message.contains("Selection"))
@@ -86,7 +87,7 @@ class SelectorHintTextTest {
             filingAction = FilingAction.COPY,
             selectionFolderName = "",
             sortingEnabled = false,
-        )
+        ).en()
 
         assertTrue(message, message.contains("\"Selection\""))
     }
@@ -95,10 +96,10 @@ class SelectorHintTextTest {
     fun `sorting is mentioned only when it is switched on`() {
         val sorted = SelectorHintText.message(
             SelectorHint.FILING, FilingAction.MOVE, "Selection", sortingEnabled = true,
-        )
+        ).en()
         val unsorted = SelectorHintText.message(
             SelectorHint.FILING, FilingAction.MOVE, "Selection", sortingEnabled = false,
-        )
+        ).en()
 
         assertTrue(sorted, sorted.contains("RAW and JPEG"))
         assertFalse(unsorted, unsorted.contains("RAW and JPEG"))
@@ -110,13 +111,13 @@ class SelectorHintTextTest {
         // The hint is where a photographer finds that out.
         val underMove = SelectorHintText.message(
             SelectorHint.FILING, FilingAction.MOVE, "Selection", true,
-        )
+        ).en()
         assertTrue(underMove, underMove.contains(FilingAction.COPY.shortcut))
         assertTrue(underMove, underMove.contains("copies"))
 
         val underCopy = SelectorHintText.message(
             SelectorHint.FILING, FilingAction.COPY, "Selection", true,
-        )
+        ).en()
         assertTrue(underCopy, underCopy.contains(FilingAction.MOVE.shortcut))
         assertTrue(underCopy, underCopy.contains("moves"))
     }
@@ -124,12 +125,12 @@ class SelectorHintTextTest {
     @Test
     fun `the delete explanation promises no deadline and says what the delete dialog says`() {
         // Nothing commits a delete on a timer: it goes when the folder is left (FD-D-1).
-        val text = SelectorHintText.title(SelectorHint.DELETE_UNDO, FilingAction.COPY) +
-            SelectorHintText.message(SelectorHint.DELETE_UNDO, FilingAction.COPY, "Selection", true)
-        val dialog = com.photoselectortoolbox.domain.format.SelectorLabels.deleteConfirmationMessage("a.jpg")
+        val text = SelectorHintText.title(SelectorHint.DELETE_UNDO, FilingAction.COPY).en() +
+            SelectorHintText.message(SelectorHint.DELETE_UNDO, FilingAction.COPY, "Selection", true).en()
+        val dialog = com.photoselectortoolbox.domain.format.SelectorLabels.deleteConfirmationMessage("a.jpg").en()
 
         for (said in listOf(text, dialog)) {
-            assertTrue(said, said.contains(com.photoselectortoolbox.domain.format.SelectorLabels.DELETE_UNDO_SCOPE))
+            assertTrue(said, said.contains("until you leave the folder"))
             assertFalse(said, Regex("\\b30\\b|second").containsMatchIn(said))
         }
     }
@@ -138,18 +139,18 @@ class SelectorHintTextTest {
     fun `the maximise explanation names the key that actually leaves the state`() {
         val message = SelectorHintText.message(
             SelectorHint.MAXIMISE, FilingAction.COPY, "Selection", true,
-        )
+        ).en()
 
-        assertTrue(message, message.startsWith(SelectorShortcut.ESCAPE.input))
+        assertTrue(message, message.startsWith(SelectorShortcut.ESCAPE.input.en()))
     }
 
     @Test
     fun `the guide names the key that reopens it`() {
         val message = SelectorHintText.message(
             SelectorHint.TOUR, FilingAction.COPY, "Selection", true,
-        )
+        ).en()
 
-        assertTrue(message, message.contains(SelectorShortcut.SHORTCUTS.input))
+        assertTrue(message, message.contains(SelectorShortcut.SHORTCUTS.input.en()))
     }
 
     @Test
@@ -158,11 +159,11 @@ class SelectorHintTextTest {
             SelectorHint.entries.forEach { hint ->
                 assertTrue(
                     "$hint has no title under $action",
-                    SelectorHintText.title(hint, action).isNotBlank(),
+                    SelectorHintText.title(hint, action).en().isNotBlank(),
                 )
                 assertTrue(
                     "$hint has no message under $action",
-                    SelectorHintText.message(hint, action, "Selection", true).isNotBlank(),
+                    SelectorHintText.message(hint, action, "Selection", true).en().isNotBlank(),
                 )
             }
         }

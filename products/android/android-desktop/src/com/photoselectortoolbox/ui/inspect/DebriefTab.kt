@@ -60,6 +60,10 @@ import com.photoselectortoolbox.ui.theme.Zinc400
 import com.photoselectortoolbox.ui.theme.Zinc700
 import com.photoselectortoolbox.ui.theme.Zinc800
 import com.photoselectortoolbox.ui.theme.Zinc900
+import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.res.pluralStringResource
+import com.photoselectortoolbox.R
+import com.photoselectortoolbox.ui.text.asString
 
 /** What the Debrief tab does outside itself: the cull's scan, a camera's class, tracking a focus. */
 class DebriefActions(
@@ -88,15 +92,15 @@ internal fun DebriefTabContent(
     onOpenPair: (DebriefCard) -> Unit,
 ) {
     if (!debrief.scanned) {
-        Text(LearnText.NOT_SCANNED, style = MaterialTheme.typography.bodySmall, color = Zinc200, modifier = Modifier.testTag("debrief_not_scanned"))
-        DebriefButton("Scan", "debrief_scan", onClick = actions.onScan)
+        Text(LearnText.NOT_SCANNED.asString(), style = MaterialTheme.typography.bodySmall, color = Zinc200, modifier = Modifier.testTag("debrief_not_scanned"))
+        DebriefButton(stringResource(R.string.action_scan), "debrief_scan", onClick = actions.onScan)
         return
     }
     if (debrief.partial) {
-        Text(LearnText.partial(debrief.scannedCount, debrief.photoCount), style = MaterialTheme.typography.labelSmall, color = HintText, modifier = Modifier.testTag("debrief_partial"))
+        Text(LearnText.partial(debrief.scannedCount, debrief.photoCount).asString(), style = MaterialTheme.typography.labelSmall, color = HintText, modifier = Modifier.testTag("debrief_partial"))
     }
     if (debrief.noCameraData) {
-        Text(LearnText.NO_CAMERA_DATA, style = MaterialTheme.typography.labelMedium, color = Zinc400, modifier = Modifier.testTag("debrief_no_camera_data"))
+        Text(LearnText.NO_CAMERA_DATA.asString(), style = MaterialTheme.typography.labelMedium, color = Zinc400, modifier = Modifier.testTag("debrief_no_camera_data"))
     }
     val expanded = remember(debrief.cards.map { it.group.cameraClass }) {
         mutableStateMapOf<CameraClass, Boolean>().apply {
@@ -146,19 +150,19 @@ private fun DebriefGroupCard(
                 Box(modifier = Modifier.weight(1f))
                 if (!expanded) {
                     TouchTarget(onClick = onExpand, testTag = "debrief_expand_${group.cameraClass.key}") {
-                        Icon(Icons.Default.ExpandMore, contentDescription = "Show ${LearnText.cameraClass(group.cameraClass)}", tint = Zinc400)
+                        Icon(Icons.Default.ExpandMore, contentDescription = stringResource(R.string.cd_show_camera_group, LearnText.cameraClass(group.cameraClass).asString()), tint = Zinc400)
                     }
                 }
             }
             if (group.cameraNames.isNotEmpty()) {
                 Text(group.cameraNames.joinToString(", "), style = MaterialTheme.typography.labelMedium, color = Color.White)
             }
-            Text(LearnText.photos(group.photoCount), style = MaterialTheme.typography.labelSmall, color = Zinc400)
+            Text(LearnText.photos(group.photoCount).asString(), style = MaterialTheme.typography.labelSmall, color = Zinc400)
             if (!expanded) return@Column
             group.metrics.forEach { MetricRow(it, card.before[it.metric]) }
             DebriefBuilder.goalLine(goal, card)?.let { line ->
                 Text(
-                    "Goal: ${line.nowPercent} % (was ${line.wasPercent} %)",
+                    stringResource(R.string.label_goal_progress, line.nowPercent, line.wasPercent),
                     style = MaterialTheme.typography.labelMedium,
                     color = Zinc200,
                     modifier = Modifier.testTag("debrief_goal"),
@@ -167,28 +171,33 @@ private fun DebriefGroupCard(
             val focus = group.focus
             if (focus == null) {
                 // A small shoot has no focus, and may still have a pair that tells two frames apart.
-                if (card.pair != null) DebriefButton("Worked pair", "debrief_open_pair") { onOpenPair(card) }
+                if (card.pair != null) DebriefButton(stringResource(R.string.action_worked_pair), "debrief_open_pair") { onOpenPair(card) }
                 return@Column
             }
             Column(modifier = Modifier.fillMaxWidth().testTag("debrief_focus"), verticalArrangement = Arrangement.spacedBy(6.dp)) {
-                group.advice.forEachIndexed { i, line ->
-                    Text(if (i == 0) "Next time: $line" else line, style = MaterialTheme.typography.bodySmall, color = Zinc200)
+                group.advice.forEachIndexed { i, advice ->
+                    val line = advice.asString()
+                    Text(if (i == 0) stringResource(R.string.learn_next_time, line) else line, style = MaterialTheme.typography.bodySmall, color = Zinc200)
                 }
                 val problems = group.problemUris[focus].orEmpty()
                 FlowRow(horizontalArrangement = Arrangement.spacedBy(6.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
                     if (problems.isNotEmpty()) {
                         val showing = shownUris == problems.toSet()
                         DebriefButton(
-                            if (showing) "Show all" else "Show ${problems.size}",
+                            if (showing) stringResource(R.string.action_show_all) else stringResource(R.string.action_show_count, problems.size),
                             "debrief_show_problems",
                             icon = Icons.Default.FilterList,
-                            spoken = if (showing) "Show every photo in the filmstrip" else "Show the ${problems.size} photos in the filmstrip",
+                            spoken = if (showing) {
+                                stringResource(R.string.cd_show_all_filmstrip)
+                            } else {
+                                pluralStringResource(R.plurals.cd_show_count_filmstrip, problems.size, problems.size)
+                            },
                         ) { onShow(if (showing) null else problems.toSet()) }
                     }
-                    DebriefButton("Lesson", "debrief_focus_lesson") { onOpenLesson(LearnText.lessonFor(focus)) }
+                    DebriefButton(stringResource(R.string.action_lesson), "debrief_focus_lesson") { onOpenLesson(LearnText.lessonFor(focus)) }
                     val tracked = DebriefBuilder.tracks(goal, card)
-                    DebriefButton(if (tracked) "Tracked" else "Track", "debrief_track") { if (!tracked) actions.onTrack(card) }
-                    if (card.pair != null) DebriefButton("Worked pair", "debrief_open_pair") { onOpenPair(card) }
+                    DebriefButton(stringResource(if (tracked) R.string.label_tracked else R.string.action_track), "debrief_track") { if (!tracked) actions.onTrack(card) }
+                    if (card.pair != null) DebriefButton(stringResource(R.string.action_worked_pair), "debrief_open_pair") { onOpenPair(card) }
                 }
             }
         }
@@ -198,23 +207,24 @@ private fun DebriefGroupCard(
 /** One count: label and "104 of 132", a 6 dp bar, and "Before: 71 %"; spoken as one phrase. */
 @Composable
 private fun MetricRow(count: MetricCount, before: Int?) {
-    val label = LearnText.metric(count.metric)
+    val label = LearnText.metric(count.metric).asString()
+    val spoken = LearnText.metricSpoken(LearnText.metric(count.metric), count.matching, count.total, before).asString()
     Column(
         modifier = Modifier
             .fillMaxWidth()
             .testTag("debrief_metric_${count.metric.key}")
-            .clearAndSetSemantics { contentDescription = LearnText.metricSpoken(label, count.matching, count.total, before) },
+            .clearAndSetSemantics { contentDescription = spoken },
         verticalArrangement = Arrangement.spacedBy(3.dp),
     ) {
         FlowRow(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
             Text(label, style = MaterialTheme.typography.labelMedium, color = Zinc200)
-            Text("${count.matching} of ${count.total}", style = MaterialTheme.typography.labelMedium, color = Color.White, fontWeight = FontWeight.SemiBold)
+            Text(stringResource(R.string.label_matching_of_total, count.matching, count.total), style = MaterialTheme.typography.labelMedium, color = Color.White, fontWeight = FontWeight.SemiBold)
         }
         val share = if (count.total > 0) count.matching.toFloat() / count.total else 0f
         Box(modifier = Modifier.fillMaxWidth().height(6.dp).clip(RoundedCornerShape(3.dp)).background(Zinc800)) {
             Box(modifier = Modifier.fillMaxWidth(share).height(6.dp).background(BrandAccent))
         }
-        if (before != null) Text("Before: $before %", style = MaterialTheme.typography.labelSmall, color = HintText)
+        if (before != null) Text(stringResource(R.string.label_before_percent, before), style = MaterialTheme.typography.labelSmall, color = HintText)
     }
 }
 
@@ -222,15 +232,16 @@ private fun MetricRow(count: MetricCount, before: Int?) {
 @Composable
 private fun CameraChip(cameraClass: CameraClass, onChoose: (CameraClass) -> Unit) {
     var open by remember { mutableStateOf(false) }
+    val chipSpoken = LearnText.cameraChipSpoken(cameraClass).asString()
     Box {
         TouchTarget(
             onClick = { open = true },
             testTag = "debrief_camera_chip",
-            modifier = Modifier.semantics { contentDescription = LearnText.cameraChipSpoken(cameraClass) },
+            modifier = Modifier.semantics { contentDescription = chipSpoken },
         ) {
             Surface(shape = RoundedCornerShape(8.dp), color = BrandAccentDeep, border = BorderStroke(1.dp, BrandAccent)) {
                 Text(
-                    LearnText.cameraClass(cameraClass),
+                    LearnText.cameraClass(cameraClass).asString(),
                     style = MaterialTheme.typography.labelMedium,
                     color = Color.White,
                     modifier = Modifier.padding(horizontal = 10.dp, vertical = 6.dp),
@@ -240,7 +251,7 @@ private fun CameraChip(cameraClass: CameraClass, onChoose: (CameraClass) -> Unit
         DropdownMenu(expanded = open, onDismissRequest = { open = false }, modifier = Modifier.testTag("debrief_class_menu")) {
             CameraClass.entries.forEach { c ->
                 DropdownMenuItem(
-                    text = { Text(LearnText.cameraClass(c)) },
+                    text = { Text(LearnText.cameraClass(c).asString()) },
                     onClick = {
                         open = false
                         if (c != cameraClass) onChoose(c)

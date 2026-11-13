@@ -17,6 +17,9 @@ import androidx.compose.ui.unit.dp
 import com.photoselectortoolbox.domain.format.SelectorLabels
 import com.photoselectortoolbox.domain.interaction.SelectorShortcut
 import com.photoselectortoolbox.ui.components.handCursor
+import androidx.compose.ui.res.stringResource
+import com.photoselectortoolbox.R
+import com.photoselectortoolbox.ui.text.asString
 
 /**
  * What the More menu offers, as values and lambdas: one list for the sidebar's More (wide
@@ -44,11 +47,12 @@ data class SelectorMoreMenu(
 @Composable
 internal fun SelectorMoreMenuItems(menu: SelectorMoreMenu, onDismiss: () -> Unit) {
     val act: (() -> Unit) -> () -> Unit = { action -> { onDismiss(); action() } }
+    val undoSpoken = SelectorLabels.undoMenuSpoken(menu.undoSteps).asString()
     DropdownMenuItem(
-        text = { Text(SelectorLabels.UNDO_MENU) },
+        text = { Text(SelectorLabels.UNDO_MENU.asString()) },
         trailingIcon = {
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
-                KeyCap(SelectorShortcut.UNDO.input)
+                KeyCap(SelectorShortcut.UNDO.input.asString())
                 Text(
                     text = menu.undoSteps.toString(),
                     style = MaterialTheme.typography.labelMedium,
@@ -62,18 +66,18 @@ internal fun SelectorMoreMenuItems(menu: SelectorMoreMenu, onDismiss: () -> Unit
         enabled = menu.undoSteps > 0,
         modifier = Modifier
             .testTag("menu_undo")
-            .semantics { contentDescription = SelectorLabels.undoMenuSpoken(menu.undoSteps) }
+            .semantics { contentDescription = undoSpoken }
             .handCursor(),
     )
     HorizontalDivider()
     DropdownMenuItem(
         modifier = Modifier.testTag("menu_open_folder").handCursor(),
-        text = { Text("Open folder") },
+        text = { Text(stringResource(R.string.action_open_folder_menu)) },
         onClick = act(menu.onOpenFolder),
     )
     DropdownMenuItem(
         modifier = Modifier.testTag("menu_scan").handCursor(),
-        text = { Text("Scan images") },
+        text = { Text(stringResource(R.string.action_scan_images)) },
         onClick = act(menu.onScan),
         enabled = menu.hasImages && menu.canScan,
     )
@@ -86,22 +90,22 @@ internal fun SelectorMoreMenuItems(menu: SelectorMoreMenu, onDismiss: () -> Unit
     )
     HorizontalDivider()
     DropdownMenuItem(
-        text = { Text(SelectorLabels.GO_TO_PHOTO_MENU) },
-        trailingIcon = { KeyCap(SelectorShortcut.GO_TO.input) },
+        text = { Text(SelectorLabels.GO_TO_PHOTO_MENU.asString()) },
+        trailingIcon = { KeyCap(SelectorShortcut.GO_TO.input.asString()) },
         onClick = act(menu.onGoToPhoto),
         enabled = menu.hasImages,
         modifier = Modifier.testTag("menu_go_to_photo").handCursor(),
     )
     DropdownMenuItem(
         modifier = Modifier.handCursor(),
-        text = { Text("Clear scores") },
+        text = { Text(stringResource(R.string.action_clear_scores)) },
         onClick = act(menu.onClearScores),
         enabled = menu.hasAnyScores,
     )
     menu.onShowGuide?.let { showGuide ->
         DropdownMenuItem(
             modifier = Modifier.handCursor(),
-            text = { Text("Shortcuts and guide") },
+            text = { Text(stringResource(R.string.action_shortcuts_and_guide)) },
             onClick = act(showGuide),
         )
     }

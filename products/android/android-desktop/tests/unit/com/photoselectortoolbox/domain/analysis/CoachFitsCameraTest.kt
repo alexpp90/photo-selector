@@ -8,6 +8,7 @@ import com.photoselectortoolbox.domain.learn.TechniqueFact
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
 import org.junit.Test
+import com.photoselectortoolbox.testing.en
 
 /**
  * The Photo Coach and Explore's cards give advice that fits the camera (shoot debrief SD-2b, C2):
@@ -25,12 +26,12 @@ class CoachFitsCameraTest {
     )
     private val soft = ScanResult("x", sharpnessScore = 15.0, noiseLevel = 12.0, highlightClipping = 8.0)
 
-    private fun advised(exif: ExifData) = engine.evaluate(exif, soft).tips.joinToString("\n") { it.recommendation }
+    private fun advised(exif: ExifData) = engine.evaluate(exif, soft).tips.joinToString("\n") { it.recommendation.en() }
 
     @Test
     fun `a drone gets no hand-holding remark`() {
         val tips = engine.evaluate(everything("DJI", "FC3582", 6.7, 24.0), soft).tips
-        assertTrue(tips.none { it.category == "Shutter Speed" || it.category == "Stabilization" || "Hand-Holding" in it.title })
+        assertTrue(tips.none { it.category.en() == "Shutter Speed" || it.category.en() == "Stabilization" || "Hand-Holding" in it.title.en() })
     }
 
     @Test
@@ -50,7 +51,7 @@ class CoachFitsCameraTest {
     fun `an Explore card for a phone's busy background does not say aperture`() {
         val phone = everything("Apple", "iPhone 15 Pro", 6.8, 24.0)
         val result = CardGenerator.generate(listOf(TechniqueFact("composition.simplicity", "busy", 0.9)), exif = phone)
-        val tryNext = result.tryNextCard?.tryNextTime.orEmpty()
+        val tryNext = result.tryNextCard?.tryNextTime?.en().orEmpty()
         assertTrue(tryNext.isNotEmpty())
         assertFalse(tryNext, tryNext.contains("aperture", ignoreCase = true))
     }
@@ -58,8 +59,8 @@ class CoachFitsCameraTest {
     @Test
     fun `an unknown camera gets image-based remarks only`() {
         val tips = engine.evaluate(null, ScanResult("x", highlightClipping = 8.0, shadowClipping = 0.2)).tips
-        val highlights = tips.single { it.title.contains("Blown Highlights") }
-        assertFalse(highlights.recommendation, Regex("(?i)EV|compensation|aperture|ISO").containsMatchIn(highlights.recommendation))
-        assertTrue(engine.evaluate(ExifData(aperture = 22.0), null).tips.none { it.category == "Optics" })
+        val highlights = tips.single { it.title.en().contains("Blown Highlights") }
+        assertFalse(highlights.recommendation.en(), Regex("(?i)EV|compensation|aperture|ISO").containsMatchIn(highlights.recommendation.en()))
+        assertTrue(engine.evaluate(ExifData(aperture = 22.0), null).tips.none { it.category.en() == "Optics" })
     }
 }

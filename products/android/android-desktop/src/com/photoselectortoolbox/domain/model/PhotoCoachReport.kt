@@ -1,5 +1,7 @@
 package com.photoselectortoolbox.domain.model
 
+import com.photoselectortoolbox.domain.text.UiText
+
 /**
  * Severity level of an educational photo coaching tip.
  */
@@ -19,10 +21,10 @@ enum class TipSeverity {
  * @property severity Severity rating indicating urgency of the critique.
  */
 data class CoachingTip(
-    val category: String,
-    val title: String,
-    val description: String,
-    val recommendation: String,
+    val category: UiText,
+    val title: UiText,
+    val description: UiText,
+    val recommendation: UiText,
     val severity: TipSeverity
 )
 

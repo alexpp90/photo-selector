@@ -58,6 +58,10 @@ import com.photoselectortoolbox.ui.theme.HintText
 import com.photoselectortoolbox.ui.theme.Zinc200
 import com.photoselectortoolbox.ui.theme.Zinc700
 import com.photoselectortoolbox.ui.theme.Zinc900
+import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.platform.LocalConfiguration
+import com.photoselectortoolbox.R
+import com.photoselectortoolbox.ui.text.asString
 
 /** The guess in the worked pair: a frame, or *Show me* (no guess). Not scored, not stored. */
 enum class PairChoice { A, B, SHOWN }
@@ -106,15 +110,15 @@ internal fun DebriefPairView(
             modifier = Modifier.fillMaxSize().verticalScroll(rememberScrollState()),
         ) {
             Text(
-                LearnText.pairQuestion(pair.metric),
+                LearnText.pairQuestion(pair.metric).asString(),
                 style = MaterialTheme.typography.titleMedium,
                 color = Color.White,
                 fontWeight = FontWeight.Bold,
                 modifier = Modifier.fillMaxWidth(),
             )
             FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                if (!revealed) DebriefButton("Show me", "debrief_pair_reveal") { onChoose(PairChoice.SHOWN) }
-                DebriefButton("Close", "debrief_pair_close", spoken = "Close the worked pair (Escape)", onClick = onClose)
+                if (!revealed) DebriefButton(stringResource(R.string.action_show_me), "debrief_pair_reveal") { onChoose(PairChoice.SHOWN) }
+                DebriefButton(stringResource(R.string.action_close), "debrief_pair_close", spoken = stringResource(R.string.cd_close_pair), onClick = onClose)
             }
             if (stacked) {
                 Column(Modifier.fillMaxWidth().selectableGroup(), verticalArrangement = Arrangement.spacedBy(8.dp)) {
@@ -150,6 +154,7 @@ private fun PairFrame(
 ) {
     val settings = settingsOf(photo)
     val better = photo.uri == pair.better.uri
+    val spoken = stringResource(R.string.cd_pair_photo, letter.name, settings)
     Column(modifier = modifier, verticalArrangement = Arrangement.spacedBy(4.dp)) {
         Box(
             modifier = Modifier
@@ -161,7 +166,7 @@ private fun PairFrame(
                 .border(if (chosen) 2.dp else 1.dp, if (chosen) BrandAccent else Zinc700)
                 .selectable(selected = chosen, enabled = !revealed, role = Role.RadioButton) { onChoose(letter) }
                 .handCursor()
-                .semantics { contentDescription = "Photo ${letter.name}, $settings" }
+                .semantics { contentDescription = spoken }
                 .testTag("debrief_pair_${letter.name.lowercase()}"),
         ) {
             AsyncImage(model = photo.uri, contentDescription = null, contentScale = ContentScale.Fit, modifier = Modifier.fillMaxSize())
@@ -175,8 +180,8 @@ private fun PairFrame(
                     shape = RoundedCornerShape(6.dp),
                     modifier = Modifier.align(Alignment.BottomStart).padding(6.dp).testTag("debrief_pair_value_${letter.name.lowercase()}"),
                 ) {
-                    val value = LearnText.pairValue(pair.metric, photo.scanResult)
-                    Text(if (better) "Better · $value" else value, style = MaterialTheme.typography.labelMedium, color = Color.White, modifier = Modifier.padding(horizontal = 8.dp, vertical = 3.dp))
+                    val value = LearnText.pairValue(pair.metric, photo.scanResult).asString()
+                    Text(if (better) stringResource(R.string.label_pair_better, value) else value, style = MaterialTheme.typography.labelMedium, color = Color.White, modifier = Modifier.padding(horizontal = 8.dp, vertical = 3.dp))
                 }
             }
         }
@@ -188,21 +193,30 @@ private fun PairFrame(
 @Composable
 private fun PairExplanation(pair: SceneComparator.Difference, decidedBy: DecidedBy, frames: List<ImageItem>, choice: PairChoice) {
     val betterLetter = if (frames[0].uri == pair.better.uri) "A" else "B"
-    val sentences = buildList {
-        add(
-            when (choice) {
-                PairChoice.SHOWN -> "$betterLetter is the better frame."
-                else -> if (choice.name == betterLetter) "Right: $betterLetter is the better frame." else "$betterLetter is the better frame."
-            },
-        )
-        add("${LearnText.pairValue(pair.metric, pair.better.scanResult)} against ${LearnText.pairValue(pair.metric, pair.worse.scanResult).replaceFirstChar { it.lowercase() }}.")
-        val sb = pair.better.exifData?.shutterSpeed
-        val sw = pair.worse.exifData?.shutterSpeed
+    val betterValue = LearnText.pairValue(pair.metric, pair.better.scanResult).asString()
+    // English reads "Sharpness 80 against sharpness 40"; German keeps its capital nouns.
+    val worseValue = LearnText.pairValue(pair.metric, pair.worse.scanResult).asString().let { v ->
+        if (LocalConfiguration.current.locales[0].language == "en") v.replaceFirstChar { it.lowercase() } else v
+    }
+    val sb = pair.better.exifData?.shutterSpeed
+    val sw = pair.worse.exifData?.shutterSpeed
+    val sentences = listOfNotNull(
+        when (choice) {
+            PairChoice.SHOWN -> stringResource(R.string.learn_pair_better_frame, betterLetter)
+            else -> stringResource(if (choice.name == betterLetter) R.string.learn_pair_right else R.string.learn_pair_better_frame, betterLetter)
+        },
+        stringResource(R.string.learn_pair_values, betterValue, worseValue),
         if (sb != null && sw != null && sb != sw) {
-            val who = if (decidedBy == DecidedBy.CAMERA) "The camera chose" else if (decidedBy == DecidedBy.PHOTOGRAPHER) "You chose" else "The shutter was"
-            add("$who ${ExifFormatter.shutterSpeed(sb)} for $betterLetter and ${ExifFormatter.shutterSpeed(sw)} for the other.")
-        }
-    }.take(3)
+            val who = when (decidedBy) {
+                DecidedBy.CAMERA -> R.string.learn_pair_camera_chose
+                DecidedBy.PHOTOGRAPHER -> R.string.learn_pair_you_chose
+                else -> R.string.learn_pair_shutter_was
+            }
+            stringResource(who, ExifFormatter.shutterSpeed(sb), betterLetter, ExifFormatter.shutterSpeed(sw))
+        } else {
+            null
+        },
+    ).take(3)
     val focus = remember { FocusRequester() }
     LaunchedEffect(Unit) { focus.requestFocus() }
     Text(

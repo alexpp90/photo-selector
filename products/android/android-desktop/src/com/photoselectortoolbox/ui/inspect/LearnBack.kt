@@ -12,6 +12,9 @@ import androidx.compose.ui.unit.dp
 import com.photoselectortoolbox.ui.components.MinTouchTarget
 import com.photoselectortoolbox.ui.components.handCursor
 import com.photoselectortoolbox.ui.theme.Zinc400
+import androidx.compose.ui.res.stringResource
+import com.photoselectortoolbox.R
+import com.photoselectortoolbox.ui.text.asString
 
 /**
  * The start of Learn's control bar: the way back to Cull. Its Beta chip ([USER 2026-11-12]
@@ -28,7 +31,7 @@ internal fun LearnBack(onNavigateToSelector: () -> Unit) {
     ) {
         Icon(
             imageVector = Icons.AutoMirrored.Filled.ArrowBack,
-            contentDescription = "Back to Cull (L / Escape)",
+            contentDescription = stringResource(R.string.cd_back_to_cull),
             tint = Zinc400,
         )
     }

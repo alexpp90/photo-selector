@@ -69,6 +69,9 @@ import com.photoselectortoolbox.ui.theme.Zinc50
 import com.photoselectortoolbox.ui.theme.Zinc900
 import com.photoselectortoolbox.ui.theme.Zinc950
 import com.photoselectortoolbox.viewmodel.SelectorUiState
+import androidx.compose.ui.res.stringResource
+import com.photoselectortoolbox.R
+import com.photoselectortoolbox.ui.text.asString
 
 /**
  * The phone-sized selector: one frame at a time, browsed by swiping.
@@ -184,7 +187,7 @@ fun CompactSelectorLayout(
                 ) {
                     Icon(
                         imageVector = Icons.Default.Fullscreen,
-                        contentDescription = "Fullscreen",
+                        contentDescription = stringResource(R.string.cd_fullscreen),
                         tint = Color.White.copy(alpha = 0.8f),
                     )
                 }
@@ -281,7 +284,7 @@ fun CompactSelectorLayout(
                                 .testTag("compact_more_button")
                                 .handCursor(),
                         ) {
-                            Icon(Icons.Default.MoreVert, contentDescription = "More")
+                            Icon(Icons.Default.MoreVert, contentDescription = stringResource(R.string.cd_more))
                         }
                         DropdownMenu(expanded = menuOpen, onDismissRequest = { menuOpen = false }) {
                             SelectorMoreMenuItems(moreMenu, onDismiss = { menuOpen = false })
@@ -323,7 +326,7 @@ private fun GestureTutorialOverlay(
                 modifier = Modifier.padding(32.dp),
             ) {
                 Text(
-                    text = "Gestures",
+                    text = stringResource(R.string.title_gestures),
                     style = MaterialTheme.typography.headlineSmall,
                     color = Color.White,
                 )
@@ -339,7 +342,7 @@ private fun GestureTutorialOverlay(
                         modifier = Modifier.size(28.dp),
                     )
                     Text(
-                        text = "Swipe image to browse",
+                        text = stringResource(R.string.hint_body_swipe_to_browse),
                         style = MaterialTheme.typography.bodyLarge,
                         color = Color.White,
                     )
@@ -362,7 +365,7 @@ private fun GestureTutorialOverlay(
                         modifier = Modifier.size(28.dp),
                     )
                     Text(
-                        text = "Tap fullscreen to zoom & inspect",
+                        text = stringResource(R.string.hint_body_tap_fullscreen_zoom),
                         style = MaterialTheme.typography.bodyLarge,
                         color = Color.White,
                     )
@@ -371,7 +374,7 @@ private fun GestureTutorialOverlay(
                 Spacer(modifier = Modifier.height(16.dp))
 
                 Text(
-                    text = "Tap anywhere to dismiss",
+                    text = stringResource(R.string.hint_body_tap_to_dismiss),
                     style = MaterialTheme.typography.labelMedium,
                     color = Color.White.copy(alpha = 0.6f),
                 )
@@ -394,6 +397,7 @@ private fun CompactActionButton(
     onClick: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
+    val spoken = label.accessibilityLabel.asString()
     Row(
         modifier = modifier
             .height(52.dp)
@@ -403,7 +407,7 @@ private fun CompactActionButton(
             )
             .handCursor()
             .clickable(onClick = onClick, role = Role.Button)
-            .semantics { contentDescription = label.accessibilityLabel }
+            .semantics { contentDescription = spoken }
             .padding(horizontal = 10.dp),
         horizontalArrangement = Arrangement.spacedBy(6.dp, Alignment.CenterHorizontally),
         verticalAlignment = Alignment.CenterVertically,
@@ -414,7 +418,7 @@ private fun CompactActionButton(
             modifier = Modifier.size(20.dp),
             tint = if (label.isPrimary) ScoreGood else Zinc50,
         )
-        Text(text = label.verb, fontSize = 14.sp, color = Zinc50)
+        Text(text = label.verb.asString(), fontSize = 14.sp, color = Zinc50)
         Text(
             text = label.shortcut,
             fontSize = 11.sp,
@@ -430,12 +434,13 @@ private fun CompactDeleteButton(
     onClick: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
+    val spoken = stringResource(R.string.cd_delete_this_photo)
     Row(
         modifier = modifier
             .height(52.dp)
             .handCursor()
             .clickable(onClick = onClick, role = Role.Button)
-            .semantics { contentDescription = "Delete this photo" }
+            .semantics { contentDescription = spoken }
             .padding(horizontal = 10.dp),
         horizontalArrangement = Arrangement.spacedBy(6.dp, Alignment.CenterHorizontally),
         verticalAlignment = Alignment.CenterVertically,
@@ -446,6 +451,6 @@ private fun CompactDeleteButton(
             modifier = Modifier.size(20.dp),
             tint = ScoreBad,
         )
-        Text(text = "Delete", fontSize = 14.sp, color = ScoreBad)
+        Text(text = stringResource(R.string.action_delete), fontSize = 14.sp, color = ScoreBad)
     }
 }

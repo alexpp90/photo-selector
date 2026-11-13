@@ -39,6 +39,7 @@ import org.junit.Test
 import org.junit.runner.RunWith
 import org.robolectric.annotation.Config
 import org.robolectric.annotation.GraphicsMode
+import com.photoselectortoolbox.testing.en
 
 /**
  * One culling desk with tools beside it ([USER 2026-11-12] decision #18): the sidebar, the rail
@@ -100,7 +101,7 @@ class ToolsNavigationTest {
 
     @Test
     fun `the cells are Cull, Stats, Tools and Setup, in that order`() {
-        assertEquals(listOf("Cull", "Stats", "Tools", "Setup"), NavEntry.all.map { it.label })
+        assertEquals(listOf("Cull", "Stats", "Tools", "Setup"), NavEntry.all.map { it.label.en() })
         assertEquals(
             listOf("nav_selector", "nav_statistics", "nav_tools", "nav_settings"),
             NavEntry.all.map { it.testTag },
@@ -160,9 +161,9 @@ class ToolsNavigationTest {
 
     @Test
     fun `Tools is spoken with what it opens, and as selected on Learn and Dupes`() {
-        assertEquals("Tools. Opens Learn and Dupes.", NavEntry.Tools.spoken(Screen.PhotoSelector.route))
-        assertEquals("Tools, Learn selected", NavEntry.Tools.spoken(Screen.Inspect.route))
-        assertEquals("Tools, Dupes selected", NavEntry.Tools.spoken(Screen.DuplicateFinder.route))
+        assertEquals("Tools. Opens Learn and Dupes.", NavEntry.Tools.spoken(Screen.PhotoSelector.route).en())
+        assertEquals("Tools, Learn selected", NavEntry.Tools.spoken(Screen.Inspect.route).en())
+        assertEquals("Tools, Dupes selected", NavEntry.Tools.spoken(Screen.DuplicateFinder.route).en())
         assertTrue(NavEntry.Tools.isSelected(Screen.Inspect.route))
         assertTrue(NavEntry.Tools.isSelected(Screen.DuplicateFinder.route))
         assertTrue(!NavEntry.Tools.isSelected(Screen.Statistics.route))
@@ -213,22 +214,22 @@ class ToolsNavigationTest {
             val cell = bounds(entry.testTag)
             assertTrue("${entry.testTag} ${cell.right - cell.left} wide", (cell.right - cell.left).px() >= 48.dp.px())
             assertTrue("${entry.testTag} ${cell.bottom - cell.top} tall", (cell.bottom - cell.top).px() >= 48.dp.px())
-            val word = rule.onAllNodes(hasText(entry.label) and hasAnyAncestor(hasTestTag(entry.testTag)), useUnmergedTree = true)
+            val word = rule.onAllNodes(hasText(entry.label.en()) and hasAnyAncestor(hasTestTag(entry.testTag)), useUnmergedTree = true)
                 .onFirst().fetchSemanticsNode()
             val lines = mutableListOf<androidx.compose.ui.text.TextLayoutResult>()
             word.config[androidx.compose.ui.semantics.SemanticsActions.GetTextLayoutResult].action?.invoke(lines)
-            assertEquals("'${entry.label}' wraps", 1, lines.single().lineCount)
+            assertEquals("'${entry.label.en()}' wraps", 1, lines.single().lineCount)
             val layout = lines.single()
             // The paragraph of a centred word is laid out at the full constraint, so its line
             // metrics say nothing about the cell: the word's own bounds must lie inside the cell.
-            assertTrue("'${entry.label}' is ellipsized", !layout.isLineEllipsized(0))
-            val wordBounds = rule.onAllNodes(hasText(entry.label) and hasAnyAncestor(hasTestTag(entry.testTag)), useUnmergedTree = true)
+            assertTrue("'${entry.label.en()}' is ellipsized", !layout.isLineEllipsized(0))
+            val wordBounds = rule.onAllNodes(hasText(entry.label.en()) and hasAnyAncestor(hasTestTag(entry.testTag)), useUnmergedTree = true)
                 .onFirst().getUnclippedBoundsInRoot()
             assertTrue(
-                "'${entry.label}' $wordBounds leaves its cell $cell",
+                "'${entry.label.en()}' $wordBounds leaves its cell $cell",
                 wordBounds.left.px() >= cell.left.px() - 1 && wordBounds.right.px() <= cell.right.px() + 1,
             )
-            assertTrue("'${entry.label}' is clipped", kotlin.math.ceil(layout.multiParagraph.height).toInt() <= layout.size.height)
+            assertTrue("'${entry.label.en()}' is clipped", kotlin.math.ceil(layout.multiParagraph.height).toInt() <= layout.size.height)
         }
         click("nav_tools")
         listOf("nav_inspect", "nav_duplicates").forEach { tag ->
@@ -241,9 +242,9 @@ class ToolsNavigationTest {
     @Test
     fun `the guide lists the cells in sidebar order, Cull first, Learn and Dupes under Tools`() {
         val legend = screenLegend()
-        assertEquals(listOf("Cull", "Stats", "Tools", "Setup"), legend.map { it.label })
-        assertTrue(legend[2].meaning.contains("Learn") && legend[2].meaning.contains("Dupes"))
-        assertFalse(legend[2].meaning.contains("beta", ignoreCase = true))
+        assertEquals(listOf("Cull", "Stats", "Tools", "Setup"), legend.map { it.label.en() })
+        assertTrue(legend[2].meaning.en().contains("Learn") && legend[2].meaning.en().contains("Dupes"))
+        assertFalse(legend[2].meaning.en().contains("beta", ignoreCase = true))
     }
 
     @Test

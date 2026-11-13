@@ -32,6 +32,10 @@ import androidx.compose.ui.unit.dp
 import com.photoselectortoolbox.ui.theme.ScoreBad
 import com.photoselectortoolbox.ui.theme.Zinc600
 import com.photoselectortoolbox.ui.theme.Zinc700
+import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.res.pluralStringResource
+import com.photoselectortoolbox.R
+import com.photoselectortoolbox.ui.text.asString
 
 // Star color tokens
 private val StarGold = Color(0xFFFACC15)
@@ -68,16 +72,18 @@ fun StarRatingBar(
     showClearButton: Boolean = true,
 ) {
     // Seven 48 dp slots are 336 dp; a narrower panel scrolls the row instead of squeezing a target.
+    val barSpoken = stringResource(R.string.cd_rating_bar, rating)
     Row(
         modifier = modifier
             .horizontalScroll(rememberScrollState())
             .testTag("star_rating_bar")
-            .semantics { contentDescription = "Rating bar, current rating: $rating" },
+            .semantics { contentDescription = barSpoken },
         horizontalArrangement = Arrangement.spacedBy(0.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
         if (showRejectButton) {
             val isRejected = rating == -1
+            val rejectSpoken = stringResource(if (isRejected) R.string.cd_rejected_clear else R.string.cd_reject_photo)
             Box(
                 modifier = Modifier
                     .size(StarRatingBarDefaults.slotSize(starSize))
@@ -93,7 +99,7 @@ fun StarRatingBar(
                     .testTag("star_-1")
                     .semantics {
                         role = Role.Button
-                        contentDescription = if (isRejected) "Rejected, click to clear" else "Reject photo"
+                        contentDescription = rejectSpoken
                     },
                 contentAlignment = Alignment.Center,
             ) {
@@ -109,6 +115,7 @@ fun StarRatingBar(
         // 1 to 5 Stars
         for (i in 1..5) {
             val isSelected = rating in 1..5 && rating >= i
+            val starSpoken = pluralStringResource(if (rating == i) R.plurals.cd_stars_selected else R.plurals.cd_stars, i, i)
             val starColor = when {
                 !isSelected -> Zinc600
                 rating == 5 -> StarGold
@@ -136,7 +143,7 @@ fun StarRatingBar(
                     .testTag("star_$i")
                     .semantics {
                         role = Role.RadioButton
-                        contentDescription = "$i star${if (i > 1) "s" else ""}${if (rating == i) ", selected" else ""}"
+                        contentDescription = starSpoken
                     },
                 contentAlignment = Alignment.Center,
             ) {
@@ -151,6 +158,7 @@ fun StarRatingBar(
 
         // Optional clear / unrate button when a rating or reject is active
         if (showClearButton && rating != 0) {
+            val clearSpoken = stringResource(R.string.cd_clear_rating)
             Box(
                 modifier = Modifier
                     .size(StarRatingBarDefaults.slotSize(starSize))
@@ -167,7 +175,7 @@ fun StarRatingBar(
                     .testTag("clear_rating")
                     .semantics {
                         role = Role.Button
-                        contentDescription = "Clear rating"
+                        contentDescription = clearSpoken
                     },
                 contentAlignment = Alignment.Center,
             ) {

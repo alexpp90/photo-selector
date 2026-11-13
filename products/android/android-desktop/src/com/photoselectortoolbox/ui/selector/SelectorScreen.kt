@@ -82,6 +82,10 @@ import com.photoselectortoolbox.viewmodel.SelectorFrame
 import com.photoselectortoolbox.viewmodel.SelectorViewModel
 import com.photoselectortoolbox.viewmodel.isCloudProvider
 import com.photoselectortoolbox.viewmodel.providerLabel
+import androidx.compose.ui.res.stringResource
+import com.photoselectortoolbox.R
+import com.photoselectortoolbox.ui.text.asString
+import com.photoselectortoolbox.domain.text.UiText
 
 /**
  * The culling workspace.
@@ -330,11 +334,11 @@ fun SelectorScreen(
                     onClick = { viewModel.deleteCurrentImage() },
                     modifier = Modifier.testTag("dialog_confirm_delete").handCursor(),
                 ) {
-                    Text("Delete", color = MaterialTheme.colorScheme.error)
+                    Text(stringResource(R.string.action_delete), color = MaterialTheme.colorScheme.error)
                 }
             },
             dismissButton = {
-                TextButton(modifier = Modifier.handCursor(), onClick = { viewModel.dismissDeleteConfirmation() }) { Text("Cancel") }
+                TextButton(modifier = Modifier.handCursor(), onClick = { viewModel.dismissDeleteConfirmation() }) { Text(stringResource(R.string.action_cancel)) }
             },
             containerColor = StudioCard,
         )
@@ -357,13 +361,13 @@ fun SelectorScreen(
     if (uiState.showCloudScanConfirmation) {
         AlertDialog(
             onDismissRequest = { viewModel.dismissCloudScanConfirmation() },
-            title = { Text("Cloud folder scan") },
+            title = { Text(stringResource(R.string.dialog_title_cloud_scan)) },
             text = {
                 Text(
                     SelectorLabels.cloudScanConfirmationMessage(
                         providerLabel = uiState.sourceKind.providerLabel,
                         imageCount = uiState.images.size,
-                    )
+                    ).asString()
                 )
             },
             confirmButton = {
@@ -371,11 +375,11 @@ fun SelectorScreen(
                     onClick = { viewModel.confirmCloudScan() },
                     modifier = Modifier.testTag("dialog_confirm_cloud_scan").handCursor(),
                 ) {
-                    Text("Scan")
+                    Text(stringResource(R.string.action_scan))
                 }
             },
             dismissButton = {
-                TextButton(modifier = Modifier.handCursor(), onClick = { viewModel.dismissCloudScanConfirmation() }) { Text("Cancel") }
+                TextButton(modifier = Modifier.handCursor(), onClick = { viewModel.dismissCloudScanConfirmation() }) { Text(stringResource(R.string.action_cancel)) }
             },
             containerColor = StudioCard,
         )
@@ -384,16 +388,16 @@ fun SelectorScreen(
     uiState.uncompletedDeletionsPrompt?.let { prompt ->
         AlertDialog(
             onDismissRequest = { viewModel.keepUncompletedDeletions() },
-            title = { Text("Uncompleted deletions") },
+            title = { Text(stringResource(R.string.dialog_title_uncompleted_deletions)) },
             text = {
-                Text(SelectorLabels.uncompletedDeletionsMessage(prompt.uris.size))
+                Text(SelectorLabels.uncompletedDeletionsMessage(prompt.uris.size).asString())
             },
             confirmButton = {
                 TextButton(
                     onClick = { viewModel.confirmUncompletedDeletions() },
                     modifier = Modifier.testTag("dialog_confirm_uncompleted_deletions").handCursor(),
                 ) {
-                    Text("Delete now", color = MaterialTheme.colorScheme.error)
+                    Text(stringResource(R.string.action_delete_now), color = MaterialTheme.colorScheme.error)
                 }
             },
             dismissButton = {
@@ -401,7 +405,7 @@ fun SelectorScreen(
                     onClick = { viewModel.keepUncompletedDeletions() },
                     modifier = Modifier.testTag("dialog_keep_uncompleted_deletions").handCursor(),
                 ) {
-                    Text("Keep")
+                    Text(stringResource(R.string.action_keep))
                 }
             },
             containerColor = StudioCard,
@@ -449,10 +453,10 @@ fun SelectorScreen(
             // The card is hosted in the main window, and fullscreen is a second
             // window above it: without these the viewer showed no confirmation
             // and no UNDO for a move or delete made inside it.
-            snackbarMessage = uiState.snackbarMessage,
+            snackbarMessage = uiState.snackbarMessage?.asString(),
             snackbarSequence = uiState.snackbarSequence,
             snackbarLifetime = uiState.snackbarLifetime,
-            snackbarSpoken = uiState.snackbarSpoken,
+            snackbarSpoken = uiState.snackbarSpoken?.asString(),
             onUndo = if (uiState.undoOperation != null) viewModel::undoLastOperation else null,
             onDismissSnackbar = viewModel::dismissSnackbar,
         )
@@ -589,6 +593,7 @@ fun SelectorScreen(
                             .fillMaxWidth()
                             .testTag("image_region"),
                     ) {
+                        val copiedSpoken = SelectorLabels.copiedMarkSpoken(uiState.filingFolderName).asString()
                         if (useExpandedLayout) {
                             ThreeUpSelectorLayout(
                                 current = uiState.currentImage,
@@ -598,7 +603,7 @@ fun SelectorScreen(
                                 total = uiState.images.size,
                                 filingAction = uiState.filingAction,
                                 folderName = uiState.folderName,
-                                burstLabel = burstLabelFor(uiState.groups, uiState.currentIndex)
+                                burstLabel = burstLabelFor(uiState.groups, uiState.currentIndex)?.asString()
                                     .takeIf { uiState.groupingEnabled },
                                 sharpnessRank = remember(uiState.groups, uiState.images, uiState.currentIndex, uiState.groupingEnabled) {
                                     burstSharpnessRank(uiState.groups, uiState.images, uiState.currentIndex)
@@ -623,8 +628,7 @@ fun SelectorScreen(
                                 pendingHint = uiState.pendingHintText.takeIf { !guideOpen },
                                 onDismissHint = viewModel::dismissHint,
                                 copiedMark = { image ->
-                                    SelectorLabels.copiedMarkSpoken(uiState.filingFolderName)
-                                        .takeIf { image.uri in uiState.sessionCopiedUris }
+                                    copiedSpoken.takeIf { image.uri in uiState.sessionCopiedUris }
                                 },
                                 onSetRating = { rating ->
                                     if (uiState.maximisedFrame != null) {
@@ -681,14 +685,14 @@ fun SelectorScreen(
         // that reported where the file went. A copy gets none — undoing it could
         // only mean deleting the file the photographer just asked for.
         SelectorSnackbarHost(
-            message = uiState.snackbarMessage,
+            message = uiState.snackbarMessage?.asString(),
             onUndo = if (uiState.undoOperation != null) viewModel::undoLastOperation else null,
             onDismiss = viewModel::dismissSnackbar,
             sidebarInset = if (useExpandedLayout) SidebarWidth else 0.dp,
             sequence = uiState.snackbarSequence,
             lifetime = uiState.snackbarLifetime,
             onCardTop = { snackbarTop = it },
-            spoken = uiState.snackbarSpoken,
+            spoken = uiState.snackbarSpoken?.asString(),
         )
 
         // Last in the Box, so it is above every piece of chrome it labels —
@@ -758,9 +762,9 @@ internal fun EmptySelectorState(
         when (kind) {
             SelectorEmptyKind.MISSING_GRANT -> EmptyStateCard(
                 icon = Icons.Default.FolderOpen,
-                title = "Folder Access Needed",
-                description = "Permission for this folder was revoked or the folder was moved. Re-select the folder to continue.",
-                actionLabel = "Re-select Folder",
+                title = stringResource(R.string.empty_folder_access_needed),
+                description = stringResource(R.string.error_folder_access_revoked),
+                actionLabel = stringResource(R.string.action_reselect_folder),
                 onAction = onOpenFolder,
                 modifier = Modifier.testTag("missing_grant_prompt_card"),
             )
@@ -770,13 +774,13 @@ internal fun EmptySelectorState(
             )
             SelectorEmptyKind.EMPTY_FOLDER -> EmptyStateCard(
                 icon = Icons.Default.FolderOpen,
-                title = "No photos found",
+                title = stringResource(R.string.empty_no_photos_found),
                 description = if (folderName.isBlank()) {
-                    "This folder holds no supported photos."
+                    stringResource(R.string.error_folder_no_supported_photos)
                 } else {
-                    "$folderName holds no supported photos."
+                    stringResource(R.string.error_named_folder_no_supported_photos, folderName)
                 },
-                actionLabel = "Open Folder",
+                actionLabel = stringResource(R.string.action_open_folder),
                 onAction = onOpenFolder,
                 modifier = Modifier.testTag("empty_folder_card"),
             )
@@ -788,9 +792,9 @@ internal fun EmptySelectorState(
             }
             SelectorEmptyKind.NO_FOLDER -> EmptyStateCard(
                 icon = Icons.Default.PhotoCamera,
-                title = "Select a Folder",
-                description = "Choose a shoot folder to start comparing and culling frames.",
-                actionLabel = "Open Folder",
+                title = stringResource(R.string.empty_select_folder),
+                description = stringResource(R.string.dialog_body_choose_shoot_folder),
+                actionLabel = stringResource(R.string.action_open_folder),
                 onAction = onOpenFolder,
             )
         }
@@ -937,7 +941,7 @@ internal fun currentFrameAspect(uiState: com.photoselectortoolbox.viewmodel.Sele
  * The `burst 3/7` label for the frame at [currentIndex], or null when it is
  * not part of a series.
  */
-internal fun burstLabelFor(groups: List<List<Int>>, currentIndex: Int): String? {
+internal fun burstLabelFor(groups: List<List<Int>>, currentIndex: Int): UiText? {
     val series = groups.firstOrNull { currentIndex in it } ?: return null
     return SelectorLabels.burstChip(
         indexInSeries = series.indexOf(currentIndex),

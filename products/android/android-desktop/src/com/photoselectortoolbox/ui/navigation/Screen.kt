@@ -7,6 +7,9 @@ import androidx.compose.material.icons.filled.ContentCopy
 import androidx.compose.material.icons.filled.PhotoCamera
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.ui.graphics.vector.ImageVector
+import com.photoselectortoolbox.R
+import com.photoselectortoolbox.domain.text.UiText
+import com.photoselectortoolbox.domain.text.text
 
 sealed class Screen(
     val route: String,
@@ -16,46 +19,46 @@ sealed class Screen(
      * (backlog 2026-11-11: the cull screen was "Cull", "Selector" and "Culling"). It is the word
      * that fits under an 80 dp sidebar glyph, so no surface needs a second one.
      */
-    val label: String,
+    val label: UiText,
     /** One line for the guide: what this screen is for. */
-    val meaning: String,
+    val meaning: UiText,
 ) {
     /** [label]; kept so the sidebar's call reads as before. */
-    val shortLabel: String get() = label
+    val shortLabel: UiText get() = label
 
     data object PhotoSelector : Screen(
         route = "selector",
-        meaning = "Compare three frames and file or delete the middle one.",
+        meaning = text(R.string.hint_body_screen_cull),
         icon = Icons.Default.PhotoCamera,
-        label = "Cull",
+        label = text(R.string.label_screen_cull),
     )
 
     data object Inspect : Screen(
         route = "inspect",
-        meaning = "Inspect composition, exposure technique, and coaching guidance for the selected photograph.",
+        meaning = text(R.string.hint_body_screen_learn),
         icon = Icons.Default.CenterFocusStrong,
-        label = "Learn",
+        label = text(R.string.label_screen_learn),
     )
 
     data object Statistics : Screen(
         route = "statistics",
-        meaning = "How the folder scored overall, once it has been scanned.",
+        meaning = text(R.string.hint_body_screen_stats),
         icon = Icons.Default.BarChart,
-        label = "Stats",
+        label = text(R.string.label_screen_stats),
     )
 
     data object DuplicateFinder : Screen(
         route = "duplicates",
-        meaning = "Frames that are the same picture twice.",
+        meaning = text(R.string.hint_body_screen_dupes),
         icon = Icons.Default.ContentCopy,
-        label = "Dupes",
+        label = text(R.string.label_screen_dupes),
     )
 
     data object Settings : Screen(
         route = "settings",
-        meaning = "Where frames go, bursts, threads, fullscreen, cache.",
+        meaning = text(R.string.hint_body_screen_setup),
         icon = Icons.Default.Settings,
-        label = "Setup",
+        label = text(R.string.label_screen_setup),
     )
 
     companion object {

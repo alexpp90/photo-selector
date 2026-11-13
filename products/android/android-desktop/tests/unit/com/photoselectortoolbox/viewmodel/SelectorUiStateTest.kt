@@ -5,6 +5,7 @@ import com.photoselectortoolbox.data.model.ScanResult
 import com.photoselectortoolbox.domain.interaction.FilingAction
 import org.junit.Assert.*
 import org.junit.Test
+import com.photoselectortoolbox.testing.en
 
 /**
  * Tests for SelectorUiState data class — verifies defaults and
@@ -21,7 +22,7 @@ class SelectorUiStateTest {
         assertFalse(state.isScanRunning)
         assertEquals(0f, state.scanProgress, 1e-6f)
         assertNull(state.folderUri)
-        assertNull(state.error)
+        assertNull(state.error?.en())
         assertFalse(state.showDeleteConfirmation)
         assertFalse(state.groupingEnabled)
         assertTrue(state.groups.isEmpty())
@@ -91,10 +92,10 @@ class SelectorUiStateTest {
 
     @Test
     fun `error can be set and cleared`() {
-        val state = SelectorUiState(error = "Something broke")
-        assertEquals("Something broke", state.error)
+        val state = SelectorUiState(error = com.photoselectortoolbox.domain.text.raw("Something broke"))
+        assertEquals("Something broke", state.error?.en())
         val cleared = state.copy(error = null)
-        assertNull(cleared.error)
+        assertNull(cleared.error?.en())
     }
 
     @Test
@@ -167,7 +168,7 @@ class SelectorUiStateTest {
         assertFalse(state.isEnumerating)
         assertFalse(state.isGroupingRunning)
         assertNull(state.queuedWork)
-        assertNull(state.snackbarMessage)
+        assertNull(state.snackbarMessage?.en())
         assertNull(state.undoOperation)
         assertNull(state.pendingDeletion)
     }

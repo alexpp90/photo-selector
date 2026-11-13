@@ -9,6 +9,7 @@ import org.junit.Assert.assertNotNull
 import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
+import com.photoselectortoolbox.testing.en
 
 @Requirement("REQ-AND-COACH.01")
 class PhotoCoachEngineTest {
@@ -47,7 +48,7 @@ class PhotoCoachEngineTest {
 
         assertEquals(0.02, report.safeShutterSpeed!!, 1e-4)
         assertEquals(0.0f, report.cameraShakeRisk, 0.001f)
-        assertTrue(report.tips.none { it.category == "Shutter Speed" })
+        assertTrue(report.tips.none { it.category.en() == "Shutter Speed" })
     }
 
     @Test
@@ -70,11 +71,11 @@ class PhotoCoachEngineTest {
 
         assertEquals(0.01, report.safeShutterSpeed!!, 1e-4)
         assertTrue(report.cameraShakeRisk >= 0.7f)
-        val shutterTip = report.tips.find { it.category == "Shutter Speed" }
+        val shutterTip = report.tips.find { it.category.en() == "Shutter Speed" }
         assertNotNull("Expected shutter speed guideline tip", shutterTip)
         assertEquals(TipSeverity.CRITICAL, shutterTip!!.severity)
-        assertEquals("Much Slower Than Hand-Holding Guideline", shutterTip.title)
-        assertTrue(shutterTip.recommendation.contains("shutter speed", ignoreCase = true))
+        assertEquals("Much Slower Than Hand-Holding Guideline", shutterTip.title.en())
+        assertTrue(shutterTip.recommendation.en().contains("shutter speed", ignoreCase = true))
     }
 
     @Test
@@ -96,10 +97,10 @@ class PhotoCoachEngineTest {
 
         assertEquals(0.02, report.safeShutterSpeed!!, 1e-4)
         assertEquals(0.6f, report.cameraShakeRisk, 0.01f)
-        val shutterTip = report.tips.find { it.category == "Shutter Speed" }
+        val shutterTip = report.tips.find { it.category.en() == "Shutter Speed" }
         assertNotNull("Expected shutter speed guideline tip", shutterTip)
         assertEquals(TipSeverity.WARNING, shutterTip!!.severity)
-        assertEquals("Slower Than Hand-Holding Guideline", shutterTip.title)
+        assertEquals("Slower Than Hand-Holding Guideline", shutterTip.title.en())
     }
 
     @Test
@@ -120,11 +121,11 @@ class PhotoCoachEngineTest {
 
         assertEquals(0.005, report.safeShutterSpeed!!, 1e-4)
         assertEquals(0.1f, report.cameraShakeRisk, 0.01f)
-        val stabTip = report.tips.find { it.category == "Stabilization" }
+        val stabTip = report.tips.find { it.category.en() == "Stabilization" }
         assertNotNull("Expected stabilization tip", stabTip)
         assertEquals(TipSeverity.INFO, stabTip!!.severity)
-        assertEquals("Sharp Below the Hand-Holding Guideline", stabTip.title)
-        assertTrue(stabTip.recommendation.contains("stabilization", ignoreCase = true))
+        assertEquals("Sharp Below the Hand-Holding Guideline", stabTip.title.en())
+        assertTrue(stabTip.recommendation.en().contains("stabilization", ignoreCase = true))
     }
 
     @Test
@@ -144,11 +145,11 @@ class PhotoCoachEngineTest {
         val report = engine.evaluate(exif, scan)
 
         assertEquals(0.0f, report.cameraShakeRisk, 0.001f)
-        val focusTip = report.tips.find { it.category == "Focus" }
+        val focusTip = report.tips.find { it.category.en() == "Focus" }
         assertNotNull("Expected focus tip", focusTip)
         assertEquals(TipSeverity.INFO, focusTip!!.severity)
-        assertEquals("Low Detail at Fast Shutter Speed", focusTip.title)
-        assertTrue(focusTip.description.contains("missed focus", ignoreCase = true))
+        assertEquals("Low Detail at Fast Shutter Speed", focusTip.title.en())
+        assertTrue(focusTip.description.en().contains("missed focus", ignoreCase = true))
     }
 
     @Test
@@ -165,11 +166,11 @@ class PhotoCoachEngineTest {
 
         val report = engine.evaluate(exif, scan)
 
-        val noiseTip = report.tips.find { it.category == "Sensor Noise" }
+        val noiseTip = report.tips.find { it.category.en() == "Sensor Noise" }
         assertNotNull("Expected sensor noise tip", noiseTip)
         assertEquals(TipSeverity.WARNING, noiseTip!!.severity)
-        assertTrue(noiseTip.recommendation.contains("aperture", ignoreCase = true))
-        assertTrue(noiseTip.recommendation.contains("ISO", ignoreCase = true))
+        assertTrue(noiseTip.recommendation.en().contains("aperture", ignoreCase = true))
+        assertTrue(noiseTip.recommendation.en().contains("ISO", ignoreCase = true))
     }
 
     @Test
@@ -185,7 +186,7 @@ class PhotoCoachEngineTest {
 
         val report = engine.evaluate(exif, scan)
 
-        val noiseTip = report.tips.find { it.category == "Sensor Noise" }
+        val noiseTip = report.tips.find { it.category.en() == "Sensor Noise" }
         assertNotNull("Expected sensor noise tip", noiseTip)
         assertEquals(TipSeverity.CRITICAL, noiseTip!!.severity)
     }
@@ -203,7 +204,7 @@ class PhotoCoachEngineTest {
 
         val report = engine.evaluate(exif, scan)
 
-        assertTrue(report.tips.none { it.category == "Sensor Noise" })
+        assertTrue(report.tips.none { it.category.en() == "Sensor Noise" })
     }
 
     @Test
@@ -217,10 +218,10 @@ class PhotoCoachEngineTest {
         val report = engine.evaluate(FULL_FRAME, scan)
 
         assertEquals(-0.7, report.recommendedEvCompensation!!, 0.01)
-        val expTip = report.tips.find { it.category == "Exposure" && it.title.contains("Blown Highlights") }
+        val expTip = report.tips.find { it.category.en() == "Exposure" && it.title.en().contains("Blown Highlights") }
         assertNotNull("Expected blown highlights tip", expTip)
         assertEquals(TipSeverity.WARNING, expTip!!.severity)
-        assertTrue(expTip.recommendation.contains("negative EV", ignoreCase = true))
+        assertTrue(expTip.recommendation.en().contains("negative EV", ignoreCase = true))
     }
 
     @Test
@@ -247,10 +248,10 @@ class PhotoCoachEngineTest {
         val report = engine.evaluate(FULL_FRAME, scan)
 
         assertEquals(0.7, report.recommendedEvCompensation!!, 0.01)
-        val expTip = report.tips.find { it.category == "Exposure" && it.title.contains("Crushed Shadows") }
+        val expTip = report.tips.find { it.category.en() == "Exposure" && it.title.en().contains("Crushed Shadows") }
         assertNotNull("Expected crushed shadows tip", expTip)
         assertEquals(TipSeverity.WARNING, expTip!!.severity)
-        assertTrue(expTip.recommendation.contains("positive EV", ignoreCase = true))
+        assertTrue(expTip.recommendation.en().contains("positive EV", ignoreCase = true))
     }
 
     @Test
@@ -265,10 +266,10 @@ class PhotoCoachEngineTest {
 
         // Cannot fix both with a single exposure offset
         assertNull(report.recommendedEvCompensation)
-        val drTip = report.tips.find { it.category == "Dynamic Range" }
+        val drTip = report.tips.find { it.category.en() == "Dynamic Range" }
         assertNotNull("Expected dynamic range bracketing tip", drTip)
         assertEquals(TipSeverity.WARNING, drTip!!.severity)
-        assertTrue(drTip.recommendation.contains("HDR", ignoreCase = true))
+        assertTrue(drTip.recommendation.en().contains("HDR", ignoreCase = true))
     }
 
     @Test
@@ -278,10 +279,10 @@ class PhotoCoachEngineTest {
 
         val report = engine.evaluate(exif, scan)
 
-        val diffTip = report.tips.find { it.category == "Optics" && it.title.contains("Diffraction") }
+        val diffTip = report.tips.find { it.category.en() == "Optics" && it.title.en().contains("Diffraction") }
         assertNotNull("Expected diffraction tip", diffTip)
         assertEquals(TipSeverity.WARNING, diffTip!!.severity)
-        assertTrue(diffTip.recommendation.contains("sweet spot", ignoreCase = true))
+        assertTrue(diffTip.recommendation.en().contains("sweet spot", ignoreCase = true))
     }
 
     @Test
@@ -290,7 +291,7 @@ class PhotoCoachEngineTest {
 
         val report = engine.evaluate(exif, null)
 
-        val diffTip = report.tips.find { it.category == "Optics" && it.title.contains("Diffraction") }
+        val diffTip = report.tips.find { it.category.en() == "Optics" && it.title.en().contains("Diffraction") }
         assertNotNull("Expected diffraction tip at f/16", diffTip)
         assertEquals(TipSeverity.INFO, diffTip!!.severity)
     }
@@ -305,10 +306,10 @@ class PhotoCoachEngineTest {
 
         val report = engine.evaluate(exif, scan)
 
-        val wideOpenTip = report.tips.find { it.category == "Optics" && it.title.contains("Wide-Open") }
+        val wideOpenTip = report.tips.find { it.category.en() == "Optics" && it.title.en().contains("Wide-Open") }
         assertNotNull("Expected wide-open softness tip", wideOpenTip)
         assertEquals(TipSeverity.INFO, wideOpenTip!!.severity)
-        assertTrue(wideOpenTip.recommendation.contains("Stop down", ignoreCase = true))
+        assertTrue(wideOpenTip.recommendation.en().contains("Stop down", ignoreCase = true))
     }
 
     @Test
@@ -321,7 +322,7 @@ class PhotoCoachEngineTest {
 
         val report = engine.evaluate(exif, scan)
 
-        assertTrue(report.tips.none { it.title.contains("Wide-Open") })
+        assertTrue(report.tips.none { it.title.en().contains("Wide-Open") })
     }
 
     @Test
@@ -354,7 +355,7 @@ class PhotoCoachEngineTest {
 
         val report = engine.evaluate(null, scan)
 
-        val noiseTip = report.tips.find { it.category == "Sensor Noise" }
+        val noiseTip = report.tips.find { it.category.en() == "Sensor Noise" }
         assertNotNull("Expected noise tip from scanResult.exifData", noiseTip)
     }
 
@@ -394,7 +395,7 @@ class PhotoCoachEngineTest {
 
         assertNull(report.safeShutterSpeed)
         assertEquals(0.0f, report.cameraShakeRisk, 0.001f)
-        assertTrue(report.tips.none { it.category == "Shutter Speed" || it.category == "Stabilization" })
+        assertTrue(report.tips.none { it.category.en() == "Shutter Speed" || it.category.en() == "Stabilization" })
     }
 
     @Test
@@ -414,7 +415,7 @@ class PhotoCoachEngineTest {
 
         assertEquals(1.0 / 75.0, report.safeShutterSpeed!!, 1e-4)
         assertTrue(report.cameraShakeRisk >= 0.7f)
-        assertNotNull(report.tips.find { it.category == "Shutter Speed" })
+        assertNotNull(report.tips.find { it.category.en() == "Shutter Speed" })
     }
 
     @Test
@@ -435,10 +436,10 @@ class PhotoCoachEngineTest {
         )
         val report = engine.evaluate(exif, scan)
         for (tip in report.tips) {
-            assertTrue("Category must not contain 'shake'", !tip.category.contains("shake", ignoreCase = true))
-            assertTrue("Title must not contain 'shake'", !tip.title.contains("shake", ignoreCase = true))
-            assertTrue("Description must not contain 'shake'", !tip.description.contains("shake", ignoreCase = true))
-            assertTrue("Recommendation must not contain 'shake'", !tip.recommendation.contains("shake", ignoreCase = true))
+            assertTrue("Category must not contain 'shake'", !tip.category.en().contains("shake", ignoreCase = true))
+            assertTrue("Title must not contain 'shake'", !tip.title.en().contains("shake", ignoreCase = true))
+            assertTrue("Description must not contain 'shake'", !tip.description.en().contains("shake", ignoreCase = true))
+            assertTrue("Recommendation must not contain 'shake'", !tip.recommendation.en().contains("shake", ignoreCase = true))
         }
     }
 
@@ -454,7 +455,7 @@ class PhotoCoachEngineTest {
 
         val report = engine.evaluate(phoneExif, scan)
 
-        assertTrue(report.tips.none { it.title.contains("Wide-Open") || it.title.contains("Shallow Depth of Field") })
+        assertTrue(report.tips.none { it.title.en().contains("Wide-Open") || it.title.en().contains("Shallow Depth of Field") })
     }
 
     @Test
@@ -462,13 +463,13 @@ class PhotoCoachEngineTest {
         // APS-C C = 1.5: f/11 * 1.5 = 16.5 (>= 16.0 INFO), f/16 * 1.5 = 24.0 (>= 22.0 WARNING)
         val exifF11 = ExifData(make = "SONY", model = "ILCE-7M4", focalLength = 35.0, focalLength35mm = 52.5, aperture = 11.0)
         val reportF11 = engine.evaluate(exifF11, null)
-        val tipF11 = reportF11.tips.find { it.category == "Optics" && it.title.contains("Diffraction") }
+        val tipF11 = reportF11.tips.find { it.category.en() == "Optics" && it.title.en().contains("Diffraction") }
         assertNotNull(tipF11)
         assertEquals(TipSeverity.INFO, tipF11!!.severity)
 
         val exifF16 = ExifData(make = "SONY", model = "ILCE-7M4", focalLength = 35.0, focalLength35mm = 52.5, aperture = 16.0)
         val reportF16 = engine.evaluate(exifF16, null)
-        val tipF16 = reportF16.tips.find { it.category == "Optics" && it.title.contains("Diffraction") }
+        val tipF16 = reportF16.tips.find { it.category.en() == "Optics" && it.title.en().contains("Diffraction") }
         assertNotNull(tipF16)
         assertEquals(TipSeverity.WARNING, tipF16!!.severity)
     }
@@ -477,11 +478,11 @@ class PhotoCoachEngineTest {
     fun rawCompanionHighlightClipping_mentionsRecoverableHeadroomAndNeverPermanentlyUnrecoverable() {
         val scan = ScanResult(filePath = "test.arw", highlightClipping = 4.0, shadowClipping = 0.2)
         val reportRaw = engine.evaluate(null, scan, isRawOrHasRawCompanion = true)
-        val expTip = reportRaw.tips.find { it.category == "Exposure" }
+        val expTip = reportRaw.tips.find { it.category.en() == "Exposure" }
         assertNotNull(expTip)
-        assertTrue(expTip!!.description.contains("1–2 EV", ignoreCase = true))
-        assertTrue(!expTip.description.contains("permanently unrecoverable", ignoreCase = true))
-        assertTrue(!expTip.recommendation.contains("ETTR", ignoreCase = true))
+        assertTrue(expTip!!.description.en().contains("1–2 EV", ignoreCase = true))
+        assertTrue(!expTip.description.en().contains("permanently unrecoverable", ignoreCase = true))
+        assertTrue(!expTip.recommendation.en().contains("ETTR", ignoreCase = true))
     }
 
     @Test
@@ -489,6 +490,6 @@ class PhotoCoachEngineTest {
         // Raw highlightClipping is 3.5% due to tiny specular chrome glints, but nonSpecularHighlightClipPct is 0.4%
         val scan = ScanResult(filePath = "test.jpg", highlightClipping = 3.5, shadowClipping = 0.1)
         val report = engine.evaluate(null, scan, nonSpecularHighlightClipPct = 0.4)
-        assertTrue(report.tips.none { it.title.contains("Blown Highlights") })
+        assertTrue(report.tips.none { it.title.en().contains("Blown Highlights") })
     }
 }

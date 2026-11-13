@@ -1,7 +1,10 @@
 package com.photoselectortoolbox.ui.selector
 
 import com.photoselectortoolbox.data.model.ImageItem
+import com.photoselectortoolbox.R
 import com.photoselectortoolbox.domain.scoring.BurstRank
+import com.photoselectortoolbox.domain.text.UiText
+import com.photoselectortoolbox.domain.text.text
 import com.photoselectortoolbox.domain.scoring.ScoreMetric
 
 /**
@@ -11,29 +14,37 @@ import com.photoselectortoolbox.domain.scoring.ScoreMetric
  */
 object SharpnessRankText {
 
-    /** 1st, 2nd, 3rd, 4th … 11th, 12th, 13th … 21st. */
-    fun ordinal(n: Int): String {
-        val suffix = if (n % 100 in 11..13) {
-            "th"
+    /**
+     * 1st, 2nd, 3rd, 4th … 11th, 12th, 13th … 21st in English; the English suffix picks the
+     * resource, and German writes every one of them `3.`.
+     */
+    fun ordinal(n: Int): UiText {
+        val id = if (n % 100 in 11..13) {
+            R.string.label_ordinal_th
         } else {
             when (n % 10) {
-                1 -> "st"
-                2 -> "nd"
-                3 -> "rd"
-                else -> "th"
+                1 -> R.string.label_ordinal_st
+                2 -> R.string.label_ordinal_nd
+                3 -> R.string.label_ordinal_rd
+                else -> R.string.label_ordinal_th
             }
         }
-        return "$n$suffix"
+        return text(id, n)
     }
 
     /** "3rd of 10". */
-    fun visible(rank: BurstRank): String = "${ordinal(rank.position)} of ${rank.of}"
+    fun visible(rank: BurstRank): UiText = text(R.string.label_rank_of, ordinal(rank.position), rank.of)
 
     /** "Sharpness at the centre of the frame 3rd of 10 in its burst, 64.0, higher is better". */
-    fun spoken(rank: BurstRank, value: Double, isBestOfVisible: Boolean = false): String {
+    fun spoken(rank: BurstRank, value: Double, isBestOfVisible: Boolean = false): UiText {
         val metric = ScoreMetric.SHARPNESS
-        val base = "${metric.spokenName} ${visible(rank)} in its burst, ${metric.format(value)}, ${metric.direction.hint}"
-        return if (isBestOfVisible) "$base, best of the three visible frames" else base
+        return text(
+            if (isBestOfVisible) R.string.cd_rank_spoken_best else R.string.cd_rank_spoken,
+            metric.spokenName,
+            visible(rank),
+            metric.format(value),
+            metric.direction.hint,
+        )
     }
 
     /** The bar for a ranked frame: full for the sharpest of its burst, the floor for the softest. */

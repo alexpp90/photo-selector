@@ -49,6 +49,7 @@ import org.junit.Rule
 import org.junit.Test
 import org.junit.runner.RunWith
 import org.robolectric.annotation.Config
+import com.photoselectortoolbox.testing.en
 
 /**
  * A copy has a visible result (backlog 2026-11-11, REQ-AND-LAYOUT.08): with the shipped default
@@ -118,7 +119,7 @@ class CopiedMarkTest {
     private fun letTheCardGo() {
         rule.mainClock.advanceTimeBy(10_000)
         rule.waitForIdle()
-        rule.waitUntil(15_000) { viewModel.uiState.value.snackbarMessage == null }
+        rule.waitUntil(15_000) { viewModel.uiState.value.snackbarMessage?.en() == null }
     }
 
     @Test
@@ -134,7 +135,7 @@ class CopiedMarkTest {
         val onPrevious = marksIn("selector.frame.previous")
         assertEquals(1, onPrevious.size)
         assertEquals(
-            SelectorLabels.copiedMarkSpoken("Selection"),
+            SelectorLabels.copiedMarkSpoken("Selection").en(),
             onPrevious.single().config.getOrNull(SemanticsProperties.ContentDescription)?.joinToString(),
         )
         assertTrue(marksIn("selector.frame.current").isEmpty())
@@ -165,7 +166,7 @@ class CopiedMarkTest {
 
         // Handled: a new message was raised for it.
         assertTrue(viewModel.uiState.value.snackbarSequence > before)
-        assertEquals(SelectorLabels.ALREADY_COPIED, viewModel.uiState.value.snackbarMessage)
+        assertEquals(SelectorLabels.ALREADY_COPIED.en(), viewModel.uiState.value.snackbarMessage?.en())
         assertEquals("P1.JPG", current())
         coVerify(exactly = 1) { repo.copyBundle(any(), match { it.fileName == "P1.JPG" }, any(), any()) }
     }
@@ -183,7 +184,7 @@ class CopiedMarkTest {
 
         // Handled: a new message was raised for it, and nothing was moved.
         assertTrue(viewModel.uiState.value.snackbarSequence > before)
-        assertEquals(SelectorLabels.ALREADY_COPIED, viewModel.uiState.value.snackbarMessage)
+        assertEquals(SelectorLabels.ALREADY_COPIED.en(), viewModel.uiState.value.snackbarMessage?.en())
         assertEquals("P1.JPG", current())
         coVerify(exactly = 0) { repo.moveBundle(any(), any(), any(), any()) }
         coVerify(exactly = 1) { repo.copyBundle(any(), any(), any(), any()) }

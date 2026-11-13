@@ -32,7 +32,7 @@ class SelectorSidebarAnnouncementTest {
             PhotoSelectorToolboxTheme {
                 SelectorSidebar(
                     currentRoute = null, groupingEnabled = true, hasImages = true,
-                    isScanning = isScanning, scanStatusText = "Scanning 3 / 12",
+                    isScanning = isScanning, scanStatusText = "3 / 12",
                     onOpenFolder = {}, onScan = {}, onCancelScan = {}, onToggleGrouping = {},
                     onShowLegend = {}, onShowMenu = {}, onNavigate = {},
                     isGrouping = isGrouping, queuedWork = queued,

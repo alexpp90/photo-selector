@@ -60,6 +60,7 @@ import org.junit.Rule
 import org.junit.Test
 import org.junit.runner.RunWith
 import org.robolectric.annotation.Config
+import com.photoselectortoolbox.testing.en
 
 /**
  * The whole user path to Sort and Go to photo, through the real screen and the real
@@ -274,7 +275,7 @@ class SelectorScreenLocatorTest {
     fun `the overflow menu still carries the same sort group and Go to photo`() {
         // Both overflow entries stay (the locator row is dropped in small windows).
         rule.onAllNodes(
-            androidx.compose.ui.test.hasText(com.photoselectortoolbox.domain.guidance.SidebarAction.MORE.label),
+            androidx.compose.ui.test.hasText(com.photoselectortoolbox.domain.guidance.SidebarAction.MORE.label.en()),
             useUnmergedTree = true,
         ).onFirst().performClick()
         tagged("sort_oldest_first").assertIsDisplayed()

@@ -10,11 +10,11 @@ class GroupingLevelTest {
         GroupingLevel.entries.forEach { level ->
             assertTrue(
                 "Level ${level.name} should have a non-blank label",
-                level.label.isNotBlank()
+                level.label != 0
             )
             assertTrue(
                 "Level ${level.name} should have a non-blank description",
-                level.description.isNotBlank()
+                level.description != 0
             )
         }
     }

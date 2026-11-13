@@ -44,6 +44,9 @@ import com.photoselectortoolbox.ui.theme.Zinc400
 import com.photoselectortoolbox.ui.theme.Zinc800
 import com.photoselectortoolbox.ui.theme.Zinc900
 import com.photoselectortoolbox.ui.theme.Zinc950
+import androidx.compose.ui.res.stringResource
+import com.photoselectortoolbox.R
+import com.photoselectortoolbox.ui.text.asString
 
 // ── Lessons Tab (U-26) ────────────────────────────────────────────────────────
 
@@ -74,25 +77,25 @@ internal fun LessonsTabContent(
             ) {
                 TouchTarget(onClick = { onSelectLesson(null) }, testTag = "all_lessons_link") {
                     Text(
-                        text = "← All Lessons (${activeLesson.track.title})",
+                        text = stringResource(R.string.action_all_lessons, activeLesson.track.title.asString()),
                         style = MaterialTheme.typography.labelSmall,
                         color = BrandAccent,
                         modifier = Modifier.padding(horizontal = 4.dp),
                     )
                 }
                 Text(
-                    text = activeLesson.title,
+                    text = activeLesson.title.asString(),
                     style = MaterialTheme.typography.titleMedium,
                     fontWeight = FontWeight.Bold,
                     color = Color.White,
                 )
                 Text(
-                    text = activeLesson.conceptSummary,
+                    text = activeLesson.conceptSummary.asString(),
                     style = MaterialTheme.typography.bodySmall,
                     color = Zinc200,
                 )
                 Text(
-                    text = "Spot It Quiz (2 Questions)",
+                    text = stringResource(R.string.title_spot_it_quiz),
                     style = MaterialTheme.typography.labelMedium,
                     fontWeight = FontWeight.Bold,
                     color = BrandAccent,
@@ -100,7 +103,7 @@ internal fun LessonsTabContent(
                 questions.forEachIndexed { qIdx, q ->
                     Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
                         Text(
-                            text = "${qIdx + 1}. ${q.prompt}",
+                            text = "${qIdx + 1}. ${q.prompt.asString()}",
                             style = MaterialTheme.typography.bodySmall,
                             fontWeight = FontWeight.SemiBold,
                             color = Color.White,
@@ -141,7 +144,7 @@ internal fun LessonsTabContent(
                                     modifier = Modifier.fillMaxWidth(),
                                 ) {
                                     Text(
-                                        text = optText,
+                                        text = optText.asString(),
                                         style = MaterialTheme.typography.bodySmall,
                                         color = Zinc200,
                                         modifier = Modifier.padding(8.dp),
@@ -152,7 +155,7 @@ internal fun LessonsTabContent(
                         // The result in words, not the border colour alone (SD-1b step 6).
                         answers[qIdx]?.let { chosen ->
                             Text(
-                                text = LearnText.quizFeedback(chosen == q.correctIndex, q.explanation),
+                                text = LearnText.quizFeedback(chosen == q.correctIndex, q.explanation).asString(),
                                 style = MaterialTheme.typography.bodySmall,
                                 color = Zinc200,
                                 modifier = Modifier
@@ -169,7 +172,7 @@ internal fun LessonsTabContent(
 
     LessonCatalog.lessonsByTrack().forEach { (track, lessons) ->
         Text(
-            text = track.title,
+            text = track.title.asString(),
             style = MaterialTheme.typography.labelMedium,
             fontWeight = FontWeight.Bold,
             color = Zinc400,
@@ -192,13 +195,13 @@ internal fun LessonsTabContent(
                 ) {
                     Column(modifier = Modifier.weight(1f)) {
                         Text(
-                            text = lesson.title,
+                            text = lesson.title.asString(),
                             style = MaterialTheme.typography.bodyMedium,
                             fontWeight = FontWeight.SemiBold,
                             color = Color.White,
                         )
                         Text(
-                            text = lesson.tryThisPrompt,
+                            text = lesson.tryThisPrompt.asString(),
                             style = MaterialTheme.typography.labelSmall,
                             color = Zinc400,
                             maxLines = 2,
@@ -207,7 +210,7 @@ internal fun LessonsTabContent(
                     if (done) {
                         Icon(
                             imageVector = Icons.Default.CheckCircle,
-                            contentDescription = "Completed",
+                            contentDescription = stringResource(R.string.cd_completed),
                             tint = ScoreGood,
                             modifier = Modifier.size(18.dp),
                         )

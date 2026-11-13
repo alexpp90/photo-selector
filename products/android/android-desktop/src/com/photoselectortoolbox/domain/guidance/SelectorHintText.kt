@@ -1,5 +1,9 @@
 package com.photoselectortoolbox.domain.guidance
 
+import com.photoselectortoolbox.R
+import com.photoselectortoolbox.domain.text.UiText
+import com.photoselectortoolbox.domain.text.text
+
 import com.photoselectortoolbox.domain.format.DestinationLabels
 import com.photoselectortoolbox.domain.format.SelectorLabels
 import com.photoselectortoolbox.domain.format.SelectionActionLabels
@@ -48,12 +52,12 @@ object SelectorHintText {
         filingAction: FilingAction,
         selectionFolderName: String = FilingAction.DEFAULT_SELECTION_FOLDER,
         customFolderName: String? = null,
-    ): String = when (hint) {
+    ): UiText = when (hint) {
         SelectorHint.FILING -> SelectionActionLabels.confirmation(filingAction, selectionFolderName, customFolderName)
-        SelectorHint.DELETE_UNDO -> "Deleted — undo ${SelectorLabels.DELETE_UNDO_SCOPE}"
-        SelectorHint.MAXIMISE -> "One frame, full size"
-        SelectorHint.SCORES -> "Scores are on the frames"
-        SelectorHint.TOUR -> "The selector"
+        SelectorHint.DELETE_UNDO -> text(R.string.hint_title_delete_undo)
+        SelectorHint.MAXIMISE -> text(R.string.hint_title_maximise)
+        SelectorHint.SCORES -> text(R.string.hint_title_scores)
+        SelectorHint.TOUR -> text(R.string.hint_title_tour)
     }
 
     /**
@@ -69,49 +73,29 @@ object SelectorHintText {
         selectionFolderName: String,
         sortingEnabled: Boolean,
         customFolderName: String? = null,
-    ): String = when (hint) {
+    ): UiText = when (hint) {
         SelectorHint.FILING -> {
             val folder = FilingAction.selectionFolderOrDefault(selectionFolderName)
             val other = filingAction.other
-            buildString {
-                append("The file is in \"")
-                if (customFolderName.isNullOrBlank()) {
-                    append(folder)
-                    append("\", inside the shoot folder.")
-                } else {
-                    // A custom folder is the user's own choice, not "inside the shoot folder".
-                    append(DestinationLabels.customDestinationName(customFolderName, folder))
-                    append("\".")
-                }
-                if (sortingEnabled) append(" RAW and JPEG are sorted into subfolders.")
-                append(" ")
-                append(other.shortcut)
-                append(" ")
-                append(thirdPerson(other))
-                append(" instead.")
+            // A custom folder is the user's own choice, not "inside the shoot folder".
+            val where = if (customFolderName.isNullOrBlank()) {
+                text(R.string.hint_body_filing_in_shoot, folder)
+            } else {
+                text(R.string.hint_body_filing_in_custom, DestinationLabels.customDestinationName(customFolderName, folder))
             }
+            val instead = text(
+                if (other == FilingAction.COPY) R.string.hint_body_filing_copies_instead else R.string.hint_body_filing_moves_instead,
+                other.shortcut,
+            )
+            UiText.Joined(listOfNotNull(where, text(R.string.hint_body_filing_sorted).takeIf { sortingEnabled }, instead))
         }
 
-        SelectorHint.DELETE_UNDO ->
-            "Nothing has been written to disk yet. Ctrl+Z or UNDO puts the frame back " +
-                "${SelectorLabels.DELETE_UNDO_SCOPE}; then it is deleted for real."
+        SelectorHint.DELETE_UNDO -> text(R.string.hint_body_delete_undo, SelectorShortcut.UNDO.input)
 
-        SelectorHint.MAXIMISE ->
-            "${SelectorShortcut.ESCAPE.input}, or the same number again, returns to comparing " +
-                "all three. The badge on the frame does the same."
+        SelectorHint.MAXIMISE -> text(R.string.hint_body_maximise, SelectorShortcut.ESCAPE.input)
 
-        SelectorHint.SCORES ->
-            "Each bar is that metric's score, normalised so longer is always better — whichever " +
-                "way the raw number runs. Legend in the sidebar names the icons."
+        SelectorHint.SCORES -> text(R.string.hint_body_scores)
 
-        SelectorHint.TOUR ->
-            "Everything on this screen, where it actually is. " +
-                "Press ${SelectorShortcut.SHORTCUTS.input} at any time to see it again."
-    }
-
-    /** "copies" / "moves", for naming the verb the user did *not* configure. */
-    private fun thirdPerson(action: FilingAction): String = when (action) {
-        FilingAction.COPY -> "copies"
-        FilingAction.MOVE -> "moves"
+        SelectorHint.TOUR -> text(R.string.hint_body_tour, SelectorShortcut.SHORTCUTS.input)
     }
 }

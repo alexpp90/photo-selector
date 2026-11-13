@@ -94,10 +94,7 @@ import com.photoselectortoolbox.domain.learn.CropAspectRatio
 import com.photoselectortoolbox.domain.learn.DetectedSubject
 import com.photoselectortoolbox.domain.learn.CropSuggester
 import com.photoselectortoolbox.domain.learn.LearnCard
-import com.photoselectortoolbox.domain.learn.LessonCatalog
 import com.photoselectortoolbox.domain.learn.MicroLesson
-import com.photoselectortoolbox.domain.learn.PracticeAndInsightsEngine
-import com.photoselectortoolbox.domain.learn.SceneComparator
 import com.photoselectortoolbox.domain.learn.SuggestedCrop
 import com.photoselectortoolbox.domain.learn.TechniqueFactDetector
 import com.photoselectortoolbox.domain.model.CoachingTip
@@ -140,9 +137,10 @@ import com.photoselectortoolbox.domain.grouping.BurstIds
 import com.photoselectortoolbox.domain.learn.LearnState
 import com.photoselectortoolbox.domain.learn.DebriefCard
 import com.photoselectortoolbox.viewmodel.SelectorViewModel
-import java.text.SimpleDateFormat
-import java.util.Date
 import java.util.Locale
+import androidx.compose.ui.res.stringResource
+import com.photoselectortoolbox.R
+import com.photoselectortoolbox.ui.text.asString
 
 /**
  * Cycles the 4-way focal eye orientation for the Fibonacci Golden Spiral in order:
@@ -355,9 +353,9 @@ internal fun InspectScreenContent(
         if (images.isEmpty() || currentImage == null) {
             EmptyStateCard(
                 icon = Icons.Default.CenterFocusStrong,
-                title = "No Photos to Inspect",
-                description = "Choose a shoot folder in Cull to evaluate composition, exposure technique, and coaching guidance.",
-                actionLabel = "Back to Cull",
+                title = stringResource(R.string.empty_no_photos_to_inspect),
+                description = stringResource(R.string.dialog_body_inspect_empty),
+                actionLabel = stringResource(R.string.action_back_to_cull),
                 onAction = onNavigateToSelector,
                 modifier = Modifier
                     .align(Alignment.Center)
@@ -694,7 +692,7 @@ private fun InspectControlBar(
     val isDiagonalsActive = activeGuides.any { it is CompositionGuideType.BaroqueSinister }
     val isHorizonActive = activeGuides.any { it is CompositionGuideType.CrosshairHorizon }
 
-    val flipSpiralDescription = LearnText.flipSpiralDescription(spiralOrientation)
+    val flipSpiralDescription = LearnText.flipSpiralDescription(spiralOrientation).asString()
 
     Surface(
         color = Zinc900,
@@ -718,7 +716,7 @@ private fun InspectControlBar(
             if (!showGuides) return@Row
 
             Text(
-                text = "Guides:",
+                text = stringResource(R.string.label_guides),
                 style = MaterialTheme.typography.labelSmall,
                 color = HintText,
                 maxLines = 1,
@@ -727,7 +725,7 @@ private fun InspectControlBar(
             )
 
             GuideToggleButton(
-                label = LearnText.GUIDE_THIRDS,
+                label = LearnText.GUIDE_THIRDS.asString(),
                 icon = Icons.Default.Grid3x3,
                 active = isThirdsActive,
                 onClick = onToggleThirds,
@@ -735,7 +733,7 @@ private fun InspectControlBar(
             )
 
             GuideToggleButton(
-                label = LearnText.GUIDE_GOLDEN_RATIO,
+                label = LearnText.GUIDE_GOLDEN_RATIO.asString(),
                 icon = Icons.Default.Grid4x4,
                 active = isGoldenActive,
                 onClick = onToggleGoldenRatio,
@@ -743,7 +741,7 @@ private fun InspectControlBar(
             )
 
             GuideToggleButton(
-                label = LearnText.GUIDE_SPIRAL,
+                label = LearnText.GUIDE_SPIRAL.asString(),
                 icon = Icons.AutoMirrored.Filled.RotateRight,
                 active = isSpiralActive,
                 onClick = onToggleSpiral,
@@ -761,7 +759,7 @@ private fun InspectControlBar(
                     border = androidx.compose.foundation.BorderStroke(1.dp, if (isSpiralActive) BrandAccentDeep else Zinc700),
                 ) {
                     Text(
-                        text = LearnText.GUIDE_FLIP_SPIRAL,
+                        text = LearnText.GUIDE_FLIP_SPIRAL.asString(),
                         style = MaterialTheme.typography.labelSmall,
                         color = if (isSpiralActive) Color.White else Zinc400,
                         fontWeight = FontWeight.Medium,
@@ -773,7 +771,7 @@ private fun InspectControlBar(
             }
 
             GuideToggleButton(
-                label = LearnText.GUIDE_DIAGONALS,
+                label = LearnText.GUIDE_DIAGONALS.asString(),
                 icon = Icons.Default.Timeline,
                 active = isDiagonalsActive,
                 onClick = onToggleDiagonals,
@@ -781,7 +779,7 @@ private fun InspectControlBar(
             )
 
             GuideToggleButton(
-                label = LearnText.GUIDE_HORIZON,
+                label = LearnText.GUIDE_HORIZON.asString(),
                 icon = Icons.Default.Tune,
                 active = isHorizonActive,
                 onClick = onToggleHorizon,
@@ -876,7 +874,7 @@ private fun LearnTabSelector(
                         contentAlignment = Alignment.Center,
                     ) {
                         Text(
-                            text = tab.label,
+                            text = stringResource(tab.label),
                             style = MaterialTheme.typography.labelSmall,
                             color = if (active) Color.White else Zinc400,
                             fontWeight = if (active) FontWeight.Bold else FontWeight.Medium,
@@ -921,7 +919,7 @@ private fun ExploreCardsSection(
                     border = androidx.compose.foundation.BorderStroke(1.dp, if (guessFirstEnabled) BrandAccent else Zinc800),
                 ) {
                     Text(
-                        text = if (guessFirstEnabled) "Guess first: ON" else "Guess first: OFF",
+                        text = stringResource(if (guessFirstEnabled) R.string.chip_guess_first_on else R.string.chip_guess_first_off),
                         style = MaterialTheme.typography.labelSmall,
                         color = if (guessFirstEnabled) Color.White else Zinc400,
                         modifier = Modifier.padding(horizontal = 8.dp, vertical = 5.dp),
@@ -948,7 +946,7 @@ private fun ExploreCardsSection(
                             modifier = Modifier.size(14.dp),
                         )
                         Text(
-                            text = if (whatIfCropActive) "Hide 'What if?' Crop" else "What if? Crop",
+                            text = stringResource(if (whatIfCropActive) R.string.action_hide_what_if_crop else R.string.action_what_if_crop),
                             style = MaterialTheme.typography.labelSmall,
                             color = if (whatIfCropActive) Color.White else Zinc400,
                         )
@@ -970,13 +968,13 @@ private fun ExploreCardsSection(
                     verticalArrangement = Arrangement.spacedBy(8.dp),
                 ) {
                     Text(
-                        text = "Non-Destructive Crop Preview",
+                        text = stringResource(R.string.label_crop_preview),
                         style = MaterialTheme.typography.labelMedium,
                         fontWeight = FontWeight.Bold,
                         color = Color.White,
                     )
                     Text(
-                        text = suggestedCrop.rationale,
+                        text = suggestedCrop.rationale.asString(),
                         style = MaterialTheme.typography.bodySmall,
                         color = Zinc400,
                     )
@@ -1020,7 +1018,7 @@ private fun ExploreCardsSection(
                     verticalArrangement = Arrangement.spacedBy(8.dp),
                 ) {
                     Text(
-                        text = challenge.prompt,
+                        text = challenge.prompt.asString(),
                         style = MaterialTheme.typography.labelMedium,
                         fontWeight = FontWeight.Bold,
                         color = Color.White,
@@ -1038,7 +1036,7 @@ private fun ExploreCardsSection(
                                 modifier = Modifier.fillMaxWidth(),
                             ) {
                                 Text(
-                                    text = option,
+                                    text = option.asString(),
                                     style = MaterialTheme.typography.bodySmall,
                                     color = Zinc200,
                                     modifier = Modifier.padding(10.dp),
@@ -1075,7 +1073,7 @@ private fun LearnObservationCard(
 ) {
     val isPositive = card.kind == com.photoselectortoolbox.domain.learn.CardKind.DID_WELL
     val accent = if (isPositive) ScoreGood else ScoreWarn
-    val badgeText = if (isPositive) "What you did well" else "What to try next"
+    val badgeText = stringResource(if (isPositive) R.string.label_did_well else R.string.label_try_next)
 
     Card(
         shape = RoundedCornerShape(12.dp),
@@ -1094,23 +1092,23 @@ private fun LearnObservationCard(
                 fontWeight = FontWeight.Bold,
             )
             Text(
-                text = card.title,
+                text = card.title.asString(),
                 style = MaterialTheme.typography.titleSmall,
                 fontWeight = FontWeight.Bold,
                 color = Color.White,
             )
             Text(
-                text = card.whatHappened,
+                text = card.whatHappened.asString(),
                 style = MaterialTheme.typography.bodySmall,
                 color = Zinc200,
             )
             Text(
-                text = card.whyItMatters,
+                text = card.whyItMatters.asString(),
                 style = MaterialTheme.typography.bodySmall,
                 color = Zinc400,
             )
             Text(
-                text = "Next time: ${card.tryNextTime}",
+                text = stringResource(R.string.learn_next_time, card.tryNextTime.asString()),
                 style = MaterialTheme.typography.bodySmall,
                 fontWeight = FontWeight.Medium,
                 color = Color.White,
@@ -1118,7 +1116,7 @@ private fun LearnObservationCard(
             card.lessonId?.let { lessonId ->
                 TouchTarget(onClick = { onOpenLesson(lessonId) }, testTag = "open_lesson_link") {
                     Text(
-                        text = "Why? → Open Lesson",
+                        text = stringResource(R.string.action_why_open_lesson),
                         style = MaterialTheme.typography.labelSmall,
                         color = BrandAccent,
                         fontWeight = FontWeight.SemiBold,
@@ -1188,14 +1186,14 @@ private fun InspectRatingCard(
                 verticalArrangement = Arrangement.spacedBy(2.dp),
             ) {
                 Text(
-                    text = "Rating & Evaluation",
+                    text = stringResource(R.string.title_rating_evaluation),
                     style = MaterialTheme.typography.titleSmall,
                     fontWeight = FontWeight.Bold,
                     color = Color.White,
                     modifier = Modifier.align(Alignment.CenterVertically),
                 )
                 Text(
-                    text = "Hotkeys 0–5, X",
+                    text = stringResource(R.string.label_rating_hotkeys),
                     style = MaterialTheme.typography.labelSmall,
                     color = HintText,
                     modifier = Modifier.align(Alignment.CenterVertically),

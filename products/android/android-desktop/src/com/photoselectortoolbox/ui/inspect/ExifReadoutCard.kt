@@ -33,6 +33,9 @@ import com.photoselectortoolbox.ui.theme.Zinc900
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
+import androidx.compose.ui.res.stringResource
+import com.photoselectortoolbox.R
+import com.photoselectortoolbox.ui.text.asString
 
 // ── EXIF Technical Readout ────────────────────────────────────────────────────
 
@@ -44,11 +47,12 @@ internal fun ExifTechnicalReadoutCard(
     val exif = currentImage.exifData
     val rows = ExifFormatter.detailRows(exif)
 
-    val formattedDate = remember(currentImage.lastModified) {
+    val unknown = stringResource(R.string.label_unknown)
+    val formattedDate = remember(currentImage.lastModified, unknown) {
         if (currentImage.lastModified > 0) {
             SimpleDateFormat("yyyy-MM-dd HH:mm", Locale.US).format(Date(currentImage.lastModified))
         } else {
-            "Unknown"
+            unknown
         }
     }
 
@@ -77,7 +81,7 @@ internal fun ExifTechnicalReadoutCard(
                     modifier = Modifier.size(18.dp),
                 )
                 Text(
-                    text = "EXIF Technical Readout",
+                    text = stringResource(R.string.title_exif_readout),
                     style = MaterialTheme.typography.titleSmall,
                     fontWeight = FontWeight.Bold,
                     color = Color.White,
@@ -85,11 +89,11 @@ internal fun ExifTechnicalReadoutCard(
             }
 
             for ((label, value) in rows) {
-                ReadoutRow(label = label, value = value)
+                ReadoutRow(label = label.asString(), value = value.asString())
             }
 
-            ReadoutRow(label = "Dimensions", value = "${currentImage.imageWidth} × ${currentImage.imageHeight}")
-            ReadoutRow(label = "Timestamp", value = formattedDate)
+            ReadoutRow(label = stringResource(R.string.label_exif_dimensions), value = "${currentImage.imageWidth} × ${currentImage.imageHeight}")
+            ReadoutRow(label = stringResource(R.string.label_exif_timestamp), value = formattedDate)
         }
     }
 }

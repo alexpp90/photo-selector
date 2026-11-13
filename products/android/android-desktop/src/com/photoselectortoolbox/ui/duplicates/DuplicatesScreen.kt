@@ -85,6 +85,10 @@ import com.photoselectortoolbox.ui.theme.BrandOnAccent
 import com.photoselectortoolbox.ui.theme.Zinc700
 import com.photoselectortoolbox.ui.theme.Zinc800
 import com.photoselectortoolbox.viewmodel.DuplicatesViewModel
+import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.res.pluralStringResource
+import com.photoselectortoolbox.R
+import com.photoselectortoolbox.ui.text.asString
 
 @Composable
 fun DuplicatesScreen(
@@ -109,8 +113,8 @@ fun DuplicatesScreen(
     if (showDeleteConfirmation) {
         AlertDialog(
             onDismissRequest = { showDeleteConfirmation = false },
-            title = { Text(DuplicateLabels.confirmTitle(uiState.selectedForDeletion.size)) },
-            text = { Text(DuplicateLabels.CONFIRM_BODY) },
+            title = { Text(DuplicateLabels.confirmTitle(uiState.selectedForDeletion.size).asString()) },
+            text = { Text(DuplicateLabels.CONFIRM_BODY.asString()) },
             confirmButton = {
                 Button(
                     modifier = Modifier.handCursor(),
@@ -123,12 +127,12 @@ fun DuplicatesScreen(
                         contentColor = OnDestructiveFill,
                     ),
                 ) {
-                    Text("Delete")
+                    Text(stringResource(R.string.action_delete))
                 }
             },
             dismissButton = {
                 TextButton(modifier = Modifier.handCursor(), onClick = { showDeleteConfirmation = false }) {
-                    Text("Cancel")
+                    Text(stringResource(R.string.action_cancel))
                 }
             },
             containerColor = Zinc800,
@@ -143,13 +147,11 @@ fun DuplicatesScreen(
             uiState.folderUri == null -> {
                 EmptyStateCard(
                     icon = Icons.Default.FolderOpen,
-                    title = if (uiState.missingGrantPrompt) "Folder Access Needed" else "No Folder Selected",
-                    description = if (uiState.missingGrantPrompt) {
-                        "Permission for this folder was revoked or the folder was moved. Re-select the folder to continue."
-                    } else {
-                        "Select a folder to scan for duplicate images."
-                    },
-                    actionLabel = if (uiState.missingGrantPrompt) "Re-select Folder" else "Select Folder",
+                    title = stringResource(if (uiState.missingGrantPrompt) R.string.empty_folder_access_needed else R.string.empty_no_folder_selected),
+                    description = stringResource(
+                        if (uiState.missingGrantPrompt) R.string.error_folder_access_revoked else R.string.dialog_body_dupes_select_folder,
+                    ),
+                    actionLabel = stringResource(if (uiState.missingGrantPrompt) R.string.action_reselect_folder else R.string.action_select_folder),
                     onAction = { folderPickerLauncher.launch(null) },
                     modifier = Modifier.align(Alignment.Center),
                 )
@@ -158,7 +160,7 @@ fun DuplicatesScreen(
             uiState.duplicateGroups.isEmpty() && !uiState.isScanning -> {
                 InstructionCard(
                     folderName = uiState.folderName,
-                    statusText = uiState.statusText,
+                    statusText = uiState.statusText.asString(),
                     onStartScan = { viewModel.startScan() },
                     modifier = Modifier.align(Alignment.Center),
                 )
@@ -172,13 +174,13 @@ fun DuplicatesScreen(
                     if (uiState.isScanning) {
                         ProgressIndicatorBar(
                             progress = uiState.scanProgress,
-                            statusText = uiState.statusText,
+                            statusText = uiState.statusText.asString(),
                             isIndeterminate = uiState.scanProgress <= 0f,
                             modifier = Modifier.padding(16.dp),
                         )
-                    } else if (uiState.statusText.isNotEmpty()) {
+                    } else if (uiState.statusText.asString().isNotEmpty()) {
                         Text(
-                            text = uiState.statusText,
+                            text = uiState.statusText.asString(),
                             style = MaterialTheme.typography.bodyMedium,
                             color = MaterialTheme.colorScheme.onSurfaceVariant,
                             modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp),
@@ -225,11 +227,12 @@ fun DuplicatesScreen(
                                 verticalAlignment = Alignment.CenterVertically,
                             ) {
                                 Text(
-                                    text = "${uiState.selectedForDeletion.size} selected",
+                                    text = stringResource(R.string.label_selected_count, uiState.selectedForDeletion.size),
                                     style = MaterialTheme.typography.bodyMedium,
                                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                                     modifier = Modifier.weight(1f),
                                 )
+                                // ui-text: ignore (icon with a word, DESIGN.md § Icon with a word: the delete control names its count)
                                 Button(
                                     modifier = Modifier.handCursor(),
                                     onClick = { showDeleteConfirmation = true },
@@ -245,7 +248,7 @@ fun DuplicatesScreen(
                                         modifier = Modifier.size(18.dp),
                                     )
                                     Spacer(modifier = Modifier.width(8.dp))
-                                    Text("Delete Selected (${uiState.selectedForDeletion.size})")
+                                    Text(stringResource(R.string.action_delete_selected, uiState.selectedForDeletion.size))
                                 }
                             }
                         }
@@ -254,7 +257,7 @@ fun DuplicatesScreen(
             }
         }
         ToolErrorSnackbar(
-            message = uiState.error,
+            message = uiState.error?.asString(),
             sequence = uiState.errorSequence,
             onDismiss = viewModel::clearError,
             suppressed = uiState.missingGrantPrompt,
@@ -269,6 +272,7 @@ fun DuplicatesScreen(
 /** The held Dupes delete and its undo (REQ-AND-ALGO.05); shown until the screen or folder is left. */
 @Composable
 internal fun HeldDeleteBar(count: Int, onUndo: () -> Unit) {
+    val undoSpoken = DuplicateLabels.UNDO_DESCRIPTION.asString()
     Surface(modifier = Modifier.fillMaxWidth(), color = Zinc800) {
         Row(
             modifier = Modifier
@@ -277,7 +281,7 @@ internal fun HeldDeleteBar(count: Int, onUndo: () -> Unit) {
             verticalAlignment = Alignment.CenterVertically,
         ) {
             Text(
-                text = DuplicateLabels.deletedMessage(count),
+                text = DuplicateLabels.deletedMessage(count).asString(),
                 style = MaterialTheme.typography.bodyMedium,
                 color = MaterialTheme.colorScheme.onSurface,
                 modifier = Modifier.weight(1f),
@@ -287,12 +291,12 @@ internal fun HeldDeleteBar(count: Int, onUndo: () -> Unit) {
                 modifier = Modifier
                     .handCursor()
                     .defaultMinSize(minWidth = 48.dp, minHeight = 48.dp)
-                    .semantics { contentDescription = DuplicateLabels.UNDO_DESCRIPTION }
+                    .semantics { contentDescription = undoSpoken }
                     .testTag(HELD_DELETE_UNDO_TAG),
                 colors = ButtonDefaults.buttonColors(containerColor = BrandAccent, contentColor = BrandOnAccent),
                 shape = RoundedCornerShape(6.dp),
             ) {
-                Text(DuplicateLabels.UNDO)
+                Text(DuplicateLabels.UNDO.asString())
             }
         }
     }
@@ -333,7 +337,7 @@ private fun InstructionCard(
             Spacer(modifier = Modifier.height(16.dp))
 
             Text(
-                text = "Ready to Scan",
+                text = stringResource(R.string.empty_ready_to_scan),
                 style = MaterialTheme.typography.titleMedium,
                 color = MaterialTheme.colorScheme.onSurface,
             )
@@ -341,7 +345,7 @@ private fun InstructionCard(
             Spacer(modifier = Modifier.height(8.dp))
 
             Text(
-                text = "Scan \"$folderName\" for duplicate images based on file hash comparison.",
+                text = stringResource(R.string.dialog_body_dupes_ready, folderName),
                 style = MaterialTheme.typography.bodyMedium,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
@@ -366,7 +370,7 @@ private fun InstructionCard(
                 ),
                 shape = RoundedCornerShape(8.dp),
             ) {
-                Text("Start Scan")
+                Text(stringResource(R.string.action_start_scan))
             }
         }
     }
@@ -395,10 +399,11 @@ private fun ExpandedDuplicateGroupCard(
                 verticalAlignment = Alignment.CenterVertically,
             ) {
                 Text(
-                    text = "Group (${group.files.size} files)",
+                    text = pluralStringResource(R.plurals.title_dupes_group, group.files.size, group.files.size),
                     style = MaterialTheme.typography.titleSmall,
                     color = MaterialTheme.colorScheme.onSurface,
                 )
+                // ui-text: ignore (icon with a word, DESIGN.md § Icon with a word: the group action is worded)
                 FilledTonalButton(
                     modifier = Modifier.handCursor(),
                     onClick = onSelectAllButFirst,
@@ -411,7 +416,7 @@ private fun ExpandedDuplicateGroupCard(
                     )
                     Spacer(modifier = Modifier.width(4.dp))
                     Text(
-                        text = "Select All But First",
+                        text = stringResource(R.string.action_select_all_but_first),
                         style = MaterialTheme.typography.labelSmall,
                     )
                 }
@@ -465,10 +470,11 @@ private fun CompactDuplicateGroupCard(
                 verticalAlignment = Alignment.CenterVertically,
             ) {
                 Text(
-                    text = "Group (${group.files.size} files)",
+                    text = pluralStringResource(R.plurals.title_dupes_group, group.files.size, group.files.size),
                     style = MaterialTheme.typography.titleSmall,
                     color = MaterialTheme.colorScheme.onSurface,
                 )
+                // ui-text: ignore (icon with a word, DESIGN.md § Icon with a word: the group action is worded)
                 FilledTonalButton(
                     modifier = Modifier.handCursor(),
                     onClick = onSelectAllButFirst,
@@ -481,7 +487,7 @@ private fun CompactDuplicateGroupCard(
                     )
                     Spacer(modifier = Modifier.width(4.dp))
                     Text(
-                        text = "Select All But First",
+                        text = stringResource(R.string.action_select_all_but_first),
                         style = MaterialTheme.typography.labelSmall,
                     )
                 }
@@ -552,9 +558,11 @@ private fun DuplicateImageCard(
         else -> Color.Transparent
     }
 
-    val fileName = remember(fileUri) {
-        Uri.parse(fileUri).lastPathSegment?.substringAfterLast('/') ?: "Unknown"
+    val unknown = stringResource(R.string.label_unknown)
+    val fileName = remember(fileUri, unknown) {
+        Uri.parse(fileUri).lastPathSegment?.substringAfterLast('/') ?: unknown
     }
+    val keptSpoken = stringResource(R.string.cd_dupes_kept, fileName)
 
     Card(
         modifier = modifier
@@ -567,7 +575,7 @@ private fun DuplicateImageCard(
             )
             // One named, toggleable node per copy, instead of an unnamed card and checkbox.
             .semantics(mergeDescendants = true) {
-                contentDescription = if (isLastKept) "$fileName, kept" else fileName
+                contentDescription = if (isLastKept) keptSpoken else fileName
             },
         shape = RoundedCornerShape(12.dp),
         colors = CardDefaults.cardColors(containerColor = Zinc700),
@@ -637,7 +645,7 @@ private fun DuplicateImageCard(
                     color = BrandAccent.copy(alpha = 0.9f),
                 ) {
                     Text(
-                        text = "First",
+                        text = stringResource(R.string.label_dupes_first),
                         style = MaterialTheme.typography.labelSmall,
                         color = BrandOnAccent,
                         modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp),
@@ -649,7 +657,7 @@ private fun DuplicateImageCard(
             if (isSelected) {
                 Icon(
                     imageVector = Icons.Default.CheckCircle,
-                    contentDescription = "Selected for deletion",
+                    contentDescription = stringResource(R.string.cd_selected_for_deletion),
                     tint = ErrorRed,
                     modifier = Modifier
                         .align(Alignment.Center)

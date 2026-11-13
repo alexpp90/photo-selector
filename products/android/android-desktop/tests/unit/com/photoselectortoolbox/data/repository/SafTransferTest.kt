@@ -51,6 +51,7 @@ import org.robolectric.Robolectric
 import org.robolectric.RobolectricTestRunner
 import org.robolectric.RuntimeEnvironment
 import org.robolectric.annotation.Config
+import com.photoselectortoolbox.testing.en
 
 /**
  * Android Desktop's adapter over the shared SAF engine (`:saf`, REQ-AND-PLATFORM.06,
@@ -775,8 +776,8 @@ class SafTransferTest {
         val result = repository.copyBundle(context, item, treeUri, sorting = true)
 
         assertFalse(result.success)
-        assertTrue(result.error.orEmpty(), TransferSpace.isRefusal(result.error))
-        assertTrue(result.error.orEmpty(), result.error.orEmpty().endsWith("Nothing was copied."))
+        val refusal = TransferSpace.refusalOf(result.error)?.en().orEmpty()
+        assertTrue(result.error.orEmpty(), refusal.endsWith("Nothing was copied."))
         val written = File(rootDir, "Selection").walkTopDown().filter { it.isFile }.toList()
         assertEquals("no partial copy", emptyList<File>(), written.filter { it.name != ".photoselector-selection" })
         for (n in listOf("DSC_0003.JPG", "DSC_0003.ARW", "DSC_0003.xmp", "DSC_0003-Edit.JPG")) {

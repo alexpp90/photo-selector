@@ -37,6 +37,7 @@ import org.junit.Test
 import org.junit.runner.RunWith
 import org.robolectric.annotation.Config
 import org.robolectric.shadows.ShadowDialog
+import com.photoselectortoolbox.testing.en
 
 /**
  * The fullscreen viewer's keyboard, chrome and EXIF.
@@ -506,7 +507,7 @@ class FullscreenViewerTest {
         press(KeyEvent.KEYCODE_M)
         val expected = CompanionConfirmation.filed(
             FilingAction.MOVE, five[0], CompanionConfirmation.destinationName(FilingAction.DEFAULT_SELECTION_FOLDER, "Keepers"),
-        ).visible
+        ).visible.en()
         assertTrue(expected, expected.contains("Keepers"))
         val flash = rule.onAllNodesWithTag("fullscreen_collection_flash", useUnmergedTree = true)
             .fetchSemanticsNodes().single()

@@ -10,6 +10,7 @@ import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
 import org.junit.Test
+import com.photoselectortoolbox.testing.en
 
 /**
  * The desk-app key table (`docs/shared/KEYBOARD.md`, backlog 2026-11-10 "the same key does
@@ -92,9 +93,9 @@ class SelectorKeyAlignmentTest {
 
     @Test
     fun `the guide lists L, I, T, J and K and Ctrl+Z, and words the digits as enlarging a frame`() {
-        val inputs = SelectorShortcut.entries.map { it.input }
+        val inputs = SelectorShortcut.entries.map { it.input.en() }
         for (key in listOf("L", "I", "T", "J / K", "Ctrl+Z")) assertTrue("$key missing from $inputs", key in inputs)
-        val digits = SelectorShortcut.MAXIMISE.describeEffect(FilingAction.COPY)
+        val digits = SelectorShortcut.MAXIMISE.describeEffect(FilingAction.COPY).en()
         assertTrue(digits, digits.startsWith("enlarge"))
     }
 }

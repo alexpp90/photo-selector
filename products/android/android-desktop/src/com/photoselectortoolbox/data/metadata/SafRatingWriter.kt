@@ -1,6 +1,8 @@
 package com.photoselectortoolbox.data.metadata
 
 import android.content.ContentResolver
+import com.photoselectortoolbox.R
+import com.photoselectortoolbox.domain.text.text
 import android.content.Context
 import android.net.Uri
 import android.provider.DocumentsContract
@@ -56,7 +58,10 @@ internal class SafRatingWriter(
         val name = displayNameOf(imageUri)
             ?: throw RatingWriteException("Could not read the file name from the storage provider")
         when (RatingFormats.strategyFor(name)) {
-            RatingStrategy.UNSUPPORTED -> throw RatingWriteException(RatingFormats.unsupportedMessage(name))
+            RatingStrategy.UNSUPPORTED -> throw RatingWriteException(
+                RatingFormats.unsupportedMessage(name),
+                reason = RatingFormats.unsupportedReason(name),
+            )
             RatingStrategy.EMBEDDED_XMP -> if (embedIntoPhoto) writeJpeg(imageUri, name, rating)
             RatingStrategy.SIDECAR -> writeSidecar(imageUri, name, rating)
         }
@@ -126,7 +131,10 @@ internal class SafRatingWriter(
         }
         val updated = (
             XmpSidecarWriter.injectOrUpdateRating(text, rating)
-                ?: throw RatingWriteException("The existing ${entry.name} has content the rating cannot be merged into; it was left unchanged")
+                ?: throw RatingWriteException(
+                    "The existing ${entry.name} has content the rating cannot be merged into; it was left unchanged", // ui-text: ignore (log text; RatingWriteException.reason is what the user reads)
+                    reason = RatingFormats.unmergeableReason(entry.name),
+                )
             ).toByteArray(Charsets.UTF_8)
         replaceVerified(uri, entry.name, original, updated)
     }
@@ -145,7 +153,10 @@ internal class SafRatingWriter(
             ?: throw RatingWriteException("Could not list the folder of $name to keep a backup; it was left unchanged")
         val backupName = RatingBackups.backupNameFor(name)
         if (listing.any { it.name == backupName }) {
-            throw RatingWriteException("$backupName from an earlier interrupted write is still beside $name; reopen the folder to recover it")
+            throw RatingWriteException(
+                "$backupName from an earlier interrupted write is still beside $name; reopen the folder to recover it", // ui-text: ignore (log text; RatingWriteException.reason is what the user reads)
+                reason = text(R.string.error_rating_backup_still_beside, backupName, name),
+            )
         }
         val cacheDir = context.cacheDir ?: throw RatingWriteException("Cache directory unavailable")
         val work = File.createTempFile("saf_rating_", ".tmp", cacheDir)
@@ -159,7 +170,10 @@ internal class SafRatingWriter(
             val exif = ExifInterface(work.absolutePath)
             val currentXmp = exif.getAttribute(ExifInterface.TAG_XMP)
             val updatedXmp = XmpSidecarWriter.injectOrUpdateRating(currentXmp, rating)
-                ?: throw RatingWriteException("The XMP inside $name has content the rating cannot be merged into; it was left unchanged")
+                ?: throw RatingWriteException(
+                    "The XMP inside $name has content the rating cannot be merged into; it was left unchanged", // ui-text: ignore (log text; RatingWriteException.reason is what the user reads)
+                    reason = RatingFormats.unmergeableReason(name),
+                )
             exif.setAttribute(ExifInterface.TAG_XMP, updatedXmp)
             exif.saveAttributes()
             if (!validateJpegBounds(work)) {
@@ -195,7 +209,7 @@ internal class SafRatingWriter(
         } catch (e: Exception) {
             runCatching { created.delete() }
             throw e as? RatingWriteException
-                ?: RatingWriteException("Could not write $backupName: ${e.message}; the photo was left unchanged", e)
+                ?: RatingWriteException("Could not write $backupName: ${e.message}; the photo was left unchanged", e) // ui-text: ignore
         }
     }
 
@@ -343,12 +357,18 @@ internal class SafRatingWriter(
             if (restored && backup != null) deleteDocument(backup)
             Log.w(TAG, "Rating write to $name failed; unchanged=$unchanged restored=$restored", e)
             throw RatingWriteException(
+                // The log's words; `reason` is what the user is told.
                 when {
-                    restored -> "Could not write the rating into $name; it was left unchanged"
-                    backupName != null -> "Could not write the rating into $name and could not restore it; the original is kept as $backupName"
-                    else -> "Could not write the rating into $name and could not restore it; check the file"
+                    restored -> "Could not write the rating into $name; it was left unchanged" // ui-text: ignore
+                    backupName != null -> "Could not write the rating into $name and could not restore it; the original is kept as $backupName" // ui-text: ignore
+                    else -> "Could not write the rating into $name and could not restore it; check the file" // ui-text: ignore
                 },
                 e,
+                reason = when {
+                    restored -> text(R.string.error_rating_restored, name)
+                    backupName != null -> text(R.string.error_rating_not_restored_backup, name, backupName)
+                    else -> text(R.string.error_rating_not_restored, name)
+                },
             )
         }
         if (backup != null && !deleteDocument(backup)) {

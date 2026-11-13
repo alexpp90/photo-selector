@@ -75,12 +75,12 @@ step in Play Console before ticking it.
 
 ## 5. Store Listing (draft)
 
-Store text promises behaviour, so every line must be true for the build being released. Before pasting, fact-check each feature line against the current code and remove anything that is no longer true. The draft was checked against `origin/main` on 2026-11-10.
+Store text promises behaviour, so every line must be true for the build being released. Before pasting, fact-check each feature line against the current code and remove anything that is no longer true. The draft was checked against `origin/main` on 2026-11-10; the Learn line and the language line were brought up to date on 2026-11-13 (shoot debrief, German interface).
 
 - **Title rule:** always the name with a descriptive subtitle. Play limit: **30 characters**.
 - **Disclaimer:** the non-affiliation sentence goes at the end of the full description.
 - **First line:** the full description opens by saying the app is built for large screens (decision 2026-11-12: tablets, ChromeOS and DeX only, §4).
-- **Language:** English (United States) only. Add a German (de-DE) listing only once the app has a German interface; a German listing for an English-only app promises what the app does not do.
+- **Language:** English (United States) and German (de-DE). The app has had a German interface since FD-L10N (decision 2026-11-12, #34): every listing line below has its German twin, and a feature line changed in one is changed in the other.
 
 ### English (United States) — en-US
 
@@ -105,15 +105,49 @@ Features
 • Go to photo by its number, a date or its file name.
 • Star ratings and a reject flag.
 • Statistics: EXIF charts of the folder (focal lengths, apertures, ISO, shutter speeds).
-• Tools beside the cull: Duplicates finds byte-identical copies and never lets you delete the last one; Learn shows the composition of your own photos and compares two frames of one scene side by side.
+• Tools beside the cull: Duplicates finds byte-identical copies and never lets you delete the last one; Learn shows after a scan how the shoot went, per kind of camera, with a worked pair from your own photos.
 • Camera RAW from Sony, Canon (incl. CR3), Nikon, Fujifilm, Panasonic, OM System, Pentax, Samsung and DNG, plus JPEG, HEIC, PNG, TIFF and WebP.
 
 Private by design
 • No permissions, no internet access, no account.
 • No ads, no analytics, no tracking. Your photos never leave your device.
-• Free and open source (MIT). English interface.
+• Free and open source (MIT). English and German interface.
 
 Frameduel is not affiliated with Samsung, Google or any camera maker; brand names only describe compatibility.
+```
+
+### Deutsch (Deutschland) — de-DE
+
+**App-Name** (≤ 30): `Frameduel – Fotos aussortieren` (30)
+
+**Kurzbeschreibung** (≤ 80):
+> Fotos am Tablet oder mit DeX sichten: vergleichen, behalten, den Rest löschen.
+
+**Vollständige Beschreibung** (≤ 4000):
+```text
+Frameduel ist ein Sichtungspult für große Bildschirme: Tablets, Samsung DeX und Chromebooks. Öffne einen Ordner mit Fotos – auf dem Gerät, einer SD-Karte oder einem Kartenleser – und geh ihn drei Bilder auf einmal durch: das aktuelle Foto oben, das vorherige und das nächste darunter nebeneinander, alle gleich groß, damit du Gleiches mit Gleichem vergleichst.
+
+• M verschiebt das Foto in deinen Auswahlordner, C kopiert es, Entf löscht es. RAW, JPEG, Bearbeitungen und .xmp-Datei bleiben zusammen.
+• Rückgängig: Strg+Z geht durch deine letzten Verschiebungen und Löschungen zurück.
+• 1, 2 oder 3 zeigt ein Bild in voller Größe; F öffnet das Vollbild.
+• Bedienbar per Touch, Maus und Tastatur.
+
+Funktionen
+• Qualitätswerte auf dem Gerät: Ein Scan misst Schärfe, Rauschen sowie ausgefressene Lichter und zugelaufene Schatten, damit das weiche Bild einer Serie auffällt.
+• Serien halten ähnliche Bilder zusammen.
+• Sortieren nach neuesten, ältesten, Dateiname oder – nach einem Scan – unschärfsten zuerst.
+• Gehe zu Foto per Nummer, Datum oder Dateiname.
+• Sternebewertung und Aussortieren-Markierung.
+• Statistik: EXIF-Diagramme des Ordners (Brennweiten, Blenden, ISO, Belichtungszeiten).
+• Werkzeuge neben der Sichtung: Duplikate findet bytegleiche Kopien und lässt dich nie die letzte löschen; Lernen zeigt nach einem Scan, wie das Shooting lief, mit einem Beispielpaar aus deinen eigenen Fotos.
+• Kamera-RAW von Sony, Canon (inkl. CR3), Nikon, Fujifilm, Panasonic, OM System, Pentax, Samsung und DNG sowie JPEG, HEIC, PNG, TIFF und WebP.
+
+Privat von Grund auf
+• Keine Berechtigungen, kein Internetzugriff, kein Konto.
+• Keine Werbung, keine Analyse, kein Tracking. Deine Fotos verlassen dein Gerät nie.
+• Kostenlos und Open Source (MIT). Oberfläche auf Deutsch und Englisch.
+
+Frameduel ist nicht mit Samsung, Google oder einem Kamerahersteller verbunden; Markennamen beschreiben nur die Kompatibilität.
 ```
 
 ---
