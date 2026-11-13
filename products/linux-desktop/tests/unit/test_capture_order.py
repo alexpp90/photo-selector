@@ -128,6 +128,9 @@ def test_the_order_says_what_it_goes_by(tmp_path: Path):
     folder = _folder(tmp_path, stamps)
     win = window_module.MainWindow(settings=SettingsStore(path=tmp_path / "settings.json"))
     win.viewmodel.capture_runner = _runner(stamps, [])
+    # The files are not images: a decode that read their (empty) EXIF first would fill ``exif`` and
+    # the pass would find nothing to read. Only the pass is under test here.
+    win.canvas_view.loader.request = lambda *args, **kwargs: None
     win.viewmodel.load_directory(folder)
     deadline = time.monotonic() + 5
     context = GLib.MainContext.default()
