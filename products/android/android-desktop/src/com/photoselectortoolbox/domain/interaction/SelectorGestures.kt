@@ -1,7 +1,9 @@
 package com.photoselectortoolbox.domain.interaction
 
 import com.photoselectortoolbox.R
+import androidx.annotation.StringRes
 import com.photoselectortoolbox.domain.text.UiText
+import com.photoselectortoolbox.domain.text.raw
 import com.photoselectortoolbox.domain.text.text
 
 /**
@@ -84,7 +86,7 @@ object SelectorGestures {
 }
 
 /** One line of a hint card: what you do, and what happens. */
-data class GestureRow(val input: String, val effect: String)
+data class GestureRow(val input: UiText, val effect: UiText)
 
 /**
  * Which verb the configured filing control performs.
@@ -97,24 +99,34 @@ enum class FilingAction(
     /** The persisted DataStore value. Do not change — it is on users' devices. */
     val storedValue: String,
     /** The word on the button. Never "Keep": the button says what it does. */
-    val verb: String,
+    @StringRes private val verbRes: Int,
     /** "Copied" / "Moved" — for wording written after the file has been touched. */
-    val pastTense: String,
+    @StringRes private val pastTenseRes: Int,
+    /** "Copy to %1$s" — the verb with its destination. */
+    @StringRes private val phraseRes: Int,
     /** The keyboard shortcut that performs it. */
     val shortcut: String,
 ) {
     COPY(
         storedValue = "copy",
-        verb = "Copy",
-        pastTense = "Copied",
+        verbRes = R.string.action_copy,
+        pastTenseRes = R.string.label_copied,
+        phraseRes = R.string.action_copy_to,
         shortcut = "C",
     ),
     MOVE(
         storedValue = "move",
-        verb = "Move",
-        pastTense = "Moved",
+        verbRes = R.string.action_move,
+        pastTenseRes = R.string.label_moved,
+        phraseRes = R.string.action_move_to,
         shortcut = "M",
     );
+
+    /** The word on the button, "Copy" or "Move", in the UI's language. */
+    val verb: UiText get() = text(verbRes)
+
+    /** "Copied" / "Moved", in the UI's language. */
+    val pastTense: UiText get() = text(pastTenseRes)
 
     /** The other verb — the one that is available but not configured as primary. */
     val other: FilingAction get() = if (this == COPY) MOVE else COPY
@@ -128,8 +140,8 @@ enum class FilingAction(
      * `Picks` was being told about a folder that does not exist. A blank name
      * falls back to [DEFAULT_SELECTION_FOLDER] rather than producing "Copy to ".
      */
-    fun phraseFor(selectionFolderName: String): String =
-        "$verb to ${selectionFolderOrDefault(selectionFolderName)}"
+    fun phraseFor(selectionFolderName: String): UiText =
+        text(phraseRes, selectionFolderOrDefault(selectionFolderName))
 
     /**
      * The phrase under the default folder name.
@@ -137,15 +149,7 @@ enum class FilingAction(
      * Only for call sites that genuinely have no settings in hand; anything with
      * access to the configuration must use [phraseFor].
      */
-    val phrase: String get() = phraseFor(DEFAULT_SELECTION_FOLDER)
-
-    /** The verb on its own, "Copy" or "Move", in the UI's language. */
-    val verbText: UiText get() = text(if (this == COPY) R.string.action_copy else R.string.action_move)
-
-    /** "Copy to Picks" in the UI's language: [phraseFor], as a resource. */
-
-    fun phraseText(selectionFolderName: String): UiText =
-        text(if (this == COPY) R.string.action_copy_to else R.string.action_move_to, selectionFolderOrDefault(selectionFolderName))
+    val phrase: UiText get() = phraseFor(DEFAULT_SELECTION_FOLDER)
 
 
     companion object {
@@ -187,22 +191,31 @@ enum class FilingAction(
  * document that the next refactor will not read.
  */
 enum class FullscreenGesture(
-    val input: String,
-    val effect: String,
+    @StringRes private val inputRes: Int,
+    @StringRes private val effectRes: Int,
     val destructive: Boolean = false,
+    /** A key cap, written as it is printed (`I`, `Esc`); null when [inputRes] names a gesture. */
+    private val key: String? = null,
 ) {
-    PINCH("pinch", "zoom"),
-    DOUBLE_TAP("double-tap", "fit ↔ 100%"),
-    HORIZONTAL_SWIPE("swipe ← →", "previous / next"),
-    SWIPE_DOWN("swipe down", "dismiss"),
+    PINCH(R.string.hint_body_gesture_pinch, R.string.hint_body_effect_zoom),
+    DOUBLE_TAP(R.string.hint_body_gesture_double_tap, R.string.hint_body_effect_fit_100),
+    HORIZONTAL_SWIPE(R.string.hint_body_gesture_swipe_sideways, R.string.hint_body_effect_previous_next),
+    SWIPE_DOWN(R.string.hint_body_gesture_swipe_down, R.string.hint_body_effect_dismiss),
 
     /**
      * Pins the top bar (name, position, EXIF) so it stops fading out. In the
      * selector `I` means Inspect; the fullscreen viewer is its own window with
      * its own key handler, so the two never meet.
      */
-    INFO("I", "pin / unpin the info panel"),
-    ESCAPE("Esc", "exit"),
+    INFO(0, R.string.hint_body_effect_pin_info, key = "I"),
+    ESCAPE(0, R.string.hint_body_effect_exit, key = "Esc"),
+    ;
+
+    /** What you do, in the UI's language (a key cap is shown as printed). */
+    val input: UiText get() = key?.let(::raw) ?: text(inputRes)
+
+    /** What happens, in the UI's language. */
+    val effect: UiText get() = text(effectRes)
 }
 
 /**
@@ -214,14 +227,21 @@ enum class FullscreenGesture(
  * destructive action is ever a bare gesture* — as data a test asserts.
  */
 enum class FrameGesture(
-    val input: String,
-    val effect: String,
+    @StringRes private val inputRes: Int,
+    @StringRes private val effectRes: Int,
     val destructive: Boolean = false,
 ) {
-    TAP_NEIGHBOUR("tap a neighbour", "go to that frame"),
-    TAP_CURRENT("tap the current frame", "open fullscreen"),
-    TAP_BADGE("tap a frame's maximise badge", "fill the screen with that frame"),
-    LONG_PRESS("long-press a frame", "context menu"),
+    TAP_NEIGHBOUR(R.string.hint_body_gesture_tap_neighbour, R.string.hint_body_effect_go_to_frame),
+    TAP_CURRENT(R.string.hint_body_gesture_tap_current, R.string.hint_body_effect_open_fullscreen),
+    TAP_BADGE(R.string.hint_body_gesture_tap_badge, R.string.hint_body_effect_fill_screen),
+    LONG_PRESS(R.string.hint_body_gesture_long_press, R.string.hint_body_effect_context_menu),
+    ;
+
+    /** What you do, in the UI's language. */
+    val input: UiText get() = text(inputRes)
+
+    /** What happens, in the UI's language. */
+    val effect: UiText get() = text(effectRes)
 }
 
 /**
@@ -230,12 +250,17 @@ enum class FrameGesture(
  * The coach-mark guide renders these; [com.photoselectortoolbox.ui.selector.handleSelectorKey]
  * implements them. A test asserts the two agree.
  */
-enum class SelectorShortcut(val input: String) {
+enum class SelectorShortcut(
+    /** The key cap as printed where it carries no word (`←`, `F`, `1 / 2 / 3`). */
+    private val cap: String,
+    /** The key cap's name where keyboards print a word (`Del`, `Entf`), else 0. */
+    @StringRes private val capRes: Int = 0,
+) {
     PREVIOUS("←"),
     NEXT("→"),
     NEXT_PREVIOUS("J / K"),
     FILE_PRIMARY("C / M"),
-    DELETE("Del"),
+    DELETE("", R.string.label_key_delete),
     FULLSCREEN("F"),
     DETAILS("I"),
     FILMSTRIP("T"),
@@ -243,34 +268,38 @@ enum class SelectorShortcut(val input: String) {
     GO_TO("G"),
     SORT("S"),
     LEARN("L"),
-    UNDO("Ctrl+Z"),
-    ZOOM("Space"),
-    PAN("Shift ← →"),
+    UNDO("", R.string.label_key_undo),
+    ZOOM("", R.string.label_key_space),
+    PAN("", R.string.label_key_pan),
     ESCAPE("Esc"),
     SHORTCUTS("?");
+
+    /** The key cap in the UI's language: `Del` / `Entf`, `Ctrl+Z` / `Strg+Z`; symbols as printed. */
+    val input: UiText get() = if (capRes != 0) text(capRes) else raw(cap)
 
     fun describeEffect(
         filingAction: FilingAction,
         selectionFolderName: String = FilingAction.DEFAULT_SELECTION_FOLDER,
-    ): String = when (this) {
-        PREVIOUS -> "previous image"
-        NEXT -> "next image"
-        NEXT_PREVIOUS -> "next / previous image"
-        FILE_PRIMARY ->
-            "${filingAction.phraseFor(selectionFolderName)} · " +
-                filingAction.other.phraseFor(selectionFolderName)
-        DELETE -> "delete, with confirmation"
-        FULLSCREEN -> "open fullscreen"
-        DETAILS -> "show or hide this frame's values"
-        FILMSTRIP -> "show or hide the filmstrip"
-        MAXIMISE -> "enlarge left / middle / right frame"
-        GO_TO -> "go to photo"
-        SORT -> "choose the sort order"
-        LEARN -> "open Learn"
-        UNDO -> "undo the last delete or move"
-        ZOOM -> "fit or 100 % (enlarged frame, fullscreen)"
-        PAN -> "pan while zoomed"
-        ESCAPE -> "leave the zoom, fullscreen or maximised; close a sheet"
-        SHORTCUTS -> "show this guide"
+    ): UiText = when (this) {
+        PREVIOUS -> text(R.string.hint_body_effect_previous_image)
+        NEXT -> text(R.string.hint_body_effect_next_image)
+        NEXT_PREVIOUS -> text(R.string.hint_body_effect_next_previous_image)
+        FILE_PRIMARY -> UiText.Joined(
+            listOf(filingAction.phraseFor(selectionFolderName), filingAction.other.phraseFor(selectionFolderName)),
+            " · ",
+        )
+        DELETE -> text(R.string.hint_body_effect_delete_confirmed)
+        FULLSCREEN -> text(R.string.hint_body_effect_open_fullscreen)
+        DETAILS -> text(R.string.hint_body_effect_toggle_values)
+        FILMSTRIP -> text(R.string.hint_body_effect_toggle_filmstrip)
+        MAXIMISE -> text(R.string.hint_body_effect_enlarge_frame)
+        GO_TO -> text(R.string.hint_body_effect_go_to_photo)
+        SORT -> text(R.string.hint_body_effect_choose_sort)
+        LEARN -> text(R.string.hint_body_effect_open_learn)
+        UNDO -> text(R.string.hint_body_effect_undo)
+        ZOOM -> text(R.string.hint_body_effect_zoom_100)
+        PAN -> text(R.string.hint_body_effect_pan)
+        ESCAPE -> text(R.string.hint_body_effect_escape)
+        SHORTCUTS -> text(R.string.hint_body_effect_show_guide)
     }
 }

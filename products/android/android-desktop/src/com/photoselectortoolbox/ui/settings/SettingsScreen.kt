@@ -286,7 +286,7 @@ fun SettingsScreen(
 
                 FilingAction.entries.forEach { action ->
                     SettingsRadioRow(
-                        label = action.verbText.asString(),
+                        label = action.verb.asString(),
                         selected = uiState.filingAction == action,
                         onSelect = { viewModel.updateFilingAction(action) },
                         tag = "settings_filing_${action.name.lowercase()}",

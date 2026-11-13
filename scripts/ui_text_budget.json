@@ -16,7 +16,8 @@
     "setting_title": {"prefix": "setting_title_", "words": 3, "en": 26, "de": 34},
     "setting_summary": {"prefix": "setting_summary_", "words": 5, "en": 36, "de": 46},
     "guide": {"prefix": "guide_", "words": 2, "en": 14, "de": 18},
-    "spoken": {"prefix": "cd_", "words": null, "en": null, "de": null}
+    "spoken": {"prefix": "cd_", "words": null, "en": null, "de": null},
+    "learn": {"prefix": "learn_", "words": null, "en": null, "de": null}
   },
   "no_sentence_punctuation": ["action", "chip", "snackbar_action", "guide"],
   "placeholder_sample": {"number": "12", "text": "Selection1"},

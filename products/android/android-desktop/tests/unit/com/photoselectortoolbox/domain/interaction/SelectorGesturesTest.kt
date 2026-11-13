@@ -5,6 +5,7 @@ import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNotNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
+import com.photoselectortoolbox.testing.en
 
 /**
  * The regression suite for the bug that started this work.
@@ -23,9 +24,9 @@ class SelectorGesturesTest {
     @Test
     fun `horizontal swipe navigates and never deletes`() {
         val row = SelectorGestures.fullscreenHintRows()
-            .single { it.input == FullscreenGesture.HORIZONTAL_SWIPE.input }
+            .single { it.input.en() == FullscreenGesture.HORIZONTAL_SWIPE.input.en() }
 
-        assertEquals("previous / next", row.effect)
+        assertEquals("previous / next", row.effect.en())
     }
 
     @Test
@@ -45,8 +46,8 @@ class SelectorGesturesTest {
 
     @Test
     fun `every frame gesture row corresponds to a binding`() {
-        val bound = FrameGesture.entries.map { it.input }.toSet()
-        val advertised = SelectorGestures.frameGestureRows().map { it.input }.toSet()
+        val bound = FrameGesture.entries.map { it.input.en() }.toSet()
+        val advertised = SelectorGestures.frameGestureRows().map { it.input.en() }.toSet()
 
         assertEquals(bound, advertised)
     }
@@ -58,8 +59,8 @@ class SelectorGesturesTest {
         // a drawable looks like has nothing keeping it true.
         SelectorGestures.frameGestureRows().forEach { row ->
             listOf("⛱", "⛶", "▤", "⌨").forEach { glyph ->
-                assertFalse("'${row.input}' names $glyph", row.input.contains(glyph))
-                assertFalse("'${row.effect}' names $glyph", row.effect.contains(glyph))
+                assertFalse("'${row.input.en()}' names $glyph", row.input.en().contains(glyph))
+                assertFalse("'${row.effect.en()}' names $glyph", row.effect.en().contains(glyph))
             }
         }
     }
@@ -71,8 +72,8 @@ class SelectorGesturesTest {
         val subset = setOf(SelectorShortcut.PREVIOUS, SelectorShortcut.NEXT)
         val rows = SelectorGestures.selectorShortcutRows(FilingAction.COPY, subset)
 
-        assertEquals(listOf(SelectorShortcut.PREVIOUS.input, SelectorShortcut.NEXT.input),
-            rows.map { it.input })
+        assertEquals(listOf(SelectorShortcut.PREVIOUS.input.en(), SelectorShortcut.NEXT.input.en()),
+            rows.map { it.input.en() })
     }
 
     @Test
@@ -84,8 +85,8 @@ class SelectorGesturesTest {
         SelectorGestures.fullscreenHintRows().forEach { row ->
             forbidden.forEach { word ->
                 assertFalse(
-                    "gesture '${row.input}' claims to '${row.effect}'",
-                    row.effect.lowercase().contains(word),
+                    "gesture '${row.input.en()}' claims to '${row.effect.en()}'",
+                    row.effect.en().lowercase().contains(word),
                 )
             }
         }
@@ -93,26 +94,26 @@ class SelectorGesturesTest {
 
     @Test
     fun `every hint row corresponds to a binding`() {
-        val bound = FullscreenGesture.entries.map { it.input }.toSet()
-        val advertised = SelectorGestures.fullscreenHintRows().map { it.input }.toSet()
+        val bound = FullscreenGesture.entries.map { it.input.en() }.toSet()
+        val advertised = SelectorGestures.fullscreenHintRows().map { it.input.en() }.toSet()
 
         assertEquals(bound, advertised)
     }
 
     @Test
     fun `the fullscreen card lists I as the info pin`() {
-        val row = SelectorGestures.fullscreenHintRows().single { it.input == "I" }
+        val row = SelectorGestures.fullscreenHintRows().single { it.input.en() == "I" }
 
-        assertEquals(FullscreenGesture.INFO.effect, row.effect)
-        assertTrue(row.effect, row.effect.contains("info"))
+        assertEquals(FullscreenGesture.INFO.effect.en(), row.effect.en())
+        assertTrue(row.effect.en(), row.effect.en().contains("info"))
     }
 
     @Test
     fun `every shortcut row has a non-empty effect`() {
         FilingAction.entries.forEach { action ->
             SelectorGestures.selectorShortcutRows(action).forEach { row ->
-                assertTrue("'${row.input}' has no effect text", row.effect.isNotBlank())
-                assertTrue("'${row.input}' has no key", row.input.isNotBlank())
+                assertTrue("'${row.input.en()}' has no effect text", row.effect.en().isNotBlank())
+                assertTrue("'${row.input.en()}' has no key", row.input.en().isNotBlank())
             }
         }
     }
@@ -124,10 +125,10 @@ class SelectorGesturesTest {
         // other verb is undiscoverable.
         FilingAction.entries.forEach { configured ->
             val row = SelectorGestures.selectorShortcutRows(configured)
-                .single { it.input == SelectorShortcut.FILE_PRIMARY.input }
+                .single { it.input.en() == SelectorShortcut.FILE_PRIMARY.input.en() }
 
-            assertTrue(row.effect.contains("Copy to Selection"))
-            assertTrue(row.effect.contains("Move to Selection"))
+            assertTrue(row.effect.en().contains("Copy to Selection"))
+            assertTrue(row.effect.en().contains("Move to Selection"))
         }
     }
 
@@ -139,18 +140,18 @@ class SelectorGesturesTest {
         FilingAction.entries.forEach { configured ->
             val row = SelectorGestures
                 .selectorShortcutRows(configured, selectionFolderName = "Picks")
-                .single { it.input == SelectorShortcut.FILE_PRIMARY.input }
+                .single { it.input.en() == SelectorShortcut.FILE_PRIMARY.input.en() }
 
-            assertTrue(row.effect, row.effect.contains("Copy to Picks"))
-            assertTrue(row.effect, row.effect.contains("Move to Picks"))
+            assertTrue(row.effect.en(), row.effect.en().contains("Copy to Picks"))
+            assertTrue(row.effect.en(), row.effect.en().contains("Move to Picks"))
         }
     }
 
     @Test
     fun `a blank folder name falls back to the default in every phrase`() {
         FilingAction.entries.forEach { action ->
-            assertEquals("${action.verb} to Selection", action.phraseFor(""))
-            assertEquals("${action.verb} to Selection", action.phrase)
+            assertEquals("${action.verb.en()} to Selection", action.phraseFor("").en())
+            assertEquals("${action.verb.en()} to Selection", action.phrase.en())
         }
     }
 
@@ -185,9 +186,9 @@ class SelectorGesturesTest {
 
     @Test
     fun `every selector shortcut is listed exactly once`() {
-        val inputs = SelectorGestures.selectorShortcutRows(FilingAction.COPY).map { it.input }
+        val inputs = SelectorGestures.selectorShortcutRows(FilingAction.COPY).map { it.input.en() }
 
         assertEquals(inputs.size, inputs.toSet().size)
-        assertNotNull(inputs.firstOrNull { it == SelectorShortcut.MAXIMISE.input })
+        assertNotNull(inputs.firstOrNull { it == SelectorShortcut.MAXIMISE.input.en() })
     }
 }

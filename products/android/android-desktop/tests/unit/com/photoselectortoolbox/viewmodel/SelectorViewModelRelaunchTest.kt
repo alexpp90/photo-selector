@@ -49,6 +49,7 @@ import org.robolectric.Robolectric
 import org.robolectric.RobolectricTestRunner
 import org.robolectric.RuntimeEnvironment
 import org.robolectric.annotation.Config
+import com.photoselectortoolbox.testing.en
 
 /**
  * Relaunch paths of the cull (backlog 2026-11-11).
@@ -239,6 +240,6 @@ class SelectorViewModelRelaunchTest {
 
         assertEquals(0, second.uiState.value.currentIndex)
         assertEquals("IMG_0005.JPG", second.uiState.value.currentImage?.fileName)
-        assertEquals(null, second.uiState.value.snackbarMessage)
+        assertEquals(null, second.uiState.value.snackbarMessage?.en())
     }
 }

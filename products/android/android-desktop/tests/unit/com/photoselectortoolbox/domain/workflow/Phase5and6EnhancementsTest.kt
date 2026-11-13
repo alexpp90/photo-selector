@@ -16,6 +16,7 @@ import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
 import org.junit.Test
+import com.photoselectortoolbox.testing.en
 
 class Phase5and6EnhancementsTest {
 
@@ -27,21 +28,21 @@ class Phase5and6EnhancementsTest {
             fileName = "IMG_001.JPG",
             isCloudProvider = SourceKind.PHONE_LIBRARY.isCloudProvider,
             providerLabel = SourceKind.PHONE_LIBRARY.providerLabel,
-        )
+        ).en()
         assertFalse(localMsg.contains("Warning:"))
 
         val cloudMsg = SelectorLabels.deleteConfirmationMessage(
             fileName = "IMG_001.JPG",
             isCloudProvider = SourceKind.CLOUD_OTHER.isCloudProvider,
             providerLabel = SourceKind.CLOUD_OTHER.providerLabel,
-        )
+        ).en()
         assertTrue(cloudMsg.contains("cloud storage"))
         assertTrue(cloudMsg.contains("synced devices"))
     }
 
     @Test
     fun `cloudScanConfirmationMessage explains cloud download impact`() {
-        val msg = SelectorLabels.cloudScanConfirmationMessage("cloud storage", 150)
+        val msg = SelectorLabels.cloudScanConfirmationMessage(SourceKind.CLOUD_OTHER.providerLabel, 150).en()
         assertTrue(msg.contains("150"))
         assertTrue(msg.contains("cloud storage"))
         assertTrue(msg.contains("network"))
@@ -173,7 +174,7 @@ class Phase5and6EnhancementsTest {
 
         val stateAtSharp = stateAtBlurry.copy(currentIndex = 1)
         assertTrue(stateAtSharp.hasReachedSharpnessThreshold)
-        assertTrue(SelectorLabels.worstFirstStopLineMessage(15.0).contains("15"))
+        assertTrue(SelectorLabels.worstFirstStopLineMessage(15.0).en().contains("15"))
     }
 
     // --- U-35: Camera / Lens Quality Analytics ---

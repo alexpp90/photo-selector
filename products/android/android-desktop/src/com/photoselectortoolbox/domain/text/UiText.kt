@@ -24,6 +24,12 @@ sealed interface UiText {
     /** Data, not wording (a file or folder name, a camera model): shown as it is. */
     data class Raw(val value: String) : UiText
 
+    /**
+     * A day or a time written with the pattern resource [pattern] (`res/values/formats.xml` and its German twin) in
+     * the resources' locale: `12 Oct 2026` in English, `12. Okt. 2026` in German.
+     */
+    data class Date(@StringRes val pattern: Int, val value: java.time.temporal.TemporalAccessor) : UiText
+
     /** Several texts in a row, e.g. a sentence and the warning that follows it. */
     data class Joined(val parts: List<UiText>, val separator: String = " ") : UiText
 

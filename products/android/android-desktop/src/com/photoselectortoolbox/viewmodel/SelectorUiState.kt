@@ -1,5 +1,8 @@
 package com.photoselectortoolbox.viewmodel
 
+import com.photoselectortoolbox.R
+import com.photoselectortoolbox.domain.text.UiText
+import com.photoselectortoolbox.domain.text.text
 import com.photoselectortoolbox.domain.learn.CompletedScan
 import com.photoselectortoolbox.domain.curation.SelectionDestinationPlan
 import com.photoselectortoolbox.domain.curation.OpenedFolder
@@ -114,13 +117,15 @@ enum class SelectorFrame { PREVIOUS, CURRENT, NEXT }
 val SourceKind.isCloudProvider: Boolean
     get() = this == SourceKind.CLOUD_OTHER
 
-val SourceKind.providerLabel: String
-    get() = when (this) {
-        SourceKind.PHONE_LIBRARY -> "local storage"
-        SourceKind.REMOVABLE -> "removable storage"
-        SourceKind.CAMERA_MTP -> "camera (MTP)"
-        SourceKind.CLOUD_OTHER -> "cloud storage"
-    }
+val SourceKind.providerLabel: UiText
+    get() = text(
+        when (this) {
+            SourceKind.PHONE_LIBRARY -> R.string.label_provider_local
+            SourceKind.REMOVABLE -> R.string.label_provider_removable
+            SourceKind.CAMERA_MTP -> R.string.label_provider_camera
+            SourceKind.CLOUD_OTHER -> R.string.label_provider_cloud
+        },
+    )
 
 /**
  * Recovery prompt raised on startup when uncommitted pending deletions from a
@@ -129,7 +134,7 @@ val SourceKind.providerLabel: String
 data class UncompletedDeletionsPrompt(
     val uris: List<String>,
     val count: Int = uris.size,
-    val message: String = SelectorLabels.uncompletedDeletionsMessage(count),
+    val message: UiText = SelectorLabels.uncompletedDeletionsMessage(count),
 )
 
 data class SelectorUiState(
@@ -158,12 +163,12 @@ data class SelectorUiState(
     val scanStatusText: String = "",
     val folderUri: String? = null,
     val folderName: String = "",
-    val error: String? = null,
+    val error: UiText? = null,
     /**
      * The snackbar line, owned here rather than in the composable so it survives
      * recomposition and always matches the operation [undoOperation] describes.
      */
-    val snackbarMessage: String? = null,
+    val snackbarMessage: UiText? = null,
     /**
      * Which message this is, counted up on every one shown.
      *
@@ -178,7 +183,7 @@ data class SelectorUiState(
      * What a screen reader says for [snackbarMessage] when it differs from the line on screen
      * (`CompanionConfirmation`: "+2" on screen, "and 2 companion files" spoken); null otherwise.
      */
-    val snackbarSpoken: String? = null,
+    val snackbarSpoken: UiText? = null,
     /**
      * Unified undo stack (newest first, up to [UndoPolicy.MAX_UNDO_HISTORY] = 20).
      *
@@ -341,7 +346,7 @@ data class SelectorUiState(
      * UNDO is offered — are always decided together (REQ-AND-LAYOUT.21).
      */
     fun withSnackbar(
-        message: String,
+        message: UiText,
         lifetime: SnackbarLifetime,
         undoAvailable: Boolean = false,
     ): SelectorUiState = copy(
@@ -454,6 +459,6 @@ data class SelectorUiState(
 /** One resolved explanation: which hint it is, and the words for it. */
 data class SelectorHintUi(
     val hint: SelectorHint,
-    val title: String,
-    val message: String,
+    val title: UiText,
+    val message: UiText,
 )

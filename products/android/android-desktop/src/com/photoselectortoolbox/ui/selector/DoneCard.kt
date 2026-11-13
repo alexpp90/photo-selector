@@ -40,6 +40,21 @@ import com.photoselectortoolbox.domain.format.DestinationLabels
 import com.photoselectortoolbox.ui.components.handCursor
 import com.photoselectortoolbox.ui.theme.ScoreGood
 import com.photoselectortoolbox.viewmodel.SafeToFormatLine
+import androidx.compose.ui.res.stringResource
+import androidx.annotation.StringRes
+import com.photoselectortoolbox.R
+import com.photoselectortoolbox.ui.text.asString
+import com.photoselectortoolbox.domain.text.UiText
+import com.photoselectortoolbox.domain.text.text
+
+/** One count cell of the Done card: glyph, number, word; [tag] names it for tests, never shown. */
+internal data class DoneCell(
+    val icon: ImageVector,
+    val count: Int,
+    @StringRes val word: Int,
+    @StringRes val spokenRes: Int,
+    val tag: String,
+)
 
 /**
  * What a session did to the open folder, for the card shown once it is empty (backlog
@@ -57,26 +72,28 @@ data class DoneSummary(
     val any: Boolean get() = moved + copied + deleted > 0
 
     /** The words of the safe-to-format line, or null. */
-    val safeToFormatText: String?
+    val safeToFormatText: UiText?
         get() = when (val line = safeToFormat) {
-            SafeToFormatLine.Safe -> "Safe to format"
-            is SafeToFormatLine.Missing -> "${line.count} missing"
-            SafeToFormatLine.Checking -> "Checking"
+            SafeToFormatLine.Safe -> text(R.string.label_safe_to_format)
+            is SafeToFormatLine.Missing -> text(R.string.label_missing_count, line.count)
+            SafeToFormatLine.Checking -> text(R.string.label_checking)
             null -> null
         }
 
     /** The one sentence a screen reader hears, e.g. "Done. 12 moved, 3 copied, 4 deleted. Safe to format." */
-    val spoken: String
-        get() = "Done. " + cells.joinToString(", ") { (_, count, word) -> "$count ${word.lowercase()}" } + "." +
-            (safeToFormatText?.let { " $it." } ?: "")
+    val spoken: UiText
+        get() {
+            val counts = UiText.Joined(cells.map { text(it.spokenRes, it.count) }, ", ")
+            return safeToFormatText?.let { text(R.string.cd_done_summary_safe, counts, it) } ?: text(R.string.cd_done_summary, counts)
+        }
 
     /** Count cells drawn, zeros left out. */
-    internal val cells: List<Triple<ImageVector, Int, String>>
+    internal val cells: List<DoneCell>
         get() = listOf(
-            Triple(Icons.AutoMirrored.Filled.DriveFileMove, moved, "Moved"),
-            Triple(Icons.Filled.ContentCopy, copied, "Copied"),
-            Triple(Icons.Filled.Delete, deleted, "Deleted"),
-        ).filter { it.second > 0 }
+            DoneCell(Icons.AutoMirrored.Filled.DriveFileMove, moved, R.string.label_moved, R.string.cd_done_moved, "moved"),
+            DoneCell(Icons.Filled.ContentCopy, copied, R.string.label_copied, R.string.cd_done_copied, "copied"),
+            DoneCell(Icons.Filled.Delete, deleted, R.string.label_deleted, R.string.cd_done_deleted, "deleted"),
+        ).filter { it.count > 0 }
 
     companion object {
         /** The destination path the confirmations name: the custom folder's, else the open folder's. */
@@ -102,6 +119,7 @@ internal fun DoneCard(
     /** *Open Selection* — the Selection folder as the working folder; null while it is not found. */
     onOpenSelection: (() -> Unit)? = null,
 ) {
+    val spoken = summary.spoken.asString()
     Surface(
         modifier = modifier.widthIn(max = 520.dp).padding(24.dp).testTag("done_card"),
         shape = RoundedCornerShape(16.dp),
@@ -114,25 +132,25 @@ internal fun DoneCard(
             Column(
                 horizontalAlignment = Alignment.CenterHorizontally,
                 modifier = Modifier.clearAndSetSemantics {
-                    contentDescription = summary.spoken
+                    contentDescription = spoken
                     liveRegion = LiveRegionMode.Polite
                     testTag = "done_summary"
                 },
             ) {
                 Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                     Icon(Icons.Filled.CheckCircle, contentDescription = null, tint = ScoreGood, modifier = Modifier.size(32.dp))
-                    Text("Done", style = MaterialTheme.typography.headlineSmall, color = MaterialTheme.colorScheme.onSurface)
+                    Text(stringResource(R.string.title_done), style = MaterialTheme.typography.headlineSmall, color = MaterialTheme.colorScheme.onSurface)
                 }
                 Spacer(Modifier.height(16.dp))
                 Row(horizontalArrangement = Arrangement.spacedBy(24.dp)) {
-                    summary.cells.forEach { (icon, count, word) ->
+                    summary.cells.forEach { cell ->
                         Column(
                             horizontalAlignment = Alignment.CenterHorizontally,
-                            modifier = Modifier.testTag("done_count_${word.lowercase()}"),
+                            modifier = Modifier.testTag("done_count_${cell.tag}"),
                         ) {
-                            Icon(icon, contentDescription = null, tint = MaterialTheme.colorScheme.onSurfaceVariant)
-                            Text(count.toString(), style = MaterialTheme.typography.titleLarge, color = MaterialTheme.colorScheme.onSurface)
-                            Text(word, style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                            Icon(cell.icon, contentDescription = null, tint = MaterialTheme.colorScheme.onSurfaceVariant)
+                            Text(cell.count.toString(), style = MaterialTheme.typography.titleLarge, color = MaterialTheme.colorScheme.onSurface)
+                            Text(stringResource(cell.word), style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
                         }
                     }
                 }
@@ -148,7 +166,7 @@ internal fun DoneCard(
                         modifier = Modifier.fillMaxWidth().testTag("done_destination"),
                     )
                 }
-                summary.safeToFormatText?.let { words ->
+                summary.safeToFormatText?.asString()?.let { words ->
                     Spacer(Modifier.height(12.dp))
                     Row(
                         verticalAlignment = Alignment.CenterVertically,
@@ -169,14 +187,14 @@ internal fun DoneCard(
                 // The second pass is the next step once the cull is done; another folder is the other.
                 if (onOpenSelection != null) {
                     Button(onClick = onOpenSelection, modifier = Modifier.handCursor().testTag("done_open_selection")) {
-                        Text("Open Selection")
+                        Text(stringResource(R.string.action_open_selection))
                     }
                     OutlinedButton(onClick = onOpenFolder, modifier = Modifier.handCursor().testTag("done_open_folder")) {
-                        Text("Open Folder")
+                        Text(stringResource(R.string.action_open_folder))
                     }
                 } else {
                     Button(onClick = onOpenFolder, modifier = Modifier.handCursor().testTag("done_open_folder")) {
-                        Text("Open Folder")
+                        Text(stringResource(R.string.action_open_folder))
                     }
                 }
             }

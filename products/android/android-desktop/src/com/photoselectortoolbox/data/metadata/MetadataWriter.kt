@@ -147,7 +147,8 @@ class MetadataWriterImpl internal constructor(
                         // Off: the photo is not touched, and that is not a failure.
                         RatingStrategy.EMBEDDED_XMP -> if (embedIntoPhotos()) writeJpegRating(imageFile, rating)
                         RatingStrategy.UNSUPPORTED -> throw RatingWriteException(
-                            RatingFormats.unsupportedMessage(imageFile.name)
+                            RatingFormats.unsupportedMessage(imageFile.name),
+                            reason = RatingFormats.unsupportedReason(imageFile.name),
                         )
                     }
                     Result.success(Unit)
@@ -170,7 +171,10 @@ class MetadataWriterImpl internal constructor(
             val exif = ExifInterface(tempFile.absolutePath)
             val currentXmp = exif.getAttribute(ExifInterface.TAG_XMP)
             val updatedXmp = XmpSidecarWriter.injectOrUpdateRating(currentXmp, rating)
-                ?: throw RatingWriteException("The XMP inside ${imageFile.name} has content the rating cannot be merged into; it was left unchanged")
+                ?: throw RatingWriteException(
+                    "The XMP inside ${imageFile.name} has content the rating cannot be merged into; it was left unchanged",
+                    reason = RatingFormats.unmergeableReason(imageFile.name),
+                )
 
             exif.setAttribute(ExifInterface.TAG_XMP, updatedXmp)
             exif.saveAttributes()
@@ -207,10 +211,16 @@ class MetadataWriterImpl internal constructor(
         }
 
         if (!XmpSidecarWriter.canUpdateInPlace(existingContent)) {
-            throw RatingWriteException("${targetSidecar.name} has XMP content the rating cannot be merged into; it was left unchanged")
+            throw RatingWriteException(
+                "${targetSidecar.name} has XMP content the rating cannot be merged into; it was left unchanged",
+                reason = RatingFormats.unmergeableReason(targetSidecar.name),
+            )
         }
         val updatedContent = XmpSidecarWriter.injectOrUpdateRating(existingContent, rating)
-            ?: throw RatingWriteException("${targetSidecar.name} has XMP content the rating cannot be merged into; it was left unchanged")
+            ?: throw RatingWriteException(
+                "${targetSidecar.name} has XMP content the rating cannot be merged into; it was left unchanged",
+                reason = RatingFormats.unmergeableReason(targetSidecar.name),
+            )
         val tempSidecar = File(parent, ".${targetSidecar.name}.tmp.${System.nanoTime()}")
         try {
             tempSidecar.writeText(updatedContent)

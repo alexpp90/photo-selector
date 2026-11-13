@@ -3,6 +3,8 @@ package com.photoselectortoolbox
 import androidx.annotation.PluralsRes
 import androidx.annotation.StringRes
 import androidx.test.platform.app.InstrumentationRegistry
+import com.photoselectortoolbox.domain.text.UiText
+import com.photoselectortoolbox.ui.text.resolve
 
 /**
  * A string of the app under test in the device's language, so an instrumented test never
@@ -11,6 +13,9 @@ import androidx.test.platform.app.InstrumentationRegistry
  */
 fun str(@StringRes id: Int, vararg args: Any): String =
     InstrumentationRegistry.getInstrumentation().targetContext.getString(id, *args)
+
+/** A [UiText] of the app under test in the device's language. */
+fun str(text: UiText): String = text.resolve(InstrumentationRegistry.getInstrumentation().targetContext)
 
 /** A plural of the app under test; with no [args] the count is the only argument. */
 fun plural(@PluralsRes id: Int, count: Int, vararg args: Any): String =

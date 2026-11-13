@@ -145,7 +145,7 @@ class SettingsRadioRowsTest {
         for (action in FilingAction.entries) {
             assertOneNamedRadio(
                 tag = filingTag(action),
-                label = action.verbText.en(),
+                label = action.verb.en(),
                 description = null,
                 selected = action == FilingAction.DEFAULT,
             )

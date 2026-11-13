@@ -16,6 +16,8 @@ import org.junit.Rule
 import org.junit.Test
 import org.junit.runner.RunWith
 import androidx.compose.ui.test.junit4.accessibility.enableAccessibilityChecks
+import com.photoselectortoolbox.str
+import com.photoselectortoolbox.R
 
 /**
  * Smoke test: verifies the app launches without crashing and
@@ -39,16 +41,16 @@ class MainActivitySmokeTest {
     @Test
     fun appLaunchesWithoutCrash() {
         composeRule.waitUntil(timeoutMillis = 5000) {
-            composeRule.onAllNodesWithText("Select a Folder", substring = false, ignoreCase = true)
+            composeRule.onAllNodesWithText(str(R.string.empty_select_folder), substring = false, ignoreCase = true)
                 .fetchSemanticsNodes().isNotEmpty() ||
             composeRule.onAllNodesWithText("Select photos folder", substring = false, ignoreCase = true)
                 .fetchSemanticsNodes().isNotEmpty()
         }
-        val hasDesktopLabel = composeRule.onAllNodesWithText("Select a Folder", substring = false, ignoreCase = true)
+        val hasDesktopLabel = composeRule.onAllNodesWithText(str(R.string.empty_select_folder), substring = false, ignoreCase = true)
             .fetchSemanticsNodes().isNotEmpty()
         dismissGestureTutorialIfShown()
         if (hasDesktopLabel) {
-            composeRule.onNodeWithText("Select a Folder", substring = false, ignoreCase = true)
+            composeRule.onNodeWithText(str(R.string.empty_select_folder), substring = false, ignoreCase = true)
                 .assertIsDisplayed()
         } else {
             composeRule.onNodeWithText("Select photos folder", substring = false, ignoreCase = true)
@@ -71,14 +73,14 @@ class MainActivitySmokeTest {
     }
 
     private fun dismissGestureTutorialIfShown() {
-        if (composeRule.onAllNodes(hasText("GOT IT", ignoreCase = true), useUnmergedTree = true).fetchSemanticsNodes().isNotEmpty()) {
-            composeRule.onAllNodes(hasText("GOT IT", ignoreCase = true), useUnmergedTree = true).onFirst().performClick()
+        if (composeRule.onAllNodes(hasText(str(R.string.action_got_it), ignoreCase = true), useUnmergedTree = true).fetchSemanticsNodes().isNotEmpty()) {
+            composeRule.onAllNodes(hasText(str(R.string.action_got_it), ignoreCase = true), useUnmergedTree = true).onFirst().performClick()
             composeRule.waitUntil(timeoutMillis = 15000) {
-                composeRule.onAllNodes(hasText("GOT IT", ignoreCase = true), useUnmergedTree = true).fetchSemanticsNodes().isEmpty()
+                composeRule.onAllNodes(hasText(str(R.string.action_got_it), ignoreCase = true), useUnmergedTree = true).fetchSemanticsNodes().isEmpty()
             }
         }
-        if (composeRule.onAllNodes(hasText("Gestures", ignoreCase = true), useUnmergedTree = true).fetchSemanticsNodes().isNotEmpty()) {
-            composeRule.onAllNodes(hasText("Gestures", ignoreCase = true), useUnmergedTree = true).onFirst().performClick()
+        if (composeRule.onAllNodes(hasText(str(R.string.title_gestures), ignoreCase = true), useUnmergedTree = true).fetchSemanticsNodes().isNotEmpty()) {
+            composeRule.onAllNodes(hasText(str(R.string.title_gestures), ignoreCase = true), useUnmergedTree = true).onFirst().performClick()
         }
     }
 }

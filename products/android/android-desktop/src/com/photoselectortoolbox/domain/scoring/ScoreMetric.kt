@@ -1,6 +1,10 @@
 package com.photoselectortoolbox.domain.scoring
 
+import androidx.annotation.StringRes
+import com.photoselectortoolbox.R
 import com.photoselectortoolbox.data.model.ScanResult
+import com.photoselectortoolbox.domain.text.UiText
+import com.photoselectortoolbox.domain.text.text
 import java.util.Locale
 
 /**
@@ -17,11 +21,11 @@ import java.util.Locale
  */
 enum class ScoreMetric(
     /** Two-to-five character label rendered on the chip itself. */
-    val shortLabel: String,
+    @StringRes private val shortLabelRes: Int,
     /** Full name used in the legend and in accessibility descriptions. */
-    val displayName: String,
+    @StringRes private val displayNameRes: Int,
     /** What the number measures, in plain language. */
-    val description: String,
+    @StringRes private val descriptionRes: Int,
     /**
      * The glyph that stands for this metric.
      *
@@ -45,30 +49,28 @@ enum class ScoreMetric(
      * Where in the frame the value is measured, spoken after the name ("Sharpness at the centre
      * of the frame"); null when the whole frame is.
      */
-    val measuredArea: String? = null,
+    @StringRes private val spokenNameRes: Int? = null,
     /** The same, as the one-word qualifier the readout row shows beside the name. */
-    val areaLabel: String? = null,
+    @StringRes private val areaLabelRes: Int? = null,
 ) {
     SHARPNESS(
-        shortLabel = "Sharp",
-        displayName = "Sharpness",
+        shortLabelRes = R.string.chip_metric_sharpness,
+        displayNameRes = R.string.label_metric_sharpness,
         // `SharpnessAnalyzer` crops the middle 50 % and keeps its crispest block: the figure is
         // the centre's, and it compares frames of one burst, not a folder (backlog 2026-11-12).
-        description = "Edge contrast at the crispest spot in the centre of the frame; compare " +
-            "frames of one burst, an off-centre subject is not measured. Low values usually mean " +
-            "motion blur or a missed focus.",
+        descriptionRes = R.string.learn_metric_sharpness,
         icon = ScoreMetricIcon.FOCUS,
         direction = ScoreDirection.HIGHER_IS_BETTER,
         format = "%.1f",
         worstValue = 5.0,
         bestValue = 100.0,
-        measuredArea = "the centre of the frame",
-        areaLabel = "centre",
+        spokenNameRes = R.string.cd_metric_sharpness_at_centre,
+        areaLabelRes = R.string.label_metric_area_centre,
     ),
     NOISE(
-        shortLabel = "Noise",
-        displayName = "Noise",
-        description = "Estimated sensor noise in flat areas of the image. Rises with high ISO.",
+        shortLabelRes = R.string.chip_metric_noise,
+        displayNameRes = R.string.label_metric_noise,
+        descriptionRes = R.string.learn_metric_noise,
         icon = ScoreMetricIcon.GRAIN,
         direction = ScoreDirection.LOWER_IS_BETTER,
         format = "%.1f",
@@ -76,9 +78,9 @@ enum class ScoreMetric(
         bestValue = 0.2,
     ),
     HIGHLIGHT_CLIPPING(
-        shortLabel = "Highl",
-        displayName = "Highlight clipping",
-        description = "Share of pixels blown out to pure white — detail that cannot be recovered.",
+        shortLabelRes = R.string.chip_metric_highlights,
+        displayNameRes = R.string.label_metric_highlights,
+        descriptionRes = R.string.learn_metric_highlights,
         icon = ScoreMetricIcon.HIGHLIGHT,
         direction = ScoreDirection.LOWER_IS_BETTER,
         format = "%.1f%%",
@@ -86,15 +88,27 @@ enum class ScoreMetric(
         bestValue = 0.0,
     ),
     SHADOW_CLIPPING(
-        shortLabel = "Shad",
-        displayName = "Shadow clipping",
-        description = "Share of pixels crushed to pure black — detail that cannot be recovered.",
+        shortLabelRes = R.string.chip_metric_shadows,
+        displayNameRes = R.string.label_metric_shadows,
+        descriptionRes = R.string.learn_metric_shadows,
         icon = ScoreMetricIcon.SHADOW,
         direction = ScoreDirection.LOWER_IS_BETTER,
         format = "%.1f%%",
         worstValue = 14.0,
         bestValue = 0.0,
     );
+
+    /** Two-to-five character label rendered on the chip itself. */
+    val shortLabel: UiText get() = text(shortLabelRes)
+
+    /** Full name used in the legend and in accessibility descriptions. */
+    val displayName: UiText get() = text(displayNameRes)
+
+    /** What the number measures, in plain language. */
+    val description: UiText get() = text(descriptionRes)
+
+    /** The one-word area qualifier beside the name ("centre"); null when the whole frame is measured. */
+    val areaLabel: UiText? get() = areaLabelRes?.let { text(it) }
 
     /** Format a raw value for display, e.g. `512.3` or `1.4%`. */
     fun format(value: Double): String = String.format(Locale.US, format, value)
@@ -143,14 +157,16 @@ enum class ScoreMetric(
      * direction is not interpretable, and a sighted user gets the direction
      * from the bar, which a screen-reader user does not.
      */
-    fun accessibilityLabel(value: Double, isBestOfVisible: Boolean = false): String {
-        val base = "$spokenName ${format(value)}, ${direction.hint}"
-        return if (isBestOfVisible) "$base, best of the three visible frames" else base
-    }
+    fun accessibilityLabel(value: Double, isBestOfVisible: Boolean = false): UiText = text(
+        if (isBestOfVisible) R.string.cd_metric_value_best else R.string.cd_metric_value,
+        spokenName,
+        format(value),
+        direction.hint,
+    )
 
     /** The name as spoken, with the area measured: "Sharpness at the centre of the frame". */
-    val spokenName: String
-        get() = measuredArea?.let { "$displayName at $it" } ?: displayName
+    val spokenName: UiText
+        get() = spokenNameRes?.let { text(it) } ?: displayName
 
     companion object {
         /** Metrics that actually have a value in [result], in display order. */
@@ -164,9 +180,13 @@ enum class ScoreMetric(
 }
 
 /** Which way is "good" for a metric. */
-enum class ScoreDirection(val hint: String) {
-    HIGHER_IS_BETTER("higher is better"),
-    LOWER_IS_BETTER("lower is better"),
+enum class ScoreDirection(@StringRes private val hintRes: Int) {
+    HIGHER_IS_BETTER(R.string.label_higher_is_better),
+    LOWER_IS_BETTER(R.string.label_lower_is_better),
+    ;
+
+    /** "higher is better" / "lower is better", in the UI's language. */
+    val hint: UiText get() = text(hintRes)
 }
 
 /**

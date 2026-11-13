@@ -4,6 +4,7 @@ import com.photoselectortoolbox.domain.guidance.SidebarAction
 import java.io.File
 import org.junit.Assert.*
 import org.junit.Test
+import com.photoselectortoolbox.testing.en
 
 /**
  * Tests for the Screen sealed class — routes, labels, and the
@@ -20,7 +21,7 @@ class ScreenTest {
     @Test
     fun `all screens have non-empty labels`() {
         Screen.all.forEach { screen ->
-            assertTrue("${screen.route} has empty label", screen.label.isNotEmpty())
+            assertTrue("${screen.route} has empty label", screen.label.en().isNotEmpty())
         }
     }
 
@@ -32,32 +33,32 @@ class ScreenTest {
     @Test
     fun `PhotoSelector is start destination`() {
         assertEquals("selector", Screen.PhotoSelector.route)
-        assertEquals("Cull", Screen.PhotoSelector.label)
+        assertEquals("Cull", Screen.PhotoSelector.label.en())
     }
 
     @Test
     fun `Inspect route and label`() {
         assertEquals("inspect", Screen.Inspect.route)
-        assertEquals("Learn", Screen.Inspect.label)
-        assertEquals("Learn", Screen.Inspect.shortLabel)
+        assertEquals("Learn", Screen.Inspect.label.en())
+        assertEquals("Learn", Screen.Inspect.shortLabel.en())
     }
 
     @Test
     fun `Statistics route and label`() {
         assertEquals("statistics", Screen.Statistics.route)
-        assertEquals("Stats", Screen.Statistics.label)
+        assertEquals("Stats", Screen.Statistics.label.en())
     }
 
     @Test
     fun `DuplicateFinder route and label`() {
         assertEquals("duplicates", Screen.DuplicateFinder.route)
-        assertEquals("Dupes", Screen.DuplicateFinder.label)
+        assertEquals("Dupes", Screen.DuplicateFinder.label.en())
     }
 
     @Test
     fun `Settings route and label`() {
         assertEquals("settings", Screen.Settings.route)
-        assertEquals("Setup", Screen.Settings.label)
+        assertEquals("Setup", Screen.Settings.label.en())
     }
 
     @Test
@@ -70,13 +71,13 @@ class ScreenTest {
     }
 
     /**
-     * One name per screen (backlog 2026-11-11): the sidebar draws [Screen.shortLabel], the rail
-     * and the bottom bar [Screen.label] (`AdaptiveNavigation`), so the two must be one word.
+     * One name per screen (backlog 2026-11-11): the sidebar draws [Screen.shortLabel.en()], the rail
+     * and the bottom bar [Screen.label.en()] (`AdaptiveNavigation`), so the two must be one word.
      */
     @Test
     fun `each screen has one name on the sidebar, the rail and the bottom bar`() {
-        assertEquals(listOf("Cull", "Learn", "Stats", "Dupes", "Setup"), Screen.all.map { it.label })
-        Screen.all.forEach { assertEquals(it.label, it.shortLabel) }
+        assertEquals(listOf("Cull", "Learn", "Stats", "Dupes", "Setup"), Screen.all.map { it.label.en() })
+        Screen.all.forEach { assertEquals(it.label.en(), it.shortLabel.en()) }
     }
 
     /** No visible or spoken string calls the cull screen "Selector" or "Culling", or Bursts by another name. */
@@ -101,9 +102,9 @@ class ScreenTest {
     /** The guide's meaning lines name only what the More menu and Setup offer. */
     @Test
     fun `the More and Setup meanings name what exists`() {
-        assertEquals("Undo, open folder, scan, sort, go to, guide.", SidebarAction.MORE.meaning)
-        assertEquals("Where frames go, bursts, threads, fullscreen, cache.", Screen.Settings.meaning)
-        assertFalse(Screen.Settings.meaning.contains("measurement"))
-        assertFalse(SidebarAction.MORE.meaning.contains("settings"))
+        assertEquals("Undo, open folder, scan, sort, go to, guide.", SidebarAction.MORE.meaning.en())
+        assertEquals("Where frames go, bursts, threads, fullscreen, cache.", Screen.Settings.meaning.en())
+        assertFalse(Screen.Settings.meaning.en().contains("measurement"))
+        assertFalse(SidebarAction.MORE.meaning.en().contains("settings"))
     }
 }

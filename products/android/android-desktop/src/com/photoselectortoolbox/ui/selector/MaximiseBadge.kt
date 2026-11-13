@@ -23,6 +23,9 @@ import androidx.compose.ui.unit.dp
 import com.photoselectortoolbox.ui.theme.BrandAccent
 import com.photoselectortoolbox.ui.theme.StudioCanvas
 import com.photoselectortoolbox.ui.theme.Zinc50
+import androidx.compose.ui.res.stringResource
+import com.photoselectortoolbox.R
+import com.photoselectortoolbox.ui.text.asString
 
 /** Edge of the maximise badge. */
 val MaximiseBadgeSize: Dp = 48.dp
@@ -52,6 +55,7 @@ fun MaximiseBadge(
     modifier: Modifier = Modifier,
     active: Boolean = false,
 ) {
+    val spoken = stringResource(if (active) R.string.cd_maximise_return else R.string.cd_maximise_fill)
     Box(
         modifier = modifier
             .size(MaximiseBadgeSize)
@@ -59,13 +63,7 @@ fun MaximiseBadge(
             .background(StudioCanvas.copy(alpha = 0.72f))
             .pointerHoverIcon(PointerIcon.Hand)
             .clickable(onClick = onClick)
-            .semantics {
-                contentDescription = if (active) {
-                    "Return to comparing all three frames"
-                } else {
-                    "Fill the screen with this frame"
-                }
-            }
+            .semantics { contentDescription = spoken }
             .testTag("maximise_badge"),
         contentAlignment = Alignment.Center,
     ) {

@@ -63,6 +63,7 @@ import org.junit.rules.TestRule
 import org.junit.runner.RunWith
 import kotlin.math.abs
 import kotlin.math.roundToInt
+import com.photoselectortoolbox.str
 
 /**
  * The selector's chrome at forced window sizes (AD-1, AD-2, AD-4, AD-7).
@@ -777,8 +778,8 @@ class SelectorForcedSizeTest {
         )
         expected.forEach { callout ->
             assertTrue(
-                "no page shows the \"${callout.title}\" callout (pages=$pages, saw $seenDescriptions)",
-                seenDescriptions.any { it.contains(callout.title) },
+                "no page shows the \"${str(callout.title)}\" callout (pages=$pages, saw $seenDescriptions)",
+                seenDescriptions.any { it.contains(str(callout.title)) },
             )
         }
 

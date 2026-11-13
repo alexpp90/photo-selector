@@ -53,6 +53,7 @@ import com.photoselectortoolbox.ui.inspect.InspectScreen
 import com.photoselectortoolbox.ui.selector.SelectorScreen
 import com.photoselectortoolbox.ui.settings.SettingsScreen
 import com.photoselectortoolbox.ui.statistics.StatisticsScreen
+import com.photoselectortoolbox.ui.text.asString
 import com.photoselectortoolbox.ui.theme.BrandAccent
 import com.photoselectortoolbox.ui.theme.BrandAccentNav
 import com.photoselectortoolbox.ui.theme.StudioCanvas
@@ -242,24 +243,25 @@ internal fun ColumnScope.RailCell(entry: NavEntry, currentRoute: String?, onNavi
     when (entry) {
         is NavEntry.Destination -> NavigationRailItem(
             modifier = Modifier.testTag(entry.testTag).handCursor(),
-            icon = { Icon(imageVector = entry.icon, contentDescription = entry.spoken(currentRoute)) },
-            label = { Text(text = entry.label) },
+            icon = { Icon(imageVector = entry.icon, contentDescription = entry.spoken(currentRoute).asString()) },
+            label = { Text(text = entry.label.asString()) },
             selected = entry.isSelected(currentRoute),
             onClick = { onNavigate(entry.screen) },
             colors = colors,
         )
         NavEntry.Tools -> {
             val menu = rememberToolsMenuState()
+            val spoken = entry.spoken(currentRoute).asString()
             val density = LocalDensity.current
             var cell by remember { mutableStateOf(IntSize.Zero) }
             Box(modifier = Modifier.onSizeChanged { cell = it }) {
                 NavigationRailItem(
                     modifier = with(menu) { Modifier.toolsCell() }
-                        .semantics { contentDescription = entry.spoken(currentRoute) }
+                        .semantics { contentDescription = spoken }
                         .testTag(entry.testTag)
                         .handCursor(),
                     icon = { Icon(imageVector = entry.icon, contentDescription = null) },
-                    label = { Text(text = entry.label) },
+                    label = { Text(text = entry.label.asString()) },
                     selected = entry.isSelected(currentRoute),
                     onClick = menu::open,
                     colors = colors,
@@ -288,17 +290,18 @@ internal fun RowScope.BarCell(entry: NavEntry, currentRoute: String?, onNavigate
     when (entry) {
         is NavEntry.Destination -> NavigationBarItem(
             modifier = Modifier.testTag(entry.testTag).handCursor(),
-            icon = { Icon(imageVector = entry.icon, contentDescription = entry.spoken(currentRoute)) },
-            label = { Text(text = entry.label) },
+            icon = { Icon(imageVector = entry.icon, contentDescription = entry.spoken(currentRoute).asString()) },
+            label = { Text(text = entry.label.asString()) },
             selected = entry.isSelected(currentRoute),
             onClick = { onNavigate(entry.screen) },
             colors = colors,
         )
         NavEntry.Tools -> {
             val menu = rememberToolsMenuState()
+            val spoken = entry.spoken(currentRoute).asString()
             NavigationBarItem(
                 modifier = with(menu) { Modifier.toolsCell() }
-                    .semantics { contentDescription = entry.spoken(currentRoute) }
+                    .semantics { contentDescription = spoken }
                     .testTag(entry.testTag)
                     .handCursor(),
                 // The menu is anchored to the glyph: the popup flips above it, the bar being
@@ -309,7 +312,7 @@ internal fun RowScope.BarCell(entry: NavEntry, currentRoute: String?, onNavigate
                         ToolsMenu(state = menu, currentRoute = currentRoute, onOpen = onNavigate)
                     }
                 },
-                label = { Text(text = entry.label) },
+                label = { Text(text = entry.label.asString()) },
                 selected = entry.isSelected(currentRoute),
                 onClick = menu::open,
                 colors = colors,

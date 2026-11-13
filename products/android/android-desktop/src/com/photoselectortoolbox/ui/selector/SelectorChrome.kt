@@ -40,6 +40,9 @@ import com.photoselectortoolbox.ui.theme.BrandAccent
 import com.photoselectortoolbox.ui.theme.StudioBorder
 import com.photoselectortoolbox.ui.theme.StudioBorderActive
 import com.photoselectortoolbox.ui.theme.StudioCard
+import androidx.compose.ui.res.stringResource
+import com.photoselectortoolbox.R
+import com.photoselectortoolbox.ui.text.asString
 
 // ── Image tile ──────────────────────────────────────────────────────────────
 
@@ -63,7 +66,7 @@ fun ImageTile(
     onClick: () -> Unit,
     modifier: Modifier = Modifier,
     onLongClick: (() -> Unit)? = null,
-    emptyLabel: String = "No image",
+    emptyLabel: String? = null,
     contentScale: ContentScale = ContentScale.Fit,
 ) {
     val interactionSource = remember { MutableInteractionSource() }
@@ -107,7 +110,7 @@ fun ImageTile(
             )
         } else {
             Text(
-                text = emptyLabel,
+                text = emptyLabel ?: stringResource(R.string.label_no_image),
                 fontSize = 12.sp,
                 color = HintText,
             )

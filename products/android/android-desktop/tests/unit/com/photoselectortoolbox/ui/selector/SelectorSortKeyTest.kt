@@ -13,6 +13,7 @@ import org.junit.Assert.assertTrue
 import org.junit.Test
 import org.junit.runner.RunWith
 import org.robolectric.annotation.Config
+import com.photoselectortoolbox.testing.en
 
 /**
  * `S` opens the Sort menu — it never cycles the order — and while the menu is open (it counts as
@@ -113,8 +114,8 @@ class SelectorSortKeyTest {
 
     @Test
     fun `the key the guide lists is the key that is bound`() {
-        assertEquals("S", SelectorShortcut.SORT.input)
-        assertEquals("choose the sort order", SelectorShortcut.SORT.describeEffect(FilingAction.COPY))
+        assertEquals("S", SelectorShortcut.SORT.input.en())
+        assertEquals("choose the sort order", SelectorShortcut.SORT.describeEffect(FilingAction.COPY).en())
     }
 
     @Test
@@ -124,10 +125,10 @@ class SelectorSortKeyTest {
         assertEquals(SortChoice.FILE_NAME, SortChoice.of(SelectorSortOrder.FILE_NAME, false))
         // Worst-first wins whatever plain order is kept underneath it.
         assertEquals(SortChoice.BLURRIEST_FIRST, SortChoice.of(SelectorSortOrder.OLDEST_FIRST, true))
-        assertEquals(setOf("Newest", "Oldest", "Name", "Blurry"), SortChoice.entries.map { it.chipWord }.toSet())
+        assertEquals(setOf("Newest", "Oldest", "Name", "Blurry"), SortChoice.entries.map { it.chipWord.en() }.toSet())
         assertEquals(
             listOf("Newest first", "Oldest first", "File name", "Blurriest first"),
-            SortChoice.entries.map { it.menuLabel },
+            SortChoice.entries.map { it.menuLabel.en() },
         )
     }
 }

@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Datumsmuster (java.time) für Deutsch, gelesen über UiText.Date. -->
+<resources>
+    <string name="format_date">d. MMM yyyy</string>
+    <string name="format_date_time">d. MMM yyyy, HH:mm</string>
+</resources>

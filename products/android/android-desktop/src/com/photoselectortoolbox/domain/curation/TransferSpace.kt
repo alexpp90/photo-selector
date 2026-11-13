@@ -1,5 +1,8 @@
 package com.photoselectortoolbox.domain.curation
 
+import com.photoselectortoolbox.R
+import com.photoselectortoolbox.domain.text.UiText
+import com.photoselectortoolbox.domain.text.text
 import java.util.Locale
 
 /**
@@ -14,8 +17,6 @@ object TransferSpace {
 
     /** Where a transfer goes, as far as space is concerned: the provider root and its free bytes. */
     data class Volume(val authority: String, val rootDocumentId: String, val availableBytes: Long?)
-
-    private const val REFUSAL_PREFIX = "Not enough space"
 
     /**
      * True when the transfer must be refused: the destination reports its free space and it is less
@@ -44,19 +45,36 @@ object TransferSpace {
             .maxByOrNull { it.length }
 
     /** The refusal, shown as it is: what the transfer needs and what is free. */
-    fun refusalMessage(neededBytes: Long, availableBytes: Long, isMove: Boolean): String =
-        "$REFUSAL_PREFIX: needs ${size(neededBytes)}, ${size(availableBytes)} free. " +
-            "Nothing was ${if (isMove) "moved" else "copied"}."
+    fun refusalMessage(neededBytes: Long, availableBytes: Long, isMove: Boolean): UiText =
+        text(
+            if (isMove) R.string.error_not_enough_space_move else R.string.error_not_enough_space_copy,
+            size(neededBytes),
+            size(availableBytes),
+        )
 
-    /** True for a message [refusalMessage] wrote, which is shown to the user as it is. */
-    fun isRefusal(message: String?): Boolean = message?.startsWith(REFUSAL_PREFIX) == true
+    /**
+     * The refusal as it travels through `FileOperationResult.error` (a `:saf` type that carries a
+     * String): a code, not English, so the view model can say it in the UI's language.
+     */
+    fun refusalCode(neededBytes: Long, availableBytes: Long, isMove: Boolean): String =
+        "$REFUSAL_CODE$neededBytes:$availableBytes:$isMove"
 
-    private fun size(bytes: Long): String {
+    /** The refusal [refusalCode] wrote, in words; null for any other error. */
+    fun refusalOf(error: String?): UiText? {
+        val parts = error?.takeIf { it.startsWith(REFUSAL_CODE) }?.removePrefix(REFUSAL_CODE)?.split(':') ?: return null
+        val needed = parts.getOrNull(0)?.toLongOrNull() ?: return null
+        val available = parts.getOrNull(1)?.toLongOrNull() ?: return null
+        return refusalMessage(needed, available, parts.getOrNull(2) == "true")
+    }
+
+    private const val REFUSAL_CODE = "transfer-space-refused:"
+
+    private fun size(bytes: Long): UiText {
         val mb = bytes / (1024.0 * 1024.0)
         return when {
-            mb >= 1024 -> String.format(Locale.ROOT, "%.1f GB", mb / 1024)
-            bytes > 0 && mb < 1 -> "under 1 MB"
-            else -> String.format(Locale.ROOT, "%.0f MB", mb)
+            mb >= 1024 -> text(R.string.label_size_gb, String.format(Locale.ROOT, "%.1f", mb / 1024))
+            bytes > 0 && mb < 1 -> text(R.string.label_size_under_1_mb)
+            else -> text(R.string.label_size_mb, String.format(Locale.ROOT, "%.0f", mb))
         }
     }
 }

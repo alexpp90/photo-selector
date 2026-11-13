@@ -22,6 +22,7 @@ import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNotNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
+import com.photoselectortoolbox.testing.en
 
 /**
  * Unit tests for the Inspect & Learn Workstation screen and navigation integration.
@@ -41,10 +42,10 @@ class InspectScreenTest {
     @Test
     fun `Screen Inspect is registered with expected route, icons, and labels`() {
         assertEquals("inspect", Screen.Inspect.route)
-        assertEquals("Learn", Screen.Inspect.label)
-        assertEquals("Learn", Screen.Inspect.shortLabel)
+        assertEquals("Learn", Screen.Inspect.label.en())
+        assertEquals("Learn", Screen.Inspect.shortLabel.en())
         assertEquals(Icons.Default.CenterFocusStrong, Screen.Inspect.icon)
-        assertTrue(Screen.Inspect.meaning.contains("Inspect composition"))
+        assertTrue(Screen.Inspect.meaning.en().contains("Inspect composition"))
     }
 
     @Test
@@ -63,9 +64,9 @@ class InspectScreenTest {
         val routes = Screen.all.map { it.route }
         assertEquals(routes.size, routes.toSet().size)
         Screen.all.forEach { screen ->
-            assertTrue(screen.label.isNotEmpty())
-            assertTrue(screen.shortLabel.isNotEmpty())
-            assertTrue(screen.meaning.isNotEmpty())
+            assertTrue(screen.label.en().isNotEmpty())
+            assertTrue(screen.shortLabel.en().isNotEmpty())
+            assertTrue(screen.meaning.en().isNotEmpty())
         }
     }
 

@@ -114,4 +114,410 @@
     <string name="action_move_to">Move to %1$s</string>
     <string name="action_copy">Copy</string>
     <string name="action_move">Move</string>
+
+    <!-- Cull: labels, counters and messages (SelectorLabels) -->
+    <string name="label_filmstrip_all">%1$d of %2$d</string>
+    <string name="label_filmstrip_range">%1$d–%2$d of %3$d</string>
+    <string name="chip_burst_position">burst %1$d/%2$d</string>
+    <string name="label_queued">Queued</string>
+    <string name="label_grouping">Grouping</string>
+    <string name="snackbar_deleted">Deleted</string>
+    <plurals name="snackbar_deleted_files">
+        <item quantity="one">Deleted %1$d file</item>
+        <item quantity="other">Deleted %1$d files</item>
+    </plurals>
+    <string name="dialog_body_delete">Delete \"%1$s\"? Undo works until you leave the folder, then it is permanent.</string>
+    <string name="dialog_body_delete_cloud_warning">Warning: This folder is backed by %1$s — deleting here may permanently remove the photo across all synced devices.</string>
+    <string name="label_cloud_provider_generic">a cloud provider</string>
+    <string name="label_provider_local">local storage</string>
+    <string name="label_provider_removable">removable storage</string>
+    <string name="label_provider_camera">camera (MTP)</string>
+    <string name="label_provider_cloud">cloud storage</string>
+    <plurals name="dialog_body_cloud_scan">
+        <item quantity="one">Scanning %1$d photo in %2$s will download every image over the network to compute sharpness scores. Continue?</item>
+        <item quantity="other">Scanning %1$d photos in %2$s will download every image over the network to compute sharpness scores. Continue?</item>
+    </plurals>
+    <string name="snackbar_stop_line_reached">Reached sharpness stop-line (%1$s) — remaining photos meet or exceed your threshold.</string>
+    <plurals name="dialog_body_uncompleted_deletions">
+        <item quantity="one">%1$d deletion was not completed — delete now / keep</item>
+        <item quantity="other">%1$d deletions were not completed — delete now / keep</item>
+    </plurals>
+    <string name="error_recovery_kept_one">Kept %1$s — not the photo you deleted, or not confirmed</string>
+    <plurals name="error_recovery_kept">
+        <item quantity="one">Kept %1$d photo — not the one you deleted, or not confirmed: %2$s</item>
+        <item quantity="other">Kept %1$d photos — not the ones you deleted, or not confirmed: %2$s</item>
+    </plurals>
+    <plurals name="snackbar_scan_complete">
+        <item quantity="one">Scan complete · %1$d image analysed</item>
+        <item quantity="other">Scan complete · %1$d images analysed</item>
+    </plurals>
+    <string name="error_partial_delete">Deleted %1$d of %2$d files of %3$s</string>
+    <string name="error_rating_not_written">Rating kept in the app only — not saved to %1$s</string>
+    <string name="error_rating_not_written_reason">Rating kept in the app only — not saved to %1$s (%2$s)</string>
+    <string name="error_rating_backup_restored_one">Restored %1$s from its backup after an interrupted rating write</string>
+    <plurals name="error_rating_backups_restored">
+        <item quantity="one">Restored %1$d photo from its backup after an interrupted rating write</item>
+        <item quantity="other">Restored %1$d photos from their backups after an interrupted rating write</item>
+    </plurals>
+    <string name="error_rating_backup_kept_one">Backup of %1$s kept as %2$s — check the photo, then delete the backup</string>
+    <plurals name="error_rating_backups_kept">
+        <item quantity="one">%1$d rating backup kept (*.frameduel-backup) — check the photo, then delete the backup</item>
+        <item quantity="other">%1$d rating backups kept (*.frameduel-backup) — check the photos, then delete the backups</item>
+    </plurals>
+    <string name="label_sort_newest_first">Newest first</string>
+    <string name="label_sort_oldest_first">Oldest first</string>
+    <string name="label_sort_file_name">File name</string>
+    <string name="label_sort_blurriest_first">Blurriest first</string>
+    <string name="chip_sort_newest">Newest</string>
+    <string name="chip_sort_oldest">Oldest</string>
+    <string name="chip_sort_name">Name</string>
+    <string name="chip_sort_blurriest">Blurry</string>
+    <string name="cd_sort_chip">Sort order: %1$s. Change</string>
+    <string name="label_sort_needs_scan">Scan first</string>
+    <string name="label_toggle_info">Info</string>
+    <string name="label_toggle_strip">Strip</string>
+    <string name="label_toggle_overlay">Overlay</string>
+    <string name="label_toggle_keys">Keys</string>
+    <string name="action_go_to_photo_menu">Go to photo…</string>
+    <string name="snackbar_last_photo">Last photo</string>
+    <string name="snackbar_already_copied">Already copied</string>
+    <string name="cd_copied_mark">Copied to %1$s</string>
+    <string name="action_undo">Undo</string>
+    <string name="cd_undo_menu">Undo last action, %1$d available</string>
+    <string name="dialog_title_go_to_photo">Go to photo</string>
+    <string name="action_go">Go</string>
+    <string name="label_go_to_photo_field">Number, name or date</string>
+    <string name="cd_pick_date">Pick a date</string>
+    <string name="action_back">Back</string>
+    <string name="cd_go_chip">Go to photo, %1$d of %2$d</string>
+    <string name="cd_go_chip_loading">Go to photo, %1$d of %2$d so far, still loading</string>
+    <string name="label_no_match">No match</string>
+    <string name="label_enter_range">Enter %1$s</string>
+    <string name="label_no_photos_on_day">No photos on %1$s — showing %2$s</string>
+
+    <!-- Cull: filing verbs, keys and gestures -->
+    <string name="label_copied">Copied</string>
+    <string name="label_moved">Moved</string>
+    <string name="label_key_delete">Del</string>
+    <string name="label_key_undo">Ctrl+Z</string>
+    <string name="label_key_space">Space</string>
+    <string name="label_key_pan">Shift ← →</string>
+    <string name="hint_body_gesture_pinch">pinch</string>
+    <string name="hint_body_gesture_double_tap">double-tap</string>
+    <string name="hint_body_gesture_swipe_sideways">swipe ← →</string>
+    <string name="hint_body_gesture_swipe_down">swipe down</string>
+    <string name="hint_body_gesture_tap_neighbour">tap a neighbour</string>
+    <string name="hint_body_gesture_tap_current">tap the current frame</string>
+    <string name="hint_body_gesture_tap_badge">tap a frame\'s maximise badge</string>
+    <string name="hint_body_gesture_long_press">long-press a frame</string>
+    <string name="hint_body_effect_zoom">zoom</string>
+    <string name="hint_body_effect_fit_100">fit ↔ 100%</string>
+    <string name="hint_body_effect_previous_next">previous / next</string>
+    <string name="hint_body_effect_dismiss">dismiss</string>
+    <string name="hint_body_effect_pin_info">pin / unpin the info panel</string>
+    <string name="hint_body_effect_exit">exit</string>
+    <string name="hint_body_effect_go_to_frame">go to that frame</string>
+    <string name="hint_body_effect_open_fullscreen">open fullscreen</string>
+    <string name="hint_body_effect_fill_screen">fill the screen with that frame</string>
+    <string name="hint_body_effect_context_menu">context menu</string>
+    <string name="hint_body_effect_previous_image">previous image</string>
+    <string name="hint_body_effect_next_image">next image</string>
+    <string name="hint_body_effect_next_previous_image">next / previous image</string>
+    <string name="hint_body_effect_delete_confirmed">delete, with confirmation</string>
+    <string name="hint_body_effect_toggle_values">show or hide this frame\'s values</string>
+    <string name="hint_body_effect_toggle_filmstrip">show or hide the filmstrip</string>
+    <string name="hint_body_effect_enlarge_frame">enlarge left / middle / right frame</string>
+    <string name="hint_body_effect_go_to_photo">go to photo</string>
+    <string name="hint_body_effect_choose_sort">choose the sort order</string>
+    <string name="hint_body_effect_open_learn">open Learn</string>
+    <string name="hint_body_effect_undo">undo the last delete or move</string>
+    <string name="hint_body_effect_zoom_100">fit or 100 % (enlarged frame, fullscreen)</string>
+    <string name="hint_body_effect_pan">pan while zoomed</string>
+    <string name="hint_body_effect_escape">leave the zoom, fullscreen or maximised; close a sheet</string>
+    <string name="hint_body_effect_show_guide">show this guide</string>
+
+    <!-- Cull: first-run hints -->
+    <string name="hint_title_delete_undo">Deleted — undo until you leave the folder</string>
+    <string name="hint_title_maximise">One frame, full size</string>
+    <string name="hint_title_scores">Scores are on the frames</string>
+    <string name="hint_title_tour">The selector</string>
+    <string name="hint_body_filing_in_shoot">The file is in \"%1$s\", inside the shoot folder.</string>
+    <string name="hint_body_filing_in_custom">The file is in \"%1$s\".</string>
+    <string name="hint_body_filing_sorted">RAW and JPEG are sorted into subfolders.</string>
+    <string name="hint_body_filing_copies_instead">%1$s copies instead.</string>
+    <string name="hint_body_filing_moves_instead">%1$s moves instead.</string>
+    <string name="hint_body_delete_undo">Nothing has been written to disk yet. %1$s or UNDO puts the frame back until you leave the folder; then it is deleted for real.</string>
+    <string name="hint_body_maximise">%1$s, or the same number again, returns to comparing all three. The badge on the frame does the same.</string>
+    <string name="hint_body_scores">Each bar is that metric\'s score, normalised so longer is always better — whichever way the raw number runs. Legend in the sidebar names the icons.</string>
+    <string name="hint_body_tour">Everything on this screen, where it actually is. Press %1$s at any time to see it again.</string>
+
+    <!-- Cull: the guide -->
+    <string name="hint_title_region_sidebar_top">Left sidebar, top</string>
+    <string name="hint_title_region_sidebar_bottom">Left sidebar, bottom</string>
+    <string name="hint_title_region_readout">Left of the centre frame</string>
+    <string name="hint_title_region_frames">The three frames</string>
+    <string name="hint_title_region_controls">Right of the centre frame</string>
+    <string name="hint_title_region_keys">On the keyboard</string>
+    <string name="hint_title_region_filmstrip">Far right edge, when shown</string>
+    <string name="guide_keys_below">Keys below</string>
+    <string name="hint_title_tour_shoot">The shoot</string>
+    <string name="hint_body_tour_shoot">These act on every photograph, not on the one in front of you.</string>
+    <string name="hint_title_tour_screens">The screens</string>
+    <string name="hint_body_tour_screens">Place saved per folder.</string>
+    <string name="hint_title_tour_values">This frame\'s values</string>
+    <string name="hint_body_tour_values">Filename, exposure, then one row per metric. The bar is the score: longer is always better, whichever way the raw number runs.</string>
+    <string name="hint_title_tour_comparison">The comparison</string>
+    <string name="hint_body_tour_comparison">Centre frame is the one you are deciding on; the two below are the frames either side of it. All three are the same size on purpose — a smaller or dimmed neighbour cannot be judged.</string>
+    <string name="hint_title_tour_controls">Acts on the centre frame</string>
+    <string name="hint_title_tour_keys">Keys with no button</string>
+    <string name="hint_body_tour_keys">Nothing on screen shows these, so here they are.</string>
+    <string name="hint_title_tour_filmstrip">The whole folder</string>
+    <string name="hint_body_tour_filmstrip">Every frame in order, top to bottom. The dot is its centre sharpness; bursts are marked when Bursts is on.</string>
+
+    <!-- Cull: sidebar -->
+    <string name="label_sidebar_folder">Folder</string>
+    <string name="cd_sidebar_folder">Open a folder</string>
+    <string name="hint_body_sidebar_folder">Pick the shoot to cull. Sub-folders are included.</string>
+    <string name="label_sidebar_scan">Scan</string>
+    <string name="cd_sidebar_scan">Scan images for quality scores</string>
+    <string name="hint_body_sidebar_scan">Measure every frame, so the numbers beside the picture have something to say.</string>
+    <string name="label_sidebar_bursts">Bursts</string>
+    <string name="cd_sidebar_bursts">Bursts, on/off</string>
+    <string name="hint_body_sidebar_bursts">Mark frames shot seconds apart as one series.</string>
+    <string name="label_sidebar_legend">Legend</string>
+    <string name="cd_sidebar_legend">What everything on this screen means</string>
+    <string name="hint_body_sidebar_legend">This guide: every icon named where it sits.</string>
+    <string name="label_sidebar_more">More</string>
+    <string name="cd_sidebar_more">More options</string>
+    <string name="hint_body_sidebar_more">Undo, open folder, scan, sort, go to, guide.</string>
+    <string name="cd_sidebar_bursts_on">Bursts, on</string>
+    <string name="cd_sidebar_bursts_off">Bursts, off</string>
+    <string name="cd_scan_running">Scanning %1$s. Tap to cancel the scan.</string>
+    <string name="cd_scan_queued">Scan queued until grouping finishes. Tap to cancel it.</string>
+    <string name="cd_grouping_running">Grouping similar series. Tap to cancel.</string>
+    <string name="cd_grouping_queued">Grouping queued until the scan finishes. Tap to cancel it.</string>
+
+    <!-- Cull: scores -->
+    <string name="chip_metric_sharpness">Sharp</string>
+    <string name="chip_metric_noise">Noise</string>
+    <string name="chip_metric_highlights">Highl</string>
+    <string name="chip_metric_shadows">Shad</string>
+    <string name="label_metric_sharpness">Sharpness</string>
+    <string name="label_metric_noise">Noise</string>
+    <string name="label_metric_highlights">Highlight clipping</string>
+    <string name="label_metric_shadows">Shadow clipping</string>
+    <string name="learn_metric_sharpness">Edge contrast at the crispest spot in the centre of the frame; compare frames of one burst, an off-centre subject is not measured. Low values usually mean motion blur or a missed focus.</string>
+    <string name="learn_metric_noise">Estimated sensor noise in flat areas of the image. Rises with high ISO.</string>
+    <string name="learn_metric_highlights">Share of pixels blown out to pure white — detail that cannot be recovered.</string>
+    <string name="learn_metric_shadows">Share of pixels crushed to pure black — detail that cannot be recovered.</string>
+    <string name="cd_metric_sharpness_at_centre">Sharpness at the centre of the frame</string>
+    <string name="label_metric_area_centre">centre</string>
+    <string name="cd_metric_value">%1$s %2$s, %3$s</string>
+    <string name="cd_metric_value_best">%1$s %2$s, %3$s, best of the three visible frames</string>
+    <string name="label_higher_is_better">higher is better</string>
+    <string name="label_lower_is_better">lower is better</string>
+    <string name="cd_rank_spoken">%1$s %2$s in its burst, %3$s, %4$s</string>
+    <string name="cd_rank_spoken_best">%1$s %2$s in its burst, %3$s, %4$s, best of the three visible frames</string>
+    <string name="label_rank_of">%1$s of %2$d</string>
+
+    <!-- Cull: filing messages -->
+    <string name="snackbar_copied_to">Copied to %1$s</string>
+    <string name="snackbar_moved_to">Moved to %1$s</string>
+    <string name="snackbar_filed_as">%1$s as %2$s</string>
+    <string name="snackbar_with_related">%1$s (+%2$d related)</string>
+    <string name="error_undo_partial">Restored %1$s — the copy in %2$s could not be removed</string>
+    <string name="snackbar_restored_as">Restored as %1$s (original name was in use)</string>
+    <string name="cd_with_shortcut">%1$s, shortcut %2$s</string>
+
+    <!-- Cull: transfer and companions -->
+    <string name="error_not_enough_space_copy">Not enough space: needs %1$s, %2$s free. Nothing was copied.</string>
+    <string name="error_not_enough_space_move">Not enough space: needs %1$s, %2$s free. Nothing was moved.</string>
+    <string name="label_size_gb">%1$s GB</string>
+    <string name="label_size_mb">%1$s MB</string>
+    <string name="label_size_under_1_mb">under 1 MB</string>
+    <string name="error_copied_original_kept">Copied to %1$s — original could not be removed</string>
+    <string name="error_copy_failed">Copy failed</string>
+    <string name="error_move_failed">Move failed</string>
+    <string name="snackbar_restored_to_opened_folder">Restored to the opened folder — the original folder no longer exists</string>
+    <string name="snackbar_copied_stem">Copied %1$s · %2$s</string>
+    <string name="snackbar_moved_stem">Moved %1$s · %2$s</string>
+    <string name="snackbar_copied_stem_companions">Copied %1$s +%2$d · %3$s</string>
+    <string name="snackbar_moved_stem_companions">Moved %1$s +%2$d · %3$s</string>
+    <string name="cd_copied_file_to">Copied %1$s to %2$s</string>
+    <string name="cd_moved_file_to">Moved %1$s to %2$s</string>
+    <plurals name="cd_copied_with_companions">
+        <item quantity="one">Copied %1$s and %2$d companion file to %3$s</item>
+        <item quantity="other">Copied %1$s and %2$d companion files to %3$s</item>
+    </plurals>
+    <plurals name="cd_moved_with_companions">
+        <item quantity="one">Moved %1$s and %2$d companion file to %3$s</item>
+        <item quantity="other">Moved %1$s and %2$d companion files to %3$s</item>
+    </plurals>
+    <string name="dialog_title_delete_stem_companions">Delete %1$s +%2$d?</string>
+    <plurals name="cd_delete_with_companions">
+        <item quantity="one">Delete %1$s and %2$d companion file?</item>
+        <item quantity="other">Delete %1$s and %2$d companion files?</item>
+    </plurals>
+    <string name="dialog_body_also_deletes">Also deletes %1$s</string>
+    <string name="label_ordinal_st">%1$dst</string>
+    <string name="label_ordinal_nd">%1$dnd</string>
+    <string name="label_ordinal_rd">%1$drd</string>
+    <string name="label_ordinal_th">%1$dth</string>
+
+    <!-- Ratings: why a rating did not reach the file -->
+    <string name="error_rating_format">Ratings are not written to %1$s files</string>
+    <string name="error_rating_format_unknown">Ratings are not written to this kind of file</string>
+    <string name="error_rating_xmp_unmergeable">%1$s has XMP content the rating cannot be merged into; it was left unchanged</string>
+    <string name="error_rating_backup_still_beside">%1$s from an earlier interrupted write is still beside %2$s; reopen the folder to recover it</string>
+    <string name="error_rating_restored">Could not write the rating into %1$s; it was left unchanged</string>
+    <string name="error_rating_not_restored_backup">Could not write the rating into %1$s and could not restore it; the original is kept as %2$s</string>
+    <string name="error_rating_not_restored">Could not write the rating into %1$s and could not restore it; check the file</string>
+
+    <!-- Cull: errors -->
+    <string name="error_folder_load_failed">Failed to load folder: permission revoked or directory deleted.</string>
+    <string name="error_could_not_load_images">Could not load images</string>
+    <string name="error_scan_failed">Scan failed</string>
+    <string name="error_grouping_failed">Grouping failed</string>
+    <string name="label_unnamed_image">image</string>
+    <string name="error_could_not_delete">Could not delete %1$s</string>
+    <string name="error_could_not_delete_recovered">Could not delete %1$d of %2$d recovered photos: %3$s</string>
+    <string name="error_could_not_restore_deleted">Could not restore the deleted image</string>
+    <string name="error_could_not_move_back">Could not move the image back</string>
+    <string name="error_could_not_clear_cache">Could not clear the cache</string>
+
+    <!-- Navigation -->
+    <string name="label_screen_cull">Cull</string>
+    <string name="label_screen_learn">Learn</string>
+    <string name="label_screen_stats">Stats</string>
+    <string name="label_screen_dupes">Dupes</string>
+    <string name="label_screen_setup">Setup</string>
+    <string name="label_screen_tools">Tools</string>
+    <string name="hint_body_screen_cull">Compare three frames and file or delete the middle one.</string>
+    <string name="hint_body_screen_learn">Inspect composition, exposure technique, and coaching guidance for the selected photograph.</string>
+    <string name="hint_body_screen_stats">How the folder scored overall, once it has been scanned.</string>
+    <string name="hint_body_screen_dupes">Frames that are the same picture twice.</string>
+    <string name="hint_body_screen_setup">Where frames go, bursts, threads, fullscreen, cache.</string>
+    <string name="hint_body_screen_tools">Learn and Dupes.</string>
+    <string name="cd_tools">Tools. Opens Learn and Dupes.</string>
+    <string name="cd_tools_selected">Tools, %1$s selected</string>
+
+    <!-- Cull: controls -->
+    <string name="action_skip">Skip</string>
+    <string name="action_got_it">Got it</string>
+    <string name="action_next">Next</string>
+    <string name="action_prev">Prev</string>
+    <string name="action_full">Full</string>
+    <string name="action_delete">Delete</string>
+    <string name="action_open_fullscreen">Open fullscreen</string>
+    <string name="snackbar_action_undo">UNDO</string>
+    <string name="hint_title_tap_either_side">Tap either side to browse</string>
+    <string name="cd_image_position">Image %1$d of %2$d</string>
+    <string name="cd_image_position_loading">Image %1$d of %2$d so far, still loading</string>
+    <string name="cd_delete_button">Delete, shortcut Delete or Backspace</string>
+    <string name="cd_fullscreen_button">Open fullscreen, shortcut F</string>
+    <string name="cd_previous_button">Previous image, shortcut left arrow</string>
+    <string name="cd_next_button">Next image, shortcut right arrow</string>
+    <string name="cd_photo_details">Photo details</string>
+    <string name="cd_filmstrip">Filmstrip</string>
+    <string name="cd_overlay_values">Values on Previous and Next</string>
+    <string name="cd_shortcuts_guide">Shortcuts and layout guide</string>
+
+    <!-- Cull: dialogs, empty states, scan sheet, menu -->
+    <string name="dialog_title_delete_image">Delete image</string>
+    <string name="dialog_title_cloud_scan">Cloud folder scan</string>
+    <string name="action_scan">Scan</string>
+    <string name="dialog_title_uncompleted_deletions">Uncompleted deletions</string>
+    <string name="action_delete_now">Delete now</string>
+    <string name="action_keep">Keep</string>
+    <string name="empty_folder_access_needed">Folder Access Needed</string>
+    <string name="error_folder_access_revoked">Permission for this folder was revoked or the folder was moved. Re-select the folder to continue.</string>
+    <string name="action_reselect_folder">Re-select Folder</string>
+    <string name="empty_no_photos_found">No photos found</string>
+    <string name="error_folder_no_supported_photos">This folder holds no supported photos.</string>
+    <string name="error_named_folder_no_supported_photos">%1$s holds no supported photos.</string>
+    <string name="action_open_folder">Open Folder</string>
+    <string name="empty_select_folder">Select a Folder</string>
+    <string name="dialog_body_choose_shoot_folder">Choose a shoot folder to start comparing and culling frames.</string>
+    <string name="title_scan_configuration">Scan Configuration</string>
+    <string name="action_start_scan">Start Scan</string>
+    <string name="label_analysis_types">Analysis Types</string>
+    <string name="label_scan_focus">Focus quality</string>
+    <string name="label_scan_noise">Noise level</string>
+    <string name="label_scan_highlights">Highlight clipping</string>
+    <string name="label_scan_shadows">Shadow clipping</string>
+    <string name="action_open_folder_menu">Open folder</string>
+    <string name="action_scan_images">Scan images</string>
+    <string name="action_clear_scores">Clear scores</string>
+    <string name="action_shortcuts_and_guide">Shortcuts and guide</string>
+
+    <!-- Cull: fullscreen -->
+    <string name="cd_fullscreen_delete">Delete, shortcut Delete</string>
+    <string name="cd_close_fullscreen">Close fullscreen</string>
+    <string name="cd_unpin_info">Unpin info panel, shortcut I</string>
+    <string name="cd_pin_info">Pin info panel, shortcut I</string>
+    <string name="cd_zoom_percent">Zoom %1$d percent</string>
+
+    <!-- Cull: frames, readouts, Done card -->
+    <string name="cd_hide_photo_info">Hide photo info</string>
+    <string name="cd_show_photo_info">Show photo info</string>
+    <string name="label_no_image">No image</string>
+    <string name="label_no_previous">No previous</string>
+    <string name="label_no_next">No next</string>
+    <string name="cd_maximise_return">Return to comparing all three frames</string>
+    <string name="cd_maximise_fill">Fill the screen with this frame</string>
+    <string name="cd_fullscreen">Fullscreen</string>
+    <string name="cd_more">More</string>
+    <string name="title_gestures">Gestures</string>
+    <string name="hint_body_swipe_to_browse">Swipe image to browse</string>
+    <string name="hint_body_tap_fullscreen_zoom">Tap fullscreen to zoom &amp; inspect</string>
+    <string name="hint_body_tap_to_dismiss">Tap anywhere to dismiss</string>
+    <string name="cd_delete_this_photo">Delete this photo</string>
+    <string name="cd_limited_metadata">Limited metadata</string>
+    <string name="label_not_scanned">Not scanned</string>
+    <string name="label_limited_metadata">limited metadata</string>
+    <string name="cd_not_scanned">This frame has not been scanned</string>
+    <string name="cd_lens">Lens %1$s</string>
+    <string name="label_safe_to_format">Safe to format</string>
+    <string name="label_missing_count">%1$d missing</string>
+    <string name="label_checking">Checking</string>
+    <string name="cd_done_summary">Done. %1$s.</string>
+    <string name="cd_done_summary_safe">Done. %1$s. %2$s.</string>
+    <string name="cd_done_moved">%1$d moved</string>
+    <string name="cd_done_copied">%1$d copied</string>
+    <string name="cd_done_deleted">%1$d deleted</string>
+    <string name="label_deleted">Deleted</string>
+    <string name="title_done">Done</string>
+    <string name="action_open_selection">Open Selection</string>
+
+    <!-- Cull: filmstrip -->
+    <string name="cd_filmstrip_tile">%1$s, %2$d of %3$d</string>
+    <string name="cd_rated">rated %1$d</string>
+    <string name="cd_copied_mark_lower">copied to %1$s</string>
+
+    <!-- Shared components: rating bar, EXIF labels -->
+    <string name="cd_rating_bar">Rating bar, current rating: %1$d</string>
+    <string name="cd_rejected_clear">Rejected, click to clear</string>
+    <string name="cd_reject_photo">Reject photo</string>
+    <plurals name="cd_stars">
+        <item quantity="one">%1$d star</item>
+        <item quantity="other">%1$d stars</item>
+    </plurals>
+    <plurals name="cd_stars_selected">
+        <item quantity="one">%1$d star, selected</item>
+        <item quantity="other">%1$d stars, selected</item>
+    </plurals>
+    <string name="cd_clear_rating">Clear rating</string>
+    <string name="label_exif_iso">ISO</string>
+    <string name="label_exif_shutter_speed">Shutter Speed</string>
+    <string name="label_exif_aperture">Aperture</string>
+    <string name="label_exif_focal_length">Focal Length</string>
+    <string name="label_exif_focal_35mm">35mm Equiv.</string>
+    <string name="label_exif_lens">Lens</string>
+
+    <!-- Rating filters -->
+    <string name="chip_filter_all">All</string>
+    <string name="chip_filter_min_stars">★ %1$d+</string>
+    <string name="chip_filter_stars">★ %1$d</string>
+    <string name="chip_filter_unrated">Unrated</string>
+    <string name="chip_filter_rejected">Rejected</string>
 </resources>

@@ -13,6 +13,9 @@ fun UiText.resolve(resources: Resources): String = when (this) {
     is UiText.Raw -> value
     is UiText.Res -> if (args.isEmpty()) resources.getString(id) else resources.getString(id, *argsFor(args, resources))
     is UiText.Plural -> resources.getQuantityString(id, count, *argsFor(args, resources))
+    is UiText.Date -> java.time.format.DateTimeFormatter
+        .ofPattern(resources.getString(pattern), resources.configuration.locales[0])
+        .format(value)
     is UiText.Joined -> parts.map { it.resolve(resources) }.filter { it.isNotEmpty() }.joinToString(separator)
 }
 

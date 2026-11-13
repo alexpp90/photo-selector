@@ -58,6 +58,9 @@ import com.photoselectortoolbox.ui.theme.StudioCanvas
 import com.photoselectortoolbox.ui.theme.WarningAmber
 import com.photoselectortoolbox.ui.theme.Zinc400
 import com.photoselectortoolbox.ui.theme.Zinc50
+import androidx.compose.ui.res.stringResource
+import com.photoselectortoolbox.R
+import com.photoselectortoolbox.ui.text.asString
 
 /**
  * The glyph for a metric.
@@ -140,7 +143,7 @@ fun CurrentFrameReadout(
         }
 
         if (image == null) {
-            Text(text = "No image", fontSize = 13.sp, color = HintText)
+            Text(text = stringResource(R.string.label_no_image), fontSize = 13.sp, color = HintText)
             return@Column
         }
 
@@ -206,13 +209,11 @@ private fun NamedMetricRow(
     // Ranked, the bar is the place in the burst, not a verdict on an absolute scale.
     val goodness = rank?.let(SharpnessRankText::goodness) ?: metric.goodness(value)
 
+    val spoken = (rank?.let { SharpnessRankText.spoken(it, value, isBest) } ?: metric.accessibilityLabel(value, isBest)).asString()
     Column(
         modifier = Modifier
             .fillMaxWidth()
-            .semantics {
-                contentDescription = rank?.let { SharpnessRankText.spoken(it, value, isBest) }
-                    ?: metric.accessibilityLabel(value, isBest)
-            },
+            .semantics { contentDescription = spoken },
         verticalArrangement = Arrangement.spacedBy(3.dp),
     ) {
         Row(
@@ -227,7 +228,7 @@ private fun NamedMetricRow(
                 tint = Zinc400,
             )
             Text(
-                text = metric.displayName,
+                text = metric.displayName.asString(),
                 fontSize = 12.5.sp,
                 color = Zinc400,
                 maxLines = 1,
@@ -236,11 +237,11 @@ private fun NamedMetricRow(
             )
             // Where the figure is measured, as a word (the sharpness score is the centre's).
             metric.areaLabel?.let { area ->
-                Text(text = area, fontSize = 11.sp, color = HintText, maxLines = 1)
+                Text(text = area.asString(), fontSize = 11.sp, color = HintText, maxLines = 1)
             }
             Spacer(modifier = Modifier.weight(1f))
             Text(
-                text = rank?.let(SharpnessRankText::visible) ?: metric.format(value),
+                text = rank?.let(SharpnessRankText::visible)?.asString() ?: metric.format(value),
                 fontSize = 12.5.sp,
                 fontFamily = FontFamily.Monospace,
                 color = Zinc50,
@@ -378,6 +379,7 @@ fun NeighbourValueOverlay(
         // One line under the exposure block, ellipsised at the end. The visible
         // text may be cut; the full name is in the description.
         ExifFormatter.lensLine(image.exifData)?.let { lens ->
+            val lensSpoken = stringResource(R.string.cd_lens, lens)
             Text(
                 text = lens,
                 fontSize = 9.5.sp,
@@ -387,7 +389,7 @@ fun NeighbourValueOverlay(
                 overflow = TextOverflow.Ellipsis,
                 modifier = Modifier
                     .fillMaxWidth()
-                    .semantics { contentDescription = "Lens $lens" }
+                    .semantics { contentDescription = lensSpoken }
                     .testTag("neighbour_lens"),
             )
         }
@@ -395,7 +397,7 @@ fun NeighbourValueOverlay(
         if (image.exifData?.isFallback == true) {
             Icon(
                 imageVector = Icons.Outlined.ErrorOutline,
-                contentDescription = "Limited metadata",
+                contentDescription = stringResource(R.string.cd_limited_metadata),
                 modifier = Modifier.size(10.dp),
                 tint = WarningAmber,
             )
@@ -459,10 +461,11 @@ private fun CompactMetricRow(
 ) {
     val goodness = metric.goodness(value)
 
+    val spoken = metric.accessibilityLabel(value, isBest).asString()
     Column(
         modifier = Modifier
             .fillMaxWidth()
-            .semantics { contentDescription = metric.accessibilityLabel(value, isBest) },
+            .semantics { contentDescription = spoken },
         verticalArrangement = Arrangement.spacedBy(2.dp),
     ) {
         Row(
@@ -500,16 +503,17 @@ private fun CompactMetricRow(
 /** One dashed row rather than five empty ones. */
 @Composable
 private fun NotScannedRow(compact: Boolean = false) {
+    val spoken = stringResource(R.string.cd_not_scanned)
     Row(
         modifier = Modifier
             .fillMaxWidth()
             .border(1.dp, StudioBorder, RoundedCornerShape(6.dp))
             .padding(horizontal = 8.dp, vertical = 6.dp)
-            .semantics { contentDescription = "This frame has not been scanned" },
+            .semantics { contentDescription = spoken },
         verticalAlignment = Alignment.CenterVertically,
     ) {
         Text(
-            text = "Not scanned",
+            text = stringResource(R.string.label_not_scanned),
             fontSize = if (compact) 10.sp else 12.sp,
             color = HintText,
         )
@@ -529,7 +533,7 @@ private fun LimitedMetadataMarker() {
             modifier = Modifier.size(13.dp),
             tint = WarningAmber,
         )
-        Text(text = "limited metadata", fontSize = 11.sp, color = WarningAmber)
+        Text(text = stringResource(R.string.label_limited_metadata), fontSize = 11.sp, color = WarningAmber)
     }
 }
 

@@ -474,7 +474,7 @@ class ImageRepositoryImpl @Inject constructor(
                 volumeOf(context, sourceUris.first()) to volumeOf(context, destination.rootUri)
             }
             if (TransferSpace.refuses(neededBytes, source, target, isMove)) {
-                val message = TransferSpace.refusalMessage(neededBytes, target?.availableBytes ?: 0L, isMove)
+                val message = TransferSpace.refusalCode(neededBytes, target?.availableBytes ?: 0L, isMove)
                 Log.w(TAG, "$message (${destination.rootUri})")
                 return sourceUris.map { FileOperationResult.failure(it.toString(), message, parentDocumentId) }
             }

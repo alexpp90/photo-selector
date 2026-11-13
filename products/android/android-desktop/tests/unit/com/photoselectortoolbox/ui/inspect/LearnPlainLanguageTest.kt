@@ -33,6 +33,7 @@ import org.junit.Rule
 import org.junit.Test
 import org.junit.runner.RunWith
 import org.robolectric.annotation.Config
+import com.photoselectortoolbox.testing.str
 
 /**
  * The Learn screen and the scan sheet speak photography, not algorithms (usability panel
@@ -141,8 +142,9 @@ class LearnPlainLanguageTest {
 
     @Test
     fun `the scan sheet rows say what they find`() {
-        assertEquals(listOf("Focus quality", "Noise level", "Highlight clipping", "Shadow clipping"), ScanSheetText.all)
-        ScanSheetText.all.forEach { assertTrue(it, offending(it).isEmpty()) }
+        val labels = ScanSheetText.all.map { str(it) }
+        assertEquals(listOf("Focus quality", "Noise level", "Highlight clipping", "Shadow clipping"), labels)
+        labels.forEach { assertTrue(it, offending(it).isEmpty()) }
     }
 
     @Test

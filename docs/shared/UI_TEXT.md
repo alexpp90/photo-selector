@@ -61,9 +61,14 @@ both languages.
 | Settings row summary (value or data-loss warning only) | `setting_summary_` | 5 | 36 | 46 |
 | Controls-guide callout | `guide_` | 2 | 14 | 18 |
 | Spoken label (`contentDescription`, TalkBack) | `cd_` | not counted | — | — |
+| Teaching text the user opened to read (Frameduel's Learn lessons, cards, advice and quizzes, and the guide's explanation of a score) | `learn_` | not counted | — | — |
 
 The numbers are the single source for `scripts/ui_text_budget.json`. A test checks that this table
 and the JSON agree.
+
+A `learn_` string is counted nowhere, but it still needs its German entry. It is only for a
+surface the user opened in order to read it; a control, a hint, a dialog or a status line is never
+`learn_` text.
 
 In addition to the table:
 

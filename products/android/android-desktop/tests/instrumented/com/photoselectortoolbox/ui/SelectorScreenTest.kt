@@ -57,6 +57,8 @@ import org.junit.Rule
 import org.junit.Test
 import org.junit.rules.TestRule
 import org.junit.runner.RunWith
+import com.photoselectortoolbox.str
+import com.photoselectortoolbox.R
 
 @HiltAndroidTest
 @RunWith(AndroidJUnit4::class)
@@ -176,11 +178,11 @@ class SelectorScreenTest {
     fun initialEmptyState_isDisplayed() {
         // App starts with no folder selected, should show the empty state card.
         composeRule.waitUntil(timeoutMillis = 15000) {
-            composeRule.onAllNodesWithText("Select a Folder", ignoreCase = true)
+            composeRule.onAllNodesWithText(str(R.string.empty_select_folder), ignoreCase = true)
                 .fetchSemanticsNodes().isNotEmpty()
         }
 
-        composeRule.onAllNodesWithText("Select a Folder", ignoreCase = true).onFirst()
+        composeRule.onAllNodesWithText(str(R.string.empty_select_folder), ignoreCase = true).onFirst()
             .assertIsDisplayed()
         composeRule.onNodeWithText(
             "Choose a shoot folder to start comparing and culling frames.",
@@ -202,8 +204,8 @@ class SelectorScreenTest {
         }
 
         composeRule.onNodeWithTag("missing_grant_prompt_card").assertIsDisplayed()
-        composeRule.onNodeWithText("Folder Access Needed", ignoreCase = true).assertIsDisplayed()
-        composeRule.onNodeWithText("Re-select Folder", ignoreCase = true).assertIsDisplayed()
+        composeRule.onNodeWithText(str(R.string.empty_folder_access_needed), ignoreCase = true).assertIsDisplayed()
+        composeRule.onNodeWithText(str(R.string.action_reselect_folder), ignoreCase = true).assertIsDisplayed()
     }
 
     @Test
@@ -824,7 +826,7 @@ class SelectorScreenTest {
 
         // Not "No Folder Selected": the folder open in Cull is open here (FD-UX-3).
         composeRule.waitUntil(timeoutMillis = 15000) {
-            composeRule.onAllNodesWithText("Start Scan", ignoreCase = true).fetchSemanticsNodes().isNotEmpty()
+            composeRule.onAllNodesWithText(str(R.string.action_start_scan), ignoreCase = true).fetchSemanticsNodes().isNotEmpty()
         }
         composeRule.onAllNodesWithText("No Folder Selected", ignoreCase = true).assertCountEquals(0)
     }
@@ -871,7 +873,7 @@ class SelectorScreenTest {
         }
         pressKey(android.view.KeyEvent.KEYCODE_ENTER)
         composeRule.waitUntil(timeoutMillis = 15000) {
-            composeRule.onAllNodesWithText("Start Scan", ignoreCase = true).fetchSemanticsNodes().isNotEmpty()
+            composeRule.onAllNodesWithText(str(R.string.action_start_scan), ignoreCase = true).fetchSemanticsNodes().isNotEmpty()
         }
     }
 
@@ -924,7 +926,7 @@ class SelectorScreenTest {
                 .fetchSemanticsNodes().isNotEmpty(),
         )
 
-        composeRule.onAllNodesWithText(SidebarAction.MORE.label, useUnmergedTree = true)
+        composeRule.onAllNodesWithText(str(SidebarAction.MORE.label), useUnmergedTree = true)
             .onFirst().performClick()
         composeRule.onAllNodesWithTag("sort_oldest_first", useUnmergedTree = true)
             .onFirst().performClick()
@@ -1084,7 +1086,7 @@ class SelectorScreenTest {
 
         composeRule.waitUntil(timeoutMillis = 10000) {
             composeRule.onAllNodes(
-                cardLine("Moved"),
+                cardLine(str(R.string.label_moved)),
                 useUnmergedTree = true,
             ).fetchSemanticsNodes().isNotEmpty()
         }
@@ -1186,14 +1188,14 @@ class SelectorScreenTest {
 
         try {
             composeRule.waitUntil(timeoutMillis = 15000) {
-                composeRule.onAllNodes(cardLine("Copied"), useUnmergedTree = true)
+                composeRule.onAllNodes(cardLine(str(R.string.label_copied)), useUnmergedTree = true)
                     .fetchSemanticsNodes().isNotEmpty()
             }
         } catch (e: Exception) {
             try { composeRule.onRoot().printToLog("SelectorScreenTest_Copy") } catch (_: Exception) {}
             throw e
         }
-        composeRule.onAllNodes(cardLine("Copied"), useUnmergedTree = true).onFirst().assertIsDisplayed()
+        composeRule.onAllNodes(cardLine(str(R.string.label_copied)), useUnmergedTree = true).onFirst().assertIsDisplayed()
 
         // Move straight away, as a photographer would, rather than waiting for the
         // copy card to leave (3 s now; it was the whole 30 s undo window when this
@@ -1210,19 +1212,19 @@ class SelectorScreenTest {
 
         try {
             composeRule.waitUntil(timeoutMillis = 15000) {
-                composeRule.onAllNodes(cardLine("Moved"), useUnmergedTree = true)
+                composeRule.onAllNodes(cardLine(str(R.string.label_moved)), useUnmergedTree = true)
                     .fetchSemanticsNodes().isNotEmpty()
             }
         } catch (e: Exception) {
             try { composeRule.onRoot().printToLog("SelectorScreenTest_Move") } catch (_: Exception) {}
             throw e
         }
-        composeRule.onAllNodes(cardLine("Moved"), useUnmergedTree = true).onFirst().assertIsDisplayed()
+        composeRule.onAllNodes(cardLine(str(R.string.label_moved)), useUnmergedTree = true).onFirst().assertIsDisplayed()
         // One confirmation at a time: the move's replaced the copy's. Scoped to the
         // snackbar, because the one-time filing hint card repeats the sentence.
         assertTrue(
             "the copy snackbar is still showing beside the move's",
-            composeRule.onAllNodes(cardLine("Copied"), useUnmergedTree = true).fetchSemanticsNodes().isEmpty(),
+            composeRule.onAllNodes(cardLine(str(R.string.label_copied)), useUnmergedTree = true).fetchSemanticsNodes().isEmpty(),
         )
     }
 
@@ -1255,15 +1257,15 @@ class SelectorScreenTest {
         // Verify Delete Confirmation Dialog is shown
         try {
             composeRule.waitUntil(timeoutMillis = 15000) {
-                composeRule.onAllNodesWithText("Delete Image", ignoreCase = true)
+                composeRule.onAllNodesWithText(str(R.string.dialog_title_delete_image), ignoreCase = true)
                     .fetchSemanticsNodes().isNotEmpty()
             }
         } catch (e: Exception) {
             try { composeRule.onRoot().printToLog("SelectorScreenTest_DeleteDialogTimeout") } catch (_: Exception) {}
             throw e
         }
-        composeRule.onNodeWithText("Delete Image", ignoreCase = true).assertIsDisplayed()
-        composeRule.onNodeWithText("Cancel", ignoreCase = true).assertIsDisplayed()
+        composeRule.onNodeWithText(str(R.string.dialog_title_delete_image), ignoreCase = true).assertIsDisplayed()
+        composeRule.onNodeWithText(str(R.string.action_cancel), ignoreCase = true).assertIsDisplayed()
 
         // Click Confirm Delete inside the Delete Image dialog
         composeRule.onNodeWithTag("dialog_confirm_delete").performClick()
@@ -1312,11 +1314,11 @@ class SelectorScreenTest {
 
         // Verify Scan Configuration sheet is shown and start scan
         composeRule.waitUntil(timeoutMillis = 15000) {
-            composeRule.onAllNodesWithText("Scan Configuration", useUnmergedTree = true)
+            composeRule.onAllNodesWithText(str(R.string.title_scan_configuration), useUnmergedTree = true)
                 .fetchSemanticsNodes().isNotEmpty()
         }
-        composeRule.onAllNodesWithText("Scan Configuration", useUnmergedTree = true).onFirst().assertIsDisplayed()
-        composeRule.onAllNodesWithText("Start Scan", useUnmergedTree = true).onFirst().performClick()
+        composeRule.onAllNodesWithText(str(R.string.title_scan_configuration), useUnmergedTree = true).onFirst().assertIsDisplayed()
+        composeRule.onAllNodesWithText(str(R.string.action_start_scan), useUnmergedTree = true).onFirst().performClick()
 
         // Wait until metrics update and display in the UI
         composeRule.waitUntil(timeoutMillis = 15000) {
@@ -1395,12 +1397,12 @@ class SelectorScreenTest {
 
         requireExpandedLayout()
 
-        composeRule.onAllNodesWithText("Keep", substring = true, ignoreCase = true)
+        composeRule.onAllNodesWithText(str(R.string.action_keep), substring = true, ignoreCase = true)
             .assertCountEquals(0)
-        composeRule.onAllNodesWithText("Copy").fetchSemanticsNodes().let {
+        composeRule.onAllNodesWithText(str(R.string.action_copy)).fetchSemanticsNodes().let {
             assert(it.isNotEmpty()) { "no worded Copy control on screen" }
         }
-        composeRule.onAllNodesWithText("Move").fetchSemanticsNodes().let {
+        composeRule.onAllNodesWithText(str(R.string.action_move)).fetchSemanticsNodes().let {
             assert(it.isNotEmpty()) { "no worded Move control on screen" }
         }
     }
@@ -1428,7 +1430,7 @@ class SelectorScreenTest {
             return
         }
 
-        composeRule.onAllNodes(hasText("Got it", ignoreCase = true), useUnmergedTree = true)
+        composeRule.onAllNodes(hasText(str(R.string.action_got_it), ignoreCase = true), useUnmergedTree = true)
             .onFirst().performClick()
 
         composeRule.waitUntil(timeoutMillis = 15000) {
@@ -1462,10 +1464,10 @@ class SelectorScreenTest {
         dismissGestureTutorialIfShown()
 
         composeRule.waitUntil(timeoutMillis = 15000) {
-            composeRule.onAllNodesWithContentDescription("higher is better", substring = true)
+            composeRule.onAllNodesWithContentDescription(str(R.string.label_higher_is_better), substring = true)
                 .fetchSemanticsNodes().isNotEmpty()
         }
-        composeRule.onAllNodesWithContentDescription("higher is better", substring = true)
+        composeRule.onAllNodesWithContentDescription(str(R.string.label_higher_is_better), substring = true)
             .onFirst().assertExists()
     }
 
@@ -1502,23 +1504,23 @@ class SelectorScreenTest {
         val inOverlay = hasAnyAncestor(hasTestTag("selector_coach_overlay"))
 
         // The scores, with the direction spelled out.
-        composeRule.onAllNodes(hasText("Sharpness") and inOverlay, useUnmergedTree = true)
+        composeRule.onAllNodes(hasText(str(R.string.label_metric_sharpness)) and inOverlay, useUnmergedTree = true)
             .onFirst().assertExists()
-        composeRule.onAllNodes(hasText("Noise") and inOverlay, useUnmergedTree = true)
+        composeRule.onAllNodes(hasText(str(R.string.label_metric_noise)) and inOverlay, useUnmergedTree = true)
             .onFirst().assertExists()
         composeRule.onAllNodes(
-            hasText("higher is better", substring = true) and inOverlay,
+            hasText(str(R.string.label_higher_is_better), substring = true) and inOverlay,
             useUnmergedTree = true,
         ).onFirst().assertExists()
         composeRule.onAllNodes(
-            hasText("lower is better", substring = true) and inOverlay,
+            hasText(str(R.string.label_lower_is_better), substring = true) and inOverlay,
             useUnmergedTree = true,
         ).onFirst().assertExists()
 
         // ...and the icons down the left, which the sheet this replaces never
         // mentioned at all.
         SidebarAction.entries.forEach { action ->
-            composeRule.onAllNodes(hasText(action.label) and inOverlay, useUnmergedTree = true)
+            composeRule.onAllNodes(hasText(str(action.label)) and inOverlay, useUnmergedTree = true)
                 .onFirst().assertExists()
         }
     }
@@ -1609,7 +1611,7 @@ class SelectorScreenTest {
             .onFirst().performClick()
 
         composeRule.waitUntil(timeoutMillis = 15000) {
-            composeRule.onAllNodesWithText("Delete Image", ignoreCase = true)
+            composeRule.onAllNodesWithText(str(R.string.dialog_title_delete_image), ignoreCase = true)
                 .fetchSemanticsNodes().isNotEmpty()
         }
         composeRule.onNodeWithTag("dialog_confirm_delete").performClick()
@@ -1619,7 +1621,7 @@ class SelectorScreenTest {
                 .fetchSemanticsNodes().isNotEmpty()
         }
         val inSnackbar = hasAnyAncestor(hasTestTag("selector_snackbar"))
-        composeRule.onAllNodes(hasText("Deleted", substring = true) and inSnackbar, useUnmergedTree = true)
+        composeRule.onAllNodes(hasText(str(R.string.snackbar_deleted), substring = true) and inSnackbar, useUnmergedTree = true)
             .onFirst().assertExists()
         // UNDO restores files: the tagged node is the clickable and at least 48 dp both ways
         // (REQ-AND-INPUT.04), compared in whole pixels.
@@ -1668,7 +1670,7 @@ class SelectorScreenTest {
             .onFirst().performClick()
 
         composeRule.waitUntil(timeoutMillis = 15000) {
-            composeRule.onAllNodes(cardLine("Copied"), useUnmergedTree = true)
+            composeRule.onAllNodes(cardLine(str(R.string.label_copied)), useUnmergedTree = true)
                 .fetchSemanticsNodes().isNotEmpty()
         }
         composeRule.onAllNodesWithTag("snackbar_undo", useUnmergedTree = true).assertCountEquals(0)
@@ -1807,7 +1809,7 @@ class SelectorScreenTest {
         // The guide is paged, so "The comparison" is on whichever page it packs into.
         var sawComparison = false
         forEachCoachPage {
-            if (composeRule.onAllNodes(hasText("The comparison") and inOverlay, useUnmergedTree = true)
+            if (composeRule.onAllNodes(hasText(str(R.string.hint_title_tour_comparison)) and inOverlay, useUnmergedTree = true)
                     .fetchSemanticsNodes().isNotEmpty()
             ) sawComparison = true
         }
@@ -1859,9 +1861,9 @@ class SelectorScreenTest {
         }
 
         val inCard = hasAnyAncestor(hasTestTag("selector_hint_card"))
-        composeRule.onAllNodes(hasText("Copied to Selection") and inCard, useUnmergedTree = true)
+        composeRule.onAllNodes(hasText(str(R.string.snackbar_copied_to, "Selection")) and inCard, useUnmergedTree = true)
             .onFirst().assertExists()
-        composeRule.onAllNodes(hasText("Keep", substring = true, ignoreCase = true) and inCard,
+        composeRule.onAllNodes(hasText(str(R.string.action_keep), substring = true, ignoreCase = true) and inCard,
             useUnmergedTree = true).assertCountEquals(0)
 
         // The card sits in the flank beside the frames, never over one.
@@ -1894,7 +1896,7 @@ class SelectorScreenTest {
      * It was a 0 dp box at the reference geometry: the control flank's column
      * overflowed, and a Column measures its children in order, so everything
      * after the callout stack was handed zero height. The button was present in
-     * the tree — `assertExists` passed, and `hasText("Got it")` even matched the
+     * the tree — `assertExists` passed, and `hasText(str(R.string.action_got_it))` even matched the
      * overlay's own merged node, so a click "worked" by landing on the scrim —
      * while the control the requirement names as the way out could not be hit.
      * Size is therefore asserted explicitly, and the click is aimed at the
@@ -1972,7 +1974,7 @@ class SelectorScreenTest {
             }
         }
         // The coach guide is dismissed by its own button, never by its text.
-        // `hasText("GOT IT")` also matches the overlay's merged node, so the
+        // `hasText(str(R.string.action_got_it))` also matches the overlay's merged node, so the
         // click used to land on the full-screen scrim — which dismisses too,
         // and therefore passed for months while the button itself was laid out
         // 0 px tall and could not be hit by a user at all.
@@ -1994,8 +1996,8 @@ class SelectorScreenTest {
                     .fetchSemanticsNodes().isEmpty()
             }
         }
-        if (composeRule.onAllNodes(hasText("Gestures", ignoreCase = true), useUnmergedTree = true).fetchSemanticsNodes().isNotEmpty()) {
-            composeRule.onAllNodes(hasText("Gestures", ignoreCase = true), useUnmergedTree = true).onFirst().performClick()
+        if (composeRule.onAllNodes(hasText(str(R.string.title_gestures), ignoreCase = true), useUnmergedTree = true).fetchSemanticsNodes().isNotEmpty()) {
+            composeRule.onAllNodes(hasText(str(R.string.title_gestures), ignoreCase = true), useUnmergedTree = true).onFirst().performClick()
         }
     }
 }

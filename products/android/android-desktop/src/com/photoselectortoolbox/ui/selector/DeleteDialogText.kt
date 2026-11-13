@@ -12,9 +12,13 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import com.photoselectortoolbox.data.model.ImageItem
 import com.photoselectortoolbox.viewmodel.CompanionConfirmation
+import androidx.compose.ui.res.stringResource
+import com.photoselectortoolbox.R
+import com.photoselectortoolbox.ui.text.asString
+import com.photoselectortoolbox.domain.text.UiText
 
 /** The plain title, for a photo that takes no companion file with it. */
-internal const val DELETE_DIALOG_TITLE = "Delete image"
+internal val DELETE_DIALOG_TITLE = R.string.dialog_title_delete_image
 
 /**
  * The delete dialog's title: "Delete IMG_0001 +2?", spoken "Delete IMG_0001.JPG and 2 companion
@@ -24,22 +28,23 @@ internal const val DELETE_DIALOG_TITLE = "Delete image"
 @Composable
 internal fun DeleteDialogTitle(image: ImageItem?) {
     val title = image?.let(CompanionConfirmation::deleteTitle)
+    val spoken = title?.spoken?.asString()
     Text(
-        text = title?.visible ?: DELETE_DIALOG_TITLE,
+        text = title?.visible?.asString() ?: stringResource(DELETE_DIALOG_TITLE),
         maxLines = 2,
         overflow = TextOverflow.Ellipsis,
         modifier = Modifier
-            .then(if (title != null) Modifier.semantics { contentDescription = title.spoken } else Modifier)
+            .then(if (spoken != null) Modifier.semantics { contentDescription = spoken } else Modifier)
             .testTag("delete_dialog_title"),
     )
 }
 
 /** "Also deletes JPG, XMP" above the dialog's [message], where the delete takes companions. */
 @Composable
-internal fun DeleteDialogBody(image: ImageItem?, message: String) {
+internal fun DeleteDialogBody(image: ImageItem?, message: UiText) {
     val also = image?.let(CompanionConfirmation::deleteAlso)
     Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-        if (also != null) Text(text = also, modifier = Modifier.testTag("delete_dialog_also"))
-        Text(text = message)
+        if (also != null) Text(text = also.asString(), modifier = Modifier.testTag("delete_dialog_also"))
+        Text(text = message.asString())
     }
 }

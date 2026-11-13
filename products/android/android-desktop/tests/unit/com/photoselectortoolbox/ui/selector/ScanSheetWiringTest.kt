@@ -38,6 +38,8 @@ import org.junit.Rule
 import org.junit.Test
 import org.junit.runner.RunWith
 import org.robolectric.annotation.Config
+import com.photoselectortoolbox.testing.en
+import com.photoselectortoolbox.testing.str
 
 /**
  * The Scan sheet's rows decide what the scan computes (REQ-AND-ALGO.07): through the shipped
@@ -85,7 +87,7 @@ class ScanSheetWiringTest {
         rule.waitUntil(5_000) { rule.tagExists("scan_button") }
 
         rule.onNodeWithTag("scan_button").performClick()
-        rule.onNodeWithText(ScanSheetText.NOISE).performClick()
+        rule.onNodeWithText(str(ScanSheetText.NOISE)).performClick()
         rule.onNodeWithText("Start Scan").performClick()
         rule.waitForIdle()
 
@@ -94,6 +96,6 @@ class ScanSheetWiringTest {
 
     @Test
     fun `Setup promises no measurement choice - the Scan sheet has it`() {
-        assertFalse(Screen.Settings.meaning, Screen.Settings.meaning.contains("measurement", ignoreCase = true))
+        assertFalse(Screen.Settings.meaning.en(), Screen.Settings.meaning.en().contains("measurement", ignoreCase = true))
     }
 }

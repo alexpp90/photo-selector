@@ -57,6 +57,7 @@ import org.junit.Test
 import org.junit.runner.RunWith
 import org.robolectric.RobolectricTestRunner
 import org.robolectric.annotation.Config
+import com.photoselectortoolbox.testing.en
 
 /**
  * The selector's session behaviour: progressive loading, optimistic filing,
@@ -326,7 +327,7 @@ class SelectorViewModelTest {
         assertEquals(listOf("b", "c"), viewModel.uiState.value.images.map { it.fileName })
         assertEquals("b", viewModel.uiState.value.currentImage?.fileName)
         assertFalse("no spinner for a filing action", viewModel.uiState.value.isLoading)
-        assertEquals("Moved a · Selection", viewModel.uiState.value.snackbarMessage)
+        assertEquals("Moved a · Selection", viewModel.uiState.value.snackbarMessage?.en())
 
         transfer.complete(FileOperationResult.success("content://test/folder/a", "content://test/sel/a"))
         assertEquals(listOf("b", "c"), viewModel.uiState.value.images.map { it.fileName })
@@ -346,7 +347,7 @@ class SelectorViewModelTest {
         val viewModel = loadFolder(image("a"), image("b"))
         viewModel.moveToSelection()
 
-        assertEquals("Moved a · Picks", viewModel.uiState.value.snackbarMessage)
+        assertEquals("Moved a · Picks", viewModel.uiState.value.snackbarMessage?.en())
     }
 
     @Test
@@ -365,10 +366,10 @@ class SelectorViewModelTest {
         val viewModel = loadFolder(image("a"), image("b"))
         viewModel.moveToSelection()
 
-        assertEquals("Moved a · «Keepers › Selection»", viewModel.uiState.value.snackbarMessage)
+        assertEquals("Moved a · «Keepers › Selection»", viewModel.uiState.value.snackbarMessage?.en())
         val hint = viewModel.uiState.value.pendingHintText
-        assertEquals("Moved to «Keepers › Selection»", hint!!.title)
-        assertFalse(hint.message, hint.message.contains("inside the shoot folder"))
+        assertEquals("Moved to «Keepers › Selection»", hint!!.title.en())
+        assertFalse(hint.message.en(), hint.message.en().contains("inside the shoot folder"))
     }
 
     /**
@@ -390,8 +391,8 @@ class SelectorViewModelTest {
         val viewModel = loadFolder(image("a"), image("b"))
         viewModel.moveToSelection()
 
-        assertEquals("Moved a · Final", viewModel.uiState.value.snackbarMessage)
-        assertEquals("Moved to Final", viewModel.uiState.value.pendingHintText!!.title)
+        assertEquals("Moved a · Final", viewModel.uiState.value.snackbarMessage?.en())
+        assertEquals("Moved to Final", viewModel.uiState.value.pendingHintText!!.title.en())
     }
 
     @Test
@@ -407,7 +408,7 @@ class SelectorViewModelTest {
         val viewModel = loadFolder(image("a"), image("b"))
         viewModel.moveToSelection()
 
-        assertEquals("Moved a · Selection", viewModel.uiState.value.snackbarMessage)
+        assertEquals("Moved a · Selection", viewModel.uiState.value.snackbarMessage?.en())
     }
 
     @Test
@@ -425,7 +426,7 @@ class SelectorViewModelTest {
 
         viewModel.moveToSelection()
 
-        assertEquals("Moved a · Selection", viewModel.uiState.value.snackbarMessage)
+        assertEquals("Moved a · Selection", viewModel.uiState.value.snackbarMessage?.en())
     }
 
     @Test
@@ -439,7 +440,7 @@ class SelectorViewModelTest {
         viewModel.copyToSelection()
 
         assertEquals(listOf("a", "b"), viewModel.uiState.value.images.map { it.fileName })
-        assertEquals("Copied a · Selection", viewModel.uiState.value.snackbarMessage)
+        assertEquals("Copied a · Selection", viewModel.uiState.value.snackbarMessage?.en())
         transfer.complete(FileOperationResult.success("content://test/folder/a", "content://test/sel/a"))
     }
 
@@ -454,7 +455,7 @@ class SelectorViewModelTest {
 
         val state = viewModel.uiState.value
         assertEquals(listOf("a", "b", "c"), state.images.map { it.fileName })
-        assertNotNull(state.error)
+        assertNotNull(state.error?.en())
         assertNull(state.undoOperation)
     }
 
@@ -473,7 +474,7 @@ class SelectorViewModelTest {
 
         val state = viewModel.uiState.value
         assertEquals(listOf("a", "b", "c"), state.images.map { it.fileName })
-        assertEquals("Copied to Selection — original could not be removed", state.error)
+        assertEquals("Copied to Selection — original could not be removed", state.error?.en())
         assertNull(state.undoOperation)
     }
 
@@ -615,7 +616,7 @@ class SelectorViewModelTest {
         repeat(20) { viewModel.deleteCurrentImage() }
 
         val state = viewModel.uiState.value
-        val message = state.snackbarMessage.orEmpty()
+        val message = state.snackbarMessage?.en().orEmpty()
         assertTrue("the kept file is not named: $message", message.contains("Kept a.jpg"))
         assertTrue("the failure is not named: $message", message.contains("Deleted 1 of 3 files of a.jpg"))
         assertTrue("a.jpg came back", state.images.any { it.fileName == "a.jpg" })
@@ -667,7 +668,7 @@ class SelectorViewModelTest {
         )
 
         assertEquals(listOf("x", "y"), names(viewModel))
-        assertNull(viewModel.uiState.value.error)
+        assertNull(viewModel.uiState.value.error?.en())
         assertTrue(viewModel.uiState.value.undoHistory.isEmpty())
         // The verified copies are still the photographer's data: undoable back in folder A.
         assertEquals(1, viewModel.uiState.value.parkedUndo.historyOf(FOLDER_URI).size)
@@ -687,7 +688,7 @@ class SelectorViewModelTest {
         transfer.complete(FileOperationResult.failure("content://test/folder/a", "disk full"))
 
         assertEquals(listOf("x"), names(viewModel))
-        assertNull(viewModel.uiState.value.error)
+        assertNull(viewModel.uiState.value.error?.en())
         assertTrue(viewModel.uiState.value.parkedUndo.folders.isEmpty())
     }
 
@@ -765,10 +766,10 @@ class SelectorViewModelTest {
 
         val hint = viewModel.uiState.value.pendingHintText
         assertNotNull(hint)
-        assertTrue(hint!!.title, hint.title.startsWith("Moved to"))
-        assertTrue(hint.message, hint.message.contains("C copies instead"))
+        assertTrue(hint!!.title.en(), hint.title.en().startsWith("Moved to"))
+        assertTrue(hint.message.en(), hint.message.en().contains("C copies instead"))
         // And the snackbar beside it says the same verb.
-        assertTrue(viewModel.uiState.value.snackbarMessage!!.startsWith("Moved "))
+        assertTrue(viewModel.uiState.value.snackbarMessage?.en()!!.startsWith("Moved "))
     }
 
     @Test
@@ -782,8 +783,8 @@ class SelectorViewModelTest {
 
         val hint = viewModel.uiState.value.pendingHintText
         assertNotNull(hint)
-        assertTrue(hint!!.title, hint.title.startsWith("Copied to"))
-        assertTrue(hint.message, hint.message.contains("M moves instead"))
+        assertTrue(hint!!.title.en(), hint.title.en().startsWith("Copied to"))
+        assertTrue(hint.message.en(), hint.message.en().contains("M moves instead"))
     }
 
     // ── Maximise hint ────────────────────────────────────────────────────
@@ -824,7 +825,7 @@ class SelectorViewModelTest {
 
         val state = viewModel.uiState.value
         assertEquals(listOf("b", "c"), state.images.map { it.fileName })
-        assertEquals("Deleted", state.snackbarMessage)
+        assertEquals("Deleted", state.snackbarMessage?.en())
         assertNotNull(state.pendingDeletion)
         assertTrue(state.undoOperation is UndoableOperation.RevertPendingDelete)
         coVerify(exactly = 0) { imageRepository.deleteImage(any(), any()) }
@@ -852,13 +853,13 @@ class SelectorViewModelTest {
 
         val state = viewModel.uiState.value
         assertEquals(before - 1, state.images.size)
-        assertEquals("Deleted 3 files", state.snackbarMessage)
+        assertEquals("Deleted 3 files", state.snackbarMessage?.en())
         assertEquals(3, state.pendingDeletion?.uris?.size)
 
         // A plain frame: one file, one photo, and the card does not count.
         viewModel.deleteCurrentImage()
         assertEquals(before - 2, viewModel.uiState.value.images.size)
-        assertEquals("Deleted", viewModel.uiState.value.snackbarMessage)
+        assertEquals("Deleted", viewModel.uiState.value.snackbarMessage?.en())
     }
 
     /**
@@ -884,19 +885,19 @@ class SelectorViewModelTest {
         val viewModel = loadFolder(stacked, image("b.jpg"), image("c.jpg"))
 
         viewModel.moveToSelection()
-        assertEquals("Moved DSC_0003 +2 · Selection", viewModel.uiState.value.snackbarMessage)
+        assertEquals("Moved DSC_0003 +2 · Selection", viewModel.uiState.value.snackbarMessage?.en())
         assertEquals(
             "Moved DSC_0003.jpg and 2 companion files to Selection",
-            viewModel.uiState.value.snackbarSpoken,
+            viewModel.uiState.value.snackbarSpoken?.en(),
         )
 
         viewModel.copyToSelection()
-        assertEquals("Copied b · Selection", viewModel.uiState.value.snackbarMessage)
-        assertEquals("Copied b.jpg to Selection", viewModel.uiState.value.snackbarSpoken)
+        assertEquals("Copied b · Selection", viewModel.uiState.value.snackbarMessage?.en())
+        assertEquals("Copied b.jpg to Selection", viewModel.uiState.value.snackbarSpoken?.en())
 
         // Any other card carries no spoken override of its own.
         viewModel.deleteCurrentImage()
-        assertEquals(null, viewModel.uiState.value.snackbarSpoken)
+        assertEquals(null, viewModel.uiState.value.snackbarSpoken?.en())
     }
 
     @Test
@@ -923,7 +924,7 @@ class SelectorViewModelTest {
         assertEquals(listOf("a", "b", "c"), state.images.map { it.fileName })
         assertNull(state.pendingDeletion)
         assertNull(state.undoOperation)
-        assertNull(state.snackbarMessage)
+        assertNull(state.snackbarMessage?.en())
         coVerify(exactly = 0) { imageRepository.deleteImage(any(), any()) }
     }
 
@@ -1044,16 +1045,16 @@ class SelectorViewModelTest {
 
         viewModel.dismissSnackbar()
 
-        assertNull(viewModel.uiState.value.snackbarMessage)
+        assertNull(viewModel.uiState.value.snackbarMessage?.en())
         assertNull(viewModel.uiState.value.undoOperation)
     }
 
     @Test
     fun `an error reaches the photographer through the snackbar with no undo`() = runTest {
         val viewModel = loadFolder(image("a"))
-        viewModel.setError("Could not read the folder")
+        viewModel.setError(com.photoselectortoolbox.domain.text.raw("Could not read the folder"))
 
-        assertEquals("Could not read the folder", viewModel.uiState.value.snackbarMessage)
+        assertEquals("Could not read the folder", viewModel.uiState.value.snackbarMessage?.en())
         assertNull(viewModel.uiState.value.undoOperation)
     }
 
@@ -1095,7 +1096,7 @@ class SelectorViewModelTest {
         val state = viewModel.uiState.value
         assertEquals(SnackbarLifetime.DELETE, state.snackbarLifetime)
         assertTrue(state.snackbarUndoAvailable)
-        assertTrue(state.snackbarMessage!!.none { it.isDigit() && it != '1' })
+        assertTrue(state.snackbarMessage?.en()!!.none { it.isDigit() && it != '1' })
 
         viewModel.dismissSnackbar()
         viewModel.undoLastOperation()
@@ -1107,7 +1108,7 @@ class SelectorViewModelTest {
     @Test
     fun `an error is transient and outlasts a confirmation`() = runTest {
         val viewModel = loadFolder(image("a"))
-        viewModel.setError("Move failed: the file could not be transferred")
+        viewModel.setError(com.photoselectortoolbox.domain.text.raw("Move failed: the file could not be transferred"))
 
         val state = viewModel.uiState.value
         assertEquals(SnackbarLifetime.ERROR, state.snackbarLifetime)
@@ -1131,7 +1132,7 @@ class SelectorViewModelTest {
         viewModel.moveToSelection()
         val second = viewModel.uiState.value
 
-        assertEquals(first.snackbarMessage, second.snackbarMessage)
+        assertEquals(first.snackbarMessage?.en(), second.snackbarMessage?.en())
         assertTrue(
             "sequence ${first.snackbarSequence} then ${second.snackbarSequence}",
             second.snackbarSequence > first.snackbarSequence,
@@ -1149,7 +1150,7 @@ class SelectorViewModelTest {
         viewModel.moveToSelection()
 
         val state = viewModel.uiState.value
-        assertTrue(state.snackbarMessage!!.contains(" as "))
+        assertTrue(state.snackbarMessage?.en()!!.contains(" as "))
         assertEquals(SnackbarLifetime.MOVE, state.snackbarLifetime)
         assertTrue("sequence ${state.snackbarSequence}", state.snackbarSequence >= 2)
         assertNotNull("the UNDO already offered stays", state.undoOperation)
@@ -1241,7 +1242,7 @@ class SelectorViewModelTest {
         val state = viewModel.uiState.value
         assertTrue(state.missingGrantPrompt)
         assertFalse(state.isLoading)
-        assertNotNull(state.snackbarMessage)
+        assertNotNull(state.snackbarMessage?.en())
     }
 
     // ── U-04b: Bundle filing, undo to parentDocumentId, and bundle delete ─
@@ -1256,7 +1257,7 @@ class SelectorViewModelTest {
         val viewModel = loadFolder(item, image("b.jpg"))
         viewModel.moveToSelection()
 
-        assertEquals("Moved to Selection as IMG_0001-2.jpg", viewModel.uiState.value.snackbarMessage)
+        assertEquals("Moved to Selection as IMG_0001-2.jpg", viewModel.uiState.value.snackbarMessage?.en())
     }
 
     @Test
@@ -1365,7 +1366,7 @@ class SelectorViewModelTest {
         val state = viewModel.uiState.value
         assertTrue(state.images.any { it.uri == restored })
         assertTrue("no retry that would make a -2 duplicate", state.undoHistory.isEmpty())
-        assertEquals("Restored IMG_0020.jpg — the copy in Selection could not be removed", state.snackbarMessage)
+        assertEquals("Restored IMG_0020.jpg — the copy in Selection could not be removed", state.snackbarMessage?.en())
         // The file in Selection still exists, so both keep the rating.
         coVerify(exactly = 1) { cacheRepository.copyRating(moved, restored) }
         coVerify(exactly = 0) { cacheRepository.moveRating(moved, restored) }
@@ -1388,7 +1389,7 @@ class SelectorViewModelTest {
         undo.complete(FileOperationResult.failure(moved, "provider hiccup"))
 
         assertEquals(listOf("x", "y"), names(viewModel))
-        assertNull(viewModel.uiState.value.error)
+        assertNull(viewModel.uiState.value.error?.en())
         assertTrue(viewModel.uiState.value.undoHistory.isEmpty())
         assertTrue(viewModel.uiState.value.parkedUndo.historyOf(FOLDER_URI).single() is UndoableOperation.ReverseMove)
     }
@@ -1417,7 +1418,7 @@ class SelectorViewModelTest {
         val viewModel = loadFolder(item, image("b.jpg"))
         viewModel.moveToSelection()
 
-        assertEquals("Moved IMG_0002 · Selection", viewModel.uiState.value.snackbarMessage)
+        assertEquals("Moved IMG_0002 · Selection", viewModel.uiState.value.snackbarMessage?.en())
     }
 
     @Test
@@ -1436,7 +1437,7 @@ class SelectorViewModelTest {
 
         assertEquals(
             "Restored as IMG_0003-2.jpg (original name was in use)",
-            viewModel.uiState.value.snackbarMessage,
+            viewModel.uiState.value.snackbarMessage?.en(),
         )
     }
 
@@ -1457,7 +1458,7 @@ class SelectorViewModelTest {
 
         assertEquals(
             "Restored to the opened folder — the original folder no longer exists",
-            viewModel.uiState.value.snackbarMessage,
+            viewModel.uiState.value.snackbarMessage?.en(),
         )
     }
 
@@ -1482,7 +1483,7 @@ class SelectorViewModelTest {
 
         val state = viewModel.uiState.value
         assertTrue(state.images.any { it.uri == item.uri })
-        assertEquals("Copied to Selection — original could not be removed", state.snackbarMessage)
+        assertEquals("Copied to Selection — original could not be removed", state.snackbarMessage?.en())
         val undoOp = state.undoHistory.single() as UndoableOperation.ReverseMove
         assertEquals(copies, undoOp.copiesOfSurvivingOriginals)
         assertTrue(undoOp.slots.isEmpty())
@@ -1780,8 +1781,8 @@ class SelectorViewModelTest {
 
         val state = viewModel.uiState.value
         assertTrue(state.images.any { it.fileName == "img_1.jpg" })
-        assertEquals("Could not delete img_1.jpg", state.error)
-        assertEquals("Could not delete img_1.jpg", state.snackbarMessage)
+        assertEquals("Could not delete img_1.jpg", state.error?.en())
+        assertEquals("Could not delete img_1.jpg", state.snackbarMessage?.en())
     }
 
     @Test
@@ -1820,7 +1821,7 @@ class SelectorViewModelTest {
         assertEquals("content://test/folder/DSC_1.ARW", back.uri)
         assertTrue(back.companions.isEmpty())
         assertTrue(state.images.none { it.uri == "content://test/folder/DSC_1.JPG" })
-        assertEquals("Deleted 1 of 2 files of DSC_1.JPG", state.snackbarMessage)
+        assertEquals("Deleted 1 of 2 files of DSC_1.JPG", state.snackbarMessage?.en())
         coVerify(exactly = 1) { cacheRepository.forgetDeletedFile("content://test/folder/DSC_1.JPG") }
         coVerify(exactly = 0) { cacheRepository.forgetDeletedFile("content://test/folder/DSC_1.ARW") }
     }
@@ -1891,8 +1892,8 @@ class SelectorViewModelTest {
 
         coVerify(exactly = 1) { imageRepository.deleteImage(any(), Uri.parse(good)) }
         val state = viewModel.uiState.value
-        assertTrue(state.snackbarMessage?.contains("1 of 2") == true)
-        assertTrue(state.snackbarMessage?.contains("bad.jpg") == true)
+        assertTrue(state.snackbarMessage?.en()?.contains("1 of 2") == true)
+        assertTrue(state.snackbarMessage?.en()?.contains("bad.jpg") == true)
     }
 
     @Test
@@ -1905,7 +1906,7 @@ class SelectorViewModelTest {
         val viewModel = buildViewModel()
         viewModel.confirmUncompletedDeletions()
 
-        val message = viewModel.uiState.value.snackbarMessage
+        val message = viewModel.uiState.value.snackbarMessage?.en()
         assertTrue(message?.contains("bad.jpg") == true)
         // The exception's own text goes to the log, not to the photographer (FD-UX-4).
         assertTrue(message?.contains("read-only card") == false)
@@ -1975,7 +1976,7 @@ class SelectorViewModelTest {
         coVerify(exactly = 0) { cacheRepository.forgetDeletedFile(changed) }
         coVerify(exactly = 1) { cacheRepository.forgetDeletedFile(same) }
         coVerify(exactly = 1) { settingsRepository.removePendingDeletes(listOf(changed, same)) }
-        val message = viewModel.uiState.value.snackbarMessage.orEmpty()
+        val message = viewModel.uiState.value.snackbarMessage?.en().orEmpty()
         assertTrue(message, message.startsWith("Kept IMG_0001.JPG"))
     }
 
@@ -1990,7 +1991,7 @@ class SelectorViewModelTest {
 
         coVerify(exactly = 0) { imageRepository.deleteImage(any(), any()) }
         coVerify(exactly = 1) { settingsRepository.removePendingDeletes(listOf(legacy)) }
-        assertTrue(viewModel.uiState.value.snackbarMessage.orEmpty().startsWith("Kept IMG_0003.JPG"))
+        assertTrue(viewModel.uiState.value.snackbarMessage?.en().orEmpty().startsWith("Kept IMG_0003.JPG"))
     }
 
     @Test
