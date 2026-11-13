@@ -280,7 +280,10 @@ data class SelectorUiState(
     val sessionKeptFileNames: Set<String> = emptySet(),
     /** Photos copied in this session, by URI: the copied mark, and a second Copy is a no-op. */
     val sessionCopiedUris: Set<String> = emptySet(),
-    /** Every file a Copy or Move filed this session, companions included, by name with its size. */
+    /**
+     * Every file a Copy or Move filed this session, companions included, by the document id the
+     * transfer wrote it as, with its source's size ([com.photoselectortoolbox.data.model.KeptFiles]).
+     */
     val sessionKeptFiles: Map<String, Long> = emptyMap(),
     /** The Selection folder as the Done card's lookup found it, and whether that lookup runs. */
     val doneSelection: SelectionFolderState? = null,

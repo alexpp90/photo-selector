@@ -99,6 +99,7 @@ class DuplicatesViewModelDeleteTest {
             HeldDeleteCommitter(repository, cache, settings, context),
             appScope,
             context,
+            settings,
         )
         viewModel.selectFolder(Uri.parse("content://test/folder"))
         viewModel.startScan()
