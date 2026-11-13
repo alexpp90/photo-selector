@@ -719,7 +719,7 @@ private fun InspectControlBar(
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.spacedBy(6.dp),
         ) {
-            LearnBackAndBeta(onNavigateToSelector = onNavigateToSelector)
+            LearnBack(onNavigateToSelector = onNavigateToSelector)
             // Compare shows two frames; a guide drawn over one photo has nothing to say there.
             if (!showGuides) return@Row
 

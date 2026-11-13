@@ -160,6 +160,15 @@ class LearnStoredStateScreenTest {
         assertTrue(said, said.startsWith("Right.") || said.startsWith("Not quite."))
     }
 
+    @Test
+    fun `Learn carries no Beta label`() {
+        // Decision #18's exit condition is met: Compare shows both frames and progress is stored.
+        host()
+        rule.onNodeWithTag("back_to_cull_button").assertExists()
+        assertEquals(0, rule.onAllNodesWithTag("beta_chip", useUnmergedTree = true).fetchSemanticsNodes().size)
+        assertEquals(0, rule.onAllNodes(hasText("Beta", ignoreCase = true), useUnmergedTree = true).fetchSemanticsNodes().size)
+    }
+
     private fun answerEveryQuestion() {
         for (q in 0..1) {
             rule.onNodeWithTag("quiz_option_${q}_0").performScrollTo().performClick()

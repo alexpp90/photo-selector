@@ -32,6 +32,7 @@ import com.photoselectortoolbox.ui.theme.PhotoSelectorToolboxTheme
 import com.photoselectortoolbox.viewmodel.SelectorFrame
 import kotlin.math.roundToInt
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
 import org.junit.Rule
 import org.junit.Test
@@ -41,8 +42,9 @@ import org.robolectric.annotation.GraphicsMode
 
 /**
  * One culling desk with tools beside it ([USER 2026-11-12] decision #18): the sidebar, the rail
- * and the bottom bar offer Cull, Stats, Tools and Setup, and Tools opens a menu with Learn
- * (labelled Beta) and Dupes. Hosted at the reference geometry (1480 x 924 dp).
+ * and the bottom bar offer Cull, Stats, Tools and Setup, and Tools opens a menu with Learn and
+ * Dupes. Learn carries no Beta label since Compare shows both frames and its progress is stored
+ * (the label's exit condition, decision #18). Hosted at the reference geometry (1480 x 924 dp).
  */
 @RunWith(AndroidJUnit4::class)
 @GraphicsMode(GraphicsMode.Mode.NATIVE)
@@ -119,7 +121,7 @@ class ToolsNavigationTest {
     }
 
     @Test
-    fun `Tools opens a menu with Learn, labelled Beta, and Dupes`() {
+    fun `Tools opens a menu with Learn and Dupes, neither labelled Beta`() {
         sidebar()
         click("nav_tools")
 
@@ -127,19 +129,13 @@ class ToolsNavigationTest {
         val learn = bounds("nav_inspect")
         val dupes = bounds("nav_duplicates")
         assertTrue("Learn comes first", learn.top < dupes.top)
-        assertEquals(
-            "the Beta chip is in the Learn row",
-            1,
-            rule.onAllNodes(hasTestTag("beta_chip") and hasAnyAncestor(hasTestTag("nav_inspect")), useUnmergedTree = true)
-                .fetchSemanticsNodes().size,
+        assertEquals("no row carries a Beta chip", 0, count("beta_chip"))
+        assertTrue(
+            "no row says Beta",
+            rule.onAllNodes(hasText("Beta", substring = true, ignoreCase = true), useUnmergedTree = true)
+                .fetchSemanticsNodes().isEmpty(),
         )
-        assertEquals(
-            "Dupes carries no Beta chip",
-            0,
-            rule.onAllNodes(hasTestTag("beta_chip") and hasAnyAncestor(hasTestTag("nav_duplicates")), useUnmergedTree = true)
-                .fetchSemanticsNodes().size,
-        )
-        assertEquals("Learn, beta", spoken("nav_inspect"))
+        assertEquals("Learn", spoken("nav_inspect"))
         assertEquals("Dupes", spoken("nav_duplicates"))
         // Right of the cell, never over it: the sidebar stays readable while the menu is open.
         // The menu is its own window, so both are compared on screen.
@@ -247,7 +243,7 @@ class ToolsNavigationTest {
         val legend = screenLegend()
         assertEquals(listOf("Cull", "Stats", "Tools", "Setup"), legend.map { it.label })
         assertTrue(legend[2].meaning.contains("Learn") && legend[2].meaning.contains("Dupes"))
-        assertTrue(legend[2].meaning.contains("beta"))
+        assertFalse(legend[2].meaning.contains("beta", ignoreCase = true))
     }
 
     @Test

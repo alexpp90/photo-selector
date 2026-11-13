@@ -19,11 +19,6 @@ sealed class Screen(
     val label: String,
     /** One line for the guide: what this screen is for. */
     val meaning: String,
-    /**
-     * Shown with a "Beta" chip in the Tools menu and on the screen itself ([USER 2026-11-12]
-     * decision #18). Learn's exit condition: Compare shows both frames and progress is stored.
-     */
-    val beta: Boolean = false,
 ) {
     /** [label]; kept so the sidebar's call reads as before. */
     val shortLabel: String get() = label
@@ -40,7 +35,6 @@ sealed class Screen(
         meaning = "Inspect composition, exposure technique, and coaching guidance for the selected photograph.",
         icon = Icons.Default.CenterFocusStrong,
         label = "Learn",
-        beta = true,
     )
 
     data object Statistics : Screen(

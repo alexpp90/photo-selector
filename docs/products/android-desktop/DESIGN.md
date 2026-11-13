@@ -211,23 +211,22 @@ screens, Expanded and Medium) or a **BottomNavigation** bar (Compact), in this o
 |---|---|---|---|
 | 1 | **Cull** | The culling workspace. Default destination. | ~95% |
 | 2 | **Stats** | EXIF distribution charts for the loaded folder. | small |
-| 3 | **Tools** | Opens a menu with **Learn** (labelled *Beta*) and **Dupes**. | small |
+| 3 | **Tools** | Opens a menu with **Learn** and **Dupes**. | small |
 | 4 | **Setup** | Where photos go, analysis, display, cache, about. | rare |
 
 **Tools** (`Icons.Filled.Handyman`, tag `nav_tools`, spoken "Tools. Opens Learn and Dupes.")
 opens a `DropdownMenu` right of its cell — level with the cell's top, or with its bottom where
 the window has no room below — with two 48 dp rows tagged `nav_inspect` and `nav_duplicates`:
-Learn, with its glyph and a *Beta* chip (spoken "Learn, beta"), and Dupes (byte-identical file
+Learn, with its glyph (spoken "Learn"), and Dupes (byte-identical file
 finder, SHA-256, with batch delete). Arrows move between the rows, Enter opens one, `Esc` closes
 the menu; a keyboard user who opened it with Enter is back on Tools (on the cull the selector's
 root takes the keys back, AD-11). While Learn or Dupes is open, the Tools cell shows the active
 treatment and is spoken "Tools, Learn selected". `L` still opens Learn directly; the digit keys
 keep their per-screen meanings (`1`/`2`/`3` enlarge a frame in Cull, `0`–`5` rate in Learn).
 
-Learn carries the **Beta** chip (tonal `BrandAccentTonal` plate, `BrandAccentText` word) in the
-Tools menu and at the start of its own control bar, beside the way back to Cull. It goes when
-Compare shows both frames and Learn's progress is stored. Compare shows both frames now; the chip
-stays until the progress is stored.
+Learn carried a **Beta** chip until Compare showed both frames and Learn's progress was stored
+(decision #18's exit condition); both hold since 2026-11-13, so neither the Tools menu nor
+Learn's control bar shows it. The control bar starts with the way back to Cull.
 
 **Learn · Compare** (`[USER 2026-11-12]` decision #17). On the Compare tab the canvas holds the
 pair side by side at equal size, the frame that is better on the deciding measurement first (a
@@ -235,7 +234,7 @@ pair side by side at equal size, the frame that is better on the deciding measur
 «name»" / "Other frame, «name»"). The side panel lists one card per scene (title, "Why one worked
 better:" and the measured differences); a card is a radio row that picks the pair the canvas shows,
 the first scene by default. The composition guides are not offered on Compare — the control bar
-keeps only the way back and the Beta chip. With no pair of one scene that differs measurably, the
+keeps only the way back. With no pair of one scene that differs measurably, the
 canvas says *No measured difference* and the side panel lists nothing.
 
 Each screen has one name on every surface — the sidebar, the rail, the bottom bar, the Tools
@@ -375,7 +374,7 @@ Zinc-700 rule:
 ├────────┤
 │ Cull   │  ← zone B: app screens (was the NavigationRail)
 │ Stats  │
-│ Tools ▸│  ← opens Learn (Beta) and Dupes, right of the cell (§5)
+│ Tools ▸│  ← opens Learn and Dupes, right of the cell (§5)
 │ Setup  │
 └────────┘
 ```
