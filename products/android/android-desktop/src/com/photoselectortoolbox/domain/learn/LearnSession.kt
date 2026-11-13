@@ -68,6 +68,29 @@ class LearnSession(
         }
     }
 
+    /** Bumped by every change the user makes, so a read that ran across one does not undo it. */
+    private var progressEdits = 0
+
+    /**
+     * Progress and the goal read again and shown as stored: *Reset Learn* in Setup empties the
+     * store while this session, kept with Learn's saved back-stack entry, still holds the old
+     * values. A change the user made while the read ran is kept.
+     */
+    fun refreshProgress() {
+        val editsBefore = progressEdits
+        scope.launch {
+            try {
+                val lessons = repository.lessonProgress()
+                val goal = repository.practiceGoal()
+                _state.update { if (progressEdits != editsBefore) it else it.copy(completedLessons = lessons, activeGoal = goal) }
+            } catch (e: CancellationException) {
+                throw e
+            } catch (e: Exception) {
+                Log.w(TAG, "Could not read Learn progress", e)
+            }
+        }
+    }
+
     /**
      * Learn shows [folderUri] with [photos]. [listingSettled]: the folder listing has delivered
      * its last batch. [lastCompletedScan]: the cull screen's last scan that ran to its end, of
@@ -115,17 +138,20 @@ class LearnSession(
 
     /** The user finished [progress]'s lesson: shown at once, and kept. */
     fun completeLesson(progress: LessonProgressEntity) {
+        progressEdits++
         _state.update { it.copy(completedLessons = it.completedLessons + (progress.lessonId to progress)) }
         persist("lesson progress") { repository.saveLessonProgress(progress) }
     }
 
     /** [goal] becomes the one practice goal: shown at once, and kept. */
     fun setGoal(goal: PracticeGoalEntity) {
+        progressEdits++
         _state.update { it.copy(activeGoal = goal) }
         persist("the practice goal") { repository.setPracticeGoal(goal) }
     }
 
     fun clearGoal() {
+        progressEdits++
         _state.update { it.copy(activeGoal = null) }
         persist("the cleared practice goal") { repository.clearPracticeGoal() }
     }

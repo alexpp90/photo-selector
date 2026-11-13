@@ -134,6 +134,9 @@ import com.photoselectortoolbox.ui.theme.Zinc800
 import com.photoselectortoolbox.ui.theme.Zinc900
 import com.photoselectortoolbox.ui.theme.Zinc950
 import com.photoselectortoolbox.viewmodel.LearnCompositionViewModel
+import com.photoselectortoolbox.viewmodel.LearnViewModel
+import com.photoselectortoolbox.domain.learn.ExploreFacts
+import com.photoselectortoolbox.domain.learn.LearnState
 import com.photoselectortoolbox.viewmodel.SelectorViewModel
 import java.text.SimpleDateFormat
 import java.util.Date
@@ -228,8 +231,17 @@ fun InspectScreen(
     viewModel: SelectorViewModel = hiltViewModel(),
     photoCoachEngine: PhotoCoachEngine = remember { PhotoCoachEngineImpl() },
     compositionViewModel: LearnCompositionViewModel = hiltViewModel(),
+    learnViewModel: LearnViewModel = hiltViewModel(),
 ) {
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
+    LaunchedEffect(Unit) { learnViewModel.onEnter() }
+    // Learn's view model sees no scan that ended while Learn was closed: the folder and the cull
+    // screen's last completed scan are forwarded; the facts load once the listing has settled.
+    LaunchedEffect(uiState.folderUri, uiState.images, uiState.isEnumerating, uiState.lastCompletedScan) {
+        val settled = !uiState.isLoading && !uiState.isEnumerating
+        learnViewModel.showFolder(uiState.folderUri, uiState.images, settled, uiState.lastCompletedScan)
+    }
+    val learn by learnViewModel.state.collectAsStateWithLifecycle()
     val currentImage = uiState.currentImage
     // The composition analysis runs in the view model, for the photo shown (B-AD-4).
     LaunchedEffect(currentImage?.uri) { compositionViewModel.show(currentImage) }
@@ -257,6 +269,9 @@ fun InspectScreen(
         onRatingFilterSelected = { filter -> viewModel.setRatingFilter(filter) },
         photoCoachEngine = photoCoachEngine,
         compositionResult = composition.resultFor(currentImage?.uri),
+        learn = learn.takeIf { it.folderUri == uiState.folderUri } ?: LearnState(),
+        onLessonCompleted = learnViewModel::completeLesson,
+        onSetGoal = learnViewModel::setGoal,
     )
 }
 
@@ -276,8 +291,11 @@ internal fun InspectScreenContent(
     onRatingFilterSelected: (RatingFilter) -> Unit = {},
     photoCoachEngine: PhotoCoachEngine = remember { PhotoCoachEngineImpl() },
     compositionResult: CompositionResult? = null,
-    factsByUri: Map<String, List<TechniqueFactEntity>> = emptyMap(),
+    learn: LearnState = LearnState(),
+    onLessonCompleted: (LessonProgressEntity) -> Unit = {},
+    onSetGoal: (PracticeGoalEntity) -> Unit = {},
 ) {
+    val factsByUri = learn.factsByUri
     val focusRequester = remember { FocusRequester() }
 
     LaunchedEffect(Unit) {
@@ -294,8 +312,6 @@ internal fun InspectScreenContent(
     var guessRevealedForUri by remember { mutableStateOf<String?>(null) }
     var whatIfCropActive by remember { mutableStateOf(false) }
     var selectedCropAspect by remember { mutableStateOf<CropAspectRatio?>(null) }
-    var completedLessons by remember { mutableStateOf<Map<String, LessonProgressEntity>>(emptyMap()) }
-    var activePracticeGoal by remember { mutableStateOf<PracticeGoalEntity?>(null) }
     var selectedSceneId by remember { mutableStateOf<String?>(null) }
 
     val isCompact = windowSizeClass.widthSizeClass == WindowWidthSizeClass.Compact
@@ -348,11 +364,9 @@ internal fun InspectScreenContent(
 
         val detector = remember { TechniqueFactDetector() }
         val currentFacts = remember(currentImage, factsByUri) {
-            val cached = factsByUri[currentImage.uri]
-            if (!cached.isNullOrEmpty()) {
-                cached
-            } else {
-                detector.detectAll(
+            ExploreFacts.merge(
+                stored = factsByUri[currentImage.uri],
+                onDemand = detector.detectAll(
                     uri = currentImage.uri,
                     fileSize = currentImage.fileSize,
                     lastModified = currentImage.lastModified,
@@ -364,8 +378,8 @@ internal fun InspectScreenContent(
                     highlightClipping = currentImage.scanResult?.highlightClipping,
                     shadowClipping = currentImage.scanResult?.shadowClipping,
                     isRawOrHasRawCompanion = isRaw,
-                )
-            }
+                ),
+            )
         }
 
         val cardResult = remember(currentImage, currentFacts, isRaw) {
@@ -485,16 +499,10 @@ internal fun InspectScreenContent(
                         selectedLessonId = selectedLessonId,
                         onSelectLesson = { selectedLessonId = it },
                         factsByUri = factsByUri,
-                        completedLessons = completedLessons,
-                        onLessonCompleted = { progress ->
-                            completedLessons = completedLessons + (progress.lessonId to progress)
-                        },
+                        completedLessons = learn.completedLessons,
+                        onLessonCompleted = onLessonCompleted,
                         onSetPracticeGoal = { lessonId ->
-                            activePracticeGoal = PracticeAndInsightsEngine.createPracticeGoal(
-                                lessonId = lessonId,
-                                images = images,
-                                factsByUri = factsByUri,
-                            )
+                            onSetGoal(PracticeAndInsightsEngine.createPracticeGoal(lessonId = lessonId, images = images, factsByUri = factsByUri))
                             selectedTab = LearnTab.PRACTICE
                         },
                     )
@@ -512,13 +520,9 @@ internal fun InspectScreenContent(
                     PracticeTabContent(
                         images = images,
                         factsByUri = factsByUri,
-                        activePracticeGoal = activePracticeGoal,
+                        activePracticeGoal = learn.activeGoal,
                         onSelectLessonForGoal = { lessonId ->
-                            activePracticeGoal = PracticeAndInsightsEngine.createPracticeGoal(
-                                lessonId = lessonId,
-                                images = images,
-                                factsByUri = factsByUri,
-                            )
+                            onSetGoal(PracticeAndInsightsEngine.createPracticeGoal(lessonId = lessonId, images = images, factsByUri = factsByUri))
                         },
                         onOpenLesson = { lessonId ->
                             selectedLessonId = lessonId
@@ -1155,316 +1159,6 @@ private fun WhatIfCropOverlay(
             size = Size(cropWidth, cropHeight),
             style = Stroke(width = 2.5.dp.toPx()),
         )
-    }
-}
-
-// ── Lessons Tab (U-26) ────────────────────────────────────────────────────────
-
-@Composable
-private fun LessonsTabContent(
-    selectedLessonId: String?,
-    onSelectLesson: (String?) -> Unit,
-    factsByUri: Map<String, List<TechniqueFactEntity>>,
-    completedLessons: Map<String, LessonProgressEntity>,
-    onLessonCompleted: (LessonProgressEntity) -> Unit,
-    onSetPracticeGoal: (String) -> Unit,
-) {
-    val activeLesson: MicroLesson? = selectedLessonId?.let { LessonCatalog.getById(it) }
-    if (activeLesson != null) {
-        val questions = remember(activeLesson, factsByUri) {
-            LessonCatalog.buildSpotItQuiz(activeLesson, factsByUri)
-        }
-        var answers by remember(activeLesson.id) { mutableStateOf<Map<Int, Int>>(emptyMap()) }
-
-        Card(
-            shape = RoundedCornerShape(12.dp),
-            colors = CardDefaults.cardColors(containerColor = Zinc900),
-            border = androidx.compose.foundation.BorderStroke(1.dp, Zinc800),
-            modifier = Modifier.fillMaxWidth().testTag("lesson_detail_card"),
-        ) {
-            Column(
-                modifier = Modifier.padding(14.dp),
-                verticalArrangement = Arrangement.spacedBy(10.dp),
-            ) {
-                TouchTarget(onClick = { onSelectLesson(null) }, testTag = "all_lessons_link") {
-                    Text(
-                        text = "← All Lessons (${activeLesson.track.title})",
-                        style = MaterialTheme.typography.labelSmall,
-                        color = BrandAccent,
-                        modifier = Modifier.padding(horizontal = 4.dp),
-                    )
-                }
-                Text(
-                    text = activeLesson.title,
-                    style = MaterialTheme.typography.titleMedium,
-                    fontWeight = FontWeight.Bold,
-                    color = Color.White,
-                )
-                Text(
-                    text = activeLesson.conceptSummary,
-                    style = MaterialTheme.typography.bodySmall,
-                    color = Zinc200,
-                )
-                Text(
-                    text = "Spot It Quiz (2 Questions)",
-                    style = MaterialTheme.typography.labelMedium,
-                    fontWeight = FontWeight.Bold,
-                    color = BrandAccent,
-                )
-                questions.forEachIndexed { qIdx, q ->
-                    Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                        Text(
-                            text = "${qIdx + 1}. ${q.prompt}",
-                            style = MaterialTheme.typography.bodySmall,
-                            fontWeight = FontWeight.SemiBold,
-                            color = Color.White,
-                        )
-                        q.options.forEachIndexed { optIdx, optText ->
-                            val chosen = answers[qIdx] == optIdx
-                            val isCorrect = optIdx == q.correctIndex
-                            val borderCol = when {
-                                !chosen -> Zinc800
-                                isCorrect -> ScoreGood
-                                else -> ScoreBad
-                            }
-                            TouchTarget(
-                                onClick = {
-                                    val updated = answers + (qIdx to optIdx)
-                                    answers = updated
-                                    if (updated.size == questions.size) {
-                                        val correctCount = questions.indices.count { i ->
-                                            updated[i] == questions[i].correctIndex
-                                        }
-                                        onLessonCompleted(
-                                            LessonProgressEntity(
-                                                lessonId = activeLesson.id,
-                                                completedAt = System.currentTimeMillis(),
-                                                spotItCorrect = correctCount,
-                                                spotItTotal = questions.size,
-                                            )
-                                        )
-                                    }
-                                },
-                                testTag = "quiz_option_${qIdx}_$optIdx",
-                                modifier = Modifier.fillMaxWidth(),
-                            ) {
-                                Surface(
-                                    shape = RoundedCornerShape(6.dp),
-                                    color = Zinc950,
-                                    border = androidx.compose.foundation.BorderStroke(1.dp, borderCol),
-                                    modifier = Modifier.fillMaxWidth(),
-                                ) {
-                                    Text(
-                                        text = optText,
-                                        style = MaterialTheme.typography.bodySmall,
-                                        color = Zinc200,
-                                        modifier = Modifier.padding(8.dp),
-                                    )
-                                }
-                            }
-                        }
-                    }
-                }
-
-                TouchTarget(
-                    onClick = { onSetPracticeGoal(activeLesson.id) },
-                    testTag = "set_practice_goal_button",
-                    modifier = Modifier.fillMaxWidth(),
-                    shape = RoundedCornerShape(8.dp),
-                ) {
-                    Surface(
-                        shape = RoundedCornerShape(8.dp),
-                        color = BrandAccentDeep,
-                        modifier = Modifier.fillMaxWidth(),
-                    ) {
-                        Text(
-                            text = "Practice this next shoot",
-                            style = MaterialTheme.typography.labelMedium,
-                            fontWeight = FontWeight.Bold,
-                            color = Color.White,
-                            modifier = Modifier.padding(10.dp),
-                        )
-                    }
-                }
-            }
-        }
-        return
-    }
-
-    LessonCatalog.lessonsByTrack().forEach { (track, lessons) ->
-        Text(
-            text = track.title,
-            style = MaterialTheme.typography.labelMedium,
-            fontWeight = FontWeight.Bold,
-            color = Zinc400,
-        )
-        lessons.forEach { lesson ->
-            val done = completedLessons.containsKey(lesson.id)
-            Card(
-                shape = RoundedCornerShape(10.dp),
-                colors = CardDefaults.cardColors(containerColor = Zinc900),
-                border = androidx.compose.foundation.BorderStroke(1.dp, if (done) ScoreGood.copy(alpha = 0.5f) else Zinc800),
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .clickable { onSelectLesson(lesson.id) }
-                    .testTag("lesson_item_${lesson.id}"),
-            ) {
-                Row(
-                    modifier = Modifier.fillMaxWidth().padding(12.dp),
-                    horizontalArrangement = Arrangement.SpaceBetween,
-                    verticalAlignment = Alignment.CenterVertically,
-                ) {
-                    Column(modifier = Modifier.weight(1f)) {
-                        Text(
-                            text = lesson.title,
-                            style = MaterialTheme.typography.bodyMedium,
-                            fontWeight = FontWeight.SemiBold,
-                            color = Color.White,
-                        )
-                        Text(
-                            text = lesson.tryThisPrompt,
-                            style = MaterialTheme.typography.labelSmall,
-                            color = Zinc400,
-                            maxLines = 2,
-                        )
-                    }
-                    if (done) {
-                        Icon(
-                            imageVector = Icons.Default.CheckCircle,
-                            contentDescription = "Completed",
-                            tint = ScoreGood,
-                            modifier = Modifier.size(18.dp),
-                        )
-                    }
-                }
-            }
-        }
-    }
-}
-
-// ── Practice & Insights Tab (U-28) ────────────────────────────────────────────
-
-@Composable
-private fun PracticeTabContent(
-    images: List<ImageItem>,
-    factsByUri: Map<String, List<TechniqueFactEntity>>,
-    activePracticeGoal: PracticeGoalEntity?,
-    onSelectLessonForGoal: (String) -> Unit,
-    onOpenLesson: (String) -> Unit,
-) {
-    val goalStatus = remember(activePracticeGoal, images, factsByUri) {
-        activePracticeGoal?.let { PracticeAndInsightsEngine.evaluateGoalProgress(it, images, factsByUri) }
-    }
-    val insights = remember(images, factsByUri) {
-        PracticeAndInsightsEngine.computeInsights(images, factsByUri)
-    }
-
-    Card(
-        shape = RoundedCornerShape(12.dp),
-        colors = CardDefaults.cardColors(containerColor = Zinc900),
-        border = androidx.compose.foundation.BorderStroke(1.dp, BrandAccent.copy(alpha = 0.6f)),
-        modifier = Modifier.fillMaxWidth().testTag("practice_goal_card"),
-    ) {
-        Column(
-            modifier = Modifier.padding(14.dp),
-            verticalArrangement = Arrangement.spacedBy(8.dp),
-        ) {
-            Text(
-                text = "Active Practice Goal",
-                style = MaterialTheme.typography.labelSmall,
-                color = BrandAccent,
-                fontWeight = FontWeight.Bold,
-            )
-            if (goalStatus != null) {
-                Text(
-                    text = goalStatus.lessonTitle,
-                    style = MaterialTheme.typography.titleSmall,
-                    fontWeight = FontWeight.Bold,
-                    color = Color.White,
-                )
-                Text(
-                    text = goalStatus.tryThisPrompt,
-                    style = MaterialTheme.typography.bodySmall,
-                    color = Zinc200,
-                )
-                Text(
-                    text = goalStatus.summaryText,
-                    style = MaterialTheme.typography.labelSmall,
-                    color = ScoreGood,
-                )
-            } else {
-                Text(
-                    text = "Choose one technique to focus on during your next shoot:",
-                    style = MaterialTheme.typography.bodySmall,
-                    color = Zinc400,
-                )
-                LessonCatalog.ALL_LESSONS.take(3).forEach { lesson ->
-                    TouchTarget(
-                        onClick = { onSelectLessonForGoal(lesson.id) },
-                        testTag = "set_goal_${lesson.id}",
-                        modifier = Modifier.fillMaxWidth(),
-                    ) {
-                        Surface(
-                            shape = RoundedCornerShape(6.dp),
-                            color = Zinc950,
-                            border = androidx.compose.foundation.BorderStroke(1.dp, Zinc800),
-                            modifier = Modifier.fillMaxWidth(),
-                        ) {
-                            Text(
-                                text = "Set Goal: ${lesson.title}",
-                                style = MaterialTheme.typography.labelSmall,
-                                color = BrandAccent,
-                                modifier = Modifier.padding(8.dp),
-                            )
-                        }
-                    }
-                }
-            }
-        }
-    }
-
-    Text(
-        text = "Personal Pattern Insights",
-        style = MaterialTheme.typography.labelMedium,
-        fontWeight = FontWeight.Bold,
-        color = Zinc400,
-    )
-
-    if (insights.isEmpty()) {
-        Text(
-            text = "Scan at least ${PracticeAndInsightsEngine.MIN_SAMPLE_SIZE} photos in a shoot folder to unlock statistically grounded personal pattern insights.",
-            style = MaterialTheme.typography.bodySmall,
-            color = HintText,
-        )
-    } else {
-        insights.forEach { insight ->
-            Card(
-                shape = RoundedCornerShape(10.dp),
-                colors = CardDefaults.cardColors(containerColor = Zinc900),
-                border = androidx.compose.foundation.BorderStroke(1.dp, Zinc800),
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .clickable { onOpenLesson(insight.recommendedLessonId) }
-                    .testTag("pattern_insight_card"),
-            ) {
-                Column(
-                    modifier = Modifier.padding(12.dp),
-                    verticalArrangement = Arrangement.spacedBy(4.dp),
-                ) {
-                    Text(
-                        text = insight.title,
-                        style = MaterialTheme.typography.bodyMedium,
-                        fontWeight = FontWeight.Bold,
-                        color = Color.White,
-                    )
-                    Text(
-                        text = insight.observation,
-                        style = MaterialTheme.typography.bodySmall,
-                        color = Zinc200,
-                    )
-                }
-            }
-        }
     }
 }
 

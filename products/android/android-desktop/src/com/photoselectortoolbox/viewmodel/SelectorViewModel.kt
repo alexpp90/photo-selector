@@ -67,6 +67,8 @@ import com.photoselectortoolbox.domain.session.SelectorWorkQueue
 import com.photoselectortoolbox.domain.session.WorkDecision
 import com.photoselectortoolbox.domain.session.WorkQueueState
 import com.photoselectortoolbox.domain.usecase.ScanImagesUseCase
+import com.photoselectortoolbox.domain.usecase.UpdateShootSummaryUseCase
+import com.photoselectortoolbox.domain.learn.CompletedScan
 import dagger.hilt.android.lifecycle.HiltViewModel
 import dagger.hilt.android.qualifiers.ApplicationContext
 import java.time.Clock
@@ -111,6 +113,8 @@ class SelectorViewModel @Inject constructor(
     @ApplicationContext private val context: Context,
     /** Hilt's IO dispatcher; the default is for tests, which may also swap [ioDispatcher]. */
     @IoDispatcher injectedIoDispatcher: CoroutineDispatcher = Dispatchers.IO,
+    /** Keeps a completed scan's shoot summary (SD-3); null in tests that do not look at Learn. */
+    private val updateShootSummary: UpdateShootSummaryUseCase? = null,
 ) : ViewModel() {
 
     private val _uiState = MutableStateFlow(SelectorUiState())
@@ -1046,6 +1050,9 @@ class SelectorViewModel @Inject constructor(
             }
 
             var analysed = 0
+            var results = emptyMap<String, ScanResult>()
+            val folderUri = _uiState.value.folderUri
+            val stillListing = _uiState.value.isEnumerating
             try {
                 scanImagesUseCase(images, pendingScanMeasures).collect { progress ->
                     val fraction = if (progress.total > 0) {
@@ -1054,6 +1061,7 @@ class SelectorViewModel @Inject constructor(
                         0f
                     }
                     analysed = progress.processed
+                    results = progress.results
 
                     // Merged *inside* the update, against the state as it is at
                     // that moment. Building the new list from a snapshot read
@@ -1073,12 +1081,16 @@ class SelectorViewModel @Inject constructor(
                     }
                 }
 
+                // Only here, never on cancel or failure: Learn's facts and debrief follow it (SD-1a, SD-3).
+                val completed = folderUri?.let { CompletedScan.of(it, images, results, stillListing, clock.millis()) }
                 _uiState.update {
                     it.copy(
                         scanProgress = 1f,
                         scanStatusText = "",
+                        lastCompletedScan = completed ?: it.lastCompletedScan,
                     ).withSnackbar(SelectorLabels.scanCompleteMessage(analysed), SnackbarLifetime.NOTICE)
                 }
+                if (completed != null) updateShootSummary?.let { summarise -> summarise(completed, images) }
             } catch (e: CancellationException) {
                 throw e
             } catch (e: Exception) {

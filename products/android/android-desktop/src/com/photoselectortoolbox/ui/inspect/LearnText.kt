@@ -72,4 +72,8 @@ object LearnText {
 
     /** Below this goodness noise is high: the same threshold that turns its bar red. */
     private const val HighNoiseGoodness = 0.33
+
+    /** What a quiz answer says under its question: the result in a word, then the explanation. */
+    fun quizFeedback(correct: Boolean, explanation: String): String =
+        (if (correct) "Right. " else "Not quite. ") + explanation
 }

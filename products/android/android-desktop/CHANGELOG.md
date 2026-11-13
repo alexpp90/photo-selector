@@ -8,6 +8,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ### Added
 
+- Learn keeps what you did and reads what the scan stored: a lesson's quiz draws its example from your own scanned photos, and completed lessons and the practice goal are still there after you leave Learn or restart the app. After you answer a quiz question it says whether you were right, and why. **Reset Learn** in Setup (Guidance) deletes Learn's history after asking ("Delete 14 shoots, 3 lessons, 1 goal?"); Clear Cache still keeps it.
 - Before a copy, or a move to another card or drive, Frameduel checks that the destination has room and, if not, refuses with "Not enough space: needs 48 MB, 12 MB free. Nothing was copied." instead of failing halfway. Destinations that do not report their free space are not checked.
 - Settings lists the open-source licences of what Frameduel bundles (**Open-source licences**, below the Impressum), offline, including OpenCV and the libraries built into it. The licence text of each library built into OpenCV is reproduced there (libpng, libjpeg-turbo, libtiff, libwebp, OpenJPEG, Protocol Buffers, KleidiCV, Carotene, Intel IPP, MLAS, Intel ITT, cpufeatures, the Rubik and WenQuanYi fonts, oneTBB, FlatBuffers, libc++), as those licences require. Before, the app passed on no licence text for them.
 - A screen reader announces the result of a move, copy or delete, and UNDO is a button for it.

@@ -17,7 +17,8 @@ parity on large screens.
     and composition of your own photos, from the scan's facts, with the leading lines and visual
     weight of the photo shown; **Compare** shows two frames of one scene side by side, the one
     a measurement rates better first, and says what differs; star ratings, a reject flag and a star filter that limits Learn
-    only (Cull always shows every photo). `L` opens it from the cull.
+    only (Cull always shows every photo). Completed lessons and the practice goal are kept until
+    **Reset Learn** in Setup. `L` opens it from the cull.
   - **Dupes** — a finder for byte-identical copies (it never lets you delete the last copy of a
     photo). A delete there is held like one in Cull: UNDO brings the copies back until you leave
     Dupes.

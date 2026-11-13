@@ -9,6 +9,8 @@ import com.photoselector.core.storage.SafTreeDisplayPath
 import com.photoselectortoolbox.data.model.FolderDescription
 import com.photoselectortoolbox.data.repository.CacheRepository
 import com.photoselectortoolbox.data.repository.ImageRepository
+import com.photoselectortoolbox.data.repository.LearnRepository
+import com.photoselectortoolbox.domain.learn.LearnHistoryCounts
 import com.photoselectortoolbox.data.repository.SettingsRepository
 import com.photoselectortoolbox.domain.curation.DestinationMode
 import com.photoselectortoolbox.domain.curation.DestinationPreview
@@ -47,6 +49,8 @@ data class SettingsUiState(
     val tvDisplayScaleEnabled: Boolean = SettingsRepository.DEFAULT_TV_DISPLAY_SCALE_ENABLED,
     /** Embed a star rating in a JPEG (`[USER 2026-11-12]` decision #16); off on a new install. */
     val writeRatingsIntoPhotos: Boolean = SettingsRepository.DEFAULT_WRITE_RATINGS_INTO_PHOTOS,
+    /** What *Reset Learn* would delete, read when its confirmation opens; null before. */
+    val learnHistory: LearnHistoryCounts? = null,
 )
 
 /**
@@ -113,6 +117,8 @@ class SettingsViewModel @Inject constructor(
     private val cacheRepository: CacheRepository,
     private val imageRepository: ImageRepository,
     @ApplicationContext private val context: Context,
+    /** Learn's history for *Reset Learn* (shoot debrief SD-3); null in tests that do not reset it. */
+    private val learnRepository: LearnRepository? = null,
 ) : ViewModel() {
 
     private companion object {
@@ -332,6 +338,36 @@ class SettingsViewModel @Inject constructor(
      */
     fun resetGuidance() {
         viewModelScope.launch { settingsRepository.resetGuidance() }
+    }
+
+    /** Reads what *Reset Learn* would delete, for its confirmation ("Delete 14 shoots, 3 lessons, 1 goal?"). */
+    fun loadLearnHistory() {
+        val repository = learnRepository ?: return
+        viewModelScope.launch {
+            try {
+                val counts = repository.historyCounts()
+                _uiState.update { it.copy(learnHistory = counts) }
+            } catch (e: CancellationException) {
+                throw e
+            } catch (e: Exception) {
+                Log.w(TAG, "Could not count Learn's history", e)
+            }
+        }
+    }
+
+    /** *Reset Learn*: shoot summaries, camera overrides, lesson progress and the goal, in one transaction. */
+    fun resetLearnHistory() {
+        val repository = learnRepository ?: return
+        viewModelScope.launch {
+            try {
+                repository.resetHistory()
+                _uiState.update { it.copy(learnHistory = repository.historyCounts()) }
+            } catch (e: CancellationException) {
+                throw e
+            } catch (e: Exception) {
+                Log.w(TAG, "Could not reset Learn", e)
+            }
+        }
     }
 
     private fun refreshCachedScoreCount() {
