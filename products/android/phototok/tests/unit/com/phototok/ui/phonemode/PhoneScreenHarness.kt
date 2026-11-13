@@ -22,6 +22,8 @@ import com.phototok.domain.SwipeRightVerb
 import com.phototok.ui.theme.PhotoTokTheme
 import com.phototok.viewmodel.PhoneModeViewModel
 import com.phototok.viewmodel.SelectionViewerViewModel
+import com.phototok.viewmodel.SystemTrashViewModel
+import com.phototok.data.repository.SystemTrashRepository
 import io.mockk.coEvery
 import io.mockk.every
 import io.mockk.mockk
@@ -86,6 +88,8 @@ class PhoneScreenHarness(
         private set
     lateinit var selectionViewModel: SelectionViewerViewModel
         private set
+    lateinit var trashViewModel: SystemTrashViewModel
+        private set
 
     /** Back presses that no layer of the app consumed: on a device the app would close. */
     var backPressesThatLeftTheApp = 0
@@ -105,7 +109,7 @@ class PhoneScreenHarness(
     /** The screen under test, for a host that sets the content itself (the text-load matrix). */
     @Composable
     fun Screen() {
-        PhoneModeScreen(viewModel = viewModel, selectionViewModel = selectionViewModel)
+        PhoneModeScreen(viewModel = viewModel, selectionViewModel = selectionViewModel, trashViewModel = trashViewModel)
     }
 
     /** Creates the view models and the "app left" sentinel, without composing anything. */
@@ -113,6 +117,7 @@ class PhoneScreenHarness(
         val scope = CoroutineScope(SupervisorJob() + Dispatchers.Main.immediate)
         viewModel = PhoneModeViewModel(imageRepository, settingsRepository, scope)
         selectionViewModel = SelectionViewerViewModel(imageRepository, scope)
+        trashViewModel = SystemTrashViewModel(SystemTrashRepository(), scope)
         rule.runOnUiThread {
             // Registered first, so every handler the screen adds later takes precedence over it.
             rule.activity.onBackPressedDispatcher.addCallback(

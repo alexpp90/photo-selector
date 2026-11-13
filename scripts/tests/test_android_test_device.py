@@ -463,7 +463,21 @@ class WithLockContentionTest(unittest.TestCase):
         self.env = dict(os.environ, PST_LAB_TMP=str(self.tmp / "lab"))
         self.lock = self.tmp / "lab" / "device-FAKE1.lock"
 
+    def reap(self, proc):
+        """Cleanup: end the process and close its pipes (an unclosed pipe is a ResourceWarning)."""
+        if proc.poll() is None:
+            proc.kill()
+        proc.wait()
+        for pipe in (proc.stdout, proc.stderr):
+            if pipe is not None:
+                pipe.close()
+
     def start(self, label, timeout, *cmd):
+        proc = self._start(label, timeout, *cmd)
+        self.addCleanup(self.reap, proc)
+        return proc
+
+    def _start(self, label, timeout, *cmd):
         return subprocess.Popen(
             [sys.executable, str(SCRIPT), "with-lock", "--serial", "FAKE1", "--timeout", str(timeout),
              "--label", label, "--", *cmd],
@@ -476,7 +490,6 @@ class WithLockContentionTest(unittest.TestCase):
         script = (f"import os, time; open({str(ready)!r}, 'w').close()\n"
                   f"while not os.path.exists({str(release)!r}): time.sleep(0.05)")
         first = self.start("session-a", 5, sys.executable, "-c", script)
-        self.addCleanup(lambda: first.poll() is None and first.kill())
         self.assertTrue(wait_for(ready.exists), "first session never started its command")
         return first, release
 
@@ -510,7 +523,7 @@ class WithLockContentionTest(unittest.TestCase):
                  "--label", "session-b", "--", sys.executable, "-c", "print('second ran')"],
                 env=self.env, stdout=subprocess.PIPE, stderr=err_file, text=True,
             )
-        self.addCleanup(lambda: second.poll() is None and second.kill())
+        self.addCleanup(self.reap, second)
         self.assertTrue(wait_for(lambda: "waiting up to" in err_path.read_text()),
                         "second session never reported waiting for the first")
         self.assertIsNone(second.poll(), "second session ran while the first held the device")

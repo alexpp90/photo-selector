@@ -104,6 +104,12 @@ public final class DuplicateFinder: Sendable {
         return try await findDuplicates(in: candidateURLs)
     }
 
+    /// Folders that hold filed photos, never scanned for duplicates: Selection and Rejected.
+    private static func isOutputFolder(_ name: String) -> Bool {
+        name.caseInsensitiveCompare("Selection") == .orderedSame
+            || name.caseInsensitiveCompare(RejectsDestination.folderName) == .orderedSame
+    }
+
     private static func collectURLs(in directoryURL: URL, recursive: Bool) -> [URL] {
         let fileManager = FileManager.default
         let options: FileManager.DirectoryEnumerationOptions = recursive
@@ -131,7 +137,7 @@ public final class DuplicateFinder: Sendable {
             if itemComponents.starts(with: rootComponents) {
                 let relative = Array(itemComponents.dropFirst(rootComponents.count))
                 // If encountering a Selection directory directly under root during recursive scan, skip descendants
-                if relative.count == 1 && relative.first?.caseInsensitiveCompare("Selection") == .orderedSame {
+                if relative.count == 1, let first = relative.first, Self.isOutputFolder(first) {
                     enumerator.skipDescendants()
                     continue
                 }
@@ -141,7 +147,7 @@ public final class DuplicateFinder: Sendable {
             }
 
             // Exclude files residing inside any "Selection" subfolder under the scanned directory
-            if dirComponents.contains(where: { $0.caseInsensitiveCompare("Selection") == .orderedSame }) {
+            if dirComponents.contains(where: Self.isOutputFolder) {
                 continue
             }
             candidateURLs.append(item)

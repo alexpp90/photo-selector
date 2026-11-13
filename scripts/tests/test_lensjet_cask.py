@@ -44,10 +44,40 @@ class LensjetCaskTest(unittest.TestCase):
         self.assertNotIn("PhotoSelector", out)
         self.assertIn('"~/Library/Preferences/app.alpatix.lensjet.plist"', out)
         self.assertIn('"~/Library/Preferences/com.photoselectortoolbox.macos.plist"', out)
-        # Never touched: the token, version, hash and relations installed casks depend on.
-        for kept in ('cask "photo-selector-toolbox" do', 'version "0.2.0"', "7e596e12db08",
-                     'conflicts_with cask: "photo-selector-toolbox@nightly"', "depends_on macos: :sonoma"):
+        # The token is Lensjet's own (decision #4); version, hash and depends_on are never touched.
+        for kept in ('cask "lensjet" do', 'version "0.2.0"', "7e596e12db08",
+                     'conflicts_with cask: "lensjet@nightly"', "depends_on macos: :sonoma"):
             self.assertIn(kept, out)
+        self.assertNotIn('cask "photo-selector-toolbox"', out)
+
+    def test_the_stable_cask_tells_users_of_the_old_token_to_reinstall_once_and_the_nightly_does_not(self):
+        stable = cask.rebrand(STABLE, nightly=False)
+        self.assertIn("brew uninstall --cask photo-selector-toolbox && brew install --cask lensjet", stable)
+        self.assertIn("Open Anyway", stable)
+        nightly = cask.rebrand(STABLE.replace('cask "photo-selector-toolbox" do', 'cask "photo-selector-toolbox@nightly" do'), nightly=True)
+        self.assertIn('cask "lensjet@nightly" do', nightly)
+        self.assertNotIn("brew uninstall", nightly)
+
+    def test_an_old_caveat_block_written_by_the_script_is_brought_up_to_date(self):
+        old_block = STABLE.replace("  zap trash", '  caveats <<~EOS\n    Lensjet is not notarized by Apple yet.\n  EOS\n\n  zap trash')
+        out = cask.rebrand(old_block, nightly=False)
+        self.assertEqual(out.count("caveats"), 1)
+        self.assertIn("brew install --cask lensjet", out)
+
+    def test_the_old_tokens_cask_becomes_a_stub_that_says_where_lensjet_went(self):
+        for nightly, old, new in ((False, "photo-selector-toolbox", "lensjet"),
+                                  (True, "photo-selector-toolbox@nightly", "lensjet@nightly")):
+            out = cask.legacy_notice(STABLE, nightly=nightly)
+            self.assertIn(f"brew uninstall --cask {old} && brew install --cask {new}", out)
+            self.assertIn('cask "photo-selector-toolbox" do', out)  # the old cask keeps its own token
+            self.assertIn('version "0.2.0"', out)  # and stops being updated
+            self.assertEqual(cask.legacy_notice(out, nightly=nightly), out)
+
+    def test_the_workflow_seeds_the_new_cask_from_the_old_and_never_edits_the_tap_by_hand(self):
+        workflow = (Path(__file__).resolve().parents[2] / ".github" / "workflows" / "macos.yml").read_text(encoding="utf-8")
+        for needle in ("CASK=Casks/lensjet.rb", "CASK=Casks/lensjet@nightly.rb", "OLD_CASK=Casks/photo-selector-toolbox.rb",
+                       'cp "$OLD_CASK" "$CASK"', "--legacy-notice"):
+            self.assertIn(needle, workflow)
 
     def test_nightly_cask_downloads_from_lensjets_own_nightly_tag(self):
         nightly = (STABLE.replace('cask "photo-selector-toolbox" do', 'cask "photo-selector-toolbox@nightly" do')
@@ -64,6 +94,7 @@ class LensjetCaskTest(unittest.TestCase):
         for nightly in (False, True):
             out = cask.rebrand(STABLE, nightly=nightly)
             self.assertEqual(out.count("caveats <<~EOS"), 1)
+            self.assertNotIn("#{", out.split("caveats <<~EOS", 1)[1].split("EOS", 1)[0])
             block = out.split("caveats <<~EOS", 1)[1].split("EOS", 1)[0]
             self.assertIn("Open Anyway", block)
             self.assertIn("xattr -dr com.apple.quarantine /Applications/Lensjet.app", block)

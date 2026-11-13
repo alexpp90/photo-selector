@@ -300,6 +300,7 @@ object ControlsGuideSolver {
         hasDoneWithCard: Boolean,
         m: Metrics = Metrics(),
         hasCameraInfo: Boolean = true,
+        hasSurprise: Boolean = false,
     ): Map<GuideAnchor, Box> {
         val out = LinkedHashMap<GuideAnchor, Box>()
         val barH = m.topBarButton + 2 * m.topBarVPadding
@@ -313,7 +314,9 @@ object ControlsGuideSolver {
         }
         val order = buildList {
             if (hasDoneWithCard) add(GuideAnchor.DONE_WITH_CARD)
-            add(GuideAnchor.RELOAD); add(GuideAnchor.HELP)
+            add(GuideAnchor.RELOAD)
+            if (hasSurprise) add(GuideAnchor.SURPRISE)
+            add(GuideAnchor.HELP)
             if (hasCameraInfo) add(GuideAnchor.INFO)
             add(GuideAnchor.SETTINGS)
         }
@@ -343,6 +346,7 @@ object ControlsGuideSolver {
         height: Float,
         m: Metrics = Metrics(),
         hasCameraInfo: Boolean = true,
+        hasSurprise: Boolean = false,
     ): Map<GuideAnchor, Box> {
         val out = LinkedHashMap<GuideAnchor, Box>()
         out[GuideAnchor.LEFT_PANEL] = Box(0f, 0f, m.leftPanelW, height)
@@ -369,6 +373,7 @@ object ControlsGuideSolver {
         var ry = m.rightPadding
         listOfNotNull(
             GuideAnchor.RELOAD,
+            GuideAnchor.SURPRISE.takeIf { hasSurprise },
             GuideAnchor.INFO.takeIf { hasCameraInfo },
             GuideAnchor.SETTINGS,
         ).forEach { id ->

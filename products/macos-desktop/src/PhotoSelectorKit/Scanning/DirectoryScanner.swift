@@ -53,7 +53,7 @@ public final class DirectoryScanner: DirectoryScanning, @unchecked Sendable {
     /// Folder names (case-insensitive) that hold already-culled output and are never descended
     /// into, unless the folder itself is the scan root (REQ-MAC-EXIF.06).
     public static let builtInExcludedFolderNames: Set<String> = [
-        "selection", "selected", "phototok_selection", "phototok_leftswipe"
+        "selection", "selected", "phototok_selection", "phototok_leftswipe", "rejected"
     ]
 
     /// Marker file written into Selection folders so custom-named destination folders remain

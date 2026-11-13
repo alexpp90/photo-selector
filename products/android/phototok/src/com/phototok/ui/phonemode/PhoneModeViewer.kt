@@ -98,6 +98,9 @@ import androidx.compose.ui.semantics.CustomAccessibilityAction
 import androidx.compose.ui.semantics.customActions
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.semantics.stateDescription
+import androidx.compose.foundation.clickable
+import androidx.compose.ui.semantics.Role
+import androidx.compose.material3.minimumInteractiveComponentSize
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.IntSize
@@ -189,6 +192,8 @@ fun PhoneModeViewer(
     onOpenWithCurrentPhoto: () -> Unit = {},
     /** Long-press "Favourite" / "Remove favourite"; null hides the item (read-only viewers). */
     onToggleFavourite: (() -> Unit)? = null,
+    /** The lit ★ chip opens the Favourites list (Selection viewer); null in the read-only viewer. */
+    onOpenFavourites: (() -> Unit)? = null,
     /** Long-press "Copy" into the Selection folder (REQ-TOK-GESTURE.03); null hides the item. */
     onCopyToSelection: (() -> Unit)? = null,
     /** Long-press "Move" into the Selection folder; null hides the item (read-only, cloud). */
@@ -454,6 +459,7 @@ fun PhoneModeViewer(
                 topBadgesSuppressed = topBadgesSuppressed,
                 isFavourite = favourites.isFavourite(pageItem.uri),
                 isFavouriteSynced = favourites.isSynced(pageItem.uri),
+                onOpenFavourites = if (readOnly) null else onOpenFavourites,
                 onFirstRunHint = onFirstRunHint,
                 onSingleTap = {
                     hudVisible = !hudVisible
@@ -664,6 +670,7 @@ private fun ImagePage(
     onSwipeLeftDelete: () -> Unit,
     onSwipeRightCollect: () -> Unit,
     onFirstRunHint: (FirstRunHint) -> Unit = {},
+    onOpenFavourites: (() -> Unit)? = null,
 ) {
     var scale by remember { mutableFloatStateOf(1f) }
     var offset by remember { mutableStateOf(Offset.Zero) }
@@ -1190,7 +1197,7 @@ private fun ImagePage(
                 verticalAlignment = Alignment.CenterVertically,
             ) {
                 if (isFavourite) {
-                    FavouriteBadge(synced = isFavouriteSynced)
+                    FavouriteBadge(synced = isFavouriteSynced, onOpen = onOpenFavourites)
                 }
                 if (hasRawCompanion) {
                     Surface(
@@ -1426,15 +1433,23 @@ internal fun ExifOverlay(
  * for now (not synced yet, a source MediaStore does not index, or Android 10 and older).
  */
 @Composable
-internal fun FavouriteBadge(synced: Boolean) {
+internal fun FavouriteBadge(synced: Boolean, onOpen: (() -> Unit)? = null) {
     val colors = MaterialTheme.colorScheme
     val stateDescription = stringResource(
         if (synced) R.string.cd_favourite_in_system else R.string.cd_favourite_only_here,
     )
+    val openLabel = stringResource(R.string.cd_open_favourites)
+    // The lit chip is where people look for their favourites (usability panel 2026-10-24): a tap
+    // opens the Favourites list. Its look is unchanged ([USER 2026-11-12] decision #33 (2)); the
+    // 48 dp target reaches beyond the small pill.
+    val open = if (onOpen == null) Modifier else Modifier
+        .minimumInteractiveComponentSize()
+        .clickable(onClickLabel = openLabel, role = Role.Button, onClick = onOpen)
     Surface(
         shape = RoundedCornerShape(50),
         color = colors.primaryContainer.copy(alpha = 0.85f),
         modifier = Modifier
+            .then(open)
             .testTag(if (synced) "viewer.favourite_badge.synced" else "viewer.favourite_badge.local")
             .semantics(mergeDescendants = true) { this.stateDescription = stateDescription },
     ) {

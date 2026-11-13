@@ -40,6 +40,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, ObservableObject {
             // Pin the file-name order for an install that predates the sort menu BEFORE the
             // migration marker is written (the marker is how an existing install is recognised).
             SettingsMigration.pinSortOrderForExistingInstall()
+            SettingsMigration.pinAestheticsForExistingInstall()
             SettingsMigration.migrateIfNeeded()
         }
         #if PST_TEST_HOOKS

@@ -105,6 +105,9 @@ struct GeneralSettingsTab: View {
     @AppStorage(AppSettingsKeys.autoAdvance)
     private var autoAdvance: Bool = AppSettingsDefaults.autoAdvance
 
+    @AppStorage(AppSettingsKeys.rejectsDestination)
+    private var rejectsRaw: String = RejectsDestination.trash.rawValue
+
     @StateObject private var destinationModel = DestinationSettingsModel()
 
     var body: some View {
@@ -138,11 +141,24 @@ struct GeneralSettingsTab: View {
                 }
 
                 destinationLines(summary)
+
+                Picker("Rejects", selection: $rejectsRaw) {
+                    ForEach(RejectsDestination.allCases, id: \.rawValue) { choice in
+                        Text(choice.title).tag(choice.rawValue)
+                    }
+                }
+                .pickerStyle(.segmented)
+                .accessibilityLabel("Rejects go to")
+                if RejectsDestination(storedRaw: rejectsRaw) == .rejectedFolder {
+                    Text("Inside the photo folder.")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                }
             }
 
             Section("Navigation & Culling") {
                 Toggle("Auto-Advance", isOn: $autoAdvance)
-                    .help("Steps to the next photo after Move, Copy or Trash. Also in the Culling menu.")
+                    .help("Steps to the next photo after Move, Copy or Delete. Also in the Culling menu.")
             }
         }
         .formStyle(.grouped)

@@ -52,6 +52,8 @@ public struct ToastMessage: Identifiable, Equatable, Sendable {
     /// A banner that stays until the user's next navigation key or Esc (the "Stop at sharpness"
     /// notice), instead of fading after 1.2 s.
     public let isPersistent: Bool
+    /// What VoiceOver reads when it differs from the title ("Moved IMG_0001.CR3 and 2 companion files to Selection").
+    public let spoken: String?
 
     public init(
         id: UUID = UUID(),
@@ -59,8 +61,10 @@ public struct ToastMessage: Identifiable, Equatable, Sendable {
         title: String,
         subtitle: String? = nil,
         actionType: CullingActionType? = nil,
-        isPersistent: Bool = false
+        isPersistent: Bool = false,
+        spoken: String? = nil
     ) {
+        self.spoken = spoken
         self.isPersistent = isPersistent
         self.id = id
         self.icon = icon
@@ -68,22 +72,6 @@ public struct ToastMessage: Identifiable, Equatable, Sendable {
         self.subtitle = subtitle
         self.actionType = actionType
     }
-}
-
-/// Why a cloud folder is about to be read in full (every online-only photo downloads).
-public enum FullPassPurpose: Equatable, Sendable {
-    /// Library Statistics scores the whole library.
-    case statistics
-    /// View > Sort By > Lowest Sharpness First needs a score for every photo; `previous` is the
-    /// order to keep if the user declines.
-    case lowestSharpnessSort(previous: WorkspaceSortOrder)
-}
-
-/// A pending "Download all photos?" question (REQ-MAC-CLOUD.01).
-public struct PendingDownloadConfirmation: Equatable, Sendable {
-    public let purpose: FullPassPurpose
-    /// `estimatedFullPassDownloadBytes` when the question was raised.
-    public let estimatedBytes: Int64
 }
 
 /// Order of the culling workspace candidate list (View > Sort By, REQ-MAC-CULL.06 / .07).
@@ -156,22 +144,6 @@ public struct ScoringProgress: Equatable, Sendable {
     public let total: Int
     public init(done: Int, total: Int) { self.done = done; self.total = total }
     public var text: String { "\(done) / \(total)" }
-}
-
-/// Pending permanent-delete confirmation published when a cloud provider refuses Trash (UC-17).
-public struct PendingPermanentDeleteConfirmation: Sendable, Equatable, Identifiable {
-    public var id: UUID { photoID }
-    public let photoID: UUID
-    public let urls: [URL]
-    public let isShared: Bool
-    public let message: String
-
-    public init(photoID: UUID, urls: [URL], isShared: Bool, message: String) {
-        self.photoID = photoID
-        self.urls = urls
-        self.isShared = isShared
-        self.message = message
-    }
 }
 
 /// Summary of SD card culling and transfer completion state (UC-10).

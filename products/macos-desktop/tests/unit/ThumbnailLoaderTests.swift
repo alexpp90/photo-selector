@@ -208,4 +208,28 @@ struct RecentPreviewMemoryTests {
         big.store(image(50), for: id)
         #expect(big.image(for: id) != nil)
     }
+
+    @Test("A photo decided before its preview arrived keeps its small picture for Undo, and a bigger tier replaces it, never the reverse")
+    func lowerTierIsKeptButNeverReplacesAHigherOne() {
+        let memory = RecentPreviewMemory(countLimit: 3, byteLimit: 10 * 1024 * 1024)
+        let id = UUID()
+        memory.store(image(32), for: id, rank: ThumbnailTier.quick.rawValue)
+        #expect(memory.image(for: id)?.width == 32, "decided before the preview: Undo still has something to show")
+        memory.store(image(64), for: id, rank: ThumbnailTier.preview.rawValue)
+        #expect(memory.image(for: id)?.width == 64)
+        memory.store(image(32), for: id, rank: ThumbnailTier.quick.rawValue)
+        #expect(memory.image(for: id)?.width == 64, "a late small tier must not replace the preview")
+        // Every tier is stored: the bounds still hold.
+        for _ in 0..<6 { memory.store(image(32), for: UUID(), rank: ThumbnailTier.quick.rawValue) }
+        #expect(memory.count == 3)
+    }
+
+    @Test("The viewport stores every tier it shows")
+    func viewportStoresEveryTier() throws {
+        let url = URL(fileURLWithPath: #filePath).deletingLastPathComponent().deletingLastPathComponent().deletingLastPathComponent()
+            .appendingPathComponent("src/PhotoSelectorApp/ZoomableImageViewport.swift")
+        let text = try String(contentsOf: url, encoding: .utf8)
+        #expect(text.contains("RecentPreviewMemory.shared.store(progressive.image, for: id, rank: progressive.tier.rawValue)"))
+        #expect(!text.contains("if progressive.tier == .preview { RecentPreviewMemory"))
+    }
 }

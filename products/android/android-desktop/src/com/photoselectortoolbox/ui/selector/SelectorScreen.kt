@@ -312,14 +312,17 @@ fun SelectorScreen(
     if (uiState.showDeleteConfirmation) {
         AlertDialog(
             onDismissRequest = { viewModel.dismissDeleteConfirmation() },
-            title = { Text("Delete image") },
+            // "Delete IMG_0001 +2?" and "Also deletes JPG, XMP" where the photo takes companions
+            // with it ([USER 2026-11-12] decision #33 (1)); else as before.
+            title = { DeleteDialogTitle(uiState.currentImage) },
             text = {
-                Text(
-                    SelectorLabels.deleteConfirmationMessage(
+                DeleteDialogBody(
+                    image = uiState.currentImage,
+                    message = SelectorLabels.deleteConfirmationMessage(
                         fileName = uiState.currentImage?.fileName ?: "",
                         isCloudProvider = uiState.sourceKind.isCloudProvider,
                         providerLabel = uiState.sourceKind.providerLabel,
-                    )
+                    ),
                 )
             },
             confirmButton = {
@@ -449,6 +452,7 @@ fun SelectorScreen(
             snackbarMessage = uiState.snackbarMessage,
             snackbarSequence = uiState.snackbarSequence,
             snackbarLifetime = uiState.snackbarLifetime,
+            snackbarSpoken = uiState.snackbarSpoken,
             onUndo = if (uiState.undoOperation != null) viewModel::undoLastOperation else null,
             onDismissSnackbar = viewModel::dismissSnackbar,
         )
@@ -679,6 +683,7 @@ fun SelectorScreen(
             sequence = uiState.snackbarSequence,
             lifetime = uiState.snackbarLifetime,
             onCardTop = { snackbarTop = it },
+            spoken = uiState.snackbarSpoken,
         )
 
         // Last in the Box, so it is above every piece of chrome it labels —

@@ -3,11 +3,13 @@ appId: com.phototok.lab
 # The confirm dialog is its own window, so its test tag is not exported as a resource id;
 # while it is open the hierarchy holds only the dialog, so its "Delete" button is unambiguous.
 # Jackpix follows the system language: the German lab phones label it "Löschen" (2026-11-05).
+# A phone-storage folder (the lab's /sdcard/PSTLab/work) goes to the system bin, so the button
+# reads "Trash" / "Papierkorb" there; an unindexed file still says "Delete" (decision #13, 2026-11-12).
 - extendedWaitUntil:
     visible:
-      text: "Delete|Löschen"
+      text: "Delete|Löschen|Trash|Papierkorb"
     timeout: 4000
     optional: true
 - tapOn:
-    text: "Delete|Löschen"
+    text: "Delete|Löschen|Trash|Papierkorb"
     optional: true

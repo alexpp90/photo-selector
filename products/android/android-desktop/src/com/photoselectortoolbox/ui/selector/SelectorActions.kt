@@ -321,6 +321,8 @@ fun SelectorSnackbar(
     modifier: Modifier = Modifier,
     sequence: Long = 0L,
     lifetime: SnackbarLifetime = SnackbarLifetime.NOTICE,
+    /** What a screen reader says instead of [message] ("and 2 companion files"); null reads [message]. */
+    spoken: String? = null,
 ) {
     if (message == null) return
 
@@ -357,7 +359,10 @@ fun SelectorSnackbar(
                 // the whole window — so the card spanned it edge to edge (AD-7).
                 // `fill = false` plus the card's `widthIn(max)` lets a short
                 // message keep a card and a long one wrap inside it.
-                modifier = Modifier.weight(1f, fill = false),
+                modifier = Modifier
+                    .weight(1f, fill = false)
+                    .then(if (spoken != null) Modifier.semantics { contentDescription = spoken } else Modifier)
+                    .testTag("selector_snackbar_message"),
             )
             if (onUndo != null) {
                 SnackbarUndoButton(onClick = { onUndo(); latestOnDismiss() })
@@ -449,6 +454,7 @@ fun SelectorSnackbarHost(
      * first-run pill stacks above it rather than being covered (usability panel 2026-10-24).
      */
     onCardTop: (Float?) -> Unit = {},
+    spoken: String? = null,
 ) {
     val latestOnCardTop by rememberUpdatedState(onCardTop)
     if (message == null) SideEffect { latestOnCardTop(null) }
@@ -464,6 +470,7 @@ fun SelectorSnackbarHost(
             onDismiss = onDismiss,
             sequence = sequence,
             lifetime = lifetime,
+            spoken = spoken,
             modifier = Modifier.onGloballyPositioned { latestOnCardTop(it.boundsInRoot().top) },
         )
     }

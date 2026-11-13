@@ -91,6 +91,9 @@ fun PhoneModeTopBar(
      * a plain logo (no toggle, no guide callout), so no control claims to do what it does not.
      */
     cameraInfoEnabled: Boolean = true,
+    /** Casual "surprise me" on a phone or cloud folder: null where it is not offered, else whether it is on. */
+    surpriseMe: Boolean? = null,
+    onSurpriseMe: () -> Unit = {},
 ) {
     val colors = MaterialTheme.colorScheme
     val metrics = PhoneModeChromeMetrics
@@ -171,6 +174,17 @@ fun PhoneModeTopBar(
                         .guideAnchor(anchors, GuideAnchor.RELOAD)
                         .testTag("reload_folder_button"),
                 )
+                if (surpriseMe != null) {
+                    SurpriseMeButton(
+                        on = surpriseMe,
+                        tint = tint,
+                        onToggle = onSurpriseMe,
+                        modifier = Modifier
+                            .size(buttonSize)
+                            .guideAnchor(anchors, GuideAnchor.SURPRISE)
+                            .testTag("surprise_me_button"),
+                    )
+                }
                 TopBarIconButton(
                     icon = Icons.AutoMirrored.Filled.HelpOutline,
                     name = stringResource(PhoneModeTopBarDescriptions.help(guideOpen)),
