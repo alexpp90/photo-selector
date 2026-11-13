@@ -101,13 +101,18 @@ class ActionBarView(Gtk.ActionBar if HAS_GI else object):
         """Show cull/undo outcomes and errors here; info messages (load) stay toasts."""
         severity = getattr(vm, "last_notification_severity", "info")
         if severity in ("status", "error", "stranded"):
-            self.show_outcome(message, persistent=severity == "stranded")
+            spoken = getattr(vm, "last_notification_spoken", None)
+            self.show_outcome(
+                message, persistent=severity == "stranded", spoken=spoken if isinstance(spoken, str) else None
+            )
 
-    def show_outcome(self, message: str, persistent: bool = False) -> None:
+    def show_outcome(self, message: str, persistent: bool = False, spoken: str | None = None) -> None:
         """Last write wins; the text clears itself after OUTCOME_SECONDS.
 
         ``persistent``: files were left in an unexpected place. The text stays until the next file
         operation starts (``_clear_outcome``), so a user who looked away still finds it.
+        ``spoken`` is what a screen reader hears when it differs from the text ("and 2 companion
+        files"; ``viewmodels/outcome_text.py``).
         """
         self._status_generation += 1
         self.status_text = message
@@ -122,7 +127,7 @@ class ActionBarView(Gtk.ActionBar if HAS_GI else object):
                 self._status_timer = GLib.timeout_add_seconds(
                     OUTCOME_SECONDS, self._expire_outcome, generation
                 )
-        self._announce(message)
+        self._announce(spoken or message)
         self._update_state()
 
     def _announce(self, text: str) -> None:
@@ -194,7 +199,7 @@ class ActionBarView(Gtk.ActionBar if HAS_GI else object):
         self.lbl_busy = _CappedLabel(label="")
         self.lbl_busy.set_ellipsize(3)  # Pango.EllipsizeMode.END: only a very narrow window cuts
         # Bounded so the bar's centred Move/Copy/Trash buttons never shift under the pointer, but
-        # wide enough for "Moved IMG_…_064000 + 2 to Selection/" (the file name is already
+        # wide enough for "Moved IMG_…_064000 +2 · Selection" (the file name is already
         # shortened in the middle by the view model; the full text is in the tooltip).
         self.lbl_busy.set_max_width_chars(MESSAGE_MAX_CHARS)
         self.lbl_busy.set_xalign(1.0)

@@ -88,10 +88,11 @@ class PhotoBitmapDecoder @Inject constructor(
 
     /**
      * Header-only dimensions (after orientation) for files the platform cannot
-     * size — RAWs it has no codec for (CR3) and TIFFs. [ImageDimensions.UNKNOWN]
-     * otherwise.
+     * size — RAWs it has no codec for (CR3), from the embedded preview's frame header, and
+     * TIFFs, from IFD0 ([TiffHeader]; FD-C-23). [ImageDimensions.UNKNOWN] otherwise.
      */
     fun containerDimensions(uri: Uri, fileName: String): ImageDimensions {
+        if (ImageFormats.isTiff(fileName)) return tiffDimensions(uri)
         if (!ImageFormats.isRaw(fileName)) return ImageDimensions.UNKNOWN
         return try {
             context.contentResolver.openFileDescriptor(uri, "r")?.use { pfd ->
@@ -107,6 +108,12 @@ class PhotoBitmapDecoder @Inject constructor(
         } catch (e: Exception) {
             ImageDimensions.UNKNOWN
         }
+    }
+
+    private fun tiffDimensions(uri: Uri): ImageDimensions = try {
+        context.contentResolver.openInputStream(uri)?.use(TiffHeader::dimensions) ?: ImageDimensions.UNKNOWN
+    } catch (e: Exception) {
+        ImageDimensions.UNKNOWN
     }
 
     private fun decode(uri: Uri, fileName: String, targetLongEdge: Int): Bitmap? = when {

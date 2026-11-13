@@ -32,6 +32,21 @@ class ScoreDaoBatchTest {
         }
     }
 
+    // Shoot debrief SD-1b: Learn reads a folder's facts, any number of photos.
+    @Test
+    fun `the fact reads split 2500 keys, the one with a kind at 899`() = runTest {
+        val dao = RecordingScoreDao(
+            factsFor = { listOf(TechniqueFactEntity(it, "facts.scanned", "1", 1.0, null, 1, 1, 2)) },
+        )
+
+        assertEquals(2500, dao.getTechniqueFacts(uris).size)
+        assertEquals(listOf(900, 900, 700), dao.factBatches.map { it.size })
+        dao.factBatches.clear()
+        assertEquals(2500, dao.getTechniqueFactsOfKind("facts.scanned", uris).size)
+        assertEquals(listOf(899, 899, 702), dao.factBatches.map { it.size })
+        assertEquals(uris, dao.factBatches.flatten())
+    }
+
     @Test
     fun `an empty list runs no statement`() = runTest {
         val dao = RecordingScoreDao()

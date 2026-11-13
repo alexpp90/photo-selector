@@ -15,7 +15,12 @@ import org.junit.Test
 class UseCaseHygieneTest {
 
     private fun sources() =
-        File("src/com/photoselectortoolbox/domain/usecase").listFiles { f -> f.extension == "kt" }!!.toList()
+        File("src/com/photoselectortoolbox/domain/usecase").listFiles { f -> f.extension == "kt" }!!.toList() +
+            // Learn's repository and session keep the rule too (shoot debrief SD-1b).
+            listOf(
+                File("src/com/photoselectortoolbox/data/repository/LearnRepository.kt"),
+                File("src/com/photoselectortoolbox/domain/learn/LearnSession.kt"),
+            )
 
     /** Every Kotlin source of the data and domain layers. */
     private fun layerSources() = listOf("data", "domain").flatMap { layer ->
@@ -27,6 +32,7 @@ class UseCaseHygieneTest {
     @Test
     fun `there are use cases to check`() {
         assertTrue(sources().any { it.name == "ScanImagesUseCase.kt" })
+        assertTrue(sources().all { it.isFile })
     }
 
     @Test

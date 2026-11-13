@@ -4,8 +4,12 @@ import com.photoselectortoolbox.data.repository.CacheRepository
 import com.photoselectortoolbox.data.repository.CacheRepositoryImpl
 import com.photoselectortoolbox.data.repository.ImageRepository
 import com.photoselectortoolbox.data.repository.ImageRepositoryImpl
+import com.photoselectortoolbox.data.repository.LearnRepository
+import com.photoselectortoolbox.data.repository.LearnRepositoryImpl
+import com.photoselectortoolbox.data.repository.RepositoryExifReader
 import com.photoselectortoolbox.data.source.LocalImageSource
 import com.photoselectortoolbox.data.source.LocalImageSourceImpl
+import com.photoselectortoolbox.domain.usecase.PhotoExifReader
 import dagger.Binds
 import dagger.Module
 import dagger.hilt.InstallIn
@@ -33,4 +37,16 @@ abstract class RepositoryModule {
     abstract fun bindLocalImageSource(
         impl: LocalImageSourceImpl
     ): LocalImageSource
+
+    /** The scan reads EXIF for Learn's facts through the repository (shoot debrief SD-1a). */
+    @Binds
+    abstract fun bindPhotoExifReader(
+        impl: RepositoryExifReader
+    ): PhotoExifReader
+
+    @Binds
+    @Singleton
+    abstract fun bindLearnRepository(
+        impl: LearnRepositoryImpl
+    ): LearnRepository
 }

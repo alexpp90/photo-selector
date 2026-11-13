@@ -104,9 +104,6 @@ def _render(node: ast.AST, source: str) -> str:
                 if isinstance(part.value, ast.IfExp):  # a plural ending: "operation{'s' if n != 1 else ''}"
                     out.append(_render(part.value.body, source))
                     continue
-                if "_name_with_companions" in expression:  # "<name> + <n>" when the bundle has companions
-                    out.append(f"{SAMPLE_TEXT} + {SAMPLE_NUMBER}")
-                    continue
                 numeric = part.format_spec is not None or re.search(
                     r"count|total|pending|len\(|threshold|related|\bn\b", expression
                 )
@@ -144,15 +141,6 @@ def harvest():
             text = _render(node.args[0], source)
             if text:
                 found.append((f"{relative}:{node.lineno}", _severity(node, MESSAGE_CALLS[name]), text))
-        # Messages built in helpers and handed to _notify() as a call result.
-        if relative.endswith("culling_workspace.py"):
-            for node in ast.walk(tree):
-                if isinstance(node, ast.FunctionDef) and node.name == "_transfer_message":
-                    for sub in ast.walk(node):
-                        if isinstance(sub, ast.Return):
-                            text = _render(sub.value, source)
-                            if text:
-                                found.append((f"{relative}:{sub.lineno}", "status", text))
     return found
 
 
@@ -167,8 +155,6 @@ def test_the_harvest_finds_the_messages_the_product_shows():
     """The check is only worth something if it sees the outcome and error messages."""
     texts = [t for _w, _s, t in MESSAGES]
     assert len(MESSAGES) >= 20, texts
-    assert any(t.endswith(" to Trash") for t in texts)
-    assert any(t.endswith(" to Selection1") for t in texts)  # "... to {place}", place ends in "/"
     assert any(s == "error" for _w, s, _t in MESSAGES)
     assert any(s == "stranded" for _w, s, _t in MESSAGES)
     assert any(s == "toast" for _w, s, _t in MESSAGES)
@@ -177,6 +163,33 @@ def test_the_harvest_finds_the_messages_the_product_shows():
 def _known_over_budget(where, severity, text):
     """A message that exceeds its budget on unmodified main: strict, so fixing it turns this red."""
     return violations(_element_of(severity), text)
+
+
+def _outcome_samples():
+    """The outcome lines of ``viewmodels/outcome_text.py`` for typical and worst-case inputs."""
+    from types import SimpleNamespace
+
+    from photo_selector_linux.viewmodels.outcome_text import outcome_texts
+
+    long_photo = SimpleNamespace(filename="IMG_20260814_064000.ARW")
+    short_photo = SimpleNamespace(filename="a.jpg")
+    first_path = "~/Pictures/Lisbon/Selection/"
+    samples = []
+    for photo in (short_photo, long_photo):
+        for companions in (0, 1, 12):
+            for verb in ("Moved", "Copied"):
+                samples.append(outcome_texts(verb, photo, companions, "Selection")[0])
+            samples.append(outcome_texts("Moved", photo, companions, "Trash")[0])
+            samples.append(outcome_texts("Moved", photo, companions, "Selection", first_place=first_path)[0])
+            samples.append(outcome_texts("Copied", photo, companions, "Selection", new_name="a-2.jpg")[0])
+    # The worst first line: a path cut to the slot with the card note appended.
+    samples.append(outcome_texts("Copied", long_photo, 12, "Selection", first_place="/home/…/Selection/ · on card")[0])
+    return samples
+
+
+@pytest.mark.parametrize("text", _outcome_samples())
+def test_every_outcome_line_of_the_formatter_is_within_the_feedback_budget(text):
+    assert violations("error", text) == [], text
 
 
 @pytest.mark.parametrize("where,severity,text", MESSAGES, ids=[f"{w}" for w, _s, _t in MESSAGES])

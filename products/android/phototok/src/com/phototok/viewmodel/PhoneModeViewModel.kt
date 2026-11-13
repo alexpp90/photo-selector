@@ -3,20 +3,16 @@ package com.phototok.viewmodel
 import android.content.Intent
 import android.net.Uri
 import android.provider.DocumentsContract
-import android.util.Log
 import com.phototok.R
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
-import com.photoselector.core.model.ExifData
 import com.photoselector.core.storage.ExternalVolume
 import com.photoselector.core.storage.SourceKind
 import com.photoselector.core.storage.SourceKindClassifier
-import com.phototok.data.source.FileOperationResult
 import com.phototok.data.model.ImageItem
 import com.phototok.data.model.PhoneSettings
 import com.phototok.data.model.RecentPath
 import com.phototok.data.model.SourceSettings
-import com.phototok.data.repository.CullingStats
 import com.phototok.data.repository.FavouriteSyncRequest
 import com.phototok.data.repository.FavouritesRepository
 import com.phototok.data.repository.ImageRepository
@@ -29,36 +25,22 @@ import com.phototok.data.source.VolumeMonitor
 import com.phototok.di.ApplicationScope
 import com.phototok.domain.CardTransferJournal
 import com.phototok.domain.CollectionAction
-import com.phototok.domain.CompanionFiles
-import com.phototok.domain.CopyMoveFeedback
-import com.phototok.domain.DeleteSplit
 import com.phototok.domain.FeedOrderMode
 import com.phototok.domain.FileTypeFilter
 import com.phototok.domain.FirstRunHint
 import com.phototok.domain.FirstRunHintText
-import com.phototok.domain.FolderScanInfo
-import com.phototok.domain.FolderScanLogic
-import com.phototok.domain.Milestones
-import com.phototok.domain.OptimisticFeed
-import com.phototok.domain.PendingDeleteLogic
-import com.phototok.domain.PhoneFeedOrdering
 import com.phototok.domain.PhotoFolders
 import com.phototok.domain.ProModePolicy
 import com.phototok.domain.SwipeRightOutcome
-import com.phototok.domain.SurpriseMe
 import com.phototok.domain.RelatedFiles
 import com.phototok.domain.SwipeAction
-import com.phototok.domain.SwipeDestinations
 import com.phototok.domain.SwipeRightVerb
-import com.phototok.domain.FavouritesSnapshot
 import com.phototok.domain.UiText
 import dagger.hilt.android.lifecycle.HiltViewModel
 import javax.inject.Inject
 import kotlin.math.abs
-import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Job
-import kotlinx.coroutines.NonCancellable
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -67,209 +49,6 @@ import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
-import kotlinx.coroutines.withContext
-
-data class PhoneModeUiState(
-    val images: List<ImageItem> = emptyList(),
-    /** All images before file type filtering (kept for re-filtering). */
-    val allImages: List<ImageItem> = emptyList(),
-    val currentIndex: Int = 0,
-    val isLoading: Boolean = false,
-    /**
-     * True while the folder is still being enumerated in the background. The
-     * feed is already usable — this only tells the UI that the photo count is
-     * still growing.
-     */
-    val isDiscovering: Boolean = false,
-    val sourceFolderUri: String? = null,
-    val sourceFolderName: String = "",
-    val sourceKind: SourceKind = SourceKind.PHONE_LIBRARY,
-    val sourceVolumeUuid: String? = null,
-    val isCloudSource: Boolean = false,
-    val collectionFolderUri: String? = null,
-    val collectionFolderName: String = "",
-    val leftSwipeAction: SwipeAction = SwipeAction.DEFAULT,
-    val leftSwipeFolderUri: String? = null,
-    val leftSwipeFolderName: String = "",
-    val error: UiText? = null,
-    val showGestureTutorial: Boolean = false,
-    /** Set when the user opens the controls guide from the info button. */
-    val showControlsGuide: Boolean = false,
-    val lastActionFeedback: ActionFeedback? = null,
-    /** One-time explanation for an action the user just performed for the first time. */
-    val firstRunHint: FirstRunHintUi? = null,
-    /** Hint keys already shown, so each explanation fires exactly once. */
-    val seenFirstRunHints: Set<String> = emptySet(),
-    // Settings (observed)
-    val swipeRightVerb: SwipeRightVerb = SwipeRightVerb.COPY,
-    val feedOrder: FeedOrderMode = FeedOrderMode.NEWEST_FIRST,
-    val collectionAction: CollectionAction = CollectionAction.DEFAULT,
-    val directDeleteConfirmEnabled: Boolean = true,
-    /** A swipe-left delete waits for the Direct Delete Confirmation dialog (REQ-TOK-GESTURE.03). */
-    val confirmDeleteRequested: Boolean = false,
-    /** What that dialog says: how many of the photo's files go to the system bin, how many for good. */
-    val confirmDeleteSplit: DeleteSplit = DeleteSplit.permanentOnly(1),
-    val sortByOrientation: Boolean = false,
-    val randomizeOrder: Boolean = false,
-    /** Casual "surprise me" dealt this folder unseen-first and shuffled; every open resets it. */
-    val surpriseMe: Boolean = false,
-    val fileTypeFilter: FileTypeFilter = FileTypeFilter.DEFAULT,
-    /** Index where portrait section starts (-1 = no split). */
-    val portraitSectionStart: Int = -1,
-    val showExifOverlay: Boolean = false,
-    /** Top-of-stack deletion applied to the UI but not yet finalized on disk (revertable). */
-    val pendingDelete: PendingDeleteLogic.Pending? = null,
-    /** Bounded LIFO stack of pending deletions (`U-18`). */
-    val undoStack: List<PendingDeleteLogic.Pending> = emptyList(),
-    /** Whether collection/delete actions also move/delete same-name sibling files. */
-    val moveRelatedFiles: Boolean = false,
-    // Recent folders (landing quick-select)
-    val recentPaths: List<RecentPath> = emptyList(),
-    val recentPathsEnabled: Boolean = true,
-    val recentPathsCount: Int = 3,
-    /** Whether to show suggestion for folders containing both RAW and JPEG pairs. */
-    val showRawJpegSuggestion: Boolean = false,
-    /** Prompt shown when a reopened folder holds photos newer than the last visit (not after Reload). */
-    val reloadPrompt: ReloadPrompt? = null,
-    /** Friendly explanation when a selected folder contains 0 supported photos. */
-    val emptyFolderMessage: UiText? = null,
-    /** True when the folder's persisted SAF grant was revoked or the folder was moved/deleted. */
-    val missingGrantPrompt: Boolean = false,
-    /** When true, Selection folder is stored inside each scanned folder. */
-    val selectionUseSourceRoot: Boolean = false,
-    /** In-place favourites and how far they reached MediaStore (`U-17`); match feed URIs with `isFavourite`. */
-    val favourites: FavouritesSnapshot = FavouritesSnapshot(),
-    /** Count of seen photos in the active folder (`U-15`). */
-    val seenCountInFolder: Int = 0,
-    /** Per-folder `(seen, total)` summary map for the landing screen (`U-15`). */
-    val folderSeenProgress: Map<String, Pair<Int, Int>> = emptyMap(),
-    /** Currently mounted removable volumes (`U-14a`). */
-    val mountedVolumes: List<ExternalVolume> = emptyList(),
-    /** Session and lifetime culling statistics (`U-19`). */
-    val cullingStats: CullingStats = CullingStats(),
-    /** Milestone celebration banner text (`U-19`). */
-    val celebrationBanner: UiText? = null,
-    val celebrationsEnabled: Boolean = true,
-    /** The stats when the open folder was opened, and whether the landing shows that session (T1.4). */
-    val feedStatsBaseline: CullingStats? = null,
-    val showSessionStats: Boolean = false,
-    /** What swipe right does per source, for the landing cues; and videos skipped by an empty folder. */
-    val sourceOutcomes: Map<SourceKind, SwipeRightOutcome> = emptyMap(),
-    val hiddenVideoCount: Int = 0,
-    /** "Done with this card" sheet state (`U-14c`). */
-    val showCardDoneSheet: Boolean = false,
-    val cardCopiedCount: Int = 0,
-    val cardDeletedCount: Int = 0,
-    val cardClearStep: Int = 0,
-    val cardClearComplete: Boolean = false,
-    /** Favourite request (`createFavoriteRequest`) for the UI to launch once (`U-17`). */
-    val pendingIntentSenderRequest: FavouriteSyncRequest? = null,
-    /** Pro mode on? The settings above are already the effective (gated) values. */
-    val proMode: Boolean = false,
-    /**
-     * Casual mode on an SD card or camera: swipe right copies into the phone's camera folder,
-     * subfolder [selectionSubfolderName] (`Jackpix`), not into `<card>/Selection`.
-     */
-    val importToPhoneCamera: Boolean = false,
-    /** Name of the subfolder swipe right files into: `Selection`, or `Jackpix` for a Casual card import. */
-    val selectionSubfolderName: String = PhotoFolders.SELECTION,
-    /**
-     * Set when a Casual card import has no write access to the phone's camera folder yet: the UI
-     * opens the system folder picker at [CameraFolderGrantRequest.initialUri] and answers with
-     * [PhoneModeViewModel.onCameraFolderGranted] or [PhoneModeViewModel.onCameraFolderGrantCancelled].
-     */
-    val cameraFolderGrantRequest: CameraFolderGrantRequest? = null,
-) {
-    /**
-     * What "Delete all" removes and counts: every discovered file of the card, the hidden RAW
-     * companions, the filtered-out types and the `.xmp` sidecars included. Not the number of cards
-     * in the feed.
-     */
-    val cardClearTargets: List<ImageItem>
-        get() = (allImages + allImages.flatMap { it.sidecars }).distinctBy { it.uri }
-
-    val cardClearFileCount: Int get() = cardClearTargets.size
-
-    /**
-     * What swipe right names as its destination: the folder the files land in, which is always the
-     * Selection subfolder (`Selection`, the configured name in Pro, `Jackpix` for a Casual import),
-     * also inside a custom location. Naming the custom root said "Copied to Pictures" for a file in
-     * `Pictures/Selection/` (review JP-UX-1).
-     */
-    val collectionLabel: String get() = selectionSubfolderName
-
-    /** Delete all is offered once the scan has finished: a count taken mid-scan would be too small. */
-    val cardClearReady: Boolean get() = !isDiscovering && !isLoading && allImages.isNotEmpty()
-
-    /**
-     * The format filter that hides every photo of the open folder, or null. The landing then says
-     * how many it hides and offers Show all, on every visit (F-TOK-086), instead of "no photos".
-     */
-    val filterHidingEveryPhoto: FileTypeFilter?
-        get() = fileTypeFilter.takeIf {
-            it != FileTypeFilter.ALL && !isLoading && images.isEmpty() && allImages.isNotEmpty()
-        }
-}
-
-/**
- * The landing's message for an empty feed: null when the feed shows photos; "N hidden by filter"
- * when the folder has photos the format [filter] hides; else "«folder»: no photos".
- */
-internal fun emptyFeedMessage(
-    shown: List<ImageItem>,
-    all: List<ImageItem>,
-    filter: FileTypeFilter,
-    folderName: String,
-): UiText? = when {
-    shown.isNotEmpty() -> null
-    all.isNotEmpty() && filter != FileTypeFilter.ALL -> UiText.of(R.string.empty_hidden_by_filter, all.size)
-    else -> UiText.of(R.string.empty_folder, folderName.ifEmpty { PhotoFolders.SELECTION })
-}
-
-/** Ask the UI to let the user grant the phone's camera folder (the picker opens at [initialUri]). */
-data class CameraFolderGrantRequest(
-    val initialUri: Uri,
-    val id: Long = System.nanoTime(),
-)
-
-data class ReloadPrompt(
-    val newCount: Int,
-    val firstNewIndex: Int,
-    val resumeIndex: Int = 0,
-    val totalCount: Int = 0,
-)
-
-/** True when there is a pending deletion that can still be reverted. */
-val PhoneModeUiState.canRevert: Boolean
-    get() = pendingDelete != null || undoStack.isNotEmpty()
-
-/** Set of image URIs that have a RAW companion in [PhoneModeUiState.allImages] (`U-12`). */
-val PhoneModeUiState.rawCompanionUris: Set<String>
-    get() = images.filter { RelatedFiles.hasRawCompanion(allImages, it) }.map { it.uri }.toSet()
-
-/** Set of recent-path URIs whose removable volume is currently unmounted (`U-09`, `U-14a`). */
-val PhoneModeUiState.unmountedRecentUris: Set<String>
-    get() = recentPaths.filter { !VolumeMonitor.isRecentPathMounted(it, mountedVolumes) }.map { it.uri }.toSet()
-
-data class ActionFeedback(
-    val message: UiText,
-    val isError: Boolean = false,
-    val id: Long = System.nanoTime(),
-    /** The snackbar offers Undo, which restores the last deletion ([PhoneModeViewModel.revertDelete]). */
-    val offersUndoDelete: Boolean = false,
-    /** The snackbar offers Undo, which turns Pro mode back on (the swipes it changed). */
-    val offersUndoProOff: Boolean = false,
-)
-
-/** A one-time explanation, resolved against the user's current settings. */
-data class FirstRunHintUi(
-    val hint: FirstRunHint,
-    val title: UiText,
-    val message: UiText? = null,
-    val actionLabel: UiText? = null,
-    val onAction: (() -> Unit)? = null,
-    val id: Long = System.nanoTime(),
-)
 
 @HiltViewModel
 class PhoneModeViewModel @Inject constructor(
@@ -301,22 +80,49 @@ class PhoneModeViewModel @Inject constructor(
     private val _uiState = MutableStateFlow(PhoneModeUiState())
     val uiState: StateFlow<PhoneModeUiState> = _uiState.asStateFlow()
 
-    /**
-     * Bumped whenever the visible feed is discarded or rebuilt (folder switch, reload, landing,
-     * card unmount). Late results of work launched on [appScope] compare it with the value captured
-     * at launch before touching the feed: a stale result may only affect durable outcomes (journal,
-     * stats), never the presentation of a feed that belongs to something else now.
-     */
-    private var feedEpoch = 0
+    /** Folder selection, discovery, ordering, navigation, seen tracking, Reload, EXIF and dimensions. */
+    private val feed: FeedDiscoveryHolder = FeedDiscoveryHolder(
+        _uiState = _uiState,
+        viewModelScope = viewModelScope,
+        imageRepository = imageRepository,
+        settingsRepository = settingsRepository,
+        seenRepository = seenRepository,
+        statsRepository = statsRepository,
+        host = object : FeedDiscoveryHolder.Host {
+            override fun finalizePendingDelete() = this@PhoneModeViewModel.finalizePendingDelete()
+            override fun flushSystemFavourites() = this@PhoneModeViewModel.flushSystemFavourites()
+            override fun cancelSystemIndex() { systemIndexJob?.cancel() }
+            override fun indexFeedFromSystem() = this@PhoneModeViewModel.indexFeedFromSystem()
+            override fun observeSourceSettingsForKind(kind: SourceKind) = this@PhoneModeViewModel.observeSourceSettingsForKind(kind)
+            override suspend fun resolveActiveFeedConfig() = this@PhoneModeViewModel.resolveActiveFeedConfig()
+            override fun checkGestureTutorial() = this@PhoneModeViewModel.checkGestureTutorial()
+            override fun maybeShowFirstRunHint(hint: FirstRunHint) = this@PhoneModeViewModel.maybeShowFirstRunHint(hint)
+            override fun maybeShowRawJpegSuggestion() = this@PhoneModeViewModel.maybeShowRawJpegSuggestion()
+            override fun maybeShowFilterMismatchHint() = this@PhoneModeViewModel.maybeShowFilterMismatchHint()
+        },
+    )
 
-    private val loadedExifCache = object : LinkedHashMap<String, ExifData>(64, 0.75f, true) {
-        override fun removeEldestEntry(eldest: MutableMap.MutableEntry<String, ExifData>?): Boolean =
-            size > MAX_EXIF_CACHE_SIZE
-    }
+    /** Swipe transfers, the Casual card import, deletes with undo, the "Done with this card" sheet. */
+    private val transfer: TransferUndoHolder = TransferUndoHolder(
+        _uiState = _uiState,
+        viewModelScope = viewModelScope,
+        appScope = appScope,
+        feed = feed,
+        imageRepository = imageRepository,
+        settingsRepository = settingsRepository,
+        favouritesRepository = favouritesRepository,
+        statsRepository = statsRepository,
+        cardTransferJournal = cardTransferJournal,
+        systemTrash = systemTrash,
+        host = object : TransferUndoHolder.Host {
+            override var cloudMoveCoercedNoticeShown: Boolean
+                get() = this@PhoneModeViewModel.cloudMoveCoercedNoticeShown
+                set(value) { this@PhoneModeViewModel.cloudMoveCoercedNoticeShown = value }
+            override fun afterFavouriteChange(items: List<ImageItem>) = this@PhoneModeViewModel.afterFavouriteChange(items)
+            override fun updateDirectDeleteConfirm(enabled: Boolean) = this@PhoneModeViewModel.updateDirectDeleteConfirm(enabled)
+        },
+    )
 
-    /** Active folder-discovery collection; cancelled when a new folder is selected. */
-    private var discoveryJob: Job? = null
-    private var dimensionsJob: Job? = null
     private var sourceSettingsJob: Job? = null
     private var systemIndexJob: Job? = null
 
@@ -326,52 +132,13 @@ class PhoneModeViewModel @Inject constructor(
     /** Queue size when the user last declined; a full queue flushes only once it grew past it. */
     private var favouriteFlushFloor = 0
 
-    /**
-     * Every URI published for the current folder. Discovery streams cumulative
-     * batches, and the user may remove photos from the feed while it is still
-     * running, so "absent from the feed" must not be read as "newly found".
-     */
-    private val publishedUris = mutableSetOf<String>()
-
-    /** URIs whose dimensions have been read, so batch restarts do no double I/O. */
-    private val dimensionsResolved = mutableSetOf<String>()
-
-    /** Set once the user changes page themselves. */
-    private var userHasNavigated = false
-
-    /**
-     * True while batches may re-order the whole feed newest-first: the user has not
-     * swiped yet and no specific photo is being kept (active-session reload).
-     */
-    private var newestFirstReorderAllowed = true
-
-    /**
-     * False while a Reload streams in: a Reload ignores what was seen, so a shuffled feed is not
-     * split unseen-first and a shooting-order feed does not land on the first unseen photo.
-     * (Every other order never splits, see `PhoneFeedOrdering.order`.)
-     */
-    private var unseenFirstOrdering = true
-
     /** Whether a per-SourceKind SourceSettings emission has arrived. */
     private var hasSourceSettingsEmission = false
 
     /** Whether the one-time cloud MOVE->COPY notice has been shown in this session. */
     private var cloudMoveCoercedNoticeShown = false
 
-    /** The phone's camera-folder tree a Casual card import copies into, once verified writable. */
-    private var cameraImportTarget: String? = null
-
-    /** The photo whose swipe right is waiting for the camera-folder grant. */
-    private var pendingCameraImportUri: String? = null
-
-    private var pendingCameraImportIsCopy = true
-
-    /** Guards against a second swipe while the camera-folder access check is running. */
-    private var resolvingCameraImportTarget = false
-
     companion object {
-        private const val TAG = "PhoneModeVM"
-        private const val MAX_EXIF_CACHE_SIZE = 30
         private const val ONE_WEEK_MS = 7L * 24 * 60 * 60 * 1000
 
         /** Dimension results are applied to the UI state in batches of this size. */
@@ -387,8 +154,8 @@ class PhoneModeViewModel @Inject constructor(
         /** Feed photos read back from MediaStore per step. */
         private const val SYSTEM_INDEX_CHUNK = 50
 
-        private const val EXTERNAL_STORAGE_AUTHORITY = ProModePolicy.CAMERA_IMPORT_AUTHORITY
-        private const val CAMERA_DOCUMENT_ID = ProModePolicy.CAMERA_IMPORT_DOCUMENT_ID
+        internal const val EXTERNAL_STORAGE_AUTHORITY = ProModePolicy.CAMERA_IMPORT_AUTHORITY
+        internal const val CAMERA_DOCUMENT_ID = ProModePolicy.CAMERA_IMPORT_DOCUMENT_ID
 
         /**
          * The picker's `EXTRA_INITIAL_URI` for [documentId]. It must be a document URI: the system
@@ -407,28 +174,10 @@ class PhoneModeViewModel @Inject constructor(
         }
     }
 
-    /** Folders whose committed-but-still-running deletions need their grant until they finish (D-TOK-4). */
-    private val foldersWithRunningDeletes = mutableListOf<String>()
-
     init {
         observeSettings()
         observeRepositories()
-        restoreLastFolders()
-    }
-
-    /**
-     * Pin the grants the undo history needs: the current folder while its deletions are on the
-     * undo stack, plus every folder whose deferred deletes are still running on the application
-     * scope. Without the second part, switching folders would drop the pin before the deletes ran.
-     */
-    private fun syncUndoHistoryPin() {
-        val state = _uiState.value
-        val pins = linkedSetOf<String>()
-        if (state.undoStack.isNotEmpty() || state.pendingDelete != null) {
-            state.sourceFolderUri?.let(pins::add)
-        }
-        synchronized(foldersWithRunningDeletes) { pins.addAll(foldersWithRunningDeletes) }
-        settingsRepository.pinUndoHistoryFolders(pins)
+        feed.restoreLastFolders()
     }
 
     private fun observeRepositories() {
@@ -438,7 +187,7 @@ class PhoneModeViewModel @Inject constructor(
             _uiState
                 .map { if (it.undoStack.isNotEmpty() || it.pendingDelete != null) it.sourceFolderUri else null }
                 .distinctUntilChanged()
-                .collect { syncUndoHistoryPin() }
+                .collect { transfer.syncUndoHistoryPin() }
         }
         viewModelScope.launch {
             favouritesRepository.snapshot.collect { favs ->
@@ -446,7 +195,7 @@ class PhoneModeViewModel @Inject constructor(
             }
         }
         // Photos that reached the system bin (a Retry's too) leave the feed if it still shows them.
-        viewModelScope.launch { systemTrash.trashed.collect { dropFromFeed(it) } }
+        viewModelScope.launch { systemTrash.trashed.collect { feed.dropFromFeed(it) } }
         viewModelScope.launch {
             statsRepository.stats.collect { stats ->
                 _uiState.update { it.copy(cullingStats = stats) }
@@ -459,7 +208,7 @@ class PhoneModeViewModel @Inject constructor(
         }
         viewModelScope.launch {
             volumeMonitor.unmountEvents.collect { unmountedUuid ->
-                handleVolumeUnmounted(unmountedUuid)
+                feed.handleVolumeUnmounted(unmountedUuid)
             }
         }
         viewModelScope.launch {
@@ -474,38 +223,41 @@ class PhoneModeViewModel @Inject constructor(
         }
     }
 
-    private fun handleVolumeUnmounted(unmountedUuid: String?) {
-        val state = _uiState.value
-        if (state.sourceKind != SourceKind.REMOVABLE) return
-        val currentUuid = state.sourceVolumeUuid
-        if (unmountedUuid != null && currentUuid != null && !currentUuid.equals(unmountedUuid, ignoreCase = true)) {
-            return
-        }
-        feedEpoch++
-        // Surprise unmount while viewing a removable card: abort discovery and return to landing safely.
-        discoveryJob?.cancel()
-        dimensionsJob?.cancel()
-        publishedUris.clear()
-        dimensionsResolved.clear()
-        _uiState.update {
-            it.copy(
-                images = emptyList(),
-                allImages = emptyList(),
-                currentIndex = 0,
-                portraitSectionStart = -1,
-                isLoading = false,
-                isDiscovering = false,
-                pendingDelete = null,
-                undoStack = emptyList(),
-                showCardDoneSheet = false,
-                firstRunHint = null,
-                lastActionFeedback = ActionFeedback(
-                    message = UiText.of(R.string.snackbar_card_disconnected),
-                    isError = false,
-                ),
-            )
-        }
-    }
+    // ── Feed: folder selection, discovery, ordering, navigation ([FeedDiscoveryHolder]) ──
+
+    fun selectSourceFolder(uri: Uri) = feed.selectSourceFolder(uri)
+    fun reloadSourceFolder() = feed.reloadSourceFolder()
+    fun goBackToLanding() = feed.goBackToLanding()
+    fun navigateToImage(index: Int) = feed.navigateToImage(index)
+    fun toggleSurpriseMe() = feed.toggleSurpriseMe()
+    fun onCardDwelled(image: ImageItem) = feed.onCardDwelled(image)
+    fun dismissCelebrationBanner() = feed.dismissCelebrationBanner()
+    fun hasRawCompanion(image: ImageItem): Boolean = feed.hasRawCompanion(image)
+    fun confirmReloadJumpToLatest() = feed.confirmReloadJumpToLatest()
+    fun dismissReloadPrompt() = feed.dismissReloadPrompt()
+    fun loadDimensionsOfCurrent() = feed.loadDimensionsOfCurrent()
+
+    // ── Transfers, deletes and undo ([TransferUndoHolder]) ──
+
+    fun addToCollection() = transfer.addToCollection()
+    fun copyCurrentToSelection() = transfer.copyCurrentToSelection()
+    fun moveCurrentToSelection() = transfer.moveCurrentToSelection()
+    fun onCameraFolderGranted(uri: Uri) = transfer.onCameraFolderGranted(uri)
+    fun onCameraFolderGrantCancelled() = transfer.onCameraFolderGrantCancelled()
+    fun onSwipeLeft() = transfer.onSwipeLeft()
+    fun confirmDelete(dontAskAgain: Boolean) = transfer.confirmDelete(dontAskAgain)
+    fun cancelDelete() = transfer.cancelDelete()
+    fun performLeftSwipeCopyOrMove() = transfer.performLeftSwipeCopyOrMove()
+    fun requestDelete() = transfer.requestDelete()
+    fun finalizePendingDelete() = transfer.finalizePendingDelete()
+    fun revertDelete() = transfer.revertDelete()
+    fun openCardDoneSheet() = transfer.openCardDoneSheet()
+    fun dismissCardDoneSheet() = transfer.dismissCardDoneSheet()
+    fun keepAllFilesOnCard() = transfer.keepAllFilesOnCard()
+    fun deleteQueuedRejectsOnCard() = transfer.deleteQueuedRejectsOnCard()
+    fun advanceClearCardConfirmation() = transfer.advanceClearCardConfirmation()
+    fun cancelClearCardConfirmation() = transfer.cancelClearCardConfirmation()
+    fun confirmClearEntireCard() = transfer.confirmClearEntireCard()
 
     // ── Settings observation ──────────────────────────────────────────────
 
@@ -555,12 +307,12 @@ class PhoneModeViewModel @Inject constructor(
                     if (s.fileTypeFilter != prev.fileTypeFilter &&
                         _uiState.value.allImages.isNotEmpty()
                     ) {
-                        refilterAndSort()
+                        feed.refilterAndSort()
                     } else if ((s.sortByOrientation != prev.sortByOrientation ||
                             s.randomizeOrder != prev.randomizeOrder) &&
                         _uiState.value.images.isNotEmpty()
                     ) {
-                        resortImages()
+                        feed.resortImages()
                     }
                 }
             }
@@ -619,7 +371,7 @@ class PhoneModeViewModel @Inject constructor(
                 // Destinations belong to the source kind that is open: a source without a folder of
                 // its own uses its own default (the source folder, name `Selection`), never the
                 // previous source's folder. Names are resolved here, outside the state update.
-                val collectionUri = if (src.importToPhoneCamera) cameraImportTarget else src.collectionFolderUri
+                val collectionUri = if (src.importToPhoneCamera) transfer.cameraImportTarget else src.collectionFolderUri
                 val collectionName = if (src.importToPhoneCamera) {
                     src.selectionSubfolder
                 } else {
@@ -647,7 +399,7 @@ class PhoneModeViewModel @Inject constructor(
                         selectionSubfolderName = src.selectionSubfolder,
                     )
                 }
-                if (src.importToPhoneCamera) refreshCameraImportTarget()
+                if (src.importToPhoneCamera) transfer.refreshCameraImportTarget()
 
                 if (isCloud && !cloudMoveCoercedNoticeShown &&
                     (src.swipeRightVerb == SwipeRightVerb.MOVE || src.leftSwipeAction == SwipeAction.MOVE)
@@ -662,11 +414,11 @@ class PhoneModeViewModel @Inject constructor(
                     if (src.fileTypeFilter != prev.fileTypeFilter &&
                         _uiState.value.allImages.isNotEmpty()
                     ) {
-                        refilterAndSort()
+                        feed.refilterAndSort()
                     } else if (src.feedOrder != prev.feedOrder &&
                         _uiState.value.images.isNotEmpty()
                     ) {
-                        resortImages()
+                        feed.resortImages()
                     }
                 }
             }
@@ -694,7 +446,7 @@ class PhoneModeViewModel @Inject constructor(
             showFeedback(UiText.of(R.string.error_not_connected, path.displayName), isError = true)
             return
         }
-        selectSourceFolder(Uri.parse(path.uri))
+        feed.selectSourceFolder(Uri.parse(path.uri))
     }
 
     /**
@@ -711,7 +463,7 @@ class PhoneModeViewModel @Inject constructor(
         viewModelScope.launch {
             val name = imageRepository.prepareSourceFolder(cameraTreeUri)
             if (name != null) {
-                selectSourceFolder(cameraTreeUri)
+                feed.selectSourceFolder(cameraTreeUri)
             } else {
                 onLaunchPicker(pickerInitialUri(CAMERA_DOCUMENT_ID))
             }
@@ -732,7 +484,7 @@ class PhoneModeViewModel @Inject constructor(
         viewModelScope.launch {
             val name = imageRepository.prepareSourceFolder(dcimTreeUri)
             if (name != null) {
-                selectSourceFolder(dcimTreeUri)
+                feed.selectSourceFolder(dcimTreeUri)
             } else {
                 onLaunchPicker(pickerInitialUri(dcimDocumentId))
             }
@@ -746,116 +498,6 @@ class PhoneModeViewModel @Inject constructor(
         val vol = _uiState.value.mountedVolumes.firstOrNull { it.isRemovable }
         selectRemovableVolume(vol, onLaunchPicker)
     }
-
-    private fun restoreLastFolders() {
-        viewModelScope.launch {
-            settingsRepository.discardStalePendingDeletes()
-            settingsRepository.reconcilePersistedGrants()
-            val lastUri = settingsRepository.lastFolderUri.first()
-            if (lastUri != null && _uiState.value.sourceFolderUri == null) {
-                selectSourceFolder(Uri.parse(lastUri))
-            }
-        }
-    }
-
-    // ── Folder selection ──────────────────────────────────────────────────
-
-    fun selectSourceFolder(uri: Uri) {
-        finalizePendingDelete()
-        flushSystemFavourites()
-        feedEpoch++
-        discoveryJob?.cancel()
-        dimensionsJob?.cancel()
-        systemIndexJob?.cancel()
-        publishedUris.clear()
-        dimensionsResolved.clear()
-        _uiState.update {
-            it.copy(emptyFolderMessage = null, missingGrantPrompt = false, feedStatsBaseline = it.cullingStats, showSessionStats = false)
-        }
-
-        val kind = classifyUri(uri, _uiState.value.mountedVolumes)
-        val volUuid = SourceKindClassifier.extractRemovableUuid(uri)
-        val isCloud = kind == SourceKind.CLOUD_OTHER
-        // Until this kind's settings arrive, no destination of the previous source applies.
-        _uiState.update {
-            if (it.sourceKind == kind) it else it.copy(
-                collectionFolderUri = null,
-                collectionFolderName = "",
-                leftSwipeFolderUri = null,
-                leftSwipeFolderName = "",
-            )
-        }
-        observeSourceSettingsForKind(kind)
-
-        _uiState.update {
-            it.copy(
-                emptyFolderMessage = null,
-                missingGrantPrompt = false,
-                sourceKind = kind,
-                sourceVolumeUuid = volUuid,
-                isCloudSource = isCloud,
-                showCardDoneSheet = false,
-                cardClearStep = 0,
-                cardClearComplete = false,
-            )
-        }
-        discoveryJob = viewModelScope.launch {
-            // The previous folder's feed is dropped up front: batches are merged
-            // by appending, so a stale list would be prefixed to the new folder.
-            _uiState.update {
-                it.copy(
-                    isLoading = true,
-                    isDiscovering = true,
-                    error = null,
-                    emptyFolderMessage = null,
-                    missingGrantPrompt = false,
-                    sourceFolderUri = uri.toString(),
-                    images = emptyList(),
-                    allImages = emptyList(),
-                    currentIndex = 0,
-                    portraitSectionStart = -1,
-                    showRawJpegSuggestion = false,
-                    // A hint about the previous folder ("Most photos here are JPEG") is stale here.
-                    firstRunHint = null,
-                )
-            }
-
-            val folderName = imageRepository.prepareSourceFolder(uri)
-            if (folderName == null) {
-                if (settingsRepository.lastFolderUri.first() == uri.toString()) {
-                    settingsRepository.setLastFolderUri(null)
-                }
-                _uiState.update {
-                    it.copy(
-                        isLoading = false,
-                        isDiscovering = false,
-                        sourceFolderUri = null,
-                        sourceFolderName = "",
-                        missingGrantPrompt = true,
-                        error = UiText.of(R.string.error_folder_access),
-                    )
-                }
-                return@launch
-            }
-
-            _uiState.update { it.copy(sourceFolderName = folderName, missingGrantPrompt = false) }
-            settingsRepository.setLastFolderUri(uri.toString())
-            settingsRepository.addRecentPath(uri.toString(), folderName)
-
-            val scanInfo = settingsRepository.getFolderScanInfo(uri.toString())
-            collectDiscoveredImages(
-                folderUri = uri,
-                previousScanInfo = scanInfo,
-            )
-        }
-    }
-
-    private data class ActiveFeedConfig(
-        val fileTypeFilter: FileTypeFilter,
-        val feedOrder: FeedOrderMode,
-        val sortByOrientation: Boolean,
-        val randomizeOrder: Boolean,
-    )
 
     private suspend fun resolveActiveFeedConfig(): ActiveFeedConfig {
         val state = _uiState.value
@@ -876,462 +518,11 @@ class PhoneModeViewModel @Inject constructor(
         )
     }
 
-    /**
-     * Shared tail of folder selection: stream, filter, order, publish.
-     *
-     * Discovery emits progressively (a small first batch, then chunks), so this
-     * publishes each batch as it arrives instead of waiting for the whole tree.
-     * The user is swiping from the first batch onwards.
-     */
-    private suspend fun collectDiscoveredImages(
-        folderUri: Uri,
-        targetUriToKeep: String? = null,
-        previousScanInfo: FolderScanInfo = FolderScanInfo(),
-        jumpToLatest: Boolean = false,
-    ) {
-        publishedUris.clear()
-        dimensionsResolved.clear()
-        userHasNavigated = false
-        _uiState.update { it.copy(surpriseMe = false) } // every open and Reload starts newest first
-        val config = resolveActiveFeedConfig()
-        newestFirstReorderAllowed = targetUriToKeep == null
-        unseenFirstOrdering = !jumpToLatest
-
-        try {
-            // A Pro user's own Selection folder name is output too, wherever the marker is or is not.
-            val outputNames = PhotoFolders.extraOutputNames(_uiState.value.selectionSubfolderName)
-            imageRepository.discoverImages(folderUri, outputNames).collect { discovered ->
-                publishBatch(discovered, config, targetUriToKeep)
-            }
-            // Enumeration finished:
-            // If not randomized, sort cumulative list according to active feedOrder to guarantee whole folder order,
-            // while preserving current item or targetUriToKeep.
-            val current = _uiState.value
-            val uriToPreserve = targetUriToKeep
-                ?: current.images.getOrNull(current.currentIndex)?.uri
-            val filtered = PhoneFeedOrdering.filterByType(current.allImages, config.fileTypeFilter)
-            val seenUris = if (unseenFirstOrdering) {
-                seenRepository.filterSeenUris(filtered, folderUri.toString())
-            } else {
-                emptySet()
-            }
-            val sorted = if (!config.randomizeOrder && config.feedOrder != FeedOrderMode.SHUFFLE && current.allImages.isNotEmpty()) {
-                PhoneFeedOrdering.order(
-                    images = filtered,
-                    mode = config.feedOrder,
-                    seenUris = seenUris,
-                )
-            } else {
-                PhoneFeedOrdering.Result(current.images, current.portraitSectionStart)
-            }
-
-            var promptToSet: ReloadPrompt? = null
-            val newIndex: Int
-
-            val shouldPromptResume = sorted.images.isNotEmpty() && previousScanInfo.hasPreviousSession
-
-            if (jumpToLatest && sorted.images.isNotEmpty()) {
-                // An explicit Reload: no dialog and no snackbar, the user lands on the latest photo
-                // (position 1 of a newest-first feed). Someone who already swiped while the folder
-                // was being rescanned keeps their place.
-                newIndex = if (userHasNavigated) {
-                    // Follow the photo they are looking at through the final ordering.
-                    sorted.images.indexOfFirst { it.uri == uriToPreserve }.takeIf { it >= 0 }
-                        ?: current.currentIndex.coerceIn(0, sorted.images.size - 1)
-                } else {
-                    FolderScanLogic.latestIndex(sorted.images)
-                }
-                val updatedScan = FolderScanLogic.computeUpdatedScanInfo(
-                    images = sorted.images,
-                    lastViewedUri = sorted.images.getOrNull(newIndex)?.uri,
-                    lastViewedIndex = newIndex,
-                )
-                settingsRepository.setFolderScanInfo(folderUri.toString(), updatedScan)
-            } else if (shouldPromptResume) {
-                val anchorUri = targetUriToKeep ?: previousScanInfo.lastViewedUri
-                val resumeIdx = FolderScanLogic.resolveResumeIndex(
-                    images = sorted.images,
-                    lastViewedUri = anchorUri,
-                    lastViewedIndex = previousScanInfo.lastViewedIndex,
-                )
-                newIndex = if (userHasNavigated) {
-                    resolveFeedIndex(current.currentIndex, sorted.images.size, uriToPreserve, sorted.images)
-                } else {
-                    resumeIdx
-                }
-
-                val newPhotos = FolderScanLogic.findNewPhotos(
-                    images = sorted.images,
-                    previousMaxLastModified = previousScanInfo.maxLastModified,
-                )
-                if (newPhotos.isNotEmpty()) {
-                    val firstNewIdx = sorted.images.indexOfFirst { img ->
-                        newPhotos.any { it.uri == img.uri }
-                    }.coerceAtLeast(0)
-                    promptToSet = ReloadPrompt(
-                        newCount = newPhotos.size,
-                        firstNewIndex = firstNewIdx,
-                        resumeIndex = newIndex,
-                        totalCount = sorted.images.size,
-                    )
-                } else {
-                    // Nothing new means nothing to decide: resume silently at the saved photo.
-                    val updatedScan = FolderScanLogic.computeUpdatedScanInfo(
-                        images = sorted.images,
-                        lastViewedUri = sorted.images.getOrNull(newIndex)?.uri,
-                        lastViewedIndex = newIndex,
-                    )
-                    settingsRepository.setFolderScanInfo(folderUri.toString(), updatedScan)
-                }
-            } else {
-                newIndex = FolderScanLogic.resolveLandingIndex(
-                    images = sorted.images,
-                    previousMaxLastModified = previousScanInfo.maxLastModified,
-                    userHasNavigated = userHasNavigated,
-                    randomized = config.randomizeOrder,
-                    preservedUri = uriToPreserve,
-                    currentIndex = current.currentIndex,
-                    mode = config.feedOrder,
-                    seenUris = seenUris,
-                )
-                val updatedScan = FolderScanLogic.computeUpdatedScanInfo(
-                    images = sorted.images,
-                    lastViewedUri = sorted.images.getOrNull(newIndex)?.uri,
-                    lastViewedIndex = newIndex,
-                )
-                settingsRepository.setFolderScanInfo(folderUri.toString(), updatedScan)
-            }
-
-            val emptyMsg = emptyFeedMessage(sorted.images, current.allImages, config.fileTypeFilter, current.sourceFolderName)
-
-            val seenCount = seenRepository.countSeen(sorted.images, folderUri.toString())
-            if (sorted.images.isNotEmpty()) {
-                settingsRepository.setFolderSeenProgress(
-                    folderUri = folderUri.toString(),
-                    seenCount = seenCount,
-                    totalCount = sorted.images.size,
-                )
-            }
-
-            _uiState.update {
-                it.copy(
-                    images = sorted.images,
-                    portraitSectionStart = sorted.portraitSectionStart,
-                    currentIndex = newIndex,
-                    seenCountInFolder = seenCount,
-                    isLoading = false,
-                    isDiscovering = false,
-                    reloadPrompt = promptToSet,
-                    emptyFolderMessage = emptyMsg,
-                    hiddenVideoCount = if (current.allImages.isEmpty()) imageRepository.skippedVideoCount(folderUri) else 0,
-                )
-            }
-            if (_uiState.value.importToPhoneCamera) maybeShowFirstRunHint(FirstRunHint.CARD_IMPORT)
-            loadExifForCurrent()
-            maybeShowRawJpegSuggestion()
-            maybeShowFilterMismatchHint()
-            loadDimensionsAsynchronously(force = true)
-            indexFeedFromSystem()
-        } catch (e: CancellationException) {
-            // A newer discovery job owns the state now — do not touch it.
-            throw e
-        } catch (e: SecurityException) {
-            if (settingsRepository.lastFolderUri.first() == folderUri.toString()) {
-                settingsRepository.setLastFolderUri(null)
-            }
-            _uiState.update {
-                it.copy(
-                    isLoading = false,
-                    isDiscovering = false,
-                    sourceFolderUri = null,
-                    sourceFolderName = "",
-                    missingGrantPrompt = true,
-                    error = UiText.of(R.string.error_folder_access),
-                )
-            }
-        } catch (e: Exception) {
-            _uiState.update {
-                it.copy(
-                    isLoading = false,
-                    isDiscovering = false,
-                    error = UiText.of(R.string.error_load_failed),
-                )
-            }
-        }
-    }
-
-    /**
-     * Merge one discovery batch into the feed.
-     */
-    private fun publishBatch(
-        discovered: List<ImageItem>,
-        config: ActiveFeedConfig,
-        targetUriToKeep: String? = null,
-    ) {
-        val state = _uiState.value
-        val isFirstBatch = state.images.isEmpty() && state.allImages.isEmpty()
-        val fresh = PhoneFeedOrdering.newItems(discovered, publishedUris)
-        if (fresh.isEmpty() && !isFirstBatch) {
-            _uiState.update { it.copy(isLoading = false) }
-            return
-        }
-        publishedUris += fresh.map { it.uri }
-
-        val freshFiltered = PhoneFeedOrdering.filterByType(fresh, config.fileTypeFilter)
-        // Computed from the state the write replaces: a rollback or a swipe may have changed the
-        // lists since the read above, and publishedUris stops a dropped photo from coming back.
-        _uiState.update { s ->
-            val allCombined = s.allImages + fresh
-            // Only a shuffled feed deals unseen photos first; no other order reads the seen set, and
-            // fingerprinting the whole feed for each 250-photo batch is quadratic.
-            val seenUris = if (unseenFirstOrdering && config.feedOrder == FeedOrderMode.SHUFFLE) {
-                seenRepository.filterSeenUris(allCombined, s.sourceFolderUri)
-            } else {
-                emptySet()
-            }
-            val merged = PhoneFeedOrdering.appendBatch(
-                current = s.images,
-                fresh = freshFiltered,
-                mode = config.feedOrder,
-                reorder = newestFirstReorderAllowed && !userHasNavigated,
-                currentIndex = s.currentIndex,
-                seenUris = seenUris,
-            )
-            s.copy(
-                allImages = allCombined,
-                images = merged.images,
-                portraitSectionStart = merged.portraitSectionStart,
-                currentIndex = resolveFeedIndex(s.currentIndex, merged.images.size, targetUriToKeep, merged.images),
-                isLoading = false,
-            )
-        }
-
-        if (isFirstBatch) checkGestureTutorial()
-        maybeShowRawJpegSuggestion()
-        maybeShowFilterMismatchHint()
-        loadExifForCurrent()
-        loadDimensionsAsynchronously()
-    }
-
-    /**
-     * The index to show after a batch landed: keep the photo being chased by URI, else
-     * leave the user exactly where they are.
-     */
-    private fun resolveFeedIndex(
-        currentIndex: Int,
-        size: Int,
-        targetUri: String? = null,
-        currentImages: List<ImageItem> = emptyList(),
-    ): Int {
-        if (size == 0) return 0
-        if (userHasNavigated) return currentIndex.coerceIn(0, size - 1)
-        if (targetUri != null) {
-            val idx = currentImages.indexOfFirst { it.uri == targetUri }
-            if (idx >= 0) return idx
-        }
-        return currentIndex.coerceIn(0, size - 1)
-    }
-
-    // ── Sorting ───────────────────────────────────────────────────────────
-
-    private suspend fun sortImages(images: List<ImageItem>): PhoneFeedOrdering.Result {
-        val config = resolveActiveFeedConfig()
-        val seenUris = seenRepository.filterSeenUris(images, _uiState.value.sourceFolderUri)
-        return PhoneFeedOrdering.order(
-            images = images,
-            mode = config.feedOrder,
-            seenUris = seenUris,
-        )
-    }
-
-    /** Casual "surprise me" ([USER 2026-11-12] decision #14): unseen photos first, shuffled, this visit only. */
-    fun toggleSurpriseMe() {
-        val s = _uiState.value
-        if (s.surpriseMeShown == null) return
-        val on = !s.surpriseMe
-        finalizePendingDelete() // a new order invalidates the undo slots, as every re-sort does
-        val images = _uiState.value.images
-        val seen = seenRepository.filterSeenUris(images, s.sourceFolderUri)
-        val dealt = PhoneFeedOrdering.order(images, SurpriseMe.order(on, s.feedOrder), seenUris = seen)
-        _uiState.update { it.copy(images = dealt.images, portraitSectionStart = dealt.portraitSectionStart, currentIndex = 0, surpriseMe = on) }
-        loadExifForCurrent()
-        if (on && seen.containsAll(images.map { it.uri })) showFeedback(UiText.of(R.string.snackbar_all_seen))
-        if (on) maybeShowFirstRunHint(FirstRunHint.SURPRISE)
-    }
-
-    private fun resortImages() {
-        finalizePendingDelete()
-        viewModelScope.launch {
-            val current = _uiState.value
-            if (current.images.isEmpty()) return@launch
-            val currentUri = current.images.getOrNull(current.currentIndex)?.uri
-            val sorted = sortImages(current.images)
-            val newIndex = if (currentUri != null) {
-                sorted.images.indexOfFirst { it.uri == currentUri }.coerceAtLeast(0)
-            } else {
-                0
-            }
-            _uiState.update {
-                it.copy(
-                    images = sorted.images,
-                    portraitSectionStart = sorted.portraitSectionStart,
-                    currentIndex = newIndex,
-                )
-            }
-            // Landscape first needs every photo's shape; a pass that is already running carries on.
-            loadDimensionsAsynchronously()
-        }
-    }
-
-    private fun refilterAndSort() {
-        viewModelScope.launch {
-            val state = _uiState.value
-            val currentUri = state.images.getOrNull(state.currentIndex)?.uri
-            val filtered = PhoneFeedOrdering.filterByType(state.allImages, state.fileTypeFilter)
-            val sorted = sortImages(filtered)
-            val newIndex = if (currentUri != null) {
-                sorted.images.indexOfFirst { it.uri == currentUri }.coerceAtLeast(0)
-            } else {
-                0
-            }
-            _uiState.update {
-                it.copy(
-                    images = sorted.images,
-                    portraitSectionStart = sorted.portraitSectionStart,
-                    currentIndex = newIndex,
-                    // Show all (or another filter) reveals photos; a filter hiding them all says so.
-                    emptyFolderMessage = emptyFeedMessage(sorted.images, it.allImages, it.fileTypeFilter, it.sourceFolderName),
-                )
-            }
-            loadExifForCurrent()
-        }
-    }
-
-    // ── Seen & Milestone Tracking (`U-15`, `U-19`) ────────────────────────
-
-    /**
-     * Called when a card has been dwelled on for `>= 500 ms` (`SeenStore.SEEN_DWELL_MS`)
-     * or acted upon by the user (`U-15`, `U-19`).
-     */
-    fun onCardDwelled(image: ImageItem) {
-        val state = _uiState.value
-        val sourceUri = state.sourceFolderUri ?: return
-        val wasNewlySeen = seenRepository.markSeen(image, sourceUri)
-        if (state.fileTypeFilter == FileTypeFilter.ONE_PER_SHOT) {
-            relatedFeedImages(image).forEach { sibling ->
-                seenRepository.markSeen(sibling, sourceUri)
-            }
-        }
-        if (wasNewlySeen) {
-            // One more card is seen: count it instead of fingerprinting the whole feed on a swipe.
-            // Discovery, reload and folder changes recompute the exact figure.
-            val newSeenCount = (state.seenCountInFolder + 1).coerceAtMost(state.images.size)
-            _uiState.update { it.copy(seenCountInFolder = newSeenCount) }
-            viewModelScope.launch {
-                settingsRepository.setFolderSeenProgress(
-                    folderUri = sourceUri,
-                    seenCount = newSeenCount,
-                    totalCount = state.images.size,
-                )
-            }
-            val milestone = statsRepository.recordPhotoReviewed(
-                kind = state.sourceKind,
-                celebrationsEnabled = state.celebrationsEnabled,
-            )
-            if (milestone != null) {
-                _uiState.update { it.copy(celebrationBanner = milestone.message) }
-            }
-        }
-    }
-
-    fun dismissCelebrationBanner() {
-        _uiState.update { it.copy(celebrationBanner = null) }
-    }
-
-    // ── Navigation ────────────────────────────────────────────────────────
-
-    fun navigateToImage(index: Int) {
-        if (index in _uiState.value.images.indices) {
-            val state = _uiState.value
-            if (index != state.currentIndex) {
-                // A real page change means the user has taken over; batches stay append-only.
-                userHasNavigated = true
-            }
-            _uiState.update { it.copy(currentIndex = index) }
-            persistCurrentFolderPosition()
-            maybeShowRawJpegSuggestion()
-            maybeShowFilterMismatchHint()
-            loadExifForCurrent()
-        }
-    }
-
-    // ── Actions ───────────────────────────────────────────────────────────
-
-    /**
-     * Sibling files that share the same base name (stem) but differ in extension,
-     * e.g. IMG_001.JPG and IMG_001.ARW. Computed from the unfiltered list so it is
-     * independent of the user's file-type filter selection.
-     */
-    private fun relatedImages(target: ImageItem): List<ImageItem> =
-        RelatedFiles.bundleOf(_uiState.value.allImages, target)
-
-    /** The feed-visible part of [relatedImages] (no `.xmp` sidecars): favourites, seen and counts. */
-    private fun relatedFeedImages(target: ImageItem): List<ImageItem> =
-        relatedImages(target).filterNot { CompanionFiles.isSidecar(it.fileName) }
-
-    /**
-     * Returns true if [image] has a RAW+JPEG companion pair in [PhoneModeUiState.allImages] (`U-12`).
-     */
-    fun hasRawCompanion(image: ImageItem): Boolean =
-        RelatedFiles.hasRawCompanion(_uiState.value.allImages, image)
-
-    /**
-     * Swipe right: perform the configured [SwipeRightVerb] (`FAVOURITE`, `COPY`, or `MOVE`).
-     */
-    fun addToCollection() {
-        val state = _uiState.value
-        if (state.images.isEmpty()) return
-        val currentImage = state.images[state.currentIndex]
-        onCardDwelled(currentImage)
-        // No first-run hint: the controls guide shows the swipe once and the result snackbar
-        // (or the favourite flash) confirms it (REQ-TOK-UX.04, explain once).
-
-        if (state.swipeRightVerb == SwipeRightVerb.FAVOURITE) {
-            val related = if (state.moveRelatedFiles) relatedFeedImages(currentImage) else emptyList()
-            favouritesRepository.setFavourite(
-                uri = currentImage.uri,
-                favourite = true,
-                companionUris = related.map { it.uri },
-            )
-            afterFavouriteChange(listOf(currentImage) + related)
-            statsRepository.recordKeeper(state.sourceKind, 1 + related.size)
-            advanceToNextImage()
-            // No snackbar: the star flash and the lit favourite badge already say it (REQ-TOK-UX.01).
-            return
-        }
-
-        val isCopy = state.collectionAction == CollectionAction.COPY ||
-            state.swipeRightVerb == SwipeRightVerb.COPY ||
-            state.isCloudSource
-        if (state.importToPhoneCamera) {
-            importToPhoneCamera(isCopy = true)
-            return
-        }
-        val target = resolveCollectionTargetUri(state)
-        statsRepository.recordKeeper(state.sourceKind, 1)
-        copyOrMoveCurrent(
-            targetUri = target,
-            isCopy = isCopy,
-            subfolderName = state.selectionSubfolderName,
-            destination = collectionDestination(state),
-        )
-    }
-
     /** Toggle in-place favourite status on the current photo (`U-13`, `U-17`). */
     fun toggleCurrentFavourite() {
         val state = _uiState.value
         val currentImage = state.images.getOrNull(state.currentIndex) ?: return
-        val related = if (state.moveRelatedFiles) relatedFeedImages(currentImage) else emptyList()
+        val related = if (state.moveRelatedFiles) feed.relatedFeedImages(currentImage) else emptyList()
         val nowFav = favouritesRepository.toggleFavourite(
             uri = currentImage.uri,
             companionUris = related.map { it.uri },
@@ -1343,44 +534,6 @@ class PhoneModeViewModel @Inject constructor(
         } else {
             showFeedback(UiText.of(R.string.snackbar_favourite_removed))
         }
-    }
-
-    /** Explicit Copy to Selection action from the long-press context menu (`U-13`). */
-    fun copyCurrentToSelection() {
-        val state = _uiState.value
-        if (state.importToPhoneCamera) {
-            importToPhoneCamera(isCopy = true)
-            return
-        }
-        val target = resolveCollectionTargetUri(state)
-        statsRepository.recordKeeper(state.sourceKind, 1)
-        copyOrMoveCurrent(
-            targetUri = target,
-            isCopy = true,
-            subfolderName = state.selectionSubfolderName,
-            destination = collectionDestination(state),
-        )
-    }
-
-    /** Explicit Move to Selection action from the long-press context menu (`U-13`). */
-    fun moveCurrentToSelection() {
-        val state = _uiState.value
-        if (state.importToPhoneCamera) {
-            importToPhoneCamera(isCopy = false)
-            return
-        }
-        val target = resolveCollectionTargetUri(state)
-        val isCopy = state.isCloudSource
-        if (isCopy && !cloudMoveCoercedNoticeShown) {
-            cloudMoveCoercedNoticeShown = true
-        }
-        statsRepository.recordKeeper(state.sourceKind, 1)
-        copyOrMoveCurrent(
-            targetUri = target,
-            isCopy = isCopy,
-            subfolderName = state.selectionSubfolderName,
-            destination = collectionDestination(state),
-        )
     }
 
     /** Build a system share sheet chooser (`ACTION_SEND`) for the current photo (`U-13`). */
@@ -1407,692 +560,6 @@ class PhoneModeViewModel @Inject constructor(
             fileTypeFilter = state.fileTypeFilter,
         )
         return ShareIntentBuilder.buildOpenWithChooser(target)
-    }
-
-    // ── Casual card import: SD card / camera to the phone's camera folder ─────
-
-    private fun cameraTreeUri(): Uri =
-        DocumentsContract.buildTreeDocumentUri(EXTERNAL_STORAGE_AUTHORITY, CAMERA_DOCUMENT_ID)
-
-    /**
-     * Casual swipe right on an SD card or camera: copy the current photo (with its companions) into
-     * `DCIM/Camera/Jackpix` on the phone. Without access to the camera folder nothing is copied
-     * and the photo stays: [PhoneModeUiState.cameraFolderGrantRequest] asks the UI to open the
-     * folder picker, and [onCameraFolderGranted] / [onCameraFolderGrantCancelled] finish the swipe.
-     */
-    private fun importToPhoneCamera(isCopy: Boolean) {
-        val state = _uiState.value
-        val image = state.images.getOrNull(state.currentIndex) ?: return
-        if (state.cameraFolderGrantRequest != null || resolvingCameraImportTarget) return
-        val known = cameraImportTarget
-        if (known != null) {
-            runCameraImport(known, isCopy)
-            return
-        }
-        resolvingCameraImportTarget = true
-        viewModelScope.launch {
-            val target = try {
-                resolveCameraImportTarget()
-            } finally {
-                resolvingCameraImportTarget = false
-            }
-            if (target != null) {
-                runCameraImport(target, isCopy)
-            } else {
-                pendingCameraImportUri = image.uri
-                pendingCameraImportIsCopy = isCopy
-                _uiState.update {
-                    it.copy(cameraFolderGrantRequest = CameraFolderGrantRequest(pickerInitialUri(CAMERA_DOCUMENT_ID)))
-                }
-            }
-        }
-    }
-
-    private fun runCameraImport(target: String, isCopy: Boolean) {
-        val state = _uiState.value
-        statsRepository.recordKeeper(state.sourceKind, 1)
-        copyOrMoveCurrent(
-            targetUri = target,
-            isCopy = isCopy,
-            subfolderName = PhotoFolders.CASUAL_IMPORT,
-            destination = UiText.raw(PhotoFolders.CASUAL_IMPORT),
-        )
-    }
-
-    /**
-     * A tree we can write to for the import: the one granted before, else the camera folder the
-     * Camera source already holds. Remembered (with a durable grant purpose) once found.
-     */
-    private suspend fun resolveCameraImportTarget(): String? {
-        val stored = settingsRepository.casualCameraTargetUri.first()
-        val found = listOfNotNull(stored, cameraTreeUri().toString()).distinct()
-            .firstOrNull { imageRepository.resolveFolderName(Uri.parse(it)) != null }
-        if (found != null && found != stored) settingsRepository.setCasualCameraTarget(found)
-        setCameraImportTarget(found)
-        return found
-    }
-
-    private fun refreshCameraImportTarget() {
-        viewModelScope.launch { resolveCameraImportTarget() }
-    }
-
-    private fun setCameraImportTarget(uri: String?) {
-        cameraImportTarget = uri
-        _uiState.update { if (it.importToPhoneCamera) it.copy(collectionFolderUri = uri) else it }
-    }
-
-    /** The user picked a folder for the pending Casual import: keep the grant and copy that photo. */
-    fun onCameraFolderGranted(uri: Uri) {
-        val pendingUri = pendingCameraImportUri
-        val isCopy = pendingCameraImportIsCopy
-        pendingCameraImportUri = null
-        _uiState.update { it.copy(cameraFolderGrantRequest = null) }
-        if (pendingUri == null) return
-        viewModelScope.launch {
-            if (imageRepository.resolveFolderName(uri) == null) {
-                showFeedback(UiText.of(R.string.snackbar_not_copied), isError = true)
-                return@launch
-            }
-            settingsRepository.setCasualCameraTarget(uri.toString())
-            setCameraImportTarget(uri.toString())
-            val state = _uiState.value
-            val index = state.images.indexOfFirst { it.uri == pendingUri }
-            if (index < 0) {
-                showFeedback(UiText.of(R.string.snackbar_not_copied), isError = true)
-                return@launch
-            }
-            if (index != state.currentIndex) navigateToImage(index)
-            runCameraImport(uri.toString(), isCopy)
-        }
-    }
-
-    /** The picker was dismissed: nothing is copied and the photo stays. */
-    fun onCameraFolderGrantCancelled() {
-        val hadPending = pendingCameraImportUri != null
-        pendingCameraImportUri = null
-        _uiState.update { it.copy(cameraFolderGrantRequest = null) }
-        if (hadPending) showFeedback(UiText.of(R.string.snackbar_not_copied))
-    }
-
-    /** The tree swipe right copies into; Settings shows the same resolution (REQ-TOK-FEATURE.23). */
-    private fun resolveCollectionTargetUri(state: PhoneModeUiState): String? =
-        SwipeDestinations.selection(state.collectionFolderUri, state.sourceFolderUri, state.selectionSubfolderName).treeUri
-
-    /** Name of the Selection destination for feedback: the configured folder, else the default. */
-    private fun collectionDestination(state: PhoneModeUiState): UiText =
-        UiText.raw(state.collectionLabel)
-
-    /**
-     * Swipe left, by drag or the TalkBack action: the configured copy/move, or a delete, which
-     * first asks when the confirmation is on (the dialog shows while [PhoneModeUiState.confirmDeleteRequested]).
-     */
-    fun onSwipeLeft() {
-        val state = _uiState.value
-        if (state.leftSwipeAction != SwipeAction.DELETE) {
-            performLeftSwipeCopyOrMove()
-            return
-        }
-        val image = state.images.getOrNull(state.currentIndex) ?: return
-        if (state.directDeleteConfirmEnabled || settingsRepository.shouldAskDeleteOnce()) {
-            // The dialog says whether this photo's files go to the system bin or for good.
-            val files = listOf(image) + if (state.moveRelatedFiles) RelatedFiles.deleteBundleOf(state.allImages, image) else emptyList()
-            viewModelScope.launch {
-                val split = systemTrash.split(files.map { it.uri }, state.sourceKind)
-                _uiState.update { it.copy(confirmDeleteRequested = true, confirmDeleteSplit = split) }
-            }
-        } else {
-            requestDelete()
-        }
-    }
-
-    /** Delete in the confirmation dialog; [dontAskAgain] is its "Don't ask" checkbox. */
-    fun confirmDelete(dontAskAgain: Boolean) {
-        _uiState.update { it.copy(confirmDeleteRequested = false) }
-        settingsRepository.clearAskDeleteOnce()
-        if (dontAskAgain) updateDirectDeleteConfirm(false)
-        requestDelete()
-    }
-
-    /** Cancel in the confirmation dialog: nothing is deleted and the setting is unchanged. */
-    fun cancelDelete() {
-        _uiState.update { it.copy(confirmDeleteRequested = false) }
-        settingsRepository.clearAskDeleteOnce()
-    }
-
-    /** Swipe left (copy/move mode): copy or move the current photo to the custom folder. */
-    fun performLeftSwipeCopyOrMove() {
-        val state = _uiState.value
-        if (state.images.isNotEmpty()) {
-            onCardDwelled(state.images[state.currentIndex])
-        }
-        val destination = SwipeDestinations.leftSwipe(state.leftSwipeFolderUri, state.sourceFolderUri)
-        copyOrMoveCurrent(
-            targetUri = destination.treeUri,
-            isCopy = state.leftSwipeAction == SwipeAction.COPY || state.isCloudSource,
-            subfolderName = destination.subfolder,
-            destination = UiText.raw(state.leftSwipeFolderName.ifBlank { PhotoFolders.LEFT_SWIPE }),
-        )
-    }
-
-    /**
-     * Copy or move the current image plus its related siblings.
-     */
-    private fun copyOrMoveCurrent(
-        targetUri: String?,
-        isCopy: Boolean,
-        subfolderName: String,
-        destination: UiText,
-    ) {
-        val state = _uiState.value
-        if (state.images.isEmpty()) return
-        if (targetUri == null) return
-
-        val currentImage = state.images[state.currentIndex]
-        val related = if (state.moveRelatedFiles) relatedImages(currentImage) else emptyList()
-        val targets = listOf(currentImage) + related
-        val slots = OptimisticFeed.slotsOf(state.images, state.allImages, targets)
-        val epochAtLaunch = feedEpoch
-
-        // ── Optimistic UI: show the next photo, then do the work ──────────
-        if (isCopy) {
-            advanceToNextImage()
-        } else {
-            removeImagesFromLists(targets.map { it.uri }.toSet())
-        }
-
-        appScope.launch {
-            try {
-                val sortingEnabled = settingsRepository.sortingEnabled.first()
-                val folderUri = Uri.parse(targetUri)
-
-                val succeededUris = mutableSetOf<String>()
-                // (source, destination) pairs, so favourites follow their files.
-                val movedFiles = mutableListOf<Pair<String, String>>()
-                val copiedFiles = mutableListOf<Pair<String, String>>()
-                var failed = 0
-                var partial = 0
-                var renamedTo: String? = null
-                // A shot with companions travels as one bundle (shared collision suffix); a
-                // single file keeps the per-file path.
-                val results: List<FileOperationResult> = if (targets.size > 1) {
-                    imageRepository.transferBundleDetailed(
-                        sourceUris = targets.map { Uri.parse(it.uri) },
-                        destFolderUri = folderUri,
-                        sorting = sortingEnabled,
-                        subfolderName = subfolderName,
-                        isMove = !isCopy,
-                    )
-                } else {
-                    targets.map { img ->
-                        if (isCopy) {
-                            imageRepository.copyImageDetailed(
-                                sourceUri = Uri.parse(img.uri),
-                                destFolderUri = folderUri,
-                                sorting = sortingEnabled,
-                                subfolderName = subfolderName,
-                            )
-                        } else {
-                            imageRepository.moveImageDetailed(
-                                sourceUri = Uri.parse(img.uri),
-                                destFolderUri = folderUri,
-                                sorting = sortingEnabled,
-                                subfolderName = subfolderName,
-                            )
-                        }
-                    }
-                }
-                targets.forEachIndexed { i, img ->
-                    val result = results.getOrNull(i)
-                        ?: FileOperationResult.failure(img.uri, "No result") // ui-text: ignore internal result code, never shown
-                    when {
-                        result.success -> {
-                            succeededUris.add(img.uri)
-                            result.destinationUri?.let { dest ->
-                                (if (isCopy) copiedFiles else movedFiles) += img.uri to dest
-                            }
-                            if (img === currentImage) {
-                                // The primary file got a collision suffix: say which name it became.
-                                CopyMoveFeedback.renamedName(img.fileName, result.destinationUri)?.let { renamedTo = it }
-                            }
-                            val dest = result.destinationUri ?: targetUri
-                            cardTransferJournal.recordTransfer(state.sourceKind, img.uri, state.sourceFolderUri, dest)
-                        }
-                        result.partial -> {
-                            partial++
-                            // The verified copy exists and the original stays: both are the photo.
-                            result.destinationUri?.let { dest -> copiedFiles += img.uri to dest }
-                            cardTransferJournal.recordTransfer(state.sourceKind, img.uri, state.sourceFolderUri, result.destinationUri)
-                        }
-                        else -> failed++
-                    }
-                }
-                favouritesRepository.followTransfer(moved = movedFiles, copied = copiedFiles)
-                val destinations = (movedFiles + copiedFiles).map { it.second }
-                if (destinations.isNotEmpty()) {
-                    // Best effort: a MediaStore lookup must never turn a finished transfer into a failure.
-                    try {
-                        favouritesRepository.indexUrisFromSystem(destinations, onlyUnresolved = true)
-                    } catch (e: CancellationException) {
-                        throw e
-                    } catch (e: Exception) {
-                        Log.w(TAG, "Could not index ${destinations.size} transferred photos", e)
-                    }
-                }
-
-                // The feed may belong to another folder (or none) by now: files that stayed behind
-                // are rediscovered by that folder's own scan, never inserted into a foreign feed.
-                val feedStillCurrent = feedEpoch == epochAtLaunch
-                if (!isCopy && (failed > 0 || partial > 0) && feedStillCurrent) {
-                    // The optimistic removal was wrong for files that are still in the source.
-                    restoreToFeed(OptimisticFeed.slotsLeftBehind(slots, goneUris = succeededUris))
-                }
-
-                val message = CopyMoveFeedback.message(
-                    isCopy = isCopy,
-                    destination = destination,
-                    succeeded = succeededUris.size,
-                    failed = failed,
-                    relatedCount = related.size,
-                    partial = partial,
-                    renamedTo = renamedTo,
-                )
-                val copiedOnCard = cardTransferJournal.copiedCountForFolder(state.sourceFolderUri ?: "")
-                // The user did perform this action, so its outcome is still reported; the per-card
-                // counter only follows the card that is on screen.
-                _uiState.update {
-                    it.copy(
-                        cardCopiedCount = if (feedStillCurrent) copiedOnCard else it.cardCopiedCount,
-                        lastActionFeedback = ActionFeedback(
-                            message = message,
-                            isError = CopyMoveFeedback.isError(failed, partial),
-                        ),
-                    )
-                }
-            } catch (e: CancellationException) {
-                throw e
-            } catch (e: Exception) {
-                if (!isCopy && feedEpoch == epochAtLaunch) restoreToFeed(slots)
-                _uiState.update {
-                    it.copy(
-                        lastActionFeedback = ActionFeedback(UiText.of(R.string.error_transfer_failed), isError = true),
-                    )
-                }
-            }
-        }
-    }
-
-    /** Move to the next photo without waiting for anything. */
-    private fun advanceToNextImage() {
-        val state = _uiState.value
-        val next = state.currentIndex + 1
-        if (next in state.images.indices) navigateToImage(next)
-    }
-
-    /** Put optimistically removed photos back where they were. */
-    private fun restoreToFeed(slots: List<OptimisticFeed.Slot>) {
-        if (slots.isEmpty()) return
-        // Runs on the application scope while swipes and discovery batches keep writing the feed:
-        // the new lists are computed from the state this write replaces, never from an earlier read.
-        _uiState.update { s ->
-            val lists = OptimisticFeed.restore(
-                images = s.images,
-                allImages = s.allImages,
-                slots = slots,
-                currentIndex = s.currentIndex,
-                sortByOrientation = s.sortByOrientation,
-            )
-            s.copy(
-                images = lists.images,
-                allImages = lists.allImages,
-                currentIndex = lists.currentIndex,
-                portraitSectionStart = lists.portraitSectionStart,
-            )
-        }
-    }
-
-    /**
-     * Swipe left: request delete (pushes onto the bounded LIFO undo stack, `U-18`).
-     */
-    fun requestDelete() {
-        val initialState = _uiState.value
-        if (initialState.images.isEmpty()) return
-
-        onCardDwelled(initialState.images[initialState.currentIndex])
-
-        val state = _uiState.value
-        if (state.images.isEmpty()) return
-        val imageToDelete = state.images[state.currentIndex]
-        val related = if (state.moveRelatedFiles) {
-            RelatedFiles.deleteBundleOf(state.allImages, imageToDelete)
-        } else {
-            emptyList()
-        }
-
-        val pushResult = PendingDeleteLogic.pushRemove(
-            images = state.images,
-            allImages = state.allImages,
-            currentIndex = state.currentIndex,
-            related = related,
-            currentStack = state.undoStack,
-            sortByOrientation = state.sortByOrientation,
-        ) ?: return
-
-        // If the bounded stack overflowed (51st item), finalize the evicted oldest entry on disk.
-        pushResult.evictedOldest?.let { evicted ->
-            finalizePendingEntriesOnDisk(listOf(evicted), state.sourceFolderUri, state.sourceKind, release = false)
-        }
-
-        val allQueuedUris = PendingDeleteLogic.allTargetUris(pushResult.updatedStack)
-        val allQueuedBytes = pushResult.updatedStack.sumOf { p ->
-            p.image.fileSize + p.related.sumOf { it.fileSize }
-        }
-        statsRepository.updateQueuedDeletes(allQueuedUris.size, allQueuedBytes)
-
-        _uiState.update {
-            it.copy(
-                images = pushResult.state.images,
-                allImages = pushResult.state.allImages,
-                currentIndex = pushResult.state.currentIndex,
-                portraitSectionStart = pushResult.state.portraitSectionStart,
-                undoStack = pushResult.updatedStack,
-                pendingDelete = pushResult.updatedStack.lastOrNull(),
-            )
-        }
-        persistCurrentFolderPosition()
-        viewModelScope.launch {
-            settingsRepository.setPersistedPendingDeleteUris(allQueuedUris.toSet())
-        }
-        loadExifForCurrent()
-        // The screen only shows the next photo, so say what went and offer the way back
-        // ([USER 2026-10-24]: undo snackbar after a delete; the bar stays icon-only).
-        _uiState.update {
-            it.copy(
-                lastActionFeedback = ActionFeedback(
-                    message = UiText.of(R.string.snackbar_photo_deleted),
-                    offersUndoDelete = true,
-                ),
-            )
-        }
-    }
-
-    /**
-     * Delete all pending images in the undo stack (and their siblings) from disk.
-     * Runs on the application scope so it also completes when the ViewModel is cleared.
-     */
-    fun finalizePendingDelete() {
-        val state = _uiState.value
-        val entries = if (state.undoStack.isNotEmpty()) {
-            state.undoStack
-        } else {
-            listOfNotNull(state.pendingDelete)
-        }
-        // Nothing queued: an evicted delete still waiting for the bin goes out now.
-        if (entries.isEmpty()) return systemTrash.release()
-
-        val folderAtDelete = state.sourceFolderUri
-        val kindAtDelete = state.sourceKind
-        _uiState.update { it.copy(pendingDelete = null, undoStack = emptyList()) }
-        statsRepository.updateQueuedDeletes(0, 0L)
-
-        finalizePendingEntriesOnDisk(entries, folderAtDelete, kindAtDelete)
-    }
-
-    private fun finalizePendingEntriesOnDisk(
-        entries: List<PendingDeleteLogic.Pending>,
-        folderAtDelete: String?,
-        kindAtDelete: SourceKind,
-        release: Boolean = true,
-    ) {
-        // Registered synchronously, before the caller's state change can drop the folder's pin.
-        if (folderAtDelete != null) {
-            synchronized(foldersWithRunningDeletes) { foldersWithRunningDeletes.add(folderAtDelete) }
-            syncUndoHistoryPin()
-        }
-        appScope.launch {
-            try {
-                runPendingDeletes(entries, folderAtDelete, kindAtDelete, release)
-            } finally {
-                // The deletions are over: unpin first, or the release below would be refused.
-                withContext(NonCancellable) {
-                    if (folderAtDelete != null) {
-                        synchronized(foldersWithRunningDeletes) { foldersWithRunningDeletes.remove(folderAtDelete) }
-                        syncUndoHistoryPin()
-                        // A folder that was left meanwhile no longer needs its grant.
-                        settingsRepository.releaseFolderGrantIfUnreferenced(folderAtDelete)
-                    }
-                }
-            }
-        }
-    }
-
-    private suspend fun runPendingDeletes(
-        entries: List<PendingDeleteLogic.Pending>,
-        folderAtDelete: String?,
-        kindAtDelete: SourceKind,
-        release: Boolean,
-    ) {
-        // Only these entries leave the journal: others may have been queued meanwhile.
-        settingsRepository.removePersistedPendingDeleteUris(
-            entries.flatMap { p -> (listOf(p.image) + p.related).map { it.uri } },
-        )
-        // Phone photos wait here for the system bin's consent; the rest is deleted for good.
-        val outcome = PendingDeleteCommit(imageRepository, systemTrash).commit(entries, kindAtDelete, release)
-        if (outcome.restore.isNotEmpty() && _uiState.value.sourceFolderUri == folderAtDelete) {
-            outcome.restore.forEach(::restoreToFeed)
-            loadExifForCurrent()
-        }
-        // A rescan that started while the unlinks ran may have listed these files again.
-        if (outcome.gone.isNotEmpty()) dropFromFeed(outcome.gone)
-        if (outcome.permanentCount > 0) {
-            val milestone = statsRepository.recordCommittedDelete(
-                kind = kindAtDelete,
-                bytesFreed = outcome.permanentBytes,
-                fileCount = outcome.permanentCount,
-                celebrationsEnabled = _uiState.value.celebrationsEnabled,
-            )
-            _uiState.update { state ->
-                state.copy(
-                    cardDeletedCount = state.cardDeletedCount + outcome.permanentCount,
-                    celebrationBanner = milestone?.message ?: state.celebrationBanner,
-                )
-            }
-        }
-        val failed = outcome.failed
-        if (failed.isNotEmpty()) {
-            val done = outcome.gone.size
-            val errorMsg = if (done == 0) {
-                UiText.of(R.string.error_delete_one, failed.first().fileName)
-            } else {
-                UiText.of(R.string.error_delete_some, done, done + failed.size)
-            }
-            _uiState.update { it.copy(lastActionFeedback = ActionFeedback(message = errorMsg, isError = true)) }
-        }
-    }
-
-    /**
-     * Pop the most recent pending deletion from the LIFO undo stack and restore it (`U-18`).
-     */
-    fun revertDelete() {
-        val state = _uiState.value
-        val stack = if (state.undoStack.isNotEmpty()) {
-            state.undoStack
-        } else {
-            listOfNotNull(state.pendingDelete)
-        }
-        if (stack.isEmpty()) return
-
-        // No first-run hint here: the restored photo is already on screen (REQ-TOK-UX.01).
-
-        val popResult = PendingDeleteLogic.popRestore(
-            images = state.images,
-            allImages = state.allImages,
-            currentStack = stack,
-            sortByOrientation = state.sortByOrientation,
-        ) ?: return
-
-        val remainingUris = PendingDeleteLogic.allTargetUris(popResult.remainingStack)
-        val remainingBytes = popResult.remainingStack.sumOf { p ->
-            p.image.fileSize + p.related.sumOf { it.fileSize }
-        }
-        statsRepository.updateQueuedDeletes(remainingUris.size, remainingBytes)
-
-        _uiState.update {
-            it.copy(
-                images = popResult.state.images,
-                allImages = popResult.state.allImages,
-                currentIndex = popResult.state.currentIndex,
-                portraitSectionStart = popResult.state.portraitSectionStart,
-                undoStack = popResult.remainingStack,
-                pendingDelete = popResult.remainingStack.lastOrNull(),
-            )
-        }
-        persistCurrentFolderPosition()
-        viewModelScope.launch {
-            settingsRepository.setPersistedPendingDeleteUris(remainingUris.toSet())
-        }
-        loadExifForCurrent()
-    }
-
-    // ── "Done with this card" post-offload sheet (`U-14c`) ───────────────
-
-    fun openCardDoneSheet() {
-        val state = _uiState.value
-        val copied = cardTransferJournal.copiedCountForFolder(state.sourceFolderUri ?: "")
-        _uiState.update {
-            it.copy(
-                showCardDoneSheet = true,
-                cardCopiedCount = copied,
-                cardClearStep = 0,
-                cardClearComplete = false,
-            )
-        }
-    }
-
-    fun dismissCardDoneSheet() {
-        _uiState.update {
-            it.copy(
-                showCardDoneSheet = false,
-                cardClearStep = 0,
-            )
-        }
-    }
-
-    /** Option 1 (default): Keep all files on card. */
-    fun keepAllFilesOnCard() {
-        _uiState.update {
-            it.copy(
-                showCardDoneSheet = false,
-                cardClearStep = 0,
-            )
-        }
-        showFeedback(UiText.of(R.string.snackbar_safe_to_unplug))
-    }
-
-    /** Option 2: Delete only the photos swiped left during this session. */
-    fun deleteQueuedRejectsOnCard() {
-        finalizePendingDelete()
-        _uiState.update {
-            it.copy(
-                showCardDoneSheet = false,
-                cardClearStep = 0,
-            )
-        }
-        showFeedback(UiText.of(R.string.snackbar_rejects_deleted))
-    }
-
-    /** Step 1 -> Step 2 for Option 3 ("Clear entire card"). */
-    fun advanceClearCardConfirmation() {
-        _uiState.update { state ->
-            state.copy(cardClearStep = (state.cardClearStep + 1).coerceAtMost(2))
-        }
-    }
-
-    fun cancelClearCardConfirmation() {
-        _uiState.update { it.copy(cardClearStep = 0) }
-    }
-
-    /**
-     * Final confirmation for Option 3: Clear entire card (`U-14c`). It deletes exactly the files
-     * [PhoneModeUiState.cardClearFileCount] announced, and only once the scan has finished. The
-     * card counts as cleared only when nothing is left on it; files that could not be deleted stay
-     * in the feed and the outcome says how many went.
-     */
-    fun confirmClearEntireCard() {
-        val state = _uiState.value
-        if (state.isDiscovering || state.isLoading) return
-        val toDelete = state.cardClearTargets
-        if (toDelete.isEmpty()) {
-            _uiState.update {
-                it.copy(
-                    showCardDoneSheet = false,
-                    cardClearStep = 0,
-                    cardClearComplete = true,
-                )
-            }
-            showFeedback(UiText.of(R.string.snackbar_safe_to_unplug))
-            return
-        }
-        _uiState.update { it.copy(cardClearStep = 3) }
-        val epochAtLaunch = feedEpoch
-        appScope.launch {
-            val deletedUris = mutableSetOf<String>()
-            var freedBytes = 0L
-            for (img in toDelete) {
-                val ok = try {
-                    imageRepository.deleteImage(Uri.parse(img.uri))
-                } catch (e: CancellationException) {
-                    throw e
-                } catch (_: Exception) {
-                    false
-                }
-                if (ok) {
-                    deletedUris.add(img.uri)
-                    freedBytes += img.fileSize
-                }
-            }
-            val deletedCount = deletedUris.size
-            // A wiped card starts a new count; a card with files left keeps what was copied off it.
-            if (deletedCount == toDelete.size) cardTransferJournal.clearSource(state.sourceFolderUri ?: "")
-            if (deletedCount > 0) {
-                statsRepository.recordCommittedDelete(
-                    kind = state.sourceKind,
-                    bytesFreed = freedBytes,
-                    fileCount = deletedCount,
-                    celebrationsEnabled = state.celebrationsEnabled,
-                )
-            }
-            if (feedEpoch != epochAtLaunch) {
-                // Left the card meanwhile: the deletions stand, but the screen shows something else.
-                _uiState.update { it.copy(cardClearStep = 0) }
-                showFeedback(UiText.of(R.string.snackbar_deleted_count, deletedCount))
-                return@launch
-            }
-            val leftBehind = toDelete.size - deletedCount
-            _uiState.update { s ->
-                val images = s.images.filter { it.uri !in deletedUris }
-                val all = s.allImages.filter { it.uri !in deletedUris }
-                s.copy(
-                    images = images,
-                    allImages = all,
-                    currentIndex = s.currentIndex.coerceIn(0, (images.size - 1).coerceAtLeast(0)),
-                    portraitSectionStart = PhoneFeedOrdering.portraitSplit(images, s.sortByOrientation),
-                    showCardDoneSheet = false,
-                    cardClearStep = 0,
-                    cardClearComplete = leftBehind == 0 && all.isEmpty(),
-                    cardDeletedCount = s.cardDeletedCount + deletedCount,
-                    emptyFolderMessage = if (leftBehind == 0 && all.isEmpty()) {
-                        UiText.of(R.string.empty_card_cleared)
-                    } else {
-                        s.emptyFolderMessage
-                    },
-                )
-            }
-            if (leftBehind == 0) {
-                showFeedback(UiText.of(R.string.snackbar_deleted_count, deletedCount))
-            } else {
-                showFeedback(UiText.of(R.string.error_delete_some, deletedCount, toDelete.size), isError = true)
-            }
-        }
     }
 
     // ── System favourites (MediaStore IS_FAVORITE, `U-17`) ───────────────────
@@ -2413,326 +880,7 @@ class PhoneModeViewModel @Inject constructor(
         }
     }
 
-    /**
-     * Rescan the current source folder from disk and take the user to its latest photo, whether
-     * or not anything new appeared (`REQ-TOK-FEATURE.09`). The rescanned feed drops the
-     * unseen-first split, so in a newest-first feed that is position 1. No dialog and no
-     * snackbar: the "N new photos / Show new / Stay" prompt belongs to reopening a folder.
-     */
-    fun reloadSourceFolder() {
-        val folderUriStr = _uiState.value.sourceFolderUri ?: return
-        val folderUri = Uri.parse(folderUriStr)
-        finalizePendingDelete()
-        feedEpoch++
-        discoveryJob?.cancel()
-        dimensionsJob?.cancel()
-        systemIndexJob?.cancel()
-        publishedUris.clear()
-        dimensionsResolved.clear()
-        loadedExifCache.clear()
-
-        discoveryJob = viewModelScope.launch {
-            val scanInfo = settingsRepository.getFolderScanInfo(folderUriStr)
-            _uiState.update {
-                it.copy(
-                    isLoading = true,
-                    isDiscovering = true,
-                    error = null,
-                    missingGrantPrompt = false,
-                    images = emptyList(),
-                    allImages = emptyList(),
-                    currentIndex = 0,
-                    portraitSectionStart = -1,
-                    showRawJpegSuggestion = false,
-                    reloadPrompt = null,
-                )
-            }
-            val folderName = imageRepository.prepareSourceFolder(folderUri)
-            if (folderName == null) {
-                if (settingsRepository.lastFolderUri.first() == folderUriStr) {
-                    settingsRepository.setLastFolderUri(null)
-                }
-                _uiState.update {
-                    it.copy(
-                        isLoading = false,
-                        isDiscovering = false,
-                        sourceFolderUri = null,
-                        sourceFolderName = "",
-                        missingGrantPrompt = true,
-                        error = UiText.of(R.string.error_folder_access),
-                    )
-                }
-                return@launch
-            }
-            // The old photo is not pinned during discovery: the user is heading for the latest one.
-            collectDiscoveredImages(
-                folderUri = folderUri,
-                previousScanInfo = scanInfo,
-                jumpToLatest = true,
-            )
-        }
-    }
-
-    /** User chose to jump to the new photos from the reload/reopen prompt. */
-    fun confirmReloadJumpToLatest() {
-        val prompt = _uiState.value.reloadPrompt ?: return
-        val images = _uiState.value.images
-        val target = if (prompt.firstNewIndex in images.indices) {
-            prompt.firstNewIndex
-        } else {
-            0 // newest-first feed: the latest photo is at the start
-        }
-        _uiState.update { it.copy(reloadPrompt = null) }
-        navigateToImage(target)
-        _uiState.value.sourceFolderUri?.let { uri ->
-            viewModelScope.launch {
-                val currentImages = _uiState.value.images
-                val updatedScan = FolderScanLogic.computeUpdatedScanInfo(
-                    images = currentImages,
-                    lastViewedUri = currentImages.getOrNull(target)?.uri,
-                    lastViewedIndex = target,
-                )
-                settingsRepository.setFolderScanInfo(uri, updatedScan)
-            }
-        }
-    }
-
-    /** User chose to continue where they left off from the resume/reload prompt. */
-    fun dismissReloadPrompt() {
-        val prompt = _uiState.value.reloadPrompt
-        val images = _uiState.value.images
-        val target = if (prompt != null && images.isNotEmpty()) {
-            prompt.resumeIndex.coerceIn(0, images.size - 1)
-        } else {
-            _uiState.value.currentIndex
-        }
-        _uiState.update { it.copy(reloadPrompt = null, currentIndex = target) }
-        loadExifForCurrent()
-        _uiState.value.sourceFolderUri?.let { uri ->
-            viewModelScope.launch {
-                val currentImages = _uiState.value.images
-                val updatedScan = FolderScanLogic.computeUpdatedScanInfo(
-                    images = currentImages,
-                    lastViewedUri = currentImages.getOrNull(target)?.uri,
-                    lastViewedIndex = target,
-                )
-                settingsRepository.setFolderScanInfo(uri, updatedScan)
-            }
-        }
-    }
-
-    private fun persistCurrentFolderPosition() {
-        val state = _uiState.value
-        val folderUri = state.sourceFolderUri ?: return
-        if (state.images.isEmpty()) return
-        val idx = state.currentIndex.coerceIn(0, state.images.size - 1)
-        val currentUri = state.images.getOrNull(idx)?.uri
-        viewModelScope.launch {
-            settingsRepository.setFolderLastPosition(folderUri, currentUri, idx)
-        }
-    }
-
-    private fun showFeedback(message: UiText, isError: Boolean = false) {
-        _uiState.update {
-            it.copy(lastActionFeedback = ActionFeedback(message = message, isError = isError))
-        }
-    }
-
-    // ── Navigation helpers ───────────────────────────────────────────────
-
-    /** Go back to the landing screen (clears images). */
-    fun goBackToLanding() {
-        persistCurrentFolderPosition()
-        finalizePendingDelete()
-        flushSystemFavourites()
-        feedEpoch++
-        discoveryJob?.cancel()
-        dimensionsJob?.cancel()
-        systemIndexJob?.cancel()
-        publishedUris.clear()
-        dimensionsResolved.clear()
-        _uiState.update {
-            it.copy(
-                images = emptyList(),
-                allImages = emptyList(),
-                currentIndex = 0,
-                portraitSectionStart = -1,
-                isDiscovering = false,
-                reloadPrompt = null,
-                showCardDoneSheet = false,
-                showSessionStats = true,
-                // Every first-run hint explains the feed the user just left (REQ-TOK-GESTURE.05).
-                // It was marked seen when shown, so dropping it is what its own dismiss does.
-                firstRunHint = null,
-            )
-        }
-    }
-
-    // ── Internal helpers ──────────────────────────────────────────────────
-
-    /** Remove a set of images (by URI) from both the filtered and unfiltered lists. */
-    private fun removeImagesFromLists(uris: Set<String>) {
-        _uiState.update { s ->
-            val updatedImages = s.images.filter { it.uri !in uris }
-            val updatedAll = s.allImages.filter { it.uri !in uris }
-            s.copy(
-                images = updatedImages,
-                allImages = updatedAll,
-                currentIndex = s.currentIndex.coerceAtMost(updatedImages.size - 1).coerceAtLeast(0),
-                portraitSectionStart = PhoneFeedOrdering.portraitSplit(updatedImages, s.sortByOrientation),
-            )
-        }
-        persistCurrentFolderPosition()
-        loadExifForCurrent()
-    }
-
-    /**
-     * Take files that are gone from disk out of the current feed, if they are in it: nothing else
-     * changes (no position persist, no EXIF load). A no-op for a feed that never listed them.
-     */
-    private fun dropFromFeed(uris: Set<String>) {
-        _uiState.update { s ->
-            if (s.allImages.none { it.uri in uris } && s.images.none { it.uri in uris }) return@update s
-            val activeUri = s.images.getOrNull(s.currentIndex)?.uri
-            val images = s.images.filter { it.uri !in uris }
-            val all = s.allImages.filter { it.uri !in uris }
-            val index = activeUri?.let { u -> images.indexOfFirst { it.uri == u } }?.takeIf { it >= 0 }
-                ?: s.currentIndex.coerceIn(0, (images.size - 1).coerceAtLeast(0))
-            s.copy(
-                images = images,
-                allImages = all,
-                currentIndex = index,
-                portraitSectionStart = PhoneFeedOrdering.portraitSplit(images, s.sortByOrientation),
-            )
-        }
-    }
-
-    private fun loadExifForCurrent() {
-        val state = _uiState.value
-        if (state.images.isEmpty()) return
-
-        val indices = listOf(state.currentIndex, state.currentIndex - 1, state.currentIndex + 1)
-            .filter { it in state.images.indices }
-
-        viewModelScope.launch {
-            indices.forEach { idx ->
-                val image = state.images[idx]
-                if (image.exifData == null) {
-                    val cached = loadedExifCache[image.uri]
-                    if (cached != null) {
-                        updateImageExif(image.uri, cached)
-                    } else {
-                        val exif = imageRepository.getExifData(Uri.parse(image.uri))
-                        if (exif != null) {
-                            loadedExifCache[image.uri] = exif
-                            updateImageExif(image.uri, exif)
-                        }
-                    }
-                }
-            }
-        }
-    }
-
-    private fun updateImageExif(uri: String, exif: ExifData) {
-        _uiState.update { state ->
-            val updatedImages = state.images.map { img ->
-                if (img.uri == uri) img.copy(exifData = exif) else img
-            }
-            state.copy(images = updatedImages)
-        }
-    }
-
-    /**
-     * Read the dimensions of the feed in the background, nearest photos first. Only "landscape
-     * first" ordering needs them for the whole folder (everything else reads one photo's size when
-     * its details are opened, see [loadDimensionsOfCurrent]), and each read opens the file.
-     */
-    private fun loadDimensionsAsynchronously(force: Boolean = false) {
-        if (!_uiState.value.sortByOrientation) return
-        if (!force && dimensionsJob?.isActive == true) return
-        dimensionsJob?.cancel()
-        dimensionsJob = viewModelScope.launch {
-            val images = _uiState.value.images
-            val currentIndex = _uiState.value.currentIndex
-            val sortedIndices = images.indices.sortedBy { abs(it - currentIndex) }
-
-            val batch = mutableMapOf<String, Pair<Int, Int>>()
-            for (idx in sortedIndices) {
-                val image = images.getOrNull(idx) ?: continue
-                if (image.uri in dimensionsResolved) continue
-                if (image.imageWidth == 0 && image.imageHeight == 0) {
-                    val (w, h) = try {
-                        imageRepository.getImageDimensions(Uri.parse(image.uri))
-                    } catch (e: CancellationException) {
-                        // A restarted pass reads this photo again: it must not count as resolved.
-                        throw e
-                    } catch (e: Exception) {
-                        Pair(0, 0)
-                    }
-                    dimensionsResolved.add(image.uri)
-                    if (w > 0 && h > 0) {
-                        batch[image.uri] = Pair(w, h)
-                        if (batch.size >= DIMENSION_BATCH_SIZE) {
-                            applyDimensions(batch.toMap())
-                            batch.clear()
-                        }
-                    }
-                }
-            }
-            if (batch.isNotEmpty()) {
-                applyDimensions(batch.toMap())
-            }
-        }
-    }
-
-    /** Read the size of the photo on screen, for its details (the folder-wide pass is off by default). */
-    fun loadDimensionsOfCurrent() {
-        val state = _uiState.value
-        val image = state.images.getOrNull(state.currentIndex) ?: return
-        if (image.imageWidth > 0 || image.imageHeight > 0) return
-        viewModelScope.launch {
-            val (w, h) = try {
-                imageRepository.getImageDimensions(Uri.parse(image.uri))
-            } catch (e: CancellationException) {
-                throw e
-            } catch (e: Exception) {
-                return@launch
-            }
-            if (w > 0 && h > 0) applyDimensions(mapOf(image.uri to Pair(w, h)))
-        }
-    }
-
-    private fun applyDimensions(dimensions: Map<String, Pair<Int, Int>>) {
-        _uiState.update { state ->
-            fun ImageItem.withDims(): ImageItem {
-                val dims = dimensions[uri] ?: return this
-                return copy(imageWidth = dims.first, imageHeight = dims.second)
-            }
-
-            val updatedAll = state.allImages.map { it.withDims() }
-            val updatedImages = state.images.map { it.withDims() }
-
-            if (!state.randomizeOrder && state.sortByOrientation) {
-                val currentActiveUri = state.images.getOrNull(state.currentIndex)?.uri
-                val landscape = updatedImages.filter { it.isLandscape }
-                val portrait = updatedImages.filter { !it.isLandscape }
-                val regrouped = landscape + portrait
-                val newIndex = if (currentActiveUri != null) {
-                    regrouped.indexOfFirst { it.uri == currentActiveUri }.coerceAtLeast(0)
-                } else {
-                    state.currentIndex
-                }
-                state.copy(
-                    allImages = updatedAll,
-                    images = regrouped,
-                    portraitSectionStart = if (portrait.isEmpty()) -1 else landscape.size,
-                    currentIndex = newIndex,
-                )
-            } else {
-                state.copy(allImages = updatedAll, images = updatedImages)
-            }
-        }
-    }
+    private fun showFeedback(message: UiText, isError: Boolean = false) = _uiState.showFeedback(message, isError)
 
     public override fun onCleared() {
         // Finalizes primary AND sibling files on the application scope, so the
