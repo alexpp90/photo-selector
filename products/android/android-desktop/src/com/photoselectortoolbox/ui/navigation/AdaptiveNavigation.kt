@@ -4,6 +4,17 @@ import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.distinctUntilChanged
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.compose.runtime.remember
+import androidx.compose.foundation.layout.ColumnScope
+import androidx.compose.foundation.layout.RowScope
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.setValue
+import androidx.compose.ui.layout.onSizeChanged
+import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.unit.DpOffset
+import androidx.compose.ui.unit.IntSize
+import com.photoselectortoolbox.ui.components.handCursor
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Row
@@ -100,33 +111,11 @@ private fun DesktopModeApp(
                 containerColor = StudioPanel,
                 contentColor = Zinc400,
             ) {
-                Screen.all.forEach { screen ->
-                    val selected = currentDestination?.hierarchy?.any {
-                        it.route == screen.route
-                    } == true
-
-                    NavigationRailItem(
-                        // Same tag the selector sidebar puts on its own
-                        // destination items, so "go to screen X" is one
-                        // selector regardless of which of the two navigation
-                        // surfaces is currently drawn.
-                        modifier = Modifier.testTag("nav_${screen.route}"),
-                        icon = {
-                            Icon(
-                                imageVector = screen.icon,
-                                contentDescription = screen.label,
-                            )
-                        },
-                        label = { Text(text = screen.label) },
-                        selected = selected,
-                        onClick = { navigateToScreen(screen) },
-                        colors = NavigationRailItemDefaults.colors(
-                            selectedIconColor = BrandAccent,
-                            selectedTextColor = BrandAccent,
-                            unselectedIconColor = Zinc400,
-                            unselectedTextColor = Zinc400,
-                            indicatorColor = BrandAccentNav,
-                        ),
+                NavEntry.all.forEach { entry ->
+                    RailCell(
+                        entry = entry,
+                        currentRoute = currentDestination?.route,
+                        onNavigate = navigateToScreen,
                     )
                 }
             }
@@ -163,34 +152,11 @@ private fun DesktopModeApp(
                     contentColor = Zinc400,
                     tonalElevation = 0.dp,
                 ) {
-                    Screen.all.forEach { screen ->
-                        val selected = currentDestination?.hierarchy?.any {
-                            it.route == screen.route
-                        } == true
-
-                        NavigationBarItem(
-                            // The third navigation surface, tagged like the
-                            // other two. All of the sidebar (expanded selector),
-                            // the rail (expanded elsewhere) and this bar
-                            // (compact) answer to `nav_<route>`, so a test does
-                            // not have to know which one the window size chose.
-                            modifier = Modifier.testTag("nav_${screen.route}"),
-                            icon = {
-                                Icon(
-                                    imageVector = screen.icon,
-                                    contentDescription = screen.label,
-                                )
-                            },
-                            label = { Text(text = screen.label) },
-                            selected = selected,
-                            onClick = { navigateToScreen(screen) },
-                            colors = NavigationBarItemDefaults.colors(
-                                selectedIconColor = BrandAccent,
-                                selectedTextColor = BrandAccent,
-                                unselectedIconColor = Zinc400,
-                                unselectedTextColor = Zinc400,
-                                indicatorColor = BrandAccentNav,
-                            ),
+                    NavEntry.all.forEach { entry ->
+                        BarCell(
+                            entry = entry,
+                            currentRoute = currentDestination?.route,
+                            onNavigate = navigateToScreen,
                         )
                     }
                 }
@@ -259,3 +225,95 @@ private fun AppNavHost(
     }
 }
 
+/**
+ * One rail cell. Tagged like the sidebar's (`nav_<route>`, `nav_tools`), so "go to screen X" is
+ * one selector whichever navigation surface the window size chose. Tools opens its menu right of
+ * the cell instead of navigating.
+ */
+@Composable
+internal fun ColumnScope.RailCell(entry: NavEntry, currentRoute: String?, onNavigate: (Screen) -> Unit) {
+    val colors = NavigationRailItemDefaults.colors(
+        selectedIconColor = BrandAccent,
+        selectedTextColor = BrandAccent,
+        unselectedIconColor = Zinc400,
+        unselectedTextColor = Zinc400,
+        indicatorColor = BrandAccentNav,
+    )
+    when (entry) {
+        is NavEntry.Destination -> NavigationRailItem(
+            modifier = Modifier.testTag(entry.testTag).handCursor(),
+            icon = { Icon(imageVector = entry.icon, contentDescription = entry.spoken(currentRoute)) },
+            label = { Text(text = entry.label) },
+            selected = entry.isSelected(currentRoute),
+            onClick = { onNavigate(entry.screen) },
+            colors = colors,
+        )
+        NavEntry.Tools -> {
+            val menu = rememberToolsMenuState()
+            val density = LocalDensity.current
+            var cell by remember { mutableStateOf(IntSize.Zero) }
+            Box(modifier = Modifier.onSizeChanged { cell = it }) {
+                NavigationRailItem(
+                    modifier = with(menu) { Modifier.toolsCell() }
+                        .semantics { contentDescription = entry.spoken(currentRoute) }
+                        .testTag(entry.testTag)
+                        .handCursor(),
+                    icon = { Icon(imageVector = entry.icon, contentDescription = null) },
+                    label = { Text(text = entry.label) },
+                    selected = entry.isSelected(currentRoute),
+                    onClick = menu::open,
+                    colors = colors,
+                )
+                ToolsMenu(
+                    state = menu,
+                    currentRoute = currentRoute,
+                    onOpen = onNavigate,
+                    offset = with(density) { DpOffset(cell.width.toDp(), -cell.height.toDp()) },
+                )
+            }
+        }
+    }
+}
+
+/** One bottom-bar cell (compact windows); Tools opens its menu above the bar. */
+@Composable
+internal fun RowScope.BarCell(entry: NavEntry, currentRoute: String?, onNavigate: (Screen) -> Unit) {
+    val colors = NavigationBarItemDefaults.colors(
+        selectedIconColor = BrandAccent,
+        selectedTextColor = BrandAccent,
+        unselectedIconColor = Zinc400,
+        unselectedTextColor = Zinc400,
+        indicatorColor = BrandAccentNav,
+    )
+    when (entry) {
+        is NavEntry.Destination -> NavigationBarItem(
+            modifier = Modifier.testTag(entry.testTag).handCursor(),
+            icon = { Icon(imageVector = entry.icon, contentDescription = entry.spoken(currentRoute)) },
+            label = { Text(text = entry.label) },
+            selected = entry.isSelected(currentRoute),
+            onClick = { onNavigate(entry.screen) },
+            colors = colors,
+        )
+        NavEntry.Tools -> {
+            val menu = rememberToolsMenuState()
+            NavigationBarItem(
+                modifier = with(menu) { Modifier.toolsCell() }
+                    .semantics { contentDescription = entry.spoken(currentRoute) }
+                    .testTag(entry.testTag)
+                    .handCursor(),
+                // The menu is anchored to the glyph: the popup flips above it, the bar being
+                // the window's last row.
+                icon = {
+                    Box {
+                        Icon(imageVector = entry.icon, contentDescription = null)
+                        ToolsMenu(state = menu, currentRoute = currentRoute, onOpen = onNavigate)
+                    }
+                },
+                label = { Text(text = entry.label) },
+                selected = entry.isSelected(currentRoute),
+                onClick = menu::open,
+                colors = colors,
+            )
+        }
+    }
+}

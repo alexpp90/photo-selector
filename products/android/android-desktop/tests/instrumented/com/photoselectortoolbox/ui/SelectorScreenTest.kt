@@ -28,6 +28,7 @@ import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.performTextInput
 import androidx.compose.ui.test.performTouchInput
 import androidx.compose.ui.test.printToLog
+import androidx.compose.ui.test.requestFocus
 import androidx.compose.ui.test.swipeLeft
 import androidx.compose.ui.unit.dp
 import androidx.test.ext.junit.runners.AndroidJUnit4
@@ -723,6 +724,11 @@ class SelectorScreenTest {
     fun systemBack_fromLearnReturnsToTheSelector() {
         loadTwoImages()
         requireExpandedLayout()
+        // Learn and Dupes sit behind Tools ([USER 2026-11-12] decision #18).
+        composeRule.onAllNodesWithTag("nav_tools", useUnmergedTree = true).onFirst().performClick()
+        composeRule.waitUntil(timeoutMillis = 5000) {
+            composeRule.onAllNodesWithTag("nav_inspect", useUnmergedTree = true).fetchSemanticsNodes().isNotEmpty()
+        }
         composeRule.onAllNodesWithTag("nav_inspect", useUnmergedTree = true).onFirst().performClick()
         composeRule.waitUntil(timeoutMillis = 15000) {
             composeRule.onAllNodesWithTag("inspect_screen", useUnmergedTree = true)
@@ -809,6 +815,11 @@ class SelectorScreenTest {
         loadTwoImages()
         requireExpandedLayout()
 
+        // Learn and Dupes sit behind Tools ([USER 2026-11-12] decision #18).
+        composeRule.onAllNodesWithTag("nav_tools", useUnmergedTree = true).onFirst().performClick()
+        composeRule.waitUntil(timeoutMillis = 5000) {
+            composeRule.onAllNodesWithTag("nav_duplicates", useUnmergedTree = true).fetchSemanticsNodes().isNotEmpty()
+        }
         composeRule.onAllNodesWithTag("nav_duplicates", useUnmergedTree = true).onFirst().performClick()
 
         // Not "No Folder Selected": the folder open in Cull is open here (FD-UX-3).
@@ -816,6 +827,87 @@ class SelectorScreenTest {
             composeRule.onAllNodesWithText("Start Scan", ignoreCase = true).fetchSemanticsNodes().isNotEmpty()
         }
         composeRule.onAllNodesWithText("No Folder Selected", ignoreCase = true).assertCountEquals(0)
+    }
+
+    /**
+     * The confirmation card's line for [verb]: "Moved IMG_0001 · Selection" ([USER 2026-11-12]
+     * decision #33 (1)). Scoped to the card, because the one-time filing hint card still says
+     * "Moved to Selection".
+     */
+    private fun cardLine(verb: String) =
+        hasText("$verb ", substring = true, ignoreCase = true) and
+            hasText("· Selection", substring = true, ignoreCase = true) and
+            hasAnyAncestor(hasTestTag("selector_snackbar"))
+
+    private fun toolsMenuShown(): Boolean =
+        composeRule.onAllNodesWithTag("tools_menu", useUnmergedTree = true).fetchSemanticsNodes().isNotEmpty()
+
+    /**
+     * The Tools menu by keyboard ([USER 2026-11-12] decision #18): arrows move between Learn and
+     * Dupes, Enter opens the focused row, and `Esc` closes the menu with the selector still
+     * taking the keys (its root reclaims focus when the window gets it back, AD-11).
+     */
+    @ExpandedWindow
+    @Test
+    fun toolsMenu_arrowsAndEnterOpenDupes_escClosesAndTheSelectorKeepsItsKeys() {
+        loadTwoImages()
+        requireExpandedLayout()
+
+        composeRule.onAllNodesWithTag("nav_tools", useUnmergedTree = true).onFirst().performClick()
+        composeRule.waitUntil(timeoutMillis = 5000) { toolsMenuShown() }
+        pressKey(android.view.KeyEvent.KEYCODE_ESCAPE)
+        composeRule.waitUntil(timeoutMillis = 5000) { !toolsMenuShown() }
+        composeRule.waitUntil(timeoutMillis = 5000) { selectorRootHasKeyFocus() }
+        pressKey(android.view.KeyEvent.KEYCODE_DPAD_RIGHT)
+        composeRule.waitUntil(timeoutMillis = 5000) { positionCounterShows("2 / 2") }
+
+        composeRule.onAllNodesWithTag("nav_tools", useUnmergedTree = true).onFirst().performClick()
+        composeRule.waitUntil(timeoutMillis = 5000) { toolsMenuShown() }
+        pressKey(android.view.KeyEvent.KEYCODE_DPAD_DOWN)
+        pressKey(android.view.KeyEvent.KEYCODE_DPAD_DOWN)
+        composeRule.waitUntil(timeoutMillis = 5000) {
+            composeRule.onAllNodes(hasTestTag("nav_duplicates") and isFocused(), useUnmergedTree = true)
+                .fetchSemanticsNodes().isNotEmpty()
+        }
+        pressKey(android.view.KeyEvent.KEYCODE_ENTER)
+        composeRule.waitUntil(timeoutMillis = 15000) {
+            composeRule.onAllNodesWithText("Start Scan", ignoreCase = true).fetchSemanticsNodes().isNotEmpty()
+        }
+    }
+
+    /**
+     * On a screen with the rail, a keyboard user who opened Tools with Enter is back on Tools
+     * after `Esc` ([USER 2026-11-12] decision #18, UX notes F-18).
+     */
+    @ExpandedWindow
+    @Test
+    fun toolsMenu_onTheRail_escReturnsFocusToTools() {
+        loadTwoImages()
+        requireExpandedLayout()
+        composeRule.onAllNodesWithTag("nav_statistics", useUnmergedTree = true).onFirst().performClick()
+        composeRule.waitUntil(timeoutMillis = 15000) {
+            composeRule.onAllNodesWithTag("selector_root", useUnmergedTree = true).fetchSemanticsNodes().isEmpty()
+        }
+
+        // A keyboard user is out of touch mode, and only then is a rail item focusable. A real Tab
+        // gets there as a keyboard does (the window consumes the first navigation key to leave
+        // touch mode). `Instrumentation.setInTouchMode(false)` did not: on API 30 the window learns
+        // the new mode only with its next input event, so Compose stayed in touch mode and the
+        // request below was refused (CI, PR #933).
+        pressKey(android.view.KeyEvent.KEYCODE_TAB)
+        composeRule.onAllNodesWithTag("nav_tools", useUnmergedTree = true).onFirst().requestFocus()
+        composeRule.waitUntil(timeoutMillis = 5000) {
+            composeRule.onAllNodes(hasTestTag("nav_tools") and isFocused(), useUnmergedTree = true)
+                .fetchSemanticsNodes().isNotEmpty()
+        }
+        pressKey(android.view.KeyEvent.KEYCODE_ENTER)
+        composeRule.waitUntil(timeoutMillis = 5000) { toolsMenuShown() }
+        pressKey(android.view.KeyEvent.KEYCODE_ESCAPE)
+        composeRule.waitUntil(timeoutMillis = 5000) { !toolsMenuShown() }
+        composeRule.waitUntil(timeoutMillis = 5000) {
+            composeRule.onAllNodes(hasTestTag("nav_tools") and isFocused(), useUnmergedTree = true)
+                .fetchSemanticsNodes().isNotEmpty()
+        }
     }
 
     @ExpandedWindow
@@ -992,8 +1084,7 @@ class SelectorScreenTest {
 
         composeRule.waitUntil(timeoutMillis = 10000) {
             composeRule.onAllNodes(
-                hasText("Moved to Selection", ignoreCase = true) and
-                    hasAnyAncestor(hasTestTag("selector_snackbar")),
+                cardLine("Moved"),
                 useUnmergedTree = true,
             ).fetchSemanticsNodes().isNotEmpty()
         }
@@ -1095,14 +1186,14 @@ class SelectorScreenTest {
 
         try {
             composeRule.waitUntil(timeoutMillis = 15000) {
-                composeRule.onAllNodesWithText("Copied to Selection", ignoreCase = true)
+                composeRule.onAllNodes(cardLine("Copied"), useUnmergedTree = true)
                     .fetchSemanticsNodes().isNotEmpty()
             }
         } catch (e: Exception) {
             try { composeRule.onRoot().printToLog("SelectorScreenTest_Copy") } catch (_: Exception) {}
             throw e
         }
-        composeRule.onNodeWithText("Copied to Selection", ignoreCase = true).assertIsDisplayed()
+        composeRule.onAllNodes(cardLine("Copied"), useUnmergedTree = true).onFirst().assertIsDisplayed()
 
         // Move straight away, as a photographer would, rather than waiting for the
         // copy card to leave (3 s now; it was the whole 30 s undo window when this
@@ -1119,22 +1210,19 @@ class SelectorScreenTest {
 
         try {
             composeRule.waitUntil(timeoutMillis = 15000) {
-                composeRule.onAllNodesWithText("Moved to Selection", ignoreCase = true)
+                composeRule.onAllNodes(cardLine("Moved"), useUnmergedTree = true)
                     .fetchSemanticsNodes().isNotEmpty()
             }
         } catch (e: Exception) {
             try { composeRule.onRoot().printToLog("SelectorScreenTest_Move") } catch (_: Exception) {}
             throw e
         }
-        composeRule.onNodeWithText("Moved to Selection", ignoreCase = true).assertIsDisplayed()
+        composeRule.onAllNodes(cardLine("Moved"), useUnmergedTree = true).onFirst().assertIsDisplayed()
         // One confirmation at a time: the move's replaced the copy's. Scoped to the
         // snackbar, because the one-time filing hint card repeats the sentence.
         assertTrue(
             "the copy snackbar is still showing beside the move's",
-            composeRule.onAllNodes(
-                hasText("Copied to Selection", ignoreCase = true) and
-                    hasAnyAncestor(hasTestTag("selector_snackbar")),
-            ).fetchSemanticsNodes().isEmpty(),
+            composeRule.onAllNodes(cardLine("Copied"), useUnmergedTree = true).fetchSemanticsNodes().isEmpty(),
         )
     }
 
@@ -1580,7 +1668,7 @@ class SelectorScreenTest {
             .onFirst().performClick()
 
         composeRule.waitUntil(timeoutMillis = 15000) {
-            composeRule.onAllNodesWithText("Copied to Selection", ignoreCase = true)
+            composeRule.onAllNodes(cardLine("Copied"), useUnmergedTree = true)
                 .fetchSemanticsNodes().isNotEmpty()
         }
         composeRule.onAllNodesWithTag("snackbar_undo", useUnmergedTree = true).assertCountEquals(0)
