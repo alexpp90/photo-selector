@@ -1,5 +1,9 @@
 package com.photoselectortoolbox.domain.interaction
 
+import com.photoselectortoolbox.R
+import com.photoselectortoolbox.domain.text.UiText
+import com.photoselectortoolbox.domain.text.text
+
 /**
  * The one place a gesture's meaning is written down.
  *
@@ -134,6 +138,15 @@ enum class FilingAction(
      * access to the configuration must use [phraseFor].
      */
     val phrase: String get() = phraseFor(DEFAULT_SELECTION_FOLDER)
+
+    /** The verb on its own, "Copy" or "Move", in the UI's language. */
+    val verbText: UiText get() = text(if (this == COPY) R.string.action_copy else R.string.action_move)
+
+    /** "Copy to Picks" in the UI's language: [phraseFor], as a resource. */
+
+    fun phraseText(selectionFolderName: String): UiText =
+        text(if (this == COPY) R.string.action_copy_to else R.string.action_move_to, selectionFolderOrDefault(selectionFolderName))
+
 
     companion object {
         val DEFAULT = COPY

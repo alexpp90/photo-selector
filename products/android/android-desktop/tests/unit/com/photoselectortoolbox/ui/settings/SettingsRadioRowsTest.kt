@@ -25,6 +25,8 @@ import com.photoselectortoolbox.data.repository.ImageRepository
 import com.photoselectortoolbox.data.repository.SettingsRepository
 import com.photoselectortoolbox.domain.grouping.GroupingLevel
 import com.photoselectortoolbox.domain.interaction.FilingAction
+import com.photoselectortoolbox.testing.en
+import com.photoselectortoolbox.testing.str
 import com.photoselectortoolbox.ui.theme.PhotoSelectorToolboxTheme
 import com.photoselectortoolbox.viewmodel.SettingsViewModel
 import io.mockk.coEvery
@@ -131,8 +133,8 @@ class SettingsRadioRowsTest {
         for (level in GroupingLevel.entries) {
             assertOneNamedRadio(
                 tag = groupingTag(level),
-                label = level.label,
-                description = level.description,
+                label = str(level.label),
+                description = str(level.description),
                 selected = level == GroupingLevel.TIME_FILENAME,
             )
         }
@@ -143,7 +145,7 @@ class SettingsRadioRowsTest {
         for (action in FilingAction.entries) {
             assertOneNamedRadio(
                 tag = filingTag(action),
-                label = action.phrase,
+                label = action.verbText.en(),
                 description = null,
                 selected = action == FilingAction.DEFAULT,
             )

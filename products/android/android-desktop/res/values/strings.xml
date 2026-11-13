@@ -1,4 +1,117 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
     <string name="app_name">Frameduel</string>
+
+    <!-- Shared actions -->
+    <string name="action_cancel">Cancel</string>
+    <string name="action_close">Close</string>
+    <string name="action_save">Save</string>
+    <string name="action_reset">Reset</string>
+    <string name="action_clear">Clear</string>
+    <string name="action_choose">Choose</string>
+    <string name="action_change">Change</string>
+
+    <!-- Setup: sections -->
+    <string name="title_section_destination">Where photos go</string>
+    <string name="title_section_analysis">Analysis</string>
+    <string name="title_section_filing">Filing and Fullscreen</string>
+    <string name="title_section_ratings">Ratings</string>
+    <string name="title_section_guidance">Guidance</string>
+    <string name="title_section_cache">Cache</string>
+    <string name="title_section_about">About</string>
+
+    <!-- Setup: where photos go -->
+    <string name="label_working_folder">Working folder</string>
+    <string name="label_custom_folder">Custom folder</string>
+    <string name="setting_title_raw_jpeg_folders">RAW and JPEG folders</string>
+    <string name="label_raw_jpeg_suffix">RAW · JPEG</string>
+    <string name="label_internal_storage">Internal storage</string>
+    <string name="label_documents">Documents</string>
+    <string name="label_sd_card">SD card</string>
+    <string name="label_folder">Folder</string>
+    <string name="label_folder_unavailable">Folder unavailable</string>
+    <string name="setting_summary_second_pass">Second pass inside this Selection</string>
+    <string name="setting_summary_no_folder_open">«%1$s» inside the folder you open — no folder open yet</string>
+    <string name="cd_destination_path">Photos go to %1$s</string>
+    <string name="cd_destination_path_sorted">Photos go to %1$s, in RAW and JPEG subfolders</string>
+    <string name="error_folder_no_permission">No permission — choose the folder again</string>
+    <string name="error_folder_missing">The folder is missing</string>
+    <string name="error_folder_read_only">The folder is read-only</string>
+    <string name="label_selection_folder_name">Selection folder</string>
+    <string name="label_second_pass_folder_name">Second-pass folder</string>
+    <string name="setting_summary_second_pass_folder">Used when re-culling a Selection</string>
+
+    <!-- Setup: analysis -->
+    <string name="setting_title_bursts">Bursts</string>
+    <string name="setting_summary_bursts">Group photos shot seconds apart</string>
+    <string name="label_grouping_level">Grouping level</string>
+    <string name="label_grouping_time_filename">Time &amp; Filename</string>
+    <string name="setting_summary_grouping_time_filename">Capture time and file name</string>
+    <string name="label_grouping_fast_similarity">Fast similarity</string>
+    <string name="setting_summary_grouping_fast_similarity">Adds a quick image comparison</string>
+    <string name="label_grouping_detailed_similarity">Full similarity</string>
+    <string name="setting_summary_grouping_detailed_similarity">Slower, more accurate</string>
+    <string name="label_analysis_threads">Analysis threads</string>
+
+    <!-- Setup: filing and fullscreen -->
+    <string name="setting_title_fullscreen_buttons">Fullscreen buttons</string>
+    <string name="setting_summary_fullscreen_buttons">Delete, Copy and Move</string>
+    <string name="label_filing_action">Filing action</string>
+    <string name="setting_summary_filing_action">Verb of the main button</string>
+    <string name="setting_title_tv_scale">TV display scale</string>
+    <string name="setting_summary_tv_scale">125% text for TV or DeX</string>
+
+    <!-- Setup: ratings -->
+    <string name="setting_title_write_ratings_into_photos">Write ratings into photos</string>
+    <string name="setting_summary_write_ratings_into_photos">Changes the original JPEG</string>
+
+    <!-- Setup: guidance -->
+    <string name="setting_title_reset_guidance">Reset guidance</string>
+    <string name="setting_summary_reset_guidance">Show hints and guide again</string>
+    <string name="setting_summary_guidance_was_reset">Hints will show again</string>
+    <string name="setting_title_reset_learn">Reset Learn</string>
+    <string name="setting_summary_reset_learn">Shoots, lessons and goal</string>
+    <string name="dialog_title_reset_learn">Reset Learn?</string>
+    <string name="dialog_body_reset_learn_unknown">Delete Learn\'s history?</string>
+    <string name="dialog_body_reset_learn">Delete %1$s, %2$s, %3$s?</string>
+    <plurals name="label_count_shoots">
+        <item quantity="one">%d shoot</item>
+        <item quantity="other">%d shoots</item>
+    </plurals>
+    <plurals name="label_count_lessons">
+        <item quantity="one">%d lesson</item>
+        <item quantity="other">%d lessons</item>
+    </plurals>
+    <plurals name="label_count_goals">
+        <item quantity="one">%d goal</item>
+        <item quantity="other">%d goals</item>
+    </plurals>
+
+    <!-- Setup: cache -->
+    <string name="setting_title_cached_scores">Cached scores</string>
+    <plurals name="setting_summary_cached_scores">
+        <item quantity="one">%d result stored</item>
+        <item quantity="other">%d results stored</item>
+    </plurals>
+    <string name="setting_title_clear_cache">Clear cache</string>
+    <string name="setting_summary_clear_cache">Remove all cached analysis scores</string>
+    <string name="dialog_title_clear_cache">Clear cache?</string>
+    <string name="dialog_body_clear_cache">Removes stored scores. Photos are not touched.</string>
+
+    <!-- Setup: about -->
+    <string name="setting_summary_version">Version %1$s</string>
+    <string name="setting_title_source_code">Source code</string>
+    <string name="setting_summary_source_code">View on GitHub</string>
+    <string name="setting_title_privacy_policy">Privacy Policy</string>
+    <string name="setting_summary_privacy_policy">How Frameduel handles your data</string>
+    <string name="setting_title_legal_notice">Legal Notice (Impressum)</string>
+    <string name="setting_summary_legal_notice">Provider identification</string>
+    <string name="setting_title_licences">Open-source licences</string>
+    <string name="dialog_title_licences">Open-source licences</string>
+
+    <!-- Filing verbs -->
+    <string name="action_copy_to">Copy to %1$s</string>
+    <string name="action_move_to">Move to %1$s</string>
+    <string name="action_copy">Copy</string>
+    <string name="action_move">Move</string>
 </resources>

@@ -1,0 +1,117 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- German UI of Frameduel ([USER 2026-11-12] decision #34). Every key of values/strings.xml has its entry here (StringResourcesTest). Terms follow docs/GLOSSARY.md and Jackpix: Auswahl, Papierkorb, Ordner. -->
+<resources>
+
+    <!-- Shared actions -->
+    <string name="action_cancel">Abbrechen</string>
+    <string name="action_close">Schließen</string>
+    <string name="action_save">Speichern</string>
+    <string name="action_reset">Zurücksetzen</string>
+    <string name="action_clear">Leeren</string>
+    <string name="action_choose">Wählen</string>
+    <string name="action_change">Ändern</string>
+
+    <!-- Setup: sections -->
+    <string name="title_section_destination">Ziel der Fotos</string>
+    <string name="title_section_analysis">Analyse</string>
+    <string name="title_section_filing">Ablage und Vollbild</string>
+    <string name="title_section_ratings">Bewertungen</string>
+    <string name="title_section_guidance">Hilfe</string>
+    <string name="title_section_cache">Cache</string>
+    <string name="title_section_about">Info</string>
+
+    <!-- Setup: where photos go -->
+    <string name="label_working_folder">Arbeitsordner</string>
+    <string name="label_custom_folder">Eigener Ordner</string>
+    <string name="setting_title_raw_jpeg_folders">RAW- und JPEG-Ordner</string>
+    <string name="label_raw_jpeg_suffix">RAW · JPEG</string>
+    <string name="label_internal_storage">Interner Speicher</string>
+    <string name="label_documents">Dokumente</string>
+    <string name="label_sd_card">SD-Karte</string>
+    <string name="label_folder">Ordner</string>
+    <string name="label_folder_unavailable">Ordner unerreichbar</string>
+    <string name="setting_summary_second_pass">Zweiter Durchgang in dieser Auswahl</string>
+    <string name="setting_summary_no_folder_open">«%1$s» im Ordner, den du öffnest – noch kein Ordner offen</string>
+    <string name="cd_destination_path">Fotos gehen nach %1$s</string>
+    <string name="cd_destination_path_sorted">Fotos gehen nach %1$s, in RAW- und JPEG-Unterordner</string>
+    <string name="error_folder_no_permission">Kein Zugriff – Ordner neu wählen</string>
+    <string name="error_folder_missing">Der Ordner fehlt</string>
+    <string name="error_folder_read_only">Der Ordner ist schreibgeschützt</string>
+    <string name="label_selection_folder_name">Auswahlordner</string>
+    <string name="label_second_pass_folder_name">Ordner 2. Durchgang</string>
+    <string name="setting_summary_second_pass_folder">Beim erneuten Sichten einer Auswahl</string>
+
+    <!-- Setup: analysis -->
+    <string name="setting_title_bursts">Serien</string>
+    <string name="setting_summary_bursts">Fotos kurz nacheinander gruppieren</string>
+    <string name="label_grouping_level">Gruppierung</string>
+    <string name="label_grouping_time_filename">Zeit &amp; Dateiname</string>
+    <string name="setting_summary_grouping_time_filename">Aufnahmezeit und Dateiname</string>
+    <string name="label_grouping_fast_similarity">Schnelle Ähnlichkeit</string>
+    <string name="setting_summary_grouping_fast_similarity">Plus schneller Bildvergleich</string>
+    <string name="label_grouping_detailed_similarity">Volle Ähnlichkeit</string>
+    <string name="setting_summary_grouping_detailed_similarity">Langsamer, genauer</string>
+    <string name="label_analysis_threads">Analyse-Threads</string>
+
+    <!-- Setup: filing and fullscreen -->
+    <string name="setting_title_fullscreen_buttons">Knöpfe im Vollbild</string>
+    <string name="setting_summary_fullscreen_buttons">Löschen, Kopieren, Verschieben</string>
+    <string name="label_filing_action">Ablage-Aktion</string>
+    <string name="setting_summary_filing_action">Verb der Haupttaste</string>
+    <string name="setting_title_tv_scale">TV-Skalierung</string>
+    <string name="setting_summary_tv_scale">125 % Text für TV oder DeX</string>
+
+    <!-- Setup: ratings -->
+    <string name="setting_title_write_ratings_into_photos">Bewertungen in Fotos schreiben</string>
+    <string name="setting_summary_write_ratings_into_photos">Ändert das Original-JPEG</string>
+
+    <!-- Setup: guidance -->
+    <string name="setting_title_reset_guidance">Hilfe zurücksetzen</string>
+    <string name="setting_summary_reset_guidance">Hinweise und Hilfe erneut zeigen</string>
+    <string name="setting_summary_guidance_was_reset">Hinweise erscheinen wieder</string>
+    <string name="setting_title_reset_learn">Lernen zurücksetzen</string>
+    <string name="setting_summary_reset_learn">Shootings, Lektionen, Ziel</string>
+    <string name="dialog_title_reset_learn">Lernen zurücksetzen?</string>
+    <string name="dialog_body_reset_learn_unknown">Verlauf von Lernen löschen?</string>
+    <string name="dialog_body_reset_learn">%1$s, %2$s, %3$s löschen?</string>
+    <plurals name="label_count_shoots">
+        <item quantity="one">%d Shooting</item>
+        <item quantity="other">%d Shootings</item>
+    </plurals>
+    <plurals name="label_count_lessons">
+        <item quantity="one">%d Lektion</item>
+        <item quantity="other">%d Lektionen</item>
+    </plurals>
+    <plurals name="label_count_goals">
+        <item quantity="one">%d Ziel</item>
+        <item quantity="other">%d Ziele</item>
+    </plurals>
+
+    <!-- Setup: cache -->
+    <string name="setting_title_cached_scores">Gespeicherte Werte</string>
+    <plurals name="setting_summary_cached_scores">
+        <item quantity="one">%d Ergebnis gespeichert</item>
+        <item quantity="other">%d Ergebnisse gespeichert</item>
+    </plurals>
+    <string name="setting_title_clear_cache">Cache leeren</string>
+    <string name="setting_summary_clear_cache">Alle gespeicherten Werte löschen</string>
+    <string name="dialog_title_clear_cache">Cache leeren?</string>
+    <string name="dialog_body_clear_cache">Entfernt gespeicherte Werte. Fotos bleiben unberührt.</string>
+
+    <!-- Setup: about -->
+    <string name="setting_summary_version">Version %1$s</string>
+    <string name="setting_title_source_code">Quellcode</string>
+    <string name="setting_summary_source_code">Auf GitHub ansehen</string>
+    <string name="setting_title_privacy_policy">Datenschutzerklärung</string>
+    <string name="setting_summary_privacy_policy">Wie Frameduel deine Daten behandelt</string>
+    <string name="setting_title_legal_notice">Impressum</string>
+    <string name="setting_summary_legal_notice">Anbieterkennzeichnung</string>
+    <string name="setting_title_licences">Open-Source-Lizenzen</string>
+    <string name="dialog_title_licences">Open-Source-Lizenzen</string>
+
+    <!-- Filing verbs -->
+    <string name="action_copy_to">Nach %1$s kopieren</string>
+    <string name="action_move_to">Nach %1$s verschieben</string>
+    <string name="action_copy">Kopieren</string>
+    <string name="action_move">Verschieben</string>
+</resources>

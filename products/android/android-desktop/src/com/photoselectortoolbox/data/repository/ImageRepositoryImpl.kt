@@ -255,7 +255,7 @@ class ImageRepositoryImpl @Inject constructor(
                     treeUri = uriString,
                     volumeLabel = volumeLabel,
                     providerTreeName = name,
-                    labels = DestinationLabels.PATH_LABELS,
+                    labels = DestinationLabels.pathLabels(context),
                 ),
                 name = name,
                 hasPersistedGrant = hasGrant,

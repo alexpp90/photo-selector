@@ -21,7 +21,9 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.res.stringResource
 import com.photoselectortoolbox.R
+
 import com.photoselectortoolbox.ui.components.handCursor
 
 /**
@@ -33,7 +35,7 @@ import com.photoselectortoolbox.ui.components.handCursor
 fun LicencesRow() {
     var open by rememberSaveable { mutableStateOf(false) }
     SettingsClickItem(
-        title = "Open-source licences",
+        title = stringResource(R.string.setting_title_licences),
         onClick = { open = true },
         icon = Icons.Default.Description,
     )
@@ -49,7 +51,7 @@ fun LicencesDialog(onDismiss: () -> Unit) {
         modifier = Modifier
             .widthIn(max = 640.dp)
             .testTag("licences_dialog"),
-        title = { Text("Open-source licences") },
+        title = { Text(stringResource(R.string.dialog_title_licences)) },
         text = {
             Column(modifier = Modifier.verticalScroll(rememberScrollState())) {
                 Text(
@@ -62,7 +64,7 @@ fun LicencesDialog(onDismiss: () -> Unit) {
         },
         confirmButton = {
             TextButton(onClick = onDismiss, modifier = Modifier.handCursor().testTag("licences_close")) {
-                Text("Close")
+                Text(stringResource(R.string.action_close))
             }
         },
     )

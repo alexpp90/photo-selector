@@ -15,7 +15,13 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.testTag
+import androidx.compose.ui.res.stringResource
+import com.photoselectortoolbox.R
 import com.photoselectortoolbox.domain.learn.LearnHistoryCounts
+import com.photoselectortoolbox.domain.text.UiText
+import com.photoselectortoolbox.domain.text.plural
+import com.photoselectortoolbox.domain.text.text
+import com.photoselectortoolbox.ui.text.asString
 import com.photoselectortoolbox.ui.components.handCursor
 import com.photoselectortoolbox.ui.theme.DestructiveFill
 import com.photoselectortoolbox.ui.theme.OnDestructiveFill
@@ -39,16 +45,16 @@ fun ResetLearnRow(
         open = true
     }
     SettingsClickItem(
-        title = "Reset Learn",
-        description = "Shoots, lessons and goal",
+        title = stringResource(R.string.setting_title_reset_learn),
+        description = stringResource(R.string.setting_summary_reset_learn),
         onClick = show,
         icon = Icons.Default.RestartAlt,
     )
     if (!open) return
     AlertDialog(
         onDismissRequest = { open = false },
-        title = { Text("Reset Learn") },
-        text = { Text(counts?.let(::resetLearnQuestion) ?: "Delete Learn's history?") },
+        title = { Text(stringResource(R.string.dialog_title_reset_learn)) },
+        text = { Text((counts?.let(::resetLearnQuestion) ?: text(R.string.dialog_body_reset_learn_unknown)).asString()) },
         confirmButton = {
             Button(
                 modifier = Modifier.handCursor().testTag("reset_learn_confirm"),
@@ -58,12 +64,12 @@ fun ResetLearnRow(
                 },
                 colors = ButtonDefaults.buttonColors(containerColor = DestructiveFill, contentColor = OnDestructiveFill),
             ) {
-                Text("Reset")
+                Text(stringResource(R.string.action_reset))
             }
         },
         dismissButton = {
             TextButton(modifier = Modifier.handCursor().testTag("reset_learn_cancel"), onClick = { open = false }) {
-                Text("Cancel")
+                Text(stringResource(R.string.action_cancel))
             }
         },
         containerColor = Zinc800,
@@ -74,11 +80,10 @@ fun ResetLearnRow(
 }
 
 /** "Delete 14 shoots, 3 lessons, 1 goal?" — counts first, each noun in its number. */
-internal fun resetLearnQuestion(counts: LearnHistoryCounts): String {
-    fun count(n: Int, one: String, many: String) = "$n ${if (n == 1) one else many}"
-    return "Delete " + listOf(
-        count(counts.shoots, "shoot", "shoots"),
-        count(counts.lessons, "lesson", "lessons"),
-        count(counts.goals, "goal", "goals"),
-    ).joinToString(", ") + "?"
-}
+internal fun resetLearnQuestion(counts: LearnHistoryCounts): UiText = text(
+    R.string.dialog_body_reset_learn,
+    plural(R.plurals.label_count_shoots, counts.shoots),
+    plural(R.plurals.label_count_lessons, counts.lessons),
+    plural(R.plurals.label_count_goals, counts.goals),
+)
+
