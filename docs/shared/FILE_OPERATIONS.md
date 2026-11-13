@@ -157,7 +157,7 @@ for `«folder»`):
 
 Product-specific compact forms are permitted where space or context demands it: Jackpix uses
 `Moved as «name»` / `Copied as «name»` on its phone snackbar (budget: 28 characters in English, 36 in German, `snackbar_` in [`UI_TEXT.md`](UI_TEXT.md)), and Blitzlens
-includes the photo filename (`Moved «photo» to «folder»/ as «name»`) on its desktop status bar.
+shows the file's stem, the companion count and the destination (`Moved «photo» +«K» · «folder»`, spoken "Moved «photo.ext» and «K» companion files to «folder»") on its desktop status bar.
 
 ### How long an outcome stays on screen
 

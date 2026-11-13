@@ -182,12 +182,9 @@ def test_canvas_area_allocation():
     assert canvas.rendered_slots[1]["role"] == "NEXT"
     assert canvas.rendered_slots[1]["is_active"] is False
 
-    # 3-Up mode at index 0: left boundary card + ACTIVE + NEXT
+    # 3-Up mode at index 0: ACTIVE + NEXT; the missing first card is not drawn (decision #30)
     vm.set_comparison_mode(3)
-    assert len(canvas.rendered_slots) == 3
-    assert canvas.rendered_slots[0] == {"type": "boundary", "slot_type": "first"}
-    assert canvas.rendered_slots[1]["role"] == "ACTIVE"
-    assert canvas.rendered_slots[2]["role"] == "NEXT"
+    assert [s["role"] for s in canvas.rendered_slots] == ["ACTIVE", "NEXT"]
 
     # 3-Up mode at middle index 1: PREVIOUS + ACTIVE + NEXT
     vm.nav_next()
@@ -196,12 +193,10 @@ def test_canvas_area_allocation():
     # Right slot (DSC_0003.JPG + DSC_0003-Edit.JPG) has no RAW file, so no false RAW+JPG badge
     assert canvas.rendered_slots[2]["badges"] == []
 
-    # 3-Up mode at last index 2: PREVIOUS + ACTIVE + right boundary card
+    # 3-Up mode at last index 2: PREVIOUS + ACTIVE; the missing last card is not drawn
     vm.nav_next()
     assert vm.current_index == 2
-    assert canvas.rendered_slots[0]["role"] == "PREVIOUS"
-    assert canvas.rendered_slots[1]["role"] == "ACTIVE"
-    assert canvas.rendered_slots[2] == {"type": "boundary", "slot_type": "last"}
+    assert [s["role"] for s in canvas.rendered_slots] == ["PREVIOUS", "ACTIVE"]
 
 
 def test_info_hud_goodness_and_metric_omission():
@@ -1090,7 +1085,7 @@ def test_collision_suffixed_move_says_which_name_it_got():
 
     vm.cull_move()
 
-    assert messages == ["Moved to /tmp/test_dir/Selection/ as a-2.jpg (+1 related)"]  # the first transfer: full path
+    assert messages == ["Moved +1 · /tmp/test_dir/Selection/"]  # the first transfer: full path, file name left out
 
 
 def test_collision_suffixed_copy_says_which_name_it_got():
@@ -1099,7 +1094,7 @@ def test_collision_suffixed_copy_says_which_name_it_got():
 
     vm.cull_copy()
 
-    assert messages == ["Copied to /tmp/test_dir/Selection/ as a-2.jpg"]
+    assert messages == ["Copied · /tmp/test_dir/Selection/"]
 
 
 def test_transfer_without_collision_keeps_the_plain_message():
@@ -1109,7 +1104,7 @@ def test_transfer_without_collision_keeps_the_plain_message():
     vm._destination_said_generation = vm._folder_generation  # not the first transfer of this folder
     vm.cull_move()
 
-    assert messages == ["Moved a.jpg to Selection/"]
+    assert messages == ["Moved a · Selection"]
 
 
 def test_undo_that_had_to_suffix_says_so():
