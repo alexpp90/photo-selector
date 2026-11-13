@@ -273,10 +273,8 @@ data class SelectorUiState(
     val sortOrder: SelectorSortOrder = SelectorSortOrder.DEFAULT,
     /** Optional sharpness stop-line threshold for worst-first reject triage (`U-34`). */
     val sharpnessStopThreshold: Double? = null,
-    /** Session decision log counters (`U-33`, `U-35`). */
-    val sessionMovedCount: Int = 0,
-    val sessionCopiedCount: Int = 0,
-    val sessionDeletedCount: Int = 0,
+    /** The session's decisions, one per photo, the latest counting (`U-33`, `U-35`, decision #29). */
+    val tally: SessionTally = SessionTally(),
     val sessionKeptFileNames: Set<String> = emptySet(),
     /** Photos copied in this session, by URI: the copied mark, and a second Copy is a no-op. */
     val sessionCopiedUris: Set<String> = emptySet(),
@@ -301,6 +299,15 @@ data class SelectorUiState(
             val score = currentImage?.scanResult?.sharpnessScore ?: return false
             return score >= threshold
         }
+
+    /** Photos moved, copied and deleted this session, each counted once under its latest decision. */
+    val sessionMovedCount: Int get() = tally.moved
+    val sessionCopiedCount: Int get() = tally.copied
+    val sessionDeletedCount: Int get() = tally.deleted
+
+    /** Listed photos with no decision; a copied photo is decided (decision #29). */
+    val sessionRemainingCount: Int
+        get() = tally.remaining(images.map { it.uri })
 
     /** Total photos kept (moved + copied) in the current culling session (`U-33`, `U-35`). */
     val sessionKeptCount: Int
