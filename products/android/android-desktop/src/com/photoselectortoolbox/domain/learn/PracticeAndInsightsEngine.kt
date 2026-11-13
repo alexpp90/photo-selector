@@ -191,7 +191,11 @@ object PracticeAndInsightsEngine {
         val title = lesson?.title ?: goal.lessonId
         val prompt = lesson?.tryThisPrompt ?: "Practice this technique on your next shoot."
 
-        val recentImages = images.filter { it.lastModified >= goal.startedAtEpochMs }
+        // When the photo was taken, by its stored capture time; the file date only for a photo
+        // without one (a copy or an edit keeps the capture time and changes the file date; SD-1b).
+        val recentImages = images.filter { img ->
+            (ScanFacts.captureTimeOf(factsByUri[img.uri]) ?: img.lastModified) >= goal.startedAtEpochMs
+        }
         var recentTotal = 0
         var recentMatching = 0
         if (lesson != null) {

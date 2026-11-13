@@ -49,6 +49,11 @@ data class ScanProgress(
  * - Multiple images are analyzed concurrently (gated by thread count setting).
  * - Combined clipping analysis avoids duplicate bitmap→Mat/grayscale conversions.
  * - Sharpness and noise analysis run in parallel within each image.
+ *
+ * Every photo it decodes also gets Learn's facts ([ScanFactRecorder], shoot debrief SD-1a). A
+ * photo whose scores are cached but whose stored facts are missing or stale (another file size
+ * or date, an older detector) counts as not scanned: it is decoded once more for its facts, and
+ * its cached scores are kept.
  */
 class ScanImagesUseCase @Inject constructor(
     private val sharpnessAnalyzer: SharpnessAnalyzer,
@@ -59,6 +64,7 @@ class ScanImagesUseCase @Inject constructor(
     private val bitmapDecoder: PhotoBitmapDecoder,
     @IoDispatcher private val ioDispatcher: CoroutineDispatcher,
     @DefaultDispatcher private val defaultDispatcher: CoroutineDispatcher,
+    private val facts: ScanFactRecorder,
 ) {
 
     private companion object {
@@ -91,6 +97,8 @@ class ScanImagesUseCase @Inject constructor(
         // Bulk load the cache (the DAO splits the list at the SQLite bind limit)
         val imageUris = images.map { it.uri }
         val cachedScores = scoreDao.getScores(imageUris).associateBy { it.filePath }
+        // Photos whose stored facts are current: only these may skip the decode.
+        val currentFacts = facts.currentUris(images)
 
         // Find which images have valid cache hits and update their access times
         val currentTime = System.currentTimeMillis()
@@ -115,7 +123,7 @@ class ScanImagesUseCase @Inject constructor(
                 shadowClipping = cached.shadowClipping,
                 aestheticScore = cached.aestheticScore
             )
-            if (measures.missingFrom(cachedResult).any) {
+            if (measures.missingFrom(cachedResult).any || image.uri !in currentFacts) {
                 partialHits[image.uri] = cachedResult
             } else {
                 validCacheHits[image.uri] = cachedResult
@@ -148,7 +156,12 @@ class ScanImagesUseCase @Inject constructor(
 
                     // Compute what is ticked and not cached yet, and keep what was cached.
                     val partial = partialHits[image.uri]
-                    val computed = analyzeImage(image, partial?.let(measures::missingFrom) ?: measures)
+                    val computed = analyzeImage(
+                        image,
+                        partial?.let(measures::missingFrom) ?: measures,
+                        known = partial,
+                        recordFacts = image.uri !in currentFacts,
+                    )
                     val scanResult = if (partial != null) {
                         computed?.let { partial.filledFrom(it) } ?: partial
                     } else {
@@ -213,6 +226,8 @@ class ScanImagesUseCase @Inject constructor(
     private suspend fun analyzeImage(
         image: ImageItem,
         measures: ScanMeasures,
+        known: ScanResult?,
+        recordFacts: Boolean,
     ): ScanResult? = coroutineScope {
         val uri = Uri.parse(image.uri)
 
@@ -274,9 +289,7 @@ class ScanImagesUseCase @Inject constructor(
                 (if (measures.highlightClipping) highlights else null) to (if (measures.shadowClipping) shadows else null)
             }
 
-            // No technique facts here ([USER 2026-11-12] decision #19, plan D-5): nothing read the
-            // ones the scan stored; Learn detects them for the photo it shows.
-            ScanResult(
+            val computed = ScanResult(
                 filePath = image.uri,
                 sharpnessScore = sharpness,
                 noiseLevel = noise,
@@ -284,6 +297,10 @@ class ScanImagesUseCase @Inject constructor(
                 shadowClipping = clippingResult?.second,
                 aestheticScore = null
             )
+            // Learn's facts ([USER 2026-11-12] decision #19, option C): the debrief's smaller set,
+            // from this decode, with the cached values of a photo scanned only for what it lacked.
+            if (recordFacts) facts.record(image, bitmap, known?.filledFrom(computed) ?: computed)
+            computed
         } finally {
             bitmap.recycle()
         }

@@ -34,6 +34,9 @@ class ScanImagesUseCaseBench {
         val useCase = ScanImagesUseCase(
             sharpnessAnalyzer, noiseAnalyzer, clippingAnalyzer,
             scoreDao, settingsRepository, PhotoBitmapDecoder(context), Dispatchers.IO, Dispatchers.Default,
+            ScanFactRecorder(
+                com.photoselectortoolbox.domain.learn.TechniqueFactDetector(), { null }, scoreDao, Dispatchers.Default,
+            ) { java.time.ZoneOffset.UTC },
         )
 
         val imageCount = 500
@@ -62,6 +65,14 @@ class ScanImagesUseCaseBench {
         coEvery { scoreDao.updateAccessTimes(any(), any()) } returns Unit
         coEvery { scoreDao.getCount() } returns 0
         coEvery { scoreDao.deleteTechniqueFactsWithoutScore() } returns Unit
+        coEvery {
+            scoreDao.getTechniqueFactsOfKind(com.photoselectortoolbox.domain.learn.ScanFacts.MARKER, any())
+        } returns images.map { image ->
+            com.photoselectortoolbox.data.cache.TechniqueFactEntity(
+                image.uri, com.photoselectortoolbox.domain.learn.ScanFacts.MARKER, "1", 1.0, null,
+                image.fileSize, image.lastModified, com.photoselectortoolbox.domain.learn.TechniqueFactDetector.DETECTOR_VERSION,
+            )
+        }
         images.forEach { image ->
             coEvery { scoreDao.getScore(image.uri) } returns ScoreEntity(
                 filePath = image.uri,

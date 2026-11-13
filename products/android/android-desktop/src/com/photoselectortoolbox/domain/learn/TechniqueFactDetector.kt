@@ -3,6 +3,7 @@ package com.photoselectortoolbox.domain.learn
 import com.photoselector.core.model.ExifData
 import com.photoselectortoolbox.data.cache.TechniqueFactEntity
 import com.photoselectortoolbox.domain.analysis.PhotoCoachEngineImpl
+import com.photoselectortoolbox.domain.format.CaptureTime
 import java.util.Locale
 import javax.inject.Inject
 import javax.inject.Singleton
@@ -149,7 +150,12 @@ class TechniqueFactDetector(
     @Inject constructor() : this(DefaultSubjectDetector())
 
     companion object {
-        const val DETECTOR_VERSION = 1
+        /**
+         * The version every stored fact row carries. 2: the scan reads a photo's EXIF itself and
+         * stores the debrief's fact set ([ScanFacts]); rows of version 1, written without EXIF
+         * for nearly every photo, are replaced by the next scan of their folder (SD-1a).
+         */
+        const val DETECTOR_VERSION = 2
 
         private val POWER_POINTS = listOf(
             Pair(1.0 / 3.0, 1.0 / 3.0),
@@ -173,10 +179,10 @@ class TechniqueFactDetector(
             if (abs(latitude) < 0.001 && abs(longitude) < 0.001) return null
             if (latitude !in -90.0..90.0 || longitude !in -180.0..180.0) return null
 
-            val parsed = parseExifDateTime(dateTimeOriginal) ?: return null
-            val offsetHours = parseOffsetHours(offsetTimeOriginal) ?: (longitude / 15.0)
+            val parsed = CaptureTime.wallClock(dateTimeOriginal) ?: return null
+            val offsetHours = CaptureTime.offset(offsetTimeOriginal)?.let { it.totalSeconds / 3600.0 } ?: (longitude / 15.0)
 
-            val dayOfYear = dayOfYear(parsed.year, parsed.month, parsed.day)
+            val dayOfYear = parsed.dayOfYear
             val localDecimalHours = parsed.hour + parsed.minute / 60.0 + parsed.second / 3600.0
             val utcHours = localDecimalHours - offsetHours
 
@@ -565,57 +571,6 @@ class TechniqueFactDetector(
                 geometryJson = geometryJson,
             )
         }
-
-        private data class ParsedDateTime(
-            val year: Int,
-            val month: Int,
-            val day: Int,
-            val hour: Int,
-            val minute: Int,
-            val second: Int,
-        )
-
-        private fun parseExifDateTime(raw: String): ParsedDateTime? {
-            val cleaned = raw.trim()
-            val parts = cleaned.split(Regex("[T ]"))
-            if (parts.size < 2) return null
-            val dateTokens = parts[0].split(':', '-')
-            val timeTokens = parts[1].split(':')
-            if (dateTokens.size < 3 || timeTokens.size < 2) return null
-            val year = dateTokens[0].toIntOrNull() ?: return null
-            val month = dateTokens[1].toIntOrNull() ?: return null
-            val day = dateTokens[2].toIntOrNull() ?: return null
-            val hour = timeTokens[0].toIntOrNull() ?: return null
-            val minute = timeTokens[1].toIntOrNull() ?: return null
-            val second = timeTokens.getOrNull(2)?.takeWhile { it.isDigit() }?.toIntOrNull() ?: 0
-            if (month !in 1..12 || day !in 1..31 || hour !in 0..23 || minute !in 0..59) return null
-            return ParsedDateTime(year, month, day, hour, minute, second)
-        }
-
-        private fun parseOffsetHours(offset: String?): Double? {
-            if (offset.isNullOrBlank()) return null
-            val trimmed = offset.trim()
-            if (trimmed == "Z") return 0.0
-            val sign = when (trimmed.firstOrNull()) {
-                '+' -> 1.0
-                '-' -> -1.0
-                else -> return null
-            }
-            val tokens = trimmed.substring(1).split(':')
-            val hours = tokens.getOrNull(0)?.toIntOrNull() ?: return null
-            val minutes = tokens.getOrNull(1)?.toIntOrNull() ?: 0
-            return sign * (hours + minutes / 60.0)
-        }
-
-        private fun dayOfYear(year: Int, month: Int, day: Int): Int {
-            val isLeap = (year % 4 == 0 && year % 100 != 0) || (year % 400 == 0)
-            val monthDays = intArrayOf(0, 31, if (isLeap) 29 else 28, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31)
-            var total = day
-            for (m in 1 until month.coerceIn(1, 12)) {
-                total += monthDays[m]
-            }
-            return total
-        }
     }
 
     /**
@@ -670,11 +625,20 @@ class TechniqueFactDetector(
         highlightClipping: Double? = null,
         shadowClipping: Double? = null,
         isRawOrHasRawCompanion: Boolean = false,
+        only: Set<String>? = null,
+        frameLongEdge: Int? = null,
     ): List<TechniqueFact> {
         val facts = mutableListOf<TechniqueFact>()
+        // [only] names the kinds wanted (the scan's [ScanFacts.STORED_KINDS]); a detector none of
+        // whose kinds is wanted is not run. Null: all of them, as Explore asks for the photo shown.
+        fun wants(vararg kinds: String) = only == null || kinds.any { it in only }
+        // The focal-plane resolution is per pixel of the original frame, not of the luma grid:
+        // [frameLongEdge] is that frame's long edge where the caller knows it (the scan does).
+        val opticsWidth = frameLongEdge?.takeIf { it > 0 } ?: width.takeIf { it > 0 }
+        val opticsHeight = if (frameLongEdge != null && frameLongEdge > 0) null else height.takeIf { it > 0 }
 
         // 1. Crop factor, effective focal length, and phone-sensor guard
-        val cropFactor = PhotoCoachEngineImpl.computeCropFactor(exif, width.takeIf { it > 0 }, height.takeIf { it > 0 })
+        val cropFactor = PhotoCoachEngineImpl.computeCropFactor(exif, opticsWidth, opticsHeight)
         if (cropFactor != null) {
             facts.add(
                 TechniqueFact(
@@ -684,11 +648,7 @@ class TechniqueFactDetector(
                 )
             )
         }
-        val effectiveFocalLength = PhotoCoachEngineImpl.computeEffectiveFocalLength(
-            exif,
-            width.takeIf { it > 0 },
-            height.takeIf { it > 0 },
-        )
+        val effectiveFocalLength = PhotoCoachEngineImpl.computeEffectiveFocalLength(exif, opticsWidth, opticsHeight)
         if (effectiveFocalLength != null) {
             facts.add(
                 TechniqueFact(
@@ -729,7 +689,7 @@ class TechniqueFactDetector(
                 )
             } else {
                 // Fallback: local clock hour + warm color ratio
-                val parsed = exif.dateTimeOriginal?.let { parseExifDateTime(it) }
+                val parsed = CaptureTime.wallClock(exif.dateTimeOriginal)
                 if (parsed != null) {
                     val decimalHour = parsed.hour + parsed.minute / 60.0
                     val isGoldenClockWindow = decimalHour in 5.5..8.0 || decimalHour in 17.0..20.5
@@ -763,34 +723,47 @@ class TechniqueFactDetector(
         // Pixel/Luma based detectors
         if (luma != null && width >= 8 && height >= 8 && luma.size >= width * height) {
             // 3. Horizon angle
-            detectHorizon(luma, width, height)?.let { facts.add(it) }
+            if (wants("composition.horizon")) detectHorizon(luma, width, height)?.let { facts.add(it) }
 
             // 4. Specular-excluded clipping & tonal key
-            val nonSpecularClipPct = computeSpecularExcludedHighlightClipPct(luma, width, height)
-            val effectiveShadowPct = shadowClipping ?: 0.0
-            val clipLabel = when {
-                nonSpecularClipPct > 2.0 && effectiveShadowPct > 5.0 -> "both_clipped"
-                nonSpecularClipPct > 2.0 -> if (isRawOrHasRawCompanion) "highlights_recoverable_raw" else "highlights_clipped"
-                effectiveShadowPct > 5.0 -> "shadows_clipped"
-                else -> "well_exposed"
-            }
-            facts.add(
-                TechniqueFact(
-                    kind = "exposure.clipping",
-                    value = clipLabel,
-                    confidence = 0.88,
-                    geometryJson = String.format(
-                        Locale.US,
-                        """{"nonSpecularHighlightClipPct":%.2f,"shadowClipPct":%.2f}""",
-                        nonSpecularClipPct,
-                        effectiveShadowPct,
-                    ),
+            if (wants("exposure.clipping")) {
+                val nonSpecularClipPct = computeSpecularExcludedHighlightClipPct(luma, width, height)
+                val effectiveShadowPct = shadowClipping ?: 0.0
+                val clipLabel = when {
+                    nonSpecularClipPct > 2.0 && effectiveShadowPct > 5.0 -> "both_clipped"
+                    nonSpecularClipPct > 2.0 -> if (isRawOrHasRawCompanion) "highlights_recoverable_raw" else "highlights_clipped"
+                    effectiveShadowPct > 5.0 -> "shadows_clipped"
+                    else -> "well_exposed"
+                }
+                facts.add(
+                    TechniqueFact(
+                        kind = "exposure.clipping",
+                        value = clipLabel,
+                        confidence = 0.88,
+                        geometryJson = String.format(
+                            Locale.US,
+                            """{"nonSpecularHighlightClipPct":%.2f,"shadowClipPct":%.2f}""",
+                            nonSpecularClipPct,
+                            effectiveShadowPct,
+                        ),
+                    )
                 )
-            )
-            classifyTonalKey(luma, width, height)?.let { facts.add(it) }
+            }
+            if (wants("exposure.tonal_key")) classifyTonalKey(luma, width, height)?.let { facts.add(it) }
 
             // Subject-dependent detectors (`U-22b`): subject placement, background separation, leading lines
-            val subjectBox = subjectDetector.detectSubject(luma, width, height)
+            val subjectBox = if (
+                wants(
+                    "composition.subject_placement",
+                    "depth.background_separation",
+                    "composition.leading_lines",
+                    "composition.simplicity",
+                )
+            ) {
+                subjectDetector.detectSubject(luma, width, height)
+            } else {
+                null
+            }
             if (subjectBox != null) {
                 val nearestPower = POWER_POINTS.minByOrNull { (px, py) ->
                     hypot(subjectBox.centroidX - px, subjectBox.centroidY - py)
@@ -848,14 +821,16 @@ class TechniqueFactDetector(
                 }
 
                 // Leading lines converging toward the detected subject centroid
-                detectLeadingLinesToSubject(luma, width, height, subjectBox)?.let { facts.add(it) }
+                if (wants("composition.leading_lines")) {
+                    detectLeadingLinesToSubject(luma, width, height, subjectBox)?.let { facts.add(it) }
+                }
             }
 
             // 5. Simplicity
-            detectSimplicity(luma, width, height, subjectBox)?.let { facts.add(it) }
+            if (wants("composition.simplicity")) detectSimplicity(luma, width, height, subjectBox)?.let { facts.add(it) }
 
             // 6. Symmetry
-            detectSymmetry(luma, width, height)?.let { facts.add(it) }
+            if (wants("composition.symmetry")) detectSymmetry(luma, width, height)?.let { facts.add(it) }
         } else if (highlightClipping != null || shadowClipping != null) {
             val hPct = highlightClipping ?: 0.0
             val sPct = shadowClipping ?: 0.0
@@ -880,7 +855,7 @@ class TechniqueFactDetector(
             )
         }
 
-        return facts
+        return if (only == null) facts else facts.filter { it.kind in only }
     }
 
     private fun detectLeadingLinesToSubject(

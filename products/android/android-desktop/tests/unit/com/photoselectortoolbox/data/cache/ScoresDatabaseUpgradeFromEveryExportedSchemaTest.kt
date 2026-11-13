@@ -69,7 +69,7 @@ class ScoresDatabaseUpgradeFromEveryExportedSchemaTest {
 
     @Test
     fun `the exported schemas include the current version`() {
-        assertTrue(exportedVersions().toString(), 8 in exportedVersions())
+        assertTrue(exportedVersions().toString(), 9 in exportedVersions())
     }
 
     @Test
@@ -101,7 +101,39 @@ class ScoresDatabaseUpgradeFromEveryExportedSchemaTest {
             assertEquals("v$version", 70.0, legacy!!.sharpnessScore!!, 1e-9)
             if (version in 3..7) assertEquals("v$version: the rating moved to user_ratings", 3, dao.getUserRating("legacy")?.rating)
             if (version >= 4) assertEquals("v$version: a reject survives", -1, dao.getUserRating("rated")?.rating)
+            // Learn's history tables (shoot debrief SD-3) are there, empty, after every path.
+            val learn = room.learnDao()
+            assertEquals("v$version", 0, learn.shootCount())
+            assertTrue("v$version", learn.cameraOverrides().isEmpty())
             room.close()
         }
+    }
+
+    @Test
+    fun `migration 8 to 9 adds the two Learn history tables and keeps every row of the others`() = runTest {
+        val name = "upgrade_8_to_9.db"
+        createAt(8, name) { db ->
+            db.execSQL("INSERT INTO scores_cache (filePath, fileSize, lastModified, sharpnessScore, rating, lastAccessTime) VALUES ('p', 100, 200, 70.0, 0, 900)")
+            db.execSQL("INSERT INTO user_ratings (uri, rating, updatedAt) VALUES ('p', 4, 800)")
+            db.execSQL("INSERT INTO technique_facts (uri, kind, value, confidence, fileSize, lastModified, detectorVersion) VALUES ('p', 'composition.horizon', 'level', 0.9, 100, 200, 2)")
+            db.execSQL("INSERT INTO lesson_progress (lessonId, completedAt, spotItCorrect, spotItTotal) VALUES ('composition.horizon', 5, 2, 2)")
+            db.execSQL("INSERT INTO practice_goals (lessonId, startedAtEpochMs, baselineRate, baselineSampleSize) VALUES ('composition.horizon', 10, 0.5, 20)")
+        }
+
+        val room = Room.databaseBuilder(context, ScoresDatabase::class.java, name)
+            .addMigrations(*ScoresDatabase.MIGRATIONS)
+            .allowMainThreadQueries()
+            .build()
+        val dao = room.scoreDao()
+
+        // v8 rows are not invalidated again: the score is still a cache hit.
+        assertEquals(100L, dao.getScore("p")?.fileSize)
+        assertEquals(4, dao.getUserRating("p")?.rating)
+        assertEquals(1, dao.getTechniqueFactsForUri("p").size)
+        assertEquals(1, dao.getAllLessonProgress().size)
+        assertEquals(1, dao.getAllPracticeGoals().size)
+        room.learnDao().upsertCameraOverride(CameraOverrideEntity("DJI", "FC3582", "drone"))
+        assertEquals(1, room.learnDao().cameraOverrides().size)
+        room.close()
     }
 }
