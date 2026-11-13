@@ -202,19 +202,35 @@ metric added without a glyph must fail to compile, not render blank.
 
 ## 5. Information architecture
 
-Four top-level destinations, reached from a persistent **NavigationRail** on the left edge
-(Expanded and Medium) or a **BottomNavigation** bar (Compact).
+One culling desk with tools beside it (maintainer decision 2026-11-12): four cells, reached from
+the sidebar (the cull, Expanded and Medium), a **NavigationRail** on the left edge (the other
+screens, Expanded and Medium) or a **BottomNavigation** bar (Compact), in this order
+(`NavEntry.all`):
 
-| # | Destination | Purpose | Share of session |
+| # | Cell | Purpose | Share of session |
 |---|---|---|---|
 | 1 | **Cull** | The culling workspace. Default destination. | ~95% |
 | 2 | **Stats** | EXIF distribution charts for the loaded folder. | small |
-| 3 | **Dupes** | Byte-identical file finder (SHA-256) with batch delete. | small |
+| 3 | **Tools** | Opens a menu with **Learn** (labelled *Beta*) and **Dupes**. | small |
 | 4 | **Setup** | Where photos go, analysis, display, cache, about. | rare |
 
-Each screen has one name on every surface — the sidebar, the rail, the bottom bar, the guide and
-spoken text: Cull, Learn, Stats, Dupes, Setup (`Screen.label`). The burst feature is **Bursts**
-everywhere, the Setup switch included.
+**Tools** (`Icons.Filled.Handyman`, tag `nav_tools`, spoken "Tools. Opens Learn and Dupes.")
+opens a `DropdownMenu` right of its cell — level with the cell's top, or with its bottom where
+the window has no room below — with two 48 dp rows tagged `nav_inspect` and `nav_duplicates`:
+Learn, with its glyph and a *Beta* chip (spoken "Learn, beta"), and Dupes (byte-identical file
+finder, SHA-256, with batch delete). Arrows move between the rows, Enter opens one, `Esc` closes
+the menu; a keyboard user who opened it with Enter is back on Tools (on the cull the selector's
+root takes the keys back, AD-11). While Learn or Dupes is open, the Tools cell shows the active
+treatment and is spoken "Tools, Learn selected". `L` still opens Learn directly; the digit keys
+keep their per-screen meanings (`1`/`2`/`3` enlarge a frame in Cull, `0`–`5` rate in Learn).
+
+Learn carries the **Beta** chip (tonal `BrandAccentTonal` plate, `BrandAccentText` word) in the
+Tools menu and at the start of its own control bar, beside the way back to Cull. It goes when
+Compare shows both frames and Learn's progress is stored.
+
+Each screen has one name on every surface — the sidebar, the rail, the bottom bar, the Tools
+menu, the guide and spoken text: Cull, Learn, Stats, Dupes, Setup (`Screen.label`). The burst
+feature is **Bursts** everywhere, the Setup switch included.
 
 ### Session-level actions
 
@@ -340,7 +356,7 @@ Zinc-700 rule:
 ├────────┤
 │ Cull   │  ← zone B: app screens (was the NavigationRail)
 │ Stats  │
-│ Dupes  │
+│ Tools ▸│  ← opens Learn (Beta) and Dupes, right of the cell (§5)
 │ Setup  │
 └────────┘
 ```
@@ -1079,7 +1095,7 @@ to its own bounds; a swipe there steps only while it is not zoomed.
 | `I` | Pin / unpin the info panel (in the selector `I` shows or hides the frame's values) |
 
 `M` and `C` show the centre check mark, whose accessibility label is the sentence the
-confirmation card shows ("Moved to Selection"), for the key exactly as for the button. The
+confirmation card shows ("Moved IMG_0001 +2 · Selection"), for the key exactly as for the button. The
 confirmation card (§7, "Action feedback") is drawn inside this window too: fullscreen is a
 second window above the selector, and the card hosted in the selector would be hidden behind it.
 
@@ -1279,8 +1295,8 @@ RAW and JPEG folders                                      (●)
   above its path, with **Choose** beside it. Copy and Move do not fall back to another folder:
   they fail visibly. The folders are described again whenever Settings resumes, so a permission
   revoked while the app was away shows here, not at the next failed Copy.
-- A filing confirmation names a custom destination too — `Moved to «Keepers › Selection»` — while
-  the button keeps the bare verb (REQ-AND-LAYOUT.08).
+- A filing confirmation names a custom destination too — `Moved IMG_0001 · «Keepers › Selection»` —
+  while the button keeps the bare verb (REQ-AND-LAYOUT.08).
 
 ### Analysis
 
@@ -1416,8 +1432,13 @@ Produce these as a design-system page, dark theme, neutral grey / lavender.
    the bottom-left chips (§7.3).
 9. **Filmstrip thumbnail** — resting, current, and in-burst states, 60 dp wide (40 dp tall
    landscape, 80 dp portrait), with the leading-edge burst marker and the sharpness dot.
-10. **Snackbar with Undo** — `Moved to «folder»` (≈ 4 s, Undo, no line) / `Copied to «folder»`
-    (≈ 3 s, no action, no line) / `Deleted`, or `Deleted 3 files` when the photo took companions
+10. **Snackbar with Undo** — `Moved IMG_0001 · «folder»`, or `Moved IMG_0001 +2 · «folder»` when the
+    photo took two companions with it (≈ 4 s, Undo, no line) / `Copied IMG_0001 · «folder»`
+    (≈ 3 s, no action, no line) — spoken "Moved IMG_0001.JPG and 2 companion files to «folder»";
+    the word *companion* is spoken only, and a stem longer than 24 characters is shortened in the
+    middle so `+N` and the folder are never cut (`CompanionConfirmation`, maintainer decision
+    2026-11-12). The delete dialog's title is `Delete IMG_0001 +2?` with "Also deletes JPG, XMP"
+    above its body where the delete takes companions, "Delete image" otherwise / `Deleted`, or `Deleted 3 files` when the photo took companions
     with it (≈ 4 s, Undo, no line: no card has a deadline). **UNDO is a filled button**
     (`BrandOnAccent` on `BrandAccent`, 7.2:1) drawn inside its ≥ 48 × 48 dp target. While the
     first-run pill is up, it stacks 8 dp above the card's measured top instead of under it.

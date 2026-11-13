@@ -133,8 +133,9 @@ class ReadmeScreenshotTest {
         rule.mainClock.advanceTimeBy(1_000)
         rule.waitForIdle()
 
-        // What the caption says is on it: the labelled sidebar with Learn, the named metric rows.
-        assertTrue(rule.onAllNodes(hasText("Learn")).fetchSemanticsNodes().isNotEmpty())
+        // What the caption says is on it: the labelled sidebar (Cull, Stats, Tools, Setup: Learn
+        // is behind Tools since [USER 2026-11-12] decision #18), the named metric rows.
+        assertTrue(rule.onAllNodes(hasText("Tools")).fetchSemanticsNodes().isNotEmpty())
         assertTrue(rule.onAllNodes(hasText("Sharpness")).fetchSemanticsNodes().isNotEmpty())
         // And what it must not show: no aesthetic score row (REQ-AND-FEATURE.02), no snackbar.
         assertTrue(rule.onAllNodes(hasText("Aesthetic", substring = true)).fetchSemanticsNodes().isEmpty())

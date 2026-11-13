@@ -153,10 +153,11 @@ class SelectorActionFeedbackTest {
     @Test
     fun `C, M and Delete each say what they did and where, and only the reversible ones offer UNDO`() {
         host()
+        // "Copied P1 · Selection": the verb, the photo and the folder ([USER 2026-11-12] decision #33 (1)).
         data class Case(val key: Key, val words: String, val undo: Boolean)
         val cases = listOf(
-            Case(Key.C, "Copied to Selection", undo = false),
-            Case(Key.M, "Moved to Selection", undo = true),
+            Case(Key.C, "Copied P1 · Selection", undo = false),
+            Case(Key.M, "Moved P2 · Selection", undo = true),
             Case(Key.Delete, "Deleted", undo = true),
         )
         for (case in cases) {
@@ -172,9 +173,9 @@ class SelectorActionFeedbackTest {
     fun `a Copy and a Move into a custom destination name that folder`() {
         host(customDestination = true)
         press(Key.C)
-        assertTrue(snackbarText().orEmpty(), snackbarText().orEmpty().contains("Copied to «Keepers › Selection»"))
+        assertTrue(snackbarText().orEmpty(), snackbarText().orEmpty().contains("Copied P1 · «Keepers › Selection»"))
         press(Key.M)
-        assertTrue(snackbarText().orEmpty(), snackbarText().orEmpty().contains("Moved to «Keepers › Selection»"))
+        assertTrue(snackbarText().orEmpty(), snackbarText().orEmpty().contains("Moved P2 · «Keepers › Selection»"))
     }
 
     /** True when the Previous frame draws [name] (its picture or a word naming it). */
@@ -253,17 +254,21 @@ class SelectorActionFeedbackTest {
         rule.waitForIdle()
     }
 
-    private fun flashSays(words: String) =
-        rule.onAllNodes(hasContentDescription(words), useUnmergedTree = true).fetchSemanticsNodes().isNotEmpty()
+    /** The flash names the verb and the folder; the photo in it depends on where the viewer is. */
+    private fun flashSays(verb: String, place: String) =
+        rule.onAllNodes(
+            hasContentDescription(verb, substring = true) and hasContentDescription("· $place", substring = true),
+            useUnmergedTree = true,
+        ).fetchSemanticsNodes().isNotEmpty()
 
     @Test
     fun `C and M in fullscreen flash what they did, as the snackbar words it`() {
         host()
         press(Key.F)
         pressInViewer(KeyEvent.KEYCODE_C)
-        assertTrue("the C flash names the Selection", flashSays("Copied to Selection"))
+        assertTrue("the C flash names the Selection", flashSays("Copied", "Selection"))
         pressInViewer(KeyEvent.KEYCODE_M)
-        assertTrue("the M flash names the Selection", flashSays("Moved to Selection"))
+        assertTrue("the M flash names the Selection", flashSays("Moved", "Selection"))
     }
 
     @Test
@@ -272,9 +277,9 @@ class SelectorActionFeedbackTest {
         press(Key.F)
         pressInViewer(KeyEvent.KEYCODE_C)
         val said = viewModel.uiState.value.snackbarMessage
-        assertEquals("the snackbar names the custom folder", "Copied to «Keepers › Selection»", said)
+        assertTrue("the snackbar names the custom folder: $said", said.orEmpty().endsWith("· «Keepers › Selection»"))
         // F-FD-074 (fixed 2026-11-10): the flash said "Copied to Selection", not the folder the
-        // photo went to; it now uses the same SelectionActionLabels.confirmation call as the card.
-        assertTrue("the flash names «Keepers › Selection»", flashSays("Copied to «Keepers › Selection»"))
+        // photo went to; it now uses the card's formatter (`CompanionConfirmation`).
+        assertTrue("the flash names «Keepers › Selection»", flashSays("Copied", "«Keepers › Selection»"))
     }
 }

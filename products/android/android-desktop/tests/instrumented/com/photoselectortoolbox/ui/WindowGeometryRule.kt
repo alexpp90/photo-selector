@@ -252,7 +252,7 @@ class WindowGeometryRule(
                 putLandscapeRotation(naturalPortrait)
                 lastRotation = now
             }
-            Thread.sleep(100)
+            SystemClock.sleep(100)
         }
     }
 
@@ -294,7 +294,7 @@ class WindowGeometryRule(
             check(now <= deadline) {
                 "The display did not stay at the reference geometry (it reports $state)\n${describeDisplay()}"
             }
-            Thread.sleep(150)
+            SystemClock.sleep(150)
         }
     }
 
@@ -329,7 +329,9 @@ class WindowGeometryRule(
             waitUntil("the display leaves the reference size", timeoutMillis = 5_000, fatal = false) {
                 (displayDp()?.first ?: 0) < REFERENCE_MIN_WIDTH_DP
             }
-            Thread.sleep(1_500)
+            // Landed means settled: the display unchanged for 600 ms (5 s budget), polled, where a
+            // fixed 1.5 s sleep used to stand (invariant: poll a condition, never a fixed sleep).
+            waitForStableDisplay()
             repeat(4) {
                 putOrDelete("user_rotation", original.userRotation)
                 putOrDelete("accelerometer_rotation", original.accelerometerRotation)
@@ -349,7 +351,7 @@ class WindowGeometryRule(
             var steadySince = SystemClock.elapsedRealtime()
             val deadline = steadySince + 5_000
             while (true) {
-                Thread.sleep(150)
+                SystemClock.sleep(150)
                 val now = SystemClock.elapsedRealtime()
                 val state = displayState()
                 if (state != last) {
@@ -426,7 +428,7 @@ class WindowGeometryRule(
                             seconds, state.widthPx, state.heightPx, state.dpi, state.widthDp, state.heightDp,
                         )
                     }
-                    Thread.sleep(SAMPLE_MILLIS)
+                    SystemClock.sleep(SAMPLE_MILLIS)
                 }
             } catch (_: InterruptedException) {
                 // stopped; an uncaught exception on any thread would take the instrumentation down
@@ -590,7 +592,7 @@ class WindowGeometryRule(
                     if (!fatal) return
                     error("Timed out waiting for $what (display is now ${displayDp()} dp)")
                 }
-                Thread.sleep(100)
+                SystemClock.sleep(100)
             }
         }
     }

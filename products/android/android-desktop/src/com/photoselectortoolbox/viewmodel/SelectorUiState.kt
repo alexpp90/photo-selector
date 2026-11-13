@@ -174,6 +174,11 @@ data class SelectorUiState(
     /** How long [snackbarMessage] stays and whether that is a real deadline. */
     val snackbarLifetime: SnackbarLifetime = SnackbarLifetime.NOTICE,
     /**
+     * What a screen reader says for [snackbarMessage] when it differs from the line on screen
+     * (`CompanionConfirmation`: "+2" on screen, "and 2 companion files" spoken); null otherwise.
+     */
+    val snackbarSpoken: String? = null,
+    /**
      * Unified undo stack (newest first, up to [UndoPolicy.MAX_UNDO_HISTORY] = 20).
      *
      * Holds both deferred deletions ([UndoableOperation.RevertPendingDelete]) and
@@ -326,6 +331,7 @@ data class SelectorUiState(
         snackbarSequence = snackbarSequence + 1,
         snackbarLifetime = lifetime,
         snackbarUndoAvailable = undoAvailable,
+        snackbarSpoken = null,
     )
 
     /** The most recent deletion removed from the list but not yet committed to disk. */
