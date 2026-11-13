@@ -11,8 +11,8 @@
     -->
 
     <!--
-      Large screens only ([USER 2026-11-12] decision #5, REQ-AND-PLATFORM.02): Google Play has no
-      screen-size rule of its own, so this element is what keeps Frameduel off phones (DeX phones
+      Large screens only ([USER 2026-11-12] decision #5, REQ-AND-PLATFORM.02): the Play Console has no
+      screen-size rule, so this element is what keeps Frameduel off phones (DeX phones
       fall out with it). Narrow windows on a tablet, Chromebook or DeX desktop are unaffected: the
       filter is the device's screen, not the window. ManifestScreenSizeTest reads the merged manifest.
     -->
