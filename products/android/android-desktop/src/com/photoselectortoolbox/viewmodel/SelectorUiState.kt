@@ -312,6 +312,14 @@ data class SelectorUiState(
     val sessionRemainingCount: Int
         get() = tally.remaining(images.map { it.uri })
 
+    /**
+     * Every photo of the folder has a decision ([USER 2026-11-12] decision #29): a copied photo is
+     * decided and stays listed, so a folder copied to its end is done although photos remain on
+     * screen. Not while the folder is still being listed — more photos may come.
+     */
+    val everyPhotoDecided: Boolean
+        get() = images.isNotEmpty() && !isLoading && !isEnumerating && sessionRemainingCount == 0
+
     /** Total photos kept (moved + copied) in the current culling session (`U-33`, `U-35`). */
     val sessionKeptCount: Int
         get() = sessionMovedCount + sessionCopiedCount

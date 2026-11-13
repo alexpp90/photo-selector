@@ -92,6 +92,10 @@ class SelectorDoneTest {
                 val item = secondArg<ImageItem>()
                 FileOperationResult.success(item.uri, "content://test/sel/${item.fileName}")
             }
+            coEvery { r.copyBundle(any(), any(), any(), any()) } answers {
+                val item = secondArg<ImageItem>()
+                FileOperationResult.success(item.uri, "content://test/sel/${item.fileName}")
+            }
         }
         viewModel = fitSelectorViewModel(
             ApplicationProvider.getApplicationContext(), appScope,
@@ -131,6 +135,36 @@ class SelectorDoneTest {
             rule.onAllNodes(hasText("Trip › Selection"), useUnmergedTree = true).fetchSemanticsNodes().isNotEmpty(),
         )
         assertTrue(rule.tagExists("done_open_folder"))
+    }
+
+    @Test
+    fun `a folder whose last photos were copied ends on Done`() {
+        // [USER 2026-11-12] decision #29: a copied photo is decided. It stays listed, so a folder
+        // copied to its end used to show the frames instead of Done.
+        host(listOf(fitPhoto("P1.JPG", 3_000), fitPhoto("P2.JPG", 2_000), fitPhoto("P3.JPG", 1_000)))
+
+        press(Key.C)
+        press(Key.Delete)
+        assertFalse("one photo is still undecided", rule.tagExists("done_card"))
+        press(Key.C)
+
+        rule.waitUntil(5_000) { rule.tagExists("done_card") }
+        assertEquals("Done. 2 copied, 1 deleted.", spokenSummary())
+        assertEquals("the copied photos stay in the folder", 2, viewModel.uiState.value.images.size)
+    }
+
+    @Test
+    fun `undoing the delete after a copy takes the card away`() {
+        host(listOf(fitPhoto("P1.JPG", 2_000), fitPhoto("P2.JPG", 1_000)))
+        press(Key.C)
+        press(Key.Delete)
+        rule.waitUntil(5_000) { rule.tagExists("done_card") }
+
+        rule.onNodeWithTag("selector_root", useUnmergedTree = true).performKeyInput {
+            withKeyDown(Key.CtrlLeft) { pressKey(Key.Z) }
+        }
+        rule.waitForIdle()
+        assertFalse("the card goes on Undo", rule.tagExists("done_card"))
     }
 
     @Test
