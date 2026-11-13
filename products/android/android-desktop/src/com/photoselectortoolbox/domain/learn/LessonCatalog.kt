@@ -338,6 +338,17 @@ object LessonCatalog {
             )
         }
 
-        return listOf(q1, q2)
+        return listOf(q1.shuffled(lesson.id, 1), q2.shuffled(lesson.id, 2))
+    }
+
+    /**
+     * [this] with its options in an order fixed by the lesson, the question and its example
+     * photo (shoot debrief SD-1b, S3): the right answer was always the first option. The same
+     * inputs give the same order, so a recomposition never reshuffles a question being answered.
+     */
+    internal fun SpotItQuestion.shuffled(lessonId: String, number: Int): SpotItQuestion {
+        val seed = "$lessonId#$number#${examplePhotoUri.orEmpty()}".hashCode()
+        val order = options.indices.shuffled(kotlin.random.Random(seed))
+        return copy(options = order.map { options[it] }, correctIndex = order.indexOf(correctIndex))
     }
 }

@@ -21,7 +21,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ### Changed
 
-- A scan does a little less work per photo: it no longer works out and stores the old "technique facts", which no screen read. Learn still works them out for the photo it shows.
+- A lesson's "Spot it" quiz no longer puts the right answer first every time: the options come in an order of their own per lesson and question, which stays put while you answer.
+- A scan stores, for every photo it analyses, only the few facts Learn reads (focal length, light, shutter, exposure, horizon, subject placement and when the photo was taken), reading the photo's camera data itself, so a photo you never looked at has them too. Before, it worked out every "technique fact", without camera data for nearly every photo, and nothing read them. A folder scanned with an earlier version is decoded once more on its next scan, for these facts only; its scores are kept. Learn still works out the rest for the photo it shows.
 - Learn's **Compare** pairs two frames only when they are of one scene — shot within 10 minutes of each other (by capture time) and, where both have one, at focal lengths within 25 % of each other, or from the same burst — and a measurement tells them apart: sharpness differs by at least 40 %, or clipping or noise is at least twice as high. A whole phone folder at one focal length no longer pairs into one "scene", camera settings alone make no pair, a frame scanned without Focus is no longer ranked as if it had a sharpness of 0, and the "similar camera settings" filler sentence is gone.
 - A star rating no longer changes a JPEG unless you ask for it: embedding the rating in the photo is the setting **Write ratings into photos**, off on a new install. If you already used Frameduel it stays on, so nothing changes for you. RAW and TIFF ratings still go to an `.xmp` sidecar, which never changes the photo; with the setting off a JPEG rating is kept in the app.
 - A move or copy confirms with the photo and where it went, "Moved IMG_0001 · Selection", and counts the files that went with it: "Moved IMG_0001 +2 · Selection" (a screen reader hears "and 2 companion files"). The fullscreen flash says the same. The delete dialog of a photo with companions reads "Delete IMG_0001 +2?" and names their kinds ("Also deletes JPG, XMP").
@@ -42,6 +43,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ### Fixed
 
+- A TIFF's frame has its real shape from the start: its size is read from the file header, a sideways orientation included. Before, a TIFF had none, and was framed 3:2 until it was decoded.
 - A portrait photo from a camera (stored on its side with an EXIF orientation) gets a portrait frame instead of a landscape one.
 - An exposure time stored a hair under its fraction reads as that fraction ("1/250s"), not one step slower ("1/249s").
 - A folder you open in Dupes or Stats keeps its access while you work there. Before, opening another folder in Cull, or restarting the app, could take the access away, and the next Dupes delete failed with a permission error.

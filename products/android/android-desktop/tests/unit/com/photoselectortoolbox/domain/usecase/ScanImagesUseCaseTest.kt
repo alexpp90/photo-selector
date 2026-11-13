@@ -7,6 +7,9 @@ import com.photoselectortoolbox.data.repository.SettingsRepository
 import com.photoselectortoolbox.domain.analysis.ClippingAnalyzer
 import com.photoselectortoolbox.domain.analysis.NoiseAnalyzer
 import com.photoselectortoolbox.domain.analysis.SharpnessAnalyzer
+import com.photoselectortoolbox.data.cache.TechniqueFactEntity
+import com.photoselectortoolbox.domain.learn.ScanFacts
+import com.photoselectortoolbox.domain.learn.TechniqueFactDetector
 import com.photoselectortoolbox.domain.scoring.ScanMeasures
 import io.mockk.coEvery
 import io.mockk.every
@@ -27,6 +30,20 @@ import org.robolectric.annotation.Config
 @RunWith(RobolectricTestRunner::class)
 @Config(sdk = [33], application = android.app.Application::class)
 class ScanImagesUseCaseTest {
+
+    private companion object {
+        /** The scan's fact recorder over [dao], with no EXIF reader behind it. */
+        fun recorder(
+            dao: ScoreDao,
+            dispatcher: kotlinx.coroutines.CoroutineDispatcher = Dispatchers.Default,
+        ) = ScanFactRecorder(TechniqueFactDetector(), { null }, dao, dispatcher) { java.time.ZoneOffset.UTC }
+
+        /** A stored marker saying [image]'s facts are current. */
+        fun currentMarker(image: ImageItem) = TechniqueFactEntity(
+            image.uri, ScanFacts.MARKER, "1", 1.0, null, image.fileSize, image.lastModified,
+            TechniqueFactDetector.DETECTOR_VERSION,
+        )
+    }
 
     // REQ-AND-FEATURE.01, REQ-AND-CACHE.02
     @Test
@@ -77,10 +94,13 @@ class ScanImagesUseCaseTest {
         coEvery { scoreDao.updateAccessTimes(any(), any()) } returns Unit
         coEvery { scoreDao.getCount() } returns 2
         coEvery { scoreDao.deleteTechniqueFactsWithoutScore() } returns Unit
+        // Both photos' facts are current (SD-1a): a cached score alone would not skip the decode.
+        coEvery { scoreDao.getTechniqueFactsOfKind(ScanFacts.MARKER, any()) } returns images.map(::currentMarker)
 
         val useCase = ScanImagesUseCase(
             sharpnessAnalyzer, noiseAnalyzer, clippingAnalyzer,
             scoreDao, settingsRepository, bitmapDecoder, Dispatchers.IO, Dispatchers.Default,
+            recorder(scoreDao),
         )
 
         val progress = useCase(images).toList().last()
@@ -107,7 +127,7 @@ class ScanImagesUseCaseTest {
             val settings = mockk<SettingsRepository> { every { analysisThreadCount } returns flowOf(1) }
             val useCase = ScanImagesUseCase(
                 mockk(relaxed = true), mockk(relaxed = true), mockk(relaxed = true),
-                dao, settings, mockk(relaxed = true), Dispatchers.IO, Dispatchers.Default,
+                dao, settings, mockk(relaxed = true), Dispatchers.IO, Dispatchers.Default, recorder(dao),
             )
 
             useCase(emptyList()).toList()
@@ -146,17 +166,22 @@ class ScanImagesUseCaseTest {
                     shadowClipping = 0.0,
                 )
             },
+            factsFor = { uri -> listOf(currentMarker(images.first { it.uri == uri })) },
         )
 
         val useCase = ScanImagesUseCase(
             sharpnessAnalyzer, noiseAnalyzer, clippingAnalyzer,
             scoreDao, settingsRepository, bitmapDecoder, Dispatchers.IO, Dispatchers.Default,
+            recorder(scoreDao),
         )
 
         val progress = useCase(images).toList().last()
         assertEquals(2500, progress.results.size)
         assertEquals(listOf(900, 900, 700), scoreDao.scoreBatches.map { it.size })
         assertEquals(listOf(900, 900, 700), scoreDao.accessBatches.map { it.size })
+        // The fact markers bind the kind as well: 899 URIs per statement.
+        assertEquals(listOf(899, 899, 702), scoreDao.factBatches.map { it.size })
+        verify(exactly = 0) { bitmapDecoder.decodeForAnalysis(any(), any()) }
     }
 
     // Invariant "cancellation is not an error": a cancelled analysis is not cached as a photo without a score.
@@ -173,7 +198,7 @@ class ScanImagesUseCaseTest {
         val settingsRepository = mockk<SettingsRepository> { every { analysisThreadCount } returns flowOf(1) }
         val useCase = ScanImagesUseCase(
             sharpnessAnalyzer, mockk<NoiseAnalyzer>(relaxed = true), mockk<ClippingAnalyzer>(relaxed = true),
-            scoreDao, settingsRepository, bitmapDecoder, dispatcher, dispatcher,
+            scoreDao, settingsRepository, bitmapDecoder, dispatcher, dispatcher, recorder(scoreDao, dispatcher),
         )
 
         val collecting = launch(dispatcher) {
@@ -185,37 +210,11 @@ class ScanImagesUseCaseTest {
         io.mockk.coVerify(exactly = 0) { scoreDao.insertOrUpdate(any()) }
     }
 
-    // [USER 2026-11-12] decision #19 (plan D-5): the scan computes no technique facts
-    @Test
-    fun `a scan computes and stores no technique facts`() = runBlocking {
-        val bitmap = mockk<android.graphics.Bitmap>(relaxed = true) {
-            every { width } returns 640
-            every { height } returns 480
-        }
-        val rig = Rig()
-        every { rig.decoder.decodeForAnalysis(any(), any()) } returns bitmap
-        val shot = photo.copy(
-            exifData = com.photoselector.core.model.ExifData(
-                shutterSpeed = 1.0 / 8.0,
-                focalLength35mm = 300.0,
-                iso = 12800,
-                dateTimeOriginal = "2026:06:21 21:25:00",
-            ),
-        )
-
-        val result = rig.useCase(listOf(shot)).toList().last().results.getValue(shot.uri)
-
-        assertEquals(42.0, result.sharpnessScore)
-        // No pixel sampling for facts, and nothing written to technique_facts.
-        verify(exactly = 0) { bitmap.getPixel(any(), any()) }
-        io.mockk.coVerify(exactly = 0) { rig.dao.upsertTechniqueFacts(any()) }
-    }
-
     // ── The Scan sheet's measurements (REQ-AND-ALGO.07) ──────────────
 
     private val photo = ImageItem("content://test/m.jpg", "m.jpg", 100L, 1000L, "image/jpeg")
 
-    private class Rig(cached: List<ScoreEntity> = emptyList()) {
+    private class Rig(cached: List<ScoreEntity> = emptyList(), factsCurrent: Boolean = true) {
         val sharpness = mockk<SharpnessAnalyzer> { every { analyze(any(), any()) } returns 42.0 }
         val noise = mockk<NoiseAnalyzer> { every { analyze(any()) } returns 3.0 }
         val clipping = mockk<ClippingAnalyzer> { every { analyzeClipping(any()) } returns Pair(1.5, 2.5) }
@@ -227,11 +226,17 @@ class ScanImagesUseCaseTest {
         val useCase = ScanImagesUseCase(
             sharpness, noise, clipping, dao,
             mockk<SettingsRepository> { every { analysisThreadCount } returns flowOf(1) },
-            decoder, Dispatchers.IO, Dispatchers.Default,
+            decoder, Dispatchers.IO, Dispatchers.Default, recorder(dao),
         )
 
         init {
             coEvery { dao.insertOrUpdate(any()) } answers { stored += firstArg<ScoreEntity>() }
+            // The cached rows' facts are current unless the test says otherwise (SD-1a).
+            if (factsCurrent) {
+                coEvery { dao.getTechniqueFactsOfKind(ScanFacts.MARKER, any()) } returns cached.map { row ->
+                    TechniqueFactEntity(row.filePath, ScanFacts.MARKER, "1", 1.0, null, row.fileSize, row.lastModified, TechniqueFactDetector.DETECTOR_VERSION)
+                }
+            }
         }
     }
 
