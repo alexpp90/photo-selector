@@ -6,7 +6,9 @@ server they run against the stubs below; Linux CI runs the real GTK under ``xvfb
 
 import atexit
 import os
+import select
 import shutil
+import subprocess
 import sys
 import tempfile
 from unittest.mock import MagicMock
@@ -24,6 +26,46 @@ os.environ["XDG_DATA_HOME"] = os.path.join(_XDG_SANDBOX, "data")
 atexit.register(shutil.rmtree, _XDG_SANDBOX, ignore_errors=True)
 
 
+def start_private_xvfb(which=shutil.which):
+    """Start an Xvfb of our own (1280x1024x24) and return its process, or None.
+
+    A bare ``pytest`` from a Wayland session has no usable display (``keep_gui_off_real_desktop``
+    drops the session's), so every GTK test ran against the stubs and the ``MainWindow`` ones failed.
+    With ``Xvfb`` installed the same tests now run for real, like under ``run_tests.sh``. The screen is
+    fixed: a smaller or 8-bit default screen is where GTK windows crash. ``PST_NO_XVFB=1`` opts out;
+    without the binary the tests use the stubs, as before.
+    """
+    xvfb = which("Xvfb")
+    if xvfb is None or os.environ.get("PST_NO_XVFB") == "1":
+        return None
+    read_end, write_end = os.pipe()
+    try:
+        process = subprocess.Popen(
+            [xvfb, "-displayfd", str(write_end), "-screen", "0", "1280x1024x24", "-nolisten", "tcp"],
+            pass_fds=(write_end,), stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
+        )
+    except OSError:
+        os.close(read_end)
+        os.close(write_end)
+        return None
+    os.close(write_end)
+    try:
+        ready, _, _ = select.select([read_end], [], [], 10.0)
+        number = os.read(read_end, 32).decode().strip() if ready else ""
+    finally:
+        os.close(read_end)
+    if not number.isdigit() or process.poll() is not None:
+        process.terminate()
+        return None
+    os.environ["DISPLAY"] = f":{number}"
+    atexit.register(process.terminate)
+    return process
+
+
+if sys.platform.startswith("linux") and not os.environ.get("DISPLAY"):
+    start_private_xvfb()
+
+
 def _real_gtk_usable() -> bool:
     """True when real GTK widgets can be created in this process.
 
@@ -36,8 +78,16 @@ def _real_gtk_usable() -> bool:
     ):
         return False
     try:
-        import gi  # noqa: F401
-    except ImportError:
+        import gi
+        gi.require_version("Gtk", "4.0")
+        from gi.repository import Gdk, Gtk
+
+        # Review 2026-11-09 (BL-B-10, decision #35): a DISPLAY that nobody serves (a stale or dead X
+        # server) passes the check above and then crashes the interpreter on the first widget.
+        # Importing Gtk already tried to open it: no default display means nobody answered.
+        if not Gtk.init_check() or Gdk.Display.get_default() is None:
+            return False
+    except Exception:
         return False
     return True
 
@@ -284,6 +334,12 @@ if "gi" not in sys.modules and not _real_gtk_usable():
                 self._css_classes.remove(cls_name)
 
         def update_property(self, *args, **kwargs):
+            pass
+
+        def add_action(self, *args, **kwargs):
+            pass
+
+        def set_wrap(self, *args, **kwargs):
             pass
 
     # Mock Gtk
