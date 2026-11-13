@@ -138,8 +138,8 @@ scenarios:
       - tap: {id: back_to_cull_button, label: the back arrow}
 
   - id: U-AD-05
-    title: Learn Workstation — Lessons & Scene Comparator
-    goal: Browse interactive photography lessons and compare similar scenes side-by-side.
+    title: Learn Workstation — Lessons, Debrief & Worked Pair
+    goal: Browse interactive photography lessons, read the shoot debrief and open a worked pair.
     use_case: UC-6
     steps:
       - key: L
@@ -147,11 +147,12 @@ scenarios:
       - tap: {id: learn_tab_lessons, label: Lessons}
       - screen: learn-lessons-catalog
         intent: Select a photography technique micro-lesson
-        expected: Tap a lesson card or switch to Compare tab
-      - tap: {id: learn_tab_compare, label: Compare}
+        expected: Tap a lesson card or switch to the Debrief tab
+      - tap: {id: learn_tab_debrief, label: Debrief}
+      - tap: {id: debrief_open_pair, label: Worked pair}
       - screen: learn-compare-view
-        intent: Compare two similar frames side-by-side with difference analysis
-        expected: Review difference callouts and return to culling
+        intent: Answer which of two frames of one scene is better, then see why
+        expected: Pick A or B, then Show me, then return to culling
       - key: Escape
 
   - id: U-AD-06
