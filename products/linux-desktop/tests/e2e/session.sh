@@ -35,7 +35,7 @@ case "$LAB_DIR" in
   *) echo "Refusing to use non-lab directory: $LAB_DIR" >&2; exit 2 ;;
 esac
 
-mkdir -p "$LAB_DIR/xdg-data" "$LAB_DIR/xdg-config" "$ARTIFACTS_DIR"
+mkdir -p "$LAB_DIR/xdg-data" "$LAB_DIR/xdg-config" "$LAB_DIR/home" "$ARTIFACTS_DIR"
 
 # Text scaling: GTK4 on X11 takes it from XSETTINGS (gsd-xsettings, absent here), so a
 # `gsettings set` in the private bus never reaches the app (2026-10-17: large-text rendered
@@ -79,6 +79,12 @@ export GDK_BACKEND=x11
 export GDK_SCALE="${SCALE}"
 export XDG_DATA_HOME="${LAB_DIR}/xdg-data"
 export XDG_CONFIG_HOME="${LAB_DIR}/xdg-config"
+# The app's HOME lies beside the fixture, on the same file system. GIO trashes into
+# $XDG_DATA_HOME/Trash only for a file on the device of $HOME; for any other it wants a
+# .Trash-<uid> at the mount's top, and refuses on /tmp ("Trashing on system internal mounts is
+# not supported", 2026-11-13: every lab Trash rolled back since the app moved to GIO trash, and
+# the next Ctrl+Z undid the Move instead). Only the app gets it; hub steps keep the real HOME.
+LAB_HOME="${LAB_DIR}/home"
 export PST_LAB=1
 # Xvfb has no GPU: GTK's default Vulkan/GL renderer paints black there; cairo is software and
 # deterministic. No portals: in a private bus the desktop portal blocks ~25 s on a missing
@@ -103,7 +109,7 @@ dbus-run-session -- bash -c '
   gsettings set org.gnome.desktop.interface color-scheme "'"${COLOR_SCHEME}"'" >/dev/null 2>&1 || true
   gsettings set org.gnome.desktop.interface text-scaling-factor "'"${TEXT_SCALING}"'" >/dev/null 2>&1 || true
 
-  "$@" >"'"${ARTIFACTS_DIR}"'/journey.log" 2>&1 &
+  HOME="'"${LAB_HOME}"'" "$@" >"'"${ARTIFACTS_DIR}"'/journey.log" 2>&1 &
   APP_PID=$!
   trap "kill \$APP_PID >/dev/null 2>&1 || true" EXIT
 

@@ -4,14 +4,14 @@ title: Delete then undo shows feedback, at normal and large text (F-TOK missing-
 fixture: smoke
 configs: [phone-large-text, phone-portrait]
 fresh_install: false
-# NOT YET RUN ON HARDWARE (written 2026-11-09 without a device). First real run: check that the
-# `deleted` capture still holds the snackbar (Short, about 4 s: the wait is 500 ms) and that the
-# German devices' "Foto gelöscht" matches `feedback.actions.delete` in rules/phototok.yaml.
+# First hardware run 2026-11-13: the `deleted` capture came 3.4-4.6 s after the confirm flow
+# ended, past the Short snackbar (~4 s), on all three phones. The snackbar is now asserted by the
+# confirm flow itself, right after the tap (J-TOK-07/01_confirm_delete_sees_feedback.yaml); the
+# checkpoint keeps the Undo button and the file-system verdicts.
 steps:
   - {checkpoint: before}
   - {maestro: products/android/phototok/tests/e2e/J-TOK-03/02_swipe_left_delete.yaml}
-  - {maestro: products/android/phototok/tests/e2e/J-TOK-03/03_confirm_delete.yaml}
-  - {wait_ms: 500}
+  - {maestro: products/android/phototok/tests/e2e/J-TOK-07/01_confirm_delete_sees_feedback.yaml}
   - {checkpoint: deleted}
   - {maestro: products/android/phototok/tests/e2e/J-TOK-03/04_revert_delete.yaml}
   - {checkpoint: reverted}
@@ -31,6 +31,5 @@ layout_expect:
     required: [viewer.photo]
   deleted:
     required: [viewer_revert_button]
-    expect_feedback: delete
   reverted:
     required: [viewer.photo]

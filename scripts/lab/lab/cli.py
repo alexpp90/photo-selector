@@ -83,7 +83,8 @@ def build_parser() -> argparse.ArgumentParser:
     p_run = sub.add_parser("run", help="Run E2E device lab journeys")
     p_run.add_argument("--all", action="store_true", help="Run all four products")
     p_run.add_argument("--product", default=None, choices=["android-desktop", "phototok", "macos", "linux"])
-    p_run.add_argument("--journey", default=None, help="Filter by journey ID")
+    p_run.add_argument("--journey", action="append", default=None,
+                       help="Filter by journey ID or prefix; repeat for several")
     p_run.add_argument("--config", default=None, help="Filter by config name")
     p_run.add_argument("--out", default=None, help="Explicit output run directory")
     p_run.add_argument("--installed", action="store_true", help="Use installed package binary (C-50)")

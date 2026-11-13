@@ -4,6 +4,9 @@ title: Linux Desktop RAW and multi-format 1:1 inspection
 fixture: burst-raw-jpeg
 configs: [fhd]
 fresh_install: false
+# A fresh profile opens newest first (by capture time); the file names below are in name order.
+linux_settings:
+  view_order: natural
 steps:
   - wait_ms: 1000
   - keys: [Right, Right, space]

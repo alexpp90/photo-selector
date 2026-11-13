@@ -168,7 +168,29 @@ class JourneyClassChecksTest(unittest.TestCase):
                 for action in ([] if want is True else [want] if isinstance(want, str) else want):
                     self.assertTrue((rules.get("feedback") or {}).get("actions", {}).get(action), f"{jid}/{cp}: no words for {action!r}")
                 self.assertTrue((rules.get("feedback") or {}).get("surfaces"), f"{jid}: {j['product']} has no feedback surface")
-        self.assertGreaterEqual(claims, 2)
+        # J-AD-07's checkpoint claim; J-TOK-07 asserts its feedback in its confirm flow instead
+        # (test below): the hub's checkpoint lands after Jackpix's Short snackbar (lab 2026-11-13).
+        self.assertGreaterEqual(claims, 1)
+
+    def test_jackpix_delete_feedback_is_asserted_inside_its_lifetime(self) -> None:
+        import re
+
+        from lab.paths import repo_root
+
+        j = journeys()["J-TOK-07"]
+        flows = [s["maestro"] for s in j["steps"] if "maestro" in s]
+        confirm = next(f for f in flows if f.endswith("01_confirm_delete_sees_feedback.yaml"))
+        text = (repo_root() / confirm).read_text(encoding="utf-8")
+        waits = re.findall(r'extendedWaitUntil:\s*\n\s*visible:\s*\n\s*text:\s*"([^"]+)"\s*\n\s*timeout:\s*(\d+)(\s*\n\s*optional: true)?', text)
+        self.assertTrue(waits, "the confirm flow waits for nothing")
+        pattern, timeout, optional = waits[-1]
+        self.assertFalse(optional, "the feedback wait must not be optional")
+        self.assertLessEqual(int(timeout), 4000, "Jackpix's Short snackbar lives about 4 s")
+        res = repo_root() / "products" / "android" / "phototok" / "res"
+        for values in ("values", "values-de"):
+            strings = (res / values / "strings.xml").read_text(encoding="utf-8")
+            word = re.search(r'name="snackbar_photo_deleted">([^<]+)<', strings).group(1)
+            self.assertRegex(word, f"^(?:{pattern})$", f"{values}: {word!r} not matched by the flow")
 
     def test_a_feedback_checkpoint_follows_an_action_step(self) -> None:
         """The checkpoint after the action, with at most a wait between: feedback does not outlive a few seconds."""

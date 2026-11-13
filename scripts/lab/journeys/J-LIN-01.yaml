@@ -4,6 +4,9 @@ title: Linux Desktop 3-Up comparison, keyboard navigation, move, trash, and undo
 fixture: burst-jpeg
 configs: [fhd, hidpi, small, large-text]
 fresh_install: false
+# A fresh profile opens newest first (by capture time); the file names below are in name order.
+linux_settings:
+  view_order: natural
 # Checkpoints with an fs_expect wait until it holds (up to fs_timeout_ms, default 10 s) before
 # they are captured, so file operations need no fixed waits here.
 steps:
@@ -30,7 +33,12 @@ fs_expect:
   after-undo:
     present: ["Selection/DSC_0003.JPG", "DSC_0004.JPG"]
     absent:  ["DSC_0003.JPG"]
+# Decision #32: a missing neighbour draws nothing, so photo 1 has no slot_previous. The
+# three-frames check runs at photo 3, where both neighbours exist.
 layout_expect:
   three-up:
+    required: [slot_current, slot_next, action_bar]
+    forbidden: [slot_previous]
+  moved:
     required: [slot_previous, slot_current, slot_next, action_bar]
     frames: [slot_previous, slot_current, slot_next]

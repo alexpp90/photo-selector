@@ -40,6 +40,14 @@ def load_scenarios(product: str, root: Path | None = None) -> dict[str, Any]:
     data = yaml.safe_load(scenario_file(product, root).read_text(encoding="utf-8"))
     if not isinstance(data, dict) or not data.get("scenarios"):
         raise ValueError(f"no scenarios for {product}")
+    # YAML 1.1 (PyYAML) reads the key `on:` as the boolean True; the lab's fallback reader keeps
+    # the string. Normalise so `set_state: {on: …}` means the same under both (2026-11-13: the
+    # walk driver raised KeyError 'on' under /usr/bin/python3, the interpreter real runs use).
+    for scenario in data["scenarios"]:
+        for step in scenario.get("steps") or []:
+            state = step.get("set_state") if isinstance(step, dict) else None
+            if isinstance(state, dict) and True in state and "on" not in state:
+                state["on"] = state.pop(True)
     return data
 
 
