@@ -6,40 +6,25 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ## [Unreleased]
 
-### Fixed
-
-- Opening the Selection folder itself no longer files photos into `Selection/Selection/` (where they vanished from the list): Move and Copy say "This is the Selection folder" and do nothing; Trash and Undo still work, and Settings shows the same sentence.
-- Settings that did nothing now work or are gone: the **Blurry below** and **Sharp above** sliders change every Sharpness badge, tooltip, filmstrip dot and the Statistics counts (with a Reset); the aesthetic threshold slider is removed; **Auto-Advance** in the Culling menu and in Settings is one setting; **Tab** switches photo in 2-Up only and is left alone in 1-Up and 3-Up; a copied photo no longer counts as Remaining; the **Stop at sharpness** notice stays on the photo until your next key; Undo is greyed out in the menu when there is nothing to undo; the filmstrip tooltip names its key, `T`.
-- Cloud folders: a **Cloud** badge in the toolbar. Library Statistics' scoring, Lowest Sharpness First and the Duplicate Finder's hash pass would download every photo, so they are refused with "Cloud folder: would download every photo" and read nothing; Delete is refused with "No Trash in cloud folders. Nothing deleted." (a banner, nothing is deleted, no Undo entry, never "Moved to Trash"). Move and Copy work as before.
-
-- A photo you already copied is decided: a second Copy says "Already copied" and a Move after a Copy says "Already in Selection", so nothing is filed twice (no `-2` file beside the first); the tally still adds up.
-
-- **Aesthetics scoring is off for a new install** (nothing acts on the score). An install that already ran with it keeps it on; switch it in Settings → Scoring.
-
-- Move, Copy and Trash of a photo with companions name the photo, the companions and the destination: "Moved IMG_0001 +2 · Selection" (VoiceOver: "Moved IMG_0001.CR3 and 2 companion files to Selection"), instead of "Moved 3 files".
-
-- Homebrew: Lensjet's cask token is now `lensjet` (`brew install --cask alexpp90/tap/lensjet`, `brew search lensjet` finds it). The old `photo-selector-toolbox` cask stops updating and says to reinstall once; its caveat and the new cask's carry the Gatekeeper note.
+## [0.3.0] - 2026-11-13
 
 ### Added
 
 - **Activity**: a toolbar button and Go ▸ Activity (`⇧⌘L`) list your last decisions (moved, copied, deleted; newest first, up to 100) with the destination and how long ago; click one to jump to the photo. Undo takes it off the list.
 - **Statistics** has a toolbar button (before, only `⌘L` and the Tools menu opened it).
 - **Clean view on `F`**: full screen without the toolbar, dock and filmstrip. Every key keeps working, each decision flashes "Moved · 41" (what you did and how many are left), and `Esc` leaves. `T` is the filmstrip key; `F` no longer toggles it.
-
 - **Settings → Rejects**: choose where Delete puts a reject, the Trash (default) or a `Rejected` folder inside the folder you are culling. With Rejected/ the Delete key, menu item, dock and toast say "Move to Rejected", Undo moves the photo back, and Rejected/ is skipped by scans and Find Duplicates.
-
 - **A cull has a beginning and an end.** Lensjet reopens the last folder at launch, on the photo that was on screen (found by its file, so a re-sort or photos moved away do not change it; a photo that is gone opens the first one), and **File → Open Recent** lists the last ten folders. The dock shows where Move and Copy put photos (the same path Settings shows) next to the tally, and one click shows it in Finder. When no photo is undecided a **Done** card appears over the preview (never over the dock) with Selected, Copied and Trashed, the destination, **Show in Finder** and **Open Selection**; on the last photo with photos left a "N Remaining" notice offers **Show first**. Esc, a navigation key or Undo dismisses it. On a removable card the card says **Safe to format** only when every file under the folder is accounted for, and "N other files left" otherwise.
 - **Menus where a Mac user looks.** Edit → **Undo Move of IMG_0001.CR3** (greyed out when empty; text fields keep their own undo), Go → Previous Photo / Next Photo / Go to Photo…, File → **Show in Finder** (⇧⌘R) and **Quick Look** (⌘Y), and the view commands (1-Up, 2-Up, 3-Up, Sort By, Zoom 100%, Link Pan, Filmstrip, Info, Switch Photo) are in the one system View menu.
 - Settings → General → Culling Destination now shows where Move and Copy put your photos. Choose **Working folder** (the Selection folder inside the folder you are culling, as before) or **Custom folder** (pick a folder, for example on an SSD), and read the full destination path right below, such as `~/Pictures/Trip/Selection/`. With no folder open it says so. A custom folder that is gone or not writable shows a warning, and Move and Copy refuse instead of creating it. If you already used a custom destination, it stays selected.
 - macOS asks for access to Desktop, Documents, Downloads, removable and network volumes with an explanation ("Lensjet shows the photos in the folders you open and moves, copies or trashes the ones you cull.").
 - The README and the Homebrew cask now say how to open Lensjet the first time: it is not notarized by Apple yet, so macOS blocks a downloaded copy until you click **Open Anyway** in System Settings → Privacy & Security (or run `xattr -dr com.apple.quarantine /Applications/Lensjet.app`).
-
-- **View > Sort By**: Newest First, Oldest First, File Name and Lowest Sharpness First, with a checkmark on the active order. The choice is kept. A new install opens newest first; an install that already existed keeps the file-name order it had. A non-default order shows as a small chip in the toolbar. Lowest Sharpness First scores every photo in the background first (the toolbar shows "Scoring 12 / 17"), then orders the list; **Settings → Scoring → Stop at sharpness** (0 = off) toasts when you reach a photo at or above that sharpness.
+- **View > Sort By**: Newest First, Oldest First, File Name and Lowest Sharpness First, with a checkmark on the active order. The choice is kept. A new install opens newest first; an install that already existed keeps the file-name order it had. A non-default order shows as a small chip in the toolbar. Lowest Sharpness First scores every photo in the background first (the toolbar shows "Scoring 12 / 17"), then orders the list; **Settings → Scores → Stop at sharpness** (0 = off) toasts when you reach a photo at or above that sharpness.
 - **Go to Photo** (`G`, Go menu): type a number (the position in "Photo 12 of 240") or part of a file name; the sheet shows the file name it will land on, and "No match" when there is none.
-- A photo that travels with a RAW, JPEG, XMP sidecar or edit shows **chips** (`JPG`, `XMP`, …) beside its file type, and Move, Copy, Trash and Undo of such a set say how many files moved: "Moved 3 files", "Copied 3 files", "Trashed 3 files", "Restored 3 files".
+- A photo that travels with a RAW, JPEG, XMP sidecar or edit shows **chips** (`JPG`, `XMP`, …) beside its file type; Move, Copy, Trash and Undo take the whole set.
 - The bottom tally shows **Copied N** once you have copied something, and Undo takes it off again.
-- Each score shows its scale: "Sharpness 59.6 / 100" and "Aesthetics 8.4 / 10" in the info panel, a tooltip on the badges saying what they measure and where the bands are, and a spoken label that says "aesthetics score", never a star rating.
-- Library Statistics scores the whole library in the background while it is open ("12 / 17 scored", with a progress bar), so the sharpness figures and the distribution cover every photo; closing the sheet stops the pass.
+- Each score shows its scale: "Sharpness 60 / 100" and "Aesthetics 8.4 / 10" in the info panel, a tooltip on the badges saying what they measure and where the bands are, and a spoken label that says "aesthetics score", never a star rating.
+- Statistics scores the whole library in the background while it is open ("12 / 17 scored", with a progress bar), so the sharpness figures and the distribution cover every photo; closing the sheet stops the pass.
 - Toasts are read out by VoiceOver.
 - Stepping backwards through a shoot now prefetches the frames behind you (the prefetch window leans the way you browse, same size).
 
@@ -47,10 +32,17 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 - **One name per thing.** "Focus 3-Up", "Focus View" and "3-Up Focus Mode" are now **3-Up** everywhere; **Info** (menu "Show Info" / "Hide Info") replaces "Info HUD" and "Info Overlay"; **Find Duplicates** and **Statistics** replace "Duplicate Finder" and "Library Statistics"; Move and Copy name the Selection folder you chose ("Move to Keepers") in the dock, tooltips and menu. The empty state says "Drop a folder" ("Drop to open" while you drag) and the jargon lines are gone. Settings calls its tab **Scores**. The shortcut sheet's Statistics row says what the sheet shows (counts, progress, file formats, Sharpness and Aesthetics scores).
 - **Sharpness reads as a measurement, not a verdict:** it shows as a whole number ("Sharpness 60 / 100"), and its tooltip and spoken label say "edge detail of the whole frame". A frame larger than 2,048 px is scored at 2,048 px, the size the viewer and the library pass decode.
-- Keys, aligned with the other desktop apps: **`T`** toggles the filmstrip and **Link Pan** is **⌥⌘P** (View menu). **Announced:** `F` (filmstrip), `S` (linked pan) and `H` / `L` (navigation) still work for this release and are marked as going away in the shortcut sheet (`?`); `F` becomes window full screen in the next release.
+- Keys, aligned with the other desktop apps: **`T`** toggles the filmstrip and **Link Pan** is **⌥⌘P** (View menu). **Announced:** `S` (linked pan) and `H` / `L` (navigation) still work for this release and are marked as going away in the shortcut sheet (`?`).
+- **Aesthetics scoring is off for a new install** (nothing acts on the score). An install that already ran with it keeps it on; switch it in Settings → Scores.
+- Move, Copy and Trash of a photo with companions name the photo, the companions and the destination: "Moved IMG_0001 +2 · Selection" (VoiceOver: "Moved IMG_0001.CR3 and 2 companion files to Selection").
+- Homebrew: Lensjet's cask token is now `lensjet` (`brew install --cask alexpp90/tap/lensjet`, `brew search lensjet` finds it). The old `photo-selector-toolbox` cask stops updating and says to reinstall once; its caveat and the new cask's carry the Gatekeeper note.
 
 ### Fixed
 
+- Opening the Selection folder itself no longer files photos into `Selection/Selection/` (where they vanished from the list): Move and Copy say "This is the Selection folder" and do nothing; Trash and Undo still work, and Settings shows the same sentence.
+- Settings that did nothing now work or are gone: the **Blurry below** and **Sharp above** sliders change every Sharpness badge, tooltip, filmstrip dot and the Statistics counts (with a Reset); the aesthetic threshold slider is removed; **Auto-Advance** in the Culling menu and in Settings is one setting; **Tab** switches photo in 2-Up only and is left alone in 1-Up and 3-Up; a copied photo no longer counts as Remaining; the **Stop at sharpness** notice stays on the photo until your next key; Undo is greyed out in the menu when there is nothing to undo; the filmstrip tooltip names its key, `T`.
+- Cloud folders: a **Cloud** badge in the toolbar. Statistics' scoring, Lowest Sharpness First and Find Duplicates' hash pass would download every photo, so they are refused with "Cloud folder: would download every photo" and read nothing; Delete is refused with "No Trash in cloud folders. Nothing deleted." (a banner, nothing is deleted, no Undo entry, never "Moved to Trash"). Move and Copy work as before.
+- A photo you already copied is decided: a second Copy says "Already copied" and a Move after a Copy says "Already in Selection", so nothing is filed twice (no `-2` file beside the first); the tally still adds up.
 - A held **Delete**, **M** or **C** now acts once instead of once per auto-repeat (it could trash or move a whole run of photos); the arrow keys keep repeating.
 - After Undo, the restored photo appears at once from memory instead of as a black pane with a spinner; the spinner only appears after 300 ms.
 - A custom destination folder placed inside the folder you are culling no longer lets the photos you filed there come back as candidates.
