@@ -7,6 +7,9 @@ import androidx.lifecycle.viewModelScope
 import com.photoselector.core.model.ExifData
 import com.photoselectortoolbox.data.repository.CacheRepository
 import com.photoselectortoolbox.data.repository.ImageRepository
+import com.photoselectortoolbox.data.repository.SettingsRepository
+import com.photoselectortoolbox.data.repository.ToolFolder
+import com.photoselectortoolbox.di.IoDispatcher
 import dagger.hilt.android.lifecycle.HiltViewModel
 import dagger.hilt.android.qualifiers.ApplicationContext
 import javax.inject.Inject
@@ -63,6 +66,10 @@ class StatisticsViewModel @Inject constructor(
     private val imageRepository: ImageRepository,
     private val cacheRepository: CacheRepository?,
     @ApplicationContext private val context: Context,
+    /** Keeps the grant of the folder this screen opened ([ToolFolder]); null in screen tests. */
+    private val settingsRepository: SettingsRepository?,
+    /** Hilt's IO dispatcher; the default is for the test constructor below. */
+    @IoDispatcher injectedIoDispatcher: kotlinx.coroutines.CoroutineDispatcher = Dispatchers.IO,
 ) : ViewModel() {
 
     constructor(
@@ -72,10 +79,11 @@ class StatisticsViewModel @Inject constructor(
         imageRepository = imageRepository,
         cacheRepository = null,
         context = context,
+        settingsRepository = null,
     )
 
     /** The dispatcher EXIF reading runs on; a test swaps it. */
-    internal var ioDispatcher: kotlinx.coroutines.CoroutineDispatcher = Dispatchers.IO
+    internal var ioDispatcher: kotlinx.coroutines.CoroutineDispatcher = injectedIoDispatcher
 
     private val _uiState = MutableStateFlow(StatisticsUiState())
     val uiState: StateFlow<StatisticsUiState> = _uiState.asStateFlow()
@@ -83,6 +91,7 @@ class StatisticsViewModel @Inject constructor(
     fun selectFolder(uri: Uri) {
         viewModelScope.launch {
             val folderName = imageRepository.openFolder(context, uri)
+            if (folderName != null) settingsRepository?.setToolFolderUri(ToolFolder.STATISTICS, uri.toString())
             if (folderName == null) {
                 _uiState.update {
                     it.copy(

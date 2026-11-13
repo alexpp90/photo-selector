@@ -40,7 +40,7 @@ public struct ComparisonView: View {
     public let photos: [PhotoItem]
     public let activeSlotIndex: Int
     public let isZoomSynced: Bool
-    public let isHUDVisible: Bool
+    public let isInfoVisible: Bool
     public let zoomState: ZoomState
     public let onSelectSlot: (Int) -> Void
     public let onToggleZoom: () -> Void
@@ -63,7 +63,7 @@ public struct ComparisonView: View {
         photos: [PhotoItem] = [],
         activeSlotIndex: Int = 1,
         isZoomSynced: Bool = true,
-        isHUDVisible: Bool = true,
+        isInfoVisible: Bool = true,
         zoomState: ZoomState = .fit,
         onSelectSlot: @escaping (Int) -> Void,
         onToggleZoom: @escaping () -> Void,
@@ -80,7 +80,7 @@ public struct ComparisonView: View {
         self.photos = photos
         self.activeSlotIndex = activeSlotIndex
         self.isZoomSynced = isZoomSynced
-        self.isHUDVisible = isHUDVisible
+        self.isInfoVisible = isInfoVisible
         self.zoomState = zoomState
         self.onSelectSlot = onSelectSlot
         self.onToggleZoom = onToggleZoom
@@ -200,7 +200,7 @@ public struct ComparisonView: View {
             isActive: isActive,
             isZoomSynced: isZoomSynced,
             sharedState: sharedState,
-            isHUDVisible: isHUDVisible,
+            isInfoVisible: isInfoVisible,
             zoomState: zoomState,
             onSelect: onSelect,
             onDoubleTap: onToggleZoom,
@@ -263,7 +263,7 @@ public struct ComparisonSlotPane: View {
     private var bands: SharpnessBands { SharpnessBands(blurryBelow: blurryBelow, sharpFrom: sharpFrom) }
     public let isZoomSynced: Bool
     @ObservedObject public var sharedState: ComparisonSharedState
-    public let isHUDVisible: Bool
+    public let isInfoVisible: Bool
     public let zoomState: ZoomState
     public let onSelect: () -> Void
     public let onDoubleTap: () -> Void
@@ -283,7 +283,7 @@ public struct ComparisonSlotPane: View {
         isActive: Bool,
         isZoomSynced: Bool,
         sharedState: ComparisonSharedState,
-        isHUDVisible: Bool,
+        isInfoVisible: Bool,
         zoomState: ZoomState = .fit,
         onSelect: @escaping () -> Void,
         onDoubleTap: @escaping () -> Void,
@@ -298,7 +298,7 @@ public struct ComparisonSlotPane: View {
         self.isActive = isActive
         self.isZoomSynced = isZoomSynced
         self.sharedState = sharedState
-        self.isHUDVisible = isHUDVisible
+        self.isInfoVisible = isInfoVisible
         self.zoomState = zoomState
         self.onSelect = onSelect
         self.onDoubleTap = onDoubleTap
@@ -369,7 +369,7 @@ public struct ComparisonSlotPane: View {
                 .clipped()
                 .uiTestFrame(role.accessibilityIdentifier + "_image")
 
-                if isHUDVisible {
+                if isInfoVisible {
                     exifStrip
                         .padding(.horizontal, 8)
                         .padding(.vertical, 5)

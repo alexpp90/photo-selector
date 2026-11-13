@@ -254,7 +254,7 @@ class ScreenFitMatrixTest {
             every { this@mockk.invoke(any()) } returns flowOf(DuplicateDetectionProgress(3, 3, listOf(group)))
         }
         val held = HeldDeleteCommitter(images, mockk(relaxed = true), mockk(relaxed = true), context)
-        return DuplicatesViewModel(finder, images, held, appScope, context).also {
+        return DuplicatesViewModel(finder, images, held, appScope, context, mockk(relaxed = true)).also {
             if (open) it.selectFolder(Uri.parse("content://test/folder"))
             if (scanned) {
                 it.startScan()

@@ -8,7 +8,7 @@ import PhotoSelectorKit
 /// `ZoomableImageViewport`.
 public struct SinglePhotoView: View {
     public let photo: PhotoItem
-    public let isHUDVisible: Bool
+    public let isInfoVisible: Bool
     public let zoomState: ZoomState
     public let onToggleZoom: () -> Void
     public var toast: ToastMessage?
@@ -23,7 +23,7 @@ public struct SinglePhotoView: View {
 
     public init(
         photo: PhotoItem,
-        isHUDVisible: Bool,
+        isInfoVisible: Bool,
         zoomState: ZoomState,
         onToggleZoom: @escaping () -> Void,
         toast: ToastMessage? = nil,
@@ -33,7 +33,7 @@ public struct SinglePhotoView: View {
         onUpdateScores: ((UUID, QualityScores) -> Void)? = nil
     ) {
         self.photo = photo
-        self.isHUDVisible = isHUDVisible
+        self.isInfoVisible = isInfoVisible
         self.zoomState = zoomState
         self.onToggleZoom = onToggleZoom
         self.toast = toast
@@ -50,7 +50,7 @@ public struct SinglePhotoView: View {
             let layout = MetadataPanelLayout(
                 canvas: geometry.size,
                 aspectRatio: aspect,
-                isPanelVisible: isHUDVisible
+                isPanelVisible: isInfoVisible
             )
 
             ZStack(alignment: .topLeading) {

@@ -42,7 +42,7 @@ if not STUBBED:
 SCALES = (1.0, 1.5, 2.0)
 
 #: The status text of the longest outcome the view model produces (a bundle with companions).
-LONG_OUTCOME = "Moved IMG_…_064000 + 12 to Selection/"
+LONG_OUTCOME = "Moved IMG_…_064000 +12 · Selection"
 
 
 @pytest.fixture(scope="module", autouse=True)
@@ -121,11 +121,6 @@ def _statistics_remote(tmp_path, folder):
     return tools_dialogs.LibraryStatisticsDialog(viewmodel=win.viewmodel)
 
 
-def _duplicates(tmp_path, folder):
-    win = _loaded_main(tmp_path, folder, 1)
-    return tools_dialogs.DuplicateFinderDialog(viewmodel=win.viewmodel)
-
-
 def _shortcuts(tmp_path, folder):
     return ShortcutsDialog()
 
@@ -157,7 +152,6 @@ SCREENS = {
     "preferences": _preferences,
     "statistics": _statistics,
     "statistics-remote": _statistics_remote,
-    "duplicate-finder": _duplicates,
     "shortcuts": _shortcuts,
 }
 

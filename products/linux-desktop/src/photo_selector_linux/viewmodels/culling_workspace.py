@@ -27,7 +27,7 @@ from photo_selector_linux.core.destination import (
 )
 from photo_selector_linux.core.file_ops import FileCullingManager
 from photo_selector_linux.core.gvfs_names import is_remote_filesystem
-from photo_selector_linux.core.volumes import VERDICT_SAFE, format_verdict
+from photo_selector_linux.core.volumes import VERDICT_SAFE, format_verdict, selection_stays_on_card
 from photo_selector_linux.core.models import (
     CandidatePhoto,
     CullingActionType,
@@ -36,6 +36,9 @@ from photo_selector_linux.core.models import (
     SharpnessCategory,
 )
 from photo_selector_linux.core.goto import resolve_goto
+from photo_selector_linux.core.bursts import burst_positions
+from photo_selector_linux.viewmodels.capture_pass import CapturePass, order_basis
+from photo_selector_linux.viewmodels.outcome_text import companion_count, outcome_texts
 from photo_selector_linux.core.scanner import DirectoryScanner, natural_sort_key
 from photo_selector_linux.core.settings import (
     ORDER_LOWEST_SHARPNESS,
@@ -45,7 +48,6 @@ from photo_selector_linux.core.settings import (
     PERSISTED_ORDERS,
     SettingsStore,
 )
-from photo_selector_linux.core.statistics import record_decision_log
 
 
 # A file operation, and what to do with its (result, error) once it finished.
@@ -100,6 +102,8 @@ MESSAGE_NAME_CHARS = 16
 
 #: Longest destination path a first-transfer message shows whole (the bar's slot is bounded, LIN-7).
 MESSAGE_PATH_CHARS = 34
+#: Appended to the first transfer message when the Selection is on the card being culled (plan 1.6).
+ON_CARD_NOTE = " · on card"
 
 
 def shorten_middle(name: str, limit: int = MESSAGE_NAME_CHARS) -> str:
@@ -116,14 +120,6 @@ def shorten_middle(name: str, limit: int = MESSAGE_NAME_CHARS) -> str:
     if len(stem) <= limit:
         return stem
     return f"{stem[:4]}…{stem[-7:]}"
-
-
-def _name_with_companions(photo: CandidatePhoto, result: Any) -> str:
-    """``name`` or ``name + N`` for the N companion files that went along with the primary."""
-    pairs = list(getattr(result, "affected_paths", None) or [])
-    companions = len(pairs) - 1 if pairs else len(photo.all_paths) - 1
-    name = shorten_middle(photo.filename)
-    return f"{name} + {companions}" if companions > 0 else name
 
 
 class CullingWorkspaceViewModel:
@@ -146,7 +142,6 @@ class CullingWorkspaceViewModel:
         score_runner: Optional[ScoreRunner] = None,
         auto_advance: Optional[bool] = None,
         external_destination_root: Optional[Path] = None,
-        decision_log_path: Optional[Path] = None,
     ):
         self.candidates: List[CandidatePhoto] = []
         self.current_index: int = 0
@@ -191,7 +186,6 @@ class CullingWorkspaceViewModel:
         #: False until the user moves, culls, jumps or the folder opens on a requested photo:
         #: while False, every re-order of an arriving batch lands on the first photo of the order.
         self._user_navigated: bool = False
-        self.decision_log_path: Optional[Path] = decision_log_path
 
         self.selected_count: int = 0
         self.copied_count: int = 0
@@ -221,9 +215,13 @@ class CullingWorkspaceViewModel:
         self._scoring_inflight: Dict[str, CandidatePhoto] = {}
         self._scoring_total: int = 0
         self._scoring_done: int = 0
+        self._scoring_new: int = 0  # photos given a score by this sweep ("Scored N more")
         self._scoring_since_resort: int = 0
         self._scoring_anchor: Optional[CandidatePhoto] = None
         self._cancel_scoring: Optional[Callable[[], None]] = None
+        self._burst_key: Optional[Tuple[int, int, int]] = None
+        self._burst_cues: Dict[str, Tuple[int, int]] = {}
+        self._capture = CapturePass(self._on_capture_progress, self._on_capture_done)
 
         self._queue: List[_QueuedAction] = []
         self._running_action: Optional[_QueuedAction] = None
@@ -232,6 +230,7 @@ class CullingWorkspaceViewModel:
 
         self._state_callbacks: List[Callable[[CullingWorkspaceViewModel], None]] = []
         self.last_notification_severity: str = "info"
+        self.last_notification_spoken: Optional[str] = None
         self._notification_callbacks: List[Callable[[CullingWorkspaceViewModel, str], None]] = []
 
         if self.settings is not None:
@@ -286,7 +285,8 @@ class CullingWorkspaceViewModel:
 
     @property
     def remaining_count(self) -> int:
-        return len(self.candidates)
+        """Photos still to decide: a copied photo stays in the list but is decided (decision #29)."""
+        return sum(1 for candidate in self.candidates if not candidate.copied)
 
     @property
     def queued_count(self) -> int:
@@ -340,8 +340,10 @@ class CullingWorkspaceViewModel:
         """Which of the canvas's states applies: ``start``, ``reading``, ``unreadable``, ``empty``,
         ``done`` or ``photos`` (plan 1.1). Each has its own text; the done screen is the only one
         that follows a decision."""
-        if self.candidates:
+        if self.candidates and (self.remaining_count > 0 or self.selected_count + self.trashed_count == 0):
             return "photos"
+        if self.candidates:
+            return "done"  # only copied photos are left: every photo is decided
         if self.current_folder is None:
             return "start"
         if self.scan_failed:
@@ -389,7 +391,7 @@ class CullingWorkspaceViewModel:
                 # One failing view must not stop the others from refreshing.
                 logger.exception("State callback %r failed", cb)
 
-    def _notify(self, message: str, severity: str = "info") -> None:
+    def _notify(self, message: str, severity: str = "info", spoken: Optional[str] = None) -> None:
         """Deliver a message to notification callbacks (signature ``(vm, message)``).
 
         ``severity`` is stored in ``last_notification_severity`` before the callbacks run:
@@ -399,6 +401,8 @@ class CullingWorkspaceViewModel:
         ``"info"`` = everything else (toast only).
         """
         self.last_notification_severity = severity
+        #: What a screen reader says when it differs from ``message`` (companions in words).
+        self.last_notification_spoken = spoken
         for cb in self._notification_callbacks:
             try:
                 cb(self, message)
@@ -430,19 +434,63 @@ class CullingWorkspaceViewModel:
         self.current_index = 0
         self._user_navigated = False
         self._check_stop_sharpness_threshold()
+        if order in (ORDER_NEWEST, ORDER_OLDEST):
+            self._capture.start(self.candidates, self.is_remote_folder, user_requested=True)
         if order == ORDER_LOWEST_SHARPNESS:
             self._scoring_anchor = self.current_photo
             self._begin_scoring_pass()
         else:
             self._cancel_scoring_pass()
+            if order not in (ORDER_NEWEST, ORDER_OLDEST):
+                self._capture.cancel()
             if self.settings is not None and order in PERSISTED_ORDERS and self.settings.view_order != order:
                 self.settings.update(view_order=order)  # notifies: _on_settings_changed refreshes
                 return
         self._notify_state_changed()
 
     @property
+    def capture_runner(self):
+        return self._capture.runner
+
+    @capture_runner.setter
+    def capture_runner(self, runner) -> None:
+        self._capture.runner = runner
+
+    def burst_cue(self, photo: CandidatePhoto) -> Optional[Tuple[int, int]]:
+        """``(position, size)`` of ``photo`` in its burst, or None (decision #31; ``core/bursts.py``)."""
+        key = (self._folder_generation, len(self.candidates), sum(1 for c in self.candidates if c.exif is not None))
+        if key != self._burst_key:
+            self._burst_key = key
+            self._burst_cues = burst_positions(self.candidates)
+        return self._burst_cues.get(photo.id)
+
+    @property
+    def order_basis(self) -> str:
+        """What the time orders go by: "capture time", "file time", a mix, or "reading capture times"."""
+        return order_basis(self.candidates, self._capture.reading)
+
+    def _begin_capture_pass(self) -> None:
+        """After a scan: read capture times for the time orders (a cloud folder waits to be asked)."""
+        if self.sort_order in (ORDER_NEWEST, ORDER_OLDEST):
+            if self._capture.start(self.candidates, self.is_remote_folder, user_requested=False):
+                self._notify_state_changed()
+
+    def _on_capture_progress(self) -> None:
+        if self.sort_order in (ORDER_NEWEST, ORDER_OLDEST):
+            self._resort_keeping_view()
+        self._notify_state_changed()
+
+    def _on_capture_done(self) -> None:
+        self._on_capture_progress()
+
+    @property
     def is_scoring(self) -> bool:
         return bool(self._scoring_inflight)
+
+    @property
+    def scoring_progress(self) -> Tuple[int, int]:
+        """Photos scored so far and photos this sweep must score (for the order button's tooltip)."""
+        return self._scoring_done, self._scoring_total
 
     def _cancel_scoring_pass(self) -> None:
         """Stop the background pass: folder switch, back to natural order."""
@@ -451,7 +499,7 @@ class CullingWorkspaceViewModel:
         if cancel is not None:
             cancel()
         self._scoring_inflight = {}
-        self._scoring_total = self._scoring_done = self._scoring_since_resort = 0
+        self._scoring_total = self._scoring_done = self._scoring_since_resort = self._scoring_new = 0
         self.scoring_confirmation_pending = False
         self._scoring_anchor = None
 
@@ -499,6 +547,7 @@ class CullingWorkspaceViewModel:
         self._scoring_since_resort += 1
         if scores is not None and photo.scores is None:
             photo.scores = scores
+            self._scoring_new += 1
         if not self._scoring_inflight:
             self._finish_scoring_pass()
         elif self._scoring_since_resort >= (10 if self._scoring_total <= 200 else 50):
@@ -518,15 +567,15 @@ class CullingWorkspaceViewModel:
     def _finish_scoring_pass(self) -> None:
         if self.is_scanning:
             return  # photos still arriving; the scan's completion starts the next pass
-        total = self._scoring_total
+        total = self._scoring_new
         self._resort_keeping_view()
         self._cancel_scoring = None
-        self._scoring_total = self._scoring_done = 0
+        self._scoring_total = self._scoring_done = self._scoring_new = 0
         anchor, self._scoring_anchor = self._scoring_anchor, None
         if anchor is not None and self.current_photo is anchor:
             self.current_index = 0  # not navigated meanwhile: start the sweep at the lowest
-        if total:
-            self._notify(f"Scored {total} photos, lowest sharpness first")
+        if total:  # [USER 2026-11-12] decision #33 (4): the outcome line, nothing at 0
+            self._notify(f"Scored {total} more", "status")
         self._notify_state_changed()
 
     def _apply_sort_order(self) -> None:
@@ -542,7 +591,7 @@ class CullingWorkspaceViewModel:
             sign = -1.0 if self.sort_order == ORDER_NEWEST else 1.0
             self.candidates.sort(
                 key=lambda c: (
-                    sign * c.modified_at,
+                    sign * c.order_time,
                     natural_sort_key(str(c.primary_path.parent)),
                     natural_sort_key(c.filename),
                 )
@@ -656,13 +705,21 @@ class CullingWorkspaceViewModel:
         elif action.kind == "copy":
             self.selected_count = max(0, self.selected_count - 1)
             self.copied_count = max(0, self.copied_count - 1)
+            photo.copied = False
             idx = self._index_of(photo)
             if idx is not None:
                 self.current_index = idx
         elif action.kind == "trash":
             self.trashed_count = max(0, self.trashed_count - 1)
+            self._restore_copied_counts(photo)
             if self._index_of(photo) is None:
                 self.current_index = self._reinsert(photo, action.orig_idx)
+
+    def _restore_copied_counts(self, photo: CandidatePhoto) -> None:
+        """A trashed photo that had been copied is Selected again once the Trash is rolled back."""
+        if photo.copied:
+            self.selected_count += 1
+            self.copied_count += 1
 
     def _stack_for(self, action: _QueuedAction) -> List[Tuple[CullingRecord, CandidatePhoto, int]]:
         """The undo stack of the workspace ``action`` belongs to: the live one, or — when the folder
@@ -850,19 +907,17 @@ class CullingWorkspaceViewModel:
             if isinstance(result, CullingRecord):
                 self._replace_undo_record(action, result)
 
-            if self.decision_log_path is not None:
-                record_decision_log(action.kind, action.photo, self.decision_log_path)
-
             if action.generation == self._folder_generation:
                 if action.kind in ("move", "copy"):
                     verb = "Moved" if action.kind == "move" else "Copied"
-                    self._notify(
-                        self._transfer_message(verb, action, result, self._first_transfer_place(action)), "status"
-                    )
+                    first = self._first_transfer_place(action)
+                    visible, spoken = self._transfer_message(verb, action, result, first)
+                    self._notify(visible, "status", spoken=spoken)
                 elif action.kind == "trash":
-                    self._notify(
-                        f"Moved {_name_with_companions(action.photo, result)} to Trash", "status"
+                    visible, spoken = outcome_texts(
+                        "Moved", action.photo, companion_count(action.photo, result), "Trash"
                     )
+                    self._notify(visible, "status", spoken=spoken)
 
         elif action.kind == "undo":
             target = action.target_action
@@ -893,45 +948,54 @@ class CullingWorkspaceViewModel:
                             self.selected_count = max(0, self.selected_count - 1)
                         else:
                             self.trashed_count = max(0, self.trashed_count - 1)
+                            self._restore_copied_counts(action.photo)
                 elif rec.action_type == CullingActionType.COPY and not rec.stranded:
                     # A partial copy (stray replicas) already gave its optimistic counts back.
                     self.selected_count = max(0, self.selected_count - 1)
                     self.copied_count = max(0, self.copied_count - 1)
+                    action.photo.copied = False
                 restored_as = self._restored_suffixed_name(action.photo, rec)
                 if restored_as is not None:
                     self._notify(f"Restored as {shorten_middle(restored_as)} (original name was in use)", "status")
                 else:
                     self._notify(f"Undid {rec.action_type.value} for {shorten_middle(action.photo.filename)}", "status")
 
-    def _first_transfer_place(self, action: "_QueuedAction") -> Optional[str]:
-        """The full destination, for the first Move or Copy of an opened folder only (plan 1.6);
-        later outcomes keep the short ``Selection/``."""
+    def _first_transfer_place(self, action: "_QueuedAction") -> Optional[Tuple[str, bool]]:
+        """The full destination and whether it is on the card being culled, for the first Move or
+        Copy of an opened folder only (plan 1.6); later outcomes name the folder."""
         if self._destination_said_generation == action.generation:
             return None
         self._destination_said_generation = action.generation
         shown = display_path(Path(action.folder) / action.selection_folder) + "/"
+        # [USER 2026-11-12] plan 1.6: a Selection on the card being culled says so, in the same line.
+        on_card = selection_stays_on_card(Path(action.folder), self.resolve_destination().path)
+        limit = MESSAGE_PATH_CHARS - (len(ON_CARD_NOTE) if on_card else 0)
         # A long path keeps its start and its end (the folder and the Selection) in the bounded slot.
-        return shown if len(shown) <= MESSAGE_PATH_CHARS else f"{shown[:10]}…{shown[-(MESSAGE_PATH_CHARS - 11):]}"
+        if len(shown) > limit:
+            shown = f"{shown[:10]}…{shown[-(limit - 11):]}"
+        return (shown + ON_CARD_NOTE if on_card else shown), on_card
 
     @staticmethod
-    def _transfer_message(verb: str, action: "_QueuedAction", result: Any, place: Optional[str] = None) -> str:
-        """Feedback for a finished Move/Copy (docs/shared/FILE_OPERATIONS.md, feedback templates).
+    def _transfer_message(
+        verb: str, action: "_QueuedAction", result: Any, first: Optional[Tuple[str, bool]] = None
+    ) -> Tuple[str, str]:
+        """``(visible, spoken)`` for a finished Move/Copy (``outcome_text``; docs/shared/FILE_OPERATIONS.md).
 
-        A collision-suffixed bundle says which name it got ("Moved to Selection/ as a-2.jpg (+1
-        related)"); a plain transfer keeps the short "Moved a.jpg to Selection/".
+        A collision-suffixed bundle says which name it got ("Moved as a-2 +1 · Selection").
         """
         photo = action.photo
-        first = place is not None
-        place = place or f"{action.selection_folder}/"
         pairs = list(getattr(result, "affected_paths", None) or [])
         primary_dst = next((dst for src, dst in pairs if src == photo.primary_path), None)
-        if primary_dst is not None and primary_dst.name != photo.name_of(photo.primary_path):
-            related = len(pairs) - 1
-            suffix = f" (+{related} related)" if related > 0 else ""
-            return f"{verb} to {place} as {shorten_middle(primary_dst.name)}{suffix}"
-        if first:  # "Moved to ~/Pictures/Lisbon/Selection/": where, in full; the tooltip has no more to add
-            return f"{verb} to {place}"
-        return f"{verb} {_name_with_companions(photo, result)} to {place}"
+        new_name = (
+            primary_dst.name
+            if primary_dst is not None and primary_dst.name != photo.name_of(photo.primary_path)
+            else None
+        )
+        return outcome_texts(
+            verb, photo, companion_count(photo, result), action.selection_folder,
+            first_place=first[0] if first else None, new_name=new_name,
+            on_card=bool(first and first[1]),
+        )
 
     @staticmethod
     def _restored_suffixed_name(photo: CandidatePhoto, record: CullingRecord) -> Optional[str]:
@@ -942,11 +1006,21 @@ class CullingWorkspaceViewModel:
         restored = photo.primary_path.name
         return restored if restored != original else None
 
+    def _already_copied(self, photo: CandidatePhoto) -> bool:
+        """Move or Copy on a photo already copied files nothing twice: say so and step on."""
+        self._notify("Already copied", "status")
+        if self.auto_advance and self.current_photo is photo and self.current_index < len(self.candidates) - 1:
+            self.current_index += 1
+            self._notify_state_changed()
+        return False
+
     def cull_move(self) -> bool:
         """Queue moving active candidate and companions to Selection/ with optimistic advance."""
         photo, folder = self.current_photo, self.current_folder
         if not photo or not folder:
             return False
+        if photo.copied:
+            return self._already_copied(photo)
         destination = self.resolve_destination()
         if not destination.ok or destination.root is None:
             self._notify(
@@ -977,6 +1051,8 @@ class CullingWorkspaceViewModel:
         photo, folder = self.current_photo, self.current_folder
         if not photo or not folder:
             return False
+        if photo.copied:
+            return self._already_copied(photo)
         destination = self.resolve_destination()
         if not destination.ok or destination.root is None:
             self._notify(
@@ -989,6 +1065,7 @@ class CullingWorkspaceViewModel:
         orig_idx = idx if idx is not None else self.current_index
         self.copied_count += 1
         self.selected_count += 1
+        photo.copied = True
         if self.auto_advance and self.current_photo is photo and self.current_index < len(self.candidates) - 1:
             self.current_index += 1
             self._check_stop_sharpness_threshold()
@@ -1014,6 +1091,9 @@ class CullingWorkspaceViewModel:
         folder = self.current_folder or photo.primary_path.parent
         orig_idx = self._remove(photo)
         self.trashed_count += 1
+        if photo.copied:  # the latest decision wins: Trashed, no longer Selected
+            self.selected_count = max(0, self.selected_count - 1)
+            self.copied_count = max(0, self.copied_count - 1)
         self._check_stop_sharpness_threshold()
 
         action = _QueuedAction(
@@ -1106,6 +1186,7 @@ class CullingWorkspaceViewModel:
         """
         previous_folder = self.current_folder
         self._cancel_scoring_pass()
+        self._capture.cancel(forget=True)
         self._scoring_confirmed = False
         self._select_name = select.name if select is not None else None
         self._user_navigated = False
@@ -1188,6 +1269,7 @@ class CullingWorkspaceViewModel:
         if not notified_any:
             self._notify_state_changed()
         self._begin_scoring_pass()
+        self._begin_capture_pass()
 
     @staticmethod
     def _describe_folder(scanner: DirectoryScanner, folder: Path) -> Tuple[bool, str]:
@@ -1244,4 +1326,5 @@ class CullingWorkspaceViewModel:
         self._notify(f"Loaded {len(self.candidates)} photos from {self.current_folder_name}")
         self._notify_state_changed()
         self._begin_scoring_pass()
+        self._begin_capture_pass()
         return False

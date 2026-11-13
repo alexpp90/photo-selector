@@ -125,6 +125,7 @@ import coil.compose.AsyncImage
 import com.photoselectortoolbox.data.model.ImageItem
 import com.photoselectortoolbox.domain.curation.SnackbarLifetime
 import com.photoselectortoolbox.domain.format.SelectionActionLabels
+import com.photoselectortoolbox.viewmodel.CompanionConfirmation
 import com.photoselectortoolbox.domain.interaction.FilingAction
 import com.photoselectortoolbox.domain.interaction.SelectorGestures
 import com.photoselectortoolbox.domain.format.ExifFormatter
@@ -168,6 +169,7 @@ fun FullscreenViewer(
     snackbarMessage: String? = null,
     snackbarSequence: Long = 0L,
     snackbarLifetime: SnackbarLifetime = SnackbarLifetime.NOTICE,
+    snackbarSpoken: String? = null,
     onUndo: (() -> Unit)? = null,
     onDismissSnackbar: () -> Unit = {},
     /** The viewer's one zoom (a parameter so a test can read it; production takes the default). */
@@ -224,6 +226,7 @@ fun FullscreenViewer(
             snackbarMessage = snackbarMessage,
             snackbarSequence = snackbarSequence,
             snackbarLifetime = snackbarLifetime,
+            snackbarSpoken = snackbarSpoken,
             onUndo = onUndo,
             onDismissSnackbar = onDismissSnackbar,
             zoom = zoom,
@@ -301,6 +304,7 @@ private fun FullscreenContent(
     snackbarMessage: String?,
     snackbarSequence: Long,
     snackbarLifetime: SnackbarLifetime,
+    snackbarSpoken: String?,
     onUndo: (() -> Unit)?,
     onDismissSnackbar: () -> Unit,
     zoom: PhotoZoom,
@@ -412,14 +416,17 @@ private fun FullscreenContent(
         }
     }
     val fileCurrent: (FilingAction) -> Unit = { action ->
+        val filed = images.getOrNull(currentPageIndex)
         if (action == FilingAction.MOVE) {
             onMoveToSelection(currentPageIndex)
         } else {
             onCopyToSelection(currentPageIndex)
         }
         // What the flash says is what was done, whichever route got here, in the confirmation
-        // card's own words: the same call, the custom destination included.
-        flashLabel = SelectionActionLabels.confirmation(action, selectionFolderName, customDestinationName)
+        // card's own words: the same formatter, companions and custom destination included.
+        val destination = CompanionConfirmation.destinationName(selectionFolderName, customDestinationName)
+        flashLabel = filed?.let { CompanionConfirmation.filed(action, it, destination).visible }
+            ?: SelectionActionLabels.confirmation(action, selectionFolderName, customDestinationName)
         showCollectionFlash = true
         flashNonce++
     }
@@ -680,6 +687,7 @@ private fun FullscreenContent(
             sidebarInset = 0.dp,
             sequence = snackbarSequence,
             lifetime = snackbarLifetime,
+            spoken = snackbarSpoken,
         )
     }
 }

@@ -68,6 +68,7 @@ Undoing a file operation must never overwrite or delete a pre-existing file.
   exact destination replica(s) created by that Copy operation (using the recorded destination paths,
   including any `-N` suffix assigned at copy time). Original source files are never touched. On
   Android Desktop, Copy is deliberately not undoable because the original file was never removed.
+- **A copied photo is decided** — see §5.
 - **Move and Trash undo.** Undoing a Move or Trash operation restores the bundle to its recorded
   original directory:
   - If every original path in the bundle is free, the bundle is restored under its original names.
@@ -129,6 +130,9 @@ files nothing twice.**
   The collision suffix of §1 is for a different file that happens to have the same name, not for
   the same photo filed a second time.
 
+- **Trash wins.** A later Trash of a copied photo counts it as Trashed, no longer as Selected;
+  Undo of that Trash restores the copied state. Undo of the Copy itself makes the photo open again.
+
 Each product implements this rule in its own code and proves it with a file-system test: Copy
 then Move leaves exactly one file per bundle member in the Selection.
 
@@ -153,7 +157,7 @@ for `«folder»`):
 
 Product-specific compact forms are permitted where space or context demands it: Jackpix uses
 `Moved as «name»` / `Copied as «name»` on its phone snackbar (budget: 28 characters in English, 36 in German, `snackbar_` in [`UI_TEXT.md`](UI_TEXT.md)), and Blitzlens
-includes the photo filename (`Moved «photo» to «folder»/ as «name»`) on its desktop status bar.
+shows the file's stem, the companion count and the destination (`Moved «photo» +«K» · «folder»`, spoken "Moved «photo.ext» and «K» companion files to «folder»") on its desktop status bar.
 
 ### How long an outcome stays on screen
 

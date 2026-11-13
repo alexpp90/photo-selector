@@ -24,8 +24,9 @@ from photo_selector_linux.core.settings import SettingsStore
 from photo_selector_linux.ui.action_bar import ActionBarView
 from photo_selector_linux.ui.canvas import CanvasView
 from photo_selector_linux.ui.canvas_states import announcement
-from photo_selector_linux.ui.file_worker import FileOperationWorker, run_on_thread, schedule_on_main_loop
+from photo_selector_linux.ui.file_worker import FileOperationWorker, schedule_on_main_loop
 from photo_selector_linux.ui.keyboard_router import KeyboardRouter
+from photo_selector_linux.ui.order_panel import build_order_popover, sweep_tooltip
 from photo_selector_linux.ui.styling import APP_BRAND_NAME, APP_ICON_NAME
 from photo_selector_linux.viewmodels.culling_workspace import CullingWorkspaceViewModel
 
@@ -41,6 +42,8 @@ VIEW_ORDER_LABELS = {
 #: The order a new install opens in; the order indicator is shown for any other.
 DEFAULT_VIEW_ORDER = "newest"
 VIEW_ORDER_TITLES = {order: label for label, order in VIEW_ORDER_LABELS.items()}
+#: CSS class on the canvas while a folder is dragged over the window (plan 1.3).
+DROP_ACTIVE_CLASS = "drop-target-active"
 #: The always-visible word beside "Photo N of M" (plan 1.7).
 VIEW_ORDER_WORDS = {"newest": "Newest", "oldest": "Oldest", "natural": "Name", "lowest_sharpness_first": "Blurry"}
 
@@ -120,6 +123,7 @@ class MainWindow(Adw.ApplicationWindow if HAS_GI else object):
         loader = getattr(self.canvas_view, "loader", None)
         if loader is not None:
             self.viewmodel.score_runner = loader.run_scoring_pass
+            self.viewmodel.capture_runner = loader.run_capture_pass
         # The toast overlay wraps only the canvas so a toast can never cover the action bar (LIN-7).
         self.toast_overlay = Adw.ToastOverlay()
         self.toast_overlay.set_child(self.canvas_view)
@@ -193,6 +197,11 @@ class MainWindow(Adw.ApplicationWindow if HAS_GI else object):
         self.btn_order.set_focus_on_click(False)
         order_content = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=4)
         order_content.append(Gtk.Image.new_from_icon_name("view-sort-ascending-symbolic"))
+        # Turns while the sharpness sweep scores photos (plan 1.7); hidden otherwise.
+        self.order_spinner = Gtk.Spinner()
+        self.order_spinner.set_name("order_spinner")
+        self.order_spinner.set_visible(False)
+        order_content.append(self.order_spinner)
         self.lbl_order = Gtk.Label(label=VIEW_ORDER_WORDS[DEFAULT_VIEW_ORDER])
         order_content.append(self.lbl_order)
         self.btn_order.set_child(order_content)
@@ -207,13 +216,13 @@ class MainWindow(Adw.ApplicationWindow if HAS_GI else object):
         menu_button.set_tooltip_text("Main Menu")
         menu = Gio.Menu()
 
-        section_order = Gio.Menu()
-        for label, target in VIEW_ORDER_LABELS.items():
-            item = Gio.MenuItem.new(label, None)
-            item.set_action_and_target_value("win.view_order", GLib.Variant.new_string(target))
-            section_order.append_item(item)
+        section_order = self._order_section = Gio.Menu()
+        self._order_menu_basis = None
+        self._fill_order_section("file time")
         menu.append_section("Order", section_order)
-        self.btn_order.set_menu_model(section_order)  # the same radio group, one tap from the counter
+        # The same radio group one tap from the counter, with "Stop at sharpness" below it.
+        popover, self.spin_stop_at = build_order_popover(section_order, self.settings)
+        self.btn_order.set_popover(popover)
 
         # Accelerators are drawn by GTK from ``set_accels_for_action``, never typed into a label.
         section_view = Gio.Menu()
@@ -222,7 +231,6 @@ class MainWindow(Adw.ApplicationWindow if HAS_GI else object):
         menu.append_section(None, section_view)
 
         section_tools = Gio.Menu()
-        section_tools.append("Find Duplicates", "app.duplicate_finder")
         section_tools.append("Statistics", "app.statistics")
         menu.append_section(None, section_tools)
 
@@ -234,6 +242,19 @@ class MainWindow(Adw.ApplicationWindow if HAS_GI else object):
 
         menu_button.set_menu_model(menu)
         self.header_bar.pack_end(menu_button)
+
+        # Statistics has its own button (decision #33 (5)), left of the primary menu. The action is
+        # ``app.statistics`` (also Ctrl+L and a menu row); the brief's "win.statistics" does not exist.
+        self.btn_statistics = Gtk.Button()
+        self.btn_statistics.set_name("btn_statistics")
+        icon_theme = Gtk.IconTheme.get_for_display(Gdk.Display.get_default()) if Gdk.Display.get_default() else None
+        has = icon_theme is not None and icon_theme.has_icon("utilities-system-monitor-symbolic")
+        self.btn_statistics.set_icon_name("utilities-system-monitor-symbolic" if has else "view-list-symbolic")
+        self.btn_statistics.set_tooltip_text("Statistics (Ctrl+L)")
+        self.btn_statistics.update_property([Gtk.AccessibleProperty.LABEL], ["Statistics"])
+        self.btn_statistics.set_action_name("app.statistics")
+        self.btn_statistics.set_focus_on_click(False)
+        self.header_bar.pack_end(self.btn_statistics)
 
         # Radio action behind the menu items and the B shortcut (R-LINUX-CULL-02).
         self._view_order_action = Gio.SimpleAction.new_stateful(
@@ -248,6 +269,20 @@ class MainWindow(Adw.ApplicationWindow if HAS_GI else object):
             action = Gio.SimpleAction.new(name, None)
             action.connect("activate", lambda _a, _p, fn=handler: fn())
             self.add_action(action)
+
+    def _fill_order_section(self, basis: str) -> None:
+        """The order radio group. The two time orders say what they go by (plan 2.2): the menu row
+        reads "Newest first · capture time" or "… · file time"."""
+        if basis == self._order_menu_basis:
+            return
+        self._order_menu_basis = basis
+        section = self._order_section
+        section.remove_all()
+        for label, target in VIEW_ORDER_LABELS.items():
+            shown = f"{label} · {basis}" if target in ("newest", "oldest") else label
+            item = Gio.MenuItem.new(shown, None)
+            item.set_action_and_target_value("win.view_order", GLib.Variant.new_string(target))
+            section.append_item(item)
 
     def _toggle_info(self) -> None:
         self.canvas_view.toggle_hud()
@@ -273,7 +308,23 @@ class MainWindow(Adw.ApplicationWindow if HAS_GI else object):
         """The order in use, in a word, beside "Photo N of M": a button that opens the order menu."""
         title = VIEW_ORDER_TITLES.get(order, order)
         self.lbl_order.set_label(VIEW_ORDER_WORDS.get(order, title))
-        self.btn_order.set_tooltip_text(f"Order: {title} (S)")
+        scoring = bool(getattr(self.viewmodel, "is_scoring", False))
+        basis = self.viewmodel.order_basis
+        reading = basis.startswith("reading")
+        by = f", by {basis}" if order in ("newest", "oldest") else ""
+        if scoring:
+            done, total = self.viewmodel.scoring_progress
+            tooltip = f"Order: {title} (S). {sweep_tooltip(done, total)}"
+        else:
+            tooltip = f"Order: {title}{by} (S)"
+        self.btn_order.set_tooltip_text(tooltip)
+        busy = scoring or (reading and order in ("newest", "oldest"))
+        if busy:
+            self.order_spinner.start()
+        else:
+            self.order_spinner.stop()
+        self.order_spinner.set_visible(busy)
+        self._fill_order_section(basis)
         self.btn_order.update_property([Gtk.AccessibleProperty.LABEL], [f"Order: {title}. Change"])
 
     def toggle_view_order(self) -> None:
@@ -452,19 +503,25 @@ class MainWindow(Adw.ApplicationWindow if HAS_GI else object):
         """A folder dropped on the window opens (a file opens its folder)."""
         target = Gtk.DropTarget.new(Gio.File, Gdk.DragAction.COPY)
         target.connect("drop", self._on_folder_dropped)
+        target.connect("enter", self._on_drop_enter)
+        target.connect("leave", self._on_drop_leave)
         self.add_controller(target)
 
+    def _on_drop_enter(self, _target, _x, _y):
+        """A drag is over the window: outline the canvas so the user sees it will take the folder."""
+        self.canvas_view.add_css_class(DROP_ACTIVE_CLASS)
+        return Gdk.DragAction.COPY
+
+    def _on_drop_leave(self, _target) -> None:
+        self.canvas_view.remove_css_class(DROP_ACTIVE_CLASS)
+
     def _on_folder_dropped(self, _target, value, _x, _y) -> bool:
+        self.canvas_view.remove_css_class(DROP_ACTIVE_CLASS)
         path = value.get_path() if value is not None else None
         if not path:
             return False
         self.open_directory(Path(path))
         return True
-
-    def show_duplicate_finder(self) -> None:
-        from photo_selector_linux.ui.tools_dialogs import DuplicateFinderDialog
-        dlg = DuplicateFinderDialog(transient_for=self, viewmodel=self.viewmodel, dispatcher=run_on_thread)
-        dlg.present()
 
     def show_library_statistics(self) -> None:
         from photo_selector_linux.ui.tools_dialogs import LibraryStatisticsDialog

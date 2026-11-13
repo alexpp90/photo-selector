@@ -10,6 +10,8 @@ import com.photoselectortoolbox.data.model.DuplicateGroup
 import com.photoselectortoolbox.data.model.ImageItem
 import com.photoselectortoolbox.data.repository.HeldDeleteCommitter
 import com.photoselectortoolbox.data.repository.ImageRepository
+import com.photoselectortoolbox.data.repository.SettingsRepository
+import com.photoselectortoolbox.data.repository.ToolFolder
 import com.photoselectortoolbox.di.ApplicationScope
 import com.photoselectortoolbox.domain.curation.FileIdentity
 import com.photoselectortoolbox.domain.curation.HeldDuplicateDelete
@@ -56,7 +58,8 @@ class DuplicatesViewModel @Inject constructor(
     private val imageRepository: ImageRepository,
     private val heldDeletes: HeldDeleteCommitter,
     @ApplicationScope private val appScope: CoroutineScope,
-    @ApplicationContext private val context: Context
+    @ApplicationContext private val context: Context,
+    private val settingsRepository: SettingsRepository,
 ) : ViewModel() {
 
     private val _uiState = MutableStateFlow(DuplicatesUiState())
@@ -85,6 +88,8 @@ class DuplicatesViewModel @Inject constructor(
         commitHeldDeletes()
         viewModelScope.launch {
             val folderName = imageRepository.openFolder(context, uri)
+            // A durable holder, or the next reference sync releases the grant mid-use.
+            if (folderName != null) settingsRepository.setToolFolderUri(ToolFolder.DUPLICATES, uri.toString())
             if (folderName == null) {
                 _uiState.update {
                     it.copy(

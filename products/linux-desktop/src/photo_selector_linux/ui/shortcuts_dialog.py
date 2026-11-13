@@ -26,7 +26,7 @@ SHORTCUTS = [
         ("Go to Photo", "G"),
     ]),
     ("Culling Actions", [
-        ("Keep (move to Selection)", "M"),
+        ("Move to Selection", "M"),
         ("Copy to Selection", "C"),
         ("Trash", "Delete / Backspace"),
         ("Undo Action", "Ctrl+Z"),
@@ -36,6 +36,7 @@ SHORTCUTS = [
         ("2-Up (Side-by-Side)", "2"),
         ("3-Up", "3"),
         ("1:1 Pixel Zoom Toggle", "Space"),
+        ("Pan the 1:1 View", "Shift+Arrows"),
         ("Reset Zoom, then Leave Full Screen", "Escape"),
         ("Toggle Metadata HUD", "I"),
         ("View Order Menu (Newest, Oldest, File Name, Lowest Sharpness)", "S"),
@@ -44,7 +45,6 @@ SHORTCUTS = [
     ]),
     ("Application", [
         ("Open Folder", "Ctrl+O"),
-        ("Find Duplicates", "Ctrl+D"),
         ("Statistics", "Ctrl+L"),
         ("Preferences", "Ctrl+,"),
         ("Keyboard Shortcuts", "? or Ctrl+?"),

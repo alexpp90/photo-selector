@@ -32,7 +32,12 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
+import androidx.compose.ui.layout.onSizeChanged
+import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.unit.DpOffset
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -53,7 +58,10 @@ import androidx.compose.ui.unit.sp
 import com.photoselectortoolbox.domain.format.SelectorLabels
 import com.photoselectortoolbox.domain.session.SelectorWork
 import com.photoselectortoolbox.domain.guidance.SidebarAction
+import com.photoselectortoolbox.ui.navigation.NavEntry
 import com.photoselectortoolbox.ui.navigation.Screen
+import com.photoselectortoolbox.ui.navigation.ToolsMenu
+import com.photoselectortoolbox.ui.navigation.rememberToolsMenuState
 import com.photoselectortoolbox.ui.theme.BrandAccent
 import com.photoselectortoolbox.ui.theme.BrandAccentNav
 import com.photoselectortoolbox.ui.theme.BrandAccentTonal
@@ -249,15 +257,20 @@ fun SelectorSidebar(
         SidebarDivider()
 
         // ── App destinations — what was in the NavigationRail ────────────
-        Screen.all.forEach { screen ->
-            SidebarItem(
-                icon = screen.icon,
-                label = screen.shortLabel,
-                description = screen.label,
-                active = currentRoute == screen.route,
-                onClick = { onNavigate(screen) },
-                modifier = Modifier.testTag("nav_${screen.route}"),
-            )
+        // Cull, Stats, Tools, Setup: one desk, with Learn and Dupes behind Tools
+        // ([USER 2026-11-12] decision #18).
+        NavEntry.all.forEach { entry ->
+            when (entry) {
+                is NavEntry.Destination -> SidebarItem(
+                    icon = entry.icon,
+                    label = entry.label,
+                    description = entry.spoken(currentRoute),
+                    active = entry.isSelected(currentRoute),
+                    onClick = { onNavigate(entry.screen) },
+                    modifier = Modifier.testTag(entry.testTag),
+                )
+                NavEntry.Tools -> SidebarToolsItem(currentRoute = currentRoute, onNavigate = onNavigate)
+            }
         }
     }
         if (canScrollUp) {
@@ -266,6 +279,34 @@ fun SelectorSidebar(
         if (canScrollDown) {
             SidebarEdgeFade(top = false, modifier = Modifier.align(Alignment.BottomCenter))
         }
+    }
+}
+
+/**
+ * The Tools cell and its menu, which opens right of the cell: level with its top, or with its
+ * bottom where the window has no room below (the cell sits in the sidebar's lower half).
+ */
+@Composable
+private fun SidebarToolsItem(currentRoute: String?, onNavigate: (Screen) -> Unit) {
+    val menu = rememberToolsMenuState()
+    val density = LocalDensity.current
+    var cellHeightPx by remember { mutableIntStateOf(0) }
+    Box(modifier = Modifier.onSizeChanged { cellHeightPx = it.height }) {
+        SidebarItem(
+            icon = NavEntry.Tools.icon,
+            label = NavEntry.Tools.label,
+            description = NavEntry.Tools.spoken(currentRoute),
+            active = NavEntry.Tools.isSelected(currentRoute),
+            onClick = menu::open,
+            modifier = with(menu) { Modifier.toolsCell() }.testTag(NavEntry.Tools.testTag),
+        )
+        ToolsMenu(
+            state = menu,
+            currentRoute = currentRoute,
+            onOpen = onNavigate,
+            // The cell is 80 dp wide, centred in the 88 dp column: start at the column's edge.
+            offset = DpOffset(x = SidebarWidth - (SidebarWidth - 80.dp) / 2, y = -with(density) { cellHeightPx.toDp() }),
+        )
     }
 }
 

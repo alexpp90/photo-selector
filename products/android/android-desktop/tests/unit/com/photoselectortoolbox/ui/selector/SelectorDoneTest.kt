@@ -179,16 +179,19 @@ class SelectorDoneTest {
     private val card = "content://com.android.externalstorage.documents/tree/1234-5678%3ADCIM"
     private val selection = "$card/document/1234-5678%3ADCIM%2FSelection"
 
-    /** A card culled into a Selection the repository reports with [files]; returns the repository. */
+    /**
+     * A card culled into a Selection the repository reports with [files] (by name: each is listed
+     * as the document a move of it writes, `Selection/<name>`).
+     */
     private fun hostCard(files: Map<String, Long>, onSourceVolume: Boolean?, folder: String = card) {
         val photos = listOf(fitPhoto("P1.JPG", 2_000), fitPhoto("P2.JPG", 1_000))
         val repo = fitImageRepository().also { r ->
             coEvery { r.moveBundle(any(), any(), any(), any()) } answers {
                 val item = secondArg<ImageItem>()
-                FileOperationResult.success(item.uri, "content://test/sel/${item.fileName}")
+                FileOperationResult.success(item.uri, "$selection%2F${item.fileName}")
             }
             coEvery { r.selectionFolder(any(), any()) } returns
-                SelectionFolderState(uri = selection, name = "Selection", filesWithSizes = files, onSourceVolume = onSourceVolume)
+                SelectionFolderState(uri = selection, name = "Selection", filesByDocumentId = files.mapKeys { "1234-5678:DCIM/Selection/${it.key}" }, onSourceVolume = onSourceVolume)
         }
         viewModel = fitSelectorViewModel(
             ApplicationProvider.getApplicationContext(), appScope,
@@ -217,6 +220,11 @@ class SelectorDoneTest {
     fun `a card whose kept files are all in a Selection on another volume is safe to format`() {
         hostCard(mapOf("P1.JPG" to 1L, "P2.JPG" to 1L), onSourceVolume = false)
 
+        // Each kept file is recorded as the document its move wrote (backlog 2026-11-12).
+        assertEquals(
+            mapOf("1234-5678:DCIM/Selection/P1.JPG" to 1L, "1234-5678:DCIM/Selection/P2.JPG" to 1L),
+            viewModel.uiState.value.sessionKeptFiles,
+        )
         assertEquals("Safe to format", safeLine())
         assertEquals("Done. 2 moved. Safe to format.", spokenSummary())
     }

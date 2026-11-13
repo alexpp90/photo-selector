@@ -16,10 +16,41 @@ STUBBED = isinstance(window_module.Gtk, MagicMock)
 
 
 def test_action_buttons_have_at_most_two_words_and_the_key_is_in_the_tooltip():
+    """[USER 2026-11-12] decision #27: "Move to Selection" is the one three-word label."""
     bar = ActionBarView(viewmodel=CullingWorkspaceViewModel())
-    labels = {n: getattr(bar, n).get_label() for n in ("btn_move", "btn_copy", "btn_trash", "btn_undo")}
-    assert labels == {"btn_move": "Keep", "btn_copy": "Copy", "btn_trash": "Trash", "btn_undo": "Undo"}
+    labels = {n: getattr(bar, n).get_label() for n in ("btn_copy", "btn_trash", "btn_undo")}
+    assert labels == {"btn_copy": "Copy", "btn_trash": "Trash", "btn_undo": "Undo"}
+    assert bar.move_label_text() == "Move to Selection"
     assert all(len(label.split()) <= 2 and "(" not in label for label in labels.values())
+
+
+@pytest.mark.skipif(STUBBED, reason="needs real Gtk")
+def test_the_move_button_is_an_icon_with_move_to_selection_and_fires_on_click():
+    from gi.repository import Gtk
+
+    vm = CullingWorkspaceViewModel()
+    vm.cull_move = MagicMock()
+    bar = ActionBarView(viewmodel=vm)
+    assert bar.move_content.get_icon_name() in ("send-to-symbolic", "go-next-symbolic")
+    assert bar.move_content.get_label() == "Move to Selection"
+    assert bar.btn_move.get_tooltip_text() == "Move to Selection (M)"
+    assert Gtk.Accessible.get_accessible_role(bar.btn_move) == Gtk.AccessibleRole.BUTTON
+    bar.btn_move.emit("clicked")
+    vm.cull_move.assert_called_once_with()
+    bar._fit_move_label(500)  # narrowest windows: icon only, name and tooltip stay
+    assert bar.move_label_text() == "" and bar.btn_move.get_tooltip_text() == "Move to Selection (M)"
+    bar._fit_move_label(1200)
+    assert bar.move_label_text() == "Move to Selection"
+
+
+def test_keep_is_gone_from_the_sheet_and_the_key_pills():
+    from photo_selector_linux.ui.keyboard_router import EMPTY_STATE_HINTS
+
+    titles = [title for _section, items in SHORTCUTS for title, _accel in items]
+    assert "Move to Selection" in titles
+    assert not [t for t in titles if "Keep" in t]
+    assert ("M C Del", "Move, copy, trash") in [(k, v) for _a, _b, k, v in EMPTY_STATE_HINTS]
+    assert not [v for _a, _b, _k, v in EMPTY_STATE_HINTS if "Keep" in v]
 
 
 @pytest.mark.skipif(STUBBED, reason="tooltips are only kept by real widgets")
@@ -152,3 +183,24 @@ def test_outcomes_and_a_growing_queue_are_announced_once(monkeypatch):
     bar._update_state()
     bar._update_state()  # unchanged: said once
     assert spoken == ["Undid move for IMG_1.JPG", "2 queued"]
+
+
+@pytest.mark.skipif(STUBBED, reason="needs real Gtk")
+def test_statistics_has_a_header_button_left_of_the_primary_menu():
+    """[USER 2026-11-12] decision #33 (5): a visible entry point, name and tooltip, action app.statistics."""
+    from photo_selector_linux.ui.window import MainWindow
+
+    win = MainWindow()
+    button = win.btn_statistics
+    assert button.get_action_name() == "app.statistics"
+    assert button.get_tooltip_text() == "Statistics (Ctrl+L)"
+    assert button.get_icon_name() in ("utilities-system-monitor-symbolic", "view-list-symbolic")
+    assert button.get_parent() is win.menu_button.get_parent()
+    siblings = []
+    child = button.get_parent().get_first_child()
+    while child is not None:
+        siblings.append(child)
+        child = child.get_next_sibling()
+    # pack_end: the first packed child is the rightmost, so the button (packed after) is to its left
+    assert abs(siblings.index(button) - siblings.index(win.menu_button)) == 1
+    win.destroy()

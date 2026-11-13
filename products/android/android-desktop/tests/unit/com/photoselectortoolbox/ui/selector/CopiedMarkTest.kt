@@ -169,4 +169,25 @@ class CopiedMarkTest {
         assertEquals("P1.JPG", current())
         coVerify(exactly = 1) { repo.copyBundle(any(), match { it.fileName == "P1.JPG" }, any(), any()) }
     }
+
+    // [USER 2026-11-12] decision #29: a copied photo is decided; a later Move files nothing twice
+    @Test
+    fun `a Move of a copied photo files nothing a second time and counts it once`() {
+        press(Key.C)
+        letTheCardGo()
+        press(Key.DirectionLeft)
+        assertEquals("P1.JPG", current())
+        val before = viewModel.uiState.value.snackbarSequence
+
+        press(Key.M)
+
+        // Handled: a new message was raised for it, and nothing was moved.
+        assertTrue(viewModel.uiState.value.snackbarSequence > before)
+        assertEquals(SelectorLabels.ALREADY_COPIED, viewModel.uiState.value.snackbarMessage)
+        assertEquals("P1.JPG", current())
+        coVerify(exactly = 0) { repo.moveBundle(any(), any(), any(), any()) }
+        coVerify(exactly = 1) { repo.copyBundle(any(), any(), any(), any()) }
+        assertEquals(1, viewModel.uiState.value.sessionCopiedCount)
+        assertEquals(0, viewModel.uiState.value.sessionMovedCount)
+    }
 }

@@ -53,6 +53,8 @@ def words(text: str) -> int:
 def violations(element: str, text: str):
     max_words, max_chars = limits(element)
     found = []
+    if element == "action" and text in ACTION_BUDGET_EXCEPTIONS:
+        return found
     if words(text) > max_words:
         found.append(f"{words(text)} words (max {max_words})")
     if len(text) > max_chars:
@@ -60,6 +62,12 @@ def violations(element: str, text: str):
     if element in BUDGET["no_sentence_punctuation"] and SENTENCE_END.search(text):
         found.append("sentence punctuation")
     return found
+
+
+#: [USER 2026-11-12] decision #27 wins over the two-word action budget for this one string
+#: (docs/shared/UI_TEXT.md: an exception is written down in the product's design guide; here and
+#: in R-LINUX-UI-10). Nothing else is exempt.
+ACTION_BUDGET_EXCEPTIONS = {"Move to Selection"}
 
 
 # ── the shared table is the one this test reads ──────────────────────────────
@@ -95,9 +103,6 @@ def _render(node: ast.AST, source: str) -> str:
                 expression = ast.get_source_segment(source, part.value) or ""
                 if isinstance(part.value, ast.IfExp):  # a plural ending: "operation{'s' if n != 1 else ''}"
                     out.append(_render(part.value.body, source))
-                    continue
-                if "_name_with_companions" in expression:  # "<name> + <n>" when the bundle has companions
-                    out.append(f"{SAMPLE_TEXT} + {SAMPLE_NUMBER}")
                     continue
                 numeric = part.format_spec is not None or re.search(
                     r"count|total|pending|len\(|threshold|related|\bn\b", expression
@@ -136,15 +141,6 @@ def harvest():
             text = _render(node.args[0], source)
             if text:
                 found.append((f"{relative}:{node.lineno}", _severity(node, MESSAGE_CALLS[name]), text))
-        # Messages built in helpers and handed to _notify() as a call result.
-        if relative.endswith("culling_workspace.py"):
-            for node in ast.walk(tree):
-                if isinstance(node, ast.FunctionDef) and node.name == "_transfer_message":
-                    for sub in ast.walk(node):
-                        if isinstance(sub, ast.Return):
-                            text = _render(sub.value, source)
-                            if text:
-                                found.append((f"{relative}:{sub.lineno}", "status", text))
     return found
 
 
@@ -159,8 +155,6 @@ def test_the_harvest_finds_the_messages_the_product_shows():
     """The check is only worth something if it sees the outcome and error messages."""
     texts = [t for _w, _s, t in MESSAGES]
     assert len(MESSAGES) >= 20, texts
-    assert any(t.endswith(" to Trash") for t in texts)
-    assert any(t.endswith(" to Selection1") for t in texts)  # "... to {place}", place ends in "/"
     assert any(s == "error" for _w, s, _t in MESSAGES)
     assert any(s == "stranded" for _w, s, _t in MESSAGES)
     assert any(s == "toast" for _w, s, _t in MESSAGES)
@@ -169,6 +163,33 @@ def test_the_harvest_finds_the_messages_the_product_shows():
 def _known_over_budget(where, severity, text):
     """A message that exceeds its budget on unmodified main: strict, so fixing it turns this red."""
     return violations(_element_of(severity), text)
+
+
+def _outcome_samples():
+    """The outcome lines of ``viewmodels/outcome_text.py`` for typical and worst-case inputs."""
+    from types import SimpleNamespace
+
+    from photo_selector_linux.viewmodels.outcome_text import outcome_texts
+
+    long_photo = SimpleNamespace(filename="IMG_20260814_064000.ARW")
+    short_photo = SimpleNamespace(filename="a.jpg")
+    first_path = "~/Pictures/Lisbon/Selection/"
+    samples = []
+    for photo in (short_photo, long_photo):
+        for companions in (0, 1, 12):
+            for verb in ("Moved", "Copied"):
+                samples.append(outcome_texts(verb, photo, companions, "Selection")[0])
+            samples.append(outcome_texts("Moved", photo, companions, "Trash")[0])
+            samples.append(outcome_texts("Moved", photo, companions, "Selection", first_place=first_path)[0])
+            samples.append(outcome_texts("Copied", photo, companions, "Selection", new_name="a-2.jpg")[0])
+    # The worst first line: a path cut to the slot with the card note appended.
+    samples.append(outcome_texts("Copied", long_photo, 12, "Selection", first_place="/home/…/Selection/ · on card")[0])
+    return samples
+
+
+@pytest.mark.parametrize("text", _outcome_samples())
+def test_every_outcome_line_of_the_formatter_is_within_the_feedback_budget(text):
+    assert violations("error", text) == [], text
 
 
 @pytest.mark.parametrize("where,severity,text", MESSAGES, ids=[f"{w}" for w, _s, _t in MESSAGES])
@@ -204,7 +225,7 @@ def main_window(tmp_path):
 
 
 def test_action_buttons_the_view_switcher_and_counters_are_within_budget(main_window):
-    from gi.repository import Gtk
+    from gi.repository import Adw, Gtk
 
     win, probe = main_window
     checked = []
@@ -225,13 +246,16 @@ def test_action_buttons_the_view_switcher_and_counters_are_within_budget(main_wi
             element = "label"
         else:
             continue
-        text = widget.get_label() or ""
-        checked.append((element, text))
+        text = widget.get_label()
+        if text is None and isinstance(widget.get_child(), Adw.ButtonContent):
+            text = widget.get_child().get_label()  # the icon button of decision #27
+        checked.append((element, text or ""))
     problems = [f"{element}: {text!r} {', '.join(violations(element, text))}"
                 for element, text in checked if violations(element, text)]
     assert not problems, "\n".join(problems)
     labels = {text for _e, text in checked}
-    assert {"Keep", "Copy", "Trash", "Undo", "1-Up", "2-Up", "3-Up", "0 Selected", "Photo 0 of 0"} <= labels, checked
+    expected = {"Move to Selection", "Copy", "Trash", "Undo", "1-Up", "2-Up", "3-Up", "0 Selected", "Photo 0 of 0"}
+    assert expected <= labels, checked
 
 
 def test_the_budget_check_goes_red_on_a_planted_long_label():
@@ -240,3 +264,5 @@ def test_the_budget_check_goes_red_on_a_planted_long_label():
     assert violations("chip", "Single photo view") != []
     assert violations("action", "Keep.") == ["sentence punctuation"]
     assert violations("action", "Keep") == []
+    assert violations("action", "Move to Selection") == []  # the one exception, decision #27
+    assert violations("action", "Move to Selection folder") != []

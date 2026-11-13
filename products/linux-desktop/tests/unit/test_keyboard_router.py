@@ -162,10 +162,9 @@ def test_utility_hotkeys():
     assert engine.dispatch(keyval=ord("o"), state=ctrl) is True
     target.on_open_folder.assert_called_once()
 
-    # Ctrl+D
+    # Ctrl+D is not bound any more (the Duplicate Finder was removed)
     target.reset_mock()
-    assert engine.dispatch(keyval=ord("d"), state=ctrl) is True
-    target.on_duplicate_finder.assert_called_once()
+    assert engine.dispatch(keyval=ord("d"), state=ctrl) is False
 
     # Ctrl+L
     target.reset_mock()

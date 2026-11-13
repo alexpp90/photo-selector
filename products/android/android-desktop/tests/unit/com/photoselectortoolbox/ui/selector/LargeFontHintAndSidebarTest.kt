@@ -29,7 +29,7 @@ import com.photoselectortoolbox.domain.guidance.SelectorHint
 import com.photoselectortoolbox.domain.guidance.SelectorHintText
 import com.photoselectortoolbox.domain.guidance.SidebarAction
 import com.photoselectortoolbox.domain.interaction.FilingAction
-import com.photoselectortoolbox.ui.navigation.Screen
+import com.photoselectortoolbox.ui.navigation.NavEntry
 import com.photoselectortoolbox.ui.theme.PhotoSelectorToolboxTheme
 import com.photoselectortoolbox.viewmodel.SelectorHintUi
 import kotlin.math.ceil
@@ -191,7 +191,7 @@ class LargeFontHintAndSidebarTest {
         "scan_button" to SidebarAction.SCAN.label,
         "grouping_toggle" to SidebarAction.BURSTS.label,
         "score_legend_button" to SidebarAction.LEGEND.label,
-    ) + Screen.all.map { "nav_${it.route}" to it.shortLabel }
+    ) + NavEntry.all.map { it.testTag to it.label }
 
     private fun sidebar(fontScale: Float) = host(fontScale) {
         // Tall enough that nothing scrolls: the test is about each item, not the column.

@@ -32,12 +32,6 @@ from photo_selector_linux.core.destination import (
 from photo_selector_linux.core.settings import SettingsStore
 from photo_selector_linux.ui.secondary_window import install_close_shortcuts, size_window
 
-#: Tooltip of the stop-threshold row: what the number does and what 0 means.
-STOP_SHARPNESS_TOOLTIP = (
-    "When sorting by lowest sharpness first, stop at the first photo at or above this score. "
-    "0 turns it off."
-)
-
 
 def markup_safe(text: str) -> str:
     """``text`` as an Adw title shows it literally: titles are parsed as Pango markup."""
@@ -92,7 +86,6 @@ class PreferencesDialog(Adw.PreferencesWindow if HAS_GI else object):
         self.row_blurry_cutoff = None
         self.row_sharp_cutoff = None
         self.row_cache_limit = None
-        self.row_stop_sharpness = None
         self.scale_blurry = None
         self.scale_sharp = None
         self.scale_cache = None
@@ -286,14 +279,6 @@ class PreferencesDialog(Adw.PreferencesWindow if HAS_GI else object):
         self.row_sharp_cutoff.add_suffix(self.scale_sharp)
         group_thresh.add(self.row_sharp_cutoff)
 
-        # The sweep stop (UC-13): 0 = off, else the sharpness at which "lowest sharpness first" stops.
-        self.row_stop_sharpness = Adw.SpinRow.new_with_range(0.0, 100.0, 1.0)
-        self.row_stop_sharpness.set_title("Stop at sharpness")
-        self.row_stop_sharpness.set_tooltip_text(STOP_SHARPNESS_TOOLTIP)
-        self.row_stop_sharpness.set_value(self.settings.stop_sharpness_threshold or 0.0)
-        self.row_stop_sharpness.connect("notify::value", self._on_stop_sharpness_changed)
-        group_thresh.add(self.row_stop_sharpness)
-
         page_score.add(group_thresh)
         self.add(page_score)
 
@@ -460,11 +445,6 @@ class PreferencesDialog(Adw.PreferencesWindow if HAS_GI else object):
             return
         self.set_sharp_threshold(float(scale.get_value()))
 
-    def _on_stop_sharpness_changed(self, row, *_args) -> None:
-        if self._syncing:
-            return
-        self.set_stop_sharpness_threshold(float(row.get_value()))
-
     def _on_cache_changed(self, scale, *_args) -> None:
         if self._syncing:
             return
@@ -504,14 +484,6 @@ class PreferencesDialog(Adw.PreferencesWindow if HAS_GI else object):
             self.row_sharp_cutoff.set_title(
                 markup_safe(f"Sharp Threshold (≥ {self.settings.sharp_threshold:.1f})")
             )
-
-    def set_stop_sharpness_threshold(self, value: float) -> None:
-        """0 (or less) turns the stop off; anything else is the score the sweep stops at."""
-        self.settings.update(stop_sharpness_threshold=float(value) if value > 0 else None)
-        if HAS_GI and self.row_stop_sharpness is not None:
-            shown = self.settings.stop_sharpness_threshold or 0.0
-            if self.row_stop_sharpness.get_value() != shown:
-                self._write_back(lambda: self.row_stop_sharpness.set_value(shown))
 
     def set_cache_limit_mb(self, value: float) -> None:
         self.settings.update(cache_limit_mb=float(value))

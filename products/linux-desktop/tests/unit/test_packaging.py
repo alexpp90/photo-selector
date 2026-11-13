@@ -707,3 +707,24 @@ def test_the_install_guide_shows_the_maintainer_line_the_package_has():
     install = (get_repo_root() / "docs/products/linux-desktop/INSTALL.md").read_text(encoding="utf-8")
     assert package_line in install.splitlines()
     assert "example.com" not in install
+
+
+@pytest.mark.skipif(not shutil.which("dpkg-deb"), reason="dpkg-deb not available")
+def test_the_native_builder_pins_the_control_directory_under_a_strict_umask(tmp_path):
+    """Review 2026-11-09 (BL-R-1, decision #35): dpkg-deb refuses a control directory outside
+    0755..0775, so a packager with umask 077 (the DEBIAN directory is made 0700) got no .deb."""
+    product_dir = get_product_root()
+    out_dir = tmp_path / "deb_out"
+    out_dir.mkdir()
+    cmd = [
+        sys.executable, str(product_dir / "scripts" / "package_deb.py"),
+        "--product-dir", str(product_dir), "--output-dir", str(out_dir),
+        "--version", "0.2.0", "--output-filename", "strict_0.2.0_all.deb", "--mode", "native",
+    ]
+    previous = os.umask(0o077)
+    try:
+        res = subprocess.run(cmd, capture_output=True, text=True)
+    finally:
+        os.umask(previous)
+    assert res.returncode == 0, f"package_deb.py failed under umask 077:\n{res.stderr}"
+    assert (out_dir / "strict_0.2.0_all.deb").is_file()

@@ -29,7 +29,7 @@ except (ImportError, ValueError):
 EMPTY_STATE_HINTS = (
     (0x6F, 4, "Ctrl+O", "Open folder"),
     (0x31, 0, "1 2 3", "Views"),
-    (0x6D, 0, "M C Del", "Keep, copy, trash"),
+    (0x6D, 0, "M C Del", "Move, copy, trash"),
     (0x69, 0, "I", "Info"),
 )
 
@@ -41,7 +41,9 @@ class KeyboardRouterEngine:
     """
     # Keyval constants mirroring Gdk
     KEY_LEFT = 0xFF51
+    KEY_UP = 0xFF52
     KEY_RIGHT = 0xFF53
+    KEY_DOWN = 0xFF54
     KEY_DELETE = 0xFFFF
     KEY_BACKSPACE = 0xFF08
     KEY_SPACE = 0x0020
@@ -144,9 +146,6 @@ class KeyboardRouterEngine:
             elif norm_key == self.KEY_O:
                 self.target.on_open_folder()
                 return True
-            elif norm_key == self.KEY_D:
-                self.target.on_duplicate_finder()
-                return True
             elif norm_key == self.KEY_L:
                 self.target.on_statistics()
                 return True
@@ -174,6 +173,13 @@ class KeyboardRouterEngine:
         elif norm_key in (self.KEY_DELETE, self.KEY_BACKSPACE):
             self.target.on_cull_trash()
             return True
+
+        # Shift+arrows pan the 100 % view; unzoomed they fall through and Left/Right navigate (plan 2.1).
+        if eff_state & self.SHIFT_MASK and norm_key in (self.KEY_LEFT, self.KEY_RIGHT, self.KEY_UP, self.KEY_DOWN):
+            dx = -1 if norm_key == self.KEY_LEFT else 1 if norm_key == self.KEY_RIGHT else 0
+            dy = -1 if norm_key == self.KEY_UP else 1 if norm_key == self.KEY_DOWN else 0
+            if self.target.on_pan(dx, dy) is True:
+                return True
 
         # 3. Single-Key Navigation (R-LINUX-KEY-02)
         if norm_key in (self.KEY_LEFT, self.KEY_H, self.KEY_K):
@@ -282,10 +288,6 @@ class KeyboardRouter:
         if hasattr(self.window, "show_open_folder_dialog"):
             self.window.show_open_folder_dialog()
 
-    def on_duplicate_finder(self) -> None:
-        if hasattr(self.window, "show_duplicate_finder"):
-            self.window.show_duplicate_finder()
-
     def on_statistics(self) -> None:
         if hasattr(self.window, "show_library_statistics"):
             self.window.show_library_statistics()
@@ -315,6 +317,12 @@ class KeyboardRouter:
 
     def on_set_mode(self, mode: int) -> None:
         self.viewmodel.set_comparison_mode(mode)
+
+    def on_pan(self, dx: int, dy: int) -> bool:
+        """Shift+arrows: pan the zoomed view; False (the key navigates) when nothing is zoomed."""
+        canvas = getattr(self.window, "canvas_view", None)
+        pan = getattr(canvas, "pan_by", None)
+        return bool(callable(pan) and pan(dx, dy) is True)
 
     def on_toggle_zoom(self) -> None:
         if hasattr(self.window, "canvas_view") and hasattr(self.window.canvas_view, "toggle_zoom"):

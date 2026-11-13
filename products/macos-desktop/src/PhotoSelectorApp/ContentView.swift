@@ -7,6 +7,7 @@ import PhotoSelectorKit
 /// drop target ingestion, and modal sheets.
 public struct ContentView: View {
     @ObservedObject public var viewModel: CullingWorkspaceViewModel
+    @AppStorage(AppSettingsKeys.rejectsDestination) private var rejectsRaw: String = RejectsDestination.trash.rawValue
     @StateObject private var keyboardRouter = KeyboardShortcutRouter()
     @FocusState private var isWorkspaceFocused: Bool
 
@@ -37,7 +38,7 @@ public struct ContentView: View {
                 } else {
                     VStack(spacing: 0) {
                         // MARK: - 1. Top Control & Navigation Bar
-                        topNavigationBar
+                        if !viewModel.isFullScreen { topNavigationBar }
 
                         // MARK: - 2. Main Preview Canvas
                         ZStack {
@@ -50,7 +51,7 @@ public struct ContentView: View {
                                     if let photo = viewModel.currentPhoto {
                                         SinglePhotoView(
                                             photo: photo,
-                                            isHUDVisible: viewModel.isInfoHUDVisible,
+                                            isInfoVisible: viewModel.isInfoVisible,
                                             zoomState: viewModel.zoomState,
                                             onToggleZoom: { viewModel.toggleZoom() },
                                             toast: viewModel.currentToast,
@@ -73,7 +74,7 @@ public struct ContentView: View {
                                         photos: viewModel.comparisonSlotPhotos,
                                         activeSlotIndex: viewModel.activeSlotIndex,
                                         isZoomSynced: viewModel.isZoomSynced,
-                                        isHUDVisible: viewModel.isInfoHUDVisible,
+                                        isInfoVisible: viewModel.isInfoVisible,
                                         zoomState: viewModel.zoomState,
                                         onSelectSlot: { idx in viewModel.setActiveSlot(idx) },
                                         onToggleZoom: { viewModel.toggleZoom() },
@@ -94,12 +95,18 @@ public struct ContentView: View {
                         .frame(maxWidth: .infinity, maxHeight: .infinity)
                         // The end of the cull sits over the preview, never over the dock below it.
                         .overlay { CullEndOverlay(viewModel: viewModel) }
+                        .overlay(alignment: .bottom) {
+                            if let pill = viewModel.cleanPill { CleanPillView(pill: pill) }
+                        }
+                        .overlay(alignment: .top) {
+                            if let banner = viewModel.cloudBanner { CloudBannerView(text: banner) }
+                        }
 
                         // MARK: - 3. Prominent Culling Action Bar
-                        CullingActionBar(viewModel: viewModel)
+                        if !viewModel.isFullScreen { CullingActionBar(viewModel: viewModel) }
 
                         // MARK: - 4. Collapsible Bottom Filmstrip
-                        if viewModel.isFilmstripVisible {
+                        if viewModel.isFilmstripVisible && !viewModel.isFullScreen {
                             FilmstripView(
                                 photos: viewModel.photos,
                                 currentIndex: viewModel.currentIndex,
@@ -197,7 +204,7 @@ public struct ContentView: View {
         }
         .onKeyPress(characters: CharacterSet(charactersIn: "iI")) { _ in
             MotionPolicy.animate(.easeInOut(duration: 0.18)) {
-                viewModel.isInfoHUDVisible.toggle()
+                viewModel.isInfoVisible.toggle()
             }
             return .handled
         }
@@ -228,15 +235,28 @@ public struct ContentView: View {
             return .ignored
         }
         .sheet(isPresented: $viewModel.isShortcutsHelpPresented) {
-            ShortcutsHelpSheet(destination: viewModel.destinationName)
+            ShortcutsHelpSheet(destination: viewModel.destinationName, rejects: RejectsDestination(storedRaw: rejectsRaw))
         }
         .sheet(isPresented: $viewModel.isGoToPhotoPresented) {
             GoToPhotoSheet(viewModel: viewModel)
         }
+        // Clean view: the window's full screen (F, ⌃⌘F, the green button) hides the toolbar, dock and filmstrip.
+        .onReceive(NotificationCenter.default.publisher(for: NSWindow.willEnterFullScreenNotification)) { _ in
+            viewModel.setFullScreen(true)
+        }
+        .onReceive(NotificationCenter.default.publisher(for: NSWindow.willExitFullScreenNotification)) { _ in
+            viewModel.setFullScreen(false)
+        }
+        .onChange(of: viewModel.cleanPill) { _, pill in
+            if let pill { AccessibilityNotification.Announcement(pill.text).post() }
+        }
+        .onChange(of: viewModel.cloudBanner) { _, banner in
+            if let banner { AccessibilityNotification.Announcement(banner).post() }
+        }
         // VoiceOver hears what a sighted user reads in the toast (REQ-MAC-A11Y.01).
         .onChange(of: viewModel.currentToast) { _, toast in
             if let toast {
-                AccessibilityNotification.Announcement(toast.title).post()
+                AccessibilityNotification.Announcement(toast.spoken ?? toast.title).post()
             }
         }
         .sheet(isPresented: $viewModel.isDuplicateFinderPresented) {
@@ -251,36 +271,6 @@ public struct ContentView: View {
         }
         .sheet(isPresented: $viewModel.isLibraryStatisticsPresented) {
             LibraryStatisticsView(workspaceViewModel: viewModel)
-        }
-        // Cloud folders: nothing reads every photo, and nothing is deleted for good, without a yes.
-        .alert(
-            "Download all photos?",
-            isPresented: Binding(
-                get: {
-                    if case .lowestSharpnessSort = viewModel.pendingDownloadConfirmation?.purpose { return true }
-                    return false
-                },
-                set: { if !$0 { viewModel.declineDownloadAll() } }
-            ),
-            presenting: viewModel.pendingDownloadConfirmation
-        ) { _ in
-            Button("Download") { viewModel.confirmDownloadAll() }
-            Button("Cancel", role: .cancel) { viewModel.declineDownloadAll() }
-        } message: { pending in
-            Text("About \(ByteCountFormatter.string(fromByteCount: pending.estimatedBytes, countStyle: .file)) will download.")
-        }
-        .alert(
-            "Delete permanently?",
-            isPresented: Binding(
-                get: { viewModel.pendingPermanentDelete != nil },
-                set: { if !$0 { viewModel.cancelPermanentDelete() } }
-            ),
-            presenting: viewModel.pendingPermanentDelete
-        ) { _ in
-            Button("Delete", role: .destructive) { viewModel.confirmPermanentDelete() }
-            Button("Cancel", role: .cancel) { viewModel.cancelPermanentDelete() }
-        } message: { pending in
-            Text(pending.message)
         }
     }
 
@@ -556,10 +546,10 @@ public struct ContentView: View {
 
                 Button(action: {
                     MotionPolicy.animate(.easeInOut(duration: 0.18)) {
-                        viewModel.isInfoHUDVisible.toggle()
+                        viewModel.isInfoVisible.toggle()
                     }
                 }) {
-                    Image(systemName: viewModel.isInfoHUDVisible ? "info.circle.fill" : "info.circle")
+                    Image(systemName: viewModel.isInfoVisible ? "info.circle.fill" : "info.circle")
                         .font(.system(size: 12))
                         .padding(.horizontal, 6)
                         .padding(.vertical, 4)
@@ -567,8 +557,39 @@ public struct ContentView: View {
                 }
                 .buttonStyle(.bordered)
                 .focusable(false)
-                .accessibilityLabel(LensjetCommand.infoMenuTitle(isShown: viewModel.isInfoHUDVisible))
+                .accessibilityLabel(LensjetCommand.infoMenuTitle(isShown: viewModel.isInfoVisible))
                 .help(LensjetCommand.info.tooltip())
+
+                // Activity (the decisions) and Statistics: icon-only, tooltip and spoken label name them.
+                Button(action: { viewModel.presentActivity() }) {
+                    Image(systemName: "clock.arrow.circlepath")
+                        .font(.system(size: 12))
+                        .padding(.horizontal, 6)
+                        .padding(.vertical, 4)
+                        .frame(minWidth: Self.minTarget, minHeight: Self.minTarget)
+                }
+                .buttonStyle(.bordered)
+                .focusable(false)
+                .accessibilityLabel(LensjetCommand.activity.name())
+                .help(LensjetCommand.activity.tooltip())
+                .uiTestFrame("toolbar_activity")
+                .popover(isPresented: $viewModel.isActivityPresented, arrowEdge: .bottom) {
+                    ActivityListView(viewModel: viewModel)
+                }
+
+                Button(action: { viewModel.presentLibraryStatistics() }) {
+                    Image(systemName: "chart.bar")
+                        .font(.system(size: 12))
+                        .padding(.horizontal, 6)
+                        .padding(.vertical, 4)
+                        .frame(minWidth: Self.minTarget, minHeight: Self.minTarget)
+                }
+                .buttonStyle(.bordered)
+                .focusable(false)
+                .disabled(viewModel.photos.isEmpty)
+                .accessibilityLabel(LensjetCommand.statistics.name())
+                .help(viewModel.photos.isEmpty ? "Open a folder first" : LensjetCommand.statistics.tooltip())
+                .uiTestFrame("toolbar_statistics")
 
                 Button(action: { viewModel.presentShortcutsHelp() }) {
                     Image(systemName: "questionmark")

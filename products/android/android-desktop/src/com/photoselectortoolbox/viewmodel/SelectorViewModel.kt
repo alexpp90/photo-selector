@@ -20,23 +20,23 @@ import com.photoselectortoolbox.data.cache.ScoreDao
 import java.io.File
 import com.photoselectortoolbox.data.metadata.MetadataWriter
 import com.photoselectortoolbox.data.metadata.MetadataWriterImpl
-import com.photoselectortoolbox.domain.model.PhotoItem
 import com.photoselectortoolbox.domain.model.RatingFilter
 import com.photoselectortoolbox.data.model.ImageDimensions
 import com.photoselectortoolbox.data.model.CompanionFile
 import com.photoselectortoolbox.data.model.ImageItem
+import com.photoselectortoolbox.data.model.KeptFiles
 import com.photoselectortoolbox.data.repository.FileOperationResult
 import com.photoselectortoolbox.data.model.ScanResult
 import com.photoselectortoolbox.data.repository.CacheRepository
 import com.photoselectortoolbox.data.repository.ImageRepository
 import com.photoselectortoolbox.data.repository.SettingsRepository
 import com.photoselectortoolbox.di.ApplicationScope
+import com.photoselectortoolbox.di.IoDispatcher
 import com.photoselectortoolbox.domain.curation.CurationAction
 import com.photoselectortoolbox.domain.curation.DeferredDeletion
 import com.photoselectortoolbox.domain.curation.FileIdentity
 import com.photoselectortoolbox.domain.curation.ImageSlot
 import com.photoselectortoolbox.domain.curation.OptimisticEdits
-import com.photoselectortoolbox.domain.curation.ParkedUndo
 import com.photoselectortoolbox.domain.curation.PendingDeleteJournal
 import com.photoselectortoolbox.domain.curation.PendingDeletion
 import com.photoselectortoolbox.domain.curation.SelectorListState
@@ -50,7 +50,6 @@ import com.photoselectortoolbox.domain.format.SelectorLabels
 import com.photoselectortoolbox.domain.grouping.GroupingLevel
 import com.photoselectortoolbox.domain.guidance.SelectorGuidance
 import com.photoselectortoolbox.domain.guidance.SelectorHint
-import com.photoselectortoolbox.domain.guidance.SelectorHintText
 import com.photoselectortoolbox.domain.grouping.ImageGrouper
 import com.photoselectortoolbox.domain.format.SelectionActionLabels
 import com.photoselectortoolbox.domain.interaction.FilingAction
@@ -109,7 +108,9 @@ class SelectorViewModel @Inject constructor(
     // Hilt injects the writer; the default is for tests, like `ioDispatcher` below.
     private val metadataWriter: MetadataWriter = MetadataWriterImpl(ioDispatcher = Dispatchers.IO),
     @ApplicationScope private val appScope: CoroutineScope,
-    @ApplicationContext private val context: Context
+    @ApplicationContext private val context: Context,
+    /** Hilt's IO dispatcher; the default is for tests, which may also swap [ioDispatcher]. */
+    @IoDispatcher injectedIoDispatcher: CoroutineDispatcher = Dispatchers.IO,
 ) : ViewModel() {
 
     private val _uiState = MutableStateFlow(SelectorUiState())
@@ -119,7 +120,7 @@ class SelectorViewModel @Inject constructor(
     val ratingFilter: StateFlow<RatingFilter> = _ratingFilter.asStateFlow()
 
     /** Dispatched to for Room / IO work; overridable in tests to keep virtual time intact. */
-    internal var ioDispatcher: CoroutineDispatcher = Dispatchers.IO
+    internal var ioDispatcher: CoroutineDispatcher = injectedIoDispatcher
 
     /** Quiet period before coalesced rating changes are written back to disk; overridable in tests. */
     internal var ratingWriteDebounceMs: Long = RATING_WRITE_DEBOUNCE_MILLIS
@@ -1312,24 +1313,23 @@ class SelectorViewModel @Inject constructor(
             if (failed.isEmpty()) return@launch
             val stillOpen = originFolderUri != null && _uiState.value.folderUri == originFolderUri
             if (!stillOpen) return@launch
-            if (kept.isNotEmpty()) reportError(SelectorLabels.recoveryKeptMessage(kept.map(::recoveredName)))
-            if (kept.size == failed.size) return@launch
+            // One message per commit: what it kept and what failed are both said, and a photo that
+            // comes back to the list no longer counts as deleted (backlog 2026-11-12, done counts).
+            val keptMessage = kept.takeIf { it.isNotEmpty() }?.let { SelectorLabels.recoveryKeptMessage(it.map(::recoveredName)) }
+            fun report(failure: String?) = reportError(listOfNotNull(keptMessage, failure).joinToString(". "))
+            fun putBack(back: PendingDeletion) = _uiState.update { state ->
+                if (state.folderUri != originFolderUri) state
+                else state.withRestored(DeferredDeletion.revert(state.listState, back))
+                    .copy(sessionDeletedCount = (state.sessionDeletedCount - back.slots.size).coerceAtLeast(0))
+            }
+            if (kept.size == failed.size) return@launch report(null)
             val firstName = pending.slots.firstOrNull()?.image?.fileName ?: "image"
             if (deleted.isEmpty()) {
-                _uiState.update { state ->
-                    if (state.folderUri != originFolderUri) state
-                    else state.withRestored(DeferredDeletion.revert(state.listState, pending))
-                }
-                reportError("Could not delete $firstName")
+                putBack(pending)
+                report("Could not delete $firstName")
             } else {
-                val survivors = DeferredDeletion.survivors(pending, failed)
-                if (survivors != null) {
-                    _uiState.update { state ->
-                        if (state.folderUri != originFolderUri) state
-                        else state.withRestored(DeferredDeletion.revert(state.listState, survivors))
-                    }
-                }
-                reportError(SelectorLabels.partialDeleteMessage(firstName, deleted.size, pending.uris.size))
+                DeferredDeletion.survivors(pending, failed)?.let(::putBack)
+                report(SelectorLabels.partialDeleteMessage(firstName, deleted.size, pending.uris.size))
             }
         }
     }
@@ -1446,7 +1446,7 @@ class SelectorViewModel @Inject constructor(
         val before = _uiState.value.listState
         val currentItem = before.images.getOrNull(before.currentIndex) ?: return
         val sourceUri = currentItem.uri
-        if (action == CurationAction.COPY && sourceUri in state.sessionCopiedUris) {
+        if (sourceUri in state.sessionCopiedUris) { // filed once: no second Copy, no Move after it (decision #29)
             _uiState.update { it.withSnackbar(SelectorLabels.ALREADY_COPIED, SnackbarLifetime.COPY) }
             return
         }
@@ -1459,24 +1459,9 @@ class SelectorViewModel @Inject constructor(
                 } else {
                     FilingAction.COPY
                 },
-            ).withSnackbar(
-                // One sentence, one source: the hint card heading is generated by
-                // this same call, so the card and the snackbar beside it cannot
-                // disagree about the verb or name a folder the user renamed away.
-                SelectionActionLabels.confirmation(
-                    action = if (action == CurationAction.MOVE) {
-                        FilingAction.MOVE
-                    } else {
-                        FilingAction.COPY
-                    },
-                    selectionFolderName = state.filingFolderName,
-                    customFolderName = state.customDestinationName,
-                ),
-                // A move's undo never expires and a copy has none, so neither is a
-                // deadline. UNDO is populated once the transfer reports where the
-                // file went; a move with no destination URI is not reversible.
-                if (action == CurationAction.MOVE) SnackbarLifetime.MOVE else SnackbarLifetime.COPY,
-            )
+            // The photo, its companions and the folder they went to (decision #33 (1)); the
+            // hint card names the same folder through `filingFolderName`.
+            ).withFilingSnackbar(if (action == CurationAction.MOVE) FilingAction.MOVE else FilingAction.COPY, currentItem)
         }
         onFrameChanged()
         // The card this transfer showed. Its UNDO is offered only while that card is still the
@@ -1523,7 +1508,7 @@ class SelectorViewModel @Inject constructor(
                         },
                         sessionKeptFileNames = current.sessionKeptFileNames + currentItem.fileName,
                         sessionCopiedUris = current.sessionCopiedUris + listOfNotNull(sourceUri.takeIf { action == CurationAction.COPY }),
-                        sessionKeptFiles = current.sessionKeptFiles + currentItem.allFiles.associate { it.fileName to it.fileSize },
+                        sessionKeptFiles = current.sessionKeptFiles + KeptFiles.of(currentItem.allFiles, result.destinationUris),
                     )
                 }
                 val undo = UndoPolicy.forFiling(
@@ -1732,7 +1717,7 @@ class SelectorViewModel @Inject constructor(
                     it.withRestored(OptimisticEdits.restore(it.listState, operation.slots)).copy(
                         undoHistory = remainingHistory,
                         sessionMovedCount = (it.sessionMovedCount - 1).coerceAtLeast(0),
-                        sessionKeptFiles = it.sessionKeptFiles - operation.slots.flatMap { slot -> slot.image.allFiles.map { f -> f.fileName } }.toSet(),
+                        sessionKeptFiles = it.sessionKeptFiles - KeptFiles.keysOf(operation.slots.flatMap { s -> s.image.allFiles }, operation.destinationUris),
                         snackbarUndoAvailable = false,
                         snackbarMessage = null,
                     )
@@ -1857,9 +1842,13 @@ class SelectorViewModel @Inject constructor(
                         CurationAction.MOVE,
                         operation.slots.map { it.uri },
                     )
-                    // The failed undo already left the stack; put it back so it can be retried.
+                    // The failed undo already left the stack; put it back so it can be retried. The
+                    // photo is still moved, so the Done card counts it again (backlog 2026-11-12).
                     current.withList(reapplied.state).copy(
                         undoHistory = UndoPolicy.push(current.undoHistory, operation).history,
+                        sessionMovedCount = current.sessionMovedCount + 1,
+                        // Keyed as the transfer recorded them (KeptFiles), so the retry forgets them again.
+                        sessionKeptFiles = current.sessionKeptFiles + KeptFiles.of(operation.slots.flatMap { it.image.allFiles }, operation.destinationUris),
                     )
                 }
                 if (stillOpen()) reportError("Could not move the image back")

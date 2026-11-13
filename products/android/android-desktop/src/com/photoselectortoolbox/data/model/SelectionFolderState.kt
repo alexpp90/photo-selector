@@ -10,8 +10,12 @@ data class SelectionFolderState(
     /** The folder, as a document inside the destination's tree: openable as a working folder. */
     val uri: String,
     val name: String,
-    /** Every file in it and in its direct subfolders (`RAW/`, `JPEG/`), by name, with its size. */
-    val filesWithSizes: Map<String, Long>,
+    /**
+     * Every file in it and in its direct subfolders (`RAW/`, `JPEG/`), by provider document id,
+     * with its size (-1 when the provider reports none). Not by name: two files of one name in
+     * two of its folders are two entries ([KeptFiles]).
+     */
+    val filesByDocumentId: Map<String, Long>,
     /** Whether it is on the same provider root as the culled folder; null when either is unknown. */
     val onSourceVolume: Boolean?,
 )

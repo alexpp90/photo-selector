@@ -210,7 +210,7 @@ struct KeyboardShortcutRouterTests {
         #expect(vm.currentIndex == 2)
     }
 
-    @Test("T toggles the filmstrip, F stays as a one-release alias, G opens Go to Photo")
+    @Test("T toggles the filmstrip, F no longer does (clean view), G opens Go to Photo")
     func filmstripAndGoKeys() {
         let router = KeyboardShortcutRouter()
         let vm = CullingWorkspaceViewModel()
@@ -218,8 +218,12 @@ struct KeyboardShortcutRouterTests {
         #expect(vm.isFilmstripVisible)
         #expect(router.handleKeyEvent(SyntheticKeyEvent(keyCode: 17, characters: "t"), viewModel: vm))
         #expect(!vm.isFilmstripVisible)
-        #expect(router.handleKeyEvent(SyntheticKeyEvent(keyCode: 3, characters: "f"), viewModel: vm))
+        #expect(router.handleKeyEvent(SyntheticKeyEvent(keyCode: 17, characters: "t"), viewModel: vm))
         #expect(vm.isFilmstripVisible)
+        var toggled = 0
+        vm.fullScreenToggler = { toggled += 1 }
+        #expect(router.handleKeyEvent(SyntheticKeyEvent(keyCode: 3, characters: "f"), viewModel: vm))
+        #expect(toggled == 1 && vm.isFilmstripVisible, "F is the clean view now, it leaves the filmstrip alone")
         #expect(router.handleKeyEvent(SyntheticKeyEvent(keyCode: 5, characters: "g"), viewModel: vm))
         #expect(vm.isGoToPhotoPresented)
         // S (linked pan) and H / L (navigation) stay for one release.

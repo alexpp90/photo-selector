@@ -21,7 +21,22 @@ _IDS = itertools.count()  # a bus owns one object per id: every test gets its ow
 
 
 def _app_id() -> str:
-    return f"org.example.BlitzlensTest{next(_IDS)}"
+    """A fresh id per test, spelled with letters only.
+
+    Harness trap (2026-11-12): on this stack (GTK 4.18, libadwaita 1.7) ``Adw.ApplicationWindow(
+    application=app)`` segfaults in its constructor for ids ending in a single digit
+    (``org.example.BlitzlensTest0``, ``...5``) when it is the first window of the process, and the
+    same id with a letter, or ``...Test10``, does not. The crash looks like load flakiness because
+    earlier tests in the full suite open a window first. Letters keep every test independent of its
+    order; ``test_the_application_id_suffix_never_ends_in_one_digit`` pins the spelling.
+    """
+    number, letters = next(_IDS), ""
+    while True:
+        number, remainder = divmod(number, 26)
+        letters = chr(ord("A") + remainder) + letters
+        if number == 0:
+            return f"org.example.BlitzlensTest{letters}"
+        number -= 1
 
 
 ACTIONS = {
@@ -29,7 +44,6 @@ ACTIONS = {
     "preferences": ("show_preferences", ["<Control>comma"]),
     "about": ("show_about", []),
     "shortcuts": ("show_shortcuts_guide", ["<Control>question", "question"]),
-    "duplicate_finder": ("show_duplicate_finder", ["<Control>d"]),
     "statistics": ("show_library_statistics", ["<Control>l"]),
 }
 
@@ -47,6 +61,12 @@ def app(monkeypatch):
     yield application
     if application.window is not None:
         application.window.destroy()
+
+
+def test_the_application_id_suffix_never_ends_in_one_digit():
+    ids = [_app_id() for _ in range(60)]
+    assert len(set(ids)) == 60
+    assert not any(i[-1].isdigit() for i in ids)
 
 
 def test_startup_registers_every_action_with_its_accelerators(app):

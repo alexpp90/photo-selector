@@ -27,7 +27,7 @@ struct CullingWorkspaceViewModelTests {
         #expect(vm.zoomState == .fit)
         #expect(vm.isZoomSynced == true)
         #expect(vm.isFilmstripVisible == true)
-        #expect(vm.isInfoHUDVisible == true)
+        #expect(vm.isInfoVisible == true)
         #expect(vm.autoAdvance == true)
         #expect(vm.hasActivePhoto == false)
         #expect(vm.currentPhoto == nil)

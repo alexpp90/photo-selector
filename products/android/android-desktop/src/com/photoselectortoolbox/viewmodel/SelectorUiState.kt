@@ -174,6 +174,11 @@ data class SelectorUiState(
     /** How long [snackbarMessage] stays and whether that is a real deadline. */
     val snackbarLifetime: SnackbarLifetime = SnackbarLifetime.NOTICE,
     /**
+     * What a screen reader says for [snackbarMessage] when it differs from the line on screen
+     * (`CompanionConfirmation`: "+2" on screen, "and 2 companion files" spoken); null otherwise.
+     */
+    val snackbarSpoken: String? = null,
+    /**
      * Unified undo stack (newest first, up to [UndoPolicy.MAX_UNDO_HISTORY] = 20).
      *
      * Holds both deferred deletions ([UndoableOperation.RevertPendingDelete]) and
@@ -275,7 +280,10 @@ data class SelectorUiState(
     val sessionKeptFileNames: Set<String> = emptySet(),
     /** Photos copied in this session, by URI: the copied mark, and a second Copy is a no-op. */
     val sessionCopiedUris: Set<String> = emptySet(),
-    /** Every file a Copy or Move filed this session, companions included, by name with its size. */
+    /**
+     * Every file a Copy or Move filed this session, companions included, by the document id the
+     * transfer wrote it as, with its source's size ([com.photoselectortoolbox.data.model.KeptFiles]).
+     */
     val sessionKeptFiles: Map<String, Long> = emptyMap(),
     /** The Selection folder as the Done card's lookup found it, and whether that lookup runs. */
     val doneSelection: SelectionFolderState? = null,
@@ -323,6 +331,7 @@ data class SelectorUiState(
         snackbarSequence = snackbarSequence + 1,
         snackbarLifetime = lifetime,
         snackbarUndoAvailable = undoAvailable,
+        snackbarSpoken = null,
     )
 
     /** The most recent deletion removed from the list but not yet committed to disk. */
