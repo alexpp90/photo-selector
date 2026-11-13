@@ -26,7 +26,7 @@ enum class TourRegion(
     /** Upper half of the 88 dp sidebar: Folder, Drive, Scan, Bursts, Legend. */
     SIDEBAR_SESSION("Left sidebar, top"),
 
-    /** Lower half of the sidebar, under the rule: Cull, Stats, Dupes, Setup. */
+    /** Lower half of the sidebar, under the rule: Cull, Stats, Tools (Learn, Dupes), Setup. */
     SIDEBAR_SCREENS("Left sidebar, bottom"),
 
     /** The readout block, left of the current frame. */
