@@ -226,7 +226,17 @@ keep their per-screen meanings (`1`/`2`/`3` enlarge a frame in Cull, `0`–`5` r
 
 Learn carries the **Beta** chip (tonal `BrandAccentTonal` plate, `BrandAccentText` word) in the
 Tools menu and at the start of its own control bar, beside the way back to Cull. It goes when
-Compare shows both frames and Learn's progress is stored.
+Compare shows both frames and Learn's progress is stored. Compare shows both frames now; the chip
+stays until the progress is stored.
+
+**Learn · Compare** (`[USER 2026-11-12]` decision #17). On the Compare tab the canvas holds the
+pair side by side at equal size, the frame that is better on the deciding measurement first (a
+*Better* chip — a word, never colour alone — and the file name under each, spoken "Better frame,
+«name»" / "Other frame, «name»"). The side panel lists one card per scene (title, "Why one worked
+better:" and the measured differences); a card is a radio row that picks the pair the canvas shows,
+the first scene by default. The composition guides are not offered on Compare — the control bar
+keeps only the way back and the Beta chip. With no pair of one scene that differs measurably, the
+canvas says *No measured difference* and the side panel lists nothing.
 
 Each screen has one name on every surface — the sidebar, the rail, the bottom bar, the Tools
 menu, the guide and spoken text: Cull, Learn, Stats, Dupes, Setup (`Screen.label`). The burst
