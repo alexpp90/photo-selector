@@ -48,12 +48,16 @@ internal class SafRatingWriter(
 
     private class Entry(val documentId: String, val name: String, val mime: String?, val size: Long?)
 
-    suspend fun write(imageUri: Uri, rating: Int) {
+    /**
+     * Write [rating] for [imageUri]. With [embedIntoPhoto] off (*Write ratings into photos*,
+     * decision #16) a JPEG is not opened for writing at all and nothing is written for it.
+     */
+    suspend fun write(imageUri: Uri, rating: Int, embedIntoPhoto: Boolean) {
         val name = displayNameOf(imageUri)
             ?: throw RatingWriteException("Could not read the file name from the storage provider")
         when (RatingFormats.strategyFor(name)) {
             RatingStrategy.UNSUPPORTED -> throw RatingWriteException(RatingFormats.unsupportedMessage(name))
-            RatingStrategy.EMBEDDED_XMP -> writeJpeg(imageUri, name, rating)
+            RatingStrategy.EMBEDDED_XMP -> if (embedIntoPhoto) writeJpeg(imageUri, name, rating)
             RatingStrategy.SIDECAR -> writeSidecar(imageUri, name, rating)
         }
     }

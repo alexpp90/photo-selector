@@ -138,23 +138,27 @@ def test_tab_is_not_bound():
 
 
 @pytest.mark.skipif(STUBBED, reason="needs real Gtk/Adw under a display server")
-def test_a_preferences_control_sets_the_sweep_stop_threshold(tmp_path):
+def test_the_sweep_stop_threshold_is_set_in_the_order_panel_not_in_preferences(tmp_path):
+    """Plan 1.7: "Stop at sharpness" moved from Preferences > Scoring into the View order panel."""
     from gi.repository import Adw
     from photo_selector_linux.core.settings import SettingsStore
+    from photo_selector_linux.ui import window as window_module
 
     Adw.init()
     settings = SettingsStore(path=tmp_path / "settings.json", auto_load=False)
     dialog = preferences_module.PreferencesDialog(settings=settings)
     try:
-        row = dialog.row_stop_sharpness
-        assert row.get_title() == "Stop at sharpness"
-        assert row.get_value() == 0.0  # off
-        row.set_value(80.0)
-        assert settings.stop_sharpness_threshold == 80.0
-        row.set_value(0.0)
-        assert settings.stop_sharpness_threshold is None
+        assert not hasattr(dialog, "row_stop_sharpness")
     finally:
         dialog.destroy()
+    win = window_module.MainWindow(settings=settings)
+    spin = win.spin_stop_at
+    assert spin.get_value() == 0.0  # off
+    spin.set_value(80.0)
+    assert settings.stop_sharpness_threshold == 80.0
+    assert win.viewmodel.stop_sharpness_threshold == 80.0
+    spin.set_value(0.0)
+    assert settings.stop_sharpness_threshold is None
 
 
 # ── F-BL-051: titles with "<" or "&" are parsed as Pango markup ──────────────

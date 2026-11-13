@@ -20,11 +20,11 @@ import com.photoselectortoolbox.data.cache.ScoreDao
 import java.io.File
 import com.photoselectortoolbox.data.metadata.MetadataWriter
 import com.photoselectortoolbox.data.metadata.MetadataWriterImpl
-import com.photoselectortoolbox.domain.model.PhotoItem
 import com.photoselectortoolbox.domain.model.RatingFilter
 import com.photoselectortoolbox.data.model.ImageDimensions
 import com.photoselectortoolbox.data.model.CompanionFile
 import com.photoselectortoolbox.data.model.ImageItem
+import com.photoselectortoolbox.data.model.KeptFiles
 import com.photoselectortoolbox.data.repository.FileOperationResult
 import com.photoselectortoolbox.data.model.ScanResult
 import com.photoselectortoolbox.data.repository.CacheRepository
@@ -37,7 +37,6 @@ import com.photoselectortoolbox.domain.curation.DeferredDeletion
 import com.photoselectortoolbox.domain.curation.FileIdentity
 import com.photoselectortoolbox.domain.curation.ImageSlot
 import com.photoselectortoolbox.domain.curation.OptimisticEdits
-import com.photoselectortoolbox.domain.curation.ParkedUndo
 import com.photoselectortoolbox.domain.curation.PendingDeleteJournal
 import com.photoselectortoolbox.domain.curation.PendingDeletion
 import com.photoselectortoolbox.domain.curation.SelectorListState
@@ -51,7 +50,6 @@ import com.photoselectortoolbox.domain.format.SelectorLabels
 import com.photoselectortoolbox.domain.grouping.GroupingLevel
 import com.photoselectortoolbox.domain.guidance.SelectorGuidance
 import com.photoselectortoolbox.domain.guidance.SelectorHint
-import com.photoselectortoolbox.domain.guidance.SelectorHintText
 import com.photoselectortoolbox.domain.grouping.ImageGrouper
 import com.photoselectortoolbox.domain.format.SelectionActionLabels
 import com.photoselectortoolbox.domain.interaction.FilingAction
@@ -1448,7 +1446,7 @@ class SelectorViewModel @Inject constructor(
         val before = _uiState.value.listState
         val currentItem = before.images.getOrNull(before.currentIndex) ?: return
         val sourceUri = currentItem.uri
-        if (action == CurationAction.COPY && sourceUri in state.sessionCopiedUris) {
+        if (sourceUri in state.sessionCopiedUris) { // filed once: no second Copy, no Move after it (decision #29)
             _uiState.update { it.withSnackbar(SelectorLabels.ALREADY_COPIED, SnackbarLifetime.COPY) }
             return
         }
@@ -1510,7 +1508,7 @@ class SelectorViewModel @Inject constructor(
                         },
                         sessionKeptFileNames = current.sessionKeptFileNames + currentItem.fileName,
                         sessionCopiedUris = current.sessionCopiedUris + listOfNotNull(sourceUri.takeIf { action == CurationAction.COPY }),
-                        sessionKeptFiles = current.sessionKeptFiles + currentItem.allFiles.associate { it.fileName to it.fileSize },
+                        sessionKeptFiles = current.sessionKeptFiles + KeptFiles.of(currentItem.allFiles, result.destinationUris),
                     )
                 }
                 val undo = UndoPolicy.forFiling(
@@ -1719,7 +1717,7 @@ class SelectorViewModel @Inject constructor(
                     it.withRestored(OptimisticEdits.restore(it.listState, operation.slots)).copy(
                         undoHistory = remainingHistory,
                         sessionMovedCount = (it.sessionMovedCount - 1).coerceAtLeast(0),
-                        sessionKeptFiles = it.sessionKeptFiles - operation.slots.flatMap { slot -> slot.image.allFiles.map { f -> f.fileName } }.toSet(),
+                        sessionKeptFiles = it.sessionKeptFiles - KeptFiles.keysOf(operation.slots.flatMap { s -> s.image.allFiles }, operation.destinationUris),
                         snackbarUndoAvailable = false,
                         snackbarMessage = null,
                     )
@@ -1849,8 +1847,8 @@ class SelectorViewModel @Inject constructor(
                     current.withList(reapplied.state).copy(
                         undoHistory = UndoPolicy.push(current.undoHistory, operation).history,
                         sessionMovedCount = current.sessionMovedCount + 1,
-                        sessionKeptFiles = current.sessionKeptFiles +
-                            operation.slots.flatMap { it.image.allFiles }.associate { it.fileName to it.fileSize },
+                        // Keyed as the transfer recorded them (KeptFiles), so the retry forgets them again.
+                        sessionKeptFiles = current.sessionKeptFiles + KeptFiles.of(operation.slots.flatMap { it.image.allFiles }, operation.destinationUris),
                     )
                 }
                 if (stillOpen()) reportError("Could not move the image back")
