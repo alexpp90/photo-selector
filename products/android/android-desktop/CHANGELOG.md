@@ -40,6 +40,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ### Fixed
 
+- A TIFF's frame has its real shape from the start: its size is read from the file header, a sideways orientation included. Before, a TIFF had none, and was framed 3:2 until it was decoded.
 - A portrait photo from a camera (stored on its side with an EXIF orientation) gets a portrait frame instead of a landscape one.
 - An exposure time stored a hair under its fraction reads as that fraction ("1/250s"), not one step slower ("1/249s").
 - A folder you open in Dupes or Stats keeps its access while you work there. Before, opening another folder in Cull, or restarting the app, could take the access away, and the next Dupes delete failed with a permission error.
