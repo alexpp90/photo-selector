@@ -202,7 +202,7 @@ class SelectorScreenTest {
         composeRule.onAllNodesWithText(str(R.string.empty_select_folder), ignoreCase = true).onFirst()
             .assertIsDisplayed()
         composeRule.onNodeWithText(
-            "Choose a shoot folder to start comparing and culling frames.",
+            str(R.string.dialog_body_choose_shoot_folder),
             substring = true,
             ignoreCase = true,
         ).assertIsDisplayed()
