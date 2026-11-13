@@ -2,6 +2,7 @@ package com.photoselectortoolbox.domain.format
 
 import com.photoselectortoolbox.data.model.ImageItem
 import java.time.LocalDateTime
+import java.time.ZoneId
 import java.time.ZoneOffset
 
 /**
@@ -13,7 +14,14 @@ import java.time.ZoneOffset
 object CaptureTime {
 
     /** [raw] in milliseconds of wall-clock time, or null when it is absent or not a date. */
-    fun parse(raw: String?): Long? {
+    fun parse(raw: String?): Long? = wallClock(raw)?.toInstant(ZoneOffset.UTC)?.toEpochMilli()
+
+    /**
+     * [raw] (`DateTimeOriginal`) as the camera's wall-clock date and time, or null when it is
+     * absent or not a date. The one parser behind [parse], [instant] and the solar elevation of
+     * `TechniqueFactDetector` (shoot debrief SD-1a).
+     */
+    fun wallClock(raw: String?): LocalDateTime? {
         val cleaned = raw?.trim()?.takeIf { it.isNotEmpty() } ?: return null
         val parts = cleaned.split(' ', 'T')
         if (parts.size < 2) return null
@@ -32,11 +40,32 @@ object CaptureTime {
         }
         return try {
             LocalDateTime.of(year, month, day, hour, minute, second.coerceAtMost(59))
-                .toInstant(ZoneOffset.UTC)
-                .toEpochMilli()
         } catch (e: java.time.DateTimeException) {
             null // 31 February and the like
         }
+    }
+
+    /** EXIF `OffsetTimeOriginal` (`+02:00`, `-05:30`, `Z`) as an offset, or null when absent or garbled. */
+    fun offset(raw: String?): ZoneOffset? {
+        val cleaned = raw?.trim()?.takeIf { it.isNotEmpty() } ?: return null
+        return try {
+            ZoneOffset.of(cleaned)
+        } catch (e: java.time.DateTimeException) {
+            null
+        }
+    }
+
+    /**
+     * The moment a photo was taken, in epoch milliseconds: [dateTimeOriginal] at the camera's
+     * [offsetTimeOriginal], or — for a camera that writes no offset — in [fallbackZone], the
+     * device's zone, which is where most shoots are culled. Null without a date. Learn's
+     * `capture.time` fact (shoot debrief SD-1a): unlike [parse] it is compared with real
+     * instants (a practice goal's start), and across shoots.
+     */
+    fun instant(dateTimeOriginal: String?, offsetTimeOriginal: String?, fallbackZone: ZoneId): Long? {
+        val local = wallClock(dateTimeOriginal) ?: return null
+        val zone: ZoneId = offset(offsetTimeOriginal) ?: fallbackZone
+        return local.atZone(zone).toInstant().toEpochMilli()
     }
 
     /** [image]'s capture time, or null when its EXIF has none (or has not been read). */

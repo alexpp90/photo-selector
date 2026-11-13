@@ -4,6 +4,7 @@ import androidx.room.Dao
 import androidx.room.Insert
 import androidx.room.OnConflictStrategy
 import androidx.room.Query
+import androidx.room.Transaction
 
 @Dao
 interface ScoreDao {
@@ -97,6 +98,32 @@ interface ScoreDao {
     @Query("DELETE FROM technique_facts WHERE uri = :uri")
     suspend fun deleteTechniqueFactsForUri(uri: String)
 
+    /** One `IN (:uris)` statement: at most [SQLITE_MAX_BIND_PARAMS] URIs. Callers use [getTechniqueFacts]. */
+    @Query("SELECT * FROM technique_facts WHERE uri IN (:uris)")
+    suspend fun getTechniqueFactsBatch(uris: List<String>): List<TechniqueFactEntity>
+
+    /** One `IN (:uris)` statement, plus [kind]. Callers use [getTechniqueFactsOfKind]. */
+    @Query("SELECT * FROM technique_facts WHERE kind = :kind AND uri IN (:uris)")
+    suspend fun getTechniqueFactsOfKindBatch(kind: String, uris: List<String>): List<TechniqueFactEntity>
+
+    /**
+     * [uri]'s stored facts replaced by [facts] in one transaction (shoot debrief SD-1a): a kind
+     * the detector no longer emits does not outlive the renewal, as it did under the upsert alone.
+     */
+    @Transaction
+    suspend fun replaceTechniqueFacts(uri: String, facts: List<TechniqueFactEntity>) {
+        deleteTechniqueFactsForUri(uri)
+        upsertTechniqueFacts(facts)
+    }
+
+    /** The stored facts of [uris], any number of them. */
+    suspend fun getTechniqueFacts(uris: List<String>): List<TechniqueFactEntity> =
+        uris.chunked(SQLITE_MAX_BIND_PARAMS).flatMap { chunk -> getTechniqueFactsBatch(chunk) }
+
+    /** The stored facts of one [kind] for [uris], any number of them (the kind is one more bound variable). */
+    suspend fun getTechniqueFactsOfKind(kind: String, uris: List<String>): List<TechniqueFactEntity> =
+        uris.chunked(SQLITE_MAX_BIND_PARAMS - 1).flatMap { chunk -> getTechniqueFactsOfKindBatch(kind, chunk) }
+
     @Query("DELETE FROM technique_facts")
     suspend fun deleteAllTechniqueFacts()
 
@@ -128,4 +155,14 @@ interface ScoreDao {
 
     @Query("DELETE FROM practice_goals WHERE lessonId = :lessonId")
     suspend fun deletePracticeGoal(lessonId: String)
+
+    @Query("DELETE FROM practice_goals")
+    suspend fun deleteAllPracticeGoals()
+
+    /** [goal] as the one practice goal: the others go, in one transaction (shoot debrief SD-1b). */
+    @Transaction
+    suspend fun replacePracticeGoal(goal: PracticeGoalEntity) {
+        deleteAllPracticeGoals()
+        upsertPracticeGoal(goal)
+    }
 }
