@@ -520,4 +520,71 @@
     <string name="chip_filter_stars">★ %1$d</string>
     <string name="chip_filter_unrated">Unrated</string>
     <string name="chip_filter_rejected">Rejected</string>
+
+    <!-- Dupes -->
+    <plurals name="dialog_title_delete_files">
+        <item quantity="one">Delete %1$d file?</item>
+        <item quantity="other">Delete %1$d files?</item>
+    </plurals>
+    <string name="dialog_body_deleted_on_leave">Deleted when you leave this screen.</string>
+    <string name="cd_undo_delete">Undo delete</string>
+    <plurals name="error_files_not_deleted">
+        <item quantity="one">Could not delete %1$d of %2$d file: %3$s</item>
+        <item quantity="other">Could not delete %1$d of %2$d files: %3$s</item>
+    </plurals>
+    <string name="label_discovering_images">Discovering images...</string>
+    <string name="label_no_images_in_folder">No images found in folder</string>
+    <plurals name="label_scanning_for_duplicates">
+        <item quantity="one">Scanning %1$d image for duplicates...</item>
+        <item quantity="other">Scanning %1$d images for duplicates...</item>
+    </plurals>
+    <string name="label_hashing_files">Hashing files: %1$d/%2$d</string>
+    <string name="label_analyzing">Analyzing...</string>
+    <string name="label_no_duplicates">No duplicates found</string>
+    <string name="label_found_duplicates">Found %1$s in %2$s</string>
+    <plurals name="label_count_duplicates">
+        <item quantity="one">%1$d duplicate</item>
+        <item quantity="other">%1$d duplicates</item>
+    </plurals>
+    <plurals name="label_count_groups">
+        <item quantity="one">%1$d group</item>
+        <item quantity="other">%1$d groups</item>
+    </plurals>
+    <string name="error_keep_one_copy">Keep one copy</string>
+    <string name="empty_no_folder_selected">No Folder Selected</string>
+    <string name="dialog_body_dupes_select_folder">Select a folder to scan for duplicate images.</string>
+    <string name="action_select_folder">Select Folder</string>
+    <string name="label_selected_count">%1$d selected</string>
+    <string name="action_delete_selected">Delete Selected (%1$d)</string>
+    <string name="empty_ready_to_scan">Ready to Scan</string>
+    <string name="dialog_body_dupes_ready">Scan \"%1$s\" for duplicate images based on file hash comparison.</string>
+    <plurals name="title_dupes_group">
+        <item quantity="one">Group (%1$d file)</item>
+        <item quantity="other">Group (%1$d files)</item>
+    </plurals>
+    <string name="action_select_all_but_first">Select All But First</string>
+    <string name="label_dupes_first">First</string>
+    <string name="cd_selected_for_deletion">Selected for deletion</string>
+    <string name="cd_dupes_kept">%1$s, kept</string>
+    <string name="label_unknown">Unknown</string>
+
+    <!-- Stats -->
+    <string name="label_discovering_files">Discovering files...</string>
+    <string name="label_preparing_analysis">Preparing analysis...</string>
+    <string name="label_analyzing_metadata">Analyzing metadata (%1$d/%2$d)</string>
+    <string name="error_analysis_failed">Analysis failed</string>
+    <string name="dialog_body_stats_select_folder">Select a folder containing photos to view EXIF statistics.</string>
+    <string name="label_stats_images">Images</string>
+    <string name="label_stats_lenses">Lenses</string>
+    <string name="label_stats_focal_range">Focal Range</string>
+    <string name="title_stats_shutter_distribution">Shutter Speed Distribution</string>
+    <string name="title_stats_aperture_distribution">Aperture Distribution</string>
+    <string name="title_stats_iso_distribution">ISO Distribution</string>
+    <string name="title_stats_focal_distribution">Focal Length Distribution</string>
+    <string name="title_stats_lens_usage">Lens Usage</string>
+    <string name="title_stats_sharpness_by_shutter">Sharpness by Shutter Speed</string>
+    <string name="title_stats_sharpness_by_aperture">Sharpness by Aperture</string>
+    <string name="title_stats_sharpness_by_focal">Sharpness by Focal Length</string>
+    <string name="label_stats_mean_median">mean %1$s · median %2$s</string>
+    <string name="empty_no_data">No data</string>
 </resources>

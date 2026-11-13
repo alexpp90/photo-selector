@@ -39,6 +39,8 @@ import com.photoselectortoolbox.ui.theme.BrandAccent
 import com.photoselectortoolbox.ui.theme.Zinc400
 import com.photoselectortoolbox.ui.theme.Zinc700
 import com.photoselectortoolbox.ui.theme.Zinc800
+import androidx.compose.ui.res.stringResource
+import com.photoselectortoolbox.R
 
 @Composable
 fun ChartCard(
@@ -73,7 +75,7 @@ fun ChartCard(
                     contentAlignment = Alignment.Center,
                 ) {
                     Text(
-                        text = "No data",
+                        text = stringResource(R.string.empty_no_data),
                         style = MaterialTheme.typography.bodyMedium,
                         color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f),
                     )

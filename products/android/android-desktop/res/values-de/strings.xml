@@ -520,4 +520,71 @@
     <string name="chip_filter_stars">★ %1$d</string>
     <string name="chip_filter_unrated">Unbewertet</string>
     <string name="chip_filter_rejected">Aussortiert</string>
+
+    <!-- Dupes -->
+    <plurals name="dialog_title_delete_files">
+        <item quantity="one">%1$d Datei löschen?</item>
+        <item quantity="other">%1$d Dateien löschen?</item>
+    </plurals>
+    <string name="dialog_body_deleted_on_leave">Gelöscht, wenn du diese Ansicht verlässt.</string>
+    <string name="cd_undo_delete">Löschen rückgängig</string>
+    <plurals name="error_files_not_deleted">
+        <item quantity="one">%1$d von %2$d Datei nicht gelöscht: %3$s</item>
+        <item quantity="other">%1$d von %2$d Dateien nicht gelöscht: %3$s</item>
+    </plurals>
+    <string name="label_discovering_images">Bilder werden gesucht …</string>
+    <string name="label_no_images_in_folder">Keine Bilder im Ordner</string>
+    <plurals name="label_scanning_for_duplicates">
+        <item quantity="one">%1$d Bild wird auf Duplikate geprüft …</item>
+        <item quantity="other">%1$d Bilder werden auf Duplikate geprüft …</item>
+    </plurals>
+    <string name="label_hashing_files">Dateien prüfen: %1$d/%2$d</string>
+    <string name="label_analyzing">Analyse …</string>
+    <string name="label_no_duplicates">Keine Duplikate gefunden</string>
+    <string name="label_found_duplicates">%1$s in %2$s gefunden</string>
+    <plurals name="label_count_duplicates">
+        <item quantity="one">%1$d Duplikat</item>
+        <item quantity="other">%1$d Duplikate</item>
+    </plurals>
+    <plurals name="label_count_groups">
+        <item quantity="one">%1$d Gruppe</item>
+        <item quantity="other">%1$d Gruppen</item>
+    </plurals>
+    <string name="error_keep_one_copy">Eine Kopie bleibt</string>
+    <string name="empty_no_folder_selected">Kein Ordner gewählt</string>
+    <string name="dialog_body_dupes_select_folder">Wähle einen Ordner, um ihn auf doppelte Bilder zu prüfen.</string>
+    <string name="action_select_folder">Ordner wählen</string>
+    <string name="label_selected_count">%1$d markiert</string>
+    <string name="action_delete_selected">Markierte löschen (%1$d)</string>
+    <string name="empty_ready_to_scan">Bereit zum Scan</string>
+    <string name="dialog_body_dupes_ready">„%1$s“ per Datei-Prüfsumme auf doppelte Bilder prüfen.</string>
+    <plurals name="title_dupes_group">
+        <item quantity="one">Gruppe (%1$d Datei)</item>
+        <item quantity="other">Gruppe (%1$d Dateien)</item>
+    </plurals>
+    <string name="action_select_all_but_first">Alle außer erstem</string>
+    <string name="label_dupes_first">Erstes</string>
+    <string name="cd_selected_for_deletion">Zum Löschen markiert</string>
+    <string name="cd_dupes_kept">%1$s, bleibt</string>
+    <string name="label_unknown">Unbekannt</string>
+
+    <!-- Stats -->
+    <string name="label_discovering_files">Dateien werden gesucht …</string>
+    <string name="label_preparing_analysis">Analyse wird vorbereitet …</string>
+    <string name="label_analyzing_metadata">Metadaten werden analysiert (%1$d/%2$d)</string>
+    <string name="error_analysis_failed">Analyse fehlgeschlagen</string>
+    <string name="dialog_body_stats_select_folder">Wähle einen Ordner mit Fotos, um EXIF-Statistiken zu sehen.</string>
+    <string name="label_stats_images">Bilder</string>
+    <string name="label_stats_lenses">Objektive</string>
+    <string name="label_stats_focal_range">Brennweiten</string>
+    <string name="title_stats_shutter_distribution">Verteilung Verschlusszeit</string>
+    <string name="title_stats_aperture_distribution">Verteilung Blende</string>
+    <string name="title_stats_iso_distribution">Verteilung ISO</string>
+    <string name="title_stats_focal_distribution">Verteilung Brennweite</string>
+    <string name="title_stats_lens_usage">Objektivnutzung</string>
+    <string name="title_stats_sharpness_by_shutter">Schärfe nach Verschlusszeit</string>
+    <string name="title_stats_sharpness_by_aperture">Schärfe nach Blende</string>
+    <string name="title_stats_sharpness_by_focal">Schärfe nach Brennweite</string>
+    <string name="label_stats_mean_median">Mittel %1$s · Median %2$s</string>
+    <string name="empty_no_data">Keine Daten</string>
 </resources>

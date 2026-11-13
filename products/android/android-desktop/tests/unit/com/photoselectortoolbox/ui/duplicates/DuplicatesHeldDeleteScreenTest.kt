@@ -44,6 +44,7 @@ import org.junit.Rule
 import org.junit.Test
 import org.junit.runner.RunWith
 import org.robolectric.annotation.Config
+import com.photoselectortoolbox.testing.en
 
 /**
  * The Dupes delete through the screen as it ships (REQ-AND-LAYOUT.24, UX note F9): the dialog says
@@ -104,11 +105,11 @@ class DuplicatesHeldDeleteScreenTest {
         rule.setContent { DuplicatesScreen(windowSizeClass = windowSize, viewModel = vm) }
 
         rule.onNodeWithText("Delete Selected (1)").performClick()
-        rule.onNodeWithText(DuplicateLabels.confirmTitle(1)).assertIsDisplayed()
-        rule.onNodeWithText(DuplicateLabels.CONFIRM_BODY).assertIsDisplayed()
+        rule.onNodeWithText(DuplicateLabels.confirmTitle(1).en()).assertIsDisplayed()
+        rule.onNodeWithText(DuplicateLabels.CONFIRM_BODY.en()).assertIsDisplayed()
         rule.onNodeWithText("Delete").performClick()
 
-        rule.onNodeWithText(DuplicateLabels.deletedMessage(1)).assertIsDisplayed()
+        rule.onNodeWithText(DuplicateLabels.deletedMessage(1).en()).assertIsDisplayed()
         coVerify(exactly = 0) { repository.deleteImage(any(), any()) }
 
         rule.onNodeWithTag(HELD_DELETE_UNDO_TAG).performClick()

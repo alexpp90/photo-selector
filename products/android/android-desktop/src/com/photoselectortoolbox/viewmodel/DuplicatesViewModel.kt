@@ -33,16 +33,20 @@ import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.async
 import kotlinx.coroutines.joinAll
 import kotlinx.coroutines.launch
+import com.photoselectortoolbox.R
+import com.photoselectortoolbox.domain.text.UiText
+import com.photoselectortoolbox.domain.text.plural
+import com.photoselectortoolbox.domain.text.text
 
 data class DuplicatesUiState(
     val isScanning: Boolean = false,
     val scanProgress: Float = 0f,
-    val statusText: String = "",
+    val statusText: UiText = UiText.Empty,
     val folderUri: String? = null,
     val folderName: String = "",
     val duplicateGroups: List<DuplicateGroup> = emptyList(),
     val selectedForDeletion: Set<String> = emptySet(),
-    val error: String? = null,
+    val error: UiText? = null,
     /** Bumped with every [error] set, so the snackbar shows a second identical message anew. */
     val errorSequence: Long = 0L,
     val missingGrantPrompt: Boolean = false,
@@ -100,7 +104,7 @@ class DuplicatesViewModel @Inject constructor(
                         duplicateGroups = emptyList(),
                         selectedForDeletion = emptySet(),
                         missingGrantPrompt = true,
-                        error = "Failed to load folder: permission revoked or directory deleted.",
+                        error = text(R.string.error_folder_load_failed),
                         errorSequence = it.errorSequence + 1,
                     )
                 }
@@ -131,7 +135,7 @@ class DuplicatesViewModel @Inject constructor(
                 it.copy(
                     isScanning = true,
                     scanProgress = 0f,
-                    statusText = "Discovering images...",
+                    statusText = text(R.string.label_discovering_images),
                     duplicateGroups = emptyList(),
                     selectedForDeletion = emptySet(),
                     error = null
@@ -150,14 +154,14 @@ class DuplicatesViewModel @Inject constructor(
                     _uiState.update {
                         it.copy(
                             isScanning = false,
-                            statusText = "No images found in folder"
+                            statusText = text(R.string.label_no_images_in_folder)
                         )
                     }
                     return@launch
                 }
 
                 _uiState.update {
-                    it.copy(statusText = "Scanning ${images.size} images for duplicates...")
+                    it.copy(statusText = plural(R.plurals.label_scanning_for_duplicates, images.size))
                 }
 
                 scanned = images.associateBy { it.uri }
@@ -173,9 +177,9 @@ class DuplicatesViewModel @Inject constructor(
                     }
 
                     val statusText = if (progress.total > 0) {
-                        "Hashing files: ${progress.processed}/${progress.total}"
+                        text(R.string.label_hashing_files, progress.processed, progress.total)
                     } else {
-                        "Analyzing..."
+                        text(R.string.label_analyzing)
                     }
 
                     _uiState.update {
@@ -195,9 +199,13 @@ class DuplicatesViewModel @Inject constructor(
                         isScanning = false,
                         scanProgress = 1f,
                         statusText = if (groups.isEmpty()) {
-                            "No duplicates found"
+                            text(R.string.label_no_duplicates)
                         } else {
-                            "Found $totalDuplicates duplicates in ${groups.size} groups"
+                            text(
+                                R.string.label_found_duplicates,
+                                plural(R.plurals.label_count_duplicates, totalDuplicates),
+                                plural(R.plurals.label_count_groups, groups.size),
+                            )
                         }
                     )
                 }
@@ -208,8 +216,8 @@ class DuplicatesViewModel @Inject constructor(
                 _uiState.update {
                     it.copy(
                         isScanning = false,
-                        statusText = "",
-                        error = "Scan failed",
+                        statusText = UiText.Empty,
+                        error = text(R.string.error_scan_failed),
                         errorSequence = it.errorSequence + 1,
                     )
                 }
@@ -279,7 +287,7 @@ class DuplicatesViewModel @Inject constructor(
                 duplicateGroups = HeldDuplicateDeletes.remainingGroups(it.duplicateGroups, selected),
                 selectedForDeletion = emptySet(),
                 // The held-delete bar says it; the status line would say it twice.
-                statusText = "",
+                statusText = UiText.Empty,
                 undoableDeleteCount = selected.size,
                 error = null,
             )
@@ -371,6 +379,6 @@ class DuplicatesViewModel @Inject constructor(
     }
 
     private companion object {
-        const val KEEP_ONE_COPY = "Keep one copy"
+        val KEEP_ONE_COPY: UiText = text(R.string.error_keep_one_copy)
     }
 }

@@ -828,7 +828,7 @@ class SelectorScreenTest {
         composeRule.waitUntil(timeoutMillis = 15000) {
             composeRule.onAllNodesWithText(str(R.string.action_start_scan), ignoreCase = true).fetchSemanticsNodes().isNotEmpty()
         }
-        composeRule.onAllNodesWithText("No Folder Selected", ignoreCase = true).assertCountEquals(0)
+        composeRule.onAllNodesWithText(str(R.string.empty_no_folder_selected), ignoreCase = true).assertCountEquals(0)
     }
 
     /**

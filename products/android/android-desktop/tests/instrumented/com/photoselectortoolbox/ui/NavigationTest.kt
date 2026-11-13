@@ -85,7 +85,7 @@ class NavigationTest {
         composeRule.waitForIdle()
 
         // Statistics screen should show its empty state description
-        composeRule.onNodeWithText("Select a folder containing photos to view EXIF statistics.", substring = true, ignoreCase = true)
+        composeRule.onNodeWithText(str(R.string.dialog_body_stats_select_folder), substring = true, ignoreCase = true)
             .assertIsDisplayed()
     }
 
@@ -114,7 +114,7 @@ class NavigationTest {
         composeRule.waitForIdle()
 
         // Duplicates screen should show its empty state description
-        composeRule.onNodeWithText("Select a folder to scan for duplicate images.", substring = true, ignoreCase = true)
+        composeRule.onNodeWithText(str(R.string.dialog_body_dupes_select_folder), substring = true, ignoreCase = true)
             .assertIsDisplayed()
     }
 

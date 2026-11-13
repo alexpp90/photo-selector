@@ -25,6 +25,9 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.sync.Semaphore
 import kotlinx.coroutines.sync.withPermit
 import kotlinx.coroutines.withContext
+import com.photoselectortoolbox.R
+import com.photoselectortoolbox.domain.text.UiText
+import com.photoselectortoolbox.domain.text.text
 
 /**
  * Mean and median sharpness summary for a single EXIF parameter bucket (`U-35`).
@@ -55,11 +58,11 @@ data class StatisticsUiState(
     val shutterSpeedSharpness: Map<String, ExifSharpnessStats> = emptyMap(),
     val apertureSharpness: Map<String, ExifSharpnessStats> = emptyMap(),
     val focalLengthSharpness: Map<String, ExifSharpnessStats> = emptyMap(),
-    val error: String? = null,
+    val error: UiText? = null,
     /** Bumped with every [error] set, so the snackbar shows a second identical message anew. */
     val errorSequence: Long = 0L,
     val scanProgress: Float = 0f,
-    val progressText: String = "",
+    val progressText: UiText = UiText.Empty,
     val missingGrantPrompt: Boolean = false,
 )
 
@@ -101,7 +104,7 @@ class StatisticsViewModel @Inject constructor(
                         folderUri = null,
                         folderName = "",
                         missingGrantPrompt = true,
-                        error = "Failed to load folder: permission revoked or directory deleted.",
+                        error = text(R.string.error_folder_load_failed),
                         errorSequence = it.errorSequence + 1,
                     )
                 }
@@ -129,7 +132,7 @@ class StatisticsViewModel @Inject constructor(
                 it.copy(
                     isLoading = true,
                     scanProgress = 0f,
-                    progressText = "Discovering files...",
+                    progressText = text(R.string.label_discovering_files),
                     error = null,
                     shutterSpeedDistribution = emptyMap(),
                     apertureDistribution = emptyMap(),
@@ -154,7 +157,7 @@ class StatisticsViewModel @Inject constructor(
                 _uiState.update {
                     it.copy(
                         imageCount = images.size,
-                        progressText = "Preparing analysis..."
+                        progressText = text(R.string.label_preparing_analysis)
                     )
                 }
 
@@ -184,7 +187,7 @@ class StatisticsViewModel @Inject constructor(
                                     _uiState.update {
                                         it.copy(
                                             scanProgress = progress,
-                                            progressText = "Analyzing metadata ($count/${images.size})"
+                                            progressText = text(R.string.label_analyzing_metadata, count, images.size)
                                         )
                                     }
                                     if (exif != null) exif to cachedScore else null
@@ -217,7 +220,7 @@ class StatisticsViewModel @Inject constructor(
                     }
 
                     exif.iso?.let { iso ->
-                        val label = "ISO $iso"
+                        val label = "ISO $iso" // ui-text: ignore (a unit, the same in every language)
                         isoValues[label] = (isoValues[label] ?: 0) + 1
                     }
 
@@ -253,7 +256,7 @@ class StatisticsViewModel @Inject constructor(
                 _uiState.update {
                     it.copy(
                         isLoading = false,
-                        error = "Analysis failed",
+                        error = text(R.string.error_analysis_failed),
                         errorSequence = it.errorSequence + 1,
                     )
                 }
