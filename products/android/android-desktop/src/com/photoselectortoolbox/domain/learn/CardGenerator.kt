@@ -64,6 +64,8 @@ object CardGenerator {
             scanResult = scanResult,
             isRawOrHasRawCompanion = isRawOrHasRawCompanion,
             profile = profile,
+            // The photo's URI: its "Guess first" options keep one order for it.
+            seed = entities.firstOrNull()?.uri.orEmpty(),
         )
     }
 
@@ -74,6 +76,8 @@ object CardGenerator {
         isRawOrHasRawCompanion: Boolean = false,
         /** The camera's profile: a "try next time" names only a control it has (SD-2b, C2). */
         profile: CameraProfile = CameraProfiler.profile(exif),
+        /** Fixes the order of the "Guess first" options for one photo (its URI). */
+        seed: String = "",
     ): CardGenerationResult {
         fun advice(finding: CoachFinding, safeShutter: String? = null, ev: String? = null) =
             AdviceCatalog.coach(finding, profile, safeShutter, ev).orEmpty()
@@ -412,12 +416,21 @@ object CardGenerator {
             .sortedByDescending { it.priority }
             .firstOrNull()
 
-        val guessFirst = buildGuessFirstChallenge(selectedDidWell, selectedTryNext)
+        val guessFirst = buildGuessFirstChallenge(selectedDidWell, selectedTryNext).shuffled(seed)
         return CardGenerationResult(
             didWellCards = selectedDidWell,
             tryNextCard = selectedTryNext,
             guessFirstChallenge = guessFirst,
         )
+    }
+
+    /**
+     * [this] with its options in an order fixed by [seed] and the right answer: it was always the
+     * first option. The same photo keeps the same order, so a recomposition never reshuffles it.
+     */
+    private fun GuessFirstChallenge.shuffled(seed: String): GuessFirstChallenge {
+        val order = options.indices.shuffled(kotlin.random.Random("$seed#${options[correctIndex]}".hashCode()))
+        return copy(options = order.map { options[it] }, correctIndex = order.indexOf(correctIndex))
     }
 
     private fun buildGuessFirstChallenge(
