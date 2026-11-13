@@ -1,0 +1,19 @@
+appId: com.phototok.lab
+---
+# J-TOK-07 asserts the delete feedback inside its lifetime. On hardware the lab's checkpoint
+# (uiautomator dump + screenshot after Maestro's teardown) lands 3.4-4.6 s after this flow
+# ends, past the Short snackbar's ~4 s (lab run 2026-11-13: Moto G77, Pixel 4a, Xperia XA2),
+# so the snackbar is checked here, right after the tap. Same dialog handling as
+# J-TOK-03/03_confirm_delete.yaml; the text is the app's `snackbar_photo_deleted` (EN/DE).
+- extendedWaitUntil:
+    visible:
+      text: "Delete|Löschen|Trash|Papierkorb"
+    timeout: 4000
+    optional: true
+- tapOn:
+    text: "Delete|Löschen|Trash|Papierkorb"
+    optional: true
+- extendedWaitUntil:
+    visible:
+      text: "Photo deleted|Foto gelöscht"
+    timeout: 3000

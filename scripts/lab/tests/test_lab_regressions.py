@@ -148,7 +148,7 @@ class FlowRegressionTest(unittest.TestCase):
                             if isinstance(text, str) and text not in own:
                                 seen.append((path.name, text))
                                 self.assertIn("|", text, f"{path.name}: {text!r} has no German alternative")
-        self.assertTrue({"Delete|Löschen", "Show new|Neue zeigen|Start with Newest"} <= {t for _, t in seen}, seen)
+        self.assertTrue({"Delete|Löschen|Trash|Papierkorb", "Show new|Neue zeigen|Start with Newest"} <= {t for _, t in seen}, seen)  # the bin's "Trash" since decision 13 (#932)
 
 
 class LintRegressionTest(unittest.TestCase):
