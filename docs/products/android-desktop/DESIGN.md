@@ -1184,7 +1184,8 @@ the user can still see the photos. On Compact, a bottom sheet. Zinc-800 surface,
 
 **Section — Analysis Types.** Material 3 checkboxes, each with a short name that says what
 the check finds, never how (`ScanSheetText`; the usability panel of 2026-10-24 read "via
-Laplacian variance" as data, not explanation), and no subtitle:
+Laplacian variance" as data, not explanation), and no subtitle. Each row (checkbox and name)
+is one target at least 48 dp tall (`ScanRowMinHeight`, AD-17):
 
 | Checkbox |
 |---|
