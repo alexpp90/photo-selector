@@ -6,10 +6,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ## [Unreleased]
 
-## [0.5.0] - not yet released
-
-<!-- Prepared but not tagged: the product is archived. Replace "not yet released" in the heading
-     with the date when `desktop-v0.5.0` is tagged. -->
+## [0.5.0] - 2026-11-13
 
 ### Added
 - Cross-product supported-format contract and conformance corpus: the extension sets are defined once in `exif/reader.py` (RAW incl. 3FR, IIQ, MRW, X3F, ERF, MEF; JPEG, HEIC/HEIF, PNG, TIFF, WebP).
