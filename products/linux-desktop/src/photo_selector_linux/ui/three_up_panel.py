@@ -53,7 +53,10 @@ if HAS_GI:
             if not frames:
                 return 0, 0, -1, -1
             if orientation == Gtk.Orientation.HORIZONTAL:
-                minimum = max(frame.measure(orientation, -1).minimum for frame in frames)
+                top = frames[0].measure(orientation, -1).minimum
+                # Two neighbours side by side, each at its own minimum width, with the gap between.
+                low = max((f.measure(orientation, -1).minimum for f in frames[1:]), default=0)
+                minimum = max(top, 2 * low + THREE_UP_GAP if len(frames) > 1 else 0)
                 return minimum, minimum, -1, -1
             # Height: the top frame over the tallest neighbour, each measured at the width it will get.
             width = for_size if for_size > 0 else -1
