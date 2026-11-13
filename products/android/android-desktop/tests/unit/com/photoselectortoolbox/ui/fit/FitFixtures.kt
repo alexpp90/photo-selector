@@ -168,6 +168,7 @@ fun fitSelectorViewModel(
     openFolder: Boolean = true,
     imageRepository: ImageRepository = fitImageRepository(),
     scanImagesUseCase: ScanImagesUseCase = mockk(relaxed = true),
+    updateShootSummary: com.photoselectortoolbox.domain.usecase.UpdateShootSummaryUseCase? = null,
 ): SelectorViewModel {
     val discovery = Channel<List<ImageItem>>(Channel.UNLIMITED)
     every { imageRepository.discoverImages(any()) } returns discovery.receiveAsFlow()
@@ -179,6 +180,7 @@ fun fitSelectorViewModel(
         scoreDao = mockk<ScoreDao>(relaxed = true) { coEvery { getScore(any()) } returns null },
         appScope = appScope,
         context = context,
+        updateShootSummary = updateShootSummary,
     )
     // Room and IO hops stay on the test's dispatcher: on Dispatchers.IO they resume on Main from
     // another thread, which raced `resetMain` in the teardown (SelectorSortJumpViewModelTest flake).

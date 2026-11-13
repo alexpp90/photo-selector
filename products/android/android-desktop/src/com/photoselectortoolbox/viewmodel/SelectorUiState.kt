@@ -1,5 +1,6 @@
 package com.photoselectortoolbox.viewmodel
 
+import com.photoselectortoolbox.domain.learn.CompletedScan
 import com.photoselectortoolbox.domain.curation.SelectionDestinationPlan
 import com.photoselectortoolbox.domain.curation.OpenedFolder
 import com.photoselectortoolbox.domain.curation.DestinationSettings
@@ -275,6 +276,8 @@ data class SelectorUiState(
     val sharpnessStopThreshold: Double? = null,
     /** The session's decisions, one per photo, the latest counting (`U-33`, `U-35`, decision #29). */
     val tally: SessionTally = SessionTally(),
+    /** The last scan that ran to its end, of any folder; Learn reloads when it changes (SD-1a). */
+    val lastCompletedScan: CompletedScan? = null,
     val sessionKeptFileNames: Set<String> = emptySet(),
     /** Photos copied in this session, by URI: the copied mark, and a second Copy is a no-op. */
     val sessionCopiedUris: Set<String> = emptySet(),
@@ -308,6 +311,14 @@ data class SelectorUiState(
     /** Listed photos with no decision; a copied photo is decided (decision #29). */
     val sessionRemainingCount: Int
         get() = tally.remaining(images.map { it.uri })
+
+    /**
+     * Every photo of the folder has a decision ([USER 2026-11-12] decision #29): a copied photo is
+     * decided and stays listed, so a folder copied to its end is done although photos remain on
+     * screen. Not while the folder is still being listed — more photos may come.
+     */
+    val everyPhotoDecided: Boolean
+        get() = images.isNotEmpty() && !isLoading && !isEnumerating && sessionRemainingCount == 0
 
     /** Total photos kept (moved + copied) in the current culling session (`U-33`, `U-35`). */
     val sessionKeptCount: Int

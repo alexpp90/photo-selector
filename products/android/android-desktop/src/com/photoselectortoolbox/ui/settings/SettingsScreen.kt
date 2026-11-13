@@ -357,6 +357,14 @@ fun SettingsScreen(
                     }
                 },
             )
+
+            HorizontalDivider(color = Zinc700.copy(alpha = 0.5f))
+
+            ResetLearnRow(
+                counts = uiState.learnHistory,
+                onOpen = viewModel::loadLearnHistory,
+                onReset = viewModel::resetLearnHistory,
+            )
         }
 
         Spacer(modifier = Modifier.height(8.dp))

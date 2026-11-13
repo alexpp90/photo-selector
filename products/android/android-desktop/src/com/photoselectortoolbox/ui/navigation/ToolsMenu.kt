@@ -1,13 +1,9 @@
 package com.photoselectortoolbox.ui.navigation
 
-import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.heightIn
-import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.Icon
-import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.Stable
@@ -16,7 +12,6 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.clip
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.focus.onFocusChanged
@@ -25,11 +20,8 @@ import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.selected
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.unit.DpOffset
-import androidx.compose.ui.unit.dp
 import com.photoselectortoolbox.ui.components.MinTouchTarget
 import com.photoselectortoolbox.ui.components.handCursor
-import com.photoselectortoolbox.ui.theme.BrandAccentText
-import com.photoselectortoolbox.ui.theme.BrandAccentTonal
 
 /**
  * The Tools cell's menu state, one per navigation surface.
@@ -76,8 +68,8 @@ fun rememberToolsMenuState(): ToolsMenuState = remember { ToolsMenuState() }
 
 /**
  * Learn and Dupes, opened from the Tools cell ([USER 2026-11-12] decision #18). Each row is a
- * 48 dp target tagged `nav_<route>`, as the cells were; Learn carries the Beta chip and is
- * spoken "Learn, beta". Arrows move between the rows, Enter opens one, `Esc` closes the menu
+ * 48 dp target tagged `nav_<route>`, as the cells were, spoken by its screen's name. Learn's Beta
+ * chip went once Compare showed both frames and Learn's progress was stored. Arrows move between the rows, Enter opens one, `Esc` closes the menu
  * (Material's `DropdownMenu`, a focusable popup).
  */
 @Composable
@@ -97,11 +89,6 @@ fun ToolsMenu(
             DropdownMenuItem(
                 text = { Text(screen.label) },
                 leadingIcon = { Icon(imageVector = screen.icon, contentDescription = null) },
-                trailingIcon = if (screen.beta) {
-                    { BetaChip(spoken = null) }
-                } else {
-                    null
-                },
                 onClick = {
                     state.chose()
                     onOpen(screen)
@@ -110,32 +97,11 @@ fun ToolsMenu(
                     .heightIn(min = MinTouchTarget)
                     .handCursor()
                     .semantics {
-                        contentDescription = BetaLabel.spoken(screen)
+                        contentDescription = screen.label
                         selected = currentRoute == screen.route
                     }
                     .testTag("nav_${screen.route}"),
             )
         }
     }
-}
-
-/**
- * "Beta" on a tonal plate: Learn is unfinished until Compare shows both frames and its progress
- * is stored ([USER 2026-11-12] decision #18). Not a control. [spoken] is null where the row that
- * holds it already says "beta".
- */
-@Composable
-fun BetaChip(spoken: String?, modifier: Modifier = Modifier) {
-    Text(
-        text = BetaLabel.CHIP,
-        style = MaterialTheme.typography.labelSmall,
-        color = BrandAccentText,
-        maxLines = 1,
-        modifier = modifier
-            .clip(RoundedCornerShape(4.dp))
-            .background(BrandAccentTonal)
-            .then(if (spoken != null) Modifier.semantics { contentDescription = spoken } else Modifier)
-            .padding(horizontal = 6.dp, vertical = 2.dp)
-            .testTag("beta_chip"),
-    )
 }

@@ -105,7 +105,7 @@ Features
 • Go to photo by its number, a date or its file name.
 • Star ratings and a reject flag.
 • Statistics: EXIF charts of the folder (focal lengths, apertures, ISO, shutter speeds).
-• Tools beside the cull: Duplicates finds byte-identical copies and never lets you delete the last one; Learn (beta) shows the composition of your own photos and compares two frames of one scene side by side.
+• Tools beside the cull: Duplicates finds byte-identical copies and never lets you delete the last one; Learn shows the composition of your own photos and compares two frames of one scene side by side.
 • Camera RAW from Sony, Canon (incl. CR3), Nikon, Fujifilm, Panasonic, OM System, Pentax, Samsung and DNG, plus JPEG, HEIC, PNG, TIFF and WebP.
 
 Private by design

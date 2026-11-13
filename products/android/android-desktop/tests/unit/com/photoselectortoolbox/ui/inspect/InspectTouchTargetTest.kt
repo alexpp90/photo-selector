@@ -107,9 +107,9 @@ class InspectTouchTargetTest {
     }
 
     @Test
-    fun `lesson and practice controls are 48 dp targets`() {
+    fun `the Debrief tab's scan action is a 48 dp target`() {
         host()
-        rule.onNodeWithTag(LearnTab.PRACTICE.tag).performClick()
-        assertTarget48("set_goal_${com.photoselectortoolbox.domain.learn.LessonCatalog.ALL_LESSONS.first().id}")
+        rule.onNodeWithTag(LearnTab.DEBRIEF.tag).performClick()
+        assertTarget48("debrief_scan")
     }
 }

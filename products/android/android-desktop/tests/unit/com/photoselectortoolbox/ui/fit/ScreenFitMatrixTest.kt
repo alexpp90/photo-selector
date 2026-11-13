@@ -25,6 +25,16 @@ import com.photoselectortoolbox.domain.usecase.FindDuplicatesUseCase
 import com.photoselectortoolbox.ui.duplicates.DuplicatesScreen
 import com.photoselectortoolbox.ui.inspect.InspectScreenContent
 import com.photoselectortoolbox.ui.inspect.LearnTab
+import com.photoselectortoolbox.data.cache.TechniqueFactEntity
+import com.photoselectortoolbox.data.model.ScanResult
+import com.photoselectortoolbox.domain.learn.CameraClass
+import com.photoselectortoolbox.domain.learn.DebriefBuilder
+import com.photoselectortoolbox.domain.learn.LearnState
+import com.photoselectortoolbox.domain.learn.ScanFacts
+import com.photoselectortoolbox.domain.learn.TechniqueFactDetector
+import androidx.compose.ui.test.onAllNodesWithTag
+import androidx.compose.ui.test.onFirst
+import androidx.compose.ui.test.performScrollTo
 import com.photoselectortoolbox.ui.selector.SelectorScreen
 import com.photoselectortoolbox.ui.settings.SettingsScreen
 import com.photoselectortoolbox.ui.statistics.StatisticsScreen
@@ -175,6 +185,47 @@ class ScreenFitMatrixTest {
             )
         }
         check("inspect", v)
+    }
+
+    /** Three camera classes (one card open, two heading rows) and a worked pair (SD-4, SD-5). */
+    @Test
+    fun `the Debrief tab with three cards and its worked pair fit every window and font scale`() {
+        val names = mapOf(CameraClass.PHONE to "Pixel 8", CameraClass.INTERCHANGEABLE to "ILCE-6700", CameraClass.DRONE to "FC3582")
+        val photos = mutableListOf<com.photoselectortoolbox.data.model.ImageItem>()
+        val facts = mutableMapOf<String, List<TechniqueFactEntity>>()
+        var n = 0
+        for ((c, count) in listOf(CameraClass.PHONE to 24, CameraClass.INTERCHANGEABLE to 22, CameraClass.DRONE to 3)) repeat(count) { i ->
+            val p = fitPhoto("a.jpg".replace("a", "p${n++}"), n * 1_000L).copy(exifData = fitExif, scanResult = ScanResult("x", sharpnessScore = if (i % 2 == 0) 120.0 else 30.0))
+            photos += p
+            fun f(k: String, v: String) = TechniqueFactEntity(p.uri, k, v, 0.9, null, 1L, 1L, TechniqueFactDetector.DETECTOR_VERSION)
+            facts[p.uri] = listOf(
+                f(ScanFacts.MARKER, "1"), f(ScanFacts.CAMERA_CLASS, c.key), f(ScanFacts.CAMERA_MAKE, "Make"), f(ScanFacts.CAMERA_MODEL, names.getValue(c)),
+                f("composition.horizon", if (i < 14) "level" else "tilted"), f("exposure.clipping", "well_exposed"),
+            )
+        }
+        val learn = LearnState(folderUri = "content://test/folder", factsByUri = facts, debrief = DebriefBuilder.build(photos, facts, emptyMap(), emptyList(), partial = true))
+        val v = rule.fitMatrix(
+            "inspect/debrief",
+            variants = SCROLL_VARIANTS + "pair",
+            policy = policy.copy(dataStrings = policy.dataStrings + names.values),
+            prepare = { _, variant ->
+                onNodeWithTag(LearnTab.DEBRIEF.tag).performClick()
+                waitForIdle()
+                if (variant == "pair") {
+                    onAllNodesWithTag("debrief_open_pair").onFirst().performScrollTo().performClick()
+                    waitForIdle()
+                }
+                scrollVariant(variant)
+            },
+        ) { cell ->
+            InspectScreenContent(
+                currentImage = photos.first(), images = photos, currentIndex = 0,
+                windowSizeClass = cell.windowSizeClass,
+                onNavigateToSelector = {}, onSelectImage = {}, onPrevious = {}, onNext = {},
+                onSetRating = { _, _ -> }, learn = learn,
+            )
+        }
+        check("inspect/debrief", v)
     }
 
     // ── Settings ───────────────────────────────────────────────────────────

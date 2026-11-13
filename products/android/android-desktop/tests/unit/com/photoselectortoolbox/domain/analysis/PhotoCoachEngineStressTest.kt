@@ -187,7 +187,7 @@ class PhotoCoachEngineStressTest {
 
     @Test
     fun aperture_diffraction_f32_and_f64() {
-        val exifF32 = ExifData(aperture = 32.0)
+        val exifF32 = ExifData(make = "SONY", model = "ILCE-7M4", focalLength = 50.0, focalLength35mm = 50.0, aperture = 32.0)
         val reportF32 = engine.evaluate(exifF32, null)
         val tip = reportF32.tips.find { it.category == "Optics" && it.title.contains("Diffraction") }
         assertNotNull(tip)

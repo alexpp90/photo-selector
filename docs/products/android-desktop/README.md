@@ -13,11 +13,15 @@ parity on large screens.
   button at the end of the action row keeps Open folder, Scan, Sort, Go to photo and Undo.
 - **Stats** — EXIF charts of the open folder.
 - **Tools** — one sidebar entry beside the cull that opens **Learn** and **Dupes**:
-  - **Learn** (*Beta*, until its progress is stored) — technique
-    and composition of your own photos, from the scan's facts, with the leading lines and visual
-    weight of the photo shown; **Compare** shows two frames of one scene side by side, the one
-    a measurement rates better first, and says what differs; star ratings, a reject flag and a star filter that limits Learn
-    only (Cull always shows every photo). `L` opens it from the cull.
+  - **Learn** — a **Debrief** of the folder you scanned: one card per kind of camera (phone,
+    compact, interchangeable lens, drone, action cam), up to three counts such as "104 of 132 not
+    clearly soft" beside the previous shoot of that camera, one "Next time" line that names only a
+    control your camera has, and a **worked pair** — two frames of one scene from your shoot: guess
+    which is sharper (`A` / `B`), then see what was measured. **Photo** shows the technique and
+    composition of the photo on screen, with its leading lines and visual weight; **Lessons**
+    teach one technique each. Star ratings, a reject flag and a star filter that limits Learn
+    only (Cull always shows every photo). Completed lessons and the practice goal are kept until
+    **Reset Learn** in Setup. `L` opens it from the cull.
   - **Dupes** — a finder for byte-identical copies (it never lets you delete the last copy of a
     photo). A delete there is held like one in Cull: UNDO brings the copies back until you leave
     Dupes.

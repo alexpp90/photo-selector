@@ -43,7 +43,7 @@ sealed interface NavEntry {
         override val label: String = "Tools"
         override val icon: ImageVector = Icons.Filled.Handyman
         override val testTag: String = "nav_tools"
-        override val meaning: String = "Learn (beta) and Dupes."
+        override val meaning: String = "Learn and Dupes."
 
         override fun isSelected(route: String?): Boolean = screens.any { it.route == route }
 
@@ -62,12 +62,4 @@ sealed interface NavEntry {
             Destination(Screen.Settings),
         )
     }
-}
-
-/** The word "Beta" on Learn's chip, and the spoken name of a beta screen. */
-object BetaLabel {
-    /** `chip_` budget: one word. */
-    const val CHIP = "Beta"
-
-    fun spoken(screen: Screen): String = if (screen.beta) "${screen.label}, beta" else screen.label
 }

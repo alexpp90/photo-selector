@@ -553,7 +553,8 @@ fun SelectorScreen(
             }
 
             Column(modifier = Modifier.weight(1f).fillMaxSize()) {
-                if (uiState.folderUri == null || uiState.images.isEmpty()) {
+                // Done also when the photos left are all copied: a copied photo is decided (#29).
+                if (uiState.folderUri == null || uiState.images.isEmpty() || uiState.everyPhotoDecided) {
                     EmptySelectorState(
                         kind = selectorEmptyKind(
                             folderUri = uiState.folderUri,

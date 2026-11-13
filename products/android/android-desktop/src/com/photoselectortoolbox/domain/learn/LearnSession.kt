@@ -22,6 +22,8 @@ data class LearnState(
     val factsByUri: Map<String, List<TechniqueFactEntity>> = emptyMap(),
     val completedLessons: Map<String, LessonProgressEntity> = emptyMap(),
     val activeGoal: PracticeGoalEntity? = null,
+    /** The folder's shoot debrief (SD-4), built with the facts. */
+    val debrief: Debrief = Debrief(),
 )
 
 /**
@@ -68,6 +70,29 @@ class LearnSession(
         }
     }
 
+    /** Bumped by every change the user makes, so a read that ran across one does not undo it. */
+    private var progressEdits = 0
+
+    /**
+     * Progress and the goal read again and shown as stored: *Reset Learn* in Setup empties the
+     * store while this session, kept with Learn's saved back-stack entry, still holds the old
+     * values. A change the user made while the read ran is kept.
+     */
+    fun refreshProgress() {
+        val editsBefore = progressEdits
+        scope.launch {
+            try {
+                val lessons = repository.lessonProgress()
+                val goal = repository.practiceGoal()
+                _state.update { if (progressEdits != editsBefore) it else it.copy(completedLessons = lessons, activeGoal = goal) }
+            } catch (e: CancellationException) {
+                throw e
+            } catch (e: Exception) {
+                Log.w(TAG, "Could not read Learn progress", e)
+            }
+        }
+    }
+
     /**
      * Learn shows [folderUri] with [photos]. [listingSettled]: the folder listing has delivered
      * its last batch. [lastCompletedScan]: the cull screen's last scan that ran to its end, of
@@ -82,14 +107,14 @@ class LearnSession(
         if (folderUri == null) {
             factsLoad?.cancel()
             factsKey = null
-            _state.update { it.copy(folderUri = null, factsByUri = emptyMap()) }
+            _state.update { it.copy(folderUri = null, factsByUri = emptyMap(), debrief = Debrief()) }
             return
         }
         if (_state.value.folderUri != folderUri) {
             // Another folder: nothing of the last one stays on screen while this one loads.
             factsLoad?.cancel()
             factsKey = null
-            _state.update { it.copy(folderUri = folderUri, factsByUri = emptyMap()) }
+            _state.update { it.copy(folderUri = folderUri, factsByUri = emptyMap(), debrief = Debrief()) }
         }
         if (!listingSettled) return
         val scanOfThisFolder = lastCompletedScan?.takeIf { it.folderUri == folderUri }?.finishedAtEpochMs
@@ -98,34 +123,68 @@ class LearnSession(
         factsKey = key
         factsLoad?.cancel()
         val snapshot = photos.toList()
+        val partial = lastCompletedScan?.takeIf { it.folderUri == folderUri }?.partial ?: false
         factsLoad = scope.launch {
-            val facts = try {
-                repository.factsFor(snapshot)
+            val loaded = try {
+                val facts = repository.factsFor(snapshot)
+                facts to DebriefBuilder.build(snapshot, facts, repository.cameraOverrides(), repository.shootOf(folderUri), partial)
             } catch (e: CancellationException) {
                 throw e
             } catch (e: Exception) {
                 Log.w(TAG, "Could not read the stored facts", e)
                 return@launch
             }
+            if (_state.value.folderUri == folderUri && factsKey == key) debriefInput = DebriefInput(folderUri, snapshot, loaded.first, partial)
             _state.update { current ->
-                if (current.folderUri != folderUri || factsKey != key) current else current.copy(factsByUri = facts)
+                if (current.folderUri != folderUri || factsKey != key) current else current.copy(factsByUri = loaded.first, debrief = loaded.second)
+            }
+        }
+    }
+
+    /** What the shown debrief was built from, so a camera's new class rebuilds it without a read. */
+    private class DebriefInput(val folderUri: String, val photos: List<ImageItem>, val facts: Map<String, List<TechniqueFactEntity>>, val partial: Boolean)
+
+    private var debriefInput: DebriefInput? = null
+
+    /**
+     * The camera chip: [cameras] are of [cameraClass] (stored as the user's override), the debrief
+     * is rebuilt and the folder's shoot summaries are stored again under the new classes, so the
+     * next shoot's "Before" reads them.
+     */
+    fun setCameraClass(cameras: List<CameraId>, cameraClass: CameraClass, nowEpochMs: Long = System.currentTimeMillis()) {
+        val input = debriefInput ?: return
+        scope.launch {
+            try {
+                cameras.forEach { repository.setCameraOverride(it, cameraClass) }
+                val overrides = repository.cameraOverrides()
+                val groups = ShootDebriefEngine.groups(input.photos, input.facts, CameraClassifier.withOverrides(overrides))
+                repository.saveShoot(input.folderUri, groups, input.partial, nowEpochMs)
+                val debrief = DebriefBuilder.build(input.photos, input.facts, overrides, repository.shootOf(input.folderUri), input.partial)
+                _state.update { if (it.folderUri == input.folderUri) it.copy(debrief = debrief) else it }
+            } catch (e: CancellationException) {
+                throw e
+            } catch (e: Exception) {
+                Log.w(TAG, "Could not keep the camera's class", e)
             }
         }
     }
 
     /** The user finished [progress]'s lesson: shown at once, and kept. */
     fun completeLesson(progress: LessonProgressEntity) {
+        progressEdits++
         _state.update { it.copy(completedLessons = it.completedLessons + (progress.lessonId to progress)) }
         persist("lesson progress") { repository.saveLessonProgress(progress) }
     }
 
     /** [goal] becomes the one practice goal: shown at once, and kept. */
     fun setGoal(goal: PracticeGoalEntity) {
+        progressEdits++
         _state.update { it.copy(activeGoal = goal) }
         persist("the practice goal") { repository.setPracticeGoal(goal) }
     }
 
     fun clearGoal() {
+        progressEdits++
         _state.update { it.copy(activeGoal = null) }
         persist("the cleared practice goal") { repository.clearPracticeGoal() }
     }
