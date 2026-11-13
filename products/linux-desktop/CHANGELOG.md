@@ -6,8 +6,10 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ## [Unreleased]
 
+## [0.3.0] - 2026-11-13
+
 ### Added
-- The info card shows an existing star rating (from the sidecar's `xmp:Rating`, the file's XMP or its EXIF rating) as five small stars under the file name; a rejected photo shows an unavailable glyph. Blitzlens only reads it and writes nothing. [USER 2026-11-12] decision #32.
+- The info card shows an existing star rating (from the sidecar's `xmp:Rating`, the file's XMP or its EXIF rating) as five small stars under the file name; a rejected photo shows an unavailable glyph. Blitzlens only reads it and writes nothing.
 - **Shift+Arrows** pan the 1:1 view by a fifth of the viewport, and the panes of 2-Up and 3-Up move together; the view opens on the sharpest area (or the centre) and keeps its place from photo to photo. Click a neighbour to make it the active photo.
 - A 3 × 3 sharpness grid: the info card names the sharpest area ("Sharpest area: lower left"), an outline marks it on the photo, and in 2-Up and 3-Up the frame with the sharpest area carries a "Sharpest" pill. The headline score and its thresholds are unchanged.
 - A burst cue on the info card: "3 of 10" when neighbours are less than a second apart. Display only.
@@ -24,22 +26,22 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 - **Go to photo** (`G`): type a photo's position ("Photo N of M") or part of its file name; the dialog names the target as you type, Enter goes, Escape cancels.
 - **Stop at sharpness** (0 = off) is in the order button's panel next to the four orders (it left Preferences > Scoring; the stored value is kept): with lowest sharpness first, the sweep stops at the first photo at or above that score. A spinner turns on the order button while the sweep scores photos.
 - A folder dragged over the window outlines the canvas. The first Move or Copy of a folder adds " · on card" when the Selection is on the card you are culling.
-- Escape and Ctrl+W close Library Statistics, Duplicates, Keyboard Shortcuts and Preferences, and the focus returns to the main window. Their scroll areas show a scrollbar, and they are never taller than 90 % of the main window.
+- Escape and Ctrl+W close Statistics, Keyboard Shortcuts and Preferences, and the focus returns to the main window. Their scroll areas show a scrollbar, and they are never taller than 90 % of the main window.
 - GNOME Software and other software centres show a screenshot of Blitzlens (the README capture).
 - A screen reader announces queued, undone and finished operations and finished folder loads, and the Undo button's spoken name says which action it would undo and how many are available.
 
 ### Removed
-- The Duplicate Finder (`Ctrl+D`, "Find Duplicates" in the menu) and the unused local decision log: neither is part of a cull. Library Statistics stays. [USER 2026-11-12] decision #28.
+- The Duplicate Finder (`Ctrl+D`, "Find Duplicates" in the menu) and the unused local decision log: neither is part of a cull. Library Statistics stays.
 
 ### Changed
-- 3-Up: the layout solver sets the split from the window and the photo's shape, and a missing first or last photo draws nothing (no placeholder card). A lone neighbour keeps the usual frame size, centred. [USER 2026-11-12] decision #30.
-- Move, Copy and Trash confirmations name the companions and the destination: "Moved IMG_0001 +2 · Selection" (a screen reader says "Moved IMG_0001.CR3 and 2 companion files to Selection"). [USER 2026-11-12] decision #33.
-- Statistics has a button in the header bar (left of the main menu). The PREVIOUS and NEXT tiles of 2-Up and 3-Up show arrows instead of words. The lowest-sharpness sweep ends with "Scored N more" in the action bar. [USER 2026-11-12] decision #33.
-- A copied photo is decided: it is marked with a copy glyph, counted once under Selected, no longer under Remaining, and Move or Copy on it says "Already copied" instead of filing a second `-2` file. The counters have tooltips. [USER 2026-11-12] decision #29.
-- The Keep button is now **Move to Selection**, with an icon (icon only in the narrowest windows); the shortcut sheet and the key hints say the same. [USER 2026-11-12] decision #27.
+- 3-Up: the layout solver sets the split from the window and the photo's shape, and a missing first or last photo draws nothing (no placeholder card). A lone neighbour keeps the usual frame size, centred.
+- Move, Copy and Trash confirmations name the companions and the destination: "Moved IMG_0001 +2 · Selection" (a screen reader says "Moved IMG_0001.CR3 and 2 companion files to Selection").
+- Statistics has a button in the header bar (left of the main menu). The PREVIOUS and NEXT tiles of 2-Up and 3-Up show arrows instead of words. The lowest-sharpness sweep ends with "Scored N more" in the action bar.
+- A copied photo is decided: it is marked with a copy glyph, counted once under Selected, no longer under Remaining, and Move or Copy on it says "Already copied" instead of filing a second `-2` file. The counters have tooltips.
+- The Keep button is now **Move to Selection**, with an icon (icon only in the narrowest windows); the shortcut sheet and the key hints say the same.
 - The info card says what the score is: the chip reads "Sharpness: 40.0" (its colour still carries the band) and its tooltip, like the bar's, says "Sharpness of the centre of the frame. Compare frames of one burst, not different scenes." The lowest-sharpness sweep starts with "Scoring N photos, centre of frame…".
-- One vocabulary on screen: folder, photo, **Sharpness** (was "Focus" on the info card and in Preferences), **Selection**, **Find Duplicates** and **Statistics** (were "Duplicate Finder", "Cryptographic Duplicate Finder (SHA-256)" and "Library Statistics"). 2-Up and 3-Up name their slots ACTIVE, PREVIOUS and NEXT (2-Up no longer says CHAMPION and CHALLENGER).
-- The main menu no longer types its own shortcut hints ("(Ctrl+D)", "(B)"); GTK draws the accelerators. It gains **Info** and **Go to Photo…** rows.
+- One vocabulary on screen: folder, photo, **Sharpness** (was "Focus" on the info card and in Preferences), **Selection** and **Statistics** (was "Library Statistics"). 2-Up and 3-Up name their slots ACTIVE, PREVIOUS and NEXT (2-Up no longer says CHAMPION and CHALLENGER).
+- The main menu no longer types its own shortcut hints ("(B)"); GTK draws the accelerators. It gains **Info** and **Go to Photo…** rows.
 - A refused Trash reads "Can't use Trash here. Nothing moved." once, in the action bar, with the technical reason in the log only; a failure is no longer repeated as a toast over the photo.
 - The second "N queued" pill in the header, the "ACTIVE" pill in 1-Up and the caption's file name and score while the info card (`I`) is on are gone: each fact is shown once.
 - The README, the AppStream description and the desktop entry no longer promise "SD-card ingestion" or "two or three side by side", and say what the score measures (the centre of the frame, for comparing frames of one burst).
@@ -47,7 +49,6 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 - Keys follow the shared desk-app map (`docs/shared/KEYBOARD.md`): `F` and `F11` toggle full screen (`Escape` leaves zoom first, then full screen), `S` opens the View order menu. `H` and `L` (navigation) and `B` (sharpness sweep) still work for this release and are marked in the `?` sheet as going away; use `K`/`J` and the View order menu.
 - `B` returns from lowest sharpness first to the order the folder opens in (newest first by default), not always to file-name order.
 - The unused filmstrip and sync-lock handlers are gone. `Tab` stays keyboard focus traversal.
-- The Duplicate Finder window is titled "Duplicates".
 - Settings written by a newer version keep their extra keys when this version saves.
 - Move and Copy no longer recreate a custom destination folder that has disappeared (for example an unplugged drive); they report the problem and leave the photo where it is. An existing custom destination is read as the Custom folder choice.
 - The empty start screen lost its tagline, and its key hints are generated from the same key table the app uses.
@@ -56,11 +57,10 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 - Counters, badges, captions and the info card follow the system text size; before, they stayed the same size at 150 % text.
 
 ### Fixed
-- The `.deb` builder no longer fails for a packager whose umask is 077 (the control directory is pinned to 0755). [USER 2026-11-12] decision #35.
+- The `.deb` builder no longer fails for a packager whose umask is 077 (the control directory is pinned to 0755).
 - Holding `M`, `C`, `Delete` or `Backspace` acts once; before, each auto-repeat moved, copied or trashed the next photo too.
 - Preferences titles that contain `<` or `&` ("Blurry Threshold (< 35.0)", "Memory & Prefetch") are shown as written; before, GTK parsed them as markup and could show them empty.
 - A custom `XDG_DATA_HOME` (Nix, containers) no longer switches Trash from the desktop's Trash (GIO) to the app's own implementation.
-- The lab's artifact folder in `/tmp` is refused when it is a symlink or belongs to another user.
 - Errors in observers and callbacks that were silently dropped are logged.
 - After a Move, Copy or Trash the action bar says what happened: the photo's name (shortened in the middle when long), where it went (Selection or Trash) and how many companion files went along, for example `Moved IMG_…_064000 + 2 to Selection/`. The line no longer shifts the centred buttons.
 - The action bar follows the window width without a permanent frame callback, so an idle window no longer redraws every frame.
@@ -68,7 +68,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 - Opening another folder cancels the photos still queued for decoding in the folder you left, and a photo that was already decoding no longer fills the new folder's cache.
 - When a Move, Copy or Trash leaves files in an unexpected place ("Move interrupted — … stayed in Selection/", "original could not be removed"), the message stays on screen until the next file operation. Before, it was a 3-second toast and a 4-second line in the action bar.
 - Tab moves the keyboard focus through the header and the action bar again, and Space presses a focused button, instead of both being swallowed by the photo view.
-- Duplicate Finder, Library Statistics and the shortcut list have a header bar with a close button and close with Escape.
+- Statistics and the shortcut list have a header bar with a close button and close with Escape.
 - Closing the folder picker without choosing no longer shows "Open folder cancelled: Dismissed by user". A folder that cannot be opened says "Could not open <folder>" and why.
 - A Google Drive (or other cloud mount) connected while Blitzlens is already running now shows real file names; before, its files stayed unreadable until the app was restarted.
 - Settings are saved atomically, so a crash while saving can no longer reset them to the defaults. A settings file that cannot be read is logged and a copy is kept as `settings.json.corrupt`.
@@ -76,7 +76,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 - "Open with Blitzlens" on a photo (or several) opens the photo's folder with that photo selected. Before, one photo showed an empty "Loaded 0 photographs" and several photos failed with a usage error.
 - A start-up error is no longer reported as "Core Engine Ready" with exit status 0. It stops with the error and a non-zero status.
 - **Lowest sharpness first** now orders the whole folder. Before, only the few photos you had already looked at were sorted and the rest stayed in file order behind them. Choosing the order scores every photo in the background (on a cloud folder: choose it a second time to confirm), keeps the photo on screen where it is while the order settles, and starts at the lowest-scored photo if you have not moved on.
-- Duplicate Finder and Library Statistics work on a cloud or remote folder. The first click now offers **Scan anyway**; before, the confirmation was asked for but nothing could give it (Statistics even opened as an empty window). Hashing for duplicates no longer freezes the window.
+- Statistics works on a cloud or remote folder: the first click offers **Scan anyway**. Before, the confirmation was asked for but nothing could give it, and Statistics opened as an empty window.
 - Moving a symlinked photo to the Trash trashes the link, not the file it points at; Undo puts the link back. Before, the original in the other folder was trashed and a dangling link stayed.
 - Closing the window while file operations are queued no longer drops them. Press M four times and quit, and all four photos are moved first; the window says "Finishing N file operations…" and closes when the last one is done. Closing a second time quits at once.
 - A darktable-style sidecar (`DSC_0001.NEF.xmp`, `IMG_1.JPG.xmp`) now travels with its shot on Move, Copy and Trash whichever file of the shot it belongs to. Before, it stayed behind when a JPG sorted before the RAW (NEF, RAF, RW2, ORF, PEF and others).
