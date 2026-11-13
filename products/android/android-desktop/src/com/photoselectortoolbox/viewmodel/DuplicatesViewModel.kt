@@ -43,6 +43,8 @@ data class DuplicatesUiState(
     val duplicateGroups: List<DuplicateGroup> = emptyList(),
     val selectedForDeletion: Set<String> = emptySet(),
     val error: String? = null,
+    /** Bumped with every [error] set, so the snackbar shows a second identical message anew. */
+    val errorSequence: Long = 0L,
     val missingGrantPrompt: Boolean = false,
     /**
      * Copies deleted by the latest delete still held back, or 0 when nothing can be undone. A Dupes
@@ -99,6 +101,7 @@ class DuplicatesViewModel @Inject constructor(
                         selectedForDeletion = emptySet(),
                         missingGrantPrompt = true,
                         error = "Failed to load folder: permission revoked or directory deleted.",
+                        errorSequence = it.errorSequence + 1,
                     )
                 }
                 return@launch
@@ -206,7 +209,8 @@ class DuplicatesViewModel @Inject constructor(
                     it.copy(
                         isScanning = false,
                         statusText = "",
-                        error = "Scan failed"
+                        error = "Scan failed",
+                        errorSequence = it.errorSequence + 1,
                     )
                 }
             }
@@ -222,7 +226,7 @@ class DuplicatesViewModel @Inject constructor(
                 // Never every copy of a photograph: the last one left unticked stays unticked.
                 val group = state.duplicateGroups.firstOrNull { uri in it.files }
                 if (group != null && group.files.all { it == uri || it in updated }) {
-                    return@update state.copy(error = KEEP_ONE_COPY)
+                    return@update state.copy(error = KEEP_ONE_COPY, errorSequence = state.errorSequence + 1)
                 }
                 updated.add(uri)
             }
@@ -343,7 +347,10 @@ class DuplicatesViewModel @Inject constructor(
             val names = notDeleted.joinToString { Uri.parse(it).lastPathSegment?.substringAfterLast('/') ?: it }
             Log.w("DuplicatesViewModel", "Held delete left ${notDeleted.size} files: $names")
             _uiState.update {
-                it.copy(error = DuplicateLabels.notDeletedMessage(notDeleted.size, h.delete.files.size, names))
+                it.copy(
+                    error = DuplicateLabels.notDeletedMessage(notDeleted.size, h.delete.files.size, names),
+                    errorSequence = it.errorSequence + 1,
+                )
             }
         }
         commits.removeAll { it.isCompleted }

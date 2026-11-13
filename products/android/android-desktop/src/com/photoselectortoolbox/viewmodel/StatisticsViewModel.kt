@@ -56,6 +56,8 @@ data class StatisticsUiState(
     val apertureSharpness: Map<String, ExifSharpnessStats> = emptyMap(),
     val focalLengthSharpness: Map<String, ExifSharpnessStats> = emptyMap(),
     val error: String? = null,
+    /** Bumped with every [error] set, so the snackbar shows a second identical message anew. */
+    val errorSequence: Long = 0L,
     val scanProgress: Float = 0f,
     val progressText: String = "",
     val missingGrantPrompt: Boolean = false,
@@ -100,6 +102,7 @@ class StatisticsViewModel @Inject constructor(
                         folderName = "",
                         missingGrantPrompt = true,
                         error = "Failed to load folder: permission revoked or directory deleted.",
+                        errorSequence = it.errorSequence + 1,
                     )
                 }
                 return@launch
@@ -250,7 +253,8 @@ class StatisticsViewModel @Inject constructor(
                 _uiState.update {
                     it.copy(
                         isLoading = false,
-                        error = "Analysis failed"
+                        error = "Analysis failed",
+                        errorSequence = it.errorSequence + 1,
                     )
                 }
             }

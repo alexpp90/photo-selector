@@ -26,7 +26,7 @@ enum class TourRegion(
     /** Upper half of the 88 dp sidebar: Folder, Drive, Scan, Bursts, Legend. */
     SIDEBAR_SESSION("Left sidebar, top"),
 
-    /** Lower half of the sidebar, under the rule: Cull, Stats, Dupes, Setup. */
+    /** Lower half of the sidebar, under the rule: Cull, Stats, Tools (Learn, Dupes), Setup. */
     SIDEBAR_SCREENS("Left sidebar, bottom"),
 
     /** The readout block, left of the current frame. */
@@ -222,7 +222,7 @@ object SelectorTour {
                     region = TourRegion.FILMSTRIP,
                     title = "The whole folder",
                     body = "Every frame in order, top to bottom. The dot is its " +
-                        "sharpness; bursts are marked when Bursts is on.",
+                        "centre sharpness; bursts are marked when Bursts is on.",
                 )
             )
         }

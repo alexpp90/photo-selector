@@ -460,9 +460,7 @@ class SelectorViewModel @Inject constructor(
                 sourceKind = SourceKind.PHONE_LIBRARY,
                 showCloudScanConfirmation = false,
                 sortWorstFirst = false,
-                sessionMovedCount = 0,
-                sessionCopiedCount = 0,
-                sessionDeletedCount = 0,
+                tally = SessionTally(),
                 sessionKeptFileNames = emptySet(),
                 sessionCopiedUris = emptySet(),
                 sessionKeptFiles = emptyMap(),
@@ -1217,7 +1215,7 @@ class SelectorViewModel @Inject constructor(
             current.withList(listState).copy(
                 showDeleteConfirmation = false,
                 undoHistory = pushResult.history,
-                sessionDeletedCount = current.sessionDeletedCount + pending.slots.size,
+                tally = current.tally.record(pending.slots.map { it.uri }, FilingDecision.DELETED),
             ).withSnackbar(
                 SelectorLabels.deletedMessage(pending.uris.size),
                 SnackbarLifetime.DELETE,
@@ -1320,7 +1318,7 @@ class SelectorViewModel @Inject constructor(
             fun putBack(back: PendingDeletion) = _uiState.update { state ->
                 if (state.folderUri != originFolderUri) state
                 else state.withRestored(DeferredDeletion.revert(state.listState, back))
-                    .copy(sessionDeletedCount = (state.sessionDeletedCount - back.slots.size).coerceAtLeast(0))
+                    .copy(tally = state.tally.undo(back.slots.map { it.uri }, FilingDecision.DELETED))
             }
             if (kept.size == failed.size) return@launch report(null)
             val firstName = pending.slots.firstOrNull()?.image?.fileName ?: "image"
@@ -1496,16 +1494,10 @@ class SelectorViewModel @Inject constructor(
                 _uiState.update { current ->
                     if (current.folderUri != folderUri) return@update current
                     current.copy(
-                        sessionMovedCount = if (action == CurationAction.MOVE) {
-                            current.sessionMovedCount + 1
-                        } else {
-                            current.sessionMovedCount
-                        },
-                        sessionCopiedCount = if (action == CurationAction.COPY) {
-                            current.sessionCopiedCount + 1
-                        } else {
-                            current.sessionCopiedCount
-                        },
+                        tally = current.tally.record(
+                            listOf(sourceUri),
+                            if (action == CurationAction.MOVE) FilingDecision.MOVED else FilingDecision.COPIED,
+                        ),
                         sessionKeptFileNames = current.sessionKeptFileNames + currentItem.fileName,
                         sessionCopiedUris = current.sessionCopiedUris + listOfNotNull(sourceUri.takeIf { action == CurationAction.COPY }),
                         sessionKeptFiles = current.sessionKeptFiles + KeptFiles.of(currentItem.allFiles, result.destinationUris),
@@ -1653,7 +1645,7 @@ class SelectorViewModel @Inject constructor(
                 _uiState.update {
                     it.withRestored(DeferredDeletion.revert(it.listState, operation.pending)).copy(
                         undoHistory = remainingHistory,
-                        sessionDeletedCount = (it.sessionDeletedCount - operation.pending.slots.size).coerceAtLeast(0),
+                        tally = it.tally.undo(operation.pending.slots.map { s -> s.uri }, FilingDecision.DELETED),
                         snackbarUndoAvailable = false,
                         snackbarMessage = null,
                     )
@@ -1669,7 +1661,7 @@ class SelectorViewModel @Inject constructor(
                 _uiState.update {
                     it.withRestored(OptimisticEdits.restore(it.listState, operation.slots)).copy(
                         undoHistory = remainingHistory,
-                        sessionDeletedCount = (it.sessionDeletedCount - operation.slots.size).coerceAtLeast(0),
+                        tally = it.tally.undo(operation.slots.map { s -> s.uri }, FilingDecision.DELETED),
                         snackbarUndoAvailable = false,
                         snackbarMessage = null,
                     )
@@ -1716,7 +1708,7 @@ class SelectorViewModel @Inject constructor(
                 _uiState.update {
                     it.withRestored(OptimisticEdits.restore(it.listState, operation.slots)).copy(
                         undoHistory = remainingHistory,
-                        sessionMovedCount = (it.sessionMovedCount - 1).coerceAtLeast(0),
+                        tally = it.tally.undo(operation.slots.map { s -> s.uri }, FilingDecision.MOVED),
                         sessionKeptFiles = it.sessionKeptFiles - KeptFiles.keysOf(operation.slots.flatMap { s -> s.image.allFiles }, operation.destinationUris),
                         snackbarUndoAvailable = false,
                         snackbarMessage = null,
@@ -1846,7 +1838,7 @@ class SelectorViewModel @Inject constructor(
                     // photo is still moved, so the Done card counts it again (backlog 2026-11-12).
                     current.withList(reapplied.state).copy(
                         undoHistory = UndoPolicy.push(current.undoHistory, operation).history,
-                        sessionMovedCount = current.sessionMovedCount + 1,
+                        tally = current.tally.record(operation.slots.map { it.uri }, FilingDecision.MOVED),
                         // Keyed as the transfer recorded them (KeptFiles), so the retry forgets them again.
                         sessionKeptFiles = current.sessionKeptFiles + KeptFiles.of(operation.slots.flatMap { it.image.allFiles }, operation.destinationUris),
                     )

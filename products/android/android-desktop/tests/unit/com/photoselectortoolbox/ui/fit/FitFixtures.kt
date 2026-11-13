@@ -124,6 +124,8 @@ class FitSelectorSettings(
     filingAction: FilingAction = FilingAction.COPY,
     filmstrip: Boolean = false,
     details: Boolean = true,
+    /** Bursts on (Setup); the real grouper groups the photos. */
+    grouping: Boolean = false,
 ) {
     val seenHints = MutableStateFlow(seen)
     val navHintSeenFlow = MutableStateFlow(navHintSeen)
@@ -132,7 +134,7 @@ class FitSelectorSettings(
 
     val repository: SettingsRepository = mockk(relaxed = true) {
         every { selectorSortOrder } returns MutableStateFlow(SettingsRepository.DEFAULT_SELECTOR_SORT_ORDER)
-        every { groupingEnabled } returns MutableStateFlow(false)
+        every { groupingEnabled } returns MutableStateFlow(grouping)
         every { groupingLevel } returns MutableStateFlow(GroupingLevel.TIME_FILENAME)
         every { sortingEnabled } returns MutableStateFlow(true)
         every { lastFolderUri } returns MutableStateFlow<String?>(null)

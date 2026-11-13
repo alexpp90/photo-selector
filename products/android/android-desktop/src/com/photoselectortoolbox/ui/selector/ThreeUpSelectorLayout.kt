@@ -42,6 +42,7 @@ import com.photoselectortoolbox.data.model.ImageItem
 import com.photoselectortoolbox.domain.guidance.HintSlot
 import com.photoselectortoolbox.domain.guidance.SelectorGuidance
 import com.photoselectortoolbox.domain.interaction.FilingAction
+import com.photoselectortoolbox.domain.scoring.BurstRank
 import com.photoselectortoolbox.domain.scoring.ScoreMetric
 import androidx.compose.foundation.background
 import androidx.compose.foundation.gestures.detectHorizontalDragGestures
@@ -131,6 +132,8 @@ fun ThreeUpSelectorLayout(
     onSetRating: (Int) -> Unit = {},
     /** What the copied mark says for a photo copied in this session; null draws no mark. */
     copiedMark: (ImageItem) -> String? = { null },
+    /** The current frame's sharpness as its place in its burst, for the readout; null keeps the figure. */
+    sharpnessRank: BurstRank? = null,
     /** The Sort chip in the control block's locator row, and its menu. */
     sort: SortControl = SortControl(),
     /**
@@ -254,6 +257,7 @@ fun ThreeUpSelectorLayout(
                                     bestMetrics = bestSets[1],
                                     folderName = folderName,
                                     burstLabel = burstLabel,
+                                    sharpnessRank = sharpnessRank,
                                 )
                             }
                         }

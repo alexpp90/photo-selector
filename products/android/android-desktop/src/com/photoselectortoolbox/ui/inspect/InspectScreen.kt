@@ -296,6 +296,7 @@ internal fun InspectScreenContent(
     var selectedCropAspect by remember { mutableStateOf<CropAspectRatio?>(null) }
     var completedLessons by remember { mutableStateOf<Map<String, LessonProgressEntity>>(emptyMap()) }
     var activePracticeGoal by remember { mutableStateOf<PracticeGoalEntity?>(null) }
+    var selectedSceneId by remember { mutableStateOf<String?>(null) }
 
     val isCompact = windowSizeClass.widthSizeClass == WindowWidthSizeClass.Compact
 
@@ -431,6 +432,10 @@ internal fun InspectScreenContent(
             }
         }
 
+        val comparing = selectedTab == LearnTab.COMPARE
+        val compareScenes = rememberCompareScenes(images, active = comparing)
+        val comparedScene = selectedScene(compareScenes, selectedSceneId)
+
         val sidePanelContent: @Composable () -> Unit = {
             LearnTabSelector(
                 selectedTab = selectedTab,
@@ -496,7 +501,11 @@ internal fun InspectScreenContent(
                 }
 
                 LearnTab.COMPARE -> {
-                    CompareTabContent(images = images)
+                    CompareTabContent(
+                        scenes = compareScenes,
+                        selected = comparedScene,
+                        onSelectScene = { selectedSceneId = it },
+                    )
                 }
 
                 LearnTab.PRACTICE -> {
@@ -532,6 +541,7 @@ internal fun InspectScreenContent(
                     onToggleDiagonals = onToggleGuideDiagonals,
                     onToggleHorizon = onToggleGuideHorizon,
                     onNavigateToSelector = onNavigateToSelector,
+                    showGuides = !comparing,
                 )
 
                 Box(
@@ -541,26 +551,30 @@ internal fun InspectScreenContent(
                         .background(Color.Black),
                     contentAlignment = Alignment.Center,
                 ) {
-                    AsyncImage(
-                        model = currentImage.uri,
-                        contentDescription = currentImage.fileName,
-                        contentScale = ContentScale.Fit,
-                        modifier = Modifier.fillMaxSize(),
-                    )
-                    CompositionOverlay(
-                        modifier = Modifier.fillMaxSize(),
-                        imageAspectRatio = currentImage.aspectRatio ?: (3f / 2f),
-                        activeGuides = activeGuides,
-                        compositionResult = compositionResult,
-                        showLeadingLines = false,
-                        showMassDistribution = false,
-                    )
-                    if (whatIfCropActive && suggestedCrop != null) {
-                        WhatIfCropOverlay(
+                    if (comparing) {
+                        ComparePairCanvas(scene = comparedScene)
+                    } else {
+                        AsyncImage(
+                            model = currentImage.uri,
+                            contentDescription = currentImage.fileName,
+                            contentScale = ContentScale.Fit,
+                            modifier = Modifier.fillMaxSize(),
+                        )
+                        CompositionOverlay(
                             modifier = Modifier.fillMaxSize(),
                             imageAspectRatio = currentImage.aspectRatio ?: (3f / 2f),
-                            crop = suggestedCrop,
+                            activeGuides = activeGuides,
+                            compositionResult = compositionResult,
+                            showLeadingLines = false,
+                            showMassDistribution = false,
                         )
+                        if (whatIfCropActive && suggestedCrop != null) {
+                            WhatIfCropOverlay(
+                                modifier = Modifier.fillMaxSize(),
+                                imageAspectRatio = currentImage.aspectRatio ?: (3f / 2f),
+                                crop = suggestedCrop,
+                            )
+                        }
                     }
                 }
 
@@ -599,6 +613,7 @@ internal fun InspectScreenContent(
                         onToggleDiagonals = onToggleGuideDiagonals,
                         onToggleHorizon = onToggleGuideHorizon,
                         onNavigateToSelector = onNavigateToSelector,
+                        showGuides = !comparing,
                     )
 
                     Box(
@@ -608,26 +623,30 @@ internal fun InspectScreenContent(
                             .background(Color.Black),
                         contentAlignment = Alignment.Center,
                     ) {
-                        AsyncImage(
-                            model = currentImage.uri,
-                            contentDescription = currentImage.fileName,
-                            contentScale = ContentScale.Fit,
-                            modifier = Modifier.fillMaxSize(),
-                        )
-                        CompositionOverlay(
-                            modifier = Modifier.fillMaxSize(),
-                            imageAspectRatio = currentImage.aspectRatio ?: (3f / 2f),
-                            activeGuides = activeGuides,
-                            compositionResult = compositionResult,
-                            showLeadingLines = false,
-                            showMassDistribution = false,
-                        )
-                        if (whatIfCropActive && suggestedCrop != null) {
-                            WhatIfCropOverlay(
+                        if (comparing) {
+                            ComparePairCanvas(scene = comparedScene)
+                        } else {
+                            AsyncImage(
+                                model = currentImage.uri,
+                                contentDescription = currentImage.fileName,
+                                contentScale = ContentScale.Fit,
+                                modifier = Modifier.fillMaxSize(),
+                            )
+                            CompositionOverlay(
                                 modifier = Modifier.fillMaxSize(),
                                 imageAspectRatio = currentImage.aspectRatio ?: (3f / 2f),
-                                crop = suggestedCrop,
+                                activeGuides = activeGuides,
+                                compositionResult = compositionResult,
+                                showLeadingLines = false,
+                                showMassDistribution = false,
                             )
+                            if (whatIfCropActive && suggestedCrop != null) {
+                                WhatIfCropOverlay(
+                                    modifier = Modifier.fillMaxSize(),
+                                    imageAspectRatio = currentImage.aspectRatio ?: (3f / 2f),
+                                    crop = suggestedCrop,
+                                )
+                            }
                         }
                     }
 
@@ -669,6 +688,7 @@ private fun InspectControlBar(
     onToggleHorizon: () -> Unit,
     onNavigateToSelector: () -> Unit,
     modifier: Modifier = Modifier,
+    showGuides: Boolean = true,
 ) {
     val isThirdsActive = activeGuides.any { it is CompositionGuideType.RuleOfThirds }
     val isGoldenActive = activeGuides.any { it is CompositionGuideType.GoldenRatio }
@@ -696,6 +716,8 @@ private fun InspectControlBar(
             horizontalArrangement = Arrangement.spacedBy(6.dp),
         ) {
             LearnBackAndBeta(onNavigateToSelector = onNavigateToSelector)
+            // Compare shows two frames; a guide drawn over one photo has nothing to say there.
+            if (!showGuides) return@Row
 
             Text(
                 text = "Guides:",
@@ -1314,55 +1336,6 @@ private fun LessonsTabContent(
                             modifier = Modifier.size(18.dp),
                         )
                     }
-                }
-            }
-        }
-    }
-}
-
-// ── Compare Tab (U-27) ────────────────────────────────────────────────────────
-
-@Composable
-private fun CompareTabContent(images: List<ImageItem>) {
-    val scenes = remember(images) { SceneComparator.findComparableScenes(images) }
-    if (scenes.isEmpty()) {
-        Text(
-            text = "Load at least 2 photos in a shoot folder to compare burst/scene pairs.",
-            style = MaterialTheme.typography.bodySmall,
-            color = Zinc400,
-        )
-        return
-    }
-
-    scenes.forEach { scene ->
-        Card(
-            shape = RoundedCornerShape(12.dp),
-            colors = CardDefaults.cardColors(containerColor = Zinc900),
-            border = androidx.compose.foundation.BorderStroke(1.dp, Zinc800),
-            modifier = Modifier.fillMaxWidth().testTag("scene_compare_card"),
-        ) {
-            Column(
-                modifier = Modifier.padding(14.dp),
-                verticalArrangement = Arrangement.spacedBy(8.dp),
-            ) {
-                Text(
-                    text = scene.title,
-                    style = MaterialTheme.typography.titleSmall,
-                    fontWeight = FontWeight.Bold,
-                    color = Color.White,
-                )
-                Text(
-                    text = "Why one worked better:",
-                    style = MaterialTheme.typography.labelSmall,
-                    fontWeight = FontWeight.Bold,
-                    color = BrandAccent,
-                )
-                scene.differenceBullets.forEach { bullet ->
-                    Text(
-                        text = "• $bullet",
-                        style = MaterialTheme.typography.bodySmall,
-                        color = Zinc200,
-                    )
                 }
             }
         }

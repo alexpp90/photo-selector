@@ -10,6 +10,18 @@
       photographer hands over, all analysis is on-device (OpenCV via JNI), and nothing is uploaded anywhere.
     -->
 
+    <!--
+      Large screens only ([USER 2026-11-12] decision #5, REQ-AND-PLATFORM.02): the Play Console has no
+      screen-size rule, so this element is what keeps Frameduel off phones (DeX phones
+      fall out with it). Narrow windows on a tablet, Chromebook or DeX desktop are unaffected: the
+      filter is the device's screen, not the window. ManifestScreenSizeTest reads the merged manifest.
+    -->
+    <supports-screens
+        android:smallScreens="false"
+        android:normalScreens="false"
+        android:largeScreens="true"
+        android:xlargeScreens="true" />
+
     <!-- Touchscreen not required — supports Samsung DeX mouse input -->
     <uses-feature
         android:name="android.hardware.touchscreen"

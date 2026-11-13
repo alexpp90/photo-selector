@@ -124,6 +124,18 @@ class MaximisedZoomTest {
     }
 
     @Test
+    fun `zoomed, Shift+arrow pans stop at the frame's edge (FD-UI-4)`() {
+        press(Key.Two)
+        press(Key.Spacebar)
+        repeat(20) { press(Key.DirectionRight, shift = true) }
+        // The maximised frame is sized to the photo, so the photo's overhang is the frame's.
+        val bound = (zoom.viewport.width * zoom.scale - zoom.viewport.width) / 2f
+        assertTrue("there is something to pan", bound > 0f)
+        assertEquals(-bound, zoom.offset.x, 1f)
+        assertEquals("P1.JPG", current())
+    }
+
+    @Test
     fun `Esc leaves the zoom, then the maximised frame`() {
         press(Key.Two)
         press(Key.Spacebar)

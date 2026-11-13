@@ -226,7 +226,17 @@ keep their per-screen meanings (`1`/`2`/`3` enlarge a frame in Cull, `0`–`5` r
 
 Learn carries the **Beta** chip (tonal `BrandAccentTonal` plate, `BrandAccentText` word) in the
 Tools menu and at the start of its own control bar, beside the way back to Cull. It goes when
-Compare shows both frames and Learn's progress is stored.
+Compare shows both frames and Learn's progress is stored. Compare shows both frames now; the chip
+stays until the progress is stored.
+
+**Learn · Compare** (`[USER 2026-11-12]` decision #17). On the Compare tab the canvas holds the
+pair side by side at equal size, the frame that is better on the deciding measurement first (a
+*Better* chip — a word, never colour alone — and the file name under each, spoken "Better frame,
+«name»" / "Other frame, «name»"). The side panel lists one card per scene (title, "Why one worked
+better:" and the measured differences); a card is a radio row that picks the pair the canvas shows,
+the first scene by default. The composition guides are not offered on Compare — the control bar
+keeps only the way back and the Beta chip. With no pair of one scene that differs measurably, the
+canvas says *No measured difference* and the side panel lists nothing.
 
 Each screen has one name on every surface — the sidebar, the rail, the bottom bar, the Tools
 menu, the guide and spoken text: Cull, Learn, Stats, Dupes, Setup (`Screen.label`). The burst
@@ -302,10 +312,19 @@ Produced by a scan. Any subset may be absent — an image may have no scores at 
 
 | Chip label | Full name | Format | Direction | Description (shown in legend) |
 |---|---|---|---|---|
-| `Sharp` | Sharpness | `%.1f` | higher is better | Edge contrast in the sharpest part of the frame. Low values usually mean motion blur or a missed focus. |
+| `Sharp` | Sharpness | `%.1f` | higher is better | Edge contrast at the crispest spot in the centre of the frame; compare frames of one burst, an off-centre subject is not measured. Low values usually mean motion blur or a missed focus. |
 | `Noise` | Noise | `%.1f` | lower is better | Estimated sensor noise in flat areas of the image. Rises with high ISO. |
 | `Highl` | Highlight clipping | `%.1f%%` | lower is better | Share of pixels blown out to pure white — detail that cannot be recovered. |
 | `Shad` | Shadow clipping | `%.1f%%` | lower is better | Share of pixels crushed to pure black — detail that cannot be recovered. |
+
+**Where it is measured.** The sharpness score is the centre's (the analyser crops the middle half),
+so every text about it says so: the readout row carries the word *centre* beside the name (Zinc-400
+hint text, its own text node), and the spoken name is "Sharpness at the centre of the frame".
+
+**Place in the burst.** With Bursts on, the current frame's readout shows a burst frame's sharpness
+as its place in the burst — `2nd of 3` in the value's slot, the figure kept in the spoken label — and
+the row's bar is that place (full for the sharpest, the floor for the softest), not the absolute
+scale. A frame in no burst keeps the figure. The rank never hides, orders or pre-selects a photo.
 
 **Rendering rule.** A score chip is **icon + short label + value**. The label may be dropped
 only on thumbnail overlays where space genuinely does not exist — and there the accessibility
@@ -1105,7 +1124,9 @@ handles keys before its children), so the first press after opening, after the c
 faded and after a move inside fullscreen all page.
 
 When zoomed beyond fit, show a small navigator thumbnail in the bottom-right corner
-indicating which part of the frame is visible.
+indicating which part of the frame is visible: the outline is the visible region laid over the
+fitted thumbnail, so it shrinks as the zoom grows and follows the pan. The pan itself stops where
+the photo's edge meets the window's — a zoomed photo never slides off into black.
 
 ### 9.1 The hint card must be generated, not written
 
@@ -1322,6 +1343,18 @@ Grouping Level options:
 Renamed from *Double-Tap Gesture Action*: double-tap no longer files a photograph (§9.1), so
 a setting named after that gesture describes something the app does not do. The persisted
 key is unchanged.
+
+### Ratings
+
+| Item | Control | Supporting text |
+|---|---|---|
+| Write ratings into photos | switch, off on a new install | Changes the original JPEG |
+
+`[USER 2026-11-12]` decision #16. Embedding a star rating in a JPEG is the one write that changes a
+photo, so it is opt-in; the supporting text is the data-loss line `docs/shared/UI_TEXT.md` allows.
+The title runs one word over the settings-title budget because the decision names it. RAW and TIFF
+ratings go to an `.xmp` sidecar whether it is on or off. An install that already wrote ratings
+before the setting existed shows it on. The row ignores a sideways drag, as every Settings row does.
 
 ### Guidance
 

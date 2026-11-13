@@ -65,10 +65,11 @@ step in Play Console before ticking it.
 > before starting the closed test.
 
 - [ ] **Device targeting — tablets, ChromeOS and DeX-capable devices only** (maintainer decision 2026-11-12; phone owners are pointed to Jackpix). Phones are excluded **by screen size**, not by device model. Before the first production rollout, in **Monitor and improve → Reach and devices → Device catalog**:
-  - Check that the release build's manifest carries the screen-size filter (`<supports-screens android:smallScreens="false" android:normalScreens="false" android:largeScreens="true" android:xlargeScreens="true" />`). Google Play filters on `<supports-screens>`; the device catalog itself has no screen-size or form-factor rule (its rules are RAM and system-on-chip, plus excluding single device models — checked 2026-11-12 against [View and restrict your app's compatible devices](https://support.google.com/googleplay/android-developer/answer/1286017) and [Filters on Google Play](https://developer.android.com/google/play/filters)). **Today the manifest has no such element**, so every phone is still offered the app.
+  - Check that the release build's manifest carries the screen-size filter (`<supports-screens android:smallScreens="false" android:normalScreens="false" android:largeScreens="true" android:xlargeScreens="true" />`). Google Play filters on `<supports-screens>`; the device catalog itself has no screen-size or form-factor rule (its rules are RAM and system-on-chip, plus excluding single device models — checked 2026-11-12 against [View and restrict your app's compatible devices](https://support.google.com/googleplay/android-developer/answer/1286017) and [Filters on Google Play](https://developer.android.com/google/play/filters)). **The manifest carries it since 2026-11-13** (`products/android/android-desktop/AndroidManifest.xml`; `ManifestScreenSizeTest` reads the merged manifest, so a dependency cannot drop it unnoticed), so Play filters phones out by screen size; check the uploaded bundle's manifest in the console says the same.
   - DeX phones: the console cannot re-admit a device the manifest filters out, so with the screen-size filter DeX phones are excluded too; the decision accepts that ("keep DeX phones if the console allows it" — it does not). Revisit if Play adds a form-factor or desktop-mode rule.
-  - Open the *Excluded* tab and confirm that phones are listed with the reason "screen size" and that tablets (the Galaxy Tab S11 Ultra reference device) and Chromebooks are under *Supported*; tick only then.
-  - Phone screenshots are then not needed (§6).
+  - In **Device catalog → All**, confirm that phones show the status **Unsupported** with the manifest screen size as the reason, that the Galaxy Tab S11 Ultra (reference device) and a Chromebook show **Supported**, and check a Pixel Fold and a Galaxy Z Fold and note their status. *Excluded* covers console exclusions; the console needs no rule. Tick only then.
+  - DeX phones can still install the GitHub Releases APK (the manifest filter is a store filter only; no runtime effect).
+  - Confirm in the store-listing form that phone screenshots are not demanded (§6).
 
 ---
 
@@ -104,7 +105,7 @@ Features
 • Go to photo by its number, a date or its file name.
 • Star ratings and a reject flag.
 • Statistics: EXIF charts of the folder (focal lengths, apertures, ISO, shutter speeds).
-• Tools beside the cull: Duplicates finds byte-identical copies and never lets you delete the last one; Learn (beta) gives technique and composition notes on your own photos.
+• Tools beside the cull: Duplicates finds byte-identical copies and never lets you delete the last one; Learn (beta) shows the composition of your own photos and compares two frames of one scene side by side.
 • Camera RAW from Sony, Canon (incl. CR3), Nikon, Fujifilm, Panasonic, OM System, Pentax, Samsung and DNG, plus JPEG, HEIC, PNG, TIFF and WebP.
 
 Private by design

@@ -47,10 +47,12 @@ fun SettingsToggleItem(
     checked: Boolean,
     onCheckedChange: (Boolean) -> Unit,
     icon: ImageVector? = null,
+    tag: String? = null,
 ) {
     Row(
         modifier = Modifier
             .fillMaxWidth()
+            .then(if (tag != null) Modifier.testTag(tag) else Modifier)
             .pointerHoverIcon(PointerIcon.Hand)
             // A sideways drag that ends here does not flip the switch.
             .dragDoesNotClick()
