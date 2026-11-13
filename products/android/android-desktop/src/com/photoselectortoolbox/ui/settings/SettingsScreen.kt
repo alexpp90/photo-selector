@@ -33,6 +33,7 @@ import androidx.compose.material.icons.filled.Info
 import androidx.compose.material.icons.filled.Memory
 import androidx.compose.material.icons.filled.PrivacyTip
 import androidx.compose.material.icons.filled.School
+import androidx.compose.material.icons.filled.Star
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
@@ -297,6 +298,24 @@ fun SettingsScreen(
                 checked = uiState.tvDisplayScaleEnabled,
                 onCheckedChange = { viewModel.updateTvDisplayScaleEnabled(it) },
                 icon = Icons.Default.Info,
+            )
+        }
+
+        Spacer(modifier = Modifier.height(8.dp))
+
+        // --- Ratings ---
+        //
+        // `[USER 2026-11-12]` decision #16: embedding a rating in a JPEG is the one write that
+        // changes a photo, so it is opt-in (off on a new install). The summary is the data-loss
+        // line UI_TEXT allows; RAW and TIFF ratings go to a sidecar either way.
+        SettingsSection(title = "Ratings") {
+            SettingsToggleItem(
+                title = "Write ratings into photos",
+                description = "Changes the original JPEG",
+                checked = uiState.writeRatingsIntoPhotos,
+                onCheckedChange = viewModel::updateWriteRatingsIntoPhotos,
+                icon = Icons.Default.Star,
+                tag = "settings_write_ratings_into_photos",
             )
         }
 

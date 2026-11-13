@@ -45,6 +45,8 @@ data class SettingsUiState(
     val fullscreenButtonsEnabled: Boolean = true,
     val filingAction: FilingAction = FilingAction.DEFAULT,
     val tvDisplayScaleEnabled: Boolean = SettingsRepository.DEFAULT_TV_DISPLAY_SCALE_ENABLED,
+    /** Embed a star rating in a JPEG (`[USER 2026-11-12]` decision #16); off on a new install. */
+    val writeRatingsIntoPhotos: Boolean = SettingsRepository.DEFAULT_WRITE_RATINGS_INTO_PHOTOS,
 )
 
 /**
@@ -154,6 +156,7 @@ class SettingsViewModel @Inject constructor(
         collectInto(settingsRepository.secondarySelectionFolderName) { name -> copy(secondarySelectionFolderName = name) }
         collectInto(settingsRepository.customSelectionDestinationUri) { uri -> copy(customSelectionDestinationUri = uri) }
         collectInto(settingsRepository.tvDisplayScaleEnabled) { enabled -> copy(tvDisplayScaleEnabled = enabled) }
+        collectInto(settingsRepository.writeRatingsIntoPhotos) { enabled -> copy(writeRatingsIntoPhotos = enabled) }
 
         viewModelScope.launch { collectDestination() }
 
@@ -312,6 +315,11 @@ class SettingsViewModel @Inject constructor(
 
     fun updateTvDisplayScaleEnabled(enabled: Boolean) {
         viewModelScope.launch { settingsRepository.setTvDisplayScaleEnabled(enabled) }
+    }
+
+    /** Whether a star rating is embedded in a JPEG, the one write that changes a photo. */
+    fun updateWriteRatingsIntoPhotos(enabled: Boolean) {
+        viewModelScope.launch { settingsRepository.setWriteRatingsIntoPhotos(enabled) }
     }
 
     /**

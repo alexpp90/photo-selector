@@ -1323,6 +1323,18 @@ Renamed from *Double-Tap Gesture Action*: double-tap no longer files a photograp
 a setting named after that gesture describes something the app does not do. The persisted
 key is unchanged.
 
+### Ratings
+
+| Item | Control | Supporting text |
+|---|---|---|
+| Write ratings into photos | switch, off on a new install | Changes the original JPEG |
+
+`[USER 2026-11-12]` decision #16. Embedding a star rating in a JPEG is the one write that changes a
+photo, so it is opt-in; the supporting text is the data-loss line `docs/shared/UI_TEXT.md` allows.
+The title runs one word over the settings-title budget because the decision names it. RAW and TIFF
+ratings go to an `.xmp` sidecar whether it is on or off. An install that already wrote ratings
+before the setting existed shows it on. The row ignores a sideways drag, as every Settings row does.
+
 ### Guidance
 
 | Item | Control | Supporting text |
