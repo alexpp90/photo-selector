@@ -6,7 +6,7 @@ This checklist is the **single source of truth** for Google Play release readine
 
 ## 0. Store listing
 
-- [ ] **Title:** "Frameduel – Photo Culling Desk" (English; add the German (de-DE) listing text only once the app itself has a German interface — it is English-only today). Short and full descriptions name the app Frameduel; no earlier name appears in the listing.
+- [ ] **Title:** "Frameduel – Photo Culling Desk" (en-US) and "Frameduel – Fotos aussortieren" (de-DE; the app speaks English and German since 0.8.0, listing text below). Short and full descriptions name the app Frameduel; no earlier name appears in the listing.
 - [ ] **Icon and screenshots:** the lavender Frameduel icon (adaptive, with themed monochrome layer); no screenshot shows the previous name or palette.
 
 ---
@@ -32,7 +32,7 @@ Because Frameduel requests zero permissions, has no network access, and processe
 |---|---|---|
 | **Does your app collect or share any of the required user data types?** | **No** | All photo viewing, EXIF reading, quality scoring, and file operations (Copy/Move/Trash) happen strictly locally on the user's device via SAF. No data leaves the device. |
 | **Is all of the user data collected by your app encrypted in transit?** | **N/A** (No data collected) | No network transmission occurs. |
-| **Do you provide a way for users to request that their data is deleted?** | **N/A** (No data collected) | Users can clear the local score cache in Settings (`Clear Cache`) or uninstall the app at any time. |
+| **Do you provide a way for users to request that their data is deleted?** | **N/A** (No data collected) | Users can clear the local score cache in Setup (`Clear cache`), delete their Learn progress (`Reset Learn`), or uninstall the app at any time. |
 | **Advertising ID declaration** | **No** | App does not use Advertising ID and includes no ad SDKs. |
 
 ---

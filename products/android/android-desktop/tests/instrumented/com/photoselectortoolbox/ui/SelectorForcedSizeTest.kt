@@ -64,6 +64,7 @@ import org.junit.runner.RunWith
 import kotlin.math.abs
 import kotlin.math.roundToInt
 import com.photoselectortoolbox.str
+import com.photoselectortoolbox.R
 
 /**
  * The selector's chrome at forced window sizes (AD-1, AD-2, AD-4, AD-7).
@@ -657,14 +658,15 @@ class SelectorForcedSizeTest {
         (viewToggles + "first_run_hint_dismiss").forEach { tag ->
             soft(failures) { assertTouchTarget(tag, width, height) }
         }
-        // AD-16: the word and key cap of every worded control are shown whole.
+        // AD-16: the word and key cap of every worded control are shown whole, in the device's
+        // language (the lab phones run German: "Löschen", "Vollbild", "Zurück", "Weiter").
         listOf(
             "copy_button_expanded" to (null as String?),
             "move_button_expanded" to null,
-            "delete_button_expanded" to "Delete",
-            "fullscreen_button" to "Full",
-            "rail_previous" to "Prev",
-            "rail_next" to "Next",
+            "delete_button_expanded" to str(R.string.action_delete),
+            "fullscreen_button" to str(R.string.action_full),
+            "rail_previous" to str(R.string.action_prev),
+            "rail_next" to str(R.string.action_next),
         ).forEach { (tag, word) -> soft(failures) { assertButtonTextIsWhole(tag, word, width, height) } }
         soft(failures) { assertExposureTokensWhole(width, height) }
         // REQ-AND-LAYOUT.09: nothing shares bounds.
@@ -684,9 +686,34 @@ class SelectorForcedSizeTest {
                 assertTrue("a maximise badge is under 48 dp", bounds("maximise_badge", i).width.value >= 47.5f)
             }
         }
-        controls.forEach { soft(failures) { assertTrue("pill $pill covers $it at ${width}x$height", !intersects(pill, bounds(it))) } }
+        controls.forEach { tag ->
+            soft(failures) {
+                val drawn = drawnControlBounds(tag)
+                assertTrue("pill $pill covers $tag $drawn at ${width}x$height", drawn == null || !intersects(pill, drawn))
+            }
+        }
         if (count("control_block_scrolling") == 0) soft(failures) { assertHostedControlBlockFits(width, height) }
         assertTrue("at ${width}x$height:\n" + failures.joinToString("\n"), failures.isEmpty())
+    }
+
+    /**
+     * The part of control [tag] that is drawn, or null when none is. Where the block scrolls, a
+     * control below its viewport is laid out further down (its unclipped bounds say so) but clipped
+     * away, and a pill there covers nothing: at 600x480 the German pill, wider than the English one,
+     * reached under the flank in row 2 and "covered" the scrolled-away `details_toggle` (Pixel 4a
+     * and Pixel Tablet, 2026-11-13). Sizes are still checked on the unclipped bounds.
+     */
+    private fun drawnControlBounds(tag: String): DpRect? {
+        val b = bounds(tag)
+        if (count("control_block_scrolling") == 0) return b
+        val viewport = bounds("control_block_scrolling")
+        val drawn = DpRect(
+            left = maxOf(b.left, viewport.left),
+            top = maxOf(b.top, viewport.top),
+            right = minOf(b.right, viewport.right),
+            bottom = minOf(b.bottom, viewport.bottom),
+        )
+        return drawn.takeIf { it.left < it.right && it.top < it.bottom }
     }
 
     @Test

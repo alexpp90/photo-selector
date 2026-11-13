@@ -54,7 +54,7 @@ android {
         // Overridable from CI (e.g. derived from the git tag on release builds).
         versionName = System.getenv("TOOLBOX_VERSION_NAME")
             ?: System.getenv("VERSION_NAME")
-            ?: "0.7.0"
+            ?: "0.8.0"
 
         testInstrumentationRunner = "com.photoselectortoolbox.HiltTestRunner"
 

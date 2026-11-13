@@ -7,6 +7,7 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.selection.selectable
@@ -33,6 +34,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.unit.dp
 import com.photoselectortoolbox.domain.scoring.ScanMeasures
@@ -193,6 +195,9 @@ private fun ScanConfigContent(
     }
 }
 
+/** The height of a scan-sheet row: one hit target (AD-17). */
+internal val ScanRowMinHeight = 48.dp
+
 /**
  * The scan sheet's rows say what each check finds, never how (usability panel 2026-10-24: "Detect
  * focus quality via Laplacian variance" read as data, not explanation). One short label each, no
@@ -212,9 +217,14 @@ private fun AnalysisCheckbox(
     checked: Boolean,
     onCheckedChange: (Boolean) -> Unit,
 ) {
+    // The whole row is the target, 48 dp tall at least (AD-17): with one line of text the
+    // padded row was 36 dp, and its neighbours cut the framework's touch-target expansion to a
+    // 40 dp pitch (device run 2026-11-13, after the method subtitle went).
     Row(
         modifier = Modifier
             .fillMaxWidth()
+            .heightIn(min = ScanRowMinHeight)
+            .testTag("scan_row")
             .handCursor()
             .selectable(
                 selected = checked,

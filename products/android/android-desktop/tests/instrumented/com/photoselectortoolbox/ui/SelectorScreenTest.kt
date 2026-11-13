@@ -161,6 +161,7 @@ class SelectorScreenTest {
             settingsRepository.setFilmstripVisible(true)
             settingsRepository.setDetailsVisible(true)
             settingsRepository.setPendingDeleteJournal(emptySet())
+            forgetFolderPlace()
         }
     }
 
@@ -171,7 +172,23 @@ class SelectorScreenTest {
             scoreDao.deleteAll()
             settingsRepository.setLastFolderUri(null)
             settingsRepository.setPendingDeleteJournal(emptySet())
+            forgetFolderPlace()
         }
+    }
+
+    /**
+     * Every test opens the same fixture folder, and a reopened folder resumes on the photo it was
+     * left at (REQ-AND-WORKFLOW.06, `FolderPlace`). A test that paged to image2 would otherwise open
+     * the next test on image2: on the Xperia XA2 and the Moto G77, tests waiting for frame 1 timed
+     * out or read "2 / 2" for "1 / 2" (device run 2026-11-13). A stored photo the folder does not
+     * hold resumes on frame 1, which is where these tests count from.
+     */
+    private suspend fun forgetFolderPlace() {
+        settingsRepository.setFolderLastPhoto(TEST_FOLDER, "$TEST_FOLDER/no-such-photo.jpg")
+    }
+
+    private companion object {
+        const val TEST_FOLDER = "content://test/test_folder"
     }
 
     @Test
@@ -185,7 +202,7 @@ class SelectorScreenTest {
         composeRule.onAllNodesWithText(str(R.string.empty_select_folder), ignoreCase = true).onFirst()
             .assertIsDisplayed()
         composeRule.onNodeWithText(
-            "Choose a shoot folder to start comparing and culling frames.",
+            str(R.string.dialog_body_choose_shoot_folder),
             substring = true,
             ignoreCase = true,
         ).assertIsDisplayed()

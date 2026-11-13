@@ -71,8 +71,9 @@
     <li>
       <strong>Local Score Cache &amp; Preferences (Room &amp; DataStore):</strong>
       Calculated image quality scores, detected technique facts, and star ratings are cached locally in an internal SQLite (Room) database so folders re-open quickly, and user preferences are stored in Android Jetpack DataStore.
-      A star rating you give is also written into an XMP sidecar file next to the photo (RAW, TIFF), in the folder you chose, so other apps and anyone you share the file with can read it. It is written into a JPEG's own XMP metadata only while <strong>Write ratings into photos</strong> is on in Settings; that setting is off on a new install, and an installation that already wrote ratings into JPEGs before it existed keeps it on.
-      You can clear the local score cache at any time in <strong>Settings &rarr; Cache &rarr; Clear Cache</strong>.
+      Learn keeps your progress in the same local database: a summary of each scanned shoot, the lessons you completed and the goal you track.
+      A star rating you give is also written into an XMP sidecar file next to the photo (RAW, TIFF), in the folder you chose, so other apps and anyone you share the file with can read it. It is written into a JPEG's own XMP metadata only while <strong>Write ratings into photos</strong> is on in Setup; that setting is off on a new install, and an installation that already wrote ratings into JPEGs before it existed keeps it on.
+      You can clear the local score cache at any time in <strong>Setup &rarr; Cache &rarr; Clear cache</strong>; it keeps your Learn progress, ratings and preferences. <strong>Setup &rarr; Reset Learn</strong> deletes the Learn progress.
       Cloud auto-backup of the local score database and SAF folder grants is disabled so local file URIs and metadata are never uploaded to cloud backup services.
     </li>
   </ul>
@@ -84,7 +85,7 @@
 
   <h2>5. Data Retention &amp; Deletion</h2>
   <p>
-    Cached scores can be cleared within the app's Settings screen at any time. Uninstalling the app immediately deletes all locally cached scores, preferences, and SAF folder access grants.
+    Cached scores can be cleared in the app's Setup screen at any time (Clear cache), and Learn progress with Reset Learn. Uninstalling the app immediately deletes all locally stored scores, Learn progress, preferences, and SAF folder access grants.
   </p>
 
   <h2>6. Your Rights under GDPR</h2>
@@ -125,14 +126,14 @@
     </li>
     <li>
       <strong>Lokaler Bewertungs-Cache &amp; Einstellungen (Room &amp; DataStore):</strong>
-      Berechnete Qualitätswerte, erkannte Aufnahmetechnik-Merkmale und Sternebewertungen werden lokal in einer internen SQLite-Datenbank (Room) zwischengespeichert; Einstellungen liegen lokal im Jetpack DataStore. Sie können den Analyse-Cache jederzeit in den App-Einstellungen (<strong>Settings &rarr; Cache &rarr; Clear Cache</strong>) löschen. Ein Cloud-Auto-Backup dieser Datenbanken ist deaktiviert.
-      Eine von Ihnen vergebene Sternebewertung wird zusätzlich in eine XMP-Sidecar-Datei neben dem Foto (RAW, TIFF) im von Ihnen gewählten Ordner geschrieben; andere Apps und alle, denen Sie die Datei weitergeben, können sie dadurch lesen. In die XMP-Metadaten eines JPEG selbst wird sie nur geschrieben, solange in den Einstellungen <strong>Bewertungen in Fotos schreiben</strong> eingeschaltet ist; bei einer Neuinstallation ist das aus, und eine Installation, die schon vor dieser Einstellung Bewertungen in JPEGs geschrieben hat, behält sie eingeschaltet.
+      Berechnete Qualitätswerte, erkannte Aufnahmetechnik-Merkmale und Sternebewertungen werden lokal in einer internen SQLite-Datenbank (Room) zwischengespeichert; Einstellungen liegen lokal im Jetpack DataStore. Ihr Lernfortschritt (eine Zusammenfassung jedes gescannten Shootings, abgeschlossene Lektionen und das verfolgte Ziel) liegt in derselben lokalen Datenbank. Sie können den Analyse-Cache jederzeit unter <strong>Optionen &rarr; Cache &rarr; Cache leeren</strong> löschen; Lernfortschritt, Bewertungen und Einstellungen bleiben dabei erhalten. <strong>Optionen &rarr; Lernen zurücksetzen</strong> löscht den Lernfortschritt. Ein Cloud-Auto-Backup dieser Datenbanken ist deaktiviert.
+      Eine von Ihnen vergebene Sternebewertung wird zusätzlich in eine XMP-Sidecar-Datei neben dem Foto (RAW, TIFF) im von Ihnen gewählten Ordner geschrieben; andere Apps und alle, denen Sie die Datei weitergeben, können sie dadurch lesen. In die XMP-Metadaten eines JPEG selbst wird sie nur geschrieben, solange unter Optionen <strong>Bewertungen in Fotos schreiben</strong> eingeschaltet ist; bei einer Neuinstallation ist das aus, und eine Installation, die schon vor dieser Einstellung Bewertungen in JPEGs geschrieben hat, behält sie eingeschaltet.
     </li>
   </ul>
 
   <h2>4. Rechtsgrundlage, Speicherdauer &amp; Ihre Rechte</h2>
   <p>
-    Alle Verarbeitungsschritte erfolgen ausschließlich lokal auf Ihrem Gerät zur Bereitstellung der von Ihnen genutzten Funktionen (Art. 6 Abs. 1 lit. b DSGVO bzw. § 25 Abs. 2 Nr. 2 TDDDG). Durch das Leeren des Caches oder die Deinstallation der App werden sämtliche lokalen Daten vollständig gelöscht. Da keinerlei personenbezogene Daten an den Entwickler übermittelt werden, behalten Sie jederzeit die vollständige Kontrolle über Ihre Daten direkt auf Ihrem Endgerät.
+    Alle Verarbeitungsschritte erfolgen ausschließlich lokal auf Ihrem Gerät zur Bereitstellung der von Ihnen genutzten Funktionen (Art. 6 Abs. 1 lit. b DSGVO bzw. § 25 Abs. 2 Nr. 2 TDDDG). Das Leeren des Caches löscht die zwischengespeicherten Analysewerte; „Lernen zurücksetzen“ löscht den Lernfortschritt. Die Deinstallation der App löscht sämtliche lokalen Daten vollständig. Da keinerlei personenbezogene Daten an den Entwickler übermittelt werden, behalten Sie jederzeit die vollständige Kontrolle über Ihre Daten direkt auf Ihrem Endgerät.
   </p>
 
   <h2>5. Diese Webseite</h2>
