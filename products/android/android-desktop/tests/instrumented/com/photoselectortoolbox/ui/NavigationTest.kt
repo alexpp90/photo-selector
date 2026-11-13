@@ -18,6 +18,8 @@ import org.junit.Rule
 import org.junit.Test
 import org.junit.runner.RunWith
 import androidx.compose.ui.test.junit4.accessibility.enableAccessibilityChecks
+import com.photoselectortoolbox.str
+import com.photoselectortoolbox.R
 
 /**
  * Instrumented tests for navigation between screens.
@@ -43,16 +45,16 @@ class NavigationTest {
     @Test
     fun selectorScreenIsDefaultDestination() {
         composeRule.waitUntil(timeoutMillis = 15000) {
-            composeRule.onAllNodesWithText("Select a Folder", substring = false, ignoreCase = true)
+            composeRule.onAllNodesWithText(str(R.string.empty_select_folder), substring = false, ignoreCase = true)
                 .fetchSemanticsNodes().isNotEmpty() ||
             composeRule.onAllNodesWithText("Select photos folder", substring = false, ignoreCase = true)
                 .fetchSemanticsNodes().isNotEmpty()
         }
         dismissGestureTutorialIfShown()
-        val hasDesktopLabel = composeRule.onAllNodesWithText("Select a Folder", substring = false, ignoreCase = true)
+        val hasDesktopLabel = composeRule.onAllNodesWithText(str(R.string.empty_select_folder), substring = false, ignoreCase = true)
             .fetchSemanticsNodes().isNotEmpty()
         if (hasDesktopLabel) {
-            composeRule.onNodeWithText("Choose a shoot folder to start comparing and culling frames.", substring = true, ignoreCase = true)
+            composeRule.onNodeWithText(str(R.string.dialog_body_choose_shoot_folder), substring = true, ignoreCase = true)
                 .assertIsDisplayed()
         } else {
             composeRule.onNodeWithText("Select photos folder", substring = false, ignoreCase = true)
@@ -63,13 +65,13 @@ class NavigationTest {
     @Test
     fun navigateToStatistics() {
         composeRule.waitUntil(timeoutMillis = 15000) {
-            composeRule.onAllNodesWithText("Select a Folder", substring = false, ignoreCase = true)
+            composeRule.onAllNodesWithText(str(R.string.empty_select_folder), substring = false, ignoreCase = true)
                 .fetchSemanticsNodes().isNotEmpty() ||
             composeRule.onAllNodesWithText("Select photos folder", substring = false, ignoreCase = true)
                 .fetchSemanticsNodes().isNotEmpty()
         }
         dismissGestureTutorialIfShown()
-        val isDesktop = composeRule.onAllNodesWithText("Select a Folder", substring = false, ignoreCase = true)
+        val isDesktop = composeRule.onAllNodesWithText(str(R.string.empty_select_folder), substring = false, ignoreCase = true)
             .fetchSemanticsNodes().isNotEmpty()
         if (!isDesktop) {
             composeRule.onNodeWithText("Select photos folder", substring = false, ignoreCase = true)
@@ -83,20 +85,20 @@ class NavigationTest {
         composeRule.waitForIdle()
 
         // Statistics screen should show its empty state description
-        composeRule.onNodeWithText("Select a folder containing photos to view EXIF statistics.", substring = true, ignoreCase = true)
+        composeRule.onNodeWithText(str(R.string.dialog_body_stats_select_folder), substring = true, ignoreCase = true)
             .assertIsDisplayed()
     }
 
     @Test
     fun navigateToDuplicates() {
         composeRule.waitUntil(timeoutMillis = 15000) {
-            composeRule.onAllNodesWithText("Select a Folder", substring = false, ignoreCase = true)
+            composeRule.onAllNodesWithText(str(R.string.empty_select_folder), substring = false, ignoreCase = true)
                 .fetchSemanticsNodes().isNotEmpty() ||
             composeRule.onAllNodesWithText("Select photos folder", substring = false, ignoreCase = true)
                 .fetchSemanticsNodes().isNotEmpty()
         }
         dismissGestureTutorialIfShown()
-        val isDesktop = composeRule.onAllNodesWithText("Select a Folder", substring = false, ignoreCase = true)
+        val isDesktop = composeRule.onAllNodesWithText(str(R.string.empty_select_folder), substring = false, ignoreCase = true)
             .fetchSemanticsNodes().isNotEmpty()
         if (!isDesktop) {
             composeRule.onNodeWithText("Select photos folder", substring = false, ignoreCase = true)
@@ -112,20 +114,20 @@ class NavigationTest {
         composeRule.waitForIdle()
 
         // Duplicates screen should show its empty state description
-        composeRule.onNodeWithText("Select a folder to scan for duplicate images.", substring = true, ignoreCase = true)
+        composeRule.onNodeWithText(str(R.string.dialog_body_dupes_select_folder), substring = true, ignoreCase = true)
             .assertIsDisplayed()
     }
 
     @Test
     fun navigateToSettings() {
         composeRule.waitUntil(timeoutMillis = 15000) {
-            composeRule.onAllNodesWithText("Select a Folder", substring = false, ignoreCase = true)
+            composeRule.onAllNodesWithText(str(R.string.empty_select_folder), substring = false, ignoreCase = true)
                 .fetchSemanticsNodes().isNotEmpty() ||
             composeRule.onAllNodesWithText("Select photos folder", substring = false, ignoreCase = true)
                 .fetchSemanticsNodes().isNotEmpty()
         }
         dismissGestureTutorialIfShown()
-        val isDesktop = composeRule.onAllNodesWithText("Select a Folder", substring = false, ignoreCase = true)
+        val isDesktop = composeRule.onAllNodesWithText(str(R.string.empty_select_folder), substring = false, ignoreCase = true)
             .fetchSemanticsNodes().isNotEmpty()
         if (!isDesktop) {
             composeRule.onNodeWithText("Select photos folder", substring = false, ignoreCase = true)
@@ -138,20 +140,20 @@ class NavigationTest {
         composeRule.waitForIdle()
 
         // Settings screen should show unique settings text
-        composeRule.onNodeWithText("Analysis Threads", substring = true, ignoreCase = true)
+        composeRule.onNodeWithText(str(R.string.label_analysis_threads), substring = true, ignoreCase = true)
             .assertExists()
     }
 
     @Test
     fun navigateBackToSelector() {
         composeRule.waitUntil(timeoutMillis = 15000) {
-            composeRule.onAllNodesWithText("Select a Folder", substring = false, ignoreCase = true)
+            composeRule.onAllNodesWithText(str(R.string.empty_select_folder), substring = false, ignoreCase = true)
                 .fetchSemanticsNodes().isNotEmpty() ||
             composeRule.onAllNodesWithText("Select photos folder", substring = false, ignoreCase = true)
                 .fetchSemanticsNodes().isNotEmpty()
         }
         dismissGestureTutorialIfShown()
-        val isDesktop = composeRule.onAllNodesWithText("Select a Folder", substring = false, ignoreCase = true)
+        val isDesktop = composeRule.onAllNodesWithText(str(R.string.empty_select_folder), substring = false, ignoreCase = true)
             .fetchSemanticsNodes().isNotEmpty()
         if (!isDesktop) {
             composeRule.onNodeWithText("Select photos folder", substring = false, ignoreCase = true)
@@ -167,19 +169,19 @@ class NavigationTest {
         composeRule.onNodeWithTag("nav_selector").performClick()
         composeRule.waitForIdle()
 
-        composeRule.onNodeWithText("Choose a shoot folder to start comparing and culling frames.", substring = true, ignoreCase = true)
+        composeRule.onNodeWithText(str(R.string.dialog_body_choose_shoot_folder), substring = true, ignoreCase = true)
             .assertIsDisplayed()
     }
 
     private fun dismissGestureTutorialIfShown() {
-        if (composeRule.onAllNodes(hasText("GOT IT", ignoreCase = true), useUnmergedTree = true).fetchSemanticsNodes().isNotEmpty()) {
-            composeRule.onAllNodes(hasText("GOT IT", ignoreCase = true), useUnmergedTree = true).onFirst().performClick()
+        if (composeRule.onAllNodes(hasText(str(R.string.action_got_it), ignoreCase = true), useUnmergedTree = true).fetchSemanticsNodes().isNotEmpty()) {
+            composeRule.onAllNodes(hasText(str(R.string.action_got_it), ignoreCase = true), useUnmergedTree = true).onFirst().performClick()
             composeRule.waitUntil(timeoutMillis = 15000) {
-                composeRule.onAllNodes(hasText("GOT IT", ignoreCase = true), useUnmergedTree = true).fetchSemanticsNodes().isEmpty()
+                composeRule.onAllNodes(hasText(str(R.string.action_got_it), ignoreCase = true), useUnmergedTree = true).fetchSemanticsNodes().isEmpty()
             }
         }
-        if (composeRule.onAllNodes(hasText("Gestures", ignoreCase = true), useUnmergedTree = true).fetchSemanticsNodes().isNotEmpty()) {
-            composeRule.onAllNodes(hasText("Gestures", ignoreCase = true), useUnmergedTree = true).onFirst().performClick()
+        if (composeRule.onAllNodes(hasText(str(R.string.title_gestures), ignoreCase = true), useUnmergedTree = true).fetchSemanticsNodes().isNotEmpty()) {
+            composeRule.onAllNodes(hasText(str(R.string.title_gestures), ignoreCase = true), useUnmergedTree = true).onFirst().performClick()
         }
     }
 }

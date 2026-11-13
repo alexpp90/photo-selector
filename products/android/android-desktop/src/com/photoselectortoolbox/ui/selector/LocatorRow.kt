@@ -58,13 +58,17 @@ import com.photoselectortoolbox.ui.theme.HoverFill
 import com.photoselectortoolbox.ui.theme.StudioCard
 import com.photoselectortoolbox.ui.theme.Zinc400
 import com.photoselectortoolbox.ui.theme.Zinc50
+import com.photoselectortoolbox.R
+import com.photoselectortoolbox.ui.text.asString
+import com.photoselectortoolbox.domain.text.UiText
+import com.photoselectortoolbox.domain.text.text
 
 /**
  * The four orders the selector can be in, as one radio group: the three plain orders
  * and Blurriest first (worst-first triage, `U-34`), which is a session view over scores.
  * [SortChoice.of] is the one place the pair (order, worst-first) becomes a single choice.
  */
-enum class SortChoice(val menuLabel: String, val chipWord: String, val tag: String) {
+enum class SortChoice(val menuLabel: UiText, val chipWord: UiText, val tag: String) {
     NEWEST_FIRST(SelectorLabels.SORT_NEWEST_FIRST, SelectorLabels.SORT_CHIP_NEWEST, "sort_newest_first"),
     OLDEST_FIRST(SelectorLabels.SORT_OLDEST_FIRST, SelectorLabels.SORT_CHIP_OLDEST, "sort_oldest_first"),
     FILE_NAME(SelectorLabels.SORT_FILE_NAME, SelectorLabels.SORT_CHIP_FILE_NAME, "sort_file_name"),
@@ -105,12 +109,12 @@ internal fun SortMenuItems(
     SortChoice.entries.forEach { choice ->
         val enabled = choice != SortChoice.BLURRIEST_FIRST || blurriestEnabled
         SortMenuItem(
-            label = choice.menuLabel,
+            label = choice.menuLabel.asString(),
             selected = choice == selected,
             tag = choice.tag,
             enabled = enabled,
             // Blurriest first needs sharpness scores; greyed out, it says so instead of nothing.
-            reason = SelectorLabels.SORT_NEEDS_SCAN.takeIf { !enabled },
+            reason = SelectorLabels.SORT_NEEDS_SCAN.asString().takeIf { !enabled },
             onClick = { onSelect(choice) },
         )
     }
@@ -214,7 +218,7 @@ internal fun LocatorRow(
     ) {
         LocatorChip(
             description = goDescription,
-            onClickLabel = SelectorLabels.GO_TO_PHOTO,
+            onClickLabel = SelectorLabels.GO_TO_PHOTO.asString(),
             onClick = onGoToPhoto,
             tag = "go_chip",
             modifier = Modifier.weight(1f),
@@ -229,11 +233,11 @@ internal fun LocatorRow(
                 softWrap = false,
                 modifier = Modifier.testTag("position_counter"),
             )
-            if (style == ControlBlockFit.LocatorStyle.WIDE) ChipKeyCap(SelectorShortcut.GO_TO.input, "go_chip_key")
+            if (style == ControlBlockFit.LocatorStyle.WIDE) ChipKeyCap(SelectorShortcut.GO_TO.input.asString(), "go_chip_key")
         }
         Box(modifier = Modifier.weight(1f)) {
             LocatorChip(
-                description = SelectorLabels.sortChipDescription(sort.selected.menuLabel),
+                description = SelectorLabels.sortChipDescription(sort.selected.menuLabel).asString(),
                 onClickLabel = null,
                 onClick = { sort.onMenuOpenChange(true) },
                 tag = "sort_chip",
@@ -242,9 +246,9 @@ internal fun LocatorRow(
                 if (style != ControlBlockFit.LocatorStyle.NARROW) ChipGlyph(Icons.Default.SwapVert)
                 Text(
                     text = if (style == ControlBlockFit.LocatorStyle.WIDE) {
-                        sort.selected.menuLabel
+                        sort.selected.menuLabel.asString()
                     } else {
-                        sort.selected.chipWord
+                        sort.selected.chipWord.asString()
                     },
                     fontSize = 12.sp,
                     color = Zinc50,
@@ -258,7 +262,7 @@ internal fun LocatorRow(
                     modifier = Modifier.size(18.dp),
                     tint = Zinc400,
                 )
-                if (style == ControlBlockFit.LocatorStyle.WIDE) ChipKeyCap(SelectorShortcut.SORT.input, "sort_chip_key")
+                if (style == ControlBlockFit.LocatorStyle.WIDE) ChipKeyCap(SelectorShortcut.SORT.input.asString(), "sort_chip_key")
             }
             SortMenu(sort)
         }

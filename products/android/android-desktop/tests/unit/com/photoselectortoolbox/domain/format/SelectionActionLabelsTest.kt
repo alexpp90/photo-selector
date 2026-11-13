@@ -6,6 +6,7 @@ import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
 import org.junit.Test
+import com.photoselectortoolbox.testing.en
 
 /**
  * The button says what it does — and names the folder the file actually goes to.
@@ -35,12 +36,12 @@ class SelectionActionLabelsTest {
             SelectionActionLabels.both(configured, renamed).forEach { label ->
                 banned.forEach { word ->
                     assertFalse(
-                        "filing control is labelled '${label.verb}'",
-                        label.verb.lowercase().contains(word),
+                        "filing control is labelled '${label.verb.en()}'",
+                        label.verb.en().lowercase().contains(word),
                     )
                     assertFalse(
-                        "filing control is described as '${label.phrase}'",
-                        label.phrase.lowercase().contains(word),
+                        "filing control is described as '${label.phrase.en()}'",
+                        label.phrase.en().lowercase().contains(word),
                     )
                 }
             }
@@ -50,7 +51,7 @@ class SelectionActionLabelsTest {
     @Test
     fun `the verb is copy or move and nothing else`() {
         FilingAction.entries.forEach { configured ->
-            val verbs = SelectionActionLabels.both(configured).map { it.verb }.toSet()
+            val verbs = SelectionActionLabels.both(configured).map { it.verb.en() }.toSet()
             assertEquals(setOf("Copy", "Move"), verbs)
         }
     }
@@ -89,13 +90,13 @@ class SelectionActionLabelsTest {
     fun `accessibility label states the action and its shortcut`() {
         val label = SelectionActionLabels.primary(FilingAction.MOVE)
 
-        assertEquals("Move to Selection, shortcut M", label.accessibilityLabel)
+        assertEquals("Move to Selection, shortcut M", label.accessibilityLabel.en())
     }
 
     @Test
     fun `confirmation wording matches the verb that ran`() {
-        assertEquals("Copied to Selection", SelectionActionLabels.confirmation(FilingAction.COPY))
-        assertEquals("Moved to Selection", SelectionActionLabels.confirmation(FilingAction.MOVE))
+        assertEquals("Copied to Selection", SelectionActionLabels.confirmation(FilingAction.COPY).en())
+        assertEquals("Moved to Selection", SelectionActionLabels.confirmation(FilingAction.MOVE).en())
     }
 
     @Test
@@ -106,20 +107,20 @@ class SelectionActionLabelsTest {
         // happened.
         assertEquals(
             "Copied to $renamed",
-            SelectionActionLabels.confirmation(FilingAction.COPY, renamed),
+            SelectionActionLabels.confirmation(FilingAction.COPY, renamed).en(),
         )
         assertEquals(
             "Moved to $renamed",
-            SelectionActionLabels.confirmation(FilingAction.MOVE, renamed),
+            SelectionActionLabels.confirmation(FilingAction.MOVE, renamed).en(),
         )
     }
 
     @Test
     fun `a blank folder name falls back to the default rather than trailing off`() {
-        assertEquals("Moved to Selection", SelectionActionLabels.confirmation(FilingAction.MOVE, ""))
+        assertEquals("Moved to Selection", SelectionActionLabels.confirmation(FilingAction.MOVE, "").en())
         assertEquals(
             "Moved to Selection",
-            SelectionActionLabels.confirmation(FilingAction.MOVE, "   "),
+            SelectionActionLabels.confirmation(FilingAction.MOVE, "   ").en(),
         )
     }
 
@@ -130,17 +131,17 @@ class SelectionActionLabelsTest {
         // reader and the context menu, which have room for it.
         val label = SelectionActionLabels.primary(FilingAction.MOVE, "2026 client selects")
 
-        assertEquals("Move", label.verb)
-        assertEquals("Move to 2026 client selects", label.phrase)
-        assertEquals("Move to 2026 client selects, shortcut M", label.accessibilityLabel)
+        assertEquals("Move", label.verb.en())
+        assertEquals("Move to 2026 client selects", label.phrase.en())
+        assertEquals("Move to 2026 client selects, shortcut M", label.accessibilityLabel.en())
     }
 
     @Test
     fun `both controls name the same folder`() {
         SelectionActionLabels.both(FilingAction.MOVE, renamed).forEach { label ->
             assertTrue(
-                "'${label.phrase}' does not name the configured folder",
-                label.phrase.endsWith(renamed),
+                "'${label.phrase.en()}' does not name the configured folder",
+                label.phrase.en().endsWith(renamed),
             )
         }
     }
@@ -171,7 +172,7 @@ class SelectionActionLabelsTest {
                 selectionFolderName = "Selection",
                 resultName = "IMG_0001-2.JPG",
                 relatedCount = 2,
-            ),
+            ).en(),
         )
     }
 
@@ -179,7 +180,7 @@ class SelectionActionLabelsTest {
     fun `a collision-suffixed copy without companions has no related count`() {
         assertEquals(
             "Copied to Picks as IMG_0001-3.JPG",
-            SelectionActionLabels.suffixedConfirmation(FilingAction.COPY, "Picks", "IMG_0001-3.JPG", 0),
+            SelectionActionLabels.suffixedConfirmation(FilingAction.COPY, "Picks", "IMG_0001-3.JPG", 0).en(),
         )
     }
 
@@ -187,7 +188,7 @@ class SelectionActionLabelsTest {
     fun `an undo that had to suffix says so`() {
         assertEquals(
             "Restored as IMG_0001-2.JPG (original name was in use)",
-            SelectionActionLabels.restoredAs("IMG_0001-2.JPG"),
+            SelectionActionLabels.restoredAs("IMG_0001-2.JPG").en(),
         )
     }
 
@@ -201,25 +202,25 @@ class SelectionActionLabelsTest {
     fun `a custom destination names its folder in the confirmation, the control keeps the bare verb`() {
         assertEquals(
             "Moved to «Keepers › Selection»",
-            SelectionActionLabels.confirmation(FilingAction.MOVE, "Selection", customFolderName = "Keepers"),
+            SelectionActionLabels.confirmation(FilingAction.MOVE, "Selection", customFolderName = "Keepers").en(),
         )
         assertEquals(
             "Copied to «Keepers › Picks»",
-            SelectionActionLabels.confirmation(FilingAction.COPY, "Picks", customFolderName = "Keepers"),
+            SelectionActionLabels.confirmation(FilingAction.COPY, "Picks", customFolderName = "Keepers").en(),
         )
         // The button never carries the place (REQ-AND-LAYOUT.08): the bare verb.
         FilingAction.entries.forEach { configured ->
             SelectionActionLabels.both(configured, "Selection").forEach { label ->
-                assertFalse(label.verb, label.verb.contains("Keepers") || label.verb.contains("›"))
+                assertFalse(label.verb.en(), label.verb.en().contains("Keepers") || label.verb.en().contains("›"))
             }
         }
     }
 
     @Test
     fun `without a custom folder the confirmation is the sentence it always was`() {
-        assertEquals("Moved to Selection", SelectionActionLabels.confirmation(FilingAction.MOVE, "Selection"))
-        assertEquals("Moved to Selection", SelectionActionLabels.confirmation(FilingAction.MOVE, "Selection", null))
-        assertEquals("Moved to Selection", SelectionActionLabels.confirmation(FilingAction.MOVE, "Selection", " "))
+        assertEquals("Moved to Selection", SelectionActionLabels.confirmation(FilingAction.MOVE, "Selection").en())
+        assertEquals("Moved to Selection", SelectionActionLabels.confirmation(FilingAction.MOVE, "Selection", null).en())
+        assertEquals("Moved to Selection", SelectionActionLabels.confirmation(FilingAction.MOVE, "Selection", " ").en())
     }
 
     @Test
@@ -228,7 +229,7 @@ class SelectionActionLabelsTest {
             "Moved to «Keepers › Selection» as IMG_0001-2.JPG (+2 related)",
             SelectionActionLabels.suffixedConfirmation(
                 FilingAction.MOVE, "Selection", "IMG_0001-2.JPG", 2, customFolderName = "Keepers",
-            ),
+            ).en(),
         )
     }
 }

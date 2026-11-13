@@ -66,7 +66,7 @@ object SceneComparator {
             val index = scenes.size + 1
             scenes += ComparableScene(
                 sceneId = "scene_$index",
-                title = "Scene $index · ${decided.better.fileName} vs ${decided.worse.fileName}",
+                title = "Scene $index · ${decided.better.fileName} vs ${decided.worse.fileName}", // ui-text: ignore (no screen shows the scene titles or bullets)
                 photos = cluster.photos,
                 primaryPhoto = decided.better,
                 comparisonPhoto = decided.worse,
@@ -241,11 +241,11 @@ object SceneComparator {
                 sharpA, photoA.fileName, sharpB, photoB.fileName,
             )
         }
-        ratioBullet("Highlight clipping", scanA?.highlightClipping, scanB?.highlightClipping, MIN_CLIPPING_PERCENT, photoA, photoB, "%.1f%%")
+        ratioBullet("Highlight clipping", scanA?.highlightClipping, scanB?.highlightClipping, MIN_CLIPPING_PERCENT, photoA, photoB, "%.1f%%") // ui-text: ignore (no screen shows the scene titles or bullets)
             ?.let(bullets::add)
-        ratioBullet("Shadow clipping", scanA?.shadowClipping, scanB?.shadowClipping, MIN_CLIPPING_PERCENT, photoA, photoB, "%.1f%%")
+        ratioBullet("Shadow clipping", scanA?.shadowClipping, scanB?.shadowClipping, MIN_CLIPPING_PERCENT, photoA, photoB, "%.1f%%") // ui-text: ignore (no screen shows the scene titles or bullets)
             ?.let(bullets::add)
-        ratioBullet("Measured noise", scanA?.noiseLevel, scanB?.noiseLevel, MIN_NOISE, photoA, photoB, "%.1f")
+        ratioBullet("Measured noise", scanA?.noiseLevel, scanB?.noiseLevel, MIN_NOISE, photoA, photoB, "%.1f") // ui-text: ignore (no screen shows the scene titles or bullets)
             ?.let(bullets::add)
 
         // Camera settings explain a measured difference; they are never one themselves.
@@ -255,19 +255,19 @@ object SceneComparator {
             val fEff = PhotoCoachEngineImpl.computeEffectiveFocalLength(exifA)
                 ?: PhotoCoachEngineImpl.computeEffectiveFocalLength(exifB)
             val guidelineNote = if (fEff != null) " (1/${fEff.toInt()}s hand-holding guideline)" else ""
-            bullets += "Shutter speed: ${photoA.fileName} used ${ExifFormatter.shutterSpeed(shutterA)} vs " +
+            bullets += "Shutter speed: ${photoA.fileName} used ${ExifFormatter.shutterSpeed(shutterA)} vs " + // ui-text: ignore (no screen shows the scene titles or bullets)
                 "${ExifFormatter.shutterSpeed(shutterB)} in ${photoB.fileName}$guidelineNote."
         }
         val apA = exifA?.aperture
         val apB = exifB?.aperture
         if (apA != null && apB != null && abs(apA - apB) >= 0.3) {
-            bullets += "Aperture: ${photoA.fileName} shot at ${ExifFormatter.aperture(apA)} vs " +
-                "${ExifFormatter.aperture(apB)} in ${photoB.fileName}, changing depth of field and light intake."
+            bullets += "Aperture: ${photoA.fileName} shot at ${ExifFormatter.aperture(apA)} vs " + // ui-text: ignore (no screen shows the scene titles or bullets)
+                "${ExifFormatter.aperture(apB)} in ${photoB.fileName}, changing depth of field and light intake." // ui-text: ignore (no screen shows the scene titles or bullets)
         }
         val isoA = exifA?.iso
         val isoB = exifB?.iso
         if (isoA != null && isoB != null && isoA != isoB) {
-            bullets += "ISO sensitivity: ISO $isoA vs ISO $isoB."
+            bullets += "ISO sensitivity: ISO $isoA vs ISO $isoB." // ui-text: ignore (no screen shows the scene titles or bullets)
         }
         return bullets
     }

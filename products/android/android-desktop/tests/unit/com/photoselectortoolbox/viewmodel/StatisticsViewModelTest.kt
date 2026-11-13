@@ -2,6 +2,7 @@ package com.photoselectortoolbox.viewmodel
 
 import org.junit.Assert.*
 import org.junit.Test
+import com.photoselectortoolbox.testing.en
 
 /**
  * Tests for StatisticsUiState data class and the shutter speed
@@ -22,7 +23,7 @@ class StatisticsViewModelTest {
         assertTrue(state.isoDistribution.isEmpty())
         assertTrue(state.focalLengthDistribution.isEmpty())
         assertTrue(state.lensDistribution.isEmpty())
-        assertNull(state.error)
+        assertNull(state.error?.en())
     }
 
     @Test

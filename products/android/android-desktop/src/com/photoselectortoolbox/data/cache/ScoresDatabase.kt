@@ -31,7 +31,7 @@ abstract class ScoresDatabase : RoomDatabase() {
          */
         val MIGRATION_1_2 = object : Migration(1, 2) {
             override fun migrate(db: SupportSQLiteDatabase) {
-                db.execSQL("ALTER TABLE scores_cache ADD COLUMN aestheticScore REAL")
+                db.execSQL("ALTER TABLE scores_cache ADD COLUMN aestheticScore REAL") // ui-text: ignore (SQL)
             }
         }
 
@@ -41,8 +41,8 @@ abstract class ScoresDatabase : RoomDatabase() {
          */
         val MIGRATION_2_3 = object : Migration(2, 3) {
             override fun migrate(db: SupportSQLiteDatabase) {
-                db.execSQL("ALTER TABLE scores_cache ADD COLUMN rating INTEGER NOT NULL DEFAULT 0")
-                db.execSQL("ALTER TABLE scores_cache ADD COLUMN compositionAnalysis TEXT")
+                db.execSQL("ALTER TABLE scores_cache ADD COLUMN rating INTEGER NOT NULL DEFAULT 0") // ui-text: ignore (SQL)
+                db.execSQL("ALTER TABLE scores_cache ADD COLUMN compositionAnalysis TEXT") // ui-text: ignore (SQL)
             }
         }
 
@@ -55,10 +55,10 @@ abstract class ScoresDatabase : RoomDatabase() {
         val MIGRATION_3_4 = object : Migration(3, 4) {
             override fun migrate(db: SupportSQLiteDatabase) {
                 db.execSQL(
-                    "CREATE TABLE IF NOT EXISTS `user_ratings` (`uri` TEXT NOT NULL, `rating` INTEGER NOT NULL, `updatedAt` INTEGER NOT NULL, PRIMARY KEY(`uri`))"
+                    "CREATE TABLE IF NOT EXISTS `user_ratings` (`uri` TEXT NOT NULL, `rating` INTEGER NOT NULL, `updatedAt` INTEGER NOT NULL, PRIMARY KEY(`uri`))" // ui-text: ignore (SQL)
                 )
                 db.execSQL(
-                    "INSERT OR REPLACE INTO `user_ratings` (`uri`, `rating`, `updatedAt`) SELECT `filePath`, `rating`, `lastAccessTime` FROM `scores_cache` WHERE `rating` != 0"
+                    "INSERT OR REPLACE INTO `user_ratings` (`uri`, `rating`, `updatedAt`) SELECT `filePath`, `rating`, `lastAccessTime` FROM `scores_cache` WHERE `rating` != 0" // ui-text: ignore (SQL)
                 )
             }
         }
@@ -70,13 +70,13 @@ abstract class ScoresDatabase : RoomDatabase() {
         val MIGRATION_4_5 = object : Migration(4, 5) {
             override fun migrate(db: SupportSQLiteDatabase) {
                 db.execSQL(
-                    "CREATE TABLE IF NOT EXISTS `technique_facts` (`uri` TEXT NOT NULL, `kind` TEXT NOT NULL, `value` TEXT NOT NULL, `confidence` REAL NOT NULL, `geometryJson` TEXT, `fileSize` INTEGER NOT NULL, `lastModified` INTEGER NOT NULL, `detectorVersion` INTEGER NOT NULL, PRIMARY KEY(`uri`, `kind`))"
+                    "CREATE TABLE IF NOT EXISTS `technique_facts` (`uri` TEXT NOT NULL, `kind` TEXT NOT NULL, `value` TEXT NOT NULL, `confidence` REAL NOT NULL, `geometryJson` TEXT, `fileSize` INTEGER NOT NULL, `lastModified` INTEGER NOT NULL, `detectorVersion` INTEGER NOT NULL, PRIMARY KEY(`uri`, `kind`))" // ui-text: ignore (SQL)
                 )
                 db.execSQL(
-                    "CREATE INDEX IF NOT EXISTS `idx_technique_facts_kind` ON `technique_facts` (`kind`)"
+                    "CREATE INDEX IF NOT EXISTS `idx_technique_facts_kind` ON `technique_facts` (`kind`)" // ui-text: ignore (SQL)
                 )
                 db.execSQL(
-                    "CREATE INDEX IF NOT EXISTS `idx_technique_facts_cache_key` ON `technique_facts` (`uri`, `fileSize`, `lastModified`, `detectorVersion`)"
+                    "CREATE INDEX IF NOT EXISTS `idx_technique_facts_cache_key` ON `technique_facts` (`uri`, `fileSize`, `lastModified`, `detectorVersion`)" // ui-text: ignore (SQL)
                 )
             }
         }
@@ -87,7 +87,7 @@ abstract class ScoresDatabase : RoomDatabase() {
         val MIGRATION_5_6 = object : Migration(5, 6) {
             override fun migrate(db: SupportSQLiteDatabase) {
                 db.execSQL(
-                    "CREATE TABLE IF NOT EXISTS `lesson_progress` (`lessonId` TEXT NOT NULL, `completedAt` INTEGER NOT NULL, `spotItCorrect` INTEGER NOT NULL, `spotItTotal` INTEGER NOT NULL, PRIMARY KEY(`lessonId`))"
+                    "CREATE TABLE IF NOT EXISTS `lesson_progress` (`lessonId` TEXT NOT NULL, `completedAt` INTEGER NOT NULL, `spotItCorrect` INTEGER NOT NULL, `spotItTotal` INTEGER NOT NULL, PRIMARY KEY(`lessonId`))" // ui-text: ignore (SQL)
                 )
             }
         }
@@ -98,7 +98,7 @@ abstract class ScoresDatabase : RoomDatabase() {
         val MIGRATION_6_7 = object : Migration(6, 7) {
             override fun migrate(db: SupportSQLiteDatabase) {
                 db.execSQL(
-                    "CREATE TABLE IF NOT EXISTS `practice_goals` (`lessonId` TEXT NOT NULL, `startedAtEpochMs` INTEGER NOT NULL, `baselineRate` REAL NOT NULL, `baselineSampleSize` INTEGER NOT NULL, PRIMARY KEY(`lessonId`))"
+                    "CREATE TABLE IF NOT EXISTS `practice_goals` (`lessonId` TEXT NOT NULL, `startedAtEpochMs` INTEGER NOT NULL, `baselineRate` REAL NOT NULL, `baselineSampleSize` INTEGER NOT NULL, PRIMARY KEY(`lessonId`))" // ui-text: ignore (SQL)
                 )
             }
         }
@@ -115,9 +115,9 @@ abstract class ScoresDatabase : RoomDatabase() {
         val MIGRATION_7_8 = object : Migration(7, 8) {
             override fun migrate(db: SupportSQLiteDatabase) {
                 db.execSQL(
-                    "INSERT OR IGNORE INTO `user_ratings` (`uri`, `rating`, `updatedAt`) SELECT `filePath`, `rating`, `lastAccessTime` FROM `scores_cache` WHERE `rating` != 0"
+                    "INSERT OR IGNORE INTO `user_ratings` (`uri`, `rating`, `updatedAt`) SELECT `filePath`, `rating`, `lastAccessTime` FROM `scores_cache` WHERE `rating` != 0" // ui-text: ignore (SQL)
                 )
-                db.execSQL("UPDATE `scores_cache` SET `fileSize` = -1")
+                db.execSQL("UPDATE `scores_cache` SET `fileSize` = -1") // ui-text: ignore (SQL)
             }
         }
 
@@ -128,13 +128,13 @@ abstract class ScoresDatabase : RoomDatabase() {
         val MIGRATION_8_9 = object : Migration(8, 9) {
             override fun migrate(db: SupportSQLiteDatabase) {
                 db.execSQL(
-                    "CREATE TABLE IF NOT EXISTS `shoot_summaries` (`folderKey` TEXT NOT NULL, `cameraClass` TEXT NOT NULL, `cameraNames` TEXT NOT NULL, `firstCaptureTime` INTEGER, `lastCaptureTime` INTEGER, `photoCount` INTEGER NOT NULL, `metricsJson` TEXT NOT NULL, `detectorVersion` INTEGER NOT NULL, `partial` INTEGER NOT NULL, `updatedAt` INTEGER NOT NULL, PRIMARY KEY(`folderKey`, `cameraClass`))"
+                    "CREATE TABLE IF NOT EXISTS `shoot_summaries` (`folderKey` TEXT NOT NULL, `cameraClass` TEXT NOT NULL, `cameraNames` TEXT NOT NULL, `firstCaptureTime` INTEGER, `lastCaptureTime` INTEGER, `photoCount` INTEGER NOT NULL, `metricsJson` TEXT NOT NULL, `detectorVersion` INTEGER NOT NULL, `partial` INTEGER NOT NULL, `updatedAt` INTEGER NOT NULL, PRIMARY KEY(`folderKey`, `cameraClass`))" // ui-text: ignore (SQL)
                 )
                 db.execSQL(
-                    "CREATE INDEX IF NOT EXISTS `idx_shoot_summaries_class_time` ON `shoot_summaries` (`cameraClass`, `lastCaptureTime`)"
+                    "CREATE INDEX IF NOT EXISTS `idx_shoot_summaries_class_time` ON `shoot_summaries` (`cameraClass`, `lastCaptureTime`)" // ui-text: ignore (SQL)
                 )
                 db.execSQL(
-                    "CREATE TABLE IF NOT EXISTS `camera_overrides` (`make` TEXT NOT NULL, `model` TEXT NOT NULL, `cameraClass` TEXT NOT NULL, PRIMARY KEY(`make`, `model`))"
+                    "CREATE TABLE IF NOT EXISTS `camera_overrides` (`make` TEXT NOT NULL, `model` TEXT NOT NULL, `cameraClass` TEXT NOT NULL, PRIMARY KEY(`make`, `model`))" // ui-text: ignore (SQL)
                 )
             }
         }

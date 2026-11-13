@@ -52,6 +52,9 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.res.pluralStringResource
+import androidx.compose.ui.res.stringResource
+import com.photoselectortoolbox.R
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.LifecycleResumeEffect
@@ -66,7 +69,9 @@ import com.photoselectortoolbox.ui.theme.BrandAccent
 import com.photoselectortoolbox.ui.theme.Zinc400
 import com.photoselectortoolbox.ui.theme.Zinc700
 import com.photoselectortoolbox.ui.theme.Zinc800
+import com.photoselectortoolbox.ui.text.asString
 import com.photoselectortoolbox.viewmodel.SettingsViewModel
+
 
 @Composable
 fun SettingsScreen(
@@ -99,9 +104,9 @@ fun SettingsScreen(
     if (showClearCacheDialog) {
         AlertDialog(
             onDismissRequest = { showClearCacheDialog = false },
-            title = { Text("Clear Cache") },
+            title = { Text(stringResource(R.string.dialog_title_clear_cache)) },
             text = {
-                Text("Are you sure you want to clear all cached analysis scores? This will not affect your images.")
+                Text(stringResource(R.string.dialog_body_clear_cache))
             },
             confirmButton = {
                 Button(
@@ -115,12 +120,12 @@ fun SettingsScreen(
                         contentColor = OnDestructiveFill,
                     ),
                 ) {
-                    Text("Clear")
+                    Text(stringResource(R.string.action_clear))
                 }
             },
             dismissButton = {
                 TextButton(modifier = Modifier.handCursor(), onClick = { showClearCacheDialog = false }) {
-                    Text("Cancel")
+                    Text(stringResource(R.string.action_cancel))
                 }
             },
             containerColor = Zinc800,
@@ -148,10 +153,10 @@ fun SettingsScreen(
         Spacer(modifier = Modifier.height(8.dp))
 
         // --- Analysis Section ---
-        SettingsSection(title = "Analysis") {
+        SettingsSection(title = stringResource(R.string.title_section_analysis)) {
             SettingsToggleItem(
-                title = "Bursts",
-                description = "Group photos shot in close succession",
+                title = stringResource(R.string.setting_title_bursts),
+                description = stringResource(R.string.setting_summary_bursts),
                 checked = uiState.groupingEnabled,
                 onCheckedChange = { viewModel.updateGroupingEnabled(it) },
                 icon = Icons.Default.Collections,
@@ -170,7 +175,7 @@ fun SettingsScreen(
                             .padding(16.dp),
                     ) {
                         Text(
-                            text = "Grouping Level",
+                            text = stringResource(R.string.label_grouping_level),
                             style = MaterialTheme.typography.bodyMedium,
                             color = MaterialTheme.colorScheme.onSurface,
                         )
@@ -178,8 +183,8 @@ fun SettingsScreen(
 
                         GroupingLevel.entries.forEach { level ->
                             SettingsRadioRow(
-                                label = level.label,
-                                description = level.description,
+                                label = stringResource(level.label),
+                                description = stringResource(level.description),
                                 selected = uiState.groupingLevel == level,
                                 onSelect = { viewModel.updateGroupingLevel(level) },
                                 tag = "settings_grouping_${level.name.lowercase()}",
@@ -201,7 +206,7 @@ fun SettingsScreen(
                     verticalAlignment = Alignment.CenterVertically,
                 ) {
                     Text(
-                        text = "Analysis Threads",
+                        text = stringResource(R.string.label_analysis_threads),
                         style = MaterialTheme.typography.bodyMedium,
                         color = MaterialTheme.colorScheme.onSurface,
                         modifier = Modifier.weight(1f),
@@ -247,10 +252,10 @@ fun SettingsScreen(
         Spacer(modifier = Modifier.height(8.dp))
 
         // --- Fullscreen Section ---
-        SettingsSection(title = "Filing and Fullscreen") {
+        SettingsSection(title = stringResource(R.string.title_section_filing)) {
             SettingsToggleItem(
-                title = "Show Fullscreen Action Buttons",
-                description = "Display delete, copy, and move buttons in fullscreen mode",
+                title = stringResource(R.string.setting_title_fullscreen_buttons),
+                description = stringResource(R.string.setting_summary_fullscreen_buttons),
                 checked = uiState.fullscreenButtonsEnabled,
                 onCheckedChange = { viewModel.updateFullscreenButtonsEnabled(it) },
                 icon = Icons.Default.Info,
@@ -268,13 +273,12 @@ fun SettingsScreen(
                 // after that gesture described something that does not happen.
                 // The persisted key is unchanged.
                 Text(
-                    text = "Filing Action",
+                    text = stringResource(R.string.label_filing_action),
                     style = MaterialTheme.typography.bodyMedium,
                     color = MaterialTheme.colorScheme.onSurface,
                 )
                 Text(
-                    text = "Which verb the emphasised button performs. Both Copy and Move " +
-                        "stay available on their own buttons and shortcuts.",
+                    text = stringResource(R.string.setting_summary_filing_action),
                     style = MaterialTheme.typography.bodySmall,
                     color = Zinc400,
                 )
@@ -282,7 +286,7 @@ fun SettingsScreen(
 
                 FilingAction.entries.forEach { action ->
                     SettingsRadioRow(
-                        label = action.phrase,
+                        label = action.verb.asString(),
                         selected = uiState.filingAction == action,
                         onSelect = { viewModel.updateFilingAction(action) },
                         tag = "settings_filing_${action.name.lowercase()}",
@@ -293,8 +297,8 @@ fun SettingsScreen(
             HorizontalDivider(color = Zinc700.copy(alpha = 0.5f))
 
             SettingsToggleItem(
-                title = "TV / 10-Foot Display Scale (125%)",
-                description = "Scale font size by 125% for living-room TV / DeX display viewing",
+                title = stringResource(R.string.setting_title_tv_scale),
+                description = stringResource(R.string.setting_summary_tv_scale),
                 checked = uiState.tvDisplayScaleEnabled,
                 onCheckedChange = { viewModel.updateTvDisplayScaleEnabled(it) },
                 icon = Icons.Default.Info,
@@ -308,10 +312,10 @@ fun SettingsScreen(
         // `[USER 2026-11-12]` decision #16: embedding a rating in a JPEG is the one write that
         // changes a photo, so it is opt-in (off on a new install). The summary is the data-loss
         // line UI_TEXT allows; RAW and TIFF ratings go to a sidecar either way.
-        SettingsSection(title = "Ratings") {
+        SettingsSection(title = stringResource(R.string.title_section_ratings)) {
             SettingsToggleItem(
-                title = "Write ratings into photos",
-                description = "Changes the original JPEG",
+                title = stringResource(R.string.setting_title_write_ratings_into_photos),
+                description = stringResource(R.string.setting_summary_write_ratings_into_photos),
                 checked = uiState.writeRatingsIntoPhotos,
                 onCheckedChange = viewModel::updateWriteRatingsIntoPhotos,
                 icon = Icons.Default.Star,
@@ -327,13 +331,13 @@ fun SettingsScreen(
         // nothing is destroyed here, so a modal asking "are you sure" would be
         // ceremony. The description confirms instead, because an action with no
         // visible effect reads as a control that does nothing.
-        SettingsSection(title = "Guidance") {
+        SettingsSection(title = stringResource(R.string.title_section_guidance)) {
             SettingsClickItem(
-                title = "Reset Guidance",
+                title = stringResource(R.string.setting_title_reset_guidance),
                 description = if (guidanceReset) {
-                    "The explanations and the guide will show again"
+                    stringResource(R.string.setting_summary_guidance_was_reset)
                 } else {
-                    "Show the first-run explanations and the layout guide again"
+                    stringResource(R.string.setting_summary_reset_guidance)
                 },
                 onClick = {
                     viewModel.resetGuidance()
@@ -353,7 +357,7 @@ fun SettingsScreen(
                         ),
                         shape = RoundedCornerShape(8.dp),
                     ) {
-                        Text("Reset")
+                        Text(stringResource(R.string.action_reset))
                     }
                 },
             )
@@ -370,18 +374,18 @@ fun SettingsScreen(
         Spacer(modifier = Modifier.height(8.dp))
 
         // --- Cache Section ---
-        SettingsSection(title = "Cache") {
+        SettingsSection(title = stringResource(R.string.title_section_cache)) {
             SettingsClickItem(
-                title = "Cached Scores",
-                description = "${uiState.cachedScoreCount} analysis results stored",
+                title = stringResource(R.string.setting_title_cached_scores),
+                description = pluralStringResource(R.plurals.setting_summary_cached_scores, uiState.cachedScoreCount, uiState.cachedScoreCount),
                 icon = Icons.Default.Cached,
             )
 
             HorizontalDivider(color = Zinc700.copy(alpha = 0.5f))
 
             SettingsClickItem(
-                title = "Clear Cache",
-                description = "Remove all cached analysis scores",
+                title = stringResource(R.string.setting_title_clear_cache),
+                description = stringResource(R.string.setting_summary_clear_cache),
                 onClick = { showClearCacheDialog = true },
                 icon = Icons.Default.DeleteSweep,
                 trailing = {
@@ -394,7 +398,7 @@ fun SettingsScreen(
                         ),
                         shape = RoundedCornerShape(8.dp),
                     ) {
-                        Text("Clear")
+                        Text(stringResource(R.string.action_clear))
                     }
                 },
             )
@@ -403,10 +407,10 @@ fun SettingsScreen(
         Spacer(modifier = Modifier.height(8.dp))
 
         // --- About Section ---
-        SettingsSection(title = "About") {
+        SettingsSection(title = stringResource(R.string.title_section_about)) {
             SettingsClickItem(
-                title = "Frameduel",
-                description = "Version ${com.photoselectortoolbox.BuildConfig.VERSION_NAME}",
+                title = stringResource(R.string.app_name),
+                description = stringResource(R.string.setting_summary_version, com.photoselectortoolbox.BuildConfig.VERSION_NAME),
                 onClick = {},
                 icon = Icons.Default.Info,
             )
@@ -414,8 +418,8 @@ fun SettingsScreen(
             HorizontalDivider(color = Zinc700.copy(alpha = 0.5f))
 
             SettingsClickItem(
-                title = "Source Code",
-                description = "View on GitHub",
+                title = stringResource(R.string.setting_title_source_code),
+                description = stringResource(R.string.setting_summary_source_code),
                 onClick = {
                     val intent = Intent(Intent.ACTION_VIEW, Uri.parse(com.photoselectortoolbox.domain.LegalLinks.SOURCE_CODE))
                     try {
@@ -430,8 +434,8 @@ fun SettingsScreen(
             HorizontalDivider(color = Zinc700.copy(alpha = 0.5f))
 
             SettingsClickItem(
-                title = "Privacy Policy",
-                description = "How Frameduel handles your data",
+                title = stringResource(R.string.setting_title_privacy_policy),
+                description = stringResource(R.string.setting_summary_privacy_policy),
                 onClick = {
                     val intent = Intent(Intent.ACTION_VIEW, Uri.parse(com.photoselectortoolbox.domain.LegalLinks.PRIVACY_POLICY))
                     try {
@@ -446,8 +450,9 @@ fun SettingsScreen(
             HorizontalDivider(color = Zinc700.copy(alpha = 0.5f))
 
             SettingsClickItem(
-                title = "Legal Notice (Impressum)",
-                description = "Provider identification",
+                title = stringResource(R.string.setting_title_legal_notice),
+                description = stringResource(R.string.setting_summary_legal_notice),
+
                 onClick = {
                     val intent = Intent(Intent.ACTION_VIEW, Uri.parse(com.photoselectortoolbox.domain.LegalLinks.IMPRESSUM))
                     try {

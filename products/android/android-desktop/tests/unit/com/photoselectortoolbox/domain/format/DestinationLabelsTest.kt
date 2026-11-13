@@ -7,11 +7,18 @@ import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNull
 import org.junit.Test
+import org.junit.runner.RunWith
+import androidx.test.ext.junit.runners.AndroidJUnit4
+import com.photoselectortoolbox.testing.de
+import com.photoselectortoolbox.testing.en
+import org.robolectric.annotation.Config
 
 /**
  * The words of Settings → "Where photos go" (`[USER 2026-11-04]`): the path line is the
  * resolved destination, ending `› RAW · JPEG` only while sorting is on.
  */
+@RunWith(AndroidJUnit4::class)
+@Config(sdk = [34])
 class DestinationLabelsTest {
 
     private fun preview(
@@ -31,7 +38,7 @@ class DestinationLabelsTest {
     fun `the path is the segments joined with the arrow and ends in RAW and JPEG when sorting is on`() {
         assertEquals(
             "Internal storage › DCIM › Trip › Selection › RAW · JPEG",
-            DestinationLabels.pathLine(preview(listOf("Internal storage", "DCIM", "Trip", "Selection"))),
+            DestinationLabels.pathLine(preview(listOf("Internal storage", "DCIM", "Trip", "Selection")))?.en(),
         )
     }
 
@@ -39,7 +46,7 @@ class DestinationLabelsTest {
     fun `with sorting off the path ends at the Selection folder`() {
         assertEquals(
             "Internal storage › DCIM › Trip › Selection",
-            DestinationLabels.pathLine(preview(listOf("Internal storage", "DCIM", "Trip", "Selection"), sorting = false)),
+            DestinationLabels.pathLine(preview(listOf("Internal storage", "DCIM", "Trip", "Selection"), sorting = false))?.en(),
         )
     }
 
@@ -47,12 +54,13 @@ class DestinationLabelsTest {
     fun `no folder open says what will happen, with the configured name`() {
         assertEquals(
             "«Selection» inside the folder you open — no folder open yet",
-            DestinationLabels.pathLine(preview(null)),
+            DestinationLabels.pathLine(preview(null))?.en(),
         )
         assertEquals(
             "«Picks» inside the folder you open — no folder open yet",
-            DestinationLabels.pathLine(preview(null, folder = "Picks")),
+            DestinationLabels.pathLine(preview(null, folder = "Picks"))?.en(),
         )
+        assertEquals("«Picks» im Ordner, den du öffnest – noch kein Ordner offen", DestinationLabels.pathLine(preview(null, folder = "Picks"))?.de())
     }
 
     @Test
@@ -64,7 +72,7 @@ class DestinationLabelsTest {
     fun `the spoken path has commas and names the RAW and JPEG subfolders`() {
         assertEquals(
             "Photos go to SD card, Photos, Keepers, Selection, in RAW and JPEG subfolders",
-            DestinationLabels.pathDescription(preview(listOf("SD card", "Photos", "Keepers", "Selection"))),
+            DestinationLabels.pathDescription(preview(listOf("SD card", "Photos", "Keepers", "Selection")))?.en(),
         )
     }
 
@@ -72,7 +80,7 @@ class DestinationLabelsTest {
     fun `each way a custom folder is lost has its own reason`() {
         assertNull(DestinationLabels.unavailableReason(FolderReachability.REACHABLE))
         val reasons = listOf(FolderReachability.NO_PERMISSION, FolderReachability.MISSING, FolderReachability.READ_ONLY)
-            .map { DestinationLabels.unavailableReason(it)!! }
+            .map { DestinationLabels.unavailableReason(it)!!.en() }
         assertEquals(3, reasons.toSet().size)
         assertFalse(reasons.any { it.isBlank() })
     }

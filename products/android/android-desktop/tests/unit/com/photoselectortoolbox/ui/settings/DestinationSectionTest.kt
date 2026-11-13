@@ -5,6 +5,8 @@ import androidx.compose.ui.semantics.SemanticsProperties
 import androidx.compose.ui.semantics.getOrNull
 import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.hasText
+import com.photoselectortoolbox.R
+import com.photoselectortoolbox.testing.str
 import androidx.compose.ui.test.junit4.createComposeRule
 import androidx.compose.ui.test.onAllNodesWithTag
 import androidx.compose.ui.test.onFirst
@@ -139,7 +141,7 @@ class DestinationSectionTest {
         host(opened = trip.copy(name = "Selection", hasSelectionMarker = true))
 
         assertEquals("Internal storage › DCIM › Trip › Final › RAW · JPEG", text("destination_path"))
-        assertEquals("Second pass — the open folder is a Selection folder", text("destination_second_pass"))
+        assertEquals(str(R.string.setting_summary_second_pass), text("destination_second_pass"))
     }
 
     @Test
@@ -255,7 +257,7 @@ class DestinationSectionTest {
         host(opened = trip)
 
         rule.onAllNodes(hasText("Where photos go"), useUnmergedTree = true).onFirst().assertIsDisplayed()
-        rule.onAllNodes(hasText("RAW and JPEG folders"), useUnmergedTree = true).onFirst().performScrollTo().assertIsDisplayed()
+        rule.onAllNodes(hasText(str(R.string.setting_title_raw_jpeg_folders)), useUnmergedTree = true).onFirst().performScrollTo().assertIsDisplayed()
         listOf("Created inside the source folder by default", "File Sorting", "Custom Selection Location", "Reset").forEach {
             assertTrue("'$it' is gone", rule.onAllNodes(hasText(it), useUnmergedTree = true).fetchSemanticsNodes().isEmpty())
         }
@@ -265,7 +267,7 @@ class DestinationSectionTest {
     fun `the RAW and JPEG switch reports its change`() {
         host(opened = trip)
 
-        rule.onAllNodes(hasText("RAW and JPEG folders"), useUnmergedTree = true).onFirst().performScrollTo().performClick()
+        rule.onAllNodes(hasText(str(R.string.setting_title_raw_jpeg_folders)), useUnmergedTree = true).onFirst().performScrollTo().performClick()
 
         assertEquals(false, sorting)
     }

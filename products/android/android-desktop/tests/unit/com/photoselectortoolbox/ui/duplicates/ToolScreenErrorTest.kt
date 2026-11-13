@@ -127,7 +127,7 @@ class ToolScreenErrorTest {
     fun `a failed Stats analysis says so`() {
         val vm = mockk<StatisticsViewModel>(relaxed = true)
         every { vm.uiState } returns MutableStateFlow(
-            StatisticsUiState(folderUri = "content://tree/trip", error = "Analysis failed", errorSequence = 1),
+            StatisticsUiState(folderUri = "content://tree/trip", error = com.photoselectortoolbox.domain.text.raw("Analysis failed"), errorSequence = 1),
         )
         rule.setContent { StatisticsScreen(windowSizeClass = windowSize, viewModel = vm) }
         rule.waitForIdle()
@@ -138,7 +138,7 @@ class ToolScreenErrorTest {
     fun `a revoked folder is said once, by the empty state`() {
         val vm = mockk<StatisticsViewModel>(relaxed = true)
         every { vm.uiState } returns MutableStateFlow(
-            StatisticsUiState(missingGrantPrompt = true, error = REVOKED, errorSequence = 1),
+            StatisticsUiState(missingGrantPrompt = true, error = com.photoselectortoolbox.domain.text.raw(REVOKED), errorSequence = 1),
         )
         rule.setContent { StatisticsScreen(windowSizeClass = windowSize, viewModel = vm) }
         rule.waitForIdle()

@@ -19,6 +19,8 @@ import org.junit.Rule
 import org.junit.Test
 import org.junit.runner.RunWith
 import org.robolectric.annotation.Config
+import com.photoselectortoolbox.testing.en
+import com.photoselectortoolbox.testing.str
 
 /**
  * The card and the delete dialog show "+2" and speak "and 2 companion files"
@@ -56,8 +58,8 @@ class CompanionConfirmationUiTest {
         val line = CompanionConfirmation.filed(FilingAction.MOVE, bundle, "Selection")
         rule.setContent {
             SelectorSnackbar(
-                message = line.visible,
-                spoken = line.spoken,
+                message = line.visible.en(),
+                spoken = line.spoken.en(),
                 onUndo = {},
                 onDismiss = {},
                 sequence = 1,
@@ -82,7 +84,7 @@ class CompanionConfirmationUiTest {
         rule.setContent {
             Column {
                 DeleteDialogTitle(bundle)
-                DeleteDialogBody(bundle, message = "Delete \"DSC_0003.JPG\"?")
+                DeleteDialogBody(bundle, message = com.photoselectortoolbox.domain.text.raw("Delete \"DSC_0003.JPG\"?"))
             }
         }
         assertEquals("Delete DSC_0003 +2?", text("delete_dialog_title"))
@@ -96,10 +98,10 @@ class CompanionConfirmationUiTest {
         rule.setContent {
             Column {
                 DeleteDialogTitle(lone)
-                DeleteDialogBody(lone, message = "Delete \"DSC_0003.JPG\"?")
+                DeleteDialogBody(lone, message = com.photoselectortoolbox.domain.text.raw("Delete \"DSC_0003.JPG\"?"))
             }
         }
-        assertEquals(DELETE_DIALOG_TITLE, text("delete_dialog_title"))
+        assertEquals(str(DELETE_DIALOG_TITLE), text("delete_dialog_title"))
         assertEquals(0, rule.onAllNodes(hasTestTag("delete_dialog_also"), useUnmergedTree = true).fetchSemanticsNodes().size)
     }
 }

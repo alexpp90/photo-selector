@@ -50,6 +50,7 @@ import org.junit.Test
 import org.junit.runner.RunWith
 import org.robolectric.Shadows.shadowOf
 import org.robolectric.annotation.Config
+import com.photoselectortoolbox.testing.en
 
 /**
  * The More menu, one list in both layouts (REQ-AND-LAYOUT.02, REQ-AND-LAYOUT.22, backlog
@@ -145,7 +146,7 @@ class SelectorMoreMenuTest {
         assertEquals("3", undoCount())
         val spoken = rule.onNodeWithTag("menu_undo", useUnmergedTree = true)
             .fetchSemanticsNode().config.getOrNull(SemanticsProperties.ContentDescription)?.joinToString()
-        assertEquals(SelectorLabels.undoMenuSpoken(3), spoken)
+        assertEquals(SelectorLabels.undoMenuSpoken(3).en(), spoken)
         // The menu stays open, so each tap is one more step back.
         repeat(3) { clickMenu("menu_undo") }
         assertEquals(photos.map { it.fileName }.sorted(), names().sorted())
@@ -184,7 +185,7 @@ class SelectorMoreMenuTest {
         clickMenu("menu_scan")
         rule.onAllNodes(hasText("Start Scan"), useUnmergedTree = true).onFirst().assertIsEnabled().performClick()
         rule.waitUntil(5_000) { viewModel.uiState.value.snackbarSequence > before }
-        assertEquals(SelectorLabels.scanCompleteMessage(0), viewModel.uiState.value.snackbarMessage)
+        assertEquals(SelectorLabels.scanCompleteMessage(0).en(), viewModel.uiState.value.snackbarMessage?.en())
 
         // Folder: the system picker is asked for a tree, and the folder it returns is opened.
         openMenu("compact_more_button")

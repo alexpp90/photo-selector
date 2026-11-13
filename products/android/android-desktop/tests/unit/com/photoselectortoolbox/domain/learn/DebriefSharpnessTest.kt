@@ -8,6 +8,7 @@ import com.photoselectortoolbox.data.model.ScanResult
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
 import org.junit.Test
+import com.photoselectortoolbox.testing.en
 
 /**
  * The debrief's two sharpness rules (`SD2B_RESEARCH.md` §3 and §4, shoot debrief SD-2b): "sharp
@@ -100,6 +101,6 @@ class DebriefSharpnessTest {
         val group = run(List(25) { shot(sharpness = 10.0, exposure = 1.0 / 15, focal35 = 200.0, decidedBy = DecidedBy.PHOTOGRAPHER) }).single()
         assertEquals(DebriefMetric.HAND_HOLD, group.focus)
         assertEquals(DecidedBy.PHOTOGRAPHER, group.decidedBy)
-        assertTrue(group.advice.first(), group.advice.first().startsWith("You chose"))
+        assertTrue(group.advice.first().en(), group.advice.first().en().startsWith("You chose"))
     }
 }

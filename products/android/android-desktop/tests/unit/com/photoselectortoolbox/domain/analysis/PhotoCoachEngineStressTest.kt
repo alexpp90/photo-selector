@@ -9,6 +9,7 @@ import org.junit.Assert.assertNotNull
 import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
+import com.photoselectortoolbox.testing.en
 
 /**
  * Empirical stress test harness for [PhotoCoachEngineImpl].
@@ -32,7 +33,7 @@ class PhotoCoachEngineStressTest {
         val report = engine.evaluate(exif, scan)
 
         assertEquals(0.0f, report.cameraShakeRisk, 0.001f)
-        assertTrue(report.tips.none { it.category == "Shutter Speed" })
+        assertTrue(report.tips.none { it.category.en() == "Shutter Speed" })
         assertEquals(0.02, report.safeShutterSpeed!!, 1e-4)
     }
 
@@ -44,7 +45,7 @@ class PhotoCoachEngineStressTest {
         val report = engine.evaluate(exif, scan)
 
         assertEquals(0.0f, report.cameraShakeRisk, 0.001f)
-        assertTrue(report.tips.none { it.category == "Shutter Speed" })
+        assertTrue(report.tips.none { it.category.en() == "Shutter Speed" })
     }
 
     @Test
@@ -78,7 +79,7 @@ class PhotoCoachEngineStressTest {
         val report = engine.evaluate(exif, scan)
 
         assertEquals(0.0f, report.cameraShakeRisk, 0.001f)
-        assertTrue(report.tips.none { it.category == "Shutter Speed" })
+        assertTrue(report.tips.none { it.category.en() == "Shutter Speed" })
     }
 
     @Test
@@ -89,7 +90,7 @@ class PhotoCoachEngineStressTest {
         val report = engine.evaluate(exif, scan)
 
         assertTrue(report.cameraShakeRisk in 0.7f..1.0f)
-        val tip = report.tips.find { it.category == "Shutter Speed" }
+        val tip = report.tips.find { it.category.en() == "Shutter Speed" }
         assertNotNull(tip)
         assertEquals(TipSeverity.CRITICAL, tip!!.severity)
     }
@@ -154,7 +155,7 @@ class PhotoCoachEngineStressTest {
 
         assertEquals(0.00125, report.safeShutterSpeed!!, 1e-5)
         assertTrue(report.cameraShakeRisk >= 0.7f)
-        val tip = report.tips.find { it.category == "Shutter Speed" }
+        val tip = report.tips.find { it.category.en() == "Shutter Speed" }
         assertNotNull(tip)
         assertEquals(TipSeverity.CRITICAL, tip!!.severity)
     }
@@ -189,7 +190,7 @@ class PhotoCoachEngineStressTest {
     fun aperture_diffraction_f32_and_f64() {
         val exifF32 = ExifData(make = "SONY", model = "ILCE-7M4", focalLength = 50.0, focalLength35mm = 50.0, aperture = 32.0)
         val reportF32 = engine.evaluate(exifF32, null)
-        val tip = reportF32.tips.find { it.category == "Optics" && it.title.contains("Diffraction") }
+        val tip = reportF32.tips.find { it.category.en() == "Optics" && it.title.en().contains("Diffraction") }
         assertNotNull(tip)
         assertEquals(TipSeverity.WARNING, tip!!.severity)
     }
@@ -203,14 +204,14 @@ class PhotoCoachEngineStressTest {
         val exif102k = ExifData(iso = 102400, aperture = 2.8)
         val scan1 = ScanResult(filePath = "test.jpg", noiseLevel = 25.0)
         val report1 = engine.evaluate(exif102k, scan1)
-        val tip1 = report1.tips.find { it.category == "Sensor Noise" }
+        val tip1 = report1.tips.find { it.category.en() == "Sensor Noise" }
         assertNotNull("Expected sensor noise tip for ISO 102400", tip1)
         assertEquals(TipSeverity.CRITICAL, tip1!!.severity)
 
         val exif409k = ExifData(iso = 409600, aperture = 2.8)
         val scan2 = ScanResult(filePath = "test.jpg", noiseLevel = 18.0)
         val report2 = engine.evaluate(exif409k, scan2)
-        val tip2 = report2.tips.find { it.category == "Sensor Noise" }
+        val tip2 = report2.tips.find { it.category.en() == "Sensor Noise" }
         assertNotNull("Expected sensor noise tip for ISO 409600", tip2)
         assertEquals(TipSeverity.CRITICAL, tip2!!.severity)
     }
@@ -222,11 +223,11 @@ class PhotoCoachEngineStressTest {
         val scan = ScanResult(filePath = "test.jpg", noiseLevel = 25.0)
 
         val reportIso50 = engine.evaluate(exifIso50, scan)
-        assertTrue(reportIso50.tips.none { it.category == "Sensor Noise" })
+        assertTrue(reportIso50.tips.none { it.category.en() == "Sensor Noise" })
 
         val exifIso100 = ExifData(iso = 100, aperture = 2.8)
         val reportIso100 = engine.evaluate(exifIso100, scan)
-        assertTrue(reportIso100.tips.none { it.category == "Sensor Noise" })
+        assertTrue(reportIso100.tips.none { it.category.en() == "Sensor Noise" })
     }
 
     @Test
@@ -234,11 +235,11 @@ class PhotoCoachEngineStressTest {
         val exifZero = ExifData(iso = 0, aperture = 2.8)
         val scan = ScanResult(filePath = "test.jpg", noiseLevel = 25.0)
         val reportZero = engine.evaluate(exifZero, scan)
-        assertTrue(reportZero.tips.none { it.category == "Sensor Noise" })
+        assertTrue(reportZero.tips.none { it.category.en() == "Sensor Noise" })
 
         val exifNeg = ExifData(iso = -100, aperture = 2.8)
         val reportNeg = engine.evaluate(exifNeg, scan)
-        assertTrue(reportNeg.tips.none { it.category == "Sensor Noise" })
+        assertTrue(reportNeg.tips.none { it.category.en() == "Sensor Noise" })
     }
 
     @Test
@@ -247,11 +248,11 @@ class PhotoCoachEngineStressTest {
         val exif = ExifData(iso = 3200, aperture = 2.8)
         val scanLower = ScanResult(filePath = "test.jpg", noiseLevel = 8.0)
         val reportLower = engine.evaluate(exif, scanLower)
-        val tipLower = reportLower.tips.find { it.category == "Sensor Noise" }
+        val tipLower = reportLower.tips.find { it.category.en() == "Sensor Noise" }
 
         val scanHigher = ScanResult(filePath = "test.jpg", noiseLevel = 20.0)
         val reportHigher = engine.evaluate(exif, scanHigher)
-        val tipHigher = reportHigher.tips.find { it.category == "Sensor Noise" }
+        val tipHigher = reportHigher.tips.find { it.category.en() == "Sensor Noise" }
 
         assertNotNull("Tip for noise=8.0 must exist", tipLower)
         assertNotNull("Tip for noise=20.0 must exist", tipHigher)
@@ -280,8 +281,8 @@ class PhotoCoachEngineStressTest {
         val report = engine.evaluate(null, scan)
 
         // If the engine incorrectly treats 0.5 as a fraction (0.5 = 50%), this assertion will reveal the bug.
-        val highlightTip = report.tips.find { it.category == "Exposure" && it.title.contains("Blown Highlights") }
-        val drTip = report.tips.find { it.category == "Dynamic Range" }
+        val highlightTip = report.tips.find { it.category.en() == "Exposure" && it.title.en().contains("Blown Highlights") }
+        val drTip = report.tips.find { it.category.en() == "Dynamic Range" }
 
         assertNull("0.5% highlight clipping must NOT trigger blown highlights warning (threshold is 2.0%)", highlightTip)
         assertNull("0.5% highlights and 0.1% shadows must NOT trigger HDR dynamic range warning", drTip)
@@ -298,7 +299,7 @@ class PhotoCoachEngineStressTest {
 
         val report = engine.evaluate(null, scan)
 
-        val highlightTip = report.tips.find { it.category == "Exposure" && it.title.contains("Blown Highlights") }
+        val highlightTip = report.tips.find { it.category.en() == "Exposure" && it.title.en().contains("Blown Highlights") }
         assertNull("1.0% highlight clipping must NOT trigger blown highlights warning", highlightTip)
     }
 

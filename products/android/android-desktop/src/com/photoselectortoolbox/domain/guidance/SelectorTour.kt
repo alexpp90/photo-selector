@@ -1,5 +1,10 @@
 package com.photoselectortoolbox.domain.guidance
 
+import androidx.annotation.StringRes
+import com.photoselectortoolbox.R
+import com.photoselectortoolbox.domain.text.UiText
+import com.photoselectortoolbox.domain.text.text
+
 import com.photoselectortoolbox.domain.interaction.FilingAction
 import com.photoselectortoolbox.domain.scoring.ScoreMetric
 import com.photoselectortoolbox.domain.interaction.GestureRow
@@ -21,28 +26,32 @@ enum class TourRegion(
      * Where this part of the screen is, in words. The guide is paged in the left
      * flank, so a card is no longer beside what it explains and has to say so.
      */
-    val location: String,
+    @StringRes private val locationRes: Int,
 ) {
     /** Upper half of the 88 dp sidebar: Folder, Drive, Scan, Bursts, Legend. */
-    SIDEBAR_SESSION("Left sidebar, top"),
+    SIDEBAR_SESSION(R.string.hint_title_region_sidebar_top),
 
     /** Lower half of the sidebar, under the rule: Cull, Stats, Tools (Learn, Dupes), Setup. */
-    SIDEBAR_SCREENS("Left sidebar, bottom"),
+    SIDEBAR_SCREENS(R.string.hint_title_region_sidebar_bottom),
 
     /** The readout block, left of the current frame. */
-    READOUT("Left of the centre frame"),
+    READOUT(R.string.hint_title_region_readout),
 
     /** The three frames themselves — labelled from the flank, never covered. */
-    FRAMES("The three frames"),
+    FRAMES(R.string.hint_title_region_frames),
 
     /** The control block, right of the current frame. */
-    CONTROLS("Right of the centre frame"),
+    CONTROLS(R.string.hint_title_region_controls),
 
     /** Keys that drive no on-screen control, so nothing can be pointed at. */
-    KEYS("On the keyboard"),
+    KEYS(R.string.hint_title_region_keys),
 
     /** The vertical filmstrip, down the outer edge of the control flank. */
-    FILMSTRIP("Far right edge, when shown"),
+    FILMSTRIP(R.string.hint_title_region_filmstrip),
+    ;
+
+    /** Where this part of the screen is, in the UI's language. */
+    val location: UiText get() = text(locationRes)
 }
 
 /**
@@ -54,8 +63,8 @@ enum class TourRegion(
  */
 data class TourCallout(
     val region: TourRegion,
-    val title: String,
-    val body: String,
+    val title: UiText,
+    val body: UiText,
     val rows: List<GestureRow> = emptyList(),
     /**
      * Things on screen this callout *names*, as opposed to inputs it advertises.
@@ -76,8 +85,8 @@ data class TourCallout(
  * the frames showed a sun and a moon.
  */
 data class LegendRow(
-    val label: String,
-    val meaning: String,
+    val label: UiText,
+    val meaning: UiText,
     val metric: ScoreMetric? = null,
 )
 
@@ -109,7 +118,7 @@ data class LegendRow(
 object SelectorTour {
 
     /** The controls callout's body (`guide_` budget: 2 words, 14 characters). */
-    const val CONTROLS_BODY = "Keys below"
+    val CONTROLS_BODY: UiText = text(R.string.guide_keys_below)
 
     /** Shortcuts the user can be shown by pointing at the control they drive. */
     private val SHORTCUTS_WITH_A_CONTROL = setOf(
@@ -154,8 +163,8 @@ object SelectorTour {
         add(
             TourCallout(
                 region = TourRegion.SIDEBAR_SESSION,
-                title = "The shoot",
-                body = "These act on every photograph, not on the one in front of you.",
+                title = text(R.string.hint_title_tour_shoot),
+                body = text(R.string.hint_body_tour_shoot),
                 legend = SidebarAction.entries.map { action ->
                     LegendRow(label = action.label, meaning = action.meaning)
                 },
@@ -164,8 +173,8 @@ object SelectorTour {
         add(
             TourCallout(
                 region = TourRegion.SIDEBAR_SCREENS,
-                title = "The screens",
-                body = "Place saved per folder.",
+                title = text(R.string.hint_title_tour_screens),
+                body = text(R.string.hint_body_tour_screens),
                 legend = screenLegend,
             )
         )
@@ -173,9 +182,8 @@ object SelectorTour {
             add(
                 TourCallout(
                     region = TourRegion.READOUT,
-                    title = "This frame's values",
-                    body = "Filename, exposure, then one row per metric. The bar is the " +
-                        "score: longer is always better, whichever way the raw number runs.",
+                    title = text(R.string.hint_title_tour_values),
+                    body = text(R.string.hint_body_tour_values),
                     legend = metricLegend(),
                 )
             )
@@ -183,17 +191,15 @@ object SelectorTour {
         add(
             TourCallout(
                 region = TourRegion.FRAMES,
-                title = "The comparison",
-                body = "Centre frame is the one you are deciding on; the two below are " +
-                    "the frames either side of it. All three are the same size on purpose " +
-                    "— a smaller or dimmed neighbour cannot be judged.",
+                title = text(R.string.hint_title_tour_comparison),
+                body = text(R.string.hint_body_tour_comparison),
                 rows = SelectorGestures.frameGestureRows(),
             )
         )
         add(
             TourCallout(
                 region = TourRegion.CONTROLS,
-                title = "Acts on the centre frame",
+                title = text(R.string.hint_title_tour_controls),
                 // True at every width: narrow chips drop their key caps (the Go and Sort chips
                 // below 160 dp per cell, the action buttons at large font scales), so the body no
                 // longer claims every control carries its key; the rows below name each key, G
@@ -208,8 +214,8 @@ object SelectorTour {
         add(
             TourCallout(
                 region = TourRegion.KEYS,
-                title = "Keys with no button",
-                body = "Nothing on screen shows these, so here they are.",
+                title = text(R.string.hint_title_tour_keys),
+                body = text(R.string.hint_body_tour_keys),
                 rows = SelectorGestures.selectorShortcutRows(
                     filingAction,
                     SHORTCUTS_WITHOUT_A_CONTROL,
@@ -220,9 +226,8 @@ object SelectorTour {
             add(
                 TourCallout(
                     region = TourRegion.FILMSTRIP,
-                    title = "The whole folder",
-                    body = "Every frame in order, top to bottom. The dot is its " +
-                        "centre sharpness; bursts are marked when Bursts is on.",
+                    title = text(R.string.hint_title_tour_filmstrip),
+                    body = text(R.string.hint_body_tour_filmstrip),
                 )
             )
         }
@@ -238,7 +243,7 @@ object SelectorTour {
     fun metricLegend(): List<LegendRow> = ScoreMetric.entries.map { metric ->
         LegendRow(
             label = metric.displayName,
-            meaning = "${metric.direction.hint} — ${metric.description}",
+            meaning = UiText.Joined(listOf(metric.direction.hint, metric.description), " — "),
             metric = metric,
         )
     }
@@ -251,7 +256,7 @@ object SelectorTour {
      * [com.photoselectortoolbox.domain.interaction.FrameGesture] is exactly what
      * this must equal, no more and no less.
      */
-    fun advertisedInputs(filingAction: FilingAction): Set<String> =
+    fun advertisedInputs(filingAction: FilingAction): Set<UiText> =
         callouts(filingAction, detailsVisible = true, filmstripVisible = true)
             .flatMap { it.rows }
             .map { it.input }

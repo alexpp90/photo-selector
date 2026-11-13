@@ -39,7 +39,11 @@ import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.res.stringResource
+import com.photoselectortoolbox.R
+import com.photoselectortoolbox.data.repository.SettingsRepository
 import com.photoselectortoolbox.domain.curation.DestinationMode
+import com.photoselectortoolbox.ui.text.asString
 import com.photoselectortoolbox.domain.format.DestinationLabels
 import com.photoselectortoolbox.ui.components.dragDoesNotClick
 import com.photoselectortoolbox.ui.components.handCursor
@@ -84,9 +88,9 @@ internal fun DestinationSection(
         mutableStateOf(uiState.secondarySelectionFolderName)
     }
 
-    SettingsSection(title = DestinationLabels.SECTION_TITLE) {
+    SettingsSection(title = stringResource(R.string.title_section_destination)) {
         DestinationRadioRow(
-            label = DestinationLabels.WORKING_FOLDER,
+            label = stringResource(R.string.label_working_folder),
             selected = destination.mode == DestinationMode.WORKING_FOLDER,
             onSelect = onUseWorkingFolder,
             tag = "destination_working",
@@ -96,7 +100,7 @@ internal fun DestinationSection(
         }
 
         DestinationRadioRow(
-            label = DestinationLabels.CUSTOM_FOLDER,
+            label = stringResource(R.string.label_custom_folder),
             selected = destination.mode == DestinationMode.CUSTOM,
             // Already Custom: nothing to select, Change is the way to another folder.
             onSelect = { if (destination.customFolder == null) onChooseCustom() },
@@ -110,7 +114,7 @@ internal fun DestinationSection(
                         .testTag("destination_choose"),
                 ) {
                     Text(
-                        text = if (destination.customFolder == null) DestinationLabels.CHOOSE else DestinationLabels.CHANGE,
+                        text = stringResource(if (destination.customFolder == null) R.string.action_choose else R.string.action_change),
                         color = BrandAccent,
                     )
                 }
@@ -128,7 +132,7 @@ internal fun DestinationSection(
                 .padding(16.dp),
         ) {
             Text(
-                text = "Selection Subfolder Name",
+                text = stringResource(R.string.label_selection_folder_name),
                 style = MaterialTheme.typography.bodyMedium,
                 color = MaterialTheme.colorScheme.onSurface,
             )
@@ -136,7 +140,7 @@ internal fun DestinationSection(
             NameField(
                 value = editingFolderName,
                 onValueChange = { editingFolderName = it },
-                placeholder = "Selection",
+                placeholder = SettingsRepository.DEFAULT_SELECTION_FOLDER_NAME,
                 tag = "selection_name_field",
             )
             Spacer(modifier = Modifier.height(4.dp))
@@ -145,18 +149,18 @@ internal fun DestinationSection(
                     onClick = { onSaveSelectionName(editingFolderName) },
                     modifier = Modifier.align(Alignment.End).handCursor(),
                 ) {
-                    Text("Save", color = BrandAccent)
+                    Text(stringResource(R.string.action_save), color = BrandAccent)
                 }
             }
 
             Spacer(modifier = Modifier.height(12.dp))
             Text(
-                text = "Second-Pass Selection Subfolder Name",
+                text = stringResource(R.string.label_second_pass_folder_name),
                 style = MaterialTheme.typography.bodyMedium,
                 color = MaterialTheme.colorScheme.onSurface,
             )
             Text(
-                text = "Used automatically when re-culling an existing Selection folder",
+                text = stringResource(R.string.setting_summary_second_pass_folder),
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
@@ -164,7 +168,7 @@ internal fun DestinationSection(
             NameField(
                 value = editingSecondaryFolderName,
                 onValueChange = { editingSecondaryFolderName = it },
-                placeholder = "Final",
+                placeholder = SettingsRepository.DEFAULT_SECONDARY_SELECTION_FOLDER_NAME,
                 tag = "second_pass_name_field",
             )
             if (editingSecondaryFolderName != uiState.secondarySelectionFolderName &&
@@ -174,7 +178,7 @@ internal fun DestinationSection(
                     onClick = { onSaveSecondPassName(editingSecondaryFolderName) },
                     modifier = Modifier.align(Alignment.End).handCursor(),
                 ) {
-                    Text("Save", color = BrandAccent)
+                    Text(stringResource(R.string.action_save), color = BrandAccent)
                 }
             }
         }
@@ -184,7 +188,7 @@ internal fun DestinationSection(
         // Renamed from "File Sorting", its description dropped: the path line above ends
         // `› RAW · JPEG` exactly while this is on, which says it better than a sentence.
         SettingsToggleItem(
-            title = DestinationLabels.RAW_AND_JPEG_FOLDERS,
+            title = stringResource(R.string.setting_title_raw_jpeg_folders),
             checked = uiState.sortingEnabled,
             onCheckedChange = onSortingChange,
             icon = Icons.Default.Sort,
@@ -250,8 +254,9 @@ private fun DestinationRadioRow(
 private fun DestinationDetail(destination: DestinationUiState) {
     val preview = destination.preview
     val unavailable = destination.customFolderUnreachable
-    val reason = destination.customFolder?.reachability?.let(DestinationLabels::unavailableReason)
-    val path = DestinationLabels.pathLine(preview)
+    val reason = destination.customFolder?.reachability?.let(DestinationLabels::unavailableReason)?.asString()
+    val path = DestinationLabels.pathLine(preview)?.asString()
+    val pathSpoken = DestinationLabels.pathDescription(preview)?.asString()
 
     Row(
         modifier = Modifier
@@ -268,7 +273,7 @@ private fun DestinationDetail(destination: DestinationUiState) {
         Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
             if (unavailable) {
                 Text(
-                    text = DestinationLabels.FOLDER_UNAVAILABLE + (reason?.let { " · $it" } ?: ""),
+                    text = stringResource(R.string.label_folder_unavailable) + (reason?.let { " · $it" } ?: ""),
                     style = MaterialTheme.typography.bodySmall,
                     color = ScoreBad,
                     modifier = Modifier.testTag("destination_problem"),
@@ -281,14 +286,15 @@ private fun DestinationDetail(destination: DestinationUiState) {
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                     modifier = Modifier
                         .semantics {
-                            DestinationLabels.pathDescription(preview)?.let { contentDescription = it }
+                            pathSpoken?.let { contentDescription = it }
                         }
                         .testTag("destination_path"),
                 )
             }
             if (preview.isSecondPass && !unavailable) {
                 Text(
-                    text = DestinationLabels.SECOND_PASS_NOTE,
+                    text = stringResource(R.string.setting_summary_second_pass),
+
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                     modifier = Modifier.testTag("destination_second_pass"),

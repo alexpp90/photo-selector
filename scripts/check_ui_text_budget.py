@@ -11,8 +11,12 @@ For each product in scripts/ui_text_budget.json it reads:
   visible label next to an icon.
 
 Findings: over-words, over-chars, sentence-punctuation, icon-with-label, hardcoded,
-unclassified-key, missing-de. A product in `fail` mode fails the gate on any finding. A product in
-`warn` mode only reports.
+unclassified-key, missing-de, stale-debt. A product in `fail` mode fails the gate on any finding. A
+product in `warn` mode only reports.
+
+A product's `budget_debt` lists keys whose text is over budget on purpose until a copy pass
+rewords them: they are not reported as over budget, still need their German entry, and a key that
+fits its budget again is reported as `stale-debt`, so the list only shrinks.
 
 Usage:
     python3 scripts/check_ui_text_budget.py                    # all products, summary
@@ -22,7 +26,8 @@ Usage:
     python3 scripts/check_ui_text_budget.py --mode fail        # treat every product as fail mode
 
 A literal that is not user-visible (a file name, a MIME type) can carry `// ui-text: ignore`
-on its line or the line above.
+on its line or the line above; so can a button or bar item whose icon-with-label is a documented
+exception of the product's design guide.
 
 Exit codes: 0 = clean (or only warn-mode findings); 1 = a fail-mode product has findings;
 --warn-exit-code N returns N when only warn-mode findings exist (run_tests.sh uses it to show
@@ -201,7 +206,9 @@ def check_resources(product: str, res_dir: Path, cfg: dict, res: Result, root: P
     en = read_strings(res_dir / "values" / "strings.xml")
     de = read_strings(res_dir / "values-de" / "strings.xml")
     exempt = set(cfg.get("exempt_keys", []))
+    debt = set(cfg["products"].get(product, {}).get("budget_debt", []))
     rel = lambda p: str(p.relative_to(root)) if p.is_relative_to(root) else str(p)  # noqa: E731
+    over: dict[str, bool] = {}
     for key, text in en.items():
         base = key.split("#", 1)[0]
         if base in exempt:
@@ -213,15 +220,17 @@ def check_resources(product: str, res_dir: Path, cfg: dict, res: Result, root: P
                                         "key has no element prefix (docs/shared/UI_TEXT.md)"))
             continue
         res.entries.append(Entry(product, key, element, text, de.get(key, ""), "resource"))
-        check_text(product, where, element, text, "en", cfg, res)
-        if element == "spoken":
-            continue
-        if key in de:
+        target = Result() if base in debt else res
+        check_text(product, where, element, text, "en", cfg, target)
+        if key in de and element != "spoken":
             check_text(product, f"{rel(res_dir / 'values-de' / 'strings.xml')}:{key}", element,
-                       de[key], "de", cfg, res)
-        else:
+                       de[key], "de", cfg, target)
+        if base in debt:
+            over[base] = over.get(base, False) or bool(target.findings)
+        if element != "spoken" and key not in de:
             res.findings.append(Finding(product, "missing-de", where, text, element,
                                         "no values-de translation"))
+    _stale_debt(product, rel(res_dir / "values" / "strings.xml"), over, debt, res)
 
 
 # ── Kotlin scanning ──────────────────────────────────────────────────────────────────────
@@ -446,6 +455,13 @@ def icon_with_label_spans(src: str) -> list[tuple[int, str]]:
     return out
 
 
+def _stale_debt(product: str, res_dir: Path, debt_over: dict[str, bool], debt: set[str], res: Result) -> None:
+    for key in sorted(debt):
+        if not debt_over.get(key, False):
+            res.findings.append(Finding(product, "stale-debt", f"{res_dir}:{key}", "", "",
+                                        "within budget (or gone): remove it from budget_debt"))
+
+
 def check_sources(product: str, src_dir: Path, cfg: dict, res: Result, root: Path) -> None:
     if not src_dir.is_dir():
         return
@@ -462,7 +478,10 @@ def check_sources(product: str, src_dir: Path, cfg: dict, res: Result, root: Pat
             res.findings.append(Finding(product, "hardcoded", where, lit.text,
                                         "spoken" if kind == "spoken" else "",
                                         "user-facing literal; move it to res/values/strings.xml"))
+        lines = src.split("\n")
         for line, container in icon_with_label_spans(src):
+            if any(IGNORE_MARK in lines[i] for i in (line - 1, line - 2) if 0 <= i < len(lines)):
+                continue  # a documented exception (the product's design guide names it)
             res.findings.append(Finding(product, "icon-with-label", f"{rel}:{line}", "", container,
                                         f"{container} shows an Icon and a visible Text"))
 

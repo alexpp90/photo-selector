@@ -1298,8 +1298,8 @@ Where photos go
 ◉ Working folder
    📁 Internal storage › DCIM › Trip › Selection › RAW · JPEG
 ○ Custom folder                                        [Choose]
-Selection Subfolder Name   [Selection        ]
-Second-Pass Selection Subfolder Name   [Final        ]
+Selection folder   [Selection        ]
+Second-pass folder   [Final        ]
 RAW and JPEG folders                                      (●)
 ```
 
@@ -1307,8 +1307,8 @@ RAW and JPEG folders                                      (●)
 |---|---|---|
 | Working folder | radio row | the resolved path under it while selected (below) |
 | Custom folder | radio row, **Choose** / **Change** beside it | the resolved path under it while selected; a lost folder shows the warning (below) |
-| Selection Subfolder Name | editable text, value `Selection` | none (the path line says where it ends up) |
-| Second-Pass Selection Subfolder Name | editable text, value `Final` | Used automatically when re-culling an existing Selection folder |
+| Selection folder | editable text, value `Selection` | none (the path line says where it ends up) |
+| Second-pass folder | editable text, value `Final` | Used when re-culling a Selection |
 | RAW and JPEG folders | switch | none — the path line ends `› RAW · JPEG` exactly while it is on |
 
 - **Each radio row is a whole 48 dp row** (`Role.RadioButton`, merged semantics, `selected`), the
@@ -1342,22 +1342,22 @@ RAW and JPEG folders                                      (●)
 
 | Item | Control | Supporting text |
 |---|---|---|
-| Analysis Threads | slider 1–4, value shown numerically | — |
-| Group Similar Series | switch | Group photos shot in close succession |
-| Grouping Level | segmented control, 3 options | see below |
+| Analysis threads | slider 1–4, value shown numerically | — |
+| Bursts | switch | Group photos shot seconds apart |
+| Grouping level | segmented control, 3 options | see below |
 
-Grouping Level options:
+Grouping level options:
 
-- **Time & Filename** — Group by capture time and filename similarity
-- **Time + Fast Similarity** — Group by time with fast perceptual hash comparison
-- **Detailed Similarity** — Full similarity analysis (slower, more accurate)
+- **Time & Filename** — Capture time and file name
+- **Fast similarity** — Adds a quick image comparison
+- **Full similarity** — Slower, more accurate
 
 ### Fullscreen Viewer
 
 | Item | Control | Supporting text |
 |---|---|---|
-| Filing Action | choice: `Move to Selection` / `Copy to Selection` | Which action the fullscreen filing button performs |
-| Show Fullscreen Action Buttons | switch | Display delete, copy, and move buttons in fullscreen mode |
+| Filing action | choice: `Copy` / `Move` (the verb; the path line above says where) | Verb of the main button |
+| Fullscreen buttons | switch | Delete, Copy and Move |
 
 Renamed from *Double-Tap Gesture Action*: double-tap no longer files a photograph (§9.1), so
 a setting named after that gesture describes something the app does not do. The persisted
@@ -1379,7 +1379,7 @@ before the setting existed shows it on. The row ignores a sideways drag, as ever
 
 | Item | Control | Supporting text |
 |---|---|---|
-| Reset Guidance | action + accent tonal `[Reset]` | Show the first-run explanations and the layout guide again |
+| Reset guidance | action + accent tonal `[Reset]` | Show hints and guide again (after the tap: Hints will show again) |
 
 Follows the Clear Cache row without its confirmation dialog: nothing is destroyed, so a modal
 asking *are you sure* would be ceremony. The supporting text changes to *"The explanations and
@@ -1393,8 +1393,8 @@ it, §7.9 opens by itself again and §7.10's cards fire again.
 
 | Item | Control | Supporting text |
 |---|---|---|
-| Cached Scores | read-only | `1,204 analysis results stored` |
-| Clear Cache | destructive action + confirm dialog | Remove all cached analysis scores |
+| Cached scores | read-only | `1,204 results stored` |
+| Clear cache | destructive action + confirm dialog (*Clear cache?* / *Removes stored scores. Photos are not touched.*) | Remove all cached analysis scores |
 
 ### About
 
@@ -1544,6 +1544,34 @@ Produce these as a design-system page, dark theme, neutral grey / lavender.
   breakpoint.
 - **No hover-dependent interactions.** Hover may reveal affordances (cursors, key hints,
   tooltips) but must never be the only route to a function.
+
+### Language
+
+Frameduel speaks English and German (decision 2026-11-12, for its Play listing): every word is a
+string resource in `res/values/strings.xml` with its German entry in `res/values-de/strings.xml`,
+and the app follows the device language. German follows Jackpix's terms for shared ideas:
+*Auswahl* (Selection), *Ordner*, *Rückgängig*, *Löschen*, *Kopieren*, *Verschieben*; Frameduel's
+own are *Sichten* (Cull), *Serien* (Bursts), *Lernen* (Learn), *Duplikate*, *Statistik*,
+*Optionen* (Setup) and *Extras* (Tools). Key caps follow German keyboards (*Entf*, *Strg+Z*,
+*Umschalt*, *Leertaste*); dates use the language's pattern (`12 Oct 2026`, `12. Okt. 2026`);
+decimal figures (f-numbers, scores, EV) keep the point.
+
+German runs 30-50 % longer. The sidebar word steps down from 11 sp to 8 sp before it may
+ellipsise (at font scale 2.0 *Legende* and *Statistik* were two pixels wider than the 80 dp cell),
+and `GermanScreenFitTest` holds the selector, the landing state, Learn's debrief and worked pair,
+Setup, Stats, Dupes and the delete dialog to the fit checks in German at 1480 x 924 dp, font
+scale 1.0 and 2.0.
+
+### Icon with a word
+
+The UI-text check (`docs/shared/UI_TEXT.md`) flags an icon beside a visible word. Frameduel keeps
+these, each marked in code with a `ui-text: ignore` that names this section:
+
+- **Navigation cells** (rail, bottom bar): glyph and the one word, as the sidebar
+  (decision 2026-11-12 #18: Cull, Stats, Tools, Setup).
+- **The Done card's count cells**: glyph, number and word (Moved, Copied, Deleted).
+- **Stats summary cards**: glyph, value and label (Images, Lenses, Focal Range).
+- **Dupes**: *Delete Selected (3)* and *Select All But First* keep their glyph beside the word.
 
 ---
 

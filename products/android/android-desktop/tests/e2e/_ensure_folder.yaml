@@ -14,17 +14,18 @@ appId: com.photoselectortoolbox.lab
 # Deletions an earlier journey left pending are offered on the next launch ("Uncompleted
 # deletions", REQ-AND-LAYOUT.23) in a dialog window, which exports no test tags (only the
 # activity's own window does: `dialog_keep_uncompleted_deletions` never matched, 2026-11-05, six
-# journeys broke on `sidebar_open_folder` behind it). Frameduel is English-only, so the dialog is
-# found by its title and answered by its button's text. "Keep" changes nothing on disk; never
+# journeys broke on `sidebar_open_folder` behind it). So the dialog is found by its title and
+# answered by its button's text, in English or German (the lab devices run German; decision #34,
+# values-de). "Keep" changes nothing on disk; never
 # "Delete now": the pending URIs belong to byte-identical re-staged fixtures, so it could delete a
 # fresh one. While the dialog is open the hierarchy holds only the dialog, so "Keep" is unambiguous.
 - runFlow:
     when:
       visible:
-        text: "Uncompleted deletions"
+        text: "Uncompleted deletions|Offene Löschungen"
     commands:
       - tapOn:
-          text: "Keep"
+          text: "Keep|Behalten"
 - tapOn:
     id: "coach_overlay_(skip|dismiss)"
     optional: true

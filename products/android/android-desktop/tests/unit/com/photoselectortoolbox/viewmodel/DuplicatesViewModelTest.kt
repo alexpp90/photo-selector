@@ -7,6 +7,7 @@ import com.photoselectortoolbox.domain.usecase.FindDuplicatesUseCase
 import io.mockk.mockk
 import org.junit.Assert.*
 import org.junit.Test
+import com.photoselectortoolbox.testing.en
 
 /**
  * Tests for DuplicatesUiState data class and DuplicatesViewModel
@@ -22,11 +23,11 @@ class DuplicatesViewModelTest {
         val state = DuplicatesUiState()
         assertFalse(state.isScanning)
         assertEquals(0f, state.scanProgress, 1e-6f)
-        assertEquals("", state.statusText)
+        assertEquals("", state.statusText.en())
         assertNull(state.folderUri)
         assertTrue(state.duplicateGroups.isEmpty())
         assertTrue(state.selectedForDeletion.isEmpty())
-        assertNull(state.error)
+        assertNull(state.error?.en())
     }
 
     @Test
@@ -34,7 +35,7 @@ class DuplicatesViewModelTest {
         val state = DuplicatesUiState(
             isScanning = true,
             scanProgress = 0.75f,
-            statusText = "Hashing files: 75/100"
+            statusText = com.photoselectortoolbox.domain.text.raw("Hashing files: 75/100")
         )
         assertTrue(state.isScanning)
         assertEquals(0.75f, state.scanProgress, 1e-6f)
@@ -87,9 +88,9 @@ class DuplicatesViewModelTest {
 
     @Test
     fun `error can be set and cleared`() {
-        val state = DuplicatesUiState(error = "Scan failed: timeout")
-        assertEquals("Scan failed: timeout", state.error)
-        assertNull(state.copy(error = null).error)
+        val state = DuplicatesUiState(error = com.photoselectortoolbox.domain.text.raw("Scan failed: timeout"))
+        assertEquals("Scan failed: timeout", state.error?.en())
+        assertNull(state.copy(error = null).error?.en())
     }
 
     @Test

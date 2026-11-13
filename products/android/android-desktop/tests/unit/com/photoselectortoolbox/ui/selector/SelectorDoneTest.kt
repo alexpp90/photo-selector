@@ -53,6 +53,7 @@ import org.junit.Rule
 import org.junit.Test
 import org.junit.runner.RunWith
 import org.robolectric.annotation.Config
+import com.photoselectortoolbox.testing.en
 
 /**
  * The cull has an end (backlog 2026-11-11, REQ-AND-LAYOUT.21): a folder this session emptied by
@@ -205,7 +206,7 @@ class SelectorDoneTest {
 
         assertEquals("P2.JPG", viewModel.uiState.value.currentImage?.fileName)
         assertTrue(viewModel.uiState.value.snackbarSequence > before)
-        assertEquals(SelectorLabels.LAST_PHOTO, viewModel.uiState.value.snackbarMessage)
+        assertEquals(SelectorLabels.LAST_PHOTO.en(), viewModel.uiState.value.snackbarMessage?.en())
     }
 
     // ── Open Selection and safe to format (REQ-AND-WORKFLOW.02) ────────────────────────────────

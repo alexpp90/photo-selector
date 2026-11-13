@@ -49,6 +49,7 @@ import org.robolectric.Robolectric
 import org.robolectric.RobolectricTestRunner
 import org.robolectric.RuntimeEnvironment
 import org.robolectric.annotation.Config
+import com.photoselectortoolbox.testing.en
 
 /**
  * The pending-delete journal across a killed process, end to end (REQ-AND-LAYOUT.23, finding
@@ -202,8 +203,8 @@ class PendingDeleteRecoveryTest {
         viewModel.confirmUncompletedDeletions()
         settings.pendingDeleteJournal.first { it.isEmpty() }
         assertNull(viewModel.uiState.value.uncompletedDeletionsPrompt)
-        return if (expectMessage) viewModel.uiState.first { it.snackbarMessage != null }.snackbarMessage
-        else viewModel.uiState.value.snackbarMessage
+        return if (expectMessage) viewModel.uiState.first { it.snackbarMessage?.en() != null }.snackbarMessage?.en()
+        else viewModel.uiState.value.snackbarMessage?.en()
     }
 
     @Test

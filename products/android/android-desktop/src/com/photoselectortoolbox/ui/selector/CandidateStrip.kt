@@ -54,6 +54,10 @@ import com.photoselectortoolbox.ui.theme.BrandAccent
 import com.photoselectortoolbox.ui.theme.StudioBorder
 import com.photoselectortoolbox.ui.theme.StudioCard
 import com.photoselectortoolbox.ui.theme.StudioPanel
+import com.photoselectortoolbox.R
+import com.photoselectortoolbox.ui.text.asString
+import com.photoselectortoolbox.domain.text.UiText
+import com.photoselectortoolbox.domain.text.text
 
 /**
  * Width of the strip, decided by the frame solver rather than here.
@@ -227,7 +231,7 @@ fun CandidateStrip(
             // wraps to two lines at this width, which is why it is centred.
             visibleRange?.let { (first, last) ->
                 Text(
-                    text = SelectorLabels.filmstripRange(first, last, images.size),
+                    text = SelectorLabels.filmstripRange(first, last, images.size).asString(),
                     fontSize = 9.sp,
                     lineHeight = 11.sp,
                     fontFamily = FontFamily.Monospace,
@@ -259,17 +263,21 @@ private fun CandidateThumbnail(
     // The whole slot is the control; the ripple stays on the thumbnail it belongs to.
     val interactionSource = remember { MutableInteractionSource() }
 
+    val spoken = UiText.Joined(
+        listOfNotNull(
+            text(R.string.cd_filmstrip_tile, image.fileName, position, total),
+            text(R.string.cd_rated, image.rating).takeIf { image.rating != 0 },
+            copiedTo?.let { text(R.string.cd_copied_mark_lower, it) },
+        ),
+        ", ",
+    ).asString()
     Box(
         modifier = modifier
             .width(ThumbnailWidth + if (inCurrentBurst) 4.dp else 0.dp)
             .height(maxOf(height + ThumbnailGap, ThumbnailTouchTarget))
             .pointerHoverIcon(PointerIcon.Hand)
             .clickable(interactionSource = interactionSource, indication = null, onClick = onClick)
-            .semantics {
-                contentDescription = "${image.fileName}, $position of $total" +
-                    (if (image.rating != 0) ", rated ${image.rating}" else "") +
-                    (copiedTo?.let { ", " + SelectorLabels.copiedMarkSpoken(it).replaceFirstChar(Char::lowercase) } ?: "")
-            }
+            .semantics { contentDescription = spoken }
             .testTag("filmstrip_thumbnail"),
         contentAlignment = Alignment.CenterEnd,
     ) {

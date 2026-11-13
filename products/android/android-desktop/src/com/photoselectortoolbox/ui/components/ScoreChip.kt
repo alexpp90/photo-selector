@@ -59,6 +59,10 @@ import com.photoselectortoolbox.ui.theme.ScoreWarn
 import com.photoselectortoolbox.ui.theme.Zinc400
 import com.photoselectortoolbox.ui.theme.Zinc700
 import com.photoselectortoolbox.ui.theme.Zinc800
+import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.res.pluralStringResource
+import com.photoselectortoolbox.R
+import com.photoselectortoolbox.ui.text.asString
 
 /**
  * The colour a goodness value gets on the direction bar and on filmstrip dots.
@@ -113,6 +117,7 @@ fun ScoreChip(
         label = "scoreBar",
     )
 
+    val spoken = metric.accessibilityLabel(value, isBestOfVisible).asString()
     Column(
         modifier = modifier
             // As wide as the icon and value, not as wide as the room: the bar
@@ -123,9 +128,7 @@ fun ScoreChip(
             .background(Zinc800)
             .border(1.dp, Zinc700, RoundedCornerShape(8.dp))
             .padding(horizontal = 8.dp, vertical = 4.dp)
-            .semantics {
-                contentDescription = metric.accessibilityLabel(value, isBestOfVisible)
-            },
+            .semantics { contentDescription = spoken },
         verticalArrangement = Arrangement.spacedBy(3.dp),
     ) {
         Row(
@@ -140,7 +143,7 @@ fun ScoreChip(
             )
             if (!compact) {
                 Text(
-                    text = metric.shortLabel,
+                    text = metric.shortLabel.asString(),
                     fontSize = 11.sp,
                     color = Zinc400,
                     maxLines = 1,
@@ -188,12 +191,13 @@ fun ScoreChip(
  */
 @Composable
 fun NotScannedChip(modifier: Modifier = Modifier) {
+    val spoken = stringResource(R.string.label_not_scanned)
     Row(
         modifier = modifier
             .clip(RoundedCornerShape(8.dp))
             .dashedRoundedBorder(color = Zinc700, cornerRadius = 8.dp.value)
             .padding(horizontal = 8.dp, vertical = 6.dp)
-            .semantics { contentDescription = "Not scanned" },
+            .semantics { contentDescription = spoken },
         horizontalArrangement = Arrangement.spacedBy(4.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
@@ -204,7 +208,7 @@ fun NotScannedChip(modifier: Modifier = Modifier) {
             tint = HintText,
         )
         Text(
-            text = "Not scanned",
+            text = spoken,
             fontSize = 11.sp,
             color = HintText,
             maxLines = 1,

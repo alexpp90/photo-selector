@@ -46,7 +46,10 @@ import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
+import com.photoselectortoolbox.R
+import com.photoselectortoolbox.ui.text.asString
 import androidx.compose.ui.unit.sp
 import com.photoselectortoolbox.domain.guidance.SelectorHint
 import com.photoselectortoolbox.domain.guidance.LegendRow
@@ -341,7 +344,7 @@ private fun CoachFooter(
         verticalAlignment = Alignment.CenterVertically,
     ) {
         if (pageCount > 1) {
-            FooterButton("Skip", onClose, "coach_overlay_skip", primary = false)
+            FooterButton(stringResource(R.string.action_skip), onClose, "coach_overlay_skip", primary = false)
             Text(
                 text = "${page + 1} / $pageCount",
                 fontSize = 12.sp,
@@ -353,9 +356,9 @@ private fun CoachFooter(
             Spacer(modifier = Modifier.width(1.dp))
         }
         if (last) {
-            FooterButton("Got it", onClose, "coach_overlay_dismiss", primary = true)
+            FooterButton(stringResource(R.string.action_got_it), onClose, "coach_overlay_dismiss", primary = true)
         } else {
-            FooterButton("Next", onNext, "coach_overlay_next", primary = true)
+            FooterButton(stringResource(R.string.action_next), onNext, "coach_overlay_next", primary = true)
         }
     }
 }
@@ -391,7 +394,7 @@ private fun FooterButton(label: String, onClick: () -> Unit, tag: String, primar
 private fun Title() {
     Column(horizontalAlignment = Alignment.End) {
         Text(
-            text = SelectorHintText.title(SelectorHint.TOUR, FilingAction.DEFAULT),
+            text = SelectorHintText.title(SelectorHint.TOUR, FilingAction.DEFAULT).asString(),
             fontSize = 18.sp,
             fontWeight = FontWeight.SemiBold,
             color = Zinc50,
@@ -404,7 +407,7 @@ private fun Title() {
                 filingAction = FilingAction.DEFAULT,
                 selectionFolderName = "",
                 sortingEnabled = false,
-            ),
+            ).asString(),
             fontSize = 12.sp,
             color = Zinc400,
         )
@@ -420,6 +423,7 @@ private fun Title() {
  */
 @Composable
 private fun Callout(callout: TourCallout, compact: Boolean = false, tagged: Boolean = true) {
+    val spoken = "${callout.region.location.asString()}. ${callout.title.asString()}. ${callout.body.asString()}"
     Column(
         modifier = Modifier
             .then(if (compact) Modifier.fillMaxWidth() else Modifier)
@@ -430,9 +434,7 @@ private fun Callout(callout: TourCallout, compact: Boolean = false, tagged: Bool
             .then(
                 if (tagged) {
                     Modifier
-                        .semantics {
-                            contentDescription = "${callout.region.location}. ${callout.title}. ${callout.body}"
-                        }
+                        .semantics { contentDescription = spoken }
                         .testTag("coach_callout")
                 } else {
                     Modifier
@@ -442,7 +444,7 @@ private fun Callout(callout: TourCallout, compact: Boolean = false, tagged: Bool
     ) {
         // Where it is: the card no longer sits beside what it explains.
         Text(
-            text = callout.region.location.uppercase(),
+            text = callout.region.location.asString().uppercase(),
             fontSize = 9.sp,
             fontFamily = FontFamily.Monospace,
             color = BrandAccentText,
@@ -453,14 +455,14 @@ private fun Callout(callout: TourCallout, compact: Boolean = false, tagged: Bool
         ) {
             Leader()
             Text(
-                text = callout.title,
+                text = callout.title.asString(),
                 fontSize = if (compact) 11.sp else 13.sp,
                 fontWeight = FontWeight.Medium,
                 color = Zinc50,
             )
         }
         Text(
-            text = callout.body,
+            text = callout.body.asString(),
             fontSize = if (compact) 9.sp else 11.sp,
             color = Zinc400,
         )
@@ -495,13 +497,13 @@ private fun LegendLine(row: LegendRow, compact: Boolean) {
         }
         Column {
             Text(
-                text = row.label,
+                text = row.label.asString(),
                 fontSize = if (compact) 9.sp else 11.sp,
                 fontWeight = FontWeight.Medium,
                 color = Zinc50,
             )
             Text(
-                text = row.meaning,
+                text = row.meaning.asString(),
                 fontSize = if (compact) 8.sp else 10.sp,
                 color = Zinc400,
             )
@@ -529,14 +531,14 @@ private fun KeyRow(row: GestureRow, compact: Boolean) {
         verticalAlignment = Alignment.CenterVertically,
     ) {
         Text(
-            text = row.input,
+            text = row.input.asString(),
             fontSize = if (compact) 9.sp else 11.sp,
             fontFamily = FontFamily.Monospace,
             color = Zinc50,
             modifier = Modifier.width(if (compact) 62.dp else 92.dp),
         )
         Text(
-            text = row.effect,
+            text = row.effect.asString(),
             fontSize = if (compact) 9.sp else 11.sp,
             color = Zinc400,
         )

@@ -65,6 +65,9 @@ import com.photoselectortoolbox.domain.model.RatingFilter
 import com.photoselectortoolbox.ui.components.StarRatingBar
 import com.photoselectortoolbox.viewmodel.SelectorFrame
 import com.photoselectortoolbox.viewmodel.SelectorHintUi
+import androidx.compose.ui.res.stringResource
+import com.photoselectortoolbox.R
+import com.photoselectortoolbox.ui.text.asString
 
 /**
  * The selector: three equal frames, one over two, the current one centred.
@@ -275,7 +278,7 @@ fun ThreeUpSelectorLayout(
                         image = current,
                         size = frameSize,
                         isCurrent = true,
-                        emptyLabel = "No image",
+                        emptyLabel = stringResource(R.string.label_no_image),
                         badgeAlignment = Alignment.BottomEnd,
                         copiedLabel = current?.let(copiedMark),
                         onClick = actions.onFullscreen,
@@ -484,7 +487,7 @@ private fun NeighbourFrame(
                 image = image,
                 size = size,
                 isCurrent = false,
-                emptyLabel = if (frame == SelectorFrame.PREVIOUS) "No previous" else "No next",
+                emptyLabel = stringResource(if (frame == SelectorFrame.PREVIOUS) R.string.label_no_previous else R.string.label_no_next),
                 // Bottom-left here, bottom-right on the current frame: the
                 // right edge belongs to the value overlay, and two controls
                 // must never share bounds.
@@ -718,7 +721,7 @@ private fun MaximisedFrame(
                     isCurrent = frame == SelectorFrame.CURRENT,
                     onClick = onExit,
                     onLongClick = onLongPress,
-                    emptyLabel = "No image",
+                    emptyLabel = stringResource(R.string.label_no_image),
                     modifier = Modifier
                         .size(size)
                         .graphicsLayer {
@@ -811,6 +814,7 @@ private fun MaximisedInfoToggle(
     onCheckedChange: (Boolean) -> Unit,
     modifier: Modifier = Modifier,
 ) {
+    val spoken = stringResource(if (checked) R.string.cd_hide_photo_info else R.string.cd_show_photo_info)
     Box(
         modifier = modifier
             .size(MaximiseBadgeSize)
@@ -818,9 +822,7 @@ private fun MaximisedInfoToggle(
             .background(StudioCanvas.copy(alpha = 0.72f))
             .pointerHoverIcon(PointerIcon.Hand)
             .toggleable(value = checked, role = Role.Switch, onValueChange = onCheckedChange)
-            .semantics {
-                contentDescription = if (checked) "Hide photo info" else "Show photo info"
-            }
+            .semantics { contentDescription = spoken }
             .testTag("maximised_info_toggle"),
         contentAlignment = Alignment.Center,
     ) {

@@ -145,6 +145,10 @@ import kotlin.math.abs
 import kotlin.math.roundToInt
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
+import androidx.compose.ui.res.stringResource
+import com.photoselectortoolbox.R
+import com.photoselectortoolbox.ui.text.asString
+import com.photoselectortoolbox.domain.text.UiText
 
 @OptIn(ExperimentalLayoutApi::class)
 @Composable
@@ -407,7 +411,7 @@ private fun FullscreenContent(
     // Collection flash feedback. The nonce restarts the timer when a second
     // filing lands inside the first one's 700 ms.
     var showCollectionFlash by remember { mutableStateOf(false) }
-    var flashLabel by remember { mutableStateOf("") }
+    var flashLabel by remember { mutableStateOf<UiText>(UiText.Empty) }
     var flashNonce by remember { mutableIntStateOf(0) }
     LaunchedEffect(flashNonce) {
         if (flashNonce > 0) {
@@ -607,13 +611,13 @@ private fun FullscreenContent(
                                 } else {
                                     Icons.Default.ContentCopy
                                 },
-                                description = label.accessibilityLabel,
+                                description = label.accessibilityLabel.asString(),
                                 onClick = { fileCurrent(label.action) },
                             )
                         }
                         FullscreenActionButton(
                             icon = Icons.Default.Delete,
-                            description = "Delete, shortcut Delete",
+                            description = stringResource(R.string.cd_fullscreen_delete),
                             tint = ScoreBad,
                             onClick = { onDelete(currentPageIndex) },
                         )
@@ -670,7 +674,7 @@ private fun FullscreenContent(
             ) {
                 Icon(
                     imageVector = Icons.Default.Check,
-                    contentDescription = flashLabel,
+                    contentDescription = flashLabel.asString(),
                     tint = Color.White,
                     modifier = Modifier.size(44.dp).testTag("fullscreen_collection_flash"),
                 )
@@ -757,7 +761,7 @@ private fun FullscreenInfoChrome(
                 ) {
                     Icon(
                         imageVector = Icons.Default.Close,
-                        contentDescription = "Close fullscreen",
+                        contentDescription = stringResource(R.string.cd_close_fullscreen),
                         tint = Zinc50,
                     )
                 }
@@ -783,11 +787,7 @@ private fun FullscreenInfoChrome(
                     ) {
                         Icon(
                             imageVector = if (infoPinned) Icons.Filled.PushPin else Icons.Outlined.PushPin,
-                            contentDescription = if (infoPinned) {
-                                "Unpin info panel, shortcut I"
-                            } else {
-                                "Pin info panel, shortcut I"
-                            },
+                            contentDescription = stringResource(if (infoPinned) R.string.cd_unpin_info else R.string.cd_pin_info),
                             tint = if (infoPinned) BrandAccentText else Zinc400,
                         )
                     }
@@ -902,17 +902,17 @@ private fun FullscreenGestureHint(
                 horizontalArrangement = Arrangement.SpaceBetween,
             ) {
                 Text(
-                    text = row.input,
+                    text = row.input.asString(),
                     fontSize = 12.sp,
                     fontFamily = FontFamily.Monospace,
                     color = Zinc400,
                 )
-                Text(text = row.effect, fontSize = 12.sp, color = Zinc50)
+                Text(text = row.effect.asString(), fontSize = 12.sp, color = Zinc50)
             }
         }
 
         Text(
-            text = "Got it",
+            text = stringResource(R.string.action_got_it),
             fontSize = 12.sp,
             color = BrandAccentText,
             modifier = Modifier
@@ -1104,13 +1104,14 @@ private fun ZoomableImage(
 /** How far in the photo is, as a share of 1:1, while zoomed ("100 %"). */
 @Composable
 private fun ZoomPill(percent: Int) {
+    val spoken = stringResource(R.string.cd_zoom_percent, percent)
     Box(
         modifier = Modifier
             .clip(RoundedCornerShape(12.dp))
             .background(Zinc900.copy(alpha = 0.9f))
             .border(1.dp, Zinc700, RoundedCornerShape(12.dp))
             .padding(horizontal = 10.dp, vertical = 4.dp)
-            .semantics { contentDescription = "Zoom $percent percent" }
+            .semantics { contentDescription = spoken }
             .testTag("zoom_pill"),
     ) {
         Text(text = "$percent %", style = MaterialTheme.typography.labelMedium, color = Zinc50)

@@ -1,9 +1,14 @@
 package com.photoselectortoolbox.domain.format
 
+import android.content.Context
 import com.photoselector.core.storage.SafTreeDisplayPath
+import com.photoselectortoolbox.R
 import com.photoselectortoolbox.data.model.FolderReachability
 import com.photoselectortoolbox.domain.curation.DestinationMode
 import com.photoselectortoolbox.domain.curation.DestinationPreview
+import com.photoselectortoolbox.domain.text.UiText
+import com.photoselectortoolbox.domain.text.raw
+import com.photoselectortoolbox.domain.text.text
 
 /**
  * The words of Settings → "Where photos go" (`[USER 2026-11-04]`), generated from a
@@ -12,70 +17,54 @@ import com.photoselectortoolbox.domain.curation.DestinationPreview
  */
 object DestinationLabels {
 
-    const val SECTION_TITLE = "Where photos go"
-    const val WORKING_FOLDER = "Working folder"
-    const val CUSTOM_FOLDER = "Custom folder"
-    const val CHOOSE = "Choose"
-    const val CHANGE = "Change"
-    const val RAW_AND_JPEG_FOLDERS = "RAW and JPEG folders"
-
     /** The separator `SafTreeDisplayPath` joins a path with, and the end of a sorted destination. */
     const val SEPARATOR = " › "
-    const val RAW_JPEG_SUFFIX = "RAW · JPEG"
 
     /**
-     * The words `SafTreeDisplayPath` builds a folder's path from. Frameduel is English-only
-     * (`ai/rules/ui-text.md`); the shared module has no default words, so this is the one place
-     * they live.
+     * The words `SafTreeDisplayPath` builds a folder's path from, in the UI's language
+     * (`ai/rules/ui-text.md` §4: the shared module's text is the product's resources at every
+     * call site).
      */
-    val PATH_LABELS = SafTreeDisplayPath.Labels(
-        internalStorage = "Internal storage",
-        documents = "Documents",
-        removableVolume = { uuid -> "SD card ($uuid)" },
-        unknownFolder = "Folder",
+    fun pathLabels(context: Context): SafTreeDisplayPath.Labels = SafTreeDisplayPath.Labels(
+        internalStorage = context.getString(R.string.label_internal_storage),
+        documents = context.getString(R.string.label_documents),
+        removableVolume = { uuid -> "${context.getString(R.string.label_sd_card)} ($uuid)" },
+        unknownFolder = context.getString(R.string.label_folder),
     )
-
-    /** Shown in place of a path for a custom folder that will not take files. */
-    const val FOLDER_UNAVAILABLE = "Folder unavailable"
-
-    /**
-     * Second-pass note: the opened folder is itself a Selection folder, so photos go into the
-     * second-pass folder inside it. The path line already ends with that folder's name.
-     */
-    const val SECOND_PASS_NOTE = "Second pass — the open folder is a Selection folder"
 
     /**
      * Where the next Copy or Move goes, as a path: `Internal storage › DCIM › Trip › Selection`,
      * ending `› RAW · JPEG` only while sorting is on. Without a folder to name (Working folder
      * with none open) it says what will happen instead of inventing a path.
      */
-    fun pathLine(preview: DestinationPreview): String? {
+    fun pathLine(preview: DestinationPreview): UiText? {
         val segments = preview.segments
         if (segments == null) {
             return if (preview.mode == DestinationMode.WORKING_FOLDER) {
-                "«${preview.folderName}» inside the folder you open — no folder open yet"
+                text(R.string.setting_summary_no_folder_open, preview.folderName)
             } else {
                 null
             }
         }
-        val path = segments.joinToString(SEPARATOR)
-        return if (preview.sortsIntoRawAndJpeg) "$path$SEPARATOR$RAW_JPEG_SUFFIX" else path
+        val path = raw(segments.joinToString(SEPARATOR))
+        return if (preview.sortsIntoRawAndJpeg) UiText.Joined(listOf(path, text(R.string.label_raw_jpeg_suffix)), SEPARATOR) else path
     }
 
     /** The path line as a screen reader should say it. */
-    fun pathDescription(preview: DestinationPreview): String? {
+    fun pathDescription(preview: DestinationPreview): UiText? {
         val segments = preview.segments ?: return pathLine(preview)
         val path = segments.joinToString(", ")
-        return "Photos go to $path" + if (preview.sortsIntoRawAndJpeg) ", in RAW and JPEG subfolders" else ""
+        return text(if (preview.sortsIntoRawAndJpeg) R.string.cd_destination_path_sorted else R.string.cd_destination_path, path)
     }
 
     /** Why a custom folder is unavailable, from what the storage layer found. */
-    fun unavailableReason(reachability: FolderReachability): String? = when (reachability) {
+    fun unavailableReason(reachability: FolderReachability): UiText? = when (reachability) {
         FolderReachability.REACHABLE -> null
-        FolderReachability.NO_PERMISSION -> "No permission — choose the folder again"
-        FolderReachability.MISSING -> "The folder is missing"
-        FolderReachability.READ_ONLY -> "The folder is read-only"
+        FolderReachability.NO_PERMISSION -> text(R.string.error_folder_no_permission)
+        FolderReachability.MISSING -> text(R.string.error_folder_missing)
+        FolderReachability.READ_ONLY -> text(R.string.error_folder_read_only)
     }
+
 
     /**
      * What a filing confirmation names when the destination is a custom folder: its name and

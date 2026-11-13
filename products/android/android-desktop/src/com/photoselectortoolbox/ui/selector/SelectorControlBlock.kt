@@ -87,6 +87,10 @@ import com.photoselectortoolbox.ui.theme.Zinc400
 import com.photoselectortoolbox.ui.theme.Zinc50
 import com.photoselectortoolbox.ui.theme.Zinc600
 import com.photoselectortoolbox.ui.theme.Zinc700
+import androidx.compose.ui.res.stringResource
+import com.photoselectortoolbox.R
+import com.photoselectortoolbox.ui.text.asString
+import com.photoselectortoolbox.domain.interaction.SelectorShortcut
 
 /**
  * Everything that acts on the current frame, in the letterbox column to its
@@ -175,11 +179,12 @@ fun SelectorControlBlock(
         val gap = if (compact) ControlBlockFit.CompactGap else ControlBlockFit.FullGap
 
         val counterText = SelectorLabels.position(position, total, stillEnumerating)
-        val counterDescription = if (stillEnumerating) {
-            "Image $position of $total so far, still loading"
-        } else {
-            "Image $position of $total"
-        }
+        val counterDescription = stringResource(
+            if (stillEnumerating) R.string.cd_image_position_loading else R.string.cd_image_position,
+            position,
+            total,
+        )
+        val goToLabel = SelectorLabels.GO_TO_PHOTO.asString()
         val counter: @Composable (Modifier) -> Unit = { counterModifier ->
             // `127 / 842+` while the folder is still enumerating. Discovery
             // streams, so the total is a running total for the first seconds of
@@ -204,7 +209,7 @@ fun SelectorControlBlock(
                 // framework's minimum touch-target expansion around this node.
                 modifier = counterModifier
                     .clickable(
-                        onClickLabel = SelectorLabels.GO_TO_PHOTO,
+                        onClickLabel = goToLabel,
                         role = Role.Button,
                         onClick = actions.onGoToPhoto,
                     )
@@ -235,6 +240,11 @@ fun SelectorControlBlock(
                 verticalArrangement = Arrangement.spacedBy(gap),
             ) {
                 val labels = SelectionActionLabels.both(filingAction)
+                val deleteWord = stringResource(R.string.action_delete)
+                val fullWord = stringResource(R.string.action_full)
+                val prevWord = stringResource(R.string.action_prev)
+                val nextWord = stringResource(R.string.action_next)
+                val verbs = labels.map { it.verb.asString() }
 
                 // The counter leads, on its own line, so it is the one thing a
                 // scroll position can never hide.
@@ -246,7 +256,7 @@ fun SelectorControlBlock(
                 // longest word at its smallest step (600 x 480 at font scale 2.0), the
                 // buttons stand one per row: the scroll pays for it, and no word is cut.
                 val single = scrolling && !wordsFitHalfCells(
-                    words = labels.map { it.verb } + listOf("Delete", "Full", "Prev", "Next"),
+                    words = verbs + listOf(deleteWord, fullWord, prevWord, nextWord),
                     cellWidth = ControlBlockFit.cellWidth(innerWidth) - 6.dp,
                 )
                 val style = if (single) ControlBlockFit.buttonStyle(innerWidth * 2 + gap) else buttonStyle
@@ -267,9 +277,9 @@ fun SelectorControlBlock(
                     first = { m ->
                         WordedButton(
                             icon = Icons.Default.Delete,
-                            word = "Delete",
-                            keyHint = "Del",
-                            description = "Delete, shortcut Delete or Backspace",
+                            word = deleteWord,
+                            keyHint = SelectorShortcut.DELETE.input.asString(),
+                            description = stringResource(R.string.cd_delete_button),
                             style = style,
                             contentColor = ScoreBad,
                             outlined = true,
@@ -280,9 +290,9 @@ fun SelectorControlBlock(
                     second = { m ->
                         WordedButton(
                             icon = Icons.Default.Fullscreen,
-                            word = "Full",
+                            word = fullWord,
                             keyHint = "F",
-                            description = "Open fullscreen, shortcut F",
+                            description = stringResource(R.string.cd_fullscreen_button),
                             style = style,
                             onClick = actions.onFullscreen,
                             modifier = m.testTag("fullscreen_button"),
@@ -296,9 +306,9 @@ fun SelectorControlBlock(
                     first = { m ->
                         WordedButton(
                             icon = Icons.AutoMirrored.Filled.ArrowBack,
-                            word = "Prev",
+                            word = prevWord,
                             keyHint = "←",
-                            description = "Previous image, shortcut left arrow",
+                            description = stringResource(R.string.cd_previous_button),
                             style = style,
                             enabled = canGoPrevious,
                             onClick = onNavigatePrevious,
@@ -308,9 +318,9 @@ fun SelectorControlBlock(
                     second = { m ->
                         WordedButton(
                             icon = Icons.AutoMirrored.Filled.ArrowForward,
-                            word = "Next",
+                            word = nextWord,
                             keyHint = "→",
-                            description = "Next image, shortcut right arrow",
+                            description = stringResource(R.string.cd_next_button),
                             style = style,
                             enabled = canGoNext,
                             onClick = onNavigateNext,
@@ -321,15 +331,16 @@ fun SelectorControlBlock(
 
                 // View controls: none of these four changes a file, so a mis-tap costs a
                 // glance, not a photo. Each carries a one-word label where the slot holds it.
-                val showToggleLabels = toggleLabelsFit(SelectorLabels.VIEW_TOGGLE_LABELS)
-                fun toggleLabel(word: String) = word.takeIf { showToggleLabels }
+                val toggleWords = SelectorLabels.VIEW_TOGGLE_LABELS.map { it.asString() }
+                val showToggleLabels = toggleLabelsFit(toggleWords)
+                fun toggleLabel(index: Int) = toggleWords[index].takeIf { showToggleLabels }
                 val toggles: List<@Composable () -> Unit> = listOf(
                     {
                         ViewToggle(
                             icon = Icons.Outlined.Info,
-                            description = "Photo details",
+                            description = stringResource(R.string.cd_photo_details),
                             active = detailsVisible,
-                            label = toggleLabel(SelectorLabels.TOGGLE_INFO),
+                            label = toggleLabel(0),
                             onClick = actions.onToggleDetails,
                             modifier = Modifier.testTag("details_toggle"),
                         )
@@ -337,9 +348,9 @@ fun SelectorControlBlock(
                     {
                         ViewToggle(
                             icon = Icons.Default.ViewCarousel,
-                            description = "Filmstrip",
+                            description = stringResource(R.string.cd_filmstrip),
                             active = filmstripVisible,
-                            label = toggleLabel(SelectorLabels.TOGGLE_STRIP),
+                            label = toggleLabel(1),
                             onClick = actions.onToggleFilmstrip,
                             modifier = Modifier.testTag("filmstrip_toggle"),
                         )
@@ -351,9 +362,9 @@ fun SelectorControlBlock(
                             } else {
                                 Icons.Default.VisibilityOff
                             },
-                            description = "Values on Previous and Next",
+                            description = stringResource(R.string.cd_overlay_values),
                             active = overlayValuesVisible,
-                            label = toggleLabel(SelectorLabels.TOGGLE_OVERLAY),
+                            label = toggleLabel(2),
                             onClick = actions.onToggleOverlayValues,
                             modifier = Modifier.testTag("overlay_values_toggle"),
                         )
@@ -361,8 +372,8 @@ fun SelectorControlBlock(
                     {
                         ViewToggle(
                             icon = Icons.Default.Keyboard,
-                            description = "Shortcuts and layout guide",
-                            label = toggleLabel(SelectorLabels.TOGGLE_KEYS),
+                            description = stringResource(R.string.cd_shortcuts_guide),
+                            label = toggleLabel(3),
                             onClick = actions.onShowShortcuts,
                             modifier = Modifier.testTag("shortcuts_button"),
                         )
@@ -411,7 +422,7 @@ fun SelectorControlBlock(
                 if (locatorRow) {
                     LocatorRow(
                         counterText = counterText,
-                        goDescription = SelectorLabels.goToChipDescription(position, total, stillEnumerating),
+                        goDescription = SelectorLabels.goToChipDescription(position, total, stillEnumerating).asString(),
                         onGoToPhoto = actions.onGoToPhoto,
                         sort = sort,
                         style = ControlBlockFit.locatorStyle(innerWidth),
@@ -459,7 +470,7 @@ fun RatingFilterSelector(
                     contentAlignment = Alignment.Center,
                 ) {
                     Text(
-                        text = filter.label,
+                        text = filter.text.asString(),
                         fontSize = 10.sp,
                         fontFamily = FontFamily.Monospace,
                         color = if (isSelected) BrandAccentText else Zinc400,
@@ -530,9 +541,9 @@ private fun FilingButton(
     } else {
         Icons.Default.ContentCopy
     },
-    word = label.verb,
+    word = label.verb.asString(),
     keyHint = label.shortcut,
-    description = label.accessibilityLabel,
+    description = label.accessibilityLabel.asString(),
     contentColor = if (label.isPrimary) ScoreGood else Zinc50,
     filled = label.isPrimary,
     outlined = !label.isPrimary,

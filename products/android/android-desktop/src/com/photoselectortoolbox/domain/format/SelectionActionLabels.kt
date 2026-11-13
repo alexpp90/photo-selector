@@ -1,6 +1,9 @@
 package com.photoselectortoolbox.domain.format
 
+import com.photoselectortoolbox.R
 import com.photoselectortoolbox.domain.interaction.FilingAction
+import com.photoselectortoolbox.domain.text.UiText
+import com.photoselectortoolbox.domain.text.text
 
 /**
  * The words on the two controls that file a photograph into the Selection.
@@ -75,13 +78,14 @@ object SelectionActionLabels {
         action: FilingAction,
         selectionFolderName: String = FilingAction.DEFAULT_SELECTION_FOLDER,
         customFolderName: String? = null,
-    ): String {
+    ): UiText {
         val folder = FilingAction.selectionFolderOrDefault(selectionFolderName)
-        return if (customFolderName.isNullOrBlank()) {
-            "${action.pastTense} to $folder"
+        val destination = if (customFolderName.isNullOrBlank()) {
+            folder
         } else {
-            "${action.pastTense} to «${DestinationLabels.customDestinationName(customFolderName, folder)}»"
+            "«${DestinationLabels.customDestinationName(customFolderName, folder)}»"
         }
+        return text(if (action == FilingAction.COPY) R.string.snackbar_copied_to else R.string.snackbar_moved_to, destination)
     }
 
     /**
@@ -95,21 +99,21 @@ object SelectionActionLabels {
         resultName: String,
         relatedCount: Int,
         customFolderName: String? = null,
-    ): String {
-        val related = if (relatedCount > 0) " (+$relatedCount related)" else ""
-        return "${confirmation(action, selectionFolderName, customFolderName)} as $resultName$related"
+    ): UiText {
+        val renamed = text(R.string.snackbar_filed_as, confirmation(action, selectionFolderName, customFolderName), resultName)
+        return if (relatedCount > 0) text(R.string.snackbar_with_related, renamed, relatedCount) else renamed
     }
 
     /**
      * An undo that put the file back but could not remove the one in the Selection (FD-D-15):
      * both exist now, and saying so is the whole message.
      */
-    fun undoPartialMessage(fileName: String, selectionFolderName: String): String =
-        "Restored $fileName — the copy in $selectionFolderName could not be removed"
+    fun undoPartialMessage(fileName: String, selectionFolderName: String): UiText =
+        text(R.string.error_undo_partial, fileName, selectionFolderName)
 
     /** The snackbar after an undo that had to add a suffix because the original name was taken. */
-    fun restoredAs(resultName: String): String =
-        "Restored as $resultName (original name was in use)"
+    fun restoredAs(resultName: String): UiText =
+        text(R.string.snackbar_restored_as, resultName)
 
     /**
      * File name of a document URI string: the last path segment of the (percent-decoded) document
@@ -160,11 +164,11 @@ object SelectionActionLabels {
  */
 data class ActionLabel(
     val action: FilingAction,
-    val verb: String,
-    val phrase: String,
+    val verb: UiText,
+    val phrase: UiText,
     val shortcut: String,
     val isPrimary: Boolean,
 ) {
     /** "Copy to Selection, shortcut C" — what a screen reader announces. */
-    val accessibilityLabel: String get() = "$phrase, shortcut $shortcut"
+    val accessibilityLabel: UiText get() = text(R.string.cd_with_shortcut, phrase, shortcut)
 }

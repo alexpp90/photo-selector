@@ -5,6 +5,7 @@ import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
+import com.photoselectortoolbox.testing.en
 
 /**
  * The post-scan badges are only useful if every metric carries a readable
@@ -25,10 +26,10 @@ class ScoreMetricTest {
     @Test
     fun `every metric has a label, name, description and direction`() {
         ScoreMetric.entries.forEach { metric ->
-            assertTrue(metric.name, metric.shortLabel.isNotBlank())
-            assertTrue(metric.name, metric.displayName.isNotBlank())
-            assertTrue(metric.name, metric.description.isNotBlank())
-            assertTrue(metric.name, metric.direction.hint.isNotBlank())
+            assertTrue(metric.name, metric.shortLabel.en().isNotBlank())
+            assertTrue(metric.name, metric.displayName.en().isNotBlank())
+            assertTrue(metric.name, metric.description.en().isNotBlank())
+            assertTrue(metric.name, metric.direction.hint.en().isNotBlank())
         }
     }
 
@@ -36,8 +37,8 @@ class ScoreMetricTest {
     fun `short labels stay short enough for a chip`() {
         ScoreMetric.entries.forEach { metric ->
             assertTrue(
-                "${metric.name} label too long: ${metric.shortLabel}",
-                metric.shortLabel.length <= 5,
+                "${metric.name} label too long: ${metric.shortLabel.en()}",
+                metric.shortLabel.en().length <= 5,
             )
         }
     }
@@ -100,7 +101,7 @@ class ScoreMetricTest {
 
     @Test
     fun `accessibility label names the metric, the value and the direction`() {
-        val label = ScoreMetric.NOISE.accessibilityLabel(3.24)
+        val label = ScoreMetric.NOISE.accessibilityLabel(3.24).en()
 
         assertTrue(label, label.contains("Noise"))
         assertTrue(label, label.contains("3.2"))

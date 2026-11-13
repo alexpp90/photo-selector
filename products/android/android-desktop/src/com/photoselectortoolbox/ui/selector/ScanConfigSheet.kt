@@ -40,6 +40,8 @@ import com.photoselectortoolbox.ui.theme.BrandAccent
 import com.photoselectortoolbox.ui.theme.BrandOnAccent
 import com.photoselectortoolbox.ui.theme.StudioCard
 import com.photoselectortoolbox.ui.theme.StudioPanel
+import androidx.compose.ui.res.stringResource
+import com.photoselectortoolbox.R
 
 /**
  * Configuration for which analyses to run during a scan: the sheet's four rows. [measures] is what
@@ -70,7 +72,7 @@ fun ScanConfigSheet(
             onDismissRequest = onDismiss,
             title = {
                 Text(
-                    text = "Scan Configuration",
+                    text = stringResource(R.string.title_scan_configuration),
                     style = MaterialTheme.typography.titleLarge,
                 )
             },
@@ -91,12 +93,12 @@ fun ScanConfigSheet(
                         contentColor = BrandOnAccent,
                     ),
                 ) {
-                    Text("Start Scan")
+                    Text(stringResource(R.string.action_start_scan))
                 }
             },
             dismissButton = {
                 TextButton(modifier = Modifier.handCursor(), onClick = onDismiss) {
-                    Text("Cancel")
+                    Text(stringResource(R.string.action_cancel))
                 }
             },
             containerColor = StudioCard,
@@ -119,7 +121,7 @@ fun ScanConfigSheet(
                     .padding(bottom = 32.dp),
             ) {
                 Text(
-                    text = "Scan Configuration",
+                    text = stringResource(R.string.title_scan_configuration),
                     style = MaterialTheme.typography.titleLarge,
                     color = MaterialTheme.colorScheme.onSurface,
                 )
@@ -144,7 +146,7 @@ fun ScanConfigSheet(
                     ),
                     shape = RoundedCornerShape(8.dp),
                 ) {
-                    Text("Start Scan")
+                    Text(stringResource(R.string.action_start_scan))
                 }
             }
         }
@@ -158,7 +160,7 @@ private fun ScanConfigContent(
 ) {
     Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
         Text(
-            text = "Analysis Types",
+            text = stringResource(R.string.label_analysis_types),
             style = MaterialTheme.typography.titleSmall,
             color = MaterialTheme.colorScheme.onSurfaceVariant,
         )
@@ -166,25 +168,25 @@ private fun ScanConfigContent(
         Spacer(modifier = Modifier.height(4.dp))
 
         AnalysisCheckbox(
-            label = ScanSheetText.FOCUS,
+            label = stringResource(ScanSheetText.FOCUS),
             checked = config.sharpness,
             onCheckedChange = { onConfigChange(config.copy(sharpness = it)) },
         )
 
         AnalysisCheckbox(
-            label = ScanSheetText.NOISE,
+            label = stringResource(ScanSheetText.NOISE),
             checked = config.noise,
             onCheckedChange = { onConfigChange(config.copy(noise = it)) },
         )
 
         AnalysisCheckbox(
-            label = ScanSheetText.HIGHLIGHTS,
+            label = stringResource(ScanSheetText.HIGHLIGHTS),
             checked = config.highlightClipping,
             onCheckedChange = { onConfigChange(config.copy(highlightClipping = it)) },
         )
 
         AnalysisCheckbox(
-            label = ScanSheetText.SHADOWS,
+            label = stringResource(ScanSheetText.SHADOWS),
             checked = config.shadowClipping,
             onCheckedChange = { onConfigChange(config.copy(shadowClipping = it)) },
         )
@@ -197,10 +199,10 @@ private fun ScanConfigContent(
  * method subtitle (`ai/rules/ui-text.md`: do not explain).
  */
 internal object ScanSheetText {
-    const val FOCUS = "Focus quality"
-    const val NOISE = "Noise level"
-    const val HIGHLIGHTS = "Highlight clipping"
-    const val SHADOWS = "Shadow clipping"
+    val FOCUS = R.string.label_scan_focus
+    val NOISE = R.string.label_scan_noise
+    val HIGHLIGHTS = R.string.label_scan_highlights
+    val SHADOWS = R.string.label_scan_shadows
     val all = listOf(FOCUS, NOISE, HIGHLIGHTS, SHADOWS)
 }
 

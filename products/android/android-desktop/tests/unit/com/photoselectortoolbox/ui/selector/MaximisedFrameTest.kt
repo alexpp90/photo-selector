@@ -368,7 +368,7 @@ class MaximisedFrameTest {
 
     // ── The one-time maximise card lives in the side slack or not at all ──
 
-    private val hint = SelectorHintUi(SelectorHint.MAXIMISE, "One frame, full size", "Esc returns to comparing all three.")
+    private val hint = SelectorHintUi(SelectorHint.MAXIMISE, com.photoselectortoolbox.domain.text.raw("One frame, full size"), com.photoselectortoolbox.domain.text.raw("Esc returns to comparing all three."))
 
     @Test
     fun `the maximise card is drawn left of the frame where the slack is wide enough`() {

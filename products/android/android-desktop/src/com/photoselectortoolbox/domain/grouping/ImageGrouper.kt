@@ -3,6 +3,9 @@ package com.photoselectortoolbox.domain.grouping
 import android.content.Context
 import android.graphics.BitmapFactory
 import android.net.Uri
+import androidx.annotation.StringRes
+import com.photoselectortoolbox.R
+
 import com.photoselectortoolbox.data.model.ImageItem
 import com.photoselectortoolbox.data.source.PhotoBitmapDecoder
 import com.photoselectortoolbox.di.IoDispatcher
@@ -18,23 +21,23 @@ import kotlinx.coroutines.withContext
  * Grouping granularity levels, matching the desktop implementation.
  */
 enum class GroupingLevel(
-    val label: String,
-    val description: String,
+    @StringRes val label: Int,
+    @StringRes val description: Int,
 ) {
     /** Group by filename prefix + modification time proximity. */
     TIME_FILENAME(
-        label = "Time & Filename",
-        description = "Group by capture time and filename similarity"
+        label = R.string.label_grouping_time_filename,
+        description = R.string.setting_summary_grouping_time_filename,
     ),
     /** Above + fast 8x8 dHash similarity. */
     TIME_FAST_SIMILARITY(
-        label = "Time + Fast Similarity",
-        description = "Group by time with fast perceptual hash comparison"
+        label = R.string.label_grouping_fast_similarity,
+        description = R.string.setting_summary_grouping_fast_similarity,
     ),
     /** Above + detailed 16x16 dHash similarity. */
     DETAILED_SIMILARITY(
-        label = "Detailed Similarity",
-        description = "Full similarity analysis (slower, more accurate)"
+        label = R.string.label_grouping_detailed_similarity,
+        description = R.string.setting_summary_grouping_detailed_similarity,
     )
 }
 

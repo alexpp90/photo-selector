@@ -6,6 +6,9 @@ import kotlin.math.hypot
 import kotlin.math.max
 import kotlin.math.min
 import kotlin.math.sqrt
+import com.photoselectortoolbox.domain.text.text
+import com.photoselectortoolbox.domain.text.UiText
+import com.photoselectortoolbox.R
 
 enum class CropAspectRatio(val label: String, val ratio: Double) {
     RATIO_3_2("3:2", 3.0 / 2.0),
@@ -22,7 +25,7 @@ data class SuggestedCrop(
     val yMax: Double,
     val aspectRatio: CropAspectRatio,
     val targetPowerPoint: Pair<Double, Double>,
-    val rationale: String,
+    val rationale: UiText,
 ) {
     val widthFraction: Double get() = xMax - xMin
     val heightFraction: Double get() = yMax - yMin
@@ -133,8 +136,12 @@ object CropSuggester {
 
             if (residual < bestResidual) {
                 bestResidual = residual
-                val hSide = if (px < 0.5) "left" else "right"
-                val vSide = if (py < 0.5) "upper" else "lower"
+                val corner = when {
+                    py < 0.5 && px < 0.5 -> R.string.learn_crop_upper_left
+                    py < 0.5 -> R.string.learn_crop_upper_right
+                    px < 0.5 -> R.string.learn_crop_lower_left
+                    else -> R.string.learn_crop_lower_right
+                }
                 bestCrop = SuggestedCrop(
                     xMin = x0,
                     yMin = y0,
@@ -142,14 +149,7 @@ object CropSuggester {
                     yMax = (y0 + cropH).coerceAtMost(1.0),
                     aspectRatio = chosenAspect,
                     targetPowerPoint = px to py,
-                    rationale = String.format(
-                        Locale.US,
-                        "Places the subject on the %s-%s thirds intersection (%s crop, %.0f%% frame area).",
-                        vSide,
-                        hSide,
-                        chosenAspect.label,
-                        cropW * cropH * 100.0,
-                    ),
+                    rationale = text(corner, chosenAspect.label, String.format(Locale.US, "%.0f", cropW * cropH * 100.0)),
                 )
             }
         }

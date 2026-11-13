@@ -45,6 +45,9 @@ import com.photoselectortoolbox.ui.components.ProgressIndicatorBar
 import com.photoselectortoolbox.ui.theme.BrandAccent
 import com.photoselectortoolbox.ui.theme.Zinc800
 import com.photoselectortoolbox.viewmodel.StatisticsViewModel
+import androidx.compose.ui.res.stringResource
+import com.photoselectortoolbox.R
+import com.photoselectortoolbox.ui.text.asString
 
 @Composable
 fun StatisticsScreen(
@@ -67,13 +70,11 @@ fun StatisticsScreen(
             uiState.folderUri == null -> {
                 EmptyStateCard(
                     icon = Icons.Default.FolderOpen,
-                    title = if (uiState.missingGrantPrompt) "Folder Access Needed" else "No Folder Selected",
-                    description = if (uiState.missingGrantPrompt) {
-                        "Permission for this folder was revoked or the folder was moved. Re-select the folder to continue."
-                    } else {
-                        "Select a folder containing photos to view EXIF statistics."
-                    },
-                    actionLabel = if (uiState.missingGrantPrompt) "Re-select Folder" else "Select Folder",
+                    title = stringResource(if (uiState.missingGrantPrompt) R.string.empty_folder_access_needed else R.string.empty_no_folder_selected),
+                    description = stringResource(
+                        if (uiState.missingGrantPrompt) R.string.error_folder_access_revoked else R.string.dialog_body_stats_select_folder,
+                    ),
+                    actionLabel = stringResource(if (uiState.missingGrantPrompt) R.string.action_reselect_folder else R.string.action_select_folder),
                     onAction = { folderPickerLauncher.launch(null) },
                     modifier = Modifier.align(Alignment.Center),
                 )
@@ -88,7 +89,7 @@ fun StatisticsScreen(
                 ) {
                     ProgressIndicatorBar(
                         progress = uiState.scanProgress,
-                        statusText = uiState.progressText,
+                        statusText = uiState.progressText.asString(),
                         isIndeterminate = uiState.scanProgress == 0f,
                         modifier = Modifier.fillMaxWidth(0.6f)
                     )
@@ -107,7 +108,7 @@ fun StatisticsScreen(
             }
         }
         ToolErrorSnackbar(
-            message = uiState.error,
+            message = uiState.error?.asString(),
             sequence = uiState.errorSequence,
             onDismiss = viewModel::clearError,
             suppressed = uiState.missingGrantPrompt,
@@ -128,19 +129,19 @@ private fun SummaryRow(
     ) {
         SummaryCard(
             icon = Icons.Default.BarChart,
-            label = "Images",
+            label = stringResource(R.string.label_stats_images),
             value = "$imageCount",
             modifier = Modifier.weight(1f),
         )
         SummaryCard(
             icon = Icons.Default.CameraAlt,
-            label = "Lenses",
+            label = stringResource(R.string.label_stats_lenses),
             value = "$uniqueLenses",
             modifier = Modifier.weight(1f),
         )
         SummaryCard(
             icon = Icons.Default.Straighten,
-            label = "Focal Range",
+            label = stringResource(R.string.label_stats_focal_range),
             value = focalLengthRange,
             modifier = Modifier.weight(1f),
         )
@@ -159,6 +160,7 @@ private fun SummaryCard(
         shape = RoundedCornerShape(12.dp),
         colors = CardDefaults.cardColors(containerColor = Zinc800),
     ) {
+        // ui-text: ignore (icon with a word, DESIGN.md § Icon with a word: a summary card is glyph, value and label)
         Column(
             modifier = Modifier.padding(12.dp),
             horizontalAlignment = Alignment.CenterHorizontally,
@@ -204,35 +206,35 @@ private fun CompactStatisticsLayout(
 
         item {
             ChartCard(
-                title = "Shutter Speed Distribution",
+                title = stringResource(R.string.title_stats_shutter_distribution),
                 data = uiState.shutterSpeedDistribution,
             )
         }
 
         item {
             ChartCard(
-                title = "Aperture Distribution",
+                title = stringResource(R.string.title_stats_aperture_distribution),
                 data = uiState.apertureDistribution,
             )
         }
 
         item {
             ChartCard(
-                title = "ISO Distribution",
+                title = stringResource(R.string.title_stats_iso_distribution),
                 data = uiState.isoDistribution,
             )
         }
 
         item {
             ChartCard(
-                title = "Focal Length Distribution",
+                title = stringResource(R.string.title_stats_focal_distribution),
                 data = uiState.focalLengthDistribution,
             )
         }
 
         item {
             ChartCard(
-                title = "Lens Usage",
+                title = stringResource(R.string.title_stats_lens_usage),
                 data = uiState.lensDistribution,
             )
         }
@@ -240,7 +242,7 @@ private fun CompactStatisticsLayout(
         if (uiState.shutterSpeedSharpness.isNotEmpty()) {
             item {
                 SharpnessBreakdownCard(
-                    title = "Sharpness by Shutter Speed",
+                    title = stringResource(R.string.title_stats_sharpness_by_shutter),
                     stats = uiState.shutterSpeedSharpness,
                 )
             }
@@ -248,7 +250,7 @@ private fun CompactStatisticsLayout(
         if (uiState.apertureSharpness.isNotEmpty()) {
             item {
                 SharpnessBreakdownCard(
-                    title = "Sharpness by Aperture",
+                    title = stringResource(R.string.title_stats_sharpness_by_aperture),
                     stats = uiState.apertureSharpness,
                 )
             }
@@ -256,7 +258,7 @@ private fun CompactStatisticsLayout(
         if (uiState.focalLengthSharpness.isNotEmpty()) {
             item {
                 SharpnessBreakdownCard(
-                    title = "Sharpness by Focal Length",
+                    title = stringResource(R.string.title_stats_sharpness_by_focal),
                     stats = uiState.focalLengthSharpness,
                 )
             }
@@ -287,35 +289,35 @@ private fun ExpandedStatisticsLayout(
 
         item {
             ChartCard(
-                title = "Shutter Speed Distribution",
+                title = stringResource(R.string.title_stats_shutter_distribution),
                 data = uiState.shutterSpeedDistribution,
             )
         }
 
         item {
             ChartCard(
-                title = "Aperture Distribution",
+                title = stringResource(R.string.title_stats_aperture_distribution),
                 data = uiState.apertureDistribution,
             )
         }
 
         item {
             ChartCard(
-                title = "ISO Distribution",
+                title = stringResource(R.string.title_stats_iso_distribution),
                 data = uiState.isoDistribution,
             )
         }
 
         item {
             ChartCard(
-                title = "Focal Length Distribution",
+                title = stringResource(R.string.title_stats_focal_distribution),
                 data = uiState.focalLengthDistribution,
             )
         }
 
         item(span = { GridItemSpan(2) }) {
             ChartCard(
-                title = "Lens Usage",
+                title = stringResource(R.string.title_stats_lens_usage),
                 data = uiState.lensDistribution,
             )
         }
@@ -323,7 +325,7 @@ private fun ExpandedStatisticsLayout(
         if (uiState.shutterSpeedSharpness.isNotEmpty()) {
             item {
                 SharpnessBreakdownCard(
-                    title = "Sharpness by Shutter Speed",
+                    title = stringResource(R.string.title_stats_sharpness_by_shutter),
                     stats = uiState.shutterSpeedSharpness,
                 )
             }
@@ -331,7 +333,7 @@ private fun ExpandedStatisticsLayout(
         if (uiState.apertureSharpness.isNotEmpty()) {
             item {
                 SharpnessBreakdownCard(
-                    title = "Sharpness by Aperture",
+                    title = stringResource(R.string.title_stats_sharpness_by_aperture),
                     stats = uiState.apertureSharpness,
                 )
             }
@@ -339,7 +341,7 @@ private fun ExpandedStatisticsLayout(
         if (uiState.focalLengthSharpness.isNotEmpty()) {
             item(span = { GridItemSpan(2) }) {
                 SharpnessBreakdownCard(
-                    title = "Sharpness by Focal Length",
+                    title = stringResource(R.string.title_stats_sharpness_by_focal),
                     stats = uiState.focalLengthSharpness,
                 )
             }
@@ -378,11 +380,10 @@ private fun SharpnessBreakdownCard(
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                     )
                     Text(
-                        text = String.format(
-                            java.util.Locale.US,
-                            "mean %.1f · median %.1f",
-                            entry.meanSharpness,
-                            entry.medianSharpness,
+                        text = stringResource(
+                            R.string.label_stats_mean_median,
+                            String.format(java.util.Locale.US, "%.1f", entry.meanSharpness),
+                            String.format(java.util.Locale.US, "%.1f", entry.medianSharpness),
                         ),
                         style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.onSurface,

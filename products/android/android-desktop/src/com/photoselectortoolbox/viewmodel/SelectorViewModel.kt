@@ -1,5 +1,9 @@
 package com.photoselectortoolbox.viewmodel
 
+import com.photoselectortoolbox.R
+import com.photoselectortoolbox.domain.text.UiText
+import com.photoselectortoolbox.domain.text.raw
+import com.photoselectortoolbox.domain.text.text
 import com.photoselectortoolbox.domain.curation.SelectionDestinationPlan
 import com.photoselectortoolbox.domain.curation.OpenedFolder
 import com.photoselectortoolbox.domain.curation.DestinationSettings
@@ -523,7 +527,7 @@ class SelectorViewModel @Inject constructor(
                         missingGrantPrompt = true,
                     )
                 }
-                reportError("Failed to load folder: permission revoked or directory deleted.")
+                reportError(text(R.string.error_folder_load_failed))
                 settingsRepository.setLastFolderUri(null)
                 return@launch
             }
@@ -535,7 +539,7 @@ class SelectorViewModel @Inject constructor(
             storedPlace = settingsRepository.getFolderLastPhoto(uri.toString()) to settingsRepository.getFolderLastPosition(uri.toString())
             recoverInterruptedRatingWrites(uri)
 
-            collectDiscovery(uri, "images") { e ->
+            collectDiscovery(uri) { e ->
                 if (e is SecurityException) {
                     _uiState.update {
                         parkUndoHistory(it).copy(
@@ -618,7 +622,6 @@ class SelectorViewModel @Inject constructor(
      */
     private suspend fun collectDiscovery(
         folderUri: Uri,
-        errorLabel: String,
         onError: suspend (Throwable) -> Unit = {},
     ) {
         try {
@@ -639,7 +642,7 @@ class SelectorViewModel @Inject constructor(
         } catch (e: Exception) {
             Log.e("SelectorViewModel", "Failed to discover images in $folderUri", e)
             _uiState.update { it.copy(isLoading = false, isEnumerating = false) }
-            reportError("Could not load $errorLabel")
+            reportError(text(R.string.error_could_not_load_images))
             onError(e)
         }
     }
@@ -905,7 +908,7 @@ class SelectorViewModel @Inject constructor(
                 }
                 if (res.isFailure) {
                     // The rating is kept in the app (Room); say that the file did not get it.
-                    val reason = res.exceptionOrNull()?.message
+                    val reason = (res.exceptionOrNull() as? com.photoselectortoolbox.data.metadata.RatingWriteException)?.reason
                     _uiState.update {
                         it.withSnackbar(
                             SelectorLabels.ratingNotWrittenMessage(photo.fileName, reason),
@@ -1099,7 +1102,7 @@ class SelectorViewModel @Inject constructor(
             } catch (e: Exception) {
                 _uiState.update { it.copy(scanProgress = 0f, scanStatusText = "") }
                 Log.e("SelectorViewModel", "Scan failed", e)
-                reportError("Scan failed")
+                reportError(text(R.string.error_scan_failed))
             } finally {
                 finishWork(SelectorWork.SCAN)
             }
@@ -1142,7 +1145,7 @@ class SelectorViewModel @Inject constructor(
                 throw e
             } catch (e: Exception) {
                 Log.e("SelectorViewModel", "Grouping failed", e)
-                reportError("Grouping failed")
+                reportError(text(R.string.error_grouping_failed))
             } finally {
                 finishWork(SelectorWork.GROUPING)
             }
@@ -1329,17 +1332,17 @@ class SelectorViewModel @Inject constructor(
             // One message per commit: what it kept and what failed are both said, and a photo that
             // comes back to the list no longer counts as deleted (backlog 2026-11-12, done counts).
             val keptMessage = kept.takeIf { it.isNotEmpty() }?.let { SelectorLabels.recoveryKeptMessage(it.map(::recoveredName)) }
-            fun report(failure: String?) = reportError(listOfNotNull(keptMessage, failure).joinToString(". "))
+            fun report(failure: UiText?) = reportError(UiText.Joined(listOfNotNull(keptMessage, failure), ". "))
             fun putBack(back: PendingDeletion) = _uiState.update { state ->
                 if (state.folderUri != originFolderUri) state
                 else state.withRestored(DeferredDeletion.revert(state.listState, back))
                     .copy(tally = state.tally.undo(back.slots.map { it.uri }, FilingDecision.DELETED))
             }
             if (kept.size == failed.size) return@launch report(null)
-            val firstName = pending.slots.firstOrNull()?.image?.fileName ?: "image"
+            val firstName = pending.slots.firstOrNull()?.image?.fileName?.let(::raw) ?: text(R.string.label_unnamed_image)
             if (deleted.isEmpty()) {
                 putBack(pending)
-                report("Could not delete $firstName")
+                report(text(R.string.error_could_not_delete, firstName))
             } else {
                 DeferredDeletion.survivors(pending, failed)?.let(::putBack)
                 report(SelectorLabels.partialDeleteMessage(firstName, deleted.size, pending.uris.size))
@@ -1403,9 +1406,9 @@ class SelectorViewModel @Inject constructor(
                     val names = failures.joinToString()
                     add(
                         if (failures.size == prompt.uris.size && failures.size == 1) {
-                            "Could not delete $names"
+                            text(R.string.error_could_not_delete, names)
                         } else {
-                            "Could not delete ${failures.size} of ${prompt.uris.size} recovered photos: $names"
+                            text(R.string.error_could_not_delete_recovered, failures.size, prompt.uris.size, names)
                         }
                     )
                 }
@@ -1413,7 +1416,7 @@ class SelectorViewModel @Inject constructor(
                     add(SelectorLabels.recoveryKeptMessage(recovery.kept.map(::recoveredName)))
                 }
             }
-            if (messages.isNotEmpty()) reportError(messages.joinToString(" · "))
+            if (messages.isNotEmpty()) reportError(UiText.Joined(messages, " · "))
         }
     }
 
@@ -1568,7 +1571,7 @@ class SelectorViewModel @Inject constructor(
                 if (stillOpen()) {
                     rollbackFiling(edit.action, edit.slots)
                     val folder = FilingAction.selectionFolderOrDefault(_uiState.value.filingFolderName)
-                    reportError(result.error ?: "Copied to $folder — original could not be removed")
+                    reportError(text(R.string.error_copied_original_kept, folder))
                 }
                 // The rating belongs to the photograph: a verified copy starts with it exactly as a
                 // Copy does, and the original (still there) keeps its own. A primary that did move
@@ -1601,10 +1604,10 @@ class SelectorViewModel @Inject constructor(
                 )?.let { pushFilingUndo(it, folderUri, snackbarOffersUndo = false) }
             } else if (stillOpen()) {
                 rollbackFiling(edit.action, edit.slots)
-                val verb = if (action == CurationAction.COPY) "Copy" else "Move"
-                Log.w("SelectorViewModel", "$verb failed: ${result?.error}")
+                Log.w("SelectorViewModel", "$action failed: ${result?.error}")
                 // A refusal for lack of space says what it needs; other causes stay in the log (FD-UX-4).
-                reportError(result?.error?.takeIf(TransferSpace::isRefusal) ?: "$verb failed")
+                val failed = text(if (action == CurationAction.COPY) R.string.error_copy_failed else R.string.error_move_failed)
+                reportError(TransferSpace.refusalOf(result?.error) ?: failed)
             }
         }
     }
@@ -1696,7 +1699,7 @@ class SelectorViewModel @Inject constructor(
                         if (!ok) failed += uri
                     }
                     val stillOpen = _uiState.value.folderUri == folderUri
-                    if (failed.isNotEmpty() && stillOpen) reportError("Could not restore the deleted image")
+                    if (failed.isNotEmpty() && stillOpen) reportError(text(R.string.error_could_not_restore_deleted))
                     // What stayed in the trash is still undoable: hide it again and keep it on the stack
                     // of the folder it belongs to — parked there once another folder is open (FD-B-3).
                     UndoPolicy.remainderAfterRestore(operation, failed)?.let { remainder ->
@@ -1816,8 +1819,9 @@ class SelectorViewModel @Inject constructor(
         when {
             result?.success == true -> {
                 if (!stillOpen()) return
-                result.notice?.let { notice ->
-                    _uiState.update { it.withSnackbar(notice, SnackbarLifetime.NOTICE) }
+                result.notice?.let { _ -> // `:saf` words one notice, in English: the undo fell back to the opened folder.
+
+                    _uiState.update { it.withSnackbar(text(R.string.snackbar_restored_to_opened_folder), SnackbarLifetime.NOTICE) }
                     return
                 }
                 val restoredName = (result.destinationUri ?: result.destinationUris.firstOrNull())
@@ -1858,7 +1862,7 @@ class SelectorViewModel @Inject constructor(
                         sessionKeptFiles = current.sessionKeptFiles + KeptFiles.of(operation.slots.flatMap { it.image.allFiles }, operation.destinationUris),
                     )
                 }
-                if (stillOpen()) reportError("Could not move the image back")
+                if (stillOpen()) reportError(text(R.string.error_could_not_move_back))
             }
         }
     }
@@ -1883,7 +1887,7 @@ class SelectorViewModel @Inject constructor(
                 throw e
             } catch (e: Exception) {
                 Log.e("SelectorViewModel", "Clearing the cache failed", e)
-                reportError("Could not clear the cache")
+                reportError(text(R.string.error_could_not_clear_cache))
             }
         }
     }
@@ -2020,10 +2024,10 @@ class SelectorViewModel @Inject constructor(
         _uiState.update { it.copy(error = null) }
     }
 
-    fun setError(message: String) = reportError(message)
+    fun setError(message: UiText) = reportError(message)
 
     /** Errors reach the photographer through the same snackbar as everything else. */
-    private fun reportError(message: String) {
+    private fun reportError(message: UiText) {
         _uiState.update {
             it.copy(error = message).withSnackbar(message, SnackbarLifetime.ERROR)
         }

@@ -53,7 +53,10 @@ import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
+import com.photoselectortoolbox.R
+import com.photoselectortoolbox.ui.text.asString
 import androidx.compose.ui.unit.sp
 import com.photoselectortoolbox.domain.format.SelectorLabels
 import com.photoselectortoolbox.domain.session.SelectorWork
@@ -72,6 +75,9 @@ import com.photoselectortoolbox.ui.theme.StudioPanel
 import com.photoselectortoolbox.ui.theme.Zinc400
 import com.photoselectortoolbox.ui.theme.Zinc50
 import com.photoselectortoolbox.ui.theme.Zinc700
+import androidx.compose.foundation.text.BasicText
+import androidx.compose.foundation.text.TextAutoSize
+import androidx.compose.ui.text.TextStyle
 
 /**
  * Width of the sidebar.
@@ -161,8 +167,8 @@ fun SelectorSidebar(
         // ── Session actions — what was in the top app bar ────────────────
         SidebarItem(
             icon = Icons.Default.FolderOpen,
-            label = SidebarAction.FOLDER.label,
-            description = SidebarAction.FOLDER.description,
+            label = SidebarAction.FOLDER.label.asString(),
+            description = SidebarAction.FOLDER.description.asString(),
             onClick = onOpenFolder,
             modifier = Modifier.testTag("sidebar_open_folder"),
         )
@@ -172,8 +178,8 @@ fun SelectorSidebar(
             // dialog: culling continues while it runs, so it must not take the
             // screen — or, here, a second slot in the sidebar.
             isScanning -> BusyItem(
-                statusText = scanStatusText.removePrefix("Scanning "),
-                description = "$scanStatusText. Tap to cancel the scan.",
+                statusText = scanStatusText,
+                description = stringResource(R.string.cd_scan_running, scanStatusText),
                 onCancel = onCancelScan,
                 testTag = "cancel_scan_button",
                 statusTestTag = "scan_progress",
@@ -182,8 +188,8 @@ fun SelectorSidebar(
             // it — and says so, with a way out. The control is never disabled:
             // a control that does nothing when tapped reads as a frozen app.
             queuedWork == SelectorWork.SCAN -> BusyItem(
-                statusText = SelectorLabels.QUEUED,
-                description = "Scan queued until grouping finishes. Tap to cancel it.",
+                statusText = SelectorLabels.QUEUED.asString(),
+                description = stringResource(R.string.cd_scan_queued),
                 announce = true,
                 onCancel = onCancelQueued,
                 testTag = "cancel_queued_scan",
@@ -191,8 +197,8 @@ fun SelectorSidebar(
             )
             else -> SidebarItem(
                 icon = Icons.Default.Radar,
-                label = SidebarAction.SCAN.label,
-                description = SidebarAction.SCAN.description,
+                label = SidebarAction.SCAN.label.asString(),
+                description = SidebarAction.SCAN.description.asString(),
                 emphasised = true,
                 enabled = hasImages,
                 onClick = onScan,
@@ -202,15 +208,15 @@ fun SelectorSidebar(
 
         when {
             isGrouping -> BusyItem(
-                statusText = SelectorLabels.GROUPING,
-                description = "Grouping similar series. Tap to cancel.",
+                statusText = SelectorLabels.GROUPING.asString(),
+                description = stringResource(R.string.cd_grouping_running),
                 onCancel = onToggleGrouping,
                 testTag = "cancel_grouping",
                 statusTestTag = "grouping_progress",
             )
             queuedWork == SelectorWork.GROUPING -> BusyItem(
-                statusText = SelectorLabels.QUEUED,
-                description = "Grouping queued until the scan finishes. Tap to cancel it.",
+                statusText = SelectorLabels.QUEUED.asString(),
+                description = stringResource(R.string.cd_grouping_queued),
                 announce = true,
                 onCancel = onCancelQueued,
                 testTag = "cancel_queued_grouping",
@@ -218,12 +224,8 @@ fun SelectorSidebar(
             )
             else -> SidebarItem(
                 icon = Icons.Default.BurstMode,
-                label = SidebarAction.BURSTS.label,
-                description = if (groupingEnabled) {
-                    "Bursts, on"
-                } else {
-                    "Bursts, off"
-                },
+                label = SidebarAction.BURSTS.label.asString(),
+                description = stringResource(if (groupingEnabled) R.string.cd_sidebar_bursts_on else R.string.cd_sidebar_bursts_off),
                 active = groupingEnabled,
                 enabled = hasImages,
                 onClick = onToggleGrouping,
@@ -237,8 +239,8 @@ fun SelectorSidebar(
         // photographer has worked anything out.
         SidebarItem(
             icon = Icons.Outlined.Info,
-            label = SidebarAction.LEGEND.label,
-            description = SidebarAction.LEGEND.description,
+            label = SidebarAction.LEGEND.label.asString(),
+            description = SidebarAction.LEGEND.description.asString(),
             onClick = onShowLegend,
             modifier = Modifier.testTag("score_legend_button"),
         )
@@ -246,8 +248,8 @@ fun SelectorSidebar(
         Box {
             SidebarItem(
                 icon = Icons.Default.MoreVert,
-                label = SidebarAction.MORE.label,
-                description = SidebarAction.MORE.description,
+                label = SidebarAction.MORE.label.asString(),
+                description = SidebarAction.MORE.description.asString(),
                 onClick = onShowMenu,
                 modifier = Modifier.testTag("sidebar_more"),
             )
@@ -263,8 +265,8 @@ fun SelectorSidebar(
             when (entry) {
                 is NavEntry.Destination -> SidebarItem(
                     icon = entry.icon,
-                    label = entry.label,
-                    description = entry.spoken(currentRoute),
+                    label = entry.label.asString(),
+                    description = entry.spoken(currentRoute).asString(),
                     active = entry.isSelected(currentRoute),
                     onClick = { onNavigate(entry.screen) },
                     modifier = Modifier.testTag(entry.testTag),
@@ -294,8 +296,8 @@ private fun SidebarToolsItem(currentRoute: String?, onNavigate: (Screen) -> Unit
     Box(modifier = Modifier.onSizeChanged { cellHeightPx = it.height }) {
         SidebarItem(
             icon = NavEntry.Tools.icon,
-            label = NavEntry.Tools.label,
-            description = NavEntry.Tools.spoken(currentRoute),
+            label = NavEntry.Tools.label.asString(),
+            description = NavEntry.Tools.spoken(currentRoute).asString(),
             active = NavEntry.Tools.isSelected(currentRoute),
             onClick = menu::open,
             modifier = with(menu) { Modifier.toolsCell() }.testTag(NavEntry.Tools.testTag),
@@ -384,17 +386,24 @@ private fun SidebarItem(
             modifier = Modifier.size(22.dp),
             tint = contentColor,
         )
-        Text(
+        // Steps down (11 sp to 8 sp) before it may ellipsise: at font scale 2.0 the German
+        // "Legende" and "Statistik" were two pixels wider than the 80 dp cell (decision #34).
+        BasicText(
             text = label,
-            fontSize = 11.sp,
-            color = contentColor,
+            style = TextStyle(fontSize = 11.sp, color = contentColor, textAlign = TextAlign.Center),
             maxLines = 1,
             overflow = TextOverflow.Ellipsis,
-            textAlign = TextAlign.Center,
-            modifier = Modifier.padding(top = 4.dp),
+            autoSize = TextAutoSize.StepBased(minFontSize = SidebarLabelMinSize, maxFontSize = 11.sp, stepSize = 0.5.sp),
+            modifier = Modifier.padding(top = 4.dp).testTag(SIDEBAR_LABEL_TAG),
         )
     }
 }
+
+/** The smallest step a sidebar word takes before it may ellipsise. */
+internal val SidebarLabelMinSize = 8.sp
+
+/** The tag of every sidebar item's word, for the fit checks' auto-size allowance. */
+internal const val SIDEBAR_LABEL_TAG = "sidebar_label"
 
 /**
  * A slot whose control is busy or waiting: a status line over a Cancel, in the
@@ -447,7 +456,7 @@ private fun BusyItem(
             modifier = Modifier.testTag(statusTestTag),
         )
         Text(
-            text = "Cancel",
+            text = stringResource(R.string.action_cancel),
             fontSize = 11.sp,
             color = ScoreBad,
             modifier = Modifier.padding(top = 4.dp),

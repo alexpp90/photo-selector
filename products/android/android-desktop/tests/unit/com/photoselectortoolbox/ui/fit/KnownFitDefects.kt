@@ -75,11 +75,12 @@ object KnownFitDefects {
 
     val narrowScreensAtLargeFont = KnownFitDefect(
         id = "F-FD-086",
-        tests = setOf("statistics", "settings", "duplicates/found"),
-        summary = "Compact 360 dp window at font scale 2.0: Statistics, Settings and Duplicates break words " +
-            "(\"Image/s\", \"35m/m\", \"explanati/ons\", \"s/elected\")",
+        tests = setOf("statistics", "duplicates/found"),
+        summary = "Compact 360 dp window at font scale 2.0: Statistics and Duplicates break words " +
+            "(\"Image/s\", \"35m/m\", \"s/elected\")",
         cause = "products/android/android-desktop/src/com/photoselectortoolbox/ui/statistics/StatisticsScreen.kt:124 " +
-            "(SummaryCard in a three-up Row), settings/SettingsScreen.kt:317, duplicates/DuplicatesScreen.kt:223",
+            "(SummaryCard in a three-up Row), duplicates/DuplicatesScreen.kt:223 (Settings left it with decision #34: " +
+            "the guidance summary lost its long word)",
         matches = { v -> v.cell.compact && v.cell.fontScale >= 2f && v.on(FitCheck.MID_WORD_BREAK) },
     )
 

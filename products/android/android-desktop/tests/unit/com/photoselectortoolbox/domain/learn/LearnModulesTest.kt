@@ -9,6 +9,7 @@ import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNotNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
+import com.photoselectortoolbox.testing.en
 
 class LearnModulesTest {
 
@@ -121,7 +122,7 @@ class LearnModulesTest {
         val result = CardGenerator.generateFromEntities(entities)
         assertEquals(2, result.didWellCards.size)
         assertNotNull(result.tryNextCard)
-        assertTrue(result.tryNextCard!!.title.contains("Horizon"))
+        assertTrue(result.tryNextCard!!.title.en().contains("Horizon"))
         assertEquals(3, result.guessFirstChallenge.options.size)
     }
 
@@ -151,7 +152,7 @@ class LearnModulesTest {
             assertTrue("Crop area ${c.areaFraction} must be >= 0.50", c.areaFraction >= 0.50 - 1e-6)
             assertTrue(c.xMin <= subjectBox.xMin && c.xMax >= subjectBox.xMax)
             assertTrue(c.yMin <= subjectBox.yMin && c.yMax >= subjectBox.yMax)
-            assertTrue(c.rationale.isNotBlank())
+            assertTrue(c.rationale.en().isNotBlank())
         }
     }
 

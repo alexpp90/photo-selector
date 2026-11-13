@@ -22,6 +22,7 @@ import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNotNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
+import com.photoselectortoolbox.testing.en
 
 /**
  * Unit tests for the Inspect & Learn Workstation screen and navigation integration.
@@ -41,10 +42,10 @@ class InspectScreenTest {
     @Test
     fun `Screen Inspect is registered with expected route, icons, and labels`() {
         assertEquals("inspect", Screen.Inspect.route)
-        assertEquals("Learn", Screen.Inspect.label)
-        assertEquals("Learn", Screen.Inspect.shortLabel)
+        assertEquals("Learn", Screen.Inspect.label.en())
+        assertEquals("Learn", Screen.Inspect.shortLabel.en())
         assertEquals(Icons.Default.CenterFocusStrong, Screen.Inspect.icon)
-        assertTrue(Screen.Inspect.meaning.contains("Inspect composition"))
+        assertTrue(Screen.Inspect.meaning.en().contains("Inspect composition"))
     }
 
     @Test
@@ -63,9 +64,9 @@ class InspectScreenTest {
         val routes = Screen.all.map { it.route }
         assertEquals(routes.size, routes.toSet().size)
         Screen.all.forEach { screen ->
-            assertTrue(screen.label.isNotEmpty())
-            assertTrue(screen.shortLabel.isNotEmpty())
-            assertTrue(screen.meaning.isNotEmpty())
+            assertTrue(screen.label.en().isNotEmpty())
+            assertTrue(screen.shortLabel.en().isNotEmpty())
+            assertTrue(screen.meaning.en().isNotEmpty())
         }
     }
 
@@ -360,7 +361,7 @@ class InspectScreenTest {
 
         assertEquals(0.02, report.safeShutterSpeed!!, 1e-4)
         assertTrue(report.cameraShakeRisk >= 0.7f)
-        assertTrue(report.tips.any { it.category == "Shutter Speed" && it.severity == TipSeverity.CRITICAL })
+        assertTrue(report.tips.any { it.category.en() == "Shutter Speed" && it.severity == TipSeverity.CRITICAL })
     }
 
     @Test
@@ -379,7 +380,7 @@ class InspectScreenTest {
 
         assertNotNull(report.recommendedEvCompensation)
         assertEquals(-1.0, report.recommendedEvCompensation!!, 1e-4)
-        assertTrue(report.tips.any { it.category == "Exposure" && it.title.contains("Blown Highlights") })
+        assertTrue(report.tips.any { it.category.en() == "Exposure" && it.title.en().contains("Blown Highlights") })
     }
 
     @Test
@@ -398,7 +399,7 @@ class InspectScreenTest {
 
         assertNotNull(report.recommendedEvCompensation)
         assertEquals(0.7, report.recommendedEvCompensation!!, 1e-4)
-        assertTrue(report.tips.any { it.category == "Exposure" && it.title.contains("Crushed Shadows") })
+        assertTrue(report.tips.any { it.category.en() == "Exposure" && it.title.en().contains("Crushed Shadows") })
     }
 
     @Test
@@ -412,7 +413,7 @@ class InspectScreenTest {
             lens = "FE 50mm F1.8",
         )
 
-        val rows = ExifFormatter.detailRows(exif).toMap()
+        val rows = ExifFormatter.detailRows(exif).associate { (k, v) -> k.en() to v.en() }
 
         assertEquals("1/250s", rows["Shutter Speed"])
         assertEquals("f/2.8", rows["Aperture"])

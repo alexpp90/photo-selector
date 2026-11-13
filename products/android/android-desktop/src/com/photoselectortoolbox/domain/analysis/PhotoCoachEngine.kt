@@ -12,6 +12,9 @@ import com.photoselectortoolbox.domain.model.CoachingTip
 import com.photoselectortoolbox.domain.model.PhotoCoachReport
 import com.photoselectortoolbox.domain.model.TipSeverity
 import javax.inject.Inject
+import com.photoselectortoolbox.R
+import com.photoselectortoolbox.domain.text.UiText
+import com.photoselectortoolbox.domain.text.text
 
 /**
  * Educational exposure and technique analysis engine.
@@ -193,15 +196,14 @@ class PhotoCoachEngineImpl @Inject constructor() : PhotoCoachEngine {
 
                         tips.add(
                             CoachingTip(
-                                category = "Shutter Speed",
+                                category = text(R.string.learn_coach_category),
                                 title = if (isCritical) {
-                                    "Much Slower Than Hand-Holding Guideline"
+                                    text(R.string.learn_coach_001)
                                 } else {
-                                    "Slower Than Hand-Holding Guideline"
+                                    text(R.string.learn_coach_002)
                                 },
-                                description = "Shutter speed ($formattedActual) was slower than the hand-holding guideline " +
-                                    "($formattedSafe for $focalLengthStr 35mm-eq) and measured sharpness is low (${sharpness.toInt()}).",
-                                recommendation = AdviceCatalog.coach(CoachFinding.SLOW_AND_SOFT, profile, formattedSafe).orEmpty(),
+                                description = text(R.string.learn_coach_description, formattedActual, formattedSafe, focalLengthStr, sharpness.toInt()),
+                                recommendation = AdviceCatalog.coach(CoachFinding.SLOW_AND_SOFT, profile, formattedSafe) ?: UiText.Empty,
                                 severity = severity
                             )
                         )
@@ -210,11 +212,10 @@ class PhotoCoachEngineImpl @Inject constructor() : PhotoCoachEngine {
                         cameraShakeRisk = 0.1f
                         tips.add(
                             CoachingTip(
-                                category = "Stabilization",
-                                title = "Sharp Below the Hand-Holding Guideline",
-                                description = "Image sharpness is high (${sharpness.toInt()}) despite shooting at $formattedActual, " +
-                                    "which is slower than the $formattedSafe hand-holding guideline for $focalLengthStr.",
-                                recommendation = "Effective optical stabilization (OIS/IBIS) or steady support maintained sharpness.",
+                                category = text(R.string.learn_coach_category_stabilization),
+                                title = text(R.string.learn_coach_title),
+                                description = text(R.string.learn_coach_description_2, sharpness.toInt(), formattedActual, formattedSafe, focalLengthStr),
+                                recommendation = text(R.string.learn_coach_recommendation),
                                 severity = TipSeverity.INFO
                             )
                         )
@@ -223,11 +224,10 @@ class PhotoCoachEngineImpl @Inject constructor() : PhotoCoachEngine {
                     cameraShakeRisk = (0.2f + (ratio.toFloat() * 0.1f)).coerceIn(0.3f, 0.7f)
                     tips.add(
                         CoachingTip(
-                            category = "Shutter Speed",
-                            title = "Slower Than Hand-Holding Guideline",
-                            description = "Shutter speed ($formattedActual) is slower than the reciprocal hand-holding guideline " +
-                                "($formattedSafe for $focalLengthStr).",
-                            recommendation = AdviceCatalog.coach(CoachFinding.SLOW_UNSCORED, profile, formattedSafe).orEmpty(),
+                            category = text(R.string.learn_coach_category_2),
+                            title = text(R.string.learn_coach_title_2),
+                            description = text(R.string.learn_coach_description_3, formattedActual, formattedSafe, focalLengthStr),
+                            recommendation = AdviceCatalog.coach(CoachFinding.SLOW_UNSCORED, profile, formattedSafe) ?: UiText.Empty,
                             severity = TipSeverity.WARNING
                         )
                     )
@@ -238,11 +238,10 @@ class PhotoCoachEngineImpl @Inject constructor() : PhotoCoachEngine {
                 if (sharpness != null && sharpness.isFinite() && sharpness < SHARPNESS_BLUR_THRESHOLD) {
                     tips.add(
                         CoachingTip(
-                            category = "Focus",
-                            title = "Low Detail at Fast Shutter Speed",
-                            description = "Image is soft (${sharpness.toInt()}) despite a fast shutter speed ($formattedActual). " +
-                                "Softness is likely due to missed focus, subject motion, or shallow depth of field.",
-                            recommendation = AdviceCatalog.coach(CoachFinding.SOFT_AT_FAST_SHUTTER, profile).orEmpty(),
+                            category = text(R.string.learn_coach_category_focus),
+                            title = text(R.string.learn_coach_title_3),
+                            description = text(R.string.learn_coach_description_4, sharpness.toInt(), formattedActual),
+                            recommendation = AdviceCatalog.coach(CoachFinding.SOFT_AT_FAST_SHUTTER, profile) ?: UiText.Empty,
                             severity = TipSeverity.INFO
                         )
                     )
@@ -261,10 +260,10 @@ class PhotoCoachEngineImpl @Inject constructor() : PhotoCoachEngine {
                 val severity = if (isCritical) TipSeverity.CRITICAL else TipSeverity.WARNING
                 tips.add(
                     CoachingTip(
-                        category = "Sensor Noise",
-                        title = if (isCritical) "Critical High-ISO Sensor Noise" else "Elevated High-ISO Sensor Noise",
-                        description = "High sensor noise ($noise) detected at ISO $iso.",
-                        recommendation = AdviceCatalog.coach(CoachFinding.HIGH_ISO_NOISE, profile).orEmpty(),
+                        category = text(R.string.learn_coach_category_3),
+                        title = if (isCritical) text(R.string.learn_coach_003) else text(R.string.learn_coach_004),
+                        description = text(R.string.learn_coach_description_5, noise, iso),
+                        recommendation = AdviceCatalog.coach(CoachFinding.HIGH_ISO_NOISE, profile) ?: UiText.Empty,
                         severity = severity
                     )
                 )
@@ -301,16 +300,16 @@ class PhotoCoachEngineImpl @Inject constructor() : PhotoCoachEngine {
             shadowPct > SHADOW_CLIPPING_THRESHOLD_PCT
         ) {
             val drDescription = if (isRawOrHasRawCompanion) {
-                "Both highlight and shadow clipping detected. While 1–2 EV of highlight headroom may still be recoverable in RAW development, the scene contrast exceeds single-exposure latitude."
+                text(R.string.learn_coach_005)
             } else {
-                "Both highlight and shadow clipping detected. The dynamic range of the scene exceeds sensor latitude."
+                text(R.string.learn_coach_006)
             }
             tips.add(
                 CoachingTip(
-                    category = "Dynamic Range",
-                    title = "Scene Contrast Exceeds Dynamic Range",
+                    category = text(R.string.learn_coach_category_4),
+                    title = text(R.string.learn_coach_title_4),
                     description = drDescription,
-                    recommendation = AdviceCatalog.coach(CoachFinding.SCENE_CONTRAST, profile).orEmpty(),
+                    recommendation = AdviceCatalog.coach(CoachFinding.SCENE_CONTRAST, profile) ?: UiText.Empty,
                     severity = TipSeverity.WARNING
                 )
             )
@@ -319,16 +318,16 @@ class PhotoCoachEngineImpl @Inject constructor() : PhotoCoachEngine {
             val severe = highlightPct > HIGHLIGHT_CLIPPING_SEVERE_PCT
             recommendedEv = if (severe) -1.0 else -0.7
             val highlightDescription = if (isRawOrHasRawCompanion) {
-                "Highlight clipping detected in bright areas of the frame; 1–2 EV of highlight headroom may still be recoverable in RAW development."
+                text(R.string.learn_coach_007)
             } else {
-                "Highlight clipping detected in bright areas of the frame. Clipped 8-bit highlights cannot be recovered in post-processing."
+                text(R.string.learn_coach_008)
             }
             tips.add(
                 CoachingTip(
-                    category = "Exposure",
-                    title = "Blown Highlights Detected",
+                    category = text(R.string.learn_coach_category_exposure),
+                    title = text(R.string.learn_coach_title_5),
                     description = highlightDescription,
-                    recommendation = AdviceCatalog.coach(CoachFinding.HIGHLIGHTS_CLIPPED, profile, ev = recommendedEv.toString()).orEmpty(),
+                    recommendation = AdviceCatalog.coach(CoachFinding.HIGHLIGHTS_CLIPPED, profile, ev = recommendedEv.toString()) ?: UiText.Empty,
                     severity = TipSeverity.WARNING
                 )
             )
@@ -336,10 +335,10 @@ class PhotoCoachEngineImpl @Inject constructor() : PhotoCoachEngine {
             recommendedEv = 0.7
             tips.add(
                 CoachingTip(
-                    category = "Exposure",
-                    title = "Crushed Shadows Detected",
-                    description = "Shadow clipping detected in dark areas of the frame. Shadow details are lost in deep blacks.",
-                    recommendation = AdviceCatalog.coach(CoachFinding.SHADOWS_CLIPPED, profile, ev = "+0.7").orEmpty(),
+                    category = text(R.string.learn_coach_category_exposure),
+                    title = text(R.string.learn_coach_title_6),
+                    description = text(R.string.learn_coach_description_6),
+                    recommendation = AdviceCatalog.coach(CoachFinding.SHADOWS_CLIPPED, profile, ev = "+0.7") ?: UiText.Empty,
                     severity = TipSeverity.WARNING
                 )
             )
@@ -354,11 +353,10 @@ class PhotoCoachEngineImpl @Inject constructor() : PhotoCoachEngine {
                 val isNarrow = equivalentAperture >= APERTURE_DIFFRACTION_CRITICAL
                 tips.add(
                     CoachingTip(
-                        category = "Optics",
-                        title = "Optical Diffraction Softening",
-                        description = "Shooting at narrow aperture (${ExifFormatter.aperture(aperture)}) causes optical diffraction, " +
-                            "softening fine details across the sensor.",
-                        recommendation = "Use lens sweet spot (f/5.6 - f/8 equivalent) for optimal sharpness unless maximum depth of field is required.",
+                        category = text(R.string.learn_coach_category_optics),
+                        title = text(R.string.learn_coach_title_7),
+                        description = text(R.string.learn_coach_description_7, ExifFormatter.aperture(aperture)),
+                        recommendation = text(R.string.learn_coach_recommendation_2),
                         severity = if (isNarrow) TipSeverity.WARNING else TipSeverity.INFO
                     )
                 )
@@ -367,12 +365,10 @@ class PhotoCoachEngineImpl @Inject constructor() : PhotoCoachEngine {
             ) {
                 tips.add(
                     CoachingTip(
-                        category = "Optics",
-                        title = "Wide-Open Softness / Shallow Depth of Field",
-                        description = "Shooting wide open at ${ExifFormatter.aperture(aperture)} results in a razor-thin depth of field " +
-                            "and potential optical softness.",
-                        recommendation = "Stop down 1-2 stops (e.g. to f/2.8) for whole-scene sharpness, " +
-                            "or verify critical focus on subject eye/details.",
+                        category = text(R.string.learn_coach_category_optics),
+                        title = text(R.string.learn_coach_title_8),
+                        description = text(R.string.learn_coach_description_8, ExifFormatter.aperture(aperture)),
+                        recommendation = text(R.string.learn_coach_recommendation_3),
                         severity = TipSeverity.INFO
                     )
                 )

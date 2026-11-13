@@ -121,19 +121,19 @@ object CameraProfiler {
         val makeLower = make.lowercase()
         val dji = makeLower.startsWith("dji")
         when {
-            dji && model.contains("osmo action", ignoreCase = true) -> return of(CameraClass.ACTION, exif, 0.95, "DJI Osmo Action")
-            dji && DJI_DRONE_MODEL.containsMatchIn(model) -> return of(CameraClass.DRONE, exif, 0.95, "DJI model $model")
+            dji && model.contains("osmo action", ignoreCase = true) -> return of(CameraClass.ACTION, exif, 0.95, "DJI Osmo Action") // ui-text: ignore (evidence for tests and logs, never shown)
+            dji && DJI_DRONE_MODEL.containsMatchIn(model) -> return of(CameraClass.DRONE, exif, 0.95, "DJI model $model") // ui-text: ignore (evidence for tests and logs, never shown)
             makeLower.startsWith("hasselblad") && HASSELBLAD_DRONE_MODEL.containsMatchIn(model) ->
-                return of(CameraClass.DRONE, exif, 0.95, "Hasselblad drone camera $model")
+                return of(CameraClass.DRONE, exif, 0.95, "Hasselblad drone camera $model") // ui-text: ignore (evidence for tests and logs, never shown)
             DRONE_MAKES.any { makeLower.startsWith(it) } -> return of(CameraClass.DRONE, exif, 0.95, "drone make $make")
             exif.gimbalPitchDegrees != null -> return of(CameraClass.DRONE, exif, 0.9, "gimbal pitch in the photo")
         }
         when {
             ACTION_MAKES.any { makeLower.startsWith(it) } -> return of(CameraClass.ACTION, exif, 0.95, "action cam make $make")
             makeLower.startsWith("garmin") && model.contains("virb", ignoreCase = true) ->
-                return of(CameraClass.ACTION, exif, 0.95, "Garmin VIRB")
+                return of(CameraClass.ACTION, exif, 0.95, "Garmin VIRB") // ui-text: ignore (evidence for tests and logs, never shown)
             makeLower.startsWith("sony") && SONY_ACTION_MODEL.containsMatchIn(model) ->
-                return of(CameraClass.ACTION, exif, 0.95, "Sony action cam $model")
+                return of(CameraClass.ACTION, exif, 0.95, "Sony action cam $model") // ui-text: ignore (evidence for tests and logs, never shown)
         }
         val phoneName = PHONE_WORDS.containsMatchIn(names) ||
             (makeLower.startsWith("samsung") && SAMSUNG_PHONE_MODEL.containsMatchIn(model))
@@ -142,7 +142,7 @@ object CameraProfiler {
             return of(CameraClass.PHONE, exif, 0.9, "phone $names".trim())
         }
         if (crop != null) {
-            val from = if (cropFromFocalLengths(exif) != null) "35 mm focal length" else "focal-plane tags"
+            val from = if (cropFromFocalLengths(exif) != null) "35 mm focal length" else "focal-plane tags" // ui-text: ignore (evidence for tests and logs, never shown)
             val c = String.format(java.util.Locale.US, "%.1f", crop)
             return if (crop > COMPACT_CROP) {
                 of(CameraClass.COMPACT, exif, 0.75, "crop $c from $from")

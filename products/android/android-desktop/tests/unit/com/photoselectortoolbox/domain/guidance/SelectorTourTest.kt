@@ -8,6 +8,7 @@ import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
 import org.junit.Test
+import com.photoselectortoolbox.testing.en
 
 /**
  * The guide is generated from the bindings, and cannot advertise anything else.
@@ -41,19 +42,19 @@ class SelectorTourTest {
         val inputs = SelectorTour
             .callouts(FilingAction.COPY, detailsVisible = true, filmstripVisible = true)
             .flatMap { it.rows }
-            .map { it.input }
+            .map { it.input.en() }
 
         assertEquals(inputs.size, inputs.toSet().size)
     }
 
     @Test
     fun `the frame gestures advertised are the frame gestures bound`() {
-        val bound = FrameGesture.entries.map { it.input }.toSet()
+        val bound = FrameGesture.entries.map { it.input.en() }.toSet()
         val advertised = SelectorTour
             .callouts(FilingAction.COPY, detailsVisible = true, filmstripVisible = true)
             .single { it.region == TourRegion.FRAMES }
             .rows
-            .map { it.input }
+            .map { it.input.en() }
             .toSet()
 
         assertEquals(bound, advertised)
@@ -80,8 +81,8 @@ class SelectorTourTest {
             .forEach { row ->
                 forbidden.forEach { word ->
                     assertFalse(
-                        "gesture '${row.input}' claims to '${row.effect}'",
-                        row.effect.lowercase().contains(word),
+                        "gesture '${row.input.en()}' claims to '${row.effect.en()}'",
+                        row.effect.en().lowercase().contains(word),
                     )
                 }
             }
@@ -97,8 +98,8 @@ class SelectorTourTest {
         everyConfiguration.forEach { action ->
             SelectorTour.callouts(action, detailsVisible = true, filmstripVisible = true)
                 .forEach { callout ->
-                    val text = callout.title + callout.body +
-                        callout.rows.joinToString(" ") { it.input + it.effect }
+                    val text = callout.title.en() + callout.body.en() +
+                        callout.rows.joinToString(" ") { it.input.en() + it.effect.en() }
                     glyphs.forEach { glyph ->
                         assertFalse("${callout.region} contains $glyph", text.contains(glyph))
                     }
@@ -112,30 +113,30 @@ class SelectorTourTest {
             .callouts(FilingAction.COPY, detailsVisible = true, filmstripVisible = true)
             .associateBy { it.region }
 
-        val keysWithoutControls = callouts.getValue(TourRegion.KEYS).rows.map { it.input }.toSet()
+        val keysWithoutControls = callouts.getValue(TourRegion.KEYS).rows.map { it.input.en() }.toSet()
 
         // 1/2/3, Esc and ? have nothing on screen to point at, which is the entire
         // reason that callout exists. G and S drive the locator row's two chips (Go and
         // Sort), so they are explained in the controls callout, beside the chips.
         assertEquals(
             setOf(
-                SelectorShortcut.NEXT_PREVIOUS.input,
-                SelectorShortcut.MAXIMISE.input,
-                SelectorShortcut.LEARN.input,
-                SelectorShortcut.UNDO.input,
-                SelectorShortcut.ZOOM.input,
-                SelectorShortcut.PAN.input,
-                SelectorShortcut.ESCAPE.input,
-                SelectorShortcut.SHORTCUTS.input,
+                SelectorShortcut.NEXT_PREVIOUS.input.en(),
+                SelectorShortcut.MAXIMISE.input.en(),
+                SelectorShortcut.LEARN.input.en(),
+                SelectorShortcut.UNDO.input.en(),
+                SelectorShortcut.ZOOM.input.en(),
+                SelectorShortcut.PAN.input.en(),
+                SelectorShortcut.ESCAPE.input.en(),
+                SelectorShortcut.SHORTCUTS.input.en(),
             ),
             keysWithoutControls,
         )
-        val controls = callouts.getValue(TourRegion.CONTROLS).rows.map { it.input }
-        assertTrue(controls.toString(), SelectorShortcut.GO_TO.input in controls)
-        assertTrue(controls.toString(), SelectorShortcut.SORT.input in controls)
+        val controls = callouts.getValue(TourRegion.CONTROLS).rows.map { it.input.en() }
+        assertTrue(controls.toString(), SelectorShortcut.GO_TO.input.en() in controls)
+        assertTrue(controls.toString(), SelectorShortcut.SORT.input.en() in controls)
         // I and T drive the Info and Strip view toggles in the control block.
-        assertTrue(controls.toString(), SelectorShortcut.DETAILS.input in controls)
-        assertTrue(controls.toString(), SelectorShortcut.FILMSTRIP.input in controls)
+        assertTrue(controls.toString(), SelectorShortcut.DETAILS.input.en() in controls)
+        assertTrue(controls.toString(), SelectorShortcut.FILMSTRIP.input.en() in controls)
     }
 
     @Test
@@ -144,11 +145,11 @@ class SelectorTourTest {
             .single { it.region == TourRegion.CONTROLS }
         // Below 160 dp per cell the Go and Sort chips drop their key caps, and at large font scales
         // the action buttons may too: the body must not say every control carries its key.
-        assertEquals("Keys below", controls.body)
-        assertFalse(controls.body, controls.body.contains("carries"))
-        val words = Regex("\\p{L}+").findAll(controls.body).count()
-        assertTrue("guide_ budget is 2 words, 14 chars: \"${controls.body}\"", words <= 2 && controls.body.length <= 14)
-        val inputs = controls.rows.map { it.input }
+        assertEquals("Keys below", controls.body.en())
+        assertFalse(controls.body.en(), controls.body.en().contains("carries"))
+        val words = Regex("\\p{L}+").findAll(controls.body.en()).count()
+        assertTrue("guide_ budget is 2 words, 14 chars: \"${controls.body.en()}\"", words <= 2 && controls.body.en().length <= 14)
+        val inputs = controls.rows.map { it.input.en() }
         assertTrue(inputs.toString(), "G" in inputs && "S" in inputs)
     }
 
@@ -159,10 +160,10 @@ class SelectorTourTest {
                 .callouts(action, detailsVisible = true, filmstripVisible = true)
                 .single { it.region == TourRegion.CONTROLS }
                 .rows
-                .single { it.input == SelectorShortcut.FILE_PRIMARY.input }
+                .single { it.input.en() == SelectorShortcut.FILE_PRIMARY.input.en() }
 
-            assertTrue(row.effect, row.effect.contains("Copy to Selection"))
-            assertTrue(row.effect, row.effect.contains("Move to Selection"))
+            assertTrue(row.effect.en(), row.effect.en().contains("Copy to Selection"))
+            assertTrue(row.effect.en(), row.effect.en().contains("Move to Selection"))
         }
     }
 
@@ -185,8 +186,8 @@ class SelectorTourTest {
         everyConfiguration.forEach { action ->
             SelectorTour.callouts(action, detailsVisible = true, filmstripVisible = true)
                 .forEach { callout ->
-                    assertTrue("${callout.region} has no title", callout.title.isNotBlank())
-                    assertTrue("${callout.region} has no body", callout.body.isNotBlank())
+                    assertTrue("${callout.region} has no title", callout.title.en().isNotBlank())
+                    assertTrue("${callout.region} has no body", callout.body.en().isNotBlank())
                 }
         }
     }
@@ -214,7 +215,7 @@ class SelectorTourTest {
         assertEquals(ScoreMetric.entries.size, legend.size)
         assertEquals(ScoreMetric.entries, legend.map { it.metric })
         legend.forEach { row ->
-            assertTrue("${row.label} has no meaning", row.meaning.isNotBlank())
+            assertTrue("${row.label.en()} has no meaning", row.meaning.en().isNotBlank())
         }
     }
 
@@ -224,8 +225,8 @@ class SelectorTourTest {
         // number has no way to tell which half they are looking at.
         SelectorTour.metricLegend().forEach { row ->
             assertTrue(
-                "${row.label} does not say which way is better: ${row.meaning}",
-                row.meaning.contains(row.metric!!.direction.hint),
+                "${row.label.en()} does not say which way is better: ${row.meaning.en()}",
+                row.meaning.en().contains(row.metric!!.direction.hint.en()),
             )
         }
     }
@@ -237,15 +238,15 @@ class SelectorTourTest {
             .single { it.region == TourRegion.SIDEBAR_SESSION }
 
         assertEquals(
-            SidebarAction.entries.map { it.label },
-            session.legend.map { it.label },
+            SidebarAction.entries.map { it.label.en() },
+            session.legend.map { it.label.en() },
         )
     }
 
     @Test
     fun `the destinations the caller passes in are the ones explained`() {
         val screens = listOf(
-            LegendRow(label = "Statistics", meaning = "How the folder scored"),
+            LegendRow(label = com.photoselectortoolbox.domain.text.raw("Statistics"), meaning = com.photoselectortoolbox.domain.text.raw("How the folder scored")),
         )
         val callouts = SelectorTour.callouts(
             filingAction = FilingAction.COPY,

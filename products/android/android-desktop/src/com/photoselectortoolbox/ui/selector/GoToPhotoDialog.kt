@@ -54,6 +54,10 @@ import com.photoselectortoolbox.domain.session.PhotoDates
 import com.photoselectortoolbox.ui.theme.StudioCard
 import java.time.LocalDate
 import kotlinx.coroutines.flow.filterNotNull
+import com.photoselectortoolbox.R
+import com.photoselectortoolbox.ui.text.asString
+import com.photoselectortoolbox.domain.text.UiText
+import com.photoselectortoolbox.domain.text.text
 
 /**
  * "Go to photo": one field that takes the number the position counter shows, part of a file
@@ -110,24 +114,24 @@ internal fun GoToPhotoDialog(
     }
 
     val dateInProgress = isDateInProgress(text)
-    val supporting: String = when {
+    val supporting: String = (when {
         text.isBlank() ->
             if (attempted) {
                 SelectorLabels.goToPhotoRange(total)
             } else if (dates.first != null && dates.last != null) {
                 SelectorLabels.goToPhotoDateSpan(dates.first!!, dates.last!!)
             } else {
-                ""
+                UiText.Empty
             }
         resolution is JumpResolution.Resolved -> SelectorLabels.goToPhotoPreview(
             fileName = jump.fileName ?: images.getOrNull(resolution.index)?.fileName.orEmpty(),
             takenAt = jump.takenAt,
         )
         resolution is JumpResolution.NoNameMatch ->
-            if (dateInProgress && !attempted) "" else SelectorLabels.GO_TO_PHOTO_NO_MATCH
-        else -> if (attempted) SelectorLabels.goToPhotoRange(total) else ""
-    }
-    val nearestDay: String? = (resolution as? JumpResolution.Resolved)?.date?.let(SelectorLabels::goToPhotoNearestDay)
+            if (dateInProgress && !attempted) UiText.Empty else SelectorLabels.GO_TO_PHOTO_NO_MATCH
+        else -> if (attempted) SelectorLabels.goToPhotoRange(total) else UiText.Empty
+    }).asString()
+    val nearestDay: String? = (resolution as? JumpResolution.Resolved)?.date?.let(SelectorLabels::goToPhotoNearestDay)?.asString()
     val isError = resolution !is JumpResolution.Resolved &&
         (attempted || (resolution is JumpResolution.NoNameMatch && !dateInProgress))
 
@@ -135,7 +139,7 @@ internal fun GoToPhotoDialog(
         onDismissRequest = onDismiss,
         modifier = Modifier.testTag("go_to_photo_dialog"),
         properties = DialogProperties(usePlatformDefaultWidth = false),
-        title = { Text(SelectorLabels.GO_TO_PHOTO) },
+        title = { Text(SelectorLabels.GO_TO_PHOTO.asString()) },
         text = {
             if (picking) {
                 DayPicker(
@@ -178,7 +182,7 @@ internal fun GoToPhotoDialog(
                         }
                         .testTag("go_to_photo_field"),
                     singleLine = true,
-                    label = { Text(SelectorLabels.GO_TO_PHOTO_FIELD) },
+                    label = { Text(SelectorLabels.GO_TO_PHOTO_FIELD.asString()) },
                     placeholder = { Text(SelectorLabels.goToPhotoPlaceholder(total)) },
                     trailingIcon = {
                         // 48 dp (IconButton's own size), so the target is not the 24 dp glyph.
@@ -194,7 +198,7 @@ internal fun GoToPhotoDialog(
                         ) {
                             Icon(
                                 imageVector = Icons.Default.CalendarMonth,
-                                contentDescription = SelectorLabels.GO_TO_PHOTO_PICK_DATE,
+                                contentDescription = SelectorLabels.GO_TO_PHOTO_PICK_DATE.asString(),
                             )
                         }
                     },
@@ -228,17 +232,17 @@ internal fun GoToPhotoDialog(
         confirmButton = {
             if (picking) {
                 TextButton(onClick = { picking = false }, modifier = Modifier.testTag("go_to_photo_back").handCursor()) {
-                    Text(SelectorLabels.GO_TO_PHOTO_BACK)
+                    Text(SelectorLabels.GO_TO_PHOTO_BACK.asString())
                 }
             } else {
                 TextButton(onClick = submit, modifier = Modifier.testTag("go_to_photo_go").handCursor()) {
-                    Text(SelectorLabels.GO_TO_PHOTO_GO)
+                    Text(SelectorLabels.GO_TO_PHOTO_GO.asString())
                 }
             }
         },
         dismissButton = {
             TextButton(onClick = onDismiss, modifier = Modifier.testTag("go_to_photo_cancel").handCursor()) {
-                Text(SelectorLabels.GO_TO_PHOTO_CANCEL)
+                Text(SelectorLabels.GO_TO_PHOTO_CANCEL.asString())
             }
         },
         containerColor = StudioCard,

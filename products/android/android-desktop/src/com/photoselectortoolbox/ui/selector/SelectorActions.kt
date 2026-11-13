@@ -87,6 +87,10 @@ import com.photoselectortoolbox.ui.theme.StudioPanel
 import com.photoselectortoolbox.ui.theme.Zinc400
 import com.photoselectortoolbox.ui.theme.Zinc50
 import kotlinx.coroutines.delay
+import androidx.compose.ui.res.stringResource
+import com.photoselectortoolbox.R
+import com.photoselectortoolbox.ui.text.asString
+import com.photoselectortoolbox.domain.interaction.SelectorShortcut
 
 /**
  * The callbacks the selector needs, gathered so the layout, the control block
@@ -144,7 +148,7 @@ fun SelectorContextMenu(
                 } else {
                     Icons.Default.ContentCopy
                 },
-                label = label.phrase,
+                label = label.phrase.asString(),
                 keyHint = label.shortcut,
                 onClick = {
                     onDismissRequest()
@@ -154,20 +158,20 @@ fun SelectorContextMenu(
         }
         ContextMenuRow(
             icon = Icons.Default.Delete,
-            label = "Delete",
-            keyHint = "Del",
+            label = stringResource(R.string.action_delete),
+            keyHint = SelectorShortcut.DELETE.input.asString(),
             labelColor = ScoreBad,
             onClick = { onDismissRequest(); actions.onDelete() },
         )
         ContextMenuRow(
             icon = Icons.Outlined.Info,
-            label = "Photo details",
+            label = stringResource(R.string.cd_photo_details),
             keyHint = null,
             onClick = { onDismissRequest(); actions.onToggleDetails() },
         )
         ContextMenuRow(
             icon = Icons.Default.Fullscreen,
-            label = "Open fullscreen",
+            label = stringResource(R.string.action_open_fullscreen),
             keyHint = "F",
             onClick = { onDismissRequest(); actions.onFullscreen() },
         )
@@ -255,7 +259,7 @@ fun FirstRunNavigationHint(
                 modifier = Modifier.size(16.dp),
                 tint = Zinc400,
             )
-            Text(text = "Tap either side to browse", fontSize = 12.sp, color = Zinc50)
+            Text(text = stringResource(R.string.hint_title_tap_either_side), fontSize = 12.sp, color = Zinc50)
             Icon(
                 imageVector = Icons.AutoMirrored.Filled.ArrowForward,
                 contentDescription = null,
@@ -278,7 +282,7 @@ fun FirstRunNavigationHint(
                 contentAlignment = Alignment.Center,
             ) {
                 Text(
-                    text = "Got it",
+                    text = stringResource(R.string.action_got_it),
                     fontSize = 12.sp,
                     fontWeight = FontWeight.Medium,
                     color = BrandAccentText,
@@ -397,7 +401,7 @@ private fun SnackbarUndoButton(onClick: () -> Unit) {
         contentAlignment = Alignment.Center,
     ) {
         Text(
-            text = "UNDO",
+            text = stringResource(R.string.snackbar_action_undo),
             fontSize = 12.sp,
             fontWeight = FontWeight.SemiBold,
             color = BrandOnAccent,

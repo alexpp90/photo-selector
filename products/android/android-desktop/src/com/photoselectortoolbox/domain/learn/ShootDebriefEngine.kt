@@ -1,5 +1,7 @@
 package com.photoselectortoolbox.domain.learn
 
+import com.photoselectortoolbox.domain.text.UiText
+
 import com.photoselectortoolbox.data.cache.TechniqueFactEntity
 import com.photoselectortoolbox.data.model.ImageItem
 import com.photoselectortoolbox.domain.format.ImageFormats
@@ -70,7 +72,7 @@ data class DebriefGroup(
     /** Who chose the exposure for most photos of the group (`camera.decided_by`). */
     val decidedBy: DecidedBy = DecidedBy.UNKNOWN,
     /** The "Next time" lines for [focus], from [AdviceCatalog]; empty without a focus. */
-    val advice: List<String> = emptyList(),
+    val advice: List<UiText> = emptyList(),
     /** The group's photos (not stored: the debrief screen's worked pair and filter read them). */
     val photoUris: List<String> = emptyList(),
     /** Per metric, the photos that count against it ("Show 28"); not stored. */

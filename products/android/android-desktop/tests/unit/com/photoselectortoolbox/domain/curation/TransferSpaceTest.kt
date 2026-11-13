@@ -5,6 +5,7 @@ import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
+import com.photoselectortoolbox.testing.en
 
 class TransferSpaceTest {
 
@@ -42,12 +43,13 @@ class TransferSpaceTest {
     @Test
     fun `the refusal says what it needs and what is free, and is recognised as one`() {
         val message = TransferSpace.refusalMessage(48L * 1024 * 1024, 12L * 1024 * 1024, isMove = false)
-        assertEquals("Not enough space: needs 48 MB, 12 MB free. Nothing was copied.", message)
-        assertTrue(TransferSpace.isRefusal(message))
-        assertFalse(TransferSpace.isRefusal("Copy failed"))
+        assertEquals("Not enough space: needs 48 MB, 12 MB free. Nothing was copied.", message.en())
+        val code = TransferSpace.refusalCode(48L * 1024 * 1024, 12L * 1024 * 1024, isMove = false)
+        assertEquals(message, TransferSpace.refusalOf(code))
+        assertEquals(null, TransferSpace.refusalOf("Copy failed"))
         assertEquals(
             "Not enough space: needs 2.5 GB, 0 MB free. Nothing was moved.",
-            TransferSpace.refusalMessage(2560L * 1024 * 1024, 0, isMove = true),
+            TransferSpace.refusalMessage(2560L * 1024 * 1024, 0, isMove = true).en(),
         )
     }
 }

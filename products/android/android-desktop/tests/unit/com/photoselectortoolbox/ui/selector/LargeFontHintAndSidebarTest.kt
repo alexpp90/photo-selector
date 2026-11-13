@@ -41,6 +41,7 @@ import org.junit.Test
 import org.junit.runner.RunWith
 import org.robolectric.annotation.Config
 import org.robolectric.annotation.GraphicsMode
+import com.photoselectortoolbox.testing.en
 
 /**
  * Three selector surfaces at the largest system font (usability panel 2026-11-10,
@@ -187,11 +188,11 @@ class LargeFontHintAndSidebarTest {
     // ── 1h: sidebar items ─────────────────────────────────────────────────────
 
     private val sidebarItems: List<Pair<String, String>> = listOf(
-        "sidebar_open_folder" to SidebarAction.FOLDER.label,
-        "scan_button" to SidebarAction.SCAN.label,
-        "grouping_toggle" to SidebarAction.BURSTS.label,
-        "score_legend_button" to SidebarAction.LEGEND.label,
-    ) + NavEntry.all.map { it.testTag to it.label }
+        "sidebar_open_folder" to SidebarAction.FOLDER.label.en(),
+        "scan_button" to SidebarAction.SCAN.label.en(),
+        "grouping_toggle" to SidebarAction.BURSTS.label.en(),
+        "score_legend_button" to SidebarAction.LEGEND.label.en(),
+    ) + NavEntry.all.map { it.testTag to it.label.en() }
 
     private fun sidebar(fontScale: Float) = host(fontScale) {
         // Tall enough that nothing scrolls: the test is about each item, not the column.

@@ -22,6 +22,7 @@ import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.unit.DpOffset
 import com.photoselectortoolbox.ui.components.MinTouchTarget
 import com.photoselectortoolbox.ui.components.handCursor
+import com.photoselectortoolbox.ui.text.asString
 
 /**
  * The Tools cell's menu state, one per navigation surface.
@@ -86,8 +87,9 @@ fun ToolsMenu(
         modifier = Modifier.testTag("tools_menu"),
     ) {
         NavEntry.Tools.screens.forEach { screen ->
+            val label = screen.label.asString()
             DropdownMenuItem(
-                text = { Text(screen.label) },
+                text = { Text(label) },
                 leadingIcon = { Icon(imageVector = screen.icon, contentDescription = null) },
                 onClick = {
                     state.chose()
@@ -97,7 +99,7 @@ fun ToolsMenu(
                     .heightIn(min = MinTouchTarget)
                     .handCursor()
                     .semantics {
-                        contentDescription = screen.label
+                        contentDescription = label
                         selected = currentRoute == screen.route
                     }
                     .testTag("nav_${screen.route}"),

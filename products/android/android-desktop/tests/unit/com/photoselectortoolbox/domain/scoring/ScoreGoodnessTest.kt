@@ -4,6 +4,7 @@ import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
+import com.photoselectortoolbox.testing.en
 
 /**
  * The direction bar on a score chip is only trustworthy if "longer and greener
@@ -104,13 +105,13 @@ class ScoreGoodnessTest {
 
     @Test
     fun `accessibility label states the direction and the best-of status`() {
-        val plain = ScoreMetric.SHARPNESS.accessibilityLabel(82.4)
+        val plain = ScoreMetric.SHARPNESS.accessibilityLabel(82.4).en()
         assertTrue(plain, plain.contains("Sharpness"))
         assertTrue(plain, plain.contains("82.4"))
         assertTrue(plain, plain.contains("higher is better"))
         assertTrue(plain, !plain.contains("best of"))
 
-        val best = ScoreMetric.SHARPNESS.accessibilityLabel(82.4, isBestOfVisible = true)
+        val best = ScoreMetric.SHARPNESS.accessibilityLabel(82.4, isBestOfVisible = true).en()
         assertTrue(best, best.contains("best of the three visible frames"))
     }
 }

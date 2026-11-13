@@ -11,6 +11,7 @@ import org.junit.Assert.assertTrue
 import org.junit.Test
 import org.junit.runner.RunWith
 import org.robolectric.annotation.Config
+import com.photoselectortoolbox.testing.en
 
 /**
  * `G` opens "Go to photo", and while the dialog is open (it counts as an open sheet)
@@ -97,7 +98,7 @@ class SelectorJumpKeyTest {
 
     @Test
     fun `the shortcut the guide lists is the key that is bound`() {
-        assertEquals("G", SelectorShortcut.GO_TO.input)
-        assertEquals("go to photo", SelectorShortcut.GO_TO.describeEffect(com.photoselectortoolbox.domain.interaction.FilingAction.COPY))
+        assertEquals("G", SelectorShortcut.GO_TO.input.en())
+        assertEquals("go to photo", SelectorShortcut.GO_TO.describeEffect(com.photoselectortoolbox.domain.interaction.FilingAction.COPY).en())
     }
 }

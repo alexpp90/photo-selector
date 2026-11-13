@@ -96,7 +96,7 @@ class ScreenFitMatrixTest {
             SharedBounds(Regex("^#column_(current|previous|next)$"), Regex("^#maximise_badge$"), "REQ-AND-LAYOUT.06"),
         ),
         // REQ-AND-LAYOUT.07: the action word steps down from 13 sp to 9 sp before it may ellipsise.
-        autoSizeMin = mapOf("action_word" to 9.sp),
+        autoSizeMin = mapOf("action_word" to 9.sp, com.photoselectortoolbox.ui.selector.SIDEBAR_LABEL_TAG to com.photoselectortoolbox.ui.selector.SidebarLabelMinSize),
     )
 
     @Before
