@@ -257,8 +257,12 @@ object CardGenerator {
                         LearnCard(
                             id = "card_symmetry_${fact.value}",
                             kind = CardKind.DID_WELL,
-                            title = text(R.string.learn_card_card_symmetry_fact_value_title, fact.value.replaceFirstChar { it.uppercase() }),
-                            whatHappened = text(R.string.learn_card_card_symmetry_fact_value_what_happened, fact.value),
+                            title = text(
+                                if (fact.value == "vertical") R.string.learn_card_symmetry_title_vertical else R.string.learn_card_symmetry_title_horizontal,
+                            ),
+                            whatHappened = text(
+                                if (fact.value == "vertical") R.string.learn_card_symmetry_happened_vertical else R.string.learn_card_symmetry_happened_horizontal,
+                            ),
                             whyItMatters = text(R.string.learn_card_card_symmetry_fact_value_why_it_matters),
                             tryNextTime = text(R.string.learn_card_card_symmetry_fact_value_try_next_time),
                             lessonId = "composition.symmetry",

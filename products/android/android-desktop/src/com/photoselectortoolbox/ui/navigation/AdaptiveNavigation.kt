@@ -241,6 +241,7 @@ internal fun ColumnScope.RailCell(entry: NavEntry, currentRoute: String?, onNavi
         indicatorColor = BrandAccentNav,
     )
     when (entry) {
+        // ui-text: ignore (icon with a word, DESIGN.md § Icon with a word: nav cells carry their word, decision #18)
         is NavEntry.Destination -> NavigationRailItem(
             modifier = Modifier.testTag(entry.testTag).handCursor(),
             icon = { Icon(imageVector = entry.icon, contentDescription = entry.spoken(currentRoute).asString()) },
@@ -255,6 +256,7 @@ internal fun ColumnScope.RailCell(entry: NavEntry, currentRoute: String?, onNavi
             val density = LocalDensity.current
             var cell by remember { mutableStateOf(IntSize.Zero) }
             Box(modifier = Modifier.onSizeChanged { cell = it }) {
+                // ui-text: ignore (icon with a word, DESIGN.md § Icon with a word: nav cells carry their word, decision #18)
                 NavigationRailItem(
                     modifier = with(menu) { Modifier.toolsCell() }
                         .semantics { contentDescription = spoken }
@@ -288,6 +290,7 @@ internal fun RowScope.BarCell(entry: NavEntry, currentRoute: String?, onNavigate
         indicatorColor = BrandAccentNav,
     )
     when (entry) {
+        // ui-text: ignore (icon with a word, DESIGN.md § Icon with a word: nav cells carry their word, decision #18)
         is NavEntry.Destination -> NavigationBarItem(
             modifier = Modifier.testTag(entry.testTag).handCursor(),
             icon = { Icon(imageVector = entry.icon, contentDescription = entry.spoken(currentRoute).asString()) },
@@ -299,6 +302,7 @@ internal fun RowScope.BarCell(entry: NavEntry, currentRoute: String?, onNavigate
         NavEntry.Tools -> {
             val menu = rememberToolsMenuState()
             val spoken = entry.spoken(currentRoute).asString()
+            // ui-text: ignore (icon with a word, DESIGN.md § Icon with a word: nav cells carry their word, decision #18)
             NavigationBarItem(
                 modifier = with(menu) { Modifier.toolsCell() }
                     .semantics { contentDescription = spoken }

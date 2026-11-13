@@ -974,7 +974,7 @@ private fun ExploreCardsSection(
                         color = Color.White,
                     )
                     Text(
-                        text = suggestedCrop.rationale,
+                        text = suggestedCrop.rationale.asString(),
                         style = MaterialTheme.typography.bodySmall,
                         color = Zinc400,
                     )

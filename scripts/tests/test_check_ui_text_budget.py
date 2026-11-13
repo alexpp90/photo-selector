@@ -111,6 +111,42 @@ class Resources(unittest.TestCase):
         self.assertEqual({f.kind for f in self.ws.run().findings}, {"missing-de", "unclassified-key"})
 
 
+class BudgetDebt(unittest.TestCase):
+    """A product's `budget_debt`: over budget on purpose, still translated, and it only shrinks."""
+
+    def setUp(self) -> None:
+        self.ws = Workspace()
+
+    def tearDown(self) -> None:
+        self.ws.close()
+
+    def run_with_debt(self, *keys: str) -> chk.Result:
+        cfg = _cfg("fail")
+        cfg["products"]["demo"]["budget_debt"] = list(keys)
+        return chk.run(cfg, self.ws.root)["demo"]
+
+    def test_a_debt_key_over_budget_is_not_reported_but_still_needs_german(self) -> None:
+        self.ws.strings("values", '<string name="action_long">Tap here to delete this photo</string>'
+                                  '<string name="action_other">Tap here to keep this other photo</string>')
+        self.ws.strings("values-de", '<string name="action_long">Hier tippen, um dieses Foto zu löschen</string>')
+        r = self.run_with_debt("action_long", "action_other")
+        self.assertEqual({(f.kind, f.where.split(":")[-1]) for f in r.findings}, {("missing-de", "action_other")})
+
+    def test_a_debt_key_that_fits_again_is_stale(self) -> None:
+        self.ws.strings("values", '<string name="action_delete">Delete</string>')
+        self.ws.strings("values-de", '<string name="action_delete">Löschen</string>')
+        r = self.run_with_debt("action_delete", "action_gone")
+        self.assertEqual(sorted((f.kind, f.where.split(":")[-1]) for f in r.findings),
+                         [("stale-debt", "action_delete"), ("stale-debt", "action_gone")])
+
+    def test_frameduel_is_binding_and_clean(self) -> None:
+        # [USER 2026-11-12] decision #34 (FD-L10N): Frameduel's strings are resources with German.
+        cfg = chk.load_config()
+        self.assertEqual(cfg["products"]["android-desktop"]["mode"], "fail")
+        result = chk.run(cfg, REPO)["android-desktop"]
+        self.assertEqual(result.findings, [], result.findings[:5])
+
+
 class KotlinSources(unittest.TestCase):
     def setUp(self) -> None:
         self.ws = Workspace()
@@ -175,6 +211,18 @@ class KotlinSources(unittest.TestCase):
         ''')
         r = self.ws.run()
         self.assertEqual([(f.kind, f.element) for f in r.findings], [("icon-with-label", "Column")])
+
+    def test_a_documented_icon_with_a_word_carries_the_ignore_mark(self) -> None:
+        self.ws.kotlin("Nav.kt", '''
+            @Composable fun C(onClick: () -> Unit) {
+                // ui-text: ignore (icon with a word: the design guide names this exception)
+                OutlinedButton(onClick = onClick) {
+                    Icon(Icons.Default.Link, contentDescription = null)
+                    Text(stringResource(R.string.action_link))
+                }
+            }
+        ''')
+        self.assertEqual(self.ws.run().findings, [])
 
     def test_labelled_button_is_flagged_and_icon_button_is_not(self) -> None:
         self.ws.kotlin("Btn.kt", '''

@@ -3,14 +3,14 @@ appId: com.photoselectortoolbox.lab
 - tapOn:
     id: "scan_button"
 # Scan opens its configuration first: an AlertDialog on tablets and DeX, a bottom sheet on
-# compact windows. A dialog is its own window, so its test tags are not exported; the app is
-# English-only, so its button text is a stable selector.
+# compact windows. A dialog is its own window, so its test tags are not exported; its button
+# text is the selector, in English or German (the lab devices run German, values-de since #34).
 - extendedWaitUntil:
     visible:
-      text: "Start Scan"
+      text: "Start Scan|Scan starten"
     timeout: 5000
 - tapOn:
-    text: "Start Scan"
+    text: "Start Scan|Scan starten"
 # The Scan item turns into its progress counter while scanning and comes back when done.
 - extendedWaitUntil:
     visible:

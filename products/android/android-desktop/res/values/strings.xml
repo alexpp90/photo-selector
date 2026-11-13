@@ -734,8 +734,6 @@
     <string name="learn_card_card_simplicity_busy_title">Simplify the Background</string>
     <string name="learn_card_card_simplicity_busy_what_happened">High edge density around the edges competes with the center of interest.</string>
     <string name="learn_card_card_simplicity_busy_why_it_matters">Busy backgrounds pull the viewer\'s eye away from the main subject.</string>
-    <string name="learn_card_card_symmetry_fact_value_title">Intentional %1$s Symmetry</string>
-    <string name="learn_card_card_symmetry_fact_value_what_happened">Both halves of the frame mirror each other closely across the %1$s axis.</string>
     <string name="learn_card_card_symmetry_fact_value_why_it_matters">Strong bilateral symmetry creates a calm, graphic, architectural sense of order.</string>
     <string name="learn_card_card_symmetry_fact_value_try_next_time">Stand dead-center on the symmetry axis so perspective lines meet at the exact midpoint.</string>
     <string name="learn_card_card_tonal_silhouette_title">Dramatic Backlit Silhouette</string>
@@ -1004,4 +1002,14 @@
     <string name="cd_camera_chip_drone">Shot with drone, change</string>
     <string name="cd_camera_chip_action">Shot with action cam, change</string>
     <string name="cd_camera_chip_unknown">Shot with unknown camera, change</string>
+
+    <!-- Learn: crop preview and symmetry cards -->
+    <string name="learn_crop_upper_left">Places the subject on the upper-left thirds intersection (%1$s crop, %2$s%% frame area).</string>
+    <string name="learn_crop_upper_right">Places the subject on the upper-right thirds intersection (%1$s crop, %2$s%% frame area).</string>
+    <string name="learn_crop_lower_left">Places the subject on the lower-left thirds intersection (%1$s crop, %2$s%% frame area).</string>
+    <string name="learn_crop_lower_right">Places the subject on the lower-right thirds intersection (%1$s crop, %2$s%% frame area).</string>
+    <string name="learn_card_symmetry_title_vertical">Intentional Vertical Symmetry</string>
+    <string name="learn_card_symmetry_title_horizontal">Intentional Horizontal Symmetry</string>
+    <string name="learn_card_symmetry_happened_vertical">Both halves of the frame mirror each other closely across the vertical axis.</string>
+    <string name="learn_card_symmetry_happened_horizontal">Both halves of the frame mirror each other closely across the horizontal axis.</string>
 </resources>

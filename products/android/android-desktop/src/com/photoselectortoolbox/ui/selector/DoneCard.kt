@@ -144,6 +144,7 @@ internal fun DoneCard(
                 Spacer(Modifier.height(16.dp))
                 Row(horizontalArrangement = Arrangement.spacedBy(24.dp)) {
                     summary.cells.forEach { cell ->
+                        // ui-text: ignore (icon with a word, DESIGN.md § Icon with a word: a count cell is glyph, number and word)
                         Column(
                             horizontalAlignment = Alignment.CenterHorizontally,
                             modifier = Modifier.testTag("done_count_${cell.tag}"),

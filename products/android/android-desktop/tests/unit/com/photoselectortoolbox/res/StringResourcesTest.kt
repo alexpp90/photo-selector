@@ -95,10 +95,24 @@ class StringResourcesTest {
     }
 
     @Test
+    @Requirement("REQ-AND-THEME.06")
+    fun `every date pattern has its German twin and formats a date in both languages`() {
+        val enFormats = read("res/values/formats.xml")
+        val deFormats = read("res/values-de/formats.xml")
+        assertEquals(enFormats.keys, deFormats.keys)
+        val day = java.time.LocalDateTime.of(2026, 10, 12, 14, 32)
+        for ((name, el) in enFormats) {
+            java.time.format.DateTimeFormatter.ofPattern(el.textContent, java.util.Locale.ENGLISH).format(day)
+            java.time.format.DateTimeFormatter.ofPattern(deFormats.getValue(name).textContent, java.util.Locale.GERMAN).format(day)
+        }
+        assertEquals("12. Okt. 2026", java.time.format.DateTimeFormatter.ofPattern(deFormats.getValue("format_date").textContent, java.util.Locale.GERMAN).format(day))
+    }
+
+    @Test
     fun `every string resource is used by code or a resource file`() {
         val roots = listOf(file("src"), file("res"), file("AndroidManifest.xml"))
         val sources = roots.flatMap { r -> if (r.isDirectory) r.walkTopDown().filter { it.isFile }.toList() else listOf(r) }
-            .filterNot { it.path.endsWith("values/strings.xml") || it.path.endsWith("values-de/strings.xml") }
+            .filterNot { it.path.endsWith("strings.xml") || it.path.endsWith("formats.xml") }
             .filter { it.extension in setOf("kt", "xml") }
             .joinToString("\n") { it.readText() }
         val unused = en.keys.filter { name ->

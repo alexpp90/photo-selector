@@ -1,27 +1,122 @@
 {
   "_doc": "Visible-text budgets per UI element (docs/shared/UI_TEXT.md § Budgets is the human copy; scripts/tests/test_check_ui_text_budget.py keeps the two equal). Read by scripts/check_ui_text_budget.py. `mode` per product: fail = findings fail the gate; warn = reported only.",
   "budgets": {
-    "action": {"prefix": "action_", "words": 2, "en": 16, "de": 22},
-    "chip": {"prefix": "chip_", "words": 2, "en": 14, "de": 18},
-    "label": {"prefix": "label_", "words": 2, "en": 18, "de": 24},
-    "title": {"prefix": "title_", "words": 3, "en": 24, "de": 32},
-    "dialog_title": {"prefix": "dialog_title_", "words": 5, "en": 30, "de": 40},
-    "dialog_body": {"prefix": "dialog_body_", "words": 8, "en": 50, "de": 65},
-    "snackbar": {"prefix": "snackbar_", "words": 4, "en": 28, "de": 36},
-    "snackbar_action": {"prefix": "snackbar_action_", "words": 1, "en": 10, "de": 14},
-    "error": {"prefix": "error_", "words": 8, "en": 50, "de": 65},
-    "empty": {"prefix": "empty_", "words": 3, "en": 24, "de": 32},
-    "hint_title": {"prefix": "hint_title_", "words": 6, "en": 36, "de": 48},
-    "hint_body": {"prefix": "hint_body_", "words": 6, "en": 40, "de": 52},
-    "setting_title": {"prefix": "setting_title_", "words": 3, "en": 26, "de": 34},
-    "setting_summary": {"prefix": "setting_summary_", "words": 5, "en": 36, "de": 46},
-    "guide": {"prefix": "guide_", "words": 2, "en": 14, "de": 18},
-    "spoken": {"prefix": "cd_", "words": null, "en": null, "de": null},
-    "learn": {"prefix": "learn_", "words": null, "en": null, "de": null}
+    "action": {
+      "prefix": "action_",
+      "words": 2,
+      "en": 16,
+      "de": 22
+    },
+    "chip": {
+      "prefix": "chip_",
+      "words": 2,
+      "en": 14,
+      "de": 18
+    },
+    "label": {
+      "prefix": "label_",
+      "words": 2,
+      "en": 18,
+      "de": 24
+    },
+    "title": {
+      "prefix": "title_",
+      "words": 3,
+      "en": 24,
+      "de": 32
+    },
+    "dialog_title": {
+      "prefix": "dialog_title_",
+      "words": 5,
+      "en": 30,
+      "de": 40
+    },
+    "dialog_body": {
+      "prefix": "dialog_body_",
+      "words": 8,
+      "en": 50,
+      "de": 65
+    },
+    "snackbar": {
+      "prefix": "snackbar_",
+      "words": 4,
+      "en": 28,
+      "de": 36
+    },
+    "snackbar_action": {
+      "prefix": "snackbar_action_",
+      "words": 1,
+      "en": 10,
+      "de": 14
+    },
+    "error": {
+      "prefix": "error_",
+      "words": 8,
+      "en": 50,
+      "de": 65
+    },
+    "empty": {
+      "prefix": "empty_",
+      "words": 3,
+      "en": 24,
+      "de": 32
+    },
+    "hint_title": {
+      "prefix": "hint_title_",
+      "words": 6,
+      "en": 36,
+      "de": 48
+    },
+    "hint_body": {
+      "prefix": "hint_body_",
+      "words": 6,
+      "en": 40,
+      "de": 52
+    },
+    "setting_title": {
+      "prefix": "setting_title_",
+      "words": 3,
+      "en": 26,
+      "de": 34
+    },
+    "setting_summary": {
+      "prefix": "setting_summary_",
+      "words": 5,
+      "en": 36,
+      "de": 46
+    },
+    "guide": {
+      "prefix": "guide_",
+      "words": 2,
+      "en": 14,
+      "de": 18
+    },
+    "spoken": {
+      "prefix": "cd_",
+      "words": null,
+      "en": null,
+      "de": null
+    },
+    "learn": {
+      "prefix": "learn_",
+      "words": null,
+      "en": null,
+      "de": null
+    }
   },
-  "no_sentence_punctuation": ["action", "chip", "snackbar_action", "guide"],
-  "placeholder_sample": {"number": "12", "text": "Selection1"},
-  "exempt_keys": ["app_name"],
+  "no_sentence_punctuation": [
+    "action",
+    "chip",
+    "snackbar_action",
+    "guide"
+  ],
+  "placeholder_sample": {
+    "number": "12",
+    "text": "Selection1"
+  },
+  "exempt_keys": [
+    "app_name"
+  ],
   "products": {
     "phototok": {
       "mode": "fail",
@@ -29,9 +124,133 @@
       "src": "products/android/phototok/src"
     },
     "android-desktop": {
-      "mode": "warn",
+      "mode": "fail",
       "res": "products/android/android-desktop/res",
-      "src": "products/android/android-desktop/src"
+      "src": "products/android/android-desktop/src",
+      "budget_debt_doc": "Frameduel's English copy that predates its strings becoming resources ([USER 2026-11-12] decision #34, FD-L10N): over budget until a copy pass rewords it. Each key still needs its German entry; a key that fits again is reported as stale-debt. setting_title_raw_jpeg_folders, setting_summary_no_folder_open and setting_title_write_ratings_into_photos are worded by [USER] requirements.",
+      "budget_debt": [
+        "action_all_lessons",
+        "action_back_to_cull",
+        "action_copy_to",
+        "action_delete_selected",
+        "action_go_to_photo_menu",
+        "action_hide_what_if_crop",
+        "action_move_to",
+        "action_select_all_but_first",
+        "action_shortcuts_and_guide",
+        "action_what_if_crop",
+        "action_why_open_lesson",
+        "chip_guess_first_off",
+        "chip_guess_first_on",
+        "dialog_body_choose_shoot_folder",
+        "dialog_body_cloud_scan",
+        "dialog_body_delete",
+        "dialog_body_delete_cloud_warning",
+        "dialog_body_dupes_ready",
+        "dialog_body_inspect_empty",
+        "dialog_body_stats_select_folder",
+        "dialog_body_uncompleted_deletions",
+        "empty_debrief_not_scanned",
+        "empty_no_photos_to_inspect",
+        "error_copied_original_kept",
+        "error_could_not_delete_recovered",
+        "error_folder_access_revoked",
+        "error_folder_load_failed",
+        "error_not_enough_space_copy",
+        "error_not_enough_space_move",
+        "error_rating_backup_kept_one",
+        "error_rating_backup_restored_one",
+        "error_rating_backups_kept",
+        "error_rating_backups_restored",
+        "error_rating_backup_still_beside",
+        "error_rating_format_unknown",
+        "error_rating_not_restored",
+        "error_rating_not_restored_backup",
+        "error_rating_not_written",
+        "error_rating_not_written_reason",
+        "error_rating_restored",
+        "error_rating_xmp_unmergeable",
+        "error_recovery_kept",
+        "error_recovery_kept_one",
+        "error_undo_partial",
+        "hint_body_delete_undo",
+        "hint_body_effect_escape",
+        "hint_body_filing_in_shoot",
+        "hint_body_filing_sorted",
+        "hint_body_maximise",
+        "hint_body_scores",
+        "hint_body_screen_cull",
+        "hint_body_screen_dupes",
+        "hint_body_screen_learn",
+        "hint_body_screen_setup",
+        "hint_body_screen_stats",
+        "hint_body_sidebar_bursts",
+        "hint_body_sidebar_folder",
+        "hint_body_sidebar_legend",
+        "hint_body_sidebar_more",
+        "hint_body_sidebar_scan",
+        "hint_body_tour",
+        "hint_body_tour_comparison",
+        "hint_body_tour_filmstrip",
+        "hint_body_tour_keys",
+        "hint_body_tour_shoot",
+        "hint_body_tour_values",
+        "hint_title_delete_undo",
+        "label_analyzing_metadata",
+        "label_blur_risk_high",
+        "label_blur_risk_low",
+        "label_blur_risk_moderate",
+        "label_camera_class_interchangeable",
+        "label_cloud_provider_generic",
+        "label_crop_preview",
+        "label_debrief_hand_hold",
+        "label_debrief_partial",
+        "label_debrief_sharp_frames",
+        "label_debrief_subject_off_edge",
+        "label_did_well",
+        "label_discovering_files",
+        "label_discovering_images",
+        "label_found_duplicates",
+        "label_goal_progress",
+        "label_go_to_photo_field",
+        "label_hashing_files",
+        "label_higher_is_better",
+        "label_lower_is_better",
+        "label_no_camera_data",
+        "label_no_duplicates",
+        "label_no_images_in_folder",
+        "label_no_photos_on_day",
+        "label_pair_better",
+        "label_pair_bright_lost",
+        "label_pair_shadows_lost",
+        "label_pair_sharpness",
+        "label_preparing_analysis",
+        "label_safe_to_format",
+        "label_scanning_for_duplicates",
+        "label_stats_mean_median",
+        "label_suggested_ev",
+        "label_technique_guidance",
+        "label_try_next",
+        "setting_summary_no_folder_open",
+        "setting_title_raw_jpeg_folders",
+        "setting_title_write_ratings_into_photos",
+        "snackbar_copied_stem",
+        "snackbar_copied_stem_companions",
+        "snackbar_moved_stem",
+        "snackbar_moved_stem_companions",
+        "snackbar_restored_as",
+        "snackbar_restored_to_opened_folder",
+        "snackbar_scan_complete",
+        "snackbar_stop_line_reached",
+        "title_pair_highlights",
+        "title_pair_noise",
+        "title_pair_shadows",
+        "title_spot_it_quiz",
+        "title_stats_focal_distribution",
+        "title_stats_sharpness_by_focal",
+        "title_stats_sharpness_by_shutter",
+        "title_stats_shutter_distribution"
+      ]
     }
   }
 }

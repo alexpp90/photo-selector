@@ -232,6 +232,7 @@ fun DuplicatesScreen(
                                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                                     modifier = Modifier.weight(1f),
                                 )
+                                // ui-text: ignore (icon with a word, DESIGN.md § Icon with a word: the delete control names its count)
                                 Button(
                                     modifier = Modifier.handCursor(),
                                     onClick = { showDeleteConfirmation = true },
@@ -402,6 +403,7 @@ private fun ExpandedDuplicateGroupCard(
                     style = MaterialTheme.typography.titleSmall,
                     color = MaterialTheme.colorScheme.onSurface,
                 )
+                // ui-text: ignore (icon with a word, DESIGN.md § Icon with a word: the group action is worded)
                 FilledTonalButton(
                     modifier = Modifier.handCursor(),
                     onClick = onSelectAllButFirst,
@@ -472,6 +474,7 @@ private fun CompactDuplicateGroupCard(
                     style = MaterialTheme.typography.titleSmall,
                     color = MaterialTheme.colorScheme.onSurface,
                 )
+                // ui-text: ignore (icon with a word, DESIGN.md § Icon with a word: the group action is worded)
                 FilledTonalButton(
                     modifier = Modifier.handCursor(),
                     onClick = onSelectAllButFirst,

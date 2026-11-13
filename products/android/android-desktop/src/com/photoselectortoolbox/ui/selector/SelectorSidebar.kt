@@ -75,6 +75,9 @@ import com.photoselectortoolbox.ui.theme.StudioPanel
 import com.photoselectortoolbox.ui.theme.Zinc400
 import com.photoselectortoolbox.ui.theme.Zinc50
 import com.photoselectortoolbox.ui.theme.Zinc700
+import androidx.compose.foundation.text.BasicText
+import androidx.compose.foundation.text.TextAutoSize
+import androidx.compose.ui.text.TextStyle
 
 /**
  * Width of the sidebar.
@@ -383,17 +386,24 @@ private fun SidebarItem(
             modifier = Modifier.size(22.dp),
             tint = contentColor,
         )
-        Text(
+        // Steps down (11 sp to 8 sp) before it may ellipsise: at font scale 2.0 the German
+        // "Legende" and "Statistik" were two pixels wider than the 80 dp cell (decision #34).
+        BasicText(
             text = label,
-            fontSize = 11.sp,
-            color = contentColor,
+            style = TextStyle(fontSize = 11.sp, color = contentColor, textAlign = TextAlign.Center),
             maxLines = 1,
             overflow = TextOverflow.Ellipsis,
-            textAlign = TextAlign.Center,
-            modifier = Modifier.padding(top = 4.dp),
+            autoSize = TextAutoSize.StepBased(minFontSize = SidebarLabelMinSize, maxFontSize = 11.sp, stepSize = 0.5.sp),
+            modifier = Modifier.padding(top = 4.dp).testTag(SIDEBAR_LABEL_TAG),
         )
     }
 }
+
+/** The smallest step a sidebar word takes before it may ellipsise. */
+internal val SidebarLabelMinSize = 8.sp
+
+/** The tag of every sidebar item's word, for the fit checks' auto-size allowance. */
+internal const val SIDEBAR_LABEL_TAG = "sidebar_label"
 
 /**
  * A slot whose control is busy or waiting: a status line over a Cancel, in the

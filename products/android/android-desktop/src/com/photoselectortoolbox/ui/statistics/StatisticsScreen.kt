@@ -160,6 +160,7 @@ private fun SummaryCard(
         shape = RoundedCornerShape(12.dp),
         colors = CardDefaults.cardColors(containerColor = Zinc800),
     ) {
+        // ui-text: ignore (icon with a word, DESIGN.md § Icon with a word: a summary card is glyph, value and label)
         Column(
             modifier = Modifier.padding(12.dp),
             horizontalAlignment = Alignment.CenterHorizontally,

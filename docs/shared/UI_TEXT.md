@@ -1,8 +1,7 @@
 # UI text: icon first, short text
 
-Applies to **every product**. It is binding for Jackpix and checked by
-`scripts/check_ui_text_budget.py`, which fails the hygiene gate on any Jackpix finding and reports
-findings for Frameduel without failing it yet.
+Applies to **every product**. It is binding for Jackpix and Frameduel and checked by
+`scripts/check_ui_text_budget.py`, which fails the hygiene gate on any finding of either.
 Each product applies the rule in its own stack. The products share the budgets, not the code.
 
 People look at photos, not at text. On a phone the user is swiping with one thumb, often
@@ -97,7 +96,7 @@ In addition to the table:
 | App | Languages |
 |---|---|
 | Jackpix | English and German (`res/values/`, `res/values-de/`) |
-| Frameduel | English today; **German is planned** for its Play listing — its strings move to resources and get `values-de` |
+| Frameduel | English and German (`res/values/`, `res/values-de/`), for its Play listing |
 | Lensjet, Blitzlens | **English only, by decision** — they ship through Homebrew and APT, with no German store audience. The String Catalog and gettext rules below do not apply to them; their visible text stays English literals |
 | Desktop (legacy, archived) | English only |
 
@@ -133,5 +132,5 @@ The rules below apply to every app that is translated or is being translated.
 | Product | Where the rule is applied | Check |
 |---|---|---|
 | Jackpix | `docs/products/phototok/DESIGN.md` § 8 *Copy & messaging* | `scripts/check_ui_text_budget.py --product phototok`: fails on any finding (`mode: fail` in `scripts/ui_text_budget.json`, since Jackpix's strings became resources with 0 findings) |
-| Frameduel (Android Desktop) | its `DESIGN.md` (labels on the 2×3 action block are allowed: large screens, keyboard hints; English-only today, German planned: resource extraction and `values-de`, decision 2026-11-12) | reports only, until its strings are resources; then `mode: fail` |
+| Frameduel (Android Desktop) | its `DESIGN.md` (labels on the 2×3 action block are allowed: large screens, keyboard hints; its icon-with-a-word exceptions are listed there) | `--product android-desktop`: fails on any finding (`mode: fail` since its strings became resources with German, decision 2026-11-12). Its English copy that predates the check and runs over budget is `budget_debt` in `scripts/ui_text_budget.json`: not reported while over, still translated, and reported as `stale-debt` once it fits, so the list only shrinks |
 | Lensjet (macOS Desktop), Blitzlens (Linux Desktop), Desktop (legacy) | their design docs (English only, by decision 2026-11-12) | not yet covered by the script |

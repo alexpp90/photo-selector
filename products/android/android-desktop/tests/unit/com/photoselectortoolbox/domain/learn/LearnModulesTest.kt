@@ -152,7 +152,7 @@ class LearnModulesTest {
             assertTrue("Crop area ${c.areaFraction} must be >= 0.50", c.areaFraction >= 0.50 - 1e-6)
             assertTrue(c.xMin <= subjectBox.xMin && c.xMax >= subjectBox.xMax)
             assertTrue(c.yMin <= subjectBox.yMin && c.yMax >= subjectBox.yMax)
-            assertTrue(c.rationale.isNotBlank())
+            assertTrue(c.rationale.en().isNotBlank())
         }
     }
 

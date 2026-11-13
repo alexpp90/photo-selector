@@ -31,7 +31,7 @@ parity on large screens.
 - A Room-backed score cache; ratings are kept in the app and written to an `.xmp` sidecar beside
   RAW and TIFF. Embedding them in a JPEG is an opt-in setting (**Write ratings into photos**), off
   on a new install; an install that already wrote ratings into JPEGs keeps doing so.
-- Interface language: English today; German is planned (maintainer decision 2026-11-12).
+- Interface language: English and German, following the device language.
 
 | | |
 |---|---|
