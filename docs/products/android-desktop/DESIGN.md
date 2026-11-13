@@ -1115,7 +1115,9 @@ handles keys before its children), so the first press after opening, after the c
 faded and after a move inside fullscreen all page.
 
 When zoomed beyond fit, show a small navigator thumbnail in the bottom-right corner
-indicating which part of the frame is visible.
+indicating which part of the frame is visible: the outline is the visible region laid over the
+fitted thumbnail, so it shrinks as the zoom grows and follows the pan. The pan itself stops where
+the photo's edge meets the window's — a zoomed photo never slides off into black.
 
 ### 9.1 The hint card must be generated, not written
 

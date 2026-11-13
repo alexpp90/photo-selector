@@ -42,6 +42,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ### Fixed
 
+- Zoomed in fullscreen or on a maximised frame, panning stops at the photo's edge; dragging, pinching, the wheel or `Shift`+arrows could push the photo off the screen. The navigator thumbnail's outline now shows the part of the photo you see, instead of a fixed box.
 - A portrait photo from a camera (stored on its side with an EXIF orientation) gets a portrait frame instead of a landscape one.
 - An exposure time stored a hair under its fraction reads as that fraction ("1/250s"), not one step slower ("1/249s").
 - A folder you open in Dupes or Stats keeps its access while you work there. Before, opening another folder in Cull, or restarting the app, could take the access away, and the next Dupes delete failed with a permission error.

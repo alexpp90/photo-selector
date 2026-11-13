@@ -634,7 +634,7 @@ private fun FullscreenContent(
                     .padding(16.dp),
             ) {
                 ZoomPill(percent = zoom.percent)
-                ZoomNavigator(image = currentImage)
+                ZoomNavigator(image = currentImage, zoom = zoom)
             }
         }
 
@@ -818,23 +818,33 @@ private fun FullscreenActionButton(
 
 /**
  * A thumbnail of the whole frame with the visible region outlined, shown while
- * zoomed so the user knows which part of the photograph they are looking at.
+ * zoomed so the user knows which part of the photograph they are looking at. The
+ * outline is [PhotoZoom.visibleRegion] laid over the fitted thumbnail, so it
+ * shrinks as the zoom grows and follows the pan (review 2026-11-09, FD-UI-4).
  */
 @Composable
 private fun ZoomNavigator(
     image: ImageItem?,
+    zoom: PhotoZoom,
     modifier: Modifier = Modifier,
 ) {
     if (image == null) return
+    val navWidth = 104.dp
+    val navHeight = 78.dp
+    // The thumbnail letterboxes like the photo does; the outline lives on the picture.
+    val thumb = PhotoZoom.fittedSize(image.imageWidth ?: 0, image.imageHeight ?: 0, navWidth.value, navHeight.value)
+    val thumbLeft = (navWidth.value - thumb.width) / 2f
+    val thumbTop = (navHeight.value - thumb.height) / 2f
+    val region = zoom.visibleRegion()
 
     Box(
         modifier = modifier
-            .width(104.dp)
-            .height(78.dp)
+            .width(navWidth)
+            .height(navHeight)
             .background(Zinc900.copy(alpha = 0.9f))
             .border(1.dp, Zinc700)
+            .clipToBounds()
             .testTag("zoom_navigator"),
-        contentAlignment = Alignment.Center,
     ) {
         AsyncImage(
             model = image.uri,
@@ -844,13 +854,22 @@ private fun ZoomNavigator(
         )
         Box(
             modifier = Modifier
-                .align(Alignment.Center)
-                .width(48.dp)
-                .height(36.dp)
-                .border(1.dp, BrandAccent),
+                .offset(
+                    x = (thumbLeft + region.left * thumb.width).dp,
+                    y = (thumbTop + region.top * thumb.height).dp,
+                )
+                .size(
+                    width = (region.width * thumb.width).coerceAtLeast(MinOutline).dp,
+                    height = (region.height * thumb.height).coerceAtLeast(MinOutline).dp,
+                )
+                .border(1.dp, BrandAccent)
+                .testTag("zoom_navigator_outline"),
         )
     }
 }
+
+/** The smallest outline the navigator draws, in dp, so 8x still shows where you are. */
+private const val MinOutline = 6f
 
 /**
  * The one-time gesture card.
@@ -1018,8 +1037,17 @@ private fun ZoomableImage(
         val oneToOneScale = remember(pixelWidth, pixelHeight, constraints) {
             PhotoZoom.oneToOneScale(pixelWidth, pixelHeight, constraints.maxWidth.toFloat(), constraints.maxHeight.toFloat())
         }
+        // The photo's size at fit, which bounds the pan (FD-UI-4).
+        val fitted = remember(pixelWidth, pixelHeight, constraints) {
+            PhotoZoom.fittedSize(pixelWidth, pixelHeight, constraints.maxWidth.toFloat(), constraints.maxHeight.toFloat())
+        }
         // The photo on screen says what 100 % is for it; `Space` and the pill read it.
-        LaunchedEffect(isCurrent, oneToOneScale) { if (isCurrent) zoom.oneToOne = oneToOneScale }
+        LaunchedEffect(isCurrent, oneToOneScale, fitted) {
+            if (isCurrent) {
+                zoom.oneToOne = oneToOneScale
+                zoom.content = fitted
+            }
+        }
         val centre = Offset(constraints.maxWidth / 2f, constraints.maxHeight / 2f)
 
         Box(
