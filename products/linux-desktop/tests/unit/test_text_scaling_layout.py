@@ -42,7 +42,7 @@ if not STUBBED:
 SCALES = (1.0, 1.5, 2.0)
 
 #: The status text of the longest outcome the view model produces (a bundle with companions).
-LONG_OUTCOME = "Moved IMG_…_064000 + 12 to Selection/"
+LONG_OUTCOME = "Moved IMG_…_064000 +12 · Selection"
 
 
 @pytest.fixture(scope="module", autouse=True)

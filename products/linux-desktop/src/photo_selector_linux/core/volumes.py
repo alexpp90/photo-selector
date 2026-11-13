@@ -82,3 +82,20 @@ def format_verdict(
     if source_device is None or selection_device is None:
         return VERDICT_NONE
     return VERDICT_SAME_VOLUME if source_device == selection_device else VERDICT_SAFE
+
+
+def selection_stays_on_card(
+    source: Optional[Path],
+    selection: Optional[Path],
+    removable: Callable[[Path], bool] = is_removable_volume,
+    device_of: Callable[[Path], Optional[int]] = volume_id,
+) -> bool:
+    """True when the Selection sits on the removable volume being culled (plan 1.6): formatting
+    the card would erase the keepers. The first Move or Copy of a folder says so."""
+    if source is None or selection is None or not removable(source):
+        return False
+    anchor = selection
+    while not anchor.exists() and anchor != anchor.parent:
+        anchor = anchor.parent
+    source_device, selection_device = device_of(source), device_of(anchor)
+    return source_device is not None and source_device == selection_device

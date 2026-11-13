@@ -110,7 +110,7 @@ While the desktop and tablet products emphasize multi-up comparative culling and
 *   **`data/`**: SAF implementations (`LocalImageSourceImpl`), DataStore persistence (`SettingsRepositoryImpl`, `RecentPathCodec`), and URI scheme resolution.
 *   **`domain/`**: Pure Kotlin business logic free of Android SDK dependencies (`PhoneFeedOrdering`, `PendingDeleteLogic`, `OptimisticFeed`, `RelatedFiles`, `SwipeLabels`, `LegalLinks`).
 *   **`ui/`**: Jetpack Compose screens (`PhoneModeLanding`, `PhoneModeViewer`, `GestureTutorialOverlay`, `SettingsScreen`) adhering to the neutral-grey dark theme with a lime accent.
-*   **`viewmodel/`**: `PhoneModeViewModel`, `SettingsViewModel`, `SelectionViewerViewModel`.
+*   **`viewmodel/`**: `PhoneModeViewModel`, `SettingsViewModel`, `SelectionViewerViewModel`. `PhoneModeViewModel` owns the one `PhoneModeUiState` (`PhoneModeUiState.kt`), the system favourites and the hints, and delegates to three plain state holders that write that same state: `FeedDiscoveryHolder` (folder selection, discovery, ordering, navigation, Reload), `TransferUndoHolder` (copy/move, delete with undo, finalisation, the card-done sheet) and `SourceSettingsHolder` (per-source settings, destinations, Pro mode). New feed logic goes into the holder it belongs to, not into the view model.
 
 ---
 

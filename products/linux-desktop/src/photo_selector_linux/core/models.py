@@ -69,6 +69,14 @@ class ExposureMetadata:
     camera_make: Optional[str] = None
     camera_model: Optional[str] = None
     is_fallback: bool = False
+    #: When the shutter fired, in epoch seconds (the camera clock's wall time read as local time;
+    #: ``DateTimeOriginal`` plus ``SubSecTimeOriginal``). None when the file carries none.
+    captured_at: Optional[float] = None
+    #: True when ``captured_at`` has a sub-second part; False means whole seconds only.
+    captured_subsecond: bool = False
+    #: The star rating the file itself carries (embedded XMP, then EXIF): 0..5, -1 rejected, None none.
+    #: Read only (decision #32); a sidecar's rating is ``CandidatePhoto.sidecar_rating``.
+    rating: Optional[int] = None
 
     @property
     def formatted_shutter_speed(self) -> Optional[str]:
@@ -130,6 +138,10 @@ class ExposureMetadata:
         return " · ".join(parts)
 
 
+#: How far (score points) the best of the nine areas must be above the median area to be named.
+AREA_STANDS_OUT: float = 5.0
+
+
 @dataclass(frozen=True)
 class QualityScores:
     """Photographic optical quality metrics (R-LINUX-SCORE-01 to R-LINUX-SCORE-04)."""
@@ -141,6 +153,9 @@ class QualityScores:
     category_override: Optional[SharpnessCategory] = field(default=None, repr=False, compare=False)
     blurry_threshold: float = field(default=35.0, repr=False, compare=False)
     sharp_threshold: float = field(default=70.0, repr=False, compare=False)
+    #: Sharpness of the 3 x 3 areas of the photo, row by row (``scoring.evaluate_focus_grid``);
+    #: None for scores made before the grid existed. ``sharpness`` itself is the centre's.
+    grid: Optional[Tuple[float, ...]] = field(default=None, repr=False, compare=False)
     focus_category: SharpnessCategory = field(init=False)
 
     def __post_init__(self):
@@ -150,6 +165,22 @@ class QualityScores:
             sharp_threshold=self.sharp_threshold,
         )
         object.__setattr__(self, "focus_category", cat)
+
+    @property
+    def sharpest_cell(self) -> Optional[int]:
+        """Index (0..8, row by row) of the sharpest area, or None without a grid or when no area
+        stands out: the best must beat the middle area (the median) by ``AREA_STANDS_OUT`` points,
+        so a flat or evenly sharp photo points nowhere. The first wins a tie."""
+        if not self.grid:
+            return None
+        best = max(range(len(self.grid)), key=lambda i: (self.grid[i], -i))
+        median = sorted(self.grid)[len(self.grid) // 2]
+        return best if self.grid[best] - median >= AREA_STANDS_OUT else None
+
+    @property
+    def sharpest_area_score(self) -> float:
+        """The best area's score, or the headline sharpness when there is no grid."""
+        return max(self.grid) if self.grid else self.sharpness
 
     @property
     def formatted_sharpness(self) -> str:
@@ -187,10 +218,31 @@ class CandidatePhoto:
     #: Copied to Selection/ and so decided (``[USER 2026-11-12]`` decision #29): the photo stays in
     #: the list, counts once under Selected, is not Remaining, and Move/Copy file nothing again.
     copied: bool = field(default=False, repr=False, compare=False)
+    #: ``xmp:Rating`` of the sidecar, read with the metadata (decision #32); None when there is none.
+    sidecar_rating: Optional[int] = field(default=None, repr=False, compare=False)
+    #: True once the sidecar was looked at, so it is read once.
+    sidecar_checked: bool = field(default=False, repr=False, compare=False)
 
     def name_of(self, path: Path) -> str:
         """User-facing filename of one of this candidate's files."""
         return self.display_names.get(path, path.name)
+
+    @property
+    def capture_time(self) -> Optional[float]:
+        """When the shutter fired (EXIF), or None until the metadata is read or when the file has none."""
+        return self.exif.captured_at if self.exif is not None else None
+
+    @property
+    def order_time(self) -> float:
+        """What "newest first" and "oldest first" order by: the capture time, else the file time."""
+        captured = self.capture_time
+        return captured if captured is not None else self.modified_at
+
+    @property
+    def rating(self) -> Optional[int]:
+        """The rating to show: the sidecar's, else the file's own; None when there is none."""
+        embedded = self.exif.rating if self.exif is not None else None
+        return self.sidecar_rating if self.sidecar_rating is not None else embedded
 
     @property
     def path(self) -> Path:

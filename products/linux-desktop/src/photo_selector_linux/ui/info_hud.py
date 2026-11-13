@@ -18,7 +18,10 @@ except (ImportError, ValueError):
     HAS_GI = False
     Gtk = None
 
+from photo_selector_linux.core.bursts import burst_spoken, burst_text
+from photo_selector_linux.core.rating import REJECTED, spoken as rating_spoken, stars
 from photo_selector_linux.core.models import CandidatePhoto
+from photo_selector_linux.ui.sharp_outline import area_text
 from photo_selector_linux.ui.styling import (
     compute_sharpness_goodness,
     get_candidate_companion_badges,
@@ -26,9 +29,18 @@ from photo_selector_linux.ui.styling import (
 
 
 #: What the score is (plan 2.3a): the colour of the chip carries the band, the number the measure.
-SCORE_TOOLTIP = "Sharpness of the centre of the frame. Compare frames of one burst, not different scenes."
+SCORE_TOOLTIP = (
+    "Sharpness of the centre of the frame. Compare frames of one burst, not different scenes. "
+    "The sharpest of nine areas is named below and outlined on the photo."
+)
 
 
+STAR_ICON = "starred-symbolic"
+NO_STAR_ICON = "non-starred-symbolic"
+REJECTED_ICON = "action-unavailable-symbolic"
+RATING_TOOLTIP = "Rating from the file"
+BURST_ICON = "view-continuous-symbolic"
+BURST_ICON_FALLBACK = "view-list-symbolic"
 COPIED_ICON = "edit-copy-symbolic"
 COPIED_TEXT = "Copied to Selection"
 
@@ -52,6 +64,8 @@ class InfoHUD(Gtk.Box if HAS_GI else object):
         self.is_hud_visible: bool = False
         self._current_photo: Optional[CandidatePhoto] = None
         self.filename_text: str = ""
+        self.burst_text: str = ""
+        self.rating_text: str = ""
         self.is_copied: bool = False
         self.companion_badges: List[Tuple[str, str]] = []
         self.exif_text: str = ""
@@ -61,6 +75,7 @@ class InfoHUD(Gtk.Box if HAS_GI else object):
         self.score_css_class: str = ""
         self.meter_css_class: str = ""
         self.clipping_text: str = ""
+        self.sharp_area_text: str = ""
         self.sharpness_goodness: Optional[float] = None
 
         if HAS_GI:
@@ -83,6 +98,19 @@ class InfoHUD(Gtk.Box if HAS_GI else object):
         if not HAS_GI:
             return
 
+        # First row, only inside a burst (decision #31): "3 of 10", spoken "Burst, photo 3 of 10".
+        self.burst_row = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=6)
+        self.burst_row.set_name("info_burst")
+        self.burst_row.set_halign(Gtk.Align.START)
+        self.burst_icon = Gtk.Image.new_from_icon_name(self._burst_icon_name())
+        self.burst_icon.set_pixel_size(16)
+        self.burst_row.append(self.burst_icon)
+        self.lbl_burst = Gtk.Label(label="")
+        self.lbl_burst.add_css_class("optical-strip-secondary")
+        self.burst_row.append(self.lbl_burst)
+        self.burst_row.set_visible(False)
+        self.append(self.burst_row)
+
         # Top row: Filename + Companion Badges (RAW+JPG, XMP)
         self.header_row = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=8)
         self.header_row.set_halign(Gtk.Align.START)
@@ -100,6 +128,16 @@ class InfoHUD(Gtk.Box if HAS_GI else object):
         self.companion_box = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=4)
         self.header_row.append(self.companion_box)
         self.append(self.header_row)
+
+        # The rating the file already carries (decision #32): five 14 px stars, read-only, not
+        # focusable; shown only for 1..5, a rejected photo shows the unavailable glyph.
+        self.rating_row = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=2)
+        self.rating_row.set_name("info_rating")
+        self.rating_row.set_halign(Gtk.Align.START)
+        self.rating_row.set_focusable(False)
+        self.rating_row.set_tooltip_text(RATING_TOOLTIP)
+        self.rating_row.set_visible(False)
+        self.append(self.rating_row)
 
         # Optical EXIF strip (1/250s · f/8.0 · ISO 100 · 24mm)
         self.lbl_exif = Gtk.Label(label="")
@@ -130,12 +168,50 @@ class InfoHUD(Gtk.Box if HAS_GI else object):
         score_row.append(self.lbl_clipping)
         self.score_box.append(score_row)
 
+        self.lbl_sharp_area = Gtk.Label(label="")
+        self.lbl_sharp_area.set_name("info_sharp_area")
+        self.lbl_sharp_area.set_halign(Gtk.Align.START)
+        self.lbl_sharp_area.add_css_class("optical-strip-secondary")
+        self.score_box.append(self.lbl_sharp_area)
+
         self.sharpness_meter = Gtk.ProgressBar()
         self.sharpness_meter.add_css_class("sharpness-meter-track")
         self.sharpness_meter.set_hexpand(True)
         self.score_box.append(self.sharpness_meter)
 
         self.append(self.score_box)
+
+    @staticmethod
+    def _burst_icon_name() -> str:
+        """``view-continuous-symbolic`` where the icon theme has it, else ``view-list-symbolic``."""
+        try:
+            from gi.repository import Gdk
+            display = Gdk.Display.get_default()
+            theme = Gtk.IconTheme.get_for_display(display) if display is not None else None
+            if theme is not None and not theme.has_icon(BURST_ICON):
+                return BURST_ICON_FALLBACK
+        except Exception:  # noqa: BLE001 - an icon lookup never stops the card from building
+            pass
+        return BURST_ICON
+
+    def _show_rating(self, rating) -> None:
+        """Stars for 1..5, the unavailable glyph for a rejected photo, no row otherwise."""
+        while child := self.rating_row.get_first_child():
+            self.rating_row.remove(child)
+        filled = stars(rating)
+        if rating == REJECTED:
+            icons = [REJECTED_ICON]
+        elif filled:
+            icons = [STAR_ICON] * filled + [NO_STAR_ICON] * (5 - filled)
+        else:
+            icons = []
+        for name in icons:
+            image = Gtk.Image.new_from_icon_name(name)
+            image.set_pixel_size(14)
+            self.rating_row.append(image)
+        self.rating_row.set_visible(bool(icons))
+        if icons:
+            self.rating_row.update_property([Gtk.AccessibleProperty.LABEL], [self.rating_text])
 
     def set_hud_enabled(self, enabled: bool) -> None:
         """Enable or disable HUD visibility while preserving underlying photo state."""
@@ -153,6 +229,8 @@ class InfoHUD(Gtk.Box if HAS_GI else object):
         if not photo:
             self.is_hud_visible = False
             self.filename_text = ""
+            self.burst_text = ""
+            self.rating_text = ""
             self.is_copied = False
             self.companion_badges = []
             self.exif_text = ""
@@ -162,6 +240,7 @@ class InfoHUD(Gtk.Box if HAS_GI else object):
             self.score_css_class = ""
             self.meter_css_class = ""
             self.clipping_text = ""
+            self.sharp_area_text = ""
             self.sharpness_goodness = None
             if HAS_GI:
                 self.set_visible(False)
@@ -169,6 +248,11 @@ class InfoHUD(Gtk.Box if HAS_GI else object):
 
         self.is_hud_visible = bool(self.hud_enabled)
         self.filename_text = photo.filename
+        cue = getattr(self.viewmodel, "burst_cue", None)
+        cue = cue(photo) if callable(cue) else None
+        spoken = burst_spoken(*cue) if isinstance(cue, tuple) else ""
+        self.burst_text = burst_text(*cue) if isinstance(cue, tuple) else ""
+        self.rating_text = rating_spoken(photo.rating)
         self.is_copied = bool(photo.copied)
         self.companion_badges = get_candidate_companion_badges(photo)
 
@@ -213,7 +297,10 @@ class InfoHUD(Gtk.Box if HAS_GI else object):
                 f"SH: {photo.scores.formatted_shadow_clipping}"
             )
             self.sharpness_goodness = compute_sharpness_goodness(photo.scores.sharpness)
+            cell = photo.scores.sharpest_cell
+            self.sharp_area_text = area_text(cell) if cell is not None else ""
         else:
+            self.sharp_area_text = ""
             self.score_visible = False
             self.score_badge_text = ""
             self.score_css_class = ""
@@ -226,6 +313,12 @@ class InfoHUD(Gtk.Box if HAS_GI else object):
 
         self.set_visible(self.is_hud_visible)
         self.lbl_filename.set_label(self.filename_text)
+        self._show_rating(photo.rating)
+        self.lbl_burst.set_label(self.burst_text)
+        self.burst_row.set_visible(bool(self.burst_text))
+        if self.burst_text:
+            self.burst_row.set_tooltip_text(spoken)
+            self.lbl_burst.update_property([Gtk.AccessibleProperty.LABEL], [spoken])
         self.copied_mark.set_visible(bool(photo.copied))
 
         while child := self.companion_box.get_first_child():
@@ -248,6 +341,8 @@ class InfoHUD(Gtk.Box if HAS_GI else object):
             self.sharpness_meter.set_tooltip_text(SCORE_TOOLTIP)
             self.lbl_score_badge.set_css_classes([self.score_css_class])
             self.lbl_clipping.set_label(self.clipping_text)
+            self.lbl_sharp_area.set_label(self.sharp_area_text)
+            self.lbl_sharp_area.set_visible(bool(self.sharp_area_text))
             self.sharpness_meter.set_css_classes(["sharpness-meter-track", self.meter_css_class])
             self.sharpness_meter.set_fraction(self.sharpness_goodness)
         else:

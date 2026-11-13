@@ -14,6 +14,7 @@ only the application window, never the rest of the desktop:
 from __future__ import annotations
 
 import json
+import logging
 import os
 import re
 import stat
@@ -36,6 +37,8 @@ except (ImportError, ValueError):
 CHECKPOINT_SETTLE_MS = 250
 # Upper bound for waiting on that frame before recording anyway (hidden window).
 AFTER_FRAME_FALLBACK_MS = 400
+
+logger = logging.getLogger(__name__)
 
 
 def format_checkpoint_stem(index: int, name: str) -> str:
@@ -322,8 +325,9 @@ class LabCheckpointRecorder:
                         if png_path.exists() and png_path.stat().st_size > 0:
                             return
             except Exception:
-                # best-effort: lab-only capture; what cannot be captured is left out of the checkpoint.
-                pass
+                # best-effort: lab-only capture; what cannot be captured is left out of the checkpoint,
+                # and the log says why, so a checkpoint without a PNG leaves a trace.
+                logger.warning("Lab screenshot %s failed", png_path.name, exc_info=True)
 
     def _extract_window_tree(self, window: Any) -> Dict[str, Any]:
         """Walk the GTK4 widget hierarchy and return a normalised tree.schema.json dict."""

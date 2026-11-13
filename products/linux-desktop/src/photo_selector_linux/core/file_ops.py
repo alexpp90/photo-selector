@@ -876,13 +876,13 @@ class FileCullingManager:
             "standard::name,trash::orig-path", Gio.FileQueryInfoFlags.NONE, None
         )
         names: List[str] = []
-        while True:
+        for _ in range(20_000):  # bounded: a mocked Gio whose listing never ends grew pytest to ~9.6 GB
             item = enumerator.next_file(None)
             if item is None:
                 return names
             orig = item.get_attribute_byte_string("trash::orig-path")
-            if orig and Path(os.fsdecode(orig)) == src_resolved:
-                names.append(item.get_name())
+            names += [item.get_name()] if orig and Path(os.fsdecode(orig)) == src_resolved else []
+        return names
 
     def _trash_via_gio(self, src: Path) -> Tuple[Path, Path]:
         """Trash ``src`` through GIO and return ``(files_path, info_path)`` of its trash entry.
