@@ -260,4 +260,28 @@ class RelatedFilesTest {
 
         assertTrue(RelatedFiles.deleteBundleOf(all, edit).isEmpty())
     }
+
+    @Test
+    @Requirement("REQ-TOK-ARCH.07")
+    fun `rawCompanionUris agrees with hasRawCompanion photo by photo`() {
+        fun at(name: String, parent: String?) = img(name).copy(uri = "content://photos/$parent/$name", parentUri = parent)
+        val all = listOf(
+            at("DSC_0001.ARW", "a"), at("DSC_0001.JPG", "a"), // a pair
+            at("dsc_0002.nef", "a"), at("DSC_0002.HEIC", "a"), // a pair, case differs
+            at("DSC_0003.ARW", "a"), at("DSC_0003.JPG", "b"), // same name, other folder: no pair
+            at("DSC_0004.DNG", null), at("DSC_0004.JPG", "b"), // unknown parent pairs with any folder
+            at("DSC_0005.JPG", "a"), at("DSC_0005-Edit.JPG", "a"), // edits only, no RAW
+            at("DSC_0006.ARW", "a"), // a lone RAW
+            at("DSC_0007.ARW", "a"), at("DSC_0007.ARW", "b"), at("DSC_0007.JPG", "b"),
+        )
+        // The feed may show a subset (format filter, one per shot): the RAWs are still looked up in all.
+        for (shown in listOf(all, all.filterNot { PhotoExtensions.isRaw(it.fileName) }, all.take(3))) {
+            val expected = shown.filter { RelatedFiles.hasRawCompanion(all, it) }.map { it.uri }.toSet()
+            assertEquals(expected, RelatedFiles.rawCompanionUris(shown, all))
+        }
+        assertEquals(
+            setOf("a/DSC_0001.JPG", "a/DSC_0002.HEIC", "b/DSC_0004.JPG", "b/DSC_0007.JPG").map { "content://photos/$it" }.toSet(),
+            RelatedFiles.rawCompanionUris(all, all),
+        )
+    }
 }

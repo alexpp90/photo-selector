@@ -91,6 +91,33 @@ object RelatedFiles {
     }
 
     /**
+     * The URIs of the photos in [shown] for which [hasRawCompanion] holds against [all], in one
+     * pass over each list. The feed asks this for the whole folder whenever its photo lists
+     * change, so it must stay linear: calling [hasRawCompanion] per photo scans [all] once per
+     * photo, and with a camera roll of a few thousand photos that froze the feed for seconds on
+     * every swipe (reported on a Poco F3; measured on Pixel 4a and Moto G77, 2026-11-15).
+     */
+    fun rawCompanionUris(shown: List<ImageItem>, all: List<ImageItem>): Set<String> {
+        val rawParentsByStem = HashMap<String, MutableList<String?>>()
+        for (item in all) {
+            if (PhotoExtensions.isRaw(item.fileName)) {
+                rawParentsByStem.getOrPut(stemOf(item.fileName)) { mutableListOf() }.add(item.parentUri)
+            }
+        }
+        if (rawParentsByStem.isEmpty()) return emptySet()
+        val uris = HashSet<String>()
+        for (target in shown) {
+            if (PhotoExtensions.isRaw(target.fileName)) continue
+            val rawParents = rawParentsByStem[stemOf(target.fileName)] ?: continue
+            // Same rule as [siblings]: an unknown parent on either side does not separate them.
+            if (rawParents.any { target.parentUri == null || it == null || it == target.parentUri }) {
+                uris.add(target.uri)
+            }
+        }
+        return uris
+    }
+
+    /**
      * For sharing (`U-13`): if [target] is part of a RAW+JPEG pair, return the processed
      * companion (JPEG/HEIC); if [target] is already processed or a lone RAW, return [target].
      */

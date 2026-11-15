@@ -109,7 +109,7 @@ import androidx.compose.ui.unit.sp
 import coil.compose.SubcomposeAsyncImage
 import coil.imageLoader
 import coil.request.Disposable
-import coil.request.ImageRequest
+import com.phototok.image.FeedImageRequests
 import com.photoselector.core.model.ExifData
 import com.phototok.data.model.ImageItem
 import com.phototok.domain.CaptureDate
@@ -225,7 +225,9 @@ fun PhoneModeViewer(
     val context = LocalContext.current
     val prefetchAhead = if (isCloudSource) PrefetchWindow.CLOUD_AHEAD else PrefetchWindow.AHEAD
     val prefetchBehind = if (isCloudSource) PrefetchWindow.CLOUD_BEHIND else PrefetchWindow.BEHIND
+    // Keyed by URI and page size: a rotation re-warms the window at the new size.
     val prefetches = remember { mutableMapOf<String, Disposable>() }
+    var pageSize by remember { mutableStateOf(IntSize.Zero) }
     DisposableEffect(Unit) {
         onDispose {
             prefetches.values.forEach { it.dispose() }
@@ -233,7 +235,9 @@ fun PhoneModeViewer(
         }
     }
     val scrollingBackward = pagerState.lastScrolledBackward
-    LaunchedEffect(pagerState.currentPage, scrollingBackward, images, prefetchAhead, prefetchBehind) {
+    LaunchedEffect(pagerState.currentPage, scrollingBackward, images, prefetchAhead, prefetchBehind, pageSize) {
+        // Before the first layout there is no page size to decode for; prefetch nothing yet.
+        if (pageSize.width <= 0 || pageSize.height <= 0) return@LaunchedEffect
         val wanted = PrefetchWindow.pages(
             center = pagerState.currentPage,
             pageCount = images.size,
@@ -241,15 +245,20 @@ fun PhoneModeViewer(
             ahead = prefetchAhead,
             behind = prefetchBehind,
         ).map { images[it].uri }
-        val stale = prefetches.keys - wanted.toSet()
+        val sizeTag = "@${pageSize.width}x${pageSize.height}"
+        val wantedKeys = wanted.map { it + sizeTag }
+        val stale = prefetches.keys - wantedKeys.toSet()
         stale.forEach { prefetches.remove(it)?.dispose() }
-        wanted.forEach { uri ->
+        wanted.zip(wantedKeys).forEach { (uri, key) ->
             // A finished request is re-enqueued: a memory-cache hit is free, an evicted photo is decoded again.
-            if (prefetches[uri]?.isDisposed != false) {
-                val request = ImageRequest.Builder(context)
-                    .data(android.net.Uri.parse(uri))
-                    .build()
-                prefetches[uri] = context.imageLoader.enqueue(request)
+            if (prefetches[key]?.isDisposed != false) {
+                val request = FeedImageRequests.prefetch(
+                    context,
+                    android.net.Uri.parse(uri),
+                    pageWidthPx = pageSize.width,
+                    pageHeightPx = pageSize.height,
+                )
+                prefetches[key] = context.imageLoader.enqueue(request)
             }
         }
     }
@@ -437,6 +446,7 @@ fun PhoneModeViewer(
             state = pagerState,
             modifier = Modifier
                 .fillMaxSize()
+                .onSizeChanged { pageSize = it }
                 .testTag("viewer.photo"),
             userScrollEnabled = !isZoomed,
             key = { images[it].uri },
