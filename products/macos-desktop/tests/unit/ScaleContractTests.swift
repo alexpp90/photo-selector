@@ -204,13 +204,17 @@ private func expectFolderLoadGrowth(top: Int) async throws {
     let floor = 0.05
     // Up to three attempts, as the other products' scale tests: a CI runner once measured the
     // full list at x8.4 (2026-11-15) after x<8 on the run before; quadratic work fails every attempt.
-    var atSmall = (first: 0.0, full: 0.0)
-    var atTop = (first: 0.0, full: 0.0)
+    // The best time per size across attempts, never the best ratio: a noisy small run lowers the
+    // ratio, and accepting any passing attempt let quadratic work through elsewhere (2026-11-15).
+    var atSmall = (first: Double.infinity, full: Double.infinity)
+    var atTop = (first: Double.infinity, full: Double.infinity)
     var firstRatio = Double.infinity
     var fullRatio = Double.infinity
     for _ in 0..<3 where firstRatio > growth.max_ratio || fullRatio > growth.max_ratio {
-        atSmall = await folderLoadTimes(photoCount: small, in: smallDir)
-        atTop = await folderLoadTimes(photoCount: top, in: topDir)
+        let s = await folderLoadTimes(photoCount: small, in: smallDir)
+        let t = await folderLoadTimes(photoCount: top, in: topDir)
+        atSmall = (min(atSmall.first, s.first), min(atSmall.full, s.full))
+        atTop = (min(atTop.first, t.first), min(atTop.full, t.full))
         firstRatio = atTop.first / max(atSmall.first, floor)
         fullRatio = atTop.full / max(atSmall.full, floor)
     }
