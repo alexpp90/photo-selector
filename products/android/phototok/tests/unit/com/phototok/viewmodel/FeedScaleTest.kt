@@ -190,11 +190,15 @@ class FeedScaleTest {
     private fun <T> assertGrowth(what: String, setup: (List<ImageItem>) -> T, op: (T) -> Unit) {
         val small = photos(ScaleConditions.baseN)
         val large = photos(ScaleConditions.prPhotos)
+        // The best time per size across attempts, never the best ratio: a noisy N series lowers
+        // the ratio, and accepting any passing attempt let quadratic work through (Frameduel 2026-11-15).
         var ratio = Double.MAX_VALUE
         var report = ""
-        for (attempt in 1..2) {
-            val tSmall = bestNanos({ setup(small) }, op)
-            val tLarge = bestNanos({ setup(large) }, op)
+        var tSmall = Long.MAX_VALUE
+        var tLarge = Long.MAX_VALUE
+        for (attempt in 1..3) {
+            tSmall = minOf(tSmall, bestNanos({ setup(small) }, op))
+            tLarge = minOf(tLarge, bestNanos({ setup(large) }, op))
             ratio = tLarge.toDouble() / maxOf(tSmall, FLOOR_NANOS)
             report = "$what: N=${small.size} ${"%.1f".format(tSmall / 1e6)} ms, " +
                 "4N=${large.size} ${"%.1f".format(tLarge / 1e6)} ms, ratio ${"%.2f".format(ratio)}"

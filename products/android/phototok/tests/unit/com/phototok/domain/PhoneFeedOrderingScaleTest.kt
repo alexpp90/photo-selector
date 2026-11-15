@@ -68,13 +68,14 @@ class PhoneFeedOrderingScaleTest {
         val large = photos(big)
         // Up to three attempts: a loaded machine pushed linear work past the limit once (mirror run
         // beside another Gradle build, 2026-11-15); quadratic work stays far above it in every attempt.
-        var tSmall = 0L
-        var tLarge = 0L
+        // The best time per size across attempts, never the best ratio (a noisy N run lowers it).
+        var tSmall = Long.MAX_VALUE
+        var tLarge = Long.MAX_VALUE
         var ratio = Double.MAX_VALUE
         repeat(ATTEMPTS) {
             if (ratio <= ScaleConditions.maxRatio) return@repeat
-            tSmall = ScaleConditions.bestNanos(warmUps = 5) { repeat(REPEAT) { stream(small, mode) } }
-            tLarge = ScaleConditions.bestNanos(warmUps = 5) { repeat(REPEAT) { stream(large, mode) } }
+            tSmall = minOf(tSmall, ScaleConditions.bestNanos(warmUps = 5) { repeat(REPEAT) { stream(small, mode) } })
+            tLarge = minOf(tLarge, ScaleConditions.bestNanos(warmUps = 5) { repeat(REPEAT) { stream(large, mode) } })
             ratio = tLarge.toDouble() / tSmall
         }
         println("SCALE ordering $mode N=$n: ${tSmall / 1_000_000} ms, 4N=$big: ${tLarge / 1_000_000} ms, ratio=$ratio")
