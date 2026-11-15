@@ -312,7 +312,8 @@ class SelectorViewModelRatingTest {
             sharpnessScore = 85.0,
             rating = 4,
         )
-        coEvery { scoreDao.getScore("content://test/folder/cached.jpg") } returns entity
+        // The folder's rows in one batched read (REQ-AND-CACHE.03), never a query per photo.
+        coEvery { cacheRepository.getCachedScores(listOf("content://test/folder/cached.jpg")) } returns listOf(entity)
 
         val viewModel = loadFolder(image("cached.jpg", rating = 0))
 
@@ -322,11 +323,13 @@ class SelectorViewModelRatingTest {
         val cachedImage = viewModel.uiState.value.images.firstOrNull { it.fileName == "cached.jpg" }
         assertNotNull(cachedImage)
         assertEquals(4, cachedImage?.rating)
+        assertEquals(85.0, cachedImage?.scanResult?.sharpnessScore)
+        coVerify(exactly = 0) { scoreDao.getScore(any()) }
     }
 
     @Test
     fun `unscanned photo rating is restored from user_ratings when scores_cache has no entry`() = runTest {
-        coEvery { scoreDao.getScore("content://test/folder/unscanned.jpg") } returns null
+        coEvery { cacheRepository.getCachedScores(listOf("content://test/folder/unscanned.jpg")) } returns emptyList()
         coEvery {
             cacheRepository.getRatings(listOf("content://test/folder/unscanned.jpg"))
         } returns mapOf("content://test/folder/unscanned.jpg" to 5)
