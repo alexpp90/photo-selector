@@ -228,7 +228,7 @@ class FeedScaleTest {
      * every photo, applied in chunks. Each application rebuilt the whole feed per 24 photos.
      */
     @Test
-    @Requirement("REQ-TOK-ARCH.24", "REQ-TOK-FEATURE.08")
+    @Requirement("REQ-TOK-ARCH.24", "REQ-TOK-FEATURE.08", "REQ-TOK-ARCH.17")
     fun `sizing every photo for landscape first grows linearly with the folder`() =
         assertGrowth("dimension fill", { viewModel(it, FeedOrderMode.NEWEST_FIRST, readsSuspend = false).openFolder() }) { vm ->
             sourceSettings.value = SourceSettings(feedOrderMode = FeedOrderMode.ORIENTATION_THEN_NEWEST)
