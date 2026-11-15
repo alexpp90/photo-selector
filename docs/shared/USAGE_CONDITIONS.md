@@ -29,9 +29,13 @@ The single source of truth is the machine-readable
    `conditions.json`, never a literal of its own, and goes through the product's real view
    model or state holder — the code the screen calls — not a helper beside it.
 2. **Assert growth, not milliseconds.** In the PR gate a scale test times the same operation
-   at N and at 4N (N = PR size / 4, so 2,500 and 10,000 photos) after a warm-up, takes the best
-   of a few runs, and fails when the ratio exceeds `growth_check.max_ratio` (8): linear work
-   gives about 4, quadratic about 16. Machines differ; ratios on one machine do not.
+   at N and at 4N (N = PR size / 4, so 2,500 and 10,000 photos) after a warm-up, keeps the
+   shortest time of each size over all its runs, and fails when the ratio of those two times
+   exceeds `growth_check.max_ratio` (8): linear work gives about 4, quadratic about 16. A test may
+   re-measure after a failed ratio, adding runs to both sizes; it never accepts the ratio of a
+   single attempt, because a noisy N run lowers it (a quadratic merge once passed at 6.79 after
+   15.1 and 16.6). Assert the result at that size too: chunked or batched paths run only above
+   their chunk size, and two Jackpix defects showed only at 10,000 photos. Machines differ; ratios on one machine do not.
    Absolute budgets (time to first photo, main-thread time per navigation) are measured on the
    reference devices in the release run.
 3. **A test declares the scale it runs at.** A comment `Scale: pr`, `Scale: stress` or
