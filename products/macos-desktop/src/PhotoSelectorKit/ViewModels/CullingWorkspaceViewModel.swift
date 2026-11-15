@@ -298,9 +298,6 @@ public final class CullingWorkspaceViewModel: ObservableObject {
 
     /// Photos holding a score during the current scoring pass; replaces a recount of the whole list
     /// per batch (a photo scored meanwhile by the viewport is not counted until the pass ends).
-    private var scoredCount = 0
-
-    /// Photos holding a score during the current scoring pass (see `applyScoreBatch`).
     var scoredCount = 0
     /// id -> position cache of `photoIndex(of:rebuilt:)`; every hit is verified, so it may go stale.
     var photoIndexCache: [UUID: Int] = [:]
