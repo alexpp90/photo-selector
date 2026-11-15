@@ -141,6 +141,44 @@ so a change to it takes effect on the first run. One-time setup on the Mac, as `
 header lists the prerequisites: Remote Login allowed for `pst-lab`, the hub's public key in its
 `~/.ssh/authorized_keys`, the Command Line Tools, at least 4 GB free).
 
+## Large-folder scroll check (`scroll-perf`)
+
+Folders of 12-32 photos hid a 3-5 s freeze per swipe in a camera roll of 3,000 (Jackpix 0.7.0,
+F-TOK-098). This stages a camera-size folder on the device and measures a cold start plus 15
+navigation steps, for Jackpix (vertical swipes) and Frameduel (`KEYCODE_DPAD_RIGHT`):
+
+```bash
+S=<adb serial>
+python3 scripts/android_test_device.py with-lock --timeout 900 --serial $S -- \
+  python3 scripts/lab/lab.py scroll-perf --product phototok --serial $S --photos 3000
+python3 scripts/android_test_device.py with-lock --timeout 900 --serial $S -- \
+  python3 scripts/lab/lab.py scroll-perf --product android-desktop --serial $S --photos 3000
+```
+
+`--package` picks the build (default the store id; `com.phototok.lab` / `com.photoselectortoolbox.lab`
+for the lab builds, which are release-like: minified, test tags on). `--photos` defaults to
+`folder_sizes.typical` of `testdata/conditions/conditions.json` (2,000); release runs use 3,000
+(where the freeze was measured). Exit 1 on FAIL, with a report line and an evidence folder
+(`<lab tmp>/scroll-perf/<stamp>/`: start and end screencaps of both runs, `result.json`).
+
+What it does: pushes one 12 MP JPEG (Pillow, ~4 MB) into `/sdcard/PSTLab/work` (the folder the lab
+app has granted), `cp`-loops it on the device up to the size, `am force-stop` + launch, waits for
+the page counter, `dumpsys gfxinfo reset`, `logcat -c`, 15 steps with a 1.5 s settle, then reads
+gfxinfo and the Choreographer log; `rm`s every `PERF_*` file in all cases. The same is done with
+a 40-photo folder first, as the device's own baseline. The counter must read `N / <folder size>`
+at the start (a lab app granted another folder fails here, it never measures the wrong one) and
+must have advanced by exactly the step count at the end.
+
+Verdict, device-relative: FAIL when any `Choreographer: Skipped N frames` with N >= 30 (the
+framework only logs from 30) appears during the steps, or p99 frame time exceeds 2.0 x the
+baseline's, or the janky share exceeds 2.0 x the baseline's (the baseline floored at 1 %).
+`--factor` changes the 2.0. A phone that is slow in both runs passes; one that is fine small and
+bad large fails. The step count is bounded by the folder: the large folder needs >= 16 photos.
+
+Not covered: Lensjet's at-scale smoke test belongs to its own test package (macOS only); Blitzlens
+has no main-loop stall probe yet (it would need an in-process GLib probe inside the app's
+process under `session.sh`).
+
 ## Weekly timer (Linux hub)
 
 ```bash
