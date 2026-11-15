@@ -16,7 +16,7 @@ import logging
 import threading
 from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
-from typing import Callable, Dict, List, Optional, Tuple
+from typing import Callable, Dict, List, Optional, Set, Tuple
 
 try:
     import gi
@@ -155,6 +155,9 @@ class PhotoTextureLoader:
         # also keeps a decode that was already running from filling the next folder's cache.
         self._generation: int = 0
         self._futures: Dict[Tuple[Path, Optional[int]], object] = {}
+        # Keys only ``prefetch`` asked for (nobody waits on them): dropped while still queued once
+        # the view has moved on, so a held arrow key does not leave two workers decoding the past.
+        self._speculative: Set[Tuple[Path, Optional[int]]] = set()
         self._lock = threading.Lock()
         self.blurry_threshold: float = float(blurry_threshold)
         self.sharp_threshold: float = float(sharp_threshold)
@@ -179,7 +182,22 @@ class PhotoTextureLoader:
             p.primary_path if hasattr(p, "primary_path") else Path(p)
             for p in keep_paths
         }
+        self._cancel_speculative_outside(paths)
         return self._cache.evict_outside_window(paths)
+
+    def _cancel_speculative_outside(self, keep: Set[Path]) -> int:
+        """Cancel queued prefetch decodes whose photo is outside ``keep``; a running one finishes."""
+        cancelled = 0
+        with self._lock:
+            for key in [k for k in self._speculative if k[0] not in keep]:
+                future = self._futures.get(key)
+                if future is None or not future.cancel():  # not submitted yet, or already running
+                    continue
+                self._speculative.discard(key)
+                del self._futures[key]
+                self._pending.pop(key, None)
+                cancelled += 1
+        return cancelled
 
     def evict_full_resolution(self, keep_paths=None, keep_photos=None) -> int:
         """Evict full-resolution 1:1 textures outside keep_paths/keep_photos (R-LINUX-CACHE-03)."""
@@ -192,7 +210,9 @@ class PhotoTextureLoader:
         }
         return self._cache.evict_full_resolution(paths)
 
-    def request(self, candidate, callback: TextureCallback, full_size: bool = False) -> None:
+    def request(
+        self, candidate, callback: TextureCallback, full_size: bool = False, speculative: bool = False
+    ) -> None:
         """Deliver the candidate's texture (or ``None`` if undecodable) to ``callback``."""
         key = self._cache_key(candidate, full_size=full_size)
         cached = self._cache.get(key)
@@ -201,27 +221,31 @@ class PhotoTextureLoader:
             return
         with self._lock:
             if key in self._pending:
-                self._pending[key].append(callback)
+                if not speculative:
+                    self._speculative.discard(key)  # someone waits for it now
+                    self._pending[key].append(callback)
                 return
             self._pending[key] = [callback]
+            if speculative:
+                self._speculative.add(key)
             generation = self._generation
-        future = self._pool.submit(self._work, key, candidate, generation)
-        with self._lock:
-            self._futures[key] = future
+            # Registered before the worker can start, so a cancel never misses a queued decode.
+            self._futures[key] = self._pool.submit(self._work, key, candidate, generation)
 
     def prefetch(self, candidates) -> None:
         """Warm the cache for a single candidate or an iterable of neighbouring candidates."""
         if hasattr(candidates, "primary_path"):
-            self.request(candidates, lambda _texture: None)
+            self.request(candidates, lambda _texture: None, speculative=True)
             return
         for candidate in candidates:
-            self.request(candidate, lambda _texture: None)
+            self.request(candidate, lambda _texture: None, speculative=True)
 
     def clear(self) -> None:
         """Forget the previous folder: drop its textures and cancel its queued decodes."""
         with self._lock:
             self._generation += 1
             futures, self._futures = list(self._futures.values()), {}
+            self._speculative.clear()
             for future in futures:
                 future.cancel()  # a running decode cannot be stopped; its result is dropped as stale
             self._pending.clear()  # callbacks of the folder that was left
@@ -347,6 +371,7 @@ class PhotoTextureLoader:
     def _deliver(self, key, pixbuf, generation: Optional[int] = None) -> bool:
         with self._lock:
             self._futures.pop(key, None)
+            self._speculative.discard(key)
             stale = generation is not None and generation != self._generation
         if stale:
             return False  # decoded for a folder that was closed meanwhile
