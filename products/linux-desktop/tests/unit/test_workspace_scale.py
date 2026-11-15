@@ -88,13 +88,17 @@ def _best(setup, timed) -> float:
     return best
 
 
-ATTEMPTS = 3  # a loaded machine can push one linear measurement past the limit; quadratic stays ~16
+ATTEMPTS = 3  # a loaded machine can push one linear measurement past the limit
 
 
 def _assert_linear(operation: str, setup, timed) -> None:
+    # The best time per size across attempts, never the best ratio: a noisy small run makes the
+    # ratio look low, and taking any passing attempt let quadratic work through once (Frameduel,
+    # 2026-11-15: 15.1, 16.6, then 6.79). Best times converge on the noise-free figures.
+    small = large = float("inf")
     for _ in range(ATTEMPTS):
-        small = _best(lambda: setup(SMALL), timed)
-        large = _best(lambda: setup(LARGE), timed)
+        small = min(small, _best(lambda: setup(SMALL), timed))
+        large = min(large, _best(lambda: setup(LARGE), timed))
         ratio = large / max(small, 1e-9)
         if ratio <= MAX_RATIO:
             return
