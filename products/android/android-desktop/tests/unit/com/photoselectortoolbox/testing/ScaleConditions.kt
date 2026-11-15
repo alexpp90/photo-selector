@@ -76,9 +76,14 @@ object ScaleConditions {
         val n = baseN
         val big = n * growthFactor
         val ratios = mutableListOf<Double>()
+        // The best time per size across attempts, never the best ratio: a noisy N run lowers the
+        // ratio, and accepting any passing attempt let a quadratic merge through at 6.79 after
+        // 15.1 and 16.6 (2026-11-15).
+        var small = Long.MAX_VALUE
+        var large = Long.MAX_VALUE
         repeat(ATTEMPTS) {
-            val small = bestNanos(n, prepare).coerceAtLeast(FLOOR_NANOS)
-            val large = bestNanos(big, prepare).coerceAtLeast(FLOOR_NANOS)
+            small = minOf(small, bestNanos(n, prepare).coerceAtLeast(FLOOR_NANOS))
+            large = minOf(large, bestNanos(big, prepare).coerceAtLeast(FLOOR_NANOS))
             val ratio = large.toDouble() / small
             ratios += ratio
             println("Scale growth [$what]: N=$n ${small / 1_000_000.0} ms, ${growthFactor}N=$big ${large / 1_000_000.0} ms, ratio %.2f".format(java.util.Locale.ROOT, ratio))
