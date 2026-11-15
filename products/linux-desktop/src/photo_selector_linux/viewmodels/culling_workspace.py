@@ -9,13 +9,14 @@ Adheres to:
 
 from __future__ import annotations
 
+import bisect
 import logging
 
 from dataclasses import dataclass
 import os
 from pathlib import Path
 import threading
-from typing import Any, Callable, Dict, List, Optional, Tuple
+from typing import Any, Callable, Dict, List, Optional, Tuple, Union
 
 from photo_selector_linux.core.destination import (
     MODE_CUSTOM,
@@ -37,7 +38,7 @@ from photo_selector_linux.core.models import (
 )
 from photo_selector_linux.core.goto import resolve_goto
 from photo_selector_linux.core.bursts import burst_positions
-from photo_selector_linux.viewmodels.capture_pass import CapturePass, order_basis
+from photo_selector_linux.viewmodels.capture_pass import CapturePass, order_basis, resort_every
 from photo_selector_linux.viewmodels.outcome_text import companion_count, outcome_texts
 from photo_selector_linux.core.scanner import DirectoryScanner, natural_sort_key
 from photo_selector_linux.core.settings import (
@@ -219,7 +220,15 @@ class CullingWorkspaceViewModel:
         self._scoring_since_resort: int = 0
         self._scoring_anchor: Optional[CandidatePhoto] = None
         self._cancel_scoring: Optional[Callable[[], None]] = None
+        self._natural_keys: Dict[str, List[Union[int, str]]] = {}
+        #: Bumped whenever the list's membership or a photo's ``copied`` flag changes: what the
+        #: per-state-change tallies (``remaining_count``) are cached against (BL-P-1).
+        self._list_version: int = 0
+        self._remaining_cache: Optional[Tuple[Tuple[int, int, int], int]] = None
         self._burst_key: Optional[Tuple[int, int, int]] = None
+        self._state_epoch: int = 0
+        self._timed_epoch: Optional[Tuple[int, int, int, bool]] = None
+        self._timed_seen: int = 0
         self._burst_cues: Dict[str, Tuple[int, int]] = {}
         self._capture = CapturePass(self._on_capture_progress, self._on_capture_done)
 
@@ -286,7 +295,12 @@ class CullingWorkspaceViewModel:
     @property
     def remaining_count(self) -> int:
         """Photos still to decide: a copied photo stays in the list but is decided (decision #29)."""
-        return sum(1 for candidate in self.candidates if not candidate.copied)
+        key = (id(self.candidates), len(self.candidates), self._list_version)
+        cached = self._remaining_cache
+        if cached is None or cached[0] != key:
+            # One pass per change, not per read: the window reads this several times per key press.
+            cached = self._remaining_cache = (key, sum(1 for c in self.candidates if not c.copied))
+        return cached[1]
 
     @property
     def queued_count(self) -> int:
@@ -384,6 +398,7 @@ class CullingWorkspaceViewModel:
         )
 
     def _notify_state_changed(self) -> None:
+        self._state_epoch += 1
         for cb in self._state_callbacks:
             try:
                 cb(self)
@@ -458,11 +473,25 @@ class CullingWorkspaceViewModel:
 
     def burst_cue(self, photo: CandidatePhoto) -> Optional[Tuple[int, int]]:
         """``(position, size)`` of ``photo`` in its burst, or None (decision #31; ``core/bursts.py``)."""
-        key = (self._folder_generation, len(self.candidates), sum(1 for c in self.candidates if c.exif is not None))
+        key = (self._folder_generation, len(self.candidates), self._timed_count(photo))
         if key != self._burst_key:
             self._burst_key = key
             self._burst_cues = burst_positions(self.candidates)
         return self._burst_cues.get(photo.id)
+
+    def _timed_count(self, asked: CandidatePhoto) -> int:
+        """Photos whose EXIF is read: what tells ``burst_cue`` that its cache is stale.
+
+        The loader and the capture pass assign ``exif`` without telling the view model, so this
+        is a pass over the list. It runs once per state change or when the photo asked about has
+        gained its EXIF since the last pass (the info card asks the cue on every redraw), not
+        once per call (BL-P-1).
+        """
+        epoch = (self._state_epoch, id(self.candidates), len(self.candidates), asked.exif is not None)
+        if self._timed_epoch != epoch:
+            self._timed_epoch = epoch
+            self._timed_seen = sum(1 for c in self.candidates if c.exif is not None)
+        return self._timed_seen
 
     @property
     def order_basis(self) -> str:
@@ -550,7 +579,7 @@ class CullingWorkspaceViewModel:
             self._scoring_new += 1
         if not self._scoring_inflight:
             self._finish_scoring_pass()
-        elif self._scoring_since_resort >= (10 if self._scoring_total <= 200 else 50):
+        elif self._scoring_since_resort >= resort_every(self._scoring_total, 10 if self._scoring_total <= 200 else 50):
             self._resort_keeping_view()
             self._notify_state_changed()
 
@@ -578,52 +607,55 @@ class CullingWorkspaceViewModel:
             self._notify(f"Scored {total} more", "status")
         self._notify_state_changed()
 
-    def _apply_sort_order(self) -> None:
+    def _natural(self, text: str) -> List[Union[int, str]]:
+        """``natural_sort_key`` memoised for this folder: a sort asks it for every photo, again per batch."""
+        key = self._natural_keys.get(text)
+        if key is None:
+            key = self._natural_keys[text] = natural_sort_key(text)
+        return key
+
+    def _sort_key(self) -> Callable[[CandidatePhoto], Any]:
+        """The key of the active view order (what ``_apply_sort_order`` sorts and ``_add_scanned`` merges by)."""
+        natural = self._natural
         if self.sort_order == ORDER_LOWEST_SHARPNESS:
-            self.candidates.sort(
-                key=lambda c: (
-                    (0, float(c.scores.sharpness), natural_sort_key(c.filename))
-                    if c.scores is not None
-                    else (1, float("inf"), natural_sort_key(c.filename))
-                )
+            return lambda c: (
+                (0, float(c.scores.sharpness), natural(c.filename))
+                if c.scores is not None
+                else (1, float("inf"), natural(c.filename))
             )
-        elif self.sort_order in (ORDER_NEWEST, ORDER_OLDEST):
+        if self.sort_order in (ORDER_NEWEST, ORDER_OLDEST):
             sign = -1.0 if self.sort_order == ORDER_NEWEST else 1.0
-            self.candidates.sort(
-                key=lambda c: (
-                    sign * c.order_time,
-                    natural_sort_key(str(c.primary_path.parent)),
-                    natural_sort_key(c.filename),
-                )
-            )
-        else:
-            self.candidates.sort(
-                key=lambda c: (
-                    natural_sort_key(str(c.primary_path.parent)),
-                    natural_sort_key(c.filename),
-                )
-            )
+            return lambda c: (sign * c.order_time, natural(str(c.primary_path.parent)), natural(c.filename))
+        return lambda c: (natural(str(c.primary_path.parent)), natural(c.filename))
+
+    def _apply_sort_order(self) -> None:
+        self.candidates.sort(key=self._sort_key())
 
     def _add_scanned(self, batch: List[CandidatePhoto]) -> None:
         """Take a scan batch in; the list stays in the active order, the photo on screen stays.
 
         File-name order is what the scanner emits, so a batch is appended. The other orders need
-        the whole folder, which a progressive scan only has at the end: each batch is merged into
-        the active order, the photo the user is looking at is followed by identity, and until the
+        the whole folder, which a progressive scan only has at the end: each photo of the batch is
+        inserted where the active order puts it (a binary search, not a re-sort of the whole list
+        per batch: BL-P-1), the photo the user is looking at is followed by identity, and until the
         user has moved the view stays on the first photo of the order (the newest, for "newest
         first"). Undo positions are not stored indices that could go stale (see ``_reinsert``).
         """
-        shown = self.current_photo
-        self.candidates.extend(batch)
         if self.sort_order == ORDER_NAME:
+            self.candidates.extend(batch)
+            self._list_version += 1
             return
-        self._apply_sort_order()
-        if self._user_navigated and shown is not None:
-            idx = self._index_of(shown)
-            if idx is not None:
-                self.current_index = idx
-        else:
-            self.current_index = 0
+        shown_idx: Optional[int] = None
+        if self._user_navigated and self.current_photo is not None:
+            shown_idx = self.current_index
+        self._list_version += 1
+        key = self._sort_key()
+        for photo in sorted(batch, key=key):
+            position = bisect.bisect_right(self.candidates, key(photo), key=key)
+            self.candidates.insert(position, photo)
+            if shown_idx is not None and position <= shown_idx:
+                shown_idx += 1
+        self.current_index = shown_idx if shown_idx is not None else 0
 
     def _reinsert(self, photo: CandidatePhoto, orig_idx: int) -> int:
         """Put an undone photo back where the active order wants it; return its index.
@@ -632,6 +664,7 @@ class CullingWorkspaceViewModel:
         since (another order chosen, more of the folder scanned), so the position is only the
         starting point; sorting puts the photo where its key says, and its identity is followed.
         """
+        self._list_version += 1
         self.candidates.insert(min(orig_idx, len(self.candidates)), photo)
         self._apply_sort_order()
         return self._index_of(photo) or 0
@@ -684,6 +717,7 @@ class CullingWorkspaceViewModel:
         if idx is None:
             return self.current_index
         self._user_navigated = True
+        self._list_version += 1
         self.candidates.pop(idx)
         if idx < self.current_index:
             self.current_index -= 1
@@ -706,6 +740,7 @@ class CullingWorkspaceViewModel:
             self.selected_count = max(0, self.selected_count - 1)
             self.copied_count = max(0, self.copied_count - 1)
             photo.copied = False
+            self._list_version += 1
             idx = self._index_of(photo)
             if idx is not None:
                 self.current_index = idx
@@ -954,6 +989,7 @@ class CullingWorkspaceViewModel:
                     self.selected_count = max(0, self.selected_count - 1)
                     self.copied_count = max(0, self.copied_count - 1)
                     action.photo.copied = False
+                    self._list_version += 1
                 restored_as = self._restored_suffixed_name(action.photo, rec)
                 if restored_as is not None:
                     self._notify(f"Restored as {shorten_middle(restored_as)} (original name was in use)", "status")
@@ -1066,6 +1102,7 @@ class CullingWorkspaceViewModel:
         self.copied_count += 1
         self.selected_count += 1
         photo.copied = True
+        self._list_version += 1
         if self.auto_advance and self.current_photo is photo and self.current_index < len(self.candidates) - 1:
             self.current_index += 1
             self._check_stop_sharpness_threshold()
@@ -1208,6 +1245,8 @@ class CullingWorkspaceViewModel:
             )
 
         self.candidates = []
+        self._list_version += 1
+        self._natural_keys = {}
         self.current_index = 0
         self._remember_undo_stack(previous_folder)
         self.undo_stack = [] if threaded else self._folder_undo_history.pop(self.current_folder, [])
@@ -1258,7 +1297,7 @@ class CullingWorkspaceViewModel:
             if generation != self._folder_generation:
                 return
             self._add_scanned(batch)
-            self._select_requested_photo()
+            self._select_requested_photo(batch)
             notified_any = True
             self._notify_state_changed()
 
@@ -1300,20 +1339,27 @@ class CullingWorkspaceViewModel:
         if generation != self._folder_generation:
             return False
         self._add_scanned(batch)
-        self._select_requested_photo()
+        self._select_requested_photo(batch)
         self._notify_state_changed()
         return False
 
-    def _select_requested_photo(self) -> None:
-        """Land on the photo the folder was opened for, once it has been scanned."""
+    def _select_requested_photo(self, batch: Optional[List[CandidatePhoto]] = None) -> None:
+        """Land on the photo the folder was opened for, once it has been scanned.
+
+        Only the batch that just arrived can hold it (the earlier ones were looked at already), so
+        each batch costs its own size and not the list's (BL-P-1).
+        """
         name = self._select_name
         if name is None or self.current_folder is None:
             return
-        for idx, candidate in enumerate(self.candidates):
+        for candidate in self.candidates if batch is None else batch:
             if any(
                 p.parent == self.current_folder and candidate.name_of(p) == name
                 for p in candidate.all_paths
             ):
+                idx = self._index_of(candidate)
+                if idx is None:
+                    continue
                 self.current_index = idx
                 self._select_name = None
                 self._user_navigated = True  # opened on this photo: later batches keep it on screen
