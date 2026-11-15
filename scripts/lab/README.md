@@ -164,9 +164,13 @@ for the lab builds, which are release-like: minified, test tags on). `--photos` 
 What it does: pushes one 12 MP JPEG (Pillow, ~4 MB) into `/sdcard/PSTLab/work` (the folder the lab
 app has granted), `cp`-loops it on the device up to the size, `am force-stop` + launch, waits for
 the page counter, `dumpsys gfxinfo reset`, `logcat -c`, 15 steps with a 1.5 s settle, then reads
-gfxinfo and the Choreographer log; `rm`s every `PERF_*` file in all cases. The same is done with
+gfxinfo and the Choreographer log; `rm`s every `PERF_*` file in all cases. The run starts only from
+a settled screen: dialogs ("N new photos", pending deletions, tips) are answered with their
+non-destructive button, the counter total must reach the folder size (discovery is progressive and a
+resumed folder re-sorts) and read the same twice; an app resumed near the end steps backwards. The same is done with
 a 40-photo folder first, as the device's own baseline. The counter must read `N / <folder size>`
-at the start (a lab app granted another folder fails here, it never measures the wrong one) and
+at the start (a lab app granted another folder fails here, it never measures the wrong one; re-grant
+`work` with the product's `_ensure_folder.yaml` under Maestro) and
 must have advanced by exactly the step count at the end.
 
 Verdict, device-relative: FAIL when any `Choreographer: Skipped N frames` with N >= 30 (the

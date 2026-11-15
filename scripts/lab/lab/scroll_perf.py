@@ -127,6 +127,7 @@ class Measure:
     first_photo_s: float
     refresh_hz: float
     screens: list[str] = field(default_factory=list)
+    direction: int = 1  # -1: the app resumed near the end, so the run steps backwards
 
 
 @dataclass
@@ -143,8 +144,9 @@ def judge(base: Measure, large: Measure, factor: float = DEFAULT_FACTOR,
     reasons: list[str] = []
     for m in (base, large):
         moved = m.end_pos - m.start_pos
-        if moved != m.swipes:
-            reasons.append(f"{m.label}: counter moved {m.start_pos}->{m.end_pos}, expected +{m.swipes}")
+        if moved != m.direction * m.swipes:
+            reasons.append(f"{m.label}: counter moved {m.start_pos}->{m.end_pos}, "
+                           f"expected {m.direction * m.swipes:+d}")
         if m.gfx.frames == 0:
             reasons.append(f"{m.label}: no frames rendered, nothing measured")
     stalls = [n for n in large.skipped if n >= skipped_threshold]
@@ -193,6 +195,9 @@ class NoFirstPhoto(RuntimeError):
 
 
 FIRST_PHOTO_TIMEOUT_S = 180
+FULL_LIST_TIMEOUT_S = 120
+# Dialogs a resumed folder can open over the photo; the non-destructive answer in each.
+DISMISS = r"Show new|Neue zeigen|Start with Newest|Behalten|Keep|Verstanden|Got it"
 
 
 class ScrollPerfRun:
@@ -234,8 +239,10 @@ class ScrollPerfRun:
         return self._size
 
     def refresh_hz(self) -> float:
-        m = re.search(r"refreshRate=([\d.]+)|fps=([\d.]+)", self.adb("shell", "dumpsys", "display"))
-        return float(m.group(1) or m.group(2)) if m else 0.0
+        """The rate the display renders at (`renderFrameRate` of the active mode), else its first `fps=`."""
+        text = self.adb("shell", "dumpsys", "display")
+        m = re.search(r"renderFrameRate[ =]([\d.]+)", text) or re.search(r"refreshRate=([\d.]+)|fps=([1-9][\d.]*)", text)
+        return float(next(g for g in m.groups() if g)) if m else 0.0
 
     # staging
     def stage(self, total: int, local_jpeg: Path) -> int:
@@ -260,29 +267,50 @@ class ScrollPerfRun:
         return int(out.strip() or 0)
 
     # one measured run
-    def cold_start(self) -> tuple[tuple[int, int], float]:
+    def cold_start(self, expected_total: int = 0) -> tuple[tuple[int, int], float]:
+        """Cold-start the app; `(counter, seconds to first photo)`.
+
+        The run starts only from a settled screen: no dialog ("N new photos", pending deletions, tips:
+        answered with their non-destructive button), the counter's total equal to `expected_total`
+        (discovery is progressive, and a resumed folder re-sorts when it completes) and the same
+        reading twice in a row. A total that never arrives within FULL_LIST_TIMEOUT_S after the first
+        photo is the wrong folder; no photo within FIRST_PHOTO_TIMEOUT_S is `NoFirstPhoto`.
+        """
         self.adb("shell", "am", "force-stop", self.package)
         self.sleep(1)
         t0 = self.clock()
         self.adb("shell", "monkey", "-p", self.package, "-c", "android.intent.category.LAUNCHER", "1")
-        deadline = t0 + FIRST_PHOTO_TIMEOUT_S
-        counter = None
-        while self.clock() < deadline:
-            self.sleep(1)
+        first: float | None = None
+        last: tuple[int, int] | None = None
+        settled: tuple[int, int] | None = None
+        while True:
+            now = self.clock()
+            if first is None and now > t0 + FIRST_PHOTO_TIMEOUT_S:
+                raise NoFirstPhoto(f"no page counter within {FIRST_PHOTO_TIMEOUT_S} s of the cold start")
+            if first is not None and now > t0 + first + FULL_LIST_TIMEOUT_S:
+                break
+            self.sleep(1.5)
             try:
                 xml = self.dump()
-                tap = find_text_center(xml, r"Show new|Neue zeigen|Start with Newest")
-                if tap:  # "N new photos": show them, as _ensure_folder.yaml does
+                tap = find_text_center(xml, DISMISS)
+                if tap:
                     self.adb("shell", "input", "tap", str(tap[0]), str(tap[1]))
+                    last = None
                     continue
                 counter = parse_counter(xml)
             except (ParseError, OSError):
+                last = None
                 continue  # a busy app often cannot be dumped; keep waiting for its first photo
-            if counter:
+            if counter and first is None:
+                first = self.clock() - t0
+            if counter and counter == last and (not expected_total or counter[1] == expected_total):
+                settled = counter
                 break
-        if not counter:
-            raise NoFirstPhoto(f"no page counter within {FIRST_PHOTO_TIMEOUT_S} s of the cold start")
-        return counter, self.clock() - t0
+            last = counter
+        if settled is None:
+            raise RuntimeError(f"cold start did not settle on {expected_total} photos (last reading {last}): "
+                               "it has another folder open, so this would measure the wrong one")
+        return settled, first or 0.0
 
     def read_counter(self, attempts: int = 10) -> tuple[int, int] | None:
         for _ in range(attempts):
@@ -295,33 +323,36 @@ class ScrollPerfRun:
             self.sleep(1)
         return None
 
-    def advance(self) -> None:
+    def advance(self, direction: int = 1) -> None:
         w, h = self.size()
         if self.nav == "swipe":
             x, y1, y2 = w // 2, int(h * 0.7), int(h * 0.3)
+            if direction < 0:
+                y1, y2 = y2, y1
             self.adb("shell", "input", "swipe", str(x), str(y1), str(x), str(y2), "250")
         else:
-            self.adb("shell", "input", "keyevent", "KEYCODE_DPAD_RIGHT")
+            self.adb("shell", "input", "keyevent", "KEYCODE_DPAD_RIGHT" if direction > 0 else "KEYCODE_DPAD_LEFT")
 
     def measure(self, label: str, expected_total: int) -> Measure:
-        start, first = self.cold_start()
+        start, first = self.cold_start(expected_total)
         shot0 = self.screen(f"{label}-start")
         if start[1] != expected_total:
             raise RuntimeError(f"{label}: the app shows {start[0]} / {start[1]} but the staged folder holds "
                                f"{expected_total}: it has another folder open, so this would measure the wrong one")
-        if start[0] + self.swipes > start[1]:
-            raise RuntimeError(f"{label}: start at {start[0]} / {start[1]} leaves no room for {self.swipes} swipes")
+        direction = 1 if start[0] + self.swipes <= start[1] else -1  # resumed near the end: step backwards
+        if direction < 0 and start[0] - self.swipes < 1:
+            raise RuntimeError(f"{label}: {start[1]} photos leave no room for {self.swipes} steps")
         self.adb("shell", "dumpsys", "gfxinfo", self.package, "reset")
         self.adb("logcat", "-c")
         for _ in range(self.swipes):
-            self.advance()
+            self.advance(direction)
             self.sleep(self.settle_s)
         gfx_text = self.adb("shell", "dumpsys", "gfxinfo", self.package, timeout=60)
         log = self.adb("logcat", "-d", "-s", "Choreographer:*", timeout=60)
         end = self.read_counter() or (0, 0)
         shot1 = self.screen(f"{label}-end")
         return Measure(label, start[1], self.swipes, start[0], end[0], parse_gfxinfo(gfx_text),
-                       parse_skipped(log), first, self.refresh_hz(), [shot0, shot1])
+                       parse_skipped(log), first, self.refresh_hz(), [shot0, shot1], direction)
 
     def run(self, photos: int, baseline_photos: int, local_jpeg: Path, factor: float = DEFAULT_FACTOR) -> tuple[Verdict, Measure, Measure | None]:
         try:

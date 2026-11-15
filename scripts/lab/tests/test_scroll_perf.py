@@ -95,6 +95,13 @@ class VerdictTests(unittest.TestCase):
         self.assertFalse(v.ok)
         self.assertIn("counter moved 1->1", v.reasons[0])
 
+    def test_backwards_run_is_judged_by_its_own_direction(self) -> None:
+        back = measure(start=30, end=15)
+        back.direction = -1
+        self.assertTrue(sp.judge(self.base, back).ok)
+        back.end_pos = 45
+        self.assertFalse(sp.judge(self.base, back).ok)
+
     def test_no_frames_is_not_a_pass(self) -> None:
         self.assertFalse(sp.judge(self.base, measure(gfxv=gfx(frames=0))).ok)
 
@@ -105,11 +112,16 @@ class FakeDevice:
     def __init__(self, folder_files: int, shown_total: int | None = None, advance: bool = True, skipped: str = "",
                  blank_when_total_over: int | None = None) -> None:
         self.blank_over = blank_when_total_over
+        self.resume_at = None
+        self.partial_reads = 0
         self.files, self.staged = folder_files, 0
         self.shown_total, self.advance_ok, self.skipped = shown_total, advance, skipped
         self.pos, self.calls = 1, []
 
     def total(self) -> int:
+        if self.partial_reads > 0:  # progressive discovery: the first dumps show a partial list
+            self.partial_reads -= 1
+            return 17
         return self.shown_total if self.shown_total is not None else self.files + self.staged
 
     def __call__(self, *a: str, timeout: int = 30) -> str:
@@ -129,9 +141,9 @@ class FakeDevice:
         elif a[0] == "shell" and "wc -l" in a[1]:
             return str(self.files if "! -name" in a[1] else self.files + self.staged)
         elif a[:3] == ("shell", "monkey", "-p"):
-            self.pos = 1
+            self.pos = self.resume_at or 1
         elif a[:3] == ("shell", "input", "swipe") and self.advance_ok:
-            self.pos += 1
+            self.pos += 1 if int(a[4]) > int(a[6]) else -1
         elif a[:2] == ("shell", "wm"):
             return "Physical size: 1080x2340\n"
         elif a[:3] == ("shell", "dumpsys", "display"):
@@ -167,9 +179,20 @@ class RunTests(unittest.TestCase):
 
     def test_wrong_folder_open_is_refused_and_still_cleans_up(self) -> None:
         dev = FakeDevice(12, shown_total=17)
-        with self.assertRaisesRegex(RuntimeError, "another folder"):
-            run_with(dev)
+        old, sp.FULL_LIST_TIMEOUT_S = sp.FULL_LIST_TIMEOUT_S, 0.05
+        try:
+            with self.assertRaisesRegex(RuntimeError, "another folder"):
+                run_with(dev)
+        finally:
+            sp.FULL_LIST_TIMEOUT_S = old
         self.assertEqual(dev.staged, 0)
+
+    def test_partial_list_at_the_first_photo_is_waited_out(self) -> None:
+        dev = FakeDevice(12)
+        dev.partial_reads = 1  # the first read of the baseline run shows 17 of 40
+        v, base, _large = run_with(dev)
+        self.assertEqual(base.photos, 40)
+        self.assertTrue(v.ok, v.reasons)
 
     def test_app_that_never_shows_a_photo_fails_the_verdict_and_cleans_up(self) -> None:
         dev = FakeDevice(12, blank_when_total_over=100)
@@ -183,9 +206,22 @@ class RunTests(unittest.TestCase):
         self.assertIn("no page counter", v.line)
         self.assertEqual(dev.staged, 0)
 
+    def test_resuming_near_the_end_steps_backwards(self) -> None:
+        dev = FakeDevice(12)
+        dev.resume_at = 39  # of the 40-photo baseline; then 39 > 3000 - 15 is false for the large run
+        v, base, large = run_with(dev)
+        self.assertEqual((base.start_pos, base.end_pos, base.direction), (39, 24, -1))
+        self.assertEqual(large.direction, -1 if 39 + 15 > 3000 else 1)
+        self.assertTrue(v.ok, v.reasons)
+
     def test_swipes_that_do_not_land_fail_the_verdict(self) -> None:
         v, _b, _l = run_with(FakeDevice(12, advance=False))
         self.assertFalse(v.ok)
+
+    def test_refresh_rate_is_the_render_rate_not_the_first_fps(self) -> None:
+        for text, hz in (("fps=0.0 x fps=120.00001 renderFrameRate 90.0", 90.0), ("mode fps=60.000004", 60.0)):
+            run = sp.ScrollPerfRun(lambda *a, timeout=30, t=text: t, "phototok", Path(tempfile.mkdtemp()))
+            self.assertAlmostEqual(run.refresh_hz(), hz, places=3)
 
     def test_keyboard_navigation_for_frameduel(self) -> None:
         dev = FakeDevice(12)
