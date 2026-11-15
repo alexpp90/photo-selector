@@ -201,11 +201,19 @@ private func expectFolderLoadGrowth(top: Int) async throws {
         try? FileManager.default.removeItem(at: topDir)
     }
     _ = await folderLoadTimes(photoCount: small, in: smallDir)  // warm-up
-    let atSmall = await folderLoadTimes(photoCount: small, in: smallDir)
-    let atTop = await folderLoadTimes(photoCount: top, in: topDir)
     let floor = 0.05
-    let firstRatio = atTop.first / max(atSmall.first, floor)
-    let fullRatio = atTop.full / max(atSmall.full, floor)
+    // Up to three attempts, as the other products' scale tests: a CI runner once measured the
+    // full list at x8.4 (2026-11-15) after x<8 on the run before; quadratic work fails every attempt.
+    var atSmall = (first: 0.0, full: 0.0)
+    var atTop = (first: 0.0, full: 0.0)
+    var firstRatio = Double.infinity
+    var fullRatio = Double.infinity
+    for _ in 0..<3 where firstRatio > growth.max_ratio || fullRatio > growth.max_ratio {
+        atSmall = await folderLoadTimes(photoCount: small, in: smallDir)
+        atTop = await folderLoadTimes(photoCount: top, in: topDir)
+        firstRatio = atTop.first / max(atSmall.first, floor)
+        fullRatio = atTop.full / max(atSmall.full, floor)
+    }
     #expect(firstRatio <= growth.max_ratio,
             "time to first photo: \(small) photos \(atSmall.first * 1000) ms, \(top) photos \(atTop.first * 1000) ms, ratio \(firstRatio)")
     #expect(fullRatio <= growth.max_ratio,
