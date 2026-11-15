@@ -199,9 +199,13 @@ data class ReloadPrompt(
 val PhoneModeUiState.canRevert: Boolean
     get() = pendingDelete != null || undoStack.isNotEmpty()
 
-/** Set of image URIs that have a RAW companion in [PhoneModeUiState.allImages] (`U-12`). */
+/**
+ * Set of image URIs that have a RAW companion in [PhoneModeUiState.allImages] (`U-12`). Linear in
+ * the folder size, but still a pass over every photo: the UI remembers it per pair of lists
+ * rather than reading it on every recomposition.
+ */
 val PhoneModeUiState.rawCompanionUris: Set<String>
-    get() = images.filter { RelatedFiles.hasRawCompanion(allImages, it) }.map { it.uri }.toSet()
+    get() = RelatedFiles.rawCompanionUris(images, allImages)
 
 /** Set of recent-path URIs whose removable volume is currently unmounted (`U-09`, `U-14a`). */
 val PhoneModeUiState.unmountedRecentUris: Set<String>

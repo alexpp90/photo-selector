@@ -157,6 +157,9 @@ fun PhoneModeScreen(
     trashViewModel: SystemTrashViewModel = hiltViewModel(),
 ) {
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
+    // A pass over the whole folder: computed when the photo lists change, never per recomposition
+    // (every page settle and EXIF read recomposes this screen).
+    val rawCompanionUris = remember(uiState.images, uiState.allImages) { uiState.rawCompanionUris }
     val selectionState by selectionViewModel.uiState.collectAsStateWithLifecycle()
     val snackbarHostState = remember { SnackbarHostState() }
     val colors = MaterialTheme.colorScheme
@@ -459,7 +462,7 @@ fun PhoneModeScreen(
                         topBadgesSuppressed = guideUp,
                         isDiscovering = uiState.isDiscovering,
                         isCloudSource = uiState.sourceKind == SourceKind.CLOUD_OTHER,
-                        rawCompanionUris = uiState.rawCompanionUris,
+                        rawCompanionUris = rawCompanionUris,
                         favourites = uiState.favourites,
                         onCardDwelled = viewModel::onCardDwelled,
                         onShareCurrentPhoto = {
@@ -516,7 +519,7 @@ fun PhoneModeScreen(
                     topBadgesSuppressed = guideUp,
                     isDiscovering = uiState.isDiscovering,
                     isCloudSource = uiState.sourceKind == SourceKind.CLOUD_OTHER,
-                    rawCompanionUris = uiState.rawCompanionUris,
+                    rawCompanionUris = rawCompanionUris,
                     favourites = uiState.favourites,
                     onCardDwelled = viewModel::onCardDwelled,
                     onShareCurrentPhoto = {

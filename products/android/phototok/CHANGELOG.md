@@ -6,6 +6,10 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ## [Unreleased]
 
+### Fixed
+- Scrolling a large folder no longer freezes. In a camera roll of a few thousand photos every swipe stopped the feed for 3–5 seconds; it now scrolls smoothly whatever the folder size.
+- Preloading the next photos no longer decodes each one at full camera resolution (about 190 MB for a 48 MP photo) only to throw it away: they are prepared at screen size and shown straight from memory.
+
 ## [0.7.0] - 2026-11-13
 
 ### Added
