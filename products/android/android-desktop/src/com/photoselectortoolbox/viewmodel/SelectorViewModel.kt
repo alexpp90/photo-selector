@@ -1054,7 +1054,7 @@ class SelectorViewModel @Inject constructor(
             }
 
             var analysed = 0
-            var results = emptyMap<String, ScanResult>()
+            val results = HashMap<String, ScanResult>() // the scan's emissions folded (each is new results only)
             val folderUri = _uiState.value.folderUri
             val stillListing = _uiState.value.isEnumerating
             try {
@@ -1065,7 +1065,7 @@ class SelectorViewModel @Inject constructor(
                         0f
                     }
                     analysed = progress.processed
-                    results = progress.results
+                    results.putAll(progress.scored)
 
                     // Merged *inside* the update, against the state as it is at
                     // that moment. Building the new list from a snapshot read
@@ -1073,7 +1073,7 @@ class SelectorViewModel @Inject constructor(
                     // dimension loads run on their own coroutines and a scan is
                     // long.
                     _uiState.update { state ->
-                        val merged = ScoreMerge.apply(state.images, progress.results)
+                        val merged = ScoreMerge.apply(state.images, progress.scored)
                         state.copy(
                             scanProgress = fraction,
                             scanStatusText = SelectorLabels.scanProgress(

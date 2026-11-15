@@ -103,10 +103,10 @@ class ScanImagesUseCaseTest {
             recorder(scoreDao),
         )
 
-        val progress = useCase(images).toList().last()
-        assertEquals(2, progress.results.size)
-        assertEquals(8.0, progress.results["content://media/external/images/media/1"]?.aestheticScore)
-        assertEquals(null, progress.results["content://media/external/images/media/2"]?.aestheticScore)
+        val results = useCase(images).toList().allResults()
+        assertEquals(2, results.size)
+        assertEquals(8.0, results["content://media/external/images/media/1"]?.aestheticScore)
+        assertEquals(null, results["content://media/external/images/media/2"]?.aestheticScore)
         verify(exactly = 0) { bitmapDecoder.decodeForAnalysis(any(), any()) }
     }
 
@@ -175,8 +175,8 @@ class ScanImagesUseCaseTest {
             recorder(scoreDao),
         )
 
-        val progress = useCase(images).toList().last()
-        assertEquals(2500, progress.results.size)
+        val results = useCase(images).toList().allResults()
+        assertEquals(2500, results.size)
         assertEquals(listOf(900, 900, 700), scoreDao.scoreBatches.map { it.size })
         assertEquals(listOf(900, 900, 700), scoreDao.accessBatches.map { it.size })
         // The fact markers bind the kind as well: 899 URIs per statement.
@@ -245,7 +245,7 @@ class ScanImagesUseCaseTest {
         val rig = Rig()
 
         val result = rig.useCase(listOf(photo), ScanMeasures(noise = false, highlightClipping = false))
-            .toList().last().results.getValue(photo.uri)
+            .toList().allResults().getValue(photo.uri)
 
         verify(exactly = 0) { rig.noise.analyze(any()) }
         verify(exactly = 1) { rig.sharpness.analyze(any(), any()) }
@@ -274,7 +274,7 @@ class ScanImagesUseCaseTest {
         )
         val rig = Rig(listOf(cached))
 
-        val result = rig.useCase(listOf(photo), ScanMeasures.ALL).toList().last().results.getValue(photo.uri)
+        val result = rig.useCase(listOf(photo), ScanMeasures.ALL).toList().allResults().getValue(photo.uri)
 
         verify(exactly = 0) { rig.sharpness.analyze(any(), any()) }
         verify(exactly = 0) { rig.clipping.analyzeClipping(any()) }

@@ -44,14 +44,22 @@ object ProgressiveMerge {
      * in batch order and de-duplicated within the batch itself.
      *
      * [published] is every URI this folder has ever emitted, including ones the
-     * photographer has since moved or deleted.
+     * photographer has since moved or deleted. It is read, never copied.
+     *
+     * [from] is where the unseen part of [batch] starts. Discovery emits
+     * cumulatively and append-only, so each emission repeats the previous one
+     * as its prefix: a consumer passes the size of the previous emission of the
+     * same discovery and looks at the new tail alone. Walking (and, before
+     * 2026-11-15, copying) the whole folder per batch made merging the batches
+     * of a folder grow with its square (`SessionScaleTest`). 0 looks at all of it.
      */
-    fun newItems(batch: List<ImageItem>, published: Set<String>): List<ImageItem> {
-        if (batch.isEmpty()) return emptyList()
-        val seen = HashSet(published)
-        val fresh = ArrayList<ImageItem>(batch.size)
-        for (item in batch) {
-            if (seen.add(item.uri)) fresh += item
+    fun newItems(batch: List<ImageItem>, published: Set<String>, from: Int = 0): List<ImageItem> {
+        if (from >= batch.size) return emptyList()
+        val fresh = ArrayList<ImageItem>(batch.size - from.coerceAtLeast(0))
+        val inBatch = HashSet<String>()
+        for (i in from.coerceAtLeast(0) until batch.size) {
+            val item = batch[i]
+            if (item.uri !in published && inBatch.add(item.uri)) fresh += item
         }
         return fresh
     }
