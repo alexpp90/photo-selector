@@ -69,11 +69,14 @@ class PhoneModeUiStateScaleTest {
         // Each pair shares one sidecar, attached to both: counted once.
         assertEquals(ScaleConditions.prPhotos + ScaleConditions.prPhotos / 20, large.cardClearFileCount)
 
+        // The best time per size across attempts, never the best ratio (a noisy N run lowers it).
         var ratio = Double.MAX_VALUE
         var report = ""
-        for (attempt in 1..2) {
-            val tSmall = ScaleConditions.bestNanos { repeat(REPEAT) { small.cardClearFileCount } }
-            val tLarge = ScaleConditions.bestNanos { repeat(REPEAT) { large.cardClearFileCount } }
+        var tSmall = Long.MAX_VALUE
+        var tLarge = Long.MAX_VALUE
+        for (attempt in 1..3) {
+            tSmall = minOf(tSmall, ScaleConditions.bestNanos { repeat(REPEAT) { small.cardClearFileCount } })
+            tLarge = minOf(tLarge, ScaleConditions.bestNanos { repeat(REPEAT) { large.cardClearFileCount } })
             ratio = tLarge.toDouble() / maxOf(tSmall, FLOOR_NANOS)
             report = "card clear targets x$REPEAT: N=${small.allImages.size} ${"%.1f".format(tSmall / 1e6)} ms, " +
                 "4N=${large.allImages.size} ${"%.1f".format(tLarge / 1e6)} ms, ratio ${"%.2f".format(ratio)}"
