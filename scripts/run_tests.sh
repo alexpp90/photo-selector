@@ -195,7 +195,7 @@ if ! $explicit_product; then
                 .github/workflows/linux.yml) has_linux=true ;;
                 .github/workflows/repo-hygiene.yml|.github/workflows/pr-verification.yml|.github/workflows/cla.yml) ;;
                 # Cross-cutting: the corpus action, the mirror itself and the corpus feed every product.
-                .github/workflows/*|.github/actions/*|scripts/run_tests.sh|testdata/formats/*|scripts/fetch_format_corpus.py) has_cross=true ;;
+                .github/workflows/*|.github/actions/*|scripts/run_tests.sh|testdata/formats/*|testdata/conditions/*|scripts/fetch_format_corpus.py) has_cross=true ;;
             esac
         done
 
@@ -903,6 +903,8 @@ if have python3; then
         python3 scripts/release.py check
     gate "format contract manifest" "repo-hygiene.yml:hygiene" \
         python3 scripts/fetch_format_corpus.py --validate
+    gate "conditions contract" "repo-hygiene.yml:hygiene" \
+        python3 scripts/check_conditions_contract.py
     gate "documentation links and anchors" "repo-hygiene.yml:hygiene" \
         python3 scripts/check_doc_links.py --check
     # docs/shared/UI_TEXT.md: fails for products in `fail` mode (scripts/ui_text_budget.json),

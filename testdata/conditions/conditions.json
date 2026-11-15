@@ -1,0 +1,56 @@
+{
+  "schema": 1,
+  "about": "The conditions users have: folder sizes, files, storage and session length. Read by every product's scale and performance tests; rules in docs/shared/USAGE_CONDITIONS.md. Validated by scripts/check_conditions_contract.py.",
+  "consumers": [],
+  "folder_sizes": {
+    "typical": {
+      "photos": 2000,
+      "use": "the size a test of an everyday folder uses",
+      "source": "a phone camera roll holds 2,000-50,000 photos, a desk cull 500-3,000 per shoot, a shared cloud folder 100-2,000"
+    },
+    "pr": {
+      "photos": 10000,
+      "use": "every scale test that runs on every pull request",
+      "source": "decided 2026-11-15 after F-TOK-098 (3-5 s freeze per swipe at 3,032 photos)"
+    },
+    "stress": {
+      "photos": 50000,
+      "use": "the release stress run (release-product), never the PR gate",
+      "source": "the upper bound of a years-deep phone camera roll"
+    }
+  },
+  "growth_check": {
+    "factor": 4,
+    "max_ratio": 8.0,
+    "rule": "a scale test times the same operation at N and at factor*N (N = pr/factor) and fails when time(factor*N)/time(N) exceeds max_ratio: linear work gives about 4, quadratic about 16. Absolute milliseconds are never asserted in the PR gate."
+  },
+  "layouts": [
+    {"id": "flat-camera-roll", "dirs": 1, "files_per_dir": "all", "source": "a phone camera roll: DCIM/Camera is one flat folder"},
+    {"id": "dcf-card", "dirs": "several DCIM/NNNXXXXX", "files_per_dir": 9999, "note": "DCF (JEITA CP-3461) caps a folder at 9,999 files; many bodies roll over earlier, at 999 or 2,000", "source": "camera SD card"},
+    {"id": "raw-jpeg-pairs", "pairs": true, "note": "RAW+JPEG of one frame share the basename; .xmp sidecars possible", "source": "camera SD card"}
+  ],
+  "bursts": {
+    "short": {"frames": 20, "fps": 30},
+    "long": {"frames": 200, "fps": 30},
+    "source": "enthusiast bursts of 5-20 frames at 10-30 fps; pre-capture and sports sequences of 50-200 frames"
+  },
+  "files": [
+    {"id": "phone-default", "formats": ["JPEG", "HEIC"], "megapixels": [12, 24], "megabytes": [1.5, 8], "source": "typical measured; MP from maker specs"},
+    {"id": "phone-full-res", "formats": ["JPEG", "HEIC"], "megapixels": [48, 200], "megabytes": [8, 40], "source": "maker specs"},
+    {"id": "phone-raw", "formats": ["DNG"], "megapixels": [12, 50], "megabytes": [25, 75], "source": "typical measured (ProRAW, Expert RAW)"},
+    {"id": "camera-jpeg", "formats": ["JPEG"], "megapixels": [24, 61], "megabytes": [6, 30], "source": "typical measured, fine quality"},
+    {"id": "camera-raw", "formats": ["ARW", "CR3", "NEF", "RAF", "DNG", "ORF", "RW2"], "megapixels": [20, 61], "megabytes": [20, 130], "note": "medium format (100 MP) reaches about 200 MB; the embedded preview is 1616x1080 up to full size, per camera model", "source": "typical measured"}
+  ],
+  "storage": [
+    {"id": "internal", "read_mb_s": [1000, 4000], "note": "phone UFS 3.1/4.0 or desktop SSD; small random reads far slower than sequential"},
+    {"id": "sd-uhs1", "read_mb_s": [40, 90], "random_small_mb_s": [5, 20], "note": "card reader on a phone or desktop; UHS-I bus limit 104 MB/s"},
+    {"id": "sd-uhs2", "read_mb_s": [150, 250], "note": "often capped at 35-40 MB/s by phones and USB 2.0 hubs"},
+    {"id": "mtp-camera", "read_mb_s": [10, 35], "note": "camera over USB: high per-file latency, no random access"},
+    {"id": "cloud-provider", "read_mb_s": null, "note": "online-only files download in full on open; latency is the network's"}
+  ],
+  "sessions": [
+    {"id": "phone-spare-minutes", "minutes": [1, 10], "source": "phone, in idle minutes"},
+    {"id": "tablet-couch", "minutes": [20, 90], "source": "tablet on the couch"},
+    {"id": "desktop-cull", "minutes": [30, 120], "decision_seconds": [0.3, 2], "source": "desk cull with keyboard"}
+  ]
+}

@@ -52,6 +52,12 @@ jobs:
       - name: Format contract manifest
         run: python3 scripts/fetch_format_corpus.py --validate
 
+      # Usage-conditions contract (docs/shared/USAGE_CONDITIONS.md): the folder sizes, files and
+      # storage every product's scale tests read are well-formed, and every product listed as a
+      # consumer has a test that reads them.
+      - name: Conditions contract
+        run: python3 scripts/check_conditions_contract.py
+
       # Every relative link, image and #anchor in the tracked Markdown/HTML resolves (the three
       # platform badges of the root README pointed at renamed headings for weeks).
       - name: Documentation links and anchors
