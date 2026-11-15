@@ -15,6 +15,7 @@ on:
       - 'products/macos-desktop/**'
       - '.github/workflows/macos.yml'
       - 'testdata/formats/**'
+      - 'testdata/conditions/**'
       - 'scripts/fetch_format_corpus.py'
       - '.github/actions/format-corpus/**'
   pull_request:
@@ -53,6 +54,7 @@ jobs:
               - 'products/macos-desktop/**'
               - '.github/workflows/macos.yml'
               - 'testdata/formats/**'
+              - 'testdata/conditions/**'
               - 'scripts/fetch_format_corpus.py'
               - '.github/actions/format-corpus/**'
 

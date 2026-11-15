@@ -36,7 +36,7 @@ the paths, as each workflow's `paths:` filter does:
 | `products/<p>/…` | that product's gates |
 | `.github/workflows/{desktop,android,macos,linux}.yml` | that product's gates (and the lab tests) |
 | `.github/workflows/{repo-hygiene,pr-verification,cla}.yml` | no product gate (hygiene always runs); the lab tests |
-| `.github/actions/`, `scripts/run_tests.sh`, `testdata/formats/`, `scripts/fetch_format_corpus.py` | every product and the lab tests: these feed all of them |
+| `.github/actions/`, `scripts/run_tests.sh`, `testdata/formats/`, `testdata/conditions/`, `scripts/fetch_format_corpus.py` | every product and the lab tests: these feed all of them |
 
 `--all` or an explicit product flag overrides the selection.
 
@@ -96,6 +96,7 @@ changed on both sides still conflicts. Tested in `scripts/tests/test_md_table_me
 | `release.py check` | `repo-hygiene.yml:hygiene` | ✅ everywhere | Every product's version sources agree, it has a `CHANGELOG.md`, and its workflow triggers on its own tag prefix. `release.py`'s unit tests run in `scripts/tests` below. |
 | `check_private_paths.py` | `repo-hygiene.yml:hygiene` | ✅ everywhere | Fails if maintainer-private material (`private/`, `ai/`, `.claude/`, `.agents/`, `.gemini/`, requirement specs, prompts, the prompt ledger) is tracked in this public repository. Also runs as the local pre-commit hook installed by the overlay. |
 | Format corpus (`fetch_format_corpus.py`) | `.github/actions/format-corpus`, used by `desktop.yml:test`, `android.yml:unit-tests`, `macos.yml:swift-test`, `linux.yml:test` | ⚠️ once downloaded (~280 MB, network) | Restores the real-camera RAW corpus pinned in `testdata/formats/manifest.json` (cache key = manifest hash) and sets `PST_REQUIRE_FORMAT_CORPUS=1`, so every product's format conformance tests **fail** rather than skip without it. Locally `run_tests.sh` exports the same variables when the corpus is present and reports `⊘ SKIPPED` otherwise. See [`docs/shared/SUPPORTED_FORMATS.md`](../shared/SUPPORTED_FORMATS.md). |
+| `check_conditions_contract.py` | `repo-hygiene.yml:hygiene` | ✅ everywhere | The usage-conditions contract `testdata/conditions/conditions.json` is well-formed (folder sizes rise typical < PR < stress, the growth ratio lies between linear and quadratic, ranges rise), and every product listed under `consumers` has a test that reads it. See [`docs/shared/USAGE_CONDITIONS.md`](../shared/USAGE_CONDITIONS.md). |
 | `check_doc_links.py --check` | `repo-hygiene.yml:hygiene` | ✅ everywhere | Every relative link, image and `#anchor` in the tracked `*.md` and `*.html` resolves (GitHub slug rules, case-sensitive paths). External URLs are not fetched; links into the private overlay are skipped in a public clone. `test_check_doc_links.py` also fails when the docs name a file the APT repository does not serve. |
 | `check_ui_text_budget.py` | `repo-hygiene.yml:hygiene` | ✅ everywhere | Visible UI text within the budgets of `docs/shared/UI_TEXT.md` (`scripts/ui_text_budget.json`): string resources per element prefix, EN and `values-de` limits, no sentence punctuation on buttons, no hard-coded Compose text, no visible label next to an icon. Fails for products in `fail` mode; the mirror shows report-only findings as `!` (exit code 3). Its tests run in `scripts/tests`. |
 | `fetch_format_corpus.py --validate` + `scripts/tests` | `repo-hygiene.yml:hygiene` | ✅ everywhere | The format contract is well-formed: every required format has a sample with ground-truth EXIF, extensions are unique, committed bitmap fixtures match their pinned SHA-256; unit tests for the fetcher (mirror fallback, hash verification), for `verification_record.py`, `release.py`, `android_test_device.py` and `android_device_matrix.py`. |
@@ -307,8 +308,8 @@ filters on `push`, and the same list in their `changes` job on `pull_request` (s
 below), so that pull requests touching only Android do not execute Desktop or macOS CI,
 and vice versa. `run_tests.sh` mirrors this locally: unless `--all` or an explicit product
 flag (`--python`, `--android`, `--macos`, `--linux`) is given, it inspects git status and
-branch diffs against `main` (changes to `.github/`, `run_tests.sh` or the format contract under
-`testdata/formats/` count for every product; `scripts/check_native_alignment.py` and `scripts/android_licenses.py` count for
+branch diffs against `main` (changes to `.github/`, `run_tests.sh`, the format contract under
+`testdata/formats/` or the conditions contract under `testdata/conditions/` count for every product; `scripts/check_native_alignment.py` and `scripts/android_licenses.py` count for
 Android, the legacy `products/desktop/scripts/update_formula.py` for Desktop (Lensjet's cask
 job no longer runs it), and `docs/products/linux-desktop/INSTALL.md` for Blitzlens, whose
 packaging test reads the APT key fingerprint from it — the same as the workflows' `paths:`).

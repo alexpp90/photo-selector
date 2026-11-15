@@ -17,6 +17,7 @@ would notice.
 | [`KEYBOARD.md`](KEYBOARD.md) | Frameduel, Lensjet, Blitzlens | The key map of the three desk apps as it is today, read from code, and the proposed aligned map |
 | [`FILE_OPERATIONS.md`](FILE_OPERATIONS.md) | All products | The non-destructive file operation contract: collision-free bundle naming, verified move before source removal, non-destructive undo, and partial failure reporting |
 | [`SUPPORTED_FORMATS.md`](SUPPORTED_FORMATS.md) | All products | The supported file-format contract, the real-camera test corpus, and how every product's format conformance tests keep it working |
+| [`USAGE_CONDITIONS.md`](USAGE_CONDITIONS.md) | All active products | The conditions users have — folder sizes, files, storage, session length — and how every product's scale tests and performance budgets use them |
 | [`UI_TEXT.md`](UI_TEXT.md) | All products (checked for Jackpix and Frameduel) | Icon-first controls, visible-text budgets per element in EN and DE, when a description is allowed, accessibility and localization rules, and the review checklist for UI text |
 
 ## What is shared in code

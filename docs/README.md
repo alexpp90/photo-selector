@@ -76,6 +76,7 @@ Every public document below is a link; `docs/README.md` is the index, and a test
 | | [`KEYBOARD.md`](shared/KEYBOARD.md) | The key map of Frameduel, Lensjet and Blitzlens today, and the proposed aligned map |
 | | [`FILE_OPERATIONS.md`](shared/FILE_OPERATIONS.md) | The non-destructive Move / Copy / Trash / Undo contract and its messages |
 | | [`SUPPORTED_FORMATS.md`](shared/SUPPORTED_FORMATS.md) | The supported-format contract read by every product's tests |
+| | [`USAGE_CONDITIONS.md`](shared/USAGE_CONDITIONS.md) | The conditions users have — folder sizes, files, storage, sessions — read by every product's scale tests |
 | | [`UI_TEXT.md`](shared/UI_TEXT.md) | Icon-first UI text rules and EN/DE text budgets |
 | | [`BRANDING.md`](shared/BRANDING.md) | Names, icons and colours of the four apps |
 | `build/` | [`CI_PARITY.md`](build/CI_PARITY.md) | What runs where and why; local mirror vs GitHub Actions |
