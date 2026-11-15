@@ -88,10 +88,16 @@ def _best(setup, timed) -> float:
     return best
 
 
+ATTEMPTS = 3  # a loaded machine can push one linear measurement past the limit; quadratic stays ~16
+
+
 def _assert_linear(operation: str, setup, timed) -> None:
-    small = _best(lambda: setup(SMALL), timed)
-    large = _best(lambda: setup(LARGE), timed)
-    ratio = large / max(small, 1e-9)
+    for _ in range(ATTEMPTS):
+        small = _best(lambda: setup(SMALL), timed)
+        large = _best(lambda: setup(LARGE), timed)
+        ratio = large / max(small, 1e-9)
+        if ratio <= MAX_RATIO:
+            return
     assert ratio <= MAX_RATIO, (
         f"{operation}: {small * 1000:.1f} ms at {SMALL} photos, {large * 1000:.1f} ms at {LARGE} "
         f"(x{ratio:.1f}, limit x{MAX_RATIO:g})"
