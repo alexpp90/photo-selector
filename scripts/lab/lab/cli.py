@@ -144,6 +144,18 @@ def build_parser() -> argparse.ArgumentParser:
     p_ucap.add_argument("--scenario", action="append", default=None, help="Only this scenario ID (repeatable)")
     p_ucap.add_argument("--locale", default=None, help="App language for this walk, e.g. de-DE (per-app locale, restored after)")
     p_ucap.add_argument("--font-scale", type=float, default=None, help="System font scale for this walk, e.g. 2.0 (restored after)")
+    p_sp = sub.add_parser(
+        "scroll-perf",
+        help="Large-folder scroll check: stage a big folder on the device, swipe, fail on skipped frames / jank vs a small baseline",
+    )
+    p_sp.add_argument("--product", required=True, choices=["phototok", "android-desktop"])
+    p_sp.add_argument("--serial", required=True, help="ADB serial; run under `scripts/android_test_device.py with-lock --serial <s> --`")
+    p_sp.add_argument("--photos", type=int, default=None, help="Photos in the large folder (default: conditions.json folder_sizes.typical)")
+    p_sp.add_argument("--baseline-photos", type=int, default=None, help="Photos in the small baseline folder (default 40)")
+    p_sp.add_argument("--swipes", type=int, default=None, help="Navigation steps per run (default 15)")
+    p_sp.add_argument("--package", default=None, help="Package under test (default: the store package; use <id>.lab for the lab build)")
+    p_sp.add_argument("--factor", type=float, default=None, help="p99 / janky share may be this many times the baseline's (default 2.0)")
+    p_sp.add_argument("--out", default=None, help="Output directory for screencaps and result.json")
     p_udev = sub.add_parser(
         "usability-devices",
         help="Walk order of the devices for a product's usability scenarios (first and second device; the Moto G77 leads when attached)",
@@ -289,6 +301,9 @@ def main(argv: list[str] | None = None) -> int:
 
     if args.subcommand.startswith("usability-"):
         return _usability(args)
+
+    if args.subcommand == "scroll-perf":
+        return _scroll_perf(args)
 
     if args.subcommand == "preflight":
         import shutil
@@ -793,3 +808,33 @@ def _usability(args: argparse.Namespace) -> int:
         print(md_path)
         return 0
     return 2
+
+
+def _scroll_perf(args: argparse.Namespace) -> int:
+    import subprocess
+    import time
+
+    from . import scroll_perf as sp
+    from .paths import lab_tmp_root, repo_root
+
+    def adb(*a: str, timeout: int = 30) -> str:
+        return subprocess.run(["adb", "-s", args.serial, *a], capture_output=True, text=True,
+                              timeout=timeout, check=False).stdout
+
+    def screencap() -> bytes:
+        return subprocess.run(["adb", "-s", args.serial, "exec-out", "screencap", "-p"],
+                              capture_output=True, timeout=30, check=True).stdout
+
+    contract_file = repo_root() / "testdata" / "conditions" / "conditions.json"
+    typical = (json.loads(contract_file.read_text())["folder_sizes"]["typical"]["photos"]
+               if contract_file.is_file() else sp.DEFAULT_LARGE)
+    photos = args.photos or typical
+    out = Path(args.out) if args.out else lab_tmp_root() / "scroll-perf" / time.strftime("%Y%m%d-%H%M%S")
+    run = sp.ScrollPerfRun(adb, args.product, out, package=args.package, screencap=screencap,
+                           swipes=args.swipes or sp.DEFAULT_SWIPES)
+    jpeg = sp.jpeg_12mp(out / sp.SOURCE_NAME)
+    verdict, _base, _large = run.run(photos, args.baseline_photos or sp.DEFAULT_BASELINE, jpeg,
+                                     args.factor or sp.DEFAULT_FACTOR)
+    print(verdict.line)
+    print(f"evidence: {out}")
+    return 0 if verdict.ok else 1
