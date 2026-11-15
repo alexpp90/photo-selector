@@ -46,6 +46,13 @@ class SafTransferEngine(
     companion object {
         private const val TAG = "SafTransferEngine"
 
+        /**
+         * The suffix of the temporary name a copy is written under until it is complete and
+         * verified (H-JP-1). No photo extension, so both products' discovery ignores it; distinctive
+         * enough that a cleanup of stale temporaries never touches a user's file.
+         */
+        internal const val PARTIAL_SUFFIX = ".photoselector-partial"
+
         /** Dropped into every Selection folder so scans skip it and a card is recognised as culled. */
         const val SELECTION_MARKER_FILE_NAME = ".photoselector-selection"
         const val RAW_SUBFOLDER = "RAW"
@@ -444,7 +451,32 @@ class SafTransferEngine(
         storage: SafStorage,
         targetFoldersByKey: Map<String, DocumentFile>,
     ): Map<String, FolderListing> = targetFoldersByKey.mapValues { (_, folder) ->
-        queryFolderListing(storage, folder)
+        val listing = queryFolderListing(storage, folder)
+        removeStaleTemporaries(storage, folder, listing)
+    }
+
+    /**
+     * Delete the temporaries an earlier, interrupted copy left in [folder] (only names ending in
+     * [PARTIAL_SUFFIX]) and answer the listing without them. Safe here: transfers into one
+     * destination are serialised, so no live copy of this engine owns one at this point.
+     */
+    private fun removeStaleTemporaries(
+        storage: SafStorage,
+        folder: DocumentFile,
+        listing: FolderListing,
+    ): FolderListing {
+        val stale = listing.names.filter { it.endsWith(PARTIAL_SUFFIX) }
+        if (stale.isEmpty()) return listing
+        val gone = stale.filter { name ->
+            try {
+                val doc = findChild(storage, folder, name)
+                doc == null || doc.delete() || !doc.exists()
+            } catch (e: Exception) {
+                Log.w(TAG, "Could not remove stale temporary $name", e)
+                false
+            }
+        }.toSet()
+        return FolderListing(listing.names - gone, listing.documentIds)
     }
 
     /**
@@ -972,6 +1004,20 @@ class SafTransferEngine(
         desiredName: String,
         selectionFolderName: String,
     ): CopyStepResult {
+        // Written under a temporary name and renamed once complete and verified, so a copy cut
+        // short (process death, card pulled) never leaves a truncated file under its final name
+        // (H-JP-1). The temporary has no media type of its own: a provider adds the extension of
+        // the type to a name that lacks it, which would hide the suffix.
+        val temporary = targetFolder.createFile("application/octet-stream", desiredName + PARTIAL_SUFFIX)
+        if (temporary != null && temporary.name == desiredName + PARTIAL_SUFFIX &&
+            supportsRename(storage, temporary)
+        ) {
+            return copyViaTemporary(storage, sourceUri, temporary, desiredName, selectionFolderName)
+        }
+        // A provider that cannot rename (or renames the temporary on creation): copy straight to
+        // the final name and remove it when the copy fails, as before.
+        if (temporary != null) cleanUpFailedCopy(temporary)
+
         val destFile = targetFolder.createFile(mimeType, desiredName)
             ?: return CopyStepResult.Failure("Could not write to the $selectionFolderName folder")
 
@@ -984,7 +1030,63 @@ class SafTransferEngine(
                 "Provider renamed destination file to '$actualName' instead of '$desiredName'",
             )
         }
+        return writeAndVerify(storage, sourceUri, destFile, selectionFolderName)
+    }
 
+    private fun supportsRename(storage: SafStorage, doc: DocumentFile): Boolean = try {
+        storage.contentResolver.query(
+            doc.uri,
+            arrayOf(DocumentsContract.Document.COLUMN_FLAGS),
+            null,
+            null,
+            null,
+        )?.use { cursor ->
+            val index = cursor.getColumnIndex(DocumentsContract.Document.COLUMN_FLAGS)
+            index >= 0 && cursor.moveToFirst() && !cursor.isNull(index) &&
+                (cursor.getInt(index) and DocumentsContract.Document.FLAG_SUPPORTS_RENAME) != 0
+        } ?: false
+    } catch (_: Exception) {
+        false
+    }
+
+    /** Copy into [temporary], verify it, then give it the final name [desiredName]. */
+    private fun copyViaTemporary(
+        storage: SafStorage,
+        sourceUri: Uri,
+        temporary: DocumentFile,
+        desiredName: String,
+        selectionFolderName: String,
+    ): CopyStepResult {
+        val written = writeAndVerify(storage, sourceUri, temporary, selectionFolderName)
+        if (written !is CopyStepResult.Success) return written
+        val renamed = try {
+            temporary.renameTo(desiredName)
+        } catch (e: CancellationException) {
+            throw e
+        } catch (e: Exception) {
+            Log.w(TAG, "Could not rename ${temporary.uri} to $desiredName", e)
+            false
+        }
+        if (!renamed) return failedCopy(temporary, "Could not write to the $selectionFolderName folder")
+        // The provider answers a taken name with "name (1).ext" (a writer that raced us): that
+        // would break companion pairing, so the copy fails and only our document is removed.
+        val actualName = temporary.name
+        if (!actualName.isNullOrEmpty() && !actualName.equals(desiredName, ignoreCase = true)) {
+            return failedCopy(
+                temporary,
+                "Provider renamed destination file to '$actualName' instead of '$desiredName'",
+            )
+        }
+        return CopyStepResult.Success(temporary, sourceVerified = written.sourceVerified)
+    }
+
+    /** Stream [sourceUri] into [destFile] and verify the byte count; a failed copy is removed. */
+    private fun writeAndVerify(
+        storage: SafStorage,
+        sourceUri: Uri,
+        destFile: DocumentFile,
+        selectionFolderName: String,
+    ): CopyStepResult {
         val resolver = storage.contentResolver
         val sourceSize = querySourceSize(resolver, sourceUri)
         var bytesCopied = -1L
