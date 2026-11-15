@@ -98,6 +98,21 @@ public final class CullingWorkspaceViewModel: ObservableObject {
         isShortcutsHelpPresented = true
     }
 
+    /// The four live counters of the action bar in ONE pass over the list (the bar read four
+    /// properties, each a pass, `remainingCount` three more, on every render).
+    public var statusTally: (selected: Int, trashed: Int, copied: Int, remaining: Int) {
+        var selected = 0, trashed = 0, copied = 0
+        for photo in photos {
+            switch photo.status {
+            case .selected: selected += 1
+            case .trashed: trashed += 1
+            case .copied: copied += 1
+            default: break
+            }
+        }
+        return (selected, trashed, copied, max(0, photos.count - selected - copied - trashed))
+    }
+
     public var selectedCount: Int {
         photos.filter { $0.status == .selected }.count
     }
@@ -267,6 +282,7 @@ public final class CullingWorkspaceViewModel: ObservableObject {
             return
         }
         scoringProgress = ScoringProgress(done: total - targets.count, total: total)
+        scoredCount = total - targets.count
         libraryScoringTask = Task.detached(priority: .utility) { [weak self] in
             var batch: [(UUID, QualityScores)] = []
             var handled = 0
@@ -295,24 +311,57 @@ public final class CullingWorkspaceViewModel: ObservableObject {
         scoringProgress = nil
     }
 
-    private func applyScoreBatch(_ batch: [(UUID, QualityScores)], handled: Int, finished: Bool = false) {
+    /// Photos holding a score during the current scoring pass; replaces a recount of the whole list
+    /// per batch (a photo scored meanwhile by the viewport is not counted until the pass ends).
+    private var scoredCount = 0
+
+    /// Applies one batch of scores. Per batch the work is the batch size, not the list size: ids
+    /// are located through `photoIndex(of:rebuilt:)` and the list is published once.
+    func applyScoreBatch(_ batch: [(UUID, QualityScores)], handled: Int, finished: Bool = false) {
         if !batch.isEmpty {
-            let updates = Dictionary(batch, uniquingKeysWith: { first, _ in first })
-            var updated = photos
-            for index in updated.indices where updated[index].scores == nil {
-                if let scores = updates[updated[index].id] { updated[index].scores = scores }
+            var rebuilt = false
+            var seen = Set<Int>()
+            var writes: [(index: Int, scores: QualityScores)] = []
+            for (id, scores) in batch {
+                guard let index = photoIndex(of: id, rebuilt: &rebuilt),
+                      photos[index].scores == nil,
+                      seen.insert(index).inserted else { continue }
+                writes.append((index, scores))
             }
-            photos = updated
+            if !writes.isEmpty {
+                var local = photos
+                photos = []   // `local` is now the only holder: the writes below do not copy the list
+                for write in writes { local[write.index].scores = write.scores }
+                photos = local
+                scoredCount += writes.count
+            }
         }
         let total = photos.count
-        let remaining = photos.filter { $0.scores == nil }.count
         if finished {
             scoringProgress = nil
             libraryScoringTask = nil
             finishScoringIfNeeded()
         } else {
-            scoringProgress = ScoringProgress(done: total - remaining, total: total)
+            scoringProgress = ScoringProgress(done: min(total, scoredCount), total: total)
         }
+    }
+
+    /// id -> position, rebuilt only when a lookup misses (a sort, a removal or an append moved things).
+    /// Every hit is verified against the list, so a stale entry is never trusted.
+    private var photoIndexCache: [UUID: Int] = [:]
+
+    /// Position of `id` in `photos`. A miss rebuilds the map once per call sequence (`rebuilt`); an id
+    /// still missing after that is not in the list.
+    private func photoIndex(of id: UUID, rebuilt: inout Bool) -> Int? {
+        if let index = photoIndexCache[id], photos.indices.contains(index), photos[index].id == id {
+            return index
+        }
+        guard !rebuilt else { return nil }
+        rebuilt = true
+        var map = [UUID: Int](minimumCapacity: photos.count)
+        for (index, photo) in photos.enumerated() { map[photo.id] = index }
+        photoIndexCache = map
+        return map[id]
     }
 
     private func finishScoringIfNeeded() {
@@ -681,18 +730,20 @@ public final class CullingWorkspaceViewModel: ObservableObject {
         return ImageMetadataReader.readMetadata(from: url)
     }
 
-    private func applyMetadata(_ updates: [UUID: ExifData]) {
-        var updated = photos
-        var changed = false
-        for index in updated.indices where updated[index].exif == nil {
-            if let exif = updates[updated[index].id] {
-                updated[index].exif = exif
-                changed = true
-            }
+    /// Applies one batch of EXIF reads (`startMetadataEnrichment` flushes every 64). Per batch the
+    /// work is the batch size, not the list size, and the list is published once.
+    func applyMetadata(_ updates: [UUID: ExifData]) {
+        var rebuilt = false
+        var writes: [(index: Int, exif: ExifData)] = []
+        for (id, exif) in updates {
+            guard let index = photoIndex(of: id, rebuilt: &rebuilt), photos[index].exif == nil else { continue }
+            writes.append((index, exif))
         }
-        if changed {
-            photos = updated
-        }
+        guard !writes.isEmpty else { return }
+        var local = photos
+        photos = []   // `local` is now the only holder: the writes below do not copy the list
+        for write in writes { local[write.index].exif = write.exif }
+        photos = local
     }
 
     /// Convenience alias for scanning a directory.
