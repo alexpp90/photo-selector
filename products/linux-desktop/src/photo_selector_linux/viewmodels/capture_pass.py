@@ -15,6 +15,15 @@ from typing import Any, Callable, Iterable, List, Optional, Set
 #: Photos read between two re-sorts (the last one always re-sorts).
 RESORT_EVERY = 25
 
+#: A pass re-sorts at most this many times, however big the folder: a fixed step re-sorted the whole
+#: list N/step times, which is quadratic (BL-P-1).
+MAX_RESORTS = 20
+
+
+def resort_every(total: int, step: int) -> int:
+    """Results between two re-sorts: ``step`` for a small folder, ``total / MAX_RESORTS`` for a big one."""
+    return max(step, total // MAX_RESORTS)
+
 
 class CapturePass:
     """One folder's pass; ``runner(photos, on_read)`` is the loader's ``run_capture_pass``."""
@@ -28,6 +37,7 @@ class CapturePass:
         self._requested: Set[str] = set()
         self._cancel: Optional[Callable[[], None]] = None
         self._since_resort = 0
+        self._total = 0
 
     @property
     def reading(self) -> bool:
@@ -41,6 +51,7 @@ class CapturePass:
             cancel()
         self._inflight = set()
         self._since_resort = 0
+        self._total = 0
         if forget:
             self._requested = set()
 
@@ -52,6 +63,7 @@ class CapturePass:
         if not todo:
             return False
         generation = self._generation
+        self._total += len(todo)
         for photo in todo:
             self._inflight.add(photo.id)
             self._requested.add(photo.id)
@@ -75,8 +87,9 @@ class CapturePass:
         if not self._inflight:
             self._cancel = None
             self._since_resort = 0
+            self._total = 0
             self._on_done()
-        elif self._since_resort >= RESORT_EVERY:
+        elif self._since_resort >= resort_every(self._total, RESORT_EVERY):
             self._since_resort = 0
             self._on_progress()
 
