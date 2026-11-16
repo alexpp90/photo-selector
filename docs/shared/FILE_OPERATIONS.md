@@ -138,9 +138,17 @@ files nothing twice.**
 
 - **Trash wins.** A later Trash of a copied photo counts it as Trashed, no longer as Selected;
   Undo of that Trash restores the copied state. Undo of the Copy itself makes the photo open again.
+- **Survives a reopen** (maintainer decision 2026-11-16). The copied state is remembered for the
+  folder: closing the app or the folder and opening it again shows the photo as copied, not as
+  undecided, and the counts and Remaining above hold across sessions. The record is the
+  product's own local app state, keyed by the folder and the file's identity (not by name
+  alone); nothing is written into the photo or beside it for this. When the photo's copy has
+  left the Selection since (deleted or moved by hand), the photo opens as undecided again
+  rather than claiming a copy that is gone.
 
 Each product implements this rule in its own code and proves it with a file-system test: Copy
-then Move leaves exactly one file per bundle member in the Selection.
+then Move leaves exactly one file per bundle member in the Selection; and Copy, close, reopen
+shows the photo as copied.
 
 ## User-facing feedback templates
 
