@@ -14,7 +14,6 @@ import json
 import re
 import xml.etree.ElementTree as ET
 from functools import lru_cache
-from pathlib import Path
 from typing import Any
 
 _BOUNDS = re.compile(r"\[(-?\d+),(-?\d+)\]\[(-?\d+),(-?\d+)\]")
