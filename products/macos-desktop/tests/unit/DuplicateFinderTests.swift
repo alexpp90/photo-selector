@@ -21,6 +21,36 @@ struct DuplicateFinderTests {
         #expect(hash == expected)
     }
 
+    @Test("REQ-MAC-DUPE.01, H-LJ-4: a link, a hard link and their file are one file, never a duplicate pair")
+    func testLinksAreNotDuplicates() async throws {
+        let tempDir = FileManager.default.temporaryDirectory
+            .appendingPathComponent("DupLinkTest_\(UUID().uuidString)")
+            .standardizedFileURL
+            .resolvingSymlinksInPath()
+        try FileManager.default.createDirectory(at: tempDir, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: tempDir) }
+
+        let original = tempDir.appendingPathComponent("a_original.bin")
+        let content = Data(repeating: 7, count: 32)
+        try content.write(to: original)
+        let symlink = tempDir.appendingPathComponent("b_link.bin")
+        try FileManager.default.createSymbolicLink(at: symlink, withDestinationURL: original)
+        let hardLink = tempDir.appendingPathComponent("c_hard.bin")
+        try FileManager.default.linkItem(at: original, to: hardLink)
+        let realCopy = tempDir.appendingPathComponent("d_copy.bin")
+        try content.write(to: realCopy)
+
+        // The three names of one file collapse to one entry; only the genuine copy pairs with it.
+        let clusters = try await DuplicateFinder.findDuplicates(in: tempDir)
+        #expect(clusters.count == 1)
+        let names = clusters.first?.fileURLs.map(\.lastPathComponent) ?? []
+        #expect(names == ["a_original.bin", "d_copy.bin"])
+
+        // Without a real copy there is nothing to report at all.
+        try FileManager.default.removeItem(at: realCopy)
+        #expect(try await DuplicateFinder.findDuplicates(in: tempDir).isEmpty)
+    }
+
     @Test("REQ-MAC-DUPE.01: Duplicate clustering groups files matching both size and SHA256 while isolating unique files")
     func testDuplicateClustering() async throws {
         let tempDir = FileManager.default.temporaryDirectory

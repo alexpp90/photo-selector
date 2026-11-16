@@ -18,6 +18,9 @@ public enum FileCullingError: Error, LocalizedError, Sendable {
     case moveFailed(source: URL, destination: URL, reason: String)
     case copyFailed(source: URL, destination: URL, reason: String)
     case trashFailed(url: URL, reason: String)
+    /// The folder listing needed to find a photo's companions failed (H-LJ-10). Nothing was
+    /// touched: acting on the photo alone would leave its RAW/JPEG twin, sidecar and edits behind.
+    case companionDiscoveryFailed(url: URL, reason: String)
     case partialTrashRollbackFailed(url: URL, reason: String, remainingTrashedPairs: [TrashedFilePair])
     /// A move copied (and size-verified) a member to the destination but could not remove the original.
     /// The destination copies are kept; `unremovedSources` still exist at their original paths.
@@ -35,6 +38,8 @@ public enum FileCullingError: Error, LocalizedError, Sendable {
             return "Failed to move file from \(src.lastPathComponent) to \(dst.lastPathComponent): \(reason)"
         case .copyFailed(let src, let dst, let reason):
             return "Failed to copy file from \(src.lastPathComponent) to \(dst.lastPathComponent): \(reason)"
+        case .companionDiscoveryFailed(let url, let reason):
+            return "Could not list the folder of \(url.lastPathComponent) to find its companion files: \(reason). Nothing was changed."
         case .trashFailed(let url, let reason):
             return "Failed to move file to trash \(url.lastPathComponent): \(reason)"
         case .partialTrashRollbackFailed(let url, let reason, let remaining):
@@ -99,64 +104,82 @@ public final class FileCullingManager: @unchecked Sendable {
 
     /// Finds all companion files associated with the specified primary photo file in the same directory.
     /// Includes RAW+JPEG pairs, XMP sidecars, and Lightroom edits (-Edit.*).
+    ///
+    /// Display-only callers use this: when the folder cannot be listed it returns the photo alone.
+    /// Anything that moves, copies or trashes uses `discoverCompanions(for:)`, which throws instead.
     /// - Parameter photoURL: The primary photo file URL.
     /// - Returns: An array of URLs including the primary photo and all discovered companions.
     public func findCompanionFiles(for photoURL: URL) -> [URL] {
+        (try? discoverCompanions(for: photoURL)) ?? [photoURL]
+    }
+
+    /// Companion discovery that reports a failed folder listing (`companionDiscoveryFailed`)
+    /// rather than pretending the photo has none (H-LJ-10).
+    ///
+    /// A companion is a regular file next to the photo: the same stem with a photo or sidecar
+    /// extension, `<file>.xmp`, or a derivative whose stem is the photo's stem plus exactly
+    /// `-Edit` / `_Edit` / `-Enhanced-NR` / `_Enhanced-NR` (and an optional `-N`). A folder, a
+    /// `.mov` or an `-editorial` file that merely shares the stem is not one (H-LJ-5;
+    /// `testdata/formats/companions.json`).
+    public func discoverCompanions(for photoURL: URL) throws -> [URL] {
         // Resolve the *folder* only: a symlinked photo's companions are its neighbours in the
         // folder being culled, not the files next to the link target.
         let parentDir = photoURL.standardizedFileURL.deletingLastPathComponent().resolvingSymlinksInPath()
         let canonicalPrimary = parentDir.appendingPathComponent(photoURL.lastPathComponent)
-        guard let contents = try? fileManager.contentsOfDirectory(
-            at: parentDir,
-            includingPropertiesForKeys: nil,
-            options: [.skipsHiddenFiles]
-        ) else {
-            return [photoURL]
+        let contents: [URL]
+        do {
+            contents = try fileManager.contentsOfDirectory(
+                at: parentDir,
+                includingPropertiesForKeys: [.isDirectoryKey],
+                options: [.skipsHiddenFiles]
+            )
+        } catch {
+            throw FileCullingError.companionDiscoveryFailed(url: photoURL, reason: error.localizedDescription)
         }
 
         let primaryFilename = canonicalPrimary.lastPathComponent
-        let primaryStem = canonicalPrimary.deletingPathExtension().lastPathComponent
-        let stemLower = primaryStem.lowercased()
-        // Lightroom edits and Enhanced-NR (Adobe Denoise) derivatives travel with their shot.
-        let derivativePrefixes = ["-edit", "_edit", "-enhanced-nr", "_enhanced-nr"].map { stemLower + $0 }
+        let stemLower = canonicalPrimary.deletingPathExtension().lastPathComponent.lowercased()
         let dotXmp = primaryFilename.lowercased() + ".xmp"
 
         var companions = Set<URL>()
-        companions.insert(photoURL)
-
         let baseDir = photoURL.deletingLastPathComponent()
 
         for rawCandidate in contents {
-            if rawCandidate.lastPathComponent == canonicalPrimary.lastPathComponent { continue }
             let candidateName = rawCandidate.lastPathComponent
+            if candidateName == primaryFilename { continue }
+            // A folder never travels with a photo, whatever it is called.
+            if (try? rawCandidate.resourceValues(forKeys: [.isDirectoryKey]))?.isDirectory == true { continue }
             let candidateNameLower = candidateName.lowercased()
             let candidateStemLower = rawCandidate.deletingPathExtension().lastPathComponent.lowercased()
-
             let candidateURL = baseDir.appendingPathComponent(candidateName)
 
-            // 1. Same stem, different extension (e.g. DSC0001.ARW -> DSC0001.JPG, DSC0001.xmp)
-            if candidateStemLower == stemLower {
+            // 1. Same stem, a photo or sidecar extension (DSC0001.ARW -> DSC0001.JPG, DSC0001.xmp).
+            //    Any other extension (a video, a text file) shares the name, not the shot.
+            if candidateStemLower == stemLower, Self.isCompanionExtension(rawCandidate) {
                 companions.insert(candidateURL)
                 continue
             }
 
-            // 2. Full filename + .xmp sidecar (e.g. DSC0001.ARW.xmp)
+            // 2. Full filename + .xmp sidecar (DSC0001.ARW.xmp)
             if candidateNameLower == dotXmp {
                 companions.insert(candidateURL)
                 continue
             }
 
-            // 3. Lightroom edits and Enhanced-NR derivatives (e.g. DSC0001-Edit.tif, DSC0001-Edit.xmp,
-            //    DSC0001-Enhanced-NR.dng)
-            if derivativePrefixes.contains(where: { candidateStemLower.hasPrefix($0) }) {
+            // 3. Lightroom edits and Enhanced-NR derivatives (DSC0001-Edit.tif, DSC0001-Edit.xmp,
+            //    DSC0001-Enhanced-NR.dng); "DSC0001-Editorial.jpg" is another photo.
+            if DirectoryScanner.editBaseStem(of: candidateStemLower) == stemLower {
                 companions.insert(candidateURL)
-                continue
             }
         }
 
         // Return primary first, then companions sorted alphabetically
-        let others = companions.filter { $0 != photoURL }.sorted { $0.lastPathComponent < $1.lastPathComponent }
+        let others = companions.sorted { $0.lastPathComponent < $1.lastPathComponent }
         return [photoURL] + others
+    }
+
+    private static func isCompanionExtension(_ url: URL) -> Bool {
+        SupportedFormats.isPhoto(url) || SupportedFormats.sidecarExtensions.contains(url.pathExtension.lowercased())
     }
 
     // MARK: - Collision-Free Bundle Naming
@@ -288,6 +311,9 @@ public final class FileCullingManager: @unchecked Sendable {
         guard fileManager.fileExists(atPath: photoURL.path) else {
             throw FileCullingError.fileNotFound(photoURL)
         }
+        // List the folder before touching anything: when it cannot be read the photo's companions
+        // are unknown, and the action refuses rather than leave them behind (H-LJ-10).
+        let targets = try discoverCompanions(for: photoURL)
 
         let selectionDir = CullingDestinationResolver.selectionFolder(in: rootURL, named: destinationFolderName)
         if !fileManager.fileExists(atPath: selectionDir.path) {
@@ -299,7 +325,6 @@ public final class FileCullingManager: @unchecked Sendable {
         }
         writeSelectionMarkerIfNeeded(in: selectionDir)
 
-        let targets = findCompanionFiles(for: photoURL)
         let primaryStem = photoURL.deletingPathExtension().lastPathComponent
         let resolvedPlan = resolveBundleDestinations(
             for: targets,
@@ -403,6 +428,9 @@ public final class FileCullingManager: @unchecked Sendable {
         guard fileManager.fileExists(atPath: photoURL.path) else {
             throw FileCullingError.fileNotFound(photoURL)
         }
+        // List the folder before touching anything: when it cannot be read the photo's companions
+        // are unknown, and the action refuses rather than leave them behind (H-LJ-10).
+        let targets = try discoverCompanions(for: photoURL)
 
         let selectionDir = CullingDestinationResolver.selectionFolder(in: rootURL, named: destinationFolderName)
         if !fileManager.fileExists(atPath: selectionDir.path) {
@@ -414,7 +442,6 @@ public final class FileCullingManager: @unchecked Sendable {
         }
         writeSelectionMarkerIfNeeded(in: selectionDir)
 
-        let targets = findCompanionFiles(for: photoURL)
         let primaryStem = photoURL.deletingPathExtension().lastPathComponent
         let resolvedPlan = resolveBundleDestinations(
             for: targets,
@@ -489,7 +516,7 @@ public final class FileCullingManager: @unchecked Sendable {
             RejectedFolderService(folder: $0, fileManager: fileManager)
         } ?? self.trashService
 
-        let targets = findCompanionFiles(for: photoURL)
+        let targets = try discoverCompanions(for: photoURL)
         let primaryStem = photoURL.deletingPathExtension().lastPathComponent
         let originalDir = photoURL.deletingLastPathComponent()
         var trashedPairs: [TrashedFilePair] = []

@@ -253,6 +253,7 @@ public struct ContentView: View {
         .onChange(of: viewModel.cloudBanner) { _, banner in
             if let banner { AccessibilityNotification.Announcement(banner).post() }
         }
+        .environment(\.dismissToast, { _ = viewModel.dismissStickyToast() })
         // VoiceOver hears what a sighted user reads in the toast (REQ-MAC-A11Y.01).
         .onChange(of: viewModel.currentToast) { _, toast in
             if let toast {

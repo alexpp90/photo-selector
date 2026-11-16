@@ -11,8 +11,9 @@ public enum PhotoStatus: String, Sendable, Codable, CaseIterable {
 /// Represents a photo candidate for inspection, scoring, and culling.
 public struct PhotoItem: Identifiable, Sendable, Hashable, Codable, Equatable {
     public let id: UUID
-    public let url: URL
-    public let filename: String
+    /// Where the file is now. Changes only when an undo had to restore it under another name.
+    public var url: URL { didSet { filename = url.lastPathComponent } }
+    public private(set) var filename: String
     public var scores: QualityScores?
     public var exif: ExifData?
     public var status: PhotoStatus
