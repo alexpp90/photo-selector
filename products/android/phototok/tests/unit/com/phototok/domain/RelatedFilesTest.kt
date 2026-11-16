@@ -1,6 +1,7 @@
 package com.phototok.domain
 
 import com.photoselector.core.Requirement
+import com.phototok.testsupport.ScaleConditions
 import com.phototok.data.model.ImageItem
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
@@ -283,5 +284,27 @@ class RelatedFilesTest {
             setOf("a/DSC_0001.JPG", "a/DSC_0002.HEIC", "b/DSC_0004.JPG", "b/DSC_0007.JPG").map { "content://photos/$it" }.toSet(),
             RelatedFiles.rawCompanionUris(all, all),
         )
+    }
+
+    /**
+     * Scale: pr. The "RAW+JPG" pill set of a camera roll full of RAW+JPEG pairs (the shape that froze
+     * the feed per swipe, F-TOK-098): the same call at N and 4N photos grows linearly.
+     */
+    @Test
+    @Requirement("REQ-TOK-ARCH.07")
+    fun `rawCompanionUris grows linearly with the folder`() {
+        fun roll(photos: Int): List<ImageItem> = (0 until photos).map {
+            val stem = "DSC_${it / 2}"
+            val name = if (it % 2 == 0) "$stem.ARW" else "$stem.JPG"
+            img(name).copy(uri = "content://photos/card/$name", parentUri = "card")
+        }
+        val small = roll(ScaleConditions.baseN)
+        val large = roll(ScaleConditions.prPhotos)
+        val tSmall = ScaleConditions.bestNanos { repeat(20) { RelatedFiles.rawCompanionUris(small, small) } }
+        val tLarge = ScaleConditions.bestNanos { repeat(20) { RelatedFiles.rawCompanionUris(large, large) } }
+        assertEquals(large.size / 2, RelatedFiles.rawCompanionUris(large, large).size)
+        val ratio = tLarge.toDouble() / tSmall
+        println("SCALE rawCompanionUris N=${small.size}: ${tSmall / 1_000_000} ms, 4N=${large.size}: ${tLarge / 1_000_000} ms, ratio=$ratio")
+        assertTrue("4N took ${"%.1f".format(ratio)}x N, limit ${ScaleConditions.maxRatio}", ratio <= ScaleConditions.maxRatio)
     }
 }

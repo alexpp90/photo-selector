@@ -5,6 +5,7 @@ import android.content.Context
 import android.database.MatrixCursor
 import android.net.Uri
 import android.provider.DocumentsContract
+import com.photoselector.core.Requirement
 import io.mockk.every
 import io.mockk.mockk
 import kotlinx.coroutines.ExperimentalCoroutinesApi
@@ -343,6 +344,27 @@ class LocalImageSourceDiscoveryTest {
     fun `an upright or 180 degree photo keeps its stored dimensions`() {
         assertEquals(Pair(40, 20), dimensionsOf(jpegWithOrientation(40, 20, 1)))
         assertEquals(Pair(40, 20), dimensionsOf(jpegWithOrientation(40, 20, 3)))
+    }
+
+    /**
+     * Sort by orientation sizes every photo of a folder: one header read per file, not one for the
+     * bounds and a second for the EXIF orientation (2026-11-15, scale contract).
+     */
+    @Test
+    @Requirement("REQ-TOK-ARCH.10")
+    fun `a photo is opened once to learn its displayed dimensions`() {
+        val bytes = jpegWithOrientation(40, 20, 6)
+        val uri = Uri.parse("content://$AUTHORITY/photo")
+        var opens = 0
+        every { contentResolver.openInputStream(uri) } answers {
+            opens++
+            java.io.ByteArrayInputStream(bytes)
+        }
+
+        val dims = kotlinx.coroutines.runBlocking { source.getImageDimensions(uri) }
+
+        assertEquals(Pair(20, 40), dims)
+        assertEquals("one open per photo", 1, opens)
     }
 
     @Test
