@@ -35,10 +35,18 @@ struct RepeatFilingTests {
         return Env(root: root, vm: vm)
     }
 
+    /// Waits (bounded) until no job is in flight and `condition` holds: a state, never a delay.
+    private func idle(_ env: Env, _ condition: () -> Bool = { true }) async {
+        let deadline = Date().addingTimeInterval(10)
+        while Date() < deadline, env.vm.cardCullSummary.inFlightCount > 0 || !condition() {
+            await Task.yield()
+            try? await Task.sleep(nanoseconds: 5_000_000)
+        }
+    }
+
     /// Lets the actor finish the queued jobs.
     private func settle(_ env: Env, expecting files: Int) async throws {
-        for _ in 0..<80 where env.filesInSelection().count < files { try await Task.sleep(nanoseconds: 25_000_000) }
-        try await Task.sleep(nanoseconds: 100_000_000)
+        await idle(env) { env.filesInSelection().count >= files }
     }
 
     @Test("Copy then Move leaves exactly one file in the Selection and keeps the original")
@@ -48,7 +56,7 @@ struct RepeatFilingTests {
         try await settle(env, expecting: 1)
         env.vm.cullCurrentPhoto(action: .move)
         #expect(env.vm.currentToast?.title == "Already in Selection")
-        try await Task.sleep(nanoseconds: 200_000_000)
+        await idle(env)
         #expect(env.filesInSelection() == ["IMG_00.JPG"], "no -2 copy beside the first")
         #expect(FileManager.default.fileExists(atPath: env.root.appendingPathComponent("IMG_00.JPG").path))
         #expect(env.vm.photos[0].status == .copied)
@@ -62,10 +70,10 @@ struct RepeatFilingTests {
         try await settle(env, expecting: 1)
         env.vm.cullCurrentPhoto(action: .copy)
         #expect(env.vm.currentToast?.title == "Already copied")
-        try await Task.sleep(nanoseconds: 200_000_000)
+        await idle(env)
         #expect(env.filesInSelection() == ["IMG_00.JPG"])
         env.vm.undoLastAction()
-        try await Task.sleep(nanoseconds: 300_000_000)
+        await idle(env) { env.filesInSelection().isEmpty }
         #expect(env.vm.canUndo == false, "the refused press left no undo entry, so one Undo took the Copy back")
         #expect(env.filesInSelection().isEmpty)
     }
@@ -77,7 +85,7 @@ struct RepeatFilingTests {
         try await settle(env, expecting: 1)
         env.vm.cullCurrentPhoto(action: .copy)
         #expect(env.vm.currentToast?.title == "Already in Selection")
-        try await Task.sleep(nanoseconds: 200_000_000)
+        await idle(env)
         #expect(env.filesInSelection() == ["IMG_00.JPG"])
     }
 

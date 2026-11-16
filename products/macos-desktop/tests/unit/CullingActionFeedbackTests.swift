@@ -177,7 +177,7 @@ struct CullingActionFeedbackTests {
         env.vm.undoLastAction()
 
         let toast = try #require(env.vm.currentToast, "Undo of \(action) gave no feedback")
-        #expect(toast.title == "Action Undone")
+        #expect(toast.title == LensjetCommand.undoneToastTitle(action: action))
         #expect(toast.subtitle == name)
         let copyInSelection = env.root.appendingPathComponent("Selection").appendingPathComponent(name)
         // Undo runs on the actor: wait for its end state (original home; for Copy the replica gone).

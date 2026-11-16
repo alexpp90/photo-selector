@@ -235,7 +235,7 @@ struct CullingWorkspaceViewModelTests {
         vm.undoLastAction()
         #expect(vm.photos[0].status == .candidate)
         #expect(vm.currentIndex == 0)
-        #expect(vm.currentToast?.title == "Action Undone")
+        #expect(vm.currentToast?.title == "Undone: Move")
     }
 
     @Test("Zoom and Sync toggles update workspace state")
