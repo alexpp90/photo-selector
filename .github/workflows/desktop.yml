@@ -285,7 +285,7 @@ jobs:
     name: Build on ${{ matrix.os }}
     needs: [test, visual]
     # `visual` is skipped on a main push, which would skip this job too without the explicit result test.
-    if: ${{ !cancelled() && needs.test.result == 'success' && contains(fromJSON('["success","skipped"]'), needs.visual.result) && (github.event_name == 'workflow_dispatch' || (github.event_name == 'push' && (github.ref == 'refs/heads/main' || startsWith(github.ref, 'refs/tags/desktop-v'))) }}
+    if: ${{ !cancelled() && needs.test.result == 'success' && contains(fromJSON('["success","skipped"]'), needs.visual.result) && (github.event_name == 'workflow_dispatch' || (github.event_name == 'push' && (github.ref == 'refs/heads/main' || startsWith(github.ref, 'refs/tags/desktop-v')))) }}
     runs-on: ${{ matrix.os }}
     timeout-minutes: 15
     defaults:

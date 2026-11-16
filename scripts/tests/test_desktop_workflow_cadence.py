@@ -49,6 +49,11 @@ class DesktopCadenceTest(unittest.TestCase):
     def test_the_visual_job_runs_only_on_the_full_pipeline(self):
         self.assertIn("needs.changes.outputs.full == 'true'", job_block(self.text, "visual"))
 
+    def test_every_expression_has_balanced_parentheses(self):
+        # An unbalanced `${{ }}` makes GitHub reject the whole file ("workflow file issue", 0 s run).
+        for expr in re.findall(r"\$\{\{(.*?)\}\}", self.text):
+            self.assertEqual(expr.count("("), expr.count(")"), expr)
+
     def test_the_release_build_does_not_need_the_visual_job_to_have_run(self):
         build = job_block(self.text, "build")
         self.assertIn("needs.test.result == 'success'", build)
