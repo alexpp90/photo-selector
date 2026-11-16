@@ -114,6 +114,11 @@ toast/zoom-pill placement at 1024 pt and the 960 pt minimum width) — needs a l
 products/macos-desktop/scripts/ui_smoke_test.sh
 ```
 
+It runs on 120 photos by default; `--contract-size` runs it on the 10,000-photo folder of
+`testdata/conditions/conditions.json` (the first photo must still be drawn in under 2 s) and
+`--stress` on the 50,000-photo release stress folder. The scale tests of the unit suite
+(`ScaleContractTests`) run in the normal test run; `PST_SCALE_STRESS=1` adds the stress size.
+
 The optional window-server key probe uses System Events and needs Accessibility permission
 for your terminal (System Settings → Privacy & Security → Accessibility); without it that one
 probe reports `⊘ SKIPPED`.
