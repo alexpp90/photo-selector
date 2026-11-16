@@ -1,0 +1,946 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<issues format="6" by="lint 9.5.1" type="baseline" client="gradle" dependencies="false" name="AGP (9.5.1)" variant="all" version="9.5.1">
+
+    <issue
+        id="EmptySuperCall"
+        message="No need to call `super.onCleared`; the super method is defined to be empty"
+        errorLine1="        super.onCleared()"
+        errorLine2="              ~~~~~~~~~">
+        <location
+            file="src/com/photoselectortoolbox/viewmodel/DuplicatesViewModel.kt"
+            line="321"
+            column="15"/>
+    </issue>
+
+    <issue
+        id="EmptySuperCall"
+        message="No need to call `super.onCleared`; the super method is defined to be empty"
+        errorLine1="        super.onCleared()"
+        errorLine2="              ~~~~~~~~~">
+        <location
+            file="src/com/photoselectortoolbox/viewmodel/SelectorViewModel.kt"
+            line="2300"
+            column="15"/>
+    </issue>
+
+    <issue
+        id="CheckResult"
+        message="The result of `onFirst` is not used"
+        errorLine1="        rule.onAllNodes(hasContentDescription(&quot;Hide photo info&quot;)).onFirst()"
+        errorLine2="        ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~">
+        <location
+            file="tests/unit/com/photoselectortoolbox/ui/selector/MaximisedFrameTest.kt"
+            line="272"
+            column="9"/>
+    </issue>
+
+    <issue
+        id="CheckResult"
+        message="The result of `onFirst` is not used"
+        errorLine1="        rule.onAllNodes(hasContentDescription(&quot;Show photo info&quot;)).onFirst()"
+        errorLine2="        ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~">
+        <location
+            file="tests/unit/com/photoselectortoolbox/ui/selector/MaximisedFrameTest.kt"
+            line="280"
+            column="9"/>
+    </issue>
+
+    <issue
+        id="OldTargetApi"
+        message="Not targeting the latest versions of Android; compatibility modes apply. Consider testing and updating this version. Consult the `android.os.Build.VERSION_CODES` javadoc for details."
+        errorLine1="        targetSdk = 36"
+        errorLine2="        ~~~~~~~~~~~~~~">
+        <location
+            file="build.gradle.kts"
+            line="29"
+            column="9"/>
+    </issue>
+
+    <issue
+        id="LocalContextResourcesRead"
+        message="Reading Resources using LocalContext.current.resources is not configuration-aware and may return stale values if the Configuration changes"
+        errorLine1="    val notices = remember { context.resources.openRawResource(R.raw.third_party_notices).bufferedReader().use { it.readText() } }"
+        errorLine2="                             ~~~~~~~~~~~~~~~~~">
+        <location
+            file="src/com/photoselectortoolbox/ui/settings/LicencesRow.kt"
+            line="48"
+            column="30"/>
+    </issue>
+
+    <issue
+        id="LocalContextResourcesRead"
+        message="Reading Resources using LocalContext.current.resources is not configuration-aware and may return stale values if the Configuration changes"
+        errorLine1="    return remember(this, context, configuration) { resolve(context.resources) }"
+        errorLine2="                                                            ~~~~~~~~~~~~~~~~~">
+        <location
+            file="src/com/photoselectortoolbox/ui/text/UiTextResolver.kt"
+            line="33"
+            column="61"/>
+    </issue>
+
+    <issue
+        id="ModifierParameter"
+        message="Modifier parameter should be the first optional parameter"
+        errorLine1="    modifier: Modifier = Modifier,"
+        errorLine2="    ~~~~~~~~">
+        <location
+            file="src/com/photoselectortoolbox/ui/inspect/InspectScreen.kt"
+            line="1165"
+            column="5"/>
+    </issue>
+
+    <issue
+        id="ModifierParameter"
+        message="Modifier parameter should be the first optional parameter"
+        errorLine1="    modifier: Modifier = Modifier,"
+        errorLine2="    ~~~~~~~~">
+        <location
+            file="src/com/photoselectortoolbox/ui/selector/ThreeUpSelectorLayout.kt"
+            line="127"
+            column="5"/>
+    </issue>
+
+    <issue
+        id="ModifierParameter"
+        message="Modifier parameter should be the first optional parameter"
+        errorLine1="    modifier: Modifier = Modifier,"
+        errorLine2="    ~~~~~~~~">
+        <location
+            file="src/com/photoselectortoolbox/ui/selector/ThreeUpSelectorLayout.kt"
+            line="659"
+            column="5"/>
+    </issue>
+
+    <issue
+        id="StateFlowValueCalledInComposition"
+        message="StateFlow.value should not be called within composition"
+        errorLine1="    }.collectAsStateWithLifecycle(initialValue = selectorViewModel.uiState.value.folderUri)"
+        errorLine2="                                                                           ~~~~~">
+        <location
+            file="src/com/photoselectortoolbox/ui/navigation/AdaptiveNavigation.kt"
+            line="195"
+            column="76"/>
+    </issue>
+
+    <issue
+        id="StringFormatInvalid"
+        message="Incorrect formatting string `learn_lesson_exposure_ev_metering_concept_summary`; missing conversion character in &apos;`% a`&apos;?"
+        errorLine1="    &lt;string name=&quot;learn_lesson_exposure_ev_metering_concept_summary&quot;>Mehrfeldmessung trifft die meisten Szenen gut, doch Spotlicht mit hohem Kontrast oder Schneelandschaften täuschen den Belichtungsmesser. Die Spotmessung misst nur einen Kreis von 1–3 % auf dem Motiv, und mit der Belichtungskorrektur (+/- EV) verschiebst du Zeit- oder Blendenautomatik, ohne ganz auf manuell zu wechseln.&lt;/string>"
+        errorLine2="    ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~">
+        <location
+            file="res/values-de/strings.xml"
+            line="678"
+            column="5"/>
+    </issue>
+
+    <issue
+        id="StringFormatInvalid"
+        message="Incorrect formatting string `learn_lesson_exposure_ev_metering_concept_summary`; missing conversion character in &apos;`% c`&apos;?"
+        errorLine1="    &lt;string name=&quot;learn_lesson_exposure_ev_metering_concept_summary&quot;>Matrix/evaluative metering balances most scenes well, but high-contrast spotlighting or snowy landscapes can trick the meter. Spot metering measures only a 1–3% circle on your subject, while Exposure Compensation (+/- EV) lets you bias Aperture-Priority or Shutter-Priority exposures without switching to full Manual.&lt;/string>"
+        errorLine2="    ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~">
+        <location
+            file="res/values/strings.xml"
+            line="678"
+            column="5"/>
+    </issue>
+
+    <issue
+        id="StringFormatInvalid"
+        message="Incorrect formatting string `learn_lesson_exposure_ev_metering_concept_summary`; missing conversion character in &apos;`% c`&apos;?"
+        errorLine1="    &lt;string name=&quot;learn_lesson_exposure_ev_metering_concept_summary&quot;>Matrix/evaluative metering balances most scenes well, but high-contrast spotlighting or snowy landscapes can trick the meter. Spot metering measures only a 1–3% circle on your subject, while Exposure Compensation (+/- EV) lets you bias Aperture-Priority or Shutter-Priority exposures without switching to full Manual.&lt;/string>"
+        errorLine2="    ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~">
+        <location
+            file="res/values/strings.xml"
+            line="678"
+            column="5"/>
+    </issue>
+
+    <issue
+        id="MissingTranslation"
+        message="&quot;app_name&quot; is not translated in &quot;de&quot; (German)"
+        errorLine1="    &lt;string name=&quot;app_name&quot;>Frameduel&lt;/string>"
+        errorLine2="            ~~~~~~~~~~~~~~~">
+        <location
+            file="res/values/strings.xml"
+            line="3"
+            column="13"/>
+    </issue>
+
+    <issue
+        id="PluralsCandidate"
+        message="Formatting %d followed by words (&quot;files&quot;): This should probably be a plural rather than a string"
+        errorLine1="    &lt;string name=&quot;error_partial_delete&quot;>Deleted %1$d of %2$d files of %3$s&lt;/string>"
+        errorLine2="    ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~">
+        <location
+            file="res/values/strings.xml"
+            line="154"
+            column="5"/>
+    </issue>
+
+    <issue
+        id="PluralsCandidate"
+        message="Formatting %d followed by words (&quot;available&quot;): This should probably be a plural rather than a string"
+        errorLine1="    &lt;string name=&quot;cd_undo_menu&quot;>Undo last action, %1$d available&lt;/string>"
+        errorLine2="    ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~">
+        <location
+            file="res/values/strings.xml"
+            line="186"
+            column="5"/>
+    </issue>
+
+    <issue
+        id="PluralsCandidate"
+        message="Formatting %d followed by words (&quot;related&quot;): This should probably be a plural rather than a string"
+        errorLine1="    &lt;string name=&quot;snackbar_with_related&quot;>%1$s (+%2$d related)&lt;/string>"
+        errorLine2="    ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~">
+        <location
+            file="res/values/strings.xml"
+            line="327"
+            column="5"/>
+    </issue>
+
+    <issue
+        id="PluralsCandidate"
+        message="Formatting %d followed by words (&quot;recovered&quot;): This should probably be a plural rather than a string"
+        errorLine1="    &lt;string name=&quot;error_could_not_delete_recovered&quot;>Could not delete %1$d of %2$d recovered photos: %3$s&lt;/string>"
+        errorLine2="    ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~">
+        <location
+            file="res/values/strings.xml"
+            line="383"
+            column="5"/>
+    </issue>
+
+    <issue
+        id="PluralsCandidate"
+        message="Formatting %d followed by words (&quot;percent&quot;): This should probably be a plural rather than a string"
+        errorLine1="    &lt;string name=&quot;cd_zoom_percent&quot;>Zoom %1$d percent&lt;/string>"
+        errorLine2="    ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~">
+        <location
+            file="res/values/strings.xml"
+            line="458"
+            column="5"/>
+    </issue>
+
+    <issue
+        id="PluralsCandidate"
+        message="Formatting %d followed by words (&quot;missing&quot;): This should probably be a plural rather than a string"
+        errorLine1="    &lt;string name=&quot;label_missing_count&quot;>%1$d missing&lt;/string>"
+        errorLine2="    ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~">
+        <location
+            file="res/values/strings.xml"
+            line="481"
+            column="5"/>
+    </issue>
+
+    <issue
+        id="PluralsCandidate"
+        message="Formatting %d followed by words (&quot;moved&quot;): This should probably be a plural rather than a string"
+        errorLine1="    &lt;string name=&quot;cd_done_moved&quot;>%1$d moved&lt;/string>"
+        errorLine2="    ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~">
+        <location
+            file="res/values/strings.xml"
+            line="485"
+            column="5"/>
+    </issue>
+
+    <issue
+        id="PluralsCandidate"
+        message="Formatting %d followed by words (&quot;copied&quot;): This should probably be a plural rather than a string"
+        errorLine1="    &lt;string name=&quot;cd_done_copied&quot;>%1$d copied&lt;/string>"
+        errorLine2="    ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~">
+        <location
+            file="res/values/strings.xml"
+            line="486"
+            column="5"/>
+    </issue>
+
+    <issue
+        id="PluralsCandidate"
+        message="Formatting %d followed by words (&quot;deleted&quot;): This should probably be a plural rather than a string"
+        errorLine1="    &lt;string name=&quot;cd_done_deleted&quot;>%1$d deleted&lt;/string>"
+        errorLine2="    ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~">
+        <location
+            file="res/values/strings.xml"
+            line="487"
+            column="5"/>
+    </issue>
+
+    <issue
+        id="PluralsCandidate"
+        message="Formatting %d followed by words (&quot;selected&quot;): This should probably be a plural rather than a string"
+        errorLine1="    &lt;string name=&quot;label_selected_count&quot;>%1$d selected&lt;/string>"
+        errorLine2="    ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~">
+        <location
+            file="res/values/strings.xml"
+            line="557"
+            column="5"/>
+    </issue>
+
+    <issue
+        id="PluralsCandidate"
+        message="Formatting %d followed by words (&quot;percent&quot;): This should probably be a plural rather than a string"
+        errorLine1="    &lt;string name=&quot;cd_debrief_metric_before&quot;>%1$s, %2$d of %3$d, before %4$d percent&lt;/string>"
+        errorLine2="    ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~">
+        <location
+            file="res/values/strings.xml"
+            line="931"
+            column="5"/>
+    </issue>
+
+    <issue
+        id="PluralsCandidate"
+        message="Formatting %d followed by words (&quot;photos&quot;): This should probably be a plural rather than a string"
+        errorLine1="    &lt;string name=&quot;label_debrief_partial&quot;>%1$d of %2$d photos scanned&lt;/string>"
+        errorLine2="    ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~">
+        <location
+            file="res/values/strings.xml"
+            line="934"
+            column="5"/>
+    </issue>
+
+    <issue
+        id="ObsoleteSdkInt"
+        message="This folder configuration (`v26`) is unnecessary; `minSdkVersion` is 26. Merge all the resources in this folder into `mipmap-anydpi`.">
+        <location
+            file="res/mipmap-anydpi-v26"/>
+    </issue>
+
+    <issue
+        id="UnnecessaryArrayInit"
+        message="This initialization lambda (`{ 0 }`) is unnecessary and is less efficient"
+        errorLine1="            val columnGradSign = IntArray(width) { 0 }"
+        errorLine2="                                                 ~~~~~">
+        <location
+            file="src/com/photoselectortoolbox/domain/learn/TechniqueFactDetector.kt"
+            line="247"
+            column="50"/>
+    </issue>
+
+    <issue
+        id="UnusedResources"
+        message="The resource `R.drawable.ic_brand_mark` appears to be unused"
+        errorLine1="&lt;vector xmlns:android=&quot;http://schemas.android.com/apk/res/android&quot;"
+        errorLine2="^">
+        <location
+            file="res/drawable/ic_brand_mark.xml"
+            line="3"
+            column="1"/>
+    </issue>
+
+    <issue
+        id="TypographyDashes"
+        message="Replace &quot;-&quot; with an &quot;en dash&quot; character (–, &amp;#8211;) ?"
+        errorLine1="    &lt;string name=&quot;learn_coach_recommendation_3&quot;>Stop down 1-2 stops (e.g. to f/2.8) for whole-scene sharpness, or verify critical focus on subject eye/details.&lt;/string>"
+        errorLine2="                                                ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~">
+        <location
+            file="res/values/strings.xml"
+            line="883"
+            column="49"/>
+    </issue>
+
+    <issue
+        id="TypographyEllipsis"
+        message="Replace &quot;...&quot; with ellipsis character (…, &amp;#8230;) ?"
+        errorLine1="    &lt;string name=&quot;label_discovering_images&quot;>Discovering images...&lt;/string>"
+        errorLine2="                                            ~~~~~~~~~~~~~~~~~~~~~">
+        <location
+            file="res/values/strings.xml"
+            line="535"
+            column="45"/>
+    </issue>
+
+    <issue
+        id="TypographyEllipsis"
+        message="Replace &quot;...&quot; with ellipsis character (…, &amp;#8230;) ?"
+        errorLine1="        &lt;item quantity=&quot;one&quot;>Scanning %1$d image for duplicates...&lt;/item>"
+        errorLine2="                             ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~">
+        <location
+            file="res/values/strings.xml"
+            line="538"
+            column="30"/>
+    </issue>
+
+    <issue
+        id="TypographyEllipsis"
+        message="Replace &quot;...&quot; with ellipsis character (…, &amp;#8230;) ?"
+        errorLine1="        &lt;item quantity=&quot;other&quot;>Scanning %1$d images for duplicates...&lt;/item>"
+        errorLine2="                               ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~">
+        <location
+            file="res/values/strings.xml"
+            line="539"
+            column="32"/>
+    </issue>
+
+    <issue
+        id="TypographyEllipsis"
+        message="Replace &quot;...&quot; with ellipsis character (…, &amp;#8230;) ?"
+        errorLine1="    &lt;string name=&quot;label_analyzing&quot;>Analyzing...&lt;/string>"
+        errorLine2="                                   ~~~~~~~~~~~~">
+        <location
+            file="res/values/strings.xml"
+            line="542"
+            column="36"/>
+    </issue>
+
+    <issue
+        id="TypographyEllipsis"
+        message="Replace &quot;...&quot; with ellipsis character (…, &amp;#8230;) ?"
+        errorLine1="    &lt;string name=&quot;label_discovering_files&quot;>Discovering files...&lt;/string>"
+        errorLine2="                                           ~~~~~~~~~~~~~~~~~~~~">
+        <location
+            file="res/values/strings.xml"
+            line="572"
+            column="44"/>
+    </issue>
+
+    <issue
+        id="TypographyEllipsis"
+        message="Replace &quot;...&quot; with ellipsis character (…, &amp;#8230;) ?"
+        errorLine1="    &lt;string name=&quot;label_preparing_analysis&quot;>Preparing analysis...&lt;/string>"
+        errorLine2="                                            ~~~~~~~~~~~~~~~~~~~~~">
+        <location
+            file="res/values/strings.xml"
+            line="573"
+            column="45"/>
+    </issue>
+
+    <issue
+        id="UseKtx"
+        message="Use the KTX extension function `String.toUri` instead?"
+        errorLine1="            bitmapDecoder.decodeForAnalysis(Uri.parse(image.uri), image.fileName)"
+        errorLine2="                                            ~~~~~~~~~~~~~~~~~~~~">
+        <location
+            file="src/com/photoselectortoolbox/domain/usecase/AnalyzeCompositionUseCase.kt"
+            line="40"
+            column="45"/>
+    </issue>
+
+    <issue
+        id="UseKtx"
+        message="Use the KTX extension function `Bitmap.scale` instead?"
+        errorLine1="        val resized = Bitmap.createScaledBitmap(bitmap, width, height, true)"
+        errorLine2="                      ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~">
+        <location
+            file="src/com/photoselectortoolbox/domain/grouping/DHashCalculator.kt"
+            line="39"
+            column="23"/>
+    </issue>
+
+    <issue
+        id="UseKtx"
+        message="Use the KTX extension function `Bitmap.get` instead?"
+        errorLine1="                    val leftLuminance = luminance(resized.getPixel(x, y))"
+        errorLine2="                                                  ~~~~~~~~~~~~~~~~~~~~~~">
+        <location
+            file="src/com/photoselectortoolbox/domain/grouping/DHashCalculator.kt"
+            line="46"
+            column="51"/>
+    </issue>
+
+    <issue
+        id="UseKtx"
+        message="Use the KTX extension function `Bitmap.get` instead?"
+        errorLine1="                    val rightLuminance = luminance(resized.getPixel(x + 1, y))"
+        errorLine2="                                                   ~~~~~~~~~~~~~~~~~~~~~~~~~~">
+        <location
+            file="src/com/photoselectortoolbox/domain/grouping/DHashCalculator.kt"
+            line="47"
+            column="52"/>
+    </issue>
+
+    <issue
+        id="UseKtx"
+        message="Use the KTX extension function `String.toUri` instead?"
+        errorLine1="        Uri.parse(fileUri).lastPathSegment?.substringAfterLast(&apos;/&apos;) ?: unknown"
+        errorLine2="        ~~~~~~~~~~~~~~~~~~">
+        <location
+            file="src/com/photoselectortoolbox/ui/duplicates/DuplicatesScreen.kt"
+            line="563"
+            column="9"/>
+    </issue>
+
+    <issue
+        id="UseKtx"
+        message="Use the KTX extension function `String.toUri` instead?"
+        errorLine1="                val uri = Uri.parse(folderUri)"
+        errorLine2="                          ~~~~~~~~~~~~~~~~~~~~">
+        <location
+            file="src/com/photoselectortoolbox/viewmodel/DuplicatesViewModel.kt"
+            line="147"
+            column="27"/>
+    </issue>
+
+    <issue
+        id="UseKtx"
+        message="Use the KTX extension function `String.toUri` instead?"
+        errorLine1="                    Uri.parse(image.uri) to image.fileSize"
+        errorLine2="                    ~~~~~~~~~~~~~~~~~~~~">
+        <location
+            file="src/com/photoselectortoolbox/viewmodel/DuplicatesViewModel.kt"
+            line="169"
+            column="21"/>
+    </issue>
+
+    <issue
+        id="UseKtx"
+        message="Use the KTX extension function `String.toUri` instead?"
+        errorLine1="            scanned[uri]?.allFiles ?: listOf(CompanionFile(uri, Uri.parse(uri).lastPathSegment ?: uri))"
+        errorLine2="                                                                ~~~~~~~~~~~~~~">
+        <location
+            file="src/com/photoselectortoolbox/viewmodel/DuplicatesViewModel.kt"
+            line="269"
+            column="65"/>
+    </issue>
+
+    <issue
+        id="UseKtx"
+        message="Use the KTX extension function `String.toUri` instead?"
+        errorLine1="            val names = notDeleted.joinToString { Uri.parse(it).lastPathSegment?.substringAfterLast(&apos;/&apos;) ?: it }"
+        errorLine2="                                                  ~~~~~~~~~~~~~">
+        <location
+            file="src/com/photoselectortoolbox/viewmodel/DuplicatesViewModel.kt"
+            line="355"
+            column="51"/>
+    </issue>
+
+    <issue
+        id="UseKtx"
+        message="Use the KTX extension function `String.toUri` instead?"
+        errorLine1="        val parsedUri = remember(image.uri) { Uri.parse(image.uri) }"
+        errorLine2="                                              ~~~~~~~~~~~~~~~~~~~~">
+        <location
+            file="src/com/photoselectortoolbox/ui/selector/FullscreenViewer.kt"
+            line="992"
+            column="47"/>
+    </issue>
+
+    <issue
+        id="UseKtx"
+        message="Use the KTX extension function `String.toUri` instead?"
+        errorLine1="            val parsedUri = remember(imageUri) { Uri.parse(imageUri) }"
+        errorLine2="                                                 ~~~~~~~~~~~~~~~~~~~">
+        <location
+            file="src/com/photoselectortoolbox/ui/selector/FullscreenViewer.kt"
+            line="1085"
+            column="50"/>
+    </issue>
+
+    <issue
+        id="UseKtx"
+        message="Use the KTX extension function `String.toUri` instead?"
+        errorLine1="                imageRepository.deleteImage(context, Uri.parse(uri))"
+        errorLine2="                                                     ~~~~~~~~~~~~~~">
+        <location
+            file="src/com/photoselectortoolbox/data/repository/HeldDeleteCommitter.kt"
+            line="84"
+            column="54"/>
+    </issue>
+
+    <issue
+        id="UseKtx"
+        message="Use the KTX extension function `String.toUri` instead?"
+        errorLine1="        imageRepository.documentIdentity(context, Uri.parse(uri))"
+        errorLine2="                                                  ~~~~~~~~~~~~~~">
+        <location
+            file="src/com/photoselectortoolbox/data/repository/HeldDeleteCommitter.kt"
+            line="108"
+            column="51"/>
+    </issue>
+
+    <issue
+        id="UseKtx"
+        message="Use the KTX extension function `String.toUri` instead?"
+        errorLine1="            val uri = Uri.parse(image.uri)"
+        errorLine2="                      ~~~~~~~~~~~~~~~~~~~~">
+        <location
+            file="src/com/photoselectortoolbox/domain/grouping/ImageGrouper.kt"
+            line="206"
+            column="23"/>
+    </issue>
+
+    <issue
+        id="UseKtx"
+        message="Use the KTX extension function `String.toUri` instead?"
+        errorLine1="                val deleted = deleteImage(context, Uri.parse(file.uri))"
+        errorLine2="                                                   ~~~~~~~~~~~~~~~~~~~">
+        <location
+            file="src/com/photoselectortoolbox/data/repository/ImageRepositoryImpl.kt"
+            line="340"
+            column="52"/>
+    </issue>
+
+    <issue
+        id="UseKtx"
+        message="Use the KTX extension function `String.toUri` instead?"
+        errorLine1="            sourceUris = item.allFiles.map { Uri.parse(it.uri) },"
+        errorLine2="                                             ~~~~~~~~~~~~~~~~~">
+        <location
+            file="src/com/photoselectortoolbox/data/repository/ImageRepositoryImpl.kt"
+            line="399"
+            column="46"/>
+    </issue>
+
+    <issue
+        id="UseKtx"
+        message="Use the KTX extension function `String.toUri` instead?"
+        errorLine1="                withContext(ioDispatcher) { customSelectionKey(context, Uri.parse(custom), settings.selectionName) }"
+        errorLine2="                                                                        ~~~~~~~~~~~~~~~~~">
+        <location
+            file="src/com/photoselectortoolbox/data/repository/ImageRepositoryImpl.kt"
+            line="546"
+            column="73"/>
+    </issue>
+
+    <issue
+        id="UseKtx"
+        message="Use the KTX extension function `String.toUri` instead?"
+        errorLine1="        DocumentsContract.getDocumentId(Uri.parse(uri))"
+        errorLine2="                                        ~~~~~~~~~~~~~~">
+        <location
+            file="src/com/photoselectortoolbox/data/model/KeptFiles.kt"
+            line="52"
+            column="41"/>
+    </issue>
+
+    <issue
+        id="UseKtx"
+        message="Use the KTX extension function `String.toUri` instead?"
+        errorLine1="        val dimensions = readImageDimensions(Uri.parse(uri))"
+        errorLine2="                                             ~~~~~~~~~~~~~~">
+        <location
+            file="src/com/photoselectortoolbox/data/source/LocalImageSource.kt"
+            line="219"
+            column="46"/>
+    </issue>
+
+    <issue
+        id="UseKtx"
+        message="Use the KTX extension function `Bitmap.scale` instead?"
+        errorLine1="            Bitmap.createScaledBitmap(bitmap, targetW, targetH, true)"
+        errorLine2="            ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~">
+        <location
+            file="src/com/photoselectortoolbox/domain/analysis/OpenCvCompositionAnalyzer.kt"
+            line="113"
+            column="13"/>
+    </issue>
+
+    <issue
+        id="UseKtx"
+        message="Use the KTX extension function `Bitmap.scale` instead?"
+        errorLine1="            val scaled = Bitmap.createScaledBitmap(bitmap, size.first, size.second, true)"
+        errorLine2="                         ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~">
+        <location
+            file="src/com/photoselectortoolbox/data/source/PhotoBitmapDecoder.kt"
+            line="71"
+            column="26"/>
+    </issue>
+
+    <issue
+        id="UseKtx"
+        message="Use the KTX extension function `Bitmap.toDrawable` instead?"
+        errorLine1="            drawable = BitmapDrawable(options.context.resources, bitmap),"
+        errorLine2="                       ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~">
+        <location
+            file="src/com/photoselectortoolbox/data/source/PhotoImageLoader.kt"
+            line="41"
+            column="24"/>
+    </issue>
+
+    <issue
+        id="UseKtx"
+        message="Use the KTX extension function `String.toUri` instead?"
+        errorLine1="    override suspend fun read(uri: String): ExifData? = imageRepository.getExifData(context, Uri.parse(uri))"
+        errorLine2="                                                                                             ~~~~~~~~~~~~~~">
+        <location
+            file="src/com/photoselectortoolbox/data/repository/RepositoryExifReader.kt"
+            line="19"
+            column="94"/>
+    </issue>
+
+    <issue
+        id="UseKtx"
+        message="Use the KTX extension function `Bitmap.get` instead?"
+        errorLine1="                val argb = bitmap.getPixel(px, py)"
+        errorLine2="                           ~~~~~~~~~~~~~~~~~~~~~~~">
+        <location
+            file="src/com/photoselectortoolbox/domain/usecase/ScanFactRecorder.kt"
+            line="130"
+            column="28"/>
+    </issue>
+
+    <issue
+        id="UseKtx"
+        message="Use the KTX extension function `String.toUri` instead?"
+        errorLine1="        val uri = Uri.parse(image.uri)"
+        errorLine2="                  ~~~~~~~~~~~~~~~~~~~~">
+        <location
+            file="src/com/photoselectortoolbox/domain/usecase/ScanImagesUseCase.kt"
+            line="242"
+            column="19"/>
+    </issue>
+
+    <issue
+        id="UseKtx"
+        message="Use the KTX extension function `String.toUri` instead?"
+        errorLine1="        if (ownFolderUri == null &amp;&amp; seedFolderUri != null) latestOnSeed(Uri.parse(seedFolderUri))"
+        errorLine2="                                                                        ~~~~~~~~~~~~~~~~~~~~~~~~">
+        <location
+            file="src/com/photoselectortoolbox/ui/components/SeedFolder.kt"
+            line="23"
+            column="73"/>
+    </issue>
+
+    <issue
+        id="UseKtx"
+        message="Use the KTX extension function `String.toUri` instead?"
+        errorLine1="        imageRepository.documentIdentity(context, Uri.parse(uri))"
+        errorLine2="                                                  ~~~~~~~~~~~~~~">
+        <location
+            file="src/com/photoselectortoolbox/viewmodel/SelectorViewModel.kt"
+            line="170"
+            column="51"/>
+    </issue>
+
+    <issue
+        id="UseKtx"
+        message="Use the KTX extension function `String.toUri` instead?"
+        errorLine1="                    selectFolder(Uri.parse(uri))"
+        errorLine2="                                 ~~~~~~~~~~~~~~">
+        <location
+            file="src/com/photoselectortoolbox/viewmodel/SelectorViewModel.kt"
+            line="414"
+            column="34"/>
+    </issue>
+
+    <issue
+        id="UseKtx"
+        message="Use the KTX extension function `String.toUri` instead?"
+        errorLine1="        val folder = imageRepository.describeFolder(context, Uri.parse(uri))"
+        errorLine2="                                                             ~~~~~~~~~~~~~~">
+        <location
+            file="src/com/photoselectortoolbox/viewmodel/SelectorViewModel.kt"
+            line="422"
+            column="62"/>
+    </issue>
+
+    <issue
+        id="UseKtx"
+        message="Use the KTX extension function `String.toUri` instead?"
+        errorLine1="            val found = withContext(ioDispatcher) { imageRepository.selectionFolder(context, Uri.parse(folder)) }"
+        errorLine2="                                                                                             ~~~~~~~~~~~~~~~~~">
+        <location
+            file="src/com/photoselectortoolbox/viewmodel/SelectorViewModel.kt"
+            line="836"
+            column="94"/>
+    </issue>
+
+    <issue
+        id="UseKtx"
+        message="Use the KTX extension function `String.toUri` instead?"
+        errorLine1="        _uiState.value.doneSelection?.let { selectFolder(Uri.parse(it.uri)) }"
+        errorLine2="                                                         ~~~~~~~~~~~~~~~~~">
+        <location
+            file="src/com/photoselectortoolbox/viewmodel/SelectorViewModel.kt"
+            line="843"
+            column="58"/>
+    </issue>
+
+    <issue
+        id="UseKtx"
+        message="Use the KTX extension function `String.toUri` instead?"
+        errorLine1="                val uri = Uri.parse(photo.uri)"
+        errorLine2="                          ~~~~~~~~~~~~~~~~~~~~">
+        <location
+            file="src/com/photoselectortoolbox/viewmodel/SelectorViewModel.kt"
+            line="909"
+            column="27"/>
+    </issue>
+
+    <issue
+        id="UseKtx"
+        message="Use the KTX extension function `String.toUri` instead?"
+        errorLine1="        val uri = Uri.parse(currentImage.uri)"
+        errorLine2="                  ~~~~~~~~~~~~~~~~~~~~~~~~~~~">
+        <location
+            file="src/com/photoselectortoolbox/viewmodel/SelectorViewModel.kt"
+            line="1210"
+            column="19"/>
+    </issue>
+
+    <issue
+        id="UseKtx"
+        message="Use the KTX extension function `String.toUri` instead?"
+        errorLine1="                    imageRepository.deleteImage(context, Uri.parse(uri))"
+        errorLine2="                                                         ~~~~~~~~~~~~~~">
+        <location
+            file="src/com/photoselectortoolbox/viewmodel/SelectorViewModel.kt"
+            line="1319"
+            column="58"/>
+    </issue>
+
+    <issue
+        id="UseKtx"
+        message="Use the KTX extension function `String.toUri` instead?"
+        errorLine1="                    imageRepository.deleteImage(context, Uri.parse(uri))"
+        errorLine2="                                                         ~~~~~~~~~~~~~~">
+        <location
+            file="src/com/photoselectortoolbox/viewmodel/SelectorViewModel.kt"
+            line="1393"
+            column="58"/>
+    </issue>
+
+    <issue
+        id="UseKtx"
+        message="Use the KTX extension function `String.toUri` instead?"
+        errorLine1="        Uri.parse(uri).lastPathSegment?.substringAfterLast(&apos;/&apos;)?.substringAfterLast(&apos;:&apos;) ?: uri"
+        errorLine2="        ~~~~~~~~~~~~~~">
+        <location
+            file="src/com/photoselectortoolbox/viewmodel/SelectorViewModel.kt"
+            line="1449"
+            column="9"/>
+    </issue>
+
+    <issue
+        id="UseKtx"
+        message="Use the KTX extension function `String.toUri` instead?"
+        errorLine1="                val destination = Uri.parse(folderUri)"
+        errorLine2="                                  ~~~~~~~~~~~~~~~~~~~~">
+        <location
+            file="src/com/photoselectortoolbox/viewmodel/SelectorViewModel.kt"
+            line="1506"
+            column="35"/>
+    </issue>
+
+    <issue
+        id="UseKtx"
+        message="Use the KTX extension function `String.toUri` instead?"
+        errorLine1="                            imageRepository.restoreFromTrash(context, Uri.parse(uri))"
+        errorLine2="                                                                      ~~~~~~~~~~~~~~">
+        <location
+            file="src/com/photoselectortoolbox/viewmodel/SelectorViewModel.kt"
+            line="1704"
+            column="71"/>
+    </issue>
+
+    <issue
+        id="UseKtx"
+        message="Use the KTX extension function `String.toUri` instead?"
+        errorLine1="                            rootFolderUri = Uri.parse(folderUri),"
+        errorLine2="                                            ~~~~~~~~~~~~~~~~~~~~">
+        <location
+            file="src/com/photoselectortoolbox/viewmodel/SelectorViewModel.kt"
+            line="1753"
+            column="45"/>
+    </issue>
+
+    <issue
+        id="UseKtx"
+        message="Use the KTX extension function `String.toUri` instead?"
+        errorLine1="                        val exif = imageRepository.getExifData(context, Uri.parse(image.uri))"
+        errorLine2="                                                                        ~~~~~~~~~~~~~~~~~~~~">
+        <location
+            file="src/com/photoselectortoolbox/viewmodel/SelectorViewModel.kt"
+            line="2065"
+            column="73"/>
+    </issue>
+
+    <issue
+        id="UseKtx"
+        message="Use the KTX extension function `String.toUri` instead?"
+        errorLine1="            folderAccessManager.takeGrant(Uri.parse(uri), FolderAccessPurpose.SOURCE)"
+        errorLine2="                                          ~~~~~~~~~~~~~~">
+        <location
+            file="src/com/photoselectortoolbox/data/repository/SettingsRepository.kt"
+            line="272"
+            column="43"/>
+    </issue>
+
+    <issue
+        id="UseKtx"
+        message="Use the KTX extension function `String.toUri` instead?"
+        errorLine1="            folderAccessManager.takeGrant(Uri.parse(uri), FolderAccessPurpose.SELECTION_TARGET)"
+        errorLine2="                                          ~~~~~~~~~~~~~~">
+        <location
+            file="src/com/photoselectortoolbox/data/repository/SettingsRepository.kt"
+            line="510"
+            column="43"/>
+    </issue>
+
+    <issue
+        id="UseKtx"
+        message="Use the KTX extension function `String.toUri` instead?"
+        errorLine1="            folderAccessManager.takeGrant(Uri.parse(newUri), FolderAccessPurpose.SELECTION_TARGET)"
+        errorLine2="                                          ~~~~~~~~~~~~~~~~~">
+        <location
+            file="src/com/photoselectortoolbox/data/repository/SettingsRepository.kt"
+            line="761"
+            column="43"/>
+    </issue>
+
+    <issue
+        id="UseKtx"
+        message="Use the KTX extension function `String.toUri` instead?"
+        errorLine1="                    val intent = Intent(Intent.ACTION_VIEW, Uri.parse(com.photoselectortoolbox.domain.LegalLinks.SOURCE_CODE))"
+        errorLine2="                                                            ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~">
+        <location
+            file="src/com/photoselectortoolbox/ui/settings/SettingsScreen.kt"
+            line="424"
+            column="61"/>
+    </issue>
+
+    <issue
+        id="UseKtx"
+        message="Use the KTX extension function `String.toUri` instead?"
+        errorLine1="                    val intent = Intent(Intent.ACTION_VIEW, Uri.parse(com.photoselectortoolbox.domain.LegalLinks.PRIVACY_POLICY))"
+        errorLine2="                                                            ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~">
+        <location
+            file="src/com/photoselectortoolbox/ui/settings/SettingsScreen.kt"
+            line="440"
+            column="61"/>
+    </issue>
+
+    <issue
+        id="UseKtx"
+        message="Use the KTX extension function `String.toUri` instead?"
+        errorLine1="                    val intent = Intent(Intent.ACTION_VIEW, Uri.parse(com.photoselectortoolbox.domain.LegalLinks.IMPRESSUM))"
+        errorLine2="                                                            ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~">
+        <location
+            file="src/com/photoselectortoolbox/ui/settings/SettingsScreen.kt"
+            line="457"
+            column="61"/>
+    </issue>
+
+    <issue
+        id="UseKtx"
+        message="Use the KTX extension function `String.toUri` instead?"
+        errorLine1="        imageRepository.describeFolder(context, Uri.parse(uri))"
+        errorLine2="                                                ~~~~~~~~~~~~~~">
+        <location
+            file="src/com/photoselectortoolbox/viewmodel/SettingsViewModel.kt"
+            line="204"
+            column="49"/>
+    </issue>
+
+    <issue
+        id="UseKtx"
+        message="Use the KTX extension function `String.toUri` instead?"
+        errorLine1="                val uri = Uri.parse(folderUri)"
+        errorLine2="                          ~~~~~~~~~~~~~~~~~~~~">
+        <location
+            file="src/com/photoselectortoolbox/viewmodel/StatisticsViewModel.kt"
+            line="149"
+            column="27"/>
+    </issue>
+
+    <issue
+        id="UseKtx"
+        message="Use the KTX extension function `String.toUri` instead?"
+        errorLine1="                                        imageRepository.getExifData(context, Uri.parse(image.uri))"
+        errorLine2="                                                                             ~~~~~~~~~~~~~~~~~~~~">
+        <location
+            file="src/com/photoselectortoolbox/viewmodel/StatisticsViewModel.kt"
+            line="172"
+            column="78"/>
+    </issue>
+
+</issues>

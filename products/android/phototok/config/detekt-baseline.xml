@@ -1,0 +1,102 @@
+<?xml version="1.0" ?>
+<SmellBaseline>
+  <ManuallySuppressedIssues/>
+  <CurrentIssues>
+    <ID>ComplexCondition:CardTransferJournal.kt:CardTransferJournal$parts.size &gt;= 3 &amp;&amp; parts[0] == "C" &amp;&amp; parts[1].isNotBlank() &amp;&amp; parts[2].isNotBlank()</ID>
+    <ID>ComplexCondition:PhoneModeViewer.kt:!readOnly &amp;&amp; showFloatingPeeks &amp;&amp; !isZoomed &amp;&amp; !isSwipingLeft &amp;&amp; !isSwipingRight &amp;&amp; hudAlpha &gt; 0.5f &amp;&amp; !topBadgesSuppressed</ID>
+    <ID>ComplexCondition:PhoneModeViewer.kt:(isFavourite || hasRawCompanion) &amp;&amp; hudAlpha &gt; 0f &amp;&amp; !topBadgesSuppressed</ID>
+    <ID>ComplexCondition:ScreenshotSupport.kt:TextLoadChecks$text != null &amp;&amp; text.none { it.isWhitespace() } &amp;&amp; action(results) &amp;&amp; results.isNotEmpty()</ID>
+    <ID>ComplexCondition:SourceSettingsHolder.kt:SourceSettingsHolder$isCloud &amp;&amp; !cloudMoveCoercedNoticeShown &amp;&amp; (src.swipeRightVerb == SwipeRightVerb.MOVE || src.leftSwipeAction == SwipeAction.MOVE)</ID>
+    <ID>ComplexCondition:TransferUndoHolder.kt:TransferUndoHolder$!isCopy &amp;&amp; (failed &gt; 0 || partial &gt; 0) &amp;&amp; feedStillCurrent</ID>
+    <ID>ComplexCondition:VolumeMonitor.kt:VolumeMonitor.&lt;no name provided&gt;$action == Intent.ACTION_MEDIA_EJECT || action == Intent.ACTION_MEDIA_UNMOUNTED || action == Intent.ACTION_MEDIA_REMOVED || action == Intent.ACTION_MEDIA_BAD_REMOVAL</ID>
+    <ID>ConstructorParameterNaming:FeedDiscoveryHolder.kt:FeedDiscoveryHolder$private val _uiState: MutableStateFlow&lt;PhoneModeUiState&gt;</ID>
+    <ID>ConstructorParameterNaming:SourceSettingsHolder.kt:SourceSettingsHolder$private val _uiState: MutableStateFlow&lt;PhoneModeUiState&gt;</ID>
+    <ID>ConstructorParameterNaming:TransferUndoHolder.kt:TransferUndoHolder$private val _uiState: MutableStateFlow&lt;PhoneModeUiState&gt;</ID>
+    <ID>CyclomaticComplexMethod:ControlsGuideLayout.kt:@Composable private fun GuideLayout</ID>
+    <ID>CyclomaticComplexMethod:CopyMoveFeedback.kt:CopyMoveFeedback$fun message: UiText</ID>
+    <ID>CyclomaticComplexMethod:FeedDiscoveryHolder.kt:FeedDiscoveryHolder$private fun loadDimensionsAsynchronously</ID>
+    <ID>CyclomaticComplexMethod:FeedDiscoveryHolder.kt:FeedDiscoveryHolder$private suspend fun collectDiscoveredImages</ID>
+    <ID>CyclomaticComplexMethod:FeedDiscoveryHolder.kt:internal fun withDimensions: PhoneModeUiState</ID>
+    <ID>CyclomaticComplexMethod:FirstRunHintCard.kt:@Composable fun FirstRunHintCard</ID>
+    <ID>CyclomaticComplexMethod:FirstRunHints.kt:FirstRunHintText$fun title: UiText</ID>
+    <ID>CyclomaticComplexMethod:LocalImageSource.kt:LocalImageSourceImpl$private suspend fun walkImages</ID>
+    <ID>CyclomaticComplexMethod:PhoneFeedOrdering.kt:PhoneFeedOrdering$fun compareNatural: Int</ID>
+    <ID>CyclomaticComplexMethod:PhoneModeLanding.kt:@Composable fun PhoneModeLanding</ID>
+    <ID>CyclomaticComplexMethod:PhoneModeScreen.kt:@OptIn(ExperimentalMaterial3Api::class, ExperimentalComposeUiApi::class) @Composable fun PhoneModeScreen</ID>
+    <ID>CyclomaticComplexMethod:PhoneModeViewer.kt:@Composable fun PhoneModeViewer</ID>
+    <ID>CyclomaticComplexMethod:PhoneModeViewer.kt:@Composable private fun ImagePage</ID>
+    <ID>CyclomaticComplexMethod:SettingsRepository.kt:SettingsRepository.Companion$internal fun migrateLegacyKeysToPhone</ID>
+    <ID>CyclomaticComplexMethod:SettingsRepository.kt:SettingsRepository.Companion$internal fun phoneSettingsOf: PhoneSettings</ID>
+    <ID>CyclomaticComplexMethod:SettingsScreen.kt:@Composable fun SettingsScreen</ID>
+    <ID>CyclomaticComplexMethod:SourceSettingsHolder.kt:SourceSettingsHolder$fun observeSettings</ID>
+    <ID>CyclomaticComplexMethod:SourceSettingsHolder.kt:SourceSettingsHolder$fun observeSourceSettingsForKind</ID>
+    <ID>CyclomaticComplexMethod:TapOnlyClickable.kt:fun Modifier.tapOnlyClickable: Modifier</ID>
+    <ID>CyclomaticComplexMethod:TransferUndoHolder.kt:TransferUndoHolder$fun confirmClearEntireCard</ID>
+    <ID>CyclomaticComplexMethod:TransferUndoHolder.kt:TransferUndoHolder$private fun copyOrMoveCurrent</ID>
+    <ID>LargeClass:FeedDiscoveryHolder.kt:FeedDiscoveryHolder</ID>
+    <ID>LargeClass:SettingsRepository.kt:SettingsRepository</ID>
+    <ID>LargeClass:TransferUndoHolder.kt:TransferUndoHolder</ID>
+    <ID>LongMethod:ControlsGuideLayout.kt:@Composable private fun GuideLayout</ID>
+    <ID>LongMethod:DeleteDialogs.kt:@Composable fun DirectDeleteDialog</ID>
+    <ID>LongMethod:FeedDiscoveryHolder.kt:FeedDiscoveryHolder$fun selectSourceFolder</ID>
+    <ID>LongMethod:FeedDiscoveryHolder.kt:FeedDiscoveryHolder$private suspend fun collectDiscoveredImages</ID>
+    <ID>LongMethod:FirstRunHintCard.kt:@Composable fun FirstRunHintCard</ID>
+    <ID>LongMethod:GestureTutorialOverlay.kt:@Composable fun GestureTutorialOverlay</ID>
+    <ID>LongMethod:GestureTutorialOverlay.kt:@Composable private fun GestureStage</ID>
+    <ID>LongMethod:LocalImageSource.kt:LocalImageSourceImpl$private suspend fun walkImages</ID>
+    <ID>LongMethod:PhoneModeLanding.kt:@Composable fun PhoneModeLanding</ID>
+    <ID>LongMethod:PhoneModeLanding.kt:@Composable private fun RecentPathRow</ID>
+    <ID>LongMethod:PhoneModeScreen.kt:@Composable internal fun ExifSidebarPanel</ID>
+    <ID>LongMethod:PhoneModeScreen.kt:@Composable internal fun LandscapeLeftPanel</ID>
+    <ID>LongMethod:PhoneModeScreen.kt:@Composable internal fun SelectionFolderViewer</ID>
+    <ID>LongMethod:PhoneModeScreen.kt:@OptIn(ExperimentalMaterial3Api::class, ExperimentalComposeUiApi::class) @Composable fun PhoneModeScreen</ID>
+    <ID>LongMethod:PhoneModeTopBar.kt:@Composable fun PhoneModeTopBar</ID>
+    <ID>LongMethod:PhoneModeViewer.kt:@Composable fun PhoneModeViewer</ID>
+    <ID>LongMethod:PhoneModeViewer.kt:@Composable internal fun ExifOverlay</ID>
+    <ID>LongMethod:PhoneModeViewer.kt:@Composable private fun ImagePage</ID>
+    <ID>LongMethod:ProModeRow.kt:@Composable fun ProModeRow</ID>
+    <ID>LongMethod:RawJpegSuggestionCard.kt:@Composable fun RawJpegSuggestionDialog</ID>
+    <ID>LongMethod:SettingsScreen.kt:@Composable fun SettingsScreen</ID>
+    <ID>LongMethod:SourceSettingsHolder.kt:SourceSettingsHolder$fun observeSettings</ID>
+    <ID>LongMethod:SourceSettingsHolder.kt:SourceSettingsHolder$fun observeSourceSettingsForKind</ID>
+    <ID>LongMethod:TransferUndoHolder.kt:TransferUndoHolder$fun confirmClearEntireCard</ID>
+    <ID>LongMethod:TransferUndoHolder.kt:TransferUndoHolder$private fun copyOrMoveCurrent</ID>
+    <ID>LoopWithTooManyJumpStatements:LocalImageSource.kt:LocalImageSourceImpl$while</ID>
+    <ID>LoopWithTooManyJumpStatements:RelatedFiles.kt:RelatedFiles$for</ID>
+    <ID>LoopWithTooManyJumpStatements:TapOnlyClickable.kt:while</ID>
+    <ID>MatchingDeclarationName:ControlsGuideLayout.kt:GuideGeometry</ID>
+    <ID>MatchingDeclarationName:PhoneModeTopBar.kt:PhoneModeTopBarDescriptions</ID>
+    <ID>MatchingDeclarationName:SwipeCues.kt:SwipeCueColors</ID>
+    <ID>MaxLineLength:CopyMoveFeedbackTest.kt:CopyMoveFeedbackTest$assertNull("drive id", CopyMoveFeedback.renamedName("IMG_1.JPG", "content://com.google.android.apps.docs.storage/document/acc%3D1%3Bdoc%3Dencoded%3D8Wq"))</ID>
+    <ID>MaxLineLength:DirectDeleteDialogTest.kt:DirectDeleteDialogTest$private</ID>
+    <ID>MaxLineLength:PhoneModeViewModelTest.kt:PhoneModeViewModelTest$private</ID>
+    <ID>MaxLineLength:ScreenTextLoadMatrix.kt:ScreenTextLoadMatrix$assertTrue("[$cell] three recent rows", rule.allNodes().count { it.isUnder("landing_recent_row") &amp;&amp; it.config.contains(SemanticsActions.OnClick) } &gt;= 3)</ID>
+    <ID>MaxLineLength:ScreenTextLoadMatrix.kt:ScreenTextLoadMatrix$off.add(cell, outside(callouts.flatMap { c -&gt; rule.allNodes().filter { it.isUnder(c.config[androidx.compose.ui.semantics.SemanticsProperties.TestTag]) } } + rule.nodesUnder("controls_guide").clickables(), screen, includeWhollyOffscreen = true))</ID>
+    <ID>MaxLineLength:SettingsFolderPathTextLoadTest.kt:SettingsFolderPathTextLoadTest$assertTrue("'Custom' is gone", rule.onAllNodes(inRow(context.getString(R.string.setting_summary_custom)), useUnmergedTree = true).fetchSemanticsNodes().isEmpty())</ID>
+    <ID>MaxLineLength:SettingsScreen.kt:val shown = destinationSummary(uiState.leftSwipeDestination, uiState.folderLookups, uiState.leftSwipeFolderName, uiState.sourceFolderName)</ID>
+    <ID>MaxLineLength:SettingsScreen.kt:val shown = destinationSummary(uiState.selectionDestination, uiState.folderLookups, uiState.collectionFolderName, uiState.sourceFolderName)</ID>
+    <ID>MaxLineLength:StringResourcesTest.kt:StringResourcesTest$assertEquals("one German word for the phone", de.getValue("label_kind_phone").textContent, de.getValue("chip_phone_cloud").textContent.substringBefore(" "))</ID>
+    <ID>NestedBlockDepth:ControlsGuideSolverTest.kt:ControlsGuideSolverTest$@Test fun top_and_bottom_callouts_obey_the_placement_rules_on_393_and_320</ID>
+    <ID>NestedBlockDepth:LocalImageSource.kt:LocalImageSourceImpl$private suspend fun walkImages</ID>
+    <ID>PrintStackTrace:SettingsScreen.kt:e</ID>
+    <ID>SwallowedException:DeleteDialogs.kt:e: ActivityNotFoundException</ID>
+    <ID>SwallowedException:FeedDiscoveryHolder.kt:FeedDiscoveryHolder$e: Exception</ID>
+    <ID>SwallowedException:FeedDiscoveryHolder.kt:FeedDiscoveryHolder$e: SecurityException</ID>
+    <ID>SwallowedException:FormatConformanceTest.kt:FormatConformanceTest$e: Throwable</ID>
+    <ID>SwallowedException:LocalImageSource.kt:LocalImageSourceImpl$e: Exception</ID>
+    <ID>SwallowedException:LocalImageSource.kt:LocalImageSourceImpl$e: SecurityException</ID>
+    <ID>SwallowedException:PhoneModeScreen.kt:e: ActivityNotFoundException</ID>
+    <ID>SwallowedException:PhotoFetcher.kt:PhotoFetcher.Companion$e: Exception</ID>
+    <ID>SwallowedException:SelectionViewerViewModel.kt:SelectionViewerViewModel$e: Exception</ID>
+    <ID>SwallowedException:TransferUndoHolder.kt:TransferUndoHolder$e: Exception</ID>
+    <ID>ThrowsCount:FormatConformanceTest.kt:FormatConformanceTest$private fun checkDisplay</ID>
+    <ID>ThrowsCount:FormatConformanceTest.kt:FormatConformanceTest$private fun checkPairing</ID>
+    <ID>UnusedParameter:GestureTutorialOverlay.kt:collectionAction: CollectionAction</ID>
+    <ID>UnusedParameter:PhoneModeLanding.kt:collectionFolderName: String</ID>
+    <ID>UnusedParameter:SafTransferTest.kt:SafTransferTest.FakeSafDocumentsProvider$sourceParentDocumentId: String</ID>
+    <ID>UnusedParameter:SelectionViewerViewModelTest.kt:SelectionViewerViewModelTest$all: List&lt;ImageItem&gt;</ID>
+    <ID>UnusedParameter:SettingsItem.kt:icon: ImageVector? = null</ID>
+    <ID>WildcardImport:SettingsViewModelTest.kt:import io.mockk.*</ID>
+    <ID>WildcardImport:SettingsViewModelTest.kt:import kotlinx.coroutines.test.*</ID>
+  </CurrentIssues>
+</SmellBaseline>

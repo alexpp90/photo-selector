@@ -33,8 +33,11 @@ Each module uses the repository's uniform product shape rather than Gradle's def
   build.gradle.kts
 ```
 
-The `sourceSets { }` block near the top of each `build.gradle.kts` is what makes this work.
-If you add a module, copy that block; if you change it, change all four.
+The `photoselector.android-module` convention plugin (the included build `build-logic/`) is what
+makes this work: every module's `build.gradle.kts` applies it, so the layout is defined once.
+If you add a module, apply the plugin; if you change the layout, change the plugin.
+The plugin also fails the build on new Android Lint, detekt and ktlint findings; what existed when
+those gates were introduced is in each module's `lint-baseline.xml` and `config/*-baseline.xml`.
 
 ## Commands
 

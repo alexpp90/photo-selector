@@ -29,6 +29,8 @@ testRunner = "1.7.0"
 testRules = "1.7.0"
 hiltTesting = "2.60.1"
 mockk = "1.14.11"
+ktlintGradle = "14.2.0"
+detekt = "2.0.0-alpha.6"
 
 [libraries]
 # AndroidX Core
@@ -94,6 +96,11 @@ vico-compose-m3 = { group = "com.patrykandpatrick.vico", name = "compose-m3", ve
 
 # OpenCV
 opencv-android = { group = "org.opencv", name = "opencv", version.ref = "opencvAndroid" }
+
+# Build logic (build-logic/): the AGP DSL and the lint plugins the convention plugin applies.
+android-gradle-plugin = { group = "com.android.tools.build", name = "gradle", version.ref = "agp" }
+ktlint-gradle-plugin = { group = "org.jlleitschuh.gradle", name = "ktlint-gradle", version.ref = "ktlintGradle" }
+detekt-gradle-plugin = { group = "dev.detekt", name = "detekt-gradle-plugin", version.ref = "detekt" }
 
 # Testing — JVM unit tests
 junit = { group = "junit", name = "junit", version.ref = "junit" }

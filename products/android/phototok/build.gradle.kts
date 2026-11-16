@@ -2,6 +2,7 @@ import org.jetbrains.kotlin.gradle.dsl.JvmTarget
 
 plugins {
     alias(libs.plugins.android.application)
+    id("photoselector.android-module")
     alias(libs.plugins.kotlin.compose)
     alias(libs.plugins.hilt.android)
     alias(libs.plugins.ksp)
@@ -16,27 +17,6 @@ kotlin {
 android {
     namespace = "com.phototok"
     compileSdk = 37
-
-    // Uniform product layout: every product in this repository exposes `src/`
-    // and `tests/`, whatever its language. That overrides Gradle's default
-    // src/main | src/test | src/androidTest convention on purpose — see
-    // docs/README.md. Keep these four blocks in sync across the Android modules.
-    sourceSets {
-        getByName("main") {
-            java.directories.apply { clear(); add("src") }
-            kotlin.directories.apply { clear(); add("src") }
-            res.directories.apply { clear(); add("res") }
-            manifest.srcFile("AndroidManifest.xml")
-        }
-        getByName("test") {
-            java.directories.apply { clear(); add("tests/unit"); add("tests/common") }
-            kotlin.directories.apply { clear(); add("tests/unit"); add("tests/common") }
-        }
-        getByName("androidTest") {
-            java.directories.apply { clear(); add("tests/instrumented"); add("tests/common") }
-            kotlin.directories.apply { clear(); add("tests/instrumented"); add("tests/common") }
-        }
-    }
 
     defaultConfig {
         applicationId = "com.phototok"
@@ -124,10 +104,6 @@ android {
         unitTests {
             isIncludeAndroidResources = true
         }
-    }
-
-    lint {
-        abortOnError = false
     }
 
     packaging {

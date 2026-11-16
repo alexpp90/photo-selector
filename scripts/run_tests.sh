@@ -12,7 +12,6 @@
 # cannot satisfy before pushing, which turns the PR into a push-and-pray loop.
 # When you add a gate to a workflow, add it here in the same commit.
 #
-# Android lint (advisory, cannot fail CI) runs on --all and with PST_ANDROID_LINT=1 only.
 #
 # Usage:
 #   ./scripts/run_tests.sh                  # auto-detects changed products (mirrors CI paths: filters)
@@ -688,28 +687,19 @@ if $run_android && disk_preflight "Android" "android.yml"; then
                 ./gradlew :android-desktop:assembleLab :phototok:assembleLab --stacktrace
         fi
 
-        # ── Android lint (advisory) ───────────────────────────────
-        # Deliberately non-blocking: the CI job is `continue-on-error: true`
-        # and every module sets `abortOnError = false`. Mirrored as advisory so
-        # local and CI agree; the report is still printed for review.
-        section "Android lint (advisory)"
+        # ── Android lint and style (a gate) ──────────────────────
+        # Android Lint (`abortOnError`, per-module lint-baseline.xml), detekt and ktlint
+        # (per-module config/*-baseline.xml). The baselines hold what existed when the gate was
+        # introduced; a new finding fails here and in android.yml:lint. Regenerate a baseline
+        # only to drop fixed entries: ./gradlew updateLintBaseline detektBaseline ktlintGenerateBaseline
+        section "Android lint and style"
         if $quick; then
-            skip "android lint" "" "--quick"
-        elif ! $all_mode && [ "${PST_ANDROID_LINT:-0}" != "1" ]; then
-            # It cannot fail anything (CI continue-on-error, abortOnError = false) and costs
-            # over a minute, so only --all and PST_ANDROID_LINT=1 spend it.
-            skip "gradlew lintDebug (advisory)" "android.yml:lint" \
-                "CI runs it as continue-on-error; PST_ANDROID_LINT=1 runs it here" false
+            skip "android lint, detekt, ktlint" "android.yml:lint" "--quick"
         else
-            lint_rc=0
-            lint_t0="$SECONDS"
-            ./gradlew :core:lintDebug :saf:lintDebug :android-desktop:lintDebug :phototok:lintDebug --continue --stacktrace || lint_rc=$?
-            GATE_SECS=$((SECONDS - lint_t0))
-            if [ "$lint_rc" -eq 0 ]; then
-                pass "gradlew lintDebug (advisory)" "android.yml:lint"
-            else
-                warn "gradlew lintDebug (advisory — does not fail CI)" "android.yml:lint"
-            fi
+            gate "gradlew lintDebug (:core, :saf, :android-desktop, :phototok)" "android.yml:lint" \
+                ./gradlew :core:lintDebug :saf:lintDebug :android-desktop:lintDebug :phototok:lintDebug --continue --stacktrace
+            gate "gradlew detekt ktlintCheck" "android.yml:lint" \
+                ./gradlew detekt ktlintCheck --continue --stacktrace
         fi
     fi
 elif ! $explicit_product; then
