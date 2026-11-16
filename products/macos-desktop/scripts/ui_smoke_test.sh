@@ -98,8 +98,24 @@ run_self_test() {
         fi
     fi
 
-    local status=0
-    wait "$pid" || status=$?
+    # An overall deadline: a main thread stuck in SwiftUI cannot time itself out, so the script does
+    # (10,000 photos once ran over 12 minutes without finishing). Healthy runs end in well under it.
+    local status=0 ticks=0 limit=$(( ${PST_SMOKE_DEADLINE:-300} * 10 ))
+    while kill -0 "$pid" 2>/dev/null; do
+        if (( ticks >= limit )); then
+            echo "  ✗ $label: self-test still running after ${PST_SMOKE_DEADLINE:-300} s with $COUNT photos: the app hangs; killed" >&2
+            kill -9 "$pid" 2>/dev/null || true
+            status=124
+            break
+        fi
+        sleep 0.1
+        ticks=$(( ticks + 1 ))
+    done
+    if [[ "$status" -eq 124 ]]; then
+        wait "$pid" 2>/dev/null || true
+    else
+        wait "$pid" || status=$?
+    fi
     grep '\[ui-self-test\]' "$WORK/stderr-$label.log" | sed 's/^/    /' || true
     if [[ ! -f "$report" ]]; then
         echo "  ✗ $label: no report written (exit $status)"
