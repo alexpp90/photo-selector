@@ -133,6 +133,35 @@ struct ThumbnailLoaderTests {
         await loader.cancelAll()
     }
 
+    @Test("H-LJ-3: a finished prefetch, promoted or not, leaves nothing in flight")
+    func finishedPrefetchIsForgotten() async throws {
+        let url = try createTempImageFile(width: 60, height: 60)
+        defer { try? FileManager.default.removeItem(at: url) }
+        let items = [PhotoItem(id: UUID(), url: url, status: .candidate)]
+
+        // Not promoted: the prefetch ends and its task is dropped.
+        let loader = ThumbnailLoader(cache: ThumbnailCache(memoryLimitBytes: 10 * 1024 * 1024, countLimit: 10))
+        await loader.updatePrefetchWindow(items: items, currentIndex: 0, maxPixelSize: 100)
+        var tries = 0
+        while await loader.inFlightCount() > 0, tries < 2000 {
+            tries += 1
+            try await Task.sleep(nanoseconds: 5_000_000)
+        }
+        #expect(await loader.inFlightCount() == 0)
+
+        // Promoted: a direct request joins the running prefetch, then the entry is gone too.
+        let other = ThumbnailLoader(cache: ThumbnailCache(memoryLimitBytes: 10 * 1024 * 1024, countLimit: 10))
+        await other.updatePrefetchWindow(items: items, currentIndex: 0, maxPixelSize: 100)
+        let image = await other.loadThumbnail(for: url, maxPixelSize: 100)
+        #expect(image != nil)
+        tries = 0
+        while await other.inFlightCount() > 0, tries < 2000 {
+            tries += 1
+            try await Task.sleep(nanoseconds: 5_000_000)
+        }
+        #expect(await other.inFlightCount() == 0)
+    }
+
     // MARK: - Direction-aware prefetch window
 
     @Test("Prefetch window leans forward [i-2 ... i+3] and backward [i-3 ... i+2], same size")
