@@ -5,20 +5,17 @@ import PhotoSelectorKit
 /// Supports smooth horizontal scrolling, auto-scroll centering on navigation,
 /// status badges, and focus quality dots.
 public struct FilmstripView: View {
-    public let photos: [PhotoItem]
-    public let currentIndex: Int
-    public let comparisonIndices: [Int]
+    /// Observed so the strip redraws on every publish (a score or a status changes a tile), but the
+    /// view itself holds no photo list: a stored `[PhotoItem]` is compared by the graph for every
+    /// tile at every update, which at 10,000 photos kept the main thread busy for minutes.
+    @ObservedObject var viewModel: CullingWorkspaceViewModel
     public let onSelectPhoto: (Int) -> Void
 
     public init(
-        photos: [PhotoItem],
-        currentIndex: Int,
-        comparisonIndices: [Int],
+        viewModel: CullingWorkspaceViewModel,
         onSelectPhoto: @escaping (Int) -> Void
     ) {
-        self.photos = photos
-        self.currentIndex = currentIndex
-        self.comparisonIndices = comparisonIndices
+        self.viewModel = viewModel
         self.onSelectPhoto = onSelectPhoto
     }
 
@@ -26,14 +23,20 @@ public struct FilmstripView: View {
         ScrollViewReader { proxy in
             ScrollView(.horizontal, showsIndicators: false) {
                 LazyHStack(spacing: 8) {
-                    ForEach(FilmstripTiles.make(photos: photos, currentIndex: currentIndex, comparisonIndices: comparisonIndices)) { tile in
-                        FilmstripThumbnailTile(
-                            photo: tile.photo,
-                            isSelected: tile.isSelected,
-                            isInComparison: tile.isInComparison,
-                            onTap: { onSelectPhoto(tile.index) }
-                        )
-                        .id(tile.photo.id)
+                    ForEach(FilmstripTiles.make(
+                        count: viewModel.photos.count,
+                        currentIndex: viewModel.currentIndex,
+                        comparisonIndices: viewModel.comparisonSlotIndices
+                    )) { tile in
+                        if viewModel.photos.indices.contains(tile.index) {
+                            let photo = viewModel.photos[tile.index]
+                            FilmstripThumbnailTile(
+                                photo: photo,
+                                isSelected: tile.isSelected,
+                                isInComparison: tile.isInComparison,
+                                onTap: { onSelectPhoto(tile.index) }
+                            )
+                        }
                     }
                 }
                 .padding(.horizontal, 16)
@@ -46,10 +49,10 @@ public struct FilmstripView: View {
                     .foregroundStyle(Color.white.opacity(0.1)),
                 alignment: .top
             )
-            .onChange(of: currentIndex) { _, newIndex in
-                if photos.indices.contains(newIndex) {
+            .onChange(of: viewModel.currentIndex) { _, newIndex in
+                if viewModel.photos.indices.contains(newIndex) {
                     MotionPolicy.animate(.easeInOut(duration: 0.2)) {
-                        proxy.scrollTo(photos[newIndex].id, anchor: .center)
+                        proxy.scrollTo(newIndex, anchor: .center)  // the tiles' ids are their positions
                     }
                 }
             }
@@ -139,6 +142,9 @@ public struct FilmstripThumbnailTile: View {
         .buttonStyle(.plain)
         .focusable(false)
         .task(id: photo.id) {
+            // A tile is identified by its position, so a reordered list reuses it: drop the old
+            // photo's thumbnail before the new one loads.
+            state.thumbnailImage = nil
             state.thumbnailImage = await ThumbnailLoader.shared.loadThumbnail(
                 for: photo.url,
                 maxPixelSize: ThumbnailTier.filmstrip.rawValue,

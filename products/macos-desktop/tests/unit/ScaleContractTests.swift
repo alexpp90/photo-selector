@@ -172,7 +172,7 @@ private func filmstripTime(photoCount: Int) -> Double {
             var sink = 0
             for _ in 0..<100 {
                 let tiles = FilmstripTiles.make(
-                    photos: vm.photos,
+                    count: vm.photos.count,
                     currentIndex: vm.currentIndex,
                     comparisonIndices: vm.comparisonSlotIndices
                 )

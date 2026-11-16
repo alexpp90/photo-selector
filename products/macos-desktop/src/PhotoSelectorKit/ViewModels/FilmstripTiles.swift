@@ -1,38 +1,37 @@
 import Foundation
 
-/// One tile of the filmstrip: the photo, its position and how it is marked.
-public struct FilmstripTile: Identifiable {
+/// One tile of the filmstrip: its position and how it is marked. It holds no photo: the view
+/// reads the photo of the tile it draws from the model, so nothing the view keeps contains the
+/// whole list (the graph compared the list for every tile on every publish, REQ-MAC-PERF.03).
+public struct FilmstripTile: Identifiable, Equatable {
     public let index: Int
-    public let photo: PhotoItem
     public let isSelected: Bool
     public let isInComparison: Bool
-    public var id: UUID { photo.id }
+    public var id: Int { index }
 }
 
-/// The tiles of the filmstrip as a lazy collection: a tile is made when it is read, so a render
-/// that realises only the visible window costs the window, not the folder (REQ-MAC-PERF.03).
-/// Holds the list by value (copy on write, no copy of the photos).
-public struct FilmstripTileList: RandomAccessCollection {
-    let photos: [PhotoItem]
+/// The tiles of the filmstrip as a lazy collection of a count and two small values: a tile is
+/// made when it is read, so a render costs the visible window, not the folder.
+public struct FilmstripTileList: RandomAccessCollection, Equatable {
+    let count: Int
     let currentIndex: Int
     let comparisonIndices: [Int]
 
     public var startIndex: Int { 0 }
-    public var endIndex: Int { photos.count }
+    public var endIndex: Int { count }
 
     public subscript(position: Int) -> FilmstripTile {
         FilmstripTile(
             index: position,
-            photo: photos[position],
             isSelected: position == currentIndex,
             isInComparison: comparisonIndices.contains(position)
         )
     }
 }
 
-/// The tiles the filmstrip shows for a list of photos. Built on every render of the strip.
+/// The tiles the filmstrip shows. Built on every render of the strip.
 public enum FilmstripTiles {
-    public static func make(photos: [PhotoItem], currentIndex: Int, comparisonIndices: [Int]) -> FilmstripTileList {
-        FilmstripTileList(photos: photos, currentIndex: currentIndex, comparisonIndices: comparisonIndices)
+    public static func make(count: Int, currentIndex: Int, comparisonIndices: [Int]) -> FilmstripTileList {
+        FilmstripTileList(count: max(0, count), currentIndex: currentIndex, comparisonIndices: comparisonIndices)
     }
 }
