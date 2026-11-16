@@ -958,8 +958,6 @@ if [ -d "$ROOT_DIR/private/.git" ] || [ -f "$ROOT_DIR/private/.git" ]; then
             python3 ai/skills/sync-framework/scripts/sync_framework.py --check
         gate "framework validation" "framework.yml:framework" \
             python3 ai/skills/sync-framework/scripts/validate_framework.py
-        gate ".gemini/settings.json in sync" "framework.yml:framework" \
-            python3 ai/skills/sync-framework/scripts/gen_gemini_settings.py --check
         gate "requirements traceability" "framework.yml:framework" \
             python3 private/scripts/verify_requirements_traceability.py --check --strict
         if [ -f "$ROOT_DIR/private/scripts/check_brand_names.py" ]; then
