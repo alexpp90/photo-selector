@@ -59,6 +59,12 @@ present and complete.
      staged bundle on desktop two-phase transactions).
 - If verification fails, any newly created partial destination file from the failed transfer is
   cleaned up and the original source file remains untouched.
+- **A cut-short copy never carries the final name (Android `:saf`).** The engine writes under a
+  temporary name (`<final name>.photoselector-partial`, no photo extension, so discovery ignores
+  it), verifies it, and only then renames it to the collision-free final name. A copy killed
+  half-way (process death, card pulled) leaves only that temporary; the next transfer into the
+  folder deletes the stale temporaries of this suffix, and nothing else. A provider that cannot
+  rename falls back to writing the final name directly and removing it when the copy fails.
 
 ### 3. Undo never deletes a file it did not create
 

@@ -27,6 +27,13 @@ class FakeSafDocumentsProvider : android.content.ContentProvider() {
         @Volatile
         var advertiseSupportsMove: Boolean = false
 
+        /** False: the provider does not advertise [Document.FLAG_SUPPORTS_RENAME] and refuses renames. */
+        @Volatile
+        var supportsRename: Boolean = true
+
+        /** Display names renamed through the provider, as "old -> new". */
+        val renames = java.util.concurrent.CopyOnWriteArrayList<String>()
+
         @Volatile
         var failDeletes: Boolean = false
         /** When set, only documents whose id contains this text refuse to be deleted. */
@@ -98,6 +105,8 @@ class FakeSafDocumentsProvider : android.content.ContentProvider() {
         fun reset(root: File) {
             rootDir = root
             advertiseSupportsMove = false
+            supportsRename = true
+            renames.clear()
             failDeletes = false
             failDeletesMatching = null
             throwOnOpenMatching = null
@@ -138,6 +147,16 @@ class FakeSafDocumentsProvider : android.content.ContentProvider() {
         }
     }
 
+    /** The file a hook means: a copy in flight is written under a temporary name, hooks name the final one. */
+    private fun logicalFile(file: File): File {
+        if (!file.name.endsWith(SafTransferEngine.PARTIAL_SUFFIX)) return file
+        // Named as the final file, but with the real file's content facts.
+        return object : File(file.parentFile, file.name.removeSuffix(SafTransferEngine.PARTIAL_SUFFIX)) {
+            override fun length(): Long = file.length()
+            override fun exists(): Boolean = file.exists()
+        }
+    }
+
     private fun docIdForFile(file: File): String = documentIdFor(file)
 
     private fun mimeForFile(file: File): String = when {
@@ -149,14 +168,15 @@ class FakeSafDocumentsProvider : android.content.ContentProvider() {
 
     private fun addRow(cursor: MatrixCursor, cols: Array<out String>, file: File) {
         val flags = buildFlags(file)
-        val size = reportedSizeOverride?.invoke(file) ?: file.length()
+        val logical = logicalFile(file)
+        val size = reportedSizeOverride?.invoke(logical) ?: file.length()
         cursor.addRow(
             cols.map { col ->
                 when (col) {
                     Document.COLUMN_DOCUMENT_ID -> docIdForFile(file)
                     Document.COLUMN_DISPLAY_NAME -> file.name
                     Document.COLUMN_MIME_TYPE -> mimeForFile(file)
-                    Document.COLUMN_SIZE -> if (sizeUnknownFor?.invoke(file) == true) null else size
+                    Document.COLUMN_SIZE -> if (sizeUnknownFor?.invoke(logical) == true) null else size
                     Document.COLUMN_LAST_MODIFIED -> file.lastModified()
                     Document.COLUMN_FLAGS -> flags
                     else -> null
@@ -169,6 +189,9 @@ class FakeSafDocumentsProvider : android.content.ContentProvider() {
         var flags = Document.FLAG_SUPPORTS_WRITE or Document.FLAG_SUPPORTS_DELETE
         if (file.isDirectory) {
             flags = flags or Document.FLAG_DIR_SUPPORTS_CREATE
+        }
+        if (supportsRename) {
+            flags = flags or Document.FLAG_SUPPORTS_RENAME
         }
         if (advertiseSupportsMove) {
             flags = flags or Document.FLAG_SUPPORTS_MOVE
@@ -233,6 +256,19 @@ class FakeSafDocumentsProvider : android.content.ContentProvider() {
                 handleDeleteDocument(documentIdOf(targetUri))
                 out
             }
+            "android:renameDocument" -> {
+                val targetUri = requireNotNull(uri)
+                if (!supportsRename) throw UnsupportedOperationException("rename not supported")
+                val newName = requireNotNull(extras.getString(Document.COLUMN_DISPLAY_NAME))
+                val renamedId = handleRenameDocument(documentIdOf(targetUri), newName)
+                val renamedUri = if (DocumentsContract.isTreeUri(targetUri)) {
+                    DocumentsContract.buildDocumentUriUsingTree(targetUri, renamedId)
+                } else {
+                    DocumentsContract.buildDocumentUri(AUTHORITY, renamedId)
+                }
+                out.putParcelable("uri", renamedUri)
+                out
+            }
             "android:moveDocument" -> {
                 val sourceUri = requireNotNull(uri)
                 @Suppress("DEPRECATION")
@@ -293,9 +329,24 @@ class FakeSafDocumentsProvider : android.content.ContentProvider() {
         return docIdForFile(target)
     }
 
+    /** Like a real provider: a taken name yields "name (1).ext"; [autoRenameOnCreate] applies as on create. */
+    private fun handleRenameDocument(documentId: String, displayName: String): String {
+        val src = fileForDocId(documentId)
+        val parent = src.parentFile ?: throw FileNotFoundException("no parent for $documentId")
+        beforeCreate?.invoke(parent, displayName)
+        var actualName = autoRenameOnCreate?.invoke(displayName) ?: displayName
+        if (File(parent, actualName).exists()) {
+            actualName = actualName.substringBeforeLast('.') + " (1)." + actualName.substringAfterLast('.')
+        }
+        val dest = File(parent, actualName)
+        if (!src.renameTo(dest)) throw FileNotFoundException("Could not rename $src to $dest")
+        renames.add("${src.name} -> ${dest.name}")
+        return docIdForFile(dest)
+    }
+
     private fun handleDeleteDocument(documentId: String) {
         onDelete?.invoke(documentId)
-        if (failDeletes || failDeletesMatching?.let { documentId.contains(it) } == true) {
+        if (failDeletes || failDeletesMatching?.let { documentId.removeSuffix(SafTransferEngine.PARTIAL_SUFFIX).contains(it) } == true) {
             throw SecurityException("Simulated read-only delete failure for $documentId")
         }
         val file = fileForDocId(documentId)
