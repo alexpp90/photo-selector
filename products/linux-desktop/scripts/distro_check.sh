@@ -33,7 +33,7 @@ echo "━━━ Blitzlens on ${PRETTY_NAME} ━━━"
 
 apt-get -o Acquire::Retries=3 update -qq
 apt-get -o Acquire::Retries=3 install -y -qq --no-install-recommends \
-    ca-certificates dpkg-dev binutils xvfb xauth \
+    ca-certificates dpkg-dev binutils xvfb xauth dbus-daemon dbus-user-session \
     python3 python3-gi python3-gi-cairo python3-numpy python3-pil python3-pytest \
     gir1.2-gtk-4.0 gir1.2-adw-1 gir1.2-gexiv2-0.10 gir1.2-gdkpixbuf-2.0 libraw-bin \
     appstream desktop-file-utils
@@ -47,8 +47,11 @@ echo "python3 $(python3 -c 'import sys; print(sys.version.split()[0])')," \
 
 echo "━━━ Unit tests (system Python, virtual display) ━━━"
 cd "$PRODUCT_DIR"
+# A private session bus (as the device lab uses): GApplication registers on it, and without a bus a
+# container waits out the D-Bus timeout. -v names each test as it runs, so a hang is attributable;
+# -rf lists the failures at the end.
 GDK_BACKEND=x11 PST_REQUIRE_PACKAGING_TOOLS=1 \
-    xvfb-run -a python3 -m pytest tests/unit -q --tb=short -p no:cacheprovider \
+    dbus-run-session -- xvfb-run -a python3 -m pytest tests/unit -v -rf --tb=short -p no:cacheprovider \
     -o faulthandler_timeout=120
 
 echo "━━━ Build, install and start the .deb ━━━"
