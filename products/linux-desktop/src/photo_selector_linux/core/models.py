@@ -171,11 +171,12 @@ class QualityScores:
         """Index (0..8, row by row) of the sharpest area, or None without a grid or when no area
         stands out: the best must beat the middle area (the median) by ``AREA_STANDS_OUT`` points,
         so a flat or evenly sharp photo points nowhere. The first wins a tie."""
-        if not self.grid:
+        grid = self.grid
+        if not grid:
             return None
-        best = max(range(len(self.grid)), key=lambda i: (self.grid[i], -i))
-        median = sorted(self.grid)[len(self.grid) // 2]
-        return best if self.grid[best] - median >= AREA_STANDS_OUT else None
+        best = max(range(len(grid)), key=lambda i: (grid[i], -i))
+        median = sorted(grid)[len(grid) // 2]
+        return best if grid[best] - median >= AREA_STANDS_OUT else None
 
     @property
     def sharpest_area_score(self) -> float:

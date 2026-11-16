@@ -39,7 +39,7 @@ The repository ships **five products** (four active native solutions alongside t
 | 📱 **Jackpix** | `products/android/phototok/` | Kotlin, Compose, DataStore | Phones of every size | Gesture-first vertical swipe feed | [docs](docs/products/phototok/README.md) |
 | 🖥️ **Frameduel** (Android Desktop) | `products/android/android-desktop/` | Kotlin, Compose, Room, OpenCV | Samsung DeX, tablets ($\ge 840$dp) | 1-over-2 three-frame layout, sidebar & controls | [docs](docs/products/android-desktop/README.md) |
 | 🍎 **Lensjet** (macOS Desktop) | `products/macos-desktop/` | Swift 6, SwiftUI, Vision, Accelerate | macOS 14+ / 15+ Apple Silicon & Intel | Maximized preview (>85%), Apple Vision aesthetics | [docs](docs/products/macos-desktop/README.md) |
-| 🐧 **Blitzlens** (Linux Desktop) | `products/linux-desktop/` | Python 3.12+, GTK4, Libadwaita | Debian 13 (Trixie), GNOME 46+ | Libadwaita dark studio, 1/2/3-Up canvas, NumPy scoring | [docs](docs/products/linux-desktop/README.md) |
+| 🐧 **Blitzlens** (Linux Desktop) | `products/linux-desktop/` | Python 3.12+, GTK4, Libadwaita | Debian 13 (Trixie), Ubuntu 24.04, GNOME 46+ | Libadwaita dark studio, 1/2/3-Up canvas, NumPy scoring | [docs](docs/products/linux-desktop/README.md) |
 | 📦 **Photo Selector Toolbox (Legacy)** | `products/desktop/src/` | Python 3.12+, Tkinter | macOS, Windows, Linux | Split view, menu/hotkeys (archived reference) | [docs](docs/products/desktop/README.md) |
 | *(shared library)* | `products/android/core/` | Kotlin | — | EXIF model + readers used by both Android products | [docs](docs/shared/README.md) |
 | *(shared library)* | `products/android/saf/` | Kotlin | — | SAF copy/move engine + folder grants used by both Android products | [docs](docs/shared/README.md) |
@@ -242,6 +242,8 @@ Or remove the quarantine flag in Terminal: `xattr -dr com.apple.quarantine /Appl
 ---
 
 ### 🐧 Blitzlens (Linux) Installation (Debian 13 Trixie)
+
+Also on Ubuntu 24.04 LTS: the repository has a `noble` suite beside `trixie`, and the one-line setup below chooses by your release.
 
 One line (adds the signed APT repository, then installs; the Debian package keeps its name `photo-selector-linux`):
 

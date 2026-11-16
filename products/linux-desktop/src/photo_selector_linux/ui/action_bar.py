@@ -272,7 +272,7 @@ class ActionBarView(Gtk.ActionBar if HAS_GI else object):
             theme = Gtk.IconTheme.get_for_display(display) if display is not None else None
             if theme is not None and not theme.has_icon(MOVE_ICON):
                 return MOVE_ICON_FALLBACK
-        except Exception:  # noqa: BLE001 - an icon lookup never stops the bar from building
+        except Exception:
             logger.debug("Icon theme lookup failed", exc_info=True)
         return MOVE_ICON
 

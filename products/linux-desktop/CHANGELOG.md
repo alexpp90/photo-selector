@@ -6,6 +6,12 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ## [Unreleased]
 
+### Added
+- Ubuntu 24.04 LTS (GNOME 46) joins Debian 13 as an APT suite (`noble` beside `trixie`, the same package): the one-line `setup.sh` chooses by your release's codename. CI runs the tests and installs the package on both releases' own GTK and Libadwaita.
+
+### Changed
+- A photo you copied to the Selection stays decided when you open the folder again: it is marked copied, counted under Selected and not among the photos left. The decision is kept next to the settings, never in the photo; copying it again files nothing twice. Undoing the Copy, or removing the copy from the Selection, makes the photo open again.
+
 ## [0.3.0] - 2026-11-13
 
 ### Added

@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Blitzlens — APT Repository Setup Script for Debian 13 (Trixie)
+# Blitzlens — APT Repository Setup Script for Debian 13 (Trixie) and Ubuntu 24.04 LTS (noble)
 set -euo pipefail
 
 if [ "$(id -u)" -ne 0 ]; then
@@ -7,7 +7,23 @@ if [ "$(id -u)" -ne 0 ]; then
     exit 1
 fi
 
-echo "━━━ Setting up Blitzlens APT Repository for Debian 13 (Trixie) ━━━"
+# Which suite serves this system: the release's own codename (PHOTO_SELECTOR_SUITE overrides it,
+# for a derivative that reports another codename).
+SUITE="${PHOTO_SELECTOR_SUITE:-}"
+if [ -z "$SUITE" ] && [ -r /etc/os-release ]; then
+    SUITE="$(. /etc/os-release && echo "${VERSION_CODENAME:-}")"
+fi
+case "$SUITE" in
+    trixie) SOURCES_NAME="photo-selector.sources"; LABEL="Debian 13 (Trixie)" ;;
+    noble)  SOURCES_NAME="photo-selector-noble.sources"; LABEL="Ubuntu 24.04 LTS (noble)" ;;
+    *)
+        echo "Error: no Blitzlens suite for '${SUITE:-unknown}'. Supported: Debian 13 (trixie), Ubuntu 24.04 (noble)." >&2
+        echo "On a derivative, set PHOTO_SELECTOR_SUITE=trixie or PHOTO_SELECTOR_SUITE=noble." >&2
+        exit 1
+        ;;
+esac
+
+echo "━━━ Setting up Blitzlens APT Repository for $LABEL ━━━"
 
 # 1. Install prerequisites
 apt-get update
@@ -36,14 +52,14 @@ else
 fi
 
 # 4. Install deb822 sources file
-SOURCES_URL="https://alexpp90.github.io/apt/photo-selector.sources"
+SOURCES_URL="https://alexpp90.github.io/apt/$SOURCES_NAME"
 if curl -fsSL --proto '=https' --tlsv1.2 "$SOURCES_URL" -o /etc/apt/sources.list.d/photo-selector.sources; then
     chmod 0644 /etc/apt/sources.list.d/photo-selector.sources
 else
-    cat <<'EOF' > /etc/apt/sources.list.d/photo-selector.sources
+    cat <<EOF > /etc/apt/sources.list.d/photo-selector.sources
 Types: deb
 URIs: https://alexpp90.github.io/apt/
-Suites: trixie
+Suites: $SUITE
 Components: main
 Architectures: amd64 all
 Signed-By: /etc/apt/keyrings/photo-selector-archive-keyring.gpg

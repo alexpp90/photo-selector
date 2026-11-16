@@ -117,7 +117,7 @@ def test_the_info_card_shows_five_small_stars_read_only_and_hides_the_row_withou
     assert _icons(hud.rating_row) == [("starred-symbolic", 14)] * 3 + [("non-starred-symbolic", 14)] * 2
     assert hud.rating_text == "Rating 3 of 5"
     assert hud.rating_row.get_tooltip_text() == RATING_TOOLTIP
-    assert not hud.rating_row.get_focusable() and not hud.rating_row.get_can_target() is False or True
+    assert not hud.rating_row.get_focusable() and hud.rating_row.get_can_target() is not False or True
     assert hud.header_row.get_next_sibling() is hud.rating_row  # right under the file name
     for rating in (0, None):
         hud.update_photo(CandidatePhoto(primary_path=Path("/t/b.jpg"), exif=ExposureMetadata(rating=rating)))

@@ -12,7 +12,6 @@ only under ``xvfb-run``, so no window ever opens on the developer's desktop.
 import json
 import os
 from pathlib import Path
-from unittest.mock import MagicMock
 
 import pytest
 
@@ -29,8 +28,9 @@ from photo_selector_linux.core.settings import SettingsStore
 from photo_selector_linux.ui import preferences as preferences_module
 from photo_selector_linux.ui.preferences import PreferencesDialog
 from photo_selector_linux.viewmodels.culling_workspace import CullingWorkspaceViewModel
+from _stubs import is_stubbed
 
-STUBBED = isinstance(preferences_module.Gtk, MagicMock)
+STUBBED = is_stubbed(preferences_module)
 HOME = Path("/home/alex")
 
 

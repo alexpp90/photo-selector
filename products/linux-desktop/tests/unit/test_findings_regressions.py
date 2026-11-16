@@ -18,8 +18,9 @@ from photo_selector_linux.core.file_ops import FileCullingManager
 from photo_selector_linux.core.scanner import DirectoryScanner
 from photo_selector_linux.ui import preferences as preferences_module
 from photo_selector_linux.ui.keyboard_router import KeyboardRouter, KeyboardRouterEngine
+from _stubs import is_stubbed
 
-STUBBED = isinstance(preferences_module.Gtk, MagicMock) or not preferences_module.HAS_GI
+STUBBED = is_stubbed(preferences_module)
 
 
 # ── F-BL-010: the -Enhanced-NR derivative travels with its shot ──────────────

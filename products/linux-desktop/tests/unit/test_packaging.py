@@ -296,18 +296,20 @@ def apt_repo(tmp_path_factory) -> Path:
     return apt_dir
 
 
-def test_apt_repository_structure(apt_repo):
-    """Verify the generated APT repository tree structure and packages (R-LINUX-PKG-03)."""
+@pytest.mark.parametrize("suite", ["trixie", "noble"])
+def test_apt_repository_structure(apt_repo, suite):
+    """Verify the generated APT repository tree structure and packages, per suite (R-LINUX-PKG-03, D8)."""
     apt_dir = apt_repo
 
-    release_file = apt_dir / "dists" / "trixie" / "Release"
-    inrelease_file = apt_dir / "dists" / "trixie" / "InRelease"
-    assert release_file.is_file(), "Missing dists/trixie/Release"
-    assert inrelease_file.is_file(), "Missing dists/trixie/InRelease"
+    release_file = apt_dir / "dists" / suite / "Release"
+    inrelease_file = apt_dir / "dists" / suite / "InRelease"
+    assert release_file.is_file(), f"Missing dists/{suite}/Release"
+    assert inrelease_file.is_file(), f"Missing dists/{suite}/InRelease"
+    assert f"Codename: {suite}\n" in release_file.read_text(encoding="utf-8")
 
     for arch in ("binary-all", "binary-amd64"):
-        pkg_file = apt_dir / "dists" / "trixie" / "main" / arch / "Packages"
-        pkg_gz = apt_dir / "dists" / "trixie" / "main" / arch / "Packages.gz"
+        pkg_file = apt_dir / "dists" / suite / "main" / arch / "Packages"
+        pkg_gz = apt_dir / "dists" / suite / "main" / arch / "Packages.gz"
         assert pkg_file.is_file(), f"Missing {pkg_file}"
         assert pkg_gz.is_file(), f"Missing {pkg_gz}"
 
@@ -322,6 +324,24 @@ def test_apt_repository_structure(apt_repo):
 
     pool = apt_dir / "pool" / "main" / "p" / "photo-selector-linux"
     assert list(pool.glob("photo-selector-linux_*_all.deb")), f"No package in pool: {pool}"
+    assert not (apt_dir / "KEY.gpg").exists(), "KEY.gpg is neither served nor referenced (H-SHARED-3)"
+
+
+def test_suites_of_generator_and_verifier_agree():
+    scripts = get_product_root() / "scripts"
+    import importlib.util
+
+    def load(name):
+        spec = importlib.util.spec_from_file_location(name, scripts / f"{name}.py")
+        module = importlib.util.module_from_spec(spec)
+        sys.path.insert(0, str(scripts))
+        try:
+            spec.loader.exec_module(module)
+        finally:
+            sys.path.remove(str(scripts))
+        return module
+
+    assert tuple(load("generate_apt_repo").SUITES) == load("verify_package").APT_SUITES
 
 
 def test_deb822_sources_format(apt_repo):
@@ -348,7 +368,11 @@ def test_deb822_sources_format(apt_repo):
 
 def test_release_checksum_integrity(apt_repo):
     """Verify cryptographic integrity of Release manifest hashes (R-LINUX-PKG-03)."""
-    trixie_dir = apt_repo / "dists" / "trixie"
+    for suite in ("trixie", "noble"):
+        _check_release_integrity(apt_repo / "dists" / suite)
+
+
+def _check_release_integrity(trixie_dir):
     release_path = trixie_dir / "Release"
     assert release_path.is_file()
 
@@ -738,3 +762,14 @@ def test_the_native_builder_pins_the_control_directory_under_a_strict_umask(tmp_
         os.umask(previous)
     assert res.returncode == 0, f"package_deb.py failed under umask 077:\n{res.stderr}"
     assert (out_dir / f"strict_{current_version()}_all.deb").is_file()
+
+
+def test_noble_sources_and_setup_pick_the_suite(apt_repo):
+    """The Ubuntu 24.04 suite has its own sources file and setup.sh chooses by codename (D8)."""
+    template_dir = get_product_root() / "packaging" / "apt"
+    for apt_dir in (template_dir, apt_repo):
+        noble = (apt_dir / "photo-selector-noble.sources").read_text(encoding="utf-8")
+        assert "Suites: noble" in noble and "Suites: trixie" not in noble
+        setup = (apt_dir / "setup.sh").read_text(encoding="utf-8")
+        assert "VERSION_CODENAME" in setup and "photo-selector-noble.sources" in setup
+        assert "Suites: $SUITE" in setup
