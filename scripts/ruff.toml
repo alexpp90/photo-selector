@@ -1,0 +1,13 @@
+# Lint for the cross-product tooling under scripts/ (docs/build/CI_PARITY.md, "ruff scripts/").
+# Run: ruff check --config scripts/ruff.toml scripts/
+# Pyflakes (F) plus the pycodestyle error classes that find real bugs (E4, E7, E9). Style rules
+# (line length, formatting) are deliberately off: the tooling has no formatter. The products lint
+# their own code (flake8 in products/desktop and products/linux-desktop).
+target-version = "py310"
+
+[lint]
+select = ["E4", "E7", "E9", "F"]
+
+[lint.per-file-ignores]
+# Tests put the package root on sys.path first, then import it (docs/build/CI_PARITY.md).
+"**/tests/*.py" = ["E402"]

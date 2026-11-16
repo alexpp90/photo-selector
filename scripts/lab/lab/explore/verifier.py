@@ -16,7 +16,7 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Tuple
 
-from ..feedback import MISSING, UNCHECKED, WRONG, check_feedback
+from ..feedback import MISSING, UNCHECKED, check_feedback
 from ..fs_oracle import evaluate_fs_oracle
 from ..layout_lint import lint, load_rules
 from ..model import Finding
