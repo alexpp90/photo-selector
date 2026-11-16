@@ -48,12 +48,10 @@ class PhotoSelectorApp : Application() {
      * with the scan; lower would evict a neighbour between two comparisons of
      * the same pair, which is the one thing this screen must never do.
      *
-     * The disk cache holds Coil's *decoded, downsampled* frames, which is a
-     * different thing from the originals: a 45 MP RAW re-read and re-downsampled
-     * costs far more than reading back the 1350x900 result, and a culling
-     * session scrubs over the same frames repeatedly. 512 MB holds a full
-     * session's worth. Source images are immutable once written, so cache
-     * headers are ignored rather than re-validated.
+     * There is no disk cache: Coil 2 fills one only from network fetches, never
+     * with decoded frames, so for the photos of a SAF folder it stayed empty
+     * (see [PhotoImageLoader]). A frame evicted from memory is decoded again from
+     * its source.
      */
     private fun initCoil() {
         // Built in PhotoImageLoader so the format conformance test exercises

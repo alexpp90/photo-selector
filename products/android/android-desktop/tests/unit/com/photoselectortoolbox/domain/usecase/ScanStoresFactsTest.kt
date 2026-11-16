@@ -172,7 +172,7 @@ class ScanStoresFactsTest {
         )
         val rig = Rig()
 
-        val result = rig.useCase(listOf(photo)).toList().last().results.getValue(photo.uri)
+        val result = rig.useCase(listOf(photo)).toList().allResults().getValue(photo.uri)
 
         verify(exactly = 1) { rig.decoder.decodeForAnalysis(any(), any()) }
         // The cached scores are kept, not computed again.
