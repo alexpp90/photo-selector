@@ -196,7 +196,8 @@ abstract class SafTransferContractTest(policy: SafTransferPolicy) : SafTestHarne
 
             assertFalse(result.success)
             assertTrue("the stray copy is reported as a partial result", result.partial)
-            assertEquals(documentUriFor("Selection/RAW/IMG_0420.CR3").toString(), result.destinationUri)
+            // The stray is the temporary the copy was written to: it never got the final name.
+            assertEquals(documentUriFor("Selection/RAW/IMG_0420.CR3${SafTransferEngine.PARTIAL_SUFFIX}").toString(), result.destinationUri)
             assertEquals(
                 mapOf(result.destinationUri!! to documentUriFor(srcFile.name).toString()),
                 result.copiesOfSurvivingOriginals,
@@ -207,10 +208,11 @@ abstract class SafTransferContractTest(policy: SafTransferPolicy) : SafTestHarne
                 "Copy interrupted — some copies of IMG_0420.CR3 stayed in Selection/ and could not be removed"
             }
             assertEquals(expected, result.error)
-            assertTrue("the stray copy is really still there", File(rootDir, "Selection/RAW/IMG_0420.CR3").exists())
+            assertTrue("the stray copy is really still there", File(rootDir, "Selection/RAW/IMG_0420.CR3${SafTransferEngine.PARTIAL_SUFFIX}").exists())
+            assertFalse("and nothing carries the final name", File(rootDir, "Selection/RAW/IMG_0420.CR3").exists())
             assertTrue(srcFile.exists())
             // Next round starts clean, as an undo or the user's own tidy-up would leave it.
-            File(rootDir, "Selection/RAW/IMG_0420.CR3").delete()
+            File(rootDir, "Selection/RAW/IMG_0420.CR3${SafTransferEngine.PARTIAL_SUFFIX}").delete()
         }
     }
 
