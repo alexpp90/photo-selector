@@ -36,7 +36,7 @@ Plus two shared libraries, which are not products:
 | Photo Selector, Photo Selector Linux | Blitzlens | Renamed 2026-10 |
 | Photo Selector Toolbox (for anything but the legacy app or the repository) | the app's name, or the list of the four apps | There is no umbrella name |
 | "the Android app" | Frameduel, or Jackpix | There are two Android products |
-| "Toolbox" (on its own) | Frameduel, or Desktop (legacy) | `:android-desktop`'s artifacts are named `photo-selector-toolbox-android-*`, but so is the Python product |
+| "Toolbox" (on its own) | Frameduel, or Desktop (legacy) | the Python product is also called "Photo Selector Toolbox"; `:android-desktop`'s artifacts are named `frameduel-android-*` |
 | "the Mac app", "the Linux app", "the desktop app" | Lensjet, Blitzlens, Desktop (legacy) | The repository ships several desktop apps |
 | "tablet mode" / "phone mode" as product names | Frameduel / Jackpix | These are window size classes, not products |
 
@@ -50,7 +50,7 @@ the app name, build configuration keeps the identifier.
 |---|---|---|
 | `com.phototok`, `com.photoselectortoolbox` (incl. `.lab`), Kotlin namespaces and packages | Android `build.gradle.kts`, sources | Play listing, Firebase, signing |
 | Firebase projects `phototok-app`, `photo-selector-tb-dist`; CI variables and secrets `PHOTOTOK_*`, `TOOLBOX_*`; keystore aliases | `.github/workflows/android.yml`, signing | distribution pipeline (separate migration) |
-| Release asset names `phototok-android-release.*`, `photo-selector-toolbox-android-release.*`, `photo-selector-macos-*.zip` | release workflows | download links and update tools |
+| Release asset names `jackpix-android-release.*`, `frameduel-android-release.*`, `photo-selector-macos-*.zip` | release workflows | download links and update tools |
 | Tags `phototok-v*`, `android-desktop-v*`, `macos-desktop-v*`, `linux-desktop-v*` | releases | release history and `scripts/release.py` |
 | Folder `PhotoTok_LeftSwipe`, legacy `PhotoTok_Selection` exclusion | Jackpix, every product's scanner | user files already on disk |
 | Marker file `.photoselector-selection` | Jackpix (writes it when its Selection folder is resolved, never lists it as a photo), Frameduel, Lensjet, Blitzlens (the legacy Desktop does not write or read it) | Selection folders users already have |
