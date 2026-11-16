@@ -1,7 +1,7 @@
 {
   "schema": 1,
   "about": "The conditions users have: folder sizes, files, storage and session length. Read by every product's scale and performance tests; rules in docs/shared/USAGE_CONDITIONS.md. Validated by scripts/check_conditions_contract.py.",
-  "consumers": ["phototok", "linux-desktop", "macos-desktop"],
+  "consumers": ["phototok", "android-desktop", "linux-desktop", "macos-desktop"],
   "folder_sizes": {
     "typical": {
       "photos": 2000,

@@ -5,7 +5,6 @@ import android.graphics.drawable.BitmapDrawable
 import android.net.Uri
 import coil.ImageLoader
 import coil.decode.DataSource
-import coil.disk.DiskCache
 import coil.fetch.DrawableResult
 import coil.fetch.FetchResult
 import coil.fetch.Fetcher
@@ -63,7 +62,15 @@ class PhotoFetcher(
 
 /**
  * The app's single Coil [ImageLoader]. See `PhotoSelectorApp.initCoil` for
- * why the cache sizes are what they are.
+ * why the memory cache size is what it is.
+ *
+ * **No disk cache.** Coil 2 writes its disk cache only from network fetches
+ * (`HttpUriFetcher`, the one fetcher that references `coil.disk.DiskCache`);
+ * decoded frames are never written to disk, and a `content://` photo is read
+ * from its provider whenever it is not in the memory cache. This product has
+ * no network access, so the 512 MB disk cache it used to configure stayed
+ * empty (scale-contract 2026-11-15, `ImageLoaderDiskCacheTest`). `null` also
+ * keeps Coil from creating its default singleton disk cache.
  */
 object PhotoImageLoader {
     fun build(context: Context): ImageLoader {
@@ -75,13 +82,7 @@ object PhotoImageLoader {
                     .maxSizePercent(0.30)
                     .build()
             }
-            .diskCache {
-                DiskCache.Builder()
-                    .directory(app.cacheDir.resolve("image_cache"))
-                    .maxSizeBytes(512L * 1024 * 1024)
-                    .build()
-            }
-            .respectCacheHeaders(false)
+            .diskCache(null)
             .build()
     }
 }

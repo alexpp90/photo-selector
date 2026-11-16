@@ -32,13 +32,26 @@ import kotlinx.coroutines.sync.withPermit
 
 /**
  * Progress state emitted during image scanning.
+ *
+ * **Incremental:** [scored] holds only the results that arrived since the previous emission, keyed
+ * by URI, never everything so far. A copy of every result per photo made a scan of 10,000 photos
+ * quadratic (scale-contract 2026-11-15, `ScanProgressScaleTest`). A consumer that needs the whole
+ * scan folds the emissions ([allResults], or `putAll` into its own map); one that merges into a
+ * list merges [scored] alone. Each map is a fresh snapshot the scan never touches again.
+ *
+ * @property processed photos done so far, cache hits included (rises in steps when several
+ *   finish between two emissions).
  */
 data class ScanProgress(
     val processed: Int,
     val total: Int,
     val currentFile: String,
-    val results: Map<String, ScanResult>
+    val scored: Map<String, ScanResult>,
 )
+
+/** Every result of these emissions, folded in order: the whole scan once the last one is in. */
+fun Iterable<ScanProgress>.allResults(): Map<String, ScanResult> =
+    fold(LinkedHashMap()) { all, progress -> all.apply { putAll(progress.scored) } }
 
 /**
  * Orchestrates running the chosen analysis tools (sharpness, noise, clipping;
@@ -80,15 +93,15 @@ class ScanImagesUseCase @Inject constructor(
      * @param measures The measurements to compute (the Scan sheet's rows). An unticked one is not
      *   computed; a photo whose cached row lacks a ticked one has only that one computed, and the
      *   cached values are kept.
-     * @return Flow emitting scan progress with accumulated results.
+     * @return Flow emitting scan progress, each emission with the results new since the last
+     *   ([ScanProgress.scored]). Valid cache hits arrive together in one emission before any
+     *   analysis; afterwards every emission carries what finished since the previous one.
      */
     operator fun invoke(
         images: List<ImageItem>,
         measures: ScanMeasures = ScanMeasures.ALL,
     ): Flow<ScanProgress> = channelFlow {
-        val results = mutableMapOf<String, ScanResult>()
-
-        send(ScanProgress(0, images.size, "", results.toMap()))
+        send(ScanProgress(0, images.size, "", emptyMap()))
 
         // Read thread count setting (default: min(4, availableProcessors))
         val threadCount = settingsRepository.analysisThreadCount.first()
@@ -138,21 +151,23 @@ class ScanImagesUseCase @Inject constructor(
             }
         }
 
-        // Channel for progress updates from concurrent workers
-        val progressChannel = Channel<Pair<Int, Pair<String, ScanResult?>>>(Channel.BUFFERED)
+        // Valid cache hits need no work: one emission for all of them, instead of a coroutine,
+        // a permit and an emission per photo.
+        val toAnalyse = images.filter { it.uri !in validCacheHits }
+        val hitCount = images.size - toAnalyse.size
+        if (hitCount > 0) {
+            val lastHit = images.last { it.uri in validCacheHits }
+            send(ScanProgress(hitCount, images.size, lastHit.fileName, LinkedHashMap(validCacheHits)))
+        }
+
+        // Channel for progress updates from concurrent workers: file name and result (null: undecodable)
+        val progressChannel = Channel<Pair<String, ScanResult?>>(Channel.BUFFERED)
 
         // Launch concurrent image analysis jobs
-        for ((index, image) in images.withIndex()) {
+        for (image in toAnalyse) {
             launch(ioDispatcher) {
                 semaphore.withPermit {
                     ensureActive()
-
-                    // Check cache first (now from pre-computed map)
-                    val cached = validCacheHits[image.uri]
-                    if (cached != null) {
-                        progressChannel.send(index to (image.fileName to cached))
-                        return@withPermit
-                    }
 
                     // Compute what is ticked and not cached yet, and keep what was cached.
                     val partial = partialHits[image.uri]
@@ -170,31 +185,26 @@ class ScanImagesUseCase @Inject constructor(
                     if (computed != null && scanResult != null) {
                         cacheResult(image, scanResult)
                     }
-                    progressChannel.send(index to (image.fileName to scanResult))
+                    progressChannel.send(image.fileName to scanResult)
                 }
             }
         }
 
-        // Collect progress from workers and emit to downstream
+        // Collect progress from workers and emit to downstream: one emission per wake-up, with
+        // everything that finished meanwhile (a slow collector gets fewer, larger emissions).
         launch {
-            var received = 0
+            var received = hitCount
             while (received < images.size) {
-                val (_, pair) = progressChannel.receive()
-                val (fileName, scanResult) = pair
-                received++
-
-                if (scanResult != null) {
-                    results[scanResult.filePath] = scanResult
+                var next: Pair<String, ScanResult?>? = progressChannel.receive()
+                val scored = LinkedHashMap<String, ScanResult>()
+                var fileName = ""
+                while (next != null) {
+                    fileName = next.first
+                    next.second?.let { scored[it.filePath] = it }
+                    received++
+                    next = if (received < images.size) progressChannel.tryReceive().getOrNull() else null
                 }
-
-                send(
-                    ScanProgress(
-                        processed = received,
-                        total = images.size,
-                        currentFile = fileName,
-                        results = results.toMap()
-                    )
-                )
+                send(ScanProgress(received, images.size, fileName, scored))
             }
             progressChannel.close()
             pruneCache()
