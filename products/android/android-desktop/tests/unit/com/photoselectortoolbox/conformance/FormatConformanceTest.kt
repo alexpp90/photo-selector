@@ -7,6 +7,7 @@ import android.net.Uri
 import android.provider.DocumentsContract
 import coil.request.ImageRequest
 import coil.request.SuccessResult
+import com.photoselector.core.conformance.FormatManifest
 import com.photoselector.core.reader.AndroidExifReader
 import com.photoselector.core.reader.MediaStoreReader
 import com.photoselectortoolbox.data.model.ImageItem

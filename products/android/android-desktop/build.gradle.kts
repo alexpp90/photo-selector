@@ -32,9 +32,10 @@ android {
         // `tests/common` is compiled into both test source sets: pure-Kotlin test helpers
         // (the arithmetic of the instrumented `WindowGeometryRule`) that a JVM unit test proves
         // and an instrumented test uses. It holds nothing that needs a device.
+        // tests-shared/: test sources both modules compile (the format-manifest reader).
         getByName("test") {
-            java.directories.apply { clear(); add("tests/unit"); add("tests/common") }
-            kotlin.directories.apply { clear(); add("tests/unit"); add("tests/common") }
+            java.directories.apply { clear(); add("tests/unit"); add("tests/common"); add("../tests-shared") }
+            kotlin.directories.apply { clear(); add("tests/unit"); add("tests/common"); add("../tests-shared") }
         }
         getByName("androidTest") {
             java.directories.apply { clear(); add("tests/instrumented"); add("tests/common") }
