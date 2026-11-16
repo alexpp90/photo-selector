@@ -26,14 +26,14 @@ public struct FilmstripView: View {
         ScrollViewReader { proxy in
             ScrollView(.horizontal, showsIndicators: false) {
                 LazyHStack(spacing: 8) {
-                    ForEach(Array(photos.enumerated()), id: \.element.id) { index, photo in
+                    ForEach(FilmstripTiles.make(photos: photos, currentIndex: currentIndex, comparisonIndices: comparisonIndices)) { tile in
                         FilmstripThumbnailTile(
-                            photo: photo,
-                            isSelected: index == currentIndex,
-                            isInComparison: comparisonIndices.contains(index),
-                            onTap: { onSelectPhoto(index) }
+                            photo: tile.photo,
+                            isSelected: tile.isSelected,
+                            isInComparison: tile.isInComparison,
+                            onTap: { onSelectPhoto(tile.index) }
                         )
-                        .id(photo.id)
+                        .id(tile.photo.id)
                     }
                 }
                 .padding(.horizontal, 16)

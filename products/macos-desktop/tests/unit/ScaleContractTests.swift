@@ -157,6 +157,32 @@ private func navigationTime(photoCount: Int) -> Double {
     )
 }
 
+/// 100 renders of the filmstrip at the end of the list: each builds the strip's tiles from the
+/// list and reads the ones on screen (a window of 20). Nothing here depends on the folder size
+/// once the strip works on the visible window.
+@MainActor
+private func filmstripTime(photoCount: Int) -> Double {
+    bestOfThree(
+        prepare: { () -> CullingWorkspaceViewModel in
+            let vm = makeModel(photoCount: photoCount, decidedEvery: 10)
+            vm.selectPhoto(at: photoCount - 1)
+            return vm
+        },
+        measure: { vm in
+            var sink = 0
+            for _ in 0..<100 {
+                let tiles = FilmstripTiles.make(
+                    photos: vm.photos,
+                    currentIndex: vm.currentIndex,
+                    comparisonIndices: vm.comparisonSlotIndices
+                )
+                for tile in tiles.prefix(20) where tile.isSelected || tile.isInComparison { sink += 1 }
+            }
+            _ = sink
+        }
+    )
+}
+
 /// Opens a real folder of `photoCount` files; returns the time to the first photo and to the full list.
 @MainActor
 private func folderLoadTimes(photoCount: Int, in directory: URL) async -> (first: Double, full: Double) {
@@ -258,6 +284,24 @@ struct ScaleContractTests {
     func navigationKeysAtTheEndStayCheap() {
         // Scale: pr
         expectLinearGrowth(top: ScaleContract.shared.prPhotos, "100 navigation keys with tally and end state") { navigationTime(photoCount: $0) }
+    }
+
+    // Scale: pr
+    @Test("REQ-MAC-PERF.03: 100 filmstrip renders cost the visible window, flat in the folder size (Scale: pr)")
+    func filmstripRendersStayFlat() {
+        // Scale: pr
+        // Stricter than the growth rule: work on a window of 20 tiles is flat, so the 4N / N time
+        // must stay under factor / 2 (2), where building every tile grows by about the factor (4).
+        let growth = ScaleContract.shared.growth_check
+        let top = ScaleContract.shared.prPhotos
+        let small = top / growth.factor
+        _ = filmstripTime(photoCount: small)  // warm-up
+        let tSmall = filmstripTime(photoCount: small)
+        let tTop = filmstripTime(photoCount: top)
+        let ratio = tTop / max(tSmall, 0.002)
+        let limit = Double(growth.factor) / 2
+        #expect(ratio <= limit,
+                "100 filmstrip renders: \(small) photos \(tSmall * 1000) ms, \(top) photos \(tTop * 1000) ms, ratio \(ratio) > \(limit)")
     }
 
     // Scale: pr
