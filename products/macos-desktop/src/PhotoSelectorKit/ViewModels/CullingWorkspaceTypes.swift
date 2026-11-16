@@ -52,6 +52,9 @@ public struct ToastMessage: Identifiable, Equatable, Sendable {
     /// A banner that stays until the user's next navigation key or Esc (the "Stop at sharpness"
     /// notice), instead of fading after 1.2 s.
     public let isPersistent: Bool
+    /// A failure or partial result: stays through navigation keys and goes only with Esc or its
+    /// close button (H-LJ-2), unlike the sharpness banner, which the next navigation key drops.
+    public let isFailure: Bool
     /// What VoiceOver reads when it differs from the title ("Moved IMG_0001.CR3 and 2 companion files to Selection").
     public let spoken: String?
 
@@ -62,10 +65,12 @@ public struct ToastMessage: Identifiable, Equatable, Sendable {
         subtitle: String? = nil,
         actionType: CullingActionType? = nil,
         isPersistent: Bool = false,
+        isFailure: Bool = false,
         spoken: String? = nil
     ) {
         self.spoken = spoken
-        self.isPersistent = isPersistent
+        self.isFailure = isFailure
+        self.isPersistent = isPersistent || isFailure
         self.id = id
         self.icon = icon
         self.title = title

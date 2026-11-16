@@ -80,7 +80,7 @@ public enum CullingFeedback {
 
     /// The URL in `urls` that is the (possibly suffixed) primary file: same extension, and a stem that
     /// starts with the original stem.
-    private static func primaryURL(matching original: URL, in urls: [URL]) -> URL? {
+    static func primaryURL(matching original: URL, in urls: [URL]) -> URL? {
         let stem = original.deletingPathExtension().lastPathComponent.lowercased()
         let ext = original.pathExtension.lowercased()
         return urls.first {

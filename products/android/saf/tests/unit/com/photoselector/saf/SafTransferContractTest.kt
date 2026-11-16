@@ -111,6 +111,11 @@ abstract class SafTransferContractTest(policy: SafTransferPolicy) : SafTestHarne
         assertEquals("payload-IMG_0001-Edit.tif", File(dest, "IMG_0001-2-Edit.tif").readText())
         assertEquals("payload-IMG_0001.CR3.xmp", File(dest, "IMG_0001-2.CR3.xmp").readText())
         assertEquals("payload-IMG_0001.xmp", File(rootDir, "Selection/IMG_0001-2.xmp").readText())
+        // The result names the file the destination really has, collision suffix included.
+        assertEquals(
+            listOf("IMG_0001-2.CR3", "IMG_0001-2.JPG", "IMG_0001-2-Edit.tif", "IMG_0001-2.xmp", "IMG_0001-2.CR3.xmp"),
+            results.map { it.destinationName },
+        )
     }
 
     // ── 2. Size verification before the source is deleted ────────────────
@@ -289,6 +294,7 @@ abstract class SafTransferContractTest(policy: SafTransferPolicy) : SafTestHarne
         assertEquals(1, FakeSafDocumentsProvider.moveDocumentCalls.get())
         assertFalse(srcFile.exists())
         assertEquals("atomic-move-payload", File(rootDir, "Selection/RAW/IMG_0004.ARW").readText())
+        assertEquals("IMG_0004.ARW", result.destinationName)
     }
 
     // AD + TOK: moveImage falls back to verified copy with -2 suffix when collision exists even if FLAG_SUPPORTS_MOVE is set
@@ -305,6 +311,29 @@ abstract class SafTransferContractTest(policy: SafTransferPolicy) : SafTestHarne
         assertEquals("existing-raw", File(rootDir, "Selection/RAW/IMG_0004.ARW").readText())
         assertEquals("second-raw", File(rootDir, "Selection/RAW/IMG_0004-2.ARW").readText())
         assertFalse(srcFile.exists())
+        assertEquals("IMG_0004-2.ARW", result.destinationName)
+        assertEquals(listOf("IMG_0004-2.ARW"), result.destinationNames)
+    }
+
+    @Test
+    fun `a copy without a collision reports the plain destination name`() = runTest {
+        val srcFile = File(rootDir, "IMG_0007.ARW").apply { writeText("raw") }
+
+        val result = copy(srcFile.name)
+
+        assertTrue(result.success)
+        assertEquals("IMG_0007.ARW", result.destinationName)
+    }
+
+    @Test
+    fun `a copy that collides reports the renamed destination name`() = runTest {
+        File(rootDir, "Selection/RAW/IMG_0008.ARW").apply { parentFile?.mkdirs(); writeText("existing") }
+        val srcFile = File(rootDir, "IMG_0008.ARW").apply { writeText("new") }
+
+        val result = copy(srcFile.name)
+
+        assertTrue(result.success)
+        assertEquals("IMG_0008-2.ARW", result.destinationName)
     }
 
     // ── 5. Provider silent auto-rename mismatch ──────────────────────────

@@ -30,22 +30,37 @@ public final class DuplicateFinder: Sendable {
     public static func findDuplicates(in urls: [URL]) async throws -> [DuplicateCluster] {
         // Stage 1: Group files by byte size. Files with unique sizes are skipped.
         var sizeGroups: [Int64: [URL]] = [:]
+        // One file is one entry: a symlink and its target, or two hard links, are the same file
+        // and never a duplicate pair (trashing one of them would "free" nothing or remove the
+        // original). The entry keeps the path it was listed under, not the link target (H-LJ-4).
+        var byIdentity: [FileIdentity: (url: URL, size: Int64, isLink: Bool)] = [:]
 
         for rawURL in urls {
             try Task.checkCancellation()
 
-            let url = rawURL.standardizedFileURL.resolvingSymlinksInPath()
+            let listed = rawURL.standardizedFileURL
+            let resolved = listed.resolvingSymlinksInPath()
 
-            guard let resourceValues = try? url.resourceValues(forKeys: [.fileSizeKey, .isRegularFileKey]),
+            guard let resourceValues = try? resolved.resourceValues(forKeys: [.fileSizeKey, .isRegularFileKey]),
                   resourceValues.isRegularFile == true,
                   let size = resourceValues.fileSize,
-                  size > 0 else {
+                  size > 0,
+                  let identity = FileIdentity(resolved) else {
                 continue
             }
 
-            let int64Size = Int64(size)
-            sizeGroups[int64Size, default: []].append(url)
+            let isLink = (try? listed.resourceValues(forKeys: [.isSymbolicLinkKey]))?.isSymbolicLink == true
+            if let known = byIdentity[identity] {
+                // Prefer the real file over a link to it, then the first path by name, so the
+                // survivor does not depend on directory enumeration order.
+                if (known.isLink && !isLink) || (known.isLink == isLink && listed.path < known.url.path) {
+                    byIdentity[identity] = (listed, Int64(size), isLink)
+                }
+                continue
+            }
+            byIdentity[identity] = (listed, Int64(size), isLink)
         }
+        for entry in byIdentity.values { sizeGroups[entry.size, default: []].append(entry.url) }
 
         // Keep only groups with at least 2 files sharing the exact size
         let potentialDuplicates = sizeGroups.filter { $0.value.count > 1 }
@@ -153,6 +168,19 @@ public final class DuplicateFinder: Sendable {
             candidateURLs.append(item)
         }
         return candidateURLs
+    }
+
+    /// Device and inode of a file: two paths with the same identity are one file.
+    private struct FileIdentity: Hashable {
+        let device: Int64
+        let inode: UInt64
+
+        init?(_ url: URL) {
+            var info = stat()
+            guard stat(url.path, &info) == 0 else { return nil }
+            device = Int64(info.st_dev)
+            inode = UInt64(info.st_ino)
+        }
     }
 
     /// Computes streaming SHA256 checksum in 64 KB memory chunks using Apple CryptoKit.

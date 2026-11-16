@@ -1,7 +1,7 @@
 package com.photoselectortoolbox.data.source
 
 import android.net.Uri
-import com.photoselectortoolbox.conformance.FormatManifest
+import com.photoselector.core.conformance.FormatManifest
 import com.photoselectortoolbox.data.model.ImageDimensions
 import java.io.File
 import java.nio.ByteBuffer

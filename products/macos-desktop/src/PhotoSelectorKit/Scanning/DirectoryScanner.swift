@@ -287,12 +287,26 @@ public final class DirectoryScanner: DirectoryScanning, @unchecked Sendable {
     }
 
     /// `"dsc0001-edit-2"` / `"dsc0001-enhanced-nr"` → `"dsc0001"`; `nil` when the stem is not a derivative.
+    /// The marker must end the stem, optionally followed by `-N` / `_N`: `"dsc0001-editorial"` is
+    /// another photo, not an edit of `dsc0001` (H-LJ-5).
     static func editBaseStem(of lowerStem: String) -> String? {
         let markers = ["-edit", "_edit", "-enhanced-nr", "_enhanced-nr"]
-        let ranges = markers.compactMap { lowerStem.range(of: $0) }
-        guard let first = ranges.min(by: { $0.lowerBound < $1.lowerBound }) else { return nil }
-        let base = String(lowerStem[..<first.lowerBound])
-        return base.isEmpty ? nil : base
+        var best: String?
+        for marker in markers {
+            var searchRange = lowerStem.startIndex..<lowerStem.endIndex
+            while let found = lowerStem.range(of: marker, range: searchRange) {
+                let base = String(lowerStem[..<found.lowerBound])
+                let rest = lowerStem[found.upperBound...]
+                let numbered = rest.count > 1 && (rest.first == "-" || rest.first == "_")
+                    && rest.dropFirst().allSatisfy(\.isASCII) && rest.dropFirst().allSatisfy(\.isNumber)
+                if !base.isEmpty, rest.isEmpty || numbered {
+                    if let current = best, current.count <= base.count {} else { best = base }
+                    break
+                }
+                searchRange = found.upperBound..<lowerStem.endIndex
+            }
+        }
+        return best
     }
 
     /// Lower is better: 0 = original RAW, 1 = original rendered, 2 = derivative RAW, 3 = derivative.
