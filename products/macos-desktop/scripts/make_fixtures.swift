@@ -21,7 +21,17 @@ for dir in [root, nested, excluded] {
     try FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
 }
 
+// Encoded files by (size, hue): a folder of thousands of photos reuses the few distinct images
+// (17 hues x 2 shapes) instead of rendering and encoding each one, so a 10,000-photo fixture takes
+// seconds, not minutes. Every file is still written separately (its own inode and modification date).
+var encodedCache: [String: Data] = [:]
+
 func writeJPEG(to url: URL, width: Int, height: Int, hue: CGFloat) {
+    let cacheKey = "\(width)x\(height)-\(hue)"
+    if let cached = encodedCache[cacheKey] {
+        try? cached.write(to: url)
+        return
+    }
     let space = CGColorSpaceCreateDeviceRGB()
     guard let ctx = CGContext(
         data: nil, width: width, height: height, bitsPerComponent: 8, bytesPerRow: 0,
@@ -42,8 +52,9 @@ func writeJPEG(to url: URL, width: Int, height: Int, hue: CGFloat) {
             ctx.fill(CGRect(x: x, y: y, width: cell, height: cell))
         }
     }
+    let output = NSMutableData()
     guard let image = ctx.makeImage(),
-          let dest = CGImageDestinationCreateWithURL(url as CFURL, UTType.jpeg.identifier as CFString, 1, nil)
+          let dest = CGImageDestinationCreateWithData(output as CFMutableData, UTType.jpeg.identifier as CFString, 1, nil)
     else { return }
     // Camera-style EXIF so the metadata panel has something to show (and the smoke test can
     // assert that EXIF is visible together with the first photo).
@@ -59,7 +70,10 @@ func writeJPEG(to url: URL, width: Int, height: Int, hue: CGFloat) {
         ],
     ]
     CGImageDestinationAddImage(dest, image, properties as CFDictionary)
-    CGImageDestinationFinalize(dest)
+    guard CGImageDestinationFinalize(dest) else { return }
+    let data = output as Data
+    encodedCache[cacheKey] = data
+    try? data.write(to: url)
 }
 
 for index in 0..<count {
