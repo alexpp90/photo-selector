@@ -20,7 +20,6 @@ from .inventory import (
     ANDROID_PRODUCTS,
     AndroidDevice,
     Inventory,
-    load_inventory,
     parse_inventory,
     resolve_android_device,
     select_android_devices,

@@ -394,7 +394,7 @@ class RunTestsScopedLocalGatesTest(_MirrorHarness):
         row = self.rows(self.lab_root(), "--python", "--quick", venv=self.make_venv("v", with_tools=True))["lab tooling tests"]
         self.assertEqual(row[0], "SKIP")
         self.assertIn("no change under scripts/lab/ (local-only gate; --all runs it)", row[2])
-        self.assertEqual(row[3:5], ["local-only", "false"])
+        self.assertEqual(row[3:5], ["repo-hygiene.yml:lab-tests", "false"])
 
     def test_the_lab_flag_forces_the_lab_tests(self):
         self.assertEqual(self.rows(self.lab_root(), "--lab")["lab tooling tests"][0], "PASS")
