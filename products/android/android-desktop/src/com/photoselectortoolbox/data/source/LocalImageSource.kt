@@ -13,6 +13,9 @@ import com.photoselectortoolbox.data.model.ImageItem
 import com.photoselectortoolbox.di.IoDispatcher
 import com.photoselectortoolbox.domain.format.ImageFormats
 import dagger.hilt.android.qualifiers.ApplicationContext
+import java.io.BufferedInputStream
+import java.io.IOException
+import java.io.InputStream
 import javax.inject.Inject
 import javax.inject.Singleton
 import kotlin.coroutines.coroutineContext
@@ -124,6 +127,16 @@ class LocalImageSourceImpl @Inject constructor(
          * decoding a header for a frame the user scrubs past repeatedly.
          */
         private const val DIMENSION_CACHE_LIMIT = 20_000
+
+        /** Read buffer of the header read: one SAF read covers a JPEG's markers up to its frame header. */
+        private const val HEADER_BUFFER_BYTES = 64 * 1024
+
+        /**
+         * How far the bounds decode may read before the stream can no longer be reset for the EXIF
+         * read. A JPEG's EXIF (APP1, with its thumbnail) is at most 64 KiB, and its frame header
+         * follows its APP segments; beyond this the orientation is read with a second open.
+         */
+        private const val HEADER_MARK_LIMIT_BYTES = 512 * 1024
     }
 
     /**
@@ -209,20 +222,35 @@ class LocalImageSourceImpl @Inject constructor(
     }
 
     /**
-     * Read width and height from the image header only (no pixel decode).
-     * Returns [ImageDimensions.UNKNOWN] if they cannot be determined.
+     * Read width and height from the image header only (no pixel decode), with **one** open of
+     * the file: the bounds decode and the EXIF orientation read share a stream that is marked at
+     * the start and reset in between (scale-contract 2026-11-15: a second open per photo doubled
+     * the backfill's opens, the expensive part on a card reader, an MTP camera or a cloud
+     * provider). Returns [ImageDimensions.UNKNOWN] if they cannot be determined.
      */
     private fun readImageDimensions(uri: Uri): ImageDimensions {
         return try {
             val opts = BitmapFactory.Options().apply { inJustDecodeBounds = true }
-            context.contentResolver.openInputStream(uri)?.use { stream ->
+            var sideways: Boolean? = null
+            context.contentResolver.openInputStream(uri)?.use { raw ->
+                val stream = BufferedInputStream(raw, HEADER_BUFFER_BYTES)
+                stream.mark(HEADER_MARK_LIMIT_BYTES)
                 BitmapFactory.decodeStream(stream, null, opts)
+                if (opts.outWidth > 0 && opts.outHeight > 0) {
+                    // Null when the bounds decode read past the mark: then the orientation needs its own open.
+                    sideways = try {
+                        stream.reset()
+                        exifTurnsSideways(stream, uri)
+                    } catch (e: IOException) {
+                        null
+                    }
+                }
             }
             val dimensions = ImageDimensions.of(opts.outWidth, opts.outHeight)
             if (dimensions != ImageDimensions.UNKNOWN) {
                 // The header is the stored pixels; a photo turned by its EXIF orientation (a camera's
                 // portrait) is shown, and framed, the other way round (full review 2026-11-09).
-                if (exifTurnsSideways(uri)) ImageDimensions.of(opts.outHeight, opts.outWidth) else dimensions
+                if (sideways ?: exifTurnsSideways(uri)) ImageDimensions.of(opts.outHeight, opts.outWidth) else dimensions
             } else {
                 // No platform codec (CR3 has none anywhere): size it from the
                 // embedded preview's frame header — still header-only reads.
@@ -235,14 +263,23 @@ class LocalImageSourceImpl @Inject constructor(
     }
 
     /**
-     * Whether [uri]'s EXIF orientation turns it by 90° or 270° (orientations 5 to 8). A second
-     * header read, on this background resolver only; a file without EXIF, or one that cannot be
-     * read, is shown as stored, which is what the header says.
+     * Whether [uri]'s EXIF orientation turns it by 90° or 270° (orientations 5 to 8), read with an
+     * open of its own: only when the shared stream of [readImageDimensions] could not be reset.
      */
     private fun exifTurnsSideways(uri: Uri): Boolean = try {
-        context.contentResolver.openInputStream(uri)?.use { stream ->
-            ExifInterface(stream).getAttributeInt(ExifInterface.TAG_ORIENTATION, ExifInterface.ORIENTATION_NORMAL) in 5..8
-        } ?: false
+        context.contentResolver.openInputStream(uri)?.use { stream -> exifTurnsSideways(stream, uri) } ?: false
+    } catch (e: Exception) {
+        Log.d(TAG, "No EXIF orientation for $uri: ${e.message}")
+        false
+    }
+
+    /**
+     * Whether the EXIF orientation in [stream] turns the photo by 90° or 270° (orientations 5 to 8).
+     * A file without EXIF, or one whose EXIF cannot be parsed, is shown as stored, which is what the
+     * header says.
+     */
+    private fun exifTurnsSideways(stream: InputStream, uri: Uri): Boolean = try {
+        ExifInterface(stream).getAttributeInt(ExifInterface.TAG_ORIENTATION, ExifInterface.ORIENTATION_NORMAL) in 5..8
     } catch (e: Exception) {
         Log.d(TAG, "No EXIF orientation for $uri: ${e.message}")
         false

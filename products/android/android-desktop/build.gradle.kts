@@ -160,6 +160,11 @@ tasks.withType<Test>().configureEach {
     )
     inputs.file(rootProject.file("../../testdata/formats/manifest.json"))
         .withPropertyName("formatManifest").withPathSensitivity(PathSensitivity.RELATIVE)
+    // The usage-conditions contract (folder sizes and the growth rule of the scale tests):
+    // tests/unit/.../testing/ScaleConditions.kt reads it. An input, so an edit re-runs them.
+    val conditionsFile = rootProject.file("../../testdata/conditions/conditions.json")
+    inputs.file(conditionsFile).withPropertyName("conditionsContract").withPathSensitivity(PathSensitivity.RELATIVE)
+    systemProperty("frameduel.conditions", conditionsFile.absolutePath)
 }
 
 dependencies {

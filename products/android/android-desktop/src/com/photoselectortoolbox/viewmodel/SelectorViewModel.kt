@@ -64,6 +64,8 @@ import com.photoselectortoolbox.domain.session.JumpResolution
 import com.photoselectortoolbox.domain.session.PhotoDates
 import com.photoselectortoolbox.domain.session.ProgressiveMerge
 import com.photoselectortoolbox.domain.session.ScoreMerge
+import com.photoselectortoolbox.domain.session.DimensionBackfill
+import com.photoselectortoolbox.viewmodel.ScanUpdates.coalesced
 import com.photoselectortoolbox.domain.session.SelectorReorder
 import com.photoselectortoolbox.domain.session.SelectorSortOrder
 import com.photoselectortoolbox.domain.session.SelectorWindows
@@ -211,6 +213,9 @@ class SelectorViewModel @Inject constructor(
      */
     private val publishedUris = mutableSetOf<String>()
 
+    /** Size of the discovery's previous cumulative emission: only the tail past it is new. */
+    private var discoveredSize = 0
+
     /**
      * URIs whose header has been read, so no URI costs a second open —
      * unreadable ones included, because a negative result is still an answer.
@@ -220,6 +225,9 @@ class SelectorViewModel @Inject constructor(
      */
     private val dimensionsResolved: MutableSet<String> =
         java.util.Collections.newSetFromMap(java.util.concurrent.ConcurrentHashMap())
+
+    /** Positions of the visible-range dimension pass, used on the main thread only ([applyDimensions]). */
+    private val visiblePositions = ListPositions()
 
     /** Coil prefetch requests in flight, keyed by URI so they can be superseded. */
     private val prefetchRequests = mutableMapOf<String, Disposable>()
@@ -445,6 +453,7 @@ class SelectorViewModel @Inject constructor(
         scanJob = null
         groupingJob = null
         publishedUris.clear()
+        discoveredSize = 0
         dimensionsResolved.clear()
         cancelAllPrefetch()
         loadedExifCache.clear()
@@ -617,7 +626,7 @@ class SelectorViewModel @Inject constructor(
      * - `currentIndex = 0`, which would drag the photographer back to frame 1
      *   every time another 250 files finished enumerating.
      * - grouping, which rebuilds the candidate list they are looking at.
-     * - the cached-score restore, which is a per-image cache read over the whole
+     * - the cached-score restore, which is a batched cache read over the whole
      *   list; it is debounced onto the settled list instead.
      */
     private suspend fun collectDiscovery(
@@ -652,7 +661,9 @@ class SelectorViewModel @Inject constructor(
         val isFirstBatch = publishedUris.isEmpty()
         // Each fresh batch is ordered before it is appended; only the settle
         // (see [settleOrder]) ever orders the list as a whole.
-        val fresh = ProgressiveMerge.newItems(batch, publishedUris)
+        val from = discoveredSize.takeIf { it <= batch.size } ?: 0
+        discoveredSize = batch.size
+        val fresh = ProgressiveMerge.newItems(batch, publishedUris, from)
             .let { items ->
                 val state = _uiState.value
                 items.sortedWith(state.activeComparator())
@@ -1054,18 +1065,19 @@ class SelectorViewModel @Inject constructor(
             }
 
             var analysed = 0
-            var results = emptyMap<String, ScanResult>()
+            val results = HashMap<String, ScanResult>() // the scan's emissions folded (each is new results only)
             val folderUri = _uiState.value.folderUri
             val stillListing = _uiState.value.isEnumerating
+            val applier = ScanScoreApplier() // by position, and what waited applied at once (ScanUpdates)
             try {
-                scanImagesUseCase(images, pendingScanMeasures).collect { progress ->
+                scanImagesUseCase(images, pendingScanMeasures).coalesced().collect { progress ->
                     val fraction = if (progress.total > 0) {
                         progress.processed.toFloat() / progress.total.toFloat()
                     } else {
                         0f
                     }
                     analysed = progress.processed
-                    results = progress.results
+                    results.putAll(progress.scored)
 
                     // Merged *inside* the update, against the state as it is at
                     // that moment. Building the new list from a snapshot read
@@ -1073,7 +1085,7 @@ class SelectorViewModel @Inject constructor(
                     // dimension loads run on their own coroutines and a scan is
                     // long.
                     _uiState.update { state ->
-                        val merged = ScoreMerge.apply(state.images, progress.results)
+                        val merged = applier.apply(state.images, progress.scored)
                         state.copy(
                             scanProgress = fraction,
                             scanStatusText = SelectorLabels.scanProgress(
@@ -2128,6 +2140,7 @@ class SelectorViewModel @Inject constructor(
      * open, ever, including the ones that turn out to be unreadable.
      */
     private fun startDimensionBackfill(force: Boolean = false) {
+        if (!DimensionBackfill.runsFor(_uiState.value.sourceKind)) return // cloud, MTP: the visible range only
         if (!force && backfillDimensionsJob?.isActive == true) return
         backfillDimensionsJob?.cancel()
         backfillDimensionsJob = viewModelScope.launch(ioDispatcher) {
@@ -2140,6 +2153,7 @@ class SelectorViewModel @Inject constructor(
                 .filter { it.aspectRatio == null && it.uri !in dimensionsResolved }
                 .map { it.uri }
 
+            val positions = ListPositions() // a batch writes its 24 photos, not the whole list
             pending.chunked(DIMENSION_BATCH_SIZE).forEach { chunk ->
                 val remaining = chunk.filterNot { it in dimensionsResolved }
                 if (remaining.isEmpty()) return@forEach
@@ -2152,27 +2166,16 @@ class SelectorViewModel @Inject constructor(
                     emptyMap()
                 }
                 dimensionsResolved += resolved.keys
-                applyDimensions(resolved)
+                applyDimensions(resolved, positions)
             }
         }
     }
 
-    /** One state update per batch, so recomposition stays bounded. */
-    private fun applyDimensions(dimensions: Map<String, ImageDimensions>) {
+    /** One state update per batch, so recomposition stays bounded; by position ([ListPositions]). */
+    private fun applyDimensions(dimensions: Map<String, ImageDimensions>, positions: ListPositions = visiblePositions) {
         val known = dimensions.filterValues { it.isKnown }
         if (known.isEmpty()) return
-        _uiState.update { state ->
-            state.copy(
-                images = state.images.map { image ->
-                    val dims = known[image.uri] ?: return@map image
-                    if (image.imageWidth == dims.width && image.imageHeight == dims.height) {
-                        image
-                    } else {
-                        image.copy(imageWidth = dims.width, imageHeight = dims.height)
-                    }
-                }
-            )
-        }
+        _uiState.update { state -> state.copy(images = positions.applyDimensions(state.images, known)) }
     }
 
     /**
@@ -2232,9 +2235,9 @@ class SelectorViewModel @Inject constructor(
     /**
      * Restore cached scan scores from Room.
      *
-     * Debounced rather than run per discovery batch: it is a cache read per
-     * image over the whole list, and running it on every cumulative emission
-     * re-reads the same rows once per batch for no new information.
+     * Debounced rather than run per discovery batch: it is a batched cache read
+     * over the whole list, and running it on every cumulative emission re-reads
+     * the same rows once per batch for no new information.
      */
     private fun scheduleScoreRestore(immediate: Boolean = false) {
         scoreRestoreJob?.cancel()
@@ -2263,51 +2266,15 @@ class SelectorViewModel @Inject constructor(
                 emptyMap()
             }
 
-            val mapped = images.map { image ->
-                val userRating = userRatings[image.uri]
-                val cached = try {
-                    scoreDao.getScore(image.uri)
-                } catch (e: CancellationException) {
-                    throw e
-                } catch (e: Exception) {
-                    null
-                }
-
-                // Validate scan cache entry matches current file
-                val validCache = cached != null &&
-                    cached.fileSize == image.fileSize &&
-                    cached.lastModified == image.lastModified
-
-                val currentRating = when {
-                    image.rating != 0 -> image.rating
-                    userRating != null -> userRating
-                    validCache -> cached.rating
-                    else -> 0
-                }
-
-                val scanResult = image.scanResult ?: if (validCache) {
-                    ScanResult(
-                        filePath = image.uri,
-                        sharpnessScore = cached.sharpnessScore,
-                        noiseLevel = cached.noiseLevel,
-                        highlightClipping = cached.highlightClipping,
-                        shadowClipping = cached.shadowClipping,
-                        aestheticScore = cached.aestheticScore,
-                    )
-                } else {
-                    null
-                }
-
-                if (currentRating == image.rating && scanResult == image.scanResult) {
-                    image
-                } else {
-                    image.copy(
-                        rating = currentRating,
-                        scanResult = scanResult,
-                    )
-                }
+            // One batched read for the folder (chunked at the bind limit), never a query per photo.
+            val cached = try {
+                cacheRepository.getCachedScores(uris).associateBy { it.filePath }
+            } catch (e: CancellationException) {
+                throw e
+            } catch (e: Exception) {
+                emptyMap()
             }
-            mapped to userRatings
+            ScoreRestore.restored(images, cached, userRatings) to userRatings
         }
 
         // Only the scores travel forward out of the snapshot. See [ScoreMerge]
@@ -2315,19 +2282,7 @@ class SelectorViewModel @Inject constructor(
         val restored = ScoreMerge.scoresOf(updatedImages)
         val restoredRatingsByUri = updatedImages.associate { it.uri to it.rating }
         _uiState.update { state ->
-            val withScores = ScoreMerge.apply(state.images, restored)
-            val withRatings = withScores.map { img ->
-                val explicitUserRating = persistedRatings[img.uri]
-                val fallbackRating = restoredRatingsByUri[img.uri] ?: 0
-                when {
-                    explicitUserRating != null && (img.rating == 0 || img.rating == img.exifData?.rating) ->
-                        img.copy(rating = explicitUserRating)
-                    img.rating == 0 && fallbackRating != 0 ->
-                        img.copy(rating = fallbackRating)
-                    else ->
-                        img
-                }
-            }
+            val withRatings = ScoreRestore.withRatings(ScoreMerge.apply(state.images, restored), persistedRatings, restoredRatingsByUri)
             state.copy(images = withRatings)
         }
     }

@@ -1188,7 +1188,7 @@ class SelectorViewModelTest {
                 processed = 1,
                 total = 1,
                 currentFile = "a",
-                results = mapOf(
+                scored = mapOf(
                     "content://test/folder/a" to ScanResult(
                         filePath = "content://test/folder/a",
                         sharpnessScore = 70.0,
