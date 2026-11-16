@@ -20,7 +20,7 @@ import time
 import xml.etree.ElementTree as ET
 from dataclasses import asdict, dataclass, field
 from pathlib import Path
-from typing import Callable, Sequence
+from typing import Callable
 
 from .paths import ensure_android_lab_path
 

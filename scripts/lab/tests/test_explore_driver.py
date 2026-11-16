@@ -11,7 +11,6 @@ import shutil
 import subprocess
 import sys
 import tempfile
-import time
 import types
 import unittest
 from pathlib import Path
@@ -38,7 +37,6 @@ from lab.explore.drivers import (  # noqa: E402
     DriverSettlingError,
     DriverTimeoutError,
     LinuxDeviceDriver,
-    MacOSDeviceDriver,
     MockDeviceDriver,
 )
 from lab.locks import DeviceBusy, held_lock, hub_lock_path  # noqa: E402

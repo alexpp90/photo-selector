@@ -7,8 +7,6 @@ exploration began wherever the app resumed, and DocumentsUI on the API 30 refere
 
 from __future__ import annotations
 
-import re
-import shutil
 import sys
 import tempfile
 import unittest

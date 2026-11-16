@@ -8,7 +8,6 @@ model proves only the author's model (playbook-run-device-lab, *Writing or chang
 from __future__ import annotations
 
 import ast
-import json
 import plistlib
 import re
 import subprocess
