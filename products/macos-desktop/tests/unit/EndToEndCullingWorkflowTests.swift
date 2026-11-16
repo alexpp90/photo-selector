@@ -311,7 +311,9 @@ struct EndToEndCullingWorkflowTests {
         }
         let navElapsed = CFAbsoluteTimeGetCurrent() - navStart
         #expect(vm.currentIndex == totalItems - 1)
-        #expect(navElapsed < 0.2, "Navigating 100 photos must take < 0.2s (elapsed: \(navElapsed)s)")
+        // Hang guard only (10 ms per key): the PR gate never asserts absolute milliseconds, and growth
+        // of navigation is `ScaleContractTests.navigationKeysAtTheEndStayCheap`.
+        #expect(navElapsed < Double(totalItems) * 0.010, "Navigating 100 photos took \(navElapsed)s, over the 10 ms per key hang guard")
 
         // Instant statistics computation
         let statsStart = CFAbsoluteTimeGetCurrent()

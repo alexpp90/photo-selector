@@ -159,10 +159,11 @@ public struct CullingActionBar: View {
     // MARK: - Live Triage Counters
 
     private func tally(_ density: ChromeDensity) -> some View {
-        let selected = viewModel.selectedCount
-        let trashed = viewModel.trashedCount
-        let copied = viewModel.copiedCount
-        let remaining = viewModel.remainingCount
+        let tally = viewModel.statusTally
+        let selected = tally.selected
+        let trashed = tally.trashed
+        let copied = tally.copied
+        let remaining = tally.remaining
         let green = Color.lensjetMove
         let red = Color.lensjetTrash
         return HStack(spacing: 8) {

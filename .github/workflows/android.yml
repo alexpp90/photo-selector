@@ -270,7 +270,9 @@ jobs:
   instrumented-tests:
     name: Instrumented tests (API ${{ matrix.api-level }})
     runs-on: ubuntu-24.04
-    timeout-minutes: 45
+    # Recent runs take 9-12 minutes (boot included); 25 leaves 2x headroom for a slow runner and
+    # still fails a hung emulator long before the old 45.
+    timeout-minutes: 25
     # The emulator job is the slowest and least readable in the pipeline (~15
     # min vs ~2 min). `unit-tests` already compiles :app and :phototok
     # androidTest sources, so gating on it means a Kotlin/KSP break in a test
@@ -488,16 +490,16 @@ jobs:
         run: |
           mkdir -p products/android/release-assets
           if compgen -G "products/android/android-desktop/build/outputs/apk/release/*.apk" > /dev/null; then
-            cp products/android/android-desktop/build/outputs/apk/release/*.apk products/android/release-assets/photo-selector-toolbox-android-release.apk
+            cp products/android/android-desktop/build/outputs/apk/release/*.apk products/android/release-assets/frameduel-android-release.apk
           fi
           if compgen -G "products/android/android-desktop/build/outputs/bundle/release/*.aab" > /dev/null; then
-            cp products/android/android-desktop/build/outputs/bundle/release/*.aab products/android/release-assets/photo-selector-toolbox-android-release.aab
+            cp products/android/android-desktop/build/outputs/bundle/release/*.aab products/android/release-assets/frameduel-android-release.aab
           fi
           if compgen -G "products/android/phototok/build/outputs/apk/release/*.apk" > /dev/null; then
-            cp products/android/phototok/build/outputs/apk/release/*.apk products/android/release-assets/phototok-android-release.apk
+            cp products/android/phototok/build/outputs/apk/release/*.apk products/android/release-assets/jackpix-android-release.apk
           fi
           if compgen -G "products/android/phototok/build/outputs/bundle/release/*.aab" > /dev/null; then
-            cp products/android/phototok/build/outputs/bundle/release/*.aab products/android/release-assets/phototok-android-release.aab
+            cp products/android/phototok/build/outputs/bundle/release/*.aab products/android/release-assets/jackpix-android-release.aab
           fi
 
       - name: Verify 16 KB ELF and zip-entry alignment (release APK & AAB)
@@ -517,7 +519,7 @@ jobs:
       - name: Upload debug APK
         uses: actions/upload-artifact@v7
         with:
-          name: photo-selector-toolbox-android-debug
+          name: frameduel-android-debug
           path: products/android/android-desktop/build/outputs/apk/debug/*.apk
           if-no-files-found: error
 
@@ -525,32 +527,32 @@ jobs:
         if: github.event_name == 'push' && needs.detect-changes.outputs.toolbox == 'true'
         uses: actions/upload-artifact@v7
         with:
-          name: photo-selector-toolbox-android-release
-          path: products/android/release-assets/photo-selector-toolbox-android-release.apk
+          name: frameduel-android-release
+          path: products/android/release-assets/frameduel-android-release.apk
           if-no-files-found: error
 
       - name: Upload Jackpix release APK
         if: github.event_name == 'push' && needs.detect-changes.outputs.phototok == 'true'
         uses: actions/upload-artifact@v7
         with:
-          name: phototok-android-release
-          path: products/android/release-assets/phototok-android-release.apk
+          name: jackpix-android-release
+          path: products/android/release-assets/jackpix-android-release.apk
           if-no-files-found: error
 
       - name: Upload release AAB
         if: github.event_name == 'push' && needs.detect-changes.outputs.toolbox == 'true'
         uses: actions/upload-artifact@v7
         with:
-          name: photo-selector-toolbox-android-release-aab
-          path: products/android/release-assets/photo-selector-toolbox-android-release.aab
+          name: frameduel-android-release-aab
+          path: products/android/release-assets/frameduel-android-release.aab
           if-no-files-found: error
 
       - name: Upload Jackpix release AAB
         if: github.event_name == 'push' && needs.detect-changes.outputs.phototok == 'true'
         uses: actions/upload-artifact@v7
         with:
-          name: phototok-android-release-aab
-          path: products/android/release-assets/phototok-android-release.aab
+          name: jackpix-android-release-aab
+          path: products/android/release-assets/jackpix-android-release.aab
           if-no-files-found: error
 
   # ── Publish (main / tags only; waits for the emulator) ──────────
@@ -603,7 +605,7 @@ jobs:
           # Must match a tester-group ALIAS created in the Firebase Console
           # (App Distribution > Testers & groups). Override via repo variable.
           groups: ${{ vars.TOOLBOX_FIREBASE_TESTER_GROUP || 'testers' }}
-          file: products/android/release-assets/photo-selector-toolbox-android-release.apk
+          file: products/android/release-assets/frameduel-android-release.apk
 
       - name: Upload Jackpix to Firebase App Distribution
         if: github.event_name == 'push' && github.ref == 'refs/heads/main' && needs.detect-changes.outputs.phototok == 'true'
@@ -614,17 +616,7 @@ jobs:
           serviceCredentialsFileContent: ${{ secrets.PHOTOTOK_FIREBASE_APP_DISTRIBUTION_CREDENTIALS }}
           # Must match a tester-group ALIAS created in the Firebase Console.
           groups: ${{ vars.PHOTOTOK_FIREBASE_TESTER_GROUP || 'testers' }}
-          file: products/android/release-assets/phototok-android-release.apk
-
-      - name: Move nightly tag to this commit
-        # softprops/action-gh-release never moves an existing tag, so without this the Nightly
-        # Build release serves new assets under a tag pinned to an old commit.
-        if: github.event_name == 'push' && github.ref == 'refs/heads/main' && (needs.detect-changes.outputs.toolbox == 'true' || needs.detect-changes.outputs.phototok == 'true')
-        env:
-          GH_TOKEN: ${{ github.token }}
-        run: |
-          gh api -X PATCH "repos/${{ github.repository }}/git/refs/tags/nightly-android" -f sha="$GITHUB_SHA" -F force=true \
-            || gh api -X POST "repos/${{ github.repository }}/git/refs" -f ref=refs/tags/nightly-android -f sha="$GITHUB_SHA"
+          file: products/android/release-assets/jackpix-android-release.apk
 
       - name: Publish Release Assets
         if: github.event_name == 'push' && !startsWith(github.ref, 'refs/tags/') && (needs.detect-changes.outputs.toolbox == 'true' || needs.detect-changes.outputs.phototok == 'true')
@@ -635,6 +627,20 @@ jobs:
           name: Jackpix & Frameduel Nightly
           prerelease: true
           files: products/android/release-assets/*
+
+      - name: Move nightly tag to this commit
+        # A refused move (403, 2026-10-22) does not fail a run whose assets are published.
+        continue-on-error: true
+        # softprops/action-gh-release never moves an existing tag, so without this the Nightly
+        # Build release serves new assets under a tag pinned to an old commit. It runs after
+        # the assets are published: a failed publish then leaves the tag where it was and the
+        # nightly release stays consistent (old tag, old assets) instead of a new tag over old assets.
+        if: github.event_name == 'push' && github.ref == 'refs/heads/main' && (needs.detect-changes.outputs.toolbox == 'true' || needs.detect-changes.outputs.phototok == 'true')
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh api -X PATCH "repos/${{ github.repository }}/git/refs/tags/nightly-android" -f sha="$GITHUB_SHA" -F force=true \
+            || gh api -X POST "repos/${{ github.repository }}/git/refs" -f ref=refs/tags/nightly-android -f sha="$GITHUB_SHA"
 
       # A product release: only the tagged module was built, so release-assets
       # holds only that product's APK and AAB. The body is the changelog section
@@ -672,14 +678,14 @@ jobs:
         if: needs.detect-changes.outputs.toolbox == 'true'
         uses: actions/download-artifact@v8
         with:
-          name: photo-selector-toolbox-android-release-aab
+          name: frameduel-android-release-aab
           path: release-assets
 
       - name: Download Jackpix AAB
         if: needs.detect-changes.outputs.phototok == 'true'
         uses: actions/download-artifact@v8
         with:
-          name: phototok-android-release-aab
+          name: jackpix-android-release-aab
           path: release-assets
 
       - name: Upload Frameduel AAB to Google Play
@@ -688,7 +694,7 @@ jobs:
         with:
           serviceAccountJsonPlainText: ${{ secrets.TOOLBOX_GP_SERVICE_ACCOUNT_JSON }}
           packageName: com.photoselectortoolbox
-          releaseFiles: release-assets/photo-selector-toolbox-android-release.aab
+          releaseFiles: release-assets/frameduel-android-release.aab
           tracks: internal
           status: completed
 
@@ -698,7 +704,7 @@ jobs:
         with:
           serviceAccountJsonPlainText: ${{ secrets.PHOTOTOK_GP_SERVICE_ACCOUNT_JSON }}
           packageName: com.phototok
-          releaseFiles: release-assets/phototok-android-release.aab
+          releaseFiles: release-assets/jackpix-android-release.aab
           tracks: internal
           status: completed
 
