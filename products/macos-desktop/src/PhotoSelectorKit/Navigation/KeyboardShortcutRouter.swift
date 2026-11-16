@@ -231,7 +231,7 @@ public final class KeyboardShortcutRouter: ObservableObject {
             break
         }
 
-        // 3. Single-Character Action Shortcuts (M, C, F, I, S, G, J, K, H, L, ?, /)
+        // 3. Single-Character Action Shortcuts (M, C, F, I, S, G, J, K, ?, /)
         switch characters {
         case "m":
             if !event.isARepeat { viewModel.cullCurrentPhoto(action: .move) }
@@ -239,10 +239,10 @@ public final class KeyboardShortcutRouter: ObservableObject {
         case "c":
             if !event.isARepeat { viewModel.cullCurrentPhoto(action: .copy) }
             return true
-        case "j", "l": // Vim Down / Right -> Next
+        case "j": // Vim Down -> Next (H / L retired after 0.3.0)
             viewModel.navigateToNext()
             return true
-        case "k", "h": // Vim Up / Left -> Previous
+        case "k": // Vim Up -> Previous
             viewModel.navigateToPrevious()
             return true
         case "t": // T filmstrip

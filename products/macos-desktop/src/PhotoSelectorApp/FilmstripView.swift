@@ -122,9 +122,10 @@ public struct FilmstripThumbnailTile: View {
                         Spacer()
                         HStack {
                             Spacer()
-                            Circle()
-                                .fill(sharpnessColor(for: scores.category(in: bands)))
-                                .frame(width: 6, height: 6)
+                            Image(systemName: ScoreLabels.sharpnessSymbol(scores.category(in: bands)))
+                                .font(.system(size: 8, weight: .bold))
+                                .foregroundStyle(sharpnessColor(for: scores.category(in: bands)))
+                                .background(Circle().fill(Color.black.opacity(0.55)).padding(-1))
                                 .padding(4)
                         }
                     }
@@ -141,6 +142,8 @@ public struct FilmstripThumbnailTile: View {
         }
         .buttonStyle(.plain)
         .focusable(false)
+        .accessibilityLabel(ScoreLabels.filmstripTileLabel(photo: photo, inComparison: isInComparison, bands: bands))
+        .accessibilityAddTraits(isSelected ? .isSelected : [])
         .task(id: photo.id) {
             // A tile is identified by its position, so a reordered list reuses it: drop the old
             // photo's thumbnail before the new one loads.

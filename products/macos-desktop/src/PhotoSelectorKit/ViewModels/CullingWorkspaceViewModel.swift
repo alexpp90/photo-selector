@@ -1154,7 +1154,7 @@ public final class CullingWorkspaceViewModel: ObservableObject {
 
         showToast(
             icon: "arrow.uturn.backward.circle.fill",
-            title: "Action Undone",
+            title: LensjetCommand.undoneToastTitle(action: record.actionType, rejected: rejectJobIDs.contains(record.jobID)),
             subtitle: record.originalPrimaryURL.lastPathComponent
         )
 

@@ -6,6 +6,40 @@ import Foundation
 /// badge, the info panel, the tooltip, the spoken label and the statistics cannot disagree.
 public enum ScoreLabels {
 
+    /// Filmstrip tile dot: a shape as well as a colour, so the band is not read from colour alone.
+    /// Filled circle = sharp, half-filled = acceptable, hollow ring = blurry.
+    public static func sharpnessSymbol(_ category: SharpnessCategory) -> String {
+        switch category {
+        case .sharp: return "circle.fill"
+        case .acceptable: return "circle.lefthalf.filled"
+        case .blurry: return "circle"
+        }
+    }
+
+    /// What VoiceOver reads for a filmstrip tile: "IMG_0412, undecided, Sharp". The status says what
+    /// was decided ("copied", "moved", "trashed"); "in comparison" is added for the tiles on screen.
+    public static func filmstripTileLabel(
+        photo: PhotoItem, inComparison: Bool = false, bands: SharpnessBands = .standard
+    ) -> String {
+        let status: String
+        switch photo.status {
+        case .candidate: status = "undecided"
+        case .selected: status = "moved"
+        case .copied: status = "copied"
+        case .trashed: status = "trashed"
+        }
+        var parts = [photo.url.deletingPathExtension().lastPathComponent, status]
+        if let scores = photo.scores { parts.append(scores.category(in: bands).rawValue) }
+        if inComparison { parts.append("in comparison") }
+        return parts.joined(separator: ", ")
+    }
+
+    /// Clipping on every surface: "Blown 3%" (highlights) and "Crushed 12%" (shadows).
+    public static func blown(_ percent: Double) -> String { "Blown \(Int(percent))%" }
+    public static func crushed(_ percent: Double) -> String { "Crushed \(Int(percent))%" }
+    public static func blownSpoken(_ percent: Double) -> String { "Highlights blown, \(Int(percent)) percent" }
+    public static func crushedSpoken(_ percent: Double) -> String { "Shadows crushed, \(Int(percent)) percent" }
+
     /// "8.4": the aesthetics score keeps its decimal (a 1 to 10 scale).
     public static func number(_ value: Double) -> String { String(format: "%.1f", value) }
 

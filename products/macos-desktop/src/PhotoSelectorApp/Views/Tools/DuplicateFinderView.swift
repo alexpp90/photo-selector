@@ -330,7 +330,7 @@ private struct GroupDetailView: View {
             HStack(spacing: 12) {
                 VStack(alignment: .leading, spacing: 3) {
                     HStack(spacing: 8) {
-                        Text("Duplicate Cluster")
+                        Text("Duplicate Group")
                             .font(.system(size: 14, weight: .semibold))
                             .foregroundStyle(.white)
 

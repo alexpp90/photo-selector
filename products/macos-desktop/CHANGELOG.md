@@ -6,6 +6,11 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ## [Unreleased]
 
+### Changed
+
+- `H` and `L` no longer move between photos (retired after 0.3.0); the arrow keys, `J` and `K` stay.
+- One name per thing: the score button reads "Score…", duplicates sit in a "Duplicate Group", Undo says "Undone: Move" / "Undone: Copy" / "Undone: Trash", and clipping reads "Blown 3%" / "Crushed 3%" with a symbol on every surface.
+
 ## [0.3.0] - 2026-11-13
 
 ### Added

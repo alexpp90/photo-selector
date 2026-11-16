@@ -30,6 +30,12 @@ public struct ContentView: View {
                         folderURL: viewModel.rootDirectoryURL,
                         onCancel: { viewModel.cancelLoading() }
                     )
+                } else if viewModel.photos.isEmpty, let folder = viewModel.rootDirectoryURL, !viewModel.isLoading {
+                    // The scan finished and found nothing: say so, apart from "no folder open".
+                    EmptyFolderView(
+                        folderName: folder.lastPathComponent,
+                        onOpenFolder: { viewModel.presentFolderPicker() }
+                    )
                 } else if viewModel.photos.isEmpty {
                     EmptyDropTargetView(
                         isTargeted: viewModel.isDropTargeted,
