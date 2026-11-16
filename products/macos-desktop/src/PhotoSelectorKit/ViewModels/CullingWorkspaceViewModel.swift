@@ -982,10 +982,7 @@ public final class CullingWorkspaceViewModel: ObservableObject {
                 await MainActor.run {
                     self?.inFlightJobIDs.remove(job.id)
                     // The Copy is on disk: remember it, so the photo stays decided after a reopen.
-                    if action == .copy, let self,
-                       let identity = CopiedDecisions.identity(of: photo.url, modified: photo.modificationDate, in: sourceRootURL) {
-                        CopiedDecisions(defaults: self.userDefaults).add(identity, in: sourceRootURL)
-                    }
+                    if action == .copy { self?.rememberCopy(of: photo, in: sourceRootURL) }
                     let stillHere = self?.isCurrentFolder(jobFolderKey) ?? false
                     if stillHere {
                         // A collision-renamed file says so; otherwise a photo that took companions
@@ -1168,9 +1165,8 @@ public final class CullingWorkspaceViewModel: ObservableObject {
                 await MainActor.run {
                     self?.adoptRestoredLocation(photoID: record.photoID, record: record, restored: restored)
                     // An undone Copy is not a decision any more.
-                    if record.actionType == .copy, let self, let root = undoRoot,
-                       let identity = CopiedDecisions.identity(of: record.originalPrimaryURL, modified: undoneModified, in: root) {
-                        CopiedDecisions(defaults: self.userDefaults).remove(identity, in: root)
+                    if record.actionType == .copy, let root = undoRoot {
+                        self?.forgetCopy(at: record.originalPrimaryURL, modified: undoneModified, in: root)
                     }
                 }
                 if let title = CullingFeedback.restoredTitle(
@@ -1208,15 +1204,6 @@ public final class CullingWorkspaceViewModel: ObservableObject {
         }
     }
 
-    /// After an undo that had to rename the restored primary (`IMG-2.CR3`, original name in use),
-    /// the item points at the file as it now is, so later actions find it (H-LJ-8).
-    private func adoptRestoredLocation(photoID: UUID, record: CullingExecutionRecord, restored: [URL]) {
-        guard let index = photos.firstIndex(where: { $0.id == photoID }),
-              let primary = CullingFeedback.primaryURL(matching: record.originalPrimaryURL, in: restored),
-              primary.lastPathComponent != photos[index].url.lastPathComponent else { return }
-        photos[index].url = primary
-    }
-
     /// Convenience alias: Undo last action.
     public func undo() {
         undoLastAction()
@@ -1238,12 +1225,6 @@ public final class CullingWorkspaceViewModel: ObservableObject {
             subtitle: currentPhoto?.filename,
             isPersistent: true
         )
-    }
-
-    /// A navigation key drops the sharpness banner but never a failure (H-LJ-2).
-    func dismissBannerOnNavigation() {
-        guard currentToast?.isFailure != true else { return }
-        dismissStickyToast()
     }
 
     /// Drops a persistent banner (Esc or the next navigation key). Returns whether one was showing.
