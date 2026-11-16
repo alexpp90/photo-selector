@@ -17,12 +17,12 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
-from _explore_fakes import default_state, make_state, node as fake_node  # noqa: E402
+from _explore_fakes import default_state  # noqa: E402
 
 from lab.explore.actions import Action  # noqa: E402
 from lab.explore.expectations import Expectation, ExpectationRecorder  # noqa: E402
 from lab.explore.verifier import verify_step  # noqa: E402
-from lab.feedback import MISSING, OK, UNCHECKED, WRONG, check_feedback  # noqa: E402
+from lab.feedback import MISSING, UNCHECKED, check_feedback  # noqa: E402
 from lab.layout_lint import lint, load_rules, text_truncation  # noqa: E402
 from lab.model import Tree  # noqa: E402
 

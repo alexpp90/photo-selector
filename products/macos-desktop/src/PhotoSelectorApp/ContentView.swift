@@ -108,9 +108,7 @@ public struct ContentView: View {
                         // MARK: - 4. Collapsible Bottom Filmstrip
                         if viewModel.isFilmstripVisible && !viewModel.isFullScreen {
                             FilmstripView(
-                                photos: viewModel.photos,
-                                currentIndex: viewModel.currentIndex,
-                                comparisonIndices: viewModel.comparisonSlotIndices,
+                                viewModel: viewModel,
                                 onSelectPhoto: { idx in viewModel.selectPhoto(at: idx) }
                             )
                             .frame(height: min(84, geometry.size.height * 0.12))

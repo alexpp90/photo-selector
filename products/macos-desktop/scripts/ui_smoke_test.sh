@@ -10,12 +10,21 @@
 #      System Events (osascript). That step needs Accessibility permission for the calling
 #      terminal; without it the step is reported SKIPPED, never silently passed.
 #
-# Usage: products/macos-desktop/scripts/ui_smoke_test.sh [--count N] [--no-external-key]
+# Usage: products/macos-desktop/scripts/ui_smoke_test.sh [--count N | --contract-size | --stress]
+#                                                         [--no-external-key]
+#   --contract-size  runs at the pull-request folder size of testdata/conditions/conditions.json
+#                    (10,000 photos) instead of 120: the first photo must still be drawn in < 2 s.
+#   --stress         the same at the release stress size of that file (50,000 photos).
 # Exit codes: 0 all checks passed, 1 a check failed, 3 no GUI session available.
 set -euo pipefail
 
 PRODUCT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 COUNT=120
+# A folder size of the shared usage-conditions contract (never a literal of this script).
+contract_size() {
+    python3 -c 'import json,sys; print(json.load(open(sys.argv[1]))["folder_sizes"][sys.argv[2]]["photos"])' \
+        "$PRODUCT_DIR/../../testdata/conditions/conditions.json" "$1"
+}
 EXTERNAL_KEY=0
 if [[ -n "${PST_SHOW_GUI:-}" && "${PST_SHOW_GUI}" != "0" ]]; then
     EXTERNAL_KEY=1
@@ -23,6 +32,8 @@ fi
 while [[ $# -gt 0 ]]; do
     case "$1" in
         --count) COUNT="$2"; shift 2 ;;
+        --contract-size) COUNT="$(contract_size pr)"; shift ;;
+        --stress) COUNT="$(contract_size stress)"; shift ;;
         --external-key) EXTERNAL_KEY=1; shift ;;
         --no-external-key) EXTERNAL_KEY=0; shift ;;
         *) echo "unknown option $1" >&2; exit 2 ;;
@@ -87,8 +98,24 @@ run_self_test() {
         fi
     fi
 
-    local status=0
-    wait "$pid" || status=$?
+    # An overall deadline: a main thread stuck in SwiftUI cannot time itself out, so the script does
+    # (10,000 photos once ran over 12 minutes without finishing). Healthy runs end in well under it.
+    local status=0 ticks=0 limit=$(( ${PST_SMOKE_DEADLINE:-300} * 10 ))
+    while kill -0 "$pid" 2>/dev/null; do
+        if (( ticks >= limit )); then
+            echo "  ✗ $label: self-test still running after ${PST_SMOKE_DEADLINE:-300} s with $COUNT photos: the app hangs; killed" >&2
+            kill -9 "$pid" 2>/dev/null || true
+            status=124
+            break
+        fi
+        sleep 0.1
+        ticks=$(( ticks + 1 ))
+    done
+    if [[ "$status" -eq 124 ]]; then
+        wait "$pid" 2>/dev/null || true
+    else
+        wait "$pid" || status=$?
+    fi
     grep '\[ui-self-test\]' "$WORK/stderr-$label.log" | sed 's/^/    /' || true
     if [[ ! -f "$report" ]]; then
         echo "  ✗ $label: no report written (exit $status)"

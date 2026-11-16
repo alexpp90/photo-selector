@@ -18,27 +18,19 @@ from lab.cli import build_parser, main  # noqa: E402
 from lab.model import Node, Tree  # noqa: E402
 from lab.paths import lab_tmp_root, repo_root  # noqa: E402
 from lab.usability import driver as drv  # noqa: E402
-from lab.usability.capture import SUPPORTED_PRODUCTS, load_scenarios, run_capture  # noqa: E402
+from lab.usability.capture import load_scenarios, run_capture  # noqa: E402
 from lab.usability.driver import (  # noqa: E402
-    AndroidDriver,
-    BaseDriver,
     LinuxDriver,
     MacOsDriver,
     MockDriver,
-    ScenarioDriver,
-    StepFailed,
-    get_driver,
 )
 from lab.usability.metrics import screen_metrics, tree_metrics  # noqa: E402
 from lab.usability.panel import (  # noqa: E402
-    OVERALL_ANSWER_SCHEMA,
-    SCREEN_ANSWER_SCHEMA,
     assemble_persona_answer,
     build_blind_packets,
     build_panel,
     expected_screen_keys,
     extract_json,
-    render_screen_packet_md,
     render_walkthrough_md,
     validate_persona,
     validate_screen_answer,

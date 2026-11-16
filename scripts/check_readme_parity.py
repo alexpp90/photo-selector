@@ -121,7 +121,7 @@ def check_readme() -> list[str]:
 def main() -> int:
     parser = argparse.ArgumentParser(description="Check README.md parity and hygiene.")
     parser.add_argument("--check", action="store_true", help="Run parity checks and exit non-zero on failure")
-    args = parser.parse_args()
+    parser.parse_args()
 
     errors = check_readme()
 

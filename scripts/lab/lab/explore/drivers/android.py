@@ -316,7 +316,6 @@ class AndroidDeviceDriver(DeviceDriver):
                 after=self._window_state(tree, front),
             )
         assert xml is not None and tree is not None
-        scale = (self._density or 320) / 160.0
         window = next(
             (m for m in _BOUNDS_ATTR.finditer(xml) if int(m.group(3)) > int(m.group(1)) and int(m.group(4)) > int(m.group(2))),
             None,

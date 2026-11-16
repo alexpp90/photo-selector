@@ -27,7 +27,7 @@ report on some PRs:
 | `Verification record (advisory)` | `pr-verification.yml` | yes, but it never fails on purpose: do not require it |
 | `Detect changed modules` | `android.yml` | **no**: `android.yml` has a `paths:` filter, so a PR that touches only Linux, macOS, Desktop or docs never starts it |
 | `Unit tests (JVM)`, `Android Lint`, `Instrumented tests (API 30)` | `android.yml` | no (same filter) |
-| `Lint`, `Tests on … / Python 3.12`, `Visual regression tests` | `desktop.yml` | no (`paths:` filter) |
+| `Lint`, `Tests on … / Python 3.12` (Linux only on a PR), `Visual regression tests` (tags, weekly, dispatch only) | `desktop.yml` | no (`paths:` filter) |
 | `Swift Tests (macOS)` | `macos.yml` | no (`paths:` filter) |
 | `Lint (flake8)`, `Headless Unit Tests (pytest)`, `Debian Packaging & APT Validation` | `linux.yml` | no (`paths:` filter) |
 
