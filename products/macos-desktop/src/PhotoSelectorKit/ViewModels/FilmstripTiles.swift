@@ -13,12 +13,12 @@ public struct FilmstripTile: Identifiable, Equatable {
 /// The tiles of the filmstrip as a lazy collection of a count and two small values: a tile is
 /// made when it is read, so a render costs the visible window, not the folder.
 public struct FilmstripTileList: RandomAccessCollection, Equatable {
-    let count: Int
+    let tileCount: Int
     let currentIndex: Int
     let comparisonIndices: [Int]
 
     public var startIndex: Int { 0 }
-    public var endIndex: Int { count }
+    public var endIndex: Int { tileCount }
 
     public subscript(position: Int) -> FilmstripTile {
         FilmstripTile(
@@ -32,6 +32,6 @@ public struct FilmstripTileList: RandomAccessCollection, Equatable {
 /// The tiles the filmstrip shows. Built on every render of the strip.
 public enum FilmstripTiles {
     public static func make(count: Int, currentIndex: Int, comparisonIndices: [Int]) -> FilmstripTileList {
-        FilmstripTileList(count: max(0, count), currentIndex: currentIndex, comparisonIndices: comparisonIndices)
+        FilmstripTileList(tileCount: max(0, count), currentIndex: currentIndex, comparisonIndices: comparisonIndices)
     }
 }
