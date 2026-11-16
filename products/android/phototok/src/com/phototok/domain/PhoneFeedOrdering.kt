@@ -99,15 +99,7 @@ object PhoneFeedOrdering {
                 Result(shuffled, -1)
             }
             FeedOrderMode.SHOOTING -> {
-                val byShooting = images.sortedWith { a, b ->
-                    val cmpTime = a.lastModified.compareTo(b.lastModified)
-                    if (cmpTime != 0) cmpTime
-                    else {
-                        val cmpName = compareNatural(a.fileName, b.fileName)
-                        if (cmpName != 0) cmpName else a.uri.compareTo(b.uri)
-                    }
-                }
-                Result(byShooting, -1)
+                Result(images.sortedWith(SHOOTING_ORDER), -1)
             }
             FeedOrderMode.NEWEST_FIRST -> Result(sortNewestFirst(images), -1)
             FeedOrderMode.ORIENTATION_THEN_NEWEST -> {
@@ -121,12 +113,88 @@ object PhoneFeedOrdering {
         }
     }
 
+    /** `NEWEST_FIRST`: `lastModified` descending, then file name (case-insensitive), then URI. */
+    private val NEWEST_FIRST_ORDER: Comparator<ImageItem> =
+        compareByDescending<ImageItem> { it.lastModified }
+            .thenBy { it.fileName.lowercase() }
+            .thenBy { it.uri }
+
+    /** `SHOOTING`: `lastModified` ascending, then natural file name, then URI. */
+    private val SHOOTING_ORDER = Comparator<ImageItem> { a, b ->
+        val cmpTime = a.lastModified.compareTo(b.lastModified)
+        if (cmpTime != 0) cmpTime
+        else {
+            val cmpName = compareNatural(a.fileName, b.fileName)
+            if (cmpName != 0) cmpName else a.uri.compareTo(b.uri)
+        }
+    }
+
     private fun sortNewestFirst(images: List<ImageItem>): List<ImageItem> =
-        images.sortedWith(
-            compareByDescending<ImageItem> { it.lastModified }
-                .thenBy { it.fileName.lowercase() }
-                .thenBy { it.uri }
-        )
+        images.sortedWith(NEWEST_FIRST_ORDER)
+
+    private fun isSorted(items: List<ImageItem>, from: Int, to: Int, order: Comparator<ImageItem>): Boolean {
+        for (i in from + 1 until to) if (order.compare(items[i - 1], items[i]) > 0) return false
+        return true
+    }
+
+    /**
+     * Inserts [fresh] into [sorted] (already in [order]) in `k log n` comparisons: the batch is
+     * sorted, each photo's slot is found by binary search from the previous slot, and the untouched
+     * stretches between slots are copied in bulk. The result is exactly `(sorted + fresh).sortedWith(order)`
+     * because the orders end in the URI and a URI is published once (`newItems`).
+     */
+    private fun mergeSorted(
+        sorted: List<ImageItem>,
+        fresh: List<ImageItem>,
+        order: Comparator<ImageItem>,
+    ): List<ImageItem> {
+        if (fresh.isEmpty()) return sorted
+        val out = ArrayList<ImageItem>(sorted.size + fresh.size)
+        var pos = 0
+        for (item in fresh.sortedWith(order)) {
+            var lo = pos
+            var hi = sorted.size
+            while (lo < hi) {
+                val mid = (lo + hi) ushr 1
+                if (order.compare(sorted[mid], item) < 0) lo = mid + 1 else hi = mid
+            }
+            if (lo > pos) out.addAll(sorted.subList(pos, lo))
+            out.add(item)
+            pos = lo
+        }
+        if (pos < sorted.size) out.addAll(sorted.subList(pos, sorted.size))
+        return out
+    }
+
+    /**
+     * The feed after a re-ordering batch for a non-shuffled [mode], without sorting the whole folder:
+     * the published feed is already in order, so only the batch is sorted and merged in. Returns null
+     * when [current] is not in the order [mode] defines (a caller that appended without re-ordering,
+     * a list rebuilt by hand): the caller then sorts everything, as before. Linear per batch in
+     * copying and `k log n` in comparisons, where the full sort was `n` comparisons plus the batch's
+     * sort, with an allocation per comparison (REQ-TOK-ARCH.12, scale contract 2026-11-15).
+     */
+    private fun mergeIntoOrdered(current: List<ImageItem>, fresh: List<ImageItem>, mode: FeedOrderMode): Result? {
+        return when (mode) {
+            FeedOrderMode.NEWEST_FIRST, FeedOrderMode.SHOOTING -> {
+                val order = if (mode == FeedOrderMode.SHOOTING) SHOOTING_ORDER else NEWEST_FIRST_ORDER
+                if (!isSorted(current, 0, current.size, order)) return null
+                Result(mergeSorted(current, fresh, order), -1)
+            }
+            FeedOrderMode.ORIENTATION_THEN_NEWEST -> {
+                val split = current.indexOfFirst { !it.isLandscape }.let { if (it < 0) current.size else it }
+                for (i in split until current.size) if (current[i].isLandscape) return null
+                if (!isSorted(current, 0, split, NEWEST_FIRST_ORDER) ||
+                    !isSorted(current, split, current.size, NEWEST_FIRST_ORDER)
+                ) return null
+                val (freshLandscape, freshPortrait) = fresh.partition { it.isLandscape }
+                val landscape = mergeSorted(current.subList(0, split), freshLandscape, NEWEST_FIRST_ORDER)
+                val portrait = mergeSorted(current.subList(split, current.size), freshPortrait, NEWEST_FIRST_ORDER)
+                Result(landscape + portrait, if (portrait.isEmpty()) -1 else landscape.size)
+            }
+            FeedOrderMode.SHUFFLE -> null
+        }
+    }
 
     private fun shuffleUnseenFirst(
         images: List<ImageItem>,
@@ -179,6 +247,7 @@ object PhoneFeedOrdering {
     ): Result {
         val sortByOrientation = mode.isSortByOrientation
         if (reorder && !mode.isRandomized && fresh.isNotEmpty()) {
+            mergeIntoOrdered(current, fresh, mode)?.let { return it }
             return order(current + fresh, mode = mode, seenUris = seenUris, shuffler = shuffler)
         }
         if (fresh.isEmpty()) {
