@@ -43,7 +43,10 @@ def pump(seconds: float = 0.0, until=None, budget: float = 3.0) -> bool:
     context = GLib.MainContext.default()
     end = time.monotonic() + (budget if until is not None else seconds)
     while time.monotonic() < end:
-        while context.iteration(False):
+        # Bounded by the deadline too: a spinner (the "reading" card) keeps a frame-clock redraw
+        # ready on every pass, so on a slower renderer (GTK 4.14 on Ubuntu 24.04) draining until
+        # nothing is pending never returned and the test hung.
+        while time.monotonic() < end and context.iteration(False):
             pass
         if until is not None and until():
             return True

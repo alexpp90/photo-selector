@@ -32,9 +32,9 @@ def test_pillow_reads_the_capture_time_of_a_jpeg(tmp_path: Path):
 
     img = Image.new("RGB", (8, 8))
     exif = Image.Exif()
-    sub = exif.get_ifd(0x8769)
-    sub[0x9003] = "2026:08:14 06:40:01"
-    sub[0x9291] = "50"
+    # Assigned whole: Pillow before 11 drops what is set on the dict get_ifd() returns (Ubuntu 24.04
+    # ships 10.2), and the Exif sub-IFD is what the reader looks into.
+    exif[0x8769] = {0x9003: "2026:08:14 06:40:01", 0x9291: "50"}
     path = tmp_path / "a.jpg"
     img.save(path, exif=exif)
     meta = read_metadata_pil(path)

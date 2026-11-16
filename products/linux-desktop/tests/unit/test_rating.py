@@ -60,7 +60,11 @@ def test_pillow_reads_the_exif_rating_and_an_embedded_xmp_rating(tmp_path: Path)
     xmp = b'<x:xmpmeta xmlns:x="adobe:ns:meta/"><rdf:RDF xmlns:rdf="http://www.w3.org/1999/02/22-rdf-syntax-ns#">' \
           b'<rdf:Description xmlns:xmp="http://ns.adobe.com/xap/1.0/" xmp:Rating="5"/></rdf:RDF></x:xmpmeta>'
     embedded = tmp_path / "xmp.jpg"
-    Image.new("RGB", (8, 8)).save(embedded, exif=exif, xmp=xmp)
+    Image.new("RGB", (8, 8)).save(embedded, exif=exif)
+    # The packet is spliced in as an APP1 segment: ``save(xmp=)`` needs Pillow 11 (Ubuntu 24.04 has 10.2).
+    packet = b"http://ns.adobe.com/xap/1.0/\x00" + xmp
+    raw = embedded.read_bytes()
+    embedded.write_bytes(raw[:2] + b"\xff\xe1" + (len(packet) + 2).to_bytes(2, "big") + packet + raw[2:])
     assert read_metadata_pil(embedded).rating == 5  # embedded XMP before EXIF
     assert read_metadata_pil(tmp_path / "missing.jpg") is None
 
