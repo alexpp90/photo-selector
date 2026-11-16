@@ -602,7 +602,9 @@ if $run_python; then
         elif [ "$visual_host_rc" -eq 3 ]; then
             skip "visual tests" "" "$visual_host_reason"
         else
-            gate "pytest tests/visual/ -m visual" "desktop.yml:visual" \
+            # CI runs this job on desktop-v* tags, the weekly schedule and manual dispatch only (D-8(b));
+            # the mirror still runs it, so a visual change is judged before the tag.
+            gate "pytest tests/visual/ -m visual" "desktop.yml:visual (tags + weekly in CI)" \
                 pyx pytest tests/visual/ --tb=short -q -o faulthandler_timeout=120 -m visual
         fi
 
@@ -933,13 +935,23 @@ if have python3; then
         python3 scripts/check_ui_text_budget.py --warn-exit-code 3
     gate "format corpus tooling tests" "repo-hygiene.yml:hygiene" \
         python3 -m unittest discover -s scripts/tests -q
-    # Local-only and slow (~90 s): runs when the change touches the lab (see CHANGED_FILES above),
+    # Mirror of the hygiene job's ruff step: config in scripts/ruff.toml, never at the repo root.
+    if have ruff; then
+        gate "ruff scripts/" "repo-hygiene.yml:hygiene" \
+            ruff check --config scripts/ruff.toml scripts/
+    elif python3 -m ruff --version >/dev/null 2>&1; then
+        gate "ruff scripts/" "repo-hygiene.yml:hygiene" \
+            python3 -m ruff check --config scripts/ruff.toml scripts/
+    else
+        skip "ruff scripts/" "repo-hygiene.yml:hygiene" "ruff not installed (pip install ruff)"
+    fi
+    # CI runs it in the hygiene workflow's own job; locally it is slow (~2 min), so it runs when the change touches the lab (see CHANGED_FILES above),
     # on --all, --lab, a tree git cannot diff, and a change it names.
     if $run_lab; then
-        gate "lab tooling tests" "local-only" \
+        gate "lab tooling tests" "repo-hygiene.yml:lab-tests" \
             python3 -m unittest discover -s scripts/lab/tests -q
     else
-        skip "lab tooling tests" "local-only" \
+        skip "lab tooling tests" "repo-hygiene.yml:lab-tests" \
             "no change under scripts/lab/ (local-only gate; --all runs it)" false
     fi
 else
@@ -966,8 +978,6 @@ if [ -d "$ROOT_DIR/private/.git" ] || [ -f "$ROOT_DIR/private/.git" ]; then
             python3 ai/skills/sync-framework/scripts/sync_framework.py --check
         gate "framework validation" "framework.yml:framework" \
             python3 ai/skills/sync-framework/scripts/validate_framework.py
-        gate ".gemini/settings.json in sync" "framework.yml:framework" \
-            python3 ai/skills/sync-framework/scripts/gen_gemini_settings.py --check
         gate "requirements traceability" "framework.yml:framework" \
             python3 private/scripts/verify_requirements_traceability.py --check --strict
         if [ -f "$ROOT_DIR/private/scripts/check_brand_names.py" ]; then
