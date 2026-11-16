@@ -119,8 +119,8 @@ The project's names and logos are covered separately by [TRADEMARKS.md](TRADEMAR
 ## Working with AI coding agents
 
 AI coding agents are welcome. [`AGENTS.md`](AGENTS.md) is the entry point every common agent
-reads (Claude Code via `CLAUDE.md`, Gemini/Antigravity via `GEMINI.md`, Jules, Copilot,
-Cursor): it names the five products, the rule that code never crosses product boundaries,
+reads (Claude Code via `CLAUDE.md`, Antigravity via `GEMINI.md`, and any other
+agent that reads `AGENTS.md`): it names the five products, the rule that code never crosses product boundaries,
 and the definition of done (`./scripts/run_tests.sh`).
 
 The maintainer additionally uses a private agent framework, requirement specifications and

@@ -104,7 +104,7 @@ While the desktop and tablet products emphasize multi-up comparative culling and
 | **minSdk / targetSdk / compileSdk** | 26 (Android 8.0) / 36 (Android 16) / 37 |
 | **Target Device Class** | Phones of every size, compact and large flagship phones alike; portrait first, landscape supported |
 | **Shared Code** | `:core` (`products/android/core/`, EXIF model and readers) and `:saf` (`products/android/saf/`, SAF copy/move engine and folder access), shared with Frameduel |
-| **Output Artifacts** | `phototok-android-release.apk` / `.aab` |
+| **Output Artifacts** | `jackpix-android-release.apk` / `.aab` |
 
 ### Architectural Layering
 *   **`data/`**: SAF implementations (`LocalImageSourceImpl`), DataStore persistence (`SettingsRepositoryImpl`, `RecentPathCodec`), and URI scheme resolution.

@@ -1,7 +1,10 @@
 name: Desktop CI
 
-# Single pipeline for the Python/Tkinter desktop solution: lint + tests always
-# run; the 3-OS PyInstaller builds, GitHub release, and Homebrew tap update
+# Single pipeline for the legacy (archived) Python/Tkinter Desktop: lint and a Linux-only
+# test job run on every relevant pull request and push to main, so the legacy stays buildable
+# without costing three runners per PR (decision D-8(b), 2026-11-10). The three-OS test matrix
+# and the visual regression job run on `desktop-vX.Y.Z` tags, a weekly schedule and manual
+# dispatch. The 3-OS PyInstaller builds, GitHub release, and Homebrew tap update
 # only happen on pushes to main or `desktop-vX.Y.Z` tags (and manual dispatch). The legacy
 # Desktop is released on its own: a tag for another product does not start this workflow, and
 # `scripts/release.py verify-tag` fails the release job unless the tag matches the in-tree
@@ -21,6 +24,9 @@ on:
       - '.github/actions/format-corpus/**'
   pull_request:
     branches: [main]
+  # Weekly: the three-OS tests and the visual job, which pull requests no longer run.
+  schedule:
+    - cron: '17 4 * * 1'
   workflow_dispatch:
 
 concurrency:
@@ -46,6 +52,8 @@ jobs:
       pull-requests: read
     outputs:
       relevant: ${{ steps.decide.outputs.relevant }}
+      full: ${{ steps.decide.outputs.full }}
+      matrix: ${{ steps.decide.outputs.matrix }}
     steps:
       - uses: dorny/paths-filter@ceb8a2b8f2d89434be7ff52d3de7ec3738c5cc9d # v4
         id: filter
@@ -65,6 +73,18 @@ jobs:
         env:
           FILTER: ${{ steps.filter.outputs.relevant }}
         run: |
+          # `full`: tags, the weekly schedule and manual dispatch run the three-OS matrix and the
+          # visual job; pull requests and main pushes run the Linux job only.
+          LINUX='{"include":[{"os":"ubuntu-24.04","python-version":"3.12","architecture":"x64"}]}'
+          ALL='{"include":[{"os":"ubuntu-24.04","python-version":"3.12","architecture":"x64"},{"os":"macos-26","python-version":"3.12","architecture":"arm64"},{"os":"windows-2025","python-version":"3.12","architecture":"x64"}]}'
+          case "$GITHUB_EVENT_NAME:$GITHUB_REF" in
+            schedule:*|workflow_dispatch:*|push:refs/tags/*)
+              echo "full=true" >> "$GITHUB_OUTPUT"
+              echo "matrix=$ALL" >> "$GITHUB_OUTPUT" ;;
+            *)
+              echo "full=false" >> "$GITHUB_OUTPUT"
+              echo "matrix=$LINUX" >> "$GITHUB_OUTPUT" ;;
+          esac
           if [ "$GITHUB_EVENT_NAME" != pull_request ] || [ "$FILTER" = true ]; then
             echo "relevant=true" >> "$GITHUB_OUTPUT"
           else
@@ -99,7 +119,7 @@ jobs:
   # ── Unit & integration tests ────────────────────────────────────
   test:
     name: Tests on ${{ matrix.os }} / Python ${{ matrix.python-version }}
-    needs: lint
+    needs: [changes, lint]
     runs-on: ${{ matrix.os }}
     timeout-minutes: 15
     defaults:
@@ -108,17 +128,9 @@ jobs:
         working-directory: products/desktop
     strategy:
       fail-fast: false
-      matrix:
-        include:
-          - os: ubuntu-24.04
-            python-version: "3.12"
-            architecture: x64
-          - os: macos-26
-            python-version: "3.12"
-            architecture: arm64
-          - os: windows-2025
-            python-version: "3.12"
-            architecture: x64
+      # Linux only on pull requests and main; all three OSes on tags, the weekly schedule and
+      # manual dispatch (computed by the `changes` job).
+      matrix: ${{ fromJSON(needs.changes.outputs.matrix) }}
 
     steps:
       - uses: actions/checkout@v7
@@ -204,9 +216,11 @@ jobs:
           if-no-files-found: ignore
 
   # ── Visual regression tests (Linux only, real Xvfb rendering) ───
+  # Tags, the weekly schedule and manual dispatch only (the legacy Desktop is archived).
   visual:
     name: Visual regression tests
-    needs: lint
+    needs: [changes, lint]
+    if: needs.changes.outputs.full == 'true'
     runs-on: ubuntu-24.04
     timeout-minutes: 10
     defaults:
@@ -270,7 +284,8 @@ jobs:
   build:
     name: Build on ${{ matrix.os }}
     needs: [test, visual]
-    if: github.event_name == 'workflow_dispatch' || (github.event_name == 'push' && (github.ref == 'refs/heads/main' || startsWith(github.ref, 'refs/tags/desktop-v')))
+    # `visual` is skipped on a main push, which would skip this job too without the explicit result test.
+    if: ${{ !cancelled() && needs.test.result == 'success' && contains(fromJSON('["success","skipped"]'), needs.visual.result) && (github.event_name == 'workflow_dispatch' || (github.event_name == 'push' && (github.ref == 'refs/heads/main' || startsWith(github.ref, 'refs/tags/desktop-v')))) }}
     runs-on: ${{ matrix.os }}
     timeout-minutes: 15
     defaults:

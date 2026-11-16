@@ -2,6 +2,7 @@ name: Repository Hygiene
 
 # Cheap, product-independent gates that guard the public repository itself:
 #   - README parity: every product section present, canonical order, no broken images.
+#   - ruff over scripts/ (scripts/ruff.toml) and the lab tooling tests (own job, ~2.5 min).
 #   - Private-overlay guard: the maintainer's AI framework, requirement specs, prompts and
 #     agent memory live in a separate private repository (checked out at private/ and
 #     linked in locally). Nothing from it may ever be tracked here.
@@ -70,3 +71,30 @@ jobs:
 
       - name: Format corpus tooling tests
         run: python3 -m unittest discover -s scripts/tests -v
+
+      # Python lint of the cross-product tooling: pyflakes + the pycodestyle error classes,
+      # configured in scripts/ruff.toml (no config at the repository root by rule).
+      - name: Lint scripts/ (ruff)
+        run: |
+          pip install ruff
+          ruff check --config scripts/ruff.toml scripts/
+
+  # The device lab's own unit tests: headless, no device or GUI (schemas, fixtures, oracles, runners).
+  lab-tests:
+    name: Lab tooling tests
+    runs-on: ubuntu-24.04
+    # Measured locally: 2.3 min idle, 5.1 min on a loaded machine; 15 minutes leaves headroom.
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: Set up Python 3.12
+        uses: actions/setup-python@v7
+        with:
+          python-version: "3.12"
+
+      - name: Install Pillow and PyYAML
+        run: pip install pillow pyyaml
+
+      - name: Lab tooling tests
+        run: python3 -m unittest discover -s scripts/lab/tests -q

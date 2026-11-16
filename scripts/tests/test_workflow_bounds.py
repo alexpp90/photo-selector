@@ -229,11 +229,16 @@ class WorkflowBoundsTest(unittest.TestCase):
     def test_the_nightly_tag_move_cannot_fail_a_published_run(self):
         # 2026-10-22: a 403 on the tag step failed Desktop, macOS and Android runs after (or before)
         # their assets were published. The step is a convenience for the nightly link.
-        for name in ("desktop.yml", "macos.yml"):
+        publish_step = {
+            "desktop.yml": "- name: Update GitHub Release",
+            "macos.yml": "- name: Update GitHub Release",
+            "android.yml": "- name: Publish Release Assets",
+        }
+        for name, marker in publish_step.items():
             text = (WORKFLOWS / name).read_text(encoding="utf-8")
             with self.subTest(workflow=name):
                 tag_step = text.index("- name: Move nightly tag to this commit")
-                publish = text.index("- name: Update GitHub Release")
+                publish = text.index(marker)
                 self.assertGreater(tag_step, publish, "the tag moves after the release is published")
                 self.assertIn("continue-on-error: true", text[tag_step:tag_step + 400])
 
