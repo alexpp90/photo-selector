@@ -47,12 +47,20 @@ echo "python3 $(python3 -c 'import sys; print(sys.version.split()[0])')," \
 
 echo "━━━ Unit tests (system Python, virtual display) ━━━"
 cd "$PRODUCT_DIR"
-# A private session bus (as the device lab uses): GApplication registers on it, and without a bus a
-# container waits out the D-Bus timeout. -v names each test as it runs, so a hang is attributable;
-# -rf lists the failures at the end.
-GDK_BACKEND=x11 PST_REQUIRE_PACKAGING_TOOLS=1 \
-    dbus-run-session -- xvfb-run -a python3 -m pytest tests/unit -v -rf --tb=short -p no:cacheprovider \
-    -o faulthandler_timeout=120
+# One pytest process per test file, each bounded: a test that blocks on a real GTK main loop fails
+# its file (and dumps the stacks) instead of holding the whole job until the job timeout, and one run
+# reports every failing file. A private session bus, as the device lab uses.
+failed=()
+for test_file in tests/unit/test_*.py; do
+    GDK_BACKEND=x11 PST_REQUIRE_PACKAGING_TOOLS=1 \
+        timeout 300 dbus-run-session -- xvfb-run -a python3 -m pytest "$test_file" -rf --tb=short \
+        -p no:cacheprovider -o faulthandler_timeout=120 -o addopts="" \
+        || { rc=$?; [[ $rc -eq 5 ]] || failed+=("$test_file (exit $rc)"); }
+done
+if ((${#failed[@]})); then
+    printf '✘ failed: %s\n' "${failed[@]}" >&2
+    exit 1
+fi
 
 echo "━━━ Build, install and start the .deb ━━━"
 out="$(mktemp -d)"
