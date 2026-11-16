@@ -160,6 +160,10 @@ tasks.withType<Test>().configureEach {
         .withPropertyName("formatManifest").withPathSensitivity(PathSensitivity.RELATIVE)
     inputs.file(rootProject.file("../../testdata/formats/companions.json"))
         .withPropertyName("companionTable").withPathSensitivity(PathSensitivity.RELATIVE)
+    // The conditions contract (folder sizes for the scale tests): tests/unit/.../ScaleConditions.kt.
+    val conditionsFile = rootProject.file("../../testdata/conditions/conditions.json")
+    inputs.file(conditionsFile).withPropertyName("conditionsContract").withPathSensitivity(PathSensitivity.RELATIVE)
+    systemProperty("phototok.conditions", conditionsFile.absolutePath)
 }
 
 dependencies {
