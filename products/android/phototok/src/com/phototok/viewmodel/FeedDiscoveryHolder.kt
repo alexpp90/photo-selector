@@ -903,16 +903,25 @@ internal class FeedDiscoveryHolder(
         if (!_uiState.value.sortByOrientation) return
         if (!force && dimensionsJob?.isActive == true) return
         dimensionsJob?.cancel()
+        val epochAtLaunch = feedEpoch
         dimensionsJob = viewModelScope.launch {
             val images = _uiState.value.images
             val currentIndex = _uiState.value.currentIndex
-            val sortedIndices = images.indices.sortedBy { abs(it - currentIndex) }
+            // Only the photos still to read, nearest first: sorting every index of the feed again
+            // for each discovery batch was n log n per batch.
+            val toRead = images.indices
+                .filter { val image = images[it]; image.imageWidth == 0 && image.imageHeight == 0 && image.uri !in dimensionsResolved }
+                .sortedBy { abs(it - currentIndex) }
 
             val batch = mutableMapOf<String, Pair<Int, Int>>()
-            for (idx in sortedIndices) {
-                val image = images.getOrNull(idx) ?: continue
-                if (image.uri in dimensionsResolved) continue
-                if (image.imageWidth == 0 && image.imageHeight == 0) {
+            // Each application rebuilds the feed's lists, a pass over the folder: the nearest
+            // DIMENSION_BATCH_SIZE photos land first, then each chunk doubles, so a folder of n photos
+            // is regrouped log n times instead of n / 24 times (scale contract 2026-11-15).
+            var applyAt = PhoneModeViewModel.DIMENSION_BATCH_SIZE
+            try {
+                for (idx in toRead) {
+                    val image = images[idx]
+                    if (image.uri in dimensionsResolved) continue
                     val (w, h) = try {
                         imageRepository.getImageDimensions(Uri.parse(image.uri))
                     } catch (e: CancellationException) {
@@ -924,15 +933,20 @@ internal class FeedDiscoveryHolder(
                     dimensionsResolved.add(image.uri)
                     if (w > 0 && h > 0) {
                         batch[image.uri] = Pair(w, h)
-                        if (batch.size >= PhoneModeViewModel.DIMENSION_BATCH_SIZE) {
+                        if (batch.size >= applyAt) {
                             applyDimensions(batch.toMap())
                             batch.clear()
+                            applyAt *= 2
                         }
                     }
                 }
-            }
-            if (batch.isNotEmpty()) {
-                applyDimensions(batch.toMap())
+            } finally {
+                // Also when a restarted pass (the end of discovery, a re-sort) cancels this one: the
+                // sizes read so far count as resolved, so dropping them left those photos unsized
+                // and landscape for good. Not for a feed that was discarded meanwhile.
+                if (batch.isNotEmpty() && feedEpoch == epochAtLaunch) {
+                    applyDimensions(batch.toMap())
+                }
             }
         }
     }
@@ -955,34 +969,79 @@ internal class FeedDiscoveryHolder(
     }
 
     private fun applyDimensions(dimensions: Map<String, Pair<Int, Int>>) {
+        // The feed is in its order once discovery has sorted it, and while batches still re-order
+        // it (nobody swiped yet); mid-discovery after a swipe it is append-only and only regrouped.
         _uiState.update { state ->
-            fun ImageItem.withDims(): ImageItem {
-                val dims = dimensions[uri] ?: return this
-                return copy(imageWidth = dims.first, imageHeight = dims.second)
-            }
-
-            val updatedAll = state.allImages.map { it.withDims() }
-            val updatedImages = state.images.map { it.withDims() }
-
-            if (!state.randomizeOrder && state.sortByOrientation) {
-                val currentActiveUri = state.images.getOrNull(state.currentIndex)?.uri
-                val landscape = updatedImages.filter { it.isLandscape }
-                val portrait = updatedImages.filter { !it.isLandscape }
-                val regrouped = landscape + portrait
-                val newIndex = if (currentActiveUri != null) {
-                    regrouped.indexOfFirst { it.uri == currentActiveUri }.coerceAtLeast(0)
-                } else {
-                    state.currentIndex
-                }
-                state.copy(
-                    allImages = updatedAll,
-                    images = regrouped,
-                    portraitSectionStart = if (portrait.isEmpty()) -1 else landscape.size,
-                    currentIndex = newIndex,
-                )
-            } else {
-                state.copy(allImages = updatedAll, images = updatedImages)
-            }
+            withDimensions(
+                state = state,
+                dimensions = dimensions,
+                feedInOrder = !state.isDiscovering || (newestFirstReorderAllowed && !userHasNavigated),
+            )
         }
     }
+}
+
+/**
+ * [state] with the photo sizes in [dimensions] (URI to width and height). In landscape-first order
+ * a photo whose size makes it portrait leaves the landscape section (an unread size counts as
+ * landscape, [ImageItem.isLandscape]); every other photo keeps its place. When [feedInOrder] the
+ * feed is in its order (REQ-TOK-FEATURE.08: landscape then portrait, each newest first), and the
+ * photos that change section are merged into theirs by date ([PhoneFeedOrdering.appendBatch]),
+ * so the feed stays in that order and the next discovery batch merges instead of sorting it whole
+ * (REQ-TOK-ARCH.12). Otherwise (an append-only feed after a swipe, not in date order) the feed is
+ * regrouped landscape then portrait keeping its current order, as before. That regroup, used for
+ * every feed until 2026-11-15, put each later chunk's portraits ahead of the earlier, newer ones.
+ */
+internal fun withDimensions(
+    state: PhoneModeUiState,
+    dimensions: Map<String, Pair<Int, Int>>,
+    feedInOrder: Boolean,
+): PhoneModeUiState {
+    if (dimensions.isEmpty()) return state
+    fun ImageItem.withDims(): ImageItem {
+        val dims = dimensions[uri] ?: return this
+        return copy(imageWidth = dims.first, imageHeight = dims.second)
+    }
+
+    val updatedAll = state.allImages.map { it.withDims() }
+    if (state.randomizeOrder || !state.sortByOrientation) {
+        return state.copy(allImages = updatedAll, images = state.images.map { it.withDims() })
+    }
+
+    // One pass: every photo sized; the ones that stay in their section, and the ones that change it.
+    val updatedImages = ArrayList<ImageItem>(state.images.size)
+    val stay = ArrayList<ImageItem>(state.images.size)
+    val moved = ArrayList<ImageItem>()
+    for (image in state.images) {
+        val updated = image.withDims()
+        updatedImages += updated
+        if (updated !== image && updated.isLandscape != image.isLandscape) moved += updated else stay += updated
+    }
+    if (moved.isEmpty() && feedInOrder) {
+        // Nothing changes section: the feed stays in its order with the sizes in place.
+        return state.copy(allImages = updatedAll, images = updatedImages)
+    }
+
+    val activeUri = state.images.getOrNull(state.currentIndex)?.uri
+    val regrouped = if (feedInOrder) {
+        PhoneFeedOrdering.appendBatch(
+            current = stay,
+            fresh = moved,
+            mode = FeedOrderMode.ORIENTATION_THEN_NEWEST,
+            reorder = true,
+        )
+    } else {
+        val (landscape, portrait) = updatedImages.partition { it.isLandscape }
+        PhoneFeedOrdering.Result(landscape + portrait, if (portrait.isEmpty()) -1 else landscape.size)
+    }
+    val newIndex = activeUri
+        ?.let { uri -> regrouped.images.indexOfFirst { it.uri == uri } }
+        ?.takeIf { it >= 0 }
+        ?: state.currentIndex.coerceIn(0, (regrouped.images.size - 1).coerceAtLeast(0))
+    return state.copy(
+        allImages = updatedAll,
+        images = regrouped.images,
+        portraitSectionStart = regrouped.portraitSectionStart,
+        currentIndex = newIndex,
+    )
 }

@@ -93,6 +93,9 @@ class LocalImageSourceImpl @Inject constructor(
         /** How many further images to gather between subsequent emissions. */
         internal const val BATCH_SIZE = 250
 
+        /** Bytes read once to size a photo: bounds and EXIF orientation sit in the first segments. */
+        private const val HEADER_BYTES = 128 * 1024
+
         /**
          * One query per directory returning everything needed to build an
          * [ImageItem]. `DocumentFile` instead costs a separate ContentResolver
@@ -446,21 +449,58 @@ class LocalImageSourceImpl @Inject constructor(
      */
     private fun readImageDimensions(uri: Uri): Pair<Int, Int> {
         return try {
-            val opts = BitmapFactory.Options().apply { inJustDecodeBounds = true }
-            context.contentResolver.openInputStream(uri)?.use { stream ->
-                BitmapFactory.decodeStream(stream, null, opts)
-            }
-            val w = opts.outWidth.coerceAtLeast(0)
-            val h = opts.outHeight.coerceAtLeast(0)
+            // One open per photo: the head is read once and both the bounds and the EXIF
+            // orientation come from those bytes (two opens per file doubled the cost of sizing a
+            // folder for Sort by orientation, and each open of a cloud or card file is a round trip).
+            val head = context.contentResolver.openInputStream(uri)?.use { it.readNBytesCompat(HEADER_BYTES) }
+            val (w, h, orientation) = if (head != null && head.isNotEmpty()) {
+                val opts = BitmapFactory.Options().apply { inJustDecodeBounds = true }
+                BitmapFactory.decodeByteArray(head, 0, head.size, opts)
+                val o = try {
+                    ExifInterface(java.io.ByteArrayInputStream(head))
+                        .getAttributeInt(ExifInterface.TAG_ORIENTATION, ExifInterface.ORIENTATION_NORMAL)
+                } catch (e: CancellationException) {
+                    throw e
+                } catch (_: Exception) {
+                    ExifInterface.ORIENTATION_NORMAL
+                }
+                Triple(opts.outWidth.coerceAtLeast(0), opts.outHeight.coerceAtLeast(0), o)
+            } else Triple(0, 0, ExifInterface.ORIENTATION_NORMAL)
             if (w > 0 && h > 0) {
                 // BitmapFactory ignores EXIF; the viewer (Coil) applies it, so the dimensions that
-                // classify portrait/landscape must be the displayed ones. Second header-only read.
-                displayedDimensions(w, h, readExifOrientation(uri))
-            } else embeddedPreviewDimensions(uri)
+                // classify portrait/landscape must be the displayed ones.
+                displayedDimensions(w, h, orientation)
+            } else embeddedPreviewDimensions(uri).takeIf { it != Pair(0, 0) }
+                // A bitmap whose header is longer than the window (rare): the unbounded streaming reads.
+                ?: if (head != null && head.size >= HEADER_BYTES) readImageDimensionsStreaming(uri) else Pair(0, 0)
+        } catch (e: CancellationException) {
+            throw e
         } catch (e: Exception) {
             Log.d(TAG, "Cannot read dimensions for $uri: ${e.message}")
             Pair(0, 0)
         }
+    }
+
+    /** The unbounded path for a header that does not fit [HEADER_BYTES]: two opens, as before. */
+    private fun readImageDimensionsStreaming(uri: Uri): Pair<Int, Int> {
+        val opts = BitmapFactory.Options().apply { inJustDecodeBounds = true }
+        context.contentResolver.openInputStream(uri)?.use { stream ->
+            BitmapFactory.decodeStream(stream, null, opts)
+        }
+        val w = opts.outWidth.coerceAtLeast(0)
+        val h = opts.outHeight.coerceAtLeast(0)
+        return if (w > 0 && h > 0) displayedDimensions(w, h, readExifOrientation(uri)) else embeddedPreviewDimensions(uri)
+    }
+
+    private fun java.io.InputStream.readNBytesCompat(max: Int): ByteArray {
+        val buf = ByteArray(max)
+        var n = 0
+        while (n < max) {
+            val r = read(buf, n, max - n)
+            if (r < 0) break
+            n += r
+        }
+        return if (n == max) buf else buf.copyOf(n)
     }
 
     /**
