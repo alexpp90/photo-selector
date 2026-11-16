@@ -348,12 +348,16 @@ class SafTransferEngine(
         }
         val destUris = results.mapNotNull { it.destinationUri }
         val primaryDest = destUris.firstOrNull()
+        val destNames = results.filter { it.destinationUri != null }.mapNotNull { it.destinationName }
+        val primaryName = results.firstOrNull { it.destinationUri != null }?.destinationName
         return when {
             results.all { it.success } -> FileOperationResult.success(
                 sourceUri = primarySourceUri,
                 destinationUri = primaryDest,
                 destinationUris = destUris,
                 parentDocumentId = parentDocumentId,
+                destinationName = primaryName,
+                destinationNames = destNames,
             )
             results.any { it.partial } -> FileOperationResult.partial(
                 sourceUri = primarySourceUri,
@@ -362,6 +366,8 @@ class SafTransferEngine(
                     ?: "Copied, but the original could not be removed",
                 destinationUris = destUris,
                 parentDocumentId = parentDocumentId,
+                destinationName = primaryName,
+                destinationNames = destNames,
                 copiesOfSurvivingOriginals = results
                     .filter { it.partial }
                     .fold(emptyMap()) { acc, r -> acc + r.copiesOfSurvivingOriginals },
@@ -550,6 +556,8 @@ class SafTransferEngine(
                     destinationUri = uri,
                     destinationUris = inPlace,
                     parentDocumentId = parentDocumentId,
+                    destinationName = resolvedSources.first { it.uri.toString() == uri }.fileName,
+                    destinationNames = resolvedSources.mapNotNull { it.fileName },
                 )
             }
         }
@@ -570,6 +578,7 @@ class SafTransferEngine(
                             destinationUri = movedStr,
                             destinationUris = listOf(movedStr),
                             parentDocumentId = parentDocumentId,
+                            destinationName = name,
                         )
                     )
                 }
@@ -626,6 +635,7 @@ class SafTransferEngine(
         }
 
         val allDestUris = stagedCopies.map { (_, destDoc) -> destDoc.uri.toString() }
+        val allDestNames = stagedCopies.map { (src, destDoc) -> destDoc.name ?: src.fileName!! }
         if (!isMove) {
             return stagedCopies.map { (src, destDoc) ->
                 FileOperationResult.success(
@@ -633,6 +643,8 @@ class SafTransferEngine(
                     destinationUri = destDoc.uri.toString(),
                     destinationUris = allDestUris,
                     parentDocumentId = parentDocumentId,
+                    destinationName = destDoc.name ?: src.fileName,
+                    destinationNames = allDestNames,
                 )
             }
         }
@@ -665,6 +677,8 @@ class SafTransferEngine(
                     destinationUri = destDoc.uri.toString(),
                     destinationUris = allDestUris,
                     parentDocumentId = parentDocumentId,
+                    destinationName = destDoc.name ?: src.fileName,
+                    destinationNames = allDestNames,
                 )
             }
         } else {
@@ -681,6 +695,8 @@ class SafTransferEngine(
                     destinationUris = allDestUris,
                     parentDocumentId = parentDocumentId,
                     copiesOfSurvivingOriginals = survivingOriginals,
+                    destinationName = destDoc.name ?: src.fileName,
+                    destinationNames = allDestNames,
                 )
             }
         }
@@ -704,7 +720,7 @@ class SafTransferEngine(
         if (allMembersInPlace(resolvedSources, listings)) {
             return resolvedSources.map { src ->
                 val uri = src.uri.toString()
-                FileOperationResult.success(uri, uri, parentDocumentId = parentDocumentId)
+                FileOperationResult.success(uri, uri, parentDocumentId = parentDocumentId, destinationName = src.fileName)
             }
         }
         val desiredNames = collisionFreeNames(resolvedSources, listings)
@@ -766,7 +782,7 @@ class SafTransferEngine(
         // collision rename and the provider supports FLAG_SUPPORTS_MOVE.
         if (isMove && desiredName == fileName) {
             atomicMove(storage, sourceUri, treeRootUri, targetFolder)?.let { moved ->
-                return FileOperationResult.success(source, moved, parentDocumentId = parentDocumentId)
+                return FileOperationResult.success(source, moved, parentDocumentId = parentDocumentId, destinationName = fileName)
             }
         }
 
@@ -800,7 +816,10 @@ class SafTransferEngine(
                 if (!isMove ||
                     (copyResult.sourceVerified && deleteSourceAfterVerifiedCopy(storage, sourceUri))
                 ) {
-                    FileOperationResult.success(source, destination, parentDocumentId = parentDocumentId)
+                    FileOperationResult.success(
+                        source, destination, parentDocumentId = parentDocumentId,
+                        destinationName = copyResult.destinationFile.name ?: desiredName,
+                    )
                 } else {
                     // The copy is verified on disk, so never delete it when source
                     // removal fails; report a partial outcome instead. A copy whose source
@@ -814,6 +833,7 @@ class SafTransferEngine(
                             "Copied to $selectionFolderName — original kept, its size could not be verified"
                         },
                         parentDocumentId = parentDocumentId,
+                        destinationName = copyResult.destinationFile.name ?: desiredName,
                     )
                 }
             }
@@ -869,6 +889,8 @@ class SafTransferEngine(
                     destinationUri = stray.uri.toString(),
                     error = error,
                     destinationUris = strayUris,
+                    destinationName = stray.name,
+                    destinationNames = strays.values.mapNotNull { it.name },
                     parentDocumentId = parentDocumentId,
                     copiesOfSurvivingOriginals = strays.entries.associate { (source, copy) ->
                         copy.uri.toString() to source.toString()

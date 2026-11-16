@@ -34,9 +34,10 @@ android {
             java.directories.apply { clear(); add("src") }
             kotlin.directories.apply { clear(); add("src") }
         }
+        // tests-shared/: test sources both modules compile (the format-manifest reader).
         getByName("test") {
-            java.directories.apply { clear(); add("tests/unit"); add("tests/common") }
-            kotlin.directories.apply { clear(); add("tests/unit"); add("tests/common") }
+            java.directories.apply { clear(); add("tests/unit"); add("tests/common"); add("../tests-shared") }
+            kotlin.directories.apply { clear(); add("tests/unit"); add("tests/common"); add("../tests-shared") }
         }
         getByName("androidTest") {
             java.directories.apply { clear(); add("tests/instrumented"); add("tests/common") }

@@ -72,15 +72,18 @@ class AndroidExifReader @Inject constructor() : ExifReaderStrategy {
                     null
                 }
 
+                // A SAF document has no sibling path: its sidecar is looked up in the granted tree.
+                val sidecarRating = if (directFile == null) SafSidecarRating.read(context, uri) else null
+
                 if (pfd != null) {
                     pfd.use {
                         // The stream is deliberately not closed: the descriptor belongs to `pfd`.
                         val cr3 = Cr3Metadata.read(FileInputStream(it.fileDescriptor).channel)
                         if (cr3 != null) {
-                            fromCr3(cr3, file = null, pfd = it)
+                            fromCr3(cr3, file = null, pfd = it, sidecarRating = sidecarRating)
                         } else {
                             val exif = exifFromDescriptor(it)
-                            parseExifData(exif, file = directFile, pfd = it)
+                            parseExifData(exif, file = directFile, pfd = it, sidecarRating = sidecarRating)
                         }
                     }
                 } else {
@@ -89,7 +92,7 @@ class AndroidExifReader @Inject constructor() : ExifReaderStrategy {
                         ?: return@withContext null
                     inputStream.use { stream ->
                         val exif = ExifInterface(stream)
-                        parseExifData(exif, file = directFile)
+                        parseExifData(exif, file = directFile, sidecarRating = sidecarRating)
                     }
                 }
             } catch (e: Exception) {
@@ -234,7 +237,12 @@ class AndroidExifReader @Inject constructor() : ExifReaderStrategy {
             ?: classic
     }
 
-    private fun fromCr3(cr3: Cr3Metadata, file: File?, pfd: ParcelFileDescriptor?): ExifData {
+    private fun fromCr3(
+        cr3: Cr3Metadata,
+        file: File?,
+        pfd: ParcelFileDescriptor?,
+        sidecarRating: Int? = null,
+    ): ExifData {
         val values = RawValues(
             exposureTime = cr3.exposureTime,
             shutterSpeedApex = cr3.shutterSpeedValue,
@@ -259,7 +267,7 @@ class AndroidExifReader @Inject constructor() : ExifReaderStrategy {
             focalPlaneXResolution = cr3.focalPlaneXResolution,
             focalPlaneResolutionUnit = cr3.focalPlaneResolutionUnit,
         )
-        val rating = file?.let { readSidecarRating(it) }
+        val rating = (sidecarRating ?: file?.let { readSidecarRating(it) })
             ?: cr3.xmp?.let { XmpRatingParser.parseRating(it) }
             ?: 0
         return buildExifData(values, rating)
@@ -268,7 +276,8 @@ class AndroidExifReader @Inject constructor() : ExifReaderStrategy {
     private fun parseExifData(
         exif: ExifInterface,
         file: File? = null,
-        pfd: ParcelFileDescriptor? = null
+        pfd: ParcelFileDescriptor? = null,
+        sidecarRating: Int? = null,
     ): ExifData {
         fun int(tag: String): Int? = exif.getAttributeInt(tag, 0).takeIf { it > 0 }
         // Absent is not zero: 0 is a real value for the capture settings.
@@ -333,7 +342,7 @@ class AndroidExifReader @Inject constructor() : ExifReaderStrategy {
             sceneCaptureType = rawInt(ExifInterface.TAG_SCENE_CAPTURE_TYPE),
             gimbalPitchDegrees = DRONE_GIMBAL_PITCH.find(xmp.orEmpty())?.groupValues?.get(1)?.toDoubleOrNull(),
         )
-        return buildExifData(values, extractRating(exif, file, pfd, xmp))
+        return buildExifData(values, extractRating(exif, file, pfd, xmp, sidecarRating))
     }
 
     private fun parseExifGpsCoordinate(dmsAttr: String?, refAttr: String?, limit: Double): Double? {
@@ -375,12 +384,11 @@ class AndroidExifReader @Inject constructor() : ExifReaderStrategy {
         file: File?,
         pfd: ParcelFileDescriptor?,
         xmp: String?,
+        sidecarRating: Int? = null,
     ): Int {
         // 1. Companion sidecar (takes absolute precedence as user intent over embedded camera metadata)
-        if (file != null) {
-            val sidecar = readSidecarRating(file)
-            if (sidecar != null) return sidecar
-        }
+        val sidecar = sidecarRating ?: file?.let { readSidecarRating(it) }
+        if (sidecar != null) return sidecar
 
         // 2. Embedded XMP packet (TAG_XMP)
         if (!xmp.isNullOrBlank()) {
