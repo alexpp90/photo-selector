@@ -113,6 +113,15 @@ public enum LensjetCommand: CaseIterable, Sendable {
     /// Menu title of the Filmstrip toggle: "Show Filmstrip" / "Hide Filmstrip".
     public static func filmstripMenuTitle(isShown: Bool) -> String { isShown ? "Hide Filmstrip" : "Show Filmstrip" }
 
+    /// Toast after Undo: "Undone: Move" (the same verb as the action's own toast and the Undo menu item).
+    public static func undoneToastTitle(action: CullingActionType, rejected: Bool = false) -> String {
+        switch action {
+        case .move: return "Undone: Move"
+        case .copy: return "Undone: Copy"
+        case .trash: return rejected ? "Undone: Reject" : "Undone: Trash"
+        }
+    }
+
     /// Edit menu: "Undo Move of IMG_0001.CR3"; plain "Undo" when there is nothing to undo.
     public static func undoMenuTitle(action: CullingActionType?, filename: String?, rejected: Bool = false) -> String {
         guard let action, let filename else { return "Undo" }
@@ -128,6 +137,9 @@ public enum LensjetCommand: CaseIterable, Sendable {
 public enum LensjetWords {
     public static let dropFolder = "Drop a folder"
     public static let dropToOpen = "Drop to open"
+    /// A folder was opened and holds no photos (shown once the scan completed).
+    public static let noPhotos = "No photos"
+    public static let openAnotherFolder = "Open another folder…"
     /// The formats line of the empty state.
     public static let supportedFormats = "RAW (CR3, ARW, NEF, DNG, RAF, RW2), JPEG, HEIC"
     public static let tally = ["Selected", "Copied", "Trashed", "Remaining"]
@@ -142,7 +154,7 @@ public enum LensjetWords {
     public static let banned = [
         "Ingest", "zero-latency", "bitwise", "cryptographic", "variance", "pin-sharp", "HUD", "Overlay",
         "Accelerate", "VNCalculate", "SHA-256", "Focus Mode", "Focus 3-Up", "Focus View",
-        "Library Statistics", "Scoring & Aesthetics",
+        "Library Statistics", "Scoring & Aesthetics", "AI score", "Duplicate Cluster", "Action Undone",
     ]
 }
 

@@ -148,14 +148,16 @@ struct PhotoInfoPanelView: View {
                 .accessibilityLabel(ScoreLabels.sharpnessSpoken(scores, bands: bands))
                 .uiTestFrame("info_sharpness")
                 if scores.highlightClipping > 5.0 {
-                    Text("Blown \(Int(scores.highlightClipping))%")
+                    Label(ScoreLabels.blown(scores.highlightClipping), systemImage: "sun.max.fill")
                         .font(.system(size: 10, weight: .bold))
                         .foregroundStyle(Color.lensjetClippingHighlight)
+                        .accessibilityLabel(ScoreLabels.blownSpoken(scores.highlightClipping))
                 }
                 if scores.shadowClipping > 15.0 {
-                    Text("Crushed \(Int(scores.shadowClipping))%")
+                    Label(ScoreLabels.crushed(scores.shadowClipping), systemImage: "moon.fill")
                         .font(.system(size: 10, weight: .bold))
                         .foregroundStyle(Color.lensjetClippingShadow)
+                        .accessibilityLabel(ScoreLabels.crushedSpoken(scores.shadowClipping))
                 }
             } else {
                 HStack(spacing: 4) {
@@ -194,7 +196,7 @@ struct PhotoInfoPanelView: View {
                 Image(systemName: "star")
                     .font(.system(size: 10))
                     .foregroundStyle(Self.secondary)
-                Text("AI score…")
+                Text("Score…")
                     .font(.system(size: 10))
                     .foregroundStyle(Self.secondary)
             }

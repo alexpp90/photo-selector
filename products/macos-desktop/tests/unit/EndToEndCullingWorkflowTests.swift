@@ -288,8 +288,6 @@ struct EndToEndCullingWorkflowTests {
         }
 
         let vm = CullingWorkspaceViewModel()
-        let startTime = CFAbsoluteTimeGetCurrent()
-
         vm.loadFolder(at: harness.rootURL)
 
         var attempts = 0
@@ -298,10 +296,8 @@ struct EndToEndCullingWorkflowTests {
             attempts += 1
         }
         #expect(!vm.isLoading, "100 photo streaming must complete within polling budget")
-        let elapsed = CFAbsoluteTimeGetCurrent() - startTime
-
-        // Ingestion performance: 100 photos stream within 2.5s in debug mode
-        #expect(elapsed < 2.5, "100 photos must stream into candidates in <2.5s (elapsed: \(elapsed)s)")
+        // How fast the stream is belongs to the scale contract (ScaleContractTests, the UI smoke
+        // test), never to a wall-clock bound here: this test proves every photo arrives.
         #expect(vm.photos.count == totalItems)
 
         // Rapid navigation across all 100 photos
