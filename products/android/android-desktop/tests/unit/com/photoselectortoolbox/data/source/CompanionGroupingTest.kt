@@ -5,7 +5,7 @@ import android.content.Context
 import android.net.Uri
 import android.provider.DocumentsContract
 import com.photoselectortoolbox.conformance.DirectoryDocumentsProvider
-import com.photoselectortoolbox.conformance.FormatManifest
+import com.photoselector.core.conformance.FormatManifest
 import com.photoselectortoolbox.domain.format.ImageFormats
 import kotlinx.coroutines.flow.last
 import kotlinx.coroutines.test.runTest
