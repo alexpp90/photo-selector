@@ -118,6 +118,8 @@ data class PhoneModeUiState(
     val cardDeletedCount: Int = 0,
     val cardClearStep: Int = 0,
     val cardClearComplete: Boolean = false,
+    /** Delete all's progress while it runs (`cardClearStep == 3`), shown by the progress sheet; null otherwise. */
+    val cardClearProgress: CardClearProgress? = null,
     /** Favourite request (`createFavoriteRequest`) for the UI to launch once (`U-17`). */
     val pendingIntentSenderRequest: FavouriteSyncRequest? = null,
     /** Pro mode on? The settings above are already the effective (gated) values. */
@@ -139,10 +141,11 @@ data class PhoneModeUiState(
     /**
      * What "Delete all" removes and counts: every discovered file of the card, the hidden RAW
      * companions, the filtered-out types and the `.xmp` sidecars included. Not the number of cards
-     * in the feed.
+     * in the feed. Each photo's sidecars come just before the photo, so a cancelled Delete all never
+     * leaves a sidecar behind whose photo is gone.
      */
     val cardClearTargets: List<ImageItem>
-        get() = (allImages + allImages.flatMap { it.sidecars }).distinctBy { it.uri }
+        get() = allImages.flatMap { it.sidecars + it }.distinctBy { it.uri }
 
     val cardClearFileCount: Int get() = cardClearTargets.size
 
@@ -222,6 +225,16 @@ data class ActionFeedback(
 )
 
 /** Show [message] in the feed's snackbar: the one way every holder of the feed reports. */
+/**
+ * How far Delete all on a card is ([USER 2026-11-16] D2): [done] files of [total] handled (deleted
+ * or failed), and [cancelling] once Cancel was pressed and the file in hand is still being deleted.
+ */
+data class CardClearProgress(
+    val done: Int,
+    val total: Int,
+    val cancelling: Boolean = false,
+)
+
 internal fun MutableStateFlow<PhoneModeUiState>.showFeedback(message: UiText, isError: Boolean = false) {
     update { it.copy(lastActionFeedback = ActionFeedback(message = message, isError = isError)) }
 }

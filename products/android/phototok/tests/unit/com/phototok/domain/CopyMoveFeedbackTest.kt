@@ -135,22 +135,10 @@ class CopyMoveFeedbackTest {
     }
 
     @Test
-    fun `a suffixed name is reported, an opaque document id never is`() {
-        assertEquals(
-            "IMG_1-2.JPG",
-            CopyMoveFeedback.renamedName("IMG_1.JPG", "content://x/tree/p%3ADCIM/document/p%3ADCIM%2FSelection%2FIMG_1-2.JPG"),
-        )
-        assertEquals("a case-only difference of the extension still counts as the same type", "IMG_1-2.jpg",
-            CopyMoveFeedback.renamedName("IMG_1.JPG", "content://x/document/IMG_1-2.jpg"))
-        assertNull("same name", CopyMoveFeedback.renamedName("IMG_1.JPG", "content://x/document/p%3AIMG_1.JPG"))
-        assertNull("media provider id", CopyMoveFeedback.renamedName("IMG_1.JPG", "content://com.android.providers.media.documents/document/msf%3A123"))
-        assertNull("drive id", CopyMoveFeedback.renamedName("IMG_1.JPG", "content://com.google.android.apps.docs.storage/document/acc%3D1%3Bdoc%3Dencoded%3D8Wq"))
-        assertNull("no destination", CopyMoveFeedback.renamedName("IMG_1.JPG", null))
-    }
-
-    @Test
-    fun `display name of a document uri is the last path segment of the decoded document id`() {
-        assertEquals("a-2.jpg", CopyMoveFeedback.displayNameOf("content://x/tree/root/document/root%2FSelection%2Fa-2.jpg"))
-        assertEquals("IMG_1.JPG", CopyMoveFeedback.displayNameOf("content://x/tree/primary%3ADCIM/document/primary%3ADCIM%2FIMG_1.JPG"))
+    fun `the renamed name is the one the engine read back, never a guess from the uri`() {
+        assertEquals("IMG_1-2.JPG", CopyMoveFeedback.renamedName("IMG_1.JPG", "IMG_1-2.JPG"))
+        assertNull("same name", CopyMoveFeedback.renamedName("IMG_1.JPG", "IMG_1.JPG"))
+        assertNull("the engine could not read the name", CopyMoveFeedback.renamedName("IMG_1.JPG", null))
+        assertNull("an empty name is no name", CopyMoveFeedback.renamedName("IMG_1.JPG", ""))
     }
 }

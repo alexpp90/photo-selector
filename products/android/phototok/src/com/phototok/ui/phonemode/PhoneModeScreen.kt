@@ -358,6 +358,11 @@ fun PhoneModeScreen(
         )
     }
 
+    // Delete all is running: progress and Cancel, the feed below takes no input ([USER 2026-11-16] D2).
+    uiState.cardClearProgress?.let { progress ->
+        CardClearProgressSheet(progress = progress, onCancel = viewModel::cancelClearEntireCard)
+    }
+
     // Settings bottom sheet
     SettingsSheetHost(
         visible = showSettingsSheet,

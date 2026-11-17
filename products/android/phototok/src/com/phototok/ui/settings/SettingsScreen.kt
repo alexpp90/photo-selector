@@ -318,16 +318,25 @@ fun SettingsScreen(
 
                 row("reset_all") {
                     var allSeenReset by remember { mutableStateOf(false) }
+                    // Every folder at once asks first; the open folder's reset above stays one tap.
+                    var confirmResetAll by rememberSaveable { mutableStateOf(false) }
                     SettingsClickItem(
                         title = stringResource(R.string.setting_title_reset_all),
                         summary = if (allSeenReset) stringResource(R.string.setting_summary_done) else null,
-                        onClick = {
-                            viewModel.resetAllSeenHistory {
-                                allSeenReset = true
-                            }
-                        },
+                        onClick = { confirmResetAll = true },
                         icon = Icons.Default.RestartAlt,
                     )
+                    if (confirmResetAll) {
+                        ResetAllSeenDialog(
+                            onConfirm = {
+                                confirmResetAll = false
+                                viewModel.resetAllSeenHistory {
+                                    allSeenReset = true
+                                }
+                            },
+                            onDismiss = { confirmResetAll = false },
+                        )
+                    }
                 }
 
                 row("clear_cache") {

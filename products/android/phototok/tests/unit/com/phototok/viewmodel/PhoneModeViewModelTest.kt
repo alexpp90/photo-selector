@@ -42,6 +42,7 @@ import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.test.UnconfinedTestDispatcher
 import kotlinx.coroutines.test.advanceUntilIdle
 import kotlinx.coroutines.test.resetMain
+import kotlinx.coroutines.test.runCurrent
 import kotlinx.coroutines.test.runTest
 import kotlinx.coroutines.test.setMain
 import org.junit.After
@@ -2280,6 +2281,96 @@ class PhoneModeViewModelTest {
     }
 
     @Test
+    fun `Delete all reports its progress and Cancel after file 3 of 10 leaves 7 files and the card not cleared`() = runTest {
+        val images = (1..10).map { image("f$it.jpg", 100L - it) }
+        val onDisk = images.map { it.uri }.toMutableSet()
+        val gates = List(10) { CompletableDeferred<Boolean>() }
+        var calls = 0
+        coEvery { imageRepository.deleteImage(any()) } coAnswers {
+            val ok = gates[calls++].await()
+            if (ok) onDisk.remove(firstArg<Uri>().toString())
+            ok
+        }
+        val viewModel = loadFolder(*images.toTypedArray())
+        advanceUntilIdle()
+
+        viewModel.confirmClearEntireCard()
+        runCurrent()
+        assertEquals(3, viewModel.uiState.value.cardClearStep)
+        assertEquals(CardClearProgress(done = 0, total = 10), viewModel.uiState.value.cardClearProgress)
+        gates[0].complete(true)
+        runCurrent()
+        gates[1].complete(true)
+        runCurrent()
+        assertEquals(2, viewModel.uiState.value.cardClearProgress?.done)
+        assertEquals("the feed is changed once, at the end", 10, viewModel.uiState.value.allImages.size)
+
+        // File 3 is being deleted when Cancel is pressed: it finishes, file 4 never starts.
+        viewModel.cancelClearEntireCard()
+        assertEquals(true, viewModel.uiState.value.cardClearProgress?.cancelling)
+        gates[2].complete(true)
+        advanceUntilIdle()
+
+        val state = viewModel.uiState.value
+        coVerify(exactly = 3) { imageRepository.deleteImage(any()) }
+        assertEquals(7, onDisk.size)
+        assertEquals(7, state.allImages.size)
+        assertNull(state.cardClearProgress)
+        assertEquals(0, state.cardClearStep)
+        assertFalse("a cancelled run did not clear the card", state.cardClearComplete)
+        assertNull(state.emptyFolderMessage)
+        assertEquals(UiText.of(R.string.snackbar_deleted_left, 3, 7), state.lastActionFeedback?.message)
+        assertFalse("a cancel is the user's choice, not an error", state.lastActionFeedback?.isError == true)
+        assertEquals("Delete all can run again on what is left", 7, state.cardClearFileCount)
+        assertTrue(state.cardClearReady)
+    }
+
+    @Test
+    fun `Cancel when Delete all is not running does nothing`() = runTest {
+        coEvery { imageRepository.deleteImage(any()) } returns true
+        val viewModel = loadFolder(image("a.jpg", 2), image("b.jpg", 1))
+        advanceUntilIdle()
+
+        viewModel.cancelClearEntireCard()
+        assertNull(viewModel.uiState.value.cardClearProgress)
+        viewModel.confirmClearEntireCard()
+        advanceUntilIdle()
+
+        coVerify(exactly = 2) { imageRepository.deleteImage(any()) }
+        assertTrue(viewModel.uiState.value.cardClearComplete)
+        assertEquals(UiText.of(R.string.snackbar_deleted_count, 2), viewModel.uiState.value.lastActionFeedback?.message)
+    }
+
+    @Test
+    fun `a photo's sidecar goes just before it, and one deleted before a cancel is not counted again`() = runTest {
+        val p = "content://tree/photos"
+        val a = shot("IMG_1.JPG", p, "IMG_1.xmp").copy(lastModified = 30)
+        val b = shot("IMG_2.JPG", p).copy(lastModified = 20)
+        every { imageRepository.discoverImages(any()) } returns flowOf(listOf(a, b))
+        val viewModel = buildViewModel()
+        viewModel.selectSourceFolder(Uri.parse(p))
+        advanceUntilIdle()
+        assertEquals(
+            listOf("$p/IMG_1.xmp", "$p/IMG_1.JPG", "$p/IMG_2.JPG"),
+            viewModel.uiState.value.cardClearTargets.map { it.uri },
+        )
+        coEvery { imageRepository.deleteImage(any()) } coAnswers {
+            // Cancel while the sidecar is being deleted: the photo stays, without its sidecar.
+            viewModel.cancelClearEntireCard()
+            true
+        }
+
+        viewModel.confirmClearEntireCard()
+        advanceUntilIdle()
+
+        val state = viewModel.uiState.value
+        coVerify(exactly = 1) { imageRepository.deleteImage(Uri.parse("$p/IMG_1.xmp")) }
+        assertEquals(listOf("IMG_1.JPG", "IMG_2.JPG"), state.allImages.map { it.fileName })
+        assertEquals("the deleted sidecar is not offered again", 2, state.cardClearFileCount)
+        assertEquals(UiText.of(R.string.snackbar_deleted_left, 1, 2), state.lastActionFeedback?.message)
+    }
+
+    @Test
     fun `a copy into a custom location names the Selection folder the file lands in, not the location`() = runTest {
         perSourceSettings(
             removable = SourceSettings(swipeRightVerb = SwipeRightVerb.COPY, collectionUri = sdSelection),
@@ -2839,6 +2930,7 @@ class PhoneModeViewModelTest {
             FileOperationResult.success(
                 firstArg<Uri>().toString(),
                 "content://tree/photos/Selection/a-2.jpg",
+                destinationName = "a-2.jpg",
             )
         }
         val viewModel = loadFolder(image("a.jpg", 2), image("b.jpg", 1))
@@ -2847,6 +2939,43 @@ class PhoneModeViewModelTest {
         advanceUntilIdle()
 
         assertEquals(UiText.of(R.string.snackbar_moved_renamed, "a-2.jpg"), viewModel.uiState.value.lastActionFeedback?.message)
+    }
+
+    @Test
+    fun `a copy renamed to -2 behind an opaque document id names the file the engine wrote (H-JP-2)`() = runTest {
+        phoneSettingsFlow.value = PhoneSettings(collectionAction = CollectionAction.COPY)
+        val written = "content://com.android.providers.media.documents/document/msf%3A123"
+        coEvery {
+            imageRepository.copyImageDetailed(any(), any(), any(), any())
+        } answers {
+            FileOperationResult.success(firstArg<Uri>().toString(), written, destinationName = "a-2.jpg")
+        }
+        val viewModel = loadFolder(image("a.jpg", 2), image("b.jpg", 1))
+
+        viewModel.addToCollection()
+        advanceUntilIdle()
+
+        assertEquals(UiText.of(R.string.snackbar_copied_renamed, "a-2.jpg"), viewModel.uiState.value.lastActionFeedback?.message)
+    }
+
+    @Test
+    fun `a destination uri that looks suffixed is not taken for a rename when the engine kept the name`() = runTest {
+        phoneSettingsFlow.value = PhoneSettings(collectionAction = CollectionAction.MOVE)
+        coEvery {
+            imageRepository.moveImageDetailed(any(), any(), any(), any())
+        } answers {
+            FileOperationResult.success(
+                firstArg<Uri>().toString(),
+                "content://tree/photos/Selection/a-2.jpg",
+                destinationName = "a.jpg",
+            )
+        }
+        val viewModel = loadFolder(image("a.jpg", 2), image("b.jpg", 1))
+
+        viewModel.addToCollection()
+        advanceUntilIdle()
+
+        assertEquals(UiText.of(R.string.snackbar_moved, UiText.raw(PhotoFolders.SELECTION)), viewModel.uiState.value.lastActionFeedback?.message)
     }
 
     @Test

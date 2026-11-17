@@ -137,9 +137,15 @@
     <string name="dialog_body_trash_split">%1$d Papierkorb · %2$d endgültig</string>
     <string name="dialog_title_pro_mode">Profi-Modus bietet</string>
     <string name="dialog_title_card_done">Karte fertig</string>
+    <string name="dialog_title_reset_all_seen">Alle Gesehenen zurücksetzen?</string>
     <string name="label_card_copied">%1$d kopiert</string>
     <string name="cd_card_copied">%1$d von der Karte kopiert</string>
     <string name="dialog_body_card_loss">Nie kopierte Fotos gehen verloren.</string>
+    <!-- Delete all progress sheet ([USER 2026-11-16] D2) -->
+    <string name="title_deleting">Löschen…</string>
+    <string name="label_clear_progress">%1$d / %2$d</string>
+    <string name="cd_clear_progress">Löschen, %1$d von %2$d</string>
+    <string name="action_cancelling">Abbrechen…</string>
     <plurals name="dialog_title_delete_all">
         <item quantity="one">1 Datei löschen?</item>
         <item quantity="other">Alle %1$d Dateien löschen?</item>
@@ -195,6 +201,7 @@
     <string name="snackbar_all_seen">Alles gesehen</string>
     <string name="snackbar_rejects_deleted">Aussortierte gelöscht</string>
     <string name="snackbar_deleted_count">%1$d gelöscht</string>
+    <string name="snackbar_deleted_left">%1$d gelöscht · %2$d übrig</string>
     <string name="snackbar_photo_deleted">Foto gelöscht</string>
     <string name="snackbar_not_deleted">%1$d nicht gelöscht</string>
     <string name="snackbar_action_retry">Erneut</string>
