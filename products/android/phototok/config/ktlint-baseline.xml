@@ -1,0 +1,433 @@
+<?xml version="1.0" encoding="utf-8"?>
+<baseline version="1.0">
+    <file name="src/com/phototok/data/model/PhoneSettings.kt">
+        <error line="134" column="1" source="standard:no-consecutive-blank-lines" />
+    </file>
+    <file name="src/com/phototok/data/model/RecentPath.kt">
+        <error line="23" column="1" source="standard:no-consecutive-blank-lines" />
+    </file>
+    <file name="src/com/phototok/data/repository/RecentPathCodec.kt">
+        <error line="73" column="1" source="standard:no-consecutive-blank-lines" />
+    </file>
+    <file name="src/com/phototok/data/repository/SettingsRepository.kt">
+        <error line="3" column="1" source="standard:import-ordering" />
+        <error line="438" column="33" source="standard:multiline-if-else" />
+        <error line="439" column="18" source="standard:multiline-if-else" />
+        <error line="697" column="30" source="standard:multiline-if-else" />
+        <error line="698" column="18" source="standard:multiline-if-else" />
+        <error line="952" column="36" source="standard:multiline-if-else" />
+        <error line="953" column="18" source="standard:multiline-if-else" />
+        <error line="1137" column="1" source="standard:no-consecutive-blank-lines" />
+    </file>
+    <file name="src/com/phototok/data/source/ImageSource.kt">
+        <error line="125" column="21" source="standard:multiline-if-else" />
+        <error line="126" column="14" source="standard:multiline-if-else" />
+    </file>
+    <file name="src/com/phototok/data/source/LocalImageSource.kt">
+        <error line="3" column="1" source="standard:import-ordering" />
+        <error line="77" column="9" source="standard:spacing-between-declarations-with-comments" />
+        <error line="468" column="20" source="standard:multiline-if-else" />
+        <error line="473" column="20" source="standard:multiline-if-else" />
+    </file>
+    <file name="src/com/phototok/domain/FolderScanLogic.kt">
+        <error line="165" column="1" source="standard:no-consecutive-blank-lines" />
+    </file>
+    <file name="src/com/phototok/domain/Milestones.kt">
+        <error line="102" column="38" source="standard:multiline-if-else" />
+        <error line="103" column="22" source="standard:multiline-if-else" />
+    </file>
+    <file name="src/com/phototok/domain/PendingDeleteLogic.kt">
+        <error line="216" column="1" source="standard:no-consecutive-blank-lines" />
+    </file>
+    <file name="src/com/phototok/domain/PhoneFeedOrdering.kt">
+        <error line="125" column="27" source="standard:multiline-if-else" />
+        <error line="189" column="19" source="standard:multiline-if-else" />
+        <error line="298" column="1" source="standard:no-consecutive-blank-lines" />
+    </file>
+    <file name="src/com/phototok/domain/PhotoTypes.kt">
+        <error line="118" column="1" source="standard:no-consecutive-blank-lines" />
+    </file>
+    <file name="src/com/phototok/domain/RelatedFiles.kt">
+        <error line="176" column="1" source="standard:no-consecutive-blank-lines" />
+    </file>
+    <file name="src/com/phototok/ui/components/BottomNavBar.kt">
+        <error line="3" column="1" source="standard:import-ordering" />
+        <error line="144" column="35" source="standard:multiline-if-else" />
+        <error line="145" column="26" source="standard:multiline-if-else" />
+    </file>
+    <file name="src/com/phototok/ui/components/NameTooltip.kt">
+        <error line="3" column="1" source="standard:import-ordering" />
+    </file>
+    <file name="src/com/phototok/ui/components/ProModeRow.kt">
+        <error line="3" column="1" source="standard:import-ordering" />
+    </file>
+    <file name="src/com/phototok/ui/components/TapOnlyClickable.kt">
+        <error line="3" column="1" source="standard:import-ordering" />
+    </file>
+    <file name="src/com/phototok/ui/phonemode/ControlsGuideAnchors.kt">
+        <error line="18" column="5" source="standard:spacing-between-declarations-with-comments" />
+        <error line="87" column="5" source="standard:spacing-between-declarations-with-comments" />
+    </file>
+    <file name="src/com/phototok/ui/phonemode/ControlsGuideLayout.kt">
+        <error line="3" column="1" source="standard:import-ordering" />
+        <error line="237" column="5" source="standard:spacing-between-declarations-with-comments" />
+    </file>
+    <file name="src/com/phototok/ui/phonemode/FirstRunHintCard.kt">
+        <error line="3" column="1" source="standard:import-ordering" />
+    </file>
+    <file name="src/com/phototok/ui/phonemode/GestureTutorialOverlay.kt">
+        <error line="3" column="1" source="standard:import-ordering" />
+        <error line="16" column="1" source="standard:no-unused-imports" />
+        <error line="37" column="1" source="standard:no-unused-imports" />
+        <error line="39" column="1" source="standard:no-unused-imports" />
+        <error line="42" column="1" source="standard:no-unused-imports" />
+        <error line="71" column="1" source="standard:no-unused-imports" />
+        <error line="151" column="1" source="standard:indent" />
+        <error line="152" column="1" source="standard:indent" />
+        <error line="153" column="1" source="standard:indent" />
+        <error line="154" column="1" source="standard:indent" />
+        <error line="155" column="1" source="standard:indent" />
+        <error line="156" column="1" source="standard:indent" />
+        <error line="157" column="1" source="standard:indent" />
+        <error line="158" column="1" source="standard:indent" />
+        <error line="159" column="1" source="standard:indent" />
+        <error line="160" column="1" source="standard:indent" />
+        <error line="161" column="1" source="standard:indent" />
+        <error line="162" column="1" source="standard:indent" />
+        <error line="163" column="1" source="standard:indent" />
+        <error line="164" column="1" source="standard:indent" />
+        <error line="165" column="1" source="standard:indent" />
+        <error line="166" column="1" source="standard:indent" />
+        <error line="167" column="1" source="standard:indent" />
+        <error line="168" column="1" source="standard:indent" />
+        <error line="169" column="1" source="standard:indent" />
+        <error line="170" column="1" source="standard:indent" />
+        <error line="171" column="1" source="standard:indent" />
+        <error line="172" column="1" source="standard:indent" />
+        <error line="173" column="1" source="standard:indent" />
+        <error line="174" column="1" source="standard:indent" />
+        <error line="175" column="1" source="standard:indent" />
+        <error line="176" column="1" source="standard:indent" />
+        <error line="177" column="1" source="standard:indent" />
+        <error line="178" column="1" source="standard:indent" />
+        <error line="179" column="1" source="standard:indent" />
+        <error line="180" column="1" source="standard:indent" />
+        <error line="181" column="1" source="standard:indent" />
+        <error line="182" column="1" source="standard:indent" />
+        <error line="183" column="1" source="standard:indent" />
+        <error line="184" column="1" source="standard:indent" />
+        <error line="185" column="1" source="standard:indent" />
+        <error line="186" column="1" source="standard:indent" />
+        <error line="187" column="1" source="standard:indent" />
+        <error line="189" column="1" source="standard:indent" />
+        <error line="190" column="1" source="standard:indent" />
+        <error line="191" column="1" source="standard:indent" />
+        <error line="192" column="1" source="standard:indent" />
+        <error line="193" column="1" source="standard:indent" />
+        <error line="194" column="1" source="standard:indent" />
+        <error line="195" column="1" source="standard:indent" />
+        <error line="196" column="1" source="standard:indent" />
+        <error line="197" column="1" source="standard:indent" />
+        <error line="198" column="1" source="standard:indent" />
+        <error line="199" column="1" source="standard:indent" />
+        <error line="200" column="1" source="standard:indent" />
+        <error line="201" column="1" source="standard:indent" />
+        <error line="202" column="1" source="standard:indent" />
+        <error line="203" column="1" source="standard:indent" />
+        <error line="204" column="1" source="standard:indent" />
+        <error line="205" column="1" source="standard:indent" />
+        <error line="206" column="1" source="standard:indent" />
+        <error line="207" column="1" source="standard:indent" />
+        <error line="208" column="1" source="standard:indent" />
+        <error line="209" column="1" source="standard:indent" />
+        <error line="210" column="1" source="standard:indent" />
+        <error line="211" column="1" source="standard:indent" />
+        <error line="212" column="1" source="standard:indent" />
+        <error line="214" column="1" source="standard:indent" />
+        <error line="215" column="1" source="standard:indent" />
+        <error line="216" column="1" source="standard:indent" />
+        <error line="274" column="81" source="standard:multiline-if-else" />
+        <error line="274" column="91" source="standard:multiline-if-else" />
+        <error line="345" column="81" source="standard:multiline-if-else" />
+        <error line="345" column="91" source="standard:multiline-if-else" />
+        <error line="447" column="58" source="standard:multiline-if-else" />
+        <error line="447" column="69" source="standard:multiline-if-else" />
+    </file>
+    <file name="src/com/phototok/ui/phonemode/PhoneModeLanding.kt">
+        <error line="3" column="1" source="standard:import-ordering" />
+        <error line="66" column="1" source="standard:no-unused-imports" />
+        <error line="566" column="1" source="standard:no-consecutive-blank-lines" />
+    </file>
+    <file name="src/com/phototok/ui/phonemode/PhoneModeLoading.kt">
+        <error line="33" column="1" source="standard:no-unused-imports" />
+    </file>
+    <file name="src/com/phototok/ui/phonemode/PhoneModeScreen.kt">
+        <error line="3" column="1" source="standard:import-ordering" />
+        <error line="39" column="1" source="standard:no-unused-imports" />
+        <error line="51" column="1" source="standard:no-unused-imports" />
+        <error line="53" column="1" source="standard:no-unused-imports" />
+        <error line="57" column="1" source="standard:no-unused-imports" />
+        <error line="65" column="1" source="standard:no-unused-imports" />
+        <error line="1198" column="35" source="standard:multiline-if-else" />
+        <error line="1199" column="26" source="standard:multiline-if-else" />
+        <error line="1202" column="34" source="standard:multiline-if-else" />
+        <error line="1207" column="28" source="standard:multiline-if-else" />
+    </file>
+    <file name="src/com/phototok/ui/phonemode/PhoneModeTopBar.kt">
+        <error line="48" column="1" source="standard:spacing-between-declarations-with-annotations" />
+        <error line="49" column="1" source="standard:spacing-between-declarations-with-annotations" />
+        <error line="50" column="1" source="standard:spacing-between-declarations-with-annotations" />
+    </file>
+    <file name="src/com/phototok/ui/phonemode/PhoneModeViewer.kt">
+        <error line="3" column="1" source="standard:import-ordering" />
+        <error line="693" column="53" source="standard:no-multi-spaces" />
+        <error line="694" column="53" source="standard:no-multi-spaces" />
+        <error line="856" column="47" source="standard:multiline-if-else" />
+        <error line="856" column="61" source="standard:multiline-if-else" />
+        <error line="1455" column="36" source="standard:multiline-if-else" />
+        <error line="1455" column="50" source="standard:multiline-if-else" />
+    </file>
+    <file name="src/com/phototok/ui/phonemode/RawJpegSuggestionCard.kt">
+        <error line="15" column="1" source="standard:no-unused-imports" />
+    </file>
+    <file name="src/com/phototok/ui/settings/SettingsItem.kt">
+        <error line="3" column="1" source="standard:import-ordering" />
+        <error line="6" column="1" source="standard:no-unused-imports" />
+    </file>
+    <file name="src/com/phototok/ui/settings/SettingsScreen.kt">
+        <error line="3" column="1" source="standard:import-ordering" />
+        <error line="8" column="1" source="standard:no-unused-imports" />
+    </file>
+    <file name="src/com/phototok/ui/theme/Color.kt">
+        <error line="8" column="35" source="standard:no-multi-spaces" />
+        <error line="9" column="44" source="standard:no-multi-spaces" />
+        <error line="10" column="37" source="standard:no-multi-spaces" />
+        <error line="68" column="1" source="standard:no-consecutive-blank-lines" />
+    </file>
+    <file name="src/com/phototok/viewmodel/FeedDiscoveryHolder.kt">
+        <error line="188" column="40" source="standard:multiline-if-else" />
+        <error line="188" column="48" source="standard:multiline-if-else" />
+    </file>
+    <file name="src/com/phototok/viewmodel/PhoneModeViewModel.kt">
+        <error line="3" column="1" source="standard:import-ordering" />
+    </file>
+    <file name="src/com/phototok/viewmodel/SelectionViewerViewModel.kt">
+        <error line="3" column="1" source="standard:import-ordering" />
+    </file>
+    <file name="src/com/phototok/viewmodel/SettingsViewModel.kt">
+        <error line="3" column="1" source="standard:import-ordering" />
+        <error line="30" column="1" source="standard:import-ordering" />
+        <error line="30" column="1" source="standard:no-unused-imports" />
+        <error line="31" column="1" source="standard:import-ordering" />
+        <error line="31" column="1" source="standard:no-unused-imports" />
+        <error line="202" column="28" source="standard:multiline-if-else" />
+        <error line="212" column="28" source="standard:multiline-if-else" />
+        <error line="237" column="24" source="standard:multiline-if-else" />
+    </file>
+    <file name="src/com/phototok/viewmodel/SourceSettingsHolder.kt">
+        <error line="107" column="33" source="standard:wrapping" />
+        <error line="108" column="67" source="standard:wrapping" />
+        <error line="123" column="75" source="standard:multiline-if-else" />
+        <error line="124" column="26" source="standard:multiline-if-else" />
+        <error line="132" column="49" source="standard:multiline-if-else" />
+        <error line="133" column="26" source="standard:multiline-if-else" />
+    </file>
+    <file name="tests/instrumented/com/phototok/data/source/MediaStoreFavouritesTest.kt">
+        <error line="3" column="1" source="standard:import-ordering" />
+        <error line="99" column="20" source="standard:wrapping" />
+        <error line="100" column="70" source="standard:wrapping" />
+        <error line="100" column="82" source="standard:wrapping" />
+    </file>
+    <file name="tests/instrumented/com/phototok/ui/phonemode/ControlsGuideAlignmentTest.kt">
+        <error line="162" column="33" source="standard:multiline-loop" />
+    </file>
+    <file name="tests/instrumented/com/phototok/ui/phonemode/GestureTutorialOverlayTest.kt">
+        <error line="3" column="1" source="standard:import-ordering" />
+    </file>
+    <file name="tests/instrumented/com/phototok/ui/phonemode/PhoneModeScreenDialogTest.kt">
+        <error line="3" column="1" source="standard:import-ordering" />
+        <error line="12" column="1" source="standard:no-unused-imports" />
+        <error line="439" column="1" source="standard:no-consecutive-blank-lines" />
+    </file>
+    <file name="tests/instrumented/com/phototok/ui/phonemode/PhoneModeViewerInteractionTest.kt">
+        <error line="3" column="1" source="standard:import-ordering" />
+        <error line="10" column="1" source="standard:no-unused-imports" />
+        <error line="12" column="1" source="standard:no-unused-imports" />
+        <error line="15" column="1" source="standard:no-unused-imports" />
+    </file>
+    <file name="tests/unit/com/phototok/UiTextTestSupport.kt">
+        <error line="3" column="1" source="standard:import-ordering" />
+    </file>
+    <file name="tests/unit/com/phototok/brand/BrandResourcesTest.kt">
+        <error line="3" column="1" source="standard:import-ordering" />
+    </file>
+    <file name="tests/unit/com/phototok/conformance/FormatConformanceTest.kt">
+        <error line="3" column="1" source="standard:import-ordering" />
+    </file>
+    <file name="tests/unit/com/phototok/data/repository/FolderAccessManagerTest.kt">
+        <error line="3" column="1" source="standard:import-ordering" />
+    </file>
+    <file name="tests/unit/com/phototok/data/repository/SettingsMigrationTest.kt">
+        <error line="3" column="1" source="standard:import-ordering" />
+    </file>
+    <file name="tests/unit/com/phototok/data/repository/SettingsRepositoryTest.kt">
+        <error line="3" column="1" source="standard:import-ordering" />
+    </file>
+    <file name="tests/unit/com/phototok/data/source/ImageSourceResolverTest.kt">
+        <error line="7" column="1" source="standard:no-unused-imports" />
+    </file>
+    <file name="tests/unit/com/phototok/data/source/SafTransferTest.kt">
+        <error line="19" column="1" source="standard:no-unused-imports" />
+        <error line="20" column="1" source="standard:no-unused-imports" />
+        <error line="23" column="1" source="standard:no-unused-imports" />
+        <error line="25" column="1" source="standard:no-unused-imports" />
+        <error line="27" column="1" source="standard:no-unused-imports" />
+        <error line="34" column="1" source="standard:no-unused-imports" />
+        <error line="35" column="1" source="standard:no-unused-imports" />
+        <error line="37" column="1" source="standard:no-unused-imports" />
+        <error line="232" column="1" source="standard:spacing-between-declarations-with-annotations" />
+        <error line="237" column="1" source="standard:spacing-between-declarations-with-annotations" />
+    </file>
+    <file name="tests/unit/com/phototok/data/source/VolumeMonitorTest.kt">
+        <error line="3" column="1" source="standard:import-ordering" />
+        <error line="11" column="1" source="standard:no-unused-imports" />
+        <error line="12" column="1" source="standard:no-unused-imports" />
+        <error line="14" column="1" source="standard:no-unused-imports" />
+    </file>
+    <file name="tests/unit/com/phototok/domain/CopyMoveFeedbackTest.kt">
+        <error line="3" column="1" source="standard:import-ordering" />
+        <error line="143" column="22" source="standard:wrapping" />
+        <error line="144" column="89" source="standard:wrapping" />
+    </file>
+    <file name="tests/unit/com/phototok/domain/FavouriteSyncLogicTest.kt">
+        <error line="245" column="1" source="standard:no-consecutive-blank-lines" />
+    </file>
+    <file name="tests/unit/com/phototok/domain/LegalLinksTest.kt">
+        <error line="3" column="1" source="standard:import-ordering" />
+    </file>
+    <file name="tests/unit/com/phototok/domain/OptimisticFeedTest.kt">
+        <error line="38" column="32" source="standard:no-multi-spaces" />
+    </file>
+    <file name="tests/unit/com/phototok/domain/PendingDeleteLogicTest.kt">
+        <error line="76" column="39" source="standard:no-multi-spaces" />
+        <error line="77" column="47" source="standard:no-multi-spaces" />
+    </file>
+    <file name="tests/unit/com/phototok/domain/PhoneFeedOrderingScaleTest.kt">
+        <error line="3" column="1" source="standard:import-ordering" />
+        <error line="22" column="9" source="standard:spacing-between-declarations-with-comments" />
+    </file>
+    <file name="tests/unit/com/phototok/domain/RelatedFilesTest.kt">
+        <error line="3" column="1" source="standard:import-ordering" />
+    </file>
+    <file name="tests/unit/com/phototok/ui/phonemode/ActionFeedbackSnackbarTest.kt">
+        <error line="3" column="1" source="standard:import-ordering" />
+    </file>
+    <file name="tests/unit/com/phototok/ui/phonemode/CaptureSettingsNotShownTest.kt">
+        <error line="3" column="1" source="standard:import-ordering" />
+    </file>
+    <file name="tests/unit/com/phototok/ui/phonemode/ControlsGuideSolverTest.kt">
+        <error line="55" column="35" source="standard:multiline-loop" />
+        <error line="56" column="24" source="standard:multiline-if-else" />
+        <error line="60" column="25" source="standard:multiline-if-else" />
+        <error line="69" column="55" source="standard:multiline-loop" />
+        <error line="197" column="49" source="standard:multiline-loop" />
+        <error line="243" column="39" source="standard:string-template" />
+    </file>
+    <file name="tests/unit/com/phototok/ui/phonemode/DirectDeleteDialogTest.kt">
+        <error line="3" column="1" source="standard:import-ordering" />
+    </file>
+    <file name="tests/unit/com/phototok/ui/phonemode/FavouriteCueTest.kt">
+        <error line="3" column="1" source="standard:import-ordering" />
+    </file>
+    <file name="tests/unit/com/phototok/ui/phonemode/FeedSnackbarPlacementTest.kt">
+        <error line="23" column="1" source="standard:no-unused-imports" />
+    </file>
+    <file name="tests/unit/com/phototok/ui/phonemode/LandscapeTopBarInsetsTest.kt">
+        <error line="149" column="32" source="standard:multiline-loop" />
+    </file>
+    <file name="tests/unit/com/phototok/ui/phonemode/PhoneModeLandingLayoutTest.kt">
+        <error line="3" column="1" source="standard:import-ordering" />
+        <error line="74" column="21" source="standard:wrapping" />
+        <error line="75" column="79" source="standard:wrapping" />
+        <error line="76" column="24" source="standard:wrapping" />
+        <error line="77" column="42" source="standard:wrapping" />
+        <error line="77" column="71" source="standard:wrapping" />
+        <error line="79" column="24" source="standard:wrapping" />
+        <error line="80" column="43" source="standard:wrapping" />
+        <error line="84" column="10" source="standard:annotation" />
+        <error line="84" column="54" source="standard:annotation" />
+        <error line="85" column="1" source="standard:spacing-between-declarations-with-annotations" />
+        <error line="85" column="10" source="standard:annotation" />
+        <error line="85" column="54" source="standard:annotation" />
+        <error line="86" column="1" source="standard:spacing-between-declarations-with-annotations" />
+        <error line="86" column="10" source="standard:annotation" />
+        <error line="86" column="54" source="standard:annotation" />
+        <error line="87" column="1" source="standard:spacing-between-declarations-with-annotations" />
+        <error line="87" column="10" source="standard:annotation" />
+        <error line="87" column="54" source="standard:annotation" />
+    </file>
+    <file name="tests/unit/com/phototok/ui/phonemode/PhoneModeLandingProModeTest.kt">
+        <error line="104" column="20" source="standard:wrapping" />
+        <error line="105" column="75" source="standard:wrapping" />
+    </file>
+    <file name="tests/unit/com/phototok/ui/phonemode/PhoneScreenHarness.kt">
+        <error line="3" column="1" source="standard:import-ordering" />
+        <error line="163" column="1" source="standard:spacing-between-declarations-with-annotations" />
+    </file>
+    <file name="tests/unit/com/phototok/ui/phonemode/SelectionPlaceNameTest.kt">
+        <error line="3" column="1" source="standard:import-ordering" />
+        <error line="45" column="10" source="standard:wrapping" />
+        <error line="46" column="78" source="standard:wrapping" />
+    </file>
+    <file name="tests/unit/com/phototok/ui/phonemode/SettingsSheetDragHandleTest.kt">
+        <error line="121" column="20" source="standard:string-template" />
+    </file>
+    <file name="tests/unit/com/phototok/ui/phonemode/SurpriseMeControlTest.kt">
+        <error line="129" column="33" source="standard:multiline-loop" />
+        <error line="132" column="35" source="standard:multiline-loop" />
+    </file>
+    <file name="tests/unit/com/phototok/ui/phonemode/SwipeCueColorsTest.kt">
+        <error line="3" column="1" source="standard:import-ordering" />
+    </file>
+    <file name="tests/unit/com/phototok/ui/phonemode/SystemBackClosesTopLayerTest.kt">
+        <error line="15" column="1" source="standard:no-unused-imports" />
+    </file>
+    <file name="tests/unit/com/phototok/ui/phonemode/ZoomedViewerTest.kt">
+        <error line="44" column="5" source="standard:spacing-between-declarations-with-comments" />
+    </file>
+    <file name="tests/unit/com/phototok/ui/screenshots/ScreenshotSupport.kt">
+        <error line="48" column="79" source="standard:string-template" />
+    </file>
+    <file name="tests/unit/com/phototok/ui/screenshots/TextLoadScreenshotTest.kt">
+        <error line="3" column="1" source="standard:import-ordering" />
+    </file>
+    <file name="tests/unit/com/phototok/ui/settings/SettingsProModeTest.kt">
+        <error line="3" column="1" source="standard:import-ordering" />
+    </file>
+    <file name="tests/unit/com/phototok/viewmodel/FeedDimensionsTest.kt">
+        <error line="3" column="1" source="standard:import-ordering" />
+    </file>
+    <file name="tests/unit/com/phototok/viewmodel/FeedScaleTest.kt">
+        <error line="3" column="1" source="standard:import-ordering" />
+    </file>
+    <file name="tests/unit/com/phototok/viewmodel/PhoneModeViewModelTest.kt">
+        <error line="3" column="1" source="standard:import-ordering" />
+        <error line="72" column="5" source="standard:spacing-between-declarations-with-comments" />
+        <error line="114" column="29" source="standard:multiline-if-else" />
+        <error line="115" column="22" source="standard:multiline-if-else" />
+        <error line="2653" column="22" source="standard:wrapping" />
+        <error line="2654" column="63" source="standard:wrapping" />
+    </file>
+    <file name="tests/unit/com/phototok/viewmodel/SelectionViewerViewModelTest.kt">
+        <error line="3" column="1" source="standard:import-ordering" />
+        <error line="24" column="1" source="standard:no-unused-imports" />
+        <error line="383" column="36" source="standard:wrapping" />
+        <error line="383" column="42" source="standard:wrapping" />
+        <error line="387" column="9" source="standard:wrapping" />
+        <error line="499" column="1" source="standard:no-consecutive-blank-lines" />
+    </file>
+    <file name="tests/unit/com/phototok/viewmodel/SettingsViewModelTest.kt">
+        <error line="12" column="1" source="standard:no-wildcard-imports" />
+        <error line="16" column="1" source="standard:no-wildcard-imports" />
+    </file>
+</baseline>

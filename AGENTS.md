@@ -81,5 +81,7 @@ Distribution lives in separate repositories: the Homebrew tap
 The Android modules override Gradle's default source-set convention so that they match the
 other products: sources in `src/`, unit tests in `tests/unit/`, instrumented tests in
 `tests/instrumented/`, and pure-Kotlin test helpers both of them compile in `tests/common/`
-(optional; no device code). The overriding `sourceSets` block is in each module's
-`build.gradle.kts` — keep the copies in sync.
+(optional; no device code). The override lives once, in the convention plugin of the included
+build `products/android/build-logic/` (`photoselector.android-module`), which every module's
+`build.gradle.kts` applies; change it there, never per module. The same plugin turns Android
+Lint (`abortOnError`), detekt and ktlint on for every module, each against a checked-in baseline.

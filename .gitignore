@@ -24,6 +24,7 @@ products/desktop/src/photo_selector_toolbox/bin/
 
 # Android
 products/android/.gradle/
+products/android/build-logic/.gradle/
 products/android/build/
 products/android/*/build/
 products/android/local.properties
