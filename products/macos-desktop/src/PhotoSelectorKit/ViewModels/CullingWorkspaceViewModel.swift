@@ -47,6 +47,9 @@ public final class CullingWorkspaceViewModel: ObservableObject {
     }
     @Published public var isDropTargeted: Bool = false
     @Published public var currentToast: ToastMessage?
+    /// Failures that wait for the user, newest first (UX L4); `currentToast` is the newest toast of any kind.
+    @Published public internal(set) var failureToasts: [ToastMessage] = []
+    @Published public var isSortChoicePresented: Bool = false
     @Published public private(set) var rootDirectoryURL: URL? { didSet { workingDestinationCache = nil } }
     /// The working-folder destination of the opened folder, resolved once (see `cachedDestination`).
     var workingDestinationCache: (key: String, resolved: ResolvedCullingDestination)?
@@ -448,7 +451,7 @@ public final class CullingWorkspaceViewModel: ObservableObject {
     /// Test hook: number of folders with a parked undo stack.
     var parkedUndoFolderCount: Int { parkedUndoStacks.count }
     @Published private var inFlightJobIDs: Set<UUID> = []
-    private var toastDismissTask: Task<Void, Never>?
+    var toastDismissTask: Task<Void, Never>?
     var libraryScoringTask: Task<Void, Never>?
     /// Jobs whose Delete went to the Rejected folder (names the Undo menu item).
     var rejectJobIDs: Set<UUID> = []
@@ -1227,16 +1230,6 @@ public final class CullingWorkspaceViewModel: ObservableObject {
         )
     }
 
-    /// Drops a persistent banner (Esc or the next navigation key). Returns whether one was showing.
-    @discardableResult
-    public func dismissStickyToast() -> Bool {
-        let hadEndState = dismissEndState()
-        guard currentToast?.isPersistent == true else { return hadEndState }
-        toastDismissTask?.cancel()
-        currentToast = nil
-        return true
-    }
-
     private func handleCullingFailure(
         action: CullingActionType,
         photo: PhotoItem,
@@ -1393,28 +1386,6 @@ public final class CullingWorkspaceViewModel: ObservableObject {
             isFailure: true
         )
         NSSound.beep()
-    }
-
-    func showToast(
-        icon: String,
-        title: String,
-        subtitle: String?,
-        actionType: CullingActionType? = nil,
-        isPersistent: Bool = false,
-        isFailure: Bool = false,
-        spoken: String? = nil
-    ) {
-        toastDismissTask?.cancel()
-        currentToast = ToastMessage(
-            icon: icon, title: title, subtitle: subtitle, actionType: actionType, isPersistent: isPersistent,
-            isFailure: isFailure, spoken: spoken)
-        if isPersistent || isFailure { return }
-        toastDismissTask = Task {
-            try? await Task.sleep(nanoseconds: 1_200_000_000) // 1.2 seconds
-            if !Task.isCancelled {
-                currentToast = nil
-            }
-        }
     }
 }
 

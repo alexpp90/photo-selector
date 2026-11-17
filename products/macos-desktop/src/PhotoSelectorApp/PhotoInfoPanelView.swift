@@ -65,6 +65,8 @@ struct PhotoInfoPanelView: View {
 
     // MARK: - Rows
 
+    @Environment(\.copiedFolder) private var copiedFolder
+
     private var identityRow: some View {
         HStack(spacing: 8) {
             Text(photo.filename)
@@ -80,7 +82,7 @@ struct PhotoInfoPanelView: View {
                 .background(Color.accentColor.opacity(0.18))
                 .clipShape(Capsule())
             CompanionChipsView(photo: photo)
-            StatusBadge(status: photo.status)
+            StatusBadge(status: photo.status, copiedFolder: copiedFolder)
         }
     }
 

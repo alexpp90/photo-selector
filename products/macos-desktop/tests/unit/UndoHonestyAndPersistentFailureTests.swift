@@ -114,3 +114,51 @@ struct UndoHonestyAndPersistentFailureTests {
         #expect(env.vm.currentToast == nil)
     }
 }
+
+/// L4: failures stack, newest first, and a newer toast never replaces one.
+@Suite("Failure toasts stack")
+@MainActor
+struct FailureToastStackTests {
+    private func vmWithFailures(_ count: Int) -> CullingWorkspaceViewModel {
+        let vm = CullingWorkspaceViewModel(userDefaults: UserDefaults(suiteName: "toast-stack-\(UUID().uuidString)")!)
+        for index in 0..<count {
+            vm.showToast(icon: "exclamationmark.triangle.fill", title: "Action Failed", subtitle: "file \(index)", isFailure: true)
+        }
+        return vm
+    }
+
+    @Test("REQ-MAC-CULL.04: newest first, a success toast does not replace a failure, Esc drops the newest")
+    func stackOrderAndEsc() {
+        let vm = vmWithFailures(2)
+        #expect(vm.failureToasts.map(\.subtitle) == ["file 1", "file 0"])
+        vm.showToast(icon: "checkmark.circle.fill", title: "Moved to Selection", subtitle: "x")
+        #expect(vm.currentToast?.title == "Moved to Selection")
+        #expect(vm.failureToasts.count == 2, "the success toast replaced nothing")
+        vm.dismissBannerOnNavigation()
+        #expect(vm.failureToasts.count == 2, "navigation keeps failures")
+        #expect(vm.dismissStickyToast())
+        #expect(vm.failureToasts.map(\.subtitle) == ["file 0"])
+    }
+
+    @Test("REQ-MAC-CULL.04: one close button drops one failure, Dismiss all drops the rest")
+    func dismissOneAndAll() {
+        let vm = vmWithFailures(5)
+        #expect(vm.failureToasts.count == 5)
+        vm.dismissFailure(vm.failureToasts[2].id)
+        #expect(vm.failureToasts.count == 4)
+        vm.dismissAllFailures()
+        #expect(vm.failureToasts.isEmpty)
+        #expect(vm.currentToast == nil)
+        #expect(!vm.dismissStickyToast())
+    }
+
+    @Test("Opening another folder drops the failures of the one left")
+    func folderChangeClears() throws {
+        let vm = vmWithFailures(2)
+        let dir = FileManager.default.temporaryDirectory.appendingPathComponent("ToastFolder_\(UUID().uuidString)")
+        try FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: dir) }
+        vm.loadFolder(at: dir)
+        #expect(vm.failureToasts.isEmpty)
+    }
+}

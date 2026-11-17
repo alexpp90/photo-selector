@@ -70,6 +70,7 @@ public struct ShortcutsHelpSheet: View {
                             row(.previousPhoto, "Goes to the photo before", key: "\u{2190} \u{2191} / K"),
                             row(.nextPhoto, "Goes to the photo after", key: "\u{2192} \u{2193} / J"),
                             row(.switchPhoto, "Steps through undecided photos (2-Up only)"),
+                            row(.sortBy, "Choose the order of the photos"),
                             row(.goToPhoto, "Type a position number or part of a file name"),
                             row(.activity, "The photos you moved, copied or deleted, newest first"),
                             ("Click Photo", "Select Photo", "Click a photo in 2-Up or 3-Up to make it the current one")
