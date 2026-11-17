@@ -13,7 +13,10 @@ data class ScoreEntity(
     val noiseLevel: Double? = null,
     val highlightClipping: Double? = null,
     val shadowClipping: Double? = null,
-    /** On-device AI aesthetic score (1.0–10.0), added in DB schema v2. */
+    /**
+     * Added in DB schema v2 for an on-device aesthetic score that never shipped; nothing computes
+     * it (REQ-AND-FEATURE.02, dropped for good on 2026-11-16, D5). Kept for schema compatibility.
+     */
     val aestheticScore: Double? = null,
     /** 1–5 star rating, 0 = unrated, -1 = reject. Added in DB schema v3. */
     val rating: Int = 0,

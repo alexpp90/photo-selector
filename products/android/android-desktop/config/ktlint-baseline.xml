@@ -22,8 +22,8 @@
     </file>
     <file name="src/com/photoselectortoolbox/data/metadata/SafRatingWriter.kt">
         <error line="3" column="1" source="standard:import-ordering" />
-        <error line="409" column="57" source="standard:multiline-if-else" />
-        <error line="410" column="18" source="standard:multiline-if-else" />
+        <error line="403" column="57" source="standard:multiline-if-else" />
+        <error line="404" column="18" source="standard:multiline-if-else" />
     </file>
     <file name="src/com/photoselectortoolbox/data/model/ImageItem.kt">
         <error line="43" column="16" source="standard:multiline-if-else" />
@@ -853,16 +853,16 @@
         <error line="103" column="1" source="standard:no-unused-imports" />
         <error line="104" column="1" source="standard:no-unused-imports" />
         <error line="105" column="1" source="standard:no-unused-imports" />
-        <error line="331" column="5" source="standard:spacing-between-declarations-with-comments" />
+        <error line="334" column="5" source="standard:spacing-between-declarations-with-comments" />
     </file>
     <file name="src/com/photoselectortoolbox/viewmodel/SelectorViewModel.kt">
         <error line="3" column="1" source="standard:import-ordering" />
-        <error line="511" column="57" source="standard:multiline-if-else" />
-        <error line="512" column="18" source="standard:multiline-if-else" />
-        <error line="1349" column="57" source="standard:multiline-if-else" />
-        <error line="1350" column="22" source="standard:multiline-if-else" />
-        <error line="1490" column="1" source="standard:indent" />
-        <error line="1491" column="1" source="standard:indent" />
+        <error line="515" column="57" source="standard:multiline-if-else" />
+        <error line="516" column="18" source="standard:multiline-if-else" />
+        <error line="1358" column="57" source="standard:multiline-if-else" />
+        <error line="1359" column="22" source="standard:multiline-if-else" />
+        <error line="1499" column="1" source="standard:indent" />
+        <error line="1500" column="1" source="standard:indent" />
         <error line="1834" column="41" source="standard:function-literal" />
         <error line="2082" column="24" source="standard:multiline-if-else" />
     </file>
@@ -1115,8 +1115,8 @@
     </file>
     <file name="tests/unit/com/photoselectortoolbox/domain/analysis/SharpnessAnalyzerTest.kt">
         <error line="3" column="1" source="standard:import-ordering" />
-        <error line="35" column="9" source="standard:function-naming" />
-        <error line="39" column="9" source="standard:function-naming" />
+        <error line="34" column="9" source="standard:function-naming" />
+        <error line="38" column="9" source="standard:function-naming" />
     </file>
     <file name="tests/unit/com/photoselectortoolbox/domain/curation/DeferredDeletionTest.kt">
         <error line="6" column="1" source="standard:no-unused-imports" />
@@ -1246,7 +1246,7 @@
     </file>
     <file name="tests/unit/com/photoselectortoolbox/ui/fit/FitFixtures.kt">
         <error line="3" column="1" source="standard:import-ordering" />
-        <error line="226" column="25" source="standard:multiline-loop" />
+        <error line="228" column="25" source="standard:multiline-loop" />
     </file>
     <file name="tests/unit/com/photoselectortoolbox/ui/fit/GermanScreenFitTest.kt">
         <error line="187" column="120" source="standard:multiline-loop" />

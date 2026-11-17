@@ -26,7 +26,7 @@ internal val CopiedMarkFrameSize: Dp = 28.dp
 internal val CopiedMarkTileSize: Dp = 16.dp
 
 /**
- * A photo copied to the Selection in this session (`SelectorUiState.sessionCopiedUris`): a filled
+ * A photo copied to the Selection (`SelectorUiState.sessionCopiedUris`, also after a reopen): a filled
  * copy glyph in the good-score colour on a dark plate, so "already copied" reads apart from "not
  * yet decided" once the confirmation card has gone (backlog 2026-11-11). Not a control: it takes
  * no input and sits in a corner no control uses. [spoken] is null where the mark lives inside a

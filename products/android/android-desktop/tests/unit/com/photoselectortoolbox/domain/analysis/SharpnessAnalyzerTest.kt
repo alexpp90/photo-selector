@@ -10,14 +10,13 @@ import io.mockk.unmockkAll
 import io.mockk.verify
 import org.junit.After
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertTrue
 import org.junit.Before
 import org.junit.Test
 import org.junit.runner.RunWith
 import org.opencv.android.OpenCVLoader
 import org.opencv.android.Utils
-import org.opencv.core.Core
 import org.opencv.core.Mat
-import org.opencv.core.MatOfDouble
 import org.opencv.core.Rect
 import org.opencv.imgproc.Imgproc
 import org.robolectric.RobolectricTestRunner
@@ -70,6 +69,13 @@ class ShadowMat {
 @Config(sdk = [33], application = Application::class, shadows = [ShadowMat::class])
 class SharpnessAnalyzerTest {
 
+    private var cols = 0
+    private var rows = 0
+    private var channels = 4
+
+    /** The grey bytes OpenCV hands back; filled into the analyzer's buffer by the mocked `get`. */
+    private var gray: ByteArray = ByteArray(0)
+
     @Before
     fun setUp() {
         mockkStatic(OpenCVLoader::class)
@@ -77,15 +83,20 @@ class SharpnessAnalyzerTest {
 
         mockkStatic(Utils::class)
         mockkStatic(Imgproc::class)
-        mockkStatic(Core::class)
         mockkConstructor(Mat::class)
-        mockkConstructor(MatOfDouble::class)
 
-        // Default mock behaviors for OpenCV image processing
         every { Utils.bitmapToMat(any(), any()) } returns Unit
         every { Imgproc.cvtColor(any(), any(), any()) } returns Unit
-        every { Imgproc.Laplacian(any(), any(), any()) } returns Unit
-        every { Core.meanStdDev(any(), any(), any()) } returns Unit
+        every { anyConstructed<Mat>().cols() } answers { cols }
+        every { anyConstructed<Mat>().rows() } answers { rows }
+        every { anyConstructed<Mat>().channels() } answers { channels }
+        every { anyConstructed<Mat>().release() } returns Unit
+        every { anyConstructed<Mat>().copyTo(any()) } returns Unit
+        every { anyConstructed<Mat>().get(0, 0, any<ByteArray>()) } answers {
+            val target = thirdArg<ByteArray>()
+            gray.copyInto(target, endIndex = minOf(gray.size, target.size))
+            target.size
+        }
     }
 
     @After
@@ -93,117 +104,48 @@ class SharpnessAnalyzerTest {
         unmockkAll()
     }
 
+    private fun checker(width: Int, height: Int): ByteArray =
+        ByteArray(width * height) { i -> if ((i % width / 8 + i / width / 8) % 2 == 0) 64 else -64 }
+
     @Test
-    fun `analyze computes max variance across grid blocks for multi-channel bitmap`() {
-        val bitmap = mockk<Bitmap>()
-        val analyzer = SharpnessAnalyzer()
+    fun `a colour bitmap is turned grey and scored by the noise-floor maths`() {
+        cols = 160; rows = 120; channels = 4
+        gray = checker(cols, rows)
 
-        every { anyConstructed<Mat>().cols() } returns 100
-        every { anyConstructed<Mat>().rows() } returns 100
-        every { anyConstructed<Mat>().release() } returns Unit
-        every { anyConstructed<Mat>().channels() } returns 4
+        val score = SharpnessAnalyzer().analyze(mockk<Bitmap>())
 
-        // Standard deviation = 4.0 -> variance = 16.0
-        every { anyConstructed<MatOfDouble>().get(0, 0) } returns doubleArrayOf(4.0)
-
-        val score = analyzer.analyze(bitmap, gridSize = 2)
-
-        assertEquals(16.0, score, 1e-6)
+        assertEquals(NoiseFloorSharpness.score(gray, cols, rows), score, 1e-9)
+        assertTrue(score > 0.0)
         verify { Imgproc.cvtColor(any(), any(), Imgproc.COLOR_RGBA2GRAY) }
-        verify(atLeast = 1) { anyConstructed<Mat>().release() }
+        verify(exactly = 0) { Imgproc.Laplacian(any(), any(), any()) }
+        verify(exactly = 2) { anyConstructed<Mat>().release() }
     }
 
     @Test
-    fun `analyze selects maximum variance among blocks with varying sharpness`() {
-        val bitmap = mockk<Bitmap>()
-        val analyzer = SharpnessAnalyzer()
+    fun `a single-channel bitmap is copied instead of converted`() {
+        cols = 160; rows = 120; channels = 1
+        gray = checker(cols, rows)
 
-        every { anyConstructed<Mat>().cols() } returns 100
-        every { anyConstructed<Mat>().rows() } returns 100
-        every { anyConstructed<Mat>().release() } returns Unit
-        every { anyConstructed<Mat>().channels() } returns 4
+        val score = SharpnessAnalyzer().analyze(mockk<Bitmap>(), gridSize = 2)
 
-        // Return different stddevs for 2x2 grid (4 blocks): 1.0, 3.0, 2.0, 0.5
-        val stddevs = listOf(1.0, 3.0, 2.0, 0.5)
-        var callCount = 0
-        every { anyConstructed<MatOfDouble>().get(0, 0) } answers {
-            val stddev = stddevs[callCount % stddevs.size]
-            callCount++
-            doubleArrayOf(stddev)
-        }
-
-        val score = analyzer.analyze(bitmap, gridSize = 2)
-
-        // Max stddev is 3.0, variance = 3.0^2 = 9.0
-        assertEquals(9.0, score, 1e-6)
-    }
-
-    @Test
-    fun `analyze processes single-channel bitmap using copyTo instead of cvtColor`() {
-        val bitmap = mockk<Bitmap>()
-        val analyzer = SharpnessAnalyzer()
-
-        every { anyConstructed<Mat>().cols() } returns 100
-        every { anyConstructed<Mat>().rows() } returns 100
-        every { anyConstructed<Mat>().release() } returns Unit
-        every { anyConstructed<Mat>().channels() } returns 1
-        every { anyConstructed<Mat>().copyTo(any()) } returns Unit
-
-        every { anyConstructed<MatOfDouble>().get(0, 0) } returns doubleArrayOf(3.0)
-
-        val score = analyzer.analyze(bitmap, gridSize = 2)
-
-        assertEquals(9.0, score, 1e-6)
+        assertEquals(NoiseFloorSharpness.score(gray, cols, rows, gridSize = 2), score, 1e-9)
         verify { anyConstructed<Mat>().copyTo(any()) }
         verify(exactly = 0) { Imgproc.cvtColor(any(), any(), any()) }
     }
 
     @Test
-    fun `analyze returns zero when crop dimensions are zero`() {
-        val bitmap = mockk<Bitmap>()
-        val analyzer = SharpnessAnalyzer()
+    fun `an empty bitmap scores zero and still releases its mats`() {
+        cols = 0; rows = 0
 
-        // 1x1 image -> center crop (50%) -> cropWidth = 0, cropHeight = 0
-        every { anyConstructed<Mat>().cols() } returns 1
-        every { anyConstructed<Mat>().rows() } returns 1
-        every { anyConstructed<Mat>().release() } returns Unit
-
-        val score = analyzer.analyze(bitmap)
-
-        assertEquals(0.0, score, 1e-6)
+        assertEquals(0.0, SharpnessAnalyzer().analyze(mockk<Bitmap>()), 0.0)
+        verify(exactly = 2) { anyConstructed<Mat>().release() }
     }
 
     @Test
-    fun `analyze returns zero when block dimensions are zero`() {
-        val bitmap = mockk<Bitmap>()
-        val analyzer = SharpnessAnalyzer()
+    fun `an image too small for the grid scores zero`() {
+        cols = 4; rows = 4; channels = 4
+        gray = ByteArray(16) { 30 }
 
-        // 4x4 image -> crop width = 2, with default gridSize = 8 -> blockWidth = 0
-        every { anyConstructed<Mat>().cols() } returns 4
-        every { anyConstructed<Mat>().rows() } returns 4
-        every { anyConstructed<Mat>().release() } returns Unit
-
-        val score = analyzer.analyze(bitmap, gridSize = 8)
-
-        assertEquals(0.0, score, 1e-6)
-    }
-
-    @Test
-    fun `analyze with default grid size uses 8x8 grid`() {
-        val bitmap = mockk<Bitmap>()
-        val analyzer = SharpnessAnalyzer()
-
-        every { anyConstructed<Mat>().cols() } returns 160
-        every { anyConstructed<Mat>().rows() } returns 160
-        every { anyConstructed<Mat>().release() } returns Unit
-        every { anyConstructed<Mat>().channels() } returns 4
-
-        every { anyConstructed<MatOfDouble>().get(0, 0) } returns doubleArrayOf(2.0)
-
-        val score = analyzer.analyze(bitmap) // default gridSize = 8
-
-        assertEquals(4.0, score, 1e-6)
-        // 8x8 grid = 64 blocks, so Laplacian should be called 64 times
-        verify(exactly = 64) { Imgproc.Laplacian(any(), any(), any()) }
+        assertEquals(0.0, SharpnessAnalyzer().analyze(mockk<Bitmap>(), gridSize = 8), 0.0)
     }
 }

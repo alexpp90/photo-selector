@@ -32,6 +32,7 @@ import com.photoselectortoolbox.data.model.KeptFiles
 import com.photoselectortoolbox.data.repository.FileOperationResult
 import com.photoselectortoolbox.data.model.ScanResult
 import com.photoselectortoolbox.data.repository.CacheRepository
+import com.photoselectortoolbox.data.repository.CopiedPhotoRepository
 import com.photoselectortoolbox.data.repository.ImageRepository
 import com.photoselectortoolbox.data.repository.SettingsRepository
 import com.photoselectortoolbox.di.ApplicationScope
@@ -122,7 +123,10 @@ class SelectorViewModel @Inject constructor(
     @IoDispatcher injectedIoDispatcher: CoroutineDispatcher = Dispatchers.IO,
     /** Keeps a completed scan's shoot summary (SD-3); null in tests that do not look at Learn. */
     private val updateShootSummary: UpdateShootSummaryUseCase? = null,
+    /** Each folder's copied photos across sessions (D3, [CopiedPhotoMemory]); null: session only. */
+    copiedPhotos: CopiedPhotoRepository? = null,
 ) : ViewModel() {
+    private val copiedMemory = CopiedPhotoMemory(copiedPhotos)
 
     private val _uiState = MutableStateFlow(SelectorUiState())
     val uiState: StateFlow<SelectorUiState> = _uiState.asStateFlow()
@@ -638,6 +642,11 @@ class SelectorViewModel @Inject constructor(
                 publishBatch(batch)
             }
             settleOrder()
+            val folder = folderUri.toString() // D3: a reopened folder's copied photos are decided again.
+            viewModelScope.launch {
+                val selection = suspend { withContext(ioDispatcher) { imageRepository.selectionFolder(context, folderUri) } }
+                copiedMemory.restore(folder, { _uiState.value.takeIf { it.folderUri == folder }?.images }, selection)?.let { _uiState.update(it) }
+            }
             // Enumeration has settled: restore scores over the complete list and
             // pick up the tail of the dimensions nobody has asked for yet.
             scheduleScoreRestore(immediate = true)
@@ -1521,18 +1530,9 @@ class SelectorViewModel @Inject constructor(
             // started in and is skipped when that folder is no longer open.
             fun stillOpen() = _uiState.value.folderUri == folderUri
             if (result != null && result.success) {
-                _uiState.update { current ->
-                    if (current.folderUri != folderUri) return@update current
-                    current.copy(
-                        tally = current.tally.record(
-                            listOf(sourceUri),
-                            if (action == CurationAction.MOVE) FilingDecision.MOVED else FilingDecision.COPIED,
-                        ),
-                        sessionKeptFileNames = current.sessionKeptFileNames + currentItem.fileName,
-                        sessionCopiedUris = current.sessionCopiedUris + listOfNotNull(sourceUri.takeIf { action == CurationAction.COPY }),
-                        sessionKeptFiles = current.sessionKeptFiles + KeptFiles.of(currentItem.allFiles, result.destinationUris),
-                    )
-                }
+                val copied = action == CurationAction.COPY
+                _uiState.update { if (it.folderUri != folderUri) it else it.withFiled(currentItem, copied, result.destinationUris) }
+                if (copied) copiedMemory.remember(folderUri, currentItem, result.destinationUris)
                 val undo = UndoPolicy.forFiling(
                     action = action,
                     slots = edit.slots,

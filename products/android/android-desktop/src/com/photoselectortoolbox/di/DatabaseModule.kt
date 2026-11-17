@@ -2,6 +2,7 @@ package com.photoselectortoolbox.di
 
 import android.content.Context
 import androidx.room.Room
+import com.photoselectortoolbox.data.cache.CopiedPhotoDao
 import com.photoselectortoolbox.data.cache.LearnDao
 import com.photoselectortoolbox.data.cache.ScoreDao
 import com.photoselectortoolbox.data.cache.ScoresDatabase
@@ -39,4 +40,8 @@ object DatabaseModule {
     @Provides
     @Singleton
     fun provideLearnDao(database: ScoresDatabase): LearnDao = database.learnDao()
+
+    @Provides
+    @Singleton
+    fun provideCopiedPhotoDao(database: ScoresDatabase): CopiedPhotoDao = database.copiedPhotoDao()
 }

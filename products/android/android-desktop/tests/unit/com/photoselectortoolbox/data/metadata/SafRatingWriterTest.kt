@@ -296,6 +296,47 @@ class SafRatingWriterTest {
         assertFalse(File(root, "IMG_4.NEF.xmp").exists())
     }
 
+    // FD-D-20: `IMG.XMP` was not found (case-sensitive match) and a second sidecar was written.
+    @Test
+    fun `an upper-case stem sidecar is updated and no second sidecar appears`() = runTest {
+        val raw = file("IMG_14.CR3")
+        val upper = file("IMG_14.XMP", "<x:xmpmeta><rdf:Description><xmp:Rating>1</xmp:Rating></rdf:Description></x:xmpmeta>".toByteArray())
+
+        assertTrue(writer.writeRating(context, uriOf(raw), 4).isSuccess)
+
+        assertTrue(upper.readText().contains("<xmp:Rating>4</xmp:Rating>"))
+        assertEquals(setOf("IMG_14.CR3", "IMG_14.XMP"), root.list()!!.toSet())
+    }
+
+    @Test
+    fun `an upper-case file sidecar wins over a lower-case stem sidecar`() = runTest {
+        val raw = file("IMG_15.NEF")
+        val named = file("IMG_15.NEF.XMP", "<x:xmpmeta><rdf:Description><xmp:Rating>1</xmp:Rating></rdf:Description></x:xmpmeta>".toByteArray())
+        val stem = file("IMG_15.xmp", "<x:xmpmeta><rdf:Description><xmp:Rating>2</xmp:Rating></rdf:Description></x:xmpmeta>".toByteArray())
+        val stemBefore = stem.readBytes()
+
+        assertTrue(writer.writeRating(context, uriOf(raw), 5).isSuccess)
+
+        assertTrue(named.readText().contains("<xmp:Rating>5</xmp:Rating>"))
+        assertTrue(stemBefore.contentEquals(stem.readBytes()))
+        assertEquals(setOf("IMG_15.NEF", "IMG_15.NEF.XMP", "IMG_15.xmp"), root.list()!!.toSet())
+    }
+
+    @Test
+    fun `two spellings of one sidecar name fail the write and neither is opened for writing`() = runTest {
+        val raw = file("IMG_16.ARW")
+        val lower = file("IMG_16.xmp", "<x:xmpmeta><rdf:Description><xmp:Rating>1</xmp:Rating></rdf:Description></x:xmpmeta>".toByteArray())
+        val upper = file("IMG_16.XMP", "<x:xmpmeta><rdf:Description><xmp:Rating>2</xmp:Rating></rdf:Description></x:xmpmeta>".toByteArray())
+        val before = lower.readBytes() to upper.readBytes()
+
+        assertTrue(writer.writeRating(context, uriOf(raw), 3).isFailure)
+
+        assertTrue(before.first.contentEquals(lower.readBytes()))
+        assertTrue(before.second.contentEquals(upper.readBytes()))
+        assertTrue(writesTo("IMG_16.xmp").isEmpty() && writesTo("IMG_16.XMP").isEmpty())
+        assertEquals(setOf("IMG_16.ARW", "IMG_16.xmp", "IMG_16.XMP"), root.list()!!.toSet())
+    }
+
     @Test
     fun `unreadable existing sidecar fails the write and stays byte-identical`() = runTest {
         val raw = file("IMG_5.ARW")

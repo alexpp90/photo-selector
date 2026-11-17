@@ -8,7 +8,10 @@ data class ScanResult(
     val noiseLevel: Double? = null,
     val highlightClipping: Double? = null,
     val shadowClipping: Double? = null,
-    /** On-device AI aesthetic score on a 1.0–10.0 scale (null when not computed). */
+    /**
+     * Not computed on this product (REQ-AND-FEATURE.02, dropped for good on 2026-11-16, D5): a
+     * fresh scan writes null. Kept only so cached rows keep their Room shape.
+     */
     val aestheticScore: Double? = null,
     val exifData: ExifData? = null
 )

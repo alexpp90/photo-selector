@@ -3,137 +3,43 @@ package com.photoselectortoolbox.domain.analysis
 import android.graphics.Bitmap
 import javax.inject.Inject
 import org.opencv.android.Utils
-import org.opencv.core.Core
-import org.opencv.core.CvType
 import org.opencv.core.Mat
-import org.opencv.core.MatOfDouble
-import org.opencv.core.Rect
 import org.opencv.imgproc.Imgproc
 
 /**
- * Computes a sharpness score for an image using Laplacian variance on a grid
- * of blocks over the center crop. Returns the maximum block variance, which
- * represents the sharpest region of the image.
- *
- * Ported from the desktop Python implementation.
+ * The sharpness of a photo (REQ-AND-ALGO.01): OpenCV turns the bitmap into grey, and
+ * [NoiseFloorSharpness] does the maths — centre 50 % crop, a grid of blocks, the Laplacian
+ * variance of the crispest block above the sensor-noise floor (`[USER 2026-11-16]` D6). Higher is
+ * sharper; the unit is the Laplacian variance, as before the floor.
  */
 class SharpnessAnalyzer @Inject constructor() {
-
-    companion object {
-        private const val DEFAULT_GRID_SIZE = 8
-        private const val CENTER_CROP_RATIO = 0.5
-    }
 
     /**
      * Analyze the sharpness of the given bitmap.
      *
      * @param bitmap The image to analyze.
      * @param gridSize Number of blocks in each dimension (gridSize x gridSize).
-     * @return The maximum Laplacian variance across all grid blocks (higher = sharper).
+     * @return The largest block Laplacian variance above the noise floor (higher = sharper).
      */
-    fun analyze(bitmap: Bitmap, gridSize: Int = DEFAULT_GRID_SIZE): Double {
+    fun analyze(bitmap: Bitmap, gridSize: Int = NoiseFloorSharpness.DEFAULT_GRID_SIZE): Double {
         val srcMat = Mat()
+        val grayMat = Mat()
         try {
             Utils.bitmapToMat(bitmap, srcMat)
-            return analyzeFromMat(srcMat, gridSize)
-        } finally {
-            srcMat.release()
-        }
-    }
-
-    private fun analyzeFromMat(srcMat: Mat, gridSize: Int): Double {
-        // Crop center 50% of the image
-        val cropX = (srcMat.cols() * (1.0 - CENTER_CROP_RATIO) / 2.0).toInt()
-        val cropY = (srcMat.rows() * (1.0 - CENTER_CROP_RATIO) / 2.0).toInt()
-        val cropWidth = (srcMat.cols() * CENTER_CROP_RATIO).toInt()
-        val cropHeight = (srcMat.rows() * CENTER_CROP_RATIO).toInt()
-
-        if (cropWidth <= 0 || cropHeight <= 0) return 0.0
-
-        val croppedMat = Mat(srcMat, Rect(cropX, cropY, cropWidth, cropHeight))
-        try {
-            return computeGridSharpness(croppedMat, gridSize)
-        } finally {
-            croppedMat.release()
-        }
-    }
-
-    private fun computeGridSharpness(croppedMat: Mat, gridSize: Int): Double {
-        val blockWidth = croppedMat.cols() / gridSize
-        val blockHeight = croppedMat.rows() / gridSize
-
-        if (blockWidth <= 0 || blockHeight <= 0) return 0.0
-
-        var maxVariance = 0.0
-
-        val grayBlock = Mat()
-        val laplacian = Mat()
-        val mean = MatOfDouble()
-        val stddev = MatOfDouble()
-
-        try {
-            for (row in 0 until gridSize) {
-                for (col in 0 until gridSize) {
-                    val x = col * blockWidth
-                    val y = row * blockHeight
-                    val w = if (col == gridSize - 1) croppedMat.cols() - x else blockWidth
-                    val h = if (row == gridSize - 1) croppedMat.rows() - y else blockHeight
-
-                    val variance = computeBlockVariance(
-                        src = croppedMat,
-                        x = x,
-                        y = y,
-                        w = w,
-                        h = h,
-                        grayBlock = grayBlock,
-                        laplacian = laplacian,
-                        mean = mean,
-                        stddev = stddev
-                    )
-                    if (variance > maxVariance) {
-                        maxVariance = variance
-                    }
-                }
-            }
-        } finally {
-            grayBlock.release()
-            laplacian.release()
-            mean.release()
-            stddev.release()
-        }
-
-        return maxVariance
-    }
-
-    private fun computeBlockVariance(
-        src: Mat,
-        x: Int,
-        y: Int,
-        w: Int,
-        h: Int,
-        grayBlock: Mat,
-        laplacian: Mat,
-        mean: MatOfDouble,
-        stddev: MatOfDouble
-    ): Double {
-        val block = Mat(src, Rect(x, y, w, h))
-        try {
-            // Convert to grayscale
-            if (block.channels() > 1) {
-                Imgproc.cvtColor(block, grayBlock, Imgproc.COLOR_RGBA2GRAY)
+            val width = srcMat.cols()
+            val height = srcMat.rows()
+            if (width <= 0 || height <= 0) return 0.0
+            if (srcMat.channels() > 1) {
+                Imgproc.cvtColor(srcMat, grayMat, Imgproc.COLOR_RGBA2GRAY)
             } else {
-                block.copyTo(grayBlock)
+                srcMat.copyTo(grayMat)
             }
-
-            // Compute Laplacian
-            Imgproc.Laplacian(grayBlock, laplacian, CvType.CV_64F)
-
-            // Calculate variance (stddev^2)
-            Core.meanStdDev(laplacian, mean, stddev)
-            val stddevValue = stddev.get(0, 0)[0]
-            return stddevValue * stddevValue
+            val luma = ByteArray(width * height)
+            grayMat.get(0, 0, luma)
+            return NoiseFloorSharpness.score(luma, width, height, gridSize)
         } finally {
-            block.release()
+            grayMat.release()
+            srcMat.release()
         }
     }
 }

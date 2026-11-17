@@ -2,6 +2,8 @@ package com.photoselectortoolbox.di
 
 import com.photoselectortoolbox.data.repository.CacheRepository
 import com.photoselectortoolbox.data.repository.CacheRepositoryImpl
+import com.photoselectortoolbox.data.repository.CopiedPhotoRepository
+import com.photoselectortoolbox.data.repository.CopiedPhotoRepositoryImpl
 import com.photoselectortoolbox.data.repository.ImageRepository
 import com.photoselectortoolbox.data.repository.ImageRepositoryImpl
 import com.photoselectortoolbox.data.repository.LearnRepository
@@ -49,4 +51,10 @@ abstract class RepositoryModule {
     abstract fun bindLearnRepository(
         impl: LearnRepositoryImpl
     ): LearnRepository
+
+    @Binds
+    @Singleton
+    abstract fun bindCopiedPhotoRepository(
+        impl: CopiedPhotoRepositoryImpl
+    ): CopiedPhotoRepository
 }

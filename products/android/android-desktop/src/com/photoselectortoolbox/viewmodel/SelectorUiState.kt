@@ -284,7 +284,10 @@ data class SelectorUiState(
     /** The last scan that ran to its end, of any folder; Learn reloads when it changes (SD-1a). */
     val lastCompletedScan: CompletedScan? = null,
     val sessionKeptFileNames: Set<String> = emptySet(),
-    /** Photos copied in this session, by URI: the copied mark, and a second Copy is a no-op. */
+    /**
+     * Copied photos by URI — this session's and, once the listing settles, the folder's remembered
+     * ones (D3): the copied mark, and a second Copy is a no-op.
+     */
     val sessionCopiedUris: Set<String> = emptySet(),
     /**
      * Every file a Copy or Move filed this session, companions included, by the document id the
