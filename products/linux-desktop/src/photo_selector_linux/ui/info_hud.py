@@ -190,7 +190,7 @@ class InfoHUD(Gtk.Box if HAS_GI else object):
             theme = Gtk.IconTheme.get_for_display(display) if display is not None else None
             if theme is not None and not theme.has_icon(BURST_ICON):
                 return BURST_ICON_FALLBACK
-        except Exception:  # noqa: BLE001 - an icon lookup never stops the card from building
+        except Exception:
             pass
         return BURST_ICON
 

@@ -7,9 +7,12 @@ import PhotoSelectorKit
 /// (`TextContrast`), so it stays at least 4.5:1 on every semantic colour (UX-MAC-1).
 public struct StatusBadge: View {
     public let status: PhotoStatus
+    /// Where a copy went ("Selection"): the badge of a copied photo says "Copied to Selection".
+    public let copiedFolder: String?
 
-    public init(status: PhotoStatus) {
+    public init(status: PhotoStatus, copiedFolder: String? = nil) {
         self.status = status
+        self.copiedFolder = copiedFolder
     }
 
     public var body: some View {
@@ -17,7 +20,7 @@ public struct StatusBadge: View {
         case .selected:
             badge(symbol: "checkmark.circle.fill", title: "Selected", fill: LensjetPalette.moveAccent)
         case .copied:
-            badge(symbol: "doc.on.doc.fill", title: "Copied", fill: LensjetPalette.copyAccent)
+            badge(symbol: "doc.on.doc.fill", title: LensjetWords.copiedTo(copiedFolder), fill: LensjetPalette.copyAccent)
         case .trashed:
             badge(symbol: "trash.fill", title: "Trashed", fill: LensjetPalette.trashAccent)
         case .candidate:
@@ -31,6 +34,8 @@ public struct StatusBadge: View {
                 .font(.system(size: 10, weight: .bold))
             Text(title)
                 .font(.system(size: 10, weight: .bold))
+                .lineLimit(1)
+                .truncationMode(.middle)
         }
         .foregroundStyle(Color(TextContrast.legibleText(on: fill)))
         .padding(.horizontal, 7)

@@ -20,9 +20,10 @@ from photo_selector_linux.ui.action_bar import ActionBarView
 from photo_selector_linux.ui.canvas import CanvasView
 from photo_selector_linux.ui.photo_loader import PhotoTextureLoader
 from photo_selector_linux.viewmodels.culling_workspace import CullingWorkspaceViewModel
+from _stubs import is_stubbed
 
 # Without a display conftest.py stubs Gtk; with one (Linux CI under xvfb-run) the real widgets run.
-STUBBED = isinstance(canvas_module.Gtk, MagicMock)
+STUBBED = is_stubbed(canvas_module)
 
 
 # ── LIN-7: view model severity ────────────────────────────────────────────────

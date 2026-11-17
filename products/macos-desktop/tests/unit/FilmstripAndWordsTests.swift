@@ -44,3 +44,19 @@ struct FilmstripAndWordsTests {
         #expect(LensjetWords.banned.contains("AI score"))
     }
 }
+
+@Suite("Copied photos say where they went")
+struct CopiedRowTests {
+    @Test("REQ-MAC-CULL.09: the info panel row reads Copied to «folder»")
+    func copiedTitle() {
+        #expect(LensjetWords.copiedTo("Selection") == "Copied to Selection")
+        #expect(LensjetWords.copiedTo(nil) == "Copied")
+        #expect(LensjetWords.copiedTo("") == "Copied")
+    }
+
+    @Test("REQ-MAC-KEY.01: S is the sort choice in the command table")
+    func sortKey() {
+        #expect(LensjetCommand.sortBy.key == "S")
+        #expect(LensjetCommand.linkPan.key == "\u{2325}\u{2318}P")
+    }
+}

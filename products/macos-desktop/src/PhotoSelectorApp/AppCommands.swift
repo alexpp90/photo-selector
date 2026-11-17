@@ -131,7 +131,6 @@ public struct AppCommands: Commands {
             }
             .keyboardShortcut(.space, modifiers: [])
 
-            // S still links the pan for one release (router); the menu item has its own chord.
             Button(LensjetCommand.linkPan.name()) {
                 viewModel.toggleZoomSync()
             }

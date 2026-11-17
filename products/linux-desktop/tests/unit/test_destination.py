@@ -12,7 +12,6 @@ only under ``xvfb-run``, so no window ever opens on the developer's desktop.
 import json
 import os
 from pathlib import Path
-from unittest.mock import MagicMock
 
 import pytest
 
@@ -29,8 +28,9 @@ from photo_selector_linux.core.settings import SettingsStore
 from photo_selector_linux.ui import preferences as preferences_module
 from photo_selector_linux.ui.preferences import PreferencesDialog
 from photo_selector_linux.viewmodels.culling_workspace import CullingWorkspaceViewModel
+from _stubs import is_stubbed
 
-STUBBED = isinstance(preferences_module.Gtk, MagicMock)
+STUBBED = is_stubbed(preferences_module)
 HOME = Path("/home/alex")
 
 
@@ -478,6 +478,10 @@ def test_the_first_move_of_a_folder_names_the_full_destination_once(tmp_path: Pa
     assert notes[0].startswith("Copied · ") and notes[0].endswith("Selection/")
     assert len(notes[0]) <= len("Copied · ") + 34  # bounded: the bar's slot is not wider
     assert notes[1].startswith("Copied IMG_000") and notes[1].endswith(" · Selection")
-    vm.load_directory(card)
+    # Reopened, both photos are still decided (D3), so the next folder is a new one.
+    other = tmp_path / "other"
+    other.mkdir()
+    (other / "IMG_0100.JPG").write_bytes(b"x")
+    vm.load_directory(other)
     assert vm.cull_copy()
     assert notes[-1].startswith("Copied · ") or "as IMG_" in notes[-1]

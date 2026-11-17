@@ -1,6 +1,6 @@
 # Blitzlens — Installation Guide for Debian 13 (Trixie)
 
-This guide provides step-by-step instructions for installing and updating **Blitzlens** (package `photo-selector-linux`) on Debian 13 (Trixie) using our official APT repository (its only suite is `trixie`) or standalone packages.
+This guide provides step-by-step instructions for installing and updating **Blitzlens** (package `photo-selector-linux`) on Debian 13 (Trixie) using our official APT repository (suites `trixie` for Debian 13 and `noble` for Ubuntu 24.04 LTS, the same package in both) or standalone packages. **Ubuntu 24.04 LTS (GNOME 46)** works the same way: use `noble` wherever this guide says `trixie`, or let the one-line `setup.sh` (`curl -fsSL https://alexpp90.github.io/apt/setup.sh | sudo bash`) choose by your release's codename. CI installs the package on both releases.
 
 ---
 
@@ -182,7 +182,7 @@ sudo apt update
 
 ### Issue 2: `E: The repository '...' does not have a Release file.`
 - **Cause**: The URI or suite path in your source definition is incorrect or unreachable.
-- **Fix**: Verify internet connectivity and confirm the URI matches `https://alexpp90.github.io/apt/` and the Suite is `trixie`.
+- **Fix**: Verify internet connectivity and confirm the URI matches `https://alexpp90.github.io/apt/` and the Suite is `trixie` (Debian 13) or `noble` (Ubuntu 24.04).
 
 ### Issue 3: `E: Unable to locate package photo-selector-linux`
 - **Cause**: `sudo apt update` was not run after creating the sources file, or the repository component `main` is missing.

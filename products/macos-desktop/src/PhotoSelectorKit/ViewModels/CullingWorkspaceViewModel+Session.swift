@@ -68,6 +68,7 @@ extension CullingWorkspaceViewModel {
     func noteFolderOpened(_ url: URL) {
         let store = RecentFolders(defaults: userDefaults)
         store.record(url)
+        failureToasts.removeAll()  // a failure of the folder left behind is not this folder's
         recentFolders = store.folders
         endStateDismissed = false
     }

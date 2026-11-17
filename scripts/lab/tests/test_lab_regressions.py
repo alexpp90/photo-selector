@@ -220,7 +220,7 @@ class ChangeFractionRegressionTest(unittest.TestCase):
 class UsabilityScenarioRegressionTest(unittest.TestCase):
     def test_f_lab_061_lensjet_screens_after_a_culling_key_are_captured_inside_the_toast(self) -> None:
         """Toasts last 1.2 s (`showToast`); 0.7-0.9 s waits plus the capture's settle missed them."""
-        src = (ROOT / "products/macos-desktop/src/PhotoSelectorKit/ViewModels/CullingWorkspaceViewModel.swift").read_text(encoding="utf-8")
+        src = (ROOT / "products/macos-desktop/src/PhotoSelectorKit/ViewModels/CullingWorkspaceViewModel+Failures.swift").read_text(encoding="utf-8")
         lifetime_ms = int(re.search(r"func showToast\(.*?Task\.sleep\(nanoseconds: ([\d_]+)\)", src, re.S).group(1).replace("_", "")) // 1_000_000
         self.assertEqual(lifetime_ms, 1200)
         culling = {"Delete", "Backspace", "M", "C", "Cmd+Z"}

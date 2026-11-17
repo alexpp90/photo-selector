@@ -1,7 +1,7 @@
 name: Linux Desktop CI
 
 # Single pipeline for the native Linux Desktop product (photo_selector_linux).
-# Lint, headless unit tests, Debian packaging & APT verification, and — on linux-desktop-vX.Y.Z
+# Lint, headless unit tests (also on Debian 13 and Ubuntu 24.04 system stacks), Debian packaging & APT verification, and — on linux-desktop-vX.Y.Z
 # tags (Linux Desktop is released on its own; scripts/release.py) — publishing the signed APT
 # repository to alexpp90/apt (GitHub Pages: https://alexpp90.github.io/apt/) and a GitHub release
 # carrying the .deb.
@@ -73,7 +73,7 @@ jobs:
 
   # ── Static Analysis & Lint Gate (Mirror: scripts/run_tests.sh `linux.yml:lint`) ──
   lint:
-    name: Lint (flake8)
+    name: Lint (flake8, Ruff, mypy)
     needs: changes
     if: needs.changes.outputs.relevant == 'true'
     runs-on: ubuntu-24.04
@@ -90,11 +90,18 @@ jobs:
         with:
           python-version: "3.12"
 
-      - name: Install flake8
-        run: pip install flake8
+      - name: Install linters
+        run: pip install flake8 ruff mypy numpy Pillow
 
       - name: Run flake8
         run: flake8 src/ tests/
+
+      # Config in pyproject.toml ([tool.ruff], [tool.mypy]); mypy covers src/photo_selector_linux/core.
+      - name: Run Ruff
+        run: ruff check src/ tests/ scripts/
+
+      - name: Run mypy
+        run: mypy
 
   # ── Headless Unit Tests (Mirror: scripts/run_tests.sh `linux.yml:test`) ──
   test:
@@ -162,6 +169,34 @@ jobs:
           PST_REQUIRE_PACKAGING_TOOLS: "1"
         run: xvfb-run -a poetry run pytest tests/unit -q --tb=short -o faulthandler_timeout=120 --cov=photo_selector_linux --cov-report=term-missing:skip-covered --cov-fail-under=70
 
+  # ── The distribution's own GTK stack (Mirror: scripts/run_tests.sh `linux.yml:distro`) ──
+  # The `test` job runs on the Ubuntu 24.04 runner with pip-installed Python tooling. This job runs
+  # the unit tests with the release's own Python, GTK 4, Libadwaita and GExiv2 in a container, then
+  # builds the .deb, installs it with apt (its Depends must resolve there) and starts it far enough
+  # to import Libadwaita. Debian 13 (Trixie) is the target; Ubuntu 24.04 LTS (noble) is the second
+  # APT suite (D8). Without the real-camera corpus: the format tests skip here, `test` has them.
+  distro:
+    name: ${{ matrix.name }}
+    needs: changes
+    if: needs.changes.outputs.relevant == 'true'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - name: Debian 13 (Trixie) system stack
+            image: debian:trixie
+          - name: Ubuntu 24.04 (noble) system stack
+            image: ubuntu:24.04
+    container:
+      image: ${{ matrix.image }}
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: Tests, build and install on ${{ matrix.image }}
+        run: bash products/linux-desktop/scripts/distro_check.sh
+
   # ── Debian Packaging & APT Validation (Mirror: scripts/run_tests.sh `linux.yml:package`) ──
   package:
     name: Debian Packaging & APT Validation
@@ -201,7 +236,7 @@ jobs:
   # is credentials-bound by design (docs/build/CI_PARITY.md).
   publish-apt:
     name: Publish APT repository
-    needs: [lint, test, package]
+    needs: [lint, test, distro, package]
     if: startsWith(github.ref, 'refs/tags/linux-desktop-v')
     # One run per store at a time, none cancelled mid-publish (a newer pending run replaces an
     # older pending one; re-run a replaced publish from the Actions tab).
@@ -284,7 +319,7 @@ jobs:
   # ── GitHub release with the .deb (release tags only) ──
   github-release:
     name: GitHub release
-    needs: [lint, test, package]
+    needs: [lint, test, distro, package]
     if: startsWith(github.ref, 'refs/tags/linux-desktop-v')
     # One run per store at a time, none cancelled mid-publish (a newer pending run replaces an
     # older pending one; re-run a replaced publish from the Actions tab).
@@ -334,7 +369,7 @@ jobs:
   gate:
     name: Linux Desktop CI gate
     if: always()
-    needs: [changes, lint, test, package]
+    needs: [changes, lint, test, distro, package]
     runs-on: ubuntu-24.04
     timeout-minutes: 5
     steps:

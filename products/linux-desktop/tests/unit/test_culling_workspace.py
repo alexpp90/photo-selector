@@ -560,7 +560,7 @@ class DeferredDispatcher:
         job, done = self.pending.pop(0)
         try:
             result, error = job(), None
-        except Exception as e:  # noqa: BLE001 — mirrors FileOperationWorker
+        except Exception as e:
             result, error = None, e
         done(result, error)
 

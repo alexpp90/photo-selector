@@ -186,14 +186,14 @@ def parse_control_template(control_path: Path) -> Tuple[Dict[str, str], str]:
             in_desc = True
             current_key = "Description"
             fields["Description"] = line.split(":", 1)[1].strip()
-        elif in_desc and (line.startswith(" ") or line.startswith("\t")):
+        elif in_desc and (line.startswith((" ", "\t"))):
             desc_lines.append(line)
         elif ":" in line and not line.startswith(" "):
             in_desc = False
             k, v = line.split(":", 1)
             current_key = k.strip()
             fields[current_key] = v.strip()
-        elif current_key and (line.startswith(" ") or line.startswith("\t")):
+        elif current_key and (line.startswith((" ", "\t"))):
             # Continuation line for a non-description field (e.g. Depends)
             val = line.strip()
             if fields.get(current_key):

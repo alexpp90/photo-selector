@@ -226,10 +226,12 @@ struct KeyboardShortcutRouterTests {
         #expect(toggled == 1 && vm.isFilmstripVisible, "F is the clean view now, it leaves the filmstrip alone")
         #expect(router.handleKeyEvent(SyntheticKeyEvent(keyCode: 5, characters: "g"), viewModel: vm))
         #expect(vm.isGoToPhotoPresented)
-        // S (linked pan) stays for now; H / L (navigation) were retired after 0.3.0.
+        // S opens the sort choice and no longer links the pan (⌥⌘P only); H / L were retired after 0.3.0.
         let pan = vm.isZoomSynced
         #expect(router.handleKeyEvent(SyntheticKeyEvent(keyCode: 1, characters: "s"), viewModel: vm))
-        #expect(vm.isZoomSynced != pan)
+        #expect(vm.isSortChoicePresented)
+        #expect(vm.isZoomSynced == pan)
+        vm.isSortChoicePresented = false
         vm.isGoToPhotoPresented = false
         #expect(!router.handleKeyEvent(SyntheticKeyEvent(keyCode: 37, characters: "l"), viewModel: vm), "L is retired")
         #expect(vm.currentIndex == 0)

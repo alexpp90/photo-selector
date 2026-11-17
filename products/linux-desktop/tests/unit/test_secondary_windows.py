@@ -6,8 +6,9 @@ from unittest.mock import MagicMock
 import pytest
 
 from photo_selector_linux.ui import secondary_window, shortcuts_dialog, tools_dialogs
+from _stubs import is_stubbed
 
-STUBBED = isinstance(secondary_window.Gtk, MagicMock) or not secondary_window.HAS_GI
+STUBBED = is_stubbed(secondary_window)
 
 needs_gtk = pytest.mark.skipif(STUBBED, reason="needs real Gtk/Adw")
 

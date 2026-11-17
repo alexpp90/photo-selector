@@ -257,7 +257,13 @@ public struct ContentView: View {
         .onChange(of: viewModel.cloudBanner) { _, banner in
             if let banner { AccessibilityNotification.Announcement(banner).post() }
         }
-        .environment(\.dismissToast, { _ = viewModel.dismissStickyToast() })
+        .environment(\.dismissToast, { id in viewModel.dismissFailure(id) })
+        .environment(\.dismissAllToasts, { viewModel.dismissAllFailures() })
+        .environment(\.failureToasts, viewModel.failureToasts)
+        .environment(\.copiedFolder, viewModel.destinationName)
+        .sheet(isPresented: $viewModel.isSortChoicePresented) {
+            SortChoiceSheet(viewModel: viewModel)
+        }
         // VoiceOver hears what a sighted user reads in the toast (REQ-MAC-A11Y.01).
         .onChange(of: viewModel.currentToast) { _, toast in
             if let toast {
@@ -425,7 +431,7 @@ public struct ContentView: View {
                 .clipShape(Capsule())
                 .accessibilityElement(children: .ignore)
                 .accessibilityLabel("Sorted by \(viewModel.sortOrder.title)")
-                .help("Sorted by \(viewModel.sortOrder.title) (View > Sort By)")
+                .help("Sorted by \(viewModel.sortOrder.title) (S, or View > Sort By)")
                 .uiTestFrame("sort_indicator")
             }
 
