@@ -1,0 +1,6 @@
+Types: deb
+URIs: https://alexpp90.github.io/apt/
+Suites: noble
+Components: main
+Architectures: amd64 all
+Signed-By: /etc/apt/keyrings/photo-selector-archive-keyring.gpg

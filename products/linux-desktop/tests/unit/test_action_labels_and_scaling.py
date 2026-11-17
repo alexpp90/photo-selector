@@ -11,8 +11,9 @@ from photo_selector_linux.ui import window as window_module
 from photo_selector_linux.ui.action_bar import ActionBarView
 from photo_selector_linux.ui.shortcuts_dialog import SHORTCUTS
 from photo_selector_linux.viewmodels.culling_workspace import CullingWorkspaceViewModel
+from _stubs import is_stubbed
 
-STUBBED = isinstance(window_module.Gtk, MagicMock)
+STUBBED = is_stubbed(window_module)
 
 
 def test_action_buttons_have_at_most_two_words_and_the_key_is_in_the_tooltip():

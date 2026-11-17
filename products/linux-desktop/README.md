@@ -70,7 +70,9 @@ Start Blitzlens with a folder (`photo-selector-linux ~/Pictures/2026`) or let th
 | `Ctrl+,` | Open Preferences |
 | `?` / `Ctrl+?` | Open the keyboard shortcuts sheet |
 
-## Installation (Debian 13 Trixie)
+## Installation (Debian 13 Trixie, Ubuntu 24.04)
+
+The repository has two suites, `trixie` (Debian 13) and `noble` (Ubuntu 24.04 LTS); the one-line `curl -fsSL https://alexpp90.github.io/apt/setup.sh | sudo bash` picks yours. By hand on Ubuntu 24.04, write `Suites: noble` below.
 
 Add the repository keyring and `deb822` source:
 

@@ -2,7 +2,9 @@
 """generate_apt_repo.py — Pure Python Debian APT repository generator.
 
 Scans debian packages in <repo-root>/pool/, generates Packages and Packages.gz indexes,
-and creates the Release, InRelease, and Release.gpg manifests for Debian 13 (Trixie).
+and creates the Release, InRelease, and Release.gpg manifests for every suite of the repository:
+Debian 13 (Trixie) and Ubuntu 24.04 LTS (noble). The package is architecture-independent Python,
+so one .deb in the shared pool is indexed under each suite.
 Requires zero external tools (pure Python standard library), with optional GPG signing.
 The published repository is alexpp90/apt (GitHub Pages); see scripts/package_debian.sh.
 """
@@ -22,6 +24,14 @@ import subprocess
 import sys
 import tarfile
 from typing import Dict, List, Optional, Tuple
+
+
+#: The suites the published repository serves: codename -> (Release ``Version``, description).
+SUITES: Dict[str, Tuple[str, str]] = {
+    "trixie": ("13", "Official Debian 13 (Trixie) repository for Blitzlens"),
+    "noble": ("24.04", "Official Ubuntu 24.04 LTS (Noble Numbat) repository for Blitzlens"),
+}
+DEFAULT_SUITE = "trixie"
 
 
 def parse_deb_control(deb_path: Path) -> Dict[str, str]:
@@ -74,7 +84,7 @@ def parse_deb_control(deb_path: Path) -> Dict[str, str]:
     lines = raw_text.splitlines()
 
     for line in lines:
-        if line.startswith(" ") or line.startswith("\t"):
+        if line.startswith((" ", "\t")):
             if current_key:
                 if current_key == "Description":
                     fields[current_key] += "\n" + line
@@ -177,7 +187,8 @@ def ensure_gpg_keyring(repo_root: Path) -> Optional[str]:
                 break
 
     if key_id:
-        # Export binary keyring (.gpg) and ASCII armored (.asc / KEY.gpg)
+        # Export the binary keyring (.gpg, what the deb822 sources file points at) and the ASCII
+        # armoured one (.asc). The legacy KEY.gpg was never served or referenced (H-SHARED-3).
         bin_keyring = repo_root / "photo-selector-archive-keyring.gpg"
         subprocess.run(
             [gpg_bin, "--export", "-o", str(bin_keyring), key_id],
@@ -188,13 +199,6 @@ def ensure_gpg_keyring(repo_root: Path) -> Optional[str]:
         asc_keyring = repo_root / "photo-selector-archive-keyring.asc"
         subprocess.run(
             [gpg_bin, "--armor", "--export", "-o", str(asc_keyring), key_id],
-            check=False,
-            env=env,
-        )
-
-        key_gpg = repo_root / "KEY.gpg"
-        subprocess.run(
-            [gpg_bin, "--armor", "--export", "-o", str(key_gpg), key_id],
             check=False,
             env=env,
         )
@@ -223,7 +227,7 @@ def generate_repository(
         pool_dir.mkdir(parents=True, exist_ok=True)
 
     # Discover all .deb packages
-    deb_files = sorted(list(pool_dir.rglob("*.deb")))
+    deb_files = sorted(pool_dir.rglob("*.deb"))
     if not deb_files:
         print(f"Warning: No .deb files found in {pool_dir}")
 
@@ -307,11 +311,11 @@ def generate_repository(
         "Label: Photo Selector Toolbox",
         f"Suite: {suite}",
         f"Codename: {suite}",
-        "Version: 13",
+        f"Version: {SUITES.get(suite, SUITES[DEFAULT_SUITE])[0]}",
         f"Date: {rfc2822_date}",
         "Architectures: amd64 all",
         f"Components: {component}",
-        "Description: Official Debian 13 (Trixie) repository for Blitzlens",
+        f"Description: {SUITES.get(suite, SUITES[DEFAULT_SUITE])[1]}",
     ]
 
     md5_entries = []
@@ -407,7 +411,9 @@ def main() -> int:
     parser = argparse.ArgumentParser(description="Generate Debian APT repository metadata")
     parser.add_argument("--repo-root", type=Path, required=True,
                         help="APT repository directory (a checkout of alexpp90/apt, or a staging dir)")
-    parser.add_argument("--suite", default="trixie", help="Distribution suite (default: trixie)")
+    parser.add_argument("--suite", action="append", choices=sorted(SUITES),
+                        help="Distribution suite to generate; repeat for several "
+                             f"(default: all of {', '.join(SUITES)})")
     parser.add_argument("--component", default="main", help="Component (default: main)")
     parser.add_argument("--gpg-key-id", default=os.getenv("GPG_KEY_ID"), help="GPG Key ID to sign Release")
     parser.add_argument("--unsigned", action="store_true",
@@ -415,8 +421,9 @@ def main() -> int:
     args = parser.parse_args()
 
     try:
-        generate_repository(args.repo_root, args.suite, args.component, args.gpg_key_id,
-                            sign=not args.unsigned)
+        for suite in args.suite or list(SUITES):
+            generate_repository(args.repo_root, suite, args.component, args.gpg_key_id,
+                                sign=not args.unsigned)
         return 0
     except Exception as e:
         print(f"Error: {e}", file=sys.stderr)

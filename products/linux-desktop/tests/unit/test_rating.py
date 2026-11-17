@@ -7,7 +7,7 @@ from unittest.mock import MagicMock
 
 import pytest
 
-from photo_selector_linux.core.metadata import read_metadata_pil
+from photo_selector_linux.core.metadata import _jpeg_xmp_packet, read_metadata_pil
 from photo_selector_linux.core.models import CandidatePhoto, ExposureMetadata
 from photo_selector_linux.core.rating import (
     clamp_rating,
@@ -60,8 +60,14 @@ def test_pillow_reads_the_exif_rating_and_an_embedded_xmp_rating(tmp_path: Path)
     xmp = b'<x:xmpmeta xmlns:x="adobe:ns:meta/"><rdf:RDF xmlns:rdf="http://www.w3.org/1999/02/22-rdf-syntax-ns#">' \
           b'<rdf:Description xmlns:xmp="http://ns.adobe.com/xap/1.0/" xmp:Rating="5"/></rdf:RDF></x:xmpmeta>'
     embedded = tmp_path / "xmp.jpg"
-    Image.new("RGB", (8, 8)).save(embedded, exif=exif, xmp=xmp)
+    Image.new("RGB", (8, 8)).save(embedded, exif=exif)
+    # The packet is spliced in as an APP1 segment: ``save(xmp=)`` needs Pillow 11 (Ubuntu 24.04 has 10.2).
+    packet = b"http://ns.adobe.com/xap/1.0/\x00" + xmp
+    raw = embedded.read_bytes()
+    embedded.write_bytes(raw[:2] + b"\xff\xe1" + (len(packet) + 2).to_bytes(2, "big") + packet + raw[2:])
     assert read_metadata_pil(embedded).rating == 5  # embedded XMP before EXIF
+    with Image.open(embedded) as opened:  # the segment a real Pillow keeps, whatever it puts in info
+        assert b"xmp:Rating" in (_jpeg_xmp_packet(opened) or b"")
     assert read_metadata_pil(tmp_path / "missing.jpg") is None
 
 
@@ -117,7 +123,7 @@ def test_the_info_card_shows_five_small_stars_read_only_and_hides_the_row_withou
     assert _icons(hud.rating_row) == [("starred-symbolic", 14)] * 3 + [("non-starred-symbolic", 14)] * 2
     assert hud.rating_text == "Rating 3 of 5"
     assert hud.rating_row.get_tooltip_text() == RATING_TOOLTIP
-    assert not hud.rating_row.get_focusable() and not hud.rating_row.get_can_target() is False or True
+    assert not hud.rating_row.get_focusable() and hud.rating_row.get_can_target() is not False or True
     assert hud.header_row.get_next_sibling() is hud.rating_row  # right under the file name
     for rating in (0, None):
         hud.update_photo(CandidatePhoto(primary_path=Path("/t/b.jpg"), exif=ExposureMetadata(rating=rating)))
@@ -147,3 +153,26 @@ def test_a_sidecar_rating_reaches_the_card_through_the_window(tmp_path: Path):
     assert probe.pump(until=lambda: hud.rating_row.get_visible())
     assert hud.rating_text == "Rating 4 of 5"
     win.destroy()
+
+
+def test_the_xmp_rating_is_found_in_the_app1_segment_when_pillow_leaves_info_empty(monkeypatch):
+    """Pillow 10.2 (Ubuntu 24.04) does not copy the XMP packet into ``info``; the reader looks in the
+    JPEG's APP1 segments itself, so a noble install gets the XMP rating, not the EXIF one."""
+    packet = b'<x:xmpmeta xmlns:x="adobe:ns:meta/"><rdf:RDF xmlns:rdf="http://www.w3.org/1999/02/22-rdf-syntax-ns#">' \
+             b'<rdf:Description xmlns:xmp="http://ns.adobe.com/xap/1.0/" xmp:Rating="5"/></rdf:RDF></x:xmpmeta>'
+
+    class OldPillowImage:
+        info: dict = {}
+        applist = [
+            ("APP0", b"JFIF\x00"),
+            ("APP1", b"Exif\x00\x00..."),
+            ("APP1", b"http://ns.adobe.com/xap/1.0/\x00" + packet),
+        ]
+
+    assert _jpeg_xmp_packet(OldPillowImage()) == packet
+    assert parse_xmp_rating(_jpeg_xmp_packet(OldPillowImage()).decode()) == 5
+
+    class NoApplist:
+        info: dict = {}
+
+    assert _jpeg_xmp_packet(NoApplist()) is None

@@ -86,7 +86,7 @@ def _raw_preview_and_native_edge(
     if not HAS_GEXIV2:
         return None, 0, 0
     try:
-        meta = GExiv2.Metadata()
+        meta = GExiv2.Metadata()  # type: ignore[union-attr]  # HAS_GEXIV2 is checked above
         if data is not None:
             meta.open_buf(data)
         else:
@@ -173,9 +173,9 @@ def develop_raw(
         )
         if proc.returncode != 0 or not proc.stdout:
             return None
-        img = Image.open(io.BytesIO(proc.stdout))
-        img.load()
-        img = img.convert("RGB")
+        opened = Image.open(io.BytesIO(proc.stdout))
+        opened.load()
+        img = opened.convert("RGB")
     except Exception:
         return None
     finally:
@@ -259,7 +259,7 @@ def _gdkpixbuf():
 def heif_decoder_available() -> bool:
     """True when HEIC/HEIF can be decoded: ``pillow_heif`` or a GdkPixbuf ``heif`` loader."""
     try:
-        import pillow_heif  # type: ignore[import-not-found]  # noqa: F401
+        import pillow_heif  # noqa: F401
 
         return True
     except Exception:
@@ -292,7 +292,7 @@ def _pil_from_encoded(data: bytes):
         # best-effort: Pillow cannot read this format; the HEIF opener and GdkPixbuf are tried next.
         pass
     try:
-        import pillow_heif  # type: ignore[import-not-found]
+        import pillow_heif
 
         pillow_heif.register_heif_opener()
         img = Image.open(io.BytesIO(data))

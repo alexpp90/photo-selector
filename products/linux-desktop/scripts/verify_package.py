@@ -24,9 +24,12 @@ from typing import Dict, List, Tuple
 from package_deb import ICON_FILES
 
 
+#: The suites the repository serves (kept equal to ``generate_apt_repo.SUITES`` by a unit test).
+APT_SUITES = ("trixie", "noble")
+
+
 class VerificationFailure(Exception):
     """Raised when a verification assertion fails."""
-    pass
 
 
 def log_pass(msg: str) -> None:
@@ -73,7 +76,7 @@ def verify_debian_definitions(product_dir: Path) -> None:
             k, v = line.split(":", 1)
             curr_k = k.strip()
             bin_map[curr_k] = v.strip()
-        elif curr_k and (line.startswith(" ") or line.startswith("\t")):
+        elif curr_k and (line.startswith((" ", "\t"))):
             bin_map[curr_k] += " " + line.strip()
 
     if bin_map.get("Package") != "photo-selector-linux":
@@ -393,29 +396,32 @@ def verify_apt_structure(apt_dir: Path, expected_version: str | None = None) -> 
         raise VerificationFailure(
             f"APT repository directory not found: {apt_dir} — build it with scripts/package_debian.sh")
 
-    # Check dists structure
-    release_path = apt_dir / "dists" / "trixie" / "Release"
-    inrelease_path = apt_dir / "dists" / "trixie" / "InRelease"
-    if not release_path.is_file():
-        raise VerificationFailure(f"Missing Release file: {release_path}")
-    if not inrelease_path.is_file():
-        raise VerificationFailure(f"Missing InRelease file: {inrelease_path}")
+    # Check dists structure: every suite the repository serves (Debian 13 and Ubuntu 24.04)
+    for suite in APT_SUITES:
+        release_path = apt_dir / "dists" / suite / "Release"
+        inrelease_path = apt_dir / "dists" / suite / "InRelease"
+        if not release_path.is_file():
+            raise VerificationFailure(f"Missing Release file: {release_path}")
+        if not inrelease_path.is_file():
+            raise VerificationFailure(f"Missing InRelease file: {inrelease_path}")
+        if f"Codename: {suite}" not in release_path.read_text(encoding="utf-8"):
+            raise VerificationFailure(f"{release_path} does not name the codename {suite}")
 
-    # Check Packages indices
-    for arch in ("binary-all", "binary-amd64"):
-        pkg_path = apt_dir / "dists" / "trixie" / "main" / arch / "Packages"
-        pkg_gz = apt_dir / "dists" / "trixie" / "main" / arch / "Packages.gz"
-        if not pkg_path.is_file():
-            raise VerificationFailure(f"Missing Packages index: {pkg_path}")
-        if not pkg_gz.is_file():
-            raise VerificationFailure(f"Missing Packages.gz index: {pkg_gz}")
+        # Check Packages indices
+        for arch in ("binary-all", "binary-amd64"):
+            pkg_path = apt_dir / "dists" / suite / "main" / arch / "Packages"
+            pkg_gz = apt_dir / "dists" / suite / "main" / arch / "Packages.gz"
+            if not pkg_path.is_file():
+                raise VerificationFailure(f"Missing Packages index: {pkg_path}")
+            if not pkg_gz.is_file():
+                raise VerificationFailure(f"Missing Packages.gz index: {pkg_gz}")
 
-        # Check that Packages contains photo-selector-linux stanza
-        pkg_text = pkg_path.read_text(encoding="utf-8")
-        if "Package: photo-selector-linux" not in pkg_text:
-            raise VerificationFailure(f"{pkg_path} does not index photo-selector-linux")
-        if not pkg_text.endswith("\n"):
-            raise VerificationFailure(f"{pkg_path} does not terminate with newline")
+            # Check that Packages contains photo-selector-linux stanza
+            pkg_text = pkg_path.read_text(encoding="utf-8")
+            if "Package: photo-selector-linux" not in pkg_text:
+                raise VerificationFailure(f"{pkg_path} does not index photo-selector-linux")
+            if not pkg_text.endswith("\n"):
+                raise VerificationFailure(f"{pkg_path} does not terminate with newline")
 
     # Check pool directory
     pool_dir = apt_dir / "pool" / "main" / "p" / "photo-selector-linux"
@@ -462,6 +468,12 @@ def verify_apt_structure(apt_dir: Path, expected_version: str | None = None) -> 
     sources_text = sources_file.read_text(encoding="utf-8")
     if "https://alexpp90.github.io/apt/" not in sources_text:
         raise VerificationFailure(f"{sources_file} does not point at https://alexpp90.github.io/apt/")
+    for suite in APT_SUITES:
+        suite_sources = apt_dir / (
+            "photo-selector.sources" if suite == "trixie" else f"photo-selector-{suite}.sources"
+        )
+        if not suite_sources.is_file() or f"Suites: {suite}" not in suite_sources.read_text(encoding="utf-8"):
+            raise VerificationFailure(f"{suite_sources} is missing or does not name the suite {suite}")
 
     log_pass(f"APT repository directory structure and configuration verified (selected {selected_deb.name})")
     return selected_deb
@@ -470,8 +482,12 @@ def verify_apt_structure(apt_dir: Path, expected_version: str | None = None) -> 
 # ── Check 5: Release Checksum Integrity ─────────────────────────────────
 
 def verify_release_checksums(apt_dir: Path) -> None:
-    trixie_dir = apt_dir / "dists" / "trixie"
-    release_path = trixie_dir / "Release"
+    for suite in APT_SUITES:
+        _verify_suite_checksums(apt_dir / "dists" / suite)
+
+
+def _verify_suite_checksums(suite_dir: Path) -> None:
+    release_path = suite_dir / "Release"
     rel_text = release_path.read_text(encoding="utf-8")
 
     # Parse SHA256 block
@@ -490,7 +506,7 @@ def verify_release_checksums(apt_dir: Path) -> None:
         raise VerificationFailure("Release manifest contains no valid SHA256 entries")
 
     for rel_path, (expected_sha, expected_size) in sha256_entries.items():
-        disk_path = trixie_dir / rel_path
+        disk_path = suite_dir / rel_path
         if not disk_path.is_file():
             raise VerificationFailure(f"File listed in Release does not exist on disk: {disk_path}")
 

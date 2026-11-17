@@ -460,7 +460,7 @@ DESKTOP_ENV_MODULES=(pytest pytest_cov flake8 matplotlib PIL numpy cv2 tqdm)
 DESKTOP_ENV_REMEDY="poetry --directory products/desktop install --no-root"
 # gi comes from the system packages (python3-gi, gir1.2-gtk-4.0, …), so the venv must see the
 # system site-packages; gates report the display path as "partial" when the typelibs are missing.
-LINUX_ENV_MODULES=(pytest pytest_cov flake8 numpy PIL)
+LINUX_ENV_MODULES=(pytest pytest_cov flake8 ruff mypy numpy PIL)
 LINUX_ENV_REMEDY="poetry config virtualenvs.options.system-site-packages true
       poetry --directory products/linux-desktop env remove --all   # only if its venv already exists without system site packages
       poetry --directory products/linux-desktop install --no-root
@@ -832,6 +832,10 @@ if $run_linux; then
             else
                 gate "flake8 (products/linux-desktop)" "linux.yml:lint" \
                     py flake8 src/ tests/ --count --show-source --statistics
+                gate "ruff (products/linux-desktop)" "linux.yml:lint" \
+                    py ruff check src/ tests/ scripts/
+                gate "mypy (products/linux-desktop core)" "linux.yml:lint" \
+                    py mypy
             fi
         fi
 
@@ -874,6 +878,22 @@ if $run_linux; then
                 bash ./scripts/package_debian.sh
         else
             skip "debian packaging (linux-desktop)" "linux.yml:package" "packaging scripts not yet created" false
+        fi
+
+        # 4. The distribution's own GTK stack: unit tests, .deb build and apt install on Debian 13
+        #    and Ubuntu 24.04 in containers (linux.yml:distro). Needs podman or docker and the
+        #    network; without one it is a stated gap, never a silent pass.
+        section "Linux Desktop on Debian 13 and Ubuntu 24.04 (containers)"
+        if $quick; then
+            skip "debian:trixie system stack (linux-desktop)" "linux.yml:distro" "--quick"
+            skip "ubuntu:24.04 system stack (linux-desktop)" "linux.yml:distro" "--quick"
+        elif { have podman && podman info &>/dev/null; } || { have docker && docker info &>/dev/null; }; then
+            gate "debian:trixie system stack (products/linux-desktop)" "linux.yml:distro" \
+                bash ./scripts/distro_check.sh --container debian:trixie
+            gate "ubuntu:24.04 system stack (products/linux-desktop)" "linux.yml:distro" \
+                bash ./scripts/distro_check.sh --container ubuntu:24.04
+        else
+            skip "debian:trixie / ubuntu:24.04 system stacks (linux-desktop)" "linux.yml:distro" "no working podman or docker (CI runs both containers)"
         fi
     fi
 elif ! $explicit_product; then

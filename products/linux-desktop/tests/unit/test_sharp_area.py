@@ -143,7 +143,7 @@ def test_the_sharpest_frame_on_screen_is_marked_in_2_up_and_never_in_1_up(window
     win.viewmodel.set_comparison_mode(2)
     assert probe.pump(until=lambda: _scored(win))
     probe.pump(0.3)
-    pills = {pid: p for pid, p in win.canvas_view._sharp_pills.items()}
+    pills = dict(win.canvas_view._sharp_pills)
     first, second = win.viewmodel.candidates
     assert pills[first.id].get_visible() and not pills[second.id].get_visible()
     win.viewmodel.set_comparison_mode(1)

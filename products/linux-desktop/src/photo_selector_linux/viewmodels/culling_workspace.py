@@ -26,6 +26,7 @@ from photo_selector_linux.core.destination import (
     display_path,
     resolve_destination,
 )
+from photo_selector_linux.core.copy_decisions import CopyDecisionStore, photo_key
 from photo_selector_linux.core.file_ops import FileCullingManager
 from photo_selector_linux.core.gvfs_names import is_remote_filesystem
 from photo_selector_linux.core.volumes import VERDICT_SAFE, format_verdict, selection_stays_on_card
@@ -96,6 +97,9 @@ class _QueuedAction:
     target_action: Optional[_QueuedAction] = None
     #: The folder whose workspace (and undo stack) this action belongs to (Q-7).
     workspace: Optional[Path] = None
+    #: A Copy: the opened folder and the photo's key in the stored copy decisions (D3).
+    decision_folder: Optional[Path] = None
+    decision_key: Optional[str] = None
 
 
 MESSAGE_NAME_CHARS = 16
@@ -143,6 +147,7 @@ class CullingWorkspaceViewModel:
         score_runner: Optional[ScoreRunner] = None,
         auto_advance: Optional[bool] = None,
         external_destination_root: Optional[Path] = None,
+        copy_decisions: Optional[CopyDecisionStore] = None,
     ):
         self.candidates: List[CandidatePhoto] = []
         self.current_index: int = 0
@@ -196,6 +201,14 @@ class CullingWorkspaceViewModel:
         #: Undo stacks of folders that were left, so an operation that finishes after a folder switch
         #: — or a folder reopened later — keeps its undo entries (Q-7). Bounded to the newest folders.
         self._folder_undo_history: Dict[Path, List[Tuple[CullingRecord, CandidatePhoto, int]]] = {}
+
+        #: Copied photos, kept across sessions beside the settings file (FILE_OPERATIONS.md §5).
+        #: Without a settings store (tests, headless use) nothing is persisted.
+        self.copy_decisions: Optional[CopyDecisionStore] = copy_decisions or (
+            CopyDecisionStore(settings.config_path.with_name("copy-decisions.json"))
+            if settings is not None
+            else None
+        )
 
         self.file_manager = file_manager or FileCullingManager()
         self.dispatcher: Dispatcher = dispatcher or run_inline
@@ -641,6 +654,7 @@ class CullingWorkspaceViewModel:
         user has moved the view stays on the first photo of the order (the newest, for "newest
         first"). Undo positions are not stored indices that could go stale (see ``_reinsert``).
         """
+        self._restore_copy_decisions(batch)
         if self.sort_order == ORDER_NAME:
             self.candidates.extend(batch)
             self._list_version += 1
@@ -656,6 +670,57 @@ class CullingWorkspaceViewModel:
             if shown_idx is not None and position <= shown_idx:
                 shown_idx += 1
         self.current_index = shown_idx if shown_idx is not None else 0
+
+    def _restore_copy_decisions(self, batch: List[CandidatePhoto]) -> None:
+        """A reopened folder: photos copied in an earlier session are decided, not undecided again."""
+        store, folder = self.copy_decisions, self.current_folder
+        if store is None or folder is None:
+            return
+        entries = store.folder_entries(folder)
+        if not entries:
+            return
+        for photo in batch:
+            key = photo_key(folder, photo.primary_path)
+            entry = entries.get(key)
+            if entry is None or photo.copied:
+                continue
+            size = entry.get("size")
+            if size is not None and photo.file_size not in (size, 0):
+                store.forget(folder, key)  # another file under the same name
+                continue
+            destination = entry.get("to")
+            if destination and not os.path.exists(destination):
+                store.forget(folder, key)  # the copy was removed from the Selection since
+                continue
+            photo.copied = True
+            self.copied_count += 1
+            self.selected_count += 1
+
+    def _remember_copy_decision(self, action: _QueuedAction, result: Any) -> None:
+        if self.copy_decisions is None or not action.decision_folder or not action.decision_key:
+            return
+        destination: Optional[Path] = None
+        if isinstance(result, CullingRecord):
+            for source, target in result.affected_paths:
+                if source == action.photo.primary_path:
+                    destination = target
+                    break
+        self.copy_decisions.record(
+            action.decision_folder, action.decision_key, action.photo.file_size, destination
+        )
+
+    def _forget_copy_decision(self, action: _QueuedAction) -> None:
+        if self.copy_decisions is not None and action.decision_folder and action.decision_key:
+            self.copy_decisions.forget(action.decision_folder, action.decision_key)
+
+    def _prune_copy_decisions(self) -> None:
+        """Forget copied photos that are no longer in the folder (moved or trashed since)."""
+        folder = self.current_folder
+        if self.copy_decisions is None or folder is None or self.scan_failed:
+            return
+        if self._queue or self._running_action is not None:
+            return  # an operation in flight may still bring one back (undo)
+        self.copy_decisions.prune(folder, {photo_key(folder, c.primary_path) for c in self.candidates})
 
     def _reinsert(self, photo: CandidatePhoto, orig_idx: int) -> int:
         """Put an undone photo back where the active order wants it; return its index.
@@ -941,6 +1006,8 @@ class CullingWorkspaceViewModel:
             action.status = "done"
             if isinstance(result, CullingRecord):
                 self._replace_undo_record(action, result)
+            if action.kind == "copy":
+                self._remember_copy_decision(action, result)
 
             if action.generation == self._folder_generation:
                 if action.kind in ("move", "copy"):
@@ -975,6 +1042,13 @@ class CullingWorkspaceViewModel:
                 return
 
             action.status = "done"
+            if (
+                rec is not None
+                and rec.action_type == CullingActionType.COPY
+                and not rec.stranded
+                and target is not None
+            ):
+                self._forget_copy_decision(target)
             if rec is not None and action.generation == self._folder_generation:
                 if rec.action_type in (CullingActionType.MOVE, CullingActionType.TRASH):
                     if self._index_of(action.photo) is None:
@@ -1116,6 +1190,8 @@ class CullingWorkspaceViewModel:
             selection_folder=selection,
             generation=self._folder_generation,
             busy_message=f"Copying {photo.filename} to {selection}/…",
+            decision_folder=folder,
+            decision_key=photo_key(folder, photo.primary_path),
         )
         self._enqueue_action(action)
         return True
@@ -1304,6 +1380,7 @@ class CullingWorkspaceViewModel:
         if generation != self._folder_generation:
             return
         self.is_scanning = False
+        self._prune_copy_decisions()
         self._notify(f"Loaded {len(self.candidates)} photos from {self.current_folder_name}")
         if not notified_any:
             self._notify_state_changed()
@@ -1369,6 +1446,7 @@ class CullingWorkspaceViewModel:
         if generation != self._folder_generation:
             return False
         self.is_scanning = False
+        self._prune_copy_decisions()
         self._notify(f"Loaded {len(self.candidates)} photos from {self.current_folder_name}")
         self._notify_state_changed()
         self._begin_scoring_pass()

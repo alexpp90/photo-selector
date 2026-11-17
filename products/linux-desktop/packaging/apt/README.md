@@ -1,7 +1,8 @@
 # Blitzlens — APT repository
 
-Debian 13 (Trixie) package repository for **Blitzlens**, the native GNOME photo culling app
-([source](https://github.com/alexpp90/photo-selector)). Served by GitHub Pages
+Package repository for **Blitzlens** with two suites: Debian 13 (`trixie`) and Ubuntu 24.04 LTS (`noble`),, the native GNOME photo culling app
+([source](https://github.com/alexpp90/photo-selector)). The same architecture-independent package is
+indexed under both. Served by GitHub Pages
 at **https://alexpp90.github.io/apt/**.
 
 ## Install
@@ -11,7 +12,8 @@ curl -fsSL https://alexpp90.github.io/apt/setup.sh | sudo bash
 sudo apt install photo-selector-linux
 ```
 
-Or by hand (deb822):
+`setup.sh` picks the suite from your release's codename. Or by hand (deb822; on Ubuntu 24.04 use
+`photo-selector-noble.sources` and save it as `photo-selector.sources`):
 
 ```bash
 sudo install -m 0755 -d /etc/apt/keyrings

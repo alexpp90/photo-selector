@@ -22,11 +22,11 @@ import ast
 import json
 import re
 from pathlib import Path
-from unittest.mock import MagicMock
 
 import pytest
 
 from photo_selector_linux.ui import window as window_module
+from _stubs import is_stubbed
 
 ROOT = Path(__file__).resolve().parents[4]
 PRODUCT_SRC = Path(__file__).resolve().parents[2] / "src" / "photo_selector_linux"
@@ -38,7 +38,7 @@ SENTENCE_END = re.compile(r"[.!?:]\s*$")
 SAMPLE_NUMBER = BUDGET["placeholder_sample"]["number"]
 SAMPLE_TEXT = BUDGET["placeholder_sample"]["text"]
 
-STUBBED = isinstance(window_module.Gtk, MagicMock) or not window_module.HAS_GI
+STUBBED = is_stubbed(window_module)
 
 
 def limits(element: str):

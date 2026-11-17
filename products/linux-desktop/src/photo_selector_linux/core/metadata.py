@@ -224,6 +224,25 @@ def metadata_from_gexiv2(meta: Any) -> ExposureMetadata:
     )
 
 
+_XMP_APP1_MARKER = b"http://ns.adobe.com/xap/1.0/\x00"
+
+
+def _jpeg_xmp_packet(img) -> Optional[bytes]:
+    """The XMP packet of a JPEG's APP1 segment, for a Pillow that does not put it in ``info``.
+
+    Pillow 10.2 (Ubuntu 24.04) keeps the segment only in ``applist``; newer ones also fill
+    ``info["xmp"]``.
+    """
+    for entry in getattr(img, "applist", None) or ():
+        try:
+            marker, content = entry
+        except (TypeError, ValueError):
+            continue
+        if marker == "APP1" and isinstance(content, bytes) and content.startswith(_XMP_APP1_MARKER):
+            return content[len(_XMP_APP1_MARKER):]
+    return None
+
+
 def read_metadata_pil(path: Path, data: Optional[bytes] = None) -> Optional[ExposureMetadata]:
     """Fallback EXIF reader using Pillow for headless/unit testing environments."""
     if not _HAVE_PIL:
@@ -234,6 +253,8 @@ def read_metadata_pil(path: Path, data: Optional[bytes] = None) -> Optional[Expo
             exif_raw = img.getexif()
             info = getattr(img, "info", None)
             xmp_raw = (info.get("xmp") or info.get("XML:com.adobe.xmp")) if isinstance(info, dict) else None
+            if xmp_raw is None:
+                xmp_raw = _jpeg_xmp_packet(img)
             xmp_rating = parse_xmp_rating(
                 xmp_raw.decode("utf-8", "replace") if isinstance(xmp_raw, bytes)
                 else xmp_raw if isinstance(xmp_raw, str) else None

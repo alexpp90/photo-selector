@@ -203,6 +203,7 @@ class DirectoryScanner:
         yielded_first = False
         target_size = max(1, first_batch_size) if first_batch_size is not None else max(1, batch_size)
 
+        walk_gen: Iterable[Tuple[str, List[str], List[str]]]
         if recursive:
             walk_gen = os.walk(root_path, followlinks=False)
         else:
@@ -230,7 +231,7 @@ class DirectoryScanner:
                     if display.get(d, d).strip().lower() not in self.excluded_names
                     and not self.is_path_excluded(curr_dir / d, root_path)
                 ],
-                key=lambda d: natural_sort_key(display.get(d, d)),
+                key=lambda d: natural_sort_key(display.get(d, d) or d),
             )
             entries: List[Tuple[Path, str]] = [
                 (curr_dir / fname, display.get(fname, fname)) for fname in filenames

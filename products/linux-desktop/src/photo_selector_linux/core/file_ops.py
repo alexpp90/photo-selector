@@ -254,7 +254,6 @@ class FileCullingError(Exception):
 
 class InsufficientDiskSpaceError(FileCullingError):
     """Raised when destination filesystem has insufficient free capacity."""
-    pass
 
 
 class FileCullingManager:

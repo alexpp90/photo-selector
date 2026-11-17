@@ -15,13 +15,13 @@ Adheres to:
 - R-LINUX-KEY-03: Culling hotkeys (M, C, Delete, Backspace); R-LINUX-KEY-06: Ctrl+Z
 """
 
-from unittest.mock import MagicMock
 
 import pytest
 
 from photo_selector_linux.ui import window as window_module
+from _stubs import is_stubbed
 
-STUBBED = isinstance(window_module.Gtk, MagicMock) or not window_module.HAS_GI
+STUBBED = is_stubbed(window_module)
 pytestmark = pytest.mark.skipif(STUBBED, reason="needs real Gtk/Adw under a display server")
 
 if not STUBBED:

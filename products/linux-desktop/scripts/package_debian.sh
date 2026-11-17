@@ -2,7 +2,7 @@
 # products/linux-desktop/scripts/package_debian.sh — End-to-end Debian package & APT pipeline
 #
 # Builds the .deb into an APT repository directory, refreshes the repository templates
-# (setup.sh, photo-selector.sources, README, index.html), regenerates the metadata and
+# (setup.sh, photo-selector*.sources, README, index.html), regenerates the metadata and
 # verifies the result.
 #
 #   scripts/package_debian.sh                         # validation build: dist/apt, unsigned
@@ -12,6 +12,7 @@
 #                                                     # index and verify a .deb built earlier
 #                                                     # (the publish job reuses the release's bytes)
 #
+# The repository serves two suites from one pool: trixie (Debian 13) and noble (Ubuntu 24.04).
 # The published repository is https://github.com/alexpp90/apt (GitHub Pages:
 # https://alexpp90.github.io/apt/). Extra options are passed to build_deb.sh.
 set -euo pipefail
@@ -53,6 +54,7 @@ fi
 echo "━━━ Step 2: Refreshing repository templates ━━━"
 install -m 0755 "$TEMPLATE_DIR/setup.sh" "$APT_DIR/setup.sh"
 install -m 0644 "$TEMPLATE_DIR/photo-selector.sources" "$APT_DIR/photo-selector.sources"
+install -m 0644 "$TEMPLATE_DIR/photo-selector-noble.sources" "$APT_DIR/photo-selector-noble.sources"
 install -m 0644 "$TEMPLATE_DIR/README.md" "$APT_DIR/README.md"
 install -m 0644 "$TEMPLATE_DIR/index.html" "$APT_DIR/index.html"
 install -m 0644 "$TEMPLATE_DIR/.nojekyll" "$APT_DIR/.nojekyll"

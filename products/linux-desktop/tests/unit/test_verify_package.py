@@ -134,22 +134,23 @@ def _create_mock_deb(
 def _create_mock_apt_repo(base_dir: Path, versions: list[str]) -> Path:
     """Set up a mock APT repository directory structure with given package versions."""
     apt_dir = base_dir / "apt"
-    trixie_dir = apt_dir / "dists" / "trixie"
-    trixie_dir.mkdir(parents=True, exist_ok=True)
+    for suite in ("trixie", "noble"):
+        suite_dir = apt_dir / "dists" / suite
+        suite_dir.mkdir(parents=True, exist_ok=True)
 
-    # Release and InRelease
-    (trixie_dir / "Release").write_text("Suite: trixie\nCodename: trixie\n", encoding="utf-8")
-    (trixie_dir / "InRelease").write_text("Suite: trixie\nCodename: trixie\n", encoding="utf-8")
+        # Release and InRelease
+        (suite_dir / "Release").write_text(f"Suite: {suite}\nCodename: {suite}\n", encoding="utf-8")
+        (suite_dir / "InRelease").write_text(f"Suite: {suite}\nCodename: {suite}\n", encoding="utf-8")
 
-    # Packages and Packages.gz for binary-all and binary-amd64
-    for arch in ("binary-all", "binary-amd64"):
-        arch_dir = trixie_dir / "main" / arch
-        arch_dir.mkdir(parents=True, exist_ok=True)
-        pkg_content = "Package: photo-selector-linux\nVersion: 0.2.0\nArchitecture: all\n\n"
-        (arch_dir / "Packages").write_text(pkg_content, encoding="utf-8")
-        import gzip
-        with gzip.open(arch_dir / "Packages.gz", "wb") as gz:
-            gz.write(pkg_content.encode("utf-8"))
+        # Packages and Packages.gz for binary-all and binary-amd64
+        for arch in ("binary-all", "binary-amd64"):
+            arch_dir = suite_dir / "main" / arch
+            arch_dir.mkdir(parents=True, exist_ok=True)
+            pkg_content = "Package: photo-selector-linux\nVersion: 0.2.0\nArchitecture: all\n\n"
+            (arch_dir / "Packages").write_text(pkg_content, encoding="utf-8")
+            import gzip
+            with gzip.open(arch_dir / "Packages.gz", "wb") as gz:
+                gz.write(pkg_content.encode("utf-8"))
 
     # Pool with specified deb versions
     pool_dir = apt_dir / "pool" / "main" / "p" / "photo-selector-linux"
@@ -161,6 +162,10 @@ def _create_mock_apt_repo(base_dir: Path, versions: list[str]) -> Path:
     # sources and setup.sh
     (apt_dir / "photo-selector.sources").write_text(
         "URIs: https://alexpp90.github.io/apt/\nSuites: trixie\nComponents: main\n",
+        encoding="utf-8",
+    )
+    (apt_dir / "photo-selector-noble.sources").write_text(
+        "URIs: https://alexpp90.github.io/apt/\nSuites: noble\nComponents: main\n",
         encoding="utf-8",
     )
     setup_file = apt_dir / "setup.sh"

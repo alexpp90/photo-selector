@@ -14,9 +14,10 @@ import pytest
 from photo_selector_linux.core.models import CandidatePhoto, QualityScores
 from photo_selector_linux.ui import canvas as canvas_module
 from photo_selector_linux.ui import window as window_module
+from _stubs import is_stubbed
 
 # Without a display conftest.py stubs Gtk; with one (Linux CI under xvfb-run) the real widgets run.
-STUBBED = isinstance(canvas_module.Gtk, MagicMock)
+STUBBED = is_stubbed(canvas_module)
 
 
 def _photo(tmp_path: Path, name: str, sharpness: float) -> CandidatePhoto:
