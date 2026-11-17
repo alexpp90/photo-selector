@@ -38,6 +38,33 @@ object RatingFormats {
 
     /** A sidecar or embedded XMP that the rating cannot be merged into; it was left unchanged. */
     fun unmergeableReason(fileName: String): UiText = text(R.string.error_rating_xmp_unmergeable, fileName)
+
+    /** The name a new sidecar of [imageName] gets: `<file>.xmp` (`IMG_1.CR3.xmp`). */
+    fun newSidecarName(imageName: String): String = "$imageName.xmp"
+
+    /**
+     * The existing sidecar of [imageName] among the files of its folder ([siblings], named by
+     * [nameOf]), for the File and the SAF write path alike: `<file>.xmp` wins over `<stem>.xmp`,
+     * the order the reader uses, and both are matched **case-insensitively** as the reader
+     * matches them (`:core` `SafSidecarRating`), so an `IMG_1.XMP` a camera or another app wrote
+     * is updated instead of getting a second sidecar beside it (FD-D-20). Null when neither
+     * exists.
+     *
+     * @throws RatingWriteException when a name matches more than one file (two spellings of it on
+     *   a case-sensitive volume): which one the reader takes cannot be told, so neither is touched.
+     */
+    fun <T> existingSidecar(imageName: String, siblings: List<T>, nameOf: (T) -> String): T? {
+        val stem = imageName.substringBeforeLast('.', imageName)
+        return listOf(newSidecarName(imageName), "$stem.xmp").firstNotNullOfOrNull { candidate ->
+            val matches = siblings.filter { nameOf(it).equals(candidate, ignoreCase = true) }
+            if (matches.size > 1) {
+                throw RatingWriteException(
+                    "$candidate exists more than once in the folder (${matches.joinToString { nameOf(it) }}); left unchanged", // ui-text: ignore (log text; RatingWriteException.reason is what the user reads)
+                )
+            }
+            matches.firstOrNull()
+        }
+    }
 }
 
 /**

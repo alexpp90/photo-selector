@@ -193,16 +193,12 @@ class MetadataWriterImpl internal constructor(
 
     private fun writeSidecarRating(imageFile: File, rating: Int) {
         val parent = imageFile.parentFile ?: File(".")
-        // Standard ISO 16684-1 companion: <filename>.xmp (e.g. IMG_0001.CR3.xmp) takes priority over <stem>.xmp
-        val filenameSidecar = File(parent, "${imageFile.name}.xmp")
-        val stemSidecar = File(parent, "${imageFile.nameWithoutExtension}.xmp")
-        val targetSidecar = if (filenameSidecar.exists() && filenameSidecar.isFile) {
-            filenameSidecar
-        } else if (stemSidecar.exists() && stemSidecar.isFile) {
-            stemSidecar
-        } else {
-            filenameSidecar
-        }
+        // <filename>.xmp (IMG_0001.CR3.xmp) wins over <stem>.xmp, either matched case-insensitively
+        // from one listing of the folder, as over SAF and in the reader (FD-D-20).
+        val siblings = parent.listFiles()?.filter { it.isFile }
+            ?: throw RatingWriteException("Could not list the folder of ${imageFile.name} to find its sidecar") // ui-text: ignore (log text)
+        val targetSidecar = RatingFormats.existingSidecar(imageFile.name, siblings) { it.name }
+            ?: File(parent, RatingFormats.newSidecarName(imageFile.name))
 
         val existingContent = if (targetSidecar.exists() && targetSidecar.isFile) {
             targetSidecar.readText()

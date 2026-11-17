@@ -180,6 +180,52 @@ class MetadataWriterTest {
         assertTrue(stemSidecar.readText().contains("<xmp:Rating>2</xmp:Rating>"))
     }
 
+    // FD-D-20: the reader matches sidecar names case-insensitively, so the writer must too.
+    @Test
+    fun `an upper-case stem sidecar is updated and no second sidecar appears`() = runTest {
+        val rawFile = tempFolder.newFile("IMG_7.CR3")
+        rawFile.writeBytes(ByteArray(32))
+        val upper = File(tempFolder.root, "IMG_7.XMP")
+        upper.writeText("<x:xmpmeta><rdf:RDF><rdf:Description xmlns:xmp=\"http://ns.adobe.com/xap/1.0/\"><xmp:Rating>1</xmp:Rating></rdf:Description></rdf:RDF></x:xmpmeta>")
+
+        assertTrue(writer.writeRating(rawFile, 4).isSuccess)
+
+        assertTrue(upper.readText().contains("<xmp:Rating>4</xmp:Rating>"))
+        assertEquals(setOf("IMG_7.CR3", "IMG_7.XMP"), tempFolder.root.list()!!.toSet())
+    }
+
+    @Test
+    fun `an upper-case file sidecar wins over a stem sidecar`() = runTest {
+        val rawFile = tempFolder.newFile("IMG_8.NEF")
+        rawFile.writeBytes(ByteArray(32))
+        val named = File(tempFolder.root, "IMG_8.NEF.XMP")
+        named.writeText("<x:xmpmeta><rdf:RDF><rdf:Description xmlns:xmp=\"http://ns.adobe.com/xap/1.0/\"><xmp:Rating>1</xmp:Rating></rdf:Description></rdf:RDF></x:xmpmeta>")
+        val stem = File(tempFolder.root, "IMG_8.xmp")
+        stem.writeText("<x:xmpmeta><rdf:RDF><rdf:Description xmlns:xmp=\"http://ns.adobe.com/xap/1.0/\"><xmp:Rating>2</xmp:Rating></rdf:Description></rdf:RDF></x:xmpmeta>")
+        val stemBefore = stem.readBytes()
+
+        assertTrue(writer.writeRating(rawFile, 5).isSuccess)
+
+        assertTrue(named.readText().contains("<xmp:Rating>5</xmp:Rating>"))
+        assertTrue(stemBefore.contentEquals(stem.readBytes()))
+        assertEquals(setOf("IMG_8.NEF", "IMG_8.NEF.XMP", "IMG_8.xmp"), tempFolder.root.list()!!.toSet())
+    }
+
+    @Test
+    fun `two spellings of one sidecar name fail the write and are both left alone`() = runTest {
+        val rawFile = tempFolder.newFile("IMG_9.ARW")
+        rawFile.writeBytes(ByteArray(32))
+        val lower = File(tempFolder.root, "IMG_9.xmp").apply { writeText("<x:xmpmeta><xmp:Rating>1</xmp:Rating></x:xmpmeta>") }
+        val upper = File(tempFolder.root, "IMG_9.XMP").apply { writeText("<x:xmpmeta><xmp:Rating>2</xmp:Rating></x:xmpmeta>") }
+        val before = lower.readBytes() to upper.readBytes()
+
+        assertTrue(writer.writeRating(rawFile, 3).isFailure)
+
+        assertTrue(before.first.contentEquals(lower.readBytes()))
+        assertTrue(before.second.contentEquals(upper.readBytes()))
+        assertFalse(File(tempFolder.root, "IMG_9.ARW.xmp").exists())
+    }
+
     @Test
     fun `XmpSidecarWriter replaces existing decimal real rating cleanly`() {
         val xmpWithDecimal = """

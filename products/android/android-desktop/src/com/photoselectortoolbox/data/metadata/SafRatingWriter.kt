@@ -74,17 +74,11 @@ internal class SafRatingWriter(
         val listing = children(parent.treeUri, parent.documentId)
             ?: throw RatingWriteException("Could not list the folder of $name to find its sidecar")
 
-        val fileSidecarName = "$name.xmp"
-        val stemSidecarName = "${name.substringBeforeLast('.', name)}.xmp"
-        // Same order as the File path and the reader: <file>.xmp wins over <stem>.xmp.
-        val existing = listOf(fileSidecarName, stemSidecarName).firstNotNullOfOrNull { candidate ->
-            val matches = listing.filter { it.name == candidate && it.mime != Document.MIME_TYPE_DIR }
-            if (matches.size > 1) throw RatingWriteException("$candidate exists more than once in the folder; left unchanged")
-            matches.firstOrNull()
-        }
+        // Same order and case rule as the File path and the reader: <file>.xmp wins over <stem>.xmp.
+        val existing = RatingFormats.existingSidecar(name, listing.filter { it.mime != Document.MIME_TYPE_DIR }) { it.name }
 
         if (existing == null) {
-            createSidecar(parent, fileSidecarName, rating)
+            createSidecar(parent, RatingFormats.newSidecarName(name), rating)
         } else {
             updateSidecar(DocumentsContract.buildDocumentUriUsingTree(parent.treeUri, existing.documentId), existing, rating)
         }
