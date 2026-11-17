@@ -95,7 +95,8 @@ public enum LensjetCommand: CaseIterable, Sendable {
         case .keyboardShortcuts: return "\u{2318}/"
         case .activity: return "\u{21E7}\u{2318}L"
         case .cleanView: return "F"
-        case .openRecent, .sortBy: return nil
+        case .sortBy: return "S"
+        case .openRecent: return nil
         }
     }
 
@@ -137,6 +138,11 @@ public enum LensjetCommand: CaseIterable, Sendable {
 public enum LensjetWords {
     public static let dropFolder = "Drop a folder"
     public static let dropToOpen = "Drop to open"
+    /// The info panel's row for a copied photo: "Copied to Selection" (the folder when known).
+    public static func copiedTo(_ folder: String?) -> String {
+        guard let folder, !folder.isEmpty else { return "Copied" }
+        return "Copied to \(folder)"
+    }
     /// A folder was opened and holds no photos (shown once the scan completed).
     public static let noPhotos = "No photos"
     public static let openAnotherFolder = "Open another folder…"

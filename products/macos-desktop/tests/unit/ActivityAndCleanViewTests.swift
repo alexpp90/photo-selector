@@ -178,9 +178,10 @@ struct ActivityAndCleanViewTests {
         let router = KeyboardShortcutRouter()
         vm.setFullScreen(true)
         vm.setComparisonMode(.sideBySide)
-        let pan = vm.isZoomSynced
+        // Link pan is the menu chord ⌥⌘P only; S is the sort choice and works in clean view.
         #expect(router.handleKeyEvent(SyntheticKeyEvent(keyCode: 1, characters: "s"), viewModel: vm))
-        #expect(vm.isZoomSynced != pan, "link pan flips in clean view")
+        #expect(vm.isSortChoicePresented, "S opens the sort choice in clean view")
+        vm.isSortChoicePresented = false
         let info = vm.isInfoVisible
         #expect(router.handleKeyEvent(SyntheticKeyEvent(keyCode: 34, characters: "i"), viewModel: vm))
         #expect(vm.isInfoVisible != info)

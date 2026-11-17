@@ -44,7 +44,7 @@ Main culling view, no modifier unless the key says so. `—` means the key is no
 | `F` | **open the fullscreen viewer** (`SelectorScreen.kt:882`) | ✅ 2026-11-12 (decision #24): **clean view**: full screen that hides the toolbar, dock and filmstrip, same state as `⌃⌘F` (`KeyboardShortcutRouter`, View ▸ Clean View); `T` is the filmstrip key | **window full screen**, `F11` too (`:209-211`) | ◐ Frameduel opens its fullscreen viewer |
 | `I` | **toggle the info (readout) block** (`SelectorScreen.kt:875`); in fullscreen pins the info panel (`FullscreenViewer.kt:502`) | toggle Info (menu "Show Info" / "Hide Info", `:252-256`) | toggle the info HUD (`:206`) | ✅ |
 | `T` | toggle the filmstrip (`SelectorScreen.kt:876`) | toggle the filmstrip (`:247`) | — (no filmstrip) | ✅ where there is a filmstrip |
-| `S` | **opens the Sort menu**, never cycles (`SelectorScreen.kt:899-906`) | **toggle linked pan** (`:257-259`); the menu item is Link Pan, `⌥⌘P` (`AppCommands.swift`) | **opens the View order menu** (Newest, Oldest, File Name, Lowest Sharpness) (`:212`) | ◐ Lensjet differs |
+| `S` | **opens the Sort menu**, never cycles (`SelectorScreen.kt:899-906`) | **opens the sort choice** (the four orders of View > Sort By, `SortChoiceSheet`); linked pan is `⌥⌘P` only | **opens the View order menu** (Newest, Oldest, File Name, Lowest Sharpness) (`:212`) | ✓ same meaning |
 | `B` | — | — | toggles the view order lowest sharpness first / natural, going away after one release (`:221`) | Blitzlens only |
 | `G` | Go to photo (`SelectorScreen.kt:889-896`) | Go to Photo… (`:260`, Go menu `AppCommands.swift`) | Go to Photo (`:215`) | ✅ |
 | `?` | the guide; bound as `Key.Slash`, so `/` too (`SelectorScreen.kt:888`) | shortcuts sheet; `/` too (`:263`); ⌘`/` in the Help menu (`AppCommands.swift`) | shortcuts sheet (`:218`); Ctrl+`?` (`:156`) | ✅ |
@@ -130,9 +130,9 @@ Behaviour that is not a key but belongs to the map:
 | `F` | **full screen** | keep (fullscreen viewer) | done 2026-11-12 (decision #24): `F` toggles window full screen (as ⌃⌘F) and hides the toolbar, dock and filmstrip; `Esc` leaves it after zoom and banner | done: toggles window full screen, `F11` too; `Esc` leaves full screen after it has left zoom |
 | `T` | **toggle the filmstrip** | done | done | reserved (no filmstrip) |
 | `I` | **toggle the info overlay** | done: toggles the readout block; in fullscreen it keeps pinning the info panel; Learn keeps `L` | keep | keep |
-| `S` | **choose the sort order** (opens the choice) | keep | `S` still toggles linked pan (alias, announced for removal, REQ-MAC-KEY.01); View → Sort By has no key yet, so `S` is not the sort choice on Lensjet | done: `S` opens the View order choice; `B` stays one release |
+| `S` | **choose the sort order** (opens the choice) | keep | done 2026-11-17: `S` opens the sort choice | done: `S` opens the View order choice; `B` stays one release |
 | `P` | reserved for Pick (photo-tool convention) | reserved | reserved | reserved |
-| ⌥⌘ `P` | link pan across slots (Lensjet only) | — | done (View → Link Pan); the `S` alias is announced for removal | — (no sync lock); done: `S` is the View order |
+| ⌥⌘ `P` | link pan across slots (Lensjet only) | — | done (View → Link Pan); `S` no longer links the pan (2026-11-17) | — (no sync lock); done: `S` is the View order |
 | `G` | **go to photo** | keep | done (`G`) | done (`G`) |
 | `?` | shortcut sheet / guide | keep (`/` too) | keep (`/`, ⌘`/` too) | keep (Ctrl+`?` too) |
 | Ctrl/⌘ `O` | open folder | **add** (folder picker) | keep | keep |
