@@ -30,7 +30,7 @@ android {
         // Overridable from CI (e.g. derived from the git tag on release builds).
         versionName = System.getenv("PHOTOTOK_VERSION_NAME")
             ?: System.getenv("VERSION_NAME")
-            ?: "0.7.0"
+            ?: "0.7.1"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
         // Lab-only device tests need a prepared device (folder grant); see tests/instrumented/.../LabDeviceOnly.kt.
