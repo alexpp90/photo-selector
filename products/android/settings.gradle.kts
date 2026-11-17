@@ -1,4 +1,6 @@
 pluginManagement {
+    // The convention plugin every module applies (source layout, lint, style).
+    includeBuild("build-logic")
     repositories {
         google {
             content {

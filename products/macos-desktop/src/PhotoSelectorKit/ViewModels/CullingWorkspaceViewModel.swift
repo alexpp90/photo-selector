@@ -8,7 +8,7 @@ import Foundation
 public final class CullingWorkspaceViewModel: ObservableObject {
 
     // MARK: - Published State
-    @Published public private(set) var photos: [PhotoItem] = []
+    @Published public internal(set) var photos: [PhotoItem] = []
     @Published public var currentIndex: Int = 0 {
         didSet {
             if currentIndex != oldValue { browseDirection = currentIndex < oldValue ? .backward : .forward }
@@ -80,7 +80,7 @@ public final class CullingWorkspaceViewModel: ObservableObject {
     /// Overrides the persisted "Stop at sharpness" setting when set (tests); nil reads the setting.
     @Published public var sharpnessStopThreshold: Double? = nil
     /// Progress of the background scoring pass over the whole library (nil when none runs).
-    @Published public private(set) var scoringProgress: ScoringProgress? = nil
+    @Published public internal(set) var scoringProgress: ScoringProgress? = nil
     @Published public var isGoToPhotoPresented: Bool = false
 
     // MARK: - Local Decision Log (U-35)
@@ -267,6 +267,7 @@ public final class CullingWorkspaceViewModel: ObservableObject {
             return
         }
         scoringProgress = ScoringProgress(done: total - targets.count, total: total)
+        scoredCount = total - targets.count
         libraryScoringTask = Task.detached(priority: .utility) { [weak self] in
             var batch: [(UUID, QualityScores)] = []
             var handled = 0
@@ -295,27 +296,13 @@ public final class CullingWorkspaceViewModel: ObservableObject {
         scoringProgress = nil
     }
 
-    private func applyScoreBatch(_ batch: [(UUID, QualityScores)], handled: Int, finished: Bool = false) {
-        if !batch.isEmpty {
-            let updates = Dictionary(batch, uniquingKeysWith: { first, _ in first })
-            var updated = photos
-            for index in updated.indices where updated[index].scores == nil {
-                if let scores = updates[updated[index].id] { updated[index].scores = scores }
-            }
-            photos = updated
-        }
-        let total = photos.count
-        let remaining = photos.filter { $0.scores == nil }.count
-        if finished {
-            scoringProgress = nil
-            libraryScoringTask = nil
-            finishScoringIfNeeded()
-        } else {
-            scoringProgress = ScoringProgress(done: total - remaining, total: total)
-        }
-    }
+    /// Photos holding a score during the current scoring pass; replaces a recount of the whole list
+    /// per batch (a photo scored meanwhile by the viewport is not counted until the pass ends).
+    var scoredCount = 0
+    /// id -> position cache of `photoIndex(of:rebuilt:)`; every hit is verified, so it may go stale.
+    var photoIndexCache: [UUID: Int] = [:]
 
-    private func finishScoringIfNeeded() {
+    func finishScoringIfNeeded() {
         guard sortAfterScoring else { return }
         sortAfterScoring = false
         applySortOrder(.lowestSharpnessFirst)
@@ -462,7 +449,7 @@ public final class CullingWorkspaceViewModel: ObservableObject {
     var parkedUndoFolderCount: Int { parkedUndoStacks.count }
     @Published private var inFlightJobIDs: Set<UUID> = []
     private var toastDismissTask: Task<Void, Never>?
-    private var libraryScoringTask: Task<Void, Never>?
+    var libraryScoringTask: Task<Void, Never>?
     /// Jobs whose Delete went to the Rejected folder (names the Undo menu item).
     var rejectJobIDs: Set<UUID> = []
     private var sortAfterScoring = false
@@ -603,6 +590,8 @@ public final class CullingWorkspaceViewModel: ObservableObject {
         self.zoomState = .fit
         self.isLoading = true
 
+        // Photos copied to the Selection in an earlier session come back decided (§5).
+        let copiedBefore = CopiedDecisions(defaults: userDefaults).copied(in: url)
         scanTask = Task { [weak self, directoryScanner] in
             var isFirstBatch = true
             for await batch in directoryScanner.scanStream(
@@ -614,7 +603,7 @@ public final class CullingWorkspaceViewModel: ObservableObject {
                 if Task.isCancelled { break }
                 guard let self else { break }
                 let previousCount = self.photos.count
-                self.photos.append(contentsOf: batch)
+                self.photos.append(contentsOf: CopiedDecisions.marking(batch, copied: copiedBefore, in: url))
                 if isFirstBatch, !self.photos.isEmpty {
                     isFirstBatch = false
                     self.currentIndex = 0
@@ -681,20 +670,6 @@ public final class CullingWorkspaceViewModel: ObservableObject {
         return ImageMetadataReader.readMetadata(from: url)
     }
 
-    private func applyMetadata(_ updates: [UUID: ExifData]) {
-        var updated = photos
-        var changed = false
-        for index in updated.indices where updated[index].exif == nil {
-            if let exif = updates[updated[index].id] {
-                updated[index].exif = exif
-                changed = true
-            }
-        }
-        if changed {
-            photos = updated
-        }
-    }
-
     /// Convenience alias for scanning a directory.
     public func scanDirectory(at url: URL) {
         loadFolder(at: url)
@@ -719,7 +694,7 @@ public final class CullingWorkspaceViewModel: ObservableObject {
     // MARK: - Navigation
 
     public func navigateToNext() {
-        dismissStickyToast()
+        dismissBannerOnNavigation()
         guard !photos.isEmpty else { return }
         switch comparisonMode {
         case .single, .triplet:
@@ -734,7 +709,7 @@ public final class CullingWorkspaceViewModel: ObservableObject {
     }
 
     public func navigateToPrevious() {
-        dismissStickyToast()
+        dismissBannerOnNavigation()
         guard !photos.isEmpty else { return }
         switch comparisonMode {
         case .single, .triplet:
@@ -748,7 +723,7 @@ public final class CullingWorkspaceViewModel: ObservableObject {
     }
 
     public func selectPhoto(at index: Int) {
-        dismissStickyToast()
+        dismissBannerOnNavigation()
         guard photos.indices.contains(index) else { return }
         if index != currentIndex { userHasNavigated = true }
         switch comparisonMode {
@@ -881,7 +856,8 @@ public final class CullingWorkspaceViewModel: ObservableObject {
                 showToast(
                     icon: "exclamationmark.triangle.fill",
                     title: "This is the Selection folder",
-                    subtitle: "Move and Copy are off here"
+                    subtitle: "Move and Copy are off here",
+                    isFailure: true
                 )
                 return
             }
@@ -889,7 +865,8 @@ public final class CullingWorkspaceViewModel: ObservableObject {
                 showToast(
                     icon: "exclamationmark.triangle.fill",
                     title: "Custom folder not available",
-                    subtitle: "Choose another in Settings (\u{2318},)"
+                    subtitle: "Choose another in Settings (\u{2318},)",
+                    isFailure: true
                 )
                 return
             }
@@ -1004,6 +981,8 @@ public final class CullingWorkspaceViewModel: ObservableObject {
                 }
                 await MainActor.run {
                     self?.inFlightJobIDs.remove(job.id)
+                    // The Copy is on disk: remember it, so the photo stays decided after a reopen.
+                    if action == .copy { self?.rememberCopy(of: photo, in: sourceRootURL) }
                     let stillHere = self?.isCurrentFolder(jobFolderKey) ?? false
                     if stillHere {
                         // A collision-renamed file says so; otherwise a photo that took companions
@@ -1086,7 +1065,8 @@ public final class CullingWorkspaceViewModel: ObservableObject {
                                     destinationFolder: destinationFolder,
                                     rollbackFailed: rollbackFailed
                                 ),
-                                subtitle: photo.filename
+                                subtitle: photo.filename,
+                                isFailure: true
                             )
                             NSSound.beep()
                         }
@@ -1162,15 +1142,19 @@ public final class CullingWorkspaceViewModel: ObservableObject {
         decisionLog.removeAll { $0.jobID == record.jobID }
 
         // Find photo in list
+        var statusBeforeUndo: PhotoStatus?
+        let undoRoot = rootDirectoryURL
+        let undoneModified = photos.first { $0.id == record.photoID }?.modificationDate
         if let index = photos.firstIndex(where: { $0.id == record.photoID }) {
-            // 1. Immediate UI Restoration (< 1ms)
+            // 1. Immediate UI Restoration (< 1ms); undone again below if the files do not come back
+            statusBeforeUndo = photos[index].status
             photos[index].status = record.previousStatus
             selectPhoto(at: index)
         }
 
         showToast(
             icon: "arrow.uturn.backward.circle.fill",
-            title: "Action Undone",
+            title: LensjetCommand.undoneToastTitle(action: record.actionType, rejected: rejectJobIDs.contains(record.jobID)),
             subtitle: record.originalPrimaryURL.lastPathComponent
         )
 
@@ -1178,6 +1162,13 @@ public final class CullingWorkspaceViewModel: ObservableObject {
         Task { [weak self, cullingActor] in
             do {
                 let restored = try await cullingActor.cancelOrUndo(jobID: record.jobID, fallbackRecord: record)
+                await MainActor.run {
+                    self?.adoptRestoredLocation(photoID: record.photoID, record: record, restored: restored)
+                    // An undone Copy is not a decision any more.
+                    if record.actionType == .copy, let root = undoRoot {
+                        self?.forgetCopy(at: record.originalPrimaryURL, modified: undoneModified, in: root)
+                    }
+                }
                 if let title = CullingFeedback.restoredTitle(
                     originalPrimaryURL: record.originalPrimaryURL,
                     restoredURLs: restored
@@ -1193,13 +1184,19 @@ public final class CullingWorkspaceViewModel: ObservableObject {
             } catch {
                 let remainingRecord = await cullingActor.completedRecord(for: record.jobID)
                 await MainActor.run {
+                    // The files did not come back: the photo is still where the action left it.
+                    if let statusBeforeUndo, let self,
+                       let index = self.photos.firstIndex(where: { $0.id == record.photoID }) {
+                        self.photos[index].status = statusBeforeUndo
+                    }
                     if let remainingRecord {
                         self?.mutateUndoStack(for: undoFolderKey) { $0.append(remainingRecord) }
                     }
                     self?.showToast(
                         icon: "exclamationmark.triangle.fill",
                         title: "Undo Failed",
-                        subtitle: error.localizedDescription
+                        subtitle: error.localizedDescription,
+                        isFailure: true
                     )
                     NSSound.beep()
                 }
@@ -1392,7 +1389,8 @@ public final class CullingWorkspaceViewModel: ObservableObject {
         showToast(
             icon: "exclamationmark.triangle.fill",
             title: "Action Failed",
-            subtitle: error.localizedDescription
+            subtitle: error.localizedDescription,
+            isFailure: true
         )
         NSSound.beep()
     }
@@ -1403,13 +1401,14 @@ public final class CullingWorkspaceViewModel: ObservableObject {
         subtitle: String?,
         actionType: CullingActionType? = nil,
         isPersistent: Bool = false,
+        isFailure: Bool = false,
         spoken: String? = nil
     ) {
         toastDismissTask?.cancel()
         currentToast = ToastMessage(
             icon: icon, title: title, subtitle: subtitle, actionType: actionType, isPersistent: isPersistent,
-            spoken: spoken)
-        if isPersistent { return }
+            isFailure: isFailure, spoken: spoken)
+        if isPersistent || isFailure { return }
         toastDismissTask = Task {
             try? await Task.sleep(nanoseconds: 1_200_000_000) // 1.2 seconds
             if !Task.isCancelled {

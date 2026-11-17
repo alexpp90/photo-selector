@@ -1,0 +1,341 @@
+<?xml version="1.0" ?>
+<SmellBaseline>
+  <ManuallySuppressedIssues/>
+  <CurrentIssues>
+    <ID>ComplexCondition:CameraProfile.kt:CameraProfiler$!f35.isFinite() || !f.isFinite() || f35 &lt;= 0.0 || f &lt;= 0.0</ID>
+    <ID>ComplexCondition:CameraProfile.kt:CameraProfiler$phoneName &amp;&amp; (smallFocal || (crop != null &amp;&amp; crop &gt; PHONE_CROP))</ID>
+    <ID>ComplexCondition:CaptureTime.kt:CaptureTime$year &lt; 1900 || month !in 1..12 || day !in 1..31 || hour !in 0..23 || minute !in 0..59 || second !in 0..60</ID>
+    <ID>ComplexCondition:CardGenerator.kt:CardGenerator$handHeld &amp;&amp; effectiveFocal != null &amp;&amp; shutter != null &amp;&amp; shutter &gt; 0.0</ID>
+    <ID>ComplexCondition:FullscreenViewer.kt:(event.isCtrlPressed || event.isMetaPressed) &amp;&amp; !event.isAltPressed &amp;&amp; event.key == Key.Z</ID>
+    <ID>ComplexCondition:FullscreenViewer.kt:initialIndex in images.indices &amp;&amp; !echoOfReport &amp;&amp; initialIndex != pagerState.currentPage &amp;&amp; !pagerState.isScrollInProgress</ID>
+    <ID>ComplexCondition:PhotoCoachEngine.kt:PhotoCoachEngineImpl$handHeld &amp;&amp; shutterSpeed != null &amp;&amp; shutterSpeed.isFinite() &amp;&amp; shutterSpeed &gt; 0.0 &amp;&amp; safeShutterSpeed != null &amp;&amp; effectiveFocalLength != null</ID>
+    <ID>ComplexCondition:PhotoCoachEngine.kt:PhotoCoachEngineImpl$hasAperture &amp;&amp; aperture &lt;= APERTURE_WIDE_OPEN_THRESHOLD &amp;&amp; sharpness != null &amp;&amp; sharpness.isFinite() &amp;&amp; sharpness &lt; SHARPNESS_BLUR_THRESHOLD</ID>
+    <ID>ComplexCondition:PhotoCoachEngine.kt:PhotoCoachEngineImpl$highlightPct != null &amp;&amp; shadowPct != null &amp;&amp; highlightPct &gt; HIGHLIGHT_CLIPPING_THRESHOLD_PCT &amp;&amp; shadowPct &gt; SHADOW_CLIPPING_THRESHOLD_PCT</ID>
+    <ID>ComplexCondition:PhotoCoachEngine.kt:PhotoCoachEngineImpl$iso != null &amp;&amp; iso &gt;= ISO_ELEVATED_THRESHOLD &amp;&amp; noise != null &amp;&amp; noise.isFinite()</ID>
+    <ID>ComplexCondition:PhotoCoachEngine.kt:PhotoCoachEngineImpl.Companion$f35 != null &amp;&amp; f35.isFinite() &amp;&amp; f35 &gt; 0.0 &amp;&amp; fPhys != null &amp;&amp; fPhys.isFinite() &amp;&amp; fPhys &gt; 0.0</ID>
+    <ID>ComplexCondition:PhotoCoachEngine.kt:PhotoCoachEngineImpl.Companion$fpX != null &amp;&amp; fpX.isFinite() &amp;&amp; fpX &gt; 0.0 &amp;&amp; unit != null</ID>
+    <ID>ComplexCondition:SceneComparator.kt:SceneComparator$sharpA != null &amp;&amp; sharpB != null &amp;&amp; max(sharpA, sharpB) &gt; 0.0 &amp;&amp; abs(sharpA - sharpB) / max(sharpA, sharpB) &gt;= MIN_SHARPNESS_REL_DIFF</ID>
+    <ID>ComplexCondition:ScreenFit.kt:b.left &lt; win.left - 1 || b.top &lt; win.top - 1 || b.right &gt; win.right + 1 || b.bottom &gt; win.bottom + 1</ID>
+    <ID>ComplexCondition:ScreenTest.kt:ScreenTest$code.startsWith("//") || code.startsWith("*") || code.startsWith("/*") || "Log." in line</ID>
+    <ID>ComplexCondition:SelectorScreen.kt:sheetOpen || contextMenuOpen || fullscreenOpen || maximised</ID>
+    <ID>ComplexCondition:SelectorScreen.kt:shiftPressed &amp;&amp; maximised &amp;&amp; (key == Key.DirectionLeft || key == Key.DirectionRight) &amp;&amp; onPanStep?.invoke(if (key == Key.DirectionLeft) -1 else 1) == true</ID>
+    <ID>ComplexCondition:ShootDebriefEngine.kt:ShootDebriefEngine$seconds == null || fEff == null || seconds &lt;= 0.0 || fEff &lt;= 0.0 || seconds &gt;= LONG_EXPOSURE_S</ID>
+    <ID>ComplexCondition:TechniqueFactDetector.kt:TechniqueFactDetector$luma != null &amp;&amp; width &gt;= 8 &amp;&amp; height &gt;= 8 &amp;&amp; luma.size &gt;= width * height</ID>
+    <ID>ComplexCondition:TiffHeader.kt:TiffHeader$width &lt;= 0 || length &lt;= 0 || width &gt; Int.MAX_VALUE || length &gt; Int.MAX_VALUE</ID>
+    <ID>ComplexCondition:ViewModelHygieneTest.kt:ViewModelHygieneTest$"Dispatchers.IO" in line &amp;&amp; !line.trimStart().startsWith("//") &amp;&amp; !line.trimStart().startsWith("*") &amp;&amp; "ioDispatcher" !in line &amp;&amp; "CoroutineDispatcher = Dispatchers.IO" !in line</ID>
+    <ID>CyclomaticComplexMethod:AdviceCatalog.kt:AdviceCatalog$fun coach: UiText?</ID>
+    <ID>CyclomaticComplexMethod:AdviceCatalog.kt:AdviceCatalog$fun focus: List&lt;UiText&gt;</ID>
+    <ID>CyclomaticComplexMethod:CameraProfile.kt:CameraProfiler$fun profile: CameraProfile</ID>
+    <ID>CyclomaticComplexMethod:CandidateStrip.kt:@Composable fun CandidateStrip</ID>
+    <ID>CyclomaticComplexMethod:CaptureTime.kt:CaptureTime$fun wallClock: LocalDateTime?</ID>
+    <ID>CyclomaticComplexMethod:CardGenerator.kt:CardGenerator$fun generate: CardGenerationResult</ID>
+    <ID>CyclomaticComplexMethod:CompactSelectorLayout.kt:@Composable fun CompactSelectorLayout</ID>
+    <ID>CyclomaticComplexMethod:CropSuggester.kt:CropSuggester$fun suggestCrop: SuggestedCrop?</ID>
+    <ID>CyclomaticComplexMethod:DebriefTab.kt:@Composable private fun DebriefGroupCard</ID>
+    <ID>CyclomaticComplexMethod:DuplicatesScreen.kt:@Composable fun DuplicatesScreen</ID>
+    <ID>CyclomaticComplexMethod:FormatConformanceTest.kt:FormatConformanceTest$private fun run</ID>
+    <ID>CyclomaticComplexMethod:FullscreenViewer.kt:@OptIn(ExperimentalLayoutApi::class) @Composable private fun FullscreenContent</ID>
+    <ID>CyclomaticComplexMethod:GoToPhotoDialog.kt:@OptIn(ExperimentalMaterial3Api::class) @Composable internal fun GoToPhotoDialog</ID>
+    <ID>CyclomaticComplexMethod:ImageRepositoryImpl.kt:ImageRepositoryImpl$override suspend fun describeFolder: FolderDescription</ID>
+    <ID>CyclomaticComplexMethod:InspectScreen.kt:@Composable internal fun InspectScreenContent</ID>
+    <ID>CyclomaticComplexMethod:InspectScreen.kt:@Composable private fun ExploreCardsSection</ID>
+    <ID>CyclomaticComplexMethod:LocalImageSource.kt:LocalImageSourceImpl$private suspend fun walkImages</ID>
+    <ID>CyclomaticComplexMethod:LocalisedText.kt:LocalisedStrings.Companion$internal fun unescape: String</ID>
+    <ID>CyclomaticComplexMethod:PhotoCoachEngine.kt:PhotoCoachEngineImpl$override fun evaluate: PhotoCoachReport</ID>
+    <ID>CyclomaticComplexMethod:PhotoCoachEngine.kt:PhotoCoachEngineImpl.Companion$fun computeCropFactor: Double?</ID>
+    <ID>CyclomaticComplexMethod:PracticeAndInsightsEngine.kt:PracticeAndInsightsEngine$fun computeInsights: List&lt;PatternInsight&gt;</ID>
+    <ID>CyclomaticComplexMethod:SafRatingWriter.kt:SafRatingWriter$private suspend fun resolveParent: Parent</ID>
+    <ID>CyclomaticComplexMethod:SafRatingWriter.kt:SafRatingWriter$suspend fun recover: RatingRecovery</ID>
+    <ID>CyclomaticComplexMethod:ScanImagesUseCase.kt:ScanImagesUseCase$operator fun invoke: Flow&lt;ScanProgress&gt;</ID>
+    <ID>CyclomaticComplexMethod:ScanImagesUseCase.kt:ScanImagesUseCase$private suspend fun analyzeImage: ScanResult?</ID>
+    <ID>CyclomaticComplexMethod:SceneComparator.kt:SceneComparator$fun explainDifference: List&lt;String&gt;</ID>
+    <ID>CyclomaticComplexMethod:SceneComparator.kt:SceneComparator$fun workedPair: Difference?</ID>
+    <ID>CyclomaticComplexMethod:ScreenFit.kt:fun collectFitViolations: List&lt;FitViolation&gt;</ID>
+    <ID>CyclomaticComplexMethod:SelectorControlBlock.kt:@Composable fun SelectorControlBlock</ID>
+    <ID>CyclomaticComplexMethod:SelectorControlBlock.kt:@Composable private fun WordedButton</ID>
+    <ID>CyclomaticComplexMethod:SelectorForcedSizeTest.kt:SelectorForcedSizeTest$private fun checkGuide</ID>
+    <ID>CyclomaticComplexMethod:SelectorGestures.kt:SelectorShortcut$fun describeEffect: UiText</ID>
+    <ID>CyclomaticComplexMethod:SelectorScreen.kt:@OptIn(ExperimentalMaterial3Api::class, ExperimentalFoundationApi::class) @Composable fun SelectorScreen</ID>
+    <ID>CyclomaticComplexMethod:SelectorScreen.kt:internal fun handleSelectorKey: Boolean</ID>
+    <ID>CyclomaticComplexMethod:SelectorViewModel.kt:SelectorViewModel$fun setRating</ID>
+    <ID>CyclomaticComplexMethod:SelectorViewModel.kt:SelectorViewModel$fun undoLastOperation</ID>
+    <ID>CyclomaticComplexMethod:SelectorViewModel.kt:SelectorViewModel$private fun commitPendingDeletion</ID>
+    <ID>CyclomaticComplexMethod:SelectorViewModel.kt:SelectorViewModel$private fun performFiling</ID>
+    <ID>CyclomaticComplexMethod:SelectorViewModel.kt:SelectorViewModel$private suspend fun finishUndoMove</ID>
+    <ID>CyclomaticComplexMethod:ShootDebriefEngine.kt:ShootDebriefEngine$private fun matches: Boolean?</ID>
+    <ID>CyclomaticComplexMethod:StarRatingBar.kt:@Composable fun StarRatingBar</ID>
+    <ID>CyclomaticComplexMethod:StatisticsViewModel.kt:StatisticsViewModel$fun analyzeFolder</ID>
+    <ID>CyclomaticComplexMethod:TechniqueFactDetector.kt:DefaultSubjectDetector$override fun detectSubject: SubjectBoundingBox?</ID>
+    <ID>CyclomaticComplexMethod:TechniqueFactDetector.kt:TechniqueFactDetector$fun detectFacts: List&lt;TechniqueFact&gt;</ID>
+    <ID>CyclomaticComplexMethod:TechniqueFactDetector.kt:TechniqueFactDetector.Companion$fun classifyTonalKey: TechniqueFact?</ID>
+    <ID>CyclomaticComplexMethod:TechniqueFactDetector.kt:TechniqueFactDetector.Companion$fun computeSolarElevationDeg: Double?</ID>
+    <ID>CyclomaticComplexMethod:TechniqueFactDetector.kt:TechniqueFactDetector.Companion$fun computeSpecularExcludedHighlightClipPct: Double</ID>
+    <ID>CyclomaticComplexMethod:TechniqueFactDetector.kt:TechniqueFactDetector.Companion$fun detectHorizon: TechniqueFact?</ID>
+    <ID>CyclomaticComplexMethod:TechniqueFactDetector.kt:TechniqueFactDetector.Companion$fun detectSimplicity: TechniqueFact?</ID>
+    <ID>CyclomaticComplexMethod:ThreeUpSelectorLayout.kt:@Composable fun ThreeUpSelectorLayout</ID>
+    <ID>CyclomaticComplexMethod:ThreeUpSelectorLayout.kt:@Composable private fun MaximisedFrame</ID>
+    <ID>CyclomaticComplexMethod:TiffHeader.kt:TiffHeader$fun dimensions: ImageDimensions</ID>
+    <ID>DestructuringDeclarationWithTooManyEntries:ScanFactRecorder.kt:ScanFactRecorder$val (luma, rgb, w, h) = sample(bitmap)</ID>
+    <ID>EmptyFunctionBlock:ScoresDatabaseMigrationTest.kt:ScoresDatabaseMigrationTest.&lt;no name provided&gt;${}</ID>
+    <ID>EmptyFunctionBlock:ScoresDatabaseUpgradeFromEveryExportedSchemaTest.kt:ScoresDatabaseUpgradeFromEveryExportedSchemaTest.&lt;no name provided&gt;${}</ID>
+    <ID>EmptyFunctionBlock:SharpnessAnalyzerTest.kt:ShadowMat${ }</ID>
+    <ID>EmptyFunctionBlock:SharpnessAnalyzerTest.kt:ShadowMat.Companion${ }</ID>
+    <ID>ForEachOnRange:FullscreenViewerTest.kt:FullscreenViewerTest$0..repeats</ID>
+    <ID>ForEachOnRange:ParkedUndoTest.kt:ParkedUndoTest$1..ParkedUndo.MAX_PARKED_FOLDERS</ID>
+    <ID>ForEachOnRange:ParkedUndoTest.kt:ParkedUndoTest$1..ParkedUndo.MAX_PARKED_FOLDERS + 1</ID>
+    <ID>ForEachOnRange:ParkedUndoTest.kt:ParkedUndoTest$1..UndoPolicy.MAX_UNDO_HISTORY + 5</ID>
+    <ID>ForEachOnRange:ScanImagesUseCaseTest.kt:ScanImagesUseCaseTest$1..10_001</ID>
+    <ID>FunctionNaming:LessonCatalog.kt:LessonCatalog$private fun MicroLesson</ID>
+    <ID>FunctionOnlyReturningConstant:RatingNavigationStressTest.kt:RatingNavigationStressTest$fun onClearClick: Int</ID>
+    <ID>FunctionOnlyReturningConstant:SelectionActionLabels.kt:SelectionActionLabels$@Suppress("UNUSED_PARAMETER") fun advancesAfter: Boolean</ID>
+    <ID>FunctionOnlyReturningConstant:SharpnessAnalyzerTest.kt:ShadowMat.Companion$@Implementation @JvmStatic fun n_Mat: Long</ID>
+    <ID>FunctionOnlyReturningConstant:SharpnessAnalyzerTest.kt:ShadowMat.Companion$@Implementation @JvmStatic fun n_submat: Long</ID>
+    <ID>InvalidPackageDeclaration:BoundedRunReportTest.kt:package com.photoselectortoolbox.ui</ID>
+    <ID>InvalidPackageDeclaration:DisplayRecordTest.kt:package com.photoselectortoolbox.ui</ID>
+    <ID>InvalidPackageDeclaration:FixedRotationTest.kt:package com.photoselectortoolbox.ui</ID>
+    <ID>InvalidPackageDeclaration:ReferenceWindowMathTest.kt:package com.photoselectortoolbox.ui</ID>
+    <ID>LargeClass:SelectorViewModel.kt:SelectorViewModel : ViewModel</ID>
+    <ID>LongMethod:AdaptiveNavigation.kt:@Composable private fun DesktopModeApp</ID>
+    <ID>LongMethod:AdviceCatalog.kt:AdviceCatalog$fun coach: UiText?</ID>
+    <ID>LongMethod:CandidateStrip.kt:@Composable fun CandidateStrip</ID>
+    <ID>LongMethod:CandidateStrip.kt:@Composable private fun CandidateThumbnail</ID>
+    <ID>LongMethod:CardGenerator.kt:CardGenerator$fun generate: CardGenerationResult</ID>
+    <ID>LongMethod:ChartCard.kt:@Composable private fun VicoColumnChart</ID>
+    <ID>LongMethod:CompactSelectorLayout.kt:@Composable fun CompactSelectorLayout</ID>
+    <ID>LongMethod:CompactSelectorLayout.kt:@Composable private fun GestureTutorialOverlay</ID>
+    <ID>LongMethod:CropSuggester.kt:CropSuggester$fun suggestCrop: SuggestedCrop?</ID>
+    <ID>LongMethod:DebriefTab.kt:@Composable private fun DebriefGroupCard</ID>
+    <ID>LongMethod:DestinationSection.kt:@Composable internal fun DestinationSection</ID>
+    <ID>LongMethod:DoneCard.kt:@Composable internal fun DoneCard</ID>
+    <ID>LongMethod:DuplicatesScreen.kt:@Composable fun DuplicatesScreen</ID>
+    <ID>LongMethod:DuplicatesScreen.kt:@Composable private fun CompactDuplicateGroupCard</ID>
+    <ID>LongMethod:DuplicatesScreen.kt:@Composable private fun DuplicateImageCard</ID>
+    <ID>LongMethod:DuplicatesViewModel.kt:DuplicatesViewModel$fun startScan</ID>
+    <ID>LongMethod:FullscreenViewer.kt:@Composable private fun ZoomableImage</ID>
+    <ID>LongMethod:FullscreenViewer.kt:@OptIn(ExperimentalLayoutApi::class) @Composable private fun FullscreenContent</ID>
+    <ID>LongMethod:GoToPhotoDialog.kt:@OptIn(ExperimentalMaterial3Api::class) @Composable internal fun GoToPhotoDialog</ID>
+    <ID>LongMethod:ImageRepositoryImpl.kt:ImageRepositoryImpl$override suspend fun describeFolder: FolderDescription</ID>
+    <ID>LongMethod:InspectScreen.kt:@Composable internal fun InspectScreenContent</ID>
+    <ID>LongMethod:InspectScreen.kt:@Composable private fun ExploreCardsSection</ID>
+    <ID>LongMethod:InspectScreen.kt:@Composable private fun InspectControlBar</ID>
+    <ID>LongMethod:InspectScreen.kt:@Composable private fun InspectFilmstrip</ID>
+    <ID>LongMethod:LessonsTab.kt:@Composable internal fun LessonsTabContent</ID>
+    <ID>LongMethod:LocalImageSource.kt:LocalImageSourceImpl$private suspend fun walkImages</ID>
+    <ID>LongMethod:OpenCvCompositionAnalyzer.kt:OpenCvCompositionAnalyzer$private fun analyzeBitmap: CompositionResult</ID>
+    <ID>LongMethod:PhotoCoachCard.kt:@Composable internal fun PhotoCoachCard</ID>
+    <ID>LongMethod:PhotoCoachCard.kt:@Composable private fun CoachingTipItem</ID>
+    <ID>LongMethod:PhotoCoachEngine.kt:PhotoCoachEngineImpl$override fun evaluate: PhotoCoachReport</ID>
+    <ID>LongMethod:PhotoInfoPanel.kt:@Composable internal fun PhotoInfoPanel</ID>
+    <ID>LongMethod:PracticeAndInsightsEngine.kt:PracticeAndInsightsEngine$fun computeInsights: List&lt;PatternInsight&gt;</ID>
+    <ID>LongMethod:ScanConfigSheet.kt:@OptIn(ExperimentalMaterial3Api::class) @Composable fun ScanConfigSheet</ID>
+    <ID>LongMethod:ScanImagesUseCase.kt:ScanImagesUseCase$operator fun invoke: Flow&lt;ScanProgress&gt;</ID>
+    <ID>LongMethod:ScoreChip.kt:@Composable fun ScoreChip</ID>
+    <ID>LongMethod:SelectorControlBlock.kt:@Composable fun SelectorControlBlock</ID>
+    <ID>LongMethod:SelectorControlBlock.kt:@Composable private fun WordedButton</ID>
+    <ID>LongMethod:SelectorHintCard.kt:@Composable fun SelectorHintCard</ID>
+    <ID>LongMethod:SelectorMoreMenu.kt:@Composable internal fun SelectorMoreMenuItems</ID>
+    <ID>LongMethod:SelectorScreen.kt:@OptIn(ExperimentalMaterial3Api::class, ExperimentalFoundationApi::class) @Composable fun SelectorScreen</ID>
+    <ID>LongMethod:SelectorScreen.kt:internal fun handleSelectorKey: Boolean</ID>
+    <ID>LongMethod:SelectorSidebar.kt:@Composable fun SelectorSidebar</ID>
+    <ID>LongMethod:SelectorTour.kt:SelectorTour$fun callouts: List&lt;TourCallout&gt;</ID>
+    <ID>LongMethod:SelectorViewModel.kt:SelectorViewModel$fun undoLastOperation</ID>
+    <ID>LongMethod:SelectorViewModel.kt:SelectorViewModel$private fun performFiling</ID>
+    <ID>LongMethod:SelectorViewModel.kt:SelectorViewModel$private fun runScan</ID>
+    <ID>LongMethod:SelectorViewModel.kt:SelectorViewModel$private suspend fun finishUndoMove</ID>
+    <ID>LongMethod:SettingsScreen.kt:@Composable fun SettingsScreen</ID>
+    <ID>LongMethod:StarRatingBar.kt:@Composable fun StarRatingBar</ID>
+    <ID>LongMethod:StatisticsScreen.kt:@Composable private fun CompactStatisticsLayout</ID>
+    <ID>LongMethod:StatisticsScreen.kt:@Composable private fun ExpandedStatisticsLayout</ID>
+    <ID>LongMethod:StatisticsViewModel.kt:StatisticsViewModel$fun analyzeFolder</ID>
+    <ID>LongMethod:TechniqueFactDetector.kt:DefaultSubjectDetector$override fun detectSubject: SubjectBoundingBox?</ID>
+    <ID>LongMethod:TechniqueFactDetector.kt:TechniqueFactDetector$fun detectFacts: List&lt;TechniqueFact&gt;</ID>
+    <ID>LongMethod:TechniqueFactDetector.kt:TechniqueFactDetector.Companion$fun detectHorizon: TechniqueFact?</ID>
+    <ID>LongMethod:ThreeUpSelectorLayout.kt:@Composable fun ThreeUpSelectorLayout</ID>
+    <ID>LongMethod:ThreeUpSelectorLayout.kt:@Composable private fun MaximisedFrame</ID>
+    <ID>LongMethod:ValueReadouts.kt:@Composable fun CurrentFrameReadout</ID>
+    <ID>LongMethod:ValueReadouts.kt:@Composable fun NeighbourValueOverlay</ID>
+    <ID>LoopWithTooManyJumpStatements:DragDoesNotClick.kt:while</ID>
+    <ID>LoopWithTooManyJumpStatements:FullscreenViewer.kt:while</ID>
+    <ID>LoopWithTooManyJumpStatements:ImageRepositoryImpl.kt:ImageRepositoryImpl$while</ID>
+    <ID>LoopWithTooManyJumpStatements:LocalImageSource.kt:LocalImageSourceImpl$while</ID>
+    <ID>LoopWithTooManyJumpStatements:LocalImageSource.kt:for</ID>
+    <ID>LoopWithTooManyJumpStatements:SafRatingWriter.kt:SafRatingWriter$for</ID>
+    <ID>LoopWithTooManyJumpStatements:SafRatingWriter.kt:SafRatingWriter$while</ID>
+    <ID>LoopWithTooManyJumpStatements:ScanImagesUseCase.kt:ScanImagesUseCase$for</ID>
+    <ID>LoopWithTooManyJumpStatements:SceneComparator.kt:SceneComparator$for</ID>
+    <ID>LoopWithTooManyJumpStatements:ScreenFit.kt:for</ID>
+    <ID>LoopWithTooManyJumpStatements:TechniqueFactDetector.kt:TechniqueFactDetector$for</ID>
+    <ID>LoopWithTooManyJumpStatements:TiffHeader.kt:TiffHeader$for</ID>
+    <ID>MatchingDeclarationName:CompositionOverlay.kt:CompositionGeometry</ID>
+    <ID>MatchingDeclarationName:DebriefPairView.kt:PairChoice</ID>
+    <ID>MatchingDeclarationName:DebriefTab.kt:DebriefActions</ID>
+    <ID>MatchingDeclarationName:ToolsMenu.kt:ToolsMenuState</ID>
+    <ID>MaxLineLength:BoundedRunReportTest.kt:BoundedRunReportTest$StackTraceElement("androidx.compose.ui.test.junit4.AndroidComposeTestRule\$apply\$testWithDisposal\$1", "evaluate", "AndroidComposeTestRule.android.kt", 433)</ID>
+    <ID>MaxLineLength:BoundedRunReportTest.kt:BoundedRunReportTest$private</ID>
+    <ID>MaxLineLength:CameraProfile.kt:CameraProfiler$dji &amp;&amp; DJI_DRONE_MODEL.containsMatchIn(model) -&gt; return of(CameraClass.DRONE, exif, 0.95, "DJI model $model")</ID>
+    <ID>MaxLineLength:CameraProfile.kt:CameraProfiler$dji &amp;&amp; model.contains("osmo action", ignoreCase = true) -&gt; return of(CameraClass.ACTION, exif, 0.95, "DJI Osmo Action")</ID>
+    <ID>MaxLineLength:CameraProfile.kt:CameraProfiler$val from = if (cropFromFocalLengths(exif) != null) "35 mm focal length" else "focal-plane tags" // ui-text: ignore (evidence for tests and logs, never shown)</ID>
+    <ID>MaxLineLength:CameraProfilerTest.kt:CameraProfilerTest$Row("Canon by focal-plane tags", exif("Canon", "Canon EOS 100D", 35.0, null, fpx = 5184.0 / 22.3, fpUnit = 4), CameraClass.INTERCHANGEABLE, width = 5184)</ID>
+    <ID>MaxLineLength:CardGenerator.kt:CardGenerator$if (fact.value == "vertical") R.string.learn_card_symmetry_happened_vertical else R.string.learn_card_symmetry_happened_horizontal</ID>
+    <ID>MaxLineLength:CardGenerator.kt:CardGenerator$title = if (fact.value == "high_key") text(R.string.learn_card_card_tonal_fact_value_001) else text(R.string.learn_card_card_tonal_fact_value_002)</ID>
+    <ID>MaxLineLength:CardGenerator.kt:CardGenerator$whatHappened = text(R.string.learn_card_card_action_freeze_what_happened, exif?.shutterSpeed?.let { ExifFormatter.shutterSpeed(it) } ?: "≤ 1/1000s")</ID>
+    <ID>MaxLineLength:CardGenerator.kt:CardGenerator$whatHappened = text(R.string.learn_card_card_handholding_guideline_what_happened, ExifFormatter.shutterSpeed(shutter), effectiveFocal.toInt(), sharpness.toInt())</ID>
+    <ID>MaxLineLength:CardGenerator.kt:CardGenerator$whatHappened = text(R.string.learn_card_card_long_exposure_what_happened, exif?.shutterSpeed?.let { ExifFormatter.shutterSpeed(it) } ?: "≥ 0.5s")</ID>
+    <ID>MaxLineLength:CardGenerator.kt:CardGenerator$whatHappened = text(R.string.learn_card_card_steady_handholding_what_happened, sharpness.toInt(), ExifFormatter.shutterSpeed(shutter), effectiveFocal.toInt())</ID>
+    <ID>MaxLineLength:DebriefPairView.kt:Text(if (better) stringResource(R.string.label_pair_better, value) else value, style = MaterialTheme.typography.labelMedium, color = Color.White, modifier = Modifier.padding(horizontal = 8.dp, vertical = 3.dp))</ID>
+    <ID>MaxLineLength:DebriefPairView.kt:Text(letter.name, style = MaterialTheme.typography.labelLarge, color = Color.White, modifier = Modifier.padding(horizontal = 8.dp, vertical = 2.dp))</ID>
+    <ID>MaxLineLength:DebriefScreenTest.kt:DebriefScreenTest$assertEquals(0, rule.onAllNodes(inGroup(CameraClass.INTERCHANGEABLE, "debrief_metric_level_horizon"), useUnmergedTree = true).fetchSemanticsNodes().size)</ID>
+    <ID>MaxLineLength:DebriefScreenTest.kt:DebriefScreenTest$assertEquals(1, rule.onAllNodes(inGroup(CameraClass.INTERCHANGEABLE, "debrief_metric_level_horizon"), useUnmergedTree = true).fetchSemanticsNodes().size)</ID>
+    <ID>MaxLineLength:DebriefScreenTest.kt:DebriefScreenTest$fun f</ID>
+    <ID>MaxLineLength:DebriefScreenTest.kt:DebriefScreenTest$rule.onAllNodes(inGroup(CameraClass.INTERCHANGEABLE, "debrief_expand_interchangeable"), useUnmergedTree = true).onFirst().performScrollTo().performClick()</ID>
+    <ID>MaxLineLength:DebriefTab.kt:DebriefButton(stringResource(if (tracked) R.string.label_tracked else R.string.action_track), "debrief_track") { if (!tracked) actions.onTrack(card) }</ID>
+    <ID>MaxLineLength:DebriefTab.kt:Icon(Icons.Default.ExpandMore, contentDescription = stringResource(R.string.cd_show_camera_group, LearnText.cameraClass(group.cameraClass).asString()), tint = Zinc400)</ID>
+    <ID>MaxLineLength:DebriefTab.kt:Text(LearnText.NO_CAMERA_DATA.asString(), style = MaterialTheme.typography.labelMedium, color = Zinc400, modifier = Modifier.testTag("debrief_no_camera_data"))</ID>
+    <ID>MaxLineLength:DebriefTab.kt:Text(LearnText.partial(debrief.scannedCount, debrief.photoCount).asString(), style = MaterialTheme.typography.labelSmall, color = HintText, modifier = Modifier.testTag("debrief_partial"))</ID>
+    <ID>MaxLineLength:DebriefTab.kt:Text(stringResource(R.string.label_matching_of_total, count.matching, count.total), style = MaterialTheme.typography.labelMedium, color = Color.White, fontWeight = FontWeight.SemiBold)</ID>
+    <ID>MaxLineLength:DoneCard.kt:SafeToFormatLine.Safe -&gt; Icon(Icons.Filled.CheckCircle, contentDescription = null, tint = ScoreGood, modifier = Modifier.size(20.dp))</ID>
+    <ID>MaxLineLength:DoneCard.kt:else -&gt; Icon(Icons.Filled.Warning, contentDescription = null, tint = MaterialTheme.colorScheme.error, modifier = Modifier.size(20.dp))</ID>
+    <ID>MaxLineLength:FormatConformanceTest.kt:FormatConformanceTest$if (rawCompanion != null &amp;&amp; ImageFormats.selectionSubfolder(rawCompanion.fileName) != ImageFormats.SelectionSubfolder.RAW) add("RAW not sorted into RAW/")</ID>
+    <ID>MaxLineLength:GermanScreenFitTest.kt:GermanScreenFitTest$autoSizeMin = mapOf("action_word" to 9.sp, com.photoselectortoolbox.ui.selector.SIDEBAR_LABEL_TAG to com.photoselectortoolbox.ui.selector.SidebarLabelMinSize)</ID>
+    <ID>MaxLineLength:ImageRepositoryImpl.kt:ImageRepositoryImpl$)</ID>
+    <ID>MaxLineLength:ImageRepositoryImpl.kt:ImageRepositoryImpl.Companion$"Do NOT format SD card: ${missing.size} of ${keptFiles.size} kept file(s) missing or of another size (${missing.take(3).joinToString()})."</ID>
+    <ID>MaxLineLength:ImageRepositoryImpl.kt:ImageRepositoryImpl.Companion$"Safe to format SD card: all $verified kept file(s) verified on destination storage."</ID>
+    <ID>MaxLineLength:ImageRepositoryImpl.kt:ImageRepositoryImpl.Companion$summaryMessage = "No kept photos recorded in this session yet."</ID>
+    <ID>MaxLineLength:LearnCropSuggestionTest.kt:LearnCropSuggestionTest$geometryJson = """{"type":"subject_box","xMin":$xMin,"yMin":$yMin,"xMax":$xMax,"yMax":$yMax,"centroidX":$cx,"centroidY":$cy,"targetX":0.333,"targetY":0.333}"""</ID>
+    <ID>MaxLineLength:LessonCatalog.kt:LessonCatalog$fallbackOptions = listOf(text(R.string.learn_lesson_composition_horizon_015), text(R.string.learn_lesson_composition_horizon_016), text(R.string.learn_lesson_composition_horizon_017))</ID>
+    <ID>MaxLineLength:LessonCatalog.kt:LessonCatalog$fallbackOptions = listOf(text(R.string.learn_lesson_composition_leading_lines_012), text(R.string.learn_lesson_composition_leading_lines_013), text(R.string.learn_lesson_composition_leading_lines_014))</ID>
+    <ID>MaxLineLength:LessonCatalog.kt:LessonCatalog$fallbackOptions = listOf(text(R.string.learn_lesson_composition_rule_of_thirds_009), text(R.string.learn_lesson_composition_rule_of_thirds_010), text(R.string.learn_lesson_composition_rule_of_thirds_011))</ID>
+    <ID>MaxLineLength:LessonCatalog.kt:LessonCatalog$fallbackOptions = listOf(text(R.string.learn_lesson_composition_simplicity_018), text(R.string.learn_lesson_composition_simplicity_019), text(R.string.learn_lesson_composition_simplicity_020))</ID>
+    <ID>MaxLineLength:LessonCatalog.kt:LessonCatalog$fallbackOptions = listOf(text(R.string.learn_lesson_composition_symmetry_021), text(R.string.learn_lesson_composition_symmetry_022), text(R.string.learn_lesson_composition_symmetry_023))</ID>
+    <ID>MaxLineLength:LessonCatalog.kt:LessonCatalog$fallbackOptions = listOf(text(R.string.learn_lesson_depth_aperture_story_028), text(R.string.learn_lesson_depth_aperture_story_029), text(R.string.learn_lesson_depth_aperture_story_030))</ID>
+    <ID>MaxLineLength:LessonCatalog.kt:LessonCatalog$fallbackOptions = listOf(text(R.string.learn_lesson_depth_diffraction_031), text(R.string.learn_lesson_depth_diffraction_032), text(R.string.learn_lesson_depth_diffraction_033))</ID>
+    <ID>MaxLineLength:LessonCatalog.kt:LessonCatalog$fallbackOptions = listOf(text(R.string.learn_lesson_exposure_ev_metering_037), text(R.string.learn_lesson_exposure_ev_metering_038), text(R.string.learn_lesson_exposure_ev_metering_039))</ID>
+    <ID>MaxLineLength:LessonCatalog.kt:LessonCatalog$fallbackOptions = listOf(text(R.string.learn_lesson_exposure_histogram_clipping_034), text(R.string.learn_lesson_exposure_histogram_clipping_035), text(R.string.learn_lesson_exposure_histogram_clipping_036))</ID>
+    <ID>MaxLineLength:LessonCatalog.kt:LessonCatalog$fallbackOptions = listOf(text(R.string.learn_lesson_light_direction_006), text(R.string.learn_lesson_light_direction_007), text(R.string.learn_lesson_light_direction_008))</ID>
+    <ID>MaxLineLength:LessonCatalog.kt:LessonCatalog$fallbackOptions = listOf(text(R.string.learn_lesson_light_golden_hour_003), text(R.string.learn_lesson_light_golden_hour_004), text(R.string.learn_lesson_light_golden_hour_005))</ID>
+    <ID>MaxLineLength:LessonCatalog.kt:LessonCatalog$fallbackOptions = listOf(text(R.string.learn_lesson_motion_shutter_intent_025), text(R.string.learn_lesson_motion_shutter_intent_026), text(R.string.learn_lesson_motion_shutter_intent_027))</ID>
+    <ID>MaxLineLength:MaximisedFrameTest.kt:MaximisedFrameTest$private val hint = SelectorHintUi(SelectorHint.MAXIMISE, com.photoselectortoolbox.domain.text.raw("One frame, full size"), com.photoselectortoolbox.domain.text.raw("Esc returns to comparing all three."))</ID>
+    <ID>MaxLineLength:MetadataWriter.kt:MetadataWriterImpl$"${targetSidecar.name} has XMP content the rating cannot be merged into; it was left unchanged"</ID>
+    <ID>MaxLineLength:MetadataWriter.kt:MetadataWriterImpl$"The XMP inside ${imageFile.name} has content the rating cannot be merged into; it was left unchanged"</ID>
+    <ID>MaxLineLength:MetadataWriter.kt:XmpSidecarWriter$append(" &lt;rdf:Description rdf:about=\"\" xmlns:xmp=\"$XMP_NS\"&gt;\n")</ID>
+    <ID>MaxLineLength:MetadataWriter.kt:XmpSidecarWriter$append(" &lt;rdf:RDF xmlns:rdf=\"http://www.w3.org/1999/02/22-rdf-syntax-ns#\"&gt;\n")</ID>
+    <ID>MaxLineLength:MetadataWriter.kt:XmpSidecarWriter$append("&lt;?xpacket begin=\"\" id=\"W5M0MpCehiHzreSzNTczkc9d\"?&gt;\n")</ID>
+    <ID>MaxLineLength:MetadataWriterStressTest.kt:MetadataWriterStressTest$filenameSidecar.writeText("&lt;x:xmpmeta&gt;&lt;rdf:RDF&gt;&lt;rdf:Description xmlns:xmp=\"http://ns.adobe.com/xap/1.0/\"&gt;&lt;xmp:Rating&gt;1&lt;/xmp:Rating&gt;&lt;/rdf:Description&gt;&lt;/rdf:RDF&gt;&lt;/x:xmpmeta&gt;")</ID>
+    <ID>MaxLineLength:MetadataWriterStressTest.kt:MetadataWriterStressTest$stemSidecar.writeText("&lt;x:xmpmeta&gt;&lt;rdf:RDF&gt;&lt;rdf:Description xmlns:xmp=\"http://ns.adobe.com/xap/1.0/\"&gt;&lt;xmp:Rating&gt;2&lt;/xmp:Rating&gt;&lt;/rdf:Description&gt;&lt;/rdf:RDF&gt;&lt;/x:xmpmeta&gt;")</ID>
+    <ID>MaxLineLength:MetadataWriterTest.kt:MetadataWriterTest$filenameSidecar.writeText("&lt;x:xmpmeta&gt;&lt;rdf:RDF&gt;&lt;rdf:Description xmlns:xmp=\"http://ns.adobe.com/xap/1.0/\"&gt;&lt;xmp:Rating&gt;1&lt;/xmp:Rating&gt;&lt;/rdf:Description&gt;&lt;/rdf:RDF&gt;&lt;/x:xmpmeta&gt;")</ID>
+    <ID>MaxLineLength:MetadataWriterTest.kt:MetadataWriterTest$stemSidecar.writeText("&lt;x:xmpmeta&gt;&lt;rdf:RDF&gt;&lt;rdf:Description xmlns:xmp=\"http://ns.adobe.com/xap/1.0/\"&gt;&lt;xmp:Rating&gt;1&lt;/xmp:Rating&gt;&lt;/rdf:Description&gt;&lt;/rdf:RDF&gt;&lt;/x:xmpmeta&gt;")</ID>
+    <ID>MaxLineLength:MetadataWriterTest.kt:MetadataWriterTest$stemSidecar.writeText("&lt;x:xmpmeta&gt;&lt;rdf:RDF&gt;&lt;rdf:Description xmlns:xmp=\"http://ns.adobe.com/xap/1.0/\"&gt;&lt;xmp:Rating&gt;2&lt;/xmp:Rating&gt;&lt;/rdf:Description&gt;&lt;/rdf:RDF&gt;&lt;/x:xmpmeta&gt;")</ID>
+    <ID>MaxLineLength:PhotoCoachReport.kt:PhotoCoachReport$*</ID>
+    <ID>MaxLineLength:PhotoJumpDateTest.kt:PhotoJumpDateTest$JumpResolution.Resolved(images.indexOfFirst { it.fileName.startsWith("C_") }, date = DateJump(LocalDate.of(2026, 10, 12), LocalDate.of(2026, 10, 12)))</ID>
+    <ID>MaxLineLength:PracticeAndInsightsEngine.kt:PracticeAndInsightsEngine$observation = "$levelPct% of your horizon scenes ($levelCount of ${horizonFacts.size}) are level within 0.5°."</ID>
+    <ID>MaxLineLength:PracticeAndInsightsEngine.kt:PracticeAndInsightsEngine$observation = "$pct% of your analyzed frames ($clippedCount of ${clippingFacts.size}) show non-specular highlight clipping."</ID>
+    <ID>MaxLineLength:PracticeAndInsightsEngine.kt:PracticeAndInsightsEngine$observation = "$pct% of your outdoor horizon scenes ($tiltedCount of ${horizonFacts.size}) have a measurable horizon tilt (&gt; 0.5°)."</ID>
+    <ID>MaxLineLength:PracticeAndInsightsEngine.kt:PracticeAndInsightsEngine$observation = "$pct% of your subject-detected photos ($thirdsCount of ${placementFacts.size}) align the subject near a Rule-of-Thirds intersection."</ID>
+    <ID>MaxLineLength:PracticeAndInsightsEngine.kt:PracticeAndInsightsEngine$observation = "$pct% of your telephoto shots ($slowBelowGuideline of ${telephotoPhotos.size} at ≥85mm 35mm-eq) were taken slower than the hand-holding speed and came out less sharp."</ID>
+    <ID>MaxLineLength:SafRatingWriter.kt:SafRatingWriter$"$backupName from an earlier interrupted write is still beside $name; reopen the folder to recover it"</ID>
+    <ID>MaxLineLength:SafRatingWriter.kt:SafRatingWriter$"The XMP inside $name has content the rating cannot be merged into; it was left unchanged"</ID>
+    <ID>MaxLineLength:SafRatingWriter.kt:SafRatingWriter$"The existing ${entry.name} has content the rating cannot be merged into; it was left unchanged"</ID>
+    <ID>MaxLineLength:SafRatingWriter.kt:SafRatingWriter$backupName != null -&gt; "Could not write the rating into $name and could not restore it; the original is kept as $backupName"</ID>
+    <ID>MaxLineLength:ScaleConditions.kt:ScaleConditions$println("Scale growth [$what]: N=$n ${small / 1_000_000.0} ms, ${growthFactor}N=$big ${large / 1_000_000.0} ms, ratio %.2f".format(java.util.Locale.ROOT, ratio))</ID>
+    <ID>MaxLineLength:ScanUpdatesTest.kt:ScanUpdatesTest$assertEquals(listOf("content://t/IMG_1.jpg", "content://t/IMG_2.jpg", "content://t/IMG_3.jpg", "content://t/IMG_4.jpg", "content://t/IMG_5.jpg"), out.flatMap { it.scored.keys })</ID>
+    <ID>MaxLineLength:SceneComparator.kt:SceneComparator$"${ExifFormatter.aperture(apB)} in ${photoB.fileName}, changing depth of field and light intake."</ID>
+    <ID>MaxLineLength:SceneComparator.kt:SceneComparator$bullets</ID>
+    <ID>MaxLineLength:SceneComparator.kt:SceneComparator$ratioBullet("Highlight clipping", scanA?.highlightClipping, scanB?.highlightClipping, MIN_CLIPPING_PERCENT, photoA, photoB, "%.1f%%")</ID>
+    <ID>MaxLineLength:SceneComparator.kt:SceneComparator$ratioBullet("Measured noise", scanA?.noiseLevel, scanB?.noiseLevel, MIN_NOISE, photoA, photoB, "%.1f")</ID>
+    <ID>MaxLineLength:SceneComparator.kt:SceneComparator$ratioBullet("Shadow clipping", scanA?.shadowClipping, scanB?.shadowClipping, MIN_CLIPPING_PERCENT, photoA, photoB, "%.1f%%")</ID>
+    <ID>MaxLineLength:SceneComparator.kt:SceneComparator$title = "Scene $index · ${decided.better.fileName} vs ${decided.worse.fileName}"</ID>
+    <ID>MaxLineLength:ScoresDatabase.kt:ScoresDatabase.Companion.&lt;no name provided&gt;$"CREATE INDEX IF NOT EXISTS `idx_shoot_summaries_class_time` ON `shoot_summaries` (`cameraClass`, `lastCaptureTime`)"</ID>
+    <ID>MaxLineLength:ScoresDatabase.kt:ScoresDatabase.Companion.&lt;no name provided&gt;$"CREATE INDEX IF NOT EXISTS `idx_technique_facts_cache_key` ON `technique_facts` (`uri`, `fileSize`, `lastModified`, `detectorVersion`)"</ID>
+    <ID>MaxLineLength:ScoresDatabase.kt:ScoresDatabase.Companion.&lt;no name provided&gt;$"CREATE TABLE IF NOT EXISTS `camera_overrides` (`make` TEXT NOT NULL, `model` TEXT NOT NULL, `cameraClass` TEXT NOT NULL, PRIMARY KEY(`make`, `model`))"</ID>
+    <ID>MaxLineLength:ScoresDatabase.kt:ScoresDatabase.Companion.&lt;no name provided&gt;$"CREATE TABLE IF NOT EXISTS `lesson_progress` (`lessonId` TEXT NOT NULL, `completedAt` INTEGER NOT NULL, `spotItCorrect` INTEGER NOT NULL, `spotItTotal` INTEGER NOT NULL, PRIMARY KEY(`lessonId`))"</ID>
+    <ID>MaxLineLength:ScoresDatabase.kt:ScoresDatabase.Companion.&lt;no name provided&gt;$"CREATE TABLE IF NOT EXISTS `practice_goals` (`lessonId` TEXT NOT NULL, `startedAtEpochMs` INTEGER NOT NULL, `baselineRate` REAL NOT NULL, `baselineSampleSize` INTEGER NOT NULL, PRIMARY KEY(`lessonId`))"</ID>
+    <ID>MaxLineLength:ScoresDatabase.kt:ScoresDatabase.Companion.&lt;no name provided&gt;$"CREATE TABLE IF NOT EXISTS `shoot_summaries` (`folderKey` TEXT NOT NULL, `cameraClass` TEXT NOT NULL, `cameraNames` TEXT NOT NULL, `firstCaptureTime` INTEGER, `lastCaptureTime` INTEGER, `photoCount` INTEGER NOT NULL, `metricsJson` TEXT NOT NULL, `detectorVersion` INTEGER NOT NULL, `partial` INTEGER NOT NULL, `updatedAt` INTEGER NOT NULL, PRIMARY KEY(`folderKey`, `cameraClass`))"</ID>
+    <ID>MaxLineLength:ScoresDatabase.kt:ScoresDatabase.Companion.&lt;no name provided&gt;$"CREATE TABLE IF NOT EXISTS `technique_facts` (`uri` TEXT NOT NULL, `kind` TEXT NOT NULL, `value` TEXT NOT NULL, `confidence` REAL NOT NULL, `geometryJson` TEXT, `fileSize` INTEGER NOT NULL, `lastModified` INTEGER NOT NULL, `detectorVersion` INTEGER NOT NULL, PRIMARY KEY(`uri`, `kind`))"</ID>
+    <ID>MaxLineLength:ScoresDatabase.kt:ScoresDatabase.Companion.&lt;no name provided&gt;$"CREATE TABLE IF NOT EXISTS `user_ratings` (`uri` TEXT NOT NULL, `rating` INTEGER NOT NULL, `updatedAt` INTEGER NOT NULL, PRIMARY KEY(`uri`))"</ID>
+    <ID>MaxLineLength:ScoresDatabase.kt:ScoresDatabase.Companion.&lt;no name provided&gt;$"INSERT OR IGNORE INTO `user_ratings` (`uri`, `rating`, `updatedAt`) SELECT `filePath`, `rating`, `lastAccessTime` FROM `scores_cache` WHERE `rating` != 0"</ID>
+    <ID>MaxLineLength:ScoresDatabase.kt:ScoresDatabase.Companion.&lt;no name provided&gt;$"INSERT OR REPLACE INTO `user_ratings` (`uri`, `rating`, `updatedAt`) SELECT `filePath`, `rating`, `lastAccessTime` FROM `scores_cache` WHERE `rating` != 0"</ID>
+    <ID>MaxLineLength:ScoresDatabaseMigrationTest.kt:ScoresDatabaseMigrationTest$rawDb.execSQL("INSERT INTO scores_cache (filePath, fileSize, lastModified, sharpnessScore, noiseLevel, lastAccessTime) VALUES ('v1_legacy_photo', 1024, 2048, 65.0, 1.2, 5000)")</ID>
+    <ID>MaxLineLength:ScoresDatabaseMigrationTest.kt:ScoresDatabaseMigrationTest$rawDb.execSQL("INSERT INTO scores_cache (filePath, fileSize, lastModified, sharpnessScore, rating, lastAccessTime) VALUES ('photo_a', 100, 200, 75.0, 4, 1000)")</ID>
+    <ID>MaxLineLength:ScoresDatabaseMigrationTest.kt:ScoresDatabaseMigrationTest$rawDb.execSQL("INSERT INTO scores_cache (filePath, fileSize, lastModified, sharpnessScore, rating, lastAccessTime) VALUES ('photo_b', 100, 200, 85.0, 0, 2000)")</ID>
+    <ID>MaxLineLength:ScoresDatabaseMigrationTest.kt:ScoresDatabaseMigrationTest$val c1 = db.query("SELECT sharpnessScore, noiseLevel, highlightClipping, shadowClipping, aestheticScore, rating, compositionAnalysis FROM scores_cache WHERE filePath = 'photo_all_null'")</ID>
+    <ID>MaxLineLength:ScoresDatabaseMigrationTest.kt:ScoresDatabaseMigrationTest$val cursor = db.query("SELECT filePath, sharpnessScore, aestheticScore, rating, compositionAnalysis FROM scores_cache WHERE filePath = 'content://photo/1'")</ID>
+    <ID>MaxLineLength:ScoresDatabaseUpgradeFromEveryExportedSchemaTest.kt:ScoresDatabaseUpgradeFromEveryExportedSchemaTest$db.execSQL("INSERT INTO scores_cache (filePath, fileSize, lastModified, sharpnessScore, lastAccessTime) VALUES ('legacy', 100, 200, 70.0, 900)")</ID>
+    <ID>MaxLineLength:ScoresDatabaseUpgradeFromEveryExportedSchemaTest.kt:ScoresDatabaseUpgradeFromEveryExportedSchemaTest$db.execSQL("INSERT INTO scores_cache (filePath, fileSize, lastModified, sharpnessScore, rating, lastAccessTime) VALUES ('legacy', 100, 200, 70.0, 3, 900)")</ID>
+    <ID>MaxLineLength:ScoresDatabaseUpgradeFromEveryExportedSchemaTest.kt:ScoresDatabaseUpgradeFromEveryExportedSchemaTest$db.execSQL("INSERT INTO scores_cache (filePath, fileSize, lastModified, sharpnessScore, rating, lastAccessTime) VALUES ('p', 100, 200, 70.0, 0, 900)")</ID>
+    <ID>MaxLineLength:ScoresDatabaseUpgradeFromEveryExportedSchemaTest.kt:ScoresDatabaseUpgradeFromEveryExportedSchemaTest$db.execSQL("INSERT INTO technique_facts (uri, kind, value, confidence, fileSize, lastModified, detectorVersion) VALUES ('p', 'composition.horizon', 'level', 0.9, 100, 200, 2)")</ID>
+    <ID>MaxLineLength:ScreenFitMatrixTest.kt:ScreenFitMatrixTest$autoSizeMin = mapOf("action_word" to 9.sp, com.photoselectortoolbox.ui.selector.SIDEBAR_LABEL_TAG to com.photoselectortoolbox.ui.selector.SidebarLabelMinSize)</ID>
+    <ID>MaxLineLength:ScreenFitMatrixTest.kt:ScreenFitMatrixTest$val learn = LearnState(folderUri = "content://test/folder", factsByUri = facts, debrief = DebriefBuilder.build(photos, facts, emptyMap(), emptyList(), partial = true))</ID>
+    <ID>MaxLineLength:ScreenFitMatrixTest.kt:ScreenFitMatrixTest$val p = fitPhoto("a.jpg".replace("a", "p${n++}"), n * 1_000L).copy(exifData = fitExif, scanResult = ScanResult("x", sharpnessScore = if (i % 2 == 0) 120.0 else 30.0))</ID>
+    <ID>MaxLineLength:SelectorDoneTest.kt:SelectorDoneTest$SelectionFolderState(uri = selection, name = "Selection", filesByDocumentId = files.mapKeys { "1234-5678:DCIM/Selection/${it.key}" }, onSourceVolume = onSourceVolume)</ID>
+    <ID>MaxLineLength:SelectorScreen.kt:TextButton(modifier = Modifier.handCursor(), onClick = { viewModel.dismissCloudScanConfirmation() }) { Text(stringResource(R.string.action_cancel)) }</ID>
+    <ID>MaxLineLength:SelectorScreen.kt:TextButton(modifier = Modifier.handCursor(), onClick = { viewModel.dismissDeleteConfirmation() }) { Text(stringResource(R.string.action_cancel)) }</ID>
+    <ID>MaxLineLength:SelectorTourTest.kt:SelectorTourTest$LegendRow(label = com.photoselectortoolbox.domain.text.raw("Statistics"), meaning = com.photoselectortoolbox.domain.text.raw("How the folder scored"))</ID>
+    <ID>MaxLineLength:SelectorViewModel.kt:SelectorViewModel$if (completed != null) updateShootSummary?.let { it(completed, _uiState.value.let { st -&gt; BurstIds.tag(st.images, st.groups) }.filter { p -&gt; p.uri in scanned }) }</ID>
+    <ID>MaxLineLength:StringResourcesTest.kt:StringResourcesTest$assertEquals("12. Okt. 2026", java.time.format.DateTimeFormatter.ofPattern(deFormats.getValue("format_date").textContent, java.util.Locale.GERMAN).format(day))</ID>
+    <ID>MaxLineLength:TechniqueFactDetector.kt:TechniqueFactDetector$"""{"type":"subject_box","xMin":%.3f,"yMin":%.3f,"xMax":%.3f,"yMax":%.3f,"centroidX":%.3f,"centroidY":%.3f,"targetX":%.3f,"targetY":%.3f}"""</ID>
+    <ID>NestedBlockDepth:ContrastTokensTest.kt:ContrastTokensTest$@Test fun `no Text call draws its string in a grey below the floor`</ID>
+    <ID>NestedBlockDepth:ControlBlockFitTest.kt:ControlBlockFitTest$@Test @Requirement("REQ-AND-LAYOUT.07") fun `the chosen variant fits its row at every density`</ID>
+    <ID>NestedBlockDepth:ImageGrouper.kt:ImageGrouper$private fun computeImageDHash: LongArray?</ID>
+    <ID>NestedBlockDepth:PhotoCoachEngine.kt:PhotoCoachEngineImpl$override fun evaluate: PhotoCoachReport</ID>
+    <ID>NestedBlockDepth:SceneComparator.kt:SceneComparator$fun workedPair: Difference?</ID>
+    <ID>NestedBlockDepth:TechniqueFactDetector.kt:TechniqueFactDetector.Companion$fun computeSpecularExcludedHighlightClipPct: Double</ID>
+    <ID>PrintStackTrace:SettingsScreen.kt:e</ID>
+    <ID>SwallowedException:BoundedCall.kt:BoundedCall$e: Exception</ID>
+    <ID>SwallowedException:CaptureTime.kt:CaptureTime$e: java.time.DateTimeException</ID>
+    <ID>SwallowedException:CompositionGeometryTest.kt:CompositionGeometryTest$e: IllegalArgumentException</ID>
+    <ID>SwallowedException:CompositionResultSerializationTest.kt:CompositionResultSerializationTest$e: org.json.JSONException</ID>
+    <ID>SwallowedException:DuplicateDetector.kt:DuplicateDetector$e: Exception</ID>
+    <ID>SwallowedException:FormatConformanceTest.kt:FormatConformanceTest$t: Throwable</ID>
+    <ID>SwallowedException:ImageGrouper.kt:ImageGrouper$e: Exception</ID>
+    <ID>SwallowedException:KeptFiles.kt:KeptFiles$e: IllegalArgumentException</ID>
+    <ID>SwallowedException:LocalImageSource.kt:LocalImageSourceImpl$e: IOException</ID>
+    <ID>SwallowedException:PhotoBitmapDecoder.kt:PhotoBitmapDecoder$e: Exception</ID>
+    <ID>SwallowedException:SafRatingWriter.kt:SafRatingWriter$e: Exception</ID>
+    <ID>SwallowedException:SelectorViewModel.kt:SelectorViewModel$e: Exception</ID>
+    <ID>SwallowedException:SettingsViewModel.kt:SettingsViewModel$e: Exception</ID>
+    <ID>SwallowedException:StatisticsViewModel.kt:StatisticsViewModel$e: Exception</ID>
+    <ID>ThrowingExceptionFromFinally:WindowGeometryRule.kt:WindowGeometryRule.&lt;no name provided&gt;$throw t</ID>
+    <ID>ThrowsCount:MetadataWriter.kt:MetadataWriterImpl$private fun writeJpegRating</ID>
+    <ID>ThrowsCount:SafRatingWriter.kt:SafRatingWriter$private fun createBackup: Uri</ID>
+    <ID>ThrowsCount:SafRatingWriter.kt:SafRatingWriter$private fun createSidecar</ID>
+    <ID>ThrowsCount:SafRatingWriter.kt:SafRatingWriter$private fun updateSidecar</ID>
+    <ID>ThrowsCount:SafRatingWriter.kt:SafRatingWriter$private suspend fun resolveParent: Parent</ID>
+    <ID>ThrowsCount:SafRatingWriter.kt:SafRatingWriter$private suspend fun writeJpeg</ID>
+    <ID>ThrowsCount:SafRatingWriterTest.kt:SafRatingWriterTest.RatingProvider$override fun openFile: ParcelFileDescriptor</ID>
+    <ID>ThrowsCount:SelectorViewModel.kt:SelectorViewModel$private fun performFiling</ID>
+    <ID>ThrowsCount:StatisticsViewModel.kt:StatisticsViewModel$fun analyzeFolder</ID>
+    <ID>TopLevelPropertyNaming:FullscreenViewer.kt:/** The smallest outline the navigator draws, in dp, so 8x still shows where you are. */ private const val MinOutline = 6f</ID>
+    <ID>TopLevelPropertyNaming:PhotoInfoPanel.kt:/** ... and never more than this share of the surface it sits on, so it cannot become a bar. */ internal const val InfoPanelMaxShare = 0.35f</ID>
+    <ID>TopLevelPropertyNaming:PhotoInfoPanel.kt:internal const val InfoPanelAlpha = 0.85f</ID>
+    <ID>TopLevelPropertyNaming:SelectorControlBlock.kt:/** Pixels of slack per measured text in [ControlBlockFit.buttonContent] and the word's size. */ private const val TextSlackPx = 2</ID>
+    <ID>UnusedParameter:FullscreenViewer.kt:isExpanded: Boolean</ID>
+    <ID>UnusedParameter:SafTransferTest.kt:SafTransferTest.FakeSafDocumentsProvider$sourceParentDocumentId: String</ID>
+    <ID>UnusedParameter:SelectorControlBlock.kt:currentRating: Int = 0</ID>
+    <ID>UnusedParameter:SelectorControlBlock.kt:onRatingFilterSelected: (RatingFilter) -&gt; Unit = {}</ID>
+    <ID>UnusedParameter:SelectorControlBlock.kt:onSetRating: (Int) -&gt; Unit = {}</ID>
+    <ID>UnusedParameter:SelectorControlBlock.kt:ratingFilter: RatingFilter = RatingFilter.All</ID>
+    <ID>UnusedParameter:SharpnessAnalyzerTest.kt:ShadowMat$m: Mat</ID>
+    <ID>UnusedParameter:SharpnessAnalyzerTest.kt:ShadowMat$r: Rect</ID>
+    <ID>UnusedParameter:SharpnessAnalyzerTest.kt:ShadowMat.Companion$addr: Long</ID>
+    <ID>UnusedParameter:SharpnessAnalyzerTest.kt:ShadowMat.Companion$colEnd: Int</ID>
+    <ID>UnusedParameter:SharpnessAnalyzerTest.kt:ShadowMat.Companion$colStart: Int</ID>
+    <ID>UnusedParameter:SharpnessAnalyzerTest.kt:ShadowMat.Companion$rowEnd: Int</ID>
+    <ID>UnusedParameter:SharpnessAnalyzerTest.kt:ShadowMat.Companion$rowStart: Int</ID>
+    <ID>VariableNaming:ControlBlockFitTest.kt:ControlBlockFitTest$/** The reference device's density (320 dpi), where every dp is two whole pixels. */ private val Reference = 2f</ID>
+    <ID>WildcardImport:AndroidExifReaderTest.kt:import org.junit.Assert.*</ID>
+    <ID>WildcardImport:CacheRepositoryImplTest.kt:import io.mockk.*</ID>
+    <ID>WildcardImport:CacheRepositoryImplTest.kt:import org.junit.Assert.*</ID>
+    <ID>WildcardImport:DHashCalculatorTest.kt:import org.junit.Assert.*</ID>
+    <ID>WildcardImport:DuplicateGroupTest.kt:import org.junit.Assert.*</ID>
+    <ID>WildcardImport:DuplicatesViewModelTest.kt:import org.junit.Assert.*</ID>
+    <ID>WildcardImport:ExifDataTest.kt:import org.junit.Assert.*</ID>
+    <ID>WildcardImport:ImageGrouperTest.kt:import org.junit.Assert.*</ID>
+    <ID>WildcardImport:ImageItemTest.kt:import org.junit.Assert.*</ID>
+    <ID>WildcardImport:ScanResultTest.kt:import org.junit.Assert.*</ID>
+    <ID>WildcardImport:ScoreDaoTest.kt:import org.junit.Assert.*</ID>
+    <ID>WildcardImport:ScoreEntityTest.kt:import org.junit.Assert.*</ID>
+    <ID>WildcardImport:ScreenTest.kt:import org.junit.Assert.*</ID>
+    <ID>WildcardImport:SelectorUiStateTest.kt:import org.junit.Assert.*</ID>
+    <ID>WildcardImport:StatisticsViewModelTest.kt:import org.junit.Assert.*</ID>
+  </CurrentIssues>
+</SmellBaseline>

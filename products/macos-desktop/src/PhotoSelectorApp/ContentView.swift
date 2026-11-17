@@ -30,6 +30,12 @@ public struct ContentView: View {
                         folderURL: viewModel.rootDirectoryURL,
                         onCancel: { viewModel.cancelLoading() }
                     )
+                } else if viewModel.photos.isEmpty, let folder = viewModel.rootDirectoryURL, !viewModel.isLoading {
+                    // The scan finished and found nothing: say so, apart from "no folder open".
+                    EmptyFolderView(
+                        folderName: folder.lastPathComponent,
+                        onOpenFolder: { viewModel.presentFolderPicker() }
+                    )
                 } else if viewModel.photos.isEmpty {
                     EmptyDropTargetView(
                         isTargeted: viewModel.isDropTargeted,
@@ -108,9 +114,7 @@ public struct ContentView: View {
                         // MARK: - 4. Collapsible Bottom Filmstrip
                         if viewModel.isFilmstripVisible && !viewModel.isFullScreen {
                             FilmstripView(
-                                photos: viewModel.photos,
-                                currentIndex: viewModel.currentIndex,
-                                comparisonIndices: viewModel.comparisonSlotIndices,
+                                viewModel: viewModel,
                                 onSelectPhoto: { idx in viewModel.selectPhoto(at: idx) }
                             )
                             .frame(height: min(84, geometry.size.height * 0.12))
@@ -253,6 +257,7 @@ public struct ContentView: View {
         .onChange(of: viewModel.cloudBanner) { _, banner in
             if let banner { AccessibilityNotification.Announcement(banner).post() }
         }
+        .environment(\.dismissToast, { _ = viewModel.dismissStickyToast() })
         // VoiceOver hears what a sighted user reads in the toast (REQ-MAC-A11Y.01).
         .onChange(of: viewModel.currentToast) { _, toast in
             if let toast {

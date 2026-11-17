@@ -18,7 +18,10 @@ products/macos-desktop/
 
 - **Step through a shoot from the keyboard**: one photo at a time or two or three side by side (`1` / `2` / `3`), `Space` for 100 % zoom, `G` to go to a photo. A window-level key monitor acts on the keys before any button takes them, so the arrows, `M`, `C`, `Delete` and `⌘Z` work even while a button has focus; a held key acts once. All keys: [`docs/shared/KEYBOARD.md`](../../docs/shared/KEYBOARD.md).
 - **File keepers with their RAW, JPEG and sidecars**: `M` moves and `C` copies into `Selection/`, `F` is a clean full-screen view (no toolbar, dock or filmstrip; every key still works, `Esc` leaves), `⇧⌘L` lists your decisions in Activity, `Delete` sends to the system Trash (or, if you choose it in Settings → Rejects, to a `Rejected/` folder inside the folder you are culling), each with the companion files paired automatically (RAW+JPEG, XMP sidecars, edits); a name clash gets a `-2` suffix, nothing is overwritten.
-- **Undo**: `⌘Z` undoes the last operation; every folder keeps its own undo history, including an operation that finished while you switched folders.
+- **Readable by VoiceOver and without colour**: each filmstrip tile reads "IMG_0412, undecided, Sharp" (file, decision, sharpness band) and its sharpness dot is a shape too (filled, half-filled, ring); clipping reads "Blown 3%" / "Crushed 3%" with a symbol. A folder with no photos says "No photos" with the folder name and an "Open another folder…" button once the scan has finished. `H` and `L` no longer move between photos (use the arrow keys, `J` and `K`).
+- **Undo**: `⌘Z` undoes the last operation; every folder keeps its own undo history, including an operation that finished while you switched folders. An undo that cannot put the files back says so and leaves the photo marked as it was; one that had to restore a file under another name (the old name was taken) keeps working with it afterwards. A failure ("Action Failed", "Undo Failed", a half-finished move) stays on screen until `Esc` or the next navigation key.
+- **A copy is remembered**: a photo you copied to `Selection/` is still copied, not undecided, when you close the app and open the folder again (kept in the app's own settings, never in your photos; changing the photo after the copy makes it a new photo). Undo of the copy takes the mark back.
+- **Only real companions travel**: a photo takes its RAW/JPEG twin, `.xmp` sidecars and `-Edit` / `-Enhanced-NR` files with it; a folder, a video or an `-Editorial` file that merely shares the name stays. If the folder cannot be read, Move, Copy and Trash refuse and change nothing rather than leave the companions behind. The duplicate finder treats a link and its file, or two hard links, as one file.
 - **Metadata never covers the photo**: EXIF and scores live in their own strip/side column (chosen by a pure layout solver) and the image fits the remaining space; 2-Up/3-Up panes stack header, image and EXIF strip.
 - **Instant EXIF, lazy AI score**: EXIF shows with the first photo; focus/clipping follow in milliseconds; the Vision aesthetic score fills in last and is off for a new install and can be switched on or off in Settings (`⌘,`); while it is off the Vision request never runs (an install that already ran with it keeps it on).
 - **Multi-Tier RAW & Image Preloading**: Sub-sampling and orientation correction via ImageIO (`CGImageSourceCreateThumbnailAtIndex`) for stutter-free scrolling and instant navigation.
@@ -113,6 +116,11 @@ toast/zoom-pill placement at 1024 pt and the 960 pt minimum width) — needs a l
 ```bash
 products/macos-desktop/scripts/ui_smoke_test.sh
 ```
+
+It runs on 120 photos by default; `--contract-size` runs it on the 10,000-photo folder of
+`testdata/conditions/conditions.json` (the first photo must still be drawn in under 2 s) and
+`--stress` on the 50,000-photo release stress folder. The scale tests of the unit suite
+(`ScaleContractTests`) run in the normal test run; `PST_SCALE_STRESS=1` adds the stress size.
 
 The optional window-server key probe uses System Events and needs Accessibility permission
 for your terminal (System Settings → Privacy & Security → Accessibility); without it that one

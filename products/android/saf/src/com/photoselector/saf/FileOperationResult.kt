@@ -21,6 +21,15 @@ data class FileOperationResult(
     val error: String? = null,
     val partial: Boolean = false,
     val destinationUris: List<String> = listOfNotNull(destinationUri),
+    /**
+     * The display name [destinationUri] actually has, after any collision rename (`IMG-1.jpg`
+     * when `IMG.jpg` was taken). Null where there is no destination or the engine could not read
+     * the name; callers must not guess it from the URI, whose last segment is the provider's
+     * document id, not the name.
+     */
+    val destinationName: String? = null,
+    /** The display names of [destinationUris], in the same order. */
+    val destinationNames: List<String> = listOfNotNull(destinationName),
     val parentDocumentId: String? = null,
     /**
      * For a partial move: destination copy URI → URI of the original that could not be removed.
@@ -42,11 +51,15 @@ data class FileOperationResult(
             destinationUri: String?,
             destinationUris: List<String> = listOfNotNull(destinationUri),
             parentDocumentId: String? = null,
+            destinationName: String? = null,
+            destinationNames: List<String> = listOfNotNull(destinationName),
         ) = FileOperationResult(
             sourceUri = sourceUri,
             destinationUri = destinationUri,
             success = true,
             destinationUris = destinationUris,
+            destinationName = destinationName,
+            destinationNames = destinationNames,
             parentDocumentId = parentDocumentId,
         )
 
@@ -70,6 +83,8 @@ data class FileOperationResult(
             destinationUris: List<String> = listOf(destinationUri),
             parentDocumentId: String? = null,
             copiesOfSurvivingOriginals: Map<String, String> = mapOf(destinationUri to sourceUri),
+            destinationName: String? = null,
+            destinationNames: List<String> = listOfNotNull(destinationName),
         ) = FileOperationResult(
             sourceUri = sourceUri,
             destinationUri = destinationUri,
@@ -77,6 +92,8 @@ data class FileOperationResult(
             error = error,
             partial = true,
             destinationUris = destinationUris,
+            destinationName = destinationName,
+            destinationNames = destinationNames,
             parentDocumentId = parentDocumentId,
             copiesOfSurvivingOriginals = copiesOfSurvivingOriginals,
         )

@@ -2,8 +2,21 @@ import SwiftUI
 import PhotoSelectorKit
 
 /// Transient confirmation toast overlay providing immediate visual feedback for actions.
+private struct DismissToastKey: EnvironmentKey {
+    static let defaultValue: @MainActor () -> Void = {}
+}
+
+extension EnvironmentValues {
+    /// Drops the persistent toast (the close button of a failure).
+    var dismissToast: @MainActor () -> Void {
+        get { self[DismissToastKey.self] }
+        set { self[DismissToastKey.self] = newValue }
+    }
+}
+
 public struct ActionToastView: View {
     public let toast: ToastMessage
+    @Environment(\.dismissToast) private var dismissToast
 
     public init(toast: ToastMessage) {
         self.toast = toast
@@ -27,6 +40,19 @@ public struct ActionToastView: View {
                         .foregroundStyle(.secondary)
                         .lineLimit(1)
                 }
+            }
+
+            if toast.isFailure {
+                Button { dismissToast() } label: {
+                    Image(systemName: "xmark")
+                        .font(.system(size: 11, weight: .bold))
+                        .frame(width: 28, height: 28)
+                        .contentShape(Rectangle())
+                }
+                .buttonStyle(.plain)
+                .focusable(false)
+                .accessibilityLabel("Dismiss")
+                .help("Dismiss (Esc)")
             }
         }
         .padding(.horizontal, 18)
@@ -75,7 +101,7 @@ struct SlotOverlayLayer: View {
             if let toast {
                 ActionToastView(toast: toast)
                     .uiTestFrame("action_toast")
-                    .allowsHitTesting(false)
+                    .allowsHitTesting(toast.isFailure)
                     .transition(.asymmetric(
                         insertion: .scale(scale: 0.9).combined(with: .opacity),
                         removal: .opacity

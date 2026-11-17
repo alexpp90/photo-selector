@@ -277,12 +277,11 @@ struct E2EIntegrationTests {
         vm.setPhotos([PhotoItem(id: UUID(), url: url, status: .candidate)], rootURL: harness.rootURL)
         vm.autoAdvance = false
 
-        let start = CFAbsoluteTimeGetCurrent()
+        // Zero latency means no suspension: the status is already changed when the call returns,
+        // before the actor has touched the disk. That is what is asserted, not a clock reading.
         vm.cullCurrentPhoto(action: .move)
-        let elapsed = CFAbsoluteTimeGetCurrent() - start
-
-        #expect(elapsed < 0.005, "Optimistic mutation must complete in <5ms (measured: \(elapsed * 1000)ms)")
         #expect(vm.photos[0].status == .selected)
+        #expect(vm.cardCullSummary.inFlightCount == 1, "the disk work is still queued behind the optimistic change")
     }
 
     @Test("REQ-MAC-UI.01, REQ-MAC-UI.02, REQ-MAC-UI.03, REQ-MAC-LAYOUT.05, REQ-MAC-LAYOUT.06: Feature 15: R5 Decluttered Workspace keeps culling interface clean")

@@ -505,14 +505,16 @@ public struct ComparisonSlotPane: View {
 
                 if let scores = photo.scores {
                     if scores.highlightClipping > 5.0 {
-                        Text("⚠️ Blown (\(Int(scores.highlightClipping))%)")
+                        Label(ScoreLabels.blown(scores.highlightClipping), systemImage: "sun.max.fill")
                             .font(.system(size: 9, weight: .bold))
                             .foregroundStyle(Color.lensjetClippingHighlight)
+                            .accessibilityLabel(ScoreLabels.blownSpoken(scores.highlightClipping))
                     }
                     if scores.shadowClipping > 15.0 {
-                        Text("⚠️ Crushed (\(Int(scores.shadowClipping))%)")
+                        Label(ScoreLabels.crushed(scores.shadowClipping), systemImage: "moon.fill")
                             .font(.system(size: 9, weight: .bold))
                             .foregroundStyle(Color.lensjetClippingShadow)
+                            .accessibilityLabel(ScoreLabels.crushedSpoken(scores.shadowClipping))
                     }
                 }
             }

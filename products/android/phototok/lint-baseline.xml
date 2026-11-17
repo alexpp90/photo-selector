@@ -1,0 +1,769 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<issues format="6" by="lint 9.5.1" type="baseline" client="gradle" dependencies="false" name="AGP (9.5.1)" variant="all" version="9.5.1">
+
+    <issue
+        id="EmptySuperCall"
+        message="No need to call `super.onCleared`; the super method is defined to be empty"
+        errorLine1="        super.onCleared()"
+        errorLine2="              ~~~~~~~~~">
+        <location
+            file="src/com/phototok/viewmodel/PhoneModeViewModel.kt"
+            line="549"
+            column="15"/>
+    </issue>
+
+    <issue
+        id="NewApi"
+        message="Call requires API level 30 (current min is 26): `android.provider.MediaStore#createFavoriteRequest`"
+        errorLine1="        return MediaStore.createFavoriteRequest("
+        errorLine2="                          ~~~~~~~~~~~~~~~~~~~~~">
+        <location
+            file="src/com/phototok/data/source/MediaStoreFavourites.kt"
+            line="101"
+            column="27"/>
+    </issue>
+
+    <issue
+        id="NewApi"
+        message="Call requires API level 30 (current min is 26): `android.provider.MediaStore#createTrashRequest`"
+        errorLine1="        return MediaStore.createTrashRequest(context.contentResolver, mediaUris.map(Uri::parse), true).intentSender"
+        errorLine2="                          ~~~~~~~~~~~~~~~~~~">
+        <location
+            file="src/com/phototok/data/source/MediaStoreTrash.kt"
+            line="90"
+            column="27"/>
+    </issue>
+
+    <issue
+        id="OldTargetApi"
+        message="Not targeting the latest versions of Android; compatibility modes apply. Consider testing and updating this version. Consult the `android.os.Build.VERSION_CODES` javadoc for details."
+        errorLine1="        targetSdk = 36"
+        errorLine2="        ~~~~~~~~~~~~~~">
+        <location
+            file="build.gradle.kts"
+            line="24"
+            column="9"/>
+    </issue>
+
+    <issue
+        id="LocalContextConfigurationRead"
+        message="Reading Configuration using LocalContext.current.resources.configuration is not configuration-aware and may return stale values if the Configuration changes"
+        errorLine1="                    Configuration(base.resources.configuration).apply {"
+        errorLine2="                                  ~~~~~~~~~~~~~~~~~~~~~~~~~~~~">
+        <location
+            file="tests/unit/com/phototok/ui/screenshots/ScreenshotSupport.kt"
+            line="77"
+            column="35"/>
+    </issue>
+
+    <issue
+        id="LocalContextGetResourceValueCall"
+        message="Querying resource values using LocalContext.current is not configuration-aware and may return stale values if the Configuration changes"
+        errorLine1="            message = context.getString(R.string.snackbar_not_deleted, n.items.size),"
+        errorLine2="                      ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~">
+        <location
+            file="src/com/phototok/ui/phonemode/DeleteDialogs.kt"
+            line="183"
+            column="23"/>
+    </issue>
+
+    <issue
+        id="LocalContextGetResourceValueCall"
+        message="Querying resource values using LocalContext.current is not configuration-aware and may return stale values if the Configuration changes"
+        errorLine1="            actionLabel = context.getString(R.string.snackbar_action_retry),"
+        errorLine2="                          ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~">
+        <location
+            file="src/com/phototok/ui/phonemode/DeleteDialogs.kt"
+            line="184"
+            column="27"/>
+    </issue>
+
+    <issue
+        id="LocalContextGetResourceValueCall"
+        message="Querying resource values using LocalContext.current is not configuration-aware and may return stale values if the Configuration changes"
+        errorLine1="                    actionLabel = context.getString(R.string.snackbar_action_undo),"
+        errorLine2="                                  ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~">
+        <location
+            file="src/com/phototok/ui/phonemode/PhoneModeScreen.kt"
+            line="750"
+            column="35"/>
+    </issue>
+
+    <issue
+        id="LocalContextGetResourceValueCall"
+        message="Querying resource values using LocalContext.current is not configuration-aware and may return stale values if the Configuration changes"
+        errorLine1="            actionLabel = if (fb.offersUndoDelete || fb.offersUndoProOff) context.getString(R.string.snackbar_action_undo) else null,"
+        errorLine2="                                                                          ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~">
+        <location
+            file="src/com/phototok/ui/phonemode/PhoneModeScreen.kt"
+            line="817"
+            column="75"/>
+    </issue>
+
+    <issue
+        id="LocalContextResourcesRead"
+        message="Reading Resources using LocalContext.current.resources is not configuration-aware and may return stale values if the Configuration changes"
+        errorLine1="    val notices = remember { context.resources.openRawResource(R.raw.third_party_notices).bufferedReader().use { it.readText() } }"
+        errorLine2="                             ~~~~~~~~~~~~~~~~~">
+        <location
+            file="src/com/phototok/ui/settings/LicencesRow.kt"
+            line="46"
+            column="30"/>
+    </issue>
+
+    <issue
+        id="LocalContextResourcesRead"
+        message="Reading Resources using LocalContext.current.resources is not configuration-aware and may return stale values if the Configuration changes"
+        errorLine1="    return remember(this, context, configuration) { resolve(context.resources) }"
+        errorLine2="                                                            ~~~~~~~~~~~~~~~~~">
+        <location
+            file="src/com/phototok/ui/UiTextResolver.kt"
+            line="34"
+            column="61"/>
+    </issue>
+
+    <issue
+        id="ModifierParameter"
+        message="Modifier parameter should be the first optional parameter"
+        errorLine1="    modifier: Modifier = Modifier,"
+        errorLine2="    ~~~~~~~~">
+        <location
+            file="src/com/phototok/ui/phonemode/ControlsGuideLayout.kt"
+            line="389"
+            column="5"/>
+    </issue>
+
+    <issue
+        id="ModifierParameter"
+        message="Modifier parameter should be the first optional parameter"
+        errorLine1="    modifier: Modifier = Modifier,"
+        errorLine2="    ~~~~~~~~">
+        <location
+            file="src/com/phototok/ui/phonemode/GestureTutorialOverlay.kt"
+            line="411"
+            column="5"/>
+    </issue>
+
+    <issue
+        id="ModifierParameter"
+        message="Modifier parameter should be the first optional parameter"
+        errorLine1="private fun ProModeHelpItem(icon: ImageVector, label: String, spoken: String? = null, modifier: Modifier = Modifier) {"
+        errorLine2="                                                                                      ~~~~~~~~">
+        <location
+            file="src/com/phototok/ui/components/ProModeRow.kt"
+            line="164"
+            column="87"/>
+    </issue>
+
+    <issue
+        id="DiscouragedApi"
+        message="Fixed screen orientations will be ignored in most cases, starting from Android 16. Android is moving toward a model where apps are expected to adapt to various orientations, display sizes, and aspect ratios."
+        errorLine1="            android:screenOrientation=&quot;unspecified&quot;>"
+        errorLine2="            ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~">
+        <location
+            file="AndroidManifest.xml"
+            line="21"
+            column="13"/>
+    </issue>
+
+    <issue
+        id="PluralsCandidate"
+        message="Formatting %d followed by words (&quot;permanent&quot;): This should probably be a plural rather than a string"
+        errorLine1="    &lt;string name=&quot;dialog_body_trash_split&quot;>%1$d to Trash · %2$d permanent&lt;/string>"
+        errorLine2="    ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~">
+        <location
+            file="res/values/strings.xml"
+            line="142"
+            column="5"/>
+    </issue>
+
+    <issue
+        id="PluralsCandidate"
+        message="Formatting %d followed by words (&quot;copied&quot;): This should probably be a plural rather than a string"
+        errorLine1="    &lt;string name=&quot;label_card_copied&quot;>%1$d copied&lt;/string>"
+        errorLine2="    ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~">
+        <location
+            file="res/values/strings.xml"
+            line="145"
+            column="5"/>
+    </issue>
+
+    <issue
+        id="PluralsCandidate"
+        message="Formatting %d followed by words (&quot;copied&quot;): This should probably be a plural rather than a string"
+        errorLine1="    &lt;string name=&quot;cd_card_copied&quot;>%1$d copied off the card&lt;/string>"
+        errorLine2="    ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~">
+        <location
+            file="res/values/strings.xml"
+            line="146"
+            column="5"/>
+    </issue>
+
+    <issue
+        id="PluralsCandidate"
+        message="Formatting %d followed by words (&quot;deleted&quot;): This should probably be a plural rather than a string"
+        errorLine1="    &lt;string name=&quot;snackbar_deleted_count&quot;>%1$d deleted&lt;/string>"
+        errorLine2="    ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~">
+        <location
+            file="res/values/strings.xml"
+            line="202"
+            column="5"/>
+    </issue>
+
+    <issue
+        id="PluralsCandidate"
+        message="Formatting %d followed by words (&quot;not&quot;): This should probably be a plural rather than a string"
+        errorLine1="    &lt;string name=&quot;snackbar_not_deleted&quot;>%1$d not deleted&lt;/string>"
+        errorLine2="    ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~">
+        <location
+            file="res/values/strings.xml"
+            line="204"
+            column="5"/>
+    </issue>
+
+    <issue
+        id="PluralsCandidate"
+        message="Formatting %d followed by words (&quot;reviewed&quot;): This should probably be a plural rather than a string"
+        errorLine1="    &lt;string name=&quot;snackbar_milestone_reviewed&quot;>%1$d reviewed&lt;/string>"
+        errorLine2="    ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~">
+        <location
+            file="res/values/strings.xml"
+            line="213"
+            column="5"/>
+    </issue>
+
+    <issue
+        id="PluralsCandidate"
+        message="Formatting %d followed by words (&quot;copied&quot;): This should probably be a plural rather than a string"
+        errorLine1="    &lt;string name=&quot;snackbar_favourites_copied&quot;>%1$d copied to %2$s&lt;/string>"
+        errorLine2="    ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~">
+        <location
+            file="res/values/strings.xml"
+            line="217"
+            column="5"/>
+    </issue>
+
+    <issue
+        id="PluralsCandidate"
+        message="Formatting %d followed by words (&quot;hidden&quot;): This should probably be a plural rather than a string"
+        errorLine1="    &lt;string name=&quot;empty_hidden_by_filter&quot;>%1$d hidden by filter&lt;/string>"
+        errorLine2="    ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~">
+        <location
+            file="res/values/strings.xml"
+            line="242"
+            column="5"/>
+    </issue>
+
+    <issue
+        id="PluralsCandidate"
+        message="Formatting %d followed by words (&quot;reviewed&quot;): This should probably be a plural rather than a string"
+        errorLine1="    &lt;string name=&quot;cd_landing_stats_session&quot;>This session: %1$d reviewed, %2$d selected, %3$s freed&lt;/string>"
+        errorLine2="    ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~">
+        <location
+            file="res/values/strings.xml"
+            line="301"
+            column="5"/>
+    </issue>
+
+    <issue
+        id="PluralsCandidate"
+        message="Formatting %d followed by words (&quot;reviewed&quot;): This should probably be a plural rather than a string"
+        errorLine1="    &lt;string name=&quot;cd_landing_stats_total&quot;>Total: %1$d reviewed, %2$d selected, %3$s freed&lt;/string>"
+        errorLine2="    ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~">
+        <location
+            file="res/values/strings.xml"
+            line="302"
+            column="5"/>
+    </issue>
+
+    <issue
+        id="ObsoleteSdkInt"
+        message="This folder configuration (`v26`) is unnecessary; `minSdkVersion` is 26. Merge all the resources in this folder into `mipmap-anydpi`.">
+        <location
+            file="res/mipmap-anydpi-v26"/>
+    </issue>
+
+    <issue
+        id="AutoboxingStateCreation"
+        message="Prefer `mutableIntStateOf` instead of `mutableStateOf`"
+        errorLine1="    val maxPageSeen = remember(images) { mutableStateOf(currentIndex) }"
+        errorLine2="                                         ~~~~~~~~~~~~~~">
+        <location
+            file="src/com/phototok/ui/phonemode/PhoneModeViewer.kt"
+            line="334"
+            column="42"/>
+    </issue>
+
+    <issue
+        id="IconLocation"
+        message="Found bitmap drawable `res/drawable/placeholder_architecture.jpg` in densityless folder">
+        <location
+            file="res/drawable/placeholder_architecture.jpg"/>
+    </issue>
+
+    <issue
+        id="IconLocation"
+        message="Found bitmap drawable `res/drawable/placeholder_landscape.jpg` in densityless folder">
+        <location
+            file="res/drawable/placeholder_landscape.jpg"/>
+    </issue>
+
+    <issue
+        id="IconLocation"
+        message="Found bitmap drawable `res/drawable/placeholder_portrait.jpg` in densityless folder">
+        <location
+            file="res/drawable/placeholder_portrait.jpg"/>
+    </issue>
+
+    <issue
+        id="UseKtx"
+        message="Use the KTX extension function `String.toUri` instead?"
+        errorLine1="                selectSourceFolder(Uri.parse(lastUri))"
+        errorLine2="                                   ~~~~~~~~~~~~~~~~~~">
+        <location
+            file="src/com/phototok/viewmodel/FeedDiscoveryHolder.kt"
+            line="163"
+            column="36"/>
+    </issue>
+
+    <issue
+        id="UseKtx"
+        message="Use the KTX extension function `String.toUri` instead?"
+        errorLine1="        val folderUri = Uri.parse(folderUriStr)"
+        errorLine2="                        ~~~~~~~~~~~~~~~~~~~~~~~">
+        <location
+            file="src/com/phototok/viewmodel/FeedDiscoveryHolder.kt"
+            line="682"
+            column="25"/>
+    </issue>
+
+    <issue
+        id="UseKtx"
+        message="Use the KTX extension function `String.toUri` instead?"
+        errorLine1="                        val exif = imageRepository.getExifData(Uri.parse(image.uri))"
+        errorLine2="                                                               ~~~~~~~~~~~~~~~~~~~~">
+        <location
+            file="src/com/phototok/viewmodel/FeedDiscoveryHolder.kt"
+            line="877"
+            column="64"/>
+    </issue>
+
+    <issue
+        id="UseKtx"
+        message="Use the KTX extension function `String.toUri` instead?"
+        errorLine1="                        imageRepository.getImageDimensions(Uri.parse(image.uri))"
+        errorLine2="                                                           ~~~~~~~~~~~~~~~~~~~~">
+        <location
+            file="src/com/phototok/viewmodel/FeedDiscoveryHolder.kt"
+            line="926"
+            column="60"/>
+    </issue>
+
+    <issue
+        id="UseKtx"
+        message="Use the KTX extension function `String.toUri` instead?"
+        errorLine1="                imageRepository.getImageDimensions(Uri.parse(image.uri))"
+        errorLine2="                                                   ~~~~~~~~~~~~~~~~~~~~">
+        <location
+            file="src/com/phototok/viewmodel/FeedDiscoveryHolder.kt"
+            line="961"
+            column="52"/>
+    </issue>
+
+    <issue
+        id="UseKtx"
+        message="Use the KTX extension function `String.toUri` instead?"
+        errorLine1="        Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q &amp;&amp; isResolvableAuthority(Uri.parse(documentUri).authority)"
+        errorLine2="                                                                                ~~~~~~~~~~~~~~~~~~~~~~">
+        <location
+            file="src/com/phototok/data/source/MediaStoreFavourites.kt"
+            line="56"
+            column="81"/>
+    </issue>
+
+    <issue
+        id="UseKtx"
+        message="Use the KTX extension function `String.toUri` instead?"
+        errorLine1="            val resolved = resolveOne(Uri.parse(raw)) ?: continue"
+        errorLine2="                                      ~~~~~~~~~~~~~~">
+        <location
+            file="src/com/phototok/data/source/MediaStoreFavourites.kt"
+            line="62"
+            column="39"/>
+    </issue>
+
+    <issue
+        id="UseKtx"
+        message="Use the KTX extension function `String.toUri` instead?"
+        errorLine1="            val readable = grantedUris[mediaUri] ?: Uri.parse(mediaUri)"
+        errorLine2="                                                    ~~~~~~~~~~~~~~~~~~~">
+        <location
+            file="src/com/phototok/data/source/MediaStoreFavourites.kt"
+            line="93"
+            column="53"/>
+    </issue>
+
+    <issue
+        id="UseKtx"
+        message="Use the KTX extension function `String.toUri` instead?"
+        errorLine1="            resolveOne(Uri.parse(raw))?.let { out[raw] = it }"
+        errorLine2="                       ~~~~~~~~~~~~~~">
+        <location
+            file="src/com/phototok/data/source/MediaStoreTrash.kt"
+            line="51"
+            column="24"/>
+    </issue>
+
+    <issue
+        id="UseKtx"
+        message="Use the KTX extension function `String.toUri` instead?"
+        errorLine1="            val readable = grantedUris[mediaUri] ?: Uri.parse(mediaUri)"
+        errorLine2="                                                    ~~~~~~~~~~~~~~~~~~~">
+        <location
+            file="src/com/phototok/data/source/MediaStoreTrash.kt"
+            line="98"
+            column="53"/>
+    </issue>
+
+    <issue
+        id="UseKtx"
+        message="Use the KTX extension function `String.toUri` instead?"
+        errorLine1="                    imageRepository.deleteImage(Uri.parse(img.uri))"
+        errorLine2="                                                ~~~~~~~~~~~~~~~~~~">
+        <location
+            file="src/com/phototok/viewmodel/PendingDeleteCommit.kt"
+            line="50"
+            column="49"/>
+    </issue>
+
+    <issue
+        id="UseKtx"
+        message="Use the KTX extension function `String.toUri` instead?"
+        errorLine1="                            viewModel.selectSourceFolder(Uri.parse(it))"
+        errorLine2="                                                         ~~~~~~~~~~~~~">
+        <location
+            file="src/com/phototok/ui/phonemode/PhoneModeScreen.kt"
+            line="561"
+            column="58"/>
+    </issue>
+
+    <issue
+        id="UseKtx"
+        message="Use the KTX extension function `String.toUri` instead?"
+        errorLine1="                    android.net.Uri.parse(uri),"
+        errorLine2="                    ~~~~~~~~~~~~~~~~~~~~~~~~~~">
+        <location
+            file="src/com/phototok/ui/phonemode/PhoneModeViewer.kt"
+            line="257"
+            column="21"/>
+    </issue>
+
+    <issue
+        id="UseKtx"
+        message="Use the KTX extension function `String.toUri` instead?"
+        errorLine1="            val parsedUri = remember(image.uri) { android.net.Uri.parse(image.uri) }"
+        errorLine2="                                                  ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~">
+        <location
+            file="src/com/phototok/ui/phonemode/PhoneModeViewer.kt"
+            line="875"
+            column="51"/>
+    </issue>
+
+    <issue
+        id="UseKtx"
+        message="Use the KTX extension function `Bitmap.toDrawable` instead?"
+        errorLine1="            drawable = BitmapDrawable(context.resources, bitmap),"
+        errorLine2="                       ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~">
+        <location
+            file="src/com/phototok/image/PhotoFetcher.kt"
+            line="56"
+            column="24"/>
+    </issue>
+
+    <issue
+        id="UseKtx"
+        message="Use the KTX extension function `String.toUri` instead?"
+        errorLine1="                when (val listing = imageRepository.listSelectionImages(Uri.parse(targetFolderUri))) {"
+        errorLine2="                                                                        ~~~~~~~~~~~~~~~~~~~~~~~~~~">
+        <location
+            file="src/com/phototok/viewmodel/SelectionViewerViewModel.kt"
+            line="143"
+            column="73"/>
+    </issue>
+
+    <issue
+        id="UseKtx"
+        message="Use the KTX extension function `String.toUri` instead?"
+        errorLine1="                    when (val listing = imageRepository.listSelectionImages(Uri.parse(targetFolderUri), selectionSubfolder)) {"
+        errorLine2="                                                                            ~~~~~~~~~~~~~~~~~~~~~~~~~~">
+        <location
+            file="src/com/phototok/viewmodel/SelectionViewerViewModel.kt"
+            line="212"
+            column="77"/>
+    </issue>
+
+    <issue
+        id="UseKtx"
+        message="Use the KTX extension function `String.toUri` instead?"
+        errorLine1="                val sources = bundle.map { Uri.parse(it.uri) }"
+        errorLine2="                                           ~~~~~~~~~~~~~~~~~">
+        <location
+            file="src/com/phototok/viewmodel/SelectionViewerViewModel.kt"
+            line="300"
+            column="44"/>
+    </issue>
+
+    <issue
+        id="UseKtx"
+        message="Use the KTX extension function `String.toUri` instead?"
+        errorLine1="        folderAccessManager.takeGrant(Uri.parse(uri), FolderAccessPurpose.SELECTION_TARGET)"
+        errorLine2="                                      ~~~~~~~~~~~~~~">
+        <location
+            file="src/com/phototok/data/repository/SettingsRepository.kt"
+            line="517"
+            column="39"/>
+    </issue>
+
+    <issue
+        id="UseKtx"
+        message="Use the KTX extension function `String.toUri` instead?"
+        errorLine1="            folderAccessManager.takeGrant(Uri.parse(uri), FolderAccessPurpose.SELECTION_TARGET)"
+        errorLine2="                                          ~~~~~~~~~~~~~~">
+        <location
+            file="src/com/phototok/data/repository/SettingsRepository.kt"
+            line="593"
+            column="43"/>
+    </issue>
+
+    <issue
+        id="UseKtx"
+        message="Use the KTX extension function `String.toUri` instead?"
+        errorLine1="            folderAccessManager.takeGrant(Uri.parse(uri), FolderAccessPurpose.LEFT_SWIPE_TARGET)"
+        errorLine2="                                          ~~~~~~~~~~~~~~">
+        <location
+            file="src/com/phototok/data/repository/SettingsRepository.kt"
+            line="618"
+            column="43"/>
+    </issue>
+
+    <issue
+        id="UseKtx"
+        message="Use the KTX extension function `String.toUri` instead?"
+        errorLine1="            folderAccessManager.takeGrant(Uri.parse(uri), FolderAccessPurpose.SOURCE)"
+        errorLine2="                                          ~~~~~~~~~~~~~~">
+        <location
+            file="src/com/phototok/data/repository/SettingsRepository.kt"
+            line="703"
+            column="43"/>
+    </issue>
+
+    <issue
+        id="UseKtx"
+        message="Use the KTX extension function `String.toUri` instead?"
+        errorLine1="        val parsed = android.net.Uri.parse(uri)"
+        errorLine2="                     ~~~~~~~~~~~~~~~~~~~~~~~~~~">
+        <location
+            file="src/com/phototok/data/repository/SettingsRepository.kt"
+            line="900"
+            column="22"/>
+    </issue>
+
+    <issue
+        id="UseKtx"
+        message="Use the KTX extension function `String.toUri` instead?"
+        errorLine1="                    val intent = Intent(Intent.ACTION_VIEW, Uri.parse(LegalLinks.SOURCE_CODE))"
+        errorLine2="                                                            ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~">
+        <location
+            file="src/com/phototok/ui/settings/SettingsScreen.kt"
+            line="616"
+            column="61"/>
+    </issue>
+
+    <issue
+        id="UseKtx"
+        message="Use the KTX extension function `String.toUri` instead?"
+        errorLine1="                    val intent = Intent(Intent.ACTION_VIEW, Uri.parse(com.phototok.domain.LegalLinks.PRIVACY_POLICY))"
+        errorLine2="                                                            ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~">
+        <location
+            file="src/com/phototok/ui/settings/SettingsScreen.kt"
+            line="633"
+            column="61"/>
+    </issue>
+
+    <issue
+        id="UseKtx"
+        message="Use the KTX extension function `String.toUri` instead?"
+        errorLine1="                    val intent = Intent(Intent.ACTION_VIEW, Uri.parse(com.phototok.domain.LegalLinks.IMPRESSUM))"
+        errorLine2="                                                            ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~">
+        <location
+            file="src/com/phototok/ui/settings/SettingsScreen.kt"
+            line="648"
+            column="61"/>
+    </issue>
+
+    <issue
+        id="UseKtx"
+        message="Use the KTX extension function `String.toUri` instead?"
+        errorLine1="                    imageRepository.resolveFolderName(Uri.parse(uri))"
+        errorLine2="                                                      ~~~~~~~~~~~~~~">
+        <location
+            file="src/com/phototok/viewmodel/SettingsViewModel.kt"
+            line="235"
+            column="55"/>
+    </issue>
+
+    <issue
+        id="UseKtx"
+        message="Use the KTX extension function `String.toUri` instead?"
+        errorLine1="                        ?: PhotoFolders.nameFromDocumentId(Uri.parse(uri).lastPathSegment)"
+        errorLine2="                                                           ~~~~~~~~~~~~~~">
+        <location
+            file="src/com/phototok/viewmodel/SettingsViewModel.kt"
+            line="236"
+            column="60"/>
+    </issue>
+
+    <issue
+        id="UseKtx"
+        message="Use the KTX extension function `String.toUri` instead?"
+        errorLine1="            val lookup = imageRepository.describeFolder(Uri.parse(uri))"
+        errorLine2="                                                        ~~~~~~~~~~~~~~">
+        <location
+            file="src/com/phototok/viewmodel/SettingsViewModel.kt"
+            line="262"
+            column="57"/>
+    </issue>
+
+    <issue
+        id="UseKtx"
+        message="Use the KTX extension function `String.toUri` instead?"
+        errorLine1="        imageRepository.resolveFolderName(Uri.parse(uri))?.takeIf { it.isNotBlank() }"
+        errorLine2="                                          ~~~~~~~~~~~~~~">
+        <location
+            file="src/com/phototok/viewmodel/SettingsViewModel.kt"
+            line="268"
+            column="43"/>
+    </issue>
+
+    <issue
+        id="UseKtx"
+        message="Use the KTX extension function `String.toUri` instead?"
+        errorLine1="        val contentUri = Uri.parse(target.uri)"
+        errorLine2="                         ~~~~~~~~~~~~~~~~~~~~~">
+        <location
+            file="src/com/phototok/data/share/ShareIntentBuilder.kt"
+            line="87"
+            column="26"/>
+    </issue>
+
+    <issue
+        id="UseKtx"
+        message="Use the KTX extension function `String.toUri` instead?"
+        errorLine1="            val u = Uri.parse(target.uri)"
+        errorLine2="                    ~~~~~~~~~~~~~~~~~~~~~">
+        <location
+            file="src/com/phototok/data/share/ShareIntentBuilder.kt"
+            line="113"
+            column="21"/>
+    </issue>
+
+    <issue
+        id="UseKtx"
+        message="Use the KTX extension function `String.toUri` instead?"
+        errorLine1="        val contentUri = Uri.parse(target.uri)"
+        errorLine2="                         ~~~~~~~~~~~~~~~~~~~~~">
+        <location
+            file="src/com/phototok/data/share/ShareIntentBuilder.kt"
+            line="138"
+            column="26"/>
+    </issue>
+
+    <issue
+        id="UseKtx"
+        message="Use the KTX extension function `String.toUri` instead?"
+        errorLine1="        val parsed = Uri.parse(uri)"
+        errorLine2="                     ~~~~~~~~~~~~~~">
+        <location
+            file="src/com/phototok/viewmodel/SourceSettingsHolder.kt"
+            line="226"
+            column="22"/>
+    </issue>
+
+    <issue
+        id="UseKtx"
+        message="Use the KTX extension function `String.toUri` instead?"
+        errorLine1="        feed.selectSourceFolder(Uri.parse(path.uri))"
+        errorLine2="                                ~~~~~~~~~~~~~~~~~~~">
+        <location
+            file="src/com/phototok/viewmodel/SourceSettingsHolder.kt"
+            line="245"
+            column="33"/>
+    </issue>
+
+    <issue
+        id="UseKtx"
+        message="Use the KTX extension function `String.toUri` instead?"
+        errorLine1="            .firstOrNull { imageRepository.resolveFolderName(Uri.parse(it)) != null }"
+        errorLine2="                                                             ~~~~~~~~~~~~~">
+        <location
+            file="src/com/phototok/viewmodel/TransferUndoHolder.kt"
+            line="244"
+            column="62"/>
+    </issue>
+
+    <issue
+        id="UseKtx"
+        message="Use the KTX extension function `String.toUri` instead?"
+        errorLine1="                val folderUri = Uri.parse(targetUri)"
+        errorLine2="                                ~~~~~~~~~~~~~~~~~~~~">
+        <location
+            file="src/com/phototok/viewmodel/TransferUndoHolder.kt"
+            line="381"
+            column="33"/>
+    </issue>
+
+    <issue
+        id="UseKtx"
+        message="Use the KTX extension function `String.toUri` instead?"
+        errorLine1="                        sourceUris = targets.map { Uri.parse(it.uri) },"
+        errorLine2="                                                   ~~~~~~~~~~~~~~~~~">
+        <location
+            file="src/com/phototok/viewmodel/TransferUndoHolder.kt"
+            line="394"
+            column="52"/>
+    </issue>
+
+    <issue
+        id="UseKtx"
+        message="Use the KTX extension function `String.toUri` instead?"
+        errorLine1="                                sourceUri = Uri.parse(img.uri),"
+        errorLine2="                                            ~~~~~~~~~~~~~~~~~~">
+        <location
+            file="src/com/phototok/viewmodel/TransferUndoHolder.kt"
+            line="404"
+            column="45"/>
+    </issue>
+
+    <issue
+        id="UseKtx"
+        message="Use the KTX extension function `String.toUri` instead?"
+        errorLine1="                                sourceUri = Uri.parse(img.uri),"
+        errorLine2="                                            ~~~~~~~~~~~~~~~~~~">
+        <location
+            file="src/com/phototok/viewmodel/TransferUndoHolder.kt"
+            line="411"
+            column="45"/>
+    </issue>
+
+    <issue
+        id="UseKtx"
+        message="Use the KTX extension function `String.toUri` instead?"
+        errorLine1="                    imageRepository.deleteImage(Uri.parse(img.uri))"
+        errorLine2="                                                ~~~~~~~~~~~~~~~~~~">
+        <location
+            file="src/com/phototok/viewmodel/TransferUndoHolder.kt"
+            line="810"
+            column="49"/>
+    </issue>
+
+</issues>

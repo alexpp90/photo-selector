@@ -1,0 +1,19 @@
+<?xml version="1.0" ?>
+<SmellBaseline>
+  <ManuallySuppressedIssues/>
+  <CurrentIssues>
+    <ID>ComplexCondition:BundleNaming.kt:BundleNaming$primaryStem.isNotEmpty() &amp;&amp; name.startsWith(primaryStem, ignoreCase = true) &amp;&amp; (name.length == primaryStem.length || name[primaryStem.length] in charArrayOf('.', '-', '_'))</ID>
+    <ID>CyclomaticComplexMethod:SafTransferEngine.kt:SafTransferEngine$private fun writeAndVerify: CopyStepResult</ID>
+    <ID>CyclomaticComplexMethod:SafTransferEngine.kt:SafTransferEngine$private suspend fun executeAllOrNothing: List&lt;FileOperationResult&gt;</ID>
+    <ID>CyclomaticComplexMethod:SafTransferEngine.kt:SafTransferEngine$suspend fun transferBundle: List&lt;FileOperationResult&gt;</ID>
+    <ID>LargeClass:SafTransferEngine.kt:SafTransferEngine</ID>
+    <ID>LongMethod:SafTransferEngine.kt:SafTransferEngine$private suspend fun executeAllOrNothing: List&lt;FileOperationResult&gt;</ID>
+    <ID>LongMethod:SafTransferEngine.kt:SafTransferEngine$suspend fun undoMoveBundle: FileOperationResult</ID>
+    <ID>MaxLineLength:BundleNamingTest.kt:BundleNamingTest$assertEquals(emptyMap&lt;String, String&gt;(), BundleNaming.resolveCollisionFreeBundleNames(emptyList(), existingNamesByFolder = emptyMap(), folderForFile = ::folderOf))</ID>
+    <ID>MaxLineLength:SafTransferContractTest.kt:SafTransferContractTest$// AD: sorting false files bundle flat into Selection without RAW or JPEG subfolders and undo restores to original folder (U-04c; the filing half — the undo half is in AllOrNothingSafTransferTest)</ID>
+    <ID>NestedBlockDepth:SafTransferEngine.kt:SafTransferEngine$internal fun findChild: DocumentFile?</ID>
+    <ID>NestedBlockDepth:SafTransferEngine.kt:SafTransferEngine$internal fun queryFolderListing: FolderListing</ID>
+    <ID>ThrowsCount:FakeSafDocumentsProvider.kt:FakeSafDocumentsProvider$private fun handleCreateDocument: String</ID>
+    <ID>UnusedParameter:FakeSafDocumentsProvider.kt:FakeSafDocumentsProvider$sourceParentDocumentId: String</ID>
+  </CurrentIssues>
+</SmellBaseline>

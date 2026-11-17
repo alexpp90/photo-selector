@@ -39,7 +39,7 @@ parity on large screens.
 | Gradle module | `:android-desktop` |
 | Package | `com.photoselectortoolbox` |
 | Target | Samsung DeX, tablets ≥ 840 dp, Chromebooks (Medium and Expanded window size classes) |
-| Artifacts | `photo-selector-toolbox-android-release.apk` / `.aab` |
+| Artifacts | `frameduel-android-release.apk` / `.aab` |
 
 ## Supported formats
 

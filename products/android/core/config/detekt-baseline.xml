@@ -1,0 +1,44 @@
+<?xml version="1.0" ?>
+<SmellBaseline>
+  <ManuallySuppressedIssues/>
+  <CurrentIssues>
+    <ID>ComplexCondition:AndroidExifReader.kt:BinaryExifRatingReader$exifSubIfdOffset != null &amp;&amp; exifSubIfdOffset &gt; 0 &amp;&amp; tiffBase + exifSubIfdOffset &gt;= 0 &amp;&amp; tiffBase + exifSubIfdOffset + 2 &lt;= buffer.limit()</ID>
+    <ID>ComplexCondition:EmbeddedPreviewExtractor.kt:EmbeddedPreviewExtractor$(compression == 6L || compression == 7L || compression == 99L) &amp;&amp; strips != null &amp;&amp; counts != null &amp;&amp; strips.size == 1 &amp;&amp; counts.size == 1</ID>
+    <ID>ComplexCondition:EmbeddedPreviewExtractor.kt:EmbeddedPreviewExtractor$jif != null &amp;&amp; jifLen != null &amp;&amp; jif &gt; 0 &amp;&amp; jifLen &gt; 0</ID>
+    <ID>CyclomaticComplexMethod:AndroidExifReader.kt:AndroidExifReader$override suspend fun readExif: ExifData?</ID>
+    <ID>CyclomaticComplexMethod:AndroidExifReader.kt:AndroidExifReader$private fun extractRating: Int</ID>
+    <ID>CyclomaticComplexMethod:AndroidExifReader.kt:BinaryExifRatingReader$private fun parseFromBufferInternal: Int?</ID>
+    <ID>CyclomaticComplexMethod:AndroidExifReader.kt:BinaryExifRatingReader$private fun parseIfd: Int?</ID>
+    <ID>CyclomaticComplexMethod:EmbeddedPreviewExtractor.kt:EmbeddedPreviewExtractor$private fun olympusMakerNote</ID>
+    <ID>CyclomaticComplexMethod:EmbeddedPreviewExtractor.kt:EmbeddedPreviewExtractor$private fun validate: EmbeddedPreview?</ID>
+    <ID>CyclomaticComplexMethod:ExternalStorageDetector.kt:ExternalStorageDetector$fun detectExternalVolumes: List&lt;ExternalVolume&gt;</ID>
+    <ID>CyclomaticComplexMethod:IsoBmff.kt:Cr3Structure.Companion$fun parse: Cr3Structure?</ID>
+    <ID>CyclomaticComplexMethod:IsoBmff.kt:Cr3Structure.Companion$private fun firstChunkOf: Pair&lt;Long, Long&gt;?</ID>
+    <ID>CyclomaticComplexMethod:TiffBitmapDecoder.kt:TiffBitmapDecoder$private fun decodeInternal: DecodedPixels?</ID>
+    <ID>CyclomaticComplexMethod:TiffBitmapDecoder.kt:TiffBitmapDecoder$private fun lzw: ByteArray</ID>
+    <ID>EmptyElseBlock:TiffBitmapDecoder.kt:TiffBitmapDecoder$if (code &gt; 255) break</ID>
+    <ID>LongMethod:AndroidExifReader.kt:AndroidExifReader$private fun parseExifData: ExifData</ID>
+    <ID>LongMethod:Cr3Metadata.kt:Cr3Metadata.Companion$fun read: Cr3Metadata?</ID>
+    <ID>LongMethod:ExternalStorageDetector.kt:ExternalStorageDetector$fun detectExternalVolumes: List&lt;ExternalVolume&gt;</ID>
+    <ID>LongMethod:TiffBitmapDecoder.kt:TiffBitmapDecoder$private fun decodeInternal: DecodedPixels?</ID>
+    <ID>LoopWithTooManyJumpStatements:EmbeddedPreviewExtractor.kt:EmbeddedPreviewExtractor$while</ID>
+    <ID>LoopWithTooManyJumpStatements:ExternalStorageDetector.kt:ExternalStorageDetector$for</ID>
+    <ID>LoopWithTooManyJumpStatements:IsoBmff.kt:IsoBmff$while</ID>
+    <ID>LoopWithTooManyJumpStatements:SafSidecarRating.kt:SafSidecarRating$for</ID>
+    <ID>LoopWithTooManyJumpStatements:TiffBitmapDecoder.kt:TiffBitmapDecoder$for</ID>
+    <ID>LoopWithTooManyJumpStatements:TiffBitmapDecoder.kt:TiffBitmapDecoder$while</ID>
+    <ID>MaxLineLength:SafSidecarRatingTest.kt:SidecarTreeProvider$private val columns = arrayOf(Document.COLUMN_DOCUMENT_ID, Document.COLUMN_DISPLAY_NAME, Document.COLUMN_MIME_TYPE, Document.COLUMN_FLAGS, Document.COLUMN_SIZE)</ID>
+    <ID>NestedBlockDepth:AndroidExifReader.kt:BinaryExifRatingReader$private fun parseFromBufferInternal: Int?</ID>
+    <ID>NestedBlockDepth:IsoBmff.kt:Cr3Structure.Companion$fun parse: Cr3Structure?</ID>
+    <ID>NestedBlockDepth:TiffBitmapDecoder.kt:TiffBitmapDecoder$private fun decodeInternal: DecodedPixels?</ID>
+    <ID>SwallowedException:AndroidExifReader.kt:AndroidExifReader$e: Exception</ID>
+    <ID>SwallowedException:AndroidExifReader.kt:BinaryExifRatingReader$e: Exception</ID>
+    <ID>SwallowedException:AndroidExifReaderStressTest.kt:AndroidExifReaderStressTest$e: StackOverflowError</ID>
+    <ID>SwallowedException:Cr3Metadata.kt:Cr3Metadata.Companion$e: Exception</ID>
+    <ID>SwallowedException:EmbeddedPreviewExtractor.kt:EmbeddedPreviewExtractor$e: Exception</ID>
+    <ID>SwallowedException:TiffBitmapDecoder.kt:TiffBitmapDecoder$e: Exception</ID>
+    <ID>SwallowedException:TiffBitmapDecoder.kt:TiffBitmapDecoder$e: OutOfMemoryError</ID>
+    <ID>UnusedParameter:AndroidExifReader.kt:AndroidExifReader$pfd: ParcelFileDescriptor?</ID>
+    <ID>UnusedParameter:SourceKindClassifier.kt:SourceKindClassifier$volumes: List&lt;ExternalVolume&gt; = emptyList()</ID>
+  </CurrentIssues>
+</SmellBaseline>

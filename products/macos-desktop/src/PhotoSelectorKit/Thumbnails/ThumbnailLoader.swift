@@ -79,6 +79,9 @@ public actor ThumbnailLoader {
     private var inFlightTasks: [ThumbnailCacheKey: Task<CGImage?, Never>] = [:]
     /// Keys of in-flight tasks started by the prefetcher (the only ones it may cancel).
     private var prefetchKeys: Set<ThumbnailCacheKey> = []
+    /// Which prefetch task owns each in-flight entry, so a finished or cancelled task never
+    /// removes the entry of a successor for the same key.
+    private var prefetchTokens: [ThumbnailCacheKey: UUID] = [:]
 
     public init(cache: ThumbnailCache = ThumbnailCache.shared) {
         self.cache = cache
@@ -107,7 +110,14 @@ public actor ThumbnailLoader {
         //    longer cancellable by window updates — someone is now waiting on screen).
         if let existingTask = inFlightTasks[key] {
             prefetchKeys.remove(key)
-            return await existingTask.value
+            let result = await existingTask.value
+            // The promoted task is done: drop it, or a finished decode stays here for good and is
+            // handed back instead of a fresh load once the cache evicts its image (H-LJ-3).
+            if inFlightTasks[key] == existingTask {
+                inFlightTasks.removeValue(forKey: key)
+                prefetchTokens.removeValue(forKey: key)
+            }
+            return result
         }
 
         // 3. Spawn background decode task
@@ -124,7 +134,7 @@ public actor ThumbnailLoader {
 
         inFlightTasks[key] = task
         let result = await task.value
-        inFlightTasks.removeValue(forKey: key)
+        if inFlightTasks[key] == task { inFlightTasks.removeValue(forKey: key) }
 
         return result
     }
@@ -214,32 +224,48 @@ public actor ThumbnailLoader {
         for key in prefetchKeys where !neededKeys.contains(key) {
             inFlightTasks[key]?.cancel()
             inFlightTasks.removeValue(forKey: key)
+            prefetchTokens.removeValue(forKey: key)
             prefetchKeys.remove(key)
         }
 
         // 2. Enqueue prefetch tasks for uncached window items
         let cacheRef = self.cache
         for key in neededKeys {
-            if inFlightTasks[key] != nil { continue }
+            if inFlightTasks[key] != nil || prefetchKeys.contains(key) { continue }
 
-            let task = Task.detached(priority: .utility) { () -> CGImage? in
-                if Task.isCancelled { return nil }
-                // Avoid re-decoding if already in cache
-                if let cached = await cacheRef.image(for: key) {
-                    return cached
-                }
-                guard let image = Self.decodeThumbnail(from: key.url, maxPixelSize: key.maxPixelSize) else {
-                    return nil
-                }
-                if Task.isCancelled { return nil }
-                await cacheRef.setImage(image, for: key)
+            let token = UUID()
+            let task = Task.detached(priority: .utility) { [weak self] () -> CGImage? in
+                let image = await Self.prefetchDecode(key: key, cache: cacheRef)
+                await self?.prefetchFinished(key, token: token)
                 return image
             }
 
             inFlightTasks[key] = task
+            prefetchTokens[key] = token
             prefetchKeys.insert(key)
         }
     }
+
+    private static func prefetchDecode(key: ThumbnailCacheKey, cache: ThumbnailCache) async -> CGImage? {
+        if Task.isCancelled { return nil }
+        // Avoid re-decoding if already in cache
+        if let cached = await cache.image(for: key) { return cached }
+        guard let image = decodeThumbnail(from: key.url, maxPixelSize: key.maxPixelSize) else { return nil }
+        if Task.isCancelled { return nil }
+        await cache.setImage(image, for: key)
+        return image
+    }
+
+    /// A prefetch decode ended: forget its task (the window membership in `prefetchKeys` stays
+    /// until the window moves). Ignored when the entry now belongs to someone else.
+    private func prefetchFinished(_ key: ThumbnailCacheKey, token: UUID) {
+        guard prefetchTokens[key] == token else { return }
+        prefetchTokens.removeValue(forKey: key)
+        inFlightTasks.removeValue(forKey: key)
+    }
+
+    /// Number of decodes the loader still tracks (tests: a finished decode must not stay).
+    func inFlightCount() -> Int { inFlightTasks.count }
 
     /// URLs currently tracked in the active prefetch window.
     public func activePrefetchURLs() -> Set<URL> {
@@ -252,6 +278,7 @@ public actor ThumbnailLoader {
             task.cancel()
         }
         inFlightTasks.removeAll()
+        prefetchTokens.removeAll()
         prefetchKeys.removeAll()
     }
 

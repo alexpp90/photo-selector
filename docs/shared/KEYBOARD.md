@@ -30,8 +30,8 @@ Main culling view, no modifier unless the key says so. `—` means the key is no
 | `←` / `→` | previous / next (`ui/selector/SelectorScreen.kt:877-878`) | previous / next; `↑` / `↓` too (`PhotoSelectorKit/Navigation/KeyboardShortcutRouter.swift:175-202`) | previous / next (`ui/keyboard_router.py:179-184`) | ✅ |
 | `K` | previous (`SelectorScreen.kt:877`) | previous (`KeyboardShortcutRouter.swift:244`) | previous (`keyboard_router.py:179`) | ✅ |
 | `J` | next (`SelectorScreen.kt:878`) | next (`:241`) | next (`:182`) | ✅ |
-| `H` | — | previous, going away after one release (`:244`) | previous, going away after one release (`:179`) | ◐ Frameduel unbound |
-| `L` | **opens Learn** (`SelectorScreen.kt:871-874`) | **next photo**, going away after one release (`:241`) | **next photo**, going away after one release (`:182`) | ❌ |
+| `H` | — | — (retired after 0.3.0) | previous, going away after one release (`:179`) | ◐ Frameduel unbound |
+| `L` | **opens Learn** (`SelectorScreen.kt:871-874`) | — (retired after 0.3.0) | **next photo**, going away after one release (`:182`) | ❌ |
 | `M` | move to Selection; also in fullscreen (`SelectorScreen.kt:879`, `ui/selector/FullscreenViewer.kt:500`) | move to Selection (`:235`, menu `PhotoSelectorApp/AppCommands.swift`) | move to Selection (`:168`) | ✅ |
 | `C` | copy to Selection (`SelectorScreen.kt:880`) | copy to Selection (`:238`) | copy to Selection (`:171`) | ✅ |
 | `Delete` / `Backspace` | delete, with confirmation (`SelectorScreen.kt:881`) | move to Trash (`:205-208`) | move to Trash (`:174`) | ✅ same intent |
@@ -82,7 +82,7 @@ Behaviour that is not a key but belongs to the map:
 
 ### What the sheets say against the code
 
-- Lensjet's help sheet now lists `← ↑ / K`, `→ ↓ / J` and the going-away `H` / `L`; every row's name and key is read from the Kit's `LensjetCommand` table (`PhotoSelectorKit/Navigation/LensjetNames.swift`), which a test compares with `AppCommands.swift`.
+- Lensjet's help sheet now lists `← ↑ / K` and `→ ↓ / J` (`H` / `L` were retired after 0.3.0); every row's name and key is read from the Kit's `LensjetCommand` table (`PhotoSelectorKit/Navigation/LensjetNames.swift`), which a test compares with `AppCommands.swift`.
 - Frameduel's guide lists every selector key from one table, `SelectorShortcut`
   (`domain/interaction/SelectorGestures.kt:221-240`: `J / K`, `I`, `T`, `L`, `Ctrl+Z` among them);
   a test asserts that the guide and `handleSelectorKey` agree.
@@ -116,7 +116,7 @@ Behaviour that is not a key but belongs to the map:
 |---|---|---|---|---|
 | `←` / `→` | previous / next photo | keep | keep (`↑`/`↓` keep as Lensjet extras) | keep |
 | `J` / `K` | next / previous photo | done | keep | keep |
-| `H` | — (retired) | — | **retire** after one release | **retire** after one release |
+| `H` | — (retired) | — | retired after 0.3.0 | **retire** after one release |
 | `L` | open Learn (Frameduel only; reserved elsewhere) | keep | **retire** "next" after one release | **retire** "next" after one release |
 | `M` / `C` | move / copy to Selection | keep | keep | keep |
 | `Delete` / `Backspace` | delete (Trash on desktop) | keep | keep | keep |
@@ -130,9 +130,9 @@ Behaviour that is not a key but belongs to the map:
 | `F` | **full screen** | keep (fullscreen viewer) | done 2026-11-12 (decision #24): `F` toggles window full screen (as ⌃⌘F) and hides the toolbar, dock and filmstrip; `Esc` leaves it after zoom and banner | done: toggles window full screen, `F11` too; `Esc` leaves full screen after it has left zoom |
 | `T` | **toggle the filmstrip** | done | done | reserved (no filmstrip) |
 | `I` | **toggle the info overlay** | done: toggles the readout block; in fullscreen it keeps pinning the info panel; Learn keeps `L` | keep | keep |
-| `S` | **choose the sort order** (opens the choice) | keep | reserved until Lensjet has a sort UI (open backlog entry), then `S` | done: `S` opens the View order choice; `B` stays one release |
+| `S` | **choose the sort order** (opens the choice) | keep | `S` still toggles linked pan (alias, announced for removal, REQ-MAC-KEY.01); View → Sort By has no key yet, so `S` is not the sort choice on Lensjet | done: `S` opens the View order choice; `B` stays one release |
 | `P` | reserved for Pick (photo-tool convention) | reserved | reserved | reserved |
-| ⌥⌘ `P` | link pan across slots (Lensjet only) | — | done (View → Link Pan); `S` keeps linked pan one release | — (no sync lock); done: `S` is the View order |
+| ⌥⌘ `P` | link pan across slots (Lensjet only) | — | done (View → Link Pan); the `S` alias is announced for removal | — (no sync lock); done: `S` is the View order |
 | `G` | **go to photo** | keep | done (`G`) | done (`G`) |
 | `?` | shortcut sheet / guide | keep (`/` too) | keep (`/`, ⌘`/` too) | keep (Ctrl+`?` too) |
 | Ctrl/⌘ `O` | open folder | **add** (folder picker) | keep | keep |
