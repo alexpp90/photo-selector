@@ -7,6 +7,8 @@ Adheres to:
 
 from __future__ import annotations
 
+from datetime import datetime
+from pathlib import Path
 from typing import List, Optional, Tuple
 
 try:
@@ -41,17 +43,36 @@ REJECTED_ICON = "action-unavailable-symbolic"
 RATING_TOOLTIP = "Rating from the file"
 BURST_ICON = "view-continuous-symbolic"
 BURST_ICON_FALLBACK = "view-list-symbolic"
+CLIPPING_TOOLTIP = "Share of pixels that are pure white (highlights) and pure black (shadows)"
 COPIED_ICON = "edit-copy-symbolic"
 COPIED_TEXT = "Copied to Selection"
 
 
-def build_copied_glyph():
-    """The mark of a copied (decided) photo: ``edit-copy-symbolic`` 16 px, spoken "Copied to Selection"."""
+def copied_text(photo=None) -> str:
+    """"Copied to <folder>, <date>" once the copy is known (also after reopening the folder), else
+    "Copied to Selection"."""
+    destination = getattr(photo, "copied_to", None)
+    when = getattr(photo, "copied_at", None)
+    if not destination:
+        return COPIED_TEXT
+    folder = Path(destination).parent.name or "Selection"
+    if when:
+        return f"Copied to {folder}, {datetime.fromtimestamp(when).strftime('%x')}"
+    return f"Copied to {folder}"
+
+
+def set_copied_text(glyph, photo=None) -> None:
+    text = copied_text(photo)
+    glyph.set_tooltip_text(text)
+    glyph.update_property([Gtk.AccessibleProperty.LABEL], [text])
+
+
+def build_copied_glyph(photo=None):
+    """The mark of a copied (decided) photo: ``edit-copy-symbolic`` 16 px, spoken "Copied to <folder>, <date>"."""
     glyph = Gtk.Image.new_from_icon_name(COPIED_ICON)
     glyph.set_pixel_size(16)
     glyph.set_name("copied_mark")
-    glyph.set_tooltip_text(COPIED_TEXT)
-    glyph.update_property([Gtk.AccessibleProperty.LABEL], [COPIED_TEXT])
+    set_copied_text(glyph, photo)
     return glyph
 
 
@@ -165,6 +186,7 @@ class InfoHUD(Gtk.Box if HAS_GI else object):
 
         self.lbl_clipping = Gtk.Label(label="")
         self.lbl_clipping.add_css_class("optical-strip-secondary")
+        self.lbl_clipping.set_tooltip_text(CLIPPING_TOOLTIP)
         score_row.append(self.lbl_clipping)
         self.score_box.append(score_row)
 
@@ -293,8 +315,8 @@ class InfoHUD(Gtk.Box if HAS_GI else object):
             self.score_css_class = f"score-badge-{category}"
             self.meter_css_class = f"sharpness-meter-{category}"
             self.clipping_text = (
-                f"HL: {photo.scores.formatted_highlight_clipping} · "
-                f"SH: {photo.scores.formatted_shadow_clipping}"
+                f"Highlights {photo.scores.formatted_highlight_clipping} · "
+                f"Shadows {photo.scores.formatted_shadow_clipping}"
             )
             self.sharpness_goodness = compute_sharpness_goodness(photo.scores.sharpness)
             cell = photo.scores.sharpest_cell
@@ -320,6 +342,7 @@ class InfoHUD(Gtk.Box if HAS_GI else object):
             self.burst_row.set_tooltip_text(spoken)
             self.lbl_burst.update_property([Gtk.AccessibleProperty.LABEL], [spoken])
         self.copied_mark.set_visible(bool(photo.copied))
+        set_copied_text(self.copied_mark, photo)
 
         while child := self.companion_box.get_first_child():
             self.companion_box.remove(child)

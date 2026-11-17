@@ -30,8 +30,8 @@ Main culling view, no modifier unless the key says so. `—` means the key is no
 | `←` / `→` | previous / next (`ui/selector/SelectorScreen.kt:877-878`) | previous / next; `↑` / `↓` too (`PhotoSelectorKit/Navigation/KeyboardShortcutRouter.swift:175-202`) | previous / next (`ui/keyboard_router.py:179-184`) | ✅ |
 | `K` | previous (`SelectorScreen.kt:877`) | previous (`KeyboardShortcutRouter.swift:244`) | previous (`keyboard_router.py:179`) | ✅ |
 | `J` | next (`SelectorScreen.kt:878`) | next (`:241`) | next (`:182`) | ✅ |
-| `H` | — | — (retired after 0.3.0) | previous, going away after one release (`:179`) | ◐ Frameduel unbound |
-| `L` | **opens Learn** (`SelectorScreen.kt:871-874`) | — (retired after 0.3.0) | **next photo**, going away after one release (`:182`) | ❌ |
+| `H` | — | — (retired after 0.3.0) | retired after 0.3.0 | ◐ Frameduel unbound |
+| `L` | **opens Learn** (`SelectorScreen.kt:871-874`) | — (retired after 0.3.0) | retired after 0.3.0 | ❌ |
 | `M` | move to Selection; also in fullscreen (`SelectorScreen.kt:879`, `ui/selector/FullscreenViewer.kt:500`) | move to Selection (`:235`, menu `PhotoSelectorApp/AppCommands.swift`) | move to Selection (`:168`) | ✅ |
 | `C` | copy to Selection (`SelectorScreen.kt:880`) | copy to Selection (`:238`) | copy to Selection (`:171`) | ✅ |
 | `Delete` / `Backspace` | delete, with confirmation (`SelectorScreen.kt:881`) | move to Trash (`:205-208`) | move to Trash (`:174`) | ✅ same intent |
@@ -45,7 +45,7 @@ Main culling view, no modifier unless the key says so. `—` means the key is no
 | `I` | **toggle the info (readout) block** (`SelectorScreen.kt:875`); in fullscreen pins the info panel (`FullscreenViewer.kt:502`) | toggle Info (menu "Show Info" / "Hide Info", `:252-256`) | toggle the info HUD (`:206`) | ✅ |
 | `T` | toggle the filmstrip (`SelectorScreen.kt:876`) | toggle the filmstrip (`:247`) | — (no filmstrip) | ✅ where there is a filmstrip |
 | `S` | **opens the Sort menu**, never cycles (`SelectorScreen.kt:899-906`) | **opens the sort choice** (the four orders of View > Sort By, `SortChoiceSheet`); linked pan is `⌥⌘P` only | **opens the View order menu** (Newest, Oldest, File Name, Lowest Sharpness) (`:212`) | ✓ same meaning |
-| `B` | — | — | toggles the view order lowest sharpness first / natural, going away after one release (`:221`) | Blitzlens only |
+| `B` | — | — | retired after 0.3.0; the `S` menu has Lowest sharpness first | Blitzlens only |
 | `G` | Go to photo (`SelectorScreen.kt:889-896`) | Go to Photo… (`:260`, Go menu `AppCommands.swift`) | Go to Photo (`:215`) | ✅ |
 | `?` | the guide; bound as `Key.Slash`, so `/` too (`SelectorScreen.kt:888`) | shortcuts sheet; `/` too (`:263`); ⌘`/` in the Help menu (`AppCommands.swift`) | shortcuts sheet (`:218`); Ctrl+`?` (`:156`) | ✅ |
 | Ctrl/⌘ `O` | — | open folder (`:151`); File > Open Recent lists the last ten, and the last folder reopens at launch at the photo that was on screen | open folder (`:144`) | ◐ Frameduel unbound |
@@ -117,7 +117,7 @@ Behaviour that is not a key but belongs to the map:
 | `←` / `→` | previous / next photo | keep | keep (`↑`/`↓` keep as Lensjet extras) | keep |
 | `J` / `K` | next / previous photo | done | keep | keep |
 | `H` | — (retired) | — | retired after 0.3.0 | **retire** after one release |
-| `L` | open Learn (Frameduel only; reserved elsewhere) | keep | **retire** "next" after one release | **retire** "next" after one release |
+| `L` | open Learn (Frameduel only; reserved elsewhere) | keep | **retire** "next" after one release | retired after 0.3.0 |
 | `M` / `C` | move / copy to Selection | keep | keep | keep |
 | `Delete` / `Backspace` | delete (Trash on desktop) | keep | keep | keep |
 | held `Delete`, `M`, `C` | act once per press (principle 5) | keep (`ONE_SHOT_KEYS`) | done (`isARepeat`) | done (`_held`) |

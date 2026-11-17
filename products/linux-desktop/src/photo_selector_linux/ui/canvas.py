@@ -558,7 +558,7 @@ class CanvasView(Gtk.Box if HAS_GI else object):
         badge_box.set_halign(Gtk.Align.CENTER)
 
         if candidate.copied and self.viewmodel.comparison_mode != 1:  # the 1-Up card carries it
-            badge_box.append(build_copied_glyph())
+            badge_box.append(build_copied_glyph(candidate))
 
         if self.viewmodel.comparison_mode != 1:  # in 1-Up the only photo is the active one: no pill
             badge_box.append(self._role_pill(desc["role"], is_active))

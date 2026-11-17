@@ -136,7 +136,7 @@ def test_the_info_card_and_the_pills_say_what_copied_means(tmp_path: Path):
     copied = vm.candidates[0]
     hud.update_photo(copied)
     assert hud.copied_mark.get_visible() is True and hud.is_copied
-    assert hud.copied_mark.get_tooltip_text() == "Copied to Selection"
+    assert hud.copied_mark.get_tooltip_text().startswith("Copied to Selection")
     hud.update_photo(vm.candidates[1])
     assert hud.copied_mark.get_visible() is False
 

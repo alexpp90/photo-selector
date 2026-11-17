@@ -127,7 +127,7 @@ Why these and not the board's first picks:
 
 ### In-app colours
 
-All four apps stay **dark-only**. Judging a photo needs a dim, neutral surround: a light
+Jackpix, Frameduel and Lensjet stay **dark-only**; Blitzlens follows the system light or dark preference (maintainer decision 2026-11-16) and keeps the canvas, where photos are judged, dark in both. Judging a photo needs a dim, neutral surround: a light
 interface around the image changes how bright and contrasty the photo looks, and every
 comparable culling tool defaults to a dark grey surround. So large surfaces and the viewer
 surround are **neutral grey** (equal red, green and blue — no tint that biases colour

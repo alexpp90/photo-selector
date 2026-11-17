@@ -176,7 +176,6 @@ class PreferencesDialog(Adw.PreferencesWindow if HAS_GI else object):
         self.row_auto_advance = _SwitchStub(self.settings.auto_advance)
         self.scale_blurry = _ScaleStub(self.settings.blurry_threshold)
         self.scale_sharp = _ScaleStub(self.settings.sharp_threshold)
-        self.scale_cache = _ScaleStub(self.settings.cache_limit_mb)
 
     def _build_pages(self) -> None:
         if not HAS_GI:
@@ -282,25 +281,8 @@ class PreferencesDialog(Adw.PreferencesWindow if HAS_GI else object):
         page_score.add(group_thresh)
         self.add(page_score)
 
-        # Page 3: Performance & Cache
-        page_cache = Adw.PreferencesPage()
-        page_cache.set_title("Performance")
-        page_cache.set_icon_name("system-run-symbolic")
-
-        group_cache = Adw.PreferencesGroup()
-        group_cache.set_title(markup_safe("Memory & Prefetch"))
-
-        self.row_cache_limit = Adw.ActionRow()
-        self.row_cache_limit.set_title("In-Memory LRU Cache Ceiling (MB)")
-        self.scale_cache = Gtk.Scale.new_with_range(Gtk.Orientation.HORIZONTAL, 128.0, 2048.0, 64.0)
-        self.scale_cache.set_value(self.settings.cache_limit_mb)
-        self.scale_cache.set_hexpand(True)
-        self.scale_cache.connect("value-changed", self._on_cache_changed)
-        self.row_cache_limit.add_suffix(self.scale_cache)
-        group_cache.add(self.row_cache_limit)
-
-        page_cache.add(group_cache)
-        self.add(page_cache)
+        # The memory-cache ceiling has no row any more: nobody should have to tune it. The stored
+        # ``cache_limit_mb`` is kept and still read (``set_cache_limit_mb``, the view model, the loader).
 
     def _on_selection_folder_changed(self, row, *_args) -> None:
         if self._syncing:
@@ -444,11 +426,6 @@ class PreferencesDialog(Adw.PreferencesWindow if HAS_GI else object):
         if self._syncing:
             return
         self.set_sharp_threshold(float(scale.get_value()))
-
-    def _on_cache_changed(self, scale, *_args) -> None:
-        if self._syncing:
-            return
-        self.set_cache_limit_mb(float(scale.get_value()))
 
     def _write_back(self, write) -> None:
         """Run ``write`` (a widget setter) with this dialog's change handlers muted."""

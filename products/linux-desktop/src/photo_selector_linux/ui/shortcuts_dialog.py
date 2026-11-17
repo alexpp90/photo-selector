@@ -21,8 +21,8 @@ from photo_selector_linux.ui.secondary_window import install_chrome, show_scroll
 
 SHORTCUTS = [
     ("Navigation", [
-        ("Previous Photo (H goes away next release)", "Left Arrow / K / H"),
-        ("Next Photo (L goes away next release)", "Right Arrow / J / L"),
+        ("Previous Photo", "Left Arrow / K"),
+        ("Next Photo", "Right Arrow / J"),
         ("Go to Photo", "G"),
     ]),
     ("Culling Actions", [
@@ -41,7 +41,6 @@ SHORTCUTS = [
         ("Toggle Metadata HUD", "I"),
         ("View Order Menu (Newest, Oldest, File Name, Lowest Sharpness)", "S"),
         ("Full Screen", "F / F11"),
-        ("Lowest Sharpness First, and Back (B goes away next release)", "B"),
     ]),
     ("Application", [
         ("Open Folder", "Ctrl+O"),

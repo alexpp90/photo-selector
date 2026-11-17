@@ -28,12 +28,12 @@ scenarios:
       - wait_ms: 1500
       - screen: three-up
         intent: Compare this shot with the one before and the one after
-        expected: Press Right (or L) to step to the next photo
+        expected: Press Right to step to the next photo
       - key: Right
       - wait_ms: 1500
       - screen: burst-compared
         intent: Decide which shot of the burst is the sharpest
-        expected: The first shot (previous, bottom left) scores highest; press Left (or H) to go back to it
+        expected: The first shot (previous, bottom left) scores highest; press Left to go back to it
       - key: Left
       - wait_ms: 1500
       - screen: sharpest-active
@@ -43,7 +43,7 @@ scenarios:
       - wait_ms: 1500
       - screen: after-keep
         intent: Check that the keeper was filed and the counts changed
-        expected: Press Right (or L) to step to the blurry shot shown as next, then Delete to send it to the Trash
+        expected: Press Right to step to the blurry shot shown as next, then Delete to send it to the Trash
       # M advanced to the next shot (064001, acceptable); the blurry 064002 is NEXT. Without this
       # Right, Delete binned 064001 and the 2026-11-09 panel read it as "trashed the wrong photo".
       - key: Right
@@ -62,7 +62,7 @@ scenarios:
       - wait_ms: 1500
       - screen: after-copy
         intent: The copy is made and the photo stays in the folder; carry on with the next photo
-        expected: Press Right (or L) to carry on with the next photo
+        expected: Press Right to carry on with the next photo
 
   - id: U-LIN-02
     title: Keep a photo together with its RAW file and sidecar
@@ -117,24 +117,90 @@ scenarios:
       - launch: {}
       - screen: first-photo
         intent: Find a way to see the blurriest photos first
-        expected: Press B to sort the photos lowest sharpness first (also in the main menu under View order)
-      - key: B
+        expected: Press S to open the view order menu, then choose Lowest sharpness first (the menu is also in the header bar)
+      # B was retired (2026-11-17); the order menu is the only way. The popover is driven by keys:
+      # S opens it, Down moves through Newest, Oldest, File name, Lowest sharpness, Return picks.
+      - key: S
+      - wait_ms: 800
+      - key: Down
+      - key: Down
+      - key: Down
+      - key: Return
       - wait_ms: 2000
       - screen: lowest-sharpness-first
         intent: Check the view order changed and which photo is open now
-        expected: A message says the order is lowest sharpness first; press Delete to bin an obvious miss
+        expected: The order button says Blurry; press Delete to bin an obvious miss
       - key: Delete
       - wait_ms: 1500
       - screen: after-miss-binned
         intent: Make sure the miss is gone and the next-blurriest photo is open
-        expected: Press Right (or L) to move on past a photo that is not clearly bad
+        expected: Press Right to move on past a photo that is not clearly bad
       - key: Right
       - wait_ms: 1500
       - screen: next-in-sweep
-        intent: Done with the sweep; go back to shooting order
-        expected: Press B again to return to shooting order
-      - key: B
+        intent: Done with the sweep; go back to a shooting order
+        expected: Press S and choose Newest first again
+      - key: S
+      - wait_ms: 800
+      - key: Up
+      - key: Up
+      - key: Up
+      - key: Return
       - wait_ms: 1500
-      - screen: natural-order
+      - screen: back-to-newest
         intent: Check the photos are back in shooting order
-        expected: A message says the order is natural order
+        expected: The order button says Newest
+
+  - id: U-LIN-05
+    title: Finish a folder and say where the keepers are
+    goal: Go through the whole roll keeping every photo, then find out how many were kept and where the Selection folder is.
+    use_case: UC-4
+    steps:
+      - launch: {}
+      - screen: first-photo
+        intent: Start at the first photo of the roll and see how far there is to go
+        expected: The header says "Photo 1 of N" with N the roll's photo count, and the bar below counts what is left; press M to keep it
+      - key: M
+      - wait_ms: 300
+      - key: M
+      - wait_ms: 300
+      - key: M
+      - wait_ms: 300
+      - key: M
+      - wait_ms: 300
+      - key: M
+      - wait_ms: 300
+      - key: M
+      - wait_ms: 300
+      - key: M
+      - wait_ms: 300
+      - key: M
+      - wait_ms: 300
+      - key: M
+      - wait_ms: 300
+      - key: M
+      - wait_ms: 300
+      - key: M
+      - wait_ms: 300
+      - key: M
+      - wait_ms: 300
+      - key: M
+      - wait_ms: 300
+      - key: M
+      - wait_ms: 300
+      - key: M
+      - wait_ms: 300
+      - key: M
+      - wait_ms: 300
+      - key: M
+      - wait_ms: 300
+      - key: M
+      - wait_ms: 300
+      - key: M
+      - wait_ms: 300
+      - key: M
+      - wait_ms: 300
+      - wait_ms: 1500
+      - screen: done
+        intent: Say how many photos were kept and where the keepers are
+        expected: The done card shows the counts and the full path of the Selection folder, with Show in Files and Open Folder

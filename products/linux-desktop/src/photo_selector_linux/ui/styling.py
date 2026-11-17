@@ -103,25 +103,29 @@ def get_candidate_companion_badges(candidate: object) -> List[Tuple[str, str]]:
 
 STUDIO_DARK_CSS: str = """
 /* Blitzlens — Obsidian Darkroom & System Accent scheme.
- * Large surfaces are neutral grey (equal R, G, B). Selection, focus and active state use the
- * libadwaita named accent colours (@accent_bg_color, @accent_fg_color), which follow the
- * system accent setting. Keeper / acceptable / cull colours are fixed semantic colours.
- * The app is dark-only: Adw.ColorScheme.FORCE_DARK in ui/application.py. */
+ * The window follows the system light/dark preference (Adw.ColorScheme.DEFAULT in
+ * ui/application.py): header bar, action bar, counters and dialogs use libadwaita's named colours,
+ * which adapt (@window_fg_color, @headerbar_bg_color, @borders, @success_color, @error_color).
+ * Where the photo is judged the surround stays dark in both schemes: the canvas and everything
+ * drawn on it (frames, pills, HUD, empty-state cards) keep the neutral-grey studio values below,
+ * because a light surround changes how bright a photo looks. Neutral greys have equal R, G, B.
+ * Selection, focus and active state use @accent_bg_color / @accent_fg_color (the system accent).
+ * Keeper / acceptable / cull colours on the canvas and on the action buttons are fixed semantic
+ * colours that carry their own text colour, so they read in both schemes. */
 
-window, .studio-dark-surface {
-    background-color: #141414;
+.studio-dark-surface {
+    background-color: #0E0E0E;
     color: #FFFFFF;
 }
 
 .studio-headerbar {
-    background-color: #181818;
-    border-bottom: 1px solid #2A2A2A;
-    color: #FFFFFF;
+    border-bottom: 1px solid @borders;
 }
 
 .studio-actionbar {
-    background-color: #181818;
-    border-top: 1px solid #2A2A2A;
+    background-color: @headerbar_bg_color;
+    color: @window_fg_color;
+    border-top: 1px solid @borders;
     padding: 4px 8px;
 }
 
@@ -220,9 +224,9 @@ window, .studio-dark-surface {
 
 /* Photo Counter Pill */
 .photo-counter-pill {
-    background-color: #1C1C1C;
-    border: 1px solid #3A3A3A;
-    color: #D9D9D9;
+    background-color: alpha(@window_fg_color, 0.07);
+    border: 1px solid @borders;
+    color: @window_fg_color;
     border-radius: 12px;
     padding: 4px 12px;
     font-weight: 600;
@@ -332,9 +336,9 @@ window, .studio-dark-surface {
 
 /* Semantic Status Counter Badges */
 .status-counter-badge {
-    background-color: #1C1C1C;
-    border: 1px solid #3A3A3A;
-    color: #D9D9D9;
+    background-color: alpha(@window_fg_color, 0.07);
+    border: 1px solid @borders;
+    color: @window_fg_color;
     border-radius: 6px;
     padding: 4px 10px;
     font-size: 82%;
@@ -342,9 +346,9 @@ window, .studio-dark-surface {
 }
 
 .status-counter-selected {
-    background-color: rgba(46, 194, 126, 0.16);
-    border: 1px solid #2EC27E;
-    color: #FFFFFF;
+    background-color: alpha(@success_color, 0.16);
+    border: 1px solid @success_color;
+    color: @window_fg_color;
     border-radius: 6px;
     padding: 4px 10px;
     font-size: 82%;
@@ -352,9 +356,9 @@ window, .studio-dark-surface {
 }
 
 .status-counter-trashed {
-    background-color: rgba(224, 27, 36, 0.16);
-    border: 1px solid #E01B24;
-    color: #FFFFFF;
+    background-color: alpha(@error_color, 0.16);
+    border: 1px solid @error_color;
+    color: @window_fg_color;
     border-radius: 6px;
     padding: 4px 10px;
     font-size: 82%;
@@ -362,9 +366,9 @@ window, .studio-dark-surface {
 }
 
 .status-counter-remaining {
-    background-color: #1C1C1C;
-    border: 1px solid #3A3A3A;
-    color: #D9D9D9;
+    background-color: alpha(@window_fg_color, 0.07);
+    border: 1px solid @borders;
+    color: @window_fg_color;
     border-radius: 6px;
     padding: 4px 10px;
     font-size: 82%;

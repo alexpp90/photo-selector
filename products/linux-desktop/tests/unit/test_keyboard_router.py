@@ -40,17 +40,12 @@ def test_root_key_capture_and_modifier_masking():
 
 
 def test_navigation_hotkeys_case_insensitivity():
-    """Verify Left/Right, H/L, J/K trigger navigation case-insensitively (R-LINUX-KEY-02)."""
+    """Verify Left/Right, J/K trigger navigation case-insensitively (R-LINUX-KEY-02)."""
     target = MagicMock()
     engine = KeyboardRouterEngine(handler_target=target)
 
     # Left Arrow (0xff51)
     assert engine.dispatch(keyval=0xFF51, state=0) is True
-    target.on_nav_previous.assert_called_once()
-
-    # Uppercase 'H' (0x48)
-    target.reset_mock()
-    assert engine.dispatch(keyval=0x48, state=0) is True
     target.on_nav_previous.assert_called_once()
 
     # Uppercase 'K' (0x4b)
@@ -61,11 +56,6 @@ def test_navigation_hotkeys_case_insensitivity():
     # Right Arrow (0xff53)
     target.reset_mock()
     assert engine.dispatch(keyval=0xFF53, state=0) is True
-    target.on_nav_next.assert_called_once()
-
-    # Uppercase 'L' (0x4c)
-    target.reset_mock()
-    assert engine.dispatch(keyval=0x4C, state=0) is True
     target.on_nav_next.assert_called_once()
 
     # Lowercase 'j' (0x6a)
@@ -262,18 +252,14 @@ def test_accelerator_modifiers_blocked_from_single_key_actions():
     target.on_open_folder.assert_not_called()
 
 
-def test_b_toggles_view_order_and_is_free_of_other_bindings():
-    """B reaches the sort toggle; nothing else maps to it (R-LINUX-CULL-02)."""
+def test_h_l_and_b_are_retired_and_nothing_handles_them():
+    """H and L (previous/next) and B (lowest sharpness toggle) are free keys now; J/K and the S menu stay."""
     target = MagicMock()
     engine = KeyboardRouterEngine(handler_target=target)
-    for key in (0x62, 0x42):
-        target.reset_mock()
-        assert engine.dispatch(keyval=key, state=0) is True
-        target.on_toggle_sort_order.assert_called_once()
-    target.reset_mock()
-    assert engine.dispatch(keyval=0x62, state=0, is_text_editing=True) is False
-    assert engine.dispatch(keyval=0x62, state=KeyboardRouterEngine.CONTROL_MASK) is False
-    target.on_toggle_sort_order.assert_not_called()
+    for key in (0x68, 0x48, 0x6C, 0x4C, 0x62, 0x42):
+        assert engine.dispatch(keyval=key, state=0) is False, hex(key)
+    target.on_nav_previous.assert_not_called()
+    target.on_nav_next.assert_not_called()
 
 
 def test_tab_is_left_to_focus_traversal_until_slots_can_cycle():

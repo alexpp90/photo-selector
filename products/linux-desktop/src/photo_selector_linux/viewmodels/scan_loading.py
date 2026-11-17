@@ -23,6 +23,15 @@ logger = logging.getLogger(__name__)
 class ScanLoadingMixin:
     """Opens a folder, takes scan batches in, restores stored copy decisions."""
 
+    @property
+    def position_label(self) -> str:
+        """"Photo N of M": M is the folder's photo count and does not shrink as photos are filed."""
+        total = self.folder_total
+        if not self.candidates:
+            return f"Photo {total} of {total}" if total else "Photo 0 of 0"
+        decided_away = max(0, total - len(self.candidates))
+        return f"Photo {decided_away + self.current_index + 1} of {max(total, len(self.candidates))}"
+
     def _make_scanner(self) -> DirectoryScanner:
         if self._scanner_factory is not None:
             return self._scanner_factory(self.selection_folder_name)
@@ -85,6 +94,7 @@ class ScanLoadingMixin:
         self.undo_stack = [] if threaded else self._folder_undo_history.pop(self.current_folder, [])
         self.selected_count = 0
         self.copied_count = 0
+        self.folder_total = 0
         self.trashed_count = 0
         self.is_scanning = True
         self.scan_failed = False
@@ -232,6 +242,8 @@ class ScanLoadingMixin:
                 store.forget(folder, key)  # the copy was removed from the Selection since
                 continue
             photo.copied = True
+            photo.copied_to = destination or None
+            photo.copied_at = entry.get("at")
             self.copied_count += 1
             self.selected_count += 1
 

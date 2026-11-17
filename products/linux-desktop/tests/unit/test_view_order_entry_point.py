@@ -61,21 +61,12 @@ def test_unknown_order_is_ignored(tmp_path, monkeypatch):
     assert win.viewmodel.sort_order == "natural"
 
 
-def test_b_key_toggles_order_through_the_router(tmp_path, monkeypatch):
+def test_b_is_retired_and_the_sheet_no_longer_lists_it(tmp_path, monkeypatch):
     win = _window(tmp_path, monkeypatch)
-    assert win.router.engine.dispatch(0x62, 0) is True
-    assert win.viewmodel.sort_order == "lowest_sharpness_first"
-    assert _names(win)[0] == "DSC_0002.JPG"
-    assert win.router.engine.dispatch(0x42, 0) is True
+    assert win.router.engine.dispatch(0x62, 0) is False
     assert win.viewmodel.sort_order == "natural"
-    assert win.show_toast.call_count == 2
-
-
-def test_shortcuts_sheet_lists_b():
-    source = (
-        Path(window_module.__file__).with_name("shortcuts_dialog.py").read_text(encoding="utf-8")
-    )
-    assert '"B"' in source
+    source = Path(window_module.__file__).with_name("shortcuts_dialog.py").read_text(encoding="utf-8")
+    assert '"B"' not in source and "goes away" not in source
 
 
 @pytest.mark.skipif(STUBBED, reason="needs the real GTK 4 / Gio action machinery (xvfb-run)")
@@ -91,7 +82,7 @@ def test_running_app_menu_action_and_key_switch_order(tmp_path, monkeypatch):
     assert win.viewmodel.sort_order == "lowest_sharpness_first"
     assert action.get_state().get_string() == "lowest_sharpness_first"
 
-    win.router.engine.dispatch(0x62, 0)
+    action.activate(GLib.Variant.new_string("natural"))
     assert win.viewmodel.sort_order == "natural"
     assert action.get_state().get_string() == "natural"
 
