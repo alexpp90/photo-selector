@@ -897,9 +897,9 @@ do not move when the strip is toggled, which is what prices any future widening.
 
 `FrameGeometry.threeUpLayout` returns the strip's width as part of the solved layout, so the
 coach-mark overlay (§7.9) reserves the same column rather than re-deriving it. Where a window
-is too narrow to hold the strip beside the view toggles the solver returns zero and the strip
-is dropped, rather than drawn over the controls; with the readouts hidden the flank still
-keeps room for both.
+is too narrow to hold the strip beside the view toggles the solver returns zero for the
+column, rather than draw it over the controls, and tries a row under the frames in height they
+cannot use (§15.1); with the readouts hidden the flank still keeps room for both.
 
 **Content**, re-derived for a column:
 
@@ -1420,6 +1420,12 @@ Portrait flips which axis is scarce, so the §7.2 solver — not a hand-tuned va
 the arrangement. At 720 × 1100 dp, one over two gives `h ≤ (1100 − chrome)/2 ≈ 520`, but
 `2w ≤ 720 → w ≤ 356 → h = 267`; **width is binding again**. So:
 
+> **Shipped vs. drawn here (2026-11-17).** The app still draws the wide arrangement at this
+> breakpoint — readouts and controls flank the current frame, the 88 dp sidebar keeps its
+> labels — and REQ-AND-LAYOUT.28 (`[USER 2026-11-04]`) keeps the locator row right of the
+> current frame. Of the bullets below only the filmstrip row is implemented; the 56 dp rail,
+> the trimmed readout and the 72 dp control row are a design not yet built.
+
 - The frames stack **one over two** still, but the readout and control blocks can no longer
   sit beside the current frame. They move **below** the frames, which is affordable here
   precisely because height is now the surplus axis. The rule is unchanged: chrome goes where
@@ -1430,11 +1436,29 @@ the arrangement. At 720 × 1100 dp, one over two gives `h ≤ (1100 − chrome)/
 - The readout block drops the EXIF line and keeps icon + name + value + bar.
 - The control block becomes a 72 dp row: the three verbs centred, Previous/Next at the edges,
   view controls right-aligned. Labels are never dropped; the buttons narrow instead.
-- The filmstrip may return to a horizontal scrolling row at the bottom edge, because in
+- The filmstrip returns as a horizontal scrolling row at the bottom edge, because in
   portrait height is the surplus axis and the flanks are what has run out. Same rule,
-  opposite answer. **Not yet implemented:** the solver currently drops the strip on a window
-  this narrow rather than drawing it over the view toggles, which is the safe half of the
-  behaviour but not the whole of it.
+  opposite answer. `FrameGeometry.threeUpLayout` decides it, not the window class: where the
+  column would be narrower than one thumbnail (`MinimumFilmstripColumnWidth`, 64 dp) the
+  frames are solved as if the strip were off, and the row is drawn only if the region still
+  has **64 dp plus the 8 dp gap** of height below them (`FilmstripRowHeight`), so the frames
+  are the same size with the strip on and off. Otherwise it is dropped, as before, never
+  drawn over the view toggles or a frame. At 720 × 1100 the frames are 300 × 200 with or
+  without the row; at 600 × 900 and 840 × 1200 the row is drawn too, at 800 × 420 it is not.
+  The 1024 × 720 window, whose flank left a 6 dp column, gets the row as well.
+- **The row:** full content width under Previous and Next, 64 dp tall, a 1 dp top rule.
+  Tiles are **60 × 48 dp** whatever the photograph's orientation — height is the constant in
+  a row, the mirror of the column's constant width — on a 64 dp pitch: each slot is the
+  tile plus the 4 dp gap and the whole row height, so every target is ≥ 48 dp and they
+  abut. Same tile states as the column (current outline, copied mark, rating badge,
+  sharpness dot); the burst marker runs under the tile, and a new burst starts after 10 dp.
+  The current tile is scrolled to the middle of the row. No range caption: the row has no
+  line to spare and the Go chip says where the photo is. It follows `filmstrip_visible`
+  (`T`, off by default, §7.8). TalkBack reads one list, each tile "Photo 3 of 10, IMG_0412.jpg"
+  (the column says the same), the current one selected. The coach-mark guide reserves the
+  row and names it "Bottom edge" instead of "Far right edge".
+- The order from the top is the two frame rows (readouts and controls still flank the current
+  frame, REQ-AND-LAYOUT.28), then the row.
 
 ### 15.2 Compact — < 600 dp, phone
 
@@ -1484,7 +1508,8 @@ Produce these as a design-system page, dark theme, neutral grey / lavender.
    maximised state: the active badge plus the 48 dp ⓘ switch left of it, the top-left info panel and
    the bottom-left chips (§7.3).
 9. **Filmstrip thumbnail** — resting, current, and in-burst states, 60 dp wide (40 dp tall
-   landscape, 80 dp portrait), with the leading-edge burst marker and the sharpness dot.
+   landscape, 80 dp portrait), with the leading-edge burst marker and the sharpness dot; in
+   the portrait row (§15.1) 60 × 48 dp with the burst marker beneath.
 10. **Snackbar with Undo** — `Moved IMG_0001 · «folder»`, or `Moved IMG_0001 +2 · «folder»` when the
     photo took two companions with it (≈ 4 s, Undo, no line) / `Copied IMG_0001 · «folder»`
     (≈ 3 s, no action, no line) — spoken "Moved IMG_0001.JPG and 2 companion files to «folder»";

@@ -53,7 +53,7 @@ import kotlin.math.roundToInt
  *   without the icon below 64 dp. The word and key cap are never ellipsized.
  * - FULL needs [FullMinInnerWidth] so its 80 dp buttons and one row of toggles fit.
  *
- * ## Derivation of the prices (kept honest by `SelectorForcedSizeTest`)
+ * ## Derivation of the prices (kept honest by `SelectorForcedSizeTest` and, on each device, `ControlBlockPriceDeviceTest`)
  *
  * ```
  * FULL + locator = 3 x 80 (button rows) + (2 + 48) (toggle row) + 48 (locator row)

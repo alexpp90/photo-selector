@@ -639,17 +639,19 @@ fun SelectorScreen(
                                 },
                                 sort = sortControl,
                                 snackbarTopInRoot = snackbarTop,
-                                // Passed as a slot and drawn as a vertical column
-                                // at the outer edge of the control flank. It
-                                // used to span the bottom of the window, which
-                                // measured 38 dp off the height of every frame
+                                // Passed as a slot and drawn where the solver puts
+                                // it: a vertical column at the outer edge of the
+                                // control flank, or in tablet portrait a row under
+                                // the frames, in height they cannot use (DESIGN
+                                // §15.1). Across the bottom of a height-bound window
+                                // it measured 38 dp off the height of every frame
                                 // on the reference device — see FrameGeometry.
                                 // The maximised state does not draw the flanks
                                 // at all, so the strip disappears there without
                                 // a second condition.
                                 // Every photo of the folder: Learn's rating filter does not
                                 // reach the cull (REQ-AND-RATING.01).
-                                filmstrip = {
+                                filmstrip = { placement ->
                                     CandidateStrip(
                                         images = uiState.images,
                                         currentIndex = uiState.currentIndex,
@@ -658,7 +660,12 @@ fun SelectorScreen(
                                         groups = uiState.groups.takeIf { uiState.groupingEnabled },
                                         copiedUris = uiState.sessionCopiedUris,
                                         copiedFolderName = uiState.filingFolderName,
-                                        modifier = Modifier.fillMaxHeight(),
+                                        placement = placement,
+                                        modifier = if (placement == FilmstripPlacement.ROW) {
+                                            Modifier.fillMaxWidth()
+                                        } else {
+                                            Modifier.fillMaxHeight()
+                                        },
                                     )
                                 },
                             )

@@ -182,6 +182,25 @@ class SelectorTourTest {
     }
 
     @Test
+    fun `the filmstrip callout says where the strip is`() {
+        // A column at the far right on a wide window, a row along the bottom in tablet
+        // portrait (DESIGN §15.1): the card is paged in the left flank, so its location
+        // line is the only thing pointing at the strip and must not point at the wrong edge.
+        fun strip(across: Boolean) = SelectorTour
+            .callouts(FilingAction.COPY, detailsVisible = true, filmstripVisible = true, filmstripAcross = across)
+            .single { it.region == TourRegion.FILMSTRIP }
+
+        assertEquals("Far right edge, when shown", strip(across = false).location.en())
+        assertTrue(strip(across = false).body.en().contains("top to bottom"))
+        assertEquals("Bottom edge, when shown", strip(across = true).location.en())
+        assertTrue(strip(across = true).body.en().contains("left to right"))
+        // Every other callout keeps its region's own location.
+        SelectorTour.callouts(FilingAction.COPY, detailsVisible = true, filmstripVisible = true, filmstripAcross = true)
+            .filter { it.region != TourRegion.FILMSTRIP }
+            .forEach { assertEquals(it.region.location.en(), it.location.en()) }
+    }
+
+    @Test
     fun `no callout is a region without words`() {
         everyConfiguration.forEach { action ->
             SelectorTour.callouts(action, detailsVisible = true, filmstripVisible = true)

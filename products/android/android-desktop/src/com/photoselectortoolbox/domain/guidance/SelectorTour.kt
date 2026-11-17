@@ -46,7 +46,7 @@ enum class TourRegion(
     /** Keys that drive no on-screen control, so nothing can be pointed at. */
     KEYS(R.string.hint_title_region_keys),
 
-    /** The vertical filmstrip, down the outer edge of the control flank. */
+    /** The filmstrip: down the outer edge of the control flank, or along the bottom in tablet portrait. */
     FILMSTRIP(R.string.hint_title_region_filmstrip),
     ;
 
@@ -74,6 +74,12 @@ data class TourCallout(
      * over the bound input set reads [rows] alone.
      */
     val legend: List<LegendRow> = emptyList(),
+    /**
+     * Where this part of the screen is, in words. Its region's location unless
+     * the part moves: the filmstrip is a column at the far right on a wide
+     * window and a row along the bottom in tablet portrait (DESIGN §15.1).
+     */
+    val location: UiText = region.location,
 )
 
 /**
@@ -159,6 +165,8 @@ object SelectorTour {
          * `Screen.all` cannot be read from it.
          */
         screenLegend: List<LegendRow> = emptyList(),
+        /** The solver put the filmstrip in a row under the frames, not in the flank. */
+        filmstripAcross: Boolean = false,
     ): List<TourCallout> = buildList {
         add(
             TourCallout(
@@ -227,7 +235,14 @@ object SelectorTour {
                 TourCallout(
                     region = TourRegion.FILMSTRIP,
                     title = text(R.string.hint_title_tour_filmstrip),
-                    body = text(R.string.hint_body_tour_filmstrip),
+                    body = text(
+                        if (filmstripAcross) R.string.hint_body_tour_filmstrip_row else R.string.hint_body_tour_filmstrip,
+                    ),
+                    location = if (filmstripAcross) {
+                        text(R.string.hint_title_region_filmstrip_row)
+                    } else {
+                        TourRegion.FILMSTRIP.location
+                    },
                 )
             )
         }

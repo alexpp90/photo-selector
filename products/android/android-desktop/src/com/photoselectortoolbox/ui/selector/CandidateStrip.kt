@@ -8,6 +8,8 @@ import androidx.compose.foundation.indication
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.BoxWithConstraints
+import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.fillMaxHeight
@@ -17,6 +19,8 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.LazyListState
+import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.shape.CircleShape
@@ -32,11 +36,13 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.input.pointer.PointerIcon
-import androidx.compose.ui.input.pointer.pointerHoverIcon
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.selected
+import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.unit.Dp
+import com.photoselectortoolbox.ui.components.handCursor
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.style.TextAlign
@@ -122,6 +128,8 @@ fun CandidateStrip(
     /** Photos copied in this session (the copied mark) and the folder they went to. */
     copiedUris: Set<String> = emptySet(),
     copiedFolderName: String = "",
+    /** A column down the control flank, or a row under the frames (DESIGN §15.1). */
+    placement: FilmstripPlacement = FilmstripPlacement.COLUMN,
 ) {
     val listState = rememberLazyListState()
 
@@ -152,6 +160,22 @@ fun CandidateStrip(
         } else {
             currentIndex
         }
+    }
+
+    if (placement == FilmstripPlacement.ROW) {
+        FilmstripRow(
+            images = images,
+            listState = listState,
+            scrollToIndex = scrollToIndex,
+            isCurrent = { index, image -> if (selectedUri != null) image.uri == selectedUri else index == currentIndex },
+            indexToGroup = indexToGroup,
+            currentGroup = currentGroup,
+            copiedUris = copiedUris,
+            copiedFolderName = copiedFolderName,
+            onImageSelected = onImageSelected,
+            modifier = modifier,
+        )
+        return
     }
 
     // Keep the current frame visible without yanking the strip about: scrolling
@@ -247,6 +271,18 @@ fun CandidateStrip(
     }
 }
 
+/** What TalkBack says for one thumbnail, in either orientation: "Photo 3 of 10, IMG_0412.jpg". */
+@Composable
+private fun thumbnailSpoken(image: ImageItem, position: Int, total: Int, copiedTo: String?): String =
+    UiText.Joined(
+        listOfNotNull(
+            text(R.string.cd_filmstrip_tile, position, total, image.fileName),
+            text(R.string.cd_rated, image.rating).takeIf { image.rating != 0 },
+            copiedTo?.let { text(R.string.cd_copied_mark_lower, it) },
+        ),
+        ", ",
+    ).asString()
+
 @Composable
 private fun CandidateThumbnail(
     image: ImageItem,
@@ -258,111 +294,34 @@ private fun CandidateThumbnail(
     modifier: Modifier = Modifier,
     copiedTo: String? = null,
 ) {
-    val shape = RoundedCornerShape(3.dp)
     val height = if (image.isLandscape) LandscapeThumbnailHeight else PortraitThumbnailHeight
     // The whole slot is the control; the ripple stays on the thumbnail it belongs to.
     val interactionSource = remember { MutableInteractionSource() }
-
-    val spoken = UiText.Joined(
-        listOfNotNull(
-            text(R.string.cd_filmstrip_tile, image.fileName, position, total),
-            text(R.string.cd_rated, image.rating).takeIf { image.rating != 0 },
-            copiedTo?.let { text(R.string.cd_copied_mark_lower, it) },
-        ),
-        ", ",
-    ).asString()
+    val spoken = thumbnailSpoken(image, position, total, copiedTo)
     Box(
         modifier = modifier
             .width(ThumbnailWidth + if (inCurrentBurst) 4.dp else 0.dp)
             .height(maxOf(height + ThumbnailGap, ThumbnailTouchTarget))
-            .pointerHoverIcon(PointerIcon.Hand)
+            .handCursor()
             .clickable(interactionSource = interactionSource, indication = null, onClick = onClick)
             .semantics { contentDescription = spoken }
             .testTag("filmstrip_thumbnail"),
         contentAlignment = Alignment.CenterEnd,
     ) {
-        Box(
-            modifier = Modifier
-                .width(ThumbnailWidth)
-                .height(height)
-                // Neighbours are held back a little so the current frame reads
-                // first, but never so far that their content is unreadable.
-                .alpha(if (isCurrent) 1f else 0.85f)
-                .clip(shape)
-                .background(StudioCard)
-                .border(
-                    width = if (isCurrent) 2.dp else 1.dp,
-                    color = if (isCurrent) BrandAccent else StudioBorder,
-                    shape = shape,
-                )
-                .indication(interactionSource, LocalIndication.current)
-                .testTag("filmstrip_thumbnail_image"),
-        ) {
-            AsyncImage(
-                model = image.uri,
-                contentDescription = null,
-                modifier = Modifier.matchParentSize(),
-                contentScale = ContentScale.Crop,
-            )
-            if (copiedTo != null) {
-                CopiedMark(
-                    size = CopiedMarkTileSize,
-                    spoken = null,
-                    testTag = "filmstrip_copied_mark",
-                    modifier = Modifier.align(Alignment.TopStart).padding(2.dp),
-                )
-            }
-
-            // Compact star rating badge (bottom start) staying strictly within 60dp thumbnail bounds
-            if (image.rating != 0) {
-                Box(
-                    modifier = Modifier
-                        .align(Alignment.BottomStart)
-                        .padding(2.dp)
-                        .clip(RoundedCornerShape(2.dp))
-                        .background(Color(0xCC000000))
-                        .padding(horizontal = 2.dp, vertical = 1.dp)
-                        .testTag("thumbnail_rating_${image.rating}"),
-                ) {
-                    if (image.rating in 1..5) {
-                        Text(
-                            text = "★${image.rating}",
-                            color = CurationAmber,
-                            fontSize = 8.sp,
-                            lineHeight = 9.sp,
-                            fontFamily = FontFamily.Monospace,
-                        )
-                    } else if (image.rating == -1) {
-                        Text(
-                            text = "✕",
-                            color = ErrorRed,
-                            fontSize = 8.sp,
-                            lineHeight = 9.sp,
-                            fontFamily = FontFamily.Monospace,
-                        )
-                    }
-                }
-            }
-
-            image.scanResult?.sharpnessScore?.let { sharpness ->
-                Box(
-                    modifier = Modifier
-                        .align(Alignment.BottomEnd)
-                        .padding(3.dp)
-                        .size(6.dp)
-                        .background(
-                            goodnessColor(ScoreMetric.SHARPNESS.goodness(sharpness)),
-                            CircleShape,
-                        ),
-                )
-            }
-        }
+        ThumbnailPicture(
+            image = image,
+            isCurrent = isCurrent,
+            width = ThumbnailWidth,
+            height = height,
+            interactionSource = interactionSource,
+            copiedTo = copiedTo,
+        )
 
         // Burst marker: the frames that belong to the same series as the current
         // one, so a photographer can see the shape of the burst they are inside
-        // without reading filenames. It ran under the thumbnails when the strip
-        // ran across the screen; down the strip's leading edge it is the same
-        // 2 dp BrandAccent rule reading the same way — a bracket around a run.
+        // without reading filenames. Under the thumbnails in the row; down the
+        // column's leading edge it is the same 2 dp BrandAccent rule reading the
+        // same way — a bracket around a run.
         if (inCurrentBurst) {
             Box(
                 modifier = Modifier
@@ -370,6 +329,248 @@ private fun CandidateThumbnail(
                     .width(2.dp)
                     .height(height)
                     .background(BrandAccent),
+            )
+        }
+    }
+}
+
+/**
+ * The picture of one thumbnail and what is drawn on it — the current outline, the
+ * copied mark, the rating badge and the sharpness dot — shared by the column and
+ * the row, so the two orientations show one set of tile states.
+ */
+@Composable
+private fun ThumbnailPicture(
+    image: ImageItem,
+    isCurrent: Boolean,
+    width: Dp,
+    height: Dp,
+    interactionSource: MutableInteractionSource,
+    copiedTo: String?,
+    modifier: Modifier = Modifier,
+) {
+    val shape = RoundedCornerShape(3.dp)
+    Box(
+        modifier = modifier
+            .width(width)
+            .height(height)
+            // Neighbours are held back a little so the current frame reads
+            // first, but never so far that their content is unreadable.
+            .alpha(if (isCurrent) 1f else 0.85f)
+            .clip(shape)
+            .background(StudioCard)
+            .border(
+                width = if (isCurrent) 2.dp else 1.dp,
+                color = if (isCurrent) BrandAccent else StudioBorder,
+                shape = shape,
+            )
+            .indication(interactionSource, LocalIndication.current)
+            .testTag("filmstrip_thumbnail_image"),
+    ) {
+        AsyncImage(
+            model = image.uri,
+            contentDescription = null,
+            modifier = Modifier.matchParentSize(),
+            contentScale = ContentScale.Crop,
+        )
+        if (copiedTo != null) {
+            CopiedMark(
+                size = CopiedMarkTileSize,
+                spoken = null,
+                testTag = "filmstrip_copied_mark",
+                modifier = Modifier.align(Alignment.TopStart).padding(2.dp),
+            )
+        }
+
+        if (image.rating != 0) {
+            RatingBadge(rating = image.rating, modifier = Modifier.align(Alignment.BottomStart))
+        }
+
+        image.scanResult?.sharpnessScore?.let { sharpness ->
+            Box(
+                modifier = Modifier
+                    .align(Alignment.BottomEnd)
+                    .padding(3.dp)
+                    .size(6.dp)
+                    .background(
+                        goodnessColor(ScoreMetric.SHARPNESS.goodness(sharpness)),
+                        CircleShape,
+                    ),
+            )
+        }
+    }
+}
+
+/** The compact star rating (or reject cross) at a thumbnail's bottom start, inside its bounds. */
+@Composable
+private fun RatingBadge(rating: Int, modifier: Modifier = Modifier) {
+    Box(
+        modifier = modifier
+            .padding(2.dp)
+            .clip(RoundedCornerShape(2.dp))
+            .background(Color(0xCC000000))
+            .padding(horizontal = 2.dp, vertical = 1.dp)
+            .testTag("thumbnail_rating_$rating"),
+    ) {
+        if (rating in 1..5) {
+            Text(
+                text = "★$rating",
+                color = CurationAmber,
+                fontSize = 8.sp,
+                lineHeight = 9.sp,
+                fontFamily = FontFamily.Monospace,
+            )
+        } else if (rating == -1) {
+            Text(
+                text = "✕",
+                color = ErrorRed,
+                fontSize = 8.sp,
+                lineHeight = 9.sp,
+                fontFamily = FontFamily.Monospace,
+            )
+        }
+    }
+}
+
+/** A tile of the row: 60 × 48 dp, whatever the photograph's orientation (DESIGN §15.1). */
+private val RowThumbnailWidth = 60.dp
+private val RowThumbnailHeight = 48.dp
+
+/**
+ * Width of one slot of the row: the tile and the 4 dp visual gap, which lies inside
+ * the slot, so the targets abut and there is no dead strip between two tiles.
+ */
+internal val RowThumbnailSlotWidth: Dp = RowThumbnailWidth + ThumbnailGap
+
+/**
+ * The filmstrip as a row under the frames, for windows whose flank is too narrow
+ * for the column (DESIGN §15.1, tablet portrait).
+ *
+ * **Height is the constant here**, the mirror of the column's constant width: a
+ * row of ragged-height tiles is a row that cannot be scanned, so every tile is
+ * 60 × 48 dp and a portrait photograph is cropped to it. Each slot is the whole
+ * [FrameGeometry.FilmstripRowHeight] tall and the tile's width plus the gap wide,
+ * so every touch target is at least 48 dp both ways and the targets abut. The
+ * current tile is kept in the middle of the row. No range caption: a 64 dp row has
+ * no line to spare, and the Go chip in the control block already says where the
+ * current photograph is.
+ */
+@Composable
+private fun FilmstripRow(
+    images: List<ImageItem>,
+    listState: LazyListState,
+    scrollToIndex: Int,
+    isCurrent: (Int, ImageItem) -> Boolean,
+    indexToGroup: Map<Int, Int>,
+    currentGroup: Int?,
+    copiedUris: Set<String>,
+    copiedFolderName: String,
+    onImageSelected: (Int) -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    val density = LocalDensity.current
+    BoxWithConstraints(
+        modifier = modifier
+            .fillMaxWidth()
+            .height(FrameGeometry.FilmstripRowHeight)
+            .background(StudioPanel)
+            .testTag("filmstrip"),
+    ) {
+        // The current tile in the middle of the row: the photographs either side of
+        // it are the ones the next few presses reach.
+        val centringOffsetPx = with(density) { -((maxWidth - RowThumbnailSlotWidth) / 2).roundToPx() }
+        LaunchedEffect(scrollToIndex, centringOffsetPx) {
+            if (images.isNotEmpty() && scrollToIndex in images.indices) {
+                listState.animateScrollToItem(index = scrollToIndex, scrollOffset = centringOffsetPx)
+            }
+        }
+
+        // A 1 dp rule along the top, not a shadow (DESIGN §3).
+        Box(
+            modifier = Modifier
+                .fillMaxWidth()
+                .height(1.dp)
+                .background(StudioBorder)
+                .align(Alignment.TopStart),
+        )
+
+        LazyRow(
+            modifier = Modifier.fillMaxSize().testTag("filmstrip_row"),
+            state = listState,
+            horizontalArrangement = Arrangement.Start,
+            verticalAlignment = Alignment.CenterVertically,
+            contentPadding = PaddingValues(horizontal = 8.dp),
+        ) {
+            itemsIndexed(
+                items = images,
+                key = { _, image -> image.uri },
+            ) { index, image ->
+                val group = indexToGroup[index]
+                RowThumbnail(
+                    image = image,
+                    position = index + 1,
+                    total = images.size,
+                    isCurrent = isCurrent(index, image),
+                    startsNewBurst = group != null && group != indexToGroup[index - 1],
+                    inCurrentBurst = group != null && group == currentGroup,
+                    copiedTo = copiedFolderName.takeIf { image.uri in copiedUris },
+                    onClick = { onImageSelected(index) },
+                )
+            }
+        }
+    }
+}
+
+/**
+ * One slot of the row: the 60 × 48 dp tile centred in the tile's width plus the gap
+ * by the full row height, so the slot is the ≥ 48 dp target and slots abut.
+ */
+@Composable
+private fun RowThumbnail(
+    image: ImageItem,
+    position: Int,
+    total: Int,
+    isCurrent: Boolean,
+    startsNewBurst: Boolean,
+    inCurrentBurst: Boolean,
+    copiedTo: String?,
+    onClick: () -> Unit,
+) {
+    val interactionSource = remember { MutableInteractionSource() }
+    val spoken = thumbnailSpoken(image, position, total, copiedTo)
+    Box(
+        modifier = Modifier
+            .padding(start = if (startsNewBurst) BurstGap else 0.dp)
+            .width(RowThumbnailSlotWidth)
+            .fillMaxHeight()
+            .handCursor()
+            .clickable(interactionSource = interactionSource, indication = null, onClick = onClick)
+            .semantics {
+                contentDescription = spoken
+                if (isCurrent) selected = true
+            }
+            .testTag("filmstrip_thumbnail"),
+        contentAlignment = Alignment.Center,
+    ) {
+        ThumbnailPicture(
+            image = image,
+            isCurrent = isCurrent,
+            width = RowThumbnailWidth,
+            height = RowThumbnailHeight,
+            interactionSource = interactionSource,
+            copiedTo = copiedTo,
+        )
+        // The burst marker runs under the tile in a row, as it runs down the
+        // leading edge in the column: a bracket around a run.
+        if (inCurrentBurst) {
+            Box(
+                modifier = Modifier
+                    .align(Alignment.BottomCenter)
+                    .padding(bottom = 3.dp)
+                    .width(RowThumbnailWidth)
+                    .height(2.dp)
+                    .background(BrandAccent)
+                    .testTag("filmstrip_burst_marker"),
             )
         }
     }

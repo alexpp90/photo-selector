@@ -132,16 +132,6 @@ fun SelectorCoachOverlay(
         exit = fadeOut(tween(150)),
         modifier = modifier,
     ) {
-        val callouts = remember(filingAction, detailsVisible, filmstripVisible) {
-            SelectorTour.callouts(
-                filingAction = filingAction,
-                detailsVisible = detailsVisible,
-                filmstripVisible = filmstripVisible,
-                screenLegend = screenLegend(),
-            )
-        }
-        val items = callouts
-
         Box(
             modifier = Modifier
                 .fillMaxSize()
@@ -167,14 +157,14 @@ fun SelectorCoachOverlay(
 
                 // ── The image region, at its real bounds ─────────────────
                 //
-                // No strip beneath it any more: the filmstrip is a vertical
-                // column at the outer edge of the control flank, so its callout
-                // goes beside it. An overlay that still reserved a bottom strip
-                // would push every callout up by 76 dp and start labelling the
-                // wrong chrome.
+                // The filmstrip is reserved where the solver drew it: a column
+                // at the outer edge of the control flank, or, in tablet portrait,
+                // a row under the frames. An overlay that reserved a bottom strip
+                // the layout does not draw would push every callout up by 76 dp
+                // and start labelling the wrong chrome.
                 Box(modifier = Modifier.weight(1f).fillMaxSize()) {
                     ImageRegionCallouts(
-                        items = items,
+                        filingAction = filingAction,
                         aspect = aspect,
                         detailsVisible = detailsVisible,
                         filmstripVisible = filmstripVisible,
@@ -196,7 +186,7 @@ fun SelectorCoachOverlay(
  */
 @Composable
 private fun ImageRegionCallouts(
-    items: List<TourCallout>,
+    filingAction: FilingAction,
     aspect: Float,
     detailsVisible: Boolean,
     filmstripVisible: Boolean,
@@ -212,6 +202,19 @@ private fun ImageRegionCallouts(
             detailsVisible = detailsVisible,
             filmstripVisible = filmstripVisible,
         )
+        // The filmstrip's callout follows what the solver drew, not the setting: a
+        // strip dropped for want of room is not labelled, and one moved into a row
+        // under the frames is named where it is.
+        val placement = layout.filmstripPlacement
+        val items = remember(filingAction, detailsVisible, placement) {
+            SelectorTour.callouts(
+                filingAction = filingAction,
+                detailsVisible = detailsVisible,
+                filmstripVisible = placement != FilmstripPlacement.NONE,
+                screenLegend = screenLegend(),
+                filmstripAcross = placement == FilmstripPlacement.ROW,
+            )
+        }
 
         Column(
             modifier = Modifier.fillMaxSize(),
@@ -253,6 +256,13 @@ private fun ImageRegionCallouts(
             ) {
                 Spacer(modifier = Modifier.size(layout.frame))
                 Spacer(modifier = Modifier.size(layout.frame))
+            }
+
+            // ── Row 3: the filmstrip row, where the solver drew one ─────
+            // Reserved and empty, so the two rows above split the same height
+            // the layout's rows do and the footprints stay on the frames.
+            if (layout.filmstripHeight > 0.dp) {
+                Spacer(modifier = Modifier.fillMaxWidth().height(layout.filmstripHeight))
             }
         }
     }
@@ -423,7 +433,7 @@ private fun Title() {
  */
 @Composable
 private fun Callout(callout: TourCallout, compact: Boolean = false, tagged: Boolean = true) {
-    val spoken = "${callout.region.location.asString()}. ${callout.title.asString()}. ${callout.body.asString()}"
+    val spoken = "${callout.location.asString()}. ${callout.title.asString()}. ${callout.body.asString()}"
     Column(
         modifier = Modifier
             .then(if (compact) Modifier.fillMaxWidth() else Modifier)
@@ -444,7 +454,7 @@ private fun Callout(callout: TourCallout, compact: Boolean = false, tagged: Bool
     ) {
         // Where it is: the card no longer sits beside what it explains.
         Text(
-            text = callout.region.location.asString().uppercase(),
+            text = callout.location.asString().uppercase(),
             fontSize = 9.sp,
             fontFamily = FontFamily.Monospace,
             color = BrandAccentText,

@@ -80,11 +80,14 @@ import com.photoselectortoolbox.ui.text.asString
  * └────┴──────────┴──────┴───────┴────────┴─┘
  * ```
  *
- * Nothing is above or below the frames — not even the filmstrip, which is a
- * *vertical* strip down the outer edge of the control flank. Measured on the
- * reference device, a 76 dp full-width strip took the frames from 675 × 450 to
- * 618 × 412; 72 dp of vertical strip takes nothing, because the flank has
- * 82.5 dp of horizontal slack the photographs cannot use.
+ * Nothing is above or below the frames where height binds — not even the
+ * filmstrip, which is a *vertical* strip down the outer edge of the control
+ * flank. Measured on the reference device, a 76 dp full-width strip took the
+ * frames from 675 × 450 to 618 × 412; 72 dp of vertical strip takes nothing,
+ * because the flank has 82.5 dp of horizontal slack the photographs cannot use.
+ * In tablet portrait the answer flips: the flank has no slack, the frames are
+ * width-bound and the height is spare, so the solver puts the strip in a 64 dp
+ * row under the frames instead (DESIGN §15.1) — again only where it is free.
  *
  * Three design facts, each of which replaced a shipped mistake:
  *
@@ -140,16 +143,18 @@ fun ThreeUpSelectorLayout(
     /** The Sort chip in the control block's locator row, and its menu. */
     sort: SortControl = SortControl(),
     /**
-     * The filmstrip, drawn as a vertical column at the outer edge of the
-     * control flank.
+     * The filmstrip, drawn where the solver put it: a vertical column at the
+     * outer edge of the control flank, or, where that flank is too narrow
+     * (tablet portrait), a row under the frames in height they cannot use.
      *
      * A slot rather than a list plus three callbacks, because where it goes is
-     * this layout's business and what it contains is not. It is placed in the
-     * flank's horizontal slack and never across the bottom: 76 dp of full-width
-     * strip is 38 dp off the height of all three frames on the reference device
-     * (measured), while 72 dp of width there is free.
+     * this layout's business and what it contains is not; the placement it is
+     * called with says which of the two shapes to draw. On a height-bound window
+     * it is never across the bottom: 76 dp of full-width strip is 38 dp off the
+     * height of all three frames on the reference device (measured), while 72 dp
+     * of width there is free.
      */
-    filmstrip: @Composable () -> Unit = {},
+    filmstrip: @Composable (FilmstripPlacement) -> Unit = {},
     /**
      * The confirmation card's measured top in root pixels while one is shown: the first-run
      * pill then sits [PillAboveSnackbarGap] above it instead of under it.
@@ -337,7 +342,7 @@ fun ThreeUpSelectorLayout(
                                     .width(layout.filmstripWidth)
                                     .fillMaxHeight(),
                             ) {
-                                filmstrip()
+                                filmstrip(FilmstripPlacement.COLUMN)
                             }
                         }
                     }
@@ -391,13 +396,27 @@ fun ThreeUpSelectorLayout(
                         copiedLabel = next?.let(copiedMark),
                     )
                 }
+
+                // ── Row 3, only where the flank cannot hold the column ──
+                // The solver grants it only height the frames cannot use (the
+                // two rows above still hold them at the size they have with the
+                // strip off), so it costs no frame a dp (DESIGN §15.1).
+                if (layout.filmstripHeight > 0.dp) {
+                    Box(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .height(layout.filmstripHeight),
+                    ) {
+                        filmstrip(FilmstripPlacement.ROW)
+                    }
+                }
             }
 
             // The only overlay allowed near a photograph besides the values,
             // and only once ever. While a confirmation card is up, the pill stacks above the
             // card's measured top rather than sitting under it (it read "Iap either side").
             val density = LocalDensity.current
-            val baseInset = FrameGeometry.firstRunPillBottomInset(maxHeight, frameSize.height)
+            val baseInset = FrameGeometry.firstRunPillBottomInset(maxHeight, frameSize.height, layout.filmstripHeight)
             val aboveSnackbar = snackbarTopInRoot
                 ?.takeIf { !regionBottomInRoot.isNaN() }
                 ?.let { top -> with(density) { (regionBottomInRoot - top).toDp() } + PillAboveSnackbarGap }
