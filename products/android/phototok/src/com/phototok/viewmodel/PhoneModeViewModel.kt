@@ -250,8 +250,6 @@ class PhoneModeViewModel @Inject constructor(
     fun dismissCardDoneSheet() = transfer.dismissCardDoneSheet()
     fun keepAllFilesOnCard() = transfer.keepAllFilesOnCard()
     fun deleteQueuedRejectsOnCard() = transfer.deleteQueuedRejectsOnCard()
-    fun advanceClearCardConfirmation() = transfer.advanceClearCardConfirmation()
-    fun cancelClearCardConfirmation() = transfer.cancelClearCardConfirmation()
     fun confirmClearEntireCard() = transfer.confirmClearEntireCard()
     fun cancelClearEntireCard() = transfer.cancelClearEntireCard()
 

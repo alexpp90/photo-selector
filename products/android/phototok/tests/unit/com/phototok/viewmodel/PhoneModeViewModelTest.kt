@@ -2342,6 +2342,23 @@ class PhoneModeViewModelTest {
     }
 
     @Test
+    fun `a second Delete all while one runs starts nothing`() = runTest {
+        val gate = CompletableDeferred<Boolean>()
+        coEvery { imageRepository.deleteImage(any()) } coAnswers { gate.await() }
+        val viewModel = loadFolder(image("a.jpg", 2), image("b.jpg", 1))
+        advanceUntilIdle()
+
+        viewModel.confirmClearEntireCard()
+        viewModel.confirmClearEntireCard()
+        gate.complete(true)
+        advanceUntilIdle()
+
+        coVerify(exactly = 1) { imageRepository.deleteImage(Uri.parse("content://photos/a.jpg")) }
+        coVerify(exactly = 1) { imageRepository.deleteImage(Uri.parse("content://photos/b.jpg")) }
+        assertTrue(viewModel.uiState.value.cardClearComplete)
+    }
+
+    @Test
     fun `a photo's sidecar goes just before it, and one deleted before a cancel is not counted again`() = runTest {
         val p = "content://tree/photos"
         val a = shot("IMG_1.JPG", p, "IMG_1.xmp").copy(lastModified = 30)

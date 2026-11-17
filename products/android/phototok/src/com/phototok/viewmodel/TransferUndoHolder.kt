@@ -769,17 +769,6 @@ internal class TransferUndoHolder(
         _uiState.showFeedback(UiText.of(R.string.snackbar_rejects_deleted))
     }
 
-    /** Step 1 -> Step 2 for Option 3 ("Clear entire card"). */
-    fun advanceClearCardConfirmation() {
-        _uiState.update { state ->
-            state.copy(cardClearStep = (state.cardClearStep + 1).coerceAtMost(2))
-        }
-    }
-
-    fun cancelClearCardConfirmation() {
-        _uiState.update { it.copy(cardClearStep = 0) }
-    }
-
     /** One Delete all run; [cancelClearEntireCard] sets [cancelRequested], the run reads it before each file. */
     private class ClearRun {
         @Volatile

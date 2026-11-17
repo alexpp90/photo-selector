@@ -413,8 +413,8 @@
         <error line="73" column="5" source="standard:spacing-between-declarations-with-comments" />
         <error line="115" column="29" source="standard:multiline-if-else" />
         <error line="116" column="22" source="standard:multiline-if-else" />
-        <error line="2744" column="22" source="standard:wrapping" />
-        <error line="2745" column="63" source="standard:wrapping" />
+        <error line="2761" column="22" source="standard:wrapping" />
+        <error line="2762" column="63" source="standard:wrapping" />
     </file>
     <file name="tests/unit/com/phototok/viewmodel/SelectionViewerViewModelTest.kt">
         <error line="3" column="1" source="standard:import-ordering" />
