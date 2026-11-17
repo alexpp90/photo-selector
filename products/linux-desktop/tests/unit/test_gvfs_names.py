@@ -140,7 +140,7 @@ def test_copy_succeeds_where_timestamps_cannot_be_set(tmp_path: Path, monkeypatc
     """Regression: Google Drive's FUSE mount rejects utime, which failed every Copy to Selection."""
     def _no_stat(src, dst, **_kwargs):
         raise OSError(95, "Operation not supported")
-    monkeypatch.setattr("photo_selector_linux.core.file_ops.shutil.copystat", _no_stat)
+    monkeypatch.setattr("photo_selector_linux.core.fs_transfer.shutil.copystat", _no_stat)
     (tmp_path / "13b8").write_bytes(b"raw")
     candidate = CandidatePhoto(primary_path=tmp_path / "13b8", display_names={tmp_path / "13b8": "DSC0001.ARW"})
 
@@ -151,7 +151,8 @@ def test_copy_succeeds_where_timestamps_cannot_be_set(tmp_path: Path, monkeypatc
 
 def test_cloud_trash_keeps_real_names_and_undo_relinks_the_candidate(tmp_path: Path, monkeypatch):
     """GIO cannot trash through the FUSE mount: files go to the local Trash and undo restores them."""
-    monkeypatch.setattr("photo_selector_linux.core.file_ops.is_gvfs_fuse_path", lambda _path: True)
+    monkeypatch.setattr("photo_selector_linux.core.trash.is_gvfs_fuse_path", lambda _path: True)
+    monkeypatch.setattr("photo_selector_linux.core.fs_transfer.is_gvfs_fuse_path", lambda _path: True)
     folder, trash = tmp_path / "drive", tmp_path / "Trash"
     folder.mkdir()
     (folder / "13b8").write_bytes(b"raw")

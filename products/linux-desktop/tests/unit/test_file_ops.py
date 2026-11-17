@@ -686,20 +686,22 @@ def test_copy_file_and_move_no_overwrite_raise_file_exists_error(tmp_path: Path)
 
 
 def test_no_os_replace_used_in_file_ops():
-    """Verify file_ops.py contains no os.replace calls that could overwrite existing user files."""
+    """Verify the file-operation modules contain no os.replace calls that could overwrite existing user files."""
     import ast
     import inspect
-    from photo_selector_linux.core import file_ops
+    from photo_selector_linux.core import file_ops, fs_transfer, trash as trash_module
 
-    tree = ast.parse(inspect.getsource(file_ops))
-    replace_calls = [
-        node for node in ast.walk(tree)
-        if isinstance(node, ast.Call)
-        and isinstance(node.func, ast.Attribute)
-        and node.func.attr == "replace"
-        and isinstance(node.func.value, ast.Name)
-        and node.func.value.id == "os"
-    ]
+    replace_calls = []
+    for module in (file_ops, fs_transfer, trash_module):
+        tree = ast.parse(inspect.getsource(module))
+        replace_calls += [
+            node for node in ast.walk(tree)
+            if isinstance(node, ast.Call)
+            and isinstance(node.func, ast.Attribute)
+            and node.func.attr == "replace"
+            and isinstance(node.func.value, ast.Name)
+            and node.func.value.id == "os"
+        ]
     assert replace_calls == []
 
 
@@ -1147,7 +1149,7 @@ def _fake_gio(trashed_file, trash_root):
 def test_gio_trash_whose_entry_cannot_be_matched_is_located_through_the_trash_listing(tmp_path: Path):
     """D-2: GIO trashed the file but the .trashinfo Path= does not match; the pair must still be
     recorded (found through GIO's own trash:/// listing) instead of raising with no record."""
-    from photo_selector_linux.core import file_ops
+    from photo_selector_linux.core import trash as trash_module
 
     trash = tmp_path / "Trash"
     (trash / "files").mkdir(parents=True)
@@ -1165,7 +1167,7 @@ def test_gio_trash_whose_entry_cannot_be_matched_is_located_through_the_trash_li
     mgr = FileCullingManager(trash_dir=trash)
 
     with patch.object(FileCullingManager, "_use_gio", return_value=True), \
-         patch.object(file_ops, "Gio", _fake_gio(trashed, root), create=True):
+         patch.object(trash_module, "Gio", _fake_gio(trashed, root), create=True):
         record = mgr.trash_candidate(CandidatePhoto(primary_path=photo))
 
     assert record.affected_paths == [(photo, (trash / "files" / "IMG_7.JPG").resolve())]
@@ -1173,7 +1175,7 @@ def test_gio_trash_whose_entry_cannot_be_matched_is_located_through_the_trash_li
 
 
 def test_gio_trash_that_cannot_be_located_at_all_is_restored_before_raising(tmp_path: Path):
-    from photo_selector_linux.core import file_ops
+    from photo_selector_linux.core import trash as trash_module
 
     trash = tmp_path / "Trash"
     photo = tmp_path / "IMG_8.JPG"
@@ -1189,7 +1191,7 @@ def test_gio_trash_that_cannot_be_located_at_all_is_restored_before_raising(tmp_
     mgr = FileCullingManager(trash_dir=trash)
 
     with patch.object(FileCullingManager, "_use_gio", return_value=True), \
-         patch.object(file_ops, "Gio", _fake_gio(trashed, root), create=True):
+         patch.object(trash_module, "Gio", _fake_gio(trashed, root), create=True):
         with pytest.raises(FileCullingError) as exc_info:
             mgr.trash_candidate(CandidatePhoto(primary_path=photo))
 
@@ -1198,7 +1200,7 @@ def test_gio_trash_that_cannot_be_located_at_all_is_restored_before_raising(tmp_
 
 
 def test_gio_trash_that_cannot_be_located_or_restored_tells_the_user_where_the_file_is(tmp_path: Path):
-    from photo_selector_linux.core import file_ops
+    from photo_selector_linux.core import trash as trash_module
 
     trash = tmp_path / "Trash"
     photo = tmp_path / "IMG_10.JPG"
@@ -1208,7 +1210,7 @@ def test_gio_trash_that_cannot_be_located_or_restored_tells_the_user_where_the_f
     mgr = FileCullingManager(trash_dir=trash)
 
     with patch.object(FileCullingManager, "_use_gio", return_value=True), \
-         patch.object(file_ops, "Gio", _fake_gio(trashed, root), create=True):
+         patch.object(trash_module, "Gio", _fake_gio(trashed, root), create=True):
         with pytest.raises(FileCullingError) as exc_info:
             mgr.trash_candidate(CandidatePhoto(primary_path=photo))
 
