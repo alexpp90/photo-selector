@@ -180,13 +180,17 @@ class MetadataWriterTest {
         assertTrue(stemSidecar.readText().contains("<xmp:Rating>2</xmp:Rating>"))
     }
 
+    private fun sidecarWithRating(rating: Int) =
+        "<x:xmpmeta><rdf:RDF><rdf:Description xmlns:xmp=\"http://ns.adobe.com/xap/1.0/\">" +
+            "<xmp:Rating>$rating</xmp:Rating></rdf:Description></rdf:RDF></x:xmpmeta>"
+
     // FD-D-20: the reader matches sidecar names case-insensitively, so the writer must too.
     @Test
     fun `an upper-case stem sidecar is updated and no second sidecar appears`() = runTest {
         val rawFile = tempFolder.newFile("IMG_7.CR3")
         rawFile.writeBytes(ByteArray(32))
         val upper = File(tempFolder.root, "IMG_7.XMP")
-        upper.writeText("<x:xmpmeta><rdf:RDF><rdf:Description xmlns:xmp=\"http://ns.adobe.com/xap/1.0/\"><xmp:Rating>1</xmp:Rating></rdf:Description></rdf:RDF></x:xmpmeta>")
+        upper.writeText(sidecarWithRating(1))
 
         assertTrue(writer.writeRating(rawFile, 4).isSuccess)
 
@@ -199,9 +203,9 @@ class MetadataWriterTest {
         val rawFile = tempFolder.newFile("IMG_8.NEF")
         rawFile.writeBytes(ByteArray(32))
         val named = File(tempFolder.root, "IMG_8.NEF.XMP")
-        named.writeText("<x:xmpmeta><rdf:RDF><rdf:Description xmlns:xmp=\"http://ns.adobe.com/xap/1.0/\"><xmp:Rating>1</xmp:Rating></rdf:Description></rdf:RDF></x:xmpmeta>")
+        named.writeText(sidecarWithRating(1))
         val stem = File(tempFolder.root, "IMG_8.xmp")
-        stem.writeText("<x:xmpmeta><rdf:RDF><rdf:Description xmlns:xmp=\"http://ns.adobe.com/xap/1.0/\"><xmp:Rating>2</xmp:Rating></rdf:Description></rdf:RDF></x:xmpmeta>")
+        stem.writeText(sidecarWithRating(2))
         val stemBefore = stem.readBytes()
 
         assertTrue(writer.writeRating(rawFile, 5).isSuccess)

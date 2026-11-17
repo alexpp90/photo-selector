@@ -58,9 +58,8 @@ object RatingFormats {
         return listOf(newSidecarName(imageName), "$stem.xmp").firstNotNullOfOrNull { candidate ->
             val matches = siblings.filter { nameOf(it).equals(candidate, ignoreCase = true) }
             if (matches.size > 1) {
-                throw RatingWriteException(
-                    "$candidate exists more than once in the folder (${matches.joinToString { nameOf(it) }}); left unchanged", // ui-text: ignore (log text; RatingWriteException.reason is what the user reads)
-                )
+                val names = matches.joinToString { nameOf(it) }
+                throw RatingWriteException("$candidate exists more than once in the folder ($names); left unchanged") // ui-text: ignore (log text)
             }
             matches.firstOrNull()
         }

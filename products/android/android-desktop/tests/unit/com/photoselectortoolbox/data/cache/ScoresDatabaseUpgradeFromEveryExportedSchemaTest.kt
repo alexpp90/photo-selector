@@ -146,11 +146,23 @@ class ScoresDatabaseUpgradeFromEveryExportedSchemaTest {
     fun `migration 9 to 10 invalidates every cached score and keeps ratings and Learn history`() = runTest {
         val name = "upgrade_9_to_10.db"
         createAt(9, name) { db ->
-            db.execSQL("INSERT INTO scores_cache (filePath, fileSize, lastModified, sharpnessScore, noiseLevel, rating, lastAccessTime) VALUES ('p', 100, 200, 70.0, 1.5, 0, 900)")
-            db.execSQL("INSERT INTO scores_cache (filePath, fileSize, lastModified, sharpnessScore, rating, lastAccessTime) VALUES ('old', 50, 60, 20.0, 2, 700)")
+            db.execSQL(
+                "INSERT INTO scores_cache (filePath, fileSize, lastModified, sharpnessScore, noiseLevel, rating, lastAccessTime) " +
+                    "VALUES ('p', 100, 200, 70.0, 1.5, 0, 900)",
+            )
+            db.execSQL(
+                "INSERT INTO scores_cache (filePath, fileSize, lastModified, sharpnessScore, rating, lastAccessTime) " +
+                    "VALUES ('old', 50, 60, 20.0, 2, 700)",
+            )
             db.execSQL("INSERT INTO user_ratings (uri, rating, updatedAt) VALUES ('p', 4, 800)")
-            db.execSQL("INSERT INTO technique_facts (uri, kind, value, confidence, fileSize, lastModified, detectorVersion) VALUES ('p', 'composition.horizon', 'level', 0.9, 100, 200, 3)")
-            db.execSQL("INSERT INTO shoot_summaries (folderKey, cameraClass, cameraNames, firstCaptureTime, lastCaptureTime, photoCount, metricsJson, detectorVersion, partial, updatedAt) VALUES ('k', 'camera', 'X', 1, 2, 3, '{}', 3, 0, 4)")
+            db.execSQL(
+                "INSERT INTO technique_facts (uri, kind, value, confidence, fileSize, lastModified, detectorVersion) " +
+                    "VALUES ('p', 'composition.horizon', 'level', 0.9, 100, 200, 3)",
+            )
+            db.execSQL(
+                "INSERT INTO shoot_summaries (folderKey, cameraClass, cameraNames, firstCaptureTime, lastCaptureTime, " +
+                    "photoCount, metricsJson, detectorVersion, partial, updatedAt) VALUES ('k', 'camera', 'X', 1, 2, 3, '{}', 3, 0, 4)",
+            )
             db.execSQL("INSERT INTO camera_overrides (make, model, cameraClass) VALUES ('DJI', 'FC3582', 'drone')")
         }
 

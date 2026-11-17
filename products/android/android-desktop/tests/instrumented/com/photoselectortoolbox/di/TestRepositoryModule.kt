@@ -2,6 +2,8 @@ package com.photoselectortoolbox.di
 
 import com.photoselectortoolbox.data.repository.CacheRepository
 import com.photoselectortoolbox.data.repository.CacheRepositoryImpl
+import com.photoselectortoolbox.data.repository.CopiedPhotoRepository
+import com.photoselectortoolbox.data.repository.CopiedPhotoRepositoryImpl
 import com.photoselectortoolbox.data.repository.FakeImageRepository
 import com.photoselectortoolbox.data.repository.ImageRepository
 import com.photoselectortoolbox.data.repository.LearnRepository
@@ -53,4 +55,11 @@ abstract class TestRepositoryModule {
     abstract fun bindPhotoExifReader(
         impl: RepositoryExifReader
     ): PhotoExifReader
+
+    // As RepositoryModule: the real copied-photo records (D3) over the test database.
+    @Binds
+    @Singleton
+    abstract fun bindCopiedPhotoRepository(
+        impl: CopiedPhotoRepositoryImpl
+    ): CopiedPhotoRepository
 }

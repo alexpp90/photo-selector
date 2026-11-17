@@ -157,7 +157,9 @@ abstract class ScoresDatabase : RoomDatabase() {
                 )
                 db.execSQL("UPDATE `scores_cache` SET `fileSize` = -1") // ui-text: ignore (SQL)
                 db.execSQL(
-                    "CREATE TABLE IF NOT EXISTS `copied_photos` (`folderKey` TEXT NOT NULL, `sourceUri` TEXT NOT NULL, `fileSize` INTEGER NOT NULL, `lastModified` INTEGER NOT NULL, `primaryCopyId` TEXT NOT NULL, `keptFilesJson` TEXT NOT NULL, `copiedAt` INTEGER NOT NULL, PRIMARY KEY(`folderKey`, `sourceUri`))" // ui-text: ignore (SQL)
+                    "CREATE TABLE IF NOT EXISTS `copied_photos` (`folderKey` TEXT NOT NULL, `sourceUri` TEXT NOT NULL, " + // ui-text: ignore (SQL)
+                        "`fileSize` INTEGER NOT NULL, `lastModified` INTEGER NOT NULL, `primaryCopyId` TEXT NOT NULL, " + // ui-text: ignore (SQL)
+                        "`keptFilesJson` TEXT NOT NULL, `copiedAt` INTEGER NOT NULL, PRIMARY KEY(`folderKey`, `sourceUri`))" // ui-text: ignore (SQL)
                 )
             }
         }
