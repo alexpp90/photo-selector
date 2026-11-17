@@ -37,7 +37,6 @@ import com.photoselectortoolbox.data.repository.ImageRepository
 import com.photoselectortoolbox.data.repository.SettingsRepository
 import com.photoselectortoolbox.di.ApplicationScope
 import com.photoselectortoolbox.di.IoDispatcher
-import com.photoselectortoolbox.domain.curation.CopiedOnReopen
 import com.photoselectortoolbox.domain.curation.CurationAction
 import com.photoselectortoolbox.domain.curation.DeferredDeletion
 import com.photoselectortoolbox.domain.curation.FileIdentity
@@ -124,12 +123,10 @@ class SelectorViewModel @Inject constructor(
     @IoDispatcher injectedIoDispatcher: CoroutineDispatcher = Dispatchers.IO,
     /** Keeps a completed scan's shoot summary (SD-3); null in tests that do not look at Learn. */
     private val updateShootSummary: UpdateShootSummaryUseCase? = null,
-    /**
-     * Remembers each folder's copied photos across sessions (`FILE_OPERATIONS.md` §5, D3); null
-     * in tests that do not reopen a folder, which then keep the copied state for the session only.
-     */
-    private val copiedPhotos: CopiedPhotoRepository? = null,
+    /** Each folder's copied photos across sessions (D3, [CopiedPhotoMemory]); null: session only. */
+    copiedPhotos: CopiedPhotoRepository? = null,
 ) : ViewModel() {
+    private val copiedMemory = CopiedPhotoMemory(copiedPhotos)
 
     private val _uiState = MutableStateFlow(SelectorUiState())
     val uiState: StateFlow<SelectorUiState> = _uiState.asStateFlow()
@@ -645,7 +642,11 @@ class SelectorViewModel @Inject constructor(
                 publishBatch(batch)
             }
             settleOrder()
-            restoreCopiedState(folderUri)
+            val folder = folderUri.toString() // D3: a reopened folder's copied photos are decided again.
+            viewModelScope.launch {
+                val selection = suspend { withContext(ioDispatcher) { imageRepository.selectionFolder(context, folderUri) } }
+                copiedMemory.restore(folder, { _uiState.value.takeIf { it.folderUri == folder }?.images }, selection)?.let { _uiState.update(it) }
+            }
             // Enumeration has settled: restore scores over the complete list and
             // pick up the tail of the dimensions nobody has asked for yet.
             scheduleScoreRestore(immediate = true)
@@ -661,46 +662,6 @@ class SelectorViewModel @Inject constructor(
             _uiState.update { it.copy(isLoading = false, isEnumerating = false) }
             reportError(text(R.string.error_could_not_load_images))
             onError(e)
-        }
-    }
-
-    /**
-     * The photos of [folderUri] copied in an earlier session are decided again
-     * (`docs/shared/FILE_OPERATIONS.md` §5, "Survives a reopen", D3): marked, counted once, out of
-     * Remaining, and refused a second Copy or a Move. Runs once over the settled list; a photo
-     * that already has a decision in this session keeps it. A record whose copy has left the
-     * Selection, or whose photo changed, is forgotten and the photo opens undecided
-     * ([CopiedOnReopen]). The result is applied only while the folder is still open; forgetting
-     * stale records is durable and runs regardless.
-     */
-    private fun restoreCopiedState(folderUri: Uri) {
-        val store = copiedPhotos ?: return
-        val folder = folderUri.toString()
-        viewModelScope.launch {
-            try {
-                val records = store.copiedIn(folder)
-                if (records.isEmpty()) return@launch
-                val selection = withContext(ioDispatcher) { imageRepository.selectionFolder(context, folderUri) }
-                val listed = _uiState.value.takeIf { it.folderUri == folder }?.images ?: return@launch
-                val outcome = CopiedOnReopen.resolve(records, listed, selection?.filesByDocumentId)
-                if (outcome.stale.isNotEmpty()) store.forget(folder, outcome.stale)
-                if (outcome.copied.isEmpty()) return@launch
-                _uiState.update { state ->
-                    if (state.folderUri != folder) return@update state
-                    val restored = outcome.copied.filterKeys { state.tally.latest(it) == null && it !in state.sessionCopiedUris }
-                    if (restored.isEmpty()) return@update state
-                    state.copy(
-                        tally = state.tally.record(restored.keys, FilingDecision.COPIED),
-                        sessionCopiedUris = state.sessionCopiedUris + restored.keys,
-                        sessionKeptFiles = restored.values.fold(state.sessionKeptFiles) { kept, files -> kept + files },
-                    )
-                }
-            } catch (e: CancellationException) {
-                throw e
-            } catch (e: Exception) {
-                // The photos open undecided, as before D3; the copies on disk are untouched.
-                Log.w("SelectorViewModel", "Could not restore the copied photos of $folder", e)
-            }
         }
     }
 
@@ -1503,21 +1464,6 @@ class SelectorViewModel @Inject constructor(
     fun copyToSelection() = performFiling(CurationAction.COPY)
 
     /**
-     * Keeps a finished Copy for the next time [folderUri] is opened (D3). Durable: runs even
-     * after a folder switch. A failure costs only the reopen mark, never the copy.
-     */
-    private suspend fun rememberCopy(folderUri: String, photo: ImageItem, keptFiles: Map<String, Long>) {
-        val store = copiedPhotos ?: return
-        try {
-            store.record(folderUri, photo, keptFiles, System.currentTimeMillis())
-        } catch (e: CancellationException) {
-            throw e
-        } catch (e: Exception) {
-            Log.w("SelectorViewModel", "Could not remember the copy of ${photo.uri}", e)
-        }
-    }
-
-    /**
      * Apply the filing action to the list immediately and transfer behind it.
      *
      * No spinner and no `isLoading`: the whole point is that filing a frame
@@ -1584,21 +1530,9 @@ class SelectorViewModel @Inject constructor(
             // started in and is skipped when that folder is no longer open.
             fun stillOpen() = _uiState.value.folderUri == folderUri
             if (result != null && result.success) {
-                _uiState.update { current ->
-                    if (current.folderUri != folderUri) return@update current
-                    current.copy(
-                        tally = current.tally.record(
-                            listOf(sourceUri),
-                            if (action == CurationAction.MOVE) FilingDecision.MOVED else FilingDecision.COPIED,
-                        ),
-                        sessionKeptFileNames = current.sessionKeptFileNames + currentItem.fileName,
-                        sessionCopiedUris = current.sessionCopiedUris + listOfNotNull(sourceUri.takeIf { action == CurationAction.COPY }),
-                        sessionKeptFiles = current.sessionKeptFiles + KeptFiles.of(currentItem.allFiles, result.destinationUris),
-                    )
-                }
-                if (action == CurationAction.COPY) {
-                    rememberCopy(folderUri, currentItem, KeptFiles.of(currentItem.allFiles, result.destinationUris))
-                }
+                val copied = action == CurationAction.COPY
+                _uiState.update { if (it.folderUri != folderUri) it else it.withFiled(currentItem, copied, result.destinationUris) }
+                if (copied) copiedMemory.remember(folderUri, currentItem, result.destinationUris)
                 val undo = UndoPolicy.forFiling(
                     action = action,
                     slots = edit.slots,

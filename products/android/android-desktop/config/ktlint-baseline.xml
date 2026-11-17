@@ -857,14 +857,14 @@
     </file>
     <file name="src/com/photoselectortoolbox/viewmodel/SelectorViewModel.kt">
         <error line="3" column="1" source="standard:import-ordering" />
-        <error line="518" column="57" source="standard:multiline-if-else" />
-        <error line="519" column="18" source="standard:multiline-if-else" />
-        <error line="1397" column="57" source="standard:multiline-if-else" />
-        <error line="1398" column="22" source="standard:multiline-if-else" />
-        <error line="1553" column="1" source="standard:indent" />
-        <error line="1554" column="1" source="standard:indent" />
-        <error line="1900" column="41" source="standard:function-literal" />
-        <error line="2148" column="24" source="standard:multiline-if-else" />
+        <error line="515" column="57" source="standard:multiline-if-else" />
+        <error line="516" column="18" source="standard:multiline-if-else" />
+        <error line="1358" column="57" source="standard:multiline-if-else" />
+        <error line="1359" column="22" source="standard:multiline-if-else" />
+        <error line="1499" column="1" source="standard:indent" />
+        <error line="1500" column="1" source="standard:indent" />
+        <error line="1834" column="41" source="standard:function-literal" />
+        <error line="2082" column="24" source="standard:multiline-if-else" />
     </file>
     <file name="src/com/photoselectortoolbox/viewmodel/SettingsViewModel.kt">
         <error line="3" column="1" source="standard:import-ordering" />
