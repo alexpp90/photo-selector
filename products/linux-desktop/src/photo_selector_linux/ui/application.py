@@ -65,7 +65,8 @@ class PhotoSelectorApplication(Adw.Application if HAS_GI else object):
             Gtk.Window.set_default_icon_name(APP_ICON_NAME)
 
         style_mgr = Adw.StyleManager.get_default()
-        style_mgr.set_color_scheme(Adw.ColorScheme.FORCE_DARK)
+        # Follow the system light/dark preference; the canvas where photos are judged stays dark.
+        style_mgr.set_color_scheme(Adw.ColorScheme.DEFAULT)
 
         css_provider = Gtk.CssProvider()
         css_provider.load_from_data(STUDIO_DARK_CSS.encode("utf-8"))

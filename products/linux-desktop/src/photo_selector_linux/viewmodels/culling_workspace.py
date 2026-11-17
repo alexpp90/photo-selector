@@ -153,6 +153,9 @@ class CullingWorkspaceViewModel(ActionQueueMixin, ScoringPassMixin, ScanLoadingM
 
         self.selected_count: int = 0
         self.copied_count: int = 0
+        #: Photos found in the open folder, fixed once the scan is done: the M of "Photo N of M" (moved
+        #: and trashed photos leave the list but not the folder's count).
+        self.folder_total: int = 0
         self.trashed_count: int = 0
         self.undo_stack: List[Tuple[CullingRecord, CandidatePhoto, int]] = []
         self._undo_actions: Dict[str, _QueuedAction] = {}
@@ -517,6 +520,7 @@ class CullingWorkspaceViewModel(ActionQueueMixin, ScoringPassMixin, ScanLoadingM
         user has moved the view stays on the first photo of the order (the newest, for "newest
         first"). Undo positions are not stored indices that could go stale (see ``_reinsert``).
         """
+        self.folder_total += len(batch)
         self._restore_copy_decisions(batch)
         if self.sort_order == ORDER_NAME:
             self.candidates.extend(batch)

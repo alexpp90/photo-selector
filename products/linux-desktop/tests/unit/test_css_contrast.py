@@ -41,3 +41,17 @@ def test_every_literal_background_and_text_pair_reaches_4_5_to_1():
         if _ratio(bg, fg) < 4.5
     ]
     assert not failures, failures
+
+
+def test_the_chrome_follows_the_scheme_and_only_the_canvas_is_a_fixed_dark_surface():
+    """D7: header bar, action bar and counters use libadwaita's named colours (they adapt to light and
+    dark); the one fixed dark surface is the canvas where photos are judged."""
+    css = re.sub(r"/\*.*?\*/", "", STUDIO_DARK_CSS, flags=re.S)
+    blocks = {m.group(1).strip(): m.group(2) for m in re.finditer(r"([^{}]+)\{([^{}]*)\}", css)}
+    assert "window" not in {sel.strip() for sel in blocks} and ".studio-dark-surface" in blocks
+    assert "#0E0E0E" in blocks[".studio-dark-surface"]
+    for selector in (".studio-actionbar", ".photo-counter-pill", ".status-counter-badge",
+                     ".status-counter-selected", ".status-counter-trashed", ".status-counter-remaining"):
+        body = blocks[selector]
+        assert "@window_fg_color" in body or "@headerbar_bg_color" in body, selector
+        assert not re.search(r"#[0-9A-Fa-f]{6}", body), f"{selector} must not hard-code a colour"

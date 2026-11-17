@@ -10,6 +10,11 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 - Ubuntu 24.04 LTS (GNOME 46) joins Debian 13 as an APT suite (`noble` beside `trixie`, the same package): the one-line `setup.sh` chooses by your release's codename. CI runs the tests and installs the package on both releases' own GTK and Libadwaita.
 
 ### Changed
+- The window follows the system light or dark preference; the canvas where photos are judged stays dark in both. The window can no longer be made smaller than 800 x 560.
+- The header reads "Photo N of M" with M the number of photos in the folder (it no longer shrinks as you file photos); the bar counts what is "left".
+- The info card shows "Highlights 3% · Shadows 12%" with a tooltip, instead of "HL" and "SH". The Copied mark says where the copy went and when.
+- The keys **H**, **L** and **B** are retired (the shortcut sheet no longer mentions them): use the arrows or **J**/**K**, and the **S** menu for Lowest sharpness first.
+- The memory-cache setting is no longer shown in Preferences; a stored value is still used.
 - A photo you copied to the Selection stays decided when you open the folder again: it is marked copied, counted under Selected and not among the photos left. The decision is kept next to the settings, never in the photo; copying it again files nothing twice. Undoing the Copy, or removing the copy from the Selection, makes the photo open again.
 
 ## [0.3.0] - 2026-11-13

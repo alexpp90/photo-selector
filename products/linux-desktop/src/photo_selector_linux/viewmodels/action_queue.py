@@ -7,6 +7,7 @@
 from __future__ import annotations
 
 import logging
+import time
 
 from dataclasses import dataclass
 from pathlib import Path
@@ -410,6 +411,8 @@ class ActionQueueMixin:
                 if source == action.photo.primary_path:
                     destination = target
                     break
+        action.photo.copied_to = str(destination) if destination is not None else None
+        action.photo.copied_at = time.time()
         self.copy_decisions.record(
             action.decision_folder, action.decision_key, action.photo.file_size, destination
         )

@@ -76,8 +76,9 @@ def test_preferences_dialog_wires_controls_and_removes_bind_companions_toggle(tm
     dlg._on_sharp_changed(dlg.scale_sharp)
     assert store.sharp_threshold == 78.0
 
-    dlg.scale_cache.set_value(1024.0)
-    dlg._on_cache_changed(dlg.scale_cache)
+    # The cache ceiling has no row; its stored value is still honoured.
+    assert dlg.row_cache_limit is None and dlg.scale_cache is None
+    dlg.set_cache_limit_mb(1024.0)
     assert store.cache_limit_mb == 1024.0
 
 

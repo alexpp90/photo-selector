@@ -58,7 +58,11 @@ def test_libadwaita_components():
     assert win.icon_name == APP_ICON_NAME == "app.alpatix.Blitzlens"
     assert win.canvas_view is not None
     assert win.action_bar is not None
-    assert "studio-dark-surface" in win.get_css_classes()
+    assert "studio-dark-surface" not in win.get_css_classes()  # the window follows the scheme (D7)
+    assert "studio-dark-surface" in win.canvas_view.get_css_classes()  # the canvas stays dark
+    from photo_selector_linux.ui.window import MIN_WINDOW_SIZE
+
+    assert MIN_WINDOW_SIZE == (800, 560)  # the window minimum (set_size_request in MainWindow)
     assert win.btn_mode_1.get_css_classes() == ["suggested-action"]
     assert win.btn_mode_2.get_css_classes() == []
     assert win.btn_mode_3.get_css_classes() == []
@@ -126,11 +130,13 @@ def test_css_follows_system_accent_and_is_neutral():
         assert r == g == b, f"{hex_value} is not neutral grey"
 
 
-def test_app_is_dark_only_and_has_about_dialog():
+def test_app_follows_the_system_scheme_and_has_about_dialog():
+    """D7 [USER 2026-11-16]: no forced dark scheme; the canvas alone stays dark."""
     from pathlib import Path
 
     ui = Path(__file__).resolve().parents[2] / "src" / "photo_selector_linux" / "ui"
-    assert "Adw.ColorScheme.FORCE_DARK" in (ui / "application.py").read_text()
+    assert "FORCE_DARK" not in (ui / "application.py").read_text()
+    assert "Adw.ColorScheme.DEFAULT" in (ui / "application.py").read_text()
     assert "app.alpatix.Blitzlens" in (ui / "application.py").read_text()
     window = (ui / "window.py").read_text()
     assert "Adw.AboutDialog" in window and "set_application_icon(APP_ICON_NAME)" in window
@@ -267,7 +273,7 @@ def test_info_hud_goodness_and_metric_omission():
     assert hud.sharpness_meter.get_css_classes() == ["sharpness-meter-track", "sharpness-meter-sharp"]
     assert hud.sharpness_goodness == pytest.approx(compute_sharpness_goodness(90.0))
     assert hud.sharpness_meter.get_fraction() == pytest.approx(compute_sharpness_goodness(90.0))
-    assert hud.clipping_text == "HL: 1.5% · SH: 0.2%"
+    assert hud.clipping_text == "Highlights 1.5% · Shadows 0.2%"
 
     # Candidate with separate camera_make and camera_model + acceptable score
     cand_acc = make_candidate("IMG_4023.CR3", ["IMG_4023.JPG"])
@@ -339,7 +345,7 @@ def test_action_bar_semantic_status_counters():
     bar._update_state()
     assert bar.selected_label_text == "0 Selected"
     assert bar.trashed_label_text == "0 Trashed"
-    assert bar.remaining_label_text == "4 Remaining"
+    assert bar.remaining_label_text == "4 left"
     assert bar.selected_css_class == "status-counter-badge"
     assert bar.trashed_css_class == "status-counter-badge"
     assert bar.remaining_css_class == "status-counter-remaining"
@@ -369,7 +375,7 @@ def test_action_bar_semantic_status_counters():
 
     assert bar.selected_label_text == "1 Selected"
     assert bar.trashed_label_text == "1 Trashed"
-    assert bar.remaining_label_text == "2 Remaining"
+    assert bar.remaining_label_text == "2 left"
     assert bar.selected_css_class == "status-counter-selected"
     assert bar.trashed_css_class == "status-counter-trashed"
     assert bar.undo_label_text == "Undo"

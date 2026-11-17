@@ -235,16 +235,6 @@ def test_the_menu_offers_the_four_orders_and_the_word_beside_the_counter_names_t
 
 
 @needs_gtk
-def test_b_returns_from_the_sweep_to_the_persisted_order_not_to_file_name(tmp_path: Path):
-    win = _window(tmp_path, order="oldest")
-    win.toggle_view_order()
-    assert win.viewmodel.sort_order == "lowest_sharpness_first"
-    win.toggle_view_order()
-    assert win.viewmodel.sort_order == "oldest"
-    win.destroy()
-
-
-@needs_gtk
 def test_g_opens_the_dialog_enter_goes_and_a_miss_says_no_match(tmp_path: Path, monkeypatch):
     from gi.repository import GLib
 

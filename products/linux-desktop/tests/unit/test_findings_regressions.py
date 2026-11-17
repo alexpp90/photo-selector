@@ -111,9 +111,9 @@ def test_a_custom_xdg_data_home_still_trashes_through_gio(tmp_path, monkeypatch)
 #: (name, keyval, state): every single-key and Ctrl binding of the engine.
 KEYS = [
     ("M", 0x6D, 0), ("C", 0x63, 0), ("Delete", 0xFFFF, 0), ("Backspace", 0xFF08, 0),
-    ("Left", 0xFF51, 0), ("Right", 0xFF53, 0), ("H", 0x68, 0), ("J", 0x6A, 0), ("K", 0x6B, 0), ("L", 0x6C, 0),
+    ("Left", 0xFF51, 0), ("Right", 0xFF53, 0), ("J", 0x6A, 0), ("K", 0x6B, 0),
     ("1", 0x31, 0), ("2", 0x32, 0), ("3", 0x33, 0),
-    ("Space", 0x20, 0), ("Escape", 0xFF1B, 0), ("I", 0x69, 0), ("B", 0x62, 0), ("G", 0x67, 0),
+    ("Space", 0x20, 0), ("Escape", 0xFF1B, 0), ("I", 0x69, 0), ("G", 0x67, 0),
     ("F", 0x66, 0), ("F11", 0xFFC8, 0), ("S", 0x73, 0), ("?", 0x3F, 0),
     ("Ctrl+Z", 0x7A, 4), ("Ctrl+O", 0x6F, 4), ("Ctrl+L", 0x6C, 4), ("Ctrl+,", 0x2C, 4),
 ]
@@ -195,7 +195,7 @@ def test_preferences_titles_are_valid_markup_or_not_markup(tmp_path):
 
 @pytest.mark.skipif(STUBBED, reason="needs real Gtk/Adw under a display server")
 def test_preferences_titles_show_the_literal_lt_and_ampersand(tmp_path):
-    """The rendered text, not the property: "Blurry Threshold (< 35.0)" and "Memory & Prefetch"."""
+    """The rendered text, not the property: "Blurry Threshold (< 35.0)" shows its "<" literally."""
     import gtk_layout_probe as probe
     from gi.repository import Adw, Gtk
     from photo_selector_linux.core.settings import SettingsStore
@@ -207,7 +207,6 @@ def test_preferences_titles_show_the_literal_lt_and_ampersand(tmp_path):
         probe.pump(0.3)
         texts = [w.get_text() for w in probe.walk(dialog) if isinstance(w, Gtk.Label)]
         assert "Blurry Threshold (< 35.0)" in texts
-        assert "Memory & Prefetch" in texts
     finally:
         dialog.destroy()
 
