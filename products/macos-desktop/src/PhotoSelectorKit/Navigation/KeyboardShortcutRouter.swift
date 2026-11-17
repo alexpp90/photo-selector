@@ -258,8 +258,8 @@ public final class KeyboardShortcutRouter: ObservableObject {
                 viewModel.isInfoVisible.toggle()
             }
             return true
-        case "s":
-            viewModel.toggleZoomSync()
+        case "s": // S: the sort choice (linked pan keeps only ⌥⌘P)
+            viewModel.presentSortChoice()
             return true
         case "g": // Go to Photo (number or file name)
             viewModel.presentGoToPhoto()

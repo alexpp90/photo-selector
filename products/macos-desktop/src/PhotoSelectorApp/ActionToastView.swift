@@ -3,14 +3,41 @@ import PhotoSelectorKit
 
 /// Transient confirmation toast overlay providing immediate visual feedback for actions.
 private struct DismissToastKey: EnvironmentKey {
+    static let defaultValue: @MainActor (UUID) -> Void = { _ in }
+}
+
+private struct DismissAllToastsKey: EnvironmentKey {
     static let defaultValue: @MainActor () -> Void = {}
 }
 
+private struct CopiedFolderKey: EnvironmentKey {
+    static let defaultValue: String? = nil
+}
+
+private struct FailureToastsKey: EnvironmentKey {
+    static let defaultValue: [ToastMessage] = []
+}
+
 extension EnvironmentValues {
-    /// Drops the persistent toast (the close button of a failure).
-    var dismissToast: @MainActor () -> Void {
+    /// The folder copies go to, for the info panel's "Copied to …".
+    var copiedFolder: String? {
+        get { self[CopiedFolderKey.self] }
+        set { self[CopiedFolderKey.self] = newValue }
+    }
+    /// Drops one failure toast (its close button).
+    var dismissToast: @MainActor (UUID) -> Void {
         get { self[DismissToastKey.self] }
         set { self[DismissToastKey.self] = newValue }
+    }
+    /// "Dismiss all" of the collapsed failure stack.
+    var dismissAllToasts: @MainActor () -> Void {
+        get { self[DismissAllToastsKey.self] }
+        set { self[DismissAllToastsKey.self] = newValue }
+    }
+    /// The failures waiting for the user, newest first.
+    var failureToasts: [ToastMessage] {
+        get { self[FailureToastsKey.self] }
+        set { self[FailureToastsKey.self] = newValue }
     }
 }
 
@@ -43,7 +70,7 @@ public struct ActionToastView: View {
             }
 
             if toast.isFailure {
-                Button { dismissToast() } label: {
+                Button { dismissToast(toast.id) } label: {
                     Image(systemName: "xmark")
                         .font(.system(size: 11, weight: .bold))
                         .frame(width: 28, height: 28)
@@ -87,6 +114,11 @@ struct SlotOverlayLayer: View {
     let toast: ToastMessage?
     let zoomState: ZoomState
     let onExitZoom: (() -> Void)?
+    @Environment(\.failureToasts) private var failures
+    @Environment(\.dismissAllToasts) private var dismissAll
+
+    /// How many failures are drawn; the rest collapse into "+N more" (UX L4).
+    static let visibleFailures = 3
 
     private var showsPill: Bool { zoomState.isZoomed && onExitZoom != nil }
 
@@ -98,7 +130,10 @@ struct SlotOverlayLayer: View {
                     .transition(.opacity)
             }
             Spacer(minLength: 0)
-            if let toast {
+            if !failures.isEmpty {
+                failureStack
+            }
+            if let toast, !toast.isFailure {
                 ActionToastView(toast: toast)
                     .uiTestFrame("action_toast")
                     .allowsHitTesting(toast.isFailure)
@@ -110,6 +145,34 @@ struct SlotOverlayLayer: View {
         }
         .padding(8)
         .frame(maxWidth: .infinity, maxHeight: .infinity)
+    }
+}
+
+extension SlotOverlayLayer {
+    /// Newest on top, at most three, the older ones as "+N more" with "Dismiss all".
+    @ViewBuilder
+    var failureStack: some View {
+        VStack(spacing: 6) {
+            ForEach(failures.prefix(Self.visibleFailures)) { failure in
+                ActionToastView(toast: failure)
+            }
+            if failures.count > Self.visibleFailures {
+                HStack(spacing: 10) {
+                    Text("+\(failures.count - Self.visibleFailures) more")
+                        .font(.system(size: 12, weight: .semibold))
+                        .foregroundStyle(Color.lensjetTextSecondary)
+                    Button("Dismiss all") { dismissAll() }
+                        .buttonStyle(.plain)
+                        .font(.system(size: 12, weight: .bold))
+                        .foregroundStyle(Color.accentColor)
+                        .focusable(false)
+                }
+                .padding(.horizontal, 14)
+                .padding(.vertical, 6)
+                .background(.ultraThinMaterial, in: Capsule())
+            }
+        }
+        .uiTestFrame("failure_toasts")
     }
 }
 
