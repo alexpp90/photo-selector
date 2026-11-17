@@ -225,6 +225,7 @@ fun ThreeUpSelectorLayout(
                 aspect = aspect,
                 detailsVisible = detailsVisible,
                 filmstripVisible = filmstripVisible,
+                controlsKeepTheirFit = rememberControlsKeepTheirFit(),
             )
             val frameSize = layout.frame
             val flankWidth = layout.flankWidth
@@ -851,6 +852,21 @@ private fun MaximisedInfoToggle(
             modifier = Modifier.size(18.dp),
             tint = Zinc50,
         )
+    }
+}
+
+/**
+ * The filmstrip row's control-block check at this screen's density and font scale, for
+ * [FrameGeometry.threeUpLayout]; the layout and the coach overlay both pass it, so they
+ * agree about whether the row is drawn.
+ */
+@Composable
+internal fun rememberControlsKeepTheirFit(): (Dp, Dp, Dp) -> Boolean {
+    val density = LocalDensity.current
+    return remember(density) {
+        { before: Dp, after: Dp, flankWidth: Dp ->
+            ControlBlockFit.keepsFit(before, after, flankWidth, density.fontScale, density.density)
+        }
     }
 }
 

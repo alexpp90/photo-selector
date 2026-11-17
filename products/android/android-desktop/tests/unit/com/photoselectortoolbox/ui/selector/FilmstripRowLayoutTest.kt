@@ -214,6 +214,23 @@ class FilmstripRowLayoutTest {
     }
 
     @Test
+    fun `a row that would push the controls into a scroll is not drawn`() {
+        // 640 x 600: the frames leave height for the row, but the compact block in row 1
+        // would drop to its scrolling rung; the strip is dropped and the block keeps fitting.
+        host(640, 600)
+        assertEquals(0, count("filmstrip"))
+        assertEquals(0, count("control_block_scrolling"))
+        assertEquals(1, count("filmstrip_toggle"))
+    }
+
+    @Test
+    fun `the row leaves the control block on the rung it had`() {
+        host(720, 1100)
+        assertEquals(1, count("filmstrip_row"))
+        assertEquals(0, count("control_block_scrolling"))
+    }
+
+    @Test
     fun `a window without spare height draws no strip and keeps the toggle`() {
         host(800, 420)
         assertEquals(0, count("filmstrip"))

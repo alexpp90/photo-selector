@@ -89,6 +89,37 @@ class FilmstripRowGeometryTest {
     }
 
     @Test
+    fun `the row is dropped where it would cost the controls their rung`() {
+        // The solver asks the control block (ControlBlockFit.keepsFit at the screen's density)
+        // with the row height before and after the strip; a no means no row, frames unchanged.
+        val region = FrameGeometry.imageRegion(720.dp, 1100.dp, sidebarWidth = SidebarWidth)
+        val asked = mutableListOf<Triple<Dp, Dp, Dp>>()
+        val layout = FrameGeometry.threeUpLayout(
+            regionWidth = region.width,
+            regionHeight = region.height,
+            aspect = 1.5f,
+            filmstripVisible = true,
+            controlsKeepTheirFit = { before, after, flank -> asked += Triple(before, after, flank); false },
+        )
+        assertEquals(FilmstripPlacement.NONE, layout.filmstripPlacement)
+        val (before, after, flank) = asked.single()
+        assertEquals((region.height.value - 8f) / 2f, before.value, 0.01f)
+        assertEquals((region.height.value - 64f - 16f) / 2f, after.value, 0.01f)
+        assertEquals(layout.flankWidth.value, flank.value, 0.01f)
+        val off = FrameGeometry.threeUpLayout(region.width, region.height, aspect = 1.5f)
+        assertEquals(off.frame.height.value, layout.frame.height.value, 0.01f)
+    }
+
+    @Test
+    fun `the control block check says no only where the row changes its rung`() {
+        // 640 x 600 dp window: a 130 dp block whose compact 2 x 2 rung fits a 288 dp row but
+        // not the 252 dp the strip row leaves (device check 2026-11-17 at 640 x 640 dp).
+        assertTrue(!ControlBlockFit.keepsFit(288.dp, 252.dp, 130.dp, fontScale = 1f, density = 2f))
+        // 720 x 1100: a 150 dp block in a 538 dp row keeps its rung in 502 dp.
+        assertTrue(ControlBlockFit.keepsFit(538.dp, 502.dp, 150.dp, fontScale = 1f, density = 2f))
+    }
+
+    @Test
     fun `the reference window keeps the column and never draws the row`() {
         val layout = layoutAt(1480.dp, 924.dp, filmstrip = true)
         assertEquals(FilmstripPlacement.COLUMN, layout.filmstripPlacement)

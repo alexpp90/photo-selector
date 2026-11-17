@@ -201,6 +201,7 @@ private fun ImageRegionCallouts(
             aspect = aspect,
             detailsVisible = detailsVisible,
             filmstripVisible = filmstripVisible,
+            controlsKeepTheirFit = rememberControlsKeepTheirFit(),
         )
         // The filmstrip's callout follows what the solver drew, not the setting: a
         // strip dropped for want of room is not labelled, and one moved into a row

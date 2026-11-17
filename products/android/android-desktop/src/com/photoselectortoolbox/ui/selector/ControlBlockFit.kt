@@ -355,6 +355,21 @@ object ControlBlockFit {
         }
     }
 
+    /** The block's padding either side: 4 dp in a block under 240 dp, else 10 dp. */
+    fun horizontalPadding(blockWidth: Dp): Dp = if (blockWidth < 240.dp) 4.dp else 10.dp
+
+    /**
+     * Whether a block [blockWidth] wide keeps its rung (variant and locator row) when the
+     * row it is laid out in shrinks from [before] to [after]. The filmstrip row under the
+     * frames asks this: it may take height the frames cannot use, but not height that
+     * would push the controls down the ladder or into a scroll (device check 2026-11-17:
+     * at 640 x 640 dp the row turned a fitting compact block into a scrolling one).
+     */
+    fun keepsFit(before: Dp, after: Dp, blockWidth: Dp, fontScale: Float, density: Float): Boolean {
+        val innerWidth = blockWidth - horizontalPadding(blockWidth) * 2
+        return fit(after, fontScale, density, innerWidth) == fit(before, fontScale, density, innerWidth)
+    }
+
     /** The variant alone; see [fit] for whether it carries the locator row. */
     fun mode(available: Dp, fontScale: Float, density: Float, innerWidth: Dp = Dp.Infinity): Mode =
         fit(available, fontScale, density, innerWidth).mode

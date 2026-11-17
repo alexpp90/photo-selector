@@ -1442,8 +1442,10 @@ the arrangement. At 720 × 1100 dp, one over two gives `h ≤ (1100 − chrome)/
   column would be narrower than one thumbnail (`MinimumFilmstripColumnWidth`, 64 dp) the
   frames are solved as if the strip were off, and the row is drawn only if the region still
   has **64 dp plus the 8 dp gap** of height below them (`FilmstripRowHeight`), so the frames
-  are the same size with the strip on and off. Otherwise it is dropped, as before, never
-  drawn over the view toggles or a frame. At 720 × 1100 the frames are 300 × 200 with or
+  are the same size with the strip on and off, and only if the control block keeps the rung it
+  had (`ControlBlockFit.keepsFit`: the row may not push it from compact into a scroll — a
+  640 × 640 dp window on the Pixel Tablet did, 2026-11-17). Otherwise it is dropped, as before,
+  never drawn over the view toggles or a frame. At 720 × 1100 the frames are 300 × 200 with or
   without the row; at 600 × 900 and 840 × 1200 the row is drawn too, at 800 × 420 it is not.
   The 1024 × 720 window, whose flank left a 6 dp column, gets the row as well.
 - **The row:** full content width under Previous and Next, 64 dp tall, a 1 dp top rule.

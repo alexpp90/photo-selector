@@ -237,6 +237,14 @@ object FrameGeometry {
         aspect: Float = DefaultLandscapeAspect,
         detailsVisible: Boolean = true,
         filmstripVisible: Boolean = false,
+        /**
+         * Whether the control block, [flankWidth] wide, keeps the rung it has in a row
+         * [before] tall when the filmstrip row shrinks that row to [after]
+         * ([ControlBlockFit.keepsFit] at the screen's density and font scale). The row
+         * is free only if it costs neither the frames nor the controls; a pure default
+         * that always agrees keeps this object free of density.
+         */
+        controlsKeepTheirFit: (before: Dp, after: Dp, flankWidth: Dp) -> Boolean = { _, _, _ -> true },
     ): ThreeUpLayout {
         val stripSpace = if (filmstripVisible) FilmstripWidth + Gap else 0.dp
 
@@ -309,7 +317,11 @@ object FrameGeometry {
         // widened for it, so the frames and flank are solved again without it.
         if (filmstripVisible && columnWidth == 0.dp) {
             val base = threeUpLayout(regionWidth, regionHeight, aspect, detailsVisible, filmstripVisible = false)
-            return base.copy(filmstripHeight = filmstripRowHeight(regionHeight, base.frame))
+            val row = filmstripRowHeight(regionHeight, base.frame)
+            val before = (regionHeight - Gap) / 2
+            val after = (regionHeight - row - Gap * 2) / 2
+            val keeps = row == 0.dp || controlsKeepTheirFit(before, after, base.flankWidth)
+            return base.copy(filmstripHeight = if (keeps) row else 0.dp)
         }
 
         return ThreeUpLayout(
