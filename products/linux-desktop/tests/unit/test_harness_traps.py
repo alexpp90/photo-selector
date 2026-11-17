@@ -6,12 +6,12 @@ import time
 from pathlib import Path
 from unittest.mock import MagicMock
 
-from photo_selector_linux.core import file_ops
+from photo_selector_linux.core import file_ops, trash as trash_module
 from photo_selector_linux.ui import lab_hooks
 
 
 def test_a_mocked_gio_trash_listing_returns_instead_of_looping(monkeypatch):
-    monkeypatch.setattr(file_ops, "Gio", MagicMock())
+    monkeypatch.setattr(trash_module, "Gio", MagicMock())
     manager = file_ops.FileCullingManager()
     started = time.monotonic()
     try:

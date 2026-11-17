@@ -67,7 +67,7 @@ class ActionBarView(Gtk.ActionBar if HAS_GI else object):
         #: Called by the Selected pill; the window wires it to Show in Files.
         self.on_open_selection: Optional[Callable[[], None]] = None
         self.trashed_label_text: str = "0 Trashed"
-        self.remaining_label_text: str = "0 Remaining"
+        self.remaining_label_text: str = "0 left"
         self.selected_css_class: str = "status-counter-badge"
         self.trashed_css_class: str = "status-counter-badge"
         self.remaining_css_class: str = "status-counter-remaining"
@@ -333,7 +333,7 @@ class ActionBarView(Gtk.ActionBar if HAS_GI else object):
 
         self.selected_label_text = f"{sel} Selected"
         self.trashed_label_text = f"{trs} Trashed"
-        self.remaining_label_text = f"{rem} Remaining"
+        self.remaining_label_text = f"{rem} left"
         self.selected_css_class = "status-counter-selected" if sel > 0 else "status-counter-badge"
         self.trashed_css_class = "status-counter-trashed" if trs > 0 else "status-counter-badge"
         self.remaining_css_class = "status-counter-remaining"

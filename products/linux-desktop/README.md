@@ -4,7 +4,7 @@ Blitzlens – Photo Culling: a native GNOME photo culling and selection app for 
 
 ## Overview
 
-Blitzlens is built with Python 3.12+, PyGObject, GTK4, Libadwaita, GExiv2, and vectorized NumPy, it opens a folder (a card's folder included) and lets you step through its photos one at a time, two side by side, or one over two (the current photo with its previous and next), pairs RAW+JPEG and XMP companions, and files keepers into a `Selection/` folder with Undo. Each photo gets a sharpness score from the centre of the frame: it compares frames of one burst and does not rank different scenes, built along the GNOME Human Interface Guidelines (HIG).
+Blitzlens is built with Python 3.12+, PyGObject, GTK4, Libadwaita, GExiv2, and vectorized NumPy, it opens a folder (a card's folder included) and lets you step through its photos one at a time, two side by side, or one over two (the current photo with its previous and next), pairs RAW+JPEG and XMP companions, and files keepers into a `Selection/` folder with Undo. Each photo gets a sharpness score from the centre of the frame: it compares frames of one burst and does not rank different scenes. The interface is built with GTK4 and Libadwaita, follows the system light or dark preference, and keeps the area where photos are judged dark.
 
 ## Architecture
 
@@ -23,7 +23,7 @@ The codebase enforces strict separation of concerns:
 - `photo_selector_linux.ui`:
   - `application`: `Adw.Application` lifecycle controller with the `app.alpatix.Blitzlens` application id, icon registration, About dialog and CSS provider injection.
   - `window`: `Adw.ApplicationWindow` with `.studio-headerbar` (`Adw.HeaderBar`), segmented view switcher, and toast notifications for errors and "Loaded N photos" (one at a time; the toast overlay wraps only the canvas so it never covers the action bar).
-  - `canvas`: Maximized viewport (>85% area) supporting 1-Up (1:1 actual-pixel zoom toggle on `Space`), 2-Up side-by-side comparison, and 3-Up (one-over-two: the active photo on top, previous and next below, the split chosen for the window and the photo's shape; a missing first or last photo draws nothing), with contextual slot role pills (`ACTIVE`, `CHAMPION`/`CHALLENGER`, `PREVIOUS`/`ACTIVE`/`NEXT`), companion badges (`RAW+JPG`, `XMP`), and an empty-state hero card.
+  - `canvas`: The photo canvas takes the window's area between the header bar and the action bar; it supports 1-Up (1:1 actual-pixel zoom toggle on `Space`), 2-Up side-by-side comparison, and 3-Up (one-over-two: the active photo on top, previous and next below, the split chosen for the window and the photo's shape; a missing first or last photo draws nothing), with contextual slot role pills (`ACTIVE`, and arrows for the previous and next photo), companion badges (`RAW+JPG`, `XMP`), and an empty-state hero card.
   - `info_hud`: Glassmorphic optical metadata HUD (`InfoHUD`), anchored bottom-left inside the active preview pane (clicks pass through), with companion badges, camera/lens model line, normalized sharpness goodness meter bar, semantic quality badges (`Sharp` / `Acceptable` / `Blurry`), and strict Metric Omission Rule compliance.
   - `canvas_states`: the canvas with no photo: start, reading, nothing to cull and the done screen (counts, full Selection path, Show in Files, and "Safe to format" from `core/volumes.py`, which looks at whether the source is a removable volume and the Selection is on another one).
 - `boundary_slot`: `BoundarySlotPane` indicators for start/end folder bounds (`First Photo` / `Last Photo`).
@@ -57,10 +57,9 @@ Start Blitzlens with a folder (`photo-selector-linux ~/Pictures/2026`) or let th
 | `Space` | Toggle 100% 1:1 actual-pixel zoom in 1-Up mode |
 | `Shift` + arrows | Pan the 1:1 view by a fifth of the viewport, all panes together (unzoomed, Shift+Left/Right navigate) |
 | `F` / `F11` | Toggle full screen |
-| `S` | Open the View order menu (Newest first, Oldest first, File name, Lowest sharpness first) |
+| `S` | Open the View order menu: Newest first (default), Oldest first, File name and Lowest sharpness first; the choice is remembered (except the sharpness sweep) |
 | `Escape` | Reset zoom to fit; then leave full screen |
 | `I` | Toggle floating optical metadata & quality score HUD |
-| `B` (until the next release) | Toggle lowest sharpness first / the order the folder opens in. The main menu → View order offers Newest first (default), Oldest first, File name and Lowest sharpness first; the choice is remembered (except the sharpness sweep). Choosing lowest sharpness first scores every photo of the folder in the background (on a cloud folder, choose it a second time to confirm), then sorts them; the order button's panel (beside the photo counter) has Stop at sharpness, which stops the sweep at a score |
 | `G` | Go to photo: a position ("Photo N of M") or part of a file name |
 | `Ctrl+Z` | Undo last culling operation (atomic reversal); every folder keeps its own undo history, including an operation that finished while you switched folders |
 | `Ctrl+O` | Open folder |

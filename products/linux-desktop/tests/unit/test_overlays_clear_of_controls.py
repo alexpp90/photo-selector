@@ -154,12 +154,6 @@ def test_the_check_goes_red_when_the_action_bar_sits_inside_the_toast_overlay(tm
         probe.pump(0.1)
 
 
-@pytest.mark.xfail(
-    strict=True,
-    reason="F-BL-052: at the smallest window the 1-Up HUD (73 px) is taller than the "
-    "canvas (86 px minus its 30 px image slot) and is cut off at the top; ui/canvas.py _attach_hud "
-    "overlays it on the image area, ui/info_hud.py anchors it START/END without a height limit",
-)
 def test_the_hud_is_not_cut_off_at_the_smallest_window(tmp_path, folder):
     probe.set_text_scale(1.0)
     win = _window(tmp_path, folder, 1)

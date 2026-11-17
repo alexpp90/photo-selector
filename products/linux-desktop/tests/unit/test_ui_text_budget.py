@@ -86,7 +86,8 @@ def test_the_budget_table_is_the_documented_one():
 # ── the messages ─────────────────────────────────────────────────────────────
 
 MESSAGE_CALLS = {"_notify": "notify", "show_toast": "toast", "show_outcome": "outcome"}
-SOURCES = ("viewmodels/culling_workspace.py", "ui/window.py", "ui/action_bar.py", "ui/tools_dialogs.py",
+SOURCES = ("viewmodels/culling_workspace.py", "viewmodels/action_queue.py", "viewmodels/scan_loading.py",
+           "viewmodels/scoring_pass.py", "ui/window.py", "ui/action_bar.py", "ui/tools_dialogs.py",
            "ui/preferences.py", "ui/canvas.py")
 
 

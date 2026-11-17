@@ -219,6 +219,9 @@ class CandidatePhoto:
     #: Copied to Selection/ and so decided (``[USER 2026-11-12]`` decision #29): the photo stays in
     #: the list, counts once under Selected, is not Remaining, and Move/Copy file nothing again.
     copied: bool = field(default=False, repr=False, compare=False)
+    #: Where the copy went (its full path) and when, once known: the tooltip of the Copied mark.
+    copied_to: Optional[str] = field(default=None, repr=False, compare=False)
+    copied_at: Optional[float] = field(default=None, repr=False, compare=False)
     #: ``xmp:Rating`` of the sidecar, read with the metadata (decision #32); None when there is none.
     sidecar_rating: Optional[int] = field(default=None, repr=False, compare=False)
     #: True once the sidecar was looked at, so it is read once.

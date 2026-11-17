@@ -111,3 +111,17 @@ def test_the_store_is_bounded_by_folders(tmp_path: Path):
         store.record(Path(f"/f{n}"), "a.jpg", 1, None)
     assert not store.folder_entries(Path("/f0"))
     assert store.folder_entries(Path(f"/f{module.MAX_FOLDERS + 4}"))
+
+
+def test_a_reopened_copy_says_where_and_when(tmp_path: Path):
+    """The Copied mark's tooltip names the folder and the date, also in a later session."""
+    from photo_selector_linux.ui.info_hud import copied_text
+
+    vm, folder = _session(tmp_path)
+    vm.cull_copy()
+    again, _ = _session(tmp_path)
+    photo = again.candidates[0]
+    assert photo.copied and photo.copied_to == str(folder / "Selection" / "DSC_0001.JPG")
+    assert photo.copied_at and photo.copied_at > 0
+    assert copied_text(photo).startswith("Copied to Selection, ")
+    assert copied_text(None) == "Copied to Selection"

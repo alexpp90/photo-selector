@@ -19,7 +19,7 @@ Frameduel, Lensjet, and Blitzlens originate work too, and it must travel across.
 
 When a new feature is added to any product, it must be evaluated for inclusion in the others:
 *   **Lensjet (macOS):** Should implement natively utilizing Swift 6, SwiftUI, Accelerate, and Apple Vision.
-*   **Blitzlens (Linux):** Should implement natively utilizing Python 3.12+, PyGObject, GTK4, Libadwaita, GExiv2, and NumPy, adhering strictly to GNOME Human Interface Guidelines (HIG).
+*   **Blitzlens (Linux):** Should implement natively utilizing Python 3.12+, PyGObject, GTK4, Libadwaita, GExiv2, and NumPy, following the GNOME Human Interface Guidelines (HIG) where they do not get in the way of judging photos.
 *   **Frameduel (tablets, DeX, Chromebooks):** Should include the feature if technically feasible on Android tablets ($\ge 840$ dp) and Samsung DeX.
 *   **Jackpix (Phone mode):** Should include the feature if it works well on small portrait screens ($< 600$ dp); may omit with documented rationale.
 *   **Excluded features** (e.g. Ollama VLM on mobile/macOS/Linux, ExifTool on mobile/macOS/Linux, Apple Vision on non-macOS platforms) are permanently excluded from those platforms.
@@ -45,10 +45,10 @@ Both desktop applications serve professional and hobbyist photographers demandin
     *   **Two-Phase Staged Transactional Moves**: Cross-mount moves (`EXDEV`) enforce a two-phase staged protocol with atomic destination rollback on failure, guaranteeing zero source media data loss and preventing torn companion sets.
     *   **Robust Keyboard Routing**: Window-level key event controllers intercept hotkeys with case-insensitivity and modifier lock masking (`state & ~(LOCK_MASK | MOD2_MASK)`), preventing silent failure under CapsLock or NumLock.
 2.  **GNOME HIG Look-and-Feel Supremacy Over Feature Bloat**:
-    On Linux, user experience strictly conforms to GNOME Human Interface Guidelines (HIG) and Libadwaita conventions:
+    On Linux, the user experience follows the GNOME Human Interface Guidelines (HIG) and Libadwaita conventions:
     * Clean `AdwHeaderBar` with unified window controls and view switchers.
     * `AdwPreferencesWindow` (`Ctrl+,`) for application settings.
-    * Integrated Libadwaita studio dark styling via `AdwStyleManager`.
+    * Follows the system light or dark preference (`AdwStyleManager`); the photo canvas stays dark.
     * System font rendering, standard GNOME spacing tokens, and `AdwToast` non-blocking notifications.
     * *Core Rule*: If a secondary macOS feature or control layout would require awkward, non-native widgets, persistent drawers, or violate GNOME HIG conventions, **GNOME HIG elegance, simplicity, and distraction-free viewing take precedence over forced visual parity**.
 3.  **Platform-Exclusive Capabilities Recognized**:
@@ -111,7 +111,7 @@ Every desktop feature proposal or modification is classified into one of four di
 
 *   **Tier 2: Platform-Native Idiomatic Parity (Adapted to Native HIG)**
     Functional capabilities map directly to the idiomatic conventions of each desktop platform:
-    *   **Visual Atmosphere**: Studio dark palette highlighting photo colors. macOS uses `.preferredColorScheme(.dark)` with system vibrancy; Linux uses `AdwStyleManager` with dark palette surfaces (`#141414`, `#1C1C1C`, `#3A3A3A`) and high-contrast typography (`#FFFFFF` headings, `#D9D9D9` metadata).
+    *   **Visual Atmosphere**: Studio dark palette highlighting photo colors. macOS uses `.preferredColorScheme(.dark)` with system vibrancy; Linux follows the system light/dark preference with a dark canvas (`#0E0E0E`) and dark palette surfaces on it (`#1C1C1C`, `#3A3A3A`) and high-contrast typography (`#FFFFFF` headings, `#D9D9D9` metadata).
     *   **Window Chrome**: macOS uses native AppKit title bar and toolbar items; Linux uses standard `AdwHeaderBar` with view switcher and window buttons.
     *   **Settings Window**: macOS houses settings in the standard Settings scene (`⌘,`); Linux presents a modal `AdwPreferencesWindow` (`Ctrl+,`) using standard `AdwPreferencesGroup` and `AdwActionRow` widgets.
     *   **Secondary Utilities**: macOS exposes Duplicate Finder (`⌘D`) and Library Statistics (`⌘L`) under the Menu Bar "Tools" menu; Linux has no Duplicate Finder ([USER 2026-11-12] decision #28) and exposes Library Statistics via the GNOME Primary Menu button (`AdwMenuButton`) and `Ctrl+L`.
@@ -169,7 +169,7 @@ When triggered, the agent must present the user with a structured assessment:
 | **Focus Metric (Laplacian+MAD)** | Accelerate `vImage` / `vDSP`, whole frame of the 2048 px preview (no centre crop; $< 2.0\text{ms}$ not measured on real photos) | Vectorized NumPy with 50% ROI & strided MAD ($< 2.0\text{ms}$ ref, CI tol) | Tier 1 | ✅ 100% Invariant Parity |
 | **Exposure Clipping Analysis** | 256-bin hardware histogram ($\ge 254, \le 2$) | 256-bin NumPy histogram ($\ge 254, \le 2$) | Tier 1 | ✅ 100% Invariant Parity |
 | **Aesthetic Scoring (AI)** | Native Apple Vision (`VNCalculateImageAestheticsScores`) | Omitted (No native OS neural engine runtime) | Tier 3 | ❌ macOS-Exclusive Capability |
-| **Window Chrome & Palette** | Studio Dark `.preferredColorScheme(.dark)` | Studio Dark Libadwaita (`#141414`, `#1C1C1C`) | Tier 2 | ✅ Platform HIG Idiomatic |
+| **Window Chrome & Palette** | Studio Dark `.preferredColorScheme(.dark)` | Libadwaita, follows the system scheme; dark canvas (`#0E0E0E`) | Tier 2 | ✅ Platform HIG Idiomatic |
 | **Settings Presentation** | macOS Settings Scene (`⌘,`) | `AdwPreferencesWindow` (`Ctrl+,`) | Tier 2 | ✅ Platform HIG Idiomatic |
 | **Secondary Tools Access** | macOS Menu Bar "Tools" (`⌘D`, `⌘L`) | GNOME Primary Menu / Shortcuts (`Ctrl+L`; no Duplicate Finder) | Tier 2 | ✅ Platform HIG Idiomatic |
 | **Duplicate Finder** | CryptoKit streaming SHA-256 | None: removed ([USER 2026-11-12] decision #28) | Tier 2 | ◐ Deliberate gap |

@@ -48,6 +48,10 @@ DROP_ACTIVE_CLASS = "drop-target-active"
 VIEW_ORDER_WORDS = {"newest": "Newest", "oldest": "Oldest", "natural": "Name", "lowest_sharpness_first": "Blurry"}
 
 
+#: The smallest window the layout is built for (width, height); the default stays 1440 x 900.
+MIN_WINDOW_SIZE = (800, 560)
+
+
 class MainWindow(Adw.ApplicationWindow if HAS_GI else object):
     """Main window housing the HeaderBar, Multi-View Canvas, and Bottom ActionBar."""
 
@@ -62,9 +66,9 @@ class MainWindow(Adw.ApplicationWindow if HAS_GI else object):
         if HAS_GI:
             super().__init__(application=application, **kwargs)
             self.set_default_size(1440, 900)
+            self.set_size_request(*MIN_WINDOW_SIZE)
             self.set_title(APP_BRAND_NAME)
             self.set_icon_name(APP_ICON_NAME)
-            self.add_css_class("studio-dark-surface")
 
         # File operations run on a worker so a cloud upload does not freeze the window.
         self.file_worker = FileOperationWorker() if HAS_GI else None
@@ -327,13 +331,6 @@ class MainWindow(Adw.ApplicationWindow if HAS_GI else object):
         self._fill_order_section(basis)
         self.btn_order.update_property([Gtk.AccessibleProperty.LABEL], [f"Order: {title}. Change"])
 
-    def toggle_view_order(self) -> None:
-        """B: lowest sharpness first <-> the order the folder opens in (newest first, by default)."""
-        if self.viewmodel.sort_order == "lowest_sharpness_first" and not self.viewmodel.scoring_confirmation_pending:
-            self.set_view_order(self.settings.view_order)
-        else:
-            self.set_view_order("lowest_sharpness_first")
-
     def toggle_fullscreen(self) -> None:
         """F / F11."""
         if self.is_fullscreen():
@@ -373,9 +370,7 @@ class MainWindow(Adw.ApplicationWindow if HAS_GI else object):
         if not HAS_GI:
             return
 
-        total = vm.candidate_count
-        current = vm.current_index + 1 if total > 0 else 0
-        self.lbl_counter.set_label(f"Photo {current} of {total}")
+        self.lbl_counter.set_label(vm.position_label)
 
         if vm.current_folder:
             self.lbl_path.set_label(vm.current_folder_name or vm.current_folder.name)
@@ -406,7 +401,7 @@ class MainWindow(Adw.ApplicationWindow if HAS_GI else object):
         # Once per folder, when its first photos are shown: focus moves from the header button
         # (Open) to the viewport, so Space toggles Fit / 1:1 instead of re-opening the picker.
         # Tab still reaches the buttons and Space/Enter then press them (R-LINUX-UI-08).
-        if total > 0 and vm.current_folder != self._focused_folder:
+        if vm.candidate_count > 0 and vm.current_folder != self._focused_folder:
             self._focused_folder = vm.current_folder
             self.canvas_view.grab_focus()
 

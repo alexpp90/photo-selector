@@ -53,8 +53,8 @@ The product is partitioned into a clean modular architecture following the repos
    - Transactional file routing (`Selection/`, Trash) with instant feedback and undo support.
 
 3. **GNOME HIG / Libadwaita Presentation Layer**:
-   - Modern Libadwaita window with `AdwHeaderBar`, dark styling conforming to GNOME HIG.
-   - Keyboard shortcuts (`←`/`→`, `h`/`l`, `M`, `C`, `Delete`).
+   - Modern Libadwaita window with `AdwHeaderBar`; follows the system light or dark preference, the photo canvas stays dark.
+   - Keyboard shortcuts (`←`/`→`, `j`/`k`, `M`, `C`, `Delete`).
 
 4. **Debian APT Packaging**:
    - In-repo `debian/` packaging definitions producing `.deb` binaries.
@@ -64,7 +64,7 @@ The product is partitioned into a clean modular architecture following the repos
 
 Linux Desktop is an independent Python / GTK4 / Libadwaita implementation. It shares photographic concepts (the EXIF contract, quality score semantics, what "Selection" means) with the legacy Desktop, Lensjet, Frameduel and Jackpix, but shares no implementation code:
 
-- **Distinct from legacy Python Desktop (`products/desktop/`)**: Modern Libadwaita / GTK4 architecture replacing Tkinter, custom dark theme, and PyInstaller with native GNOME HIG and Debian APT packaging.
+- **Distinct from legacy Python Desktop (`products/desktop/`)**: Modern Libadwaita / GTK4 architecture replacing Tkinter, a GNOME look with a dark photo canvas, and PyInstaller with Debian and Ubuntu APT packaging.
 - **Distinct from macOS Desktop (`products/macos-desktop/`)**: Pure GNOME desktop experience tailored to Debian 13 and FreeDesktop standards rather than macOS AppKit/SwiftUI.
 - See [`../../shared/FEATURE_PARITY.md`](../../shared/FEATURE_PARITY.md).
 
