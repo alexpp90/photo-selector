@@ -23,7 +23,8 @@ CEILINGS = {
     f"{P}/android/android-desktop/src/com/photoselectortoolbox/viewmodel/SelectorViewModel.kt": 2340,
     f"{P}/android/android-desktop/src/com/photoselectortoolbox/ui/inspect/InspectScreen.kt": 1341,
     f"{P}/macos-desktop/src/PhotoSelectorKit/ViewModels/CullingWorkspaceViewModel.swift": 1429,
-    f"{P}/linux-desktop/src/photo_selector_linux/core/file_ops.py": 1271,
+    f"{P}/linux-desktop/src/photo_selector_linux/core/file_ops.py": 625,
+    f"{P}/linux-desktop/src/photo_selector_linux/viewmodels/culling_workspace.py": 760,
 }
 
 

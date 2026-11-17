@@ -13,7 +13,7 @@ from unittest.mock import MagicMock
 
 import pytest
 
-from photo_selector_linux.core import file_ops
+from photo_selector_linux.core import trash as trash_module
 from photo_selector_linux.core.file_ops import FileCullingManager
 from photo_selector_linux.core.scanner import DirectoryScanner
 from photo_selector_linux.ui import preferences as preferences_module
@@ -97,7 +97,7 @@ def test_a_custom_xdg_data_home_still_trashes_through_gio(tmp_path, monkeypatch)
         entry.write_text("[Trash Info]\n")
         return moved, entry
 
-    monkeypatch.setattr(file_ops, "_HAVE_GIO", True)
+    monkeypatch.setattr(trash_module, "_HAVE_GIO", True)
     monkeypatch.setattr(FileCullingManager, "_trash_via_gio", fake_gio_trash)
     monkeypatch.setenv("XDG_DATA_HOME", str(tmp_path / "data"))
     from photo_selector_linux.core.models import CandidatePhoto
