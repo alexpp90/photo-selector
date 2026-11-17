@@ -38,11 +38,10 @@ object KnownFitDefects {
             "(CompactActionButton: weight(1f), fixed 52 dp height, 14 sp word, no step-down) and :175 " +
             "(IconButton with a 40 dp clickable node)",
         matches = { v ->
-            v.cell.compact && (
-                (v.node in setOf("\"Copy\"", "\"Move\"", "\"Delete\"", "\"C\"", "\"M\"") &&
-                    v.on(FitCheck.TEXT_OVERFLOW, FitCheck.MID_WORD_BREAK)) ||
-                    (v.node == "<Fullscreen>" && v.on(FitCheck.SMALL_TARGET))
-                )
+            val actionWordCut = v.node in setOf("\"Copy\"", "\"Move\"", "\"Delete\"", "\"C\"", "\"M\"") &&
+                v.on(FitCheck.TEXT_OVERFLOW, FitCheck.MID_WORD_BREAK)
+            val smallFullscreen = v.node == "<Fullscreen>" && v.on(FitCheck.SMALL_TARGET)
+            v.cell.compact && (actionWordCut || smallFullscreen)
         },
     )
 
