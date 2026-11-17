@@ -51,11 +51,23 @@ cd "$PRODUCT_DIR"
 # its file (and dumps the stacks) instead of holding the whole job until the job timeout, and one run
 # reports every failing file. A private session bus, as the device lab uses.
 failed=()
-for test_file in tests/unit/test_*.py; do
+run_file() {
     GDK_BACKEND=x11 PST_REQUIRE_PACKAGING_TOOLS=1 \
-        timeout 300 dbus-run-session -- xvfb-run -a python3 -m pytest "$test_file" -rf --tb=short \
-        -p no:cacheprovider -o faulthandler_timeout=120 -o addopts="" \
-        || { rc=$?; [[ $rc -eq 5 ]] || failed+=("$test_file (exit $rc)"); }
+        timeout 300 dbus-run-session -- xvfb-run -a python3 -m pytest "$1" -rf --tb=short \
+        -p no:cacheprovider -o faulthandler_timeout=120 -o addopts=""
+}
+for test_file in tests/unit/test_*.py; do
+    run_file "$test_file" && continue
+    rc=$?
+    [[ $rc -eq 5 ]] && continue  # nothing collected
+    # The time-budget files compare timings on a shared, noisy runner: measure once more, as the
+    # time-budget rule does, before calling a ratio a failure. Every other failure stands.
+    case "$test_file" in
+        *test_scan_scale.py|*test_workspace_scale.py|*test_scoring.py)
+            echo "note: re-measuring $test_file once"
+            run_file "$test_file" && continue ;;
+    esac
+    failed+=("$test_file (exit $rc)")
 done
 if ((${#failed[@]})); then
     printf '✘ failed: %s\n' "${failed[@]}" >&2
