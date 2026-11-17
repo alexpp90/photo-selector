@@ -10,6 +10,7 @@ import pytest
 from photo_selector_linux.core import volumes
 from photo_selector_linux.core.settings import SettingsStore
 from photo_selector_linux.ui import window as window_module
+from photo_selector_linux.viewmodels import action_queue as queue_module
 from photo_selector_linux.viewmodels import culling_workspace as workspace_module
 from photo_selector_linux.viewmodels.culling_workspace import CullingWorkspaceViewModel
 
@@ -52,7 +53,7 @@ def _notes(vm):
 def test_the_first_message_says_the_selection_is_on_the_card_and_stays_in_the_slot(tmp_path, monkeypatch):
     store = SettingsStore(path=tmp_path / "settings.json")
     store.view_order = "natural"
-    monkeypatch.setattr(workspace_module, "selection_stays_on_card", lambda source, selection: True)
+    monkeypatch.setattr(queue_module, "selection_stays_on_card", lambda source, selection: True)
     vm = CullingWorkspaceViewModel(settings=store)
     notes = _notes(vm)
     vm.load_directory(_card(tmp_path))
@@ -66,7 +67,7 @@ def test_the_first_message_says_the_selection_is_on_the_card_and_stays_in_the_sl
 def test_no_card_notice_when_the_selection_is_elsewhere(tmp_path, monkeypatch):
     store = SettingsStore(path=tmp_path / "settings.json")
     store.view_order = "natural"
-    monkeypatch.setattr(workspace_module, "selection_stays_on_card", lambda source, selection: False)
+    monkeypatch.setattr(queue_module, "selection_stays_on_card", lambda source, selection: False)
     vm = CullingWorkspaceViewModel(settings=store)
     notes = _notes(vm)
     vm.load_directory(_card(tmp_path))
