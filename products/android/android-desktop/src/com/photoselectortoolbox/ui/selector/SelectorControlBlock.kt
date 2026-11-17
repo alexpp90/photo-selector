@@ -160,8 +160,7 @@ fun SelectorControlBlock(
     val fontScale = LocalDensity.current.fontScale
     val density = LocalDensity.current.density
     BoxWithConstraints(modifier = modifier) {
-        val isNarrow = maxWidth < 240.dp
-        val horizontalPadding = if (isNarrow) 4.dp else 10.dp
+        val horizontalPadding = ControlBlockFit.horizontalPadding(maxWidth)
         val innerWidth = maxWidth - horizontalPadding * 2
         val fit = ControlBlockFit.fit(maxHeight, fontScale, density, innerWidth)
         val mode = fit.mode

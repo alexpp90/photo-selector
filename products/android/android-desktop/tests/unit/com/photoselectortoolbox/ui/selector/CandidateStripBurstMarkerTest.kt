@@ -48,8 +48,9 @@ class CandidateStripBurstMarkerTest {
     private fun markedNames(): List<String> =
         rule.onAllNodes(hasTestTag("filmstrip_thumbnail")).fetchSemanticsNodes().mapIndexedNotNull { i, node ->
             val bounds = rule.onAllNodes(hasTestTag("filmstrip_thumbnail"))[i].getUnclippedBoundsInRoot()
+            // Spoken "Photo 1 of 4, a.jpg": the name follows the position.
             val name = node.config.getOrNull(SemanticsProperties.ContentDescription)?.firstOrNull()
-                ?.substringBefore(',')
+                ?.substringAfter(", ")?.substringBefore(',')
             name.takeIf { bounds.width > 60.dp }
         }
 

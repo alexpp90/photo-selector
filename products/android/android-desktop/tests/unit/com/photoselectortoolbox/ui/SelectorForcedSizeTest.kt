@@ -4,93 +4,95 @@ package com.photoselectortoolbox.ui
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.requiredHeight
 import androidx.compose.foundation.layout.requiredSize
+import androidx.compose.foundation.layout.width
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
+import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.semantics.SemanticsActions
 import androidx.compose.ui.semantics.SemanticsProperties
 import androidx.compose.ui.semantics.getOrNull
-import androidx.compose.ui.test.performClick
-import androidx.compose.ui.unit.Density
-import androidx.compose.foundation.layout.requiredHeight
-import androidx.compose.foundation.layout.width
-import com.photoselectortoolbox.domain.guidance.LegendRow
-import com.photoselectortoolbox.domain.guidance.SelectorTour
-import com.photoselectortoolbox.ui.selector.CandidateStrip
-import com.photoselectortoolbox.ui.selector.ControlBlockFit
-import com.photoselectortoolbox.ui.selector.FilmstripWidth
-import com.photoselectortoolbox.ui.selector.ThumbnailTouchTarget
-import com.photoselectortoolbox.ui.selector.SelectorCoachOverlay
-import com.photoselectortoolbox.ui.selector.SelectorControlBlock
-import androidx.compose.ui.Modifier
 import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.getUnclippedBoundsInRoot
-import androidx.compose.ui.test.junit4.createComposeRule
 import androidx.compose.ui.test.hasAnyAncestor
 import androidx.compose.ui.test.hasTestTag
 import androidx.compose.ui.test.hasText
+import androidx.compose.ui.test.junit4.createComposeRule
 import androidx.compose.ui.test.onAllNodesWithTag
 import androidx.compose.ui.test.onFirst
+import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.performScrollTo
 import androidx.compose.ui.text.TextLayoutResult
+import androidx.compose.ui.unit.Density
 import androidx.compose.ui.unit.DpRect
+import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.height
 import androidx.compose.ui.unit.width
-import androidx.compose.ui.unit.dp
 import androidx.test.ext.junit.runners.AndroidJUnit4
+import androidx.test.platform.app.InstrumentationRegistry
 import com.photoselector.core.model.ExifData
+import com.photoselectortoolbox.R
 import com.photoselectortoolbox.data.model.ImageItem
+import com.photoselectortoolbox.domain.guidance.LegendRow
+import com.photoselectortoolbox.domain.guidance.SelectorTour
 import com.photoselectortoolbox.domain.interaction.FilingAction
+import com.photoselectortoolbox.testing.en
+import com.photoselectortoolbox.testing.str
 import com.photoselectortoolbox.ui.navigation.NavEntry
+import com.photoselectortoolbox.ui.selector.CandidateStrip
+import com.photoselectortoolbox.ui.selector.ControlBlockFit
+import com.photoselectortoolbox.ui.selector.FilmstripWidth
+import com.photoselectortoolbox.ui.selector.FrameGeometry
 import com.photoselectortoolbox.ui.selector.SelectorActions
+import com.photoselectortoolbox.ui.selector.SelectorCoachOverlay
+import com.photoselectortoolbox.ui.selector.SelectorControlBlock
 import com.photoselectortoolbox.ui.selector.SelectorSidebar
 import com.photoselectortoolbox.ui.selector.SelectorSnackbarHost
 import com.photoselectortoolbox.ui.selector.SidebarWidth
 import com.photoselectortoolbox.ui.selector.ThreeUpSelectorLayout
+import com.photoselectortoolbox.ui.selector.ThumbnailTouchTarget
 import com.photoselectortoolbox.ui.theme.PhotoSelectorToolboxTheme
 import com.photoselectortoolbox.viewmodel.SelectorFrame
-import com.photoselectortoolbox.ui.selector.FrameGeometry
-import androidx.test.platform.app.InstrumentationRegistry
+import kotlin.math.abs
+import kotlin.math.roundToInt
 import org.junit.Assert.assertTrue
 import org.junit.Rule
 import org.junit.Test
-import org.junit.rules.TestRule
 import org.junit.runner.RunWith
-import kotlin.math.abs
-import kotlin.math.roundToInt
-import com.photoselectortoolbox.str
-import com.photoselectortoolbox.R
+import org.robolectric.annotation.Config
+import org.robolectric.annotation.GraphicsMode
 
 /**
  * The selector's chrome at forced window sizes (AD-1, AD-2, AD-4, AD-7).
  *
  * The screen is hosted in a `requiredSize` box, so the window is a function of
- * the test rather than of whichever emulator CI happens to boot (the reference
- * AVD's app area is 1480 x 844 dp, so every size below fits). Geometry is
- * `getUnclippedBoundsInRoot()`: merged accessibility bounds report a clipped
- * node as smaller than it was laid out, which is how a squashed control passes.
+ * the test rather than of a device. Geometry is `getUnclippedBoundsInRoot()`:
+ * merged accessibility bounds report a clipped node as smaller than it was laid
+ * out, which is how a squashed control passes.
+ *
+ * A Robolectric test on the JVM since 2026-11-17. On a device it needed the display
+ * forced to the reference geometry (`WindowGeometryRule`), which a phone cannot hold:
+ * the Pixel 4a failed 14 of these in device matrix run 20261113-093700 ("No compose
+ * hierarchies found", and German words against English expectations). Here the
+ * display is a 1480 x 924 dp tablet at 2x, the locale is English, and fonts are drawn
+ * natively (`GraphicsMode.NATIVE`), so text measures and wraps as it does on a device.
+ * The price-against-measurement and thumbnail checks also stay on the device
+ * (`ControlBlockPriceDeviceTest`), because what they pin is each device's own density
+ * and fonts.
  */
-@ExpandedWindow
 @RunWith(AndroidJUnit4::class)
+@GraphicsMode(GraphicsMode.Mode.NATIVE)
+@Config(sdk = [34], qualifiers = "w1480dp-h924dp-xhdpi")
 class SelectorForcedSizeTest {
 
-    // Outermost: puts the display at the reference geometry, so every size below fits
-    // on whatever device runs the suite (FD-T-1: on CI's phone-class emulator these tests
-    // used to return early and assert nothing).
-    @get:Rule(order = 0)
-    val geometryRule = WindowGeometryRule()
-
-    @get:Rule(order = 1)
+    @get:Rule
     val composeRule = createComposeRule()
-
-    // Innermost: tells a hang in the Compose rule's teardown from one in the test (M-9, 2026-11-09).
-    @get:Rule(order = 2)
-    val bodyProbe: TestRule = geometryRule.bodyProbe
 
     private fun image(n: Int) = ImageItem(
         uri = "content://test/forced/image$n.jpg",
@@ -122,69 +124,63 @@ class SelectorForcedSizeTest {
         fontScale: Float? = null,
         maximised: SelectorFrame? = null,
     ): Boolean {
-        // The process learns of the display change a moment after the rule has made it; wait for
-        // that (state, not time: the size either arrives or the test fails with it).
-        val deadline = System.currentTimeMillis() + 10_000
-        while (!windowHolds(width, height) && System.currentTimeMillis() < deadline) Thread.sleep(100)
         if (!windowHolds(width, height)) {
             val seen = InstrumentationRegistry.getInstrumentation().targetContext.resources.displayMetrics
-            // The process's own view is not the display's: the report says which of the two is wrong.
             throw AssertionError(
-                "the window holds a $width x $height dp host (the process sees " +
-                    "${seen.widthPixels / seen.density} x ${seen.heightPixels / seen.density} dp; " +
-                    geometryRule.displayReport() + ")",
+                "the window holds a $width x $height dp host (the display is " +
+                    "${seen.widthPixels / seen.density} x ${seen.heightPixels / seen.density} dp)",
             )
         }
         composeRule.setContent {
             PhotoSelectorToolboxTheme {
-              val base = LocalDensity.current
-              CompositionLocalProvider(
-                LocalDensity provides if (fontScale == null) base else Density(base.density, fontScale),
-              ) {
-                Box(Modifier.requiredSize(width.dp, height.dp)) {
-                    Row(Modifier.fillMaxSize()) {
-                        Sidebar()
-                        Box(Modifier.weight(1f).fillMaxSize()) {
-                            ThreeUpSelectorLayout(
-                                current = image(2),
-                                previous = image(1),
-                                next = image(3),
-                                currentIndex = 1,
-                                total = 3,
-                                filingAction = FilingAction.COPY,
-                                folderName = "Forced",
-                                burstLabel = null,
-                                detailsVisible = true,
-                                filmstripVisible = false,
-                                overlayValuesVisible = true,
-                                maximisedFrame = maximised,
-                                actions = noActions,
-                                onNavigatePrevious = {},
-                                onNavigateNext = {},
-                                onMaximise = {},
-                                onLongPressFrame = {},
-                                showFirstRunHint = showPill,
-                                onDismissFirstRunHint = {},
-                            )
+                val base = LocalDensity.current
+                CompositionLocalProvider(
+                    LocalDensity provides if (fontScale == null) base else Density(base.density, fontScale),
+                ) {
+                    Box(Modifier.requiredSize(width.dp, height.dp)) {
+                        Row(Modifier.fillMaxSize()) {
+                            Sidebar()
+                            Box(Modifier.weight(1f).fillMaxSize()) {
+                                ThreeUpSelectorLayout(
+                                    current = image(2),
+                                    previous = image(1),
+                                    next = image(3),
+                                    currentIndex = 1,
+                                    total = 3,
+                                    filingAction = FilingAction.COPY,
+                                    folderName = "Forced",
+                                    burstLabel = null,
+                                    detailsVisible = true,
+                                    filmstripVisible = false,
+                                    overlayValuesVisible = true,
+                                    maximisedFrame = maximised,
+                                    actions = noActions,
+                                    onNavigatePrevious = {},
+                                    onNavigateNext = {},
+                                    onMaximise = {},
+                                    onLongPressFrame = {},
+                                    showFirstRunHint = showPill,
+                                    onDismissFirstRunHint = {},
+                                )
+                            }
                         }
+                        SelectorSnackbarHost(
+                            message = snackbar,
+                            onUndo = {},
+                            onDismiss = {},
+                            sidebarInset = SidebarWidth,
+                        )
+                        var open by remember { mutableStateOf(guide) }
+                        SelectorCoachOverlay(
+                            visible = open,
+                            filingAction = FilingAction.COPY,
+                            detailsVisible = true,
+                            filmstripVisible = false,
+                            aspect = 1.5f,
+                            onDismiss = { open = false },
+                        )
                     }
-                    SelectorSnackbarHost(
-                        message = snackbar,
-                        onUndo = {},
-                        onDismiss = {},
-                        sidebarInset = SidebarWidth,
-                    )
-                    var open by remember { mutableStateOf(guide) }
-                    SelectorCoachOverlay(
-                        visible = open,
-                        filingAction = FilingAction.COPY,
-                        detailsVisible = true,
-                        filmstripVisible = false,
-                        aspect = 1.5f,
-                        onDismiss = { open = false },
-                    )
                 }
-              }
             }
         }
         composeRule.waitForIdle()
@@ -194,9 +190,9 @@ class SelectorForcedSizeTest {
     /**
      * Whether the display can hold a [width] x [height] dp host at all.
      *
-     * A `requiredSize` box larger than the window is laid out off-screen. The class is
-     * [ExpandedWindow], so [WindowGeometryRule] has put the display at the reference
-     * geometry and [host] fails, rather than returns, when a size does not fit.
+     * A `requiredSize` box larger than the window is laid out off-screen. The class's
+     * `@Config` puts the display at the reference geometry, and [host] fails, rather
+     * than returns, when a size does not fit.
      */
     private fun windowHolds(width: Int, height: Int): Boolean {
         val metrics = InstrumentationRegistry.getInstrumentation().targetContext.resources.displayMetrics
@@ -263,11 +259,13 @@ class SelectorForcedSizeTest {
         assertTrue("position_counter is squashed", bounds("position_counter").height >= 11.5.dp)
 
         val all = controls + chips
-        for (i in all.indices) for (j in i + 1 until all.size) {
-            assertTrue(
-                "${all[i]} overlaps ${all[j]} at ${width}x$height",
-                !intersects(bounds(all[i]), bounds(all[j])),
-            )
+        for (i in all.indices) {
+            for (j in i + 1 until all.size) {
+                assertTrue(
+                    "${all[i]} overlaps ${all[j]} at ${width}x$height",
+                    !intersects(bounds(all[i]), bounds(all[j])),
+                )
+            }
         }
         if (hasLocator) {
             val density = displayDensity
@@ -323,11 +321,13 @@ class SelectorForcedSizeTest {
     fun snackbarIsACard_1280x800() = checkSnackbar(1280, 800)
 
     private fun checkSnackbar(width: Int, height: Int) {
-        if (!host(
-            width, height,
+        val hosted = host(
+            width,
+            height,
             snackbar = "Moved to Selection and a deliberately long message that has to wrap " +
                 "inside the card instead of spanning the window edge to edge",
-        )) return
+        )
+        if (!hosted) return
         composeRule.onAllNodesWithTag("selector_snackbar", useUnmergedTree = true).onFirst().assertIsDisplayed()
         val card = bounds("selector_snackbar")
         assertTrue("snackbar ${card.width} wide at ${width}x$height", card.width in 340.dp..(480f + 1f / displayDensity).dp)
@@ -341,8 +341,7 @@ class SelectorForcedSizeTest {
      * The maximised frame takes the whole image region with the details on (the readout is
      * an overlay on the photograph, not a column beside it), and its overlay and switch lie
      * on the frame without sharing bounds. 1280 x 800 and 1480 x 844 dp are the two lab
-     * windows; both fit the reference AVD, and on a phone-class emulator `host` returns
-     * false and the test returns (no `assumeTrue`: this runner reports it as a failure).
+     * windows; both fit the configured display.
      */
     @Test
     fun maximisedFrame_fillsTheRegionHeightWithDetailsVisible_1280x800() = checkMaximised(1280, 800)
@@ -496,9 +495,9 @@ class SelectorForcedSizeTest {
     // ── AD-8: filmstrip touch targets ───────────────────────────────────
 
     /**
-     * Hosted on its own, so it runs on any emulator: in the real screen the strip
-     * only appears on windows wide enough for it (the Pixel Tablet and the Tab S11
-     * Ultra in the device matrix), and CI's phone-class emulator is not one.
+     * Hosted on its own: in the real screen the strip only appears on windows wide
+     * enough for it (the Pixel Tablet and the Tab S11 Ultra in the device matrix).
+     * Its device copy is in `ControlBlockPriceDeviceTest`.
      */
     @Test
     fun filmstripThumbnails_are48dpTargetsThatNeverOverlap() {
@@ -540,8 +539,8 @@ class SelectorForcedSizeTest {
     }
 
     // Narrow flanks: 150 dp (inner 142, 2 x 2 toggles, counter on top) and 260 dp
-    // (inner 240, one row of toggles, counter on top). These fit a phone-class window,
-    // so they also run at 420 dpi, where 3 dp is 7.875 px.
+    // (inner 240, one row of toggles, counter on top). Their device copies in
+    // `ControlBlockPriceDeviceTest` also run at 420 dpi, where 3 dp is 7.875 px.
     @Test
     fun compactNarrowPriceMatchesTheMeasuredBlock_scale1() =
         assertPriceMatchesMeasurement("control_block_compact", { ControlBlockFit.compactHeightPx(1f, it, 142.dp) }, 300, 1f, 150)
@@ -670,12 +669,14 @@ class SelectorForcedSizeTest {
         ).forEach { (tag, word) -> soft(failures) { assertButtonTextIsWhole(tag, word, width, height) } }
         soft(failures) { assertExposureTokensWhole(width, height) }
         // REQ-AND-LAYOUT.09: nothing shares bounds.
-        for (i in controls.indices) for (j in i + 1 until controls.size) {
-            soft(failures) {
-                assertTrue(
-                    "${controls[i]} overlaps ${controls[j]} at ${width}x$height",
-                    !intersects(bounds(controls[i]), bounds(controls[j])),
-                )
+        for (i in controls.indices) {
+            for (j in i + 1 until controls.size) {
+                soft(failures) {
+                    assertTrue(
+                        "${controls[i]} overlaps ${controls[j]} at ${width}x$height",
+                        !intersects(bounds(controls[i]), bounds(controls[j])),
+                    )
+                }
             }
         }
         // The pill clears every maximise badge and every control; every badge is a 48 dp target.
@@ -770,8 +771,10 @@ class SelectorForcedSizeTest {
                 }
             }
             val cards = drawn.filter { it.first.startsWith("coach_callout") }
-            for (i in cards.indices) for (j in i + 1 until cards.size) {
-                assertTrue("coach cards overlap: ${cards[i]} ${cards[j]}", !intersects(cards[i].second, cards[j].second))
+            for (i in cards.indices) {
+                for (j in i + 1 until cards.size) {
+                    assertTrue("coach cards overlap: ${cards[i]} ${cards[j]}", !intersects(cards[i].second, cards[j].second))
+                }
             }
             val footer = bounds("coach_footer")
             assertTrue("footer is ${footer.height} tall", atLeast48DpInPixels(footer.height))
@@ -780,7 +783,7 @@ class SelectorForcedSizeTest {
             assertTrue("page $pages at ${width}x$height carries no card", cards.isNotEmpty())
             cards.forEach { (name, rect) ->
                 assertTrue(
-                    "$name $rect overhangs the footer ${footer} on page $pages at ${width}x$height",
+                    "$name $rect overhangs the footer $footer on page $pages at ${width}x$height",
                     rect.bottom <= footer.top,
                 )
             }
@@ -805,8 +808,8 @@ class SelectorForcedSizeTest {
         )
         expected.forEach { callout ->
             assertTrue(
-                "no page shows the \"${str(callout.title)}\" callout (pages=$pages, saw $seenDescriptions)",
-                seenDescriptions.any { it.contains(str(callout.title)) },
+                "no page shows the \"${callout.title.en()}\" callout (pages=$pages, saw $seenDescriptions)",
+                seenDescriptions.any { it.contains(callout.title.en()) },
             )
         }
 

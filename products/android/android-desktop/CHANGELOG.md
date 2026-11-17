@@ -6,6 +6,10 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ## [Unreleased]
 
+### Added
+
+- **Filmstrip in tablet portrait.** With the filmstrip switched on (`T` or the Strip toggle), a portrait tablet or any window too narrow for the strip beside the controls now shows it as a row of thumbnails under the photos, the current one in the middle, instead of hiding it. It only takes space the photos cannot use: the three frames stay the same size, and a window without that space still hides it. TalkBack reads each thumbnail as "Photo 3 of 10, IMG_0412.jpg", in the column too.
+
 ### Changed
 
 - **Sharpness no longer counts sensor noise as detail.** The grain of a high-ISO frame used to raise its sharpness score, so a noisy, blank frame could outscore a crisp one. The score now takes off what the noise alone adds, measured on each photo; a clean photo keeps about the figure it had. Your cached scores are measured again on the next Scan, so old and new figures are never compared.

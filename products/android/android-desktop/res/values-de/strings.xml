@@ -259,6 +259,7 @@
     <string name="hint_title_region_controls">Rechts vom mittleren Bild</string>
     <string name="hint_title_region_keys">Auf der Tastatur</string>
     <string name="hint_title_region_filmstrip">Ganz rechts, wenn sichtbar</string>
+    <string name="hint_title_region_filmstrip_row">Ganz unten, wenn sichtbar</string>
     <string name="guide_keys_below">Tasten unten</string>
     <string name="hint_title_tour_shoot">Das Shooting</string>
     <string name="hint_body_tour_shoot">Diese wirken auf alle Fotos, nicht nur auf das vor dir.</string>
@@ -273,6 +274,7 @@
     <string name="hint_body_tour_keys">Nichts auf dem Bildschirm zeigt sie, darum stehen sie hier.</string>
     <string name="hint_title_tour_filmstrip">Der ganze Ordner</string>
     <string name="hint_body_tour_filmstrip">Jedes Bild der Reihe nach, von oben nach unten. Der Punkt ist seine Schärfe in der Mitte; Serien sind markiert, wenn Serien an ist.</string>
+    <string name="hint_body_tour_filmstrip_row">Jedes Bild, von links nach rechts.</string>
 
     <!-- Cull: sidebar -->
     <string name="label_sidebar_folder">Ordner</string>
@@ -490,7 +492,7 @@
     <string name="action_open_selection">Auswahl öffnen</string>
 
     <!-- Cull: filmstrip -->
-    <string name="cd_filmstrip_tile">%1$s, %2$d von %3$d</string>
+    <string name="cd_filmstrip_tile">Foto %1$d von %2$d, %3$s</string>
     <string name="cd_rated">bewertet %1$d</string>
     <string name="cd_copied_mark_lower">kopiert nach %1$s</string>
 

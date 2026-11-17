@@ -101,6 +101,25 @@ object FrameGeometry {
      */
     val MinimumFilmstripFlankWidth: Dp = MinimumControlBlockWidth + Gap + FilmstripWidth
 
+    /**
+     * Height of the filmstrip where it runs as a **row** across the bottom of the
+     * region instead of a column in the flank (DESIGN §15.1): 48 dp tiles and 8 dp
+     * above and below them.
+     *
+     * The row is the same exchange rate read the other way. Where the flank is too
+     * narrow for the column (tablet portrait, any Medium window) the frames are
+     * width-bound and the region has height the photographs cannot use; the row is
+     * drawn only into that height, so it never takes a dp from a frame either.
+     */
+    val FilmstripRowHeight: Dp = 64.dp
+
+    /**
+     * The narrowest column the strip is drawn as: a 60 dp thumbnail and its 2 dp
+     * burst marker, plus the 1 dp rule. Below it a column would clip every
+     * thumbnail (1024 × 720 left it 6 dp), so the solver tries the row instead.
+     */
+    val MinimumFilmstripColumnWidth: Dp = 64.dp
+
     /** Width of a neighbour's value overlay. */
     val OverlayWidth: Dp = 148.dp
 
@@ -157,10 +176,13 @@ object FrameGeometry {
      * inset, the badge, and [PillBadgeClearance]. Derived from the badge's own
      * constants, not a magic number.
      */
-    fun firstRunPillBottomInset(regionHeight: Dp, frameHeight: Dp): Dp {
-        val rowHeight = ((regionHeight - Gap) / 2).coerceAtLeast(0.dp)
+    fun firstRunPillBottomInset(regionHeight: Dp, frameHeight: Dp, filmstripRowHeight: Dp = 0.dp): Dp {
+        // A filmstrip row under the frames takes its height and a gap off the bottom
+        // of the region before the two frame rows share what is left.
+        val stripSpace = if (filmstripRowHeight > 0.dp) filmstripRowHeight + Gap else 0.dp
+        val rowHeight = ((regionHeight - stripSpace - Gap) / 2).coerceAtLeast(0.dp)
         val spare = ((rowHeight - frameHeight) / 2).coerceAtLeast(0.dp)
-        return spare + MaximiseBadgeInset + MaximiseBadgeSize + PillBadgeClearance
+        return stripSpace + spare + MaximiseBadgeInset + MaximiseBadgeSize + PillBadgeClearance
     }
 
     /** Standard camera aspect ratio is 3:2; legacy default 4:3; portrait frames are the reciprocal. */
@@ -215,6 +237,14 @@ object FrameGeometry {
         aspect: Float = DefaultLandscapeAspect,
         detailsVisible: Boolean = true,
         filmstripVisible: Boolean = false,
+        /**
+         * Whether the control block, [flankWidth] wide, keeps the rung it has in a row
+         * [before] tall when the filmstrip row shrinks that row to [after]
+         * ([ControlBlockFit.keepsFit] at the screen's density and font scale). The row
+         * is free only if it costs neither the frames nor the controls; a pure default
+         * that always agrees keeps this object free of density.
+         */
+        controlsKeepTheirFit: (before: Dp, after: Dp, flankWidth: Dp) -> Boolean = { _, _, _ -> true },
     ): ThreeUpLayout {
         val stripSpace = if (filmstripVisible) FilmstripWidth + Gap else 0.dp
 
@@ -271,22 +301,49 @@ object FrameGeometry {
 
         // The strip is drawn down the outer edge of the control flank, so what
         // it gets is what the flank has left once the controls have their
-        // minimum. On any window this product targets that is the full 72 dp;
-        // squeezed below it the strip narrows rather than pushing the controls
-        // out of the flank or on top of the photographs.
-        val filmstripWidth = if (filmstripVisible) {
+        // minimum. On a reference-class window that is the full 72 dp; squeezed
+        // below it the strip narrows rather than pushing the controls out of the
+        // flank or on top of the photographs, down to the width one thumbnail
+        // needs. Narrower than that a column would only clip its thumbnails.
+        val columnWidth = if (filmstripVisible) {
             FilmstripWidth.coerceAtMost((flankWidth - MinimumControlBlockWidth - Gap))
                 .coerceAtLeast(0.dp)
+                .takeIf { it >= MinimumFilmstripColumnWidth } ?: 0.dp
         } else {
             0.dp
+        }
+
+        // A column that did not fit must not cost anything either: the flank was
+        // widened for it, so the frames and flank are solved again without it.
+        if (filmstripVisible && columnWidth == 0.dp) {
+            val base = threeUpLayout(regionWidth, regionHeight, aspect, detailsVisible, filmstripVisible = false)
+            val row = filmstripRowHeight(regionHeight, base.frame)
+            val before = (regionHeight - Gap) / 2
+            val after = (regionHeight - row - Gap * 2) / 2
+            val keeps = row == 0.dp || controlsKeepTheirFit(before, after, base.flankWidth)
+            return base.copy(filmstripHeight = if (keeps) row else 0.dp)
         }
 
         return ThreeUpLayout(
             frame = frame,
             flankWidth = flankWidth,
-            filmstripWidth = filmstripWidth,
+            filmstripWidth = columnWidth,
             overlayOutside = overlayFitsOutside(regionWidth, frame.width),
         )
+    }
+
+    /**
+     * The filmstrip row's height for frames of [frame] in a region [regionHeight]
+     * tall, or zero where the region has no height the frames cannot use.
+     */
+    private fun filmstripRowHeight(regionHeight: Dp, frame: DpSize): Dp {
+        // Where the column does not fit, the row across the bottom (DESIGN §15.1),
+        // but only into height the frames cannot use: the two rows already hold
+        // the frames with the strip and its gap taken off, so the frames are the
+        // same size with the strip on and off. Otherwise it is dropped, as it
+        // always was, rather than drawn over the view toggles or the frames.
+        val spareHeight = regionHeight - frame.height * 2 - Gap
+        return if (spareHeight >= FilmstripRowHeight + Gap) FilmstripRowHeight else 0.dp
     }
 
     /**
@@ -325,7 +382,9 @@ object FrameGeometry {
      * ```
      *
      * Nothing else may appear in the vertical stack — no app bar, no bottom
-     * action row, no horizontal filmstrip (REQUIREMENTS §2). An instrumented
+     * action row, no horizontal filmstrip that takes height from the frames
+     * (REQUIREMENTS §2; the portrait row takes only height they cannot use,
+     * and [threeUpLayout] decides it inside this region). An instrumented
      * test measures the window, calls this, calls [threeUpLayout], and asserts
      * the frames that were actually drawn are the ones that answer implies. Any
      * new chrome above or below the frames therefore fails the build instead of
@@ -353,7 +412,7 @@ object FrameGeometry {
      * is a smaller display than a Tab S11 Ultra), but chrome assertions still are:
      * the control block must fit its row, every sidebar destination must be
      * reachable and the pill must clear the badges at 1280 × 800, 1024 × 720 and
-     * 1024 × 480 (`SelectorForcedSizeTest`).
+     * 1024 × 480 (`SelectorForcedSizeTest`, Robolectric).
      */
     val ReferenceWindowHeight: Dp = 900.dp
 
@@ -398,4 +457,30 @@ data class ThreeUpLayout(
      */
     val filmstripWidth: Dp,
     val overlayOutside: Boolean,
-)
+    /**
+     * Height of the filmstrip where it runs as a row across the bottom of the
+     * region (DESIGN §15.1), or zero. At most one of [filmstripWidth] and this is
+     * non-zero; both are zero where the strip is switched off or has no room.
+     */
+    val filmstripHeight: Dp = 0.dp,
+) {
+    /** Where the solved strip is drawn. */
+    val filmstripPlacement: FilmstripPlacement
+        get() = when {
+            filmstripWidth > 0.dp -> FilmstripPlacement.COLUMN
+            filmstripHeight > 0.dp -> FilmstripPlacement.ROW
+            else -> FilmstripPlacement.NONE
+        }
+}
+
+/** Where the filmstrip goes once the solver has priced both places. */
+enum class FilmstripPlacement {
+    /** Down the outer edge of the control flank (DESIGN §7.8). */
+    COLUMN,
+
+    /** Across the bottom of the region, under the frames (DESIGN §15.1). */
+    ROW,
+
+    /** Switched off, or no room in either place. */
+    NONE,
+}

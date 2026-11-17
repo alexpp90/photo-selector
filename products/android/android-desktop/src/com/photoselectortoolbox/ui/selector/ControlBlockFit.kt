@@ -53,7 +53,7 @@ import kotlin.math.roundToInt
  *   without the icon below 64 dp. The word and key cap are never ellipsized.
  * - FULL needs [FullMinInnerWidth] so its 80 dp buttons and one row of toggles fit.
  *
- * ## Derivation of the prices (kept honest by `SelectorForcedSizeTest`)
+ * ## Derivation of the prices (kept honest by `SelectorForcedSizeTest` and, on each device, `ControlBlockPriceDeviceTest`)
  *
  * ```
  * FULL + locator = 3 x 80 (button rows) + (2 + 48) (toggle row) + 48 (locator row)
@@ -353,6 +353,21 @@ object ControlBlockFit {
                 Fit(Mode.COMPACT, locatorRow = false)
             else -> Fit(Mode.SCROLLING, locatorRow = false)
         }
+    }
+
+    /** The block's padding either side: 4 dp in a block under 240 dp, else 10 dp. */
+    fun horizontalPadding(blockWidth: Dp): Dp = if (blockWidth < 240.dp) 4.dp else 10.dp
+
+    /**
+     * Whether a block [blockWidth] wide keeps its rung (variant and locator row) when the
+     * row it is laid out in shrinks from [before] to [after]. The filmstrip row under the
+     * frames asks this: it may take height the frames cannot use, but not height that
+     * would push the controls down the ladder or into a scroll (device check 2026-11-17:
+     * at 640 x 640 dp the row turned a fitting compact block into a scrolling one).
+     */
+    fun keepsFit(before: Dp, after: Dp, blockWidth: Dp, fontScale: Float, density: Float): Boolean {
+        val innerWidth = blockWidth - horizontalPadding(blockWidth) * 2
+        return fit(after, fontScale, density, innerWidth) == fit(before, fontScale, density, innerWidth)
     }
 
     /** The variant alone; see [fit] for whether it carries the locator row. */

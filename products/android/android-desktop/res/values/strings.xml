@@ -259,6 +259,7 @@
     <string name="hint_title_region_controls">Right of the centre frame</string>
     <string name="hint_title_region_keys">On the keyboard</string>
     <string name="hint_title_region_filmstrip">Far right edge, when shown</string>
+    <string name="hint_title_region_filmstrip_row">Bottom edge, when shown</string>
     <string name="guide_keys_below">Keys below</string>
     <string name="hint_title_tour_shoot">The shoot</string>
     <string name="hint_body_tour_shoot">These act on every photograph, not on the one in front of you.</string>
@@ -273,6 +274,7 @@
     <string name="hint_body_tour_keys">Nothing on screen shows these, so here they are.</string>
     <string name="hint_title_tour_filmstrip">The whole folder</string>
     <string name="hint_body_tour_filmstrip">Every frame in order, top to bottom. The dot is its centre sharpness; bursts are marked when Bursts is on.</string>
+    <string name="hint_body_tour_filmstrip_row">Every frame, left to right.</string>
 
     <!-- Cull: sidebar -->
     <string name="label_sidebar_folder">Folder</string>
@@ -490,7 +492,7 @@
     <string name="action_open_selection">Open Selection</string>
 
     <!-- Cull: filmstrip -->
-    <string name="cd_filmstrip_tile">%1$s, %2$d of %3$d</string>
+    <string name="cd_filmstrip_tile">Photo %1$d of %2$d, %3$s</string>
     <string name="cd_rated">rated %1$d</string>
     <string name="cd_copied_mark_lower">copied to %1$s</string>
 
