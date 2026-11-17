@@ -198,14 +198,13 @@ jobs:
             products/android/phototok/build/reports/tests/testDebugUnitTest/
           if-no-files-found: ignore
 
-  # ── Android Lint (advisory for now — tighten once baseline is clean) ──
+  # ── Android Lint, detekt and ktlint (gates; baselines hold the findings that predate them) ──
   lint:
     name: Android Lint
     needs: changes
     if: needs.changes.outputs.relevant == 'true'
     runs-on: ubuntu-24.04
     timeout-minutes: 20
-    continue-on-error: true
     steps:
       - uses: actions/checkout@v7
 
@@ -222,6 +221,10 @@ jobs:
         working-directory: products/android
         run: ./gradlew :core:lintDebug :saf:lintDebug :android-desktop:lintDebug :phototok:lintDebug --continue --stacktrace
 
+      - name: Run detekt and ktlint
+        working-directory: products/android
+        run: ./gradlew detekt ktlintCheck --continue --stacktrace
+
       - name: Upload lint reports
         if: always()
         uses: actions/upload-artifact@v7
@@ -232,6 +235,8 @@ jobs:
             products/android/saf/build/reports/lint-results-debug.html
             products/android/android-desktop/build/reports/lint-results-debug.html
             products/android/phototok/build/reports/lint-results-debug.html
+            products/android/*/build/reports/detekt/detekt.html
+            products/android/*/build/reports/ktlint/**
           if-no-files-found: ignore
 
   # ── Minified (R8) build on every change ─────────────────────────

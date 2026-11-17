@@ -1,0 +1,1480 @@
+<?xml version="1.0" encoding="utf-8"?>
+<baseline version="1.0">
+    <file name="../tests-shared/com/photoselector/core/conformance/FormatManifest.kt">
+        <error line="3" column="1" source="standard:import-ordering" />
+        <error line="47" column="20" source="standard:wrapping" />
+        <error line="48" column="64" source="standard:wrapping" />
+        <error line="87" column="38" source="standard:multiline-if-else" />
+        <error line="88" column="14" source="standard:multiline-if-else" />
+    </file>
+    <file name="build.gradle.kts">
+        <error line="200" column="1" source="standard:no-consecutive-blank-lines" />
+    </file>
+    <file name="src/com/photoselectortoolbox/MainActivity.kt">
+        <error line="3" column="1" source="standard:import-ordering" />
+        <error line="68" column="1" source="standard:no-consecutive-blank-lines" />
+    </file>
+    <file name="src/com/photoselectortoolbox/data/cache/ScoreDao.kt">
+        <error line="35" column="1" source="standard:spacing-between-declarations-with-annotations" />
+    </file>
+    <file name="src/com/photoselectortoolbox/data/metadata/MetadataWriter.kt">
+        <error line="3" column="1" source="standard:import-ordering" />
+    </file>
+    <file name="src/com/photoselectortoolbox/data/metadata/SafRatingWriter.kt">
+        <error line="3" column="1" source="standard:import-ordering" />
+        <error line="409" column="57" source="standard:multiline-if-else" />
+        <error line="410" column="18" source="standard:multiline-if-else" />
+    </file>
+    <file name="src/com/photoselectortoolbox/data/model/ImageItem.kt">
+        <error line="43" column="16" source="standard:multiline-if-else" />
+    </file>
+    <file name="src/com/photoselectortoolbox/data/repository/CacheRepository.kt">
+        <error line="17" column="5" source="standard:spacing-between-declarations-with-comments" />
+        <error line="19" column="5" source="standard:spacing-between-declarations-with-comments" />
+        <error line="21" column="5" source="standard:spacing-between-declarations-with-comments" />
+        <error line="23" column="5" source="standard:spacing-between-declarations-with-comments" />
+        <error line="133" column="1" source="standard:no-blank-line-before-rbrace" />
+        <error line="134" column="1" source="standard:no-consecutive-blank-lines" />
+    </file>
+    <file name="src/com/photoselectortoolbox/data/repository/ImageRepositoryImpl.kt">
+        <error line="160" column="1" source="standard:no-consecutive-blank-lines" />
+    </file>
+    <file name="src/com/photoselectortoolbox/data/repository/LearnRepository.kt">
+        <error line="3" column="1" source="standard:import-ordering" />
+    </file>
+    <file name="src/com/photoselectortoolbox/data/repository/SettingsRepository.kt">
+        <error line="504" column="30" source="standard:multiline-if-else" />
+        <error line="505" column="18" source="standard:multiline-if-else" />
+        <error line="578" column="31" source="standard:multiline-if-else" />
+        <error line="579" column="18" source="standard:multiline-if-else" />
+        <error line="695" column="32" source="standard:multiline-if-else" />
+        <error line="696" column="14" source="standard:multiline-if-else" />
+    </file>
+    <file name="src/com/photoselectortoolbox/domain/analysis/ClippingAnalyzer.kt">
+        <error line="8" column="1" source="standard:no-unused-imports" />
+    </file>
+    <file name="src/com/photoselectortoolbox/domain/analysis/OpenCvCompositionAnalyzer.kt">
+        <error line="3" column="1" source="standard:import-ordering" />
+    </file>
+    <file name="src/com/photoselectortoolbox/domain/analysis/PhotoCoachEngine.kt">
+        <error line="3" column="1" source="standard:import-ordering" />
+    </file>
+    <file name="src/com/photoselectortoolbox/domain/format/DestinationLabels.kt">
+        <error line="68" column="1" source="standard:no-consecutive-blank-lines" />
+    </file>
+    <file name="src/com/photoselectortoolbox/domain/format/ExifFormatter.kt">
+        <error line="3" column="1" source="standard:import-ordering" />
+    </file>
+    <file name="src/com/photoselectortoolbox/domain/grouping/ImageGrouper.kt">
+        <error line="3" column="1" source="standard:import-ordering" />
+        <error line="32" column="5" source="standard:spacing-between-declarations-with-comments" />
+        <error line="37" column="5" source="standard:spacing-between-declarations-with-comments" />
+    </file>
+    <file name="src/com/photoselectortoolbox/domain/guidance/SelectorHintText.kt">
+        <error line="3" column="1" source="standard:import-ordering" />
+        <error line="8" column="1" source="standard:no-unused-imports" />
+    </file>
+    <file name="src/com/photoselectortoolbox/domain/guidance/SelectorTour.kt">
+        <error line="3" column="1" source="standard:import-ordering" />
+    </file>
+    <file name="src/com/photoselectortoolbox/domain/interaction/SelectorGestures.kt">
+        <error line="3" column="1" source="standard:import-ordering" />
+        <error line="154" column="1" source="standard:no-consecutive-blank-lines" />
+    </file>
+    <file name="src/com/photoselectortoolbox/domain/learn/AdviceCatalog.kt">
+        <error line="11" column="5" source="standard:spacing-between-declarations-with-comments" />
+        <error line="13" column="5" source="standard:spacing-between-declarations-with-comments" />
+        <error line="16" column="5" source="standard:spacing-between-declarations-with-comments" />
+        <error line="21" column="5" source="standard:spacing-between-declarations-with-comments" />
+        <error line="23" column="5" source="standard:spacing-between-declarations-with-comments" />
+        <error line="25" column="5" source="standard:spacing-between-declarations-with-comments" />
+        <error line="27" column="5" source="standard:spacing-between-declarations-with-comments" />
+        <error line="29" column="5" source="standard:spacing-between-declarations-with-comments" />
+        <error line="31" column="5" source="standard:spacing-between-declarations-with-comments" />
+    </file>
+    <file name="src/com/photoselectortoolbox/domain/learn/CameraProfile.kt">
+        <error line="12" column="5" source="standard:spacing-between-declarations-with-comments" />
+        <error line="14" column="5" source="standard:spacing-between-declarations-with-comments" />
+    </file>
+    <file name="src/com/photoselectortoolbox/domain/learn/CardGenerator.kt">
+        <error line="3" column="1" source="standard:import-ordering" />
+        <error line="8" column="1" source="standard:no-unused-imports" />
+        <error line="461" column="13" source="standard:property-naming" />
+    </file>
+    <file name="src/com/photoselectortoolbox/domain/learn/CropSuggester.kt">
+        <error line="3" column="1" source="standard:import-ordering" />
+    </file>
+    <file name="src/com/photoselectortoolbox/domain/learn/LessonCatalog.kt">
+        <error line="3" column="1" source="standard:import-ordering" />
+    </file>
+    <file name="src/com/photoselectortoolbox/domain/learn/PracticeAndInsightsEngine.kt">
+        <error line="3" column="1" source="standard:import-ordering" />
+    </file>
+    <file name="src/com/photoselectortoolbox/domain/learn/ShootDebriefEngine.kt">
+        <error line="3" column="1" source="standard:import-ordering" />
+    </file>
+    <file name="src/com/photoselectortoolbox/domain/learn/TechniqueFactDetector.kt">
+        <error line="12" column="1" source="standard:no-unused-imports" />
+        <error line="19" column="1" source="standard:no-unused-imports" />
+        <error line="646" column="9" source="standard:spacing-between-declarations-with-comments" />
+    </file>
+    <file name="src/com/photoselectortoolbox/domain/usecase/ScanImagesUseCase.kt">
+        <error line="3" column="1" source="standard:import-ordering" />
+    </file>
+    <file name="src/com/photoselectortoolbox/ui/components/MetadataPanel.kt">
+        <error line="3" column="1" source="standard:import-ordering" />
+        <error line="8" column="1" source="standard:no-unused-imports" />
+        <error line="16" column="1" source="standard:no-unused-imports" />
+        <error line="18" column="1" source="standard:no-unused-imports" />
+    </file>
+    <file name="src/com/photoselectortoolbox/ui/components/ScoreChip.kt">
+        <error line="3" column="1" source="standard:import-ordering" />
+        <error line="20" column="1" source="standard:no-unused-imports" />
+        <error line="23" column="1" source="standard:no-unused-imports" />
+        <error line="24" column="1" source="standard:no-unused-imports" />
+        <error line="25" column="1" source="standard:no-unused-imports" />
+        <error line="26" column="1" source="standard:no-unused-imports" />
+        <error line="28" column="1" source="standard:no-unused-imports" />
+        <error line="43" column="1" source="standard:no-unused-imports" />
+        <error line="63" column="1" source="standard:no-unused-imports" />
+    </file>
+    <file name="src/com/photoselectortoolbox/ui/components/StarRatingBar.kt">
+        <error line="3" column="1" source="standard:import-ordering" />
+        <error line="38" column="1" source="standard:no-unused-imports" />
+    </file>
+    <file name="src/com/photoselectortoolbox/ui/components/TouchTarget.kt">
+        <error line="3" column="1" source="standard:import-ordering" />
+    </file>
+    <file name="src/com/photoselectortoolbox/ui/duplicates/DuplicatesScreen.kt">
+        <error line="3" column="1" source="standard:import-ordering" />
+        <error line="32" column="1" source="standard:no-unused-imports" />
+        <error line="80" column="1" source="standard:no-unused-imports" />
+        <error line="145" column="1" source="standard:indent" />
+        <error line="146" column="1" source="standard:indent" />
+        <error line="147" column="1" source="standard:indent" />
+        <error line="148" column="1" source="standard:indent" />
+        <error line="149" column="1" source="standard:indent" />
+        <error line="150" column="1" source="standard:indent" />
+        <error line="151" column="1" source="standard:indent" />
+        <error line="152" column="1" source="standard:indent" />
+        <error line="153" column="1" source="standard:indent" />
+        <error line="154" column="1" source="standard:indent" />
+        <error line="155" column="1" source="standard:indent" />
+        <error line="156" column="1" source="standard:indent" />
+        <error line="157" column="1" source="standard:indent" />
+        <error line="158" column="1" source="standard:indent" />
+        <error line="160" column="1" source="standard:indent" />
+        <error line="161" column="1" source="standard:indent" />
+        <error line="162" column="1" source="standard:indent" />
+        <error line="163" column="1" source="standard:indent" />
+        <error line="164" column="1" source="standard:indent" />
+        <error line="165" column="1" source="standard:indent" />
+        <error line="166" column="1" source="standard:indent" />
+        <error line="167" column="1" source="standard:indent" />
+        <error line="169" column="1" source="standard:indent" />
+        <error line="170" column="1" source="standard:indent" />
+        <error line="171" column="1" source="standard:indent" />
+        <error line="173" column="1" source="standard:indent" />
+        <error line="174" column="1" source="standard:indent" />
+        <error line="175" column="1" source="standard:indent" />
+        <error line="176" column="1" source="standard:indent" />
+        <error line="177" column="1" source="standard:indent" />
+        <error line="178" column="1" source="standard:indent" />
+        <error line="179" column="1" source="standard:indent" />
+        <error line="180" column="1" source="standard:indent" />
+        <error line="181" column="1" source="standard:indent" />
+        <error line="182" column="1" source="standard:indent" />
+        <error line="183" column="1" source="standard:indent" />
+        <error line="184" column="1" source="standard:indent" />
+        <error line="185" column="1" source="standard:indent" />
+        <error line="186" column="1" source="standard:indent" />
+        <error line="187" column="1" source="standard:indent" />
+        <error line="188" column="1" source="standard:indent" />
+        <error line="190" column="1" source="standard:indent" />
+        <error line="191" column="1" source="standard:indent" />
+        <error line="192" column="1" source="standard:indent" />
+        <error line="193" column="1" source="standard:indent" />
+        <error line="194" column="1" source="standard:indent" />
+        <error line="195" column="1" source="standard:indent" />
+        <error line="196" column="1" source="standard:indent" />
+        <error line="197" column="1" source="standard:indent" />
+        <error line="198" column="1" source="standard:indent" />
+        <error line="199" column="1" source="standard:indent" />
+        <error line="200" column="1" source="standard:indent" />
+        <error line="201" column="1" source="standard:indent" />
+        <error line="202" column="1" source="standard:indent" />
+        <error line="203" column="1" source="standard:indent" />
+        <error line="204" column="1" source="standard:indent" />
+        <error line="205" column="1" source="standard:indent" />
+        <error line="206" column="1" source="standard:indent" />
+        <error line="207" column="1" source="standard:indent" />
+        <error line="208" column="1" source="standard:indent" />
+        <error line="209" column="1" source="standard:indent" />
+        <error line="210" column="1" source="standard:indent" />
+        <error line="211" column="1" source="standard:indent" />
+        <error line="212" column="1" source="standard:indent" />
+        <error line="213" column="1" source="standard:indent" />
+        <error line="214" column="1" source="standard:indent" />
+        <error line="215" column="1" source="standard:indent" />
+        <error line="217" column="1" source="standard:indent" />
+        <error line="218" column="1" source="standard:indent" />
+        <error line="219" column="1" source="standard:indent" />
+        <error line="220" column="1" source="standard:indent" />
+        <error line="221" column="1" source="standard:indent" />
+        <error line="222" column="1" source="standard:indent" />
+        <error line="223" column="1" source="standard:indent" />
+        <error line="224" column="1" source="standard:indent" />
+        <error line="225" column="1" source="standard:indent" />
+        <error line="226" column="1" source="standard:indent" />
+        <error line="227" column="1" source="standard:indent" />
+        <error line="228" column="1" source="standard:indent" />
+        <error line="229" column="1" source="standard:indent" />
+        <error line="230" column="1" source="standard:indent" />
+        <error line="231" column="1" source="standard:indent" />
+        <error line="232" column="1" source="standard:indent" />
+        <error line="233" column="1" source="standard:indent" />
+        <error line="234" column="1" source="standard:indent" />
+        <error line="235" column="1" source="standard:indent" />
+        <error line="236" column="1" source="standard:indent" />
+        <error line="237" column="1" source="standard:indent" />
+        <error line="238" column="1" source="standard:indent" />
+        <error line="239" column="1" source="standard:indent" />
+        <error line="240" column="1" source="standard:indent" />
+        <error line="241" column="1" source="standard:indent" />
+        <error line="242" column="1" source="standard:indent" />
+        <error line="243" column="1" source="standard:indent" />
+        <error line="244" column="1" source="standard:indent" />
+        <error line="245" column="1" source="standard:indent" />
+        <error line="246" column="1" source="standard:indent" />
+        <error line="247" column="1" source="standard:indent" />
+        <error line="248" column="1" source="standard:indent" />
+        <error line="249" column="1" source="standard:indent" />
+        <error line="250" column="1" source="standard:indent" />
+        <error line="251" column="1" source="standard:indent" />
+        <error line="252" column="1" source="standard:indent" />
+        <error line="253" column="1" source="standard:indent" />
+        <error line="254" column="1" source="standard:indent" />
+        <error line="255" column="1" source="standard:indent" />
+        <error line="256" column="1" source="standard:indent" />
+        <error line="257" column="1" source="standard:indent" />
+        <error line="258" column="1" source="standard:indent" />
+        <error line="259" column="1" source="standard:indent" />
+        <error line="260" column="1" source="standard:indent" />
+        <error line="261" column="1" source="standard:indent" />
+        <error line="262" column="1" source="standard:indent" />
+        <error line="263" column="1" source="standard:indent" />
+        <error line="264" column="1" source="standard:indent" />
+        <error line="265" column="1" source="standard:indent" />
+    </file>
+    <file name="src/com/photoselectortoolbox/ui/inspect/DebriefPairView.kt">
+        <error line="5" column="1" source="standard:import-ordering" />
+        <error line="5" column="1" source="standard:no-unused-imports" />
+    </file>
+    <file name="src/com/photoselectortoolbox/ui/inspect/DebriefTab.kt">
+        <error line="5" column="1" source="standard:import-ordering" />
+    </file>
+    <file name="src/com/photoselectortoolbox/ui/inspect/ExifReadoutCard.kt">
+        <error line="3" column="1" source="standard:import-ordering" />
+    </file>
+    <file name="src/com/photoselectortoolbox/ui/inspect/InspectScreen.kt">
+        <error line="5" column="1" source="standard:import-ordering" />
+        <error line="19" column="1" source="standard:no-unused-imports" />
+        <error line="35" column="1" source="standard:no-unused-imports" />
+        <error line="37" column="1" source="standard:no-unused-imports" />
+        <error line="41" column="1" source="standard:no-unused-imports" />
+        <error line="86" column="1" source="standard:no-unused-imports" />
+        <error line="91" column="1" source="standard:no-unused-imports" />
+        <error line="97" column="1" source="standard:no-unused-imports" />
+        <error line="100" column="1" source="standard:no-unused-imports" />
+        <error line="103" column="1" source="standard:no-unused-imports" />
+        <error line="106" column="1" source="standard:no-unused-imports" />
+        <error line="113" column="1" source="standard:no-unused-imports" />
+        <error line="808" column="1" source="standard:indent" />
+        <error line="809" column="1" source="standard:indent" />
+        <error line="810" column="1" source="standard:indent" />
+        <error line="811" column="1" source="standard:indent" />
+        <error line="812" column="1" source="standard:indent" />
+        <error line="813" column="1" source="standard:indent" />
+        <error line="814" column="1" source="standard:indent" />
+        <error line="815" column="1" source="standard:indent" />
+        <error line="816" column="1" source="standard:indent" />
+        <error line="817" column="1" source="standard:indent" />
+        <error line="818" column="1" source="standard:indent" />
+        <error line="819" column="1" source="standard:indent" />
+        <error line="820" column="1" source="standard:indent" />
+        <error line="821" column="1" source="standard:indent" />
+        <error line="822" column="1" source="standard:indent" />
+        <error line="823" column="1" source="standard:indent" />
+        <error line="824" column="1" source="standard:indent" />
+        <error line="825" column="1" source="standard:indent" />
+        <error line="826" column="1" source="standard:indent" />
+        <error line="827" column="1" source="standard:indent" />
+        <error line="828" column="1" source="standard:indent" />
+        <error line="829" column="1" source="standard:indent" />
+        <error line="830" column="1" source="standard:indent" />
+        <error line="831" column="1" source="standard:indent" />
+        <error line="832" column="1" source="standard:indent" />
+        <error line="833" column="1" source="standard:indent" />
+        <error line="848" column="1" source="standard:indent" />
+        <error line="849" column="1" source="standard:indent" />
+        <error line="850" column="1" source="standard:indent" />
+        <error line="851" column="1" source="standard:indent" />
+        <error line="852" column="1" source="standard:indent" />
+        <error line="853" column="1" source="standard:indent" />
+        <error line="854" column="1" source="standard:indent" />
+        <error line="855" column="1" source="standard:indent" />
+        <error line="856" column="1" source="standard:indent" />
+        <error line="857" column="1" source="standard:indent" />
+        <error line="858" column="1" source="standard:indent" />
+        <error line="859" column="1" source="standard:indent" />
+        <error line="860" column="1" source="standard:indent" />
+        <error line="861" column="1" source="standard:indent" />
+        <error line="862" column="1" source="standard:indent" />
+        <error line="863" column="1" source="standard:indent" />
+        <error line="864" column="1" source="standard:indent" />
+        <error line="865" column="1" source="standard:indent" />
+        <error line="866" column="1" source="standard:indent" />
+        <error line="867" column="1" source="standard:indent" />
+        <error line="868" column="1" source="standard:indent" />
+        <error line="869" column="1" source="standard:indent" />
+        <error line="870" column="1" source="standard:indent" />
+        <error line="871" column="1" source="standard:indent" />
+        <error line="872" column="1" source="standard:indent" />
+        <error line="873" column="1" source="standard:indent" />
+        <error line="874" column="1" source="standard:indent" />
+        <error line="875" column="1" source="standard:indent" />
+        <error line="876" column="1" source="standard:indent" />
+        <error line="877" column="1" source="standard:indent" />
+        <error line="878" column="1" source="standard:indent" />
+        <error line="879" column="1" source="standard:indent" />
+        <error line="880" column="1" source="standard:indent" />
+        <error line="881" column="1" source="standard:indent" />
+        <error line="882" column="1" source="standard:indent" />
+        <error line="883" column="1" source="standard:indent" />
+        <error line="884" column="1" source="standard:indent" />
+        <error line="885" column="1" source="standard:indent" />
+        <error line="886" column="1" source="standard:indent" />
+        <error line="887" column="1" source="standard:indent" />
+        <error line="888" column="1" source="standard:indent" />
+        <error line="932" column="1" source="standard:indent" />
+        <error line="933" column="1" source="standard:indent" />
+        <error line="934" column="1" source="standard:indent" />
+        <error line="935" column="1" source="standard:indent" />
+        <error line="936" column="1" source="standard:indent" />
+        <error line="937" column="1" source="standard:indent" />
+        <error line="938" column="1" source="standard:indent" />
+        <error line="939" column="1" source="standard:indent" />
+        <error line="940" column="1" source="standard:indent" />
+        <error line="941" column="1" source="standard:indent" />
+        <error line="942" column="1" source="standard:indent" />
+        <error line="943" column="1" source="standard:indent" />
+        <error line="944" column="1" source="standard:indent" />
+        <error line="945" column="1" source="standard:indent" />
+        <error line="946" column="1" source="standard:indent" />
+        <error line="947" column="1" source="standard:indent" />
+        <error line="948" column="1" source="standard:indent" />
+        <error line="949" column="1" source="standard:indent" />
+        <error line="950" column="1" source="standard:indent" />
+        <error line="951" column="1" source="standard:indent" />
+        <error line="952" column="1" source="standard:indent" />
+        <error line="953" column="1" source="standard:indent" />
+        <error line="954" column="1" source="standard:indent" />
+    </file>
+    <file name="src/com/photoselectortoolbox/ui/inspect/LearnBack.kt">
+        <error line="3" column="1" source="standard:import-ordering" />
+        <error line="11" column="1" source="standard:no-unused-imports" />
+        <error line="17" column="1" source="standard:no-unused-imports" />
+    </file>
+    <file name="src/com/photoselectortoolbox/ui/inspect/LearnTabName.kt">
+        <error line="1" column="1" source="standard:filename" />
+    </file>
+    <file name="src/com/photoselectortoolbox/ui/inspect/LearnText.kt">
+        <error line="3" column="1" source="standard:import-ordering" />
+        <error line="81" column="23" source="standard:property-naming" />
+    </file>
+    <file name="src/com/photoselectortoolbox/ui/inspect/LessonsTab.kt">
+        <error line="3" column="1" source="standard:import-ordering" />
+        <error line="39" column="1" source="standard:no-unused-imports" />
+    </file>
+    <file name="src/com/photoselectortoolbox/ui/inspect/PhotoCoachCard.kt">
+        <error line="3" column="1" source="standard:import-ordering" />
+    </file>
+    <file name="src/com/photoselectortoolbox/ui/navigation/AdaptiveNavigation.kt">
+        <error line="3" column="1" source="standard:import-ordering" />
+    </file>
+    <file name="src/com/photoselectortoolbox/ui/navigation/NavEntry.kt">
+        <error line="22" column="5" source="standard:spacing-between-declarations-with-comments" />
+        <error line="24" column="5" source="standard:spacing-between-declarations-with-comments" />
+    </file>
+    <file name="src/com/photoselectortoolbox/ui/selector/CandidateStrip.kt">
+        <error line="3" column="1" source="standard:import-ordering" />
+    </file>
+    <file name="src/com/photoselectortoolbox/ui/selector/CompactSelectorLayout.kt">
+        <error line="3" column="1" source="standard:import-ordering" />
+        <error line="5" column="1" source="standard:no-unused-imports" />
+        <error line="6" column="1" source="standard:no-unused-imports" />
+        <error line="7" column="1" source="standard:no-unused-imports" />
+        <error line="323" column="1" source="standard:indent" />
+        <error line="324" column="1" source="standard:indent" />
+        <error line="325" column="1" source="standard:indent" />
+        <error line="326" column="1" source="standard:indent" />
+        <error line="327" column="1" source="standard:indent" />
+        <error line="328" column="1" source="standard:indent" />
+        <error line="329" column="1" source="standard:indent" />
+        <error line="330" column="1" source="standard:indent" />
+        <error line="331" column="1" source="standard:indent" />
+        <error line="332" column="1" source="standard:indent" />
+        <error line="334" column="1" source="standard:indent" />
+        <error line="335" column="1" source="standard:indent" />
+        <error line="336" column="1" source="standard:indent" />
+        <error line="337" column="1" source="standard:indent" />
+        <error line="338" column="1" source="standard:indent" />
+        <error line="339" column="1" source="standard:indent" />
+        <error line="340" column="1" source="standard:indent" />
+        <error line="341" column="1" source="standard:indent" />
+        <error line="342" column="1" source="standard:indent" />
+        <error line="343" column="1" source="standard:indent" />
+        <error line="344" column="1" source="standard:indent" />
+        <error line="345" column="1" source="standard:indent" />
+        <error line="346" column="1" source="standard:indent" />
+        <error line="347" column="1" source="standard:indent" />
+        <error line="348" column="1" source="standard:indent" />
+        <error line="349" column="1" source="standard:indent" />
+        <error line="350" column="1" source="standard:indent" />
+        <error line="351" column="1" source="standard:indent" />
+        <error line="352" column="1" source="standard:indent" />
+        <error line="353" column="1" source="standard:indent" />
+        <error line="354" column="1" source="standard:indent" />
+        <error line="355" column="1" source="standard:indent" />
+        <error line="357" column="1" source="standard:indent" />
+        <error line="358" column="1" source="standard:indent" />
+        <error line="359" column="1" source="standard:indent" />
+        <error line="360" column="1" source="standard:indent" />
+        <error line="361" column="1" source="standard:indent" />
+        <error line="362" column="1" source="standard:indent" />
+        <error line="363" column="1" source="standard:indent" />
+        <error line="364" column="1" source="standard:indent" />
+        <error line="365" column="1" source="standard:indent" />
+        <error line="366" column="1" source="standard:indent" />
+        <error line="367" column="1" source="standard:indent" />
+        <error line="368" column="1" source="standard:indent" />
+        <error line="369" column="1" source="standard:indent" />
+        <error line="370" column="1" source="standard:indent" />
+        <error line="371" column="1" source="standard:indent" />
+        <error line="372" column="1" source="standard:indent" />
+        <error line="374" column="1" source="standard:indent" />
+        <error line="376" column="1" source="standard:indent" />
+        <error line="377" column="1" source="standard:indent" />
+        <error line="378" column="1" source="standard:indent" />
+        <error line="379" column="1" source="standard:indent" />
+        <error line="380" column="1" source="standard:indent" />
+        <error line="381" column="1" source="standard:indent" />
+        <error line="382" column="1" source="standard:indent" />
+    </file>
+    <file name="src/com/photoselectortoolbox/ui/selector/ControlBlockFit.kt">
+        <error line="134" column="15" source="standard:property-naming" />
+        <error line="137" column="15" source="standard:property-naming" />
+        <error line="147" column="15" source="standard:property-naming" />
+        <error line="235" column="36" source="standard:wrapping" />
+        <error line="236" column="72" source="standard:wrapping" />
+        <error line="237" column="47" source="standard:wrapping" />
+        <error line="238" column="70" source="standard:wrapping" />
+        <error line="241" column="22" source="standard:wrapping" />
+        <error line="242" column="79" source="standard:wrapping" />
+        <error line="390" column="23" source="standard:property-naming" />
+    </file>
+    <file name="src/com/photoselectortoolbox/ui/selector/DeleteDialogText.kt">
+        <error line="3" column="1" source="standard:import-ordering" />
+    </file>
+    <file name="src/com/photoselectortoolbox/ui/selector/DoneCard.kt">
+        <error line="3" column="1" source="standard:import-ordering" />
+    </file>
+    <file name="src/com/photoselectortoolbox/ui/selector/FrameGeometry.kt">
+        <error line="132" column="15" source="standard:property-naming" />
+        <error line="167" column="15" source="standard:property-naming" />
+        <error line="168" column="15" source="standard:property-naming" />
+        <error line="169" column="15" source="standard:property-naming" />
+    </file>
+    <file name="src/com/photoselectortoolbox/ui/selector/FullscreenViewer.kt">
+        <error line="3" column="1" source="standard:import-ordering" />
+        <error line="37" column="1" source="standard:no-unused-imports" />
+        <error line="65" column="1" source="standard:no-unused-imports" />
+        <error line="73" column="1" source="standard:no-unused-imports" />
+        <error line="114" column="1" source="standard:no-unused-imports" />
+        <error line="131" column="1" source="standard:no-unused-imports" />
+        <error line="137" column="1" source="standard:no-unused-imports" />
+        <error line="872" column="19" source="standard:property-naming" />
+        <error line="1121" column="1" source="standard:no-consecutive-blank-lines" />
+    </file>
+    <file name="src/com/photoselectortoolbox/ui/selector/GoToPhotoDialog.kt">
+        <error line="3" column="1" source="standard:import-ordering" />
+        <error line="57" column="1" source="standard:no-unused-imports" />
+        <error line="117" column="31" source="standard:wrapping" />
+        <error line="133" column="5" source="standard:wrapping" />
+    </file>
+    <file name="src/com/photoselectortoolbox/ui/selector/LocatorRow.kt">
+        <error line="3" column="1" source="standard:import-ordering" />
+        <error line="61" column="1" source="standard:no-unused-imports" />
+    </file>
+    <file name="src/com/photoselectortoolbox/ui/selector/MaximiseBadge.kt">
+        <error line="3" column="1" source="standard:import-ordering" />
+        <error line="28" column="1" source="standard:no-unused-imports" />
+    </file>
+    <file name="src/com/photoselectortoolbox/ui/selector/PhotoInfoPanel.kt">
+        <error line="31" column="20" source="standard:property-naming" />
+        <error line="38" column="20" source="standard:property-naming" />
+    </file>
+    <file name="src/com/photoselectortoolbox/ui/selector/ScanConfigSheet.kt">
+        <error line="3" column="1" source="standard:import-ordering" />
+        <error line="14" column="1" source="standard:no-unused-imports" />
+        <error line="24" column="1" source="standard:no-unused-imports" />
+        <error line="25" column="1" source="standard:no-unused-imports" />
+        <error line="36" column="1" source="standard:no-unused-imports" />
+    </file>
+    <file name="src/com/photoselectortoolbox/ui/selector/SelectorActions.kt">
+        <error line="3" column="1" source="standard:import-ordering" />
+        <error line="19" column="1" source="standard:no-unused-imports" />
+        <error line="21" column="1" source="standard:no-unused-imports" />
+        <error line="26" column="1" source="standard:no-unused-imports" />
+        <error line="50" column="1" source="standard:no-unused-imports" />
+        <error line="59" column="1" source="standard:no-unused-imports" />
+        <error line="344" column="1" source="standard:indent" />
+        <error line="345" column="1" source="standard:indent" />
+        <error line="346" column="1" source="standard:indent" />
+        <error line="347" column="1" source="standard:indent" />
+        <error line="348" column="1" source="standard:indent" />
+        <error line="349" column="1" source="standard:indent" />
+        <error line="350" column="1" source="standard:indent" />
+        <error line="351" column="1" source="standard:indent" />
+        <error line="352" column="1" source="standard:indent" />
+        <error line="353" column="1" source="standard:indent" />
+        <error line="354" column="1" source="standard:indent" />
+        <error line="355" column="1" source="standard:indent" />
+        <error line="356" column="1" source="standard:indent" />
+        <error line="357" column="1" source="standard:indent" />
+        <error line="358" column="1" source="standard:indent" />
+        <error line="359" column="1" source="standard:indent" />
+        <error line="360" column="1" source="standard:indent" />
+        <error line="361" column="1" source="standard:indent" />
+        <error line="362" column="1" source="standard:indent" />
+        <error line="363" column="1" source="standard:indent" />
+        <error line="364" column="1" source="standard:indent" />
+        <error line="365" column="1" source="standard:indent" />
+        <error line="366" column="1" source="standard:indent" />
+        <error line="367" column="1" source="standard:indent" />
+        <error line="368" column="1" source="standard:indent" />
+        <error line="369" column="1" source="standard:indent" />
+        <error line="370" column="1" source="standard:indent" />
+        <error line="371" column="1" source="standard:indent" />
+        <error line="372" column="1" source="standard:indent" />
+        <error line="373" column="1" source="standard:indent" />
+        <error line="374" column="1" source="standard:indent" />
+        <error line="375" column="1" source="standard:indent" />
+    </file>
+    <file name="src/com/photoselectortoolbox/ui/selector/SelectorChrome.kt">
+        <error line="3" column="1" source="standard:import-ordering" />
+        <error line="16" column="1" source="standard:no-unused-imports" />
+        <error line="45" column="1" source="standard:no-unused-imports" />
+    </file>
+    <file name="src/com/photoselectortoolbox/ui/selector/SelectorCoachOverlay.kt">
+        <error line="3" column="1" source="standard:import-ordering" />
+    </file>
+    <file name="src/com/photoselectortoolbox/ui/selector/SelectorControlBlock.kt">
+        <error line="3" column="1" source="standard:import-ordering" />
+        <error line="18" column="1" source="standard:no-unused-imports" />
+        <error line="75" column="1" source="standard:no-unused-imports" />
+        <error line="198" column="34" source="standard:multiline-if-else" />
+        <error line="199" column="26" source="standard:multiline-if-else" />
+        <error line="603" column="27" source="standard:multiline-if-else" />
+        <error line="604" column="18" source="standard:multiline-if-else" />
+        <error line="746" column="19" source="standard:property-naming" />
+    </file>
+    <file name="src/com/photoselectortoolbox/ui/selector/SelectorHintCard.kt">
+        <error line="3" column="1" source="standard:import-ordering" />
+    </file>
+    <file name="src/com/photoselectortoolbox/ui/selector/SelectorMoreMenu.kt">
+        <error line="3" column="1" source="standard:import-ordering" />
+    </file>
+    <file name="src/com/photoselectortoolbox/ui/selector/SelectorScreen.kt">
+        <error line="3" column="1" source="standard:import-ordering" />
+        <error line="9" column="1" source="standard:no-unused-imports" />
+        <error line="13" column="1" source="standard:no-unused-imports" />
+        <error line="23" column="1" source="standard:no-unused-imports" />
+        <error line="26" column="1" source="standard:no-unused-imports" />
+        <error line="35" column="1" source="standard:no-unused-imports" />
+        <error line="925" column="1" source="standard:no-consecutive-blank-lines" />
+    </file>
+    <file name="src/com/photoselectortoolbox/ui/selector/SelectorSidebar.kt">
+        <error line="3" column="1" source="standard:import-ordering" />
+        <error line="160" column="1" source="standard:indent" />
+        <error line="161" column="1" source="standard:indent" />
+        <error line="162" column="1" source="standard:indent" />
+        <error line="163" column="1" source="standard:indent" />
+        <error line="164" column="1" source="standard:indent" />
+        <error line="165" column="1" source="standard:indent" />
+        <error line="166" column="1" source="standard:indent" />
+        <error line="167" column="1" source="standard:indent" />
+        <error line="168" column="1" source="standard:indent" />
+        <error line="169" column="1" source="standard:indent" />
+        <error line="170" column="1" source="standard:indent" />
+        <error line="171" column="1" source="standard:indent" />
+        <error line="172" column="1" source="standard:indent" />
+        <error line="173" column="1" source="standard:indent" />
+        <error line="174" column="1" source="standard:indent" />
+        <error line="176" column="1" source="standard:indent" />
+        <error line="177" column="1" source="standard:indent" />
+        <error line="178" column="1" source="standard:indent" />
+        <error line="179" column="1" source="standard:indent" />
+        <error line="180" column="1" source="standard:indent" />
+        <error line="181" column="1" source="standard:indent" />
+        <error line="182" column="1" source="standard:indent" />
+        <error line="183" column="1" source="standard:indent" />
+        <error line="184" column="1" source="standard:indent" />
+        <error line="185" column="1" source="standard:indent" />
+        <error line="186" column="1" source="standard:indent" />
+        <error line="187" column="1" source="standard:indent" />
+        <error line="188" column="1" source="standard:indent" />
+        <error line="189" column="1" source="standard:indent" />
+        <error line="190" column="1" source="standard:indent" />
+        <error line="191" column="1" source="standard:indent" />
+        <error line="192" column="1" source="standard:indent" />
+        <error line="193" column="1" source="standard:indent" />
+        <error line="194" column="1" source="standard:indent" />
+        <error line="195" column="1" source="standard:indent" />
+        <error line="196" column="1" source="standard:indent" />
+        <error line="197" column="1" source="standard:indent" />
+        <error line="198" column="1" source="standard:indent" />
+        <error line="199" column="1" source="standard:indent" />
+        <error line="200" column="1" source="standard:indent" />
+        <error line="201" column="1" source="standard:indent" />
+        <error line="202" column="1" source="standard:indent" />
+        <error line="203" column="1" source="standard:indent" />
+        <error line="204" column="1" source="standard:indent" />
+        <error line="205" column="1" source="standard:indent" />
+        <error line="206" column="1" source="standard:indent" />
+        <error line="207" column="1" source="standard:indent" />
+        <error line="209" column="1" source="standard:indent" />
+        <error line="210" column="1" source="standard:indent" />
+        <error line="211" column="1" source="standard:indent" />
+        <error line="212" column="1" source="standard:indent" />
+        <error line="213" column="1" source="standard:indent" />
+        <error line="214" column="1" source="standard:indent" />
+        <error line="215" column="1" source="standard:indent" />
+        <error line="216" column="1" source="standard:indent" />
+        <error line="217" column="1" source="standard:indent" />
+        <error line="218" column="1" source="standard:indent" />
+        <error line="219" column="1" source="standard:indent" />
+        <error line="220" column="1" source="standard:indent" />
+        <error line="221" column="1" source="standard:indent" />
+        <error line="222" column="1" source="standard:indent" />
+        <error line="223" column="1" source="standard:indent" />
+        <error line="224" column="1" source="standard:indent" />
+        <error line="225" column="1" source="standard:indent" />
+        <error line="226" column="1" source="standard:indent" />
+        <error line="227" column="1" source="standard:indent" />
+        <error line="228" column="1" source="standard:indent" />
+        <error line="229" column="1" source="standard:indent" />
+        <error line="230" column="1" source="standard:indent" />
+        <error line="231" column="1" source="standard:indent" />
+        <error line="232" column="1" source="standard:indent" />
+        <error line="233" column="1" source="standard:indent" />
+        <error line="234" column="1" source="standard:indent" />
+        <error line="236" column="1" source="standard:indent" />
+        <error line="237" column="1" source="standard:indent" />
+        <error line="238" column="1" source="standard:indent" />
+        <error line="239" column="1" source="standard:indent" />
+        <error line="240" column="1" source="standard:indent" />
+        <error line="241" column="1" source="standard:indent" />
+        <error line="242" column="1" source="standard:indent" />
+        <error line="243" column="1" source="standard:indent" />
+        <error line="244" column="1" source="standard:indent" />
+        <error line="245" column="1" source="standard:indent" />
+        <error line="246" column="1" source="standard:indent" />
+        <error line="248" column="1" source="standard:indent" />
+        <error line="249" column="1" source="standard:indent" />
+        <error line="250" column="1" source="standard:indent" />
+        <error line="251" column="1" source="standard:indent" />
+        <error line="252" column="1" source="standard:indent" />
+        <error line="253" column="1" source="standard:indent" />
+        <error line="254" column="1" source="standard:indent" />
+        <error line="255" column="1" source="standard:indent" />
+        <error line="256" column="1" source="standard:indent" />
+        <error line="257" column="1" source="standard:indent" />
+        <error line="259" column="1" source="standard:indent" />
+        <error line="261" column="1" source="standard:indent" />
+        <error line="262" column="1" source="standard:indent" />
+        <error line="263" column="1" source="standard:indent" />
+        <error line="264" column="1" source="standard:indent" />
+        <error line="265" column="1" source="standard:indent" />
+        <error line="266" column="1" source="standard:indent" />
+        <error line="267" column="1" source="standard:indent" />
+        <error line="268" column="1" source="standard:indent" />
+        <error line="269" column="1" source="standard:indent" />
+        <error line="270" column="1" source="standard:indent" />
+        <error line="271" column="1" source="standard:indent" />
+        <error line="272" column="1" source="standard:indent" />
+        <error line="273" column="1" source="standard:indent" />
+        <error line="274" column="1" source="standard:indent" />
+        <error line="275" column="1" source="standard:indent" />
+        <error line="276" column="1" source="standard:indent" />
+        <error line="277" column="1" source="standard:indent" />
+    </file>
+    <file name="src/com/photoselectortoolbox/ui/selector/SharpnessRankText.kt">
+        <error line="3" column="1" source="standard:import-ordering" />
+    </file>
+    <file name="src/com/photoselectortoolbox/ui/selector/ThreeUpSelectorLayout.kt">
+        <error line="3" column="1" source="standard:import-ordering" />
+        <error line="55" column="1" source="standard:no-unused-imports" />
+        <error line="65" column="1" source="standard:no-unused-imports" />
+        <error line="70" column="1" source="standard:no-unused-imports" />
+    </file>
+    <file name="src/com/photoselectortoolbox/ui/selector/ValueReadouts.kt">
+        <error line="3" column="1" source="standard:import-ordering" />
+    </file>
+    <file name="src/com/photoselectortoolbox/ui/settings/DestinationSection.kt">
+        <error line="3" column="1" source="standard:import-ordering" />
+    </file>
+    <file name="src/com/photoselectortoolbox/ui/settings/LicencesRow.kt">
+        <error line="3" column="1" source="standard:import-ordering" />
+    </file>
+    <file name="src/com/photoselectortoolbox/ui/settings/ResetLearnRow.kt">
+        <error line="3" column="1" source="standard:import-ordering" />
+        <error line="90" column="1" source="standard:no-consecutive-blank-lines" />
+    </file>
+    <file name="src/com/photoselectortoolbox/ui/settings/SettingsItem.kt">
+        <error line="3" column="1" source="standard:import-ordering" />
+    </file>
+    <file name="src/com/photoselectortoolbox/ui/settings/SettingsScreen.kt">
+        <error line="3" column="1" source="standard:import-ordering" />
+        <error line="21" column="1" source="standard:no-unused-imports" />
+        <error line="30" column="1" source="standard:no-unused-imports" />
+        <error line="33" column="1" source="standard:no-unused-imports" />
+        <error line="75" column="1" source="standard:no-consecutive-blank-lines" />
+    </file>
+    <file name="src/com/photoselectortoolbox/ui/statistics/ChartCard.kt">
+        <error line="3" column="1" source="standard:import-ordering" />
+        <error line="18" column="1" source="standard:no-unused-imports" />
+    </file>
+    <file name="src/com/photoselectortoolbox/ui/statistics/StatisticsScreen.kt">
+        <error line="3" column="1" source="standard:import-ordering" />
+        <error line="29" column="1" source="standard:no-unused-imports" />
+    </file>
+    <file name="src/com/photoselectortoolbox/ui/text/UiTextResolver.kt">
+        <error line="16" column="21" source="standard:wrapping" />
+    </file>
+    <file name="src/com/photoselectortoolbox/viewmodel/CompanionConfirmation.kt">
+        <error line="3" column="1" source="standard:import-ordering" />
+    </file>
+    <file name="src/com/photoselectortoolbox/viewmodel/DuplicatesViewModel.kt">
+        <error line="3" column="1" source="standard:import-ordering" />
+    </file>
+    <file name="src/com/photoselectortoolbox/viewmodel/LearnViewModel.kt">
+        <error line="3" column="1" source="standard:import-ordering" />
+    </file>
+    <file name="src/com/photoselectortoolbox/viewmodel/SelectorUiState.kt">
+        <error line="3" column="1" source="standard:import-ordering" />
+        <error line="8" column="1" source="standard:no-unused-imports" />
+        <error line="9" column="1" source="standard:no-unused-imports" />
+        <error line="10" column="1" source="standard:no-unused-imports" />
+        <error line="11" column="1" source="standard:no-unused-imports" />
+        <error line="12" column="1" source="standard:no-unused-imports" />
+        <error line="13" column="1" source="standard:no-unused-imports" />
+        <error line="14" column="1" source="standard:no-unused-imports" />
+        <error line="15" column="1" source="standard:no-unused-imports" />
+        <error line="16" column="1" source="standard:no-unused-imports" />
+        <error line="17" column="1" source="standard:no-unused-imports" />
+        <error line="18" column="1" source="standard:no-unused-imports" />
+        <error line="19" column="1" source="standard:no-unused-imports" />
+        <error line="20" column="1" source="standard:no-unused-imports" />
+        <error line="23" column="1" source="standard:no-unused-imports" />
+        <error line="24" column="1" source="standard:no-unused-imports" />
+        <error line="25" column="1" source="standard:no-unused-imports" />
+        <error line="26" column="1" source="standard:no-unused-imports" />
+        <error line="27" column="1" source="standard:no-unused-imports" />
+        <error line="28" column="1" source="standard:no-unused-imports" />
+        <error line="30" column="1" source="standard:no-unused-imports" />
+        <error line="31" column="1" source="standard:no-unused-imports" />
+        <error line="33" column="1" source="standard:no-unused-imports" />
+        <error line="34" column="1" source="standard:no-unused-imports" />
+        <error line="35" column="1" source="standard:no-unused-imports" />
+        <error line="36" column="1" source="standard:no-unused-imports" />
+        <error line="37" column="1" source="standard:no-unused-imports" />
+        <error line="38" column="1" source="standard:no-unused-imports" />
+        <error line="39" column="1" source="standard:no-unused-imports" />
+        <error line="40" column="1" source="standard:no-unused-imports" />
+        <error line="41" column="1" source="standard:no-unused-imports" />
+        <error line="42" column="1" source="standard:no-unused-imports" />
+        <error line="43" column="1" source="standard:no-unused-imports" />
+        <error line="45" column="1" source="standard:no-unused-imports" />
+        <error line="49" column="1" source="standard:no-unused-imports" />
+        <error line="50" column="1" source="standard:no-unused-imports" />
+        <error line="51" column="1" source="standard:no-unused-imports" />
+        <error line="55" column="1" source="standard:no-unused-imports" />
+        <error line="59" column="1" source="standard:no-unused-imports" />
+        <error line="60" column="1" source="standard:no-unused-imports" />
+        <error line="62" column="1" source="standard:no-unused-imports" />
+        <error line="63" column="1" source="standard:no-unused-imports" />
+        <error line="64" column="1" source="standard:no-unused-imports" />
+        <error line="65" column="1" source="standard:no-unused-imports" />
+        <error line="66" column="1" source="standard:no-unused-imports" />
+        <error line="67" column="1" source="standard:no-unused-imports" />
+        <error line="68" column="1" source="standard:no-unused-imports" />
+        <error line="70" column="1" source="standard:no-unused-imports" />
+        <error line="72" column="1" source="standard:no-unused-imports" />
+        <error line="73" column="1" source="standard:no-unused-imports" />
+        <error line="74" column="1" source="standard:no-unused-imports" />
+        <error line="75" column="1" source="standard:no-unused-imports" />
+        <error line="76" column="1" source="standard:no-unused-imports" />
+        <error line="77" column="1" source="standard:no-unused-imports" />
+        <error line="78" column="1" source="standard:no-unused-imports" />
+        <error line="79" column="1" source="standard:no-unused-imports" />
+        <error line="80" column="1" source="standard:no-unused-imports" />
+        <error line="81" column="1" source="standard:no-unused-imports" />
+        <error line="82" column="1" source="standard:no-unused-imports" />
+        <error line="83" column="1" source="standard:no-unused-imports" />
+        <error line="84" column="1" source="standard:no-unused-imports" />
+        <error line="85" column="1" source="standard:no-unused-imports" />
+        <error line="86" column="1" source="standard:no-unused-imports" />
+        <error line="87" column="1" source="standard:no-unused-imports" />
+        <error line="88" column="1" source="standard:no-unused-imports" />
+        <error line="89" column="1" source="standard:no-unused-imports" />
+        <error line="90" column="1" source="standard:no-unused-imports" />
+        <error line="91" column="1" source="standard:no-unused-imports" />
+        <error line="92" column="1" source="standard:no-unused-imports" />
+        <error line="93" column="1" source="standard:no-unused-imports" />
+        <error line="94" column="1" source="standard:no-unused-imports" />
+        <error line="95" column="1" source="standard:no-unused-imports" />
+        <error line="96" column="1" source="standard:no-unused-imports" />
+        <error line="97" column="1" source="standard:no-unused-imports" />
+        <error line="99" column="1" source="standard:no-unused-imports" />
+        <error line="100" column="1" source="standard:no-unused-imports" />
+        <error line="101" column="1" source="standard:no-unused-imports" />
+        <error line="102" column="1" source="standard:no-unused-imports" />
+        <error line="103" column="1" source="standard:no-unused-imports" />
+        <error line="104" column="1" source="standard:no-unused-imports" />
+        <error line="105" column="1" source="standard:no-unused-imports" />
+        <error line="331" column="5" source="standard:spacing-between-declarations-with-comments" />
+    </file>
+    <file name="src/com/photoselectortoolbox/viewmodel/SelectorViewModel.kt">
+        <error line="3" column="1" source="standard:import-ordering" />
+        <error line="511" column="57" source="standard:multiline-if-else" />
+        <error line="512" column="18" source="standard:multiline-if-else" />
+        <error line="1349" column="57" source="standard:multiline-if-else" />
+        <error line="1350" column="22" source="standard:multiline-if-else" />
+        <error line="1490" column="1" source="standard:indent" />
+        <error line="1491" column="1" source="standard:indent" />
+        <error line="1834" column="41" source="standard:function-literal" />
+        <error line="2082" column="24" source="standard:multiline-if-else" />
+    </file>
+    <file name="src/com/photoselectortoolbox/viewmodel/SettingsViewModel.kt">
+        <error line="3" column="1" source="standard:import-ordering" />
+    </file>
+    <file name="src/com/photoselectortoolbox/viewmodel/StatisticsViewModel.kt">
+        <error line="3" column="1" source="standard:import-ordering" />
+    </file>
+    <file name="tests/common/com/photoselectortoolbox/ui/BoundedRun.kt">
+        <error line="3" column="1" source="standard:import-ordering" />
+        <error line="3" column="1" source="standard:import-ordering" />
+    </file>
+    <file name="tests/instrumented/com/photoselectortoolbox/data/cache/ScoreDaoTest.kt">
+        <error line="9" column="1" source="standard:no-wildcard-imports" />
+    </file>
+    <file name="tests/instrumented/com/photoselectortoolbox/ui/FullscreenWindowTest.kt">
+        <error line="4" column="1" source="standard:import-ordering" />
+    </file>
+    <file name="tests/instrumented/com/photoselectortoolbox/ui/MainActivitySmokeTest.kt">
+        <error line="3" column="1" source="standard:import-ordering" />
+        <error line="46" column="1" source="standard:indent" />
+        <error line="47" column="1" source="standard:indent" />
+    </file>
+    <file name="tests/instrumented/com/photoselectortoolbox/ui/NavigationTest.kt">
+        <error line="3" column="1" source="standard:import-ordering" />
+        <error line="6" column="1" source="standard:no-unused-imports" />
+        <error line="50" column="1" source="standard:indent" />
+        <error line="51" column="1" source="standard:indent" />
+        <error line="70" column="1" source="standard:indent" />
+        <error line="71" column="1" source="standard:indent" />
+        <error line="97" column="1" source="standard:indent" />
+        <error line="98" column="1" source="standard:indent" />
+        <error line="126" column="1" source="standard:indent" />
+        <error line="127" column="1" source="standard:indent" />
+        <error line="152" column="1" source="standard:indent" />
+        <error line="153" column="1" source="standard:indent" />
+    </file>
+    <file name="tests/instrumented/com/photoselectortoolbox/ui/SelectorForcedSizeTest.kt">
+        <error line="4" column="1" source="standard:import-ordering" />
+        <error line="140" column="1" source="standard:indent" />
+        <error line="141" column="1" source="standard:indent" />
+        <error line="142" column="1" source="standard:indent" />
+        <error line="143" column="1" source="standard:indent" />
+        <error line="144" column="1" source="standard:indent" />
+        <error line="145" column="1" source="standard:indent" />
+        <error line="146" column="1" source="standard:indent" />
+        <error line="147" column="1" source="standard:indent" />
+        <error line="148" column="1" source="standard:indent" />
+        <error line="149" column="1" source="standard:indent" />
+        <error line="150" column="1" source="standard:indent" />
+        <error line="151" column="1" source="standard:indent" />
+        <error line="152" column="1" source="standard:indent" />
+        <error line="153" column="1" source="standard:indent" />
+        <error line="154" column="1" source="standard:indent" />
+        <error line="155" column="1" source="standard:indent" />
+        <error line="156" column="1" source="standard:indent" />
+        <error line="157" column="1" source="standard:indent" />
+        <error line="158" column="1" source="standard:indent" />
+        <error line="159" column="1" source="standard:indent" />
+        <error line="160" column="1" source="standard:indent" />
+        <error line="161" column="1" source="standard:indent" />
+        <error line="162" column="1" source="standard:indent" />
+        <error line="163" column="1" source="standard:indent" />
+        <error line="164" column="1" source="standard:indent" />
+        <error line="165" column="1" source="standard:indent" />
+        <error line="166" column="1" source="standard:indent" />
+        <error line="167" column="1" source="standard:indent" />
+        <error line="168" column="1" source="standard:indent" />
+        <error line="169" column="1" source="standard:indent" />
+        <error line="170" column="1" source="standard:indent" />
+        <error line="171" column="1" source="standard:indent" />
+        <error line="172" column="1" source="standard:indent" />
+        <error line="173" column="1" source="standard:indent" />
+        <error line="174" column="1" source="standard:indent" />
+        <error line="175" column="1" source="standard:indent" />
+        <error line="176" column="1" source="standard:indent" />
+        <error line="177" column="1" source="standard:indent" />
+        <error line="178" column="1" source="standard:indent" />
+        <error line="179" column="1" source="standard:indent" />
+        <error line="180" column="1" source="standard:indent" />
+        <error line="181" column="1" source="standard:indent" />
+        <error line="182" column="1" source="standard:indent" />
+        <error line="183" column="1" source="standard:indent" />
+        <error line="184" column="1" source="standard:indent" />
+        <error line="185" column="1" source="standard:indent" />
+        <error line="186" column="1" source="standard:indent" />
+        <error line="187" column="1" source="standard:indent" />
+        <error line="266" column="32" source="standard:multiline-loop" />
+        <error line="327" column="1" source="standard:indent" />
+        <error line="328" column="1" source="standard:indent" />
+        <error line="329" column="1" source="standard:indent" />
+        <error line="330" column="1" source="standard:indent" />
+        <error line="330" column="9" source="standard:wrapping" />
+        <error line="330" column="12" source="standard:multiline-if-else" />
+        <error line="673" column="37" source="standard:multiline-loop" />
+        <error line="773" column="38" source="standard:multiline-loop" />
+        <error line="783" column="35" source="standard:string-template" />
+    </file>
+    <file name="tests/instrumented/com/photoselectortoolbox/ui/SelectorScreenTest.kt">
+        <error line="10" column="1" source="standard:import-ordering" />
+        <error line="408" column="20" source="standard:string-template" />
+        <error line="408" column="91" source="standard:string-template" />
+        <error line="786" column="20" source="standard:wrapping" />
+        <error line="786" column="43" source="standard:wrapping" />
+        <error line="789" column="44" source="standard:wrapping" />
+        <error line="1716" column="11" source="standard:multiline-if-else" />
+        <error line="1831" column="15" source="standard:multiline-if-else" />
+        <error line="1883" column="32" source="standard:wrapping" />
+        <error line="1884" column="34" source="standard:wrapping" />
+    </file>
+    <file name="tests/instrumented/com/photoselectortoolbox/ui/WindowGeometryRule.kt">
+        <error line="3" column="1" source="standard:import-ordering" />
+        <error line="188" column="38" source="standard:multiline-if-else" />
+        <error line="189" column="22" source="standard:multiline-if-else" />
+    </file>
+    <file name="tests/unit/com/photoselectortoolbox/TestTagExposureTest.kt">
+        <error line="3" column="1" source="standard:import-ordering" />
+    </file>
+    <file name="tests/unit/com/photoselectortoolbox/conformance/DirectoryDocumentsProvider.kt">
+        <error line="70" column="27" source="standard:wrapping" />
+        <error line="79" column="34" source="standard:wrapping" />
+    </file>
+    <file name="tests/unit/com/photoselectortoolbox/conformance/FormatConformanceTest.kt">
+        <error line="3" column="1" source="standard:import-ordering" />
+        <error line="122" column="43" source="standard:multiline-loop" />
+        <error line="122" column="67" source="standard:multiline-loop" />
+        <error line="222" column="41" source="standard:multiline-if-else" />
+        <error line="222" column="58" source="standard:multiline-if-else" />
+        <error line="298" column="89" source="standard:multiline-if-else" />
+        <error line="298" column="100" source="standard:multiline-if-else" />
+    </file>
+    <file name="tests/unit/com/photoselectortoolbox/data/cache/ScoresDatabaseMigrationTest.kt">
+        <error line="3" column="1" source="standard:import-ordering" />
+        <error line="11" column="1" source="standard:no-unused-imports" />
+        <error line="330" column="41" source="standard:no-multi-spaces" />
+        <error line="331" column="41" source="standard:no-multi-spaces" />
+        <error line="715" column="1" source="standard:no-consecutive-blank-lines" />
+    </file>
+    <file name="tests/unit/com/photoselectortoolbox/data/metadata/MetadataWriterStressTest.kt">
+        <error line="3" column="1" source="standard:import-ordering" />
+        <error line="12" column="1" source="standard:no-unused-imports" />
+    </file>
+    <file name="tests/unit/com/photoselectortoolbox/data/metadata/MetadataWriterTest.kt">
+        <error line="3" column="1" source="standard:import-ordering" />
+    </file>
+    <file name="tests/unit/com/photoselectortoolbox/data/metadata/SafRatingWriterTest.kt">
+        <error line="3" column="1" source="standard:import-ordering" />
+        <error line="58" column="1" source="standard:spacing-between-declarations-with-annotations" />
+        <error line="62" column="1" source="standard:spacing-between-declarations-with-annotations" />
+        <error line="63" column="1" source="standard:spacing-between-declarations-with-annotations" />
+        <error line="63" column="13" source="standard:spacing-between-declarations-with-comments" />
+        <error line="65" column="1" source="standard:spacing-between-declarations-with-annotations" />
+        <error line="65" column="13" source="standard:spacing-between-declarations-with-comments" />
+        <error line="70" column="1" source="standard:spacing-between-declarations-with-annotations" />
+        <error line="71" column="1" source="standard:spacing-between-declarations-with-annotations" />
+        <error line="71" column="13" source="standard:spacing-between-declarations-with-comments" />
+        <error line="73" column="1" source="standard:spacing-between-declarations-with-annotations" />
+        <error line="74" column="1" source="standard:spacing-between-declarations-with-annotations" />
+        <error line="74" column="13" source="standard:spacing-between-declarations-with-comments" />
+        <error line="81" column="1" source="standard:spacing-between-declarations-with-annotations" />
+        <error line="114" column="22" source="standard:wrapping" />
+        <error line="121" column="44" source="standard:wrapping" />
+        <error line="125" column="34" source="standard:wrapping" />
+        <error line="134" column="36" source="standard:multiline-if-else" />
+        <error line="139" column="37" source="standard:annotation" />
+        <error line="253" column="106" source="standard:wrapping" />
+        <error line="267" column="129" source="standard:wrapping" />
+    </file>
+    <file name="tests/unit/com/photoselectortoolbox/data/metadata/WriteRatingsIntoPhotosTest.kt">
+        <error line="3" column="1" source="standard:import-ordering" />
+    </file>
+    <file name="tests/unit/com/photoselectortoolbox/data/model/DuplicateGroupTest.kt">
+        <error line="3" column="1" source="standard:no-wildcard-imports" />
+    </file>
+    <file name="tests/unit/com/photoselectortoolbox/data/model/ExifDataTest.kt">
+        <error line="4" column="1" source="standard:no-wildcard-imports" />
+    </file>
+    <file name="tests/unit/com/photoselectortoolbox/data/model/ImageItemTest.kt">
+        <error line="3" column="1" source="standard:no-wildcard-imports" />
+    </file>
+    <file name="tests/unit/com/photoselectortoolbox/data/model/ScanResultTest.kt">
+        <error line="4" column="1" source="standard:no-wildcard-imports" />
+    </file>
+    <file name="tests/unit/com/photoselectortoolbox/data/model/ScoreEntityTest.kt">
+        <error line="4" column="1" source="standard:no-wildcard-imports" />
+    </file>
+    <file name="tests/unit/com/photoselectortoolbox/data/reader/AndroidExifReaderTest.kt">
+        <error line="4" column="1" source="standard:no-wildcard-imports" />
+    </file>
+    <file name="tests/unit/com/photoselectortoolbox/data/repository/CacheRepositoryImplTest.kt">
+        <error line="7" column="1" source="standard:no-wildcard-imports" />
+        <error line="9" column="1" source="standard:no-wildcard-imports" />
+    </file>
+    <file name="tests/unit/com/photoselectortoolbox/data/repository/SafTransferTest.kt">
+        <error line="3" column="1" source="standard:import-ordering" />
+        <error line="8" column="1" source="standard:no-unused-imports" />
+        <error line="12" column="1" source="standard:no-unused-imports" />
+        <error line="26" column="1" source="standard:no-unused-imports" />
+        <error line="29" column="1" source="standard:no-unused-imports" />
+        <error line="31" column="1" source="standard:no-unused-imports" />
+        <error line="32" column="1" source="standard:no-unused-imports" />
+        <error line="34" column="1" source="standard:no-unused-imports" />
+        <error line="41" column="1" source="standard:no-unused-imports" />
+        <error line="87" column="13" source="standard:spacing-between-declarations-with-comments" />
+        <error line="211" column="28" source="standard:wrapping" />
+        <error line="218" column="42" source="standard:wrapping" />
+        <error line="272" column="1" source="standard:spacing-between-declarations-with-annotations" />
+        <error line="277" column="1" source="standard:spacing-between-declarations-with-annotations" />
+    </file>
+    <file name="tests/unit/com/photoselectortoolbox/data/repository/SelectionFolderLookupTest.kt">
+        <error line="3" column="1" source="standard:import-ordering" />
+    </file>
+    <file name="tests/unit/com/photoselectortoolbox/data/repository/SettingsMigrationsTest.kt">
+        <error line="3" column="1" source="standard:import-ordering" />
+    </file>
+    <file name="tests/unit/com/photoselectortoolbox/data/source/CompanionGroupingTest.kt">
+        <error line="3" column="1" source="standard:import-ordering" />
+        <error line="9" column="1" source="standard:no-unused-imports" />
+    </file>
+    <file name="tests/unit/com/photoselectortoolbox/data/source/DimensionOrientationTest.kt">
+        <error line="3" column="1" source="standard:import-ordering" />
+    </file>
+    <file name="tests/unit/com/photoselectortoolbox/data/source/DiscoveryScaleTest.kt">
+        <error line="57" column="93" source="standard:wrapping" />
+        <error line="66" column="13" source="standard:wrapping" />
+        <error line="91" column="5" source="standard:spacing-between-declarations-with-comments" />
+    </file>
+    <file name="tests/unit/com/photoselectortoolbox/domain/LegalLinksTest.kt">
+        <error line="3" column="1" source="standard:import-ordering" />
+    </file>
+    <file name="tests/unit/com/photoselectortoolbox/domain/analysis/CoachFitsCameraTest.kt">
+        <error line="3" column="1" source="standard:import-ordering" />
+    </file>
+    <file name="tests/unit/com/photoselectortoolbox/domain/analysis/CompositionAnalyzerTest.kt">
+        <error line="207" column="1" source="standard:no-consecutive-blank-lines" />
+    </file>
+    <file name="tests/unit/com/photoselectortoolbox/domain/analysis/NoiseAnalyzerTest.kt">
+        <error line="3" column="1" source="standard:import-ordering" />
+    </file>
+    <file name="tests/unit/com/photoselectortoolbox/domain/analysis/PhotoCoachEngineStressTest.kt">
+        <error line="3" column="1" source="standard:import-ordering" />
+        <error line="278" column="34" source="standard:no-multi-spaces" />
+    </file>
+    <file name="tests/unit/com/photoselectortoolbox/domain/analysis/PhotoCoachEngineTest.kt">
+        <error line="3" column="1" source="standard:import-ordering" />
+        <error line="25" column="1" source="standard:no-consecutive-blank-lines" />
+        <error line="59" column="29" source="standard:wrapping" />
+        <error line="157" column="29" source="standard:wrapping" />
+    </file>
+    <file name="tests/unit/com/photoselectortoolbox/domain/analysis/SharpnessAnalyzerTest.kt">
+        <error line="3" column="1" source="standard:import-ordering" />
+        <error line="35" column="9" source="standard:function-naming" />
+        <error line="39" column="9" source="standard:function-naming" />
+    </file>
+    <file name="tests/unit/com/photoselectortoolbox/domain/curation/DeferredDeletionTest.kt">
+        <error line="6" column="1" source="standard:no-unused-imports" />
+    </file>
+    <file name="tests/unit/com/photoselectortoolbox/domain/curation/TransferSpaceTest.kt">
+        <error line="3" column="1" source="standard:import-ordering" />
+    </file>
+    <file name="tests/unit/com/photoselectortoolbox/domain/curation/UndoRestoreTest.kt">
+        <error line="18" column="26" source="standard:wrapping" />
+        <error line="19" column="76" source="standard:wrapping" />
+    </file>
+    <file name="tests/unit/com/photoselectortoolbox/domain/duplicates/DuplicateDetectorTest.kt">
+        <error line="11" column="1" source="standard:no-unused-imports" />
+    </file>
+    <file name="tests/unit/com/photoselectortoolbox/domain/format/DestinationLabelsTest.kt">
+        <error line="3" column="1" source="standard:import-ordering" />
+    </file>
+    <file name="tests/unit/com/photoselectortoolbox/domain/format/ExifFormatterTest.kt">
+        <error line="3" column="1" source="standard:import-ordering" />
+    </file>
+    <file name="tests/unit/com/photoselectortoolbox/domain/format/SelectionActionLabelsTest.kt">
+        <error line="3" column="1" source="standard:import-ordering" />
+    </file>
+    <file name="tests/unit/com/photoselectortoolbox/domain/format/SelectorLabelsTest.kt">
+        <error line="3" column="1" source="standard:import-ordering" />
+    </file>
+    <file name="tests/unit/com/photoselectortoolbox/domain/grouping/DHashCalculatorTest.kt">
+        <error line="5" column="1" source="standard:no-wildcard-imports" />
+        <error line="82" column="32" source="standard:multiline-loop" />
+    </file>
+    <file name="tests/unit/com/photoselectortoolbox/domain/grouping/ImageGrouperTest.kt">
+        <error line="6" column="1" source="standard:no-wildcard-imports" />
+    </file>
+    <file name="tests/unit/com/photoselectortoolbox/domain/guidance/SelectorHintTextTest.kt">
+        <error line="3" column="1" source="standard:import-ordering" />
+    </file>
+    <file name="tests/unit/com/photoselectortoolbox/domain/guidance/SelectorTourTest.kt">
+        <error line="3" column="1" source="standard:import-ordering" />
+    </file>
+    <file name="tests/unit/com/photoselectortoolbox/domain/interaction/SelectorGesturesTest.kt">
+        <error line="3" column="1" source="standard:import-ordering" />
+        <error line="75" column="22" source="standard:wrapping" />
+        <error line="76" column="38" source="standard:wrapping" />
+    </file>
+    <file name="tests/unit/com/photoselectortoolbox/domain/learn/AdviceCatalogTest.kt">
+        <error line="3" column="1" source="standard:import-ordering" />
+    </file>
+    <file name="tests/unit/com/photoselectortoolbox/domain/learn/CameraProfilerTest.kt">
+        <error line="103" column="26" source="standard:wrapping" />
+        <error line="104" column="95" source="standard:wrapping" />
+    </file>
+    <file name="tests/unit/com/photoselectortoolbox/domain/learn/DebriefSharpnessTest.kt">
+        <error line="3" column="1" source="standard:import-ordering" />
+    </file>
+    <file name="tests/unit/com/photoselectortoolbox/domain/learn/LearnModulesTest.kt">
+        <error line="3" column="1" source="standard:import-ordering" />
+    </file>
+    <file name="tests/unit/com/photoselectortoolbox/domain/scoring/ScoreGoodnessTest.kt">
+        <error line="3" column="1" source="standard:import-ordering" />
+    </file>
+    <file name="tests/unit/com/photoselectortoolbox/domain/scoring/ScoreMetricTest.kt">
+        <error line="3" column="1" source="standard:import-ordering" />
+    </file>
+    <file name="tests/unit/com/photoselectortoolbox/domain/scoring/SharpnessWordingTest.kt">
+        <error line="3" column="1" source="standard:import-ordering" />
+    </file>
+    <file name="tests/unit/com/photoselectortoolbox/domain/session/PhotoJumpDateTest.kt">
+        <error line="3" column="1" source="standard:import-ordering" />
+    </file>
+    <file name="tests/unit/com/photoselectortoolbox/domain/usecase/ScanImagesUseCaseBench.kt">
+        <error line="54" column="75" source="standard:function-literal" />
+        <error line="54" column="75" source="standard:wrapping" />
+        <error line="55" column="1" source="standard:indent" />
+        <error line="56" column="1" source="standard:indent" />
+        <error line="57" column="1" source="standard:indent" />
+        <error line="58" column="1" source="standard:indent" />
+        <error line="59" column="1" source="standard:indent" />
+        <error line="60" column="1" source="standard:indent" />
+        <error line="61" column="1" source="standard:indent" />
+        <error line="62" column="1" source="standard:indent" />
+        <error line="63" column="1" source="standard:indent" />
+        <error line="64" column="1" source="standard:indent" />
+        <error line="64" column="13" source="standard:wrapping" />
+        <error line="64" column="14" source="standard:curly-spacing" />
+        <error line="64" column="14" source="standard:function-literal" />
+    </file>
+    <file name="tests/unit/com/photoselectortoolbox/domain/usecase/ScanImagesUseCaseTest.kt">
+        <error line="3" column="1" source="standard:import-ordering" />
+        <error line="124" column="38" source="standard:wrapping" />
+        <error line="126" column="13" source="standard:wrapping" />
+    </file>
+    <file name="tests/unit/com/photoselectortoolbox/domain/usecase/UseCaseHygieneTest.kt">
+        <error line="60" column="19" source="standard:multiline-if-else" />
+    </file>
+    <file name="tests/unit/com/photoselectortoolbox/domain/workflow/Phase5and6EnhancementsTest.kt">
+        <error line="3" column="1" source="standard:import-ordering" />
+    </file>
+    <file name="tests/unit/com/photoselectortoolbox/testing/InMemoryLearnRepository.kt">
+        <error line="23" column="5" source="standard:spacing-between-declarations-with-comments" />
+        <error line="25" column="5" source="standard:spacing-between-declarations-with-comments" />
+    </file>
+    <file name="tests/unit/com/photoselectortoolbox/ui/components/CompositionGeometryTest.kt">
+        <error line="3" column="1" source="standard:import-ordering" />
+        <error line="9" column="1" source="standard:no-unused-imports" />
+        <error line="229" column="32" source="standard:no-multi-spaces" />
+        <error line="230" column="32" source="standard:no-multi-spaces" />
+        <error line="231" column="31" source="standard:no-multi-spaces" />
+        <error line="267" column="32" source="standard:no-multi-spaces" />
+        <error line="268" column="31" source="standard:no-multi-spaces" />
+        <error line="324" column="23" source="standard:no-multi-spaces" />
+        <error line="325" column="23" source="standard:no-multi-spaces" />
+        <error line="326" column="18" source="standard:no-multi-spaces" />
+        <error line="353" column="23" source="standard:no-multi-spaces" />
+        <error line="354" column="23" source="standard:no-multi-spaces" />
+        <error line="355" column="19" source="standard:no-multi-spaces" />
+        <error line="438" column="32" source="standard:no-multi-spaces" />
+        <error line="439" column="32" source="standard:no-multi-spaces" />
+        <error line="440" column="32" source="standard:no-multi-spaces" />
+        <error line="442" column="32" source="standard:no-multi-spaces" />
+        <error line="443" column="31" source="standard:no-multi-spaces" />
+        <error line="462" column="32" source="standard:no-multi-spaces" />
+        <error line="463" column="32" source="standard:no-multi-spaces" />
+        <error line="465" column="31" source="standard:no-multi-spaces" />
+    </file>
+    <file name="tests/unit/com/photoselectortoolbox/ui/duplicates/DuplicatesHeldDeleteScreenTest.kt">
+        <error line="3" column="1" source="standard:import-ordering" />
+    </file>
+    <file name="tests/unit/com/photoselectortoolbox/ui/fit/FitFixtures.kt">
+        <error line="3" column="1" source="standard:import-ordering" />
+        <error line="226" column="25" source="standard:multiline-loop" />
+    </file>
+    <file name="tests/unit/com/photoselectortoolbox/ui/fit/GermanScreenFitTest.kt">
+        <error line="187" column="120" source="standard:multiline-loop" />
+    </file>
+    <file name="tests/unit/com/photoselectortoolbox/ui/fit/KnownFitDefects.kt">
+        <error line="41" column="18" source="standard:wrapping" />
+        <error line="42" column="73" source="standard:wrapping" />
+    </file>
+    <file name="tests/unit/com/photoselectortoolbox/ui/fit/ScreenFit.kt">
+        <error line="3" column="1" source="standard:import-ordering" />
+        <error line="21" column="1" source="standard:no-unused-imports" />
+        <error line="139" column="36" source="standard:string-template" />
+        <error line="294" column="40" source="standard:multiline-loop" />
+    </file>
+    <file name="tests/unit/com/photoselectortoolbox/ui/fit/ScreenFitMatrixTest.kt">
+        <error line="3" column="1" source="standard:import-ordering" />
+        <error line="197" column="120" source="standard:multiline-loop" />
+        <error line="344" column="1" source="standard:no-blank-line-before-rbrace" />
+    </file>
+    <file name="tests/unit/com/photoselectortoolbox/ui/fit/SelectorOverlayClearanceTest.kt">
+        <error line="174" column="38" source="standard:multiline-loop" />
+    </file>
+    <file name="tests/unit/com/photoselectortoolbox/ui/inspect/BurstsReachLearnTest.kt">
+        <error line="11" column="1" source="standard:no-unused-imports" />
+        <error line="57" column="1" source="standard:no-unused-imports" />
+    </file>
+    <file name="tests/unit/com/photoselectortoolbox/ui/inspect/DebriefScreenTest.kt">
+        <error line="193" column="22" source="standard:wrapping" />
+        <error line="193" column="48" source="standard:wrapping" />
+        <error line="194" column="125" source="standard:wrapping" />
+    </file>
+    <file name="tests/unit/com/photoselectortoolbox/ui/inspect/InspectScreenTest.kt">
+        <error line="3" column="1" source="standard:import-ordering" />
+        <error line="12" column="1" source="standard:no-unused-imports" />
+        <error line="13" column="1" source="standard:no-unused-imports" />
+        <error line="14" column="1" source="standard:no-unused-imports" />
+    </file>
+    <file name="tests/unit/com/photoselectortoolbox/ui/inspect/LearnPlainLanguageTest.kt">
+        <error line="3" column="1" source="standard:import-ordering" />
+    </file>
+    <file name="tests/unit/com/photoselectortoolbox/ui/navigation/ScreenTest.kt">
+        <error line="3" column="1" source="standard:import-ordering" />
+        <error line="5" column="1" source="standard:no-wildcard-imports" />
+    </file>
+    <file name="tests/unit/com/photoselectortoolbox/ui/navigation/ToolsNavigationTest.kt">
+        <error line="3" column="1" source="standard:import-ordering" />
+    </file>
+    <file name="tests/unit/com/photoselectortoolbox/ui/screenshot/ReadmeScreenshotTest.kt">
+        <error line="3" column="1" source="standard:import-ordering" />
+        <error line="196" column="29" source="standard:wrapping" />
+        <error line="196" column="62" source="standard:wrapping" />
+        <error line="198" column="13" source="standard:wrapping" />
+        <error line="199" column="31" source="standard:wrapping" />
+        <error line="199" column="77" source="standard:wrapping" />
+        <error line="201" column="13" source="standard:wrapping" />
+        <error line="217" column="29" source="standard:wrapping" />
+        <error line="217" column="76" source="standard:wrapping" />
+        <error line="220" column="13" source="standard:wrapping" />
+    </file>
+    <file name="tests/unit/com/photoselectortoolbox/ui/selector/CandidateStripBurstMarkerTest.kt">
+        <error line="3" column="1" source="standard:import-ordering" />
+    </file>
+    <file name="tests/unit/com/photoselectortoolbox/ui/selector/CompanionConfirmationUiTest.kt">
+        <error line="3" column="1" source="standard:import-ordering" />
+    </file>
+    <file name="tests/unit/com/photoselectortoolbox/ui/selector/ControlBlockFitTest.kt">
+        <error line="20" column="17" source="standard:property-naming" />
+    </file>
+    <file name="tests/unit/com/photoselectortoolbox/ui/selector/CopiedMarkTest.kt">
+        <error line="3" column="1" source="standard:import-ordering" />
+    </file>
+    <file name="tests/unit/com/photoselectortoolbox/ui/selector/FrameGeometryTest.kt">
+        <error line="78" column="31" source="standard:no-multi-spaces" />
+        <error line="79" column="32" source="standard:no-multi-spaces" />
+    </file>
+    <file name="tests/unit/com/photoselectortoolbox/ui/selector/FullscreenViewerTest.kt">
+        <error line="3" column="1" source="standard:import-ordering" />
+        <error line="103" column="9" source="standard:spacing-between-declarations-with-comments" />
+    </file>
+    <file name="tests/unit/com/photoselectortoolbox/ui/selector/GoToPhotoDatePickerWindowTest.kt">
+        <error line="3" column="1" source="standard:import-ordering" />
+    </file>
+    <file name="tests/unit/com/photoselectortoolbox/ui/selector/GoToPhotoDialogTest.kt">
+        <error line="3" column="1" source="standard:import-ordering" />
+        <error line="5" column="1" source="standard:no-unused-imports" />
+    </file>
+    <file name="tests/unit/com/photoselectortoolbox/ui/selector/LargeFontHintAndSidebarTest.kt">
+        <error line="3" column="1" source="standard:import-ordering" />
+    </file>
+    <file name="tests/unit/com/photoselectortoolbox/ui/selector/MaximisedFrameTest.kt">
+        <error line="3" column="1" source="standard:import-ordering" />
+        <error line="225" column="34" source="standard:multiline-loop" />
+    </file>
+    <file name="tests/unit/com/photoselectortoolbox/ui/selector/ScanSheetWiringTest.kt">
+        <error line="3" column="1" source="standard:import-ordering" />
+    </file>
+    <file name="tests/unit/com/photoselectortoolbox/ui/selector/SelectorActionFeedbackTest.kt">
+        <error line="3" column="1" source="standard:import-ordering" />
+    </file>
+    <file name="tests/unit/com/photoselectortoolbox/ui/selector/SelectorBackTest.kt">
+        <error line="3" column="1" source="standard:import-ordering" />
+    </file>
+    <file name="tests/unit/com/photoselectortoolbox/ui/selector/SelectorControlBlockCounterTest.kt">
+        <error line="3" column="1" source="standard:import-ordering" />
+    </file>
+    <file name="tests/unit/com/photoselectortoolbox/ui/selector/SelectorDoneTest.kt">
+        <error line="3" column="1" source="standard:import-ordering" />
+    </file>
+    <file name="tests/unit/com/photoselectortoolbox/ui/selector/SelectorJumpKeyTest.kt">
+        <error line="3" column="1" source="standard:import-ordering" />
+    </file>
+    <file name="tests/unit/com/photoselectortoolbox/ui/selector/SelectorKeyAlignmentTest.kt">
+        <error line="3" column="1" source="standard:import-ordering" />
+    </file>
+    <file name="tests/unit/com/photoselectortoolbox/ui/selector/SelectorLocatorFramesTest.kt">
+        <error line="122" column="36" source="standard:multiline-loop" />
+    </file>
+    <file name="tests/unit/com/photoselectortoolbox/ui/selector/SelectorLocatorRowTest.kt">
+        <error line="3" column="1" source="standard:import-ordering" />
+        <error line="126" column="33" source="standard:multiline-loop" />
+        <error line="147" column="22" source="standard:wrapping" />
+        <error line="147" column="31" source="standard:wrapping" />
+        <error line="148" column="74" source="standard:wrapping" />
+    </file>
+    <file name="tests/unit/com/photoselectortoolbox/ui/selector/SelectorMoreMenuTest.kt">
+        <error line="3" column="1" source="standard:import-ordering" />
+    </file>
+    <file name="tests/unit/com/photoselectortoolbox/ui/selector/SelectorScreenLocatorTest.kt">
+        <error line="3" column="1" source="standard:import-ordering" />
+    </file>
+    <file name="tests/unit/com/photoselectortoolbox/ui/selector/SelectorSnackbarTest.kt">
+        <error line="3" column="1" source="standard:import-ordering" />
+    </file>
+    <file name="tests/unit/com/photoselectortoolbox/ui/selector/SelectorSortKeyTest.kt">
+        <error line="3" column="1" source="standard:import-ordering" />
+    </file>
+    <file name="tests/unit/com/photoselectortoolbox/ui/settings/DestinationSectionTest.kt">
+        <error line="3" column="1" source="standard:import-ordering" />
+    </file>
+    <file name="tests/unit/com/photoselectortoolbox/ui/settings/ResetLearnRowTest.kt">
+        <error line="3" column="1" source="standard:import-ordering" />
+    </file>
+    <file name="tests/unit/com/photoselectortoolbox/ui/settings/SettingsRadioRowsTest.kt">
+        <error line="3" column="1" source="standard:import-ordering" />
+    </file>
+    <file name="tests/unit/com/photoselectortoolbox/ui/settings/SettingsScreenDestinationTest.kt">
+        <error line="177" column="22" source="standard:wrapping" />
+        <error line="177" column="31" source="standard:wrapping" />
+        <error line="178" column="81" source="standard:wrapping" />
+        <error line="194" column="22" source="standard:wrapping" />
+        <error line="194" column="31" source="standard:wrapping" />
+        <error line="195" column="81" source="standard:wrapping" />
+    </file>
+    <file name="tests/unit/com/photoselectortoolbox/ui/theme/ContrastTokensTest.kt">
+        <error line="3" column="1" source="standard:import-ordering" />
+    </file>
+    <file name="tests/unit/com/photoselectortoolbox/ui/window/BoundedRunReportTest.kt">
+        <error line="117" column="37" source="standard:wrapping" />
+        <error line="119" column="11" source="standard:wrapping" />
+        <error line="119" column="22" source="standard:wrapping" />
+        <error line="130" column="37" source="standard:wrapping" />
+        <error line="132" column="11" source="standard:wrapping" />
+        <error line="132" column="22" source="standard:wrapping" />
+        <error line="145" column="21" source="standard:wrapping" />
+        <error line="147" column="11" source="standard:wrapping" />
+        <error line="147" column="22" source="standard:wrapping" />
+    </file>
+    <file name="tests/unit/com/photoselectortoolbox/ui/window/ReferenceWindowMathTest.kt">
+        <error line="3" column="1" source="standard:import-ordering" />
+    </file>
+    <file name="tests/unit/com/photoselectortoolbox/viewmodel/CompanionConfirmationTest.kt">
+        <error line="3" column="1" source="standard:import-ordering" />
+    </file>
+    <file name="tests/unit/com/photoselectortoolbox/viewmodel/DuplicatesViewModelDeleteTest.kt">
+        <error line="3" column="1" source="standard:import-ordering" />
+    </file>
+    <file name="tests/unit/com/photoselectortoolbox/viewmodel/DuplicatesViewModelTest.kt">
+        <error line="3" column="1" source="standard:import-ordering" />
+        <error line="3" column="1" source="standard:no-unused-imports" />
+        <error line="5" column="1" source="standard:no-unused-imports" />
+        <error line="6" column="1" source="standard:no-unused-imports" />
+        <error line="7" column="1" source="standard:no-unused-imports" />
+        <error line="8" column="1" source="standard:no-wildcard-imports" />
+    </file>
+    <file name="tests/unit/com/photoselectortoolbox/viewmodel/PendingDeleteRecoveryTest.kt">
+        <error line="3" column="1" source="standard:import-ordering" />
+        <error line="206" column="35" source="standard:multiline-if-else" />
+        <error line="207" column="14" source="standard:multiline-if-else" />
+    </file>
+    <file name="tests/unit/com/photoselectortoolbox/viewmodel/RatingNavigationStressTest.kt">
+        <error line="3" column="1" source="standard:import-ordering" />
+        <error line="34" column="1" source="standard:no-unused-imports" />
+    </file>
+    <file name="tests/unit/com/photoselectortoolbox/viewmodel/SelectorUiStateTest.kt">
+        <error line="3" column="1" source="standard:import-ordering" />
+        <error line="6" column="1" source="standard:no-wildcard-imports" />
+    </file>
+    <file name="tests/unit/com/photoselectortoolbox/viewmodel/SelectorViewModelRatingTest.kt">
+        <error line="3" column="1" source="standard:import-ordering" />
+        <error line="6" column="1" source="standard:no-unused-imports" />
+        <error line="15" column="1" source="standard:no-unused-imports" />
+    </file>
+    <file name="tests/unit/com/photoselectortoolbox/viewmodel/SelectorViewModelRelaunchTest.kt">
+        <error line="3" column="1" source="standard:import-ordering" />
+    </file>
+    <file name="tests/unit/com/photoselectortoolbox/viewmodel/SelectorViewModelTest.kt">
+        <error line="3" column="1" source="standard:import-ordering" />
+        <error line="8" column="1" source="standard:no-unused-imports" />
+        <error line="11" column="1" source="standard:no-unused-imports" />
+        <error line="21" column="1" source="standard:no-unused-imports" />
+        <error line="45" column="1" source="standard:no-unused-imports" />
+        <error line="1073" column="1" source="standard:indent" />
+        <error line="2039" column="1" source="standard:no-consecutive-blank-lines" />
+    </file>
+    <file name="tests/unit/com/photoselectortoolbox/viewmodel/SessionTallyTest.kt">
+        <error line="90" column="22" source="standard:wrapping" />
+        <error line="91" column="94" source="standard:wrapping" />
+        <error line="91" column="101" source="standard:wrapping" />
+    </file>
+    <file name="tests/unit/com/photoselectortoolbox/viewmodel/StatisticsViewModelTest.kt">
+        <error line="3" column="1" source="standard:import-ordering" />
+        <error line="3" column="1" source="standard:no-wildcard-imports" />
+    </file>
+    <file name="tests/unit/com/photoselectortoolbox/viewmodel/ToolFolderGrantTest.kt">
+        <error line="3" column="1" source="standard:import-ordering" />
+        <error line="62" column="5" source="standard:spacing-between-declarations-with-comments" />
+    </file>
+    <file name="tests/unit/com/photoselectortoolbox/viewmodel/ViewModelHygieneTest.kt">
+        <error line="41" column="19" source="standard:multiline-if-else" />
+    </file>
+</baseline>

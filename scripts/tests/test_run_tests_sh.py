@@ -404,17 +404,18 @@ class RunTestsScopedLocalGatesTest(_MirrorHarness):
                          extra_env={"PST_MIN_SPACE_GB": "0"})
         self.assertEqual(rows["lab tooling tests"][0], "PASS")
 
-    def test_lint_is_skipped_unless_all_or_opted_in(self):
+    def test_lint_and_style_are_a_gate_skipped_only_under_quick(self):
         root = self.lab_root()
         env = {"PST_MIN_SPACE_GB": "0"}
-        row = self.rows(root, "--android", extra_env=env)["gradlew lintDebug (advisory)"]
-        self.assertEqual(row[0], "SKIP")
-        self.assertIn("PST_ANDROID_LINT=1 runs it here", row[2])
-        self.assertEqual(row[4], "false")
-        self.assertNotIn("lintDebug", self.marker())
-        row = self.rows(root, "--android", extra_env={**env, "PST_ANDROID_LINT": "1"})["gradlew lintDebug (advisory)"]
-        self.assertEqual(row[0], "PASS")
+        lint = "gradlew lintDebug (:core, :saf, :android-desktop, :phototok)"
+        style = "gradlew detekt ktlintCheck"
+        rows = self.rows(root, "--android", extra_env=env)
+        self.assertEqual(rows[lint][0], "PASS")
+        self.assertEqual(rows[style][0], "PASS")
         self.assertIn("lintDebug", self.marker())
+        self.assertIn("ktlintCheck", self.marker())
+        row = self.rows(root, "--android", "--quick", extra_env=env)["android lint, detekt, ktlint"]
+        self.assertEqual(row[0], "SKIP")
 
     def test_a_change_under_the_lab_selects_the_lab_tests(self):
         root = self.lab_root()

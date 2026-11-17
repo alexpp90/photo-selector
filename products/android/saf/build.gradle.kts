@@ -2,6 +2,7 @@ import org.jetbrains.kotlin.gradle.dsl.JvmTarget
 
 plugins {
     alias(libs.plugins.android.library)
+    id("photoselector.android-module")
 }
 
 // :saf holds the Storage Access Framework file operations both Android products
@@ -28,25 +29,6 @@ kotlin {
 android {
     namespace = "com.photoselector.saf"
     compileSdk = 37
-
-    // Uniform product layout: every product in this repository exposes `src/`
-    // and `tests/`, whatever its language. That overrides Gradle's default
-    // src/main | src/test | src/androidTest convention on purpose — see
-    // docs/README.md. Keep these four blocks in sync across the Android modules.
-    sourceSets {
-        getByName("main") {
-            java.directories.apply { clear(); add("src") }
-            kotlin.directories.apply { clear(); add("src") }
-        }
-        getByName("test") {
-            java.directories.apply { clear(); add("tests/unit"); add("tests/common") }
-            kotlin.directories.apply { clear(); add("tests/unit"); add("tests/common") }
-        }
-        getByName("androidTest") {
-            java.directories.apply { clear(); add("tests/instrumented"); add("tests/common") }
-            kotlin.directories.apply { clear(); add("tests/instrumented"); add("tests/common") }
-        }
-    }
 
     defaultConfig {
         minSdk = 26
@@ -75,9 +57,6 @@ android {
         }
     }
 
-    lint {
-        abortOnError = false
-    }
 }
 
 dependencies {
