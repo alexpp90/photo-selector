@@ -57,16 +57,15 @@ run_file() {
         -p no:cacheprovider -o faulthandler_timeout=120 -o addopts=""
 }
 for test_file in tests/unit/test_*.py; do
+    # The scale tests compare timings at two folder sizes: that is a statement about our code, not the
+    # distribution's stack, and a shared container's noise can push a ratio over its limit. The `test`
+    # job runs them (with best-of-attempts); here they are left out.
+    case "$test_file" in
+        *_scale.py) echo "note: $test_file left to the test job"; continue ;;
+    esac
     run_file "$test_file" && continue
     rc=$?
     [[ $rc -eq 5 ]] && continue  # nothing collected
-    # The time-budget files compare timings on a shared, noisy runner: measure once more, as the
-    # time-budget rule does, before calling a ratio a failure. Every other failure stands.
-    case "$test_file" in
-        *test_scan_scale.py|*test_workspace_scale.py|*test_scoring.py)
-            echo "note: re-measuring $test_file once"
-            run_file "$test_file" && continue ;;
-    esac
     failed+=("$test_file (exit $rc)")
 done
 if ((${#failed[@]})); then
